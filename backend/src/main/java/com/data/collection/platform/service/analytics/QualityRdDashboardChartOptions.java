@@ -91,8 +91,11 @@ final class QualityRdDashboardChartOptions {
       return;
     }
     // 对齐老平台 AssigneeDefectDensityChart/AuthorDefectDensityChart：初始只展示前 11 项，
-    // 其余数据通过 inside/slider dataZoom 浏览，不把完整聚合结果一次性铺满页面。
-    option.put("dataZoom", AnalyticsDataZoomOptions.vertical(rowCount, 10));
+    // 其余数据通过 slider 浏览，不把完整聚合结果一次性铺满页面。
+    option.put(
+        "dataZoom",
+        AnalyticsDataZoomOptions.vertical(
+            rowCount, AnalyticsDataZoomOptions.LEGACY_INITIAL_VIEWPORT_END_VALUE));
   }
 
   private static Map<String, Object> severitySeries(

@@ -58,4 +58,15 @@ class IssueLabelRulesTest {
     assertThat(result.get("模块")).containsExactly("草图");
     assertThat(result).hasSize(1);
   }
+
+  @Test
+  void parseOldPlatformLabelMapPreservesDuplicateUrgencyAndDelayFormatting() {
+    Map<String, List<String>> result = IssueLabelRules.parseOldPlatformChineseColonLabelMap(
+        List.of("P1", "P2", "延期原因：技术卡点", "延期原因：资源卡点", "算法问题"));
+
+    assertThat(IssueLabelRules.oldPlatformLabelValue(result, "紧急程度", null))
+        .isEqualTo("未设定紧急程度");
+    assertThat(IssueLabelRules.oldPlatformLabelValue(result, "延期原因", null))
+        .isEqualTo("技术卡点 & 资源卡点&算法问题");
+  }
 }

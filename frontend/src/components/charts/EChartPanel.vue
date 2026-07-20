@@ -128,6 +128,19 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
+/* ECharts draws slider borders, shadows and handles slightly outside its SVG viewport.
+ * The surrounding chart/card containers are already visible; the SVG itself must not
+ * clip those edge pixels or both horizontal and vertical sliders lose their outer edge. */
+.chart-panel__canvas :deep(svg) {
+  overflow: visible !important;
+}
+
+/* The SVG renderer also creates a relative wrapper around the SVG. That wrapper defaults to
+ * overflow:hidden and otherwise clips the vertical slider's rotated handle on the right edge. */
+.chart-panel__canvas :deep(> div) {
+  overflow: visible !important;
+}
+
 .chart-panel__empty {
   min-height: 180px;
   display: flex;

@@ -150,7 +150,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     return new StatisticBoardDefinition(
         BOARD_KEY,
         "客户问题延期问题",
-        "按老平台延期问题页口径展示模块维度响应延期和解决延期数量。",
+        "按模块展示客户问题的响应延期和解决延期数量。",
         "",
         "",
         "模块",
@@ -322,7 +322,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         "客户问题延期问题规则说明",
         RULE_VERSION,
         "当前统计先限定客户问题范围，再保留仍未关闭且已经命中延期规则的议题，按模块、紧急程度和延期类型统计。",
-        "对齐老平台延期问题统计表口径：表格数量只统计紧急程度命中 P1、P2 或 P3 的议题；未设定紧急程度可参与延期事实判定，但不计入 P3 和总计。",
+        "表格数量只统计紧急程度命中 P1、P2 或 P3 的议题；未设定紧急程度可参与延期事实判定，但不计入 P3 和总计。",
         snapshot.flowSteps(),
         List.of(
             new StatisticRuleMetricDefinition(
@@ -340,7 +340,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
             new StatisticRuleMetricDefinition(
                 "priority",
                 "紧急程度归桶",
-                "P1/P2/P3 按紧急程度标签统计；未设定紧急程度不进入老平台延期问题统计表数量。",
+                "P1/P2/P3 按紧急程度标签统计；未设定紧急程度不进入表格数量。",
                 "P1/P2/P3 = 紧急程度字段包含对应标签；其他值不计入表格数量",
                 null)),
         null);
@@ -402,7 +402,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
             StatisticRuleFlowSupport.step(
                 "gitlab-api-filter",
                 "剔除 GitLab 接口报错",
-                "对齐老平台延期问题口径：排除非法类型包含 GitLab 接口报错的议题。",
+                "排除非法类型包含 GitLab 接口报错的议题。",
                 visible.size(),
                 gitlabReadable,
                 this::toRuleFlowSample),
@@ -423,7 +423,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
             StatisticRuleFlowSupport.step(
                 "legacy-priority-filter",
                 "限定统计紧急程度",
-                "对齐老平台延期问题统计表：只统计紧急程度命中 P1、P2 或 P3 的议题，未设定紧急程度不进入表格数量。",
+                "只统计紧急程度命中 P1、P2 或 P3 的议题，未设定紧急程度不进入表格数量。",
                 delayed.size(),
                 legacyPriorityIssues,
                 this::toRuleFlowSample),

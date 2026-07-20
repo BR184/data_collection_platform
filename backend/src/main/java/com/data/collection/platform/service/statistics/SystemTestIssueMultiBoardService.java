@@ -4,19 +4,17 @@ import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.data.collection.platform.entity.statistics.SystemTestIssueMultiBoardResponse;
-import com.data.collection.platform.service.ExcelExportStyles;
 import com.data.collection.platform.service.OptionItemResponseFactory;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.data.collection.platform.service.TextQuerySupport;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -26,11 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -84,21 +77,12 @@ public class SystemTestIssueMultiBoardService {
 
   public byte[] exportChart(Long projectId, String testingPhase, String chartKey) {
     ScopeContext scope = resolveScope(projectId, testingPhase);
-    SystemTestIssueMultiBoardResponse.Chart chart = buildCharts(loadRows(scope), scope).stream()
+    List<IssueRow> rows = loadRows(scope);
+    SystemTestIssueMultiBoardResponse.Chart chart = buildCharts(rows, scope).stream()
         .filter(item -> item.key().equals(chartKey))
         .findFirst()
         .orElseThrow(() -> new IllegalArgumentException("未知的议题多元看板图表：" + chartKey));
-    try (XSSFWorkbook workbook = new XSSFWorkbook();
-        ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-      Sheet sheet = workbook.createSheet(safeSheetName(chart.title()));
-      CellStyle header = ExcelExportStyles.createHeaderStyle(workbook);
-      CellStyle body = ExcelExportStyles.createBodyStyle(workbook);
-      writeChartSheet(sheet, header, body, chart);
-      workbook.write(output);
-      return output.toByteArray();
-    } catch (IOException error) {
-      throw new IllegalStateException("生成议题多元看板导出失败", error);
-    }
+    return SystemTestIssueMultiBoardWorkbookExporter.export(chart, rows);
   }
 
   public String exportFilename(Long projectId, String testingPhase, String chartKey) {
@@ -138,7 +122,7 @@ public class SystemTestIssueMultiBoardService {
     rules.add(rule("summary-fixed", "已修复/未更新", "COUNT(is_fixed = true)", scope,
         "按事实层统一修复状态规则统计已修复、待合并或未更新记录。"));
     rules.add(rule("summary-delay", "申请延期", "COUNT(delay_issue = true)", scope,
-        "按老平台延期标识与延期原因规则统计申请延期记录。"));
+        "按延期标识与延期原因规则统计申请延期记录。"));
     for (ChartDefinition definition : CHART_DEFINITIONS) {
       rules.add(rule(
           definition.key(),
@@ -219,7 +203,7 @@ public class SystemTestIssueMultiBoardService {
                 condition("regularMetric", "true"),
                 condition("majorCause", cause))))
         .toList();
-    return pointChart("major-cause", "缺陷原因占比分析", "按老平台六类缺陷原因统计占比。", "pie", points, scope);
+    return pointChart("major-cause", "缺陷原因占比分析", "按六类缺陷原因统计占比。", "pie", points, scope);
   }
 
   private SystemTestIssueMultiBoardResponse.Chart extensionModulePie(List<IssueRow> rows, ScopeContext scope) {
@@ -516,6 +500,13 @@ public class SystemTestIssueMultiBoardService {
                issue_id,
                issue_iid,
                coalesce(title, '') as title,
+               created_at_source,
+               updated_at_source,
+               coalesce(milestone_title, '') as milestone_title,
+               coalesce(author_name, '') as author_name,
+               coalesce(assignee_name, '') as assignee_name,
+               coalesce(priority_level, '') as priority_level,
+               coalesce(function_name, '') as function_name,
                coalesce(issue_state, '') as issue_state,
                coalesce(testing_phase, '') as testing_phase,
                coalesce(severity_level, '') as severity_level,
@@ -557,6 +548,17 @@ public class SystemTestIssueMultiBoardService {
         rs.getLong("issue_id"),
         rs.getLong("issue_iid"),
         rs.getString("title"),
+        rs.getTimestamp("created_at_source") == null
+            ? null
+            : rs.getTimestamp("created_at_source").toLocalDateTime(),
+        rs.getTimestamp("updated_at_source") == null
+            ? null
+            : rs.getTimestamp("updated_at_source").toLocalDateTime(),
+        rs.getString("milestone_title"),
+        rs.getString("author_name"),
+        rs.getString("assignee_name"),
+        rs.getString("priority_level"),
+        rs.getString("function_name"),
         rs.getString("issue_state"),
         rs.getString("testing_phase"),
         rs.getString("severity_level"),
@@ -776,60 +778,6 @@ public class SystemTestIssueMultiBoardService {
         .divide(BigDecimal.valueOf(denominator), 2, RoundingMode.HALF_UP);
   }
 
-  private void writeChartSheet(
-      Sheet sheet,
-      CellStyle header,
-      CellStyle body,
-      SystemTestIssueMultiBoardResponse.Chart chart) {
-    if (!chart.points().isEmpty()) {
-      writeRow(sheet, 0, header, List.of("名称", "数值"));
-      int rowIndex = 1;
-      for (SystemTestIssueMultiBoardResponse.Point point : chart.points()) {
-        writeRow(sheet, rowIndex++, body, List.of(point.name(), point.value()));
-      }
-      ExcelExportStyles.applyHeaderRows(sheet, 1);
-      ExcelExportStyles.autoSizeColumns(sheet, 2);
-      return;
-    }
-
-    List<String> headers = new ArrayList<>();
-    headers.add("维度");
-    headers.addAll(chart.series().stream().map(SystemTestIssueMultiBoardResponse.Series::name).toList());
-    writeRow(sheet, 0, header, headers);
-    for (int index = 0; index < chart.categories().size(); index++) {
-      List<Object> values = new ArrayList<>();
-      values.add(chart.categories().get(index));
-      for (SystemTestIssueMultiBoardResponse.Series series : chart.series()) {
-        values.add(index < series.data().size() ? series.data().get(index).value() : BigDecimal.ZERO);
-      }
-      writeRow(sheet, index + 1, body, values);
-    }
-    ExcelExportStyles.applyHeaderRows(sheet, 1);
-    ExcelExportStyles.autoSizeColumns(sheet, headers.size());
-  }
-
-  private void writeRow(Sheet sheet, int rowIndex, CellStyle style, List<?> values) {
-    Row row = sheet.createRow(rowIndex);
-    for (int column = 0; column < values.size(); column++) {
-      Cell cell = row.createCell(column);
-      Object value = values.get(column);
-      if (value instanceof Number number) {
-        cell.setCellValue(number.doubleValue());
-      } else {
-        cell.setCellValue(value == null ? "" : String.valueOf(value));
-      }
-      cell.setCellStyle(style);
-    }
-  }
-
-  private String safeSheetName(String title) {
-    String normalized = title.replaceAll("[\\\\/?*\\[\\]:]", " ").trim();
-    if (normalized.length() > 31) {
-      normalized = normalized.substring(0, 31);
-    }
-    return StringUtils.hasText(normalized) ? normalized : "议题多元看板";
-  }
-
   private String sanitizeFilename(String filename) {
     return filename.replaceAll("[\\\\/:*?\"<>|]", "_");
   }
@@ -866,7 +814,7 @@ public class SystemTestIssueMultiBoardService {
               "缺陷原因占比分析",
               "system-test-defect-cause",
               "COUNT(常规缺陷) GROUP BY 六类主原因",
-              "按需求、设计、编码、打包、依赖和精度六类老平台口径归类。"),
+              "按需求、设计、编码、打包、依赖和精度六类原因归类。"),
           new ChartDefinition(
               "cause-detail",
               "缺陷原因分析",
@@ -902,7 +850,7 @@ public class SystemTestIssueMultiBoardService {
               "申请延期缺陷原因分析",
               "system-test-delay-analysis",
               "COUNT(delay_issue = true) GROUP BY 延期原因, 严重程度",
-              "按老平台七类延期原因与严重程度交叉统计。"),
+              "按七类延期原因与严重程度交叉统计。"),
           new ChartDefinition(
               "rollback-module",
               "回退模块缺陷占比",
@@ -935,12 +883,19 @@ public class SystemTestIssueMultiBoardService {
     }
   }
 
-  private record IssueRow(
+  record IssueRow(
       Long projectId,
       String projectName,
       Long issueId,
       Long issueIid,
       String title,
+      LocalDateTime createdAt,
+      LocalDateTime updatedAt,
+      String milestoneTitle,
+      String authorName,
+      String assigneeName,
+      String priorityLevel,
+      String functionName,
       String issueState,
       String testingPhase,
       String severityLevel,

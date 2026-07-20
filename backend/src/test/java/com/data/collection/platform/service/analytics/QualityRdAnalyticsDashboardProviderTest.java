@@ -3,6 +3,7 @@ package com.data.collection.platform.service.analytics;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.exception.BizException;
@@ -19,6 +20,7 @@ import com.data.collection.platform.service.QualityBoardWorkbookExportService;
 import com.data.collection.platform.service.ReviewDataMatchModeRecordRepository;
 import com.data.collection.platform.service.ReviewDataRecordReadRepository;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
+import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +60,9 @@ class QualityRdAnalyticsDashboardProviderTest {
     assertThat(dashboard.metrics()).hasSize(8);
     assertThat(dashboard.charts()).hasSize(5);
     assertThat(rules.rules()).hasSize(13);
+    assertThat(rules.rules())
+        .allSatisfy(rule -> assertThat(String.valueOf(rule.description()))
+            .doesNotContain("兼容模式", "Match mode", "老平台"));
 
     var demandMetric = dashboard.metrics().stream()
         .filter(metric -> metric.key().equals("demand-review-density"))
@@ -109,7 +114,7 @@ class QualityRdAnalyticsDashboardProviderTest {
     });
     assertThat(rules.rules()).anySatisfy(rule -> {
       assertThat(rule.key()).isEqualTo("quality-rd.defect-repair-user");
-      assertThat(rule.scope()).contains("不排除已拒绝");
+      assertThat(rule.scope()).contains("保留已拒绝状态记录");
       assertThat(rule.description()).contains("空指派人不生成分组");
     });
   }
@@ -149,7 +154,7 @@ class QualityRdAnalyticsDashboardProviderTest {
   }
 
   @Test
-  void serviceExcludesRejectedIssuesOnlyFromLeakageRatesAndDropsBlankAssignees() {
+  void serviceExcludesRejectedIssuesFromRemainingAssigneeChartAndDropsBlankAssignees() {
     var jdbc = new CapturingJdbcTemplate();
     var phaseScopeResolver = mock(SystemTestPhaseScopeResolver.class);
     var formalReviews = mock(ReviewDataRecordReadRepository.class);
@@ -192,8 +197,64 @@ class QualityRdAnalyticsDashboardProviderTest {
         .orElseThrow();
     assertThat(assigneeSql)
         .contains("nullif(btrim(assignee_name), '') is not null")
-        .doesNotContain("未标注指派人")
-        .doesNotContain("已拒绝");
+        .contains("已拒绝")
+        .doesNotContain("未标注指派人");
+  }
+
+  @Test
+  void assigneeRemainingSummaryExcludesRejectedIssuesLikeTheOldPlatform() {
+    var jdbc = new CapturingJdbcTemplate();
+    var phaseScopeResolver = mock(SystemTestPhaseScopeResolver.class);
+    var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
+    when(phaseScopeResolver.resolveLegacyCrownCadPhases("CC2026R4"))
+        .thenReturn(List.of("CC2026R4系统测试"));
+    var service = new QualityRdAnalyticsDetailQueryService(jdbc, phaseScopeResolver, codeReview);
+
+    service.assigneeSummaryRows("CC2026R4", null);
+
+    assertThat(jdbc.sqlStatements.getFirst())
+        .contains("bug_status")
+        .contains("已拒绝");
+  }
+
+  @Test
+  void assigneeRemainingExportsIgnoreDrilldownAssigneeFilter() {
+    var detailQuery = mock(QualityRdAnalyticsDetailQueryService.class);
+    var detailWorkbook = mock(QualityRdAnalyticsWorkbookService.class);
+    when(detailQuery.canonicalProjectName("CC2026R4")).thenReturn("CC2026R4");
+    when(detailQuery.assigneeSummaryRows("CC2026R4", null)).thenReturn(List.of());
+    when(detailQuery.ccAssigneeDetailRows("CC2026R4", null)).thenReturn(List.of());
+    when(detailWorkbook.assigneeSummary(List.of())).thenReturn(new byte[] {1});
+    when(detailWorkbook.ccDetails(List.of())).thenReturn(new byte[] {2});
+    var fullProvider = new QualityRdAnalyticsDashboardProvider(
+        rdService, workbookExportService, detailQuery, detailWorkbook);
+    var context = AnalyticsDashboardQueryContext.of(
+        Map.of("projectName", "CC2026R4", "assigneeName", "张三"));
+
+    fullProvider.export("assignee-remaining-summary", context);
+    fullProvider.export("assignee-remaining-cc-detail", context);
+
+    verify(detailQuery).assigneeSummaryRows("CC2026R4", null);
+    verify(detailQuery).ccAssigneeDetailRows("CC2026R4", null);
+  }
+
+  @Test
+  void ccAssigneeDetailRowsKeepOldPlatformModuleOrderWhenModuleTotalsTie() {
+    var jdbc = new RowReturningJdbcTemplate(List.of(
+        issue("模块B", "处理人2"),
+        issue("模块A", "处理人1"),
+        issue("模块A", "处理人3"),
+        issue("模块B", "处理人4")));
+    var phaseScopeResolver = mock(SystemTestPhaseScopeResolver.class);
+    var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
+    when(phaseScopeResolver.resolveLegacyCrownCadPhases("CC2026R4"))
+        .thenReturn(List.of("CC2026R4系统测试"));
+    var service = new QualityRdAnalyticsDetailQueryService(jdbc, phaseScopeResolver, codeReview);
+
+    var rows = service.ccAssigneeDetailRows("CC2026R4", null);
+
+    assertThat(rows).extracting(QualityRdAnalyticsDetailQueryService.CcAssigneeDetailRow::moduleName)
+        .containsExactly("模块B", "模块B", "模块A", "模块A");
   }
 
   private QualityBoardRdDashboardResponse sampleDashboard() {
@@ -233,6 +294,43 @@ class QualityRdAnalyticsDashboardProviderTest {
 
     private long countSqlContaining(String expected) {
       return sqlStatements.stream().filter(sql -> sql.contains(expected)).count();
+    }
+  }
+
+  private static Map<String, String> issue(String moduleName, String assigneeName) {
+    return Map.of(
+        "module_name", moduleName,
+        "module_names", moduleName,
+        "assignee_name", assigneeName,
+        "bug_status", "未修复",
+        "delay_cause", "",
+        "severity_level", "LEVEL1",
+        "priority_level", "P1",
+        "urgency", "P1");
+  }
+
+  private static final class RowReturningJdbcTemplate extends JdbcTemplate {
+    private final List<Map<String, String>> rows;
+
+    private RowReturningJdbcTemplate(List<Map<String, String>> rows) {
+      this.rows = rows;
+    }
+
+    @Override
+    public <T> List<T> query(String sql, RowMapper<T> rowMapper, Object... args) {
+      List<T> mapped = new ArrayList<>();
+      for (int index = 0; index < rows.size(); index++) {
+        try {
+          ResultSet resultSet = mock(ResultSet.class);
+          Map<String, String> row = rows.get(index);
+          when(resultSet.getString(org.mockito.ArgumentMatchers.anyString()))
+              .thenAnswer(invocation -> row.get(invocation.getArgument(0, String.class)));
+          mapped.add(rowMapper.mapRow(resultSet, index));
+        } catch (Exception error) {
+          throw new AssertionError(error);
+        }
+      }
+      return mapped;
     }
   }
 }

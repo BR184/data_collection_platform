@@ -63,7 +63,7 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
     return new AnalyticsDashboardResponse(
         DASHBOARD_KEY,
         "质量专题分析",
-        "对齐老平台其他看板的功能、成员与版本质量专题",
+        "按功能、成员和版本维度分析缺陷数量、密度与遗留情况。",
         List.of(),
         charts);
   }
@@ -80,13 +80,13 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
                 "不截断 TopN，返回全部有效功能"),
             rule(
                 QualityBoardOtherTopic.FUNCTION_DEFECT_DENSITY,
-                "系统测试缺陷数 ÷ 正式 CC 新增代码行数 × 100",
-                "系统测试缺陷按所选版本阶段统计；新增行固定读取正式 CC 合并请求事实",
-                "系统测试缺陷排除已拒绝；不读取 DGM"),
+                "系统测试缺陷数 ÷ CC 新增代码行数 × 100",
+                "系统测试缺陷按所选版本阶段统计；新增行按 CC 已合并代码统计",
+                "系统测试缺陷排除已拒绝数据"),
             rule(
                 QualityBoardOtherTopic.QUALITY_RANKING,
                 "修复人系统测试缺陷数 ÷ 同名 CC 提交人新增代码行数 × 1000",
-                "所选版本的系统测试议题与正式 CC 合并请求；系统测试缺陷排除已拒绝",
+                "所选版本的系统测试议题与 CC 已合并代码；系统测试缺陷排除已拒绝",
                 "数值越低越好；不展示空修复人、无有效新增行和 0 密度成员"),
             rule(
                 QualityBoardOtherTopic.MEMBER_UNRESOLVED_RATE,
@@ -143,7 +143,7 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
         rows.size(),
         context.page(),
         context.size(),
-        List.of(new AnalyticsDashboardResponse.ExportAction(topic.exportKey(), "导出 Excel")));
+        List.of(new AnalyticsDashboardResponse.ExportAction(topic.exportKey(), "导出")));
   }
 
   @Override
@@ -183,7 +183,7 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
         chartOption(topic, rows),
         topic.chartKey(),
         new AnalyticsDashboardResponse.DetailAction(topic.viewKey(), actionParameters),
-        new AnalyticsDashboardResponse.ExportAction(topic.exportKey(), "导出 Excel"));
+        new AnalyticsDashboardResponse.ExportAction(topic.exportKey(), "导出"));
   }
 
   private AnalyticsDashboardRulesResponse.Rule rule(
@@ -277,16 +277,20 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
     option.put("xAxis", Map.of(
         "type", "category",
         "data", rows.stream().map(QualityBoardOtherQueryService.Row::name).toList(),
-        "axisLabel", Map.of("rotate", 28, "interval", 0)));
+        "axisLabel", categoryAxisLabel()));
     option.put("yAxis", Map.of("type", "value", "name", axisName(topic)));
-    option.put("dataZoom", AnalyticsDataZoomOptions.horizontal(rows.size(), 11));
+    option.put(
+        "dataZoom",
+        AnalyticsDataZoomOptions.horizontal(
+            rows.size(), AnalyticsDataZoomOptions.LEGACY_INITIAL_VIEWPORT_END_VALUE));
     option.put("series", List.of(Map.of(
         "name", topic.title(),
         "type", "bar",
         "barMaxWidth", 52,
         "data", rows.stream().map(this::chartPoint).toList(),
         "itemStyle", Map.of("color", color(topic), "borderRadius", List.of(6, 6, 0, 0)),
-        "label", Map.of("show", true, "position", "top"))));
+        "label", Map.of("show", true, "position", "top"),
+        "labelLayout", Map.of("hideOverlap", true))));
     return option;
   }
 
@@ -306,7 +310,7 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
     option.put("yAxis", Map.of(
         "type", "category",
         "data", displayRows.stream().map(QualityBoardOtherQueryService.Row::name).toList(),
-        "axisLabel", Map.of("width", 130, "overflow", "truncate")));
+        "axisLabel", Map.of("width", 130, "overflow", "truncate", "hideOverlap", true)));
     option.put("dataZoom", AnalyticsDataZoomOptions.vertical(displayRows.size(), 14));
     option.put("series", List.of(Map.of(
         "name", topic.title(),
@@ -314,7 +318,8 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
         "barMaxWidth", 24,
         "data", displayRows.stream().map(this::chartPoint).toList(),
         "itemStyle", Map.of("color", color(topic), "borderRadius", List.of(0, 6, 6, 0)),
-        "label", Map.of("show", true, "position", "right"))));
+        "label", Map.of("show", true, "position", "right"),
+        "labelLayout", Map.of("hideOverlap", true))));
     return option;
   }
 
@@ -333,9 +338,12 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
         "type", "category",
         "boundaryGap", false,
         "data", rows.stream().map(QualityBoardOtherQueryService.Row::name).toList(),
-        "axisLabel", Map.of("rotate", 28, "interval", 0)));
+        "axisLabel", categoryAxisLabel()));
     option.put("yAxis", Map.of("type", "value", "name", "%"));
-    option.put("dataZoom", AnalyticsDataZoomOptions.horizontal(rows.size(), 11));
+    option.put(
+        "dataZoom",
+        AnalyticsDataZoomOptions.horizontal(
+            rows.size(), AnalyticsDataZoomOptions.LEGACY_INITIAL_VIEWPORT_END_VALUE));
     option.put("series", List.of(Map.of(
         "name", topic.title(),
         "type", "line",
@@ -345,7 +353,8 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
         "lineStyle", Map.of("width", 3, "color", color(topic)),
         "itemStyle", Map.of("color", color(topic)),
         "areaStyle", Map.of("opacity", 0.12),
-        "label", Map.of("show", true, "position", "top"))));
+        "label", Map.of("show", true, "position", "top"),
+        "labelLayout", Map.of("hideOverlap", true))));
     return option;
   }
 
@@ -355,6 +364,16 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
     option.put("tooltip", Map.of("trigger", "axis", "confine", true));
     option.put("aria", Map.of("enabled", true, "description", topic.subtitle()));
     return option;
+  }
+
+  /** Lets ECharts choose a readable subset when the category window is wider than the card. */
+  private Map<String, Object> categoryAxisLabel() {
+    return Map.of(
+        "rotate", 28,
+        "interval", "auto",
+        "hideOverlap", true,
+        "width", 96,
+        "overflow", "truncate");
   }
 
   private Map<String, Object> chartPoint(QualityBoardOtherQueryService.Row row) {

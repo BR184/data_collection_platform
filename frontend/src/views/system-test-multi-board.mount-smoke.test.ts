@@ -4,6 +4,8 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { createRouter, createWebHashHistory } from 'vue-router';
 import ElementPlus from 'element-plus';
 import SystemTestMultiBoardView from './SystemTestMultiBoardView.vue';
+import { buildMultiBoardChartOption } from './system-test-multi-board';
+import type { SystemTestIssueMultiBoardChartResponse } from '../types/api';
 
 vi.mock('../components/charts/EChartPanel.vue', () => ({
   default: defineComponent({
@@ -19,125 +21,145 @@ function jsonResponse(data: unknown) {
   } as Response);
 }
 
-function createBoard(rows: Array<{ rowKey: string; rowLabel: string; cells: Array<{ columnKey: string; numericValue: number; displayValue: string; drilldown: boolean; detailParams: Record<string, string>; }> }>) {
+function createChart(
+  key: string,
+  title: string,
+): SystemTestIssueMultiBoardChartResponse {
+  const point = {
+    name: '支付中心',
+    value: 12,
+    pointKey: `${key}:payment`,
+    detailViewKey: 'system-test-issues',
+    detailParams: { moduleName: '支付中心' },
+  };
   return {
-    definition: {
-      boardKey: 'test-board',
-      title: 'test',
-      description: '',
-      queryTitle: '',
-      queryDescription: '',
-      rowHeaderLabel: '统计对象',
-      filters: [],
-      columnGroups: [],
-      detailColumns: [],
-      defaultPageSize: 10,
-      emptyText: '',
-    },
-    appliedFilters: {},
-    appliedFilterGroup: null,
-    rows,
-    meta: {
-      generatedAt: '2026-04-27T10:00:00',
-      queryDurationMs: 12,
-      rowCount: rows.length,
-      columnCount: 0,
-      drilldownColumnCount: 0,
-    },
+    key,
+    ruleKey: key,
+    title,
+    description: `按当前范围统计${title}。`,
+    chartType: 'bar',
+    detailViewKey: 'system-test-issues',
+    detailParams: {},
+    exportName: title,
+    categories: [point.name],
+    series: [{ name: '缺陷数量', data: [point] }],
+    points: [point],
+    metadata: { scope: 'CrownCAD / CC2026R3' },
   };
 }
 
-function cell(columnKey: string, numericValue: number) {
+function createMultiBoard() {
+  const charts = [
+    ['severity-level', '缺陷严重程度分析'],
+    ['phase-severity', '测试阶段缺陷分布'],
+    ['module-severity', '模块缺陷分布'],
+    ['major-cause', '缺陷原因占比分析'],
+    ['cause-detail', '缺陷原因明细'],
+    ['module-repair-rate', '模块修复率'],
+    ['open-issue', '未关闭缺陷占比'],
+    ['fix-user-severity', '修复人缺陷分布'],
+    ['extension-module', '申请延期模块分析'],
+    ['delay-cause', '延期原因分析'],
+    ['rollback-module', '回退模块分析'],
+  ].map(([key, title]) => createChart(key, title));
+
   return {
-    columnKey,
-    numericValue,
-    displayValue: String(numericValue),
-    drilldown: false,
-    detailParams: {},
+    scope: {
+      projectId: 9,
+      projectName: 'CrownCAD',
+      testingPhase: 'CC2026R3',
+      expandedTestingPhases: ['CC2026R3'],
+      scopeLabel: 'CrownCAD / CC2026R3',
+    },
+    projectOptions: [{ label: 'CrownCAD', value: '9' }],
+    testingPhaseOptions: [{ label: 'CC2026R3', value: 'CC2026R3' }],
+    summaryCards: [{
+      key: 'total',
+      ruleKey: 'summary-total',
+      label: '系统测试缺陷',
+      value: '12',
+      tone: 'default',
+    }],
+    rules: [
+      {
+        key: 'summary-total',
+        title: '系统测试缺陷',
+        formula: 'COUNT(issue)',
+        scope: 'CrownCAD / CC2026R3',
+        target: null,
+        description: '当前范围内的系统测试缺陷。',
+      },
+      ...charts.map((chart) => ({
+        key: chart.ruleKey,
+        title: chart.title,
+        formula: 'COUNT(issue)',
+        scope: 'CrownCAD / CC2026R3',
+        target: null,
+        description: chart.description,
+      })),
+    ],
+    charts,
   };
 }
 
 describe('SystemTestMultiBoardView mount smoke', () => {
+  it('keeps drill-down metadata and stacked bar segment radius in generated chart data', () => {
+    const chart: SystemTestIssueMultiBoardChartResponse = {
+      key: 'phase-severity',
+      ruleKey: 'phase-severity',
+      title: '缺陷阶段分析',
+      description: '按测试阶段统计各严重程度缺陷数量。',
+      chartType: 'stackedBar',
+      detailViewKey: 'system-test-issues',
+      detailParams: {},
+      exportName: '缺陷阶段分析',
+      categories: ['CC2026R3第一轮'],
+      series: [
+        {
+          name: '一级缺陷',
+          data: [{
+            name: 'CC2026R3第一轮',
+            value: 3,
+            pointKey: 'phase:1',
+            detailViewKey: 'system-test-issues',
+            detailParams: { testingPhase: 'CC2026R3第一轮', metricSeverity: '一级缺陷' },
+          }],
+        },
+        {
+          name: '二级缺陷',
+          data: [{
+            name: 'CC2026R3第一轮',
+            value: 7,
+            pointKey: 'phase:2',
+            detailViewKey: 'system-test-issues',
+            detailParams: { testingPhase: 'CC2026R3第一轮', metricSeverity: '二级缺陷' },
+          }],
+        },
+      ],
+      points: [],
+      metadata: { scope: 'CrownCAD / CC2026R3' },
+    };
+
+    const option = buildMultiBoardChartOption(chart) as {
+      series: Array<{ data: Array<{ pointKey: string; itemStyle: { borderRadius: number[] } }> }>;
+    };
+
+    expect(option.series[0].data[0]).toEqual(expect.objectContaining({
+      pointKey: 'phase:1',
+      itemStyle: expect.objectContaining({ borderRadius: [0, 0, 0, 0] }),
+    }));
+    expect(option.series[1].data[0]).toEqual(expect.objectContaining({
+      pointKey: 'phase:2',
+      itemStyle: expect.objectContaining({ borderRadius: [6, 6, 0, 0] }),
+    }));
+  });
+
   it('loads project options and renders the dashboard shell', async () => {
     const fetchSpy = vi.fn((url: string) => {
-      if (url.includes('/api/question-metrics/issues/filter-options')) {
-        return jsonResponse({
-          projectNames: [{ label: 'CC2026R3', value: 'CC2026R3' }],
-          moduleNames: [],
-          functionNames: [],
-          testingPhases: [],
-          authorNames: [],
-          assigneeNames: [],
-          issueStates: [],
-          severityLevels: [],
-          bugStatuses: [],
-          categories: [],
-          milestoneTitles: [],
-        });
+      if (url.includes('/api/question-metrics/multi-board')) {
+        return jsonResponse(createMultiBoard());
       }
-      if (url.includes('/api/statistic-boards/system-test-defect-summary')) {
-        return jsonResponse(
-          createBoard([
-            {
-              rowKey: 'module-a',
-              rowLabel: '支付中心',
-              cells: [cell('module_total', 12), cell('fix_rate', 80)],
-            },
-            {
-              rowKey: '__total__',
-              rowLabel: '总计',
-              cells: [
-                cell('level1_total', 3),
-                cell('level2_total', 5),
-                cell('level3_total', 2),
-                cell('suggestion_total', 1),
-                cell('module_total', 12),
-                cell('open_count', 3),
-                cell('solved_count', 8),
-                cell('extension_count', 2),
-              ],
-            },
-          ]),
-        );
-      }
-      if (url.includes('/api/statistic-boards/system-test-phase-statistics')) {
-        return jsonResponse(
-          createBoard([
-            {
-              rowKey: 'phase-1',
-              rowLabel: '第一轮系统测试',
-              cells: [cell('level1', 2), cell('level2', 3), cell('level3', 1), cell('suggestion', 1)],
-            },
-          ]),
-        );
-      }
-      if (url.includes('/api/statistic-boards/system-test-defect-cause')) {
-        return jsonResponse(
-          createBoard([
-            {
-              rowKey: '__total__',
-              rowLabel: '总计',
-              cells: [
-                cell('requirement_understanding', 2),
-                cell('new_requirement', 1),
-                cell('implementation_logic', 4),
-                cell('environment_deployment', 1),
-                cell('algorithm_mechanism', 1),
-                cell('other_reason', 1),
-              ],
-            },
-          ]),
-        );
-      }
-      if (url.includes('/api/statistic-boards/system-test-delay-analysis')) {
-        return jsonResponse(
-          createBoard([
-            { rowKey: 'delay-1', rowLabel: '方案卡点', cells: [cell('total', 3)] },
-            { rowKey: '__total__', rowLabel: '总计', cells: [cell('total', 3)] },
-          ]),
-        );
-      }
-      return jsonResponse({});
+      return jsonResponse(null);
     });
     vi.stubGlobal('fetch', fetchSpy);
 
@@ -156,7 +178,7 @@ describe('SystemTestMultiBoardView mount smoke', () => {
       ],
     });
 
-    await router.push('/question-metrics/multi-board?projectName=CC2026R3');
+    await router.push('/question-metrics/multi-board?projectId=9&testingPhase=CC2026R3');
     await router.isReady();
 
     const wrapper = mount(SystemTestMultiBoardView, {
@@ -166,10 +188,11 @@ describe('SystemTestMultiBoardView mount smoke', () => {
 
     await flushPromises();
 
-    expect(wrapper.text()).toContain('系统测试质量概览');
-    expect(wrapper.text()).toContain('模块缺陷 Top 8');
-    expect(wrapper.findAll('[data-testid="echart-panel"]')).toHaveLength(6);
-    expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('projectName=CC2026R3'))).toBe(true);
+    expect(wrapper.text()).toContain('议题多元看板');
+    expect(wrapper.text()).toContain('模块缺陷分布');
+    expect(wrapper.findAll('[data-testid="echart-panel"]')).toHaveLength(11);
+    expect(wrapper.text()).toContain('导出');
+    expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('projectId=9'))).toBe(true);
 
     wrapper.unmount();
     vi.unstubAllGlobals();

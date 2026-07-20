@@ -284,12 +284,12 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         "系统测试非法数据规则说明",
         RULE_VERSION,
         "当前页面展示系统测试和回归测试范围内命中非法规则的议题。平台会先限定系统测试范围，再剔除不应参与统计的无效议题。",
-        "非法类型按老平台非法数据列表口径展示；同一个议题可能同时命中多个非法类型，页面筛选和导出都会保留这些类型。",
+        "非法类型按系统测试非法数据规则展示；同一个议题可能同时命中多个非法类型，页面筛选和导出都会保留这些类型。",
         List.of(
             step("source-load", "加载议题数据", "加载已同步到平台的议题数据，并使用整理后的测试阶段、模块、严重程度和非法类型。", loaded, loaded.size()),
             step("scope-filter", "限定系统测试范围", "保留系统测试和回归测试相关议题，避免与客户问题等其它范围混在一起。", scoped, loaded.size()),
             step("exclude-filter", "剔除排除数据", "排除功能屏蔽、已拒绝、建议、申请否决关闭、需求如此关闭等数据。", valid, scoped.size()),
-            step("illegal-filter", "筛出非法数据", "保留命中非法判定规则的系统测试议题；非法类型按老平台多值口径展示。", illegal, valid.size())),
+            step("illegal-filter", "筛出非法数据", "保留命中非法判定规则的系统测试议题；同一议题可保留多个非法类型。", illegal, valid.size())),
         List.of(
             new StatisticRuleMetricDefinition(
                 "missing-severity",

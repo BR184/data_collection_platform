@@ -195,7 +195,7 @@ void initializePage();
         <div>
           <div class="code-review-multi-board__eyebrow">代码走查 / 多元看板</div>
           <h2>{{ dashboard?.title || '代码走查多元看板' }}</h2>
-          <p>{{ dashboard?.subtitle || '按老平台业务口径展示八类代码走查专题。' }}</p>
+          <p>{{ dashboard?.subtitle || '按项目维度展示八类代码走查质量指标。' }}</p>
         </div>
         <div class="code-review-multi-board__actions">
           <SyncMetaBadge :value="lastSyncedText" />

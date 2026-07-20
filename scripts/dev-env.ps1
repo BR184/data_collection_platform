@@ -35,6 +35,48 @@ function Remove-CommandFunction {
   }
 }
 
+function Import-LocalEnvironmentFile {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string] $Path
+  )
+
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+    return $false
+  }
+
+  foreach ($rawLine in Get-Content -LiteralPath $Path) {
+    $line = $rawLine.Trim()
+    if (-not $line -or $line.StartsWith("#")) {
+      continue
+    }
+
+    $separatorIndex = $line.IndexOf("=")
+    if ($separatorIndex -le 0) {
+      throw "Invalid local environment entry in $Path. Expected NAME=value."
+    }
+
+    $name = $line.Substring(0, $separatorIndex).Trim()
+    if ($name -notmatch "^[A-Za-z_][A-Za-z0-9_]*$") {
+      throw "Invalid local environment variable name '$name' in $Path."
+    }
+
+    $value = $line.Substring($separatorIndex + 1).Trim()
+    if ($value.Length -ge 2 -and (
+        ($value.StartsWith('"') -and $value.EndsWith('"')) -or
+        ($value.StartsWith("'") -and $value.EndsWith("'")))) {
+      $value = $value.Substring(1, $value.Length - 2)
+    }
+
+    # The caller's process environment wins, so CI and deployment values are never overwritten.
+    if ([Environment]::GetEnvironmentVariable($name, [EnvironmentVariableTarget]::Process) -eq $null) {
+      [Environment]::SetEnvironmentVariable($name, $value, [EnvironmentVariableTarget]::Process)
+    }
+  }
+
+  return $true
+}
+
 $javaHome = Join-Path $projectRoot "tools\jdk\jdk-21.0.10+7"
 $mavenHome = Join-Path $projectRoot "tools\maven\apache-maven-3.9.9"
 $postgresHome = Join-Path $projectRoot "tools\postgresql-17.9\pgsql"

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { ArrowDown, ArrowUp, Download, QuestionFilled, RefreshRight, Setting } from '@element-plus/icons-vue';
+import { ArrowDown, ArrowUp, QuestionFilled, RefreshRight, Setting } from '@element-plus/icons-vue';
 import StatisticFilterBuilder from './StatisticFilterBuilder.vue';
+import ExportActionMenu from './base/ExportActionMenu.vue';
 import RecordTableFilterFields from './base/RecordTableFilterFields.vue';
 import TableFunctionBar from './base/TableFunctionBar.vue';
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
@@ -375,43 +376,12 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
         >
           {{ action.label }}
         </el-button>
-        <el-dropdown
-          v-if="useExportDropdown"
-          trigger="click"
-          popper-class="app-export-dropdown-menu"
-          @command="handleExportDropdownCommand"
-        >
-          <el-button
-            class="app-action-button app-action-button--export"
-            plain
-            :icon="Download"
-            :loading="exportDropdownLoading"
-          >
-            导出...
-            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-          </el-button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item
-                v-for="item in exportMenuItems"
-                :key="item.key"
-                :command="item.key"
-                :disabled="item.disabled"
-              >
-                {{ item.label }}
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-        <el-button
-          v-else-if="showExport"
-          class="app-action-button app-action-button--export"
-          plain
-          :icon="Download"
-          @click="emit('exportBoard')"
-        >
-          {{ exportLabel }}
-        </el-button>
+        <ExportActionMenu
+          v-if="exportMenuItems.length"
+          :actions="exportMenuItems"
+          :loading="exportDropdownLoading"
+          @select="handleExportDropdownCommand"
+        />
         <el-dropdown trigger="click" @command="(command: string) => emit('settingsCommand', command)">
           <el-button
             class="view-settings-trigger app-action-button app-action-button--settings"

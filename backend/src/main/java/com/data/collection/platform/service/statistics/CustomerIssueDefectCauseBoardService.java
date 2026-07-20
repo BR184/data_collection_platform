@@ -379,7 +379,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         true,
         "客户问题缺陷原因分析规则说明",
         RULE_VERSION,
-        "当前统计使用老平台缺陷原因说明口径，从客户问题回复中的缺陷原因段落识别需求问题、设计问题、编码规范等原因分类。",
+        "从客户问题回复的缺陷原因段落识别需求问题、设计问题、编码规范等原因分类。",
         "统计范围为 CC_Product 自 2026-01-01 以来创建且携带里程碑的客户问题；同一议题关联多个模块或多个缺陷原因时会分别计数。",
         java.util.stream.Stream.concat(
                 snapshot.flowSteps().stream(),
@@ -397,7 +397,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
             .map(metric -> new StatisticRuleMetricDefinition(
                 metric.key(),
                 metric.label(),
-                "按老平台缺陷原因说明识别：" + String.join(" / ", causeTokens(metric)),
+                "按缺陷原因说明识别：" + String.join(" / ", causeTokens(metric)),
                 metric.label() + "数量 = 当前模块内命中该原因分类的缺陷数量",
                 null))
             .toList(),
@@ -553,7 +553,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
             StatisticRuleFlowSupport.step(
                 "milestone-filter",
                 "应用里程碑筛选",
-                "根据页面上的里程碑筛选进一步收敛范围；未选择时按老平台默认使用里程碑列表第一项。",
+                "根据页面上的里程碑筛选进一步收敛范围；未选择时使用里程碑列表第一项。",
                 valid.size(),
                 milestoneFiltered,
                 this::toRuleFlowSample
@@ -569,7 +569,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
             StatisticRuleFlowSupport.step(
                 "reason-category-filter",
                 "保留已识别原因",
-                "只保留评论文本中命中老平台缺陷原因字段的议题，原因个数按字段命中数计算。",
+                "只保留评论文本中命中缺陷原因字段的议题，原因个数按字段命中数计算。",
                 conditionFiltered.size(),
                 withReason,
                 this::toRuleFlowSample

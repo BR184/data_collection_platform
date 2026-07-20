@@ -321,7 +321,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
         "议题阶段统计规则说明",
         RULE_VERSION,
         "当前统计按系统测试阶段定义中的轮次聚合，展示每个轮次下不同严重程度的缺陷数量。",
-        "默认项目为老平台 CrownCAD 项目 9；本页对齐老平台 getDefectAndPhaseTable，按子轮次精确匹配 testing_phase，并按严重程度字面值统计一级、二级、三级缺陷。",
+        "默认项目为 CrownCAD；按子轮次精确匹配测试阶段，并按严重程度统计一级、二级、三级缺陷。",
         List.of(
             snapshot.flowSteps().get(0),
             snapshot.flowSteps().get(1),
@@ -381,7 +381,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
             StatisticRuleFlowSupport.step(
                 "source-load",
                 "加载议题数据",
-                "加载已同步到平台的议题数据，并使用对齐老平台的测试阶段和严重程度字面值。",
+                "加载已同步到平台的议题数据，并使用统一的测试阶段和严重程度字段。",
                 initial.size(),
                 initial,
                 this::toRuleFlowSample

@@ -6,14 +6,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.ResponseEntity;
@@ -295,6 +298,36 @@ class StatisticBoardControllerTest {
     assertThat(response.definition().columnGroups()).extracting("key")
         .containsExactly("level1", "level2", "level3", "suggestion", "priority-summary", "new-issue", "legacy");
     assertThat(response.meta().columnCount()).isEqualTo(38);
+  }
+
+  @Test
+  void shouldExportCustomerIssueSummaryWithLegacyIssueWorkbookContract() throws Exception {
+    ResponseEntity<byte[]> response =
+        controller.exportBoardIssues("customer-issue-defect-summary", Map.of());
+
+    assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
+    assertThat(response.getHeaders().getFirst("Content-Disposition"))
+        .contains("filename*=UTF-8''")
+        .contains("%E5%AE%A2%E6%88%B7%E9%97%AE%E9%A2%98");
+    try (XSSFWorkbook workbook =
+        new XSSFWorkbook(new ByteArrayInputStream(response.getBody()))) {
+      assertThat(workbook.sheetIterator())
+          .toIterable()
+          .extracting(sheet -> sheet.getSheetName())
+          .containsExactly("议题数据");
+      var header = workbook.getSheet("议题数据").getRow(0);
+      assertThat(
+              IntStream.range(0, header.getLastCellNum())
+                  .mapToObj(index -> header.getCell(index).getStringCellValue())
+                  .toList())
+          .containsExactly(
+              "议题更新时间", "议题提交时间", "模块名", "议题编号", "议题标题", "议题提交人",
+              "议题处理人", "议题状态", "测试状态", "测试阶段", "议题严重程度", "议题类别", "里程碑",
+              "议题指派人", "优先级", "延期原因", "缺陷修复人", "功能名称", "修复状态",
+              "一级缺陷原因", "二级缺陷原因", "具体原因", "修改方案", "由修改其他缺陷造成的",
+              "修改该缺陷可能影响的功能", "是否对可能影响的功能进行了测试", "有无遗留问题或潜在的影响",
+              "是否更新了关联关系表", "议题关闭时间");
+    }
   }
 
   @Test

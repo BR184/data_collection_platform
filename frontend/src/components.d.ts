@@ -73,6 +73,7 @@ declare module 'vue' {
     ElTimePicker: typeof import('element-plus/es')['ElTimePicker']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
     ElUpload: typeof import('element-plus/es')['ElUpload']
+    ExportActionMenu: typeof import('./components/base/ExportActionMenu.vue')['default']
     GlobalProgressIndicator: typeof import('./components/GlobalProgressIndicator.vue')['default']
     LabelGroupMemberPicker: typeof import('./components/label-groups/LabelGroupMemberPicker.vue')['default']
     PageSettingsButton: typeof import('./components/PageSettingsButton.vue')['default']

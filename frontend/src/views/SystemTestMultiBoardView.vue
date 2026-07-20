@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Download, Refresh, RefreshRight } from '@element-plus/icons-vue';
+import { Refresh, RefreshRight } from '@element-plus/icons-vue';
+import ExportActionMenu from '../components/base/ExportActionMenu.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import EChartPanel from '../components/charts/EChartPanel.vue';
@@ -308,16 +309,11 @@ void Promise.all([loadBoard(), loadSyncStatus()]).catch((error) => {
               <span>{{ chart.metadata.scope }}</span>
             </div>
             <div class="system-test-multi-board__panel-actions">
-              <el-tooltip content="下载图表数据" placement="top">
-                <el-button
-                  class="system-test-multi-board__icon-button"
-                  :icon="Download"
-                  :loading="exportLoadingKey === chart.key"
-                  :disabled="!chartHasData(chart)"
-                  circle
-                  @click.stop="handleExport(chart)"
-                />
-              </el-tooltip>
+              <ExportActionMenu
+                :actions="[{ key: chart.key, label: '导出', disabled: !chartHasData(chart) }]"
+                :loading="exportLoadingKey === chart.key"
+                @select="() => handleExport(chart)"
+              />
             </div>
           </div>
           <EChartPanel
@@ -494,19 +490,6 @@ void Promise.all([loadBoard(), loadSyncStatus()]).catch((error) => {
   align-items: center;
   gap: 8px;
   flex: 0 0 auto;
-}
-
-.system-test-multi-board__icon-button {
-  color: #059669;
-  border-color: rgba(5, 150, 105, 0.28);
-  background: #fff;
-}
-
-.system-test-multi-board__icon-button:hover,
-.system-test-multi-board__icon-button:focus {
-  color: #047857;
-  border-color: rgba(5, 150, 105, 0.44);
-  background: rgba(236, 253, 245, 0.9);
 }
 
 @media (max-width: 1180px) {

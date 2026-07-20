@@ -144,7 +144,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     return new StatisticBoardDefinition(
         BOARD_KEY,
         "客户问题缺陷响应效率",
-        "按老平台口径展示 CC_Product 客户问题模块维度响应周期和解决周期。",
+        "展示 CC_Product 客户问题按模块统计的响应周期和解决周期。",
         "",
         "",
         "模块",
@@ -371,7 +371,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
             StatisticRuleFlowSupport.step(
                 "exclude-filter",
                 "剔除排除数据",
-                "对齐老平台 QueryUtil：客户问题响应效率不排除建议类问题；仅剔除关闭后属于申请否决或需求如此的数据。",
+                "客户问题响应效率统计包含建议类问题；仅剔除已关闭且标记为申请否决或需求如此的数据。",
                 scoped.size(),
                 visible,
                 this::toRuleFlowSample),

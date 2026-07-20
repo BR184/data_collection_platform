@@ -53,7 +53,7 @@ describe('CodeReviewMultiBoardView mount smoke', () => {
             option: {},
             ruleKey: `rule-${index}`,
             detail: { viewKey: 'code-review-statistics', params: { topic: `topic-${index}` } },
-            export: { exportKey: `topic-${index}`, label: '导出 Excel' },
+            export: { exportKey: `topic-${index}`, label: '导出' },
           })),
         });
       }

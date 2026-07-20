@@ -91,8 +91,9 @@ public class QualityRdAnalyticsDetailQueryService {
            and project_id = ?
            and testing_phase in (%s)
            and %s
+           and %s
            and nullif(btrim(assignee_name), '') is not null
-        """.formatted(scope.placeholders(), OPEN_ISSUE_PREDICATE));
+        """.formatted(scope.placeholders(), OPEN_ISSUE_PREDICATE, REJECTED_EXCLUSION_PREDICATE));
     List<Object> args = new ArrayList<>(scope.args());
     String assigneeName = TextQuerySupport.trimToNull(requestedAssigneeName);
     if (assigneeName != null) {
@@ -145,15 +146,15 @@ public class QualityRdAnalyticsDetailQueryService {
     }
     Map<String, Long> moduleTotals = new LinkedHashMap<>();
     grouped.forEach((key, value) -> moduleTotals.merge(key.moduleName(), value.count, Long::sum));
-    return grouped.entrySet().stream()
-        .map(entry -> entry.getValue().toCcRow(entry.getKey()))
-        .sorted(
-            Comparator.<CcAssigneeDetailRow>comparingLong(
-                    row -> moduleTotals.getOrDefault(row.moduleName(), 0L))
-                .reversed()
-                .thenComparing(CcAssigneeDetailRow::moduleName)
-                .thenComparing(Comparator.comparingLong(CcAssigneeDetailRow::count).reversed())
-                .thenComparing(CcAssigneeDetailRow::assigneeName))
+    Map<String, List<CcAssigneeDetailRow>> rowsByModule = new LinkedHashMap<>();
+    grouped.forEach((key, value) -> rowsByModule
+        .computeIfAbsent(key.moduleName(), ignored -> new ArrayList<>())
+        .add(value.toCcRow(key)));
+    return rowsByModule.entrySet().stream()
+        .sorted(Comparator.<Map.Entry<String, List<CcAssigneeDetailRow>>>comparingLong(
+                entry -> moduleTotals.getOrDefault(entry.getKey(), 0L))
+            .reversed())
+        .flatMap(entry -> entry.getValue().stream())
         .toList();
   }
 

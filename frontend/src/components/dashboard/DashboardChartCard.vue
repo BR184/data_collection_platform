@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { Download } from '@element-plus/icons-vue';
 import type {
   AnalyticsDashboardChart,
   AnalyticsDashboardRule,
 } from '../../types/api';
+import ExportActionMenu from '../base/ExportActionMenu.vue';
 import EChartPanel from '../charts/EChartPanel.vue';
 import type { EChartPointClickEvent } from '../charts/echart-panel-events';
 import RuleHintIcon from './RuleHintIcon.vue';
@@ -44,15 +44,11 @@ const emit = defineEmits<{
         </div>
         <p v-if="chart.subtitle">{{ chart.subtitle }}</p>
       </div>
-      <el-button
+      <ExportActionMenu
         v-if="chart.export"
-        text
-        circle
-        aria-label="下载图表数据"
-        @click.stop="emit('export', chart)"
-      >
-        <el-icon><Download /></el-icon>
-      </el-button>
+        :actions="[{ key: chart.export.exportKey, label: chart.export.label }]"
+        @select="emit('export', chart)"
+      />
     </header>
     <EChartPanel
       :option="chart.option"

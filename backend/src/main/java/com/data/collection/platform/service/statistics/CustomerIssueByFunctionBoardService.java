@@ -277,7 +277,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         snapshot.flowSteps(),
         List.of(
             new StatisticRuleMetricDefinition(
-                "legacy-pivot", "模块功能列", "主表按老平台按功能展示缺陷数量页面展示：每个模块是一个列组，下面固定“功能”和“问题数量”两列。", "问题数量 = 当前客户问题范围内同时命中模块和功能的议题数量", null)),
+                "legacy-pivot", "模块功能列", "主表按模块分组，每个模块包含“功能”和“问题数量”两列。", "问题数量 = 当前客户问题范围内同时命中模块和功能的议题数量", null)),
         null);
   }
 
@@ -383,7 +383,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "milestone-filter",
                 "应用里程碑切换",
-                "根据页面顶部选择的 CC_Product 里程碑收口客户问题；未选择时按老平台默认使用里程碑列表第一项。",
+                "根据页面顶部选择的 CC_Product 里程碑收口客户问题；未选择时使用里程碑列表第一项。",
                 visible.size(),
                 phaseFiltered,
                 this::toRuleFlowSample

@@ -12,8 +12,12 @@ import com.data.collection.platform.entity.CustomerIssueRecordRowResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
 import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.ByteArrayInputStream;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.IntStream;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -269,7 +273,7 @@ class CustomerIssueRecordServiceTest {
   }
 
   @Test
-  void shouldKeepRequestFiltersWhenExportingPagedRecords() {
+  void shouldKeepRequestFiltersAndWriteLegacyFieldsWhenExportingPagedRecords() throws Exception {
     CustomerIssueRecordService service =
         new CustomerIssueRecordService(
             issueFactRecordRepository,
@@ -280,42 +284,63 @@ class CustomerIssueRecordServiceTest {
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
-                List.of(record(101, "CC_PRODUCT", List.of("draft"), false, false, "", "Alice", "Bob")),
-                1,
+                List.of(
+                    recordWithExportFields(
+                        101,
+                        "【约束】Export sample",
+                        "CC2026R3第一轮系统测试",
+                        "Fixer",
+                        List.of(
+                            "模块：草图",
+                            "工具箱：工程图",
+                            "测试阶段：CC2026R3第一轮系统测试",
+                            "状态：已修复/完成",
+                            "严重程度：二级缺陷",
+                            "类别：缺陷",
+                            "P1",
+                            "技术卡点")),
+                    recordWithExportFields(
+                        102,
+                        "[ASCII] Export sample",
+                        "",
+                        "",
+                        List.of("模块：平台", "严重程度：三级缺陷", "类别：缺陷"))),
+                2,
                 1,
                 100));
 
-    service.exportRecordsWorkbook(
-        new CustomerIssueRecordQueryRequest(
-            "cc-product",
-            new IssueFactRecordListRequest(
-                325L,
-                "",
+    byte[] exported =
+        service.exportRecordsWorkbook(
+            new CustomerIssueRecordQueryRequest(
+                "cc-product",
+                new IssueFactRecordListRequest(
+                    325L,
+                    "",
+                    null,
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
                 null,
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                1,
-                20,
-                "updatedAt",
-                "desc"),
-            null,
-            null,
-            null,
-            null));
+                null,
+                null,
+                null));
 
     verify(issueFactRecordRepository)
         .findPage(
@@ -324,6 +349,117 @@ class CustomerIssueRecordServiceTest {
                     query.listRequest().projectId().equals(325L)
                         && query.listRequest().page() == 1
                         && query.listRequest().size() == 100));
+
+    try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(exported))) {
+      var sheet = workbook.getSheet("CCProduct议题查询结果");
+      assertThat(sheet.getRow(0).getCell(9).getStringCellValue()).isEqualTo("测试阶段");
+      assertThat(sheet.getRow(0).getCell(16).getStringCellValue()).isEqualTo("缺陷修复人");
+      assertThat(rowValues(sheet.getRow(1)))
+          .containsExactly(
+              "2026-04-23",
+              "2026-04-21",
+              "草图&工程图",
+              "#101",
+              "【约束】Export sample",
+              "Alice",
+              "Bob",
+              "OPEN",
+              "已修复/完成",
+              "CC2026R3第一轮系统测试",
+              "二级缺陷",
+              "缺陷",
+              "CC2026 R3",
+              "Bob",
+              "P1",
+              "技术卡点",
+              "Fixer",
+              "约束");
+      assertThat(rowValues(sheet.getRow(2)))
+          .containsExactly(
+              "2026-04-23",
+              "2026-04-21",
+              "平台",
+              "#102",
+              "[ASCII] Export sample",
+              "Alice",
+              "Bob",
+              "OPEN",
+              "未设定议题状态",
+              "未设定测试阶段",
+              "三级缺陷",
+              "缺陷",
+              "CC2026 R3",
+              "Bob",
+              "未设定紧急程度",
+              "未设定类别",
+              "",
+              "");
+    }
+  }
+
+  @Test
+  void shouldKeepDelayWorkbookLayoutIsolatedFromCcProductContract() throws Exception {
+    CustomerIssueRecordService service =
+        new CustomerIssueRecordService(
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            issueLinkService,
+            labelGroupExpansionService);
+    when(issueFactRecordRepository.findPage(any()))
+        .thenReturn(
+            new PageSlice<>(
+                List.of(
+                    recordWithExportFields(
+                        103,
+                        "【延期】Export sample",
+                        "CC2026R3第一轮系统测试",
+                        "Fixer",
+                        List.of("模块：草图", "工具箱：工程图"))),
+                1,
+                1,
+                100));
+
+    byte[] exported =
+        service.exportRecordsWorkbook(
+            new CustomerIssueRecordQueryRequest(
+                "delay",
+                new IssueFactRecordListRequest(
+                    325L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                null,
+                null,
+                null,
+                null));
+
+    try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(exported))) {
+      var row = workbook.getSheet("CCProduct议题查询结果").getRow(1);
+      assertThat(row.getCell(2).getStringCellValue()).isEqualTo("草图、工程图");
+      assertThat(row.getCell(7).getStringCellValue()).isEqualTo("未关闭");
+      assertThat(row.getCell(9).getStringCellValue()).isEmpty();
+      assertThat(row.getCell(16).getStringCellValue()).isEmpty();
+    }
   }
 
   @Test
@@ -498,5 +634,55 @@ class CustomerIssueRecordServiceTest {
         now.minusDays(3),
         now.minusDays(1),
         null);
+  }
+
+  private IssueFactRecord recordWithExportFields(
+      int issueIid, String title, String testingPhase, String fixUser, List<String> labels) {
+    LocalDateTime now = LocalDateTime.of(2026, 4, 24, 10, 0);
+    return new IssueFactRecord(
+        325L,
+        "CC_PRODUCT",
+        9000L + issueIid,
+        issueIid,
+        title,
+        "opened",
+        testingPhase,
+        "",
+        "LEVEL2",
+        "P1",
+        "已修复/完成",
+        "缺陷",
+        "",
+        false,
+        "",
+        false,
+        false,
+        false,
+        false,
+        false,
+        "CC2026 R3",
+        "Alice",
+        "Bob",
+        fixUser,
+        List.of("草图", "工程图"),
+        "约束",
+        labels,
+        false,
+        "",
+        "技术卡点",
+        false,
+        false,
+        false,
+        "",
+        List.of(),
+        now.minusDays(3),
+        now.minusDays(1),
+        null);
+  }
+
+  private List<String> rowValues(Row row) {
+    return IntStream.range(0, CcProductIssueWorkbookRow.HEADERS.size())
+        .mapToObj(index -> row.getCell(index).getStringCellValue())
+        .toList();
   }
 }

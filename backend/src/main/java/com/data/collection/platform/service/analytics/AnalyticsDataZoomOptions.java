@@ -12,34 +12,31 @@ import java.util.Map;
  */
 public final class AnalyticsDataZoomOptions {
   public static final int VERTICAL_GRID_RIGHT = 64;
-  public static final int HORIZONTAL_GRID_BOTTOM = 88;
+  /** Old-platform charts initially expose category indexes 0 through 10. */
+  public static final int LEGACY_INITIAL_VIEWPORT_END_VALUE = 10;
+
+  // Keep the rotated category labels, the 30px slider, and a visible lower edge separated.
+  // ECharts positions the slider handle outside the rail's internal drawing bounds, so the
+  // grid needs more than merely the slider's nominal height.
+  public static final int HORIZONTAL_GRID_BOTTOM = 112;
 
   // Match the Apache ECharts slider default so controls remain easy to grab and read.
   private static final int VERTICAL_SLIDER_WIDTH = 30;
   private static final int HORIZONTAL_SLIDER_HEIGHT = 30;
-  private static final int VERTICAL_SLIDER_RIGHT = 10;
-  private static final int HORIZONTAL_SLIDER_BOTTOM = 10;
+  // ECharts creates a vertical slider by rotating its horizontal control. The rotated end
+  // handle extends 11.5px beyond the nominal 30px rail; a 10px gap therefore still crosses
+  // the SVG boundary. Keep the complete handle, border, and shadow inside the chart canvas.
+  private static final int VERTICAL_SLIDER_RIGHT = 16;
+  private static final int HORIZONTAL_SLIDER_BOTTOM = 28;
 
   private AnalyticsDataZoomOptions() {}
 
   public static List<Map<String, Object>> vertical(int rowCount, int requestedEndValue) {
-    return List.of(
-        Map.of(
-            "type", "inside",
-            "yAxisIndex", 0,
-            "startValue", 0,
-            "endValue", endValue(rowCount, requestedEndValue)),
-        slider("yAxisIndex", rowCount, requestedEndValue, true));
+    return List.of(slider("yAxisIndex", rowCount, requestedEndValue, true));
   }
 
   public static List<Map<String, Object>> horizontal(int rowCount, int requestedEndValue) {
-    return List.of(
-        Map.of(
-            "type", "inside",
-            "xAxisIndex", 0,
-            "startValue", 0,
-            "endValue", endValue(rowCount, requestedEndValue)),
-        slider("xAxisIndex", rowCount, requestedEndValue, false));
+    return List.of(slider("xAxisIndex", rowCount, requestedEndValue, false));
   }
 
   private static Map<String, Object> slider(
@@ -49,6 +46,9 @@ public final class AnalyticsDataZoomOptions {
     option.put(axisIndexKey, 0);
     option.put("startValue", 0);
     option.put("endValue", endValue(rowCount, requestedEndValue));
+    // A single slider is intentional: old-platform charts use this as the sole range owner.
+    // Keeping one owner prevents linked inside/slider controls from competing on refresh.
+    option.put("filterMode", "filter");
     option.put("show", true);
     option.put("showDetail", false);
     if (vertical) {
@@ -64,7 +64,8 @@ public final class AnalyticsDataZoomOptions {
     option.put("fillerColor", "rgba(37, 99, 235, 0.18)");
     option.put("dataBackground", dataBackground("#cbd5e1", "#e2e8f0", 0.58));
     option.put("selectedDataBackground", dataBackground("#60a5fa", "#bfdbfe", 0.72));
-    option.put("handleSize", "110%");
+    // ECharts' native 100% handle fills the rail without overflowing its SVG bounds.
+    option.put("handleSize", "100%");
     option.put("handleStyle", handleStyle("#ffffff", "#2563eb"));
     option.put("moveHandleSize", 12);
     option.put("moveHandleStyle", Map.of("color", "rgba(37, 99, 235, 0.34)"));

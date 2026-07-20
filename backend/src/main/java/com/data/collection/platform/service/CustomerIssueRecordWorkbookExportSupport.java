@@ -17,26 +17,6 @@ final class CustomerIssueRecordWorkbookExportSupport {
   private static final DateTimeFormatter LEGACY_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
   private static final String RECORD_SHEET_NAME = "CCProduct议题查询结果";
   private static final String ILLEGAL_SHEET_NAME = "议题数据";
-  private static final List<String> LEGACY_RECORD_HEADERS =
-      List.of(
-          "议题更新时间",
-          "议题提交时间",
-          "模块名",
-          "议题编号",
-          "议题标题",
-          "议题提交人",
-          "议题处理人",
-          "议题状态",
-          "测试状态",
-          "测试阶段",
-          "议题严重程度",
-          "议题类别",
-          "里程碑",
-          "议题指派人",
-          "优先级",
-          "延期原因",
-          "缺陷修复人",
-          "功能名称");
   private static final List<String> LEGACY_ILLEGAL_HEADERS =
       List.of(
           "议题更新时间",
@@ -73,11 +53,24 @@ final class CustomerIssueRecordWorkbookExportSupport {
   private CustomerIssueRecordWorkbookExportSupport() {
   }
 
-  static byte[] exportRecords(List<CustomerIssueRecordRowResponse> rows) {
+  static byte[] exportRecords(
+      List<CustomerIssueRecordRowResponse> rows, CustomerIssueRecordWorkbookLayout layout) {
+    List<List<String>> values =
+        switch (layout) {
+          case CC_PRODUCT ->
+              rows.stream()
+                  .map(CcProductIssueWorkbookRow::from)
+                  .map(CcProductIssueWorkbookRow::values)
+                  .toList();
+          case DELAY ->
+              rows.stream()
+                  .map(CustomerIssueRecordWorkbookExportSupport::delayRecordValues)
+                  .toList();
+        };
     return exportWorkbook(
         RECORD_SHEET_NAME,
-        LEGACY_RECORD_HEADERS,
-        rows.stream().map(CustomerIssueRecordWorkbookExportSupport::recordValues).toList());
+        CcProductIssueWorkbookRow.HEADERS,
+        values);
   }
 
   static byte[] exportIllegalRecords(List<CustomerIssueIllegalRecordRowResponse> rows) {
@@ -119,7 +112,7 @@ final class CustomerIssueRecordWorkbookExportSupport {
     }
   }
 
-  private static List<String> recordValues(CustomerIssueRecordRowResponse row) {
+  private static List<String> delayRecordValues(CustomerIssueRecordRowResponse row) {
     return List.of(
         date(row.updatedAt()),
         date(row.createdAt()),

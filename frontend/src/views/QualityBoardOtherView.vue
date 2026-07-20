@@ -224,8 +224,8 @@ void refresh(false);
       </header>
 
       <section class="quality-board-other__scope-note">
-        <strong>独立统计范围</strong>
-        <span>前四个专题分别选择版本；发布与开发遗留率固定统计全部启用版本。页面不读取 DGM 数据。</span>
+        <strong>统计范围</strong>
+        <span>前四个专题按所选版本统计；发布与开发遗留率统计全部启用版本。</span>
       </section>
 
       <section class="quality-board-other__grid">

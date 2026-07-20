@@ -16,7 +16,6 @@ import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanat
 import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.entity.statistics.StatisticColumnGroup;
 import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
-import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
@@ -52,7 +51,10 @@ import org.springframework.util.StringUtils;
 @Service
 @Slf4j
 public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardService
-    implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
+    implements RealtimeStatisticBoardSupport,
+        RuleExplainableStatisticBoardSupport,
+        StatisticBoardSnapshotRefresher,
+        StatisticBoardIssueWorkbookExportSupport {
   private static final String BOARD_KEY = "system-test-defect-summary";
   private static final String MODULE_FIELD = "moduleName";
   private static final String RULE_VERSION = "system-test-defect-summary@2026-07-10-v11";
@@ -218,6 +220,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     return new StatisticColumnLeaf(key, label, drilldown, metricType);
   }
 
+  @Override
   public byte[] exportIssueRecordsWorkbook(Map<String, String> filters) {
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
     EffectiveFilterGroup effectiveFilterGroup = buildEffectiveFilterGroup(filterGroup);
@@ -229,6 +232,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     return SystemTestIssueRecordWorkbookExportSupport.exportIssueDataRecords(rows);
   }
 
+  @Override
   public String exportIssueRecordsFilename(Map<String, String> filters) {
     String phase = selectedTestingPhase(parseFilterGroup(filters, buildDefinition()));
     if (StringUtils.hasText(phase)) {
@@ -364,7 +368,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         StatisticRuleFlowSupport.step(
             "source-load",
             "加载议题数据",
-            "加载已同步到平台的议题数据，并使用平台按老平台规则整理后的项目、阶段、模块、严重程度和处理状态。",
+            "加载已同步到平台的议题数据，并使用统一的项目、阶段、模块、严重程度和处理状态字段。",
             initial.size(),
             initial,
             this::toRuleFlowSample
@@ -372,7 +376,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         StatisticRuleFlowSupport.step(
             "scope-filter",
             "限定系统测试范围",
-            "按老平台系统测试缺陷汇总入口限定 CrownCAD 项目和测试阶段定义范围，不再以“系统测试/回归测试”标签作为前置范围。",
+            "按 CrownCAD 项目和测试阶段定义限定范围，不以“系统测试/回归测试”标签作为前置条件。",
             initial.size(),
             scoped,
             this::toRuleFlowSample
@@ -594,10 +598,10 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private List<StatisticRuleMetricDefinition> buildMetricDefinitions() {
     return List.of(
         new StatisticRuleMetricDefinition("level1", "一级缺陷", "严重程度为一级缺陷的议题会进入一级缺陷统计，并继续拆分为回退、挂机和其他一级缺陷。", "一级缺陷修复率 = 一级缺陷已修复数量 / 一级缺陷总数", null),
-        new StatisticRuleMetricDefinition("priority-summary", "P1/P2/P3", "P1/P2/P3 是优先级统计，一级/二级/三级是严重程度统计，两套口径不能混用。", "某优先级修复率 = 该优先级已修复、已完成、未复现或已关闭数量 / 该优先级总数；缺陷汇总表按老平台口径只展示 P1 关闭率", null),
+        new StatisticRuleMetricDefinition("priority-summary", "P1/P2/P3", "P1/P2/P3 是优先级统计，一级/二级/三级是严重程度统计，两套口径不能混用。", "某优先级修复率 = 该优先级已修复、已完成、未复现或已关闭数量 / 该优先级总数；缺陷汇总表只展示 P1 关闭率", null),
         new StatisticRuleMetricDefinition("summary", "综合汇总", "综合区展示模块总缺陷数、缺陷占比、延期占比、已修复或未更新、修复率、关闭率、未关闭数量、申请延期和复测未通过。", "修复率 = 已修复、待合并或未更新数量 / 模块总缺陷数；复测未通过按处理状态包含未修复统计", null),
         new StatisticRuleMetricDefinition("new-issue", "新发议题", "新发议题不包含标记为历史遗留的议题。", "新发议题修复率 = 新发议题中已修复、待合并或未更新数量 / 新发议题总数；关闭率还要求议题已关闭且状态为已修复、已完成或未复现", null),
-        new StatisticRuleMetricDefinition("legacy", "遗留率", "遗留率沿用老平台系统测试缺陷汇总的历史遗留判定口径。", "一级缺陷遗留率 = 一级缺陷未按已修复口径命中的数量 / 一级缺陷总数；二级、三级遗留按对应严重程度中未修复、未待合并、未更新的数据统计", null));
+        new StatisticRuleMetricDefinition("legacy", "遗留率", "遗留率按系统测试缺陷汇总的既定规则判定。", "一级缺陷遗留率 = 一级缺陷未按已修复口径命中的数量 / 一级缺陷总数；二级、三级遗留按对应严重程度中未修复、未待合并、未更新的数据统计", null));
   }
 
   private List<IssueSource> loadSources(Map<String, String> filters, EffectiveFilterGroup effectiveFilterGroup) {

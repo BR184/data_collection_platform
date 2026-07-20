@@ -90,6 +90,15 @@ export const statisticBoardsApi = {
       },
     );
   },
+  async exportCustomerIssueDefectSummaryIssues(params?: StatisticBoardQueryParams) {
+    return requestBlobResponse(
+      `/api/statistic-boards/customer-issue-defect-summary/issues/export${buildStatisticBoardQuery(params)}`,
+      {
+        errorPrefix: '客户问题议题数据导出失败',
+        timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
+      },
+    );
+  },
   getStatisticBoardRealtimeStatus(boardKey: string, params?: StatisticBoardQueryParams) {
     return request<RealtimeWorkspaceStatusResponse>(
       `/api/statistic-boards/${boardKey}/status${buildStatisticBoardQuery(params)}`,

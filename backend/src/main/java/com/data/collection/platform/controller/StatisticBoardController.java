@@ -13,8 +13,8 @@ import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.statistics.RealtimeStatisticBoardSupport;
 import com.data.collection.platform.service.statistics.StatisticBoardRegistry;
+import com.data.collection.platform.service.statistics.StatisticBoardIssueWorkbookExportSupport;
 import com.data.collection.platform.service.statistics.StatisticBoardWorkbookExportSupport;
-import com.data.collection.platform.service.statistics.SystemTestDefectSummaryBoardService;
 import com.data.collection.platform.service.statistics.SystemTestHorizontalComparisonExportService;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
@@ -137,16 +137,15 @@ public class StatisticBoardController {
       @PathVariable @NotBlank String boardKey,
       @RequestParam Map<String, String> filters) {
     var service = registry.getRequired(boardKey);
-    if (!SYSTEM_TEST_DEFECT_SUMMARY_BOARD_KEY.equals(boardKey)
-        || !(service instanceof SystemTestDefectSummaryBoardService defectSummaryBoardService)) {
+    if (!(service instanceof StatisticBoardIssueWorkbookExportSupport issueWorkbookExportSupport)) {
       throw new IllegalArgumentException("当前统计表不支持议题数据导出: " + boardKey);
     }
-    byte[] workbook = defectSummaryBoardService.exportIssueRecordsWorkbook(filters);
+    byte[] workbook = issueWorkbookExportSupport.exportIssueRecordsWorkbook(filters);
     return ResponseEntity.ok()
         .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
         .header(
             HttpHeaders.CONTENT_DISPOSITION,
-            DownloadResponseHeaders.attachment(defectSummaryBoardService.exportIssueRecordsFilename(filters)))
+            DownloadResponseHeaders.attachment(issueWorkbookExportSupport.exportIssueRecordsFilename(filters)))
         .body(workbook);
   }
 

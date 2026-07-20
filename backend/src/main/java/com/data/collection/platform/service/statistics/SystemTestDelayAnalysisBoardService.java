@@ -160,7 +160,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     return new StatisticBoardDefinition(
         BOARD_KEY,
         "申请延期缺陷分析",
-        "按老平台固定延期原因分析申请延期缺陷数量。",
+        "按预设延期原因分析申请延期缺陷数量。",
         "",
         "",
         "延期原因",
@@ -274,7 +274,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     DetailRecordPage pageSlice = sliceDetailRecords(request, scoped, this::toDetailRecord);
     return new StatisticDetailResponse(
         "申请延期缺陷明细",
-        "展示当前延期原因与指标命中的议题明细，明细内容按老平台通用议题详情口径展示。",
+        "展示当前延期原因与指标命中的议题明细。",
         DETAIL_COLUMNS,
         pageSlice.records(),
         pageSlice.total(),
@@ -333,8 +333,8 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
         true,
         "申请延期缺陷分析规则说明",
         RULE_VERSION,
-        "当前统计先限定系统测试和回归测试范围，再按老平台固定延期原因分类统计。",
-        "延期原因按老平台 like 口径匹配；同一条议题包含多个延期原因时，会分别计入对应延期原因行。",
+        "当前统计先限定系统测试和回归测试范围，再按预设延期原因分类统计。",
+        "延期原因按关键字匹配；同一条议题包含多个延期原因时，会分别计入对应延期原因行。",
         List.of(
             snapshot.flowSteps().get(0),
             snapshot.flowSteps().get(1),
@@ -343,7 +343,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "group-by-delay-cause",
                 "按延期原因聚合",
-                "将延期议题按老平台固定延期原因 like 匹配聚合，再统计一级、二级、三级和建议类缺陷数量。",
+                "将延期议题按预设延期原因关键字匹配聚合，再统计一级、二级、三级和建议类缺陷数量。",
                 snapshot.finalSources().size(),
                 causeCount,
                 snapshot.finalSources(),
@@ -403,7 +403,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "delay-cause-filter",
                 "保留延期议题",
-                "只保留命中老平台固定延期原因的议题；常规指标排除建议类，建议类列单独读取因建议被公共规则排除的数据。",
+                "只保留命中预设延期原因的议题；常规指标排除建议类，建议类列单独读取因建议被公共规则排除的数据。",
                 scoped.size(),
                 delayed,
                 this::toRuleFlowSample
@@ -411,7 +411,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "phase-filter",
                 "应用测试阶段筛选",
-                "根据页面上的测试阶段筛选进一步收敛范围；未选择时按老平台默认使用阶段列表第一项。",
+                "根据页面上的测试阶段筛选进一步收敛范围；未选择时使用阶段列表第一项。",
                 delayed.size(),
                 filtered,
                 this::toRuleFlowSample

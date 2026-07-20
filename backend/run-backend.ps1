@@ -2,7 +2,12 @@
 # under systemd; do not use this script as a production entrypoint.
 $backendRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 . (Join-Path $backendRoot "..\scripts\dev-env.ps1")
+Import-LocalEnvironmentFile (Join-Path $backendRoot ".env.local") | Out-Null
 Set-Location $backendRoot
+
+if ([string]::IsNullOrWhiteSpace($env:DATASOURCE_PASSWORD)) {
+  throw "Missing DATASOURCE_PASSWORD. Set it in backend/.env.local or the launching process environment."
+}
 
 $currentRepoRoot = (Resolve-Path (Join-Path $backendRoot "..")).Path
 $staleBackendProcesses = Get-CimInstance Win32_Process -Filter "Name = 'java.exe'" |

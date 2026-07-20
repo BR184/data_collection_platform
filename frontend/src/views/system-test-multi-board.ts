@@ -111,7 +111,7 @@ function removeInnerTitle(option: EChartsOption | null, chart: SystemTestIssueMu
   return next;
 }
 
-/** Keep backend-provided point identity intact when shared option builders apply visual defaults. */
+/** Keep backend-provided point identity intact without discarding shared option visual defaults. */
 function preservePointMetadata(
   option: EChartsOption | null,
   chart: SystemTestIssueMultiBoardChartResponse,
@@ -121,9 +121,29 @@ function preservePointMetadata(
   }
   const next = { ...option } as Record<string, unknown>;
   const optionSeries = Array.isArray(next.series) ? next.series : [];
-  next.series = optionSeries.map((item, index) => ({
-    ...(item as Record<string, unknown>),
-    data: chart.series[index]?.data ?? [],
-  }));
+  next.series = optionSeries.map((item, index) => {
+    const seriesOption = item as Record<string, unknown>;
+    const generatedData = Array.isArray(seriesOption.data) ? seriesOption.data : [];
+    const pointMetadata = chart.series[index]?.data ?? [];
+    return {
+      ...seriesOption,
+      data: pointMetadata.map((point, pointIndex) => mergeChartPoint(generatedData[pointIndex], point)),
+    };
+  });
   return next as EChartsOption;
+}
+
+function mergeChartPoint(generatedPoint: unknown, backendPoint: SystemTestIssueMultiBoardChartResponse['series'][number]['data'][number]) {
+  if (typeof generatedPoint !== 'object' || generatedPoint === null || Array.isArray(generatedPoint)) {
+    return backendPoint;
+  }
+  const generated = generatedPoint as Record<string, unknown>;
+  const generatedItemStyle = typeof generated.itemStyle === 'object' && generated.itemStyle !== null && !Array.isArray(generated.itemStyle)
+    ? generated.itemStyle as Record<string, unknown>
+    : {};
+  return {
+    ...generated,
+    ...backendPoint,
+    itemStyle: generatedItemStyle,
+  };
 }

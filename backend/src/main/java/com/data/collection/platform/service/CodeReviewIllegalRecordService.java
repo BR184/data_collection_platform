@@ -662,7 +662,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
           WORKSPACE_KEY,
           false,
           "IDLE",
-          "兼容模式开启时，代码走查非法数据来自老平台兼容表，请等待每 10 分钟自动同步；同步过程中页面继续展示上一次已完成同步的数据。",
+          "当前数据由后台定时同步，页面继续展示最近一次完成同步的数据。",
           false,
           null,
           null,
@@ -749,9 +749,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
         true,
         "代码走查非法记录规则说明",
         RULE_VERSION,
-        codeReviewCompatibilityReadEnabled()
-            ? "当前统计范围来自老平台兼容数据；页面查询条件会在这个范围上继续筛选。"
-            : "当前统计范围来自已同步到平台的代码合并请求数据；页面查询条件会在这个范围上继续筛选。",
+        "当前统计范围内的代码合并请求数据会继续按页面查询条件筛选。",
         "规则说明只展示判定口径，不在打开说明时扫描全量记录；实际数量以当前列表、筛选和导出结果为准。",
         List.of(),
         buildMetricDefinitions(),
@@ -1119,7 +1117,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
         new StatisticRuleMetricDefinition(
             "illegalTypes",
             "非法类型",
-            "系统按老平台代码走查非法数据口径标记这条合并请求命中的非法类型。",
+            "系统按代码走查非法数据规则标记这条合并请求命中的非法类型。",
             "非法类型 = 未标注项目名称 / 未标注模块名称 / 无代码走查 / 未代码扫描 / 静态扫描问题未关闭 / 代码注释量未达标 / 静态扫描失败 / 注释率分析工具Clang分析错误",
             "一条记录可以同时命中多种非法类型。"),
         new StatisticRuleMetricDefinition(
@@ -1131,7 +1129,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
         new StatisticRuleMetricDefinition(
             "codeWalkthroughDate",
             "走查时间",
-            "表示老平台展开行和导出中的代码走查时间。",
+            "表示展开行和导出中的代码走查时间。",
             "走查时间优先取 MR 评论中“## 代码走查数据”的走查评论更新时间，取不到时回退到新平台走查表单更新时间，再回退到 MR 更新时间。",
             "该时间与合并时间是两个字段，导出第一列不能用合并时间替代。"),
         new StatisticRuleMetricDefinition(

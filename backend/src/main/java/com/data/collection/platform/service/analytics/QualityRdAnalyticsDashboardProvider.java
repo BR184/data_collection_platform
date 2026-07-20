@@ -276,28 +276,28 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
                 "有效需求评审问题数 / 需求评审规模页数",
                 projectName + " 的需求说明书评审；问题与规模按评审数据统一有效口径重算",
                 "[0.20, 0.60]",
-                "兼容评审数据与正式评审数据使用同一计算公式。"),
+                "问题数量与评审规模均以有效记录为准。"),
             rule(
                 "design-review-density",
                 "设计评审缺陷密度",
                 "有效设计评审问题数 / 设计评审规模页数",
                 projectName + " 的设计说明书评审；问题与规模按评审数据统一有效口径重算",
                 "[0.20, 0.60]",
-                "兼容评审数据与正式评审数据使用同一计算公式。"),
+                "问题数量与评审规模均以有效记录为准。"),
             rule(
                 "code-review-density-cc",
                 "CC代码走查缺陷密度",
                 "合并请求缺陷数合计 / 新增代码行数合计 × 1000",
-                projectName + " 的 CC 已合并 dev 分支数据；按 MR 去重，重复行缺陷数相加、新增行数取第一条",
+                projectName + " 的 CC 已合并 dev 分支数据；按合并请求去重，重复行缺陷数相加、新增行数取第一条",
                 "[2.00, 10.00] KLOC",
-                "兼容模式和正式模式使用隔离的数据表与 MR 去重键。"),
+                "同一合并请求仅计一次新增行，重复走查记录的缺陷数累计。"),
             rule(
                 "code-review-density-dgm",
                 "DGM代码走查缺陷密度",
                 "合并请求缺陷数合计 / 新增代码行数合计 × 1000",
-                projectName + " 的 DGM 已合并 dev 分支数据；按 MR 去重，重复行缺陷数相加、新增行数取第一条",
+                projectName + " 的 DGM 已合并 dev 分支数据；按合并请求去重，重复行缺陷数相加、新增行数取第一条",
                 "[2.00, 10.00] KLOC",
-                "DGM 当前只在兼容模式提供，不会回落读取正式 CC 数据。"),
+                "同一合并请求仅计一次新增行，重复走查记录的缺陷数累计。"),
             rule(
                 "integration-pass-rate",
                 "集成测试通过率",
@@ -332,14 +332,14 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
                 "人员有效行级缺陷密度之和 / 该人员全部匹配记录数",
                 codeReviewScope + "；排除空值、占位值和非法人员值",
                 "[2.00, 10.00] KLOC",
-                "DGM 只在兼容模式进入本图。"),
+                "人员名称为空或为占位值时不参与统计。"),
             rule(
                 "author-defect-density",
                 "按被走查人统计代码走查缺陷密度",
                 "人员有效行级缺陷密度之和 / 该人员全部匹配记录数",
                 codeReviewScope + "；额外排除走查人字段为非法占位值的记录",
                 "[2.00, 10.00] KLOC",
-                "DGM 只在兼容模式进入本图。"),
+                "走查人或被走查人字段为占位值时不参与统计。"),
             rule(
                 "fix-user-severity",
                 "按修复人统计缺陷数",
@@ -353,12 +353,12 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
                 "按被走查人统计全部匹配代码走查记录数",
                 codeReviewScope + "；不附加默认合并时间范围",
                 null,
-                "DGM 只在兼容模式进入本图。"),
+                "按全部匹配记录统计，不限定默认合并时间范围。"),
             rule(
                 "defect-repair-user",
                 "指派人剩余缺陷数量",
                 "按指派人统计未关闭缺陷数量",
-                projectName + " 系统测试阶段；未关闭识别 open 和 opened，沿用老平台口径，不排除已拒绝",
+                projectName + " 系统测试阶段；未关闭识别 open 和 opened，保留已拒绝状态记录",
                 null,
                 "空指派人不生成分组。")));
   }
@@ -481,14 +481,14 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
       return AnalyticsDashboardExport.xlsx(
           projectName + "指派人剩余缺陷数量统计.xlsx",
           analyticsWorkbookService.assigneeSummary(
-              detailQueryService.assigneeSummaryRows(context)));
+              detailQueryService.assigneeSummaryRows(projectName, null)));
     }
     if ("assignee-remaining-cc-detail".equals(exportKey)) {
       requireDetailServices();
       return AnalyticsDashboardExport.xlsx(
           "CrownCAD" + projectName + "指派人剩余缺陷数量详细统计数据.xlsx",
           analyticsWorkbookService.ccDetails(detailQueryService.ccAssigneeDetailRows(
-              projectName, context.parameter("assigneeName").orElse(null))));
+              projectName, null)));
     }
     if ("assignee-remaining-htgc-detail".equals(exportKey)) {
       requireDetailServices();
@@ -506,7 +506,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
     }
     if ("code-review-records-dgm".equals(exportKey)) {
       if (context.readMode() != AnalyticsDashboardQueryContext.ReadMode.MATCH_MODE) {
-        throw new BizException("DGM 代码走查数据仅在兼容模式可用");
+        throw new BizException("当前范围内暂无 DGM 代码走查数据");
       }
       //兼容模式-MatchMode：DGM 导出与看板聚合共用兼容快照，禁止回落到正式 CC 事实表。
       return AnalyticsDashboardExport.xlsx(
@@ -600,7 +600,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
   }
 
   private AnalyticsDashboardResponse.ExportAction exportAction(String exportKey) {
-    return new AnalyticsDashboardResponse.ExportAction(exportKey, "导出 Excel");
+    return new AnalyticsDashboardResponse.ExportAction(exportKey, "导出");
   }
 
   private Map<String, String> codeReviewDetailParams(

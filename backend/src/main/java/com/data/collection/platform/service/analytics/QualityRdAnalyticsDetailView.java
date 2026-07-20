@@ -61,7 +61,7 @@ enum QualityRdAnalyticsDetailView {
   ASSIGNEE_REMAINING_DEFECTS(
       "assignee-remaining-defects",
       "指派人剩余缺陷数量",
-      "按所选父级测试阶段汇总 CrownCAD 未关闭缺陷；沿用老平台主图口径，不排除已拒绝。",
+      "按所选父级测试阶段汇总 CrownCAD 未关闭缺陷；未关闭状态包含 open 与 opened，不排除已拒绝。",
       List.of(
           column("assigneeName", "指派人", "text", 220),
           column("remainingCount", "剩余缺陷数量", "number", 180)),

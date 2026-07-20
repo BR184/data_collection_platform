@@ -379,6 +379,7 @@ public class QualityBoardRdService {
           and project_id = ?
           and testing_phase in (%s)
           and %s
+          and coalesce(bug_status, '') not like '%%已拒绝%%'
           and nullif(btrim(assignee_name), '') is not null
         group by person_name
         order by value desc, person_name

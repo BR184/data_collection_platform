@@ -49,11 +49,17 @@ function mountToolbar() {
       stubs: {
         StatisticFilterBuilder: {
           props: ['modelValue', 'fields'],
-          template: '<div data-testid="filter-builder">{{ fields.length }}</div>',
+          emits: ['apply', 'reset'],
+          template: '<div data-testid="filter-builder"><span data-testid="filter-builder-count">{{ fields.length }}</span><button type="button" @click="$emit(\'apply\')">查询</button><button type="button" @click="$emit(\'reset\')">重置</button></div>',
         },
         SyncMetaBadge: {
           props: ['value'],
           template: '<span data-testid="sync-meta">{{ value }}</span>',
+        },
+        ExportActionMenu: {
+          props: ['actions'],
+          emits: ['select'],
+          template: '<button type="button" @click="$emit(\'select\', actions[0]?.key)">{{ actions[0]?.label }}</button>',
         },
         ElButton: {
           props: ['icon', 'loading'],
@@ -93,12 +99,10 @@ describe('StatisticBoardToolbar', () => {
   it('renders filter builder, board title and sync metadata', () => {
     const wrapper = mountToolbar();
 
-    expect(wrapper.get('[data-testid="filter-builder"]').text()).toBe('1');
+    expect(wrapper.get('[data-testid="filter-builder-count"]').text()).toBe('1');
     expect(wrapper.text()).toContain('Defect summary');
     expect(wrapper.get('[data-testid="sync-meta"]').text()).toBe('2026-04-30 10:00');
     expect(wrapper.get('[data-testid="realtime-refresh-status"]').text()).toContain('已是最新');
-    expect(wrapper.get('[data-testid="realtime-refresh-status"]').text()).toContain('镜像已完成');
-    expect(wrapper.get('[data-testid="realtime-refresh-status"]').text()).toContain('事实已完成');
     expect(wrapper.text()).toContain('进入页面自动刷新');
     expect(wrapper.get('[data-testid="auto-refresh-switch"]').text()).toBe('开');
     expect(wrapper.classes()).toContain('toolbar-hook');

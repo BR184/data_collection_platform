@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Download } from '@element-plus/icons-vue';
 import type { AnalyticsDashboardMetric, AnalyticsDashboardRule } from '../../types/api';
+import ExportActionMenu from '../base/ExportActionMenu.vue';
 import RuleHintIcon from './RuleHintIcon.vue';
 
 defineProps<{
@@ -34,16 +34,11 @@ function handleTitleClick(metric: AnalyticsDashboardMetric) {
         查看详情
       </button>
       <RuleHintIcon v-if="metric.ruleKey" :rule="rule" @click="emit('rule-click', $event)" />
-      <el-button
+      <ExportActionMenu
         v-if="metric.export"
-        text
-        circle
-        size="small"
-        aria-label="下载指标数据"
-        @click.stop="emit('export', metric)"
-      >
-        <el-icon><Download /></el-icon>
-      </el-button>
+        :actions="[{ key: metric.export.exportKey, label: '导出' }]"
+        @select="emit('export', metric)"
+      />
     </header>
     <div class="dashboard-metric-card__value" :data-status="metric.status || 'neutral'">
       <span class="dashboard-metric-card__value-number">{{ metric.displayValue }}</span>

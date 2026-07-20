@@ -19,6 +19,8 @@ public record CustomerIssueRecordRowResponse(
     String milestoneTitle,
     String authorName,
     String assigneeName,
+    String testingPhase,
+    String fixUser,
     String moduleNames,
     String functionName,
     boolean delayIssue,

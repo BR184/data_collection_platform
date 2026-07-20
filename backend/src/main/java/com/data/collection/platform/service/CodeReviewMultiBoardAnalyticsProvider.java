@@ -70,7 +70,6 @@ public class CodeReviewMultiBoardAnalyticsProvider implements AnalyticsDashboard
   @Override
   public AnalyticsDashboardResponse loadDashboard(AnalyticsDashboardQueryContext context) {
     CodeReviewMultiBoardProjectScope projectScope = projectScope(context);
-    String source = projectScope.source();
     String projectName = projectScope.projectName();
     List<AnalyticsDashboardResponse.Chart> charts = new ArrayList<>();
     for (CodeReviewMultiBoardTopic topic : CodeReviewMultiBoardTopic.values()) {
@@ -78,10 +77,9 @@ public class CodeReviewMultiBoardAnalyticsProvider implements AnalyticsDashboard
           queryService.loadRows(topic, projectScope);
       charts.add(toChart(topic, rows, projectScope));
     }
-    String sourceLabel = "dgm".equals(source) ? "DGM" : "CC";
     String subtitle = projectName.isBlank()
-        ? sourceLabel + " 当前没有可展示的 MERGED 代码走查数据"
-        : sourceLabel + " / " + projectName + "；所有专题使用同一数据源与项目范围";
+        ? "当前筛选范围内暂无已合并的代码走查数据"
+        : "项目：" + projectName + "；按当前筛选范围展示代码走查质量指标";
     return new AnalyticsDashboardResponse(
         DASHBOARD_KEY,
         "代码走查多元看板",
@@ -146,7 +144,7 @@ public class CodeReviewMultiBoardAnalyticsProvider implements AnalyticsDashboard
         rows.size(),
         context.page(),
         context.size(),
-        List.of(new AnalyticsDashboardResponse.ExportAction(topic.key(), "导出 Excel")));
+        List.of(new AnalyticsDashboardResponse.ExportAction(topic.key(), "导出")));
   }
 
   @Override
@@ -208,12 +206,12 @@ public class CodeReviewMultiBoardAnalyticsProvider implements AnalyticsDashboard
             "data", rows.stream().map(CodeReviewMultiBoardAnalyticsRow::label).toList(),
             "axisLabel", Map.of("width", 150, "overflow", "truncate")));
     // 老平台轴类图统一提供首屏范围控制，即使当前行数不足一屏也保留 slider，
-    // 让所有专题的交互一致；超过首屏的数据通过 inside/slider 浏览。
+    // 让所有专题的交互一致；超过首屏的数据通过 slider 浏览。
     if (!rows.isEmpty()) {
       // 老平台 CodeDefectDensity.vue 明确使用 0..30，其余代码走查图使用 0..10。
       int legacyViewportEnd = topic == CodeReviewMultiBoardTopic.CODE_SUBMISSION_DEFECT_DENSITY
           ? 30
-          : 10;
+          : AnalyticsDataZoomOptions.LEGACY_INITIAL_VIEWPORT_END_VALUE;
       int endValue = Math.min(legacyViewportEnd, rows.size() - 1);
       option.put("dataZoom", AnalyticsDataZoomOptions.vertical(rows.size(), endValue));
     }
@@ -238,7 +236,7 @@ public class CodeReviewMultiBoardAnalyticsProvider implements AnalyticsDashboard
                 "source", projectScope.source(),
                 "projectName", projectScope.projectName(),
                 "topic", topic.key())),
-        new AnalyticsDashboardResponse.ExportAction(topic.key(), "导出 Excel"));
+        new AnalyticsDashboardResponse.ExportAction(topic.key(), "导出"));
   }
 
   private Map<String, Object> pointData(CodeReviewMultiBoardAnalyticsRow row) {

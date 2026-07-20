@@ -14,16 +14,15 @@ Standard separated project structure:
 
 ```powershell
 cd backend
-$env:DATASOURCE_URL="jdbc:postgresql://127.0.0.1:15432/qaflex"
-$env:DATASOURCE_USERNAME="qaflex"
-$env:DATASOURCE_PASSWORD="change_this_password"
-$env:GITLAB_WEB_BASE_URL="http://your-gitlab-host"
 .\run-backend.ps1
 ```
 
 本机开发后端默认连接 Docker 容器 `qaflex-dev-postgres-15432`：
 `127.0.0.1:15432/qaflex`，账号为 `qaflex`。不要误连 `qaflex-postgres`
 （`127.0.0.1:25432`，独立的 `qaflex/qaflex` 凭据）。
+
+`run-backend.ps1` 会自动加载 `backend/.env.local`。该文件仅供本机使用、已被 Git 忽略；
+进程环境变量优先于该文件，方便 CI 和部署显式覆盖本地配置。
 
 Backend default URL:
 

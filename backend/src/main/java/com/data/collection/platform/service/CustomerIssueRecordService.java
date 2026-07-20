@@ -29,7 +29,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   private static final String TOPIC_CC_PRODUCT = "cc-product";
   private static final String TOPIC_DELAY = "delay";
   private static final String PAGE_KEY = "customer-issues-cc-product-issues";
-  private static final String RULE_VERSION = "customer-issue-records@2026-07-09-v2";
+  private static final String CC_PRODUCT_RULE_VERSION = "customer-issue-records@2026-07-15-v3";
+  private static final String DELAY_RULE_VERSION = "customer-issue-records@2026-07-09-v2";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = CustomerIssueScopeProfile.LEGACY_CC_PRODUCT_PROJECT_ID;
   private static final int EXPORT_PAGE_SIZE = 100;
@@ -95,6 +96,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_LIST,
             "topic:" + normalizeTopic(safeRequest.topic()),
+            CustomerIssueRecordProfile.forTopic(normalizeTopic(safeRequest.topic())).ruleVersion(),
             safeRequest),
         CustomerIssueRecordListResponse.class,
         () -> loadRecords(safeRequest));
@@ -270,7 +272,9 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
       }
       page += 1;
     }
-    return CustomerIssueRecordWorkbookExportSupport.exportRecords(rows);
+    CustomerIssueRecordProfile profile =
+        CustomerIssueRecordProfile.forTopic(normalizeTopic(request.topic()));
+    return CustomerIssueRecordWorkbookExportSupport.exportRecords(rows, profile.workbookLayout());
   }
 
   public CustomerIssueRecordFilterOptionsResponse getFilterOptions(String topic, Long projectId) {
@@ -295,6 +299,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
             "topic:" + safeTopic,
+            CustomerIssueRecordProfile.forTopic(safeTopic).ruleVersion(),
             requestPayload),
         CustomerIssueRecordFilterOptionsResponse.class,
         () -> loadFilterOptions(safeTopic, sourceInstance)));
@@ -384,7 +389,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         "customer-issue-" + safeTopic + "-records",
         true,
         topicTitle(safeTopic) + "规则说明",
-        RULE_VERSION,
+        recordProfile.ruleVersion(),
         "当前页面展示客户问题范围内的议题记录，并按当前专题继续收敛范围。",
         topicSummary(safeTopic),
         List.of(
@@ -495,12 +500,12 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   }
 
   private PageRecordSnapshotService.SnapshotRequest snapshotRequest(
-      String snapshotType, String scopeKey, Object requestPayload) {
+      String snapshotType, String scopeKey, String ruleVersion, Object requestPayload) {
     return new PageRecordSnapshotService.SnapshotRequest(
         "customer-issue-records",
         snapshotType,
         scopeKey,
-        RULE_VERSION,
+        ruleVersion,
         pageRecordSnapshotService.issueFactSourceVersion(),
         requestPayload);
   }
@@ -552,6 +557,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         view.milestoneTitle(),
         view.authorName(),
         view.assigneeName(),
+        view.testingPhase(),
+        view.fixUser(),
         String.join("、", view.moduleNames()),
         view.functionName(),
         view.delayIssue(),
@@ -602,7 +609,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     if (TOPIC_DELAY.equals(topic)) {
       return "保留已申请延期、响应延期或解决延期的客户问题议题。";
     }
-    return "对齐老平台 CC_PRODUCT 议题记录页，不默认选择里程碑，保留 2026-01-01 以来除已拒绝状态外的议题。";
+    return "不默认选择里程碑，保留 2026-01-01 以来除已拒绝状态外的议题。";
   }
 
   private record CustomerIssueRecordProfile(
@@ -611,6 +618,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
       boolean excludeRejectedBugStatus,
       IssueFactRecordPageQuery.Scope pageScope,
       CustomerIssueRecordScope scope,
+      CustomerIssueRecordWorkbookLayout workbookLayout,
+      String ruleVersion,
       String explanation) {
 
     private static CustomerIssueRecordProfile forTopic(String topic) {
@@ -621,6 +630,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
             false,
             IssueFactRecordPageQuery.Scope.CUSTOMER,
             CustomerIssueRecordScope.CUSTOMER_OPERATIONS,
+            CustomerIssueRecordWorkbookLayout.DELAY,
+            DELAY_RULE_VERSION,
             "延期记录复用客户问题统计口径，排除已关闭的申请否决、需求如此和设计如此类数据。");
       }
       return new CustomerIssueRecordProfile(
@@ -629,7 +640,9 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
           true,
           IssueFactRecordPageQuery.Scope.CUSTOMER,
           CustomerIssueRecordScope.CUSTOMER_OPERATIONS,
-          "CC_PRODUCT 议题对齐老平台 CC_PRODUCT 议题记录页，默认全里程碑，查询 CC_Product 项目自 2026-01-01 以来提交的记录，排除处理状态包含“已拒绝”的记录，不套用客户问题统计页公共排除。");
+          CustomerIssueRecordWorkbookLayout.CC_PRODUCT,
+          CC_PRODUCT_RULE_VERSION,
+          "CC_PRODUCT 议题默认全里程碑，查询 CC_Product 项目自 2026-01-01 以来提交的记录，排除处理状态包含“已拒绝”的记录，不套用客户问题统计页公共排除。");
     }
 
     private static CustomerIssueRecordProfile customerOperationsProfile() {
@@ -639,6 +652,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
           false,
           IssueFactRecordPageQuery.Scope.CUSTOMER,
           CustomerIssueRecordScope.CUSTOMER_OPERATIONS,
+          CustomerIssueRecordWorkbookLayout.CC_PRODUCT,
+          CC_PRODUCT_RULE_VERSION,
           "客户问题运营统计口径限定 CC_Product 项目且创建时间不早于 2026-01-01。");
     }
   }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { ArrowLeft, Download } from '@element-plus/icons-vue';
+import { ArrowLeft } from '@element-plus/icons-vue';
 import { useRoute, useRouter } from 'vue-router';
 import { analyticsDashboardApi } from '../api-client/analytics-dashboard-api';
 import type {
@@ -11,6 +11,7 @@ import type {
 import { downloadBlob } from '../utils/csv-download';
 import AnalyticsDashboardDetailCell from '../components/dashboard/AnalyticsDashboardDetailCell.vue';
 import { shouldShowAnalyticsDetailPagination } from '../components/dashboard/analytics-dashboard-detail-cell';
+import ExportActionMenu from '../components/base/ExportActionMenu.vue';
 import EChartPanel from '../components/charts/EChartPanel.vue';
 
 const route = useRoute();
@@ -30,6 +31,13 @@ const testingPhaseFilter = computed(() => {
   }
   return (detail.value?.filters ?? []).find((filter) => filter.key === 'projectName') ?? null;
 });
+const exportActions = computed(() =>
+  (detail.value?.exports ?? []).map((action) => ({
+    key: action.exportKey,
+    label: action.label,
+  })),
+);
+const exportLoading = computed(() => Boolean(exportingKey.value));
 
 function routeQuery(): AnalyticsDashboardQuery {
   const query = Object.fromEntries(
@@ -119,6 +127,13 @@ async function exportDetail(action: AnalyticsDashboardExportAction) {
   }
 }
 
+function handleExportSelection(exportKey: string) {
+  const action = detail.value?.exports.find((item) => item.exportKey === exportKey);
+  if (action) {
+    void exportDetail(action);
+  }
+}
+
 watch(() => route.fullPath, () => void loadDetail(), { immediate: true });
 </script>
 
@@ -131,7 +146,7 @@ watch(() => route.fullPath, () => void loadDetail(), { immediate: true });
         <p v-if="detail?.description">{{ detail.description }}</p>
       </div>
       <div
-        v-if="testingPhaseFilter || detail?.exports.length"
+        v-if="testingPhaseFilter || exportActions.length"
         class="analytics-detail-page__toolbar"
       >
         <label v-if="testingPhaseFilter" class="analytics-detail-page__phase-filter">
@@ -151,16 +166,12 @@ watch(() => route.fullPath, () => void loadDetail(), { immediate: true });
             />
           </el-select>
         </label>
-        <div v-if="detail?.exports.length" class="analytics-detail-page__actions">
-          <el-button
-            v-for="action in detail.exports"
-            :key="action.exportKey"
-            :icon="Download"
-            :loading="exportingKey === action.exportKey"
-            @click.stop="exportDetail(action)"
-          >
-            {{ action.label }}
-          </el-button>
+        <div v-if="exportActions.length" class="analytics-detail-page__actions">
+          <ExportActionMenu
+            :actions="exportActions"
+            :loading="exportLoading"
+            @select="handleExportSelection"
+          />
         </div>
       </div>
     </header>

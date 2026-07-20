@@ -10,7 +10,6 @@ import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanat
 import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.entity.statistics.StatisticColumnGroup;
 import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
-import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
@@ -28,6 +27,7 @@ import com.data.collection.platform.service.IssueScopeContext;
 import com.data.collection.platform.service.OptionItemResponseFactory;
 import com.data.collection.platform.service.SortSupport;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
+import com.data.collection.platform.service.SystemTestLegacyCauseExportFields;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -50,7 +50,10 @@ import org.springframework.util.StringUtils;
 @Service
 @Slf4j
 public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoardService
-    implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
+    implements RealtimeStatisticBoardSupport,
+        RuleExplainableStatisticBoardSupport,
+        StatisticBoardSnapshotRefresher,
+        StatisticBoardIssueWorkbookExportSupport {
   private static final String BOARD_KEY = "customer-issue-defect-summary";
   private static final String RULE_VERSION = "customer-issue-defect-summary@2026-07-10-v3";
   private static final String TOTAL_ROW_KEY = "__total__";
@@ -58,6 +61,8 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+  private static final DateTimeFormatter LEGACY_DATE_FORMATTER =
+      DateTimeFormatter.ofPattern("yyyy-MM-dd");
   private static final List<String> REALTIME_REFRESH_TABLES =
       List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private static final String FACT_SQL =
@@ -81,8 +86,11 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
              coalesce(is_excluded, false) as is_excluded,
              coalesce(bug_status, '') as bug_status,
              coalesce(category, '') as category,
+             coalesce(reason_category, '') as reason_category,
              coalesce(delay_cause, '') as delay_cause,
-             coalesce(assignee_name, '') as assignee_name,
+              coalesce(assignee_name, '') as assignee_name,
+              coalesce(fix_user, '') as fix_user,
+              coalesce(function_name, '') as function_name,
              coalesce(is_fixed, false) as is_fixed,
              coalesce(delay_issue, false) as delay_issue,
              coalesce(is_regression, false) as is_regression,
@@ -434,6 +442,28 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   }
 
   @Override
+  public byte[] exportIssueRecordsWorkbook(Map<String, String> filters) {
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
+    List<CustomerIssueSummaryWorkbookRow> rows =
+        loadBoardScopedSources(filters, effectiveFilterGroup).stream()
+            .sorted(buildDetailComparator("updatedAt", "descending"))
+            .map(this::toIssueWorkbookRow)
+            .toList();
+    return CustomerIssueSummaryWorkbookExportSupport.export(rows);
+  }
+
+  @Override
+  public String exportIssueRecordsFilename(Map<String, String> filters) {
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
+    String milestone =
+        CustomerIssueMilestoneFilterSupport.selectedMilestone(applyDefaultMilestone(filterGroup));
+    return StringUtils.hasText(milestone)
+        ? milestone + "-客户问题全量议题数据.xlsx"
+        : "客户问题全量议题数据.xlsx";
+  }
+
+  @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
     StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
@@ -675,7 +705,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         new StatisticRuleMetricDefinition("priority-summary", "缺陷级别汇总", "P1/P2/P3 是优先级统计，一级/二级/三级是严重程度统计，两套口径不能混用。", "某优先级修复率 = 已修复数量 / 该优先级总数；某优先级关闭率 = 已关闭数量 / 该优先级总数", null),
         new StatisticRuleMetricDefinition("summary", "综合汇总", "综合区展示模块总缺陷、缺陷占比、延期占比、已修复/未更新、修复率、关闭率、未关闭数量、申请延期和复测未通过。", "修复率 = 已修复/未更新数量 / 模块总缺陷数；缺陷占比 = 当前模块缺陷数 / 当前范围全部缺陷数", null),
         new StatisticRuleMetricDefinition("new-issue", "新发议题", "新发议题按“排除历史遗留”后的议题统计。", "新发议题修复率 = 已修复/未更新的新发议题数量 / 新发议题总数", null),
-        new StatisticRuleMetricDefinition("legacy", "遗留率", "严格按老平台 ModuleTableRow 的遗留率公式计算。", "一级缺陷遗留率 = (一级缺陷总数 - 一级缺陷已修复数量) / 一级缺陷总数；二级/三级缺陷遗留数量使用未修复口径；二三级缺陷遗留率 = 已修复的二三级缺陷数 / 模块总缺陷数", null));
+        new StatisticRuleMetricDefinition("legacy", "遗留率", "遗留率按当前缺陷汇总规则计算。", "一级缺陷遗留率 = (一级缺陷总数 - 一级缺陷已修复数量) / 一级缺陷总数；二级/三级缺陷遗留数量使用未修复口径；二三级缺陷遗留率 = 已修复的二三级缺陷数 / 模块总缺陷数", null));
   }
 
   private List<IssueSource> loadSources(Map<String, String> filters) {
@@ -738,8 +768,11 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         "",
         StatisticSourceValueSupport.text(rs.getString("bug_status"), ""),
         StatisticSourceValueSupport.text(rs.getString("category"), ""),
+        StatisticSourceValueSupport.text(rs.getString("reason_category"), ""),
         StatisticSourceValueSupport.text(rs.getString("delay_cause"), ""),
         StatisticSourceValueSupport.text(rs.getString("assignee_name"), ""),
+        StatisticSourceValueSupport.text(rs.getString("fix_user"), ""),
+        StatisticSourceValueSupport.text(rs.getString("function_name"), ""),
         rs.getBoolean("is_fixed"),
         rs.getBoolean("delay_issue"),
         rs.getBoolean("is_regression"),
@@ -789,8 +822,11 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         "",
         source.bugStatus(),
         source.category(),
+        source.reasonCategory(),
         source.delayCause(),
         source.assigneeName(),
+        "",
+        "",
         source.fixed(),
         source.delayIssue(),
         source.regression(),
@@ -818,6 +854,46 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     record.put("updatedAt", issue.updatedAt() == null ? "" : DATE_TIME_FORMATTER.format(issue.updatedAt()));
     record.put("createdAt", issue.createdAt() == null ? "" : DATE_TIME_FORMATTER.format(issue.createdAt()));
     return record;
+  }
+
+  private CustomerIssueSummaryWorkbookRow toIssueWorkbookRow(IssueSource issue) {
+    String reasonText = issue.reasonCategory();
+    SystemTestLegacyCauseExportFields causeFields =
+        SystemTestLegacyCauseExportFields.fromReasonText(reasonText);
+    return new CustomerIssueSummaryWorkbookRow(
+        legacyDate(issue.updatedAt()),
+        legacyDate(issue.createdAt()),
+        String.join("&", issue.moduleNames()),
+        issue.iid() == null ? "" : "#" + issue.iid(),
+        issue.title(),
+        issue.authorName(),
+        issue.assigneeName(),
+        issue.isClosed() ? "CLOSED" : "OPEN",
+        issue.bugStatus(),
+        issue.testingPhase(),
+        issue.severityLabel(),
+        issue.category(),
+        issue.milestoneTitle(),
+        issue.assigneeName(),
+        issue.priorityLevel(),
+        issue.delayCause(),
+        issue.fixUser(),
+        issue.functionName(),
+        causeFields.fixStatus(),
+        causeFields.majorCause(),
+        causeFields.secondCause(),
+        causeFields.specificReason(),
+        causeFields.modification(),
+        causeFields.causedByOther(),
+        causeFields.effectFunction(),
+        causeFields.hasTested(),
+        causeFields.potentialImpact(),
+        causeFields.relationTableUpdated(),
+        legacyDate(issue.closedAt()));
+  }
+
+  private String legacyDate(LocalDateTime value) {
+    return value == null ? "" : LEGACY_DATE_FORMATTER.format(value);
   }
 
   private Predicate<IssueSource> matchesMetric(String key) {
@@ -1018,8 +1094,11 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
       String exclusionReason,
       String bugStatus,
       String category,
+      String reasonCategory,
       String delayCause,
       String assigneeName,
+      String fixUser,
+      String functionName,
       boolean fixed,
       boolean delayIssue,
       boolean regression,

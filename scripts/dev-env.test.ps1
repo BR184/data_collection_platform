@@ -13,6 +13,35 @@ function global:node { throw "stale node shim was not removed" }
 
 . $devEnvScript
 
+$testEnvironmentFile = Join-Path $env:TEMP ("qaflex-dev-env-" + [guid]::NewGuid().ToString("N") + ".env")
+$testVariableName = "QA_FLEX_DEV_ENV_TEST"
+$originalTestVariable = [Environment]::GetEnvironmentVariable($testVariableName, [EnvironmentVariableTarget]::Process)
+try {
+  [System.IO.File]::WriteAllLines($testEnvironmentFile, @(
+      "# local test configuration",
+      "$testVariableName=from-file",
+      "QA_FLEX_QUOTED_VALUE='quoted value'"
+    ))
+  [Environment]::SetEnvironmentVariable($testVariableName, $null, [EnvironmentVariableTarget]::Process)
+  Import-LocalEnvironmentFile $testEnvironmentFile | Out-Null
+  if ([Environment]::GetEnvironmentVariable($testVariableName, [EnvironmentVariableTarget]::Process) -ne "from-file") {
+    throw "Local environment file was not loaded"
+  }
+  if ($env:QA_FLEX_QUOTED_VALUE -ne "quoted value") {
+    throw "Quoted local environment value was not normalized"
+  }
+
+  [Environment]::SetEnvironmentVariable($testVariableName, "caller-value", [EnvironmentVariableTarget]::Process)
+  Import-LocalEnvironmentFile $testEnvironmentFile | Out-Null
+  if ([Environment]::GetEnvironmentVariable($testVariableName, [EnvironmentVariableTarget]::Process) -ne "caller-value") {
+    throw "Caller environment should take precedence over local environment file"
+  }
+} finally {
+  Remove-Item -LiteralPath $testEnvironmentFile -Force -ErrorAction SilentlyContinue
+  [Environment]::SetEnvironmentVariable($testVariableName, $originalTestVariable, [EnvironmentVariableTarget]::Process)
+  Remove-Item Env:QA_FLEX_QUOTED_VALUE -ErrorAction SilentlyContinue
+}
+
 if (-not $env:JAVA_HOME.EndsWith("tools\jdk\jdk-21.0.10+7")) {
   throw "JAVA_HOME was not set to the project JDK: $env:JAVA_HOME"
 }

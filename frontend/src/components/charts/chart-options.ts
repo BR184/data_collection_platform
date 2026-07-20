@@ -7,11 +7,25 @@ export interface NamedValue {
 
 const INITIAL_VISIBLE_ITEMS = 11;
 const VERTICAL_GRID_RIGHT = 64;
-const HORIZONTAL_GRID_BOTTOM = 68;
+// Keep rotated labels, the slider and a visible lower edge separate in the SVG viewport.
+const HORIZONTAL_GRID_BOTTOM = 108;
 // Keep the shared controls at the Apache ECharts 30px default instead of compressing them.
 const VERTICAL_SLIDER_WIDTH = 30;
 const HORIZONTAL_SLIDER_HEIGHT = 30;
-const SLIDER_EDGE_GAP = 10;
+const COLUMN_BAR_RADIUS = 6;
+// A vertical slider is rendered by rotating ECharts' horizontal control. Its end-handle
+// geometry reaches 11.5px beyond the nominal 30px rail, so a 10px gap still crosses the
+// SVG boundary by roughly 2px. Keep the complete handle, border and shadow inside the canvas.
+const VERTICAL_SLIDER_RIGHT = 16;
+const HORIZONTAL_SLIDER_BOTTOM = 28;
+
+type ColumnBarDataItem = number | {
+  value?: number | string | null;
+  itemStyle?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+type CornerRadius = [number, number, number, number];
 
 const dataZoomVisualStyle = {
   show: true,
@@ -28,7 +42,8 @@ const dataZoomVisualStyle = {
     lineStyle: { color: '#60a5fa', width: 1 },
     areaStyle: { color: '#bfdbfe', opacity: 0.72 },
   },
-  handleSize: '110%',
+  // Native ECharts handle sizing fills the rail without pushing its shadow below the canvas.
+  handleSize: '100%',
   handleStyle: {
     color: '#ffffff',
     borderColor: '#2563eb',
@@ -53,16 +68,18 @@ function axisDataZoom(axis: 'x' | 'y', count: number): NonNullable<EChartsOption
   const endValue = Math.min(INITIAL_VISIBLE_ITEMS - 1, Math.max(0, count - 1));
   const axisIndex = axis === 'x' ? { xAxisIndex: 0 } : { yAxisIndex: 0 };
   return [
-    { type: 'inside', ...axisIndex, startValue: 0, endValue },
     {
       type: 'slider',
       ...axisIndex,
       startValue: 0,
       endValue,
+      // The old platform has one slider as the range owner. Keep that model so a dashboard
+      // refresh cannot reconcile two linked controls into an unintended all-data viewport.
+      filterMode: 'filter',
       ...dataZoomVisualStyle,
       ...(axis === 'x'
-        ? { height: HORIZONTAL_SLIDER_HEIGHT, bottom: SLIDER_EDGE_GAP }
-        : { width: VERTICAL_SLIDER_WIDTH, right: SLIDER_EDGE_GAP }),
+        ? { height: HORIZONTAL_SLIDER_HEIGHT, bottom: HORIZONTAL_SLIDER_BOTTOM }
+        : { width: VERTICAL_SLIDER_WIDTH, right: VERTICAL_SLIDER_RIGHT }),
     },
   ] as NonNullable<EChartsOption['dataZoom']>;
 }
@@ -151,6 +168,9 @@ export function buildHorizontalBarOption(input: {
             input.valueFormatter ? input.valueFormatter(Number(value)) : String(value ?? 0),
           color: '#4b5563',
         },
+        labelLayout: {
+          hideOverlap: true,
+        },
       },
     ],
   };
@@ -162,7 +182,7 @@ export function buildColumnBarOption(input: {
   categories: string[];
   series: Array<{
     name: string;
-    data: number[];
+    data: ColumnBarDataItem[];
     stack?: string;
     color?: string;
     areaStyle?: boolean;
@@ -175,6 +195,7 @@ export function buildColumnBarOption(input: {
   }
 
   const showLegend = input.series.length > 1;
+  const roundedSeriesData = buildColumnBarSeriesData(input.series, input.categories.length);
 
   return {
     title: {
@@ -209,6 +230,11 @@ export function buildColumnBarOption(input: {
       data: input.categories,
       axisLabel: {
         rotate: input.rotateLabels ?? 0,
+        interval: 'auto',
+        hideOverlap: true,
+        width: 104,
+        overflow: 'truncate',
+        margin: 12,
       },
     },
     yAxis: {
@@ -216,23 +242,22 @@ export function buildColumnBarOption(input: {
     },
     dataZoom: axisDataZoom('x', input.categories.length),
     series: input.series.map(
-      (series): SeriesOption => ({
+      (series, seriesIndex): SeriesOption => ({
         name: series.name,
         type: 'bar',
         stack: series.stack,
-        data: series.data,
+        data: roundedSeriesData[seriesIndex],
         showBackground: !showLegend,
         backgroundStyle: !showLegend
           ? {
               color: '#f5f7fa',
-              borderRadius: [6, 6, 0, 0],
+              borderRadius: COLUMN_BAR_RADIUS,
             }
           : undefined,
         barMaxWidth: showLegend ? 32 : 24,
         barCategoryGap: showLegend ? '34%' : '42%',
         itemStyle: {
           color: series.color,
-          borderRadius: [6, 6, 0, 0],
         },
         label: !showLegend
           ? {
@@ -243,9 +268,96 @@ export function buildColumnBarOption(input: {
                 input.valueFormatter ? input.valueFormatter(Number(value)) : String(value ?? 0),
             }
           : undefined,
+        labelLayout: {
+          hideOverlap: true,
+        },
       }),
     ),
   };
+}
+
+function buildColumnBarSeriesData(
+  seriesList: Array<{ data: ColumnBarDataItem[]; stack?: string }>,
+  categoryCount: number,
+) {
+  const radiusBySeries = seriesList.map(() =>
+    Array.from({ length: categoryCount }, () => [0, 0, 0, 0] as CornerRadius),
+  );
+  const stackNames = Array.from(new Set(
+    seriesList.map((series, index) => series.stack || `__single_${index}`),
+  ));
+
+  for (let categoryIndex = 0; categoryIndex < categoryCount; categoryIndex += 1) {
+    for (const stackName of stackNames) {
+      const stackSeriesIndexes = seriesList
+        .map((series, index) => ({ series, index }))
+        .filter(({ series, index }) => (series.stack || `__single_${index}`) === stackName)
+        .map(({ index }) => index);
+      applyVisibleStackRadius(stackSeriesIndexes, categoryIndex, seriesList, radiusBySeries);
+    }
+  }
+
+  return seriesList.map((series, seriesIndex) =>
+    Array.from({ length: categoryCount }, (_, categoryIndex) =>
+      withColumnBarRadius(series.data[categoryIndex] ?? 0, radiusBySeries[seriesIndex][categoryIndex]),
+    ),
+  );
+}
+
+function applyVisibleStackRadius(
+  seriesIndexes: number[],
+  categoryIndex: number,
+  seriesList: Array<{ data: ColumnBarDataItem[] }>,
+  radiusBySeries: CornerRadius[][],
+) {
+  const positiveSeriesIndexes = seriesIndexes
+    .filter((seriesIndex) => columnBarValue(seriesList[seriesIndex].data[categoryIndex]) > 0);
+  const negativeSeriesIndexes = seriesIndexes
+    .filter((seriesIndex) => columnBarValue(seriesList[seriesIndex].data[categoryIndex]) < 0);
+
+  markStackTopRadius(positiveSeriesIndexes, radiusBySeries, categoryIndex);
+  markStackTopRadius(negativeSeriesIndexes, radiusBySeries, categoryIndex);
+}
+
+function markStackTopRadius(
+  visibleSeriesIndexes: number[],
+  radiusBySeries: CornerRadius[][],
+  categoryIndex: number,
+) {
+  const topSeriesIndex = visibleSeriesIndexes[visibleSeriesIndexes.length - 1];
+  if (topSeriesIndex != null) {
+    radiusBySeries[topSeriesIndex][categoryIndex] = withTopRadius([0, 0, 0, 0]);
+  }
+}
+
+function withTopRadius(radius: CornerRadius): CornerRadius {
+  return [COLUMN_BAR_RADIUS, COLUMN_BAR_RADIUS, radius[2], radius[3]];
+}
+
+function withColumnBarRadius(item: ColumnBarDataItem, borderRadius: CornerRadius) {
+  if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+    return {
+      ...item,
+      itemStyle: {
+        ...(item.itemStyle ?? {}),
+        borderRadius,
+      },
+    };
+  }
+  return {
+    value: item,
+    itemStyle: {
+      borderRadius,
+    },
+  };
+}
+
+function columnBarValue(item: ColumnBarDataItem) {
+  const rawValue = typeof item === 'object' && item !== null && !Array.isArray(item)
+    ? item.value
+    : item;
+  const value = Number(rawValue ?? 0);
+  return Number.isFinite(value) ? value : 0;
 }
 
 export function buildLineOption(input: {
@@ -294,6 +406,13 @@ export function buildLineOption(input: {
     xAxis: {
       type: 'category',
       data: input.categories,
+      axisLabel: {
+        interval: 'auto',
+        hideOverlap: true,
+        width: 104,
+        overflow: 'truncate',
+        margin: 12,
+      },
     },
     yAxis: {
       type: 'value',

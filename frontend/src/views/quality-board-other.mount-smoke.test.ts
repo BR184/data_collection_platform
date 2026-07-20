@@ -67,7 +67,7 @@ describe('QualityBoardOtherView mount smoke', () => {
           option: { series: [{ type: 'bar', data: [1] }] },
           ruleKey: key,
           detail: { viewKey: `other-${key}`, params: {} },
-          export: { exportKey: `${key}-excel`, label: '导出 Excel' },
+          export: { exportKey: `${key}-excel`, label: '导出' },
         });
         return jsonResponse({
           dashboardKey: 'quality-board-other',

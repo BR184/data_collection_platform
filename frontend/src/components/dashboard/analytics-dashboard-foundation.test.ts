@@ -89,12 +89,11 @@ describe('analytics dashboard shared foundation', () => {
             setup: () => ({ point }),
           },
           RuleHintIcon: { template: '<button data-testid="rule">rule</button>' },
-          ElButton: {
-            emits: ['click'],
-            template: '<button data-testid="export" @click.stop="$emit(\'click\', $event)"><slot /></button>',
+          ExportActionMenu: {
+            props: ['actions'],
+            emits: ['select'],
+            template: '<button data-testid="export" @click.stop="$emit(\'select\', actions[0]?.key)"><slot /></button>',
           },
-          ElIcon: { template: '<i><slot /></i>' },
-          Download: { template: '<span />' },
         },
       },
     });

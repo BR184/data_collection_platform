@@ -107,6 +107,8 @@ class CustomerIssueControllerTest {
                         "R1",
                         "Alice",
                         "Bob",
+                        "CC2026R3第一轮系统测试",
+                        "Fixer",
                         "Sketch",
                         "Constraint",
                         true,
@@ -157,6 +159,8 @@ class CustomerIssueControllerTest {
         .andExpect(jsonPath("$.data.records[0].issueIid").value(201))
         .andExpect(jsonPath("$.data.records[0].issueLink").value("http://gitlab.example.com/-/issues/201"))
         .andExpect(jsonPath("$.data.records[0].title").value("Delay sample"))
+        .andExpect(jsonPath("$.data.records[0].testingPhase").value("CC2026R3第一轮系统测试"))
+        .andExpect(jsonPath("$.data.records[0].fixUser").value("Fixer"))
         .andExpect(jsonPath("$.data.records[0].labels[0]").value("delay"));
   }
 

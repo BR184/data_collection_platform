@@ -70,6 +70,8 @@ export interface CustomerIssueRecordRowResponse {
   milestoneTitle: string;
   authorName: string;
   assigneeName: string;
+  testingPhase: string;
+  fixUser: string;
   moduleNames: string;
   functionName: string;
   delayIssue: boolean;

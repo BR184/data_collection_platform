@@ -21,7 +21,7 @@ enum QualityBoardOtherTopic {
       "function-defect-density-excel",
       "functionDensityProjectName",
       "功能缺陷密度",
-      "系统测试缺陷数与正式 CC 代码新增行的比值",
+      "系统测试缺陷数与 CC 代码新增行的比值",
       "功能名称",
       "系统测试缺陷数",
       "新增代码行数",

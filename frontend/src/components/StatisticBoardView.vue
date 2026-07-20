@@ -687,22 +687,16 @@ async function handleExtraAction(actionKey: string) {
 async function exportCustomerIssues() {
   customerIssueExportLoading.value = true;
   try {
-    const workbook = await api.exportCustomerIssueRecords({
-      topic: 'cc-product',
+    const file = await api.exportCustomerIssueDefectSummaryIssues({
       filterGroup: buildFilterPayload(),
     });
-    downloadBlob(workbook, customerIssueSummaryIssueExportFilename());
+    downloadBlob(file.blob, file.filename || '客户问题全量议题数据.xlsx');
     ElMessage.success('议题数据导出成功');
   } catch (error) {
     ElMessage.error((error as Error).message);
   } finally {
     customerIssueExportLoading.value = false;
   }
-}
-
-function customerIssueSummaryIssueExportFilename() {
-  const milestone = String(route.query.milestoneTitle ?? '').trim();
-  return milestone ? `${milestone}-客户问题全量议题数据.xlsx` : '客户问题全量议题数据.xlsx';
 }
 
 async function exportSystemTestIssues() {

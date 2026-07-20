@@ -332,7 +332,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         true,
         "缺陷原因分析规则说明",
         RULE_VERSION,
-        "当前统计使用老平台缺陷原因说明口径，从议题回复中的缺陷原因段落识别需求问题、设计问题、编码规范等原因分类。",
+        "从议题回复的缺陷原因段落识别需求问题、设计问题、编码规范等原因分类。",
         "模块行来自当前系统测试范围内的模块全集；不要求议题携带已修复/完成标签；同一议题关联多个模块或多个缺陷原因时会分别计数。",
         List.of(
             snapshot.flowSteps().get(0),
@@ -353,7 +353,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
             .map(metric -> new StatisticRuleMetricDefinition(
                 metric.key(),
                 metric.label(),
-                "按老平台缺陷原因说明识别：" + String.join(" / ", metric.tokens()),
+                "按缺陷原因说明识别：" + String.join(" / ", metric.tokens()),
                 metric.label() + "数量 = 当前模块内命中该原因分类的缺陷数量",
                 null))
             .toList(),
@@ -428,7 +428,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
             StatisticRuleFlowSupport.step(
                 "reason-category-filter",
                 "保留已识别原因",
-                "只保留评论文本中能识别出老平台缺陷原因分类的议题，原因个数按命中的原因分类计算。",
+                "只保留评论文本中能识别出缺陷原因分类的议题，原因个数按命中的原因分类计算。",
                 phaseFiltered.size(),
                 withReason,
                 this::toRuleFlowSample

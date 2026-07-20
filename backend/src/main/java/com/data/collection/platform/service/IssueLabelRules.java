@@ -271,35 +271,36 @@ final class IssueLabelRules {
   }
 
   static Map<String, List<String>> parseOldPlatformChineseColonLabelMap(List<String> labels) {
-    Map<String, List<String>> result = new LinkedHashMap<>();
+    Map<String, String> parsed = new LinkedHashMap<>();
     for (String label : labels) {
-      String normalizedLabel = IssueRuleSupport.normalizeText(label);
-      if (normalizedLabel == null) {
+      if (label == null) {
         continue;
       }
-      String trimmed = label.trim();
-      String[] parts = trimmed.split("：");
+      String[] parts = label.split("：");
       if (parts.length > 1) {
-        appendLegacyLabelValue(result, parts[0], parts[1]);
+        String currentValue = parsed.getOrDefault(parts[0], "");
+        parsed.put(parts[0], currentValue.isEmpty() ? parts[1] : currentValue + " & " + parts[1]);
         continue;
       }
-      if (IssueRuleSupport.containsToken(trimmed, LEGACY_PHASE_KEYWORD_TOKENS)) {
-        appendLegacyLabelValue(result, "测试阶段", trimmed);
+      if (IssueRuleSupport.containsToken(label, LEGACY_PHASE_KEYWORD_TOKENS)) {
+        String currentValue = parsed.getOrDefault("测试阶段", "");
+        parsed.put("测试阶段", currentValue.isEmpty() ? label : currentValue + " & " + label);
         continue;
       }
-      if (LEGACY_URGENCY_LABELS.contains(trimmed)) {
-        List<String> values = result.getOrDefault("紧急程度", List.of());
-        appendLegacyLabelValue(result, "紧急程度", values.isEmpty() ? trimmed : "未设定紧急程度");
+      if (LEGACY_URGENCY_LABELS.contains(label)) {
+        String currentValue = parsed.getOrDefault("紧急程度", "");
+        parsed.put("紧急程度", currentValue.isEmpty() ? label : "未设定紧急程度");
         continue;
       }
-      if (LEGACY_DELAY_CAUSE_LABELS.contains(trimmed)) {
-        appendLegacyLabelValue(result, "延期原因", trimmed);
+      if (LEGACY_DELAY_CAUSE_LABELS.contains(label)) {
+        String currentValue = parsed.getOrDefault("延期原因", "");
+        parsed.put("延期原因", currentValue.isEmpty() ? label : currentValue + "&" + label);
       }
     }
-    return result.entrySet().stream()
+    return parsed.entrySet().stream()
         .collect(java.util.stream.Collectors.toMap(
             Map.Entry::getKey,
-            entry -> List.copyOf(entry.getValue()),
+            entry -> List.of(entry.getValue()),
             (left, right) -> left,
             LinkedHashMap::new));
   }
