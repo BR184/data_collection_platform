@@ -180,24 +180,24 @@ describe('router access guard', () => {
   it('allows guests to visit non-system pages before the page component loads', () => {
     const to = router.resolve('/review-data/home');
 
-    expect(routeAccessRedirect(to, { role: 'GUEST', authenticated: false })).toBeNull();
+    expect(routeAccessRedirect(to, { permissions: [], authenticated: false })).toBe('/quality-board/rd-quality-board');
   });
 
-  it('allows guests to visit public pages', () => {
+  it('keeps guests on the fallback page when it is already the target', () => {
     const to = router.resolve('/quality-board/rd-quality-board');
 
-    expect(routeAccessRedirect(to, { role: 'GUEST', authenticated: false })).toBeNull();
+    expect(routeAccessRedirect(to, { permissions: [], authenticated: false })).toBeNull();
   });
 
   it('redirects approval users away from hidden pages', () => {
     const to = router.resolve('/system-settings/mirror-settings');
 
-    expect(routeAccessRedirect(to, { role: 'APPROVAL', authenticated: true })).toBe('/quality-board/rd-quality-board');
+    expect(routeAccessRedirect(to, { permissions: ['quality.rd.view'], authenticated: true })).toBe('/quality-board/rd-quality-board');
   });
 
   it('redirects guests away from system settings', () => {
     const to = router.resolve('/system-settings/mirror-settings');
 
-    expect(routeAccessRedirect(to, { role: 'GUEST', authenticated: false })).toBe('/quality-board/rd-quality-board');
+    expect(routeAccessRedirect(to, { permissions: [], authenticated: false })).toBe('/quality-board/rd-quality-board');
   });
 });

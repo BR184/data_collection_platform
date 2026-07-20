@@ -4,7 +4,6 @@ import com.data.collection.platform.common.DownloadResponseHeaders;
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.ReviewDataProperties;
-import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.ReviewDataFilterOptionsResponse;
 import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataProblemItemSaveRequest;
@@ -12,7 +11,9 @@ import com.data.collection.platform.entity.ReviewDataRecordDetailResponse;
 import com.data.collection.platform.entity.ReviewDataRecordListResponse;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
 import com.data.collection.platform.entity.ReviewDataSearchIndexBackfillResponse;
-import com.data.collection.platform.security.RequireRole;
+import com.data.collection.platform.security.AuthSessionSupport;
+import com.data.collection.platform.security.PlatformPermissionCodes;
+import com.data.collection.platform.security.RequirePermission;
 import com.data.collection.platform.service.ReviewDataLegacyExcelConfirmRequest;
 import com.data.collection.platform.service.ReviewDataLegacyExcelConfirmResponse;
 import com.data.collection.platform.service.ReviewDataLegacyExcelImportRequest;
@@ -20,8 +21,10 @@ import com.data.collection.platform.service.ReviewDataLegacyExcelImportService;
 import com.data.collection.platform.service.ReviewDataLegacyExcelPreviewResponse;
 import com.data.collection.platform.service.ReviewDataExcelExportService;
 import com.data.collection.platform.service.ReviewDataRecordService;
+import com.data.collection.platform.service.ReviewDataAuthorizationService;
 import com.data.collection.platform.service.ReviewDataTemplateWorkbookService;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.List;
 import org.springframework.http.HttpHeaders;
@@ -38,9 +41,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @RestController
 @RequestMapping("/api/review-data")
+@RequirePermission(PlatformPermissionCodes.REVIEW_DATA_VIEW)
 // 评审数据控制器把 Web 查询参数组装成领域请求，记录、详情、问题项和导出都走同一服务入口。
 // 这里不直接拼 SQL，也不处理搜索 fallback，保证页面请求边界清晰。
 public class ReviewDataController {
@@ -50,6 +55,25 @@ public class ReviewDataController {
   private final ReviewDataExcelExportService excelExportService;
   private final ReviewDataTemplateWorkbookService templateWorkbookService;
   private final ReviewDataProperties reviewDataProperties;
+  private final ReviewDataAuthorizationService authorizationService;
+
+  @Autowired
+  public ReviewDataController(
+      ReviewDataRecordService reviewDataRecordService,
+      ReviewDataRequestAssembler reviewDataRequestAssembler,
+      ReviewDataLegacyExcelImportService legacyExcelImportService,
+      ReviewDataExcelExportService excelExportService,
+      ReviewDataTemplateWorkbookService templateWorkbookService,
+      ReviewDataProperties reviewDataProperties,
+      ReviewDataAuthorizationService authorizationService) {
+    this.reviewDataRecordService = reviewDataRecordService;
+    this.reviewDataRequestAssembler = reviewDataRequestAssembler;
+    this.legacyExcelImportService = legacyExcelImportService;
+    this.excelExportService = excelExportService;
+    this.templateWorkbookService = templateWorkbookService;
+    this.reviewDataProperties = reviewDataProperties;
+    this.authorizationService = authorizationService;
+  }
 
   public ReviewDataController(
       ReviewDataRecordService reviewDataRecordService,
@@ -58,12 +82,14 @@ public class ReviewDataController {
       ReviewDataExcelExportService excelExportService,
       ReviewDataTemplateWorkbookService templateWorkbookService,
       ReviewDataProperties reviewDataProperties) {
-    this.reviewDataRecordService = reviewDataRecordService;
-    this.reviewDataRequestAssembler = reviewDataRequestAssembler;
-    this.legacyExcelImportService = legacyExcelImportService;
-    this.excelExportService = excelExportService;
-    this.templateWorkbookService = templateWorkbookService;
-    this.reviewDataProperties = reviewDataProperties;
+    this(
+        reviewDataRecordService,
+        reviewDataRequestAssembler,
+        legacyExcelImportService,
+        excelExportService,
+        templateWorkbookService,
+        reviewDataProperties,
+        null);
   }
 
   @GetMapping("/records")
@@ -85,6 +111,7 @@ public class ReviewDataController {
   }
 
   @GetMapping("/records/export")
+  @RequirePermission("review.record.export")
   public ResponseEntity<byte[]> exportRecords(@ModelAttribute ReviewDataRecordListRequest request) {
     return excelResponse(
         excelExportService.exportReviewRecordsWorkbook(reviewDataRequestAssembler.toQueryRequest(request)),
@@ -92,6 +119,7 @@ public class ReviewDataController {
   }
 
   @GetMapping("/problem-items/export")
+  @RequirePermission("review.problem.export")
   public ResponseEntity<byte[]> exportProblemDetails(@ModelAttribute ReviewDataRecordListRequest request) {
     return excelResponse(
         excelExportService.exportProblemDetailsWorkbook(reviewDataRequestAssembler.toQueryRequest(request)),
@@ -99,6 +127,7 @@ public class ReviewDataController {
   }
 
   @GetMapping("/records/{recordId}/problem-items/export")
+  @RequirePermission("review.problem.export")
   public ResponseEntity<byte[]> exportRecordProblemDetails(@PathVariable Long recordId) {
     return excelResponse(
         excelExportService.exportProblemDetailsWorkbook(recordId),
@@ -106,6 +135,7 @@ public class ReviewDataController {
   }
 
   @GetMapping("/template")
+  @RequirePermission("review.template.download")
   public ResponseEntity<byte[]> downloadTemplate() {
     return ResponseEntity.ok()
         .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment("模板文件.xls"))
@@ -114,20 +144,32 @@ public class ReviewDataController {
   }
 
   @PostMapping("/records")
+  @RequirePermission(PlatformPermissionCodes.REVIEW_RECORD_CREATE)
   public ApiResponse<ReviewDataRecordDetailResponse> createRecord(
-      @Valid @RequestBody ReviewDataRecordSaveRequest request) {
-    return ApiResponse.success("新增评审成功", reviewDataRecordService.createRecord(request));
+      @Valid @RequestBody ReviewDataRecordSaveRequest request,
+      HttpServletRequest servletRequest) {
+    return ApiResponse.success(
+        "新增评审成功",
+        reviewDataRecordService.createRecord(request, AuthSessionSupport.currentUser(servletRequest).username()));
   }
 
   @PutMapping("/records/{recordId}")
+  @RequirePermission(PlatformPermissionCodes.REVIEW_RECORD_EDIT)
   public ApiResponse<ReviewDataRecordDetailResponse> updateRecord(
       @PathVariable Long recordId, @Valid @RequestBody ReviewDataRecordSaveRequest request) {
     return ApiResponse.success("编辑评审成功", reviewDataRecordService.updateRecord(recordId, request));
   }
 
   @DeleteMapping("/records/{recordId}")
-  @RequireRole(AuthRole.ADMIN)
-  public ApiResponse<Void> deleteRecord(@PathVariable Long recordId) {
+  @RequirePermission({
+      PlatformPermissionCodes.REVIEW_RECORD_DELETE_ANY,
+      PlatformPermissionCodes.REVIEW_RECORD_DELETE_OWN
+  })
+  public ApiResponse<Void> deleteRecord(
+      @PathVariable Long recordId, HttpServletRequest servletRequest) {
+    if (authorizationService != null) {
+      authorizationService.requireCanDeleteRecord(AuthSessionSupport.currentUser(servletRequest), recordId);
+    }
     reviewDataRecordService.deleteRecord(recordId);
     return ApiResponse.success("删除评审成功", null);
   }
@@ -138,7 +180,7 @@ public class ReviewDataController {
   }
 
   @PostMapping("/records/search-index/backfill")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_FACT_REBUILD)
   public ApiResponse<ReviewDataSearchIndexBackfillResponse> backfillSearchIndexes(
       @RequestParam(defaultValue = "200") int batchSize) {
     return ApiResponse.success(
@@ -147,7 +189,7 @@ public class ReviewDataController {
   }
 
   @PostMapping("/legacy-excel-import/preview")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.REVIEW_LEGACY_IMPORT)
   public ApiResponse<ReviewDataLegacyExcelPreviewResponse> previewLegacyExcelImport(
       @RequestParam MultipartFile file,
       @RequestParam(required = false) String sheetName,
@@ -200,19 +242,30 @@ public class ReviewDataController {
   }
 
   @PostMapping("/legacy-excel-import/confirm")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.REVIEW_LEGACY_IMPORT)
   public ApiResponse<ReviewDataLegacyExcelConfirmResponse> confirmLegacyExcelImport(
-      @RequestBody ReviewDataLegacyExcelConfirmRequest request) {
-    return ApiResponse.success("旧平台 Excel 导入完成", legacyExcelImportService.confirm(request));
+      @RequestBody ReviewDataLegacyExcelConfirmRequest request,
+      HttpServletRequest servletRequest) {
+    String operator = AuthSessionSupport.currentUser(servletRequest).username();
+    return ApiResponse.success(
+        "旧平台 Excel 导入完成",
+        legacyExcelImportService.confirm(request, operator));
   }
 
   @PostMapping("/records/{recordId}/problem-items")
+  @RequirePermission(PlatformPermissionCodes.REVIEW_PROBLEM_CREATE)
   public ApiResponse<ReviewDataProblemItemResponse> createProblemItem(
-      @PathVariable Long recordId, @Valid @RequestBody ReviewDataProblemItemSaveRequest request) {
-    return ApiResponse.success("新增评审问题成功", reviewDataRecordService.createProblemItem(recordId, request));
+      @PathVariable Long recordId,
+      @Valid @RequestBody ReviewDataProblemItemSaveRequest request,
+      HttpServletRequest servletRequest) {
+    return ApiResponse.success(
+        "新增评审问题成功",
+        reviewDataRecordService.createProblemItem(
+            recordId, request, AuthSessionSupport.currentUser(servletRequest).username()));
   }
 
   @PutMapping("/records/{recordId}/problem-items/{itemId}")
+  @RequirePermission(PlatformPermissionCodes.REVIEW_PROBLEM_EDIT)
   public ApiResponse<ReviewDataProblemItemResponse> updateProblemItem(
       @PathVariable Long recordId,
       @PathVariable Long itemId,
@@ -223,7 +276,18 @@ public class ReviewDataController {
   }
 
   @DeleteMapping("/records/{recordId}/problem-items/{itemId}")
-  public ApiResponse<Void> deleteProblemItem(@PathVariable Long recordId, @PathVariable Long itemId) {
+  @RequirePermission({
+      PlatformPermissionCodes.REVIEW_PROBLEM_DELETE_ANY,
+      PlatformPermissionCodes.REVIEW_PROBLEM_DELETE_OWN
+  })
+  public ApiResponse<Void> deleteProblemItem(
+      @PathVariable Long recordId,
+      @PathVariable Long itemId,
+      HttpServletRequest servletRequest) {
+    if (authorizationService != null) {
+      authorizationService.requireCanDeleteProblemItem(
+          AuthSessionSupport.currentUser(servletRequest), recordId, itemId);
+    }
     reviewDataRecordService.deleteProblemItem(recordId, itemId);
     return ApiResponse.success("删除评审问题成功", null);
   }

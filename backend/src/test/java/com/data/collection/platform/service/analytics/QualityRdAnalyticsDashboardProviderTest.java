@@ -12,8 +12,8 @@ import com.data.collection.platform.entity.QualityBoardChartRowResponse;
 import com.data.collection.platform.entity.QualityBoardFixUserSeverityRowResponse;
 import com.data.collection.platform.entity.QualityBoardRdDashboardResponse;
 import com.data.collection.platform.entity.QualityBoardRdOverviewResponse;
+import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.service.CodeReviewDataReadMode;
-import com.data.collection.platform.service.CodeReviewMatchModeSwitchService;
 import com.data.collection.platform.service.QualityBoardCodeReviewReadSupport;
 import com.data.collection.platform.service.QualityBoardRdService;
 import com.data.collection.platform.service.QualityBoardWorkbookExportService;
@@ -21,6 +21,8 @@ import com.data.collection.platform.service.ReviewDataMatchModeRecordRepository;
 import com.data.collection.platform.service.ReviewDataRecordReadRepository;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.sql.ResultSet;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -159,7 +161,6 @@ class QualityRdAnalyticsDashboardProviderTest {
     var phaseScopeResolver = mock(SystemTestPhaseScopeResolver.class);
     var formalReviews = mock(ReviewDataRecordReadRepository.class);
     var matchReviews = mock(ReviewDataMatchModeRecordRepository.class);
-    var matchMode = mock(CodeReviewMatchModeSwitchService.class);
     var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
     when(phaseScopeResolver.resolveLegacyCrownCadPhases("CC2026R4"))
         .thenReturn(List.of("CC2026R4系统测试"));
@@ -185,7 +186,7 @@ class QualityRdAnalyticsDashboardProviderTest {
     when(codeReview.frequencyRows("cc", "CC2026R4", CodeReviewDataReadMode.FORMAL))
         .thenReturn(List.of());
     var service = new QualityBoardRdService(
-        jdbc, phaseScopeResolver, formalReviews, matchReviews, matchMode, codeReview);
+        jdbc, phaseScopeResolver, formalReviews, matchReviews, codeReview);
 
     service.getRdDashboard("CC2026R4", "cc");
 
@@ -199,6 +200,33 @@ class QualityRdAnalyticsDashboardProviderTest {
         .contains("nullif(btrim(assignee_name), '') is not null")
         .contains("已拒绝")
         .doesNotContain("未标注指派人");
+  }
+
+  @Test
+  void reviewDensityAlwaysCombinesFormalAndHistoricalSnapshotRecords() {
+    var jdbc = new CapturingJdbcTemplate();
+    var phaseScopeResolver = mock(SystemTestPhaseScopeResolver.class);
+    var formalReviews = mock(ReviewDataRecordReadRepository.class);
+    var matchReviews = mock(ReviewDataMatchModeRecordRepository.class);
+    var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
+    when(formalReviews.loadRecords(null, "CC2026R4", null, null, null, null, null, null))
+        .thenReturn(
+            List.of(
+                reviewRow(1L, "需求说明书评审", 10, 2),
+                reviewRow(2L, "设计说明书评审", 10, 1)));
+    when(matchReviews.loadRecords())
+        .thenReturn(
+            List.of(
+                reviewRow(-3L, "需求说明书评审", 10, 3),
+                reviewRow(-4L, "设计说明书评审", 10, 4)));
+    var service = new QualityBoardRdService(
+        jdbc, phaseScopeResolver, formalReviews, matchReviews, codeReview);
+
+    QualityBoardRdOverviewResponse overview =
+        service.getOverview("CC2026R4", CodeReviewDataReadMode.FORMAL);
+
+    assertThat(overview.demandReviewReportDensity()).isEqualTo(0.25D);
+    assertThat(overview.designReviewReportDensity()).isEqualTo(0.25D);
   }
 
   @Test
@@ -307,6 +335,27 @@ class QualityRdAnalyticsDashboardProviderTest {
         "severity_level", "LEVEL1",
         "priority_level", "P1",
         "urgency", "P1");
+  }
+
+  private static ReviewDataRecordRowResponse reviewRow(
+      Long id, String reviewType, int reviewScalePages, int problemCount) {
+    return new ReviewDataRecordRowResponse(
+        id,
+        "CC2026R4",
+        "评审记录" + id,
+        "模块A",
+        reviewType,
+        LocalDate.of(2026, 6, 1),
+        "负责人A",
+        "专家A",
+        reviewScalePages,
+        "评审文档",
+        "作者A",
+        "V1",
+        problemCount,
+        0D,
+        LocalDateTime.of(2026, 6, 1, 10, 0),
+        false);
   }
 
   private static final class RowReturningJdbcTemplate extends JdbcTemplate {

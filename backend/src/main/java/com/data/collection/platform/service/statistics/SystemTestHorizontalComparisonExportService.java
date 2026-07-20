@@ -426,9 +426,6 @@ public class SystemTestHorizontalComparisonExportService {
   }
 
   private List<ReviewMetric> loadMatchModeReviewMetrics(String reviewProjectName, String reviewType) {
-    if (!matchModeSwitchService.isReviewDataCompatibilityReadEnabled()) {
-      return List.of();
-    }
     List<ReviewDataRecordRowResponse> records = matchModeReviewRepository.loadRecords().stream()
         .filter(record -> matchesText(record.projectName(), reviewProjectName))
         .filter(record -> matchesText(record.reviewType(), reviewType))

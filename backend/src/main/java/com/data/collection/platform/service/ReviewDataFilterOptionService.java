@@ -43,17 +43,14 @@ public class ReviewDataFilterOptionService {
 
   private final ReviewDataMirrorOptionRepository mirrorOptionRepository;
   private final ReviewDataHistoricalOptionRepository historicalOptionRepository;
-  private final CodeReviewMatchModeSwitchService matchModeSwitchService;
   private final ReviewDataMatchModeRecordRepository matchModeRecordRepository;
 
   public ReviewDataFilterOptionService(
       ReviewDataMirrorOptionRepository mirrorOptionRepository,
       ReviewDataHistoricalOptionRepository historicalOptionRepository,
-      CodeReviewMatchModeSwitchService matchModeSwitchService,
       ReviewDataMatchModeRecordRepository matchModeRecordRepository) {
     this.mirrorOptionRepository = mirrorOptionRepository;
     this.historicalOptionRepository = historicalOptionRepository;
-    this.matchModeSwitchService = matchModeSwitchService;
     this.matchModeRecordRepository = matchModeRecordRepository;
   }
 
@@ -74,25 +71,14 @@ public class ReviewDataFilterOptionService {
     List<String> historicalReviewOwners = historicalOptionRepository.loadReviewOwners();
     List<String> historicalReviewExperts = historicalOptionRepository.loadReviewExperts();
     List<String> historicalAuthors = historicalOptionRepository.loadAuthors();
-    //兼容模式-MatchMode
-    boolean reviewDataCompatibilityRead = matchModeSwitchService.isReviewDataCompatibilityReadEnabled();
-    List<String> matchProjectNames = reviewDataCompatibilityRead
-        ? matchModeRecordRepository.loadProjectNames()
-        : List.of();
-    List<String> matchModuleNames = reviewDataCompatibilityRead
-        ? matchModeRecordRepository.loadModuleNames()
-        : List.of();
-    List<String> matchReviewOwners = reviewDataCompatibilityRead
-        ? matchModeRecordRepository.loadReviewOwners()
-        : List.of();
-    List<String> matchReviewExperts = reviewDataCompatibilityRead
-        ? matchModeRecordRepository.loadReviewExperts()
-        : List.of();
+    // 评审历史数据是正式表和兼容快照的统一读源，与代码走查兼容开关无关。
+    List<String> matchProjectNames = matchModeRecordRepository.loadProjectNames();
+    List<String> matchModuleNames = matchModeRecordRepository.loadModuleNames();
+    List<String> matchReviewOwners = matchModeRecordRepository.loadReviewOwners();
+    List<String> matchReviewExperts = matchModeRecordRepository.loadReviewExperts();
 
     // 快速筛选只展示当前记录查询能够命中的项目，不能混入没有评审记录的 GitLab 仓库项目。
-    // 兼容模式-MatchMode：开启评审兼容读时才合并老平台评审项目；关闭后只保留正式 review_records 项目。
     List<String> filterProjectNames = mergeValues(historicalProjectNames, matchProjectNames);
-    // 兼容模式-MatchMode：列表模块候选严格跟随当前可见评审记录；镜像标签只服务新增/编辑表单。
     List<String> filterModuleNames = mergeValues(historicalModuleNames, matchModuleNames);
     List<String> reviewOwnerNames =
         mergeValues(

@@ -9,6 +9,7 @@ import com.data.collection.platform.entity.QualityBoardRdFilterOptionsResponse;
 import com.data.collection.platform.entity.QualityBoardRdOverviewResponse;
 import com.data.collection.platform.service.QualityBoardWorkbookExportService;
 import com.data.collection.platform.service.QualityBoardRdService;
+import com.data.collection.platform.security.RequirePermission;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -32,22 +33,26 @@ public class QualityBoardController {
   }
 
   @GetMapping("/rd/project-options")
+  @RequirePermission("quality.rd.view")
   public ApiResponse<QualityBoardProjectOptionsResponse> listRdProjectOptions() {
     return ApiResponse.success(qualityBoardRdService.listProjectOptions());
   }
 
   @GetMapping("/rd/filter-options")
+  @RequirePermission("quality.rd.view")
   public ApiResponse<QualityBoardRdFilterOptionsResponse> listRdFilterOptions() {
     return ApiResponse.success(qualityBoardRdService.listFilterOptions());
   }
 
   @GetMapping("/rd/overview")
+  @RequirePermission("quality.rd.view")
   public ApiResponse<QualityBoardRdOverviewResponse> getRdOverview(
       @RequestParam(required = false) String projectName) {
     return ApiResponse.success(qualityBoardRdService.getOverview(projectName));
   }
 
   @GetMapping("/rd/dashboard")
+  @RequirePermission("quality.rd.view")
   public ApiResponse<QualityBoardRdDashboardResponse> getRdDashboard(
       @RequestParam(required = false) String projectName,
       @RequestParam(required = false) String codeReviewSource) {
@@ -56,6 +61,7 @@ public class QualityBoardController {
   }
 
   @GetMapping("/rd/charts/{chartKey}/export")
+  @RequirePermission("quality.rd.export")
   public ResponseEntity<byte[]> exportRdChart(
       @PathVariable String chartKey,
       @RequestParam(required = false) String projectName,
@@ -66,6 +72,7 @@ public class QualityBoardController {
   }
 
   @GetMapping("/rd/code-review-records/export")
+  @RequirePermission("quality.rd.export")
   public ResponseEntity<byte[]> exportRdCodeReviewRecords(
       @RequestParam(required = false) String projectName,
       @RequestParam(required = false) String codeReviewSource) {
@@ -76,6 +83,7 @@ public class QualityBoardController {
   }
 
   @GetMapping("/other/overview")
+  @RequirePermission("quality.other.view")
   public ApiResponse<QualityBoardOtherOverviewResponse> getOtherOverview(
       @RequestParam(required = false) String projectName) {
     return ApiResponse.success(qualityBoardRdService.getOtherOverview(projectName));

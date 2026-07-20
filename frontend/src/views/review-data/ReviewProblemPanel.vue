@@ -17,7 +17,22 @@ const props = defineProps<{
   onEditProblemItem: (recordId: number, item: ReviewDataProblemItemResponse) => void | Promise<void>;
   onDeleteProblemItem: (recordId: number, itemId: number) => void | Promise<void>;
   canManage?: boolean;
+  canCreate?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean | ((row: Record<string, unknown>) => boolean);
 }>();
+
+const canCreateProblem = computed(() => props.canCreate ?? props.canManage ?? false);
+const canEditProblem = computed(() => props.canEdit ?? props.canManage ?? false);
+const canDeleteProblem = computed(() => props.canDelete ?? props.canManage ?? false);
+const showActions = computed(() => canEditProblem.value || canDeleteProblem.value);
+
+function canDeleteProblemRow(row: Record<string, unknown>) {
+  if (typeof props.canDelete === 'function') {
+    return props.canDelete(row);
+  }
+  return canDeleteProblem.value;
+}
 
 const ACTION_COLUMN_WIDTH = 136;
 const flexibleTextColumnWeights: Record<string, number> = {
@@ -45,7 +60,7 @@ function effectiveColumnWidth(column: RecordTableColumn) {
 }
 
 const baseTableContentWidth = computed(() =>
-  props.columns.reduce((total, column) => total + effectiveColumnWidth(column), props.canManage ? ACTION_COLUMN_WIDTH : 0) + 2,
+  props.columns.reduce((total, column) => total + effectiveColumnWidth(column), showActions.value ? ACTION_COLUMN_WIDTH : 0) + 2,
 );
 
 const flexibleTextWeightTotal = computed(() =>
@@ -70,7 +85,7 @@ const columnRenderWidths = computed<Record<string, number>>(() => {
 const tableContentWidth = computed(() =>
   Math.max(
     baseTableContentWidth.value,
-    props.columns.reduce((total, column) => total + (columnRenderWidths.value[column.key] ?? effectiveColumnWidth(column)), props.canManage ? ACTION_COLUMN_WIDTH : 0) + 2,
+    props.columns.reduce((total, column) => total + (columnRenderWidths.value[column.key] ?? effectiveColumnWidth(column)), showActions.value ? ACTION_COLUMN_WIDTH : 0) + 2,
   ),
 );
 
@@ -111,7 +126,7 @@ onBeforeUnmount(() => {
 });
 
 watch(
-  () => [props.columns, props.canManage],
+  () => [props.columns, showActions.value],
   () => void nextTick(updateAvailableTableWidth),
   { deep: true },
 );
@@ -124,7 +139,7 @@ watch(
         <span>评审问题清单</span>
         <el-tag size="small" effect="plain">已录入 {{ rows.length }} 条</el-tag>
       </div>
-      <el-button v-if="canManage" type="primary" text :icon="Plus" @click="onCreateProblemItem(record.id)">新增问题</el-button>
+      <el-button v-if="canCreateProblem" type="primary" text :icon="Plus" @click="onCreateProblemItem(record.id)">新增问题</el-button>
     </div>
 
     <div ref="frameRef" class="problem-subtable-frame">
@@ -176,10 +191,11 @@ watch(
         </template>
       </el-table-column>
 
-      <el-table-column v-if="canManage" label="操作" :width="ACTION_COLUMN_WIDTH" fixed="right" align="center" header-align="center">
+      <el-table-column v-if="showActions" label="操作" :width="ACTION_COLUMN_WIDTH" fixed="right" align="center" header-align="center">
         <template #default="{ row }">
           <div class="problem-actions">
             <el-button
+              v-if="canEditProblem"
               class="problem-action-edit"
               type="primary"
               plain
@@ -190,6 +206,7 @@ watch(
               编辑
             </el-button>
             <el-button
+              v-if="canDeleteProblemRow(row)"
               class="problem-action-delete"
               type="danger"
               text

@@ -32,6 +32,7 @@ const QualityBoardRdView = () => import('./views/QualityBoardRdView.vue');
 const QualityBoardOtherView = () => import('./views/QualityBoardOtherView.vue');
 const SystemTestMultiBoardView = () => import('./views/SystemTestMultiBoardView.vue');
 const TestingPhaseDefinitionView = () => import('./views/TestingPhaseDefinitionView.vue');
+const PermissionSettingsView = () => import('./views/PermissionSettingsView.vue');
 const AnalyticsDashboardDetailPage = () => import('./views/AnalyticsDashboardDetailPage.vue');
 
 type RouteComponent = NonNullable<RouteRecordRaw['component']>;
@@ -176,6 +177,9 @@ const routes: RouteRecordRaw[] = [
   },
   {
     ...buildShellRoute('database-browser', DatabaseBrowserView),
+  },
+  {
+    ...buildShellRoute('permission-settings', PermissionSettingsView),
   },
   buildAnalyticsDetailRouteRecord(
     'quality-rd-analytics-detail',

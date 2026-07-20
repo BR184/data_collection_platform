@@ -40,7 +40,9 @@ describe('QualityBoardOtherView mount smoke', () => {
     authState.currentUser = {
       username: 'admin',
       displayName: '管理员',
-      role: 'ADMIN',
+      roleCodes: ['SUPER_ADMIN'],
+      roleNames: ['超级管理员'],
+      permissions: ['quality.other.view', 'quality.other.export'],
       authenticated: true,
     };
     authState.initialized = true;

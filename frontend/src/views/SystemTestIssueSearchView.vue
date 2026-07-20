@@ -10,6 +10,7 @@ import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
+import { hasPermission } from '../feature-manifest';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import { buildIssueSeverityTag, displayIssueSeverity } from '../utils/issue-severity-display';
 import { downloadBlob } from '../utils/csv-download';
@@ -49,7 +50,7 @@ const rows = ref<SystemTestIssueSearchRowResponse[]>([]);
 const total = ref(0);
 const exportLoading = ref(false);
 const realtimeRefreshLoading = ref(false);
-const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
+const canRefreshLatestData = computed(() => hasPermission(authState.currentUser, 'business_data.refresh'));
 const filterOptions = ref<SystemTestIssueSearchFilterOptionsResponse>({
   projectNames: [],
   moduleNames: [],

@@ -41,6 +41,7 @@ public class ReviewDataProblemItemRepository {
           owner_name,
           rejection_reason,
           problem_status,
+          created_by,
           updated_at
         from review_problem_items
         where review_record_id = ? and deleted = false
@@ -71,6 +72,7 @@ public class ReviewDataProblemItemRepository {
           owner_name,
           rejection_reason,
           problem_status,
+          created_by,
           updated_at
         from review_problem_items
         where deleted = false and review_record_id in (
@@ -106,6 +108,7 @@ public class ReviewDataProblemItemRepository {
             owner_name,
             rejection_reason,
             problem_status,
+            created_by,
             updated_at
           from review_problem_items
           where id = ? and review_record_id = ? and deleted = false
@@ -146,6 +149,24 @@ public class ReviewDataProblemItemRepository {
       String ownerName,
       String rejectionReason,
       String problemStatus) {
+    return insertProblemItem(
+        recordId, reviewerName, workloadHours, reviewCategory, documentPosition, problemCategory,
+        problemDescription, suggestedSolution, ownerName, rejectionReason, problemStatus, null);
+  }
+
+  public Long insertProblemItem(
+      Long recordId,
+      String reviewerName,
+      Double workloadHours,
+      String reviewCategory,
+      String documentPosition,
+      String problemCategory,
+      String problemDescription,
+      String suggestedSolution,
+      String ownerName,
+      String rejectionReason,
+      String problemStatus,
+      String createdBy) {
     KeyHolder keyHolder = new GeneratedKeyHolder();
     jdbcTemplate.update(
         connection -> {
@@ -164,9 +185,10 @@ public class ReviewDataProblemItemRepository {
                     owner_name,
                     rejection_reason,
                     problem_status,
+                    created_by,
                     created_at,
                     updated_at
-                  ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
+                  ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
                   """,
                   new String[] {"id"});
           statement.setLong(1, recordId);
@@ -180,6 +202,7 @@ public class ReviewDataProblemItemRepository {
           statement.setString(9, normalizeNullableText(ownerName));
           statement.setString(10, normalizeNullableText(rejectionReason));
           statement.setString(11, normalizeText(problemStatus));
+          statement.setString(12, TextQuerySupport.trimToNull(createdBy));
           return statement;
         },
         keyHolder);
@@ -267,7 +290,8 @@ public class ReviewDataProblemItemRepository {
         TextQuerySupport.normalizeDisplay(rs.getString("owner_name")),
         TextQuerySupport.normalizeDisplay(rs.getString("rejection_reason")),
         TextQuerySupport.normalizeDisplay(rs.getString("problem_status")),
-        rs.getTimestamp("updated_at") == null ? null : rs.getTimestamp("updated_at").toLocalDateTime());
+        rs.getTimestamp("updated_at") == null ? null : rs.getTimestamp("updated_at").toLocalDateTime(),
+        TextQuerySupport.trimToNull(rs.getString("created_by")));
   }
 
   private String normalizeText(String value) {

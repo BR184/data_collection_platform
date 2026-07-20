@@ -43,6 +43,7 @@ export interface ReviewDataRecordRowResponse {
   gitlabProjectId?: number | null;
   gitlabResourceIid?: number | null;
   gitlabResourceType?: string | null;
+  createdBy?: string | null;
 }
 
 export interface ReviewDataRecordListResponse {
@@ -83,6 +84,7 @@ export interface ReviewDataProblemItemResponse {
   rejectionReason: string;
   problemStatus: string;
   updatedAt?: string | null;
+  createdBy?: string | null;
 }
 
 export interface ReviewDataDescriptionResponse {

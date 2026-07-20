@@ -24,6 +24,10 @@ describe('ReviewDataRowActions', () => {
         onCreateProblemItem,
         onExportProblemDetails,
         onDeleteRecord,
+        canEditRecord: true,
+        canCreateProblem: true,
+        canExportProblemDetails: true,
+        canDeleteRecord: true,
       },
     });
 

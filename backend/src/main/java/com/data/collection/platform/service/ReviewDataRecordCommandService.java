@@ -19,20 +19,22 @@ public class ReviewDataRecordCommandService {
   private static final String DEFAULT_PENDING_PROBLEM_DESCRIPTION = "待评审";
 
   private final ReviewDataRecordPersistenceSupport persistenceSupport;
-  private final CodeReviewMatchModeSwitchService matchModeSwitchService;
   private final ReviewDataMatchModeMaterializeService matchModeMaterializeService;
 
   public ReviewDataRecordCommandService(
       ReviewDataRecordPersistenceSupport persistenceSupport,
-      CodeReviewMatchModeSwitchService matchModeSwitchService,
       ReviewDataMatchModeMaterializeService matchModeMaterializeService) {
     this.persistenceSupport = persistenceSupport;
-    this.matchModeSwitchService = matchModeSwitchService;
     this.matchModeMaterializeService = matchModeMaterializeService;
   }
 
   @Transactional
   public Long createRecord(ReviewDataRecordSaveRequest request) {
+    return createRecord(request, null);
+  }
+
+  @Transactional
+  public Long createRecord(ReviewDataRecordSaveRequest request, String createdBy) {
     Long recordId =
         persistenceSupport.insertRecord(
             request.projectName(),
@@ -47,7 +49,8 @@ public class ReviewDataRecordCommandService {
             request.reviewVersion(),
             request.notReachStandardReason(),
             request.sourceFileName(),
-            request.weightedDefectDensity());
+            request.weightedDefectDensity(),
+            createdBy);
     if (recordId == null) {
       throw new IllegalStateException("创建评审记录失败");
     }
@@ -55,7 +58,7 @@ public class ReviewDataRecordCommandService {
     persistenceSupport.replaceExperts(recordId, request.reviewExperts());
     persistLegacyParityDetails(recordId, request);
     if (Boolean.TRUE.equals(request.createPendingProblemItems())) {
-      createPendingProblemItems(recordId, request.reviewExperts());
+      createPendingProblemItems(recordId, request.reviewExperts(), createdBy);
     }
     persistenceSupport.refreshSearchIndex(recordId);
     return recordId;
@@ -96,6 +99,12 @@ public class ReviewDataRecordCommandService {
 
   @Transactional
   public Long createProblemItem(Long recordId, ReviewDataProblemItemSaveRequest request) {
+    return createProblemItem(recordId, request, null);
+  }
+
+  @Transactional
+  public Long createProblemItem(
+      Long recordId, ReviewDataProblemItemSaveRequest request, String createdBy) {
     recordId = materializeRecordIfNeeded(recordId);
     persistenceSupport.assertRecordExists(recordId);
     String problemStatus = defaultPendingStatus(request.problemStatus());
@@ -129,7 +138,8 @@ public class ReviewDataRecordCommandService {
             request.suggestedSolution(),
             request.ownerName(),
             request.rejectionReason(),
-            problemStatus);
+            problemStatus,
+            createdBy);
     if (itemId == null) {
       throw new IllegalStateException("创建评审问题失败");
     }
@@ -177,7 +187,8 @@ public class ReviewDataRecordCommandService {
     persistenceSupport.touchRecord(recordId);
   }
 
-  private void createPendingProblemItems(Long recordId, List<String> experts) {
+  private void createPendingProblemItems(
+      Long recordId, List<String> experts, String createdBy) {
     if (experts == null || experts.isEmpty()) {
       return;
     }
@@ -196,7 +207,8 @@ public class ReviewDataRecordCommandService {
           "",
           "",
           "",
-          DEFAULT_PENDING_REVIEW_STATUS);
+          DEFAULT_PENDING_REVIEW_STATUS,
+          createdBy);
     }
     persistenceSupport.touchRecord(recordId);
   }

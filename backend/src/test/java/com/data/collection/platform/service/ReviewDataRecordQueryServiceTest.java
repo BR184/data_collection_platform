@@ -24,7 +24,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ReviewDataRecordQueryServiceTest {
   @Mock private ReviewDataRecordPersistenceSupport persistenceSupport;
   @Mock private LabelGroupExpansionService labelGroupExpansionService;
-  @Mock private CodeReviewMatchModeSwitchService matchModeSwitchService;
   @Mock private ReviewDataMatchModeRecordRepository matchModeRecordRepository;
   @Mock private ReviewDataMatchModeMaterializeService matchModeMaterializeService;
 
@@ -61,6 +60,26 @@ class ReviewDataRecordQueryServiceTest {
     assertThat(response.records())
         .extracting(ReviewDataRecordRowResponse::moduleName)
         .containsExactly("工程图");
+    verify(persistenceSupport).loadRecords(null, null, null, null, null, null, null, null);
+  }
+
+  @Test
+  void shouldAlwaysMergeFormalRecordsWithHistoricalSnapshotRecords() {
+    ReviewDataRecordQueryService service = service();
+    when(persistenceSupport.loadRecords(null, null, null, null, null, null, null, null))
+        .thenReturn(List.of(row(1L, "正式项目", "正式模块", "负责人A", "专家A")));
+    when(matchModeRecordRepository.loadRecords())
+        .thenReturn(List.of(row(-2L, "历史项目", "历史模块", "负责人B", "专家B")));
+
+    ReviewDataRecordListResponse response =
+        service.listRecords(
+            new ReviewDataRecordQueryRequest(
+                null, null, null, null, null, null, null, null, null, null, 1, 20, "updatedAt", "desc"));
+
+    assertThat(response.records())
+        .extracting(ReviewDataRecordRowResponse::id)
+        .containsExactly(1L, -2L);
+    verify(matchModeRecordRepository).loadRecords();
     verify(persistenceSupport).loadRecords(null, null, null, null, null, null, null, null);
   }
 
@@ -145,7 +164,7 @@ class ReviewDataRecordQueryServiceTest {
                         "updatedAt",
                         "desc")))
         .isInstanceOf(BizException.class)
-        .hasMessageContaining("标签组筛选只支持等于或不等于关系");
+        .hasMessageContaining("标签组筛选只支持集合关系");
   }
 
   @Test
@@ -184,7 +203,6 @@ class ReviewDataRecordQueryServiceTest {
         new ReviewDataSummaryService(),
         new JsonUtils(new ObjectMapper()),
         labelGroupExpansionService,
-        matchModeSwitchService,
         matchModeRecordRepository,
         matchModeMaterializeService);
   }

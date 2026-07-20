@@ -14,7 +14,6 @@ class ReviewDataFilterOptionServiceTest {
 
   @Mock private ReviewDataMirrorOptionRepository mirrorOptionRepository;
   @Mock private ReviewDataHistoricalOptionRepository historicalOptionRepository;
-  @Mock private CodeReviewMatchModeSwitchService matchModeSwitchService;
   @Mock private ReviewDataMatchModeRecordRepository matchModeRecordRepository;
 
   @Test
@@ -30,7 +29,6 @@ class ReviewDataFilterOptionServiceTest {
     when(historicalOptionRepository.loadReviewOwners()).thenReturn(List.of("Alice", "Bob"));
     when(historicalOptionRepository.loadReviewExperts()).thenReturn(List.of());
     when(historicalOptionRepository.loadAuthors()).thenReturn(List.of());
-    when(matchModeSwitchService.isReviewDataCompatibilityReadEnabled()).thenReturn(true);
     when(matchModeRecordRepository.loadProjectNames()).thenReturn(List.of("LegacyProject"));
     when(matchModeRecordRepository.loadModuleNames()).thenReturn(List.of("LegacyModule"));
 
@@ -98,7 +96,6 @@ class ReviewDataFilterOptionServiceTest {
     return new ReviewDataFilterOptionService(
         mirrorOptionRepository,
         historicalOptionRepository,
-        matchModeSwitchService,
         matchModeRecordRepository);
   }
 }

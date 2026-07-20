@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 public class ReviewDataRecordService {
   private static final String PAGE_KEY = "review-data-records";
   // 候选来源或查询口径变化时必须升级版本，使持久化页面快照自然失效，禁止靠人工清缓存生效。
-  private static final String RULE_VERSION = "review-data-records@2026-07-10-v5";
+  private static final String RULE_VERSION = "review-data-records@2026-07-20-v6";
 
   private final ReviewDataRecordQueryService queryService;
   private final ReviewDataRecordCommandService commandService;
@@ -58,7 +58,12 @@ public class ReviewDataRecordService {
   }
 
   public ReviewDataRecordDetailResponse createRecord(ReviewDataRecordSaveRequest request) {
-    Long recordId = commandService.createRecord(request);
+    return createRecord(request, null);
+  }
+
+  public ReviewDataRecordDetailResponse createRecord(
+      ReviewDataRecordSaveRequest request, String createdBy) {
+    Long recordId = commandService.createRecord(request, createdBy);
     invalidateSnapshots();
     return queryService.getRecordDetail(recordId);
   }
@@ -76,7 +81,12 @@ public class ReviewDataRecordService {
 
   public ReviewDataProblemItemResponse createProblemItem(
       Long recordId, ReviewDataProblemItemSaveRequest request) {
-    Long itemId = commandService.createProblemItem(recordId, request);
+    return createProblemItem(recordId, request, null);
+  }
+
+  public ReviewDataProblemItemResponse createProblemItem(
+      Long recordId, ReviewDataProblemItemSaveRequest request, String createdBy) {
+    Long itemId = commandService.createProblemItem(recordId, request, createdBy);
     invalidateSnapshots();
     return queryService.getProblemItem(recordId, itemId);
   }

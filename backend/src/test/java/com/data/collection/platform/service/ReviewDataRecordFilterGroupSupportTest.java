@@ -172,7 +172,7 @@ class ReviewDataRecordFilterGroupSupportTest {
                     }
                     """))
         .isInstanceOf(BizException.class)
-        .hasMessageContaining("标签组筛选只支持等于或不等于关系");
+        .hasMessageContaining("标签组筛选只支持集合关系");
   }
 
   @Test

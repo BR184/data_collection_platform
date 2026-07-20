@@ -12,6 +12,7 @@ import StatisticBoardToolbar from './StatisticBoardToolbar.vue';
 import DataScopeBar from './data-scope/DataScopeBar.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
+import { hasPermission } from '../feature-manifest';
 import {
   type StatisticBoardResponse,
   type StatisticFilterField,
@@ -77,7 +78,7 @@ const props = withDefaults(
 
 const route = useRoute();
 const router = useRouter();
-const canRefreshRealtime = computed(() => authState.currentUser.role === 'ADMIN');
+const canRefreshRealtime = computed(() => hasPermission(authState.currentUser, 'business_data.refresh'));
 const issueExportLoading = ref(false);
 const customerIssueExportLoading = ref(false);
 const horizontalComparisonExportLoading = ref(false);

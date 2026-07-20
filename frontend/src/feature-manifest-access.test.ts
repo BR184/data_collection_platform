@@ -1,15 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { canAccessPageKey, getVisibleModules, type AccessUser } from './feature-manifest';
+import { modules } from './feature-manifest/modules';
 
-const guest: AccessUser = { role: 'GUEST', authenticated: false };
-const admin: AccessUser = { role: 'ADMIN', authenticated: true };
-const approval: AccessUser = { role: 'APPROVAL', authenticated: true };
+const guest: AccessUser = { permissions: [], authenticated: false };
+const admin: AccessUser = {
+  permissions: modules.flatMap((module) => module.pages.map((page) => page.permission).filter(Boolean) as string[]),
+  authenticated: true,
+};
+const approval: AccessUser = {
+  permissions: ['quality.other.view'],
+  authenticated: true,
+};
 
 describe('feature manifest access rules', () => {
-  it('lets guest users view every page outside system settings', () => {
-    for (const module of getVisibleModules(admin).filter((item) => item.key !== 'system-settings')) {
+  it('requires authentication for business pages', () => {
+    for (const module of modules) {
       for (const page of module.pages) {
-        expect(canAccessPageKey(page.key, guest)).toBe(true);
+        expect(canAccessPageKey(page.key, guest)).toBe(false);
       }
     }
     expect(canAccessPageKey('database-browser', guest)).toBe(false);

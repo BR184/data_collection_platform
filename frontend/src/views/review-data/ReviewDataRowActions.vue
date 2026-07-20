@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ArrowDown } from '@element-plus/icons-vue';
+import { computed } from 'vue';
 
-defineProps<{
+const props = defineProps<{
   row: Record<string, unknown>;
   expanded: boolean;
   onToggleProblemPanel: (row: Record<string, unknown>) => void | Promise<void>;
@@ -11,8 +12,17 @@ defineProps<{
   onExportProblemDetails: (row: Record<string, unknown>) => void | Promise<void>;
   onDeleteRecord: (row: Record<string, unknown>) => void | Promise<void>;
   canManage?: boolean;
-  canDeleteRecord?: boolean;
+  canEditRecord?: boolean;
+  canCreateProblem?: boolean;
+  canDeleteRecord?: boolean | ((row: Record<string, unknown>) => boolean);
+  canExportProblemDetails?: boolean;
 }>();
+
+const canEdit = computed(() => props.canEditRecord ?? props.canManage ?? false);
+const canCreateProblem = computed(() => props.canCreateProblem ?? props.canManage ?? false);
+const canDelete = computed(() => typeof props.canDeleteRecord === 'function'
+  ? props.canDeleteRecord(props.row)
+  : props.canDeleteRecord ?? false);
 </script>
 
 <template>
@@ -37,10 +47,10 @@ defineProps<{
       </span>
       <template #dropdown>
         <el-dropdown-menu>
-          <el-dropdown-item v-if="canManage" @click="onEditRecord(row)">编辑评审</el-dropdown-item>
-          <el-dropdown-item v-if="canManage" @click="onCreateProblemItem(row)">新增问题</el-dropdown-item>
-          <el-dropdown-item @click="onExportProblemDetails(row)">导出问题详情</el-dropdown-item>
-          <el-dropdown-item v-if="canDeleteRecord" divided @click="onDeleteRecord(row)">删除评审</el-dropdown-item>
+          <el-dropdown-item v-if="canEdit" @click="onEditRecord(row)">编辑评审</el-dropdown-item>
+          <el-dropdown-item v-if="canCreateProblem" @click="onCreateProblemItem(row)">新增问题</el-dropdown-item>
+          <el-dropdown-item v-if="canExportProblemDetails !== false" @click="onExportProblemDetails(row)">导出问题详情</el-dropdown-item>
+          <el-dropdown-item v-if="canDelete" divided @click="onDeleteRecord(row)">删除评审</el-dropdown-item>
         </el-dropdown-menu>
       </template>
     </el-dropdown>

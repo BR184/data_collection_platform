@@ -12,6 +12,7 @@ import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
+import { hasPermission } from '../feature-manifest';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import { buildIssueSeverityTag } from '../utils/issue-severity-display';
 import type {
@@ -99,7 +100,7 @@ const milestoneDefaultReady = computed(() => {
 const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value && milestoneDefaultReady.value);
 const isDelayTopic = computed(() => topic.value === 'delay');
 const pageTitle = computed(() => (isDelayTopic.value ? '延期问题明细' : 'CC_PRODUCT 议题明细'));
-const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
+const canRefreshLatestData = computed(() => hasPermission(authState.currentUser, 'business_data.refresh'));
 const emptyDescription = computed(() =>
   isDelayTopic.value ? '当前筛选条件下没有延期问题。' : '当前筛选条件下没有 CC_PRODUCT 议题。',
 );

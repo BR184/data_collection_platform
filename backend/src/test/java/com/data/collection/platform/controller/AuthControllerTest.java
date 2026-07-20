@@ -52,7 +52,7 @@ class AuthControllerTest {
     mockMvc.perform(get("/api/auth/current"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.role").value("GUEST"))
+        .andExpect(jsonPath("$.data.roleCodes").isEmpty())
         .andExpect(jsonPath("$.data.authenticated").value(false));
   }
 
@@ -68,7 +68,7 @@ class AuthControllerTest {
                 """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.role").value("ADMIN"))
+        .andExpect(jsonPath("$.data.roleCodes[0]").value("SUPER_ADMIN"))
         .andExpect(jsonPath("$.data.authenticated").value(true))
         .andReturn();
 
@@ -77,7 +77,32 @@ class AuthControllerTest {
     org.assertj.core.api.Assertions.assertThat(principal).isInstanceOf(AuthUserResponse.class);
     mockMvc.perform(get("/api/auth/current").session(session))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.role").value("ADMIN"));
+        .andExpect(jsonPath("$.data.roleCodes[0]").value("SUPER_ADMIN"));
+  }
+
+  @Test
+  void loginShouldRotateExistingSessionId() throws Exception {
+    MockHttpSession preAuthSession = new MockHttpSession();
+    String originalSessionId = preAuthSession.getId();
+
+    MvcResult result = mockMvc.perform(post("/api/auth/login")
+            .session(preAuthSession)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "username": "admin",
+                  "password": "secret"
+                }
+                """))
+        .andExpect(status().isOk())
+        .andReturn();
+
+    MockHttpSession authenticatedSession = (MockHttpSession) result.getRequest().getSession(false);
+    org.assertj.core.api.Assertions.assertThat(authenticatedSession.getId())
+        .isNotEqualTo(originalSessionId);
+    mockMvc.perform(get("/api/auth/current").session(authenticatedSession))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.authenticated").value(true));
   }
 
   @Test
@@ -98,7 +123,7 @@ class AuthControllerTest {
                 """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.role").value("ADMIN"))
+        .andExpect(jsonPath("$.data.roleCodes[0]").value("SUPER_ADMIN"))
         .andExpect(jsonPath("$.data.authenticated").value(true));
   }
 
@@ -114,7 +139,7 @@ class AuthControllerTest {
                 """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.role").value("APPROVAL"));
+        .andExpect(jsonPath("$.data.roleCodes[0]").value("NORMAL_USER"));
   }
 
   @Test
@@ -138,7 +163,7 @@ class AuthControllerTest {
                 """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.role").value("ADMIN"));
+        .andExpect(jsonPath("$.data.roleCodes[0]").value("SUPER_ADMIN"));
   }
 
   @Test
@@ -204,7 +229,7 @@ class AuthControllerTest {
 
     mockMvc.perform(post("/api/auth/logout"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.role").value("GUEST"));
+        .andExpect(jsonPath("$.data.roleCodes").isEmpty());
 
     org.assertj.core.api.Assertions.assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
   }

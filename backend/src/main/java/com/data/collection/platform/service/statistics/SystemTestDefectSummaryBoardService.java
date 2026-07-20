@@ -12,6 +12,7 @@ import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
 import com.data.collection.platform.entity.statistics.StatisticBoardMeta;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
+import com.data.collection.platform.entity.statistics.SystemTestModuleFixRateSnapshot;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.entity.statistics.StatisticColumnGroup;
@@ -43,6 +44,8 @@ import java.util.Set;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -253,6 +256,72 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       return phase + "-系统测试缺陷汇总统计.xlsx";
     }
     return "系统测试缺陷汇总统计.xlsx";
+  }
+
+  /**
+   * Loads the stable, page-independent metric used by external data consumers.
+   * The product version is resolved through the configured phase catalog, while
+   * the fixed count intentionally uses the normalized issue-fact is_fixed field.
+   */
+  public SystemTestModuleFixRateSnapshot loadExternalModuleFixRates(String productVersion) {
+    String normalizedVersion = trimTextToNull(productVersion);
+    if (normalizedVersion == null) {
+      throw new IllegalArgumentException("productVersion 不能为空");
+    }
+    List<String> testingPhases = phaseScopeResolver.resolveLegacyCrownCadPhases(normalizedVersion);
+    if (testingPhases.isEmpty()) {
+      throw new IllegalArgumentException("产品版本不存在或没有启用的系统测试阶段: " + normalizedVersion);
+    }
+    StatisticFilterGroup filterGroup = new StatisticFilterGroup(
+        "AND",
+        List.of(new StatisticFilterCondition("testingPhase", "eq", normalizedVersion, null)));
+    EffectiveFilterGroup effectiveFilterGroup = buildEffectiveFilterGroup(filterGroup);
+    Map<String, String> sourceFilters = new LinkedHashMap<>();
+    sourceFilters.put("testingPhase", normalizedVersion);
+    sourceFilters.put(
+        "projectId", String.valueOf(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID));
+    alignTestingPhaseSqlFilter(sourceFilters, filterGroup);
+    List<IssueSource> loadedSources = runtimeSupport.loadFacts(sourceFilters, null).stream()
+        .map(this::toIssueSource)
+        .toList();
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(
+        loadedSources,
+        effectiveFilterGroup);
+    List<IssueSource> regularIssues = snapshot.finalSources().stream()
+        .filter(IssueSource::isRegularMetricIssue)
+        .toList();
+    List<String> moduleNames = regularIssues.stream()
+        .flatMap(issue -> issue.moduleNames().stream())
+        .filter(StringUtils::hasText)
+        .distinct()
+        .sorted(String.CASE_INSENSITIVE_ORDER)
+        .toList();
+    List<SystemTestModuleFixRateSnapshot.ModuleRow> modules = moduleNames.stream()
+        .map(module -> {
+          List<IssueSource> moduleIssues = regularIssues.stream()
+              .filter(issue -> issue.moduleNames().contains(module))
+              .toList();
+          return new SystemTestModuleFixRateSnapshot.ModuleRow(
+              module,
+              moduleMetric(moduleIssues, issue -> true),
+              moduleMetric(moduleIssues, IssueSource::isLevel1),
+              moduleMetric(moduleIssues, issue -> issue.isPriority("P1")),
+              moduleMetric(moduleIssues, issue -> issue.isPriority("P2")));
+        })
+        .toList();
+    return new SystemTestModuleFixRateSnapshot(normalizedVersion, testingPhases, modules);
+  }
+
+  private SystemTestModuleFixRateSnapshot.FixRateMetric moduleMetric(
+      List<IssueSource> issues, Predicate<IssueSource> predicate) {
+    long total = issues.stream().filter(predicate).count();
+    long fixed = issues.stream().filter(predicate).filter(IssueSource::fixed).count();
+    BigDecimal rate = total == 0
+        ? null
+        : BigDecimal.valueOf(fixed)
+            .multiply(BigDecimal.valueOf(100))
+            .divide(BigDecimal.valueOf(total), 2, RoundingMode.HALF_UP);
+    return new SystemTestModuleFixRateSnapshot.FixRateMetric(total, fixed, rate);
   }
 
   @Override

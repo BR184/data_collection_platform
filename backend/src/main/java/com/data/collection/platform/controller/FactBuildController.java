@@ -1,7 +1,8 @@
 package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
-import com.data.collection.platform.entity.AuthRole;
+import com.data.collection.platform.security.PlatformPermissionCodes;
+import com.data.collection.platform.security.RequirePermission;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.FactBuildTaskResponse;
 import com.data.collection.platform.entity.IssueFactDiagnosticsResponse;
@@ -13,7 +14,6 @@ import com.data.collection.platform.service.IssueFactDiagnosticsService;
 import com.data.collection.platform.service.IssueSourceReadinessService;
 import com.data.collection.platform.service.PageRecordSnapshotRefreshService;
 import com.data.collection.platform.service.statistics.StatisticBoardSnapshotRefreshService;
-import com.data.collection.platform.security.RequireRole;
 import java.util.Locale;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -50,7 +50,7 @@ public class FactBuildController {
   }
 
   @PostMapping("/rebuild")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_FACT_REBUILD)
   public ApiResponse<FactBuildResponse> rebuildFacts(
       @RequestParam(defaultValue = "all") String scope,
       @RequestParam(defaultValue = "false") boolean full,
@@ -86,7 +86,7 @@ public class FactBuildController {
   }
 
   @GetMapping("/build-tasks/latest")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_FACT_REBUILD)
   public ApiResponse<FactBuildTaskResponse> getLatestBuildTask(
       @RequestParam(required = false) String scope) {
     FactBuildTaskResponse response = factBuildTaskService.latest(scope);
@@ -94,14 +94,14 @@ public class FactBuildController {
   }
 
   @GetMapping("/issue-diagnostics")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_FACT_REBUILD)
   public ApiResponse<IssueFactDiagnosticsResponse> getIssueDiagnostics() {
     IssueFactDiagnosticsResponse response = issueFactDiagnosticsService.getDiagnostics();
     return ApiResponse.success("Issue Fact 验收诊断已生成", response);
   }
 
   @GetMapping("/issue-source-readiness")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_FACT_REBUILD)
   public ApiResponse<IssueSourceReadinessResponse> getIssueSourceReadiness() {
     IssueSourceReadinessResponse response = issueSourceReadinessService.getReadiness();
     return ApiResponse.success("Issue 源数据就绪度诊断已生成", response);

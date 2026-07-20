@@ -8,7 +8,7 @@ import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRuleSourc
 import com.data.collection.platform.entity.labelgroup.LabelGroupRuleRelationRequest;
 import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.TextQuerySupport;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -149,8 +149,8 @@ public class LabelGroupDynamicRuleCatalogService {
     put(sources, source(
         "review_records",
         "评审记录",
-        "评审数据管理主记录事实表",
-        "review_records",
+        "评审数据管理统一可见记录（正式记录与未转正式历史快照）",
+        "review_visible_records",
         FACT_ACTIVE_COLUMN,
         List.of(
             field("id", "记录ID", "id", VALUE_NUMBER, false, true, true, true),
@@ -167,8 +167,8 @@ public class LabelGroupDynamicRuleCatalogService {
     put(sources, source(
         "review_problem_items",
         "评审问题项",
-        "评审问题明细事实表",
-        "review_problem_items",
+        "评审数据管理统一可见问题项（正式问题项与未转正式历史快照）",
+        "review_visible_problem_items",
         FACT_ACTIVE_COLUMN,
         List.of(
             field("id", "问题项ID", "id", VALUE_NUMBER, false, true, true, true),
@@ -288,7 +288,8 @@ public class LabelGroupDynamicRuleCatalogService {
             candidateField("sourceBranch", "源分支", "source_branch", VALUE_STRING, true, true, true, false),
             field("createdAt", "创建时间", "created_at", VALUE_DATE, true, true, true, false),
             field("updatedAt", "更新时间", "updated_at", VALUE_DATE, true, true, true, false))));
-    return Map.copyOf(sources);
+    // 动态规则源顺序是前端 DSL 的稳定展示契约，不能交给 Map.copyOf 的未定义迭代顺序。
+    return Collections.unmodifiableMap(sources);
   }
 
   private List<DynamicRuleRelationDefinition> buildRelations() {
@@ -311,7 +312,13 @@ public class LabelGroupDynamicRuleCatalogService {
     for (DynamicRuleFieldDefinition field : fields) {
       fieldByKey.put(field.key(), field);
     }
-    return new DynamicRuleSourceDefinition(key, name, description, tableName, activeColumnName, Map.copyOf(fieldByKey));
+    return new DynamicRuleSourceDefinition(
+        key,
+        name,
+        description,
+        tableName,
+        activeColumnName,
+        Collections.unmodifiableMap(fieldByKey));
   }
 
   private DynamicRuleFieldDefinition field(

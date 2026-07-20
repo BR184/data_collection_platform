@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -108,8 +107,7 @@ public class ReviewDataExcelExportService {
       writeHeader(sheet.createRow(0), styles.header, PROBLEM_HEADERS);
       int rowIndex = 1;
       for (ReviewDataRecordRowResponse record : records) {
-        //兼容模式-MatchMode：问题清单导出必须跟前端详情/展开行使用同一读源。
-        //开启兼容读时负 ID 从老平台 Mongo 兼容表取问题项，关闭后只读正式 review_problem_items。
+        //问题清单导出必须跟前端详情/展开行使用同一合并读源。
         List<ReviewDataProblemItemResponse> items = queryService.listProblemItems(record.id());
         if (items.isEmpty()) {
           continue;

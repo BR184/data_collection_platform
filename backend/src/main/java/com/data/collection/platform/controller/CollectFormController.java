@@ -1,11 +1,10 @@
 package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
-import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.CollectFormEditContext;
 import com.data.collection.platform.entity.CollectFormDetailResponse;
 import com.data.collection.platform.entity.CollectFormNotificationPayloadResponse;
-import com.data.collection.platform.security.RequireRole;
+import com.data.collection.platform.security.RequirePermission;
 import com.data.collection.platform.service.CollectFormService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -32,6 +31,7 @@ public class CollectFormController {
   }
 
   @GetMapping("/detail")
+  @RequirePermission("code_review.form.edit")
   public ApiResponse<CollectFormDetailResponse> detail(
       @RequestParam @NotBlank String gitlabBaseUrl,
       @RequestParam @NotNull @Positive Long projectId,
@@ -43,6 +43,7 @@ public class CollectFormController {
   }
 
   @GetMapping("/notification-payload")
+  @RequirePermission("code_review.form.create")
   public ApiResponse<CollectFormNotificationPayloadResponse> notificationPayload(
       @RequestParam @NotBlank String gitlabBaseUrl,
       @RequestParam @NotNull @Positive Long projectId,
@@ -53,6 +54,7 @@ public class CollectFormController {
   }
 
   @PostMapping("/save")
+  @RequirePermission("code_review.form.create")
   public ApiResponse<CollectFormDetailResponse> save(
       @Valid @RequestBody SaveRequest request,
       HttpServletRequest servletRequest) {
@@ -78,7 +80,7 @@ public class CollectFormController {
   }
 
   @PostMapping("/delete")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission("code_review.form.delete")
   public ApiResponse<Boolean> delete(
       @Valid @RequestBody DeleteRequest request,
       HttpServletRequest servletRequest) {
@@ -94,7 +96,7 @@ public class CollectFormController {
   }
 
   @PostMapping("/update-record")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission("code_review.form.edit")
   public ApiResponse<CollectFormDetailResponse> updateRecord(
       @Valid @RequestBody UpdateRecordRequest request,
       HttpServletRequest servletRequest) {

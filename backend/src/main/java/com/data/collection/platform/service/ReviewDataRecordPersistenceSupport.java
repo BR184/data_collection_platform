@@ -190,6 +190,27 @@ public class ReviewDataRecordPersistenceSupport {
       String notReachStandardReason,
       String sourceFileName,
       Double weightedDefectDensity) {
+    return insertRecord(
+        projectName, title, moduleName, reviewType, reviewDate, reviewOwner, reviewScalePages,
+        reviewProduct, authorName, reviewVersion, notReachStandardReason, sourceFileName,
+        weightedDefectDensity, null);
+  }
+
+  public Long insertRecord(
+      String projectName,
+      String title,
+      String moduleName,
+      String reviewType,
+      java.time.LocalDate reviewDate,
+      String reviewOwner,
+      Integer reviewScalePages,
+      String reviewProduct,
+      String authorName,
+      String reviewVersion,
+      String notReachStandardReason,
+      String sourceFileName,
+      Double weightedDefectDensity,
+      String createdBy) {
     return recordWriteRepository.insertRecord(
         projectName,
         title,
@@ -203,7 +224,8 @@ public class ReviewDataRecordPersistenceSupport {
         reviewVersion,
         notReachStandardReason,
         sourceFileName,
-        weightedDefectDensity);
+        weightedDefectDensity,
+        createdBy);
   }
 
   public void updateRecord(
@@ -254,6 +276,24 @@ public class ReviewDataRecordPersistenceSupport {
       String ownerName,
       String rejectionReason,
       String problemStatus) {
+    return insertProblemItem(
+        recordId, reviewerName, workloadHours, reviewCategory, documentPosition, problemCategory,
+        problemDescription, suggestedSolution, ownerName, rejectionReason, problemStatus, null);
+  }
+
+  public Long insertProblemItem(
+      Long recordId,
+      String reviewerName,
+      Double workloadHours,
+      String reviewCategory,
+      String documentPosition,
+      String problemCategory,
+      String problemDescription,
+      String suggestedSolution,
+      String ownerName,
+      String rejectionReason,
+      String problemStatus,
+      String createdBy) {
     return problemItemRepository.insertProblemItem(
         recordId,
         reviewerName,
@@ -265,7 +305,8 @@ public class ReviewDataRecordPersistenceSupport {
         suggestedSolution,
         ownerName,
         rejectionReason,
-        problemStatus);
+        problemStatus,
+        createdBy);
   }
 
   public void updateProblemItem(

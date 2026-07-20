@@ -2,7 +2,8 @@ package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.config.GitlabMirrorProperties;
-import com.data.collection.platform.entity.AuthRole;
+import com.data.collection.platform.security.PlatformPermissionCodes;
+import com.data.collection.platform.security.RequirePermission;
 import com.data.collection.platform.entity.GitlabSourceHealthResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSyncDiagnosticsResponse;
@@ -11,7 +12,6 @@ import com.data.collection.platform.entity.MirrorPurgeResult;
 import com.data.collection.platform.entity.MirrorPurgeScope;
 import com.data.collection.platform.entity.MirrorStatusResponse;
 import com.data.collection.platform.entity.TableWhitelistOption;
-import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.GitlabMirrorPurgeService;
 import com.data.collection.platform.service.GitlabSourceHealthService;
 import com.data.collection.platform.service.GitlabSystemHookRegistrationService;
@@ -32,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/gitlab-sync")
+@RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_VIEW)
 public class GitlabSyncController {
   private final GitlabMirrorProperties properties;
   private final GitlabSystemHookService systemHookService;
@@ -71,7 +72,7 @@ public class GitlabSyncController {
   }
 
   @GetMapping("/status")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_VIEW)
   public ApiResponse<MirrorStatusResponse> status(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
     MirrorStatusResponse status = statusService.getStatus(config);
@@ -79,19 +80,19 @@ public class GitlabSyncController {
   }
 
   @GetMapping("/configs")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_VIEW)
   public ApiResponse<List<GitlabSyncConfig>> configs() {
     return ApiResponse.success(configFacade.configs());
   }
 
   @GetMapping("/source-health")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_VIEW)
   public ApiResponse<List<GitlabSourceHealthResponse>> sourceHealth() {
     return ApiResponse.success(sourceHealthService.listHealth());
   }
 
   @GetMapping("/table-sync-diagnostics")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_VIEW)
   public ApiResponse<Map<String, Object>> tableSyncDiagnostics(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
@@ -99,13 +100,13 @@ public class GitlabSyncController {
   }
 
   @PostMapping("/diagnostics")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_VIEW)
   public ApiResponse<GitlabSyncDiagnosticsResponse> diagnostics() {
     return diagnostics(null);
   }
 
   @PostMapping("/diagnostics/by-config")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_VIEW)
   public ApiResponse<GitlabSyncDiagnosticsResponse> diagnostics(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
@@ -113,7 +114,7 @@ public class GitlabSyncController {
   }
 
   @GetMapping("/system-hook-registration-status")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_VIEW)
   public ApiResponse<GitlabSystemHookRegistrationStatus> systemHookRegistrationStatus(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
@@ -121,65 +122,65 @@ public class GitlabSyncController {
   }
 
   @GetMapping("/whitelist-options")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_VIEW)
   public ApiResponse<List<TableWhitelistOption>> whitelistOptions(
       @RequestParam(value = "configId", required = false) Long configId) {
     return ApiResponse.success(configFacade.whitelistOptions(configId));
   }
 
   @PutMapping("/config")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_CONFIG)
   public ApiResponse<GitlabSyncConfig> saveConfig(@RequestBody GitlabSyncSaveConfigRequest request) {
     return configFacade.saveConfig(request);
   }
 
   @PostMapping("/test-connection")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_CONFIG)
   public ApiResponse<Map<String, Object>> testConnection() {
     return testConnection(null);
   }
 
   @PostMapping("/test-connection/by-config")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_CONFIG)
   public ApiResponse<Map<String, Object>> testConnection(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
     return commandFacade.testConnection(config, configId == null);
   }
 
   @PostMapping("/full-sync")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_SYNC)
   public ApiResponse<Map<String, Object>> fullSync() {
     return fullSync(null);
   }
 
   @PostMapping("/full-sync/by-config")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_SYNC)
   public ApiResponse<Map<String, Object>> fullSync(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
     return commandFacade.fullSync(config);
   }
 
   @PostMapping("/incremental-sync")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_SYNC)
   public ApiResponse<Map<String, Object>> incrementalSync() {
     return incrementalSync(null);
   }
 
   @PostMapping("/incremental-sync/by-config")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_SYNC)
   public ApiResponse<Map<String, Object>> incrementalSync(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
     return commandFacade.incrementalSync(config);
   }
 
   @PostMapping("/full-compensation-sync")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_SYNC)
   public ApiResponse<Map<String, Object>> fullCompensationSync() {
     return fullCompensationSync(null);
   }
 
   @PostMapping("/full-compensation-sync/by-config")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_SYNC)
   public ApiResponse<Map<String, Object>> fullCompensationSync(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
@@ -187,20 +188,20 @@ public class GitlabSyncController {
   }
 
   @PostMapping("/retry-failed/by-config")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_SYNC)
   public ApiResponse<Map<String, Object>> retryFailedSync(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
     return commandFacade.retryFailedSync(config);
   }
 
   @PostMapping("/register-system-hook")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_SYNC)
   public ApiResponse<GitlabSystemHookRegistrationStatus> registerSystemHook() {
     return registerSystemHook(null);
   }
 
   @PostMapping("/register-system-hook/by-config")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_SYNC)
   public ApiResponse<GitlabSystemHookRegistrationStatus> registerSystemHook(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
@@ -210,20 +211,20 @@ public class GitlabSyncController {
   }
 
   @PostMapping("/cancel")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_SYNC)
   public ApiResponse<Map<String, Object>> cancel() {
     return cancel(null);
   }
 
   @PostMapping("/cancel/by-config")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_SYNC)
   public ApiResponse<Map<String, Object>> cancel(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
     return commandFacade.cancel(config);
   }
 
   @PostMapping("/purge")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_PURGE)
   public ApiResponse<MirrorPurgeResult> purge(@RequestBody PurgeRequest request) {
     GitlabSyncConfig config = resolveConfig(request.configId());
     MirrorPurgeResult result = purgeService.purge(request.scope(), config.getId());

@@ -4,16 +4,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.labelgroup.LabelGroupRuleConfigRequest;
-import com.data.collection.platform.service.TextQuerySupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.RowMapper;
@@ -27,7 +28,7 @@ class LabelGroupDynamicRuleEvaluationServiceTest {
   @Test
   void shouldPreviewDistinctIssueAssigneesFromCurrentDsl() {
     when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
-        .thenReturn(List.of("张三", "李四", "张三", null));
+        .thenReturn(java.util.Arrays.asList("张三", "李四", "张三", null));
 
     assertThat(service().preview(issueAssigneeRule()).members())
         .extracting(member -> member.value())
@@ -42,6 +43,21 @@ class LabelGroupDynamicRuleEvaluationServiceTest {
     assertThat(service().materializeMembers(issueAssigneeRule()))
         .extracting(LabelGroupMemberRecord::memberValue)
         .containsExactly("张三");
+  }
+
+  @Test
+  void shouldEvaluateReviewRulesAgainstUnifiedVisibleRecords() {
+    when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+        .thenReturn(List.of("负责人A"));
+
+    service().preview(reviewOwnerRule());
+
+    ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+    verify(jdbcTemplate)
+        .query(sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+    assertThat(sqlCaptor.getValue())
+        .contains("from review_visible_records")
+        .doesNotContain("from review_records ");
   }
 
   @Test
@@ -69,6 +85,22 @@ class LabelGroupDynamicRuleEvaluationServiceTest {
     return new LabelGroupRuleConfigRequest(
         "issue_fact",
         "assigneeName",
+        true,
+        null,
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        null,
+        List.of(),
+        List.of(),
+        50);
+  }
+
+  private LabelGroupRuleConfigRequest reviewOwnerRule() {
+    return new LabelGroupRuleConfigRequest(
+        "review_records",
+        "reviewOwner",
         true,
         null,
         List.of(),

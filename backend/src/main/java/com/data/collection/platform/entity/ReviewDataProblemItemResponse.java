@@ -15,4 +15,5 @@ public record ReviewDataProblemItemResponse(
     String ownerName,
     String rejectionReason,
     String problemStatus,
-    LocalDateTime updatedAt) {}
+    LocalDateTime updatedAt,
+    String createdBy) {}

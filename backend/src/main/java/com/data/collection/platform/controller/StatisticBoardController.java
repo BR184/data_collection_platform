@@ -2,14 +2,15 @@ package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.DownloadResponseHeaders;
 import com.data.collection.platform.common.response.ApiResponse;
-import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.service.statistics.RuleExplainableStatisticBoardSupport;
-import com.data.collection.platform.security.RequireRole;
+import com.data.collection.platform.security.PlatformPermissionCodes;
+import com.data.collection.platform.security.RequirePagePermission;
+import com.data.collection.platform.security.RequirePermission;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.statistics.RealtimeStatisticBoardSupport;
 import com.data.collection.platform.service.statistics.StatisticBoardRegistry;
@@ -39,7 +40,6 @@ public class StatisticBoardController {
   private final StatisticBoardRegistry registry;
   private final RealtimeWorkspaceService realtimeWorkspaceService;
   private final SystemTestHorizontalComparisonExportService systemTestHorizontalComparisonExportService;
-
   public StatisticBoardController(
       StatisticBoardRegistry registry,
       RealtimeWorkspaceService realtimeWorkspaceService,
@@ -50,6 +50,7 @@ public class StatisticBoardController {
   }
 
   @GetMapping("/{boardKey}")
+  @RequirePagePermission(resource = RequirePagePermission.Resource.STATISTIC_BOARD, action = RequirePagePermission.Action.VIEW)
   public ApiResponse<StatisticBoardResponse> getBoard(
       @PathVariable @NotBlank String boardKey,
       @RequestParam Map<String, String> filters) {
@@ -57,6 +58,7 @@ public class StatisticBoardController {
   }
 
   @GetMapping("/{boardKey}/details")
+  @RequirePagePermission(resource = RequirePagePermission.Resource.STATISTIC_BOARD, action = RequirePagePermission.Action.VIEW)
   public ApiResponse<StatisticDetailResponse> getDetails(
       @PathVariable @NotBlank String boardKey,
       @RequestParam String rowKey,
@@ -72,6 +74,7 @@ public class StatisticBoardController {
   }
 
   @GetMapping("/{boardKey}/rule-explanation")
+  @RequirePagePermission(resource = RequirePagePermission.Resource.STATISTIC_BOARD, action = RequirePagePermission.Action.VIEW)
   public ApiResponse<StatisticBoardRuleExplanationResponse> getRuleExplanation(
       @PathVariable @NotBlank String boardKey,
       @RequestParam Map<String, String> filters) {
@@ -93,6 +96,7 @@ public class StatisticBoardController {
   }
 
   @GetMapping("/{boardKey}/export")
+  @RequirePagePermission(resource = RequirePagePermission.Resource.STATISTIC_BOARD, action = RequirePagePermission.Action.EXPORT)
   public ResponseEntity<?> exportBoard(
       @PathVariable @NotBlank String boardKey,
       @RequestParam Map<String, String> filters) {
@@ -116,6 +120,7 @@ public class StatisticBoardController {
   }
 
   @GetMapping("/{boardKey}/horizontal-comparison/export")
+  @RequirePagePermission(resource = RequirePagePermission.Resource.STATISTIC_BOARD, action = RequirePagePermission.Action.EXPORT)
   public ResponseEntity<byte[]> exportHorizontalComparison(
       @PathVariable @NotBlank String boardKey,
       @RequestParam Map<String, String> filters) {
@@ -133,6 +138,7 @@ public class StatisticBoardController {
   }
 
   @GetMapping("/{boardKey}/issues/export")
+  @RequirePagePermission(resource = RequirePagePermission.Resource.STATISTIC_BOARD, action = RequirePagePermission.Action.ISSUE_EXPORT)
   public ResponseEntity<byte[]> exportBoardIssues(
       @PathVariable @NotBlank String boardKey,
       @RequestParam Map<String, String> filters) {
@@ -150,6 +156,7 @@ public class StatisticBoardController {
   }
 
   @GetMapping("/{boardKey}/status")
+  @RequirePagePermission(resource = RequirePagePermission.Resource.STATISTIC_BOARD, action = RequirePagePermission.Action.VIEW)
   public ApiResponse<RealtimeWorkspaceStatusResponse> getBoardRealtimeStatus(
       @PathVariable @NotBlank String boardKey,
       @RequestParam Map<String, String> filters) {
@@ -161,7 +168,7 @@ public class StatisticBoardController {
   }
 
   @PostMapping("/{boardKey}/refresh")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.BUSINESS_DATA_REFRESH)
   public ApiResponse<RealtimeWorkspaceStatusResponse> refreshBoardRealtimeData(
       @PathVariable @NotBlank String boardKey) {
     var service = registry.getRequired(boardKey);

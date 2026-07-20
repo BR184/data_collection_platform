@@ -2,6 +2,7 @@ package com.data.collection.platform.config;
 
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.common.response.ResultCode;
+import com.data.collection.platform.security.ExternalApiAuthenticationFilter;
 import com.data.collection.platform.security.PlatformCsrfCookieFilter;
 import com.data.collection.platform.security.PlatformSessionAuthenticationFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,6 +37,8 @@ public class PlatformSecurityConfiguration {
   public SecurityFilterChain platformSecurityFilterChain(
       HttpSecurity http,
       PlatformAuthProperties authProperties,
+      ExternalApiProperties externalApiProperties,
+      ObjectMapper objectMapper,
       AuthenticationEntryPoint authenticationEntryPoint,
       AccessDeniedHandler accessDeniedHandler) throws Exception {
     if (authProperties.isCsrfEnabled()) {
@@ -58,25 +61,21 @@ public class PlatformSecurityConfiguration {
             .authenticationEntryPoint(authenticationEntryPoint)
             .accessDeniedHandler(accessDeniedHandler))
         .addFilterBefore(new PlatformSessionAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
+        .addFilterBefore(
+            new ExternalApiAuthenticationFilter(externalApiProperties, objectMapper),
+            PlatformSessionAuthenticationFilter.class)
         .addFilterAfter(new PlatformCsrfCookieFilter(), PlatformSessionAuthenticationFilter.class)
         .authorizeHttpRequests(authorize -> authorize
             .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico").permitAll()
             .requestMatchers("/api/auth/**").permitAll()
             .requestMatchers(SYSTEM_HOOK_PATH).permitAll()
             .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
-            .requestMatchers(HttpMethod.GET, SYSTEM_SETTINGS_API_PATHS).authenticated()
-            .requestMatchers(HttpMethod.HEAD, SYSTEM_SETTINGS_API_PATHS).authenticated()
-            .requestMatchers(HttpMethod.DELETE, "/api/review-data/records/*/problem-items/*").permitAll()
+            .requestMatchers(HttpMethod.GET, "/api/**").authenticated()
+            .requestMatchers(HttpMethod.HEAD, "/api/**").authenticated()
             .requestMatchers(HttpMethod.DELETE, "/api/**").authenticated()
             .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.POST, "/api/**/delete")).authenticated()
             .requestMatchers(HttpMethod.POST, CODE_REVIEW_ILLEGAL_REFRESH_PATH).permitAll()
             .requestMatchers(HttpMethod.POST, CODE_REVIEW_ILLEGAL_REFRESH_ONE_PATH).permitAll()
-            .requestMatchers(HttpMethod.POST, "/api/review-data/records").permitAll()
-            .requestMatchers(HttpMethod.PUT, "/api/review-data/records/*").permitAll()
-            .requestMatchers(HttpMethod.POST, "/api/review-data/records/*/problem-items").permitAll()
-            .requestMatchers(HttpMethod.PUT, "/api/review-data/records/*/problem-items/*").permitAll()
-            .requestMatchers(HttpMethod.GET, "/api/**").permitAll()
-            .requestMatchers(HttpMethod.HEAD, "/api/**").permitAll()
             .requestMatchers("/api/**").authenticated()
             .anyRequest().permitAll());
     return http.build();

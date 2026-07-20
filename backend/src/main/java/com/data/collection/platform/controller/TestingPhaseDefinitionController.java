@@ -1,13 +1,13 @@
 package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
-import com.data.collection.platform.entity.AuthRole;
+import com.data.collection.platform.security.PlatformPermissionCodes;
+import com.data.collection.platform.security.RequirePermission;
 import com.data.collection.platform.entity.TestingPhaseDefinitionResponse;
 import com.data.collection.platform.entity.TestingPhaseDefinitionSaveRequest;
 import com.data.collection.platform.entity.TestingPhaseGroupResponse;
 import com.data.collection.platform.entity.TestingPhaseGroupSaveRequest;
 import com.data.collection.platform.entity.TestingPhaseProjectOptionResponse;
-import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.TestingPhaseDefinitionService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -54,35 +54,35 @@ public class TestingPhaseDefinitionController {
   }
 
   @PostMapping
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_TESTING_PHASE_MANAGE)
   public ApiResponse<TestingPhaseDefinitionResponse> create(
       @RequestBody @Valid TestingPhaseDefinitionSaveRequest request) {
     return ApiResponse.success("测试阶段定义已保存", testingPhaseDefinitionService.create(request));
   }
 
   @PostMapping("/groups")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_TESTING_PHASE_MANAGE)
   public ApiResponse<TestingPhaseGroupResponse> createGroup(
       @RequestBody @Valid TestingPhaseGroupSaveRequest request) {
     return ApiResponse.success("阶段名称已保存", testingPhaseDefinitionService.createGroup(request));
   }
 
   @PutMapping("/{id}")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_TESTING_PHASE_MANAGE)
   public ApiResponse<TestingPhaseDefinitionResponse> update(
       @PathVariable Long id, @RequestBody @Valid TestingPhaseDefinitionSaveRequest request) {
     return ApiResponse.success("测试阶段定义已更新", testingPhaseDefinitionService.update(id, request));
   }
 
   @PutMapping("/groups/{id}")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_TESTING_PHASE_MANAGE)
   public ApiResponse<TestingPhaseGroupResponse> updateGroup(
       @PathVariable Long id, @RequestBody @Valid TestingPhaseGroupSaveRequest request) {
     return ApiResponse.success("阶段名称已更新", testingPhaseDefinitionService.updateGroup(id, request));
   }
 
   @PatchMapping("/{id}/enabled")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_TESTING_PHASE_MANAGE)
   public ApiResponse<TestingPhaseDefinitionResponse> setEnabled(
       @PathVariable Long id, @RequestBody EnabledRequest request) {
     return ApiResponse.success(
@@ -91,7 +91,7 @@ public class TestingPhaseDefinitionController {
   }
 
   @PatchMapping("/groups/{id}/enabled")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_TESTING_PHASE_MANAGE)
   public ApiResponse<TestingPhaseGroupResponse> setGroupEnabled(
       @PathVariable Long id, @RequestBody EnabledRequest request) {
     return ApiResponse.success(
@@ -100,14 +100,14 @@ public class TestingPhaseDefinitionController {
   }
 
   @DeleteMapping("/{id}")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_TESTING_PHASE_MANAGE)
   public ApiResponse<Void> delete(@PathVariable Long id) {
     testingPhaseDefinitionService.delete(id);
     return ApiResponse.success("测试阶段定义已删除", null);
   }
 
   @DeleteMapping("/groups/{id}")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_TESTING_PHASE_MANAGE)
   public ApiResponse<Void> deleteGroup(@PathVariable Long id) {
     testingPhaseDefinitionService.deleteGroup(id);
     return ApiResponse.success("阶段名称已删除", null);

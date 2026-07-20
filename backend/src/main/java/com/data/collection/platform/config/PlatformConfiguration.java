@@ -13,7 +13,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableConfigurationProperties({
     GitlabMirrorProperties.class,
     PlatformAuthProperties.class,
-    ReviewDataProperties.class
+    ReviewDataProperties.class,
+    ExternalApiProperties.class
 })
 public class PlatformConfiguration {
 }

@@ -23,7 +23,7 @@
 约定：
 - 每条按「现象 → 根因（带 file:line 证据）→ 分步方案 → 验收」组织。
 - 涉及事实字段口径的改动，必须遵守 `AGENTS.md` §0.0 重构红线与 `docs/platform-page-business-rules.md`。
-- 标签组相关改动以 `docs/plans/2026-06-10-label-group-value-set-design.md`（含 2026-06-23 修订）为准。
+- 标签组相关改动以 `docs/architecture.md` 中的标签组边界为准。
 - 凡改 `IssueLabelRules` / `FactBuildService` 等事实层逻辑，改完必须**重建 fact**，否则 `issue_fact` 旧数据不会自动更新。
 
 ## 问题清单与优先级

@@ -9,12 +9,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.data.collection.platform.common.response.ApiResponse;
-import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.AuthUserResponse;
 import com.data.collection.platform.security.AuthSessionSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
 import java.util.Map;
+import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Bean;
@@ -89,7 +90,13 @@ class PlatformSecurityConfigurationTest {
     MockHttpSession session = new MockHttpSession();
     session.setAttribute(
         AuthSessionSupport.SESSION_USER_KEY,
-        new AuthUserResponse("admin", "管理员", AuthRole.ADMIN, true));
+        new AuthUserResponse(
+            "admin",
+            "管理员",
+            Set.of("SUPER_ADMIN"),
+            List.of("超级管理员"),
+            Set.of("system.permission.manage"),
+            true));
 
     mockMvc.perform(post("/api/protected-post")
             .session(session)
@@ -103,7 +110,7 @@ class PlatformSecurityConfigurationTest {
   }
 
   @Test
-  void shouldAllowReviewProblemItemDeleteWithoutSessionWhenCsrfTokenIsValid() throws Exception {
+  void shouldRejectReviewProblemItemDeleteWithoutSessionEvenWhenCsrfTokenIsValid() throws Exception {
     MvcResult csrfResult = mockMvc.perform(get("/api/auth/csrf-probe"))
         .andExpect(status().isOk())
         .andReturn();
@@ -113,9 +120,8 @@ class PlatformSecurityConfigurationTest {
     mockMvc.perform(delete("/api/review-data/records/7/problem-items/13")
             .cookie(csrfCookie)
             .header("X-XSRF-TOKEN", csrfCookie.getValue()))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.deleted").value(true));
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.success").value(false));
   }
 
   @Configuration
@@ -127,6 +133,11 @@ class PlatformSecurityConfigurationTest {
       PlatformAuthProperties properties = new PlatformAuthProperties();
       properties.setCsrfEnabled(true);
       return properties;
+    }
+
+    @Bean
+    ExternalApiProperties externalApiProperties() {
+      return new ExternalApiProperties();
     }
 
     @Bean

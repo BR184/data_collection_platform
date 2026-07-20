@@ -2,7 +2,6 @@ package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.DownloadResponseHeaders;
 import com.data.collection.platform.common.response.ApiResponse;
-import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.SystemTestIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.SystemTestIllegalRecordListResponse;
@@ -11,7 +10,8 @@ import com.data.collection.platform.entity.SystemTestIssueSearchFilterOptionsRes
 import com.data.collection.platform.entity.SystemTestIssueSearchListResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.entity.statistics.SystemTestIssueMultiBoardResponse;
-import com.data.collection.platform.security.RequireRole;
+import com.data.collection.platform.security.PlatformPermissionCodes;
+import com.data.collection.platform.security.RequirePermission;
 import com.data.collection.platform.service.IssueFactRealtimeRefreshService;
 import com.data.collection.platform.service.IssueFactRecordListRequest;
 import com.data.collection.platform.service.SystemTestIllegalRecordService;
@@ -59,6 +59,7 @@ public class QuestionMetricsController {
   }
 
   @GetMapping("/multi-board")
+  @RequirePermission("system_test.board.view")
   public ApiResponse<SystemTestIssueMultiBoardResponse> getMultiBoard(
       @RequestParam(required = false) Long projectId,
       @RequestParam(required = false) String testingPhase) {
@@ -66,6 +67,7 @@ public class QuestionMetricsController {
   }
 
   @GetMapping("/multi-board/export")
+  @RequirePermission("system_test.board.export")
   public ResponseEntity<byte[]> exportMultiBoardChart(
       @RequestParam String chartKey,
       @RequestParam(required = false) Long projectId,
@@ -79,6 +81,7 @@ public class QuestionMetricsController {
   }
 
   @GetMapping("/issues")
+  @RequirePermission("system_test.issue.view")
   public ApiResponse<SystemTestIssueSearchListResponse> listIssues(
       @ModelAttribute SystemTestIssueSearchListWebRequest request) {
     return ApiResponse.success(
@@ -87,6 +90,7 @@ public class QuestionMetricsController {
   }
 
   @GetMapping("/issues/export")
+  @RequirePermission("system_test.issue.export")
   public ResponseEntity<byte[]> exportIssues(
       @ModelAttribute SystemTestIssueSearchListWebRequest request) {
     byte[] workbook =
@@ -99,6 +103,7 @@ public class QuestionMetricsController {
   }
 
   @GetMapping("/issues/filter-options")
+  @RequirePermission("system_test.issue.view")
   public ApiResponse<SystemTestIssueSearchFilterOptionsResponse> getIssueFilterOptions(
       @ModelAttribute SystemTestIssueSearchListWebRequest request) {
     IssueFactRecordListRequest listRequest =
@@ -108,19 +113,21 @@ public class QuestionMetricsController {
   }
 
   @GetMapping("/issues/status")
+  @RequirePermission("system_test.issue.view")
   public ApiResponse<RealtimeWorkspaceStatusResponse> getIssueRealtimeStatus(
       @RequestParam Map<String, String> filters) {
     return ApiResponse.success(realtimeRefreshService.getStatus(ISSUE_SEARCH_WORKSPACE_KEY, filters));
   }
 
   @PostMapping("/issues/refresh")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.BUSINESS_DATA_REFRESH)
   public ApiResponse<RealtimeWorkspaceStatusResponse> refreshIssues() {
     return ApiResponse.success(
         "已开始刷新最新数据", realtimeRefreshService.requestRefresh(ISSUE_SEARCH_WORKSPACE_KEY));
   }
 
   @GetMapping("/illegal-records")
+  @RequirePermission("system_test.illegal.view")
   public ApiResponse<SystemTestIllegalRecordListResponse> listIllegalRecords(
       @ModelAttribute SystemTestIllegalRecordListWebRequest request) {
     return ApiResponse.success(
@@ -129,6 +136,7 @@ public class QuestionMetricsController {
   }
 
   @GetMapping("/illegal-records/export")
+  @RequirePermission("system_test.illegal.export")
   public ResponseEntity<byte[]> exportIllegalRecords(
       @ModelAttribute SystemTestIllegalRecordListWebRequest request) {
     byte[] workbook =
@@ -141,32 +149,35 @@ public class QuestionMetricsController {
   }
 
   @GetMapping("/illegal-records/filter-options")
+  @RequirePermission("system_test.illegal.view")
   public ApiResponse<SystemTestIllegalRecordFilterOptionsResponse> getIllegalRecordFilterOptions(
       @RequestParam(required = false) Long projectId) {
     return ApiResponse.success(systemTestIllegalRecordService.getFilterOptions(projectId));
   }
 
   @GetMapping("/illegal-records/rule-explanation")
+  @RequirePermission("system_test.illegal.view")
   public ApiResponse<StatisticBoardRuleExplanationResponse> getIllegalRecordRuleExplanation(
       @RequestParam(required = false) Long projectId) {
     return ApiResponse.success(systemTestIllegalRecordService.getRuleExplanation(projectId));
   }
 
   @GetMapping("/illegal-records/status")
+  @RequirePermission("system_test.illegal.view")
   public ApiResponse<RealtimeWorkspaceStatusResponse> getIllegalRecordRealtimeStatus(
       @RequestParam Map<String, String> filters) {
     return ApiResponse.success(realtimeRefreshService.getStatus(ILLEGAL_RECORDS_WORKSPACE_KEY, filters));
   }
 
   @PostMapping("/illegal-records/refresh")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.BUSINESS_DATA_REFRESH)
   public ApiResponse<RealtimeWorkspaceStatusResponse> refreshIllegalRecords() {
     return ApiResponse.success(
         "已开始刷新最新数据", realtimeRefreshService.requestRefresh(ILLEGAL_RECORDS_WORKSPACE_KEY));
   }
 
   @PostMapping("/illegal-records/refresh-one")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.BUSINESS_DATA_REFRESH)
   public ApiResponse<SystemTestIllegalRecordRowResponse> refreshOneIllegalRecord(
       @RequestBody SystemTestIllegalRecordSingleRefreshWebRequest request) {
     return ApiResponse.success(

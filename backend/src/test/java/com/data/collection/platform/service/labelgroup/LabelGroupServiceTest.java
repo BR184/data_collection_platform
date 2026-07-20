@@ -122,6 +122,11 @@ class LabelGroupServiceTest {
   void shouldCreateCompositeGroupFromChildrenWithUnionDedupe() {
     LabelGroupResponse staticChild =
         service.create(request("静态人员", "STATIC", List.of(member("张三"), member("李四")), List.of()));
+    when(evaluationService.materializeMembers(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(
+            List.of(
+                new LabelGroupMemberRecord(null, null, "李四", "李四", 0),
+                new LabelGroupMemberRecord(null, null, "王五", "王五", 1)));
     LabelGroupResponse dynamicChild =
         service.create(dynamicRequest("动态人员", List.of(member("李四"), member("王五")), "recent-active-assignee"));
 

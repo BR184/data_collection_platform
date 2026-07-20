@@ -11,6 +11,7 @@ import RuleExplanationDrawer from '../../components/RuleExplanationDrawer.vue';
 import SyncMetaBadge from '../../components/realtime/SyncMetaBadge.vue';
 import StatisticFilterBuilder from '../../components/StatisticFilterBuilder.vue';
 import { authState } from '../../composables/auth-state';
+import { hasPermission } from '../../feature-manifest';
 import { useConditionFilterGroupState } from '../../composables/useConditionFilterGroupState';
 import { useRecordPageController } from '../../composables/useRecordPageController';
 import { useDataScope } from '../../composables/useDataScope';
@@ -61,7 +62,7 @@ const primaryDefaultPatchInFlight = ref(false);
 const projectId = computed(() => String(route.query.projectId ?? props.defaultProjectId ?? ''));
 const filterOptions = ref({ ...props.initialFilterOptions });
 const canRefreshLatestData = computed(
-  () => authState.currentUser.role === 'ADMIN' && Boolean(props.requestRealtimeRefresh),
+  () => hasPermission(authState.currentUser, 'business_data.refresh') && Boolean(props.requestRealtimeRefresh),
 );
 const primaryFilters = computed(() => props.buildPrimaryFilters?.(filterOptions.value) ?? []);
 const nativePrimarySelectKeys = computed(() => new Set(props.nativePrimarySelectKeys ?? []));

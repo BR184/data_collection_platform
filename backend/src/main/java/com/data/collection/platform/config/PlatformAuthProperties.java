@@ -1,7 +1,5 @@
 package com.data.collection.platform.config;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "platform.auth")
@@ -80,86 +78,41 @@ public class PlatformAuthProperties {
   }
 
   public static class Ldap {
-    private String url = "";
-    private String baseDn = "";
-    private String userSearchBase = "";
-    private String userSearchFilter = "";
-    private String managerDn = "";
-    private String managerPassword = "";
-    private String groupSearchBase = "";
-    private String groupSearchFilter = "";
-    private Map<String, String> groupRoleMappings = new LinkedHashMap<>();
+    private String baseUrl = "http://127.0.0.1:24837";
+    private int connectTimeoutMs = 3000;
+    private int readTimeoutMs = 10000;
+    private boolean initialSyncRequired = true;
 
-    public String getUrl() {
-      return url;
+    public String getBaseUrl() {
+      return baseUrl;
     }
 
-    public void setUrl(String url) {
-      this.url = url;
+    public void setBaseUrl(String baseUrl) {
+      this.baseUrl = baseUrl;
     }
 
-    public String getBaseDn() {
-      return baseDn;
+    public int getConnectTimeoutMs() {
+      return connectTimeoutMs;
     }
 
-    public void setBaseDn(String baseDn) {
-      this.baseDn = baseDn;
+    public void setConnectTimeoutMs(int connectTimeoutMs) {
+      this.connectTimeoutMs = connectTimeoutMs;
     }
 
-    public String getUserSearchBase() {
-      return userSearchBase;
+    public int getReadTimeoutMs() {
+      return readTimeoutMs;
     }
 
-    public void setUserSearchBase(String userSearchBase) {
-      this.userSearchBase = userSearchBase;
+    public void setReadTimeoutMs(int readTimeoutMs) {
+      this.readTimeoutMs = readTimeoutMs;
     }
 
-    public String getUserSearchFilter() {
-      return userSearchFilter;
+    public boolean isInitialSyncRequired() {
+      return initialSyncRequired;
     }
 
-    public void setUserSearchFilter(String userSearchFilter) {
-      this.userSearchFilter = userSearchFilter;
-    }
-
-    public String getManagerDn() {
-      return managerDn;
-    }
-
-    public void setManagerDn(String managerDn) {
-      this.managerDn = managerDn;
-    }
-
-    public String getManagerPassword() {
-      return managerPassword;
-    }
-
-    public void setManagerPassword(String managerPassword) {
-      this.managerPassword = managerPassword;
-    }
-
-    public String getGroupSearchBase() {
-      return groupSearchBase;
-    }
-
-    public void setGroupSearchBase(String groupSearchBase) {
-      this.groupSearchBase = groupSearchBase;
-    }
-
-    public String getGroupSearchFilter() {
-      return groupSearchFilter;
-    }
-
-    public void setGroupSearchFilter(String groupSearchFilter) {
-      this.groupSearchFilter = groupSearchFilter;
-    }
-
-    public Map<String, String> getGroupRoleMappings() {
-      return groupRoleMappings;
-    }
-
-    public void setGroupRoleMappings(Map<String, String> groupRoleMappings) {
-      this.groupRoleMappings = groupRoleMappings;
+    public void setInitialSyncRequired(boolean initialSyncRequired) {
+      this.initialSyncRequired = initialSyncRequired;
     }
   }
 }

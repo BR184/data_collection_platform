@@ -2,7 +2,6 @@ package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.DownloadResponseHeaders;
 import com.data.collection.platform.common.response.ApiResponse;
-import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordListResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordRowResponse;
@@ -12,7 +11,8 @@ import com.data.collection.platform.entity.CodeReviewRulePreviewResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.entity.OptionItemResponse;
-import com.data.collection.platform.security.RequireRole;
+import com.data.collection.platform.security.PlatformPermissionCodes;
+import com.data.collection.platform.security.RequirePermission;
 import com.data.collection.platform.service.CodeReviewIllegalRecordService;
 import com.data.collection.platform.service.CodeReviewMatchModeConfigService;
 import com.data.collection.platform.service.CodeReviewMultiBoardService;
@@ -55,6 +55,7 @@ public class CodeReviewController {
   }
 
   @GetMapping("/match-mode/status")
+  @RequirePermission("code_review.illegal.view")
   public ApiResponse<CodeReviewMatchModeStatusResponse> getMatchModeStatus() {
     var settings = codeReviewMatchModeConfigService.getResponse();
     return ApiResponse.success(new CodeReviewMatchModeStatusResponse(
@@ -66,6 +67,7 @@ public class CodeReviewController {
   }
 
   @GetMapping("/illegal-records")
+  @RequirePermission("code_review.illegal.view")
   public ApiResponse<CodeReviewIllegalRecordListResponse> listIllegalRecords(
       @ModelAttribute CodeReviewIllegalRecordListWebRequest request) {
     return ApiResponse.success(
@@ -74,6 +76,7 @@ public class CodeReviewController {
   }
 
   @GetMapping("/illegal-records/export")
+  @RequirePermission("code_review.illegal.export")
   public ResponseEntity<byte[]> exportIllegalRecords(
       @ModelAttribute CodeReviewIllegalRecordListWebRequest request) {
     byte[] workbook =
@@ -95,6 +98,7 @@ public class CodeReviewController {
   }
 
   @GetMapping("/illegal-records/filter-options")
+  @RequirePermission("code_review.illegal.view")
   public ApiResponse<CodeReviewIllegalRecordFilterOptionsResponse> getIllegalRecordFilterOptions(
       @ModelAttribute CodeReviewIllegalRecordFilterOptionsWebRequest request) {
     return ApiResponse.success(
@@ -103,12 +107,13 @@ public class CodeReviewController {
   }
 
   @GetMapping("/illegal-records/rule-explanation")
+  @RequirePermission("code_review.illegal.view")
   public ApiResponse<StatisticBoardRuleExplanationResponse> getIllegalRecordRuleExplanation() {
     return ApiResponse.success(codeReviewIllegalRecordService.getRuleExplanation());
   }
 
   @PostMapping("/illegal-records/rule-config/preview")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission("code_review.illegal.view")
   public ApiResponse<CodeReviewRulePreviewResponse> previewIllegalRecordRuleConfig(
       @RequestBody CodeReviewRulePreviewWebRequest request) {
     return ApiResponse.success(
@@ -117,17 +122,20 @@ public class CodeReviewController {
   }
 
   @GetMapping("/illegal-records/status")
+  @RequirePermission("code_review.illegal.view")
   public ApiResponse<RealtimeWorkspaceStatusResponse> getIllegalRecordRealtimeStatus(
       @RequestParam(required = false) String source) {
     return ApiResponse.success(codeReviewIllegalRecordService.getRealtimeStatus(source));
   }
 
   @PostMapping("/illegal-records/refresh")
+  @RequirePermission(PlatformPermissionCodes.BUSINESS_DATA_REFRESH)
   public ApiResponse<RealtimeWorkspaceStatusResponse> refreshIllegalRecords() {
     return ApiResponse.success("已开始刷新最新数据", codeReviewIllegalRecordService.requestRealtimeRefresh());
   }
 
   @PostMapping("/illegal-records/refresh-one")
+  @RequirePermission(PlatformPermissionCodes.BUSINESS_DATA_REFRESH)
   public ApiResponse<CodeReviewIllegalRecordRowResponse> refreshOneIllegalRecord(
       @RequestBody CodeReviewSingleRecordRefreshWebRequest request) {
     return ApiResponse.success(
@@ -137,11 +145,13 @@ public class CodeReviewController {
   }
 
   @GetMapping("/multi-board/source-options")
+  @RequirePermission("code_review.board.view")
   public ApiResponse<java.util.List<OptionItemResponse>> getMultiBoardSourceOptions() {
     return ApiResponse.success(codeReviewMultiBoardService.listSourceOptions());
   }
 
   @GetMapping("/multi-board/overview")
+  @RequirePermission("code_review.board.view")
   public ApiResponse<CodeReviewMultiBoardOverviewResponse> getMultiBoardOverview(
       @ModelAttribute CodeReviewMultiBoardOverviewWebRequest request) {
     return ApiResponse.success(
@@ -150,18 +160,20 @@ public class CodeReviewController {
   }
 
   @GetMapping("/multi-board/project-options")
+  @RequirePermission("code_review.board.view")
   public ApiResponse<java.util.List<OptionItemResponse>> getMultiBoardProjectOptions(
       @RequestParam(required = false) String source) {
     return ApiResponse.success(codeReviewMultiBoardService.listProjectOptions(source));
   }
 
   @GetMapping("/multi-board/status")
+  @RequirePermission("code_review.board.view")
   public ApiResponse<RealtimeWorkspaceStatusResponse> getMultiBoardRealtimeStatus() {
     return ApiResponse.success(multiBoardRealtimeRefreshService.getStatus(MULTI_BOARD_WORKSPACE_KEY));
   }
 
   @PostMapping("/multi-board/refresh")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.BUSINESS_DATA_REFRESH)
   public ApiResponse<RealtimeWorkspaceStatusResponse> refreshMultiBoard() {
     return ApiResponse.success(
         "已开始刷新最新数据",

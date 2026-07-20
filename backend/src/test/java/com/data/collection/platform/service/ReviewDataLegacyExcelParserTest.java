@@ -230,12 +230,15 @@ class ReviewDataLegacyExcelParserTest {
     ReviewDataRecordCommandService commandService = mock(ReviewDataRecordCommandService.class);
     List<ReviewDataRecordSaveRequest> records = new ArrayList<>();
     List<ReviewDataProblemItemSaveRequest> problemItems = new ArrayList<>();
-    when(commandService.createRecord(any())).thenAnswer(invocation -> {
+    List<String> createdBy = new ArrayList<>();
+    when(commandService.createRecord(any(), any())).thenAnswer(invocation -> {
       records.add(invocation.getArgument(0));
+      createdBy.add(invocation.getArgument(1));
       return 100L;
     });
-    when(commandService.createProblemItem(any(), any())).thenAnswer(invocation -> {
+    when(commandService.createProblemItem(any(), any(), any())).thenAnswer(invocation -> {
       problemItems.add(invocation.getArgument(1));
+      createdBy.add(invocation.getArgument(2));
       return 200L;
     });
     ReviewDataLegacyExcelImportService service =
@@ -263,13 +266,15 @@ class ReviewDataLegacyExcelParserTest {
             List.of("确认专家"),
             "确认作者",
             "R4",
-            "待整改"));
+            "待整改"),
+        "importer");
 
     assertEquals("确认负责人", records.getFirst().reviewOwner());
     assertEquals("确认作者", records.getFirst().authorName());
     assertEquals("R4", records.getFirst().reviewVersion());
     assertEquals("确认专家", records.getFirst().reviewExperts().getFirst());
     assertEquals("待整改", problemItems.getFirst().problemStatus());
+    assertEquals(List.of("importer", "importer"), createdBy);
   }
 
   @Test
@@ -290,11 +295,11 @@ class ReviewDataLegacyExcelParserTest {
             List.of("【工具模块】需求规格说明书评审", "[独立评审]", "需求说明书评审", 1, 1, 0, 0, 0, 10, "2026R4"));
     ReviewDataRecordCommandService commandService = mock(ReviewDataRecordCommandService.class);
     List<ReviewDataRecordSaveRequest> records = new ArrayList<>();
-    when(commandService.createRecord(any())).thenAnswer(invocation -> {
+    when(commandService.createRecord(any(), any())).thenAnswer(invocation -> {
       records.add(invocation.getArgument(0));
       return 100L;
     });
-    when(commandService.createProblemItem(any(), any())).thenReturn(200L);
+    when(commandService.createProblemItem(any(), any(), any())).thenReturn(200L);
     ReviewDataLegacyExcelImportService service =
         new ReviewDataLegacyExcelImportService(new ReviewDataLegacyExcelParser(), commandService, null);
     ReviewDataLegacyExcelPreviewResponse preview =
@@ -305,15 +310,17 @@ class ReviewDataLegacyExcelParserTest {
             new ReviewDataLegacyExcelImportRequest(null, "", List.of(), "", "", "已关闭", "SKIP"));
 
     ReviewDataLegacyExcelConfirmResponse confirm =
-        service.confirm(new ReviewDataLegacyExcelConfirmRequest(
-            preview.previewToken(),
-            "SKIP",
-            null,
-            "",
-            List.of(),
-            "",
-            "",
-            "已关闭"));
+        service.confirm(
+            new ReviewDataLegacyExcelConfirmRequest(
+                preview.previewToken(),
+                "SKIP",
+                null,
+                "",
+                List.of(),
+                "",
+                "",
+                "已关闭"),
+            "importer");
 
     assertEquals(1, confirm.importedRecords());
     assertEquals(1, records.size());
@@ -322,7 +329,7 @@ class ReviewDataLegacyExcelParserTest {
   }
 
   @Test
-  void shouldRejectNegativeNumbersInsteadOfSilentlyClampingThem() throws Exception {
+  void shouldWarnAndClampNegativeNumbersInsteadOfSilentlyAcceptingThem() throws Exception {
     byte[] workbook =
         workbook(
             List.of(
@@ -341,8 +348,8 @@ class ReviewDataLegacyExcelParserTest {
     ReviewDataLegacyExcelParseResult result =
         new ReviewDataLegacyExcelParser().parse(new ByteArrayInputStream(workbook), "legacy.xlsx", null);
 
-    assertTrue(result.issues().stream().anyMatch(issue -> issue.message().contains("不能为负数")));
-    assertEquals(-10, result.rows().getFirst().reviewScalePages());
+    assertTrue(result.issues().stream().anyMatch(issue -> issue.message().contains("为负数")));
+    assertEquals(0, result.rows().getFirst().reviewScalePages());
     assertEquals(-1, result.rows().getFirst().docSpecificationCount());
   }
 

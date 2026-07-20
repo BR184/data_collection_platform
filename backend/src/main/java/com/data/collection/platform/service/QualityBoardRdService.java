@@ -31,7 +31,6 @@ public class QualityBoardRdService {
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final ReviewDataRecordReadRepository reviewDataRecordReadRepository;
   private final ReviewDataMatchModeRecordRepository reviewDataMatchModeRecordRepository;
-  private final CodeReviewMatchModeSwitchService matchModeSwitchService;
   private final QualityBoardCodeReviewReadSupport codeReviewReadSupport;
 
   public QualityBoardRdService(
@@ -39,13 +38,11 @@ public class QualityBoardRdService {
       SystemTestPhaseScopeResolver phaseScopeResolver,
       ReviewDataRecordReadRepository reviewDataRecordReadRepository,
       ReviewDataMatchModeRecordRepository reviewDataMatchModeRecordRepository,
-      CodeReviewMatchModeSwitchService matchModeSwitchService,
       QualityBoardCodeReviewReadSupport codeReviewReadSupport) {
     this.jdbcTemplate = jdbcTemplate;
     this.phaseScopeResolver = phaseScopeResolver;
     this.reviewDataRecordReadRepository = reviewDataRecordReadRepository;
     this.reviewDataMatchModeRecordRepository = reviewDataMatchModeRecordRepository;
-    this.matchModeSwitchService = matchModeSwitchService;
     this.codeReviewReadSupport = codeReviewReadSupport;
   }
 
@@ -300,16 +297,12 @@ public class QualityBoardRdService {
             .filter(row -> matchesReviewType(row.reviewType(), reviewType))
             .toList();
     Stream<ReviewDataRecordRowResponse> rows = formalRows.stream();
-    //兼容模式-MatchMode：评审兼容读开启时，质量看板与评审数据管理一致，合并正式表和未转正式的老平台 Mongo 兼容表。
-    //兼容模式-MatchMode：后续删除兼容模式时，只移除下面 matchRows 合并分支，正式表统计仍可独立工作。
-    if (matchModeSwitchService.isReviewDataCompatibilityReadEnabled()) {
-      List<ReviewDataRecordRowResponse> matchRows =
-          reviewDataMatchModeRecordRepository.loadRecords().stream()
-              .filter(row -> equalsText(row.projectName(), projectName))
-              .filter(row -> matchesReviewType(row.reviewType(), reviewType))
-              .toList();
-      rows = Stream.concat(rows, matchRows.stream());
-    }
+    List<ReviewDataRecordRowResponse> matchRows =
+        reviewDataMatchModeRecordRepository.loadRecords().stream()
+            .filter(row -> equalsText(row.projectName(), projectName))
+            .filter(row -> matchesReviewType(row.reviewType(), reviewType))
+            .toList();
+    rows = Stream.concat(rows, matchRows.stream());
     ReviewDensityAccumulator accumulator =
         rows.collect(
             () -> new ReviewDensityAccumulator(0, 0),

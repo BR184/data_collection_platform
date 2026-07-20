@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from '../element-plus-services';
+import { isUnauthorizedError } from '../api-client/request';
 import { api } from '../api';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import DashboardChartCard from '../components/dashboard/DashboardChartCard.vue';
@@ -34,6 +35,8 @@ const dashboard = ref<AnalyticsDashboardResponse | null>(null);
 const rulesResponse = ref<AnalyticsDashboardRulesResponse | null>(null);
 const selectedRule = ref<AnalyticsDashboardRule | null>(null);
 const ruleDrawerVisible = ref(false);
+
+type PageLoadResult = 'success' | 'unauthorized' | 'failed';
 
 const pageReady = computed(() => initialized.value);
 const rulesByKey = computed(() => new Map(
@@ -76,15 +79,15 @@ async function loadDashboardData() {
   rulesResponse.value = nextRules;
 }
 
-async function loadPage() {
+async function loadPage(): Promise<PageLoadResult> {
   loading.value = true;
   try {
     await loadFilterOptions();
     await loadDashboardData();
-    return true;
+    return 'success';
   } catch (error) {
     console.warn('研发质量看板加载失败', error);
-    return false;
+    return isUnauthorizedError(error) ? 'unauthorized' : 'failed';
   } finally {
     loading.value = false;
     initialized.value = true;
@@ -92,12 +95,14 @@ async function loadPage() {
 }
 
 async function handleRefresh() {
-  const success = await loadPage();
-  if (success) {
+  const result = await loadPage();
+  if (result === 'success') {
     ElMessage.success('研发质量看板已刷新');
     return;
   }
-  ElMessage.warning('研发质量看板加载失败');
+  if (result === 'failed') {
+    ElMessage.warning('研发质量看板加载失败');
+  }
 }
 
 async function handleFilterChange() {
@@ -106,7 +111,9 @@ async function handleFilterChange() {
     await loadDashboardData();
   } catch (error) {
     console.warn('研发质量看板筛选失败', error);
-    ElMessage.error('研发质量看板加载失败');
+    if (!isUnauthorizedError(error)) {
+      ElMessage.error('研发质量看板加载失败');
+    }
   } finally {
     loading.value = false;
   }
@@ -185,8 +192,8 @@ function handleChartExport(chart: AnalyticsDashboardChart) {
   void handleExport(chart.export?.exportKey, `${chart.title}.xlsx`);
 }
 
-void loadPage().then((success) => {
-  if (!success) {
+void loadPage().then((result) => {
+  if (result === 'failed') {
     ElMessage.warning('研发质量看板加载失败');
   }
 });

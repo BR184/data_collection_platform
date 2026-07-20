@@ -88,7 +88,9 @@ describe('App auth dialog', () => {
         jsonResponse({
           username: 'guest',
           displayName: '游客',
-          role: 'GUEST',
+          roleCodes: [],
+          roleNames: [],
+          permissions: [],
           authenticated: false,
         }),
       ),
@@ -127,7 +129,7 @@ describe('App auth dialog', () => {
     });
     await flushPromises();
 
-    const loginButton = wrapper.findAll('button').find((button) => button.text().includes('管理员登录'));
+    const loginButton = wrapper.findAll('button').find((button) => button.text().trim() === '登录');
     expect(loginButton).toBeTruthy();
     await loginButton!.trigger('click');
     await nextTick();
@@ -145,5 +147,15 @@ describe('App auth dialog', () => {
   it('wraps the application with Element Plus Chinese locale', () => {
     expect(appSource).toContain('el-config-provider');
     expect(appSource).toContain('zhCn');
+  });
+
+  it('shows the LDAP display name instead of role names in the shell', () => {
+    expect(appSource).toContain('return currentUser.value.displayName || currentUser.value.username;');
+    expect(appSource).not.toContain('(currentUser.value.roleNames ?? []).join');
+  });
+
+  it('remounts the active page when the authentication session changes', () => {
+    expect(appSource).toContain('const pageRenderKey = computed(');
+    expect(appSource).toContain('<component :is="Component" :key="pageRenderKey" />');
   });
 });

@@ -31,7 +31,8 @@ export type PageKey =
   | 'testing-phase-definition'
   | 'mirror-settings'
   | 'database-settings'
-  | 'database-browser';
+  | 'database-browser'
+  | 'permission-settings';
 
 export interface ShellPage {
   key: PageKey;
@@ -41,6 +42,7 @@ export interface ShellPage {
   path: string;
   requiresLogin?: boolean;
   hiddenForApproval?: boolean;
+  permission?: string;
 }
 
 export interface ShellModule {
@@ -52,10 +54,10 @@ export interface ShellModule {
   pages: ShellPage[];
 }
 
-export type UserRole = 'GUEST' | 'ADMIN' | 'APPROVAL';
-
 export interface AccessUser {
-  role: UserRole;
+  roleCodes?: string[];
+  roleNames?: string[];
+  permissions?: string[];
   authenticated: boolean;
 }
 

@@ -42,6 +42,7 @@ public class ReviewDataRecordReadRepository {
         r.gitlab_resource_type,
         r.created_at,
         r.updated_at,
+        r.created_by,
         r.deleted,
         coalesce(expert.expert_names, '') as review_experts_summary,
         coalesce(problem.problem_count, 0) as problem_count,
@@ -440,7 +441,8 @@ public class ReviewDataRecordReadRepository {
         rs.getBoolean("deleted"),
         (Long) rs.getObject("gitlab_project_id"),
         (Long) rs.getObject("gitlab_resource_iid"),
-        TextQuerySupport.trimToNull(rs.getString("gitlab_resource_type")));
+        TextQuerySupport.trimToNull(rs.getString("gitlab_resource_type")),
+        TextQuerySupport.trimToNull(rs.getString("created_by")));
   }
 
   private Double calculateProblemDensity(Integer problemCount, Integer reviewScalePages) {

@@ -36,6 +36,7 @@ export const modules: ShellModule[] = [
         icon: DataBoard,
         description: '聚合评审、代码走查与系统测试关键信号的研发质量概览。',
         path: '/quality-board/rd-quality-board',
+        permission: 'quality.rd.view',
       },
       {
         key: 'quality-board-other-board',
@@ -43,6 +44,7 @@ export const modules: ShellModule[] = [
         icon: PieChart,
         description: '对齐老平台其他看板，展示质量指标和人员维度质量图表。',
         path: '/quality-board/other-board',
+        permission: 'quality.other.view',
       },
     ],
   },
@@ -61,6 +63,7 @@ export const modules: ShellModule[] = [
         path: '/review-data/home',
         requiresLogin: true,
         hiddenForApproval: true,
+        permission: 'review.data.view',
       },
     ],
   },
@@ -78,6 +81,7 @@ export const modules: ShellModule[] = [
         description: '展示代码走查场景下的非法记录明细列表。',
         path: '/code-review/illegal-records',
         hiddenForApproval: true,
+        permission: 'code_review.illegal.view',
       },
       {
         key: 'code-review-multi-board',
@@ -87,6 +91,7 @@ export const modules: ShellModule[] = [
         path: '/code-review/multi-board',
         requiresLogin: true,
         hiddenForApproval: true,
+        permission: 'code_review.board.view',
       },
     ],
   },
@@ -104,6 +109,7 @@ export const modules: ShellModule[] = [
         description: '展示系统测试缺陷的多级统计表头与模块维度汇总。',
         path: '/question-metrics/home',
         hiddenForApproval: true,
+        permission: 'system_test.summary.view',
       },
       {
         key: 'question-metrics-multi-board',
@@ -113,6 +119,7 @@ export const modules: ShellModule[] = [
         path: '/question-metrics/multi-board',
         requiresLogin: true,
         hiddenForApproval: true,
+        permission: 'system_test.board.view',
       },
       {
         key: 'question-metrics-delay-analysis',
@@ -122,6 +129,7 @@ export const modules: ShellModule[] = [
         path: '/question-metrics/delay-analysis',
         requiresLogin: true,
         hiddenForApproval: true,
+        permission: 'system_test.delay.view',
       },
       {
         key: 'question-metrics-illegal-records',
@@ -129,6 +137,7 @@ export const modules: ShellModule[] = [
         icon: CollectionTag,
         description: '展示系统测试范围内命中非法规则的议题明细，并支持规则说明和筛选。',
         path: '/question-metrics/illegal-records',
+        permission: 'system_test.illegal.view',
       },
       {
         key: 'question-metrics-defect-cause',
@@ -136,6 +145,7 @@ export const modules: ShellModule[] = [
         icon: PieChart,
         description: '展示系统测试缺陷在模块维度下的原因归类统计，并支持按原因下钻明细。',
         path: '/question-metrics/defect-cause',
+        permission: 'system_test.cause.view',
       },
       {
         key: 'question-metrics-phase-statistics',
@@ -143,6 +153,7 @@ export const modules: ShellModule[] = [
         icon: DataLine,
         description: '展示系统测试轮次维度的一级、二级、三级、建议类及总量统计。',
         path: '/question-metrics/phase-statistics',
+        permission: 'system_test.phase.view',
       },
       {
         key: 'question-metrics-issue-search',
@@ -150,6 +161,7 @@ export const modules: ShellModule[] = [
         icon: Search,
         description: '对齐老平台议题查询入口，当前先补齐查询类副模块骨架。',
         path: '/question-metrics/issue-search',
+        permission: 'system_test.issue.view',
       },
     ],
   },
@@ -167,6 +179,7 @@ export const modules: ShellModule[] = [
         description: '展示客户问题范围下的多级统计表头与模块维度缺陷汇总。',
         path: '/customer-issues/home',
         hiddenForApproval: true,
+        permission: 'customer_issue.summary.view',
       },
       {
         key: 'customer-issues-illegal-records',
@@ -174,6 +187,7 @@ export const modules: ShellModule[] = [
         icon: CollectionTag,
         description: '对齐老平台客户问题统计下的缺陷非法数据入口。',
         path: '/customer-issues/illegal-records',
+        permission: 'customer_issue.illegal.view',
       },
       {
         key: 'customer-issues-defect-cause',
@@ -181,6 +195,7 @@ export const modules: ShellModule[] = [
         icon: PieChart,
         description: '展示客户问题在模块维度下的缺陷原因归类统计，并支持按原因下钻明细。',
         path: '/customer-issues/defect-cause',
+        permission: 'customer_issue.cause.view',
       },
       {
         key: 'customer-issues-cc-product-issues',
@@ -189,6 +204,7 @@ export const modules: ShellModule[] = [
         description: '对齐老平台客户问题统计下的 CC_PRODUCT 议题入口。',
         path: '/customer-issues/cc-product-issues',
         hiddenForApproval: true,
+        permission: 'customer_issue.record.view',
       },
       {
         key: 'customer-issues-delay-issues',
@@ -196,6 +212,7 @@ export const modules: ShellModule[] = [
         icon: AlarmClock,
         description: '对齐老平台客户问题统计下的延期问题入口。',
         path: '/customer-issues/delay-issues',
+        permission: 'customer_issue.delay.view',
       },
       {
         key: 'customer-issues-response-efficiency',
@@ -203,6 +220,7 @@ export const modules: ShellModule[] = [
         icon: Timer,
         description: '对齐老平台客户问题统计下的缺陷响应效率入口。',
         path: '/customer-issues/response-efficiency',
+        permission: 'customer_issue.efficiency.view',
       },
       {
         key: 'customer-issues-issue-by-function',
@@ -210,6 +228,7 @@ export const modules: ShellModule[] = [
         icon: Memo,
         description: '对齐老平台客户问题统计下的按功能展示缺陷数量入口。',
         path: '/customer-issues/issue-by-function',
+        permission: 'customer_issue.function.view',
       },
     ],
   },
@@ -228,6 +247,7 @@ export const modules: ShellModule[] = [
         path: '/system-settings/label-group-settings',
         requiresLogin: true,
         hiddenForApproval: true,
+        permission: 'system.label_group.view',
       },
       {
         key: 'testing-phase-definition',
@@ -237,6 +257,7 @@ export const modules: ShellModule[] = [
         path: '/system-settings/testing-phase-definition',
         requiresLogin: true,
         hiddenForApproval: true,
+        permission: 'system.testing_phase.view',
       },
       {
         key: 'mirror-settings',
@@ -246,6 +267,7 @@ export const modules: ShellModule[] = [
         path: '/system-settings/mirror-settings',
         requiresLogin: true,
         hiddenForApproval: true,
+        permission: 'system.mirror.view',
       },
       // 兼容模式-MatchMode：临时页面入口，老平台数据库交接完成后可整体删除该 pageKey/path 及对应路由、API、后端 Controller。
       {
@@ -256,6 +278,7 @@ export const modules: ShellModule[] = [
         path: '/system-settings/database-settings',
         requiresLogin: true,
         hiddenForApproval: true,
+        permission: 'system.match_mode.view',
       },
       {
         key: 'database-browser',
@@ -265,6 +288,17 @@ export const modules: ShellModule[] = [
         path: '/system-settings/database-browser',
         requiresLogin: true,
         hiddenForApproval: true,
+        permission: 'system.database.view',
+      },
+      {
+        key: 'permission-settings',
+        label: '权限设置',
+        icon: Tools,
+        description: '维护数据采集平台本地角色权限。',
+        path: '/system-settings/permission-settings',
+        requiresLogin: true,
+        hiddenForApproval: true,
+        permission: 'system.permission.view',
       },
     ],
   },

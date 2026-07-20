@@ -17,7 +17,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ReviewDataRecordCommandServiceTest {
   @Mock private ReviewDataRecordPersistenceSupport persistenceSupport;
-  @Mock private CodeReviewMatchModeSwitchService matchModeSwitchService;
   @Mock private ReviewDataMatchModeMaterializeService matchModeMaterializeService;
 
   @Test
@@ -40,7 +39,8 @@ class ReviewDataRecordCommandServiceTest {
                     "",
                     "",
                     "未评审",
-                    LocalDateTime.of(2026, 6, 5, 10, 0))));
+                    LocalDateTime.of(2026, 6, 5, 10, 0),
+                    null)));
 
     Long itemId = service.createProblemItem(7L, request);
 
@@ -92,7 +92,8 @@ class ReviewDataRecordCommandServiceTest {
             "补充异常流程",
             "负责人A",
             "",
-            "新提交"))
+            "新提交",
+            null))
         .thenReturn(12L);
 
     Long itemId = service.createProblemItem(7L, request);
@@ -111,7 +112,8 @@ class ReviewDataRecordCommandServiceTest {
             "补充异常流程",
             "负责人A",
             "",
-            "新提交");
+            "新提交",
+            null);
     verify(persistenceSupport, never())
         .updateProblemItem(
             org.mockito.ArgumentMatchers.any(),
@@ -131,7 +133,7 @@ class ReviewDataRecordCommandServiceTest {
 
   private ReviewDataRecordCommandService service() {
     return new ReviewDataRecordCommandService(
-        persistenceSupport, matchModeSwitchService, matchModeMaterializeService);
+        persistenceSupport, matchModeMaterializeService);
   }
 
   private ReviewDataProblemItemSaveRequest problemRequest(String reviewerName, String problemStatus) {

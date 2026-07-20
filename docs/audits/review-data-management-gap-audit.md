@@ -13,7 +13,7 @@
 - 旧平台接口：`D:\projects\spidergitdata-dev\webapp\src\request\ReviewBoardAPI.js`、`D:\projects\spidergitdata-dev\src\main\java\com\huayun\controller\ReviewController.java`、`ReviewReportQueryBuilder.java`。
 - 新平台页面：`frontend/src/views/ReviewDataManagementView.vue` 及 `frontend/src/views/review-data/*`。
 - 新平台接口：`backend/src/main/java/com/data/collection/platform/controller/ReviewDataController.java`。
-- 已确认导入设计：`docs/plans/2026-05-28-review-data-legacy-excel-import-plan.md`。
+- 已确认导入设计：当前导入边界归 `docs/product.md` 的评审数据体验和 `docs/platform-page-business-rules.md` 的导出/字段规则。
 
 ## 老平台能力清单
 
@@ -102,7 +102,7 @@
 1. 关键字搜索和高级条件筛选比老平台更强，允许覆盖更多字段；这可以作为体验增强保留，但不能改变老平台直接筛选字段的结果语义。
 2. 设置按钮、固定视图、自动刷新开关属于新平台通用体验能力，不是老平台业务口径。
 3. 详情抽屉和规则说明是新平台增强入口，可以保留。
-4. 旧平台列表 Excel 导入向导是迁移能力，已在 `docs/plans/2026-05-28-review-data-legacy-excel-import-plan.md` 中确认；它不替代老平台“模板下载”入口，因此模板下载已按老平台能力单独恢复。
+4. 旧平台列表 Excel 导入向导是迁移能力；它不替代老平台“模板下载”入口，因此模板下载按老平台能力单独维护。
 
 ## 已对齐差异
 

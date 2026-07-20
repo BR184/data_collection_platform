@@ -48,6 +48,27 @@ public class ReviewDataRecordWriteRepository {
       String notReachStandardReason,
       String sourceFileName,
       Double weightedDefectDensity) {
+    return insertRecord(
+        projectName, title, moduleName, reviewType, reviewDate, reviewOwner, reviewScalePages,
+        reviewProduct, authorName, reviewVersion, notReachStandardReason, sourceFileName,
+        weightedDefectDensity, null);
+  }
+
+  public Long insertRecord(
+      String projectName,
+      String title,
+      String moduleName,
+      String reviewType,
+      java.time.LocalDate reviewDate,
+      String reviewOwner,
+      Integer reviewScalePages,
+      String reviewProduct,
+      String authorName,
+      String reviewVersion,
+      String notReachStandardReason,
+      String sourceFileName,
+      Double weightedDefectDensity,
+      String createdBy) {
     String normalizedModuleName = ReviewDataModuleNameSupport.normalize(moduleName);
     KeyHolder keyHolder = new GeneratedKeyHolder();
     TextQuerySupport.SearchIndex searchIndex =
@@ -81,9 +102,10 @@ public class ReviewDataRecordWriteRepository {
                     title_search_compact,
                     title_search_spell,
                     title_search_initials,
+                    created_by,
                     created_at,
                     updated_at
-                  ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
+                  ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
                   """,
                   new String[] {"id"});
           statement.setString(1, normalizeText(projectName));
@@ -111,6 +133,7 @@ public class ReviewDataRecordWriteRepository {
           statement.setString(19, titleSearchIndex.compact());
           statement.setString(20, titleSearchIndex.spell());
           statement.setString(21, titleSearchIndex.initials());
+          statement.setString(22, TextQuerySupport.trimToNull(createdBy));
           return statement;
         },
         keyHolder);

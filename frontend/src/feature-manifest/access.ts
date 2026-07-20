@@ -3,14 +3,11 @@ import { pageByKey, pageModuleKeyByPageKey } from './lookups';
 import type { AccessUser, PageKey, ShellModule, ShellPage } from './types';
 
 export function canAccessPage(page: ShellPage, user: AccessUser) {
-  const moduleKey = pageModuleKeyByPageKey.get(page.key);
-  if (moduleKey === 'system-settings') {
-    return user.authenticated && user.role === 'ADMIN';
-  }
-  if (page.hiddenForApproval && user.role === 'APPROVAL') {
-    return false;
-  }
-  return true;
+  return user.authenticated && (!page.permission || (user.permissions ?? []).includes(page.permission));
+}
+
+export function hasPermission(user: AccessUser, permission: string) {
+  return user.authenticated && (user.permissions ?? []).includes(permission);
 }
 
 export function canAccessPageKey(pageKey: PageKey, user: AccessUser) {

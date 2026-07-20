@@ -293,6 +293,7 @@ public class ReviewDataMatchModeRecordRepository {
               false,
               null,
               null,
+              null,
               null));
       problemItemsByRecordId.put(
           publicRecordId,
@@ -424,7 +425,8 @@ public class ReviewDataMatchModeRecordRepository {
         TextQuerySupport.normalizeDisplay(problem.liablePerson()),
         TextQuerySupport.normalizeDisplay(problem.reasonForNotAccepting()),
         TextQuerySupport.normalizeDisplay(problem.problemStatus()),
-        problem.updateTime() == null ? problem.createTime() : problem.updateTime().atStartOfDay());
+        problem.updateTime() == null ? problem.createTime() : problem.updateTime().atStartOfDay(),
+        null);
   }
 
   private List<ReportRow> loadReportRows() {

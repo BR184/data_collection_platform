@@ -13,6 +13,7 @@ import RuleHintIcon from '../components/dashboard/RuleHintIcon.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
+import { hasPermission } from '../feature-manifest';
 import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
 import { ElMessage } from '../element-plus-services';
 import type {
@@ -39,7 +40,7 @@ const ruleDrawerVisible = ref(false);
 const selectedProjectId = computed(() => String(route.query.projectId ?? '9'));
 const selectedTestingPhase = computed(() => String(route.query.testingPhase ?? ''));
 const pageReady = computed(() => initialized.value);
-const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
+const canRefreshLatestData = computed(() => hasPermission(authState.currentUser, 'business_data.refresh'));
 const scopeLabel = computed(() => board.value?.scope.scopeLabel ?? 'CrownCAD / 全部阶段');
 const ruleByKey = computed(() => new Map(
   (board.value?.rules ?? []).map((rule) => [rule.key, rule]),

@@ -2,6 +2,7 @@ package com.data.collection.platform.security;
 
 import com.data.collection.platform.entity.AuthUserResponse;
 import java.util.Collection;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
@@ -30,6 +31,10 @@ public class PlatformAuthenticationToken extends AbstractAuthenticationToken {
     if (user == null || !user.authenticated()) {
       return List.of();
     }
-    return List.of(new SimpleGrantedAuthority("ROLE_" + user.role().name()));
+    List<GrantedAuthority> authorities = new ArrayList<>();
+    authorities.add(new SimpleGrantedAuthority("ROLE_AUTHENTICATED"));
+    user.roleCodes().forEach(code -> authorities.add(new SimpleGrantedAuthority("ROLE_LDAP_" + code)));
+    user.permissions().forEach(code -> authorities.add(new SimpleGrantedAuthority("PERMISSION_" + code)));
+    return authorities;
   }
 }

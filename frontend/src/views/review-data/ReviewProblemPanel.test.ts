@@ -51,6 +51,10 @@ const columns: RecordTableColumn[] = [
 
 describe('ReviewProblemPanel', () => {
   it('renders problem rows and forwards actions', async () => {
+    vi.stubGlobal('ResizeObserver', class {
+      observe() {}
+      disconnect() {}
+    });
     const onCreateProblemItem = vi.fn();
     const onEditProblemItem = vi.fn();
     const onDeleteProblemItem = vi.fn();
@@ -71,6 +75,9 @@ describe('ReviewProblemPanel', () => {
         onCreateProblemItem,
         onEditProblemItem,
         onDeleteProblemItem,
+        canCreate: true,
+        canEdit: true,
+        canDelete: true,
       },
     });
 
@@ -87,5 +94,6 @@ describe('ReviewProblemPanel', () => {
 
     await buttons[2]?.trigger('click');
     expect(onDeleteProblemItem).toHaveBeenCalledWith(3, 9);
+    vi.unstubAllGlobals();
   });
 });

@@ -71,7 +71,8 @@ class ReviewDataExcelExportServiceTest {
             "负责人A",
             "",
             "已确认",
-            LocalDateTime.of(2026, 4, 13, 9, 30));
+            LocalDateTime.of(2026, 4, 13, 9, 30),
+            null);
     when(queryService.listRecords(new ReviewDataRecordQueryRequest(
             null, null, null, null, null, null, null, null, null, 1, 100, "updatedAt", "desc")))
         .thenReturn(new ReviewDataRecordListResponse(

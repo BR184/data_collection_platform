@@ -307,6 +307,10 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
     allowedQueryKeys: ['table', 'keyword', 'page', 'pageSize', 'sortBy', 'sortOrder', 'projectId'],
     persistedQueryKeys: ['projectId'],
   },
+  'permission-settings': {
+    allowedQueryKeys: ['role'],
+    persistedQueryKeys: [],
+  },
 };
 
 const specialRouteContractByKey: Record<SpecialRouteKey, SpecialRouteContract> = {

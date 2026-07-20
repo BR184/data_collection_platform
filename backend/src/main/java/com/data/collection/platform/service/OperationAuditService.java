@@ -40,7 +40,7 @@ public class OperationAuditService {
               values (?, ?, ?, ?, ?, ?, ?, ?)
               """,
           user == null ? "guest" : user.username(),
-          user == null ? "GUEST" : user.role().name(),
+          user == null || !user.authenticated() ? "GUEST" : String.join(",", user.roleCodes()),
           method,
           path,
           remoteAddress == null ? "" : remoteAddress,

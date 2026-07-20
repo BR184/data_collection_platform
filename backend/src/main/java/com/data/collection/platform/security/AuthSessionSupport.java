@@ -1,6 +1,5 @@
 package com.data.collection.platform.security;
 
-import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.AuthUserResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -25,6 +24,16 @@ public final class AuthSessionSupport {
     return user instanceof AuthUserResponse authUser ? authUser : AuthUserResponse.guest();
   }
 
+  public static void updateUser(HttpServletRequest request, AuthUserResponse user) {
+    HttpSession session = request.getSession(false);
+    if (session != null && user != null) {
+      session.setAttribute(SESSION_USER_KEY, user);
+    }
+    if (user != null && user.authenticated()) {
+      SecurityContextHolder.getContext().setAuthentication(new PlatformAuthenticationToken(user));
+    }
+  }
+
   private static AuthUserResponse currentSecurityUser() {
     Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
     if (authentication == null || !authentication.isAuthenticated()) {
@@ -34,16 +43,4 @@ public final class AuthSessionSupport {
     return principal instanceof AuthUserResponse authUser ? authUser : AuthUserResponse.guest();
   }
 
-  public static boolean hasRole(AuthUserResponse user, AuthRole requiredRole) {
-    if (user == null || !user.authenticated()) {
-      return false;
-    }
-    if (requiredRole == AuthRole.ADMIN) {
-      return user.role() == AuthRole.ADMIN;
-    }
-    if (requiredRole == AuthRole.APPROVAL) {
-      return user.role() == AuthRole.APPROVAL || user.role() == AuthRole.ADMIN;
-    }
-    return user.role() == requiredRole;
-  }
 }

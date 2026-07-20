@@ -83,6 +83,66 @@ class FlywayMigrationSmokeTest {
     assertThat(migration).contains("where whitelist_mode = 'all'");
   }
 
+  @Test
+  void shouldDefineLdapIdentityAndLocalPermissionSchema() throws IOException {
+    String identityMigration = readMigration(
+        "V20260720_01__ldap_identity_and_local_permissions.sql");
+    String directoryViewMigration = readMigration(
+        "V20260720_02__ldap_user_directory_view.sql");
+
+    assertThat(identityMigration).contains("create table if not exists platform_ldap_users");
+    assertThat(identityMigration).contains("create table if not exists platform_ldap_roles");
+    assertThat(identityMigration).contains("create table if not exists platform_permissions");
+    assertThat(identityMigration).contains("alter table review_records add column if not exists created_by");
+    assertThat(identityMigration).contains("alter table review_problem_items add column if not exists created_by");
+    assertThat(directoryViewMigration).contains("create or replace view platform_ldap_user_directory");
+    assertThat(directoryViewMigration).contains("string_agg(distinct r.role_code");
+  }
+
+  @Test
+  void shouldDefineUnifiedReviewVisibleReadModels() throws IOException {
+    String migration = readMigration(
+        "V20260720_03__unified_review_visible_read_models.sql");
+
+    assertThat(migration)
+        .contains("create or replace view review_visible_records")
+        .contains("create or replace view review_visible_problem_items")
+        .contains("union all")
+        .contains("review_data_match_mode_edit_links")
+        .contains("review_data_match_mode_problem_edit_links");
+  }
+
+  @Test
+  void shouldDefineLdapRoleDisplayOrderMigration() throws IOException {
+    String migration = readMigration(
+        "V20260720_04__ldap_role_display_order.sql");
+
+    assertThat(migration)
+        .contains("add column if not exists display_order integer not null default 1000")
+        .contains("-- 展示顺序只用于权限设置页面的角色排列");
+
+    String seedMigration = readMigration(
+        "V20260720_05__seed_ldap_role_display_order.sql");
+    assertThat(seedMigration)
+        .contains("when 'super_admin' then 10")
+        .contains("when 'admin' then 20")
+        .contains("when 'direct_manager' then 30")
+        .contains("when 'tree_manager' then 40")
+        .contains("when 'normal_user' then 50")
+        .contains("-- 展示顺序只用于权限设置页面的角色排列");
+  }
+
+  @Test
+  void shouldDefinePlatformPermissionDefaultsSnapshot() throws IOException {
+    String migration = readMigration(
+        "V20260720_06__platform_permission_defaults.sql");
+
+    assertThat(migration)
+        .contains("create table if not exists platform_default_role_permissions")
+        .contains("select role_code, permission_code")
+        .contains("默认权限快照只用于");
+  }
+
   private String readMigration(String fileName) throws IOException {
     return Files.readString(
             Path.of("src", "main", "resources", "db", "migration", fileName), StandardCharsets.UTF_8)

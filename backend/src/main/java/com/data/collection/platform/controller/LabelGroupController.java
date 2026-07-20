@@ -12,8 +12,8 @@ import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionRespons
 import com.data.collection.platform.entity.labelgroup.LabelGroupResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupUpdateRequest;
 import com.data.collection.platform.entity.labelgroup.LabelValuePageResponse;
-import com.data.collection.platform.entity.AuthRole;
-import com.data.collection.platform.security.RequireRole;
+import com.data.collection.platform.security.PlatformPermissionCodes;
+import com.data.collection.platform.security.RequirePermission;
 import com.data.collection.platform.service.labelgroup.LabelDimensionCatalogService;
 import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleCandidateService;
 import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleEvaluationService;
@@ -69,7 +69,7 @@ public class LabelGroupController {
   }
 
   @PostMapping
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_LABEL_GROUP_MANAGE)
   public ApiResponse<LabelGroupResponse> createGroup(@RequestBody LabelGroupCreateRequest request) {
     return ApiResponse.success(labelGroupService.create(request));
   }
@@ -80,14 +80,14 @@ public class LabelGroupController {
   }
 
   @PutMapping("/{groupId}")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_LABEL_GROUP_MANAGE)
   public ApiResponse<LabelGroupResponse> updateGroup(
       @PathVariable Long groupId, @RequestBody LabelGroupUpdateRequest request) {
     return ApiResponse.success(labelGroupService.update(groupId, request));
   }
 
   @DeleteMapping("/{groupId}")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_LABEL_GROUP_MANAGE)
   public ApiResponse<Void> deleteGroup(@PathVariable Long groupId) {
     labelGroupService.delete(groupId);
     return ApiResponse.success(null);
@@ -153,7 +153,7 @@ public class LabelGroupController {
   }
 
   @PostMapping("/dynamic-rule-preview")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_LABEL_GROUP_MANAGE)
   public ApiResponse<LabelGroupDynamicRulePreviewResponse> previewDynamicRule(
       @RequestBody LabelGroupDynamicRulePreviewRequest request) {
     return ApiResponse.success(dynamicRuleEvaluationService.preview(request.ruleConfig()));

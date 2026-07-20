@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import java.time.LocalDateTime;
 import java.util.List;

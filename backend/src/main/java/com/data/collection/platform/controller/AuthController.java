@@ -8,10 +8,12 @@ import com.data.collection.platform.security.AuthSessionSupport;
 import com.data.collection.platform.security.PlatformAuthenticationProvider;
 import com.data.collection.platform.security.PlatformAuthenticationToken;
 import com.data.collection.platform.service.OperationAuditService;
+import com.data.collection.platform.service.PlatformPermissionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,17 +25,32 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
   private final PlatformAuthenticationProvider authenticationProvider;
   private final OperationAuditService operationAuditService;
+  private final PlatformPermissionService permissionService;
+
+  @Autowired
+  public AuthController(
+      PlatformAuthenticationProvider authenticationProvider,
+      OperationAuditService operationAuditService,
+      PlatformPermissionService permissionService) {
+    this.authenticationProvider = authenticationProvider;
+    this.operationAuditService = operationAuditService;
+    this.permissionService = permissionService;
+  }
 
   public AuthController(
       PlatformAuthenticationProvider authenticationProvider,
       OperationAuditService operationAuditService) {
-    this.authenticationProvider = authenticationProvider;
-    this.operationAuditService = operationAuditService;
+    this(authenticationProvider, operationAuditService, null);
   }
 
   @GetMapping("/current")
   public ApiResponse<AuthUserResponse> current(HttpServletRequest request) {
-    return ApiResponse.success(AuthSessionSupport.currentUser(request));
+    AuthUserResponse current = AuthSessionSupport.currentUser(request);
+    AuthUserResponse refreshed = permissionService == null
+        ? current
+        : permissionService.refreshUserPermissions(current);
+    AuthSessionSupport.updateUser(request, refreshed);
+    return ApiResponse.success(refreshed);
   }
 
   @PostMapping("/login")
@@ -54,6 +71,9 @@ public class AuthController {
           "username=" + safeUsername(request.username()));
       return ApiResponse.fail(ResultCode.BAD_REQUEST, "用户名或密码错误");
     }
+    // Rotate the session identifier after credentials are verified so a session
+    // established before login cannot be reused for the authenticated context.
+    servletRequest.changeSessionId();
     session.setAttribute(AuthSessionSupport.SESSION_USER_KEY, user);
     SecurityContextHolder.getContext().setAuthentication(new PlatformAuthenticationToken(user));
     recordAuthAudit(user, "POST", "/api/auth/login", servletRequest, 200, "", "username=" + user.username());

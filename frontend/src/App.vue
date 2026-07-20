@@ -39,6 +39,10 @@ const usernameInputRef = ref<InputFocusTarget>();
 const passwordInputRef = ref<InputFocusTarget>();
 
 const currentUser = computed(() => authState.currentUser);
+// 登录态切换时重新挂载当前页面，让仅在首次挂载时加载数据的业务页重新请求数据。
+const pageRenderKey = computed(
+  () => `${currentUser.value.authenticated ? 'authenticated' : 'guest'}:${currentUser.value.username}`,
+);
 const matchModeEnabled = ref(true);
 const matchModeStatusLoaded = ref(false);
 let matchModeStatusRequestId = 0;
@@ -53,29 +57,20 @@ const activeModule = computed(
   () => {
     const routeModule = moduleByKey.get((route.meta.moduleKey as ModuleKey | undefined) ?? 'quality-board');
     const visibleRouteModule = visibleModules.value.find((module) => module.key === routeModule?.key);
-    return visibleRouteModule ?? visibleModules.value[0];
+    return visibleRouteModule ?? visibleModules.value[0] ?? routeModule ?? moduleByKey.get('quality-board')!;
   },
 );
 const activePageKey = computed(() => String(route.meta.pageKey ?? activeModule.value.pages[0]?.key ?? ''));
 const isStandalonePage = computed(() => Boolean(route.meta.standalone));
 const shellDataScope = computed(() => shellDataScopeState.registration);
 const authModeLabel = computed(() => {
-  if (currentUser.value.role === 'ADMIN') {
-    return '管理员模式';
+  if (!currentUser.value.authenticated) {
+    return '未登录';
   }
-  if (currentUser.value.role === 'APPROVAL') {
-    return '审批模式';
-  }
-  return '游客模式';
+  return currentUser.value.displayName || currentUser.value.username;
 });
 const authModeTagType = computed(() => {
-  if (currentUser.value.role === 'ADMIN') {
-    return 'success';
-  }
-  if (currentUser.value.role === 'APPROVAL') {
-    return 'warning';
-  }
-  return 'info';
+  return currentUser.value.authenticated ? 'success' : 'info';
 });
 const sidebarCollapsed = ref(readSidebarCollapsedPreference());
 
@@ -105,6 +100,9 @@ function toggleSidebarCollapsed() {
 }
 
 async function handleAuthRequired(event: Event) {
+  if (!currentUser.value.authenticated) {
+    return;
+  }
   const message = event instanceof CustomEvent && typeof event.detail?.message === 'string'
     ? event.detail.message
     : '登录状态已过期，请重新登录';
@@ -146,6 +144,12 @@ function ensureRouteAccess() {
 async function loadMatchModeMenuState() {
   const requestId = ++matchModeStatusRequestId;
   matchModeStatusLoaded.value = false;
+  if (!currentUser.value.authenticated || isStandalonePage.value) {
+    matchModeEnabled.value = true;
+    matchModeStatusLoaded.value = true;
+    ensureRouteAccess();
+    return;
+  }
   try {
     const status = await api.getCodeReviewMatchModeStatus();
     if (requestId === matchModeStatusRequestId) {
@@ -204,14 +208,34 @@ async function handleLogin() {
 }
 
 async function handleLogout() {
-  await logout();
-  ElMessage.success('已退出登录');
+  try {
+    await logout();
+    ElMessage.success('已退出登录');
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '退出登录失败');
+  } finally {
+    loginDialogVisible.value = true;
+  }
   ensureRouteAccess();
+}
+
+async function retryAuthState() {
+  authState.initialized = false;
+  authState.error = '';
+  await loadCurrentUser();
+  if (authState.status === 'unavailable') {
+    ElMessage.error('登录服务暂时不可用，请稍后重试');
+    return;
+  }
+  loginDialogVisible.value = !currentUser.value.authenticated;
 }
 
 onMounted(async () => {
   if (!authState.initialized) {
     await loadCurrentUser();
+  }
+  if (!currentUser.value.authenticated && authState.status !== 'unavailable') {
+    loginDialogVisible.value = true;
   }
   window.addEventListener(AUTH_REQUIRED_EVENT_NAME, handleAuthRequired);
 });
@@ -221,7 +245,7 @@ onBeforeUnmount(() => {
 });
 
 watch(
-  () => route.path,
+  () => [route.path, currentUser.value.authenticated, isStandalonePage.value] as const,
   () => {
     void loadMatchModeMenuState();
   },
@@ -230,7 +254,7 @@ watch(
 
 watch(
   () => [
-    currentUser.value.role,
+    (currentUser.value.permissions ?? []).join(','),
     currentUser.value.authenticated,
     route.meta.pageKey,
     matchModeStatusLoaded.value,
@@ -246,8 +270,17 @@ watch(
   <el-config-provider :locale="zhCn" :z-index="3000">
     <div v-if="isStandalonePage" class="standalone-app-shell">
     <main class="standalone-app-main">
-      <RouterView v-slot="{ Component }">
-        <component :is="Component" />
+      <div v-if="authState.status === 'unavailable'" class="auth-service-state">
+        <el-alert
+          type="error"
+          :closable="false"
+          title="登录服务暂时不可用"
+          description="请检查网络连接后重试。"
+        />
+        <el-button type="primary" @click="retryAuthState">重试</el-button>
+      </div>
+      <RouterView v-else-if="currentUser.authenticated" v-slot="{ Component }">
+        <component :is="Component" :key="pageRenderKey" />
       </RouterView>
     </main>
   </div>
@@ -294,7 +327,7 @@ watch(
           :loading="authState.loading"
           @click="loginDialogVisible = true"
         >
-          管理员登录
+          登录
         </el-button>
       </div>
     </header>
@@ -315,7 +348,7 @@ watch(
           </button>
         </div>
 
-        <div v-if="!sidebarCollapsed" class="sidebar-menu">
+        <div v-if="currentUser.authenticated && !sidebarCollapsed" class="sidebar-menu">
           <button
             v-for="page in activeModule.pages"
             :key="page.key"
@@ -333,7 +366,7 @@ watch(
         <section class="content-head">
           <div class="content-head-main">
             <DataScopeBar
-              v-if="shellDataScope"
+              v-if="currentUser.authenticated && shellDataScope"
               :provider="shellDataScope.provider"
               :options="shellDataScope.options"
               :model-value="shellDataScope.modelValue"
@@ -352,10 +385,21 @@ watch(
           </div>
         </section>
 
-        <RouterView v-slot="{ Component }">
-          <component :is="Component" />
+        <div v-if="authState.status === 'unavailable'" class="auth-service-state">
+          <el-alert
+            type="error"
+            :closable="false"
+            title="登录服务暂时不可用"
+            description="请检查网络连接后重试。"
+          />
+          <el-button type="primary" @click="retryAuthState">重试</el-button>
+        </div>
+        <RouterView v-else-if="currentUser.authenticated" v-slot="{ Component }">
+          <component :is="Component" :key="pageRenderKey" />
         </RouterView>
       </main>
+    </div>
+
     </div>
 
     <el-dialog
@@ -363,6 +407,8 @@ watch(
       class="auth-dialog"
       width="420px"
       :show-close="false"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
       align-center
     >
       <div class="auth-card-head">
@@ -408,20 +454,13 @@ watch(
         </el-form-item>
       </el-form>
 
-      <div class="auth-mode-note">
-        <span>当前为游客模式</span>
-        <span>登录后显示管理入口</span>
-      </div>
-
       <template #footer>
         <div class="auth-footer">
-          <el-button size="large" @click="loginDialogVisible = false">取消</el-button>
           <el-button type="primary" size="large" :loading="authState.loading" @click="handleLogin">
             登录
           </el-button>
         </div>
       </template>
     </el-dialog>
-    </div>
   </el-config-provider>
 </template>

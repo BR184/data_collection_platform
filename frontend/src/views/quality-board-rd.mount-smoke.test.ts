@@ -44,7 +44,9 @@ describe('QualityBoardRdView mount smoke', () => {
     authState.currentUser = {
       username: 'admin',
       displayName: '管理员',
-      role: 'ADMIN',
+      roleCodes: ['SUPER_ADMIN'],
+      roleNames: ['超级管理员'],
+      permissions: ['quality.rd.view', 'quality.rd.export'],
       authenticated: true,
     };
     authState.initialized = true;

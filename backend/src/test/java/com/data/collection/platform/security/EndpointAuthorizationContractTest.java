@@ -9,57 +9,70 @@ import com.data.collection.platform.controller.DatabaseBrowserController;
 import com.data.collection.platform.controller.FactBuildController;
 import com.data.collection.platform.controller.GitlabSyncController;
 import com.data.collection.platform.controller.QuestionMetricsController;
+import com.data.collection.platform.controller.PermissionSettingsController;
 import com.data.collection.platform.controller.StatisticBoardController;
-import com.data.collection.platform.entity.AuthRole;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
 class EndpointAuthorizationContractTest {
   @Test
-  void shouldProtectSourceTableAndOperationalEndpointsWithAdminRole() {
-    assertAdminRequired(DatabaseBrowserController.class);
+  void shouldProtectSourceTableAndOperationalEndpointsWithFineGrainedPermissions() {
+    assertPermissionRequired(
+        PermissionSettingsController.class, "restoreDefaultPermissions", PlatformPermissionCodes.SYSTEM_PERMISSION_MANAGE);
+    assertPermissionRequired(
+        DatabaseBrowserController.class, PlatformPermissionCodes.SYSTEM_DATABASE_VIEW);
 
-    assertAdminRequired(GitlabSyncController.class, "status");
-    assertAdminRequired(GitlabSyncController.class, "configs");
-    assertAdminRequired(GitlabSyncController.class, "sourceHealth");
-    assertAdminRequired(GitlabSyncController.class, "tableSyncDiagnostics");
-    assertAdminRequired(GitlabSyncController.class, "systemHookRegistrationStatus");
-    assertAdminRequired(GitlabSyncController.class, "whitelistOptions");
+    assertPermissionRequired(
+        GitlabSyncController.class, "status", PlatformPermissionCodes.SYSTEM_MIRROR_VIEW);
+    assertPermissionRequired(
+        GitlabSyncController.class, "configs", PlatformPermissionCodes.SYSTEM_MIRROR_VIEW);
+    assertPermissionRequired(
+        GitlabSyncController.class, "sourceHealth", PlatformPermissionCodes.SYSTEM_MIRROR_VIEW);
+    assertPermissionRequired(
+        GitlabSyncController.class, "tableSyncDiagnostics", PlatformPermissionCodes.SYSTEM_MIRROR_VIEW);
+    assertPermissionRequired(
+        GitlabSyncController.class, "systemHookRegistrationStatus", PlatformPermissionCodes.SYSTEM_MIRROR_VIEW);
+    assertPermissionRequired(
+        GitlabSyncController.class, "whitelistOptions", PlatformPermissionCodes.SYSTEM_MIRROR_VIEW);
 
-    assertAdminRequired(FactBuildController.class, "rebuildFacts");
-    assertAdminRequired(FactBuildController.class, "getLatestBuildTask");
-    assertAdminRequired(FactBuildController.class, "getIssueDiagnostics");
-    assertAdminRequired(FactBuildController.class, "getIssueSourceReadiness");
+    assertPermissionRequired(FactBuildController.class, "rebuildFacts", PlatformPermissionCodes.SYSTEM_FACT_REBUILD);
+    assertPermissionRequired(FactBuildController.class, "getLatestBuildTask", PlatformPermissionCodes.SYSTEM_FACT_REBUILD);
+    assertPermissionRequired(FactBuildController.class, "getIssueDiagnostics", PlatformPermissionCodes.SYSTEM_FACT_REBUILD);
+    assertPermissionRequired(FactBuildController.class, "getIssueSourceReadiness", PlatformPermissionCodes.SYSTEM_FACT_REBUILD);
 
-    assertAdminRequired(StatisticBoardController.class, "refreshBoardRealtimeData");
-    assertAdminRequired(CodeReviewController.class, "refreshIllegalRecords");
-    assertAdminRequired(CodeReviewController.class, "refreshMultiBoard");
-    assertAdminRequired(QuestionMetricsController.class, "refreshIssues");
-    assertAdminRequired(QuestionMetricsController.class, "refreshIllegalRecords");
-    assertAdminRequired(CustomerIssueController.class, "refreshRecords");
-    assertAdminRequired(CustomerIssueController.class, "refreshIllegalRecords");
-    assertAdminRequired(CollectFormController.class, "updateRecord");
+    assertPermissionRequired(StatisticBoardController.class, "refreshBoardRealtimeData", PlatformPermissionCodes.BUSINESS_DATA_REFRESH);
+    assertPermissionRequired(CodeReviewController.class, "refreshIllegalRecords", PlatformPermissionCodes.BUSINESS_DATA_REFRESH);
+    assertPermissionRequired(CodeReviewController.class, "refreshMultiBoard", PlatformPermissionCodes.BUSINESS_DATA_REFRESH);
+    assertPermissionRequired(QuestionMetricsController.class, "refreshIssues", PlatformPermissionCodes.BUSINESS_DATA_REFRESH);
+    assertPermissionRequired(QuestionMetricsController.class, "refreshIllegalRecords", PlatformPermissionCodes.BUSINESS_DATA_REFRESH);
+    assertPermissionRequired(CustomerIssueController.class, "refreshRecords", PlatformPermissionCodes.BUSINESS_DATA_REFRESH);
+    assertPermissionRequired(CustomerIssueController.class, "refreshIllegalRecords", PlatformPermissionCodes.BUSINESS_DATA_REFRESH);
+    assertPermissionRequired(CollectFormController.class, "updateRecord", "code_review.form.edit");
   }
 
-  private void assertAdminRequired(Class<?> controllerType) {
-    RequireRole annotation = controllerType.getAnnotation(RequireRole.class);
+  private void assertPermissionRequired(Class<?> controllerType, String permissionCode) {
+    RequirePermission annotation = controllerType.getAnnotation(RequirePermission.class);
     assertThat(annotation)
-        .as("%s should require admin role", controllerType.getSimpleName())
+        .as("%s should require %s", controllerType.getSimpleName(), permissionCode)
         .isNotNull();
-    assertThat(annotation.value()).contains(AuthRole.ADMIN);
+    assertThat(annotation.value()).contains(permissionCode);
   }
 
-  private void assertAdminRequired(Class<?> controllerType, String methodName) {
+  private void assertPermissionRequired(
+      Class<?> controllerType, String methodName, String permissionCode) {
     Method method =
         Arrays.stream(controllerType.getDeclaredMethods())
             .filter(candidate -> candidate.getName().equals(methodName))
             .findFirst()
             .orElseThrow(() -> new AssertionError("Missing method: " + controllerType.getName() + "#" + methodName));
-    RequireRole annotation = method.getAnnotation(RequireRole.class);
+    RequirePermission annotation = method.getAnnotation(RequirePermission.class);
+    if (annotation == null) {
+      annotation = controllerType.getAnnotation(RequirePermission.class);
+    }
     assertThat(annotation)
-        .as("%s#%s should require admin role", controllerType.getSimpleName(), methodName)
+        .as("%s#%s should require %s", controllerType.getSimpleName(), methodName, permissionCode)
         .isNotNull();
-    assertThat(annotation.value()).contains(AuthRole.ADMIN);
+    assertThat(annotation.value()).contains(permissionCode);
   }
 }

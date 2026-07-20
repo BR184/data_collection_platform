@@ -30,7 +30,6 @@ public class ReviewDataRecordQueryService {
   private final ReviewDataSummaryService summaryService;
   private final JsonUtils jsonUtils;
   private final LabelGroupExpansionService labelGroupExpansionService;
-  private final CodeReviewMatchModeSwitchService matchModeSwitchService;
   private final ReviewDataMatchModeRecordRepository matchModeRecordRepository;
   private final ReviewDataMatchModeMaterializeService matchModeMaterializeService;
 
@@ -39,14 +38,12 @@ public class ReviewDataRecordQueryService {
       ReviewDataSummaryService summaryService,
       JsonUtils jsonUtils,
       LabelGroupExpansionService labelGroupExpansionService,
-      CodeReviewMatchModeSwitchService matchModeSwitchService,
       ReviewDataMatchModeRecordRepository matchModeRecordRepository,
       ReviewDataMatchModeMaterializeService matchModeMaterializeService) {
     this.persistenceSupport = persistenceSupport;
     this.summaryService = summaryService;
     this.jsonUtils = jsonUtils;
     this.labelGroupExpansionService = labelGroupExpansionService;
-    this.matchModeSwitchService = matchModeSwitchService;
     this.matchModeRecordRepository = matchModeRecordRepository;
     this.matchModeMaterializeService = matchModeMaterializeService;
   }
@@ -68,16 +65,17 @@ public class ReviewDataRecordQueryService {
     boolean keywordSearch = TextQuerySupport.trimToNull(request.keyword()) != null;
     boolean titleSearchFilter =
         hasFilterGroup && ReviewDataFilterGroupSqlSupport.needsTitleSearchIndex(expandedFilterGroup);
-    // 兼容模式 match mode：开启后评审数据列表读“正式表 + 老平台 Mongo 兼容表”的合并结果；
-    // 关闭后直接落到下面的正式 SQL/Java 查询路径。删除兼容模式时只移除这个分支和 listMatchModeRecords。
-    if (reviewDataCompatibilityReadEnabled()) {
-      return listMatchModeRecords(
+    // 评审历史数据可能只存在老平台 Mongo。无论代码走查兼容开关状态如何，评审读源都固定合并正式表和兼容快照。
+    List<ReviewDataRecordRowResponse> matchRows = matchModeRecordRepository.loadRecords();
+    if (!matchRows.isEmpty()) {
+      return listCombinedRecords(
           request,
           hasFilterGroup ? expandedFilterGroup : null,
           safePage,
           safeSize,
           safeSortField,
-          safeSortOrder);
+          safeSortOrder,
+          matchRows);
     }
     boolean canUseSqlPath =
         !hasLabelGroupFilters
@@ -120,16 +118,17 @@ public class ReviewDataRecordQueryService {
         safeSortOrder);
   }
 
-  // 兼容模式 match mode：仅服务老平台 Mongo 兼容读源，正式模式不调用。
-  private ReviewDataRecordListResponse listMatchModeRecords(
+  // 评审合并读源：兼容快照记录使用负 ID，正式记录使用正 ID。
+  private ReviewDataRecordListResponse listCombinedRecords(
       ReviewDataRecordQueryRequest request,
       StatisticFilterGroup filterGroup,
       int safePage,
       int safeSize,
       String safeSortField,
-      String safeSortOrder) {
+      String safeSortOrder,
+      List<ReviewDataRecordRowResponse> matchRows) {
     List<ReviewDataRecordRowResponse> baseRows =
-        combinedMatchModeRows().stream()
+        combinedMatchModeRows(matchRows).stream()
             .filter(row -> containsText(row.title(), request.title()))
             .filter(row -> equalsText(row.projectName(), request.projectName()))
             .filter(row -> equalsText(row.moduleName(), request.moduleName()))
@@ -210,12 +209,12 @@ public class ReviewDataRecordQueryService {
   }
 
   public ReviewDataRecordDetailResponse getRecordDetail(Long recordId) {
-    // 兼容模式 match mode：详情页在开启兼容读源时支持负 ID 读取老平台行；正式读源继续走 formalRecordDetail。
-    if (reviewDataCompatibilityReadEnabled()) {
-      Long materializedRecordId = materializedRecordId(recordId);
-      if (materializedRecordId != null) {
-        return formalRecordDetail(materializedRecordId);
-      }
+    // 负 ID 表示尚未转正式的兼容快照记录，正 ID 表示正式 review_records 记录。
+    Long materializedRecordId = materializedRecordId(recordId);
+    if (materializedRecordId != null) {
+      return formalRecordDetail(materializedRecordId);
+    }
+    if (isMatchModeId(recordId)) {
       ReviewDataRecordRowResponse record = matchModeRecordRepository.getRecordOrThrow(recordId);
       return new ReviewDataRecordDetailResponse(
           record,
@@ -229,12 +228,12 @@ public class ReviewDataRecordQueryService {
   }
 
   public List<ReviewDataProblemItemResponse> listProblemItems(Long recordId) {
-    // 兼容模式 match mode：问题清单跟随详情读源；关闭兼容模式后只查正式 review_problem_items。
-    if (reviewDataCompatibilityReadEnabled()) {
-      Long materializedRecordId = materializedRecordId(recordId);
-      if (materializedRecordId != null) {
-        return persistenceSupport.listProblemItems(materializedRecordId);
-      }
+    // 问题清单跟随主记录读源，兼容快照与正式问题项分别按 ID 路由。
+    Long materializedRecordId = materializedRecordId(recordId);
+    if (materializedRecordId != null) {
+      return persistenceSupport.listProblemItems(materializedRecordId);
+    }
+    if (isMatchModeId(recordId)) {
       matchModeRecordRepository.getRecordOrThrow(recordId);
       return matchModeRecordRepository.listProblemItems(recordId);
     }
@@ -262,15 +261,15 @@ public class ReviewDataRecordQueryService {
   }
 
   public ReviewDataProblemItemResponse getProblemItem(Long recordId, Long itemId) {
-    // 兼容模式 match mode：兼容负 ID 的问题项读取；正式 ID 保持正式表路径。
-    if (reviewDataCompatibilityReadEnabled()) {
-      Long materializedRecordId = materializedRecordId(recordId);
-      if (materializedRecordId != null) {
-        Long materializedItemId = itemId != null && itemId < 0
-            ? matchModeMaterializeService.materializedProblemItemIdOrThrow(itemId)
-            : itemId;
-        return persistenceSupport.getProblemItemOrThrow(materializedRecordId, materializedItemId);
-      }
+    // 兼容问题项使用负 ID；已转正式的问题项通过映射表回到正式表。
+    Long materializedRecordId = materializedRecordId(recordId);
+    if (materializedRecordId != null) {
+      Long materializedItemId = itemId != null && itemId < 0
+          ? matchModeMaterializeService.materializedProblemItemIdOrThrow(itemId)
+          : itemId;
+      return persistenceSupport.getProblemItemOrThrow(materializedRecordId, materializedItemId);
+    }
+    if (isMatchModeId(recordId)) {
       return matchModeRecordRepository.listProblemItems(recordId).stream()
           .filter(item -> java.util.Objects.equals(item.id(), itemId))
           .findFirst()
@@ -372,18 +371,17 @@ public class ReviewDataRecordQueryService {
     return normalized;
   }
 
-  private List<ReviewDataRecordRowResponse> combinedMatchModeRows() {
-    // 兼容模式 match mode：交接期允许手动新增的正式评审数据与老平台兼容数据共存展示；
-    // 删除兼容模式时删除 matchRows 合并逻辑，保留正式表 persistenceSupport.loadRecords。
+  private List<ReviewDataRecordRowResponse> combinedMatchModeRows(
+      List<ReviewDataRecordRowResponse> matchRows) {
+    // 评审历史兼容快照是正式读源的一部分；已转正式的数据通过 edit link 去重。
     List<ReviewDataRecordRowResponse> formalRows =
         persistenceSupport.loadRecords(null, null, null, null, null, null, null, null);
-    List<ReviewDataRecordRowResponse> matchRows = matchModeRecordRepository.loadRecords();
-    return java.util.stream.Stream.concat(formalRows.stream(), matchRows.stream()).toList();
+    return java.util.stream.Stream.concat(formalRows.stream(), safeRows(matchRows).stream()).toList();
   }
 
   private Map<Long, List<String>> loadCombinedProblemStatusesByRecordIds(
       List<ReviewDataRecordRowResponse> rows) {
-    // 兼容模式 match mode：按 ID 正负拆分正式问题项和老平台问题项，避免关闭兼容模式后误查兼容表。
+    // 按 ID 正负拆分正式问题项和兼容问题项，避免跨表误查。
     List<ReviewDataRecordRowResponse> formalRows = rows.stream().filter(row -> row.id() != null && row.id() >= 0).toList();
     List<ReviewDataRecordRowResponse> matchRows = rows.stream().filter(row -> row.id() != null && row.id() < 0).toList();
     java.util.Map<Long, List<String>> result = new java.util.HashMap<>();
@@ -393,15 +391,18 @@ public class ReviewDataRecordQueryService {
   }
 
   private Long materializedRecordId(Long recordId) {
-    if (recordId == null || recordId >= 0) {
-      return recordId;
+    if (!isMatchModeId(recordId)) {
+      return null;
     }
     return matchModeRecordRepository.findMaterializedRecordId(recordId);
   }
 
-  // 兼容模式 match mode：读源开关封装点，关闭后评审查询不访问 ReviewDataMatchModeRecordRepository。
-  private boolean reviewDataCompatibilityReadEnabled() {
-    return matchModeSwitchService.isReviewDataCompatibilityReadEnabled();
+  private boolean isMatchModeId(Long recordId) {
+    return recordId != null && recordId < 0;
+  }
+
+  private List<ReviewDataRecordRowResponse> safeRows(List<ReviewDataRecordRowResponse> rows) {
+    return rows == null ? List.of() : rows;
   }
 
   private ReviewDataRecordDetailResponse formalRecordDetail(Long recordId) {

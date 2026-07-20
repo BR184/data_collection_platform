@@ -230,7 +230,8 @@ class ReviewDataControllerTest {
                         "Dora",
                         "",
                         "Resolved",
-                        LocalDateTime.of(2026, 4, 12, 11, 0))),
+                        LocalDateTime.of(2026, 4, 12, 11, 0),
+                        null)),
                 List.of(),
                 List.of()));
 
@@ -258,7 +259,8 @@ class ReviewDataControllerTest {
             header()
                 .string(
                     "Content-Disposition",
-                    "attachment; filename=\"review-data-records.xlsx\""));
+                    org.hamcrest.Matchers.containsString(
+                        "filename*=UTF-8''%E8%AF%84%E5%AE%A1%E6%95%B0%E6%8D%AE")));
 
     var requestCaptor = org.mockito.ArgumentCaptor.forClass(ReviewDataRecordQueryRequest.class);
     verify(excelExportService).exportReviewRecordsWorkbook(requestCaptor.capture());
@@ -275,7 +277,8 @@ class ReviewDataControllerTest {
             header()
                 .string(
                     "Content-Disposition",
-                    "attachment; filename=\"review-data-problem-details-1.xlsx\""));
+                    org.hamcrest.Matchers.containsString(
+                        "filename*=UTF-8''%E9%97%AE%E9%A2%98%E8%AF%A6%E6%83%85.xlsx")));
 
     verify(excelExportService).exportProblemDetailsWorkbook(1L);
   }
@@ -291,14 +294,16 @@ class ReviewDataControllerTest {
             header()
                 .string(
                     "Content-Disposition",
-                    "attachment; filename=\"review-data-template.xls\""));
+                    org.hamcrest.Matchers.containsString(
+                        "filename*=UTF-8''%E6%A8%A1%E6%9D%BF%E6%96%87%E4%BB%B6.xls")));
 
     verify(templateWorkbookService).buildTemplateWorkbook();
   }
 
   @Test
   void shouldCreateRecord() throws Exception {
-    when(reviewDataRecordService.createRecord(any(ReviewDataRecordSaveRequest.class)))
+    when(reviewDataRecordService.createRecord(
+        any(ReviewDataRecordSaveRequest.class), any(String.class)))
         .thenReturn(
             new ReviewDataRecordDetailResponse(
                 new ReviewDataRecordRowResponse(
@@ -364,7 +369,8 @@ class ReviewDataControllerTest {
                 "Dora",
                 "",
                 "Resolved",
-                LocalDateTime.of(2026, 4, 17, 11, 0)));
+                LocalDateTime.of(2026, 4, 17, 11, 0),
+                null));
 
     mockMvc.perform(
             put("/api/review-data/records/1/problem-items/9")
@@ -397,7 +403,7 @@ class ReviewDataControllerTest {
   }
 
   @Test
-  void legacyExcelPreviewShouldRejectUnsupportedXlsFile() throws Exception {
+  void legacyExcelPreviewShouldAcceptSupportedXlsFile() throws Exception {
     MockMultipartFile file =
         new MockMultipartFile(
             "file",
@@ -407,8 +413,7 @@ class ReviewDataControllerTest {
 
     mockMvc.perform(multipart("/api/review-data/legacy-excel-import/preview").file(file))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.success").value(false))
-        .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString(".xlsx")));
+        .andExpect(jsonPath("$.success").value(true));
   }
 
   @Test

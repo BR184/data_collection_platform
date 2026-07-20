@@ -2,18 +2,24 @@ package com.data.collection.platform.service.statistics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.service.CodeReviewDataReadMode;
 import com.data.collection.platform.service.CodeReviewMatchModeSwitchService;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.ReviewDataMatchModeRecordRepository;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 
 class SystemTestHorizontalComparisonExportServiceTest {
   private final RecordingJdbcTemplate jdbcTemplate = new RecordingJdbcTemplate();
@@ -58,12 +64,56 @@ class SystemTestHorizontalComparisonExportServiceTest {
             "cc2026r4");
   }
 
+  @Test
+  void horizontalExportAlwaysIncludesHistoricalReviewSnapshots() {
+    ReviewDataMatchModeRecordRepository reviewRepository =
+        mock(ReviewDataMatchModeRecordRepository.class);
+    when(reviewRepository.loadRecords())
+        .thenReturn(
+            List.of(
+                new ReviewDataRecordRowResponse(
+                    -1L,
+                    "CC2026R4",
+                    "历史需求评审",
+                    "历史模块",
+                    "需求说明书评审",
+                    LocalDate.of(2026, 6, 1),
+                    "负责人A",
+                    "专家A",
+                    10,
+                    "需求文档",
+                    "作者A",
+                    "V1",
+                    3,
+                    0.3D,
+                    LocalDateTime.of(2026, 6, 1, 10, 0),
+                    false)));
+    CodeReviewMatchModeSwitchService switchService = mock(CodeReviewMatchModeSwitchService.class);
+    when(switchService.isCodeReviewCompatibilityReadEnabled()).thenReturn(false);
+    SystemTestHorizontalComparisonExportService service =
+        new SystemTestHorizontalComparisonExportService(
+            jdbcTemplate,
+            mock(JsonUtils.class),
+            mock(SystemTestPhaseScopeResolver.class),
+            switchService,
+            reviewRepository);
+
+    String csv = service.exportCsv(Map.of("projectName", "CC2026R4"));
+
+    assertThat(csv).contains("历史模块");
+  }
+
   private static final class RecordingJdbcTemplate extends JdbcTemplate {
     private final List<ModuleQuery> queries = new java.util.ArrayList<>();
 
     @Override
     public <T> List<T> queryForList(String sql, Class<T> elementType, Object... args) {
       queries.add(new ModuleQuery(sql, List.copyOf(Arrays.asList(args))));
+      return List.of();
+    }
+
+    @Override
+    public <T> List<T> query(String sql, RowMapper<T> rowMapper, Object... args) {
       return List.of();
     }
 

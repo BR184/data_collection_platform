@@ -7,6 +7,7 @@ import com.data.collection.platform.entity.analytics.AnalyticsDashboardResponse;
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardRulesResponse;
 import com.data.collection.platform.service.analytics.AnalyticsDashboardQueryContextResolver;
 import com.data.collection.platform.service.analytics.AnalyticsDashboardRegistry;
+import com.data.collection.platform.security.RequirePagePermission;
 import jakarta.validation.constraints.NotBlank;
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
@@ -24,7 +25,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class AnalyticsDashboardController {
   private final AnalyticsDashboardRegistry registry;
   private final AnalyticsDashboardQueryContextResolver contextResolver;
-
   public AnalyticsDashboardController(
       AnalyticsDashboardRegistry registry,
       AnalyticsDashboardQueryContextResolver contextResolver) {
@@ -33,6 +33,7 @@ public class AnalyticsDashboardController {
   }
 
   @GetMapping("/{dashboardKey}")
+  @RequirePagePermission(resource = RequirePagePermission.Resource.ANALYTICS_DASHBOARD, action = RequirePagePermission.Action.VIEW)
   public ApiResponse<AnalyticsDashboardResponse> getDashboard(
       @PathVariable @NotBlank String dashboardKey,
       @RequestParam Map<String, String> parameters) {
@@ -42,6 +43,7 @@ public class AnalyticsDashboardController {
   }
 
   @GetMapping("/{dashboardKey}/rules")
+  @RequirePagePermission(resource = RequirePagePermission.Resource.ANALYTICS_DASHBOARD, action = RequirePagePermission.Action.VIEW)
   public ApiResponse<AnalyticsDashboardRulesResponse> getRules(
       @PathVariable @NotBlank String dashboardKey,
       @RequestParam Map<String, String> parameters) {
@@ -51,6 +53,7 @@ public class AnalyticsDashboardController {
   }
 
   @GetMapping("/{dashboardKey}/details/{viewKey}")
+  @RequirePagePermission(resource = RequirePagePermission.Resource.ANALYTICS_DASHBOARD, action = RequirePagePermission.Action.VIEW)
   public ApiResponse<AnalyticsDashboardDetailResponse> getDetails(
       @PathVariable @NotBlank String dashboardKey,
       @PathVariable @NotBlank String viewKey,
@@ -63,6 +66,7 @@ public class AnalyticsDashboardController {
   }
 
   @GetMapping("/{dashboardKey}/exports/{exportKey}")
+  @RequirePagePermission(resource = RequirePagePermission.Resource.ANALYTICS_DASHBOARD, action = RequirePagePermission.Action.EXPORT)
   public ResponseEntity<byte[]> export(
       @PathVariable @NotBlank String dashboardKey,
       @PathVariable @NotBlank String exportKey,

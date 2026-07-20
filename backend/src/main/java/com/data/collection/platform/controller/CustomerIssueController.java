@@ -2,7 +2,6 @@ package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.DownloadResponseHeaders;
 import com.data.collection.platform.common.response.ApiResponse;
-import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordListResponse;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordRowResponse;
@@ -10,7 +9,8 @@ import com.data.collection.platform.entity.CustomerIssueRecordFilterOptionsRespo
 import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
-import com.data.collection.platform.security.RequireRole;
+import com.data.collection.platform.security.PlatformPermissionCodes;
+import com.data.collection.platform.security.RequirePermission;
 import com.data.collection.platform.service.CustomerIssueIllegalRecordService;
 import com.data.collection.platform.service.CustomerIssueRecordService;
 import com.data.collection.platform.service.IssueFactRealtimeRefreshService;
@@ -52,6 +52,7 @@ public class CustomerIssueController {
   }
 
   @GetMapping("/records")
+  @RequirePermission("customer_issue.record.view")
   public ApiResponse<CustomerIssueRecordListResponse> listRecords(
       @ModelAttribute CustomerIssueRecordListWebRequest request) {
     return ApiResponse.success(
@@ -60,6 +61,7 @@ public class CustomerIssueController {
   }
 
   @GetMapping("/records/export")
+  @RequirePermission("customer_issue.record.export")
   public ResponseEntity<byte[]> exportRecords(
       @ModelAttribute CustomerIssueRecordListWebRequest request) {
     byte[] workbook =
@@ -72,6 +74,7 @@ public class CustomerIssueController {
   }
 
   @GetMapping("/records/filter-options")
+  @RequirePermission("customer_issue.record.view")
   public ApiResponse<CustomerIssueRecordFilterOptionsResponse> getRecordFilterOptions(
       @RequestParam(required = false) String topic,
       @RequestParam(required = false) Long projectId) {
@@ -79,6 +82,7 @@ public class CustomerIssueController {
   }
 
   @GetMapping("/records/rule-explanation")
+  @RequirePermission("customer_issue.record.view")
   public ApiResponse<StatisticBoardRuleExplanationResponse> getRecordRuleExplanation(
       @RequestParam(required = false) String topic,
       @RequestParam(required = false) Long projectId) {
@@ -86,6 +90,7 @@ public class CustomerIssueController {
   }
 
   @GetMapping("/records/status")
+  @RequirePermission("customer_issue.record.view")
   public ApiResponse<RealtimeWorkspaceStatusResponse> getRecordRealtimeStatus(
       @RequestParam(required = false) String topic,
       @RequestParam Map<String, String> filters) {
@@ -93,7 +98,7 @@ public class CustomerIssueController {
   }
 
   @PostMapping("/records/refresh")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.BUSINESS_DATA_REFRESH)
   public ApiResponse<RealtimeWorkspaceStatusResponse> refreshRecords(
       @RequestParam(required = false) String topic) {
     return ApiResponse.success(
@@ -101,6 +106,7 @@ public class CustomerIssueController {
   }
 
   @GetMapping("/illegal-records")
+  @RequirePermission("customer_issue.illegal.view")
   public ApiResponse<CustomerIssueIllegalRecordListResponse> listIllegalRecords(
       @ModelAttribute CustomerIssueIllegalRecordListWebRequest request) {
     return ApiResponse.success(
@@ -109,6 +115,7 @@ public class CustomerIssueController {
   }
 
   @GetMapping("/illegal-records/export")
+  @RequirePermission("customer_issue.illegal.export")
   public ResponseEntity<byte[]> exportIllegalRecords(
       @ModelAttribute CustomerIssueIllegalRecordListWebRequest request) {
     byte[] workbook =
@@ -121,32 +128,35 @@ public class CustomerIssueController {
   }
 
   @GetMapping("/illegal-records/filter-options")
+  @RequirePermission("customer_issue.illegal.view")
   public ApiResponse<CustomerIssueIllegalRecordFilterOptionsResponse> getIllegalRecordFilterOptions(
       @RequestParam(required = false) Long projectId) {
     return ApiResponse.success(customerIssueIllegalRecordService.getFilterOptions(projectId));
   }
 
   @GetMapping("/illegal-records/rule-explanation")
+  @RequirePermission("customer_issue.illegal.view")
   public ApiResponse<StatisticBoardRuleExplanationResponse> getIllegalRecordRuleExplanation(
       @RequestParam(required = false) Long projectId) {
     return ApiResponse.success(customerIssueIllegalRecordService.getRuleExplanation(projectId));
   }
 
   @GetMapping("/illegal-records/status")
+  @RequirePermission("customer_issue.illegal.view")
   public ApiResponse<RealtimeWorkspaceStatusResponse> getIllegalRecordRealtimeStatus(
       @RequestParam Map<String, String> filters) {
     return ApiResponse.success(realtimeRefreshService.getStatus(ILLEGAL_RECORDS_WORKSPACE_KEY, filters));
   }
 
   @PostMapping("/illegal-records/refresh")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.BUSINESS_DATA_REFRESH)
   public ApiResponse<RealtimeWorkspaceStatusResponse> refreshIllegalRecords() {
     return ApiResponse.success(
         "已开始刷新最新数据", realtimeRefreshService.requestRefresh(ILLEGAL_RECORDS_WORKSPACE_KEY));
   }
 
   @PostMapping("/illegal-records/refresh-one")
-  @RequireRole(AuthRole.ADMIN)
+  @RequirePermission(PlatformPermissionCodes.BUSINESS_DATA_REFRESH)
   public ApiResponse<CustomerIssueIllegalRecordRowResponse> refreshOneIllegalRecord(
       @RequestBody CustomerIssueIllegalRecordSingleRefreshWebRequest request) {
     return ApiResponse.success(

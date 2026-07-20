@@ -25,6 +25,7 @@ import { useReviewProblemItems } from './review-data/useReviewProblemItems';
 import { useReviewRecordDialog } from './review-data/useReviewRecordDialog';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
+import { hasPermission } from '../feature-manifest';
 import { downloadBlob } from '../utils/csv-download';
 import type { ReviewDataRecordRowResponse } from '../types/api';
 import type {
@@ -164,9 +165,52 @@ const columns = reviewDataColumns();
 const problemColumns = reviewProblemItemColumns();
 const legacyImportVisible = ref(false);
 const reviewDataSourceInstance = computed(() => String(route.query.sourceInstance ?? ''));
-const canEditReviewData = computed(() => true);
-const canImportReviewData = computed(() => authState.currentUser.role === 'ADMIN');
-const canDeleteReviewRecord = computed(() => authState.currentUser.role === 'ADMIN');
+const canCreateReviewRecord = computed(() => hasPermission(authState.currentUser, 'review.record.create'));
+const canEditReviewRecord = computed(() => hasPermission(authState.currentUser, 'review.record.edit'));
+const canCreateReviewProblem = computed(() => hasPermission(authState.currentUser, 'review.problem.create'));
+const canEditReviewProblem = computed(() => hasPermission(authState.currentUser, 'review.problem.edit'));
+const canDeleteReviewRecord = computed(() =>
+  hasPermission(authState.currentUser, 'review.record.delete_any')
+  || hasPermission(authState.currentUser, 'review.record.delete_own'),
+);
+const canDeleteReviewProblem = computed(() =>
+  hasPermission(authState.currentUser, 'review.problem.delete_any')
+  || hasPermission(authState.currentUser, 'review.problem.delete_own'),
+);
+const canDeleteAnyReviewRecord = computed(() =>
+  hasPermission(authState.currentUser, 'review.record.delete_any'),
+);
+const canDeleteAnyReviewProblem = computed(() =>
+  hasPermission(authState.currentUser, 'review.problem.delete_any'),
+);
+const canManageReviewRecord = computed(() => canEditReviewRecord.value || canCreateReviewProblem.value);
+const canManageReviewProblem = computed(() =>
+  canCreateReviewProblem.value || canEditReviewProblem.value || canDeleteReviewProblem.value,
+);
+const canImportReviewData = computed(() => hasPermission(authState.currentUser, 'review.legacy_import'));
+const canDownloadTemplate = computed(() => hasPermission(authState.currentUser, 'review.template.download'));
+const canExportReviewRecords = computed(() => hasPermission(authState.currentUser, 'review.record.export'));
+const canExportReviewProblems = computed(() => hasPermission(authState.currentUser, 'review.problem.export'));
+
+function canDeleteRecordRow(row: Record<string, unknown>) {
+  if (canDeleteAnyReviewRecord.value) {
+    return true;
+  }
+  const createdBy = (row.__raw as ReviewDataRecordRowResponse | undefined)?.createdBy;
+  return hasPermission(authState.currentUser, 'review.record.delete_own')
+    && Boolean(createdBy)
+    && createdBy === authState.currentUser.username;
+}
+
+function canDeleteProblemRow(row: Record<string, unknown>) {
+  if (canDeleteAnyReviewProblem.value) {
+    return true;
+  }
+  const createdBy = (row.__raw as { createdBy?: string | null } | undefined)?.createdBy;
+  return hasPermission(authState.currentUser, 'review.problem.delete_own')
+    && Boolean(createdBy)
+    && createdBy === authState.currentUser.username;
+}
 const exportDropdownLoading = computed(() => recordExportLoading.value || problemExportLoading.value);
 const exportDropdownButtonRef = ref<{ $el?: HTMLElement } | HTMLElement | null>(null);
 
@@ -507,6 +551,7 @@ const {
           <el-tag effect="plain" type="primary">当前 {{ total }} 条</el-tag>
           <el-button class="app-action-button app-action-button--refresh" plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
           <el-button
+            v-if="canDownloadTemplate"
             class="app-action-button app-action-button--rule btn-gray"
             :icon="InfoFilled"
             data-testid="review-rule-explanation-trigger"
@@ -523,6 +568,7 @@ const {
             模板
           </el-button>
           <el-dropdown
+            v-if="canExportReviewRecords || canExportReviewProblems"
             trigger="click"
             popper-class="app-export-dropdown-menu"
             :disabled="exportDropdownLoading"
@@ -542,8 +588,8 @@ const {
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="records">导出评审列表</el-dropdown-item>
-                <el-dropdown-item command="problems">导出问题列表</el-dropdown-item>
+                <el-dropdown-item v-if="canExportReviewRecords" command="records">导出评审列表</el-dropdown-item>
+                <el-dropdown-item v-if="canExportReviewProblems" command="problems">导出问题列表</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -557,7 +603,7 @@ const {
           </el-button>
           <PageSettingsButton :scope-key="PAGE_SCOPE_KEY" />
           <el-button
-            v-if="canEditReviewData"
+            v-if="canCreateReviewRecord"
             type="primary"
             class="app-action-button app-action-button--create"
             :icon="Plus"
@@ -584,7 +630,10 @@ const {
           :on-create-problem-item="handleCreateProblemItem"
           :on-edit-problem-item="handleEditProblemItem"
           :on-delete-problem-item="handleDeleteProblemItem"
-          :can-manage="canEditReviewData"
+          :can-manage="canManageReviewProblem"
+          :can-create="canCreateReviewProblem"
+          :can-edit="canEditReviewProblem"
+          :can-delete="canDeleteProblemRow"
         />
       </template>
 
@@ -598,8 +647,11 @@ const {
           :on-create-problem-item="handleCreateProblemItemByRow"
           :on-export-problem-details="handleExportRecordProblemDetails"
           :on-delete-record="handleDeleteRecord"
-          :can-manage="canEditReviewData"
-          :can-delete-record="canDeleteReviewRecord"
+          :can-manage="canManageReviewRecord"
+          :can-edit-record="canEditReviewRecord"
+          :can-create-problem="canCreateReviewProblem"
+          :can-delete-record="canDeleteRecordRow"
+          :can-export-problem-details="canExportReviewProblems"
         />
       </template>
     </BaseRecordTable>

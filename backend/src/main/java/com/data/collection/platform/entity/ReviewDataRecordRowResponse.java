@@ -38,7 +38,8 @@ public record ReviewDataRecordRowResponse(
     boolean deleted,
     Long gitlabProjectId,
     Long gitlabResourceIid,
-    String gitlabResourceType) {
+    String gitlabResourceType,
+    String createdBy) {
 
   public ReviewDataRecordRowResponse(
       Long id,
@@ -90,6 +91,7 @@ public record ReviewDataRecordRowResponse(
         null,
         updatedAt,
         deleted,
+        null,
         null,
         null,
         null);
@@ -161,6 +163,7 @@ public record ReviewDataRecordRowResponse(
         deleted,
         gitlabProjectId,
         gitlabResourceIid,
-        gitlabResourceType);
+        gitlabResourceType,
+        null);
   }
 }

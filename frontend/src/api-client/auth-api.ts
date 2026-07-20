@@ -1,17 +1,20 @@
-import type { UserRole } from '../feature-manifest';
 import { request } from './request';
 
 export interface AuthUserResponse {
   username: string;
   displayName: string;
-  role: UserRole;
+  roleCodes: string[];
+  roleNames: string[];
+  permissions: string[];
   authenticated: boolean;
 }
 
 export const guestUser: AuthUserResponse = {
   username: 'guest',
   displayName: '游客',
-  role: 'GUEST',
+  roleCodes: [],
+  roleNames: [],
+  permissions: [],
   authenticated: false,
 };
 

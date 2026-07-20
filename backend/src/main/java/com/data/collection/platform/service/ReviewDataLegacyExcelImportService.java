@@ -62,7 +62,8 @@ public class ReviewDataLegacyExcelImportService {
   }
 
   @Transactional
-  public ReviewDataLegacyExcelConfirmResponse confirm(ReviewDataLegacyExcelConfirmRequest request) {
+  public ReviewDataLegacyExcelConfirmResponse confirm(
+      ReviewDataLegacyExcelConfirmRequest request, String createdBy) {
     if (request == null || request.previewToken() == null || request.previewToken().isBlank()) {
       throw new BizException("缺少导入预览 token，请先上传并预览 Excel");
     }
@@ -88,10 +89,10 @@ public class ReviewDataLegacyExcelImportService {
           skippedRecords++;
           continue;
         }
-        Long recordId = commandService.createRecord(row.record());
+        Long recordId = commandService.createRecord(row.record(), createdBy);
         importedRecords++;
         for (ReviewDataProblemItemSaveRequest item : row.problemItems()) {
-          commandService.createProblemItem(recordId, item);
+          commandService.createProblemItem(recordId, item, createdBy);
           importedProblemItems++;
         }
       }

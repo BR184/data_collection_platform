@@ -9,6 +9,7 @@ import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { analyticsDashboardApi } from '../api-client/analytics-dashboard-api';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
+import { hasPermission } from '../feature-manifest';
 import { buildAnalyticsDetailRoute } from '../components/dashboard/detail-view-routes';
 import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
 import { ElMessage } from '../element-plus-services';
@@ -39,7 +40,7 @@ const selectedRule = ref<AnalyticsDashboardRule | null>(null);
 const ruleDrawerVisible = ref(false);
 
 const pageReady = computed(() => initialized.value);
-const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
+const canRefreshLatestData = computed(() => hasPermission(authState.currentUser, 'business_data.refresh'));
 const ruleByKey = computed(() => new Map(rules.value.map((rule) => [rule.key, rule])));
 const scopeParameters = computed<Record<string, string>>(() => ({
   ...(source.value ? { source: source.value } : {}),

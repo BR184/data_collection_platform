@@ -1,7 +1,8 @@
 package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
-import com.data.collection.platform.entity.AuthRole;
+import com.data.collection.platform.security.PlatformPermissionCodes;
+import com.data.collection.platform.security.RequirePermission;
 import com.data.collection.platform.entity.CodeReviewMatchModeCollectionOptionResponse;
 import com.data.collection.platform.entity.CodeReviewMatchModeConnectionTestResponse;
 import com.data.collection.platform.entity.CodeReviewMatchModeDbSettingsResponse;
@@ -14,7 +15,6 @@ import com.data.collection.platform.entity.CodeReviewDgmGitlabProjectSourceSaveR
 import com.data.collection.platform.entity.CodeReviewDgmGitlabProjectSyncResponse;
 import com.data.collection.platform.entity.LegacyPlatformFormalImportRequest;
 import com.data.collection.platform.entity.LegacyPlatformFormalImportResponse;
-import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.CodeReviewDgmGitlabProjectOptionService;
 import com.data.collection.platform.service.CodeReviewMatchModeConfigService;
 import com.data.collection.platform.service.CodeReviewMatchModeMongoReviewSyncService;
@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/code-review/match-mode-db-settings")
-@RequireRole(AuthRole.ADMIN)
+@RequirePermission(PlatformPermissionCodes.SYSTEM_MATCH_MODE_VIEW)
 //兼容模式-MatchMode：系统设置/数据库兼容模式临时设置后端入口；老平台交接完成后可整体删除本 Controller 及相关 Service/表。
 public class CodeReviewMatchModeDbSettingsController {
   private final CodeReviewMatchModeConfigService configService;
@@ -60,6 +60,7 @@ public class CodeReviewMatchModeDbSettingsController {
 
   //兼容模式-MatchMode
   @PutMapping
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MATCH_MODE_CONFIG)
   public ApiResponse<CodeReviewMatchModeDbSettingsResponse> saveSettings(
       @RequestBody CodeReviewMatchModeDbSettingsSaveRequest request) {
     return ApiResponse.success("数据库兼容模式临时设置已保存", configService.save(request));
@@ -67,6 +68,7 @@ public class CodeReviewMatchModeDbSettingsController {
 
   //兼容模式-MatchMode
   @PostMapping("/test-connection")
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MATCH_MODE_CONFIG)
   public ApiResponse<CodeReviewMatchModeConnectionTestResponse> testConnection(
       @RequestBody(required = false) CodeReviewMatchModeDbSettingsSaveRequest request) {
     CodeReviewMatchModeConnectionTestResponse result = configService.testConnection(request);
@@ -75,6 +77,7 @@ public class CodeReviewMatchModeDbSettingsController {
 
   //兼容模式-MatchMode
   @PostMapping("/table-options")
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MATCH_MODE_CONFIG)
   public ApiResponse<List<CodeReviewMatchModeTableOptionResponse>> tableOptions(
       @RequestBody(required = false) CodeReviewMatchModeDbSettingsSaveRequest request) {
     return ApiResponse.success(configService.discoverTableOptions(request));
@@ -82,6 +85,7 @@ public class CodeReviewMatchModeDbSettingsController {
 
   //兼容模式-MatchMode
   @PostMapping("/mongo/test-connection")
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MATCH_MODE_CONFIG)
   public ApiResponse<CodeReviewMatchModeConnectionTestResponse> testMongoConnection(
       @RequestBody(required = false) CodeReviewMatchModeDbSettingsSaveRequest request) {
     CodeReviewMatchModeConnectionTestResponse result = configService.testMongoConnection(request);
@@ -90,6 +94,7 @@ public class CodeReviewMatchModeDbSettingsController {
 
   //兼容模式-MatchMode
   @PostMapping("/mongo/collection-options")
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MATCH_MODE_CONFIG)
   public ApiResponse<List<CodeReviewMatchModeCollectionOptionResponse>> mongoCollectionOptions(
       @RequestBody(required = false) CodeReviewMatchModeDbSettingsSaveRequest request) {
     return ApiResponse.success(configService.discoverMongoCollectionOptions(request));
@@ -97,6 +102,7 @@ public class CodeReviewMatchModeDbSettingsController {
 
   //兼容模式-MatchMode
   @PostMapping("/mongo/sync-now")
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MATCH_MODE_SYNC)
   public ApiResponse<CodeReviewMatchModeSyncResponse> syncMongoReviewNow(
       @RequestBody(required = false) CodeReviewMatchModeDbSettingsSaveRequest request) {
     CodeReviewMatchModeSyncResponse result = mongoReviewSyncService.syncNow(request);
@@ -105,6 +111,7 @@ public class CodeReviewMatchModeDbSettingsController {
 
   //兼容模式-MatchMode
   @PostMapping("/sync-now")
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MATCH_MODE_SYNC)
   public ApiResponse<CodeReviewMatchModeSyncResponse> syncNow() {
     CodeReviewMatchModeSyncResponse result = syncService.syncNow();
     return ApiResponse.success(result.message(), result);
@@ -112,6 +119,7 @@ public class CodeReviewMatchModeDbSettingsController {
 
   //兼容模式-MatchMode
   @PostMapping("/formal-import")
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MATCH_MODE_FORMAL_IMPORT)
   public ApiResponse<LegacyPlatformFormalImportResponse> importToFormal(
       @RequestBody LegacyPlatformFormalImportRequest request) {
     LegacyPlatformFormalImportResponse result = formalImportService.importToFormal(request);
@@ -126,6 +134,7 @@ public class CodeReviewMatchModeDbSettingsController {
 
   //兼容模式-MatchMode：同上，便于后续彻底删除兼容设置页时快速定位交接期入口。
   @PutMapping("/dgm-gitlab-project-source")
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MATCH_MODE_CONFIG)
   public ApiResponse<CodeReviewDgmGitlabProjectSourceResponse> saveDgmGitlabProjectSource(
       @RequestBody CodeReviewDgmGitlabProjectSourceSaveRequest request) {
     return ApiResponse.success("DGM GitLab 项目下拉数据源已保存", dgmProjectOptionService.saveSettings(request));
@@ -133,6 +142,7 @@ public class CodeReviewMatchModeDbSettingsController {
 
   //兼容模式-MatchMode：仅测试 DGM GitLab 项目候选 API，不触发 MR/代码走查数据同步。
   @PostMapping("/dgm-gitlab-project-source/test-connection")
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MATCH_MODE_CONFIG)
   public ApiResponse<CodeReviewMatchModeConnectionTestResponse> testDgmGitlabProjectSource(
       @RequestBody(required = false) CodeReviewDgmGitlabProjectSourceSaveRequest request) {
     CodeReviewMatchModeConnectionTestResponse result = dgmProjectOptionService.testConnection(request);
@@ -141,6 +151,7 @@ public class CodeReviewMatchModeDbSettingsController {
 
   //兼容模式-MatchMode：只刷新 DGM 项目下拉本地缓存，不改变老平台 MySQL 兼容表和正式事实表。
   @PostMapping("/dgm-gitlab-project-options/sync-now")
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MATCH_MODE_SYNC)
   public ApiResponse<CodeReviewDgmGitlabProjectSyncResponse> syncDgmGitlabProjectOptions() {
     CodeReviewDgmGitlabProjectSyncResponse result = dgmProjectOptionService.syncNow();
     return ApiResponse.success(result.message(), result);

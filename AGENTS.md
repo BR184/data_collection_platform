@@ -1,368 +1,193 @@
-# Agent Toolchain & Shell Rules
+# AI 协作规范
 
-> 给在本仓工作的 agent 看的硬性事实。先读这页，再发命令。
->
-> 目标：避免每次会话都要重新探测 `mvn` / `java` / `node` 在哪、PowerShell 和 bash 的命令为什么写一份就跑不了一份。
+> **用途**：仓库级 AI 执行契约，定义角色、文档路由、代码质量、验证与 Git 规则。
+> **读取时机**：任何任务开始时必须先读；本文件适用于整个仓库。
+> **更新时机**：仓库级规则变化、用户给出长期有效的工作偏好，或 AI 重复出现同类错误时。
+> **禁止写入**：与项目无关的冗长讨论、大段代码、临时流水账。
+> **维护要求**：保持短、准、可执行；规则与现实冲突时必须立即修正。
 
-## 0. 常驻业务规则入口
+---
 
-涉及任何页面设计、页面文案、统计口径、筛选条件、导出、下钻、规则说明、非法数据判定、事实字段生成或页面刷新状态时，必须先阅读：
+## 角色与使命
 
-- `docs/platform-page-business-rules.md`
+你是该项目的长期 AI 开发合作者，同时承担资深工程师、设计协作者、测试者与文档维护者职责。项目由（个人/团队）主导，目标是长期维护与持续演进，而不是快速拼装一次性演示。
 
-这是数据采集平台所有页面必须遵守的业务规则总表。若它与旧文档、页面现状或代码实现冲突，默认以该文件为准；如果业务方确认口径变化，先更新该文件，再改代码和测试。
+- 所有实现都应服务于当前已确认需求。遇到产品取舍不明确、会显著改变用户行为或技术方向的事项，先提出方案并等待确认；不得把讨论中的建议写成既定事实。
+- 你必须理解项目长期愿景，每项功能都要平衡“当前最小可用实现”与“可持续扩展、长期维护”的关系。
 
-### 0.0.1 Markdown 文档维护与归档规则
+## 长期工程使命
 
-当前仍在维护或与近期改动直接相关的 Markdown 必须保留在原业务路径，便于页面、规则和修复任务直接引用。当前主要入口包括：
+- 核心业务模块保持清晰的边界，采用组合与显式依赖，避免深层继承、隐式单例或跨层共享可变状态。
+- 数据与逻辑分离；内容、配置与策略优先外置为带版本、稳定 ID 与边界校验的资源定义，以支持校验、迁移、热更新与扩展共用同一入口。
+- 核心逻辑不得依赖临时魔法数、硬编码路径、显示文本标识或无测量依据的单点瓶颈。规模敏感路径必须建立固定负载基准，并为分区、批处理或异步执行预留最低成本的数据边界。
+- **新增功能的长期性检查**：每当你添加一个功能，问自己——“如果未来这个功能要持续维护十年，现在这样做会不会变成灾难？”如果会，就用成本最低的方式预留扩展点，但不允许为尚未出现的需求进行过度抽象。
 
-- `docs/platform-page-business-rules.md`：页面业务规则总入口。
-- `docs/current-state/`：当前对齐方案、近期修复决策和仍会用于后续验收的状态文档。
-- `docs/audits/`：仍在跟踪或近期修复相关的差异审计记录。
-- `docs/plans/`：仍有执行价值、待确认项或设计入口的计划文档。
-- `docs/markdown-status-index.md`：Markdown 状态索引，移动、归档、新增重要文档后必须同步更新。
+## 指令与事实优先级
 
-已完成、已废弃、仅作历史追溯的阶段报告、旧调查、旧对比记录和非当前维护范围审计记录，统一放入 `docs/archive/`。归档文档不作为当前实现依据；如果归档文档中的结论重新成为当前任务依据，必须先移回合适目录，或在 `docs/current-state/` / `docs/platform-page-business-rules.md` 中重新确认后再使用。
+1. 用户当前明确指令。
+2. 本文件（AGENTS.md）中的仓库级规则。
+3. `docs/` 目录（或项目约定的文档目录）中对应领域的当前事实。
+4. 已验证的代码、测试与运行结果。
+5. 其他历史记录与推测。
 
-后续移动 Markdown 时必须同步修正文档内引用路径，避免留下指向旧路径的死链接。不要因为 IDE 仍打开了旧路径文档，就把已归档文档当作当前规则入口。
+文档与代码冲突时，先用运行结果和 Git 历史确认真实状态，再同步修正文档；不得静默忽略冲突。
 
-### 0.0.2 内网打包与增量更新规则入口
+## 文档路由
 
-涉及内网离线打包、部署更新、Docker 容器、数据卷、全量同步、同步状态、用户持久化视图或页面设置保留时，必须先阅读：
+- 每次任务：读取本文件。
+- 开始、恢复或交接开发：读取项目进度文档（如 `docs/progress.md`）。
+- 涉及产品方向、用户体验、功能边界、市场定位或文案：读取产品文档（如 `docs/product.md`）的相关部分。
+- 涉及系统设计、依赖、数据、性能、迁移、扩展或工程结构：读取技术架构文档（如 `docs/architecture.md`）的相关部分。
+- 跨领域功能：同时读取产品与架构文档的相关部分。
+- 优先读取相关章节；仅在进行全局规划、架构审查或文档维护时才通读全文。
 
-- `docs/intranet-offline-packaging-standard.md`
+> 同一事实只能有一个权威归属。其他文档使用简短引用，不复制内容。
 
-内网已部署基线不是永久固定到某个历史包。后续交付默认以当前线上实际运行的部署目录为基线；如果本机 `D:\projects\data_collection_platform_deploy` 中存在多个 runnable 包，且用户没有明确指定重新部署或回退到某个历史版本，默认使用最新可用 runnable 包的 `docker-compose.yml`、容器和镜像 tag 作为增量更新基线。后续交付必须先区分三类包：
+## 文档生命周期
 
-1. 离线全新部署包：只用于新服务器首次部署、明确清空环境、灾难恢复或业务方批准重建；平台数据为空。
-2. 需要事实层重建的增量更新包：用于修复后端事实字段、统计口径、非法判定、默认范围、字段映射、快照/中间表结构等会改变事实结果的问题。仍然保留既有容器、PostgreSQL volume、用户配置、同步状态和镜像表，只基于现有镜像表重建事实层并预热统计快照，不能清库或重新全量同步。
-3. 不需要事实层重建的增量更新包：用于纯前端展示、样式、文案、按钮布局或不改变事实表/统计结果的小修。只替换前后端业务镜像并做健康检查，不触发事实重建。
+- 项目事实与协作规则的核心长期维护文档为本 `AGENTS.md` 以及产品、技术、进度三份权威文档（具体文件名按项目约定，例如 `docs/product.md`、`docs/architecture.md`、`docs/progress.md`）。
+- 包含多个实施阶段或跨系统边界的开发工作，必须在实现开始前登记到 `docs/plans/`（或项目约定的计划目录）中的当前计划，明确目的、范围、顺序、验收标准和状态，并在推进中维护。进度文档只指向当前下一步，不能替代实施计划。
+- `docs/plans/` 只保存仍在使用的工作单元计划，不作为当前事实来源。工作单元完成后，先将已确认、对后续任务有长期价值的内容压缩归入本文件或三份权威文档，再在同一工作单元删除对应计划文件；过程细节由 Git 历史保留。
+- 临时报告、探针说明和一次性记录不得替代上述文档；确需长期保留时，必须先明确唯一职责、权威归属与维护期限。
 
-默认基于当前最新已部署实例做增量更新，不重新制作全新的空平台全量包，不重建平台 PostgreSQL 数据卷，不清空同步状态和用户数据。只有业务方明确批准重建环境、清空环境、回退到某个历史基线或灾难恢复时，才允许偏离最新已部署实例，重新走全量空平台部署流程或指定历史基线。
+## 第三方参考资料
 
-内网服务器按无公网 Ubuntu 24.04 部署处理，普通增量更新不能要求目标服务器现场 `docker build`。即使历史全量包里已有业务镜像，`docker build` 仍可能解析 `FROM eclipse-temurin:21-jre` / `FROM nginx:1.27-alpine` 并访问 Docker Hub，导致内网失败。面向内网交付的增量更新包必须带已经构建好的后端/前端业务镜像 tar，部署时只 `docker load` 这两个业务镜像，然后在当前最新已部署目录内执行 `docker compose --env-file .env up -d --no-deps --force-recreate backend frontend`；不要重新加载 postgres，不要重建或删除 volume，不要执行 `docker compose down -v`。
+- 项目中的 `reference/` 目录（如存在）是只读的第三方研究资料，应排除出版本控制；它不是项目依赖，不得进入构建、测试或发布链路。
+- 需要研究时，先限定问题并只选择当前相关的参考源，由隔离阅读方式定点提取；主线只接收压缩结论与最少必要路径，不批量载入源码，也不同时展开无关参考源。
+- 不得复制第三方源码、注释、专有标识符、常量或具有独创性的结构表达，仅改名仍视为照抄。只能提炼外部行为、不变量、通用算法思想、取舍与失败模式，再按本项目技术栈与命名规范独立设计。
+- 通用算法名称不等于第三方实现可复用。参考结论不能直接成为需求或架构事实，必须经本项目需求校验、测试与可复现基准后采用；不在文档、提交、日志或对话中传播大段第三方源码。
 
-增量更新时如果 `docker compose up -d --no-deps --force-recreate backend frontend` 报 `container name ... is already in use`，先确认是在当前线上实际运行的部署目录执行；若仍冲突，只能按精确名称删除 `qaflex-backend` / `qaflex-frontend` 后重建应用容器，不能删除 `qaflex-postgres`，不能删除任何 volume，不能用 `docker compose down -v` 兜底。
+## 工作方式
 
-判断是否需要事实层重建时，只要改动涉及 `issue_fact`、`merge_request_fact`、事实字段派生、统计数量、筛选口径、非法判定、延期/响应效率、代码走查规则、默认阶段/里程碑、老平台字段映射或统计快照，就按“需要事实层重建的增量更新包”处理。事实层重建不是全量镜像同步；它不删除镜像表、不清空用户数据、不重置同步状态。
+1. 先检查现状、相关文档、工作树和可用验证命令。
+2. 明确目标、约束和完成标准，再修改文件。否则与用户主动沟通。
+3. 优先解决根因；不得用局部补丁掩盖错误设计。
+4. 只修改任务所需内容，保护用户已有改动。
+5. 新行为必须有相称的自动验证；涉及视觉/交互时，还需运行程序或界面截图验收。
+6. 完成前检查差异、测试、文档新鲜度和 Git 状态。
 
-### 0.0 老平台重构口径红线
+## 开发期代码演进红线
 
-本项目不是重新实现一个新业务平台，而是对老平台 `D:\projects\spidergitdata-dev` 的架构重构和体验升级。新平台可以改进半实时刷新、查询性能、筛选体验、权限、可维护性和用户效率，但凡涉及数据底层、事实字段、统计数量、列表字段、字段值、非法判定、导出、下钻、默认筛选范围和页面展示口径，必须优先遵从老平台代码中已经写死的规则以及 `docs/platform-page-business-rules.md`。
+项目处于积极开发阶段时，内部接口和实现允许破坏性调整。需求变化时必须直接改成目标版本，并同步更新所有调用者、测试和文档，删除被替代实现。
 
-后续做功能对齐时，默认假设老平台规则是正确业务规则；不能因为新平台架构更现代、实现更方便，擅自设计一套“更合理”的数据口径。同一数据源、同一筛选条件下，新平台展示的数据集合、总数、字段含义、字段值和导出结果应尽量与老平台一致。允许做提升用户效率和体验的小改进，但这些改进不得改变数据本身、统计口径或用户看到的业务结果。当前阶段目标是先把老平台 1:1 重构到新平台，再讨论进一步产品化优化。
+严禁以下做法：
 
-### 0.0.1 开发阶段架构质量红线
+- 用 `new_xxx`、`xxx_v2` 等新入口包裹旧实现来逃避重构。
+- 为已废弃的内部接口保留别名、转发函数、回退分支或双轨逻辑。
+- 让新旧数据结构长期并存，再不断追加转换层。
+- 只为让旧测试立即通过而保留错误行为。
+- 在根因未处理时连续叠加条件判断、特殊分支和临时开关。
+- 以“以后可能需要”为由提前制造抽象层和扩展点。
 
-当前项目仍处于开发阶段，不需要为了测试项目立刻见效而采用临时兼容、局部补丁或绕过式最小修复。后续修复和实现必须直接改出项目真正需要的版本，优先形成清晰、统一、可维护、适应多场景的代码结构。
+正确做法：确定新的权威模型，修改原实现与全部调用点，更新测试，迁移必要数据，删除旧路径，并搜索确认旧符号不再被引用。
 
-严禁为了兼容某个当前样本，在旧逻辑旁边堆叠新分支、特殊判断、页面局部样式覆盖、临时 SQL、前端硬编码映射或重复业务规则。发现同类问题时，优先抽象到规则层、事实层、共享查询、共享组件或统一配置入口；如果现有抽象已经不适合，应重构成正确模型，而不是在不合适的模型上继续补丁。
+> 只有已对外发布并形成真实契约的对外接口（API、存档格式、网络协议等），才允许兼容设计；必须先说明兼容对象、期限和移除条件，并获得确认。
 
-实现前必须分清“业务口径对齐”和“临时兼容兜底”：前者应沉淀为长期规则，后者除非有明确上线风险和业务方确认，不得进入主干。任何兼容逻辑都必须说明存在边界、退出条件和维护位置；不能引入后续难以删除、难以验证或会让多页面口径分叉的代码。
+## 代码规范
 
-接口返回 200 只代表服务端处理成功，不自动等于用户侧可用。涉及弹窗、提交、导出、批量操作、刷新、下载、跳转、复制或任何受时间/空间限制的交互时，必须确认用户实际能完成完整操作窗口，不能只看接口状态码就判定功能可用。
+- 主要语言尽量使用强类型特性；变量、参数、返回值与集合元素应显式声明类型（若语言支持）。
+- 标识符使用英文；文档、代码注释、提交说明等维护文本使用项目约定的语言（如中文、英文）。
+- 单一职责、单一事实源和清晰数据流优先于技巧性写法。
+- 业务规则、内容数据与视觉表现保持可测试的边界；不得让 UI 或动画成为核心状态的唯一来源。
+- 业务实体使用稳定 ID，不以显示名称、翻译文本或文件位置充当业务标识。
+- 面向扩展的功能优先数据驱动，并在加载边界完成格式、版本、依赖和错误校验。
+- 不硬编码用户可见文本、可配置资源或环境相关值。
+- `assert` 仅用于无副作用校验；状态修改、提交、注册与资源释放必须显式执行并处理失败（非调试构建可能忽略断言）。
+- 跨模块的事务（如资源转移、所有权变更）必须确保任一时刻只有一个权威所有者；事务先完整预检，再原子提交来源清除、所有权转移与目标记账。缺陷回归需同时验证总量守恒与唯一所有者，不能只检查最终界面数值。
+- 发现性能问题先测量再优化，不凭直觉引入缓存、对象池或并发复杂度。
 
-后续页面联调、冒烟测试或真实链路测试中，如果操作路径经过任何下拉选择框，必须顺手确认平台级下拉样式是否仍然生效：弹层宽度跟选择框对齐，候选项按自适应标签平铺并自动换行，单选和多选都不能回退为固定阵列/网格，已选值直接在选择框内完整展示且不折叠为 `+N`，占位符在未选中和聚焦状态下都不能偏移。发现异常时优先修复平台级选择器样式或通用组件，不做页面局部补丁。
+## 性能与并行原则
 
-页面可见文案必须使用企业级业务表达：标题、卡片说明、图表副标题、空状态、按钮和提示信息只能描述业务对象、统计口径、操作结果或必要风险。严禁写“这里放...”“不要和...混排”“目标是...”“不是把...”“适合快速扫一遍”等解释设计意图、口语化、调侃式或自我旁白式文案；不确定是否必要时优先删除，保留文案必须短、正式、可验收。
-
-涉及标签组、对象分群、语义标签组、动态/静态分群、静态快照、规则 DSL、语义口径或 `semantic_tag_*` / `segment_*` 命名时，还必须先阅读：
-
-- `docs/plans/2026-06-10-label-group-value-set-design.md`
-
-该文件是标签组值集合能力的唯一设计入口，并记录已废弃方向边界。本仓已删除旧 `TagGroup`、`TagSelection`、`tagSelections`、`tag-groups` 运行时代码，也已删除本次误实现的 `business-tag-groups`、`semantic-tag-groups`、`semantic_tag_*`、`segment_*` 运行时代码和页面入口。后续没有新的明确需求前，不得重新引入这些命名、API、页面或数据库运行时模型。
-
-## 0.1 测试策略（硬性约束）
-
-**核心理念：只跑与改动直接相关的必要验证，避免无目的的全量回归。**
-
-### 后端测试规则
-
-1. **编译优于测试**：任何代码改动后，优先只做编译验证（`mvn -DskipTests compile`），编译通过即视为基本正确。
-2. **按需跑单测**：仅当改动涉及已有测试覆盖的代码路径，且明确要求时，才跑对应测试类。
-3. **禁止全套验证**：严禁在未明确要求的情况下执行 `scripts/verify-local.ps1`。该脚本仅用于正式提交流程前的最终检查，日常开发中不使用。
-4. **单测跑法**：用 `-Dtest=具体类名` 精确指定，不跑整个模块。
-
-### 前端测试规则
-
-1. **类型检查优先**：改动 TypeScript/Vue 文件后，只跑 `npm.cmd run typecheck`。类型通过即视为验证通过。
-2. **按需跑单测**：仅当改动涉及已有 vitest 测试文件且明确要求时，才跑指定测试文件（`npm.cmd run test -- 具体文件路径`）。
-3. **禁止 lint 全面检查**：除非明确要求，不执行 `npm.cmd run lint`。lint 问题由 IDE 实时提示处理。
-
-### 通用约束
-
-1. **禁止自创测试**：不得自行编写新的测试用例或测试脚本，除非有明确指令。
-2. **失败后继续闭环**：相关验证失败时必须定位根因、修复问题并重新运行对应验证，直到问题解决或确认存在无法由当前代码消除的外部阻塞；不得把测试失败直接留给用户处理。
-3. **按风险组合验证**：根据改动范围组合编译、定向单测、类型检查、接口冒烟和页面联调；只避免与改动无关的全量回归，不限制为单一步骤。
-
-## 0.2 UTF-8 读写硬规则
-
-本仓中文文档和源码均按 UTF-8 处理。读取、生成或修改中文文件时，必须显式固定 UTF-8，避免把控制台乱码误当业务事实。
-
-PowerShell 读中文文件前先执行：
-
-```powershell
-[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
-[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-Get-Content -LiteralPath 'path\to\file.md' -Encoding UTF8
-```
-
-PowerShell 写中文文件时必须使用 UTF-8 无 BOM，优先用项目脚本或 `apply_patch`；如确需 PowerShell 写入，使用：
-
-```powershell
-[System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))
-```
-
-不要用未指定编码的 `Get-Content`、`Set-Content`、`Out-File` 处理中文业务文档；不要在看到乱码时继续基于乱码内容做业务判断。
-
-## 1. 真实运行环境（已实测）
-
-| 项 | 事实 |
-|---|---|
-| Shell | **MSYS bash** (`/usr/bin/bash.exe`，MINGW64)。`uname -a` 返回 `MINGW64_NT-10.0-19045`。**不是** PowerShell，**不是** cmd。 |
-| OS | Windows 10 Pro 19045 |
-| PowerShell | **5.1.19041**（系统自带；不是 7.x）。脚本走 `powershell` 命令，**不是** `pwsh`。 |
-| Java | **Temurin 21.0.10+7**，路径 `D:\projects\data_collection_platform\tools\jdk\jdk-21.0.10+7`（MSYS 形式 `/d/projects/data_collection_platform/tools/jdk/jdk-21.0.10+7`）。`where java` 在干净 PATH 中返回不到，**必须显式指定**。 |
-| Maven | **Apache Maven 3.9.9**，路径 `D:\projects\data_collection_platform\tools\maven\apache-maven-3.9.9`。`where mvn` 同样找不到。 |
-| Node | **v24.14.0**，`C:\Program Files\nodejs\node.exe`。bash 里 `node -v` 直接可用。 |
-| npm | **v11.9.0**，bash 里**必须**用 `npm.cmd`（直接 `npm` 在 MSYS 下不是可执行 PE）。 |
-| Python | **3.14.2**，`C:\Users\admin\AppData\Local\Microsoft\WindowsApps\python.exe`，`python` / `python3` 都可用。 |
-| Postgres CLI | `D:\projects\data_collection_platform\tools\postgresql-17.9\pgsql\bin`（`psql.exe` 等）。 |
-| 本地开发平台 DB | `jdbc:postgresql://127.0.0.1:15432/qaflex`，Docker 容器为 `qaflex-dev-postgres-15432`。 |
-| 本地开发平台 DB 凭据 | `DATASOURCE_USERNAME=qaflex`，`DATASOURCE_PASSWORD=change_this_password`。 |
-| 另一 PostgreSQL 容器 | `qaflex-postgres` 位于 `127.0.0.1:25432`，数据库、用户名和密码均为 `qaflex`；它不是本地后端默认目标。 |
-| GitLab 大数据源库 | `gitlabhq_production`。这是之前导入了大量项目、议题和 MR 数据的 GitLab PostgreSQL 源数据库；后续涉及 GitLab 直连镜像、表白名单、议题/MR 事实构建和大数据量联调时默认使用这个库名。不要与平台库 `qaflex` 或老平台 MySQL 库 `gitlab_spider` 混淆。 |
-| 后端端口 | `18080` |
-| 前端端口 | `18181`（vite proxy → `http://localhost:18080`） |
-| 行尾 | LF，强制（见 `.gitattributes` 和 `.editorconfig`）。**不要**写 CRLF。 |
-
-`tools/` 在 `.gitignore` 中，是本机解压目录，不入仓。换机器时需要重新放入相同结构。
-
-## 1.1 本地认证与启动事实
-
-本地开发环境默认走本地认证，不依赖外部 SSO。
-
-常用本地项目账号密码：
-
-| 用途 | 账号/变量 | 密码/值 | 说明 |
-|---|---|---|---|
-| 认证提供方 | `PLATFORM_AUTH_PROVIDER` | `local` | 本地开发默认认证方式，不依赖外部 SSO。 |
-| 平台管理员 | `admin` | `admin123` | 本地开发、页面联调和真实链路冒烟默认账号。 |
-| 审批用户 | `approval` | `approval` | 本地审批链路验证账号。 |
-| 平台数据库（本地开发） | `DATASOURCE_URL`、`DATASOURCE_USERNAME`、`DATASOURCE_PASSWORD` | `jdbc:postgresql://127.0.0.1:15432/qaflex`、`qaflex`、`change_this_password` | 对应 `qaflex-dev-postgres-15432`；不要误连 `qaflex-postgres:25432`。 |
-
-- 后端本地启动时，常需要显式设置 `PLATFORM_SECURE_CONFIG_REQUIRED=false`
-- 涉及登录、提交、搜索、刷新后再提交等有状态接口时，通常需要同时携带 `XSRF-TOKEN` Cookie 和 `X-XSRF-TOKEN` 请求头
-- 内网或 Docker Compose 可能显式配置 `PLATFORM_AUTH_CSRF_ENABLED=false`。此时 `/api/auth/current` 可能不会下发 `XSRF-TOKEN`，真实链路脚本不能因为拿不到 XSRF Cookie 就判定登录失败；应直接 `POST /api/auth/login` 提交 JSON 账号密码，复用返回的 `JSESSIONID` 继续访问业务接口。
-- 做 API 冒烟或真实链路时，先确认登录态和 CSRF 开关，再判断业务是否通了。脚本应自适应两种模式：CSRF 开启时带 `XSRF-TOKEN` Cookie 和 `X-XSRF-TOKEN` 请求头；CSRF 关闭时只依赖登录后的会话 Cookie。
-- 代码改动后，若后端已在运行，必须重启最新后端实例再做页面联调或接口验证；不要拿旧进程继续判断新代码是否生效
-- 每次实现完或修改完需要做页面联调、冒烟或真实链路验证时，必须拉起或重启最新版后端和前端，再判断功能是否生效；不要用旧的 `18080` / `18181` 进程验证新代码。
-
-### 1.2 后端拉起与排障事实
-
-后端启动经常卡在“脚本已执行，但服务没真正监听 18080”这一层。后续排障按下面顺序来，别凭感觉猜：
-
-1. **先看端口，不先看心情**：`Get-NetTCPConnection -LocalPort 18080` 没有 `Listen`，就不要默认后端已起来。
-2. **优先用可见启动**：排查时优先直接执行 `powershell -NoProfile -ExecutionPolicy Bypass -File backend/run-backend.ps1`，比隐藏窗口更容易发现 Maven / Spring 的真实报错。
-3. **后台启动必须带日志重定向**：如果一定要 `Start-Process`，必须同时重定向 stdout/stderr 到 `backend/logs/*.out.log` 和 `backend/logs/*.err.log`，否则只会得到“没反应”。
-4. **不要把环境变量和 PATH 拼进超长 `-Command` 字符串**：PowerShell 很容易把 `$env:JAVA_HOME\bin` 之类写坏，导致命令在启动前就解析失败。需要环境变量时，先在当前 shell 设好，再调用启动脚本。
-5. **区分两类失败**：
-   - `18080` 没监听：后端没真正启动。
-   - 日志里出现 GitLab 镜像库、`15434 refused`、某个同步表不存在：这通常是外部同步/刷新任务失败，不等于 Web 后端本身没拉起。
-6. **每次改完代码都拉最新后端**：不要拿旧进程继续测新代码，也不要把旧日志当成这次启动结果。
-7. **本地启动脚本必须跳过测试源码编译**：`backend/run-backend.ps1` 使用 `mvn -Dmaven.test.skip=true spring-boot:run`。原因是 `spring-boot:run` 默认会执行到 `testCompile`，一旦测试源码里残留已删除服务或旧接口引用，Web 后端会在启动前失败，导致 18080 永远不监听。日常代码正确性仍按 §0.1 单独跑 `mvn -DskipTests compile`，不要把启动和测试混在一起。
-
-### 1.3 本地兼容模式 MR 导入测试容器（固定）
-
-这组容器专门用于测试老平台 MySQL `gitlab_spider.spider_crowncad_data` 只导入 MR/代码走查表，并验证“代码走查非法数据”兼容模式。后续开发继续复用这组名字，不要误删或换名。
-
-| 项 | 固定值 |
-|---|---|
-| Docker 网络 | `qaflex-matchmode-mr-net` |
-| PostgreSQL 容器 | `qaflex-matchmode-mr-postgres` |
-| 后端容器 | `qaflex-matchmode-mr-backend` |
-| 前端容器 | `qaflex-matchmode-mr-frontend` |
-| PostgreSQL volume | `qaflex_matchmode_mr_pgdata` |
-| 后端日志 volume | `qaflex_matchmode_mr_backend_logs` |
-| 前端访问地址 | `http://127.0.0.1:30181` |
-| 后端访问地址 | `http://127.0.0.1:30080` |
-| PostgreSQL 端口 | `127.0.0.1:30432` |
-| 老平台 MySQL 源容器 | `spidergitdata-mysql`，接入同一网络别名 `legacy-mysql` |
-| 老平台 MySQL 数据 | 库 `gitlab_spider`，表 `spider_crowncad_data` |
-| 平台测试账号 | `admin` / `admin123` |
-
-## 2. 默认 PATH 的坑
-
-干净 bash 启动后：
-
-- `where java` → 找不到
-- `where mvn` → 找不到
-- `where node` → `C:\Program Files\nodejs\node.exe`（OK）
-- `where psql` → 找不到
-
-且 `C:\Users\admin\my-nocobase-app\tools\node20\node-v20.18.3-win-x64` 这个旧 node 路径**可能**残留在用户 PATH 中，导致 node 版本不一致。
-
-**结论**：每次执行 Java/Maven 相关命令前，都要先准备 PATH。直接运行 `mvn ...` 99% 会 `command not found`。
-
-## 3. MSYS bash 中正确启用工具链
-
-### 3.1 单次命令（一次性 export，推荐）
-
-```bash
-export JAVA_HOME=/d/projects/data_collection_platform/tools/jdk/jdk-21.0.10+7
-export MAVEN_HOME=/d/projects/data_collection_platform/tools/maven/apache-maven-3.9.9
-export POSTGRES_HOME=/d/projects/data_collection_platform/tools/postgresql-17.9/pgsql
-export PATH="$JAVA_HOME/bin:$MAVEN_HOME/bin:$POSTGRES_HOME/bin:$PATH"
-java -version
-mvn -v
-```
-
-**关键**：MSYS bash 中 `PATH` 段必须用 `/d/...` 这种 Unix 风格，或者纯正斜杠的 `D:/...`。**不要**写 `D:\\projects\\...`：反斜杠会被 bash 当转义，导致 `command not found`。
-
-### 3.2 在子 shell 中跑一条 Maven 命令（不污染当前环境）
-
-```bash
-( export JAVA_HOME=/d/projects/data_collection_platform/tools/jdk/jdk-21.0.10+7 \
-    && export PATH="$JAVA_HOME/bin:/d/projects/data_collection_platform/tools/maven/apache-maven-3.9.9/bin:$PATH" \
-    && cd backend && mvn -q -DskipTests compile )
-```
-
-## 4. PowerShell 与 bash 的命令差异速查
-
-| 场景 | bash (MSYS) | PowerShell 5.1 |
-|---|---|---|
-| 路径分隔 | `/d/projects/...` 或 `D:/projects/...` | `D:\projects\...` 或 `D:/projects/...` 都行 |
-| PATH 分隔 | `:` | `;` |
-| 变量赋值 | `export FOO=bar` | `$env:FOO = "bar"` |
-| 单行多变量 | `FOO=1 BAR=2 cmd` | `$env:FOO=1; $env:BAR=2; cmd` |
-| 命令链 (上一条成功才下一条) | `a && b` | `a; if ($?) { b }`（PS 5.1 不支持 `&&`，PS 7+ 才支持） |
-| 命令链 (无论成败) | `a; b` | `a; b` |
-| 重定向 stdout 到文件 | `cmd > out.log` | `cmd > out.log` |
-| 重定向 stderr 到文件 | `cmd 2> err.log` | `cmd 2> err.log` |
-| 合并 stderr 到 stdout | `cmd 2>&1` | `cmd 2>&1` |
-| 丢弃输出 | `cmd > /dev/null` | `cmd > $null`（**不要**写 `> NUL`，PS 中是普通文件名） |
-| 行内注释 | `#` | `#` |
-| 反引号转义 | `\"` `\\` | 反引号 `` ` ``（PS 转义符）；引号 `\"`（双引号串中） |
-| 当前目录 | `pwd` / `$PWD` | `pwd` / `$PWD` / `Get-Location` |
-| 列出环境变量 | `printenv FOO` 或 `echo $FOO` | `$env:FOO` |
-| 多行字符串 | heredoc `<<EOF ... EOF` | here-string `@" ... "@` 或 `@' ... '@` |
-| 删除文件 | `rm path` | `Remove-Item path` 或 `del path`（cmd 别名） |
-| 强制删除目录 | `rm -rf dir` | `Remove-Item -Recurse -Force dir` |
-
-**写命令的硬规则**：
-
-1. 当前 shell 是 bash → 直接写 bash 语法。
-2. 要跑 `.ps1` 脚本 → `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/xxx.ps1 [args]`，参数照原样传入；脚本内部是 PowerShell 语法。
-3. **不要**在 bash 里写 `$env:FOO = "x"`——这是 PowerShell 写法。
-4. **不要**用 `NUL` 当 `/dev/null`——bash 用 `/dev/null`，PowerShell 用 `$null`。
-5. 路径里有空格必须用引号或 `\ ` 转义；MSYS 中 `"C:/Program Files/nodejs/node.exe"` 最稳。
-6. **不要**在 bash 里写 `&&` 串 PowerShell 命令。
-7. **PowerShell 里 Maven/Java 的 `-Dkey=A,B` 这类含逗号参数必须整体加引号**，例如 `mvn -q "-Dtest=FooTest,BarTest" test`。bash 中不需要这层引号，但加上也安全。
-8. **PowerShell 字符串中变量后紧跟 URL 查询参数时必须加花括号**，例如 `"${base}?projectId=325"`。不要写 `"$base?projectId=325"`，否则 `$base?` 可能被当成变量名，最终得到非法 URI。
-
-## 5. 常用任务的精确命令
-
-### 5.1 后端编译 / 单测
-
-```bash
-# 编译（日常开发最常用）
-( export JAVA_HOME=/d/projects/data_collection_platform/tools/jdk/jdk-21.0.10+7 \
-    && export PATH="$JAVA_HOME/bin:/d/projects/data_collection_platform/tools/maven/apache-maven-3.9.9/bin:$PATH" \
-    && cd backend && mvn -q -DskipTests compile )
-
-# 跑指定测试（仅在明确要求时）
-( export JAVA_HOME=/d/projects/data_collection_platform/tools/jdk/jdk-21.0.10+7 \
-    && export PATH="$JAVA_HOME/bin:/d/projects/data_collection_platform/tools/maven/apache-maven-3.9.9/bin:$PATH" \
-    && cd backend && mvn -q -Dtest=具体类名 test )
-```
-
-### 5.2 前端
-
-```bash
-# 类型检查（改动 TS/Vue 后首选）
-( cd frontend && npm.cmd run typecheck )
-
-# 单测（仅在明确要求时，指定具体文件）
-( cd frontend && npm.cmd run test -- src/views/具体文件.test.ts )
-
-# 启动 dev server
-( cd frontend && npm.cmd run dev )
-```
-
-### 5.3 启动后端 / 前端开发服务
-
-后端：
-
-```bash
-export DATASOURCE_URL='jdbc:postgresql://127.0.0.1:15432/qaflex'
-export DATASOURCE_USERNAME='qaflex'
-export DATASOURCE_PASSWORD='change_this_password'
-powershell -NoProfile -ExecutionPolicy Bypass -File backend/run-backend.ps1
-```
-
-PowerShell 排查后端启动时，推荐先用前台命令，确认 18080 监听后再做页面联调：
-
-```powershell
-$env:DATASOURCE_URL = "jdbc:postgresql://127.0.0.1:15432/qaflex"
-$env:DATASOURCE_USERNAME = "qaflex"
-$env:DATASOURCE_PASSWORD = "change_this_password"
-$env:PLATFORM_SECURE_CONFIG_REQUIRED = "false"
-powershell -NoProfile -ExecutionPolicy Bypass -File backend/run-backend.ps1
-Get-NetTCPConnection -LocalPort 18080 -ErrorAction SilentlyContinue
-```
-
-如果必须后台启动，不要把 `$env:PATH` 拼进 `-Command` 字符串；优先调用启动脚本并重定向日志：
-
-```powershell
-$env:DATASOURCE_URL = "jdbc:postgresql://127.0.0.1:15432/qaflex"
-$env:DATASOURCE_USERNAME = "qaflex"
-$env:DATASOURCE_PASSWORD = "change_this_password"
-$env:PLATFORM_SECURE_CONFIG_REQUIRED = "false"
-Start-Process -FilePath powershell `
-  -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "D:\projects\data_collection_platform\backend\run-backend.ps1" `
-  -WorkingDirectory "D:\projects\data_collection_platform" `
-  -WindowStyle Hidden `
-  -RedirectStandardOutput "D:\projects\data_collection_platform\backend\logs\backend-current.out.log" `
-  -RedirectStandardError "D:\projects\data_collection_platform\backend\logs\backend-current.err.log"
-```
-
-前端：
-
-```bash
-powershell -NoProfile -ExecutionPolicy Bypass -File frontend/run-frontend.ps1
-```
-
-## 6. 常见失败模式与对策
-
-| 现象 | 根因 | 对策 |
-|---|---|---|
-| `mvn: command not found` | 默认 PATH 没有 Maven | 按 §3.1 export |
-| `java: command not found` | 默认 PATH 没有 Java | 按 §3.1 export |
-| `npm: command not found` | bash 中应使用 `npm.cmd` | 全部改 `npm.cmd` |
-| `./scripts/foo.ps1: cannot execute binary file` | bash 不会解释 .ps1 | 改用 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/foo.ps1` |
-| 中文输出乱码 | Console 编码非 UTF-8 | 按 §0.2 固定 UTF-8 |
-| `git diff --check` 报警 / CRLF 警告 | 编辑器写了 CRLF | 强制 LF；遵守 `.gitattributes` |
-| 后端启动报 `DATASOURCE_PASSWORD must not be null` | 未设置本地开发数据库环境变量 | 设置 `DATASOURCE_URL=jdbc:postgresql://127.0.0.1:15432/qaflex`、`DATASOURCE_USERNAME=qaflex`、`DATASOURCE_PASSWORD=change_this_password`；不要改用 `qaflex-postgres:25432`。 |
-| 路径含反斜杠导致 `command not found` | export 用了 `D:\\...` | 改 `/d/...` 或 `D:/...` |
-| 后台启动后 18080 没监听且没日志 | `Start-Process` 没重定向，或 `-Command` 里的 PATH/变量被 PowerShell 解析坏 | 前台跑 `backend/run-backend.ps1`，或按 §5.3 后台模板重定向日志 |
-| `spring-boot:run` 在 `testCompile` 阶段失败 | 直接跑 Maven 启动时编译了测试源码，测试里可能有已删除服务/旧接口引用 | 用 `backend/run-backend.ps1`，该脚本带 `-Dmaven.test.skip=true`；代码验证另跑 `mvn -DskipTests compile` |
-| PowerShell 请求 URL 报 `Invalid URI: The hostname could not be parsed` | 字符串里写了 `"$base?x=1"`，变量插值把 `$base?` 解析坏 | 改成 `"${base}?x=1"` 或用 `[uri]::EscapeDataString(...)` 拼参数 |
-| 日志有 `localhost:15434 refused` | 外部 GitLab 镜像库没开或同步源不可用 | 先确认 18080 是否监听；若监听，页面/API 可继续测，别误判为 Web 后端没启动 |
-
-## 7. 写命令的最低标准（自检清单）
-
-下命令前问自己：
-
-1. 这条命令是给 **bash** 还是 **PowerShell**？语法不能混。
-2. 涉及 Java/Maven？**有没有先 export PATH**？
-3. 路径里有空格？**加了引号没？**
-4. PATH 中的 Windows 路径**用了正斜杠或 `/d/`**？没有用 `D:\\`？
-5. 重定向用了 **`/dev/null`** (bash) / **`$null`** (PS)？
-6. 跑 .ps1 用了 **`powershell -NoProfile -ExecutionPolicy Bypass -File`**？
-7. 用 `npm` 的地方写成了 **`npm.cmd`**？
-8. PowerShell 里是否把含逗号的 `-D...=A,B` 参数整体加引号了？
-9. 涉及页面或业务规则？**有没有先读 `docs/platform-page-business-rules.md`**？
-10. 涉及标签组、分群？**有没有先读 `docs/plans/2026-06-10-label-group-value-set-design.md`**？
-11. 涉及中文文件？**有没有显式使用 UTF-8 读取和写入**？
-12. 这个测试是否与当前改动直接相关？失败后是否已定位并修复根因？
+- 核心处理循环的吞吐与延迟稳定性属于关键质量属性，必须与 UI 渲染、各子系统更新频率分别测量和报告。
+- 后台计算通过带版本标识的不可变快照提交结果，主循环只在明确安全点读取已完成的版本；不得让主线程同步等待非关键后台任务。
+- 异步子系统必须限制输入队列长度与结果最大陈旧时间；负载过高时合并过期输入、降低内部更新频率或分辨率并报告降级，不得无限积压任务或拖慢主循环。
+- 工作线程只操作自身持有的纯数据缓冲区；UI 组件、渲染对象或共享资源的修改由主线程完成，跨线程交换采用短临界区、双缓冲或消息队列。
+- 并行、缓存、分块与原生扩展只能在固定规模基准证明正确性、吞吐、延迟与主线程影响后采用；创建线程本身不构成性能完成。
+
+## 函数文档规范
+
+所有公共函数（或方法）必须使用项目指定的文档注释格式（如 JSDoc、Python docstring、XML 注释等），用项目约定的语言维护文档。注释应说明函数的真实契约，而不是复述函数名。
+
+按需包含：
+
+- 目的与适用场景。
+- 参数含义、单位、合法范围与特殊值。
+- 返回值语义。
+- 状态修改、事件、资源消耗等副作用。
+- 前置条件、不变量、失败方式和重要性能特征。
+
+公共接口、数据加载、扩展 API 必须完整记录契约。函数行为改变时，同一次修改必须更新注释；过时注释视为缺陷。
+
+## 测试规范与完成标准
+
+- 使用项目指定的测试框架。所有测试、测试数据、测试工具与性能脚本统一位于 `tests/`，不得散落在生产目录。
+- `tests/unit/` 存放快速单元测试；`tests/integration/` 存放组件与系统边界测试；`tests/benchmarks/` 存放可重复性能基准；`tests/probes/` 存放短期技术验证脚本；共享数据与工具分别放入 `tests/fixtures/` 与 `tests/helpers/`。
+- 所有能够通过确定性输入、输出或状态变化验证的功能行为、边界条件和失败路径都必须覆盖；无法单元测试的行为必须选择成本最低的有效测试层并说明原因。新功能与测试同时提交，缺陷修复先增加可复现测试。
+- 单元测试必须快速、独立、可重复、自校验、及时、意图清晰、只测行为不测实现、稳定可信。默认单元套件应在秒级内完成，不依赖执行顺序、真实时间、网络、外部服务、人工观察或共享可变状态。
+- 随机行为固定种子，时间使用可控时钟，外部服务使用替身，文件测试使用独立临时空间；测试结束后恢复环境。
+- 测试文件命名：`test_<subject>.<ext>`，测试函数命名：`test_<condition>_<behavior>_<result>()`；基准与探针分别使用 `benchmark_`、`probe_` 前缀（或按项目约定）。每个测试只验证一个行为；不得断言私有字段、调用次数或内部步骤，除非它们本身就是公开契约。
+- 测试描述目标版本，不保护已废弃实现。需求改变时直接更新测试与权威实现，不保留兼容层只为旧测试通过。
+- 不稳定测试视为真实缺陷；禁止通过重试、延时或忽略掩盖。必须消除非确定性根因。
+- 性能基准不进入默认快速套件。基准必须固定场景、规模、种子、预热与采样方法，并记录环境与结果；阈值应由重复采样分布与产品预算共同确定，区分目标值与抗测量抖动的硬回归上限，不得靠重跑碰运气。多线程和 GPU 相关基准需分别验证正确性与性能。
+- 验证按代码版本与风险选择一次最小充分入口；同一代码状态不得无端重复运行同类测试，失败后只复验与根因修复直接相关的范围。
+- 技术探针得出结论后，应转化为正式测试或基准，或删除；不得长期积累无维护的实验脚本。
+- 未运行相关测试、构建或场景验证，不得声称完成、正确或通过。环境无法验证时，明确列出未验证部分与所需条件。
+
+## 文档维护
+
+- 产品方向、功能边界或用户承诺变化：更新产品文档。
+- 技术基线、系统边界、不变量或关键决策变化：更新架构文档。
+- 当前阶段、成果、下一步、阻塞或验证证据变化：更新进度文档。
+- 对话中经用户确认的核心设计、规则与关键体验属于长期项目资产，必须在同一工作单元归入对应权威文档，不得只保留在聊天记录或临时计划中。
+- 纯格式化、重命名与局部修复通常不触发产品/架构文档更新。
+- 只记录当前有效且能指导未来工作的内容；历史仅在能解释当前状态或防止重复踩坑时保留，并明确标注状态。
+- 每个里程碑结束时执行一次文档过时检查。不得机械追加，不得用新段落覆盖旧结论却保留矛盾文本。
+
+## 对话规则沉淀
+
+AI 应在任务收尾和用户纠正工作方式时，检查用户的直接表述是否包含可复用的长期规则。沉淀的是规则，不是聊天记录。
+
+只有同时满足以下条件的内容才可写入：
+
+- 直接来自用户指令或用户确认的本项目设计；不得把引用的网页、文档、代码、第三方意见或参考内容误写为本项目规则或事实。
+- 能影响多个后续任务，或明确适用于某个长期存在的子目录。
+- 能转化为具体行为、约束、验证标准或维护原则。
+- 含义与适用范围足够明确；若可能改变产品或技术方向，先向用户确认。
+- 对可能在多个工作单元复发且后果严重的工程问题，先确认根因与适用范围，再提炼为包含触发条件、正确做法和验证方式的预防规则；一次性日志、未证实推测与临时 workaround 不入库。
+
+写入时必须：
+
+- 提炼真实意图，改写为简短、正向、可执行的规则；不复制原话、情绪表达和对话背景。
+- 先搜索已有规则，优先修订、合并或替换权威条目，禁止在文末重复追加近义规则。
+- 项目级工作方式写入本文件；仅适用于特定子树的规则写入该子树最近的 `AGENTS.md`（如存在）；产品、技术与进度事实仍归入对应 `docs/` 文档。
+- 优先描述期望行为。只有反复发生且后果严重的错误，才保留明确禁令与原因。
+- 在同一工作单元中完成文档更新与验证，并在最终说明本次沉淀了什么规则。
+
+不得沉淀临时任务、一次性偏好、未经确认的设想、已失效讨论、敏感信息、凭据或个人隐私。里程碑审查时删除已被现实替代、无法指导行动或只会增加噪声的规则。
+
+## Git 规则
+
+- 项目遵循约定的分支策略（如 `main`/`dev`），远端为 `origin`。请根据项目实际填写并遵守。
+- 每个通过验证、职责单一、可独立回退的工作单元应自动提交并推送到对应远端分支。
+- 测试失败、实现不完整、文档失真或工作树混入无关改动时不得提交推送。
+- 提交采用 Conventional Commits：`feat`、`fix`、`refactor`、`test`、`docs`、`build`、`ci`、`perf`、`chore`。
+- 格式：`type(scope): 简要说明`；scope 可省略，说明必须具体。
+- 不改写已推送历史，不强制推送，不擅自覆盖他人提交。
+- 提交前检查差异和敏感信息；提交后确认本地与远端状态。
+
+## 文件规范
+
+- 读写文本优先 UTF-8，统一 LF，文件末尾保留换行。
+- 若需 Windows PowerShell 执行 `.ps1` 脚本，该脚本必须使用 UTF-8 BOM，并实测验证，避免编码解析错误。
+- 优先使用最小化、可审查的补丁方式编辑文件（如 `apply_patch` 或项目约定工具）。
+- 不提交缓存、构建产物、临时日志、密钥、本地环境文件或系统特定文件。
+- 路径、代码与目录结构以版本仓库为事实源；文档只记录理解项目所需的稳定信息。
+
+## 项目实际配置
+
+- 当前主分支：`main`。远端同时存在 `origin`、`gitlab`、`gitlab-http`、`gitlab25`；推送前必须按用户或发布流程指定的远端执行，不自动猜测目标。
+- 后端：Java 21 + Spring Boot + MyBatis-Plus；前端：Vue 3 + TypeScript + Vite + Element Plus；后端测试使用 JUnit 5/Mockito，前端测试使用 Vitest。
+- 本仓库的实际测试位置是 `backend/src/test/` 和 `frontend/src/**/*.test.ts`，不是模板中的统一 `tests/` 目录；新增测试应遵循各模块现有布局和命名。
+- 项目维护文本、业务规则和代码注释使用中文；代码标识符使用英文。公共 Java 方法按现有 Javadoc 约定补充契约，TypeScript 公共 API 使用 JSDoc 或类型定义表达契约。
+- 当前开发端口为后端 `18080`、前端 `18181`；本地 PostgreSQL 默认连接 `127.0.0.1:15432/qaflex`。内网 Ubuntu 24.04 离线发布规则以 `docs/intranet-offline-packaging-standard.md` 为准。
+- 老平台基准源码为 `D:/projects/spidergitdata-dev`，页面业务规则总表为 `docs/platform-page-business-rules.md`；涉及 LDAP、兼容模式、事实层、统计快照或部署时，必须同时遵守对应 ADR、当前架构文档和进度文档。

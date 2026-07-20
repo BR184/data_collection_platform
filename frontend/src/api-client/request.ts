@@ -37,6 +37,21 @@ export class RequestTimeoutError extends Error {
   }
 }
 
+/** HTTP 请求失败时保留状态码，供页面区分鉴权失败与业务加载失败。 */
+export class HttpRequestError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'HttpRequestError';
+    this.status = status;
+  }
+}
+
+export function isUnauthorizedError(error: unknown): error is HttpRequestError {
+  return error instanceof HttpRequestError && error.status === 401;
+}
+
 export function isRequestTimeoutError(error: unknown): error is RequestTimeoutError {
   return error instanceof RequestTimeoutError || (error instanceof Error && error.name === 'RequestTimeoutError');
 }
@@ -62,6 +77,13 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
 
   try {
     await waitForProgressFirstPaint(platformProgress, signal);
+    // The progress first-paint yield can let a caller abort before fetch is
+    // started. Honour that cancellation immediately instead of creating a
+    // request with an already-aborted signal that some fetch implementations
+    // may not reject consistently.
+    if (signal?.aborted) {
+      throw new DOMException('The operation was aborted.', 'AbortError');
+    }
     if (timeoutController) {
       timeoutId = setTimeout(() => {
         didTimeout = true;
@@ -101,7 +123,10 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
 
     if (!response.ok) {
       notifyAuthRequired(response.status, payload?.message || rawText);
-      throw new Error(payload?.message || rawText || `请求失败，状态码：${response.status}`);
+      throw new HttpRequestError(
+        payload?.message || rawText || `请求失败，状态码：${response.status}`,
+        response.status,
+      );
     }
 
     if (payload && typeof payload === 'object' && 'success' in payload) {
@@ -206,7 +231,7 @@ async function requestRaw(url: string, init?: RequestOptions): Promise<Response>
   if (!response.ok) {
     const message = await parseErrorMessage(response, errorPrefix);
     notifyAuthRequired(response.status, message);
-    throw new Error(message);
+    throw new HttpRequestError(message, response.status);
   }
   return response;
 }
