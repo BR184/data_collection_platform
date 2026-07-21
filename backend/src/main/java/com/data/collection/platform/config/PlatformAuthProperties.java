@@ -4,7 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "platform.auth")
 public class PlatformAuthProperties {
-  private String provider = "local";
+  private String provider = "ldap";
   private String adminUsername = "admin";
   private String adminPassword = "admin123";
   private String approvalUsername = "approval";

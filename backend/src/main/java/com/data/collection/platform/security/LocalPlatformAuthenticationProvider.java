@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 @Component
-@ConditionalOnProperty(prefix = "platform.auth", name = "provider", havingValue = "local", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "platform.auth", name = "provider", havingValue = "local")
 public class LocalPlatformAuthenticationProvider implements PlatformAuthenticationProvider {
   private final PlatformAuthProperties properties;
   private final PasswordEncoder passwordEncoder;

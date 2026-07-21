@@ -30,6 +30,7 @@ logging:
 
 platform:
   auth:
+    provider: local
     admin-username: ${TEST_PLATFORM_ADMIN_USERNAME:admin}
     admin-password: ${TEST_PLATFORM_ADMIN_PASSWORD:admin-test-2026}
     approval-username: ${TEST_PLATFORM_APPROVAL_USERNAME:approval}

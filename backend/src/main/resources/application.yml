@@ -49,7 +49,7 @@ logging:
 
 platform:
   auth:
-    provider: ${PLATFORM_AUTH_PROVIDER:local}
+    provider: ${PLATFORM_AUTH_PROVIDER:ldap}
     admin-username: ${PLATFORM_ADMIN_USERNAME:admin}
     admin-password: ${PLATFORM_ADMIN_PASSWORD:admin123}
     approval-username: ${PLATFORM_APPROVAL_USERNAME:approval}

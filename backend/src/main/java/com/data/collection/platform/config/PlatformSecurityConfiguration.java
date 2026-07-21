@@ -13,6 +13,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -34,11 +36,31 @@ public class PlatformSecurityConfiguration {
   };
 
   @Bean
+  @Order(1)
+  public SecurityFilterChain externalApiSecurityFilterChain(
+      HttpSecurity http,
+      ExternalApiProperties externalApiProperties,
+      ObjectMapper objectMapper) throws Exception {
+    http
+        .securityMatcher("/api/external/**")
+        .csrf(AbstractHttpConfigurer::disable)
+        .formLogin(AbstractHttpConfigurer::disable)
+        .httpBasic(AbstractHttpConfigurer::disable)
+        .logout(AbstractHttpConfigurer::disable)
+        .requestCache(AbstractHttpConfigurer::disable)
+        .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .addFilterBefore(
+            new ExternalApiAuthenticationFilter(externalApiProperties, objectMapper),
+            UsernamePasswordAuthenticationFilter.class)
+        .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated());
+    return http.build();
+  }
+
+  @Bean
+  @Order(2)
   public SecurityFilterChain platformSecurityFilterChain(
       HttpSecurity http,
       PlatformAuthProperties authProperties,
-      ExternalApiProperties externalApiProperties,
-      ObjectMapper objectMapper,
       AuthenticationEntryPoint authenticationEntryPoint,
       AccessDeniedHandler accessDeniedHandler) throws Exception {
     if (authProperties.isCsrfEnabled()) {
@@ -61,9 +83,6 @@ public class PlatformSecurityConfiguration {
             .authenticationEntryPoint(authenticationEntryPoint)
             .accessDeniedHandler(accessDeniedHandler))
         .addFilterBefore(new PlatformSessionAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
-        .addFilterBefore(
-            new ExternalApiAuthenticationFilter(externalApiProperties, objectMapper),
-            PlatformSessionAuthenticationFilter.class)
         .addFilterAfter(new PlatformCsrfCookieFilter(), PlatformSessionAuthenticationFilter.class)
         .authorizeHttpRequests(authorize -> authorize
             .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico").permitAll()

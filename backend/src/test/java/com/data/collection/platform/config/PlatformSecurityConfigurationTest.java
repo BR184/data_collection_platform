@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.data.collection.platform.common.response.ApiResponse;
@@ -16,6 +17,10 @@ import jakarta.servlet.http.Cookie;
 import java.util.Map;
 import java.util.List;
 import java.util.Set;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Bean;
@@ -47,11 +52,34 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 class PlatformSecurityConfigurationTest {
   @Autowired
   private WebApplicationContext context;
+  @Autowired
+  private ExternalApiProperties externalApiProperties;
   private MockMvc mockMvc;
 
   @BeforeEach
   void setUp() {
+    externalApiProperties.setEnabled(false);
+    externalApiProperties.setClients(List.of());
     mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+  }
+
+  @Test
+  void shouldKeepExternalBearerRequestsStatelessAndSeparateFromBrowserCsrf() throws Exception {
+    ExternalApiProperties.Client client = new ExternalApiProperties.Client();
+    client.setClientId("bi-dashboard");
+    client.setTokenSha256(sha256Hex("external-test-token"));
+    client.setAllowedDatasets(List.of("bi-dashboard"));
+    externalApiProperties.setEnabled(true);
+    externalApiProperties.setClients(List.of(client));
+
+    mockMvc.perform(get("/api/external/v1/datasets/security-probe")
+            .header("Authorization", "Bearer external-test-token"))
+        .andExpect(status().isOk())
+        .andExpect(cookie().doesNotExist("XSRF-TOKEN"));
+
+    mockMvc.perform(get("/api/auth/csrf-probe"))
+        .andExpect(status().isOk())
+        .andExpect(cookie().exists("XSRF-TOKEN"));
   }
 
   @Test
@@ -148,6 +176,11 @@ class PlatformSecurityConfigurationTest {
 
   @RestController
   static class SecurityProbeController {
+    @GetMapping("/api/external/v1/datasets/security-probe")
+    ApiResponse<Map<String, Object>> externalSecurityProbe() {
+      return ApiResponse.success(Map.of("ready", true));
+    }
+
     @GetMapping("/api/auth/csrf-probe")
     ApiResponse<Map<String, Object>> csrfProbe() {
       return ApiResponse.success(Map.of("ready", true));
@@ -178,6 +211,15 @@ class PlatformSecurityConfigurationTest {
     @PostMapping("/api/protected-post")
     ApiResponse<Map<String, Object>> protectedPost() {
       return ApiResponse.success(Map.of("saved", true));
+    }
+  }
+
+  private static String sha256Hex(String value) {
+    try {
+      return HexFormat.of().formatHex(
+          MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
+    } catch (NoSuchAlgorithmException exception) {
+      throw new IllegalStateException("JDK 不支持 SHA-256", exception);
     }
   }
 }

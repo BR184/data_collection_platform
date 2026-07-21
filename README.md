@@ -23,6 +23,9 @@ cd backend
 
 `run-backend.ps1` 会自动加载 `backend/.env.local`。该文件仅供本机使用、已被 Git 忽略；
 进程环境变量优先于该文件，方便 CI 和部署显式覆盖本地配置。
+首次启动先复制 `backend/.env.local.example` 为 `backend/.env.local`。当前产品默认使用
+LDAP 认证；本地账号模式必须显式设置 `PLATFORM_AUTH_PROVIDER=local`，不会在配置缺失时
+静默接管 LDAP 登录。
 
 Backend default URL:
 

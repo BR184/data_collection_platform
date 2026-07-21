@@ -29,6 +29,8 @@ BI 看板以及后续其它平台需要读取数据采集平台的事实和统�
 - 每个数据集通过 `ExternalDatasetProvider` 注册，独立声明参数和字段；公共认证、授权和响应外壳不随数据集复制。
 - 使用 `Authorization: Bearer <token>` 的服务间认证。部署配置只保存 token 的 SHA-256 摘要，客户端使用数据集白名单授权。
 - 外部 API 默认关闭，只有显式设置 `PLATFORM_EXTERNAL_API_ENABLED=true` 并配置客户端后才开放。
+- 外部 API 使用只匹配 `/api/external/**` 的独立无状态 Spring Security 过滤链，禁用 Session、请求缓存与 CSRF；平台 LDAP 登录和浏览器业务接口使用另一条 Session 安全链。
+- 开启外部 API 时，客户端 ID、64 位 SHA-256 Token 摘要和非空数据集白名单属于启动前置条件；配置无效时应用直接启动失败。
 - 第一批数据集为 `system-test-module-fix-rates`，产品版本参数为 `productVersion`，修复数使用事实字段 `is_fixed=true`，建议类缺陷排除，分母为零的修复率返回 `null`。
 - 新增聚合数据集 `bi-dashboard`，一次返回 BI 看板需求中所有展示区域：质量目标、模块修复率、评审分布/密度、系统测试轮次修复、严重程度分布、缺陷原因、申请延期、修复人统计和代码提交趋势。其参数为必填 `productVersion`，以及可选 `codeGranularity=day|week`、`codeSource=all|cc|dgm` 和 `repositoryName`；所有建议类缺陷均在 provider 层排除，分母为零的比率返回 `null`。
 - 后续评审数据集必须复用评审页面的合并读源：正式评审表与 `review_data_match_mode_*` 兼容快照表始终合并，不能因 `review_data_read_mode` 关闭而丢失仅存在于老平台的历史评审数据。

@@ -22,7 +22,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /** Authenticates only the versioned external API with deployment-managed bearer tokens. */
 public class ExternalApiAuthenticationFilter extends OncePerRequestFilter {
-  private static final String EXTERNAL_API_PREFIX = "/api/external/";
   private static final String BEARER_PREFIX = "Bearer ";
 
   private final ExternalApiProperties properties;
@@ -37,10 +36,6 @@ public class ExternalApiAuthenticationFilter extends OncePerRequestFilter {
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
-    if (!request.getRequestURI().startsWith(EXTERNAL_API_PREFIX)) {
-      filterChain.doFilter(request, response);
-      return;
-    }
     if (!properties.isEnabled()) {
       writeFailure(response, HttpServletResponse.SC_NOT_FOUND, ResultCode.NOT_FOUND, "请求资源不存在");
       return;
