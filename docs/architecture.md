@@ -82,8 +82,6 @@
 - 外部 API 使用独立的无状态 Spring Security 过滤链，不创建或读取平台 Session、不签发 CSRF Cookie；浏览器业务接口继续使用 LDAP Session 与 CSRF，两条认证链不得合并。
 - 外部 API 开启但客户端、Token 摘要或数据集白名单不完整时，后端必须启动失败，不能以运行时 401/404 掩盖部署错误。
 - 数据集由 provider 注册并声明版本、参数和字段；当前契约及数据集范围见 `docs/decisions/ADR-002-versioned-external-dataset-api.md`。
-- 单区域消费者读取专用数据集；`bi-dashboard` 聚合数据集通过 `sections` 显式选择计算区域，未请求区域不得触发数据库统计。
-- 兼容评审报告的 `problem_detail_ids`、`description_ids` 先展开为去重的精确关系读模型，下游统一视图和同步回填不得对 JSON 字符串使用前导通配符关联。
 
 ## 性能、迁移与发布不变量
 

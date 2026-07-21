@@ -12,7 +12,6 @@ public record BiDashboardPayload(
     String productVersion,
     List<String> availableProductVersions,
     List<String> testingPhases,
-    List<String> includedSections,
     QualityTargets qualityTargets,
     List<SystemTestModuleFixRateSnapshot.ModuleRow> moduleFixRates,
     ReviewDistributions reviewDistributions,
@@ -26,7 +25,6 @@ public record BiDashboardPayload(
     availableProductVersions = availableProductVersions == null
         ? List.of() : List.copyOf(availableProductVersions);
     testingPhases = testingPhases == null ? List.of() : List.copyOf(testingPhases);
-    includedSections = includedSections == null ? List.of() : List.copyOf(includedSections);
     moduleFixRates = moduleFixRates == null ? List.of() : List.copyOf(moduleFixRates);
     reviewDistributions = reviewDistributions == null ? ReviewDistributions.empty() : reviewDistributions;
     phaseFixes = phaseFixes == null ? BoardTable.empty("system-test-phase-statistics") : phaseFixes;

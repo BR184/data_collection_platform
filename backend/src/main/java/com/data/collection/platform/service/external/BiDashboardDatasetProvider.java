@@ -30,8 +30,6 @@ import com.data.collection.platform.entity.statistics.StatisticRowData;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,27 +43,9 @@ import org.springframework.util.StringUtils;
 @Service
 public class BiDashboardDatasetProvider implements ExternalDatasetProvider<BiDashboardPayload> {
   public static final String DATASET_KEY = "bi-dashboard";
-  private static final String SCHEMA_VERSION = "1.1";
+  private static final String SCHEMA_VERSION = "1.0";
   private static final long CROWN_CAD_PROJECT_ID = 9L;
   private static final Set<String> PHASE_COLUMNS = Set.of("level1", "level2", "level3", "total");
-
-  private enum DashboardSection {
-    QUALITY_TARGETS("qualityTargets"),
-    MODULE_FIX_RATES("moduleFixRates"),
-    REVIEW_DISTRIBUTIONS("reviewDistributions"),
-    PHASE_FIXES("phaseFixes"),
-    SEVERITY_DISTRIBUTION("severityDistribution"),
-    DEFECT_CAUSE_DISTRIBUTION("defectCauseDistribution"),
-    DELAYED_DEFECTS("delayedDefects"),
-    FIX_USERS("fixUsers"),
-    CODE_SUBMISSION_TREND("codeSubmissionTrend");
-
-    private final String parameterValue;
-
-    DashboardSection(String parameterValue) {
-      this.parameterValue = parameterValue;
-    }
-  }
 
   private final JdbcTemplate jdbcTemplate;
   private final QualityBoardRdService qualityBoardRdService;
@@ -108,18 +88,11 @@ public class BiDashboardDatasetProvider implements ExternalDatasetProvider<BiDas
             new ExternalDatasetParameter(
                 "codeSource", "string", false, "代码趋势范围：all、cc 或 dgm。", "all"),
             new ExternalDatasetParameter(
-                "repositoryName", "string", false, "代码趋势仓库名称，可选精确过滤。", "CrownCAD"),
-            new ExternalDatasetParameter(
-                "sections", "string", false,
-                "逗号分隔的响应区域；不传时计算全部区域。",
-                "qualityTargets,moduleFixRates,reviewDistributions,phaseFixes,"
-                    + "severityDistribution,defectCauseDistribution,delayedDefects,fixUsers,"
-                    + "codeSubmissionTrend")),
+                "repositoryName", "string", false, "代码趋势仓库名称，可选精确过滤。", "CrownCAD")),
         List.of(
             new ExternalDatasetField("productVersion", "string", false, "产品版本。"),
             new ExternalDatasetField("availableProductVersions[]", "string", false, "可选择的启用产品版本。"),
             new ExternalDatasetField("testingPhases[]", "string", false, "产品版本下的系统测试阶段。"),
-            new ExternalDatasetField("includedSections[]", "string", false, "本次实际计算并返回的区域。"),
             new ExternalDatasetField("qualityTargets.metrics[]", "object", false, "质量目标指标。"),
             new ExternalDatasetField("moduleFixRates[]", "object", false, "各模块系统测试修复率。"),
             new ExternalDatasetField("reviewDistributions.byType[]", "object", false, "评审类型问题分布。"),
@@ -136,8 +109,6 @@ public class BiDashboardDatasetProvider implements ExternalDatasetProvider<BiDas
   @Override
   public BiDashboardPayload load(Map<String, String> parameters) {
     String productVersion = required(parameters, "productVersion");
-    EnumSet<DashboardSection> sections = parseSections(
-        parameters == null ? null : parameters.get("sections"));
     String granularity = normalizeGranularity(parameters == null ? null : parameters.get("codeGranularity"));
     String codeSource = normalizeCodeSource(parameters == null ? null : parameters.get("codeSource"));
     String repositoryName = optional(parameters == null ? null : parameters.get("repositoryName"));
@@ -145,60 +116,21 @@ public class BiDashboardDatasetProvider implements ExternalDatasetProvider<BiDas
     if (phases.isEmpty()) {
       throw new IllegalArgumentException("产品版本不存在或没有启用的系统测试阶段: " + productVersion);
     }
-    StatisticBoardResponse summary = needsSummaryBoard(sections)
-        ? board("system-test-defect-summary", productVersion) : null;
-    QualityTargets qualityTargets = sections.contains(DashboardSection.QUALITY_TARGETS)
-        ? qualityTargets(qualityBoardRdService.getOverview(productVersion), summary)
-        : new QualityTargets(List.of());
+    QualityBoardRdOverviewResponse overview = qualityBoardRdService.getOverview(productVersion);
+    StatisticBoardResponse summary = board("system-test-defect-summary", productVersion);
     return new BiDashboardPayload(
         productVersion,
         phaseScopeResolver.listEnabledLegacyCrownCadParentNames(),
         phases,
-        sections.stream().map(section -> section.parameterValue).toList(),
-        qualityTargets,
-        sections.contains(DashboardSection.MODULE_FIX_RATES)
-            ? summaryBoardService.loadExternalModuleFixRates(productVersion).modules() : List.of(),
-        sections.contains(DashboardSection.REVIEW_DISTRIBUTIONS)
-            ? reviewDistributions(productVersion) : ReviewDistributions.empty(),
-        sections.contains(DashboardSection.PHASE_FIXES)
-            ? loadPhaseFixes(productVersion, phases) : BoardTable.empty("system-test-phase-statistics"),
-        sections.contains(DashboardSection.SEVERITY_DISTRIBUTION)
-            ? severityTable(summary) : BoardTable.empty("system-test-severity"),
-        sections.contains(DashboardSection.DEFECT_CAUSE_DISTRIBUTION)
-            ? boardTable(board("system-test-defect-cause", productVersion), Set.of())
-            : BoardTable.empty("system-test-defect-causes"),
-        sections.contains(DashboardSection.DELAYED_DEFECTS)
-            ? boardTable(board("system-test-delay-analysis", productVersion), PHASE_COLUMNS)
-            : BoardTable.empty("system-test-delays"),
-        sections.contains(DashboardSection.FIX_USERS) ? fixUsers(productVersion) : List.of(),
-        sections.contains(DashboardSection.CODE_SUBMISSION_TREND)
-            ? codeSubmissionTrend(productVersion, granularity, codeSource, repositoryName)
-            : CodeSubmissionTrend.empty());
-  }
-
-  private boolean needsSummaryBoard(Set<DashboardSection> sections) {
-    return sections.contains(DashboardSection.QUALITY_TARGETS)
-        || sections.contains(DashboardSection.SEVERITY_DISTRIBUTION);
-  }
-
-  private EnumSet<DashboardSection> parseSections(String value) {
-    if (!StringUtils.hasText(value)) {
-      return EnumSet.allOf(DashboardSection.class);
-    }
-    EnumSet<DashboardSection> sections = EnumSet.noneOf(DashboardSection.class);
-    for (String token : value.split(",")) {
-      String normalized = token.trim();
-      DashboardSection matched = Arrays.stream(DashboardSection.values())
-          .filter(section -> section.parameterValue.equals(normalized))
-          .findFirst()
-          .orElseThrow(() -> new IllegalArgumentException(
-              "sections 包含不支持的区域: " + normalized));
-      sections.add(matched);
-    }
-    if (sections.isEmpty()) {
-      throw new IllegalArgumentException("sections 不能为空");
-    }
-    return sections;
+        qualityTargets(overview, summary),
+        summaryBoardService.loadExternalModuleFixRates(productVersion).modules(),
+        reviewDistributions(productVersion),
+        loadPhaseFixes(productVersion, phases),
+        severityTable(summary),
+        boardTable(board("system-test-defect-cause", productVersion), Set.of()),
+        boardTable(board("system-test-delay-analysis", productVersion), PHASE_COLUMNS),
+        fixUsers(productVersion),
+        codeSubmissionTrend(productVersion, granularity, codeSource, repositoryName));
   }
 
   private StatisticBoardResponse board(String key, String productVersion) {

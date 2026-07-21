@@ -390,10 +390,8 @@ public class CodeReviewMatchModeMongoReviewSyncService {
           from review_data_match_mode_edit_links link
           join review_data_match_mode_reports report
             on report.legacy_id = link.match_mode_report_legacy_id
-          join review_data_match_mode_report_description_refs description_ref
-            on description_ref.report_id = report.id
           join review_data_match_mode_descriptions description
-            on description.legacy_id = description_ref.description_legacy_id
+            on report.description_ids like '%' || description.legacy_id || '%'
           group by link.review_record_id
         )
         update review_records record
@@ -417,10 +415,8 @@ public class CodeReviewMatchModeMongoReviewSyncService {
           from review_data_match_mode_edit_links link
           join review_data_match_mode_reports report
             on report.legacy_id = link.match_mode_report_legacy_id
-          join review_data_match_mode_report_description_refs description_ref
-            on description_ref.report_id = report.id
           join review_data_match_mode_descriptions description
-            on description.legacy_id = description_ref.description_legacy_id
+            on report.description_ids like '%' || description.legacy_id || '%'
           group by link.review_record_id
         ),
         primary_descriptions as (

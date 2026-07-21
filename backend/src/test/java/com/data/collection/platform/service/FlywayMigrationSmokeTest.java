@@ -113,29 +113,6 @@ class FlywayMigrationSmokeTest {
   }
 
   @Test
-  void shouldUseExactJsonRelationsForMatchModeReviews() throws IOException {
-    String migration = readMigration(
-        "V20260721_01__exact_review_match_mode_relations.sql");
-
-    assertThat(migration)
-        .contains("create or replace view review_data_match_mode_report_problem_refs")
-        .contains("create or replace view review_data_match_mode_report_description_refs")
-        .contains("jsonb_array_elements_text")
-        .contains("problem.legacy_id = problem_ref.problem_legacy_id")
-        .contains("description.legacy_id = description_ref.description_legacy_id")
-        .doesNotContain("like '%' ||");
-
-    String aggregateMigration = readMigration(
-        "V20260721_02__aggregate_review_match_mode_relations_once.sql");
-    assertThat(aggregateMigration)
-        .contains("with description_summaries as")
-        .contains("problem_summaries as")
-        .contains("group by problem_ref.report_id")
-        .contains("left join problem_summaries problem_summary")
-        .doesNotContain("join lateral");
-  }
-
-  @Test
   void shouldDefineLdapRoleDisplayOrderMigration() throws IOException {
     String migration = readMigration(
         "V20260720_04__ldap_role_display_order.sql");
