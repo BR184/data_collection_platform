@@ -47,6 +47,7 @@ function rawProblemItem(id: number): ReviewDataProblemItemResponse {
 const columns: RecordTableColumn[] = [
   { key: 'problemDescription', label: '问题描述', minWidth: 220 },
   { key: 'problemStatus', label: '问题状态', type: 'tag', width: 110 },
+  { key: 'updatedAt', label: '更新日期', type: 'datetime', width: 116 },
 ];
 
 describe('ReviewProblemPanel', () => {
@@ -58,6 +59,7 @@ describe('ReviewProblemPanel', () => {
     const onCreateProblemItem = vi.fn();
     const onEditProblemItem = vi.fn();
     const onDeleteProblemItem = vi.fn();
+    const longDescription = '描述'.repeat(80);
 
     const wrapper = mount(ReviewProblemPanel, {
       global: { plugins: [ElementPlus] },
@@ -67,8 +69,9 @@ describe('ReviewProblemPanel', () => {
         rows: [
           {
             __raw: rawProblemItem(9),
-            problemDescription: 'problem-9',
+            problemDescription: longDescription,
             problemStatus: [{ label: 'new', type: 'info' }],
+            updatedAt: '2026-04-27 10:00:00',
           },
         ],
         columns,
@@ -82,8 +85,23 @@ describe('ReviewProblemPanel', () => {
     });
 
     expect(wrapper.text()).toContain('评审问题清单');
-    expect(wrapper.findComponent({ name: 'ElTable' }).exists()).toBe(true);
-    expect(wrapper.findAllComponents({ name: 'ElTableColumn' }).length).toBeGreaterThan(0);
+    const table = wrapper.findComponent({ name: 'ElTable' });
+    expect(table.exists()).toBe(true);
+    const tableColumns = wrapper.findAllComponents({ name: 'ElTableColumn' });
+    expect(tableColumns.length).toBeGreaterThan(0);
+    const updatedAtColumn = tableColumns
+      .find((column) => column.props('label') === '更新日期');
+    const descriptionColumn = tableColumns
+      .find((column) => column.props('label') === '问题描述');
+    expect(Number(updatedAtColumn?.props('width'))).toBeGreaterThan(116);
+    expect(Number(descriptionColumn?.props('width'))).toBe(360);
+    expect(columns.every((column) => tableColumns
+      .find((renderedColumn) => renderedColumn.props('label') === column.label)
+      ?.props('showOverflowTooltip') === false)).toBe(true);
+    const renderedRows = table.props('data') as Array<Record<string, unknown>>;
+    expect(renderedRows[0]?.problemDescription).toBe(longDescription);
+    expect(renderedRows[0]?.updatedAt)
+      .toBe('2026-04-27 10:00:00');
 
     await wrapper.findAll('button')[0]?.trigger('click');
     expect(onCreateProblemItem).toHaveBeenCalledWith(3);

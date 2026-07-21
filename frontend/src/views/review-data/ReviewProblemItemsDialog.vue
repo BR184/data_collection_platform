@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { Close } from '@element-plus/icons-vue';
 import ReviewProblemPanel from './ReviewProblemPanel.vue';
 import type { ReviewDataProblemItemResponse, ReviewDataRecordRowResponse } from '../../types/api';
 import type { RecordTableColumn } from '../../types/record-table';
@@ -37,19 +36,12 @@ const emit = defineEmits<{
     :close-on-press-escape="true"
     @update:model-value="emit('update:visible', $event)"
   >
-    <template #header="{ close, titleId, titleClass }">
+    <template #header="{ titleId, titleClass }">
       <div class="review-problem-dialog-header">
         <div class="review-problem-dialog-heading">
           <h2 :id="titleId" :class="['review-problem-dialog-title', titleClass]">评审问题清单</h2>
           <span v-if="record" class="review-problem-dialog-context">{{ record.title }}</span>
         </div>
-        <el-button
-          class="review-problem-dialog-close"
-          text
-          :icon="Close"
-          aria-label="关闭评审问题清单"
-          @click="close"
-        />
       </div>
     </template>
 
@@ -135,14 +127,6 @@ const emit = defineEmits<{
   font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.review-problem-dialog-close {
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  color: var(--el-text-color-secondary);
 }
 
 :global(.review-problem-dialog .el-dialog__body) {

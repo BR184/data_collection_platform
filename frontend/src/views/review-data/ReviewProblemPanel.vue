@@ -4,7 +4,8 @@ import { EditPen, Plus, WarningFilled } from '@element-plus/icons-vue';
 // 问题项面板负责展示专家问题列表和新增入口。
 // 它只接收父级传入的问题数据，实际加载与保存流程交给 review-data composable。
 import SmartTableHeader from '../../components/base/SmartTableHeader.vue';
-import { tableHeaderMinimumWidth } from '../../components/base/table-header-layout';
+import { tableHeaderMinimumWidth, visualTextUnits } from '../../components/base/table-header-layout';
+import { resolveRecordTableCellDisplay } from '../../components/base/base-record-table-cell';
 import type { ReviewDataProblemItemResponse, ReviewDataRecordRowResponse } from '../../types/api';
 import type { RecordTableColumn } from '../../types/record-table';
 
@@ -55,12 +56,57 @@ function effectiveColumnMinWidth(column: RecordTableColumn) {
   return Math.max(column.minWidth ?? 0, tableHeaderMinimumWidth(column.label, reservePx, column.headerLines), minimumFloor);
 }
 
-function effectiveColumnWidth(column: RecordTableColumn) {
-  return Math.max(column.width ?? effectiveColumnMinWidth(column), effectiveColumnMinWidth(column));
+function columnContentUpperBound(column: RecordTableColumn) {
+  const configuredWidth = column.width ?? 0;
+  if (isLongTextColumn(column)) {
+    return Math.max(configuredWidth, 360);
+  }
+  if (column.type === 'number') {
+    return Math.max(configuredWidth, 128);
+  }
+  if (column.type === 'tag') {
+    return Math.max(configuredWidth, 140);
+  }
+  if (column.type === 'datetime') {
+    return Math.max(configuredWidth, 176);
+  }
+  return Math.max(configuredWidth, 220);
 }
 
+function cellDisplayText(column: RecordTableColumn, value: unknown) {
+  const display = resolveRecordTableCellDisplay(value);
+  if (column.type === 'tag') {
+    return display.primaryTag?.label ?? '-';
+  }
+  return display.text;
+}
+
+function estimatedCellWidth(column: RecordTableColumn) {
+  const contentWidth = props.rows.reduce((maximum, row) => {
+    const textWidth = Math.ceil(visualTextUnits(cellDisplayText(column, row[column.key])) * 7.2);
+    return Math.max(maximum, textWidth);
+  }, 0);
+  const cellChromeWidth = column.type === 'tag' ? 40 : column.key === 'reviewerName' ? 42 : 24;
+  return contentWidth + cellChromeWidth;
+}
+
+function effectiveColumnWidth(column: RecordTableColumn) {
+  const lowerBound = Math.max(column.width ?? 0, effectiveColumnMinWidth(column));
+  return Math.min(
+    Math.max(lowerBound, estimatedCellWidth(column)),
+    Math.max(lowerBound, columnContentUpperBound(column)),
+  );
+}
+
+const baseColumnWidths = computed<Record<string, number>>(() =>
+  Object.fromEntries(props.columns.map((column) => [column.key, effectiveColumnWidth(column)])),
+);
+
 const baseTableContentWidth = computed(() =>
-  props.columns.reduce((total, column) => total + effectiveColumnWidth(column), showActions.value ? ACTION_COLUMN_WIDTH : 0) + 2,
+  props.columns.reduce(
+    (total, column) => total + (baseColumnWidths.value[column.key] ?? effectiveColumnMinWidth(column)),
+    showActions.value ? ACTION_COLUMN_WIDTH : 0,
+  ) + 2,
 );
 
 const flexibleTextWeightTotal = computed(() =>
@@ -72,7 +118,7 @@ const columnRenderWidths = computed<Record<string, number>>(() => {
   const totalWeight = flexibleTextWeightTotal.value;
   return Object.fromEntries(
     props.columns.map((column) => {
-      const baseWidth = effectiveColumnWidth(column);
+      const baseWidth = baseColumnWidths.value[column.key] ?? effectiveColumnMinWidth(column);
       const weight = flexibleTextColumnWeights[column.key] ?? 0;
       const addedWidth = extraWidth > 0 && totalWeight > 0 && weight > 0
         ? Math.floor((extraWidth * weight) / totalWeight)
@@ -85,7 +131,14 @@ const columnRenderWidths = computed<Record<string, number>>(() => {
 const tableContentWidth = computed(() =>
   Math.max(
     baseTableContentWidth.value,
-    props.columns.reduce((total, column) => total + (columnRenderWidths.value[column.key] ?? effectiveColumnWidth(column)), showActions.value ? ACTION_COLUMN_WIDTH : 0) + 2,
+    props.columns.reduce(
+      (total, column) => total + (
+        columnRenderWidths.value[column.key]
+        ?? baseColumnWidths.value[column.key]
+        ?? effectiveColumnMinWidth(column)
+      ),
+      showActions.value ? ACTION_COLUMN_WIDTH : 0,
+    ) + 2,
   ),
 );
 
@@ -164,7 +217,7 @@ watch(
         :align="columnBodyAlign(column)"
         header-align="center"
         :class-name="problemColumnClassName(column)"
-        :show-overflow-tooltip="column.showOverflowTooltip ?? true"
+        :show-overflow-tooltip="false"
       >
         <template #header>
           <SmartTableHeader :label="column.label" :lines="column.headerLines" align="center" prefer-stacked />
@@ -187,7 +240,7 @@ watch(
             </el-icon>
             <span :class="{ 'problem-reviewer-name--offset': isPendingReview(row) }">{{ row[column.key] }}</span>
           </span>
-          <span v-else>{{ row[column.key] }}</span>
+          <span v-else class="problem-cell-text">{{ row[column.key] }}</span>
         </template>
       </el-table-column>
 
@@ -256,7 +309,7 @@ watch(
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: hidden;
   border: 0;
   border-radius: 6px;
@@ -289,7 +342,28 @@ watch(
   justify-content: center;
   min-width: 0;
   padding: 0 8px;
-  overflow: hidden;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.problem-cell-text {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+:deep(.problem-subtable .el-tag),
+:deep(.problem-subtable .el-tag__content) {
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 :deep(.problem-subtable td.problem-subtable-cell--left .cell) {
@@ -356,6 +430,8 @@ watch(
   justify-content: center;
   min-width: 0;
   width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .problem-reviewer-warning {

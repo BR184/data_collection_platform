@@ -14,6 +14,7 @@ import {
   createEmptyProblemItemForm,
   createEmptyReviewRecordForm,
   reviewDataColumns,
+  reviewProblemItemColumns,
 } from './review-data-management';
 
 describe('review-data-management helpers', () => {
@@ -76,11 +77,12 @@ describe('review-data-management helpers', () => {
     expect(tableRows[0].updatedAt).toBe('2026-04-12 10:00:00');
   });
 
-  it('should keep title and reach-standard columns fixed on the left', () => {
+  it('should keep title fixed on the left and reach-standard fixed on the right', () => {
     const columns = reviewDataColumns();
 
     expect(columns[0]).toMatchObject({ key: 'title', fixed: 'left' });
-    expect(columns[1]).toMatchObject({ key: 'reachStandard', fixed: 'left' });
+    expect(columns.find((column) => column.key === 'reachStandard'))
+      .toMatchObject({ fixed: 'right' });
   });
 
   it('should export review data rows as Excel friendly csv', () => {
@@ -116,7 +118,7 @@ describe('review-data-management helpers', () => {
     const csv = buildReviewDataExportCsv(rows);
     expect(csv).toContain('"标题","项目","模块"');
     expect(csv).toContain('"\'=风险标题"');
-    expect(csv).toContain('"0.20"');
+    expect(csv).toContain('"0.21"');
     expect(csv).toContain('"2.50"');
     expect(csv).toContain('"样本不足"');
     expect(csv).toContain('"否"');
@@ -146,6 +148,10 @@ describe('review-data-management helpers', () => {
     expect(tableRows[0].reviewerName).toBe('张三');
     expect(tableRows[0].workloadHours).toBe('0.8');
     expect((tableRows[0].problemStatus as Array<{ label: string }>)[0].label).toBe('已修复');
+
+    const columns = reviewProblemItemColumns();
+    expect(columns.find((column) => column.key === 'workloadHours')?.type).toBe('number');
+    expect(columns.find((column) => column.key === 'updatedAt')?.type).toBe('datetime');
   });
 
   it('should create empty form defaults', () => {

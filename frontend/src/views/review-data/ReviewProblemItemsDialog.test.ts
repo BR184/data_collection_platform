@@ -57,7 +57,8 @@ describe('ReviewProblemItemsDialog', () => {
     expect(document.body.textContent).toContain('评审问题清单');
     expect(document.body.textContent).toContain('Architecture review');
 
-    expect(document.body.querySelector('.review-problem-dialog-close')).not.toBeNull();
+    expect(document.body.querySelector('.review-problem-dialog-close')).toBeNull();
+    expect(document.body.querySelectorAll('.review-problem-dialog .el-dialog__headerbtn')).toHaveLength(1);
     dialog.vm.$emit('update:modelValue', false);
     await wrapper.vm.$nextTick();
     expect(wrapper.emitted('update:visible')).toEqual([[false]]);
