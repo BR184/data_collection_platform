@@ -2,14 +2,11 @@ import { ref } from 'vue';
 import type { ReviewDataProblemItemResponse, ReviewDataRecordRowResponse } from '../../types/api';
 import { buildProblemItemTableRows } from '../review-data-management';
 
-type TableRowWithRawRecord = {
-  __raw?: ReviewDataRecordRowResponse;
-};
-
 export function useReviewProblemItems(
   loadProblemItemsApi: (recordId: number) => Promise<ReviewDataProblemItemResponse[]>,
 ) {
-  const expandedRowKeys = ref<Array<number | string>>([]);
+  const problemDialogVisible = ref(false);
+  const activeProblemRecord = ref<ReviewDataRecordRowResponse | null>(null);
   const problemItemsMap = ref<Record<number, ReviewDataProblemItemResponse[]>>({});
   const problemLoadingMap = ref<Record<number, boolean>>({});
 
@@ -22,33 +19,18 @@ export function useReviewProblemItems(
     }
   }
 
-  function isProblemExpanded(recordId: number) {
-    return expandedRowKeys.value.includes(recordId);
-  }
-
-  async function toggleProblemPanel(recordId: number) {
-    if (isProblemExpanded(recordId)) {
-      expandedRowKeys.value = [];
-      return;
-    }
-    expandedRowKeys.value = [recordId];
+  async function openProblemList(record: ReviewDataRecordRowResponse) {
+    activeProblemRecord.value = record;
+    problemDialogVisible.value = true;
+    const recordId = record.id;
     if (!problemItemsMap.value[recordId]) {
       await loadProblemItems(recordId);
     }
   }
 
-  async function handleExpandChange(row: TableRowWithRawRecord, expandedRows: TableRowWithRawRecord[]) {
-    const raw = row.__raw;
-    if (!raw) {
-      return;
-    }
-    const rowIsExpanded = expandedRows.some((item) => Number(item.__raw?.id) === raw.id);
-    expandedRowKeys.value = rowIsExpanded
-      ? [raw.id]
-      : expandedRowKeys.value.filter((item) => Number(item) !== raw.id);
-    if (rowIsExpanded && !problemItemsMap.value[raw.id]) {
-      await loadProblemItems(raw.id);
-    }
+  function closeProblemList() {
+    problemDialogVisible.value = false;
+    activeProblemRecord.value = null;
   }
 
   function problemItemsFor(recordId: number) {
@@ -56,13 +38,13 @@ export function useReviewProblemItems(
   }
 
   return {
-    expandedRowKeys,
+    problemDialogVisible,
+    activeProblemRecord,
     problemItemsMap,
     problemLoadingMap,
     loadProblemItems,
-    isProblemExpanded,
-    toggleProblemPanel,
-    handleExpandChange,
+    openProblemList,
+    closeProblemList,
     problemItemsFor,
   };
 }

@@ -10,8 +10,7 @@ type TableRowWithRawRecord = Record<string, unknown> & {
 
 export interface ReviewDataPageActionsDependencies {
   refreshRecords: () => Promise<void>;
-  toggleProblemPanel: (recordId: number) => Promise<void>;
-  isProblemExpanded: (recordId: number) => boolean;
+  openProblemList: (record: ReviewDataRecordRowResponse) => Promise<void>;
   openDetail: (recordId: number) => Promise<void>;
   openCreateRecord: () => void;
   openEditRecord: (recordId: number) => Promise<void>;
@@ -42,17 +41,12 @@ export function useReviewDataPageActions(deps: ReviewDataPageActionsDependencies
     }
   }
 
-  async function toggleProblemPanelByRow(row: TableRowWithRawRecord) {
+  async function handleOpenProblemList(row: TableRowWithRawRecord) {
     const raw = recordFromTableRow(row);
     if (!raw) {
       return;
     }
-    await deps.toggleProblemPanel(raw.id);
-  }
-
-  function isProblemExpandedByRow(row: TableRowWithRawRecord) {
-    const raw = recordFromTableRow(row);
-    return raw ? deps.isProblemExpanded(raw.id) : false;
+    await deps.openProblemList(raw);
   }
 
   async function handleCreateProblemItemByRow(row: TableRowWithRawRecord) {
@@ -121,8 +115,7 @@ export function useReviewDataPageActions(deps: ReviewDataPageActionsDependencies
     ruleExplanationVisible,
     recordFromTableRow,
     handleRefresh,
-    toggleProblemPanelByRow,
-    isProblemExpandedByRow,
+    handleOpenProblemList,
     handleCreateProblemItemByRow,
     handleOpenDetail,
     handleEditRecord,

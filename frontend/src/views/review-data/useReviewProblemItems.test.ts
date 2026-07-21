@@ -42,27 +42,28 @@ function record(id: number): ReviewDataRecordRowResponse {
 }
 
 describe('useReviewProblemItems', () => {
-  it('loads problem items when a row is expanded and reuses the cached rows when reopened', async () => {
+  it('opens the problem dialog and reuses cached rows when reopened', async () => {
     const loader = vi.fn(async (recordId: number) => [problemItem(recordId * 10, recordId)]);
     const state = useReviewProblemItems(loader);
 
-    await state.toggleProblemPanel(3);
+    await state.openProblemList(record(3));
 
-    expect(state.expandedRowKeys.value).toEqual([3]);
+    expect(state.problemDialogVisible.value).toBe(true);
+    expect(state.activeProblemRecord.value?.id).toBe(3);
     expect(loader).toHaveBeenCalledTimes(1);
     expect(loader).toHaveBeenCalledWith(3);
     expect(state.problemItemsFor(3)[0].problemDescription).toBe('problem-30');
     expect(state.problemLoadingMap.value[3]).toBe(false);
 
-    await state.toggleProblemPanel(3);
-    expect(state.expandedRowKeys.value).toEqual([]);
+    state.closeProblemList();
+    expect(state.problemDialogVisible.value).toBe(false);
+    expect(state.activeProblemRecord.value).toBeNull();
 
-    await state.toggleProblemPanel(3);
+    await state.openProblemList(record(3));
     expect(loader).toHaveBeenCalledTimes(1);
-    expect(state.expandedRowKeys.value).toEqual([3]);
   });
 
-  it('can force reload the cached problem items after item mutations', async () => {
+  it('can force reload cached problem items after item mutations', async () => {
     const loader = vi
       .fn<(recordId: number) => Promise<ReviewDataProblemItemResponse[]>>()
       .mockResolvedValueOnce([problemItem(1)])
@@ -76,18 +77,13 @@ describe('useReviewProblemItems', () => {
     expect(state.problemItemsFor(1)[0].id).toBe(2);
   });
 
-  it('syncs Element Plus expand-change rows to a single expanded record', async () => {
+  it('keeps the selected record stable while the dialog is open', async () => {
     const loader = vi.fn(async (recordId: number) => [problemItem(recordId, recordId)]);
     const state = useReviewProblemItems(loader);
-    const first = { __raw: record(1) };
-    const second = { __raw: record(2) };
 
-    await state.handleExpandChange(first, [first]);
-    await state.handleExpandChange(second, [first, second]);
-    await state.handleExpandChange(second, [first]);
+    await state.openProblemList(record(2));
 
-    expect(state.expandedRowKeys.value).toEqual([]);
-    expect(loader).toHaveBeenCalledTimes(2);
-    expect(state.isProblemExpanded(2)).toBe(false);
+    expect(state.activeProblemRecord.value?.title).toBe('record-2');
+    expect(state.problemDialogVisible.value).toBe(true);
   });
 });

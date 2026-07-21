@@ -105,6 +105,7 @@ Authorization: Bearer <token>
 `bi-dashboard` 的 `payload` 包含以下稳定 section：
 
 - `qualityTargets.metrics[]`：质量目标及达成状态。
+- `availableProductVersions[]`：可供 BI 切换的启用产品版本目录。
 - `moduleFixRates[]`：各模块系统测试修复率。
 - `reviewDistributions`：按评审类型、问题类别和评审规模的分布/密度。
 - `phaseFixes`、`severityDistribution`、`defectCauseDistribution`、`delayedDefects`：系统测试各图表/表格数据。

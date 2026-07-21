@@ -6,7 +6,7 @@ import ReviewDataRowActions from './ReviewDataRowActions.vue';
 describe('ReviewDataRowActions', () => {
   it('forwards all row action clicks', async () => {
     const row = { id: 3, title: 'review-3' };
-    const onToggleProblemPanel = vi.fn();
+    const onOpenProblemList = vi.fn();
     const onOpenDetail = vi.fn();
     const onEditRecord = vi.fn();
     const onCreateProblemItem = vi.fn();
@@ -17,8 +17,7 @@ describe('ReviewDataRowActions', () => {
       global: { plugins: [ElementPlus] },
       props: {
         row,
-        expanded: false,
-        onToggleProblemPanel,
+        onOpenProblemList,
         onOpenDetail,
         onEditRecord,
         onCreateProblemItem,
@@ -34,7 +33,7 @@ describe('ReviewDataRowActions', () => {
     const buttons = wrapper.findAll('button');
     await buttons[0]?.trigger('click');
     await buttons[1]?.trigger('click');
-    expect(onToggleProblemPanel).toHaveBeenCalledWith(row);
+    expect(onOpenProblemList).toHaveBeenCalledWith(row);
     expect(onOpenDetail).toHaveBeenCalledWith(row);
 
     await wrapper.find('.record-actions-more').trigger('click');

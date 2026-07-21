@@ -47,8 +47,7 @@ function problemItem(id = 9): ReviewDataProblemItemResponse {
 function setup() {
   return {
     refreshRecords: vi.fn<() => Promise<void>>(() => Promise.resolve()),
-    toggleProblemPanel: vi.fn<(recordId: number) => Promise<void>>(() => Promise.resolve()),
-    isProblemExpanded: vi.fn<(recordId: number) => boolean>(() => false),
+    openProblemList: vi.fn<(row: ReviewDataRecordRowResponse) => Promise<void>>(() => Promise.resolve()),
     openDetail: vi.fn<(recordId: number) => Promise<void>>(() => Promise.resolve()),
     openCreateRecord: vi.fn<() => void>(),
     openEditRecord: vi.fn<(recordId: number) => Promise<void>>(() => Promise.resolve()),
@@ -66,17 +65,15 @@ function setup() {
 describe('useReviewDataPageActions', () => {
   it('routes row-level actions to record-aware dependencies', async () => {
     const deps = setup();
-    deps.isProblemExpanded.mockReturnValue(true);
     const state = useReviewDataPageActions(deps);
     const row = { __raw: record(3) };
 
-    await state.toggleProblemPanelByRow(row);
+    await state.handleOpenProblemList(row);
     await state.handleCreateProblemItemByRow(row);
     await state.handleOpenDetail(row);
     await state.handleEditRecord(row);
 
-    expect(state.isProblemExpandedByRow(row)).toBe(true);
-    expect(deps.toggleProblemPanel).toHaveBeenCalledWith(3);
+    expect(deps.openProblemList).toHaveBeenCalledWith(record(3));
     expect(deps.openCreateProblemItem).toHaveBeenCalledWith(3);
     expect(deps.openDetail).toHaveBeenCalledWith(3);
     expect(deps.openEditRecord).toHaveBeenCalledWith(3);

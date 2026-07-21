@@ -91,6 +91,7 @@ public class BiDashboardDatasetProvider implements ExternalDatasetProvider<BiDas
                 "repositoryName", "string", false, "代码趋势仓库名称，可选精确过滤。", "CrownCAD")),
         List.of(
             new ExternalDatasetField("productVersion", "string", false, "产品版本。"),
+            new ExternalDatasetField("availableProductVersions[]", "string", false, "可选择的启用产品版本。"),
             new ExternalDatasetField("testingPhases[]", "string", false, "产品版本下的系统测试阶段。"),
             new ExternalDatasetField("qualityTargets.metrics[]", "object", false, "质量目标指标。"),
             new ExternalDatasetField("moduleFixRates[]", "object", false, "各模块系统测试修复率。"),
@@ -119,6 +120,7 @@ public class BiDashboardDatasetProvider implements ExternalDatasetProvider<BiDas
     StatisticBoardResponse summary = board("system-test-defect-summary", productVersion);
     return new BiDashboardPayload(
         productVersion,
+        phaseScopeResolver.listEnabledLegacyCrownCadParentNames(),
         phases,
         qualityTargets(overview, summary),
         summaryBoardService.loadExternalModuleFixRates(productVersion).modules(),

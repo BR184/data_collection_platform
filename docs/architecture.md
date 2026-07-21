@@ -12,6 +12,7 @@
 - 形态：Spring Boot 单体后端 + Vue 3/TypeScript/Vite 前端 + PostgreSQL；前端默认 `18181`，后端默认 `18080`。
 - 数据入口：GitLab 镜像表（ODS）→ 事实层 → 统计服务/快照 → 页面、导出和外部只读数据集 API。
 - 核心事实表：`issue_fact`、`merge_request_fact`、`integration_test_fact`；评审数据由正式评审表与兼容模式快照读模型按统一规则合并。
+- 系统测试父级阶段及子阶段均以“议题测试阶段定义”的显式父子关系为权威来源；选择父级时展开为其已配置子阶段并匹配 `issue_fact.testing_phase`。不同产品版本复用同一规则，不得从子阶段文本反推父级，也不得以“项目：CCxxxxRx”标签替代测试阶段归属。
 - 数据库迁移统一使用 Flyway；已执行迁移不可修改，新增结构或数据变更必须新建迁移。
 - 平台库为 `qaflex`；GitLab 源库为 `gitlabhq_production`；老平台 MySQL 库为 `gitlab_spider`。三者边界不可混用。
 

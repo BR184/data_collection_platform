@@ -4,8 +4,7 @@ import { computed } from 'vue';
 
 const props = defineProps<{
   row: Record<string, unknown>;
-  expanded: boolean;
-  onToggleProblemPanel: (row: Record<string, unknown>) => void | Promise<void>;
+  onOpenProblemList: (row: Record<string, unknown>) => void | Promise<void>;
   onOpenDetail: (row: Record<string, unknown>) => void | Promise<void>;
   onEditRecord: (row: Record<string, unknown>) => void | Promise<void>;
   onCreateProblemItem: (row: Record<string, unknown>) => void | Promise<void>;
@@ -29,13 +28,12 @@ const canDelete = computed(() => typeof props.canDeleteRecord === 'function'
   <div class="record-actions">
     <el-button
       class="record-actions-chip"
-      :class="{ active: expanded }"
       type="primary"
       plain
       size="small"
-      @click="onToggleProblemPanel(row)"
+      @click="onOpenProblemList(row)"
     >
-      {{ expanded ? '收起' : '清单' }}
+      清单
     </el-button>
     <el-button class="record-actions-link" type="primary" plain size="small" @click="onOpenDetail(row)">
       查看
@@ -84,8 +82,7 @@ const canDelete = computed(() => typeof props.canDeleteRecord === 'function'
   line-height: 26px;
 }
 
-.record-actions-chip:hover,
-.record-actions-chip.active {
+.record-actions-chip:hover {
   border-color: #2563eb;
   background: #2563eb;
   color: #fff;

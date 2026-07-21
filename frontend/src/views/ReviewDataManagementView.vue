@@ -9,7 +9,7 @@ import PageSettingsButton from '../components/PageSettingsButton.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import ReviewDataLegacyExcelImportDialog from './review-data/ReviewDataLegacyExcelImportDialog.vue';
 import ReviewDataDetailDrawer from './review-data/ReviewDataDetailDrawer.vue';
-import ReviewProblemPanel from './review-data/ReviewProblemPanel.vue';
+import ReviewProblemItemsDialog from './review-data/ReviewProblemItemsDialog.vue';
 import ReviewDataRowActions from './review-data/ReviewDataRowActions.vue';
 import ReviewDataRuleExplanationDrawer from './review-data/ReviewDataRuleExplanationDrawer.vue';
 import ReviewProblemItemFormDialog from './review-data/ReviewProblemItemFormDialog.vue';
@@ -71,13 +71,13 @@ const {
 });
 
 const {
-  expandedRowKeys,
+  problemDialogVisible: problemListDialogVisible,
+  activeProblemRecord,
   problemItemsMap,
   problemLoadingMap,
   loadProblemItems,
-  handleExpandChange,
-  isProblemExpanded,
-  toggleProblemPanel,
+  openProblemList,
+  closeProblemList,
   problemItemsFor,
 } = useReviewProblemItems((recordId) => api.getReviewDataProblemItems(recordId));
 
@@ -98,7 +98,7 @@ async function refreshAfterProblemItemMutation(recordId: number) {
 
 async function refreshAfterRecordUpdate(recordId: number) {
   const hasCachedProblemItems = Object.prototype.hasOwnProperty.call(problemItemsMap.value, recordId);
-  const refreshProblemItems = hasCachedProblemItems || isProblemExpanded(recordId)
+  const refreshProblemItems = hasCachedProblemItems
     ? loadProblemItems(recordId)
     : Promise.resolve();
   await Promise.all([refreshProblemItems, refreshDetailIfOpen(recordId)]);
@@ -120,7 +120,7 @@ const {
   afterUpdateRecord: (recordId) => refreshAfterRecordUpdate(recordId),
   afterCreateRecord: async (detail) => {
     const recordId = detail.record.id;
-    await toggleProblemPanel(recordId);
+    await openProblemList(detail.record);
     await handleCreateProblemItem(recordId);
   },
   notifySuccess: (message) => ElMessage.success(message),
@@ -431,8 +431,7 @@ function handleExportCommand(command: string) {
 const {
   ruleExplanationVisible,
   handleRefresh,
-  toggleProblemPanelByRow,
-  isProblemExpandedByRow,
+  handleOpenProblemList,
   handleCreateProblemItemByRow,
   handleOpenDetail,
   handleEditRecord,
@@ -442,8 +441,7 @@ const {
   openRuleExplanation,
 } = useReviewDataPageActions({
   refreshRecords: () => refreshReviewRecords(),
-  toggleProblemPanel,
-  isProblemExpanded,
+  openProblemList,
   openDetail,
   openCreateRecord,
   openEditRecord,
@@ -489,8 +487,6 @@ const {
       :highlighted-filter-keys="highlightedFilterKeys"
       :quick-filter-change-guard="guardQuickFilterChange"
       :active-filter-tags="activeFilterTags"
-      :expanded-row-keys="expandedRowKeys"
-      :expand-column-visible="false"
       :row-actions-width="188"
       :show-refresh="false"
       :settings-scope-key="PAGE_SCOPE_KEY"
@@ -511,7 +507,6 @@ const {
       @sort-change="handleSortChange"
       @current-change="handlePageChange"
       @size-change="handleSizeChange"
-      @expand-change="handleExpandChange"
     >
       <template
         #filter-builder="{
@@ -621,27 +616,10 @@ const {
         </div>
       </template>
 
-      <template #expand="{ row }">
-        <ReviewProblemPanel
-          :record="row.__raw as ReviewDataRecordRowResponse"
-          :loading="problemLoadingMap[(row.__raw as ReviewDataRecordRowResponse).id]"
-          :rows="problemItemsFor((row.__raw as ReviewDataRecordRowResponse).id)"
-          :columns="problemColumns"
-          :on-create-problem-item="handleCreateProblemItem"
-          :on-edit-problem-item="handleEditProblemItem"
-          :on-delete-problem-item="handleDeleteProblemItem"
-          :can-manage="canManageReviewProblem"
-          :can-create="canCreateReviewProblem"
-          :can-edit="canEditReviewProblem"
-          :can-delete="canDeleteProblemRow"
-        />
-      </template>
-
       <template #row-actions="{ row }">
         <ReviewDataRowActions
           :row="row"
-          :expanded="isProblemExpandedByRow(row)"
-          :on-toggle-problem-panel="toggleProblemPanelByRow"
+          :on-open-problem-list="handleOpenProblemList"
           :on-open-detail="handleOpenDetail"
           :on-edit-record="handleEditRecord"
           :on-create-problem-item="handleCreateProblemItemByRow"
@@ -655,6 +633,22 @@ const {
         />
       </template>
     </BaseRecordTable>
+
+    <ReviewProblemItemsDialog
+      v-model:visible="problemListDialogVisible"
+      :record="activeProblemRecord"
+      :loading="activeProblemRecord ? problemLoadingMap[activeProblemRecord.id] : false"
+      :rows="activeProblemRecord ? problemItemsFor(activeProblemRecord.id) : []"
+      :columns="problemColumns"
+      :on-create-problem-item="handleCreateProblemItem"
+      :on-edit-problem-item="handleEditProblemItem"
+      :on-delete-problem-item="handleDeleteProblemItem"
+      :can-manage="canManageReviewProblem"
+      :can-create="canCreateReviewProblem"
+      :can-edit="canEditReviewProblem"
+      :can-delete="canDeleteProblemRow"
+      @update:visible="(visible) => { if (!visible) closeProblemList(); }"
+    />
 
     <ReviewDataDetailDrawer v-model:visible="detailVisible" :detail-data="detailData" />
 

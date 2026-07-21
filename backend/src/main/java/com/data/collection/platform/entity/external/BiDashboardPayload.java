@@ -10,6 +10,7 @@ import java.util.Map;
 /** Stable read-only payload for the independent BI dashboard. */
 public record BiDashboardPayload(
     String productVersion,
+    List<String> availableProductVersions,
     List<String> testingPhases,
     QualityTargets qualityTargets,
     List<SystemTestModuleFixRateSnapshot.ModuleRow> moduleFixRates,
@@ -21,6 +22,8 @@ public record BiDashboardPayload(
     List<FixUserRow> fixUsers,
     CodeSubmissionTrend codeSubmissionTrend) {
   public BiDashboardPayload {
+    availableProductVersions = availableProductVersions == null
+        ? List.of() : List.copyOf(availableProductVersions);
     testingPhases = testingPhases == null ? List.of() : List.copyOf(testingPhases);
     moduleFixRates = moduleFixRates == null ? List.of() : List.copyOf(moduleFixRates);
     reviewDistributions = reviewDistributions == null ? ReviewDistributions.empty() : reviewDistributions;

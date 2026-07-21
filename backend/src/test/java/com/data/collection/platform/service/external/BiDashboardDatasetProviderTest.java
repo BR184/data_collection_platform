@@ -51,6 +51,7 @@ class BiDashboardDatasetProviderTest {
     assertThat(descriptor.fields()).extracting("path")
         .containsExactly(
             "productVersion",
+            "availableProductVersions[]",
             "testingPhases[]",
             "qualityTargets.metrics[]",
             "moduleFixRates[]",

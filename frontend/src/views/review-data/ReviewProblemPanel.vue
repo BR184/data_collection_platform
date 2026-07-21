@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { EditPen, Plus, WarningFilled } from '@element-plus/icons-vue';
-// 问题项面板挂在评审记录行下方，用于展示专家问题列表和行内新增入口。
+// 问题项面板负责展示专家问题列表和新增入口。
 // 它只接收父级传入的问题数据，实际加载与保存流程交给 review-data composable。
 import SmartTableHeader from '../../components/base/SmartTableHeader.vue';
 import { tableHeaderMinimumWidth } from '../../components/base/table-header-layout';
@@ -227,15 +227,12 @@ watch(
 .problem-panel {
   display: grid;
   gap: 12px;
-  width: min(100%, calc(100vw - var(--shell-sidebar-width) - 72px));
-  max-width: min(100%, calc(100vw - var(--shell-sidebar-width) - 72px));
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   padding: 12px 16px 14px;
   background: #f8fafc;
   overflow: hidden;
-  transform-origin: top center;
-  animation: problem-panel-drawer-in 340ms cubic-bezier(0.22, 1, 0.36, 1);
-  animation-fill-mode: backwards;
 }
 
 .problem-panel-head {
@@ -371,29 +368,4 @@ watch(
   margin-left: 10px;
 }
 
-@keyframes problem-panel-drawer-in {
-  from {
-    max-height: 0;
-    opacity: 0;
-    transform: translateY(-8px) scaleY(0.98);
-    box-shadow: 0 0 0 rgba(15, 23, 42, 0);
-  }
-
-  70% {
-    max-height: 520px;
-    opacity: 1;
-  }
-
-  to {
-    max-height: 960px;
-    opacity: 1;
-    transform: translateY(0) scaleY(1);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .problem-panel {
-    animation: none;
-  }
-}
 </style>

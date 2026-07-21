@@ -51,7 +51,10 @@ function updateLayout() {
   const availableWidth = root.clientWidth - horizontalPadding - (props.tooltip ? 18 : 0);
   const fullLabelWidth = measureRef.value?.scrollWidth ?? 0;
   const stackedComfortReserve = props.preferStacked ? 48 : 0;
-  if (availableWidth > 0 && fullLabelWidth + stackedComfortReserve <= availableWidth + layoutTolerancePx) {
+  // 帮助图标是不可压缩的表头附件，不能再用文本测量容差透支它的占位；
+  // 否则窄列会被误判为可单行展示，并与排序图标发生重叠。
+  const singleLineTolerancePx = props.tooltip ? 0 : layoutTolerancePx;
+  if (availableWidth > 0 && fullLabelWidth + stackedComfortReserve <= availableWidth + singleLineTolerancePx) {
     stacked.value = false;
     compacted.value = false;
     return;
