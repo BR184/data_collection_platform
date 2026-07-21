@@ -68,6 +68,7 @@ class BuildContext:
     fact_rebuild_scope: str
     frontend_port: int
     backend_port: int
+    ldap_base_url: str
 
 
 def log(message: str) -> None:
@@ -280,6 +281,7 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         fact_rebuild_scope=args.fact_rebuild_scope,
         frontend_port=args.frontend_port,
         backend_port=args.backend_port,
+        ldap_base_url=args.ldap_base_url,
     )
 
 
@@ -430,11 +432,13 @@ FRONTEND_BIND=0.0.0.0
 BACKEND_PORT={ctx.backend_port}
 BACKEND_BIND=127.0.0.1
 
-# Platform login accounts initialized into the empty built-in database.
-PLATFORM_ADMIN_USERNAME=admin
-PLATFORM_ADMIN_PASSWORD=admin123
-PLATFORM_APPROVAL_USERNAME=approval
-PLATFORM_APPROVAL_PASSWORD=approval123
+# LDAP is the only interactive login provider. The LDAP service remains an
+# independent deployment and this address must be reachable from the backend container.
+PLATFORM_AUTH_PROVIDER=ldap
+PLATFORM_LDAP_BASE_URL={ctx.ldap_base_url}
+PLATFORM_LDAP_CONNECT_TIMEOUT_MS=3000
+PLATFORM_LDAP_READ_TIMEOUT_MS=10000
+PLATFORM_LDAP_INITIAL_SYNC_REQUIRED=true
 
 # Runtime options.
 GITLAB_SYSTEM_HOOK_MAX_QUEUE_SIZE=1000
@@ -482,12 +486,13 @@ services:
       DATASOURCE_PASSWORD: ${{POSTGRES_PASSWORD}}
       SPRING_SQL_INIT_MODE: never
       PLATFORM_TIME_ZONE: Asia/Shanghai
-      PLATFORM_ADMIN_USERNAME: ${{PLATFORM_ADMIN_USERNAME}}
-      PLATFORM_ADMIN_PASSWORD: ${{PLATFORM_ADMIN_PASSWORD}}
-      PLATFORM_APPROVAL_USERNAME: ${{PLATFORM_APPROVAL_USERNAME}}
-      PLATFORM_APPROVAL_PASSWORD: ${{PLATFORM_APPROVAL_PASSWORD}}
-      PLATFORM_SECURE_CONFIG_REQUIRED: "false"
-      PLATFORM_AUTH_CSRF_ENABLED: "false"
+      PLATFORM_AUTH_PROVIDER: ${{PLATFORM_AUTH_PROVIDER}}
+      PLATFORM_LDAP_BASE_URL: ${{PLATFORM_LDAP_BASE_URL}}
+      PLATFORM_LDAP_CONNECT_TIMEOUT_MS: ${{PLATFORM_LDAP_CONNECT_TIMEOUT_MS:-3000}}
+      PLATFORM_LDAP_READ_TIMEOUT_MS: ${{PLATFORM_LDAP_READ_TIMEOUT_MS:-10000}}
+      PLATFORM_LDAP_INITIAL_SYNC_REQUIRED: ${{PLATFORM_LDAP_INITIAL_SYNC_REQUIRED:-true}}
+      PLATFORM_SECURE_CONFIG_REQUIRED: "true"
+      PLATFORM_AUTH_CSRF_ENABLED: "true"
       GITLAB_WEB_BASE_URL: ${{GITLAB_WEB_BASE_URL}}
       GITLAB_SYSTEM_HOOK_BASE_URL: ${{PLATFORM_PUBLIC_BASE_URL}}/api/gitlab-sync/system-hook
       GITLAB_SYSTEM_HOOK_MAX_QUEUE_SIZE: ${{GITLAB_SYSTEM_HOOK_MAX_QUEUE_SIZE:-1000}}
@@ -604,7 +609,7 @@ cp .env.example .env
 vi .env
 ```
 
-默认 .env 已写入当前内网地址、端口和本地账号。按需只修改端口、绑定地址或密码，不要把 GitLab / MySQL / MongoDB 源库连接写进平台库变量。
+默认 `.env` 已写入当前内网地址、端口和 LDAP v0.3 后端地址 `{ctx.ldap_base_url}`。部署前确认平台后端容器能够访问该地址；不要把 GitLab / MySQL / MongoDB 源库连接写进平台库变量。
 
 ## 5. 全新空数据部署
 
@@ -636,10 +641,7 @@ sudo docker compose --env-file .env logs --tail=120 frontend
 
 浏览器访问：http://172.22.10.115:{ctx.frontend_port}
 
-默认登录账号：
-
-- 管理员：admin / admin123
-- 审批用户：approval / approval123
+平台仅接受 LDAP 账号密码登录，不启用本地 `admin/admin123` 或审批账号。LDAP 不可用时，新登录必须失败；已建立的平台 Session 可继续使用至退出或过期。
 
 ## 7. 首次数据重新导入/同步
 
@@ -664,21 +666,7 @@ def incremental_readme(ctx: BuildContext) -> str:
 
 本更新包标记为需要事实层重建。该步骤只基于现有镜像表重建事实层和统计快照，不重新全量同步 GitLab，不删除平台数据。
 
-登录并保存 Cookie：
-
-```bash
-curl -c /tmp/qaflex-cookie.txt \\
-  -H 'Content-Type: application/json' \\
-  -d '{{"username":"admin","password":"admin123"}}' \\
-  http://127.0.0.1:{ctx.frontend_port}/api/auth/login
-```
-
-触发事实层重建：
-
-```bash
-curl -b /tmp/qaflex-cookie.txt -X POST \\
-  'http://127.0.0.1:{ctx.frontend_port}/api/facts/rebuild?scope={ctx.fact_rebuild_scope}&full=true'
-```
+使用具备数据同步权限的 LDAP 账号登录平台，在“系统设置/数据镜像设置”中触发 `{ctx.fact_rebuild_scope}` 范围的事实层重建。平台启用 Session CSRF 保护，不在部署文档中保存账号密码或绕过浏览器安全流程。
 """
     else:
         fact_section = """\
@@ -772,8 +760,7 @@ def deploy_helper(ctx: BuildContext) -> str:
     if ctx.require_fact_rebuild:
         fact_block = f"""\
 echo "[deploy] fact rebuild is required. Login and trigger it manually after health check:"
-echo "curl -c /tmp/qaflex-cookie.txt -H 'Content-Type: application/json' -d '{{\"username\":\"admin\",\"password\":\"admin123\"}}' http://127.0.0.1:{ctx.frontend_port}/api/auth/login"
-echo "curl -b /tmp/qaflex-cookie.txt -X POST 'http://127.0.0.1:{ctx.frontend_port}/api/facts/rebuild?scope={ctx.fact_rebuild_scope}&full=true'"
+echo "Open http://127.0.0.1:{ctx.frontend_port}/, sign in with an authorized LDAP account, and rebuild scope: {ctx.fact_rebuild_scope}."
 """
     else:
         fact_block = 'echo "[deploy] fact rebuild is not required for this package."\n'
@@ -1004,6 +991,11 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--fact-rebuild-scope", choices=("issue", "merge-request", "all"), default="all")
     parser.add_argument("--frontend-port", type=int, default=18181)
     parser.add_argument("--backend-port", type=int, default=18080)
+    parser.add_argument(
+        "--ldap-base-url",
+        default="http://172.22.10.115:8081",
+        help="LDAP platform HTTP base URL reachable from the backend container",
+    )
     parser.add_argument("--working", action="store_true", help="force -working suffix even if git status is clean")
     parser.add_argument("--skip-frontend-release-tests", action="store_true")
     parser.add_argument("--skip-build", action="store_true")

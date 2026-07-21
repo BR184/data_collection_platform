@@ -1,4 +1,4 @@
-import type { RecordTableLinkValue, RecordTableTagValue } from '../../types/record-table';
+import type { RecordTableColumn, RecordTableLinkValue, RecordTableTagValue } from '../../types/record-table';
 
 export interface RecordTableCellDisplay {
   tags: RecordTableTagValue[];
@@ -82,4 +82,14 @@ export function resolveRecordTableCellDisplay(value: unknown): RecordTableCellDi
     link: normalizeRecordTableLink(value),
     text: formatRecordTableCellValue(value),
   };
+}
+
+/**
+ * 统一判定记录表列是否在内容溢出时显示完整内容提示；显式列配置优先于类型默认值。
+ */
+export function shouldShowRecordTableOverflowTooltip(column: RecordTableColumn) {
+  if (typeof column.showOverflowTooltip === 'boolean') {
+    return column.showOverflowTooltip;
+  }
+  return column.type !== 'tags' && column.type !== 'tag';
 }

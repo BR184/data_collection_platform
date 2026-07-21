@@ -100,6 +100,18 @@ class PlatformStartupSecurityGuardTest {
     assertThatCode(() -> guard.run(new DefaultApplicationArguments())).doesNotThrowAnyException();
   }
 
+  @Test
+  void shouldNotRequireUnusedLocalCredentialsForSecureLdapConfiguration() {
+    PlatformAuthProperties properties = new PlatformAuthProperties();
+    properties.setProvider("ldap");
+    properties.getLdap().setBaseUrl("http://ldap.internal:8081");
+
+    PlatformStartupSecurityGuard guard =
+        new PlatformStartupSecurityGuard(properties, secureEnvironment());
+
+    assertThatCode(() -> guard.run(new DefaultApplicationArguments())).doesNotThrowAnyException();
+  }
+
   private MockEnvironment secureEnvironment() {
     return new MockEnvironment()
         .withProperty("spring.datasource.password", "db-password")

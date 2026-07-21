@@ -153,11 +153,6 @@ const emit = defineEmits<{
   animation: none;
 }
 
-.review-problem-dialog-body :deep(.problem-subtable-frame) {
-  overflow-x: auto;
-  overflow-y: visible;
-}
-
 @media (max-width: 760px) {
   .review-problem-dialog-heading {
     display: grid;

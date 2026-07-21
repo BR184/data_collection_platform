@@ -151,7 +151,10 @@ describe('review-data-management helpers', () => {
 
     const columns = reviewProblemItemColumns();
     expect(columns.find((column) => column.key === 'workloadHours')?.type).toBe('number');
-    expect(columns.find((column) => column.key === 'updatedAt')?.type).toBe('datetime');
+    expect(columns.find((column) => column.key === 'problemDescription')?.width).toBe(300);
+    expect(columns.find((column) => column.key === 'suggestedSolution')?.width).toBe(300);
+    expect(columns.find((column) => column.key === 'updatedAt'))
+      .toMatchObject({ type: 'datetime', width: 160, fixed: 'right' });
   });
 
   it('should create empty form defaults', () => {

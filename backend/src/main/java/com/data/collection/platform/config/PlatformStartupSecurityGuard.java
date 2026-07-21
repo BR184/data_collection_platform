@@ -45,17 +45,19 @@ public class PlatformStartupSecurityGuard implements ApplicationRunner {
   }
 
   private void validateSecureConfiguration(List<String> errors) {
-    if (isDefaultAdminCredential()) {
-      errors.add("PLATFORM_ADMIN_PASSWORD 不能使用默认值 admin123");
-    }
-    if (isDefaultApprovalCredential()) {
-      errors.add("PLATFORM_APPROVAL_PASSWORD 不能使用默认值 approval");
-    }
-    if (isLocalProvider() && !isPasswordHash(authProperties.getAdminPassword())) {
-      errors.add("PLATFORM_ADMIN_PASSWORD 必须使用 {bcrypt} 等 Spring Security password hash");
-    }
-    if (isLocalProvider() && !isPasswordHash(authProperties.getApprovalPassword())) {
-      errors.add("PLATFORM_APPROVAL_PASSWORD 必须使用 {bcrypt} 等 Spring Security password hash");
+    if (isLocalProvider()) {
+      if (isDefaultAdminCredential()) {
+        errors.add("PLATFORM_ADMIN_PASSWORD 不能使用默认值 admin123");
+      }
+      if (isDefaultApprovalCredential()) {
+        errors.add("PLATFORM_APPROVAL_PASSWORD 不能使用默认值 approval");
+      }
+      if (!isPasswordHash(authProperties.getAdminPassword())) {
+        errors.add("PLATFORM_ADMIN_PASSWORD 必须使用 {bcrypt} 等 Spring Security password hash");
+      }
+      if (!isPasswordHash(authProperties.getApprovalPassword())) {
+        errors.add("PLATFORM_APPROVAL_PASSWORD 必须使用 {bcrypt} 等 Spring Security password hash");
+      }
     }
     if (!StringUtils.hasText(environment.getProperty("spring.datasource.password"))) {
       errors.add("DATASOURCE_PASSWORD 不能为空");

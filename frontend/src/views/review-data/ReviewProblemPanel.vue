@@ -4,8 +4,9 @@ import { EditPen, Plus, WarningFilled } from '@element-plus/icons-vue';
 // 问题项面板负责展示专家问题列表和新增入口。
 // 它只接收父级传入的问题数据，实际加载与保存流程交给 review-data composable。
 import SmartTableHeader from '../../components/base/SmartTableHeader.vue';
-import { tableHeaderMinimumWidth, visualTextUnits } from '../../components/base/table-header-layout';
-import { resolveRecordTableCellDisplay } from '../../components/base/base-record-table-cell';
+import { shouldShowRecordTableOverflowTooltip } from '../../components/base/base-record-table-cell';
+import { tableHeaderMinimumWidth } from '../../components/base/table-header-layout';
+import { useFloatingHorizontalScrollbar } from '../../composables/useFloatingHorizontalScrollbar';
 import type { ReviewDataProblemItemResponse, ReviewDataRecordRowResponse } from '../../types/api';
 import type { RecordTableColumn } from '../../types/record-table';
 
@@ -41,9 +42,32 @@ const flexibleTextColumnWeights: Record<string, number> = {
   suggestedSolution: 2,
   rejectionReason: 1,
 };
-const frameRef = ref<HTMLElement>();
+const tableShellRef = ref<HTMLElement>();
 const availableTableWidth = ref(0);
 let resizeObserver: ResizeObserver | undefined;
+
+const {
+  floatingScrollbarRef,
+  floatingTrackRef,
+  scrollbarAwake,
+  hasHorizontalOverflow,
+  isFloatingScrollbarVisible,
+  floatingScrollbarStyle,
+  floatingThumbStyle,
+  wakeHorizontalScrollbar,
+  handleHorizontalWheel,
+  handleFloatingTrackPointerDown,
+  handleFloatingThumbPointerDown,
+  handleFloatingScrollbarPointerUp,
+} = useFloatingHorizontalScrollbar({
+  tableShellRef,
+  watchedSources: [
+    () => props.rows,
+    () => props.columns,
+    () => showActions.value,
+    availableTableWidth,
+  ],
+});
 
 function isPendingReview(row: Record<string, unknown>) {
   const raw = row.__raw as ReviewDataProblemItemResponse | undefined;
@@ -56,55 +80,13 @@ function effectiveColumnMinWidth(column: RecordTableColumn) {
   return Math.max(column.minWidth ?? 0, tableHeaderMinimumWidth(column.label, reservePx, column.headerLines), minimumFloor);
 }
 
-function columnContentUpperBound(column: RecordTableColumn) {
-  const configuredWidth = column.width ?? 0;
-  if (isLongTextColumn(column)) {
-    return Math.max(configuredWidth, 360);
-  }
-  if (column.type === 'number') {
-    return Math.max(configuredWidth, 128);
-  }
-  if (column.type === 'tag') {
-    return Math.max(configuredWidth, 140);
-  }
-  if (column.type === 'datetime') {
-    return Math.max(configuredWidth, 176);
-  }
-  return Math.max(configuredWidth, 220);
-}
-
-function cellDisplayText(column: RecordTableColumn, value: unknown) {
-  const display = resolveRecordTableCellDisplay(value);
-  if (column.type === 'tag') {
-    return display.primaryTag?.label ?? '-';
-  }
-  return display.text;
-}
-
-function estimatedCellWidth(column: RecordTableColumn) {
-  const contentWidth = props.rows.reduce((maximum, row) => {
-    const textWidth = Math.ceil(visualTextUnits(cellDisplayText(column, row[column.key])) * 7.2);
-    return Math.max(maximum, textWidth);
-  }, 0);
-  const cellChromeWidth = column.type === 'tag' ? 40 : column.key === 'reviewerName' ? 42 : 24;
-  return contentWidth + cellChromeWidth;
-}
-
 function effectiveColumnWidth(column: RecordTableColumn) {
-  const lowerBound = Math.max(column.width ?? 0, effectiveColumnMinWidth(column));
-  return Math.min(
-    Math.max(lowerBound, estimatedCellWidth(column)),
-    Math.max(lowerBound, columnContentUpperBound(column)),
-  );
+  return Math.max(column.width ?? 0, effectiveColumnMinWidth(column));
 }
-
-const baseColumnWidths = computed<Record<string, number>>(() =>
-  Object.fromEntries(props.columns.map((column) => [column.key, effectiveColumnWidth(column)])),
-);
 
 const baseTableContentWidth = computed(() =>
   props.columns.reduce(
-    (total, column) => total + (baseColumnWidths.value[column.key] ?? effectiveColumnMinWidth(column)),
+    (total, column) => total + effectiveColumnWidth(column),
     showActions.value ? ACTION_COLUMN_WIDTH : 0,
   ) + 2,
 );
@@ -118,7 +100,7 @@ const columnRenderWidths = computed<Record<string, number>>(() => {
   const totalWeight = flexibleTextWeightTotal.value;
   return Object.fromEntries(
     props.columns.map((column) => {
-      const baseWidth = baseColumnWidths.value[column.key] ?? effectiveColumnMinWidth(column);
+      const baseWidth = effectiveColumnWidth(column);
       const weight = flexibleTextColumnWeights[column.key] ?? 0;
       const addedWidth = extraWidth > 0 && totalWeight > 0 && weight > 0
         ? Math.floor((extraWidth * weight) / totalWeight)
@@ -134,7 +116,6 @@ const tableContentWidth = computed(() =>
     props.columns.reduce(
       (total, column) => total + (
         columnRenderWidths.value[column.key]
-        ?? baseColumnWidths.value[column.key]
         ?? effectiveColumnMinWidth(column)
       ),
       showActions.value ? ACTION_COLUMN_WIDTH : 0,
@@ -163,13 +144,13 @@ function isLongTextColumn(column: RecordTableColumn) {
 }
 
 function updateAvailableTableWidth() {
-  availableTableWidth.value = Math.floor(frameRef.value?.clientWidth ?? 0);
+  availableTableWidth.value = Math.floor(tableShellRef.value?.clientWidth ?? 0);
 }
 
 onMounted(() => {
   resizeObserver = new ResizeObserver(updateAvailableTableWidth);
-  if (frameRef.value) {
-    resizeObserver.observe(frameRef.value);
+  if (tableShellRef.value) {
+    resizeObserver.observe(tableShellRef.value);
   }
   void nextTick(updateAvailableTableWidth);
 });
@@ -195,7 +176,16 @@ watch(
       <el-button v-if="canCreateProblem" type="primary" text :icon="Plus" @click="onCreateProblemItem(record.id)">新增问题</el-button>
     </div>
 
-    <div ref="frameRef" class="problem-subtable-frame">
+    <div
+      ref="tableShellRef"
+      class="problem-subtable-frame"
+      :class="{ 'is-scrollbar-awake': scrollbarAwake, 'has-horizontal-overflow': hasHorizontalOverflow }"
+      tabindex="0"
+      @mouseenter="wakeHorizontalScrollbar"
+      @mousemove="wakeHorizontalScrollbar"
+      @focusin="wakeHorizontalScrollbar"
+      @wheel="handleHorizontalWheel"
+    >
       <el-table
         v-loading="loading"
         :data="rows"
@@ -214,10 +204,11 @@ watch(
         :label="column.label"
         :width="columnRenderWidths[column.key]"
         :min-width="effectiveColumnMinWidth(column)"
+        :fixed="column.fixed"
         :align="columnBodyAlign(column)"
         header-align="center"
         :class-name="problemColumnClassName(column)"
-        :show-overflow-tooltip="false"
+        :show-overflow-tooltip="shouldShowRecordTableOverflowTooltip(column)"
       >
         <template #header>
           <SmartTableHeader :label="column.label" :lines="column.headerLines" align="center" prefer-stacked />
@@ -272,6 +263,29 @@ watch(
         </template>
       </el-table-column>
       </el-table>
+      <Teleport to="body">
+        <div
+          v-show="isFloatingScrollbarVisible"
+          ref="floatingScrollbarRef"
+          class="review-problem-floating-horizontal"
+          :style="floatingScrollbarStyle"
+          aria-hidden="true"
+          @mouseenter="wakeHorizontalScrollbar"
+          @pointerup="handleFloatingScrollbarPointerUp"
+        >
+          <div
+            ref="floatingTrackRef"
+            class="platform-floating-horizontal-track"
+            @pointerdown="handleFloatingTrackPointerDown"
+          >
+            <div
+              class="platform-floating-horizontal-thumb"
+              :style="floatingThumbStyle"
+              @pointerdown="handleFloatingThumbPointerDown"
+            />
+          </div>
+        </div>
+      </Teleport>
     </div>
   </div>
 </template>
@@ -306,11 +320,13 @@ watch(
 }
 
 .problem-subtable-frame {
+  position: relative;
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
+  outline: none;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -342,28 +358,24 @@ watch(
   justify-content: center;
   min-width: 0;
   padding: 0 8px;
-  overflow: visible;
-  text-overflow: clip;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .problem-cell-text {
   display: block;
   width: 100%;
   min-width: 0;
-  overflow: visible;
-  text-overflow: clip;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 :deep(.problem-subtable .el-tag),
 :deep(.problem-subtable .el-tag__content) {
   max-width: 100%;
-  height: auto;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 :deep(.problem-subtable td.problem-subtable-cell--left .cell) {
@@ -424,14 +436,37 @@ watch(
   background: #f6f8fb;
 }
 
+.problem-subtable-frame :deep(.el-table__body-wrapper .el-scrollbar__bar.is-horizontal) {
+  display: none !important;
+}
+
+.review-problem-floating-horizontal {
+  position: fixed;
+  z-index: 2600;
+  height: 16px;
+  padding: 5px 0;
+  overflow: visible;
+  pointer-events: auto;
+  opacity: 1;
+  background: transparent;
+  box-shadow: none;
+}
+
 .problem-reviewer-cell {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 0;
   width: 100%;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.problem-reviewer-cell > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .problem-reviewer-warning {

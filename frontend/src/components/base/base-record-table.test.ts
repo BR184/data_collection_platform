@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import ElementPlus from 'element-plus';
@@ -6,9 +6,19 @@ import BaseRecordTable from './BaseRecordTable.vue';
 import BaseSearchInput from './BaseSearchInput.vue';
 import { resolveRecordTableCellDisplay } from './base-record-table-cell';
 
+class ResizeObserverStub {
+  observe() {}
+  disconnect() {}
+}
+
 describe('BaseRecordTable', () => {
+  beforeEach(() => {
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+  });
+
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it('emits query with the current keyword when query button is clicked', async () => {
@@ -64,10 +74,10 @@ describe('BaseRecordTable', () => {
 
     const input = wrapper.find('input');
     await input.setValue('ceshi');
-    const queryButton = wrapper.find('button.el-button--primary');
+    const queryButton = wrapper.findAll('button').find((button) => button.text() === '查询');
 
-    expect(queryButton.exists()).toBe(true);
-    await queryButton.trigger('click');
+    expect(queryButton).toBeTruthy();
+    await queryButton!.trigger('click');
 
     expect(wrapper.emitted('filter-change')?.at(-1)).toEqual([{ key: 'keyword', value: 'ceshi' }]);
     expect(wrapper.emitted('query')).toEqual([['ceshi']]);

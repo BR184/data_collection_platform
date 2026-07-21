@@ -89,12 +89,12 @@ export function reviewProblemItemColumns(): RecordTableColumn[] {
     { key: 'reviewCategory', label: '评审类别', width: 88 },
     { key: 'documentPosition', label: '在文档中的位置', width: 120, align: 'left' },
     { key: 'problemCategory', label: '问题类别', width: 88 },
-    { key: 'problemDescription', label: '问题描述', width: 150, align: 'left' },
-    { key: 'suggestedSolution', label: '建议解决方案', width: 150, align: 'left' },
+    { key: 'problemDescription', label: '问题描述', width: 300, align: 'left' },
+    { key: 'suggestedSolution', label: '建议解决方案', width: 300, align: 'left' },
     { key: 'ownerName', label: '责任人', width: 76 },
-    { key: 'rejectionReason', label: '不接受理由', width: 110, align: 'left' },
+    { key: 'rejectionReason', label: '不接受理由', width: 140, align: 'left' },
     { key: 'problemStatus', label: '问题状态', type: 'tag', width: 86, align: 'center' },
-    { key: 'updatedAt', label: '更新日期', type: 'datetime', width: 116 },
+    { key: 'updatedAt', label: '更新日期', type: 'datetime', width: 160, fixed: 'right' },
   ];
 }
 

@@ -5,7 +5,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRef, useSlots, w
 import { ArrowDown, ArrowUp, Refresh } from '@element-plus/icons-vue';
 import BaseSearchInput from './BaseSearchInput.vue';
 import BaseRecordTableCell from './BaseRecordTableCell.vue';
-import { resolveRecordTableCellDisplay } from './base-record-table-cell';
+import {
+  resolveRecordTableCellDisplay,
+  shouldShowRecordTableOverflowTooltip,
+} from './base-record-table-cell';
 import RecordTableFilterFields from './RecordTableFilterFields.vue';
 import SmartTableHeader from './SmartTableHeader.vue';
 import TableFunctionBar from './TableFunctionBar.vue';
@@ -730,13 +733,6 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
-function shouldShowOverflowTooltip(column: RecordTableColumn) {
-  if (typeof column.showOverflowTooltip === 'boolean') {
-    return column.showOverflowTooltip;
-  }
-  return column.type !== 'tags' && column.type !== 'tag';
-}
-
 function recordTableBodyAlign(column: RecordTableColumn) {
   if (isLeftAlignedTextColumn(column)) {
     return 'left';
@@ -1092,7 +1088,7 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
           :align="recordTableBodyAlign(column)"
           header-align="center"
           :class-name="recordTableColumnClassName(column)"
-          :show-overflow-tooltip="shouldShowOverflowTooltip(column)"
+          :show-overflow-tooltip="shouldShowRecordTableOverflowTooltip(column)"
         >
           <template #header>
             <SmartTableHeader

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import ElementPlus from 'element-plus';
 import BaseRecordTableCell from './BaseRecordTableCell.vue';
+import { shouldShowRecordTableOverflowTooltip } from './base-record-table-cell';
 
 describe('BaseRecordTableCell', () => {
   it('renders text values through the shared cell display helper', () => {
@@ -43,5 +44,15 @@ describe('BaseRecordTableCell', () => {
     const link = linkWrapper.find('a.record-table-link');
     expect(link.text()).toBe('查看');
     expect(link.attributes('href')).toBe('https://example.com/detail');
+  });
+
+  it('shares the overflow tooltip policy across record tables', () => {
+    expect(shouldShowRecordTableOverflowTooltip({ key: 'title', label: '标题' })).toBe(true);
+    expect(shouldShowRecordTableOverflowTooltip({ key: 'status', label: '状态', type: 'tag' })).toBe(false);
+    expect(shouldShowRecordTableOverflowTooltip({
+      key: 'description',
+      label: '描述',
+      showOverflowTooltip: false,
+    })).toBe(false);
   });
 });
