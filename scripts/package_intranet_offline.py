@@ -19,6 +19,7 @@ import subprocess
 import sys
 import tarfile
 import time
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -62,7 +63,10 @@ class BuildContext:
     dirty_state: str
     backend_tag: str
     frontend_tag: str
+    baseline_backend_tag: str
+    baseline_frontend_tag: str
     baseline_name: str
+    expected_flyway_version: str
     template_dir: Path | None
     require_fact_rebuild: bool
     fact_rebuild_scope: str
@@ -207,6 +211,43 @@ def read_compose_image_tag(compose_path: Path, image: str) -> str:
     return match.group("tag")
 
 
+def latest_flyway_version() -> str:
+    migration_dir = REPO_ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration"
+    require_path(migration_dir, "Flyway migration directory")
+    versions: list[tuple[tuple[int, ...], str]] = []
+    for path in migration_dir.glob("V*__*.sql"):
+        match = re.match(r"^V(?P<version>[0-9][0-9_.]*)__", path.name)
+        if not match:
+            continue
+        raw = match.group("version")
+        normalized = raw.replace("_", ".")
+        versions.append((tuple(int(part) for part in re.split(r"[_.]", raw)), normalized))
+    if not versions:
+        fail(f"no Flyway versioned migrations found in {migration_dir}")
+    return max(versions, key=lambda item: item[0])[1]
+
+
+def verify_backend_migrations_match_source(jar_path: Path, migration_dir: Path) -> None:
+    require_path(jar_path, "backend jar")
+    require_path(migration_dir, "Flyway migration directory")
+    source_names = {path.name for path in migration_dir.glob("*.sql") if path.is_file()}
+    with zipfile.ZipFile(jar_path) as archive:
+        jar_names = {
+            Path(name).name
+            for name in archive.namelist()
+            if name.startswith("BOOT-INF/classes/db/migration/") and name.endswith(".sql")
+        }
+    stale = sorted(jar_names - source_names)
+    missing = sorted(source_names - jar_names)
+    if stale or missing:
+        details: list[str] = []
+        if stale:
+            details.append("stale migrations in jar: " + ", ".join(stale))
+        if missing:
+            details.append("source migrations missing from jar: " + ", ".join(missing))
+        fail("backend migration set mismatch; " + "; ".join(details))
+
+
 def clean_label(label: str) -> str:
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", label):
         fail(f"release label may only contain letters, numbers, dot, underscore and hyphen: {label}")
@@ -227,6 +268,8 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
     deploy_root.mkdir(parents=True, exist_ok=True)
     image_tag = f"{date_stamp}-{short_sha}{dirty_suffix}"
 
+    baseline_backend_tag = ""
+    baseline_frontend_tag = ""
     if args.mode == "fresh-empty":
         release_label = clean_label(args.release_label or f"empty-{short_sha}{dirty_suffix}")
         package_name = f"{PACKAGE_PREFIX}-{date_stamp}-runnable-{release_label}"
@@ -236,23 +279,16 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
     else:
         release_label = clean_label(args.release_label or f"{short_sha}{dirty_suffix}")
         suffix = "-fact-rebuild" if args.require_fact_rebuild else ""
-        package_name = f"{PACKAGE_PREFIX}-{date_stamp}-incremental-images-{release_label}{suffix}"
+        package_name = f"{PACKAGE_PREFIX}-{date_stamp}-incremental-update-{release_label}{suffix}"
         baseline_dir = args.baseline_deploy_dir
         if baseline_dir is None:
-            baselines = [
-                path
-                for path in deploy_root.iterdir()
-                if path.is_dir()
-                and path.name.startswith(f"{PACKAGE_PREFIX}-")
-                and "-runnable-" in path.name
-                and (path / "docker-compose.yml").exists()
-            ]
-            if not baselines:
-                fail("--baseline-deploy-dir was not provided and no runnable package directory was found")
-            baseline_dir = max(baselines, key=lambda item: item.stat().st_mtime)
+            fail("incremental-update requires an explicit --baseline-deploy-dir")
         baseline_dir = baseline_dir.resolve()
-        backend_tag = read_compose_image_tag(baseline_dir / "docker-compose.yml", BACKEND_IMAGE)
-        frontend_tag = read_compose_image_tag(baseline_dir / "docker-compose.yml", FRONTEND_IMAGE)
+        require_path(baseline_dir, "baseline deployment directory")
+        baseline_backend_tag = read_compose_image_tag(baseline_dir / "docker-compose.yml", BACKEND_IMAGE)
+        baseline_frontend_tag = read_compose_image_tag(baseline_dir / "docker-compose.yml", FRONTEND_IMAGE)
+        backend_tag = image_tag
+        frontend_tag = image_tag
         baseline_name = baseline_dir.name
 
     package_dir = deploy_root / package_name
@@ -275,7 +311,10 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         dirty_state=dirty_state,
         backend_tag=backend_tag,
         frontend_tag=frontend_tag,
+        baseline_backend_tag=baseline_backend_tag,
+        baseline_frontend_tag=baseline_frontend_tag,
         baseline_name=baseline_name,
+        expected_flyway_version=latest_flyway_version(),
         template_dir=template_dir,
         require_fact_rebuild=args.require_fact_rebuild,
         fact_rebuild_scope=args.fact_rebuild_scope,
@@ -287,8 +326,12 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
 
 def build_products(args: argparse.Namespace) -> tuple[bool, str]:
     if args.skip_build:
+        verify_backend_migrations_match_source(
+            BACKEND_JAR,
+            REPO_ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration",
+        )
         log("skip frontend/backend build by parameter")
-        return False, "build skipped by parameter"
+        return False, "build skipped by parameter after existing jar migration-set verification"
 
     env = package_env()
     frontend_dir = REPO_ROOT / "frontend"
@@ -325,11 +368,16 @@ def build_products(args: argparse.Namespace) -> tuple[bool, str]:
         "-f",
         REPO_ROOT / "backend" / "pom.xml",
         "-DskipTests",
+        "clean",
         "package",
     )
     strict = run(strict_args, env=env, capture=True, check=False)
     if strict.returncode == 0:
-        return False, "backend jar built with -DskipTests package"
+        verify_backend_migrations_match_source(
+            BACKEND_JAR,
+            REPO_ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration",
+        )
+        return False, "backend jar built with -DskipTests clean package"
 
     if not args.allow_backend_test_source_skip:
         raise PackageError(
@@ -344,10 +392,15 @@ def build_products(args: argparse.Namespace) -> tuple[bool, str]:
         "-f",
         REPO_ROOT / "backend" / "pom.xml",
         "-Dmaven.test.skip=true",
+        "clean",
         "package",
     )
     run(fallback_args, env=env)
-    return True, "backend jar built with -Dmaven.test.skip=true after -DskipTests testCompile blocker"
+    verify_backend_migrations_match_source(
+        BACKEND_JAR,
+        REPO_ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration",
+    )
+    return True, "backend jar built with -Dmaven.test.skip=true clean package after -DskipTests testCompile blocker"
 
 
 def backend_dockerfile() -> str:
@@ -659,6 +712,25 @@ sudo docker compose --env-file .env config
 """
 
 
+def incremental_override_content(ctx: BuildContext) -> str:
+    return f"""\
+services:
+  backend:
+    image: {BACKEND_IMAGE}:{ctx.backend_tag}
+    environment:
+      PLATFORM_AUTH_PROVIDER: ldap
+      PLATFORM_LDAP_BASE_URL: ${{PLATFORM_LDAP_BASE_URL:-{ctx.ldap_base_url}}}
+      PLATFORM_LDAP_CONNECT_TIMEOUT_MS: ${{PLATFORM_LDAP_CONNECT_TIMEOUT_MS:-3000}}
+      PLATFORM_LDAP_READ_TIMEOUT_MS: ${{PLATFORM_LDAP_READ_TIMEOUT_MS:-10000}}
+      PLATFORM_LDAP_INITIAL_SYNC_REQUIRED: ${{PLATFORM_LDAP_INITIAL_SYNC_REQUIRED:-true}}
+      PLATFORM_SECURE_CONFIG_REQUIRED: "true"
+      PLATFORM_AUTH_CSRF_ENABLED: "true"
+
+  frontend:
+    image: {FRONTEND_IMAGE}:{ctx.frontend_tag}
+"""
+
+
 def incremental_readme(ctx: BuildContext) -> str:
     if ctx.require_fact_rebuild:
         fact_section = f"""\
@@ -676,9 +748,9 @@ def incremental_readme(ctx: BuildContext) -> str:
 """
 
     return f"""\
-# QA Flex Platform 前后端同容器更新包
+# QA Flex Platform 保数据更新包
 
-本包用于既有内网实例的同容器增量更新，只替换后端和前端业务镜像。
+本包用于既有内网实例的受控升级。它保留现有 PostgreSQL 容器、volume、镜像表、事实表、同步状态、平台配置和业务数据，只重新创建后端与前端应用容器。
 
 目标基线部署目录：
 
@@ -686,11 +758,23 @@ def incremental_readme(ctx: BuildContext) -> str:
 {ctx.baseline_name}
 ```
 
+基线应用镜像：
+
+- `{BACKEND_IMAGE}:{ctx.baseline_backend_tag}`
+- `{FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}`
+
+目标应用镜像：
+
+- `{BACKEND_IMAGE}:{ctx.backend_tag}`
+- `{FRONTEND_IMAGE}:{ctx.frontend_tag}`
+
+目标 Flyway 版本：`{ctx.expected_flyway_version}`。
+
 ## 禁止操作
 
 - 不要执行 `docker compose down -v`。
 - 不要删除 `qaflex_pgdata` 或任何 PostgreSQL volume。
-- 不要重新加载、重建或替换 postgres 镜像/容器。
+- 不要重建、替换或删除 postgres 容器。
 - 不要清空镜像表、事实表、同步状态、用户、页面设置或平台配置。
 - 不要在内网服务器执行 `docker build`。
 - 不要因为本包部署而触发 GitLab 全量同步。
@@ -703,50 +787,46 @@ def incremental_readme(ctx: BuildContext) -> str:
 tar -xzf {ctx.package_name}-ubuntu2404-offline.tar.gz
 ```
 
-## 2. 加载前后端业务镜像
+## 2. 执行受控升级
 
 进入既有部署目录：
 
 ```bash
 cd {ctx.baseline_name}
-
-sudo docker load -i ../{ctx.package_name}/docker-images/{BACKEND_IMAGE}_{ctx.backend_tag}.tar
-sudo docker load -i ../{ctx.package_name}/docker-images/{FRONTEND_IMAGE}_{ctx.frontend_tag}.tar
+bash ../{ctx.package_name}/deploy/upgrade.sh "$PWD"
 ```
 
-本包镜像 tag 复用既有 compose 中的 tag，避免现场修改 docker-compose.yml：
+脚本依次执行：
 
-- `{BACKEND_IMAGE}:{ctx.backend_tag}`
-- `{FRONTEND_IMAGE}:{ctx.frontend_tag}`
+- 校验现场 Compose 仍使用上述基线镜像，检查 PostgreSQL 容器和磁盘空间。
+- 检测 `sync_runs`、`fact_build_tasks` 中是否存在运行中任务；存在时拒绝升级。
+- 在 `upgrade-backups/` 下保存 `.env`、Compose、容器/镜像信息、Flyway 版本、关键表行数和 `pg_dump -Fc` 数据库备份。
+- 加载唯一的新镜像标签，写入 `docker-compose.override.yml`，先重建后端并等待 Flyway/健康检查，再重建前端。
+- 校验 PostgreSQL 容器 ID 未变化、Flyway 到达 `{ctx.expected_flyway_version}`、关键业务表行数在事实重建前保持不变。
 
-## 3. 只重建后端和前端容器
+脚本不会执行 `docker compose down`、不会删除 volume，也不会触发 GitLab 全量同步。
+
+## 3. 健康与登录检查
 
 ```bash
-sudo docker compose --env-file .env up -d --no-deps --force-recreate backend frontend
 sudo docker compose --env-file .env ps
 curl -fsS http://127.0.0.1:{ctx.backend_port}/actuator/health
+curl -fsS http://127.0.0.1:{ctx.frontend_port}/
 ```
 
-如果这里报 `container name ... is already in use`，先确认当前目录是既有部署目录 `{ctx.baseline_name}`。若目录正确但仍有遗留同名应用容器，只删除前端/后端应用容器后重建，禁止删除 postgres 或任何 volume：
-
-```bash
-sudo docker ps -a --filter "name=^/qaflex-backend$" --filter "name=^/qaflex-frontend$"
-sudo docker rm -f qaflex-backend qaflex-frontend
-sudo docker compose --env-file .env up -d --no-deps --force-recreate backend frontend
-sudo docker compose --env-file .env ps
-curl -fsS http://127.0.0.1:{ctx.backend_port}/actuator/health
-```
+使用 LDAP v0.3 账号登录；旧本地 `admin/admin123` 必须被拒绝。LDAP 不可用时，新登录失败，已有 Session 可继续使用到退出或过期。
 
 {fact_section}
 
-## 5. 冒烟检查
+## 5. 回滚边界
+
+应用回滚命令会恢复升级前 `.env` 和 Compose 覆盖文件，并重新创建旧后端/前端容器；它不会自动执行 `pg_restore`，避免误覆盖现场数据：
 
 ```bash
-curl -fsS http://127.0.0.1:{ctx.backend_port}/actuator/health
-curl -fsS http://127.0.0.1:{ctx.frontend_port}/
-sudo docker compose --env-file .env logs --tail=120 backend
-sudo docker compose --env-file .env logs --tail=120 frontend
+bash ../{ctx.package_name}/deploy/rollback-app.sh "$PWD" "$PWD/upgrade-backups/<本次备份目录>"
 ```
+
+Flyway 迁移是前向迁移。只有应用回滚仍不能恢复服务时，才在停机并确认备份无误后，将 `database.dump` 恢复到隔离数据库或经审批重建的平台库。
 
 ## 6. 包完整性校验
 
@@ -756,48 +836,188 @@ sha256sum -c ../{ctx.package_name}/SHA256SUMS.txt
 """
 
 
-def deploy_helper(ctx: BuildContext) -> str:
-    if ctx.require_fact_rebuild:
-        fact_block = f"""\
-echo "[deploy] fact rebuild is required. Login and trigger it manually after health check:"
-echo "Open http://127.0.0.1:{ctx.frontend_port}/, sign in with an authorized LDAP account, and rebuild scope: {ctx.fact_rebuild_scope}."
-"""
-    else:
-        fact_block = 'echo "[deploy] fact rebuild is not required for this package."\n'
-
+def upgrade_helper(ctx: BuildContext) -> str:
     return f"""\
 #!/usr/bin/env bash
 set -euo pipefail
 
-PACKAGE_DIR="{ctx.package_name}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${{BASH_SOURCE[0]}}")" && pwd)"
+PACKAGE_DIR="$(cd -- "${{SCRIPT_DIR}}/.." && pwd)"
+TARGET_DIR="${{1:-$PWD}}"
+EXPECTED_BACKEND="{BACKEND_IMAGE}:{ctx.baseline_backend_tag}"
+EXPECTED_FRONTEND="{FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}"
+TARGET_FLYWAY="{ctx.expected_flyway_version}"
 
-echo "[deploy] loading backend/frontend images from ../${{PACKAGE_DIR}}"
-sudo docker load -i "../${{PACKAGE_DIR}}/docker-images/{BACKEND_IMAGE}_{ctx.backend_tag}.tar"
-sudo docker load -i "../${{PACKAGE_DIR}}/docker-images/{FRONTEND_IMAGE}_{ctx.frontend_tag}.tar"
+fail() {{ echo "[upgrade] ERROR: $*" >&2; exit 1; }}
+log() {{ echo "[upgrade] $*"; }}
 
-echo "[deploy] recreating backend/frontend only"
-sudo docker compose --env-file .env up -d --no-deps --force-recreate backend frontend
-sudo docker compose --env-file .env ps
+if docker info >/dev/null 2>&1; then
+  DOCKER=(docker)
+elif sudo docker info >/dev/null 2>&1; then
+  DOCKER=(sudo docker)
+else
+  fail "Docker is unavailable"
+fi
 
-echo "[deploy] backend health"
-curl -fsS http://127.0.0.1:{ctx.backend_port}/actuator/health
+cd "$TARGET_DIR"
+[[ -f .env && -f docker-compose.yml ]] || fail "run from an existing deployment directory containing .env and docker-compose.yml"
+[[ ! -e docker-compose.override.yml ]] || fail "docker-compose.override.yml already exists; inspect it before upgrading"
 
-{fact_block}"""
+compose() {{ "${{DOCKER[@]}}" compose --env-file .env "$@"; }}
+db_query() {{
+  local sql="$1"
+  compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"' sh "$sql"
+}}
+
+BASE_CONFIG="$(compose config)"
+grep -Fq "image: $EXPECTED_BACKEND" <<<"$BASE_CONFIG" || fail "backend baseline image does not match $EXPECTED_BACKEND"
+grep -Fq "image: $EXPECTED_FRONTEND" <<<"$BASE_CONFIG" || fail "frontend baseline image does not match $EXPECTED_FRONTEND"
+POSTGRES_ID="$(compose ps -q postgres)"
+[[ -n "$POSTGRES_ID" ]] || fail "postgres service is not running"
+[[ "$("${{DOCKER[@]}}" inspect -f '{{{{.State.Health.Status}}}}' "$POSTGRES_ID")" == "healthy" ]] || fail "postgres is not healthy"
+
+ACTIVE_JOBS="$(db_query "select (select count(*) from sync_runs where status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','CANCELLING')) + (select count(*) from fact_build_tasks where status in ('PENDING','QUEUED','RUNNING','RETRYING'));" )"
+[[ "$ACTIVE_JOBS" == "0" ]] || fail "$ACTIVE_JOBS sync/fact jobs are active; wait for completion or cancel them before upgrading"
+
+DB_BYTES="$(db_query "select pg_database_size(current_database());")"
+IMAGE_BYTES="$(( $(stat -c %s "$PACKAGE_DIR/docker-images/{BACKEND_IMAGE}_{ctx.backend_tag}.tar") + $(stat -c %s "$PACKAGE_DIR/docker-images/{FRONTEND_IMAGE}_{ctx.frontend_tag}.tar") ))"
+FREE_BYTES="$(df -PB1 "$TARGET_DIR" | awk 'NR==2 {{print $4}}')"
+REQUIRED_BYTES="$(( DB_BYTES * 2 + IMAGE_BYTES * 2 + 1073741824 ))"
+(( FREE_BYTES >= REQUIRED_BYTES )) || fail "insufficient disk space: free=$FREE_BYTES required=$REQUIRED_BYTES"
+
+STAMP="$(date +%Y%m%d-%H%M%S)"
+BACKUP_DIR="$TARGET_DIR/upgrade-backups/{ctx.package_name}-$STAMP"
+mkdir -p "$BACKUP_DIR"
+cp -a .env docker-compose.yml "$BACKUP_DIR/"
+touch "$BACKUP_DIR/docker-compose.override.absent"
+printf '%s\n' "$POSTGRES_ID" > "$BACKUP_DIR/postgres.container-id"
+"${{DOCKER[@]}}" inspect "$POSTGRES_ID" > "$BACKUP_DIR/postgres.inspect.json"
+compose images > "$BACKUP_DIR/compose-images.txt"
+
+capture_counts() {{
+  local output="$1"
+  : > "$output"
+  for table in gitlab_sync_configs ods_gitlab_issues ods_gitlab_merge_requests issue_fact merge_request_fact review_records review_problem_items review_data_match_mode_reports review_data_match_mode_problem_details code_review_match_mode_records; do
+    local exists
+    exists="$(db_query "select to_regclass('public.$table') is not null;")"
+    if [[ "$exists" == "t" ]]; then
+      printf '%s=%s\n' "$table" "$(db_query "select count(*) from $table;")" >> "$output"
+    fi
+  done
+}}
+
+db_query "select coalesce(version,'') || '|' || success from flyway_schema_history order by installed_rank desc limit 1;" > "$BACKUP_DIR/flyway-before.txt"
+capture_counts "$BACKUP_DIR/counts-before.txt"
+log "creating PostgreSQL custom-format backup"
+compose exec -T postgres sh -c 'pg_dump -Fc -U "$POSTGRES_USER" -d "$POSTGRES_DB"' > "$BACKUP_DIR/database.dump"
+[[ -s "$BACKUP_DIR/database.dump" ]] || fail "database backup is empty"
+
+log "loading new application images"
+"${{DOCKER[@]}}" load -i "$PACKAGE_DIR/docker-images/{BACKEND_IMAGE}_{ctx.backend_tag}.tar"
+"${{DOCKER[@]}}" load -i "$PACKAGE_DIR/docker-images/{FRONTEND_IMAGE}_{ctx.frontend_tag}.tar"
+cp "$PACKAGE_DIR/deploy/docker-compose.release.yml" docker-compose.override.yml
+
+upsert_env() {{
+  local key="$1" value="$2" escaped
+  escaped="$(printf '%s' "$value" | sed 's/[&|]/\\&/g')"
+  if grep -q "^${{key}}=" .env; then
+    sed -i "s|^${{key}}=.*|${{key}}=${{escaped}}|" .env
+  else
+    printf '%s=%s\n' "$key" "$value" >> .env
+  fi
+}}
+ensure_env() {{
+  local key="$1" value="$2"
+  if ! grep -q "^${{key}}=..*" .env; then
+    printf '%s=%s\n' "$key" "$value" >> .env
+  fi
+}}
+upsert_env PLATFORM_AUTH_PROVIDER ldap
+ensure_env PLATFORM_LDAP_BASE_URL "{ctx.ldap_base_url}"
+ensure_env PLATFORM_LDAP_CONNECT_TIMEOUT_MS 3000
+ensure_env PLATFORM_LDAP_READ_TIMEOUT_MS 10000
+ensure_env PLATFORM_LDAP_INITIAL_SYNC_REQUIRED true
+BACKEND_HEALTH_PORT="$(awk -F= '$1 == "BACKEND_PORT" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
+FRONTEND_HEALTH_PORT="$(awk -F= '$1 == "FRONTEND_PORT" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
+BACKEND_HEALTH_PORT="${{BACKEND_HEALTH_PORT:-{ctx.backend_port}}}"
+FRONTEND_HEALTH_PORT="${{FRONTEND_HEALTH_PORT:-{ctx.frontend_port}}}"
+
+wait_healthy() {{
+  local service="$1" timeout_seconds="$2" started container status
+  started="$(date +%s)"
+  while true; do
+    container="$(compose ps -q "$service")"
+    status="$("${{DOCKER[@]}}" inspect -f '{{{{if .State.Health}}}}{{{{.State.Health.Status}}}}{{{{else}}}}{{{{.State.Status}}}}{{{{end}}}}' "$container" 2>/dev/null || true)"
+    [[ "$status" == "healthy" ]] && return 0
+    [[ "$status" == "unhealthy" || "$status" == "exited" || "$status" == "dead" ]] && fail "$service entered state $status"
+    (( $(date +%s) - started < timeout_seconds )) || fail "$service health timeout"
+    sleep 5
+  done
+}}
+
+log "recreating backend; Flyway runs before traffic is accepted"
+compose up -d --no-deps --force-recreate backend
+wait_healthy backend 900
+CURRENT_FLYWAY="$(db_query "select version from flyway_schema_history where success order by installed_rank desc limit 1;")"
+[[ "$CURRENT_FLYWAY" == "$TARGET_FLYWAY" ]] || fail "Flyway version $CURRENT_FLYWAY does not match target $TARGET_FLYWAY"
+
+capture_counts "$BACKUP_DIR/counts-after-migration.txt"
+diff -u "$BACKUP_DIR/counts-before.txt" "$BACKUP_DIR/counts-after-migration.txt" > "$BACKUP_DIR/counts.diff" || fail "protected business row counts changed during migration; see $BACKUP_DIR/counts.diff"
+[[ "$(compose ps -q postgres)" == "$POSTGRES_ID" ]] || fail "postgres container changed unexpectedly"
+
+log "recreating frontend after backend migration and health verification"
+compose up -d --no-deps --force-recreate frontend
+wait_healthy frontend 300
+curl -fsS "http://127.0.0.1:${{BACKEND_HEALTH_PORT}}/actuator/health" > "$BACKUP_DIR/backend-health.json"
+curl -fsS "http://127.0.0.1:${{FRONTEND_HEALTH_PORT}}/" > /dev/null
+printf '%s\n' "$BACKUP_DIR" > "$TARGET_DIR/upgrade-backups/latest-backup.txt"
+
+log "upgrade completed; backup: $BACKUP_DIR"
+log "login with LDAP and rebuild fact scope '{ctx.fact_rebuild_scope}' before final statistics acceptance"
+"""
+
+
+def rollback_helper(ctx: BuildContext) -> str:
+    return f"""\
+#!/usr/bin/env bash
+set -euo pipefail
+
+TARGET_DIR="${{1:-$PWD}}"
+BACKUP_DIR="${{2:-}}"
+[[ -n "$BACKUP_DIR" ]] || {{ echo "usage: rollback-app.sh <deployment-dir> <backup-dir>" >&2; exit 2; }}
+[[ -f "$BACKUP_DIR/.env" && -f "$BACKUP_DIR/docker-compose.yml" ]] || {{ echo "invalid backup directory: $BACKUP_DIR" >&2; exit 2; }}
+
+if docker info >/dev/null 2>&1; then DOCKER=(docker); else DOCKER=(sudo docker); fi
+cd "$TARGET_DIR"
+cp -a "$BACKUP_DIR/.env" .env
+cp -a "$BACKUP_DIR/docker-compose.yml" docker-compose.yml
+rm -f docker-compose.override.yml
+if [[ -f "$BACKUP_DIR/docker-compose.override.yml" ]]; then
+  cp -a "$BACKUP_DIR/docker-compose.override.yml" docker-compose.override.yml
+fi
+
+compose() {{ "${{DOCKER[@]}}" compose --env-file .env "$@"; }}
+compose up -d --no-deps --force-recreate backend
+compose up -d --no-deps --force-recreate frontend
+compose ps
+echo "[rollback] application configuration and images restored"
+echo "[rollback] database was not rewritten; Flyway is forward-only. Use database.dump only through an approved database restore procedure."
+"""
 
 
 def write_metadata(ctx: BuildContext, backend_fallback_used: bool, backend_build_note: str) -> None:
-    write_text(ctx.package_dir / ".env.example", env_content(ctx))
-    write_text(ctx.package_dir / ".env", env_content(ctx))
-    write_text(ctx.package_dir / "docker-compose.yml", compose_content(ctx))
-
     if ctx.mode == "fresh-empty":
+        write_text(ctx.package_dir / ".env.example", env_content(ctx))
+        write_text(ctx.package_dir / ".env", env_content(ctx))
+        write_text(ctx.package_dir / "docker-compose.yml", compose_content(ctx))
         write_text(ctx.package_dir / "README-INTRANET-DEPLOY.md", fresh_readme(ctx))
     else:
         write_text(ctx.package_dir / "README-INCREMENTAL-DEPLOY.md", incremental_readme(ctx))
         deploy_dir = ctx.package_dir / "deploy"
         deploy_dir.mkdir(parents=True, exist_ok=True)
-        helper = deploy_dir / "update-backend-frontend-only.sh"
-        write_text(helper, deploy_helper(ctx))
+        write_text(deploy_dir / "docker-compose.release.yml", incremental_override_content(ctx))
+        write_text(deploy_dir / "upgrade.sh", upgrade_helper(ctx))
+        write_text(deploy_dir / "rollback-app.sh", rollback_helper(ctx))
 
     date_stamp, build_time = now_stamp()
     status = git_value("status", "--short")
@@ -805,7 +1025,7 @@ def write_metadata(ctx: BuildContext, backend_fallback_used: bool, backend_build
 QA Flex Platform Intranet Offline Package
 
 Package: {ctx.package_name}
-Package type: {"empty full deployment package" if ctx.mode == "fresh-empty" else "backend/frontend incremental image package"}
+Package type: {"empty full deployment package" if ctx.mode == "fresh-empty" else "data-preserving application update package"}
 Archive: {ctx.archive_path.name}
 Build time: {build_time}
 Branch: {ctx.branch}
@@ -819,6 +1039,10 @@ Public URL: http://172.22.10.115:{ctx.frontend_port}
 GitLab Web URL: http://172.22.10.233
 Facts rebuild: {"required, scope=" + ctx.fact_rebuild_scope if ctx.require_fact_rebuild else "not required"}
 Baseline: {ctx.baseline_name or "n/a"}
+Baseline images:
+- {BACKEND_IMAGE}:{ctx.baseline_backend_tag or "n/a"}
+- {FRONTEND_IMAGE}:{ctx.baseline_frontend_tag or "n/a"}
+Target Flyway: {ctx.expected_flyway_version}
 
 Build notes:
 - {backend_build_note}
@@ -911,14 +1135,14 @@ def required_files(ctx: BuildContext) -> list[Path]:
         ctx.package_dir / "frontend" / "nginx-default.conf",
         ctx.package_dir / "docker-images" / f"{BACKEND_IMAGE}_{ctx.backend_tag}.tar",
         ctx.package_dir / "docker-images" / f"{FRONTEND_IMAGE}_{ctx.frontend_tag}.tar",
-        ctx.package_dir / ".env",
-        ctx.package_dir / ".env.example",
-        ctx.package_dir / "docker-compose.yml",
         ctx.package_dir / "VERSION.txt",
     ]
     if ctx.mode == "fresh-empty":
         files.extend(
             [
+                ctx.package_dir / ".env",
+                ctx.package_dir / ".env.example",
+                ctx.package_dir / "docker-compose.yml",
                 ctx.package_dir / "docker-images" / "postgres_16-alpine.tar",
                 ctx.package_dir / "offline-debs" / "ubuntu-24.04-amd64",
                 ctx.package_dir / "README-INTRANET-DEPLOY.md",
@@ -928,7 +1152,9 @@ def required_files(ctx: BuildContext) -> list[Path]:
         files.extend(
             [
                 ctx.package_dir / "README-INCREMENTAL-DEPLOY.md",
-                ctx.package_dir / "deploy" / "update-backend-frontend-only.sh",
+                ctx.package_dir / "deploy" / "docker-compose.release.yml",
+                ctx.package_dir / "deploy" / "upgrade.sh",
+                ctx.package_dir / "deploy" / "rollback-app.sh",
             ]
         )
     return files
@@ -939,7 +1165,19 @@ def validate_layout(ctx: BuildContext) -> None:
         require_path(path, f"required package item {path.relative_to(ctx.package_dir)}")
     if "proxy_pass http://backend:18080/api/;" not in (ctx.package_dir / "frontend" / "nginx-default.conf").read_text(encoding="utf-8"):
         fail("frontend nginx config does not proxy /api/ to backend:18080")
-    run(("docker", "compose", "--env-file", ".env", "config"), cwd=ctx.package_dir)
+    if ctx.mode == "fresh-empty":
+        run(("docker", "compose", "--env-file", ".env", "config"), cwd=ctx.package_dir)
+    else:
+        run(
+            (
+                "docker",
+                "compose",
+                "-f",
+                ctx.package_dir / "deploy" / "docker-compose.release.yml",
+                "config",
+            ),
+            cwd=ctx.package_dir,
+        )
     scan_empty_package(ctx)
 
 
@@ -982,7 +1220,7 @@ def create_archive(ctx: BuildContext, args: argparse.Namespace) -> None:
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=("fresh-empty", "incremental-images"), required=True)
+    parser.add_argument("--mode", choices=("fresh-empty", "incremental-update"), required=True)
     parser.add_argument("--release-label", default="")
     parser.add_argument("--deploy-root", type=Path, default=DEFAULT_DEPLOY_ROOT)
     parser.add_argument("--baseline-deploy-dir", type=Path)
@@ -993,7 +1231,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--backend-port", type=int, default=18080)
     parser.add_argument(
         "--ldap-base-url",
-        default="http://172.22.10.115:8081",
+        default="http://172.22.10.116:80",
         help="LDAP platform HTTP base URL reachable from the backend container",
     )
     parser.add_argument("--working", action="store_true", help="force -working suffix even if git status is clean")

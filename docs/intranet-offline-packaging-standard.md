@@ -38,9 +38,9 @@
 
 内网已部署基线不是永久固定到某个历史包。后续普通修复、页面调整、统计口径修正和前后端代码更新，默认必须以当前线上实际运行的部署目录、容器和 PostgreSQL volume 为更新目标，采用同环境增量更新方式。除非业务方明确批准重建环境、清空环境、回退到某个历史基线或灾难恢复，不得重新制作一个全新的空平台全量包去替换现有实例。
 
-本地打包时如果未显式传入 `--baseline-deploy-dir`，打包脚本会从 `D:\projects\data_collection_platform_deploy` 下选择最新可用的 `runnable` 部署目录，并读取该目录的 `docker-compose.yml` 复用当前后端/前端镜像 tag。若服务器实际运行目录与本机最新目录不一致，必须显式传入 `--baseline-deploy-dir` 或在部署说明中改成服务器实际目录；不能把某个历史日期包当成永久基线。
+增量打包必须显式传入 `--baseline-deploy-dir`，并从该目录读取当前前后端镜像 tag 作为现场预检依据。禁止按目录修改时间自动猜测基线；本机最新解压目录不等于服务器实际运行版本。
 
-同容器增量更新的目的：
+保数据更新的目的：
 
 - 保留平台数据库、同步状态、镜像表、事实表、用户配置、持久化视图、页面设置和后续接入统一账号后的用户侧数据。
 - 避免重新部署新容器后触发无意义的全量同步。
@@ -72,10 +72,11 @@
 需要事实层重建的增量包仍然是“保留用户数据”的更新包，不是空平台包。部署顺序固定为：
 
 1. `docker load` 后端/前端业务镜像。
-2. `docker compose --env-file .env up -d --no-deps --force-recreate backend frontend`，让后端启动并执行 Flyway 迁移。
-3. 确认后端 `/actuator/health` 为健康。
-4. 触发或等待事实层重建任务。若本次改动影响 issue 事实，必须重建 issue 事实；影响 MR/代码走查事实，必须重建 merge request 事实；同时影响两者则两者都重建。
-5. 事实重建成功后，统计快照/中间表应由事实刷新链路预热。若升级脚本提供了显式预热命令，执行后再验收相关统计页面。
+2. 更新前确认没有运行中的同步/事实任务，执行 `pg_dump -Fc`，备份 `.env`、Compose、当前镜像 ID、Flyway 版本和关键表行数。
+3. 以唯一的新镜像 tag 和受控 Compose 覆盖文件先重建后端，让后端启动并执行 Flyway 迁移；等待 `/actuator/health` 健康并核对目标 Flyway 版本。
+4. 确认 PostgreSQL 容器 ID 未变化、受保护业务表行数守恒后，再重建前端并完成页面健康检查。
+5. 触发或等待事实层重建任务。若本次改动影响 issue 事实，必须重建 issue 事实；影响 MR/代码走查事实，必须重建 merge request 事实；同时影响两者则两者都重建。
+6. 事实重建成功后，统计快照/中间表应由事实刷新链路预热。若升级脚本提供了显式预热命令，执行后再验收相关统计页面。
 
 事实层重建会增加升级后的首次处理时间，但它使用既有镜像表重算事实和快照，不会重新从 GitLab 源库拉全量镜像数据。同步时间和事实重建时间必须在发布说明中分开描述，不能把事实重建误写成全量同步。
 
@@ -83,30 +84,26 @@
 
 不需要事实层重建的增量包部署时只替换后端/前端业务容器并做健康检查，不主动触发事实重建、全量同步或快照清空。若部署后页面仍读取旧事实数据，这是符合预期的；该类包不承担修正历史事实结果的职责。
 
-### 无联网增量镜像包
+### 无联网保数据更新包
 
-内网服务器无公网访问能力时，普通代码更新应发布“增量镜像包”，而不是只发布 `app.jar` / `dist` 文件包。增量镜像包与全量空平台包的边界如下：
+内网服务器无公网访问能力时，普通代码更新应发布“保数据更新包”，而不是只发布 `app.jar` / `dist` 文件包。更新包与全量空平台包的边界如下：
 
-- 必须包含后端和前端业务镜像 tar，镜像 tag 默认沿用现有 `docker-compose.yml` 中的 tag，避免修改现场 compose。
+- 必须包含后端和前端业务镜像 tar；每次发布使用唯一的新 tag，旧镜像保留用于应用回滚，禁止用相同 tag 覆盖旧镜像内容。
 - 可以同时包含 `backend/app.jar` 和 `frontend/dist/` 作为审计产物，但目标服务器部署时不依赖现场构建。
 - 不包含 `postgres` 镜像、`offline-debs/`、数据库 dump、Docker volume、镜像表、事实表、同步状态或用户配置。
-- 部署时只执行 `docker load` 后端/前端业务镜像，然后 `docker compose --env-file .env up -d --no-deps --force-recreate backend frontend`。
+- 包内必须提供受控升级脚本和 Compose 覆盖文件；升级脚本保留现场 `.env` 的非目标配置，只更新本版本要求的认证/安全变量。
+- 部署时先重建后端并验收 Flyway/健康状态，再重建前端，不允许把两个应用服务作为一个不可分辨失败点同时切换。
 - 不执行 `docker build`，不重新 `docker load` postgres，不重启或重建 `postgres`，不删除 volume。
 - 如属于“需要事实层重建的增量更新包”，部署说明必须在上述容器替换步骤之后追加事实层重建和快照预热步骤；如属于“不需要事实层重建的增量更新包”，部署说明必须明确不执行事实重建。
 
-增量镜像包部署命令模板：
+保数据更新包部署命令模板：
 
 ```bash
 cd <当前线上实际运行的部署目录>
-
-sudo docker load -i ../qa-flex-platform-intranet-YYYYMMDD-incremental-images-<release-label>/docker-images/qa-flex-platform-backend_<image-tag>.tar
-sudo docker load -i ../qa-flex-platform-intranet-YYYYMMDD-incremental-images-<release-label>/docker-images/qa-flex-platform-frontend_<image-tag>.tar
-
-sudo docker compose --env-file .env up -d --no-deps --force-recreate backend frontend
-sudo docker compose --env-file .env ps
+bash ../qa-flex-platform-intranet-YYYYMMDD-incremental-update-<release-label>/deploy/upgrade.sh "$PWD"
 ```
 
-如果增量包目录不在当前部署目录的上一级，必须把 `../qa-flex-platform-intranet-YYYYMMDD-incremental-images-<release-label>/...` 改成现场实际路径。
+如果更新包目录不在当前部署目录的上一级，必须改成现场实际路径。脚本必须校验现场 Compose 的基线镜像、PostgreSQL 健康状态、活动任务和磁盘空间，任一项不满足即在变更容器前失败。
 
 如果 `up -d --no-deps --force-recreate backend frontend` 报错为 `container name ... is already in use`，通常表示当前目录不是原先创建该容器的 compose 项目，或现场遗留了同名应用容器。此时只能按精确容器名删除前端/后端应用容器后重建，禁止删除 PostgreSQL 容器或 volume：
 
@@ -243,6 +240,12 @@ YYYYMMDD-<git-short-sha>
 python scripts\package_intranet_offline.py --mode fresh-empty --release-label empty-working
 ```
 
+保数据更新包必须指定现场基线及是否重建事实层，例如：
+
+```powershell
+python scripts\package_intranet_offline.py --mode incremental-update --release-label ldap-v03-preserve-data --baseline-deploy-dir D:\projects\data_collection_platform_deploy\<现场基线目录> --require-fact-rebuild --fact-rebuild-scope all
+```
+
 该脚本会自动执行以下步骤并写入 `VERSION.txt`：
 
 ```powershell
@@ -297,7 +300,7 @@ BACKEND_PORT=18080
 BACKEND_BIND=127.0.0.1
 
 PLATFORM_AUTH_PROVIDER=ldap
-PLATFORM_LDAP_BASE_URL=http://172.22.10.115:8081
+PLATFORM_LDAP_BASE_URL=http://172.22.10.116:80
 PLATFORM_LDAP_CONNECT_TIMEOUT_MS=3000
 PLATFORM_LDAP_READ_TIMEOUT_MS=10000
 PLATFORM_LDAP_INITIAL_SYNC_REQUIRED=true
