@@ -32,7 +32,8 @@ BI 看板以及后续其它平台需要读取数据采集平台的事实和统�
 - 外部 API 使用只匹配 `/api/external/**` 的独立无状态 Spring Security 过滤链，禁用 Session、请求缓存与 CSRF；平台 LDAP 登录和浏览器业务接口使用另一条 Session 安全链。
 - 开启外部 API 时，客户端 ID、64 位 SHA-256 Token 摘要和非空数据集白名单属于启动前置条件；配置无效时应用直接启动失败。
 - 第一批数据集为 `system-test-module-fix-rates`，产品版本参数为 `productVersion`，修复数使用事实字段 `is_fixed=true`，建议类缺陷排除，分母为零的修复率返回 `null`。
-- 新增聚合数据集 `bi-dashboard`，一次返回 BI 看板需求中所有展示区域：质量目标、模块修复率、评审分布/密度、系统测试轮次修复、严重程度分布、缺陷原因、申请延期、修复人统计和代码提交趋势。其参数为必填 `productVersion`，以及可选 `codeGranularity=day|week`、`codeSource=all|cc|dgm` 和 `repositoryName`；所有建议类缺陷均在 provider 层排除，分母为零的比率返回 `null`。
+- 聚合数据集 `bi-dashboard` 提供 BI 看板全部展示区域，并支持可选 `sections` 参数按需计算；不传时返回全量，传入时只计算逗号分隔的指定区域。其它参数为必填 `productVersion`，以及可选 `codeGranularity=day|week`、`codeSource=all|cc|dgm` 和 `repositoryName`；所有建议类缺陷均在 provider 层排除，分母为零的比率返回 `null`。
+- 单区域页面必须优先调用对应专用数据集。`system-test-module-fix-rates` 同时返回模块修复率与启用产品版本目录，避免为了下拉选项调用全量聚合数据集。
 - 后续评审数据集必须复用评审页面的合并读源：正式评审表与 `review_data_match_mode_*` 兼容快照表始终合并，不能因 `review_data_read_mode` 关闭而丢失仅存在于老平台的历史评审数据。
 - 外部平台应通过自己的后端调用该 API；不要求数据采集平台开放浏览器跨域访问。
 
@@ -79,8 +80,7 @@ PLATFORM_EXTERNAL_API_ENABLED=true
 PLATFORM_EXTERNAL_API_CLIENTS_0_CLIENT_ID=bi-dashboard
 PLATFORM_EXTERNAL_API_CLIENTS_0_TOKEN_SHA256=<sha256>
 PLATFORM_EXTERNAL_API_CLIENTS_0_ALLOWED_DATASETS_0=bi-dashboard
-# 如需兼容旧调用方，可额外配置：
-# PLATFORM_EXTERNAL_API_CLIENTS_0_ALLOWED_DATASETS_1=system-test-module-fix-rates
+PLATFORM_EXTERNAL_API_CLIENTS_0_ALLOWED_DATASETS_1=system-test-module-fix-rates
 ```
 
 数据集目录：
@@ -100,11 +100,13 @@ Authorization: Bearer <token>
 BI 看板聚合数据：
 
 ```http
-GET /api/external/v1/datasets/bi-dashboard?productVersion=CC2026R4&codeGranularity=week
+GET /api/external/v1/datasets/bi-dashboard?productVersion=CC2026R4&codeGranularity=week&sections=qualityTargets,moduleFixRates
 Authorization: Bearer <token>
 ```
 
 `bi-dashboard` 的 `payload` 包含以下稳定 section：
+
+- `includedSections[]`：本次实际计算的区域；未包含的区域返回对应空结构。
 
 - `qualityTargets.metrics[]`：质量目标及达成状态。
 - `availableProductVersions[]`：可供 BI 切换的启用产品版本目录。

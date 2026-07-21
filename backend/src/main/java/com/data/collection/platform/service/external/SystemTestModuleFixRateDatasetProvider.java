@@ -5,6 +5,7 @@ import com.data.collection.platform.entity.external.ExternalDatasetField;
 import com.data.collection.platform.entity.external.ExternalDatasetParameter;
 import com.data.collection.platform.entity.external.SystemTestModuleFixRatePayload;
 import com.data.collection.platform.entity.statistics.SystemTestModuleFixRateSnapshot;
+import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.data.collection.platform.service.statistics.SystemTestDefectSummaryBoardService;
 import java.util.List;
 import java.util.Map;
@@ -14,12 +15,16 @@ import org.springframework.stereotype.Service;
 public class SystemTestModuleFixRateDatasetProvider
     implements ExternalDatasetProvider<SystemTestModuleFixRatePayload> {
   public static final String DATASET_KEY = "system-test-module-fix-rates";
-  private static final String SCHEMA_VERSION = "1.0";
+  private static final String SCHEMA_VERSION = "1.1";
 
   private final SystemTestDefectSummaryBoardService summaryBoardService;
+  private final SystemTestPhaseScopeResolver phaseScopeResolver;
 
-  public SystemTestModuleFixRateDatasetProvider(SystemTestDefectSummaryBoardService summaryBoardService) {
+  public SystemTestModuleFixRateDatasetProvider(
+      SystemTestDefectSummaryBoardService summaryBoardService,
+      SystemTestPhaseScopeResolver phaseScopeResolver) {
     this.summaryBoardService = summaryBoardService;
+    this.phaseScopeResolver = phaseScopeResolver;
   }
 
   @Override
@@ -38,6 +43,8 @@ public class SystemTestModuleFixRateDatasetProvider
             "productVersion", "string", true, "产品版本名称，对应测试阶段父分组。", "CC2026R4")),
         List.of(
             new ExternalDatasetField("productVersion", "string", false, "请求使用的产品版本。"),
+            new ExternalDatasetField("availableProductVersions[]", "string", false,
+                "可选择的启用产品版本。"),
             new ExternalDatasetField("testingPhases[]", "string", false, "产品版本下命中的启用测试阶段。"),
             new ExternalDatasetField("modules[].moduleName", "string", false, "归一化模块名称。"),
             new ExternalDatasetField("modules[].overall.defectCount", "integer", false, "模块有效缺陷数。"),
@@ -59,6 +66,9 @@ public class SystemTestModuleFixRateDatasetProvider
     String productVersion = parameters == null ? null : parameters.get("productVersion");
     SystemTestModuleFixRateSnapshot snapshot = summaryBoardService.loadExternalModuleFixRates(productVersion);
     return new SystemTestModuleFixRatePayload(
-        snapshot.productVersion(), snapshot.testingPhases(), snapshot.modules());
+        snapshot.productVersion(),
+        phaseScopeResolver.listEnabledLegacyCrownCadParentNames(),
+        snapshot.testingPhases(),
+        snapshot.modules());
   }
 }
