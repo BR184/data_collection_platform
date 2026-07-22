@@ -1,18 +1,31 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.CodeReviewMatchModeSyncResponse;
+import com.data.collection.platform.entity.CodeReviewMatchModeDbSettingsResponse;
+import com.data.collection.platform.entity.LegacyPlatformFormalImportDomainResponse;
 import com.data.collection.platform.entity.LegacyPlatformFormalImportRequest;
 import com.data.collection.platform.entity.LegacyPlatformFormalImportResponse;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 @Slf4j
 public class LegacyPlatformFormalImportService {
   public static final String CONFIRMATION_TEXT = "我确认要将数据源导入新采集平台中";
+  private static final long HANDOVER_LOCK_ID = 7_026_072_103L;
 
   private final CodeReviewMatchModeSyncService mysqlSyncService;
   private final CodeReviewMatchModeMongoReviewSyncService mongoReviewSyncService;
@@ -22,6 +35,8 @@ public class LegacyPlatformFormalImportService {
   private final CodeReviewMatchModeConfigService configService;
   private final PageRecordSnapshotService pageRecordSnapshotService;
   private final JdbcTemplate jdbcTemplate;
+  private final JsonUtils jsonUtils;
+  private final TransactionTemplate transactionTemplate;
 
   public LegacyPlatformFormalImportService(
       CodeReviewMatchModeSyncService mysqlSyncService,
@@ -31,7 +46,9 @@ public class LegacyPlatformFormalImportService {
       ReviewDataMatchModeMaterializeService reviewMaterializeService,
       CodeReviewMatchModeConfigService configService,
       PageRecordSnapshotService pageRecordSnapshotService,
-      JdbcTemplate jdbcTemplate) {
+      JdbcTemplate jdbcTemplate,
+      JsonUtils jsonUtils,
+      PlatformTransactionManager transactionManager) {
     this.mysqlSyncService = mysqlSyncService;
     this.mongoReviewSyncService = mongoReviewSyncService;
     this.legacyRefreshService = legacyRefreshService;
@@ -40,6 +57,9 @@ public class LegacyPlatformFormalImportService {
     this.configService = configService;
     this.pageRecordSnapshotService = pageRecordSnapshotService;
     this.jdbcTemplate = jdbcTemplate;
+    this.jsonUtils = jsonUtils;
+    this.transactionTemplate = new TransactionTemplate(transactionManager);
+    this.transactionTemplate.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
   }
 
   //兼容模式-MatchMode
@@ -62,14 +82,33 @@ public class LegacyPlatformFormalImportService {
 
   //兼容模式-MatchMode
   public void refreshAndPromoteCodeReviewRecord(String source, Long mergeRequestIid) {
-    legacyRefreshService.refreshOneForFormalImport(source, mergeRequestIid);
-    importCodeReviewData();
+    withExclusiveHandoverLock(() -> {
+      legacyRefreshService.refreshOneForFormalImport(source, mergeRequestIid);
+      transactionTemplate.executeWithoutResult(status -> importCodeReviewData());
+      return Boolean.TRUE;
+    });
     pageRecordSnapshotService.invalidatePage(CodeReviewIllegalRecordService.WORKSPACE_KEY);
   }
 
   //兼容模式-MatchMode
-  public LegacyPlatformFormalImportResponse importToFormal(LegacyPlatformFormalImportRequest request) {
+  public LegacyPlatformFormalImportResponse importToFormal(
+      LegacyPlatformFormalImportRequest request,
+      String operatorUsername) {
     validateRequest(request);
+    CodeReviewMatchModeConfig config = configService.loadConfig();
+    CodeReviewMatchModeDbSettingsResponse settings = configService.getResponse();
+    validateSettingsVersion(request, settings.updatedAt());
+    validateSourceScope(request, config);
+    return withExclusiveHandoverLock(
+        () -> executeHandover(request, operatorUsername, settings, config));
+  }
+
+  private LegacyPlatformFormalImportResponse executeHandover(
+      LegacyPlatformFormalImportRequest request,
+      String operatorUsername,
+      CodeReviewMatchModeDbSettingsResponse settings,
+      CodeReviewMatchModeConfig config) {
+    long runId = startRun(request, operatorUsername, settings.updatedAt(), config);
     ImportCounters counters = new ImportCounters();
     try {
       if (request.importReviewData()) {
@@ -77,36 +116,69 @@ public class LegacyPlatformFormalImportService {
         if (!syncResponse.accepted()) {
           throw new BizException(syncResponse.message());
         }
-        ReviewImportCounters reviewCounters = importReviewData();
-        counters.reviewInsertedCount = reviewCounters.inserted();
-        counters.reviewUpdatedCount = reviewCounters.updated();
-        configService.markReviewDataFormalReadMode();
-        pageRecordSnapshotService.invalidatePage("review-data-records");
       }
       if (request.importCodeReviewData()) {
         CodeReviewMatchModeSyncResponse syncResponse = mysqlSyncService.syncNowForFormalImport();
         if (!syncResponse.accepted()) {
           throw new BizException(syncResponse.message());
         }
-        CodeReviewImportCounters codeReviewCounters = importCodeReviewData();
-        counters.codeReviewInsertedCount = codeReviewCounters.inserted();
-        counters.codeReviewUpdatedCount = codeReviewCounters.updated();
-        configService.markCodeReviewFormalReadMode();
-        pageRecordSnapshotService.invalidatePage(CodeReviewIllegalRecordService.WORKSPACE_KEY);
       }
-      recordRun(request, counters, "SUCCESS", "老平台数据已转入新平台正式数据");
-      return new LegacyPlatformFormalImportResponse(
-          true,
-          "老平台数据已转入新平台正式数据",
-          counters.reviewInsertedCount,
-          counters.reviewUpdatedCount,
-          counters.codeReviewInsertedCount,
-          counters.codeReviewUpdatedCount);
+      LegacyPlatformFormalImportResponse response = transactionTemplate.execute(status -> {
+        if (request.importReviewData()) {
+          ReviewImportCounters reviewCounters = importReviewData();
+          counters.reviewInsertedCount = reviewCounters.inserted();
+          counters.reviewUpdatedCount = reviewCounters.updated();
+          counters.reviewSkippedCount = reviewCounters.skipped();
+          counters.reviewDeletedCount = reviewCounters.deleted();
+        }
+        if (request.importCodeReviewData()) {
+          CodeReviewImportCounters codeReviewCounters = importCodeReviewData();
+          counters.codeReviewInsertedCount = codeReviewCounters.inserted();
+          counters.codeReviewUpdatedCount = codeReviewCounters.updated();
+          counters.codeReviewDeletedCount = codeReviewCounters.deleted();
+          configService.markCodeReviewFormalReadMode();
+        }
+        finishRun(runId, request, counters, "SUCCESS", "老平台数据已转入新平台正式数据");
+        return successResponse(runId, request, counters);
+      });
+      if (response == null) {
+        throw new IllegalStateException("老平台数据交接事务未返回结果");
+      }
+      invalidateAffectedSnapshots(request);
+      return response;
     } catch (RuntimeException error) {
       log.warn("Legacy platform formal import failed", error);
-      recordRun(request, counters, "FAILED", rootMessage(error));
-      throw error;
+      String message = rootMessage(error);
+      failRun(runId, request, message);
+      return failureResponse(runId, request, message);
     }
+  }
+
+  private <T> T withExclusiveHandoverLock(Supplier<T> action) {
+    T result = jdbcTemplate.execute((ConnectionCallback<T>) connection -> {
+      try (PreparedStatement statement = connection.prepareStatement(
+          "select pg_try_advisory_lock(?)")) {
+        statement.setLong(1, HANDOVER_LOCK_ID);
+        try (ResultSet resultSet = statement.executeQuery()) {
+          if (!resultSet.next() || !resultSet.getBoolean(1)) {
+            throw new BizException("已有老平台数据交接任务正在执行，请等待其完成");
+          }
+        }
+      }
+      try {
+        return action.get();
+      } finally {
+        try (PreparedStatement statement = connection.prepareStatement(
+            "select pg_advisory_unlock(?)")) {
+          statement.setLong(1, HANDOVER_LOCK_ID);
+          statement.executeQuery().close();
+        }
+      }
+    });
+    if (result == null) {
+      throw new IllegalStateException("老平台数据交接锁未返回执行结果");
+    }
+    return result;
   }
 
   private void validateRequest(LegacyPlatformFormalImportRequest request) {
@@ -121,25 +193,63 @@ public class LegacyPlatformFormalImportService {
     }
   }
 
+  private void validateSettingsVersion(
+      LegacyPlatformFormalImportRequest request,
+      LocalDateTime currentUpdatedAt) {
+    if (request.expectedSettingsUpdatedAt() == null || currentUpdatedAt == null
+        || !request.expectedSettingsUpdatedAt().equals(currentUpdatedAt)) {
+      throw new BizException("兼容模式设置已变化，请重新加载并确认导入范围");
+    }
+  }
+
+  private void validateSourceScope(
+      LegacyPlatformFormalImportRequest request,
+      CodeReviewMatchModeConfig config) {
+    if (request.importReviewData()) {
+      if (!org.springframework.util.StringUtils.hasText(config.mongoUri())) {
+        throw new BizException("老平台 MongoDB 配置不完整");
+      }
+      for (String required : java.util.List.of(
+          config.reviewReportCollectionName(),
+          config.reviewProblemCollectionName(),
+          "description")) {
+        if (!config.selectedMongoCollectionNames().contains(required)) {
+          throw new BizException("评审交接缺少必需集合: " + required);
+        }
+      }
+    }
+    if (request.importCodeReviewData()) {
+      if (!org.springframework.util.StringUtils.hasText(config.mysqlJdbcUrl())
+          || !org.springframework.util.StringUtils.hasText(config.mysqlUsername())) {
+        throw new BizException("老平台 MySQL 配置不完整");
+      }
+      if (!config.selectedTableNames().contains(config.mysqlTableName())) {
+        throw new BizException("代码走查交接范围必须包含表: " + config.mysqlTableName());
+      }
+    }
+  }
+
   //兼容模式-MatchMode
   private ReviewImportCounters importReviewData() {
     long inserted = 0L;
     long updated = 0L;
-    for (Long matchModeRecordId : reviewMatchModeRecordRepository.loadAllPublicRecordIds()) {
+    long skipped = 0L;
+    for (ReviewDataMatchModeRecordRepository.MatchModeRecordSource source
+        : reviewMatchModeRecordRepository.loadAllRecordSources()) {
       ReviewDataMatchModeMaterializeService.MaterializeResult result =
-          reviewMaterializeService.materializeRecordWithResult(matchModeRecordId);
-      if (result.inserted()) {
-        inserted++;
-      } else {
-        updated++;
+          reviewMaterializeService.materializeForHandover(source);
+      switch (result.outcome()) {
+        case INSERTED -> inserted++;
+        case UPDATED -> updated++;
+        case SKIPPED_PLATFORM_OWNED -> skipped++;
       }
     }
-    return new ReviewImportCounters(inserted, updated);
+    long deleted = reconcileRemovedReviewData();
+    return new ReviewImportCounters(inserted, updated, skipped, deleted);
   }
 
   //兼容模式-MatchMode
-  @Transactional
-  protected CodeReviewImportCounters importCodeReviewData() {
+  private CodeReviewImportCounters importCodeReviewData() {
     CodeReviewImportCounters counters = countCodeReviewImportRows();
     jdbcTemplate.update("""
         insert into merge_request_fact(
@@ -344,7 +454,8 @@ public class LegacyPlatformFormalImportService {
           fact_refreshed_at = current_timestamp,
           updated_at = current_timestamp
         """);
-    return counters;
+    long deleted = reconcileRemovedCodeReviewData();
+    return new CodeReviewImportCounters(counters.inserted(), counters.updated(), deleted);
   }
 
   private CodeReviewImportCounters countCodeReviewImportRows() {
@@ -371,43 +482,213 @@ public class LegacyPlatformFormalImportService {
         """,
         rs -> {
           if (!rs.next()) {
-            return new CodeReviewImportCounters(0, 0);
+            return new CodeReviewImportCounters(0, 0, 0);
           }
-          return new CodeReviewImportCounters(rs.getLong("inserted_count"), rs.getLong("updated_count"));
+          return new CodeReviewImportCounters(
+              rs.getLong("inserted_count"), rs.getLong("updated_count"), 0);
         });
   }
 
-  private void recordRun(
+  private long reconcileRemovedReviewData() {
+    return jdbcTemplate.update("""
+        update review_records record
+           set deleted = true, updated_at = current_timestamp
+          from review_data_match_mode_edit_links link
+         where link.review_record_id = record.id
+           and link.authority = 'LEGACY_MANAGED'
+           and record.deleted = false
+           and not exists (
+             select 1
+               from review_data_match_mode_reports report
+              where report.legacy_id = link.match_mode_report_legacy_id
+           )
+        """);
+  }
+
+  private long reconcileRemovedCodeReviewData() {
+    return jdbcTemplate.update("""
+        update merge_request_fact fact
+           set deleted = true,
+               fact_refreshed_at = current_timestamp,
+               updated_at = current_timestamp
+         where fact.source_system = 'LEGACY_PLATFORM'
+           and fact.deleted = false
+           and not exists (
+             select 1
+               from code_review_match_mode_records source
+              where source.source_instance = fact.source_instance
+                and coalesce(source.project_id, 0) = fact.project_id
+                and case
+                      when coalesce(source.legacy_source_id, '') ~ '^[0-9]+$'
+                        then source.legacy_source_id::bigint
+                      else source.id
+                    end = fact.merge_request_id
+           )
+        """);
+  }
+
+  private long startRun(
       LegacyPlatformFormalImportRequest request,
-      ImportCounters counters,
-      String status,
-      String message) {
-    jdbcTemplate.update("""
+      String operatorUsername,
+      LocalDateTime settingsUpdatedAt,
+      CodeReviewMatchModeConfig config) {
+    Long runId = jdbcTemplate.queryForObject("""
         insert into legacy_platform_formal_import_runs(
           import_type,
           confirmation_text,
           review_requested,
           code_review_requested,
-          review_inserted_count,
-          review_updated_count,
-          code_review_inserted_count,
-          code_review_updated_count,
+          operator_username,
+          settings_updated_at,
+          review_status,
+          code_review_status,
           status,
-          message
+          message,
+          source_summary
         ) values (
-          'MATCH_MODE_PROMOTION',
-          ?, ?, ?, ?, ?, ?, ?, ?, ?
-        )
+          'MATCH_MODE_PROMOTION', ?, ?, ?, ?, ?, ?, ?, 'RUNNING', '正在交接老平台数据', ?::jsonb
+        ) returning id
         """,
-        request == null ? "" : TextQuerySupport.normalizeDisplay(request.confirmationText()),
-        request != null && request.importReviewData(),
-        request != null && request.importCodeReviewData(),
+        Long.class,
+        TextQuerySupport.normalizeDisplay(request.confirmationText()),
+        request.importReviewData(),
+        request.importCodeReviewData(),
+        TextQuerySupport.normalizeDisplay(operatorUsername),
+        settingsUpdatedAt,
+        request.importReviewData() ? "PENDING" : "NOT_REQUESTED",
+        request.importCodeReviewData() ? "PENDING" : "NOT_REQUESTED",
+        sourceSummary(config));
+    if (runId == null) {
+      throw new IllegalStateException("创建老平台数据交接任务失败");
+    }
+    return runId;
+  }
+
+  private void finishRun(
+      long runId,
+      LegacyPlatformFormalImportRequest request,
+      ImportCounters counters,
+      String status,
+      String message) {
+    jdbcTemplate.update("""
+        update legacy_platform_formal_import_runs
+           set review_inserted_count = ?,
+               review_updated_count = ?,
+               review_skipped_count = ?,
+               review_deleted_count = ?,
+               code_review_inserted_count = ?,
+               code_review_updated_count = ?,
+               code_review_deleted_count = ?,
+               review_status = ?,
+               code_review_status = ?,
+               status = ?,
+               message = ?,
+               finished_at = current_timestamp
+         where id = ?
+        """,
         counters.reviewInsertedCount,
         counters.reviewUpdatedCount,
+        counters.reviewSkippedCount,
+        counters.reviewDeletedCount,
         counters.codeReviewInsertedCount,
         counters.codeReviewUpdatedCount,
+        counters.codeReviewDeletedCount,
+        request.importReviewData() ? "SUCCESS" : "NOT_REQUESTED",
+        request.importCodeReviewData() ? "SUCCESS" : "NOT_REQUESTED",
         status,
-        message);
+        message,
+        runId);
+  }
+
+  private void failRun(long runId, LegacyPlatformFormalImportRequest request, String message) {
+    jdbcTemplate.update("""
+        update legacy_platform_formal_import_runs
+           set review_status = ?,
+               code_review_status = ?,
+               status = 'FAILED',
+               message = ?,
+               finished_at = current_timestamp
+         where id = ?
+        """,
+        request.importReviewData() ? "FAILED" : "NOT_REQUESTED",
+        request.importCodeReviewData() ? "FAILED" : "NOT_REQUESTED",
+        message,
+        runId);
+  }
+
+  private String sourceSummary(CodeReviewMatchModeConfig config) {
+    Map<String, Object> summary = new LinkedHashMap<>();
+    summary.put("mysqlTable", config.mysqlTableName());
+    summary.put("mysqlTables", config.selectedTableNames());
+    summary.put("mongoDatabase", config.mongoDatabase());
+    summary.put("mongoCollections", config.selectedMongoCollectionNames());
+    return jsonUtils.toJson(summary);
+  }
+
+  private LegacyPlatformFormalImportResponse successResponse(
+      long runId,
+      LegacyPlatformFormalImportRequest request,
+      ImportCounters counters) {
+    return new LegacyPlatformFormalImportResponse(
+        runId,
+        true,
+        "SUCCESS",
+        "老平台数据已转入新平台正式数据",
+        domainResponse(
+            request.importReviewData(),
+            "SUCCESS",
+            counters.reviewInsertedCount,
+            counters.reviewUpdatedCount,
+            counters.reviewSkippedCount,
+            counters.reviewDeletedCount,
+            "评审数据交接完成"),
+        domainResponse(
+            request.importCodeReviewData(),
+            "SUCCESS",
+            counters.codeReviewInsertedCount,
+            counters.codeReviewUpdatedCount,
+            0,
+            counters.codeReviewDeletedCount,
+            "代码走查数据交接完成"));
+  }
+
+  private LegacyPlatformFormalImportResponse failureResponse(
+      long runId,
+      LegacyPlatformFormalImportRequest request,
+      String message) {
+    return new LegacyPlatformFormalImportResponse(
+        runId,
+        false,
+        "FAILED",
+        message,
+        domainResponse(request.importReviewData(), "FAILED", 0, 0, 0, 0, message),
+        domainResponse(request.importCodeReviewData(), "FAILED", 0, 0, 0, 0, message));
+  }
+
+  private LegacyPlatformFormalImportDomainResponse domainResponse(
+      boolean requested,
+      String requestedStatus,
+      long inserted,
+      long updated,
+      long skipped,
+      long deleted,
+      String message) {
+    return new LegacyPlatformFormalImportDomainResponse(
+        requested ? requestedStatus : "NOT_REQUESTED",
+        inserted,
+        updated,
+        skipped,
+        deleted,
+        requested ? message : "未选择此数据域");
+  }
+
+  private void invalidateAffectedSnapshots(LegacyPlatformFormalImportRequest request) {
+    if (request.importReviewData()) {
+      pageRecordSnapshotService.invalidatePage("review-data-records");
+    }
+    if (request.importCodeReviewData()) {
+      pageRecordSnapshotService.invalidatePage(CodeReviewIllegalRecordService.WORKSPACE_KEY);
+    }
   }
 
   private String rootMessage(Throwable error) {
@@ -422,11 +703,14 @@ public class LegacyPlatformFormalImportService {
   private static final class ImportCounters {
     private long reviewInsertedCount;
     private long reviewUpdatedCount;
+    private long reviewSkippedCount;
+    private long reviewDeletedCount;
     private long codeReviewInsertedCount;
     private long codeReviewUpdatedCount;
+    private long codeReviewDeletedCount;
   }
 
-  private record ReviewImportCounters(long inserted, long updated) {}
+  private record ReviewImportCounters(long inserted, long updated, long skipped, long deleted) {}
 
-  private record CodeReviewImportCounters(long inserted, long updated) {}
+  private record CodeReviewImportCounters(long inserted, long updated, long deleted) {}
 }

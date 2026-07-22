@@ -21,6 +21,5 @@ public record CodeReviewMatchModeDbSettingsSaveRequest(
     List<String> selectedMongoCollectionNames,
     String reviewReportCollectionName,
     String reviewProblemCollectionName,
-    String reviewDataReadMode,
     String codeReviewReadMode) {
 }

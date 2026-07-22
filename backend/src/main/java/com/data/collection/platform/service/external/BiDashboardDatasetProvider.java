@@ -280,40 +280,32 @@ public class BiDashboardDatasetProvider implements ExternalDatasetProvider<BiDas
       String productVersion, String granularity, String source, String repositoryName) {
     String bucket = "week".equals(granularity) ? "week" : "day";
     String sourcePredicate = switch (source) {
-      case "cc" -> "and lower(coalesce(source_instance, 'default')) = 'default' and project_id = ?";
-      case "dgm" -> "and lower(coalesce(source_instance, 'default')) = 'dgm'";
-      default -> "and lower(coalesce(source_instance, 'default')) in ('default', 'dgm')"
-          + " and (lower(coalesce(source_instance, 'default')) = 'dgm' or project_id = ?)";
+      case "cc" -> "and business_source = 'cc'";
+      case "dgm" -> "and business_source = 'dgm'";
+      default -> "and business_source in ('cc', 'dgm')";
     };
     String repositoryPredicate = StringUtils.hasText(repositoryName)
         ? "and lower(coalesce(repository_name, '')) = ?" : "";
-    String projectPredicate = "dgm".equals(source)
-        ? "and lower(coalesce(project_name, '')) like ?"
-        : "and (lower(coalesce(project_name, '')) like ?"
-            + " or lower(coalesce(project_name, '')) like ?)";
+    String projectPredicate = "and (lower(coalesce(project_name, '')) like ?"
+        + " or lower(coalesce(project_name, '')) like ?)";
     String projectPattern = "%" + productVersion.toLowerCase() + "%";
     String legacyProjectPattern = "%" + legacyProjectName(productVersion).toLowerCase() + "%";
     List<Object> args = new ArrayList<>();
     args.add(bucket);
-    if (!"dgm".equals(source)) {
-      args.add(CROWN_CAD_PROJECT_ID);
-    }
     args.add(projectPattern);
-    if (!"dgm".equals(source)) {
-      args.add(legacyProjectPattern);
-    }
+    args.add(legacyProjectPattern);
     if (StringUtils.hasText(repositoryName)) {
       args.add(repositoryName.toLowerCase());
     }
     List<CodeSubmissionPoint> raw = jdbcTemplate.query(
         """
         with ranked as (
-          select lower(coalesce(source_instance, 'default')) source_instance,
+          select business_source source_instance,
                  date_trunc(?, merged_at_source)::date period, merge_request_id,
                  greatest(coalesce(added_lines, 0), 0) added_lines,
-                 row_number() over (partition by source_instance, merge_request_id order by id) rn
-            from merge_request_fact
-           where deleted = false
+                 row_number() over (partition by business_source, merge_request_id order by id) rn
+            from code_review_formal_records
+           where 1 = 1
              %s %s %s
              and lower(coalesce(target_branch, '')) = 'dev'
              and upper(coalesce(merge_request_state, '')) = 'MERGED' and merged_at_source is not null

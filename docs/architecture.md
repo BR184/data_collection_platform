@@ -11,7 +11,7 @@
 
 - 形态：Spring Boot 单体后端 + Vue 3/TypeScript/Vite 前端 + PostgreSQL；前端默认 `18181`，后端默认 `18080`。
 - 数据入口：GitLab 镜像表（ODS）→ 事实层 → 统计服务/快照 → 页面、导出和外部只读数据集 API。
-- 核心事实表：`issue_fact`、`merge_request_fact`、`integration_test_fact`；评审数据由正式评审表与兼容模式快照读模型按统一规则合并。
+- 核心事实表：`issue_fact`、`merge_request_fact`、`integration_test_fact`；评审页面使用 `review_visible_*` 统一读模型，合并正式评审表与尚未交接且未被映射的兼容快照。
 - 系统测试父级阶段及子阶段均以“议题测试阶段定义”的显式父子关系为权威来源；选择父级时展开为其已配置子阶段并匹配 `issue_fact.testing_phase`。不同产品版本复用同一规则，不得从子阶段文本反推父级，也不得以“项目：CCxxxxRx”标签替代测试阶段归属。
 - 数据库迁移统一使用 Flyway；已执行迁移不可修改，新增结构或数据变更必须新建迁移。
 - 平台库为 `qaflex`；GitLab 源库为 `gitlabhq_production`；老平台 MySQL 库为 `gitlab_spider`。三者边界不可混用。
@@ -53,7 +53,7 @@
 ### 质量看板契约
 
 - 研发质量看板保留老平台八个 headline 指标和五类辅助图表；其中 DGM 只参与明确的代码走查指标和图表。
-- 其他看板提供老平台六类统计，不提供 DGM 选择器或 DGM 接口；兼容读取集中在代码走查读支持层，正式 CC 读取 `merge_request_fact(source_instance=default, deleted=false)`。
+- 其他看板提供老平台六类统计，不提供 DGM 选择器或 DGM 接口，其固定 GitLab CC 边界不参与老平台代码走查交接。研发质量/多元看板、代码走查非法数据、系统测试横向对比和外部数据集等交接消费者统一读取 `code_review_formal_records`：CC/DGM 各自优先读取已交接的 `LEGACY_PLATFORM` 事实，未交接时回退到对应 GitLab 正式范围；禁止在消费者内复制来源判断。
 
 ### 业务模块
 
@@ -73,7 +73,9 @@
 ## 兼容模式边界
 
 - CC/DGM、老平台评审数据等临时兼容源必须通过明确的 Match mode 服务、表、任务和 API 访问，并在代码中标注 `兼容模式` / `Match mode`。
-- 正式数据源与兼容数据源不可互相覆盖；关闭兼容模式后，正式页面只读取正式源，兼容表仍可作为历史快照但不得隐式混入查询。
+- 正式数据源与兼容数据源不可互相覆盖。评审兼容快照仅通过 `review_visible_*` 暴露未交接记录；交接后由 `review_data_match_mode_edit_links` 映射去重。代码走查交接成功后由 `code_review_formal_records` 选择正式事实，旧兼容快照不再直接进入正式消费者。所有兼容路径必须标注 `兼容模式` / `Match mode`。
+- 老平台数据转正式数据是可审计、幂等的所有权交接：评审完整迁移主记录、专家、描述、内容和问题项，派生指标在正式表重算；代码走查迁移 CC/DGM 事实。平台已编辑、新增或删除的评审记录标记 `PLATFORM_OWNED`，后续交接跳过；历史无创建人保持 `created_by = null`。
+- 交接执行前校验已保存设置版本和源范围，使用 PostgreSQL advisory lock 防并发，并在 `REPEATABLE_READ` 事务内提交正式写入和源删除对账；失败写入审计任务，不报告为成功。迁移 `V20260721_03` 删除失效的评审读源配置列，旧应用回退不受支持，数据库恢复以发布备份为准。
 - 兼容模式 MR 专用测试环境资源固定为 `qaflex-matchmode-mr-*` 容器和 `qaflex_matchmode_mr_pgdata` volume；未经授权不得删除或改名。
 
 ## 外部数据集 API

@@ -1,10 +1,10 @@
 package com.data.collection.platform.entity;
 
 public record LegacyPlatformFormalImportResponse(
+    long runId,
     boolean accepted,
+    String status,
     String message,
-    long reviewInsertedCount,
-    long reviewUpdatedCount,
-    long codeReviewInsertedCount,
-    long codeReviewUpdatedCount) {
+    LegacyPlatformFormalImportDomainResponse review,
+    LegacyPlatformFormalImportDomainResponse codeReview) {
 }

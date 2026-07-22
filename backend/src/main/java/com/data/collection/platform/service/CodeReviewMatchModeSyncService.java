@@ -25,7 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -41,17 +41,20 @@ public class CodeReviewMatchModeSyncService {
   private final CodeReviewMatchModeSwitchService switchService;
   private final JdbcTemplate jdbcTemplate;
   private final JsonUtils jsonUtils;
+  private final TransactionTemplate transactionTemplate;
   private final AtomicBoolean syncRunning = new AtomicBoolean(false);
 
   public CodeReviewMatchModeSyncService(
       CodeReviewMatchModeConfigService configService,
       CodeReviewMatchModeSwitchService switchService,
       JdbcTemplate jdbcTemplate,
-      JsonUtils jsonUtils) {
+      JsonUtils jsonUtils,
+      TransactionTemplate transactionTemplate) {
     this.configService = configService;
     this.switchService = switchService;
     this.jdbcTemplate = jdbcTemplate;
     this.jsonUtils = jsonUtils;
+    this.transactionTemplate = transactionTemplate;
   }
 
   //兼容模式-MatchMode
@@ -134,7 +137,8 @@ public class CodeReviewMatchModeSyncService {
       dropTempTables(refreshCodeReviewRecords);
       throw error;
     }
-    replaceSnapshots(refreshCodeReviewRecords, summary);
+    transactionTemplate.executeWithoutResult(
+        ignored -> replaceSnapshots(refreshCodeReviewRecords, summary));
     return summary;
   }
 
@@ -221,14 +225,20 @@ public class CodeReviewMatchModeSyncService {
     return new LegacyMysqlSource("cc", config.mysqlJdbcUrl());
   }
 
-  @Transactional
   protected int replaceSingleMergeRequestRows(
       LegacyMysqlSource source, Long mergeRequestIid, ResultSet rs) throws SQLException {
-    jdbcTemplate.update(
-        "delete from " + CODE_REVIEW_TARGET_TABLE + " where source_instance = ? and merge_request_iid = ?",
-        source.sourceInstance(),
-        mergeRequestIid);
-    return insertCodeReviewRows(CODE_REVIEW_TARGET_TABLE, source, rs);
+    Integer count = transactionTemplate.execute(status -> {
+      jdbcTemplate.update(
+          "delete from " + CODE_REVIEW_TARGET_TABLE + " where source_instance = ? and merge_request_iid = ?",
+          source.sourceInstance(),
+          mergeRequestIid);
+      try {
+        return insertCodeReviewRows(CODE_REVIEW_TARGET_TABLE, source, rs);
+      } catch (SQLException error) {
+        throw new IllegalStateException("兼容模式单条代码走查快照替换失败", error);
+      }
+    });
+    return count == null ? 0 : count;
   }
 
   private String selectSql(String tableName) {
@@ -481,7 +491,6 @@ public class CodeReviewMatchModeSyncService {
     return String.join(",", labels);
   }
 
-  @Transactional
   protected void createTempTables(boolean refreshCodeReviewRecords) {
     dropTempTables(refreshCodeReviewRecords);
     jdbcTemplate.execute(
@@ -500,7 +509,6 @@ public class CodeReviewMatchModeSyncService {
     }
   }
 
-  @Transactional
   protected void replaceSnapshots(
       boolean refreshCodeReviewRecords,
       ImportSummary summary) {

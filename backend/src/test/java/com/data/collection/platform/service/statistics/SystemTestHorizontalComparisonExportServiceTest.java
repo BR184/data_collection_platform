@@ -8,9 +8,7 @@ import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.service.CodeReviewDataReadMode;
 import com.data.collection.platform.service.CodeReviewMatchModeSwitchService;
-import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.ReviewDataMatchModeRecordRepository;
-import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -49,19 +47,19 @@ class SystemTestHorizontalComparisonExportServiceTest {
   }
 
   @Test
-  void formalModuleCatalogReadsOnlyDefaultCrownCadFacts() {
+  void formalModuleCatalogReadsCcAndDgmFromUnifiedFormalSource() {
     exportService.loadCodeReviewModules("CC2026R4", CodeReviewDataReadMode.FORMAL);
 
-    assertThat(jdbcTemplate.queries()).hasSize(1);
-    ModuleQuery query = jdbcTemplate.queries().getFirst();
-    assertThat(query.sql())
-        .contains("from merge_request_fact")
-        .doesNotContain("code_review_match_mode_records");
-    assertThat(query.args())
-        .containsExactly(
-            GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE,
-            SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID,
-            "cc2026r4");
+    assertThat(jdbcTemplate.queries()).hasSize(2);
+    assertThat(jdbcTemplate.queries())
+        .extracting(ModuleQuery::sql)
+        .allSatisfy(sql -> assertThat(sql)
+            .contains("from code_review_formal_records")
+            .doesNotContain("merge_request_fact")
+            .doesNotContain("code_review_match_mode_records"));
+    assertThat(jdbcTemplate.queries().get(0).args()).containsExactly("cc", "cc2026r4");
+    assertThat(jdbcTemplate.queries().get(1).args())
+        .containsExactly("dgm", "cc2026r4", "crowncad 2026 r4");
   }
 
   @Test

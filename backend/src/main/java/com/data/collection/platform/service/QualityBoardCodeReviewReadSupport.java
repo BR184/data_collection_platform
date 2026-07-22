@@ -31,13 +31,9 @@ public class QualityBoardCodeReviewReadSupport {
   }
 
   public List<OptionItemResponse> listAvailableSources(CodeReviewDataReadMode readMode) {
-    if (readMode == CodeReviewDataReadMode.MATCH_MODE) {
-      //兼容模式-MatchMode：老平台交接期同时开放 CC/DGM；删除兼容模式时删除本分支即可。
-      return List.of(
-          new OptionItemResponse("CC", "cc"),
-          new OptionItemResponse("DGM", "dgm"));
-    }
-    return List.of(new OptionItemResponse("CC", "cc"));
+    return List.of(
+        new OptionItemResponse("CC", "cc"),
+        new OptionItemResponse("DGM", "dgm"));
   }
 
   public List<OptionItemResponse> listProjectOptions(String requestedSource) {
@@ -364,26 +360,18 @@ public class QualityBoardCodeReviewReadSupport {
           "lower(btrim(coalesce(repository_name, ''))) = ?",
           List.of(legacyRepositoryName(source)));
     }
-    if ("dgm".equals(source)) {
-      return new QualityBoardCodeReviewReadScope(
-          false,
-          "merge_request_fact",
-          "dgm",
-          List.of(),
-          "project_id, merge_request_id",
-          " and deleted = false",
-          "",
-          List.of());
-    }
+    List<String> projectNames = "dgm".equals(source)
+        ? distinctProjectNames(projectName, legacyDgmProjectName(projectName))
+        : List.of(projectName);
     return new QualityBoardCodeReviewReadScope(
         true,
-        "merge_request_fact",
-        GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE,
-        List.of(projectName),
+        "code_review_formal_records",
+        source,
+        projectNames,
         "project_id, merge_request_id",
-        " and deleted = false",
-        "project_id = ?",
-        List.of(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID));
+        "",
+        "",
+        List.of());
   }
 
   QualityBoardCodeReviewReadScope resolveAllProjectsScope(
@@ -401,26 +389,15 @@ public class QualityBoardCodeReviewReadSupport {
           "lower(btrim(coalesce(repository_name, ''))) = ?",
           List.of(legacyRepositoryName(source)));
     }
-    if ("dgm".equals(source)) {
-      return new QualityBoardCodeReviewReadScope(
-          false,
-          "merge_request_fact",
-          "dgm",
-          List.of(),
-          "project_id, merge_request_id",
-          " and deleted = false",
-          "",
-          List.of());
-    }
     return new QualityBoardCodeReviewReadScope(
         true,
-        "merge_request_fact",
-        GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE,
+        "code_review_formal_records",
+        source,
         List.of(),
         "project_id, merge_request_id",
-        " and deleted = false",
-        "project_id = ?",
-        List.of(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID));
+        "",
+        "",
+        List.of());
   }
 
   private Map<String, Long> groupedAddedLines(
@@ -487,8 +464,11 @@ public class QualityBoardCodeReviewReadSupport {
   QualityBoardCodeReviewQueryScope queryScope(QualityBoardCodeReviewReadScope scope) {
     List<Object> args = new ArrayList<>();
     args.add(scope.sourceInstance());
+    String sourceColumn = "code_review_formal_records".equals(scope.tableName())
+        ? "business_source"
+        : "source_instance";
     StringBuilder predicate =
-        new StringBuilder("lower(coalesce(source_instance, '')) = ?");
+        new StringBuilder("lower(coalesce(" + sourceColumn + ", '')) = ?");
     if (scope.additionalPredicate() != null && !scope.additionalPredicate().isBlank()) {
       predicate.append(" and ").append(scope.additionalPredicate());
       args.addAll(scope.additionalArgs());

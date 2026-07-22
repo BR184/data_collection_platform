@@ -6,6 +6,7 @@ import reviewRecordDialogSource from './review-data/ReviewRecordFormDialog.vue?r
 import reviewProblemDialogSource from './review-data/ReviewProblemItemFormDialog.vue?raw';
 import databaseBrowserSource from '../components/DatabaseBrowserView.vue?raw';
 import dataScopeBarSource from '../components/data-scope/DataScopeBar.vue?raw';
+import legacyDatabaseSettingsSource from './LegacyDatabaseSettingsView.vue?raw';
 
 describe('UX interaction regressions', () => {
   it('keeps edit forms submittable with Enter', () => {
@@ -55,5 +56,15 @@ describe('UX interaction regressions', () => {
   it('uses Element Plus radio button value instead of label-as-value', () => {
     expect(dataScopeBarSource).toContain(':value="option.value"');
     expect(dataScopeBarSource).not.toContain(':label="option.value"');
+  });
+
+  it('guards formal handover with saved settings and dedicated permission', () => {
+    expect(legacyDatabaseSettingsSource).not.toContain('reviewDataReadMode');
+    expect(legacyDatabaseSettingsSource).toContain('settingsDirty');
+    expect(legacyDatabaseSettingsSource).toContain('mysqlPasswordChanged');
+    expect(legacyDatabaseSettingsSource).toContain('mongoUriChanged');
+    expect(legacyDatabaseSettingsSource).toContain('expectedSettingsUpdatedAt');
+    expect(legacyDatabaseSettingsSource).toContain("system.match_mode.formal_import");
+    expect(legacyDatabaseSettingsSource).toContain('v-if="canFormalImport"');
   });
 });

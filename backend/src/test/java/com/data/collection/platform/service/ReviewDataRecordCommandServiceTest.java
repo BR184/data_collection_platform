@@ -45,6 +45,7 @@ class ReviewDataRecordCommandServiceTest {
     Long itemId = service.createProblemItem(7L, request);
 
     assertThat(itemId).isEqualTo(11L);
+    verify(matchModeMaterializeService).claimPlatformOwnership(7L);
     verify(persistenceSupport).assertRecordExists(7L);
     verify(persistenceSupport)
         .updateProblemItem(
@@ -99,6 +100,7 @@ class ReviewDataRecordCommandServiceTest {
     Long itemId = service.createProblemItem(7L, request);
 
     assertThat(itemId).isEqualTo(12L);
+    verify(matchModeMaterializeService).claimPlatformOwnership(7L);
     verify(persistenceSupport).assertRecordExists(7L);
     verify(persistenceSupport)
         .insertProblemItem(

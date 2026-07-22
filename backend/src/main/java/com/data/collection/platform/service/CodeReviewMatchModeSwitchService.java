@@ -18,11 +18,6 @@ public class CodeReviewMatchModeSwitchService {
   }
 
   //兼容模式-MatchMode
-  public boolean isReviewDataCompatibilityReadEnabled() {
-    return configService.isReviewDataCompatibilityReadEnabled();
-  }
-
-  //兼容模式-MatchMode
   public boolean isCodeReviewCompatibilityReadEnabled() {
     return configService.isCodeReviewCompatibilityReadEnabled();
   }

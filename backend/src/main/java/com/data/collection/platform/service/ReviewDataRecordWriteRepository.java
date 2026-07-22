@@ -291,6 +291,12 @@ public class ReviewDataRecordWriteRepository {
         recordId);
   }
 
+  public void restoreRecord(Long recordId) {
+    jdbcTemplate.update(
+        "update review_records set deleted = false, updated_at = current_timestamp where id = ?",
+        recordId);
+  }
+
   private String normalizeText(String value) {
     return Objects.requireNonNullElse(TextQuerySupport.trimToNull(value), "");
   }

@@ -60,9 +60,7 @@ public class CodeReviewController {
     var settings = codeReviewMatchModeConfigService.getResponse();
     return ApiResponse.success(new CodeReviewMatchModeStatusResponse(
         settings.enabled(),
-        settings.reviewDataReadMode(),
         settings.codeReviewReadMode(),
-        settings.enabled() && "compatibility".equals(settings.reviewDataReadMode()),
         settings.enabled() && "compatibility".equals(settings.codeReviewReadMode())));
   }
 

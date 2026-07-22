@@ -43,6 +43,37 @@ public class ReviewDataMatchModeRecordRepository {
     return loadReportRows().stream().map(row -> publicRecordId(row.id())).toList();
   }
 
+  //兼容模式-MatchMode：一次加载完整交接源，避免按评审记录重复扫描全部问题与描述。
+  public List<MatchModeRecordSource> loadAllRecordSources() {
+    Map<String, ProblemRow> problemsByLegacyId = new LinkedHashMap<>();
+    loadProblemRows().forEach(row -> problemsByLegacyId.put(row.legacyId(), row));
+    Map<String, DescriptionRow> descriptionsByLegacyId = new LinkedHashMap<>();
+    loadDescriptionRows().forEach(row -> descriptionsByLegacyId.put(row.legacyId(), row));
+    Map<String, List<ContentRow>> contentsByReportLegacyId = new LinkedHashMap<>();
+    for (ContentRow row : loadContentRows()) {
+      contentsByReportLegacyId
+          .computeIfAbsent(row.reportLegacyId(), ignored -> new ArrayList<>())
+          .add(row);
+    }
+    List<MatchModeRecordSource> sources = new ArrayList<>();
+    for (ReportRow report : loadReportRows()) {
+      List<ProblemRow> problems = report.problemDetailIds().stream()
+          .map(problemsByLegacyId::get)
+          .filter(Objects::nonNull)
+          .toList();
+      List<DescriptionRow> descriptions = report.descriptionIds().stream()
+          .map(descriptionsByLegacyId::get)
+          .filter(Objects::nonNull)
+          .toList();
+      sources.add(new MatchModeRecordSource(
+          report,
+          problems,
+          descriptions,
+          contentsByReportLegacyId.getOrDefault(report.legacyId(), List.of())));
+    }
+    return List.copyOf(sources);
+  }
+
   //兼容模式-MatchMode
   public Long findMaterializedRecordId(Long matchModeRecordId) {
     Long recordId = jdbcTemplate.query(
@@ -72,27 +103,29 @@ public class ReviewDataMatchModeRecordRepository {
 
   //兼容模式-MatchMode
   public MatchModeRecordSource getRecordSourceOrThrow(Long matchModeRecordId) {
-    ReportRow row = loadReportRows().stream()
-        .filter(report -> Objects.equals(report.id(), storageId(matchModeRecordId)))
+    return loadAllRecordSources().stream()
+        .filter(source -> Objects.equals(source.record().id(), storageId(matchModeRecordId)))
         .findFirst()
         .orElseThrow(() -> new EmptyResultDataAccessException("兼容模式评审记录不存在: " + matchModeRecordId, 1));
-    List<ProblemRow> problems = loadProblemRows().stream()
-        .filter(problem -> row.problemDetailIds().contains(problem.legacyId()))
-        .toList();
-    List<DescriptionRow> descriptions = loadDescriptionRows().stream()
-        .filter(description -> row.descriptionIds().contains(description.legacyId()))
-        .toList();
-    return new MatchModeRecordSource(row, problems, descriptions);
   }
 
   //兼容模式-MatchMode
-  public void linkMaterializedRecord(Long matchModeRecordId, String legacyId, Long reviewRecordId) {
+  public void linkMaterializedRecord(
+      Long matchModeRecordId,
+      String legacyId,
+      Long reviewRecordId,
+      RecordAuthority authority) {
     int updated =
         jdbcTemplate.update("""
             update review_data_match_mode_edit_links
                set match_mode_report_id = ?,
                    match_mode_report_legacy_id = ?,
                    review_record_id = ?,
+                   authority = case
+                     when authority = 'PLATFORM_OWNED' then authority
+                     else ?
+                   end,
+                   last_handover_at = case when ? = 'LEGACY_MANAGED' then current_timestamp else last_handover_at end,
                    updated_at = current_timestamp
              where match_mode_report_id = ?
                 or match_mode_report_legacy_id = ?
@@ -100,6 +133,8 @@ public class ReviewDataMatchModeRecordRepository {
             storageId(matchModeRecordId),
             legacyId,
             reviewRecordId,
+            authority.name(),
+            authority.name(),
             storageId(matchModeRecordId),
             legacyId);
     if (updated > 0) {
@@ -107,17 +142,56 @@ public class ReviewDataMatchModeRecordRepository {
     }
     jdbcTemplate.update("""
           insert into review_data_match_mode_edit_links(
-            match_mode_report_id, match_mode_report_legacy_id, review_record_id, created_at, updated_at
+            match_mode_report_id, match_mode_report_legacy_id, review_record_id, authority,
+            last_handover_at, created_at, updated_at
           ) values (
-            ?, ?, ?, current_timestamp, current_timestamp
+            ?, ?, ?, ?, case when ? = 'LEGACY_MANAGED' then current_timestamp else null end,
+            current_timestamp, current_timestamp
           )
           on conflict (match_mode_report_legacy_id) do update
              set match_mode_report_id = excluded.match_mode_report_id,
-                 review_record_id = excluded.review_record_id,
-                 updated_at = current_timestamp
+                  review_record_id = excluded.review_record_id,
+                  authority = case
+                    when review_data_match_mode_edit_links.authority = 'PLATFORM_OWNED'
+                      then review_data_match_mode_edit_links.authority
+                    else excluded.authority
+                  end,
+                  last_handover_at = coalesce(excluded.last_handover_at,
+                                              review_data_match_mode_edit_links.last_handover_at),
+                  updated_at = current_timestamp
           """,
         storageId(matchModeRecordId),
         legacyId,
+        reviewRecordId,
+        authority.name(),
+        authority.name());
+  }
+
+  public RecordAuthority findMaterializedAuthority(Long matchModeRecordId) {
+    String authority = jdbcTemplate.query(
+        """
+        select authority
+          from review_data_match_mode_edit_links
+         where match_mode_report_id = ?
+            or match_mode_report_legacy_id = (
+              select legacy_id from review_data_match_mode_reports where id = ?
+            )
+         order by id
+         limit 1
+        """,
+        rs -> rs.next() ? rs.getString("authority") : null,
+        storageId(matchModeRecordId),
+        storageId(matchModeRecordId));
+    return authority == null ? null : RecordAuthority.valueOf(authority);
+  }
+
+  public void claimPlatformOwnership(Long reviewRecordId) {
+    jdbcTemplate.update("""
+        update review_data_match_mode_edit_links
+           set authority = 'PLATFORM_OWNED', updated_at = current_timestamp
+         where review_record_id = ?
+           and authority <> 'PLATFORM_OWNED'
+        """,
         reviewRecordId);
   }
 
@@ -127,6 +201,25 @@ public class ReviewDataMatchModeRecordRepository {
       String legacyId,
       Long reviewRecordId,
       Long reviewProblemItemId) {
+    int updated = jdbcTemplate.update("""
+        update review_data_match_mode_problem_edit_links
+           set match_mode_problem_id = ?,
+               match_mode_problem_legacy_id = ?,
+               review_record_id = ?,
+               review_problem_item_id = ?,
+               updated_at = current_timestamp
+         where match_mode_problem_id = ?
+            or match_mode_problem_legacy_id = ?
+        """,
+        storageId(matchModeProblemId),
+        legacyId,
+        reviewRecordId,
+        reviewProblemItemId,
+        storageId(matchModeProblemId),
+        legacyId);
+    if (updated > 0) {
+      return;
+    }
     jdbcTemplate.update("""
         insert into review_data_match_mode_problem_edit_links(
           match_mode_problem_id, match_mode_problem_legacy_id, review_record_id, review_problem_item_id,
@@ -134,10 +227,10 @@ public class ReviewDataMatchModeRecordRepository {
         ) values (
           ?, ?, ?, ?, current_timestamp, current_timestamp
         )
-        on conflict (match_mode_problem_id) do update
-           set review_record_id = excluded.review_record_id,
+        on conflict (match_mode_problem_legacy_id) do update
+           set match_mode_problem_id = excluded.match_mode_problem_id,
+               review_record_id = excluded.review_record_id,
                review_problem_item_id = excluded.review_problem_item_id,
-               match_mode_problem_legacy_id = excluded.match_mode_problem_legacy_id,
                updated_at = current_timestamp
         """,
         storageId(matchModeProblemId),
@@ -153,8 +246,14 @@ public class ReviewDataMatchModeRecordRepository {
         select review_problem_item_id
           from review_data_match_mode_problem_edit_links
          where match_mode_problem_id = ?
+            or match_mode_problem_legacy_id = (
+              select legacy_id from review_data_match_mode_problem_details where id = ?
+            )
+         order by id
+         limit 1
         """,
         rs -> rs.next() ? rs.getLong("review_problem_item_id") : null,
+        storageId(matchModeProblemItemId),
         storageId(matchModeProblemItemId));
   }
 
@@ -464,6 +563,29 @@ public class ReviewDataMatchModeRecordRepository {
         this::mapDescriptionRow);
   }
 
+  private List<ContentRow> loadContentRows() {
+    return jdbcTemplate.query(
+        """
+        select id, match_mode_report_legacy_id, content_order, reviewer_name, assignment_content,
+               independent_workload_hours, independent_problem_count, meeting_workload_hours,
+               meeting_problem_count
+          from review_data_match_mode_contents
+         order by match_mode_report_legacy_id, content_order, id
+        """,
+        (rs, rowNum) -> new ContentRow(
+            rs.getLong("id"),
+            rs.getString("match_mode_report_legacy_id"),
+            rs.getInt("content_order"),
+            rs.getString("reviewer_name"),
+            rs.getBigDecimal("independent_workload_hours") == null
+                ? null : rs.getBigDecimal("independent_workload_hours").doubleValue(),
+            rs.getString("assignment_content"),
+            (Integer) rs.getObject("independent_problem_count"),
+            rs.getBigDecimal("meeting_workload_hours") == null
+                ? null : rs.getBigDecimal("meeting_workload_hours").doubleValue(),
+            (Integer) rs.getObject("meeting_problem_count")));
+  }
+
   private ReportRow mapReportRow(ResultSet rs, int rowNum) throws SQLException {
     return new ReportRow(
         rs.getLong("id"),
@@ -624,7 +746,8 @@ public class ReviewDataMatchModeRecordRepository {
   public record MatchModeRecordSource(
       ReportRow record,
       List<ProblemRow> problems,
-      List<DescriptionRow> descriptions) {
+      List<DescriptionRow> descriptions,
+      List<ContentRow> contents) {
     public int reviewScalePages() {
       int descriptionPages =
           descriptions.stream()
@@ -699,6 +822,22 @@ public class ReviewDataMatchModeRecordRepository {
       String author,
       Integer reviewScalePages,
       String unit) {}
+
+  public record ContentRow(
+      Long id,
+      String reportLegacyId,
+      Integer contentOrder,
+      String reviewerName,
+      Double independentWorkloadHours,
+      String assignmentContent,
+      Integer independentProblemCount,
+      Double meetingWorkloadHours,
+      Integer meetingProblemCount) {}
+
+  public enum RecordAuthority {
+    LEGACY_MANAGED,
+    PLATFORM_OWNED
+  }
 
   private record RecordMetrics(
       Integer reviewScalePages,

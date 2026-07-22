@@ -3,6 +3,7 @@ package com.data.collection.platform.controller;
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.security.PlatformPermissionCodes;
 import com.data.collection.platform.security.RequirePermission;
+import com.data.collection.platform.security.AuthSessionSupport;
 import com.data.collection.platform.entity.CodeReviewMatchModeCollectionOptionResponse;
 import com.data.collection.platform.entity.CodeReviewMatchModeConnectionTestResponse;
 import com.data.collection.platform.entity.CodeReviewMatchModeDbSettingsResponse;
@@ -21,6 +22,7 @@ import com.data.collection.platform.service.CodeReviewMatchModeMongoReviewSyncSe
 import com.data.collection.platform.service.CodeReviewMatchModeSyncService;
 import com.data.collection.platform.service.LegacyPlatformFormalImportService;
 import java.util.List;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -121,8 +123,12 @@ public class CodeReviewMatchModeDbSettingsController {
   @PostMapping("/formal-import")
   @RequirePermission(PlatformPermissionCodes.SYSTEM_MATCH_MODE_FORMAL_IMPORT)
   public ApiResponse<LegacyPlatformFormalImportResponse> importToFormal(
-      @RequestBody LegacyPlatformFormalImportRequest request) {
-    LegacyPlatformFormalImportResponse result = formalImportService.importToFormal(request);
+      @RequestBody LegacyPlatformFormalImportRequest request,
+      HttpServletRequest httpRequest) {
+    var user = AuthSessionSupport.currentUser(httpRequest);
+    LegacyPlatformFormalImportResponse result = formalImportService.importToFormal(
+        request,
+        user == null ? "system" : user.username());
     return ApiResponse.success(result.message(), result);
   }
 

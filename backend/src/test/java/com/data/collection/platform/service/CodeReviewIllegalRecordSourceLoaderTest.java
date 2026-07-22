@@ -1,8 +1,6 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.verifyNoInteractions;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -30,8 +28,8 @@ class CodeReviewIllegalRecordSourceLoaderTest {
   @Test
   void shouldFilterMergeRequestFactsBySourceInstance() {
     insertMergeRequestFact(
-        "cc",
-        325L,
+        "default",
+        9L,
         "Product Center",
         "repo-a",
         9201L,
@@ -54,7 +52,7 @@ class CodeReviewIllegalRecordSourceLoaderTest {
         false);
     insertMergeRequestFact(
         "dgm",
-        325L,
+        9L,
         "Product Center",
         "repo-a",
         9202L,
@@ -86,7 +84,7 @@ class CodeReviewIllegalRecordSourceLoaderTest {
   @Test
   void shouldLoadMergeRequestFactsWithCombinedFiltersAndFieldMapping() {
     insertMergeRequestFact(
-        325L,
+        9L,
         "Product Center",
         "repo-a",
         9001L,
@@ -108,7 +106,7 @@ class CodeReviewIllegalRecordSourceLoaderTest {
         128,
         false);
     insertMergeRequestFact(
-        325L,
+        9L,
         "Product Center",
         "repo-b",
         9002L,
@@ -130,7 +128,7 @@ class CodeReviewIllegalRecordSourceLoaderTest {
         45,
         false);
     insertMergeRequestFact(
-        325L,
+        9L,
         "Product Center",
         "repo-a",
         9003L,
@@ -155,7 +153,7 @@ class CodeReviewIllegalRecordSourceLoaderTest {
     List<CodeReviewIllegalRecordSource> sources =
         sourceLoader.loadSources(
             Map.of(
-                "projectId", "325",
+                "projectId", "9",
                 "projectName", "Product",
                 "repositoryName", "repo-a",
                 "targetBranch", "master",
@@ -169,7 +167,7 @@ class CodeReviewIllegalRecordSourceLoaderTest {
     CodeReviewIllegalRecordSource source = sources.getFirst();
     assertThat(source.mergeRequestId()).isEqualTo(9001L);
     assertThat(source.mergeRequestIid()).isEqualTo(88);
-    assertThat(source.projectId()).isEqualTo(325L);
+    assertThat(source.projectId()).isEqualTo(9L);
     assertThat(source.mergeRequestContent()).isEqualTo("payment module refactor");
     assertThat(source.projectName()).isEqualTo("Product Center");
     assertThat(source.repositoryName()).isEqualTo("repo-a");
@@ -186,13 +184,12 @@ class CodeReviewIllegalRecordSourceLoaderTest {
     assertThat(source.commentRate()).isEqualTo(0.75);
     assertThat(source.defectCount()).isEqualTo(3);
     assertThat(source.addedLines()).isEqualTo(128);
-    verifyNoInteractions(factBuildService);
   }
 
   @Test
   void shouldLoadDefaultIllegalPageWithSqlFilteringAndPaging() {
     insertMergeRequestFact(
-        325L,
+        9L,
         "Product Center",
         "repo-a",
         9101L,
@@ -214,7 +211,7 @@ class CodeReviewIllegalRecordSourceLoaderTest {
         128,
         false);
     insertMergeRequestFact(
-        325L,
+        9L,
         "Product Center",
         "repo-a",
         9102L,
@@ -225,7 +222,7 @@ class CodeReviewIllegalRecordSourceLoaderTest {
         "Bob",
         "Owner B",
         "payment",
-        "payment",
+        "模块：payment",
         LocalDateTime.of(2026, 4, 17, 9, 30),
         "DONE",
         12,
@@ -240,7 +237,7 @@ class CodeReviewIllegalRecordSourceLoaderTest {
         sourceLoader.loadDefaultIllegalPage(
             new CodeReviewIllegalRecordSourcePageQuery(
                 new CodeReviewIllegalRecordQueryRequest(
-                    325L,
+                    9L,
                     "repo-a",
                     null,
                     null,
@@ -268,7 +265,6 @@ class CodeReviewIllegalRecordSourceLoaderTest {
 
     assertThat(page.total()).isEqualTo(1);
     assertThat(page.records()).extracting(CodeReviewIllegalRecordSource::mergeRequestIid).containsExactly(11);
-    verifyNoInteractions(factBuildService);
   }
 
   @Test
@@ -306,7 +302,6 @@ class CodeReviewIllegalRecordSourceLoaderTest {
 
     assertThat(sources).isEmpty();
     assertThat(page.total()).isZero();
-    verifyNoInteractions(factBuildService);
   }
 
   private void insertMergeRequestFact(
@@ -332,7 +327,7 @@ class CodeReviewIllegalRecordSourceLoaderTest {
       Integer addedLines,
       boolean deleted) {
     insertMergeRequestFact(
-        "test",
+        "default",
         projectId,
         projectName,
         repositoryName,

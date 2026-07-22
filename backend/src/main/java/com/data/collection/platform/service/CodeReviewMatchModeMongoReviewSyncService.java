@@ -40,6 +40,7 @@ public class CodeReviewMatchModeMongoReviewSyncService {
   private static final String REVIEW_REPORT_TABLE = "review_data_match_mode_reports";
   private static final String REVIEW_PROBLEM_TABLE = "review_data_match_mode_problem_details";
   private static final String REVIEW_DESCRIPTION_TABLE = "review_data_match_mode_descriptions";
+  private static final String REVIEW_CONTENT_TABLE = "review_data_match_mode_contents";
   private static final String REVIEW_DESCRIPTION_COLLECTION = "description";
   private static final DateTimeFormatter LEGACY_DATE_TIME =
       new DateTimeFormatterBuilder()
@@ -203,7 +204,9 @@ public class CodeReviewMatchModeMongoReviewSyncService {
         replaceRawDocuments(entry.getKey(), entry.getValue());
       }
       if (summary.documentsByCollection().containsKey(config.reviewReportCollectionName())) {
-        replaceReviewReports(summary.documentsByCollection().get(config.reviewReportCollectionName()));
+        List<Document> reports = summary.documentsByCollection().get(config.reviewReportCollectionName());
+        replaceReviewReports(reports);
+        replaceReviewContents(reports);
       }
       if (summary.documentsByCollection().containsKey(config.reviewProblemCollectionName())) {
         replaceReviewProblems(summary.documentsByCollection().get(config.reviewProblemCollectionName()));
@@ -306,6 +309,63 @@ public class CodeReviewMatchModeMongoReviewSyncService {
     }
   }
 
+  private void replaceReviewContents(List<Document> reports) {
+    jdbcTemplate.execute("truncate table " + REVIEW_CONTENT_TABLE);
+    String sql = """
+        insert into review_data_match_mode_contents (
+          match_mode_report_legacy_id, content_order, reviewer_name, assignment_content,
+          independent_workload_hours, independent_problem_count, meeting_workload_hours,
+          meeting_problem_count, raw_payload, synced_at
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, current_timestamp)
+        """;
+    List<Object[]> batch = new ArrayList<>();
+    for (int reportIndex = 0; reportIndex < reports.size(); reportIndex++) {
+      Document report = reports.get(reportIndex);
+      String reportLegacyId = documentKey("reviewReport", report, reportIndex + 1);
+      Object rawContents = report.get("contents");
+      if (!(rawContents instanceof Iterable<?> contents)) {
+        continue;
+      }
+      int contentOrder = 0;
+      for (Object rawContent : contents) {
+        Document content = asDocument(rawContent);
+        if (content == null) {
+          continue;
+        }
+        batch.add(new Object[] {
+            reportLegacyId,
+            contentOrder++,
+            text(content, "name"),
+            text(content, "content"),
+            decimal(content.get("workload")),
+            intValue(content.get("effectiveProblemCount")),
+            decimal(content.get("meetingReviewWorkload")),
+            intValue(content.get("meetingReviewProblem")),
+            content.toJson()
+        });
+        if (batch.size() >= 500) {
+          jdbcTemplate.batchUpdate(sql, batch);
+          batch.clear();
+        }
+      }
+    }
+    if (!batch.isEmpty()) {
+      jdbcTemplate.batchUpdate(sql, batch);
+    }
+  }
+
+  private Document asDocument(Object value) {
+    if (value instanceof Document document) {
+      return document;
+    }
+    if (value instanceof Map<?, ?> map) {
+      Document document = new Document();
+      map.forEach((key, entryValue) -> document.put(String.valueOf(key), entryValue));
+      return document;
+    }
+    return null;
+  }
+
   private void replaceReviewProblems(List<Document> documents) {
     jdbcTemplate.execute("truncate table " + REVIEW_PROBLEM_TABLE);
     String sql = """
@@ -392,6 +452,7 @@ public class CodeReviewMatchModeMongoReviewSyncService {
             on report.legacy_id = link.match_mode_report_legacy_id
           join review_data_match_mode_descriptions description
             on report.description_ids like '%' || description.legacy_id || '%'
+          where link.authority = 'LEGACY_MANAGED'
           group by link.review_record_id
         )
         update review_records record
@@ -417,6 +478,7 @@ public class CodeReviewMatchModeMongoReviewSyncService {
             on report.legacy_id = link.match_mode_report_legacy_id
           join review_data_match_mode_descriptions description
             on report.description_ids like '%' || description.legacy_id || '%'
+          where link.authority = 'LEGACY_MANAGED'
           group by link.review_record_id
         ),
         primary_descriptions as (

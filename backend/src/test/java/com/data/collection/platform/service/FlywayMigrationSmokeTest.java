@@ -143,6 +143,20 @@ class FlywayMigrationSmokeTest {
         .contains("默认权限快照只用于");
   }
 
+  @Test
+  void shouldDefineLegacyPlatformFormalHandoverModel() throws IOException {
+    String migration = readMigration(
+        "V20260721_03__legacy_formal_handover_model.sql");
+
+    assertThat(migration)
+        .contains("add column if not exists authority")
+        .contains("'legacy_managed', 'platform_owned'")
+        .contains("create table if not exists review_data_match_mode_contents")
+        .contains("create or replace view code_review_formal_records")
+        .contains("source_system = 'legacy_platform'")
+        .contains("drop column if exists review_data_read_mode");
+  }
+
   private String readMigration(String fileName) throws IOException {
     return Files.readString(
             Path.of("src", "main", "resources", "db", "migration", fileName), StandardCharsets.UTF_8)

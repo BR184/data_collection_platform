@@ -22,7 +22,6 @@ public record CodeReviewMatchModeDbSettingsResponse(
     List<String> selectedMongoCollectionNames,
     String reviewReportCollectionName,
     String reviewProblemCollectionName,
-    String reviewDataReadMode,
     String codeReviewReadMode,
     String syncStatus,
     String syncMessage,

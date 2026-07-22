@@ -33,7 +33,7 @@ BI 看板以及后续其它平台需要读取数据采集平台的事实和统�
 - 开启外部 API 时，客户端 ID、64 位 SHA-256 Token 摘要和非空数据集白名单属于启动前置条件；配置无效时应用直接启动失败。
 - 第一批数据集为 `system-test-module-fix-rates`，产品版本参数为 `productVersion`，修复数使用事实字段 `is_fixed=true`，建议类缺陷排除，分母为零的修复率返回 `null`。
 - 新增聚合数据集 `bi-dashboard`，一次返回 BI 看板需求中所有展示区域：质量目标、模块修复率、评审分布/密度、系统测试轮次修复、严重程度分布、缺陷原因、申请延期、修复人统计和代码提交趋势。其参数为必填 `productVersion`，以及可选 `codeGranularity=day|week`、`codeSource=all|cc|dgm` 和 `repositoryName`；所有建议类缺陷均在 provider 层排除，分母为零的比率返回 `null`。
-- 后续评审数据集必须复用评审页面的合并读源：正式评审表与 `review_data_match_mode_*` 兼容快照表始终合并，不能因 `review_data_read_mode` 关闭而丢失仅存在于老平台的历史评审数据。
+- 后续评审数据集必须复用 `review_visible_*` 统一读模型：正式评审表与尚未交接、未映射的 `review_data_match_mode_*` 兼容快照按稳定来源键合并，不能丢失仅存在于老平台的历史评审数据。
 - 外部平台应通过自己的后端调用该 API；不要求数据采集平台开放浏览器跨域访问。
 
 ## Alternatives Considered

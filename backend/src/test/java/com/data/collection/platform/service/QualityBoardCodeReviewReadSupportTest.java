@@ -35,27 +35,25 @@ class QualityBoardCodeReviewReadSupportTest {
   }
 
   @Test
-  void formalCcUsesDefaultGitlabFactSourceOnly() {
+  void formalCcUsesUnifiedFormalCodeReviewSource() {
     when(matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()).thenReturn(false);
 
     QualityBoardCodeReviewReadScope scope = support.resolveScope("cc", "CC2026R4");
 
     assertThat(scope.available()).isTrue();
-    assertThat(scope.tableName()).isEqualTo("merge_request_fact");
-    assertThat(scope.sourceInstance()).isEqualTo("default");
+    assertThat(scope.tableName()).isEqualTo("code_review_formal_records");
+    assertThat(scope.sourceInstance()).isEqualTo("cc");
     assertThat(scope.projectNames()).containsExactly("CC2026R4");
-    assertThat(scope.additionalPredicate()).isEqualTo("project_id = ?");
-    assertThat(scope.additionalArgs())
-        .containsExactly(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID);
+    assertThat(scope.additionalPredicate()).isEmpty();
+    assertThat(scope.additionalArgs()).isEmpty();
     assertThat(scope.mergeRequestIdentity()).isEqualTo("project_id, merge_request_id");
-    assertThat(scope.deletedPredicate()).isEqualTo(" and deleted = false");
+    assertThat(scope.deletedPredicate()).isEmpty();
 
     QualityBoardCodeReviewQueryScope queryScope = support.queryScope(scope);
     assertThat(queryScope.predicate())
         .isEqualTo(
-            "lower(coalesce(source_instance, '')) = ? and project_id = ? "
-                + "and coalesce(project_name, '') in (?)");
-    assertThat(queryScope.args()).containsExactly("default", 9L, "CC2026R4");
+            "lower(coalesce(business_source, '')) = ? and coalesce(project_name, '') in (?)");
+    assertThat(queryScope.args()).containsExactly("cc", "CC2026R4");
   }
 
   @Test
@@ -73,15 +71,16 @@ class QualityBoardCodeReviewReadSupportTest {
   }
 
   @Test
-  void formalModeDoesNotExposeOrQueryDgm() {
+  void formalModeExposesDgmFromUnifiedFormalCodeReviewSource() {
     when(matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()).thenReturn(false);
 
     QualityBoardCodeReviewReadScope scope = support.resolveScope("dgm", "CC2026R4");
     List<OptionItemResponse> options = support.listAvailableSources();
 
-    assertThat(scope.available()).isFalse();
-    assertThat(scope.tableName()).isEqualTo("merge_request_fact");
-    assertThat(scope.projectNames()).isEmpty();
-    assertThat(options).extracting(OptionItemResponse::value).containsExactly("cc");
+    assertThat(scope.available()).isTrue();
+    assertThat(scope.tableName()).isEqualTo("code_review_formal_records");
+    assertThat(scope.sourceInstance()).isEqualTo("dgm");
+    assertThat(scope.projectNames()).containsExactly("CC2026R4", "CrownCAD 2026 R4");
+    assertThat(options).extracting(OptionItemResponse::value).containsExactly("cc", "dgm");
   }
 }

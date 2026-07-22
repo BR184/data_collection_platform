@@ -7,9 +7,7 @@ import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.data.collection.platform.service.CodeReviewDataReadMode;
 import com.data.collection.platform.service.CodeReviewMatchModeSwitchService;
 import com.data.collection.platform.service.ExcelExportStyles;
-import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.ReviewDataMatchModeRecordRepository;
-import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.io.ByteArrayOutputStream;
@@ -43,8 +41,6 @@ public class SystemTestHorizontalComparisonExportService {
   private static final String FILTER_GROUP_PARAM = "filterGroup";
   private static final String EXPORT_SHEET_NAME = "系统测试数据分析";
   private static final int HEADER_DEPTH = 3;
-  private static final long CROWN_CAD_PROJECT_ID =
-      SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID;
   private static final List<ExportColumn> EXPORT_COLUMNS = buildExportColumns();
   private static final List<String> LEGACY_FIXED_STATUS_TOKENS = List.of("已修复", "待合并", "未更新");
   private static final List<String> LEGACY_RESOLVED_STATUS_TOKENS = List.of("已修复/完成", "未复现");
@@ -464,10 +460,6 @@ public class SystemTestHorizontalComparisonExportService {
 
   private HorizontalCodeReviewQueryScope resolveCodeReviewQueryScope(
       String projectName, boolean crownCad, CodeReviewDataReadMode codeReviewReadMode) {
-    if (codeReviewReadMode == CodeReviewDataReadMode.FORMAL && !crownCad) {
-      return HorizontalCodeReviewQueryScope.unavailable();
-    }
-
     String tableName;
     String mergeRequestIdentity;
     String moduleExclusionPredicate;
@@ -489,16 +481,13 @@ public class SystemTestHorizontalComparisonExportService {
       args.add(crownCad ? "cc" : "dgm");
       args.add(crownCad ? "crowncad" : "dgm");
     } else {
-      tableName = "merge_request_fact";
+      tableName = "code_review_formal_records";
       mergeRequestIdentity = "project_id, merge_request_id";
       moduleExclusionPredicate = "";
       scopedModulePredicate = "";
       whereClause
-          .append("deleted = false")
-          .append(" and lower(coalesce(source_instance, '')) = ?")
-          .append(" and project_id = ?");
-      args.add(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
-      args.add(CROWN_CAD_PROJECT_ID);
+          .append("lower(coalesce(business_source, '')) = ?");
+      args.add(crownCad ? "cc" : "dgm");
     }
     whereClause
         .append(" and lower(coalesce(target_branch, '')) = 'dev'")

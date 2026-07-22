@@ -76,7 +76,6 @@ export interface CodeReviewMatchModeDbSettingsResponse {
   selectedMongoCollectionNames: string[];
   reviewReportCollectionName: string;
   reviewProblemCollectionName: string;
-  reviewDataReadMode: 'compatibility' | 'formal';
   codeReviewReadMode: 'compatibility' | 'formal';
   syncStatus: string;
   syncMessage?: string | null;
@@ -105,7 +104,6 @@ export interface CodeReviewMatchModeDbSettingsSaveRequest {
   selectedMongoCollectionNames: string[];
   reviewReportCollectionName: string;
   reviewProblemCollectionName: string;
-  reviewDataReadMode?: 'compatibility' | 'formal';
   codeReviewReadMode?: 'compatibility' | 'formal';
 }
 
@@ -140,15 +138,25 @@ export interface LegacyPlatformFormalImportRequest {
   importReviewData: boolean;
   importCodeReviewData: boolean;
   confirmationText: string;
+  expectedSettingsUpdatedAt: string;
+}
+
+export interface LegacyPlatformFormalImportDomainResponse {
+  status: 'SUCCESS' | 'FAILED' | 'NOT_REQUESTED';
+  insertedCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  deletedCount: number;
+  message: string;
 }
 
 export interface LegacyPlatformFormalImportResponse {
+  runId: number;
   accepted: boolean;
+  status: 'SUCCESS' | 'FAILED';
   message: string;
-  reviewInsertedCount: number;
-  reviewUpdatedCount: number;
-  codeReviewInsertedCount: number;
-  codeReviewUpdatedCount: number;
+  review: LegacyPlatformFormalImportDomainResponse;
+  codeReview: LegacyPlatformFormalImportDomainResponse;
 }
 
 export interface CodeReviewDgmGitlabProjectSourceResponse {

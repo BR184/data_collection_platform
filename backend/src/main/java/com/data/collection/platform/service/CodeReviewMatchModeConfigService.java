@@ -54,7 +54,6 @@ public class CodeReviewMatchModeConfigService {
              s.selected_mongo_collection_names,
              s.review_report_collection_name,
              s.review_problem_collection_name,
-             s.review_data_read_mode,
              s.code_review_read_mode,
              s.updated_at,
              st.status as sync_status,
@@ -99,7 +98,6 @@ public class CodeReviewMatchModeConfigService {
         settings.selectedMongoCollectionNames(),
         settings.reviewReportCollectionName(),
         settings.reviewProblemCollectionName(),
-        settings.reviewDataReadMode(),
         settings.codeReviewReadMode(),
         settings.syncEnabled());
   }
@@ -110,31 +108,17 @@ public class CodeReviewMatchModeConfigService {
   }
 
   //兼容模式-MatchMode
-  public boolean isReviewDataCompatibilityReadEnabled() {
-    CodeReviewMatchModeDbSettings settings = loadSettings();
-    return settings.enabled() && READ_MODE_COMPATIBILITY.equals(settings.reviewDataReadMode());
-  }
-
-  //兼容模式-MatchMode
   public boolean isCodeReviewCompatibilityReadEnabled() {
     CodeReviewMatchModeDbSettings settings = loadSettings();
     return settings.enabled() && READ_MODE_COMPATIBILITY.equals(settings.codeReviewReadMode());
   }
 
   //兼容模式-MatchMode
-  public void markReviewDataFormalReadMode() {
-    updateReadMode("review_data_read_mode", READ_MODE_FORMAL);
-  }
-
-  //兼容模式-MatchMode
   public void markCodeReviewFormalReadMode() {
-    updateReadMode("code_review_read_mode", READ_MODE_FORMAL);
-  }
-
-  private void updateReadMode(String columnName, String mode) {
     jdbcTemplate.update(
-        "update code_review_match_mode_db_settings set " + columnName + " = ?, updated_at = current_timestamp where id = 1",
-        mode);
+        "update code_review_match_mode_db_settings set code_review_read_mode = ?, "
+            + "updated_at = current_timestamp where id = 1",
+        READ_MODE_FORMAL);
   }
 
   //兼容模式-MatchMode
@@ -166,7 +150,6 @@ public class CodeReviewMatchModeConfigService {
                selected_mongo_collection_names = ?,
                review_report_collection_name = ?,
                review_problem_collection_name = ?,
-               review_data_read_mode = ?,
                code_review_read_mode = ?,
                updated_at = current_timestamp
          where id = 1
@@ -189,7 +172,6 @@ public class CodeReviewMatchModeConfigService {
         storeMongoCollectionNames(normalized.selectedMongoCollectionNames()),
         normalized.reviewReportCollectionName(),
         normalized.reviewProblemCollectionName(),
-        normalized.reviewDataReadMode(),
         normalized.codeReviewReadMode());
     return getResponse();
   }
@@ -214,7 +196,6 @@ public class CodeReviewMatchModeConfigService {
             settings.selectedMongoCollectionNames(),
             settings.reviewReportCollectionName(),
             settings.reviewProblemCollectionName(),
-            settings.reviewDataReadMode(),
             settings.codeReviewReadMode(),
             settings.syncEnabled());
     if (!StringUtils.hasText(config.mysqlJdbcUrl()) || !StringUtils.hasText(config.mysqlUsername())) {
@@ -349,7 +330,6 @@ public class CodeReviewMatchModeConfigService {
               parseStoredMongoCollectionNames(rs.getString("selected_mongo_collection_names")),
               text(rs.getString("review_report_collection_name")),
               text(rs.getString("review_problem_collection_name")),
-              normalizeReadMode(rs.getString("review_data_read_mode")),
               normalizeReadMode(rs.getString("code_review_read_mode")),
               text(rs.getString("sync_status")),
               text(rs.getString("sync_message")),
@@ -405,8 +385,6 @@ public class CodeReviewMatchModeConfigService {
         defaultText(request.reviewProblemCollectionName(), current.reviewProblemCollectionName(), "problemDetail");
     validateMongoCollectionName(reviewReportCollectionName);
     validateMongoCollectionName(reviewProblemCollectionName);
-    String reviewDataReadMode =
-        normalizeReadMode(defaultText(request.reviewDataReadMode(), current.reviewDataReadMode(), READ_MODE_COMPATIBILITY));
     String codeReviewReadMode =
         normalizeReadMode(defaultText(request.codeReviewReadMode(), current.codeReviewReadMode(), READ_MODE_COMPATIBILITY));
     return new CodeReviewMatchModeDbSettings(
@@ -428,7 +406,6 @@ public class CodeReviewMatchModeConfigService {
         selectedMongoCollectionNames,
         reviewReportCollectionName,
         reviewProblemCollectionName,
-        reviewDataReadMode,
         codeReviewReadMode,
         current.syncStatus(),
         current.syncMessage(),
@@ -458,7 +435,6 @@ public class CodeReviewMatchModeConfigService {
         settings.selectedMongoCollectionNames(),
         settings.reviewReportCollectionName(),
         settings.reviewProblemCollectionName(),
-        settings.reviewDataReadMode(),
         settings.codeReviewReadMode(),
         settings.syncStatus() == null ? "IDLE" : settings.syncStatus(),
         settings.syncMessage(),
@@ -744,7 +720,6 @@ public class CodeReviewMatchModeConfigService {
       List<String> selectedMongoCollectionNames,
       String reviewReportCollectionName,
       String reviewProblemCollectionName,
-      String reviewDataReadMode,
       String codeReviewReadMode,
       String syncStatus,
       String syncMessage,

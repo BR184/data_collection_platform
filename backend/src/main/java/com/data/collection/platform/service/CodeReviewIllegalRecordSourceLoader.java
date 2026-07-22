@@ -16,31 +16,20 @@ import org.springframework.util.StringUtils;
 @Service
 @Slf4j
 public class CodeReviewIllegalRecordSourceLoader {
-  //兼容模式-MatchMode：老平台代码走查数据转入正式事实表后，代码走查页以迁入事实为准，避免和 GitLab 事实双份展示。
   private static final String LEGACY_ILLEGAL_BASE_WHERE = """
-       where deleted = false
-        and upper(coalesce(merge_request_state, '')) = 'MERGED'
-        and merged_at_source > timestamp '2024-04-01 00:00:00'
+       where upper(coalesce(merge_request_state, '')) = 'MERGED'
+         and merged_at_source > timestamp '2024-04-01 00:00:00'
         and coalesce(module_name, '') <> '无需标注'
         and coalesce(project_name, '') <> '无需标注'
         and coalesce(label_names, '') not like '%无需走查扫描%'
-        and (
-          source_system = 'LEGACY_PLATFORM'
-          or not exists (
-            select 1
-              from merge_request_fact promoted
-             where promoted.deleted = false
-               and promoted.source_system = 'LEGACY_PLATFORM'
-          )
-        )
-        and (
+         and (
           lower(btrim(coalesce(repository_name, ''))) not in ('crowncad', 'dgm')
           or lower(btrim(coalesce(target_branch, ''))) = 'dev'
         )
       """;
   private static final String FACT_SQL = """
       select
-        source_instance,
+        business_source as source_instance,
         merge_request_id,
         merge_request_iid,
         project_id,
@@ -81,11 +70,11 @@ public class CodeReviewIllegalRecordSourceLoader {
         commit_rate,
         function_name,
         clang_added_line_count
-      from merge_request_fact
+      from code_review_formal_records
       """ + LEGACY_ILLEGAL_BASE_WHERE;
   private static final String ALL_EXPORT_FACT_SQL = """
       select
-        source_instance,
+        business_source as source_instance,
         merge_request_id,
         merge_request_iid,
         project_id,
@@ -126,7 +115,7 @@ public class CodeReviewIllegalRecordSourceLoader {
         commit_rate,
         function_name,
         clang_added_line_count
-      from merge_request_fact
+      from code_review_formal_records
       """ + LEGACY_ILLEGAL_BASE_WHERE;
   private static final Map<String, String> SORT_COLUMNS = createSortColumns();
 
@@ -235,7 +224,7 @@ public class CodeReviewIllegalRecordSourceLoader {
     QueryParts parts = buildPageQuery(query);
     long total =
         mergeRequestFactQueryService.count(
-            "select count(*) from merge_request_fact" + parts.where(), parts.args());
+            "select count(*) from code_review_formal_records" + parts.where(), parts.args());
     if (total == 0) {
       return new PageSlice<>(List.of(), 0, query.page(), query.size());
     }
@@ -305,7 +294,7 @@ public class CodeReviewIllegalRecordSourceLoader {
 
   private List<CodeReviewIllegalRecordFilterProjectOption> queryProjectOptions(QueryParts parts) {
     return mergeRequestFactQueryService.query(
-        "select project_id, project_name from merge_request_fact "
+        "select project_id, project_name from code_review_formal_records "
             + parts.where()
             + """
                and project_id is not null
@@ -334,7 +323,7 @@ public class CodeReviewIllegalRecordSourceLoader {
         mergeRequestFactQueryService.query(
             "with scoped as (select "
                 + selectColumns
-                + " from merge_request_fact "
+                + " from code_review_formal_records "
                 + parts.where()
                 + ") select option_group, option_value from ("
                 + unionSql
@@ -468,12 +457,8 @@ public class CodeReviewIllegalRecordSourceLoader {
       return;
     }
     String source = GitlabSourceInstanceSupport.normalizeSourceInstance(normalized);
-    if ("cc".equals(source) || "default".equals(source)) {
-      where.append(" and lower(coalesce(source_instance, 'default')) in ('cc', 'default')");
-      return;
-    }
-    where.append(" and lower(coalesce(source_instance, 'default')) = ?");
-    args.add(source);
+    where.append(" and lower(coalesce(business_source, 'cc')) = ?");
+    args.add("default".equals(source) ? "cc" : source);
   }
 
   private void appendDateFrom(StringBuilder where, List<Object> args, String column, String rawValue) {

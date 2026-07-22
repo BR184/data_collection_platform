@@ -3,9 +3,7 @@ import type { OptionItemResponse } from './common';
 
 export interface CodeReviewMatchModeStatusResponse {
   enabled: boolean;
-  reviewDataReadMode: 'compatibility' | 'formal';
   codeReviewReadMode: 'compatibility' | 'formal';
-  reviewDataCompatibilityRead: boolean;
   codeReviewCompatibilityRead: boolean;
 }
 

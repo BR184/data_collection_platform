@@ -264,6 +264,10 @@ public class ReviewDataRecordPersistenceSupport {
     recordWriteRepository.softDeleteRecord(recordId);
   }
 
+  public void restoreRecord(Long recordId) {
+    recordWriteRepository.restoreRecord(recordId);
+  }
+
   public Long insertProblemItem(
       Long recordId,
       String reviewerName,

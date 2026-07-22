@@ -3,6 +3,8 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { Check, Connection, Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from '../element-plus-services';
 import { api } from '../api';
+import { authState } from '../composables/auth-state';
+import { hasPermission } from '../feature-manifest';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import type {
@@ -20,7 +22,7 @@ import { formatBeijingDateTime } from '../utils/beijing-time';
 // 兼容模式-MatchMode：系统设置/数据库兼容模式临时设置。
 // 这是老平台 MySQL/Mongo/DGM 项目候选交接期临时页面，不属于 GitLab 镜像设置；彻底下线兼容模式时可整体删除本页面及 legacy-database-api。
 const defaultSelectedTableNames = ['spider_crowncad_data'];
-const defaultSelectedMongoCollectionNames = ['reviewReport', 'problemDetail'];
+const defaultSelectedMongoCollectionNames = ['reviewReport', 'problemDetail', 'description'];
 
 const initialized = ref(false);
 const loading = ref(false);
@@ -42,6 +44,7 @@ const mongoCollectionOptionsLoading = ref(false);
 const mongoCollectionOptionsLoaded = ref(false);
 const mongoCollectionOptions = ref<CodeReviewMatchModeCollectionOptionResponse[]>([]);
 const settings = ref<CodeReviewMatchModeDbSettingsResponse | null>(null);
+const savedSettingsSignature = ref('');
 const dgmProjectSourceSettings = ref<CodeReviewDgmGitlabProjectSourceResponse | null>(null);
 const dgmProjectOptions = ref<CodeReviewDgmGitlabProjectOptionResponse[]>([]);
 const formalImportConfirmationText = '我确认要将数据源导入新采集平台中';
@@ -67,7 +70,6 @@ const form = reactive<CodeReviewMatchModeDbSettingsSaveRequest>({
   selectedMongoCollectionNames: [...defaultSelectedMongoCollectionNames],
   reviewReportCollectionName: 'reviewReport',
   reviewProblemCollectionName: 'problemDetail',
-  reviewDataReadMode: 'compatibility',
   codeReviewReadMode: 'compatibility',
 });
 
@@ -110,8 +112,12 @@ const statusText = computed(() => {
 
 const lastSyncTime = computed(() => formatDateTime(settings.value?.syncFinishedAt || settings.value?.syncStartedAt));
 const updatedTime = computed(() => formatDateTime(settings.value?.updatedAt));
-const reviewDataReadModeText = computed(() => readModeText(form.reviewDataReadMode));
 const codeReviewReadModeText = computed(() => readModeText(form.codeReviewReadMode));
+const canConfigure = computed(() => hasPermission(authState.currentUser, 'system.match_mode.config'));
+const canSync = computed(() => hasPermission(authState.currentUser, 'system.match_mode.sync'));
+const canFormalImport = computed(() =>
+  hasPermission(authState.currentUser, 'system.match_mode.formal_import'),
+);
 const dgmProjectSourceStatusTagType = computed(() => {
   const status = dgmProjectSourceSettings.value?.lastSyncStatus;
   if (status === 'SUCCESS') {
@@ -145,8 +151,15 @@ const dgmProjectSourceLastSyncText = computed(() =>
 );
 const formalImportDisabled = computed(
   () =>
+    !settings.value ||
+    !canFormalImport.value ||
+    settingsDirty.value ||
     formalImportSelection.value.length === 0 ||
     formalImportConfirmation.value.trim() !== formalImportConfirmationText,
+);
+const settingsDirty = computed(() =>
+  Boolean(savedSettingsSignature.value)
+  && savedSettingsSignature.value !== settingsSignature(buildPayload()),
 );
 const selectedImportScopeText = computed(() => {
   const scopes: string[] = [];
@@ -286,10 +299,17 @@ async function importLegacyPlatformToFormal() {
       importReviewData: formalImportSelection.value.includes('review'),
       importCodeReviewData: formalImportSelection.value.includes('codeReview'),
       confirmationText: formalImportConfirmation.value.trim(),
+      expectedSettingsUpdatedAt: settings.value?.updatedAt || '',
     });
-    ElMessage.success(
-      `${result.message}；评审新增 ${result.reviewInsertedCount}、更新 ${result.reviewUpdatedCount}；代码走查新增 ${result.codeReviewInsertedCount}、更新 ${result.codeReviewUpdatedCount}`,
-    );
+    const summary = `评审新增 ${result.review.insertedCount}、更新 ${result.review.updatedCount}`
+      + `、保护 ${result.review.skippedCount}、删除对账 ${result.review.deletedCount}`
+      + `；代码走查新增 ${result.codeReview.insertedCount}、更新 ${result.codeReview.updatedCount}`
+      + `、删除对账 ${result.codeReview.deletedCount}`;
+    if (!result.accepted) {
+      ElMessage.error(`${result.message}；任务 #${result.runId}`);
+      return;
+    }
+    ElMessage.success(`${result.message}；${summary}；任务 #${result.runId}`);
     formalImportConfirmation.value = '';
     applySettings(await api.getCodeReviewMatchModeDbSettings());
   } catch (error) {
@@ -435,8 +455,8 @@ function applySettings(nextSettings: CodeReviewMatchModeDbSettingsResponse) {
   );
   form.reviewReportCollectionName = nextSettings.reviewReportCollectionName || 'reviewReport';
   form.reviewProblemCollectionName = nextSettings.reviewProblemCollectionName || 'problemDetail';
-  form.reviewDataReadMode = nextSettings.reviewDataReadMode || 'compatibility';
   form.codeReviewReadMode = nextSettings.codeReviewReadMode || 'compatibility';
+  savedSettingsSignature.value = settingsSignature(buildPayload());
 }
 
 function applyDgmProjectSourceSettings(nextSettings: CodeReviewDgmGitlabProjectSourceResponse) {
@@ -470,9 +490,18 @@ function buildPayload(): CodeReviewMatchModeDbSettingsSaveRequest {
     selectedMongoCollectionNames: normalizeSelectedMongoCollectionNames(form.selectedMongoCollectionNames),
     reviewReportCollectionName: form.reviewReportCollectionName.trim() || 'reviewReport',
     reviewProblemCollectionName: form.reviewProblemCollectionName.trim() || 'problemDetail',
-    reviewDataReadMode: form.reviewDataReadMode,
     codeReviewReadMode: form.codeReviewReadMode,
   };
+}
+
+function settingsSignature(payload: CodeReviewMatchModeDbSettingsSaveRequest) {
+  return JSON.stringify({
+    ...payload,
+    mysqlPasswordChanged: Boolean(payload.mysqlPassword),
+    mongoUriChanged: Boolean(payload.mongoUri),
+    mysqlPassword: null,
+    mongoUri: null,
+  });
 }
 
 function buildDgmProjectSourcePayload(): CodeReviewDgmGitlabProjectSourceSaveRequest {
@@ -543,10 +572,6 @@ function readModeText(mode?: 'compatibility' | 'formal') {
             <strong>{{ selectedImportScopeText }}</strong>
           </div>
           <div class="legacy-db-status-item">
-            <span>评审数据读源</span>
-            <strong>{{ reviewDataReadModeText }}</strong>
-          </div>
-          <div class="legacy-db-status-item">
             <span>代码走查读源</span>
             <strong>{{ codeReviewReadModeText }}</strong>
           </div>
@@ -586,13 +611,6 @@ function readModeText(mode?: 'compatibility' | 'formal') {
             <el-switch v-model="form.syncEnabled" :disabled="!form.enabled" />
             <div class="form-help-text">上次同步结束后再等待 10 分钟触发下一次；同步过程中页面继续展示上一次已完成同步的数据。</div>
           </el-form-item>
-          <el-form-item label="评审数据读源">
-            <el-radio-group v-model="form.reviewDataReadMode">
-              <el-radio-button label="compatibility">老平台兼容数据</el-radio-button>
-              <el-radio-button label="formal">新平台正式数据</el-radio-button>
-            </el-radio-group>
-            <div class="form-help-text">转正式成功后会自动切到新平台正式数据；交接期也可单独切回查看。</div>
-          </el-form-item>
           <el-form-item label="代码走查读源">
             <el-radio-group v-model="form.codeReviewReadMode">
               <el-radio-button label="compatibility">老平台兼容数据</el-radio-button>
@@ -614,7 +632,7 @@ function readModeText(mode?: 'compatibility' | 'formal') {
                 :options="tableSelectOptions"
                 @visible-change="handleTableSelectVisibleChange"
               />
-              <el-button :icon="Refresh" :loading="tableOptionsLoading" @click="ensureTableOptions(true)">
+              <el-button v-if="canConfigure" :icon="Refresh" :loading="tableOptionsLoading" @click="ensureTableOptions(true)">
                 刷新表列表
               </el-button>
             </div>
@@ -684,6 +702,7 @@ function readModeText(mode?: 'compatibility' | 'formal') {
                 @visible-change="handleMongoCollectionSelectVisibleChange"
               />
               <el-button
+                v-if="canConfigure"
                 :icon="Refresh"
                 :loading="mongoCollectionOptionsLoading"
                 @click="ensureMongoCollectionOptions(true)"
@@ -729,6 +748,13 @@ function readModeText(mode?: 'compatibility' | 'formal') {
               show-icon
               title="该操作会先从已配置的老平台数据源拉取一次最新数据，再写入新平台正式业务表；重复数据会更新，不会追加双份。"
             />
+            <el-alert
+              v-if="settingsDirty"
+              type="info"
+              :closable="false"
+              show-icon
+              title="当前设置尚未保存，请先保存后再执行数据交接。"
+            />
             <el-form-item label="导入内容">
               <el-checkbox-group v-model="formalImportSelection">
                 <el-checkbox label="review">评审数据</el-checkbox>
@@ -745,6 +771,7 @@ function readModeText(mode?: 'compatibility' | 'formal') {
             </el-form-item>
             <div class="legacy-db-formal-actions">
               <el-button
+                v-if="canFormalImport"
                 type="warning"
                 :icon="Refresh"
                 :loading="formalImporting"
@@ -757,12 +784,13 @@ function readModeText(mode?: 'compatibility' | 'formal') {
           </div>
 
           <div class="legacy-db-actions">
-            <el-button type="primary" :icon="Check" :loading="saving" @click="saveSettings">保存设置</el-button>
-            <el-button :icon="Connection" :loading="testing" @click="testConnection">测试 MySQL 连接</el-button>
-            <el-button :icon="Connection" :loading="mongoTesting" @click="testMongoConnection">
+            <el-button v-if="canConfigure" type="primary" :icon="Check" :loading="saving" @click="saveSettings">保存设置</el-button>
+            <el-button v-if="canConfigure" :icon="Connection" :loading="testing" @click="testConnection">测试 MySQL 连接</el-button>
+            <el-button v-if="canConfigure" :icon="Connection" :loading="mongoTesting" @click="testMongoConnection">
               测试 MongoDB 连接
             </el-button>
             <el-button
+              v-if="canSync"
               :icon="Refresh"
               :loading="syncing"
               :disabled="!form.enabled || !form.syncEnabled"
@@ -771,6 +799,7 @@ function readModeText(mode?: 'compatibility' | 'formal') {
               导入代码走查数据
             </el-button>
             <el-button
+              v-if="canSync"
               :icon="Refresh"
               :loading="mongoSyncing"
               :disabled="!form.enabled"
@@ -877,6 +906,7 @@ function readModeText(mode?: 'compatibility' | 'formal') {
 
           <div class="legacy-db-actions">
             <el-button
+              v-if="canConfigure"
               type="primary"
               :icon="Check"
               :loading="dgmProjectSourceSaving"
@@ -885,6 +915,7 @@ function readModeText(mode?: 'compatibility' | 'formal') {
               保存 DGM 项目源
             </el-button>
             <el-button
+              v-if="canConfigure"
               :icon="Connection"
               :loading="dgmProjectSourceTesting"
               @click="testDgmProjectSourceConnection"
@@ -892,6 +923,7 @@ function readModeText(mode?: 'compatibility' | 'formal') {
               测试连接
             </el-button>
             <el-button
+              v-if="canSync"
               type="warning"
               :icon="Refresh"
               :loading="dgmProjectOptionsSyncing"

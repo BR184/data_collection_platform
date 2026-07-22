@@ -1,6 +1,10 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.entity.ReviewDataContentSaveRequest;
+import com.data.collection.platform.entity.ReviewDataDescriptionSaveRequest;
 import java.time.LocalDate;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,16 +24,48 @@ public class ReviewDataMatchModeMaterializeService {
 
   //兼容模式-MatchMode
   @Transactional
-  public Long materializeRecord(Long matchModeRecordId) {
-    return materializeRecordWithResult(matchModeRecordId).recordId();
-  }
-
-  //兼容模式-MatchMode：转正式时优先把老平台 docType 映射到正式表 review_type，保证关闭兼容模式后导出口径仍可用。
-  @Transactional
-  public MaterializeResult materializeRecordWithResult(Long matchModeRecordId) {
+  public Long materializeForMutation(Long matchModeRecordId) {
     Long existingRecordId = matchModeRecordRepository.findMaterializedRecordId(matchModeRecordId);
+    if (existingRecordId != null) {
+      matchModeRecordRepository.claimPlatformOwnership(existingRecordId);
+      return existingRecordId;
+    }
     ReviewDataMatchModeRecordRepository.MatchModeRecordSource source =
         matchModeRecordRepository.getRecordSourceOrThrow(matchModeRecordId);
+    MaterializeResult result = materialize(
+        matchModeRecordId,
+        source,
+        ReviewDataMatchModeRecordRepository.RecordAuthority.PLATFORM_OWNED);
+    return result.recordId();
+  }
+
+  //兼容模式-MatchMode：交接只更新仍由老平台管理的映射；新平台已接管记录必须保持不变。
+  @Transactional
+  public MaterializeResult materializeForHandover(
+      ReviewDataMatchModeRecordRepository.MatchModeRecordSource source) {
+    Long matchModeRecordId = -Math.abs(source.record().id());
+    Long existingRecordId = matchModeRecordRepository.findMaterializedRecordId(matchModeRecordId);
+    ReviewDataMatchModeRecordRepository.RecordAuthority authority =
+        matchModeRecordRepository.findMaterializedAuthority(matchModeRecordId);
+    if (existingRecordId != null
+        && authority == ReviewDataMatchModeRecordRepository.RecordAuthority.PLATFORM_OWNED) {
+      return new MaterializeResult(existingRecordId, MaterializeOutcome.SKIPPED_PLATFORM_OWNED);
+    }
+    return materialize(
+        matchModeRecordId,
+        source,
+        ReviewDataMatchModeRecordRepository.RecordAuthority.LEGACY_MANAGED);
+  }
+
+  public void claimPlatformOwnership(Long reviewRecordId) {
+    matchModeRecordRepository.claimPlatformOwnership(reviewRecordId);
+  }
+
+  private MaterializeResult materialize(
+      Long matchModeRecordId,
+      ReviewDataMatchModeRecordRepository.MatchModeRecordSource source,
+      ReviewDataMatchModeRecordRepository.RecordAuthority authority) {
+    Long existingRecordId = matchModeRecordRepository.findMaterializedRecordId(matchModeRecordId);
     ReviewDataMatchModeRecordRepository.ReportRow report = source.record();
     ReviewDataMatchModeRecordRepository.DescriptionRow primaryDescription = source.primaryDescription();
     Integer reviewScalePages = source.reviewScalePages();
@@ -39,8 +75,11 @@ public class ReviewDataMatchModeMaterializeService {
         valueOrDefault(primaryDescription == null ? null : primaryDescription.version(), "V1");
     String authorName =
         valueOrDefault(primaryDescription == null ? null : primaryDescription.author(), "未填写");
-    boolean inserted = existingRecordId == null;
     Long recordId = existingRecordId;
+    MaterializeOutcome outcome = recordId == null
+        ? MaterializeOutcome.INSERTED
+        : MaterializeOutcome.UPDATED;
+    LocalDate reviewDate = resolveReviewDate(report);
     if (recordId == null) {
       recordId =
           persistenceSupport.insertRecord(
@@ -48,7 +87,7 @@ public class ReviewDataMatchModeMaterializeService {
               valueOrDefault(report.title(), "老平台评审记录"),
               valueOrDefault(ReviewDataModuleNameSupport.normalize(report.moduleName()), "未标注模块名"),
               valueOrDefault(firstText(report.docType(), report.sourceType(), report.reviewTypeStr()), "其他"),
-              report.reviewTime() == null ? LocalDate.now() : report.reviewTime().toLocalDate(),
+              reviewDate,
               valueOrDefault(report.reviewCharger(), "未填写"),
               reviewScalePages,
               reviewProduct,
@@ -61,13 +100,14 @@ public class ReviewDataMatchModeMaterializeService {
         throw new IllegalStateException("兼容模式评审记录转正式记录失败");
       }
     } else {
+      persistenceSupport.restoreRecord(recordId);
       persistenceSupport.updateRecord(
           recordId,
           valueOrDefault(report.projectName(), "未标注项目名"),
           valueOrDefault(report.title(), "老平台评审记录"),
           valueOrDefault(ReviewDataModuleNameSupport.normalize(report.moduleName()), "未标注模块名"),
           valueOrDefault(firstText(report.docType(), report.sourceType(), report.reviewTypeStr()), "其他"),
-          report.reviewTime() == null ? LocalDate.now() : report.reviewTime().toLocalDate(),
+          reviewDate,
           valueOrDefault(report.reviewCharger(), "未填写"),
           reviewScalePages,
           reviewProduct,
@@ -79,12 +119,8 @@ public class ReviewDataMatchModeMaterializeService {
       persistenceSupport.softDeleteProblemItems(recordId);
     }
     persistenceSupport.replaceExperts(recordId, report.reviewExperts());
-    persistenceSupport.ensurePrimaryDescription(
-        recordId,
-        reviewProduct,
-        reviewVersion,
-        authorName,
-        reviewScalePages);
+    persistenceSupport.replaceDescriptions(recordId, descriptionRequests(source, report));
+    persistenceSupport.replaceContents(recordId, contentRequests(source));
     for (ReviewDataMatchModeRecordRepository.ProblemRow problem : source.problems()) {
       Long problemItemId =
           persistenceSupport.insertProblemItem(
@@ -108,8 +144,9 @@ public class ReviewDataMatchModeMaterializeService {
       }
     }
     persistenceSupport.refreshSearchIndex(recordId);
-    matchModeRecordRepository.linkMaterializedRecord(matchModeRecordId, report.legacyId(), recordId);
-    return new MaterializeResult(recordId, inserted);
+    matchModeRecordRepository.linkMaterializedRecord(
+        matchModeRecordId, report.legacyId(), recordId, authority);
+    return new MaterializeResult(recordId, outcome);
   }
 
   //兼容模式-MatchMode
@@ -145,6 +182,62 @@ public class ReviewDataMatchModeMaterializeService {
     return null;
   }
 
+  private LocalDate resolveReviewDate(ReviewDataMatchModeRecordRepository.ReportRow report) {
+    if (report.reviewTime() != null) {
+      return report.reviewTime().toLocalDate();
+    }
+    if (report.createTime() != null) {
+      return report.createTime().toLocalDate();
+    }
+    throw new BizException("老平台评审记录缺少评审日期和创建时间: " + report.legacyId());
+  }
+
+  private List<ReviewDataDescriptionSaveRequest> descriptionRequests(
+      ReviewDataMatchModeRecordRepository.MatchModeRecordSource source,
+      ReviewDataMatchModeRecordRepository.ReportRow report) {
+    if (source.descriptions().isEmpty()) {
+      return List.of(new ReviewDataDescriptionSaveRequest(
+          valueOrDefault(report.title(), "老平台评审记录"),
+          "V1",
+          "未填写",
+          source.reviewScalePages(),
+          "页",
+          0));
+    }
+    return java.util.stream.IntStream.range(0, source.descriptions().size())
+        .mapToObj(index -> {
+          ReviewDataMatchModeRecordRepository.DescriptionRow row = source.descriptions().get(index);
+          return new ReviewDataDescriptionSaveRequest(
+              valueOrDefault(row.reviewProduct(), report.title()),
+              valueOrDefault(row.version(), "V1"),
+              valueOrDefault(row.author(), "未填写"),
+              row.reviewScalePages() == null ? 0 : Math.max(0, row.reviewScalePages()),
+              valueOrDefault(row.unit(), "页"),
+              index);
+        })
+        .toList();
+  }
+
+  private List<ReviewDataContentSaveRequest> contentRequests(
+      ReviewDataMatchModeRecordRepository.MatchModeRecordSource source) {
+    return source.contents().stream()
+        .map(row -> new ReviewDataContentSaveRequest(
+            valueOrDefault(row.reviewerName(), "未填写"),
+            TextQuerySupport.normalizeDisplay(row.assignmentContent()),
+            row.independentWorkloadHours() == null ? 0D : Math.max(0D, row.independentWorkloadHours()),
+            row.independentProblemCount() == null ? 0 : Math.max(0, row.independentProblemCount()),
+            row.meetingWorkloadHours() == null ? 0D : Math.max(0D, row.meetingWorkloadHours()),
+            row.meetingProblemCount() == null ? 0 : Math.max(0, row.meetingProblemCount()),
+            row.contentOrder()))
+        .toList();
+  }
+
   //兼容模式-MatchMode
-  public record MaterializeResult(Long recordId, boolean inserted) {}
+  public record MaterializeResult(Long recordId, MaterializeOutcome outcome) {}
+
+  public enum MaterializeOutcome {
+    INSERTED,
+    UPDATED,
+    SKIPPED_PLATFORM_OWNED
+  }
 }
