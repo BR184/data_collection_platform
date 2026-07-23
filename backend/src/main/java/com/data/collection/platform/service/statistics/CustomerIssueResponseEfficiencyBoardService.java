@@ -22,6 +22,7 @@ import com.data.collection.platform.service.CustomerIssueScopeProfile;
 import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.IssueScopeContext;
+import com.data.collection.platform.service.IssueStatusMembers;
 import com.data.collection.platform.service.SortSupport;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.math.BigDecimal;
@@ -49,7 +50,7 @@ import org.springframework.util.StringUtils;
 public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatisticBoardService
     implements RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-response-efficiency";
-  private static final String RULE_VERSION = "customer-issue-response-efficiency@2026-07-10-v2";
+  private static final String RULE_VERSION = "customer-issue-response-efficiency@2026-07-22-v3";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final String EMPTY_MODULE_LABEL = IssueDisplayValueSupport.EMPTY_MODULE_LABEL;
@@ -652,7 +653,14 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
           issue.milestoneTitle(),
           issue.testingPhase(),
           CustomerIssueMilestoneFilterSupport.normalizeLegacyTestingPhase(
-              new StatisticFilterGroup("AND", List.of(condition)), phaseScopeResolver));
+               new StatisticFilterGroup("AND", List.of(condition)), phaseScopeResolver));
+    }
+    if ("bugStatus".equals(condition.fieldKey())) {
+      return condition.usesLabelGroup()
+          ? IssueStatusMembers.matchesLabelGroup(
+              issue.bugStatus(), condition.operator(), condition.values())
+          : IssueStatusMembers.matchesFilter(
+              issue.bugStatus(), condition.operator(), condition.value());
     }
     if ("moduleName".equals(condition.fieldKey())) {
       return matchesCandidates(issue.displayModuleNames(), condition);
@@ -664,7 +672,6 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
           case "severityLevel" -> issue.severityLevel();
           case "priorityLevel" -> issue.priorityLevel();
           case "issueState" -> issue.issueState();
-          case "bugStatus" -> issue.bugStatus();
           case "authorName" -> issue.authorName();
           case "assigneeName" -> issue.assigneeName();
           default -> "";
@@ -894,8 +901,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     boolean hasResolutionCycle() {
       return createdAt != null
           && fixedLabelTime != null
-          && StringUtils.hasText(bugStatus)
-          && bugStatus.contains(FIXED_STATUS);
+          && IssueStatusMembers.matchesSelection(bugStatus, FIXED_STATUS);
     }
 
     long responseCycleHours() {

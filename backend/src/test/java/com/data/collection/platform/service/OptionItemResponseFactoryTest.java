@@ -33,4 +33,13 @@ class OptionItemResponseFactoryTest {
         .extracting(item -> item.value())
         .containsExactly("二次开发", "工程图", "草图");
   }
+
+  @Test
+  void test_combinedStatus_options_returnIndividualStatusMembers() {
+    assertThat(
+            OptionItemResponseFactory.fromIssueStatusMembersPreservingOrder(
+                List.of("历史遗留、申请延期", "申请延期&已修复/完成")))
+        .extracting(item -> item.value())
+        .containsExactly("历史遗留", "申请延期", "已修复/完成");
+  }
 }

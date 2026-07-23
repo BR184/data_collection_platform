@@ -37,10 +37,12 @@ public class IssueFactRecordRepository {
              coalesce(is_legacy, false) as is_legacy,
              coalesce(milestone_title, '') as milestone_title,
              coalesce(author_name, '') as author_name,
+             coalesce(handler_name, '') as handler_name,
              coalesce(assignee_name, '') as assignee_name,
              coalesce(fix_user, '') as fix_user,
              coalesce(module_names, '') as module_names,
              coalesce(function_name, '') as function_name,
+             coalesce(customer_names, '') as customer_names,
              coalesce(label_names, '') as label_names,
              coalesce(delay_issue, false) as delay_issue,
              coalesce(delay_reason, '') as delay_reason,
@@ -52,7 +54,10 @@ public class IssueFactRecordRepository {
              coalesce(illegal_reasons, '') as illegal_reasons,
              created_at_source,
              updated_at_source,
-             closed_at_source
+             closed_at_source,
+             planned_resolution_at,
+             coalesce(planned_resolution_text, '') as planned_resolution_text,
+             coalesce(planned_merge_version_branch, '') as planned_merge_version_branch
         from issue_fact
       """;
   private static final String FACT_SQL = FACT_SELECT_SQL + " where deleted = false";
@@ -125,6 +130,10 @@ public class IssueFactRecordRepository {
                 List.of(),
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
                 false,
                 false,
                 false,
@@ -136,7 +145,8 @@ public class IssueFactRecordRepository {
                 1,
                 20,
                 "updatedAt",
-                "desc"));
+                "desc",
+                null));
     try {
       return issueFactQueryService.query(FACT_SELECT_SQL + parts.where(), parts.args(), this::mapIssueFact);
     } catch (DataAccessException error) {
@@ -274,9 +284,14 @@ public class IssueFactRecordRepository {
     String sql =
         """
         with base as (
-          select coalesce(project_name, '') as project_name,
+          select coalesce(source_system, 'GITLAB') as source_system,
+                 coalesce(source_instance, 'default') as source_instance,
+                 project_id,
+                 issue_id,
+                 coalesce(project_name, '') as project_name,
                  coalesce(module_names, '') as module_names,
                  coalesce(function_name, '') as function_name,
+                 coalesce(testing_phase, '') as testing_phase,
                  coalesce(reason_category, '') as reason_category,
                  coalesce(severity_level, '') as severity_level,
                  coalesce(priority_level, '') as priority_level,
@@ -284,7 +299,10 @@ public class IssueFactRecordRepository {
                  coalesce(bug_status, '') as bug_status,
                  coalesce(category, '') as category,
                  coalesce(author_name, '') as author_name,
+                 coalesce(handler_name, '') as handler_name,
                  coalesce(assignee_name, '') as assignee_name,
+                 coalesce(fix_user, '') as fix_user,
+                 coalesce(delay_cause, '') as delay_cause,
                  coalesce(milestone_title, '') as milestone_title,
                  coalesce(illegal_reason, '') as illegal_reason,
                  coalesce(illegal_reasons, '') as illegal_reasons
@@ -302,6 +320,15 @@ public class IssueFactRecordRepository {
                cross join lateral regexp_split_to_table(coalesce(module_names, ''), ',') as modules(module_name)
            ) t where value is not null) as module_names,
           (select string_agg(value, E'\n') from (select distinct nullif(btrim(function_name), '') as value from base) t where value is not null) as function_names,
+          (select string_agg(value, E'\n') from (
+             select distinct nullif(btrim(member.customer_name), '') as value
+               from base
+               join issue_fact_customer_members member
+                 on member.source_system = base.source_system
+                and member.source_instance = base.source_instance
+                and member.project_id = base.project_id
+                and member.issue_id = base.issue_id
+           ) t where value is not null) as customer_names,
           (select string_agg(value, E'\n') from (select distinct nullif(btrim(reason_category), '') as value from base) t where value is not null) as reason_categories,
           (select string_agg(value, E'\n') from (select distinct nullif(btrim(severity_level), '') as value from base) t where value is not null) as severity_levels,
           (select string_agg(value, E'\n') from (select distinct nullif(btrim(priority_level), '') as value from base) t where value is not null) as priority_levels,
@@ -309,8 +336,18 @@ public class IssueFactRecordRepository {
           (select string_agg(value, E'\n') from (select distinct nullif(btrim(bug_status), '') as value from base) t where value is not null) as bug_statuses,
           (select string_agg(value, E'\n') from (select distinct nullif(btrim(category), '') as value from base) t where value is not null) as categories,
           (select string_agg(value, E'\n') from (select distinct nullif(btrim(author_name), '') as value from base) t where value is not null) as author_names,
-          (select string_agg(value, E'\n') from (select distinct nullif(btrim(assignee_name), '') as value from base) t where value is not null) as assignee_names,
-          (select string_agg(value, E'\n') from (select distinct nullif(btrim(milestone_title), '') as value from base) t where value is not null) as milestone_titles,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(handler_name), '') as value from base) t where value is not null) as handler_names,
+           (select string_agg(value, E'\n') from (select distinct nullif(btrim(assignee_name), '') as value from base) t where value is not null) as assignee_names,
+           (select string_agg(value, E'\n') from (
+              select distinct nullif(btrim(testing_phase), '') as value from base
+              union
+              select '未设定测试阶段' where exists (
+                select 1 from base where nullif(btrim(testing_phase), '') is null
+              )
+            ) t where value is not null) as testing_phases,
+           (select string_agg(value, E'\n') from (select distinct nullif(btrim(fix_user), '') as value from base) t where value is not null) as fix_users,
+           (select string_agg(value, E'\n') from (select distinct nullif(btrim(delay_cause), '') as value from base) t where value is not null) as delay_causes,
+           (select string_agg(value, E'\n') from (select distinct nullif(btrim(milestone_title), '') as value from base) t where value is not null) as milestone_titles,
           (select string_agg(value, E'\n') from (
              select distinct nullif(btrim(reason), '') as value
                from base
@@ -327,6 +364,7 @@ public class IssueFactRecordRepository {
                       splitAggregatedValues(rs.getString("project_names")),
                       splitAggregatedValues(rs.getString("module_names")),
                       splitAggregatedValues(rs.getString("function_names")),
+                      splitAggregatedValues(rs.getString("customer_names")),
                       splitAggregatedValues(rs.getString("reason_categories")),
                       splitAggregatedValues(rs.getString("severity_levels")),
                       splitAggregatedValues(rs.getString("priority_levels")),
@@ -334,8 +372,12 @@ public class IssueFactRecordRepository {
                       splitAggregatedValues(rs.getString("bug_statuses")),
                       splitAggregatedValues(rs.getString("categories")),
                       splitAggregatedValues(rs.getString("author_names")),
-                      splitAggregatedValues(rs.getString("assignee_names")),
-                      splitAggregatedValues(rs.getString("milestone_titles")),
+                      splitAggregatedValues(rs.getString("handler_names")),
+                       splitAggregatedValues(rs.getString("assignee_names")),
+                       splitAggregatedValues(rs.getString("testing_phases")),
+                       splitAggregatedValues(rs.getString("fix_users")),
+                       splitAggregatedValues(rs.getString("delay_causes")),
+                       splitAggregatedValues(rs.getString("milestone_titles")),
                       splitAggregatedValues(rs.getString("illegal_reasons"))));
       return rows.isEmpty() ? CustomerIssueFilterValues.empty() : rows.get(0);
     } catch (DataAccessException error) {
@@ -389,15 +431,20 @@ public class IssueFactRecordRepository {
     appendScope(where, args, query.scope());
     appendSourceInstance(where, args, query.listRequest());
     appendBaseFilters(where, args, query.listRequest(), query.useDisplayModuleFilter());
+    IssueCustomerMembershipSqlSupport.appendSelection(where, args, query.customerName());
     appendEqIgnoreCase(where, args, "reason_category", query.reasonCategory());
+    appendTestingPhaseEquals(where, args, query.directTestingPhase());
+    appendEqIgnoreCase(where, args, "fix_user", query.fixUser());
+    appendEqIgnoreCase(where, args, "delay_cause", query.delayCause());
     String testingPhaseColumn = testingPhaseColumn(query);
     appendInIgnoreCase(where, args, testingPhaseColumn, query.testingPhases());
     if (query.testingPhases().isEmpty()) {
       appendEqIgnoreCase(where, args, testingPhaseColumn, query.testingPhase());
     }
-    appendAuthorAssigneeFilters(where, args, query.authorName(), query.assigneeName());
+    appendAuthorHandlerAssigneeFilters(
+        where, args, query.authorName(), query.handlerName(), query.assigneeName());
     appendIllegalFilters(where, args, query);
-    appendFilterGroup(where, args, query.filterGroup(), query.useFullTestingPhaseFilter());
+    appendFilterGroup(where, args, query);
     if (query.delayOnly()) {
       where.append(" and (delay_issue = true or is_response_delayed = true or is_resolve_delayed = true)");
     }
@@ -521,12 +568,13 @@ public class IssueFactRecordRepository {
           args,
           List.of("search_text", "search_compact", "search_spell", "search_initials"),
           List.of(
-              "title",
-              "project_name",
-              "module_names",
-              "milestone_title",
-              "author_name",
-              "assignee_name"),
+               "title",
+               "project_name",
+               "module_names",
+               "milestone_title",
+               "author_name",
+               "handler_name",
+               "assignee_name"),
           true,
           request.keyword());
       return;
@@ -555,29 +603,45 @@ public class IssueFactRecordRepository {
               args,
               List.of("search_text", "search_compact", "search_spell", "search_initials"),
               List.of(
-                  "title",
-                  "project_name",
-                  "module_names",
-                  "milestone_title",
-                  "author_name",
-                  "assignee_name"),
+               "title",
+               "project_name",
+               "module_names",
+               "milestone_title",
+               "author_name",
+               "handler_name",
+               "assignee_name"),
               true,
               request.keyword());
     }
   }
 
-  private void appendAuthorAssigneeFilters(
-      StringBuilder where, List<Object> args, String authorName, String assigneeName) {
+  private void appendAuthorHandlerAssigneeFilters(
+      StringBuilder where,
+      List<Object> args,
+      String authorName,
+      String handlerName,
+      String assigneeName) {
     appendEqIgnoreCase(where, args, "author_name", authorName);
+    appendEqIgnoreCase(where, args, "handler_name", handlerName);
     appendEqIgnoreCase(where, args, "assignee_name", assigneeName);
   }
 
-  private void appendFilterGroup(
-      StringBuilder where,
-      List<Object> args,
-      com.data.collection.platform.entity.statistics.StatisticFilterGroup filterGroup,
-      boolean useFullTestingPhaseFilter) {
-    IssueFactFilterGroupSqlSupport.toSql(filterGroup, useFullTestingPhaseFilter)
+  private void appendTestingPhaseEquals(StringBuilder where, List<Object> args, String value) {
+    if (CustomerIssueTestingPhaseSupport.isUnspecifiedFilter(value)) {
+      where.append(" and nullif(btrim(coalesce(testing_phase, '')), '') is null");
+      return;
+    }
+    appendEqIgnoreCase(where, args, "testing_phase", value);
+  }
+
+  private void appendFilterGroup(StringBuilder where, List<Object> args, IssueFactRecordPageQuery query) {
+    boolean customerScope =
+        query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER
+            || query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER_PROJECT;
+    (customerScope
+            ? IssueFactFilterGroupSqlSupport.toCustomerIssueSql(query.filterGroup())
+            : IssueFactFilterGroupSqlSupport.toSql(
+                query.filterGroup(), query.useFullTestingPhaseFilter()))
         .filter(filter -> TextQuerySupport.trimToNull(filter.predicate()) != null)
         .ifPresent(
             filter -> {
@@ -763,15 +827,9 @@ public class IssueFactRecordRepository {
     if (normalized == null) {
       return;
     }
-    if ("已修复".equals(normalized)) {
-      where.append(
-          " and (lower(coalesce(bug_status, '')) like ? or lower(coalesce(bug_status, '')) like ? or lower(coalesce(bug_status, '')) like ?)");
-      args.add("%待合并%");
-      args.add("%已修复%");
-      args.add("%未更新%");
-      return;
-    }
-    appendContainsIgnoreCase(where, args, "bug_status", normalized);
+    SqlPredicate predicate = IssueStatusMemberSqlSupport.matches(normalized);
+    where.append(" and ").append(predicate.predicate());
+    args.addAll(predicate.args());
   }
 
   private void appendLegacyCategoryFilter(StringBuilder where, List<Object> args, String category) {
@@ -893,6 +951,7 @@ public class IssueFactRecordRepository {
         rs.getBoolean("is_legacy"),
         IssueFactValueSupport.text(rs.getString("milestone_title")),
         IssueFactValueSupport.text(rs.getString("author_name")),
+        IssueFactValueSupport.text(rs.getString("handler_name")),
         IssueFactValueSupport.text(rs.getString("assignee_name")),
         IssueFactValueSupport.text(rs.getString("fix_user")),
         IssueFactValueSupport.split(rs.getString("module_names")),
@@ -908,7 +967,11 @@ public class IssueFactRecordRepository {
         IssueFactValueSupport.split(rs.getString("illegal_reasons")),
         IssueFactValueSupport.time(rs.getTimestamp("created_at_source")),
         IssueFactValueSupport.time(rs.getTimestamp("updated_at_source")),
-        IssueFactValueSupport.time(rs.getTimestamp("closed_at_source")));
+        IssueFactValueSupport.time(rs.getTimestamp("closed_at_source")),
+        IssueFactValueSupport.split(rs.getString("customer_names")),
+        IssueFactValueSupport.time(rs.getTimestamp("planned_resolution_at")),
+        IssueFactValueSupport.text(rs.getString("planned_resolution_text")),
+        IssueFactValueSupport.text(rs.getString("planned_merge_version_branch")));
   }
 
   private static Map<String, String> createSortColumns() {
@@ -918,7 +981,10 @@ public class IssueFactRecordRepository {
     columns.put("projectName", "lower(coalesce(project_name, ''))");
     columns.put("moduleNames", "lower(coalesce(module_names, ''))");
     columns.put("functionName", "lower(coalesce(function_name, ''))");
+    columns.put("customerNames", "lower(coalesce(customer_names, ''))");
     columns.put("testingPhase", "lower(coalesce(testing_phase, ''))");
+    columns.put("fixUser", "lower(coalesce(fix_user, ''))");
+    columns.put("delayCause", "lower(coalesce(delay_cause, ''))");
     columns.put("reasonCategory", "lower(coalesce(reason_category, ''))");
     columns.put("illegalReason", "lower(coalesce(nullif(illegal_reasons, ''), illegal_reason, ''))");
     columns.put("severityLevel", "lower(coalesce(severity_level, ''))");
@@ -926,9 +992,12 @@ public class IssueFactRecordRepository {
     columns.put("bugStatus", "lower(coalesce(bug_status, ''))");
     columns.put("issueState", "lower(coalesce(issue_state, ''))");
     columns.put("authorName", "lower(coalesce(author_name, ''))");
+    columns.put("handlerName", "lower(coalesce(handler_name, ''))");
     columns.put("assigneeName", "lower(coalesce(assignee_name, ''))");
     columns.put("category", "lower(coalesce(category, ''))");
     columns.put("milestoneTitle", "lower(coalesce(milestone_title, ''))");
+    columns.put("plannedResolutionAt", "planned_resolution_at");
+    columns.put("plannedMergeVersionBranch", "lower(coalesce(planned_merge_version_branch, ''))");
     columns.put("createdAt", "created_at_source");
     columns.put("updatedAt", "updated_at_source");
     columns.put("closedAt", "closed_at_source");
@@ -969,6 +1038,7 @@ public class IssueFactRecordRepository {
       List<String> projectNames,
       List<String> moduleNames,
       List<String> functionNames,
+      List<String> customerNames,
       List<String> reasonCategories,
       List<String> severityLevels,
       List<String> priorityLevels,
@@ -976,11 +1046,20 @@ public class IssueFactRecordRepository {
       List<String> bugStatuses,
       List<String> categories,
       List<String> authorNames,
+      List<String> handlerNames,
       List<String> assigneeNames,
+      List<String> testingPhases,
+      List<String> fixUsers,
+      List<String> delayCauses,
       List<String> milestoneTitles,
       List<String> illegalReasons) {
     static CustomerIssueFilterValues empty() {
       return new CustomerIssueFilterValues(
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of(),
           List.of(),
           List.of(),
           List.of(),

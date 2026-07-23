@@ -75,6 +75,7 @@ declare module 'vue' {
     ElUpload: typeof import('element-plus/es')['ElUpload']
     ExportActionMenu: typeof import('./components/base/ExportActionMenu.vue')['default']
     GlobalProgressIndicator: typeof import('./components/GlobalProgressIndicator.vue')['default']
+    IssueStatusTags: typeof import('./components/IssueStatusTags.vue')['default']
     LabelGroupMemberPicker: typeof import('./components/label-groups/LabelGroupMemberPicker.vue')['default']
     PageSettingsButton: typeof import('./components/PageSettingsButton.vue')['default']
     PageSettingsDialog: typeof import('./components/PageSettingsDialog.vue')['default']

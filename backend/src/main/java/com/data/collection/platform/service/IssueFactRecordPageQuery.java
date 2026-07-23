@@ -12,7 +12,11 @@ public record IssueFactRecordPageQuery(
     String testingPhase,
     List<String> testingPhases,
     String authorName,
+    String handlerName,
     String assigneeName,
+    String directTestingPhase,
+    String fixUser,
+    String delayCause,
     boolean delayOnly,
     boolean illegalOnly,
     boolean excludeExcluded,
@@ -24,7 +28,8 @@ public record IssueFactRecordPageQuery(
     int page,
     int size,
     String sortField,
-    String sortOrder) {
+    String sortOrder,
+    String customerName) {
 
   public IssueFactRecordPageQuery {
     testingPhases = testingPhases == null ? List.of() : List.copyOf(testingPhases);

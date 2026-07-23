@@ -62,3 +62,8 @@ mvn -q -DskipTests compile
 cd ..\frontend
 npm.cmd run typecheck
 ```
+
+## Documentation
+
+- 当前产品、架构、进度和页面业务口径分别位于 `docs/product.md`、`docs/architecture.md`、`docs/progress.md`、`docs/platform-page-business-rules.md`。
+- 架构决策位于 `docs/decisions/`；进行中的工作单元计划位于 `docs/plans/`；内网发布和同步运维说明位于 `deploy/`。

@@ -24,6 +24,7 @@ import com.data.collection.platform.service.ExcelExportStyles;
 import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.IssueScopeContext;
+import com.data.collection.platform.service.IssueStatusMembers;
 import com.data.collection.platform.service.RealtimeIncrementalRefreshService;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.SortSupport;
@@ -63,7 +64,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         StatisticBoardWorkbookExportSupport,
         StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-defect-cause";
-  private static final String RULE_VERSION = "customer-issue-defect-cause@2026-07-10-v7";
+  private static final String RULE_VERSION = "customer-issue-defect-cause@2026-07-22-v8";
   private static final String MILESTONE_FIELD = CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD;
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "共计";
@@ -773,6 +774,13 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   }
 
   private boolean matchesCondition(IssueSource issue, StatisticFilterCondition condition) {
+    if ("bugStatus".equals(condition.fieldKey())) {
+      return condition.usesLabelGroup()
+          ? IssueStatusMembers.matchesLabelGroup(
+              issue.bugStatus(), condition.operator(), condition.values())
+          : IssueStatusMembers.matchesFilter(
+              issue.bugStatus(), condition.operator(), condition.value());
+    }
     List<String> actualValues = valuesForFilterField(issue, condition.fieldKey());
     if (condition.usesLabelGroup()) {
       return matchesSetOperator(actualValues, condition.values(), condition.operator());
@@ -794,7 +802,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       case "issueIid" -> List.of(String.valueOf(issue.iid()));
       case "title" -> List.of(issue.title());
       case "severityLevel" -> List.of(issue.severityLevel());
-      case "bugStatus" -> List.of(issue.bugStatus());
+      case "bugStatus" -> IssueStatusMembers.parse(issue.bugStatus());
       case "category" -> List.of(issue.category());
       case "issueState" -> List.of(issue.isClosed() ? "closed" : "open");
       case "authorName" -> List.of(issue.authorName());

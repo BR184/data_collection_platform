@@ -7,21 +7,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.FactBuildTaskResponse;
+import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.IssueFactCountBreakdownResponse;
 import com.data.collection.platform.entity.IssueFactDiagnosticsResponse;
 import com.data.collection.platform.entity.IssueFactScopeDiagnosticsResponse;
 import com.data.collection.platform.entity.IssueSourceReadinessResponse;
-import com.data.collection.platform.service.FactBuildService;
-import com.data.collection.platform.service.FactBuildOperationGuard;
 import com.data.collection.platform.service.FactBuildTaskService;
+import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.IssueFactDiagnosticsService;
 import com.data.collection.platform.service.IssueSourceReadinessService;
-import com.data.collection.platform.service.PageRecordSnapshotRefreshService;
-import com.data.collection.platform.service.statistics.StatisticBoardSnapshotRefreshService;
+import com.data.collection.platform.common.response.ApiResponse;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,12 +32,11 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 @ExtendWith(MockitoExtension.class)
 class FactBuildControllerTest {
 
-  @Mock private FactBuildService factBuildService;
   @Mock private FactBuildTaskService factBuildTaskService;
+  @Mock private GitlabConfigService configService;
+  @Mock private GitlabSyncCommandFacade syncCommandFacade;
   @Mock private IssueFactDiagnosticsService issueFactDiagnosticsService;
   @Mock private IssueSourceReadinessService issueSourceReadinessService;
-  @Mock private StatisticBoardSnapshotRefreshService snapshotRefreshService;
-  @Mock private PageRecordSnapshotRefreshService pageRecordSnapshotRefreshService;
 
   private MockMvc mockMvc;
 
@@ -47,58 +45,38 @@ class FactBuildControllerTest {
     mockMvc =
         MockMvcBuilders.standaloneSetup(
                 new FactBuildController(
-                    factBuildService,
-                    new FactBuildOperationGuard(),
                     factBuildTaskService,
+                    configService,
+                    syncCommandFacade,
                     issueFactDiagnosticsService,
-                    issueSourceReadinessService,
-                    snapshotRefreshService,
-                    pageRecordSnapshotRefreshService))
+                    issueSourceReadinessService))
             .build();
   }
 
   @Test
-  void shouldRebuildAllFacts() throws Exception {
-    when(factBuildService.rebuildAllFacts(false))
-        .thenReturn(new FactBuildResponse("all", false, 12, "事实表构建完成"));
+  void shouldSubmitManualFullRebuildForSelectedConfig() throws Exception {
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(2L);
+    when(configService.getConfigById(2L)).thenReturn(config);
+    when(syncCommandFacade.manualFullFactRebuild(config))
+        .thenReturn(
+            ApiResponse.success(
+                "同步已提交，等待调度器执行。",
+                Map.of(
+                    "accepted", true,
+                    "runId", 42L,
+                    "status", "QUEUED",
+                    "action", "QUEUED",
+                    "message", "同步已提交，等待调度器执行。")));
 
-    mockMvc.perform(post("/api/facts/rebuild"))
+    mockMvc.perform(post("/api/facts/rebuild").param("configId", "2"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.scope").value("all"))
-        .andExpect(jsonPath("$.data.affectedRows").value(12));
-    verify(snapshotRefreshService).refreshAfterFactBuild("ALL", false);
-  }
-
-  @Test
-  void shouldRebuildIssueFactsInFullMode() throws Exception {
-    when(factBuildService.rebuildIssueFacts(true))
-        .thenReturn(new FactBuildResponse("issue", true, 6, "议题事实已全量构建"));
-
-    mockMvc.perform(post("/api/facts/rebuild").param("scope", "issue").param("full", "true"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.scope").value("issue"))
-        .andExpect(jsonPath("$.data.full").value(true))
-        .andExpect(jsonPath("$.data.affectedRows").value(6));
-    verify(snapshotRefreshService).refreshAfterFactBuild("ISSUE", true);
-  }
-
-  @Test
-  void shouldRebuildFactsForConfigWhenConfigIdIsProvided() throws Exception {
-    when(factBuildService.rebuildMergeRequestFacts(false, 2L))
-        .thenReturn(new FactBuildResponse("dgm:merge-request", false, 4, "ok"));
-
-    mockMvc
-        .perform(
-            post("/api/facts/rebuild")
-                .param("scope", "merge-request")
-                .param("configId", "2"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.scope").value("dgm:merge-request"))
-        .andExpect(jsonPath("$.data.affectedRows").value(4));
-    verify(snapshotRefreshService).refreshAfterFactBuild("MERGE_REQUEST", false);
+        .andExpect(jsonPath("$.data.accepted").value(true))
+        .andExpect(jsonPath("$.data.runId").value(42))
+        .andExpect(jsonPath("$.data.status").value("QUEUED"));
+    verify(configService).getConfigById(2L);
+    verify(syncCommandFacade).manualFullFactRebuild(config);
   }
 
   @Test

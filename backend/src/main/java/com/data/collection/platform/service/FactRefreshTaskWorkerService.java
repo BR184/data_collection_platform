@@ -97,6 +97,9 @@ public class FactRefreshTaskWorkerService {
     if (scope.fallbackRequired()) {
       return factBuildService.rebuildIssueFactsForQueuedTask(config, false);
     }
+    if (scope.targets().isEmpty()) {
+      return factBuildService.reconcileMissingIssueFacts(task.sourceInstance());
+    }
     return factBuildService.rebuildIssueFactsByTargets(task.sourceInstance(), scope.targets());
   }
 

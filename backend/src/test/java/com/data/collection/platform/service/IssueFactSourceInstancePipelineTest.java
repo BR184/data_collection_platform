@@ -76,6 +76,112 @@ class IssueFactSourceInstancePipelineTest {
   }
 
   @Test
+  void shouldReconcileIssueFactMissingFromExistingMirrorIssue() {
+    LocalDateTime now = LocalDateTime.of(2026, 7, 22, 13, 0);
+    jdbcTemplate.update(
+        "insert into ods_gitlab_projects(id, name, mirror_deleted) values (?, ?, false)",
+        325L,
+        "CC_Product");
+    jdbcTemplate.update(
+        "insert into ods_gitlab_users(id, name, mirror_deleted) values (?, ?, false)",
+        502L,
+        "reporter-a");
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_issues(
+          id, iid, project_id, title, author_id, created_at, updated_at, closed_at, state_id, milestone_id, mirror_deleted
+        ) values (?, ?, ?, ?, ?, ?, ?, null, ?, null, false)
+        """,
+        9684L,
+        2684L,
+        325L,
+        "ODS 已存在但事实层缺失的议题",
+        502L,
+        now.minusHours(1),
+        now,
+        1);
+
+    FactBuildResponse firstResponse = factBuildService.reconcileMissingIssueFacts("default");
+    FactBuildResponse secondResponse = factBuildService.reconcileMissingIssueFacts("default");
+
+    assertThat(firstResponse.affectedRows()).isEqualTo(1);
+    assertThat(secondResponse.affectedRows()).isZero();
+    assertThat(jdbcTemplate.queryForObject(
+        "select count(*) from issue_fact where source_instance = 'default' and project_id = 325 and issue_id = 9684",
+        Integer.class)).isEqualTo(1);
+  }
+
+  @Test
+  void shouldBuildCustomerMembersAndLatestResponseTemplateFieldsForCcProductIssues() {
+    LocalDateTime now = LocalDateTime.of(2026, 7, 22, 10, 0);
+    jdbcTemplate.update(
+        "insert into ods_gitlab_projects(id, name, mirror_deleted) values (?, ?, false)",
+        325L,
+        "CC_PRODUCT");
+    jdbcTemplate.update(
+        "insert into ods_gitlab_users(id, name, mirror_deleted) values (?, ?, false)",
+        503L,
+        "reporter-a");
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_issues(
+          id, iid, project_id, title, description, author_id, created_at, updated_at, closed_at, state_id, milestone_id, mirror_deleted
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, null, ?, null, false)
+        """,
+        91415L,
+        1415L,
+        325L,
+        "【圆柱齿轮】建议圆柱齿轮的齿数不做限制——高晶电器/新世纪",
+        "客户名称：高晶电器/新世纪",
+        503L,
+        now.minusDays(2),
+        now,
+        1);
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_notes(
+          id, noteable_id, noteable_type, note, created_at, updated_at, mirror_deleted
+        ) values
+          (?, ?, 'Issue', ?, ?, ?, false),
+          (?, ?, 'Issue', ?, ?, ?, false)
+        """,
+        7415L,
+        91415L,
+        "# 问题调研情况说明\n## 计划解决时间：2026.06.01\n## 计划合并的版本分支：release/2026R2",
+        now.minusDays(1),
+        now.minusDays(1),
+        7416L,
+        91415L,
+        "# 问题调研情况说明\n## 计划解决时间：2026年7月1日\n## 计划合并的版本分支：release/2026R3",
+        now,
+        now);
+
+    FactBuildResponse response = factBuildService.rebuildIssueFacts(true);
+
+    assertThat(response.affectedRows()).isEqualTo(1);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select customer_names from issue_fact where source_instance = 'default' and issue_id = 91415",
+                String.class))
+        .isEqualTo("高晶电器, 郑州新世纪");
+    assertThat(
+            jdbcTemplate.queryForList(
+                "select customer_name from issue_fact_customer_members where issue_id = 91415 order by customer_name",
+                String.class))
+        .containsExactly("郑州新世纪", "高晶电器");
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select planned_resolution_at from issue_fact where issue_id = 91415",
+                LocalDateTime.class))
+        .isEqualTo(LocalDateTime.of(2026, 7, 1, 0, 0));
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select planned_merge_version_branch from issue_fact where issue_id = 91415",
+                String.class))
+        .isEqualTo("release/2026R3");
+  }
+
+  @Test
   void shouldNormalizeModuleAndToolboxLabelsWhenBuildingIssueFacts() {
     LocalDateTime now = LocalDateTime.of(2026, 5, 7, 9, 0);
     jdbcTemplate.update(
@@ -224,6 +330,7 @@ class IssueFactSourceInstancePipelineTest {
           iid bigint,
           project_id bigint,
           title varchar(512),
+          description text,
           author_id bigint,
           created_at timestamp,
           updated_at timestamp,
@@ -233,12 +340,14 @@ class IssueFactSourceInstancePipelineTest {
           mirror_deleted boolean default false
         )
         """);
+    jdbcTemplate.execute("alter table ods_gitlab_issues add column if not exists description text");
     jdbcTemplate.execute(
         """
         create table if not exists ods_gitlab_notes (
           id bigint primary key,
           noteable_id bigint,
           noteable_type varchar(64),
+          author_id bigint,
           note text,
           created_at timestamp,
           updated_at timestamp,
@@ -250,6 +359,7 @@ class IssueFactSourceInstancePipelineTest {
         create table if not exists ods_gitlab_labels (
           id bigint primary key,
           title varchar(255),
+          color varchar(32),
           mirror_deleted boolean default false
         )
         """);
@@ -277,6 +387,7 @@ class IssueFactSourceInstancePipelineTest {
   }
 
   private void cleanTables() {
+    jdbcTemplate.update("delete from issue_fact_customer_members");
     jdbcTemplate.update("delete from issue_fact");
     jdbcTemplate.update("delete from module_dictionary");
     jdbcTemplate.update("delete from testing_phase_calendar");

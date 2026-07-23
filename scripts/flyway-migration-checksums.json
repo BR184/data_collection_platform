@@ -88,5 +88,12 @@
   "V20260720_04__ldap_role_display_order.sql": "e0dc829a8399365d1cce99212ac4dbdf5fb6d4e8189616c4a238b30d32d07cce",
   "V20260720_05__seed_ldap_role_display_order.sql": "c3d74e43a70244ce713b174ee50c44c6e27d34ade22b3d38743cfa79e4893b4b",
   "V20260720_06__platform_permission_defaults.sql": "c7c6317bd1257cfb2d1b86524222308b2f579e34806bd67bb0f85a608a89637b",
-  "V20260721_03__legacy_formal_handover_model.sql": "465dd0e903b87df70edf3e813fce3158ff173001d771ffe0090ef747d33684b6"
+  "V20260721_01__exact_review_match_mode_relations.sql": "8275515e136e3e8b60a4dc52d8b84d89a65249be3f0afdf32a6ac8978f653578",
+  "V20260721_02__aggregate_review_match_mode_relations_once.sql": "fc57bd610681018d6be920fc2d85da9e8de1029aa85d406558d34b78bee0ebf6",
+  "V20260721_03__legacy_formal_handover_model.sql": "465dd0e903b87df70edf3e813fce3158ff173001d771ffe0090ef747d33684b6",
+  "V20260722_01__customer_issue_customer_and_response_template_schema.sql": "f895668f120a62538e43f631175f1575a7745a9dd38c900ac0f522353cde3994",
+  "V20260722_02__seed_customer_issue_customer_aliases.sql": "2f99416d37f5b4c3b7de325c56b3fd6d4809ee2a6de2c3cc0e33b29df5d4bfe5",
+  "V20260722_03__add_issue_fact_handler_name.sql": "83e5784054cab0493c0dcb3b69f60d3d3d855e8dea8567d6ad18024104e7ca8f",
+  "V20260722_04__backfill_issue_fact_handler_name.sql": "410adad7745c0c3a7dff567c3f3e44e5db97b5ab5bb210f9ef59e1799497b785",
+  "V20260722_05__add_customer_issue_response_times_index.sql": "2746cc811a7c1d0c3e7be18bd19b9451a37a815ea0e66174fd13b0a7db667357"
 }

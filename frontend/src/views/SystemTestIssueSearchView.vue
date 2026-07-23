@@ -5,6 +5,7 @@ import { computed, ref } from 'vue';
 import { ElMessage } from '../element-plus-services';
 import { Download, RefreshRight } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
+import IssueStatusTags from '../components/IssueStatusTags.vue';
 import PageSettingsButton from '../components/PageSettingsButton.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
@@ -13,6 +14,7 @@ import { authState } from '../composables/auth-state';
 import { hasPermission } from '../feature-manifest';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import { buildIssueSeverityTag, displayIssueSeverity } from '../utils/issue-severity-display';
+import { parseIssueStatusMembers } from '../utils/issue-status-members';
 import { downloadBlob } from '../utils/csv-download';
 import type {
   StatisticFilterField,
@@ -20,7 +22,7 @@ import type {
   SystemTestIssueSearchRowResponse,
 } from '../types/api';
 import { useRouteTableState } from '../composables/useRouteTableState';
-import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
+import { useRealtimeWorkspaceStatus, waitForRealtimeWorkspaceRefresh } from '../composables/useRealtimeWorkspaceStatus';
 import { ISSUE_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import type {
@@ -276,7 +278,7 @@ const columns = computed<RecordTableColumn[]>(() => [
   { key: 'functionName', label: '功能名', sortable: true, minWidth: 140 },
   { key: 'testingPhase', label: '测试阶段', sortable: true, minWidth: 180 },
   { key: 'severityLevel', label: '严重程度', type: 'tag', sortable: true, width: 120 },
-  { key: 'bugStatus', label: '缺陷状态', sortable: true, minWidth: 140 },
+  { key: 'bugStatus', label: '缺陷状态', type: 'tags', sortable: true, minWidth: 160 },
   { key: 'issueState', label: '议题状态', sortable: true, width: 110 },
   { key: 'assigneeName', label: '处理人', sortable: true, minWidth: 120 },
   { key: 'updatedAt', label: '更新时间', sortable: true, minWidth: 170 },
@@ -296,7 +298,7 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
     functionName: row.functionName || '-',
     testingPhase: row.testingPhase || '-',
     severityLevel: row.severityLevel ? [buildIssueSeverityTag(row.severityLevel)] : [],
-    bugStatus: row.bugStatus || '-',
+    bugStatus: parseIssueStatusMembers(row.bugStatus).map((label) => ({ label, type: 'primary' as const })),
     issueState: row.issueState || '-',
     assigneeName: row.assigneeName || '-',
     updatedAt: formatDateTime(row.updatedAt),
@@ -325,23 +327,15 @@ async function loadFilterOptions() {
 async function handleRefreshLatestData() {
   realtimeRefreshLoading.value = true;
   try {
-    let status = await api.refreshSystemTestIssueSearchRealtime();
+    const status = await api.refreshSystemTestIssueSearchRealtime();
     ElMessage.success(status.message || '已开始刷新最新数据');
-    for (let attempt = 0; attempt < 8 && status.refreshing; attempt++) {
-      await sleep(1000);
-      status = (await loadSyncStatus()) ?? status;
-    }
+    await waitForRealtimeWorkspaceRefresh(status, loadSyncStatus);
     await Promise.all([loadFilterOptions(), loadTableData()]);
-    await loadSyncStatus();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
   } finally {
     realtimeRefreshLoading.value = false;
   }
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 async function loadTableData() {
@@ -639,7 +633,7 @@ async function handleRefresh() {
               {{ (row.__raw as SystemTestIssueSearchRowResponse).testingPhase || '-' }}
             </el-descriptions-item>
             <el-descriptions-item label="测试状态">
-              {{ (row.__raw as SystemTestIssueSearchRowResponse).bugStatus || '-' }}
+              <IssueStatusTags :value="(row.__raw as SystemTestIssueSearchRowResponse).bugStatus" />
             </el-descriptions-item>
             <el-descriptions-item label="议题提交人">
               {{ (row.__raw as SystemTestIssueSearchRowResponse).authorName || '-' }}

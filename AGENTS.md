@@ -46,7 +46,18 @@
 ## 文档生命周期
 
 - 项目事实与协作规则的核心长期维护文档为本 `AGENTS.md` 以及产品、技术、进度三份权威文档（具体文件名按项目约定，例如 `docs/product.md`、`docs/architecture.md`、`docs/progress.md`）。
-- 包含多个实施阶段或跨系统边界的开发工作，必须在实现开始前登记到 `docs/plans/`（或项目约定的计划目录）中的当前计划，明确目的、范围、顺序、验收标准和状态，并在推进中维护。进度文档只指向当前下一步，不能替代实施计划。
+- `docs/` 根目录只保留 `product.md`、`architecture.md`、`progress.md` 与 `platform-page-business-rules.md`；架构决策只放在 `docs/decisions/`，活动工作单元计划只放在 `docs/plans/`。机器读取的校验契约放在 `scripts/contracts/`，部署标准与运维 runbook 放在 `deploy/`；不得在 `docs/` 存放归档、展示站点、压缩交付物或临时报告。
+- 每次长任务或复杂任务（包括跨多文件修改、多个实施阶段、跨系统边界、架构变更或多步验证）都必须在实现开始前于 `docs/plans/`（或项目约定的计划目录）创建或更新当前工作单元计划，明确目的、范围、顺序、验收标准和状态，并在完成调查、确定方案、实施、验证、阻塞或范围变化等关键节点追加浓缩进度，避免上下文压缩后偏离已证实的事实。进度文档只指向当前下一步，不能替代实施计划。
+- 计划文档必须以“进度与中间物”作为起始段落，整体标注已完成文件/变更清单、测试通过/失败状态、当前阻塞或进行点；并包含以下可恢复信息：
+  1. `恢复线索`：当前阶段、恢复后建议执行的首条命令、上一份计划链接或对应 commit。
+  2. `目标与边界`：用户原始需求、可验证的成功标准、明确禁止的行为。
+  3. `约束与背景`：业务规则、不可变 API/数据格式契约、环境或版本限制。
+  4. `证据与根因`：已调查的提交、日志、复现步骤和技术根因链。
+  5. `方案与步骤`：总体策略、分阶段步骤及依赖关系。
+  6. `决策记录`：已选方案及理由、明确否决的方案及原因、待定事项。
+  7. `接口契约`：新增 API、函数签名、表结构、交互协议示例或关键常量；无新增时明确说明。
+  8. `风险与假设`：待验证推测、已知易错点和敏感只读数据。
+- 在当前阶段、完成项、下一步、阻塞/风险或验证证据发生实质变化时，及时更新 `docs/progress.md`。恢复或交接开发时必须先读取进度文档和活动计划；不得仅凭聊天摘要继续编码。
 - `docs/plans/` 只保存仍在使用的工作单元计划，不作为当前事实来源。工作单元完成后，先将已确认、对后续任务有长期价值的内容压缩归入本文件或三份权威文档，再在同一工作单元删除对应计划文件；过程细节由 Git 历史保留。
 - 临时报告、探针说明和一次性记录不得替代上述文档；确需长期保留时，必须先明确唯一职责、权威归属与维护期限。
 
@@ -181,6 +192,7 @@ AI 应在任务收尾和用户纠正工作方式时，检查用户的直接表�
 - 若需 Windows PowerShell 执行 `.ps1` 脚本，该脚本必须使用 UTF-8 BOM，并实测验证，避免编码解析错误。
 - 优先使用最小化、可审查的补丁方式编辑文件（如 `apply_patch` 或项目约定工具）。
 - 不提交缓存、构建产物、临时日志、密钥、本地环境文件或系统特定文件。
+- 运行产物仅可位于 `backend/logs/`、`frontend/dist/`、`frontend/node_modules/`、`backend/target/`、`.tmp/`、`.tmp-logs/` 或 `tools/`；提交前运行 `scripts/check_worktree_artifacts.py`、`scripts/check_runtime_artifact_locations.py`、`scripts/check_text_whitespace.py` 和 `git diff --check`。
 - 路径、代码与目录结构以版本仓库为事实源；文档只记录理解项目所需的稳定信息。
 
 ## 项目实际配置
@@ -189,5 +201,5 @@ AI 应在任务收尾和用户纠正工作方式时，检查用户的直接表�
 - 后端：Java 21 + Spring Boot + MyBatis-Plus；前端：Vue 3 + TypeScript + Vite + Element Plus；后端测试使用 JUnit 5/Mockito，前端测试使用 Vitest。
 - 本仓库的实际测试位置是 `backend/src/test/` 和 `frontend/src/**/*.test.ts`，不是模板中的统一 `tests/` 目录；新增测试应遵循各模块现有布局和命名。
 - 项目维护文本、业务规则和代码注释使用中文；代码标识符使用英文。公共 Java 方法按现有 Javadoc 约定补充契约，TypeScript 公共 API 使用 JSDoc 或类型定义表达契约。
-- 当前开发端口为后端 `18080`、前端 `18181`；本地 PostgreSQL 默认连接 `127.0.0.1:15432/qaflex`。内网 Ubuntu 24.04 离线发布规则以 `docs/intranet-offline-packaging-standard.md` 为准。
+- 当前开发端口为后端 `18080`、前端 `18181`；本地 PostgreSQL 默认连接 `127.0.0.1:15432/qaflex`。内网 Ubuntu 24.04 离线发布规则以 `deploy/intranet-offline-packaging-standard.md` 为准。
 - 老平台基准源码为 `D:/projects/spidergitdata-dev`，页面业务规则总表为 `docs/platform-page-business-rules.md`；涉及 LDAP、兼容模式、事实层、统计快照或部署时，必须同时遵守对应 ADR、当前架构文档和进度文档。

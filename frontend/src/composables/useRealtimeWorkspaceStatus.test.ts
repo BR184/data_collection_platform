@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { useRealtimeWorkspaceStatus } from './useRealtimeWorkspaceStatus';
+import { useRealtimeWorkspaceStatus, waitForRealtimeWorkspaceRefresh } from './useRealtimeWorkspaceStatus';
 import type { RealtimeWorkspaceStatusResponse } from '../types/api';
 
 function createStatus(lastSyncedAt: string | null): RealtimeWorkspaceStatusResponse {
@@ -49,5 +49,63 @@ describe('useRealtimeWorkspaceStatus', () => {
     status.syncStatus.value = createStatus('2026-04-28T09:10:11');
 
     expect(status.lastSyncedText.value).toBe('2026-04-28 09:10:11');
+  });
+
+  it('keeps polling beyond the former fixed retry limit until the fact refresh is ready', async () => {
+    const refreshingStatus: RealtimeWorkspaceStatusResponse = {
+      ...createStatus('2026-04-28T09:10:11'),
+      status: 'REFRESHING',
+      refreshing: true,
+      mirrorStatus: 'SUCCESS',
+      factStatus: 'RUNNING',
+    };
+    const readyStatus: RealtimeWorkspaceStatusResponse = {
+      ...refreshingStatus,
+      status: 'READY',
+      refreshing: false,
+      factStatus: 'SUCCESS',
+    };
+    const pendingStatuses = [
+      refreshingStatus,
+      refreshingStatus,
+      refreshingStatus,
+      refreshingStatus,
+      refreshingStatus,
+      refreshingStatus,
+      refreshingStatus,
+      refreshingStatus,
+      readyStatus,
+    ];
+    const loadStatus = vi.fn(() => Promise.resolve(pendingStatuses.shift()));
+
+    const settled = await waitForRealtimeWorkspaceRefresh(refreshingStatus, loadStatus, {
+      wait: () => Promise.resolve(),
+    });
+
+    expect(loadStatus).toHaveBeenCalledTimes(9);
+    expect(settled.status).toBe('READY');
+    expect(settled.factStatus).toBe('SUCCESS');
+  });
+
+  it('rejects a terminal refresh failure instead of treating it as ready', async () => {
+    const refreshingStatus: RealtimeWorkspaceStatusResponse = {
+      ...createStatus('2026-04-28T09:10:11'),
+      status: 'REFRESHING',
+      message: '镜像同步中',
+      refreshing: true,
+    };
+    const failedStatus: RealtimeWorkspaceStatusResponse = {
+      ...refreshingStatus,
+      status: 'FAILED',
+      message: '镜像同步未完成，已展示当前可用数据',
+      refreshing: false,
+      mirrorStatus: 'FAILED',
+    };
+
+    await expect(
+      waitForRealtimeWorkspaceRefresh(refreshingStatus, () => Promise.resolve(failedStatus), {
+        wait: () => Promise.resolve(),
+      }),
+    ).rejects.toThrow('镜像同步未完成，已展示当前可用数据');
   });
 });

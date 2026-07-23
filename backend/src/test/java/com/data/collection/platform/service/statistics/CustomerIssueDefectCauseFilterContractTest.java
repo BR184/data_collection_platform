@@ -100,6 +100,44 @@ class CustomerIssueDefectCauseFilterContractTest {
         .containsExactly("工程图");
   }
 
+  @Test
+  @SuppressWarnings("unchecked")
+  void shouldMatchCombinedBugStatusByIndependentMember() throws Exception {
+    when(milestoneCatalogService.listMilestones()).thenReturn(List.of("CC2026 R3"));
+    StatisticBoardSnapshotService.SnapshotRequest snapshotRequest =
+        new StatisticBoardSnapshotService.SnapshotRequest(
+            "customer-issue-defect-cause", "test", "test", "test", Map.of(), null, null);
+    when(snapshotRequestFactory.issueRequest(
+            anyString(), anyString(), anyString(), anyMap(), any(), any()))
+        .thenReturn(snapshotRequest);
+    doAnswer(invocation -> ((Supplier<StatisticBoardResponse>) invocation.getArgument(1)).get())
+        .when(snapshotService)
+        .readOrRefresh(any(), any());
+    doAnswer(
+            invocation -> {
+              RowMapper<Object> mapper = invocation.getArgument(4);
+              return List.of(
+                  mapper.mapRow(row(2201, "工程图", "新增需求", "历史遗留、申请延期"), 0),
+                  mapper.mapRow(row(2202, "草图", "新增需求", "已修复/完成"), 1));
+            })
+        .when(issueFactQueryService)
+        .query(anyString(), anyMap(), anyString(), anyList(), any(RowMapper.class));
+
+    StatisticBoardResponse response =
+        service()
+            .loadBoard(
+                Map.of(
+                    "filterGroup",
+                    """
+                    {"logic":"AND","conditions":[{"fieldKey":"bugStatus","operator":"eq","value":"申请延期"}]}
+                    """));
+
+    assertThat(response.rows().stream()
+            .filter(row -> !row.rowKey().startsWith("__"))
+            .map(row -> row.rowLabel()))
+        .containsExactly("工程图");
+  }
+
   private CustomerIssueDefectCauseBoardService service() {
     return new CustomerIssueDefectCauseBoardService(
         new JsonUtils(new ObjectMapper()),
@@ -115,6 +153,10 @@ class CustomerIssueDefectCauseFilterContractTest {
   }
 
   private ResultSet row(int iid, String modules, String reason) throws Exception {
+    return row(iid, modules, reason, "已修复/完成");
+  }
+
+  private ResultSet row(int iid, String modules, String reason, String bugStatus) throws Exception {
     ResultSet rs = mock(ResultSet.class);
     when(rs.getLong("id")).thenReturn((long) iid);
     when(rs.getInt("iid")).thenReturn(iid);
@@ -129,8 +171,11 @@ class CustomerIssueDefectCauseFilterContractTest {
         .thenReturn(Timestamp.valueOf(LocalDateTime.of(2026, 6, 1, 9, 0)));
     when(rs.getTimestamp("updated_at"))
         .thenReturn(Timestamp.valueOf(LocalDateTime.of(2026, 7, 6, 9, 0)));
+    when(rs.getTimestamp("closed_at")).thenReturn(null);
     when(rs.getString("issue_state")).thenReturn("opened");
-    when(rs.getString("bug_status")).thenReturn("已修复/完成");
+    when(rs.getString("bug_status")).thenReturn(bugStatus);
+    when(rs.getString("severity_level")).thenReturn("LEVEL2");
+    when(rs.getString("category")).thenReturn("缺陷");
     when(rs.getString("testing_phase")).thenReturn("");
     when(rs.getString("system_test_label")).thenReturn("");
     when(rs.getString("reason_category")).thenReturn(reason);

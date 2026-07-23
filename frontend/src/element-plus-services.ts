@@ -1,5 +1,6 @@
 import { ElMessage as ElementMessage } from 'element-plus/es/components/message/index';
 import { ElNotification as ElementNotification } from 'element-plus/es/components/notification/index';
+import { isRecentAuthRequiredMessage } from './api-client/auth-required-message';
 import { toUserMessage } from './utils/user-message';
 
 export { ElMessageBox } from 'element-plus/es/components/message-box/index';
@@ -42,7 +43,11 @@ export const ElMessage = {
     return ElementMessage.info(buildMessageOptions(input, 'info') as never);
   },
   error(input: MessageInput) {
-    return ElementMessage.error(buildMessageOptions(input, 'error') as never);
+    const options = buildMessageOptions(input, 'error');
+    if (isRecentAuthRequiredMessage(options.message)) {
+      return undefined;
+    }
+    return ElementMessage.error(options as never);
   },
   closeAll(type?: Parameters<typeof ElementMessage.closeAll>[0]) {
     return ElementMessage.closeAll(type);

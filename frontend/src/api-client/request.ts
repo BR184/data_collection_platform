@@ -4,6 +4,7 @@ import {
   finishPlatformProgress,
   type PlatformProgressOptions,
 } from './platform-progress-events';
+import { rememberAuthRequiredMessage } from './auth-required-message';
 
 const CSRF_COOKIE_NAME = 'XSRF-TOKEN';
 const CSRF_HEADER_NAME = 'X-XSRF-TOKEN';
@@ -411,9 +412,11 @@ function notifyAuthRequired(status: number, message?: string) {
   if (status !== 401 || typeof window === 'undefined') {
     return;
   }
+  const authMessage = message || '登录状态已过期，请重新登录';
+  rememberAuthRequiredMessage(authMessage);
   window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT, {
     detail: {
-      message: message || '登录状态已过期，请重新登录',
+      message: authMessage,
     },
   }));
 }

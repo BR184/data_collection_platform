@@ -7,6 +7,7 @@ import com.data.collection.platform.service.statistics.SystemTestIssueMetricDime
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -19,7 +20,11 @@ final class IssueFactRecordFilterGroupSupport {
           Map.entry("title", List.of("contains", "eq", "ne", "isEmpty", "isNotEmpty")),
           Map.entry("projectName", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
           Map.entry("moduleName", List.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty")),
+          Map.entry("functionName", List.of("contains", "eq", "ne", "isEmpty", "isNotEmpty")),
+          Map.entry("testingPhase", List.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty")),
           Map.entry("reasonCategory", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
+          Map.entry("fixUser", List.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty")),
+          Map.entry("delayCause", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
           Map.entry("illegalReason", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
           Map.entry("severityLevel", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
           Map.entry("priorityLevel", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
@@ -30,6 +35,10 @@ final class IssueFactRecordFilterGroupSupport {
           Map.entry("milestoneTitle", List.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty")),
           Map.entry("createdAt", List.of("year", "month", "day", "before", "after", "between", "isEmpty", "isNotEmpty")),
           Map.entry("updatedAt", List.of("year", "month", "day", "before", "after", "between", "isEmpty", "isNotEmpty")));
+
+  /** CC_PRODUCT 议题明细专用字段，延期问题与非法数据页不接收该条件。 */
+  static final Map<String, List<String>> CUSTOMER_ISSUE_RECORD_FILTER_OPERATORS =
+      createCustomerIssueRecordFilterOperators();
 
   static final Map<String, List<String>> SYSTEM_TEST_FILTER_OPERATORS =
       Map.ofEntries(
@@ -61,7 +70,20 @@ final class IssueFactRecordFilterGroupSupport {
           Map.entry("createdAt", List.of("year", "month", "day", "before", "after", "between", "isEmpty", "isNotEmpty")),
           Map.entry("updatedAt", List.of("year", "month", "day", "before", "after", "between", "isEmpty", "isNotEmpty")));
 
+  private enum TestingPhaseValueSource {
+    FILTER_VALUE,
+    PRIMARY_PHASE,
+    FACT_VALUE
+  }
+
   private IssueFactRecordFilterGroupSupport() {}
+
+  private static Map<String, List<String>> createCustomerIssueRecordFilterOperators() {
+    Map<String, List<String>> operators = new LinkedHashMap<>(CUSTOMER_ISSUE_FILTER_OPERATORS);
+    operators.put("customerName", List.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty"));
+    operators.put("handlerName", List.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty"));
+    return Map.copyOf(operators);
+  }
 
   static StatisticFilterGroup parse(
       ObjectMapper objectMapper, String filterGroupJson, Map<String, List<String>> allowedOperators) {
@@ -94,17 +116,36 @@ final class IssueFactRecordFilterGroupSupport {
   }
 
   static boolean matches(IssueFactRecord row, StatisticFilterGroup filterGroup) {
-    return matches(row, filterGroup, false);
+    return matches(row, filterGroup, TestingPhaseValueSource.FILTER_VALUE, false);
   }
 
   static boolean matches(
       IssueFactRecord row, StatisticFilterGroup filterGroup, boolean useFullTestingPhase) {
+    return matches(
+        row,
+        filterGroup,
+        useFullTestingPhase
+            ? TestingPhaseValueSource.PRIMARY_PHASE
+            : TestingPhaseValueSource.FILTER_VALUE,
+        false);
+  }
+
+  static boolean matchesCustomerIssue(IssueFactRecord row, StatisticFilterGroup filterGroup) {
+    return matches(row, filterGroup, TestingPhaseValueSource.FACT_VALUE, true);
+  }
+
+  private static boolean matches(
+      IssueFactRecord row,
+      StatisticFilterGroup filterGroup,
+      TestingPhaseValueSource testingPhaseValueSource,
+      boolean useFactDelayCause) {
     if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
       return true;
     }
     boolean isOr = "OR".equalsIgnoreCase(filterGroup.logic());
     for (StatisticFilterCondition condition : filterGroup.conditions()) {
-      boolean matched = matchesCondition(row, condition, useFullTestingPhase);
+      boolean matched =
+          matchesCondition(row, condition, testingPhaseValueSource, useFactDelayCause);
       if (isOr && matched) {
         return true;
       }
@@ -168,8 +209,24 @@ final class IssueFactRecordFilterGroupSupport {
   }
 
   private static boolean matchesCondition(
-      IssueFactRecord row, StatisticFilterCondition condition, boolean useFullTestingPhase) {
-    List<String> values = valuesForField(row, condition.fieldKey(), useFullTestingPhase);
+      IssueFactRecord row,
+      StatisticFilterCondition condition,
+      TestingPhaseValueSource testingPhaseValueSource,
+      boolean useFactDelayCause) {
+    if ("bugStatus".equals(condition.fieldKey())) {
+      return condition.usesLabelGroup()
+          ? IssueStatusMembers.matchesLabelGroup(
+              row.bugStatus(), condition.operator(), condition.values())
+          : IssueStatusMembers.matchesFilter(
+              row.bugStatus(), condition.operator(), condition.value());
+    }
+    if ("testingPhase".equals(condition.fieldKey())
+        && testingPhaseValueSource == TestingPhaseValueSource.FACT_VALUE
+        && CustomerIssueTestingPhaseSupport.isUnspecifiedFilter(condition.value())) {
+      return matchesUnspecifiedTestingPhase(row.testingPhase(), condition.operator());
+    }
+    List<String> values =
+        valuesForField(row, condition.fieldKey(), testingPhaseValueSource, useFactDelayCause);
     if (condition.usesLabelGroup()) {
       return matchesLabelGroup(values, condition);
     }
@@ -210,7 +267,10 @@ final class IssueFactRecordFilterGroupSupport {
   }
 
   private static List<String> valuesForField(
-      IssueFactRecord row, String fieldKey, boolean useFullTestingPhase) {
+      IssueFactRecord row,
+      String fieldKey,
+      TestingPhaseValueSource testingPhaseValueSource,
+      boolean useFactDelayCause) {
     return switch (fieldKey) {
       case "keyword" ->
           List.of(
@@ -219,19 +279,20 @@ final class IssueFactRecordFilterGroupSupport {
               Objects.toString(row.projectName(), ""),
               String.join(" ", row.moduleNames()),
               Objects.toString(row.functionName(), ""),
-              Objects.toString(useFullTestingPhase ? row.primaryPhaseLabel() : row.phaseFilterValue(), ""),
+               testingPhaseValue(row, testingPhaseValueSource),
               Objects.toString(row.reasonCategory(), ""),
               String.join(" ", illegalReasonValues(row)),
               Objects.toString(row.authorName(), ""),
+              Objects.toString(row.handlerName(), ""),
               Objects.toString(row.assigneeName(), ""),
               Objects.toString(row.milestoneTitle(), ""));
       case "issueIid" -> List.of(Objects.toString(row.issueIid(), ""));
       case "title" -> List.of(Objects.toString(row.title(), ""));
+      case "customerName" -> row.customerNames();
       case "projectName" -> List.of(Objects.toString(row.projectName(), ""));
       case "moduleName" -> row.moduleNames();
       case "functionName" -> List.of(Objects.toString(row.functionName(), ""));
-      case "testingPhase" ->
-          List.of(Objects.toString(useFullTestingPhase ? row.primaryPhaseLabel() : row.phaseFilterValue(), ""));
+      case "testingPhase" -> List.of(testingPhaseValue(row, testingPhaseValueSource));
       case "metricSeverity" -> List.of(SystemTestIssueMetricDimensionSupport.metricSeverity(
           row.excluded(), row.exclusionReason(), row.severityLevel(), row.category()));
       case "regularMetric" -> List.of(Boolean.toString(SystemTestIssueMetricDimensionSupport.regularMetric(
@@ -242,8 +303,11 @@ final class IssueFactRecordFilterGroupSupport {
           row.reasonCategory(), String.join(" ", row.labels()));
       case "reasonCategory" -> List.of(Objects.toString(row.reasonCategory(), ""));
       case "fixUser" -> List.of(Objects.toString(row.fixUser(), ""));
-      case "delayCause" -> List.of(SystemTestIssueMetricDimensionSupport.delayCause(
-          row.delayCause(), row.delayReason(), String.join(" ", row.labels())));
+      case "delayCause" -> List.of(
+          useFactDelayCause
+              ? Objects.toString(row.delayCause(), "")
+              : SystemTestIssueMetricDimensionSupport.delayCause(
+                  row.delayCause(), row.delayReason(), String.join(" ", row.labels())));
       case "delayIssue" -> List.of(Boolean.toString(row.delayIssue()));
       case "rollback" -> List.of(Boolean.toString(SystemTestIssueMetricDimensionSupport.rollback(
           row.regression(), row.title(), String.join(" ", row.labels()))));
@@ -252,14 +316,33 @@ final class IssueFactRecordFilterGroupSupport {
       case "severityLevel" -> List.of(Objects.toString(row.severityLevel(), ""));
       case "priorityLevel" -> List.of(Objects.toString(row.priorityLevel(), ""));
       case "issueState" -> List.of(Objects.toString(row.issueState(), ""));
-      case "bugStatus" -> List.of(Objects.toString(row.bugStatus(), ""));
+      case "bugStatus" -> IssueStatusMembers.parse(row.bugStatus());
       case "category" -> List.of(Objects.toString(row.category(), ""));
       case "milestoneTitle" -> List.of(Objects.toString(row.milestoneTitle(), ""));
       case "authorName" -> List.of(Objects.toString(row.authorName(), ""));
+      case "handlerName" -> List.of(Objects.toString(row.handlerName(), ""));
       case "assigneeName" -> List.of(Objects.toString(row.assigneeName(), ""));
       case "createdAt" -> List.of(formatDateTime(row.createdAt()));
       case "updatedAt" -> List.of(formatDateTime(row.updatedAt()));
       default -> List.of();
+    };
+  }
+
+  private static String testingPhaseValue(
+      IssueFactRecord row, TestingPhaseValueSource testingPhaseValueSource) {
+    return switch (testingPhaseValueSource) {
+      case FILTER_VALUE -> Objects.toString(row.phaseFilterValue(), "");
+      case PRIMARY_PHASE -> Objects.toString(row.primaryPhaseLabel(), "");
+      case FACT_VALUE -> Objects.toString(row.testingPhase(), "");
+    };
+  }
+
+  private static boolean matchesUnspecifiedTestingPhase(String rawTestingPhase, String operator) {
+    boolean unspecified = TextQuerySupport.trimToNull(rawTestingPhase) == null;
+    return switch (operator) {
+      case "eq", "contains", "isEmpty" -> unspecified;
+      case "ne", "notContains", "isNotEmpty" -> !unspecified;
+      default -> false;
     };
   }
 

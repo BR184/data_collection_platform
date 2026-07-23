@@ -2,9 +2,11 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.exception.BizException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -20,6 +22,7 @@ public class GitlabSourceSchemaGuard {
               "iid",
               "project_id",
               "title",
+              "description",
               "author_id",
               "created_at",
               "updated_at",
@@ -114,7 +117,11 @@ public class GitlabSourceSchemaGuard {
               "target_id",
               "target_type",
               "mirror_deleted"),
-          requirement("ods_gitlab_labels", "id", "title", "mirror_deleted"));
+           requirement("ods_gitlab_labels", "id", "title", "mirror_deleted"));
+
+  private static final List<SourceTableRequirement> ALL_FACT_SOURCES =
+      mergeRequirements(
+          ISSUE_FACT_SOURCE, MERGE_REQUEST_FACT_SOURCE, INTEGRATION_TEST_FACT_SOURCE);
 
   private final JdbcTemplate jdbcTemplate;
 
@@ -144,6 +151,17 @@ public class GitlabSourceSchemaGuard {
 
   public void verifyIntegrationTestSource(String sourceInstance) {
     verify("集成测试事实表", INTEGRATION_TEST_FACT_SOURCE);
+  }
+
+  /**
+   * 在全量事实重建写入前验证全部 ODS 源表和字段。
+   *
+   * <p>全量重建会顺序写入多类事实表；必须先完成统一预检，避免后续源表缺失时前一类事实已经被部分更新。
+   *
+   * @param sourceInstance 当前 GitLab 数据源实例；当前 ODS 结构为共享表，参数用于保持与单类校验一致的调用契约
+   */
+  public void verifyAllFactSources(String sourceInstance) {
+    verify("全部事实层", ALL_FACT_SOURCES);
   }
 
   private void verify(String scopeName, List<SourceTableRequirement> requirements) {
@@ -197,6 +215,22 @@ public class GitlabSourceSchemaGuard {
 
   private static SourceTableRequirement requirement(String tableName, String... requiredColumns) {
     return new SourceTableRequirement(tableName, List.of(requiredColumns));
+  }
+
+  @SafeVarargs
+  private static List<SourceTableRequirement> mergeRequirements(
+      List<SourceTableRequirement>... requirementGroups) {
+    Map<String, Set<String>> columnsByTable = new LinkedHashMap<>();
+    for (List<SourceTableRequirement> requirements : requirementGroups) {
+      for (SourceTableRequirement requirement : requirements) {
+        columnsByTable
+            .computeIfAbsent(requirement.tableName(), ignored -> new LinkedHashSet<>())
+            .addAll(requirement.requiredColumns());
+      }
+    }
+    return columnsByTable.entrySet().stream()
+        .map(entry -> new SourceTableRequirement(entry.getKey(), List.copyOf(entry.getValue())))
+        .toList();
   }
 
   private record SourceTableRequirement(String tableName, List<String> requiredColumns) {}

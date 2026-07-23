@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { onBeforeRouteLeave } from 'vue-router';
 // 镜像设置页集中管理同步配置、白名单、System Hook 和清理动作，是数据入口的运维面板。
 // 每组操作拆到独立 controller，页面只负责把表单状态和反馈动作组合起来。
-import { Tools } from '@element-plus/icons-vue';
+import { RefreshRight, Tools } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
 import type { GitlabSourceHealthResponse, GitlabSyncConfig, SyncRunDiagnosticsResponse } from '../types/api';
@@ -14,6 +14,7 @@ import MirrorRunMonitorPanel from './MirrorRunMonitorPanel.vue';
 import MirrorRunTableTaskDrawer from './MirrorRunTableTaskDrawer.vue';
 import MirrorSyncLogTable from './MirrorSyncLogTable.vue';
 import MirrorSyncStatusCard from './MirrorSyncStatusCard.vue';
+import { useFactRebuildDialog } from './useFactRebuildDialog';
 import { useMirrorPurgeDialog } from './useMirrorPurgeDialog';
 import { useMirrorStatusController } from './useMirrorStatusController';
 import { useMirrorStatusPresentation } from './useMirrorStatusPresentation';
@@ -337,6 +338,47 @@ const {
   progressHint,
   currentMessageText,
 } = useMirrorStatusPresentation(status);
+const hasActiveSyncTask = computed(() => {
+  const currentStatus = currentTask.value?.status;
+  return currentStatus != null && ACTIVE_SYNC_STATUSES.includes(currentStatus);
+});
+const {
+  factRebuildDialogVisible,
+  factRebuildConfirmText,
+  factRebuildCountdownSeconds,
+  factRebuildConfirmationPhrase,
+  isFactRebuilding,
+  factRebuildReady,
+  openFactRebuildDialog: showFactRebuildDialog,
+  closeFactRebuildDialog,
+  rebuildFacts,
+  handleFactRebuildDialogBeforeClose,
+  disposeFactRebuildDialog,
+} = useFactRebuildDialog({
+  rebuildFacts: async () => {
+    const configId = selectedConfigId.value;
+    if (configId == null) {
+      throw new Error('请先保存当前数据源配置后再重建事实层');
+    }
+    return api.rebuildFacts(configId);
+  },
+  refreshRunStatus: async () => {
+    await refreshCurrentStatus();
+  },
+  notifyError: (message) => ElMessage.error(message),
+  showResult: (result) =>
+    ElMessageBox.alert(
+      `当前数据源：${currentSourceText.value}\n运行编号：${result.runId || '-'}\n${result.message}\n可在当前任务和最近同步日志中查看进度与结果。`,
+      '事实层重建已提交',
+      {
+        type: 'success',
+        confirmButtonText: '知道了',
+      },
+    ),
+});
+const factRebuildActionDisabled = computed(
+  () => savedConfigActionDisabled.value || loading.value || hasActiveSyncTask.value || isFactRebuilding.value,
+);
 const {
   purgeDialogVisible,
   purgeScope,
@@ -536,6 +578,26 @@ async function retryFailedRun() {
   }
 }
 
+function openCurrentSourceFactRebuildDialog() {
+  if (factRebuildActionDisabled.value) {
+    if (hasActiveSyncTask.value) {
+      ElMessage.warning('当前数据源正在同步或刷新事实层，请等待任务完成后再重建。');
+    }
+    return;
+  }
+  showFactRebuildDialog();
+}
+
+async function rebuildCurrentSourceFacts() {
+  if (factRebuildActionDisabled.value) {
+    if (hasActiveSyncTask.value) {
+      ElMessage.warning('当前数据源正在同步或刷新事实层，请等待任务完成后再重建。');
+    }
+    return;
+  }
+  await rebuildFacts();
+}
+
 onMounted(async () => {
   await initializePage();
   if (!currentTask.value?.status || !ACTIVE_SYNC_STATUSES.includes(currentTask.value.status)) {
@@ -545,6 +607,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   stopRunningRefresh();
+  disposeFactRebuildDialog();
 });
 
 onBeforeRouteLeave(async () => {
@@ -897,6 +960,21 @@ onBeforeRouteLeave(async () => {
               </el-button-group>
             </div>
 
+            <div class="mirror-action-group mirror-action-group--fact">
+              <div class="mirror-action-group__label">事实层维护</div>
+              <el-button
+                type="warning"
+                plain
+                :icon="RefreshRight"
+                :loading="isFactRebuilding"
+                :disabled="factRebuildActionDisabled"
+                title="基于当前本地镜像表重新计算议题、代码走查和集成测试事实；不会重新拉取 GitLab 数据。"
+                @click="openCurrentSourceFactRebuildDialog"
+              >
+                重建当前数据源事实层
+              </el-button>
+            </div>
+
             <div class="mirror-action-group mirror-action-group--danger">
               <div class="mirror-action-group__label">危险操作</div>
               <el-space wrap :size="8">
@@ -1128,6 +1206,91 @@ onBeforeRouteLeave(async () => {
       <el-button :disabled="isPurging" @click="closePurgeDialog">取消</el-button>
       <el-button type="danger" :loading="isPurging" :disabled="!purgeConfirmMatched || isPurging" @click="purgeMirrorData()">
         确认删除
+      </el-button>
+    </template>
+  </el-dialog>
+
+  <el-dialog
+    v-model="factRebuildDialogVisible"
+    title="重建事实层"
+    width="640px"
+    class="fact-rebuild-dialog"
+    :show-close="!isFactRebuilding"
+    :close-on-click-modal="false"
+    :close-on-press-escape="!isFactRebuilding"
+    :before-close="handleFactRebuildDialogBeforeClose"
+    @close="closeFactRebuildDialog"
+  >
+    <div class="fact-rebuild-dialog-body">
+      <div class="fact-rebuild-summary">
+        <div class="fact-rebuild-summary__badge">受保护操作</div>
+        <div class="fact-rebuild-summary__title">重新计算当前数据源的全部事实层</div>
+        <div class="fact-rebuild-summary__description">
+          此操作只读取当前本地镜像表，不会重新拉取 GitLab 数据，也不会删除镜像或业务源数据。
+        </div>
+        <div class="fact-rebuild-summary__description">当前作用范围：{{ currentSourceText }}</div>
+      </div>
+
+      <div class="fact-rebuild-scope-list" aria-label="重建范围">
+        <div>
+          <strong>议题事实</strong>
+          <span>系统测试、客户问题、统计看板和记录页</span>
+        </div>
+        <div>
+          <strong>代码走查事实</strong>
+          <span>代码走查页面、看板和导出</span>
+        </div>
+        <div>
+          <strong>集成测试事实</strong>
+          <span>集成测试数据</span>
+        </div>
+      </div>
+
+      <el-alert
+        v-if="hasActiveSyncTask"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="当前数据源正在同步或刷新"
+        description="请等待当前任务结束后再提交重建，避免读取同步过程中的镜像数据。"
+      />
+
+      <el-alert
+        v-if="isFactRebuilding"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="正在重建事实层"
+        description="请勿关闭页面或重复提交；完成后会刷新统计和记录页快照。"
+      />
+
+      <div class="fact-rebuild-confirm-panel" :class="{ 'is-disabled': isFactRebuilding }">
+        <div class="fact-rebuild-confirm-panel__label">请输入确认短语以继续</div>
+        <div class="fact-rebuild-confirm-panel__phrase">{{ factRebuildConfirmationPhrase }}</div>
+        <el-input
+          v-model="factRebuildConfirmText"
+          :placeholder="factRebuildConfirmationPhrase"
+          :disabled="isFactRebuilding"
+        />
+        <div class="fact-rebuild-confirm-panel__countdown" :class="{ 'is-ready': factRebuildCountdownSeconds === 0 }">
+          {{
+            factRebuildCountdownSeconds > 0
+              ? `安全等待中，还需 ${factRebuildCountdownSeconds} 秒`
+              : '安全等待已结束，可确认提交'
+          }}
+        </div>
+      </div>
+    </div>
+    <template #footer>
+      <el-button :disabled="isFactRebuilding" @click="closeFactRebuildDialog">取消</el-button>
+      <el-button
+        class="fact-rebuild-submit-button"
+        type="warning"
+        :loading="isFactRebuilding"
+        :disabled="!factRebuildReady || factRebuildActionDisabled"
+        @click="rebuildCurrentSourceFacts"
+      >
+        {{ factRebuildCountdownSeconds > 0 ? `请等待 ${factRebuildCountdownSeconds} 秒` : '确认重建' }}
       </el-button>
     </template>
   </el-dialog>

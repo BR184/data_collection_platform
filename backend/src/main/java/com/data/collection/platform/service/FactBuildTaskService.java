@@ -4,6 +4,7 @@ import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.FactBuildTaskResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
+import com.data.collection.platform.common.exception.BizException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -44,14 +45,31 @@ public class FactBuildTaskService {
 
   public FactBuildResponse runGuarded(
       String scope, boolean full, Supplier<FactBuildResponse> action) {
+    return runGuarded(scope, full, null, action);
+  }
+
+  /**
+   * 在全局事实构建锁下执行操作，并将任务状态关联到可选的同步运行。
+   *
+   * @param scope 事实构建范围，用于诊断和任务展示
+   * @param full 是否全量构建
+   * @param syncRunId 所属同步运行编号；为空时创建独立手工任务记录
+   * @param action 获得锁后执行的事实构建逻辑
+   * @return 事实构建结果
+   */
+  public FactBuildResponse runGuarded(
+      String scope, boolean full, Long syncRunId, Supplier<FactBuildResponse> action) {
     String safeScope = normalizeScope(scope);
     try (Connection connection = dataSource.getConnection()) {
       if (!tryAcquireLock(connection)) {
         String message = "已有事实构建任务正在执行，请稍后再试";
-        recordSkipped(safeScope, full, message);
+        recordSkipped(safeScope, full, syncRunId, message);
+        if (syncRunId != null) {
+          throw new BizException(message);
+        }
         return new FactBuildResponse(safeScope, full, 0, message);
       }
-      Long taskId = startTask(safeScope, full);
+      Long taskId = startTask(safeScope, full, syncRunId);
       try {
         FactBuildResponse response = action.get();
         finishTask(taskId, STATUS_SUCCESS, response.affectedRows(), response.message(), null);
@@ -290,7 +308,7 @@ public class FactBuildTaskService {
     return count != null && count > 0;
   }
 
-  private Long startTask(String scope, boolean full) {
+  private Long startTask(String scope, boolean full, Long syncRunId) {
     return jdbcTemplate.queryForObject(
         """
         insert into fact_build_tasks(
@@ -299,7 +317,7 @@ public class FactBuildTaskService {
         returning id
         """,
         Long.class,
-        UUID.randomUUID().toString(),
+        syncRunId == null ? UUID.randomUUID().toString() : String.valueOf(syncRunId),
         scope,
         full,
         STATUS_RUNNING,
@@ -388,7 +406,7 @@ public class FactBuildTaskService {
         STATUS_RUNNING);
   }
 
-  private void recordSkipped(String scope, boolean full, String message) {
+  private void recordSkipped(String scope, boolean full, Long syncRunId, String message) {
     jdbcTemplate.update(
         """
         insert into fact_build_tasks(
@@ -396,7 +414,7 @@ public class FactBuildTaskService {
           started_at, finished_at, created_at, updated_at
         ) values (?, ?, ?, ?, ?, ?, 0, ?, current_timestamp, current_timestamp, current_timestamp, current_timestamp)
         """,
-        UUID.randomUUID().toString(),
+        syncRunId == null ? UUID.randomUUID().toString() : String.valueOf(syncRunId),
         scope,
         full,
         STATUS_SKIPPED,

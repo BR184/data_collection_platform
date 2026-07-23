@@ -2,7 +2,9 @@ package com.data.collection.platform.service.sync;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.JsonUtils;
@@ -12,9 +14,12 @@ import com.data.collection.platform.entity.QueuedFactBuildTask;
 import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunType;
+import com.data.collection.platform.service.FactBuildService;
 import com.data.collection.platform.service.FactBuildTaskService;
 import com.data.collection.platform.service.FactRefreshTaskWorkerService;
 import com.data.collection.platform.service.GitlabConfigService;
+import com.data.collection.platform.service.PageRecordSnapshotRefreshService;
+import com.data.collection.platform.service.statistics.StatisticBoardSnapshotRefreshService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,20 +27,29 @@ import org.junit.jupiter.api.Test;
 
 class SyncFactRefreshRunExecutorTest {
   private GitlabConfigService configService;
+  private FactBuildService factBuildService;
   private FactBuildTaskService factBuildTaskService;
   private FactRefreshTaskWorkerService factRefreshTaskWorkerService;
+  private StatisticBoardSnapshotRefreshService snapshotRefreshService;
+  private PageRecordSnapshotRefreshService pageRecordSnapshotRefreshService;
   private SyncFactRefreshRunExecutor executor;
 
   @BeforeEach
   void setUp() {
     configService = mock(GitlabConfigService.class);
+    factBuildService = mock(FactBuildService.class);
     factBuildTaskService = mock(FactBuildTaskService.class);
     factRefreshTaskWorkerService = mock(FactRefreshTaskWorkerService.class);
+    snapshotRefreshService = mock(StatisticBoardSnapshotRefreshService.class);
+    pageRecordSnapshotRefreshService = mock(PageRecordSnapshotRefreshService.class);
     executor =
         new SyncFactRefreshRunExecutor(
             configService,
+            factBuildService,
             factBuildTaskService,
             factRefreshTaskWorkerService,
+            snapshotRefreshService,
+            pageRecordSnapshotRefreshService,
             new JsonUtils(new ObjectMapper()));
   }
 
@@ -91,6 +105,29 @@ class SyncFactRefreshRunExecutorTest {
     assertThat(result.plannedTasks()).isEqualTo(2);
     assertThat(result.completedTasks()).isZero();
     assertThat(result.errorMessage()).isEqualTo("部分事实数据刷新任务未完成");
+  }
+
+  @Test
+  void shouldUseUnifiedFullBuildForManualRebuild() {
+    SyncRun run = run(16L);
+    run.setPayloadJson("{\"fullBuild\":true,\"manualFullRebuild\":true}");
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(1L);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(factBuildService.rebuildAllFactsForConfig(config, true, 16L))
+        .thenReturn(new FactBuildResponse("alpha:all", true, 21, "全部事实层已重建"));
+
+    SyncFactRefreshRunExecutor.Result result = executor.execute(run);
+
+    verify(factBuildService).rebuildAllFactsForConfig(config, true, 16L);
+    verify(snapshotRefreshService).refreshAfterFactBuild("ALL", true);
+    verify(pageRecordSnapshotRefreshService).refreshAfterFactBuild("ALL", true);
+    verify(factBuildTaskService, never()).enqueueMirrorRefreshTasks(config, true, 16L);
+    verifyNoInteractions(factRefreshTaskWorkerService);
+    assertThat(result.status()).isEqualTo(SyncRunStatus.SUCCESS);
+    assertThat(result.plannedTasks()).isEqualTo(1);
+    assertThat(result.completedTasks()).isEqualTo(1);
+    assertThat(result.affectedRows()).isEqualTo(21L);
   }
 
   private SyncRun run(Long id) {

@@ -6,6 +6,7 @@ public record CustomerIssueRecordFilterOptionsResponse(
     List<OptionItemResponse> projectNames,
     List<OptionItemResponse> moduleNames,
     List<OptionItemResponse> functionNames,
+    List<OptionItemResponse> customerNames,
     List<OptionItemResponse> reasonCategories,
     List<OptionItemResponse> severityLevels,
     List<OptionItemResponse> priorityLevels,
@@ -13,5 +14,34 @@ public record CustomerIssueRecordFilterOptionsResponse(
     List<OptionItemResponse> bugStatuses,
     List<OptionItemResponse> categories,
     List<OptionItemResponse> authorNames,
+    List<OptionItemResponse> handlerNames,
     List<OptionItemResponse> assigneeNames,
-    List<OptionItemResponse> milestoneTitles) {}
+    List<OptionItemResponse> testingPhases,
+    List<OptionItemResponse> fixUsers,
+    List<OptionItemResponse> delayCauses,
+    List<OptionItemResponse> milestoneTitles) {
+
+  public CustomerIssueRecordFilterOptionsResponse {
+    projectNames = copyOptions(projectNames);
+    moduleNames = copyOptions(moduleNames);
+    functionNames = copyOptions(functionNames);
+    customerNames = copyOptions(customerNames);
+    reasonCategories = copyOptions(reasonCategories);
+    severityLevels = copyOptions(severityLevels);
+    priorityLevels = copyOptions(priorityLevels);
+    issueStates = copyOptions(issueStates);
+    bugStatuses = copyOptions(bugStatuses);
+    categories = copyOptions(categories);
+    authorNames = copyOptions(authorNames);
+    handlerNames = copyOptions(handlerNames);
+    assigneeNames = copyOptions(assigneeNames);
+    testingPhases = copyOptions(testingPhases);
+    fixUsers = copyOptions(fixUsers);
+    delayCauses = copyOptions(delayCauses);
+    milestoneTitles = copyOptions(milestoneTitles);
+  }
+
+  private static List<OptionItemResponse> copyOptions(List<OptionItemResponse> values) {
+    return values == null ? List.of() : List.copyOf(values);
+  }
+}

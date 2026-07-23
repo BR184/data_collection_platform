@@ -49,12 +49,19 @@ final class CustomerIssueRecordWorkbookExportSupport {
           "是否更新了关联关系表",
           "议题关闭时间",
           "非法类型");
+  private static final List<String> LEGACY_DELAY_HEADERS =
+      List.copyOf(LEGACY_ILLEGAL_HEADERS.subList(0, 18));
 
   private CustomerIssueRecordWorkbookExportSupport() {
   }
 
   static byte[] exportRecords(
       List<CustomerIssueRecordRowResponse> rows, CustomerIssueRecordWorkbookLayout layout) {
+    List<String> headers =
+        switch (layout) {
+          case CC_PRODUCT -> CcProductIssueWorkbookRow.HEADERS;
+          case DELAY -> LEGACY_DELAY_HEADERS;
+        };
     List<List<String>> values =
         switch (layout) {
           case CC_PRODUCT ->
@@ -69,7 +76,7 @@ final class CustomerIssueRecordWorkbookExportSupport {
         };
     return exportWorkbook(
         RECORD_SHEET_NAME,
-        CcProductIssueWorkbookRow.HEADERS,
+        headers,
         values);
   }
 
@@ -168,7 +175,7 @@ final class CustomerIssueRecordWorkbookExportSupport {
         text(row.illegalReason()));
   }
 
-  private static String displayIssueState(String state, LocalDateTime closedAt) {
+  static String displayIssueState(String state, LocalDateTime closedAt) {
     if (closedAt != null || "closed".equalsIgnoreCase(state)) {
       return "已关闭";
     }

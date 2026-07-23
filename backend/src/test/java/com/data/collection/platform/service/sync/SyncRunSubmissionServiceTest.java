@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.sync;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -9,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceMode;
@@ -75,6 +77,58 @@ class SyncRunSubmissionServiceTest {
     assertThat(result.action()).isEqualTo(SyncSubmissionAction.QUEUED);
     verify(jdbcTemplate).queryForObject(
         contains("pg_advisory_xact_lock"), eq(Object.class), eq("source:12:source_a:mirror"));
+  }
+
+  @Test
+  void shouldQueueManualFullFactRebuildWithExplicitPayload() {
+    GitlabSyncConfig config = config();
+    when(syncRunMapper.selectList(any())).thenReturn(List.of());
+
+    var result = submissionService.submitManualFullFactRebuild(config);
+
+    ArgumentCaptor<SyncRun> runCaptor = ArgumentCaptor.forClass(SyncRun.class);
+    verify(syncRunMapper).insert(runCaptor.capture());
+    SyncRun saved = runCaptor.getValue();
+    assertThat(saved.getRunType()).isEqualTo(SyncRunType.FACT_REFRESH);
+    assertThat(saved.getTriggerType()).isEqualTo(SyncTriggerType.MANUAL);
+    assertThat(saved.getExclusiveScope()).isEqualTo("source:12:default:fact");
+    assertThat(saved.getRequestReason()).isEqualTo("手动重建当前数据源全部事实层");
+    assertThat(saved.getPayloadJson())
+        .contains("\"fullBuild\":true")
+        .contains("\"manualFullRebuild\":true");
+    assertThat(result.type()).isEqualTo(SyncType.COMPENSATION);
+    assertThat(result.status()).isEqualTo(SyncStatus.QUEUED);
+    verify(jdbcTemplate).queryForObject(
+        contains("pg_advisory_xact_lock"),
+        eq(Object.class),
+        eq("source:12:default:submission"));
+  }
+
+  @Test
+  void shouldRejectManualFullFactRebuildWhenSourceHasActiveRun() {
+    GitlabSyncConfig config = config();
+    SyncRun activeRun = activeRun(19L, SyncRunType.FULL_SYNC, SyncRunStatus.RUNNING, "source:12:source_a:mirror");
+    when(syncRunMapper.selectList(any())).thenReturn(List.of(activeRun));
+
+    assertThatThrownBy(() -> submissionService.submitManualFullFactRebuild(config))
+        .isInstanceOf(BizException.class)
+        .hasMessage("当前数据源存在同步或事实刷新任务，请等待任务完成后再重建事实层");
+
+    verify(syncRunMapper, never()).insert(any(SyncRun.class));
+  }
+
+  @Test
+  void shouldRejectSyncSubmissionWhenManualFullFactRebuildIsActive() {
+    GitlabSyncConfig config = config();
+    SyncRun activeRun = activeRun(20L, SyncRunType.FACT_REFRESH, SyncRunStatus.RUNNING, "source:12:source_a:fact");
+    activeRun.setPayloadJson("{\"manualFullRebuild\":true}");
+    when(syncRunMapper.selectList(any())).thenReturn(List.of(activeRun));
+
+    assertThatThrownBy(() -> submissionService.submitIncrementalSync(config, null, "Manual incremental sync"))
+        .isInstanceOf(BizException.class)
+        .hasMessage("当前数据源正在重建事实层，请等待任务完成后再提交同步或刷新任务");
+
+    verify(syncRunMapper, never()).insert(any(SyncRun.class));
   }
 
   @Test
@@ -277,24 +331,36 @@ class SyncRunSubmissionServiceTest {
   }
 
   @Test
-  void shouldReuseActiveFactRefreshForSameSource() {
+  void shouldReuseFactRefreshForSameMirrorParent() {
     GitlabSyncConfig config = config();
     SyncRun activeRun = activeRun(104L, SyncRunType.FACT_REFRESH, SyncRunStatus.QUEUED, "source:12:source_a:fact");
+    activeRun.setParentRunId(91L);
     when(syncRunMapper.selectList(any())).thenReturn(List.of(activeRun));
 
     var result = submissionService.submitFactRefresh(config, 91L, true, "Mirror run completed");
+
+    verify(syncRunMapper, never()).insert(any(SyncRun.class));
+    assertThat(result.runId()).isEqualTo(104L);
+    assertThat(result.type()).isEqualTo(SyncType.COMPENSATION);
+    assertThat(result.action()).isEqualTo(SyncSubmissionAction.REUSED_QUEUED);
+    assertThat(result.message()).isEqualTo("当前镜像任务的事实刷新已提交，已复用现有任务。");
+  }
+
+  @Test
+  void shouldQueueDistinctFactRefreshForAnotherMirrorParent() {
+    GitlabSyncConfig config = config();
+    SyncRun activeRun = activeRun(104L, SyncRunType.FACT_REFRESH, SyncRunStatus.RUNNING, "source:12:default:fact");
+    activeRun.setParentRunId(88L);
+    when(syncRunMapper.selectList(any())).thenReturn(List.of(), List.of(activeRun));
+
+    submissionService.submitFactRefresh(config, 91L, false, "Mirror run completed");
 
     ArgumentCaptor<SyncRun> runCaptor = ArgumentCaptor.forClass(SyncRun.class);
     verify(syncRunMapper).insert(runCaptor.capture());
     SyncRun saved = runCaptor.getValue();
     assertThat(saved.getRunType()).isEqualTo(SyncRunType.FACT_REFRESH);
-    assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.MERGED);
-    assertThat(saved.getParentRunId()).isEqualTo(104L);
-    assertThat(saved.getPayloadJson()).contains("\"parentRunId\":104");
-    assertThat(result.runId()).isEqualTo(104L);
-    assertThat(result.type()).isEqualTo(SyncType.COMPENSATION);
-    assertThat(result.action()).isEqualTo(SyncSubmissionAction.REUSED_QUEUED);
-    assertThat(result.message()).isEqualTo("事实刷新已在队列中或正在执行，已复用现有任务。");
+    assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.QUEUED);
+    assertThat(saved.getParentRunId()).isEqualTo(91L);
   }
 
   private GitlabSyncConfig config() {

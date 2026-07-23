@@ -5,5 +5,10 @@ public record CustomerIssueRecordQueryRequest(
     IssueFactRecordListRequest listRequest,
     String reasonCategory,
     String authorName,
+    String handlerName,
     String assigneeName,
-    String filterGroupJson) {}
+    String testingPhase,
+    String fixUser,
+    String delayCause,
+    String filterGroupJson,
+    String customerName) {}

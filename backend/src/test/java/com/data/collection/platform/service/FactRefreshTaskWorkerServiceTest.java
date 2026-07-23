@@ -132,6 +132,35 @@ class FactRefreshTaskWorkerServiceTest {
     verify(taskService).finishQueuedTask(12L, "SUCCESS", 1, "integration built", null);
   }
 
+  @Test
+  void shouldReconcileMissingIssueFactsWhenMirrorRunHasNoAffectedIssueTargets() {
+    GitlabSyncConfig config = config();
+    QueuedFactBuildTask task =
+        new QueuedFactBuildTask(
+            13L,
+            3L,
+            1L,
+            "default",
+            "ISSUE",
+            "issue",
+            false,
+            0,
+            3,
+            LocalDateTime.now().plusSeconds(9));
+
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(taskService.hasSuccessfulFullBuild("default", "ISSUE")).thenReturn(true);
+    when(impactScopeService.resolve(3L, "default", "ISSUE"))
+        .thenReturn(FactRefreshImpactScopeService.ImpactScope.empty());
+    when(factBuildService.reconcileMissingIssueFacts("default"))
+        .thenReturn(new FactBuildResponse("issue", false, 1, "已补齐 1 条缺失议题事实"));
+
+    workerService.execute(task);
+
+    verify(factBuildService).reconcileMissingIssueFacts("default");
+    verify(taskService).finishQueuedTask(13L, "SUCCESS", 1, "已补齐 1 条缺失议题事实", null);
+  }
+
   private GitlabSyncConfig config() {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(1L);

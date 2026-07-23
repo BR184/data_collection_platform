@@ -7,6 +7,7 @@ import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.IssueFactRecord;
 import com.data.collection.platform.service.IssueFactRecordListRequest;
 import com.data.collection.platform.service.IssueFactRecordRepository;
+import com.data.collection.platform.service.IssueStatusMembers;
 import com.data.collection.platform.service.OptionItemResponseFactory;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
@@ -60,7 +61,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         StatisticBoardIssueWorkbookExportSupport {
   private static final String BOARD_KEY = "system-test-defect-summary";
   private static final String MODULE_FIELD = "moduleName";
-  private static final String RULE_VERSION = "system-test-defect-summary@2026-07-10-v11";
+  private static final String RULE_VERSION = "system-test-defect-summary@2026-07-22-v12";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -770,7 +771,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       return new SystemTestSummaryQuickFilterOptions(
           toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
               records.stream().flatMap(record -> record.moduleNames().stream()).toList())),
-          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
+          toStatisticOptions(OptionItemResponseFactory.fromIssueStatusMembersPreservingOrder(
               records.stream().map(IssueFactRecord::bugStatus).toList())),
           toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
               records.stream().map(IssueFactRecord::delayCause).toList())),
@@ -834,6 +835,11 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     }
     String operator = condition.operator();
     String value = trimTextToNull(condition.value());
+    if ("bugStatus".equals(condition.fieldKey())) {
+      return condition.usesLabelGroup()
+          ? IssueStatusMembers.matchesLabelGroup(issue.bugStatus(), operator, condition.values())
+          : IssueStatusMembers.matchesFilter(issue.bugStatus(), operator, value);
+    }
     if (condition.usesLabelGroup()) {
       return switch (condition.fieldKey()) {
         case MODULE_FIELD -> matchesSetOperator(issue.moduleNames(), operator, condition.values());
@@ -841,7 +847,6 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         case "title" -> matchesSetOperator(singleValue(issue.title()), operator, condition.values());
         case "severityLevel" -> matchesSetOperator(singleValue(issue.severityLevel()), operator, condition.values());
         case "priorityLevel" -> matchesSetOperator(singleValue(issue.priorityLevel()), operator, condition.values());
-        case "bugStatus" -> matchesSetOperator(singleValue(issue.bugStatus()), operator, condition.values());
         case "delayCause" -> matchesSetOperator(singleValue(issue.delayCause()), operator, condition.values());
         case "authorName" -> matchesSetOperator(singleValue(issue.authorName()), operator, condition.values());
         case "assigneeName" -> matchesSetOperator(singleValue(issue.assigneeName()), operator, condition.values());
@@ -856,7 +861,6 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       case "title" -> matchesText(issue.title(), operator, value);
       case "severityLevel" -> matchesText(issue.severityLevel(), operator, value);
       case "priorityLevel" -> matchesText(issue.priorityLevel(), operator, value);
-      case "bugStatus" -> matchesText(issue.bugStatus(), operator, value);
       case "delayCause" -> matchesText(issue.delayCause(), operator, value);
       case "authorName" -> matchesText(issue.authorName(), operator, value);
       case "assigneeName" -> matchesText(issue.assigneeName(), operator, value);

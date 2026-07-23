@@ -24,6 +24,7 @@ import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.IssueFactRecordRepository;
 import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.IssueScopeContext;
+import com.data.collection.platform.service.IssueStatusMembers;
 import com.data.collection.platform.service.OptionItemResponseFactory;
 import com.data.collection.platform.service.SortSupport;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
@@ -55,7 +56,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         StatisticBoardSnapshotRefresher,
         StatisticBoardIssueWorkbookExportSupport {
   private static final String BOARD_KEY = "customer-issue-defect-summary";
-  private static final String RULE_VERSION = "customer-issue-defect-summary@2026-07-10-v3";
+  private static final String RULE_VERSION = "customer-issue-defect-summary@2026-07-22-v4";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
@@ -557,6 +558,13 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
       return true;
     }
+    if ("bugStatus".equals(condition.fieldKey())) {
+      return condition.usesLabelGroup()
+          ? IssueStatusMembers.matchesLabelGroup(
+              issue.bugStatus(), condition.operator(), condition.values())
+          : IssueStatusMembers.matchesFilter(
+              issue.bugStatus(), condition.operator(), condition.value());
+    }
     if (CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD.equals(condition.fieldKey())) {
       return CustomerIssueMilestoneFilterSupport.matches(
           issue.milestoneTitle(),
@@ -588,7 +596,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
       case "title" -> List.of(Objects.toString(issue.title(), ""));
       case "severityLevel" -> List.of(Objects.toString(issue.severityLevel(), ""));
       case "priorityLevel" -> List.of(Objects.toString(issue.priorityLevel(), ""));
-      case "bugStatus" -> List.of(Objects.toString(issue.bugStatus(), ""));
+      case "bugStatus" -> IssueStatusMembers.parse(issue.bugStatus());
       case "category" -> List.of(Objects.toString(issue.category(), ""));
       case "issueState" -> List.of(issue.isClosed() ? "closed" : "open");
       case "authorName" -> List.of(Objects.toString(issue.authorName(), ""));
@@ -608,7 +616,9 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
               null);
       return new CustomerIssueSummaryQuickFilterOptions(
           toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.moduleNames())),
-          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.bugStatuses())),
+          toStatisticOptions(
+              OptionItemResponseFactory.fromIssueStatusMembersPreservingOrder(
+                  values.bugStatuses())),
           toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.categories())),
           toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.authorNames())),
           toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.assigneeNames())));

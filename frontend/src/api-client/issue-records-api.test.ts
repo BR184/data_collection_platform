@@ -73,4 +73,29 @@ describe('issueRecordsApi source instance query contract', () => {
     );
   });
 
+  it('passes CC_PRODUCT display-field filters to list and export endpoints', () => {
+    const params = {
+      topic: 'cc-product' as const,
+      functionName: '装配',
+      customerName: '郑州新世纪',
+      handlerName: '王五',
+      assigneeName: '张三',
+      testingPhase: '新增需求',
+      fixUser: '李四',
+      delayCause: '需求变更',
+    };
+
+    issueRecordsApi.getCustomerIssueRecords(params);
+
+    expect(decodeURIComponent(String(vi.mocked(request).mock.calls[0][0]))).toContain(
+      '/api/customer-issues/records?topic=cc-product&page=1&size=20&functionName=装配&customerName=郑州新世纪&handlerName=王五&assigneeName=张三&testingPhase=新增需求&fixUser=李四&delayCause=需求变更',
+    );
+
+    issueRecordsApi.exportCustomerIssueRecords(params);
+
+    expect(decodeURIComponent(String(vi.mocked(requestBlob).mock.calls[0][0]))).toContain(
+      '/api/customer-issues/records/export?topic=cc-product&functionName=装配&customerName=郑州新世纪&handlerName=王五&assigneeName=张三&testingPhase=新增需求&fixUser=李四&delayCause=需求变更',
+    );
+  });
+
 });

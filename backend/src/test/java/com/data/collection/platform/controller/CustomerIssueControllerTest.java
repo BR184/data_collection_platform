@@ -86,8 +86,13 @@ class CustomerIssueControllerTest {
                     "desc"),
                 "Design",
                 "Alice",
+                "Handler",
                 "Bob",
-                null)))
+                null,
+                 null,
+                 null,
+                 null,
+                 null)))
         .thenReturn(
             new CustomerIssueRecordListResponse(
                 List.of(
@@ -98,6 +103,7 @@ class CustomerIssueControllerTest {
                         325L,
                         "CC_PRODUCT",
                         "Delay sample",
+                        "高晶电器、郑州新世纪",
                         "opened",
                         "S2",
                         "P1",
@@ -106,6 +112,7 @@ class CustomerIssueControllerTest {
                         "Design",
                         "R1",
                         "Alice",
+                        "Handler",
                         "Bob",
                         "CC2026R3第一轮系统测试",
                         "Fixer",
@@ -119,6 +126,10 @@ class CustomerIssueControllerTest {
                         false,
                         null,
                         LocalDateTime.of(2026, 4, 11, 10, 0),
+                        240L,
+                        LocalDateTime.of(2026, 4, 25, 0, 0),
+                        "2026-04-25",
+                        "release/2026R3",
                         LocalDateTime.of(2026, 4, 20, 16, 30),
                         null,
                         List.of("delay"))),
@@ -139,6 +150,7 @@ class CustomerIssueControllerTest {
                 .param("moduleName", "Sketch")
                 .param("reasonCategory", "Design")
                 .param("authorName", "Alice")
+                .param("handlerName", "Handler")
                 .param("assigneeName", "Bob")
                 .param("severityLevel", "S2")
                 .param("priorityLevel", "P1")
@@ -160,6 +172,8 @@ class CustomerIssueControllerTest {
         .andExpect(jsonPath("$.data.records[0].issueLink").value("http://gitlab.example.com/-/issues/201"))
         .andExpect(jsonPath("$.data.records[0].title").value("Delay sample"))
         .andExpect(jsonPath("$.data.records[0].testingPhase").value("CC2026R3第一轮系统测试"))
+        .andExpect(jsonPath("$.data.records[0].handlerName").value("Handler"))
+        .andExpect(jsonPath("$.data.records[0].assigneeName").value("Bob"))
         .andExpect(jsonPath("$.data.records[0].fixUser").value("Fixer"))
         .andExpect(jsonPath("$.data.records[0].labels[0]").value("delay"));
   }
@@ -196,7 +210,12 @@ class CustomerIssueControllerTest {
                 "Design",
                 null,
                 null,
-                "{\"logic\":\"AND\",\"conditions\":[]}")))
+                null,
+                null,
+                null,
+                null,
+                 "{\"logic\":\"AND\",\"conditions\":[]}",
+                 null)))
         .thenReturn(new byte[] {1, 2, 3});
 
     mockMvc.perform(
@@ -225,6 +244,7 @@ class CustomerIssueControllerTest {
                 List.of(new OptionItemResponse("CC_PRODUCT", "CC_PRODUCT")),
                 List.of(new OptionItemResponse("Sketch", "Sketch")),
                 List.of(new OptionItemResponse("Constraint", "Constraint")),
+                List.of(new OptionItemResponse("高晶电器", "高晶电器")),
                 List.of(new OptionItemResponse("Design", "Design")),
                 List.of(new OptionItemResponse("S2", "S2")),
                 List.of(new OptionItemResponse("P1", "P1")),
@@ -232,7 +252,11 @@ class CustomerIssueControllerTest {
                 List.of(new OptionItemResponse("Open", "Open")),
                 List.of(new OptionItemResponse("Bug", "Bug")),
                 List.of(new OptionItemResponse("Alice", "Alice")),
+                List.of(),
                 List.of(new OptionItemResponse("Bob", "Bob")),
+                List.of(new OptionItemResponse("CC2026R3第一轮系统测试", "CC2026R3第一轮系统测试")),
+                List.of(new OptionItemResponse("Carol", "Carol")),
+                List.of(new OptionItemResponse("需求变更", "需求变更")),
                 List.of(new OptionItemResponse("R1", "R1"))));
     when(customerIssueRecordService.getRuleExplanation("delay", 325L))
         .thenReturn(
@@ -252,7 +276,10 @@ class CustomerIssueControllerTest {
         .andExpect(jsonPath("$.data.projectNames[0].value").value("CC_PRODUCT"))
         .andExpect(jsonPath("$.data.reasonCategories[0].value").value("Design"))
         .andExpect(jsonPath("$.data.authorNames[0].value").value("Alice"))
-        .andExpect(jsonPath("$.data.assigneeNames[0].value").value("Bob"));
+        .andExpect(jsonPath("$.data.assigneeNames[0].value").value("Bob"))
+        .andExpect(jsonPath("$.data.testingPhases[0].value").value("CC2026R3第一轮系统测试"))
+        .andExpect(jsonPath("$.data.fixUsers[0].value").value("Carol"))
+        .andExpect(jsonPath("$.data.delayCauses[0].value").value("需求变更"));
 
     mockMvc.perform(get("/api/customer-issues/records/rule-explanation").param("topic", "delay").param("projectId", "325"))
         .andExpect(status().isOk())

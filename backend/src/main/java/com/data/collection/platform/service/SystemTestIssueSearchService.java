@@ -24,7 +24,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
     implements PageRecordSnapshotRefresher {
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
   private static final String PAGE_KEY = "question-metrics-issue-search";
-  private static final String RULE_VERSION = "system-test-issue-search@2026-04-22-v1";
+  private static final String RULE_VERSION = "system-test-issue-search@2026-07-22-v2";
   private static final long LEGACY_CROWN_CAD_PROJECT_ID = 9L;
   private static final int EXPORT_PAGE_SIZE = 100;
   private static final int MAX_LABEL_GROUP_FILTER_VALUES = 200;
@@ -234,7 +234,8 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         toLegacyOptions(scopedViews, IssueFactRecord::assigneeName),
         toOptions(scopedViews, IssueFactRecord::issueState),
         toSeverityOptions(scopedViews, IssueFactRecord::severityLevel),
-        toOptions(scopedViews, IssueFactRecord::bugStatus),
+        OptionItemResponseFactory.fromIssueStatusMembers(
+            scopedViews.stream().map(IssueFactRecord::bugStatus).toList()),
         toOptions(scopedViews, IssueFactRecord::category),
         toLegacyOptions(scopedViews, IssueFactRecord::milestoneTitle));
   }

@@ -22,7 +22,7 @@ public class SyncRunFactRefreshListener {
 
   @EventListener
   public void onSyncRunCompleted(SyncRunCompletionEvent event) {
-    if (event == null || !event.mirrorRun() || !event.successful() || event.appliedRowCount() <= 0L) {
+    if (event == null || !event.mirrorRun() || !event.successful()) {
       return;
     }
     GitlabSyncConfig config = configService.getConfigById(event.configId());

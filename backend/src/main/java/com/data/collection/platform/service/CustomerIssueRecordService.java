@@ -13,6 +13,7 @@ import com.data.collection.platform.service.labelgroup.LabelGroupExpansionServic
 import com.data.collection.platform.service.statistics.CustomerIssueMilestoneCatalogService;
 import com.data.collection.platform.service.statistics.CustomerIssueMilestoneOrdering;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -29,8 +30,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   private static final String TOPIC_CC_PRODUCT = "cc-product";
   private static final String TOPIC_DELAY = "delay";
   private static final String PAGE_KEY = "customer-issues-cc-product-issues";
-  private static final String CC_PRODUCT_RULE_VERSION = "customer-issue-records@2026-07-15-v3";
-  private static final String DELAY_RULE_VERSION = "customer-issue-records@2026-07-09-v2";
+  private static final String CC_PRODUCT_RULE_VERSION = "customer-issue-records@2026-07-22-v7";
+  private static final String DELAY_RULE_VERSION = "customer-issue-records@2026-07-22-v4";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = CustomerIssueScopeProfile.LEGACY_CC_PRODUCT_PROJECT_ID;
   private static final int EXPORT_PAGE_SIZE = 100;
@@ -43,6 +44,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
           Map.entry("priorityLevel", "STRING"),
           Map.entry("bugStatus", "STRING"),
           Map.entry("authorName", "STRING"),
+          Map.entry("handlerName", "STRING"),
           Map.entry("assigneeName", "STRING"),
           Map.entry("milestoneTitle", "STRING"));
   private static final Map<String, Comparator<IssueFactRecord>> SORT_COMPARATORS =
@@ -88,7 +90,11 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   }
 
   public CustomerIssueRecordListResponse listRecords(CustomerIssueRecordQueryRequest request) {
-    CustomerIssueRecordQueryRequest safeRequest = withSnapshotDefaults(request);
+    CustomerIssueRecordPageSnapshot snapshot = readRecordSnapshot(withSnapshotDefaults(request));
+    return toListResponse(snapshot, LocalDateTime.now(java.time.ZoneOffset.UTC));
+  }
+
+  private CustomerIssueRecordPageSnapshot readRecordSnapshot(CustomerIssueRecordQueryRequest safeRequest) {
     if (pageRecordSnapshotService == null) {
       return loadRecords(safeRequest);
     }
@@ -98,11 +104,11 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
             "topic:" + normalizeTopic(safeRequest.topic()),
             CustomerIssueRecordProfile.forTopic(normalizeTopic(safeRequest.topic())).ruleVersion(),
             safeRequest),
-        CustomerIssueRecordListResponse.class,
+        CustomerIssueRecordPageSnapshot.class,
         () -> loadRecords(safeRequest));
   }
 
-  private CustomerIssueRecordListResponse loadRecords(CustomerIssueRecordQueryRequest request) {
+  private CustomerIssueRecordPageSnapshot loadRecords(CustomerIssueRecordQueryRequest request) {
     IssueFactRecordListRequest listRequest = withCustomerProject(request.listRequest());
     int safePage = normalizePage(listRequest.page());
     int safeSize = normalizeSize(listRequest.size());
@@ -110,14 +116,17 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         normalizeSortField(listRequest.sortField(), DEFAULT_SORT_FIELD, SORT_COMPARATORS.keySet());
     String safeSortOrder = normalizeSortOrder(listRequest.sortOrder());
     String safeTopic = normalizeTopic(request.topic());
+    CustomerIssueRecordProfile recordProfile = CustomerIssueRecordProfile.forTopic(safeTopic);
     StatisticFilterGroup filterGroup =
         IssueFactRecordFilterGroupSupport.parse(
             objectMapper,
             request.filterGroupJson(),
-            IssueFactRecordFilterGroupSupport.CUSTOMER_ISSUE_FILTER_OPERATORS);
+            recordProfile.supportsCustomerFields()
+                ? IssueFactRecordFilterGroupSupport.CUSTOMER_ISSUE_RECORD_FILTER_OPERATORS
+                : IssueFactRecordFilterGroupSupport.CUSTOMER_ISSUE_FILTER_OPERATORS);
     StatisticFilterGroup expandedFilterGroup = expandLabelGroupConditions(filterGroup, listRequest.sourceInstance());
     boolean hasLabelGroupFilters = IssueFactRecordFilterGroupSupport.hasLabelGroupConditions(expandedFilterGroup);
-    CustomerIssueRecordProfile recordProfile = CustomerIssueRecordProfile.forTopic(safeTopic);
+    String customerName = recordProfile.supportsCustomerFields() ? request.customerName() : null;
 
     if (!hasLabelGroupFilters && canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
       PageSlice<IssueFactRecord> pageSlice =
@@ -129,23 +138,28 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                   request.reasonCategory(),
                   null,
                   null,
-                  List.of(),
-                  request.authorName(),
-                  request.assigneeName(),
-                  recordProfile.delayOnly(),
+                   List.of(),
+                   request.authorName(),
+                   request.handlerName(),
+                   request.assigneeName(),
+                   request.testingPhase(),
+                   request.fixUser(),
+                   request.delayCause(),
+                   recordProfile.delayOnly(),
                   false,
                   recordProfile.excludeExcluded(),
                   recordProfile.excludeRejectedBugStatus(),
-                  false,
-                  false,
-                  false,
-                  false,
+                   false,
+                   false,
+                   false,
+                   true,
                   safePage,
                   safeSize,
                   safeSortField,
-                  safeSortOrder));
-      return new CustomerIssueRecordListResponse(
-          pageSlice.records().stream().map(this::toResponse).toList(),
+                  safeSortOrder,
+                  customerName));
+      return new CustomerIssueRecordPageSnapshot(
+          pageSlice.records(),
           pageSlice.total(),
           pageSlice.page(),
           pageSlice.size(),
@@ -161,19 +175,36 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
             .stream()
             .filter(view -> matchesEquals(view.reasonCategory(), request.reasonCategory()))
             .filter(view -> matchesEquals(view.authorName(), request.authorName()))
+            .filter(view -> matchesEquals(view.handlerName(), request.handlerName()))
             .filter(view -> matchesEquals(view.assigneeName(), request.assigneeName()))
-            .filter(view -> IssueFactRecordFilterGroupSupport.matches(view, expandedFilterGroup))
+            .filter(view -> CustomerIssueTestingPhaseSupport.matchesFilter(
+                view.testingPhase(), request.testingPhase()))
+            .filter(view -> matchesEquals(view.fixUser(), request.fixUser()))
+            .filter(view -> matchesEquals(view.delayCause(), request.delayCause()))
+            .filter(view -> matchesCustomerName(view.customerNames(), customerName))
+            .filter(view -> IssueFactRecordFilterGroupSupport.matchesCustomerIssue(view, expandedFilterGroup))
             .sorted(applySortDirection(SORT_COMPARATORS.get(safeSortField), safeSortOrder))
             .toList();
 
     PageSlice<IssueFactRecord> pageSlice = PageSliceSupport.slice(filtered, safePage, safeSize);
-    return new CustomerIssueRecordListResponse(
-        pageSlice.records().stream().map(this::toResponse).toList(),
+    return new CustomerIssueRecordPageSnapshot(
+        pageSlice.records(),
         pageSlice.total(),
         pageSlice.page(),
         pageSlice.size(),
         safeSortField,
         safeSortOrder);
+  }
+
+  private CustomerIssueRecordListResponse toListResponse(
+      CustomerIssueRecordPageSnapshot snapshot, LocalDateTime asOf) {
+    return new CustomerIssueRecordListResponse(
+        snapshot.records().stream().map(view -> toResponse(view, asOf)).toList(),
+        snapshot.total(),
+        snapshot.page(),
+        snapshot.size(),
+        snapshot.sortField(),
+        snapshot.sortOrder());
   }
 
   private StatisticFilterGroup expandLabelGroupConditions(
@@ -231,6 +262,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
 
   public byte[] exportRecordsWorkbook(CustomerIssueRecordQueryRequest request) {
     List<CustomerIssueRecordRowResponse> rows = new ArrayList<>();
+    LocalDateTime asOf = LocalDateTime.now(java.time.ZoneOffset.UTC);
     int page = 1;
     while (true) {
       IssueFactRecordListRequest listRequest = withCustomerProject(request.listRequest());
@@ -261,11 +293,17 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                   EXPORT_PAGE_SIZE,
                   listRequest.sortField(),
                   listRequest.sortOrder()),
-              request.reasonCategory(),
-              request.authorName(),
-              request.assigneeName(),
-              request.filterGroupJson());
-      CustomerIssueRecordListResponse response = listRecords(pageRequest);
+               request.reasonCategory(),
+               request.authorName(),
+               request.handlerName(),
+               request.assigneeName(),
+               request.testingPhase(),
+               request.fixUser(),
+               request.delayCause(),
+               request.filterGroupJson(),
+               request.customerName());
+      CustomerIssueRecordListResponse response =
+          toListResponse(readRecordSnapshot(withSnapshotDefaults(pageRequest)), asOf);
       rows.addAll(response.records());
       if (response.records().size() < EXPORT_PAGE_SIZE || rows.size() >= response.total()) {
         break;
@@ -318,6 +356,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         toLegacyOptions(values.projectNames()),
         toLegacyOptions(values.moduleNames()),
         toLegacyOptions(values.functionNames()),
+        profile.supportsCustomerFields() ? toOptions(values.customerNames()) : List.of(),
         toOptions(values.reasonCategories()),
         OptionItemResponseFactory.fromValues(
             values.severityLevels(),
@@ -325,10 +364,14 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
             IssueDisplayValueSupport::displaySeverityLevel),
         toOptions(values.priorityLevels()),
         toOptions(values.issueStates()),
-        toOptions(values.bugStatuses()),
+        OptionItemResponseFactory.fromIssueStatusMembers(values.bugStatuses()),
         toOptions(values.categories()),
         toLegacyOptions(values.authorNames()),
+        toLegacyOptions(values.handlerNames()),
         toLegacyOptions(values.assigneeNames()),
+        toOptions(values.testingPhases()),
+        toLegacyOptions(values.fixUsers()),
+        toOptions(values.delayCauses()),
         toOptionsPreservingOrder(customerIssueMilestones(values.milestoneTitles())));
   }
 
@@ -338,6 +381,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         response.projectNames(),
         response.moduleNames(),
         response.functionNames(),
+        response.customerNames(),
         response.reasonCategories(),
         response.severityLevels(),
         response.priorityLevels(),
@@ -345,7 +389,11 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         response.bugStatuses(),
         response.categories(),
         response.authorNames(),
+        response.handlerNames(),
         response.assigneeNames(),
+        response.testingPhases(),
+        response.fixUsers(),
+        response.delayCauses(),
         sortedMilestoneOptions(response.milestoneTitles()));
   }
 
@@ -457,13 +505,20 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   }
 
   private CustomerIssueRecordQueryRequest withSnapshotDefaults(CustomerIssueRecordQueryRequest request) {
+    String safeTopic = normalizeTopic(request.topic());
+    CustomerIssueRecordProfile profile = CustomerIssueRecordProfile.forTopic(safeTopic);
     return new CustomerIssueRecordQueryRequest(
-        normalizeTopic(request.topic()),
+        safeTopic,
         withCustomerProject(request.listRequest()),
         request.reasonCategory(),
         request.authorName(),
+        request.handlerName(),
         request.assigneeName(),
-        request.filterGroupJson());
+        request.testingPhase(),
+        request.fixUser(),
+        request.delayCause(),
+        request.filterGroupJson(),
+        profile.supportsCustomerFields() ? request.customerName() : null);
   }
 
   private CustomerIssueRecordQueryRequest defaultRequest(String topic) {
@@ -493,6 +548,11 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
             20,
             DEFAULT_SORT_FIELD,
             "descending"),
+        null,
+        null,
+        null,
+        null,
+        null,
         null,
         null,
         null,
@@ -540,7 +600,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     return TextQuerySupport.containsAbstractSearch(view.bugStatus(), "已拒绝");
   }
 
-  private CustomerIssueRecordRowResponse toResponse(IssueFactRecord view) {
+  private CustomerIssueRecordRowResponse toResponse(IssueFactRecord view, LocalDateTime asOf) {
     return new CustomerIssueRecordRowResponse(
         view.issueId(),
         view.issueIid(),
@@ -548,6 +608,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         view.projectId(),
         view.projectName(),
         view.title(),
+        String.join("、", view.customerNames()),
         view.issueState(),
         IssueDisplayValueSupport.displaySeverityLevelOrBlank(view.severityLevel()),
         view.priorityLevel(),
@@ -556,8 +617,9 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         view.reasonCategory(),
         view.milestoneTitle(),
         view.authorName(),
+        view.handlerName(),
         view.assigneeName(),
-        view.testingPhase(),
+        CustomerIssueTestingPhaseSupport.display(view.testingPhase()),
         view.fixUser(),
         String.join("、", view.moduleNames()),
         view.functionName(),
@@ -569,9 +631,19 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         view.illegal(),
         view.illegalReason(),
         view.createdAt(),
+        IssueRetentionDurationSupport.hoursBetween(view.createdAt(), asOf),
+        view.plannedResolutionAt(),
+        view.plannedResolutionText(),
+        view.plannedMergeVersionBranch(),
         view.updatedAt(),
         view.closedAt(),
         view.labels());
+  }
+
+  private boolean matchesCustomerName(List<String> customerNames, String customerName) {
+    String normalized = TextQuerySupport.trimToNull(customerName);
+    return normalized == null
+        || customerNames.stream().anyMatch(value -> TextQuerySupport.equalsNormalized(value, normalized));
   }
 
   private boolean matchesKeyword(IssueFactRecord view, String keyword) {
@@ -586,6 +658,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         || TextQuerySupport.containsAbstractSearch(view.functionName(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.reasonCategory(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.authorName(), normalizedKeyword)
+        || TextQuerySupport.containsAbstractSearch(view.handlerName(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.assigneeName(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.milestoneTitle(), normalizedKeyword);
   }
@@ -656,6 +729,10 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
           CC_PRODUCT_RULE_VERSION,
           "客户问题运营统计口径限定 CC_Product 项目且创建时间不早于 2026-01-01。");
     }
+
+    private boolean supportsCustomerFields() {
+      return workbookLayout == CustomerIssueRecordWorkbookLayout.CC_PRODUCT;
+    }
   }
 
   private enum CustomerIssueRecordScope {
@@ -685,15 +762,25 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     comparators.put(
         "moduleNames", SortSupport.nullableString(view -> String.join("、", view.moduleNames())));
     comparators.put("functionName", SortSupport.nullableString(IssueFactRecord::functionName));
+    comparators.put(
+        "customerNames", SortSupport.nullableString(view -> String.join("、", view.customerNames())));
+    comparators.put("testingPhase", SortSupport.nullableString(IssueFactRecord::testingPhase));
     comparators.put("reasonCategory", SortSupport.nullableString(IssueFactRecord::reasonCategory));
+    comparators.put("fixUser", SortSupport.nullableString(IssueFactRecord::fixUser));
+    comparators.put("delayCause", SortSupport.nullableString(IssueFactRecord::delayCause));
     comparators.put("severityLevel", SortSupport.nullableString(IssueFactRecord::severityLevel));
     comparators.put("priorityLevel", SortSupport.nullableString(IssueFactRecord::priorityLevel));
     comparators.put("bugStatus", SortSupport.nullableString(IssueFactRecord::bugStatus));
     comparators.put("issueState", SortSupport.nullableString(IssueFactRecord::issueState));
     comparators.put("authorName", SortSupport.nullableString(IssueFactRecord::authorName));
+    comparators.put("handlerName", SortSupport.nullableString(IssueFactRecord::handlerName));
     comparators.put("assigneeName", SortSupport.nullableString(IssueFactRecord::assigneeName));
     comparators.put("category", SortSupport.nullableString(IssueFactRecord::category));
     comparators.put("milestoneTitle", SortSupport.nullableString(IssueFactRecord::milestoneTitle));
+    comparators.put("plannedResolutionAt", SortSupport.nullableComparable(IssueFactRecord::plannedResolutionAt));
+    comparators.put(
+        "plannedMergeVersionBranch",
+        SortSupport.nullableString(IssueFactRecord::plannedMergeVersionBranch));
     comparators.put("createdAt", SortSupport.nullableComparable(IssueFactRecord::createdAt));
     comparators.put("updatedAt", SortSupport.nullableComparable(IssueFactRecord::updatedAt));
     comparators.put("closedAt", SortSupport.nullableComparable(IssueFactRecord::closedAt));

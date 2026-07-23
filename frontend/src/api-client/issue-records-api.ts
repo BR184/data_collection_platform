@@ -178,9 +178,14 @@ function buildCustomerIssueRecordQuery(params: {
   projectName?: string;
   moduleName?: string;
   functionName?: string;
+  customerName?: string;
   reasonCategory?: string;
   authorName?: string;
+  handlerName?: string;
   assigneeName?: string;
+  testingPhase?: string;
+  fixUser?: string;
+  delayCause?: string;
   severityLevel?: string;
   priorityLevel?: string;
   issueState?: string;
@@ -207,9 +212,14 @@ function buildCustomerIssueRecordQuery(params: {
     ...(params.projectName ? { projectName: params.projectName } : {}),
     ...(params.moduleName ? { moduleName: params.moduleName } : {}),
     ...(params.functionName ? { functionName: params.functionName } : {}),
+    ...(params.customerName ? { customerName: params.customerName } : {}),
     ...(params.reasonCategory ? { reasonCategory: params.reasonCategory } : {}),
     ...(params.authorName ? { authorName: params.authorName } : {}),
+    ...(params.handlerName ? { handlerName: params.handlerName } : {}),
     ...(params.assigneeName ? { assigneeName: params.assigneeName } : {}),
+    ...(params.testingPhase ? { testingPhase: params.testingPhase } : {}),
+    ...(params.fixUser ? { fixUser: params.fixUser } : {}),
+    ...(params.delayCause ? { delayCause: params.delayCause } : {}),
     ...(params.severityLevel ? { severityLevel: params.severityLevel } : {}),
     ...(params.priorityLevel ? { priorityLevel: params.priorityLevel } : {}),
     ...(params.issueState ? { issueState: params.issueState } : {}),

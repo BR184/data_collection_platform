@@ -16,7 +16,7 @@ import type {
   OptionItemResponse,
 } from '../types/api';
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
-import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
+import { useRealtimeWorkspaceStatus, waitForRealtimeWorkspaceRefresh } from '../composables/useRealtimeWorkspaceStatus';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { CODE_REVIEW_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useRouteTableState } from '../composables/useRouteTableState';
@@ -407,24 +407,15 @@ function mergedAtRangeFilenamePart() {
 async function handleRefreshLatestData() {
   realtimeRefreshLoading.value = true;
   try {
-    let status = await api.refreshCodeReviewIllegalRecords();
+    const status = await api.refreshCodeReviewIllegalRecords();
     ElMessage.success(status.message || '已开始刷新最新数据');
-    for (let attempt = 0; attempt < 8 && status.refreshing; attempt++) {
-      await sleep(1000);
-      status = (await loadSyncStatus()) ?? status;
-    }
+    await waitForRealtimeWorkspaceRefresh(status, loadSyncStatus);
     await loadTableData();
-    //兼容模式-MatchMode：老平台同步时间可能依赖外部库，不能阻塞已返回的列表数据和页面操作。
-    void loadSyncStatus();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
   } finally {
     realtimeRefreshLoading.value = false;
   }
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 bindLoader(async () => {

@@ -67,6 +67,29 @@ public final class OptionItemResponseFactory {
     return buildOptions(normalized, Function.identity(), SortPolicy.SOURCE_ORDER);
   }
 
+  /**
+   * 根据测试状态成员构建按显示文本排序的下拉候选。
+   *
+   * @param values 事实层中的原始测试状态文本
+   * @return 每个状态成员一条候选值
+   */
+  public static List<OptionItemResponse> fromIssueStatusMembers(Collection<String> values) {
+    return buildOptions(
+        IssueStatusMembers.collectMembers(values), Function.identity(), SortPolicy.LABEL_ASCENDING);
+  }
+
+  /**
+   * 根据测试状态成员构建保留数据源首次出现顺序的下拉候选。
+   *
+   * @param values 事实层中的原始测试状态文本
+   * @return 每个状态成员一条候选值
+   */
+  public static List<OptionItemResponse> fromIssueStatusMembersPreservingOrder(
+      Collection<String> values) {
+    return buildOptions(
+        IssueStatusMembers.collectMembers(values), Function.identity(), SortPolicy.SOURCE_ORDER);
+  }
+
   private static List<OptionItemResponse> buildOptions(
       Collection<String> values, Function<String, String> labeler, SortPolicy sortPolicy) {
     return applySortPolicy(

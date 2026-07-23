@@ -75,7 +75,8 @@ class IssueFactRealtimeRefreshServiceTest {
     verify(realtimeIncrementalRefreshService)
         .requestIncrementalRefresh(eq("system-test-issues"), sourceTables.capture());
     assertThat(sourceTables.getValue())
-        .containsExactly("issues", "projects", "users", "label_links", "labels", "notes");
+        .containsExactly(
+            "issues", "projects", "users", "label_links", "resource_label_events", "labels", "notes");
     assertThat(result.jobId()).isEqualTo(41L);
     assertThat(result.sourceTables()).containsExactly("issues", "projects");
     assertThat(result.plannedTasks()).isEqualTo(2);

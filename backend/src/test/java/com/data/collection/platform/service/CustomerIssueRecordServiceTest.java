@@ -76,6 +76,11 @@ class CustomerIssueRecordServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null));
 
     assertThat(response.total()).isEqualTo(1);
@@ -83,10 +88,178 @@ class CustomerIssueRecordServiceTest {
         .findPage(
             argThat(
                 query ->
-                    query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER_PROJECT
+                    query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER
                         && query.listRequest().projectId().equals(325L)
                         && !query.delayOnly()
                         && !query.illegalOnly()));
+  }
+
+  @Test
+  void shouldApplyCcProductDisplayFieldFiltersToSqlPageQuery() {
+    CustomerIssueRecordService service =
+        new CustomerIssueRecordService(
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            issueLinkService,
+            labelGroupExpansionService);
+    when(issueFactRecordRepository.findPage(any()))
+        .thenReturn(new PageSlice<>(List.of(), 0, 1, 20));
+
+    service.listRecords(
+        new CustomerIssueRecordQueryRequest(
+            "cc-product",
+            new IssueFactRecordListRequest(
+                325L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "装配",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                20,
+                "updatedAt",
+                "desc"),
+                null,
+                null,
+                "王五",
+                "张三",
+             "新增需求",
+             "李四",
+             "需求变更",
+             null,
+             "高晶电器"));
+
+    verify(issueFactRecordRepository)
+        .findPage(
+            argThat(
+                query ->
+                    "装配".equals(query.listRequest().functionName())
+                        && "王五".equals(query.handlerName())
+                        && "张三".equals(query.assigneeName())
+                        && "新增需求".equals(query.directTestingPhase())
+                        && "李四".equals(query.fixUser())
+                        && "需求变更".equals(query.delayCause())
+                        && "高晶电器".equals(query.customerName())
+                        && query.useFullTestingPhaseFilter()));
+  }
+
+  @Test
+  void shouldKeepCustomerFieldsOutOfDelayTopicQueries() {
+    CustomerIssueRecordService service =
+        new CustomerIssueRecordService(
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            issueLinkService,
+            labelGroupExpansionService);
+    when(issueFactRecordRepository.findPage(any()))
+        .thenReturn(new PageSlice<>(List.of(), 0, 1, 20));
+
+    service.listRecords(
+        new CustomerIssueRecordQueryRequest(
+            "delay",
+            defaultListRequest(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "郑州新世纪"));
+
+    verify(issueFactRecordRepository)
+        .findPage(argThat(query -> query.customerName() == null && query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER));
+  }
+
+  @Test
+  void shouldProjectCustomerAndTemplateFieldsWithoutCachingRetentionDuration() {
+    CustomerIssueRecordService service =
+        new CustomerIssueRecordService(
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            issueLinkService,
+            labelGroupExpansionService);
+    when(issueFactRecordRepository.findPage(any()))
+        .thenReturn(new PageSlice<>(List.of(recordWithExportFields(1415, "客户议题", "", "", List.of())), 1, 1, 20));
+
+    CustomerIssueRecordListResponse response =
+        service.listRecords(
+            new CustomerIssueRecordQueryRequest(
+                "cc-product",
+                defaultListRequest(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "郑州新世纪"));
+
+    CustomerIssueRecordRowResponse row = response.records().getFirst();
+    assertThat(row.customerNames()).isEqualTo("高晶电器、郑州新世纪");
+    assertThat(row.retentionHours()).isPositive();
+    assertThat(row.plannedResolutionText()).isEqualTo("2026年7月1日");
+    assertThat(row.plannedMergeVersionBranch()).isEqualTo("release/2026R3");
+    assertThat(row.handlerName()).isEqualTo("Handler");
+    assertThat(row.assigneeName()).isEqualTo("Bob");
+  }
+
+  @Test
+  void shouldDisplayAndFilterUnspecifiedTestingPhaseWithoutChangingTheFactValue() {
+    CustomerIssueRecordService service =
+        new CustomerIssueRecordService(
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            issueLinkService,
+            labelGroupExpansionService);
+    when(issueFactRecordRepository.findPage(any()))
+        .thenReturn(
+            new PageSlice<>(
+                List.of(recordWithExportFields(1416, "未设定阶段", "", "", List.of())), 1, 1, 20));
+
+    CustomerIssueRecordListResponse response =
+        service.listRecords(
+            new CustomerIssueRecordQueryRequest(
+                "cc-product",
+                defaultListRequest(),
+                null,
+                null,
+                null,
+                null,
+                CustomerIssueTestingPhaseSupport.UNSPECIFIED_DISPLAY_VALUE,
+                null,
+                null,
+                null,
+                null));
+
+    assertThat(response.records().getFirst().testingPhase())
+        .isEqualTo(CustomerIssueTestingPhaseSupport.UNSPECIFIED_DISPLAY_VALUE);
+    verify(issueFactRecordRepository)
+        .findPage(
+            argThat(
+                query ->
+                    CustomerIssueTestingPhaseSupport.UNSPECIFIED_DISPLAY_VALUE.equals(
+                        query.directTestingPhase())));
   }
 
   @Test
@@ -145,6 +318,11 @@ class CustomerIssueRecordServiceTest {
                 "design",
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null));
 
     assertThat(response.records()).hasSize(1);
@@ -201,6 +379,8 @@ class CustomerIssueRecordServiceTest {
                     null,
                     null,
                     null,
+                    null,
+                    null,
                     "default",
                     1,
                     20,
@@ -209,9 +389,14 @@ class CustomerIssueRecordServiceTest {
                 null,
                 null,
                 null,
-                """
-                {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":8,"labelGroupName":"核心模块"}]}
-                """));
+                null,
+                null,
+                null,
+                null,
+                 """
+                 {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":8,"labelGroupName":"核心模块"}]}
+                 """,
+                 null));
 
     assertThat(response.records()).extracting(CustomerIssueRecordRowResponse::issueIid).containsExactly(101);
     verify(issueFactRecordRepository, never()).findPage(any());
@@ -257,6 +442,8 @@ class CustomerIssueRecordServiceTest {
                     null,
                     null,
                     null,
+                    null,
+                    null,
                     "default",
                     1,
                     20,
@@ -265,15 +452,20 @@ class CustomerIssueRecordServiceTest {
                 null,
                 null,
                 null,
-                """
-                {"logic":"AND","conditions":[{"fieldKey":"assigneeName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":10,"labelGroupName":"核心处理人"}]}
-                """));
+                null,
+                null,
+                null,
+                null,
+                 """
+                 {"logic":"AND","conditions":[{"fieldKey":"assigneeName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":10,"labelGroupName":"核心处理人"}]}
+                 """,
+                 null));
 
     assertThat(response.records()).extracting(CustomerIssueRecordRowResponse::issueIid).containsExactly(104);
   }
 
   @Test
-  void shouldKeepRequestFiltersAndWriteLegacyFieldsWhenExportingPagedRecords() throws Exception {
+  void shouldKeepRequestFiltersAndWritePageFieldsWhenExportingPagedRecords() throws Exception {
     CustomerIssueRecordService service =
         new CustomerIssueRecordService(
             issueFactRecordRepository,
@@ -302,9 +494,11 @@ class CustomerIssueRecordServiceTest {
                     recordWithExportFields(
                         102,
                         "[ASCII] Export sample",
-                        "",
-                        "",
-                        List.of("模块：平台", "严重程度：三级缺陷", "类别：缺陷"))),
+                         "",
+                         "",
+                         List.of("模块：平台", "严重程度：三级缺陷", "类别：缺陷"),
+                         "opened",
+                         LocalDateTime.of(2026, 4, 25, 10, 0))),
                 2,
                 1,
                 100));
@@ -339,6 +533,11 @@ class CustomerIssueRecordServiceTest {
                     "desc"),
                 null,
                 null,
+                "处理人筛选值",
+                null,
+                null,
+                null,
+                null,
                 null,
                 null));
 
@@ -348,52 +547,87 @@ class CustomerIssueRecordServiceTest {
                 query ->
                     query.listRequest().projectId().equals(325L)
                         && query.listRequest().page() == 1
-                        && query.listRequest().size() == 100));
+                        && query.listRequest().size() == 100
+                        && "处理人筛选值".equals(query.handlerName())));
 
     try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(exported))) {
       var sheet = workbook.getSheet("CCProduct议题查询结果");
-      assertThat(sheet.getRow(0).getCell(9).getStringCellValue()).isEqualTo("测试阶段");
-      assertThat(sheet.getRow(0).getCell(16).getStringCellValue()).isEqualTo("缺陷修复人");
-      assertThat(rowValues(sheet.getRow(1)))
+      assertThat(rowValues(sheet.getRow(0)))
           .containsExactly(
-              "2026-04-23",
-              "2026-04-21",
-              "草图&工程图",
+              "议题编号",
+               "模块名",
+               "功能名称",
+               "议题标题",
+               "客户",
+               "议题提交人",
+              "议题处理人",
+              "议题指派人",
+              "议题状态",
+              "测试状态",
+              "测试阶段",
+              "严重程度",
+              "缺陷优先级",
+              "议题类别",
+               "里程碑",
+               "延期原因",
+               "缺陷修复人",
+               "计划解决时间",
+               "计划合并版本分支",
+               "提交时间",
+               "缺陷滞留时长（小时）",
+               "更新时间");
+      List<String> firstRow = rowValues(sheet.getRow(1));
+      assertThat(firstRow)
+          .containsExactly(
               "#101",
+              "草图、工程图",
+              "约束",
               "【约束】Export sample",
+              "高晶电器、郑州新世纪",
               "Alice",
+              "Handler",
               "Bob",
-              "OPEN",
+              "未关闭",
               "已修复/完成",
               "CC2026R3第一轮系统测试",
               "二级缺陷",
+              "P1",
               "缺陷",
               "CC2026 R3",
-              "Bob",
-              "P1",
               "技术卡点",
               "Fixer",
-              "约束");
-      assertThat(rowValues(sheet.getRow(2)))
+               "2026年7月1日",
+               "release/2026R3",
+               "2026-04-21 10:00:00",
+               firstRow.get(20),
+               "2026-04-23 10:00:00");
+      assertThat(firstRow.get(20)).matches("\\d+");
+      List<String> secondRow = rowValues(sheet.getRow(2));
+      assertThat(secondRow)
           .containsExactly(
-              "2026-04-23",
-              "2026-04-21",
-              "平台",
               "#102",
+              "草图、工程图",
+              "约束",
               "[ASCII] Export sample",
+              "高晶电器、郑州新世纪",
               "Alice",
+              "Handler",
               "Bob",
-              "OPEN",
-              "未设定议题状态",
+              "已关闭",
+              "已修复/完成",
               "未设定测试阶段",
-              "三级缺陷",
+              "二级缺陷",
+              "P1",
               "缺陷",
               "CC2026 R3",
-              "Bob",
-              "未设定紧急程度",
-              "未设定类别",
+              "技术卡点",
               "",
-              "");
+               "2026年7月1日",
+               "release/2026R3",
+               "2026-04-21 10:00:00",
+               secondRow.get(20),
+               "2026-04-23 10:00:00");
+      assertThat(secondRow.get(20)).matches("\\d+");
     }
   }
 
@@ -451,6 +685,11 @@ class CustomerIssueRecordServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null));
 
     try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(exported))) {
@@ -498,6 +737,8 @@ class CustomerIssueRecordServiceTest {
                     null,
                     null,
                     null,
+                    null,
+                    null,
                     "default",
                     1,
                     20,
@@ -506,9 +747,14 @@ class CustomerIssueRecordServiceTest {
                 null,
                 null,
                 null,
-                """
-                {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":8,"labelGroupName":"核心模块"}]}
-                """));
+                null,
+                null,
+                null,
+                null,
+                 """
+                 {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":8,"labelGroupName":"核心模块"}]}
+                 """,
+                 null));
 
     assertThat(workbook).isNotEmpty();
   }
@@ -522,12 +768,28 @@ class CustomerIssueRecordServiceTest {
             new ObjectMapper(),
             issueLinkService,
             labelGroupExpansionService);
-    when(customerIssueScopeProfile.matches(any())).thenReturn(true);
-    when(issueFactRecordRepository.findByProjectId(null))
+    when(issueFactRecordRepository.findCustomerIssueRecordFilterValues(
+            true, false, false, true, "cc"))
         .thenReturn(
-            List.of(
-                recordWithSource("cc", 106, "cc source", List.of("草图"), "Alice", "Bob"),
-                recordWithSource("default", 107, "default source", List.of("工程图"), "Alice", "Carl")));
+            new IssueFactRecordRepository.CustomerIssueFilterValues(
+                 List.of(),
+                 List.of(),
+                 List.of(),
+                 List.of(),
+                 List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of("Bob"),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of()));
 
     List<String> assigneeOptions =
         service.getFilterOptions("cc-product", null, "cc").assigneeNames().stream()
@@ -638,14 +900,36 @@ class CustomerIssueRecordServiceTest {
 
   private IssueFactRecord recordWithExportFields(
       int issueIid, String title, String testingPhase, String fixUser, List<String> labels) {
+    return recordWithExportFields(issueIid, title, testingPhase, fixUser, labels, "opened");
+  }
+
+  private IssueFactRecord recordWithExportFields(
+      int issueIid,
+      String title,
+      String testingPhase,
+      String fixUser,
+      List<String> labels,
+      String issueState) {
+    return recordWithExportFields(issueIid, title, testingPhase, fixUser, labels, issueState, null);
+  }
+
+  private IssueFactRecord recordWithExportFields(
+      int issueIid,
+      String title,
+      String testingPhase,
+      String fixUser,
+      List<String> labels,
+      String issueState,
+      LocalDateTime closedAt) {
     LocalDateTime now = LocalDateTime.of(2026, 4, 24, 10, 0);
     return new IssueFactRecord(
         325L,
+        "default",
         "CC_PRODUCT",
         9000L + issueIid,
         issueIid,
         title,
-        "opened",
+        issueState,
         testingPhase,
         "",
         "LEVEL2",
@@ -662,6 +946,7 @@ class CustomerIssueRecordServiceTest {
         false,
         "CC2026 R3",
         "Alice",
+        "Handler",
         "Bob",
         fixUser,
         List.of("草图", "工程图"),
@@ -677,7 +962,38 @@ class CustomerIssueRecordServiceTest {
         List.of(),
         now.minusDays(3),
         now.minusDays(1),
-        null);
+        closedAt,
+        List.of("高晶电器", "郑州新世纪"),
+        LocalDateTime.of(2026, 7, 1, 0, 0),
+        "2026年7月1日",
+        "release/2026R3");
+  }
+
+  private IssueFactRecordListRequest defaultListRequest() {
+    return new IssueFactRecordListRequest(
+        325L,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        1,
+        20,
+        "updatedAt",
+        "desc");
   }
 
   private List<String> rowValues(Row row) {

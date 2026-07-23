@@ -5,6 +5,7 @@ import { computed, ref, watch } from 'vue';
 import { ElMessage } from '../element-plus-services';
 import { Download, InfoFilled, Refresh, RefreshRight } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
+import IssueStatusTags from '../components/IssueStatusTags.vue';
 import PageSettingsButton from '../components/PageSettingsButton.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import RuleExplanationDrawer from '../components/RuleExplanationDrawer.vue';
@@ -13,8 +14,6 @@ import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
 import { hasPermission } from '../feature-manifest';
-import { buildIssueIidCellValue } from '../utils/issue-record-links';
-import { buildIssueSeverityTag } from '../utils/issue-severity-display';
 import type {
   CustomerIssueRecordFilterOptionsResponse,
   CustomerIssueRecordRowResponse,
@@ -23,15 +22,24 @@ import type {
   StatisticFilterField,
 } from '../types/api';
 import { buildCustomerIssueRecordConditionFields } from './customer-issues/customer-issue-condition-fields';
+import {
+  CC_PRODUCT_RECORD_COLUMNS,
+  DELAY_RECORD_COLUMNS,
+} from './customer-issues/customer-issue-record-columns';
+import {
+  formatCustomerIssueRecordDateTime as formatDateTime,
+  mapCustomerIssueRecordTableRows,
+  normalizeCustomerIssueState as normalizeIssueState,
+} from './customer-issues/customer-issue-record-table-rows';
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
 import { ISSUE_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useRouteTableState } from '../composables/useRouteTableState';
-import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
+import { useRealtimeWorkspaceStatus, waitForRealtimeWorkspaceRefresh } from '../composables/useRealtimeWorkspaceStatus';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { useRecordPageController } from '../composables/useRecordPageController';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import { useRecordTableFilterPriority } from '../composables/useRecordTableFilterPriority';
-import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableFilterField } from '../types/record-table';
+import type { RecordTableActiveFilterTag, RecordTableFilterField } from '../types/record-table';
 import { downloadBlob } from '../utils/csv-download';
 import { useRoute } from 'vue-router';
 
@@ -73,6 +81,7 @@ const filterOptions = ref<CustomerIssueRecordFilterOptionsResponse>({
   projectNames: [],
   moduleNames: [],
   functionNames: [],
+  customerNames: [],
   reasonCategories: [],
   severityLevels: [],
   priorityLevels: [],
@@ -80,7 +89,11 @@ const filterOptions = ref<CustomerIssueRecordFilterOptionsResponse>({
   bugStatuses: [],
   categories: [],
   authorNames: [],
+  handlerNames: [],
   assigneeNames: [],
+  testingPhases: [],
+  fixUsers: [],
+  delayCauses: [],
   milestoneTitles: [],
 });
 
@@ -126,7 +139,9 @@ const {
 });
 
 const conditionFilterFields = computed<StatisticFilterField[]>(() =>
-  buildCustomerIssueRecordConditionFields(filterOptions.value).filter((field) => field.key !== 'milestoneTitle'),
+  buildCustomerIssueRecordConditionFields(filterOptions.value, !isDelayTopic.value)
+    .filter((field) =>
+      field.key !== 'milestoneTitle' && (isDelayTopic.value || field.key !== 'createdAt')),
 );
 
 const {
@@ -166,9 +181,14 @@ const {
     'projectName',
     'moduleName',
     'functionName',
+    'customerName',
+    'testingPhase',
     'reasonCategory',
     'authorName',
+    'handlerName',
     'assigneeName',
+    'fixUser',
+    'delayCause',
     'severityLevel',
     'priorityLevel',
     'issueState',
@@ -188,21 +208,9 @@ const {
   },
 });
 
-const columns = computed<RecordTableColumn[]>(() => [
-  { key: 'issueIid', label: '议题编号', type: 'link', sortable: true, width: 110, fixed: 'left' },
-  { key: 'moduleNames', label: '模块名', sortable: true, minWidth: 140 },
-  { key: 'title', label: '议题标题', sortable: true, minWidth: 260 },
-  { key: 'authorName', label: '议题提交人', sortable: true, minWidth: 120 },
-  { key: 'assigneeName', label: '议题处理人', sortable: true, minWidth: 120 },
-  { key: 'issueState', label: '议题状态', type: 'tag', sortable: true, width: 110 },
-  { key: 'severityLevel', label: '严重程度', type: 'tag', sortable: true, width: 120 },
-  { key: 'priorityLevel', label: '缺陷优先级', type: 'tag', sortable: true, width: 120 },
-  { key: 'bugStatus', label: '测试状态', type: 'tag', sortable: true, minWidth: 120 },
-  { key: 'category', label: '议题类别', type: 'tag', sortable: true, minWidth: 120 },
-  { key: 'milestoneTitle', label: '里程碑', sortable: true, minWidth: 160 },
-  { key: 'createdAt', label: '提交时间', sortable: true, minWidth: 170 },
-  { key: 'updatedAt', label: '更新时间', sortable: true, minWidth: 170 },
-]);
+const columns = computed(() =>
+  isDelayTopic.value ? DELAY_RECORD_COLUMNS : CC_PRODUCT_RECORD_COLUMNS,
+);
 
 const filterValues = computed<Record<string, unknown>>(() => ({
   createdAtRange: route.query.createdAtStart && route.query.createdAtEnd
@@ -217,15 +225,32 @@ const filterValues = computed<Record<string, unknown>>(() => ({
   projectName: String(route.query.projectName ?? ''),
   moduleName: String(route.query.moduleName ?? ''),
   functionName: String(route.query.functionName ?? ''),
+  customerName: String(route.query.customerName ?? ''),
+  testingPhase: String(route.query.testingPhase ?? ''),
   reasonCategory: String(route.query.reasonCategory ?? ''),
   authorName: String(route.query.authorName ?? ''),
+  handlerName: String(route.query.handlerName ?? ''),
   assigneeName: String(route.query.assigneeName ?? ''),
+  fixUser: String(route.query.fixUser ?? ''),
+  delayCause: String(route.query.delayCause ?? ''),
   severityLevel: String(route.query.severityLevel ?? ''),
   priorityLevel: String(route.query.priorityLevel ?? ''),
   issueState: String(route.query.issueState ?? ''),
   bugStatus: String(route.query.bugStatus ?? ''),
   category: String(route.query.category ?? ''),
 }));
+
+const CC_PRODUCT_QUICK_FILTER_KEYS = new Set([
+  'milestoneTitle',
+  'moduleName',
+  'functionName',
+  'testingPhase',
+  'handlerName',
+  'assigneeName',
+  'delayCause',
+  'fixUser',
+  'updatedAtRange',
+]);
 
 const primaryFilters = computed<RecordTableFilterField[]>(() => [
   {
@@ -248,6 +273,15 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
     width: 156,
   },
   { key: 'title', label: '议题标题', type: 'input', placeholder: '输入标题关键字' },
+  ...(!isDelayTopic.value
+    ? [{
+      key: 'customerName',
+      label: '客户',
+      type: 'select' as const,
+      width: 180,
+      options: [{ label: '全部客户', value: '' }, ...filterOptions.value.customerNames],
+    }]
+    : []),
   {
     key: 'projectName',
     label: '项目',
@@ -263,7 +297,7 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
   },
   {
     key: 'functionName',
-    label: '功能名',
+    label: isDelayTopic.value ? '功能名' : '功能名称',
     type: 'select',
     width: 180,
     options: [{ label: '全部功能', value: '' }, ...filterOptions.value.functionNames],
@@ -280,11 +314,22 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
     type: 'select',
     options: [{ label: '全部提交人', value: '' }, ...filterOptions.value.authorNames],
   },
+  ...(!isDelayTopic.value
+    ? [{
+      key: 'handlerName',
+      label: '议题处理人',
+      type: 'select' as const,
+      options: [{ label: '全部处理人', value: '' }, ...filterOptions.value.handlerNames],
+    }]
+    : []),
   {
     key: 'assigneeName',
-    label: '议题处理人',
+    label: isDelayTopic.value ? '议题处理人' : '议题指派人',
     type: 'select',
-    options: [{ label: '全部处理人', value: '' }, ...filterOptions.value.assigneeNames],
+    options: [
+      { label: isDelayTopic.value ? '全部处理人' : '全部指派人', value: '' },
+      ...filterOptions.value.assigneeNames,
+    ],
   },
   {
     key: 'severityLevel',
@@ -310,12 +355,39 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
     type: 'select',
     options: [{ label: '全部测试状态', value: '' }, ...filterOptions.value.bugStatuses],
   },
+  ...(!isDelayTopic.value
+    ? [{
+      key: 'testingPhase',
+      label: '测试阶段',
+      type: 'select' as const,
+      width: 200,
+      options: [{ label: '全部测试阶段', value: '' }, ...filterOptions.value.testingPhases],
+    }]
+    : []),
   {
     key: 'category',
     label: '议题类别',
     type: 'select',
     options: [{ label: '全部类别', value: '' }, ...filterOptions.value.categories],
   },
+  ...(!isDelayTopic.value
+    ? [
+      {
+        key: 'delayCause',
+        label: '延期原因',
+        type: 'select' as const,
+        width: 180,
+        options: [{ label: '全部延期原因', value: '' }, ...filterOptions.value.delayCauses],
+      },
+      {
+        key: 'fixUser',
+        label: '缺陷修复人',
+        type: 'select' as const,
+        width: 180,
+        options: [{ label: '全部修复人', value: '' }, ...filterOptions.value.fixUsers],
+      },
+    ]
+    : []),
   {
     key: 'createdAtRange',
     label: '提交时间',
@@ -332,7 +404,7 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
     startPlaceholder: '开始日期',
     endPlaceholder: '结束日期',
   },
-]);
+].filter((filter) => isDelayTopic.value || CC_PRODUCT_QUICK_FILTER_KEYS.has(filter.key)));
 
 const priorityQuickFilters = computed<RecordTableFilterField[]>(() => [
   { key: 'keyword', label: '任意关键字', type: 'input', placeholder: '输入任意关键字搜索', width: 260 },
@@ -376,7 +448,14 @@ const primaryActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
     tags.push({ key: 'moduleName', label: '模块名', value: String(values.moduleName) });
   }
   if (values.functionName) {
-    tags.push({ key: 'functionName', label: '功能名', value: String(values.functionName) });
+    tags.push({
+      key: 'functionName',
+      label: isDelayTopic.value ? '功能名' : '功能名称',
+      value: String(values.functionName),
+    });
+  }
+  if (!isDelayTopic.value && values.testingPhase) {
+    tags.push({ key: 'testingPhase', label: '测试阶段', value: String(values.testingPhase) });
   }
   if (values.reasonCategory) {
     tags.push({ key: 'reasonCategory', label: '缺陷原因', value: String(values.reasonCategory) });
@@ -384,8 +463,21 @@ const primaryActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   if (values.authorName) {
     tags.push({ key: 'authorName', label: '议题提交人', value: String(values.authorName) });
   }
+  if (!isDelayTopic.value && values.handlerName) {
+    tags.push({ key: 'handlerName', label: '议题处理人', value: String(values.handlerName) });
+  }
   if (values.assigneeName) {
-    tags.push({ key: 'assigneeName', label: '议题处理人', value: String(values.assigneeName) });
+    tags.push({
+      key: 'assigneeName',
+      label: isDelayTopic.value ? '议题处理人' : '议题指派人',
+      value: String(values.assigneeName),
+    });
+  }
+  if (!isDelayTopic.value && values.delayCause) {
+    tags.push({ key: 'delayCause', label: '延期原因', value: String(values.delayCause) });
+  }
+  if (!isDelayTopic.value && values.fixUser) {
+    tags.push({ key: 'fixUser', label: '缺陷修复人', value: String(values.fixUser) });
   }
   if (values.severityLevel) {
     tags.push({ key: 'severityLevel', label: '严重程度', value: String(values.severityLevel) });
@@ -402,7 +494,7 @@ const primaryActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   if (values.category) {
     tags.push({ key: 'category', label: '议题类别', value: String(values.category) });
   }
-  if (Array.isArray(values.createdAtRange) && values.createdAtRange.length === 2) {
+  if (isDelayTopic.value && Array.isArray(values.createdAtRange) && values.createdAtRange.length === 2) {
     tags.push({
       key: 'createdAtRange',
       label: '提交时间',
@@ -424,26 +516,7 @@ const allActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => [
   ...primaryActiveFilterTags.value,
 ]);
 
-const tableRows = computed<Record<string, unknown>[]>(() =>
-  rows.value.map((row) => ({
-    __raw: row,
-    issueIid: buildIssueIidCellValue(row.issueIid, row.issueLink),
-    moduleNames: row.moduleNames || '-',
-    title: row.title,
-    authorName: row.authorName || '-',
-    assigneeName: row.assigneeName || '-',
-    issueState: [{ label: normalizeIssueState(row.issueState), type: row.closedAt ? 'info' as const : 'success' as const }],
-    functionName: row.functionName || '-',
-    reasonCategory: [{ label: row.reasonCategory || '未归因', type: row.reasonCategory ? 'primary' as const : 'info' as const }],
-    severityLevel: row.severityLevel ? [buildIssueSeverityTag(row.severityLevel)] : [],
-    priorityLevel: [{ label: row.priorityLevel || '-', type: 'primary' as const }],
-    bugStatus: [{ label: row.bugStatus || '-', type: row.bugStatus ? 'primary' as const : 'info' as const }],
-    category: [{ label: row.category || '-', type: row.category ? 'primary' as const : 'info' as const }],
-    milestoneTitle: row.milestoneTitle || '-',
-    createdAt: formatDateTime(row.createdAt),
-    updatedAt: formatDateTime(row.updatedAt),
-  })),
-);
+const tableRows = computed<Record<string, unknown>[]>(() => mapCustomerIssueRecordTableRows(rows.value));
 
 const ruleSteps = computed(() => ruleExplanation.value?.flowSteps ?? []);
 const ruleFirstCount = computed(() => ruleSteps.value[0]?.inputCount ?? 0);
@@ -463,14 +536,6 @@ function buildDelayFlags(row: CustomerIssueRecordRowResponse) {
   if (row.responseDelayed) flags.push({ label: '响应延期', type: 'danger' as const });
   if (row.resolveDelayed) flags.push({ label: '解决延期', type: 'danger' as const });
   return flags;
-}
-
-function normalizeIssueState(value: string) {
-  return value === 'closed' ? '已关闭' : value === 'opened' ? '未关闭' : value || '-';
-}
-
-function formatDateTime(value?: string | null) {
-  return value ? value.replace('T', ' ').slice(0, 19) : '-';
 }
 
 function createFallbackRuleExplanation(reason: string): StatisticBoardRuleExplanationResponse {
@@ -506,17 +571,30 @@ function buildCurrentQueryParams(includePagination: boolean) {
     projectName: String(route.query.projectName ?? ''),
     moduleName: String(route.query.moduleName ?? ''),
     functionName: String(route.query.functionName ?? ''),
+    ...(!isDelayTopic.value ? { customerName: String(route.query.customerName ?? '') } : {}),
     reasonCategory: String(route.query.reasonCategory ?? ''),
     authorName: String(route.query.authorName ?? ''),
+    ...(!isDelayTopic.value ? { handlerName: String(route.query.handlerName ?? '') } : {}),
     assigneeName: String(route.query.assigneeName ?? ''),
+    ...(!isDelayTopic.value
+      ? {
+        testingPhase: String(route.query.testingPhase ?? ''),
+        fixUser: String(route.query.fixUser ?? ''),
+        delayCause: String(route.query.delayCause ?? ''),
+      }
+      : {}),
     severityLevel: String(route.query.severityLevel ?? ''),
     priorityLevel: String(route.query.priorityLevel ?? ''),
     issueState: String(route.query.issueState ?? ''),
     bugStatus: String(route.query.bugStatus ?? ''),
     category: String(route.query.category ?? ''),
     milestoneTitle: String(route.query.milestoneTitle ?? ''),
-    createdAtStart: String(route.query.createdAtStart ?? ''),
-    createdAtEnd: String(route.query.createdAtEnd ?? ''),
+    ...(isDelayTopic.value
+      ? {
+        createdAtStart: String(route.query.createdAtStart ?? ''),
+        createdAtEnd: String(route.query.createdAtEnd ?? ''),
+      }
+      : {}),
     updatedAtStart: String(route.query.updatedAtStart ?? ''),
     updatedAtEnd: String(route.query.updatedAtEnd ?? ''),
     filterGroup: buildFilterPayload(),
@@ -545,23 +623,15 @@ function customerIssueExportFilename() {
 async function handleRefreshLatestData() {
   realtimeRefreshLoading.value = true;
   try {
-    let status = await api.refreshCustomerIssueRecordRealtime(topic.value);
+    const status = await api.refreshCustomerIssueRecordRealtime(topic.value);
     ElMessage.success(status.message || '已开始刷新最新数据');
-    for (let attempt = 0; attempt < 8 && status.refreshing; attempt++) {
-      await sleep(1000);
-      status = (await loadSyncStatus()) ?? status;
-    }
+    await waitForRealtimeWorkspaceRefresh(status, loadSyncStatus);
     await Promise.all([loadFilterOptions(), loadTableData()]);
-    await loadSyncStatus();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
   } finally {
     realtimeRefreshLoading.value = false;
   }
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 bindLoader(async () => {
@@ -849,19 +919,35 @@ async function handleQuery() {
           <div class="customer-record-detail-section-title">基础信息</div>
           <el-descriptions :column="2" border size="small">
             <el-descriptions-item label="议题编号">#{{ selectedRow.issueIid }}</el-descriptions-item>
-            <el-descriptions-item label="议题状态">{{ normalizeIssueState(selectedRow.issueState) }}</el-descriptions-item>
+            <el-descriptions-item label="议题状态">{{ normalizeIssueState(selectedRow.issueState, selectedRow.closedAt) }}</el-descriptions-item>
             <el-descriptions-item label="项目">{{ selectedRow.projectName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="里程碑">{{ selectedRow.milestoneTitle || '-' }}</el-descriptions-item>
             <el-descriptions-item label="模块名">{{ selectedRow.moduleNames || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="功能名">{{ selectedRow.functionName || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="功能名称">{{ selectedRow.functionName || '-' }}</el-descriptions-item>
+            <el-descriptions-item v-if="!isDelayTopic" label="客户">{{ selectedRow.customerNames || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="测试阶段">{{ selectedRow.testingPhase || '未设定测试阶段' }}</el-descriptions-item>
             <el-descriptions-item label="缺陷原因">{{ selectedRow.reasonCategory || '未归因' }}</el-descriptions-item>
             <el-descriptions-item label="严重程度">{{ selectedRow.severityLevel || '-' }}</el-descriptions-item>
             <el-descriptions-item label="缺陷优先级">{{ selectedRow.priorityLevel || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="测试状态">{{ selectedRow.bugStatus || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="测试状态">
+              <IssueStatusTags :value="selectedRow.bugStatus" />
+            </el-descriptions-item>
             <el-descriptions-item label="议题类别">{{ selectedRow.category || '-' }}</el-descriptions-item>
             <el-descriptions-item label="议题提交人">{{ selectedRow.authorName || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="议题处理人">{{ selectedRow.assigneeName || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="议题处理人">{{ selectedRow.handlerName || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="议题指派人">{{ selectedRow.assigneeName || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="延期原因">{{ selectedRow.delayCause || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="缺陷修复人">{{ selectedRow.fixUser || '-' }}</el-descriptions-item>
             <el-descriptions-item label="提交时间">{{ formatDateTime(selectedRow.createdAt) }}</el-descriptions-item>
+            <el-descriptions-item v-if="!isDelayTopic" label="缺陷滞留时长（小时）">
+              {{ selectedRow.retentionHours == null ? '-' : selectedRow.retentionHours }}
+            </el-descriptions-item>
+            <el-descriptions-item v-if="!isDelayTopic" label="计划解决时间">
+              {{ selectedRow.plannedResolutionText || formatDateTime(selectedRow.plannedResolutionAt) }}
+            </el-descriptions-item>
+            <el-descriptions-item v-if="!isDelayTopic" label="计划合并版本分支">
+              {{ selectedRow.plannedMergeVersionBranch || '-' }}
+            </el-descriptions-item>
             <el-descriptions-item label="更新时间">{{ formatDateTime(selectedRow.updatedAt) }}</el-descriptions-item>
             <el-descriptions-item label="关闭时间">{{ formatDateTime(selectedRow.closedAt) }}</el-descriptions-item>
           </el-descriptions>

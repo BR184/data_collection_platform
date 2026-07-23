@@ -4,118 +4,114 @@ import com.data.collection.platform.entity.CustomerIssueRecordRowResponse;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Map;
 
 /**
- * Strongly typed projection of the old platform {@code ProjectIssueInfoExcelBo} contract.
- * Page-facing display values intentionally stay outside this projection.
+ * CC_PRODUCT 议题 Excel 的展示投影。
+ *
+ * <p>导出只消费记录页响应中的事实字段，禁止重新解析标签或标题，确保 Excel 与页面使用同一数据来源。</p>
  */
 record CcProductIssueWorkbookRow(
-    String updatedDate,
-    String submissionDate,
-    String moduleName,
     String issueReference,
+    String moduleName,
+    String functionName,
     String issueTitle,
+    String customerNames,
     String author,
     String handler,
-    String status,
+    String assignee,
+    String issueState,
     String bugStatus,
     String testingPhase,
     String severityLevel,
+    String priorityLevel,
     String category,
     String milestone,
-    String assignee,
-    String urgency,
     String delayCause,
     String fixUser,
-    String functionName) {
+    String plannedResolutionTime,
+    String plannedMergeVersionBranch,
+    String submissionDate,
+    String retentionHours,
+    String updatedDate) {
 
   static final List<String> HEADERS =
       List.of(
-          "议题更新时间",
-          "议题提交时间",
-          "模块名",
           "议题编号",
+          "模块名",
+          "功能名称",
           "议题标题",
+          "客户",
           "议题提交人",
           "议题处理人",
+          "议题指派人",
           "议题状态",
           "测试状态",
           "测试阶段",
-          "议题严重程度",
+          "严重程度",
+          "缺陷优先级",
           "议题类别",
           "里程碑",
-          "议题指派人",
-          "优先级",
           "延期原因",
           "缺陷修复人",
-          "功能名称");
+          "计划解决时间",
+          "计划合并版本分支",
+          "提交时间",
+          "缺陷滞留时长（小时）",
+          "更新时间");
 
-  private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+  private static final DateTimeFormatter DATE_FORMATTER =
+      DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
   static CcProductIssueWorkbookRow from(CustomerIssueRecordRowResponse row) {
-    List<String> labels = row.labels() == null ? List.of() : row.labels();
-    Map<String, List<String>> oldPlatformLabels =
-        IssueLabelRules.parseOldPlatformChineseColonLabelMap(labels);
     return new CcProductIssueWorkbookRow(
-        date(row.updatedAt()),
-        date(row.createdAt()),
-        IssueLabelRules.oldPlatformCombinedIssueModuleName(labels),
         issueReference(row.issueIid()),
+        text(row.moduleNames()),
+        text(row.functionName()),
         text(row.title()),
+        text(row.customerNames()),
         text(row.authorName()),
+        text(row.handlerName()),
         text(row.assigneeName()),
-        issueState(row.issueState()),
-        IssueLabelRules.oldPlatformLabelValue(oldPlatformLabels, "状态", "未设定议题状态"),
-        IssueLabelRules.oldPlatformLabelValue(oldPlatformLabels, "测试阶段", "未设定测试阶段"),
-        IssueLabelRules.oldPlatformLabelValue(oldPlatformLabels, "严重程度", "未设定严重程度"),
-        IssueLabelRules.oldPlatformLabelValue(oldPlatformLabels, "类别", "未设定类别"),
+        CustomerIssueRecordWorkbookExportSupport.displayIssueState(row.issueState(), row.closedAt()),
+        text(row.bugStatus()),
+        text(row.testingPhase()),
+        text(row.severityLevel()),
+        text(row.priorityLevel()),
+        text(row.category()),
         text(row.milestoneTitle()),
-        text(row.assigneeName()),
-        IssueLabelRules.oldPlatformLabelValue(oldPlatformLabels, "紧急程度", "未设定紧急程度"),
-        IssueLabelRules.oldPlatformLabelValue(oldPlatformLabels, "延期原因", "未设定类别"),
+        text(row.delayCause()),
         text(row.fixUser()),
-        functionName(row.title()));
+        text(row.plannedResolutionText()),
+        text(row.plannedMergeVersionBranch()),
+        date(row.createdAt()),
+        number(row.retentionHours()),
+        date(row.updatedAt()));
   }
 
   List<String> values() {
     return List.of(
-        updatedDate,
-        submissionDate,
-        moduleName,
         issueReference,
+        moduleName,
+        functionName,
         issueTitle,
+        customerNames,
         author,
         handler,
-        status,
+        assignee,
+        issueState,
         bugStatus,
         testingPhase,
         severityLevel,
+        priorityLevel,
         category,
         milestone,
-        assignee,
-        urgency,
         delayCause,
         fixUser,
-        functionName);
-  }
-
-  private static String issueState(String state) {
-    if ("closed".equalsIgnoreCase(state)) {
-      return "CLOSED";
-    }
-    if ("opened".equalsIgnoreCase(state) || "open".equalsIgnoreCase(state)) {
-      return "OPEN";
-    }
-    return text(state);
-  }
-
-  private static String functionName(String title) {
-    if (title == null || !title.startsWith("【")) {
-      return "";
-    }
-    int endIndex = title.indexOf("】");
-    return endIndex < 0 ? "" : title.substring(1, endIndex);
+        plannedResolutionTime,
+        plannedMergeVersionBranch,
+        submissionDate,
+        retentionHours,
+        updatedDate);
   }
 
   private static String issueReference(Integer iid) {
@@ -128,5 +124,9 @@ record CcProductIssueWorkbookRow(
 
   private static String text(String value) {
     return value == null ? "" : value;
+  }
+
+  private static String number(Long value) {
+    return value == null ? "" : String.valueOf(value);
   }
 }

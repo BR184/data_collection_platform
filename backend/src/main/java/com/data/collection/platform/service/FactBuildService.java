@@ -5,7 +5,6 @@ import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.IssueFact;
 import com.data.collection.platform.entity.MergeRequestFact;
-import com.data.collection.platform.mapper.IssueFactMapper;
 import com.data.collection.platform.mapper.MergeRequestFactMapper;
 import com.data.collection.platform.service.ModuleDictionaryService.ModuleDictionary;
 import java.math.BigDecimal;
@@ -38,11 +37,13 @@ public class FactBuildService {
   private static final String MIRROR_INGEST_CHANNEL = "MIRROR";
   private static final int FACT_BATCH_SIZE = 200;
   private static final int SEARCH_INDEX_REPAIR_LIMIT = 1000;
+  private static final int MISSING_ISSUE_FACT_RECONCILIATION_LIMIT = 1000;
   private static final List<String> RESOURCE_LABEL_EVENT_REQUIRED_COLUMNS =
       List.of("resource_type", "resource_id", "label_id", "action", "created_at", "mirror_deleted");
 
   private final JdbcTemplate jdbcTemplate;
-  private final IssueFactMapper issueFactMapper;
+  private final IssueFactPersistenceService issueFactPersistenceService;
+  private final IssueCustomerNameAliasService issueCustomerNameAliasService;
   private final MergeRequestFactMapper mergeRequestFactMapper;
   private final ModuleDictionaryService moduleDictionaryService;
   private final FactBuildTaskService factBuildTaskService;
@@ -55,7 +56,8 @@ public class FactBuildService {
 
   public FactBuildService(
       JdbcTemplate jdbcTemplate,
-      IssueFactMapper issueFactMapper,
+      IssueFactPersistenceService issueFactPersistenceService,
+      IssueCustomerNameAliasService issueCustomerNameAliasService,
       MergeRequestFactMapper mergeRequestFactMapper,
       ModuleDictionaryService moduleDictionaryService,
       FactBuildTaskService factBuildTaskService,
@@ -64,7 +66,8 @@ public class FactBuildService {
       GitlabConfigService configService,
       IntegrationTestFactBuildService integrationTestFactBuildService) {
     this.jdbcTemplate = jdbcTemplate;
-    this.issueFactMapper = issueFactMapper;
+    this.issueFactPersistenceService = issueFactPersistenceService;
+    this.issueCustomerNameAliasService = issueCustomerNameAliasService;
     this.mergeRequestFactMapper = mergeRequestFactMapper;
     this.moduleDictionaryService = moduleDictionaryService;
     this.factBuildTaskService = factBuildTaskService;
@@ -87,12 +90,31 @@ public class FactBuildService {
   }
 
   public FactBuildResponse rebuildAllFactsForConfig(GitlabSyncConfig config, boolean full) {
+    return rebuildAllFactsForConfig(config, full, null);
+  }
+
+  /**
+   * 全量重建指定数据源的全部事实层，并将构建任务关联到同步运行。
+   *
+   * <p>所有 ODS 源表及字段会在任一事实表写入前统一校验，避免缺表时出现部分更新。
+   *
+   * @param config 已保存的数据源配置
+   * @param full 是否从完整 ODS 快照构建
+   * @param syncRunId 所属同步运行编号；为空时创建独立事实构建任务
+   * @return 全部事实层的聚合构建结果
+   */
+  public FactBuildResponse rebuildAllFactsForConfig(
+      GitlabSyncConfig config, boolean full, Long syncRunId) {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     return factBuildTaskService.runGuarded(
-        factScope("all", sourceInstance), full, () -> rebuildAllFactsInternal(full, sourceInstance));
+        factScope("all", sourceInstance),
+        full,
+        syncRunId,
+        () -> rebuildAllFactsInternal(full, sourceInstance));
   }
 
   private FactBuildResponse rebuildAllFactsInternal(boolean full, String sourceInstance) {
+    sourceSchemaGuard.verifyAllFactSources(sourceInstance);
     FactBuildResponse issue = rebuildIssueFactsInternal(full, sourceInstance);
     FactBuildResponse mergeRequest = rebuildMergeRequestFactsInternal(full, sourceInstance);
     FactBuildResponse integrationTest =
@@ -138,8 +160,10 @@ public class FactBuildService {
     sourceSchemaGuard.verifyIssueFactSource(normalizedSource);
     Map<PhaseCalendarKey, PhaseCalendarEntry> calendar = loadPhaseCalendar();
     ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
+    Map<String, String> customerNameAliases = issueCustomerNameAliasService.loadAliases();
     List<IssueFact> facts =
-        loadSingleIssueFacts(normalizedSource, projectId, issueIid, calendar, moduleDictionary);
+        loadSingleIssueFacts(
+            normalizedSource, projectId, issueIid, calendar, moduleDictionary, customerNameAliases);
     batchUpsertIssueFacts(facts);
     return new FactBuildResponse(
         factScope("issue", normalizedSource),
@@ -159,7 +183,10 @@ public class FactBuildService {
     sourceSchemaGuard.verifyIssueFactSource(normalizedSource);
     Map<PhaseCalendarKey, PhaseCalendarEntry> calendar = loadPhaseCalendar();
     ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
-    List<IssueFact> facts = loadIssueFactsByTargets(normalizedSource, safeTargets, calendar, moduleDictionary);
+    Map<String, String> customerNameAliases = issueCustomerNameAliasService.loadAliases();
+    List<IssueFact> facts =
+        loadIssueFactsByTargets(
+            normalizedSource, safeTargets, calendar, moduleDictionary, customerNameAliases);
     batchUpsertIssueFacts(facts);
     return new FactBuildResponse(
         factScope("issue", normalizedSource),
@@ -168,13 +195,60 @@ public class FactBuildService {
         "议题事实已按受影响对象刷新");
   }
 
+  /**
+   * 补齐当前镜像源中尚未落入事实层的议题。
+   *
+   * <p>该补偿只处理 ODS 仍有效、但没有有效 {@code issue_fact} 的议题，并按固定上限分批执行；用于
+   * 镜像零增量时修复历史事实遗漏，不替代全量事实重建。
+   *
+   * @param sourceInstance GitLab 镜像源实例；空值按默认源处理
+   * @return 本次补齐结果；受影响行数只包含实际生成的议题事实
+   */
+  public FactBuildResponse reconcileMissingIssueFacts(String sourceInstance) {
+    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    sourceSchemaGuard.verifyIssueFactSource(normalizedSource);
+    Map<PhaseCalendarKey, PhaseCalendarEntry> calendar = loadPhaseCalendar();
+    ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
+    Map<String, String> customerNameAliases = issueCustomerNameAliasService.loadAliases();
+    int processedTargets = 0;
+    int affectedRows = 0;
+
+    while (processedTargets < MISSING_ISSUE_FACT_RECONCILIATION_LIMIT) {
+      int batchLimit = Math.min(FACT_BATCH_SIZE, MISSING_ISSUE_FACT_RECONCILIATION_LIMIT - processedTargets);
+      List<FactRefreshImpactScopeService.Target> missingTargets =
+          loadMissingIssueFactTargets(normalizedSource, batchLimit);
+      if (missingTargets.isEmpty()) {
+        break;
+      }
+      List<IssueFact> facts =
+          loadIssueFactsByTargets(
+              normalizedSource, missingTargets, calendar, moduleDictionary, customerNameAliases);
+      if (facts.isEmpty()) {
+        break;
+      }
+      batchUpsertIssueFacts(facts);
+      processedTargets += missingTargets.size();
+      affectedRows += facts.size();
+    }
+
+    String message = affectedRows == 0
+        ? "议题事实完整性校验完成，未发现缺失数据"
+        : "已补齐 " + affectedRows + " 条缺失议题事实";
+    if (processedTargets >= MISSING_ISSUE_FACT_RECONCILIATION_LIMIT) {
+      message += "；已达到本次补偿上限，后续刷新将继续补齐";
+    }
+    return new FactBuildResponse(factScope("issue", normalizedSource), false, affectedRows, message);
+  }
+
   private FactBuildResponse rebuildIssueFactsInternal(boolean full, String sourceInstance) {
     sourceSchemaGuard.verifyIssueFactSource(sourceInstance);
     LocalDateTime changedSince = full ? null : getIssueFactChangedSince(sourceInstance);
     try {
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar = loadPhaseCalendar();
       ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
-      List<IssueFact> facts = loadIssueFacts(sourceInstance, changedSince, calendar, moduleDictionary);
+      Map<String, String> customerNameAliases = issueCustomerNameAliasService.loadAliases();
+      List<IssueFact> facts =
+          loadIssueFacts(sourceInstance, changedSince, calendar, moduleDictionary, customerNameAliases);
       batchUpsertIssueFacts(facts);
       return new FactBuildResponse(
           factScope("issue", sourceInstance),
@@ -229,7 +303,8 @@ public class FactBuildService {
       String sourceInstance,
       LocalDateTime changedSince,
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
-      ModuleDictionary moduleDictionary) {
+      ModuleDictionary moduleDictionary,
+      Map<String, String> customerNameAliases) {
     boolean useResourceLabelEvents = hasResourceLabelEventSource();
     try {
       return queryIssueFacts(
@@ -237,7 +312,8 @@ public class FactBuildService {
           factSourceSqlProvider.issueSourceSql(useResourceLabelEvents),
           changedSince,
           calendar,
-          moduleDictionary);
+          moduleDictionary,
+          customerNameAliases);
     } catch (DataAccessException error) {
       if (!isMilestoneQueryFallbackAllowed(error)) {
         throw error;
@@ -248,7 +324,8 @@ public class FactBuildService {
           factSourceSqlProvider.issueSourceSqlFallback(useResourceLabelEvents),
           changedSince,
           calendar,
-          moduleDictionary);
+          moduleDictionary,
+          customerNameAliases);
     }
   }
 
@@ -257,7 +334,8 @@ public class FactBuildService {
       Long projectId,
       Long issueIid,
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
-      ModuleDictionary moduleDictionary) {
+      ModuleDictionary moduleDictionary,
+      Map<String, String> customerNameAliases) {
     boolean useResourceLabelEvents = hasResourceLabelEventSource();
     try {
       return queryIssueFacts(
@@ -266,7 +344,8 @@ public class FactBuildService {
           null,
           List.of(projectId, issueIid),
           calendar,
-          moduleDictionary);
+          moduleDictionary,
+          customerNameAliases);
     } catch (DataAccessException error) {
       if (!isMilestoneQueryFallbackAllowed(error)) {
         throw error;
@@ -278,7 +357,8 @@ public class FactBuildService {
           null,
           List.of(projectId, issueIid),
           calendar,
-          moduleDictionary);
+          moduleDictionary,
+          customerNameAliases);
     }
   }
 
@@ -286,7 +366,8 @@ public class FactBuildService {
       String sourceInstance,
       List<FactRefreshImpactScopeService.Target> targets,
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
-      ModuleDictionary moduleDictionary) {
+      ModuleDictionary moduleDictionary,
+      Map<String, String> customerNameAliases) {
     String predicate = buildIssueTargetPredicate(targets);
     List<Object> args = targetArgs(targets);
     boolean useResourceLabelEvents = hasResourceLabelEventSource();
@@ -297,7 +378,8 @@ public class FactBuildService {
           null,
           args,
           calendar,
-          moduleDictionary);
+          moduleDictionary,
+          customerNameAliases);
     } catch (DataAccessException error) {
       if (!isMilestoneQueryFallbackAllowed(error)) {
         throw error;
@@ -309,8 +391,36 @@ public class FactBuildService {
           null,
           args,
           calendar,
-          moduleDictionary);
+          moduleDictionary,
+          customerNameAliases);
     }
+  }
+
+  private List<FactRefreshImpactScopeService.Target> loadMissingIssueFactTargets(
+      String sourceInstance, int limit) {
+    return jdbcTemplate.query(
+        """
+        select i.project_id, i.iid
+          from ods_gitlab_issues i
+         where coalesce(i.mirror_deleted, false) = false
+           and i.project_id is not null
+           and i.iid is not null
+           and not exists (
+                 select 1
+                   from issue_fact f
+                  where f.source_system = ?
+                    and f.source_instance = ?
+                    and f.project_id = i.project_id
+                    and f.issue_id = i.id
+                    and coalesce(f.deleted, false) = false
+           )
+         order by coalesce(i.updated_at, i.created_at) asc nulls first, i.id asc
+         limit ?
+        """,
+        (rs, rowNum) -> new FactRefreshImpactScopeService.Target(rs.getLong("project_id"), rs.getLong("iid")),
+        DEFAULT_SOURCE_SYSTEM,
+        sourceInstance,
+        Math.max(1, limit));
   }
 
   private List<IssueFact> queryIssueFacts(
@@ -318,8 +428,10 @@ public class FactBuildService {
       String baseSql,
       LocalDateTime changedSince,
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
-      ModuleDictionary moduleDictionary) {
-    return queryIssueFacts(sourceInstance, baseSql, changedSince, List.of(), calendar, moduleDictionary);
+      ModuleDictionary moduleDictionary,
+      Map<String, String> customerNameAliases) {
+    return queryIssueFacts(
+        sourceInstance, baseSql, changedSince, List.of(), calendar, moduleDictionary, customerNameAliases);
   }
 
   private List<IssueFact> queryIssueFacts(
@@ -328,7 +440,8 @@ public class FactBuildService {
       LocalDateTime changedSince,
       List<Object> extraArgs,
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
-      ModuleDictionary moduleDictionary) {
+      ModuleDictionary moduleDictionary,
+      Map<String, String> customerNameAliases) {
     return factSourceQueryExecutor.query(
         "issue-fact-source-query",
         sourceInstance,
@@ -336,7 +449,8 @@ public class FactBuildService {
         "and coalesce(i.updated_at, i.created_at) > ?",
         changedSince,
         extraArgs,
-        (rs, rowNum) -> mapIssueFact(rs, sourceInstance, calendar, moduleDictionary));
+        (rs, rowNum) ->
+            mapIssueFact(rs, sourceInstance, calendar, moduleDictionary, customerNameAliases));
   }
 
   private boolean isMilestoneQueryFallbackAllowed(DataAccessException error) {
@@ -530,12 +644,14 @@ public class FactBuildService {
                    title,
                    project_name,
                    module_names,
+                   customer_names,
                    testing_phase,
                    system_test_label,
                    label_names,
                    reason_category,
                    illegal_reason,
                    author_name,
+                   handler_name,
                    assignee_name,
                    bug_status,
                    category,
@@ -565,12 +681,14 @@ public class FactBuildService {
           fact.setTitle(defaultText(rs.getString("title")));
           fact.setProjectName(defaultText(rs.getString("project_name")));
           fact.setModuleNames(defaultText(rs.getString("module_names")));
+          fact.setCustomerNames(defaultText(rs.getString("customer_names")));
           fact.setTestingPhase(defaultText(rs.getString("testing_phase")));
           fact.setSystemTestLabel(defaultText(rs.getString("system_test_label")));
           fact.setLabelNames(defaultText(rs.getString("label_names")));
           fact.setReasonCategory(defaultText(rs.getString("reason_category")));
           fact.setIllegalReason(defaultText(rs.getString("illegal_reason")));
           fact.setAuthorName(defaultText(rs.getString("author_name")));
+          fact.setHandlerName(defaultText(rs.getString("handler_name")));
           fact.setAssigneeName(defaultText(rs.getString("assignee_name")));
           fact.setBugStatus(defaultText(rs.getString("bug_status")));
           fact.setCategory(defaultText(rs.getString("category")));
@@ -705,6 +823,7 @@ public class FactBuildService {
           fact.setIssueType(defaultText(rs.getString("issue_type")));
           fact.setMilestoneTitle(defaultText(rs.getString("milestone_title")));
           fact.setAuthorName(defaultText(rs.getString("author_name")));
+          fact.setHandlerName(defaultText(rs.getString("handler_name")));
           fact.setAssigneeName(defaultText(rs.getString("assignee_name")));
           fact.setCreatedAtSource(toLocalDateTime(rs.getTimestamp("created_at_source")));
           fact.setUpdatedAtSource(toLocalDateTime(rs.getTimestamp("updated_at_source")));
@@ -713,6 +832,7 @@ public class FactBuildService {
           fact.setModuleName(defaultText(rs.getString("module_name"), null));
           fact.setPrimaryModuleName(defaultText(rs.getString("primary_module_name"), null));
           fact.setModuleNames(defaultText(rs.getString("module_names")));
+          fact.setCustomerNames(defaultText(rs.getString("customer_names")));
           fact.setFunctionName(defaultText(rs.getString("function_name")));
           fact.setTestingPhase(defaultText(rs.getString("testing_phase")));
           fact.setSeverityLevel(defaultText(rs.getString("severity_level")));
@@ -742,6 +862,10 @@ public class FactBuildService {
           fact.setResponseDelayed(rs.getBoolean("is_response_delayed"));
           fact.setResolveSlaDays(rs.getInt("resolve_sla_days"));
           fact.setResolveDeadlineAt(toLocalDateTime(rs.getTimestamp("resolve_deadline_at")));
+          fact.setPlannedResolutionAt(toLocalDateTime(rs.getTimestamp("planned_resolution_at")));
+          fact.setPlannedResolutionText(defaultText(rs.getString("planned_resolution_text")));
+          fact.setPlannedMergeVersionBranch(
+              defaultText(rs.getString("planned_merge_version_branch")));
           fact.setFixedLabelTime(toLocalDateTime(rs.getTimestamp("fixed_label_time")));
           fact.setResolveDelayed(rs.getBoolean("is_resolve_delayed"));
           fact.setLegacy(rs.getBoolean("is_legacy"));
@@ -778,25 +902,37 @@ public class FactBuildService {
       ResultSet rs,
       String sourceInstance,
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
-      ModuleDictionary moduleDictionary) throws SQLException {
+      ModuleDictionary moduleDictionary,
+      Map<String, String> customerNameAliases) throws SQLException {
     List<String> labels = readTextArray(rs.getArray("label_titles"));
     String title = defaultText(rs.getString("title"));
+    String description = defaultText(rs.getString("description"));
     String notesText = defaultText(rs.getString("notes_text"), "");
     boolean closed = isClosed(rs);
     LocalDateTime createdAt = toLocalDateTime(rs.getTimestamp("created_at"));
+    long projectId = rs.getLong("project_id");
+    String projectName = rs.getString("project_name");
+    boolean customerProject =
+        CustomerIssueScopeRules.isCustomerProject(projectId, projectName);
     String testingPhase = IssueFactNormalizationRules.normalizeTestingPhase(labels);
     List<String> moduleNames =
         moduleDictionary.normalizeIssueModules(
-            rs.getLong("project_id"),
+            projectId,
             IssueFactNormalizationRules.normalizeModuleNames(labels));
     String severityLevel = IssueFactNormalizationRules.normalizeSeverityLevel(labels);
     String priorityLevel = IssueFactNormalizationRules.normalizePriorityLevel(labels);
     int resolveSlaDays = IssueFactNormalizationRules.resolveSlaDays(notesText);
     LocalDateTime resolveDeadlineAt = IssueFactNormalizationRules.resolveDeadline(createdAt, notesText);
-    PhaseCalendarEntry phaseCalendar = calendar.get(new PhaseCalendarKey(rs.getLong("project_id"), normalizeKey(testingPhase)));
-    boolean customerIssue = isCustomerIssueIssueFact(labels, rs.getLong("project_id"), rs.getString("project_name"), createdAt);
+    PhaseCalendarEntry phaseCalendar = calendar.get(new PhaseCalendarKey(projectId, normalizeKey(testingPhase)));
+    boolean customerIssue = isCustomerIssueIssueFact(labels, projectId, projectName, createdAt);
     boolean openCustomerIssue = customerIssue && !closed;
     LocalDateTime now = currentGitlabSourceTime();
+    List<String> customerNames =
+        customerProject
+            ? IssueCustomerNameParser.parse(description, title, customerNameAliases)
+            : List.of();
+    IssueResponseTemplate responseTemplate =
+        customerProject ? IssueResponseTemplateParser.parse(notesText) : IssueResponseTemplate.empty();
 
     IssueFact fact = new IssueFact();
     fact.setSourceSystem(DEFAULT_SOURCE_SYSTEM);
@@ -804,14 +940,15 @@ public class FactBuildService {
     fact.setIngestChannel(MIRROR_INGEST_CHANNEL);
     fact.setSourceSummary("GitLab issue 镜像聚合");
     fact.setRawPayload(notesText);
-    fact.setProjectId(rs.getLong("project_id"));
-    fact.setProjectName(defaultText(rs.getString("project_name")));
+    fact.setProjectId(projectId);
+    fact.setProjectName(defaultText(projectName));
     fact.setIssueId(rs.getLong("issue_id"));
     fact.setIssueIid(rs.getLong("issue_iid"));
     fact.setTitle(title);
     fact.setIssueState(closed ? "closed" : "opened");
     fact.setMilestoneTitle(defaultText(rs.getString("milestone_title")));
     fact.setAuthorName(defaultText(rs.getString("author_name")));
+    fact.setHandlerName(defaultText(rs.getString("handler_name")));
     fact.setAssigneeName(defaultText(rs.getString("assignee_names")));
     fact.setFixUser(defaultText(rs.getString("fix_user")));
     fact.setCreatedAtSource(createdAt);
@@ -822,6 +959,7 @@ public class FactBuildService {
     fact.setPrimaryModuleName(moduleNames.isEmpty() ? null : moduleNames.get(0));
     fact.setModuleNames(String.join(", ", moduleNames));
     fact.setFunctionName(IssueFactNormalizationRules.normalizeFunctionName(title));
+    fact.setCustomerNames(String.join(", ", customerNames));
     fact.setTestingPhase(testingPhase);
     fact.setSeverityLevel(severityLevel);
     fact.setSeverityAlias(IssueFactNormalizationRules.normalizeSeverityAlias(labels));
@@ -865,6 +1003,9 @@ public class FactBuildService {
     fact.setResponseDelayed(responseDelayed);
     fact.setResolveSlaDays(resolveSlaDays);
     fact.setResolveDeadlineAt(resolveDeadlineAt);
+    fact.setPlannedResolutionAt(responseTemplate.plannedResolutionAt());
+    fact.setPlannedResolutionText(responseTemplate.plannedResolutionText());
+    fact.setPlannedMergeVersionBranch(responseTemplate.plannedMergeVersionBranch());
     fact.setFixedLabelTime(
         Boolean.TRUE.equals(fact.getFixed())
             && StringUtils.hasText(fact.getBugStatus())
@@ -1064,7 +1205,7 @@ public class FactBuildService {
 
   private void batchUpsertIssueFacts(List<IssueFact> facts) {
     for (List<IssueFact> batch : partition(facts, FACT_BATCH_SIZE)) {
-      issueFactMapper.batchUpsert(batch);
+      issueFactPersistenceService.upsertIssueFacts(batch);
       refreshIssueFactSearchIndexes(batch);
     }
   }

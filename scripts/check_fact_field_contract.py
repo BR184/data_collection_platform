@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_SQL = ROOT / "backend/src/main/resources/schema.sql"
 MIGRATION_DIR = ROOT / "backend/src/main/resources/db/migration"
-CONTRACT_DOC = ROOT / "docs/fact-field-contract.md"
+CONTRACT_DOC = ROOT / "scripts/contracts/fact-field-contract.md"
 
 
 FIELD_FAMILIES = {
@@ -231,7 +231,7 @@ def check_columns(label: str, columns: dict[str, set[str]]) -> bool:
 def check_doc() -> bool:
     text = CONTRACT_DOC.read_text(encoding="utf-8")
     missing = [token for token in REQUIRED_DOC_TOKENS if token not in text]
-    print(f"fact-field-contract doc: tokens={len(REQUIRED_DOC_TOKENS)} missing={len(missing)}")
+    print(f"fact-field contract: tokens={len(REQUIRED_DOC_TOKENS)} missing={len(missing)}")
     for token in missing:
         print(f"  MISSING {token}")
     return not missing

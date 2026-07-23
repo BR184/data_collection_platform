@@ -20,8 +20,13 @@ public class CustomerIssueRequestAssembler {
         listRequestAssembler.toServiceRequest(request),
         request.getReasonCategory(),
         request.getAuthorName(),
+        request.getHandlerName(),
         request.getAssigneeName(),
-        request.getFilterGroup());
+        request.getTestingPhase(),
+        request.getFixUser(),
+        request.getDelayCause(),
+        request.getFilterGroup(),
+        request.getCustomerName());
   }
 
   public CustomerIssueIllegalRecordQueryRequest toIllegalRecordQueryRequest(

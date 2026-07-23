@@ -17,13 +17,25 @@ final class IssueFactFilterGroupSqlSupport {
   }
 
   static Optional<SqlPredicate> toSql(StatisticFilterGroup filterGroup, boolean useFullTestingPhase) {
+    return toSql(filterGroup, useFullTestingPhase, false);
+  }
+
+  static Optional<SqlPredicate> toCustomerIssueSql(StatisticFilterGroup filterGroup) {
+    return toSql(filterGroup, true, true);
+  }
+
+  private static Optional<SqlPredicate> toSql(
+      StatisticFilterGroup filterGroup,
+      boolean useFullTestingPhase,
+      boolean useFactDelayCause) {
     if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
       return Optional.of(new SqlPredicate("", List.of()));
     }
     List<String> predicates = new ArrayList<>();
     List<Object> args = new ArrayList<>();
     for (StatisticFilterCondition condition : filterGroup.conditions()) {
-      Optional<SqlPredicate> conditionSql = conditionToSql(condition, useFullTestingPhase);
+      Optional<SqlPredicate> conditionSql =
+          conditionToSql(condition, useFullTestingPhase, useFactDelayCause);
       if (conditionSql.isEmpty()) {
         return Optional.empty();
       }
@@ -35,7 +47,9 @@ final class IssueFactFilterGroupSqlSupport {
   }
 
   private static Optional<SqlPredicate> conditionToSql(
-      StatisticFilterCondition condition, boolean useFullTestingPhase) {
+      StatisticFilterCondition condition,
+      boolean useFullTestingPhase,
+      boolean useFactDelayCause) {
     if (condition == null) {
       return Optional.empty();
     }
@@ -43,24 +57,37 @@ final class IssueFactFilterGroupSqlSupport {
       case "keyword" -> keywordCondition(condition);
       case "issueIid" -> issueIidCondition(condition);
       case "title" -> titleCondition(condition);
+      case "customerName" -> IssueCustomerMembershipSqlSupport.condition(condition);
       case "projectName" -> textCondition("project_name", condition);
       case "moduleName" -> moduleCondition(condition);
-      case "functionName" -> textCondition("function_name", condition);
+      case "functionName" -> searchableTextCondition("function_name", condition);
       case "testingPhase" -> phaseCondition(condition, useFullTestingPhase);
       case "reasonCategory" -> textCondition("reason_category", condition);
+      case "fixUser" -> searchableTextCondition("fix_user", condition);
+      case "delayCause" ->
+          useFactDelayCause ? searchableTextCondition("delay_cause", condition) : Optional.empty();
       case "illegalReason" -> illegalReasonCondition(condition);
       case "severityLevel" -> textCondition("severity_level", condition);
       case "priorityLevel" -> textCondition("priority_level", condition);
       case "issueState" -> textCondition("issue_state", condition);
-      case "bugStatus" -> textCondition("bug_status", condition);
+      case "bugStatus" -> bugStatusCondition(condition);
       case "category" -> textCondition("category", condition);
       case "milestoneTitle" -> milestoneCondition(condition);
       case "authorName" -> authorCondition(condition);
+      case "handlerName" -> handlerCondition(condition);
       case "assigneeName" -> assigneeCondition(condition);
       case "createdAt" -> dateTimeCondition("created_at_source", condition);
       case "updatedAt" -> dateTimeCondition("updated_at_source", condition);
       default -> Optional.empty();
     };
+  }
+
+  private static Optional<SqlPredicate> searchableTextCondition(
+      String column, StatisticFilterCondition condition) {
+    if ("contains".equals(condition.operator()) || "notContains".equals(condition.operator())) {
+      return containsTextCondition(column, condition);
+    }
+    return textCondition(column, condition);
   }
 
   private static Optional<SqlPredicate> keywordCondition(StatisticFilterCondition condition) {
@@ -114,6 +141,9 @@ final class IssueFactFilterGroupSqlSupport {
 
   private static Optional<SqlPredicate> phaseCondition(
       StatisticFilterCondition condition, boolean useFullTestingPhase) {
+    if (CustomerIssueTestingPhaseSupport.isUnspecifiedFilter(condition.value())) {
+      return unspecifiedTestingPhaseCondition(condition);
+    }
     if ("RESOLVED_LITERAL_SET".equalsIgnoreCase(condition.valueType())) {
       return resolvedLiteralSetCondition(useFullTestingPhase ? "testing_phase" : "phase_filter_value", condition);
     }
@@ -126,6 +156,16 @@ final class IssueFactFilterGroupSqlSupport {
           condition);
     }
     return textCondition(useFullTestingPhase ? "testing_phase" : "phase_filter_value", condition);
+  }
+
+  private static Optional<SqlPredicate> unspecifiedTestingPhaseCondition(
+      StatisticFilterCondition condition) {
+    String emptyPredicate = "nullif(btrim(coalesce(testing_phase, '')), '') is null";
+    return switch (condition.operator()) {
+      case "eq", "contains" -> Optional.of(new SqlPredicate(emptyPredicate, List.of()));
+      case "ne", "notContains" -> Optional.of(new SqlPredicate("not (" + emptyPredicate + ")", List.of()));
+      default -> Optional.empty();
+    };
   }
 
   private static Optional<SqlPredicate> resolvedLiteralSetCondition(
@@ -170,6 +210,10 @@ final class IssueFactFilterGroupSqlSupport {
           condition);
     }
     return textCondition("author_name", condition);
+  }
+
+  private static Optional<SqlPredicate> handlerCondition(StatisticFilterCondition condition) {
+    return searchableTextCondition("handler_name", condition);
   }
 
   private static Optional<SqlPredicate> assigneeCondition(StatisticFilterCondition condition) {
@@ -246,6 +290,28 @@ final class IssueFactFilterGroupSqlSupport {
           new SqlPredicate("nullif(btrim(coalesce(" + column + ", '')), '') is not null", List.of()));
       default -> Optional.empty();
     };
+  }
+
+  private static Optional<SqlPredicate> bugStatusCondition(StatisticFilterCondition condition) {
+    if (condition.usesLabelGroup()) {
+      return Optional.of(
+          switch (condition.operator()) {
+            case "partialContainsAny" ->
+                IssueStatusMemberSqlSupport.matchesPartialAny(condition.values());
+            case "notIntersects" -> IssueStatusMemberSqlSupport.notMatchesAny(condition.values());
+            case "containsAll" -> IssueStatusMemberSqlSupport.matchesAll(condition.values());
+            case "notContainsAll" -> IssueStatusMemberSqlSupport.notMatchesAll(condition.values());
+            default -> IssueStatusMemberSqlSupport.matchesAny(condition.values());
+          });
+    }
+    return Optional.of(
+        switch (condition.operator()) {
+          case "eq" -> IssueStatusMemberSqlSupport.matches(condition.value());
+          case "ne" -> IssueStatusMemberSqlSupport.notMatches(condition.value());
+          case "isEmpty" -> IssueStatusMemberSqlSupport.isEmpty();
+          case "isNotEmpty" -> IssueStatusMemberSqlSupport.isNotEmpty();
+          default -> falsePredicate();
+        });
   }
 
   private static Optional<SqlPredicate> labelGroupTextCondition(

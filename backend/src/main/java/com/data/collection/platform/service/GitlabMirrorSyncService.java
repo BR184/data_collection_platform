@@ -145,6 +145,52 @@ public class GitlabMirrorSyncService {
         submission.message());
   }
 
+  /**
+   * 提交当前数据源可执行的页面相关源表刷新，并返回无法增量刷新的可选依赖表。
+   *
+   * <p>页面刷新可以包含补充字段依赖；该类依赖未初始化时不应阻断已经具备基线的核心表刷新。
+   * 显式单表刷新继续使用 {@link #refreshTablesOnDemandDetailed(List, String)}，保留严格失败语义。</p>
+   */
+  public OnDemandRefreshResult refreshAvailableTablesOnDemandDetailed(
+      List<String> sourceTableNames,
+      String reason,
+      String sourcePageKey,
+      String triggerSurface) {
+    GitlabSyncConfig config = resolveConfig(null);
+    List<String> requestedTables = normalizeRequestedTables(sourceTableNames);
+    List<String> availableTables = new java.util.ArrayList<>();
+    List<String> unsupportedTables = new java.util.ArrayList<>();
+    for (String sourceTable : requestedTables) {
+      if (manualTableRefreshFailure(config, sourceTable) == null) {
+        availableTables.add(sourceTable);
+      } else {
+        unsupportedTables.add(sourceTable);
+      }
+    }
+    if (availableTables.isEmpty()) {
+      return new OnDemandRefreshResult(
+          null,
+          List.of(),
+          0,
+          unsupportedTables,
+          SyncStatus.SUCCESS,
+          "没有可提交的页面相关源表。");
+    }
+    SyncRunSubmissionResult submission =
+        syncRunSubmissionService.submitTableRefresh(
+            config,
+            availableTables,
+            reason,
+            structuredRefreshContext(sourcePageKey, triggerSurface));
+    return new OnDemandRefreshResult(
+        submission.runId(),
+        availableTables,
+        availableTables.size(),
+        unsupportedTables,
+        submission.status(),
+        submission.message());
+  }
+
   private Map<String, Object> structuredRefreshContext(String sourcePageKey, String triggerSurface) {
     java.util.LinkedHashMap<String, Object> context = new java.util.LinkedHashMap<>();
     if (!isBlank(sourcePageKey)) {
@@ -158,35 +204,39 @@ public class GitlabMirrorSyncService {
 
   private void validateManualTableRefreshBoundaries(GitlabSyncConfig config, List<String> sourceTables) {
     for (String sourceTable : sourceTables) {
-      GitlabMirrorTableRegistry registry =
-          registryMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<GitlabMirrorTableRegistry>()
-              .eq(GitlabMirrorTableRegistry::getConfigId, config.getId())
-              .eq(GitlabMirrorTableRegistry::getSourceTableName, sourceTable)
-              .eq(GitlabMirrorTableRegistry::getInitialized, true)
-              .last("limit 1"));
-      if (registry == null) {
-        throw new com.data.collection.platform.common.exception.BizException(
-            "源表未加入镜像白名单：" + sourceTable);
-      }
-      if (isBlank(registry.getPrimaryKeyColumns())) {
-        throw new com.data.collection.platform.common.exception.BizException(
-            "手动刷新表需要已识别的主键列：" + sourceTable);
-      }
-      if (isBlank(registry.getUpdatedAtColumn())) {
-        throw new com.data.collection.platform.common.exception.BizException(
-            "手动刷新表需要 updated_at 列：" + sourceTable);
-      }
-      SyncRunTableState state =
-          tableStateMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SyncRunTableState>()
-              .eq(SyncRunTableState::getConfigId, config.getId())
-              .eq(SyncRunTableState::getSourceInstance, GitlabSourceInstanceSupport.sourceInstanceOf(config))
-              .eq(SyncRunTableState::getSourceTable, sourceTable)
-              .last("limit 1"));
-      if (state == null || state.getLastWatermarkAt() == null) {
-        throw new com.data.collection.platform.common.exception.BizException(
-            "手动刷新表需要先完成一次全量同步基线：" + sourceTable);
+      String failure = manualTableRefreshFailure(config, sourceTable);
+      if (failure != null) {
+        throw new com.data.collection.platform.common.exception.BizException(failure);
       }
     }
+  }
+
+  private String manualTableRefreshFailure(GitlabSyncConfig config, String sourceTable) {
+    GitlabMirrorTableRegistry registry =
+        registryMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<GitlabMirrorTableRegistry>()
+            .eq(GitlabMirrorTableRegistry::getConfigId, config.getId())
+            .eq(GitlabMirrorTableRegistry::getSourceTableName, sourceTable)
+            .eq(GitlabMirrorTableRegistry::getInitialized, true)
+            .last("limit 1"));
+    if (registry == null) {
+      return "源表未加入镜像白名单：" + sourceTable;
+    }
+    if (isBlank(registry.getPrimaryKeyColumns())) {
+      return "手动刷新表需要已识别的主键列：" + sourceTable;
+    }
+    if (isBlank(registry.getUpdatedAtColumn())) {
+      return "手动刷新表需要 updated_at 列：" + sourceTable;
+    }
+    SyncRunTableState state =
+        tableStateMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SyncRunTableState>()
+            .eq(SyncRunTableState::getConfigId, config.getId())
+            .eq(SyncRunTableState::getSourceInstance, GitlabSourceInstanceSupport.sourceInstanceOf(config))
+            .eq(SyncRunTableState::getSourceTable, sourceTable)
+            .last("limit 1"));
+    if (state == null || state.getLastWatermarkAt() == null) {
+      return "手动刷新表需要先完成一次全量同步基线：" + sourceTable;
+    }
+    return null;
   }
 
   private boolean isBlank(String value) {

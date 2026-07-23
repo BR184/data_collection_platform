@@ -167,6 +167,51 @@ class GitlabMirrorSyncServiceTest {
   }
 
   @Test
+  void shouldSubmitAvailableTablesAndReportUnsupportedRealtimeDependencies() {
+    GitlabSyncConfig config = config();
+    when(configService.getConfig()).thenReturn(config);
+    when(registryMapper.selectOne(any()))
+        .thenReturn(registry("issues", "id", "updated_at"))
+        .thenReturn((GitlabMirrorTableRegistry) null);
+    when(tableStateMapper.selectOne(any()))
+        .thenReturn(tableState("issues", LocalDateTime.of(2026, 5, 15, 10, 0)));
+    when(syncRunSubmissionService.submitTableRefresh(
+            config,
+            List.of("issues"),
+            "customer-issue-cc-product-records",
+            Map.of(
+                "sourcePageKey", "customer-issue-cc-product-records",
+                "triggerSurface", "REALTIME_WORKSPACE_REFRESH")))
+        .thenReturn(
+            new SyncRunSubmissionResult(
+                101L,
+                SyncType.INCREMENTAL,
+                SyncStatus.QUEUED,
+                com.data.collection.platform.entity.SyncSubmissionAction.QUEUED,
+                null,
+                "queued"));
+
+    GitlabMirrorSyncService.OnDemandRefreshResult result =
+        syncService.refreshAvailableTablesOnDemandDetailed(
+            List.of("issues", "resource_label_events"),
+            "customer-issue-cc-product-records",
+            "customer-issue-cc-product-records",
+            "REALTIME_WORKSPACE_REFRESH");
+
+    verify(syncRunSubmissionService)
+        .submitTableRefresh(
+            config,
+            List.of("issues"),
+            "customer-issue-cc-product-records",
+            Map.of(
+                "sourcePageKey", "customer-issue-cc-product-records",
+                "triggerSurface", "REALTIME_WORKSPACE_REFRESH"));
+    assertThat(result.jobId()).isEqualTo(101L);
+    assertThat(result.sourceTables()).containsExactly("issues");
+    assertThat(result.unsupportedTables()).containsExactly("resource_label_events");
+  }
+
+  @Test
   void shouldRejectTableRefreshOutsideMirrorRegistry() {
     GitlabSyncConfig config = config();
     when(configService.getConfig()).thenReturn(config);

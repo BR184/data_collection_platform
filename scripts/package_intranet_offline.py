@@ -1055,7 +1055,7 @@ Workspace status at packaging time:
 {status or "(clean)"}
 
 Standard:
-- docs/intranet-offline-packaging-standard.md
+- deploy/intranet-offline-packaging-standard.md
 """
     write_text(ctx.package_dir / "VERSION.txt", version)
 
@@ -1255,7 +1255,7 @@ def main(argv: Sequence[str]) -> int:
     args = parse_args(argv)
     try:
         require_path(REPO_ROOT / "AGENTS.md", "AGENTS.md")
-        require_path(REPO_ROOT / "docs" / "intranet-offline-packaging-standard.md", "packaging standard")
+        require_path(REPO_ROOT / "deploy" / "intranet-offline-packaging-standard.md", "packaging standard")
         ctx = resolve_context(args)
         log(f"mode: {ctx.mode}")
         log(f"package: {ctx.package_name}")

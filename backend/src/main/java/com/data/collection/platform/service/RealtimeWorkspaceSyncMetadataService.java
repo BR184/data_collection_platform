@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.bson.Document;
 import org.bson.conversions.Bson;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -35,17 +36,36 @@ public class RealtimeWorkspaceSyncMetadataService {
   private final GitlabConfigService configService;
   private final CodeReviewMatchModeConfigService matchModeConfigService;
   private final JsonUtils jsonUtils;
+  private final JdbcTemplate jdbcTemplate;
 
   public RealtimeWorkspaceSyncMetadataService(
       GitlabConfigService configService,
       CodeReviewMatchModeConfigService matchModeConfigService,
-      JsonUtils jsonUtils) {
+      JsonUtils jsonUtils,
+      JdbcTemplate jdbcTemplate) {
     this.configService = configService;
     this.matchModeConfigService = matchModeConfigService;
     this.jsonUtils = jsonUtils;
+    this.jdbcTemplate = jdbcTemplate;
   }
 
+  /**
+   * 解析工作区当前可展示事实版本对应的同步时间。
+   *
+   * <p>客户问题直接以本地成功 ISSUE 事实构建为准，其他仍需老平台对齐的工作区按各自历史来源回退。
+   *
+   * @param workspaceKey 页面工作区稳定标识
+   * @param filters 页面当前筛选，用于解析阶段等历史任务维度
+   * @return 可展示的同步元数据；没有已完成记录时三个时间均为空
+   */
   public RealtimeWorkspaceSyncMetadata resolve(String workspaceKey, Map<String, String> filters) {
+    if (isCustomerIssueWorkspace(workspaceKey)) {
+      RealtimeWorkspaceSyncMetadata metadata = loadCustomerIssueFactMetadata();
+      if (metadata != null) {
+        return metadata;
+      }
+      return new RealtimeWorkspaceSyncMetadata(null, null, null);
+    }
     ScheduledTimeLookup lookup = scheduledTimeLookup(workspaceKey, filters == null ? Map.of() : filters);
     if (lookup != null) {
       RealtimeWorkspaceSyncMetadata metadata = loadScheduledTimeMetadata(lookup);
@@ -65,9 +85,6 @@ public class RealtimeWorkspaceSyncMetadataService {
       }
       return new ScheduledTimeLookup("mergeRequest", "CrownCAD", "9");
     }
-    if (isCustomerIssueWorkspace(workspaceKey)) {
-      return new ScheduledTimeLookup("issue", "CCProduct", "325");
-    }
     if (isSystemTestWorkspace(workspaceKey)) {
       String testingPhase = firstText(filters.get("testingPhase"), filterGroupValue(filters.get("filterGroup"), "testingPhase"));
       if (!StringUtils.hasText(testingPhase)) {
@@ -79,6 +96,42 @@ public class RealtimeWorkspaceSyncMetadataService {
       return new ScheduledTimeLookup("issue", testingPhase, "9");
     }
     return null;
+  }
+
+  private RealtimeWorkspaceSyncMetadata loadCustomerIssueFactMetadata() {
+    GitlabSyncConfig config = configService.getConfig();
+    if (config == null) {
+      return null;
+    }
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    List<RealtimeWorkspaceSyncMetadata> rows = queryCustomerIssueFactMetadata(sourceInstance);
+    return rows.isEmpty() ? null : rows.getFirst();
+  }
+
+  private List<RealtimeWorkspaceSyncMetadata> queryCustomerIssueFactMetadata(String sourceInstance) {
+    return jdbcTemplate.query(
+        """
+        select task.started_at, task.finished_at
+          from fact_build_tasks task
+         where task.status = 'SUCCESS'
+           and upper(coalesce(task.fact_type, '')) = 'ISSUE'
+           and task.source_instance = ?
+         order by task.finished_at desc nulls last, task.id desc
+         limit 1
+        """,
+        (resultSet, rowNum) -> {
+          LocalDateTime startedAt = resultSet.getTimestamp("started_at") == null
+              ? null
+              : resultSet.getTimestamp("started_at").toLocalDateTime();
+          LocalDateTime finishedAt = resultSet.getTimestamp("finished_at") == null
+              ? null
+              : resultSet.getTimestamp("finished_at").toLocalDateTime();
+          return new RealtimeWorkspaceSyncMetadata(
+              finishedAt == null ? startedAt : finishedAt,
+              startedAt,
+              finishedAt);
+        },
+        sourceInstance);
   }
 
   private boolean isSystemTestWorkspace(String workspaceKey) {

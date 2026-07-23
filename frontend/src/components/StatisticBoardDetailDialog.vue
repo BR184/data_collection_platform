@@ -6,6 +6,7 @@ import RecordTableFilterFields from './base/RecordTableFilterFields.vue';
 import SmartTableHeader from './base/SmartTableHeader.vue';
 import { tableHeaderMinimumWidth } from './base/table-header-layout';
 import { useFloatingHorizontalScrollbar } from '../composables/useFloatingHorizontalScrollbar';
+import { parseIssueStatusMembers } from '../utils/issue-status-members';
 import type {
   StatisticDetailCellValue,
   StatisticDetailColumn,
@@ -313,7 +314,7 @@ function createDetailCell(record: Record<string, unknown>, column: StatisticDeta
   return {
     label,
     href,
-    tags: splitTags(label),
+    tags: column.key === 'bugStatus' ? parseIssueStatusMembers(label) : splitTags(label),
     labelColors: extractLabelColors(record),
   };
 }

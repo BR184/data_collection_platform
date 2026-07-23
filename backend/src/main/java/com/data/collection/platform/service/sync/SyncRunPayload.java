@@ -16,6 +16,7 @@ public record SyncRunPayload(
     String primaryTableName,
     Long parentRunId,
     Boolean fullBuild,
+    Boolean manualFullRebuild,
     List<PreciseTarget> preciseTargets) {
   private static final TypeReference<SyncRunPayload> TYPE_REFERENCE = new TypeReference<>() {};
 
@@ -29,7 +30,7 @@ public record SyncRunPayload(
   }
 
   public static SyncRunPayload empty() {
-    return new SyncRunPayload(null, null, null, List.of(), null, null, null, List.of());
+    return new SyncRunPayload(null, null, null, List.of(), null, null, null, null, List.of());
   }
 
   public static SyncRunPayload create(
@@ -48,6 +49,7 @@ public record SyncRunPayload(
         primaryTableName,
         parentRunId,
         fullBuild,
+        null,
         List.of());
   }
 
@@ -72,6 +74,9 @@ public record SyncRunPayload(
     if (fullBuild != null) {
       payload.put("fullBuild", fullBuild);
     }
+    if (manualFullRebuild != null) {
+      payload.put("manualFullRebuild", manualFullRebuild);
+    }
     if (!preciseTargets.isEmpty()) {
       payload.put("preciseTargets", preciseTargets);
     }
@@ -83,6 +88,10 @@ public record SyncRunPayload(
 
   public boolean fullBuildEnabled() {
     return Boolean.TRUE.equals(fullBuild);
+  }
+
+  public boolean manualFullRebuildEnabled() {
+    return Boolean.TRUE.equals(manualFullRebuild);
   }
 
   public List<String> normalizedSourceTables() {

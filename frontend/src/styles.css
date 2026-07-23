@@ -2006,6 +2006,117 @@ button {
   padding-top: 10px !important;
 }
 
+.fact-rebuild-dialog .el-dialog__body {
+  padding-top: 10px !important;
+}
+
+.fact-rebuild-dialog-body {
+  display: grid;
+  gap: 16px;
+}
+
+.fact-rebuild-summary {
+  padding: 16px 18px;
+  border: 1px solid rgba(242, 138, 29, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 250, 242, 0.78);
+}
+
+.fact-rebuild-summary__badge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(242, 138, 29, 0.12);
+  color: #a54b00;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.fact-rebuild-summary__title {
+  margin-top: 10px;
+  color: #6d3b0d;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.fact-rebuild-summary__description {
+  margin-top: 6px;
+  color: #5e6875;
+  line-height: 1.65;
+}
+
+.fact-rebuild-scope-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.fact-rebuild-scope-list > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-extra-light);
+}
+
+.fact-rebuild-scope-list strong {
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+}
+
+.fact-rebuild-scope-list span {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.fact-rebuild-confirm-panel {
+  padding: 14px 16px 16px;
+  border: 1px solid rgba(242, 138, 29, 0.28);
+  border-radius: 8px;
+  background: var(--el-fill-color-extra-light);
+}
+
+.fact-rebuild-confirm-panel.is-disabled {
+  opacity: 0.72;
+}
+
+.fact-rebuild-confirm-panel__label {
+  color: #6d3b0d;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.fact-rebuild-confirm-panel__phrase {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  margin: 8px 0 10px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: rgba(242, 138, 29, 0.12);
+  color: #a54b00;
+  font-weight: 700;
+}
+
+.fact-rebuild-confirm-panel__countdown {
+  margin-top: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.fact-rebuild-confirm-panel__countdown.is-ready {
+  color: var(--el-color-success);
+}
+
+.fact-rebuild-submit-button {
+  min-width: 124px;
+}
+
 .purge-dialog-body {
   display: grid;
   gap: 18px;
@@ -2191,6 +2302,10 @@ button {
   }
 
   .purge-scope-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .fact-rebuild-scope-list {
     grid-template-columns: 1fr;
   }
 }

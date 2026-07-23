@@ -358,4 +358,83 @@ describe('MirrorSettingsView mount smoke', () => {
     wrapper.unmount();
     vi.unstubAllGlobals();
   });
+
+  it('shows the protected fact rebuild confirmation for the selected source', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes('/api/gitlab-sync/configs')) {
+        return jsonResponse([baseConfig()]);
+      }
+      if (url.includes('/api/gitlab-sync/source-health')) {
+        return jsonResponse([]);
+      }
+      if (url.includes('/api/gitlab-sync/table-sync-diagnostics')) {
+        return jsonResponse({
+          configId: 1,
+          sourceInstance: 'default',
+          generatedAt: '2026-04-27T10:00:00',
+          tableCount: 0,
+          dirtyTableCount: 0,
+          pendingTaskCount: 0,
+          runningTaskCount: 0,
+          retryingTaskCount: 0,
+          failedTaskCount: 0,
+          timedOutTaskCount: 0,
+          tables: [],
+        });
+      }
+      if (url.includes('/api/gitlab-sync/status')) {
+        return jsonResponse({
+          config: baseConfig(),
+          currentTask: null,
+          currentStatus: 'IDLE',
+          currentMessage: '',
+          currentStartedAt: null,
+          progress: null,
+          logs: [],
+          systemHookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
+          systemHookRegistration: null,
+          availableProcessors: 16,
+          resolvedSyncThreads: 2,
+        });
+      }
+      if (url.includes('/api/gitlab-sync/system-hook-registration-status')) {
+        return jsonResponse({
+          supported: false,
+          configured: false,
+          registered: false,
+          projectId: null,
+          systemHookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
+          message: '未检测',
+          hooks: [],
+        });
+      }
+      return jsonResponse({});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const wrapper = await mountWithRouter();
+    await flushPromises();
+    await flushPromises();
+
+    const openDialogButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('重建当前数据源事实层'));
+    expect(openDialogButton).toBeTruthy();
+    expect((openDialogButton!.element as HTMLButtonElement).disabled).toBe(false);
+    await openDialogButton!.trigger('click');
+    await flushPromises();
+
+    const confirmationInput = document.body.querySelector('.fact-rebuild-confirm-panel input') as HTMLInputElement;
+    const submitButton = [...document.body.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('请等待 5 秒'),
+    ) as HTMLButtonElement | undefined;
+    expect(confirmationInput).toBeTruthy();
+    expect(submitButton).toBeTruthy();
+    expect(submitButton!.disabled).toBe(true);
+    expect(document.body.textContent).toContain('当前作用范围：GitLab default source');
+    expect(document.body.textContent).toContain('安全等待中，还需 5 秒');
+
+    wrapper.unmount();
+    vi.unstubAllGlobals();
+  });
 });

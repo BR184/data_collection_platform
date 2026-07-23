@@ -61,6 +61,7 @@ export interface CustomerIssueRecordRowResponse {
   projectId: number;
   projectName: string;
   title: string;
+  customerNames: string;
   issueState: string;
   severityLevel: string;
   priorityLevel: string;
@@ -69,6 +70,7 @@ export interface CustomerIssueRecordRowResponse {
   reasonCategory: string;
   milestoneTitle: string;
   authorName: string;
+  handlerName: string;
   assigneeName: string;
   testingPhase: string;
   fixUser: string;
@@ -82,6 +84,10 @@ export interface CustomerIssueRecordRowResponse {
   illegal: boolean;
   illegalReason: string;
   createdAt?: string | null;
+  retentionHours?: number | null;
+  plannedResolutionAt?: string | null;
+  plannedResolutionText: string;
+  plannedMergeVersionBranch: string;
   updatedAt?: string | null;
   closedAt?: string | null;
   labels: string[];
@@ -100,6 +106,7 @@ export interface CustomerIssueRecordFilterOptionsResponse {
   projectNames: OptionItemResponse[];
   moduleNames: OptionItemResponse[];
   functionNames: OptionItemResponse[];
+  customerNames: OptionItemResponse[];
   reasonCategories: OptionItemResponse[];
   severityLevels: OptionItemResponse[];
   priorityLevels: OptionItemResponse[];
@@ -107,6 +114,10 @@ export interface CustomerIssueRecordFilterOptionsResponse {
   bugStatuses: OptionItemResponse[];
   categories: OptionItemResponse[];
   authorNames: OptionItemResponse[];
+  handlerNames: OptionItemResponse[];
   assigneeNames: OptionItemResponse[];
+  testingPhases: OptionItemResponse[];
+  fixUsers: OptionItemResponse[];
+  delayCauses: OptionItemResponse[];
   milestoneTitles: OptionItemResponse[];
 }

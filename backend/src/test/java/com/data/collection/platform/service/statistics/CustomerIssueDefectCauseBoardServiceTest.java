@@ -106,7 +106,7 @@ class CustomerIssueDefectCauseBoardServiceTest {
     verify(snapshotRequestFactory)
         .issueRequest(
             eq("customer-issue-defect-cause"),
-            eq("customer-issue-defect-cause@2026-07-10-v7"),
+            eq("customer-issue-defect-cause@2026-07-22-v8"),
             anyString(),
             anyMap(),
             any(),
@@ -126,8 +126,11 @@ class CustomerIssueDefectCauseBoardServiceTest {
     when(rs.getString("assignee_name")).thenReturn("assignee");
     when(rs.getTimestamp("created_at")).thenReturn(Timestamp.valueOf(LocalDateTime.of(2026, 6, 1, 9, 0)));
     when(rs.getTimestamp("updated_at")).thenReturn(Timestamp.valueOf(LocalDateTime.of(2026, 7, 6, 9, 0)));
+    when(rs.getTimestamp("closed_at")).thenReturn(null);
     when(rs.getString("issue_state")).thenReturn("opened");
     when(rs.getString("bug_status")).thenReturn("已解决");
+    when(rs.getString("severity_level")).thenReturn("LEVEL2");
+    when(rs.getString("category")).thenReturn("缺陷");
     when(rs.getString("testing_phase")).thenReturn("");
     when(rs.getString("system_test_label")).thenReturn("");
     when(rs.getString("reason_category")).thenReturn(reason);

@@ -20,7 +20,7 @@ import org.springframework.util.StringUtils;
 public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListService
     implements PageRecordSnapshotRefresher {
   private static final String WORKSPACE_KEY = "system-test-illegal-records";
-  private static final String RULE_VERSION = "system-test-illegal-records@2026-07-09-v3";
+  private static final String RULE_VERSION = "system-test-illegal-records@2026-07-22-v4";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
   private static final long LEGACY_CROWN_CAD_PROJECT_ID = 9L;
   private static final int EXPORT_PAGE_SIZE = 100;
@@ -95,7 +95,11 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                   null,
                   resolvedTestingPhases,
                   request.authorName(),
+                  null,
                   request.assigneeName(),
+                  null,
+                  null,
+                  null,
                   false,
                   true,
                   true,
@@ -107,7 +111,8 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                   safePage,
                   safeSize,
                   safeSortField,
-                  safeSortOrder));
+                  safeSortOrder,
+                  null));
       List<SystemTestIllegalRecordRowResponse> records =
           pageSlice.records().stream().map(this::toResponse).toList();
       return new SystemTestIllegalRecordListResponse(
@@ -215,7 +220,8 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
             values.stream().map(IssueFactRecord::severityLevel).toList(),
             TextQuerySupport::trimToNull,
             IssueDisplayValueSupport::displaySeverityLevel),
-        toOptions(values.stream().map(IssueFactRecord::bugStatus).toList()),
+        OptionItemResponseFactory.fromIssueStatusMembers(
+            values.stream().map(IssueFactRecord::bugStatus).toList()),
         toOptions(values.stream().map(IssueFactRecord::category).toList()),
         toLegacyOptions(values, IssueFactRecord::milestoneTitle));
   }

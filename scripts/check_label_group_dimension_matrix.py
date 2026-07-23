@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MATRIX_PATH = ROOT / "docs/label-group-dimension-matrix.yml"
+MATRIX_PATH = ROOT / "scripts/contracts/label-group-dimension-matrix.yml"
 CATALOG_ROOT = ROOT / "backend/src/main/java/com/data/collection/platform/service/labelgroup"
 ALLOWED_VALUE_KINDS = {"STRING_LITERAL", "GITLAB_USER_ID", "ENUM_KEY", "BRANCH_NAME"}
 FORBIDDEN_GENERIC_PERSON_KEYS = {"owner", "reviewer", "assignee"}

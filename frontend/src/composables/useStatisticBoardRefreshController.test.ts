@@ -102,7 +102,7 @@ describe('useStatisticBoardRefreshController', () => {
     await refreshPromise;
 
     expect(requestRealtimeRefresh).toHaveBeenCalledOnce();
-    expect(loadRealtimeStatus).toHaveBeenCalledTimes(2);
+    expect(loadRealtimeStatus).toHaveBeenCalledTimes(1);
     expect(notifySuccess).toHaveBeenCalledWith('镜像同步中');
     expect(loadBoard).toHaveBeenCalledOnce();
     expect(loading.value).toBe(false);
@@ -133,6 +133,41 @@ describe('useStatisticBoardRefreshController', () => {
 
     expect(notifySuccess).toHaveBeenCalledWith('已开始刷新最新数据');
   });
+
+  it('does not reload the board after a terminal realtime refresh failure', async () => {
+    const loading = ref(false);
+    const detailVisible = ref(false);
+    const loadBoard = vi.fn(() => Promise.resolve());
+    const loadDetail = vi.fn(() => Promise.resolve());
+    const controller = useStatisticBoardRefreshController({
+      loading,
+      detailVisible,
+      loadBoard,
+      loadDetail,
+      requestRealtimeRefresh: vi.fn(() => Promise.resolve({
+        workspaceKey: 'system-test-defect-summary',
+        supported: true,
+        status: 'REFRESHING',
+        message: '镜像同步中',
+        refreshing: true,
+      })),
+      loadRealtimeStatus: vi.fn(() => Promise.resolve({
+        workspaceKey: 'system-test-defect-summary',
+        supported: true,
+        status: 'FAILED',
+        message: '镜像同步未完成，已展示当前可用数据',
+        refreshing: false,
+        mirrorStatus: 'FAILED',
+      })),
+    });
+
+    await expect(controller.refreshBoard()).rejects.toThrow('镜像同步未完成');
+
+    expect(loadBoard).not.toHaveBeenCalled();
+    expect(loadDetail).not.toHaveBeenCalled();
+    expect(loading.value).toBe(false);
+  });
+
   it('requests realtime refresh without a toast when auto refreshing page data', async () => {
     const loading = ref(false);
     const detailVisible = ref(false);

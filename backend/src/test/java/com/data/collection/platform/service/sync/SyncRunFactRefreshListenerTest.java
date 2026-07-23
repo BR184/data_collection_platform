@@ -59,19 +59,19 @@ class SyncRunFactRefreshListenerTest {
   }
 
   @Test
-  void shouldSkipPartialSuccessAndZeroAppliedRows() {
+  void shouldSkipPartialSuccessButSubmitFactRefreshForZeroAppliedRows() {
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(1L);
+    when(configService.getConfigById(1L)).thenReturn(config);
+
     listener.onSyncRunCompleted(
         new SyncRunCompletionEvent(12L, 1L, "alpha", SyncRunType.INCREMENTAL_SYNC, SyncRunStatus.PARTIAL_SUCCESS, 8L));
     listener.onSyncRunCompleted(
         new SyncRunCompletionEvent(13L, 1L, "alpha", SyncRunType.INCREMENTAL_SYNC, SyncRunStatus.SUCCESS, 0L));
 
-    verify(configService, never()).getConfigById(org.mockito.ArgumentMatchers.any());
-    verify(submissionService, never())
-        .submitFactRefresh(
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.anyBoolean(),
-            org.mockito.ArgumentMatchers.any());
+    verify(configService).getConfigById(1L);
+    verify(submissionService)
+        .submitFactRefresh(config, 13L, false, "镜像同步已完成，刷新事实层");
   }
 
   @Test

@@ -653,6 +653,7 @@ create table if not exists issue_fact (
     issue_type varchar(128),
     milestone_title varchar(255),
     author_name varchar(128),
+    handler_name text,
     assignee_name text,
     fix_user varchar(128),
     created_at_source timestamp,
@@ -663,6 +664,7 @@ create table if not exists issue_fact (
     primary_module_name varchar(255),
     module_names text,
     function_name varchar(255),
+    customer_names text,
     testing_phase varchar(128),
     severity_level varchar(128),
     severity_alias varchar(128),
@@ -722,6 +724,9 @@ create table if not exists issue_fact (
     is_response_delayed boolean not null default false,
     resolve_sla_days integer not null default 18,
     resolve_deadline_at timestamp,
+    planned_resolution_at timestamp,
+    planned_resolution_text text,
+    planned_merge_version_branch text,
     is_resolve_delayed boolean not null default false,
     is_legacy boolean not null default false,
     deleted boolean not null default false,
@@ -730,6 +735,37 @@ create table if not exists issue_fact (
     updated_at timestamp not null default current_timestamp,
     unique (source_system, source_instance, project_id, issue_id)
 );
+
+create table if not exists issue_customer_name_aliases (
+    alias_name varchar(255) primary key,
+    canonical_name varchar(255) not null,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    check (nullif(btrim(alias_name), '') is not null),
+    check (nullif(btrim(canonical_name), '') is not null)
+);
+
+insert into issue_customer_name_aliases(alias_name, canonical_name)
+values ('新世纪', '郑州新世纪')
+on conflict (alias_name)
+do update set
+    canonical_name = excluded.canonical_name,
+    updated_at = current_timestamp;
+
+create table if not exists issue_fact_customer_members (
+    source_system varchar(64) not null,
+    source_instance varchar(128) not null,
+    project_id bigint not null,
+    issue_id bigint not null,
+    customer_name varchar(255) not null,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    primary key (source_system, source_instance, project_id, issue_id, customer_name),
+    check (nullif(btrim(customer_name), '') is not null)
+);
+
+create index if not exists idx_issue_fact_customer_members_customer_lookup
+    on issue_fact_customer_members(lower(customer_name), source_instance, project_id, issue_id);
 
 create table if not exists integration_test_fact (
     id bigserial primary key,

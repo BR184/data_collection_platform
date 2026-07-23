@@ -61,6 +61,7 @@ public class FactRefreshImpactScopeService {
         case "notes" -> addIssueTargetsFromNotes(task, targets);
         case "label_links" -> addIssueTargetsFromLabelLinks(task, targets);
         case "issue_assignees" -> addIssueTargetsFromIssueAssignees(task, targets);
+        case "resource_label_events" -> addIssueTargetsFromResourceLabelEvents(task, targets);
         default -> {
           // Tables unrelated to issue facts can be ignored for ISSUE tasks.
         }
@@ -177,6 +178,26 @@ public class FactRefreshImpactScopeService {
                and i.project_id is not null
                and i.iid is not null
             """.formatted(assignees, issues),
+        task.getId()));
+  }
+
+  private void addIssueTargetsFromResourceLabelEvents(
+      SyncRunTableTask task, Set<Target> targets) {
+    String events = quoteMirrorTable("resource_label_events");
+    String issues = quoteMirrorTable("issues");
+    targets.addAll(queryTargets(
+        """
+            select distinct i.project_id, i.iid
+              from %s event
+              join %s i
+                on i.id = event.resource_id
+               and coalesce(i.mirror_deleted, false) = false
+             where event.mirror_task_id = ?
+               and coalesce(event.mirror_deleted, false) = false
+               and event.resource_type = 'Issue'
+               and i.project_id is not null
+               and i.iid is not null
+            """.formatted(events, issues),
         task.getId()));
   }
 

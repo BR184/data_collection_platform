@@ -83,6 +83,16 @@ public class GitlabSyncCommandFacade {
     return ApiResponse.success(result.message(), responseMapper.submissionResponse(result));
   }
 
+  /** 提交当前数据源的全量事实重建，并返回可跟踪的同步运行编号。 */
+  public ApiResponse<Map<String, Object>> manualFullFactRebuild(GitlabSyncConfig config) {
+    try (SyncRunLogContext.Scope context = SyncRunLogContext.openConfig(config, "FACT_REFRESH");
+        SyncRunLogContext.Scope action = SyncRunLogContext.action("Manual_Fact_Rebuild_Submit")) {
+      log.info("Manual full fact rebuild requested");
+    }
+    SyncRunSubmissionResult result = submissionService.submitManualFullFactRebuild(config);
+    return ApiResponse.success(result.message(), responseMapper.submissionResponse(result));
+  }
+
   public ApiResponse<Map<String, Object>> retryFailedSync(GitlabSyncConfig config) {
     List<String> retryableTables = tableDiagnosticsService.retryableTables(config);
     if (retryableTables.isEmpty()) {

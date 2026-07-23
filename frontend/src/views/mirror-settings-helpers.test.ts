@@ -92,6 +92,15 @@ describe('mirror settings helpers', () => {
       '全量补偿对账。',
     );
     expect(syncLogMessage(createLog({ syncType: 'INCREMENTAL', runType: 'TABLE_REFRESH', message: '' }))).toBe('单表刷新。');
+    expect(
+      syncLogMessage(
+        createLog({
+          syncType: 'COMPENSATION',
+          runType: 'FACT_REFRESH',
+          message: '手动重建当前数据源全部事实层',
+        }),
+      ),
+    ).toBe('手动重建当前数据源全部事实层');
   });
 
   it('formats log time and duration safely', () => {

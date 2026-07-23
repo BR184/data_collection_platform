@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { isRecentAuthRequiredMessage, rememberAuthRequiredMessage } from './auth-required-message';
 import { isRequestTimeoutError, request, requestBlob, requestText } from './request';
 
 describe('request', () => {
   afterEach(() => {
     document.cookie = 'XSRF-TOKEN=; Max-Age=0';
+    rememberAuthRequiredMessage('', 0);
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
@@ -121,6 +123,21 @@ describe('request', () => {
     );
 
     await expect(request('/api/fail')).rejects.toThrow('请求失败，状态码：500');
+  });
+
+  it('should mark an unauthorized response so its page-level copy can be suppressed', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 401,
+        text: async () => JSON.stringify({ success: false, message: '请先登录' }),
+      } as Response)),
+    );
+
+    await expect(request('/api/protected')).rejects.toThrow('请先登录');
+
+    expect(isRecentAuthRequiredMessage('请先登录')).toBe(true);
   });
 
   it('should use Chinese fallback copy when an API envelope has no error message', async () => {

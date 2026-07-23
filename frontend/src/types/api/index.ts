@@ -1,4 +1,5 @@
 export * from './common';
+export * from './facts';
 export * from './sync';
 export * from './statistics';
 export * from './database';

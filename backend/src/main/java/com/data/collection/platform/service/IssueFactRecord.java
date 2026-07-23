@@ -28,6 +28,7 @@ public record IssueFactRecord(
     boolean legacy,
     String milestoneTitle,
     String authorName,
+    String handlerName,
     String assigneeName,
     String fixUser,
     List<String> moduleNames,
@@ -43,7 +44,11 @@ public record IssueFactRecord(
     List<String> illegalReasons,
     LocalDateTime createdAt,
     LocalDateTime updatedAt,
-    LocalDateTime closedAt) {
+    LocalDateTime closedAt,
+    List<String> customerNames,
+    LocalDateTime plannedResolutionAt,
+    String plannedResolutionText,
+    String plannedMergeVersionBranch) {
 
   private static final List<String> SYSTEM_TEST_TOKENS = List.of("系统测试", "回归测试");
 
@@ -51,6 +56,7 @@ public record IssueFactRecord(
     moduleNames = moduleNames == null ? List.of() : List.copyOf(moduleNames);
     labels = labels == null ? List.of() : List.copyOf(labels);
     illegalReasons = illegalReasons == null ? List.of() : List.copyOf(illegalReasons);
+    customerNames = customerNames == null ? List.of() : List.copyOf(customerNames);
   }
 
   public IssueFactRecord(
@@ -116,6 +122,7 @@ public record IssueFactRecord(
         legacy,
         milestoneTitle,
         authorName,
+        "",
         assigneeName,
         fixUser,
         moduleNames,
@@ -131,7 +138,11 @@ public record IssueFactRecord(
         illegalReasons,
         createdAt,
         updatedAt,
-        closedAt);
+        closedAt,
+        List.of(),
+        null,
+        "",
+        "");
   }
 
   public IssueFactRecord(
@@ -196,6 +207,7 @@ public record IssueFactRecord(
         legacy,
         milestoneTitle,
         authorName,
+        "",
         assigneeName,
         "",
         moduleNames,
@@ -211,7 +223,11 @@ public record IssueFactRecord(
         illegalReasons,
         createdAt,
         updatedAt,
-        closedAt);
+        closedAt,
+        List.of(),
+        null,
+        "",
+        "");
   }
 
   public IssueFactRecord(
@@ -277,6 +293,7 @@ public record IssueFactRecord(
         legacy,
         milestoneTitle,
         authorName,
+        "",
         assigneeName,
         "",
         moduleNames,
@@ -292,7 +309,11 @@ public record IssueFactRecord(
         illegalReasons,
         createdAt,
         updatedAt,
-        closedAt);
+        closedAt,
+        List.of(),
+        null,
+        "",
+        "");
   }
 
   public IssueScopeContext scopeContext() {

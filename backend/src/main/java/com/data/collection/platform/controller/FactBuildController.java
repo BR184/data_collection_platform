@@ -3,18 +3,15 @@ package com.data.collection.platform.controller;
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.security.PlatformPermissionCodes;
 import com.data.collection.platform.security.RequirePermission;
-import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.FactBuildTaskResponse;
+import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.IssueFactDiagnosticsResponse;
 import com.data.collection.platform.entity.IssueSourceReadinessResponse;
-import com.data.collection.platform.service.FactBuildService;
 import com.data.collection.platform.service.FactBuildTaskService;
-import com.data.collection.platform.service.FactBuildOperationGuard;
+import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.IssueFactDiagnosticsService;
 import com.data.collection.platform.service.IssueSourceReadinessService;
-import com.data.collection.platform.service.PageRecordSnapshotRefreshService;
-import com.data.collection.platform.service.statistics.StatisticBoardSnapshotRefreshService;
-import java.util.Locale;
+import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,65 +21,30 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/facts")
 public class FactBuildController {
-  private final FactBuildService factBuildService;
-  private final FactBuildOperationGuard factBuildOperationGuard;
   private final FactBuildTaskService factBuildTaskService;
+  private final GitlabConfigService configService;
+  private final GitlabSyncCommandFacade syncCommandFacade;
   private final IssueFactDiagnosticsService issueFactDiagnosticsService;
   private final IssueSourceReadinessService issueSourceReadinessService;
-  private final StatisticBoardSnapshotRefreshService snapshotRefreshService;
-  private final PageRecordSnapshotRefreshService pageRecordSnapshotRefreshService;
 
   public FactBuildController(
-      FactBuildService factBuildService,
-      FactBuildOperationGuard factBuildOperationGuard,
       FactBuildTaskService factBuildTaskService,
+      GitlabConfigService configService,
+      GitlabSyncCommandFacade syncCommandFacade,
       IssueFactDiagnosticsService issueFactDiagnosticsService,
-      IssueSourceReadinessService issueSourceReadinessService,
-      StatisticBoardSnapshotRefreshService snapshotRefreshService,
-      PageRecordSnapshotRefreshService pageRecordSnapshotRefreshService) {
-    this.factBuildService = factBuildService;
-    this.factBuildOperationGuard = factBuildOperationGuard;
+      IssueSourceReadinessService issueSourceReadinessService) {
     this.factBuildTaskService = factBuildTaskService;
+    this.configService = configService;
+    this.syncCommandFacade = syncCommandFacade;
     this.issueFactDiagnosticsService = issueFactDiagnosticsService;
     this.issueSourceReadinessService = issueSourceReadinessService;
-    this.snapshotRefreshService = snapshotRefreshService;
-    this.pageRecordSnapshotRefreshService = pageRecordSnapshotRefreshService;
   }
 
   @PostMapping("/rebuild")
   @RequirePermission(PlatformPermissionCodes.SYSTEM_FACT_REBUILD)
-  public ApiResponse<FactBuildResponse> rebuildFacts(
-      @RequestParam(defaultValue = "all") String scope,
-      @RequestParam(defaultValue = "false") boolean full,
-      @RequestParam(required = false) Long configId) {
-    FactBuildResponse response =
-        factBuildOperationGuard.run(guardScope(scope, configId), () ->
-            switch (scope) {
-              case "issue" -> configId == null
-                  ? factBuildService.rebuildIssueFacts(full)
-                  : factBuildService.rebuildIssueFacts(full, configId);
-              case "merge-request", "merge_request" -> configId == null
-                  ? factBuildService.rebuildMergeRequestFacts(full)
-                  : factBuildService.rebuildMergeRequestFacts(full, configId);
-              default -> configId == null
-                  ? factBuildService.rebuildAllFacts(full)
-                  : factBuildService.rebuildAllFacts(full, configId);
-            });
-    snapshotRefreshService.refreshAfterFactBuild(snapshotFactType(scope), full);
-    pageRecordSnapshotRefreshService.refreshAfterFactBuild(snapshotFactType(scope), full);
-    return ApiResponse.success(response.message(), response);
-  }
-
-  private String snapshotFactType(String scope) {
-    return switch (scope == null ? "" : scope.trim().toLowerCase(Locale.ROOT)) {
-      case "issue" -> "ISSUE";
-      case "merge-request", "merge_request" -> "MERGE_REQUEST";
-      default -> "ALL";
-    };
-  }
-
-  private String guardScope(String scope, Long configId) {
-    return configId == null ? scope : scope + ":config-" + configId;
+  public ApiResponse<Map<String, Object>> rebuildFacts(@RequestParam Long configId) {
+    GitlabSyncConfig config = configService.getConfigById(configId);
+    return syncCommandFacade.manualFullFactRebuild(config);
   }
 
   @GetMapping("/build-tasks/latest")

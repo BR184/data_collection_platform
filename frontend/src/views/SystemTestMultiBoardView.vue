@@ -14,7 +14,7 @@ import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
 import { hasPermission } from '../feature-manifest';
-import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
+import { useRealtimeWorkspaceStatus, waitForRealtimeWorkspaceRefresh } from '../composables/useRealtimeWorkspaceStatus';
 import { ElMessage } from '../element-plus-services';
 import type {
   AnalyticsDashboardRule,
@@ -112,14 +112,10 @@ async function handleRefresh() {
 async function handleRefreshLatestData() {
   realtimeRefreshLoading.value = true;
   try {
-    let status = await api.refreshStatisticBoardRealtime('system-test-defect-summary');
+    const status = await api.refreshStatisticBoardRealtime('system-test-defect-summary');
     ElMessage.success(status.message || '已开始刷新最新数据');
-    for (let attempt = 0; attempt < 8 && status.refreshing; attempt++) {
-      await sleep(1000);
-      status = (await loadSyncStatus()) ?? status;
-    }
+    await waitForRealtimeWorkspaceRefresh(status, loadSyncStatus);
     await loadBoard();
-    await loadSyncStatus();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
   } finally {
@@ -214,10 +210,6 @@ function openRule(rule: AnalyticsDashboardRule | null) {
   }
   selectedRule.value = rule;
   ruleDrawerVisible.value = true;
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 void Promise.all([loadBoard(), loadSyncStatus()]).catch((error) => {

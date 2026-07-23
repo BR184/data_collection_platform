@@ -30,7 +30,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     implements PageRecordSnapshotRefresher {
   private static final String WORKSPACE_KEY = "customer-issue-illegal-records";
   private static final String PAGE_KEY = "customer-issues-illegal-records";
-  private static final String RULE_VERSION = "customer-issue-illegal-records@2026-07-07-v2";
+  private static final String RULE_VERSION = "customer-issue-illegal-records@2026-07-22-v3";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
   private static final int EXPORT_PAGE_SIZE = 100;
   private static final int MAX_LABEL_GROUP_FILTER_VALUES = 200;
@@ -135,7 +135,11 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                   null,
                   List.of(),
                   request.authorName(),
+                  null,
                   request.assigneeName(),
+                  null,
+                  null,
+                  null,
                   false,
                   true,
                   true,
@@ -147,7 +151,8 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                   safePage,
                   safeSize,
                   safeSortField,
-                  safeSortOrder));
+                  safeSortOrder,
+                  null));
       List<CustomerIssueIllegalRecordRowResponse> records =
           pageSlice.records().stream().map(this::toResponse).toList();
       return new CustomerIssueIllegalRecordListResponse(
@@ -309,7 +314,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
             IssueDisplayValueSupport::displaySeverityLevel),
         toOptions(values.priorityLevels()),
         toOptions(values.issueStates()),
-        toOptions(values.bugStatuses()),
+        OptionItemResponseFactory.fromIssueStatusMembers(values.bugStatuses()),
         toOptions(values.categories()),
         toOptions(values.authorNames()),
         toOptions(values.assigneeNames()),

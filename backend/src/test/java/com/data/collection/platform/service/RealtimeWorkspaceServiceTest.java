@@ -101,4 +101,87 @@ class RealtimeWorkspaceServiceTest {
     assertThat(refreshCount).hasValue(1);
     assertThat(response.status()).isEqualTo("READY");
   }
+
+  @Test
+  void shouldKeepWorkspaceRefreshingUntilItsPersistedFactChildSucceeds() {
+    RealtimeWorkspaceRefreshProgressService progressService =
+        mock(RealtimeWorkspaceRefreshProgressService.class);
+    RealtimeWorkspaceService service =
+        new RealtimeWorkspaceService(syncMetadataService, progressService, null);
+    LocalDateTime startedAt = LocalDateTime.of(2026, 5, 18, 10, 1);
+    when(progressService.findByMirrorRunId(21L, "customer-issue-cc-product-records"))
+        .thenReturn(
+            new RealtimeWorkspaceRefreshProgress(
+                21L,
+                "SUCCESS",
+                22L,
+                "QUEUED",
+                true,
+                startedAt,
+                null));
+
+    var submitted =
+        service.requestRefreshWithResult(
+            "customer-issue-cc-product-records",
+            () ->
+                new RealtimeWorkspaceRefreshResult(
+                    21L,
+                    List.of("issues"),
+                    1,
+                    List.of(),
+                    true,
+                    "QUEUED",
+                    "QUEUED",
+                    "已提交"));
+
+    assertThat(submitted.refreshing()).isTrue();
+    assertThat(submitted.status()).isEqualTo("REFRESHING");
+    assertThat(submitted.mirrorStatus()).isEqualTo("SUCCESS");
+    assertThat(submitted.factStatus()).isEqualTo("QUEUED");
+
+    LocalDateTime finishedAt = LocalDateTime.of(2026, 5, 18, 10, 2);
+    when(progressService.findByMirrorRunId(21L, "customer-issue-cc-product-records"))
+        .thenReturn(
+            new RealtimeWorkspaceRefreshProgress(
+                21L,
+                "SUCCESS",
+                22L,
+                "SUCCESS",
+                true,
+                startedAt,
+                finishedAt));
+
+    var completed = service.getStatus("customer-issue-cc-product-records");
+
+    assertThat(completed.refreshing()).isFalse();
+    assertThat(completed.status()).isEqualTo("READY");
+    assertThat(completed.message()).isEqualTo("已展示最新事实数据");
+    assertThat(completed.lastRefreshFinishedAt()).isEqualTo(finishedAt);
+  }
+
+  @Test
+  void shouldRestoreLatestPersistedWorkspaceProgressWithoutInMemoryState() {
+    RealtimeWorkspaceRefreshProgressService progressService =
+        mock(RealtimeWorkspaceRefreshProgressService.class);
+    RealtimeWorkspaceService service =
+        new RealtimeWorkspaceService(syncMetadataService, progressService, null);
+    LocalDateTime startedAt = LocalDateTime.of(2026, 5, 18, 10, 1);
+    when(progressService.findLatestForWorkspace("customer-issue-cc-product-records"))
+        .thenReturn(
+            new RealtimeWorkspaceRefreshProgress(
+                31L,
+                "SUCCESS",
+                32L,
+                "RUNNING",
+                true,
+                startedAt,
+                null));
+
+    var status = service.getStatus("customer-issue-cc-product-records");
+
+    assertThat(status.refreshing()).isTrue();
+    assertThat(status.status()).isEqualTo("REFRESHING");
+    assertThat(status.jobId()).isEqualTo(31L);
+    assertThat(status.factStatus()).isEqualTo("RUNNING");
+  }
 }

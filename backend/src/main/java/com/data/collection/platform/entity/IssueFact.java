@@ -56,6 +56,9 @@ public class IssueFact {
   @TableField("author_name")
   private String authorName;
 
+  @TableField("handler_name")
+  private String handlerName;
+
   @TableField("assignee_name")
   private String assigneeName;
 
@@ -85,6 +88,9 @@ public class IssueFact {
 
   @TableField("function_name")
   private String functionName;
+
+  @TableField("customer_names")
+  private String customerNames;
 
   @TableField("testing_phase")
   private String testingPhase;
@@ -167,6 +173,15 @@ public class IssueFact {
 
   @TableField("resolve_deadline_at")
   private LocalDateTime resolveDeadlineAt;
+
+  @TableField("planned_resolution_at")
+  private LocalDateTime plannedResolutionAt;
+
+  @TableField("planned_resolution_text")
+  private String plannedResolutionText;
+
+  @TableField("planned_merge_version_branch")
+  private String plannedMergeVersionBranch;
 
   @TableField("fixed_label_time")
   private LocalDateTime fixedLabelTime;

@@ -1,6 +1,7 @@
 import type { Ref } from 'vue';
 import type { RealtimeWorkspaceStatusResponse } from '../types/api';
 import { toUserMessage } from '../utils/user-message';
+import { waitForRealtimeWorkspaceRefresh } from './useRealtimeWorkspaceStatus';
 
 interface StatisticBoardRefreshControllerDependencies {
   loading: Ref<boolean>;
@@ -52,21 +53,9 @@ export function useStatisticBoardRefreshController(deps: StatisticBoardRefreshCo
   };
 
   async function waitForRealtimeRefreshToSettle(initialStatus: RealtimeWorkspaceStatusResponse | null | undefined) {
-    if (!deps.loadRealtimeStatus) {
+    if (!deps.loadRealtimeStatus || !initialStatus) {
       return;
     }
-    let status = initialStatus;
-    for (let attempt = 0; attempt < 8; attempt++) {
-      if (!status?.refreshing) {
-        await deps.loadRealtimeStatus();
-        return;
-      }
-      await sleep(1000);
-      status = await deps.loadRealtimeStatus() as RealtimeWorkspaceStatusResponse | null | undefined;
-    }
+    await waitForRealtimeWorkspaceRefresh(initialStatus, deps.loadRealtimeStatus);
   }
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }

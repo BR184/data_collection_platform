@@ -2,6 +2,7 @@ package com.data.collection.platform.service.sync;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SyncStatus;
 import com.data.collection.platform.entity.SyncSubmissionAction;
@@ -122,6 +123,29 @@ public class SyncRunSubmissionService {
         full);
   }
 
+  /**
+   * 提交当前数据源的手工全量事实重建。
+   *
+   * <p>执行器以明确 payload 选择统一全量构建入口，确保所有 ODS 源在任一事实表写入前完成预检。
+   *
+   * @param config 当前已保存的数据源配置
+   * @return 已入队的事实刷新运行结果
+   */
+  @Transactional
+  public SyncRunSubmissionResult submitManualFullFactRebuild(GitlabSyncConfig config) {
+    return submitRun(
+        config,
+        SyncType.COMPENSATION,
+        SyncRunType.FACT_REFRESH,
+        SyncTriggerType.MANUAL,
+        "手动重建当前数据源全部事实层",
+        List.of(),
+        null,
+        null,
+        true,
+        Map.of("manualFullRebuild", true));
+  }
+
   @Transactional(readOnly = true)
   public boolean hasActiveFullCompensationRun(GitlabSyncConfig config) {
     if (config == null || config.getId() == null) {
@@ -197,7 +221,17 @@ public class SyncRunSubmissionService {
     String exclusiveScope = policyService.exclusiveScopeOf(config, runType);
     LocalDateTime now = LocalDateTime.now();
     SyncTriggerType effectiveTriggerType = triggerType == null ? SyncTriggerType.MANUAL : triggerType;
+    lockSourceSubmission(config.getId(), sourceInstance);
     lockExclusiveScope(exclusiveScope);
+
+    boolean manualFullRebuild = isManualFullRebuild(runType, extraPayload);
+    List<SyncRun> activeSourceRuns = findActiveRunsForSource(config.getId(), sourceInstance);
+    if (manualFullRebuild && !activeSourceRuns.isEmpty()) {
+      throw new BizException("当前数据源存在同步或事实刷新任务，请等待任务完成后再重建事实层");
+    }
+    if (!manualFullRebuild && activeSourceRuns.stream().anyMatch(this::isManualFullRebuild)) {
+      throw new BizException("当前数据源正在重建事实层，请等待任务完成后再提交同步或刷新任务");
+    }
 
     SyncRun activeRun = findActiveRun(config.getId(), sourceInstance, exclusiveScope);
     if (runType == SyncRunType.FULL_SYNC && activeRun != null && activeRun.getRunType() == SyncRunType.FULL_SYNC) {
@@ -301,6 +335,11 @@ public class SyncRunSubmissionService {
     jdbcTemplate.queryForObject("select pg_advisory_xact_lock(hashtext(?))", Object.class, exclusiveScope);
   }
 
+  private void lockSourceSubmission(Long configId, String sourceInstance) {
+    String sourceKey = "source:" + configId + ":" + sourceInstance + ":submission";
+    jdbcTemplate.queryForObject("select pg_advisory_xact_lock(hashtext(?))", Object.class, sourceKey);
+  }
+
   private void mergeQueuedLowerPriorityMirrorRuns(
       Long configId,
       String sourceInstance,
@@ -378,6 +417,35 @@ public class SyncRunSubmissionService {
       return null;
     }
     return runs.getFirst();
+  }
+
+  private List<SyncRun> findActiveRunsForSource(Long configId, String sourceInstance) {
+    List<SyncRun> runs =
+        syncRunMapper.selectList(
+            new LambdaQueryWrapper<SyncRun>()
+                .eq(SyncRun::getConfigId, configId)
+                .eq(SyncRun::getSourceInstance, sourceInstance)
+                .in(SyncRun::getStatus, SyncRunStateMachine.activeStatuses())
+                .orderByAsc(SyncRun::getCreatedAt)
+                .orderByAsc(SyncRun::getId));
+    if (runs == null || runs.isEmpty()) {
+      return List.of();
+    }
+    return List.copyOf(runs);
+  }
+
+  private boolean isManualFullRebuild(SyncRunType runType, Map<String, Object> extraPayload) {
+    return runType == SyncRunType.FACT_REFRESH
+        && extraPayload != null
+        && Boolean.TRUE.equals(extraPayload.get("manualFullRebuild"));
+  }
+
+  private boolean isManualFullRebuild(SyncRun run) {
+    if (run == null || run.getRunType() != SyncRunType.FACT_REFRESH) {
+      return false;
+    }
+    SyncRunPayload payload = jsonUtils.fromJson(run.getPayloadJson(), SyncRunPayload.typeReference());
+    return payload != null && payload.manualFullRebuildEnabled();
   }
 
   private String buildPayloadJson(

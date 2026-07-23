@@ -2,6 +2,7 @@ import { codeReviewApi } from './api-client/code-review-api';
 import { analyticsDashboardApi } from './api-client/analytics-dashboard-api';
 import { collectFormsApi } from './api-client/collect-forms-api';
 import { databaseBrowserApi } from './api-client/database-browser-api';
+import { factBuildApi } from './api-client/fact-build-api';
 import { issueRecordsApi } from './api-client/issue-records-api';
 import { labelGroupsApi } from './api-client/label-groups-api';
 import { legacyDatabaseApi } from './api-client/legacy-database-api';
@@ -18,6 +19,7 @@ export const api = {
   ...mirrorApi,
   ...statisticBoardsApi,
   ...databaseBrowserApi,
+  ...factBuildApi,
   ...testingPhasesApi,
   ...collectFormsApi,
   ...codeReviewApi,

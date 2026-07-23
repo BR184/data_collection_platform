@@ -212,12 +212,17 @@ class LabelValueQueryServiceTest {
         List.of(),
         List.of(),
         List.of(),
+        List.of(),
         priorityLevels,
         List.of(),
         List.of(),
         List.of(),
         List.of(),
+        List.of(),
         assigneeNames,
+        List.of(),
+        List.of(),
+        List.of(),
         milestoneTitles);
   }
 }

@@ -5,6 +5,7 @@ import { computed, ref, watch } from 'vue';
 import { ElMessage } from '../../element-plus-services';
 import { Download, InfoFilled, Refresh, RefreshRight, View } from '@element-plus/icons-vue';
 import BaseRecordTable from '../../components/base/BaseRecordTable.vue';
+import IssueStatusTags from '../../components/IssueStatusTags.vue';
 import PageSettingsButton from '../../components/PageSettingsButton.vue';
 import PageStateShell from '../../components/base/PageStateShell.vue';
 import RuleExplanationDrawer from '../../components/RuleExplanationDrawer.vue';
@@ -18,7 +19,7 @@ import { useDataScope } from '../../composables/useDataScope';
 import { ISSUE_RECORD_QUERY_KEYS } from '../../composables/record-route-query-keys';
 import { useRouteTableState } from '../../composables/useRouteTableState';
 import { useRuleExplanationPanel } from '../../composables/useRuleExplanationPanel';
-import { useRealtimeWorkspaceStatus } from '../../composables/useRealtimeWorkspaceStatus';
+import { useRealtimeWorkspaceStatus, waitForRealtimeWorkspaceRefresh } from '../../composables/useRealtimeWorkspaceStatus';
 import { usePageAutoRefreshPreference } from '../../composables/usePageAutoRefreshPreference';
 import { useRecordTableFilterPriority } from '../../composables/useRecordTableFilterPriority';
 import type { StatisticBoardRuleExplanationResponse, StatisticFilterField } from '../../types/api';
@@ -352,23 +353,15 @@ async function handleRefreshLatestData() {
   }
   realtimeRefreshLoading.value = true;
   try {
-    let status = await props.requestRealtimeRefresh();
+    const status = await props.requestRealtimeRefresh();
     ElMessage.success(status.message || '已开始刷新最新数据');
-    for (let attempt = 0; attempt < 8 && status.refreshing; attempt++) {
-      await sleep(1000);
-      status = (await loadRealtimeStatus()) ?? status;
-    }
+    await waitForRealtimeWorkspaceRefresh(status, loadRealtimeStatus);
     await Promise.all([loadFilterOptions(), loadTableData()]);
-    await loadRealtimeStatus();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
   } finally {
     realtimeRefreshLoading.value = false;
   }
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 bindLoader(async () => {
@@ -681,7 +674,9 @@ async function handleQuery() {
               <el-descriptions-item v-if="selectedRow.priorityLevel" label="优先级">
                 {{ selectedRow.priorityLevel }}
               </el-descriptions-item>
-              <el-descriptions-item :label="bugStatusDetailLabel || '测试状态'">{{ selectedRow.bugStatus || '-' }}</el-descriptions-item>
+              <el-descriptions-item :label="bugStatusDetailLabel || '测试状态'">
+                <IssueStatusTags :value="selectedRow.bugStatus" />
+              </el-descriptions-item>
               <el-descriptions-item label="分类">{{ selectedRow.category || '-' }}</el-descriptions-item>
               <el-descriptions-item :label="createdAtDetailLabel || '创建时间'">{{ formatDateTime(selectedRow.createdAt) }}</el-descriptions-item>
               <el-descriptions-item :label="updatedAtDetailLabel || '更新时间'">{{ formatDateTime(selectedRow.updatedAt) }}</el-descriptions-item>

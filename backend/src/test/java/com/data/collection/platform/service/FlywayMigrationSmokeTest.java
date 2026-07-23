@@ -157,6 +157,46 @@ class FlywayMigrationSmokeTest {
         .contains("drop column if exists review_data_read_mode");
   }
 
+  @Test
+  void shouldDefineCustomerMembershipAndResponseTemplateFacts() throws IOException {
+    String schemaMigration = readMigration(
+        "V20260722_01__customer_issue_customer_and_response_template_schema.sql");
+    String aliasSeedMigration = readMigration(
+        "V20260722_02__seed_customer_issue_customer_aliases.sql");
+
+    assertThat(schemaMigration)
+        .contains("add column if not exists customer_names text")
+        .contains("add column if not exists planned_resolution_at timestamp")
+        .contains("add column if not exists planned_merge_version_branch text")
+        .contains("create table if not exists issue_customer_name_aliases")
+        .contains("create table if not exists issue_fact_customer_members")
+        .contains("idx_issue_fact_customer_members_customer_lookup");
+    assertThat(aliasSeedMigration)
+        .contains("('新世纪', '郑州新世纪')")
+        .contains("on conflict (alias_name)");
+  }
+
+  @Test
+  void shouldDefineAndBackfillIndependentIssueHandlerFact() throws IOException {
+    String schemaMigration = readMigration("V20260722_03__add_issue_fact_handler_name.sql");
+    String backfillMigration = readMigration("V20260722_04__backfill_issue_fact_handler_name.sql");
+
+    assertThat(schemaMigration).contains("add column if not exists handler_name text");
+    assertThat(backfillMigration)
+        .contains("set handler_name = assignee_name")
+        .contains("nullif(btrim(handler_name), '') is null");
+  }
+
+  @Test
+  void shouldDefineCustomerIssueResponseTimesIndexMigration() throws IOException {
+    String migration = readMigration("V20260722_05__add_customer_issue_response_times_index.sql");
+
+    assertThat(migration)
+        .contains("create index if not exists idx_issue_fact_customer_response_times")
+        .contains("on issue_fact(project_id, milestone_title, research_template_time, fixed_label_time)")
+        .contains("where project_id = 325 and deleted = false");
+  }
+
   private String readMigration(String fileName) throws IOException {
     return Files.readString(
             Path.of("src", "main", "resources", "db", "migration", fileName), StandardCharsets.UTF_8)
