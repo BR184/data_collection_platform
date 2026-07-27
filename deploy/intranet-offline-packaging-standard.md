@@ -1,351 +1,205 @@
 <!-- DOC_STATUS_START -->
 > 文档状态：常驻发布标准
-> 说明：定义 QA Flex Platform 内网离线 Ubuntu 24.04 amd64 发布包的固定结构、拓扑边界、打包流程和验收清单。
+> 说明：定义 QA Flex Platform 面向 Ubuntu 24.04 amd64 内网环境的离线发布包、连续升级和回滚契约。
 <!-- DOC_STATUS_END -->
 
 # 内网离线打包标准
 
-## 适用范围
+## 适用范围与拓扑
 
-本标准用于生成可部署到内网服务器的 QA Flex Platform 离线包。目标环境默认满足：
+本标准适用于无公网访问的 Ubuntu 24.04 amd64 平台服务器。当前运行拓扑由 Compose 管理三个容器：
 
-- 操作系统：Ubuntu 24.04 amd64。
-- 目标服务器无公网访问能力。
-- 平台和 GitLab 部署在不同服务器。
-- 平台内网访问地址固定为 `http://172.22.10.115:18181`。
-- GitLab Web 地址固定为 `http://172.22.10.233`。
-- 平台自带 PostgreSQL 作为平台库，GitLab PostgreSQL 只作为后续在 UI 中配置的数据源。
+- `qaflex-postgres`：平台自有 PostgreSQL，只保存平台配置、镜像、事实、同步状态和业务维护数据。
+- `qaflex-backend`：Spring Boot 后端，通过 Compose 内部网络访问平台库。
+- `qaflex-frontend`：Nginx 前端，将 `/api/` 代理到后端。
 
-## 发布包类型
+GitLab Web、GitLab PostgreSQL、LDAP、老平台 MySQL/MongoDB 均是其他服务器上的外部系统，不进入本包。GitLab 等源数据库只通过平台 UI 配置为只读数据源，不能写入平台库的 `DATASOURCE_URL`。
 
-内网交付必须先判断发布包类型，不能把所有交付都当作“不改变容器的前端更新”。当前固定分为三类：
+115 地址的 18181、20001 实例均由 20260714 全新部署包建立，且已应用 20260721 LDAP 和 20260724 CC_PRODUCT 更新。它们今后分别作为独立现场实例维护；端口相同、初始包相同或应用过同名更新包，均不能替代升级前的现场基线检查。
 
-1. **离线全新部署包**：用于新服务器首次部署、明确清空环境、灾难恢复或业务方批准重建。包内包含 PostgreSQL、后端、前端镜像和离线依赖，平台数据为空，首次启动后由 Flyway 建库。
-2. **需要事实层重建的增量更新包**：用于保留既有容器、volume、用户配置、同步状态和镜像表，但本次改动影响事实字段、事实规则、统计口径、非法判定、默认范围、快照结构或聚合结果。包内必须包含后端/前端业务镜像 tar、Flyway 迁移和升级后事实层重建/快照预热步骤说明。
-3. **不需要事实层重建的增量更新包**：用于纯前端展示、样式、文案、非事实字段接口展示、非统计规则类后端小修等不改变事实表和统计结果的更新。包内仍必须包含已构建业务镜像 tar，部署时只替换后端/前端容器，不触发事实层重建。
+## 发布策略
 
-判断是否需要事实层重建时，以下改动一律按“需要事实层重建的增量更新包”处理：
+### 默认：保数据更新包
 
-- 修改 `issue_fact`、`merge_request_fact` 或评审事实/统计事实字段生成规则。
-- 修改非法数据判定、缺陷原因、延期/响应效率、系统测试阶段、客户问题里程碑、代码走查异常等业务口径。
-- 修改默认筛选范围、老平台字段映射、模块/项目/阶段/里程碑归一化逻辑。
-- 修改统计快照/中间表结构、快照 key、规则版本、预热逻辑或聚合服务输出。
-- 修复导致既有事实表中已落库字段值错误的问题。
+日常发布只制作保数据更新包。更新包加载唯一 tag 的前后端镜像，保留现有 PostgreSQL 容器、volume、`.env`、同步状态、镜像表、事实表、平台配置和用户数据。
 
-如果只是修复页面排版、按钮布局、表格列宽、前端下拉样式、接口超时提示、文案错别字，且后端事实字段、统计数量和导出结果不变，才允许归为“不需要事实层重建的增量更新包”。
+以下变化需要更新包：前后端代码、Nginx 配置、Flyway 迁移、认证/安全运行参数、事实规则、统计口径和页面资源。是否重建事实层由发布清单显式声明：
 
-## 内网既有实例更新规则
+- 修改事实字段、非法判定、归一化、统计快照、聚合口径或既有事实结果时，必须声明重建范围。
+- 纯页面样式、文案、布局且不改变事实和统计结果时，不重建事实层。
+- 事实重建只基于既有 ODS 重算事实与快照，不重新拉取 GitLab，不删除同步状态或平台数据。
 
-内网已部署基线不是永久固定到某个历史包。后续普通修复、页面调整、统计口径修正和前后端代码更新，默认必须以当前线上实际运行的部署目录、容器和 PostgreSQL volume 为更新目标，采用同环境增量更新方式。除非业务方明确批准重建环境、清空环境、回退到某个历史基线或灾难恢复，不得重新制作一个全新的空平台全量包去替换现有实例。
+### 例外：全新/灾备部署包
 
-增量打包必须显式传入 `--baseline-deploy-dir`，并从该目录读取当前前后端镜像 tag 作为现场预检依据。禁止按目录修改时间自动猜测基线；本机最新解压目录不等于服务器实际运行版本。
+仅在新服务器首次部署、明确清空环境或灾难恢复时制作 `fresh-empty` 包。它包含平台 PostgreSQL 镜像和完整基础 Compose，但不包含任何数据库文件、dump、volume、ODS、事实或用户数据。
 
-保数据更新的目的：
+Docker/Compose 的 Ubuntu deb 不是应用运行产物。目标服务器尚未安装 Docker 且确需同包交付时，才显式使用 `--include-offline-docker-debs`；已有容器的更新包永远不携带这些 deb。
 
-- 保留平台数据库、同步状态、镜像表、事实表、用户配置、持久化视图、页面设置和后续接入统一账号后的用户侧数据。
-- 避免重新部署新容器后触发无意义的全量同步。
-- 避免普通 bugfix 变成一次完整迁移，降低内网更新时间和回滚风险。
+## 包结构契约
 
-增量更新包或更新脚本只能替换应用代码和必要配置，例如：
+### 保数据更新包
 
-- 后端 `app.jar` 或等价后端构建产物。
-- 前端 `dist/` 静态资源。
-- 无联网内网环境需要直接部署时，增量包必须包含已经构建好的后端/前端业务镜像 tar，不能要求目标服务器现场 `docker build`。
-- 必须随代码同步更新的 Nginx、启动脚本或环境变量模板。
-- 必须执行且可重复运行的 Flyway 迁移脚本。
-- 需要事实层重建时，可附带明确的事实重建、快照预热和验收命令；这些命令只重建平台库中的事实表/统计快照，不删除镜像表、同步状态、用户配置或 PostgreSQL volume。
+```text
+qaflex-update-<release-id>/
+├── docker-images/
+│   ├── qa-flex-platform-backend_<image-tag>.tar
+│   └── qa-flex-platform-frontend_<image-tag>.tar
+├── docker-compose.release.yml
+├── upgrade.sh
+├── rollback.sh
+├── RELEASE-MANIFEST.json
+├── SHA256SUMS.txt
+└── README-INCREMENTAL-DEPLOY.md
+```
 
-增量更新时禁止执行：
+每项职责唯一：
 
-- 删除或重建 `qaflex-postgres` 数据卷。
-- 清空平台库、镜像表、事实表、同步状态表、用户视图表或页面配置表。
-- 使用全新的空平台包覆盖内网既有实例。
-- 无审批地执行会导致全量同步重跑的初始化流程。
-- 把“需要事实层重建”误处理成“清空平台库/重建容器/重新全量同步”。事实层重建只能基于既有镜像表和同步状态重算事实结果。
-- 为普通代码更新执行 `docker compose down -v`、删除 volume、删除 PostgreSQL 容器数据目录或重置 `.env`。
-- 在无公网内网服务器上执行依赖 Docker Hub 解析基础镜像的 `docker build`。`FROM eclipse-temurin:21-jre`、`FROM nginx:1.27-alpine` 等基础镜像即使以前通过业务镜像间接存在，也可能因 tag 解析访问 `registry-1.docker.io` 而失败。
+| 内容 | 必要性 |
+| --- | --- |
+| `docker-images/` | 目标机无网络，必须直接 `docker load` 已构建业务镜像。 |
+| `docker-compose.release.yml` | 只声明本次应用镜像和必须同步的运行参数；升级脚本将其安装为现场 override。 |
+| `upgrade.sh` | 统一执行基线、任务、磁盘、备份、Flyway、健康、行数守恒和 PostgreSQL 容器不变检查。手工堆命令不能替代。 |
+| `rollback.sh` | 恢复升级前 `.env`、基础 Compose 和旧 override，校验基线镜像，先等待后端健康再等待前端健康；不擅自回写数据库。 |
+| `RELEASE-MANIFEST.json` | 机器可读地记录包类型、commit、工作树状态、目标/基线镜像、镜像与源码摘要、Flyway 和事实重建要求。 |
+| `SHA256SUMS.txt` 与包外 `.sha256` | 分别校验包内文件和离线传输后的完整归档。 |
+| `README-INCREMENTAL-DEPLOY.md` | 内网现场无法访问仓库文档时的同版本操作与验收入口。 |
 
-如果确实需要重建镜像或替换容器，必须先明确说明原因并获得确认；即使替换后端或前端容器，也必须复用既有 PostgreSQL 数据卷和同步状态，不能重建平台数据库。只有在明确目标就是清空环境、重新初始化或灾难恢复时，才允许重新走全量空平台部署流程。
+更新包明确不包含：
 
-### 需要事实层重建的增量包部署要求
+- `backend/`、`frontend/`、Dockerfile、`.dockerignore`：它们只是镜像构建上下文，应用内容已存在于镜像 tar；重复交付没有运行用途。
+- `.env` 或 `.env.example`：现场 `.env` 是该实例配置的唯一事实源，更新包不得用开发机模板覆盖数据库连接、端口或凭据。
+- `postgres` 镜像、`offline-debs/`：应用更新不创建平台库，也不安装容器运行时。
+- 数据 dump、volume、数据库物理文件或运行日志：备份只能在现场升级前生成并留在现场。
+- `VERSION.txt`：已由结构化 `RELEASE-MANIFEST.json` 取代，禁止双份版本事实源。
 
-需要事实层重建的增量包仍然是“保留用户数据”的更新包，不是空平台包。部署顺序固定为：
+### 全新/灾备包
 
-1. `docker load` 后端/前端业务镜像。
-2. 更新前确认没有运行中的同步/事实任务，执行 `pg_dump -Fc`，备份 `.env`、Compose、当前镜像 ID、Flyway 版本和关键表行数。
-3. 以唯一的新镜像 tag 和受控 Compose 覆盖文件先重建后端，让后端启动并执行 Flyway 迁移；等待 `/actuator/health` 健康并核对目标 Flyway 版本。
-4. 确认 PostgreSQL 容器 ID 未变化、受保护业务表行数守恒后，再重建前端并完成页面健康检查。
-5. 触发或等待事实层重建任务。若本次改动影响 issue 事实，必须重建 issue 事实；影响 MR/代码走查事实，必须重建 merge request 事实；同时影响两者则两者都重建。
-6. 事实重建成功后，统计快照/中间表应由事实刷新链路预热。若升级脚本提供了显式预热命令，执行后再验收相关统计页面。
+```text
+qaflex-full-<release-id>/
+├── docker-images/
+│   ├── postgres_16-alpine.tar
+│   ├── qa-flex-platform-backend_<image-tag>.tar
+│   └── qa-flex-platform-frontend_<image-tag>.tar
+├── docker-compose.yml
+├── .env.example
+├── RELEASE-MANIFEST.json
+├── SHA256SUMS.txt
+└── README-INTRANET-DEPLOY.md
+```
 
-事实层重建会增加升级后的首次处理时间，但它使用既有镜像表重算事实和快照，不会重新从 GitLab 源库拉全量镜像数据。同步时间和事实重建时间必须在发布说明中分开描述，不能把事实重建误写成全量同步。
+只有显式选择时才增加 `offline-debs/ubuntu-24.04-amd64/`。全新包同样不携带 `backend/`、`frontend/` 或真实 `.env`；部署人员必须从 `.env.example` 建立现场 `.env` 并设置实际配置。
 
-### 不需要事实层重建的增量包部署要求
+## 镜像与发布身份
 
-不需要事实层重建的增量包部署时只替换后端/前端业务容器并做健康检查，不主动触发事实重建、全量同步或快照清空。若部署后页面仍读取旧事实数据，这是符合预期的；该类包不承担修正历史事实结果的职责。
+应用镜像固定为：
 
-### 无联网保数据更新包
+```text
+qa-flex-platform-backend:<release-id>
+qa-flex-platform-frontend:<release-id>
+```
 
-内网服务器无公网访问能力时，普通代码更新应发布“保数据更新包”，而不是只发布 `app.jar` / `dist` 文件包。更新包与全量空平台包的边界如下：
+每次执行打包器时自动生成 `YYYYMMDDTHHMMSSZ-<12 hex>` 格式的 `release-id`。UTC 时间负责排序和人工定位，6 字节密码学随机熵区分同秒及并发构建；包目录通过原子创建拒绝碰撞，归档和校验文件存在时同样拒绝覆盖。因此每个成功生成的包都有唯一名称，不依赖人工命名。
 
-- 必须包含后端和前端业务镜像 tar；每次发布使用唯一的新 tag，旧镜像保留用于应用回滚，禁止用相同 tag 覆盖旧镜像内容。
-- 可以同时包含 `backend/app.jar` 和 `frontend/dist/` 作为审计产物，但目标服务器部署时不依赖现场构建。
-- 不包含 `postgres` 镜像、`offline-debs/`、数据库 dump、Docker volume、镜像表、事实表、同步状态或用户配置。
-- 包内必须提供受控升级脚本和 Compose 覆盖文件；升级脚本保留现场 `.env` 的非目标配置，只更新本版本要求的认证/安全变量。
-- 部署时先重建后端并验收 Flyway/健康状态，再重建前端，不允许把两个应用服务作为一个不可分辨失败点同时切换。
-- 不执行 `docker build`，不重新 `docker load` postgres，不重启或重建 `postgres`，不删除 volume。
-- 如属于“需要事实层重建的增量更新包”，部署说明必须在上述容器替换步骤之后追加事实层重建和快照预热步骤；如属于“不需要事实层重建的增量更新包”，部署说明必须明确不执行事实重建。
+包名只允许包含产品简称、包类型和发布 ID：全新包为 `qaflex-full-<release-id>.tar.gz`，更新包为 `qaflex-update-<release-id>.tar.gz`。Ubuntu 版本、离线属性、端口、commit、工作树状态、功能说明、Flyway 和事实重建范围均写入 `RELEASE-MANIFEST.json`，不得重复拼接到文件名。前后端镜像复用同一 `release-id`，使一次发布的目录、归档、清单和镜像形成单一身份。
 
-保数据更新包部署命令模板：
+打包器在最终归档之外创建临时 Docker build context，构建完成后立即销毁。打包阶段必须核对镜像内 `/app/app.jar` 与本地生产 JAR 的 SHA-256，并核对前端镜像内 `index.html` 与生产 `dist`；审计摘要写入发布清单，不复制裸产物。
+
+## 基线与连续更新
+
+更新包必须显式传入 `--baseline-dir`，其值只能是：
+
+1. 当前现场部署目录的受控副本，包含 `docker-compose.yml`，以及存在时的 `docker-compose.override.yml`；或
+2. 当前实例最后一次成功应用的更新包目录，包含 `docker-compose.release.yml`。
+
+镜像基线读取优先级固定为现场 override、上次发布 Compose、历史更新包的 `deploy/docker-compose.release.yml`、基础 Compose。此优先级只用于从当前历史格式迁移；新包一律采用根目录发布 Compose。
+
+两个内网实例必须分别确认当前合并 Compose。不能因两者都源自 20260714 就继续把 20260714 当作永久基线；已应用 20260724 后，下一包的预期基线应是 20260724 的目标前后端镜像。
+
+升级允许现场已有标准 `docker-compose.override.yml`。脚本在变更前备份它，随后用本次 `docker-compose.release.yml` 替换；回滚时恢复上一份 override。禁止要求操作者先手工删除 override，因为这会丢失当前镜像基线和回滚证据。
+
+## 打包命令
+
+默认更新包：
+
+```powershell
+python scripts\package_intranet_offline.py `
+  --mode incremental-update `
+  --baseline-dir D:\path\to\current-deployment-or-last-update `
+  --require-fact-rebuild `
+  --fact-rebuild-scope issue
+```
+
+不需要事实重建时省略 `--require-fact-rebuild`。范围只能是 `issue`、`merge-request` 或 `all`。
+
+全新/灾备包：
+
+```powershell
+python scripts\package_intranet_offline.py --mode fresh-empty
+```
+
+只有目标机缺少 Docker 时增加：
+
+```powershell
+--include-offline-docker-debs --template-package-dir D:\path\to\verified-template
+```
+
+打包器默认执行前端发布测试和生产构建、后端生产打包、Flyway 源码/JAR 集合校验、无缓存镜像构建、镜像内容校验、Compose 解析、禁止数据扫描、SHA-256 校验和归档清单校验。任何一步失败都不得交付。
+
+## 现场升级流程
+
+在更新包目录校验：
 
 ```bash
-cd <当前线上实际运行的部署目录>
-bash ../qa-flex-platform-intranet-YYYYMMDD-incremental-update-<release-label>/deploy/upgrade.sh "$PWD"
+sha256sum -c SHA256SUMS.txt
 ```
 
-如果更新包目录不在当前部署目录的上一级，必须改成现场实际路径。脚本必须校验现场 Compose 的基线镜像、PostgreSQL 健康状态、活动任务和磁盘空间，任一项不满足即在变更容器前失败。
-
-如果 `up -d --no-deps --force-recreate backend frontend` 报错为 `container name ... is already in use`，通常表示当前目录不是原先创建该容器的 compose 项目，或现场遗留了同名应用容器。此时只能按精确容器名删除前端/后端应用容器后重建，禁止删除 PostgreSQL 容器或 volume：
+进入当前部署目录并执行：
 
 ```bash
-sudo docker ps -a --filter "name=^/qaflex-backend$" --filter "name=^/qaflex-frontend$"
-sudo docker rm -f qaflex-backend qaflex-frontend
-sudo docker compose --env-file .env up -d --no-deps --force-recreate backend frontend
-sudo docker compose --env-file .env ps
-curl -fsS http://127.0.0.1:18080/actuator/health
+cd <current-deployment-dir>
+bash ../<update-package>/upgrade.sh "$PWD"
 ```
 
-不要用 `docker compose down -v` 或 `docker rm -f qaflex-postgres` 处理应用容器名冲突；这类冲突不需要清库，也不需要重新部署空平台。
+脚本必须在修改应用容器前完成：
 
-## 包结构
+1. 解析现场基础 Compose 与已有 override，确认前后端镜像等于发布清单基线。
+2. 确认 PostgreSQL 健康、无运行中同步/事实任务且磁盘足够。
+3. 在 `upgrade-backups/` 保存 `.env`、基础 Compose、已有 override、容器/镜像信息、Flyway、关键表行数和 `pg_dump -Fc`。
+4. 加载前后端镜像，安装新 override；先重建后端并等待 Flyway 和健康检查，再重建前端。
+5. 确认 PostgreSQL 容器 ID 未变化，迁移期间受保护业务表行数守恒。
 
-离线包目录名使用：
+需要事实重建时，容器升级完成后由具备权限的用户在“数据镜像设置”提交发布清单指定范围的事实重建，并观察 `FACT_REFRESH` 终态和快照预热。升级脚本不得保存账号密码、绕过 Session/CSRF 或触发 GitLab 全量同步。
 
-```text
-qa-flex-platform-intranet-YYYYMMDD-runnable-<release-label>
+应用回滚：
+
+```bash
+bash ../<update-package>/rollback.sh "$PWD" "$PWD/upgrade-backups/<backup-dir>"
 ```
 
-压缩包名使用：
+应用回滚只有在基线镜像匹配、后端和前端均健康且 PostgreSQL 容器 ID 未变化后才报告成功，不得把 `health: starting` 当作完成。它不自动执行 `pg_restore`。Flyway 是前向迁移；数据库恢复只能在应用回滚无法恢复服务、已停机且明确审批后执行，优先先恢复到隔离数据库验证。
 
-```text
-qa-flex-platform-intranet-YYYYMMDD-runnable-<release-label>-ubuntu2404-offline.tar.gz
-```
+## 禁止操作
 
-目录内必须包含：
+- 普通更新不得执行 `docker compose down -v`，不得删除 PostgreSQL 容器或 volume。
+- 不得清空平台库、ODS、事实、同步状态、用户、权限、页面配置或持久化视图。
+- 不得以全新空平台包覆盖现有实例。
+- 不得在无公网目标机执行 `docker build` 或解析 Docker Hub 基础镜像。
+- 不得把事实重建解释成全量同步、清库或重建数据库容器。
+- 容器名冲突只能处理精确的前后端应用容器；不得借此删除 PostgreSQL。
 
-```text
-backend/app.jar
-backend/Dockerfile
-frontend/dist/
-frontend/Dockerfile
-frontend/nginx-default.conf
-docker-images/postgres_16-alpine.tar
-docker-images/qa-flex-platform-backend_<image-tag>.tar
-docker-images/qa-flex-platform-frontend_<image-tag>.tar
-offline-debs/ubuntu-24.04-amd64/*.deb
-.dockerignore
-.env
-.env.example
-docker-compose.yml
-README-INTRANET-DEPLOY.md
-SHA256SUMS.txt
-VERSION.txt
-```
+## 发布验收
 
-## 空平台要求
+每个包交付前必须确认：
 
-发布包必须是空平台包：
-
-- 禁止包含 `infra/postgres-data/`、`pg_wal/`、`base/`、Docker volume 数据或任何平台数据库物理文件。
-- 禁止包含业务数据 dump、备份文件、初始化数据快照或从本地测试环境导出的数据库内容。
-- 禁止把本地 GitLab、镜像表、事实表、评审记录、测试数据、同步日志等运行期数据打入发布包。
-- 允许包含 Flyway 迁移脚本和空 PostgreSQL 镜像；平台库结构只能由首次启动时的 Flyway 迁移创建。
-- `offline-debs/` 只用于离线安装 Docker/Compose 依赖，不得夹带业务数据。
-
-## 运行拓扑
-
-离线包运行三个容器：
-
-- `qaflex-postgres`：平台内置数据库，只保存平台配置、镜像表、事实表和业务维护数据。
-- `qaflex-backend`：Spring Boot 后端，连接内置 `postgres` 服务。
-- `qaflex-frontend`：Nginx 前端，代理 `/api/` 到 `backend:18080`。
-
-`DATASOURCE_URL` 必须指向 compose 内的内置平台库：
-
-```text
-jdbc:postgresql://postgres:5432/${POSTGRES_DB}
-```
-
-禁止把 GitLab PostgreSQL 写入 `DATASOURCE_URL`。GitLab web 地址和 GitLab PostgreSQL 源库连接在平台启动后通过数据镜像设置页面配置。
+- 定向打包契约测试、前端生产构建、后端生产包和镜像构建通过。
+- Compose 可解析，镜像内产物摘要与生产构建产物一致。
+- `RELEASE-MANIFEST.json` 的基线、目标镜像、Flyway 和事实重建标记与本次发布一致。
+- `SHA256SUMS.txt` 覆盖包内全部其他文件，包外 `.sha256` 与最终 tar.gz 一致。
+- 更新包归档不存在 `backend/`、`frontend/`、真实 `.env`、PostgreSQL 镜像、离线 deb、数据库数据或运行日志。
+- 使用隔离的 20260714/当前更新链副本完成升级、再次升级和应用回滚验证；验证期间 PostgreSQL 容器 ID 与受保护数据保持不变。
 
 ## GitLab 源库访问边界
 
-平台和 GitLab 部署在不同服务器时，推荐使用 `DIRECT` 数据源模式。该模式要求平台服务器能够访问 GitLab PostgreSQL，并且 GitLab 侧提供一个只读账号。
+平台对 GitLab PostgreSQL 只执行读取和元数据查询。生产账号应限制到平台服务器地址，并只授予业务 schema 及必要系统元数据的读取权限；不得使用超级用户，也不得授予 `insert`、`update`、`delete`、`truncate`、`drop`、`alter` 或 `create`。
 
-GitLab 服务器侧至少需要满足：
-
-- PostgreSQL 监听平台服务器可达的地址和端口。
-- 防火墙、路由和 GitLab PostgreSQL 认证规则允许平台服务器连接。
-- 账号可以连接 GitLab 业务库。
-- 账号可以读取 `public` schema 下需要同步的 GitLab 表。
-- 账号可以读取 `pg_catalog` / `information_schema` 元数据，用于发现表、字段、主键和更新时间字段。
-
-如果正式 GitLab 服务器没有这些权限，平台本身仍可启动，但以下功能会失败：
-
-- 数据源测试连接。
-- 表白名单发现和数据库查看。
-- 增量同步、全量同步、补偿扫描和全量补偿对账。
-- 依赖镜像表和事实表刷新的统计看板更新。
-
-当前平台对 GitLab 源库的访问边界固定为只读：源库访问代码只执行 `select`、`count`、`max`、元数据查询和校验查询，不向 GitLab PostgreSQL 执行 `insert`、`update`、`delete`、`truncate`、`drop`、`alter` 或 `create`。平台的写入、删除、建表和清理操作只作用于平台自带 PostgreSQL。
-
-不建议为了方便使用 GitLab 超级用户账号。生产环境应优先申请只读账号，并把网络放行范围限制到平台服务器地址。
-
-GitLab Omnibus 配置 PostgreSQL 对外直连时，需要区分监听地址和 Rails 内部连接地址：
-
-- `postgresql['listen_address'] = '0.0.0.0'` 只表示 PostgreSQL 监听所有网卡，不是 Rails 应该连接的数据库主机。
-- `postgresql['port'] = 5432` 表示 PostgreSQL 使用 5432 端口。
-- `postgresql['trust_auth_cidr_addresses'] = ['127.0.0.1/32']` 只用于本机本地连接。
-- `postgresql['md5_auth_cidr_addresses']` 生产环境应限制为平台服务器 IP，例如 `['<平台服务器IP>/32']`，不要长期使用 `['0.0.0.0/0']`。
-
-如果 `gitlab-ctl reconfigure` 报错为 `connection to server at "0.0.0.0", port 5432 failed: Connection refused`，优先检查是否把 Rails/ActiveRecord 的数据库 host 错配成了 `0.0.0.0`。`0.0.0.0` 可以作为监听地址，但不能作为客户端连接目标；Rails 内部连接一般应保持 GitLab 原本的本机 socket 或 `127.0.0.1`。
-
-如果无法修改正式 GitLab 服务器配置，但必须直连，唯一可行路径是让运维提供等价能力：平台服务器到 GitLab PostgreSQL 的网络放行、认证放行、只读账号和实际连接端口。没有这些能力时，平台可以启动，但直连同步不可用。
-
-## 镜像与标签
-
-运行镜像固定为：
-
-- `postgres:16-alpine`
-- `qa-flex-platform-backend:<image-tag>`
-- `qa-flex-platform-frontend:<image-tag>`
-
-`image-tag` 使用：
-
-```text
-YYYYMMDD-<git-short-sha>
-```
-
-如果源码包含未提交改动但必须出包，则后缀追加 `-working`，例如：
-
-```text
-20260601-2215cac5-working
-```
-
-## 构建要求
-
-打包统一使用 Python 脚本入口：
-
-```powershell
-python scripts\package_intranet_offline.py --mode fresh-empty --release-label empty-working
-```
-
-保数据更新包必须指定现场基线及是否重建事实层，例如：
-
-```powershell
-python scripts\package_intranet_offline.py --mode incremental-update --release-label ldap-v03-preserve-data --baseline-deploy-dir D:\projects\data_collection_platform_deploy\<现场基线目录> --require-fact-rebuild --fact-rebuild-scope all
-```
-
-该脚本会自动执行以下步骤并写入 `VERSION.txt`：
-
-```powershell
-npm.cmd run test -- feature-manifest-access.test.ts ux-interaction-regressions.test.ts
-npm.cmd run build
-tools\maven\apache-maven-3.9.9\bin\mvn.cmd -f backend\pom.xml -DskipTests package
-docker build --no-cache ...
-docker save ...
-docker compose --env-file .env config
-SHA256SUMS.txt 校验
-tar -tzf 校验
-```
-
-如果历史测试源码未跟上生产代码构造器签名，导致 `-DskipTests package` 在 `testCompile` 阶段失败，脚本默认会降级使用 `-Dmaven.test.skip=true package` 继续生成生产 jar，并在 `VERSION.txt` 中记录该降级。需要强制标准构建时，传入 `--no-allow-backend-test-source-skip`。
-
-发布包必须使用生产构建产物：
-
-- 后端：`backend/target/qa-flex-platform-backend-0.0.1-SNAPSHOT.jar`
-- 前端：`frontend/dist/`
-
-前端 Nginx 必须包含 `/api/` 反向代理：
-
-```nginx
-location /api/ {
-    proxy_pass http://backend:18080/api/;
-}
-```
-
-后端 compose healthcheck 使用：
-
-```text
-http://localhost:18080/actuator/health
-```
-
-## 默认环境变量
-
-`.env.example` 和 `.env` 必须包含：
-
-```text
-PLATFORM_PUBLIC_BASE_URL=http://172.22.10.115:18181
-GITLAB_WEB_BASE_URL=http://172.22.10.233
-
-POSTGRES_USER=qaflex
-POSTGRES_PASSWORD=qaflex
-POSTGRES_DB=qaflex
-POSTGRES_PORT=15432
-POSTGRES_BIND=127.0.0.1
-
-FRONTEND_PORT=18181
-FRONTEND_BIND=0.0.0.0
-BACKEND_PORT=18080
-BACKEND_BIND=127.0.0.1
-
-PLATFORM_AUTH_PROVIDER=ldap
-PLATFORM_LDAP_BASE_URL=http://172.22.10.116:80
-PLATFORM_LDAP_CONNECT_TIMEOUT_MS=3000
-PLATFORM_LDAP_READ_TIMEOUT_MS=10000
-PLATFORM_LDAP_INITIAL_SYNC_REQUIRED=true
-```
-
-`PLATFORM_PUBLIC_BASE_URL`、`GITLAB_WEB_BASE_URL` 和 `PLATFORM_LDAP_BASE_URL` 是当前内网环境明确配置。LDAP 是唯一交互登录 Provider，发布包不得注入本地管理员或审批账号；LDAP 地址必须从后端容器可达。`GITLAB_WEB_BASE_URL` 只用于平台展示链接和默认提示，不等同于 GitLab 数据库连接；GitLab PostgreSQL 连接仍必须在平台 UI 的数据源配置中维护。
-
-## 目标机部署步骤
-
-目标机无网络时，部署流程固定为：
-
-```bash
-tar -xzf qa-flex-platform-intranet-YYYYMMDD-runnable-<release-label>-ubuntu2404-offline.tar.gz
-cd qa-flex-platform-intranet-YYYYMMDD-runnable-<release-label>
-```
-
-```bash
-sudo docker load -i docker-images/postgres_16-alpine.tar
-sudo docker load -i docker-images/qa-flex-platform-backend_<image-tag>.tar
-sudo docker load -i docker-images/qa-flex-platform-frontend_<image-tag>.tar
-```
-
-```bash
-cp .env.example .env
-vi .env
-sudo docker compose --env-file .env up -d postgres backend frontend
-sudo docker compose --env-file .env ps
-```
-
-升级已有实例前，先停止旧容器：
-
-```bash
-sudo docker rm -f qaflex-frontend qaflex-backend qaflex-postgres
-```
-
-只有明确需要清空平台数据库时，才删除旧 volume。
-
-## 验收清单
-
-每个离线包发布前必须验证：
-
-- 前端生产构建通过。
-- 后端 jar 打包通过。
-- `docker compose --env-file .env config` 能解析。
-- 三个运行镜像均已导出到 `docker-images/`。
-- `SHA256SUMS.txt` 覆盖包内所有文件，且 `sha256sum -c SHA256SUMS.txt` 可通过。
-- `tar -tzf` 能列出压缩包内容。
-- `VERSION.txt` 记录 commit、branch、image tag、构建时间、构建命令、重要变更和目标拓扑。
+GitLab PostgreSQL 的监听、网络、防火墙和认证必须允许平台服务器连接。`0.0.0.0` 只能作为服务监听地址，不能作为 Rails 或平台客户端连接目标；客户端应使用可路由的实际地址、`127.0.0.1` 或原有 Unix socket。

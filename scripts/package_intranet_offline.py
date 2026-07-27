@@ -12,13 +12,14 @@ import argparse
 import concurrent.futures
 import datetime as dt
 import hashlib
+import json
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
-import tarfile
-import time
+import tempfile
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,7 +32,7 @@ JAVA_HOME = REPO_ROOT / "tools" / "jdk" / "jdk-21.0.10+7"
 MAVEN_HOME = REPO_ROOT / "tools" / "maven" / "apache-maven-3.9.9"
 BACKEND_JAR = REPO_ROOT / "backend" / "target" / "qa-flex-platform-backend-0.0.1-SNAPSHOT.jar"
 FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
-PACKAGE_PREFIX = "qa-flex-platform-intranet"
+PACKAGE_PREFIX = "qaflex"
 POSTGRES_IMAGE = "postgres:16-alpine"
 BACKEND_IMAGE = "qa-flex-platform-backend"
 FRONTEND_IMAGE = "qa-flex-platform-frontend"
@@ -51,15 +52,13 @@ class CommandResult:
 @dataclass(frozen=True)
 class BuildContext:
     mode: str
-    release_label: str
+    release_id: str
     deploy_root: Path
     package_name: str
     package_dir: Path
     archive_path: Path
-    date_stamp: str
     branch: str
     commit: str
-    short_sha: str
     dirty_state: str
     backend_tag: str
     frontend_tag: str
@@ -73,6 +72,7 @@ class BuildContext:
     frontend_port: int
     backend_port: int
     ldap_base_url: str
+    include_offline_docker_debs: bool
 
 
 def log(message: str) -> None:
@@ -130,6 +130,12 @@ def now_stamp() -> tuple[str, str]:
     return now.strftime("%Y%m%d"), now.strftime("%Y-%m-%d %H:%M:%S %z")
 
 
+def new_release_id() -> str:
+    """Return a compact, sortable identity for one packaging execution."""
+    timestamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"{timestamp}-{secrets.token_hex(6)}"
+
+
 def require_path(path: Path, label: str) -> None:
     if not path.exists():
         fail(f"{label} not found: {path}")
@@ -159,6 +165,19 @@ def file_sha256(path: Path) -> str:
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
+    return digest.hexdigest()
+
+
+def directory_sha256(root: Path) -> str:
+    """Return a stable digest of relative paths and file contents below root."""
+    require_path(root, "directory to hash")
+    digest = hashlib.sha256()
+    for path in list_files(root):
+        relative = path.relative_to(root).as_posix().encode("utf-8")
+        digest.update(relative)
+        digest.update(b"\0")
+        digest.update(file_sha256(path).encode("ascii"))
+        digest.update(b"\n")
     return digest.hexdigest()
 
 
@@ -192,8 +211,6 @@ def latest_full_template(deploy_root: Path) -> Path:
         path
         for path in deploy_root.iterdir()
         if path.is_dir()
-        and path.name.startswith(f"{PACKAGE_PREFIX}-")
-        and "-runnable-" in path.name
         and (path / "offline-debs").exists()
         and (path / "docker-compose.yml").exists()
     ]
@@ -202,13 +219,26 @@ def latest_full_template(deploy_root: Path) -> Path:
     return max(candidates, key=lambda item: item.stat().st_mtime)
 
 
-def read_compose_image_tag(compose_path: Path, image: str) -> str:
-    require_path(compose_path, "baseline docker-compose.yml")
-    text = compose_path.read_text(encoding="utf-8")
-    match = re.search(re.escape(image) + r":(?P<tag>[A-Za-z0-9_.-]+)", text)
-    if not match:
-        fail(f"cannot find image tag for {image} in {compose_path}")
-    return match.group("tag")
+def read_deployment_image_tag(deployment_dir: Path, image: str) -> str:
+    """Read the effective application tag from a standard deployment directory.
+
+    A release override is authoritative when present because retained-container
+    upgrades intentionally leave the immutable base Compose file untouched.
+    """
+    candidates = (
+        deployment_dir / "docker-compose.override.yml",
+        deployment_dir / "docker-compose.release.yml",
+        deployment_dir / "deploy" / "docker-compose.release.yml",
+        deployment_dir / "docker-compose.yml",
+    )
+    for compose_path in candidates:
+        if not compose_path.is_file():
+            continue
+        text = compose_path.read_text(encoding="utf-8")
+        match = re.search(re.escape(image) + r":(?P<tag>[A-Za-z0-9_.-]+)", text)
+        if match:
+            return match.group("tag")
+    fail(f"cannot find image tag for {image} in deployment Compose files under {deployment_dir}")
 
 
 def latest_flyway_version() -> str:
@@ -248,66 +278,66 @@ def verify_backend_migrations_match_source(jar_path: Path, migration_dir: Path) 
         fail("backend migration set mismatch; " + "; ".join(details))
 
 
-def clean_label(label: str) -> str:
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+", label):
-        fail(f"release label may only contain letters, numbers, dot, underscore and hyphen: {label}")
-    return label
-
-
 def resolve_context(args: argparse.Namespace) -> BuildContext:
-    date_stamp, _ = now_stamp()
+    if args.mode == "fresh-empty":
+        if args.baseline_dir is not None:
+            fail("fresh-empty does not accept --baseline-dir")
+        if args.require_fact_rebuild:
+            fail("fresh-empty cannot require fact rebuild because it contains no business data")
+    else:
+        if args.include_offline_docker_debs:
+            fail("incremental-update cannot include offline Docker debs")
+        if args.template_package_dir is not None:
+            fail("incremental-update does not use --template-package-dir")
+    if args.template_package_dir is not None and not args.include_offline_docker_debs:
+        fail("--template-package-dir requires --include-offline-docker-debs")
+
     branch = git_value("rev-parse", "--abbrev-ref", "HEAD") or "unknown"
     commit = git_value("rev-parse", "HEAD") or "unknown"
-    short_sha = git_value("rev-parse", "--short=8", "HEAD") or "nogit"
     status = git_value("status", "--short")
     dirty = bool(status.strip()) or args.working
-    dirty_suffix = "-working" if dirty else ""
     dirty_state = "working tree contains uncommitted changes or --working was specified" if dirty else "clean"
 
     deploy_root = args.deploy_root.resolve()
     deploy_root.mkdir(parents=True, exist_ok=True)
-    image_tag = f"{date_stamp}-{short_sha}{dirty_suffix}"
+    release_id = new_release_id()
+    image_tag = release_id
 
     baseline_backend_tag = ""
     baseline_frontend_tag = ""
     if args.mode == "fresh-empty":
-        release_label = clean_label(args.release_label or f"empty-{short_sha}{dirty_suffix}")
-        package_name = f"{PACKAGE_PREFIX}-{date_stamp}-runnable-{release_label}"
+        package_name = f"{PACKAGE_PREFIX}-full-{release_id}"
         backend_tag = image_tag
         frontend_tag = image_tag
         baseline_name = ""
     else:
-        release_label = clean_label(args.release_label or f"{short_sha}{dirty_suffix}")
-        suffix = "-fact-rebuild" if args.require_fact_rebuild else ""
-        package_name = f"{PACKAGE_PREFIX}-{date_stamp}-incremental-update-{release_label}{suffix}"
-        baseline_dir = args.baseline_deploy_dir
+        package_name = f"{PACKAGE_PREFIX}-update-{release_id}"
+        baseline_dir = args.baseline_dir
         if baseline_dir is None:
-            fail("incremental-update requires an explicit --baseline-deploy-dir")
+            fail("incremental-update requires an explicit --baseline-dir")
         baseline_dir = baseline_dir.resolve()
         require_path(baseline_dir, "baseline deployment directory")
-        baseline_backend_tag = read_compose_image_tag(baseline_dir / "docker-compose.yml", BACKEND_IMAGE)
-        baseline_frontend_tag = read_compose_image_tag(baseline_dir / "docker-compose.yml", FRONTEND_IMAGE)
+        baseline_backend_tag = read_deployment_image_tag(baseline_dir, BACKEND_IMAGE)
+        baseline_frontend_tag = read_deployment_image_tag(baseline_dir, FRONTEND_IMAGE)
         backend_tag = image_tag
         frontend_tag = image_tag
         baseline_name = baseline_dir.name
 
     package_dir = deploy_root / package_name
-    archive_path = deploy_root / f"{package_name}-ubuntu2404-offline.tar.gz"
+    archive_path = deploy_root / f"{package_name}.tar.gz"
     template_dir = args.template_package_dir.resolve() if args.template_package_dir else None
-    if template_dir is None and args.mode == "fresh-empty":
+    if template_dir is None and args.mode == "fresh-empty" and args.include_offline_docker_debs:
         template_dir = latest_full_template(deploy_root)
 
     return BuildContext(
         mode=args.mode,
-        release_label=release_label,
+        release_id=release_id,
         deploy_root=deploy_root,
         package_name=package_name,
         package_dir=package_dir,
         archive_path=archive_path,
-        date_stamp=date_stamp,
         branch=branch,
         commit=commit,
-        short_sha=short_sha,
         dirty_state=dirty_state,
         backend_tag=backend_tag,
         frontend_tag=frontend_tag,
@@ -321,6 +351,7 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         frontend_port=args.frontend_port,
         backend_port=args.backend_port,
         ldap_base_url=args.ldap_base_url,
+        include_offline_docker_debs=args.include_offline_docker_debs,
     )
 
 
@@ -451,18 +482,6 @@ server {
 """
 
 
-def dockerignore() -> str:
-    return """\
-backend/target/
-frontend/node_modules/
-frontend/dist/
-.git/
-.tmp/
-.tmp-logs/
-logs/
-"""
-
-
 def env_content(ctx: BuildContext) -> str:
     return f"""\
 # Platform URL reachable by users and GitLab system hook.
@@ -587,34 +606,60 @@ volumes:
 
 
 def initialize_layout(ctx: BuildContext) -> None:
-    if ctx.package_dir.exists():
-        fail(f"package directory already exists: {ctx.package_dir}")
     if ctx.archive_path.exists():
         fail(f"archive already exists: {ctx.archive_path}")
-    for relative in ("backend", "frontend", "docker-images"):
-        (ctx.package_dir / relative).mkdir(parents=True, exist_ok=True)
+    checksum_path = ctx.archive_path.with_suffix(ctx.archive_path.suffix + ".sha256")
+    if checksum_path.exists():
+        fail(f"archive checksum already exists: {checksum_path}")
+    try:
+        ctx.package_dir.mkdir(parents=True, exist_ok=False)
+    except FileExistsError as exc:
+        raise PackageError(f"package directory already exists: {ctx.package_dir}") from exc
+    (ctx.package_dir / "docker-images").mkdir()
 
 
-def copy_artifacts(ctx: BuildContext) -> None:
+def prepare_image_build_contexts(root: Path) -> None:
+    """Create disposable Docker build contexts outside the delivery package."""
     require_path(BACKEND_JAR, "backend jar")
     require_path(FRONTEND_DIST, "frontend dist")
-    shutil.copy2(BACKEND_JAR, ctx.package_dir / "backend" / "app.jar")
-    write_text(ctx.package_dir / "backend" / "Dockerfile", backend_dockerfile())
-    copy_tree(FRONTEND_DIST, ctx.package_dir / "frontend" / "dist")
-    write_text(ctx.package_dir / "frontend" / "Dockerfile", frontend_dockerfile())
-    write_text(ctx.package_dir / "frontend" / "nginx-default.conf", nginx_config())
-    write_text(ctx.package_dir / ".dockerignore", dockerignore())
+    backend_dir = root / "backend"
+    frontend_dir = root / "frontend"
+    backend_dir.mkdir(parents=True, exist_ok=True)
+    frontend_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(BACKEND_JAR, backend_dir / "app.jar")
+    write_text(backend_dir / "Dockerfile", backend_dockerfile())
+    copy_tree(FRONTEND_DIST, frontend_dir / "dist")
+    write_text(frontend_dir / "Dockerfile", frontend_dockerfile())
+    write_text(frontend_dir / "nginx-default.conf", nginx_config())
 
 
 def copy_offline_debs(ctx: BuildContext) -> None:
     if ctx.template_dir is None:
-        fail("fresh-empty package requires a template package directory with offline-debs")
+        fail("--include-offline-docker-debs requires a template package directory with offline-debs")
     source = ctx.template_dir / "offline-debs"
     require_path(source, "offline-debs template")
     copy_tree(source, ctx.package_dir / "offline-debs")
 
 
 def fresh_readme(ctx: BuildContext) -> str:
+    dependency_section = """
+## 2. Docker / Compose 前置条件
+
+目标机必须已安装 Docker Engine 与 Docker Compose plugin。本包未携带系统软件包；确需为全新离线服务器附带 Ubuntu 24.04 安装包时，打包时显式使用 `--include-offline-docker-debs`。
+"""
+    if ctx.include_offline_docker_debs:
+        dependency_section = """
+## 2. 安装离线 Docker 依赖
+
+目标机已安装 Docker / Compose 时可跳过本步骤。
+
+```bash
+sudo dpkg -i offline-debs/ubuntu-24.04-amd64/*.deb || sudo apt-get -f install
+sudo systemctl enable --now docker
+sudo docker version
+sudo docker compose version
+```
+"""
     return f"""\
 # QA Flex Platform 内网离线部署包
 
@@ -632,20 +677,11 @@ def fresh_readme(ctx: BuildContext) -> str:
 ## 1. 解压
 
 ```bash
-tar -xzf {ctx.package_name}-ubuntu2404-offline.tar.gz
+tar -xzf {ctx.archive_path.name}
 cd {ctx.package_name}
 ```
 
-## 2. 安装离线 Docker 依赖
-
-目标机已安装 Docker / Compose 时可跳过本步骤。
-
-```bash
-sudo dpkg -i offline-debs/ubuntu-24.04-amd64/*.deb || sudo apt-get -f install
-sudo systemctl enable --now docker
-sudo docker version
-sudo docker compose version
-```
+{dependency_section}
 
 ## 3. 加载镜像
 
@@ -662,7 +698,7 @@ cp .env.example .env
 vi .env
 ```
 
-默认 `.env` 已写入当前内网地址、端口和 LDAP v0.3 后端地址 `{ctx.ldap_base_url}`。部署前确认平台后端容器能够访问该地址；不要把 GitLab / MySQL / MongoDB 源库连接写进平台库变量。
+`.env.example` 已写入当前内网地址、端口和 LDAP v0.3 后端地址 `{ctx.ldap_base_url}`；复制后形成的现场 `.env` 才是运行配置。部署前确认平台后端容器能够访问 LDAP 地址；不要把 GitLab / MySQL / MongoDB 源库连接写进平台库变量。
 
 ## 5. 全新空数据部署
 
@@ -784,7 +820,7 @@ def incremental_readme(ctx: BuildContext) -> str:
 将本包放到既有部署目录旁边并解压：
 
 ```bash
-tar -xzf {ctx.package_name}-ubuntu2404-offline.tar.gz
+tar -xzf {ctx.archive_path.name}
 ```
 
 ## 2. 执行受控升级
@@ -793,7 +829,7 @@ tar -xzf {ctx.package_name}-ubuntu2404-offline.tar.gz
 
 ```bash
 cd {ctx.baseline_name}
-bash ../{ctx.package_name}/deploy/upgrade.sh "$PWD"
+bash ../{ctx.package_name}/upgrade.sh "$PWD"
 ```
 
 脚本依次执行：
@@ -823,7 +859,7 @@ curl -fsS http://127.0.0.1:{ctx.frontend_port}/
 应用回滚命令会恢复升级前 `.env` 和 Compose 覆盖文件，并重新创建旧后端/前端容器；它不会自动执行 `pg_restore`，避免误覆盖现场数据：
 
 ```bash
-bash ../{ctx.package_name}/deploy/rollback-app.sh "$PWD" "$PWD/upgrade-backups/<本次备份目录>"
+bash ../{ctx.package_name}/rollback.sh "$PWD" "$PWD/upgrade-backups/<本次备份目录>"
 ```
 
 Flyway 迁移是前向迁移。只有应用回滚仍不能恢复服务时，才在停机并确认备份无误后，将 `database.dump` 恢复到隔离数据库或经审批重建的平台库。
@@ -837,12 +873,17 @@ sha256sum -c ../{ctx.package_name}/SHA256SUMS.txt
 
 
 def upgrade_helper(ctx: BuildContext) -> str:
+    completion_message = (
+        f"login with LDAP and rebuild fact scope '{ctx.fact_rebuild_scope}' before final statistics acceptance"
+        if ctx.require_fact_rebuild
+        else "fact rebuild is not required for this release"
+    )
     return f"""\
 #!/usr/bin/env bash
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${{BASH_SOURCE[0]}}")" && pwd)"
-PACKAGE_DIR="$(cd -- "${{SCRIPT_DIR}}/.." && pwd)"
+PACKAGE_DIR="$SCRIPT_DIR"
 TARGET_DIR="${{1:-$PWD}}"
 EXPECTED_BACKEND="{BACKEND_IMAGE}:{ctx.baseline_backend_tag}"
 EXPECTED_FRONTEND="{FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}"
@@ -861,7 +902,6 @@ fi
 
 cd "$TARGET_DIR"
 [[ -f .env && -f docker-compose.yml ]] || fail "run from an existing deployment directory containing .env and docker-compose.yml"
-[[ ! -e docker-compose.override.yml ]] || fail "docker-compose.override.yml already exists; inspect it before upgrading"
 
 compose() {{ "${{DOCKER[@]}}" compose --env-file .env "$@"; }}
 db_query() {{
@@ -889,7 +929,11 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP_DIR="$TARGET_DIR/upgrade-backups/{ctx.package_name}-$STAMP"
 mkdir -p "$BACKUP_DIR"
 cp -a .env docker-compose.yml "$BACKUP_DIR/"
-touch "$BACKUP_DIR/docker-compose.override.absent"
+if [[ -f docker-compose.override.yml ]]; then
+  cp -a docker-compose.override.yml "$BACKUP_DIR/"
+else
+  touch "$BACKUP_DIR/docker-compose.override.absent"
+fi
 printf '%s\n' "$POSTGRES_ID" > "$BACKUP_DIR/postgres.container-id"
 "${{DOCKER[@]}}" inspect "$POSTGRES_ID" > "$BACKUP_DIR/postgres.inspect.json"
 compose images > "$BACKUP_DIR/compose-images.txt"
@@ -915,7 +959,7 @@ compose exec -T postgres sh -c 'pg_dump -Fc -U "$POSTGRES_USER" -d "$POSTGRES_DB
 log "loading new application images"
 "${{DOCKER[@]}}" load -i "$PACKAGE_DIR/docker-images/{BACKEND_IMAGE}_{ctx.backend_tag}.tar"
 "${{DOCKER[@]}}" load -i "$PACKAGE_DIR/docker-images/{FRONTEND_IMAGE}_{ctx.frontend_tag}.tar"
-cp "$PACKAGE_DIR/deploy/docker-compose.release.yml" docker-compose.override.yml
+cp "$PACKAGE_DIR/docker-compose.release.yml" docker-compose.override.yml
 
 upsert_env() {{
   local key="$1" value="$2" escaped
@@ -973,7 +1017,7 @@ curl -fsS "http://127.0.0.1:${{FRONTEND_HEALTH_PORT}}/" > /dev/null
 printf '%s\n' "$BACKUP_DIR" > "$TARGET_DIR/upgrade-backups/latest-backup.txt"
 
 log "upgrade completed; backup: $BACKUP_DIR"
-log "login with LDAP and rebuild fact scope '{ctx.fact_rebuild_scope}' before final statistics acceptance"
+log "{completion_message}"
 """
 
 
@@ -984,11 +1028,27 @@ set -euo pipefail
 
 TARGET_DIR="${{1:-$PWD}}"
 BACKUP_DIR="${{2:-}}"
-[[ -n "$BACKUP_DIR" ]] || {{ echo "usage: rollback-app.sh <deployment-dir> <backup-dir>" >&2; exit 2; }}
+EXPECTED_BACKEND="{BACKEND_IMAGE}:{ctx.baseline_backend_tag}"
+EXPECTED_FRONTEND="{FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}"
+[[ -n "$BACKUP_DIR" ]] || {{ echo "usage: rollback.sh <deployment-dir> <backup-dir>" >&2; exit 2; }}
 [[ -f "$BACKUP_DIR/.env" && -f "$BACKUP_DIR/docker-compose.yml" ]] || {{ echo "invalid backup directory: $BACKUP_DIR" >&2; exit 2; }}
 
-if docker info >/dev/null 2>&1; then DOCKER=(docker); else DOCKER=(sudo docker); fi
+fail() {{ echo "[rollback] ERROR: $*" >&2; exit 1; }}
+log() {{ echo "[rollback] $*"; }}
+
+if docker info >/dev/null 2>&1; then
+  DOCKER=(docker)
+elif sudo docker info >/dev/null 2>&1; then
+  DOCKER=(sudo docker)
+else
+  fail "Docker is unavailable"
+fi
+
 cd "$TARGET_DIR"
+compose() {{ "${{DOCKER[@]}}" compose --env-file .env "$@"; }}
+POSTGRES_ID="$(compose ps -q postgres)"
+[[ -n "$POSTGRES_ID" ]] || fail "postgres service is not running"
+
 cp -a "$BACKUP_DIR/.env" .env
 cp -a "$BACKUP_DIR/docker-compose.yml" docker-compose.yml
 rm -f docker-compose.override.yml
@@ -996,68 +1056,113 @@ if [[ -f "$BACKUP_DIR/docker-compose.override.yml" ]]; then
   cp -a "$BACKUP_DIR/docker-compose.override.yml" docker-compose.override.yml
 fi
 
-compose() {{ "${{DOCKER[@]}}" compose --env-file .env "$@"; }}
+RESTORED_CONFIG="$(compose config)"
+grep -Fq "image: $EXPECTED_BACKEND" <<<"$RESTORED_CONFIG" || fail "restored backend image does not match $EXPECTED_BACKEND"
+grep -Fq "image: $EXPECTED_FRONTEND" <<<"$RESTORED_CONFIG" || fail "restored frontend image does not match $EXPECTED_FRONTEND"
+
+wait_healthy() {{
+  local service="$1" timeout_seconds="$2" started container status
+  started="$(date +%s)"
+  while true; do
+    container="$(compose ps -q "$service")"
+    status="$("${{DOCKER[@]}}" inspect -f '{{{{if .State.Health}}}}{{{{.State.Health.Status}}}}{{{{else}}}}{{{{.State.Status}}}}{{{{end}}}}' "$container" 2>/dev/null || true)"
+    [[ "$status" == "healthy" ]] && return 0
+    [[ "$status" == "unhealthy" || "$status" == "exited" || "$status" == "dead" ]] && fail "$service entered state $status"
+    (( $(date +%s) - started < timeout_seconds )) || fail "$service health timeout"
+    sleep 5
+  done
+}}
+
+log "recreating baseline backend"
 compose up -d --no-deps --force-recreate backend
+wait_healthy backend 900
+[[ "$(compose ps -q postgres)" == "$POSTGRES_ID" ]] || fail "postgres container changed unexpectedly"
+
+log "recreating baseline frontend after backend health verification"
 compose up -d --no-deps --force-recreate frontend
+wait_healthy frontend 300
 compose ps
-echo "[rollback] application configuration and images restored"
-echo "[rollback] database was not rewritten; Flyway is forward-only. Use database.dump only through an approved database restore procedure."
+log "application configuration and images restored; both services are healthy"
+log "database was not rewritten; Flyway is forward-only. Use database.dump only through an approved database restore procedure."
 """
 
 
-def write_metadata(ctx: BuildContext, backend_fallback_used: bool, backend_build_note: str) -> None:
+def write_operational_files(ctx: BuildContext) -> None:
     if ctx.mode == "fresh-empty":
         write_text(ctx.package_dir / ".env.example", env_content(ctx))
-        write_text(ctx.package_dir / ".env", env_content(ctx))
         write_text(ctx.package_dir / "docker-compose.yml", compose_content(ctx))
         write_text(ctx.package_dir / "README-INTRANET-DEPLOY.md", fresh_readme(ctx))
     else:
         write_text(ctx.package_dir / "README-INCREMENTAL-DEPLOY.md", incremental_readme(ctx))
-        deploy_dir = ctx.package_dir / "deploy"
-        deploy_dir.mkdir(parents=True, exist_ok=True)
-        write_text(deploy_dir / "docker-compose.release.yml", incremental_override_content(ctx))
-        write_text(deploy_dir / "upgrade.sh", upgrade_helper(ctx))
-        write_text(deploy_dir / "rollback-app.sh", rollback_helper(ctx))
+        write_text(ctx.package_dir / "docker-compose.release.yml", incremental_override_content(ctx))
+        write_text(ctx.package_dir / "upgrade.sh", upgrade_helper(ctx))
+        write_text(ctx.package_dir / "rollback.sh", rollback_helper(ctx))
 
-    date_stamp, build_time = now_stamp()
-    status = git_value("status", "--short")
-    version = f"""\
-QA Flex Platform Intranet Offline Package
 
-Package: {ctx.package_name}
-Package type: {"empty full deployment package" if ctx.mode == "fresh-empty" else "data-preserving application update package"}
-Archive: {ctx.archive_path.name}
-Build time: {build_time}
-Branch: {ctx.branch}
-Commit: {ctx.commit}
-Image tags:
-- {BACKEND_IMAGE}:{ctx.backend_tag}
-- {FRONTEND_IMAGE}:{ctx.frontend_tag}
-Target OS: Ubuntu 24.04 amd64, offline intranet
-Topology: postgres:16-alpine + qa-flex-platform-backend + qa-flex-platform-frontend
-Public URL: http://172.22.10.115:{ctx.frontend_port}
-GitLab Web URL: http://172.22.10.233
-Facts rebuild: {"required, scope=" + ctx.fact_rebuild_scope if ctx.require_fact_rebuild else "not required"}
-Baseline: {ctx.baseline_name or "n/a"}
-Baseline images:
-- {BACKEND_IMAGE}:{ctx.baseline_backend_tag or "n/a"}
-- {FRONTEND_IMAGE}:{ctx.baseline_frontend_tag or "n/a"}
-Target Flyway: {ctx.expected_flyway_version}
-
-Build notes:
-- {backend_build_note}
-- Backend test-source fallback used: {str(backend_fallback_used).lower()}
-- Docker backend/frontend build uses --no-cache by default to avoid stale COPY layers.
-- Backend image /app/app.jar SHA256 is verified against packaged backend/app.jar.
-- Empty package scan rejects postgres-data, pg_wal, SQL dumps and runtime data markers.
-
-Workspace status at packaging time:
-{status or "(clean)"}
-
-Standard:
-- deploy/intranet-offline-packaging-standard.md
-"""
-    write_text(ctx.package_dir / "VERSION.txt", version)
+def write_release_manifest(ctx: BuildContext, backend_fallback_used: bool, backend_build_note: str) -> None:
+    """Write the machine-readable release identity and artifact evidence."""
+    _, build_time = now_stamp()
+    image_dir = ctx.package_dir / "docker-images"
+    backend_archive = image_dir / f"{BACKEND_IMAGE}_{ctx.backend_tag}.tar"
+    frontend_archive = image_dir / f"{FRONTEND_IMAGE}_{ctx.frontend_tag}.tar"
+    manifest = {
+        "schemaVersion": 1,
+        "package": {
+            "id": ctx.release_id,
+            "name": ctx.package_name,
+            "type": "fresh-empty" if ctx.mode == "fresh-empty" else "incremental-update",
+            "archive": ctx.archive_path.name,
+            "builtAt": build_time,
+        },
+        "source": {
+            "branch": ctx.branch,
+            "commit": ctx.commit,
+            "workspaceState": ctx.dirty_state,
+            "backendJarSha256": file_sha256(BACKEND_JAR),
+            "frontendDistSha256": directory_sha256(FRONTEND_DIST),
+        },
+        "target": {
+            "os": "ubuntu-24.04-amd64",
+            "offline": True,
+            "flywayVersion": ctx.expected_flyway_version,
+            "images": {
+                "backend": {
+                    "reference": f"{BACKEND_IMAGE}:{ctx.backend_tag}",
+                    "archive": backend_archive.name,
+                    "sha256": file_sha256(backend_archive),
+                },
+                "frontend": {
+                    "reference": f"{FRONTEND_IMAGE}:{ctx.frontend_tag}",
+                    "archive": frontend_archive.name,
+                    "sha256": file_sha256(frontend_archive),
+                },
+            },
+        },
+        "baseline": None if ctx.mode == "fresh-empty" else {
+            "deployment": ctx.baseline_name,
+            "backendImage": f"{BACKEND_IMAGE}:{ctx.baseline_backend_tag}",
+            "frontendImage": f"{FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}",
+        },
+        "facts": {
+            "rebuildRequired": ctx.require_fact_rebuild,
+            "scope": ctx.fact_rebuild_scope if ctx.require_fact_rebuild else None,
+        },
+        "build": {
+            "backendTestSourceFallbackUsed": backend_fallback_used,
+            "backendBuildNote": backend_build_note,
+        },
+    }
+    if ctx.mode == "fresh-empty":
+        postgres_archive = image_dir / "postgres_16-alpine.tar"
+        manifest["target"]["images"]["postgres"] = {
+            "reference": POSTGRES_IMAGE,
+            "archive": postgres_archive.name,
+            "sha256": file_sha256(postgres_archive),
+        }
+    write_text(
+        ctx.package_dir / "RELEASE-MANIFEST.json",
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+    )
 
 
 def build_and_save_images(ctx: BuildContext, args: argparse.Namespace) -> None:
@@ -1066,8 +1171,12 @@ def build_and_save_images(ctx: BuildContext, args: argparse.Namespace) -> None:
 
     if not args.skip_docker_build:
         cache_arg = [] if args.docker_cache else ["--no-cache"]
-        run(("docker", "build", *cache_arg, "-t", backend_ref, "backend"), cwd=ctx.package_dir)
-        run(("docker", "build", *cache_arg, "-t", frontend_ref, "frontend"), cwd=ctx.package_dir)
+        ctx.deploy_root.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="qaflex-image-build-", dir=ctx.deploy_root) as temporary:
+            build_root = Path(temporary)
+            prepare_image_build_contexts(build_root)
+            run(("docker", "build", *cache_arg, "-t", backend_ref, build_root / "backend"))
+            run(("docker", "build", *cache_arg, "-t", frontend_ref, build_root / "frontend"))
     else:
         log("skip docker build by parameter; existing local images will be saved")
 
@@ -1088,12 +1197,22 @@ def build_and_save_images(ctx: BuildContext, args: argparse.Namespace) -> None:
             for future in concurrent.futures.as_completed(futures):
                 future.result()
 
-    local_hash = file_sha256(ctx.package_dir / "backend" / "app.jar")
+    local_hash = file_sha256(BACKEND_JAR)
     result = run(("docker", "run", "--rm", "--entrypoint", "sha256sum", backend_ref, "/app/app.jar"), capture=True)
     image_hash = result.output.split()[0].lower()
     if image_hash != local_hash:
         fail(f"backend image jar hash mismatch: local={local_hash} image={image_hash}")
     log(f"backend image jar hash verified: {local_hash}")
+
+    frontend_index_hash = file_sha256(FRONTEND_DIST / "index.html")
+    result = run(
+        ("docker", "run", "--rm", "--entrypoint", "sha256sum", frontend_ref, "/usr/share/nginx/html/index.html"),
+        capture=True,
+    )
+    image_index_hash = result.output.split()[0].lower()
+    if image_index_hash != frontend_index_hash:
+        fail(f"frontend image index hash mismatch: local={frontend_index_hash} image={image_index_hash}")
+    log(f"frontend image index hash verified: {frontend_index_hash}")
 
 
 def scan_empty_package(ctx: BuildContext) -> None:
@@ -1128,52 +1247,68 @@ def scan_empty_package(ctx: BuildContext) -> None:
 
 def required_files(ctx: BuildContext) -> list[Path]:
     files = [
-        ctx.package_dir / "backend" / "app.jar",
-        ctx.package_dir / "backend" / "Dockerfile",
-        ctx.package_dir / "frontend" / "dist" / "index.html",
-        ctx.package_dir / "frontend" / "Dockerfile",
-        ctx.package_dir / "frontend" / "nginx-default.conf",
         ctx.package_dir / "docker-images" / f"{BACKEND_IMAGE}_{ctx.backend_tag}.tar",
         ctx.package_dir / "docker-images" / f"{FRONTEND_IMAGE}_{ctx.frontend_tag}.tar",
-        ctx.package_dir / "VERSION.txt",
+        ctx.package_dir / "RELEASE-MANIFEST.json",
     ]
     if ctx.mode == "fresh-empty":
         files.extend(
             [
-                ctx.package_dir / ".env",
                 ctx.package_dir / ".env.example",
                 ctx.package_dir / "docker-compose.yml",
                 ctx.package_dir / "docker-images" / "postgres_16-alpine.tar",
-                ctx.package_dir / "offline-debs" / "ubuntu-24.04-amd64",
                 ctx.package_dir / "README-INTRANET-DEPLOY.md",
             ]
         )
+        if ctx.include_offline_docker_debs:
+            files.append(ctx.package_dir / "offline-debs" / "ubuntu-24.04-amd64")
     else:
         files.extend(
             [
                 ctx.package_dir / "README-INCREMENTAL-DEPLOY.md",
-                ctx.package_dir / "deploy" / "docker-compose.release.yml",
-                ctx.package_dir / "deploy" / "upgrade.sh",
-                ctx.package_dir / "deploy" / "rollback-app.sh",
+                ctx.package_dir / "docker-compose.release.yml",
+                ctx.package_dir / "upgrade.sh",
+                ctx.package_dir / "rollback.sh",
             ]
         )
     return files
 
 
+def validate_forbidden_delivery_items(ctx: BuildContext) -> None:
+    """Reject build contexts, duplicate metadata, secrets and mode-specific payloads."""
+    forbidden = [
+        ctx.package_dir / "backend",
+        ctx.package_dir / "frontend",
+        ctx.package_dir / ".dockerignore",
+        ctx.package_dir / "VERSION.txt",
+    ]
+    if ctx.mode == "incremental-update":
+        forbidden.extend(
+            [
+                ctx.package_dir / ".env",
+                ctx.package_dir / ".env.example",
+                ctx.package_dir / "offline-debs",
+                ctx.package_dir / "docker-images" / "postgres_16-alpine.tar",
+            ]
+        )
+    offenders = [path.relative_to(ctx.package_dir).as_posix() for path in forbidden if path.exists()]
+    if offenders:
+        fail("package contains forbidden delivery items: " + ", ".join(offenders))
+
+
 def validate_layout(ctx: BuildContext) -> None:
     for path in required_files(ctx):
         require_path(path, f"required package item {path.relative_to(ctx.package_dir)}")
-    if "proxy_pass http://backend:18080/api/;" not in (ctx.package_dir / "frontend" / "nginx-default.conf").read_text(encoding="utf-8"):
-        fail("frontend nginx config does not proxy /api/ to backend:18080")
+    validate_forbidden_delivery_items(ctx)
     if ctx.mode == "fresh-empty":
-        run(("docker", "compose", "--env-file", ".env", "config"), cwd=ctx.package_dir)
+        run(("docker", "compose", "--env-file", ".env.example", "config"), cwd=ctx.package_dir)
     else:
         run(
             (
                 "docker",
                 "compose",
                 "-f",
-                ctx.package_dir / "deploy" / "docker-compose.release.yml",
+                ctx.package_dir / "docker-compose.release.yml",
                 "config",
             ),
             cwd=ctx.package_dir,
@@ -1212,8 +1347,11 @@ def create_archive(ctx: BuildContext, args: argparse.Namespace) -> None:
     archive_hash = file_sha256(ctx.archive_path)
     write_text(ctx.archive_path.with_suffix(ctx.archive_path.suffix + ".sha256"), f"{archive_hash}  {ctx.archive_path.name}\n")
     listing = run(("tar", "-tzf", ctx.archive_path), capture=True)
-    if f"{ctx.package_name}/backend/app.jar" not in listing.output:
-        fail("archive listing does not contain backend/app.jar")
+    if f"{ctx.package_name}/RELEASE-MANIFEST.json" not in listing.output:
+        fail("archive listing does not contain RELEASE-MANIFEST.json")
+    for forbidden in ("/backend/", "/frontend/", "/.dockerignore", "/VERSION.txt"):
+        if forbidden in listing.output:
+            fail(f"archive listing contains obsolete delivery item: {forbidden}")
     log(f"archive: {ctx.archive_path}")
     log(f"archive sha256: {archive_hash}")
 
@@ -1221,10 +1359,18 @@ def create_archive(ctx: BuildContext, args: argparse.Namespace) -> None:
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=("fresh-empty", "incremental-update"), required=True)
-    parser.add_argument("--release-label", default="")
     parser.add_argument("--deploy-root", type=Path, default=DEFAULT_DEPLOY_ROOT)
-    parser.add_argument("--baseline-deploy-dir", type=Path)
+    parser.add_argument(
+        "--baseline-dir",
+        type=Path,
+        help="current deployment directory or the immediately preceding update package directory",
+    )
     parser.add_argument("--template-package-dir", type=Path)
+    parser.add_argument(
+        "--include-offline-docker-debs",
+        action="store_true",
+        help="include Ubuntu 24.04 Docker/Compose debs in a fresh package from the template directory",
+    )
     parser.add_argument("--require-fact-rebuild", action="store_true")
     parser.add_argument("--fact-rebuild-scope", choices=("issue", "merge-request", "all"), default="all")
     parser.add_argument("--frontend-port", type=int, default=18181)
@@ -1269,15 +1415,17 @@ def main(argv: Sequence[str]) -> int:
                 log(f"template dir: {ctx.template_dir}")
             if ctx.baseline_name:
                 log(f"baseline: {ctx.baseline_name}")
+                log(f"baseline backend: {BACKEND_IMAGE}:{ctx.baseline_backend_tag}")
+                log(f"baseline frontend: {FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}")
             return 0
 
         backend_fallback_used, backend_build_note = build_products(args)
         initialize_layout(ctx)
-        copy_artifacts(ctx)
-        if ctx.mode == "fresh-empty":
+        if ctx.mode == "fresh-empty" and ctx.include_offline_docker_debs:
             copy_offline_debs(ctx)
-        write_metadata(ctx, backend_fallback_used, backend_build_note)
+        write_operational_files(ctx)
         build_and_save_images(ctx, args)
+        write_release_manifest(ctx, backend_fallback_used, backend_build_note)
         validate_layout(ctx)
         write_sha256s(ctx)
         create_archive(ctx, args)

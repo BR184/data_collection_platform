@@ -204,3 +204,4 @@ AI 应在任务收尾和用户纠正工作方式时，检查用户的直接表�
 - 项目维护文本、业务规则和代码注释使用中文；代码标识符使用英文。公共 Java 方法按现有 Javadoc 约定补充契约，TypeScript 公共 API 使用 JSDoc 或类型定义表达契约。
 - 当前开发端口为后端 `18080`、前端 `18181`；本地 PostgreSQL 默认连接 `127.0.0.1:15432/qaflex`。内网 Ubuntu 24.04 离线发布规则以 `deploy/intranet-offline-packaging-standard.md` 为准。
 - 老平台基准源码为 `D:/projects/spidergitdata-dev`，页面业务规则总表为 `docs/platform-page-business-rules.md`；涉及 LDAP、兼容模式、事实层、统计快照或部署时，必须同时遵守对应 ADR、当前架构文档和进度文档。
+- 独立 BI 看板项目根目录为 `D:/projects/bi_dashboard`。BI 的设计说明、产品/架构/进度文档、活动计划、视觉稿和应用实现只能写入该仓库；本仓库只维护自身拥有的外部数据集 Provider、API/ADR/测试及数据提供方边界，不存放 BI 项目交付物或工作计划。
