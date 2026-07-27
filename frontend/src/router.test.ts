@@ -159,6 +159,33 @@ describe('router query normalization', () => {
     expect(normalizeQuery(to)).toBeNull();
   });
 
+  it('preserves every CC_PRODUCT quick filter query parameter', () => {
+    const to = router.resolve({
+      path: '/customer-issues/cc-product-issues',
+      query: {
+        customerName: '极目数字',
+        reasonCategory: '需求变更',
+        authorName: '张三',
+        testingPhase: '新增需求',
+        handlerName: '李四',
+        assigneeName: '王五',
+        severityLevel: '一级缺陷',
+        priorityLevel: 'P1',
+        issueState: 'opened',
+        bugStatus: '未关闭',
+        category: '功能问题',
+        delayCause: '需求变更',
+        fixUser: '赵六',
+        createdAtStart: '2026-01-01',
+        createdAtEnd: '2026-01-31',
+        updatedAtStart: '2026-02-01',
+        updatedAtEnd: '2026-02-28',
+      },
+    });
+
+    expect(normalizeQuery(to)).toBeNull();
+  });
+
   it('keeps label group settings query keys inside system settings', () => {
     const to = router.resolve({
       path: '/system-settings/label-group-settings',

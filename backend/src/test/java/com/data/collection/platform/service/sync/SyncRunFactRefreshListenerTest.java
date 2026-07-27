@@ -59,7 +59,7 @@ class SyncRunFactRefreshListenerTest {
   }
 
   @Test
-  void shouldSkipPartialSuccessButSubmitFactRefreshForZeroAppliedRows() {
+  void shouldSubmitIncrementalFactRefreshForPartialSuccess() {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(1L);
     when(configService.getConfigById(1L)).thenReturn(config);
@@ -69,9 +69,20 @@ class SyncRunFactRefreshListenerTest {
     listener.onSyncRunCompleted(
         new SyncRunCompletionEvent(13L, 1L, "alpha", SyncRunType.INCREMENTAL_SYNC, SyncRunStatus.SUCCESS, 0L));
 
-    verify(configService).getConfigById(1L);
+    verify(configService, org.mockito.Mockito.times(2)).getConfigById(1L);
+    verify(submissionService)
+        .submitFactRefresh(config, 12L, false, "镜像同步已完成，刷新事实层");
     verify(submissionService)
         .submitFactRefresh(config, 13L, false, "镜像同步已完成，刷新事实层");
+  }
+
+  @Test
+  void shouldSkipFailedMirrorRun() {
+    listener.onSyncRunCompleted(
+        new SyncRunCompletionEvent(16L, 1L, "alpha", SyncRunType.INCREMENTAL_SYNC, SyncRunStatus.FAILED, 8L));
+
+    verify(configService, never()).getConfigById(org.mockito.ArgumentMatchers.any());
+    verifyNoFactRefreshSubmission();
   }
 
   @Test
@@ -80,5 +91,15 @@ class SyncRunFactRefreshListenerTest {
         new SyncRunCompletionEvent(14L, 1L, "alpha", SyncRunType.FACT_REFRESH, SyncRunStatus.SUCCESS, 8L));
 
     verify(configService, never()).getConfigById(org.mockito.ArgumentMatchers.any());
+    verifyNoFactRefreshSubmission();
+  }
+
+  private void verifyNoFactRefreshSubmission() {
+    verify(submissionService, never())
+        .submitFactRefresh(
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.anyBoolean(),
+            org.mockito.ArgumentMatchers.any());
   }
 }

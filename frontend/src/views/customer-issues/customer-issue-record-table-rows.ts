@@ -36,11 +36,19 @@ export function mapCustomerIssueRecordTableRows(
     fixUser: row.fixUser || '-',
     plannedResolutionAt:
       row.plannedResolutionText || formatCustomerIssueRecordDateTime(row.plannedResolutionAt),
-    plannedMergeVersionBranch: row.plannedMergeVersionBranch || '-',
+    plannedMergeVersionBranch: parseCustomerIssuePlannedMergeVersions(row.plannedMergeVersionBranch),
     createdAt: formatCustomerIssueRecordDateTime(row.createdAt),
     retentionHours: row.retentionHours ?? '-',
     updatedAt: formatCustomerIssueRecordDateTime(row.updatedAt),
   }));
+}
+
+/** 将事实层规范化的计划合并版本分支转换为表格与详情可复用的标签成员。 */
+export function parseCustomerIssuePlannedMergeVersions(value?: string | null): string[] {
+  return (value ?? '')
+    .split('&')
+    .map((branch) => branch.trim())
+    .filter(Boolean);
 }
 
 /** 将后端 ISO 时间格式化为记录页与详情抽屉统一使用的文本。 */

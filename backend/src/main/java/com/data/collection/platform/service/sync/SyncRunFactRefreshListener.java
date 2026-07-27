@@ -22,7 +22,7 @@ public class SyncRunFactRefreshListener {
 
   @EventListener
   public void onSyncRunCompleted(SyncRunCompletionEvent event) {
-    if (event == null || !event.mirrorRun() || !event.successful()) {
+    if (event == null || !event.mirrorRun() || !event.factRefreshEligible()) {
       return;
     }
     GitlabSyncConfig config = configService.getConfigById(event.configId());
@@ -32,7 +32,7 @@ public class SyncRunFactRefreshListener {
     submissionService.submitFactRefresh(
         config,
         event.runId(),
-        event.fullSync(),
+        event.fullSync() && event.successful(),
         MIRROR_COMPLETION_REFRESH_REASON);
   }
 }

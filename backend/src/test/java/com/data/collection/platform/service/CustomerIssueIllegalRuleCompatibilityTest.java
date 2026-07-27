@@ -24,13 +24,13 @@ class CustomerIssueIllegalRuleCompatibilityTest {
   }
 
   @Test
-  void shouldRejectResearchPlanDateAcceptedOnlyByNewPlatform() {
+  void shouldAcceptResearchPlanDateUsingConfiguredSlashSeparator() {
     assertThat(IssueFactNormalizationRules.customerIssueIllegalReasons(
         List.of("严重程度：二级缺陷", "模块：工程图"),
         List.of("工程图"),
         researchTemplate("2026/06/16"),
         false))
-        .containsExactly("未按照要求填写缺陷调研模板");
+        .isEmpty();
   }
 
   @Test
@@ -41,6 +41,16 @@ class CustomerIssueIllegalRuleCompatibilityTest {
         researchTemplate("2026.06.16"),
         false))
         .isEmpty();
+  }
+
+  @Test
+  void shouldRejectResearchTemplateWithInvalidPlanMergeVersionBranch() {
+    assertThat(IssueFactNormalizationRules.customerIssueIllegalReasons(
+        List.of("严重程度：二级缺陷", "模块：工程图"),
+        List.of("工程图"),
+        researchTemplate("2026.06.16", "release/CC2026R4"),
+        false))
+        .containsExactly("未按照要求填写缺陷调研模板");
   }
 
   @Test
@@ -93,6 +103,10 @@ class CustomerIssueIllegalRuleCompatibilityTest {
   }
 
   private static String researchTemplate(String planDate) {
+    return researchTemplate(planDate, "CC2026R4");
+  }
+
+  private static String researchTemplate(String planDate, String planMergeVersionBranch) {
     return """
         # 问题调研情况说明
         ## 问题类型：
@@ -101,7 +115,7 @@ class CustomerIssueIllegalRuleCompatibilityTest {
         ## 问题原因：已定位
         ## 修改方案：已修改
         ## 计划解决时间：%s
-        ## 计划合并的版本分支：release
-        """.formatted(planDate);
+        ## 计划合并的版本分支：%s
+        """.formatted(planDate, planMergeVersionBranch);
   }
 }

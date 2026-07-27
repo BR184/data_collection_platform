@@ -25,6 +25,8 @@ export interface RouteTableStateOptions {
   watchedQueryKeys?: string[];
   debounceMs?: number;
   minLoadingMs?: number;
+  /** 是否在绑定 loader 时立即执行；默认保持既有的立即加载行为。 */
+  immediate?: boolean;
   autoRefreshOnEnter?: () => boolean;
 }
 
@@ -85,30 +87,37 @@ export function useRouteTableState(options: RouteTableStateOptions = {}) {
     boundLoader = loader;
     watch(
       () => watchedQuerySignature(route.query, options.watchedQueryKeys),
-      async () => {
-        const runId = ++loaderRunId;
-        const startedAt = Date.now();
-        isTableLoading.value = true;
-        try {
-          await loader();
-        } finally {
-          const minLoadingMs = options.minLoadingMs ?? 220;
-          const remainingMs = minLoadingMs - (Date.now() - startedAt);
-          if (remainingMs > 0) {
-            await new Promise((resolve) => window.setTimeout(resolve, remainingMs));
-          }
-          if (runId === loaderRunId) {
-            isTableLoading.value = false;
-          }
-        }
-      },
-      { immediate: true },
+      reload,
+      { immediate: options.immediate ?? true },
     );
+  }
+
+  /** 通过当前绑定的 loader 执行一次受运行编号保护的列表加载。 */
+  async function reload() {
+    if (!boundLoader) {
+      return;
+    }
+    const runId = ++loaderRunId;
+    const startedAt = Date.now();
+    isTableLoading.value = true;
+    try {
+      await boundLoader();
+    } finally {
+      const minLoadingMs = options.minLoadingMs ?? 220;
+      const remainingMs = minLoadingMs - (Date.now() - startedAt);
+      if (remainingMs > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remainingMs));
+      }
+      if (runId === loaderRunId) {
+        isTableLoading.value = false;
+      }
+    }
   }
 
   onBeforeUnmount(() => {
     cancelDebouncedQuery();
     loaderRunId += 1;
+    boundLoader = null;
   });
 
   return {
@@ -124,6 +133,7 @@ export function useRouteTableState(options: RouteTableStateOptions = {}) {
     debouncedPatchQuery,
     cancelDebouncedQuery,
     bindLoader,
+    reload,
   };
 }
 

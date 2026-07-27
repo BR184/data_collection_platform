@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -240,8 +241,10 @@ public class SyncRunSubmissionService {
 
     if (runType == SyncRunType.FULL_SYNC) {
       mergeQueuedLowerPriorityMirrorRuns(config.getId(), sourceInstance, exclusiveScope, now);
-    } else if (runType == SyncRunType.FACT_REFRESH && activeRun != null) {
-      return reusedRun(activeRun, apiType, "事实刷新已在队列中或正在执行，已复用现有任务。");
+    } else if (runType == SyncRunType.FACT_REFRESH
+        && activeRun != null
+        && sameFactRefreshParent(activeRun, parentRunId)) {
+      return reusedRun(activeRun, apiType, "当前镜像任务的事实刷新已提交，已复用现有任务。");
     } else if ((runType == SyncRunType.COMPENSATION_SCAN || runType == SyncRunType.FULL_COMPENSATION_SCAN)
         && activeRun != null) {
       return reusedRun(activeRun, apiType, "补偿同步已在队列中或正在执行，跳过重复提交。");
@@ -446,6 +449,11 @@ public class SyncRunSubmissionService {
     }
     SyncRunPayload payload = jsonUtils.fromJson(run.getPayloadJson(), SyncRunPayload.typeReference());
     return payload != null && payload.manualFullRebuildEnabled();
+  }
+
+  private boolean sameFactRefreshParent(SyncRun activeRun, Long parentRunId) {
+    return activeRun.getRunType() == SyncRunType.FACT_REFRESH
+        && Objects.equals(activeRun.getParentRunId(), parentRunId);
   }
 
   private String buildPayloadJson(

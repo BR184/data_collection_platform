@@ -20,7 +20,7 @@ export const CC_PRODUCT_RECORD_COLUMNS: RecordTableColumn[] = [
   { key: 'delayCause', label: '延期原因', sortable: true, minWidth: 160 },
   { key: 'fixUser', label: '缺陷修复人', sortable: true, minWidth: 120 },
   { key: 'plannedResolutionAt', label: '计划解决时间', type: 'datetime', sortable: true, minWidth: 170 },
-  { key: 'plannedMergeVersionBranch', label: '计划合并版本分支', sortable: true, minWidth: 180 },
+  { key: 'plannedMergeVersionBranch', label: '计划合并版本分支', type: 'tags', sortable: true, minWidth: 180 },
   { key: 'createdAt', label: '提交时间', sortable: true, minWidth: 170 },
   { key: 'retentionHours', label: '缺陷滞留时长（小时）', type: 'number', minWidth: 180 },
   { key: 'updatedAt', label: '更新时间', sortable: true, minWidth: 170 },

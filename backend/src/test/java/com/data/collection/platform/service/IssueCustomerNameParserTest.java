@@ -36,4 +36,27 @@ class IssueCustomerNameParserTest {
                 Map.of("新世纪", "郑州新世纪")))
         .isEmpty();
   }
+
+  @Test
+  void confirmedJimuDigitalVariantsShouldUseTheCanonicalCustomerName() {
+    Map<String, String> aliases =
+        Map.of(
+            "极目数字（苏普耐）", "极目数字",
+            "极目数字(苏普耐)", "极目数字",
+            "极目数字（苏普耐）——新版本适配测试", "极目数字",
+            "极目数字(苏普耐)——新版本适配测试", "极目数字");
+
+    assertThat(
+            IssueCustomerNameParser.parse(
+                "客户名称：极目数字（苏普耐）/极目数字（苏普耐）——新版本适配测试",
+                "",
+                aliases))
+        .containsExactly("极目数字");
+  }
+
+  @Test
+  void standaloneSupunaiShouldRemainIndependentUntilItHasAnExplicitAlias() {
+    assertThat(IssueCustomerNameParser.parse("客户名称：苏普耐", "", Map.of()))
+        .containsExactly("苏普耐");
+  }
 }

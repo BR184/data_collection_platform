@@ -1,5 +1,6 @@
 import { pageByKey, pageModuleKeyByPageKey } from './lookups';
 import type { PageKey, PageRouteContract, RouteMetaOverrides, SpecialRouteKey } from './types';
+import { CUSTOMER_ISSUE_RECORD_QUERY_KEYS } from './customer-issue-record-query-contract';
 
 interface SpecialRouteContract {
   basePageKey: PageKey;
@@ -28,34 +29,6 @@ const statisticBoardQueryKeys = [
 const customerIssueStatisticBoardQueryKeys = statisticBoardQueryKeys
   .filter((key) => !['projectId', 'projectName', 'testingPhase'].includes(key))
   .concat('milestoneTitle');
-
-const customerIssueRecordQueryKeys = [
-  'page',
-  'pageSize',
-  'sortBy',
-  'sortOrder',
-  'keyword',
-  'issueIid',
-  'title',
-  'projectName',
-  'moduleName',
-  'functionName',
-  'reasonCategory',
-  'authorName',
-  'assigneeName',
-  'severityLevel',
-  'priorityLevel',
-  'issueState',
-  'bugStatus',
-  'category',
-  'milestoneTitle',
-  'createdAtStart',
-  'createdAtEnd',
-  'updatedAtStart',
-  'updatedAtEnd',
-  'filterGroup',
-  'filterLogic',
-];
 
 export const analyticsDashboardDetailQueryKeys = [
   'projectId',
@@ -267,7 +240,7 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
     boardKey: 'customer-issue-defect-cause',
   },
   'customer-issues-cc-product-issues': {
-    allowedQueryKeys: customerIssueRecordQueryKeys,
+    allowedQueryKeys: CUSTOMER_ISSUE_RECORD_QUERY_KEYS,
     allowedQueryPrefixes: ['filters.'],
     persistedQueryKeys: [],
   },

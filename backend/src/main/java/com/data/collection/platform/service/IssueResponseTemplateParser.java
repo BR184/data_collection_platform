@@ -1,10 +1,7 @@
 package com.data.collection.platform.service;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /** 从 GitLab 聚合备注中读取最新“问题调研情况说明”响应模板。 */
 final class IssueResponseTemplateParser {
@@ -12,9 +9,6 @@ final class IssueResponseTemplateParser {
   private static final List<String> TEMPLATE_HEADERS = List.of("# 问题调研情况说明", "问题调研情况说明");
   private static final List<String> PLAN_RESOLUTION_HEADERS = List.of("计划解决时间");
   private static final List<String> PLAN_MERGE_BRANCH_HEADERS = List.of("计划合并的版本分支", "计划合并版本分支");
-  private static final Pattern DATE_VALUE =
-      Pattern.compile(
-          "(\\d{4})\\s*(?:年|[-./，、])\\s*(\\d{1,2})\\s*(?:月|[-./，、])\\s*(\\d{1,2})\\s*(?:日)?");
 
   private IssueResponseTemplateParser() {}
 
@@ -30,10 +24,13 @@ final class IssueResponseTemplateParser {
       return IssueResponseTemplate.empty();
     }
     String plannedResolutionText = sectionContent(latestTemplate, PLAN_RESOLUTION_HEADERS);
+    LocalDateTime plannedResolutionAt =
+        IssueResponsePlanFieldRules.parsePlannedResolutionAt(plannedResolutionText);
     return new IssueResponseTemplate(
-        parseDate(plannedResolutionText),
-        plannedResolutionText == null ? "" : plannedResolutionText,
-        valueOrEmpty(sectionContent(latestTemplate, PLAN_MERGE_BRANCH_HEADERS)));
+        plannedResolutionAt,
+        plannedResolutionAt == null ? "" : plannedResolutionText.trim(),
+        IssueResponsePlanFieldRules.normalizePlannedMergeVersionBranches(
+            sectionContent(latestTemplate, PLAN_MERGE_BRANCH_HEADERS)));
   }
 
   private static String latestTemplate(String notesText) {
@@ -65,17 +62,25 @@ final class IssueResponseTemplateParser {
   }
 
   private static String inlineContent(String rawLine, List<String> sectionHeaders) {
-    String line = rawLine == null ? "" : rawLine.trim().replace("**", "").replace("`", "");
+    String line = rawLine == null ? "" : rawLine.trim();
     for (String sectionHeader : sectionHeaders) {
       int headerIndex = line.indexOf(sectionHeader);
       if (headerIndex < 0) {
         continue;
       }
-      String prefix = line.substring(0, headerIndex).trim();
+      String prefix = line.substring(0, headerIndex).trim().replace("**", "").replace("`", "");
       if (!prefix.isEmpty() && !prefix.matches("#+")) {
         continue;
       }
       String content = line.substring(headerIndex + sectionHeader.length()).trim();
+      if (content.startsWith("**")) {
+        content = content.substring(2).trim();
+      }
+      if (content.startsWith("`")
+          && content.length() > 1
+          && (content.charAt(1) == ':' || content.charAt(1) == '：')) {
+        content = content.substring(1).trim();
+      }
       if (content.startsWith(":" ) || content.startsWith("：")) {
         content = content.substring(1).trim();
       }
@@ -100,24 +105,6 @@ final class IssueResponseTemplateParser {
       content.append(line);
     }
     return valueOrEmpty(content.toString());
-  }
-
-  private static LocalDateTime parseDate(String value) {
-    if (TextQuerySupport.trimToNull(value) == null) {
-      return null;
-    }
-    Matcher matcher = DATE_VALUE.matcher(value);
-    if (!matcher.find()) {
-      return null;
-    }
-    try {
-      int year = Integer.parseInt(matcher.group(1));
-      int month = Integer.parseInt(matcher.group(2));
-      int day = Integer.parseInt(matcher.group(3));
-      return year < 2020 || year > 2040 ? null : LocalDate.of(year, month, day).atStartOfDay();
-    } catch (RuntimeException ignored) {
-      return null;
-    }
   }
 
   private static String valueOrEmpty(String value) {

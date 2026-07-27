@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { CustomerIssueRecordRowResponse } from '../../types/api';
-import { mapCustomerIssueRecordTableRows } from './customer-issue-record-table-rows';
+import {
+  mapCustomerIssueRecordTableRows,
+  parseCustomerIssuePlannedMergeVersions,
+} from './customer-issue-record-table-rows';
 
 const record: CustomerIssueRecordRowResponse = {
   issueId: 35679,
@@ -35,7 +38,7 @@ const record: CustomerIssueRecordRowResponse = {
   retentionHours: 49,
   plannedResolutionAt: '2026-07-25T00:00:00',
   plannedResolutionText: '2026年7月25日',
-  plannedMergeVersionBranch: 'release/CC2026R4',
+  plannedMergeVersionBranch: 'CC2026R4',
   updatedAt: '2026-07-22T08:00:00',
   closedAt: null,
   labels: [],
@@ -49,11 +52,18 @@ describe('customer issue record table rows', () => {
       customerNames: '高晶电器、郑州新世纪',
       retentionHours: 49,
       plannedResolutionAt: '2026年7月25日',
-      plannedMergeVersionBranch: 'release/CC2026R4',
+      plannedMergeVersionBranch: ['CC2026R4'],
       handlerName: '王五',
       assigneeName: '张三',
       testingPhase: '未设定测试阶段',
     });
+  });
+
+  it('test_planMergeVersions_parse_displaysEveryVersionAsASeparateTag', () => {
+    expect(parseCustomerIssuePlannedMergeVersions('CC2026R4 & CC2026R5')).toEqual([
+      'CC2026R4',
+      'CC2026R5',
+    ]);
   });
 
   it('test_customerFields_map_usesParsedTimeWhenTemplateTextIsEmpty', () => {

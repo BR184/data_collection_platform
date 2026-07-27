@@ -95,5 +95,6 @@
   "V20260722_02__seed_customer_issue_customer_aliases.sql": "2f99416d37f5b4c3b7de325c56b3fd6d4809ee2a6de2c3cc0e33b29df5d4bfe5",
   "V20260722_03__add_issue_fact_handler_name.sql": "83e5784054cab0493c0dcb3b69f60d3d3d855e8dea8567d6ad18024104e7ca8f",
   "V20260722_04__backfill_issue_fact_handler_name.sql": "410adad7745c0c3a7dff567c3f3e44e5db97b5ab5bb210f9ef59e1799497b785",
-  "V20260722_05__add_customer_issue_response_times_index.sql": "2746cc811a7c1d0c3e7be18bd19b9451a37a815ea0e66174fd13b0a7db667357"
+  "V20260722_05__add_customer_issue_response_times_index.sql": "2746cc811a7c1d0c3e7be18bd19b9451a37a815ea0e66174fd13b0a7db667357",
+  "V20260723_01__seed_customer_issue_customer_aliases.sql": "ca53ca2a93b16a8769523d2e766674fabc4494a270347639483721021c7faeed"
 }

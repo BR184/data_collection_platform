@@ -24,6 +24,15 @@ public record SyncRunCompletionEvent(
     return status == SyncRunStatus.SUCCESS;
   }
 
+  /**
+   * 判断镜像运行是否已完成并具备可用于事实刷新的一部分成功结果。
+   *
+   * @return 整体成功或部分成功时返回 {@code true}
+   */
+  public boolean factRefreshEligible() {
+    return status == SyncRunStatus.SUCCESS || status == SyncRunStatus.PARTIAL_SUCCESS;
+  }
+
   public boolean fullSync() {
     return runType == SyncRunType.FULL_SYNC;
   }

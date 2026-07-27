@@ -7,7 +7,6 @@ import { Download, InfoFilled, Refresh, RefreshRight } from '@element-plus/icons
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import IssueStatusTags from '../components/IssueStatusTags.vue';
 import PageSettingsButton from '../components/PageSettingsButton.vue';
-import PageStateShell from '../components/base/PageStateShell.vue';
 import RuleExplanationDrawer from '../components/RuleExplanationDrawer.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
@@ -30,9 +29,11 @@ import {
   formatCustomerIssueRecordDateTime as formatDateTime,
   mapCustomerIssueRecordTableRows,
   normalizeCustomerIssueState as normalizeIssueState,
+  parseCustomerIssuePlannedMergeVersions,
 } from './customer-issues/customer-issue-record-table-rows';
+import { isCcProductQuickFilterKey } from './customer-issues/customer-issue-quick-filter-fields';
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
-import { ISSUE_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
+import { CUSTOMER_ISSUE_RECORD_QUERY_KEYS } from '../feature-manifest/customer-issue-record-query-contract';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import { useRealtimeWorkspaceStatus, waitForRealtimeWorkspaceRefresh } from '../composables/useRealtimeWorkspaceStatus';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
@@ -55,6 +56,7 @@ const {
   sortOrder,
   patchQuery,
   bindLoader,
+  reload,
   isTableLoading,
 } = useRouteTableState({
   defaults: {
@@ -63,39 +65,27 @@ const {
     sortBy: 'updatedAt',
     sortOrder: 'desc',
   },
-  watchedQueryKeys: ISSUE_RECORD_QUERY_KEYS,
+  watchedQueryKeys: CUSTOMER_ISSUE_RECORD_QUERY_KEYS,
+  immediate: false,
+  minLoadingMs: 0,
   autoRefreshOnEnter: readAutoRefreshOnEnter,
 });
 
 const rows = ref<CustomerIssueRecordRowResponse[]>([]);
 const total = ref(0);
-const pageInitialized = ref(false);
 const filterOptionsLoaded = ref(false);
+const filterOptionsLoading = ref(false);
+const filterOptionsError = ref('');
+const tableLoadError = ref('');
 const detailVisible = ref(false);
 const selectedRow = ref<CustomerIssueRecordRowResponse | null>(null);
 const exportLoading = ref(false);
 const realtimeRefreshLoading = ref(false);
 const milestoneDefaultPatchInFlight = ref(false);
 
-const filterOptions = ref<CustomerIssueRecordFilterOptionsResponse>({
-  projectNames: [],
-  moduleNames: [],
-  functionNames: [],
-  customerNames: [],
-  reasonCategories: [],
-  severityLevels: [],
-  priorityLevels: [],
-  issueStates: [],
-  bugStatuses: [],
-  categories: [],
-  authorNames: [],
-  handlerNames: [],
-  assigneeNames: [],
-  testingPhases: [],
-  fixUsers: [],
-  delayCauses: [],
-  milestoneTitles: [],
-});
+const filterOptions = ref<CustomerIssueRecordFilterOptionsResponse>(createEmptyFilterOptions());
+let filterOptionsRunId = 0;
+let tableDataRunId = 0;
 
 const topic = computed<CustomerIssueRecordTopic>(() =>
   resolveTopic(),
@@ -110,7 +100,6 @@ const milestoneDefaultReady = computed(() => {
   }
   return filterOptionsLoaded.value && !filterOptions.value.milestoneTitles.some((option) => option.value);
 });
-const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value && milestoneDefaultReady.value);
 const isDelayTopic = computed(() => topic.value === 'delay');
 const pageTitle = computed(() => (isDelayTopic.value ? '延期问题明细' : 'CC_PRODUCT 议题明细'));
 const canRefreshLatestData = computed(() => hasPermission(authState.currentUser, 'business_data.refresh'));
@@ -168,7 +157,7 @@ const {
 } = useRecordPageController({
   getRouteQuery: () => route.query,
   patchQuery,
-  loadTableData,
+  loadTableData: reload,
   resetDraft,
   buildApplyQueryPatch,
   buildResetQueryPatch,
@@ -239,18 +228,6 @@ const filterValues = computed<Record<string, unknown>>(() => ({
   bugStatus: String(route.query.bugStatus ?? ''),
   category: String(route.query.category ?? ''),
 }));
-
-const CC_PRODUCT_QUICK_FILTER_KEYS = new Set([
-  'milestoneTitle',
-  'moduleName',
-  'functionName',
-  'testingPhase',
-  'handlerName',
-  'assigneeName',
-  'delayCause',
-  'fixUser',
-  'updatedAtRange',
-]);
 
 const primaryFilters = computed<RecordTableFilterField[]>(() => [
   {
@@ -404,7 +381,7 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
     startPlaceholder: '开始日期',
     endPlaceholder: '结束日期',
   },
-].filter((filter) => isDelayTopic.value || CC_PRODUCT_QUICK_FILTER_KEYS.has(filter.key)));
+].filter((filter) => isDelayTopic.value || isCcProductQuickFilterKey(filter.key)));
 
 const priorityQuickFilters = computed<RecordTableFilterField[]>(() => [
   { key: 'keyword', label: '任意关键字', type: 'input', placeholder: '输入任意关键字搜索', width: 260 },
@@ -517,6 +494,9 @@ const allActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => [
 ]);
 
 const tableRows = computed<Record<string, unknown>[]>(() => mapCustomerIssueRecordTableRows(rows.value));
+const selectedPlanMergeVersionBranches = computed(() =>
+  parseCustomerIssuePlannedMergeVersions(selectedRow.value?.plannedMergeVersionBranch),
+);
 
 const ruleSteps = computed(() => ruleExplanation.value?.flowSteps ?? []);
 const ruleFirstCount = computed(() => ruleSteps.value[0]?.inputCount ?? 0);
@@ -552,14 +532,79 @@ function createFallbackRuleExplanation(reason: string): StatisticBoardRuleExplan
   };
 }
 
-async function loadFilterOptions() {
-  filterOptions.value = await api.getCustomerIssueRecordFilterOptions(topic.value);
+function createEmptyFilterOptions(): CustomerIssueRecordFilterOptionsResponse {
+  return {
+    projectNames: [],
+    moduleNames: [],
+    functionNames: [],
+    customerNames: [],
+    reasonCategories: [],
+    severityLevels: [],
+    priorityLevels: [],
+    issueStates: [],
+    bugStatuses: [],
+    categories: [],
+    authorNames: [],
+    handlerNames: [],
+    assigneeNames: [],
+    testingPhases: [],
+    fixUsers: [],
+    delayCauses: [],
+    milestoneTitles: [],
+  };
 }
 
 async function loadTableData() {
-  const response = await api.getCustomerIssueRecords(buildCurrentQueryParams(true));
-  rows.value = response.records;
-  total.value = response.total;
+  const runId = ++tableDataRunId;
+  const requestedTopic = topic.value;
+  tableLoadError.value = '';
+  initializeFromQuery(route.query);
+  try {
+    const response = await api.getCustomerIssueRecords(buildCurrentQueryParams(true));
+    if (runId !== tableDataRunId || requestedTopic !== topic.value) {
+      return;
+    }
+    rows.value = response.records;
+    total.value = response.total;
+  } catch (error) {
+    if (runId !== tableDataRunId || requestedTopic !== topic.value) {
+      return;
+    }
+    rows.value = [];
+    total.value = 0;
+    tableLoadError.value = errorMessage(error, `${pageTitle.value}加载失败`);
+  }
+}
+
+async function loadFilterOptions() {
+  const runId = ++filterOptionsRunId;
+  const requestedTopic = topic.value;
+  filterOptionsLoading.value = true;
+  filterOptionsError.value = '';
+  try {
+    const response = await api.getCustomerIssueRecordFilterOptions(requestedTopic);
+    if (runId !== filterOptionsRunId || requestedTopic !== topic.value) {
+      return false;
+    }
+    filterOptions.value = response;
+    filterOptionsLoaded.value = true;
+    return true;
+  } catch (error) {
+    if (runId !== filterOptionsRunId || requestedTopic !== topic.value) {
+      return false;
+    }
+    filterOptionsLoaded.value = false;
+    filterOptionsError.value = errorMessage(error, `${pageTitle.value}筛选项加载失败`);
+    return false;
+  } finally {
+    if (runId === filterOptionsRunId && requestedTopic === topic.value) {
+      filterOptionsLoading.value = false;
+    }
+  }
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message.trim() ? error.message : fallback;
 }
 
 function buildCurrentQueryParams(includePagination: boolean) {
@@ -626,7 +671,7 @@ async function handleRefreshLatestData() {
     const status = await api.refreshCustomerIssueRecordRealtime(topic.value);
     ElMessage.success(status.message || '已开始刷新最新数据');
     await waitForRealtimeWorkspaceRefresh(status, loadSyncStatus);
-    await Promise.all([loadFilterOptions(), loadTableData()]);
+    await Promise.all([loadFilterOptions(), reload()]);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
   } finally {
@@ -635,37 +680,33 @@ async function handleRefreshLatestData() {
 }
 
 bindLoader(async () => {
-  if (!filterOptionsLoaded.value || milestoneDefaultPatchInFlight.value || !milestoneDefaultReady.value) {
+  void loadSyncStatus();
+  if (milestoneDefaultPatchInFlight.value || !milestoneDefaultReady.value) {
     return;
   }
-  try {
-    await loadCurrentPage();
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : `${pageTitle.value}加载失败`);
-    rows.value = [];
-    total.value = 0;
-    pageInitialized.value = true;
-  }
+  await loadTableData();
 });
 
 watch(
   [topic],
   async () => {
+    filterOptionsRunId += 1;
+    tableDataRunId += 1;
+    filterOptions.value = createEmptyFilterOptions();
     filterOptionsLoaded.value = false;
-    pageInitialized.value = false;
+    filterOptionsLoading.value = false;
+    filterOptionsError.value = '';
+    tableLoadError.value = '';
+    rows.value = [];
+    total.value = 0;
     resetRuleExplanation();
-    try {
-      await loadFilterOptions();
-      filterOptionsLoaded.value = true;
-      const patchedDefault = await applyMilestoneDefault();
-      if (patchedDefault || milestoneDefaultReady.value) {
-        await loadCurrentPage();
-      }
-    } catch (error) {
-      ElMessage.error(error instanceof Error ? error.message : `${pageTitle.value}筛选项加载失败`);
-      filterOptionsLoaded.value = true;
-      pageInitialized.value = true;
+    const hasExplicitMilestone = Boolean(String(route.query.milestoneTitle ?? '').trim());
+    if (!isDelayTopic.value || hasExplicitMilestone) {
+      void loadFilterOptions();
+      await reload();
+      return;
     }
+    await loadFilterOptions();
   },
   { immediate: true },
 );
@@ -673,12 +714,17 @@ watch(
 watch(
   [() => route.query.milestoneTitle, filterOptionsLoaded],
   async () => {
-    if (!filterOptionsLoaded.value || milestoneDefaultPatchInFlight.value) {
+    if (
+      !isDelayTopic.value
+      || !filterOptionsLoaded.value
+      || milestoneDefaultPatchInFlight.value
+      || String(route.query.milestoneTitle ?? '').trim()
+    ) {
       return;
     }
     const patchedDefault = await applyMilestoneDefault();
-    if (patchedDefault) {
-      await loadCurrentPage();
+    if (patchedDefault || milestoneDefaultReady.value) {
+      await reload();
     }
   },
 );
@@ -704,13 +750,6 @@ async function applyMilestoneDefault() {
     milestoneDefaultPatchInFlight.value = false;
   }
   return true;
-}
-
-async function loadCurrentPage() {
-  initializeFromQuery(route.query);
-  await loadTableData();
-  await loadSyncStatus();
-  pageInitialized.value = true;
 }
 
 function openDetailDrawer(row: Record<string, unknown>) {
@@ -766,26 +805,30 @@ async function handleQuery() {
 </script>
 
 <template>
-  <PageStateShell :ready="pageReady" min-height="calc(100vh - 160px)">
-    <template #skeleton>
-      <section class="customer-record-page">
-        <el-card shadow="never" class="panel-card page-skeleton-card">
-          <el-skeleton animated>
-            <template #template>
-              <div class="page-skeleton-stack">
-                <el-skeleton-item variant="h3" style="width: 30%" />
-                <el-skeleton-item variant="text" style="width: 58%" />
-                <el-skeleton-item variant="rect" style="width: 100%; height: 56px" />
-                <el-skeleton-item variant="rect" style="width: 100%; height: 420px" />
-              </div>
-            </template>
-          </el-skeleton>
-        </el-card>
-      </section>
-    </template>
-
-    <section class="customer-record-page">
-      <BaseRecordTable
+  <section class="customer-record-page">
+    <div v-if="filterOptionsError || tableLoadError" class="customer-record-load-alerts">
+      <el-alert v-if="filterOptionsError" type="warning" :closable="false" show-icon>
+        <template #title>
+          <div class="customer-record-load-alert-title">
+            <span>{{ filterOptionsError }}</span>
+            <el-button link type="primary" :loading="filterOptionsLoading" @click="loadFilterOptions">
+              重试筛选项
+            </el-button>
+          </div>
+        </template>
+      </el-alert>
+      <el-alert v-if="tableLoadError" type="error" :closable="false" show-icon>
+        <template #title>
+          <div class="customer-record-load-alert-title">
+            <span>{{ tableLoadError }}</span>
+            <el-button link type="primary" :loading="isTableLoading" @click="reload">
+              重试列表
+            </el-button>
+          </div>
+        </template>
+      </el-alert>
+    </div>
+    <BaseRecordTable
         :columns="columns"
         :rows="tableRows"
         :loading="isTableLoading"
@@ -946,7 +989,17 @@ async function handleQuery() {
               {{ selectedRow.plannedResolutionText || formatDateTime(selectedRow.plannedResolutionAt) }}
             </el-descriptions-item>
             <el-descriptions-item v-if="!isDelayTopic" label="计划合并版本分支">
-              {{ selectedRow.plannedMergeVersionBranch || '-' }}
+              <div class="customer-record-tags">
+                <el-tag
+                  v-for="branch in selectedPlanMergeVersionBranches"
+                  :key="branch"
+                  effect="plain"
+                  size="small"
+                >
+                  {{ branch }}
+                </el-tag>
+                <span v-if="!selectedPlanMergeVersionBranches.length">-</span>
+              </div>
             </el-descriptions-item>
             <el-descriptions-item label="更新时间">{{ formatDateTime(selectedRow.updatedAt) }}</el-descriptions-item>
             <el-descriptions-item label="关闭时间">{{ formatDateTime(selectedRow.closedAt) }}</el-descriptions-item>
@@ -992,14 +1045,38 @@ async function handleQuery() {
       process-title="处理流程"
       metrics-title="指标定义"
     />
-    </section>
-  </PageStateShell>
+  </section>
 </template>
 
 <style scoped>
 .customer-record-page {
   display: grid;
   gap: 12px;
+}
+
+.customer-record-load-alerts {
+  display: grid;
+  gap: 8px;
+}
+
+.customer-record-load-alert-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.customer-record-load-alert-title > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .customer-record-load-alert-title {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
 }
 
 .customer-record-toolbar-actions,

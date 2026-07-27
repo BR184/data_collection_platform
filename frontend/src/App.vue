@@ -245,7 +245,7 @@ onBeforeUnmount(() => {
 });
 
 watch(
-  () => [route.path, currentUser.value.authenticated, isStandalonePage.value] as const,
+  () => [currentUser.value.authenticated, currentUser.value.username, isStandalonePage.value] as const,
   () => {
     void loadMatchModeMenuState();
   },

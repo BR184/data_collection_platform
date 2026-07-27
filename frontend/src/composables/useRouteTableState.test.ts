@@ -23,6 +23,24 @@ function createHarness(loader: () => Promise<void> = vi.fn(async () => undefined
   return { Harness, router, loader };
 }
 
+function createManualHarness(loader: () => Promise<void>) {
+  const reloadRef = { current: null as null | (() => Promise<void>) };
+  const Harness = defineComponent({
+    setup() {
+      const tableState = useRouteTableState({ immediate: false, minLoadingMs: 0 });
+      tableState.bindLoader(loader);
+      reloadRef.current = tableState.reload;
+      return {};
+    },
+    template: '<div />',
+  });
+  const router = createRouter({
+    history: createWebHashHistory(),
+    routes: [{ path: '/records', component: Harness }],
+  });
+  return { Harness, router, reloadRef };
+}
+
 async function flushRouteWatchers() {
   await nextTick();
   await Promise.resolve();
@@ -69,6 +87,22 @@ describe('useRouteTableState', () => {
     await flushRouteWatchers();
 
     expect(loader).toHaveBeenCalledTimes(2);
+    wrapper.unmount();
+  });
+
+  it('supports an explicit initial reload without changing the default immediate contract', async () => {
+    const loader = vi.fn(async () => undefined);
+    const { Harness, router, reloadRef } = createManualHarness(loader);
+    await router.push('/records');
+    await router.isReady();
+    const wrapper = mount(Harness, { global: { plugins: [router] } });
+    await flushRouteWatchers();
+
+    expect(loader).not.toHaveBeenCalled();
+
+    await reloadRef.current?.();
+
+    expect(loader).toHaveBeenCalledTimes(1);
     wrapper.unmount();
   });
 });

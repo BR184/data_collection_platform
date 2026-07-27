@@ -58,11 +58,11 @@ final class IssueClassificationRules {
   private static final String LEVEL1 = "LEVEL1";
   private static final String RESPONSIBLE_OWNER_SIGNATURE_SECTION = "一级缺陷的修改方案请模块负责人签字确认";
   private static final List<String> CUSTOMER_RESEARCH_REQUIRED_SECTIONS =
-      List.of("问题原因", "修改方案", "计划合并的版本分支");
+      List.of("问题原因", "修改方案");
+  private static final List<String> PLAN_MERGE_VERSION_BRANCH_SECTIONS =
+      List.of("计划合并的版本分支", "计划合并版本分支");
   private static final Pattern PROBLEM_TYPE_DEFECT_PATTERN = Pattern.compile("\\[[xX]\\]\\s+缺陷");
   private static final Pattern PROBLEM_TYPE_REQUIREMENT_PATTERN = Pattern.compile("\\[[xX]\\]\\s+需求");
-  private static final Pattern PLAN_DATE_PATTERN =
-      Pattern.compile("\\d{4}[年.,，]\\d{1,2}[月.,，]\\d{1,2}[日]?");
 
   private IssueClassificationRules() {
   }
@@ -264,10 +264,20 @@ final class IssueClassificationRules {
         return section + "缺少回复内容";
       }
     }
+    String plannedMergeVersionBranch = sectionContent(lines, PLAN_MERGE_VERSION_BRANCH_SECTIONS);
+    if (!org.springframework.util.StringUtils.hasText(plannedMergeVersionBranch)) {
+      return "计划合并的版本分支缺少回复内容";
+    }
     if (LEVEL1.equals(severityLevel) && !hasSectionContent(lines, RESPONSIBLE_OWNER_SIGNATURE_SECTION)) {
       return RESPONSIBLE_OWNER_SIGNATURE_SECTION + "缺少回复内容";
     }
-    return hasSinglePlanSolutionDate(lines) ? TEMPLATE_PASSED : "计划解决时间非法";
+    if (!hasSinglePlanSolutionDate(lines)) {
+      return "计划解决时间非法";
+    }
+    return IssueResponsePlanFieldRules.normalizePlannedMergeVersionBranches(plannedMergeVersionBranch)
+            .isEmpty()
+        ? "计划合并版本分支非法"
+        : TEMPLATE_PASSED;
   }
 
   private static String validateProblemType(String[] lines) {
@@ -317,16 +327,19 @@ final class IssueClassificationRules {
 
   private static boolean hasSinglePlanSolutionDate(String[] lines) {
     String content = sectionContent(lines, "计划解决时间");
-    if (content == null) {
-      return false;
-    }
-    return PLAN_DATE_PATTERN.matcher(content).matches();
+    return IssueResponsePlanFieldRules.parsePlannedResolutionAt(content) != null;
   }
 
   private static String sectionContent(String[] lines, String sectionName) {
+    return sectionContent(lines, List.of(sectionName));
+  }
+
+  private static String sectionContent(String[] lines, List<String> sectionNames) {
     for (int index = 0; index < lines.length; index++) {
       String line = lines[index].trim();
-      if (!line.contains(sectionName)) {
+      String sectionName =
+          sectionNames.stream().filter(line::contains).findFirst().orElse(null);
+      if (sectionName == null) {
         continue;
       }
       String contentAfterTitle = line.substring(line.indexOf(sectionName) + sectionName.length()).trim();

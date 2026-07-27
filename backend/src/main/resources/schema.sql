@@ -746,7 +746,12 @@ create table if not exists issue_customer_name_aliases (
 );
 
 insert into issue_customer_name_aliases(alias_name, canonical_name)
-values ('新世纪', '郑州新世纪')
+values
+    ('新世纪', '郑州新世纪'),
+    ('极目数字（苏普耐）', '极目数字'),
+    ('极目数字(苏普耐)', '极目数字'),
+    ('极目数字（苏普耐）——新版本适配测试', '极目数字'),
+    ('极目数字(苏普耐)——新版本适配测试', '极目数字')
 on conflict (alias_name)
 do update set
     canonical_name = excluded.canonical_name,

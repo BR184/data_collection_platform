@@ -163,6 +163,8 @@ class FlywayMigrationSmokeTest {
         "V20260722_01__customer_issue_customer_and_response_template_schema.sql");
     String aliasSeedMigration = readMigration(
         "V20260722_02__seed_customer_issue_customer_aliases.sql");
+    String customerAliasUpdateMigration = readMigration(
+        "V20260723_01__seed_customer_issue_customer_aliases.sql");
 
     assertThat(schemaMigration)
         .contains("add column if not exists customer_names text")
@@ -173,6 +175,12 @@ class FlywayMigrationSmokeTest {
         .contains("idx_issue_fact_customer_members_customer_lookup");
     assertThat(aliasSeedMigration)
         .contains("('新世纪', '郑州新世纪')")
+        .contains("on conflict (alias_name)");
+    assertThat(customerAliasUpdateMigration)
+        .contains("('极目数字（苏普耐）', '极目数字')")
+        .contains("('极目数字(苏普耐)', '极目数字')")
+        .contains("('极目数字（苏普耐）——新版本适配测试', '极目数字')")
+        .contains("('极目数字(苏普耐)——新版本适配测试', '极目数字')")
         .contains("on conflict (alias_name)");
   }
 
