@@ -137,7 +137,7 @@ public class StatisticBoardSnapshotService {
   }
 
   public String issueFactSourceVersion() {
-    return jdbcTemplate.queryForObject(
+    String factVersion = jdbcTemplate.queryForObject(
         """
         select coalesce(
                  (
@@ -158,6 +158,23 @@ public class StatisticBoardSnapshotService {
                )
         """,
         String.class);
+    String scopeVersion =
+        jdbcTemplate.queryForObject(
+            """
+            select concat(
+                     'issue-scope:',
+                     coalesce(to_char(max(changed_at), 'YYYY-MM-DD"T"HH24:MI:SS.US'), 'empty')
+                   )
+              from (
+                select updated_at as changed_at from issue_scope_catalogs
+                union all
+                select updated_at as changed_at from issue_scope_groups
+                union all
+                select updated_at as changed_at from issue_scope_members
+              ) s
+            """,
+            String.class);
+    return factVersion + "|" + scopeVersion;
   }
 
   public String filterHash(Map<String, ?> filters) {

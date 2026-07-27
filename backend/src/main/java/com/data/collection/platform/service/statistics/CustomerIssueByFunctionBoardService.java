@@ -151,8 +151,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         "序号",
         List.of(
             StatisticFilterFieldFactory.text("projectName", "项目名称", 200),
-            StatisticFilterFieldFactory.text(CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD, "测试阶段", 200),
-            StatisticFilterFieldFactory.text("moduleName", "模块名称", 180),
+          StatisticFilterFieldFactory.text("moduleName", "模块名称", 180),
             StatisticFilterFieldFactory.text("functionName", "功能名称", 180),
             StatisticFilterFieldFactory.text("milestoneTitle", "里程碑", 180),
             StatisticFilterFieldFactory.select(
@@ -408,7 +407,8 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
   }
 
   private boolean matchesTestingPhase(IssueSource issue, StatisticFilterGroup filterGroup) {
-    return CustomerIssueMilestoneFilterSupport.matches(issue.milestoneTitle(), issue.testingPhase(), filterGroup);
+    return CustomerIssueMilestoneFilterSupport.matches(
+        issue.milestoneTitle(), filterGroup, milestoneCatalogService);
   }
 
   private StatisticRuleFlowStepSample toRuleFlowSample(IssueSource issue) {
@@ -424,7 +424,8 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
   private List<IssueSource> loadSources(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     CustomerIssueSqlScopeSupport.SqlScope scope =
         CustomerIssueSqlScopeSupport.withExtraPredicate(
-            CustomerIssueSqlScopeSupport.boardScope(withoutReservedFilters(filters), filterGroup),
+            CustomerIssueSqlScopeSupport.boardScope(
+                withoutReservedFilters(filters), filterGroup, milestoneCatalogService),
             "coalesce(function_name, '') <> ''",
             List.of());
     try {
@@ -445,7 +446,8 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
       StatisticFilterGroup filterGroup) {
     CustomerIssueSqlScopeSupport.SqlScope scope =
         CustomerIssueSqlScopeSupport.withExtraPredicate(
-            CustomerIssueSqlScopeSupport.boardScope(withoutReservedFilters(filters), filterGroup),
+            CustomerIssueSqlScopeSupport.boardScope(
+                withoutReservedFilters(filters), filterGroup, milestoneCatalogService),
             "coalesce(function_name, '') <> ''",
             List.of());
     try {
@@ -674,7 +676,8 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
       CellAddress address) {
     CustomerIssueSqlScopeSupport.SqlScope scope =
         CustomerIssueSqlScopeSupport.withExtraPredicate(
-            CustomerIssueSqlScopeSupport.boardScope(withoutReservedFilters(filters), filterGroup),
+            CustomerIssueSqlScopeSupport.boardScope(
+                withoutReservedFilters(filters), filterGroup, milestoneCatalogService),
             """
             coalesce(function_name, '') = ?
             and exists (
@@ -699,7 +702,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
 
   private StatisticFilterGroup applyDefaultMilestone(StatisticFilterGroup filterGroup) {
     return CustomerIssueMilestoneFilterSupport.applyDefaultMilestone(
-        filterGroup, milestoneCatalogService.listMilestones(), phaseScopeResolver);
+        filterGroup, milestoneCatalogService);
   }
 
   private List<StatisticFilterOption> loadMilestoneOptions() {

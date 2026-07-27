@@ -1,78 +1,67 @@
 package com.data.collection.platform.service.statistics;
 
-import java.time.LocalDate;
-import java.util.LinkedHashSet;
+import com.data.collection.platform.entity.OptionItemResponse;
+import com.data.collection.platform.service.IssueScopeCatalogService;
+import com.data.collection.platform.service.IssueScopeDimension;
 import java.util.List;
-import java.util.Set;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataAccessException;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
+/** 客户问题领域对统一议题范围目录的里程碑适配器。 */
 @Service
-@Slf4j
 public class CustomerIssueMilestoneCatalogService {
-  private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
-  private static final LocalDate CUSTOMER_ISSUE_START_DATE = LocalDate.of(2026, 1, 1);
-  private final JdbcTemplate jdbcTemplate;
+  private final IssueScopeCatalogService issueScopeCatalogService;
 
-  public CustomerIssueMilestoneCatalogService(JdbcTemplate jdbcTemplate) {
-    this.jdbcTemplate = jdbcTemplate;
+  public CustomerIssueMilestoneCatalogService(IssueScopeCatalogService issueScopeCatalogService) {
+    this.issueScopeCatalogService = issueScopeCatalogService;
   }
 
+  /** 返回按管理员顺序排列的项目 325 启用范围业务键。 */
   public List<String> listMilestones() {
-    Set<String> milestones = new LinkedHashSet<>(listMirrorMilestones());
-    milestones.addAll(listFactMilestones());
-    return CustomerIssueMilestoneOrdering.sortLatestFirst(milestones);
+    return issueScopeCatalogService.listEnabledBusinessKeys(
+        IssueScopeCatalogService.CC_PRODUCT_PROJECT_ID, IssueScopeDimension.MILESTONE);
   }
 
-  private List<String> listMirrorMilestones() {
-    String sql =
-        """
-        select distinct nullif(btrim(m.title), '') as milestone_title
-          from ods_gitlab_issues i
-          join ods_gitlab_milestones m
-            on m.id = i.milestone_id
-           and coalesce(m.mirror_deleted, false) = false
-         where coalesce(i.mirror_deleted, false) = false
-           and i.project_id = ?
-           and i.created_at >= ?
-           and nullif(btrim(m.title), '') is not null
-         order by milestone_title desc
-        """;
-    return queryMilestones(
-      sql,
-      "ods_gitlab_milestones",
-      LEGACY_CC_PRODUCT_PROJECT_ID,
-      CUSTOMER_ISSUE_START_DATE
-    );
-  }
-
-  private List<String> listFactMilestones() {
-    String sql =
-        """
-        select distinct milestone_title
-          from issue_fact
-         where deleted = false
-           and project_id = ?
-           and created_at_source >= ?
-           and coalesce(milestone_title, '') <> ''
-         order by milestone_title desc
-        """;
-    return queryMilestones(sql, "issue_fact", LEGACY_CC_PRODUCT_PROJECT_ID, CUSTOMER_ISSUE_START_DATE);
-  }
-
-  private List<String> queryMilestones(String sql, String sourceName, Object... args) {
-    try {
-      return jdbcTemplate.queryForList(sql, String.class, args)
+  /** 返回业务键和管理显示名称组成的下拉选项。 */
+  public List<OptionItemResponse> listOptions() {
+    return issueScopeCatalogService
+        .listEnabledGroups(
+            IssueScopeCatalogService.CC_PRODUCT_PROJECT_ID, IssueScopeDimension.MILESTONE)
         .stream()
-        .map(value -> value == null ? "" : value.trim())
-        .filter(StringUtils::hasText)
+        .map(group -> new OptionItemResponse(group.displayName(), group.businessKey()))
         .toList();
-    } catch (DataAccessException error) {
-      log.debug("Customer issue milestone source {} is unavailable", sourceName, error);
-      return List.of();
-    }
+  }
+
+  /** 返回管理员排序中的第一条启用范围业务键。 */
+  public String defaultMilestone() {
+    return issueScopeCatalogService.defaultBusinessKey(
+        IssueScopeCatalogService.CC_PRODUCT_PROJECT_ID, IssueScopeDimension.MILESTONE);
+  }
+
+  /** 将客户问题范围业务键展开为精确里程碑事实值。 */
+  public List<String> resolveMilestoneValues(String businessKey) {
+    return issueScopeCatalogService.requireMemberValues(
+        IssueScopeCatalogService.CC_PRODUCT_PROJECT_ID,
+        IssueScopeDimension.MILESTONE,
+        businessKey);
+  }
+
+  /** 判断真实里程碑值是否属于指定客户问题范围。 */
+  public boolean matches(String businessKey, String milestoneTitle) {
+    return issueScopeCatalogService.matches(
+        IssueScopeCatalogService.CC_PRODUCT_PROJECT_ID,
+        IssueScopeDimension.MILESTONE,
+        businessKey,
+        milestoneTitle);
+  }
+
+  /** 返回范围的管理显示名称；不存在时返回业务键本身。 */
+  public String displayName(String businessKey) {
+    return issueScopeCatalogService
+        .findEnabledGroup(
+            IssueScopeCatalogService.CC_PRODUCT_PROJECT_ID,
+            IssueScopeDimension.MILESTONE,
+            businessKey)
+        .map(IssueScopeCatalogService.ScopeGroup::displayName)
+        .orElse(businessKey);
   }
 }

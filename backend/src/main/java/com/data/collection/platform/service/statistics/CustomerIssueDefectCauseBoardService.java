@@ -657,7 +657,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
 
   private List<IssueSource> loadSourcesFromFact(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     CustomerIssueSqlScopeSupport.SqlScope scope =
-        CustomerIssueSqlScopeSupport.boardScope(filters, filterGroup);
+        CustomerIssueSqlScopeSupport.boardScope(filters, filterGroup, milestoneCatalogService);
     String predicate = scope.predicate() + " and created_at_source is not null";
     return issueFactQueryService.query(
         FACT_SQL,
@@ -755,7 +755,6 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         filterGroup.conditions().stream()
             .filter(Objects::nonNull)
             .filter(condition -> !MILESTONE_FIELD.equals(condition.fieldKey()))
-            .filter(condition -> !CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD.equals(condition.fieldKey()))
             .toList();
     if (conditions.isEmpty()) {
       return true;
@@ -881,7 +880,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
 
   private StatisticFilterGroup applyDefaultMilestone(StatisticFilterGroup filterGroup) {
     return CustomerIssueMilestoneFilterSupport.applyDefaultMilestone(
-        filterGroup, milestoneCatalogService.listMilestones(), phaseScopeResolver);
+        filterGroup, milestoneCatalogService);
   }
 
   private DefectCauseMetricCatalog.Metric metric(String key) {

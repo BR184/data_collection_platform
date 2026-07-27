@@ -151,7 +151,6 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
         "模块",
         List.of(
             StatisticFilterFieldFactory.text("projectName", "项目名称", 200),
-            StatisticFilterFieldFactory.text(CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD, "测试阶段", 200),
             StatisticFilterFieldFactory.text("milestoneTitle", "产品版本", 180),
             StatisticFilterFieldFactory.text("moduleName", "模块名", 180),
             StatisticFilterFieldFactory.select(
@@ -435,7 +434,6 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     LinkedHashMap<String, String> queryFilters =
         new LinkedHashMap<>(filters == null ? Map.of() : filters);
     queryFilters.remove(CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD);
-    queryFilters.remove(CustomerIssueMilestoneFilterSupport.LEGACY_TESTING_PHASE_FIELD);
     queryFilters.put("projectId", String.valueOf(LEGACY_CC_PRODUCT_PROJECT_ID));
 
     List<Object> args = new ArrayList<>();
@@ -457,8 +455,11 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
 
     String milestone = CustomerIssueMilestoneFilterSupport.selectedMilestone(filterGroup);
     if (StringUtils.hasText(milestone)) {
-      predicate.append(" and lower(coalesce(milestone_title, '')) = ?");
-      args.add(milestone.toLowerCase(Locale.ROOT));
+      List<String> values = milestoneCatalogService.resolveMilestoneValues(milestone);
+      predicate.append(" and lower(coalesce(milestone_title, '')) in (");
+      predicate.append(String.join(",", java.util.Collections.nCopies(values.size(), "?")));
+      predicate.append(")");
+      values.stream().map(value -> value.toLowerCase(Locale.ROOT)).forEach(args::add);
     } else {
       predicate.append(" and coalesce(milestone_title, '') <> ''");
     }
@@ -648,13 +649,6 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
       return true;
     }
-    if (CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD.equals(condition.fieldKey())) {
-      return CustomerIssueMilestoneFilterSupport.matches(
-          issue.milestoneTitle(),
-          issue.testingPhase(),
-          CustomerIssueMilestoneFilterSupport.normalizeLegacyTestingPhase(
-               new StatisticFilterGroup("AND", List.of(condition)), phaseScopeResolver));
-    }
     if ("bugStatus".equals(condition.fieldKey())) {
       return condition.usesLabelGroup()
           ? IssueStatusMembers.matchesLabelGroup(
@@ -707,7 +701,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
 
   private StatisticFilterGroup applyDefaultMilestone(StatisticFilterGroup filterGroup) {
     return CustomerIssueMilestoneFilterSupport.applyDefaultMilestone(
-        filterGroup, milestoneCatalogService.listMilestones(), phaseScopeResolver);
+        filterGroup, milestoneCatalogService);
   }
 
   private StatisticColumnLeaf leaf(String key, String label, boolean drilldown, String metricType) {

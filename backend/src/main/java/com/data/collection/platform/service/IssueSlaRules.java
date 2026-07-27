@@ -7,8 +7,6 @@ import org.springframework.util.StringUtils;
 
 final class IssueSlaRules {
   private static final List<String> RESPONSE_DELAY_LABELS = List.of("响应已延期");
-  private static final List<String> RESOLVE_DELAY_EXEMPT_LABELS =
-      List.of("申请延期", "数据异常", "需求如此", "设计如此", "未复现");
   private static final List<String> FIXED_LABELS = List.of("已修复", "已修复/完成");
   private static final List<String> RESPONSE_HEADER_TOKENS =
       List.of("# 问题调研情况说明", "问题调研情况说明");
@@ -79,7 +77,7 @@ final class IssueSlaRules {
     if (fixed || resolveDeadlineAt == null || now == null) {
       return false;
     }
-    if (IssueRuleSupport.containsAnyLabel(labels, RESOLVE_DELAY_EXEMPT_LABELS)
+    if (CustomerIssueClosureRules.hasNonFixedClosureLabel(labels)
         || IssueRuleSupport.containsAnyLabel(labels, FIXED_LABELS)) {
       return false;
     }
@@ -95,7 +93,7 @@ final class IssueSlaRules {
     if (resolveDeadlineAt == null || now == null) {
       return false;
     }
-    if (IssueRuleSupport.containsAnyLabel(labels, RESOLVE_DELAY_EXEMPT_LABELS)) {
+    if (CustomerIssueClosureRules.hasNonFixedClosureLabel(labels)) {
       return false;
     }
     if ((fixed || IssueRuleSupport.containsAnyLabel(labels, FIXED_LABELS)) && hasFixCaseNote) {

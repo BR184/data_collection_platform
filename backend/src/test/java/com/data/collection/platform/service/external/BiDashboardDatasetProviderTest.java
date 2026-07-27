@@ -75,7 +75,7 @@ class BiDashboardDatasetProviderTest {
 
   @Test
   void productVersionWithoutEnabledTestingPhaseIsRejected() {
-    when(phaseScopeResolver.resolveLegacyCrownCadPhases("CC2026R4"))
+    when(phaseScopeResolver.resolvePhases(9L, "CC2026R4"))
         .thenReturn(java.util.List.of());
 
     assertThatThrownBy(() -> provider.load(java.util.Map.of("productVersion", "CC2026R4")))

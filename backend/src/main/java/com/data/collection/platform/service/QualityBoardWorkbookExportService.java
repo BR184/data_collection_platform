@@ -17,8 +17,6 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class QualityBoardWorkbookExportService {
-  private static final String DEFAULT_PROJECT_NAME = "CC2026R3";
-
   private final QualityBoardRdService rdService;
   private final QualityBoardCodeReviewReadSupport codeReviewReadSupport;
 
@@ -182,8 +180,7 @@ public class QualityBoardWorkbookExportService {
   }
 
   private String normalizeProjectName(String projectName) {
-    String normalized = TextQuerySupport.trimToNull(projectName);
-    return normalized == null ? DEFAULT_PROJECT_NAME : TextQuerySupport.normalizeDisplay(projectName);
+    return rdService.normalizeProjectName(projectName);
   }
 
   private String formatDate(java.time.LocalDateTime value) {

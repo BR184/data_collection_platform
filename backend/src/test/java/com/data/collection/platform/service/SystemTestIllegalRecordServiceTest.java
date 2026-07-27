@@ -3,6 +3,7 @@ package com.data.collection.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
@@ -287,16 +288,16 @@ class SystemTestIllegalRecordServiceTest {
   private SystemTestIllegalRecordService service() {
     lenient().when(phaseCatalogService.listParentNames(9L)).thenReturn(List.of("CC2026R1"));
     lenient()
-        .when(phaseScopeResolver.resolveLegacyCrownCadPhases(anyString()))
-        .thenAnswer(invocation -> List.of(invocation.getArgument(0, String.class)));
+        .when(phaseScopeResolver.resolvePhases(anyLong(), anyString()))
+        .thenAnswer(invocation -> List.of(invocation.getArgument(1, String.class)));
     lenient()
-        .when(phaseScopeResolver.resolveLegacyCrownCadPhases(anyList()))
-        .thenAnswer(invocation -> invocation.getArgument(0, List.class));
+        .when(phaseScopeResolver.resolvePhases(anyLong(), anyList()))
+        .thenAnswer(invocation -> invocation.getArgument(1, List.class));
     lenient()
-        .when(phaseScopeResolver.matchesLegacyCrownCadPhase(anyString(), anyString()))
+        .when(phaseScopeResolver.matchesPhase(anyLong(), anyString(), anyString()))
         .thenReturn(true);
     lenient()
-        .when(phaseScopeResolver.matchesLegacyCrownCadPhases(anyString(), anyList()))
+        .when(phaseScopeResolver.matchesPhases(anyLong(), anyString(), anyList()))
         .thenReturn(true);
     lenient()
         .when(issueLinkService.issueUrl("default", 1001L, 301))

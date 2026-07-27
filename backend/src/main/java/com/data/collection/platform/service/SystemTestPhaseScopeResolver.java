@@ -14,16 +14,14 @@ public class SystemTestPhaseScopeResolver {
     this.phaseCatalogService = phaseCatalogService;
   }
 
-  public List<String> resolveLegacyCrownCadPhases(String phaseOrParent) {
-    return resolvePhases(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID, phaseOrParent);
+  /** 返回指定项目按管理员顺序排列的启用版本业务键。 */
+  public List<String> listEnabledParentNames(Long projectId) {
+    return phaseCatalogService.listParentNames(projectId);
   }
 
-  public List<String> resolveLegacyCrownCadPhases(List<String> phaseOrParents) {
-    return resolvePhases(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID, phaseOrParents);
-  }
-
-  public List<String> listEnabledLegacyCrownCadParentNames() {
-    return phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID);
+  /** 返回指定项目的默认版本业务键；没有启用目录时返回空字符串。 */
+  public String defaultParentName(Long projectId) {
+    return listEnabledParentNames(projectId).stream().findFirst().orElse("");
   }
 
   public List<String> resolvePhases(Long projectId, String phaseOrParent) {
@@ -51,7 +49,8 @@ public class SystemTestPhaseScopeResolver {
     return List.copyOf(resolved);
   }
 
-  public boolean matchesLegacyCrownCadPhase(String actualTestingPhase, String selectedPhaseOrParent) {
+  public boolean matchesPhase(
+      Long projectId, String actualTestingPhase, String selectedPhaseOrParent) {
     String actual = TextQuerySupport.trimToNull(actualTestingPhase);
     String selected = TextQuerySupport.trimToNull(selectedPhaseOrParent);
     if (selected == null) {
@@ -60,11 +59,12 @@ public class SystemTestPhaseScopeResolver {
     if (actual == null) {
       return false;
     }
-    return resolveLegacyCrownCadPhases(selected).stream()
+    return resolvePhases(projectId, selected).stream()
         .anyMatch(phase -> actual.equalsIgnoreCase(phase));
   }
 
-  public boolean matchesLegacyCrownCadPhases(String actualTestingPhase, List<String> selectedPhaseOrParents) {
+  public boolean matchesPhases(
+      Long projectId, String actualTestingPhase, List<String> selectedPhaseOrParents) {
     if (selectedPhaseOrParents == null || selectedPhaseOrParents.isEmpty()) {
       return true;
     }
@@ -72,7 +72,7 @@ public class SystemTestPhaseScopeResolver {
     if (actual == null) {
       return false;
     }
-    return resolveLegacyCrownCadPhases(selectedPhaseOrParents).stream()
+    return resolvePhases(projectId, selectedPhaseOrParents).stream()
         .filter(StringUtils::hasText)
         .anyMatch(phase -> actual.equalsIgnoreCase(phase));
   }

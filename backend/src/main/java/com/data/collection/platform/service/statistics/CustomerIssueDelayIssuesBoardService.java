@@ -156,7 +156,6 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         "模块",
         List.of(
             StatisticFilterFieldFactory.text("projectName", "项目名称", 200),
-            StatisticFilterFieldFactory.text(CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD, "测试阶段", 200),
             StatisticFilterFieldFactory.text("milestoneTitle", "里程碑", 180),
             StatisticFilterFieldFactory.text("moduleName", "模块名", 180),
             StatisticFilterFieldFactory.select(
@@ -456,7 +455,8 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   private List<IssueSource> loadSources(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     CustomerIssueSqlScopeSupport.SqlScope scope =
         CustomerIssueSqlScopeSupport.withExtraPredicate(
-            CustomerIssueSqlScopeSupport.boardScope(withoutReservedFilters(filters), filterGroup),
+            CustomerIssueSqlScopeSupport.boardScope(
+                withoutReservedFilters(filters), filterGroup, milestoneCatalogService),
             """
             lower(coalesce(issue_state, 'opened')) <> 'closed'
             and (coalesce(is_response_delayed, false) = true or coalesce(is_resolve_delayed, false) = true)
@@ -657,13 +657,6 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
       return true;
     }
-    if (CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD.equals(condition.fieldKey())) {
-      return CustomerIssueMilestoneFilterSupport.matches(
-          issue.milestoneTitle(),
-          issue.testingPhase(),
-          CustomerIssueMilestoneFilterSupport.normalizeLegacyTestingPhase(
-              new StatisticFilterGroup("AND", List.of(condition)), phaseScopeResolver));
-    }
     if ("moduleName".equals(condition.fieldKey())) {
       return matchesCandidates(issue.displayModuleNames(), condition);
     }
@@ -708,7 +701,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
 
   private StatisticFilterGroup applyDefaultMilestone(StatisticFilterGroup filterGroup) {
     return CustomerIssueMilestoneFilterSupport.applyDefaultMilestone(
-        filterGroup, milestoneCatalogService.listMilestones(), phaseScopeResolver);
+        filterGroup, milestoneCatalogService);
   }
 
   private StatisticColumnLeaf leaf(String key, String label, boolean drilldown, String metricType) {

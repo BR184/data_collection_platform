@@ -897,34 +897,50 @@ create table if not exists merge_request_fact (
     unique (source_system, source_instance, project_id, merge_request_id)
 );
 
-create table if not exists testing_phase_calendar (
+create table if not exists issue_scope_catalogs (
     id bigserial primary key,
     project_id bigint not null,
-    legacy_source_id bigint,
-    legacy_phase_name varchar(128),
-    legacy_sort_order integer,
-    testing_phase varchar(128) not null,
-    phase_group_id bigint,
-    child_sort_order integer,
-    phase_start_at timestamp,
-    phase_end_at timestamp,
+    project_name varchar(255) not null,
+    dimension varchar(32) not null,
     enabled boolean not null default true,
     remark varchar(255),
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp,
-    unique (project_id, testing_phase)
+    constraint ck_issue_scope_catalogs_dimension check (dimension in ('TESTING_PHASE', 'MILESTONE')),
+    constraint uk_issue_scope_catalogs_project_dimension unique (project_id, dimension)
 );
 
-create table if not exists testing_phase_groups (
+create table if not exists issue_scope_groups (
     id bigserial primary key,
-    project_id bigint not null,
-    name varchar(128) not null,
+    catalog_id bigint not null references issue_scope_catalogs(id) on delete cascade,
+    business_key varchar(128) not null,
+    display_name varchar(128) not null,
     sort_order integer not null default 0,
     enabled boolean not null default true,
     remark varchar(255),
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp,
-    constraint uk_testing_phase_groups_project_name unique (project_id, name)
+    constraint uk_issue_scope_groups_catalog_business_key unique (catalog_id, business_key),
+    constraint uk_issue_scope_groups_id_catalog unique (id, catalog_id)
+);
+
+create table if not exists issue_scope_members (
+    id bigserial primary key,
+    catalog_id bigint not null references issue_scope_catalogs(id) on delete cascade,
+    group_id bigint not null,
+    source_value varchar(255) not null,
+    display_name varchar(255) not null,
+    sort_order integer not null default 0,
+    active_from timestamp,
+    active_until timestamp,
+    enabled boolean not null default true,
+    source_reference_id bigint,
+    remark varchar(255),
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    constraint fk_issue_scope_members_group_catalog foreign key (group_id, catalog_id)
+        references issue_scope_groups(id, catalog_id) on delete cascade,
+    constraint uk_issue_scope_members_catalog_source_value unique (catalog_id, source_value)
 );
 
 create table if not exists module_dictionary (
@@ -1354,10 +1370,9 @@ create index if not exists idx_merge_request_fact_owner_search_text_trgm on merg
 create index if not exists idx_merge_request_fact_owner_search_compact_trgm on merge_request_fact using gin (owner_search_compact public.gin_trgm_ops) where deleted = false;
 create index if not exists idx_merge_request_fact_owner_search_spell_trgm on merge_request_fact using gin (owner_search_spell public.gin_trgm_ops) where deleted = false;
 create index if not exists idx_merge_request_fact_owner_search_initials_trgm on merge_request_fact using gin (owner_search_initials public.gin_trgm_ops) where deleted = false;
-create index if not exists idx_testing_phase_calendar_context on testing_phase_calendar(project_id, testing_phase, enabled);
-create index if not exists idx_testing_phase_calendar_legacy_name on testing_phase_calendar(project_id, legacy_phase_name, enabled, legacy_sort_order);
-create index if not exists idx_testing_phase_calendar_group on testing_phase_calendar(phase_group_id, enabled, child_sort_order);
-create index if not exists idx_testing_phase_groups_context on testing_phase_groups(project_id, enabled, sort_order, name);
+create index if not exists idx_issue_scope_catalogs_enabled on issue_scope_catalogs(enabled, project_id, dimension);
+create index if not exists idx_issue_scope_groups_catalog_order on issue_scope_groups(catalog_id, enabled, sort_order, id);
+create index if not exists idx_issue_scope_members_group_order on issue_scope_members(group_id, enabled, sort_order, id);
 create unique index if not exists uk_module_dictionary_global on module_dictionary(dictionary_domain, alias_name) where project_id is null;
 create unique index if not exists uk_module_dictionary_project on module_dictionary(dictionary_domain, project_id, alias_name) where project_id is not null;
 create index if not exists idx_module_dictionary_context on module_dictionary(dictionary_domain, project_id, enabled, priority desc);

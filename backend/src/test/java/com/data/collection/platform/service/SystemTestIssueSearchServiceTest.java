@@ -176,8 +176,8 @@ class SystemTestIssueSearchServiceTest {
                 filterGroupJson));
 
     assertThat(response.records()).extracting(record -> record.issueIid()).containsExactly(311);
-    verify(phaseScopeResolver, never()).resolveLegacyCrownCadPhases(anyString());
-    verify(phaseScopeResolver, never()).resolveLegacyCrownCadPhases(anyList());
+    verify(phaseScopeResolver, never()).resolvePhases(anyLong(), anyString());
+    verify(phaseScopeResolver, never()).resolvePhases(anyLong(), anyList());
   }
 
   @Test

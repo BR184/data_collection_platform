@@ -12,7 +12,7 @@
 - 形态：Spring Boot 单体后端 + Vue 3/TypeScript/Vite 前端 + PostgreSQL；前端默认 `18181`，后端默认 `18080`。
 - 数据入口：GitLab 镜像表（ODS）→ 事实层 → 统计服务/快照 → 页面、导出和外部只读数据集 API。
 - 核心事实表：`issue_fact`、`merge_request_fact`、`integration_test_fact`；评审页面使用 `review_visible_*` 统一读模型，合并正式评审表与尚未交接且未被映射的兼容快照。
-- 系统测试父级阶段及子阶段均以“议题测试阶段定义”的显式父子关系为权威来源；选择父级时展开为其已配置子阶段并匹配 `issue_fact.testing_phase`。不同产品版本复用同一规则，不得从子阶段文本反推父级，也不得以“项目：CCxxxxRx”标签替代测试阶段归属。
+- 系统测试与客户问题的可选范围统一以项目级“议题范围目录”为权威来源。目录以稳定业务键、可修改显示名和精确事实成员三层表达；管理员顺序中的第一条启用范围是统一默认值。系统测试目录维度为 `TESTING_PHASE`，成员精确匹配 `issue_fact.testing_phase`；客户问题目录维度为 `MILESTONE`，成员精确匹配 `issue_fact.milestone_title`。显示名修改不得改变事实匹配，目录变更通过统一源版本使统计与记录快照失效。
 - 数据库迁移统一使用 Flyway；已执行迁移不可修改，新增结构或数据变更必须新建迁移。
 - Flyway 是建库和升级入口，`schema.sql` 只作本地兼容与静态比对；共享库已执行迁移不可修改，结构修复使用新前向迁移，结构变更与大规模回填分开。
 - 平台库为 `qaflex`；GitLab 源库为 `gitlabhq_production`；老平台 MySQL 库为 `gitlab_spider`。三者边界不可混用。
@@ -37,7 +37,7 @@
 - 事实表的搜索影子字段和业务分类字段是持久化查询契约：Java 生成归一化值，SQL 只过滤、排序、聚合，前端字段必须可追溯至请求对象和事实字段，不能在查询层临时重算复杂索引。
 - `scripts/contracts/fact-field-contract.md` 是事实字段静态契约；新增或修改字段必须同步 Flyway、`schema.sql`、生成规则测试、查询/前端/导出影响，并明确是否重建历史事实。`scripts/check_fact_field_contract.py` 校验其与最终 schema 的一致性。
 - `CC_PRODUCT` 客户归属以 `ods_gitlab_issues.description` 的“客户名称”为主、标题双破折号后缀为缺失兜底；`issue_fact_customer_members` 是多对多筛选权威，`issue_fact.customer_names` 仅为展示投影。客户别名必须精确规范化，筛选使用成员关系 `exists`，不得拆分或重复议题事实。
-- `CC_PRODUCT` 的计划解决时间和计划合并版本分支只来自最新“问题调研情况说明”响应模板，不能复用 SLA 截止时间；事实构建必须只保留唯一完整日期及以 `&` 分隔的 `CCyyyyRn` 版本标识，任一字段不合法则写空。页面以事实层版本成员渲染标签，Excel 使用同一稳定文本。缺陷滞留时长按一次请求固定的 `asOf` 与 `created_at_source` 动态计算，不能写入事实或页面快照。上述字段、候选和导出只属于 CC_PRODUCT，延期专题不消费它们。详见 `docs/decisions/ADR-003-customer-membership-and-response-template-facts.md`。
+- `CC_PRODUCT` 的计划解决时间和计划合并版本分支只来自最新“问题调研情况说明”响应模板，不能复用 SLA 截止时间；事实构建必须只保留唯一完整日期及以 `&` 分隔的 `CCyyyyRn` 版本标识，任一字段不合法则写空。页面以事实层版本成员渲染标签，Excel 使用同一稳定文本。缺陷滞留时长只表达当前未闭环年龄：GitLab 已关闭或命中客户问题最终闭环状态时为 `0`，否则按一次请求固定的 `asOf` 与 `created_at_source` 动态计算；它不能写入事实或页面快照，也不能承载历史解决周期。上述字段、候选和导出只属于 CC_PRODUCT，延期专题不消费它们。详见 `docs/decisions/ADR-003-customer-membership-and-response-template-facts.md`。
 - `issue_fact.handler_name` 与 `issue_fact.assignee_name` 是独立人员事实；当前 GitLab ODS 只暴露一份规范指派身份时，事实构建可以写入相同值，但查询、筛选、排序和导出不得把两个字段重新合并。`testing_phase` 原始空值保持为空，CC_PRODUCT 仅在响应投影中显示“未设定测试阶段”。
 
 ### 页面与前端底座

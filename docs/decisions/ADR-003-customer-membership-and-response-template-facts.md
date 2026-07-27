@@ -18,7 +18,7 @@ CC_PRODUCT 的客户名称主要位于 GitLab issue description，当前事实�
 - 客户拆分后通过 `issue_customer_name_aliases` 规范化，别名匹配精确值；当前种子为 `新世纪 -> 郑州新世纪`。
 - `issue_fact.customer_names` 保存稳定展示投影，`issue_fact_customer_members` 以 `(source_system, source_instance, project_id, issue_id, customer_name)` 保存多对多成员关系。客户筛选使用成员关系 `exists`，不拆分事实记录。
 - 最新“问题调研情况说明”响应模板解析为 `planned_resolution_at`、`planned_resolution_text`、`planned_merge_version_branch`。这些字段与 SLA 截止时间独立。
-- 滞留时长由 `created_at_source` 与一次请求固定的 `asOf` 在运行时计算；页面快照只保存静态 `IssueFactRecord`。
+- 滞留时长表示当前尚未闭环缺陷的年龄：GitLab 已关闭或测试状态命中客户问题最终闭环成员时返回 `0`，其余记录由 `created_at_source` 与一次请求固定的 `asOf` 在运行时计算；页面快照只保存静态 `IssueFactRecord`。闭环前历史耗时属于解决周期，不冻结到滞留字段。
 - CC_PRODUCT 专属字段只接入该专题的 API、筛选、前端和 Excel；延期专题不复用。
 
 ## Alternatives Considered

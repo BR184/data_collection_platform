@@ -32,7 +32,6 @@ public class QualityRdAnalyticsDetailQueryService {
   static final long CROWN_CAD_PROJECT_ID =
       SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID;
   static final long HTGC_PROJECT_ID = 239L;
-  private static final String DEFAULT_PROJECT_NAME = "CC2026R3";
   private static final String OPEN_ISSUE_PREDICATE =
       "lower(coalesce(issue_state, '')) in ('open', 'opened')";
   private static final String REJECTED_EXCLUSION_PREDICATE =
@@ -69,7 +68,7 @@ public class QualityRdAnalyticsDetailQueryService {
   }
 
   List<OptionItemResponse> phaseOptions() {
-    return phaseScopeResolver.listEnabledLegacyCrownCadParentNames().stream()
+    return phaseScopeResolver.listEnabledParentNames(CROWN_CAD_PROJECT_ID).stream()
         .filter(TextQuerySupport::hasText)
         .distinct()
         .map(value -> new OptionItemResponse(value, value))
@@ -527,7 +526,8 @@ public class QualityRdAnalyticsDetailQueryService {
   }
 
   private List<String> phases(String requestedProjectName) {
-    return phaseScopeResolver.resolveLegacyCrownCadPhases(canonicalProjectName(requestedProjectName));
+    return phaseScopeResolver.resolvePhases(
+        CROWN_CAD_PROJECT_ID, canonicalProjectName(requestedProjectName));
   }
 
   private SqlScope issueScope(List<String> phases) {
@@ -548,10 +548,10 @@ public class QualityRdAnalyticsDetailQueryService {
     if (normalized != null) {
       return TextQuerySupport.normalizeDisplay(normalized);
     }
-    return phaseScopeResolver.listEnabledLegacyCrownCadParentNames().stream()
+    return phaseScopeResolver.listEnabledParentNames(CROWN_CAD_PROJECT_ID).stream()
         .filter(TextQuerySupport::hasText)
         .findFirst()
-        .orElse(DEFAULT_PROJECT_NAME);
+        .orElseGet(() -> phaseScopeResolver.defaultParentName(CROWN_CAD_PROJECT_ID));
   }
 
   private void validateCrownCadProject(String projectId) {

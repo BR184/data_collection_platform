@@ -441,7 +441,9 @@ def api_payload(path: str) -> Any:
         return None
     if path.startswith("/api/collect-forms/"):
         return {}
-    if path.startswith("/api/testing-phases"):
+    if path == "/api/issue-scopes/catalogs":
+        return []
+    if path.startswith("/api/issue-scopes/"):
         return []
 
     return {}

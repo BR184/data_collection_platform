@@ -1,61 +1,11 @@
-export interface TestingPhaseDefinitionResponse {
-  id: number;
-  projectId: number;
-  projectName: string;
-  legacySourceId?: number | null;
-  legacyPhaseName?: string | null;
-  legacySortOrder?: number | null;
-  phaseGroupId?: number | null;
-  childSortOrder?: number | null;
-  testingPhase: string;
-  phaseStartAt?: string | null;
-  phaseEndAt?: string | null;
-  enabled: boolean;
-  remark: string;
-  issueCount: number;
-  createdAt?: string | null;
-  updatedAt?: string | null;
-}
-
-export interface TestingPhaseDefinitionSaveRequest {
-  projectId: number;
-  legacySourceId?: number | null;
-  legacyPhaseName?: string | null;
-  legacySortOrder?: number | null;
-  phaseGroupId?: number | null;
-  childSortOrder?: number | null;
-  testingPhase: string;
-  phaseStartAt?: string | null;
-  phaseEndAt?: string | null;
-  enabled: boolean;
-  remark?: string | null;
-}
-
-export interface TestingPhaseProjectOptionResponse {
-  projectId: number;
-  projectName: string;
-}
-
-export interface TestingPhaseGroupResponse {
-  id: number;
-  projectId: number;
-  name: string;
-  sortOrder: number;
-  enabled: boolean;
-  remark: string;
-  issueCount: number;
-  children: TestingPhaseDefinitionResponse[];
-  createdAt?: string | null;
-  updatedAt?: string | null;
-}
-
-export interface TestingPhaseGroupSaveRequest {
-  projectId: number;
-  name: string;
-  sortOrder?: number | null;
-  enabled: boolean;
-  remark?: string | null;
-}
+export type IssueScopeDimension = 'TESTING_PHASE' | 'MILESTONE';
+export interface IssueScopeCatalogResponse { id: number; projectId: number; projectName: string; dimension: IssueScopeDimension; dimensionName: string; enabled: boolean; remark: string; groupCount: number; unassignedValueCount: number; createdAt?: string | null; updatedAt?: string | null; }
+export interface IssueScopeCatalogSaveRequest { projectId: number; projectName: string; dimension: IssueScopeDimension; enabled: boolean; remark?: string | null; }
+export interface IssueScopeMemberResponse { id: number; catalogId: number; groupId: number; sourceValue: string; displayName: string; sortOrder: number; activeFrom?: string | null; activeUntil?: string | null; enabled: boolean; sourceReferenceId?: number | null; remark: string; issueCount: number; createdAt?: string | null; updatedAt?: string | null; }
+export interface IssueScopeMemberSaveRequest { catalogId: number; groupId: number; sourceValue: string; displayName: string; sortOrder?: number | null; activeFrom?: string | null; activeUntil?: string | null; enabled: boolean; sourceReferenceId?: number | null; remark?: string | null; }
+export interface IssueScopeGroupResponse { id: number; catalogId: number; projectId: number; projectName: string; dimension: IssueScopeDimension; businessKey: string; displayName: string; sortOrder: number; enabled: boolean; remark: string; issueCount: number; members: IssueScopeMemberResponse[]; createdAt?: string | null; updatedAt?: string | null; }
+export interface IssueScopeGroupSaveRequest { catalogId: number; businessKey: string; displayName: string; sortOrder?: number | null; enabled: boolean; remark?: string | null; }
+export interface IssueScopeDiscoveredValueResponse { value: string; issueCount: number; }
 
 export interface CodeReviewMatchModeDbSettingsResponse {
   enabled: boolean;

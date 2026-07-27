@@ -432,11 +432,13 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   }
 
   private boolean matchesTestingPhase(IssueFactRecord view, String testingPhase) {
-    return phaseScopeResolver.matchesLegacyCrownCadPhase(view.primaryPhaseLabel(), testingPhase);
+    return phaseScopeResolver.matchesPhase(
+        LEGACY_CROWN_CAD_PROJECT_ID, view.primaryPhaseLabel(), testingPhase);
   }
 
   private boolean matchesTestingPhase(IssueFactRecord view, List<String> testingPhases) {
-    return phaseScopeResolver.matchesLegacyCrownCadPhases(view.primaryPhaseLabel(), testingPhases);
+    return phaseScopeResolver.matchesPhases(
+        LEGACY_CROWN_CAD_PROJECT_ID, view.primaryPhaseLabel(), testingPhases);
   }
 
   private boolean matchesIllegalReason(IssueFactRecord view, String illegalReason) {
@@ -485,11 +487,11 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   private List<String> resolvedRequestedPhaseOrWhitelist(String testingPhase) {
     String normalized = TextQuerySupport.trimToNull(testingPhase);
     if (normalized != null) {
-      return phaseScopeResolver.resolveLegacyCrownCadPhases(normalized);
+      return phaseScopeResolver.resolvePhases(LEGACY_CROWN_CAD_PROJECT_ID, normalized);
     }
     return phaseScopeOptions().stream()
         .findFirst()
-        .map(phaseScopeResolver::resolveLegacyCrownCadPhases)
+        .map(value -> phaseScopeResolver.resolvePhases(LEGACY_CROWN_CAD_PROJECT_ID, value))
         .orElse(List.of());
   }
 

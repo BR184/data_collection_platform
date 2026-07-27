@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Locale;
 import org.springframework.util.StringUtils;
 
 final class CustomerIssueSqlScopeSupport {
@@ -17,11 +16,13 @@ final class CustomerIssueSqlScopeSupport {
 
   private CustomerIssueSqlScopeSupport() {}
 
-  static SqlScope boardScope(Map<String, String> filters, StatisticFilterGroup filterGroup) {
+  static SqlScope boardScope(
+      Map<String, String> filters,
+      StatisticFilterGroup filterGroup,
+      CustomerIssueMilestoneCatalogService milestoneCatalogService) {
     LinkedHashMap<String, String> queryFilters =
         new LinkedHashMap<>(filters == null ? Map.of() : filters);
     queryFilters.remove(CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD);
-    queryFilters.remove(CustomerIssueMilestoneFilterSupport.LEGACY_TESTING_PHASE_FIELD);
     queryFilters.put("projectId", String.valueOf(LEGACY_CC_PRODUCT_PROJECT_ID));
 
     List<Object> args = new ArrayList<>();
@@ -32,8 +33,11 @@ final class CustomerIssueSqlScopeSupport {
 
     String milestone = CustomerIssueMilestoneFilterSupport.selectedMilestone(filterGroup);
     if (StringUtils.hasText(milestone)) {
-      predicate.append(" and lower(coalesce(milestone_title, '')) = ?");
-      args.add(milestone.toLowerCase(Locale.ROOT));
+      List<String> values = milestoneCatalogService.resolveMilestoneValues(milestone);
+      predicate.append(" and lower(coalesce(milestone_title, '')) in (");
+      predicate.append(String.join(",", java.util.Collections.nCopies(values.size(), "?")));
+      predicate.append(")");
+      values.stream().map(value -> value.toLowerCase(java.util.Locale.ROOT)).forEach(args::add);
     } else {
       predicate.append(" and coalesce(milestone_title, '') <> ''");
     }

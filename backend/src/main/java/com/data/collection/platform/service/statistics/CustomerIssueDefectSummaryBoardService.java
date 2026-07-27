@@ -164,7 +164,6 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         "模块名",
         List.of(
             StatisticFilterFieldFactory.text("projectName", "项目名称", 200),
-            StatisticFilterFieldFactory.text(CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD, "测试阶段", 200),
             StatisticFilterFieldFactory.text("milestoneTitle", "里程碑", 180),
             StatisticFilterFieldFactory.selectLabelGroup("moduleName", "模块名", 180, quickOptions.moduleNames()),
             StatisticFilterFieldFactory.text("issueIid", "议题编号", 160),
@@ -565,13 +564,6 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
           : IssueStatusMembers.matchesFilter(
               issue.bugStatus(), condition.operator(), condition.value());
     }
-    if (CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD.equals(condition.fieldKey())) {
-      return CustomerIssueMilestoneFilterSupport.matches(
-          issue.milestoneTitle(),
-          issue.testingPhase(),
-          CustomerIssueMilestoneFilterSupport.normalizeLegacyTestingPhase(
-              new StatisticFilterGroup("AND", List.of(condition)), phaseScopeResolver));
-    }
     List<String> actualValues = valuesForFilterField(issue, condition.fieldKey());
     if (condition.usesLabelGroup()) {
       return matchesSetOperator(actualValues, condition.values(), condition.operator());
@@ -589,7 +581,6 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   private List<String> valuesForFilterField(IssueSource issue, String fieldKey) {
     return switch (fieldKey) {
       case "projectName" -> List.of(Objects.toString(issue.projectName(), ""));
-      case CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD -> List.of(Objects.toString(issue.milestoneTitle(), ""));
       case "milestoneTitle" -> List.of(Objects.toString(issue.milestoneTitle(), ""));
       case "moduleName" -> issue.moduleNames();
       case "issueIid" -> List.of(String.valueOf(issue.iid()));
@@ -636,7 +627,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
 
   private StatisticFilterGroup applyDefaultMilestone(StatisticFilterGroup filterGroup) {
     return CustomerIssueMilestoneFilterSupport.applyDefaultMilestone(
-        filterGroup, milestoneCatalogService.listMilestones(), phaseScopeResolver);
+        filterGroup, milestoneCatalogService);
   }
 
   private boolean matchesSetOperator(List<String> actualValues, List<String> expectedValues, String operator) {
@@ -724,7 +715,8 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
 
   private List<IssueSource> loadSources(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     CustomerIssueSqlScopeSupport.SqlScope scope =
-        CustomerIssueSqlScopeSupport.boardScope(withoutReservedFilters(filters), filterGroup);
+        CustomerIssueSqlScopeSupport.boardScope(
+            withoutReservedFilters(filters), filterGroup, milestoneCatalogService);
     try {
       return issueFactQueryService.query(
           FACT_SQL,

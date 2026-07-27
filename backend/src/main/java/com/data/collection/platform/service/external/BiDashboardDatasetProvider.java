@@ -24,6 +24,7 @@ import com.data.collection.platform.service.statistics.AbstractStatisticBoardSer
 import com.data.collection.platform.service.statistics.StatisticBoardRegistry;
 import com.data.collection.platform.service.statistics.SystemTestDefectSummaryBoardService;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
+import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
@@ -112,7 +113,8 @@ public class BiDashboardDatasetProvider implements ExternalDatasetProvider<BiDas
     String granularity = normalizeGranularity(parameters == null ? null : parameters.get("codeGranularity"));
     String codeSource = normalizeCodeSource(parameters == null ? null : parameters.get("codeSource"));
     String repositoryName = optional(parameters == null ? null : parameters.get("repositoryName"));
-    List<String> phases = phaseScopeResolver.resolveLegacyCrownCadPhases(productVersion);
+    List<String> phases = phaseScopeResolver.resolvePhases(
+        SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID, productVersion);
     if (phases.isEmpty()) {
       throw new IllegalArgumentException("产品版本不存在或没有启用的系统测试阶段: " + productVersion);
     }
@@ -120,7 +122,8 @@ public class BiDashboardDatasetProvider implements ExternalDatasetProvider<BiDas
     StatisticBoardResponse summary = board("system-test-defect-summary", productVersion);
     return new BiDashboardPayload(
         productVersion,
-        phaseScopeResolver.listEnabledLegacyCrownCadParentNames(),
+        phaseScopeResolver.listEnabledParentNames(
+            SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID),
         phases,
         qualityTargets(overview, summary),
         summaryBoardService.loadExternalModuleFixRates(productVersion).modules(),
@@ -220,7 +223,8 @@ public class BiDashboardDatasetProvider implements ExternalDatasetProvider<BiDas
   }
 
   private List<FixUserRow> fixUsers(String productVersion) {
-    List<String> phases = phaseScopeResolver.resolveLegacyCrownCadPhases(productVersion);
+    List<String> phases = phaseScopeResolver.resolvePhases(
+        SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID, productVersion);
     if (phases.isEmpty()) {
       return List.of();
     }

@@ -25,7 +25,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardProvider {
   private static final String DASHBOARD_KEY = "quality-rd";
-  private static final String DEFAULT_PROJECT_NAME = "CC2026R3";
   private static final String DEFAULT_CODE_REVIEW_SOURCE = "cc";
   private static final Set<String> DASHBOARD_PARAMETERS =
       Set.of("projectName", "codeReviewSource");
@@ -95,7 +94,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
   public AnalyticsDashboardResponse loadDashboard(AnalyticsDashboardQueryContext context) {
     CodeReviewDataReadMode readMode = CodeReviewAnalyticsReadMode.from(context.readMode());
     QualityBoardRdDashboardResponse legacy = rdService.getRdDashboard(
-        context.parameter("projectName").orElse(DEFAULT_PROJECT_NAME),
+        rdService.normalizeProjectName(context.parameter("projectName").orElse(null)),
         context.parameter("codeReviewSource").orElse(DEFAULT_CODE_REVIEW_SOURCE),
         readMode);
     QualityBoardRdOverviewResponse overview = legacy.summary();
@@ -264,7 +263,8 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
 
   @Override
   public AnalyticsDashboardRulesResponse loadRules(AnalyticsDashboardQueryContext context) {
-    String projectName = context.parameter("projectName").orElse(DEFAULT_PROJECT_NAME);
+    String projectName = rdService.normalizeProjectName(
+        context.parameter("projectName").orElse(null));
     String source = canonicalCodeReviewSource(context);
     String codeReviewScope = projectName + "，" + sourceLabel(source) + " 代码走查数据";
     return new AnalyticsDashboardRulesResponse(
@@ -462,7 +462,8 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
   @Override
   public AnalyticsDashboardExport export(
       String exportKey, AnalyticsDashboardQueryContext context) {
-    String projectName = context.parameter("projectName").orElse(DEFAULT_PROJECT_NAME);
+    String projectName = rdService.normalizeProjectName(
+        context.parameter("projectName").orElse(null));
     if (Set.of(
             "defect-repair-user",
             "assignee-remaining-summary",

@@ -3,6 +3,7 @@ package com.data.collection.platform.service.statistics;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
+import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import java.util.Locale;
 import org.springframework.util.StringUtils;
 
@@ -92,14 +93,20 @@ final class SystemTestPhaseFilterSupport {
       SystemTestPhaseScopeResolver phaseScopeResolver, String phaseCandidate, String value) {
     return value == null
         || (StringUtils.hasText(phaseCandidate)
-            && phaseScopeResolver.matchesLegacyCrownCadPhase(phaseCandidate, value));
+            && phaseScopeResolver.matchesPhase(
+                SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID,
+                phaseCandidate,
+                value));
   }
 
   private static boolean matchesConfiguredWhitelist(
       String phaseCandidate,
       SystemTestPhaseScopeResolver phaseScopeResolver) {
     return StringUtils.hasText(phaseCandidate)
-        && phaseScopeResolver.matchesLegacyCrownCadPhase(phaseCandidate, phaseCandidate);
+        && phaseScopeResolver.matchesPhase(
+            SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID,
+            phaseCandidate,
+            phaseCandidate);
   }
 
   private static String trimToEmpty(String value) {

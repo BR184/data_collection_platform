@@ -1,7 +1,7 @@
 package com.data.collection.platform.service.analytics;
 
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
-import com.data.collection.platform.service.SystemTestPhaseCatalogService;
+import com.data.collection.platform.service.IssueScopeCatalogService;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -18,10 +18,8 @@ import org.springframework.util.StringUtils;
 
 @Service
 public class QualityBoardOtherQueryService {
-  static final String DEFAULT_PROJECT_NAME = "CC2026R3";
-  static final String DEFAULT_QUALITY_RANKING_PROJECT_NAME = "CC2025R1";
   private static final long CROWN_CAD_PROJECT_ID =
-      SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID;
+      IssueScopeCatalogService.CROWN_CAD_PROJECT_ID;
 
   private final JdbcTemplate jdbcTemplate;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
@@ -51,21 +49,18 @@ public class QualityBoardOtherQueryService {
     if (topic.scopeParameterKey() == null) {
       return "全部启用版本";
     }
-    String fallback = topic == QualityBoardOtherTopic.QUALITY_RANKING
-        ? DEFAULT_QUALITY_RANKING_PROJECT_NAME
-        : DEFAULT_PROJECT_NAME;
     return context.parameter(topic.scopeParameterKey())
         .filter(StringUtils::hasText)
         .map(String::trim)
-        .orElse(fallback);
+        .orElseGet(() -> phaseScopeResolver.defaultParentName(CROWN_CAD_PROJECT_ID));
   }
 
   List<String> enabledProjectNames() {
-    return phaseScopeResolver.listEnabledLegacyCrownCadParentNames();
+    return phaseScopeResolver.listEnabledParentNames(CROWN_CAD_PROJECT_ID);
   }
 
   private List<Row> functionDefectCountRows(String projectName) {
-    List<String> phases = phaseScopeResolver.resolveLegacyCrownCadPhases(projectName);
+    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
     if (phases.isEmpty()) {
       return List.of();
     }
@@ -91,7 +86,7 @@ public class QualityBoardOtherQueryService {
   }
 
   private List<Row> functionDefectDensityRows(String projectName) {
-    List<String> phases = phaseScopeResolver.resolveLegacyCrownCadPhases(projectName);
+    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
     if (phases.isEmpty()) {
       return List.of();
     }
@@ -140,7 +135,7 @@ public class QualityBoardOtherQueryService {
   }
 
   private List<Row> qualityRankingRows(String projectName) {
-    List<String> phases = phaseScopeResolver.resolveLegacyCrownCadPhases(projectName);
+    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
     if (phases.isEmpty()) {
       return List.of();
     }
@@ -190,7 +185,7 @@ public class QualityBoardOtherQueryService {
   }
 
   private List<Row> memberUnresolvedRateRows(String projectName) {
-    List<String> phases = phaseScopeResolver.resolveLegacyCrownCadPhases(projectName);
+    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
     if (phases.isEmpty()) {
       return List.of();
     }
@@ -354,7 +349,7 @@ public class QualityBoardOtherQueryService {
   private BatchScope issueBatchScope(List<String> projectNames) {
     Set<ScopeEntry> entries = new LinkedHashSet<>();
     for (String projectName : projectNames) {
-      phaseScopeResolver.resolveLegacyCrownCadPhases(projectName).stream()
+      phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName).stream()
           .filter(StringUtils::hasText)
           .map(phase -> new ScopeEntry(projectName, phase))
           .forEach(entries::add);

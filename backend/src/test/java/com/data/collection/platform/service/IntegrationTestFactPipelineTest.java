@@ -181,7 +181,9 @@ class IntegrationTestFactPipelineTest {
   private void cleanTables() {
     jdbcTemplate.update("delete from integration_test_fact");
     jdbcTemplate.update("delete from module_dictionary");
-    jdbcTemplate.update("delete from testing_phase_calendar");
+    jdbcTemplate.update("delete from issue_scope_members");
+    jdbcTemplate.update("delete from issue_scope_groups");
+    jdbcTemplate.update("delete from issue_scope_catalogs");
     jdbcTemplate.update("delete from ods_gitlab_label_links");
     jdbcTemplate.update("delete from ods_gitlab_labels");
     jdbcTemplate.update("delete from ods_gitlab_notes");

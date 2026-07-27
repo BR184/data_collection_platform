@@ -92,23 +92,29 @@ set title = excluded.title,
     description = excluded.description,
     mirror_updated_at = current_timestamp;
 
-insert into testing_phase_calendar (
-    project_id,
-    testing_phase,
-    phase_start_at,
-    phase_end_at,
-    enabled,
-    remark
-)
-values
-    (1, 'CC2026R1第一轮系统测试', timestamp '2026-04-05 00:00:00', null, true, '本地系统测试样例阶段'),
-    (1, 'CC2026R1回归测试', timestamp '2026-04-08 00:00:00', null, true, '本地回归测试样例阶段')
-on conflict (project_id, testing_phase) do update
-set phase_start_at = excluded.phase_start_at,
-    phase_end_at = excluded.phase_end_at,
-    enabled = excluded.enabled,
-    remark = excluded.remark,
-    updated_at = current_timestamp;
+insert into issue_scope_catalogs(project_id, project_name, dimension, enabled, remark)
+values (1, '本地统计样例', 'TESTING_PHASE', true, '本地系统测试样例目录')
+on conflict (project_id, dimension) do update
+set project_name = excluded.project_name, enabled = true, updated_at = current_timestamp;
+
+insert into issue_scope_groups(catalog_id, business_key, display_name, sort_order, enabled, remark)
+select id, 'CC2026R1', 'CC2026R1', 1, true, '本地系统测试样例范围'
+from issue_scope_catalogs where project_id = 1 and dimension = 'TESTING_PHASE'
+on conflict (catalog_id, business_key) do update
+set display_name = excluded.display_name, sort_order = excluded.sort_order, enabled = true;
+
+insert into issue_scope_members(catalog_id, group_id, source_value, display_name, sort_order, active_from, enabled, remark)
+select catalog.id, scope_group.id, phase.source_value, phase.source_value, phase.sort_order, phase.active_from, true, '本地系统测试样例阶段'
+from issue_scope_catalogs catalog
+join issue_scope_groups scope_group on scope_group.catalog_id = catalog.id and scope_group.business_key = 'CC2026R1'
+cross join (values
+    ('CC2026R1第一轮系统测试', 1, timestamp '2026-04-05 00:00:00'),
+    ('CC2026R1回归测试', 2, timestamp '2026-04-08 00:00:00')
+) phase(source_value, sort_order, active_from)
+where catalog.project_id = 1 and catalog.dimension = 'TESTING_PHASE'
+on conflict (catalog_id, source_value) do update
+set group_id = excluded.group_id, display_name = excluded.display_name,
+    sort_order = excluded.sort_order, active_from = excluded.active_from, enabled = true;
 
 insert into ods_gitlab_issues (
     id,

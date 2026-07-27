@@ -99,22 +99,17 @@ function queryAsStrings() {
   );
 }
 
-function availableValue(preferred: string, fallback: string) {
-  const values = new Set(projectOptions.value.map((option) => option.value));
-  return values.has(preferred) ? preferred : values.has(fallback) ? fallback : projectOptions.value[0]?.value || preferred;
-}
-
 async function loadProjectOptions() {
   if (projectOptions.value.length) {
     return;
   }
   const response = await qualityBoardApi.getQualityBoardRdProjectOptions();
   projectOptions.value = response.options;
-  const commonDefault = response.defaultProjectName || response.options[0]?.value || 'CC2026R3';
-  functionCountProjectName.value = availableValue(commonDefault, 'CC2026R3');
-  functionDensityProjectName.value = availableValue(commonDefault, 'CC2026R3');
-  qualityRankingProjectName.value = availableValue('CC2025R1', commonDefault);
-  memberUnresolvedProjectName.value = availableValue('CC2026R3', commonDefault);
+  const defaultProjectName = response.defaultProjectName || response.options[0]?.value || '';
+  functionCountProjectName.value = defaultProjectName;
+  functionDensityProjectName.value = defaultProjectName;
+  qualityRankingProjectName.value = defaultProjectName;
+  memberUnresolvedProjectName.value = defaultProjectName;
 }
 
 async function loadDashboard() {

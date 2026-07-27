@@ -64,7 +64,7 @@ async function loadFilterOptions() {
   selectedProjectName.value = selectedProjectName.value
     || options.defaultProjectName
     || options.projectOptions[0]?.value
-    || 'CC2026R3';
+    || '';
   if (!codeReviewSourceOptions.value.some((option) => option.value === codeReviewSource.value)) {
     codeReviewSource.value = codeReviewSourceOptions.value[0]?.value || 'cc';
   }

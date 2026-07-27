@@ -10,7 +10,7 @@ import { mirrorApi } from './api-client/mirror-api';
 import { qualityBoardApi } from './api-client/quality-board-api';
 import { reviewDataApi } from './api-client/review-data-api';
 import { statisticBoardsApi } from './api-client/statistic-boards-api';
-import { testingPhasesApi } from './api-client/testing-phases-api';
+import { issueScopesApi } from './api-client/issue-scopes-api';
 
 export * from './types/api';
 
@@ -20,7 +20,7 @@ export const api = {
   ...statisticBoardsApi,
   ...databaseBrowserApi,
   ...factBuildApi,
-  ...testingPhasesApi,
+  ...issueScopesApi,
   ...collectFormsApi,
   ...codeReviewApi,
   ...reviewDataApi,

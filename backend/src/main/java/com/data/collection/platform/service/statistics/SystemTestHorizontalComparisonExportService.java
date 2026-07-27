@@ -9,6 +9,7 @@ import com.data.collection.platform.service.CodeReviewMatchModeSwitchService;
 import com.data.collection.platform.service.ExcelExportStyles;
 import com.data.collection.platform.service.ReviewDataMatchModeRecordRepository;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
+import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -565,14 +566,16 @@ public class SystemTestHorizontalComparisonExportService {
   private List<String> resolvedTestingPhases(String selectedPhase) {
     String phase = StringUtils.hasText(selectedPhase)
         ? selectedPhase
-        : phaseScopeResolver.listEnabledLegacyCrownCadParentNames().stream()
+        : phaseScopeResolver.listEnabledParentNames(
+                SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID).stream()
             .filter(StringUtils::hasText)
             .findFirst()
             .orElse("");
     if (!StringUtils.hasText(phase)) {
       return List.of();
     }
-    return phaseScopeResolver.resolveLegacyCrownCadPhases(phase);
+    return phaseScopeResolver.resolvePhases(
+        SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID, phase);
   }
 
   private String resolvedPhasePredicate(List<String> resolvedPhases, List<Object> args) {

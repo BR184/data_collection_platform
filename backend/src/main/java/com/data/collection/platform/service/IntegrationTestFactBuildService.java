@@ -325,9 +325,21 @@ public class IntegrationTestFactBuildService {
     List<PhaseCalendarEntry> entries =
         jdbcTemplate.query(
             """
-            select project_id, testing_phase, phase_start_at, phase_end_at, enabled
-              from testing_phase_calendar
-             where enabled = true
+            select c.project_id,
+                   m.source_value as testing_phase,
+                   m.active_from as phase_start_at,
+                   m.active_until as phase_end_at,
+                   m.enabled
+              from issue_scope_catalogs c
+              join issue_scope_groups g
+                on g.catalog_id = c.id
+               and g.enabled = true
+              join issue_scope_members m
+                on m.catalog_id = c.id
+               and m.group_id = g.id
+               and m.enabled = true
+             where c.dimension = 'TESTING_PHASE'
+               and c.enabled = true
             """,
             (rs, rowNumber) ->
                 new PhaseCalendarEntry(

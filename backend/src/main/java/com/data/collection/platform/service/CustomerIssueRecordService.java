@@ -3,7 +3,6 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.CustomerIssueRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
 import com.data.collection.platform.entity.CustomerIssueRecordRowResponse;
-import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
@@ -11,16 +10,13 @@ import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
 import com.data.collection.platform.service.statistics.CustomerIssueMilestoneCatalogService;
-import com.data.collection.platform.service.statistics.CustomerIssueMilestoneOrdering;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -73,22 +69,6 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     this.pageRecordSnapshotService = pageRecordSnapshotService;
   }
 
-  public CustomerIssueRecordService(
-      IssueFactRecordRepository issueFactRecordRepository,
-      CustomerIssueScopeProfile customerIssueScopeProfile,
-      ObjectMapper objectMapper,
-      GitlabResourceLinkService issueLinkService,
-      LabelGroupExpansionService labelGroupExpansionService) {
-    this(
-        issueFactRecordRepository,
-        customerIssueScopeProfile,
-        objectMapper,
-        issueLinkService,
-        labelGroupExpansionService,
-        null,
-        null);
-  }
-
   public CustomerIssueRecordListResponse listRecords(CustomerIssueRecordQueryRequest request) {
     CustomerIssueRecordPageSnapshot snapshot = readRecordSnapshot(withSnapshotDefaults(request));
     return toListResponse(snapshot, LocalDateTime.now(java.time.ZoneOffset.UTC));
@@ -109,6 +89,12 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   }
 
   private CustomerIssueRecordPageSnapshot loadRecords(CustomerIssueRecordQueryRequest request) {
+    String selectedMilestone =
+        TextQuerySupport.trimToNull(request.listRequest().milestoneTitle());
+    List<String> milestoneValues =
+        selectedMilestone == null
+            ? List.of()
+            : milestoneCatalogService.resolveMilestoneValues(selectedMilestone);
     IssueFactRecordListRequest listRequest = withCustomerProject(request.listRequest());
     int safePage = normalizePage(listRequest.page());
     int safeSize = normalizeSize(listRequest.size());
@@ -138,7 +124,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                   request.reasonCategory(),
                   null,
                   null,
-                   List.of(),
+                   milestoneValues,
                    request.authorName(),
                    request.handlerName(),
                    request.assigneeName(),
@@ -182,6 +168,11 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
             .filter(view -> matchesEquals(view.fixUser(), request.fixUser()))
             .filter(view -> matchesEquals(view.delayCause(), request.delayCause()))
             .filter(view -> matchesCustomerName(view.customerNames(), customerName))
+            .filter(
+                view ->
+                    selectedMilestone == null
+                        || milestoneCatalogService.matches(
+                            selectedMilestone, view.milestoneTitle()))
             .filter(view -> IssueFactRecordFilterGroupSupport.matchesCustomerIssue(view, expandedFilterGroup))
             .sorted(applySortDirection(SORT_COMPARATORS.get(safeSortField), safeSortOrder))
             .toList();
@@ -331,16 +322,16 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
       requestPayload.put("sourceInstance", TextQuerySupport.trimToNull(sourceInstance));
     }
     if (pageRecordSnapshotService == null) {
-      return withSortedMilestoneOptions(loadFilterOptions(safeTopic, sourceInstance));
+      return loadFilterOptions(safeTopic, sourceInstance);
     }
-    return withSortedMilestoneOptions(pageRecordSnapshotService.readOrRefresh(
+    return pageRecordSnapshotService.readOrRefresh(
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
             "topic:" + safeTopic,
             CustomerIssueRecordProfile.forTopic(safeTopic).ruleVersion(),
             requestPayload),
         CustomerIssueRecordFilterOptionsResponse.class,
-        () -> loadFilterOptions(safeTopic, sourceInstance)));
+        () -> loadFilterOptions(safeTopic, sourceInstance));
   }
 
   private CustomerIssueRecordFilterOptionsResponse loadFilterOptions(String topic, String sourceInstance) {
@@ -372,47 +363,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         toOptions(values.testingPhases()),
         toLegacyOptions(values.fixUsers()),
         toOptions(values.delayCauses()),
-        toOptionsPreservingOrder(customerIssueMilestones(values.milestoneTitles())));
-  }
-
-  private CustomerIssueRecordFilterOptionsResponse withSortedMilestoneOptions(
-      CustomerIssueRecordFilterOptionsResponse response) {
-    return new CustomerIssueRecordFilterOptionsResponse(
-        response.projectNames(),
-        response.moduleNames(),
-        response.functionNames(),
-        response.customerNames(),
-        response.reasonCategories(),
-        response.severityLevels(),
-        response.priorityLevels(),
-        response.issueStates(),
-        response.bugStatuses(),
-        response.categories(),
-        response.authorNames(),
-        response.handlerNames(),
-        response.assigneeNames(),
-        response.testingPhases(),
-        response.fixUsers(),
-        response.delayCauses(),
-        sortedMilestoneOptions(response.milestoneTitles()));
-  }
-
-  private List<OptionItemResponse> sortedMilestoneOptions(List<OptionItemResponse> options) {
-    if (options == null || options.isEmpty()) {
-      return List.of();
-    }
-    Map<String, OptionItemResponse> byValue = new LinkedHashMap<>();
-    for (OptionItemResponse option : options) {
-      String value = TextQuerySupport.trimToNull(option == null ? null : option.value());
-      if (value == null) {
-        continue;
-      }
-      String label = TextQuerySupport.trimToNull(option.label());
-      byValue.putIfAbsent(value, new OptionItemResponse(label == null ? value : label, value));
-    }
-    return CustomerIssueMilestoneOrdering.sortLatestFirst(byValue.keySet()).stream()
-        .map(byValue::get)
-        .toList();
+        milestoneCatalogService.listOptions());
   }
 
   @Override
@@ -465,18 +416,6 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     return applyTopic(applyRecordProfile(scopeCustomerIssues(loadFacts(LEGACY_CC_PRODUCT_PROJECT_ID), profile), profile), profile);
   }
 
-  private List<String> customerIssueMilestones(List<String> values) {
-    Set<String> milestones = new LinkedHashSet<>();
-    if (milestoneCatalogService != null) {
-      milestones.addAll(milestoneCatalogService.listMilestones());
-    }
-    values.stream()
-        .map(TextQuerySupport::trimToNull)
-        .filter(value -> value != null)
-        .forEach(milestones::add);
-    return CustomerIssueMilestoneOrdering.sortLatestFirst(milestones);
-  }
-
   private IssueFactRecordListRequest withCustomerProject(IssueFactRecordListRequest request) {
     return new IssueFactRecordListRequest(
         LEGACY_CC_PRODUCT_PROJECT_ID,
@@ -492,7 +431,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         request.issueState(),
         request.bugStatus(),
         request.category(),
-        request.milestoneTitle(),
+        null,
         request.createdAtStart(),
         request.createdAtEnd(),
         request.updatedAtStart(),
@@ -631,7 +570,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         view.illegal(),
         view.illegalReason(),
         view.createdAt(),
-        IssueRetentionDurationSupport.hoursBetween(view.createdAt(), asOf),
+        IssueRetentionDurationSupport.calculate(
+            view.createdAt(), asOf, view.issueState(), view.closedAt(), view.bugStatus()),
         view.plannedResolutionAt(),
         view.plannedResolutionText(),
         view.plannedMergeVersionBranch(),

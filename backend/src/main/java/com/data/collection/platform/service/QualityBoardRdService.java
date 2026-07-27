@@ -1,5 +1,7 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.common.exception.BizException;
+
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.QualityBoardChartRowResponse;
 import com.data.collection.platform.entity.QualityBoardFixUserSeverityRowResponse;
@@ -22,10 +24,9 @@ import org.springframework.util.StringUtils;
 
 @Service
 public class QualityBoardRdService {
-  private static final String DEFAULT_PROJECT_NAME = "CC2026R3";
   private static final String DEMAND_REVIEW_TYPE = "需求说明书评审";
   private static final String DESIGN_REVIEW_TYPE = "设计说明书评审";
-  private static final long CROWN_CAD_PROJECT_ID = SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID;
+  private static final long CROWN_CAD_PROJECT_ID = IssueScopeCatalogService.CROWN_CAD_PROJECT_ID;
 
   private final JdbcTemplate jdbcTemplate;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
@@ -47,22 +48,14 @@ public class QualityBoardRdService {
   }
 
   public QualityBoardProjectOptionsResponse listProjectOptions() {
-    List<String> projectNames = new ArrayList<>(phaseScopeResolver.listEnabledLegacyCrownCadParentNames());
-    if (projectNames.stream().noneMatch(DEFAULT_PROJECT_NAME::equals)) {
-      projectNames.add(0, DEFAULT_PROJECT_NAME);
-    }
+    List<String> projectNames = phaseScopeResolver.listEnabledParentNames(CROWN_CAD_PROJECT_ID);
     List<OptionItemResponse> options =
         projectNames.stream()
             .filter(StringUtils::hasText)
             .distinct()
             .map(value -> new OptionItemResponse(value, value))
             .toList();
-    String defaultProject =
-        options.stream()
-            .map(OptionItemResponse::value)
-            .filter(DEFAULT_PROJECT_NAME::equals)
-            .findFirst()
-            .orElse(options.stream().map(OptionItemResponse::value).findFirst().orElse(DEFAULT_PROJECT_NAME));
+    String defaultProject = options.stream().map(OptionItemResponse::value).findFirst().orElse("");
     return new QualityBoardProjectOptionsResponse(defaultProject, options);
   }
 
@@ -130,7 +123,7 @@ public class QualityBoardRdService {
     String projectName = normalizeProjectName(requestedProjectName);
     String codeReviewSource =
         resolveCodeReviewSource(requestedCodeReviewSource, codeReviewReadMode);
-    List<String> phases = phaseScopeResolver.resolveLegacyCrownCadPhases(projectName);
+    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
     return new QualityBoardRdDashboardResponse(
         getOverview(projectName, codeReviewReadMode),
         codeReviewSource,
@@ -147,7 +140,7 @@ public class QualityBoardRdService {
 
   public QualityBoardOtherOverviewResponse getOtherOverview(String requestedProjectName) {
     String projectName = normalizeProjectName(requestedProjectName);
-    List<String> phases = phaseScopeResolver.resolveLegacyCrownCadPhases(projectName);
+    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
     return new QualityBoardOtherOverviewResponse(
         projectName,
         functionDefectCountRows(phases),
@@ -225,13 +218,13 @@ public class QualityBoardRdService {
   }
 
   private List<QualityBoardChartRowResponse> releaseLeakageRateRows() {
-    return phaseScopeResolver.listEnabledLegacyCrownCadParentNames().stream()
+    return phaseScopeResolver.listEnabledParentNames(CROWN_CAD_PROJECT_ID).stream()
         .map(name -> new QualityBoardChartRowResponse(name, defectLeakageRate(name)))
         .toList();
   }
 
   private List<QualityBoardChartRowResponse> developmentLeakageRateRows() {
-    return phaseScopeResolver.listEnabledLegacyCrownCadParentNames().stream()
+    return phaseScopeResolver.listEnabledParentNames(CROWN_CAD_PROJECT_ID).stream()
         .map(name -> new QualityBoardChartRowResponse(name, defectEliminationRate(name)))
         .toList();
   }
@@ -419,7 +412,7 @@ public class QualityBoardRdService {
   }
 
   private double defectLeakageRate(String projectName) {
-    List<String> phases = phaseScopeResolver.resolveLegacyCrownCadPhases(projectName);
+    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
     if (phases.isEmpty()) {
       return 0D;
     }
@@ -431,7 +424,7 @@ public class QualityBoardRdService {
   }
 
   private double defectEliminationRate(String projectName) {
-    List<String> phases = phaseScopeResolver.resolveLegacyCrownCadPhases(projectName);
+    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
     if (phases.isEmpty()) {
       return 0D;
     }
@@ -444,7 +437,7 @@ public class QualityBoardRdService {
   }
 
   private double newIssueFixRate(String projectName) {
-    List<String> phases = phaseScopeResolver.resolveLegacyCrownCadPhases(projectName);
+    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
     if (phases.isEmpty()) {
       return 0D;
     }
@@ -538,10 +531,16 @@ public class QualityBoardRdService {
     }
   }
 
-  private String normalizeProjectName(String requestedProjectName) {
-    return TextQuerySupport.trimToNull(requestedProjectName) == null
-        ? DEFAULT_PROJECT_NAME
-        : TextQuerySupport.normalizeDisplay(requestedProjectName);
+  /** 将请求值规范化为启用目录中的业务键；未传值时使用管理员排序第一项。 */
+  public String normalizeProjectName(String requestedProjectName) {
+    String normalized = TextQuerySupport.trimToNull(requestedProjectName);
+    if (normalized == null) {
+      return phaseScopeResolver.defaultParentName(CROWN_CAD_PROJECT_ID);
+    }
+    return phaseScopeResolver.listEnabledParentNames(CROWN_CAD_PROJECT_ID).stream()
+        .filter(value -> value.equalsIgnoreCase(normalized))
+        .findFirst()
+        .orElseThrow(() -> new BizException("研发质量看板范围不存在或已停用：" + normalized));
   }
 
   private String resolveCodeReviewSource(String requestedSource) {

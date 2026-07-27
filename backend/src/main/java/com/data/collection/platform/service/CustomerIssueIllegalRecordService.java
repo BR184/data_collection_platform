@@ -3,7 +3,6 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordListResponse;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordRowResponse;
-import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
@@ -12,15 +11,12 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSampl
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
 import com.data.collection.platform.service.statistics.CustomerIssueMilestoneCatalogService;
-import com.data.collection.platform.service.statistics.CustomerIssueMilestoneOrdering;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -107,6 +103,12 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
 
   private CustomerIssueIllegalRecordListResponse loadRecords(
       CustomerIssueIllegalRecordQueryRequest request) {
+    String selectedMilestone =
+        TextQuerySupport.trimToNull(request.listRequest().milestoneTitle());
+    List<String> milestoneValues =
+        selectedMilestone == null
+            ? List.of()
+            : milestoneCatalogService.resolveMilestoneValues(selectedMilestone);
     IssueFactRecordListRequest listRequest = withLegacyDefaultProject(request.listRequest());
     int safePage = normalizePage(listRequest.page());
     int safeSize = normalizeSize(listRequest.size());
@@ -133,7 +135,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                   null,
                   request.illegalReason(),
                   null,
-                  List.of(),
+                  milestoneValues,
                   request.authorName(),
                   null,
                   request.assigneeName(),
@@ -170,6 +172,11 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
             .filter(view -> matchesIllegalReason(view, request.illegalReason()))
             .filter(view -> matchesEquals(view.authorName(), request.authorName()))
             .filter(view -> matchesEquals(view.assigneeName(), request.assigneeName()))
+            .filter(
+                view ->
+                    selectedMilestone == null
+                        || milestoneCatalogService.matches(
+                            selectedMilestone, view.milestoneTitle()))
             .filter(view -> IssueFactRecordFilterGroupSupport.matches(view, expandedFilterGroup))
             .sorted(applySortDirection(SORT_COMPARATORS.get(safeSortField), safeSortOrder))
             .toList();
@@ -283,15 +290,15 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
   public CustomerIssueIllegalRecordFilterOptionsResponse getFilterOptions(Long projectId) {
     Map<String, Object> requestPayload = Map.of("projectId", LEGACY_CC_PRODUCT_PROJECT_ID);
     if (pageRecordSnapshotService == null) {
-      return withSortedMilestoneOptions(loadFilterOptions());
+      return loadFilterOptions();
     }
-    return withSortedMilestoneOptions(pageRecordSnapshotService.readOrRefresh(
+    return pageRecordSnapshotService.readOrRefresh(
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
             "project:" + LEGACY_CC_PRODUCT_PROJECT_ID,
             requestPayload),
         CustomerIssueIllegalRecordFilterOptionsResponse.class,
-        this::loadFilterOptions));
+        this::loadFilterOptions);
   }
 
   private CustomerIssueIllegalRecordFilterOptionsResponse loadFilterOptions() {
@@ -318,42 +325,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         toOptions(values.categories()),
         toOptions(values.authorNames()),
         toOptions(values.assigneeNames()),
-        toOptionsPreservingOrder(customerIssueMilestones(values.milestoneTitles())));
-  }
-
-  private CustomerIssueIllegalRecordFilterOptionsResponse withSortedMilestoneOptions(
-      CustomerIssueIllegalRecordFilterOptionsResponse response) {
-    return new CustomerIssueIllegalRecordFilterOptionsResponse(
-        response.projectNames(),
-        response.moduleNames(),
-        response.functionNames(),
-        response.illegalReasons(),
-        response.severityLevels(),
-        response.priorityLevels(),
-        response.issueStates(),
-        response.bugStatuses(),
-        response.categories(),
-        response.authorNames(),
-        response.assigneeNames(),
-        sortedMilestoneOptions(response.milestoneTitles()));
-  }
-
-  private List<OptionItemResponse> sortedMilestoneOptions(List<OptionItemResponse> options) {
-    if (options == null || options.isEmpty()) {
-      return List.of();
-    }
-    Map<String, OptionItemResponse> byValue = new LinkedHashMap<>();
-    for (OptionItemResponse option : options) {
-      String value = TextQuerySupport.trimToNull(option == null ? null : option.value());
-      if (value == null) {
-        continue;
-      }
-      String label = TextQuerySupport.trimToNull(option.label());
-      byValue.putIfAbsent(value, new OptionItemResponse(label == null ? value : label, value));
-    }
-    return CustomerIssueMilestoneOrdering.sortLatestFirst(byValue.keySet()).stream()
-        .map(byValue::get)
-        .toList();
+        milestoneCatalogService.listOptions());
   }
 
   @Override
@@ -443,18 +415,6 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     return LEGACY_CC_PRODUCT_PROJECT_ID;
   }
 
-  private List<String> customerIssueMilestones(List<String> values) {
-    Set<String> milestones = new LinkedHashSet<>();
-    if (milestoneCatalogService != null) {
-      milestones.addAll(milestoneCatalogService.listMilestones());
-    }
-    values.stream()
-        .map(TextQuerySupport::trimToNull)
-        .filter(value -> value != null)
-        .forEach(milestones::add);
-    return CustomerIssueMilestoneOrdering.sortLatestFirst(milestones);
-  }
-
   private IssueFactRecordListRequest withLegacyDefaultProject(IssueFactRecordListRequest request) {
     return new IssueFactRecordListRequest(
         defaultProjectId(request.projectId()),
@@ -470,7 +430,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         request.issueState(),
         request.bugStatus(),
         request.category(),
-        request.milestoneTitle(),
+        null,
         request.createdAtStart(),
         request.createdAtEnd(),
         request.updatedAtStart(),

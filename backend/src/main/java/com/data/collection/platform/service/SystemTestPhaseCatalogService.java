@@ -1,70 +1,83 @@
 package com.data.collection.platform.service;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.springframework.dao.DataAccessException;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+/** 系统测试领域对统一议题范围目录的类型安全适配器。 */
 @Service
 public class SystemTestPhaseCatalogService {
-  public static final long LEGACY_CROWN_CAD_PROJECT_ID = 9L;
+  public static final long LEGACY_CROWN_CAD_PROJECT_ID = IssueScopeCatalogService.CROWN_CAD_PROJECT_ID;
 
   private static final Pattern TURN_LABEL_PATTERN =
       Pattern.compile("(第[一二三四五六七八九十0-9]+轮系统测试|回归测试|系统测试)");
   private static final List<String> SYSTEM_TEST_TOKENS = List.of("系统测试", "回归测试");
-  private static final long CACHE_TTL_MILLIS = 60_000L;
 
-  private final JdbcTemplate jdbcTemplate;
-  private final Map<CacheKey, CachedValue<?>> cache = new ConcurrentHashMap<>();
+  private final IssueScopeCatalogService issueScopeCatalogService;
 
-  public SystemTestPhaseCatalogService(JdbcTemplate jdbcTemplate) {
-    this.jdbcTemplate = jdbcTemplate;
+  public SystemTestPhaseCatalogService(IssueScopeCatalogService issueScopeCatalogService) {
+    this.issueScopeCatalogService = issueScopeCatalogService;
   }
 
+  /** 返回项目下启用的系统测试版本及其精确测试轮次。 */
   public List<PhaseGroup> listGroups(Long projectId) {
-    return cached(
-        new CacheKey("groups", projectId),
-        () -> groupEntries(loadConfiguredEntries(projectId)));
+    if (projectId == null) {
+      return List.of();
+    }
+    return issueScopeCatalogService
+        .listEnabledGroups(projectId, IssueScopeDimension.TESTING_PHASE)
+        .stream()
+        .map(
+            group ->
+                new PhaseGroup(
+                    group.projectId(),
+                    group.businessKey(),
+                    group.members().stream()
+                        .map(IssueScopeCatalogService.ScopeMember::sourceValue)
+                        .toList(),
+                    0L))
+        .toList();
   }
 
+  /** 返回项目下按管理员顺序排列的启用版本业务键。 */
   public List<String> listParentNames(Long projectId) {
-    return cached(
-        new CacheKey("parents", projectId),
-        () -> loadEnabledGroupNames(projectId));
+    if (projectId == null) {
+      return List.of();
+    }
+    return issueScopeCatalogService.listEnabledBusinessKeys(
+        projectId, IssueScopeDimension.TESTING_PHASE);
   }
 
+  /** 返回项目下所有启用的精确测试阶段值。 */
   public List<String> listTestingPhases(Long projectId) {
     return listGroups(projectId).stream().flatMap(group -> group.testingPhases().stream()).toList();
   }
 
+  /** 将版本业务键展开为精确测试阶段值。 */
   public List<String> listTestingPhasesByParent(Long projectId, String parentName) {
-    String normalizedParent = TextQuerySupport.normalizeDisplay(parentName);
-    return listGroups(projectId).stream()
-        .filter(group -> group.name().equalsIgnoreCase(normalizedParent))
-        .flatMap(group -> group.testingPhases().stream())
+    if (projectId == null || TextQuerySupport.trimToNull(parentName) == null) {
+      return List.of();
+    }
+    return issueScopeCatalogService
+        .findEnabledGroup(projectId, IssueScopeDimension.TESTING_PHASE, parentName)
+        .stream()
+        .flatMap(group -> group.members().stream())
+        .map(IssueScopeCatalogService.ScopeMember::sourceValue)
         .toList();
   }
 
+  /** 判断值是否为目录中启用的精确测试阶段。 */
   public boolean isConfiguredTestingPhase(Long projectId, String testingPhase) {
     String normalized = TextQuerySupport.trimToNull(testingPhase);
-    if (normalized == null) {
-      return false;
-    }
-    return listTestingPhases(projectId).stream().anyMatch(phase -> phase.equalsIgnoreCase(normalized));
+    return projectId != null
+        && normalized != null
+        && listTestingPhases(projectId).stream()
+            .anyMatch(phase -> phase.equalsIgnoreCase(normalized));
   }
 
+  /** 从具体轮次文本中提取父级版本，仅用于事实解析。 */
   public String parentName(String phaseLabel) {
     String normalized = TextQuerySupport.trimToNull(phaseLabel);
     if (normalized == null) {
@@ -80,147 +93,10 @@ public class SystemTestPhaseCatalogService {
     return normalized;
   }
 
+  /** 判断文本是否包含系统测试或回归测试语义。 */
   public boolean isSystemTestPhase(String value) {
     return StringUtils.hasText(value) && IssueRuleSupport.containsToken(value, SYSTEM_TEST_TOKENS);
   }
 
-  public void clearCache() {
-    cache.clear();
-  }
-
-  @SuppressWarnings("unchecked")
-  private <T> T cached(CacheKey key, CacheLoader<T> loader) {
-    long now = System.currentTimeMillis();
-    CachedValue<?> current = cache.get(key);
-    if (current != null && now - current.loadedAtMillis() <= CACHE_TTL_MILLIS) {
-      return (T) current.value();
-    }
-    T loaded = loader.load();
-    cache.put(key, new CachedValue<>(loaded, now));
-    return loaded;
-  }
-
-  private List<PhaseEntry> loadConfiguredEntries(Long projectId) {
-    List<Object> args = new ArrayList<>();
-    StringBuilder sql =
-        new StringBuilder(
-            """
-            select c.project_id,
-                   coalesce(g.name, c.legacy_phase_name) as legacy_phase_name,
-                   coalesce(g.sort_order, c.legacy_sort_order) as legacy_sort_order,
-                   c.child_sort_order,
-                   c.testing_phase,
-                   c.phase_start_at,
-                   coalesce(s.issue_count, 0) as issue_count
-              from testing_phase_calendar c
-              left join testing_phase_groups g
-                on g.id = c.phase_group_id
-              left join (
-                select project_id, testing_phase, count(*) as issue_count
-                  from issue_fact
-                 where deleted = false
-                 group by project_id, testing_phase
-             ) s on s.project_id = c.project_id and s.testing_phase = c.testing_phase
-             where c.enabled = true
-               and (c.phase_group_id is null or g.id is not null)
-               and coalesce(g.enabled, true) = true
-            """);
-    if (projectId != null) {
-      sql.append(" and c.project_id = ?");
-      args.add(projectId);
-    }
-    sql.append(" order by coalesce(g.sort_order, c.legacy_sort_order) asc nulls last, c.child_sort_order asc nulls last, c.phase_start_at desc nulls last, c.testing_phase asc");
-    try {
-      return jdbcTemplate.query(sql.toString(), this::mapConfiguredEntry, args.toArray());
-    } catch (DataAccessException error) {
-      return List.of();
-    }
-  }
-
-  private List<String> loadEnabledGroupNames(Long projectId) {
-    List<Object> args = new ArrayList<>();
-    StringBuilder sql =
-        new StringBuilder(
-            """
-            select g.name
-              from testing_phase_groups g
-             where g.enabled = true
-            """);
-    if (projectId != null) {
-      sql.append(" and g.project_id = ?");
-      args.add(projectId);
-    }
-    sql.append(" order by g.sort_order asc nulls last, g.name asc");
-    try {
-      return jdbcTemplate.query(
-          sql.toString(),
-          (rs, rowNum) -> TextQuerySupport.normalizeDisplay(rs.getString("name")),
-          args.toArray())
-          .stream()
-          .filter(StringUtils::hasText)
-          .toList();
-    } catch (DataAccessException error) {
-      return List.of();
-    }
-  }
-
-  private PhaseEntry mapConfiguredEntry(ResultSet rs, int rowNum) throws SQLException {
-    String testingPhase = TextQuerySupport.normalizeDisplay(rs.getString("testing_phase"));
-    String legacyPhaseName = TextQuerySupport.normalizeDisplay(rs.getString("legacy_phase_name"));
-    return new PhaseEntry(
-        rs.getLong("project_id"),
-        StringUtils.hasText(legacyPhaseName) ? legacyPhaseName : parentName(testingPhase),
-        testingPhase,
-        rs.getTimestamp("phase_start_at") == null ? null : rs.getTimestamp("phase_start_at").toLocalDateTime(),
-        rs.getObject("legacy_sort_order", Integer.class),
-        rs.getLong("issue_count"));
-  }
-
-  private List<PhaseGroup> groupEntries(List<PhaseEntry> entries) {
-    Map<String, MutablePhaseGroup> groups = new LinkedHashMap<>();
-    for (PhaseEntry entry : entries) {
-      if (!StringUtils.hasText(entry.name()) || !StringUtils.hasText(entry.testingPhase())) {
-        continue;
-      }
-      MutablePhaseGroup group =
-          groups.computeIfAbsent(entry.name(), name -> new MutablePhaseGroup(entry.projectId(), name));
-      group.add(entry);
-    }
-    return groups.values().stream().map(MutablePhaseGroup::toPhaseGroup).toList();
-  }
-
   public record PhaseGroup(Long projectId, String name, List<String> testingPhases, long issueCount) {}
-
-  private record PhaseEntry(
-      Long projectId, String name, String testingPhase, LocalDateTime startAt, Integer sortOrder, long issueCount) {}
-
-  private record CacheKey(String type, Long projectId) {}
-
-  private record CachedValue<T>(T value, long loadedAtMillis) {}
-
-  @FunctionalInterface
-  private interface CacheLoader<T> {
-    T load();
-  }
-
-  private static final class MutablePhaseGroup {
-    private final Long projectId;
-    private final String name;
-    private final Set<String> testingPhases = new LinkedHashSet<>();
-    private long issueCount;
-
-    private MutablePhaseGroup(Long projectId, String name) {
-      this.projectId = projectId;
-      this.name = name;
-    }
-
-    private void add(PhaseEntry entry) {
-      testingPhases.add(entry.testingPhase());
-      issueCount += Math.max(0, entry.issueCount());
-    }
-
-    private PhaseGroup toPhaseGroup() {
-      return new PhaseGroup(projectId, name, List.copyOf(testingPhases), issueCount);
-    }
-  }
 }

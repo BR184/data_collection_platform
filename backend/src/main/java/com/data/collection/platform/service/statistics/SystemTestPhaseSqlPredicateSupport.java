@@ -3,6 +3,7 @@ package com.data.collection.platform.service.statistics;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
+import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.util.StringUtils;
@@ -30,7 +31,8 @@ final class SystemTestPhaseSqlPredicateSupport {
       return EMPTY;
     }
     List<String> phases =
-        phaseScopeResolver.resolveLegacyCrownCadPhases(selectedPhase).stream()
+        phaseScopeResolver.resolvePhases(
+                SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID, selectedPhase).stream()
             .filter(StringUtils::hasText)
             .distinct()
             .toList();

@@ -2,10 +2,10 @@ import { computed, ref, watch, type Ref } from 'vue';
 import { api } from '../api';
 import { authState } from './auth-state';
 import type { DataScopeOption, DataScopeProvider } from '../types/data-scope';
-import type { TestingPhaseGroupResponse } from '../types/api';
+import type { IssueScopeDimension, IssueScopeGroupResponse } from '../types/api';
 
-const LEGACY_CROWN_CAD_PROJECT_ID = 9;
-const LEGACY_CC_PRODUCT_PROJECT_ID = 325;
+const CROWN_CAD_PROJECT_ID = 9;
+const CC_PRODUCT_PROJECT_ID = 325;
 
 export interface StatisticBoardDataScopeConfig {
   provider: DataScopeProvider;
@@ -68,7 +68,7 @@ const CUSTOMER_ISSUE_MILESTONE_SCOPE_PROVIDER: DataScopeProvider = {
 };
 
 export function useStatisticBoardDataScope(boardKey: Ref<string>) {
-  const testingPhaseGroups = ref<TestingPhaseGroupResponse[]>([]);
+  const testingPhaseGroups = ref<IssueScopeGroupResponse[]>([]);
   const customerMilestoneOptions = ref<DataScopeOption[]>([]);
   const phaseLoading = ref(false);
   const phaseLoaded = ref(false);
@@ -113,10 +113,7 @@ export function useStatisticBoardDataScope(boardKey: Ref<string>) {
       }
       phaseLoading.value = true;
       try {
-        testingPhaseGroups.value = await api.getTestingPhaseGroups({
-          projectId: LEGACY_CROWN_CAD_PROJECT_ID,
-          enabled: true,
-        });
+        testingPhaseGroups.value = await loadGroups(CROWN_CAD_PROJECT_ID, 'TESTING_PHASE');
         phaseLoaded.value = true;
       } finally {
         phaseLoading.value = false;
@@ -133,14 +130,8 @@ export function useStatisticBoardDataScope(boardKey: Ref<string>) {
       }
       customerLoading.value = true;
       try {
-        const options = await api.getCustomerIssueRecordFilterOptions('cc-product', LEGACY_CC_PRODUCT_PROJECT_ID);
-        customerMilestoneOptions.value = sortLatestCcMilestoneOptions(
-          (options.milestoneTitles ?? [])
-            .map((item) => ({
-              label: item.label ?? item.value,
-              value: item.value,
-            }))
-            .filter((item) => normalizeText(item.value)),
+        customerMilestoneOptions.value = buildParentOptions(
+          await loadGroups(CC_PRODUCT_PROJECT_ID, 'MILESTONE'),
         );
       } finally {
         customerLoaded.value = true;
@@ -153,33 +144,31 @@ export function useStatisticBoardDataScope(boardKey: Ref<string>) {
   return config;
 }
 
-function buildParentOptions(groups: TestingPhaseGroupResponse[]): DataScopeOption[] {
-  return groups
-    .map((group) => normalizeText(group.name))
-    .filter(Boolean)
-    .map((parent) => ({
-      label: parent,
-      value: parent,
-    }));
+async function loadGroups(projectId: number, dimension: IssueScopeDimension) {
+  const catalogs = await api.getIssueScopeCatalogs();
+  const catalog = catalogs.find((item) => item.projectId === projectId && item.dimension === dimension && item.enabled);
+  return catalog ? api.getIssueScopeGroups(catalog.id, { enabled: true }) : [];
 }
 
-function buildTreeOptions(groups: TestingPhaseGroupResponse[]): DataScopeOption[] {
+function buildParentOptions(groups: IssueScopeGroupResponse[]): DataScopeOption[] {
+  return groups
+    .filter((group) => normalizeText(group.businessKey))
+    .map((group) => ({ label: normalizeText(group.displayName), value: normalizeText(group.businessKey) }));
+}
+
+function buildTreeOptions(groups: IssueScopeGroupResponse[]): DataScopeOption[] {
   return groups
     .map((group) => {
-      const parent = normalizeText(group.name);
-      if (!parent) {
+      const businessKey = normalizeText(group.businessKey);
+      if (!businessKey) {
         return null;
       }
-      const children = (group.children ?? [])
-        .map((child) => normalizeText(child.testingPhase))
-        .filter(Boolean)
-        .map((phase) => ({
-          label: phase,
-          value: phase,
-        }));
+      const children = (group.members ?? [])
+        .filter((member) => member.enabled && normalizeText(member.sourceValue))
+        .map((member) => ({ label: normalizeText(member.displayName), value: normalizeText(member.sourceValue) }));
       return {
-        label: parent,
-        value: parent,
+        label: normalizeText(group.displayName),
+        value: businessKey,
         ...(children.length > 0 ? { children } : {}),
       };
     })
@@ -188,47 +177,4 @@ function buildTreeOptions(groups: TestingPhaseGroupResponse[]): DataScopeOption[
 
 function normalizeText(value: string | null | undefined) {
   return String(value ?? '').trim();
-}
-
-const CC_RELEASE_PATTERN = /\bCC\s*(\d{4})\s*R\s*(\d+)\b/i;
-const SPACED_CC_RELEASE_PATTERN = /\bCC\s*\d{4}\s+R\s*\d+\b/i;
-
-function sortLatestCcMilestoneOptions(options: DataScopeOption[]) {
-  return [...options].sort((left, right) => compareLatestCcMilestone(left.value, right.value));
-}
-
-function compareLatestCcMilestone(left: string, right: string) {
-  const leftVersion = parseCcRelease(left);
-  const rightVersion = parseCcRelease(right);
-  if (leftVersion.matched && rightVersion.matched) {
-    const byYear = rightVersion.year - leftVersion.year;
-    if (byYear !== 0) {
-      return byYear;
-    }
-    const byRelease = rightVersion.release - leftVersion.release;
-    if (byRelease !== 0) {
-      return byRelease;
-    }
-    const bySpacedFormat = Number(rightVersion.spacedFormat) - Number(leftVersion.spacedFormat);
-    if (bySpacedFormat !== 0) {
-      return bySpacedFormat;
-    }
-  } else if (leftVersion.matched !== rightVersion.matched) {
-    return leftVersion.matched ? -1 : 1;
-  }
-  return right.localeCompare(left, 'zh-Hans-CN');
-}
-
-function parseCcRelease(value: string) {
-  const normalized = normalizeText(value);
-  const match = CC_RELEASE_PATTERN.exec(normalized);
-  if (!match) {
-    return { matched: false, year: 0, release: 0, spacedFormat: false };
-  }
-  return {
-    matched: true,
-    year: Number.parseInt(match[1] ?? '0', 10),
-    release: Number.parseInt(match[2] ?? '0', 10),
-    spacedFormat: SPACED_CC_RELEASE_PATTERN.test(normalized),
-  };
 }

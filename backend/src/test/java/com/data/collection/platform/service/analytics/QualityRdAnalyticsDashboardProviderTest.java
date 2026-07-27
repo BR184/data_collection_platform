@@ -39,6 +39,7 @@ class QualityRdAnalyticsDashboardProviderTest {
 
   @Test
   void exposesEightMetricsFiveChartsRulesActionsAndPointFilters() {
+    when(rdService.normalizeProjectName("CC2026R4")).thenReturn("CC2026R4");
     when(rdService.getRdDashboard("CC2026R4", "dgm", CodeReviewDataReadMode.MATCH_MODE))
         .thenReturn(sampleDashboard());
     var context = new AnalyticsDashboardQueryContext(
@@ -123,6 +124,7 @@ class QualityRdAnalyticsDashboardProviderTest {
 
   @Test
   void exportsThroughTheSameQualityBoardWorkbookServiceAndRejectsFormalDgm() {
+    when(rdService.normalizeProjectName("CC2026R4")).thenReturn("CC2026R4");
     when(workbookExportService.exportRdChartWorkbook(
             "CC2026R4", "cc", "frequency-code-submission", CodeReviewDataReadMode.FORMAL))
         .thenReturn(new byte[] {1, 2});
@@ -162,8 +164,9 @@ class QualityRdAnalyticsDashboardProviderTest {
     var formalReviews = mock(ReviewDataRecordReadRepository.class);
     var matchReviews = mock(ReviewDataMatchModeRecordRepository.class);
     var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
-    when(phaseScopeResolver.resolveLegacyCrownCadPhases("CC2026R4"))
+    when(phaseScopeResolver.resolvePhases(9L, "CC2026R4"))
         .thenReturn(List.of("CC2026R4系统测试"));
+    when(phaseScopeResolver.listEnabledParentNames(9L)).thenReturn(List.of("CC2026R4"));
     when(formalReviews.loadRecords(null, "CC2026R4", null, null, null, null, null, null))
         .thenReturn(List.of());
     when(codeReview.configuredReadMode()).thenReturn(CodeReviewDataReadMode.FORMAL);
@@ -209,6 +212,7 @@ class QualityRdAnalyticsDashboardProviderTest {
     var formalReviews = mock(ReviewDataRecordReadRepository.class);
     var matchReviews = mock(ReviewDataMatchModeRecordRepository.class);
     var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
+    when(phaseScopeResolver.listEnabledParentNames(9L)).thenReturn(List.of("CC2026R4"));
     when(formalReviews.loadRecords(null, "CC2026R4", null, null, null, null, null, null))
         .thenReturn(
             List.of(
@@ -234,7 +238,7 @@ class QualityRdAnalyticsDashboardProviderTest {
     var jdbc = new CapturingJdbcTemplate();
     var phaseScopeResolver = mock(SystemTestPhaseScopeResolver.class);
     var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
-    when(phaseScopeResolver.resolveLegacyCrownCadPhases("CC2026R4"))
+    when(phaseScopeResolver.resolvePhases(9L, "CC2026R4"))
         .thenReturn(List.of("CC2026R4系统测试"));
     var service = new QualityRdAnalyticsDetailQueryService(jdbc, phaseScopeResolver, codeReview);
 
@@ -275,7 +279,7 @@ class QualityRdAnalyticsDashboardProviderTest {
         issue("模块B", "处理人4")));
     var phaseScopeResolver = mock(SystemTestPhaseScopeResolver.class);
     var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
-    when(phaseScopeResolver.resolveLegacyCrownCadPhases("CC2026R4"))
+    when(phaseScopeResolver.resolvePhases(9L, "CC2026R4"))
         .thenReturn(List.of("CC2026R4系统测试"));
     var service = new QualityRdAnalyticsDetailQueryService(jdbc, phaseScopeResolver, codeReview);
 

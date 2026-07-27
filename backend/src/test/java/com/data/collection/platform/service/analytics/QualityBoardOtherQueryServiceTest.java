@@ -127,11 +127,12 @@ class QualityBoardOtherQueryServiceTest {
 
   private SystemTestPhaseScopeResolver phaseResolver() {
     var resolver = mock(SystemTestPhaseScopeResolver.class);
-    when(resolver.listEnabledLegacyCrownCadParentNames())
+    when(resolver.listEnabledParentNames(9L))
         .thenReturn(List.of("CC2026R3", "CC2026R4"));
-    when(resolver.resolveLegacyCrownCadPhases("CC2026R3"))
+    when(resolver.defaultParentName(9L)).thenReturn("CC2026R3");
+    when(resolver.resolvePhases(9L, "CC2026R3"))
         .thenReturn(List.of("CC2026R3第一轮系统测试", "CC2026R3回归测试"));
-    when(resolver.resolveLegacyCrownCadPhases("CC2026R4"))
+    when(resolver.resolvePhases(9L, "CC2026R4"))
         .thenReturn(List.of("CC2026R4系统测试"));
     return resolver;
   }

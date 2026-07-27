@@ -390,7 +390,9 @@ class IssueFactSourceInstancePipelineTest {
     jdbcTemplate.update("delete from issue_fact_customer_members");
     jdbcTemplate.update("delete from issue_fact");
     jdbcTemplate.update("delete from module_dictionary");
-    jdbcTemplate.update("delete from testing_phase_calendar");
+    jdbcTemplate.update("delete from issue_scope_members");
+    jdbcTemplate.update("delete from issue_scope_groups");
+    jdbcTemplate.update("delete from issue_scope_catalogs");
     jdbcTemplate.update("delete from gitlab_sync_configs");
     jdbcTemplate.update("delete from ods_gitlab_label_links");
     jdbcTemplate.update("delete from ods_gitlab_issue_assignees");

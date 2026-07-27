@@ -11,6 +11,7 @@ import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
 import com.data.collection.platform.entity.CustomerIssueRecordRowResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
 import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
+import com.data.collection.platform.service.statistics.CustomerIssueMilestoneCatalogService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayInputStream;
 import java.time.LocalDateTime;
@@ -30,6 +31,7 @@ class CustomerIssueRecordServiceTest {
   @Mock private CustomerIssueScopeProfile customerIssueScopeProfile;
   @Mock private GitlabResourceLinkService issueLinkService;
   @Mock private LabelGroupExpansionService labelGroupExpansionService;
+  @Mock private CustomerIssueMilestoneCatalogService milestoneCatalogService;
 
   @Test
   void shouldForceLegacyCcProductProjectForPlainListRequests() {
@@ -39,7 +41,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService);
+            labelGroupExpansionService, milestoneCatalogService, null);
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
@@ -102,7 +104,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService);
+            labelGroupExpansionService, milestoneCatalogService, null);
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(new PageSlice<>(List.of(), 0, 1, 20));
 
@@ -165,7 +167,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService);
+            labelGroupExpansionService, milestoneCatalogService, null);
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(new PageSlice<>(List.of(), 0, 1, 20));
 
@@ -188,14 +190,14 @@ class CustomerIssueRecordServiceTest {
   }
 
   @Test
-  void shouldProjectCustomerAndTemplateFieldsWithoutCachingRetentionDuration() {
+  void shouldProjectCustomerTemplateAndClosedRetentionFieldsWithoutCachingDuration() {
     CustomerIssueRecordService service =
         new CustomerIssueRecordService(
             issueFactRecordRepository,
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService);
+            labelGroupExpansionService, milestoneCatalogService, null);
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(new PageSlice<>(List.of(recordWithExportFields(1415, "客户议题", "", "", List.of())), 1, 1, 20));
 
@@ -216,7 +218,7 @@ class CustomerIssueRecordServiceTest {
 
     CustomerIssueRecordRowResponse row = response.records().getFirst();
     assertThat(row.customerNames()).isEqualTo("高晶电器、郑州新世纪");
-    assertThat(row.retentionHours()).isPositive();
+    assertThat(row.retentionHours()).isZero();
     assertThat(row.plannedResolutionText()).isEqualTo("2026年7月1日");
     assertThat(row.plannedMergeVersionBranch()).isEqualTo("release/2026R3");
     assertThat(row.handlerName()).isEqualTo("Handler");
@@ -231,7 +233,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService);
+            labelGroupExpansionService, milestoneCatalogService, null);
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
@@ -270,7 +272,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService);
+            labelGroupExpansionService, milestoneCatalogService, null);
     when(issueLinkService.issueUrl("default", 325L, 101))
         .thenReturn("http://gitlab.example.com/group/project/-/issues/101");
     when(issueFactRecordRepository.findPage(any()))
@@ -348,7 +350,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService);
+            labelGroupExpansionService, milestoneCatalogService, null);
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(
@@ -410,7 +412,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService);
+            labelGroupExpansionService, milestoneCatalogService, null);
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(
@@ -472,7 +474,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService);
+            labelGroupExpansionService, milestoneCatalogService, null);
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
@@ -601,7 +603,7 @@ class CustomerIssueRecordServiceTest {
                "2026-04-21 10:00:00",
                firstRow.get(20),
                "2026-04-23 10:00:00");
-      assertThat(firstRow.get(20)).matches("\\d+");
+      assertThat(firstRow.get(20)).isEqualTo("0");
       List<String> secondRow = rowValues(sheet.getRow(2));
       assertThat(secondRow)
           .containsExactly(
@@ -627,7 +629,7 @@ class CustomerIssueRecordServiceTest {
                "2026-04-21 10:00:00",
                secondRow.get(20),
                "2026-04-23 10:00:00");
-      assertThat(secondRow.get(20)).matches("\\d+");
+      assertThat(secondRow.get(20)).isEqualTo("0");
     }
   }
 
@@ -639,7 +641,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService);
+            labelGroupExpansionService, milestoneCatalogService, null);
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
@@ -709,7 +711,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService);
+            labelGroupExpansionService, milestoneCatalogService, null);
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(List.of(record(103, "CC_PRODUCT", List.of("草图"), false, false, "", "Alice", "Bob")));
@@ -767,7 +769,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService);
+            labelGroupExpansionService, milestoneCatalogService, null);
     when(issueFactRecordRepository.findCustomerIssueRecordFilterValues(
             true, false, false, true, "cc"))
         .thenReturn(

@@ -143,7 +143,11 @@ public class PageRecordSnapshotService {
   }
 
   public String issueFactSourceVersion() {
-    return factSourceVersion(FACT_TYPE_ISSUE) + "|" + labelGroupSourceVersion();
+    return factSourceVersion(FACT_TYPE_ISSUE)
+        + "|"
+        + labelGroupSourceVersion()
+        + "|"
+        + issueScopeSourceVersion();
   }
 
   public String mergeRequestFactSourceVersion() {
@@ -227,6 +231,24 @@ public class PageRecordSnapshotService {
             select updated_at as changed_at from label_groups
             union all
             select created_at as changed_at from label_group_members
+          ) s
+        """,
+        String.class);
+  }
+
+  private String issueScopeSourceVersion() {
+    return jdbcTemplate.queryForObject(
+        """
+        select concat(
+                 'issue-scope:',
+                 coalesce(to_char(max(changed_at), 'YYYY-MM-DD"T"HH24:MI:SS.US'), 'empty')
+               )
+          from (
+            select updated_at as changed_at from issue_scope_catalogs
+            union all
+            select updated_at as changed_at from issue_scope_groups
+            union all
+            select updated_at as changed_at from issue_scope_members
           ) s
         """,
         String.class);

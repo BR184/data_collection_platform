@@ -269,7 +269,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     if (normalizedVersion == null) {
       throw new IllegalArgumentException("productVersion 不能为空");
     }
-    List<String> testingPhases = phaseScopeResolver.resolveLegacyCrownCadPhases(normalizedVersion);
+    List<String> testingPhases = phaseScopeResolver.resolvePhases(
+        SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID, normalizedVersion);
     if (testingPhases.isEmpty()) {
       throw new IllegalArgumentException("产品版本不存在或没有启用的系统测试阶段: " + normalizedVersion);
     }
@@ -607,7 +608,9 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       return List.of();
     }
     List<String> enabledPhaseValues =
-        phaseScopeResolver.resolveLegacyCrownCadPhases(loadEnabledPhaseParents());
+        phaseScopeResolver.resolvePhases(
+            SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID,
+            loadEnabledPhaseParents());
     if (enabledPhaseValues.isEmpty()) {
       return List.of();
     }
@@ -953,7 +956,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       return List.of();
     }
     return phaseValueCache.computeIfAbsent(normalized, key -> {
-      List<String> resolved = phaseScopeResolver.resolveLegacyCrownCadPhases(key);
+      List<String> resolved = phaseScopeResolver.resolvePhases(
+          SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID, key);
       return resolved.isEmpty() ? List.of(key) : resolved;
     });
   }
