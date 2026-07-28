@@ -19,7 +19,6 @@ import com.data.collection.platform.service.CustomerIssueScopeProfile;
 import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.RealtimeIncrementalRefreshService;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
-import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
@@ -40,7 +39,6 @@ class CustomerIssueDefectCauseBoardServiceTest {
   @Mock private RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;
   @Mock private IssueFactQueryService issueFactQueryService;
   @Mock private StatisticIssueLinkSupport issueLinkSupport;
-  @Mock private SystemTestPhaseScopeResolver phaseScopeResolver;
   @Mock private CustomerIssueMilestoneCatalogService milestoneCatalogService;
   @Mock private StatisticBoardSnapshotService snapshotService;
   @Mock private StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
@@ -48,7 +46,11 @@ class CustomerIssueDefectCauseBoardServiceTest {
   @Test
   @SuppressWarnings("unchecked")
   void shouldBuildTotalAndRatioFromVisibleModuleRows() throws Exception {
-    when(milestoneCatalogService.listMilestones()).thenReturn(List.of("CC2026 R3"));
+    when(milestoneCatalogService.listMilestones()).thenReturn(List.of("CC2026R3"));
+    when(milestoneCatalogService.defaultMilestone()).thenReturn("CC2026R3");
+    when(milestoneCatalogService.resolveMilestoneValues("CC2026R3"))
+        .thenReturn(List.of("CC2026 R3"));
+    when(milestoneCatalogService.matches("CC2026R3", "CC2026 R3")).thenReturn(true);
     StatisticBoardSnapshotService.SnapshotRequest snapshotRequest =
         new StatisticBoardSnapshotService.SnapshotRequest(
             "customer-issue-defect-cause", "test", "test", "test", Map.of(), null, null);
@@ -82,7 +84,6 @@ class CustomerIssueDefectCauseBoardServiceTest {
             issueFactQueryService,
             new CustomerIssueScopeProfile(),
             issueLinkSupport,
-            phaseScopeResolver,
             milestoneCatalogService,
             snapshotService,
             snapshotRequestFactory);
@@ -106,7 +107,7 @@ class CustomerIssueDefectCauseBoardServiceTest {
     verify(snapshotRequestFactory)
         .issueRequest(
             eq("customer-issue-defect-cause"),
-            eq("customer-issue-defect-cause@2026-07-22-v8"),
+            eq("customer-issue-defect-cause@2026-07-28-v9"),
             anyString(),
             anyMap(),
             any(),

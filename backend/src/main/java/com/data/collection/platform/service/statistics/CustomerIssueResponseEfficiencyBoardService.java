@@ -24,7 +24,6 @@ import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.IssueScopeContext;
 import com.data.collection.platform.service.IssueStatusMembers;
 import com.data.collection.platform.service.SortSupport;
-import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.ResultSet;
@@ -50,7 +49,7 @@ import org.springframework.util.StringUtils;
 public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatisticBoardService
     implements RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-response-efficiency";
-  private static final String RULE_VERSION = "customer-issue-response-efficiency@2026-07-22-v3";
+  private static final String RULE_VERSION = "customer-issue-response-efficiency@2026-07-28-v4";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final String EMPTY_MODULE_LABEL = IssueDisplayValueSupport.EMPTY_MODULE_LABEL;
@@ -110,7 +109,6 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
   private final IssueFactQueryService issueFactQueryService;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final StatisticIssueLinkSupport issueLinkSupport;
-  private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final CustomerIssueMilestoneCatalogService milestoneCatalogService;
   private final StatisticBoardSnapshotService snapshotService;
   private final StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
@@ -120,7 +118,6 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
       IssueFactQueryService issueFactQueryService,
       CustomerIssueScopeProfile customerIssueScopeProfile,
       StatisticIssueLinkSupport issueLinkSupport,
-      SystemTestPhaseScopeResolver phaseScopeResolver,
       CustomerIssueMilestoneCatalogService milestoneCatalogService,
       StatisticBoardSnapshotService snapshotService,
       StatisticBoardSnapshotRequestFactory snapshotRequestFactory) {
@@ -128,7 +125,6 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     this.issueFactQueryService = issueFactQueryService;
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.issueLinkSupport = issueLinkSupport;
-    this.phaseScopeResolver = phaseScopeResolver;
     this.milestoneCatalogService = milestoneCatalogService;
     this.snapshotService = snapshotService;
     this.snapshotRequestFactory = snapshotRequestFactory;
@@ -649,6 +645,10 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
       return true;
     }
+    if (CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD.equals(condition.fieldKey())) {
+      return CustomerIssueMilestoneFilterSupport.matchesCondition(
+          issue.milestoneTitle(), condition, milestoneCatalogService);
+    }
     if ("bugStatus".equals(condition.fieldKey())) {
       return condition.usesLabelGroup()
           ? IssueStatusMembers.matchesLabelGroup(
@@ -662,7 +662,6 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     String candidate =
         switch (condition.fieldKey()) {
           case "projectName" -> issue.projectName();
-          case "milestoneTitle" -> issue.milestoneTitle();
           case "severityLevel" -> issue.severityLevel();
           case "priorityLevel" -> issue.priorityLevel();
           case "issueState" -> issue.issueState();

@@ -33,6 +33,8 @@ class FactBuildServiceTest {
     SqlQueryMonitor sqlQueryMonitor = mock(SqlQueryMonitor.class);
     GitlabConfigService configService = mock(GitlabConfigService.class);
     IntegrationTestFactBuildService integrationTestFactBuildService = mock(IntegrationTestFactBuildService.class);
+    CustomerIssueMilestoneCatalogReconciliationService reconciliationService =
+        mock(CustomerIssueMilestoneCatalogReconciliationService.class);
     BizException preflightFailure = new BizException("GitLab 源结构不完整（全部事实层）");
 
     when(factBuildTaskService.runGuarded(anyString(), anyBoolean(), any()))
@@ -55,7 +57,8 @@ class FactBuildServiceTest {
             sourceSchemaGuard,
             sqlQueryMonitor,
             configService,
-            integrationTestFactBuildService);
+            integrationTestFactBuildService,
+            reconciliationService);
 
     assertThatThrownBy(() -> service.rebuildAllFacts(true)).isSameAs(preflightFailure);
 
@@ -81,6 +84,8 @@ class FactBuildServiceTest {
     SqlQueryMonitor sqlQueryMonitor = mock(SqlQueryMonitor.class);
     GitlabConfigService configService = mock(GitlabConfigService.class);
     IntegrationTestFactBuildService integrationTestFactBuildService = mock(IntegrationTestFactBuildService.class);
+    CustomerIssueMilestoneCatalogReconciliationService reconciliationService =
+        mock(CustomerIssueMilestoneCatalogReconciliationService.class);
     GitlabSyncConfig config = new GitlabSyncConfig();
     BizException preflightFailure = new BizException("GitLab 源结构不完整（全部事实层）");
 
@@ -104,7 +109,8 @@ class FactBuildServiceTest {
             sourceSchemaGuard,
             sqlQueryMonitor,
             configService,
-            integrationTestFactBuildService);
+            integrationTestFactBuildService,
+            reconciliationService);
 
     assertThatThrownBy(() -> service.rebuildAllFactsForConfig(config, true, 16L))
         .isSameAs(preflightFailure);

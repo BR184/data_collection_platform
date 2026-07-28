@@ -85,7 +85,7 @@ final class CustomerIssueMilestoneFilterSupport {
     return new MapWithPayload(payload, selectedMilestone);
   }
 
-  private static boolean matchesCondition(
+  static boolean matchesCondition(
       String milestoneTitle,
       StatisticFilterCondition condition,
       CustomerIssueMilestoneCatalogService milestoneCatalogService) {

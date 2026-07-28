@@ -27,6 +27,7 @@ class IssueScopeCatalogServiceTest {
   private static JdbcTemplate jdbcTemplate;
   private IssueScopeCatalogService catalogService;
   private IssueScopeDefinitionService definitionService;
+  private CustomerIssueMilestoneCatalogReconciliationService reconciliationService;
 
   @BeforeAll
   static void migrate() {
@@ -45,6 +46,7 @@ class IssueScopeCatalogServiceTest {
     jdbcTemplate.update("delete from issue_fact");
     catalogService = new IssueScopeCatalogService(jdbcTemplate);
     definitionService = new IssueScopeDefinitionService(jdbcTemplate);
+    reconciliationService = new CustomerIssueMilestoneCatalogReconciliationService(jdbcTemplate);
   }
 
   @Test
@@ -107,6 +109,28 @@ class IssueScopeCatalogServiceTest {
         .hasMessageContaining("业务键创建后不可修改");
   }
 
+  @Test
+  void test_reconcile_adds_current_fact_value_only_to_existing_enabled_business_scope() {
+    long catalogId = insertCatalog(325L, "CCProduct", "MILESTONE");
+    long enabledGroup = insertGroup(catalogId, "CC2026R3", "CC2026 R3", 1, true);
+    long disabledGroup = insertGroup(catalogId, "CC2026R4", "CC2026 R4", 2, false);
+    insertMember(catalogId, enabledGroup, "CC2026R3", 1, true);
+    insertMember(catalogId, disabledGroup, "CC2026R4", 1, true);
+    insertFact(1L, 1, "CC2026 R3");
+    insertFact(2L, 2, "CC2026 R4");
+    insertFact(3L, 3, "CC2026 R5");
+
+    assertThat(reconciliationService.reconcilePublishedFactValues()).isEqualTo(1);
+    assertThat(
+            catalogService.requireMemberValues(
+                325L, IssueScopeDimension.MILESTONE, "CC2026R3"))
+        .containsExactly("CC2026R3", "CC2026 R3");
+    assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from issue_scope_members where source_value in ('CC2026 R4', 'CC2026 R5')",
+            Integer.class))
+        .isZero();
+  }
+
   private long insertCatalog(long projectId, String projectName, String dimension) {
     return jdbcTemplate.queryForObject(
         "insert into issue_scope_catalogs(project_id, project_name, dimension) values (?, ?, ?) returning id",
@@ -138,5 +162,13 @@ class IssueScopeCatalogServiceTest {
         sourceValue,
         sortOrder,
         enabled);
+  }
+
+  private void insertFact(long issueId, int issueIid, String milestoneTitle) {
+    jdbcTemplate.update(
+        "insert into issue_fact(project_id, issue_id, issue_iid, milestone_title) values (325, ?, ?, ?)",
+        issueId,
+        issueIid,
+        milestoneTitle);
   }
 }

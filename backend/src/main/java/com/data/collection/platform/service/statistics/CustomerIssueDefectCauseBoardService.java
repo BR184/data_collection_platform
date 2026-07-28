@@ -28,7 +28,6 @@ import com.data.collection.platform.service.IssueStatusMembers;
 import com.data.collection.platform.service.RealtimeIncrementalRefreshService;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.SortSupport;
-import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.sql.ResultSet;
@@ -64,7 +63,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         StatisticBoardWorkbookExportSupport,
         StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-defect-cause";
-  private static final String RULE_VERSION = "customer-issue-defect-cause@2026-07-22-v8";
+  private static final String RULE_VERSION = "customer-issue-defect-cause@2026-07-28-v9";
   private static final String MILESTONE_FIELD = CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD;
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "共计";
@@ -113,7 +112,6 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   private final IssueFactQueryService issueFactQueryService;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final StatisticIssueLinkSupport issueLinkSupport;
-  private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final CustomerIssueMilestoneCatalogService milestoneCatalogService;
   private final StatisticBoardSnapshotService snapshotService;
   private final StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
@@ -125,7 +123,6 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       IssueFactQueryService issueFactQueryService,
       CustomerIssueScopeProfile customerIssueScopeProfile,
       StatisticIssueLinkSupport issueLinkSupport,
-      SystemTestPhaseScopeResolver phaseScopeResolver,
       CustomerIssueMilestoneCatalogService milestoneCatalogService,
       StatisticBoardSnapshotService snapshotService,
       StatisticBoardSnapshotRequestFactory snapshotRequestFactory) {
@@ -135,7 +132,6 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     this.issueFactQueryService = issueFactQueryService;
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.issueLinkSupport = issueLinkSupport;
-    this.phaseScopeResolver = phaseScopeResolver;
     this.milestoneCatalogService = milestoneCatalogService;
     this.snapshotService = snapshotService;
     this.snapshotRequestFactory = snapshotRequestFactory;
@@ -740,11 +736,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   }
 
   private boolean matchesMilestoneCondition(IssueSource issue, StatisticFilterCondition condition) {
-    return switch (condition.operator()) {
-      case "ne" -> !condition.value().equals(issue.milestoneTitle());
-      case "eq" -> condition.value().equals(issue.milestoneTitle());
-      default -> true;
-    };
+    return CustomerIssueMilestoneFilterSupport.matchesCondition(
+        issue.milestoneTitle(), condition, milestoneCatalogService);
   }
 
   private boolean matchesConditionFilterGroup(IssueSource issue, StatisticFilterGroup filterGroup) {

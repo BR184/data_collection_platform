@@ -22,7 +22,6 @@ import com.data.collection.platform.service.CustomerIssueScopeProfile;
 import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.IssueScopeContext;
 import com.data.collection.platform.service.SortSupport;
-import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -46,7 +45,7 @@ import org.springframework.util.StringUtils;
 public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoardService
     implements RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-delay-issues";
-  private static final String RULE_VERSION = "customer-issue-delay-issues@2026-07-10-v3";
+  private static final String RULE_VERSION = "customer-issue-delay-issues@2026-07-28-v4";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总数";
   private static final String EMPTY_MODULE_LABEL = "未设定模块";
@@ -115,7 +114,6 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   private final IssueFactQueryService issueFactQueryService;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final StatisticIssueLinkSupport issueLinkSupport;
-  private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final CustomerIssueMilestoneCatalogService milestoneCatalogService;
   private final StatisticBoardSnapshotService snapshotService;
   private final StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
@@ -125,7 +123,6 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       IssueFactQueryService issueFactQueryService,
       CustomerIssueScopeProfile customerIssueScopeProfile,
       StatisticIssueLinkSupport issueLinkSupport,
-      SystemTestPhaseScopeResolver phaseScopeResolver,
       CustomerIssueMilestoneCatalogService milestoneCatalogService,
       StatisticBoardSnapshotService snapshotService,
       StatisticBoardSnapshotRequestFactory snapshotRequestFactory) {
@@ -133,7 +130,6 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     this.issueFactQueryService = issueFactQueryService;
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.issueLinkSupport = issueLinkSupport;
-    this.phaseScopeResolver = phaseScopeResolver;
     this.milestoneCatalogService = milestoneCatalogService;
     this.snapshotService = snapshotService;
     this.snapshotRequestFactory = snapshotRequestFactory;
@@ -657,13 +653,16 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
       return true;
     }
+    if (CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD.equals(condition.fieldKey())) {
+      return CustomerIssueMilestoneFilterSupport.matchesCondition(
+          issue.milestoneTitle(), condition, milestoneCatalogService);
+    }
     if ("moduleName".equals(condition.fieldKey())) {
       return matchesCandidates(issue.displayModuleNames(), condition);
     }
     String candidate =
         switch (condition.fieldKey()) {
           case "projectName" -> issue.projectName();
-          case "milestoneTitle" -> issue.milestoneTitle();
           case "priorityLevel" -> issue.priorityCandidate(condition.operator());
           case "issueState" -> issue.issueState();
           case "authorName" -> issue.authorName();

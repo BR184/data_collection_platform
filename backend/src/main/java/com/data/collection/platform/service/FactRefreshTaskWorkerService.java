@@ -25,6 +25,7 @@ public class FactRefreshTaskWorkerService {
   private final GitlabMirrorProperties properties;
   private final StatisticBoardSnapshotRefreshService snapshotRefreshService;
   private final PageRecordSnapshotRefreshService pageRecordSnapshotRefreshService;
+  private final FactPublicationTransaction publicationTransaction;
 
   public FactRefreshTaskWorkerService(
       FactBuildTaskService taskService,
@@ -34,7 +35,8 @@ public class FactRefreshTaskWorkerService {
       FactRefreshImpactScopeService impactScopeService,
       GitlabMirrorProperties properties,
       StatisticBoardSnapshotRefreshService snapshotRefreshService,
-      PageRecordSnapshotRefreshService pageRecordSnapshotRefreshService) {
+      PageRecordSnapshotRefreshService pageRecordSnapshotRefreshService,
+      FactPublicationTransaction publicationTransaction) {
     this.taskService = taskService;
     this.configService = configService;
     this.factBuildService = factBuildService;
@@ -43,6 +45,7 @@ public class FactRefreshTaskWorkerService {
     this.properties = properties;
     this.snapshotRefreshService = snapshotRefreshService;
     this.pageRecordSnapshotRefreshService = pageRecordSnapshotRefreshService;
+    this.publicationTransaction = publicationTransaction;
   }
 
   @Scheduled(fixedDelayString = "${platform.gitlab-mirror.fact-worker-delay-ms:5000}")
@@ -63,12 +66,13 @@ public class FactRefreshTaskWorkerService {
     try {
       GitlabSyncConfig config = configService.getConfigById(task.configId());
       String factType = normalizeFactType(task.factType());
-      FactBuildResponse response = switch (factType) {
-        case "ISSUE" -> rebuildIssueFacts(task, config, factType);
-        case "MERGE_REQUEST" -> rebuildMergeRequestFacts(task, config, factType);
-        case "INTEGRATION_TEST" -> rebuildIntegrationTestFacts(task, config, factType);
-        default -> throw new IllegalArgumentException("Unsupported fact refresh type: " + task.factType());
-      };
+      FactBuildResponse response = publicationTransaction.execute(() -> switch (factType) {
+          case "ISSUE" -> rebuildIssueFacts(task, config, factType);
+          case "MERGE_REQUEST" -> rebuildMergeRequestFacts(task, config, factType);
+          case "INTEGRATION_TEST" -> rebuildIntegrationTestFacts(task, config, factType);
+          default -> throw new IllegalArgumentException(
+              "Unsupported fact refresh type: " + task.factType());
+        });
       taskService.finishQueuedTask(task.id(), "SUCCESS", response.affectedRows(), response.message(), null);
       snapshotRefreshService.refreshAfterFactBuild(factType, response.full());
       pageRecordSnapshotRefreshService.refreshAfterFactBuild(factType, response.full());

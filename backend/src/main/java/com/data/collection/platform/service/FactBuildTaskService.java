@@ -36,11 +36,16 @@ public class FactBuildTaskService {
 
   private final JdbcTemplate jdbcTemplate;
   private final DataSource dataSource;
+  private final FactPublicationTransaction publicationTransaction;
   private final String lockOwner = UUID.randomUUID().toString();
 
-  public FactBuildTaskService(JdbcTemplate jdbcTemplate, DataSource dataSource) {
+  public FactBuildTaskService(
+      JdbcTemplate jdbcTemplate,
+      DataSource dataSource,
+      FactPublicationTransaction publicationTransaction) {
     this.jdbcTemplate = jdbcTemplate;
     this.dataSource = dataSource;
+    this.publicationTransaction = publicationTransaction;
   }
 
   public FactBuildResponse runGuarded(
@@ -71,7 +76,7 @@ public class FactBuildTaskService {
       }
       Long taskId = startTask(safeScope, full, syncRunId);
       try {
-        FactBuildResponse response = action.get();
+        FactBuildResponse response = publicationTransaction.execute(action);
         finishTask(taskId, STATUS_SUCCESS, response.affectedRows(), response.message(), null);
         return response;
       } catch (RuntimeException error) {

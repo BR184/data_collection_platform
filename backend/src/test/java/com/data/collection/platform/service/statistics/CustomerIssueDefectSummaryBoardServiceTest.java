@@ -6,18 +6,16 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticCellData;
-import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
-import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
 import com.data.collection.platform.service.CustomerIssueScopeProfile;
 import com.data.collection.platform.service.IssueFactQueryService;
+import com.data.collection.platform.service.IssueFactRecordRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
@@ -33,140 +31,105 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.RowMapper;
 
 @ExtendWith(MockitoExtension.class)
-class CustomerIssueResponseEfficiencyBoardServiceTest {
+class CustomerIssueDefectSummaryBoardServiceTest {
 
+  @Mock private CustomerIssueScopeProfile customerIssueScopeProfile;
+  @Mock private IssueFactBoardRuntimeSupport runtimeSupport;
   @Mock private IssueFactQueryService issueFactQueryService;
   @Mock private StatisticIssueLinkSupport issueLinkSupport;
   @Mock private CustomerIssueMilestoneCatalogService milestoneCatalogService;
   @Mock private StatisticBoardSnapshotService snapshotService;
   @Mock private StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
+  @Mock private IssueFactRecordRepository issueFactRecordRepository;
 
   @BeforeEach
   @SuppressWarnings("unchecked")
-  void setUp() {
+  void setUp() throws Exception {
     when(milestoneCatalogService.defaultMilestone()).thenReturn("CC2026R3");
     when(milestoneCatalogService.resolveMilestoneValues("CC2026R3"))
         .thenReturn(List.of("CC2026 R3"));
     when(milestoneCatalogService.matches("CC2026R3", "CC2026 R3")).thenReturn(true);
+    when(customerIssueScopeProfile.matches(any())).thenReturn(true);
+
     StatisticBoardSnapshotService.SnapshotRequest snapshotRequest =
         new StatisticBoardSnapshotService.SnapshotRequest(
-            "customer-issue-response-efficiency", "test", "test", "test", Map.of(), null, null);
-    lenient()
-        .when(snapshotRequestFactory.issueRequest(
+            "customer-issue-defect-summary", "test", "test", "test", Map.of(), null, null);
+    when(snapshotRequestFactory.issueRequest(
             anyString(), anyString(), anyString(), anyMap(), any(), any()))
         .thenReturn(snapshotRequest);
-    lenient()
-        .doAnswer(invocation -> ((Supplier<StatisticBoardResponse>) invocation.getArgument(1)).get())
+    doAnswer(invocation -> ((Supplier<StatisticBoardResponse>) invocation.getArgument(1)).get())
         .when(snapshotService)
         .readOrRefresh(any(), any());
     doAnswer(
             invocation -> {
               RowMapper<Object> mapper = invocation.getArgument(4);
-              return List.of(
-                  mapper.mapRow(issue(2601, "其他模块 & 二次开发", 1), 0),
-                  mapper.mapRow(issue(2602, "二次开发", 8), 1));
+              return List.of(mapper.mapRow(issue(), 0));
             })
         .when(issueFactQueryService)
         .query(anyString(), anyMap(), anyString(), anyList(), any(RowMapper.class));
     doAnswer(
             invocation -> {
-              String sql = invocation.getArgument(0);
               RowMapper<Object> mapper = invocation.getArgument(2);
-              if (sql.contains("author_names")) {
-                return List.of(mapper.mapRow(personOptionsRow(), 0));
-              }
-              return List.of(
-                  mapper.mapRow(moduleCatalogRow("其他模块 & 二次开发"), 0),
-                  mapper.mapRow(moduleCatalogRow("二次开发"), 1));
+              return List.of(mapper.mapRow(moduleCatalogRow(), 0));
             })
         .when(issueFactQueryService)
         .query(anyString(), anyList(), any(RowMapper.class));
   }
 
   @Test
-  void shouldExpandAmpersandSeparatedModulesWhenAveragingResolutionCycle() {
-    CustomerIssueResponseEfficiencyBoardService service = service();
+  void test_stable_milestone_key_matches_exact_fact_member() {
+    CustomerIssueDefectSummaryBoardService service =
+        new CustomerIssueDefectSummaryBoardService(
+            new JsonUtils(new ObjectMapper()),
+            customerIssueScopeProfile,
+            runtimeSupport,
+            issueFactQueryService,
+            issueLinkSupport,
+            milestoneCatalogService,
+            snapshotService,
+            snapshotRequestFactory,
+            issueFactRecordRepository);
 
     StatisticBoardResponse response = service.loadBoard(Map.of());
 
-    StatisticRowData row = row(response, "二次开发");
-    assertThat(cell(row, "resolution_cycle_days").displayValue()).isEqualTo("4.5");
+    StatisticRowData total = row(response, "__total__");
+    assertThat(cell(total, "module_total").numericValue()).isEqualTo(1);
   }
 
-  @Test
-  void shouldExpandAmpersandSeparatedModulesForResolutionDrilldown() {
-    CustomerIssueResponseEfficiencyBoardService service = service();
-
-    StatisticDetailResponse detail =
-        service.loadDetail(
-            new StatisticDetailRequest(
-                "customer-issue-response-efficiency",
-                "二次开发",
-                "resolution_cycle_days",
-                1,
-                10,
-                "iid",
-                "ascending",
-                Map.of()));
-
-    assertThat(detail.total()).isEqualTo(2);
-    assertThat(detail.records()).extracting(record -> record.get("title"))
-        .containsExactly("issue 2601", "issue 2602");
-  }
-
-  private CustomerIssueResponseEfficiencyBoardService service() {
-    return new CustomerIssueResponseEfficiencyBoardService(
-        new JsonUtils(new ObjectMapper()),
-        issueFactQueryService,
-        new CustomerIssueScopeProfile(),
-        issueLinkSupport,
-        milestoneCatalogService,
-        snapshotService,
-        snapshotRequestFactory);
-  }
-
-  private ResultSet issue(int iid, String moduleNames, int resolutionDays) throws Exception {
-    LocalDateTime createdAt = LocalDateTime.of(2026, 4, 1, 9, 0);
+  private ResultSet issue() throws Exception {
     ResultSet rs = mock(ResultSet.class);
+    when(rs.getLong("id")).thenReturn(1001L);
+    when(rs.getInt("iid")).thenReturn(1001);
     when(rs.getString("source_instance")).thenReturn("default");
+    when(rs.getString("title")).thenReturn("客户问题");
     when(rs.getLong("project_id")).thenReturn(325L);
     when(rs.getString("project_name")).thenReturn("CC_Product");
-    when(rs.getLong("issue_id")).thenReturn((long) iid);
-    when(rs.getInt("issue_iid")).thenReturn(iid);
-    when(rs.getString("title")).thenReturn("issue " + iid);
+    when(rs.getString("milestone_title")).thenReturn("CC2026 R3");
+    when(rs.getString("author_name")).thenReturn("author");
+    when(rs.getTimestamp("created_at"))
+        .thenReturn(Timestamp.valueOf(LocalDateTime.of(2026, 6, 1, 9, 0)));
+    when(rs.getTimestamp("updated_at"))
+        .thenReturn(Timestamp.valueOf(LocalDateTime.of(2026, 6, 2, 9, 0)));
     when(rs.getString("issue_state")).thenReturn("opened");
     when(rs.getString("testing_phase")).thenReturn("");
     when(rs.getString("system_test_label")).thenReturn("");
     when(rs.getString("severity_level")).thenReturn("二级缺陷");
     when(rs.getString("priority_level")).thenReturn("P2");
-    when(rs.getString("bug_status")).thenReturn("已修复/完成");
-    when(rs.getString("category")).thenReturn("功能");
+    when(rs.getString("bug_status")).thenReturn("处理中");
+    when(rs.getString("category")).thenReturn("缺陷");
     when(rs.getString("reason_category")).thenReturn("");
-    when(rs.getString("milestone_title")).thenReturn("CC2026 R3");
-    when(rs.getString("author_name")).thenReturn("author");
+    when(rs.getString("delay_cause")).thenReturn("");
     when(rs.getString("assignee_name")).thenReturn("assignee");
-    when(rs.getString("module_names")).thenReturn(moduleNames);
-    when(rs.getString("label_names")).thenReturn("状态：已修复/完成");
-    when(rs.getBoolean("is_excluded")).thenReturn(false);
-    when(rs.getTimestamp("research_template_time")).thenReturn(null);
-    when(rs.getTimestamp("fixed_label_time"))
-        .thenReturn(Timestamp.valueOf(createdAt.plusDays(resolutionDays)));
-    when(rs.getTimestamp("created_at_source")).thenReturn(Timestamp.valueOf(createdAt));
-    when(rs.getTimestamp("updated_at_source")).thenReturn(Timestamp.valueOf(createdAt.plusDays(resolutionDays)));
-    when(rs.getTimestamp("closed_at_source")).thenReturn(null);
+    when(rs.getString("fix_user")).thenReturn("");
+    when(rs.getString("function_name")).thenReturn("装配");
+    when(rs.getString("module_names")).thenReturn("装配");
+    when(rs.getString("label_names")).thenReturn("");
     return rs;
   }
 
-  private ResultSet moduleCatalogRow(String modules) throws Exception {
+  private ResultSet moduleCatalogRow() throws Exception {
     ResultSet rs = mock(ResultSet.class);
-    when(rs.getString("module_names")).thenReturn(modules);
-    return rs;
-  }
-
-  private ResultSet personOptionsRow() throws Exception {
-    ResultSet rs = mock(ResultSet.class);
-    when(rs.getString("author_names")).thenReturn("author");
-    when(rs.getString("assignee_names")).thenReturn("assignee");
+    when(rs.getString("module_names")).thenReturn("装配");
     return rs;
   }
 

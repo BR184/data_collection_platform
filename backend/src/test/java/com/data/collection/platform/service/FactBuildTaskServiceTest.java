@@ -1,13 +1,16 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +24,7 @@ class FactBuildTaskServiceTest {
 
   @Autowired private JdbcTemplate jdbcTemplate;
   @Autowired private FactBuildTaskService factBuildTaskService;
+  @Autowired private DataSource dataSource;
 
   @BeforeEach
   void setUp() {
@@ -54,6 +58,73 @@ class FactBuildTaskServiceTest {
     assertThat(latest).isNotNull();
     assertThat(latest.scope()).isEqualTo("cc:merge-request");
     assertThat(latest.status()).isEqualTo("SUCCESS");
+  }
+
+  @Test
+  void test_failed_build_rolls_back_fact_publication_but_keeps_failed_task_status() {
+    jdbcTemplate.update(
+        "delete from issue_scope_catalogs where project_id = 999999 and dimension = 'MILESTONE'");
+
+    assertThatThrownBy(
+            () ->
+                factBuildTaskService.runGuarded(
+                    "issue",
+                    true,
+                    () -> {
+                      jdbcTemplate.update(
+                          "insert into issue_scope_catalogs(project_id, project_name, dimension) values (999999, 'transaction-test', 'MILESTONE')");
+                      throw new IllegalStateException("publication failed");
+                    }))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("publication failed");
+
+    assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from issue_scope_catalogs where project_id = 999999",
+            Integer.class))
+        .isZero();
+    assertThat(factBuildTaskService.latest("issue").status()).isEqualTo("FAILED");
+  }
+
+  @Test
+  void test_other_connections_see_previous_version_until_publication_commits() {
+    long projectId = 999998L;
+    jdbcTemplate.update(
+        "delete from issue_scope_catalogs where project_id = ? and dimension = 'MILESTONE'",
+        projectId);
+
+    factBuildTaskService.runGuarded(
+        "issue",
+        true,
+        () -> {
+          jdbcTemplate.update(
+              "insert into issue_scope_catalogs(project_id, project_name, dimension) values (?, 'visibility-test', 'MILESTONE')",
+              projectId);
+          try (var connection = dataSource.getConnection()) {
+            assertThat(countCatalogs(connection, projectId)).isZero();
+          } catch (java.sql.SQLException error) {
+            throw new IllegalStateException(error);
+          }
+          return new FactBuildResponse("issue", true, 1, "published");
+        });
+
+    assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from issue_scope_catalogs where project_id = ?",
+            Integer.class,
+            projectId))
+        .isOne();
+    jdbcTemplate.update("delete from issue_scope_catalogs where project_id = ?", projectId);
+  }
+
+  private int countCatalogs(java.sql.Connection connection, long projectId)
+      throws java.sql.SQLException {
+    try (PreparedStatement statement = connection.prepareStatement(
+        "select count(*) from issue_scope_catalogs where project_id = ?")) {
+      statement.setLong(1, projectId);
+      try (ResultSet resultSet = statement.executeQuery()) {
+        resultSet.next();
+        return resultSet.getInt(1);
+      }
+    }
   }
 
   @Test

@@ -17,7 +17,6 @@ import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
 import com.data.collection.platform.service.CustomerIssueScopeProfile;
 import com.data.collection.platform.service.IssueFactQueryService;
-import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
@@ -37,7 +36,6 @@ class CustomerIssueDelayIssuesBoardServiceTest {
 
   @Mock private IssueFactQueryService issueFactQueryService;
   @Mock private StatisticIssueLinkSupport issueLinkSupport;
-  @Mock private SystemTestPhaseScopeResolver phaseScopeResolver;
   @Mock private CustomerIssueMilestoneCatalogService milestoneCatalogService;
   @Mock private StatisticBoardSnapshotService snapshotService;
   @Mock private StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
@@ -45,7 +43,10 @@ class CustomerIssueDelayIssuesBoardServiceTest {
   @BeforeEach
   @SuppressWarnings("unchecked")
   void setUp() {
-    when(milestoneCatalogService.listMilestones()).thenReturn(List.of("CC2026 R2"));
+    when(milestoneCatalogService.defaultMilestone()).thenReturn("CC2026R2");
+    when(milestoneCatalogService.resolveMilestoneValues("CC2026R2"))
+        .thenReturn(List.of("CC2026 R2"));
+    when(milestoneCatalogService.matches("CC2026R2", "CC2026 R2")).thenReturn(true);
     StatisticBoardSnapshotService.SnapshotRequest snapshotRequest =
         new StatisticBoardSnapshotService.SnapshotRequest(
             "customer-issue-delay-issues", "test", "test", "test", Map.of(), null, null);
@@ -118,7 +119,6 @@ class CustomerIssueDelayIssuesBoardServiceTest {
         issueFactQueryService,
         new CustomerIssueScopeProfile(),
         issueLinkSupport,
-        phaseScopeResolver,
         milestoneCatalogService,
         snapshotService,
         snapshotRequestFactory);

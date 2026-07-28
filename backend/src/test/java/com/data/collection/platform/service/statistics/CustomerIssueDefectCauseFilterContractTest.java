@@ -15,7 +15,6 @@ import com.data.collection.platform.service.CustomerIssueScopeProfile;
 import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.RealtimeIncrementalRefreshService;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
-import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
@@ -36,7 +35,6 @@ class CustomerIssueDefectCauseFilterContractTest {
   @Mock private RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;
   @Mock private IssueFactQueryService issueFactQueryService;
   @Mock private StatisticIssueLinkSupport issueLinkSupport;
-  @Mock private SystemTestPhaseScopeResolver phaseScopeResolver;
   @Mock private CustomerIssueMilestoneCatalogService milestoneCatalogService;
   @Mock private StatisticBoardSnapshotService snapshotService;
   @Mock private StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
@@ -146,7 +144,6 @@ class CustomerIssueDefectCauseFilterContractTest {
         issueFactQueryService,
         new CustomerIssueScopeProfile(),
         issueLinkSupport,
-        phaseScopeResolver,
         milestoneCatalogService,
         snapshotService,
         snapshotRequestFactory);

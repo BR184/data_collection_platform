@@ -51,6 +51,7 @@ public class FactBuildService {
   private final SqlQueryMonitor sqlQueryMonitor;
   private final GitlabConfigService configService;
   private final IntegrationTestFactBuildService integrationTestFactBuildService;
+  private final CustomerIssueMilestoneCatalogReconciliationService milestoneCatalogReconciliationService;
   private final GitlabFactSourceSqlProvider factSourceSqlProvider;
   private final GitlabFactSourceQueryExecutor factSourceQueryExecutor;
 
@@ -64,7 +65,8 @@ public class FactBuildService {
       GitlabSourceSchemaGuard sourceSchemaGuard,
       SqlQueryMonitor sqlQueryMonitor,
       GitlabConfigService configService,
-      IntegrationTestFactBuildService integrationTestFactBuildService) {
+      IntegrationTestFactBuildService integrationTestFactBuildService,
+      CustomerIssueMilestoneCatalogReconciliationService milestoneCatalogReconciliationService) {
     this.jdbcTemplate = jdbcTemplate;
     this.issueFactPersistenceService = issueFactPersistenceService;
     this.issueCustomerNameAliasService = issueCustomerNameAliasService;
@@ -75,6 +77,7 @@ public class FactBuildService {
     this.sqlQueryMonitor = sqlQueryMonitor;
     this.configService = configService;
     this.integrationTestFactBuildService = integrationTestFactBuildService;
+    this.milestoneCatalogReconciliationService = milestoneCatalogReconciliationService;
     this.factSourceSqlProvider = new GitlabFactSourceSqlProvider();
     this.factSourceQueryExecutor = new GitlabFactSourceQueryExecutor(jdbcTemplate, sqlQueryMonitor);
   }
@@ -165,6 +168,7 @@ public class FactBuildService {
         loadSingleIssueFacts(
             normalizedSource, projectId, issueIid, calendar, moduleDictionary, customerNameAliases);
     batchUpsertIssueFacts(facts);
+    milestoneCatalogReconciliationService.reconcilePublishedFactValues();
     return new FactBuildResponse(
         factScope("issue", normalizedSource),
         false,
@@ -188,6 +192,7 @@ public class FactBuildService {
         loadIssueFactsByTargets(
             normalizedSource, safeTargets, calendar, moduleDictionary, customerNameAliases);
     batchUpsertIssueFacts(facts);
+    milestoneCatalogReconciliationService.reconcilePublishedFactValues();
     return new FactBuildResponse(
         factScope("issue", normalizedSource),
         false,
@@ -237,6 +242,7 @@ public class FactBuildService {
     if (processedTargets >= MISSING_ISSUE_FACT_RECONCILIATION_LIMIT) {
       message += "；已达到本次补偿上限，后续刷新将继续补齐";
     }
+    milestoneCatalogReconciliationService.reconcilePublishedFactValues();
     return new FactBuildResponse(factScope("issue", normalizedSource), false, affectedRows, message);
   }
 
@@ -250,6 +256,7 @@ public class FactBuildService {
       List<IssueFact> facts =
           loadIssueFacts(sourceInstance, changedSince, calendar, moduleDictionary, customerNameAliases);
       batchUpsertIssueFacts(facts);
+      milestoneCatalogReconciliationService.reconcilePublishedFactValues();
       return new FactBuildResponse(
           factScope("issue", sourceInstance),
           full,

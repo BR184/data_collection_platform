@@ -27,7 +27,6 @@ import com.data.collection.platform.service.IssueScopeContext;
 import com.data.collection.platform.service.IssueStatusMembers;
 import com.data.collection.platform.service.OptionItemResponseFactory;
 import com.data.collection.platform.service.SortSupport;
-import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.data.collection.platform.service.SystemTestLegacyCauseExportFields;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -56,7 +55,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         StatisticBoardSnapshotRefresher,
         StatisticBoardIssueWorkbookExportSupport {
   private static final String BOARD_KEY = "customer-issue-defect-summary";
-  private static final String RULE_VERSION = "customer-issue-defect-summary@2026-07-22-v4";
+  private static final String RULE_VERSION = "customer-issue-defect-summary@2026-07-28-v5";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
@@ -115,7 +114,6 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   private final IssueFactBoardRuntimeSupport runtimeSupport;
   private final IssueFactQueryService issueFactQueryService;
   private final StatisticIssueLinkSupport issueLinkSupport;
-  private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final CustomerIssueMilestoneCatalogService milestoneCatalogService;
   private final StatisticBoardSnapshotService snapshotService;
   private final StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
@@ -127,7 +125,6 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
       IssueFactBoardRuntimeSupport runtimeSupport,
       IssueFactQueryService issueFactQueryService,
       StatisticIssueLinkSupport issueLinkSupport,
-      SystemTestPhaseScopeResolver phaseScopeResolver,
       CustomerIssueMilestoneCatalogService milestoneCatalogService,
       StatisticBoardSnapshotService snapshotService,
       StatisticBoardSnapshotRequestFactory snapshotRequestFactory,
@@ -137,7 +134,6 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     this.runtimeSupport = runtimeSupport;
     this.issueFactQueryService = issueFactQueryService;
     this.issueLinkSupport = issueLinkSupport;
-    this.phaseScopeResolver = phaseScopeResolver;
     this.milestoneCatalogService = milestoneCatalogService;
     this.snapshotService = snapshotService;
     this.snapshotRequestFactory = snapshotRequestFactory;
@@ -557,6 +553,10 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
       return true;
     }
+    if (CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD.equals(condition.fieldKey())) {
+      return CustomerIssueMilestoneFilterSupport.matchesCondition(
+          issue.milestoneTitle(), condition, milestoneCatalogService);
+    }
     if ("bugStatus".equals(condition.fieldKey())) {
       return condition.usesLabelGroup()
           ? IssueStatusMembers.matchesLabelGroup(
@@ -581,7 +581,6 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   private List<String> valuesForFilterField(IssueSource issue, String fieldKey) {
     return switch (fieldKey) {
       case "projectName" -> List.of(Objects.toString(issue.projectName(), ""));
-      case "milestoneTitle" -> List.of(Objects.toString(issue.milestoneTitle(), ""));
       case "moduleName" -> issue.moduleNames();
       case "issueIid" -> List.of(String.valueOf(issue.iid()));
       case "title" -> List.of(Objects.toString(issue.title(), ""));

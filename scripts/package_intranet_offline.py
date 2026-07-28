@@ -770,7 +770,7 @@ services:
 def incremental_readme(ctx: BuildContext) -> str:
     if ctx.require_fact_rebuild:
         fact_section = f"""\
-## 4. 事实层重建
+## 5. 事实层重建
 
 本更新包标记为需要事实层重建。该步骤只基于现有镜像表重建事实层和统计快照，不重新全量同步 GitLab，不删除平台数据。
 
@@ -778,7 +778,7 @@ def incremental_readme(ctx: BuildContext) -> str:
 """
     else:
         fact_section = """\
-## 4. 不执行事实层重建
+## 5. 不执行事实层重建
 
 本更新包只替换后端和前端业务镜像，不改变事实表、统计口径或历史聚合结果。部署后不要主动触发事实重建、全量同步或清空快照。
 """
@@ -788,7 +788,7 @@ def incremental_readme(ctx: BuildContext) -> str:
 
 本包用于既有内网实例的受控升级。它保留现有 PostgreSQL 容器、volume、镜像表、事实表、同步状态、平台配置和业务数据，只重新创建后端与前端应用容器。
 
-目标基线部署目录：
+打包基线交付物（用于识别现场升级前镜像，不是现场部署目录）：
 
 ```text
 {ctx.baseline_name}
@@ -815,20 +815,70 @@ def incremental_readme(ctx: BuildContext) -> str:
 - 不要在内网服务器执行 `docker build`。
 - 不要因为本包部署而触发 GitLab 全量同步。
 
-## 1. 解压
+## 1. 校验并解压更新包
 
-将本包放到既有部署目录旁边并解压：
+先进入上传更新包的目录，确认文件存在：
+
+```bash
+pwd
+ls -lh {ctx.archive_path.name} {ctx.archive_path.name}.sha256
+```
+
+校验传输后的归档；输出必须为 `OK`，否则停止：
+
+```bash
+sha256sum -c {ctx.archive_path.name}.sha256
+```
+
+解压并进入更新包目录：
 
 ```bash
 tar -xzf {ctx.archive_path.name}
+cd {ctx.package_name}
 ```
 
-## 2. 执行受控升级
-
-进入既有部署目录：
+逐项校验包内文件；所有项目必须为 `OK`：
 
 ```bash
-cd {ctx.baseline_name}
+sha256sum -c SHA256SUMS.txt
+```
+
+查看发布清单，确认 `baseline`、`target`、`flywayVersion` 和 `facts`：
+
+```bash
+cat RELEASE-MANIFEST.json
+```
+
+## 2. 找到并检查现有部署目录
+
+返回上级目录，进入**当前正在运行平台的原部署目录**。该目录必须包含现场 `.env` 和基础 `docker-compose.yml`；不要把历史更新包目录当成部署目录：
+
+```bash
+cd ..
+cd <现有部署目录>
+pwd
+ls -la .env docker-compose.yml
+```
+
+检查当前三个服务均在运行，postgres 必须为 healthy：
+
+```bash
+sudo docker compose --env-file .env ps
+```
+
+查看当前合并配置中的镜像；前后端必须与本文开头的基线应用镜像完全一致：
+
+```bash
+sudo docker compose --env-file .env config --images
+```
+
+确认没有正在执行的同步或事实任务，再继续。若页面仍显示运行中任务，等待其完成或先取消。
+
+## 3. 执行受控升级
+
+只执行升级脚本这一条变更命令。命令结束前不要关闭终端：
+
+```bash
 bash ../{ctx.package_name}/upgrade.sh "$PWD"
 ```
 
@@ -842,33 +892,53 @@ bash ../{ctx.package_name}/upgrade.sh "$PWD"
 
 脚本不会执行 `docker compose down`、不会删除 volume，也不会触发 GitLab 全量同步。
 
-## 3. 健康与登录检查
+## 4. 逐项检查升级结果
+
+先确认容器状态，backend、frontend、postgres 都必须为 healthy：
 
 ```bash
 sudo docker compose --env-file .env ps
+```
+
+再分别检查后端和前端：
+
+```bash
 curl -fsS http://127.0.0.1:{ctx.backend_port}/actuator/health
+```
+
+```bash
 curl -fsS http://127.0.0.1:{ctx.frontend_port}/
+```
+
+查看脚本记录的本次备份目录，保留输出供回滚使用：
+
+```bash
+cat upgrade-backups/latest-backup.txt
 ```
 
 使用 LDAP v0.3 账号登录；旧本地 `admin/admin123` 必须被拒绝。LDAP 不可用时，新登录失败，已有 Session 可继续使用到退出或过期。
 
 {fact_section}
 
-## 5. 回滚边界
+## 6. 仅在升级失败时回滚应用
 
 应用回滚命令会恢复升级前 `.env` 和 Compose 覆盖文件，并重新创建旧后端/前端容器；它不会自动执行 `pg_restore`，避免误覆盖现场数据：
 
+先读取上一步保存的备份目录，并检查其中确实存在配置和数据库备份：
+
 ```bash
-bash ../{ctx.package_name}/rollback.sh "$PWD" "$PWD/upgrade-backups/<本次备份目录>"
+BACKUP_DIR="$(cat upgrade-backups/latest-backup.txt)"
+echo "$BACKUP_DIR"
+ls -lh "$BACKUP_DIR"
+```
+
+确认路径无误后执行应用回滚：
+
+```bash
+bash ../{ctx.package_name}/rollback.sh "$PWD" "$BACKUP_DIR"
 ```
 
 Flyway 迁移是前向迁移。只有应用回滚仍不能恢复服务时，才在停机并确认备份无误后，将 `database.dump` 恢复到隔离数据库或经审批重建的平台库。
-
-## 6. 包完整性校验
-
-```bash
-sha256sum -c ../{ctx.package_name}/SHA256SUMS.txt
-```
 """
 
 

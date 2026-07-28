@@ -46,7 +46,8 @@ class FactRefreshTaskWorkerServiceTest {
         impactScopeService,
         properties,
         snapshotRefreshService,
-        pageRecordSnapshotRefreshService);
+        pageRecordSnapshotRefreshService,
+        new FactPublicationTransaction());
   }
 
   @Test

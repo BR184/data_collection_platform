@@ -282,6 +282,19 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertNotIn("down -v", content)
         self.assertNotIn("volume rm", content)
 
+    def test_incremental_readme_distinguishes_release_baseline_from_live_deployment_directory(self):
+        context = self.build_context()
+
+        content = MODULE.incremental_readme(context)
+
+        self.assertIn("cd <现有部署目录>", content)
+        self.assertIn("ls -la .env docker-compose.yml", content)
+        self.assertIn("docker compose --env-file .env config --images", content)
+        self.assertIn("cat upgrade-backups/latest-backup.txt", content)
+        self.assertIn("打包基线交付物（用于识别现场升级前镜像，不是现场部署目录）", content)
+        self.assertIn("## 5. 事实层重建", content)
+        self.assertNotIn(f"cd {context.baseline_name}", content)
+
     def test_upgrade_script_does_not_request_fact_rebuild_when_release_does_not_require_it(self):
         context = MODULE.BuildContext(**{**self.build_context().__dict__, "require_fact_rebuild": False})
 

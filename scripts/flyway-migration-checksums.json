@@ -99,5 +99,6 @@
   "V20260723_01__seed_customer_issue_customer_aliases.sql": "ca53ca2a93b16a8769523d2e766674fabc4494a270347639483721021c7faeed",
   "V20260727_01__issue_scope_catalog_schema.sql": "89912d36ee5c667c6af92072ccc6dcf99d3a37468b714165055ea3d7fea053a4",
   "V20260727_02__migrate_issue_scope_catalog_data.sql": "2828fa0ab9e26cefce77514222a7f96ee520fe879a88fece50e2a34d21e8a479",
-  "V20260727_03__remove_legacy_testing_phase_catalog.sql": "1734276db1b27cc27d160f0c42b265b46f9f8ed1ea4140ca20ed5e26052b81a3"
+  "V20260727_03__remove_legacy_testing_phase_catalog.sql": "1734276db1b27cc27d160f0c42b265b46f9f8ed1ea4140ca20ed5e26052b81a3",
+  "V20260727_04__reconcile_customer_milestone_scope_members.sql": "2c3664d25ece325acc3880608a1a170148b06f2ec3676e3d284f63e430e388cb"
 }
