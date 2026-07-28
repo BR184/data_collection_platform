@@ -984,7 +984,7 @@ public class FactBuildService {
     fact.setSeverityAlias(IssueFactNormalizationRules.normalizeSeverityAlias(labels));
     fact.setPriorityLevel(priorityLevel);
     fact.setUrgency(priorityLevel);
-    fact.setBugStatus(IssueFactNormalizationRules.normalizeBugStatus(labels, closed));
+    fact.setBugStatus(IssueFactNormalizationRules.normalizeBugStatus(labels));
     fact.setCategory(IssueFactNormalizationRules.normalizeCategory(labels));
     fact.setReasonCategory(customerIssue
         ? IssueFactNormalizationRules.normalizeCustomerIssueReasonCategory(labels, notesText)

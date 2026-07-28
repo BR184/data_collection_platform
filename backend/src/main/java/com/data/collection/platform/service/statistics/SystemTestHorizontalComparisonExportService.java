@@ -522,7 +522,12 @@ public class SystemTestHorizontalComparisonExportService {
     List<String> predicates = new ArrayList<>();
     List<Object> args = new ArrayList<>();
     predicates.add("deleted = false");
-    predicates.add(resolvedPhasePredicate(resolvedPhases, args));
+    SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
+        SystemTestPhaseMembershipPolicy.sqlPredicate(
+            resolvedPhases,
+            SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER);
+    predicates.add("(" + phasePredicate.sql() + ")");
+    args.addAll(phasePredicate.args());
     predicates.add("((" + SystemTestSuggestionMetricSupport.regularMetricSql(null) + ") or ("
         + SystemTestSuggestionMetricSupport.suggestionMetricSql(null) + "))");
     if (StringUtils.hasText(scope.projectName())) {
@@ -576,16 +581,6 @@ public class SystemTestHorizontalComparisonExportService {
     }
     return phaseScopeResolver.resolvePhases(
         SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID, phase);
-  }
-
-  private String resolvedPhasePredicate(List<String> resolvedPhases, List<Object> args) {
-    List<String> parts = new ArrayList<>();
-    for (String phase : resolvedPhases) {
-      String normalized = phase.toLowerCase(Locale.ROOT);
-      parts.add("lower(coalesce(testing_phase, '')) = ?");
-      args.add(normalized);
-    }
-    return "(" + String.join(" or ", parts) + ")";
   }
 
   private IssueExportSource mapIssueSource(ResultSet rs, int rowNum) throws SQLException {

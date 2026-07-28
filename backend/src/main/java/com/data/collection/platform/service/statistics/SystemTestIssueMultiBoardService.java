@@ -60,7 +60,8 @@ public class SystemTestIssueMultiBoardService {
   public SystemTestIssueMultiBoardResponse getBoard(Long projectId, String testingPhase) {
     ScopeContext scope = resolveScope(projectId, testingPhase);
     List<IssueRow> rows = loadRows(scope);
-    List<SystemTestIssueMultiBoardResponse.Chart> charts = buildCharts(rows, scope);
+    List<IssueRow> exactRows = exactPhaseRows(rows, scope);
+    List<SystemTestIssueMultiBoardResponse.Chart> charts = buildCharts(rows, exactRows, scope);
     return new SystemTestIssueMultiBoardResponse(
         new SystemTestIssueMultiBoardResponse.Scope(
             scope.projectId(),
@@ -78,11 +79,13 @@ public class SystemTestIssueMultiBoardService {
   public byte[] exportChart(Long projectId, String testingPhase, String chartKey) {
     ScopeContext scope = resolveScope(projectId, testingPhase);
     List<IssueRow> rows = loadRows(scope);
-    SystemTestIssueMultiBoardResponse.Chart chart = buildCharts(rows, scope).stream()
+    List<IssueRow> exactRows = exactPhaseRows(rows, scope);
+    SystemTestIssueMultiBoardResponse.Chart chart = buildCharts(rows, exactRows, scope).stream()
         .filter(item -> item.key().equals(chartKey))
         .findFirst()
         .orElseThrow(() -> new IllegalArgumentException("未知的议题多元看板图表：" + chartKey));
-    return SystemTestIssueMultiBoardWorkbookExporter.export(chart, rows);
+    return SystemTestIssueMultiBoardWorkbookExporter.export(
+        chart, rowsForChart(chartKey, rows, exactRows));
   }
 
   public String exportFilename(Long projectId, String testingPhase, String chartKey) {
@@ -149,16 +152,20 @@ public class SystemTestIssueMultiBoardService {
         description);
   }
 
-  private List<SystemTestIssueMultiBoardResponse.Chart> buildCharts(List<IssueRow> rows, ScopeContext scope) {
+  private List<SystemTestIssueMultiBoardResponse.Chart> buildCharts(
+      List<IssueRow> containsRows, List<IssueRow> exactRows, ScopeContext scope) {
+    List<IssueRow> rows = containsRows;
     List<IssueRow> regularRows = rows.stream().filter(IssueRow::isRegularMetricIssue).toList();
+    List<IssueRow> exactRegularRows =
+        exactRows.stream().filter(IssueRow::isRegularMetricIssue).toList();
     return List.of(
         severityPie(rows, scope),
-        phaseSeverity(rows, scope),
-        moduleSeverity(rows, scope),
+        phaseSeverity(exactRows, scope),
+        moduleSeverity(exactRows, scope),
         majorCausePie(regularRows, scope),
         causeDetail(regularRows, scope),
         moduleRepairRate(regularRows, scope),
-        openSeverityPie(regularRows, scope),
+        openSeverityPie(exactRegularRows, scope),
         fixUserSeverity(rows, scope),
         extensionModulePie(regularRows, scope),
         delayCause(rows, scope),
@@ -532,10 +539,12 @@ public class SystemTestIssueMultiBoardService {
             SystemTestSuggestionMetricSupport.suggestionMetricSql(null)));
     args.add(scope.projectId());
     if (!scope.expandedTestingPhases().isEmpty()) {
-      sql.append(" and testing_phase in (");
-      sql.append(scope.expandedTestingPhases().stream().map(ignored -> "?").collect(Collectors.joining(", ")));
-      sql.append(")");
-      args.addAll(scope.expandedTestingPhases());
+      SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
+          SystemTestPhaseMembershipPolicy.sqlPredicate(
+              scope.expandedTestingPhases(),
+              SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER);
+      sql.append(" and (").append(phasePredicate.sql()).append(")");
+      args.addAll(phasePredicate.args());
     }
     sql.append(" order by issue_iid asc");
     return jdbcTemplate.query(sql.toString(), this::mapIssueRow, args.toArray());
@@ -637,6 +646,25 @@ public class SystemTestIssueMultiBoardService {
       return ordered;
     }
     return List.copyOf(actual);
+  }
+
+  private List<IssueRow> exactPhaseRows(List<IssueRow> rows, ScopeContext scope) {
+    if (scope.expandedTestingPhases().isEmpty()) {
+      return rows;
+    }
+    return rows.stream()
+        .filter(
+            row ->
+                SystemTestPhaseMembershipPolicy.matches(
+                    row.testingPhase(),
+                    scope.expandedTestingPhases(),
+                    SystemTestPhaseMembershipPolicy.MatchMode.EXACT_MEMBER))
+        .toList();
+  }
+
+  private List<IssueRow> rowsForChart(
+      String chartKey, List<IssueRow> containsRows, List<IssueRow> exactRows) {
+    return EXACT_PHASE_CHART_KEYS.contains(chartKey) ? exactRows : containsRows;
   }
 
   private List<String> topModules(List<IssueRow> rows, int limit) {
@@ -857,6 +885,9 @@ public class SystemTestIssueMultiBoardService {
               "system-test-defect-summary",
               "COUNT(回退类常规缺陷) GROUP BY 模块",
               "回退按事实标记、标题或标签规则识别，多模块分别计数。"));
+
+  private static final Set<String> EXACT_PHASE_CHART_KEYS =
+      Set.of("phase-severity", "module-severity", "open-issue");
 
   private record ScopeContext(
       Long projectId,

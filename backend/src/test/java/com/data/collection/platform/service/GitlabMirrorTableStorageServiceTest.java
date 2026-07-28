@@ -1,9 +1,13 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.JsonUtils;
@@ -16,6 +20,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
+import org.mockito.InOrder;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 class GitlabMirrorTableStorageServiceTest {
@@ -130,5 +135,148 @@ class GitlabMirrorTableStorageServiceTest {
         sqlCaptor.capture(),
         ArgumentMatchers.any(org.springframework.jdbc.core.BatchPreparedStatementSetter.class));
     assertThat(sqlCaptor.getValue()).doesNotContain("where excluded.\"updated_at\"");
+  }
+
+  @Test
+  void replaceAuthoritativeScopeShouldDeleteOnlyMissingRowsAndUpsertCurrentRows() {
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    JsonUtils jsonUtils = mock(JsonUtils.class);
+    GitlabMirrorTableStorageService service = new GitlabMirrorTableStorageService(jdbcTemplate, jsonUtils);
+    SourceTableSchema schema = issueAssigneeSchema();
+    List<Map<String, Object>> rows = List.of(Map.of("issue_id", 101L, "user_id", 8L));
+    when(jdbcTemplate.queryForList(ArgumentMatchers.anyString(), eq("101")))
+        .thenReturn(
+            List.of(
+                Map.of("issue_id", "101", "user_id", "7"),
+                Map.of("issue_id", "101", "user_id", "8")));
+    when(jdbcTemplate.update(
+            ArgumentMatchers.anyString(), eq(501L), eq("101"), eq("7")))
+        .thenReturn(1);
+    when(jsonUtils.toJson(rows.get(0))).thenReturn("{\"issue_id\":101,\"user_id\":8}");
+    when(jdbcTemplate.batchUpdate(
+            ArgumentMatchers.anyString(),
+            ArgumentMatchers.any(org.springframework.jdbc.core.BatchPreparedStatementSetter.class)))
+        .thenReturn(new int[] {1});
+
+    var result = service.replaceAuthoritativeScope(schema, "issue_id", "101", rows, 501L);
+
+    assertThat(result.attemptedRows()).isEqualTo(1);
+    assertThat(result.appliedRows()).isEqualTo(2);
+    InOrder ordered = inOrder(jdbcTemplate);
+    ordered.verify(jdbcTemplate).queryForList(ArgumentMatchers.anyString(), eq("101"));
+    ordered.verify(jdbcTemplate).update(
+        ArgumentMatchers.anyString(), eq(501L), eq("101"), eq("7"));
+    ordered.verify(jdbcTemplate).batchUpdate(
+        ArgumentMatchers.anyString(),
+        ArgumentMatchers.any(org.springframework.jdbc.core.BatchPreparedStatementSetter.class));
+  }
+
+  @Test
+  void replaceAuthoritativeScopeShouldClearTargetScopeWhenSourceIsEmpty() {
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    GitlabMirrorTableStorageService service =
+        new GitlabMirrorTableStorageService(jdbcTemplate, mock(JsonUtils.class));
+    SourceTableSchema schema = issueAssigneeSchema();
+    when(jdbcTemplate.queryForList(ArgumentMatchers.anyString(), eq("101")))
+        .thenReturn(List.of(Map.of("issue_id", "101", "user_id", "7")));
+    when(jdbcTemplate.update(
+            ArgumentMatchers.anyString(), eq(501L), eq("101"), eq("7")))
+        .thenReturn(1);
+
+    var result = service.replaceAuthoritativeScope(schema, "issue_id", "101", List.of(), 501L);
+
+    assertThat(result.appliedRows()).isEqualTo(1);
+    verify(jdbcTemplate, never()).batchUpdate(
+        ArgumentMatchers.anyString(),
+        ArgumentMatchers.any(org.springframework.jdbc.core.BatchPreparedStatementSetter.class));
+  }
+
+  @Test
+  void replaceAuthoritativeLabelScopeShouldPreserveCurrentRowsAcrossTargetTypes() {
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    JsonUtils jsonUtils = mock(JsonUtils.class);
+    GitlabMirrorTableStorageService service =
+        new GitlabMirrorTableStorageService(jdbcTemplate, jsonUtils);
+    SourceTableSchema schema = labelLinkSchema();
+    List<Map<String, Object>> currentRows =
+        List.of(
+            Map.of("label_id", 8L, "target_id", 101L, "target_type", "MergeRequest"));
+    when(jdbcTemplate.queryForList(ArgumentMatchers.anyString(), eq("101")))
+        .thenReturn(
+            List.of(
+                Map.of("label_id", "7", "target_id", "101", "target_type", "Issue"),
+                Map.of("label_id", "8", "target_id", "101", "target_type", "MergeRequest")));
+    when(jdbcTemplate.update(
+            ArgumentMatchers.anyString(),
+            eq(501L),
+            eq("7"),
+            eq("101"),
+            eq("Issue")))
+        .thenReturn(1);
+    when(jsonUtils.toJson(currentRows.get(0)))
+        .thenReturn("{\"label_id\":8,\"target_id\":101,\"target_type\":\"MergeRequest\"}");
+    when(jdbcTemplate.batchUpdate(
+            ArgumentMatchers.anyString(),
+            ArgumentMatchers.any(org.springframework.jdbc.core.BatchPreparedStatementSetter.class)))
+        .thenReturn(new int[] {1});
+
+    var result =
+        service.replaceAuthoritativeScope(schema, "target_id", "101", currentRows, 501L);
+
+    assertThat(result.appliedRows()).isEqualTo(2);
+    verify(jdbcTemplate)
+        .update(
+            ArgumentMatchers.anyString(),
+            eq(501L),
+            eq("7"),
+            eq("101"),
+            eq("Issue"));
+    verify(jdbcTemplate, never())
+        .update(
+            ArgumentMatchers.anyString(),
+            eq(501L),
+            eq("8"),
+            eq("101"),
+            eq("MergeRequest"));
+  }
+
+  @Test
+  void replaceAuthoritativeScopeShouldRejectRowsOutsideTargetBeforeMutation() {
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    GitlabMirrorTableStorageService service =
+        new GitlabMirrorTableStorageService(jdbcTemplate, mock(JsonUtils.class));
+
+    assertThatThrownBy(
+            () ->
+                service.replaceAuthoritativeScope(
+                    issueAssigneeSchema(),
+                    "issue_id",
+                    "101",
+                    List.of(Map.of("issue_id", 102L, "user_id", 7L)),
+                    501L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("权威范围");
+    verifyNoInteractions(jdbcTemplate);
+  }
+
+  private SourceTableSchema issueAssigneeSchema() {
+    return new SourceTableSchema(
+        "ods_gitlab_issue_assignees",
+        List.of("issue_id", "user_id"),
+        null,
+        List.of(
+            new SourceTableColumn("issue_id", "bigint", false, 1),
+            new SourceTableColumn("user_id", "bigint", false, 2)));
+  }
+
+  private SourceTableSchema labelLinkSchema() {
+    return new SourceTableSchema(
+        "ods_gitlab_label_links",
+        List.of("label_id", "target_id", "target_type"),
+        null,
+        List.of(
+            new SourceTableColumn("label_id", "bigint", false, 1),
+            new SourceTableColumn("target_id", "bigint", false, 2),
+            new SourceTableColumn("target_type", "text", false, 3)));
   }
 }

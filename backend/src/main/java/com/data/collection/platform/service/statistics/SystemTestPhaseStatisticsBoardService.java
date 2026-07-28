@@ -179,7 +179,8 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     List<StatisticFilterOption> phaseOptions = phaseOptionsFromDefinitions(phaseDefinitions);
     StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
     effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
-    String selectedTestingPhase = SystemTestPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    String selectedTestingPhase =
+        SystemTestPhaseMembershipPolicy.selectedTestingPhase(effectiveFilterGroup);
     StatisticBoardDefinition definition = buildDefinition(phaseOptions);
     StatisticFilterGroup appliedGroup = effectiveFilterGroup;
     return snapshotService.readOrRefresh(
@@ -368,8 +369,13 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
             .filter(issue -> StringUtils.hasText(issue.primaryPhaseLabel()))
             .toList();
     List<IssueSource> valid = scoped.stream().filter(IssueSource::isVisibleForRegularOrSuggestionColumn).toList();
+    SystemTestPhaseMembershipPolicy.Membership phaseMembership =
+        SystemTestPhaseMembershipPolicy.membership(
+            filterGroup,
+            phaseScopeResolver,
+            SystemTestPhaseMembershipPolicy.MatchMode.EXACT_MEMBER);
     List<IssueSource> filtered =
-        valid.stream().filter(issue -> SystemTestPhaseFilterSupport.matches(issue, filterGroup, phaseScopeResolver)).toList();
+        valid.stream().filter(phaseMembership::matches).toList();
     List<IssueSource> configured =
         filtered.stream()
             .filter(issue -> isConfiguredPhase(issue.primaryPhaseLabel(), phaseDefinitions))
@@ -421,7 +427,8 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   private StatisticFilterGroup applyDefaultTestingPhase(
       StatisticFilterGroup filterGroup,
       List<StatisticFilterOption> phaseOptions) {
-    if (StringUtils.hasText(SystemTestPhaseFilterSupport.selectedTestingPhase(filterGroup))) {
+    if (StringUtils.hasText(
+        SystemTestPhaseMembershipPolicy.selectedTestingPhase(filterGroup))) {
       return filterGroup;
     }
     String defaultPhase = defaultTestingPhase(phaseOptions);
@@ -451,7 +458,8 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       Map<String, String> filters,
       StatisticFilterGroup effectiveFilterGroup) {
     Map<String, String> applied = new LinkedHashMap<>(withoutReservedFilters(filters));
-    String selectedTestingPhase = SystemTestPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    String selectedTestingPhase =
+        SystemTestPhaseMembershipPolicy.selectedTestingPhase(effectiveFilterGroup);
     if (StringUtils.hasText(selectedTestingPhase)) {
       applied.put(TESTING_PHASE_FIELD, selectedTestingPhase);
     }
@@ -573,8 +581,11 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
     queryFilters.remove(TESTING_PHASE_FIELD);
     Long projectId = effectiveProjectId(queryFilters);
-    SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.legacyExactPhasePredicate(filterGroup, phaseScopeResolver);
+    SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
+        SystemTestPhaseMembershipPolicy.sqlPredicate(
+            filterGroup,
+            phaseScopeResolver,
+            SystemTestPhaseMembershipPolicy.MatchMode.EXACT_MEMBER);
     try {
       List<IssueSource> facts = ensureFactsReady(projectId, queryFilters, phasePredicate);
       return facts.isEmpty() ? List.of() : facts;
@@ -588,7 +599,10 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     return realtimeIncrementalRefreshService.requestIncrementalRefresh(BOARD_KEY, REALTIME_REFRESH_TABLES);
   }
 
-  private List<IssueSource> ensureFactsReady(Long projectId, Map<String, String> filters, SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate) {
+  private List<IssueSource> ensureFactsReady(
+      Long projectId,
+      Map<String, String> filters,
+      SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate) {
     List<IssueSource> facts = loadSourcesFromFact(projectId, filters, phasePredicate);
     if (!facts.isEmpty()) {
       return facts;
@@ -597,7 +611,10 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     return List.of();
   }
 
-  private List<IssueSource> loadSourcesFromFact(Long projectId, Map<String, String> filters, SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate) {
+  private List<IssueSource> loadSourcesFromFact(
+      Long projectId,
+      Map<String, String> filters,
+      SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate) {
     Map<String, String> mergedFilters = new LinkedHashMap<>();
     if (filters != null) {
       mergedFilters.putAll(filters);
@@ -616,8 +633,11 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     if (projectId != null) {
       queryFilters.put("projectId", String.valueOf(projectId));
     }
-    SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.legacyExactPhasePredicate(filterGroup, phaseScopeResolver);
+    SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
+        SystemTestPhaseMembershipPolicy.sqlPredicate(
+            filterGroup,
+            phaseScopeResolver,
+            SystemTestPhaseMembershipPolicy.MatchMode.EXACT_MEMBER);
     try {
       return issueFactQueryService.query(
               BOARD_AGGREGATE_SQL,

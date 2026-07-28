@@ -61,7 +61,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         StatisticBoardIssueWorkbookExportSupport {
   private static final String BOARD_KEY = "system-test-defect-summary";
   private static final String MODULE_FIELD = "moduleName";
-  private static final String RULE_VERSION = "system-test-defect-summary@2026-07-22-v12";
+  private static final String RULE_VERSION = "system-test-defect-summary@2026-07-28-v13";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -238,7 +238,9 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   @Override
   public String exportIssueRecordsFilename(Map<String, String> filters) {
-    String phase = selectedTestingPhase(parseFilterGroup(filters, buildDefinition()));
+    String phase =
+        SystemTestPhaseMembershipPolicy.selectedTestingPhase(
+            parseFilterGroup(filters, buildDefinition()));
     if (StringUtils.hasText(phase)) {
       return phase + "-全量议题数据.xlsx";
     }
@@ -252,7 +254,9 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   @Override
   public String exportFilename(Map<String, String> filters) {
-    String phase = selectedTestingPhase(parseFilterGroup(filters, buildDefinition()));
+    String phase =
+        SystemTestPhaseMembershipPolicy.selectedTestingPhase(
+            parseFilterGroup(filters, buildDefinition()));
     if (StringUtils.hasText(phase)) {
       return phase + "-系统测试缺陷汇总统计.xlsx";
     }
@@ -488,7 +492,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       Map<String, String> filters,
       EffectiveFilterGroup effectiveFilterGroup,
       StatisticBoardDefinition definition) {
-    String selectedPhase = selectedTestingPhase(effectiveFilterGroup.userGroup());
+    String selectedPhase =
+        SystemTestPhaseMembershipPolicy.selectedTestingPhase(effectiveFilterGroup.userGroup());
     Map<String, String> payload = new LinkedHashMap<>(withoutReservedFilters(filters));
     if (StringUtils.hasText(selectedPhase)) {
       payload.put("testingPhase", selectedPhase);
@@ -615,7 +620,12 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       return List.of();
     }
     return scopedSources.stream()
-        .filter(issue -> issue.matchesAnyTestingPhaseLike(enabledPhaseValues))
+        .filter(
+            issue ->
+                SystemTestPhaseMembershipPolicy.matches(
+                    issue.testingPhase(),
+                    enabledPhaseValues,
+                    SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER))
         .filter(issue -> matchesModuleDirectoryFilters(issue, effectiveFilterGroup, phaseValueCache))
         .toList();
   }
@@ -703,33 +713,19 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   }
 
   private void alignTestingPhaseSqlFilter(Map<String, String> queryFilters, StatisticFilterGroup filterGroup) {
-    String selectedPhase = selectedTestingPhase(filterGroup);
+    String selectedPhase = SystemTestPhaseMembershipPolicy.selectedTestingPhase(filterGroup);
     if (selectedPhase == null) {
       queryFilters.remove("testingPhase");
       return;
     }
     List<String> resolvedPhases = legacyPhaseValues(selectedPhase, new LinkedHashMap<>());
-    boolean selectedCanBeUsedAsSqlContains =
-        !resolvedPhases.isEmpty()
-            && resolvedPhases.stream().allMatch(phase -> containsIgnoreCase(phase, selectedPhase));
-    if (!selectedCanBeUsedAsSqlContains) {
+    String prefilter =
+        SystemTestPhaseMembershipPolicy.containsPrefilterValue(selectedPhase, resolvedPhases);
+    if (prefilter == null) {
       queryFilters.remove("testingPhase");
       return;
     }
-    queryFilters.put("testingPhase", selectedPhase);
-  }
-
-  private String selectedTestingPhase(StatisticFilterGroup filterGroup) {
-    if (filterGroup == null || filterGroup.conditions() == null) {
-      return null;
-    }
-    return filterGroup.conditions().stream()
-        .filter(condition -> condition != null && "testingPhase".equals(condition.fieldKey()))
-        .map(StatisticFilterCondition::value)
-        .map(this::trimTextToNull)
-        .filter(java.util.Objects::nonNull)
-        .findFirst()
-        .orElse(null);
+    queryFilters.put("testingPhase", prefilter);
   }
 
   private List<StatisticFilterOption> loadPhaseOptions() {
@@ -941,9 +937,19 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       IssueSource issue, String operator, String value, Map<String, List<String>> phaseValueCache) {
     List<String> legacyPhaseValues = legacyPhaseValues(value, phaseValueCache);
     return switch (operator) {
-      case "eq" -> value == null || issue.matchesAnyTestingPhaseLike(legacyPhaseValues);
-      case "ne" -> value == null || !issue.matchesAnyTestingPhaseLike(legacyPhaseValues);
-      case "contains" -> value == null || issue.matchesTestingPhaseLike(value);
+      case "eq" ->
+          value == null
+              || SystemTestPhaseMembershipPolicy.matches(
+                  issue.testingPhase(),
+                  legacyPhaseValues,
+                  SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER);
+      case "ne" ->
+          value == null
+              || !SystemTestPhaseMembershipPolicy.matches(
+                  issue.testingPhase(),
+                  legacyPhaseValues,
+                  SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER);
+      case "contains" -> value == null || containsIgnoreCase(issue.testingPhase(), value);
       case "isEmpty" -> !StringUtils.hasText(issue.testingPhase());
       case "isNotEmpty" -> StringUtils.hasText(issue.testingPhase());
       default -> true;
@@ -1361,17 +1367,6 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     boolean isLegacyOpenForLevel23() { return !containsAny(bugStatus, LEGACY_FIXED_STATUS_TOKENS); }
     boolean hasExtensionLabel() { return contains(bugStatus, "申请延期") || labels.contains("申请延期"); }
     boolean isRetestFailed() { return contains(bugStatus, "未修复"); }
-    boolean matchesAnyTestingPhaseLike(List<String> expectedPhases) {
-      if (expectedPhases == null || expectedPhases.isEmpty()) {
-        return false;
-      }
-      return expectedPhases.stream().anyMatch(this::matchesTestingPhaseLike);
-    }
-    boolean matchesTestingPhaseLike(String expectedPhase) {
-      return StringUtils.hasText(testingPhase)
-          && StringUtils.hasText(expectedPhase)
-          && testingPhase.toLowerCase(Locale.ROOT).contains(expectedPhase.toLowerCase(Locale.ROOT));
-    }
     String displaySeverityLevel() {
       return IssueDisplayValueSupport.displaySeverityLevelOrBlank(severityLevel);
     }

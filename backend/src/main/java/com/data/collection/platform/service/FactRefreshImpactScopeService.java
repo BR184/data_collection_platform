@@ -155,7 +155,6 @@ public class FactRefreshImpactScopeService {
                 on i.id = ll.target_id
                and coalesce(i.mirror_deleted, false) = false
              where ll.mirror_task_id = ?
-               and coalesce(ll.mirror_deleted, false) = false
                and ll.target_type = 'Issue'
                and i.project_id is not null
                and i.iid is not null
@@ -174,7 +173,6 @@ public class FactRefreshImpactScopeService {
                 on i.id = ia.issue_id
                and coalesce(i.mirror_deleted, false) = false
              where ia.mirror_task_id = ?
-               and coalesce(ia.mirror_deleted, false) = false
                and i.project_id is not null
                and i.iid is not null
             """.formatted(assignees, issues),
@@ -245,7 +243,6 @@ public class FactRefreshImpactScopeService {
                 on mr.id = jt.merge_request_id
                and coalesce(mr.mirror_deleted, false) = false
              where jt.mirror_task_id = ?
-               and coalesce(jt.mirror_deleted, false) = false
                and mr.target_project_id is not null
                and mr.iid is not null
             """.formatted(joinTable, mergeRequests),
@@ -282,7 +279,6 @@ public class FactRefreshImpactScopeService {
                 on mr.id = ll.target_id
                and coalesce(mr.mirror_deleted, false) = false
              where ll.mirror_task_id = ?
-               and coalesce(ll.mirror_deleted, false) = false
                and ll.target_type = 'MergeRequest'
                and mr.target_project_id is not null
                and mr.iid is not null

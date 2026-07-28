@@ -32,7 +32,7 @@ public class SyncRunFactRefreshListener {
     submissionService.submitFactRefresh(
         config,
         event.runId(),
-        event.fullSync() && event.successful(),
+        event.requiresFullFactRefresh() && event.successful(),
         MIRROR_COMPLETION_REFRESH_REASON);
   }
 }

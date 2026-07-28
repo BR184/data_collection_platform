@@ -13,13 +13,16 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class GitlabMirrorTableStorageService {
@@ -67,6 +70,42 @@ public class GitlabMirrorTableStorageService {
       }
     }
     return new MirrorBatchWriteResult(rows.size(), appliedRows, skippedConflicts);
+  }
+
+  /**
+   * 以来源查询结果权威替换指定 lookup 范围，并在同一事务内完成缺失行删除与当前行写入。
+   *
+   * @param mirrorSchema 镜像表结构，必须包含 lookup 列和完整主键
+   * @param lookupColumn 定义权威范围的来源列
+   * @param lookupValue 定义权威范围的非空值
+   * @param rows 来源当前返回的完整范围集合，空集合表示清空该范围
+   * @param taskId 当前同步任务编号，用于变更追踪
+   * @return 来源行数、实际写入与删除总数及跳过冲突数
+   * @throws IllegalArgumentException lookup 契约无效或来源行越出声明范围时抛出
+   */
+  @Transactional
+  public MirrorBatchWriteResult replaceAuthoritativeScope(
+      SourceTableSchema mirrorSchema,
+      String lookupColumn,
+      Object lookupValue,
+      List<Map<String, Object>> rows,
+      Long taskId) {
+    List<Map<String, Object>> sourceRows = rows == null ? List.of() : new ArrayList<>(rows);
+    validateAuthoritativeScope(mirrorSchema, lookupColumn, lookupValue, sourceRows);
+    List<String> primaryKeys = PrimaryKeySignatureSupport.primaryKeyColumns(mirrorSchema);
+    Set<String> sourceSignatures = sourceRows.stream()
+        .map(row -> PrimaryKeySignatureSupport.signature(primaryKeys, row))
+        .collect(Collectors.toCollection(HashSet::new));
+    List<Map<String, Object>> mirrorOnlyRows = listActivePrimaryKeysByLookup(
+            mirrorSchema, lookupColumn, lookupValue).stream()
+        .filter(row -> !sourceSignatures.contains(PrimaryKeySignatureSupport.signature(primaryKeys, row)))
+        .toList();
+    int deletedRows = markRowsDeletedByPrimaryKeys(mirrorSchema, mirrorOnlyRows, taskId);
+    MirrorBatchWriteResult writeResult = upsertBatch(mirrorSchema, sourceRows, taskId, true);
+    return new MirrorBatchWriteResult(
+        sourceRows.size(),
+        deletedRows + writeResult.appliedRows(),
+        writeResult.skippedConflicts());
   }
 
   public int markRowsDeleted(SourceTableSchema mirrorSchema, String lookupColumn, Object lookupValue, Long taskId) {
@@ -118,6 +157,48 @@ public class GitlabMirrorTableStorageService {
       }
     }
     return jdbcTemplate.update(sql, args.toArray());
+  }
+
+  private List<Map<String, Object>> listActivePrimaryKeysByLookup(
+      SourceTableSchema mirrorSchema, String lookupColumn, Object lookupValue) {
+    List<String> primaryKeys = PrimaryKeySignatureSupport.primaryKeyColumns(mirrorSchema);
+    String sql = """
+        select %s
+          from %s
+         where %s::text = ?
+           and coalesce(mirror_deleted, false) = false
+        """.formatted(
+        primaryKeys.stream()
+            .map(primaryKey -> quoteIdentifier(primaryKey) + "::text as " + quoteIdentifier(primaryKey))
+            .collect(Collectors.joining(", ")),
+        quoteIdentifier(mirrorSchema.tableName()),
+        quoteIdentifier(lookupColumn));
+    return jdbcTemplate.queryForList(sql, Objects.toString(lookupValue, ""));
+  }
+
+  private void validateAuthoritativeScope(
+      SourceTableSchema mirrorSchema,
+      String lookupColumn,
+      Object lookupValue,
+      List<Map<String, Object>> rows) {
+    if (mirrorSchema == null || lookupColumn == null || lookupColumn.isBlank() || lookupValue == null) {
+      throw new IllegalArgumentException("权威范围必须声明有效镜像表、lookup 列和值");
+    }
+    boolean lookupExists = mirrorSchema.columns().stream()
+        .map(SourceTableColumn::columnName)
+        .anyMatch(lookupColumn::equals);
+    if (!lookupExists) {
+      throw new IllegalArgumentException("权威范围 lookup 列不属于镜像表：" + lookupColumn);
+    }
+    String expectedValue = Objects.toString(lookupValue, "");
+    List<String> primaryKeys = PrimaryKeySignatureSupport.primaryKeyColumns(mirrorSchema);
+    boolean containsOutOfScopeRow = rows.stream()
+        .anyMatch(row -> row == null
+            || !expectedValue.equals(Objects.toString(row.get(lookupColumn), ""))
+            || primaryKeys.stream().anyMatch(primaryKey -> row.get(primaryKey) == null));
+    if (containsOutOfScopeRow) {
+      throw new IllegalArgumentException("来源结果包含权威范围之外的行：" + lookupColumn);
+    }
   }
 
   public MirrorPrimaryKeyBatch listActivePrimaryKeys(

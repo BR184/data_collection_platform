@@ -77,6 +77,7 @@ public class SyncRunWorkerService {
     }
     tableWorkerService.drainRunTasks(run.getId(), resolveTableWorkerCount(run));
     SyncRunTableWorkerService.RunTableTaskSummary summary = tableWorkerService.summarizeRun(run.getId());
+    planned = Math.max(planned, summary.plannedTasks());
     run.setScannedRows(summary.scannedRows());
     run.setAppliedRows(summary.appliedRows());
     if (isCancellationRequested(run) || isDeadlineExpired(run)) {

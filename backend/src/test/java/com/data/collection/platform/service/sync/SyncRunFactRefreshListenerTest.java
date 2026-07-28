@@ -77,6 +77,25 @@ class SyncRunFactRefreshListenerTest {
   }
 
   @Test
+  void shouldSubmitFullFactRefreshAfterSuccessfulFullCompensationScan() {
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(1L);
+    when(configService.getConfigById(1L)).thenReturn(config);
+
+    listener.onSyncRunCompleted(
+        new SyncRunCompletionEvent(
+            17L,
+            1L,
+            "alpha",
+            SyncRunType.FULL_COMPENSATION_SCAN,
+            SyncRunStatus.SUCCESS,
+            3L));
+
+    verify(submissionService)
+        .submitFactRefresh(config, 17L, true, "镜像同步已完成，刷新事实层");
+  }
+
+  @Test
   void shouldSkipFailedMirrorRun() {
     listener.onSyncRunCompleted(
         new SyncRunCompletionEvent(16L, 1L, "alpha", SyncRunType.INCREMENTAL_SYNC, SyncRunStatus.FAILED, 8L));

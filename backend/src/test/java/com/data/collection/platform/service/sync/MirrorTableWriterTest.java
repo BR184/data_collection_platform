@@ -60,4 +60,28 @@ class MirrorTableWriterTest {
     assertThat(actual).isEqualTo(expected);
     verify(storageService).upsertBatch(schema, rows, 501L, true);
   }
+
+  @Test
+  void shouldDelegateAuthoritativeScopeReplacementToStorageService() {
+    GitlabMirrorTableStorageService storageService = mock(GitlabMirrorTableStorageService.class);
+    MirrorTableWriter writer = new MirrorTableWriter(storageService);
+    SourceTableSchema schema =
+        new SourceTableSchema(
+            "ods_gitlab_alpha_issue_assignees",
+            List.of("issue_id", "user_id"),
+            null,
+            List.of(
+                new SourceTableColumn("issue_id", "bigint", false, 1),
+                new SourceTableColumn("user_id", "bigint", false, 2)));
+    List<Map<String, Object>> rows = List.of(Map.of("issue_id", 101L, "user_id", 8L));
+    MirrorBatchWriteResult expected = new MirrorBatchWriteResult(1, 2, 0);
+    when(storageService.replaceAuthoritativeScope(schema, "issue_id", "101", rows, 501L))
+        .thenReturn(expected);
+
+    MirrorBatchWriteResult actual =
+        writer.replaceAuthoritativeScope(schema, "issue_id", "101", rows, 501L);
+
+    assertThat(actual).isEqualTo(expected);
+    verify(storageService).replaceAuthoritativeScope(schema, "issue_id", "101", rows, 501L);
+  }
 }

@@ -28,6 +28,7 @@ public class SyncRunTableTaskExecutor {
   private final SyncRunTableStateMapper stateMapper;
   private final SyncRunTableTaskLeaseService taskLeaseService;
   private final SyncTableContinuationPlanner continuationPlanner;
+  private final SyncRunTablePlanningService tablePlanningService;
   private final MirrorReconciliationService reconciliationService;
   private final GitlabConfigService configService;
   private final SourceTableReader sourceTableReader;
@@ -38,6 +39,7 @@ public class SyncRunTableTaskExecutor {
       SyncRunTableStateMapper stateMapper,
       SyncRunTableTaskLeaseService taskLeaseService,
       SyncTableContinuationPlanner continuationPlanner,
+      SyncRunTablePlanningService tablePlanningService,
       MirrorReconciliationService reconciliationService,
       GitlabConfigService configService,
       SourceTableReader sourceTableReader,
@@ -46,6 +48,7 @@ public class SyncRunTableTaskExecutor {
     this.stateMapper = stateMapper;
     this.taskLeaseService = taskLeaseService;
     this.continuationPlanner = continuationPlanner;
+    this.tablePlanningService = tablePlanningService;
     this.reconciliationService = reconciliationService;
     this.configService = configService;
     this.sourceTableReader = sourceTableReader;
@@ -78,7 +81,12 @@ public class SyncRunTableTaskExecutor {
       boolean fullTask = "FULL".equalsIgnoreCase(task.getRowStrategy());
       boolean fullReconcileTask = "FULL_RECONCILE".equalsIgnoreCase(task.getRowStrategy());
       boolean preciseTask = "PRECISE".equalsIgnoreCase(task.getRowStrategy());
-      if (!fullTask && !fullReconcileTask && !preciseTask && !"INCREMENTAL".equalsIgnoreCase(state.getRowStrategy())) {
+      boolean authoritativeTask = "AUTHORITATIVE".equalsIgnoreCase(task.getRowStrategy());
+      boolean scopedTask = preciseTask || authoritativeTask;
+      if (!fullTask
+          && !fullReconcileTask
+          && !scopedTask
+          && !"INCREMENTAL".equalsIgnoreCase(state.getRowStrategy())) {
         throw new IllegalStateException("当前表任务不能由增量同步执行器处理");
       }
       LocalDateTime cursorUpdatedAt = task.getCursorUpdatedAt();
@@ -86,7 +94,7 @@ public class SyncRunTableTaskExecutor {
       boolean shouldProbeSourceWatermark =
           !fullTask
               && !fullReconcileTask
-              && !preciseTask
+              && !scopedTask
               && !hasShard(task)
               && !Boolean.TRUE.equals(state.getDirtyFlag());
       if (shouldProbeSourceWatermark) {
@@ -101,7 +109,7 @@ public class SyncRunTableTaskExecutor {
       }
       if (!fullTask
           && !fullReconcileTask
-          && !preciseTask
+          && !scopedTask
           && cursorUpdatedAt == null
           && isBlank(cursorPk)
           && state.getLastWatermarkAt() != null
@@ -114,7 +122,7 @@ public class SyncRunTableTaskExecutor {
           fullTask || fullReconcileTask
               ? sourceTableReader.readFullBatch(
                   config, option, preparedMirrorTable.mirrorSchema(), task.getCursorPk(), batchSize)
-              : preciseTask
+              : scopedTask
                   ? sourceTableReader.readPrecise(config, option, task.getLookupColumn(), task.getLookupValue())
                   : hasShard(task)
                       ? sourceTableReader.readIncrementalShardBatch(
@@ -136,7 +144,14 @@ public class SyncRunTableTaskExecutor {
       MirrorBatchWriteResult writeResult =
           fullReconcileTask
               ? mirrorTableWriter.writeBatch(preparedMirrorTable.mirrorSchema(), rows, task.getId(), true)
-              : mirrorTableWriter.writeBatch(preparedMirrorTable.mirrorSchema(), rows, task.getId());
+              : authoritativeTask
+                  ? mirrorTableWriter.replaceAuthoritativeScope(
+                      preparedMirrorTable.mirrorSchema(),
+                      task.getLookupColumn(),
+                      task.getLookupValue(),
+                      rows,
+                      task.getId())
+                  : mirrorTableWriter.writeBatch(preparedMirrorTable.mirrorSchema(), rows, task.getId());
       if (isRunCancellationRequested(task.getRunId())) {
         finishTask(task.getId(), (long) rows.size(), (long) writeResult.appliedRows(), "CANCELLED", "同步运行已取消");
         mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
@@ -144,11 +159,12 @@ public class SyncRunTableTaskExecutor {
       }
       RowCursor lastCursor = lastCursor(rows, state, fullTask || fullReconcileTask, hasShard(task));
       boolean hasMore =
-          !preciseTask
+          !scopedTask
               && rows.size() >= batchSize
               && ((fullTask || fullReconcileTask) ? !lastCursor.primaryKey().isBlank() : lastCursor.updatedAt() != null);
       long scannedRows = rows.size();
       long appliedRows = writeResult.appliedRows();
+      tablePlanningService.planAuthoritativeRelatedTasks(task, rows);
       if (fullReconcileTask && !hasMore) {
         MirrorReconciliationService.ReconciliationResult reconciliationResult =
             reconciliationService.reconcileMirrorExtras(

@@ -65,6 +65,33 @@ class SystemTestIssueMultiBoardServiceTest {
   }
 
   @Test
+  void appliesChartSpecificPhaseMembershipToBoardAndWorkbookRows() throws Exception {
+    BoardJdbcTemplate jdbcTemplate = new BoardJdbcTemplate();
+    SystemTestPhaseCatalogService phaseCatalog = mock(SystemTestPhaseCatalogService.class);
+    SystemTestPhaseScopeResolver phaseResolver = mock(SystemTestPhaseScopeResolver.class);
+    when(phaseCatalog.listParentNames(9L)).thenReturn(List.of("CC2026R3"));
+    when(phaseResolver.resolvePhases(9L, "CC2026R3"))
+        .thenReturn(List.of("CC2026R3系统测试"));
+    SystemTestIssueMultiBoardService service =
+        new SystemTestIssueMultiBoardService(
+            jdbcTemplate, phaseCatalog, phaseResolver, new ObjectMapper());
+
+    var board = service.getBoard(9L, "CC2026R3");
+
+    assertThat(pointTotal(board, "severity-level")).isEqualByComparingTo("2");
+    assertThat(seriesTotal(board, "phase-severity")).isEqualByComparingTo("1");
+    assertThat(seriesTotal(board, "module-severity")).isEqualByComparingTo("1");
+    assertThat(pointTotal(board, "open-issue")).isEqualByComparingTo("1");
+    assertThat(jdbcTemplate.lastIssueSql()).contains("testing_phase like ?");
+    assertThat(jdbcTemplate.lastIssueArgs()).contains("%CC2026R3系统测试%");
+
+    assertThat(rawDataRows(service.exportChart(9L, "CC2026R3", "severity-level")))
+        .isEqualTo(2);
+    assertThat(rawDataRows(service.exportChart(9L, "CC2026R3", "phase-severity")))
+        .isEqualTo(1);
+  }
+
+  @Test
   void exportsLegacyWorkbookContractsForChartsThatOwnDetailOrTotalColumns() throws Exception {
     SystemTestIssueMultiBoardService service = service();
 
@@ -138,6 +165,39 @@ class SystemTestIssueMultiBoardServiceTest {
         .toList();
   }
 
+  private java.math.BigDecimal pointTotal(
+      com.data.collection.platform.entity.statistics.SystemTestIssueMultiBoardResponse board,
+      String chartKey) {
+    return board.charts().stream()
+        .filter(chart -> chart.key().equals(chartKey))
+        .findFirst()
+        .orElseThrow()
+        .points()
+        .stream()
+        .map(point -> point.value())
+        .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+  }
+
+  private java.math.BigDecimal seriesTotal(
+      com.data.collection.platform.entity.statistics.SystemTestIssueMultiBoardResponse board,
+      String chartKey) {
+    return board.charts().stream()
+        .filter(chart -> chart.key().equals(chartKey))
+        .findFirst()
+        .orElseThrow()
+        .series()
+        .stream()
+        .flatMap(series -> series.data().stream())
+        .map(point -> point.value())
+        .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+  }
+
+  private int rawDataRows(byte[] content) throws Exception {
+    try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(content))) {
+      return workbook.getSheet("原始数据").getPhysicalNumberOfRows() - 1;
+    }
+  }
+
   private static final List<String> LEGACY_CAUSE_SUMMARY_HEADERS =
       List.of("缺陷原因", "一级缺陷", "二级缺陷", "三级缺陷", "需求&建议类", "共计");
   private static final List<String> LEGACY_SEVERITY_RAW_HEADERS =
@@ -162,13 +222,20 @@ class SystemTestIssueMultiBoardServiceTest {
           "议题类别", "里程碑", "优先级", "缺陷原因", "其他原因", "延期原因", "缺陷修复人");
 
   private static final class BoardJdbcTemplate extends JdbcTemplate {
+    private String lastIssueSql;
+    private List<Object> lastIssueArgs = List.of();
+
     @Override
     public <T> List<T> query(String sql, RowMapper<T> rowMapper, Object... args) {
       if (sql.contains("max(coalesce(project_name")) {
         return List.of(map(rowMapper, projectRow()));
       }
       if (sql.contains("from issue_fact")) {
-        return List.of(map(rowMapper, issueRow()));
+        lastIssueSql = sql;
+        lastIssueArgs = List.of(args);
+        return List.of(
+            map(rowMapper, issueRow(101L, "CC2026R3系统测试")),
+            map(rowMapper, issueRow(102L, "历史阶段 & CC2026R3系统测试")));
       }
       throw new AssertionError("Unexpected query: " + sql);
     }
@@ -200,16 +267,24 @@ class SystemTestIssueMultiBoardServiceTest {
       return row;
     }
 
-    private ResultSet issueRow() {
+    private String lastIssueSql() {
+      return lastIssueSql;
+    }
+
+    private List<Object> lastIssueArgs() {
+      return lastIssueArgs;
+    }
+
+    private ResultSet issueRow(long issueIid, String testingPhase) {
       ResultSet row = mock(ResultSet.class);
       try {
         when(row.getLong("project_id")).thenReturn(9L);
         when(row.getString("project_name")).thenReturn("CrownCAD");
         when(row.getLong("issue_id")).thenReturn(1001L);
-        when(row.getLong("issue_iid")).thenReturn(101L);
+        when(row.getLong("issue_iid")).thenReturn(issueIid);
         when(row.getString("title")).thenReturn("修复后出现回退");
         when(row.getString("issue_state")).thenReturn("opened");
-        when(row.getString("testing_phase")).thenReturn("CC2026R3系统测试");
+        when(row.getString("testing_phase")).thenReturn(testingPhase);
         when(row.getString("severity_level")).thenReturn("LEVEL1");
         when(row.getString("bug_status")).thenReturn("未修复");
         when(row.getString("category")).thenReturn("");

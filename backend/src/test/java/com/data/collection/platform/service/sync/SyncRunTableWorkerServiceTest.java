@@ -48,6 +48,7 @@ class SyncRunTableWorkerServiceTest {
   private GitlabMirrorSchemaService mirrorSchemaService;
   private MirrorTableWriter mirrorTableWriter;
   private SyncTableContinuationPlanner continuationPlanner;
+  private SyncRunTablePlanningService tablePlanningService;
   private MirrorReconciliationService reconciliationService;
   private SyncRunTableTaskExecutor taskExecutor;
   private SyncRunTableWorkerService workerService;
@@ -63,6 +64,7 @@ class SyncRunTableWorkerServiceTest {
     mirrorSchemaService = org.mockito.Mockito.mock(GitlabMirrorSchemaService.class);
     mirrorTableWriter = org.mockito.Mockito.mock(MirrorTableWriter.class);
     continuationPlanner = new SyncTableContinuationPlanner(taskMapper, new GitlabMirrorProperties());
+    tablePlanningService = org.mockito.Mockito.mock(SyncRunTablePlanningService.class);
     reconciliationService =
         new MirrorReconciliationService(sourceTableReader, mirrorTableWriter, taskLeaseService);
     taskExecutor =
@@ -70,6 +72,7 @@ class SyncRunTableWorkerServiceTest {
             stateMapper,
             taskLeaseService,
             continuationPlanner,
+            tablePlanningService,
             reconciliationService,
             configService,
             sourceTableReader,
@@ -345,7 +348,8 @@ class SyncRunTableWorkerServiceTest {
         .thenReturn(rows);
     when(sourceTableReader.findMaxUpdatedAt(eq(config), argThat(option -> "issues".equals(option.tableName()))))
         .thenReturn(maxUpdatedAt);
-    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(1, 1, 0));
+    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L))
+        .thenReturn(new MirrorBatchWriteResult(1, 1, 0));
 
     int processed = workerService.drainRunTasks(77L);
 
@@ -424,7 +428,7 @@ class SyncRunTableWorkerServiceTest {
   void shouldUsePreciseScanForSystemHookTask() {
     SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
     task.setTaskType("SYSTEM_HOOK");
-    task.setRowStrategy("PRECISE");
+    task.setRowStrategy("AUTHORITATIVE");
     task.setLookupColumn("issue_id");
     task.setLookupValue("101");
     SyncRunTableState state = state(null);
@@ -457,13 +461,83 @@ class SyncRunTableWorkerServiceTest {
             eq("issue_id"),
             eq("101")))
         .thenReturn(rows);
-    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(1, 1, 0));
+    when(mirrorTableWriter.replaceAuthoritativeScope(
+            mirrorSchema, "issue_id", "101", rows, 501L))
+        .thenReturn(new MirrorBatchWriteResult(1, 1, 0));
 
     int processed = workerService.drainRunTasks(77L);
 
     assertThat(processed).isEqualTo(1);
     verify(sourceTableReader).readPrecise(eq(config), argThat(option -> "issue_assignees".equals(option.tableName())), eq("issue_id"), eq("101"));
-    verify(jdbcTemplate).update(contains("set status = ?"), eq("SUCCESS"), eq(1L), eq(1L), isNull(), eq(501L));
+    verify(mirrorTableWriter)
+        .replaceAuthoritativeScope(mirrorSchema, "issue_id", "101", rows, 501L);
+    verify(jdbcTemplate)
+        .update(
+            contains("set status = ?"),
+            eq("SUCCESS"),
+            eq(1L),
+            eq(1L),
+            isNull(),
+            isNull(),
+            isNull(),
+            eq(501L));
+  }
+
+  @Test
+  void shouldKeepUpdatedAtPreciseTableOnStandardUpsertPath() {
+    SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
+    task.setTaskType("SYSTEM_HOOK");
+    task.setRowStrategy("PRECISE");
+    task.setLookupColumn("id");
+    task.setLookupValue("101");
+    SyncRunTableState state = state(null);
+    GitlabSyncConfig config = config();
+    SourceTableSchema mirrorSchema =
+        new SourceTableSchema(
+            "ods_gitlab_alpha_issues",
+            List.of("id"),
+            "updated_at",
+            List.of(
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn("updated_at", "timestamp without time zone", true, 2)));
+    List<Map<String, Object>> rows =
+        List.of(
+            Map.of(
+                "id", 101L,
+                "updated_at", LocalDateTime.of(2026, 7, 28, 10, 0)));
+
+    when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(77L)))
+        .thenReturn(false, false, false);
+    when(jdbcTemplate.queryForObject(
+            contains("update sync_run_table_tasks"),
+            any(RowMapper.class),
+            eq("table-worker"),
+            eq(30),
+            eq(77L)))
+        .thenReturn(task)
+        .thenThrow(new EmptyResultDataAccessException(1));
+    when(stateMapper.selectById(91L)).thenReturn(state);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(
+            eq(config), argThat(option -> "issues".equals(option.tableName()))))
+        .thenReturn(
+            new GitlabMirrorSchemaService.PreparedMirrorTable(
+                mirrorSchema, "ods_gitlab_alpha_issues", true, null));
+    when(sourceTableReader.readPrecise(
+            eq(config),
+            argThat(option -> "issues".equals(option.tableName())),
+            eq("id"),
+            eq("101")))
+        .thenReturn(rows);
+    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L))
+        .thenReturn(new MirrorBatchWriteResult(1, 1, 0));
+
+    int processed = workerService.drainRunTasks(77L);
+
+    assertThat(processed).isEqualTo(1);
+    verify(mirrorTableWriter).writeBatch(mirrorSchema, rows, 501L);
+    verify(mirrorTableWriter, never())
+        .replaceAuthoritativeScope(any(), any(), any(), any(), any());
   }
 
   @Test

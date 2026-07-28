@@ -51,7 +51,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardWorkbookExportSupport,
         StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "system-test-defect-cause";
-  private static final String RULE_VERSION = "system-test-defect-cause@2026-07-09-v5";
+  private static final String RULE_VERSION = "system-test-defect-cause@2026-07-28-v6";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "共计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
@@ -197,7 +197,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         applyDefaultTestingPhase(filterGroup, phaseOptions);
     effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
     StatisticBoardDefinition definition = buildDefinition(phaseOptions);
-    String selectedTestingPhase = SystemTestPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    String selectedTestingPhase =
+        SystemTestPhaseMembershipPolicy.selectedTestingPhase(effectiveFilterGroup);
     StatisticFilterGroup appliedGroup = effectiveFilterGroup;
     return snapshotService.readOrRefresh(
         snapshotRequest(filters, appliedGroup, definition, selectedTestingPhase),
@@ -373,7 +374,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   @Override
   public String exportFilename(Map<String, String> filters) {
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(loadPhaseOptions()));
-    String phase = SystemTestPhaseFilterSupport.selectedTestingPhase(filterGroup);
+    String phase = SystemTestPhaseMembershipPolicy.selectedTestingPhase(filterGroup);
     if (StringUtils.hasText(phase)) {
       return phase + "-缺陷原因统计表.xlsx";
     }
@@ -385,8 +386,13 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
     List<IssueSource> scoped = initial.stream().filter(IssueSource::inSystemTestScope).toList();
     List<IssueSource> valid = scoped.stream().filter(issue -> !issue.excluded()).toList();
-      List<IssueSource> phaseFiltered =
-        valid.stream().filter(issue -> SystemTestPhaseFilterSupport.matches(issue, filterGroup, phaseScopeResolver)).toList();
+    SystemTestPhaseMembershipPolicy.Membership phaseMembership =
+        SystemTestPhaseMembershipPolicy.membership(
+            filterGroup,
+            phaseScopeResolver,
+            SystemTestPhaseMembershipPolicy.MatchMode.EXACT_MEMBER);
+    List<IssueSource> phaseFiltered =
+        valid.stream().filter(phaseMembership::matches).toList();
     List<IssueSource> withReason =
         phaseFiltered.stream().filter(IssueSource::hasDefectCause).toList();
     return new RuleFlowSnapshot(
@@ -489,7 +495,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
     queryFilters.remove("testingPhase");
     Long projectId = effectiveProjectId(queryFilters);
-    SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
+    SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
         defectCausePhasePredicate(filterGroup);
     try {
       List<IssueSource> facts = ensureFactsReady(projectId, queryFilters, phasePredicate);
@@ -504,7 +510,10 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     return realtimeIncrementalRefreshService.requestIncrementalRefresh(BOARD_KEY, REALTIME_REFRESH_TABLES);
   }
 
-  private List<IssueSource> ensureFactsReady(Long projectId, Map<String, String> filters, SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate) {
+  private List<IssueSource> ensureFactsReady(
+      Long projectId,
+      Map<String, String> filters,
+      SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate) {
     List<IssueSource> facts = loadSourcesFromFact(projectId, filters, phasePredicate);
     if (!facts.isEmpty()) {
       return facts;
@@ -513,7 +522,10 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     return List.of();
   }
 
-  private List<IssueSource> loadSourcesFromFact(Long projectId, Map<String, String> filters, SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate) {
+  private List<IssueSource> loadSourcesFromFact(
+      Long projectId,
+      Map<String, String> filters,
+      SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate) {
     Map<String, String> mergedFilters = new LinkedHashMap<>();
     if (filters != null) {
       mergedFilters.putAll(filters);
@@ -536,8 +548,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     queryFilters.remove("testingPhase");
     Long projectId = effectiveProjectId(queryFilters);
     queryFilters.put("projectId", String.valueOf(projectId));
-    SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        legacyModuleRowPhasePredicate(filterGroup);
+    SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
+        moduleRowPhasePredicate(filterGroup);
     String sql = """
         select btrim(modules.module_name) as module_name
           from issue_fact
@@ -574,7 +586,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     queryFilters.remove("testingPhase");
     Long projectId = effectiveProjectId(queryFilters);
     queryFilters.put("projectId", String.valueOf(projectId));
-    SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
+    SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
         defectCausePhasePredicate(filterGroup);
     String sql = buildBoardAggregateSql();
     try {
@@ -604,7 +616,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     queryFilters.remove("testingPhase");
     Long projectId = effectiveProjectId(queryFilters);
     queryFilters.put("projectId", String.valueOf(projectId));
-    SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
+    SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
         defectCausePhasePredicate(filterGroup);
     try {
       List<AggregateCounts> results =
@@ -652,18 +664,20 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     return sql.toString();
   }
 
-  private SystemTestPhaseSqlPredicateSupport.SqlPredicate defectCausePhasePredicate(
+  private SystemTestPhaseMembershipPolicy.SqlPredicate defectCausePhasePredicate(
       StatisticFilterGroup filterGroup) {
-    return SystemTestPhaseSqlPredicateSupport.legacyExactPhasePredicate(filterGroup, phaseScopeResolver);
+    return SystemTestPhaseMembershipPolicy.sqlPredicate(
+        filterGroup,
+        phaseScopeResolver,
+        SystemTestPhaseMembershipPolicy.MatchMode.EXACT_MEMBER);
   }
 
-  private SystemTestPhaseSqlPredicateSupport.SqlPredicate legacyModuleRowPhasePredicate(
+  private SystemTestPhaseMembershipPolicy.SqlPredicate moduleRowPhasePredicate(
       StatisticFilterGroup filterGroup) {
-    String selectedPhase = SystemTestPhaseFilterSupport.selectedTestingPhase(filterGroup);
-    if (!StringUtils.hasText(selectedPhase)) {
-      return new SystemTestPhaseSqlPredicateSupport.SqlPredicate("", List.of());
-    }
-    return new SystemTestPhaseSqlPredicateSupport.SqlPredicate("testing_phase like ?", List.of("%" + selectedPhase + "%"));
+    return SystemTestPhaseMembershipPolicy.sqlPredicate(
+        filterGroup,
+        phaseScopeResolver,
+        SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER);
   }
 
   private String buildBoardTotalAggregateSql() {
@@ -763,7 +777,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   private StatisticFilterGroup applyDefaultTestingPhase(
       StatisticFilterGroup filterGroup,
       List<StatisticFilterOption> phaseOptions) {
-    if (StringUtils.hasText(SystemTestPhaseFilterSupport.selectedTestingPhase(filterGroup))) {
+    if (StringUtils.hasText(
+        SystemTestPhaseMembershipPolicy.selectedTestingPhase(filterGroup))) {
       return filterGroup;
     }
     String defaultPhase = defaultTestingPhase(phaseOptions);
@@ -793,7 +808,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       Map<String, String> filters,
       StatisticFilterGroup effectiveFilterGroup) {
     Map<String, String> applied = new LinkedHashMap<>(withoutReservedFilters(filters));
-    String selectedTestingPhase = SystemTestPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    String selectedTestingPhase =
+        SystemTestPhaseMembershipPolicy.selectedTestingPhase(effectiveFilterGroup);
     if (StringUtils.hasText(selectedTestingPhase)) {
       applied.put("testingPhase", selectedTestingPhase);
     }

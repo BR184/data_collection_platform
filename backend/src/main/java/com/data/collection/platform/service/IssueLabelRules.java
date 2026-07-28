@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.springframework.util.StringUtils;
 
 final class IssueLabelRules {
   private static final Map<String, List<String>> SEVERITY_TOKENS = IssueRuleSupport.ordered(
@@ -34,20 +33,6 @@ final class IssueLabelRules {
   private static final List<String> FIXED_LABELS = List.of("已修复", "已修复/完成", "待合并", "未更新");
   private static final List<String> UNREPRODUCED_LABELS = List.of("未复现");
   private static final List<String> LEGACY_STATUS_LABELS = List.of("历史遗留");
-  private static final List<String> LEGACY_BUG_STATUS_LABELS = List.of(
-      "已修复/完成",
-      "已修复",
-      "待合并",
-      "未更新",
-      "未复现",
-      "未修复",
-      "申请延期",
-      "历史遗留",
-      "申请否决",
-      "数据异常",
-      "需求如此",
-      "设计如此",
-      "已拒绝");
   private static final List<String> SYSTEM_TEST_LABEL_TOKENS = List.of("系统测试", "回归测试");
   private static final List<String> TESTING_PHASE_TOKENS = List.of("系统测试", "回归测试", "集成测试");
   private static final List<String> LEGACY_PHASE_KEYWORD_TOKENS = List.of("系统测试", "回归测试", "集成测试");
@@ -157,25 +142,8 @@ final class IssueLabelRules {
     return closed && IssueRuleSupport.containsAnyLabel(labels, UNREPRODUCED_LABELS);
   }
 
-  static String normalizeBugStatus(List<String> labels, boolean closed) {
-    List<String> legacyStatuses = parseLegacyLabelMap(labels).getOrDefault("状态", List.of());
-    LinkedHashSet<String> statuses = new LinkedHashSet<>();
-    for (String status : legacyStatuses) {
-      if (StringUtils.hasText(status)) {
-        statuses.add(status.trim());
-      }
-    }
-    for (String label : labels) {
-      for (String status : LEGACY_BUG_STATUS_LABELS) {
-        if (StringUtils.hasText(label) && label.trim().equals(status)) {
-          statuses.add(status);
-        }
-      }
-    }
-    if (!statuses.isEmpty()) {
-      return String.join("、", statuses);
-    }
-    return closed ? "已关闭" : "未关闭";
+  static String normalizeBugStatus(List<String> labels) {
+    return oldPlatformLabelValue(labels, "状态", "未设定议题状态");
   }
 
   static String normalizeTestingPhase(List<String> labels) {

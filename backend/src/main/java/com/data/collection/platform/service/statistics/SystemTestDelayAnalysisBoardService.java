@@ -49,7 +49,7 @@ import org.springframework.util.StringUtils;
 public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardService
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "system-test-delay-analysis";
-  private static final String RULE_VERSION = "system-test-delay-analysis@2026-07-09-v4";
+  private static final String RULE_VERSION = "system-test-delay-analysis@2026-07-28-v5";
   private static final String TESTING_PHASE_FIELD = "testingPhase";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -187,7 +187,8 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
     effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
     StatisticBoardDefinition definition = buildDefinition(phaseOptions);
-    String selectedTestingPhase = SystemTestPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    String selectedTestingPhase =
+        SystemTestPhaseMembershipPolicy.selectedTestingPhase(effectiveFilterGroup);
     StatisticFilterGroup appliedGroup = effectiveFilterGroup;
     return snapshotService.readOrRefresh(
         snapshotRequest(filters, appliedGroup, definition, selectedTestingPhase),
@@ -310,7 +311,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     List<StatisticFilterOption> phaseOptions = loadPhaseOptions();
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(phaseOptions));
     StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
-    String phase = SystemTestPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    String phase = SystemTestPhaseMembershipPolicy.selectedTestingPhase(effectiveFilterGroup);
     if (StringUtils.hasText(phase)) {
       return phase + "申请延期缺陷原因分析.xlsx";
     }
@@ -379,8 +380,13 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             .filter(IssueSource::isVisibleForRegularOrSuggestionColumn)
             .filter(IssueSource::hasLegacyDelayCause)
             .toList();
+    SystemTestPhaseMembershipPolicy.Membership phaseMembership =
+        SystemTestPhaseMembershipPolicy.membership(
+            filterGroup,
+            phaseScopeResolver,
+            SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER);
     List<IssueSource> filtered =
-        delayed.stream().filter(issue -> SystemTestPhaseFilterSupport.matches(issue, filterGroup, phaseScopeResolver)).toList();
+        delayed.stream().filter(phaseMembership::matches).toList();
     return new RuleFlowSnapshot(
         filtered,
         List.of(
@@ -421,7 +427,8 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   private StatisticFilterGroup applyDefaultTestingPhase(
       StatisticFilterGroup filterGroup,
       List<StatisticFilterOption> phaseOptions) {
-    if (StringUtils.hasText(SystemTestPhaseFilterSupport.selectedTestingPhase(filterGroup))) {
+    if (StringUtils.hasText(
+        SystemTestPhaseMembershipPolicy.selectedTestingPhase(filterGroup))) {
       return filterGroup;
     }
     String defaultPhase = defaultTestingPhase(phaseOptions);
@@ -451,7 +458,8 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
       Map<String, String> filters,
       StatisticFilterGroup effectiveFilterGroup) {
     Map<String, String> applied = new LinkedHashMap<>(withoutReservedFilters(filters));
-    String selectedTestingPhase = SystemTestPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    String selectedTestingPhase =
+        SystemTestPhaseMembershipPolicy.selectedTestingPhase(effectiveFilterGroup);
     if (StringUtils.hasText(selectedTestingPhase)) {
       applied.put(TESTING_PHASE_FIELD, selectedTestingPhase);
     }
@@ -541,8 +549,11 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
     queryFilters.remove("testingPhase");
     Long projectId = effectiveProjectId(queryFilters);
-    SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.legacyStatisticPhasePredicate(filterGroup, phaseScopeResolver);
+    SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
+        SystemTestPhaseMembershipPolicy.sqlPredicate(
+            filterGroup,
+            phaseScopeResolver,
+            SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER);
     try {
       List<IssueSource> facts = ensureFactsReady(projectId, queryFilters, phasePredicate);
       return facts.isEmpty() ? List.of() : facts;
@@ -556,7 +567,10 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     return realtimeIncrementalRefreshService.requestIncrementalRefresh(BOARD_KEY, REALTIME_REFRESH_TABLES);
   }
 
-  private List<IssueSource> ensureFactsReady(Long projectId, Map<String, String> filters, SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate) {
+  private List<IssueSource> ensureFactsReady(
+      Long projectId,
+      Map<String, String> filters,
+      SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate) {
     List<IssueSource> facts = loadSourcesFromFact(projectId, filters, phasePredicate);
     if (!facts.isEmpty()) {
       return facts;
@@ -565,7 +579,10 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     return List.of();
   }
 
-  private List<IssueSource> loadSourcesFromFact(Long projectId, Map<String, String> filters, SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate) {
+  private List<IssueSource> loadSourcesFromFact(
+      Long projectId,
+      Map<String, String> filters,
+      SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate) {
     Map<String, String> mergedFilters = new LinkedHashMap<>();
     if (filters != null) {
       mergedFilters.putAll(filters);
@@ -588,8 +605,11 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     queryFilters.remove(TESTING_PHASE_FIELD);
     Long projectId = effectiveProjectId(queryFilters);
     queryFilters.put("projectId", String.valueOf(projectId));
-    SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.legacyStatisticPhasePredicate(filterGroup, phaseScopeResolver);
+    SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
+        SystemTestPhaseMembershipPolicy.sqlPredicate(
+            filterGroup,
+            phaseScopeResolver,
+            SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER);
     try {
       return issueFactQueryService.query(
               BOARD_AGGREGATE_SQL,

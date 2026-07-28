@@ -32,6 +32,32 @@ class IssueFactNormalizationRulesTest {
   }
 
   @Test
+  void test_prefixed_test_statuses_preserve_old_platform_members_result() {
+    assertThat(IssueFactNormalizationRules.normalizeBugStatus(
+        List.of(
+            "状态：已修复/完成",
+            "状态：已测试通过",
+            "申请延期")))
+        .isEqualTo("已修复/完成 & 已测试通过");
+  }
+
+  @Test
+  void test_missing_test_status_returns_missing_placeholder() {
+    assertThat(IssueFactNormalizationRules.normalizeBugStatus(
+        List.of("P1", "响应已延期", "模块：草图")))
+        .isEqualTo("未设定议题状态");
+    assertThat(IssueFactNormalizationRules.normalizeBugStatus(List.of()))
+        .isEqualTo("未设定议题状态");
+  }
+
+  @Test
+  void test_non_legacy_status_labels_do_not_become_test_status_result() {
+    assertThat(IssueFactNormalizationRules.normalizeBugStatus(
+        List.of("已修复/完成", "申请延期", "状态:进行中", "状态-未复现")))
+        .isEqualTo("未设定议题状态");
+  }
+
+  @Test
   void shouldNormalizeExclusionAndFixedRules() {
     assertThat(IssueFactNormalizationRules.exclusionReason(List.of("功能屏蔽"), false, 9L)).isEqualTo("功能屏蔽");
     assertThat(IssueFactNormalizationRules.exclusionReason(List.of("申请否决"), true, 9L)).isEqualTo("申请否决+Closed");

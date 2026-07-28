@@ -284,7 +284,7 @@ class SyncRunTablePlanningServiceTest {
     verify(taskMapper, times(2)).insert(taskCaptor.capture());
     assertThat(taskCaptor.getAllValues())
         .extracting(SyncRunTableTask::getRowStrategy)
-        .containsExactly("PRECISE", "PRECISE");
+        .containsExactly("PRECISE", "AUTHORITATIVE");
     assertThat(taskCaptor.getAllValues())
         .extracting(SyncRunTableTask::getLookupColumn)
         .containsExactly("id", "issue_id");
@@ -327,6 +327,125 @@ class SyncRunTablePlanningServiceTest {
     verify(taskMapper).insert(taskCaptor.capture());
     assertThat(taskCaptor.getValue().getLookupColumn()).isEqualTo("id");
     assertThat(taskCaptor.getValue().getLookupValue()).isEqualTo("101");
+  }
+
+  @Test
+  void shouldPlanAuthoritativeIssueAssigneeScopesFromIncrementalIssueRows() {
+    SyncRun run = run(SyncRunType.INCREMENTAL_SYNC);
+    GitlabSyncConfig config = config();
+    SyncRunTableTask parentTask = new SyncRunTableTask();
+    parentTask.setRunId(77L);
+    parentTask.setConfigId(1L);
+    parentTask.setSourceTable("issues");
+    parentTask.setRowStrategy("INCREMENTAL");
+    when(syncRunMapper.selectById(77L)).thenReturn(run);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(configService.isSourceConfigured(config)).thenReturn(true);
+    when(whitelistService.resolveOptions(config))
+        .thenReturn(
+            List.of(
+                new TableWhitelistOption(
+                    "issue_assignees", "Issue assignees", "issue_id,user_id", "", true)));
+    doAnswer(
+            invocation -> {
+              SyncRunTableState state = invocation.getArgument(0);
+              state.setId(92L);
+              return 1;
+            })
+        .when(stateMapper)
+        .insert(any(SyncRunTableState.class));
+
+    int planned =
+        planningService.planAuthoritativeRelatedTasks(
+            parentTask,
+            List.of(Map.of("id", 101L), Map.of("id", 102L), Map.of("id", 101L)));
+
+    assertThat(planned).isEqualTo(2);
+    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
+    verify(taskMapper, times(2)).insert(taskCaptor.capture());
+    assertThat(taskCaptor.getAllValues())
+        .extracting(
+            SyncRunTableTask::getSourceTable,
+            SyncRunTableTask::getRowStrategy,
+            SyncRunTableTask::getLookupColumn,
+            SyncRunTableTask::getLookupValue)
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple(
+                "issue_assignees", "AUTHORITATIVE", "issue_id", "101"),
+            org.assertj.core.groups.Tuple.tuple(
+                "issue_assignees", "AUTHORITATIVE", "issue_id", "102"));
+  }
+
+  @Test
+  void shouldPlanAllAuthoritativeRelationsFromIncrementalParentRows() {
+    SyncRun run = run(SyncRunType.INCREMENTAL_SYNC);
+    GitlabSyncConfig config = config();
+    SyncRunTableTask issueTask = parentTask("issues");
+    SyncRunTableTask mergeRequestTask = parentTask("merge_requests");
+    when(syncRunMapper.selectById(77L)).thenReturn(run);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(configService.isSourceConfigured(config)).thenReturn(true);
+    when(whitelistService.resolveOptions(config))
+        .thenReturn(
+            List.of(
+                new TableWhitelistOption("issue_assignees", "Issue assignees", "issue_id,user_id", "", true),
+                new TableWhitelistOption("label_links", "Label links", "label_id,target_id,target_type", "", true),
+                new TableWhitelistOption("merge_request_assignees", "MR assignees", "merge_request_id,user_id", "", true),
+                new TableWhitelistOption("merge_request_reviewers", "MR reviewers", "merge_request_id,user_id", "", true)));
+    doAnswer(
+            invocation -> {
+              SyncRunTableState state = invocation.getArgument(0);
+              state.setId(90L + state.getSourceTable().hashCode());
+              return 1;
+            })
+        .when(stateMapper)
+        .insert(any(SyncRunTableState.class));
+
+    assertThat(planningService.planAuthoritativeRelatedTasks(issueTask, List.of(Map.of("id", 101L))))
+        .isEqualTo(2);
+    assertThat(planningService.planAuthoritativeRelatedTasks(mergeRequestTask, List.of(Map.of("id", 202L))))
+        .isEqualTo(3);
+
+    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
+    verify(taskMapper, times(5)).insert(taskCaptor.capture());
+    assertThat(taskCaptor.getAllValues())
+        .extracting(
+            SyncRunTableTask::getSourceTable,
+            SyncRunTableTask::getRowStrategy,
+            SyncRunTableTask::getLookupColumn,
+            SyncRunTableTask::getLookupValue)
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple("issue_assignees", "AUTHORITATIVE", "issue_id", "101"),
+            org.assertj.core.groups.Tuple.tuple("label_links", "AUTHORITATIVE", "target_id", "101"),
+            org.assertj.core.groups.Tuple.tuple("merge_request_assignees", "AUTHORITATIVE", "merge_request_id", "202"),
+            org.assertj.core.groups.Tuple.tuple("merge_request_reviewers", "AUTHORITATIVE", "merge_request_id", "202"),
+            org.assertj.core.groups.Tuple.tuple("label_links", "AUTHORITATIVE", "target_id", "202"));
+  }
+
+  @Test
+  void shouldNotPlanAuthoritativeRelationsForUnrelatedTable() {
+    SyncRunTableTask parentTask = new SyncRunTableTask();
+    parentTask.setRunId(77L);
+    parentTask.setConfigId(1L);
+    parentTask.setSourceTable("projects");
+    parentTask.setRowStrategy("INCREMENTAL");
+
+    int planned =
+        planningService.planAuthoritativeRelatedTasks(
+            parentTask, List.of(Map.of("id", 101L)));
+
+    assertThat(planned).isZero();
+    verify(syncRunMapper, never()).selectById(any());
+    verify(taskMapper, never()).insert(any(SyncRunTableTask.class));
+  }
+
+  private SyncRunTableTask parentTask(String sourceTable) {
+    SyncRunTableTask task = new SyncRunTableTask();
+    task.setRunId(77L);
+    task.setConfigId(1L);
+    task.setSourceTable(sourceTable);
+    task.setRowStrategy("INCREMENTAL");
+    return task;
   }
 
   @Test

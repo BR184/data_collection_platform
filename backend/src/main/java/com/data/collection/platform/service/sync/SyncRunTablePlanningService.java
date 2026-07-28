@@ -100,6 +100,74 @@ public class SyncRunTablePlanningService {
     return planned;
   }
 
+  /**
+   * 根据增量父表实际返回的行，为无更新时间的关系表派生按父资源范围执行的精确任务。
+   * 关系定义是显式白名单；未声明的表、非增量任务和未启用的目标表均不会受到影响。
+   *
+   * @param parentTask 已完成来源读取和镜像写入的父表任务
+   * @param sourceRows 父表本批次从来源读取的完整行
+   * @return 本次新建的关系范围任务数
+   */
+  public int planAuthoritativeRelatedTasks(
+      SyncRunTableTask parentTask, List<Map<String, Object>> sourceRows) {
+    if (parentTask == null
+        || !"INCREMENTAL".equalsIgnoreCase(parentTask.getRowStrategy())
+        || sourceRows == null
+        || sourceRows.isEmpty()) {
+      return 0;
+    }
+    String parentTable =
+        GitlabSourceInstanceSupport.normalizeSourceTableName(parentTask.getSourceTable());
+    List<AuthoritativeRelationCatalog.Relation> relations =
+        AuthoritativeRelationCatalog.relationsForParent(parentTable);
+    if (relations.isEmpty()) {
+      return 0;
+    }
+    SyncRun run = syncRunMapper.selectById(parentTask.getRunId());
+    if (run == null) {
+      throw new BizException("派生关系任务时找不到父同步运行：" + parentTask.getRunId());
+    }
+    GitlabSyncConfig config = configService.getConfigById(parentTask.getConfigId());
+    ensureSourceConfigured(config);
+    Map<String, TableWhitelistOption> optionsByTable = whitelistService.resolveOptions(config).stream()
+        .collect(Collectors.toMap(
+            option -> GitlabSourceInstanceSupport.normalizeSourceTableName(option.tableName()),
+            option -> option,
+            (first, ignored) -> first));
+    Set<String> existingTaskKeys = existingTaskKeys(parentTask.getRunId());
+    LocalDateTime now = LocalDateTime.now();
+    int planned = 0;
+    for (AuthoritativeRelationCatalog.Relation relation : relations) {
+      TableWhitelistOption option = optionsByTable.get(relation.childTable());
+      if (option == null || isBlank(option.primaryKey())) {
+        continue;
+      }
+      SyncRunTableState state = upsertState(run, config, option, now);
+      Set<String> lookupValues = sourceRows.stream()
+          .map(row -> row == null ? null : row.get(relation.parentKey()))
+          .filter(java.util.Objects::nonNull)
+          .map(String::valueOf)
+          .filter(value -> !value.isBlank())
+          .collect(Collectors.toCollection(LinkedHashSet::new));
+      for (String lookupValue : lookupValues) {
+        String key = taskKey(state.getSourceTable(), relation.childLookupColumn(), lookupValue, null);
+        if (existingTaskKeys.contains(key)) {
+          continue;
+        }
+        SyncRunTableTask task = createTask(run, state, INITIAL_WATERMARK, now);
+        task.setRowStrategy("AUTHORITATIVE");
+        task.setCursorUpdatedAt(null);
+        task.setCursorPk(null);
+        task.setLookupColumn(relation.childLookupColumn());
+        task.setLookupValue(lookupValue);
+        taskMapper.insert(task);
+        existingTaskKeys.add(key);
+        planned++;
+      }
+    }
+    return planned;
+  }
+
   private boolean shouldPlanFromWhitelist(SyncRun run, List<String> sourceTables) {
     if (run.getRunType() == SyncRunType.FULL_SYNC || run.getRunType() == SyncRunType.INCREMENTAL_SYNC) {
       return true;
@@ -201,7 +269,11 @@ public class SyncRunTablePlanningService {
         continue;
       }
       SyncRunTableTask task = createTask(run, state, INITIAL_WATERMARK, now);
-      task.setRowStrategy("PRECISE");
+      task.setRowStrategy(
+          AuthoritativeRelationCatalog.isAuthoritativeTarget(
+                  target.tableName(), target.lookupColumn())
+              ? "AUTHORITATIVE"
+              : "PRECISE");
       task.setCursorUpdatedAt(null);
       task.setCursorPk(null);
       task.setLookupColumn(target.lookupColumn());

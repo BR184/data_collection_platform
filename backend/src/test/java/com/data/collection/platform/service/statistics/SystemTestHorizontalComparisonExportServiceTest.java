@@ -101,8 +101,32 @@ class SystemTestHorizontalComparisonExportServiceTest {
     assertThat(csv).contains("历史模块");
   }
 
+  @Test
+  void issueSummaryUsesContainsMembershipForCompoundPhaseFacts() {
+    SystemTestPhaseScopeResolver phaseResolver = mock(SystemTestPhaseScopeResolver.class);
+    when(phaseResolver.resolvePhases(9L, "CC2026R4"))
+        .thenReturn(List.of("CC2026R4第一轮系统测试", "CC2026R4第二轮系统测试"));
+    SystemTestHorizontalComparisonExportService service =
+        new SystemTestHorizontalComparisonExportService(
+            jdbcTemplate,
+            mock(JsonUtils.class),
+            phaseResolver,
+            mock(CodeReviewMatchModeSwitchService.class),
+            mock(ReviewDataMatchModeRecordRepository.class));
+
+    service.exportCsv(Map.of("testingPhase", "CC2026R4"));
+
+    assertThat(jdbcTemplate.issueQuery()).isNotNull();
+    assertThat(jdbcTemplate.issueQuery().sql())
+        .contains("testing_phase like ? or testing_phase like ?")
+        .doesNotContain("lower(coalesce(testing_phase, '')) = ?");
+    assertThat(jdbcTemplate.issueQuery().args())
+        .contains("%CC2026R4第一轮系统测试%", "%CC2026R4第二轮系统测试%");
+  }
+
   private static final class RecordingJdbcTemplate extends JdbcTemplate {
     private final List<ModuleQuery> queries = new java.util.ArrayList<>();
+    private ModuleQuery issueQuery;
 
     @Override
     public <T> List<T> queryForList(String sql, Class<T> elementType, Object... args) {
@@ -112,11 +136,18 @@ class SystemTestHorizontalComparisonExportServiceTest {
 
     @Override
     public <T> List<T> query(String sql, RowMapper<T> rowMapper, Object... args) {
+      if (sql.contains("from issue_fact")) {
+        issueQuery = new ModuleQuery(sql, List.copyOf(Arrays.asList(args)));
+      }
       return List.of();
     }
 
     private List<ModuleQuery> queries() {
       return List.copyOf(queries);
+    }
+
+    private ModuleQuery issueQuery() {
+      return issueQuery;
     }
   }
 

@@ -109,6 +109,23 @@ class SyncRunWorkerServiceTest {
   }
 
   @Test
+  void shouldReportDynamicallyDerivedTasksInFinalPlannedCount() {
+    SyncRun run = run(18L, SyncRunType.TABLE_REFRESH);
+    GitlabSyncConfig config = config();
+    when(tablePlanningService.planRunTables(18L)).thenReturn(1);
+    when(tableWorkerService.drainRunTasks(18L, 2)).thenReturn(3);
+    when(tableWorkerService.summarizeRun(18L))
+        .thenReturn(new SyncRunTableWorkerService.RunTableTaskSummary(3, 3, 6L, 5L));
+    when(configService.getConfigById(1L)).thenReturn(config);
+
+    workerService.executeRun(run);
+
+    assertThat(run.getStatus()).isEqualTo(SyncRunStatus.SUCCESS);
+    assertThat(run.getPlannedTableCount()).isEqualTo(3);
+    assertThat(run.getCompletedTableCount()).isEqualTo(3);
+  }
+
+  @Test
   void shouldMarkMirrorRunPartialSuccessWhenAnyTableTaskFailed() {
     SyncRun run = run(15L, SyncRunType.INCREMENTAL_SYNC);
     when(tablePlanningService.planRunTables(15L)).thenReturn(3);

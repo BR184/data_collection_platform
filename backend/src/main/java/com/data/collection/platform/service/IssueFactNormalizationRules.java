@@ -36,8 +36,14 @@ public final class IssueFactNormalizationRules {
     return IssueLabelRules.isFixed(labels, closed);
   }
 
-  public static String normalizeBugStatus(List<String> labels, boolean closed) {
-    return IssueLabelRules.normalizeBugStatus(labels, closed);
+  /**
+   * 按老平台标签契约提取议题测试状态，不混入 GitLab 议题开闭状态。
+   *
+   * @param labels 当前议题的完整 GitLab 标签
+   * @return 由 {@code 状态：值} 标签组成的稳定文本；缺失时返回“未设定议题状态”
+   */
+  public static String normalizeBugStatus(List<String> labels) {
+    return IssueLabelRules.normalizeBugStatus(labels);
   }
 
   public static String normalizeReasonCategory(List<String> labels, String notesText) {

@@ -33,8 +33,15 @@ public record SyncRunCompletionEvent(
     return status == SyncRunStatus.SUCCESS || status == SyncRunStatus.PARTIAL_SUCCESS;
   }
 
-  public boolean fullSync() {
-    return runType == SyncRunType.FULL_SYNC;
+  /**
+   * 判断本次镜像结果是否要求全量发布事实。全量补偿可能删除来源已物理删除的主实体，
+   * 这些实体无法再从活动 ODS 行反查精确目标，因此必须使用全量事实快照收敛。
+   *
+   * @return 全量同步或全量补偿扫描时返回 {@code true}
+   */
+  public boolean requiresFullFactRefresh() {
+    return runType == SyncRunType.FULL_SYNC
+        || runType == SyncRunType.FULL_COMPENSATION_SCAN;
   }
 
   public long appliedRowCount() {
