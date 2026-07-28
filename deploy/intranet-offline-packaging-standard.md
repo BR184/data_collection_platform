@@ -117,19 +117,187 @@ qa-flex-platform-frontend:<release-id>
 
 升级允许现场已有标准 `docker-compose.override.yml`。脚本在变更前备份它，随后用本次 `docker-compose.release.yml` 替换；回滚时恢复上一份 override。禁止要求操作者先手工删除 override，因为这会丢失当前镜像基线和回滚证据。
 
-## 打包命令
+## 后续更新包标准工作流
 
-默认更新包：
+本节是发布执行者和 AI 每次制作保数据更新包时的固定入口。具体 release ID、commit、镜像摘要和事实重建范围属于当次 `RELEASE-MANIFEST.json`，不得写死在本节。任一阶段失败即停止，不得跳过失败步骤继续形成交付包。
+
+### 1. 建立活动计划并确认工作树
+
+更新包制作属于长任务。开始前必须读取 `AGENTS.md`、`docs/progress.md`、本标准和相关架构/ADR，并在 `docs/plans/` 建立活动计划。先检查：
+
+```powershell
+git status --short --branch
+git log -5 --date=iso --pretty=format:"%h %ad %s"
+```
+
+必须区分三类内容：当前发布范围内的代码、用户尚未完成的改动、与发布无关的文档或运行产物。不得回退或删除用户改动。常规发布优先使用已提交且已验证的代码；用户明确要求打包本地未提交版本时，必须确认这些改动均属于目标版本并完成同等验证，清单会把工作区标为非干净状态。
+
+### 2. 确定该实例的直接基线
+
+先在实际实例或其受控部署目录副本中查看合并配置：
+
+```bash
+docker compose --env-file .env ps
+docker compose --env-file .env config --images
+```
+
+记录当前前后端完整镜像引用。`--baseline-dir` 必须指向：
+
+- 与上述镜像一致的当前部署目录受控副本；或
+- 该实例最后一次成功更新包的解压目录，其 `target.images` 与上述镜像一致。
+
+不得使用基础容器最初建立日期、上上次更新包或上一清单中的 `baseline` 字段代替当前基线。对连续更新包而言，应使用上一成功包的**目标镜像**作为新包基线。不同现场实例分别确认，不能互相推定。
+
+读取上一成功包清单并保留以下证据：
+
+```powershell
+Get-Content -Raw <baseline-dir>\RELEASE-MANIFEST.json
+```
+
+至少确认 `package.id`、`source.commit` 和 `target.images`。如果清单目标镜像与现场合并 Compose 不同，停止打包并先查清真实部署链。
+
+### 3. 根据基线差异决定事实重建范围
+
+以基线清单的 `source.commit` 为代码起点，同时检查当前未提交差异：
+
+```powershell
+git diff --name-status <baseline-source-commit>..HEAD
+git diff --name-status
+```
+
+如果基线清单的 `source.workspaceState` 不是干净状态，`source.commit` 只能定位其 Git 起点，不能证明上一包镜像等于该 commit。此时必须同时依据上一包的镜像/JAR/前端摘要、当次进度验证记录和实际目标镜像确认变化边界；证据不足时停止并重新建立可追溯基线，不得用 commit diff 冒充完整差异。
+
+重建范围按实际数据契约变化决定，不能仅按提交标题或文件名猜测：
+
+| 变化 | 清单要求 |
+| --- | --- |
+| 只改变页面样式、静态文案、认证或无事实结果影响的部署逻辑 | 不声明事实重建 |
+| 改变议题事实字段、归一化、搜索值、客户成员、系统测试/客户问题口径或其事实依赖快照 | `--require-fact-rebuild --fact-rebuild-scope issue` |
+| 改变 MR 事实字段、归一化、搜索值或其事实依赖统计 | `--require-fact-rebuild --fact-rebuild-scope merge-request` |
+| 同时影响议题和 MR，或改变二者共享构建/发布契约且无法安全拆分 | `--require-fact-rebuild --fact-rebuild-scope all` |
+
+存在不确定性时先沿调用链、迁移和测试确认，不能为了省事漏报，也不能无依据扩大范围。事实重建只重算现有 ODS；它不等同于 GitLab 全量同步。
+
+### 4. 先解析计划，再正式构建
+
+先运行不写产物的计划解析：
 
 ```powershell
 python scripts\package_intranet_offline.py `
   --mode incremental-update `
-  --baseline-dir D:\path\to\current-deployment-or-last-update `
+  --baseline-dir <baseline-dir> `
   --require-fact-rebuild `
-  --fact-rebuild-scope issue
+  --fact-rebuild-scope <issue|merge-request|all> `
+  --plan-only
 ```
 
-不需要事实重建时省略 `--require-fact-rebuild`。范围只能是 `issue`、`merge-request` 或 `all`。
+不需要事实重建时省略最后两个事实参数。输出中的基线目录、前后端基线镜像、包类型和目标目录必须全部正确；否则停止。
+
+确认后用完全相同的参数去掉 `--plan-only`：
+
+```powershell
+python scripts\package_intranet_offline.py `
+  --mode incremental-update `
+  --baseline-dir <baseline-dir> `
+  --require-fact-rebuild `
+  --fact-rebuild-scope <issue|merge-request|all>
+```
+
+正式打包不得使用 `--skip-build`、`--skip-docker-build`、`--skip-archive` 或 `--skip-frontend-release-tests`。默认无缓存构建；只有定位构建问题时才临时使用调试参数，调试产物不得交付。
+
+打包器必须成功完成：前端发布测试、类型检查和生产构建，后端 `clean package`，Flyway 源码/JAR 集合检查，无缓存业务镜像构建，镜像内产物摘要核对，Compose 解析，包内校验和与最终归档检查。
+
+### 5. 独立审计生成物
+
+从打包输出记录包目录、归档路径和 SHA-256，再独立检查：
+
+```powershell
+Get-Content -Raw <package-dir>\RELEASE-MANIFEST.json
+Get-FileHash -Algorithm SHA256 <archive.tar.gz>
+Get-Content <archive.tar.gz.sha256>
+tar -tzf <archive.tar.gz>
+python -m unittest scripts.test_package_intranet_offline
+```
+
+还必须在可用的 Linux Bash 环境中运行：
+
+```bash
+bash -n <package-dir>/upgrade.sh
+bash -n <package-dir>/rollback.sh
+cd <package-dir> && sha256sum -c SHA256SUMS.txt
+```
+
+清单必须满足：
+
+- `source.commit`/工作区状态对应本次代码；
+- `baseline` 对应该实例直接基线；
+- `target.images` 使用同一个新 release ID；
+- `flywayVersion` 等于 JAR 内最新迁移；
+- `facts` 与第 3 步结论一致。
+
+归档只能包含本标准定义的更新包结构。发现 `backend/`、`frontend/`、`.env`、PostgreSQL 镜像、Docker deb、数据库 dump、volume 数据或运行日志时，包无效。
+
+### 6. 建立隔离部署基线
+
+本地部署测试必须使用专用 Compose 栈，不得覆盖开发栈、LDAP 专项栈或现场目录。隔离栈至少满足：
+
+- 独立的 Compose project、容器名、主机端口和 PostgreSQL named volume；
+- 基础 `docker-compose.yml`、测试 `.env` 与代表当前直接基线的 override；
+- 前后端运行基线包目标镜像且均健康；
+- PostgreSQL 存在可迁移的代表性 schema 和最少数据，不连接内网真实平台库；
+- 测试开始前记录 PostgreSQL 容器 ID、当前 Flyway、基线镜像和受保护表行数。
+
+若本机不存在基线镜像，先从上一成功包的 `docker-images/` 执行 `docker load`。不得通过重新构建旧源码伪造基线镜像。
+
+### 7. 执行升级、回滚、再次升级
+
+在 Ubuntu 或其他具备 Bash、curl 和 Docker Compose v2 的 Linux 环境中执行包内脚本。第一次升级：
+
+```bash
+bash <package-dir>/upgrade.sh <simulation-deployment-dir>
+```
+
+必须逐项确认：
+
+- 新后端和前端均为目标镜像且 healthy；
+- 后端健康返回 `UP`，前端 HTTP 返回 200；
+- Flyway 到达清单目标版本；
+- `upgrade-backups/latest-backup.txt` 指向非空备份，`database.dump` 非空；
+- `counts.diff` 为空；
+- PostgreSQL 容器 ID 与升级前完全一致。
+
+使用第一次升级生成的备份执行应用回滚：
+
+```bash
+BACKUP_DIR="$(cat <simulation-deployment-dir>/upgrade-backups/latest-backup.txt)"
+bash <package-dir>/rollback.sh <simulation-deployment-dir> "$BACKUP_DIR"
+```
+
+回滚后前后端必须恢复直接基线镜像并健康，PostgreSQL 容器 ID 仍不变。Flyway 保持前向版本是预期行为；不得为了测试回滚而执行 `pg_restore`。
+
+最后从已恢复的基线再次运行同一 `upgrade.sh`，并重复目标镜像、健康、Flyway、非空备份、空 `counts.diff` 和 PostgreSQL ID 检查。本地隔离栈最终停留在目标镜像，证明连续操作可重复。
+
+Windows 上仅存在 `C:\Windows\System32\bash.exe` 不代表 Bash 可用，它可能只是未安装 WSL 发行版的转发器。必须实际运行 `bash --version` 和 `bash -n`；不可用时，改用已安装的 Git Bash、WSL/Ubuntu，或预置了 Bash、curl、Docker CLI 与 Compose v2 的 Linux 工具容器挂载 Docker socket和隔离目录。工具环境只是执行同一份包内脚本，不允许改写脚本来绕过检查。Docker Desktop 工具容器还必须验证 host 网络和 Windows 目录挂载可用。
+
+### 8. 收尾与交付
+
+运行仓库门禁：
+
+```powershell
+python scripts\check_worktree_artifacts.py
+python scripts\check_runtime_artifact_locations.py
+python scripts\check_text_whitespace.py
+git diff --check
+git status --short --branch
+```
+
+若门禁被既有用户文件阻塞，必须报告具体文件，不得擅自删除，也不得声称全绿。将 release ID、归档大小/SHA-256、直接基线、目标 Flyway、事实重建范围、本地升级/回滚/再次升级结果、PostgreSQL ID/行数守恒和未执行项压缩写入 `docs/progress.md`；随后按文档生命周期删除活动计划。
+
+最终交付必须提供归档、包外 `.sha256`、包内 `README-INCREMENTAL-DEPLOY.md` 的路径，并明确：适用的直接基线、部署后是否重建哪类事实、是否需要 GitLab 全量同步、哪些真实内网场景尚未验证。现场操作以包内 README 为准，不在聊天中维护另一套可能漂移的部署流程。
+
+## 全新/灾备模式命令速查
+
+保数据更新包必须执行上一节的完整工作流，不能用单条命令替代前置决策和本地部署验收。仅全新/灾备模式使用以下速查命令：
 
 全新/灾备包：
 
@@ -143,7 +311,7 @@ python scripts\package_intranet_offline.py --mode fresh-empty
 --include-offline-docker-debs --template-package-dir D:\path\to\verified-template
 ```
 
-打包器默认执行前端发布测试和生产构建、后端生产打包、Flyway 源码/JAR 集合校验、无缓存镜像构建、镜像内容校验、Compose 解析、禁止数据扫描、SHA-256 校验和归档清单校验。任何一步失败都不得交付。
+全新/灾备包同样必须通过打包器的全部默认门禁；任何一步失败都不得交付。
 
 ## 现场升级流程
 
