@@ -761,6 +761,7 @@ services:
       PLATFORM_LDAP_INITIAL_SYNC_REQUIRED: ${{PLATFORM_LDAP_INITIAL_SYNC_REQUIRED:-true}}
       PLATFORM_SECURE_CONFIG_REQUIRED: "true"
       PLATFORM_AUTH_CSRF_ENABLED: "true"
+      PLATFORM_BACKGROUND_JOBS_ENABLED: "${{PLATFORM_BACKGROUND_JOBS_ENABLED:-true}}"
 
   frontend:
     image: {FRONTEND_IMAGE}:{ctx.frontend_tag}
@@ -770,7 +771,7 @@ services:
 def incremental_readme(ctx: BuildContext) -> str:
     if ctx.require_fact_rebuild:
         fact_section = f"""\
-## 5. 事实层重建
+## 6. 事实层重建
 
 本更新包标记为需要事实层重建。该步骤只基于现有镜像表重建事实层和统计快照，不重新全量同步 GitLab，不删除平台数据。
 
@@ -778,7 +779,7 @@ def incremental_readme(ctx: BuildContext) -> str:
 """
     else:
         fact_section = """\
-## 5. 不执行事实层重建
+## 6. 不执行事实层重建
 
 本更新包只替换后端和前端业务镜像，不改变事实表、统计口径或历史聚合结果。部署后不要主动触发事实重建、全量同步或清空快照。
 """
@@ -872,27 +873,86 @@ sudo docker compose --env-file .env ps
 sudo docker compose --env-file .env config --images
 ```
 
-确认没有正在执行的同步或事实任务，再继续。若页面仍显示运行中任务，等待其完成或先取消。
+### 如果这里显示上一次失败包的镜像
 
-## 3. 执行受控升级
+若上一轮升级在行数检查处中止，现场可能已经写入失败包的 override 并重建后端，再次执行升级就会报 `backend baseline image does not match`。这不表示失败包已经成为成功基线，也不要修改本包脚本绕过检查。
 
-只执行升级脚本这一条变更命令。命令结束前不要关闭终端：
+先列出曾产生 `counts.diff` 的失败备份目录：
 
 ```bash
-bash ../{ctx.package_name}/upgrade.sh "$PWD"
+find "$PWD/upgrade-backups" -mindepth 2 -maxdepth 2 -type f -name counts.diff -print
 ```
 
-脚本依次执行：
+查看候选差异和其中保存的旧镜像；选择**第一次失败时 `counts.diff` 所在的同一目录**：
+
+```bash
+cat <失败备份目录>/counts.diff
+cat <失败备份目录>/compose-images.txt
+```
+
+把确认后的绝对目录写入变量并检查必需文件：
+
+```bash
+FAILED_BACKUP_DIR="<失败备份目录的绝对路径>"
+echo "$FAILED_BACKUP_DIR"
+ls -lh "$FAILED_BACKUP_DIR/.env" "$FAILED_BACKUP_DIR/docker-compose.yml" "$FAILED_BACKUP_DIR/database.dump"
+```
+
+使用**本包**的回滚脚本只恢复应用配置和基线前后端；它不会执行数据库恢复，ODS 在失败期间正常新增的数据会保留：
+
+```bash
+bash ../{ctx.package_name}/rollback.sh "$PWD" "$FAILED_BACKUP_DIR"
+```
+
+回滚完成后重新检查；前后端必须同时显示本文开头的基线镜像，postgres 必须仍为 healthy。满足后才能继续第 3 节：
+
+```bash
+sudo docker compose --env-file .env ps
+sudo docker compose --env-file .env config --images
+```
+
+确认没有正在执行的同步或事实任务，再继续。若页面仍显示运行中任务，等待其完成或先取消。
+
+## 3. 生成并校验预部署备份
+
+先运行独立备份脚本。此步骤不会重建或停止任何应用容器，也不会修改数据库：
+
+```bash
+bash ../{ctx.package_name}/backup.sh "$PWD"
+```
+
+读取脚本输出的备份目录并逐项确认。两个 dump 必须非空，校验必须全部显示 `OK`：
+
+```bash
+BACKUP_DIR="$(cat upgrade-backups/latest-predeploy-backup.txt)"
+echo "$BACKUP_DIR"
+ls -lh "$BACKUP_DIR/database.dump" "$BACKUP_DIR/critical-tables.dump"
+cd "$BACKUP_DIR"
+sha256sum -c SHA256SUMS.txt
+cd -
+```
+
+备份内容包括完整数据库 `database.dump`、关键表 `critical-tables.dump`、两份可恢复内容清单、关键表行数、Flyway 版本、Compose 配置和 PostgreSQL 容器证据。完整数据库备份是灾备恢复权威；关键表备份用于快速核验和经审批的定向恢复。
+
+## 4. 执行受控升级
+
+仅在上述备份校验全部通过后执行升级。第二个参数必须是刚确认的备份目录：
+
+```bash
+bash ../{ctx.package_name}/upgrade.sh "$PWD" "$BACKUP_DIR"
+```
+
+升级脚本依次执行：
 
 - 校验现场 Compose 仍使用上述基线镜像，检查 PostgreSQL 容器和磁盘空间。
 - 检测 `sync_runs`、`fact_build_tasks` 中是否存在运行中任务；存在时拒绝升级。
-- 在 `upgrade-backups/` 下保存 `.env`、Compose、容器/镜像信息、Flyway 版本、关键表行数和 `pg_dump -Fc` 数据库备份。
-- 加载唯一的新镜像标签，写入 `docker-compose.override.yml`，先重建后端并等待 Flyway/健康检查，再重建前端。
+- 复核备份校验和、所属发布包、基线镜像和 PostgreSQL 容器 ID；任一不符即拒绝升级并要求重新备份。
+- 加载唯一的新镜像标签，停止旧后端后记录迁移起点行数，再以后台调度关闭的迁移模式启动后端，完成 Flyway、健康与行数守恒校验；随后以正常模式重启后端恢复后台任务，最后重建前端。
 - 校验 PostgreSQL 容器 ID 未变化、Flyway 到达 `{ctx.expected_flyway_version}`、关键业务表行数在事实重建前保持不变。
 
 脚本不会执行 `docker compose down`、不会删除 volume，也不会触发 GitLab 全量同步。
 
-## 4. 逐项检查升级结果
+## 5. 逐项检查升级结果
 
 先确认容器状态，backend、frontend、postgres 都必须为 healthy：
 
@@ -916,11 +976,23 @@ curl -fsS http://127.0.0.1:{ctx.frontend_port}/
 cat upgrade-backups/latest-backup.txt
 ```
 
+确认迁移守恒差异为空、后台调度已恢复，Flyway 已到目标版本：
+
+```bash
+BACKUP_DIR="$(cat upgrade-backups/latest-backup.txt)"
+ls -l "$BACKUP_DIR/counts.diff"
+cat "$BACKUP_DIR/counts.diff"
+sudo docker inspect "$(sudo docker compose --env-file .env ps -q backend)" --format '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}' | grep '^PLATFORM_BACKGROUND_JOBS_ENABLED=true$'
+sudo docker compose --env-file .env exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select version from flyway_schema_history where success order by installed_rank desc limit 1;"'
+```
+
+`counts.diff` 必须是 0 字节且 `cat` 无输出；后台调度检查必须输出 `PLATFORM_BACKGROUND_JOBS_ENABLED=true`；Flyway 必须输出 `{ctx.expected_flyway_version}`。
+
 使用 LDAP v0.3 账号登录；旧本地 `admin/admin123` 必须被拒绝。LDAP 不可用时，新登录失败，已有 Session 可继续使用到退出或过期。
 
 {fact_section}
 
-## 6. 仅在升级失败时回滚应用
+## 7. 仅在升级失败时回滚应用
 
 应用回滚命令会恢复升级前 `.env` 和 Compose 覆盖文件，并重新创建旧后端/前端容器；它不会自动执行 `pg_restore`，避免误覆盖现场数据：
 
@@ -942,6 +1014,97 @@ Flyway 迁移是前向迁移。只有应用回滚仍不能恢复服务时，才�
 """
 
 
+def backup_helper(ctx: BuildContext) -> str:
+    return f"""\
+#!/usr/bin/env bash
+set -euo pipefail
+
+TARGET_DIR="${{1:-$PWD}}"
+EXPECTED_BACKEND="{BACKEND_IMAGE}:{ctx.baseline_backend_tag}"
+EXPECTED_FRONTEND="{FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}"
+PACKAGE_NAME="{ctx.package_name}"
+
+fail() {{ echo "[backup] ERROR: $*" >&2; exit 1; }}
+log() {{ echo "[backup] $*"; }}
+
+if docker info >/dev/null 2>&1; then
+  DOCKER=(docker)
+elif sudo docker info >/dev/null 2>&1; then
+  DOCKER=(sudo docker)
+else
+  fail "Docker is unavailable"
+fi
+
+cd "$TARGET_DIR"
+[[ -f .env && -f docker-compose.yml ]] || fail "run from an existing deployment directory containing .env and docker-compose.yml"
+compose() {{ "${{DOCKER[@]}}" compose --env-file .env "$@"; }}
+db_query() {{
+  local sql="$1"
+  compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"' sh "$sql"
+}}
+
+BASE_CONFIG="$(compose config)"
+grep -Fq "image: $EXPECTED_BACKEND" <<<"$BASE_CONFIG" || fail "backend baseline image does not match $EXPECTED_BACKEND"
+grep -Fq "image: $EXPECTED_FRONTEND" <<<"$BASE_CONFIG" || fail "frontend baseline image does not match $EXPECTED_FRONTEND"
+POSTGRES_ID="$(compose ps -q postgres)"
+[[ -n "$POSTGRES_ID" ]] || fail "postgres service is not running"
+[[ "$("${{DOCKER[@]}}" inspect -f '{{{{.State.Health.Status}}}}' "$POSTGRES_ID")" == "healthy" ]] || fail "postgres is not healthy"
+ACTIVE_JOBS="$(db_query "select (select count(*) from sync_runs where status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','CANCELLING')) + (select count(*) from fact_build_tasks where status in ('PENDING','QUEUED','RUNNING','RETRYING'));" )"
+[[ "$ACTIVE_JOBS" == "0" ]] || fail "$ACTIVE_JOBS sync/fact jobs are active; wait for completion or cancel them before backing up"
+
+DB_BYTES="$(db_query "select pg_database_size(current_database());")"
+FREE_BYTES="$(df -PB1 "$TARGET_DIR" | awk 'NR==2 {{print $4}}')"
+REQUIRED_BYTES="$(( DB_BYTES * 2 + 1073741824 ))"
+(( FREE_BYTES >= REQUIRED_BYTES )) || fail "insufficient disk space for verified backups: free=$FREE_BYTES required=$REQUIRED_BYTES"
+
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+BACKUP_DIR="$TARGET_DIR/upgrade-backups/$PACKAGE_NAME-$STAMP"
+mkdir -p "$BACKUP_DIR"
+cp -a .env docker-compose.yml "$BACKUP_DIR/"
+if [[ -f docker-compose.override.yml ]]; then
+  cp -a docker-compose.override.yml "$BACKUP_DIR/"
+else
+  touch "$BACKUP_DIR/docker-compose.override.absent"
+fi
+printf '%s\n' "$POSTGRES_ID" > "$BACKUP_DIR/postgres.container-id"
+"${{DOCKER[@]}}" inspect "$POSTGRES_ID" > "$BACKUP_DIR/postgres.inspect.json"
+compose images > "$BACKUP_DIR/compose-images.txt"
+db_query "select coalesce(version,'') || '|' || success from flyway_schema_history order by installed_rank desc limit 1;" > "$BACKUP_DIR/flyway-before.txt"
+
+CRITICAL_TABLES=(gitlab_sync_configs ods_gitlab_issues ods_gitlab_merge_requests issue_fact merge_request_fact integration_test_fact issue_fact_customer_members sync_runs sync_run_table_tasks fact_build_tasks review_records review_problem_items review_data_match_mode_reports review_data_match_mode_problem_details code_review_match_mode_records platform_ldap_users platform_ldap_roles platform_ldap_user_roles platform_permissions platform_role_permissions platform_default_role_permissions issue_scope_catalogs issue_scope_groups issue_scope_members statistic_board_snapshots page_record_snapshots)
+TABLE_ARGS=()
+: > "$BACKUP_DIR/counts-before.txt"
+for table in "${{CRITICAL_TABLES[@]}}"; do
+  if [[ "$(db_query "select to_regclass('public.$table') is not null;")" == "t" ]]; then
+    printf '%s=%s\n' "$table" "$(db_query "select count(*) from $table;")" >> "$BACKUP_DIR/counts-before.txt"
+    TABLE_ARGS+=(--table "public.$table")
+  fi
+done
+(( ${{#TABLE_ARGS[@]}} > 0 )) || fail "none of the critical tables exist"
+
+log "creating complete PostgreSQL custom-format backup"
+compose exec -T postgres sh -c 'pg_dump -Fc -U "$POSTGRES_USER" -d "$POSTGRES_DB"' > "$BACKUP_DIR/database.dump"
+log "creating critical-table PostgreSQL custom-format backup"
+compose exec -T postgres sh -c 'pg_dump -Fc -U "$POSTGRES_USER" -d "$POSTGRES_DB" "$@"' sh "${{TABLE_ARGS[@]}}" > "$BACKUP_DIR/critical-tables.dump"
+[[ -s "$BACKUP_DIR/database.dump" && -s "$BACKUP_DIR/critical-tables.dump" ]] || fail "database backup is empty"
+compose exec -T postgres pg_restore --list < "$BACKUP_DIR/database.dump" > "$BACKUP_DIR/database.restore-list.txt"
+compose exec -T postgres pg_restore --list < "$BACKUP_DIR/critical-tables.dump" > "$BACKUP_DIR/critical-tables.restore-list.txt"
+
+cat > "$BACKUP_DIR/backup-manifest.env" <<EOF
+BACKUP_SCHEMA_VERSION=1
+PACKAGE_NAME=$PACKAGE_NAME
+BACKUP_EXPECTED_BACKEND=$EXPECTED_BACKEND
+BACKUP_EXPECTED_FRONTEND=$EXPECTED_FRONTEND
+BACKUP_POSTGRES_ID=$POSTGRES_ID
+CREATED_AT_UTC=$STAMP
+EOF
+(cd "$BACKUP_DIR" && find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)
+(cd "$BACKUP_DIR" && sha256sum -c SHA256SUMS.txt)
+printf '%s\n' "$BACKUP_DIR" > "$TARGET_DIR/upgrade-backups/latest-predeploy-backup.txt"
+log "verified pre-deployment backup completed: $BACKUP_DIR"
+"""
+
+
 def upgrade_helper(ctx: BuildContext) -> str:
     completion_message = (
         f"login with LDAP and rebuild fact scope '{ctx.fact_rebuild_scope}' before final statistics acceptance"
@@ -955,12 +1118,21 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${{BASH_SOURCE[0]}}")" && pwd)"
 PACKAGE_DIR="$SCRIPT_DIR"
 TARGET_DIR="${{1:-$PWD}}"
+BACKUP_DIR="${{2:-}}"
 EXPECTED_BACKEND="{BACKEND_IMAGE}:{ctx.baseline_backend_tag}"
 EXPECTED_FRONTEND="{FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}"
 TARGET_FLYWAY="{ctx.expected_flyway_version}"
 
 fail() {{ echo "[upgrade] ERROR: $*" >&2; exit 1; }}
 log() {{ echo "[upgrade] $*"; }}
+
+[[ -n "$BACKUP_DIR" ]] || fail "usage: upgrade.sh <deployment-dir> <backup-dir>"
+[[ -f "$BACKUP_DIR/backup-manifest.env" && -f "$BACKUP_DIR/SHA256SUMS.txt" ]] || fail "invalid pre-deployment backup: $BACKUP_DIR"
+(cd "$BACKUP_DIR" && sha256sum -c SHA256SUMS.txt) || fail "invalid pre-deployment backup checksums"
+source "$BACKUP_DIR/backup-manifest.env"
+[[ "${{PACKAGE_NAME:-}}" == "{ctx.package_name}" ]] || fail "pre-deployment backup belongs to another release package"
+[[ "${{BACKUP_EXPECTED_BACKEND:-}}" == "{BACKEND_IMAGE}:{ctx.baseline_backend_tag}" ]] || fail "pre-deployment backup backend baseline mismatch"
+[[ "${{BACKUP_EXPECTED_FRONTEND:-}}" == "{FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}" ]] || fail "pre-deployment backup frontend baseline mismatch"
 
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
@@ -989,42 +1161,21 @@ POSTGRES_ID="$(compose ps -q postgres)"
 ACTIVE_JOBS="$(db_query "select (select count(*) from sync_runs where status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','CANCELLING')) + (select count(*) from fact_build_tasks where status in ('PENDING','QUEUED','RUNNING','RETRYING'));" )"
 [[ "$ACTIVE_JOBS" == "0" ]] || fail "$ACTIVE_JOBS sync/fact jobs are active; wait for completion or cancel them before upgrading"
 
-DB_BYTES="$(db_query "select pg_database_size(current_database());")"
 IMAGE_BYTES="$(( $(stat -c %s "$PACKAGE_DIR/docker-images/{BACKEND_IMAGE}_{ctx.backend_tag}.tar") + $(stat -c %s "$PACKAGE_DIR/docker-images/{FRONTEND_IMAGE}_{ctx.frontend_tag}.tar") ))"
 FREE_BYTES="$(df -PB1 "$TARGET_DIR" | awk 'NR==2 {{print $4}}')"
-REQUIRED_BYTES="$(( DB_BYTES * 2 + IMAGE_BYTES * 2 + 1073741824 ))"
+REQUIRED_BYTES="$(( IMAGE_BYTES * 2 + 1073741824 ))"
 (( FREE_BYTES >= REQUIRED_BYTES )) || fail "insufficient disk space: free=$FREE_BYTES required=$REQUIRED_BYTES"
-
-STAMP="$(date +%Y%m%d-%H%M%S)"
-BACKUP_DIR="$TARGET_DIR/upgrade-backups/{ctx.package_name}-$STAMP"
-mkdir -p "$BACKUP_DIR"
-cp -a .env docker-compose.yml "$BACKUP_DIR/"
-if [[ -f docker-compose.override.yml ]]; then
-  cp -a docker-compose.override.yml "$BACKUP_DIR/"
-else
-  touch "$BACKUP_DIR/docker-compose.override.absent"
-fi
-printf '%s\n' "$POSTGRES_ID" > "$BACKUP_DIR/postgres.container-id"
-"${{DOCKER[@]}}" inspect "$POSTGRES_ID" > "$BACKUP_DIR/postgres.inspect.json"
-compose images > "$BACKUP_DIR/compose-images.txt"
 
 capture_counts() {{
   local output="$1"
   : > "$output"
-  for table in gitlab_sync_configs ods_gitlab_issues ods_gitlab_merge_requests issue_fact merge_request_fact review_records review_problem_items review_data_match_mode_reports review_data_match_mode_problem_details code_review_match_mode_records; do
-    local exists
-    exists="$(db_query "select to_regclass('public.$table') is not null;")"
-    if [[ "$exists" == "t" ]]; then
-      printf '%s=%s\n' "$table" "$(db_query "select count(*) from $table;")" >> "$output"
-    fi
-  done
+  while IFS='=' read -r table _count; do
+    [[ "$table" =~ ^[a-z_][a-z0-9_]*$ ]] || fail "invalid table name in backup counts: $table"
+    printf '%s=%s\n' "$table" "$(db_query "select count(*) from $table;")" >> "$output"
+  done < "$BACKUP_DIR/counts-before.txt"
 }}
 
-db_query "select coalesce(version,'') || '|' || success from flyway_schema_history order by installed_rank desc limit 1;" > "$BACKUP_DIR/flyway-before.txt"
-capture_counts "$BACKUP_DIR/counts-before.txt"
-log "creating PostgreSQL custom-format backup"
-compose exec -T postgres sh -c 'pg_dump -Fc -U "$POSTGRES_USER" -d "$POSTGRES_DB"' > "$BACKUP_DIR/database.dump"
-[[ -s "$BACKUP_DIR/database.dump" ]] || fail "database backup is empty"
+[[ "$POSTGRES_ID" == "${{BACKUP_POSTGRES_ID:-}}" ]] || fail "PostgreSQL container changed after the pre-deployment backup"
 
 log "loading new application images"
 "${{DOCKER[@]}}" load -i "$PACKAGE_DIR/docker-images/{BACKEND_IMAGE}_{ctx.backend_tag}.tar"
@@ -1069,15 +1220,26 @@ wait_healthy() {{
   done
 }}
 
-log "recreating backend; Flyway runs before traffic is accepted"
-compose up -d --no-deps --force-recreate backend
+log "stopping baseline backend to establish a quiet migration boundary"
+compose stop backend
+capture_counts "$BACKUP_DIR/counts-migration-start.txt"
+log "recreating migration backend with background scheduling disabled"
+PLATFORM_BACKGROUND_JOBS_ENABLED=false compose up -d --no-deps --force-recreate backend
 wait_healthy backend 900
+BACKEND_ID="$(compose ps -q backend)"
+[[ "$("${{DOCKER[@]}}" inspect -f '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}' "$BACKEND_ID" | grep '^PLATFORM_BACKGROUND_JOBS_ENABLED=' | tail -n 1)" == "PLATFORM_BACKGROUND_JOBS_ENABLED=false" ]] || fail "background scheduling disabled mode was not applied"
 CURRENT_FLYWAY="$(db_query "select version from flyway_schema_history where success order by installed_rank desc limit 1;")"
 [[ "$CURRENT_FLYWAY" == "$TARGET_FLYWAY" ]] || fail "Flyway version $CURRENT_FLYWAY does not match target $TARGET_FLYWAY"
 
 capture_counts "$BACKUP_DIR/counts-after-migration.txt"
-diff -u "$BACKUP_DIR/counts-before.txt" "$BACKUP_DIR/counts-after-migration.txt" > "$BACKUP_DIR/counts.diff" || fail "protected business row counts changed during migration; see $BACKUP_DIR/counts.diff"
+diff -u "$BACKUP_DIR/counts-migration-start.txt" "$BACKUP_DIR/counts-after-migration.txt" > "$BACKUP_DIR/counts.diff" || fail "protected business row counts changed during migration; see $BACKUP_DIR/counts.diff"
 [[ "$(compose ps -q postgres)" == "$POSTGRES_ID" ]] || fail "postgres container changed unexpectedly"
+
+log "recreating backend with normal background scheduling"
+PLATFORM_BACKGROUND_JOBS_ENABLED=true compose up -d --no-deps --force-recreate backend
+wait_healthy backend 900
+BACKEND_ID="$(compose ps -q backend)"
+[[ "$("${{DOCKER[@]}}" inspect -f '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}' "$BACKEND_ID" | grep '^PLATFORM_BACKGROUND_JOBS_ENABLED=' | tail -n 1)" == "PLATFORM_BACKGROUND_JOBS_ENABLED=true" ]] || fail "normal background scheduling mode was not restored"
 
 log "recreating frontend after backend migration and health verification"
 compose up -d --no-deps --force-recreate frontend
@@ -1165,6 +1327,7 @@ def write_operational_files(ctx: BuildContext) -> None:
     else:
         write_text(ctx.package_dir / "README-INCREMENTAL-DEPLOY.md", incremental_readme(ctx))
         write_text(ctx.package_dir / "docker-compose.release.yml", incremental_override_content(ctx))
+        write_text(ctx.package_dir / "backup.sh", backup_helper(ctx))
         write_text(ctx.package_dir / "upgrade.sh", upgrade_helper(ctx))
         write_text(ctx.package_dir / "rollback.sh", rollback_helper(ctx))
 
@@ -1216,6 +1379,12 @@ def write_release_manifest(ctx: BuildContext, backend_fallback_used: bool, backe
         "facts": {
             "rebuildRequired": ctx.require_fact_rebuild,
             "scope": ctx.fact_rebuild_scope if ctx.require_fact_rebuild else None,
+        },
+        "preDeploymentBackup": None if ctx.mode == "fresh-empty" else {
+            "required": True,
+            "entrypoint": "backup.sh",
+            "fullDatabaseDump": "database.dump",
+            "criticalTablesDump": "critical-tables.dump",
         },
         "build": {
             "backendTestSourceFallbackUsed": backend_fallback_used,
@@ -1305,6 +1474,8 @@ def scan_empty_package(ctx: BuildContext) -> None:
     for path in ctx.package_dir.rglob("*"):
         rel = path.relative_to(ctx.package_dir).as_posix()
         lowered = rel.lower()
+        if ctx.mode == "incremental-update" and lowered == "backup.sh":
+            continue
         if any(pattern.lower() in lowered for pattern in forbidden_patterns):
             # docker image tarballs and offline deb metadata are allowed; SQL/data files are not.
             if lowered.startswith("docker-images/") and lowered.endswith(".tar"):
@@ -1337,6 +1508,7 @@ def required_files(ctx: BuildContext) -> list[Path]:
             [
                 ctx.package_dir / "README-INCREMENTAL-DEPLOY.md",
                 ctx.package_dir / "docker-compose.release.yml",
+                ctx.package_dir / "backup.sh",
                 ctx.package_dir / "upgrade.sh",
                 ctx.package_dir / "rollback.sh",
             ]

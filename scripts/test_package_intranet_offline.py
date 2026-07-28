@@ -260,24 +260,45 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertIn("qa-flex-platform-frontend:20260721T120000Z-001122334455", content)
         self.assertIn("PLATFORM_AUTH_PROVIDER: ldap", content)
         self.assertIn('PLATFORM_AUTH_CSRF_ENABLED: "true"', content)
+        self.assertIn('PLATFORM_BACKGROUND_JOBS_ENABLED: "${PLATFORM_BACKGROUND_JOBS_ENABLED:-true}"', content)
         self.assertNotIn("postgres:", content)
         self.assertNotIn("PLATFORM_ADMIN_PASSWORD", content)
 
-    def test_upgrade_script_backs_up_database_blocks_active_jobs_and_updates_backend_first(self):
+    def test_backup_and_upgrade_are_separate_verified_stages(self):
+        backup = MODULE.backup_helper(self.build_context())
         content = MODULE.upgrade_helper(self.build_context())
 
-        self.assertIn("pg_dump -Fc", content)
+        self.assertIn("pg_dump -Fc", backup)
+        self.assertIn("critical-tables.dump", backup)
+        self.assertIn("pg_restore --list", backup)
+        self.assertIn("backup-manifest.env", backup)
+        self.assertIn("SHA256SUMS.txt", backup)
+        self.assertIn("-print0 | sort -z | xargs -0 sha256sum", backup)
+        self.assertNotIn("\x00", backup)
+        self.assertIn("latest-predeploy-backup.txt", backup)
+        self.assertNotIn("--force-recreate", backup)
+        self.assertIn('BACKUP_DIR="${2:-}"', content)
+        self.assertIn("invalid pre-deployment backup", content)
+        self.assertIn("sha256sum -c SHA256SUMS.txt", content)
+        self.assertNotIn("pg_dump -Fc", content)
         self.assertIn("sync_runs", content)
         self.assertIn("fact_build_tasks", content)
         self.assertIn("docker-compose.override.yml", content)
+        self.assertIn("PLATFORM_BACKGROUND_JOBS_ENABLED=false", content)
+        self.assertIn("background scheduling disabled", content)
+        self.assertIn("recreating backend with normal background scheduling", content)
+        self.assertIn("PLATFORM_BACKGROUND_JOBS_ENABLED=true compose up", content)
+        self.assertIn("normal background scheduling mode was not restored", content)
+        self.assertIn("compose stop backend", content)
+        self.assertIn("counts-migration-start.txt", content)
         backend_position = content.index("--force-recreate backend")
         frontend_position = content.index("--force-recreate frontend")
         self.assertLess(backend_position, frontend_position)
         self.assertIn("BACKEND_HEALTH_PORT", content)
         self.assertIn("FRONTEND_HEALTH_PORT", content)
         self.assertIn("ensure_env PLATFORM_LDAP_BASE_URL", content)
-        self.assertIn("cp -a docker-compose.override.yml", content)
-        self.assertIn("docker-compose.override.absent", content)
+        self.assertIn("cp -a docker-compose.override.yml", backup)
+        self.assertIn("docker-compose.override.absent", backup)
         self.assertNotIn("already exists; inspect it before upgrading", content)
         self.assertNotIn("down -v", content)
         self.assertNotIn("volume rm", content)
@@ -291,8 +312,17 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertIn("ls -la .env docker-compose.yml", content)
         self.assertIn("docker compose --env-file .env config --images", content)
         self.assertIn("cat upgrade-backups/latest-backup.txt", content)
+        self.assertIn("backup.sh", content)
+        self.assertIn("latest-predeploy-backup.txt", content)
+        self.assertLess(content.index("backup.sh"), content.index("upgrade.sh"))
+        self.assertIn("backend baseline image does not match", content)
+        self.assertIn('find "$PWD/upgrade-backups"', content)
+        self.assertIn("FAILED_BACKUP_DIR", content)
+        self.assertIn("counts.diff", content)
+        self.assertIn("PLATFORM_BACKGROUND_JOBS_ENABLED=true", content)
+        self.assertIn("select version from flyway_schema_history", content)
         self.assertIn("打包基线交付物（用于识别现场升级前镜像，不是现场部署目录）", content)
-        self.assertIn("## 5. 事实层重建", content)
+        self.assertIn("## 6. 事实层重建", content)
         self.assertNotIn(f"cd {context.baseline_name}", content)
 
     def test_upgrade_script_does_not_request_fact_rebuild_when_release_does_not_require_it(self):
@@ -345,12 +375,25 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 "RELEASE-MANIFEST.json",
                 "README-INCREMENTAL-DEPLOY.md",
                 "docker-compose.release.yml",
+                "backup.sh",
                 "upgrade.sh",
                 "rollback.sh",
             },
             relative,
         )
         self.assertFalse(any(path.startswith("backend/") or path.startswith("frontend/") for path in relative))
+
+    def test_incremental_empty_package_scan_allows_backup_script_but_rejects_backup_data(self):
+        with tempfile.TemporaryDirectory() as root:
+            package_dir = Path(root)
+            context = MODULE.BuildContext(**{**self.build_context().__dict__, "package_dir": package_dir})
+            (package_dir / "backup.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+
+            MODULE.scan_empty_package(context)
+
+            (package_dir / "database.backup").write_bytes(b"not allowed")
+            with self.assertRaisesRegex(MODULE.PackageError, "database.backup"):
+                MODULE.scan_empty_package(context)
 
     def test_incremental_layout_rejects_build_contexts_site_env_and_database_image(self):
         with tempfile.TemporaryDirectory() as root:

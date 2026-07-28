@@ -45,6 +45,7 @@ qaflex-update-<release-id>/
 │   ├── qa-flex-platform-backend_<image-tag>.tar
 │   └── qa-flex-platform-frontend_<image-tag>.tar
 ├── docker-compose.release.yml
+├── backup.sh
 ├── upgrade.sh
 ├── rollback.sh
 ├── RELEASE-MANIFEST.json
@@ -58,7 +59,8 @@ qaflex-update-<release-id>/
 | --- | --- |
 | `docker-images/` | 目标机无网络，必须直接 `docker load` 已构建业务镜像。 |
 | `docker-compose.release.yml` | 只声明本次应用镜像和必须同步的运行参数；升级脚本将其安装为现场 override。 |
-| `upgrade.sh` | 统一执行基线、任务、磁盘、备份、Flyway、健康、行数守恒和 PostgreSQL 容器不变检查。手工堆命令不能替代。 |
+| `backup.sh` | 在应用变更前独立生成并校验完整数据库和关键表 custom-format dump，同时保存 Compose、镜像、容器、Flyway 和行数证据；不停止容器、不修改数据库。 |
+| `upgrade.sh` | 只接受同一发布包生成且校验通过的预部署备份；执行基线、任务、磁盘、Flyway、静默迁移、健康、行数守恒和 PostgreSQL 容器不变检查。 |
 | `rollback.sh` | 恢复升级前 `.env`、基础 Compose 和旧 override，校验基线镜像，先等待后端健康再等待前端健康；不擅自回写数据库。 |
 | `RELEASE-MANIFEST.json` | 机器可读地记录包类型、commit、工作树状态、目标/基线镜像、镜像与源码摘要、Flyway 和事实重建要求。 |
 | `SHA256SUMS.txt` 与包外 `.sha256` | 分别校验包内文件和离线传输后的完整归档。 |
@@ -222,6 +224,7 @@ python -m unittest scripts.test_package_intranet_offline
 还必须在可用的 Linux Bash 环境中运行：
 
 ```bash
+bash -n <package-dir>/backup.sh
 bash -n <package-dir>/upgrade.sh
 bash -n <package-dir>/rollback.sh
 cd <package-dir> && sha256sum -c SHA256SUMS.txt
@@ -251,10 +254,12 @@ cd <package-dir> && sha256sum -c SHA256SUMS.txt
 
 ### 7. 执行升级、回滚、再次升级
 
-在 Ubuntu 或其他具备 Bash、curl 和 Docker Compose v2 的 Linux 环境中执行包内脚本。第一次升级：
+在 Ubuntu 或其他具备 Bash、curl 和 Docker Compose v2 的 Linux 环境中执行包内脚本。第一次升级前先独立备份并验证：
 
 ```bash
-bash <package-dir>/upgrade.sh <simulation-deployment-dir>
+bash <package-dir>/backup.sh <simulation-deployment-dir>
+BACKUP_DIR="$(cat <simulation-deployment-dir>/upgrade-backups/latest-predeploy-backup.txt)"
+bash <package-dir>/upgrade.sh <simulation-deployment-dir> "$BACKUP_DIR"
 ```
 
 必须逐项确认：
@@ -262,7 +267,8 @@ bash <package-dir>/upgrade.sh <simulation-deployment-dir>
 - 新后端和前端均为目标镜像且 healthy；
 - 后端健康返回 `UP`，前端 HTTP 返回 200；
 - Flyway 到达清单目标版本；
-- `upgrade-backups/latest-backup.txt` 指向非空备份，`database.dump` 非空；
+- `database.dump`、`critical-tables.dump` 均非空且可由 `pg_restore --list` 读取，备份级 SHA-256 校验通过；
+- 迁移后端明确关闭后台调度，守恒检查完成后正常后端明确恢复调度；
 - `counts.diff` 为空；
 - PostgreSQL 容器 ID 与升级前完全一致。
 
@@ -275,7 +281,7 @@ bash <package-dir>/rollback.sh <simulation-deployment-dir> "$BACKUP_DIR"
 
 回滚后前后端必须恢复直接基线镜像并健康，PostgreSQL 容器 ID 仍不变。Flyway 保持前向版本是预期行为；不得为了测试回滚而执行 `pg_restore`。
 
-最后从已恢复的基线再次运行同一 `upgrade.sh`，并重复目标镜像、健康、Flyway、非空备份、空 `counts.diff` 和 PostgreSQL ID 检查。本地隔离栈最终停留在目标镜像，证明连续操作可重复。
+最后从已恢复的基线重新运行 `backup.sh`，再以新备份运行同一 `upgrade.sh`，并重复目标镜像、健康、Flyway、备份可恢复性、空 `counts.diff` 和 PostgreSQL ID 检查。本地隔离栈最终停留在目标镜像，证明连续操作可重复。
 
 Windows 上仅存在 `C:\Windows\System32\bash.exe` 不代表 Bash 可用，它可能只是未安装 WSL 发行版的转发器。必须实际运行 `bash --version` 和 `bash -n`；不可用时，改用已安装的 Git Bash、WSL/Ubuntu，或预置了 Bash、curl、Docker CLI 与 Compose v2 的 Linux 工具容器挂载 Docker socket和隔离目录。工具环境只是执行同一份包内脚本，不允许改写脚本来绕过检查。Docker Desktop 工具容器还必须验证 host 网络和 Windows 目录挂载可用。
 
@@ -325,16 +331,19 @@ sha256sum -c SHA256SUMS.txt
 
 ```bash
 cd <current-deployment-dir>
-bash ../<update-package>/upgrade.sh "$PWD"
+bash ../<update-package>/backup.sh "$PWD"
+BACKUP_DIR="$(cat upgrade-backups/latest-predeploy-backup.txt)"
+bash ../<update-package>/upgrade.sh "$PWD" "$BACKUP_DIR"
 ```
 
 脚本必须在修改应用容器前完成：
 
 1. 解析现场基础 Compose 与已有 override，确认前后端镜像等于发布清单基线。
 2. 确认 PostgreSQL 健康、无运行中同步/事实任务且磁盘足够。
-3. 在 `upgrade-backups/` 保存 `.env`、基础 Compose、已有 override、容器/镜像信息、Flyway、关键表行数和 `pg_dump -Fc`。
-4. 加载前后端镜像，安装新 override；先重建后端并等待 Flyway 和健康检查，再重建前端。
-5. 确认 PostgreSQL 容器 ID 未变化，迁移期间受保护业务表行数守恒。
+3. 由独立 `backup.sh` 保存 Compose、容器/镜像、Flyway、关键表行数、完整数据库 dump 和关键表 dump，并验证可恢复性和校验和。
+4. `upgrade.sh` 校验备份绑定当前包、直接基线与同一 PostgreSQL 容器；停止旧后端后记录迁移起点行数。
+5. 以全部后台调度关闭的模式重建后端并完成 Flyway、健康和行数守恒，再恢复正常调度后端，最后重建前端。
+6. 确认 PostgreSQL 容器 ID 未变化，迁移静默窗口内受保护业务表行数守恒。
 
 需要事实重建时，容器升级完成后由具备权限的用户在“数据镜像设置”提交发布清单指定范围的事实重建，并观察 `FACT_REFRESH` 终态和快照预热。升级脚本不得保存账号密码、绕过 Session/CSRF 或触发 GitLab 全量同步。
 
@@ -363,6 +372,7 @@ bash ../<update-package>/rollback.sh "$PWD" "$PWD/upgrade-backups/<backup-dir>"
 - Compose 可解析，镜像内产物摘要与生产构建产物一致。
 - `RELEASE-MANIFEST.json` 的基线、目标镜像、Flyway 和事实重建标记与本次发布一致。
 - `SHA256SUMS.txt` 覆盖包内全部其他文件，包外 `.sha256` 与最终 tar.gz 一致。
+- 更新包包含独立 `backup.sh`；无有效预部署备份时 `upgrade.sh` 必须拒绝执行。
 - 更新包归档不存在 `backend/`、`frontend/`、真实 `.env`、PostgreSQL 镜像、离线 deb、数据库数据或运行日志。
 - 使用隔离的 20260714/当前更新链副本完成升级、再次升级和应用回滚验证；验证期间 PostgreSQL 容器 ID 与受保护数据保持不变。
 
