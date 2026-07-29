@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.SourceCursorStrategy;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.TableWhitelistOption;
@@ -23,7 +24,8 @@ class SourceMetadataInspectorTest {
     Map<String, String> labels = Map.of("issues", "Issues");
     List<String> recommended = List.of("issues");
     List<TableWhitelistOption> expected =
-        List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
+        List.of(new TableWhitelistOption(
+            "issues", "Issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET, true));
     when(externalDbService.discoverTables(config, labels, recommended)).thenReturn(expected);
 
     List<TableWhitelistOption> actual = inspector.discoverTables(config, labels, recommended);
@@ -37,7 +39,8 @@ class SourceMetadataInspectorTest {
     GitlabExternalDbService externalDbService = mock(GitlabExternalDbService.class);
     SourceMetadataInspector inspector = new SourceMetadataInspector(externalDbService);
     GitlabSyncConfig config = new GitlabSyncConfig();
-    TableWhitelistOption option = new TableWhitelistOption("issues", "Issues", "id", "updated_at", true);
+    TableWhitelistOption option = new TableWhitelistOption(
+        "issues", "Issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET, true);
     SourceTableSchema expected =
         new SourceTableSchema(
             "issues",
@@ -58,7 +61,8 @@ class SourceMetadataInspectorTest {
     SourceMetadataInspector inspector = new SourceMetadataInspector(externalDbService);
     GitlabSyncConfig config = new GitlabSyncConfig();
     List<TableWhitelistOption> options =
-        List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
+        List.of(new TableWhitelistOption(
+            "issues", "Issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET, true));
     GitlabSourceMetadataDiagnosticsResponse expected =
         new GitlabSourceMetadataDiagnosticsResponse(true, "ok", 1, 1, 0, 0, List.of());
     when(externalDbService.inspectSourceMetadata(config, options)).thenReturn(expected);

@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.data.collection.platform.entity.SourceCursorStrategy;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
 import java.util.List;
@@ -42,6 +43,16 @@ class GitlabSourceMetadataSupportTest {
     assertThat(support.resolveRowStrategy("updated_at")).isEqualTo("INCREMENTAL");
     assertThat(support.resolveRowStrategy(null)).isEqualTo("FULL_ONLY");
     assertThat(support.resolveRowStrategy("")).isEqualTo("FULL_ONLY");
+  }
+
+  @Test
+  void shouldResolveCursorStrategyFromLeadingBtreeIndexAvailability() {
+    assertThat(support.resolveCursorStrategy("updated_at", java.util.Set.of("updated_at")))
+        .isEqualTo(SourceCursorStrategy.TIMESTAMP_KEYSET);
+    assertThat(support.resolveCursorStrategy("created_at", java.util.Set.of("id")))
+        .isEqualTo(SourceCursorStrategy.PRIMARY_KEY_KEYSET);
+    assertThat(support.resolveCursorStrategy(null, java.util.Set.of("updated_at")))
+        .isEqualTo(SourceCursorStrategy.NONE);
   }
 
   @Test

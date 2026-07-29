@@ -30,11 +30,16 @@
             {
               "app":"${APP_NAME}",
               "traceId":"%X{traceId:-}",
+              "runId":"%X{runId:-}",
+              "runDbId":"%X{runDbId:-}",
               "taskId":"%X{taskId:-}",
+              "sourceTable":"%X{sourceTable:-}",
+              "configId":"%X{configId:-}",
+              "sourceInstance":"%X{sourceInstance:-}",
               "scope":"%X{scope:-}",
               "objectId":"%X{objectId:-}",
               "gitlabUrl":"%X{gitlabUrl:-}",
-              "taskType":"%X{taskType:-}",
+              "runType":"%X{runType:-}",
               "action":"%X{action:-}"
             }
           </pattern>
@@ -79,11 +84,16 @@
             {
               "app":"${APP_NAME}",
               "traceId":"%X{traceId:-}",
+              "runId":"%X{runId:-}",
+              "runDbId":"%X{runDbId:-}",
               "taskId":"%X{taskId:-}",
+              "sourceTable":"%X{sourceTable:-}",
+              "configId":"%X{configId:-}",
+              "sourceInstance":"%X{sourceInstance:-}",
               "scope":"%X{scope:-}",
               "objectId":"%X{objectId:-}",
               "gitlabUrl":"%X{gitlabUrl:-}",
-              "taskType":"%X{taskType:-}",
+              "runType":"%X{runType:-}",
               "action":"%X{action:-}"
             }
           </pattern>

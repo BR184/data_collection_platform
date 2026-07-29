@@ -8,6 +8,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,7 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 public class SyncRunDispatcherService {
-  private static final String DISPATCHER_OWNER = "sync-dispatcher";
+  private static final String DISPATCHER_OWNER_PREFIX = "sync-dispatcher-";
 
   private final GitlabMirrorProperties properties;
   private final JdbcTemplate jdbcTemplate;
@@ -38,12 +39,18 @@ public class SyncRunDispatcherService {
       return;
     }
     while (executorService.hasCapacity()) {
-      SyncRun nextRun = claimNextQueuedRun(DISPATCHER_OWNER, Math.max(1, properties.getHeartbeatTimeoutSeconds()));
+      SyncRun nextRun =
+          claimNextQueuedRun(
+              newLeaseOwner(), Math.max(1, properties.getHeartbeatTimeoutSeconds()));
       if (nextRun == null) {
         return;
       }
       executorService.submit(nextRun);
     }
+  }
+
+  private String newLeaseOwner() {
+    return DISPATCHER_OWNER_PREFIX + UUID.randomUUID();
   }
 
   public SyncRun claimNextQueuedRun(String owner, int leaseSeconds) {
@@ -60,7 +67,7 @@ public class SyncRunDispatcherService {
            where id = (
              select candidate.id
                from sync_runs candidate
-              where candidate.status = 'QUEUED'
+              where candidate.status in ('QUEUED', 'PAUSED')
                 and not exists (
                       select 1
                         from sync_runs active
@@ -68,7 +75,15 @@ public class SyncRunDispatcherService {
                          and active.id <> candidate.id
                          and active.status in ('RUNNING', 'RETRYING', 'CANCELLING')
                 )
-              order by candidate.priority desc, candidate.created_at asc, candidate.id asc
+              order by (
+                         candidate.priority
+                         + least(
+                             100,
+                             floor(extract(epoch from (current_timestamp - candidate.updated_at)) / 60)
+                           )
+                       ) desc,
+                       candidate.created_at asc,
+                       candidate.id asc
               for update skip locked
               limit 1
            )
@@ -103,6 +118,7 @@ public class SyncRunDispatcherService {
     if (threadValue != null) {
       run.setThreadValue(rs.getBigDecimal("thread_value"));
     }
+    run.setResolvedWorkerCount(rs.getInt("resolved_worker_count"));
     run.setPlannedTableCount(rs.getInt("planned_table_count"));
     run.setCompletedTableCount(rs.getInt("completed_table_count"));
     run.setScannedRows(rs.getLong("scanned_rows"));

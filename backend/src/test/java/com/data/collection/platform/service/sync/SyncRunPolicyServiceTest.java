@@ -10,16 +10,15 @@ class SyncRunPolicyServiceTest {
   private final SyncRunPolicyService policyService = new SyncRunPolicyService();
 
   @Test
-  void shouldUseSameMirrorScopeForIncrementalCompensationAndSystemHookRuns() {
+  void shouldUseDefaultMirrorScopeForActiveSynchronizationRuns() {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(12L);
     config.setSourceInstance("cc");
 
-    String mirrorScope = "source:12:cc:mirror";
+    String mirrorScope = "source:12:default:mirror";
 
     assertThat(policyService.exclusiveScopeOf(config, SyncRunType.INCREMENTAL_SYNC)).isEqualTo(mirrorScope);
     assertThat(policyService.exclusiveScopeOf(config, SyncRunType.COMPENSATION_SCAN)).isEqualTo(mirrorScope);
     assertThat(policyService.exclusiveScopeOf(config, SyncRunType.FULL_COMPENSATION_SCAN)).isEqualTo(mirrorScope);
-    assertThat(policyService.exclusiveScopeOf(config, SyncRunType.SYSTEM_HOOK)).isEqualTo(mirrorScope);
   }
 }

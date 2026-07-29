@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.sync;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.sync.SyncRun;
@@ -73,11 +74,23 @@ public class SyncRunDeadlineGuard {
     if (reason == null) {
       return false;
     }
+    int updated =
+        syncRunMapper.update(
+            null,
+            new UpdateWrapper<SyncRun>()
+                .eq("id", run.getId())
+                .in("status", SyncRunStatus.RUNNING.name(), SyncRunStatus.RETRYING.name())
+                .set("cancel_requested", true)
+                .set("status", SyncRunStatus.CANCELLING.name())
+                .set("error_message", reason)
+                .set("updated_at", now()));
+    if (updated != 1) {
+      return false;
+    }
     run.setCancelRequested(true);
     run.setStatus(SyncRunStatus.CANCELLING);
     run.setErrorMessage(reason);
     run.setUpdatedAt(now());
-    syncRunMapper.updateById(run);
     log.warn("Requested sync run cancellation after deadline, runId={}, reason={}", run.getRunId(), reason);
     return true;
   }

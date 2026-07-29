@@ -5,7 +5,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
@@ -32,9 +31,8 @@ class SyncTableContinuationPlannerTest {
   void shouldQueueContinuationTaskWithCursorAndCopiedTaskContext() {
     SyncRunTableTask previousTask = previousTask();
     LocalDateTime cursorUpdatedAt = LocalDateTime.of(2026, 5, 17, 10, 9);
-    when(taskMapper.selectCount(any())).thenReturn(3L);
 
-    planner.enqueueContinuationTask(previousTask, cursorUpdatedAt, "102", 200);
+    planner.enqueueContinuationTask(previousTask, cursorUpdatedAt, "[\"102\"]", 200);
 
     verify(taskMapper)
         .insert(
@@ -51,7 +49,9 @@ class SyncTableContinuationPlannerTest {
                         && "INCREMENTAL".equals(nextTask.getRowStrategy())
                         && previousTask.getWatermarkAt().equals(nextTask.getWatermarkAt())
                         && cursorUpdatedAt.equals(nextTask.getCursorUpdatedAt())
-                        && "102".equals(nextTask.getCursorPk())
+                        && "[\"102\"]".equals(nextTask.getCursorPk())
+                        && previousTask.getScanUpperBoundAt().equals(nextTask.getScanUpperBoundAt())
+                        && nextTask.getPageNumber().equals(2)
                         && "id".equals(nextTask.getLookupColumn())
                         && "101".equals(nextTask.getLookupValue())
                         && nextTask.getBatchSize().equals(200)
@@ -67,12 +67,13 @@ class SyncTableContinuationPlannerTest {
   @Test
   void shouldRejectContinuationWhenTableTaskCountReachesConfiguredLimit() {
     mirrorProperties.setMaxContinuationTasksPerTable(3);
-    when(taskMapper.selectCount(any())).thenReturn(3L);
+    SyncRunTableTask previousTask = previousTask();
+    previousTask.setPageNumber(3);
 
     assertThatThrownBy(
             () ->
                 planner.enqueueContinuationTask(
-                    previousTask(), LocalDateTime.of(2026, 5, 17, 10, 9), "102", 200))
+                    previousTask, LocalDateTime.of(2026, 5, 17, 10, 9), "[\"102\"]", 200))
         .isInstanceOf(BizException.class)
         .hasMessage("\u8868 issues \u8d85\u8fc7\u8fde\u7eed\u5206\u9875\u4efb\u52a1\u4e0a\u9650\uff083\uff09");
 
@@ -82,11 +83,28 @@ class SyncTableContinuationPlannerTest {
   @Test
   void shouldUseDefaultLimitWhenConfiguredLimitIsNotPositive() {
     mirrorProperties.setMaxContinuationTasksPerTable(0);
-    when(taskMapper.selectCount(any())).thenReturn(49999L);
+    SyncRunTableTask previousTask = previousTask();
+    previousTask.setPageNumber(49999);
 
-    planner.enqueueContinuationTask(previousTask(), null, "102", 200);
+    planner.enqueueContinuationTask(previousTask, null, "[\"102\"]", 200);
 
     verify(taskMapper).insert(any(SyncRunTableTask.class));
+  }
+
+  @Test
+  void shouldContinueAfterTwoThousandPagesForMillionRowTable() {
+    SyncRunTableTask previousTask = previousTask();
+    previousTask.setPageNumber(2000);
+
+    planner.enqueueContinuationTask(previousTask, null, "[\"1000000\"]", 500);
+
+    verify(taskMapper)
+        .insert(
+            argThat(
+                (SyncRunTableTask nextTask) ->
+                    nextTask.getPageNumber().equals(2001)
+                        && nextTask.getBatchSize().equals(500)
+                        && "[\"1000000\"]".equals(nextTask.getCursorPk())));
   }
 
   private SyncRunTableTask previousTask() {
@@ -101,6 +119,8 @@ class SyncTableContinuationPlannerTest {
     task.setStatus(SyncRunStatus.RUNNING);
     task.setRowStrategy("INCREMENTAL");
     task.setWatermarkAt(LocalDateTime.of(2026, 5, 17, 10, 0));
+    task.setScanUpperBoundAt(LocalDateTime.of(2026, 5, 17, 11, 0));
+    task.setPageNumber(1);
     task.setLookupColumn("id");
     task.setLookupValue("101");
     task.setBatchSize(500);

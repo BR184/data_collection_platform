@@ -13,6 +13,7 @@ public final class SyncRunStateMachine {
           SyncRunStatus.QUEUED,
           SyncRunStatus.RUNNING,
           SyncRunStatus.RETRYING,
+          SyncRunStatus.PAUSED,
           SyncRunStatus.CANCELLING);
 
   private static final Set<SyncRunStatus> COMPLETED_STATUSES =
@@ -57,7 +58,7 @@ public final class SyncRunStateMachine {
       return SyncStatus.IDLE;
     }
     return switch (status) {
-      case SUBMITTED, QUEUED -> SyncStatus.QUEUED;
+      case SUBMITTED, QUEUED, PAUSED -> SyncStatus.QUEUED;
       case RUNNING -> SyncStatus.RUNNING;
       case RETRYING -> SyncStatus.RETRYING;
       case CANCELLING -> SyncStatus.CANCELLING;

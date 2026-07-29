@@ -21,6 +21,7 @@ public class SyncRunCancellationService {
           SyncRunStatus.QUEUED,
           SyncRunStatus.RUNNING,
           SyncRunStatus.RETRYING,
+          SyncRunStatus.PAUSED,
           SyncRunStatus.CANCELLING);
 
   private final SyncRunMapper syncRunMapper;
@@ -44,26 +45,43 @@ public class SyncRunCancellationService {
     }
 
     LocalDateTime now = LocalDateTime.now();
-    boolean queued = run.getStatus() == SyncRunStatus.SUBMITTED || run.getStatus() == SyncRunStatus.QUEUED;
+    boolean queued =
+        run.getStatus() == SyncRunStatus.SUBMITTED
+            || run.getStatus() == SyncRunStatus.QUEUED
+            || run.getStatus() == SyncRunStatus.PAUSED;
+    SyncRunStatus previousStatus = run.getStatus();
+    int updated =
+        queued
+            ? cancelQueuedRun(run, previousStatus, now)
+            : requestRunningRunCancellation(run, previousStatus, now);
+    if (updated != 1) {
+      return SyncRunCancellationResult.rejected("同步任务状态已变化，请刷新后重试");
+    }
     run.setCancelRequested(true);
     run.setStatus(queued ? SyncRunStatus.CANCELLED : SyncRunStatus.CANCELLING);
     run.setUpdatedAt(now);
     if (queued) {
       run.setFinishedAt(now);
       run.setErrorMessage("任务启动前已取消");
+      run.setLeaseOwner(null);
+      run.setLeaseUntil(null);
+      run.setHeartbeatAt(null);
     }
-    syncRunMapper.updateById(run);
     if (queued) {
       tableTaskLeaseService.cancelActiveTasksForRun(run.getId());
     } else {
       tableTaskLeaseService.cancelQueuedRetryingAndStaleRunningTasks(run.getId());
       if (!tableTaskLeaseService.hasLiveRunningTask(run.getId())) {
-        run.setStatus(SyncRunStatus.CANCELLED);
-        run.setFinishedAt(now);
-        run.setErrorMessage("同步运行已取消");
-        run.setUpdatedAt(now);
-        syncRunMapper.updateById(run);
-        tableTaskLeaseService.cancelActiveTasksForRun(run.getId());
+        if (finishCancellingRun(run, now) == 1) {
+          run.setStatus(SyncRunStatus.CANCELLED);
+          run.setFinishedAt(now);
+          run.setErrorMessage("同步运行已取消");
+          run.setUpdatedAt(now);
+          run.setLeaseOwner(null);
+          run.setLeaseUntil(null);
+          run.setHeartbeatAt(null);
+          tableTaskLeaseService.cancelActiveTasksForRun(run.getId());
+        }
       }
     }
     recordCancellationEvent(run, requestedBy, reason, now, queued);
@@ -73,6 +91,63 @@ public class SyncRunCancellationService {
         run.getRunId(),
         run.getStatus(),
         queued ? "已取消等待中的同步任务" : "已请求取消同步任务");
+  }
+
+  private int cancelQueuedRun(
+      SyncRun run, SyncRunStatus previousStatus, LocalDateTime cancelledAt) {
+    return jdbcTemplate.update(
+        """
+        update sync_runs
+           set cancel_requested = true,
+               status = 'CANCELLED',
+               lease_owner = null,
+               lease_until = null,
+               heartbeat_at = null,
+               finished_at = ?,
+               error_message = '任务启动前已取消',
+               updated_at = ?
+         where id = ?
+           and status = ?
+        """,
+        cancelledAt,
+        cancelledAt,
+        run.getId(),
+        previousStatus.name());
+  }
+
+  private int requestRunningRunCancellation(
+      SyncRun run, SyncRunStatus previousStatus, LocalDateTime requestedAt) {
+    return jdbcTemplate.update(
+        """
+        update sync_runs
+           set cancel_requested = true,
+               status = 'CANCELLING',
+               updated_at = ?
+         where id = ?
+           and status = ?
+        """,
+        requestedAt,
+        run.getId(),
+        previousStatus.name());
+  }
+
+  private int finishCancellingRun(SyncRun run, LocalDateTime cancelledAt) {
+    return jdbcTemplate.update(
+        """
+        update sync_runs
+           set status = 'CANCELLED',
+               lease_owner = null,
+               lease_until = null,
+               heartbeat_at = null,
+               finished_at = ?,
+               error_message = '同步运行已取消',
+               updated_at = ?
+         where id = ?
+           and status = 'CANCELLING'
+        """,
+        cancelledAt,
+        cancelledAt,
+        run.getId());
   }
 
   private SyncRun findCancellableRun(Long configId) {

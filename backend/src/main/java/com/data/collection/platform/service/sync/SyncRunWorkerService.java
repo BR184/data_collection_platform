@@ -1,11 +1,11 @@
 package com.data.collection.platform.service.sync;
 
+import com.data.collection.platform.common.logging.SyncRunLogContext;
 import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunType;
 import com.data.collection.platform.mapper.SyncRunMapper;
 import com.data.collection.platform.service.GitlabConfigService;
-import com.data.collection.platform.entity.GitlabSyncConfig;
 import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -15,28 +15,28 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class SyncRunWorkerService {
   private final SyncRunMapper syncRunMapper;
+  private final SyncRunLeaseService leaseService;
   private final SyncRunTablePlanningService tablePlanningService;
   private final SyncRunTableWorkerService tableWorkerService;
   private final GitlabConfigService configService;
-  private final SyncThreadBudgetResolver threadBudgetResolver;
   private final ApplicationEventPublisher eventPublisher;
   private final SyncFactRefreshRunExecutor factRefreshRunExecutor;
   private final SyncRunDeadlineGuard deadlineGuard;
 
   public SyncRunWorkerService(
       SyncRunMapper syncRunMapper,
+      SyncRunLeaseService leaseService,
       SyncRunTablePlanningService tablePlanningService,
       SyncRunTableWorkerService tableWorkerService,
       GitlabConfigService configService,
-      SyncThreadBudgetResolver threadBudgetResolver,
       ApplicationEventPublisher eventPublisher,
       SyncFactRefreshRunExecutor factRefreshRunExecutor,
       SyncRunDeadlineGuard deadlineGuard) {
     this.syncRunMapper = syncRunMapper;
+    this.leaseService = leaseService;
     this.tablePlanningService = tablePlanningService;
     this.tableWorkerService = tableWorkerService;
     this.configService = configService;
-    this.threadBudgetResolver = threadBudgetResolver;
     this.eventPublisher = eventPublisher;
     this.factRefreshRunExecutor = factRefreshRunExecutor;
     this.deadlineGuard = deadlineGuard;
@@ -46,8 +46,9 @@ public class SyncRunWorkerService {
     if (run == null || run.getId() == null) {
       return;
     }
-    markRunning(run);
-    try {
+    try (SyncRunLogContext.Scope runContext = SyncRunLogContext.openRun(run, null);
+        SyncRunLogContext.Scope action = SyncRunLogContext.action("Run_Execute")) {
+      initializeRunningSnapshot(run);
       if (isCancellationRequested(run) || isDeadlineExpired(run)) {
         finishRun(run, SyncRunStatus.CANCELLED, 0, 0, cancellationMessage(run, "同步运行在处理前已取消"));
         return;
@@ -57,35 +58,51 @@ public class SyncRunWorkerService {
         return;
       }
       if (isMirrorRun(run)) {
-        executeTableRefreshRun(run);
+        if (!executeTableRefreshRun(run)) {
+          return;
+        }
       } else {
         finishRun(run, SyncRunStatus.SUCCESS, 0, 0, null);
       }
       updateSyncTimestamps(run);
       publishRunCompletion(run);
+    } catch (SyncRunLeaseLostException e) {
+      log.info(
+          "Stopped sync run after lease ownership changed, runId={}", run.getRunId());
     } catch (Exception e) {
-      finishRun(run, SyncRunStatus.FAILED, 0, 0, e.getMessage());
+      try {
+        finishRun(run, SyncRunStatus.FAILED, 0, 0, e.getMessage());
+      } catch (SyncRunLeaseLostException leaseLost) {
+        log.info(
+            "Did not overwrite sync run failure after lease ownership changed, runId={}",
+            run.getRunId());
+      }
       log.error("Sync run failed, runId={}", run.getRunId(), e);
     }
   }
 
-  private void executeTableRefreshRun(SyncRun run) {
+  private boolean executeTableRefreshRun(SyncRun run) {
     int planned = tablePlanningService.planRunTables(run.getId());
     if (isCancellationRequested(run) || isDeadlineExpired(run)) {
       finishRun(run, SyncRunStatus.CANCELLED, planned, 0, cancellationMessage(run, "同步运行在表任务执行前已取消"));
-      return;
+      return true;
     }
-    tableWorkerService.drainRunTasks(run.getId(), resolveTableWorkerCount(run));
+    SyncRunTableWorkerService.DrainResult drainResult =
+        tableWorkerService.drainRunTasks(run, resolveTableWorkerCount(run));
+    if (drainResult.yielded()) {
+      return false;
+    }
     SyncRunTableWorkerService.RunTableTaskSummary summary = tableWorkerService.summarizeRun(run.getId());
     planned = Math.max(planned, summary.plannedTasks());
     run.setScannedRows(summary.scannedRows());
     run.setAppliedRows(summary.appliedRows());
     if (isCancellationRequested(run) || isDeadlineExpired(run)) {
       finishRun(run, SyncRunStatus.CANCELLED, planned, summary.completedTasks(), cancellationMessage(run, "同步运行已取消"));
-      return;
+      return true;
     }
     SyncRunStatus status = tableRunStatus(summary);
     finishRun(run, status, planned, summary.completedTasks(), tableRunErrorMessage(status, summary));
+    return true;
   }
 
   private void executeFactRefreshRun(SyncRun run) {
@@ -94,12 +111,11 @@ public class SyncRunWorkerService {
     finishRun(run, result.status(), result.plannedTasks(), result.completedTasks(), result.errorMessage());
   }
 
-  private void markRunning(SyncRun run) {
+  private void initializeRunningSnapshot(SyncRun run) {
     run.setStatus(SyncRunStatus.RUNNING);
     run.setStartedAt(run.getStartedAt() == null ? LocalDateTime.now() : run.getStartedAt());
     run.setHeartbeatAt(LocalDateTime.now());
     run.setUpdatedAt(LocalDateTime.now());
-    syncRunMapper.updateById(run);
   }
 
   private boolean isCancellationRequested(SyncRun run) {
@@ -133,7 +149,11 @@ public class SyncRunWorkerService {
     run.setFinishedAt(LocalDateTime.now());
     run.setErrorMessage(errorMessage);
     run.setUpdatedAt(LocalDateTime.now());
-    syncRunMapper.updateById(run);
+    if (leaseService.finishOwnedRun(run) != 1) {
+      throw new SyncRunLeaseLostException(run.getId());
+    }
+    run.setLeaseOwner(null);
+    run.setLeaseUntil(null);
     tableWorkerService.terminalizeActiveTasksForRun(run.getId(), status, errorMessage);
   }
 
@@ -203,16 +223,8 @@ public class SyncRunWorkerService {
   }
 
   private int resolveTableWorkerCount(SyncRun run) {
-    GitlabSyncConfig config = configService.getConfigById(run.getConfigId());
-    if (config == null) {
-      config = new GitlabSyncConfig();
-    }
-    if (run.getThreadMode() != null && !run.getThreadMode().isBlank()) {
-      config.setSyncThreadMode(run.getThreadMode());
-    }
-    if (run.getThreadValue() != null) {
-      config.setSyncThreadValue(run.getThreadValue());
-    }
-    return threadBudgetResolver.resolve(config);
+    return run.getResolvedWorkerCount() == null
+        ? 1
+        : Math.max(1, run.getResolvedWorkerCount());
   }
 }

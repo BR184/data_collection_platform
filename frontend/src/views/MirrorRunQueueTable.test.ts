@@ -50,6 +50,8 @@ function createDiagnostics(): SyncRunDiagnosticsResponse {
     retryingTaskCount: 0,
     failedTaskCount: 0,
     timedOutTaskCount: 0,
+    historicalFailedTaskCount: 2,
+    historicalTimedOutTaskCount: 1,
     tables: [
       {
         sourceTable: 'issues',
@@ -59,9 +61,9 @@ function createDiagnostics(): SyncRunDiagnosticsResponse {
         syncEnabled: true,
         dirty: true,
         dirtyReason: 'row_count_drift',
-        latestTaskStatus: 'RUNNING',
-        latestTaskHeartbeatAt: '2026-05-15T10:06:00',
-        latestTaskLeaseUntil: '2026-05-15T10:10:00',
+        currentTaskStatus: 'RUNNING',
+        currentTaskHeartbeatAt: '2026-05-15T10:06:00',
+        currentTaskLeaseUntil: '2026-05-15T10:10:00',
       },
     ],
   };

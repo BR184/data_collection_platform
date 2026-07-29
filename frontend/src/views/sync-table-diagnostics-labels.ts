@@ -22,8 +22,8 @@ export function tableRowStrategyText(strategy: GitlabTableRowStrategy | string |
 }
 
 export function tableDiagnosticNote(row: SyncRunTableDiagnostics) {
-  if (row.latestTaskError || row.lastError) {
-    return row.latestTaskError || row.lastError || '表任务需要查看明细';
+  if (row.currentTaskError || row.lastError) {
+    return row.currentTaskError || row.lastError || '表任务需要查看明细';
   }
   if (row.blockingRunId) {
     return '当前同步正在处理相关表';

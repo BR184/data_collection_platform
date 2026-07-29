@@ -47,6 +47,17 @@ class SyncThreadBudgetResolverTest {
     assertThat(resolver.resolve(config, 16)).isEqualTo(6);
   }
 
+  @Test
+  void shouldDeriveDirectPoolCapacityFromResolvedWorkersAndControlReserve() {
+    GitlabSyncConfig config = config(SyncThreadBudgetResolver.MODE_FIXED, BigDecimal.valueOf(6), 8);
+
+    SyncExecutionBudget budget = resolver.resolveBudget(config, 16);
+
+    assertThat(budget.workerCount()).isEqualTo(6);
+    assertThat(budget.controlConnectionReserve()).isEqualTo(1);
+    assertThat(budget.directPoolSize()).isEqualTo(7);
+  }
+
   private GitlabSyncConfig config(String mode, BigDecimal value, Integer maxThreads) {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setSyncThreadMode(mode);

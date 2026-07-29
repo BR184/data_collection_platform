@@ -77,9 +77,9 @@ class GitlabMirrorTableStorageServiceTest {
     ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
     verify(jdbcTemplate).update(sqlCaptor.capture(), eq(99L), eq("1"), eq("101"), eq("Issue"));
     assertThat(updated).isEqualTo(1);
-    assertThat(sqlCaptor.getValue()).contains("\"label_id\"::text = ?");
-    assertThat(sqlCaptor.getValue()).contains("\"target_id\"::text = ?");
-    assertThat(sqlCaptor.getValue()).contains("\"target_type\"::text = ?");
+    assertThat(sqlCaptor.getValue()).contains("\"label_id\" = ?::bigint");
+    assertThat(sqlCaptor.getValue()).contains("\"target_id\" = ?::bigint");
+    assertThat(sqlCaptor.getValue()).contains("\"target_type\" = ?::character varying");
   }
 
   @Test
@@ -102,8 +102,9 @@ class GitlabMirrorTableStorageServiceTest {
     verify(jdbcTemplate).queryForList(sqlCaptor.capture(), eq("101"), eq(10));
     assertThat(batch.keys()).containsExactly(Map.of("id", "102"));
     assertThat(batch.nextCursor()).isEqualTo("[\"102\"]");
-    assertThat(sqlCaptor.getValue()).contains("\"id\"::text > ?");
-    assertThat(sqlCaptor.getValue()).contains("order by \"id\"::text asc");
+    assertThat(sqlCaptor.getValue()).contains("(\"id\") > (?::bigint)");
+    assertThat(sqlCaptor.getValue()).contains("order by \"id\" asc");
+    assertThat(sqlCaptor.getValue()).doesNotContain("\"id\"::text");
   }
 
   @Test

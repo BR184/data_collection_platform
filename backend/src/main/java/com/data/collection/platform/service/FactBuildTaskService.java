@@ -138,7 +138,7 @@ public class FactBuildTaskService {
                from sync_runs run
               where run.id::text = fact_build_tasks.run_id
                 and run.run_type = 'FACT_REFRESH'
-                and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
+                and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'PAUSED', 'CANCELLING')
            )
         """,
         STATUS_PENDING,
@@ -160,7 +160,7 @@ public class FactBuildTaskService {
                from sync_runs run
               where run.id::text = fact_build_tasks.run_id
                 and run.run_type = 'FACT_REFRESH'
-                and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
+                and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'PAUSED', 'CANCELLING')
            )
         """,
         STATUS_TIMEOUT,
@@ -190,7 +190,7 @@ public class FactBuildTaskService {
                   from sync_runs run
                  where run.id::text = fact_build_tasks.run_id
                    and run.run_type = 'FACT_REFRESH'
-                   and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
+                   and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'PAUSED', 'CANCELLING')
               )
             order by created_at asc, id asc
             for update skip locked

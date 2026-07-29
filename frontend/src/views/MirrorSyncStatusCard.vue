@@ -1,18 +1,30 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { SyncRunSummary, SyncProgress } from '../types/api';
 import { formatDateTime } from './mirror-settings-helpers';
 
-defineProps<{
+const props = defineProps<{
   displayStatus: { text: string; type: 'danger' | 'info' | 'success' | 'warning' };
   statusMessageClass: string[];
   currentMessageText: string;
   phaseText: string;
-  progressPercent: number;
+  progressPercent: number | null;
   progressHint: string;
   progress: SyncProgress | null;
   currentTask: SyncRunSummary | null;
   currentStartedAt?: string | null;
 }>();
+
+const progressStatus = computed(() => {
+  const status = props.currentTask?.status;
+  if (status === 'SUCCESS' || status === 'PARTIAL_SUCCESS') {
+    return 'success';
+  }
+  if (status === 'FAILED' || status === 'TIMEOUT') {
+    return 'exception';
+  }
+  return undefined;
+});
 </script>
 
 <template>
@@ -34,12 +46,14 @@ defineProps<{
           <div class="progress-title">同步进度</div>
           <div class="progress-subtitle">{{ phaseText }}</div>
         </div>
-        <div class="progress-percentage">{{ progressPercent }}%</div>
+        <div class="progress-percentage">{{ progressPercent == null ? '进行中' : `${progressPercent}%` }}</div>
       </div>
       <el-progress
-        :percentage="progressPercent"
+        :percentage="progressPercent ?? 100"
+        :indeterminate="progressPercent == null"
+        :duration="2"
         :stroke-width="18"
-        :status="currentTask?.status === 'RUNNING' || currentTask?.status === 'CANCELLING' ? undefined : 'success'"
+        :status="progressStatus"
       />
       <div class="progress-tip">{{ progressHint }}</div>
       <div class="progress-meta-grid">

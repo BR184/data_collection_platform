@@ -30,11 +30,10 @@ public class GitlabMirrorProperties {
   private int maxConcurrentConnectionTests = 4;
   private int incrementalLookbackMinutes = 5;
   private int maxSyncThreads = 16;
+  private int directPoolControlConnectionReserve = 1;
+  private int directPoolAcquireTimeoutSeconds = 30;
+  private int tableTaskLeaseSeconds = 180;
   private int maxContinuationTasksPerTable = 50000;
-  private boolean largeTableShardSyncEnabled = true;
-  private String largeTableShardTables = "notes,events";
-  private int largeTableShardKeyLength = 1;
-  private long largeTableShardMinRows = 50000L;
   private int customerIssueDelayCheckDelayMs = 3600000;
   private boolean customerIssueDelayPreWritebackSyncEnabled = true;
   private int customerIssueDelayPreWritebackSyncTimeoutSeconds = 180;
@@ -251,44 +250,36 @@ public class GitlabMirrorProperties {
     this.maxSyncThreads = maxSyncThreads;
   }
 
+  public int getDirectPoolControlConnectionReserve() {
+    return directPoolControlConnectionReserve;
+  }
+
+  public void setDirectPoolControlConnectionReserve(int directPoolControlConnectionReserve) {
+    this.directPoolControlConnectionReserve = directPoolControlConnectionReserve;
+  }
+
+  public int getDirectPoolAcquireTimeoutSeconds() {
+    return directPoolAcquireTimeoutSeconds;
+  }
+
+  public void setDirectPoolAcquireTimeoutSeconds(int directPoolAcquireTimeoutSeconds) {
+    this.directPoolAcquireTimeoutSeconds = directPoolAcquireTimeoutSeconds;
+  }
+
+  public int getTableTaskLeaseSeconds() {
+    return tableTaskLeaseSeconds;
+  }
+
+  public void setTableTaskLeaseSeconds(int tableTaskLeaseSeconds) {
+    this.tableTaskLeaseSeconds = tableTaskLeaseSeconds;
+  }
+
   public int getMaxContinuationTasksPerTable() {
     return maxContinuationTasksPerTable;
   }
 
   public void setMaxContinuationTasksPerTable(int maxContinuationTasksPerTable) {
     this.maxContinuationTasksPerTable = maxContinuationTasksPerTable;
-  }
-
-  public boolean isLargeTableShardSyncEnabled() {
-    return largeTableShardSyncEnabled;
-  }
-
-  public void setLargeTableShardSyncEnabled(boolean largeTableShardSyncEnabled) {
-    this.largeTableShardSyncEnabled = largeTableShardSyncEnabled;
-  }
-
-  public String getLargeTableShardTables() {
-    return largeTableShardTables;
-  }
-
-  public void setLargeTableShardTables(String largeTableShardTables) {
-    this.largeTableShardTables = largeTableShardTables;
-  }
-
-  public int getLargeTableShardKeyLength() {
-    return largeTableShardKeyLength;
-  }
-
-  public void setLargeTableShardKeyLength(int largeTableShardKeyLength) {
-    this.largeTableShardKeyLength = largeTableShardKeyLength;
-  }
-
-  public long getLargeTableShardMinRows() {
-    return largeTableShardMinRows;
-  }
-
-  public void setLargeTableShardMinRows(long largeTableShardMinRows) {
-    this.largeTableShardMinRows = largeTableShardMinRows;
   }
 
   public int getCustomerIssueDelayCheckDelayMs() {

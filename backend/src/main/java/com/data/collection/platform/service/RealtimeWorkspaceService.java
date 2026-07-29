@@ -19,7 +19,7 @@ import org.springframework.stereotype.Service;
 public class RealtimeWorkspaceService {
   private static final Duration REFRESH_COOLDOWN = Duration.ofSeconds(15);
   private static final java.util.Set<String> ACTIVE_SYNC_STATUSES =
-      java.util.Set.of("SUBMITTED", "QUEUED", "RUNNING", "RETRYING", "CANCELLING");
+      java.util.Set.of("SUBMITTED", "QUEUED", "RUNNING", "RETRYING", "PAUSED", "CANCELLING");
   private static final java.util.Set<String> SUCCESS_SYNC_STATUSES =
       java.util.Set.of("SUCCESS");
 

@@ -6,6 +6,7 @@ import com.data.collection.platform.entity.GitlabMirrorTableRegistry;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
+import com.data.collection.platform.entity.SourceCursorStrategy;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.database.DatabaseTableOption;
 import com.data.collection.platform.entity.database.DatabaseTableRowsResponse;
@@ -212,6 +213,7 @@ public class DatabaseBrowserService {
         registry.getSourceTableName(),
         registry.getPrimaryKeyColumns(),
         registry.getUpdatedAtColumn(),
+        SourceCursorStrategy.NONE,
         false);
     SourceTableSchema schema = sourceMetadataInspector.discoverTableSchema(config, option);
     DatabaseBrowserTableDefinition definition = buildSourceTableDefinition(schema, registry);
@@ -372,7 +374,7 @@ public class DatabaseBrowserService {
              where task.config_id = ?
                and task.source_table = ?
                and task.status in ('QUEUED', 'RUNNING', 'RETRYING')
-               and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
+               and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'PAUSED', 'CANCELLING')
              order by case task.status when 'RUNNING' then 0 when 'RETRYING' then 1 else 2 end,
                       task.started_at nulls last,
                       task.created_at desc,

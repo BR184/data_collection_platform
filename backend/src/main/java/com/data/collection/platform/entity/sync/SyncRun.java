@@ -62,6 +62,9 @@ public class SyncRun {
   @TableField("thread_value")
   private BigDecimal threadValue;
 
+  @TableField("resolved_worker_count")
+  private Integer resolvedWorkerCount;
+
   @TableField("planned_table_count")
   private Integer plannedTableCount;
 

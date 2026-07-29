@@ -163,7 +163,7 @@ describe('MirrorSettingsView mount smoke', () => {
               sourceRows: 120,
               mirrorRows: 100,
               driftSummary: 'source=120, mirror=100, delta=20',
-              latestTaskStatus: 'RUNNING',
+              currentTaskStatus: 'RUNNING',
             },
           ],
         });

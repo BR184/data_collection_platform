@@ -235,6 +235,14 @@ public class SyncRunSubmissionService {
     }
 
     SyncRun activeRun = findActiveRun(config.getId(), sourceInstance, exclusiveScope);
+    SyncRun reusableForegroundRun =
+        findReusableForegroundRun(activeSourceRuns, runType, sourceTables, exclusiveScope);
+    if (reusableForegroundRun != null) {
+      return reusedRun(
+          reusableForegroundRun,
+          apiType,
+          "相同的前台刷新已在队列中或正在执行，已复用现有运行单元。");
+    }
     if (runType == SyncRunType.FULL_SYNC && activeRun != null && activeRun.getRunType() == SyncRunType.FULL_SYNC) {
       return reusedRun(activeRun, apiType, "当前全量同步正在执行，已复用现有运行单元。");
     }
@@ -248,7 +256,10 @@ public class SyncRunSubmissionService {
     } else if ((runType == SyncRunType.COMPENSATION_SCAN || runType == SyncRunType.FULL_COMPENSATION_SCAN)
         && activeRun != null) {
       return reusedRun(activeRun, apiType, "补偿同步已在队列中或正在执行，跳过重复提交。");
-    } else if (isMirrorRun(runType) && activeRun != null && shouldReuseMirrorRun(activeRun, runType, sourceTables)) {
+    } else if (!isForegroundRun(runType)
+        && isMirrorRun(runType)
+        && activeRun != null
+        && shouldReuseMirrorRun(activeRun, runType, sourceTables)) {
       return new SyncRunSubmissionResult(
           activeRun.getId(),
           apiType,
@@ -256,18 +267,6 @@ public class SyncRunSubmissionService {
           SyncSubmissionAction.DEDUPED,
           now,
           "本次刷新请求已合并到同一数据源正在执行的同步任务中。");
-    }
-
-    if (runType == SyncRunType.TABLE_REFRESH
-        && activeRun != null
-        && policyService.shouldMergeTableRefresh(activeRun)) {
-      return new SyncRunSubmissionResult(
-          activeRun.getId(),
-          apiType,
-          policyService.toApiStatus(activeRun),
-          SyncSubmissionAction.DEDUPED,
-          now,
-          "已合并到当前全量同步，完成后将以全量结果为准。");
     }
 
     SyncRun run = new SyncRun();
@@ -295,6 +294,7 @@ public class SyncRunSubmissionService {
             extraPayload));
     run.setThreadMode(threadBudgetResolver.effectiveMode(config));
     run.setThreadValue(threadBudgetResolver.effectiveValue(config));
+    run.setResolvedWorkerCount(threadBudgetResolver.resolve(config));
     run.setPlannedTableCount(sourceTables.size());
     run.setCompletedTableCount(0);
     run.setScannedRows(0L);
@@ -329,7 +329,9 @@ public class SyncRunSubmissionService {
   }
 
   private SyncSubmissionAction reuseAction(SyncRun activeRun) {
-    return activeRun != null && activeRun.getStatus() == SyncRunStatus.QUEUED
+    return activeRun != null
+            && (activeRun.getStatus() == SyncRunStatus.QUEUED
+                || activeRun.getStatus() == SyncRunStatus.PAUSED)
         ? SyncSubmissionAction.REUSED_QUEUED
         : SyncSubmissionAction.REUSED_ACTIVE;
   }
@@ -404,6 +406,30 @@ public class SyncRunSubmissionService {
       return false;
     }
     return normalizeTables(sourceTablesOf(activeRun)).equals(normalizeTables(requestedTables));
+  }
+
+  private SyncRun findReusableForegroundRun(
+      List<SyncRun> activeRuns,
+      SyncRunType requestedType,
+      List<String> requestedTables,
+      String exclusiveScope) {
+    if (!isForegroundRun(requestedType) || activeRuns == null || activeRuns.isEmpty()) {
+      return null;
+    }
+    List<String> normalizedRequestedTables = normalizeTables(requestedTables);
+    return activeRuns.stream()
+        .filter(run -> Objects.equals(exclusiveScope, run.getExclusiveScope()))
+        .filter(run -> run.getRunType() == requestedType)
+        .filter(
+            run ->
+                requestedType != SyncRunType.TABLE_REFRESH
+                    || normalizeTables(sourceTablesOf(run)).equals(normalizedRequestedTables))
+        .findFirst()
+        .orElse(null);
+  }
+
+  private boolean isForegroundRun(SyncRunType runType) {
+    return runType == SyncRunType.INCREMENTAL_SYNC || runType == SyncRunType.TABLE_REFRESH;
   }
 
   private SyncRun findActiveRun(Long configId, String sourceInstance, String exclusiveScope) {

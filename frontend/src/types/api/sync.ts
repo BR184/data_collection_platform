@@ -11,6 +11,7 @@ export type SyncRunTablePhase =
   | 'FULL_REPAIR'
   | 'SHARD_REPAIR'
   | 'DELETE_RECONCILE';
+export type SyncRunTableTaskStage = 'SCAN' | 'RECONCILE';
 export type GitlabTableRowStrategy = 'INCREMENTAL' | 'FULL_SMALL_TABLE' | 'VERIFY_ONLY' | 'UNSUPPORTED' | string;
 export type GitlabSyncStatus =
   | 'PENDING'
@@ -289,14 +290,27 @@ export interface SyncRunTableDiagnostics {
   schemaFingerprint?: string | null;
   lastError?: string | null;
   retryCount?: number | null;
-  latestTaskType?: SyncRunTablePhase | null;
-  latestTaskStatus?: GitlabSyncStatus | null;
-  latestTaskRunAfter?: string | null;
-  latestTaskHeartbeatAt?: string | null;
-  latestTaskLeaseUntil?: string | null;
-  latestTaskRowsScanned?: number | null;
-  latestTaskRowsApplied?: number | null;
-  latestTaskError?: string | null;
+  currentTaskId?: number | null;
+  currentTaskType?: SyncRunTablePhase | null;
+  currentTaskStage?: SyncRunTableTaskStage | null;
+  currentTaskStatus?: GitlabSyncStatus | null;
+  currentTaskRunAfter?: string | null;
+  currentTaskHeartbeatAt?: string | null;
+  currentTaskLeaseUntil?: string | null;
+  currentTaskRetryCount?: number | null;
+  currentTaskCursorUpdatedAt?: string | null;
+  currentTaskCursorPk?: string | null;
+  currentTaskRowsScanned?: number | null;
+  currentTaskRowsApplied?: number | null;
+  currentTaskError?: string | null;
+}
+
+export interface DirectConnectionPoolMetrics {
+  maximumConnections: number;
+  totalConnections: number;
+  activeConnections: number;
+  idleConnections: number;
+  waitingThreads: number;
 }
 
 export interface SyncRunDiagnosticsResponse {
@@ -305,6 +319,10 @@ export interface SyncRunDiagnosticsResponse {
   generatedAt: string;
   status?: string;
   message?: string;
+  currentRunDbId?: number | null;
+  currentRunId?: string | null;
+  resolvedWorkerCount?: number | null;
+  directPoolMetrics?: DirectConnectionPoolMetrics | null;
   tableCount: number;
   dirtyTableCount: number;
   pendingTaskCount: number;
@@ -312,6 +330,8 @@ export interface SyncRunDiagnosticsResponse {
   retryingTaskCount: number;
   failedTaskCount: number;
   timedOutTaskCount: number;
+  historicalFailedTaskCount: number;
+  historicalTimedOutTaskCount: number;
   tables: SyncRunTableDiagnostics[];
 }
 

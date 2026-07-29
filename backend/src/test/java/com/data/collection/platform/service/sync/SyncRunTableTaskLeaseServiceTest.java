@@ -76,15 +76,47 @@ class SyncRunTableTaskLeaseServiceTest {
 
   @Test
   void shouldFinishTaskWithRowCountersAndErrorMessage() {
-    leaseService.finishTask(501L, 2L, 1L, "SUCCESS", null);
-
-    verify(jdbcTemplate)
-        .update(
-            contains("rows_scanned = coalesce"),
+    when(jdbcTemplate.update(
+            contains("lease_owner = ?"),
             eq("SUCCESS"),
             eq(2L),
             eq(1L),
             eq(null),
+            eq("owner-1"),
+            eq(501L)))
+        .thenReturn(1);
+
+    boolean finished = leaseService.finishOwnedTask(501L, "owner-1", 2L, 1L, "SUCCESS", null);
+
+    assertThat(finished).isTrue();
+    verify(jdbcTemplate)
+        .update(
+            contains("lease_owner = ?"),
+            eq("SUCCESS"),
+            eq(2L),
+            eq(1L),
+            eq(null),
+            eq("owner-1"),
             eq(501L));
+  }
+
+  @Test
+  void shouldRenewOnlyLeaseOwnedByCurrentWorker() {
+    when(jdbcTemplate.update(
+            contains("heartbeat_at = current_timestamp"),
+            eq(180),
+            eq(501L),
+            eq("owner-1")))
+        .thenReturn(1);
+
+    boolean renewed = leaseService.renewLease(501L, "owner-1", 180);
+
+    assertThat(renewed).isTrue();
+    verify(jdbcTemplate)
+        .update(
+            contains("status = 'RUNNING'"),
+            eq(180),
+            eq(501L),
+            eq("owner-1"));
   }
 }

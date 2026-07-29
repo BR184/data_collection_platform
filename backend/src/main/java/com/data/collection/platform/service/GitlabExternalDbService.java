@@ -1,16 +1,19 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.common.logging.SyncRunLogContext;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.DirectConnectionPoolMetrics;
 import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabTableProbe;
-import com.data.collection.platform.entity.GitlabTableShardProbe;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.TableWhitelistOption;
+import com.data.collection.platform.service.sync.SyncThreadBudgetResolver;
+import com.data.collection.platform.service.sync.GitlabSyncConfigChangedEvent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.Timestamp;
@@ -22,11 +25,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.springframework.beans.factory.DisposableBean;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 @Service
 @Slf4j
@@ -46,13 +52,17 @@ public class GitlabExternalDbService implements DisposableBean {
 
   public GitlabExternalDbService(GitlabMirrorProperties properties, ObjectMapper objectMapper) {
     this.objectMapper = objectMapper;
-    this.scanSqlBuilder = new GitlabSourceScanSqlBuilder();
+    this.scanSqlBuilder = new GitlabSourceScanSqlBuilder(new JsonUtils(objectMapper));
     this.queryRetryPolicy = new GitlabSourceQueryRetryPolicy(properties);
     this.connectionSettings = new GitlabSourceConnectionSettings(properties);
     this.dockerPsqlExecutor = new GitlabDockerPsqlExecutor(properties, connectionSettings);
     this.jdbcValueNormalizer = new GitlabJdbcValueNormalizer();
     this.directJdbcExecutor =
-        new GitlabDirectJdbcExecutor(connectionSettings, queryRetryPolicy, jdbcValueNormalizer);
+        new GitlabDirectJdbcExecutor(
+            connectionSettings,
+            queryRetryPolicy,
+            jdbcValueNormalizer,
+            new SyncThreadBudgetResolver(properties));
     this.metadataSupport = new GitlabSourceMetadataSupport();
     this.schemaDiscoveryService =
         new GitlabSourceSchemaDiscoveryService(this::executeSourceQuery, metadataSupport);
@@ -72,6 +82,16 @@ public class GitlabExternalDbService implements DisposableBean {
           ? bizException
           : new BizException("GitLab PostgreSQL connection failed: " + e.getMessage());
     }
+  }
+
+  /**
+   * 返回指定 DIRECT 数据源当前已初始化连接池的即时指标。
+   *
+   * @param configId GitLab 数据源配置 ID
+   * @return 连接池尚未初始化时为空
+   */
+  public Optional<DirectConnectionPoolMetrics> directPoolMetrics(Long configId) {
+    return directJdbcExecutor.poolMetrics(configId);
   }
 
   public List<TableWhitelistOption> discoverTables(GitlabSyncConfig config, Map<String, String> labels, List<String> recommendedTables) {
@@ -113,14 +133,19 @@ public class GitlabExternalDbService implements DisposableBean {
   public List<Map<String, Object>> incrementalCursorScan(
       GitlabSyncConfig config,
       TableWhitelistOption option,
+      SourceTableSchema schema,
       LocalDateTime watermark,
+      LocalDateTime upperBound,
       LocalDateTime cursorUpdatedAt,
       String cursorPk,
       int batchSize) {
     if (watermark == null || option.updatedAtColumn() == null || option.updatedAtColumn().isBlank()) {
       return List.of();
     }
-    return executeSourceQuery(config, buildCursorBatchScanSql(option, watermark, cursorUpdatedAt, cursorPk, batchSize));
+    return executeSourceQuery(
+        config,
+        buildCursorBatchScanSql(
+            option, schema, watermark, upperBound, cursorUpdatedAt, cursorPk, batchSize));
   }
 
   public List<Map<String, Object>> preciseScan(
@@ -173,16 +198,6 @@ public class GitlabExternalDbService implements DisposableBean {
     return toLocalDateTime(rows.get(0).get("max_updated_at"));
   }
 
-  public List<GitlabTableShardProbe> probeTableShards(
-      GitlabSyncConfig config,
-      TableWhitelistOption option,
-      SourceTableSchema schema,
-      int shardKeyLength) {
-    return executeSourceQuery(config, buildTableShardProbeSql(option, schema, shardKeyLength)).stream()
-        .map(this::toShardProbe)
-        .toList();
-  }
-
   public Set<String> findExistingPrimaryKeySignatures(
       GitlabSyncConfig config,
       TableWhitelistOption option,
@@ -197,16 +212,6 @@ public class GitlabExternalDbService implements DisposableBean {
     return rows.stream()
         .map(row -> PrimaryKeySignatureSupport.signature(primaryKeys, row))
         .collect(java.util.stream.Collectors.toSet());
-  }
-
-  public List<Map<String, Object>> shardCursorScan(
-      GitlabSyncConfig config,
-      TableWhitelistOption option,
-      SourceTableSchema schema,
-      String shardKey,
-      String cursorPk,
-      int batchSize) {
-    return executeSourceQuery(config, buildShardCursorScanSql(option, schema, shardKey, cursorPk, batchSize));
   }
 
   private List<Map<String, Object>> timeWindowScan(GitlabSyncConfig config, TableWhitelistOption option, LocalDateTime since) {
@@ -247,11 +252,14 @@ public class GitlabExternalDbService implements DisposableBean {
 
   String buildCursorBatchScanSql(
       TableWhitelistOption option,
+      SourceTableSchema schema,
       LocalDateTime watermark,
+      LocalDateTime upperBound,
       LocalDateTime cursorUpdatedAt,
       String cursorPk,
       int batchSize) {
-    return scanSqlBuilder.buildCursorBatchScanSql(option, watermark, cursorUpdatedAt, cursorPk, batchSize);
+    return scanSqlBuilder.buildCursorBatchScanSql(
+        option, schema, watermark, upperBound, cursorUpdatedAt, cursorPk, batchSize);
   }
 
   String buildTableProbeSql(TableWhitelistOption option) {
@@ -267,37 +275,6 @@ public class GitlabExternalDbService implements DisposableBean {
       List<String> primaryKeys,
       List<Map<String, Object>> primaryKeyRows) {
     return scanSqlBuilder.buildExistingPrimaryKeysSql(option, primaryKeys, primaryKeyRows);
-  }
-
-  String buildTableShardProbeSql(TableWhitelistOption option, SourceTableSchema schema, int shardKeyLength) {
-    return scanSqlBuilder.buildTableShardProbeSql(option, schema, shardKeyLength);
-  }
-
-  String buildShardCursorScanSql(
-      TableWhitelistOption option,
-      SourceTableSchema schema,
-      String shardKey,
-      String cursorPk,
-      int batchSize) {
-    return scanSqlBuilder.buildShardCursorScanSql(option, schema, shardKey, cursorPk, batchSize);
-  }
-
-  public List<Map<String, Object>> incrementalShardCursorScan(
-      GitlabSyncConfig config,
-      TableWhitelistOption option,
-      SourceTableSchema schema,
-      String shardKey,
-      LocalDateTime watermark,
-      LocalDateTime cursorUpdatedAt,
-      String cursorPk,
-      int batchSize) {
-    if (watermark == null || option.updatedAtColumn() == null || option.updatedAtColumn().isBlank()) {
-      return List.of();
-    }
-    return executeSourceQuery(
-        config,
-        scanSqlBuilder.buildIncrementalShardCursorScanSql(
-            option, schema, shardKey, watermark, cursorUpdatedAt, cursorPk, batchSize));
   }
 
   Map<String, String> discoverPrimaryKeysByTable(GitlabSyncConfig config) {
@@ -427,6 +404,14 @@ public class GitlabExternalDbService implements DisposableBean {
     directJdbcExecutor.close();
   }
 
+  /** 配置提交后精准退休对应 DIRECT 连接池，已借出的连接可正常归还。 */
+  @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+  public void onConfigChanged(GitlabSyncConfigChangedEvent event) {
+    if (event != null) {
+      directJdbcExecutor.invalidate(event.configId());
+    }
+  }
+
   long computeExternalQueryRetryDelayMs(int attempt) {
     return queryRetryPolicy.computeRetryDelayMs(attempt);
   }
@@ -463,16 +448,6 @@ public class GitlabExternalDbService implements DisposableBean {
     } catch (NumberFormatException e) {
       return 0L;
     }
-  }
-
-  private GitlabTableShardProbe toShardProbe(Map<String, Object> row) {
-    return new GitlabTableShardProbe(
-        Objects.toString(row.get("shard_key"), ""),
-        toLong(row.get("row_count")),
-        toLocalDateTime(row.get("max_updated_at")),
-        Objects.toString(row.get("min_pk"), ""),
-        Objects.toString(row.get("max_pk"), ""),
-        Objects.toString(row.get("checksum"), ""));
   }
 
   private LocalDateTime toLocalDateTime(Object value) {

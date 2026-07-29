@@ -125,7 +125,7 @@ class GitlabSyncControllerTest {
     assertThat(response.getData().currentStatus()).isEqualTo(SyncStatus.RUNNING);
     assertThat(response.getData().currentMessage()).isEqualTo("Sync run sr_1 is RUNNING");
     assertThat(response.getData().systemHookUrl()).isEqualTo("http://localhost:18080/api/gitlab-sync/system-hook");
-    assertThat(response.getData().resolvedSyncThreads()).isEqualTo(2);
+    assertThat(response.getData().resolvedSyncThreads()).isEqualTo(4);
   }
 
   @Test

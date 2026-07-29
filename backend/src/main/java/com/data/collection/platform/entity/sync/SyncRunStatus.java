@@ -5,6 +5,7 @@ public enum SyncRunStatus {
   QUEUED,
   RUNNING,
   RETRYING,
+  PAUSED,
   CANCELLING,
   SUCCESS,
   PARTIAL_SUCCESS,

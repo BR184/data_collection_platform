@@ -31,24 +31,21 @@ public class SourceTableReader {
   public List<Map<String, Object>> readIncrementalBatch(
       GitlabSyncConfig config,
       TableWhitelistOption option,
-      LocalDateTime watermark,
-      LocalDateTime cursorUpdatedAt,
-      String cursorPk,
-      int batchSize) {
-    return externalDbService.incrementalCursorScan(config, option, watermark, cursorUpdatedAt, cursorPk, batchSize);
-  }
-
-  public List<Map<String, Object>> readIncrementalShardBatch(
-      GitlabSyncConfig config,
-      TableWhitelistOption option,
       SourceTableSchema mirrorSchema,
-      String shardKey,
       LocalDateTime watermark,
+      LocalDateTime upperBound,
       LocalDateTime cursorUpdatedAt,
       String cursorPk,
       int batchSize) {
-    return externalDbService.incrementalShardCursorScan(
-        config, option, mirrorSchema, shardKey, watermark, cursorUpdatedAt, cursorPk, batchSize);
+    return externalDbService.incrementalCursorScan(
+        config,
+        option,
+        mirrorSchema,
+        watermark,
+        upperBound,
+        cursorUpdatedAt,
+        cursorPk,
+        batchSize);
   }
 
   public List<Map<String, Object>> readPrecise(

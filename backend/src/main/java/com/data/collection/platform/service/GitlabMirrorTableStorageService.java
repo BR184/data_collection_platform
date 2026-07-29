@@ -2,7 +2,6 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.GitlabTableProbe;
-import com.data.collection.platform.entity.GitlabTableShardProbe;
 import com.data.collection.platform.entity.MirrorPrimaryKeyBatch;
 import com.data.collection.platform.entity.MirrorBatchWriteResult;
 import com.data.collection.platform.entity.SourceTableColumn;
@@ -146,7 +145,7 @@ public class GitlabMirrorTableStorageService {
         quoteIdentifier(mirrorSchema.tableName()),
         primaryKeyRows.stream()
             .map(ignored -> primaryKeys.stream()
-                .map(primaryKey -> quoteIdentifier(primaryKey) + "::text = ?")
+                .map(primaryKey -> quoteIdentifier(primaryKey) + " = ?::" + columnType(mirrorSchema, primaryKey))
                 .collect(Collectors.joining(" and ", "(", ")")))
             .collect(Collectors.joining(" or ")));
     List<Object> args = new ArrayList<>();
@@ -165,14 +164,15 @@ public class GitlabMirrorTableStorageService {
     String sql = """
         select %s
           from %s
-         where %s::text = ?
+         where %s = ?::%s
            and coalesce(mirror_deleted, false) = false
         """.formatted(
         primaryKeys.stream()
-            .map(primaryKey -> quoteIdentifier(primaryKey) + "::text as " + quoteIdentifier(primaryKey))
+            .map(this::quoteIdentifier)
             .collect(Collectors.joining(", ")),
         quoteIdentifier(mirrorSchema.tableName()),
-        quoteIdentifier(lookupColumn));
+        quoteIdentifier(lookupColumn),
+        columnType(mirrorSchema, lookupColumn));
     return jdbcTemplate.queryForList(sql, Objects.toString(lookupValue, ""));
   }
 
@@ -210,7 +210,7 @@ public class GitlabMirrorTableStorageService {
     List<Object> args = new ArrayList<>();
     String cursorPredicate = "";
     if (cursorValues.size() == primaryKeys.size()) {
-      cursorPredicate = " and " + buildCursorPredicate(primaryKeys, args, cursorValues);
+      cursorPredicate = " and " + buildCursorPredicate(mirrorSchema, primaryKeys, args, cursorValues);
     }
     String sql = """
         select %s
@@ -221,12 +221,12 @@ public class GitlabMirrorTableStorageService {
          limit ?
         """.formatted(
         primaryKeys.stream()
-            .map(primaryKey -> quoteIdentifier(primaryKey) + "::text as " + quoteIdentifier(primaryKey))
+            .map(this::quoteIdentifier)
             .collect(Collectors.joining(", ")),
         quoteIdentifier(mirrorSchema.tableName()),
         cursorPredicate,
         primaryKeys.stream()
-            .map(primaryKey -> quoteIdentifier(primaryKey) + "::text asc")
+            .map(primaryKey -> quoteIdentifier(primaryKey) + " asc")
             .collect(Collectors.joining(", ")));
     args.add(Math.max(1, batchSize));
     List<Map<String, Object>> keys = jdbcTemplate.queryForList(sql, args.toArray());
@@ -255,46 +255,6 @@ public class GitlabMirrorTableStorageService {
         toLocalDateTime(row.get("max_updated_at")),
         Objects.toString(row.get("min_pk"), ""),
         Objects.toString(row.get("max_pk"), ""));
-  }
-
-  public List<GitlabTableShardProbe> probeMirrorTableShards(SourceTableSchema mirrorSchema, int shardKeyLength) {
-    List<String> primaryKeys = PrimaryKeySignatureSupport.primaryKeyColumns(mirrorSchema);
-    String pkExpression = primaryKeySignatureExpression(primaryKeys);
-    String rowExpression = rowSignatureExpression(mirrorSchema);
-    String maxUpdatedAtExpression = mirrorSchema.updatedAtColumn() == null || mirrorSchema.updatedAtColumn().isBlank()
-        ? "null::timestamp"
-        : "max(" + quoteIdentifier(mirrorSchema.updatedAtColumn()) + ")";
-    int safeShardKeyLength = Math.max(1, Math.min(8, shardKeyLength));
-    String sql = """
-        select shard_key,
-               count(*) as row_count,
-               %s as max_updated_at,
-               min(pk_signature) as min_pk,
-               max(pk_signature) as max_pk,
-               md5(coalesce(string_agg(row_hash, ',' order by pk_signature), '')) as checksum
-          from (
-            select %s as pk_signature,
-                   substring(md5(%s), 1, %d) as shard_key,
-                   md5(%s) as row_hash,
-                   %s
-              from %s
-             where coalesce(mirror_deleted, false) = false
-          ) shard_rows
-         group by shard_key
-         order by shard_key
-        """.formatted(
-        maxUpdatedAtExpression,
-        pkExpression,
-        pkExpression,
-        safeShardKeyLength,
-        rowExpression,
-        mirrorSchema.updatedAtColumn() == null || mirrorSchema.updatedAtColumn().isBlank()
-            ? "null::timestamp as " + quoteIdentifier("__updated_at")
-            : quoteIdentifier(mirrorSchema.updatedAtColumn()),
-        quoteIdentifier(mirrorSchema.tableName())).strip();
-    return jdbcTemplate.queryForList(sql).stream()
-        .map(this::toShardProbe)
-        .toList();
   }
 
   private String buildUpsertSql(SourceTableSchema schema) {
@@ -355,47 +315,29 @@ public class GitlabMirrorTableStorageService {
     return "\"" + identifier.replace("\"", "\"\"") + "\"";
   }
 
-  private String primaryKeySignatureExpression(List<String> primaryKeys) {
-    return primaryKeys.stream()
-        .map(primaryKey -> quoteIdentifier(primaryKey) + "::text")
-        .collect(Collectors.joining(", ", "concat_ws(chr(31), ", ")"));
+  private String buildCursorPredicate(
+      SourceTableSchema schema,
+      List<String> primaryKeys,
+      List<Object> args,
+      List<String> cursorValues) {
+    args.addAll(cursorValues);
+    String columns = primaryKeys.stream().map(this::quoteIdentifier).collect(Collectors.joining(", "));
+    String values = primaryKeys.stream()
+        .map(primaryKey -> "?::" + columnType(schema, primaryKey))
+        .collect(Collectors.joining(", "));
+    return "(" + columns + ") > (" + values + ")";
   }
 
-  private String rowSignatureExpression(SourceTableSchema schema) {
-    List<String> columns = schema.columns().stream()
-        .map(SourceTableColumn::columnName)
-        .toList();
-    if (columns.isEmpty()) {
-      return "''";
+  private String columnType(SourceTableSchema schema, String columnName) {
+    String type = schema.columns().stream()
+        .filter(column -> Objects.equals(column.columnName(), columnName))
+        .map(SourceTableColumn::formattedType)
+        .findFirst()
+        .orElseThrow(() -> new IllegalArgumentException("镜像表字段元数据缺失：" + columnName));
+    if (!type.matches("[A-Za-z0-9_ \\[\\](),.\"]+")) {
+      throw new IllegalArgumentException("镜像表字段类型不合法：" + columnName);
     }
-    return columns.stream()
-        .map(column -> "to_jsonb(" + quoteIdentifier(column) + ")")
-        .collect(Collectors.joining(", ", "jsonb_build_array(", ")::text"));
-  }
-
-  private GitlabTableShardProbe toShardProbe(Map<String, Object> row) {
-    return new GitlabTableShardProbe(
-        Objects.toString(row.get("shard_key"), ""),
-        toLong(row.get("row_count")),
-        toLocalDateTime(row.get("max_updated_at")),
-        Objects.toString(row.get("min_pk"), ""),
-        Objects.toString(row.get("max_pk"), ""),
-        Objects.toString(row.get("checksum"), ""));
-  }
-
-  private String buildCursorPredicate(List<String> primaryKeys, List<Object> args, List<String> cursorValues) {
-    List<String> disjunctions = new ArrayList<>();
-    for (int i = 0; i < primaryKeys.size(); i++) {
-      StringBuilder predicate = new StringBuilder("(");
-      for (int j = 0; j < i; j++) {
-        predicate.append(quoteIdentifier(primaryKeys.get(j))).append("::text = ? and ");
-        args.add(cursorValues.get(j));
-      }
-      predicate.append(quoteIdentifier(primaryKeys.get(i))).append("::text > ?)");
-      args.add(cursorValues.get(i));
-      disjunctions.add(predicate.toString());
-    }
-    return "(" + String.join(" or ", disjunctions) + ")";
+    return type;
   }
 
   private long toLong(Object value) {

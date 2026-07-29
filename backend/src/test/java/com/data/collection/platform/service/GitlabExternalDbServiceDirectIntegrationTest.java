@@ -6,6 +6,7 @@ import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceMode;
+import com.data.collection.platform.entity.SourceCursorStrategy;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.Connection;
@@ -81,7 +82,8 @@ class GitlabExternalDbServiceDirectIntegrationTest {
   @Test
   void directModeShouldDiagnoseReadOnlyMetadataAccess() {
     GitlabSyncConfig config = directConfig("gitlab_readonly", "readonly_secret");
-    TableWhitelistOption issues = new TableWhitelistOption("issues", "issues", "id", "updated_at", true);
+    TableWhitelistOption issues = new TableWhitelistOption(
+        "issues", "issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET, true);
 
     GitlabSourceMetadataDiagnosticsResponse diagnostics = service.inspectSourceMetadata(config, List.of(issues));
 
@@ -106,7 +108,8 @@ class GitlabExternalDbServiceDirectIntegrationTest {
   @Test
   void directModeShouldQueryGitlabPostgresViaJdbc() {
     GitlabSyncConfig config = directConfig();
-    TableWhitelistOption issues = new TableWhitelistOption("issues", "issues", "id", "updated_at", true);
+    TableWhitelistOption issues = new TableWhitelistOption(
+        "issues", "issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET, true);
 
     service.testConnection(config);
 

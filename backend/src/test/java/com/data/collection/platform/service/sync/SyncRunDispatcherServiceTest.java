@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -38,7 +39,8 @@ class SyncRunDispatcherServiceTest {
   @Test
   void shouldClaimHighestPriorityQueuedRunWithSkipLockedAndScopeGuard() {
     SyncRun claimed = queuedRun(21L, 100, "source:1:alpha:mirror");
-    when(jdbcTemplate.queryForObject(any(String.class), any(RowMapper.class), eq("sync-dispatcher"), eq(12)))
+    when(jdbcTemplate.queryForObject(
+            any(String.class), any(RowMapper.class), eq("sync-dispatcher"), eq(12)))
         .thenReturn(claimed);
 
     SyncRun result = dispatcherService.claimNextQueuedRun("sync-dispatcher", 12);
@@ -63,6 +65,8 @@ class SyncRunDispatcherServiceTest {
     ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
     verify(jdbcTemplate).queryForObject(sqlCaptor.capture(), any(RowMapper.class), eq("sync-dispatcher"), eq(12));
     assertThat(sqlCaptor.getValue())
+        .contains("candidate.status in ('QUEUED', 'PAUSED')")
+        .contains("extract(epoch from (current_timestamp - candidate.updated_at))")
         .contains("active.status in ('RUNNING', 'RETRYING', 'CANCELLING')")
         .doesNotContain("active.status in ('SUBMITTED', 'QUEUED'");
   }
@@ -70,12 +74,39 @@ class SyncRunDispatcherServiceTest {
   @Test
   void shouldSubmitClaimedRunToExecutorWhenSchedulerEnabled() {
     SyncRun claimed = queuedRun(22L, 100, "source:1:alpha:mirror");
-    when(jdbcTemplate.queryForObject(any(String.class), any(RowMapper.class), eq("sync-dispatcher"), eq(12)))
+    when(jdbcTemplate.queryForObject(
+            any(String.class),
+            any(RowMapper.class),
+            org.mockito.ArgumentMatchers.startsWith("sync-dispatcher-"),
+            eq(12)))
         .thenReturn(claimed);
 
     dispatcherService.runOnce();
 
     verify(executorService).submit(claimed);
+  }
+
+  @Test
+  void shouldUseUniqueLeaseOwnerForEachClaim() {
+    SyncRun first = queuedRun(24L, 100, "source:1:alpha:mirror");
+    SyncRun second = queuedRun(25L, 100, "source:2:beta:mirror");
+    when(executorService.hasCapacity()).thenReturn(true, true, false);
+    when(jdbcTemplate.queryForObject(
+            any(String.class),
+            any(RowMapper.class),
+            org.mockito.ArgumentMatchers.startsWith("sync-dispatcher-"),
+            eq(12)))
+        .thenReturn(first, second);
+
+    dispatcherService.runOnce();
+
+    ArgumentCaptor<String> ownerCaptor = ArgumentCaptor.forClass(String.class);
+    verify(jdbcTemplate, times(2))
+        .queryForObject(any(String.class), any(RowMapper.class), ownerCaptor.capture(), eq(12));
+    assertThat(ownerCaptor.getAllValues())
+        .hasSize(2)
+        .allMatch(owner -> owner.startsWith("sync-dispatcher-"))
+        .doesNotHaveDuplicates();
   }
 
   @Test

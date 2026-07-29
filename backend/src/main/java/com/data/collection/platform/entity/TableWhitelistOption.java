@@ -5,5 +5,6 @@ public record TableWhitelistOption(
     String label,
     String primaryKey,
     String updatedAtColumn,
+    SourceCursorStrategy cursorStrategy,
     boolean recommended) {
 }

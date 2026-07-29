@@ -137,6 +137,7 @@ const {
   notifyInfo: (message) => ElMessage.info(message),
   notifyError: (message) => ElMessage.error(message),
   hasActiveSync: () => Boolean(currentTask.value?.status && ACTIVE_SYNC_STATUSES.includes(currentTask.value.status)),
+  hasUnsavedChanges: () => isFormDirty.value,
 });
 
 const {
@@ -561,9 +562,12 @@ async function retryFailedRun() {
   if (savedConfigActionDisabled.value || retryingFailedRun.value) {
     return;
   }
+  if (isFormDirty.value) {
+    ElMessage.warning('当前设置尚未保存，请先保存配置后再重试同步任务。');
+    return;
+  }
   retryingFailedRun.value = true;
   try {
-    await saveConfig(false);
     const result = await api.retryFailedSync(selectedConfigId.value);
     showSubmissionFeedback(result);
     await loadStatus(false, false);

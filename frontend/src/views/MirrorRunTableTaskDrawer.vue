@@ -24,12 +24,26 @@ function tableNote(row: SyncRunTableDiagnostics) {
 }
 
 function tableTime(row: SyncRunTableDiagnostics) {
-  return formatDateTime(row.latestTaskHeartbeatAt || row.latestTaskRunAfter || row.lastWatermarkAt || row.lastAppliedAt);
+  return formatDateTime(row.currentTaskHeartbeatAt || row.currentTaskRunAfter || row.lastWatermarkAt || row.lastAppliedAt);
+}
+
+function taskStageText(row: SyncRunTableDiagnostics) {
+  if (row.currentTaskStage === 'SCAN') {
+    return '扫描';
+  }
+  if (row.currentTaskStage === 'RECONCILE') {
+    return '删除对账';
+  }
+  return '-';
+}
+
+function taskCursorText(row: SyncRunTableDiagnostics) {
+  return row.currentTaskCursorPk || row.currentTaskCursorUpdatedAt || '-';
 }
 </script>
 
 <template>
-  <el-drawer v-model="visible" title="镜像表任务" size="720px" class="mirror-table-task-drawer">
+  <el-drawer v-model="visible" title="镜像表任务" size="min(960px, 92vw)" class="mirror-table-task-drawer">
     <div class="drawer-summary">
       <div>
         <span>镜像表数</span>
@@ -40,8 +54,12 @@ function tableTime(row: SyncRunTableDiagnostics) {
         <strong>{{ diagnostics?.dirtyTableCount ?? 0 }}</strong>
       </div>
       <div>
-        <span>失败/超时</span>
+        <span>当前失败/超时</span>
         <strong>{{ (diagnostics?.failedTaskCount ?? 0) + (diagnostics?.timedOutTaskCount ?? 0) }}</strong>
+      </div>
+      <div>
+        <span>历史失败/超时</span>
+        <strong>{{ (diagnostics?.historicalFailedTaskCount ?? 0) + (diagnostics?.historicalTimedOutTaskCount ?? 0) }}</strong>
       </div>
     </div>
 
@@ -50,11 +68,20 @@ function tableTime(row: SyncRunTableDiagnostics) {
       <el-table-column prop="mirrorTable" label="镜像表" min-width="170" show-overflow-tooltip />
       <el-table-column label="状态" width="104">
         <template #default="{ row }">
-          <el-tag v-if="row.latestTaskStatus" size="small" :type="syncStatusTagType(row.latestTaskStatus)">
-            {{ tableTaskStatusText(row.latestTaskStatus) }}
+          <el-tag v-if="row.currentTaskStatus" size="small" :type="syncStatusTagType(row.currentTaskStatus)">
+            {{ tableTaskStatusText(row.currentTaskStatus) }}
           </el-tag>
           <el-tag v-else size="small" type="info">空闲</el-tag>
         </template>
+      </el-table-column>
+      <el-table-column label="阶段" width="92">
+        <template #default="{ row }">{{ taskStageText(row) }}</template>
+      </el-table-column>
+      <el-table-column label="游标" min-width="150" show-overflow-tooltip>
+        <template #default="{ row }">{{ taskCursorText(row) }}</template>
+      </el-table-column>
+      <el-table-column label="重试" width="72">
+        <template #default="{ row }">{{ row.currentTaskRetryCount ?? '-' }}</template>
       </el-table-column>
       <el-table-column label="待修复" width="84">
         <template #default="{ row }">
@@ -79,7 +106,7 @@ function tableTime(row: SyncRunTableDiagnostics) {
 <style scoped>
 .drawer-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 10px;
   margin-bottom: 14px;
 }

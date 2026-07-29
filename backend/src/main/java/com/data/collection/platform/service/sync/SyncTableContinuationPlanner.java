@@ -1,10 +1,10 @@
 package com.data.collection.platform.service.sync;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunTableTask;
+import com.data.collection.platform.entity.sync.SyncRunTableTaskStage;
 import com.data.collection.platform.mapper.SyncRunTableTaskMapper;
 import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
@@ -26,23 +26,17 @@ public class SyncTableContinuationPlanner {
 
   public void enqueueContinuationTask(
       SyncRunTableTask previousTask, LocalDateTime cursorUpdatedAt, String cursorPk, int batchSize) {
-    int maxContinuationTasks = resolveMaxContinuationTasksPerTable();
-    long existingTaskCount =
-        taskMapper.selectCount(
-            new LambdaQueryWrapper<SyncRunTableTask>()
-                .eq(SyncRunTableTask::getRunId, previousTask.getRunId())
-                .eq(SyncRunTableTask::getSourceTable, previousTask.getSourceTable()));
-    if (existingTaskCount >= maxContinuationTasks) {
-      log.error(
-          "Exceeded max continuation tasks ({}) for table {}, runId={}, aborting further pagination",
-          maxContinuationTasks,
-          previousTask.getSourceTable(),
-          previousTask.getRunId());
-      throw new BizException(
-          "\u8868 %2$s \u8d85\u8fc7\u8fde\u7eed\u5206\u9875\u4efb\u52a1\u4e0a\u9650\uff08%1$d\uff09"
-              .formatted(maxContinuationTasks, previousTask.getSourceTable()));
-    }
+    validateNextPage(previousTask);
     taskMapper.insert(createContinuationTask(previousTask, cursorUpdatedAt, cursorPk, batchSize));
+  }
+
+  public void enqueueReconciliationTask(
+      SyncRunTableTask previousTask, String cursorPk, int batchSize) {
+    validateNextPage(previousTask);
+    SyncRunTableTask task = createContinuationTask(previousTask, null, cursorPk, batchSize);
+    task.setTaskStage(SyncRunTableTaskStage.RECONCILE);
+    task.setCursorUpdatedAt(null);
+    taskMapper.insert(task);
   }
 
   private SyncRunTableTask createContinuationTask(
@@ -58,13 +52,15 @@ public class SyncTableContinuationPlanner {
     task.setTaskType(previousTask.getTaskType());
     task.setStatus(SyncRunStatus.QUEUED);
     task.setRowStrategy(previousTask.getRowStrategy());
+    task.setTaskStage(previousTask.getTaskStage());
+    task.setParentTaskId(previousTask.getId());
     task.setWatermarkAt(previousTask.getWatermarkAt());
     task.setCursorUpdatedAt(cursorUpdatedAt);
     task.setCursorPk(cursorPk);
+    task.setScanUpperBoundAt(previousTask.getScanUpperBoundAt());
+    task.setPageNumber(previousTask.getPageNumber() == null ? 2 : previousTask.getPageNumber() + 1);
     task.setLookupColumn(previousTask.getLookupColumn());
     task.setLookupValue(previousTask.getLookupValue());
-    task.setShardKey(previousTask.getShardKey());
-    task.setShardKeyLength(previousTask.getShardKeyLength());
     task.setBatchSize(batchSize);
     task.setRunAfter(now);
     task.setRetryCount(0);
@@ -74,6 +70,22 @@ public class SyncTableContinuationPlanner {
     task.setCreatedAt(now);
     task.setUpdatedAt(now);
     return task;
+  }
+
+  private void validateNextPage(SyncRunTableTask previousTask) {
+    int maxContinuationTasks = resolveMaxContinuationTasksPerTable();
+    int currentPage = previousTask.getPageNumber() == null ? 1 : previousTask.getPageNumber();
+    if (currentPage < maxContinuationTasks) {
+      return;
+    }
+    log.error(
+        "Exceeded max table pages ({}) for table {}, runId={}, aborting further pagination",
+        maxContinuationTasks,
+        previousTask.getSourceTable(),
+        previousTask.getRunId());
+    throw new BizException(
+        "\u8868 %2$s \u8d85\u8fc7\u8fde\u7eed\u5206\u9875\u4efb\u52a1\u4e0a\u9650\uff08%1$d\uff09"
+            .formatted(maxContinuationTasks, previousTask.getSourceTable()));
   }
 
   private int resolveMaxContinuationTasksPerTable() {

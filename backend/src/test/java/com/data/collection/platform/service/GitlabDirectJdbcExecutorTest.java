@@ -2,15 +2,21 @@ package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
+import com.data.collection.platform.entity.DirectConnectionPoolMetrics;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceMode;
 import com.zaxxer.hikari.HikariDataSource;
+import com.zaxxer.hikari.HikariPoolMXBean;
+import java.math.BigDecimal;
 import java.sql.Connection;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
@@ -28,7 +34,8 @@ class GitlabDirectJdbcExecutorTest {
             new GitlabSourceConnectionSettings(new GitlabMirrorProperties()),
             new GitlabSourceQueryRetryPolicy(new GitlabMirrorProperties()),
             new GitlabJdbcValueNormalizer(),
-            config -> {
+            new com.data.collection.platform.service.sync.SyncThreadBudgetResolver(new GitlabMirrorProperties()),
+            (config, ignored) -> {
               createCount.incrementAndGet();
               return dataSource;
             });
@@ -59,7 +66,8 @@ class GitlabDirectJdbcExecutorTest {
             new GitlabSourceConnectionSettings(new GitlabMirrorProperties()),
             new GitlabSourceQueryRetryPolicy(new GitlabMirrorProperties()),
             new GitlabJdbcValueNormalizer(),
-            config -> "gitlabhq_secondary".equals(config.getDbName()) ? second : first);
+            new com.data.collection.platform.service.sync.SyncThreadBudgetResolver(new GitlabMirrorProperties()),
+            (config, ignored) -> "gitlabhq_secondary".equals(config.getDbName()) ? second : first);
 
     try (Connection ignored = executor.openConnection(directConfig("gitlabhq_production", "gitlab"))) {
       // close by try-with-resources
@@ -77,6 +85,82 @@ class GitlabDirectJdbcExecutorTest {
     verify(first).close();
     verify(second).close();
     assertThat(executor.pooledDataSourceCount()).isZero();
+  }
+
+  @Test
+  void shouldRetireOnlyChangedConfigPoolAndKeepBorrowedConnectionUsable() throws Exception {
+    List<HikariDataSource> created = new ArrayList<>();
+    Connection firstConnection = mock(Connection.class);
+    Connection secondConnection = mock(Connection.class);
+    HikariDataSource first = mock(HikariDataSource.class);
+    HikariDataSource second = mock(HikariDataSource.class);
+    when(first.getConnection()).thenReturn(firstConnection);
+    when(second.getConnection()).thenReturn(secondConnection);
+
+    GitlabMirrorProperties properties = new GitlabMirrorProperties();
+    GitlabDirectJdbcExecutor executor =
+        new GitlabDirectJdbcExecutor(
+            new GitlabSourceConnectionSettings(properties),
+            new GitlabSourceQueryRetryPolicy(properties),
+            new GitlabJdbcValueNormalizer(),
+            new com.data.collection.platform.service.sync.SyncThreadBudgetResolver(properties),
+            (config, ignored) -> {
+              HikariDataSource dataSource = created.isEmpty() ? first : second;
+              created.add(dataSource);
+              return dataSource;
+            });
+
+    Connection borrowed = executor.openConnection(directConfig("gitlabhq_production", "gitlab"));
+    executor.invalidate(7L);
+
+    verify(first, never()).close();
+    borrowed.close();
+    verify(first).close();
+
+    try (Connection ignored = executor.openConnection(directConfig("gitlabhq_production", "gitlab"))) {
+      // close by try-with-resources
+    }
+    assertThat(created).hasSize(2);
+    assertThat(executor.pooledDataSourceCount()).isEqualTo(1);
+  }
+
+  @Test
+  void shouldExposeCurrentPoolCapacityAndUtilization() throws Exception {
+    GitlabMirrorProperties properties = new GitlabMirrorProperties();
+    properties.setMaxSyncThreads(4);
+    HikariDataSource dataSource = mock(HikariDataSource.class);
+    HikariPoolMXBean pool = mock(HikariPoolMXBean.class);
+    when(dataSource.getConnection()).thenReturn(mock(Connection.class));
+    when(dataSource.getHikariPoolMXBean()).thenReturn(pool);
+    when(pool.getTotalConnections()).thenReturn(4);
+    when(pool.getActiveConnections()).thenReturn(3);
+    when(pool.getIdleConnections()).thenReturn(1);
+    when(pool.getThreadsAwaitingConnection()).thenReturn(2);
+    GitlabDirectJdbcExecutor executor =
+        new GitlabDirectJdbcExecutor(
+            new GitlabSourceConnectionSettings(properties),
+            new GitlabSourceQueryRetryPolicy(properties),
+            new GitlabJdbcValueNormalizer(),
+            new com.data.collection.platform.service.sync.SyncThreadBudgetResolver(properties),
+            (config, ignored) -> dataSource);
+
+    GitlabSyncConfig config = directConfig("gitlabhq_production", "gitlab");
+    config.setSyncThreadMode("FIXED");
+    config.setSyncThreadValue(BigDecimal.valueOf(3));
+    config.setMaxSyncThreads(4);
+    try (Connection ignored = executor.openConnection(config)) {
+      // 初始化并保留配置对应的连接池。
+    }
+
+    assertThat(executor.poolMetrics(7L))
+        .contains(
+            new DirectConnectionPoolMetrics(
+                4,
+                4,
+                3,
+                1,
+                2));
+    assertThat(executor.poolMetrics(8L)).isEmpty();
   }
 
   private GitlabSyncConfig directConfig(String dbName, String dbUsername) {

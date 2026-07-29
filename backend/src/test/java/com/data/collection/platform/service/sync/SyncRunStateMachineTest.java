@@ -15,12 +15,15 @@ class SyncRunStateMachineTest {
             SyncRunStatus.QUEUED,
             SyncRunStatus.RUNNING,
             SyncRunStatus.RETRYING,
+            SyncRunStatus.PAUSED,
             SyncRunStatus.CANCELLING);
 
     assertThat(SyncRunStateMachine.isActive(SyncRunStatus.RUNNING)).isTrue();
     assertThat(SyncRunStateMachine.isActive(SyncRunStatus.SUCCESS)).isFalse();
     assertThat(SyncRunStateMachine.isCompleted(SyncRunStatus.PARTIAL_SUCCESS)).isTrue();
     assertThat(SyncRunStateMachine.isTerminal(SyncRunStatus.MERGED)).isTrue();
+    assertThat(SyncRunStateMachine.toApiStatus(SyncRunStatus.PAUSED))
+        .isEqualTo(SyncStatus.QUEUED);
   }
 
   @Test

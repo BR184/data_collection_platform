@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.SourceCursorStrategy;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.WhitelistMode;
 import java.time.Duration;
@@ -157,6 +158,7 @@ public class GitlabWhitelistService {
           FRIENDLY_LABELS.getOrDefault(tableName, tableName),
           "id",
           null,
+          SourceCursorStrategy.NONE,
           true));
     }
     return options;

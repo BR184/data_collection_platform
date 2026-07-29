@@ -68,38 +68,7 @@ public class SyncRunStatusService {
         null,
         null,
         null,
-        null);
-  }
-
-  public Map<String, Object> tableDiagnostics(GitlabSyncConfig config) {
-    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
-    Map<String, Object> response = new LinkedHashMap<>();
-    response.put("configId", config.getId());
-    response.put("sourceInstance", sourceInstance);
-    response.put("generatedAt", LocalDateTime.now().toString());
-    response.put("status", diagnosticsStatus(config));
-    response.put("message", "统一同步运行诊断");
-    response.put("tableCount", countFor(config, sourceInstance, "select count(*) from sync_run_table_states where config_id = ? and source_instance = ?"));
-    response.put(
-        "dirtyTableCount",
-        countFor(config, sourceInstance, "select count(*) from sync_run_table_states where config_id = ? and source_instance = ? and dirty_flag = true"));
-    response.put(
-        "pendingTaskCount",
-        countTasks(config, sourceInstance, "QUEUED"));
-    response.put(
-        "runningTaskCount",
-        countTasks(config, sourceInstance, "RUNNING"));
-    response.put(
-        "retryingTaskCount",
-        countTasks(config, sourceInstance, "RETRYING"));
-    response.put(
-        "failedTaskCount",
-        countTasks(config, sourceInstance, "FAILED"));
-    response.put(
-        "timedOutTaskCount",
-        countTasks(config, sourceInstance, "TIMEOUT"));
-    response.put("tables", List.of());
-    return response;
+        currentRun.getResolvedWorkerCount());
   }
 
   private List<Map<String, Object>> recentLogs(GitlabSyncConfig config) {
@@ -132,38 +101,6 @@ public class SyncRunStatusService {
         .orElse(runs.getFirst());
   }
 
-  private String diagnosticsStatus(GitlabSyncConfig config) {
-    SyncRun currentRun = findCurrentRun(config);
-    return currentRun == null ? "IDLE" : policyService.toApiStatus(currentRun).name();
-  }
-
-  private int countTasks(GitlabSyncConfig config, String sourceInstance, String status) {
-    Integer count =
-        jdbcTemplate.queryForObject(
-            """
-            select count(*)
-              from sync_run_table_tasks task
-              join sync_runs run on run.id = task.run_id
-             where task.config_id = ?
-               and task.source_instance = ?
-               and task.status = ?
-               and (
-                 task.status not in ('QUEUED', 'RUNNING', 'RETRYING')
-                 or run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
-               )
-            """,
-            Integer.class,
-            config.getId(),
-            sourceInstance,
-            status);
-    return count == null ? 0 : count;
-  }
-
-  private int countFor(GitlabSyncConfig config, String sourceInstance, String sql) {
-    Integer count = jdbcTemplate.queryForObject(sql, Integer.class, config.getId(), sourceInstance);
-    return count == null ? 0 : count;
-  }
-
   private Map<String, Object> buildCurrentTask(SyncRun run) {
     Map<String, Object> task = new LinkedHashMap<>();
     task.put("id", run.getId());
@@ -184,6 +121,7 @@ public class SyncRunStatusService {
     task.put("heartbeatAt", run.getHeartbeatAt());
     task.put("lockOwner", run.getLeaseOwner());
     task.put("payloadJson", run.getPayloadJson());
+    task.put("resolvedWorkerCount", run.getResolvedWorkerCount());
     return task;
   }
 

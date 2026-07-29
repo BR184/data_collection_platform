@@ -195,7 +195,7 @@ function elapsedFrom(value?: string | null) {
 
       <div class="monitor-columns">
         <div class="monitor-column">
-          <MirrorRunWorkerPanel :status="status" />
+          <MirrorRunWorkerPanel :status="status" :diagnostics="diagnostics" />
 
           <MirrorRunQueueTable :diagnostics="diagnostics" @open-table-tasks="$emit('openTableTasks')" />
         </div>
@@ -221,7 +221,7 @@ function elapsedFrom(value?: string | null) {
           <div>
             <div class="section-title">待修复表</div>
             <div class="section-subtitle">
-              {{ diagnostics?.dirtyTableCount ?? 0 }} 张待修复 / {{ diagnostics?.failedTaskCount ?? 0 }} 个失败 /
+              {{ diagnostics?.dirtyTableCount ?? 0 }} 张待修复 / 当前运行 {{ diagnostics?.failedTaskCount ?? 0 }} 个失败 /
               {{ diagnostics?.timedOutTaskCount ?? 0 }} 个超时
             </div>
           </div>

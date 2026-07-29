@@ -1,15 +1,19 @@
 package com.data.collection.platform.service.sync;
 
+import com.data.collection.platform.common.logging.SyncRunLogContext;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
+import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunTableTask;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -19,68 +23,102 @@ import org.springframework.stereotype.Service;
 public class SyncRunTableWorkerService {
   private final JdbcTemplate jdbcTemplate;
   private final SyncRunTableTaskLeaseService taskLeaseService;
+  private final SyncRunTableTaskHeartbeatService heartbeatService;
+  private final SyncRunYieldService yieldService;
   private final SyncRunTableTaskExecutor taskExecutor;
 
   public SyncRunTableWorkerService(
       JdbcTemplate jdbcTemplate,
       SyncRunTableTaskLeaseService taskLeaseService,
+      SyncRunTableTaskHeartbeatService heartbeatService,
+      SyncRunYieldService yieldService,
       SyncRunTableTaskExecutor taskExecutor) {
     this.jdbcTemplate = jdbcTemplate;
     this.taskLeaseService = taskLeaseService;
+    this.heartbeatService = heartbeatService;
+    this.yieldService = yieldService;
     this.taskExecutor = taskExecutor;
   }
 
-  public int drainRunTasks(Long runId) {
-    return drainRunTasks(runId, 1);
-  }
-
-  public int drainRunTasks(Long runId, int workerCount) {
-    int workers = Math.max(1, workerCount);
-    if (workers == 1) {
-      return drainRunTasksSerial(runId, "table-worker");
+  public DrainResult drainRunTasks(SyncRun run, int workerCount) {
+    if (run == null || run.getId() == null) {
+      return new DrainResult(0, false);
     }
+    Long runId = run.getId();
+    int workers = Math.max(1, workerCount);
     int processed = 0;
     while (!isRunCancellationRequested(runId)) {
-      int roundProcessed = drainRunTasksParallelRound(runId, workers);
-      processed += roundProcessed;
-      RunTableTaskSummary summary = summarizeRun(runId);
-      if (summary.pendingTasks() <= 0) {
-        break;
+      AtomicBoolean yieldRequested = new AtomicBoolean();
+      int passProcessed =
+          workers == 1
+              ? drainRunTasksSerial(run, createWorkerOwner(runId, 1), yieldRequested)
+              : drainRunTasksParallelPass(run, workers, yieldRequested);
+      processed += passProcessed;
+      if (yieldRequested.get() && yieldService.pauseIfRequested(run)) {
+        return new DrainResult(processed, true);
       }
-      if (roundProcessed <= 0) {
-        break;
-      }
-      log.info("Continuing sync table drain for runId={}, pendingTasks={}", runId, summary.pendingTasks());
-    }
-    return processed;
-  }
-
-  private int drainRunTasksSerial(Long runId, String owner) {
-    int processed = 0;
-    SyncRunTableTask task;
-    while (!isRunCancellationRequested(runId) && (task = claimNextQueuedTask(runId, owner, 30)) != null) {
       if (isRunCancellationRequested(runId)) {
-        finishTask(task.getId(), task.getRowsScanned(), task.getRowsApplied(), "CANCELLED", "同步运行已取消");
         cancelQueuedTasks(runId);
         break;
       }
-      taskExecutor.executeTask(task);
-      processed++;
+      if (!yieldRequested.get() || passProcessed <= 0) {
+        break;
+      }
+      log.info("Continuing sync table drain after a withdrawn yield request, runId={}", runId);
     }
     if (isRunCancellationRequested(runId)) {
       cancelQueuedTasks(runId);
     }
-    return processed;
+    return new DrainResult(processed, false);
   }
 
-  private int drainRunTasksParallelRound(Long runId, int workerCount) {
+  private int drainRunTasksSerial(
+      SyncRun run, String owner, AtomicBoolean yieldRequested) {
+    try (SyncRunLogContext.Scope runContext = SyncRunLogContext.openRun(run, null)) {
+      Long runId = run.getId();
+      int processed = 0;
+      SyncRunTableTask task;
+      while (!yieldRequested.get()
+          && !isRunCancellationRequested(runId)
+          && (task = claimNextQueuedTask(runId, owner, heartbeatService.leaseSeconds())) != null) {
+        if (isRunCancellationRequested(runId)) {
+          taskLeaseService.finishOwnedTask(
+              task.getId(),
+              task.getLeaseOwner(),
+              task.getRowsScanned(),
+              task.getRowsApplied(),
+              "CANCELLED",
+              "同步运行已取消");
+          cancelQueuedTasks(runId);
+          break;
+        }
+        try (SyncRunLogContext.Scope taskContext = SyncRunLogContext.openTask(task);
+            SyncRunLogContext.Scope action = SyncRunLogContext.action("Table_Task_Execute")) {
+          taskExecutor.executeTask(task);
+        }
+        processed++;
+        if (yieldService.shouldYield(run)) {
+          yieldRequested.set(true);
+        }
+      }
+      if (isRunCancellationRequested(runId)) {
+        cancelQueuedTasks(runId);
+      }
+      return processed;
+    }
+  }
+
+  private int drainRunTasksParallelPass(
+      SyncRun run, int workerCount, AtomicBoolean yieldRequested) {
     AtomicInteger processed = new AtomicInteger();
     ExecutorService executor = Executors.newFixedThreadPool(workerCount, new TableWorkerThreadFactory());
     List<Future<?>> futures = new ArrayList<>(workerCount);
     try {
       for (int index = 0; index < workerCount; index++) {
-        String owner = "table-worker-" + (index + 1);
-        futures.add(executor.submit(() -> processed.addAndGet(drainRunTasksSerial(runId, owner))));
+        String owner = createWorkerOwner(run.getId(), index + 1);
+        futures.add(
+            executor.submit(
+                () -> processed.addAndGet(drainRunTasksSerial(run, owner, yieldRequested))));
       }
       for (Future<?> future : futures) {
         future.get();
@@ -94,6 +132,10 @@ public class SyncRunTableWorkerService {
       executor.shutdownNow();
     }
     return processed.get();
+  }
+
+  private String createWorkerOwner(Long runId, int workerSlot) {
+    return "table-worker-" + runId + "-" + workerSlot + "-" + UUID.randomUUID();
   }
 
   public RunTableTaskSummary summarizeRun(Long runId) {
@@ -150,10 +192,6 @@ public class SyncRunTableWorkerService {
     return taskLeaseService.claimNextQueuedTask(runId, owner, leaseSeconds);
   }
 
-  public void finishTask(Long taskId, Long rowsScanned, Long rowsApplied, String status, String errorMessage) {
-    taskLeaseService.finishTask(taskId, rowsScanned, rowsApplied, status, errorMessage);
-  }
-
   public record RunTableTaskSummary(
       int plannedTasks,
       int completedTasks,
@@ -168,6 +206,10 @@ public class SyncRunTableWorkerService {
     public RunTableTaskSummary(int plannedTasks, int completedTasks, long scannedRows, long appliedRows) {
       this(plannedTasks, completedTasks, scannedRows, appliedRows, 0, 0, 0, 0, 0, 0);
     }
+  }
+
+  /** 单次运行任务排空结果。 */
+  public record DrainResult(int processedTasks, boolean yielded) {
   }
 
   private static final class TableWorkerThreadFactory implements ThreadFactory {

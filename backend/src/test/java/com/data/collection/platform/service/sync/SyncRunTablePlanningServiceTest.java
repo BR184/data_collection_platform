@@ -14,6 +14,7 @@ import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.SourceCursorStrategy;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.WhitelistMode;
@@ -53,7 +54,6 @@ class SyncRunTablePlanningServiceTest {
     configService = mock(GitlabConfigService.class);
     whitelistService = mock(GitlabWhitelistService.class);
     GitlabMirrorProperties mirrorProperties = new GitlabMirrorProperties();
-    mirrorProperties.setLargeTableShardSyncEnabled(false);
     planningService =
         new SyncRunTablePlanningService(
             syncRunMapper,
@@ -75,8 +75,8 @@ class SyncRunTablePlanningServiceTest {
     when(whitelistService.resolveOptions(config))
         .thenReturn(
             List.of(
-                new TableWhitelistOption("issues", "Issues", "id", "updated_at", true),
-                new TableWhitelistOption("namespaces", "Namespaces", "id", "", true)));
+                option("issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
+                option("namespaces", "id", "", SourceCursorStrategy.NONE)));
     doAnswer(
             invocation -> {
               SyncRunTableState state = invocation.getArgument(0);
@@ -112,7 +112,7 @@ class SyncRunTablePlanningServiceTest {
             task -> {
               assertThat(task.getRunId()).isEqualTo(77L);
               assertThat(task.getConfigId()).isEqualTo(1L);
-              assertThat(task.getSourceInstance()).isEqualTo("alpha");
+              assertThat(task.getSourceInstance()).isEqualTo("default");
               assertThat(task.getTaskType()).isEqualTo("FULL_SYNC");
               assertThat(task.getStatus()).isEqualTo(SyncRunStatus.QUEUED);
               assertThat(task.getWatermarkAt()).isEqualTo(LocalDateTime.of(1970, 1, 1, 0, 0));
@@ -131,8 +131,8 @@ class SyncRunTablePlanningServiceTest {
     when(whitelistService.resolveOptions(config))
         .thenReturn(
             List.of(
-                new TableWhitelistOption("issues", "Issues", "id", "updated_at", true),
-                new TableWhitelistOption("namespaces", "Namespaces", "id", "updated_at", true)));
+                option("issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
+                option("namespaces", "id", "updated_at", SourceCursorStrategy.PRIMARY_KEY_KEYSET)));
     doAnswer(
             invocation -> {
               SyncRunTableState state = invocation.getArgument(0);
@@ -160,8 +160,8 @@ class SyncRunTablePlanningServiceTest {
     when(whitelistService.resolveOptions(config))
         .thenReturn(
             List.of(
-                new TableWhitelistOption("issues", "Issues", "id", "updated_at", true),
-                new TableWhitelistOption("namespaces", "Namespaces", "id", "", true)));
+                option("issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
+                option("namespaces", "id", "", SourceCursorStrategy.NONE)));
     doAnswer(
             invocation -> {
               SyncRunTableState state = invocation.getArgument(0);
@@ -216,8 +216,8 @@ class SyncRunTablePlanningServiceTest {
     assertThat(taskCaptor.getAllValues())
         .extracting(SyncRunTableTask::getWatermarkAt)
         .containsExactly(
-            LocalDateTime.of(2026, 5, 20, 10, 0),
-            LocalDateTime.of(2026, 5, 20, 11, 0));
+            LocalDateTime.of(2026, 5, 20, 9, 55),
+            LocalDateTime.of(2026, 5, 20, 10, 55));
   }
 
   @Test
@@ -229,7 +229,8 @@ class SyncRunTablePlanningServiceTest {
     when(configService.getConfigById(1L)).thenReturn(config);
     when(configService.isSourceConfigured(config)).thenReturn(true);
     when(whitelistService.resolveOptions(config))
-        .thenReturn(List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true)));
+        .thenReturn(List.of(option(
+            "issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET)));
     doAnswer(
             invocation -> {
               SyncRunTableState state = invocation.getArgument(0);
@@ -266,8 +267,8 @@ class SyncRunTablePlanningServiceTest {
     when(whitelistService.resolveOptions(config))
         .thenReturn(
             List.of(
-                new TableWhitelistOption("issues", "Issues", "id", "updated_at", true),
-                new TableWhitelistOption("issue_assignees", "Issue assignees", "issue_id,user_id", "", true)));
+                option("issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
+                option("issue_assignees", "issue_id,user_id", "", SourceCursorStrategy.NONE)));
     doAnswer(
             invocation -> {
               SyncRunTableState state = invocation.getArgument(0);
@@ -310,7 +311,8 @@ class SyncRunTablePlanningServiceTest {
     when(configService.getConfigById(1L)).thenReturn(config);
     when(configService.isSourceConfigured(config)).thenReturn(true);
     when(whitelistService.resolveOptions(config))
-        .thenReturn(List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true)));
+        .thenReturn(List.of(option(
+            "issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET)));
     doAnswer(
             invocation -> {
               SyncRunTableState state = invocation.getArgument(0);
@@ -344,8 +346,7 @@ class SyncRunTablePlanningServiceTest {
     when(whitelistService.resolveOptions(config))
         .thenReturn(
             List.of(
-                new TableWhitelistOption(
-                    "issue_assignees", "Issue assignees", "issue_id,user_id", "", true)));
+                option("issue_assignees", "issue_id,user_id", "", SourceCursorStrategy.NONE)));
     doAnswer(
             invocation -> {
               SyncRunTableState state = invocation.getArgument(0);
@@ -388,10 +389,10 @@ class SyncRunTablePlanningServiceTest {
     when(whitelistService.resolveOptions(config))
         .thenReturn(
             List.of(
-                new TableWhitelistOption("issue_assignees", "Issue assignees", "issue_id,user_id", "", true),
-                new TableWhitelistOption("label_links", "Label links", "label_id,target_id,target_type", "", true),
-                new TableWhitelistOption("merge_request_assignees", "MR assignees", "merge_request_id,user_id", "", true),
-                new TableWhitelistOption("merge_request_reviewers", "MR reviewers", "merge_request_id,user_id", "", true)));
+                option("issue_assignees", "issue_id,user_id", "", SourceCursorStrategy.NONE),
+                option("label_links", "label_id,target_id,target_type", "", SourceCursorStrategy.NONE),
+                option("merge_request_assignees", "merge_request_id,user_id", "", SourceCursorStrategy.NONE),
+                option("merge_request_reviewers", "merge_request_id,user_id", "", SourceCursorStrategy.NONE)));
     doAnswer(
             invocation -> {
               SyncRunTableState state = invocation.getArgument(0);
@@ -448,6 +449,15 @@ class SyncRunTablePlanningServiceTest {
     return task;
   }
 
+  private TableWhitelistOption option(
+      String tableName,
+      String primaryKey,
+      String updatedAtColumn,
+      SourceCursorStrategy cursorStrategy) {
+    return new TableWhitelistOption(
+        tableName, tableName, primaryKey, updatedAtColumn, cursorStrategy, true);
+  }
+
   @Test
   void shouldFailFastBeforeWhitelistDiscoveryWhenSourceIsIncomplete() {
     SyncRun run = run(SyncRunType.FULL_SYNC);
@@ -493,6 +503,7 @@ class SyncRunTablePlanningServiceTest {
     state.setMirrorTable("gitlab_" + sourceTable + "_alpha");
     state.setPrimaryKeyColumns(primaryKeys);
     state.setUpdatedAtColumn(updatedAtColumn);
+    state.setCursorStrategy(SourceCursorStrategy.PRIMARY_KEY_KEYSET);
     state.setRowStrategy("INCREMENTAL");
     state.setSyncEnabled(true);
     return state;

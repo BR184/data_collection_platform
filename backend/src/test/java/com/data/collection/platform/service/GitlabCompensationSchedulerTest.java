@@ -9,8 +9,6 @@ import static org.mockito.Mockito.when;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SyncTriggerType;
-import com.data.collection.platform.entity.SyncType;
-import com.data.collection.platform.entity.sync.SyncRunType;
 import com.data.collection.platform.service.sync.SyncRunSubmissionService;
 import java.time.Clock;
 import java.time.Instant;
@@ -38,7 +36,7 @@ class GitlabCompensationSchedulerTest {
   }
 
   @Test
-  void shouldSubmitCompensationRunsForDueEnabledSources() {
+  void shouldSubmitIncrementalSyncForDueEnabledSources() {
     GitlabSyncConfig due = config(1L, true, true, LocalDateTime.now().minusMinutes(20));
     due.setCompensationIntervalMinutes(10);
     GitlabSyncConfig notDue = config(2L, true, true, LocalDateTime.now().minusMinutes(2));
@@ -54,36 +52,24 @@ class GitlabCompensationSchedulerTest {
 
     verify(syncService).recoverTimedOutTasks();
     verify(submissionService)
-        .submitRun(
+        .submitIncrementalSync(
             eq(due),
-            eq(SyncType.COMPENSATION),
-            eq(SyncRunType.COMPENSATION_SCAN),
             eq(SyncTriggerType.SCHEDULE),
-            eq("Scheduled compensation scan"),
-            eq(List.of()),
-            eq(null));
+            eq("Scheduled incremental sync"));
     verify(submissionService, never())
-        .submitRun(
+        .submitIncrementalSync(
             eq(notDue),
-            eq(SyncType.COMPENSATION),
-            eq(SyncRunType.COMPENSATION_SCAN),
             eq(SyncTriggerType.SCHEDULE),
-            eq("Scheduled compensation scan"),
-            eq(List.of()),
-            eq(null));
+            eq("Scheduled incremental sync"));
     verify(submissionService, never())
-        .submitRun(
+        .submitIncrementalSync(
             eq(disabled),
-            eq(SyncType.COMPENSATION),
-            eq(SyncRunType.COMPENSATION_SCAN),
             eq(SyncTriggerType.SCHEDULE),
-            eq("Scheduled compensation scan"),
-            eq(List.of()),
-            eq(null));
+            eq("Scheduled incremental sync"));
   }
 
   @Test
-  void shouldSkipIncompleteSourceBeforeSubmittingCompensationRun() {
+  void shouldSkipIncompleteSourceBeforeSubmittingIncrementalSync() {
     GitlabSyncConfig incomplete = config(4L, true, true, null);
     when(configService.listConfigs()).thenReturn(List.of(incomplete));
     when(configService.isReadyForScheduledSync(incomplete)).thenReturn(false);
@@ -93,14 +79,10 @@ class GitlabCompensationSchedulerTest {
 
     verify(syncService).recoverTimedOutTasks();
     verify(submissionService, never())
-        .submitRun(
+        .submitIncrementalSync(
             eq(incomplete),
-            eq(SyncType.COMPENSATION),
-            eq(SyncRunType.COMPENSATION_SCAN),
             eq(SyncTriggerType.SCHEDULE),
-            eq("Scheduled compensation scan"),
-            eq(List.of()),
-            eq(null));
+            eq("Scheduled incremental sync"));
   }
 
   @Test
@@ -117,18 +99,14 @@ class GitlabCompensationSchedulerTest {
     verify(submissionService)
         .hasActiveFullCompensationRun(eq(due));
     verify(submissionService, never())
-        .submitRun(
+        .submitIncrementalSync(
             eq(due),
-            eq(SyncType.COMPENSATION),
-            eq(SyncRunType.COMPENSATION_SCAN),
             eq(SyncTriggerType.SCHEDULE),
-            eq("Scheduled compensation scan"),
-            eq(List.of()),
-            eq(null));
+            eq("Scheduled incremental sync"));
   }
 
   @Test
-  void shouldSubmitDailyTimeCompensationOnlyAtConfiguredMinute() {
+  void shouldSubmitDailyIncrementalSyncOnlyAtConfiguredMinute() {
     Clock clock = Clock.fixed(Instant.parse("2026-06-02T03:30:00Z"), ZoneId.of("UTC"));
     scheduler = new GitlabCompensationScheduler(properties, syncService, configService, submissionService, clock);
     GitlabSyncConfig due = config(5L, true, true, LocalDateTime.of(2026, 6, 1, 3, 30));
@@ -144,23 +122,15 @@ class GitlabCompensationSchedulerTest {
     scheduler.run();
 
     verify(submissionService)
-        .submitRun(
+        .submitIncrementalSync(
             eq(due),
-            eq(SyncType.COMPENSATION),
-            eq(SyncRunType.COMPENSATION_SCAN),
             eq(SyncTriggerType.SCHEDULE),
-            eq("Scheduled compensation scan"),
-            eq(List.of()),
-            eq(null));
+            eq("Scheduled incremental sync"));
     verify(submissionService, never())
-        .submitRun(
+        .submitIncrementalSync(
             eq(notDue),
-            eq(SyncType.COMPENSATION),
-            eq(SyncRunType.COMPENSATION_SCAN),
             eq(SyncTriggerType.SCHEDULE),
-            eq("Scheduled compensation scan"),
-            eq(List.of()),
-            eq(null));
+            eq("Scheduled incremental sync"));
   }
 
   @Test
@@ -184,23 +154,15 @@ class GitlabCompensationSchedulerTest {
     scheduler.run();
 
     verify(submissionService)
-        .submitRun(
+        .submitIncrementalSync(
             eq(insideWindow),
-            eq(SyncType.COMPENSATION),
-            eq(SyncRunType.COMPENSATION_SCAN),
             eq(SyncTriggerType.SCHEDULE),
-            eq("Scheduled compensation scan"),
-            eq(List.of()),
-            eq(null));
+            eq("Scheduled incremental sync"));
     verify(submissionService, never())
-        .submitRun(
+        .submitIncrementalSync(
             eq(outsideWindow),
-            eq(SyncType.COMPENSATION),
-            eq(SyncRunType.COMPENSATION_SCAN),
             eq(SyncTriggerType.SCHEDULE),
-            eq("Scheduled compensation scan"),
-            eq(List.of()),
-            eq(null));
+            eq("Scheduled incremental sync"));
   }
 
   private GitlabSyncConfig config(Long id, boolean sourceEnabled, boolean autoSyncEnabled, LocalDateTime lastSyncAt) {

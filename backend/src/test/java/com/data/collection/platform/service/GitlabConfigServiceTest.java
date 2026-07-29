@@ -16,24 +16,36 @@ import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.mapper.GitlabSyncConfigMapper;
 import com.data.collection.platform.service.sync.SyncThreadBudgetResolver;
+import com.data.collection.platform.service.sync.SyncRuntimeConfigGuard;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 class GitlabConfigServiceTest {
   private GitlabSyncConfigMapper configMapper;
   private GitlabResourceLinkService resourceLinkService;
+  private SyncRuntimeConfigGuard runtimeConfigGuard;
+  private ApplicationEventPublisher eventPublisher;
   private GitlabConfigService configService;
 
   @BeforeEach
   void setUp() {
     configMapper = mock(GitlabSyncConfigMapper.class);
     resourceLinkService = mock(GitlabResourceLinkService.class);
+    runtimeConfigGuard = mock(SyncRuntimeConfigGuard.class);
+    eventPublisher = mock(ApplicationEventPublisher.class);
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
     properties.setMaxSyncThreads(16);
-    configService = new GitlabConfigService(configMapper, properties, resourceLinkService);
+    configService =
+        new GitlabConfigService(
+            configMapper,
+            properties,
+            resourceLinkService,
+            runtimeConfigGuard,
+            eventPublisher);
   }
 
   @Test
@@ -150,45 +162,8 @@ class GitlabConfigServiceTest {
   }
 
   @Test
-  void shouldRejectEnabledAutoSyncWhenAnotherEnabledSourceUsesSameDirectDatabase() {
+  void shouldNormalizeConfiguredSourceInstanceToDefault() {
     when(configMapper.selectOne(any())).thenReturn(null);
-    GitlabSyncConfig existing = baseInput();
-    existing.setId(99L);
-    existing.setSourceInstance("smoke_cc");
-    existing.setSourceEnabled(true);
-    existing.setAutoSyncEnabled(false);
-    existing.setSystemHookEnabled(false);
-    existing.setDbHost(" LOCALHOST ");
-    existing.setDbPort(5432);
-    existing.setDbName("GITLABHQ_PRODUCTION");
-    existing.setDbUsername("GitLab");
-    when(configMapper.selectList(any())).thenReturn(List.of(existing));
-
-    GitlabSyncConfig input = baseInput();
-    input.setSourceEnabled(true);
-    input.setAutoSyncEnabled(true);
-    input.setSystemHookEnabled(false);
-    input.setDbHost("localhost");
-    input.setDbPort(5432);
-    input.setDbName("gitlabhq_production");
-    input.setDbUsername("gitlab");
-
-    assertThatThrownBy(() -> configService.saveConfig(input))
-        .isInstanceOf(BizException.class)
-        .hasMessageContaining("smoke_cc");
-    verify(configMapper, never()).insert(any(GitlabSyncConfig.class));
-  }
-
-  @Test
-  void shouldAllowSamePhysicalSourceWhenSavedAsDisabledTestSource() {
-    when(configMapper.selectOne(any())).thenReturn(null);
-    GitlabSyncConfig existing = baseInput();
-    existing.setId(99L);
-    existing.setSourceInstance("cc");
-    existing.setSourceEnabled(true);
-    existing.setAutoSyncEnabled(true);
-    existing.setSystemHookEnabled(false);
-    when(configMapper.selectList(any())).thenReturn(List.of(existing));
 
     GitlabSyncConfig input = baseInput();
     input.setSourceInstance("smoke_cc");
@@ -199,7 +174,7 @@ class GitlabConfigServiceTest {
     configService.saveConfig(input);
 
     verify(configMapper).insert(argThat((GitlabSyncConfig config) ->
-        "smoke_cc".equals(config.getSourceInstance())
+        "default".equals(config.getSourceInstance())
             && !Boolean.TRUE.equals(config.getSourceEnabled())
             && !config.isAutoSyncEnabled()));
   }

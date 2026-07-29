@@ -42,6 +42,12 @@ public class SyncRunTableTask {
   @TableField("row_strategy")
   private String rowStrategy;
 
+  @TableField("task_stage")
+  private SyncRunTableTaskStage taskStage;
+
+  @TableField("parent_task_id")
+  private Long parentTaskId;
+
   @TableField("watermark_at")
   private LocalDateTime watermarkAt;
 
@@ -51,17 +57,17 @@ public class SyncRunTableTask {
   @TableField("cursor_pk")
   private String cursorPk;
 
+  @TableField("scan_upper_bound_at")
+  private LocalDateTime scanUpperBoundAt;
+
+  @TableField("page_number")
+  private Integer pageNumber;
+
   @TableField("lookup_column")
   private String lookupColumn;
 
   @TableField("lookup_value")
   private String lookupValue;
-
-  @TableField("shard_key")
-  private String shardKey;
-
-  @TableField("shard_key_length")
-  private Integer shardKeyLength;
 
   @TableField("batch_size")
   private Integer batchSize;

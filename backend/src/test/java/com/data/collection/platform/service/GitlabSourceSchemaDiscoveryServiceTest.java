@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.SourceCursorStrategy;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import java.util.LinkedHashMap;
@@ -38,8 +39,15 @@ class GitlabSourceSchemaDiscoveryServiceTest {
 
     assertThat(tables)
         .containsExactly(
-            new TableWhitelistOption("issues", "Issues", "id", "updated_at", false),
-            new TableWhitelistOption("merge_requests", "merge_requests", "id", "created_at", true));
+            new TableWhitelistOption(
+                "issues", "Issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET, false),
+            new TableWhitelistOption(
+                "merge_requests",
+                "merge_requests",
+                "id",
+                "created_at",
+                SourceCursorStrategy.TIMESTAMP_KEYSET,
+                true));
   }
 
   @Test
@@ -52,7 +60,8 @@ class GitlabSourceSchemaDiscoveryServiceTest {
               columnRow(null, "id", "bigint", false, 1),
               columnRow(null, "title", "text", true, 2));
         }, metadataSupport);
-    TableWhitelistOption option = new TableWhitelistOption("issue's", "Issue's", "id", null, false);
+    TableWhitelistOption option = new TableWhitelistOption(
+        "issue's", "Issue's", "id", null, SourceCursorStrategy.NONE, false);
 
     SourceTableSchema schema = service.discoverTableSchema(new GitlabSyncConfig(), option);
 
@@ -77,7 +86,8 @@ class GitlabSourceSchemaDiscoveryServiceTest {
 
     GitlabSourceMetadataDiagnosticsResponse diagnostics = service.inspectSourceMetadata(
         new GitlabSyncConfig(),
-        List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true)));
+        List.of(new TableWhitelistOption(
+            "issues", "Issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET, true)));
 
     assertThat(diagnostics.metadataOk()).isTrue();
     assertThat(diagnostics.sourceTableCount()).isEqualTo(2);

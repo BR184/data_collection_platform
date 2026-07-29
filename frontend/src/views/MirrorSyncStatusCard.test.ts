@@ -85,4 +85,23 @@ describe('MirrorSyncStatusCard', () => {
     expect(wrapper.text()).toContain('0/0');
     expect(wrapper.text()).toContain('fallback-start');
   });
+
+  it('renders indeterminate progress when the source total is unknown', () => {
+    const wrapper = mount(MirrorSyncStatusCard, {
+      global: { plugins: [ElementPlus] },
+      props: {
+        displayStatus: { text: '执行中', type: 'warning' },
+        statusMessageClass: ['status-message', 'status-message--warning'],
+        currentMessageText: '正在同步',
+        phaseText: '全量同步',
+        progressPercent: null,
+        progressHint: '正在处理表任务。',
+        progress: createProgress(),
+        currentTask: createTask(),
+      },
+    });
+
+    expect(wrapper.get('.progress-percentage').text()).toBe('进行中');
+    expect(wrapper.find('.el-progress-bar__inner--indeterminate').exists()).toBe(true);
+  });
 });

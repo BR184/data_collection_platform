@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Cpu, Timer } from '@element-plus/icons-vue';
-import type { MirrorStatusResponse } from '../types/api';
+import type { MirrorStatusResponse, SyncRunDiagnosticsResponse } from '../types/api';
 
 const props = defineProps<{
   status: MirrorStatusResponse | null;
+  diagnostics: SyncRunDiagnosticsResponse | null;
 }>();
 
 const progress = computed(() => props.status?.progress ?? null);
@@ -27,6 +28,7 @@ const modeLabel = computed(() => {
   return `固定 ${Math.floor(Number(config.value.syncThreadValue ?? 0))} 线程`;
 });
 const recordsPerSecond = computed(() => progress.value?.recordsPerSecond ?? null);
+const pool = computed(() => props.diagnostics?.directPoolMetrics ?? null);
 const recordsPerSecondText = computed(() => {
   const value = recordsPerSecond.value;
   if (value == null) {
@@ -72,6 +74,18 @@ const recordsPerSecondText = computed(() => {
           <el-icon><Timer /></el-icon>
           {{ progress?.estimatedRemainingSeconds == null ? '-' : `${progress.estimatedRemainingSeconds} 秒` }}
         </strong>
+      </div>
+      <div>
+        <span>连接池</span>
+        <strong>{{ pool ? `${pool.totalConnections}/${pool.maximumConnections}` : '-' }}</strong>
+      </div>
+      <div>
+        <span>活跃 / 空闲</span>
+        <strong>{{ pool ? `${pool.activeConnections} / ${pool.idleConnections}` : '-' }}</strong>
+      </div>
+      <div>
+        <span>等待连接</span>
+        <strong>{{ pool?.waitingThreads ?? '-' }}</strong>
       </div>
     </div>
   </section>
@@ -125,6 +139,8 @@ const recordsPerSecondText = computed(() => {
 }
 
 .worker-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: stretch;
 }
 

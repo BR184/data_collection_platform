@@ -86,6 +86,7 @@ create table if not exists sync_runs (
     payload_json text,
     thread_mode varchar(32) not null default 'FIXED',
     thread_value numeric(8, 3) not null default 2,
+    resolved_worker_count integer not null default 2 check (resolved_worker_count > 0),
     planned_table_count integer not null default 0,
     completed_table_count integer not null default 0,
     scanned_rows bigint not null default 0,
@@ -110,13 +111,15 @@ create table if not exists sync_run_table_states (
     primary_key_columns text not null,
     updated_at_column varchar(255),
     row_strategy varchar(32) not null default 'INCREMENTAL',
+    cursor_strategy varchar(32) not null default 'NONE'
+        check (cursor_strategy in ('TIMESTAMP_KEYSET', 'PRIMARY_KEY_KEYSET', 'NONE')),
     sync_enabled boolean not null default true,
     dirty_flag boolean not null default false,
     dirty_reason text,
     last_success_at timestamp,
     last_full_verified_at timestamp,
     last_watermark_at timestamp,
-    last_cursor_pk varchar(512),
+    last_cursor_pk text,
     source_max_updated_at timestamp,
     source_row_count bigint,
     mirror_row_count bigint,
@@ -140,9 +143,13 @@ create table if not exists sync_run_table_tasks (
     task_type varchar(64) not null,
     status varchar(32) not null,
     row_strategy varchar(32) not null,
+    task_stage varchar(32) not null default 'SCAN' check (task_stage in ('SCAN', 'RECONCILE')),
+    parent_task_id bigint references sync_run_table_tasks(id) on delete set null,
     watermark_at timestamp,
     cursor_updated_at timestamp,
-    cursor_pk varchar(512),
+    cursor_pk text,
+    scan_upper_bound_at timestamp,
+    page_number integer not null default 1 check (page_number > 0),
     lookup_column varchar(255),
     lookup_value text,
     batch_size integer not null default 500,
@@ -1081,6 +1088,9 @@ alter table gitlab_sync_configs add column if not exists system_hook_enabled boo
 alter table gitlab_sync_configs add column if not exists sync_thread_mode varchar(32) not null default 'FIXED';
 alter table gitlab_sync_configs add column if not exists sync_thread_value numeric(8, 3) not null default 2;
 alter table gitlab_sync_configs add column if not exists max_sync_threads integer;
+alter table sync_runs add column if not exists resolved_worker_count integer not null default 2;
+alter table sync_run_table_tasks add column if not exists task_stage varchar(32) not null default 'SCAN';
+alter table sync_run_table_tasks add column if not exists parent_task_id bigint references sync_run_table_tasks(id) on delete set null;
 alter table fact_build_tasks add column if not exists run_id varchar(64);
 alter table fact_build_tasks add column if not exists scope varchar(32);
 alter table fact_build_tasks alter column scope type varchar(128);
@@ -1382,7 +1392,9 @@ create index if not exists idx_label_group_references_child on label_group_refer
 create index if not exists idx_sys_table_registry_config on sys_table_registry(config_id, source_table_name);
 create index if not exists idx_sys_table_registry_preview on sys_table_registry(config_id, preview_enabled, source_table_name);
 create index if not exists idx_gitlab_hook_events_status on gitlab_hook_events(config_id, status, received_at desc);
-create index if not exists idx_sync_runs_dispatch on sync_runs(status, priority desc, created_at);
+create index if not exists idx_sync_runs_dispatch
+    on sync_runs(status, priority desc, updated_at, created_at, id)
+    where status in ('QUEUED', 'PAUSED');
 create index if not exists idx_sync_runs_config_source_status on sync_runs(config_id, source_instance, status);
 create index if not exists idx_sync_runs_scope_status on sync_runs(exclusive_scope, status);
 create index if not exists idx_sync_runs_parent on sync_runs(parent_run_id, run_type, status);
@@ -1391,6 +1403,11 @@ create index if not exists idx_sync_run_table_states_table on sync_run_table_sta
 create index if not exists idx_sync_run_table_tasks_dispatch on sync_run_table_tasks(status, run_after, source_instance, created_at);
 create index if not exists idx_sync_run_table_tasks_run on sync_run_table_tasks(run_id, status, created_at);
 create index if not exists idx_sync_run_table_tasks_table on sync_run_table_tasks(config_id, source_instance, source_table, status, created_at desc);
+create index if not exists idx_sync_run_table_tasks_parent
+    on sync_run_table_tasks(parent_task_id)
+    where parent_task_id is not null;
+create index if not exists idx_sync_run_table_tasks_page
+    on sync_run_table_tasks(run_id, source_table, page_number);
 create index if not exists idx_statistic_board_snapshots_lookup
     on statistic_board_snapshots(board_key, scope_key, rule_version, source_version, filter_hash, status);
 create index if not exists idx_statistic_board_snapshots_refreshed

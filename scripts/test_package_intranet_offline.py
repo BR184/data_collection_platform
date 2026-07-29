@@ -253,15 +253,21 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 with self.assertRaisesRegex(MODULE.PackageError, message):
                     MODULE.initialize_layout(context)
 
-    def test_incremental_override_only_replaces_apps_and_enables_ldap_security(self):
-        content = MODULE.incremental_override_content(self.build_context())
+    def test_incremental_compose_is_complete_and_preserves_external_database_volume(self):
+        content = MODULE.compose_content(self.build_context(), external_postgres_volume=True)
 
         self.assertIn("qa-flex-platform-backend:20260721T120000Z-001122334455", content)
         self.assertIn("qa-flex-platform-frontend:20260721T120000Z-001122334455", content)
-        self.assertIn("PLATFORM_AUTH_PROVIDER: ldap", content)
+        self.assertIn("postgres:", content)
+        self.assertIn("image: postgres:16-alpine", content)
+        self.assertIn("external: true", content)
+        self.assertTrue(content.startswith('name: "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}"\n\nservices:\n'))
+        self.assertIn('name: "${POSTGRES_VOLUME_NAME:?POSTGRES_VOLUME_NAME is required}"', content)
+        self.assertIn('name: "${BACKEND_LOG_VOLUME_NAME:?BACKEND_LOG_VOLUME_NAME is required}"', content)
+        self.assertNotIn(r"\n", content)
+        self.assertIn("PLATFORM_AUTH_PROVIDER: ${PLATFORM_AUTH_PROVIDER}", content)
         self.assertIn('PLATFORM_AUTH_CSRF_ENABLED: "true"', content)
         self.assertIn('PLATFORM_BACKGROUND_JOBS_ENABLED: "${PLATFORM_BACKGROUND_JOBS_ENABLED:-true}"', content)
-        self.assertNotIn("postgres:", content)
         self.assertNotIn("PLATFORM_ADMIN_PASSWORD", content)
 
     def test_backup_and_upgrade_are_separate_verified_stages(self):
@@ -283,7 +289,10 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertNotIn("pg_dump -Fc", content)
         self.assertIn("sync_runs", content)
         self.assertIn("fact_build_tasks", content)
-        self.assertIn("docker-compose.override.yml", content)
+        self.assertIn('TARGET_COMPOSE="$PACKAGE_DIR/docker-compose.yml"', content)
+        self.assertIn('TEMP_COMPOSE="docker-compose.yml.$PACKAGE_NAME.tmp"', content)
+        self.assertIn('mv -f "$TEMP_COMPOSE" docker-compose.yml', content)
+        self.assertNotIn("docker-compose.override.yml", content)
         self.assertIn("PLATFORM_BACKGROUND_JOBS_ENABLED=false", content)
         self.assertIn("background scheduling disabled", content)
         self.assertIn("recreating backend with normal background scheduling", content)
@@ -296,9 +305,11 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertLess(backend_position, frontend_position)
         self.assertIn("BACKEND_HEALTH_PORT", content)
         self.assertIn("FRONTEND_HEALTH_PORT", content)
-        self.assertIn("ensure_env PLATFORM_LDAP_BASE_URL", content)
-        self.assertIn("cp -a docker-compose.override.yml", backup)
-        self.assertIn("docker-compose.override.absent", backup)
+        self.assertNotIn("upsert_env", content)
+        self.assertNotIn("ensure_env", content)
+        self.assertIn("refusing layered Compose configuration", backup)
+        self.assertNotIn("cp -a docker-compose.override.yml", backup)
+        self.assertNotIn("docker-compose.override.absent", backup)
         self.assertNotIn("already exists; inspect it before upgrading", content)
         self.assertNotIn("down -v", content)
         self.assertNotIn("volume rm", content)
@@ -336,7 +347,9 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
     def test_rollback_script_restores_application_configuration_without_database_rewrite(self):
         content = MODULE.rollback_helper(self.build_context())
 
-        self.assertIn("docker-compose.override.yml", content)
+        self.assertIn('TEMP_COMPOSE="docker-compose.yml.rollback.tmp"', content)
+        self.assertIn('mv -f "$TEMP_COMPOSE" docker-compose.yml', content)
+        self.assertNotIn("docker-compose.override.yml", content)
         self.assertIn("restored backend image does not match", content)
         self.assertIn("wait_healthy backend 900", content)
         self.assertIn("wait_healthy frontend 300", content)
@@ -347,15 +360,15 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertNotIn("pg_restore", content)
         self.assertNotIn("down -v", content)
 
-    def test_baseline_prefers_current_release_override_over_base_compose(self):
+    def test_baseline_reads_only_authoritative_full_compose(self):
         with tempfile.TemporaryDirectory() as root:
             deployment = Path(root)
             (deployment / "docker-compose.yml").write_text(
-                "services:\n  backend:\n    image: qa-flex-platform-backend:base\n",
+                "services:\n  backend:\n    image: qa-flex-platform-backend:current\n",
                 encoding="utf-8",
             )
             (deployment / "docker-compose.override.yml").write_text(
-                "services:\n  backend:\n    image: qa-flex-platform-backend:current\n",
+                "services:\n  backend:\n    image: qa-flex-platform-backend:obsolete\n",
                 encoding="utf-8",
             )
 
@@ -374,7 +387,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 "docker-images/qa-flex-platform-frontend_20260721T120000Z-001122334455.tar",
                 "RELEASE-MANIFEST.json",
                 "README-INCREMENTAL-DEPLOY.md",
-                "docker-compose.release.yml",
+                "docker-compose.yml",
                 "backup.sh",
                 "upgrade.sh",
                 "rollback.sh",
@@ -382,6 +395,27 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             relative,
         )
         self.assertFalse(any(path.startswith("backend/") or path.startswith("frontend/") for path in relative))
+
+    def test_incremental_manifest_declares_single_compose_and_preserved_environment(self):
+        with tempfile.TemporaryDirectory() as root:
+            package_dir = Path(root)
+            context = MODULE.BuildContext(**{**self.build_context().__dict__, "package_dir": package_dir})
+            image_dir = package_dir / "docker-images"
+            image_dir.mkdir()
+            (image_dir / "qa-flex-platform-backend_20260721T120000Z-001122334455.tar").write_bytes(b"backend")
+            (image_dir / "qa-flex-platform-frontend_20260721T120000Z-001122334455.tar").write_bytes(b"frontend")
+            MODULE.write_release_manifest(context, False, "test")
+
+            manifest = json.loads((package_dir / "RELEASE-MANIFEST.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            {
+                "entrypoint": "docker-compose.yml",
+                "model": "single-authoritative-file",
+                "environmentPreserved": True,
+            },
+            manifest["compose"],
+        )
 
     def test_incremental_empty_package_scan_allows_backup_script_but_rejects_backup_data(self):
         with tempfile.TemporaryDirectory() as root:

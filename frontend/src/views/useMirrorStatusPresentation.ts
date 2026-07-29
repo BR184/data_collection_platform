@@ -7,7 +7,7 @@ import {
   translateSyncMessage,
 } from './mirror-settings-helpers';
 
-const ACTIVE_POLLING_STATUSES: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNING', 'CANCELLING'];
+const ACTIVE_POLLING_STATUSES: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING'];
 const TERMINAL_STATUSES: Array<GitlabSyncStatus | 'IDLE'> = [
   'SUCCESS',
   'PARTIAL_SUCCESS',
@@ -16,14 +16,6 @@ const TERMINAL_STATUSES: Array<GitlabSyncStatus | 'IDLE'> = [
   'TIMEOUT',
   'IDLE',
 ];
-
-function activeProgressPercent(completedTables: number, totalTables: number): number {
-  if (totalTables <= 0) {
-    return 5;
-  }
-  const rawPercent = Math.round((completedTables / totalTables) * 100);
-  return Math.min(95, Math.max(5, rawPercent));
-}
 
 function fallbackPhaseText(task: SyncRunSummary | null): string {
   if (!task || !ACTIVE_POLLING_STATUSES.includes(task.status)) {
@@ -88,13 +80,10 @@ export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | n
     if (TERMINAL_STATUSES.includes(currentStatus)) {
       return currentStatus === 'SUCCESS' || currentStatus === 'PARTIAL_SUCCESS' ? 100 : 0;
     }
-    if (!current) {
-      return currentTask.value && ACTIVE_POLLING_STATUSES.includes(currentTask.value.status) ? 5 : 0;
+    if (currentTask.value && ACTIVE_POLLING_STATUSES.includes(currentTask.value.status)) {
+      return null;
     }
-    if (current.totalTables <= 0) {
-      return currentTask.value && ACTIVE_POLLING_STATUSES.includes(currentTask.value.status) ? 5 : 0;
-    }
-    return activeProgressPercent(current.completedTables, current.totalTables);
+    return current ? null : 0;
   });
 
   const displayStatus = computed(() => {

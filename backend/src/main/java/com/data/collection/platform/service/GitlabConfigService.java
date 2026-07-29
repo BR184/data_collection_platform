@@ -9,11 +9,14 @@ import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.mapper.GitlabSyncConfigMapper;
 import com.data.collection.platform.service.sync.SyncThreadBudgetResolver;
+import com.data.collection.platform.service.sync.GitlabSyncConfigChangedEvent;
+import com.data.collection.platform.service.sync.SyncRuntimeConfigGuard;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -33,14 +36,20 @@ public class GitlabConfigService {
   private final GitlabSyncConfigMapper configMapper;
   private final GitlabMirrorProperties properties;
   private final GitlabResourceLinkService resourceLinkService;
+  private final SyncRuntimeConfigGuard runtimeConfigGuard;
+  private final ApplicationEventPublisher eventPublisher;
 
   public GitlabConfigService(
       GitlabSyncConfigMapper configMapper,
       GitlabMirrorProperties properties,
-      GitlabResourceLinkService resourceLinkService) {
+      GitlabResourceLinkService resourceLinkService,
+      SyncRuntimeConfigGuard runtimeConfigGuard,
+      ApplicationEventPublisher eventPublisher) {
     this.configMapper = configMapper;
     this.properties = properties;
     this.resourceLinkService = resourceLinkService;
+    this.runtimeConfigGuard = runtimeConfigGuard;
+    this.eventPublisher = eventPublisher;
   }
 
   public GitlabSyncConfig getConfig() {
@@ -113,6 +122,7 @@ public class GitlabConfigService {
   public GitlabSyncConfig saveConfig(GitlabSyncConfig input) {
     GitlabSyncConfig current = resolveCurrentForSave(input);
     GitlabSyncConfig normalized = normalize(input, current);
+    runtimeConfigGuard.verifyChangeAllowed(current, normalized);
     LocalDateTime now = LocalDateTime.now();
     if (current.getId() == null) {
       normalized.setCreatedAt(now);
@@ -127,6 +137,7 @@ public class GitlabConfigService {
       configMapper.updateById(normalized);
     }
     resourceLinkService.clearCache();
+    eventPublisher.publishEvent(new GitlabSyncConfigChangedEvent(normalized.getId()));
     return getConfigById(normalized.getId());
   }
 

@@ -239,7 +239,7 @@ public class SyncRunTableTaskLeaseService {
               where task.config_id = registry.config_id
                 and task.source_table = registry.source_table_name
                 and task.status in ('QUEUED', 'RUNNING', 'RETRYING')
-                and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
+                and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'PAUSED', 'CANCELLING')
            )
         """);
   }
@@ -290,75 +290,158 @@ public class SyncRunTableTaskLeaseService {
     }
   }
 
-  public void finishTask(Long taskId, Long rowsScanned, Long rowsApplied, String status, String errorMessage) {
-    finishTask(taskId, rowsScanned, rowsApplied, status, errorMessage, null, null);
+  /**
+   * 仅由当前租约所有者续期正在执行的表任务。
+   *
+   * @param taskId 表任务 ID
+   * @param owner 当前 worker 所有者标识
+   * @param leaseSeconds 新租约时长
+   * @return 仍拥有租约并成功续期时返回 true
+   */
+  public boolean renewLease(Long taskId, String owner, int leaseSeconds) {
+    if (taskId == null || owner == null || owner.isBlank()) {
+      return false;
+    }
+    return jdbcTemplate.update(
+            """
+            update sync_run_table_tasks
+               set heartbeat_at = current_timestamp,
+                   lease_until = current_timestamp + (? * interval '1 second'),
+                   updated_at = current_timestamp
+             where id = ?
+               and lease_owner = ?
+               and status = 'RUNNING'
+            """,
+            Math.max(1, leaseSeconds),
+            taskId,
+            owner)
+        == 1;
   }
 
-  public void finishTask(
+  /**
+   * 仅允许当前租约所有者完成表任务，防止超时后的旧 worker 覆盖新状态。
+   *
+   * @return 状态转换成功时返回 true
+   */
+  public boolean finishOwnedTask(
       Long taskId,
+      String owner,
+      Long rowsScanned,
+      Long rowsApplied,
+      String status,
+      String errorMessage) {
+    if (taskId == null || owner == null || owner.isBlank()) {
+      return false;
+    }
+    return jdbcTemplate.update(
+            """
+            update sync_run_table_tasks
+               set status = ?,
+                   rows_scanned = coalesce(?, rows_scanned),
+                   rows_applied = coalesce(?, rows_applied),
+                   last_error = ?,
+                   lease_owner = null,
+                   lease_until = null,
+                   heartbeat_at = null,
+                   finished_at = current_timestamp,
+                   updated_at = current_timestamp
+             where lease_owner = ?
+               and id = ?
+               and status = 'RUNNING'
+               and lease_until >= current_timestamp
+            """,
+            status,
+            rowsScanned,
+            rowsApplied,
+            errorMessage,
+            owner,
+            taskId)
+        == 1;
+  }
+
+  public boolean finishOwnedTask(
+      Long taskId,
+      String owner,
       Long rowsScanned,
       Long rowsApplied,
       String status,
       String errorMessage,
       LocalDateTime cursorUpdatedAt,
       String cursorPk) {
-    jdbcTemplate.update(
-        """
-        update sync_run_table_tasks
-           set status = ?,
-               rows_scanned = coalesce(?, rows_scanned),
-               rows_applied = coalesce(?, rows_applied),
-               cursor_updated_at = coalesce(?, cursor_updated_at),
-               cursor_pk = coalesce(?, cursor_pk),
-               last_error = ?,
-               finished_at = current_timestamp,
-               updated_at = current_timestamp
-         where id = ?
-        """,
-        status,
-        rowsScanned,
-        rowsApplied,
-        cursorUpdatedAt,
-        cursorPk,
-        errorMessage,
-        taskId);
-  }
-
-  public boolean hasActiveShardTasks(Long runId, String sourceTable) {
-    Integer count =
-        jdbcTemplate.queryForObject(
+    if (taskId == null || owner == null || owner.isBlank()) {
+      return false;
+    }
+    return jdbcTemplate.update(
             """
-            select count(*)
-              from sync_run_table_tasks
-             where run_id = ?
-               and source_table = ?
-               and shard_key is not null
-               and status in ('QUEUED', 'RUNNING', 'RETRYING')
+            update sync_run_table_tasks
+               set status = ?,
+                   rows_scanned = coalesce(?, rows_scanned),
+                   rows_applied = coalesce(?, rows_applied),
+                   cursor_updated_at = coalesce(?, cursor_updated_at),
+                   cursor_pk = coalesce(?, cursor_pk),
+                   last_error = ?,
+                   lease_owner = null,
+                   lease_until = null,
+                   heartbeat_at = null,
+                   finished_at = current_timestamp,
+                   updated_at = current_timestamp
+             where id = ?
+               and lease_owner = ?
+               and status = 'RUNNING'
+               and lease_until >= current_timestamp
             """,
-            Integer.class,
-            runId,
-            sourceTable);
-    return count != null && count > 0;
+            status,
+            rowsScanned,
+            rowsApplied,
+            cursorUpdatedAt,
+            cursorPk,
+            errorMessage,
+            taskId,
+            owner)
+        == 1;
   }
 
-  public LocalDateTime findMergedShardWatermark(Long runId, String sourceTable) {
-    return jdbcTemplate.queryForObject(
-        """
-        select min(shard_watermark) as merged_watermark
-          from (
-            select shard_key,
-                   max(coalesce(cursor_updated_at, watermark_at)) as shard_watermark
-              from sync_run_table_tasks
-             where run_id = ?
-               and source_table = ?
-               and shard_key is not null
-               and status = 'SUCCESS'
-             group by shard_key
-          ) shard_progress
-        """,
-        (rs, rowNum) -> toDateTime(rs.getTimestamp("merged_watermark")),
-        runId,
-        sourceTable);
+  /** 在当前事务中锁定并确认任务仍归指定 worker 所有。 */
+  public void lockOwnedTask(Long taskId, String owner) {
+    try {
+      jdbcTemplate.queryForObject(
+          """
+          select id
+            from sync_run_table_tasks
+           where id = ?
+             and lease_owner = ?
+             and status = 'RUNNING'
+             and lease_until >= current_timestamp
+           for update
+          """,
+          Long.class,
+          taskId,
+          owner);
+    } catch (EmptyResultDataAccessException error) {
+      throw new SyncTaskLeaseLostException(taskId);
+    }
+  }
+
+  /** 为当前所有者持久化本轮固定扫描上界。 */
+  public boolean initializeOwnedScanUpperBound(
+      Long taskId, String owner, LocalDateTime scanUpperBoundAt) {
+    if (taskId == null || owner == null || owner.isBlank() || scanUpperBoundAt == null) {
+      return false;
+    }
+    return jdbcTemplate.update(
+            """
+            update sync_run_table_tasks
+               set scan_upper_bound_at = coalesce(scan_upper_bound_at, ?),
+                   updated_at = current_timestamp
+             where id = ?
+               and lease_owner = ?
+               and status = 'RUNNING'
+               and lease_until >= current_timestamp
+            """,
+            scanUpperBoundAt,
+            taskId,
+            owner)
+        == 1;
   }
 
   private SyncRunTableTask mapTask(ResultSet rs, int rowNum) throws SQLException {
@@ -373,13 +456,15 @@ public class SyncRunTableTaskLeaseService {
     task.setTaskType(rs.getString("task_type"));
     task.setStatus(SyncRunStatus.valueOf(rs.getString("status")));
     task.setRowStrategy(rs.getString("row_strategy"));
+    task.setTaskStage(com.data.collection.platform.entity.sync.SyncRunTableTaskStage.valueOf(rs.getString("task_stage")));
+    task.setParentTaskId(rs.getObject("parent_task_id") == null ? null : rs.getLong("parent_task_id"));
     task.setWatermarkAt(toDateTime(rs.getTimestamp("watermark_at")));
     task.setCursorUpdatedAt(toDateTime(rs.getTimestamp("cursor_updated_at")));
     task.setCursorPk(rs.getString("cursor_pk"));
+    task.setScanUpperBoundAt(toDateTime(rs.getTimestamp("scan_upper_bound_at")));
+    task.setPageNumber(rs.getObject("page_number") == null ? null : rs.getInt("page_number"));
     task.setLookupColumn(rs.getString("lookup_column"));
     task.setLookupValue(rs.getString("lookup_value"));
-    task.setShardKey(rs.getString("shard_key"));
-    task.setShardKeyLength(rs.getObject("shard_key_length") == null ? null : rs.getInt("shard_key_length"));
     task.setBatchSize(rs.getInt("batch_size"));
     task.setRunAfter(toDateTime(rs.getTimestamp("run_after")));
     task.setLeaseOwner(rs.getString("lease_owner"));

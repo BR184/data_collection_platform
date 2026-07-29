@@ -6,12 +6,15 @@ import com.data.collection.platform.entity.GitlabSourceTableDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
+import com.data.collection.platform.entity.SourceCursorStrategy;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.function.BiFunction;
 
 class GitlabSourceSchemaDiscoveryService {
@@ -31,14 +34,18 @@ class GitlabSourceSchemaDiscoveryService {
       List<String> recommendedTables) {
     Map<String, String> primaryKeyMap = discoverPrimaryKeysByTable(config);
     Map<String, String> updatedAtColumnMap = discoverUpdatedAtColumns(config);
+    Map<String, Set<String>> indexedLeadingColumns = discoverIndexedLeadingColumns(config);
     List<TableWhitelistOption> result = new ArrayList<>(primaryKeyMap.size());
     for (Map.Entry<String, String> entry : primaryKeyMap.entrySet()) {
       String tableName = entry.getKey();
       String primaryKey = entry.getValue();
       String updatedAtColumn = updatedAtColumnMap.get(tableName);
+      SourceCursorStrategy cursorStrategy = metadataSupport.resolveCursorStrategy(
+          updatedAtColumn, indexedLeadingColumns.get(tableName));
       String label = labels.getOrDefault(tableName, tableName);
       boolean recommended = recommendedTables.contains(tableName);
-      result.add(new TableWhitelistOption(tableName, label, primaryKey, updatedAtColumn, recommended));
+      result.add(new TableWhitelistOption(
+          tableName, label, primaryKey, updatedAtColumn, cursorStrategy, recommended));
     }
     return result;
   }
@@ -138,6 +145,36 @@ class GitlabSourceSchemaDiscoveryService {
       columnsByTable.computeIfAbsent(tableName, ignored -> new ArrayList<>()).add(toColumn(row));
     }
     return columnsByTable;
+  }
+
+  Map<String, Set<String>> discoverIndexedLeadingColumns(GitlabSyncConfig config) {
+    String sql = """
+        select c.relname as table_name,
+               a.attname as column_name
+          from pg_class c
+          join pg_namespace n on n.oid = c.relnamespace
+          join pg_index i on i.indrelid = c.oid
+          join pg_class ic on ic.oid = i.indexrelid
+          join pg_am am on am.oid = ic.relam
+          join lateral unnest(i.indkey) with ordinality key_column(attnum, position) on true
+          join pg_attribute a on a.attrelid = c.oid and a.attnum = key_column.attnum
+         where n.nspname = 'public'
+           and c.relkind = 'r'
+           and am.amname = 'btree'
+           and i.indisvalid
+           and i.indisready
+           and i.indpred is null
+           and key_column.position = 1
+           and key_column.position <= i.indnkeyatts
+         order by c.relname, a.attname
+        """;
+    Map<String, Set<String>> result = new HashMap<>();
+    for (Map<String, Object> row : queryRunner.apply(config, sql)) {
+      String tableName = String.valueOf(row.get("table_name"));
+      String columnName = String.valueOf(row.get("column_name"));
+      result.computeIfAbsent(tableName, ignored -> new HashSet<>()).add(columnName);
+    }
+    return result;
   }
 
   GitlabSourceMetadataDiagnosticsResponse inspectSourceMetadata(

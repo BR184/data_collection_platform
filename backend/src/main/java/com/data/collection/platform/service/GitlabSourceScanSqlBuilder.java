@@ -1,5 +1,7 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.entity.SourceCursorStrategy;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.TableWhitelistOption;
@@ -13,6 +15,12 @@ class GitlabSourceScanSqlBuilder {
   private static final DateTimeFormatter TIMESTAMP_LITERAL_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS");
 
+  private final JsonUtils jsonUtils;
+
+  GitlabSourceScanSqlBuilder(JsonUtils jsonUtils) {
+    this.jsonUtils = jsonUtils;
+  }
+
   String buildFullTableScanSql(TableWhitelistOption option) {
     return "select * from %s".formatted(quoteQualifiedPublicTable(option.tableName()));
   }
@@ -22,28 +30,18 @@ class GitlabSourceScanSqlBuilder {
       SourceTableSchema schema,
       String cursorPk,
       int batchSize) {
-    String pkExpression = primaryKeySignatureExpression(splitPrimaryKeys(option.primaryKey()), "source_rows");
-    String selectColumns = schema.columns().stream()
-        .map(column -> "cursor_rows." + quoteIdentifier(column.columnName()))
-        .collect(java.util.stream.Collectors.joining(", "));
-    String cursorPredicate = cursorPk == null || cursorPk.isBlank()
-        ? ""
-        : " where cursor_rows.pk_signature > " + toSqlLiteral(cursorPk);
+    List<String> primaryKeys = primaryKeyColumns(option);
+    String cursorPredicate = buildPrimaryKeyCursorPredicate(schema, primaryKeys, cursorPk, " where ");
     return """
-        select %s
-          from (
-            select source_rows.*,
-                   %s as pk_signature
-              from %s source_rows
-          ) cursor_rows
+        select *
+          from %s
          %s
-         order by cursor_rows.pk_signature asc
+         order by %s
          limit %d
         """.formatted(
-        selectColumns,
-        pkExpression,
         quoteQualifiedPublicTable(option.tableName()),
         cursorPredicate,
+        orderByPrimaryKeys(primaryKeys),
         Math.max(1, batchSize)).strip();
   }
 
@@ -106,40 +104,39 @@ class GitlabSourceScanSqlBuilder {
 
   String buildCursorBatchScanSql(
       TableWhitelistOption option,
+      SourceTableSchema schema,
       LocalDateTime watermark,
+      LocalDateTime upperBound,
       LocalDateTime cursorUpdatedAt,
       String cursorPk,
       int batchSize) {
+    if (upperBound == null) {
+      throw new IllegalArgumentException("增量分页必须提供固定扫描上界");
+    }
+    if (option.cursorStrategy() == null || option.cursorStrategy() == SourceCursorStrategy.NONE) {
+      throw new IllegalArgumentException("当前源表没有可执行的增量游标策略");
+    }
+    List<String> primaryKeys = primaryKeyColumns(option);
     String updatedAtColumn = quoteIdentifier(option.updatedAtColumn());
-    String primaryKeyColumn = quoteIdentifier(firstPrimaryKey(option));
-    boolean hasCursor = cursorUpdatedAt != null && cursorPk != null && !cursorPk.isBlank();
     StringBuilder sql = new StringBuilder("select * from ")
         .append(quoteQualifiedPublicTable(option.tableName()))
         .append(" where ")
         .append(updatedAtColumn)
-        .append(hasCursor ? " >= timestamp '" : " > timestamp '")
-        .append(formatTimestampLiteral(watermark))
-        .append("'");
-    if (hasCursor) {
-      sql.append(" and (")
-          .append(updatedAtColumn)
-          .append(" > timestamp '")
-          .append(formatTimestampLiteral(cursorUpdatedAt))
-          .append("' or (")
-          .append(updatedAtColumn)
-          .append(" = timestamp '")
-          .append(formatTimestampLiteral(cursorUpdatedAt))
-          .append("' and ")
-          .append(primaryKeyColumn)
-          .append(" > ")
-          .append(toSqlLiteral(cursorPk))
-          .append("))");
-    }
-    return sql.append(" order by ")
+        .append(" > ")
+        .append(timestampLiteral(schema, option.updatedAtColumn(), watermark))
+        .append(" and ")
         .append(updatedAtColumn)
-        .append(" asc, ")
-        .append(primaryKeyColumn)
-        .append(" asc limit ")
+        .append(" <= ")
+        .append(timestampLiteral(schema, option.updatedAtColumn(), upperBound));
+    if (option.cursorStrategy() == SourceCursorStrategy.TIMESTAMP_KEYSET) {
+      appendTimestampCursor(sql, schema, option.updatedAtColumn(), primaryKeys, cursorUpdatedAt, cursorPk);
+      sql.append(" order by ").append(updatedAtColumn).append(" asc, ");
+    } else {
+      sql.append(buildPrimaryKeyCursorPredicate(schema, primaryKeys, cursorPk, " and "));
+      sql.append(" order by ");
+    }
+    return sql.append(orderByPrimaryKeys(primaryKeys))
+        .append(" limit ")
         .append(Math.max(1, batchSize))
         .toString();
   }
@@ -180,7 +177,7 @@ class GitlabSourceScanSqlBuilder {
         .collect(java.util.stream.Collectors.joining(", "));
     String predicate = primaryKeyRows.stream()
         .map(row -> primaryKeys.stream()
-            .map(primaryKey -> quoteIdentifier(primaryKey) + "::text = " + toSqlLiteral(Objects.toString(row.get(primaryKey), "")))
+            .map(primaryKey -> quoteIdentifier(primaryKey) + " = " + toSqlLiteral(Objects.toString(row.get(primaryKey), "")))
             .collect(java.util.stream.Collectors.joining(" and ", "(", ")")))
         .collect(java.util.stream.Collectors.joining(" or "));
     return """
@@ -193,121 +190,6 @@ class GitlabSourceScanSqlBuilder {
         predicate).strip();
   }
 
-  String buildTableShardProbeSql(TableWhitelistOption option, SourceTableSchema schema, int shardKeyLength) {
-    String pkExpression = primaryKeySignatureExpression(splitPrimaryKeys(option.primaryKey()), null);
-    String rowExpression = rowSignatureExpression(schema, null);
-    String maxUpdatedAtExpression = option.updatedAtColumn() == null || option.updatedAtColumn().isBlank()
-        ? "null::timestamp"
-        : "max(" + quoteIdentifier(option.updatedAtColumn()) + ")";
-    int safeShardKeyLength = Math.max(1, Math.min(8, shardKeyLength));
-    return """
-        select shard_key,
-               count(*) as row_count,
-               %s as max_updated_at,
-               min(pk_signature) as min_pk,
-               max(pk_signature) as max_pk,
-               md5(coalesce(string_agg(row_hash, ',' order by pk_signature), '')) as checksum
-          from (
-            select %s as pk_signature,
-                   substring(md5(%s), 1, %d) as shard_key,
-                   md5(%s) as row_hash,
-                   %s
-              from %s
-          ) shard_rows
-         group by shard_key
-         order by shard_key
-        """.formatted(
-        maxUpdatedAtExpression,
-        pkExpression,
-        pkExpression,
-        safeShardKeyLength,
-        rowExpression,
-        option.updatedAtColumn() == null || option.updatedAtColumn().isBlank()
-            ? "null::timestamp as " + quoteIdentifier("__updated_at")
-            : quoteIdentifier(option.updatedAtColumn()),
-        quoteQualifiedPublicTable(option.tableName())).strip();
-  }
-
-  String buildShardCursorScanSql(
-      TableWhitelistOption option,
-      SourceTableSchema schema,
-      String shardKey,
-      String cursorPk,
-      int batchSize) {
-    String pkExpression = primaryKeySignatureExpression(splitPrimaryKeys(option.primaryKey()), "source_rows");
-    String cursorPredicate = cursorPk == null || cursorPk.isBlank()
-        ? ""
-        : " and pk_signature > " + toSqlLiteral(cursorPk);
-    return """
-        select *
-          from (
-            select source_rows.*,
-                   %s as pk_signature
-              from %s source_rows
-          ) shard_rows
-         where substring(md5(pk_signature), 1, %d) = %s
-               %s
-         order by pk_signature asc
-         limit %d
-        """.formatted(
-        pkExpression,
-        quoteQualifiedPublicTable(option.tableName()),
-        Math.max(1, Math.min(8, shardKey == null ? 1 : shardKey.length())),
-        toSqlLiteral(shardKey),
-        cursorPredicate,
-        Math.max(1, batchSize)).strip();
-  }
-
-  String buildIncrementalShardCursorScanSql(
-      TableWhitelistOption option,
-      SourceTableSchema schema,
-      String shardKey,
-      LocalDateTime watermark,
-      LocalDateTime cursorUpdatedAt,
-      String cursorPk,
-      int batchSize) {
-    String updatedAtColumn = quoteIdentifier(option.updatedAtColumn());
-    String pkExpression = primaryKeySignatureExpression(splitPrimaryKeys(option.primaryKey()), "source_rows");
-    boolean hasCursor = cursorUpdatedAt != null && cursorPk != null && !cursorPk.isBlank();
-    StringBuilder predicate = new StringBuilder()
-        .append(updatedAtColumn)
-        .append(hasCursor ? " >= timestamp '" : " > timestamp '")
-        .append(formatTimestampLiteral(watermark))
-        .append("'");
-    if (hasCursor) {
-      predicate.append(" and (")
-          .append(updatedAtColumn)
-          .append(" > timestamp '")
-          .append(formatTimestampLiteral(cursorUpdatedAt))
-          .append("' or (")
-          .append(updatedAtColumn)
-          .append(" = timestamp '")
-          .append(formatTimestampLiteral(cursorUpdatedAt))
-          .append("' and pk_signature > ")
-          .append(toSqlLiteral(cursorPk))
-          .append("))");
-    }
-    return """
-        select *
-          from (
-            select source_rows.*,
-                   %s as pk_signature
-              from %s source_rows
-          ) shard_rows
-         where substring(md5(pk_signature), 1, %d) = %s
-           and %s
-         order by %s asc, pk_signature asc
-         limit %d
-        """.formatted(
-        pkExpression,
-        quoteQualifiedPublicTable(option.tableName()),
-        Math.max(1, Math.min(8, shardKey == null ? 1 : shardKey.length())),
-        toSqlLiteral(shardKey),
-        predicate,
-        updatedAtColumn,
-        Math.max(1, batchSize)).strip();
-  }
-
   private String quoteIdentifier(String identifier) {
     return "\"" + identifier.replace("\"", "\"\"") + "\"";
   }
@@ -316,30 +198,88 @@ class GitlabSourceScanSqlBuilder {
     return quoteIdentifier("public") + "." + quoteIdentifier(tableName);
   }
 
-  private String primaryKeySignatureExpression(List<String> primaryKeys, String tableAlias) {
-    List<String> safePrimaryKeys = primaryKeys == null || primaryKeys.isEmpty() ? List.of("id") : primaryKeys;
-    return safePrimaryKeys.stream()
-        .map(primaryKey -> qualifiedColumn(tableAlias, primaryKey) + "::text")
-        .collect(java.util.stream.Collectors.joining(", ", "concat_ws(chr(31), ", ")"));
+  private void appendTimestampCursor(
+      StringBuilder sql,
+      SourceTableSchema schema,
+      String updatedAtColumn,
+      List<String> primaryKeys,
+      LocalDateTime cursorUpdatedAt,
+      String cursorPk) {
+    if (cursorPk == null || cursorPk.isBlank()) {
+      return;
+    }
+    if (cursorUpdatedAt == null) {
+      throw new IllegalArgumentException("时间游标缺少 cursor_updated_at");
+    }
+    List<String> cursorValues = decodeCursor(primaryKeys, cursorPk);
+    List<String> leftColumns = new java.util.ArrayList<>();
+    leftColumns.add(quoteIdentifier(updatedAtColumn));
+    leftColumns.addAll(primaryKeys.stream().map(this::quoteIdentifier).toList());
+    List<String> rightValues = new java.util.ArrayList<>();
+    rightValues.add(timestampLiteral(schema, updatedAtColumn, cursorUpdatedAt));
+    rightValues.addAll(typedPrimaryKeyLiterals(schema, primaryKeys, cursorValues));
+    sql.append(" and (")
+        .append(String.join(", ", leftColumns))
+        .append(") > (")
+        .append(String.join(", ", rightValues))
+        .append(")");
   }
 
-  private String rowSignatureExpression(SourceTableSchema schema, String tableAlias) {
-    List<String> columns = schema.columns().stream()
-        .map(SourceTableColumn::columnName)
-        .toList();
-    if (columns.isEmpty()) {
-      return "''";
+  private String buildPrimaryKeyCursorPredicate(
+      SourceTableSchema schema,
+      List<String> primaryKeys,
+      String cursorPk,
+      String prefix) {
+    if (cursorPk == null || cursorPk.isBlank()) {
+      return "";
     }
-    return columns.stream()
-        .map(column -> "to_jsonb(" + qualifiedColumn(tableAlias, column) + ")")
-        .collect(java.util.stream.Collectors.joining(", ", "jsonb_build_array(", ")::text"));
+    List<String> cursorValues = decodeCursor(primaryKeys, cursorPk);
+    return prefix
+        + "("
+        + primaryKeys.stream().map(this::quoteIdentifier).collect(java.util.stream.Collectors.joining(", "))
+        + ") > ("
+        + String.join(", ", typedPrimaryKeyLiterals(schema, primaryKeys, cursorValues))
+        + ")";
   }
 
-  private String qualifiedColumn(String tableAlias, String column) {
-    if (tableAlias == null || tableAlias.isBlank()) {
-      return quoteIdentifier(column);
+  private List<String> decodeCursor(List<String> primaryKeys, String cursorPk) {
+    List<String> values = jsonUtils.toStringList(cursorPk);
+    if (values.size() != primaryKeys.size()) {
+      throw new IllegalArgumentException("主键游标列数与源表主键不一致");
     }
-    return tableAlias + "." + quoteIdentifier(column);
+    return values;
+  }
+
+  private List<String> typedPrimaryKeyLiterals(
+      SourceTableSchema schema, List<String> primaryKeys, List<String> cursorValues) {
+    List<String> result = new java.util.ArrayList<>(primaryKeys.size());
+    for (int index = 0; index < primaryKeys.size(); index++) {
+      result.add(toSqlLiteral(cursorValues.get(index)) + "::" + columnType(schema, primaryKeys.get(index)));
+    }
+    return result;
+  }
+
+  private String timestampLiteral(
+      SourceTableSchema schema, String columnName, LocalDateTime value) {
+    String formatted = formatTimestampLiteral(value);
+    String type = columnType(schema, columnName).toLowerCase(java.util.Locale.ROOT);
+    return type.contains("with time zone")
+        ? "timestamptz '" + formatted + "+00'"
+        : "timestamp '" + formatted + "'";
+  }
+
+  private String columnType(SourceTableSchema schema, String columnName) {
+    return schema.columns().stream()
+        .filter(column -> Objects.equals(column.columnName(), columnName))
+        .map(SourceTableColumn::formattedType)
+        .findFirst()
+        .orElseThrow(() -> new IllegalArgumentException("源表字段元数据缺失：" + columnName));
+  }
+
+  private String orderByPrimaryKeys(List<String> primaryKeys) {
+    return primaryKeys.stream()
+        .map(primaryKey -> quoteIdentifier(primaryKey) + " asc")
+        .collect(java.util.stream.Collectors.joining(", "));
   }
 
   private String toSqlLiteral(Object value) {
@@ -358,6 +298,11 @@ class GitlabSourceScanSqlBuilder {
         .map(String::trim)
         .filter(value -> !value.isBlank())
         .toList();
+  }
+
+  private List<String> primaryKeyColumns(TableWhitelistOption option) {
+    List<String> columns = splitPrimaryKeys(option.primaryKey());
+    return columns.isEmpty() ? List.of("id") : columns;
   }
 
   private boolean isPreviewSearchableField(String columnName) {

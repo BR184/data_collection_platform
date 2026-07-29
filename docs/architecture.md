@@ -23,6 +23,13 @@
 
 - 负责 GitLab 连接、表白名单、增量/补偿同步、任务状态、日志和 Webhook 事件。
 - 镜像层拥有 ODS 原始数据和同步水位；同步成功不代表事实层已重建成功，事实刷新状态必须独立记录。
+- 同一镜像运行的表 worker 数与 DIRECT JDBC 池容量由 `SyncExecutionBudget` 一次解析；`sync_runs.resolved_worker_count` 是该运行不可变并发快照，DIRECT 池容量等于 worker 数加控制面保留连接。连接池按稳定 `configId` 唯一管理，连接或线程配置只能在无活动镜像运行时修改，配置事务提交后旧池退休且不打断已借出连接。
+- 调度器每次领取运行必须生成唯一 `lease_owner`；首次心跳、周期续租、暂停和终态提交均以 `(run_id, lease_owner)` fencing，租约转移后的旧执行器不能覆盖新 owner。执行器拒绝入队时仅释放自己拥有的运行并归还本地容量；截止时间和人工取消使用字段级状态 CAS，禁止用陈旧全实体更新覆盖租约。
+- 表任务是唯一分页恢复边界：源端读取不持有平台库事务，本地镜像写入、任务 owner 条件完成、状态水位和下一阶段任务创建在同一事务提交。任务执行期间按租约心跳续期；租约转移后旧 worker 不得提交状态或镜像副作用。全量删除对账使用可恢复 `RECONCILE` 分页，不执行末页无界整表对账。
+- 源端扫描只使用真实类型复合主键 keyset：全量与删除对账按主键 tuple 分页；增量仅在更新时间列存在有效非部分 B-tree 前导索引时使用 `TIMESTAMP_KEYSET`，否则在固定 `(watermark, scan_upper_bound_at]` 窗口内使用 `PRIMARY_KEY_KEYSET`，保证每次运行最多按主键线性扫描一次。复合游标统一为 JSON 数组并持久化 `page_number`；状态水位只在末页推进。禁止按文本化主键排序、哈希分片重复扫表、`OFFSET` 分页和逐页 `count(*)`。
+- 同一数据源保持单一镜像写入所有权。`INCREMENTAL_SYNC` 与用户 `TABLE_REFRESH` 高于全量/补偿运行；后台运行只在已提交分页边界转为 `PAUSED` 并释放互斥范围，前台运行结束后从持久 cursor 恢复，队列等待时间老化防止后台永久饥饿。System Hook 精准刷新不参与该让行策略。
+- 页面同步命令只引用已持久化的 `configId`，不得隐式保存配置；表单存在未保存变更时必须先显式保存。活动镜像运行期间后端继续拒绝连接与容量配置变更，不能为提交前台任务绕过该保护。
+- 同步诊断只把当前活动运行的任务计入当前失败/超时，历史累计使用独立字段；当前表任务必须暴露 `taskId/stage/cursor/retry/heartbeat/lease`。DIRECT 模式同时暴露 Hikari 活动、空闲、等待和容量指标；源总量未知时前端使用不确定进度，不根据动态分页任务数伪造百分比。同步 JSON 日志统一携带 `runId`、`runDbId`、`taskId`、`sourceTable`、`configId`、`sourceInstance`、`runType` 和 `action`。详细决策见 `docs/decisions/ADR-004-sync-runtime-capacity-leases-and-yielding.md`。
 - 每个整体成功或部分成功的镜像运行都必须提交以该运行作为 `parent_run_id` 的 `FACT_REFRESH`；只有整体成功的全量镜像直接使用全量事实构建，部分成功运行提交增量标记并按已成功表任务执行增量/受影响对象刷新；若尚无成功全量基线，则按既有规则先建立事实基线。
 - 同一事实范围内不同镜像父运行的事实刷新必须排队串行执行；仅相同父运行的重复事件允许复用，不能丢弃较新的镜像影响范围。
 - 页面实时刷新以触发的镜像 `sync_runs` 及其 `FACT_REFRESH` 子运行作为唯一完成链路；镜像成功而事实子运行排队、运行或失败时，页面不得将旧事实数据标记为最新。

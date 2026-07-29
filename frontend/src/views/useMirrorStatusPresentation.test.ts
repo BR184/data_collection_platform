@@ -113,7 +113,7 @@ describe('useMirrorStatusPresentation', () => {
 
     const presentation = useMirrorStatusPresentation(status);
 
-    expect(presentation.progressPercent.value).toBe(25);
+    expect(presentation.progressPercent.value).toBeNull();
     expect(presentation.canCancel.value).toBe(true);
     expect(presentation.displayStatus.value).toEqual({ text: '处理中', type: 'warning' });
     expect(presentation.phaseText.value).toBe('全量同步');
@@ -146,7 +146,7 @@ describe('useMirrorStatusPresentation', () => {
     expect(presentation.currentMessageText.value).toBe('全量表校验已完成，状态：已完成');
   });
 
-  it('caps active progress below complete while the run is still expanding table tasks', () => {
+  it('uses indeterminate progress while the run is still expanding table tasks', () => {
     const status = ref(
       createStatus({
         currentStatus: 'RUNNING',
@@ -157,7 +157,7 @@ describe('useMirrorStatusPresentation', () => {
 
     const presentation = useMirrorStatusPresentation(status);
 
-    expect(presentation.progressPercent.value).toBe(95);
+    expect(presentation.progressPercent.value).toBeNull();
   });
 
   it('shows queued and zero-table progress hints', () => {
@@ -179,7 +179,7 @@ describe('useMirrorStatusPresentation', () => {
 
     const presentation = useMirrorStatusPresentation(status);
 
-    expect(presentation.progressPercent.value).toBe(5);
+    expect(presentation.progressPercent.value).toBeNull();
     expect(presentation.phaseText.value).toBe('刷新最新数据');
     expect(presentation.progressHint.value).toBe('同步任务已开始，正在准备表扫描。');
   });
@@ -196,7 +196,7 @@ describe('useMirrorStatusPresentation', () => {
 
     const presentation = useMirrorStatusPresentation(status);
 
-    expect(presentation.progressPercent.value).toBe(5);
+    expect(presentation.progressPercent.value).toBeNull();
     expect(presentation.phaseText.value).toBe('全量同步');
     expect(presentation.progressHint.value).toBe('同步任务已开始，正在准备扫描和进度信息。');
     expect(presentation.currentMessageText.value).toBe('同步任务已开始，正在收集最新状态。');

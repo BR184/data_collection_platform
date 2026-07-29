@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.SourceCursorStrategy;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.TableWhitelistOption;
@@ -98,7 +99,8 @@ class GitlabExternalDbServiceTest {
   @Test
   void shouldQuoteSourceTableNameForFullScans() {
     TableWhitelistOption option =
-        new TableWhitelistOption("Issue Events", "Issue Events", "id", "Updated At", false);
+        new TableWhitelistOption(
+            "Issue Events", "Issue Events", "id", "Updated At", SourceCursorStrategy.PRIMARY_KEY_KEYSET, false);
 
     String sql = service.buildFullTableScanSql(option);
 
@@ -108,7 +110,13 @@ class GitlabExternalDbServiceTest {
   @Test
   void shouldBuildPrimaryKeyCursorSqlForFullScans() {
     TableWhitelistOption option =
-        new TableWhitelistOption("label_links", "Label links", "label_id,target_id,target_type", null, true);
+        new TableWhitelistOption(
+            "label_links",
+            "Label links",
+            "label_id,target_id,target_type",
+            null,
+            SourceCursorStrategy.NONE,
+            true);
     SourceTableSchema schema = new SourceTableSchema(
         "ods_gitlab_label_links",
         List.of("label_id", "target_id", "target_type"),
@@ -118,21 +126,20 @@ class GitlabExternalDbServiceTest {
             new SourceTableColumn("target_id", "bigint", false, 2),
             new SourceTableColumn("target_type", "text", false, 3)));
 
-    String sql = service.buildFullCursorScanSql(option, schema, "1\u001F101\u001FIssue", 100);
+    String sql = service.buildFullCursorScanSql(option, schema, "[\"1\",\"101\",\"Issue\"]", 100);
 
     assertThat(sql)
-        .contains("select cursor_rows.\"label_id\", cursor_rows.\"target_id\", cursor_rows.\"target_type\"")
-        .contains("concat_ws(chr(31), source_rows.\"label_id\"::text, source_rows.\"target_id\"::text, source_rows.\"target_type\"::text) as pk_signature")
-        .contains("from \"public\".\"label_links\" source_rows")
-        .contains("where cursor_rows.pk_signature > '1\u001F101\u001FIssue'")
-        .contains("order by cursor_rows.pk_signature asc")
-        .contains("limit 100");
+        .contains("(\"label_id\", \"target_id\", \"target_type\") > ('1'::bigint, '101'::bigint, 'Issue'::text)")
+        .contains("order by \"label_id\" asc, \"target_id\" asc, \"target_type\" asc")
+        .contains("limit 100")
+        .doesNotContain("concat_ws", "md5");
   }
 
   @Test
   void shouldQuoteSourceTableAndTimeColumnForWindowScans() {
     TableWhitelistOption option =
-        new TableWhitelistOption("Issue Events", "Issue Events", "id", "Updated At", false);
+        new TableWhitelistOption(
+            "Issue Events", "Issue Events", "id", "Updated At", SourceCursorStrategy.PRIMARY_KEY_KEYSET, false);
 
     String sql = service.buildTimeWindowScanSql(option, LocalDateTime.of(2026, 1, 2, 3, 4, 5));
 
@@ -143,42 +150,64 @@ class GitlabExternalDbServiceTest {
   @Test
   void shouldBuildCursorBatchScanSqlWithUpdatedAtAndPrimaryKeyCursor() {
     TableWhitelistOption option =
-        new TableWhitelistOption("Issue Events", "Issue Events", "Issue ID", "Updated At", false);
+        new TableWhitelistOption(
+            "Issue Events", "Issue Events", "Issue ID", "Updated At", SourceCursorStrategy.TIMESTAMP_KEYSET, false);
+    SourceTableSchema schema = new SourceTableSchema(
+        "Issue Events",
+        List.of("Issue ID"),
+        "Updated At",
+        List.of(
+            new SourceTableColumn("Issue ID", "bigint", false, 1),
+            new SourceTableColumn("Updated At", "timestamp without time zone", false, 2)));
 
     String sql = service.buildCursorBatchScanSql(
         option,
+        schema,
         LocalDateTime.of(2026, 1, 2, 3, 4, 5),
+        LocalDateTime.of(2026, 1, 2, 4, 0),
         LocalDateTime.of(2026, 1, 2, 3, 5, 6),
-        "101",
+        "[\"101\"]",
         200);
 
     assertThat(sql)
-        .isEqualTo("select * from \"public\".\"Issue Events\" where \"Updated At\" >= timestamp '2026-01-02 03:04:05.000000' "
-            + "and (\"Updated At\" > timestamp '2026-01-02 03:05:06.000000' or (\"Updated At\" = timestamp '2026-01-02 03:05:06.000000' "
-            + "and \"Issue ID\" > '101')) order by \"Updated At\" asc, \"Issue ID\" asc limit 200");
+        .contains("\"Updated At\" > timestamp '2026-01-02 03:04:05.000000'")
+        .contains("\"Updated At\" <= timestamp '2026-01-02 04:00:00.000000'")
+        .contains("(\"Updated At\", \"Issue ID\") > (timestamp '2026-01-02 03:05:06.000000', '101'::bigint)")
+        .contains("order by \"Updated At\" asc, \"Issue ID\" asc limit 200");
   }
 
   @Test
   void shouldBuildCursorBatchScanSqlWithoutCursorForFirstBatch() {
     TableWhitelistOption option =
-        new TableWhitelistOption("issues", "Issues", "id", "updated_at", true);
+        new TableWhitelistOption(
+            "issues", "Issues", "id", "updated_at", SourceCursorStrategy.PRIMARY_KEY_KEYSET, true);
+    SourceTableSchema schema = new SourceTableSchema(
+        "issues",
+        List.of("id"),
+        "updated_at",
+        List.of(
+            new SourceTableColumn("id", "bigint", false, 1),
+            new SourceTableColumn("updated_at", "timestamp without time zone", false, 2)));
 
     String sql = service.buildCursorBatchScanSql(
         option,
+        schema,
         LocalDateTime.of(2026, 1, 2, 3, 4, 5),
+        LocalDateTime.of(2026, 1, 2, 4, 0),
         null,
         null,
         0);
 
     assertThat(sql)
         .isEqualTo("select * from \"public\".\"issues\" where \"updated_at\" > timestamp '2026-01-02 03:04:05.000000' "
-            + "order by \"updated_at\" asc, \"id\" asc limit 1");
+            + "and \"updated_at\" <= timestamp '2026-01-02 04:00:00.000000' order by \"id\" asc limit 1");
   }
 
   @Test
   void shouldBuildLightweightTableProbeSql() {
     TableWhitelistOption option =
-        new TableWhitelistOption("Issue Events", "Issue Events", "Issue ID", "Updated At", false);
+        new TableWhitelistOption(
+            "Issue Events", "Issue Events", "Issue ID", "Updated At", SourceCursorStrategy.PRIMARY_KEY_KEYSET, false);
 
     String sql = service.buildTableProbeSql(option);
 
@@ -193,7 +222,8 @@ class GitlabExternalDbServiceTest {
   @Test
   void shouldBuildLightweightTableProbeSqlWithoutUpdatedAt() {
     TableWhitelistOption option =
-        new TableWhitelistOption("label_links", "Label links", "id", null, true);
+        new TableWhitelistOption(
+            "label_links", "Label links", "id", null, SourceCursorStrategy.NONE, true);
 
     String sql = service.buildTableProbeSql(option);
 
@@ -208,7 +238,8 @@ class GitlabExternalDbServiceTest {
   @Test
   void shouldBuildExistingPrimaryKeysSqlForCompositeKeys() {
     TableWhitelistOption option =
-        new TableWhitelistOption("label_links", "Label links", "label_id,target_id,target_type", null, true);
+        new TableWhitelistOption(
+            "label_links", "Label links", "label_id,target_id,target_type", null, SourceCursorStrategy.NONE, true);
 
     String sql = service.buildExistingPrimaryKeysSql(
         option,
@@ -220,60 +251,15 @@ class GitlabExternalDbServiceTest {
     assertThat(sql)
         .isEqualTo("select \"label_id\"::text as \"label_id\", \"target_id\"::text as \"target_id\", \"target_type\"::text as \"target_type\"\n"
             + "  from \"public\".\"label_links\"\n"
-            + " where (\"label_id\"::text = '1' and \"target_id\"::text = '101' and \"target_type\"::text = 'Issue') "
-            + "or (\"label_id\"::text = '2' and \"target_id\"::text = '102' and \"target_type\"::text = 'MergeRequest')");
-  }
-
-  @Test
-  void shouldBuildShardProbeSqlFromPrimaryKeyAndSourceColumns() {
-    TableWhitelistOption option =
-        new TableWhitelistOption("issues", "Issues", "id", "updated_at", true);
-    SourceTableSchema schema = new SourceTableSchema(
-        "ods_gitlab_issues",
-        List.of("id"),
-        "updated_at",
-        List.of(
-            new SourceTableColumn("id", "bigint", false, 1),
-            new SourceTableColumn("title", "text", true, 2),
-            new SourceTableColumn("updated_at", "timestamp without time zone", false, 3)));
-
-    String sql = service.buildTableShardProbeSql(option, schema, 2);
-
-    assertThat(sql)
-        .contains("substring(md5(concat_ws(chr(31), \"id\"::text)), 1, 2) as shard_key")
-        .contains("md5(jsonb_build_array(to_jsonb(\"id\"), to_jsonb(\"title\"), to_jsonb(\"updated_at\"))::text) as row_hash")
-        .contains("md5(coalesce(string_agg(row_hash, ',' order by pk_signature), '')) as checksum")
-        .contains("from \"public\".\"issues\"");
-  }
-
-  @Test
-  void shouldBuildShardCursorScanSqlWithCompositePrimaryKey() {
-    TableWhitelistOption option =
-        new TableWhitelistOption("label_links", "Label links", "label_id,target_id,target_type", null, true);
-    SourceTableSchema schema = new SourceTableSchema(
-        "ods_gitlab_label_links",
-        List.of("label_id", "target_id", "target_type"),
-        null,
-        List.of(
-            new SourceTableColumn("label_id", "bigint", false, 1),
-            new SourceTableColumn("target_id", "bigint", false, 2),
-            new SourceTableColumn("target_type", "text", false, 3)));
-
-    String sql = service.buildShardCursorScanSql(option, schema, "0a", "1\u001F101\u001FIssue", 50);
-
-    assertThat(sql)
-        .contains("concat_ws(chr(31), source_rows.\"label_id\"::text, source_rows.\"target_id\"::text, source_rows.\"target_type\"::text) as pk_signature")
-        .contains("from \"public\".\"label_links\" source_rows")
-        .contains("where substring(md5(pk_signature), 1, 2) = '0a'")
-        .contains("and pk_signature > '1\u001F101\u001FIssue'")
-        .contains("order by pk_signature asc")
-        .contains("limit 50");
+            + " where (\"label_id\" = '1' and \"target_id\" = '101' and \"target_type\" = 'Issue') "
+            + "or (\"label_id\" = '2' and \"target_id\" = '102' and \"target_type\" = 'MergeRequest')");
   }
 
   @Test
   void shouldQuoteSourceTableAndLookupColumnForPreciseScans() {
     TableWhitelistOption option =
-        new TableWhitelistOption("Issue Events", "Issue Events", "id", "Updated At", false);
+        new TableWhitelistOption(
+            "Issue Events", "Issue Events", "id", "Updated At", SourceCursorStrategy.PRIMARY_KEY_KEYSET, false);
 
     String sql = service.buildPreciseScanSql(option, "Issue ID", 101L);
 
@@ -283,7 +269,8 @@ class GitlabExternalDbServiceTest {
   @Test
   void shouldEscapeQuotesInSourceIdentifiers() {
     TableWhitelistOption option =
-        new TableWhitelistOption("issue\"events", "issue\"events", "id", "updated_at", false);
+        new TableWhitelistOption(
+            "issue\"events", "issue\"events", "id", "updated_at", SourceCursorStrategy.PRIMARY_KEY_KEYSET, false);
 
     String sql = service.buildFullTableScanSql(option);
 

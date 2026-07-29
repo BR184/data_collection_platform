@@ -220,24 +220,13 @@ def latest_full_template(deploy_root: Path) -> Path:
 
 
 def read_deployment_image_tag(deployment_dir: Path, image: str) -> str:
-    """Read the effective application tag from a standard deployment directory.
-
-    A release override is authoritative when present because retained-container
-    upgrades intentionally leave the immutable base Compose file untouched.
-    """
-    candidates = (
-        deployment_dir / "docker-compose.override.yml",
-        deployment_dir / "docker-compose.release.yml",
-        deployment_dir / "deploy" / "docker-compose.release.yml",
-        deployment_dir / "docker-compose.yml",
-    )
-    for compose_path in candidates:
-        if not compose_path.is_file():
-            continue
-        text = compose_path.read_text(encoding="utf-8")
-        match = re.search(re.escape(image) + r":(?P<tag>[A-Za-z0-9_.-]+)", text)
-        if match:
-            return match.group("tag")
+    """Read an application tag from the deployment's authoritative Compose file."""
+    compose_path = deployment_dir / "docker-compose.yml"
+    require_path(compose_path, "baseline docker-compose.yml")
+    text = compose_path.read_text(encoding="utf-8")
+    match = re.search(re.escape(image) + r":(?P<tag>[A-Za-z0-9_.-]+)", text)
+    if match:
+        return match.group("tag")
     fail(f"cannot find image tag for {image} in deployment Compose files under {deployment_dir}")
 
 
@@ -522,8 +511,27 @@ CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED=false
 """
 
 
-def compose_content(ctx: BuildContext) -> str:
+def compose_content(ctx: BuildContext, *, external_postgres_volume: bool = False) -> str:
+    """Generate the complete authoritative Compose model for a release."""
+    project_name = (
+        'name: "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}"\n\n'
+        if external_postgres_volume
+        else ""
+    )
+    postgres_volume = (
+        """  qaflex_pgdata:
+    external: true
+    name: "${POSTGRES_VOLUME_NAME:?POSTGRES_VOLUME_NAME is required}"
+  qaflex_backend_logs:
+    name: "${BACKEND_LOG_VOLUME_NAME:?BACKEND_LOG_VOLUME_NAME is required}"
+"""
+        if external_postgres_volume
+        else """  qaflex_pgdata:
+  qaflex_backend_logs:
+"""
+    )
     return f"""\
+{project_name}\
 services:
   postgres:
     image: postgres:16-alpine
@@ -565,6 +573,7 @@ services:
       PLATFORM_LDAP_INITIAL_SYNC_REQUIRED: ${{PLATFORM_LDAP_INITIAL_SYNC_REQUIRED:-true}}
       PLATFORM_SECURE_CONFIG_REQUIRED: "true"
       PLATFORM_AUTH_CSRF_ENABLED: "true"
+      PLATFORM_BACKGROUND_JOBS_ENABLED: "${{PLATFORM_BACKGROUND_JOBS_ENABLED:-true}}"
       GITLAB_WEB_BASE_URL: ${{GITLAB_WEB_BASE_URL}}
       GITLAB_SYSTEM_HOOK_BASE_URL: ${{PLATFORM_PUBLIC_BASE_URL}}/api/gitlab-sync/system-hook
       GITLAB_SYSTEM_HOOK_MAX_QUEUE_SIZE: ${{GITLAB_SYSTEM_HOOK_MAX_QUEUE_SIZE:-1000}}
@@ -600,8 +609,7 @@ services:
       retries: 12
 
 volumes:
-  qaflex_pgdata:
-  qaflex_backend_logs:
+{postgres_volume}\
 """
 
 
@@ -748,26 +756,6 @@ sudo docker compose --env-file .env config
 """
 
 
-def incremental_override_content(ctx: BuildContext) -> str:
-    return f"""\
-services:
-  backend:
-    image: {BACKEND_IMAGE}:{ctx.backend_tag}
-    environment:
-      PLATFORM_AUTH_PROVIDER: ldap
-      PLATFORM_LDAP_BASE_URL: ${{PLATFORM_LDAP_BASE_URL:-{ctx.ldap_base_url}}}
-      PLATFORM_LDAP_CONNECT_TIMEOUT_MS: ${{PLATFORM_LDAP_CONNECT_TIMEOUT_MS:-3000}}
-      PLATFORM_LDAP_READ_TIMEOUT_MS: ${{PLATFORM_LDAP_READ_TIMEOUT_MS:-10000}}
-      PLATFORM_LDAP_INITIAL_SYNC_REQUIRED: ${{PLATFORM_LDAP_INITIAL_SYNC_REQUIRED:-true}}
-      PLATFORM_SECURE_CONFIG_REQUIRED: "true"
-      PLATFORM_AUTH_CSRF_ENABLED: "true"
-      PLATFORM_BACKGROUND_JOBS_ENABLED: "${{PLATFORM_BACKGROUND_JOBS_ENABLED:-true}}"
-
-  frontend:
-    image: {FRONTEND_IMAGE}:{ctx.frontend_tag}
-"""
-
-
 def incremental_readme(ctx: BuildContext) -> str:
     if ctx.require_fact_rebuild:
         fact_section = f"""\
@@ -867,7 +855,7 @@ ls -la .env docker-compose.yml
 sudo docker compose --env-file .env ps
 ```
 
-查看当前合并配置中的镜像；前后端必须与本文开头的基线应用镜像完全一致：
+查看当前唯一 Compose 配置中的镜像；前后端必须与本文开头的基线应用镜像完全一致：
 
 ```bash
 sudo docker compose --env-file .env config --images
@@ -875,7 +863,7 @@ sudo docker compose --env-file .env config --images
 
 ### 如果这里显示上一次失败包的镜像
 
-若上一轮升级在行数检查处中止，现场可能已经写入失败包的 override 并重建后端，再次执行升级就会报 `backend baseline image does not match`。这不表示失败包已经成为成功基线，也不要修改本包脚本绕过检查。
+若上一轮升级在行数检查处中止，现场可能已经原子替换为失败包的完整 `docker-compose.yml` 并重建后端，再次执行升级就会报 `backend baseline image does not match`。这不表示失败包已经成为成功基线，也不要修改本包脚本绕过检查。
 
 先列出曾产生 `counts.diff` 的失败备份目录：
 
@@ -994,7 +982,7 @@ sudo docker compose --env-file .env exec -T postgres sh -c 'psql -U "$POSTGRES_U
 
 ## 7. 仅在升级失败时回滚应用
 
-应用回滚命令会恢复升级前 `.env` 和 Compose 覆盖文件，并重新创建旧后端/前端容器；它不会自动执行 `pg_restore`，避免误覆盖现场数据：
+应用回滚命令会原子恢复升级前完整 `docker-compose.yml` 并重新创建旧后端/前端容器；现场 `.env` 在升级和回滚中均不修改。它不会自动执行 `pg_restore`，避免误覆盖现场数据：
 
 先读取上一步保存的备份目录，并检查其中确实存在配置和数据库备份：
 
@@ -1037,6 +1025,7 @@ fi
 
 cd "$TARGET_DIR"
 [[ -f .env && -f docker-compose.yml ]] || fail "run from an existing deployment directory containing .env and docker-compose.yml"
+[[ -z "$(find . -maxdepth 1 -type f -name 'docker-compose.*.yml' -print -quit)" ]] || fail "refusing layered Compose configuration; keep only docker-compose.yml before backing up"
 compose() {{ "${{DOCKER[@]}}" compose --env-file .env "$@"; }}
 db_query() {{
   local sql="$1"
@@ -1061,11 +1050,6 @@ STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 BACKUP_DIR="$TARGET_DIR/upgrade-backups/$PACKAGE_NAME-$STAMP"
 mkdir -p "$BACKUP_DIR"
 cp -a .env docker-compose.yml "$BACKUP_DIR/"
-if [[ -f docker-compose.override.yml ]]; then
-  cp -a docker-compose.override.yml "$BACKUP_DIR/"
-else
-  touch "$BACKUP_DIR/docker-compose.override.absent"
-fi
 printf '%s\n' "$POSTGRES_ID" > "$BACKUP_DIR/postgres.container-id"
 "${{DOCKER[@]}}" inspect "$POSTGRES_ID" > "$BACKUP_DIR/postgres.inspect.json"
 compose images > "$BACKUP_DIR/compose-images.txt"
@@ -1119,6 +1103,8 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${{BASH_SOURCE[0]}}")" && pwd)"
 PACKAGE_DIR="$SCRIPT_DIR"
 TARGET_DIR="${{1:-$PWD}}"
 BACKUP_DIR="${{2:-}}"
+PACKAGE_NAME="{ctx.package_name}"
+TARGET_COMPOSE="$PACKAGE_DIR/docker-compose.yml"
 EXPECTED_BACKEND="{BACKEND_IMAGE}:{ctx.baseline_backend_tag}"
 EXPECTED_FRONTEND="{FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}"
 TARGET_FLYWAY="{ctx.expected_flyway_version}"
@@ -1144,6 +1130,7 @@ fi
 
 cd "$TARGET_DIR"
 [[ -f .env && -f docker-compose.yml ]] || fail "run from an existing deployment directory containing .env and docker-compose.yml"
+[[ -z "$(find . -maxdepth 1 -type f -name 'docker-compose.*.yml' -print -quit)" ]] || fail "refusing layered Compose configuration; keep only docker-compose.yml"
 
 compose() {{ "${{DOCKER[@]}}" compose --env-file .env "$@"; }}
 db_query() {{
@@ -1180,28 +1167,12 @@ capture_counts() {{
 log "loading new application images"
 "${{DOCKER[@]}}" load -i "$PACKAGE_DIR/docker-images/{BACKEND_IMAGE}_{ctx.backend_tag}.tar"
 "${{DOCKER[@]}}" load -i "$PACKAGE_DIR/docker-images/{FRONTEND_IMAGE}_{ctx.frontend_tag}.tar"
-cp "$PACKAGE_DIR/docker-compose.release.yml" docker-compose.override.yml
-
-upsert_env() {{
-  local key="$1" value="$2" escaped
-  escaped="$(printf '%s' "$value" | sed 's/[&|]/\\&/g')"
-  if grep -q "^${{key}}=" .env; then
-    sed -i "s|^${{key}}=.*|${{key}}=${{escaped}}|" .env
-  else
-    printf '%s=%s\n' "$key" "$value" >> .env
-  fi
-}}
-ensure_env() {{
-  local key="$1" value="$2"
-  if ! grep -q "^${{key}}=..*" .env; then
-    printf '%s=%s\n' "$key" "$value" >> .env
-  fi
-}}
-upsert_env PLATFORM_AUTH_PROVIDER ldap
-ensure_env PLATFORM_LDAP_BASE_URL "{ctx.ldap_base_url}"
-ensure_env PLATFORM_LDAP_CONNECT_TIMEOUT_MS 3000
-ensure_env PLATFORM_LDAP_READ_TIMEOUT_MS 10000
-ensure_env PLATFORM_LDAP_INITIAL_SYNC_REQUIRED true
+TEMP_COMPOSE="docker-compose.yml.$PACKAGE_NAME.tmp"
+trap 'rm -f "$TEMP_COMPOSE"' EXIT
+cp "$TARGET_COMPOSE" "$TEMP_COMPOSE"
+"${{DOCKER[@]}}" compose --env-file .env -f "$TEMP_COMPOSE" config >/dev/null
+mv -f "$TEMP_COMPOSE" docker-compose.yml
+trap - EXIT
 BACKEND_HEALTH_PORT="$(awk -F= '$1 == "BACKEND_PORT" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
 FRONTEND_HEALTH_PORT="$(awk -F= '$1 == "FRONTEND_PORT" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
 BACKEND_HEALTH_PORT="${{BACKEND_HEALTH_PORT:-{ctx.backend_port}}}"
@@ -1281,12 +1252,13 @@ compose() {{ "${{DOCKER[@]}}" compose --env-file .env "$@"; }}
 POSTGRES_ID="$(compose ps -q postgres)"
 [[ -n "$POSTGRES_ID" ]] || fail "postgres service is not running"
 
-cp -a "$BACKUP_DIR/.env" .env
-cp -a "$BACKUP_DIR/docker-compose.yml" docker-compose.yml
-rm -f docker-compose.override.yml
-if [[ -f "$BACKUP_DIR/docker-compose.override.yml" ]]; then
-  cp -a "$BACKUP_DIR/docker-compose.override.yml" docker-compose.override.yml
-fi
+[[ -z "$(find . -maxdepth 1 -type f -name 'docker-compose.*.yml' -print -quit)" ]] || fail "refusing layered Compose configuration during rollback"
+TEMP_COMPOSE="docker-compose.yml.rollback.tmp"
+trap 'rm -f "$TEMP_COMPOSE"' EXIT
+cp -a "$BACKUP_DIR/docker-compose.yml" "$TEMP_COMPOSE"
+"${{DOCKER[@]}}" compose --env-file .env -f "$TEMP_COMPOSE" config >/dev/null
+mv -f "$TEMP_COMPOSE" docker-compose.yml
+trap - EXIT
 
 RESTORED_CONFIG="$(compose config)"
 grep -Fq "image: $EXPECTED_BACKEND" <<<"$RESTORED_CONFIG" || fail "restored backend image does not match $EXPECTED_BACKEND"
@@ -1326,7 +1298,10 @@ def write_operational_files(ctx: BuildContext) -> None:
         write_text(ctx.package_dir / "README-INTRANET-DEPLOY.md", fresh_readme(ctx))
     else:
         write_text(ctx.package_dir / "README-INCREMENTAL-DEPLOY.md", incremental_readme(ctx))
-        write_text(ctx.package_dir / "docker-compose.release.yml", incremental_override_content(ctx))
+        write_text(
+            ctx.package_dir / "docker-compose.yml",
+            compose_content(ctx, external_postgres_volume=True),
+        )
         write_text(ctx.package_dir / "backup.sh", backup_helper(ctx))
         write_text(ctx.package_dir / "upgrade.sh", upgrade_helper(ctx))
         write_text(ctx.package_dir / "rollback.sh", rollback_helper(ctx))
@@ -1379,6 +1354,11 @@ def write_release_manifest(ctx: BuildContext, backend_fallback_used: bool, backe
         "facts": {
             "rebuildRequired": ctx.require_fact_rebuild,
             "scope": ctx.fact_rebuild_scope if ctx.require_fact_rebuild else None,
+        },
+        "compose": {
+            "entrypoint": "docker-compose.yml",
+            "model": "single-authoritative-file",
+            "environmentPreserved": ctx.mode == "incremental-update",
         },
         "preDeploymentBackup": None if ctx.mode == "fresh-empty" else {
             "required": True,
@@ -1507,7 +1487,7 @@ def required_files(ctx: BuildContext) -> list[Path]:
         files.extend(
             [
                 ctx.package_dir / "README-INCREMENTAL-DEPLOY.md",
-                ctx.package_dir / "docker-compose.release.yml",
+                ctx.package_dir / "docker-compose.yml",
                 ctx.package_dir / "backup.sh",
                 ctx.package_dir / "upgrade.sh",
                 ctx.package_dir / "rollback.sh",
@@ -1545,15 +1525,24 @@ def validate_layout(ctx: BuildContext) -> None:
     if ctx.mode == "fresh-empty":
         run(("docker", "compose", "--env-file", ".env.example", "config"), cwd=ctx.package_dir)
     else:
+        compose_env = os.environ.copy()
+        compose_env.update(
+            {
+                "COMPOSE_PROJECT_NAME": "qaflex-package-validation",
+                "POSTGRES_VOLUME_NAME": "qaflex-package-validation-pgdata",
+                "BACKEND_LOG_VOLUME_NAME": "qaflex-package-validation-backend-logs",
+            }
+        )
         run(
             (
                 "docker",
                 "compose",
                 "-f",
-                ctx.package_dir / "docker-compose.release.yml",
+                ctx.package_dir / "docker-compose.yml",
                 "config",
             ),
             cwd=ctx.package_dir,
+            env=compose_env,
         )
     scan_empty_package(ctx)
 

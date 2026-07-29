@@ -35,6 +35,34 @@ public class SyncThreadBudgetResolver {
     return Math.min(configuredMax, Math.max(1, requestedThreads));
   }
 
+  /**
+   * 解析 worker 与 DIRECT 连接池共享的唯一执行预算。
+   *
+   * @param config 数据源同步配置
+   * @param availableProcessors 当前 JVM 可用处理器数量
+   * @return 已完成上下限约束的执行预算
+   */
+  public SyncExecutionBudget resolveBudget(GitlabSyncConfig config, int availableProcessors) {
+    int workers = resolve(config, availableProcessors);
+    int controlReserve = Math.max(1, properties.getDirectPoolControlConnectionReserve());
+    long acquireTimeoutMs = Math.max(1, properties.getDirectPoolAcquireTimeoutSeconds()) * 1000L;
+    return new SyncExecutionBudget(
+        workers,
+        controlReserve,
+        Math.addExact(workers, controlReserve),
+        acquireTimeoutMs);
+  }
+
+  /**
+   * 使用当前 JVM 处理器数量解析执行预算。
+   *
+   * @param config 数据源同步配置
+   * @return 已解析执行预算
+   */
+  public SyncExecutionBudget resolveBudget(GitlabSyncConfig config) {
+    return resolveBudget(config, Runtime.getRuntime().availableProcessors());
+  }
+
   public String effectiveMode(GitlabSyncConfig config) {
     String mode = config == null ? null : config.getSyncThreadMode();
     if (mode == null || mode.isBlank()) {

@@ -44,7 +44,7 @@ qaflex-update-<release-id>/
 ├── docker-images/
 │   ├── qa-flex-platform-backend_<image-tag>.tar
 │   └── qa-flex-platform-frontend_<image-tag>.tar
-├── docker-compose.release.yml
+├── docker-compose.yml
 ├── backup.sh
 ├── upgrade.sh
 ├── rollback.sh
@@ -58,10 +58,10 @@ qaflex-update-<release-id>/
 | 内容 | 必要性 |
 | --- | --- |
 | `docker-images/` | 目标机无网络，必须直接 `docker load` 已构建业务镜像。 |
-| `docker-compose.release.yml` | 只声明本次应用镜像和必须同步的运行参数；升级脚本将其安装为现场 override。 |
+| `docker-compose.yml` | 本次发布的完整运行契约；升级脚本先校验，再以同目录临时文件和原子替换将其写入正式目录。 |
 | `backup.sh` | 在应用变更前独立生成并校验完整数据库和关键表 custom-format dump，同时保存 Compose、镜像、容器、Flyway 和行数证据；不停止容器、不修改数据库。 |
 | `upgrade.sh` | 只接受同一发布包生成且校验通过的预部署备份；执行基线、任务、磁盘、Flyway、静默迁移、健康、行数守恒和 PostgreSQL 容器不变检查。 |
-| `rollback.sh` | 恢复升级前 `.env`、基础 Compose 和旧 override，校验基线镜像，先等待后端健康再等待前端健康；不擅自回写数据库。 |
+| `rollback.sh` | 原子恢复升级前完整 Compose，保持现场 `.env` 不变，校验基线镜像，先等待后端健康再等待前端健康；不擅自回写数据库。 |
 | `RELEASE-MANIFEST.json` | 机器可读地记录包类型、commit、工作树状态、目标/基线镜像、镜像与源码摘要、Flyway 和事实重建要求。 |
 | `SHA256SUMS.txt` 与包外 `.sha256` | 分别校验包内文件和离线传输后的完整归档。 |
 | `README-INCREMENTAL-DEPLOY.md` | 内网现场无法访问仓库文档时的同版本操作与验收入口。 |
@@ -110,14 +110,14 @@ qa-flex-platform-frontend:<release-id>
 
 更新包必须显式传入 `--baseline-dir`，其值只能是：
 
-1. 当前现场部署目录的受控副本，包含 `docker-compose.yml`，以及存在时的 `docker-compose.override.yml`；或
-2. 当前实例最后一次成功应用的更新包目录，包含 `docker-compose.release.yml`。
+1. 当前现场部署目录的受控副本，只包含唯一的 `docker-compose.yml` 与现场 `.env`；或
+2. 当前实例最后一次成功应用的更新包目录，包含完整 `docker-compose.yml`。
 
-镜像基线读取优先级固定为现场 override、上次发布 Compose、历史更新包的 `deploy/docker-compose.release.yml`、基础 Compose。此优先级只用于从当前历史格式迁移；新包一律采用根目录发布 Compose。
+镜像基线只从该目录完整 `docker-compose.yml` 读取。现场存在 `docker-compose.*.yml` 分层文件即为配置事实冲突，备份、升级和回滚必须拒绝执行；先由运维将有效参数收束到唯一完整 Compose，再重新开始预部署备份。
 
 两个内网实例必须分别确认当前合并 Compose。不能因两者都源自 20260714 就继续把 20260714 当作永久基线；已应用 20260724 后，下一包的预期基线应是 20260724 的目标前后端镜像。
 
-升级允许现场已有标准 `docker-compose.override.yml`。脚本在变更前备份它，随后用本次 `docker-compose.release.yml` 替换；回滚时恢复上一份 override。禁止要求操作者先手工删除 override，因为这会丢失当前镜像基线和回滚证据。
+升级前独立备份会保存当前完整 Compose 和现场 `.env` 作为证据；升级只校验包内完整 Compose 后原子替换现场同名文件，绝不修改 `.env`。回滚只原子恢复备份的完整 Compose；不保留 override、release Compose 或双轨兼容路径。
 
 ## 后续更新包标准工作流
 
@@ -245,7 +245,7 @@ cd <package-dir> && sha256sum -c SHA256SUMS.txt
 本地部署测试必须使用专用 Compose 栈，不得覆盖开发栈、LDAP 专项栈或现场目录。隔离栈至少满足：
 
 - 独立的 Compose project、容器名、主机端口和 PostgreSQL named volume；
-- 基础 `docker-compose.yml`、测试 `.env` 与代表当前直接基线的 override；
+- 唯一完整 `docker-compose.yml`、测试 `.env`，二者共同代表当前直接基线；
 - 前后端运行基线包目标镜像且均健康；
 - PostgreSQL 存在可迁移的代表性 schema 和最少数据，不连接内网真实平台库；
 - 测试开始前记录 PostgreSQL 容器 ID、当前 Flyway、基线镜像和受保护表行数。
@@ -338,7 +338,7 @@ bash ../<update-package>/upgrade.sh "$PWD" "$BACKUP_DIR"
 
 脚本必须在修改应用容器前完成：
 
-1. 解析现场基础 Compose 与已有 override，确认前后端镜像等于发布清单基线。
+1. 解析现场唯一完整 Compose，确认前后端镜像等于发布清单基线。
 2. 确认 PostgreSQL 健康、无运行中同步/事实任务且磁盘足够。
 3. 由独立 `backup.sh` 保存 Compose、容器/镜像、Flyway、关键表行数、完整数据库 dump 和关键表 dump，并验证可恢复性和校验和。
 4. `upgrade.sh` 校验备份绑定当前包、直接基线与同一 PostgreSQL 容器；停止旧后端后记录迁移起点行数。
@@ -381,3 +381,11 @@ bash ../<update-package>/rollback.sh "$PWD" "$PWD/upgrade-backups/<backup-dir>"
 平台对 GitLab PostgreSQL 只执行读取和元数据查询。生产账号应限制到平台服务器地址，并只授予业务 schema 及必要系统元数据的读取权限；不得使用超级用户，也不得授予 `insert`、`update`、`delete`、`truncate`、`drop`、`alter` 或 `create`。
 
 GitLab PostgreSQL 的监听、网络、防火墙和认证必须允许平台服务器连接。`0.0.0.0` 只能作为服务监听地址，不能作为 Rails 或平台客户端连接目标；客户端应使用可路由的实际地址、`127.0.0.1` 或原有 Unix socket。
+
+## 同步运行时现场验收
+
+- 线程设置必须在无活动镜像运行时修改。每次运行使用提交时持久化的 worker 快照；DIRECT 连接池上限自动等于 worker 数加控制面保留连接，不需要再单独把“同步线程上限”手工改成相同数值。
+- 内网首次验证从 2 worker 开始，以相同表范围依次测试 2/4/6 worker；记录总耗时、每页耗时、GitLab CPU/连接数、平台“连接池活跃/空闲/等待”和失败任务。只有源库负载与等待数稳定时才提高并发，不能用单次更快结果作为正式配置。
+- 全量或补偿运行期间提交一次增量同步和一次用户单表刷新：后台运行应在当前分页提交后显示为等待状态，前台运行先完成，随后后台从原 cursor 恢复。System Hook 不属于本项验收。
+- 当前运行失败/超时与历史累计必须分别查看；表任务明细应包含扫描/删除对账阶段、cursor、重试和租约。日志使用外部 `runId`、内部 `runDbId` 和 `taskId` 关联，不以页面线程数为失败原因证据。
+- 本同步运行时升级不改变 ODS、事实字段或统计口径，部署后不执行 GitLab 全量补偿，也不手工重建事实层；仅当同一发布还包含发布清单明确标注的其他事实规则变更时，才按清单执行对应重建。

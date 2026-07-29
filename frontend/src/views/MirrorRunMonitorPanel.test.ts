@@ -96,6 +96,13 @@ function createDiagnostics(): SyncRunDiagnosticsResponse {
     configId: 1,
     sourceInstance: 'default',
     generatedAt: '2026-05-15T10:01:00',
+    directPoolMetrics: {
+      maximumConnections: 5,
+      totalConnections: 4,
+      activeConnections: 3,
+      idleConnections: 1,
+      waitingThreads: 2,
+    },
     tableCount: 2,
     dirtyTableCount: 1,
     pendingTaskCount: 1,
@@ -103,6 +110,8 @@ function createDiagnostics(): SyncRunDiagnosticsResponse {
     retryingTaskCount: 0,
     failedTaskCount: 1,
     timedOutTaskCount: 0,
+    historicalFailedTaskCount: 3,
+    historicalTimedOutTaskCount: 1,
     tables: [
       {
         sourceTable: 'issues',
@@ -113,7 +122,7 @@ function createDiagnostics(): SyncRunDiagnosticsResponse {
         dirty: true,
         dirtyReason: 'row_count_drift',
         blockingRunId: 'run-full-11',
-        latestTaskStatus: 'RUNNING',
+        currentTaskStatus: 'RUNNING',
         mirrorRows: 900,
         sourceRows: 1000,
       },
@@ -124,8 +133,8 @@ function createDiagnostics(): SyncRunDiagnosticsResponse {
         rowStrategy: 'INCREMENTAL',
         syncEnabled: true,
         dirty: false,
-        latestTaskStatus: 'FAILED',
-        latestTaskError: 'deadlock retry exhausted',
+        currentTaskStatus: 'FAILED',
+        currentTaskError: 'deadlock retry exhausted',
       },
     ],
   };
@@ -147,6 +156,9 @@ describe('MirrorRunMonitorPanel', () => {
     expect(wrapper.text()).toContain('数据镜像监控');
     expect(wrapper.text()).toContain('全量同步');
     expect(wrapper.text()).toContain('同步线程使用');
+    expect(wrapper.text()).toContain('连接池');
+    expect(wrapper.text()).toContain('4/5');
+    expect(wrapper.text()).toContain('等待连接');
     expect(wrapper.text()).toContain('表任务状态');
     expect(wrapper.text()).toContain('运行中的表任务');
     expect(wrapper.text()).toContain('表项进度');

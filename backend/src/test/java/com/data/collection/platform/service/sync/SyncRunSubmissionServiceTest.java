@@ -62,21 +62,22 @@ class SyncRunSubmissionServiceTest {
     verify(syncRunMapper).insert(runCaptor.capture());
     SyncRun saved = runCaptor.getValue();
     assertThat(saved.getConfigId()).isEqualTo(12L);
-    assertThat(saved.getSourceInstance()).isEqualTo("source_a");
+    assertThat(saved.getSourceInstance()).isEqualTo("default");
     assertThat(saved.getRunType()).isEqualTo(SyncRunType.FULL_SYNC);
     assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.QUEUED);
-    assertThat(saved.getPriority()).isEqualTo(100);
-    assertThat(saved.getExclusiveScope()).isEqualTo("source:12:source_a:mirror");
+    assertThat(saved.getPriority()).isEqualTo(40);
+    assertThat(saved.getResolvedWorkerCount()).isPositive();
+    assertThat(saved.getExclusiveScope()).isEqualTo("source:12:default:mirror");
     assertThat(saved.getThreadMode()).isEqualTo(SyncThreadBudgetResolver.MODE_CPU_RATIO);
     assertThat(saved.getThreadValue()).isEqualByComparingTo(new BigDecimal("0.8"));
-    assertThat(saved.getRunId()).startsWith("sr_fs_source_a_");
+    assertThat(saved.getRunId()).startsWith("sr_fs_default_");
     assertThat(saved.getRunId()).hasSizeLessThanOrEqualTo(64);
     assertThat(result.runId()).isEqualTo(saved.getId());
     assertThat(result.type()).isEqualTo(SyncType.FULL);
     assertThat(result.status()).isEqualTo(SyncStatus.QUEUED);
     assertThat(result.action()).isEqualTo(SyncSubmissionAction.QUEUED);
     verify(jdbcTemplate).queryForObject(
-        contains("pg_advisory_xact_lock"), eq(Object.class), eq("source:12:source_a:mirror"));
+        contains("pg_advisory_xact_lock"), eq(Object.class), eq("source:12:default:mirror"));
   }
 
   @Test
@@ -107,7 +108,7 @@ class SyncRunSubmissionServiceTest {
   @Test
   void shouldRejectManualFullFactRebuildWhenSourceHasActiveRun() {
     GitlabSyncConfig config = config();
-    SyncRun activeRun = activeRun(19L, SyncRunType.FULL_SYNC, SyncRunStatus.RUNNING, "source:12:source_a:mirror");
+    SyncRun activeRun = activeRun(19L, SyncRunType.FULL_SYNC, SyncRunStatus.RUNNING, "source:12:default:mirror");
     when(syncRunMapper.selectList(any())).thenReturn(List.of(activeRun));
 
     assertThatThrownBy(() -> submissionService.submitManualFullFactRebuild(config))
@@ -120,7 +121,7 @@ class SyncRunSubmissionServiceTest {
   @Test
   void shouldRejectSyncSubmissionWhenManualFullFactRebuildIsActive() {
     GitlabSyncConfig config = config();
-    SyncRun activeRun = activeRun(20L, SyncRunType.FACT_REFRESH, SyncRunStatus.RUNNING, "source:12:source_a:fact");
+    SyncRun activeRun = activeRun(20L, SyncRunType.FACT_REFRESH, SyncRunStatus.RUNNING, "source:12:default:fact");
     activeRun.setPayloadJson("{\"manualFullRebuild\":true}");
     when(syncRunMapper.selectList(any())).thenReturn(List.of(activeRun));
 
@@ -158,7 +159,7 @@ class SyncRunSubmissionServiceTest {
     verify(syncRunMapper).insert(runCaptor.capture());
     SyncRun saved = runCaptor.getValue();
     assertThat(saved.getRunId()).hasSizeLessThanOrEqualTo(64);
-    assertThat(saved.getRunId()).startsWith("sr_is_jitter_smoke_");
+    assertThat(saved.getRunId()).startsWith("sr_is_default_");
   }
 
   @Test
@@ -173,25 +174,18 @@ class SyncRunSubmissionServiceTest {
     verify(syncRunMapper).insert(runCaptor.capture());
     SyncRun saved = runCaptor.getValue();
     assertThat(saved.getRunId()).hasSizeLessThanOrEqualTo(64);
-    assertThat(saved.getRunId()).startsWith("sr_is_source_instance_with_a_");
+    assertThat(saved.getRunId()).startsWith("sr_is_default_");
   }
 
   @Test
   void shouldReuseActiveFullSyncInsteadOfCreatingAnotherOne() {
     GitlabSyncConfig config = config();
-    SyncRun activeRun = activeRun(77L, SyncRunType.FULL_SYNC, SyncRunStatus.RUNNING, "source:12:source_a:mirror");
+    SyncRun activeRun = activeRun(77L, SyncRunType.FULL_SYNC, SyncRunStatus.RUNNING, "source:12:default:mirror");
     when(syncRunMapper.selectList(any())).thenReturn(List.of(activeRun));
 
     var result = submissionService.submitFullSync(config, "Manual full sync");
 
-    ArgumentCaptor<SyncRun> runCaptor = ArgumentCaptor.forClass(SyncRun.class);
-    verify(syncRunMapper).insert(runCaptor.capture());
-    SyncRun saved = runCaptor.getValue();
-    assertThat(saved.getRunType()).isEqualTo(SyncRunType.FULL_SYNC);
-    assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.MERGED);
-    assertThat(saved.getParentRunId()).isEqualTo(77L);
-    assertThat(saved.getFinishedAt()).isNotNull();
-    assertThat(saved.getPayloadJson()).contains("\"absorbedAction\":\"REUSED_ACTIVE\"");
+    verify(syncRunMapper, never()).insert(any(SyncRun.class));
     verify(jdbcTemplate, never()).update(
         ArgumentMatchers.anyString(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
         ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any());
@@ -201,9 +195,9 @@ class SyncRunSubmissionServiceTest {
   }
 
   @Test
-  void shouldMergeTableRefreshIntoActiveFullSync() {
+  void shouldQueueTableRefreshBehindActiveFullSyncSoBackgroundCanYield() {
     GitlabSyncConfig config = config();
-    SyncRun activeRun = activeRun(91L, SyncRunType.FULL_SYNC, SyncRunStatus.RUNNING, "source:12:source_a:mirror");
+    SyncRun activeRun = activeRun(91L, SyncRunType.FULL_SYNC, SyncRunStatus.RUNNING, "source:12:default:mirror");
     when(syncRunMapper.selectList(any())).thenReturn(List.of(activeRun));
 
     var result = submissionService.submitTableRefresh(config, List.of("Issues", "labels"), "Need refresh");
@@ -212,33 +206,28 @@ class SyncRunSubmissionServiceTest {
     verify(syncRunMapper).insert(runCaptor.capture());
     SyncRun saved = runCaptor.getValue();
     assertThat(saved.getRunType()).isEqualTo(SyncRunType.TABLE_REFRESH);
-    assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.MERGED);
-    assertThat(saved.getParentRunId()).isEqualTo(91L);
+    assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.QUEUED);
+    assertThat(saved.getParentRunId()).isNull();
     assertThat(saved.getRequestReason()).isEqualTo("Need refresh");
     assertThat(saved.getPlannedTableCount()).isEqualTo(2);
     assertThat(saved.getCompletedTableCount()).isZero();
-    assertThat(saved.getFinishedAt()).isNotNull();
+    assertThat(saved.getFinishedAt()).isNull();
     assertThat(saved.getPayloadJson())
         .contains("\"sourceTables\":[\"issues\",\"labels\"]")
-        .contains("\"primaryTableName\":\"issues\"")
-        .contains("\"parentRunId\":91")
-        .contains("\"parentRunRunId\":\"sr_existing_91\"")
-        .contains("\"absorbedAction\":\"DEDUPED\"");
+        .contains("\"primaryTableName\":\"issues\"");
     verify(jdbcTemplate, never())
         .update(
             ArgumentMatchers.contains("insert into sync_run_events"),
             ArgumentMatchers.<Object[]>any());
-    assertThat(result.runId()).isEqualTo(91L);
-    assertThat(result.status()).isEqualTo(SyncStatus.RUNNING);
-    assertThat(result.action()).isEqualTo(SyncSubmissionAction.DEDUPED);
-    assertThat(result.message()).isEqualTo("本次刷新请求已合并到同一数据源正在执行的同步任务中。");
+    assertThat(result.status()).isEqualTo(SyncStatus.QUEUED);
+    assertThat(result.action()).isEqualTo(SyncSubmissionAction.QUEUED);
   }
 
   @Test
   void shouldQueueTableRefreshBehindActiveFullCompensationInsteadOfDeduplicating() {
     GitlabSyncConfig config = config();
     SyncRun activeRun =
-        activeRun(92L, SyncRunType.FULL_COMPENSATION_SCAN, SyncRunStatus.RUNNING, "source:12:source_a:mirror");
+        activeRun(92L, SyncRunType.FULL_COMPENSATION_SCAN, SyncRunStatus.RUNNING, "source:12:default:mirror");
     when(syncRunMapper.selectList(any())).thenReturn(List.of(activeRun));
 
     var result = submissionService.submitTableRefresh(config, List.of("Issues"), "Need refresh");
@@ -248,8 +237,8 @@ class SyncRunSubmissionServiceTest {
     SyncRun saved = runCaptor.getValue();
     assertThat(saved.getRunType()).isEqualTo(SyncRunType.TABLE_REFRESH);
     assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.QUEUED);
-    assertThat(saved.getPriority()).isEqualTo(40);
-    assertThat(saved.getExclusiveScope()).isEqualTo("source:12:source_a:mirror");
+    assertThat(saved.getPriority()).isEqualTo(100);
+    assertThat(saved.getExclusiveScope()).isEqualTo("source:12:default:mirror");
     assertThat(saved.getPayloadJson()).contains("\"sourceTables\":[\"issues\"]");
     assertThat(result.status()).isEqualTo(SyncStatus.QUEUED);
     assertThat(result.action()).isEqualTo(SyncSubmissionAction.QUEUED);
@@ -259,7 +248,7 @@ class SyncRunSubmissionServiceTest {
   void shouldDetectActiveFullCompensationRunForSameSource() {
     GitlabSyncConfig config = config();
     SyncRun activeRun =
-        activeRun(93L, SyncRunType.FULL_COMPENSATION_SCAN, SyncRunStatus.RUNNING, "source:12:source_a:mirror");
+        activeRun(93L, SyncRunType.FULL_COMPENSATION_SCAN, SyncRunStatus.RUNNING, "source:12:default:mirror");
     when(syncRunMapper.selectList(any())).thenReturn(List.of(activeRun));
 
     assertThat(submissionService.hasActiveFullCompensationRun(config)).isTrue();
@@ -268,9 +257,9 @@ class SyncRunSubmissionServiceTest {
   }
 
   @Test
-  void shouldDeduplicateIncrementalWhenMirrorRunAlreadyExists() {
+  void shouldQueueIncrementalWhenOnlyNarrowTableRefreshExists() {
     GitlabSyncConfig config = config();
-    SyncRun activeRun = activeRun(101L, SyncRunType.TABLE_REFRESH, SyncRunStatus.QUEUED, "source:12:source_a:mirror");
+    SyncRun activeRun = activeRun(101L, SyncRunType.TABLE_REFRESH, SyncRunStatus.QUEUED, "source:12:default:mirror");
     activeRun.setPayloadJson("{\"sourceTables\":[\"issues\"]}");
     when(syncRunMapper.selectList(any())).thenReturn(List.of(activeRun));
 
@@ -280,42 +269,38 @@ class SyncRunSubmissionServiceTest {
     verify(syncRunMapper).insert(runCaptor.capture());
     SyncRun saved = runCaptor.getValue();
     assertThat(saved.getRunType()).isEqualTo(SyncRunType.INCREMENTAL_SYNC);
-    assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.MERGED);
-    assertThat(saved.getParentRunId()).isEqualTo(101L);
+    assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.QUEUED);
+    assertThat(saved.getParentRunId()).isNull();
     assertThat(saved.getTriggerType()).isEqualTo(SyncTriggerType.MANUAL);
-    assertThat(saved.getFinishedAt()).isNotNull();
-    assertThat(saved.getPayloadJson()).contains("\"absorbedAction\":\"DEDUPED\"");
-    assertThat(result.runId()).isEqualTo(101L);
+    assertThat(saved.getFinishedAt()).isNull();
     assertThat(result.status()).isEqualTo(SyncStatus.QUEUED);
-    assertThat(result.action()).isEqualTo(SyncSubmissionAction.DEDUPED);
+    assertThat(result.action()).isEqualTo(SyncSubmissionAction.QUEUED);
   }
 
   @Test
   void shouldDeduplicateSameTableRefreshWhenAlreadyQueued() {
     GitlabSyncConfig config = config();
-    SyncRun activeRun = activeRun(102L, SyncRunType.TABLE_REFRESH, SyncRunStatus.QUEUED, "source:12:source_a:mirror");
+    SyncRun activeRun = activeRun(102L, SyncRunType.TABLE_REFRESH, SyncRunStatus.QUEUED, "source:12:default:mirror");
     activeRun.setPayloadJson("{\"sourceTables\":[\"issues\",\"notes\"]}");
     when(syncRunMapper.selectList(any())).thenReturn(List.of(activeRun));
 
     var result = submissionService.submitTableRefresh(config, List.of("Issues", "notes"), "Board refresh");
 
-    ArgumentCaptor<SyncRun> runCaptor = ArgumentCaptor.forClass(SyncRun.class);
-    verify(syncRunMapper).insert(runCaptor.capture());
-    SyncRun saved = runCaptor.getValue();
-    assertThat(saved.getRunType()).isEqualTo(SyncRunType.TABLE_REFRESH);
-    assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.MERGED);
-    assertThat(saved.getParentRunId()).isEqualTo(102L);
-    assertThat(saved.getPayloadJson()).contains("\"sourceTables\":[\"issues\",\"notes\"]");
+    verify(syncRunMapper, never()).insert(any(SyncRun.class));
     assertThat(result.runId()).isEqualTo(102L);
-    assertThat(result.action()).isEqualTo(SyncSubmissionAction.DEDUPED);
+    assertThat(result.action()).isEqualTo(SyncSubmissionAction.REUSED_QUEUED);
   }
 
   @Test
   void shouldMergeQueuedLowerPriorityMirrorRunsWhenFullSyncIsSubmitted() {
     GitlabSyncConfig config = config();
-    SyncRun queuedRefresh = activeRun(103L, SyncRunType.TABLE_REFRESH, SyncRunStatus.QUEUED, "source:12:source_a:mirror");
-    queuedRefresh.setPayloadJson("{\"sourceTables\":[\"issues\"]}");
-    when(syncRunMapper.selectList(any())).thenReturn(List.of(queuedRefresh));
+    SyncRun queuedCompensation =
+        activeRun(
+            103L,
+            SyncRunType.COMPENSATION_SCAN,
+            SyncRunStatus.QUEUED,
+            "source:12:default:mirror");
+    when(syncRunMapper.selectList(any())).thenReturn(List.of(queuedCompensation));
 
     submissionService.submitFullSync(config, "Manual full sync");
 
@@ -324,16 +309,16 @@ class SyncRunSubmissionServiceTest {
         any(),
         any(),
         eq(12L),
-        eq("source_a"),
-        eq("source:12:source_a:mirror"),
-        eq(100));
+        eq("default"),
+        eq("source:12:default:mirror"),
+        eq(40));
     verify(syncRunMapper).insert(any(SyncRun.class));
   }
 
   @Test
   void shouldReuseFactRefreshForSameMirrorParent() {
     GitlabSyncConfig config = config();
-    SyncRun activeRun = activeRun(104L, SyncRunType.FACT_REFRESH, SyncRunStatus.QUEUED, "source:12:source_a:fact");
+    SyncRun activeRun = activeRun(104L, SyncRunType.FACT_REFRESH, SyncRunStatus.QUEUED, "source:12:default:fact");
     activeRun.setParentRunId(91L);
     when(syncRunMapper.selectList(any())).thenReturn(List.of(activeRun));
 
@@ -366,7 +351,7 @@ class SyncRunSubmissionServiceTest {
   private GitlabSyncConfig config() {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(12L);
-    config.setSourceInstance("source_a");
+    config.setSourceInstance("default");
     config.setSourceEnabled(true);
     config.setEnabled(true);
     config.setAutoSyncEnabled(true);
@@ -383,7 +368,7 @@ class SyncRunSubmissionServiceTest {
     run.setId(id);
     run.setRunId("sr_existing_" + id);
     run.setConfigId(12L);
-    run.setSourceInstance("source_a");
+    run.setSourceInstance("default");
     run.setRunType(runType);
     run.setStatus(status);
     run.setExclusiveScope(scope);

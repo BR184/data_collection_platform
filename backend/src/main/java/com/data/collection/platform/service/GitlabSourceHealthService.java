@@ -176,7 +176,7 @@ public class GitlabSourceHealthService {
                 from sync_runs
                where config_id = ?
                  and source_instance = ?
-                 and status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
+                 and status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'PAUSED', 'CANCELLING')
                order by case when status in ('RUNNING', 'CANCELLING') then 0 else 1 end, created_at asc, id asc
                limit 1
               """,
@@ -210,7 +210,7 @@ public class GitlabSourceHealthService {
       return SyncStatus.IDLE;
     }
     return switch (status) {
-      case "SUBMITTED", "QUEUED" -> SyncStatus.QUEUED;
+      case "SUBMITTED", "QUEUED", "PAUSED" -> SyncStatus.QUEUED;
       case "RUNNING" -> SyncStatus.RUNNING;
       case "RETRYING" -> SyncStatus.RETRYING;
       case "CANCELLING" -> SyncStatus.CANCELLING;

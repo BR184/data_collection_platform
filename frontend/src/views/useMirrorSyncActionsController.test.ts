@@ -148,6 +148,7 @@ describe('useMirrorSyncActionsController', () => {
     expect(deps.startFullSyncData).toHaveBeenCalledOnce();
     expect(deps.startIncrementalSyncData).toHaveBeenCalledOnce();
     expect(deps.startFullCompensationSyncData).toHaveBeenCalledOnce();
+    expect(deps.saveConfigData).not.toHaveBeenCalled();
     expect(ElMessageBox.confirm).toHaveBeenCalledTimes(2);
     expect(deps.notifySuccess).toHaveBeenCalledTimes(2);
     expect(deps.notifySuccess).toHaveBeenCalledWith('CREATED message');
@@ -164,6 +165,27 @@ describe('useMirrorSyncActionsController', () => {
 
     expect(deps.saveConfigData).not.toHaveBeenCalled();
     expect(deps.startFullSyncData).not.toHaveBeenCalled();
+    expect(controller.syncing.value).toBe(false);
+  });
+
+  it('requires explicit config save before submitting sync operations', async () => {
+    const deps = setup();
+    const controller = useMirrorSyncActionsController({
+      ...deps,
+      hasUnsavedChanges: () => true,
+    });
+
+    await controller.startFullSync();
+    await controller.startIncrementalSync();
+    await controller.startFullCompensationSync();
+
+    expect(deps.saveConfigData).not.toHaveBeenCalled();
+    expect(deps.startFullSyncData).not.toHaveBeenCalled();
+    expect(deps.startIncrementalSyncData).not.toHaveBeenCalled();
+    expect(deps.startFullCompensationSyncData).not.toHaveBeenCalled();
+    expect(ElMessageBox.confirm).not.toHaveBeenCalled();
+    expect(deps.notifyWarning).toHaveBeenCalledTimes(3);
+    expect(deps.notifyWarning).toHaveBeenCalledWith('当前设置尚未保存，请先保存配置后再提交同步任务。');
     expect(controller.syncing.value).toBe(false);
   });
 

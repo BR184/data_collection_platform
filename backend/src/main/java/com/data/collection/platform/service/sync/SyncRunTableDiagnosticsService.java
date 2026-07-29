@@ -1,7 +1,9 @@
 package com.data.collection.platform.service.sync;
 
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.sync.SyncRunTableStateDiagnostics;
+import com.data.collection.platform.service.GitlabExternalDbService;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -14,27 +16,42 @@ import org.springframework.stereotype.Service;
 @Service
 public class SyncRunTableDiagnosticsService {
   private final JdbcTemplate jdbcTemplate;
+  private final GitlabExternalDbService externalDbService;
 
-  public SyncRunTableDiagnosticsService(JdbcTemplate jdbcTemplate) {
+  public SyncRunTableDiagnosticsService(
+      JdbcTemplate jdbcTemplate, GitlabExternalDbService externalDbService) {
     this.jdbcTemplate = jdbcTemplate;
+    this.externalDbService = externalDbService;
   }
 
   public Map<String, Object> tableDiagnostics(GitlabSyncConfig config) {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    CurrentRunDiagnostics currentRun = loadCurrentRun(config, sourceInstance);
     List<SyncRunTableStateDiagnostics> tables = loadTableDiagnostics(config, sourceInstance);
     Map<String, Object> response = new LinkedHashMap<>();
     response.put("configId", config.getId());
     response.put("sourceInstance", sourceInstance);
     response.put("generatedAt", LocalDateTime.now().toString());
-    response.put("status", diagnosticsStatus(config, sourceInstance));
+    response.put("status", currentRun == null ? "IDLE" : currentRun.status());
     response.put("message", "统一同步表任务诊断");
+    response.put("currentRunDbId", currentRun == null ? null : currentRun.id());
+    response.put("currentRunId", currentRun == null ? null : currentRun.runId());
+    response.put(
+        "resolvedWorkerCount", currentRun == null ? null : currentRun.resolvedWorkerCount());
+    response.put(
+        "directPoolMetrics",
+        config.getSourceMode() == SourceMode.DIRECT
+            ? externalDbService.directPoolMetrics(config.getId()).orElse(null)
+            : null);
     response.put("tableCount", countStates(config, sourceInstance));
     response.put("dirtyTableCount", countDirtyStates(config, sourceInstance));
-    response.put("pendingTaskCount", countTasks(config, sourceInstance, "QUEUED"));
-    response.put("runningTaskCount", countTasks(config, sourceInstance, "RUNNING"));
-    response.put("retryingTaskCount", countTasks(config, sourceInstance, "RETRYING"));
-    response.put("failedTaskCount", countTasks(config, sourceInstance, "FAILED"));
-    response.put("timedOutTaskCount", countTasks(config, sourceInstance, "TIMEOUT"));
+    response.put("pendingTaskCount", countCurrentRunTasks(currentRun, "QUEUED"));
+    response.put("runningTaskCount", countCurrentRunTasks(currentRun, "RUNNING"));
+    response.put("retryingTaskCount", countCurrentRunTasks(currentRun, "RETRYING"));
+    response.put("failedTaskCount", countCurrentRunTasks(currentRun, "FAILED"));
+    response.put("timedOutTaskCount", countCurrentRunTasks(currentRun, "TIMEOUT"));
+    response.put("historicalFailedTaskCount", countHistoricalTasks(config, sourceInstance, "FAILED"));
+    response.put("historicalTimedOutTaskCount", countHistoricalTasks(config, sourceInstance, "TIMEOUT"));
     response.put("tables", tables);
     return response;
   }
@@ -66,7 +83,7 @@ public class SyncRunTableDiagnosticsService {
                  and active.source_instance = state.source_instance
                  and active.source_table = state.source_table
                  and active.status in ('QUEUED', 'RUNNING', 'RETRYING')
-                 and active_run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
+                 and active_run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'PAUSED', 'CANCELLING')
            )
          order by state.source_table asc
         """,
@@ -96,14 +113,19 @@ public class SyncRunTableDiagnosticsService {
                state.schema_fingerprint,
                state.last_error,
                state.retry_count,
-               latest.task_type as latest_task_type,
-               latest.status as latest_task_status,
-               latest.run_after as latest_task_run_after,
-               latest.heartbeat_at as latest_task_heartbeat_at,
-               latest.lease_until as latest_task_lease_until,
-               latest.rows_scanned as latest_task_rows_scanned,
-               latest.rows_applied as latest_task_rows_applied,
-               latest.last_error as latest_task_error
+               blocking.id as current_task_id,
+               blocking.task_type as current_task_type,
+               blocking.task_stage as current_task_stage,
+               blocking.status as current_task_status,
+               blocking.run_after as current_task_run_after,
+               blocking.heartbeat_at as current_task_heartbeat_at,
+               blocking.lease_until as current_task_lease_until,
+               blocking.retry_count as current_task_retry_count,
+               blocking.cursor_updated_at as current_task_cursor_updated_at,
+               blocking.cursor_pk as current_task_cursor_pk,
+               blocking.rows_scanned as current_task_rows_scanned,
+               blocking.rows_applied as current_task_rows_applied,
+               blocking.last_error as current_task_error
           from sync_run_table_states state
           left join lateral (
               select task.*, run.run_id as external_run_id
@@ -113,22 +135,13 @@ public class SyncRunTableDiagnosticsService {
                  and task.source_instance = state.source_instance
                  and task.source_table = state.source_table
                  and task.status in ('QUEUED', 'RUNNING', 'RETRYING')
-                 and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
+                 and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'PAUSED', 'CANCELLING')
                order by case task.status when 'RUNNING' then 0 when 'RETRYING' then 1 else 2 end,
                         task.started_at nulls last,
                         task.created_at desc,
                         task.id desc
                limit 1
           ) blocking on true
-          left join lateral (
-              select task.*
-                from sync_run_table_tasks task
-               where task.config_id = state.config_id
-                 and task.source_instance = state.source_instance
-                 and task.source_table = state.source_table
-               order by task.created_at desc, task.id desc
-               limit 1
-          ) latest on true
          where state.config_id = ?
            and state.source_instance = ?
          order by state.dirty_flag desc,
@@ -158,37 +171,57 @@ public class SyncRunTableDiagnosticsService {
               rs.getString("last_error"),
               nullableInt(rs.getObject("retry_count")),
               driftSummary(sourceRows, mirrorRows),
-              rs.getString("latest_task_type"),
-              rs.getString("latest_task_status"),
-              toDateTime(rs.getTimestamp("latest_task_run_after")),
-              toDateTime(rs.getTimestamp("latest_task_heartbeat_at")),
-              toDateTime(rs.getTimestamp("latest_task_lease_until")),
-              nullableLong(rs.getObject("latest_task_rows_scanned")),
-              nullableLong(rs.getObject("latest_task_rows_applied")),
-              rs.getString("latest_task_error"));
+              nullableLong(rs.getObject("current_task_id")),
+              rs.getString("current_task_type"),
+              rs.getString("current_task_stage"),
+              rs.getString("current_task_status"),
+              toDateTime(rs.getTimestamp("current_task_run_after")),
+              toDateTime(rs.getTimestamp("current_task_heartbeat_at")),
+              toDateTime(rs.getTimestamp("current_task_lease_until")),
+              nullableInt(rs.getObject("current_task_retry_count")),
+              toDateTime(rs.getTimestamp("current_task_cursor_updated_at")),
+              rs.getString("current_task_cursor_pk"),
+              nullableLong(rs.getObject("current_task_rows_scanned")),
+              nullableLong(rs.getObject("current_task_rows_applied")),
+              rs.getString("current_task_error"));
         },
         config.getId(),
         sourceInstance);
   }
 
-  private String diagnosticsStatus(GitlabSyncConfig config, String sourceInstance) {
-    List<String> statuses =
+  private CurrentRunDiagnostics loadCurrentRun(
+      GitlabSyncConfig config, String sourceInstance) {
+    List<Map<String, Object>> runs =
         jdbcTemplate.queryForList(
             """
-            select status
+            select id, run_id, status, resolved_worker_count
               from sync_runs
              where config_id = ?
                and source_instance = ?
-               and status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
-             order by case status when 'RUNNING' then 0 when 'CANCELLING' then 1 else 2 end,
+               and status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'PAUSED', 'CANCELLING')
+             order by case status
+                        when 'RUNNING' then 0
+                        when 'CANCELLING' then 1
+                        when 'RETRYING' then 2
+                        when 'QUEUED' then 3
+                        when 'SUBMITTED' then 4
+                        else 5
+                      end,
                       created_at asc,
                       id asc
              limit 1
             """,
-            String.class,
             config.getId(),
             sourceInstance);
-    return statuses == null || statuses.isEmpty() ? "IDLE" : statuses.getFirst();
+    if (runs == null || runs.isEmpty()) {
+      return null;
+    }
+    Map<String, Object> run = runs.getFirst();
+    return new CurrentRunDiagnostics(
+        nullableLong(run.get("id")),
+        stringValue(run.get("run_id")),
+        stringValue(run.get("status")),
+        nullableInt(run.get("resolved_worker_count")));
   }
 
   private int countStates(GitlabSyncConfig config, String sourceInstance) {
@@ -205,19 +238,30 @@ public class SyncRunTableDiagnosticsService {
         sourceInstance);
   }
 
-  private int countTasks(GitlabSyncConfig config, String sourceInstance, String status) {
+  private int countCurrentRunTasks(CurrentRunDiagnostics currentRun, String status) {
+    if (currentRun == null || currentRun.id() == null) {
+      return 0;
+    }
     return count(
         """
         select count(*)
-          from sync_run_table_tasks task
-          join sync_runs run on run.id = task.run_id
-         where task.config_id = ?
-           and task.source_instance = ?
-           and task.status = ?
-           and (
-             task.status not in ('QUEUED', 'RUNNING', 'RETRYING')
-             or run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
-           )
+          from sync_run_table_tasks
+         where run_id = ?
+           and status = ?
+        """,
+        currentRun.id(),
+        status);
+  }
+
+  private int countHistoricalTasks(
+      GitlabSyncConfig config, String sourceInstance, String status) {
+    return count(
+        """
+        select count(*)
+          from sync_run_table_tasks
+         where config_id = ?
+           and source_instance = ?
+           and status = ?
         """,
         config.getId(),
         sourceInstance,
@@ -251,4 +295,11 @@ public class SyncRunTableDiagnosticsService {
   private static Integer nullableInt(Object value) {
     return value == null ? null : ((Number) value).intValue();
   }
+
+  private static String stringValue(Object value) {
+    return value == null ? null : String.valueOf(value);
+  }
+
+  private record CurrentRunDiagnostics(
+      Long id, String runId, String status, Integer resolvedWorkerCount) {}
 }

@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.SourceTableSchema;
+import com.data.collection.platform.entity.SourceCursorStrategy;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Comparator;
@@ -44,6 +45,17 @@ class GitlabSourceMetadataSupport {
 
   String resolveRowStrategy(String updatedAtColumn) {
     return updatedAtColumn == null || updatedAtColumn.isBlank() ? "FULL_ONLY" : "INCREMENTAL";
+  }
+
+  SourceCursorStrategy resolveCursorStrategy(
+      String updatedAtColumn, java.util.Set<String> indexedLeadingColumns) {
+    if (updatedAtColumn == null || updatedAtColumn.isBlank()) {
+      return SourceCursorStrategy.NONE;
+    }
+    if (indexedLeadingColumns != null && indexedLeadingColumns.contains(updatedAtColumn)) {
+      return SourceCursorStrategy.TIMESTAMP_KEYSET;
+    }
+    return SourceCursorStrategy.PRIMARY_KEY_KEYSET;
   }
 
   String buildSchemaFingerprint(SourceTableSchema schema) {

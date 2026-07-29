@@ -2,12 +2,14 @@ package com.data.collection.platform.service.sync;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
@@ -20,7 +22,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
 class SyncRunDeadlineGuardTest {
   private GitlabMirrorProperties properties;
@@ -39,6 +40,7 @@ class SyncRunDeadlineGuardTest {
             syncRunMapper,
             configService,
             Clock.fixed(Instant.parse("2026-06-02T11:01:00Z"), ZoneId.of("UTC")));
+    when(syncRunMapper.update(isNull(), any(UpdateWrapper.class))).thenReturn(1);
   }
 
   @Test
@@ -49,10 +51,10 @@ class SyncRunDeadlineGuardTest {
     boolean cancelled = guard.requestCancellationIfExpired(run);
 
     assertThat(cancelled).isTrue();
-    SyncRun updated = captureUpdatedRun();
-    assertThat(updated.getStatus()).isEqualTo(SyncRunStatus.CANCELLING);
-    assertThat(updated.getCancelRequested()).isTrue();
-    assertThat(updated.getErrorMessage()).contains("maximum runtime");
+    assertThat(run.getStatus()).isEqualTo(SyncRunStatus.CANCELLING);
+    assertThat(run.getCancelRequested()).isTrue();
+    assertThat(run.getErrorMessage()).contains("maximum runtime");
+    verify(syncRunMapper).update(isNull(), any(UpdateWrapper.class));
   }
 
   @Test
@@ -63,9 +65,8 @@ class SyncRunDeadlineGuardTest {
     boolean cancelled = guard.requestCancellationIfExpired(run);
 
     assertThat(cancelled).isTrue();
-    SyncRun updated = captureUpdatedRun();
-    assertThat(updated.getStatus()).isEqualTo(SyncRunStatus.CANCELLING);
-    assertThat(updated.getErrorMessage()).contains("calendar day");
+    assertThat(run.getStatus()).isEqualTo(SyncRunStatus.CANCELLING);
+    assertThat(run.getErrorMessage()).contains("calendar day");
   }
 
   @Test
@@ -81,7 +82,7 @@ class SyncRunDeadlineGuardTest {
     boolean cancelled = guard.requestCancellationIfExpired(run);
 
     assertThat(cancelled).isTrue();
-    assertThat(captureUpdatedRun().getErrorMessage()).contains("compensation window");
+    assertThat(run.getErrorMessage()).contains("compensation window");
   }
 
   @Test
@@ -92,13 +93,20 @@ class SyncRunDeadlineGuardTest {
     boolean cancelled = guard.requestCancellationIfExpired(run);
 
     assertThat(cancelled).isFalse();
-    verify(syncRunMapper, never()).updateById(any(SyncRun.class));
+    verify(syncRunMapper, never()).update(isNull(), any(UpdateWrapper.class));
   }
 
-  private SyncRun captureUpdatedRun() {
-    ArgumentCaptor<SyncRun> captor = ArgumentCaptor.forClass(SyncRun.class);
-    verify(syncRunMapper).updateById(captor.capture());
-    return captor.getValue();
+  @Test
+  void shouldNotOverwriteRunWhenConcurrentStateChangeWins() {
+    properties.setMaxRunDurationMinutes(60);
+    SyncRun run = run(SyncRunType.FULL_SYNC, LocalDateTime.of(2026, 6, 2, 10, 0));
+    when(syncRunMapper.update(isNull(), any(UpdateWrapper.class))).thenReturn(0);
+
+    boolean cancelled = guard.requestCancellationIfExpired(run);
+
+    assertThat(cancelled).isFalse();
+    assertThat(run.getStatus()).isEqualTo(SyncRunStatus.RUNNING);
+    assertThat(run.getCancelRequested()).isNull();
   }
 
   private SyncRun run(SyncRunType runType, LocalDateTime startedAt) {

@@ -33,7 +33,9 @@ public class GitlabSyncControllerResponseMapper {
         properties.getSystemHookBaseUrl(),
         status.systemHookRegistration(),
         Runtime.getRuntime().availableProcessors(),
-        threadBudgetResolver.resolve(config));
+        status.resolvedSyncThreads() == null
+            ? threadBudgetResolver.resolve(config)
+            : status.resolvedSyncThreads());
   }
 
   public GitlabSyncConfig sanitizeConfigForResponse(GitlabSyncConfig source) {

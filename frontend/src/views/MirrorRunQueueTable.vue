@@ -15,7 +15,7 @@ const ACTIVE_TABLE_STATUSES = new Set(['PENDING', 'QUEUED', 'RUNNING', 'RETRYING
 
 const rows = computed(() => {
   const tables = props.diagnostics?.tables ?? [];
-  const prioritized = tables.filter((row) => row.dirty || ACTIVE_TABLE_STATUSES.has(row.latestTaskStatus ?? ''));
+  const prioritized = tables.filter((row) => row.dirty || ACTIVE_TABLE_STATUSES.has(row.currentTaskStatus ?? ''));
   return (prioritized.length ? prioritized : tables).slice(0, 5);
 });
 
@@ -24,11 +24,11 @@ function rowReason(row: SyncRunTableDiagnostics) {
 }
 
 function rowTime(row: SyncRunTableDiagnostics) {
-  return formatDateTime(row.latestTaskHeartbeatAt || row.latestTaskRunAfter || row.lastAppliedAt || row.lastVerifiedAt);
+  return formatDateTime(row.currentTaskHeartbeatAt || row.currentTaskRunAfter || row.lastAppliedAt || row.lastVerifiedAt);
 }
 
 function leaseTime(row: SyncRunTableDiagnostics) {
-  return formatDateTime(row.latestTaskLeaseUntil);
+  return formatDateTime(row.currentTaskLeaseUntil);
 }
 </script>
 
@@ -49,8 +49,8 @@ function leaseTime(row: SyncRunTableDiagnostics) {
       <el-table-column prop="sourceTable" label="源表" min-width="130" show-overflow-tooltip />
       <el-table-column label="任务状态" width="112">
         <template #default="{ row }">
-          <el-tag v-if="row.latestTaskStatus" size="small" :type="syncStatusTagType(row.latestTaskStatus)">
-            {{ tableTaskStatusText(row.latestTaskStatus) }}
+          <el-tag v-if="row.currentTaskStatus" size="small" :type="syncStatusTagType(row.currentTaskStatus)">
+            {{ tableTaskStatusText(row.currentTaskStatus) }}
           </el-tag>
           <el-tag v-else size="small" type="info">空闲</el-tag>
         </template>

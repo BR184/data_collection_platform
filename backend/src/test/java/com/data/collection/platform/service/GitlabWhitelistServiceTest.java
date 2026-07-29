@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceMode;
+import com.data.collection.platform.entity.SourceCursorStrategy;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.WhitelistMode;
 import java.util.List;
@@ -29,7 +30,8 @@ class GitlabWhitelistServiceTest {
     config.setWhitelistTables(List.of("issues", "unknown_table"));
 
     when(sourceMetadataInspector.discoverTables(eq(config), anyMap(), anyList()))
-        .thenReturn(List.of(new TableWhitelistOption("issues", "issues", "id", "updated_at", true)));
+        .thenReturn(List.of(new TableWhitelistOption(
+            "issues", "issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET, true)));
 
     List<TableWhitelistOption> options = whitelistService.resolveOptions(config);
 
@@ -46,8 +48,10 @@ class GitlabWhitelistServiceTest {
 
     when(sourceMetadataInspector.discoverTables(eq(config), anyMap(), anyList()))
         .thenReturn(List.of(
-            new TableWhitelistOption("issues", "issues", "id", "updated_at", true),
-            new TableWhitelistOption("audit_events", "audit_events", "id", "updated_at", false)));
+            new TableWhitelistOption(
+                "issues", "issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET, true),
+            new TableWhitelistOption(
+                "audit_events", "audit_events", "id", "updated_at", SourceCursorStrategy.PRIMARY_KEY_KEYSET, false)));
 
     List<TableWhitelistOption> options = whitelistService.resolveOptions(config);
 
@@ -94,7 +98,8 @@ class GitlabWhitelistServiceTest {
     config.setWhitelistMode(WhitelistMode.RECOMMENDED);
 
     when(sourceMetadataInspector.discoverTables(eq(config), anyMap(), anyList()))
-        .thenReturn(List.of(new TableWhitelistOption("issues", "issues", "id", "updated_at", true)));
+        .thenReturn(List.of(new TableWhitelistOption(
+            "issues", "issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET, true)));
 
     List<TableWhitelistOption> first = whitelistService.resolveOptions(config);
     List<TableWhitelistOption> second = whitelistService.resolveOptions(config);
@@ -112,9 +117,16 @@ class GitlabWhitelistServiceTest {
     GitlabSyncConfig dgmConfig = directConfig("dgm", 15435);
 
     when(sourceMetadataInspector.discoverTables(eq(ccConfig), anyMap(), anyList()))
-        .thenReturn(List.of(new TableWhitelistOption("issues", "issues", "id", "updated_at", true)));
+        .thenReturn(List.of(new TableWhitelistOption(
+            "issues", "issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET, true)));
     when(sourceMetadataInspector.discoverTables(eq(dgmConfig), anyMap(), anyList()))
-        .thenReturn(List.of(new TableWhitelistOption("merge_requests", "merge_requests", "id", "updated_at", true)));
+        .thenReturn(List.of(new TableWhitelistOption(
+            "merge_requests",
+            "merge_requests",
+            "id",
+            "updated_at",
+            SourceCursorStrategy.PRIMARY_KEY_KEYSET,
+            true)));
 
     assertThat(whitelistService.resolveOptions(ccConfig)).extracting(TableWhitelistOption::tableName).containsExactly("issues");
     assertThat(whitelistService.resolveOptions(dgmConfig)).extracting(TableWhitelistOption::tableName)

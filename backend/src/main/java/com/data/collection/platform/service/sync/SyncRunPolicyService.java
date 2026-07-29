@@ -47,10 +47,10 @@ public class SyncRunPolicyService {
       return 0;
     }
     return switch (type) {
-      case FULL_SYNC -> 100;
-      case INCREMENTAL_SYNC -> 70;
+      case TABLE_REFRESH -> 100;
+      case INCREMENTAL_SYNC -> 90;
       case SYSTEM_HOOK -> 60;
-      case TABLE_REFRESH -> 40;
+      case FULL_SYNC -> 40;
       case FULL_COMPENSATION_SCAN -> 25;
       case COMPENSATION_SCAN -> 20;
       case FACT_REFRESH -> 10;
@@ -78,13 +78,6 @@ public class SyncRunPolicyService {
         && isActiveStatus(candidate.getStatus())
         && requestRunType != null
         && requestRunType.getRunType() == SyncRunType.FULL_SYNC;
-  }
-
-  public boolean shouldMergeTableRefresh(SyncRun candidate) {
-    return candidate != null
-        && candidate.getRunType() == SyncRunType.FULL_SYNC
-        && candidate.getStatus() != null
-        && isActiveStatus(candidate.getStatus());
   }
 
   public SyncStatus toApiStatus(SyncRun run) {

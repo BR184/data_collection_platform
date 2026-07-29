@@ -18,6 +18,7 @@ export interface MirrorSyncActionsControllerDependencies {
   notifyInfo: (message: string) => void;
   notifyError: (message: string) => void;
   hasActiveSync?: () => boolean;
+  hasUnsavedChanges?: () => boolean;
 }
 
 export function useMirrorSyncActionsController(deps: MirrorSyncActionsControllerDependencies) {
@@ -25,6 +26,14 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
   const syncing = ref(false);
   const testing = ref(false);
   const cancelling = ref(false);
+
+  function canSubmitSync() {
+    if (!deps.hasUnsavedChanges?.()) {
+      return true;
+    }
+    deps.notifyWarning('当前设置尚未保存，请先保存配置后再提交同步任务。');
+    return false;
+  }
 
   function showSubmissionFeedback(result: SyncSubmissionResponse) {
     if (result.status === 'FAILED' || result.status === 'TIMEOUT' || result.status === 'CANCELLED') {
@@ -88,6 +97,9 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
   async function startFullSync() {
     syncing.value = true;
     try {
+      if (!canSubmitSync()) {
+        return;
+      }
       const confirmed = await confirmHeavySync(
         '首次全量同步会按当前白名单重新读取源库数据，耗时和资源占用通常高于增量刷新。确认现在提交？',
         '确认首次全量同步',
@@ -95,7 +107,6 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
       if (!confirmed) {
         return;
       }
-      await saveConfig(false);
       const result = await deps.startFullSyncData();
       showSubmissionFeedback(result);
       await deps.loadStatus(false, false);
@@ -109,7 +120,9 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
   async function startIncrementalSync() {
     syncing.value = true;
     try {
-      await saveConfig(false);
+      if (!canSubmitSync()) {
+        return;
+      }
       const result = await deps.startIncrementalSyncData();
       showSubmissionFeedback(result);
       await deps.loadStatus(false, false);
@@ -123,6 +136,9 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
   async function startFullCompensationSync() {
     syncing.value = true;
     try {
+      if (!canSubmitSync()) {
+        return;
+      }
       const confirmed = await confirmHeavySync(
         '全量补偿对账会对源库和镜像库做完整差异校验，可能耗时较长。建议在业务低峰执行，确认现在提交？',
         '确认全量补偿对账',
@@ -130,7 +146,6 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
       if (!confirmed) {
         return;
       }
-      await saveConfig(false);
       const result = await deps.startFullCompensationSyncData();
       showSubmissionFeedback(result);
       await deps.loadStatus(false, false);

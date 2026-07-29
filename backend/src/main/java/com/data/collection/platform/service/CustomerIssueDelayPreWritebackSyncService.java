@@ -28,9 +28,10 @@ public class CustomerIssueDelayPreWritebackSyncService {
           SyncRunStatus.QUEUED,
           SyncRunStatus.RUNNING,
           SyncRunStatus.RETRYING,
+          SyncRunStatus.PAUSED,
           SyncRunStatus.CANCELLING);
   private static final Set<String> ACTIVE_FACT_RUN_STATUSES =
-      Set.of("SUBMITTED", "QUEUED", "RUNNING", "RETRYING", "CANCELLING");
+      Set.of("SUBMITTED", "QUEUED", "RUNNING", "RETRYING", "PAUSED", "CANCELLING");
 
   private final SyncRunSubmissionService submissionService;
   private final SyncRunMapper syncRunMapper;

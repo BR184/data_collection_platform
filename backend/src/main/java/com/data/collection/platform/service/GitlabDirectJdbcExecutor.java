@@ -2,10 +2,16 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.logging.SyncRunLogContext;
+import com.data.collection.platform.entity.DirectConnectionPoolMetrics;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceMode;
+import com.data.collection.platform.service.sync.SyncExecutionBudget;
+import com.data.collection.platform.service.sync.SyncThreadBudgetResolver;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import com.zaxxer.hikari.HikariPoolMXBean;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -15,9 +21,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -25,24 +32,28 @@ class GitlabDirectJdbcExecutor implements AutoCloseable {
   private final GitlabSourceConnectionSettings connectionSettings;
   private final GitlabSourceQueryRetryPolicy queryRetryPolicy;
   private final GitlabJdbcValueNormalizer jdbcValueNormalizer;
-  private final Function<GitlabSyncConfig, HikariDataSource> dataSourceFactory;
-  private final ConcurrentMap<String, HikariDataSource> directDataSources = new ConcurrentHashMap<>();
+  private final SyncThreadBudgetResolver threadBudgetResolver;
+  private final BiFunction<GitlabSyncConfig, SyncExecutionBudget, HikariDataSource> dataSourceFactory;
+  private final ConcurrentMap<Long, ManagedDataSource> directDataSources = new ConcurrentHashMap<>();
 
   GitlabDirectJdbcExecutor(
       GitlabSourceConnectionSettings connectionSettings,
       GitlabSourceQueryRetryPolicy queryRetryPolicy,
-      GitlabJdbcValueNormalizer jdbcValueNormalizer) {
-    this(connectionSettings, queryRetryPolicy, jdbcValueNormalizer, null);
+      GitlabJdbcValueNormalizer jdbcValueNormalizer,
+      SyncThreadBudgetResolver threadBudgetResolver) {
+    this(connectionSettings, queryRetryPolicy, jdbcValueNormalizer, threadBudgetResolver, null);
   }
 
   GitlabDirectJdbcExecutor(
       GitlabSourceConnectionSettings connectionSettings,
       GitlabSourceQueryRetryPolicy queryRetryPolicy,
       GitlabJdbcValueNormalizer jdbcValueNormalizer,
-      Function<GitlabSyncConfig, HikariDataSource> dataSourceFactory) {
+      SyncThreadBudgetResolver threadBudgetResolver,
+      BiFunction<GitlabSyncConfig, SyncExecutionBudget, HikariDataSource> dataSourceFactory) {
     this.connectionSettings = connectionSettings;
     this.queryRetryPolicy = queryRetryPolicy;
     this.jdbcValueNormalizer = jdbcValueNormalizer;
+    this.threadBudgetResolver = threadBudgetResolver;
     this.dataSourceFactory = dataSourceFactory == null ? this::createDirectDataSource : dataSourceFactory;
   }
 
@@ -91,8 +102,15 @@ class GitlabDirectJdbcExecutor implements AutoCloseable {
 
   Connection openConnection(GitlabSyncConfig config) throws Exception {
     if (config != null && config.getSourceMode() == SourceMode.DIRECT) {
-      return directDataSources.computeIfAbsent(connectionSettings.directDataSourceKey(config), ignored -> dataSourceFactory.apply(config))
-          .getConnection();
+      SyncExecutionBudget budget = threadBudgetResolver.resolveBudget(config);
+      ManagedDataSource managed = acquireManagedDataSource(config, budget);
+      ManagedDataSource.Lease lease = managed.acquire();
+      try {
+        return leasedConnection(lease.getConnection(), lease);
+      } catch (Exception error) {
+        lease.close();
+        throw error;
+      }
     }
     return DriverManager.getConnection(
         connectionSettings.buildJdbcUrl(config),
@@ -100,15 +118,15 @@ class GitlabDirectJdbcExecutor implements AutoCloseable {
         config.getDbPassword());
   }
 
-  private HikariDataSource createDirectDataSource(GitlabSyncConfig config) {
+  private HikariDataSource createDirectDataSource(GitlabSyncConfig config, SyncExecutionBudget budget) {
     HikariConfig hikariConfig = new HikariConfig();
     hikariConfig.setJdbcUrl(connectionSettings.buildJdbcUrl(config));
     hikariConfig.setUsername(connectionSettings.normalizeDbUser(config));
     hikariConfig.setPassword(config.getDbPassword());
-    hikariConfig.setMaximumPoolSize(2);
+    hikariConfig.setMaximumPoolSize(budget.directPoolSize());
     hikariConfig.setMinimumIdle(0);
     hikariConfig.setPoolName("gitlab-direct-" + config.getId());
-    hikariConfig.setConnectionTimeout(5000);
+    hikariConfig.setConnectionTimeout(budget.connectionAcquireTimeoutMs());
     hikariConfig.setIdleTimeout(60000);
     hikariConfig.setMaxLifetime(300000);
     return new HikariDataSource(hikariConfig);
@@ -116,17 +134,180 @@ class GitlabDirectJdbcExecutor implements AutoCloseable {
 
   @Override
   public void close() {
-    directDataSources.forEach((key, dataSource) -> {
-      try {
-        dataSource.close();
-      } catch (RuntimeException e) {
-        log.warn("Failed to close GitLab direct JDBC datasource, key={}", key, e);
-      }
-    });
+    directDataSources.forEach((key, dataSource) -> dataSource.retire());
     directDataSources.clear();
+  }
+
+  void invalidate(Long configId) {
+    if (configId == null) {
+      return;
+    }
+    ManagedDataSource removed = directDataSources.remove(configId);
+    if (removed != null) {
+      removed.retire();
+    }
   }
 
   int pooledDataSourceCount() {
     return directDataSources.size();
+  }
+
+  Optional<DirectConnectionPoolMetrics> poolMetrics(Long configId) {
+    if (configId == null) {
+      return Optional.empty();
+    }
+    ManagedDataSource managed = directDataSources.get(configId);
+    return managed == null ? Optional.empty() : Optional.of(managed.metrics());
+  }
+
+  private ManagedDataSource acquireManagedDataSource(
+      GitlabSyncConfig config, SyncExecutionBudget budget) {
+    if (config.getId() == null) {
+      ManagedDataSource temporary =
+          new ManagedDataSource(
+              dataSourceFactory.apply(config, budget), PoolSpec.from(connectionSettings, config, budget));
+      temporary.retireAfterLastLease();
+      return temporary;
+    }
+    PoolSpec requestedSpec = PoolSpec.from(connectionSettings, config, budget);
+    return directDataSources.compute(
+        config.getId(),
+        (configId, current) -> {
+          if (current != null && current.matches(requestedSpec)) {
+            return current;
+          }
+          ManagedDataSource replacement =
+              new ManagedDataSource(dataSourceFactory.apply(config, budget), requestedSpec);
+          if (current != null) {
+            current.retire();
+          }
+          return replacement;
+        });
+  }
+
+  private Connection leasedConnection(Connection connection, ManagedDataSource.Lease lease) {
+    return (Connection)
+        Proxy.newProxyInstance(
+            Connection.class.getClassLoader(),
+            new Class<?>[] {Connection.class},
+            (proxy, method, args) -> {
+              if ("close".equals(method.getName())) {
+                try {
+                  connection.close();
+                } finally {
+                  lease.close();
+                }
+                return null;
+              }
+              try {
+                return method.invoke(connection, args);
+              } catch (InvocationTargetException error) {
+                throw error.getCause();
+              }
+            });
+  }
+
+  private record PoolSpec(
+      String jdbcUrl,
+      String username,
+      String password,
+      int poolSize,
+      long acquireTimeoutMs) {
+    private static PoolSpec from(
+        GitlabSourceConnectionSettings connectionSettings,
+        GitlabSyncConfig config,
+        SyncExecutionBudget budget) {
+      return new PoolSpec(
+          connectionSettings.buildJdbcUrl(config),
+          connectionSettings.normalizeDbUser(config),
+          config.getDbPassword(),
+          budget.directPoolSize(),
+          budget.connectionAcquireTimeoutMs());
+    }
+  }
+
+  private static final class ManagedDataSource {
+    private final HikariDataSource dataSource;
+    private final PoolSpec spec;
+    private int leases;
+    private boolean retired;
+    private boolean retireAfterLastLease;
+
+    private ManagedDataSource(HikariDataSource dataSource, PoolSpec spec) {
+      this.dataSource = dataSource;
+      this.spec = spec;
+    }
+
+    private synchronized Lease acquire() {
+      if (retired) {
+        throw new IllegalStateException("GitLab DIRECT 连接池已经退休");
+      }
+      leases++;
+      return new Lease(this, dataSource);
+    }
+
+    private boolean matches(PoolSpec candidate) {
+      return spec.equals(candidate);
+    }
+
+    private DirectConnectionPoolMetrics metrics() {
+      HikariPoolMXBean pool = dataSource.getHikariPoolMXBean();
+      if (pool == null) {
+        return new DirectConnectionPoolMetrics(spec.poolSize(), 0, 0, 0, 0);
+      }
+      return new DirectConnectionPoolMetrics(
+          spec.poolSize(),
+          pool.getTotalConnections(),
+          pool.getActiveConnections(),
+          pool.getIdleConnections(),
+          pool.getThreadsAwaitingConnection());
+    }
+
+    private synchronized void retireAfterLastLease() {
+      retireAfterLastLease = true;
+    }
+
+    private synchronized void retire() {
+      retired = true;
+      closeIfUnused();
+    }
+
+    private synchronized void release() {
+      leases = Math.max(0, leases - 1);
+      if (retireAfterLastLease) {
+        retired = true;
+      }
+      closeIfUnused();
+    }
+
+    private void closeIfUnused() {
+      if (retired && leases == 0 && !dataSource.isClosed()) {
+        dataSource.close();
+      }
+    }
+
+    private static final class Lease implements AutoCloseable {
+      private final ManagedDataSource owner;
+      private final HikariDataSource dataSource;
+      private boolean closed;
+
+      private Lease(ManagedDataSource owner, HikariDataSource dataSource) {
+        this.owner = owner;
+        this.dataSource = dataSource;
+      }
+
+      private Connection getConnection() throws Exception {
+        return dataSource.getConnection();
+      }
+
+      @Override
+      public void close() {
+        if (closed) {
+          return;
+        }
+        closed = true;
+        owner.release();
+      }
+    }
   }
 }

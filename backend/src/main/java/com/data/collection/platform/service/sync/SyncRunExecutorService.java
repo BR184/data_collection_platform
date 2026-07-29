@@ -1,5 +1,6 @@
 package com.data.collection.platform.service.sync;
 
+import com.data.collection.platform.common.logging.SyncRunLogContext;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.sync.SyncRun;
 import jakarta.annotation.PreDestroy;
@@ -95,19 +96,29 @@ public class SyncRunExecutorService {
     } catch (RejectedExecutionException e) {
       activeRuns.decrementAndGet();
       heartbeatWorkerLease();
+      leaseService.releaseOwnedRun(run);
       throw e;
     }
   }
 
   private void execute(SyncRun run) {
-    ScheduledFuture<?> heartbeat = startHeartbeat(run);
+    int leaseSeconds = Math.max(1, properties.getHeartbeatTimeoutSeconds());
+    ScheduledFuture<?> heartbeat = null;
     try {
+      if (leaseService.heartbeat(run.getId(), run.getLeaseOwner(), leaseSeconds) != 1) {
+        log.info(
+            "Skipped sync run because lease ownership changed before execution, runId={}",
+            run.getRunId());
+        return;
+      }
+      heartbeat = startHeartbeat(run);
       workerService.executeRun(run);
     } catch (RuntimeException e) {
       log.error("Async sync run execution failed, runId={}", run.getRunId(), e);
-      throw e;
     } finally {
-      heartbeat.cancel(false);
+      if (heartbeat != null) {
+        heartbeat.cancel(false);
+      }
       activeRuns.decrementAndGet();
       heartbeatWorkerLease();
     }
@@ -124,8 +135,9 @@ public class SyncRunExecutorService {
   }
 
   private void heartbeatRunAndWorker(SyncRun run, int leaseSeconds) {
-    try {
-      leaseService.heartbeat(run.getId(), leaseSeconds);
+    try (SyncRunLogContext.Scope runContext = SyncRunLogContext.openRun(run, null);
+        SyncRunLogContext.Scope action = SyncRunLogContext.action("Run_Heartbeat")) {
+      leaseService.heartbeat(run.getId(), run.getLeaseOwner(), leaseSeconds);
       heartbeatWorkerLease();
     } catch (RuntimeException e) {
       log.warn("Failed to heartbeat sync run worker lease, runId={}", run.getRunId(), e);
