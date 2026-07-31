@@ -232,7 +232,7 @@ class SyncRunTableWorkerServiceTest {
   void shouldUsePrimaryKeyCursorScanForFullSyncTask() {
     SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
     task.setTaskType("FULL_SYNC");
-    task.setRowStrategy("FULL");
+    task.setRowStrategy("FULL_RECONCILE");
     SyncRunTableState state = state(null);
     state.setUpdatedAtColumn("");
     state.setRowStrategy("FULL_ONLY");
@@ -262,7 +262,8 @@ class SyncRunTableWorkerServiceTest {
             isNull(),
             eq(500)))
         .thenReturn(rows);
-    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(2, 2, 0));
+    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L, true))
+        .thenReturn(new MirrorBatchWriteResult(2, 2, 0));
 
     int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
 
@@ -281,7 +282,7 @@ class SyncRunTableWorkerServiceTest {
             argThat(
                 (SyncRunTableState updated) ->
                     updated.getId().equals(91L)
-                        && Boolean.FALSE.equals(updated.getDirtyFlag())
+                        && Boolean.TRUE.equals(updated.getDirtyFlag())
                         && updated.getLastWatermarkAt() == null
                         && updated.getLastSuccessAt() != null));
   }
@@ -290,7 +291,7 @@ class SyncRunTableWorkerServiceTest {
   void shouldQueueNextFullSyncBatchWhenPrimaryKeyCursorBatchIsFull() {
     SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
     task.setTaskType("FULL_SYNC");
-    task.setRowStrategy("FULL");
+    task.setRowStrategy("FULL_RECONCILE");
     task.setBatchSize(2);
     task.setScanUpperBoundAt(LocalDateTime.of(2026, 5, 17, 10, 2));
     SyncRunTableState state = state(null);
@@ -325,7 +326,8 @@ class SyncRunTableWorkerServiceTest {
             isNull(),
             eq(2)))
         .thenReturn(rows);
-    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(2, 2, 0));
+    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L, true))
+        .thenReturn(new MirrorBatchWriteResult(2, 2, 0));
 
     int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
 
@@ -335,7 +337,7 @@ class SyncRunTableWorkerServiceTest {
             argThat(
                 (SyncRunTableTask nextTask) ->
                     nextTask.getRunId().equals(77L)
-                        && "FULL".equals(nextTask.getRowStrategy())
+                        && "FULL_RECONCILE".equals(nextTask.getRowStrategy())
                         && "[\"102\"]".equals(nextTask.getCursorPk())
                         && nextTask.getBatchSize().equals(2)
                         && nextTask.getPageNumber().equals(2)
@@ -354,7 +356,7 @@ class SyncRunTableWorkerServiceTest {
   void shouldPauseFullSyncAfterCommittedPageWithoutClaimingContinuation() {
     SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
     task.setTaskType("FULL_SYNC");
-    task.setRowStrategy("FULL");
+    task.setRowStrategy("FULL_RECONCILE");
     task.setBatchSize(2);
     task.setScanUpperBoundAt(LocalDateTime.of(2026, 5, 17, 10, 2));
     SyncRunTableState state = state(null);
@@ -398,7 +400,7 @@ class SyncRunTableWorkerServiceTest {
             isNull(),
             eq(2)))
         .thenReturn(rows);
-    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L))
+    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L, true))
         .thenReturn(new MirrorBatchWriteResult(2, 2, 0));
     when(yieldService.shouldYield(run)).thenReturn(true);
     when(yieldService.pauseIfRequested(run))
@@ -413,7 +415,7 @@ class SyncRunTableWorkerServiceTest {
     assertThat(result.processedTasks()).isEqualTo(1);
     assertThat(result.yielded()).isTrue();
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.PAUSED);
-    verify(mirrorTableWriter).writeBatch(mirrorSchema, rows, 501L);
+    verify(mirrorTableWriter).writeBatch(mirrorSchema, rows, 501L, true);
     verify(taskMapper)
         .insert(
             argThat(
@@ -432,11 +434,10 @@ class SyncRunTableWorkerServiceTest {
   }
 
   @Test
-  void shouldSetFullSyncWatermarkAfterFinalPrimaryKeyCursorBatch() {
-    LocalDateTime maxUpdatedAt = LocalDateTime.of(2026, 5, 17, 10, 9);
+  void shouldQueueReconciliationAfterFinalFullSyncBatch() {
     SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
     task.setTaskType("FULL_SYNC");
-    task.setRowStrategy("FULL");
+    task.setRowStrategy("FULL_RECONCILE");
     task.setCursorPk("[\"100\"]");
     task.setBatchSize(500);
     SyncRunTableState state = state(null);
@@ -469,23 +470,26 @@ class SyncRunTableWorkerServiceTest {
             eq("[\"100\"]"),
             eq(500)))
         .thenReturn(rows);
-    when(sourceTableReader.findMaxUpdatedAt(eq(config), argThat(option -> "issues".equals(option.tableName()))))
-        .thenReturn(maxUpdatedAt);
-    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L))
+    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L, true))
         .thenReturn(new MirrorBatchWriteResult(1, 1, 0));
 
     int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
 
     assertThat(processed).isEqualTo(1);
-    verify(taskMapper, never()).insert(any(SyncRunTableTask.class));
+    verify(taskMapper)
+        .insert(
+            argThat(
+                (SyncRunTableTask reconciliationTask) ->
+                    reconciliationTask.getTaskStage() == SyncRunTableTaskStage.RECONCILE
+                        && reconciliationTask.getParentTaskId().equals(501L)
+                        && "FULL_RECONCILE".equals(reconciliationTask.getRowStrategy())));
     verify(stateMapper)
         .updateById(
             argThat(
                 (SyncRunTableState updated) ->
                     updated.getId().equals(91L)
-                        && Boolean.FALSE.equals(updated.getDirtyFlag())
-                        && maxUpdatedAt.equals(updated.getLastWatermarkAt())
-                        && "".equals(updated.getLastCursorPk())));
+                        && Boolean.TRUE.equals(updated.getDirtyFlag())
+                        && updated.getLastWatermarkAt() == null));
   }
 
   @Test
@@ -565,8 +569,7 @@ class SyncRunTableWorkerServiceTest {
     SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
     task.setTaskType("SYSTEM_HOOK");
     task.setRowStrategy("AUTHORITATIVE");
-    task.setLookupColumn("issue_id");
-    task.setLookupValue("101");
+    task.setLookupScopeJson("{\"issue_id\":\"101\"}");
     SyncRunTableState state = state(null);
     state.setSourceTable("issue_assignees");
     state.setPrimaryKeyColumns("issue_id,user_id");
@@ -594,19 +597,72 @@ class SyncRunTableWorkerServiceTest {
     when(sourceTableReader.readPrecise(
             eq(config),
             argThat(option -> "issue_assignees".equals(option.tableName())),
-            eq("issue_id"),
-            eq("101")))
+            eq(Map.of("issue_id", "101"))))
         .thenReturn(rows);
     when(mirrorTableWriter.replaceAuthoritativeScope(
-            mirrorSchema, "issue_id", "101", rows, 501L))
+            mirrorSchema, Map.of("issue_id", "101"), rows, 501L))
         .thenReturn(new MirrorBatchWriteResult(1, 1, 0));
 
     int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
 
     assertThat(processed).isEqualTo(1);
-    verify(sourceTableReader).readPrecise(eq(config), argThat(option -> "issue_assignees".equals(option.tableName())), eq("issue_id"), eq("101"));
+    verify(sourceTableReader).readPrecise(
+        eq(config),
+        argThat(option -> "issue_assignees".equals(option.tableName())),
+        eq(Map.of("issue_id", "101")));
     verify(mirrorTableWriter)
-        .replaceAuthoritativeScope(mirrorSchema, "issue_id", "101", rows, 501L);
+        .replaceAuthoritativeScope(mirrorSchema, Map.of("issue_id", "101"), rows, 501L);
+  }
+
+  @Test
+  void shouldReplaceTypedLabelScopeWithEmptySourceCollection() {
+    SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
+    task.setTaskType("SYSTEM_HOOK");
+    task.setRowStrategy("AUTHORITATIVE");
+    task.setLookupScopeJson("{\"target_id\":\"101\",\"target_type\":\"Issue\"}");
+    SyncRunTableState state = state(null);
+    state.setSourceTable("label_links");
+    state.setPrimaryKeyColumns("label_id,target_id,target_type");
+    state.setUpdatedAtColumn("");
+    state.setRowStrategy("FULL_ONLY");
+    GitlabSyncConfig config = config();
+    SourceTableSchema mirrorSchema =
+        new SourceTableSchema(
+            "ods_gitlab_label_links",
+            List.of("label_id", "target_id", "target_type"),
+            "",
+            List.of(
+                new SourceTableColumn("label_id", "bigint", false, 1),
+                new SourceTableColumn("target_id", "bigint", false, 2),
+                new SourceTableColumn("target_type", "text", false, 3)));
+    Map<String, Object> lookupScope = Map.of("target_id", "101", "target_type", "Issue");
+
+    when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(77L)))
+        .thenReturn(false, false, false);
+    when(jdbcTemplate.queryForObject(
+            contains("update sync_run_table_tasks"), any(RowMapper.class), startsWith("table-worker-77-"), eq(30), eq(77L)))
+        .thenReturn(task)
+        .thenThrow(new EmptyResultDataAccessException(1));
+    when(stateMapper.selectById(91L)).thenReturn(state);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(
+            eq(config), argThat(option -> "label_links".equals(option.tableName()))))
+        .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(
+            mirrorSchema, "ods_gitlab_label_links", true, null));
+    when(sourceTableReader.readPrecise(
+            eq(config),
+            argThat(option -> "label_links".equals(option.tableName())),
+            eq(lookupScope)))
+        .thenReturn(List.of());
+    when(mirrorTableWriter.replaceAuthoritativeScope(
+            mirrorSchema, lookupScope, List.of(), 501L))
+        .thenReturn(new MirrorBatchWriteResult(0, 1, 0));
+
+    int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
+
+    assertThat(processed).isEqualTo(1);
+    verify(mirrorTableWriter)
+        .replaceAuthoritativeScope(mirrorSchema, lookupScope, List.of(), 501L);
   }
 
   @Test
@@ -614,8 +670,7 @@ class SyncRunTableWorkerServiceTest {
     SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
     task.setTaskType("SYSTEM_HOOK");
     task.setRowStrategy("PRECISE");
-    task.setLookupColumn("id");
-    task.setLookupValue("101");
+    task.setLookupScopeJson("{\"id\":\"101\"}");
     SyncRunTableState state = state(null);
     GitlabSyncConfig config = config();
     SourceTableSchema mirrorSchema =
@@ -652,8 +707,7 @@ class SyncRunTableWorkerServiceTest {
     when(sourceTableReader.readPrecise(
             eq(config),
             argThat(option -> "issues".equals(option.tableName())),
-            eq("id"),
-            eq("101")))
+            eq(Map.of("id", "101"))))
         .thenReturn(rows);
     when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L))
         .thenReturn(new MirrorBatchWriteResult(1, 1, 0));
@@ -663,7 +717,7 @@ class SyncRunTableWorkerServiceTest {
     assertThat(processed).isEqualTo(1);
     verify(mirrorTableWriter).writeBatch(mirrorSchema, rows, 501L);
     verify(mirrorTableWriter, never())
-        .replaceAuthoritativeScope(any(), any(), any(), any(), any());
+        .replaceAuthoritativeScope(any(), any(), any(), any());
   }
 
   @Test

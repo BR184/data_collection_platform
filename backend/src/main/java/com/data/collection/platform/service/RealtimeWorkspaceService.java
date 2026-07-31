@@ -25,6 +25,7 @@ public class RealtimeWorkspaceService {
 
   private final RealtimeWorkspaceSyncMetadataService syncMetadataService;
   private final RealtimeWorkspaceRefreshProgressService refreshProgressService;
+  private final AuthoritativeRelationReconciliationService reconciliationService;
   private final RealtimeWorkspaceService self;
   private final Map<String, WorkspaceRefreshState> states = new ConcurrentHashMap<>();
 
@@ -32,16 +33,18 @@ public class RealtimeWorkspaceService {
   public RealtimeWorkspaceService(
       RealtimeWorkspaceSyncMetadataService syncMetadataService,
       RealtimeWorkspaceRefreshProgressService refreshProgressService,
+      AuthoritativeRelationReconciliationService reconciliationService,
       @Lazy RealtimeWorkspaceService self) {
     this.syncMetadataService = syncMetadataService;
     this.refreshProgressService = refreshProgressService;
+    this.reconciliationService = reconciliationService;
     this.self = self == null ? this : self;
   }
 
   RealtimeWorkspaceService(
       RealtimeWorkspaceSyncMetadataService syncMetadataService,
       @Lazy RealtimeWorkspaceService self) {
-    this(syncMetadataService, null, self);
+    this(syncMetadataService, null, null, self);
   }
 
   public RealtimeWorkspaceStatusResponse getStatus(String workspaceKey) {
@@ -54,13 +57,13 @@ public class RealtimeWorkspaceService {
     if (state == null) {
       RealtimeWorkspaceRefreshProgress progress = findLatestProgress(workspaceKey);
       if (progress != null) {
-        return responseForProgress(
+        return applyReconciliationRequirement(responseForProgress(
             workspaceKey,
             null,
             metadata,
-            progress);
+            progress));
       }
-      return new RealtimeWorkspaceStatusResponse(
+      return applyReconciliationRequirement(new RealtimeWorkspaceStatusResponse(
           workspaceKey,
           true,
           metadata.lastSyncedAt() == null ? "IDLE" : "READY",
@@ -68,9 +71,9 @@ public class RealtimeWorkspaceService {
           false,
           metadata.lastSyncedAt(),
           metadata.taskStartedAt(),
-          metadata.taskFinishedAt());
+          metadata.taskFinishedAt()));
     }
-    return toResponse(workspaceKey, state, metadata);
+    return applyReconciliationRequirement(toResponse(workspaceKey, state, metadata));
   }
 
   public synchronized RealtimeWorkspaceStatusResponse requestRefresh(
@@ -271,6 +274,33 @@ public class RealtimeWorkspaceService {
       return ProgressState.ready("已展示最新事实数据");
     }
     return ProgressState.failed("事实刷新未完成，已展示当前可用数据");
+  }
+
+  private RealtimeWorkspaceStatusResponse applyReconciliationRequirement(
+      RealtimeWorkspaceStatusResponse response) {
+    if (response == null
+        || response.refreshing()
+        || reconciliationService == null
+        || !"READY".equals(response.status())
+        || !reconciliationService.requiresLabelLinkReconciliation(response.workspaceKey())) {
+      return response;
+    }
+    return new RealtimeWorkspaceStatusResponse(
+        response.workspaceKey(),
+        response.supported(),
+        "STALE",
+        "标签关系尚未完成全量对账，当前仅展示可用数据",
+        false,
+        response.lastSyncedAt(),
+        response.lastRefreshStartedAt(),
+        response.lastRefreshFinishedAt(),
+        response.jobId(),
+        response.sourceTables(),
+        response.plannedTasks(),
+        response.unsupportedTables(),
+        response.factRefreshPlanned(),
+        response.mirrorStatus(),
+        response.factStatus());
   }
 
   private RealtimeWorkspaceRefreshProgress findProgress(Long mirrorRunId, String workspaceKey) {

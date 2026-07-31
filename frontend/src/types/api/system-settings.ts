@@ -54,6 +54,7 @@ export interface CodeReviewMatchModeDbSettingsSaveRequest {
   selectedMongoCollectionNames: string[];
   reviewReportCollectionName: string;
   reviewProblemCollectionName: string;
+  reviewDataReadMode?: 'compatibility' | 'formal';
   codeReviewReadMode?: 'compatibility' | 'formal';
 }
 
@@ -85,8 +86,6 @@ export interface CodeReviewMatchModeSyncResponse {
 }
 
 export interface LegacyPlatformFormalImportRequest {
-  importReviewData: boolean;
-  importCodeReviewData: boolean;
   confirmationText: string;
   expectedSettingsUpdatedAt: string;
 }
@@ -105,7 +104,6 @@ export interface LegacyPlatformFormalImportResponse {
   accepted: boolean;
   status: 'SUCCESS' | 'FAILED';
   message: string;
-  review: LegacyPlatformFormalImportDomainResponse;
   codeReview: LegacyPlatformFormalImportDomainResponse;
 }
 

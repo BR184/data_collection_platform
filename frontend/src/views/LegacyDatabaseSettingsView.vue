@@ -49,7 +49,6 @@ const dgmProjectSourceSettings = ref<CodeReviewDgmGitlabProjectSourceResponse | 
 const dgmProjectOptions = ref<CodeReviewDgmGitlabProjectOptionResponse[]>([]);
 const formalImportConfirmationText = '我确认要将数据源导入新采集平台中';
 const formalImportConfirmation = ref('');
-const formalImportSelection = ref<Array<'review' | 'codeReview'>>(['review', 'codeReview']);
 
 const form = reactive<CodeReviewMatchModeDbSettingsSaveRequest>({
   enabled: true,
@@ -70,6 +69,7 @@ const form = reactive<CodeReviewMatchModeDbSettingsSaveRequest>({
   selectedMongoCollectionNames: [...defaultSelectedMongoCollectionNames],
   reviewReportCollectionName: 'reviewReport',
   reviewProblemCollectionName: 'problemDetail',
+  reviewDataReadMode: 'compatibility',
   codeReviewReadMode: 'compatibility',
 });
 
@@ -112,6 +112,7 @@ const statusText = computed(() => {
 
 const lastSyncTime = computed(() => formatDateTime(settings.value?.syncFinishedAt || settings.value?.syncStartedAt));
 const updatedTime = computed(() => formatDateTime(settings.value?.updatedAt));
+const reviewDataReadModeText = computed(() => readModeText(form.reviewDataReadMode));
 const codeReviewReadModeText = computed(() => readModeText(form.codeReviewReadMode));
 const canConfigure = computed(() => hasPermission(authState.currentUser, 'system.match_mode.config'));
 const canSync = computed(() => hasPermission(authState.currentUser, 'system.match_mode.sync'));
@@ -154,7 +155,6 @@ const formalImportDisabled = computed(
     !settings.value ||
     !canFormalImport.value ||
     settingsDirty.value ||
-    formalImportSelection.value.length === 0 ||
     formalImportConfirmation.value.trim() !== formalImportConfirmationText,
 );
 const settingsDirty = computed(() =>
@@ -296,14 +296,10 @@ async function importLegacyPlatformToFormal() {
   formalImporting.value = true;
   try {
     const result = await api.importLegacyPlatformToFormal({
-      importReviewData: formalImportSelection.value.includes('review'),
-      importCodeReviewData: formalImportSelection.value.includes('codeReview'),
       confirmationText: formalImportConfirmation.value.trim(),
       expectedSettingsUpdatedAt: settings.value?.updatedAt || '',
     });
-    const summary = `评审新增 ${result.review.insertedCount}、更新 ${result.review.updatedCount}`
-      + `、保护 ${result.review.skippedCount}、删除对账 ${result.review.deletedCount}`
-      + `；代码走查新增 ${result.codeReview.insertedCount}、更新 ${result.codeReview.updatedCount}`
+    const summary = `代码走查新增 ${result.codeReview.insertedCount}、更新 ${result.codeReview.updatedCount}`
       + `、删除对账 ${result.codeReview.deletedCount}`;
     if (!result.accepted) {
       ElMessage.error(`${result.message}；任务 #${result.runId}`);
@@ -313,7 +309,7 @@ async function importLegacyPlatformToFormal() {
     formalImportConfirmation.value = '';
     applySettings(await api.getCodeReviewMatchModeDbSettings());
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '老平台数据转正式失败');
+    ElMessage.error(error instanceof Error ? error.message : '代码走查数据转正式失败');
   } finally {
     formalImporting.value = false;
   }
@@ -455,6 +451,7 @@ function applySettings(nextSettings: CodeReviewMatchModeDbSettingsResponse) {
   );
   form.reviewReportCollectionName = nextSettings.reviewReportCollectionName || 'reviewReport';
   form.reviewProblemCollectionName = nextSettings.reviewProblemCollectionName || 'problemDetail';
+  form.reviewDataReadMode = nextSettings.reviewDataReadMode || 'compatibility';
   form.codeReviewReadMode = nextSettings.codeReviewReadMode || 'compatibility';
   savedSettingsSignature.value = settingsSignature(buildPayload());
 }
@@ -490,6 +487,7 @@ function buildPayload(): CodeReviewMatchModeDbSettingsSaveRequest {
     selectedMongoCollectionNames: normalizeSelectedMongoCollectionNames(form.selectedMongoCollectionNames),
     reviewReportCollectionName: form.reviewReportCollectionName.trim() || 'reviewReport',
     reviewProblemCollectionName: form.reviewProblemCollectionName.trim() || 'problemDetail',
+    reviewDataReadMode: form.reviewDataReadMode,
     codeReviewReadMode: form.codeReviewReadMode,
   };
 }
@@ -572,6 +570,10 @@ function readModeText(mode?: 'compatibility' | 'formal') {
             <strong>{{ selectedImportScopeText }}</strong>
           </div>
           <div class="legacy-db-status-item">
+            <span>评审数据读源</span>
+            <strong>{{ reviewDataReadModeText }}</strong>
+          </div>
+          <div class="legacy-db-status-item">
             <span>代码走查读源</span>
             <strong>{{ codeReviewReadModeText }}</strong>
           </div>
@@ -610,6 +612,13 @@ function readModeText(mode?: 'compatibility' | 'formal') {
           <el-form-item label="每 10 分钟自动同步">
             <el-switch v-model="form.syncEnabled" :disabled="!form.enabled" />
             <div class="form-help-text">上次同步结束后再等待 10 分钟触发下一次；同步过程中页面继续展示上一次已完成同步的数据。</div>
+          </el-form-item>
+          <el-form-item label="评审数据读源">
+            <el-radio-group v-model="form.reviewDataReadMode">
+              <el-radio-button label="compatibility">正式数据与老平台快照</el-radio-button>
+              <el-radio-button label="formal">仅新平台正式数据</el-radio-button>
+            </el-radio-group>
+            <div class="form-help-text">兼容读源会排除已由用户编辑并接管的老平台快照；切换为正式数据后不读取任何评审兼容表。</div>
           </el-form-item>
           <el-form-item label="代码走查读源">
             <el-radio-group v-model="form.codeReviewReadMode">
@@ -739,14 +748,14 @@ function readModeText(mode?: 'compatibility' | 'formal') {
             </el-form-item>
           </div>
 
-          <el-divider>老平台数据转正式数据</el-divider>
+          <el-divider>代码走查数据转正式数据</el-divider>
 
           <div class="legacy-db-formal-import">
             <el-alert
               type="warning"
               :closable="false"
               show-icon
-              title="该操作会先从已配置的老平台数据源拉取一次最新数据，再写入新平台正式业务表；重复数据会更新，不会追加双份。"
+              title="该操作会先从已配置的老平台 MySQL 数据源拉取一次最新代码走查数据，再写入新平台正式业务表；重复数据会更新，不会追加双份。"
             />
             <el-alert
               v-if="settingsDirty"
@@ -755,12 +764,6 @@ function readModeText(mode?: 'compatibility' | 'formal') {
               show-icon
               title="当前设置尚未保存，请先保存后再执行数据交接。"
             />
-            <el-form-item label="导入内容">
-              <el-checkbox-group v-model="formalImportSelection">
-                <el-checkbox label="review">评审数据</el-checkbox>
-                <el-checkbox label="codeReview">代码走查数据</el-checkbox>
-              </el-checkbox-group>
-            </el-form-item>
             <el-form-item label="确认文本">
               <el-input
                 v-model="formalImportConfirmation"
@@ -778,7 +781,7 @@ function readModeText(mode?: 'compatibility' | 'formal') {
                 :disabled="formalImportDisabled"
                 @click="importLegacyPlatformToFormal"
               >
-                老平台数据转正式数据
+                代码走查数据转正式数据
               </el-button>
             </div>
           </div>

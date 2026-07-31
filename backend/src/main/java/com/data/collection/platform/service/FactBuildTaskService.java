@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 @Service
 @Slf4j
 public class FactBuildTaskService {
+  static final String BUSY_MESSAGE = "已有事实构建任务正在执行，请稍后再试";
   private static final long FACT_BUILD_LOCK_KEY = 2026043001L;
   private static final String STATUS_RUNNING = "RUNNING";
   private static final String STATUS_PENDING = "PENDING";
@@ -67,12 +68,11 @@ public class FactBuildTaskService {
     String safeScope = normalizeScope(scope);
     try (Connection connection = dataSource.getConnection()) {
       if (!tryAcquireLock(connection)) {
-        String message = "已有事实构建任务正在执行，请稍后再试";
-        recordSkipped(safeScope, full, syncRunId, message);
+        recordSkipped(safeScope, full, syncRunId, BUSY_MESSAGE);
         if (syncRunId != null) {
-          throw new BizException(message);
+          throw new BizException(BUSY_MESSAGE);
         }
-        return new FactBuildResponse(safeScope, full, 0, message);
+        return new FactBuildResponse(safeScope, full, 0, BUSY_MESSAGE);
       }
       Long taskId = startTask(safeScope, full, syncRunId);
       try {
@@ -92,6 +92,10 @@ public class FactBuildTaskService {
     } catch (Exception error) {
       throw new IllegalStateException("事实构建任务锁处理失败", error);
     }
+  }
+
+  static boolean wasSkippedBecauseBusy(FactBuildResponse response) {
+    return response != null && BUSY_MESSAGE.equals(response.message());
   }
 
   public int enqueueMirrorRefreshTasks(GitlabSyncConfig config, boolean full) {

@@ -45,11 +45,16 @@ class GitlabSourceScanSqlBuilder {
         Math.max(1, batchSize)).strip();
   }
 
-  String buildPreciseScanSql(TableWhitelistOption option, String lookupColumn, Object lookupValue) {
-    return "select * from %s where %s = %s".formatted(
-        quoteQualifiedPublicTable(option.tableName()),
-        quoteIdentifier(lookupColumn),
-        toSqlLiteral(lookupValue));
+  String buildPreciseScanSql(TableWhitelistOption option, Map<String, Object> lookupScope) {
+    if (lookupScope == null || lookupScope.isEmpty()) {
+      throw new IllegalArgumentException("权威关系来源查询必须指定范围");
+    }
+    String predicate = lookupScope.entrySet().stream()
+        .sorted(Map.Entry.comparingByKey())
+        .map(entry -> quoteIdentifier(entry.getKey()) + " = " + toSqlLiteral(entry.getValue()))
+        .collect(java.util.stream.Collectors.joining(" and "));
+    return "select * from %s where %s".formatted(
+        quoteQualifiedPublicTable(option.tableName()), predicate);
   }
 
   String buildPreviewTablePageSql(

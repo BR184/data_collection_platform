@@ -1,8 +1,9 @@
 package com.data.collection.platform.service.analytics;
 
-import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.IssueScopeCatalogService;
+import com.data.collection.platform.service.QualityBoardCodeReviewReadSupport;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
+import com.data.collection.platform.service.statistics.SystemTestPhaseMembershipPolicy;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -11,7 +12,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -23,11 +23,15 @@ public class QualityBoardOtherQueryService {
 
   private final JdbcTemplate jdbcTemplate;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
+  private final QualityBoardCodeReviewReadSupport codeReviewReadSupport;
 
   public QualityBoardOtherQueryService(
-      JdbcTemplate jdbcTemplate, SystemTestPhaseScopeResolver phaseScopeResolver) {
+      JdbcTemplate jdbcTemplate,
+      SystemTestPhaseScopeResolver phaseScopeResolver,
+      QualityBoardCodeReviewReadSupport codeReviewReadSupport) {
     this.jdbcTemplate = jdbcTemplate;
     this.phaseScopeResolver = phaseScopeResolver;
+    this.codeReviewReadSupport = codeReviewReadSupport;
   }
 
   List<Row> load(QualityBoardOtherTopic topic, AnalyticsDashboardQueryContext context) {
@@ -59,30 +63,48 @@ public class QualityBoardOtherQueryService {
     return phaseScopeResolver.listEnabledParentNames(CROWN_CAD_PROJECT_ID);
   }
 
+  String memberScopeSourceVersion() {
+    return jdbcTemplate.queryForObject(
+        """
+        select concat(
+                 count(*), ':',
+                 coalesce(to_char(max(updated_at), 'YYYY-MM-DD"T"HH24:MI:SS.US'), 'empty')
+               )
+          from quality_board_member_scopes
+         where topic_key = 'QUALITY_RANKING'
+           and business_source = 'cc'
+        """,
+        String.class);
+  }
+
   private List<Row> functionDefectCountRows(String projectName) {
     List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
     if (phases.isEmpty()) {
       return List.of();
     }
-    SqlScope scope = issueScope(phases);
+    SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
+        containsPhasePredicate(phases);
+    List<Object> args = new ArrayList<>();
+    args.add(CROWN_CAD_PROJECT_ID);
+    args.addAll(phasePredicate.args());
     String sql = """
         select btrim(function_name) as item_name,
                count(*)::bigint as numerator
           from issue_fact
          where deleted = false
            and project_id = ?
-           and testing_phase in (%s)
+           and (%s)
            and nullif(btrim(function_name), '') is not null
            and btrim(function_name) not like '未设定%%'
            and coalesce(bug_status, '') not like '%%已拒绝%%'
          group by btrim(function_name)
          having count(*) > 0
          order by numerator desc, item_name
-        """.formatted(scope.placeholders());
+        """.formatted(phasePredicate.sql());
     return jdbcTemplate.query(
         sql,
         (rs, rowNum) -> Row.count(projectName, rs.getString("item_name"), rs.getLong("numerator")),
-        scope.args().toArray());
+        args.toArray());
   }
 
   private List<Row> functionDefectDensityRows(String projectName) {
@@ -90,48 +112,30 @@ public class QualityBoardOtherQueryService {
     if (phases.isEmpty()) {
       return List.of();
     }
-    SqlScope scope = issueScope(phases);
-    List<Object> args = new ArrayList<>();
-    args.add(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
-    args.add(CROWN_CAD_PROJECT_ID);
-    args.add(projectName);
-    args.addAll(scope.args());
-    String sql = """
-        with code_lines as (
-          select btrim(function_name) as item_name,
-                 sum(greatest(coalesce(added_lines, 0), 0))::bigint as added_lines
-            from merge_request_fact
-           where deleted = false
-             and lower(coalesce(source_instance, '')) = ?
-             and project_id = ?
-             and project_name = ?
-             and nullif(btrim(function_name), '') is not null
-             and btrim(function_name) <> '--'
-             and coalesce(scan_status, '') <> '无需代码走查'
-           group by btrim(function_name)
-        ),
-        issue_counts as (
-          select btrim(function_name) as item_name,
-                 count(*)::bigint as defect_count
-            from issue_fact
-           where deleted = false
-             and project_id = ?
-             and testing_phase in (%s)
-             and nullif(btrim(function_name), '') is not null
-             %s
-           group by btrim(function_name)
-        )
-        select lines.item_name,
-               issues.defect_count as numerator,
-               lines.added_lines as denominator,
-               round((issues.defect_count * 100.0 / lines.added_lines)::numeric, 2) as value
-          from code_lines lines
-          join issue_counts issues on issues.item_name = lines.item_name
-         where lines.added_lines > 0
-           and issues.defect_count > 0
-         order by value desc, lines.item_name
-        """.formatted(scope.placeholders(), rejectedIssuePredicate());
-    return jdbcTemplate.query(sql, this::mapRatioRow, args.toArray());
+    Map<String, Long> addedLines =
+        codeReviewReadSupport.reviewedAddedLinesByFunction(projectName);
+    if (addedLines.isEmpty()) {
+      return List.of();
+    }
+    Map<String, Long> issueCounts = issueCountsByFunction(phases);
+    return addedLines.entrySet().stream()
+        .filter(entry -> StringUtils.hasText(entry.getKey()))
+        .filter(entry -> !"--".equals(entry.getKey().trim()))
+        .map(entry -> {
+          String functionName = entry.getKey().trim();
+          long defectCount = issueCounts.entrySet().stream()
+              .filter(issue -> issue.getKey().contains(functionName))
+              .mapToLong(Map.Entry::getValue)
+              .sum();
+          long lines = Math.max(0L, entry.getValue() == null ? 0L : entry.getValue());
+          return Row.ratio(projectName, functionName, defectCount, lines,
+              percentage(defectCount, lines));
+        })
+        .sorted((left, right) -> {
+          int byValue = Double.compare(right.value(), left.value());
+          return byValue == 0 ? left.name().compareTo(right.name()) : byValue;
+        })
+        .toList();
   }
 
   private List<Row> qualityRankingRows(String projectName) {
@@ -139,49 +143,32 @@ public class QualityBoardOtherQueryService {
     if (phases.isEmpty()) {
       return List.of();
     }
-    SqlScope scope = issueScope(phases);
-    List<Object> args = new ArrayList<>();
-    args.add(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
-    args.add(CROWN_CAD_PROJECT_ID);
-    args.add(projectName);
-    args.addAll(scope.args());
-    String sql = """
-        with code_lines as (
-          select btrim(author_name) as item_name,
-                 sum(greatest(coalesce(added_lines, 0), 0))::bigint as added_lines
-            from merge_request_fact
-           where deleted = false
-             and lower(coalesce(source_instance, '')) = ?
-             and project_id = ?
-             and project_name = ?
-             and nullif(btrim(author_name), '') is not null
-             and btrim(author_name) not like '未设定%%'
-           group by btrim(author_name)
-        ),
-        issue_counts as (
-          select btrim(fix_user) as item_name,
-                 count(*)::bigint as defect_count
-            from issue_fact
-           where deleted = false
-             and project_id = ?
-             and testing_phase in (%s)
-             and coalesce(bug_status, '') not like '%%已拒绝%%'
-             and nullif(btrim(fix_user), '') is not null
-             and btrim(fix_user) <> '无合法评论'
-             and btrim(fix_user) not like '未设定%%'
-           group by btrim(fix_user)
-        )
-        select lines.item_name,
-               issues.defect_count as numerator,
-               lines.added_lines as denominator,
-               round((issues.defect_count * 1000.0 / lines.added_lines)::numeric, 2) as value
-          from code_lines lines
-          join issue_counts issues on issues.item_name = lines.item_name
-         where lines.added_lines > 0
-           and issues.defect_count > 0
-         order by value asc, lines.item_name
-        """.formatted(scope.placeholders());
-    return jdbcTemplate.query(sql, this::mapRatioRow, args.toArray());
+    List<QualityMember> members = qualityRankingMembers();
+    if (members.isEmpty()) {
+      return List.of();
+    }
+    Map<String, Long> addedLines = codeReviewReadSupport.addedLinesByAuthorAcrossAllProjects();
+    Map<MemberPhase, Long> issueCounts = issueCountsByMemberAndPhase(members, phases);
+    return members.stream()
+        .map(member -> {
+          long lines = Math.max(0L, addedLines.getOrDefault(member.name(), 0L));
+          long totalDefects = phases.stream()
+              .mapToLong(phase -> defectsForMemberPhase(issueCounts, member.name(), phase))
+              .sum();
+          double value = lines <= 0 || phases.isEmpty()
+              ? 0D
+              : round(phases.stream()
+                  .mapToDouble(phase -> defectsForMemberPhase(issueCounts, member.name(), phase)
+                      * 1000D / lines)
+                  .average()
+                  .orElse(0D));
+          return Row.ratio(projectName, member.name(), totalDefects, lines, value);
+        })
+        .sorted((left, right) -> {
+          int byValue = Double.compare(right.value(), left.value());
+          return byValue == 0 ? left.name().compareTo(right.name()) : byValue;
+        })
+        .toList();
   }
 
   private List<Row> memberUnresolvedRateRows(String projectName) {
@@ -189,7 +176,11 @@ public class QualityBoardOtherQueryService {
     if (phases.isEmpty()) {
       return List.of();
     }
-    SqlScope scope = issueScope(phases);
+    SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
+        containsPhasePredicate(phases);
+    List<Object> args = new ArrayList<>();
+    args.add(CROWN_CAD_PROJECT_ID);
+    args.addAll(phasePredicate.args());
     String sql = """
         select btrim(fix_user) as item_name,
                count(*) filter (where coalesce(bug_status, '') like '%%未修复%%')::bigint as numerator,
@@ -199,7 +190,7 @@ public class QualityBoardOtherQueryService {
           from issue_fact
          where deleted = false
            and project_id = ?
-           and testing_phase in (%s)
+           and (%s)
            and nullif(btrim(fix_user), '') is not null
            and btrim(fix_user) <> '无合法评论'
            and btrim(fix_user) not like '未设定%%'
@@ -207,8 +198,8 @@ public class QualityBoardOtherQueryService {
          group by btrim(fix_user)
         having count(*) filter (where coalesce(bug_status, '') like '%%未修复%%') > 0
          order by value desc, item_name
-        """.formatted(scope.placeholders(), rejectedIssuePredicate());
-    return jdbcTemplate.query(sql, this::mapRatioRow, scope.args().toArray());
+        """.formatted(phasePredicate.sql(), rejectedIssuePredicate());
+    return jdbcTemplate.query(sql, this::mapRatioRow, args.toArray());
   }
 
   private List<Row> releaseLeakageRateRows() {
@@ -230,29 +221,7 @@ public class QualityBoardOtherQueryService {
   }
 
   private List<Row> developmentLeakageRateRows() {
-    List<String> projectNames = enabledProjectNames();
-    Map<String, IssueCounts> issueCounts = issueCountsByProject(projectNames);
-    Map<String, Long> integrationCounts = integrationNotPassCountsByProject(projectNames);
-    return projectNames.stream()
-        .map(projectName -> developmentLeakageRateRow(
-            projectName,
-            issueCounts.get(projectName),
-            integrationCounts.get(projectName)))
-        .sorted((left, right) -> {
-          int byValue = Double.compare(right.value(), left.value());
-          return byValue == 0 ? left.name().compareTo(right.name()) : byValue;
-        })
-        .toList();
-  }
-
-  private Row developmentLeakageRateRow(
-      String projectName, IssueCounts counts, Long integrationCount) {
-    long systemTestIssues = counts == null ? 0L : counts.total();
-    long integrationNotPass = integrationCount == null ? 0L : integrationCount;
-    double value = integrationNotPass <= 0 || systemTestIssues <= 0
-        ? 0D
-        : percentage(integrationNotPass, integrationNotPass + systemTestIssues);
-    return Row.ratio(projectName, projectName, integrationNotPass, systemTestIssues, value);
+    return releaseLeakageRateRows();
   }
 
   private Map<String, IssueCounts> issueCountsByProject(List<String> projectNames) {
@@ -265,17 +234,25 @@ public class QualityBoardOtherQueryService {
     String sql = """
         with phase_scope(project_name, testing_phase) as (
           values %s
+        ),
+        project_scope as (
+          select distinct project_name from phase_scope
         )
         select scope.project_name,
                count(issue.testing_phase)::bigint as total_count,
                count(issue.testing_phase) filter (
                  where lower(coalesce(issue.issue_state, '')) in ('open', 'opened')
                )::bigint as open_count
-          from phase_scope scope
+          from project_scope scope
           left join issue_fact issue
             on issue.deleted = false
            and issue.project_id = ?
-           and issue.testing_phase = scope.testing_phase
+           and exists (
+             select 1
+               from phase_scope phase
+              where phase.project_name = scope.project_name
+                and issue.testing_phase like '%%' || phase.testing_phase || '%%'
+           )
            %s
          group by scope.project_name
         """.formatted(scope.placeholders(), rejectedIssuePredicate("issue."));
@@ -291,61 +268,6 @@ public class QualityBoardOtherQueryService {
     return Map.copyOf(byProject);
   }
 
-  private Map<String, Long> integrationNotPassCountsByProject(List<String> projectNames) {
-    if (projectNames.isEmpty() || !tableExists("integration_test_fact")) {
-      return Map.of();
-    }
-    BatchScope scope = integrationBatchScope(projectNames);
-    if (scope.entries().isEmpty()) {
-      return Map.of();
-    }
-    String sql = """
-        with integration_scope(project_name, testing_phase) as (
-          values %s
-        )
-        select scope.project_name,
-               coalesce(sum(integration_fact.not_pass_case), 0)::bigint
-                   as integration_not_pass
-          from integration_scope scope
-          left join integration_test_fact integration_fact
-            on integration_fact.deleted = false
-           and lower(coalesce(integration_fact.source_instance, '')) = ?
-           and integration_fact.project_id = ?
-           and integration_fact.testing_phase = scope.testing_phase
-         group by scope.project_name
-        """.formatted(scope.placeholders());
-    Map<String, Long> byProject = new LinkedHashMap<>();
-    List<Object> args = new ArrayList<>(scope.args());
-    args.add(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
-    args.add(CROWN_CAD_PROJECT_ID);
-    jdbcTemplate.query(
-            sql,
-            (rs, rowNum) -> new IntegrationCount(
-                rs.getString("project_name"), rs.getLong("integration_not_pass")),
-            args.toArray())
-        .forEach(result -> byProject.put(result.projectName(), result.notPass()));
-    return Map.copyOf(byProject);
-  }
-
-  private boolean tableExists(String tableName) {
-    try {
-      Boolean exists = jdbcTemplate.queryForObject(
-          "select to_regclass(?) is not null", Boolean.class, "public." + tableName);
-      return Boolean.TRUE.equals(exists);
-    } catch (DataAccessException error) {
-      return false;
-    }
-  }
-
-  private SqlScope issueScope(List<String> phases) {
-    List<Object> args = new ArrayList<>();
-    args.add(CROWN_CAD_PROJECT_ID);
-    args.addAll(phases);
-    return new SqlScope(
-        String.join(",", phases.stream().map(ignored -> "?").toList()),
-        List.copyOf(args));
-  }
-
   private BatchScope issueBatchScope(List<String> projectNames) {
     Set<ScopeEntry> entries = new LinkedHashSet<>();
     for (String projectName : projectNames) {
@@ -354,15 +276,6 @@ public class QualityBoardOtherQueryService {
           .map(phase -> new ScopeEntry(projectName, phase))
           .forEach(entries::add);
     }
-    return batchScope(entries);
-  }
-
-  private BatchScope integrationBatchScope(List<String> projectNames) {
-    Set<ScopeEntry> entries = new LinkedHashSet<>();
-    projectNames.stream()
-        .filter(StringUtils::hasText)
-        .map(projectName -> new ScopeEntry(projectName, projectName + "集成测试"))
-        .forEach(entries::add);
     return batchScope(entries);
   }
 
@@ -426,8 +339,6 @@ public class QualityBoardOtherQueryService {
     }
   }
 
-  private record SqlScope(String placeholders, List<Object> args) {}
-
   private record BatchScope(
       String placeholders, List<Object> args, List<ScopeEntry> entries) {}
 
@@ -435,5 +346,96 @@ public class QualityBoardOtherQueryService {
 
   private record IssueCounts(String projectName, long total, long open) {}
 
-  private record IntegrationCount(String projectName, long notPass) {}
+  private SystemTestPhaseMembershipPolicy.SqlPredicate containsPhasePredicate(
+      List<String> phases) {
+    return SystemTestPhaseMembershipPolicy.sqlPredicate(
+        phases, SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER);
+  }
+
+  private Map<String, Long> issueCountsByFunction(List<String> phases) {
+    SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
+        containsPhasePredicate(phases);
+    List<Object> args = new ArrayList<>();
+    args.add(CROWN_CAD_PROJECT_ID);
+    args.addAll(phasePredicate.args());
+    Map<String, Long> counts = new LinkedHashMap<>();
+    jdbcTemplate.query(
+            """
+            select btrim(function_name) as item_name,
+                   count(*)::bigint as numerator
+              from issue_fact
+             where deleted = false
+               and project_id = ?
+               and (%s)
+               and nullif(btrim(function_name), '') is not null
+               %s
+             group by btrim(function_name)
+            """.formatted(phasePredicate.sql(), rejectedIssuePredicate()),
+            (rs, rowNum) -> Map.entry(rs.getString("item_name"), rs.getLong("numerator")),
+            args.toArray())
+        .forEach(entry -> counts.put(entry.getKey(), entry.getValue()));
+    return Map.copyOf(counts);
+  }
+
+  private List<QualityMember> qualityRankingMembers() {
+    return jdbcTemplate.query(
+        """
+        select member_name, display_order
+          from quality_board_member_scopes
+         where topic_key = 'QUALITY_RANKING'
+           and business_source = 'cc'
+           and enabled = true
+         order by display_order, id
+        """,
+        (rs, rowNum) -> new QualityMember(
+            rs.getString("member_name"), rs.getInt("display_order")));
+  }
+
+  private Map<MemberPhase, Long> issueCountsByMemberAndPhase(
+      List<QualityMember> members, List<String> phases) {
+    SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
+        containsPhasePredicate(phases);
+    List<Object> args = new ArrayList<>();
+    args.add(CROWN_CAD_PROJECT_ID);
+    args.addAll(phasePredicate.args());
+    args.addAll(members.stream().map(QualityMember::name).toList());
+    String memberPlaceholders =
+        String.join(",", members.stream().map(ignored -> "?").toList());
+    Map<MemberPhase, Long> counts = new LinkedHashMap<>();
+    jdbcTemplate.query(
+            """
+            select btrim(fix_user) as member_name,
+                   testing_phase,
+                   count(*)::bigint as defect_count
+              from issue_fact
+             where deleted = false
+               and project_id = ?
+               and (%s)
+               and coalesce(bug_status, '') not like '%%已拒绝%%'
+               and btrim(coalesce(fix_user, '')) in (%s)
+             group by btrim(fix_user), testing_phase
+            """.formatted(phasePredicate.sql(), memberPlaceholders),
+            (rs, rowNum) -> Map.entry(
+                new MemberPhase(rs.getString("member_name"), rs.getString("testing_phase")),
+                rs.getLong("defect_count")),
+            args.toArray())
+        .forEach(entry -> counts.put(entry.getKey(), entry.getValue()));
+    return Map.copyOf(counts);
+  }
+
+  private long defectsForMemberPhase(
+      Map<MemberPhase, Long> counts, String memberName, String phase) {
+    return counts.entrySet().stream()
+        .filter(entry -> entry.getKey().memberName().equals(memberName))
+        .filter(entry -> SystemTestPhaseMembershipPolicy.matches(
+            entry.getKey().testingPhase(),
+            List.of(phase),
+            SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER))
+        .mapToLong(Map.Entry::getValue)
+        .sum();
+  }
+
+  private record QualityMember(String name, int displayOrder) {}
+
+  private record MemberPhase(String memberName, String testingPhase) {}
 }

@@ -97,6 +97,14 @@ platform:
     customer-issue-delay-writeback-worker-enabled: ${CUSTOMER_ISSUE_DELAY_WRITEBACK_WORKER_ENABLED:true}
     customer-issue-delay-writeback-worker-delay-ms: ${CUSTOMER_ISSUE_DELAY_WRITEBACK_WORKER_DELAY_MS:5000}
     customer-issue-delay-writeback-lease-seconds: ${CUSTOMER_ISSUE_DELAY_WRITEBACK_LEASE_SECONDS:120}
+    code-review-metric-enrichment-enabled: ${CODE_REVIEW_METRIC_ENRICHMENT_ENABLED:true}
+    code-review-metric-enrichment-delay-ms: ${CODE_REVIEW_METRIC_ENRICHMENT_DELAY_MS:2000}
+    code-review-metric-enrichment-initial-delay-ms: ${CODE_REVIEW_METRIC_ENRICHMENT_INITIAL_DELAY_MS:30000}
+    code-review-metric-concurrency: ${CODE_REVIEW_METRIC_CONCURRENCY:4}
+    code-review-metric-batch-size: ${CODE_REVIEW_METRIC_BATCH_SIZE:20}
+    code-review-metric-historical-scan-size: ${CODE_REVIEW_METRIC_HISTORICAL_SCAN_SIZE:200}
+    code-review-metric-request-timeout-seconds: ${CODE_REVIEW_METRIC_REQUEST_TIMEOUT_SECONDS:30}
+    code-review-metric-retry-base-seconds: ${CODE_REVIEW_METRIC_RETRY_BASE_SECONDS:30}
     delay-label-writeback-api-enabled: ${CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED:false}
   review-data:
     search-index-backfill-enabled: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED:false}

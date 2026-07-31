@@ -8,6 +8,7 @@ import com.data.collection.platform.entity.OptionItemResponse;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.ResultSetExtractor;
 
 class QualityBoardCodeReviewReadSupportTest {
 
@@ -82,5 +83,43 @@ class QualityBoardCodeReviewReadSupportTest {
     assertThat(scope.sourceInstance()).isEqualTo("dgm");
     assertThat(scope.projectNames()).containsExactly("CC2026R4", "CrownCAD 2026 R4");
     assertThat(options).extracting(OptionItemResponse::value).containsExactly("cc", "dgm");
+  }
+
+  @Test
+  void functionDensityExcludesMergeRequestsMarkedAsNoCodeReview() {
+    RecordingJdbcTemplate jdbc = new RecordingJdbcTemplate();
+    QualityBoardCodeReviewReadSupport readSupport =
+        new QualityBoardCodeReviewReadSupport(jdbc, matchModeSwitchService);
+
+    readSupport.reviewedAddedLinesByFunction("CC2026R4");
+
+    assertThat(jdbc.lastSql())
+        .contains("coalesce(scan_status, '') <> '无需代码走查'");
+  }
+
+  @Test
+  void qualityRankingAuthorDenominatorIncludesAllMergedCode() {
+    RecordingJdbcTemplate jdbc = new RecordingJdbcTemplate();
+    QualityBoardCodeReviewReadSupport readSupport =
+        new QualityBoardCodeReviewReadSupport(jdbc, matchModeSwitchService);
+
+    readSupport.addedLinesByAuthorAcrossAllProjects();
+
+    assertThat(jdbc.lastSql())
+        .doesNotContain("coalesce(scan_status, '') <> '无需代码走查'");
+  }
+
+  private static final class RecordingJdbcTemplate extends JdbcTemplate {
+    private String lastSql;
+
+    @Override
+    public <T> T query(String sql, ResultSetExtractor<T> resultSetExtractor, Object... args) {
+      lastSql = sql;
+      return null;
+    }
+
+    private String lastSql() {
+      return lastSql;
+    }
   }
 }

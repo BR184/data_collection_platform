@@ -2,13 +2,15 @@ package com.data.collection.platform.service.statistics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
-import com.data.collection.platform.service.CodeReviewDataReadMode;
 import com.data.collection.platform.service.CodeReviewMatchModeSwitchService;
 import com.data.collection.platform.service.ReviewDataMatchModeRecordRepository;
+import com.data.collection.platform.service.ReviewDataMirrorOptionRepository;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -21,49 +23,39 @@ import org.springframework.jdbc.core.RowMapper;
 
 class SystemTestHorizontalComparisonExportServiceTest {
   private final RecordingJdbcTemplate jdbcTemplate = new RecordingJdbcTemplate();
+  private final ReviewDataMirrorOptionRepository mirrorOptionRepository =
+      mock(ReviewDataMirrorOptionRepository.class);
   private final SystemTestHorizontalComparisonExportService exportService =
       new SystemTestHorizontalComparisonExportService(
           jdbcTemplate,
           mock(JsonUtils.class),
           mock(SystemTestPhaseScopeResolver.class),
           mock(CodeReviewMatchModeSwitchService.class),
-          mock(ReviewDataMatchModeRecordRepository.class));
+          mock(ReviewDataMatchModeRecordRepository.class),
+          mirrorOptionRepository);
 
   @Test
-  void matchModeModuleCatalogReadsCcAndDgmOnlyFromCompatibilitySnapshot() {
-    exportService.loadCodeReviewModules("CC2026R4", CodeReviewDataReadMode.MATCH_MODE);
+  void horizontalExportLoadsAtomicModuleCatalogFromMirroredGitlabLabels() {
+    when(mirrorOptionRepository.loadModuleNames()).thenReturn(List.of("工程图", "平台"));
 
-    assertThat(jdbcTemplate.queries()).hasSize(2);
-    assertThat(jdbcTemplate.queries())
-        .extracting(ModuleQuery::sql)
-        .allSatisfy(sql -> {
-          assertThat(sql).contains("from code_review_match_mode_records");
-          assertThat(sql).doesNotContain("merge_request_fact");
-        });
-    assertThat(jdbcTemplate.queries().get(0).args())
-        .containsExactly("cc", "crowncad", "cc2026r4");
-    assertThat(jdbcTemplate.queries().get(1).args())
-        .containsExactly("dgm", "dgm", "cc2026r4", "crowncad 2026 r4");
+    exportService.exportCsv(Map.of("projectName", "CC2026R4"));
+
+    verify(mirrorOptionRepository).loadModuleNames();
   }
 
   @Test
-  void formalModuleCatalogReadsCcAndDgmFromUnifiedFormalSource() {
-    exportService.loadCodeReviewModules("CC2026R4", CodeReviewDataReadMode.FORMAL);
+  void codeReviewFactsNeverBecomeHorizontalExportModuleCatalog() {
+    exportService.exportCsv(Map.of("projectName", "CC2026R4"));
 
-    assertThat(jdbcTemplate.queries()).hasSize(2);
     assertThat(jdbcTemplate.queries())
         .extracting(ModuleQuery::sql)
         .allSatisfy(sql -> assertThat(sql)
-            .contains("from code_review_formal_records")
-            .doesNotContain("merge_request_fact")
-            .doesNotContain("code_review_match_mode_records"));
-    assertThat(jdbcTemplate.queries().get(0).args()).containsExactly("cc", "cc2026r4");
-    assertThat(jdbcTemplate.queries().get(1).args())
-        .containsExactly("dgm", "cc2026r4", "crowncad 2026 r4");
+            .doesNotContain("from code_review_formal_records")
+            .doesNotContain("from code_review_match_mode_records"));
   }
 
   @Test
-  void horizontalExportAlwaysIncludesHistoricalReviewSnapshots() {
+  void horizontalExportIncludesHistoricalReviewSnapshotsWhenCompatibilityReadEnabled() {
     ReviewDataMatchModeRecordRepository reviewRepository =
         mock(ReviewDataMatchModeRecordRepository.class);
     when(reviewRepository.loadRecords())
@@ -88,17 +80,40 @@ class SystemTestHorizontalComparisonExportServiceTest {
                     false)));
     CodeReviewMatchModeSwitchService switchService = mock(CodeReviewMatchModeSwitchService.class);
     when(switchService.isCodeReviewCompatibilityReadEnabled()).thenReturn(false);
+    when(switchService.isReviewDataCompatibilityReadEnabled()).thenReturn(true);
     SystemTestHorizontalComparisonExportService service =
         new SystemTestHorizontalComparisonExportService(
             jdbcTemplate,
             mock(JsonUtils.class),
             mock(SystemTestPhaseScopeResolver.class),
             switchService,
-            reviewRepository);
+            reviewRepository,
+            mirrorOptionRepository);
 
     String csv = service.exportCsv(Map.of("projectName", "CC2026R4"));
 
     assertThat(csv).contains("历史模块");
+  }
+
+  @Test
+  void horizontalExportExcludesHistoricalReviewSnapshotsWhenCompatibilityReadDisabled() {
+    ReviewDataMatchModeRecordRepository reviewRepository =
+        mock(ReviewDataMatchModeRecordRepository.class);
+    CodeReviewMatchModeSwitchService switchService = mock(CodeReviewMatchModeSwitchService.class);
+    when(switchService.isCodeReviewCompatibilityReadEnabled()).thenReturn(false);
+    when(switchService.isReviewDataCompatibilityReadEnabled()).thenReturn(false);
+    SystemTestHorizontalComparisonExportService service =
+        new SystemTestHorizontalComparisonExportService(
+            jdbcTemplate,
+            mock(JsonUtils.class),
+            mock(SystemTestPhaseScopeResolver.class),
+            switchService,
+            reviewRepository,
+            mirrorOptionRepository);
+
+    service.exportCsv(Map.of("projectName", "CC2026R4"));
+
+    verifyNoInteractions(reviewRepository);
   }
 
   @Test
@@ -112,7 +127,8 @@ class SystemTestHorizontalComparisonExportServiceTest {
             mock(JsonUtils.class),
             phaseResolver,
             mock(CodeReviewMatchModeSwitchService.class),
-            mock(ReviewDataMatchModeRecordRepository.class));
+            mock(ReviewDataMatchModeRecordRepository.class),
+            mirrorOptionRepository);
 
     service.exportCsv(Map.of("testingPhase", "CC2026R4"));
 

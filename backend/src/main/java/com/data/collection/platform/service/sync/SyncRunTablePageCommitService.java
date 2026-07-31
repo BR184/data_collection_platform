@@ -48,12 +48,13 @@ public class SyncRunTablePageCommitService {
       boolean hasMore,
       boolean forceUpdate,
       boolean authoritative,
+      Map<String, Object> authoritativeScope,
       boolean fullReconcile) {
     leaseService.lockOwnedTask(task.getId(), task.getLeaseOwner());
     MirrorBatchWriteResult writeResult =
         authoritative
             ? mirrorTableWriter.replaceAuthoritativeScope(
-                mirrorSchema, task.getLookupColumn(), task.getLookupValue(), rows, task.getId())
+                mirrorSchema, authoritativeScope, rows, task.getId())
             : forceUpdate
                 ? mirrorTableWriter.writeBatch(mirrorSchema, rows, task.getId(), true)
                 : mirrorTableWriter.writeBatch(mirrorSchema, rows, task.getId());
@@ -146,14 +147,10 @@ public class SyncRunTablePageCommitService {
     state.setDirtyFlag(fullReconcile || hasMore);
     state.setLastSuccessAt(now);
     boolean globalScan = "INCREMENTAL".equalsIgnoreCase(task.getRowStrategy())
-        || "FULL".equalsIgnoreCase(task.getRowStrategy())
         || "FULL_RECONCILE".equalsIgnoreCase(task.getRowStrategy());
     if (globalScan && !hasMore && cursorUpdatedAt != null) {
       state.setLastWatermarkAt(cursorUpdatedAt);
       state.setLastCursorPk(cursorPk);
-    }
-    if (!fullReconcile && !hasMore && "FULL".equalsIgnoreCase(task.getRowStrategy())) {
-      state.setLastFullVerifiedAt(now);
     }
     state.setLastError("");
     state.setRetryCount(0);

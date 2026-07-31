@@ -14,7 +14,6 @@ import static org.mockito.Mockito.when;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
-import com.data.collection.platform.mapper.MergeRequestFactMapper;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -26,7 +25,8 @@ class FactBuildServiceTest {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     IssueFactPersistenceService issueFactPersistenceService = mock(IssueFactPersistenceService.class);
     IssueCustomerNameAliasService issueCustomerNameAliasService = mock(IssueCustomerNameAliasService.class);
-    MergeRequestFactMapper mergeRequestFactMapper = mock(MergeRequestFactMapper.class);
+    MergeRequestFactPersistenceService mergeRequestFactPersistenceService =
+        mock(MergeRequestFactPersistenceService.class);
     ModuleDictionaryService moduleDictionaryService = mock(ModuleDictionaryService.class);
     FactBuildTaskService factBuildTaskService = mock(FactBuildTaskService.class);
     GitlabSourceSchemaGuard sourceSchemaGuard = mock(GitlabSourceSchemaGuard.class);
@@ -51,7 +51,7 @@ class FactBuildServiceTest {
             jdbcTemplate,
             issueFactPersistenceService,
             issueCustomerNameAliasService,
-            mergeRequestFactMapper,
+            mergeRequestFactPersistenceService,
             moduleDictionaryService,
             factBuildTaskService,
             sourceSchemaGuard,
@@ -66,7 +66,7 @@ class FactBuildServiceTest {
     verifyNoInteractions(
         issueFactPersistenceService,
         issueCustomerNameAliasService,
-        mergeRequestFactMapper,
+        mergeRequestFactPersistenceService,
         moduleDictionaryService,
         integrationTestFactBuildService,
         jdbcTemplate);
@@ -77,7 +77,8 @@ class FactBuildServiceTest {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     IssueFactPersistenceService issueFactPersistenceService = mock(IssueFactPersistenceService.class);
     IssueCustomerNameAliasService issueCustomerNameAliasService = mock(IssueCustomerNameAliasService.class);
-    MergeRequestFactMapper mergeRequestFactMapper = mock(MergeRequestFactMapper.class);
+    MergeRequestFactPersistenceService mergeRequestFactPersistenceService =
+        mock(MergeRequestFactPersistenceService.class);
     ModuleDictionaryService moduleDictionaryService = mock(ModuleDictionaryService.class);
     FactBuildTaskService factBuildTaskService = mock(FactBuildTaskService.class);
     GitlabSourceSchemaGuard sourceSchemaGuard = mock(GitlabSourceSchemaGuard.class);
@@ -103,7 +104,7 @@ class FactBuildServiceTest {
             jdbcTemplate,
             issueFactPersistenceService,
             issueCustomerNameAliasService,
-            mergeRequestFactMapper,
+            mergeRequestFactPersistenceService,
             moduleDictionaryService,
             factBuildTaskService,
             sourceSchemaGuard,
@@ -120,7 +121,7 @@ class FactBuildServiceTest {
     verifyNoInteractions(
         issueFactPersistenceService,
         issueCustomerNameAliasService,
-        mergeRequestFactMapper,
+        mergeRequestFactPersistenceService,
         moduleDictionaryService,
         integrationTestFactBuildService,
         jdbcTemplate);

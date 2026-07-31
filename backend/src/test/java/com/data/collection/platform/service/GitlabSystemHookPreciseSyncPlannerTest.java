@@ -25,14 +25,28 @@ class GitlabSystemHookPreciseSyncPlannerTest {
     List<GitlabSystemHookPreciseSyncTarget> targets = planner.planTargets(payload);
 
     assertThat(targets).containsExactly(
-        new GitlabSystemHookPreciseSyncTarget("issues", "id", 101L),
-        new GitlabSystemHookPreciseSyncTarget("issue_assignees", "issue_id", 101L),
-        new GitlabSystemHookPreciseSyncTarget("issue_metrics", "issue_id", 101L),
-        new GitlabSystemHookPreciseSyncTarget("label_links", "target_id", 101L));
+        new GitlabSystemHookPreciseSyncTarget("issues", Map.of("id", "101")),
+        new GitlabSystemHookPreciseSyncTarget("issue_assignees", Map.of("issue_id", "101")),
+        new GitlabSystemHookPreciseSyncTarget("issue_metrics", Map.of("issue_id", "101")),
+        new GitlabSystemHookPreciseSyncTarget(
+            "notes", Map.of("noteable_id", "101", "noteable_type", "Issue")),
+        new GitlabSystemHookPreciseSyncTarget(
+            "label_links", Map.of("target_id", "101", "target_type", "Issue")));
   }
 
   @Test
-  void shouldPlanMergeRequestSystemHookToMergeRequestsAndMergeTrains() {
+  void shouldSkipTypedLabelScopeWhenIssueIdIsMissing() {
+    Map<String, Object> payload = Map.of(
+        "object_kind", "issue",
+        "object_attributes", Map.of());
+
+    List<GitlabSystemHookPreciseSyncTarget> targets = planner.planTargets(payload);
+
+    assertThat(targets).isEmpty();
+  }
+
+  @Test
+  void test_merge_request_hook_plans_only_supported_authoritative_scopes() {
     Map<String, Object> payload = Map.of(
         "object_kind", "merge_request",
         "object_attributes", Map.of("id", 202L));
@@ -40,16 +54,18 @@ class GitlabSystemHookPreciseSyncPlannerTest {
     List<GitlabSystemHookPreciseSyncTarget> targets = planner.planTargets(payload);
 
     assertThat(targets).containsExactly(
-        new GitlabSystemHookPreciseSyncTarget("merge_requests", "id", 202L),
-        new GitlabSystemHookPreciseSyncTarget("merge_request_assignees", "merge_request_id", 202L),
-        new GitlabSystemHookPreciseSyncTarget("merge_request_reviewers", "merge_request_id", 202L),
-        new GitlabSystemHookPreciseSyncTarget("merge_request_metrics", "merge_request_id", 202L),
-        new GitlabSystemHookPreciseSyncTarget("label_links", "target_id", 202L),
-        new GitlabSystemHookPreciseSyncTarget("merge_trains", "merge_request_id", 202L));
+        new GitlabSystemHookPreciseSyncTarget("merge_requests", Map.of("id", "202")),
+        new GitlabSystemHookPreciseSyncTarget("merge_request_assignees", Map.of("merge_request_id", "202")),
+        new GitlabSystemHookPreciseSyncTarget("merge_request_reviewers", Map.of("merge_request_id", "202")),
+        new GitlabSystemHookPreciseSyncTarget("merge_request_metrics", Map.of("merge_request_id", "202")),
+        new GitlabSystemHookPreciseSyncTarget(
+            "notes", Map.of("noteable_id", "202", "noteable_type", "MergeRequest")),
+        new GitlabSystemHookPreciseSyncTarget(
+            "label_links", Map.of("target_id", "202", "target_type", "MergeRequest")));
   }
 
   @Test
-  void shouldPlanNoteSystemHookToNotesAndParentIssue() {
+  void test_note_hook_uses_complete_polymorphic_parent_scope() {
     Map<String, Object> payload = Map.of(
         "object_kind", "note",
         "object_attributes", Map.of(
@@ -60,8 +76,8 @@ class GitlabSystemHookPreciseSyncPlannerTest {
     List<GitlabSystemHookPreciseSyncTarget> targets = planner.planTargets(payload);
 
     assertThat(targets).containsExactly(
-        new GitlabSystemHookPreciseSyncTarget("notes", "id", 303L),
-        new GitlabSystemHookPreciseSyncTarget("issues", "id", 404L));
+        new GitlabSystemHookPreciseSyncTarget(
+            "notes", Map.of("noteable_id", "404", "noteable_type", "Issue")));
   }
 
   @Test
@@ -74,13 +90,13 @@ class GitlabSystemHookPreciseSyncPlannerTest {
         "build_id", 606L);
 
     assertThat(planner.planTargets(pipelinePayload))
-        .containsExactly(new GitlabSystemHookPreciseSyncTarget("ci_pipelines", "id", 505L));
+        .containsExactly(new GitlabSystemHookPreciseSyncTarget("ci_pipelines", Map.of("id", "505")));
     assertThat(planner.planTargets(buildPayload))
-        .containsExactly(new GitlabSystemHookPreciseSyncTarget("ci_builds", "id", 606L));
+        .containsExactly(new GitlabSystemHookPreciseSyncTarget("ci_builds", Map.of("id", "606")));
   }
 
   @Test
-  void shouldPlanDeploymentReleaseProjectAndUserSystemHooks() {
+  void test_entity_hooks_plan_supported_targets_without_unregistered_tables() {
     Map<String, Object> deploymentPayload = Map.of(
         "object_kind", "deployment",
         "object_attributes", Map.of("id", 707L));
@@ -95,17 +111,16 @@ class GitlabSystemHookPreciseSyncPlannerTest {
         "object_attributes", Map.of("id", 1001L));
 
     assertThat(planner.planTargets(deploymentPayload))
-        .containsExactly(new GitlabSystemHookPreciseSyncTarget("deployments", "id", 707L));
-    assertThat(planner.planTargets(releasePayload))
-        .containsExactly(new GitlabSystemHookPreciseSyncTarget("releases", "id", 808L));
+        .containsExactly(new GitlabSystemHookPreciseSyncTarget("deployments", Map.of("id", "707")));
+    assertThat(planner.planTargets(releasePayload)).isEmpty();
     assertThat(planner.planTargets(projectPayload))
         .containsExactly(
-            new GitlabSystemHookPreciseSyncTarget("projects", "id", 909L),
-            new GitlabSystemHookPreciseSyncTarget("members", "source_id", 909L),
-            new GitlabSystemHookPreciseSyncTarget("environments", "project_id", 909L),
-            new GitlabSystemHookPreciseSyncTarget("todos", "project_id", 909L));
+            new GitlabSystemHookPreciseSyncTarget("projects", Map.of("id", "909")),
+            new GitlabSystemHookPreciseSyncTarget("members", Map.of("source_id", "909")),
+            new GitlabSystemHookPreciseSyncTarget("environments", Map.of("project_id", "909")),
+            new GitlabSystemHookPreciseSyncTarget("todos", Map.of("project_id", "909")));
     assertThat(planner.planTargets(userPayload))
-        .containsExactly(new GitlabSystemHookPreciseSyncTarget("users", "id", 1001L));
+        .containsExactly(new GitlabSystemHookPreciseSyncTarget("users", Map.of("id", "1001")));
   }
 
   @Test

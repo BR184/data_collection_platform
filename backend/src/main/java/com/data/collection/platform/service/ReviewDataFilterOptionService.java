@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.ReviewDataFilterOptionsResponse;
+import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -43,14 +44,17 @@ public class ReviewDataFilterOptionService {
 
   private final ReviewDataMirrorOptionRepository mirrorOptionRepository;
   private final ReviewDataHistoricalOptionRepository historicalOptionRepository;
+  private final CodeReviewMatchModeSwitchService matchModeSwitchService;
   private final ReviewDataMatchModeRecordRepository matchModeRecordRepository;
 
   public ReviewDataFilterOptionService(
       ReviewDataMirrorOptionRepository mirrorOptionRepository,
       ReviewDataHistoricalOptionRepository historicalOptionRepository,
+      CodeReviewMatchModeSwitchService matchModeSwitchService,
       ReviewDataMatchModeRecordRepository matchModeRecordRepository) {
     this.mirrorOptionRepository = mirrorOptionRepository;
     this.historicalOptionRepository = historicalOptionRepository;
+    this.matchModeSwitchService = matchModeSwitchService;
     this.matchModeRecordRepository = matchModeRecordRepository;
   }
 
@@ -71,11 +75,15 @@ public class ReviewDataFilterOptionService {
     List<String> historicalReviewOwners = historicalOptionRepository.loadReviewOwners();
     List<String> historicalReviewExperts = historicalOptionRepository.loadReviewExperts();
     List<String> historicalAuthors = historicalOptionRepository.loadAuthors();
-    // 评审历史数据是正式表和兼容快照的统一读源，与代码走查兼容开关无关。
-    List<String> matchProjectNames = matchModeRecordRepository.loadProjectNames();
-    List<String> matchModuleNames = matchModeRecordRepository.loadModuleNames();
-    List<String> matchReviewOwners = matchModeRecordRepository.loadReviewOwners();
-    List<String> matchReviewExperts = matchModeRecordRepository.loadReviewExperts();
+    List<ReviewDataRecordRowResponse> matchRecords = List.of();
+    if (matchModeSwitchService.isReviewDataCompatibilityReadEnabled()) {
+      // 与列表同源，避免将已由用户接管、当前不可查询的旧快照字段作为筛选候选返回。
+      matchRecords = matchModeRecordRepository.loadRecords();
+    }
+    List<String> matchProjectNames = matchRecords.stream().map(ReviewDataRecordRowResponse::projectName).toList();
+    List<String> matchModuleNames = matchRecords.stream().map(ReviewDataRecordRowResponse::moduleName).toList();
+    List<String> matchReviewOwners = matchRecords.stream().map(ReviewDataRecordRowResponse::reviewOwner).toList();
+    List<String> matchReviewExperts = matchModeReviewExperts(matchRecords);
 
     // 快速筛选只展示当前记录查询能够命中的项目，不能混入没有评审记录的 GitLab 仓库项目。
     List<String> filterProjectNames = mergeValues(historicalProjectNames, matchProjectNames);
@@ -116,6 +124,15 @@ public class ReviewDataFilterOptionService {
       values.addAll(source);
     }
     return List.copyOf(values);
+  }
+
+  private List<String> matchModeReviewExperts(List<ReviewDataRecordRowResponse> records) {
+    return records.stream()
+        .flatMap(
+            record ->
+                java.util.Arrays.stream(
+                    TextQuerySupport.normalizeDisplay(record.reviewExpertsSummary()).split("、")))
+        .toList();
   }
 
   private List<OptionItemResponse> toOptions(List<String> values) {

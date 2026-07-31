@@ -107,7 +107,7 @@ class RealtimeWorkspaceServiceTest {
     RealtimeWorkspaceRefreshProgressService progressService =
         mock(RealtimeWorkspaceRefreshProgressService.class);
     RealtimeWorkspaceService service =
-        new RealtimeWorkspaceService(syncMetadataService, progressService, null);
+        new RealtimeWorkspaceService(syncMetadataService, progressService, null, null);
     LocalDateTime startedAt = LocalDateTime.of(2026, 5, 18, 10, 1);
     when(progressService.findByMirrorRunId(21L, "customer-issue-cc-product-records"))
         .thenReturn(
@@ -164,7 +164,7 @@ class RealtimeWorkspaceServiceTest {
     RealtimeWorkspaceRefreshProgressService progressService =
         mock(RealtimeWorkspaceRefreshProgressService.class);
     RealtimeWorkspaceService service =
-        new RealtimeWorkspaceService(syncMetadataService, progressService, null);
+        new RealtimeWorkspaceService(syncMetadataService, progressService, null, null);
     LocalDateTime startedAt = LocalDateTime.of(2026, 5, 18, 10, 1);
     when(progressService.findLatestForWorkspace("customer-issue-cc-product-records"))
         .thenReturn(
@@ -183,5 +183,20 @@ class RealtimeWorkspaceServiceTest {
     assertThat(status.status()).isEqualTo("REFRESHING");
     assertThat(status.jobId()).isEqualTo(31L);
     assertThat(status.factStatus()).isEqualTo("RUNNING");
+  }
+
+  @Test
+  void shouldMarkReadyWorkspaceStaleUntilLabelRelationsAreReconciled() {
+    AuthoritativeRelationReconciliationService reconciliationService =
+        mock(AuthoritativeRelationReconciliationService.class);
+    when(reconciliationService.requiresLabelLinkReconciliation("system-test-defect-summary"))
+        .thenReturn(true);
+    RealtimeWorkspaceService service =
+        new RealtimeWorkspaceService(syncMetadataService, null, reconciliationService, null);
+
+    var status = service.getStatus("system-test-defect-summary");
+
+    assertThat(status.status()).isEqualTo("STALE");
+    assertThat(status.message()).contains("标签关系尚未完成全量对账");
   }
 }

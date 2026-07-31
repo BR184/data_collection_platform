@@ -3,6 +3,7 @@ package com.data.collection.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.JsonUtils;
@@ -24,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ReviewDataRecordQueryServiceTest {
   @Mock private ReviewDataRecordPersistenceSupport persistenceSupport;
   @Mock private LabelGroupExpansionService labelGroupExpansionService;
+  @Mock private CodeReviewMatchModeSwitchService matchModeSwitchService;
   @Mock private ReviewDataMatchModeRecordRepository matchModeRecordRepository;
   @Mock private ReviewDataMatchModeMaterializeService matchModeMaterializeService;
 
@@ -64,8 +66,9 @@ class ReviewDataRecordQueryServiceTest {
   }
 
   @Test
-  void shouldAlwaysMergeFormalRecordsWithHistoricalSnapshotRecords() {
+  void shouldMergeFormalRecordsWithHistoricalSnapshotRecordsWhenCompatibilityReadEnabled() {
     ReviewDataRecordQueryService service = service();
+    when(matchModeSwitchService.isReviewDataCompatibilityReadEnabled()).thenReturn(true);
     when(persistenceSupport.loadRecords(null, null, null, null, null, null, null, null))
         .thenReturn(List.of(row(1L, "正式项目", "正式模块", "负责人A", "专家A")));
     when(matchModeRecordRepository.loadRecords())
@@ -81,6 +84,37 @@ class ReviewDataRecordQueryServiceTest {
         .containsExactly(1L, -2L);
     verify(matchModeRecordRepository).loadRecords();
     verify(persistenceSupport).loadRecords(null, null, null, null, null, null, null, null);
+  }
+
+  @Test
+  void shouldReadOnlyFormalRecordsWhenCompatibilityReadDisabled() {
+    ReviewDataRecordQueryService service = service();
+    when(matchModeSwitchService.isReviewDataCompatibilityReadEnabled()).thenReturn(false);
+    when(labelGroupExpansionService.expand(1L, "STRING", "moduleName", "review-data-home", null))
+        .thenReturn(expansion(1L, "正式模块", "正式模块"));
+    when(persistenceSupport.loadRecords(null, null, null, null, null, null, null, null))
+        .thenReturn(List.of(row(1L, "正式项目", "正式模块", "负责人A", "专家A")));
+
+    ReviewDataRecordListResponse response =
+        service.listRecords(
+            new ReviewDataRecordQueryRequest(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                labelGroupFilter("moduleName", "eq", 1L),
+                null,
+                1,
+                20,
+                "updatedAt",
+                "desc"));
+
+    assertThat(response.records()).extracting(ReviewDataRecordRowResponse::id).containsExactly(1L);
+    verifyNoInteractions(matchModeRecordRepository);
   }
 
   @Test
@@ -203,6 +237,7 @@ class ReviewDataRecordQueryServiceTest {
         new ReviewDataSummaryService(),
         new JsonUtils(new ObjectMapper()),
         labelGroupExpansionService,
+        matchModeSwitchService,
         matchModeRecordRepository,
         matchModeMaterializeService);
   }

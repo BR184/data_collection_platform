@@ -1,11 +1,15 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.sync.SyncRunTableTask;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.mapper.SyncRunTableTaskMapper;
+import com.data.collection.platform.service.sync.AuthoritativeRelationCatalog;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,10 +21,15 @@ public class FactRefreshImpactScopeService {
 
   private final JdbcTemplate jdbcTemplate;
   private final SyncRunTableTaskMapper tableTaskMapper;
+  private final JsonUtils jsonUtils;
 
-  public FactRefreshImpactScopeService(JdbcTemplate jdbcTemplate, SyncRunTableTaskMapper tableTaskMapper) {
+  public FactRefreshImpactScopeService(
+      JdbcTemplate jdbcTemplate,
+      SyncRunTableTaskMapper tableTaskMapper,
+      JsonUtils jsonUtils) {
     this.jdbcTemplate = jdbcTemplate;
     this.tableTaskMapper = tableTaskMapper;
+    this.jsonUtils = jsonUtils;
   }
 
   public ImpactScope resolve(Long mirrorRunId, String sourceInstance, String factType) {
@@ -53,6 +62,9 @@ public class FactRefreshImpactScopeService {
     Set<Target> targets = new LinkedHashSet<>();
     for (SyncRunTableTask task : tasks) {
       String table = normalizeTable(task.getSourceTable());
+      if (!hasValidAuthoritativeScope(task, table)) {
+        return ImpactScope.fallback();
+      }
       if (List.of("projects", "users", "labels", "milestones").contains(table)) {
         return ImpactScope.fallback();
       }
@@ -61,6 +73,7 @@ public class FactRefreshImpactScopeService {
         case "notes" -> addIssueTargetsFromNotes(task, targets);
         case "label_links" -> addIssueTargetsFromLabelLinks(task, targets);
         case "issue_assignees" -> addIssueTargetsFromIssueAssignees(task, targets);
+        case "issue_metrics" -> addIssueTargetsFromIssueMetrics(task, targets);
         case "resource_label_events" -> addIssueTargetsFromResourceLabelEvents(task, targets);
         default -> {
           // Tables unrelated to issue facts can be ignored for ISSUE tasks.
@@ -77,6 +90,9 @@ public class FactRefreshImpactScopeService {
     Set<Target> targets = new LinkedHashSet<>();
     for (SyncRunTableTask task : tasks) {
       String table = normalizeTable(task.getSourceTable());
+      if (!hasValidAuthoritativeScope(task, table)) {
+        return ImpactScope.fallback();
+      }
       if (List.of("projects", "users", "labels", "namespaces").contains(table)) {
         return ImpactScope.fallback();
       }
@@ -112,13 +128,16 @@ public class FactRefreshImpactScopeService {
   }
 
   private void addIssueTargetsFromIssues(SyncRunTableTask task, Set<Target> targets) {
+    if (isAuthoritative(task)) {
+      addIssueTargetById(scopeLong(task, "id"), targets);
+      return;
+    }
     String issues = quoteMirrorTable("issues");
     targets.addAll(queryTargets(
         """
             select distinct project_id, iid
               from %s
              where mirror_task_id = ?
-               and coalesce(mirror_deleted, false) = false
                and project_id is not null
                and iid is not null
             """.formatted(issues),
@@ -126,6 +145,12 @@ public class FactRefreshImpactScopeService {
   }
 
   private void addIssueTargetsFromNotes(SyncRunTableTask task, Set<Target> targets) {
+    if (isAuthoritative(task)) {
+      if ("Issue".equals(scopeText(task, "noteable_type"))) {
+        addIssueTargetById(scopeLong(task, "noteable_id"), targets);
+      }
+      return;
+    }
     String notes = quoteMirrorTable("notes");
     String issues = quoteMirrorTable("issues");
     targets.addAll(queryTargets(
@@ -145,6 +170,12 @@ public class FactRefreshImpactScopeService {
   }
 
   private void addIssueTargetsFromLabelLinks(SyncRunTableTask task, Set<Target> targets) {
+    if (isAuthoritative(task)) {
+      if ("Issue".equals(scopeText(task, "target_type"))) {
+        addIssueTargetById(scopeLong(task, "target_id"), targets);
+      }
+      return;
+    }
     String labelLinks = quoteMirrorTable("label_links");
     String issues = quoteMirrorTable("issues");
     targets.addAll(queryTargets(
@@ -163,6 +194,10 @@ public class FactRefreshImpactScopeService {
   }
 
   private void addIssueTargetsFromIssueAssignees(SyncRunTableTask task, Set<Target> targets) {
+    if (isAuthoritative(task)) {
+      addIssueTargetById(scopeLong(task, "issue_id"), targets);
+      return;
+    }
     String assignees = quoteMirrorTable("issue_assignees");
     String issues = quoteMirrorTable("issues");
     targets.addAll(queryTargets(
@@ -179,6 +214,12 @@ public class FactRefreshImpactScopeService {
         task.getId()));
   }
 
+  private void addIssueTargetsFromIssueMetrics(SyncRunTableTask task, Set<Target> targets) {
+    if (isAuthoritative(task)) {
+      addIssueTargetById(scopeLong(task, "issue_id"), targets);
+    }
+  }
+
   private void addIssueTargetsFromResourceLabelEvents(
       SyncRunTableTask task, Set<Target> targets) {
     String events = quoteMirrorTable("resource_label_events");
@@ -188,11 +229,11 @@ public class FactRefreshImpactScopeService {
             select distinct i.project_id, i.iid
               from %s event
               join %s i
-                on i.id = event.resource_id
+                on i.id = event.issue_id
                and coalesce(i.mirror_deleted, false) = false
              where event.mirror_task_id = ?
                and coalesce(event.mirror_deleted, false) = false
-               and event.resource_type = 'Issue'
+               and event.issue_id is not null
                and i.project_id is not null
                and i.iid is not null
             """.formatted(events, issues),
@@ -200,13 +241,16 @@ public class FactRefreshImpactScopeService {
   }
 
   private void addMergeRequestTargetsFromMergeRequests(SyncRunTableTask task, Set<Target> targets) {
+    if (isAuthoritative(task)) {
+      addMergeRequestTargetById(scopeLong(task, "id"), targets);
+      return;
+    }
     String mergeRequests = quoteMirrorTable("merge_requests");
     targets.addAll(queryTargets(
         """
             select distinct target_project_id as project_id, iid
               from %s
              where mirror_task_id = ?
-               and coalesce(mirror_deleted, false) = false
                and target_project_id is not null
                and iid is not null
             """.formatted(mergeRequests),
@@ -214,6 +258,10 @@ public class FactRefreshImpactScopeService {
   }
 
   private void addMergeRequestTargetsFromMergeRequestMetrics(SyncRunTableTask task, Set<Target> targets) {
+    if (isAuthoritative(task)) {
+      addMergeRequestTargetById(scopeLong(task, "merge_request_id"), targets);
+      return;
+    }
     String metrics = quoteMirrorTable("merge_request_metrics");
     String mergeRequests = quoteMirrorTable("merge_requests");
     targets.addAll(queryTargets(
@@ -233,6 +281,10 @@ public class FactRefreshImpactScopeService {
 
   private void addMergeRequestTargetsFromJoinTable(
       SyncRunTableTask task, String sourceTable, Set<Target> targets) {
+    if (isAuthoritative(task)) {
+      addMergeRequestTargetById(scopeLong(task, "merge_request_id"), targets);
+      return;
+    }
     String joinTable = quoteMirrorTable(sourceTable);
     String mergeRequests = quoteMirrorTable("merge_requests");
     targets.addAll(queryTargets(
@@ -250,6 +302,12 @@ public class FactRefreshImpactScopeService {
   }
 
   private void addMergeRequestTargetsFromNotes(SyncRunTableTask task, Set<Target> targets) {
+    if (isAuthoritative(task)) {
+      if ("MergeRequest".equals(scopeText(task, "noteable_type"))) {
+        addMergeRequestTargetById(scopeLong(task, "noteable_id"), targets);
+      }
+      return;
+    }
     String notes = quoteMirrorTable("notes");
     String mergeRequests = quoteMirrorTable("merge_requests");
     targets.addAll(queryTargets(
@@ -269,6 +327,12 @@ public class FactRefreshImpactScopeService {
   }
 
   private void addMergeRequestTargetsFromLabelLinks(SyncRunTableTask task, Set<Target> targets) {
+    if (isAuthoritative(task)) {
+      if ("MergeRequest".equals(scopeText(task, "target_type"))) {
+        addMergeRequestTargetById(scopeLong(task, "target_id"), targets);
+      }
+      return;
+    }
     String labelLinks = quoteMirrorTable("label_links");
     String mergeRequests = quoteMirrorTable("merge_requests");
     targets.addAll(queryTargets(
@@ -284,6 +348,89 @@ public class FactRefreshImpactScopeService {
                and mr.iid is not null
             """.formatted(labelLinks, mergeRequests),
         task.getId()));
+  }
+
+  private void addIssueTargetById(Long issueId, Set<Target> targets) {
+    if (issueId == null) {
+      return;
+    }
+    targets.addAll(queryTargets(
+        """
+            select distinct project_id, iid
+              from %s
+             where id = ?
+               and project_id is not null
+               and iid is not null
+            """.formatted(quoteMirrorTable("issues")),
+        issueId));
+  }
+
+  private void addMergeRequestTargetById(Long mergeRequestId, Set<Target> targets) {
+    if (mergeRequestId == null) {
+      return;
+    }
+    targets.addAll(queryTargets(
+        """
+            select distinct target_project_id as project_id, iid
+              from %s
+             where id = ?
+               and target_project_id is not null
+               and iid is not null
+            """.formatted(quoteMirrorTable("merge_requests")),
+        mergeRequestId));
+  }
+
+  private boolean hasValidAuthoritativeScope(SyncRunTableTask task, String table) {
+    if (!isAuthoritative(task)) {
+      return true;
+    }
+    Map<String, Object> scope = lookupScope(task);
+    if (scope.isEmpty()) {
+      return false;
+    }
+    Map<String, String> normalizedScope = new LinkedHashMap<>();
+    for (Map.Entry<String, Object> entry : scope.entrySet()) {
+      if (entry.getKey() == null || entry.getValue() == null) {
+        return false;
+      }
+      normalizedScope.put(entry.getKey(), String.valueOf(entry.getValue()));
+    }
+    return AuthoritativeRelationCatalog.isAuthoritativeTarget(table, normalizedScope);
+  }
+
+  private boolean isAuthoritative(SyncRunTableTask task) {
+    return task != null && "AUTHORITATIVE".equalsIgnoreCase(task.getRowStrategy());
+  }
+
+  private Long scopeLong(SyncRunTableTask task, String column) {
+    Object value = lookupScope(task).get(column);
+    if (value instanceof Number number) {
+      return number.longValue();
+    }
+    if (value == null || String.valueOf(value).isBlank()) {
+      return null;
+    }
+    try {
+      return Long.valueOf(String.valueOf(value));
+    } catch (NumberFormatException ignored) {
+      return null;
+    }
+  }
+
+  private String scopeText(SyncRunTableTask task, String column) {
+    Object value = lookupScope(task).get(column);
+    return value == null ? "" : String.valueOf(value);
+  }
+
+  private Map<String, Object> lookupScope(SyncRunTableTask task) {
+    if (task == null) {
+      return Map.of();
+    }
+    try {
+      return jsonUtils.toMap(task.getLookupScopeJson());
+    } catch (IllegalStateException ignored) {
+      return Map.of();
+    }
   }
 
   private List<Target> queryTargets(String sql, Long taskId) {

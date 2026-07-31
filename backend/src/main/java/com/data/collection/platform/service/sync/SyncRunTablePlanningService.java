@@ -83,12 +83,12 @@ public class SyncRunTablePlanningService {
     int planned = existingTaskKeys.size();
     for (String sourceTable : sourceTables) {
       SyncRunTableState state = resolveRunnableState(run, sourceTable);
-      if (existingTaskKeys.contains(taskKey(state.getSourceTable(), null, null))) {
+      if (existingTaskKeys.contains(taskKey(state.getSourceTable(), ""))) {
         continue;
       }
       taskMapper.insert(createTask(run, state, resolveTaskWatermark(run, state), now));
       planned++;
-      existingTaskKeys.add(taskKey(state.getSourceTable(), null, null));
+      existingTaskKeys.add(taskKey(state.getSourceTable(), ""));
     }
     log.info("Planned {} table tasks for run {}", planned, runId);
     return planned;
@@ -137,14 +137,17 @@ public class SyncRunTablePlanningService {
         continue;
       }
       SyncRunTableState state = upsertState(run, config, option, now);
-      Set<String> lookupValues = sourceRows.stream()
-          .map(row -> row == null ? null : row.get(relation.parentKey()))
-          .filter(java.util.Objects::nonNull)
-          .map(String::valueOf)
-          .filter(value -> !value.isBlank())
-          .collect(Collectors.toCollection(LinkedHashSet::new));
-      for (String lookupValue : lookupValues) {
-        String key = taskKey(state.getSourceTable(), relation.childLookupColumn(), lookupValue);
+      Map<String, Map<String, Object>> scopes = sourceRows.stream()
+          .map(relation::scopeForParentRow)
+          .filter(scope -> !scope.isEmpty())
+          .collect(Collectors.toMap(
+              this::scopeSignature,
+              scope -> scope,
+              (first, ignored) -> first,
+              java.util.LinkedHashMap::new));
+      for (Map<String, Object> scope : scopes.values()) {
+        String scopeJson = jsonUtils.toJson(new java.util.TreeMap<>(scope));
+        String key = taskKey(state.getSourceTable(), scopeSignature(scope));
         if (existingTaskKeys.contains(key)) {
           continue;
         }
@@ -152,8 +155,8 @@ public class SyncRunTablePlanningService {
         task.setRowStrategy("AUTHORITATIVE");
         task.setCursorUpdatedAt(null);
         task.setCursorPk(null);
-        task.setLookupColumn(relation.childLookupColumn());
-        task.setLookupValue(lookupValue);
+        task.setLookupScopeJson(scopeJson);
+        task.setParentTaskId(parentTask.getId());
         taskMapper.insert(task);
         existingTaskKeys.add(key);
         planned++;
@@ -191,12 +194,12 @@ public class SyncRunTablePlanningService {
         continue;
       }
       SyncRunTableState state = upsertState(run, config, option, now);
-      if (existingTaskKeys.contains(taskKey(state.getSourceTable(), null, null))) {
+      if (existingTaskKeys.contains(taskKey(state.getSourceTable(), ""))) {
         continue;
       }
       taskMapper.insert(createTask(run, state, resolveTaskWatermark(run, state), now));
       planned++;
-      existingTaskKeys.add(taskKey(state.getSourceTable(), null, null));
+      existingTaskKeys.add(taskKey(state.getSourceTable(), ""));
     }
     log.info("Planned {} whitelist table tasks for run {}", planned, run.getId());
     return planned;
@@ -218,12 +221,12 @@ public class SyncRunTablePlanningService {
       if (!isRunnableIncrementalState(state)) {
         continue;
       }
-      if (existingTaskKeys.contains(taskKey(state.getSourceTable(), null, null))) {
+      if (existingTaskKeys.contains(taskKey(state.getSourceTable(), ""))) {
         continue;
       }
       taskMapper.insert(createTask(run, state, resolveTaskWatermark(run, state), now));
       planned++;
-      existingTaskKeys.add(taskKey(state.getSourceTable(), null, null));
+      existingTaskKeys.add(taskKey(state.getSourceTable(), ""));
     }
     log.info("Planned {} compensation table tasks from existing states for run {}", planned, run.getId());
     return planned;
@@ -243,25 +246,26 @@ public class SyncRunTablePlanningService {
     int planned = 0;
     for (SyncRunPayload.PreciseTarget target : targets) {
       TableWhitelistOption option = optionsByTable.get(target.tableName());
-      if (option == null || isBlank(option.primaryKey()) || isBlank(target.lookupColumn()) || isBlank(target.lookupValue())) {
+      Map<String, String> lookupScope = target.lookupScope();
+      if (option == null || isBlank(option.primaryKey()) || lookupScope == null || lookupScope.isEmpty()) {
         log.info("Skipped precise target without runnable lookup, runId={}, sourceTable={}", run.getId(), target.tableName());
         continue;
       }
       SyncRunTableState state = upsertState(run, config, option, now);
-      String taskKey = taskKey(state.getSourceTable(), target.lookupColumn(), target.lookupValue());
+      String scopeJson = jsonUtils.toJson(new java.util.TreeMap<>(lookupScope));
+      String taskKey = taskKey(state.getSourceTable(), scopeSignature(new java.util.TreeMap<>(lookupScope)));
       if (existingTaskKeys.contains(taskKey)) {
         continue;
       }
       SyncRunTableTask task = createTask(run, state, INITIAL_WATERMARK, now);
       task.setRowStrategy(
           AuthoritativeRelationCatalog.isAuthoritativeTarget(
-                  target.tableName(), target.lookupColumn())
+                  target.tableName(), lookupScope)
               ? "AUTHORITATIVE"
               : "PRECISE");
       task.setCursorUpdatedAt(null);
       task.setCursorPk(null);
-      task.setLookupColumn(target.lookupColumn());
-      task.setLookupValue(target.lookupValue());
+      task.setLookupScopeJson(scopeJson);
       taskMapper.insert(task);
       planned++;
       existingTaskKeys.add(taskKey);
@@ -371,10 +375,8 @@ public class SyncRunTablePlanningService {
   }
 
   private String rowStrategyForTask(SyncRun run) {
-    if (run.getRunType() == SyncRunType.FULL_SYNC) {
-      return "FULL";
-    }
-    if (run.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN) {
+    if (run.getRunType() == SyncRunType.FULL_SYNC
+        || run.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN) {
       return "FULL_RECONCILE";
     }
     return "INCREMENTAL";
@@ -434,21 +436,30 @@ public class SyncRunTablePlanningService {
         taskMapper.selectList(
             new QueryWrapper<SyncRunTableTask>()
                 .eq("run_id", runId)
-                .select("source_table", "lookup_column", "lookup_value"));
+                .select("source_table", "lookup_scope_json"));
     if (existingTasks == null || existingTasks.isEmpty()) {
       return new LinkedHashSet<>();
     }
     return existingTasks.stream()
-        .map(task -> taskKey(task.getSourceTable(), task.getLookupColumn(), task.getLookupValue()))
+        .map(task -> taskKey(
+            task.getSourceTable(), scopeSignature(jsonUtils.toMap(task.getLookupScopeJson()))))
         .collect(Collectors.toCollection(LinkedHashSet::new));
   }
 
-  private String taskKey(String sourceTable, String lookupColumn, String lookupValue) {
+  private String taskKey(String sourceTable, String scopeSignature) {
     return String.join(
         "|",
         GitlabSourceInstanceSupport.normalizeSourceTableName(sourceTable),
-        lookupColumn == null ? "" : lookupColumn,
-        lookupValue == null ? "" : lookupValue);
+        scopeSignature == null ? "" : scopeSignature);
+  }
+
+  private String scopeSignature(Map<String, ?> scope) {
+    if (scope == null || scope.isEmpty()) {
+      return "";
+    }
+    return new java.util.TreeMap<>(scope).entrySet().stream()
+        .map(entry -> entry.getKey() + "=" + String.valueOf(entry.getValue()))
+        .collect(Collectors.joining(","));
   }
 
   private SyncRunPayload parsePayload(SyncRun run) {

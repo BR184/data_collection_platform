@@ -58,8 +58,14 @@ describe('UX interaction regressions', () => {
     expect(dataScopeBarSource).not.toContain(':label="option.value"');
   });
 
-  it('guards formal handover with saved settings and dedicated permission', () => {
-    expect(legacyDatabaseSettingsSource).not.toContain('reviewDataReadMode');
+  it('keeps review and code-review read sources independently configurable', () => {
+    expect(legacyDatabaseSettingsSource).toContain('reviewDataReadMode');
+    expect(legacyDatabaseSettingsSource).toContain('评审数据读源');
+    expect(legacyDatabaseSettingsSource).toContain('代码走查读源');
+    expect(legacyDatabaseSettingsSource).not.toContain("label=\"review\"");
+  });
+
+  it('guards the remaining formal handover with saved settings and dedicated permission', () => {
     expect(legacyDatabaseSettingsSource).toContain('settingsDirty');
     expect(legacyDatabaseSettingsSource).toContain('mysqlPasswordChanged');
     expect(legacyDatabaseSettingsSource).toContain('mongoUriChanged');

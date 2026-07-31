@@ -103,5 +103,12 @@
   "V20260727_04__reconcile_customer_milestone_scope_members.sql": "2c3664d25ece325acc3880608a1a170148b06f2ec3676e3d284f63e430e388cb",
   "V20260729_01__sync_runtime_execution_state.sql": "7194cecc90875cbedc9bdd6337f41c566ab5e1f68b568176b99249d1462e3de8",
   "V20260729_02__indexed_sync_cursor_schema.sql": "9263e4d59c5af24341f5a15629242563e41bae74c42900ca87b4a4fa188d19a0",
-  "V20260729_03__migrate_sync_cursors_to_json.sql": "22ff5f0f746d134a7c30f2c0e177cd44ca2e05b9152e0792f6ba006625ad4901"
+  "V20260729_03__migrate_sync_cursors_to_json.sql": "22ff5f0f746d134a7c30f2c0e177cd44ca2e05b9152e0792f6ba006625ad4901",
+  "V20260730_01__code_review_metric_enrichment_schema.sql": "0567739a48b741e31880b8b91f9079c37a58c8ce5f7f14c0f9e44c60f3e00ef5",
+  "V20260730_02__seed_quality_ranking_members.sql": "f59e548abdbd567300bb83caeaea8cec359d60484734fb70e6b79ca78f1506b0",
+  "V20260730_03__refine_code_review_metric_enrichment_queue.sql": "24effb80d926f82f0366860e3b649f01fa2dc25f275e2b687d6d3a238dcf2cc2",
+  "V20260730_04__complete_legacy_code_review_metrics.sql": "3031551daf37a8f4518f0d56a63c34325bc292a61fa22aaa89a83d3adcf0ad79",
+  "V20260730_06__authoritative_relation_scopes.sql": "9c67859129d0a82f4d5c882ee526bb77defcf245ec4413392129ddf0d7296b67",
+  "V20260730_07__restore_review_match_mode_read_source.sql": "6d848d23de1722e5522cfb809070d42b03c9eb55806005860cac13185c47c9b7",
+  "V20260730_08__gitlab_16_resource_label_event_indexes.sql": "12871ae6e8fd5b269f34f39086ae538d4d4df10a525d10f27033c8bf5ae47a55"
 }

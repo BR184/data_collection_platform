@@ -75,13 +75,13 @@ class MirrorTableWriterTest {
                 new SourceTableColumn("user_id", "bigint", false, 2)));
     List<Map<String, Object>> rows = List.of(Map.of("issue_id", 101L, "user_id", 8L));
     MirrorBatchWriteResult expected = new MirrorBatchWriteResult(1, 2, 0);
-    when(storageService.replaceAuthoritativeScope(schema, "issue_id", "101", rows, 501L))
+    when(storageService.replaceAuthoritativeScope(schema, Map.of("issue_id", "101"), rows, 501L))
         .thenReturn(expected);
 
     MirrorBatchWriteResult actual =
-        writer.replaceAuthoritativeScope(schema, "issue_id", "101", rows, 501L);
+        writer.replaceAuthoritativeScope(schema, Map.of("issue_id", "101"), rows, 501L);
 
     assertThat(actual).isEqualTo(expected);
-    verify(storageService).replaceAuthoritativeScope(schema, "issue_id", "101", rows, 501L);
+    verify(storageService).replaceAuthoritativeScope(schema, Map.of("issue_id", "101"), rows, 501L);
   }
 }

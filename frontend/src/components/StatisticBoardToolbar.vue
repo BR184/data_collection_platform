@@ -147,6 +147,9 @@ const workspaceStatusTagType = computed(() => {
   if (status.refreshing) {
     return 'warning';
   }
+  if (status.status === 'STALE') {
+    return 'warning';
+  }
   if (failureStatuses.has(status.mirrorStatus || '') || failureStatuses.has(status.factStatus || '')) {
     return 'warning';
   }

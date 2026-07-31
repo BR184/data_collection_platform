@@ -21,8 +21,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 class LegacyPlatformFormalImportServiceTest {
   private final CodeReviewMatchModeSyncService mysqlSyncService = mock(CodeReviewMatchModeSyncService.class);
-  private final CodeReviewMatchModeMongoReviewSyncService mongoSyncService =
-      mock(CodeReviewMatchModeMongoReviewSyncService.class);
   private final CodeReviewMatchModeConfigService configService = mock(CodeReviewMatchModeConfigService.class);
   private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
 
@@ -35,15 +33,13 @@ class LegacyPlatformFormalImportServiceTest {
 
     assertThatThrownBy(() -> service.importToFormal(
         new LegacyPlatformFormalImportRequest(
-            true,
-            true,
             LegacyPlatformFormalImportService.CONFIRMATION_TEXT,
             updatedAt.minusSeconds(1)),
         "tester"))
         .isInstanceOf(BizException.class)
         .hasMessageContaining("设置已变化");
 
-    verifyNoInteractions(mysqlSyncService, mongoSyncService, jdbcTemplate);
+    verifyNoInteractions(mysqlSyncService, jdbcTemplate);
   }
 
   @Test
@@ -65,24 +61,19 @@ class LegacyPlatformFormalImportServiceTest {
 
     assertThatThrownBy(() -> service.importToFormal(
         new LegacyPlatformFormalImportRequest(
-            true,
-            true,
             LegacyPlatformFormalImportService.CONFIRMATION_TEXT,
             updatedAt),
         "tester"))
         .isInstanceOf(BizException.class)
         .hasMessageContaining("正在执行");
 
-    verifyNoInteractions(mysqlSyncService, mongoSyncService);
+    verifyNoInteractions(mysqlSyncService);
   }
 
   private LegacyPlatformFormalImportService service() {
     return new LegacyPlatformFormalImportService(
         mysqlSyncService,
-        mongoSyncService,
         mock(CodeReviewMatchModeLegacyRefreshService.class),
-        mock(ReviewDataMatchModeRecordRepository.class),
-        mock(ReviewDataMatchModeMaterializeService.class),
         configService,
         mock(PageRecordSnapshotService.class),
         jdbcTemplate,
@@ -107,6 +98,7 @@ class LegacyPlatformFormalImportServiceTest {
         "reviewReport",
         "problemDetail",
         "compatibility",
+        "compatibility",
         true);
   }
 
@@ -130,6 +122,7 @@ class LegacyPlatformFormalImportServiceTest {
         List.of("reviewReport", "problemDetail", "description"),
         "reviewReport",
         "problemDetail",
+        "compatibility",
         "compatibility",
         "IDLE",
         "",

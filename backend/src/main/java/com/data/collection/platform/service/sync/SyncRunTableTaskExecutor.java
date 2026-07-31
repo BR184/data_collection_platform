@@ -93,13 +93,17 @@ public class SyncRunTableTaskExecutor {
         return;
       }
       LocalDateTime scanStart = task.getWatermarkAt() == null ? INITIAL_WATERMARK : task.getWatermarkAt();
-      boolean fullTask = "FULL".equalsIgnoreCase(task.getRowStrategy());
       boolean fullReconcileTask = "FULL_RECONCILE".equalsIgnoreCase(task.getRowStrategy());
       boolean preciseTask = "PRECISE".equalsIgnoreCase(task.getRowStrategy());
       boolean authoritativeTask = "AUTHORITATIVE".equalsIgnoreCase(task.getRowStrategy());
+      Map<String, Object> lookupScope = (preciseTask || authoritativeTask)
+          ? jsonUtils.toMap(task.getLookupScopeJson())
+          : Map.of();
+      if ((preciseTask || authoritativeTask) && lookupScope.isEmpty()) {
+        throw new IllegalStateException("精确任务缺少完整范围：" + task.getSourceTable());
+      }
       boolean scopedTask = preciseTask || authoritativeTask;
-      if (!fullTask
-          && !fullReconcileTask
+      if (!fullReconcileTask
           && !scopedTask
           && !"INCREMENTAL".equalsIgnoreCase(state.getRowStrategy())) {
         throw new IllegalStateException("当前表任务不能由增量同步执行器处理");
@@ -109,8 +113,7 @@ public class SyncRunTableTaskExecutor {
       LocalDateTime scanUpperBound = scopedTask
           ? null
           : resolveScanUpperBound(task, state, config, option, leaseGuard);
-      if (!fullTask
-          && !fullReconcileTask
+      if (!fullReconcileTask
           && !scopedTask
           && (scanUpperBound == null || !scanUpperBound.isAfter(scanStart))) {
         leaseGuard.requireOwnership();
@@ -120,11 +123,11 @@ public class SyncRunTableTaskExecutor {
         return;
       }
       List<Map<String, Object>> rows =
-          fullTask || fullReconcileTask
+          fullReconcileTask
               ? sourceTableReader.readFullBatch(
                   config, option, preparedMirrorTable.mirrorSchema(), task.getCursorPk(), batchSize)
               : scopedTask
-                  ? sourceTableReader.readPrecise(config, option, task.getLookupColumn(), task.getLookupValue())
+                  ? sourceTableReader.readPrecise(config, option, lookupScope)
                   : sourceTableReader.readIncrementalBatch(
                       config,
                       option,
@@ -140,7 +143,7 @@ public class SyncRunTableTaskExecutor {
         return;
       }
       RowCursor lastCursor =
-          lastCursor(rows, preparedMirrorTable.mirrorSchema(), state, fullTask || fullReconcileTask);
+          lastCursor(rows, preparedMirrorTable.mirrorSchema(), state, fullReconcileTask);
       boolean hasMore =
           !scopedTask
               && rows.size() >= batchSize
@@ -160,6 +163,7 @@ public class SyncRunTableTaskExecutor {
           hasMore,
           fullReconcileTask,
           authoritativeTask,
+            lookupScope,
           fullReconcileTask);
       mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
     } catch (SyncTaskLeaseLostException e) {

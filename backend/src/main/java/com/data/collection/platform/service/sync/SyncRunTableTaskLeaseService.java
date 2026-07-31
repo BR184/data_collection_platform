@@ -463,8 +463,7 @@ public class SyncRunTableTaskLeaseService {
     task.setCursorPk(rs.getString("cursor_pk"));
     task.setScanUpperBoundAt(toDateTime(rs.getTimestamp("scan_upper_bound_at")));
     task.setPageNumber(rs.getObject("page_number") == null ? null : rs.getInt("page_number"));
-    task.setLookupColumn(rs.getString("lookup_column"));
-    task.setLookupValue(rs.getString("lookup_value"));
+    task.setLookupScopeJson(rs.getString("lookup_scope_json"));
     task.setBatchSize(rs.getInt("batch_size"));
     task.setRunAfter(toDateTime(rs.getTimestamp("run_after")));
     task.setLeaseOwner(rs.getString("lease_owner"));

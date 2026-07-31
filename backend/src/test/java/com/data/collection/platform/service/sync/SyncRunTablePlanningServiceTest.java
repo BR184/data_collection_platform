@@ -106,7 +106,7 @@ class SyncRunTablePlanningServiceTest {
         .containsExactly("issues", "namespaces");
     assertThat(taskCaptor.getAllValues())
         .extracting(SyncRunTableTask::getRowStrategy)
-        .containsExactly("FULL", "FULL");
+        .containsExactly("FULL_RECONCILE", "FULL_RECONCILE");
     assertThat(taskCaptor.getAllValues())
         .allSatisfy(
             task -> {
@@ -127,7 +127,7 @@ class SyncRunTablePlanningServiceTest {
     when(configService.getConfigById(1L)).thenReturn(config);
     when(configService.isSourceConfigured(config)).thenReturn(true);
     when(taskMapper.selectList(any()))
-        .thenReturn(List.of(existingTask("issues", null, null)));
+        .thenReturn(List.of(existingTask("issues", null)));
     when(whitelistService.resolveOptions(config))
         .thenReturn(
             List.of(
@@ -258,8 +258,13 @@ class SyncRunTablePlanningServiceTest {
         Map.of(
             "preciseTargets",
             List.of(
-                Map.of("tableName", "issues", "lookupColumn", "id", "lookupValue", 101),
-                Map.of("tableName", "issue_assignees", "lookupColumn", "issue_id", "lookupValue", "101")));
+                Map.of("tableName", "issues", "lookupScope", Map.of("id", "101")),
+                Map.of("tableName", "issue_assignees", "lookupScope", Map.of("issue_id", "101")),
+                Map.of(
+                    "tableName",
+                    "label_links",
+                    "lookupScope",
+                    Map.of("target_id", "101", "target_type", "Issue"))));
     run.setPayloadJson(jsonUtils.toJson(payload));
     when(syncRunMapper.selectById(77L)).thenReturn(run);
     when(configService.getConfigById(1L)).thenReturn(config);
@@ -268,11 +273,15 @@ class SyncRunTablePlanningServiceTest {
         .thenReturn(
             List.of(
                 option("issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
-                option("issue_assignees", "issue_id,user_id", "", SourceCursorStrategy.NONE)));
+                option("issue_assignees", "issue_id,user_id", "", SourceCursorStrategy.NONE),
+                option("label_links", "label_id,target_id,target_type", "", SourceCursorStrategy.NONE)));
     doAnswer(
             invocation -> {
               SyncRunTableState state = invocation.getArgument(0);
-              state.setId("issues".equals(state.getSourceTable()) ? 91L : 92L);
+              state.setId(
+                  "issues".equals(state.getSourceTable())
+                      ? 91L
+                      : "issue_assignees".equals(state.getSourceTable()) ? 92L : 93L);
               return 1;
             })
         .when(stateMapper)
@@ -280,18 +289,18 @@ class SyncRunTablePlanningServiceTest {
 
     int planned = planningService.planRunTables(77L);
 
-    assertThat(planned).isEqualTo(2);
+    assertThat(planned).isEqualTo(3);
     ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
-    verify(taskMapper, times(2)).insert(taskCaptor.capture());
+    verify(taskMapper, times(3)).insert(taskCaptor.capture());
     assertThat(taskCaptor.getAllValues())
         .extracting(SyncRunTableTask::getRowStrategy)
-        .containsExactly("PRECISE", "AUTHORITATIVE");
+        .containsExactly("AUTHORITATIVE", "AUTHORITATIVE", "AUTHORITATIVE");
     assertThat(taskCaptor.getAllValues())
-        .extracting(SyncRunTableTask::getLookupColumn)
-        .containsExactly("id", "issue_id");
-    assertThat(taskCaptor.getAllValues())
-        .extracting(SyncRunTableTask::getLookupValue)
-        .containsExactly("101", "101");
+        .extracting(SyncRunTableTask::getLookupScopeJson)
+        .containsExactly(
+            "{\"id\":\"101\"}",
+            "{\"issue_id\":\"101\"}",
+            "{\"target_id\":\"101\",\"target_type\":\"Issue\"}");
   }
 
   @Test
@@ -303,10 +312,10 @@ class SyncRunTablePlanningServiceTest {
             Map.of(
                 "preciseTargets",
                 List.of(
-                    Map.of("tableName", "issues", "lookupColumn", "id"),
-                    Map.of("tableName", "issues", "lookupValue", "101"),
-                    Map.of("lookupColumn", "id", "lookupValue", "101"),
-                    Map.of("tableName", "issues", "lookupColumn", "id", "lookupValue", "101")))));
+                    Map.of("tableName", "issues", "lookupScope", Map.of()),
+                    Map.of("tableName", "issues"),
+                    Map.of("lookupScope", Map.of("id", "101")),
+                    Map.of("tableName", "issues", "lookupScope", Map.of("id", "101"))))));
     when(syncRunMapper.selectById(77L)).thenReturn(run);
     when(configService.getConfigById(1L)).thenReturn(config);
     when(configService.isSourceConfigured(config)).thenReturn(true);
@@ -327,8 +336,7 @@ class SyncRunTablePlanningServiceTest {
     assertThat(planned).isEqualTo(1);
     ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
     verify(taskMapper).insert(taskCaptor.capture());
-    assertThat(taskCaptor.getValue().getLookupColumn()).isEqualTo("id");
-    assertThat(taskCaptor.getValue().getLookupValue()).isEqualTo("101");
+    assertThat(taskCaptor.getValue().getLookupScopeJson()).isEqualTo("{\"id\":\"101\"}");
   }
 
   @Test
@@ -368,13 +376,12 @@ class SyncRunTablePlanningServiceTest {
         .extracting(
             SyncRunTableTask::getSourceTable,
             SyncRunTableTask::getRowStrategy,
-            SyncRunTableTask::getLookupColumn,
-            SyncRunTableTask::getLookupValue)
+            SyncRunTableTask::getLookupScopeJson)
         .containsExactly(
             org.assertj.core.groups.Tuple.tuple(
-                "issue_assignees", "AUTHORITATIVE", "issue_id", "101"),
+                "issue_assignees", "AUTHORITATIVE", "{\"issue_id\":101}"),
             org.assertj.core.groups.Tuple.tuple(
-                "issue_assignees", "AUTHORITATIVE", "issue_id", "102"));
+                "issue_assignees", "AUTHORITATIVE", "{\"issue_id\":102}"));
   }
 
   @Test
@@ -390,9 +397,12 @@ class SyncRunTablePlanningServiceTest {
         .thenReturn(
             List.of(
                 option("issue_assignees", "issue_id,user_id", "", SourceCursorStrategy.NONE),
+                option("issue_metrics", "issue_id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
+                option("notes", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
                 option("label_links", "label_id,target_id,target_type", "", SourceCursorStrategy.NONE),
                 option("merge_request_assignees", "merge_request_id,user_id", "", SourceCursorStrategy.NONE),
-                option("merge_request_reviewers", "merge_request_id,user_id", "", SourceCursorStrategy.NONE)));
+                option("merge_request_reviewers", "merge_request_id,user_id", "", SourceCursorStrategy.NONE),
+                option("merge_request_metrics", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET)));
     doAnswer(
             invocation -> {
               SyncRunTableState state = invocation.getArgument(0);
@@ -403,24 +413,110 @@ class SyncRunTablePlanningServiceTest {
         .insert(any(SyncRunTableState.class));
 
     assertThat(planningService.planAuthoritativeRelatedTasks(issueTask, List.of(Map.of("id", 101L))))
-        .isEqualTo(2);
+        .isEqualTo(4);
     assertThat(planningService.planAuthoritativeRelatedTasks(mergeRequestTask, List.of(Map.of("id", 202L))))
-        .isEqualTo(3);
+        .isEqualTo(5);
 
     ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
-    verify(taskMapper, times(5)).insert(taskCaptor.capture());
+    verify(taskMapper, times(9)).insert(taskCaptor.capture());
     assertThat(taskCaptor.getAllValues())
         .extracting(
             SyncRunTableTask::getSourceTable,
             SyncRunTableTask::getRowStrategy,
-            SyncRunTableTask::getLookupColumn,
-            SyncRunTableTask::getLookupValue)
+            SyncRunTableTask::getLookupScopeJson)
         .containsExactly(
-            org.assertj.core.groups.Tuple.tuple("issue_assignees", "AUTHORITATIVE", "issue_id", "101"),
-            org.assertj.core.groups.Tuple.tuple("label_links", "AUTHORITATIVE", "target_id", "101"),
-            org.assertj.core.groups.Tuple.tuple("merge_request_assignees", "AUTHORITATIVE", "merge_request_id", "202"),
-            org.assertj.core.groups.Tuple.tuple("merge_request_reviewers", "AUTHORITATIVE", "merge_request_id", "202"),
-            org.assertj.core.groups.Tuple.tuple("label_links", "AUTHORITATIVE", "target_id", "202"));
+            org.assertj.core.groups.Tuple.tuple("issue_assignees", "AUTHORITATIVE", "{\"issue_id\":101}"),
+            org.assertj.core.groups.Tuple.tuple("issue_metrics", "AUTHORITATIVE", "{\"issue_id\":101}"),
+            org.assertj.core.groups.Tuple.tuple("notes", "AUTHORITATIVE", "{\"noteable_id\":101,\"noteable_type\":\"Issue\"}"),
+            org.assertj.core.groups.Tuple.tuple("label_links", "AUTHORITATIVE", "{\"target_id\":101,\"target_type\":\"Issue\"}"),
+            org.assertj.core.groups.Tuple.tuple("merge_request_assignees", "AUTHORITATIVE", "{\"merge_request_id\":202}"),
+            org.assertj.core.groups.Tuple.tuple("merge_request_reviewers", "AUTHORITATIVE", "{\"merge_request_id\":202}"),
+            org.assertj.core.groups.Tuple.tuple("merge_request_metrics", "AUTHORITATIVE", "{\"merge_request_id\":202}"),
+            org.assertj.core.groups.Tuple.tuple("notes", "AUTHORITATIVE", "{\"noteable_id\":202,\"noteable_type\":\"MergeRequest\"}"),
+            org.assertj.core.groups.Tuple.tuple("label_links", "AUTHORITATIVE", "{\"target_id\":202,\"target_type\":\"MergeRequest\"}"));
+    assertThat(taskCaptor.getAllValues())
+        .filteredOn(task -> "label_links".equals(task.getSourceTable()))
+        .extracting(SyncRunTableTask::getLookupScopeJson)
+        .containsExactly("{\"target_id\":101,\"target_type\":\"Issue\"}",
+            "{\"target_id\":202,\"target_type\":\"MergeRequest\"}");
+  }
+
+  @Test
+  void test_incremental_resource_label_event_plans_gitlab_16_typed_label_scopes() {
+    SyncRun run = run(SyncRunType.INCREMENTAL_SYNC);
+    GitlabSyncConfig config = config();
+    SyncRunTableTask eventTask = parentTask("resource_label_events");
+    eventTask.setId(908L);
+    when(syncRunMapper.selectById(77L)).thenReturn(run);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(configService.isSourceConfigured(config)).thenReturn(true);
+    when(whitelistService.resolveOptions(config))
+        .thenReturn(List.of(option("label_links", "label_id,target_id,target_type", "", SourceCursorStrategy.NONE)));
+    doAnswer(
+            invocation -> {
+              SyncRunTableState state = invocation.getArgument(0);
+              state.setId(92L);
+              return 1;
+            })
+        .when(stateMapper)
+        .insert(any(SyncRunTableState.class));
+
+    int planned = planningService.planAuthoritativeRelatedTasks(
+        eventTask,
+        List.of(
+            Map.of("issue_id", 101L),
+            Map.of("merge_request_id", 202L)));
+
+    assertThat(planned).isEqualTo(2);
+    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
+    verify(taskMapper, times(2)).insert(taskCaptor.capture());
+    assertThat(taskCaptor.getAllValues())
+        .extracting(SyncRunTableTask::getSourceTable, SyncRunTableTask::getLookupScopeJson)
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple(
+                "label_links", "{\"target_id\":101,\"target_type\":\"Issue\"}"),
+            org.assertj.core.groups.Tuple.tuple(
+                "label_links", "{\"target_id\":202,\"target_type\":\"MergeRequest\"}"));
+    assertThat(taskCaptor.getAllValues())
+        .allSatisfy(task -> assertThat(task.getParentTaskId()).isEqualTo(908L));
+  }
+
+  @Test
+  void test_incremental_note_plans_parent_note_scope_without_recursive_authoritative_tasks() {
+    SyncRun run = run(SyncRunType.INCREMENTAL_SYNC);
+    GitlabSyncConfig config = config();
+    SyncRunTableTask noteTask = parentTask("notes");
+    noteTask.setId(909L);
+    when(syncRunMapper.selectById(77L)).thenReturn(run);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(configService.isSourceConfigured(config)).thenReturn(true);
+    when(whitelistService.resolveOptions(config))
+        .thenReturn(List.of(option("notes", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET)));
+    doAnswer(
+            invocation -> {
+              SyncRunTableState state = invocation.getArgument(0);
+              state.setId(92L);
+              return 1;
+            })
+        .when(stateMapper)
+        .insert(any(SyncRunTableState.class));
+
+    int planned = planningService.planAuthoritativeRelatedTasks(
+        noteTask,
+        List.of(Map.of("id", 303L, "noteable_id", 101L, "noteable_type", "Issue")));
+
+    assertThat(planned).isEqualTo(1);
+    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
+    verify(taskMapper).insert(taskCaptor.capture());
+    assertThat(taskCaptor.getValue().getRowStrategy()).isEqualTo("AUTHORITATIVE");
+    assertThat(taskCaptor.getValue().getLookupScopeJson())
+        .isEqualTo("{\"noteable_id\":101,\"noteable_type\":\"Issue\"}");
+
+    noteTask.setRowStrategy("AUTHORITATIVE");
+    assertThat(planningService.planAuthoritativeRelatedTasks(
+        noteTask,
+        List.of(Map.of("id", 303L, "noteable_id", 101L, "noteable_type", "Issue"))))
+        .isZero();
   }
 
   @Test
@@ -485,12 +581,11 @@ class SyncRunTablePlanningServiceTest {
     return run;
   }
 
-  private SyncRunTableTask existingTask(String sourceTable, String lookupColumn, String lookupValue) {
+  private SyncRunTableTask existingTask(String sourceTable, String lookupScopeJson) {
     SyncRunTableTask task = new SyncRunTableTask();
     task.setRunId(77L);
     task.setSourceTable(sourceTable);
-    task.setLookupColumn(lookupColumn);
-    task.setLookupValue(lookupValue);
+    task.setLookupScopeJson(lookupScopeJson);
     return task;
   }
 

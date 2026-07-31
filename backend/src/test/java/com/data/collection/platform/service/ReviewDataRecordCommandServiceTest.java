@@ -45,7 +45,6 @@ class ReviewDataRecordCommandServiceTest {
     Long itemId = service.createProblemItem(7L, request);
 
     assertThat(itemId).isEqualTo(11L);
-    verify(matchModeMaterializeService).claimPlatformOwnership(7L);
     verify(persistenceSupport).assertRecordExists(7L);
     verify(persistenceSupport)
         .updateProblemItem(
@@ -100,7 +99,6 @@ class ReviewDataRecordCommandServiceTest {
     Long itemId = service.createProblemItem(7L, request);
 
     assertThat(itemId).isEqualTo(12L);
-    verify(matchModeMaterializeService).claimPlatformOwnership(7L);
     verify(persistenceSupport).assertRecordExists(7L);
     verify(persistenceSupport)
         .insertProblemItem(
@@ -131,6 +129,34 @@ class ReviewDataRecordCommandServiceTest {
             org.mockito.ArgumentMatchers.any(),
             org.mockito.ArgumentMatchers.any());
     verify(persistenceSupport).touchRecord(7L);
+  }
+
+  @Test
+  void shouldMaterializeHistoricalRecordBeforeFirstProblemWrite() {
+    ReviewDataRecordCommandService service = service();
+    ReviewDataProblemItemSaveRequest request = problemRequest("专家B", "新提交");
+    when(matchModeMaterializeService.materializeForMutation(-7L)).thenReturn(7L);
+    when(persistenceSupport.listProblemItems(7L)).thenReturn(List.of());
+    when(persistenceSupport.insertProblemItem(
+            7L,
+            "专家B",
+            1.5,
+            "独立评审",
+            "2.1",
+            "完整性",
+            "缺少异常流程",
+            "补充异常流程",
+            "负责人A",
+            "",
+            "新提交",
+            null))
+        .thenReturn(12L);
+
+    Long itemId = service.createProblemItem(-7L, request);
+
+    assertThat(itemId).isEqualTo(12L);
+    verify(matchModeMaterializeService).materializeForMutation(-7L);
+    verify(persistenceSupport).assertRecordExists(7L);
   }
 
   private ReviewDataRecordCommandService service() {

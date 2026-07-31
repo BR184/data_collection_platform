@@ -34,7 +34,8 @@ public class GitlabSystemHookPreciseSyncPlanner {
         addIfPresent(targets, "issues", "id", issueId);
         addIfPresent(targets, "issue_assignees", "issue_id", issueId);
         addIfPresent(targets, "issue_metrics", "issue_id", issueId);
-        addIfPresent(targets, "label_links", "target_id", issueId);
+        addNoteableTarget(targets, issueId, "Issue");
+        addTypedLabelTarget(targets, issueId, "Issue");
       }
       case "merge_request" -> {
         Object mergeRequestId = attributes.get("id");
@@ -42,18 +43,16 @@ public class GitlabSystemHookPreciseSyncPlanner {
         addIfPresent(targets, "merge_request_assignees", "merge_request_id", mergeRequestId);
         addIfPresent(targets, "merge_request_reviewers", "merge_request_id", mergeRequestId);
         addIfPresent(targets, "merge_request_metrics", "merge_request_id", mergeRequestId);
-        addIfPresent(targets, "label_links", "target_id", mergeRequestId);
-        addIfPresent(targets, "merge_trains", "merge_request_id", mergeRequestId);
+        addNoteableTarget(targets, mergeRequestId, "MergeRequest");
+        addTypedLabelTarget(targets, mergeRequestId, "MergeRequest");
       }
       case "note" -> {
-        addIfPresent(targets, "notes", "id", attributes.get("id"));
         String noteableType = asString(attributes.get("noteable_type"));
         Object noteableId = attributes.get("noteable_id");
         if ("Issue".equalsIgnoreCase(noteableType)) {
-          addIfPresent(targets, "issues", "id", noteableId);
+          addNoteableTarget(targets, noteableId, "Issue");
         } else if ("MergeRequest".equalsIgnoreCase(noteableType)) {
-          addIfPresent(targets, "merge_requests", "id", noteableId);
-          addIfPresent(targets, "merge_trains", "merge_request_id", noteableId);
+          addNoteableTarget(targets, noteableId, "MergeRequest");
         }
       }
       case "pipeline" -> addIfPresent(targets, "ci_pipelines", "id", attributes.get("id"));
@@ -62,7 +61,6 @@ public class GitlabSystemHookPreciseSyncPlanner {
         addIfPresent(targets, "ci_builds", "id", buildId);
       }
       case "deployment" -> addIfPresent(targets, "deployments", "id", attributes.get("id"));
-      case "release" -> addIfPresent(targets, "releases", "id", attributes.get("id"));
       case "project" -> {
         Map<String, Object> project = asMap(payload.get("project"));
         Object projectId = project.getOrDefault("id", attributes.get("id"));
@@ -80,9 +78,52 @@ public class GitlabSystemHookPreciseSyncPlanner {
   }
 
   private void addIfPresent(Set<GitlabSystemHookPreciseSyncTarget> targets, String tableName, String lookupColumn, Object lookupValue) {
-    if (lookupValue != null && !(lookupValue instanceof String value && value.isBlank())) {
-      targets.add(new GitlabSystemHookPreciseSyncTarget(tableName, lookupColumn, lookupValue));
+    if (lookupColumn == null || lookupColumn.isBlank() || lookupValue == null) {
+      return;
     }
+    Map<String, Object> lookupScope = new java.util.LinkedHashMap<>();
+    lookupScope.put(lookupColumn, lookupValue);
+    addIfPresent(targets, tableName, lookupScope);
+  }
+
+  private void addIfPresent(
+      Set<GitlabSystemHookPreciseSyncTarget> targets,
+      String tableName,
+      Map<String, Object> lookupScope) {
+    if (lookupScope == null || lookupScope.isEmpty()) {
+      return;
+    }
+    Map<String, String> normalizedScope = new java.util.TreeMap<>();
+    for (Map.Entry<String, Object> entry : lookupScope.entrySet()) {
+      Object value = entry.getValue();
+      if (entry.getKey() == null
+          || entry.getKey().isBlank()
+          || value == null
+          || (value instanceof String stringValue && stringValue.isBlank())) {
+        return;
+      }
+      normalizedScope.put(entry.getKey(), String.valueOf(value));
+    }
+    targets.add(new GitlabSystemHookPreciseSyncTarget(tableName, normalizedScope));
+  }
+
+  private void addTypedLabelTarget(
+      Set<GitlabSystemHookPreciseSyncTarget> targets, Object targetId, String targetType) {
+    if (targetId == null) {
+      return;
+    }
+    addIfPresent(targets, "label_links", Map.of("target_id", targetId, "target_type", targetType));
+  }
+
+  private void addNoteableTarget(
+      Set<GitlabSystemHookPreciseSyncTarget> targets, Object noteableId, String noteableType) {
+    if (noteableId == null) {
+      return;
+    }
+    addIfPresent(
+        targets,
+        "notes",
+        Map.of("noteable_id", noteableId, "noteable_type", noteableType));
   }
 
   @SuppressWarnings("unchecked")

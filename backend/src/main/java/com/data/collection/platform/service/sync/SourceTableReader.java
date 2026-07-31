@@ -48,12 +48,12 @@ public class SourceTableReader {
         batchSize);
   }
 
+  /** 按完整范围读取来源当前集合，供所有精确任务使用。 */
   public List<Map<String, Object>> readPrecise(
       GitlabSyncConfig config,
       TableWhitelistOption option,
-      String lookupColumn,
-      Object lookupValue) {
-    return externalDbService.preciseScan(config, option, lookupColumn, lookupValue);
+      Map<String, Object> lookupScope) {
+    return externalDbService.preciseScan(config, option, lookupScope);
   }
 
   public LocalDateTime findMaxUpdatedAt(GitlabSyncConfig config, TableWhitelistOption option) {

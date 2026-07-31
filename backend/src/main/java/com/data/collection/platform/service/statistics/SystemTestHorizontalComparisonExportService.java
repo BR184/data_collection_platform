@@ -8,6 +8,7 @@ import com.data.collection.platform.service.CodeReviewDataReadMode;
 import com.data.collection.platform.service.CodeReviewMatchModeSwitchService;
 import com.data.collection.platform.service.ExcelExportStyles;
 import com.data.collection.platform.service.ReviewDataMatchModeRecordRepository;
+import com.data.collection.platform.service.ReviewDataMirrorOptionRepository;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -50,18 +51,21 @@ public class SystemTestHorizontalComparisonExportService {
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final CodeReviewMatchModeSwitchService matchModeSwitchService;
   private final ReviewDataMatchModeRecordRepository matchModeReviewRepository;
+  private final ReviewDataMirrorOptionRepository mirrorOptionRepository;
 
   public SystemTestHorizontalComparisonExportService(
       JdbcTemplate jdbcTemplate,
       JsonUtils jsonUtils,
       SystemTestPhaseScopeResolver phaseScopeResolver,
       CodeReviewMatchModeSwitchService matchModeSwitchService,
-      ReviewDataMatchModeRecordRepository matchModeReviewRepository) {
+      ReviewDataMatchModeRecordRepository matchModeReviewRepository,
+      ReviewDataMirrorOptionRepository mirrorOptionRepository) {
     this.jdbcTemplate = jdbcTemplate;
     this.jsonUtils = jsonUtils;
     this.phaseScopeResolver = phaseScopeResolver;
     this.matchModeSwitchService = matchModeSwitchService;
     this.matchModeReviewRepository = matchModeReviewRepository;
+    this.mirrorOptionRepository = mirrorOptionRepository;
   }
 
   public String exportCsv(Map<String, String> filters) {
@@ -104,10 +108,18 @@ public class SystemTestHorizontalComparisonExportService {
         matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()
             ? CodeReviewDataReadMode.MATCH_MODE
             : CodeReviewDataReadMode.FORMAL;
+    boolean reviewDataCompatibilityRead =
+        matchModeSwitchService.isReviewDataCompatibilityReadEnabled();
     Map<String, HorizontalRow> rows = new LinkedHashMap<>();
-    addModuleRows(rows, loadModules(scope, codeReviewReadMode));
-    mergeReview(rows, loadReviewMetrics(scope.reviewProjectName(), "需求说明书评审"), true);
-    mergeReview(rows, loadReviewMetrics(scope.reviewProjectName(), "设计说明书评审"), false);
+    addModuleRows(rows, loadModules(scope));
+    mergeReview(
+        rows,
+        loadReviewMetrics(scope.reviewProjectName(), "需求说明书评审", reviewDataCompatibilityRead),
+        true);
+    mergeReview(
+        rows,
+        loadReviewMetrics(scope.reviewProjectName(), "设计说明书评审", reviewDataCompatibilityRead),
+        false);
     mergeCodeReview(
         rows,
         loadCodeReviewMetrics(scope.codeReviewProjectName(), true, codeReviewReadMode),
@@ -220,9 +232,9 @@ public class SystemTestHorizontalComparisonExportService {
     return parsed;
   }
 
-  private List<String> loadModules(
-      ExportScope scope, CodeReviewDataReadMode codeReviewReadMode) {
+  private List<String> loadModules(ExportScope scope) {
     Set<String> modules = new LinkedHashSet<>();
+    modules.addAll(mirrorOptionRepository.loadModuleNames());
     List<Object> reviewArgs = new ArrayList<>();
     StringBuilder reviewSql =
         new StringBuilder(
@@ -246,34 +258,10 @@ public class SystemTestHorizontalComparisonExportService {
       modules.addAll(issue.moduleNames());
     }
 
-    modules.addAll(loadCodeReviewModules(scope.codeReviewProjectName(), codeReviewReadMode));
     if (StringUtils.hasText(scope.moduleName())) {
       modules.removeIf(module -> !module.equalsIgnoreCase(scope.moduleName()));
     }
     return modules.stream().filter(StringUtils::hasText).toList();
-  }
-
-  List<String> loadCodeReviewModules(
-      String projectName, CodeReviewDataReadMode codeReviewReadMode) {
-    Set<String> modules = new LinkedHashSet<>();
-    for (boolean crownCad : List.of(true, false)) {
-      HorizontalCodeReviewQueryScope queryScope =
-          resolveCodeReviewQueryScope(projectName, crownCad, codeReviewReadMode);
-      if (!queryScope.available()) {
-        continue;
-      }
-      String sql =
-          "select module_name from "
-              + queryScope.tableName()
-              + " where "
-              + queryScope.whereClause()
-              + " and nullif(btrim(module_name), '') is not null"
-              + queryScope.moduleExclusionPredicate()
-              + " group by module_name order by min(id)";
-      modules.addAll(
-          jdbcTemplate.queryForList(sql, String.class, queryScope.args().toArray()));
-    }
-    return List.copyOf(modules);
   }
 
   private void addModuleRows(Map<String, HorizontalRow> rows, List<String> modules) {
@@ -284,7 +272,8 @@ public class SystemTestHorizontalComparisonExportService {
     }
   }
 
-  private List<ReviewMetric> loadReviewMetrics(String reviewProjectName, String reviewType) {
+  private List<ReviewMetric> loadReviewMetrics(
+      String reviewProjectName, String reviewType, boolean reviewDataCompatibilityRead) {
     List<Object> args = new ArrayList<>();
     args.add(reviewType);
     StringBuilder sql =
@@ -347,7 +336,9 @@ public class SystemTestHorizontalComparisonExportService {
                 rs.getInt("feasibility_count"),
                 rs.getBigDecimal("workload_hours") == null ? 0D : rs.getBigDecimal("workload_hours").doubleValue()),
         args.toArray()));
-    metrics.addAll(loadMatchModeReviewMetrics(reviewProjectName, reviewType));
+    if (reviewDataCompatibilityRead) {
+      metrics.addAll(loadMatchModeReviewMetrics(reviewProjectName, reviewType));
+    }
     return aggregateReviewMetrics(metrics);
   }
 
@@ -625,7 +616,10 @@ public class SystemTestHorizontalComparisonExportService {
       if (!StringUtils.hasText(metric.moduleName())) {
         continue;
       }
-      HorizontalRow row = rows.computeIfAbsent(metric.moduleName(), HorizontalRow::new);
+      HorizontalRow row = rows.get(metric.moduleName());
+      if (row == null) {
+        continue;
+      }
       if (crownCad) {
         row.crownCadCodeReview = metric;
       } else {

@@ -30,6 +30,7 @@ public class ReviewDataRecordQueryService {
   private final ReviewDataSummaryService summaryService;
   private final JsonUtils jsonUtils;
   private final LabelGroupExpansionService labelGroupExpansionService;
+  private final CodeReviewMatchModeSwitchService matchModeSwitchService;
   private final ReviewDataMatchModeRecordRepository matchModeRecordRepository;
   private final ReviewDataMatchModeMaterializeService matchModeMaterializeService;
 
@@ -38,12 +39,14 @@ public class ReviewDataRecordQueryService {
       ReviewDataSummaryService summaryService,
       JsonUtils jsonUtils,
       LabelGroupExpansionService labelGroupExpansionService,
+      CodeReviewMatchModeSwitchService matchModeSwitchService,
       ReviewDataMatchModeRecordRepository matchModeRecordRepository,
       ReviewDataMatchModeMaterializeService matchModeMaterializeService) {
     this.persistenceSupport = persistenceSupport;
     this.summaryService = summaryService;
     this.jsonUtils = jsonUtils;
     this.labelGroupExpansionService = labelGroupExpansionService;
+    this.matchModeSwitchService = matchModeSwitchService;
     this.matchModeRecordRepository = matchModeRecordRepository;
     this.matchModeMaterializeService = matchModeMaterializeService;
   }
@@ -65,9 +68,9 @@ public class ReviewDataRecordQueryService {
     boolean keywordSearch = TextQuerySupport.trimToNull(request.keyword()) != null;
     boolean titleSearchFilter =
         hasFilterGroup && ReviewDataFilterGroupSqlSupport.needsTitleSearchIndex(expandedFilterGroup);
-    // 评审历史数据可能只存在老平台 Mongo。无论代码走查兼容开关状态如何，评审读源都固定合并正式表和兼容快照。
-    List<ReviewDataRecordRowResponse> matchRows = matchModeRecordRepository.loadRecords();
-    if (!matchRows.isEmpty()) {
+    //兼容模式-MatchMode：兼容态合并正式记录与尚未由平台接管的历史快照；正式态只读正式表。
+    if (matchModeSwitchService.isReviewDataCompatibilityReadEnabled()) {
+      List<ReviewDataRecordRowResponse> matchRows = matchModeRecordRepository.loadRecords();
       return listCombinedRecords(
           request,
           hasFilterGroup ? expandedFilterGroup : null,
@@ -209,33 +212,35 @@ public class ReviewDataRecordQueryService {
   }
 
   public ReviewDataRecordDetailResponse getRecordDetail(Long recordId) {
-    // 负 ID 表示尚未转正式的兼容快照记录，正 ID 表示正式 review_records 记录。
-    Long materializedRecordId = materializedRecordId(recordId);
-    if (materializedRecordId != null) {
-      return formalRecordDetail(materializedRecordId);
-    }
-    if (isMatchModeId(recordId)) {
-      ReviewDataRecordRowResponse record = matchModeRecordRepository.getRecordOrThrow(recordId);
-      return new ReviewDataRecordDetailResponse(
-          record,
-          matchModeRecordRepository.listRecordExperts(recordId),
-          matchModeRecordRepository.listProblemItems(recordId),
-          List.of(),
-          List.of());
+    if (matchModeSwitchService.isReviewDataCompatibilityReadEnabled()) {
+      Long materializedRecordId = materializedRecordId(recordId);
+      if (materializedRecordId != null) {
+        return formalRecordDetail(materializedRecordId);
+      }
+      if (isMatchModeId(recordId)) {
+        ReviewDataRecordRowResponse record = matchModeRecordRepository.getRecordOrThrow(recordId);
+        return new ReviewDataRecordDetailResponse(
+            record,
+            matchModeRecordRepository.listRecordExperts(recordId),
+            matchModeRecordRepository.listProblemItems(recordId),
+            List.of(),
+            List.of());
+      }
     }
     ReviewDataRecordRowResponse record = persistenceSupport.getRecordOrThrow(recordId);
     return formalRecordDetail(recordId);
   }
 
   public List<ReviewDataProblemItemResponse> listProblemItems(Long recordId) {
-    // 问题清单跟随主记录读源，兼容快照与正式问题项分别按 ID 路由。
-    Long materializedRecordId = materializedRecordId(recordId);
-    if (materializedRecordId != null) {
-      return persistenceSupport.listProblemItems(materializedRecordId);
-    }
-    if (isMatchModeId(recordId)) {
-      matchModeRecordRepository.getRecordOrThrow(recordId);
-      return matchModeRecordRepository.listProblemItems(recordId);
+    if (matchModeSwitchService.isReviewDataCompatibilityReadEnabled()) {
+      Long materializedRecordId = materializedRecordId(recordId);
+      if (materializedRecordId != null) {
+        return persistenceSupport.listProblemItems(materializedRecordId);
+      }
+      if (isMatchModeId(recordId)) {
+        matchModeRecordRepository.getRecordOrThrow(recordId);
+        return matchModeRecordRepository.listProblemItems(recordId);
+      }
     }
     persistenceSupport.assertRecordExists(recordId);
     return persistenceSupport.listProblemItems(recordId);
@@ -261,19 +266,20 @@ public class ReviewDataRecordQueryService {
   }
 
   public ReviewDataProblemItemResponse getProblemItem(Long recordId, Long itemId) {
-    // 兼容问题项使用负 ID；已转正式的问题项通过映射表回到正式表。
-    Long materializedRecordId = materializedRecordId(recordId);
-    if (materializedRecordId != null) {
-      Long materializedItemId = itemId != null && itemId < 0
-          ? matchModeMaterializeService.materializedProblemItemIdOrThrow(itemId)
-          : itemId;
-      return persistenceSupport.getProblemItemOrThrow(materializedRecordId, materializedItemId);
-    }
-    if (isMatchModeId(recordId)) {
-      return matchModeRecordRepository.listProblemItems(recordId).stream()
-          .filter(item -> java.util.Objects.equals(item.id(), itemId))
-          .findFirst()
-          .orElseThrow(() -> new IllegalArgumentException("评审问题不存在: " + itemId));
+    if (matchModeSwitchService.isReviewDataCompatibilityReadEnabled()) {
+      Long materializedRecordId = materializedRecordId(recordId);
+      if (materializedRecordId != null) {
+        Long materializedItemId = itemId != null && itemId < 0
+            ? matchModeMaterializeService.materializedProblemItemIdOrThrow(itemId)
+            : itemId;
+        return persistenceSupport.getProblemItemOrThrow(materializedRecordId, materializedItemId);
+      }
+      if (isMatchModeId(recordId)) {
+        return matchModeRecordRepository.listProblemItems(recordId).stream()
+            .filter(item -> java.util.Objects.equals(item.id(), itemId))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("评审问题不存在: " + itemId));
+      }
     }
     persistenceSupport.assertRecordExists(recordId);
     return persistenceSupport.getProblemItemOrThrow(recordId, itemId);

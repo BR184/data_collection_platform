@@ -52,8 +52,7 @@ class SyncTableContinuationPlannerTest {
                         && "[\"102\"]".equals(nextTask.getCursorPk())
                         && previousTask.getScanUpperBoundAt().equals(nextTask.getScanUpperBoundAt())
                         && nextTask.getPageNumber().equals(2)
-                        && "id".equals(nextTask.getLookupColumn())
-                        && "101".equals(nextTask.getLookupValue())
+                        && "{\"id\":\"101\"}".equals(nextTask.getLookupScopeJson())
                         && nextTask.getBatchSize().equals(200)
                         && nextTask.getRetryCount().equals(0)
                         && nextTask.getMaxRetryCount().equals(3)
@@ -121,8 +120,7 @@ class SyncTableContinuationPlannerTest {
     task.setWatermarkAt(LocalDateTime.of(2026, 5, 17, 10, 0));
     task.setScanUpperBoundAt(LocalDateTime.of(2026, 5, 17, 11, 0));
     task.setPageNumber(1);
-    task.setLookupColumn("id");
-    task.setLookupValue("101");
+    task.setLookupScopeJson("{\"id\":\"101\"}");
     task.setBatchSize(500);
     task.setMaxRetryCount(3);
     return task;

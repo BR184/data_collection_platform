@@ -173,6 +173,21 @@ public class PageRecordSnapshotService {
   }
 
   public String reviewDataSourceVersion() {
+    String reviewReadModeVersion =
+        jdbcTemplate.queryForObject(
+            """
+            select concat(
+                     'review-read-mode:',
+                     enabled,
+                     ':',
+                     review_data_read_mode,
+                     ':',
+                     coalesce(to_char(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS.US'), 'empty')
+                   )
+              from code_review_match_mode_db_settings
+             where id = 1
+            """,
+            String.class);
     String reviewVersion =
         jdbcTemplate.queryForObject(
             """
@@ -217,7 +232,8 @@ public class PageRecordSnapshotService {
                    )
             """,
             String.class);
-    return reviewVersion + "|" + matchModeReviewVersion + "|" + issueFactSourceVersion();
+    return reviewReadModeVersion + "|" + reviewVersion + "|" + matchModeReviewVersion
+        + "|" + issueFactSourceVersion();
   }
 
   private String labelGroupSourceVersion() {

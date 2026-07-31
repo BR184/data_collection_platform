@@ -5,7 +5,6 @@ import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.IssueFact;
 import com.data.collection.platform.entity.MergeRequestFact;
-import com.data.collection.platform.mapper.MergeRequestFactMapper;
 import com.data.collection.platform.service.ModuleDictionaryService.ModuleDictionary;
 import java.math.BigDecimal;
 import java.sql.Array;
@@ -25,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -39,12 +39,12 @@ public class FactBuildService {
   private static final int SEARCH_INDEX_REPAIR_LIMIT = 1000;
   private static final int MISSING_ISSUE_FACT_RECONCILIATION_LIMIT = 1000;
   private static final List<String> RESOURCE_LABEL_EVENT_REQUIRED_COLUMNS =
-      List.of("resource_type", "resource_id", "label_id", "action", "created_at", "mirror_deleted");
+      List.of("issue_id", "label_id", "action", "created_at", "mirror_deleted");
 
   private final JdbcTemplate jdbcTemplate;
   private final IssueFactPersistenceService issueFactPersistenceService;
   private final IssueCustomerNameAliasService issueCustomerNameAliasService;
-  private final MergeRequestFactMapper mergeRequestFactMapper;
+  private final MergeRequestFactPersistenceService mergeRequestFactPersistenceService;
   private final ModuleDictionaryService moduleDictionaryService;
   private final FactBuildTaskService factBuildTaskService;
   private final GitlabSourceSchemaGuard sourceSchemaGuard;
@@ -59,7 +59,7 @@ public class FactBuildService {
       JdbcTemplate jdbcTemplate,
       IssueFactPersistenceService issueFactPersistenceService,
       IssueCustomerNameAliasService issueCustomerNameAliasService,
-      MergeRequestFactMapper mergeRequestFactMapper,
+      MergeRequestFactPersistenceService mergeRequestFactPersistenceService,
       ModuleDictionaryService moduleDictionaryService,
       FactBuildTaskService factBuildTaskService,
       GitlabSourceSchemaGuard sourceSchemaGuard,
@@ -70,7 +70,7 @@ public class FactBuildService {
     this.jdbcTemplate = jdbcTemplate;
     this.issueFactPersistenceService = issueFactPersistenceService;
     this.issueCustomerNameAliasService = issueCustomerNameAliasService;
-    this.mergeRequestFactMapper = mergeRequestFactMapper;
+    this.mergeRequestFactPersistenceService = mergeRequestFactPersistenceService;
     this.moduleDictionaryService = moduleDictionaryService;
     this.factBuildTaskService = factBuildTaskService;
     this.sourceSchemaGuard = sourceSchemaGuard;
@@ -155,27 +155,40 @@ public class FactBuildService {
     return rebuildIssueFactsInternal(full, GitlabSourceInstanceSupport.sourceInstanceOf(config));
   }
 
+  /**
+   * 用当前来源状态替换单个 Issue 的事实投影。
+   *
+   * @param sourceInstance GitLab 来源实例
+   * @param projectId 项目 ID
+   * @param issueIid 项目内 Issue IID
+   * @return 当前来源存在时为写入结果，不存在时为删除结果
+   */
+  @Transactional
   public FactBuildResponse rebuildIssueFactByIid(String sourceInstance, Long projectId, Long issueIid) {
     if (projectId == null || issueIid == null) {
       throw new BizException("刷新单条议题需要项目 ID 和议题编号");
     }
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
-    sourceSchemaGuard.verifyIssueFactSource(normalizedSource);
-    Map<PhaseCalendarKey, PhaseCalendarEntry> calendar = loadPhaseCalendar();
-    ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
-    Map<String, String> customerNameAliases = issueCustomerNameAliasService.loadAliases();
-    List<IssueFact> facts =
-        loadSingleIssueFacts(
-            normalizedSource, projectId, issueIid, calendar, moduleDictionary, customerNameAliases);
-    batchUpsertIssueFacts(facts);
-    milestoneCatalogReconciliationService.reconcilePublishedFactValues();
+    FactBuildResponse response = rebuildIssueFactsByTargets(
+        normalizedSource,
+        List.of(new FactRefreshImpactScopeService.Target(projectId, issueIid)));
     return new FactBuildResponse(
         factScope("issue", normalizedSource),
         false,
-        facts.size(),
-        facts.isEmpty() ? "未找到对应议题事实源数据" : "议题事实已按单条刷新");
+        response.affectedRows(),
+        response.affectedRows() == 0 ? "对应议题事实已按当前来源删除" : "议题事实已按单条刷新");
   }
 
+  /**
+   * 原子替换指定 Issue 目标范围的事实投影。
+   *
+   * <p>目标来源为空时会删除旧事实和客户成员，不能退化为无操作。
+   *
+   * @param sourceInstance GitLab 来源实例
+   * @param targets 以项目 ID 和 Issue IID 标识的目标集合
+   * @return 当前仍存在并写入的事实数量
+   */
+  @Transactional
   public FactBuildResponse rebuildIssueFactsByTargets(
       String sourceInstance,
       List<FactRefreshImpactScopeService.Target> targets) {
@@ -191,7 +204,9 @@ public class FactBuildService {
     List<IssueFact> facts =
         loadIssueFactsByTargets(
             normalizedSource, safeTargets, calendar, moduleDictionary, customerNameAliases);
-    batchUpsertIssueFacts(facts);
+    issueFactPersistenceService.replaceTargetFacts(
+        DEFAULT_SOURCE_SYSTEM, normalizedSource, safeTargets, facts);
+    refreshIssueFactSearchIndexesInBatches(facts);
     milestoneCatalogReconciliationService.reconcilePublishedFactValues();
     return new FactBuildResponse(
         factScope("issue", normalizedSource),
@@ -255,7 +270,13 @@ public class FactBuildService {
       Map<String, String> customerNameAliases = issueCustomerNameAliasService.loadAliases();
       List<IssueFact> facts =
           loadIssueFacts(sourceInstance, changedSince, calendar, moduleDictionary, customerNameAliases);
-      batchUpsertIssueFacts(facts);
+      if (full) {
+        issueFactPersistenceService.replaceAllFacts(
+            DEFAULT_SOURCE_SYSTEM, sourceInstance, facts);
+        refreshIssueFactSearchIndexesInBatches(facts);
+      } else {
+        batchUpsertIssueFacts(facts);
+      }
       milestoneCatalogReconciliationService.reconcilePublishedFactValues();
       return new FactBuildResponse(
           factScope("issue", sourceInstance),
@@ -330,39 +351,6 @@ public class FactBuildService {
           sourceInstance,
           factSourceSqlProvider.issueSourceSqlFallback(useResourceLabelEvents),
           changedSince,
-          calendar,
-          moduleDictionary,
-          customerNameAliases);
-    }
-  }
-
-  private List<IssueFact> loadSingleIssueFacts(
-      String sourceInstance,
-      Long projectId,
-      Long issueIid,
-      Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
-      ModuleDictionary moduleDictionary,
-      Map<String, String> customerNameAliases) {
-    boolean useResourceLabelEvents = hasResourceLabelEventSource();
-    try {
-      return queryIssueFacts(
-          sourceInstance,
-          factSourceSqlProvider.issueSourceSql(useResourceLabelEvents) + " and i.project_id = ? and i.iid = ?",
-          null,
-          List.of(projectId, issueIid),
-          calendar,
-          moduleDictionary,
-          customerNameAliases);
-    } catch (DataAccessException error) {
-      if (!isMilestoneQueryFallbackAllowed(error)) {
-        throw error;
-      }
-      log.warn("Single issue fact build fallback activated because milestone join is unavailable", error);
-      return queryIssueFacts(
-          sourceInstance,
-          factSourceSqlProvider.issueSourceSqlFallback(useResourceLabelEvents) + " and i.project_id = ? and i.iid = ?",
-          null,
-          List.of(projectId, issueIid),
           calendar,
           moduleDictionary,
           customerNameAliases);
@@ -483,8 +471,12 @@ public class FactBuildService {
                 from information_schema.columns
                where table_schema = current_schema()
                  and table_name = 'ods_gitlab_resource_label_events'
-                 and column_name in (?, ?, ?, ?, ?, ?)
-              """,
+                 and column_name in (?, ?, ?, ?, ?)
+                 and (
+                   column_name <> 'action'
+                   or data_type in ('smallint', 'integer', 'bigint')
+                 )
+               """,
               Integer.class,
               RESOURCE_LABEL_EVENT_REQUIRED_COLUMNS.toArray());
       return matchedColumns != null && matchedColumns == RESOURCE_LABEL_EVENT_REQUIRED_COLUMNS.size();
@@ -514,30 +506,42 @@ public class FactBuildService {
     return rebuildMergeRequestFactsInternal(full, GitlabSourceInstanceSupport.sourceInstanceOf(config));
   }
 
+  /**
+   * 用当前来源状态替换单个 MR 的事实投影。
+   *
+   * @param sourceInstance GitLab 来源实例
+   * @param projectId 目标项目 ID
+   * @param mergeRequestIid 项目内 MR IID
+   * @return 当前来源存在时为写入结果，不存在时为删除结果
+   */
+  @Transactional
   public FactBuildResponse rebuildMergeRequestFactByIid(String sourceInstance, Long projectId, Long mergeRequestIid) {
     if (projectId == null || mergeRequestIid == null) {
       throw new BizException("刷新单条合并请求需要项目 ID 和合并请求编号");
     }
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
-    sourceSchemaGuard.verifyMergeRequestFactSource(normalizedSource);
-    ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
-    List<MergeRequestFact> facts =
-        factSourceQueryExecutor.query(
-            "merge-request-fact-single-query",
-            normalizedSource,
-            factSourceSqlProvider.mergeRequestSourceSql() + " and mr.target_project_id = ? and mr.iid = ?",
-            "",
-            null,
-            List.of(projectId, mergeRequestIid),
-            (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, normalizedSource, moduleDictionary));
-    batchUpsertMergeRequestFacts(facts);
+    FactBuildResponse response = rebuildMergeRequestFactsByTargets(
+        normalizedSource,
+        List.of(new FactRefreshImpactScopeService.Target(projectId, mergeRequestIid)));
     return new FactBuildResponse(
         factScope("merge-request", normalizedSource),
         false,
-        facts.size(),
-        facts.isEmpty() ? "未找到对应合并请求事实源数据" : "合并请求事实已按单条刷新");
+        response.affectedRows(),
+        response.affectedRows() == 0
+            ? "对应合并请求事实已按当前来源删除"
+            : "合并请求事实已按单条刷新");
   }
 
+  /**
+   * 原子替换指定 MR 目标范围的事实投影。
+   *
+   * <p>目标来源为空时会删除旧事实，不能退化为无操作。
+   *
+   * @param sourceInstance GitLab 来源实例
+   * @param targets 以项目 ID 和 MR IID 标识的目标集合
+   * @return 当前仍存在并写入的事实数量
+   */
+  @Transactional
   public FactBuildResponse rebuildMergeRequestFactsByTargets(
       String sourceInstance,
       List<FactRefreshImpactScopeService.Target> targets) {
@@ -552,17 +556,38 @@ public class FactBuildService {
         factSourceQueryExecutor.query(
             "merge-request-fact-target-query",
             normalizedSource,
-            factSourceSqlProvider.mergeRequestSourceSql() + buildMergeRequestTargetPredicate(safeTargets),
+            factSourceSqlProvider.mergeRequestSourceSql(normalizedSource)
+                + buildMergeRequestTargetPredicate(safeTargets),
             "",
             null,
             targetArgs(safeTargets),
             (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, normalizedSource, moduleDictionary));
-    batchUpsertMergeRequestFacts(facts);
+    mergeRequestFactPersistenceService.replaceTargetFacts(
+        DEFAULT_SOURCE_SYSTEM, normalizedSource, safeTargets, facts);
+    refreshMergeRequestFactSearchIndexesInBatches(facts);
     return new FactBuildResponse(
         factScope("merge-request", normalizedSource),
         false,
         facts.size(),
         "合并请求事实已按受影响对象刷新");
+  }
+
+  /**
+   * 在事实发布互斥与单事务边界内发布已补齐的合并请求指标。
+   *
+   * @param sourceInstance GitLab 数据源实例
+   * @param targets 已完成指标补齐的合并请求
+   * @return 成功发布时为 true；其他事实任务占用锁时为 false，调用方应保留待发布状态
+   */
+  public boolean publishEnrichedMergeRequestFacts(
+      String sourceInstance,
+      List<FactRefreshImpactScopeService.Target> targets) {
+    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    FactBuildResponse response = factBuildTaskService.runGuarded(
+        factScope("merge-request", normalizedSource),
+        false,
+        () -> rebuildMergeRequestFactsByTargets(normalizedSource, targets));
+    return !FactBuildTaskService.wasSkippedBecauseBusy(response);
   }
 
   private FactBuildResponse rebuildMergeRequestFactsInternal(boolean full, String sourceInstance) {
@@ -573,11 +598,17 @@ public class FactBuildService {
       List<MergeRequestFact> facts = factSourceQueryExecutor.query(
           "merge-request-fact-source-query",
           sourceInstance,
-          factSourceSqlProvider.mergeRequestSourceSql(),
+          factSourceSqlProvider.mergeRequestSourceSql(sourceInstance),
           "and coalesce(mr.updated_at, mr.created_at) > ?",
           changedSince,
           (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, sourceInstance, moduleDictionary));
-      batchUpsertMergeRequestFacts(facts);
+      if (full) {
+        mergeRequestFactPersistenceService.replaceAllFacts(
+            DEFAULT_SOURCE_SYSTEM, sourceInstance, facts);
+        refreshMergeRequestFactSearchIndexesInBatches(facts);
+      } else {
+        batchUpsertMergeRequestFacts(facts);
+      }
       return new FactBuildResponse(
           factScope("merge-request", sourceInstance),
           full,
@@ -1244,7 +1275,19 @@ public class FactBuildService {
 
   private void batchUpsertMergeRequestFacts(List<MergeRequestFact> facts) {
     for (List<MergeRequestFact> batch : partition(facts, FACT_BATCH_SIZE)) {
-      mergeRequestFactMapper.batchUpsert(batch);
+      mergeRequestFactPersistenceService.upsertFacts(batch);
+      refreshMergeRequestFactSearchIndexes(batch);
+    }
+  }
+
+  private void refreshIssueFactSearchIndexesInBatches(List<IssueFact> facts) {
+    for (List<IssueFact> batch : partition(facts, FACT_BATCH_SIZE)) {
+      refreshIssueFactSearchIndexes(batch);
+    }
+  }
+
+  private void refreshMergeRequestFactSearchIndexesInBatches(List<MergeRequestFact> facts) {
+    for (List<MergeRequestFact> batch : partition(facts, FACT_BATCH_SIZE)) {
       refreshMergeRequestFactSearchIndexes(batch);
     }
   }

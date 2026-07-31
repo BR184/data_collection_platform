@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.sync.SyncRunTableTask;
+import java.sql.ResultSet;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -58,6 +59,31 @@ class SyncRunTableTaskLeaseServiceTest {
             eq("owner-1"),
             eq(1),
             eq(77L));
+  }
+
+  @Test
+  void shouldRetainLookupScopeWhenClaimingQueuedTask() throws Exception {
+    ResultSet resultSet = mock(ResultSet.class);
+    when(resultSet.getString("status")).thenReturn("RUNNING");
+    when(resultSet.getString("task_stage")).thenReturn("SCAN");
+    when(resultSet.getString("lookup_scope_json"))
+        .thenReturn("{\"target_id\":\"101\",\"target_type\":\"Issue\"}");
+    when(jdbcTemplate.queryForObject(
+            contains("returning *"),
+            any(RowMapper.class),
+            eq("owner-1"),
+            eq(30),
+            eq(77L)))
+        .thenAnswer(
+            invocation -> {
+              RowMapper<SyncRunTableTask> mapper = invocation.getArgument(1);
+              return mapper.mapRow(resultSet, 0);
+            });
+
+    SyncRunTableTask task = leaseService.claimNextQueuedTask(77L, "owner-1", 30);
+
+    assertThat(task.getLookupScopeJson())
+        .isEqualTo("{\"target_id\":\"101\",\"target_type\":\"Issue\"}");
   }
 
   @Test

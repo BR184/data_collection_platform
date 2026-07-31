@@ -1,6 +1,8 @@
 package com.data.collection.platform.service;
 
 class GitlabFactSourceSqlProvider {
+  private static final int RESOURCE_LABEL_EVENT_ACTION_ADD = 1;
+
   private static final String FIX_LABEL_EVENTS_FROM_LABEL_LINKS = """
       fix_label_events as (
         select ll.target_id as issue_id,
@@ -17,20 +19,20 @@ class GitlabFactSourceSqlProvider {
 """;
   private static final String FIX_LABEL_EVENTS_FROM_RESOURCE_LABEL_EVENTS = """
       fix_label_events as (
-        select rle.resource_id as issue_id,
+        select rle.issue_id,
                max(rle.created_at) as fixed_label_time
           from ods_gitlab_resource_label_events rle
           join ods_gitlab_labels l
             on l.id = rle.label_id
            and coalesce(l.mirror_deleted, false) = false
          where coalesce(rle.mirror_deleted, false) = false
-           and rle.resource_type = 'Issue'
-           and rle.action = 'add'
+           and rle.issue_id is not null
+           and rle.action = %d
            and l.title = '状态：已修复/完成'
-         group by rle.resource_id
-      )
-""";
-  private static final String ISSUE_SOURCE_SQL = """
+         group by rle.issue_id
+       )
+""".formatted(RESOURCE_LABEL_EVENT_ACTION_ADD);
+  private static final String ISSUE_SOURCE_SQL_TEMPLATE = """
       with distinct_issue_labels as (
         select distinct
                ll.target_id as issue_id,
@@ -83,18 +85,7 @@ class GitlabFactSourceSqlProvider {
            and n.noteable_type = 'Issue'
          group by n.noteable_id
       ),
-      fix_label_events as (
-        select ll.target_id as issue_id,
-               max(coalesce(ll.created_at, ll.updated_at)) as fixed_label_time
-          from ods_gitlab_label_links ll
-          join ods_gitlab_labels l
-            on l.id = ll.label_id
-           and coalesce(l.mirror_deleted, false) = false
-         where coalesce(ll.mirror_deleted, false) = false
-           and ll.target_type = 'Issue'
-           and l.title = '状态：已修复/完成'
-         group by ll.target_id
-      )
+      __FIX_LABEL_EVENTS__
       select
         i.id as issue_id,
         i.iid as issue_iid,
@@ -136,10 +127,13 @@ class GitlabFactSourceSqlProvider {
         on fix_events.issue_id = i.id
       where coalesce(i.mirror_deleted, false) = false
       """;
+  private static final String ISSUE_SOURCE_SQL =
+      injectFixLabelEvents(ISSUE_SOURCE_SQL_TEMPLATE, FIX_LABEL_EVENTS_FROM_LABEL_LINKS);
   private static final String ISSUE_SOURCE_SQL_RESOURCE_LABEL_EVENTS =
-      replaceFixLabelEvents(ISSUE_SOURCE_SQL);
+      injectFixLabelEvents(
+          ISSUE_SOURCE_SQL_TEMPLATE, FIX_LABEL_EVENTS_FROM_RESOURCE_LABEL_EVENTS);
 
-  private static final String ISSUE_SOURCE_SQL_FALLBACK = """
+  private static final String ISSUE_SOURCE_SQL_FALLBACK_TEMPLATE = """
       with distinct_issue_labels as (
         select distinct
                ll.target_id as issue_id,
@@ -192,18 +186,7 @@ class GitlabFactSourceSqlProvider {
            and n.noteable_type = 'Issue'
          group by n.noteable_id
       ),
-      fix_label_events as (
-        select ll.target_id as issue_id,
-               max(coalesce(ll.created_at, ll.updated_at)) as fixed_label_time
-          from ods_gitlab_label_links ll
-          join ods_gitlab_labels l
-            on l.id = ll.label_id
-           and coalesce(l.mirror_deleted, false) = false
-         where coalesce(ll.mirror_deleted, false) = false
-           and ll.target_type = 'Issue'
-           and l.title = '状态：已修复/完成'
-         group by ll.target_id
-      )
+      __FIX_LABEL_EVENTS__
       select
         i.id as issue_id,
         i.iid as issue_iid,
@@ -242,8 +225,12 @@ class GitlabFactSourceSqlProvider {
         on fix_events.issue_id = i.id
       where coalesce(i.mirror_deleted, false) = false
       """;
+  private static final String ISSUE_SOURCE_SQL_FALLBACK =
+      injectFixLabelEvents(
+          ISSUE_SOURCE_SQL_FALLBACK_TEMPLATE, FIX_LABEL_EVENTS_FROM_LABEL_LINKS);
   private static final String ISSUE_SOURCE_SQL_FALLBACK_RESOURCE_LABEL_EVENTS =
-      replaceFixLabelEvents(ISSUE_SOURCE_SQL_FALLBACK);
+      injectFixLabelEvents(
+          ISSUE_SOURCE_SQL_FALLBACK_TEMPLATE, FIX_LABEL_EVENTS_FROM_RESOURCE_LABEL_EVENTS);
 
   private static final String MERGE_REQUEST_SOURCE_SQL = """
       with reviewer_names as (
@@ -294,6 +281,7 @@ class GitlabFactSourceSqlProvider {
         select m.project_id,
                m.merge_request_id,
                m.merge_request_iid,
+               m.added_lines,
                m.comment_rate,
                m.comment_rate_source,
                m.defect_count,
@@ -319,6 +307,7 @@ class GitlabFactSourceSqlProvider {
                m.source_summary as metric_source_summary,
                m.raw_payload as metric_raw_payload
           from code_review_external_metrics m
+         where lower(coalesce(m.source_instance, 'default')) = lower(__SOURCE_INSTANCE__)
       ),
       form_records as (
         select f.project_id,
@@ -443,7 +432,7 @@ class GitlabFactSourceSqlProvider {
         coalesce((labels.label_titles)[1], '') as module_name,
         labels.label_titles as label_titles,
         labels.project_label_titles as project_label_titles,
-        metrics.added_lines as added_lines,
+        coalesce(metrics.added_lines, imported_metrics.added_lines) as added_lines,
         forms.review_duration_minutes,
         case
           when '无需走查扫描' = any(coalesce(labels.label_titles, array[]::text[])) then null
@@ -527,16 +516,18 @@ class GitlabFactSourceSqlProvider {
     return useResourceLabelEvents ? ISSUE_SOURCE_SQL_FALLBACK_RESOURCE_LABEL_EVENTS : ISSUE_SOURCE_SQL_FALLBACK;
   }
 
-  String mergeRequestSourceSql() {
-    return MERGE_REQUEST_SOURCE_SQL;
+  String mergeRequestSourceSql(String sourceInstance) {
+    return MERGE_REQUEST_SOURCE_SQL.replace(
+        "__SOURCE_INSTANCE__",
+        sqlLiteral(GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance)));
   }
 
-  private static String replaceFixLabelEvents(String sql) {
-    int start = sql.indexOf("      fix_label_events as (");
-    int end = sql.indexOf("      select", start);
-    if (start < 0 || end < 0 || end <= start) {
-      return sql;
-    }
-    return sql.substring(0, start) + FIX_LABEL_EVENTS_FROM_RESOURCE_LABEL_EVENTS + sql.substring(end);
+  private String sqlLiteral(String value) {
+    return "'" + value.replace("'", "''") + "'";
+  }
+
+  private static String injectFixLabelEvents(String sqlTemplate, String fixLabelEventsSql) {
+    return sqlTemplate.replace(
+        "__FIX_LABEL_EVENTS__", fixLabelEventsSql.stripIndent().strip());
   }
 }

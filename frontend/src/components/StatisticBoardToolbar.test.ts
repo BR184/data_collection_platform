@@ -191,4 +191,23 @@ describe('StatisticBoardToolbar', () => {
     expect(statusText).not.toContain('PARTIAL_SUCCESS');
     expect(statusText).not.toContain('QUEUED');
   });
+
+  it('does not claim current data is latest before label relation reconciliation', async () => {
+    const wrapper = mountToolbar();
+    await wrapper.setProps({
+      realtimeStatus: {
+        workspaceKey: 'system-test-defect-summary',
+        supported: true,
+        status: 'STALE',
+        message: '标签关系尚未完成全量对账，当前仅展示可用数据',
+        refreshing: false,
+        mirrorStatus: 'SUCCESS',
+        factStatus: 'SUCCESS',
+      },
+    });
+
+    const statusText = wrapper.get('[data-testid="realtime-refresh-status"]').text();
+    expect(statusText).toContain('标签关系尚未完成全量对账');
+    expect(statusText).not.toContain('已是最新');
+  });
 });

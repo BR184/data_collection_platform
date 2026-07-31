@@ -126,18 +126,32 @@ public record SyncRunPayload(
     return trimmed.isEmpty() ? null : trimmed;
   }
 
-  public record PreciseTarget(String tableName, String lookupColumn, String lookupValue) {
+  /** 一项按完整范围读取来源的精确同步目标。 */
+  public record PreciseTarget(String tableName, Map<String, String> lookupScope) {
+    public PreciseTarget {
+      lookupScope = lookupScope == null ? Map.of() : Map.copyOf(lookupScope);
+    }
+
     private PreciseTarget normalized() {
       String normalizedTable =
           tableName == null ? null : GitlabSourceInstanceSupport.normalizeSourceTableName(tableName);
-      return new PreciseTarget(
-          trimToNull(normalizedTable),
-          trimToNull(lookupColumn),
-          trimToNull(lookupValue));
+      Map<String, String> normalizedScope = new java.util.TreeMap<>();
+      lookupScope.forEach(
+          (column, value) -> {
+            String normalizedColumn = trimToNull(column);
+            String normalizedValue = trimToNull(value);
+            if (normalizedColumn != null && normalizedValue != null) {
+              normalizedScope.put(normalizedColumn, normalizedValue);
+            }
+          });
+      return new PreciseTarget(trimToNull(normalizedTable), normalizedScope);
     }
 
     private boolean runnable() {
-      return usable(tableName) && usable(lookupColumn) && usable(lookupValue);
+      return usable(tableName)
+          && !lookupScope.isEmpty()
+          && lookupScope.entrySet().stream()
+              .allMatch(entry -> usable(entry.getKey()) && usable(entry.getValue()));
     }
 
     private static boolean usable(String value) {

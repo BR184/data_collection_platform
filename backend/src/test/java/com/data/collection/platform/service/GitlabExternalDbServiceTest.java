@@ -256,12 +256,12 @@ class GitlabExternalDbServiceTest {
   }
 
   @Test
-  void shouldQuoteSourceTableAndLookupColumnForPreciseScans() {
+  void shouldQuoteSourceTableAndScopeColumnsForPreciseScans() {
     TableWhitelistOption option =
         new TableWhitelistOption(
             "Issue Events", "Issue Events", "id", "Updated At", SourceCursorStrategy.PRIMARY_KEY_KEYSET, false);
 
-    String sql = service.buildPreciseScanSql(option, "Issue ID", 101L);
+    String sql = service.buildPreciseScanSql(option, Map.of("Issue ID", 101L));
 
     assertThat(sql).isEqualTo("select * from \"public\".\"Issue Events\" where \"Issue ID\" = 101");
   }

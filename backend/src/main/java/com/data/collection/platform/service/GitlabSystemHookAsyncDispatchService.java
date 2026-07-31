@@ -67,8 +67,7 @@ public class GitlabSystemHookAsyncDispatchService {
             plan.targets().stream()
                 .map(target -> Map.of(
                     "tableName", target.tableName(),
-                    "lookupColumn", target.lookupColumn(),
-                    "lookupValue", String.valueOf(target.lookupValue())))
+                    "lookupScope", target.lookupScope()))
                 .toList()));
     try (SyncRunLogContext.Scope context = SyncRunLogContext.openConfig(config, "SYSTEM_HOOK_WAKEUP", eventType);
         SyncRunLogContext.Scope action = SyncRunLogContext.action("Run_Submit")) {

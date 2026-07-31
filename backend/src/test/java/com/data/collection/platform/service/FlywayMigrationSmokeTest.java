@@ -158,6 +158,25 @@ class FlywayMigrationSmokeTest {
   }
 
   @Test
+  void shouldRestoreReviewCompatibilityReadSourceWithoutLegacyManagedCopies()
+      throws IOException {
+    String migration = readMigration(
+        "V20260730_07__restore_review_match_mode_read_source.sql");
+
+    assertThat(migration)
+        .contains("add column if not exists review_data_read_mode")
+        .contains("check (review_data_read_mode in ('compatibility', 'formal'))")
+        .contains("delete from review_records record")
+        .contains("where authority = 'legacy_managed'")
+        .contains("check (authority = 'platform_owned')")
+        .contains("drop column if exists last_handover_at")
+        .contains("drop column if exists review_requested")
+        .contains("drop column if exists review_status")
+        .contains("create or replace view review_visible_records")
+        .contains("create or replace view review_visible_problem_items");
+  }
+
+  @Test
   void shouldDefineCustomerMembershipAndResponseTemplateFacts() throws IOException {
     String schemaMigration = readMigration(
         "V20260722_01__customer_issue_customer_and_response_template_schema.sql");
@@ -203,6 +222,39 @@ class FlywayMigrationSmokeTest {
         .contains("create index if not exists idx_issue_fact_customer_response_times")
         .contains("on issue_fact(project_id, milestone_title, research_template_time, fixed_label_time)")
         .contains("where project_id = 325 and deleted = false");
+  }
+
+  @Test
+  void shouldDefineRecoverableCodeReviewMetricEnrichmentSchemaAndMemberSeed()
+      throws IOException {
+    String schemaMigration = readMigration(
+        "V20260730_01__code_review_metric_enrichment_schema.sql");
+    String memberSeed = readMigration(
+        "V20260730_02__seed_quality_ranking_members.sql");
+    String queueRefinement = readMigration(
+        "V20260730_03__refine_code_review_metric_enrichment_queue.sql");
+    String legacyCompletion = readMigration(
+        "V20260730_04__complete_legacy_code_review_metrics.sql");
+
+    assertThat(schemaMigration)
+        .contains("add column if not exists source_instance")
+        .contains("add column if not exists added_lines")
+        .contains("add column if not exists enrichment_status varchar(32) not null default 'pending'")
+        .contains("idx_code_review_external_metrics_enrichment_queue")
+        .contains("create table if not exists code_review_metric_enrichment_states")
+        .contains("historical_cursor_merge_request_id")
+        .contains("active_sync_run_id")
+        .contains("active_run_cursor_merge_request_id")
+        .contains("create table if not exists quality_board_member_scopes");
+    assertThat(memberSeed)
+        .contains("('quality_ranking', 'cc'")
+        .contains("on conflict (topic_key, business_source, member_name) do nothing");
+    assertThat(queueRefinement)
+        .contains("alter column enrichment_status set default 'success'")
+        .contains("on code_review_external_metrics(source_instance, enrichment_status");
+    assertThat(legacyCompletion)
+        .contains("set enrichment_status = 'success'")
+        .contains("metric_source_updated_at is null");
   }
 
   private String readMigration(String fileName) throws IOException {

@@ -402,7 +402,6 @@ public class ReviewDataRecordCommandService {
     if (isMatchModeId(recordId)) {
       return matchModeMaterializeService.materializeForMutation(recordId);
     }
-    matchModeMaterializeService.claimPlatformOwnership(recordId);
     return recordId;
   }
 

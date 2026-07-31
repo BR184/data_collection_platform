@@ -27,44 +27,16 @@ public class ReviewDataMatchModeMaterializeService {
   public Long materializeForMutation(Long matchModeRecordId) {
     Long existingRecordId = matchModeRecordRepository.findMaterializedRecordId(matchModeRecordId);
     if (existingRecordId != null) {
-      matchModeRecordRepository.claimPlatformOwnership(existingRecordId);
       return existingRecordId;
     }
     ReviewDataMatchModeRecordRepository.MatchModeRecordSource source =
         matchModeRecordRepository.getRecordSourceOrThrow(matchModeRecordId);
-    MaterializeResult result = materialize(
-        matchModeRecordId,
-        source,
-        ReviewDataMatchModeRecordRepository.RecordAuthority.PLATFORM_OWNED);
-    return result.recordId();
+    return materialize(matchModeRecordId, source);
   }
 
-  //兼容模式-MatchMode：交接只更新仍由老平台管理的映射；新平台已接管记录必须保持不变。
-  @Transactional
-  public MaterializeResult materializeForHandover(
-      ReviewDataMatchModeRecordRepository.MatchModeRecordSource source) {
-    Long matchModeRecordId = -Math.abs(source.record().id());
-    Long existingRecordId = matchModeRecordRepository.findMaterializedRecordId(matchModeRecordId);
-    ReviewDataMatchModeRecordRepository.RecordAuthority authority =
-        matchModeRecordRepository.findMaterializedAuthority(matchModeRecordId);
-    if (existingRecordId != null
-        && authority == ReviewDataMatchModeRecordRepository.RecordAuthority.PLATFORM_OWNED) {
-      return new MaterializeResult(existingRecordId, MaterializeOutcome.SKIPPED_PLATFORM_OWNED);
-    }
-    return materialize(
-        matchModeRecordId,
-        source,
-        ReviewDataMatchModeRecordRepository.RecordAuthority.LEGACY_MANAGED);
-  }
-
-  public void claimPlatformOwnership(Long reviewRecordId) {
-    matchModeRecordRepository.claimPlatformOwnership(reviewRecordId);
-  }
-
-  private MaterializeResult materialize(
+  private Long materialize(
       Long matchModeRecordId,
-      ReviewDataMatchModeRecordRepository.MatchModeRecordSource source,
-      ReviewDataMatchModeRecordRepository.RecordAuthority authority) {
+      ReviewDataMatchModeRecordRepository.MatchModeRecordSource source) {
     Long existingRecordId = matchModeRecordRepository.findMaterializedRecordId(matchModeRecordId);
     ReviewDataMatchModeRecordRepository.ReportRow report = source.record();
     ReviewDataMatchModeRecordRepository.DescriptionRow primaryDescription = source.primaryDescription();
@@ -76,9 +48,6 @@ public class ReviewDataMatchModeMaterializeService {
     String authorName =
         valueOrDefault(primaryDescription == null ? null : primaryDescription.author(), "未填写");
     Long recordId = existingRecordId;
-    MaterializeOutcome outcome = recordId == null
-        ? MaterializeOutcome.INSERTED
-        : MaterializeOutcome.UPDATED;
     LocalDate reviewDate = resolveReviewDate(report);
     if (recordId == null) {
       recordId =
@@ -145,8 +114,10 @@ public class ReviewDataMatchModeMaterializeService {
     }
     persistenceSupport.refreshSearchIndex(recordId);
     matchModeRecordRepository.linkMaterializedRecord(
-        matchModeRecordId, report.legacyId(), recordId, authority);
-    return new MaterializeResult(recordId, outcome);
+        matchModeRecordId,
+        report.legacyId(),
+        recordId);
+    return recordId;
   }
 
   //兼容模式-MatchMode
@@ -232,12 +203,4 @@ public class ReviewDataMatchModeMaterializeService {
         .toList();
   }
 
-  //兼容模式-MatchMode
-  public record MaterializeResult(Long recordId, MaterializeOutcome outcome) {}
-
-  public enum MaterializeOutcome {
-    INSERTED,
-    UPDATED,
-    SKIPPED_PLATFORM_OWNED
-  }
 }

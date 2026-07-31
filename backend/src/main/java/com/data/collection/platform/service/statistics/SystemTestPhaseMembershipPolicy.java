@@ -13,14 +13,14 @@ import java.util.Map;
 import java.util.Set;
 import org.springframework.util.StringUtils;
 
-/** 系统测试阶段目录成员与事实字段之间的唯一匹配策略。 */
-final class SystemTestPhaseMembershipPolicy {
+/** 系统测试阶段目录成员与事实字段之间的唯一匹配策略，供所有系统测试口径统计复用。 */
+public final class SystemTestPhaseMembershipPolicy {
   private static final String TESTING_PHASE_FIELD = "testingPhase";
   private static final SqlPredicate EMPTY_PREDICATE = new SqlPredicate("", List.of());
 
   private SystemTestPhaseMembershipPolicy() {}
 
-  enum MatchMode {
+  public enum MatchMode {
     CONTAINS_MEMBER,
     EXACT_MEMBER
   }
@@ -41,7 +41,27 @@ final class SystemTestPhaseMembershipPolicy {
         mode);
   }
 
-  static SqlPredicate sqlPredicate(List<String> members, MatchMode mode) {
+  /**
+   * 为默认 {@code testing_phase} 列构造阶段成员谓词。
+   *
+   * @param members 阶段目录展开后的成员
+   * @param mode 成员匹配方式
+   * @return 参数化 SQL 片段及其参数
+   */
+  public static SqlPredicate sqlPredicate(List<String> members, MatchMode mode) {
+    return sqlPredicate("testing_phase", members, mode);
+  }
+
+  /**
+   * 为调用方指定的可信列表达式构造阶段成员谓词。
+   *
+   * @param columnExpression 由服务端代码提供的列名或带别名列名，不接受请求参数
+   * @param members 阶段目录展开后的成员
+   * @param mode 成员匹配方式
+   * @return 参数化 SQL 片段及其参数
+   */
+  public static SqlPredicate sqlPredicate(
+      String columnExpression, List<String> members, MatchMode mode) {
     List<String> normalizedMembers = normalizeMembers(members);
     if (normalizedMembers.isEmpty()) {
       return EMPTY_PREDICATE;
@@ -50,10 +70,10 @@ final class SystemTestPhaseMembershipPolicy {
     List<Object> args = new ArrayList<>(normalizedMembers.size());
     for (String member : normalizedMembers) {
       if (mode == MatchMode.CONTAINS_MEMBER) {
-        clauses.add("testing_phase like ?");
+        clauses.add(columnExpression + " like ?");
         args.add("%" + member + "%");
       } else {
-        clauses.add("testing_phase = ?");
+        clauses.add(columnExpression + " = ?");
         args.add(member);
       }
     }
@@ -121,7 +141,8 @@ final class SystemTestPhaseMembershipPolicy {
     return selected;
   }
 
-  static boolean matches(String actualTestingPhase, List<String> members, MatchMode mode) {
+  public static boolean matches(
+      String actualTestingPhase, List<String> members, MatchMode mode) {
     String actual = trimToNull(actualTestingPhase);
     if (actual == null) {
       return false;
@@ -246,8 +267,8 @@ final class SystemTestPhaseMembershipPolicy {
     return value.trim();
   }
 
-  record SqlPredicate(String sql, List<Object> args) {
-    SqlPredicate {
+  public record SqlPredicate(String sql, List<Object> args) {
+    public SqlPredicate {
       args = args == null ? List.of() : List.copyOf(args);
     }
   }

@@ -17,6 +17,11 @@ public class CodeReviewMatchModeSwitchService {
     return configService.isMatchModeEnabled();
   }
 
+  //兼容模式-MatchMode：评审数据在兼容态读取正式记录与尚未由平台接管的老平台快照；正式态只读正式表。
+  public boolean isReviewDataCompatibilityReadEnabled() {
+    return configService.isReviewDataCompatibilityReadEnabled();
+  }
+
   //兼容模式-MatchMode
   public boolean isCodeReviewCompatibilityReadEnabled() {
     return configService.isCodeReviewCompatibilityReadEnabled();

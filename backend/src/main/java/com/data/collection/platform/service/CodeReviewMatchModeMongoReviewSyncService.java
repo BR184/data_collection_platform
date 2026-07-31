@@ -95,11 +95,6 @@ public class CodeReviewMatchModeMongoReviewSyncService {
     return syncNow(configService.loadConfig(request));
   }
 
-  //兼容模式-MatchMode：转正式导入允许在兼容展示关闭时拉取一次老平台 MongoDB 评审数据。
-  public CodeReviewMatchModeSyncResponse syncNowForFormalImport() {
-    return syncNow(configService.loadConfig());
-  }
-
   private CodeReviewMatchModeSyncResponse syncNow(CodeReviewMatchModeConfig config) {
     if (!syncRunning.compareAndSet(false, true)) {
       return currentState(false, "兼容模式老平台 MongoDB 评审数据正在导入，请稍后再试");
@@ -213,7 +208,6 @@ public class CodeReviewMatchModeMongoReviewSyncService {
       }
       if (summary.documentsByCollection().containsKey(REVIEW_DESCRIPTION_COLLECTION)) {
         replaceReviewDescriptions(summary.documentsByCollection().get(REVIEW_DESCRIPTION_COLLECTION));
-        refreshMaterializedReviewDescriptions();
       }
     });
   }
@@ -436,70 +430,6 @@ public class CodeReviewMatchModeMongoReviewSyncService {
     if (!batch.isEmpty()) {
       jdbcTemplate.batchUpdate(sql, batch);
     }
-  }
-
-  private void refreshMaterializedReviewDescriptions() {
-    jdbcTemplate.update("""
-        with source_pages as (
-          select
-            link.review_record_id,
-            sum(greatest(coalesce(description.review_scale_pages, 0), 0))::integer as review_scale_pages,
-            (array_agg(nullif(description.review_product, '') order by description.id))[1] as review_product,
-            (array_agg(nullif(description.version, '') order by description.id))[1] as review_version,
-            (array_agg(nullif(description.author, '') order by description.id))[1] as author_name
-          from review_data_match_mode_edit_links link
-          join review_data_match_mode_reports report
-            on report.legacy_id = link.match_mode_report_legacy_id
-          join review_data_match_mode_descriptions description
-            on report.description_ids like '%' || description.legacy_id || '%'
-          where link.authority = 'LEGACY_MANAGED'
-          group by link.review_record_id
-        )
-        update review_records record
-           set review_scale_pages = source_pages.review_scale_pages,
-               review_product = coalesce(source_pages.review_product, record.review_product),
-               review_version = coalesce(source_pages.review_version, record.review_version),
-               author_name = coalesce(source_pages.author_name, record.author_name),
-               updated_at = current_timestamp
-          from source_pages
-         where record.id = source_pages.review_record_id
-           and source_pages.review_scale_pages > 0
-        """);
-    jdbcTemplate.update("""
-        with source_pages as (
-          select
-            link.review_record_id,
-            sum(greatest(coalesce(description.review_scale_pages, 0), 0))::integer as review_scale_pages,
-            (array_agg(nullif(description.review_product, '') order by description.id))[1] as review_product,
-            (array_agg(nullif(description.version, '') order by description.id))[1] as review_version,
-            (array_agg(nullif(description.author, '') order by description.id))[1] as author_name
-          from review_data_match_mode_edit_links link
-          join review_data_match_mode_reports report
-            on report.legacy_id = link.match_mode_report_legacy_id
-          join review_data_match_mode_descriptions description
-            on report.description_ids like '%' || description.legacy_id || '%'
-          where link.authority = 'LEGACY_MANAGED'
-          group by link.review_record_id
-        ),
-        primary_descriptions as (
-          select distinct on (review_record_id)
-                 id,
-                 review_record_id
-            from review_record_descriptions
-           where deleted = false
-           order by review_record_id, sort_order asc, id asc
-        )
-        update review_record_descriptions description
-           set review_scale_pages = source_pages.review_scale_pages,
-               review_product = coalesce(source_pages.review_product, description.review_product),
-               review_version = coalesce(source_pages.review_version, description.review_version),
-               author_name = coalesce(source_pages.author_name, description.author_name),
-               updated_at = current_timestamp
-          from primary_descriptions primary_description
-          join source_pages on source_pages.review_record_id = primary_description.review_record_id
-         where description.id = primary_description.id
-           and source_pages.review_scale_pages > 0
-        """);
   }
 
   private String listText(Document document, String fieldName) {

@@ -35,7 +35,7 @@ public class ReviewDataMatchModeRecordRepository {
 
   //兼容模式-MatchMode
   public List<ReviewDataRecordRowResponse> loadRecords() {
-    return buildRows(loadMaterializedLegacyIds()).records();
+    return buildRows(loadPlatformOwnedLegacyIds()).records();
   }
 
   //兼容模式-MatchMode
@@ -113,19 +113,14 @@ public class ReviewDataMatchModeRecordRepository {
   public void linkMaterializedRecord(
       Long matchModeRecordId,
       String legacyId,
-      Long reviewRecordId,
-      RecordAuthority authority) {
+      Long reviewRecordId) {
     int updated =
         jdbcTemplate.update("""
             update review_data_match_mode_edit_links
                set match_mode_report_id = ?,
                    match_mode_report_legacy_id = ?,
                    review_record_id = ?,
-                   authority = case
-                     when authority = 'PLATFORM_OWNED' then authority
-                     else ?
-                   end,
-                   last_handover_at = case when ? = 'LEGACY_MANAGED' then current_timestamp else last_handover_at end,
+                   authority = 'PLATFORM_OWNED',
                    updated_at = current_timestamp
              where match_mode_report_id = ?
                 or match_mode_report_legacy_id = ?
@@ -133,8 +128,6 @@ public class ReviewDataMatchModeRecordRepository {
             storageId(matchModeRecordId),
             legacyId,
             reviewRecordId,
-            authority.name(),
-            authority.name(),
             storageId(matchModeRecordId),
             legacyId);
     if (updated > 0) {
@@ -143,55 +136,19 @@ public class ReviewDataMatchModeRecordRepository {
     jdbcTemplate.update("""
           insert into review_data_match_mode_edit_links(
             match_mode_report_id, match_mode_report_legacy_id, review_record_id, authority,
-            last_handover_at, created_at, updated_at
+            created_at, updated_at
           ) values (
-            ?, ?, ?, ?, case when ? = 'LEGACY_MANAGED' then current_timestamp else null end,
+            ?, ?, ?, 'PLATFORM_OWNED',
             current_timestamp, current_timestamp
           )
           on conflict (match_mode_report_legacy_id) do update
              set match_mode_report_id = excluded.match_mode_report_id,
                   review_record_id = excluded.review_record_id,
-                  authority = case
-                    when review_data_match_mode_edit_links.authority = 'PLATFORM_OWNED'
-                      then review_data_match_mode_edit_links.authority
-                    else excluded.authority
-                  end,
-                  last_handover_at = coalesce(excluded.last_handover_at,
-                                              review_data_match_mode_edit_links.last_handover_at),
+                  authority = 'PLATFORM_OWNED',
                   updated_at = current_timestamp
           """,
         storageId(matchModeRecordId),
         legacyId,
-        reviewRecordId,
-        authority.name(),
-        authority.name());
-  }
-
-  public RecordAuthority findMaterializedAuthority(Long matchModeRecordId) {
-    String authority = jdbcTemplate.query(
-        """
-        select authority
-          from review_data_match_mode_edit_links
-         where match_mode_report_id = ?
-            or match_mode_report_legacy_id = (
-              select legacy_id from review_data_match_mode_reports where id = ?
-            )
-         order by id
-         limit 1
-        """,
-        rs -> rs.next() ? rs.getString("authority") : null,
-        storageId(matchModeRecordId),
-        storageId(matchModeRecordId));
-    return authority == null ? null : RecordAuthority.valueOf(authority);
-  }
-
-  public void claimPlatformOwnership(Long reviewRecordId) {
-    jdbcTemplate.update("""
-        update review_data_match_mode_edit_links
-           set authority = 'PLATFORM_OWNED', updated_at = current_timestamp
-         where review_record_id = ?
-           and authority <> 'PLATFORM_OWNED'
-        """,
         reviewRecordId);
   }
 
@@ -717,12 +674,13 @@ public class ReviewDataMatchModeRecordRepository {
     return publicId == null ? null : Math.abs(publicId);
   }
 
-  private Set<String> loadMaterializedLegacyIds() {
+  private Set<String> loadPlatformOwnedLegacyIds() {
     return new LinkedHashSet<>(
         jdbcTemplate.query(
             """
             select match_mode_report_legacy_id
               from review_data_match_mode_edit_links
+             where authority = 'PLATFORM_OWNED'
             """,
             (rs, rowNum) -> rs.getString("match_mode_report_legacy_id")));
   }
@@ -833,11 +791,6 @@ public class ReviewDataMatchModeRecordRepository {
       Integer independentProblemCount,
       Double meetingWorkloadHours,
       Integer meetingProblemCount) {}
-
-  public enum RecordAuthority {
-    LEGACY_MANAGED,
-    PLATFORM_OWNED
-  }
 
   private record RecordMetrics(
       Integer reviewScalePages,

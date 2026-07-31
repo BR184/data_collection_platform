@@ -41,6 +41,14 @@ public class GitlabMirrorProperties {
   private boolean customerIssueDelayWritebackWorkerEnabled = true;
   private int customerIssueDelayWritebackWorkerDelayMs = 5000;
   private int customerIssueDelayWritebackLeaseSeconds = 120;
+  private boolean codeReviewMetricEnrichmentEnabled = true;
+  private int codeReviewMetricEnrichmentDelayMs = 2000;
+  private int codeReviewMetricEnrichmentInitialDelayMs = 30000;
+  private int codeReviewMetricConcurrency = 4;
+  private int codeReviewMetricBatchSize = 20;
+  private int codeReviewMetricHistoricalScanSize = 200;
+  private int codeReviewMetricRequestTimeoutSeconds = 30;
+  private int codeReviewMetricRetryBaseSeconds = 30;
 
   public boolean isSchedulerEnabled() {
     return schedulerEnabled;
@@ -336,5 +344,69 @@ public class GitlabMirrorProperties {
 
   public void setCustomerIssueDelayWritebackLeaseSeconds(int customerIssueDelayWritebackLeaseSeconds) {
     this.customerIssueDelayWritebackLeaseSeconds = customerIssueDelayWritebackLeaseSeconds;
+  }
+
+  public boolean isCodeReviewMetricEnrichmentEnabled() {
+    return codeReviewMetricEnrichmentEnabled;
+  }
+
+  public void setCodeReviewMetricEnrichmentEnabled(boolean codeReviewMetricEnrichmentEnabled) {
+    this.codeReviewMetricEnrichmentEnabled = codeReviewMetricEnrichmentEnabled;
+  }
+
+  public int getCodeReviewMetricEnrichmentDelayMs() {
+    return codeReviewMetricEnrichmentDelayMs;
+  }
+
+  public void setCodeReviewMetricEnrichmentDelayMs(int codeReviewMetricEnrichmentDelayMs) {
+    this.codeReviewMetricEnrichmentDelayMs = codeReviewMetricEnrichmentDelayMs;
+  }
+
+  public int getCodeReviewMetricEnrichmentInitialDelayMs() {
+    return codeReviewMetricEnrichmentInitialDelayMs;
+  }
+
+  public void setCodeReviewMetricEnrichmentInitialDelayMs(int codeReviewMetricEnrichmentInitialDelayMs) {
+    this.codeReviewMetricEnrichmentInitialDelayMs = codeReviewMetricEnrichmentInitialDelayMs;
+  }
+
+  public int getCodeReviewMetricConcurrency() {
+    return codeReviewMetricConcurrency;
+  }
+
+  public void setCodeReviewMetricConcurrency(int codeReviewMetricConcurrency) {
+    this.codeReviewMetricConcurrency = codeReviewMetricConcurrency;
+  }
+
+  public int getCodeReviewMetricBatchSize() {
+    return codeReviewMetricBatchSize;
+  }
+
+  public void setCodeReviewMetricBatchSize(int codeReviewMetricBatchSize) {
+    this.codeReviewMetricBatchSize = codeReviewMetricBatchSize;
+  }
+
+  public int getCodeReviewMetricHistoricalScanSize() {
+    return codeReviewMetricHistoricalScanSize;
+  }
+
+  public void setCodeReviewMetricHistoricalScanSize(int codeReviewMetricHistoricalScanSize) {
+    this.codeReviewMetricHistoricalScanSize = codeReviewMetricHistoricalScanSize;
+  }
+
+  public int getCodeReviewMetricRequestTimeoutSeconds() {
+    return codeReviewMetricRequestTimeoutSeconds;
+  }
+
+  public void setCodeReviewMetricRequestTimeoutSeconds(int codeReviewMetricRequestTimeoutSeconds) {
+    this.codeReviewMetricRequestTimeoutSeconds = codeReviewMetricRequestTimeoutSeconds;
+  }
+
+  public int getCodeReviewMetricRetryBaseSeconds() {
+    return codeReviewMetricRetryBaseSeconds;
+  }
+
+  public void setCodeReviewMetricRetryBaseSeconds(int codeReviewMetricRetryBaseSeconds) {
+    this.codeReviewMetricRetryBaseSeconds = codeReviewMetricRetryBaseSeconds;
   }
 }

@@ -11,29 +11,36 @@ import org.junit.jupiter.api.Test;
 class MatchModeOwnershipBoundaryTest {
 
   @Test
-  void mongoRefreshOnlyUpdatesLegacyManagedFormalReviews() throws IOException {
+  void mongoSyncNeverWritesCompatibilitySnapshotsBackToFormalReviews() throws IOException {
     String source = Files.readString(
         Path.of(
             "src", "main", "java", "com", "data", "collection", "platform", "service",
             "CodeReviewMatchModeMongoReviewSyncService.java"),
         StandardCharsets.UTF_8);
 
-    String refreshMethod = source.substring(
-        source.indexOf("private void refreshMaterializedReviewDescriptions()"),
-        source.indexOf("private String listText", source.indexOf(
-            "private void refreshMaterializedReviewDescriptions()")));
-    assertThat(refreshMethod)
-        .containsSubsequence(
-            "from review_data_match_mode_edit_links link",
-            "where link.authority = 'LEGACY_MANAGED'")
-        .containsSubsequence(
-            "from review_data_match_mode_edit_links link",
-            "where link.authority = 'LEGACY_MANAGED'");
-    assertThat(countOccurrences(refreshMethod, "where link.authority = 'LEGACY_MANAGED'"))
-        .isEqualTo(2);
+    assertThat(source)
+        .doesNotContain("refreshMaterializedReviewDescriptions")
+        .doesNotContain("review_data_match_mode_edit_links link")
+        .doesNotContain("LEGACY_MANAGED");
   }
 
-  private int countOccurrences(String source, String fragment) {
-    return (source.length() - source.replace(fragment, "").length()) / fragment.length();
+  @Test
+  void formalImportRetainsOnlyTheCodeReviewPromotionPath() throws IOException {
+    String source = Files.readString(
+        Path.of(
+            "src", "main", "java", "com", "data", "collection", "platform", "service",
+            "LegacyPlatformFormalImportService.java"),
+        StandardCharsets.UTF_8);
+
+    assertThat(source)
+        .contains("CODE_REVIEW_PROMOTION")
+        .doesNotContain("request.importReviewData()")
+        .doesNotContain("importReviewData()")
+        .doesNotContain("\n          review_requested,")
+        .doesNotContain("\n            set review_inserted_count = ?,")
+        .doesNotContain("\n               review_updated_count = ?,")
+        .doesNotContain("\n                 review_skipped_count = ?,")
+        .doesNotContain("\n                 review_deleted_count = ?,")
+        .doesNotContain("\n               review_status = ?,");
   }
 }

@@ -45,8 +45,8 @@ class GitlabSystemHookAsyncDispatchServiceTest {
                 "issue:101",
                 "101",
                 List.of(
-                    new GitlabSystemHookPreciseSyncTarget("issues", "id", 101L),
-                    new GitlabSystemHookPreciseSyncTarget("issue_assignees", "issue_id", 101L))));
+                    new GitlabSystemHookPreciseSyncTarget("issues", Map.of("id", "101")),
+                    new GitlabSystemHookPreciseSyncTarget("issue_assignees", Map.of("issue_id", "101")))));
 
     dispatchService.accept(config, "Issue Hook", payload);
 
@@ -62,6 +62,8 @@ class GitlabSystemHookAsyncDispatchServiceTest {
             argThat(payloadExtras ->
                 "issue:101".equals(payloadExtras.get("objectKey"))
                     && payloadExtras.get("preciseTargets") instanceof List<?> targets
-                    && targets.size() == 2));
+                    && targets.size() == 2
+                    && targets.getFirst() instanceof Map<?, ?> firstTarget
+                    && Map.of("id", "101").equals(firstTarget.get("lookupScope"))));
   }
 }

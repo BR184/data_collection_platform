@@ -148,16 +148,15 @@ public class GitlabExternalDbService implements DisposableBean {
             option, schema, watermark, upperBound, cursorUpdatedAt, cursorPk, batchSize));
   }
 
+  /** 按完整范围查询来源当前集合。 */
   public List<Map<String, Object>> preciseScan(
       GitlabSyncConfig config,
       TableWhitelistOption option,
-      String lookupColumn,
-      Object lookupValue) {
-    if (lookupColumn == null || lookupColumn.isBlank() || lookupValue == null) {
+      Map<String, Object> lookupScope) {
+    if (lookupScope == null || lookupScope.isEmpty()) {
       return List.of();
     }
-    String sql = buildPreciseScanSql(option, lookupColumn, lookupValue);
-    return executeSourceQuery(config, sql);
+    return executeSourceQuery(config, scanSqlBuilder.buildPreciseScanSql(option, lookupScope));
   }
 
   public List<Map<String, Object>> previewTablePage(
@@ -231,8 +230,8 @@ public class GitlabExternalDbService implements DisposableBean {
     return scanSqlBuilder.buildFullCursorScanSql(option, schema, cursorPk, batchSize);
   }
 
-  String buildPreciseScanSql(TableWhitelistOption option, String lookupColumn, Object lookupValue) {
-    return scanSqlBuilder.buildPreciseScanSql(option, lookupColumn, lookupValue);
+  String buildPreciseScanSql(TableWhitelistOption option, Map<String, Object> lookupScope) {
+    return scanSqlBuilder.buildPreciseScanSql(option, lookupScope);
   }
 
   String buildPreviewTablePageSql(

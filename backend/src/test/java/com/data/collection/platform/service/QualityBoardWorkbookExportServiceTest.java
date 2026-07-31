@@ -52,6 +52,7 @@ class QualityBoardWorkbookExportServiceTest {
   @Test
   void exportsCodeReviewRecordsThroughReadSupportSoMatchModeRemainsIsolated() throws Exception {
     when(codeReviewReadSupport.configuredReadMode()).thenReturn(CodeReviewDataReadMode.MATCH_MODE);
+    when(rdService.normalizeProjectName("CC2026R4")).thenReturn("CC2026R4");
     when(codeReviewReadSupport.codeReviewRecordRows(
             "dgm", "CC2026R4", CodeReviewDataReadMode.MATCH_MODE))
         .thenReturn(

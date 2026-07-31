@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 @Service
 public class QualityBoardCodeReviewReadSupport {
@@ -327,12 +328,30 @@ public class QualityBoardCodeReviewReadSupport {
         queryScope.args().toArray());
   }
 
-  public Map<String, Long> addedLinesByFunction(String projectName) {
-    return groupedAddedLines("function_name", "cc", projectName);
+  /**
+   * 按功能汇总需要代码走查的正式 CC 合并请求去重新增行数。
+   * “无需代码走查”的记录不属于功能缺陷密度分母。
+   *
+   * @param projectName 代码走查项目名称
+   * @return 功能名到新增行数的稳定映射
+   */
+  public Map<String, Long> reviewedAddedLinesByFunction(String projectName) {
+    return groupedAddedLines(
+        "function_name", "cc", projectName, AddedLinePopulation.CODE_REVIEW_REQUIRED);
   }
 
   public Map<String, Long> addedLinesByAuthor(String projectName) {
-    return groupedAddedLines("author_name", "cc", projectName);
+    return groupedAddedLines("author_name", "cc", projectName, AddedLinePopulation.ALL_MERGED);
+  }
+
+  /**
+   * 按提交人汇总全部正式 CC 合并请求的去重新增行数。
+   * 个人交付质量的分母是成员长期代码规模，不随当前发布版本切换。
+   *
+   * @return 提交人到新增行数的稳定映射
+   */
+  public Map<String, Long> addedLinesByAuthorAcrossAllProjects() {
+    return groupedAddedLines("author_name", "cc", null, AddedLinePopulation.ALL_MERGED);
   }
 
   QualityBoardCodeReviewReadScope resolveScope(String requestedSource, String requestedProjectName) {
@@ -403,15 +422,17 @@ public class QualityBoardCodeReviewReadSupport {
   private Map<String, Long> groupedAddedLines(
       String groupField,
       String source,
-      String projectName) {
+      String projectName,
+      AddedLinePopulation population) {
     String safeGroupField = switch (groupField) {
       case "function_name" -> "function_name";
       case "author_name" -> "author_name";
       default -> throw new IllegalArgumentException("Unsupported code-review group field: " + groupField);
     };
     //兼容模式-MatchMode：其他看板的代码规模是正式 CC 业务口径，不能随兼容开关切到临时快照。
-    QualityBoardCodeReviewReadScope scope =
-        resolveScope(source, projectName, CodeReviewDataReadMode.FORMAL);
+    QualityBoardCodeReviewReadScope scope = StringUtils.hasText(projectName)
+        ? resolveScope(source, projectName, CodeReviewDataReadMode.FORMAL)
+        : resolveAllProjectsScope(source, CodeReviewDataReadMode.FORMAL);
     if (!scope.available()) {
       return Map.of();
     }
@@ -427,6 +448,7 @@ public class QualityBoardCodeReviewReadSupport {
           from %s
           where %s
             %s
+            %s
         )
         select group_name,
                sum(case when row_number_in_mr = 1 then added_lines else 0 end) as added_lines
@@ -440,7 +462,8 @@ public class QualityBoardCodeReviewReadSupport {
                 identity,
                 scope.tableName(),
                 queryScope.predicate(),
-                scope.deletedPredicate());
+                scope.deletedPredicate(),
+                population.predicate());
     Map<String, Long> result = new LinkedHashMap<>();
     jdbcTemplate.query(
         sql,
@@ -452,6 +475,21 @@ public class QualityBoardCodeReviewReadSupport {
         },
         queryScope.args().toArray());
     return result;
+  }
+
+  private enum AddedLinePopulation {
+    ALL_MERGED(""),
+    CODE_REVIEW_REQUIRED("and coalesce(scan_status, '') <> '无需代码走查'");
+
+    private final String predicate;
+
+    AddedLinePopulation(String predicate) {
+      this.predicate = predicate;
+    }
+
+    private String predicate() {
+      return predicate;
+    }
   }
 
   public CodeReviewDataReadMode configuredReadMode() {

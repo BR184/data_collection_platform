@@ -158,7 +158,8 @@ public class QualityBoardRdService {
   private List<QualityBoardChartRowResponse> functionDefectDensityRows(
       String projectName,
       List<String> phases) {
-    Map<String, Long> addedLinesByFunction = codeReviewReadSupport.addedLinesByFunction(projectName);
+    Map<String, Long> addedLinesByFunction =
+        codeReviewReadSupport.reviewedAddedLinesByFunction(projectName);
     Map<String, Long> issueCounts = issueGroupedCounts(phases, "function_name", "未标注功能");
     return addedLinesByFunction.entrySet().stream()
         .filter(entry -> entry.getValue() > 0)

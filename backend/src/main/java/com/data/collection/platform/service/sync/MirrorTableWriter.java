@@ -35,20 +35,18 @@ public class MirrorTableWriter {
    * 将指定 lookup 范围按来源完整集合原子替换，支持新增、替换和清空关系。
    *
    * @param mirrorSchema 镜像表结构
-   * @param lookupColumn 范围列
-   * @param lookupValue 范围值
+   * @param lookupScope 完整范围列和值
    * @param rows 来源完整范围集合
    * @param taskId 当前同步任务编号
    * @return 来源行数及该范围实际写入、删除数量
    */
   public MirrorBatchWriteResult replaceAuthoritativeScope(
       SourceTableSchema mirrorSchema,
-      String lookupColumn,
-      Object lookupValue,
+      Map<String, Object> lookupScope,
       List<Map<String, Object>> rows,
       Long taskId) {
     return storageService.replaceAuthoritativeScope(
-        mirrorSchema, lookupColumn, lookupValue, rows, taskId);
+        mirrorSchema, lookupScope, rows, taskId);
   }
 
   public MirrorPrimaryKeyBatch listActivePrimaryKeys(

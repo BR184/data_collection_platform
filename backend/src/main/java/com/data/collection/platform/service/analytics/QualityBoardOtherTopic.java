@@ -32,7 +32,7 @@ enum QualityBoardOtherTopic {
       "quality-ranking-excel",
       "qualityRankingProjectName",
       "质量达人榜",
-      "按成员代码千行缺陷密度排名，数值越低越好",
+      "按成员各测试阶段平均千行缺陷密度排名",
       "修复人",
       "系统测试缺陷数",
       "新增代码行数",
@@ -65,10 +65,10 @@ enum QualityBoardOtherTopic {
       "development-leakage-rate-excel",
       null,
       "开发缺陷遗留率",
-      "各发布版本集成测试未通过用例占全部开发缺陷的比例",
+      "各发布版本未关闭系统测试缺陷占比",
       "发布版本",
-      "集成测试未通过数",
-      "系统测试缺陷数",
+      "未关闭缺陷数",
+      "系统测试缺陷总数",
       "%");
 
   private final String chartKey;

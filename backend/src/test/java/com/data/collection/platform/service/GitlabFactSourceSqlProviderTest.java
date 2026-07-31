@@ -27,8 +27,18 @@ class GitlabFactSourceSqlProviderTest {
   }
 
   @Test
+  void test_resource_label_event_sql_uses_gitlab_16_issue_identity() {
+    assertThat(provider.issueSourceSql(true))
+        .contains("rle.issue_id")
+        .contains("rle.action = 1")
+        .doesNotContain("rle.action = 'add'")
+        .doesNotContain("rle.resource_id")
+        .doesNotContain("rle.resource_type");
+  }
+
+  @Test
   void shouldProvideMergeRequestSqlWithImportedMetricsAndFormRecords() {
-    assertThat(provider.mergeRequestSourceSql())
+    assertThat(provider.mergeRequestSourceSql("default"))
         .contains("from ods_gitlab_merge_requests mr")
         .contains("from code_review_external_metrics m")
         .contains("from collect_form_records f")

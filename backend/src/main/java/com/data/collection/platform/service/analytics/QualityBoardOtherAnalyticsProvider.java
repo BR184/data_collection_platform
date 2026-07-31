@@ -4,6 +4,7 @@ import com.data.collection.platform.entity.analytics.AnalyticsDashboardDetailRes
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardExport;
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardResponse;
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardRulesResponse;
+import com.data.collection.platform.service.PageRecordSnapshotService;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -22,12 +23,15 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
 
   private final QualityBoardOtherQueryService queryService;
   private final QualityBoardOtherWorkbookService workbookService;
+  private final PageRecordSnapshotService snapshotService;
 
   public QualityBoardOtherAnalyticsProvider(
       QualityBoardOtherQueryService queryService,
-      QualityBoardOtherWorkbookService workbookService) {
+      QualityBoardOtherWorkbookService workbookService,
+      PageRecordSnapshotService snapshotService) {
     this.queryService = queryService;
     this.workbookService = workbookService;
+    this.snapshotService = snapshotService;
   }
 
   @Override
@@ -37,12 +41,16 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
 
   @Override
   public String ruleVersion(AnalyticsDashboardQueryContext context) {
-    return "legacy-personal-quality-v2";
+    return "legacy-personal-quality-v3";
   }
 
   @Override
   public String sourceVersion(AnalyticsDashboardQueryContext context) {
-    return "formal-cc-issue-merge-integration-v1";
+    return snapshotService.issueFactSourceVersion()
+        + "|"
+        + snapshotService.codeReviewSourceVersion()
+        + "|members:"
+        + queryService.memberScopeSourceVersion();
   }
 
   @Override
@@ -81,13 +89,13 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
             rule(
                 QualityBoardOtherTopic.FUNCTION_DEFECT_DENSITY,
                 "系统测试缺陷数 ÷ CC 新增代码行数 × 100",
-                "系统测试缺陷按所选版本阶段统计；新增行按 CC 已合并代码统计",
+                "系统测试缺陷按所选版本阶段统计；新增行按 CC 已合并且需要代码走查的数据统计",
                 "系统测试缺陷排除已拒绝数据"),
             rule(
                 QualityBoardOtherTopic.QUALITY_RANKING,
-                "修复人系统测试缺陷数 ÷ 同名 CC 提交人新增代码行数 × 1000",
-                "所选版本的系统测试议题与 CC 已合并代码；系统测试缺陷排除已拒绝",
-                "数值越低越好；不展示空修复人、无有效新增行和 0 密度成员"),
+                "各子测试阶段（成员缺陷数 ÷ 成员全部 CC 新增代码行数）平均值 × 1000",
+                "所选版本的系统测试阶段；成员范围由质量看板业务成员配置维护",
+                "排除已拒绝；保留 0 密度业务成员，按密度从高到低展示"),
             rule(
                 QualityBoardOtherTopic.MEMBER_UNRESOLVED_RATE,
                 "个人未修复缺陷数 ÷ 个人缺陷总数 × 100%",
@@ -100,9 +108,9 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
                 "排除已拒绝；按版本展示完整集合"),
             rule(
                 QualityBoardOtherTopic.DEVELOPMENT_LEAKAGE_RATE,
-                "集成测试未通过数 ÷（集成测试未通过数 + 系统测试缺陷数）× 100%",
-                "全部启用发布版本的集成测试与系统测试事实",
-                "系统测试侧排除已拒绝")));
+                "未关闭系统测试缺陷数 ÷ 系统测试缺陷总数 × 100%",
+                "全部启用发布版本的系统测试事实；未关闭同时识别 open 与 opened",
+                "排除已拒绝；不读取集成测试数据")));
   }
 
   @Override

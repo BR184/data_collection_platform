@@ -11,7 +11,7 @@
 
 - 形态：Spring Boot 单体后端 + Vue 3/TypeScript/Vite 前端 + PostgreSQL；前端默认 `18181`，后端默认 `18080`。
 - 数据入口：GitLab 镜像表（ODS）→ 事实层 → 统计服务/快照 → 页面、导出和外部只读数据集 API。
-- 核心事实表：`issue_fact`、`merge_request_fact`、`integration_test_fact`；评审页面使用 `review_visible_*` 统一读模型，合并正式评审表与尚未交接且未被映射的兼容快照。
+- 核心事实表：`issue_fact`、`merge_request_fact`、`integration_test_fact`；评审页面使用 `review_visible_*` 统一读模型：兼容态合并正式评审表与未被平台接管的兼容快照，正式态只读正式表。
 - 系统测试与客户问题的可选范围统一以项目级“议题范围目录”为权威来源。目录以稳定业务键、可修改显示名和精确事实成员三层表达；管理员顺序中的第一条启用范围是统一默认值。系统测试目录维度为 `TESTING_PHASE`，成员是 `issue_fact.testing_phase` 的配置值，但页面如何接纳含多个成员的复合事实由页面业务契约决定：统一 `SystemTestPhaseMembershipPolicy` 显式选择精确成员或包含成员，SQL 与内存过滤必须使用同一模式，并在一次请求开始时编译为不可变成员快照，禁止逐事实重复读取目录。客户问题目录维度为 `MILESTONE`，成员匹配 `issue_fact.milestone_title` 时不区分大小写但保留空白等真实值差异。客户事实发布时只向业务键相同的既有启用范围补充缺失成员，不创建范围、不启用停用范围、不改变显示名或顺序。显示名修改不得改变事实匹配，目录变更通过统一源版本使统计与记录快照失效。
 - 数据库迁移统一使用 Flyway；已执行迁移不可修改，新增结构或数据变更必须新建迁移。
 - Flyway 是建库和升级入口，`schema.sql` 只作本地兼容与静态比对；共享库已执行迁移不可修改，结构修复使用新前向迁移，结构变更与大规模回填分开。
@@ -33,12 +33,13 @@
 - 每个整体成功或部分成功的镜像运行都必须提交以该运行作为 `parent_run_id` 的 `FACT_REFRESH`；只有整体成功的全量镜像直接使用全量事实构建，部分成功运行提交增量标记并按已成功表任务执行增量/受影响对象刷新；若尚无成功全量基线，则按既有规则先建立事实基线。
 - 同一事实范围内不同镜像父运行的事实刷新必须排队串行执行；仅相同父运行的重复事件允许复用，不能丢弃较新的镜像影响范围。
 - 页面实时刷新以触发的镜像 `sync_runs` 及其 `FACT_REFRESH` 子运行作为唯一完成链路；镜像成功而事实子运行排队、运行或失败时，页面不得将旧事实数据标记为最新。
-- 可变关系的完整集合语义由权威关系目录显式声明，不能从 `FULL_ONLY`、更新时间列或任务来源推断。父资源增量与 System Hook 命中后按目录派生 `AUTHORITATIVE` lookup 范围任务；执行器先完整校验来源集合，再在同一事务内写入当前主键并软删除来源已缺失的主键。`label_links` 以 `target_id` 下 Issue/MergeRequest 两类来源完整集合整体替换，避免相同数字 ID 跨类型误删。派生任务属于同一父运行，父运行必须按最终任务汇总等待其完成后再发布事实刷新；普通 `PRECISE` 任务保持 upsert 语义。成功的 `FULL_COMPENSATION_SCAN` 必须全量发布事实，以清除无法从活动 ODS 行反查目标的主实体和其他硬删除残留。
+- 可物理删除实体及关系的完整集合语义由 `AuthoritativeRelationCatalog` 显式声明，不能从 `FULL_ONLY`、更新时间列或任务来源推断。根实体按主键声明；Issue 的指派人、指标、评论和标签，以及 MR 的指派人、审核人、指标、评论和标签按父对象声明，其中评论固定使用 `(noteable_type,noteable_id)`，标签固定使用 `(target_type,target_id)`，避免多态对象的相同数字 ID 互相误删。所有精确任务以非空、规范化的复合 `lookupScope` 作为来源读取、任务去重和 ODS 写入的唯一范围；`PRECISE` 只 upsert 来源返回行，`AUTHORITATIVE` 在同一事务内以完整来源集合替换 ODS active 集合，空集合也是有效替换，缺失行写 tombstone。父资源增量、System Hook 与 GitLab 16.11 `resource_label_events.issue_id/merge_request_id` 命中后共用该目录；事件事实只在所需列完整且 `action` 为整数枚举时启用，`add=1`。派生任务属于同一父运行，父运行必须等待最终任务汇总后再发布事实刷新；`FULL_SYNC` 和 `FULL_COMPENSATION_SCAN` 均执行 `FULL_RECONCILE` 的 `SCAN/RECONCILE` 两阶段，成功补偿必须全量发布事实以清除未收到精确事件的硬删除残留。
 - 增量更新保留 PostgreSQL volume、同步状态、镜像表和用户配置，不通过重建容器清库。
 
 ### 事实与统计
 
 - 事实构建负责字段归一化、标签解析、非法判定和派生字段；统计服务只消费事实层和明确的统计快照。
+- 增量事实影响必须优先从成功 `AUTHORITATIVE` 任务的 `lookup_scope_json` 恢复父目标；根 Issue/MR 已 tombstone 时仍从其保留身份读取 `(project_id,iid)`。Issue/MR 定向发布必须在同一事务中先删除指定来源实例与目标的旧事实，Issue 同时删除客户成员，再写入当前来源结果；空来源是有效删除结果。全量 Issue/MR 构建以完整快照替换单一来源实例，不得残留来源已删除的旧事实，也不得影响其他来源实例或事实类型。
 - 同一议题的总量去重、模块多归属、空值展示、默认范围和导出口径遵循 `docs/platform-page-business-rules.md`，禁止在页面 SQL 中复制隐藏规则。
 - 事实字段或统计口径变化必须明确是否重建事实层和预热快照；重建不等于重新全量镜像同步。
 - 手工全量重建复用 `/api/facts/rebuild?configId=`，但接口只提交 `FACT_REFRESH` 后台运行并立即返回运行编号；运行以 `manualFullRebuild=true` 标识，在调度器中调用唯一的 `rebuildAllFactsForConfig` 入口重建 `issue_fact`、`merge_request_fact`、`integration_test_fact`。任何事实表写入前必须聚合预检三类事实的全部 ODS 表/字段；手工全量重建的三类事实和自动任务的单类事实分别在一个发布事务内完成，PostgreSQL MVCC 使其他连接在提交前继续读取上一已提交版本，任一构建失败则整批回滚。提交后按新的事实源版本刷新统计板与记录页快照；快照未命中时只能实时查询完整的新事实代际。手工运行与构建任务使用同一运行编号，状态面板和最近同步日志以 `sync_runs` 为唯一追踪来源；提交服务对同数据源所有活跃镜像或事实运行互斥。后端权限、源表校验和事实构建锁是权威保护，数据镜像页只提供受确认保护的运维入口。
@@ -48,6 +49,7 @@
 - `CC_PRODUCT` 客户归属以 `ods_gitlab_issues.description` 的“客户名称”为主、标题双破折号后缀为缺失兜底；`issue_fact_customer_members` 是多对多筛选权威，`issue_fact.customer_names` 仅为展示投影。客户别名必须精确规范化，筛选使用成员关系 `exists`，不得拆分或重复议题事实。
 - `CC_PRODUCT` 的计划解决时间和计划合并版本分支只来自最新“问题调研情况说明”响应模板，不能复用 SLA 截止时间；事实构建必须只保留唯一完整日期及以 `&` 分隔的 `CCyyyyRn` 版本标识，任一字段不合法则写空。页面以事实层版本成员渲染标签，Excel 使用同一稳定文本。缺陷滞留时长只表达当前未闭环年龄：GitLab 已关闭或命中客户问题最终闭环状态时为 `0`，否则按一次请求固定的 `asOf` 与 `created_at_source` 动态计算；它不能写入事实或页面快照，也不能承载历史解决周期。上述字段、候选和导出只属于 CC_PRODUCT，延期专题不消费它们。详见 `docs/decisions/ADR-003-customer-membership-and-response-template-facts.md`。
 - `issue_fact.handler_name` 与 `issue_fact.assignee_name` 是独立人员事实；当前 GitLab ODS 只暴露一份规范指派身份时，事实构建可以写入相同值，但查询、筛选、排序和导出不得把两个字段重新合并。`testing_phase` 原始空值保持为空，CC_PRODUCT 仅在响应投影中显示“未设定测试阶段”。
+- `code_review_external_metrics` 是 GitLab diff 派生行数和 MR 标题功能名的权威补齐模型。既有或手工导入指标默认视为 `SUCCESS`，只有历史/已完成运行扫描明确发现的 CC MR 才进入补齐队列；后台以持久化 keyset 游标分别扫描历史 MR 和已完成镜像运行，队列按 `source_instance` 隔离并经历 `PENDING/RUNNING/RETRY/ENRICHED/SUCCESS/FAILED`。网络、限流和服务端错误使用封顶指数退避持续重试，认证、资源不存在、非法地址和截断响应进入确定性失败。补齐只通过 API Token 访问 GitLab v4 changes 接口，页面请求不得实时访问 GitLab；成功指标在事实构建互斥内定向发布到 `merge_request_fact`，构建忙时保持 `ENRICHED` 等待下一批次。全局调度关闭时补齐任务必须停止。
 
 ### 页面与前端底座
 
@@ -75,6 +77,7 @@
 
 - 研发质量看板保留老平台八个 headline 指标和五类辅助图表；其中 DGM 只参与明确的代码走查指标和图表。
 - 其他看板提供老平台六类统计，不提供 DGM 选择器或 DGM 接口，其固定 GitLab CC 边界不参与老平台代码走查交接。研发质量/多元看板、代码走查非法数据、系统测试横向对比和外部数据集等交接消费者统一读取 `code_review_formal_records`：CC/DGM 各自优先读取已交接的 `LEGACY_PLATFORM` 事实，未交接时回退到对应 GitLab 正式范围；禁止在消费者内复制来源判断。
+- 其他看板的代码规模来自 `merge_request_fact`：功能缺陷密度只统计需代码走查的已合并 CC MR，质量达人榜统计成员全部已合并 CC MR；人员范围由 `quality_board_member_scopes` 管理。代码规模补齐状态不能改变页面 API，未完成补齐的数据按当前已提交事实展示，成功发布后由事实与统计版本统一失效刷新。
 
 ### 业务模块
 
@@ -95,9 +98,8 @@
 ## 兼容模式边界
 
 - CC/DGM、老平台评审数据等临时兼容源必须通过明确的 Match mode 服务、表、任务和 API 访问，并在代码中标注 `兼容模式` / `Match mode`。
-- 正式数据源与兼容数据源不可互相覆盖。评审兼容快照仅通过 `review_visible_*` 暴露未交接记录；交接后由 `review_data_match_mode_edit_links` 映射去重。代码走查交接成功后由 `code_review_formal_records` 选择正式事实，旧兼容快照不再直接进入正式消费者。所有兼容路径必须标注 `兼容模式` / `Match mode`。
-- 老平台数据转正式数据是可审计、幂等的所有权交接：评审完整迁移主记录、专家、描述、内容和问题项，派生指标在正式表重算；代码走查迁移 CC/DGM 事实。平台已编辑、新增或删除的评审记录标记 `PLATFORM_OWNED`，后续交接跳过；历史无创建人保持 `created_by = null`。
-- 交接执行前校验已保存设置版本和源范围，使用 PostgreSQL advisory lock 防并发，并在 `REPEATABLE_READ` 事务内提交正式写入和源删除对账；失败写入审计任务，不报告为成功。迁移 `V20260721_03` 删除失效的评审读源配置列，旧应用回退不受支持，数据库恢复以发布备份为准。
+- 正式数据源与兼容数据源不可互相覆盖。`review_data_read_mode=compatibility` 时，`review_visible_*` 暴露正式评审与未被 `PLATFORM_OWNED` 映射遮蔽的 Mongo 快照；`formal` 时仅暴露正式评审。负 ID 快照第一次编辑在单一事务内完整物化主记录、专家、描述、内容和问题项，并建立 `PLATFORM_OWNED` 映射；Mongo 同步只替换快照，不得回写正式评审。代码走查交接成功后由 `code_review_formal_records` 选择正式事实，旧兼容快照不再直接进入正式消费者。所有兼容路径必须标注 `兼容模式` / `Match mode`。
+- 老平台评审禁止批量转正式或建立 `LEGACY_MANAGED` 副本；`V20260730_07` 清理错误副本并恢复评审读源设置。代码走查仍是可审计、幂等的正式交接，执行前校验已保存设置版本和源范围，使用 PostgreSQL advisory lock 防并发，并在 `REPEATABLE_READ` 事务内提交；失败写入审计任务，不报告为成功。历史无创建人保持 `created_by = null`。
 - 兼容模式 MR 专用测试环境资源固定为 `qaflex-matchmode-mr-*` 容器和 `qaflex_matchmode_mr_pgdata` volume；未经授权不得删除或改名。
 
 ## 外部数据集 API

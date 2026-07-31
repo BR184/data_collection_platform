@@ -5,6 +5,5 @@ public record LegacyPlatformFormalImportResponse(
     boolean accepted,
     String status,
     String message,
-    LegacyPlatformFormalImportDomainResponse review,
     LegacyPlatformFormalImportDomainResponse codeReview) {
 }

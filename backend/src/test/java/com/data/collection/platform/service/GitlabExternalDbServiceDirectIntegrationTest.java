@@ -123,7 +123,7 @@ class GitlabExternalDbServiceDirectIntegrationTest {
             });
     assertThat(service.fullTableScan(config, issues)).hasSize(2);
     assertThat(service.incrementalScan(config, issues, LocalDateTime.of(2025, 1, 1, 0, 0))).hasSize(2);
-    assertThat(service.preciseScan(config, issues, "id", 202L))
+    assertThat(service.preciseScan(config, issues, java.util.Map.of("id", 202L)))
         .singleElement()
         .satisfies(row -> assertThat(row.get("title")).isEqualTo("second issue"));
   }

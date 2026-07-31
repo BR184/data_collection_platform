@@ -63,11 +63,14 @@ public class SyncRunTableTask {
   @TableField("page_number")
   private Integer pageNumber;
 
-  @TableField("lookup_column")
-  private String lookupColumn;
-
-  @TableField("lookup_value")
-  private String lookupValue;
+  /**
+   * 精确任务的完整来源范围（JSON 对象）。
+   *
+   * <p>范围是所有精确任务的唯一查询契约。{@code AUTHORITATIVE} 在该范围内替换 ODS 当前集合，
+   * {@code PRECISE} 则只写入来源返回行；两者均使用相同范围读取来源和记录任务身份。
+   */
+  @TableField("lookup_scope_json")
+  private String lookupScopeJson;
 
   @TableField("batch_size")
   private Integer batchSize;
