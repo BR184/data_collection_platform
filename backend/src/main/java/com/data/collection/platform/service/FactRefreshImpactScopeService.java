@@ -1,8 +1,11 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunTableTask;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
+import com.data.collection.platform.entity.sync.SyncRunType;
+import com.data.collection.platform.mapper.SyncRunMapper;
 import com.data.collection.platform.mapper.SyncRunTableTaskMapper;
 import com.data.collection.platform.service.sync.AuthoritativeRelationCatalog;
 import java.util.LinkedHashMap;
@@ -10,6 +13,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -21,28 +25,68 @@ public class FactRefreshImpactScopeService {
 
   private final JdbcTemplate jdbcTemplate;
   private final SyncRunTableTaskMapper tableTaskMapper;
+  private final SyncRunMapper syncRunMapper;
   private final JsonUtils jsonUtils;
 
   public FactRefreshImpactScopeService(
       JdbcTemplate jdbcTemplate,
       SyncRunTableTaskMapper tableTaskMapper,
+      SyncRunMapper syncRunMapper,
       JsonUtils jsonUtils) {
     this.jdbcTemplate = jdbcTemplate;
     this.tableTaskMapper = tableTaskMapper;
+    this.syncRunMapper = syncRunMapper;
     this.jsonUtils = jsonUtils;
   }
 
-  public ImpactScope resolve(Long mirrorRunId, String sourceInstance, String factType) {
-    if (mirrorRunId == null || factType == null || factType.isBlank()) {
-      return ImpactScope.fallback();
+  /**
+   * 从事实子运行的持久父子关系解析本次镜像变更影响范围。
+   *
+   * <p>{@code fact_build_tasks.run_id} 只表示事实任务归属；镜像影响来源只读取
+   * {@code sync_runs.parent_run_id}。运行类型、配置或数据源不一致，以及已有镜像工作量却缺失表任务链时，
+   * 视为发布链不变量破坏并显式失败，禁止退化为空影响成功。
+   *
+   * @param factRunId 当前 {@code FACT_REFRESH} 子运行 ID
+   * @param configId 事实任务归属的配置 ID
+   * @param sourceInstance 事实任务归属的数据源实例
+   * @param factType 需要解析的事实类型
+   * @return 精确目标、合法空范围或要求受控全量回退的影响范围
+   */
+  public ImpactScope resolve(
+      Long factRunId,
+      Long configId,
+      String sourceInstance,
+      String factType) {
+    if (factRunId == null || configId == null) {
+      throw new IllegalArgumentException("事实影响解析需要事实运行 ID 和配置 ID");
     }
-    List<SyncRunTableTask> tasks =
+    if (factType == null || factType.isBlank()) {
+      throw new IllegalArgumentException("事实影响解析需要事实类型");
+    }
+    SyncRun mirrorRun = resolveMirrorRun(factRunId, configId, sourceInstance);
+    List<SyncRunTableTask> allTasks =
         tableTaskMapper.selectList(
             new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SyncRunTableTask>()
-                .eq(SyncRunTableTask::getRunId, mirrorRunId)
-                .eq(SyncRunTableTask::getStatus, SyncRunStatus.SUCCESS)
-                .gt(SyncRunTableTask::getRowsApplied, 0L));
-    if (tasks == null || tasks.isEmpty()) {
+                .eq(SyncRunTableTask::getRunId, mirrorRun.getId()));
+    if (allTasks == null || allTasks.isEmpty()) {
+      if (hasRecordedMirrorWork(mirrorRun)) {
+        throw new IllegalStateException(
+            "镜像父运行 " + mirrorRun.getId() + " 已记录处理结果，但表任务链缺失");
+      }
+      return ImpactScope.empty();
+    }
+    if (allTasks.stream()
+        .filter(Objects::nonNull)
+        .anyMatch(task -> !Objects.equals(task.getRunId(), mirrorRun.getId()))) {
+      throw new IllegalStateException("镜像父运行的表任务归属不一致: " + mirrorRun.getId());
+    }
+    List<SyncRunTableTask> tasks =
+        allTasks.stream()
+            .filter(Objects::nonNull)
+            .filter(task -> task.getStatus() == SyncRunStatus.SUCCESS)
+            .filter(task -> task.getRowsApplied() != null && task.getRowsApplied() > 0L)
+            .toList();
+    if (tasks.isEmpty()) {
       return ImpactScope.empty();
     }
     String normalizedFactType = factType.trim().toUpperCase(Locale.ROOT);
@@ -56,6 +100,68 @@ public class FactRefreshImpactScopeService {
     } catch (DataAccessException e) {
       return ImpactScope.fallback();
     }
+  }
+
+  private SyncRun resolveMirrorRun(
+      Long factRunId,
+      Long expectedConfigId,
+      String expectedSourceInstance) {
+    SyncRun factRun = syncRunMapper.selectById(factRunId);
+    if (factRun == null) {
+      throw new IllegalStateException("事实刷新运行 " + factRunId + " 不存在");
+    }
+    if (factRun.getRunType() != SyncRunType.FACT_REFRESH) {
+      throw new IllegalStateException("运行 " + factRunId + " 不是 FACT_REFRESH 事实子运行");
+    }
+    String normalizedSource =
+        GitlabSourceInstanceSupport.normalizeSourceInstance(expectedSourceInstance);
+    if (!Objects.equals(factRun.getConfigId(), expectedConfigId)
+        || !Objects.equals(
+            GitlabSourceInstanceSupport.normalizeSourceInstance(factRun.getSourceInstance()),
+            normalizedSource)) {
+      throw new IllegalStateException("事实刷新运行与任务配置或数据源不一致: " + factRunId);
+    }
+    Long parentRunId = factRun.getParentRunId();
+    if (parentRunId == null) {
+      throw new IllegalStateException("事实刷新运行缺少镜像父运行: " + factRunId);
+    }
+    SyncRun mirrorRun = syncRunMapper.selectById(parentRunId);
+    if (mirrorRun == null) {
+      throw new IllegalStateException("镜像父运行 " + parentRunId + " 不存在");
+    }
+    if (!isMirrorRun(mirrorRun.getRunType())) {
+      throw new IllegalStateException("事实刷新运行的父运行不是镜像运行: " + parentRunId);
+    }
+    if (mirrorRun.getStatus() != SyncRunStatus.SUCCESS
+        && mirrorRun.getStatus() != SyncRunStatus.PARTIAL_SUCCESS) {
+      throw new IllegalStateException("镜像父运行未形成可发布结果: " + parentRunId);
+    }
+    if (!Objects.equals(mirrorRun.getConfigId(), factRun.getConfigId())
+        || !Objects.equals(
+            GitlabSourceInstanceSupport.normalizeSourceInstance(mirrorRun.getSourceInstance()),
+            normalizedSource)) {
+      throw new IllegalStateException("镜像父运行与事实子运行的配置或数据源不一致: " + parentRunId);
+    }
+    return mirrorRun;
+  }
+
+  private boolean isMirrorRun(SyncRunType runType) {
+    return runType == SyncRunType.FULL_SYNC
+        || runType == SyncRunType.INCREMENTAL_SYNC
+        || runType == SyncRunType.TABLE_REFRESH
+        || runType == SyncRunType.SYSTEM_HOOK
+        || runType == SyncRunType.COMPENSATION_SCAN
+        || runType == SyncRunType.FULL_COMPENSATION_SCAN;
+  }
+
+  private boolean hasRecordedMirrorWork(SyncRun mirrorRun) {
+    return positive(mirrorRun.getAppliedRows())
+        || positive(mirrorRun.getPlannedTableCount())
+        || positive(mirrorRun.getCompletedTableCount());
+  }
+
+  private boolean positive(Number value) {
+    return value != null && value.longValue() > 0L;
   }
 
   private ImpactScope resolveIssueScope(List<SyncRunTableTask> tasks) {

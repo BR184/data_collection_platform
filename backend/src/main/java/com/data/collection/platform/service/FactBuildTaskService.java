@@ -98,25 +98,32 @@ public class FactBuildTaskService {
     return response != null && BUSY_MESSAGE.equals(response.message());
   }
 
-  public int enqueueMirrorRefreshTasks(GitlabSyncConfig config, boolean full) {
-    return enqueueMirrorRefreshTasks(config, full, null);
-  }
-
-  public int enqueueMirrorRefreshTasks(GitlabSyncConfig config, boolean full, Long syncRunId) {
+  /**
+   * 为指定事实刷新运行创建其支持的事实任务。
+   *
+   * @param config 事实来源配置
+   * @param full 是否执行全量事实构建
+   * @param factRunId 所属 {@code FACT_REFRESH} 运行 ID
+   * @return 实际新建的任务数
+   */
+  public int enqueueFactRefreshTasks(GitlabSyncConfig config, boolean full, Long factRunId) {
     if (config == null || config.getId() == null) {
       return 0;
+    }
+    if (factRunId == null || factRunId <= 0L) {
+      throw new IllegalArgumentException("事实刷新任务必须归属 FACT_REFRESH 运行");
     }
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     int queued = 0;
     List<String> supportedFactTypes = GitlabFactRefreshRequirements.supportedFactTypes(config);
     if (supportedFactTypes.contains(GitlabFactRefreshRequirements.FACT_TYPE_ISSUE)) {
-      queued += enqueueFactRefreshTask(config.getId(), sourceInstance, "ISSUE", full, syncRunId);
+      queued += enqueueFactRefreshTask(config.getId(), sourceInstance, "ISSUE", full, factRunId);
     }
     if (supportedFactTypes.contains(GitlabFactRefreshRequirements.FACT_TYPE_MERGE_REQUEST)) {
-      queued += enqueueFactRefreshTask(config.getId(), sourceInstance, "MERGE_REQUEST", full, syncRunId);
+      queued += enqueueFactRefreshTask(config.getId(), sourceInstance, "MERGE_REQUEST", full, factRunId);
     }
     if (supportedFactTypes.contains(GitlabFactRefreshRequirements.FACT_TYPE_INTEGRATION_TEST)) {
-      queued += enqueueFactRefreshTask(config.getId(), sourceInstance, "INTEGRATION_TEST", full, syncRunId);
+      queued += enqueueFactRefreshTask(config.getId(), sourceInstance, "INTEGRATION_TEST", full, factRunId);
     }
     return queued;
   }
@@ -211,8 +218,17 @@ public class FactBuildTaskService {
     return tasks.isEmpty() ? null : tasks.getFirst();
   }
 
-  public QueuedFactBuildTask claimNextQueuedTaskForRun(Long syncRunId, String owner, int leaseSeconds) {
-    if (syncRunId == null) {
+  /**
+   * 认领指定事实刷新运行的下一项持久任务。
+   *
+   * @param factRunId 所属 {@code FACT_REFRESH} 运行 ID
+   * @param owner 当前 worker 标识
+   * @param leaseSeconds 租约秒数，最小按 1 秒处理
+   * @return 已认领任务；没有待执行任务时返回 {@code null}
+   */
+  public QueuedFactBuildTask claimNextQueuedTaskForFactRun(
+      Long factRunId, String owner, int leaseSeconds) {
+    if (factRunId == null) {
       return null;
     }
     List<QueuedFactBuildTask> tasks = jdbcTemplate.query(
@@ -243,7 +259,7 @@ public class FactBuildTaskService {
         Math.max(1, leaseSeconds),
         STATUS_PENDING,
         TRIGGER_MIRROR_SYNC,
-        String.valueOf(syncRunId));
+        String.valueOf(factRunId));
     return tasks.isEmpty() ? null : tasks.getFirst();
   }
 
@@ -334,55 +350,29 @@ public class FactBuildTaskService {
         lockOwner);
   }
 
-  private int enqueueFactRefreshTask(Long configId, String sourceInstance, String factType, boolean full, Long syncRunId) {
+  private int enqueueFactRefreshTask(
+      Long configId,
+      String sourceInstance,
+      String factType,
+      boolean full,
+      Long factRunId) {
     String scope = factScope(factType, sourceInstance);
-    String runId = syncRunId == null ? UUID.randomUUID().toString() : String.valueOf(syncRunId);
-    if (syncRunId != null) {
-      return enqueueFactRefreshTaskForRun(configId, sourceInstance, factType, scope, full, runId);
-    }
-    return jdbcTemplate.update(
-        """
-        insert into fact_build_tasks(
-          run_id, scope, config_id, source_instance, fact_type, full_build, status, trigger_type,
-          retry_count, max_retry_count, run_after, created_at, updated_at
-        )
-        select ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, current_timestamp, current_timestamp, current_timestamp
-        where not exists (
-          select 1
-            from fact_build_tasks
-           where config_id = ?
-             and source_instance = ?
-             and fact_type = ?
-             and full_build = ?
-             and trigger_type = ?
-             and status in (?, ?)
-        )
-        """,
-        runId,
+    return insertFactRefreshTask(
+        configId,
+        sourceInstance,
+        factType,
         scope,
-        configId,
-        sourceInstance,
-        factType,
         full,
-        STATUS_PENDING,
-        TRIGGER_MIRROR_SYNC,
-        DEFAULT_MAX_RETRY_COUNT,
-        configId,
-        sourceInstance,
-        factType,
-        full,
-        TRIGGER_MIRROR_SYNC,
-        STATUS_PENDING,
-        STATUS_RUNNING);
+        factRunId);
   }
 
-  private int enqueueFactRefreshTaskForRun(
+  private int insertFactRefreshTask(
       Long configId,
       String sourceInstance,
       String factType,
       String scope,
       boolean full,
-      String runId) {
+      Long factRunId) {
     return jdbcTemplate.update(
         """
         insert into fact_build_tasks(
@@ -399,7 +389,7 @@ public class FactBuildTaskService {
              and status in (?, ?)
         )
         """,
-        runId,
+        String.valueOf(factRunId),
         scope,
         configId,
         sourceInstance,
@@ -408,7 +398,7 @@ public class FactBuildTaskService {
         STATUS_PENDING,
         TRIGGER_MIRROR_SYNC,
         DEFAULT_MAX_RETRY_COUNT,
-        runId,
+        String.valueOf(factRunId),
         factType,
         TRIGGER_MIRROR_SYNC,
         STATUS_PENDING,
@@ -458,7 +448,7 @@ public class FactBuildTaskService {
   private QueuedFactBuildTask mapQueuedTask(ResultSet rs) throws java.sql.SQLException {
     return new QueuedFactBuildTask(
         rs.getLong("id"),
-        parseLong(rs.getString("run_id")),
+        parseFactRunId(rs.getString("run_id")),
         rs.getLong("config_id"),
         rs.getString("source_instance"),
         rs.getString("fact_type"),
@@ -469,14 +459,14 @@ public class FactBuildTaskService {
         toLocalDateTime(rs.getTimestamp("lease_until")));
   }
 
-  private Long parseLong(String value) {
+  private Long parseFactRunId(String value) {
     if (value == null || value.isBlank()) {
-      return null;
+      throw new IllegalStateException("事实刷新任务缺少 FACT_REFRESH 运行 ID");
     }
     try {
       return Long.parseLong(value.trim());
-    } catch (NumberFormatException ignored) {
-      return null;
+    } catch (NumberFormatException error) {
+      throw new IllegalStateException("事实刷新任务包含非法 FACT_REFRESH 运行 ID: " + value, error);
     }
   }
 

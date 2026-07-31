@@ -72,8 +72,8 @@ class SyncFactRefreshRunExecutorTest {
             3,
             LocalDateTime.now().plusSeconds(30));
     when(configService.getConfigById(1L)).thenReturn(config);
-    when(factBuildTaskService.enqueueMirrorRefreshTasks(config, true, 14L)).thenReturn(1);
-    when(factBuildTaskService.claimNextQueuedTaskForRun(14L, "fact-run-worker", 30))
+    when(factBuildTaskService.enqueueFactRefreshTasks(config, true, 14L)).thenReturn(1);
+    when(factBuildTaskService.claimNextQueuedTaskForFactRun(14L, "fact-run-worker", 30))
         .thenReturn(task)
         .thenReturn(null);
     when(factRefreshTaskWorkerService.execute(task))
@@ -81,8 +81,9 @@ class SyncFactRefreshRunExecutorTest {
 
     SyncFactRefreshRunExecutor.Result result = executor.execute(run);
 
-    verify(factBuildTaskService).enqueueMirrorRefreshTasks(config, true, 14L);
+    verify(factBuildTaskService).enqueueFactRefreshTasks(config, true, 14L);
     verify(factRefreshTaskWorkerService).execute(task);
+    assertThat(task.factRunId()).isEqualTo(14L);
     assertThat(result.status()).isEqualTo(SyncRunStatus.SUCCESS);
     assertThat(result.plannedTasks()).isEqualTo(1);
     assertThat(result.completedTasks()).isEqualTo(1);
@@ -96,8 +97,9 @@ class SyncFactRefreshRunExecutorTest {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(1L);
     when(configService.getConfigById(1L)).thenReturn(config);
-    when(factBuildTaskService.enqueueMirrorRefreshTasks(config, false, 15L)).thenReturn(2);
-    when(factBuildTaskService.claimNextQueuedTaskForRun(15L, "fact-run-worker", 30)).thenReturn(null);
+    when(factBuildTaskService.enqueueFactRefreshTasks(config, false, 15L)).thenReturn(2);
+    when(factBuildTaskService.claimNextQueuedTaskForFactRun(15L, "fact-run-worker", 30))
+        .thenReturn(null);
 
     SyncFactRefreshRunExecutor.Result result = executor.execute(run);
 
@@ -122,7 +124,7 @@ class SyncFactRefreshRunExecutorTest {
     verify(factBuildService).rebuildAllFactsForConfig(config, true, 16L);
     verify(snapshotRefreshService).refreshAfterFactBuild("ALL", true);
     verify(pageRecordSnapshotRefreshService).refreshAfterFactBuild("ALL", true);
-    verify(factBuildTaskService, never()).enqueueMirrorRefreshTasks(config, true, 16L);
+    verify(factBuildTaskService, never()).enqueueFactRefreshTasks(config, true, 16L);
     verifyNoInteractions(factRefreshTaskWorkerService);
     assertThat(result.status()).isEqualTo(SyncRunStatus.SUCCESS);
     assertThat(result.plannedTasks()).isEqualTo(1);

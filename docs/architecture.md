@@ -31,9 +31,11 @@
 - 页面同步命令只引用已持久化的 `configId`，不得隐式保存配置；表单存在未保存变更时必须先显式保存。活动镜像运行期间后端继续拒绝连接与容量配置变更，不能为提交前台任务绕过该保护。
 - 同步诊断只把当前活动运行的任务计入当前失败/超时，历史累计使用独立字段；当前表任务必须暴露 `taskId/stage/cursor/retry/heartbeat/lease`。DIRECT 模式同时暴露 Hikari 活动、空闲、等待和容量指标；源总量未知时前端使用不确定进度，不根据动态分页任务数伪造百分比。同步 JSON 日志统一携带 `runId`、`runDbId`、`taskId`、`sourceTable`、`configId`、`sourceInstance`、`runType` 和 `action`。详细决策见 `docs/decisions/ADR-004-sync-runtime-capacity-leases-and-yielding.md`。
 - 每个整体成功或部分成功的镜像运行都必须提交以该运行作为 `parent_run_id` 的 `FACT_REFRESH`；只有整体成功的全量镜像直接使用全量事实构建，部分成功运行提交增量标记并按已成功表任务执行增量/受影响对象刷新；若尚无成功全量基线，则按既有规则先建立事实基线。
+- `FACT_REFRESH` 子运行 ID 与镜像父运行 ID 是两个独立的持久身份：`fact_build_tasks.run_id` 只用于事实任务归属、认领和终态，镜像影响来源只读取 `sync_runs.parent_run_id`；不得把事实任务 `run_id` 直接解释为镜像运行。payload 中既有的 `parentRunId` 只用于日志诊断，不得参与业务解析或覆盖列值，任务表不得复制镜像父 ID。非全量父运行已写入数据但无法加载其表任务时属于发布链不变量破坏，必须失败，不能以空影响成功或静默全量重建。
 - 同一事实范围内不同镜像父运行的事实刷新必须排队串行执行；仅相同父运行的重复事件允许复用，不能丢弃较新的镜像影响范围。
 - 页面实时刷新以触发的镜像 `sync_runs` 及其 `FACT_REFRESH` 子运行作为唯一完成链路；镜像成功而事实子运行排队、运行或失败时，页面不得将旧事实数据标记为最新。
 - 可物理删除实体及关系的完整集合语义由 `AuthoritativeRelationCatalog` 显式声明，不能从 `FULL_ONLY`、更新时间列或任务来源推断。根实体按主键声明；Issue 的指派人、指标、评论和标签，以及 MR 的指派人、审核人、指标、评论和标签按父对象声明，其中评论固定使用 `(noteable_type,noteable_id)`，标签固定使用 `(target_type,target_id)`，避免多态对象的相同数字 ID 互相误删。所有精确任务以非空、规范化的复合 `lookupScope` 作为来源读取、任务去重和 ODS 写入的唯一范围；`PRECISE` 只 upsert 来源返回行，`AUTHORITATIVE` 在同一事务内以完整来源集合替换 ODS active 集合，空集合也是有效替换，缺失行写 tombstone。父资源增量、System Hook 与 GitLab 16.11 `resource_label_events.issue_id/merge_request_id` 命中后共用该目录；事件事实只在所需列完整且 `action` 为整数枚举时启用，`add=1`。派生任务属于同一父运行，父运行必须等待最终任务汇总后再发布事实刷新；`FULL_SYNC` 和 `FULL_COMPENSATION_SCAN` 均执行 `FULL_RECONCILE` 的 `SCAN/RECONCILE` 两阶段，成功补偿必须全量发布事实以清除未收到精确事件的硬删除残留。
+- `FULL_COMPENSATION_SCAN` 是低频反熵与物理删除兜底，不是正常增量发布的正确性前置条件，也不能承担实时刷新。当前镜像阶段只为已排队的 `INCREMENTAL_SYNC`/`TABLE_REFRESH` 在分页边界让行，完成后的全量 `FACT_REFRESH` 不可让行；定时增量在活动全量补偿期间被跳过。当前调度还存在三个已确认限制：每日补偿只在精确分钟尝试、补偿提交会复用任意同源活动镜像运行、成功补偿会把 `last_incremental_sync_at` 改为完成时间；在这些限制修正并完成 270 万行容量基准前，不得把全量补偿提高到每次自动增量后执行。
 - 增量更新保留 PostgreSQL volume、同步状态、镜像表和用户配置，不通过重建容器清库。
 
 ### 事实与统计

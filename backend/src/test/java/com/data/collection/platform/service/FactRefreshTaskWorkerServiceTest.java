@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
@@ -68,7 +69,7 @@ class FactRefreshTaskWorkerServiceTest {
     when(taskService.claimNextQueuedTask(anyString(), eq(9))).thenReturn(task);
     when(configService.getConfigById(1L)).thenReturn(config);
     when(taskService.hasSuccessfulFullBuild("corp-main", "ISSUE")).thenReturn(true);
-    when(impactScopeService.resolve(1L, "corp-main", "ISSUE"))
+    when(impactScopeService.resolve(1L, 1L, "corp-main", "ISSUE"))
         .thenReturn(FactRefreshImpactScopeService.ImpactScope.fallback());
     when(factBuildService.rebuildIssueFactsForQueuedTask(config, false))
         .thenReturn(new FactBuildResponse("corp-main:issue", false, 4, "issues built"));
@@ -122,7 +123,7 @@ class FactRefreshTaskWorkerServiceTest {
     when(taskService.claimNextQueuedTask(anyString(), eq(9))).thenReturn(task);
     when(configService.getConfigById(1L)).thenReturn(config);
     when(taskService.hasSuccessfulFullBuild("default", "INTEGRATION_TEST")).thenReturn(true);
-    when(impactScopeService.resolve(2L, "default", "INTEGRATION_TEST"))
+    when(impactScopeService.resolve(2L, 1L, "default", "INTEGRATION_TEST"))
         .thenReturn(new FactRefreshImpactScopeService.ImpactScope(false, targets));
     when(integrationTestFactBuildService.rebuildFactsByTargets("default", targets))
         .thenReturn(new FactBuildResponse("integration-test", false, 1, "integration built"));
@@ -151,7 +152,7 @@ class FactRefreshTaskWorkerServiceTest {
 
     when(configService.getConfigById(1L)).thenReturn(config);
     when(taskService.hasSuccessfulFullBuild("default", "ISSUE")).thenReturn(true);
-    when(impactScopeService.resolve(3L, "default", "ISSUE"))
+    when(impactScopeService.resolve(3L, 1L, "default", "ISSUE"))
         .thenReturn(FactRefreshImpactScopeService.ImpactScope.empty());
     when(factBuildService.reconcileMissingIssueFacts("default"))
         .thenReturn(new FactBuildResponse("issue", false, 1, "已补齐 1 条缺失议题事实"));
@@ -160,6 +161,42 @@ class FactRefreshTaskWorkerServiceTest {
 
     verify(factBuildService).reconcileMissingIssueFacts("default");
     verify(taskService).finishQueuedTask(13L, "SUCCESS", 1, "已补齐 1 条缺失议题事实", null);
+  }
+
+  @Test
+  void test_broken_fact_run_lineage_marks_task_failed_without_publishing_snapshots() {
+    GitlabSyncConfig config = config();
+    QueuedFactBuildTask task =
+        new QueuedFactBuildTask(
+            14L,
+            101L,
+            1L,
+            "default",
+            "ISSUE",
+            "issue",
+            false,
+            0,
+            3,
+            LocalDateTime.now().plusSeconds(9));
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(taskService.hasSuccessfulFullBuild("default", "ISSUE")).thenReturn(true);
+    when(impactScopeService.resolve(101L, 1L, "default", "ISSUE"))
+        .thenThrow(new IllegalStateException("事实刷新运行缺少镜像父运行: 101"));
+
+    workerService.execute(task);
+
+    verify(taskService)
+        .finishQueuedTask(
+            14L,
+            "FAILED",
+            0,
+            "事实数据刷新失败",
+            "事实刷新运行缺少镜像父运行: 101");
+    verifyNoInteractions(
+        factBuildService,
+        integrationTestFactBuildService,
+        snapshotRefreshService,
+        pageRecordSnapshotRefreshService);
   }
 
   private GitlabSyncConfig config() {

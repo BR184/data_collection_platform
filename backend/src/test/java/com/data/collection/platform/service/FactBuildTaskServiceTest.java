@@ -24,6 +24,7 @@ class FactBuildTaskServiceTest {
 
   @Autowired private JdbcTemplate jdbcTemplate;
   @Autowired private FactBuildTaskService factBuildTaskService;
+  @Autowired private FactRefreshImpactScopeService impactScopeService;
   @Autowired private DataSource dataSource;
 
   @BeforeEach
@@ -162,8 +163,8 @@ class FactBuildTaskServiceTest {
   void shouldEnqueueDeduplicateClaimAndFinishMirrorRefreshTasks() {
     GitlabSyncConfig config = config("corp-main");
 
-    int created = factBuildTaskService.enqueueMirrorRefreshTasks(config, false);
-    int duplicate = factBuildTaskService.enqueueMirrorRefreshTasks(config, false);
+    int created = factBuildTaskService.enqueueFactRefreshTasks(config, false, 900L);
+    int duplicate = factBuildTaskService.enqueueFactRefreshTasks(config, false, 900L);
 
     assertThat(created).isEqualTo(3);
     assertThat(duplicate).isZero();
@@ -171,6 +172,7 @@ class FactBuildTaskServiceTest {
     QueuedFactBuildTask task = factBuildTaskService.claimNextQueuedTask("test-worker", 30);
 
     assertThat(task).isNotNull();
+    assertThat(task.factRunId()).isEqualTo(900L);
     assertThat(task.configId()).isEqualTo(config.getId());
     assertThat(task.sourceInstance()).startsWith("corp_main_");
     assertThat(task.factType()).isEqualTo("ISSUE");
@@ -190,11 +192,13 @@ class FactBuildTaskServiceTest {
   void shouldBindQueuedMirrorRefreshTasksToSyncRun() {
     GitlabSyncConfig config = config("corp-sync-run");
 
-    int created = factBuildTaskService.enqueueMirrorRefreshTasks(config, false, 901L);
+    int created = factBuildTaskService.enqueueFactRefreshTasks(config, false, 901L);
 
     assertThat(created).isEqualTo(3);
-    QueuedFactBuildTask task = factBuildTaskService.claimNextQueuedTaskForRun(901L, "test-worker", 30);
+    QueuedFactBuildTask task =
+        factBuildTaskService.claimNextQueuedTaskForFactRun(901L, "test-worker", 30);
     assertThat(task).isNotNull();
+    assertThat(task.factRunId()).isEqualTo(901L);
     assertThat(task.configId()).isEqualTo(config.getId());
     assertThat(task.factType()).isEqualTo("ISSUE");
     String runId =
@@ -206,9 +210,83 @@ class FactBuildTaskServiceTest {
   }
 
   @Test
+  void test_fact_child_impact_query_reads_parent_table_tasks_from_database() {
+    GitlabSyncConfig config = config("fact-parent-lineage");
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    String suffix = UUID.randomUUID().toString().replace("-", "");
+    Long parentRunId =
+        jdbcTemplate.queryForObject(
+            """
+            insert into sync_runs(
+              run_id, config_id, source_instance, run_type, trigger_type, status, priority,
+              exclusive_scope, planned_table_count, completed_table_count, applied_rows
+            ) values (?, ?, ?, 'TABLE_REFRESH', 'MANUAL', 'SUCCESS', 90, ?, 1, 1, 1)
+            returning id
+            """,
+            Long.class,
+            "test_parent_" + suffix,
+            config.getId(),
+            sourceInstance,
+            "test:mirror:" + suffix);
+    Long factRunId =
+        jdbcTemplate.queryForObject(
+            """
+            insert into sync_runs(
+              run_id, config_id, source_instance, run_type, trigger_type, status, priority,
+              exclusive_scope, parent_run_id
+            ) values (?, ?, ?, 'FACT_REFRESH', 'SCHEDULE', 'RUNNING', 10, ?, ?)
+            returning id
+            """,
+            Long.class,
+            "test_fact_" + suffix,
+            config.getId(),
+            sourceInstance,
+            "test:fact:" + suffix,
+            parentRunId);
+    Long tableTaskId =
+        jdbcTemplate.queryForObject(
+            """
+            insert into sync_run_table_tasks(
+              run_id, config_id, source_instance, source_table, mirror_table, task_type,
+              status, row_strategy, rows_scanned, rows_applied
+            ) values (?, ?, ?, 'issues', 'ods_gitlab_issues', 'TABLE_REFRESH',
+                      'SUCCESS', 'INCREMENTAL', 1, 1)
+            returning id
+            """,
+            Long.class,
+            parentRunId,
+            config.getId(),
+            sourceInstance);
+    long issueId = 1_500_000_000L + Math.floorMod(tableTaskId, 500_000_000L);
+    jdbcTemplate.execute(
+        "alter table ods_gitlab_issues add column if not exists mirror_task_id bigint");
+
+    try {
+      jdbcTemplate.update(
+          """
+          insert into ods_gitlab_issues(
+            id, iid, project_id, mirror_task_id, mirror_deleted
+          ) values (?, 32129, 9, ?, false)
+          """,
+          issueId,
+          tableTaskId);
+      FactRefreshImpactScopeService.ImpactScope result =
+          impactScopeService.resolve(factRunId, config.getId(), sourceInstance, "ISSUE");
+
+      assertThat(result.fallbackRequired()).isFalse();
+      assertThat(result.targets())
+          .containsExactly(new FactRefreshImpactScopeService.Target(9L, 32129L));
+    } finally {
+      jdbcTemplate.update("delete from ods_gitlab_issues where id = ?", issueId);
+      jdbcTemplate.update("delete from sync_runs where id in (?, ?)", factRunId, parentRunId);
+      jdbcTemplate.update("delete from gitlab_sync_configs where id = ?", config.getId());
+    }
+  }
+
+  @Test
   void shouldRecoverExpiredQueuedTaskLease() {
     GitlabSyncConfig config = config("corp-timeout");
-    factBuildTaskService.enqueueMirrorRefreshTasks(config, true);
+    factBuildTaskService.enqueueFactRefreshTasks(config, true, 902L);
     QueuedFactBuildTask task = factBuildTaskService.claimNextQueuedTask("test-worker", 30);
     jdbcTemplate.update(
         """
@@ -223,6 +301,7 @@ class FactBuildTaskServiceTest {
 
     assertThat(recovered).isEqualTo(1);
     assertThat(reclaimed.id()).isEqualTo(task.id());
+    assertThat(reclaimed.factRunId()).isEqualTo(902L);
     assertThat(reclaimed.retryCount()).isEqualTo(1);
     assertThat(reclaimed.full()).isTrue();
   }

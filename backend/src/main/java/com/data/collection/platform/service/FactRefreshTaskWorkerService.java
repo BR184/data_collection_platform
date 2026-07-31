@@ -97,7 +97,8 @@ public class FactRefreshTaskWorkerService {
       return factBuildService.rebuildIssueFactsForQueuedTask(config, true);
     }
     FactRefreshImpactScopeService.ImpactScope scope =
-        impactScopeService.resolve(task.mirrorRunId(), task.sourceInstance(), factType);
+        impactScopeService.resolve(
+            task.factRunId(), task.configId(), task.sourceInstance(), factType);
     if (scope.fallbackRequired()) {
       return factBuildService.rebuildIssueFactsForQueuedTask(config, false);
     }
@@ -116,7 +117,8 @@ public class FactRefreshTaskWorkerService {
       return factBuildService.rebuildMergeRequestFactsForQueuedTask(config, true);
     }
     FactRefreshImpactScopeService.ImpactScope scope =
-        impactScopeService.resolve(task.mirrorRunId(), task.sourceInstance(), factType);
+        impactScopeService.resolve(
+            task.factRunId(), task.configId(), task.sourceInstance(), factType);
     if (scope.fallbackRequired()) {
       return factBuildService.rebuildMergeRequestFactsForQueuedTask(config, false);
     }
@@ -133,7 +135,8 @@ public class FactRefreshTaskWorkerService {
       return integrationTestFactBuildService.rebuildFactsForConfig(config, true);
     }
     FactRefreshImpactScopeService.ImpactScope scope =
-        impactScopeService.resolve(task.mirrorRunId(), task.sourceInstance(), factType);
+        impactScopeService.resolve(
+            task.factRunId(), task.configId(), task.sourceInstance(), factType);
     if (scope.fallbackRequired()) {
       taskService.markQueuedTaskFullBuild(task.id());
       return integrationTestFactBuildService.rebuildFactsForConfig(config, true);

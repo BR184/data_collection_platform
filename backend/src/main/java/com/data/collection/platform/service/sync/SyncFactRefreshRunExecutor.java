@@ -48,11 +48,14 @@ public class SyncFactRefreshRunExecutor {
       return executeManualFullRebuild(run, config);
     }
     boolean full = payload.fullBuildEnabled();
-    int planned = factBuildTaskService.enqueueMirrorRefreshTasks(config, full, run.getId());
+    int planned = factBuildTaskService.enqueueFactRefreshTasks(config, full, run.getId());
     int completed = 0;
     long affectedRows = 0L;
     QueuedFactBuildTask task;
-    while ((task = factBuildTaskService.claimNextQueuedTaskForRun(run.getId(), "fact-run-worker", 30)) != null) {
+    while ((task =
+            factBuildTaskService.claimNextQueuedTaskForFactRun(
+                run.getId(), "fact-run-worker", 30))
+        != null) {
       FactBuildResponse response = factRefreshTaskWorkerService.execute(task);
       if (response != null) {
         completed++;

@@ -112,6 +112,56 @@ class IssueFactSourceInstancePipelineTest {
   }
 
   @Test
+  void test_targeted_refresh_updates_existing_issue_fixed_status_after_label_change() {
+    LocalDateTime now = LocalDateTime.of(2026, 7, 31, 9, 0);
+    jdbcTemplate.update(
+        "insert into ods_gitlab_projects(id, name, mirror_deleted) values (?, ?, false)",
+        9L,
+        "CrownCAD");
+    jdbcTemplate.update(
+        "insert into ods_gitlab_users(id, name, mirror_deleted) values (?, ?, false)",
+        509L,
+        "reporter-fixed-status");
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_issues(
+          id, iid, project_id, title, author_id, created_at, updated_at, closed_at, state_id, milestone_id, mirror_deleted
+        ) values (?, ?, ?, ?, ?, ?, ?, null, ?, null, false)
+        """,
+        9031L,
+        32129L,
+        9L,
+        "existing issue fixed status refresh",
+        509L,
+        now.minusHours(1),
+        now,
+        1);
+    insertLabel(31L, "状态：未修复");
+    linkLabel(31L, 9031L);
+    factBuildService.rebuildIssueFacts(true);
+    assertThat(
+            jdbcTemplate.queryForMap(
+                "select bug_status, is_fixed from issue_fact where source_instance = 'default' and issue_id = 9031"))
+        .containsEntry("bug_status", "未修复")
+        .containsEntry("is_fixed", false);
+
+    jdbcTemplate.update("update ods_gitlab_label_links set mirror_deleted = true where id = ?", 31L);
+    insertLabel(32L, "状态：已修复/完成");
+    linkLabel(32L, 9031L);
+
+    FactBuildResponse response =
+        factBuildService.rebuildIssueFactsByTargets(
+            "default", List.of(new FactRefreshImpactScopeService.Target(9L, 32129L)));
+
+    assertThat(response.affectedRows()).isEqualTo(1);
+    assertThat(
+            jdbcTemplate.queryForMap(
+                "select bug_status, is_fixed from issue_fact where source_instance = 'default' and issue_id = 9031"))
+        .containsEntry("bug_status", "已修复/完成")
+        .containsEntry("is_fixed", true);
+  }
+
+  @Test
   void shouldBuildCustomerMembersAndLatestResponseTemplateFieldsForCcProductIssues() {
     LocalDateTime now = LocalDateTime.of(2026, 7, 22, 10, 0);
     jdbcTemplate.update(
