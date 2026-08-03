@@ -17,6 +17,7 @@
 - [完成] 2026-07-31：GitLab 日常物理删除收敛已替换为单一目标链路。23 表来源血缘、事实依赖和工作区依赖各有唯一目录；普通增量/手动刷新统一在 `SCAN` 与批量权威范围静止后执行每表单任务 `RECONCILE`，真实变化与 ODS DML 同事务写入版本化事实 outbox，定向事实按 GitLab 根 ID 有界替换并推进旧/新稳定范围 generation。页面通过 publication fence 等待实际事实与投影版本，自动增量只在删除页提交后为手动刷新让行；旧目录、每对象/每页任务、200 目标回退、运行后 ODS 反查和 `COMPENSATION_SCAN` 已删除，`FULL_COMPENSATION_SCAN` 只保留历史基线、反熵和灾难恢复职责。
 - [验证] 2026-08-03：真实 PostgreSQL 全链回归参数化覆盖普通增量和手动单表刷新，均确认同一 `RECONCILE` 任务续页、标签链接物理删除 tombstone、`issue_fact.severity_level` 清空、一级缺陷计数归零、版本化 outbox 发布、仅相关全局/项目 generation 推进且不产生 `FULL_EPOCH`。同步专项 72 项与依赖安全升级后的完整后端 948 项零失败/零错误，Checkstyle/SpotBugs 为 0；前端 103 文件 365 项、ESLint、TypeScript、生产构建及 0 漏洞审计通过；后端 OWASP CVSS 9 门禁通过。最新 JAR 在 8,002 条 `issue_fact` 下以 36 ms 返回此前超过 10 秒的非法记录接口，25 个只读 API 全部成功；721 完整基线 Compose/镜像及 35 项发布测试、打包计划解析通过。
 - [完成] 2026-08-03：验证修复已以 `5e2eb2e6` 推送 GitHub `main`；正式更新包 `qaflex-update-20260803T054734Z-066761e14130`（`196,879,575` bytes，SHA-256 `bc155655414f9f23b3cef2e1d16f095af2e96b6f490d08b6130e8fc90d3cc9b0`）从干净提交构建，直接基线为 721，目标 Flyway `20260803.01`，声明 `all` 事实重建。包审计和 25 项发布契约通过；隔离栈完成备份、升级、应用回滚、第二次备份和再次升级，两轮 dump 可恢复、`counts.diff` 为空，PostgreSQL ID 与 external volume 全程不变，最终目标前后端健康。
+- [完成] 2026-08-03：按用户人工 `down/up` 选择，在更新包外生成 20001 完整 `docker-compose.yml` 与 `.env`；Compose 摘要与包内权威文件一致，显式绑定 20260710 完整基线延续使用的 Compose project、PostgreSQL external volume 和日志 volume，并配置 20001/20002、LDAP 116。更新包仍不携带实例 `.env`，禁止 `down -v`。
 
 - [完成] 2026-07-31：延期原因已按老平台规则收口：`delay_cause` 只保存七类合法原因，单独 `申请延期` 仍保留延期/闭环状态判定但客户问题回退为 `未设定类别`；多原因按标签顺序以 `&` 保存，客户筛选、候选、统计和 CC_PRODUCT 标签展示按成员处理，系统测试筛选继续保留事实、兼容字段和原始标签回退。本轮追加验证延期原因成员语义 44 项、系统测试汇总回退 2 项、前端目标文件 7 项、类型检查、生产构建、目标文件 ESLint、Checkstyle 0 违规和 SpotBugs 0 问题；目标实例仍需部署后执行 issue 全量事实重建。
 - [完成] GitLab 同步运行时已统一容量、连接池、租约和分页调度：`SyncExecutionBudget` 同时约束运行 worker 与按 `configId` 管理的 DIRECT Hikari 池，运行保存不可变 worker 快照；运行和表任务均使用唯一 owner、心跳续租及条件终态，分页镜像写入、水位、任务完成和续页原子提交；全量补偿按可恢复 `SCAN/RECONCILE` 执行，并在已提交分页边界为增量和用户单表刷新让行。源端扫描统一为索引感知的真实类型复合主键 keyset、固定上界、JSON 游标和持久页码，旧文本排序与哈希分片已删除；同步命令仅使用已保存配置，不隐式写配置。当前/历史失败、连接池、阶段、cursor、重试和租约诊断已分离，未知总量不显示伪百分比；System Hook 精准刷新未纳入新调度。长期契约见 `docs/decisions/ADR-004-sync-runtime-capacity-leases-and-yielding.md`。
@@ -79,7 +80,7 @@
 - [下一步] 本次规则变更部署后，对目标实例提交 `scope=issue, full=true` 事实重建并验收：最新模板中的非空计划合并分支均回填事实；`dev`、`release_2026R3` 等来源值可见但仍命中非法模板规则；`CC2026R4 & CC2026R5` 显示为两个标签且导出为同一稳定文本。
 - [下一步] 延期原因规则部署后，对目标实例提交 `scope=issue, full=true` 事实重建并验收：仅有 `申请延期` 的 CC_PRODUCT 议题显示 `未设定类别`，多原因按标签顺序完整显示为独立标签，单原因筛选命中组合事实。
 - [下一步] 测试状态规则部署后，对目标实例提交 `scope=issue, full=true` 事实重建并刷新依赖快照；验收 CC_PRODUCT 无全角 `状态：X` 标签的议题显示“未设定议题状态”，多状态议题完整显示全部成员，议题开闭筛选仍只使用 `issue_state/closed_at_source`。
-- [下一步] 以现场 721 前后端为直接基线部署当前保数据更新包，按发布清单完成全量事实重建、快照预热及真实业务页面验收；升级前保留脚本生成的数据库和配置备份，并确认 PostgreSQL 容器 ID 与 external volume 不变。
+- [下一步] 用户使用已交付的 20001 包外配置执行不带 `-v` 的 `docker compose down`、加载本次业务镜像并 `up -d`；随后核对目标镜像、Flyway `20260803.01`、后端 UP、前端 200 和原 PostgreSQL volume，再按发布清单完成 `all` 事实重建、快照预热及真实业务页面验收。
 - [下一步] 继续补充关键交互和导出的定向回归测试，避免页面仅在切换路由或手动刷新后才恢复数据。
 
 ## 阻塞与风险
