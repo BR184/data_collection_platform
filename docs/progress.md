@@ -8,13 +8,15 @@
 
 ## 当前目标
 
-- [目标] `20260803T110730Z-508eada12e44` 在内网 20001 因发布 Compose 固定 `container_name` 与另一 project 的 `/qaflex-backend` 冲突而作废；用户已选择停止但保留旧 20001，重新部署独立空平台。当前按 `docs/plans/fix-compose-container-name-collision-and-repackage-20001.md` 修复 project 命名空间并制作 20001/20002/15433 全新包，18181 实例不得受影响。
+- [目标] 20001 全新空平台发布 `20260803T122027Z-ad35f6c0e8c3` 已完成构建与隔离验收；现场下一步只停止并保留旧 20001，使用新 project、新容器和新 volume 在 20001/20002/15433 启动本包，18181 实例不得执行任何 Compose 变更。
 - [目标] GitLab 日常增量与手动刷新统一使用 `SCAN -> RECONCILE -> 版本化 outbox -> 精准事实/投影发布`；部署恢复完成后的正常链路不得依赖全量补偿或全量事实刷新。
 - [目标] 在不破坏已完成 LDAP、本地 RBAC、兼容模式隔离、事实层和导出对齐工作的前提下，继续完成老平台口径核验、内网部署验证和正式模块稳定化。
 - [目标] 以 LDAP v0.3 作为内网账号、状态与多角色来源，确保空平台首次部署后可直接使用 LDAP 登录并建立平台本地 Session。
 
 ## 已完成
 
+- [验证] 2026-08-03：已生成 `qaflex-full-20260803T122027Z-ad35f6c0e8c3.tar.gz`（306,268,912 bytes，SHA-256 `b64f3d91fefe6d48b438575981911198205256acc6ac300f18217238bccc9a5c`），源码为干净提交 `07431616`，目标 Flyway `20260803.01`，后端、前端和 PostgreSQL 均为 `linux/amd64`。包内 7 文件校验、归档清单、镜像内 JAR/index 摘要及 Compose 解析通过；配套 `20001-deploy` 目录提供与包内字节一致的 Compose、完整 `.env` 和只停止旧 20001/不操作 18181 的单一部署指令。
+- [验证] 2026-08-03：在本机保留并运行历史固定名称 `qaflex-postgres/backend/frontend` 的条件下，独立 project `qaflex-fresh-verify-ad35f6c0e8c3` 成功创建新三服务、网络和两个 named volume，无名称冲突；PostgreSQL、后端、前端均 healthy，后端 `UP`、前端 HTTP 200、Flyway `20260803.01`。停止后再次启动保留数据库探针，历史三容器 ID 和健康状态全程不变；演练结束后仅删除该临时 project 及其专用测试卷。
 - [验证] 2026-08-03：直接基线镜像在真实 GitLab 16.11 `RECOMMENDED` 23 表全量运行中稳定复现 `MirrorRowChange` 对 nullable 行调用 `Map.copyOf` 导致 16 张表第一页 `NullPointerException`；统一改为保留 null 的有序不可变防御性快照后，同环境 23 表 578 个扫描/对账任务全部成功，扫描 537,844 行、写入 194,860 行，自动事实子运行 6/6 成功并写入 18,002 条。后续普通增量 46/46 成功、核验 268,932 个主键；`label_links` 单表刷新以同一 `RECONCILE` 任务续页核验 66,165 个主键并成功。后端 961 项、前端 374 项、Checkstyle、SpotBugs、生产构建、高危依赖审计、118 份迁移与仓库/发布契约门禁全部通过。
 - [历史] 2026-08-03：`qaflex-update-20260803T110730Z-508eada12e44` 虽通过本地单 project 升级/回滚，但生成 Compose 固定全局 `qaflex-*` 容器名；内网停止基线 `qaflex-backend-ldaptest` 后创建目标后端时与已有 `/qaflex-backend` 冲突，数据库尚未改写。该包和配套配置禁止继续交付或重试，现场可用同一预部署备份执行包内回滚。
 - [验证] 2026-08-03：最终包在隔离 721 栈完成“备份 -> 升级 -> 应用回滚 -> 第二次备份 -> 再次升级”；两轮 `database.dump`/`critical-tables.dump` 均非空可恢复，`counts.diff` 均为空，PostgreSQL ID `a9d1928db80a74e70f227bb66cbccc1e9d58ae2940adbdf8a246a5521a971401`、volume、现场 `.env` 摘要和受保护行数全程不变，最终后端 `UP`、前端 HTTP 200。
@@ -98,6 +100,11 @@
 - [验证] 权限设置页已通过本地页面加载和角色排序视觉检查；认证切换页面重新挂载修复已通过前端构建与回归测试。
 - [限制] 尚未用内网真实数据库完成本轮所有统计和导出结果的最终验收，不将本地测试结果表述为内网业务对齐完成。
 - [限制] 当前开发机无法路由到内网 LDAP `172.22.10.116:80`；包内地址和容器配置已校验，真实网络连通与登录仍须在内网部署后验收。
+
+## 下一步
+
+- [下一步] 内网按包外 `DEPLOY-20001.md` 记录 18181 状态，只在 `~/data_collection_platform/official_version_20001` 执行 `docker compose stop`，再启动新 release；不得执行 `down`、`down -v` 或对 18181 project 执行命令。
+- [下一步] 新 20001 三服务健康且 18181 状态不变后，配置 GitLab PostgreSQL 只读源并提交一次 `FULL_SYNC`，等待父运行及自动 `FACT_REFRESH` 均成功，再验收 LDAP 登录和业务页面。
 
 ## 有效历史
 
