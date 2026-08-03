@@ -2,7 +2,7 @@
 
 ## 进度与中间物
 
-- 状态：阶段 4 重新打包准备完成。旧 release `20260803T054734Z-066761e14130` 已被后续客户问题与缺陷原因修复替代，不再交付；当前在隔离分支 `codex/repackage-20001-latest` 上以 `origin/main@1f977f49` 为底合入两个已审查客户问题提交和最新严格缺陷原因修复，完整验证已通过，待提交推送后生成新 release。
+- 状态：阶段 6 人工部署交付就绪。旧 release `20260803T054734Z-066761e14130` 已替代；新 release `20260803T082443Z-2ab4bea80a7b` 已从干净提交 `d2d3d4af` 构建并通过独立包审计及隔离升级/回滚/再次升级，匹配的 20001 完整 Compose 与 `.env` 已生成，等待用户自行执行不带 `-v` 的 `down/up`。
 - 隔离原则：主工作树的用户改动保持原状；发布分支只移植已经完成并有对应测试/权威文档的业务修复。远端已有的迁移、测试基础设施和发布修复保持权威，不重复引入主工作树中的等价版本。
 - 第一轮通过：后端生产包、Checkstyle、SpotBugs、JaCoCo 报告；前端 `npm ci`、类型检查、生产构建；Flyway 迁移集合不可变性、破坏性迁移检查及自测、迁移烟测、标签组矩阵、测试卫生、事实字段、profile 覆盖、产物位置、文本空白、`git diff --check`；Python 打包契约 25 项、对账单元测试 5 项；721 基线 `--plan-only`；旧发布脚本 Bash 语法；本地 `issue_fact.module_names` 只读探针。
 - 第一轮失败：后端 `931` 项中 `21` 失败、`11` 错误、`9` 跳过；前端 `103` 个文件中 `13` 失败、`90` 通过，`365` 项中 `18` 失败并有 `16` 个异步错误；ESLint 3 项；前端高危依赖审计失败；schema/Flyway 漂移、API 契约漂移、冲突标记、验证账本缺失；Flyway profile 事实任务因测试 schema 无法解析 `public.gin_trgm_ops` 产生 9 个上下文错误。
@@ -16,16 +16,16 @@
 - 阶段 2 真实 API 复验：`SystemTestIllegalRecordService` 恢复数据库聚合候选和 SQL 分页后，最新 JAR 在 8,002 条 `issue_fact` 下以 36 ms 返回原超时接口；25 个只读 API 全部成功，总耗时 8.1 秒。探针现会把 socket timeout 记为单项失败，继续执行剩余端点并生成完整非零报告，回归测试通过。
 - 阶段 3 工程与发布门禁：118 个 Flyway 迁移不可变性、破坏性迁移、API/事实字段/标签组/前端边界契约、工作树产物/运行产物/文本空白、`git diff --check`、同步 dry-run 和 35 项 Python 发布测试通过。过期且事实已归入权威文档的冲突计划已删除，不保留历史合并标记。
 - 阶段 3 直接基线：完整 721 runnable 目录、Compose 解析和本机镜像均确认前后端为 `qa-flex-platform-backend/frontend:20260721-f18154c0-working`，两镜像均为 `linux/amd64`；以 20001/20002、`all` 事实重建声明执行 `--plan-only` 通过。
-- 已替代发布包：从 `5e2eb2e6` 生成的 `qaflex-update-20260803T054734Z-066761e14130` 未包含后续修复，仅保留为历史产物，不再作为 20001 交付物。新包仍以 721 为直接基线、目标 Flyway `20260803.01`、事实重建范围 `all`，release ID 和摘要须由本轮干净提交重新生成。
-- 阶段 5 隔离演练：独立 721 栈从 Flyway `20260720.06` 完成“备份 -> 升级 -> 应用回滚 -> 第二次备份 -> 再次升级”，两轮完整/关键表 dump 均非空且可恢复，`counts.diff` 均为空；PostgreSQL ID `a9d1928db80a74e70f227bb66cbccc1e9d58ae2940adbdf8a246a5521a971401` 与 external volume 全程不变，最终目标前后端健康、后端 UP、前端 200。
+- 阶段 4 正式发布包：从干净提交 `d2d3d4af` 生成 `qaflex-update-20260803T082443Z-2ab4bea80a7b`，归档大小 `196,891,673` bytes，SHA-256 `302b823442493fcac93476256f80d0121d2666a3f81aa162b85c4f7e9fb17621`；直接基线为 721，目标 Flyway `20260803.01`，声明 `all` 事实重建。包内/包外摘要、归档清单、真实 Linux Bash 语法、8 项包内校验、25 项打包器测试及 `linux/amd64` 双镜像通过。
+- 阶段 5 新包隔离演练：隔离栈先从旧目标应用回滚到 721，再完成“独立备份 -> 新包升级 -> 应用回滚 -> 第二次独立备份 -> 再次升级”。两轮完整/关键表 dump 均非空且可恢复，`counts.diff` 均为 0 字节；PostgreSQL ID `a9d1928db80a74e70f227bb66cbccc1e9d58ae2940adbdf8a246a5521a971401` 与 external volume 全程不变，最终新前后端健康、后端 UP、前端 200。
 - 阶段 6 现场阻塞证据：22/20001/20002 TCP 均可达，但 Windows OpenSSH、Git OpenSSH 和 `ssh-keyscan` 均在 `kex_exchange_identification` 前被远端关闭，未进入用户名或密钥认证。不得绕过现场唯一 Compose、预部署备份和 PostgreSQL 容器不变检查直接替换应用。
-- 待重建人工交付：新包生成后创建与新 release ID 对应的包外 20001 配置；Compose 必须与新包内权威文件一致并引用新前后端镜像，`.env` 继续固定 20001/20002、LDAP `172.22.10.116:80`、原 Compose project、PostgreSQL external volume 和日志卷。禁止 `down -v`。
+- 阶段 6 人工交付：包外目录 `qaflex-update-20260803T082443Z-2ab4bea80a7b-20001-config` 已生成；Compose 与包内权威文件摘要均为 `70f4161e4e385b33663ff29b6836f502f3ce7fccc49e0347b02a4c4be8da832a`，引用新双镜像；`.env` 固定 20001/20002、LDAP `172.22.10.116:80`、原 Compose project、PostgreSQL external volume 和日志卷，且不进入归档或 Git。禁止 `down -v`。
 - 本轮代码验证：严格原因/客户记录/物理删除定向后端 72 项通过，其中真实 PostgreSQL 全链参数化覆盖 `INCREMENTAL_SYNC` 与 `TABLE_REFRESH`；完整后端 957 项零失败、零错误、1 项条件跳过，Checkstyle 0 违规、SpotBugs 0 问题，Flyway profile 通过。完整前端 105 文件、374 项通过，TypeScript、ESLint、生产构建和 `npm audit --audit-level=high` 通过。118 份 Flyway 不可变性、破坏性迁移、API/事实字段/前端边界/标签组/测试卫生/Profile 覆盖、工作树产物/运行产物/文本空白、同步 dry-run 和 25 项打包器测试通过。
 
 ## 恢复线索
 
-- 当前阶段：阶段 4 已验证，待提交并推送 `origin/main`，再从该干净提交生成唯一新 release。
-- 恢复后首条命令：`git status --short --branch`，确认只含本轮代码与文档后提交推送，再执行 721 基线 `--plan-only`。
+- 当前阶段：阶段 6，等待用户使用新 release 和匹配配置完成 20001 人工部署并返回镜像、Flyway、健康与 volume 验收结果。
+- 恢复后首条命令：核对用户返回的 `docker compose ps`、`docker compose config --images` 和 PostgreSQL volume 证据；AI 网络入口恢复后再补做现场只读验收。
 - 相关基线：发布源基线 `origin/main@1f977f49`，现场镜像基线 `20260721-f18154c0-working`；上一实现计划为 `docs/plans/implement-incremental-delete-detection-targeted-refresh.md`；发布规则为 `deploy/intranet-offline-packaging-standard.md`。
 
 ## 目标与边界
