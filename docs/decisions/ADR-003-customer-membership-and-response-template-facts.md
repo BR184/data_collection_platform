@@ -18,6 +18,7 @@ CC_PRODUCT 的客户名称主要位于 GitLab issue description，当前事实�
 - 客户拆分后通过 `issue_customer_name_aliases` 规范化，别名匹配精确值；当前种子为 `新世纪 -> 郑州新世纪`。
 - `issue_fact.customer_names` 保存稳定展示投影，`issue_fact_customer_members` 以 `(source_system, source_instance, project_id, issue_id, customer_name)` 保存多对多成员关系。客户筛选使用成员关系 `exists`，不拆分事实记录。
 - 最新“问题调研情况说明”响应模板解析为 `planned_resolution_at`、`planned_resolution_text`、`planned_merge_version_branch`。计划解决时间只投影唯一且完整的合法日期；计划合并版本分支是来源文本事实，只折叠空白，不以分支命名规则过滤、改写或补齐。这些字段与 SLA 截止时间独立。
+- 计划合并版本分支的读取成员语义独立于事实保存：`&`、半角逗号、全角逗号和顿号均视为来源列表分隔符，成员去空、去重并保留首次出现顺序；候选、SQL 筛选、内存筛选、表格和详情使用同一语义，按完整成员不区分大小写筛选。斜杠、下划线、连字符、点号和冒号保留为分支名的一部分，API 与 Excel 仍输出完整事实原文。
 - 客户问题非法模板校验与事实投影职责分离：非法校验只接受一个或多个以 `&` 分隔的 `CCyyyyRn` 成员，但校验失败不能清空 `planned_merge_version_branch`。页面、详情和 Excel 因此能够展示问题原值，非法数据页仍按严格规则报告数据质量问题。
 - 滞留时长表示当前尚未闭环缺陷的年龄：GitLab 已关闭或测试状态命中客户问题最终闭环成员时返回 `0`，其余记录由 `created_at_source` 与一次请求固定的 `asOf` 在运行时计算；页面快照只保存静态 `IssueFactRecord`。闭环前历史耗时属于解决周期，不冻结到滞留字段。
 - CC_PRODUCT 专属字段只接入该专题的 API、筛选、前端和 Excel；延期专题不复用。

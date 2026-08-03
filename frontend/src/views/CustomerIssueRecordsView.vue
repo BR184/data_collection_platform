@@ -29,8 +29,8 @@ import {
   formatCustomerIssueRecordDateTime as formatDateTime,
   mapCustomerIssueRecordTableRows,
   normalizeCustomerIssueState as normalizeIssueState,
-  parseCustomerIssuePlannedMergeVersions,
 } from './customer-issues/customer-issue-record-table-rows';
+import { parseCustomerIssuePlannedMergeBranchMembers } from './customer-issues/customer-issue-planned-merge-branch-members';
 import { isCcProductQuickFilterKey } from './customer-issues/customer-issue-quick-filter-fields';
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
 import {
@@ -531,7 +531,7 @@ const allActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => [
 
 const tableRows = computed<Record<string, unknown>[]>(() => mapCustomerIssueRecordTableRows(rows.value));
 const selectedPlanMergeVersionBranches = computed(() =>
-  parseCustomerIssuePlannedMergeVersions(selectedRow.value?.plannedMergeVersionBranch),
+  parseCustomerIssuePlannedMergeBranchMembers(selectedRow.value?.plannedMergeVersionBranch),
 );
 
 const ruleSteps = computed(() => ruleExplanation.value?.flowSteps ?? []);

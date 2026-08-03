@@ -903,7 +903,7 @@ class CustomerIssueRecordServiceTest {
                 List.of(),
                 List.of(),
                 List.of(),
-                List.of("CC2026R4 & CC2026R5"),
+                List.of("dev, 26R1，26R2、26R3 & dev"),
                 List.of(),
                 List.of()));
 
@@ -918,7 +918,7 @@ class CustomerIssueRecordServiceTest {
                 .stream()
                 .map(option -> option.value())
                 .toList())
-        .containsExactly("CC2026R4", "CC2026R5");
+        .containsExactly("26R1", "26R2", "26R3", "dev");
   }
 
   private IssueFactRecord record(

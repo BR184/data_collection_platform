@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
@@ -205,7 +206,7 @@ class IssueFactRecordRepositoryTest {
     assertThat(sqlCaptor.getValue())
         .contains("planned_resolution_at >= ?")
         .contains("planned_resolution_at < ?")
-        .contains("regexp_split_to_table(coalesce(planned_merge_version_branch, ''), '&')")
+        .contains("regexp_split_to_table(coalesce(planned_merge_version_branch, ''), '[&,，、]')")
         .contains("extract(epoch from (cast(? as timestamp) - created_at_source))")
         .contains("closed_at_source is not null")
         .contains("btrim(coalesce(issue_state, ''))");
@@ -217,6 +218,20 @@ class IssueFactRecordRepositoryTest {
             asOf,
             24L,
             72L);
+  }
+
+  @Test
+  void plannedMergeBranchCandidatesShouldUseTheSameMemberDelimiterContract() {
+    IssueFactRecordRepository repository = new IssueFactRecordRepository(issueFactQueryService);
+    when(issueFactQueryService.query(anyString(), anyList(), any())).thenReturn(java.util.List.of());
+
+    repository.findCustomerIssueRecordFilterValues(true, false, false, true, "default");
+
+    ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+    verify(issueFactQueryService).query(sqlCaptor.capture(), anyList(), any());
+
+    assertThat(sqlCaptor.getValue())
+        .contains("coalesce(planned_merge_version_branch, ''), '[&,，、]'");
   }
 
   private IssueFactRecordListRequest request(String keyword, String searchType, String sourceInstance) {
