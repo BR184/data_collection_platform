@@ -8,7 +8,7 @@
 
 ## 当前目标
 
-- [目标] GitLab nullable 镜像行修复与 20001 保数据更新包已完成；等待现场从直接基线 `20260803T082443Z-2ab4bea80a7b` 升级到 `20260803T110730Z-508eada12e44`，执行一次恢复性 `FULL_SYNC` 并确认其自动 `FACT_REFRESH` 成功，随后完成内网真实物理删除验收。
+- [目标] `20260803T110730Z-508eada12e44` 在内网 20001 因发布 Compose 固定 `container_name` 与另一 project 的 `/qaflex-backend` 冲突而作废；用户已选择停止但保留旧 20001，重新部署独立空平台。当前按 `docs/plans/fix-compose-container-name-collision-and-repackage-20001.md` 修复 project 命名空间并制作 20001/20002/15433 全新包，18181 实例不得受影响。
 - [目标] GitLab 日常增量与手动刷新统一使用 `SCAN -> RECONCILE -> 版本化 outbox -> 精准事实/投影发布`；部署恢复完成后的正常链路不得依赖全量补偿或全量事实刷新。
 - [目标] 在不破坏已完成 LDAP、本地 RBAC、兼容模式隔离、事实层和导出对齐工作的前提下，继续完成老平台口径核验、内网部署验证和正式模块稳定化。
 - [目标] 以 LDAP v0.3 作为内网账号、状态与多角色来源，确保空平台首次部署后可直接使用 LDAP 登录并建立平台本地 Session。
@@ -16,15 +16,15 @@
 ## 已完成
 
 - [验证] 2026-08-03：直接基线镜像在真实 GitLab 16.11 `RECOMMENDED` 23 表全量运行中稳定复现 `MirrorRowChange` 对 nullable 行调用 `Map.copyOf` 导致 16 张表第一页 `NullPointerException`；统一改为保留 null 的有序不可变防御性快照后，同环境 23 表 578 个扫描/对账任务全部成功，扫描 537,844 行、写入 194,860 行，自动事实子运行 6/6 成功并写入 18,002 条。后续普通增量 46/46 成功、核验 268,932 个主键；`label_links` 单表刷新以同一 `RECONCILE` 任务续页核验 66,165 个主键并成功。后端 961 项、前端 374 项、Checkstyle、SpotBugs、生产构建、高危依赖审计、118 份迁移与仓库/发布契约门禁全部通过。
-- [完成] 2026-08-03：从干净提交 `fc3d2d98` 和 721 直接基线生成最终更新包 `qaflex-update-20260803T110730Z-508eada12e44.tar.gz`（`196,891,400` bytes，SHA-256 `e343dc8edf1ca4c9ef7f7f683af1f0ba8b1402753ba2bfc02579670d795bbd83`），目标 Flyway `20260803.01`，不要求独立事实重建，要求部署后一次恢复性 GitLab 全量同步及其自动全量事实发布。双镜像 `linux/amd64`、包内/包外摘要、归档清单、Linux Bash 语法、包内校验和及 28 项打包器测试通过。
+- [历史] 2026-08-03：`qaflex-update-20260803T110730Z-508eada12e44` 虽通过本地单 project 升级/回滚，但生成 Compose 固定全局 `qaflex-*` 容器名；内网停止基线 `qaflex-backend-ldaptest` 后创建目标后端时与已有 `/qaflex-backend` 冲突，数据库尚未改写。该包和配套配置禁止继续交付或重试，现场可用同一预部署备份执行包内回滚。
 - [验证] 2026-08-03：最终包在隔离 721 栈完成“备份 -> 升级 -> 应用回滚 -> 第二次备份 -> 再次升级”；两轮 `database.dump`/`critical-tables.dump` 均非空可恢复，`counts.diff` 均为空，PostgreSQL ID `a9d1928db80a74e70f227bb66cbccc1e9d58ae2940adbdf8a246a5521a971401`、volume、现场 `.env` 摘要和受保护行数全程不变，最终后端 `UP`、前端 HTTP 200。
-- [完成] 2026-08-03：包外 20001 配置目录 `qaflex-update-20260803T110730Z-508eada12e44-20001-config` 已生成；Compose 与包内权威文件字节一致，解析到目标镜像、20001/20002、LDAP 116、原 Compose project、PostgreSQL external volume、日志卷及宿主机 PostgreSQL `15433` 端口；`.env` 未进入更新归档或 Git。部署顺序固定为旧 Compose 上备份后由升级脚本切换，禁止 `down -v`。
+- [验证] 2026-08-03：打包器已改为所有模式强制唯一 `COMPOSE_PROJECT_NAME` 并删除 postgres/backend/frontend 的 `container_name`；fresh `.env.example` 写入 release 级 project 和可配置 PostgreSQL 端口，部署说明只停止指定旧 project、不删除其他实例或 volume，首次 `FULL_SYNC` 后等待自动 `FACT_REFRESH`。定向发布测试 30 项、Python 编译、20001/20002/15433 计划解析和固定容器名扫描通过。
 - [验证] 2026-08-03：新发布候选已在 `origin/main@1f977f49` 上合入 `CC_PRODUCT` 查询/计划分支成员和严格缺陷原因修复；后端定向 72 项通过，真实 PostgreSQL 删除全链同时覆盖普通增量与单表刷新，完整后端 957 项零失败、零错误、1 项条件跳过，Checkstyle/SpotBugs/Flyway profile 通过。完整前端 105 文件、374 项、TypeScript、ESLint、生产构建和高危依赖审计通过；118 份迁移及仓库契约门禁、同步 dry-run、25 项打包器测试通过。旧 release `20260803T054734Z-066761e14130` 已替代，禁止继续交付。
 - [验证] 2026-08-03：系统测试与客户问题的缺陷原因归一化已收敛为唯一严格模板入口；缺标题、标题不在首行、粗体改写、缺少原因段、标签和自由文本均不再生成 `reason_category`，合法固定模板结果保持。目标发布要求的恢复性 `FULL_SYNC` 会自动完成覆盖该规则的全量事实发布，不再单独提交 issue 事实重建。
 - [验证] 2026-08-03：`CC_PRODUCT议题` 的计划合并版本分支已统一按 `&`、半角/全角逗号和顿号读取成员；候选、精确筛选、表格与详情共享完整成员语义，事实原文、API、Excel 和严格非法模板校验保持不变。后端定向 23 项、前端成员与表格 8 项、CC_PRODUCT 领域与页面挂载 25 项、类型检查、目标 ESLint、生产构建、Checkstyle、SpotBugs 和前端质量检测通过；真实页面确认组合值在表格与详情拆为独立标签且控制台无错误，当前完整前端套件亦全部通过。
 - [完成] 2026-07-31：GitLab 日常物理删除收敛已替换为单一目标链路。23 表来源血缘、事实依赖和工作区依赖各有唯一目录；普通增量/手动刷新统一在 `SCAN` 与批量权威范围静止后执行每表单任务 `RECONCILE`，真实变化与 ODS DML 同事务写入版本化事实 outbox，定向事实按 GitLab 根 ID 有界替换并推进旧/新稳定范围 generation。页面通过 publication fence 等待实际事实与投影版本，自动增量只在删除页提交后为手动刷新让行；旧目录、每对象/每页任务、200 目标回退、运行后 ODS 反查和 `COMPENSATION_SCAN` 已删除，`FULL_COMPENSATION_SCAN` 只保留历史基线、反熵和灾难恢复职责。
 - [验证] 2026-08-03：真实 PostgreSQL 全链回归参数化覆盖普通增量和手动单表刷新，均确认同一 `RECONCILE` 任务续页、标签链接物理删除 tombstone、`issue_fact.severity_level` 清空、一级缺陷计数归零、版本化 outbox 发布、仅相关全局/项目 generation 推进且不产生 `FULL_EPOCH`。同步专项 72 项与依赖安全升级后的完整后端 948 项零失败/零错误，Checkstyle/SpotBugs 为 0；前端 103 文件 365 项、ESLint、TypeScript、生产构建及 0 漏洞审计通过；后端 OWASP CVSS 9 门禁通过。最新 JAR 在 8,002 条 `issue_fact` 下以 36 ms 返回此前超过 10 秒的非法记录接口，25 个只读 API 全部成功；721 完整基线 Compose/镜像及 35 项发布测试、打包计划解析通过。
-- [历史] 2026-08-03：`20260803T054734Z-066761e14130` 与 `20260803T082443Z-2ab4bea80a7b` 均已由 `20260803T110730Z-508eada12e44` 替代，禁止继续交付；后者仅作为当前 20001 直接升级基线。
+- [历史] 2026-08-03：`20260803T054734Z-066761e14130`、`20260803T082443Z-2ab4bea80a7b` 和 `20260803T110730Z-508eada12e44` 均禁止继续交付；旧 20001 数据与 volume 只作为停止状态回退资源，新空平台不复用。
 
 - [完成] 2026-07-31：延期原因已按老平台规则收口：`delay_cause` 只保存七类合法原因，单独 `申请延期` 仍保留延期/闭环状态判定但客户问题回退为 `未设定类别`；多原因按标签顺序以 `&` 保存，客户筛选、候选、统计和 CC_PRODUCT 标签展示按成员处理，系统测试筛选继续保留事实、兼容字段和原始标签回退。本轮追加验证延期原因成员语义 44 项、系统测试汇总回退 2 项、前端目标文件 7 项、类型检查、生产构建、目标文件 ESLint、Checkstyle 0 违规和 SpotBugs 0 问题；目标实例由最终发布要求的恢复性 `FULL_SYNC` 自动覆盖该事实变化。
 - [完成] GitLab 同步运行时已统一容量、连接池、租约和分页调度：`SyncExecutionBudget` 同时约束运行 worker 与按 `configId` 管理的 DIRECT Hikari 池，运行保存不可变 worker 快照；运行和表任务均使用唯一 owner、心跳续租及条件终态，分页镜像写入、水位、任务完成和续页原子提交；全量补偿按可恢复 `SCAN/RECONCILE` 执行，并在已提交分页边界为增量和用户单表刷新让行。源端扫描统一为索引感知的真实类型复合主键 keyset、固定上界、JSON 游标和持久页码，旧文本排序与哈希分片已删除；同步命令仅使用已保存配置，不隐式写配置。当前/历史失败、连接池、阶段、cursor、重试和租约诊断已分离，未知总量不显示伪百分比；System Hook 精准刷新未纳入新调度。长期契约见 `docs/decisions/ADR-004-sync-runtime-capacity-leases-and-yielding.md`。

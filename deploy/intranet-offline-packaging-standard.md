@@ -7,11 +7,13 @@
 
 ## 适用范围与拓扑
 
-本标准适用于无公网访问的 Ubuntu 24.04 amd64 平台服务器。当前运行拓扑由 Compose 管理三个容器：
+本标准适用于无公网访问的 Ubuntu 24.04 amd64 平台服务器。每个实例由 Compose 管理三个服务：
 
-- `qaflex-postgres`：平台自有 PostgreSQL，只保存平台配置、镜像、事实、同步状态和业务维护数据。
-- `qaflex-backend`：Spring Boot 后端，通过 Compose 内部网络访问平台库。
-- `qaflex-frontend`：Nginx 前端，将 `/api/` 代理到后端。
+- `postgres`：平台自有 PostgreSQL，只保存平台配置、镜像、事实、同步状态和业务维护数据。
+- `backend`：Spring Boot 后端，通过 Compose 内部网络访问平台库。
+- `frontend`：Nginx 前端，将 `/api/` 代理到后端。
+
+`COMPOSE_PROJECT_NAME` 是同机多实例的唯一容器命名空间。发布 Compose 不声明 Docker daemon 全局 `container_name`；容器、默认网络和 fresh 包 named volume 由 Compose project 派生名称。服务间通信、备份、升级、回滚和诊断统一按 service 寻址，不能依赖容器显示名称，也不能要求删除其他 project 的容器才能部署。
 
 GitLab Web、GitLab PostgreSQL、LDAP、老平台 MySQL/MongoDB 均是其他服务器上的外部系统，不进入本包。GitLab 等源数据库只通过平台 UI 配置为只读数据源，不能写入平台库的 `DATASOURCE_URL`。
 
@@ -31,7 +33,7 @@ GitLab Web、GitLab PostgreSQL、LDAP、老平台 MySQL/MongoDB 均是其他服�
 
 ### 例外：全新/灾备部署包
 
-仅在新服务器首次部署、明确清空环境或灾难恢复时制作 `fresh-empty` 包。它包含平台 PostgreSQL 镜像和完整基础 Compose，但不包含任何数据库文件、dump、volume、ODS、事实或用户数据。
+仅在新服务器首次部署、明确新建独立空实例或灾难恢复时制作 `fresh-empty` 包。它包含平台 PostgreSQL 镜像和完整基础 Compose，但不包含任何数据库文件、dump、volume、ODS、事实或用户数据。新实例必须使用独立 project、宿主端口和由该 project 创建的新 named volume；旧实例可停止并保留，不能复用或删除其 volume。
 
 Docker/Compose 的 Ubuntu deb 不是应用运行产物。目标服务器尚未安装 Docker 且确需同包交付时，才显式使用 `--include-offline-docker-debs`；已有容器的更新包永远不携带这些 deb。
 
@@ -89,7 +91,7 @@ qaflex-full-<release-id>/
 └── README-INTRANET-DEPLOY.md
 ```
 
-只有显式选择时才增加 `offline-debs/ubuntu-24.04-amd64/`。全新包同样不携带 `backend/`、`frontend/` 或真实 `.env`；部署人员必须从 `.env.example` 建立现场 `.env` 并设置实际配置。
+只有显式选择时才增加 `offline-debs/ubuntu-24.04-amd64/`。全新包同样不携带 `backend/`、`frontend/` 或真实 `.env`；部署人员必须从 `.env.example` 建立现场 `.env`，确认唯一 `COMPOSE_PROJECT_NAME`、实际端口和 LDAP 地址。
 
 ## 镜像与发布身份
 
@@ -249,7 +251,7 @@ cd <package-dir> && sha256sum -c SHA256SUMS.txt
 
 本地部署测试必须使用专用 Compose 栈，不得覆盖开发栈、LDAP 专项栈或现场目录。隔离栈至少满足：
 
-- 独立的 Compose project、容器名、主机端口和 PostgreSQL named volume；
+- 独立的 Compose project、主机端口和 PostgreSQL named volume；生成 Compose 不得声明 `container_name`；
 - 唯一完整 `docker-compose.yml`、测试 `.env`，二者共同代表当前直接基线；
 - 前后端运行基线包目标镜像且均健康；
 - PostgreSQL 存在可迁移的代表性 schema 和最少数据，不连接内网真实平台库；
@@ -369,7 +371,7 @@ bash ../<update-package>/rollback.sh "$PWD" "$PWD/upgrade-backups/<backup-dir>"
 - 不得以全新空平台包覆盖现有实例。
 - 不得在无公网目标机执行 `docker build` 或解析 Docker Hub 基础镜像。
 - 不得把事实重建解释成全量同步、清库或重建数据库容器。
-- 容器名冲突只能处理精确的前后端应用容器；不得借此删除 PostgreSQL。
+- 发布包不得声明全局固定 `container_name`。遇到历史容器名称冲突时先确认 project 归属；不得删除、改名或停止其他实例，也不得借此删除 PostgreSQL。
 
 ## 发布验收
 
@@ -381,6 +383,7 @@ bash ../<update-package>/rollback.sh "$PWD" "$PWD/upgrade-backups/<backup-dir>"
 - `SHA256SUMS.txt` 覆盖包内全部其他文件，包外 `.sha256` 与最终 tar.gz 一致。
 - 更新包包含独立 `backup.sh`；无有效预部署备份时 `upgrade.sh` 必须拒绝执行。
 - 更新包归档不存在 `backend/`、`frontend/`、真实 `.env`、PostgreSQL 镜像、离线 deb、数据库数据或运行日志。
+- 生成 Compose 以 `COMPOSE_PROJECT_NAME` 隔离实例且不存在 `container_name`；同机预置历史 `qaflex-postgres`、`qaflex-backend`、`qaflex-frontend` 时，新 project 的 Compose 解析和启动不发生名称冲突。
 - 使用隔离的 20260714/当前更新链副本完成升级、再次升级和应用回滚验证；验证期间 PostgreSQL 容器 ID 与受保护数据保持不变。
 
 ## GitLab 源库访问边界

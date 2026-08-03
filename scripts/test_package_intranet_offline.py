@@ -41,6 +41,7 @@ class IntranetLdapPackagingTest(unittest.TestCase):
             fact_rebuild_scope="all",
             frontend_port=18181,
             backend_port=18080,
+            postgres_port=15432,
             ldap_base_url="http://172.22.10.116:80",
             include_offline_docker_debs=False,
         )
@@ -48,8 +49,10 @@ class IntranetLdapPackagingTest(unittest.TestCase):
     def test_env_declares_ldap_as_the_only_login_provider(self):
         content = MODULE.env_content(self.build_context())
 
+        self.assertIn("COMPOSE_PROJECT_NAME=qaflex-20260721t120000z-001122334455", content)
         self.assertIn("PLATFORM_AUTH_PROVIDER=ldap", content)
         self.assertIn("PLATFORM_LDAP_BASE_URL=http://172.22.10.116:80", content)
+        self.assertIn("POSTGRES_PORT=15432", content)
         self.assertNotIn("PLATFORM_ADMIN_USERNAME", content)
         self.assertNotIn("PLATFORM_ADMIN_PASSWORD", content)
 
@@ -114,6 +117,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             fact_rebuild_scope="all",
             frontend_port=18181,
             backend_port=18080,
+            postgres_port=15432,
             ldap_base_url="http://172.22.10.116:80",
             include_offline_docker_debs=False,
         )
@@ -131,6 +135,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 fact_rebuild_scope="all",
                 frontend_port=18181,
                 backend_port=18080,
+                postgres_port=15432,
                 ldap_base_url="http://172.22.10.116:80",
                 include_offline_docker_debs=False,
             )
@@ -190,6 +195,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 fact_rebuild_scope="all",
                 frontend_port=18181,
                 backend_port=18080,
+                postgres_port=15432,
                 ldap_base_url="http://172.22.10.116:80",
                 include_offline_docker_debs=False,
             )
@@ -292,6 +298,32 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertIn('PLATFORM_AUTH_CSRF_ENABLED: "true"', content)
         self.assertIn('PLATFORM_BACKGROUND_JOBS_ENABLED: "${PLATFORM_BACKGROUND_JOBS_ENABLED:-true}"', content)
         self.assertNotIn("PLATFORM_ADMIN_PASSWORD", content)
+        self.assertNotIn("container_name:", content)
+        self.assertIn("jdbc:postgresql://postgres:5432/${POSTGRES_DB}", content)
+
+    def test_fresh_compose_uses_project_namespace_without_global_container_names(self):
+        content = MODULE.compose_content(self.build_context())
+
+        self.assertTrue(content.startswith('name: "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}"\n\nservices:\n'))
+        self.assertNotIn("container_name:", content)
+        self.assertIn("  postgres:\n    image: postgres:16-alpine", content)
+        self.assertIn(
+            "  backend:\n    image: qa-flex-platform-backend:20260721T120000Z-001122334455",
+            content,
+        )
+        self.assertIn(
+            "  frontend:\n    image: qa-flex-platform-frontend:20260721T120000Z-001122334455",
+            content,
+        )
+
+    def test_fresh_readme_stops_only_the_selected_old_project(self):
+        content = MODULE.fresh_readme(self.build_context())
+
+        self.assertIn("docker compose --env-file .env stop", content)
+        self.assertNotIn("docker rm -f", content)
+        self.assertNotIn("docker volume rm", content)
+        self.assertIn("FULL_SYNC", content)
+        self.assertIn("FACT_REFRESH", content)
 
     def test_backup_and_upgrade_are_separate_verified_stages(self):
         backup = MODULE.backup_helper(self.build_context())

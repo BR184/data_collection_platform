@@ -119,8 +119,9 @@
 - 规模敏感路径先测量再优化；统计查询、事实构建、同步任务和前端渲染不得无限积压或无界等待。
 - 后台事实构建通过带版本的结果提交，页面读取已完成版本，不让主请求同步等待非关键后台任务。
 - 内网 Ubuntu 24.04 无公网发布必须携带已构建业务镜像；增量包只替换后端和前端，不加载 PostgreSQL、不删 volume、不执行 `docker compose down -v`。
+- 同机多实例以必填 `COMPOSE_PROJECT_NAME` 作为容器、网络和非 external named volume 的唯一命名空间；发布 Compose 只声明 `postgres`、`backend`、`frontend` 服务，不声明 Docker daemon 全局 `container_name`。服务间通信和运维脚本按 Compose service 寻址，禁止要求删除其他 project 的同名容器才能部署。决策见 `docs/decisions/ADR-006-compose-project-container-namespace.md`。
 - 保数据更新包是默认发布形态，只包含前后端镜像、发布 Compose、升级/回滚入口、结构化发布清单、校验和及离线说明；镜像构建上下文、裸 JAR/`dist`、现场 `.env`、PostgreSQL 镜像和 Docker deb 不得进入更新归档。完整结构以 `deploy/intranet-offline-packaging-standard.md` 为准。
-- 保数据更新包必须显式绑定现场合并 Compose 或上一个成功更新包的实际镜像基线，并由打包器为包目录、归档和前后端镜像生成同一个唯一发布 ID；文件名只保留产品、全新/更新类型和发布 ID，环境、源码、工作树与重建信息统一进入发布清单。变更前备份平台库、`.env`、基础 Compose 和已有 override；连续升级替换 override，应用回滚恢复上一份 override。先完成后端 Flyway/健康/行数守恒验收，再切换前端，升级前后 PostgreSQL 容器 ID 和 volume 必须不变。
+- 保数据更新包必须显式绑定现场唯一完整 Compose 或上一个成功更新包的实际镜像基线，并由打包器为包目录、归档和前后端镜像生成同一个唯一发布 ID；文件名只保留产品、全新/更新类型和发布 ID，环境、源码、工作树与重建信息统一进入发布清单。变更前备份平台库、`.env` 和完整 Compose；升级原子替换完整 Compose，应用回滚恢复备份 Compose。先完成后端 Flyway/健康/行数守恒验收，再切换前端，升级前后 PostgreSQL 容器 ID 和 volume 必须不变。
 - 发布构建必须从干净的后端构建目录生成 jar，并校验 jar 内 Flyway 文件集合与源码完全一致；源码已删除的迁移不得因 `target/classes` 残留进入镜像。
 - 改动事实字段、统计口径、非法判定、默认范围、老平台映射或快照结构时，增量部署后必须重建事实层并预热统计快照。
 - 大表 `GIN`、`trgm`、表达式和覆盖索引先评估锁与耗时；需要 `CREATE INDEX CONCURRENTLY` 时使用独立运维入口，不放入普通 Flyway 事务。破坏性迁移必须经过兼容/观察/删除阶段并记录评审与恢复路径；迁移改动需运行 schema 漂移、迁移不可变性、Flyway profile smoke 和代表性迁移测试。

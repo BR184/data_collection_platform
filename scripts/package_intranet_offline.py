@@ -72,6 +72,7 @@ class BuildContext:
     fact_rebuild_scope: str
     frontend_port: int
     backend_port: int
+    postgres_port: int
     ldap_base_url: str
     include_offline_docker_debs: bool
 
@@ -345,6 +346,7 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         fact_rebuild_scope=args.fact_rebuild_scope,
         frontend_port=args.frontend_port,
         backend_port=args.backend_port,
+        postgres_port=args.postgres_port,
         ldap_base_url=args.ldap_base_url,
         include_offline_docker_debs=args.include_offline_docker_debs,
     )
@@ -479,6 +481,9 @@ server {
 
 def env_content(ctx: BuildContext) -> str:
     return f"""\
+# Compose project is the only container namespace. Keep it unique per instance.
+COMPOSE_PROJECT_NAME=qaflex-{ctx.release_id.lower()}
+
 # Platform URL reachable by users and GitLab system hook.
 PLATFORM_PUBLIC_BASE_URL=http://172.22.10.115:{ctx.frontend_port}
 
@@ -490,7 +495,7 @@ GITLAB_WEB_BASE_URL=http://172.22.10.233
 POSTGRES_USER=qaflex
 POSTGRES_PASSWORD=qaflex
 POSTGRES_DB=qaflex
-POSTGRES_PORT=15432
+POSTGRES_PORT={ctx.postgres_port}
 POSTGRES_BIND=127.0.0.1
 
 # Platform ports.
@@ -519,11 +524,7 @@ CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED=false
 
 def compose_content(ctx: BuildContext, *, external_postgres_volume: bool = False) -> str:
     """Generate the complete authoritative Compose model for a release."""
-    project_name = (
-        'name: "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}"\n\n'
-        if external_postgres_volume
-        else ""
-    )
+    project_name = 'name: "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}"\n\n'
     postgres_volume = (
         """  qaflex_pgdata:
     external: true
@@ -541,7 +542,6 @@ def compose_content(ctx: BuildContext, *, external_postgres_volume: bool = False
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: qaflex-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${{POSTGRES_USER}}
@@ -560,7 +560,6 @@ services:
 
   backend:
     image: {BACKEND_IMAGE}:{ctx.backend_tag}
-    container_name: qaflex-backend
     restart: unless-stopped
     depends_on:
       postgres:
@@ -601,7 +600,6 @@ services:
 
   frontend:
     image: {FRONTEND_IMAGE}:{ctx.frontend_tag}
-    container_name: qaflex-frontend
     restart: unless-stopped
     depends_on:
       backend:
@@ -714,6 +712,8 @@ vi .env
 
 `.env.example` 已写入当前内网地址、端口和 LDAP v0.3 后端地址 `{ctx.ldap_base_url}`；复制后形成的现场 `.env` 才是运行配置。部署前确认平台后端容器能够访问 LDAP 地址；不要把 GitLab / MySQL / MongoDB 源库连接写进平台库变量。
 
+`COMPOSE_PROJECT_NAME` 是容器、网络和 named volume 的唯一实例命名空间。每个实例必须使用不同值；Compose 文件不声明全局 `container_name`，不要手工补回。
+
 ## 5. 全新空数据部署
 
 ```bash
@@ -721,17 +721,15 @@ sudo docker compose --env-file .env up -d --force-recreate postgres backend fron
 sudo docker compose --env-file .env ps
 ```
 
-如果是在测试机上替换旧的 qaflex-* 容器，并且业务方确认要清空平台库，先删除旧容器和旧 volume，再启动本包。删除 volume 会清空平台数据，请确认后再执行。
+若相同主机上的旧实例占用了本包端口，先进入旧实例自己的部署目录并停止该 project。不要删除旧 volume，也不要停止其他端口上的平台：
 
 ```bash
-sudo docker rm -f qaflex-frontend qaflex-backend qaflex-postgres
-sudo docker volume ls | grep qaflex
-# 仅在确认清空旧平台数据时执行：
-# sudo docker volume rm <approved-qaflex-volume-name>
-
-sudo docker compose --env-file .env up -d --force-recreate postgres backend frontend
-sudo docker compose --env-file .env ps
+cd <旧实例部署目录>
+sudo docker compose --env-file .env stop
+cd <本包目录>
 ```
+
+停止旧 project 只释放端口；旧容器和 volume 保留，可用于回退。随后执行本节开头的全新部署命令。
 
 ## 6. 健康检查
 
@@ -748,10 +746,10 @@ sudo docker compose --env-file .env logs --tail=120 frontend
 
 ## 7. 首次数据重新导入/同步
 
-1. 登录平台后，在 GitLab 数据镜像设置页面配置 GitLab PostgreSQL 只读源库，执行全量同步。
+1. 登录平台后，在 GitLab 数据镜像设置页面配置 GitLab PostgreSQL 只读源库，执行一次 `FULL_SYNC`，并等待其自动创建的 `FACT_REFRESH` 成功。
 2. 需要代码走查兼容模式数据时，在老平台数据库设置页面配置老平台 MySQL 源库并导入 MR/代码走查非法数据表。
 3. 需要评审数据兼容模式时，在老平台 MongoDB 设置页面配置 MongoDB 源库并导入对应集合。
-4. 数据导入或同步完成后，执行事实层刷新/重建，并等待统计快照预热完成后再验收系统测试、客户问题和代码走查页面。
+4. `FULL_SYNC` 已自动完成 GitLab 全量事实发布，不再单独提交事实层重建或 `FULL_COMPENSATION_SCAN`；等待统计快照预热完成后再验收系统测试、客户问题和代码走查页面。
 
 ## 8. 包完整性校验
 
@@ -1640,6 +1638,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--fact-rebuild-scope", choices=("issue", "merge-request", "all"), default="all")
     parser.add_argument("--frontend-port", type=int, default=18181)
     parser.add_argument("--backend-port", type=int, default=18080)
+    parser.add_argument("--postgres-port", type=int, default=15432)
     parser.add_argument(
         "--ldap-base-url",
         default="http://172.22.10.116:80",
