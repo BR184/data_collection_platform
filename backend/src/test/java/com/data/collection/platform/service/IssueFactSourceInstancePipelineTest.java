@@ -281,7 +281,7 @@ class IssueFactSourceInstancePipelineTest {
   }
 
   @Test
-  void shouldUseStrictFixTemplateReasonOnlyForCustomerIssues() {
+  void test_non_fix_template_does_not_generate_reason_for_any_issue_scope() {
     LocalDateTime now = LocalDateTime.of(2026, 7, 6, 9, 0);
     jdbcTemplate.update(
         "insert into ods_gitlab_projects(id, name, mirror_deleted) values (?, ?, false), (?, ?, false)",
@@ -312,7 +312,7 @@ class IssueFactSourceInstancePipelineTest {
         9004L,
         91L,
         9L,
-        "system test fallback reason",
+        "system test research-only reason",
         503L,
         now.minusHours(1),
         now,
@@ -346,7 +346,7 @@ class IssueFactSourceInstancePipelineTest {
         String.class)).isNull();
     assertThat(jdbcTemplate.queryForObject(
         "select reason_category from issue_fact where source_instance = 'default' and issue_id = 9004",
-        String.class)).isEqualTo("新增需求");
+        String.class)).isNull();
   }
 
   private void createMinimalOdsTables() {

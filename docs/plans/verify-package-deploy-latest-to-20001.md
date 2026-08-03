@@ -2,8 +2,8 @@
 
 ## 进度与中间物
 
-- 状态：阶段 6 人工部署交付就绪。验证修复、正式 721 保数据更新包及隔离升级/回滚/再次升级演练全部通过；AI 到 `172.22.10.115` 的 SSH/HTTP 路径仍受阻，用户已确认 20001 当前无人使用并选择自行执行 `down/up`。已在包外生成完整现场 Compose 与 `.env`，显式绑定原 20001 PostgreSQL external volume，更新包本身继续遵守不携带真实 `.env` 的标准。
-- 隔离原则：主工作树存在用户并行改动，本工作单元不读取其未提交实现作为修复来源，不回退、不覆盖、不纳入发布。所有修复、复验与打包源码均以本隔离工作树为准。
+- 状态：阶段 4 重新打包准备完成。旧 release `20260803T054734Z-066761e14130` 已被后续客户问题与缺陷原因修复替代，不再交付；当前在隔离分支 `codex/repackage-20001-latest` 上以 `origin/main@1f977f49` 为底合入两个已审查客户问题提交和最新严格缺陷原因修复，完整验证已通过，待提交推送后生成新 release。
+- 隔离原则：主工作树的用户改动保持原状；发布分支只移植已经完成并有对应测试/权威文档的业务修复。远端已有的迁移、测试基础设施和发布修复保持权威，不重复引入主工作树中的等价版本。
 - 第一轮通过：后端生产包、Checkstyle、SpotBugs、JaCoCo 报告；前端 `npm ci`、类型检查、生产构建；Flyway 迁移集合不可变性、破坏性迁移检查及自测、迁移烟测、标签组矩阵、测试卫生、事实字段、profile 覆盖、产物位置、文本空白、`git diff --check`；Python 打包契约 25 项、对账单元测试 5 项；721 基线 `--plan-only`；旧发布脚本 Bash 语法；本地 `issue_fact.module_names` 只读探针。
 - 第一轮失败：后端 `931` 项中 `21` 失败、`11` 错误、`9` 跳过；前端 `103` 个文件中 `13` 失败、`90` 通过，`365` 项中 `18` 失败并有 `16` 个异步错误；ESLint 3 项；前端高危依赖审计失败；schema/Flyway 漂移、API 契约漂移、冲突标记、验证账本缺失；Flyway profile 事实任务因测试 schema 无法解析 `public.gin_trgm_ops` 产生 9 个上下文错误。
 - 第一轮运行问题：固定提交 JAR 的 25 个只读 API 中 24 个成功，`/api/question-metrics/illegal-records` 在 8,002 条 `issue_fact` 下超过 10 秒；`real_chain_api_smoke.py` 遇到 socket 超时时未生成完整报告而直接退出。
@@ -16,20 +16,21 @@
 - 阶段 2 真实 API 复验：`SystemTestIllegalRecordService` 恢复数据库聚合候选和 SQL 分页后，最新 JAR 在 8,002 条 `issue_fact` 下以 36 ms 返回原超时接口；25 个只读 API 全部成功，总耗时 8.1 秒。探针现会把 socket timeout 记为单项失败，继续执行剩余端点并生成完整非零报告，回归测试通过。
 - 阶段 3 工程与发布门禁：118 个 Flyway 迁移不可变性、破坏性迁移、API/事实字段/标签组/前端边界契约、工作树产物/运行产物/文本空白、`git diff --check`、同步 dry-run 和 35 项 Python 发布测试通过。过期且事实已归入权威文档的冲突计划已删除，不保留历史合并标记。
 - 阶段 3 直接基线：完整 721 runnable 目录、Compose 解析和本机镜像均确认前后端为 `qa-flex-platform-backend/frontend:20260721-f18154c0-working`，两镜像均为 `linux/amd64`；以 20001/20002、`all` 事实重建声明执行 `--plan-only` 通过。
-- 阶段 4 正式发布包：从干净提交 `5e2eb2e6` 生成 `qaflex-update-20260803T054734Z-066761e14130`，归档大小 `196,879,575` bytes，SHA-256 为 `bc155655414f9f23b3cef2e1d16f095af2e96b6f490d08b6130e8fc90d3cc9b0`，目标 Flyway `20260803.01`，发布清单要求 `all` 事实重建。打包器默认构建、镜像摘要、Compose、归档清单、Git Bash 语法、包内摘要和 25 项发布契约均通过。
+- 已替代发布包：从 `5e2eb2e6` 生成的 `qaflex-update-20260803T054734Z-066761e14130` 未包含后续修复，仅保留为历史产物，不再作为 20001 交付物。新包仍以 721 为直接基线、目标 Flyway `20260803.01`、事实重建范围 `all`，release ID 和摘要须由本轮干净提交重新生成。
 - 阶段 5 隔离演练：独立 721 栈从 Flyway `20260720.06` 完成“备份 -> 升级 -> 应用回滚 -> 第二次备份 -> 再次升级”，两轮完整/关键表 dump 均非空且可恢复，`counts.diff` 均为空；PostgreSQL ID `a9d1928db80a74e70f227bb66cbccc1e9d58ae2940adbdf8a246a5521a971401` 与 external volume 全程不变，最终目标前后端健康、后端 UP、前端 200。
 - 阶段 6 现场阻塞证据：22/20001/20002 TCP 均可达，但 Windows OpenSSH、Git OpenSSH 和 `ssh-keyscan` 均在 `kex_exchange_identification` 前被远端关闭，未进入用户名或密钥认证。不得绕过现场唯一 Compose、预部署备份和 PostgreSQL 容器不变检查直接替换应用。
-- 阶段 6 人工交付：包外配置目录 `qaflex-update-20260803T054734Z-066761e14130-20001-config` 的 Compose 与更新包内文件摘要同为 `e67be7763c41844d35cbd0f40f7c6184dd7c09b0d3c4b7747870bbdbfb32b64b`；`.env` 由 20001 的 20260710 完整基线和 20260721 LDAP/721 更新链收敛，固定 20001/20002、LDAP `172.22.10.116:80`、原 Compose project 及 `..._qaflex_pgdata` volume。用户只能执行不带 `-v` 的 `down`，随后加载目标镜像并 `up -d`。
+- 待重建人工交付：新包生成后创建与新 release ID 对应的包外 20001 配置；Compose 必须与新包内权威文件一致并引用新前后端镜像，`.env` 继续固定 20001/20002、LDAP `172.22.10.116:80`、原 Compose project、PostgreSQL external volume 和日志卷。禁止 `down -v`。
+- 本轮代码验证：严格原因/客户记录/物理删除定向后端 72 项通过，其中真实 PostgreSQL 全链参数化覆盖 `INCREMENTAL_SYNC` 与 `TABLE_REFRESH`；完整后端 957 项零失败、零错误、1 项条件跳过，Checkstyle 0 违规、SpotBugs 0 问题，Flyway profile 通过。完整前端 105 文件、374 项通过，TypeScript、ESLint、生产构建和 `npm audit --audit-level=high` 通过。118 份 Flyway 不可变性、破坏性迁移、API/事实字段/前端边界/标签组/测试卫生/Profile 覆盖、工作树产物/运行产物/文本空白、同步 dry-run 和 25 项打包器测试通过。
 
 ## 恢复线索
 
-- 当前阶段：阶段 6，等待用户使用已交付文件在现场完成不带 `-v` 的 `down/up` 并返回 Compose、Flyway、健康和 volume 验收结果；AI 网络入口恢复后再补做现场只读核验。
-- 恢复后首条命令：先核对用户返回的 `docker compose ps` 和 PostgreSQL volume 证据；若 SSH 已恢复，再执行 `ssh-keyscan -T 8 172.22.10.115` 后进入现场只读验收。
-- 相关基线：`2fd5c34e`；上一实现计划为 `docs/plans/implement-incremental-delete-detection-targeted-refresh.md`；发布规则为 `deploy/intranet-offline-packaging-standard.md`。
+- 当前阶段：阶段 4 已验证，待提交并推送 `origin/main`，再从该干净提交生成唯一新 release。
+- 恢复后首条命令：`git status --short --branch`，确认只含本轮代码与文档后提交推送，再执行 721 基线 `--plan-only`。
+- 相关基线：发布源基线 `origin/main@1f977f49`，现场镜像基线 `20260721-f18154c0-working`；上一实现计划为 `docs/plans/implement-incremental-delete-detection-targeted-refresh.md`；发布规则为 `deploy/intranet-offline-packaging-standard.md`。
 
 ## 目标与边界
 
-- 目标：修复第一轮登记的全部有效问题，完整复验后按 721 直接基线生成保数据更新包，在隔离栈完成升级、应用回滚和再次升级，再部署到 `20001/20002`。
+- 目标：在第一轮全仓验证结果之上纳入 `CC_PRODUCT` 查询/分支成员修复和严格缺陷原因修复，重新执行受影响范围及发布门禁，按 721 直接基线生成新的保数据更新包与匹配的 20001 完整 Compose/`.env`。
 - 成功标准：后端、前端、迁移、静态契约、安全检查、运行冒烟和打包门禁全部通过；隔离与现场升级中 PostgreSQL 容器 ID、external volume 和受保护数据保持不变；同步物理删除、精准事实发布及相关页面投影正确收敛。
 - 禁止：不边修边改变第一轮问题集合；不保留错误旧契约的兼容分支；不执行 `docker compose down -v`；不删除、重建或替换现场 PostgreSQL；不在失败未清零、基线不明或备份不可恢复时打包部署。
 
@@ -60,6 +61,7 @@
 5. 测量并优化系统测试非法记录 SQL 路径，加入固定规模基准或可重复查询证据，确认其他记录表不回归。
 6. 在最终代码状态执行完整后端、前端、Flyway、静态、安全、运行和打包计划复验；任何失败返回对应步骤。
 7. 读取现场唯一 Compose，生成正式包；在隔离栈完成 721 升级、应用回滚、再升级和数据守恒验证；最后在现场备份后升级并验收。
+8. 后续修复进入发布时，以远端已验证提交为底合并、重跑受影响测试与全部打包门禁，生成新 release ID；旧包和旧 20001 配置不得继续交付。
 
 ## 决策记录
 
@@ -67,6 +69,7 @@
 - 已选按共同根因集中修复，不逐个测试打补丁；`schema.sql`、动态 API 规范化和测试环境分别保持单一入口。
 - 已选 `all` 事实重建声明作为当前打包计划上限，因为 721 之后议题、MR、共享事实发布契约均变化；正式打包前再以最终 diff 复核。
 - 已选标准更新包与现场 `.env` 分离交付；用户本次人工 `down/up` 授权不改变更新包长期禁止覆盖实例配置的规则，且 PostgreSQL volume 继续使用原稳定名称。
+- 已选从干净集成分支形成单一发布提交，不从脏工作树直接构建；主工作树中与远端等价的迁移和开发烟测改动不重复移植。
 - 否决把既存失败当作可忽略项；本轮目标是全部有效门禁清零。
 - 否决把旧式 721 增量目录直接改造成新版基线；应选择可审计的完整部署目录或现场受控副本。
 

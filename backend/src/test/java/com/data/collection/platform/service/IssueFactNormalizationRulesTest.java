@@ -79,13 +79,61 @@ class IssueFactNormalizationRulesTest {
   }
 
   @Test
-  void shouldKeepGenericReasonNormalizationForNonCustomerIssues() {
-    assertThat(IssueFactNormalizationRules.normalizeReasonCategory(List.of("业务逻辑错误"), ""))
-        .isEqualTo("编码逻辑：业务逻辑错误");
-    assertThat(IssueFactNormalizationRules.normalizeReasonCategory(List.of(), "本次属于编译打包问题"))
-        .isEqualTo("编译/打包/部署问题");
+  void test_invalid_fix_template_does_not_infer_reason_from_free_text() {
+    assertThat(IssueFactNormalizationRules.normalizeReasonCategory(""))
+        .isNull();
+    assertThat(IssueFactNormalizationRules.normalizeReasonCategory("本次属于编译打包问题"))
+        .isNull();
+  }
+
+  @Test
+  void test_fix_template_without_required_header_does_not_generate_reason_catalog() {
+    String notes =
+        """
+        * [ ] 已解决
+        * [ ] 部分解决
+        * [x] 申请延期
+        * [ ] 无法复现
+
+        ### 2、缺陷原因分析
+        * 需求阶段
+          * [ ] 需求理解有误
+          * [ ] 需求遗漏
+          * [x] 新增需求
+          * [ ] 需求变更未同步
+        * 设计问题
+          * [ ] 功能设计遗漏
+          * [ ] 设计方案不合理
+        * 编码问题
+          * [ ] 编码规范错误
+          * [ ] 编码逻辑：业务逻辑错误
+        ### 3、请描述具体原因：
+        延期处理。
+        """;
+
+    assertThat(IssueFactNormalizationRules.normalizeReasonCategory(notes)).isNull();
+    assertThat(IssueFactNormalizationRules.illegalReason(
+        List.of("严重程度：一级缺陷", "模块：模块A", "状态：已修复/完成"),
+        true,
+        List.of("模块A"),
+        notes,
+        true)).isEqualTo("未按照模板回复");
+  }
+
+  @Test
+  void test_modified_fix_template_header_does_not_generate_reason() {
+    String emphasizedHeader =
+        "### **1、修复状态**\n[x] 新增需求\n### 3、请描述具体原因：\n";
+    String prefixedHeader =
+        "问题16\n### 1、修复状态\n[x] 新增需求\n### 3、请描述具体原因：\n";
+
+    assertThat(IssueFactNormalizationRules.normalizeReasonCategory(emphasizedHeader)).isNull();
+    assertThat(IssueFactNormalizationRules.normalizeReasonCategory(prefixedHeader)).isNull();
+  }
+
+  @Test
+  void test_valid_fixed_template_uses_checked_reason_instead_of_other_notes() {
     assertThat(IssueFactNormalizationRules.normalizeReasonCategory(
-        List.of(),
         """
         日常讨论：编译/打包/部署问题
         ---
@@ -97,16 +145,13 @@ class IssueFactNormalizationRulesTest {
   }
 
   @Test
-  void shouldOnlyNormalizeCustomerReasonFromValidFixTemplate() {
-    assertThat(IssueFactNormalizationRules.normalizeCustomerIssueReasonCategory(
-        List.of("业务逻辑错误"), ""))
+  void test_only_valid_fixed_template_generates_reason() {
+    assertThat(IssueFactNormalizationRules.normalizeReasonCategory(""))
         .isNull();
-    assertThat(IssueFactNormalizationRules.normalizeCustomerIssueReasonCategory(
-        List.of("需求"),
+    assertThat(IssueFactNormalizationRules.normalizeReasonCategory(
         "# 问题调研情况说明\n## 问题原因：新增需求，目前机制不支持"))
         .isNull();
-    assertThat(IssueFactNormalizationRules.normalizeCustomerIssueReasonCategory(
-        List.of(),
+    assertThat(IssueFactNormalizationRules.normalizeReasonCategory(
         "### 1、修复状态\n[x] 需求理解有误\n### 3、请描述具体原因：\n"))
         .isEqualTo("需求理解有误 具体原因, 请描述：");
   }

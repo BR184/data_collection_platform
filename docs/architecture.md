@@ -47,7 +47,7 @@
 - 同一议题的总量去重、模块多归属、空值展示、默认范围和导出口径遵循 `docs/platform-page-business-rules.md`，禁止在页面 SQL 中复制隐藏规则。
 - 事实字段或统计口径变化必须明确是否重建事实层和预热快照；重建不等于重新全量镜像同步。
 - 手工全量重建复用 `/api/facts/rebuild?configId=`，但接口只提交 `FACT_REFRESH` 后台运行并立即返回运行编号；运行以 `manualFullRebuild=true` 标识，在调度器中调用唯一的 `rebuildAllFactsForConfig` 入口重建 `issue_fact`、`merge_request_fact`、`integration_test_fact`。任何事实表写入前必须聚合预检三类事实的全部 ODS 表/字段；手工全量重建的三类事实和自动任务的单类事实分别在一个发布事务内完成，PostgreSQL MVCC 使其他连接在提交前继续读取上一已提交版本，任一构建失败则整批回滚。提交后按新的事实源版本刷新统计板与记录页快照；快照未命中时只能实时查询完整的新事实代际。手工运行与构建任务使用同一运行编号，状态面板和最近同步日志以 `sync_runs` 为唯一追踪来源；提交服务对同数据源所有活跃镜像或事实运行互斥。后端权限、源表校验和事实构建锁是权威保护，数据镜像页只提供受确认保护的运维入口。
-- 事实表的搜索影子字段和业务分类字段是持久化查询契约：Java 生成归一化值，SQL 只过滤、排序、聚合，前端字段必须可追溯至请求对象和事实字段，不能在查询层临时重算复杂索引。
+- 事实表的搜索影子字段和业务分类字段是持久化查询契约：Java 生成归一化值，SQL 只过滤、排序、聚合，前端字段必须可追溯至请求对象和事实字段，不能在查询层临时重算复杂索引。`issue_fact.reason_category` 只由老平台固定修复模板的勾选原因段生成，非法模板写空并复用非法判定，禁止标签、普通评论或完整 `raw_payload` 回退。
 - `issue_fact.bug_status` 与 `issue_state/closed_at_source` 是相互独立的事实维度：前者只保存老平台全角 `状态：X` 标签合并值，缺失时保存“未设定议题状态”；后者独立表达 GitLab 议题开闭状态。事实构建、查询、快照、导出和前端不得在两个维度之间回退或互相推断。
 - `scripts/contracts/fact-field-contract.md` 是事实字段静态契约；新增或修改字段必须同步 Flyway、生成规则测试、查询/前端/导出影响，并明确是否重建历史事实。`scripts/check_fact_field_contract.py` 校验其与 Flyway 最终结构的一致性。
 - `CC_PRODUCT` 客户归属以 `ods_gitlab_issues.description` 的“客户名称”为主、标题双破折号后缀为缺失兜底；`issue_fact_customer_members` 是多对多筛选权威，`issue_fact.customer_names` 仅为展示投影。客户别名必须精确规范化，筛选使用成员关系 `exists`，不得拆分或重复议题事实。

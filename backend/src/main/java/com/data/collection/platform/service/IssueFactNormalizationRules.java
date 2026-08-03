@@ -46,12 +46,14 @@ public final class IssueFactNormalizationRules {
     return IssueLabelRules.normalizeBugStatus(labels);
   }
 
-  public static String normalizeReasonCategory(List<String> labels, String notesText) {
-    return IssueClassificationRules.normalizeFixReasonCategory(labels, notesText);
-  }
-
-  public static String normalizeCustomerIssueReasonCategory(List<String> labels, String notesText) {
-    return IssueClassificationRules.normalizeLegacyFixReasonCategory(notesText);
+  /**
+   * 按老平台固定修复模板提取缺陷原因，不从标签或普通评论推断。
+   *
+   * @param notesText 按时间倒序拼接的 GitLab 议题评论
+   * @return 第一条合法固定模板的勾选原因及具体说明；没有合法模板时返回 {@code null}
+   */
+  public static String normalizeReasonCategory(String notesText) {
+    return IssueClassificationRules.normalizeFixReasonCategory(notesText);
   }
 
   public static boolean hasDelayFlag(List<String> labels, String notesText) {
