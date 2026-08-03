@@ -16,14 +16,14 @@ import org.junit.jupiter.api.Test;
 
 class SyncRunFactRefreshListenerTest {
   private GitlabConfigService configService;
-  private SyncRunSubmissionService submissionService;
+  private SyncRunFactPublicationCoordinator factPublicationCoordinator;
   private SyncRunFactRefreshListener listener;
 
   @BeforeEach
   void setUp() {
     configService = mock(GitlabConfigService.class);
-    submissionService = mock(SyncRunSubmissionService.class);
-    listener = new SyncRunFactRefreshListener(configService, submissionService);
+    factPublicationCoordinator = mock(SyncRunFactPublicationCoordinator.class);
+    listener = new SyncRunFactRefreshListener(configService, factPublicationCoordinator);
   }
 
   @Test
@@ -35,8 +35,8 @@ class SyncRunFactRefreshListenerTest {
     listener.onSyncRunCompleted(
         new SyncRunCompletionEvent(11L, 1L, "alpha", SyncRunType.FULL_SYNC, SyncRunStatus.SUCCESS, 8L));
 
-    verify(submissionService)
-        .submitFactRefresh(config, 11L, true, "镜像同步已完成，刷新事实层");
+    verify(factPublicationCoordinator)
+        .ensurePublication(11L, true, "镜像同步已完成，刷新事实层");
   }
 
   @Test
@@ -50,9 +50,8 @@ class SyncRunFactRefreshListenerTest {
     listener.onSyncRunCompleted(
         new SyncRunCompletionEvent(15L, 1L, "alpha", SyncRunType.FULL_SYNC, SyncRunStatus.SUCCESS, 8L));
 
-    verify(submissionService, never())
-        .submitFactRefresh(
-            org.mockito.ArgumentMatchers.any(),
+    verify(factPublicationCoordinator, never())
+        .ensurePublication(
             org.mockito.ArgumentMatchers.any(),
             org.mockito.ArgumentMatchers.anyBoolean(),
             org.mockito.ArgumentMatchers.any());
@@ -70,10 +69,10 @@ class SyncRunFactRefreshListenerTest {
         new SyncRunCompletionEvent(13L, 1L, "alpha", SyncRunType.INCREMENTAL_SYNC, SyncRunStatus.SUCCESS, 0L));
 
     verify(configService, org.mockito.Mockito.times(2)).getConfigById(1L);
-    verify(submissionService)
-        .submitFactRefresh(config, 12L, false, "镜像同步已完成，刷新事实层");
-    verify(submissionService)
-        .submitFactRefresh(config, 13L, false, "镜像同步已完成，刷新事实层");
+    verify(factPublicationCoordinator)
+        .ensurePublication(12L, false, "镜像同步已完成，刷新事实层");
+    verify(factPublicationCoordinator)
+        .ensurePublication(13L, false, "镜像同步已完成，刷新事实层");
   }
 
   @Test
@@ -91,17 +90,21 @@ class SyncRunFactRefreshListenerTest {
             SyncRunStatus.SUCCESS,
             3L));
 
-    verify(submissionService)
-        .submitFactRefresh(config, 17L, true, "镜像同步已完成，刷新事实层");
+    verify(factPublicationCoordinator)
+        .ensurePublication(17L, true, "镜像同步已完成，刷新事实层");
   }
 
   @Test
-  void shouldSkipFailedMirrorRun() {
+  void shouldContinueTargetedPublicationAfterFailedMirrorRun() {
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(1L);
+    when(configService.getConfigById(1L)).thenReturn(config);
+
     listener.onSyncRunCompleted(
         new SyncRunCompletionEvent(16L, 1L, "alpha", SyncRunType.INCREMENTAL_SYNC, SyncRunStatus.FAILED, 8L));
 
-    verify(configService, never()).getConfigById(org.mockito.ArgumentMatchers.any());
-    verifyNoFactRefreshSubmission();
+    verify(factPublicationCoordinator)
+        .ensurePublication(16L, false, "镜像同步已完成，刷新事实层");
   }
 
   @Test
@@ -114,9 +117,8 @@ class SyncRunFactRefreshListenerTest {
   }
 
   private void verifyNoFactRefreshSubmission() {
-    verify(submissionService, never())
-        .submitFactRefresh(
-            org.mockito.ArgumentMatchers.any(),
+    verify(factPublicationCoordinator, never())
+        .ensurePublication(
             org.mockito.ArgumentMatchers.any(),
             org.mockito.ArgumentMatchers.anyBoolean(),
             org.mockito.ArgumentMatchers.any());

@@ -4,6 +4,7 @@ import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchRowResponse;
 import com.data.collection.platform.service.IssueDisplayValueSupport;
+import com.data.collection.platform.service.IssueDelayCauseMembers;
 import com.data.collection.platform.service.IssueFactRecord;
 import com.data.collection.platform.service.IssueFactRecordListRequest;
 import com.data.collection.platform.service.IssueFactRecordRepository;
@@ -67,7 +68,6 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final List<String> LEGACY_FIXED_STATUS_TOKENS = List.of("已修复", "待合并", "未更新");
   private static final List<String> LEGACY_RESOLVED_STATUS_TOKENS = List.of("已修复/完成", "未复现");
-  private static final List<String> REALTIME_REFRESH_TABLES = List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private final IssueFactBoardRuntimeSupport runtimeSupport;
   private final StatisticIssueLinkSupport issueLinkSupport;
   private final SystemTestPhaseCatalogService phaseCatalogService;
@@ -363,12 +363,18 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   }
 
   @Override
-  public void refreshSnapshots(StatisticBoardSnapshotRefresher.RefreshContext context) {
-    if (!context.affectsIssues()) {
+  public void refreshSnapshots(com.data.collection.platform.entity.FactPublicationContext context) {
+    Set<String> affectedPhases =
+        new LinkedHashSet<>(
+            phaseCatalogService.listParentNames(
+                SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID, context));
+    if (affectedPhases.isEmpty()) {
       return;
     }
     StatisticBoardDefinition definition = buildDefinition();
-    for (StatisticFilterOption option : loadPhaseOptions()) {
+    for (StatisticFilterOption option : loadPhaseOptions().stream()
+        .filter(candidate -> affectedPhases.contains(candidate.value()))
+        .toList()) {
       StatisticFilterGroup filterGroup =
           new StatisticFilterGroup(
               "AND",
@@ -407,7 +413,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   @Override
   public RealtimeWorkspaceStatusResponse requestRealtimeRefresh() {
-    return runtimeSupport.requestRealtimeRefresh(BOARD_KEY, REALTIME_REFRESH_TABLES);
+    return runtimeSupport.requestRealtimeRefresh(BOARD_KEY);
   }
 
   @Override
@@ -504,6 +510,9 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         RULE_VERSION,
         "project=" + SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID
             + ";testingPhase=" + (StringUtils.hasText(selectedPhase) ? selectedPhase : "none"),
+        SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID,
+        com.data.collection.platform.service.IssueScopeDimension.TESTING_PHASE,
+        selectedPhase,
         payload,
         definition,
         effectiveFilterGroup.appliedGroup());
@@ -772,8 +781,11 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
               records.stream().flatMap(record -> record.moduleNames().stream()).toList())),
           toStatisticOptions(OptionItemResponseFactory.fromIssueStatusMembersPreservingOrder(
               records.stream().map(IssueFactRecord::bugStatus).toList())),
-          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
-              records.stream().map(IssueFactRecord::delayCause).toList())),
+          toStatisticOptions(OptionItemResponseFactory.fromDelayCauseMembers(
+              records.stream()
+                  .flatMap(record -> SystemTestIssueMetricDimensionSupport.delayCauses(
+                      record.delayCause(), record.delayReason(), String.join(" ", record.labels())).stream())
+                  .toList())),
           toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
               records.stream().map(IssueFactRecord::authorName).toList())),
           toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
@@ -839,6 +851,11 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
           ? IssueStatusMembers.matchesLabelGroup(issue.bugStatus(), operator, condition.values())
           : IssueStatusMembers.matchesFilter(issue.bugStatus(), operator, value);
     }
+    if ("delayCause".equals(condition.fieldKey())) {
+      return condition.usesLabelGroup()
+          ? IssueDelayCauseMembers.matchesLabelGroup(issue.delayCauseMembers(), operator, condition.values())
+          : IssueDelayCauseMembers.matchesFilter(issue.delayCauseMembers(), operator, value);
+    }
     if (condition.usesLabelGroup()) {
       return switch (condition.fieldKey()) {
         case MODULE_FIELD -> matchesSetOperator(issue.moduleNames(), operator, condition.values());
@@ -846,7 +863,6 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         case "title" -> matchesSetOperator(singleValue(issue.title()), operator, condition.values());
         case "severityLevel" -> matchesSetOperator(singleValue(issue.severityLevel()), operator, condition.values());
         case "priorityLevel" -> matchesSetOperator(singleValue(issue.priorityLevel()), operator, condition.values());
-        case "delayCause" -> matchesSetOperator(singleValue(issue.delayCause()), operator, condition.values());
         case "authorName" -> matchesSetOperator(singleValue(issue.authorName()), operator, condition.values());
         case "assigneeName" -> matchesSetOperator(singleValue(issue.assigneeName()), operator, condition.values());
         case "labels" -> matchesSetOperator(issue.labels(), operator, condition.values());
@@ -860,7 +876,6 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       case "title" -> matchesText(issue.title(), operator, value);
       case "severityLevel" -> matchesText(issue.severityLevel(), operator, value);
       case "priorityLevel" -> matchesText(issue.priorityLevel(), operator, value);
-      case "delayCause" -> matchesText(issue.delayCause(), operator, value);
       case "authorName" -> matchesText(issue.authorName(), operator, value);
       case "assigneeName" -> matchesText(issue.assigneeName(), operator, value);
       case "state" -> matchesIssueState(issue, operator, value);
@@ -1054,6 +1069,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         source.bugStatus(),
         source.category(),
         source.delayCause(),
+        source.delayReason(),
         source.milestoneTitle(),
         source.excluded(),
         source.exclusionReason(),
@@ -1328,7 +1344,12 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     }
   }
 
-  private record IssueSource(Long id, Integer iid, String sourceInstance, String title, Long projectId, String projectName, String authorName, LocalDateTime createdAt, LocalDateTime updatedAt, LocalDateTime closedAt, String issueState, String testingPhase, String systemTestLabel, String severityLevel, String priorityLevel, String bugStatus, String category, String delayCause, String milestoneTitle, boolean excluded, String exclusionReason, boolean fixed, boolean delayIssue, boolean regression, boolean crash, boolean level1Other, boolean illegal, String illegalReason, boolean legacy, String assigneeName, String fixUser, String functionName, String reasonCategory, List<String> moduleNames, List<String> labels) {
+  private record IssueSource(Long id, Integer iid, String sourceInstance, String title, Long projectId, String projectName, String authorName, LocalDateTime createdAt, LocalDateTime updatedAt, LocalDateTime closedAt, String issueState, String testingPhase, String systemTestLabel, String severityLevel, String priorityLevel, String bugStatus, String category, String delayCause, String delayReason, String milestoneTitle, boolean excluded, String exclusionReason, boolean fixed, boolean delayIssue, boolean regression, boolean crash, boolean level1Other, boolean illegal, String illegalReason, boolean legacy, String assigneeName, String fixUser, String functionName, String reasonCategory, List<String> moduleNames, List<String> labels) {
+    List<String> delayCauseMembers() {
+      return SystemTestIssueMetricDimensionSupport.delayCauses(
+          delayCause, delayReason, String.join(" ", labels));
+    }
+
     boolean isClosed() { return closedAt != null || "closed".equalsIgnoreCase(issueState); }
     boolean isPriority(String priority) { return priority.equalsIgnoreCase(priorityLevel); }
     boolean isSeverity(String severity) { return severity.equalsIgnoreCase(severityLevel); }

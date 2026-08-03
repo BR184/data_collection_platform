@@ -17,7 +17,7 @@ export const CC_PRODUCT_RECORD_COLUMNS: RecordTableColumn[] = [
   { key: 'priorityLevel', label: '缺陷优先级', type: 'tag', sortable: true, width: 120 },
   { key: 'category', label: '议题类别', type: 'tag', sortable: true, minWidth: 120 },
   { key: 'milestoneTitle', label: '里程碑', sortable: true, minWidth: 160 },
-  { key: 'delayCause', label: '延期原因', sortable: true, minWidth: 160 },
+  { key: 'delayCause', label: '延期原因', type: 'tags', sortable: true, minWidth: 160 },
   { key: 'fixUser', label: '缺陷修复人', sortable: true, minWidth: 120 },
   { key: 'plannedResolutionAt', label: '计划解决时间', type: 'datetime', sortable: true, minWidth: 170 },
   { key: 'plannedMergeVersionBranch', label: '计划合并版本分支', type: 'tags', sortable: true, minWidth: 180 },

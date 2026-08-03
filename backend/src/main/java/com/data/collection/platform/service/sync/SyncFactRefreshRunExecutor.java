@@ -1,81 +1,161 @@
 package com.data.collection.platform.service.sync;
 
 import com.data.collection.platform.common.JsonUtils;
-import com.data.collection.platform.entity.FactBuildResponse;
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
+import com.data.collection.platform.entity.QueuedFactProjectionTask;
 import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
-import com.data.collection.platform.service.FactBuildService;
+import com.data.collection.platform.mapper.SyncRunMapper;
 import com.data.collection.platform.service.FactBuildTaskService;
+import com.data.collection.platform.service.FactProjectionTaskService;
+import com.data.collection.platform.service.FactProjectionTaskWorkerService;
 import com.data.collection.platform.service.FactRefreshTaskWorkerService;
 import com.data.collection.platform.service.GitlabConfigService;
-import com.data.collection.platform.service.PageRecordSnapshotRefreshService;
-import com.data.collection.platform.service.statistics.StatisticBoardSnapshotRefreshService;
+import com.data.collection.platform.service.GitlabSourceSchemaGuard;
+import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SyncFactRefreshRunExecutor {
   private final GitlabConfigService configService;
-  private final FactBuildService factBuildService;
   private final FactBuildTaskService factBuildTaskService;
   private final FactRefreshTaskWorkerService factRefreshTaskWorkerService;
-  private final StatisticBoardSnapshotRefreshService snapshotRefreshService;
-  private final PageRecordSnapshotRefreshService pageRecordSnapshotRefreshService;
+  private final FactProjectionTaskService projectionTaskService;
+  private final FactProjectionTaskWorkerService projectionTaskWorkerService;
+  private final GitlabSourceSchemaGuard sourceSchemaGuard;
+  private final GitlabMirrorProperties properties;
+  private final SyncRunMapper syncRunMapper;
   private final JsonUtils jsonUtils;
 
   public SyncFactRefreshRunExecutor(
       GitlabConfigService configService,
-      FactBuildService factBuildService,
       FactBuildTaskService factBuildTaskService,
       FactRefreshTaskWorkerService factRefreshTaskWorkerService,
-      StatisticBoardSnapshotRefreshService snapshotRefreshService,
-      PageRecordSnapshotRefreshService pageRecordSnapshotRefreshService,
+      FactProjectionTaskService projectionTaskService,
+      FactProjectionTaskWorkerService projectionTaskWorkerService,
+      GitlabSourceSchemaGuard sourceSchemaGuard,
+      GitlabMirrorProperties properties,
+      SyncRunMapper syncRunMapper,
       JsonUtils jsonUtils) {
     this.configService = configService;
-    this.factBuildService = factBuildService;
     this.factBuildTaskService = factBuildTaskService;
     this.factRefreshTaskWorkerService = factRefreshTaskWorkerService;
-    this.snapshotRefreshService = snapshotRefreshService;
-    this.pageRecordSnapshotRefreshService = pageRecordSnapshotRefreshService;
+    this.projectionTaskService = projectionTaskService;
+    this.projectionTaskWorkerService = projectionTaskWorkerService;
+    this.sourceSchemaGuard = sourceSchemaGuard;
+    this.properties = properties;
+    this.syncRunMapper = syncRunMapper;
     this.jsonUtils = jsonUtils;
   }
 
   public Result execute(SyncRun run) {
     GitlabSyncConfig config = configService.getConfigById(run.getConfigId());
     SyncRunPayload payload = payload(run);
-    if (payload.manualFullRebuildEnabled()) {
-      return executeManualFullRebuild(run, config);
+    boolean full = payload.fullBuildEnabled() || payload.manualFullRebuildEnabled();
+    Long mirrorRunId = run.getParentRunId() == null ? payload.parentRunId() : run.getParentRunId();
+    if (full) {
+      sourceSchemaGuard.verifyAllFactSources(run.getSourceInstance());
+      factBuildTaskService.enqueueFullFactRefreshTasks(config, run.getId());
+    } else if (mirrorRunId == null) {
+      throw new IllegalStateException("定向事实刷新运行缺少镜像父运行");
     }
-    boolean full = payload.fullBuildEnabled();
-    int planned = factBuildTaskService.enqueueFactRefreshTasks(config, full, run.getId());
-    int completed = 0;
-    long affectedRows = 0L;
-    QueuedFactBuildTask task;
-    while ((task =
-            factBuildTaskService.claimNextQueuedTaskForFactRun(
-                run.getId(), "fact-run-worker", 30))
-        != null) {
-      FactBuildResponse response = factRefreshTaskWorkerService.execute(task);
-      if (response != null) {
-        completed++;
-        affectedRows += response.affectedRows();
-      }
+
+    drainFactTasks(run, config, mirrorRunId, full);
+    drainProjectionTasks(run);
+
+    FactBuildTaskService.RunTaskSummary factSummary =
+        factBuildTaskService.summarizeFactRun(run.getId());
+    FactProjectionTaskService.RunTaskSummary projectionSummary =
+        projectionTaskService.summarize(run.getId());
+    int planned = factSummary.totalTasks() + projectionSummary.totalTasks();
+    int completed = factSummary.successTasks() + projectionSummary.successTasks();
+    if (factSummary.failedTasks() > 0 || projectionSummary.failedTasks() > 0) {
+      return new Result(
+          planned,
+          completed,
+          factSummary.affectedRows(),
+          SyncRunStatus.FAILED,
+          null,
+          "事实或投影任务达到自动重试上限");
     }
-    SyncRunStatus status = completed < planned ? SyncRunStatus.PARTIAL_SUCCESS : SyncRunStatus.SUCCESS;
+    LocalDateTime retryAt = earlier(
+        factSummary.nextRunAfter(), projectionSummary.nextRunAfter());
+    if (factSummary.retryWaitingTasks() > 0 || projectionSummary.retryWaitingTasks() > 0) {
+      return new Result(
+          planned,
+          completed,
+          factSummary.affectedRows(),
+          SyncRunStatus.RETRYING,
+          retryAt,
+          "事实或投影任务等待重试");
+    }
+    boolean parentActive = !full && parentRunActive(mirrorRunId);
+    boolean unpublished = !full && factBuildTaskService.hasUnpublishedTargets(mirrorRunId);
+    if (parentActive || unpublished || factSummary.hasActiveTasks() || projectionSummary.hasActiveTasks()) {
+      return new Result(
+          planned,
+          completed,
+          factSummary.affectedRows(),
+          SyncRunStatus.PAUSED,
+          LocalDateTime.now().plusSeconds(5),
+          parentActive ? "等待镜像父运行提交后续变化目标" : "等待持久事实目标继续收敛");
+    }
     return new Result(
         planned,
         completed,
-        affectedRows,
-        status,
-        status == SyncRunStatus.SUCCESS ? null : "部分事实数据刷新任务未完成");
+        factSummary.affectedRows(),
+        SyncRunStatus.SUCCESS,
+        null,
+        null);
   }
 
-  private Result executeManualFullRebuild(SyncRun run, GitlabSyncConfig config) {
-    FactBuildResponse response = factBuildService.rebuildAllFactsForConfig(config, true, run.getId());
-    snapshotRefreshService.refreshAfterFactBuild("ALL", true);
-    pageRecordSnapshotRefreshService.refreshAfterFactBuild("ALL", true);
-    return new Result(1, 1, response.affectedRows(), SyncRunStatus.SUCCESS, null);
+  private void drainFactTasks(
+      SyncRun run, GitlabSyncConfig config, Long mirrorRunId, boolean full) {
+    int batchSize = Math.max(1, Math.min(1000, properties.getFactTargetBatchSize()));
+    int assigned;
+    do {
+      assigned = full
+          ? 0
+          : factBuildTaskService.assignPendingTargetBatches(
+              config, run.getId(), mirrorRunId, batchSize);
+      QueuedFactBuildTask task;
+      while ((task =
+              factBuildTaskService.claimNextQueuedTaskForFactRun(
+                  run.getId(), "fact-run-" + run.getId(),
+                  Math.max(1, properties.getHeartbeatTimeoutSeconds())))
+          != null) {
+        factRefreshTaskWorkerService.execute(task);
+      }
+    } while (!full && assigned > 0);
+  }
+
+  private void drainProjectionTasks(SyncRun run) {
+    QueuedFactProjectionTask task;
+    while ((task =
+            projectionTaskService.claimNext(
+                run.getId(),
+                "projection-run-" + run.getId(),
+                Math.max(1, properties.getHeartbeatTimeoutSeconds())))
+        != null) {
+      projectionTaskWorkerService.execute(task);
+    }
+  }
+
+  private boolean parentRunActive(Long mirrorRunId) {
+    SyncRun parent = mirrorRunId == null ? null : syncRunMapper.selectById(mirrorRunId);
+    return parent != null && SyncRunStateMachine.activeStatuses().contains(parent.getStatus());
+  }
+
+  private LocalDateTime earlier(LocalDateTime left, LocalDateTime right) {
+    if (left == null) {
+      return right;
+    }
+    if (right == null) {
+      return left;
+    }
+    return left.isBefore(right) ? left : right;
   }
 
   private SyncRunPayload payload(SyncRun run) {
@@ -88,6 +168,7 @@ public class SyncFactRefreshRunExecutor {
       int completedTasks,
       long affectedRows,
       SyncRunStatus status,
+      LocalDateTime runAfter,
       String errorMessage) {
   }
 }

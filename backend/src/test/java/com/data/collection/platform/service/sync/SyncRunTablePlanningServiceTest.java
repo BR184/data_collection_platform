@@ -3,6 +3,7 @@ package com.data.collection.platform.service.sync;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -10,8 +11,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceCursorStrategy;
@@ -40,9 +41,9 @@ class SyncRunTablePlanningServiceTest {
   private SyncRunMapper syncRunMapper;
   private SyncRunTableStateMapper stateMapper;
   private SyncRunTableTaskMapper taskMapper;
-  private JsonUtils jsonUtils;
   private GitlabConfigService configService;
   private GitlabWhitelistService whitelistService;
+  private SyncRunAuthoritativeScopePlanner authoritativeScopePlanner;
   private SyncRunTablePlanningService planningService;
 
   @BeforeEach
@@ -50,23 +51,23 @@ class SyncRunTablePlanningServiceTest {
     syncRunMapper = mock(SyncRunMapper.class);
     stateMapper = mock(SyncRunTableStateMapper.class);
     taskMapper = mock(SyncRunTableTaskMapper.class);
-    jsonUtils = new JsonUtils(new ObjectMapper());
     configService = mock(GitlabConfigService.class);
     whitelistService = mock(GitlabWhitelistService.class);
-    GitlabMirrorProperties mirrorProperties = new GitlabMirrorProperties();
+    authoritativeScopePlanner = mock(SyncRunAuthoritativeScopePlanner.class);
     planningService =
         new SyncRunTablePlanningService(
             syncRunMapper,
             stateMapper,
             taskMapper,
-            jsonUtils,
+            new JsonUtils(new ObjectMapper()),
             configService,
             whitelistService,
-            mirrorProperties);
+            new GitlabMirrorProperties(),
+            authoritativeScopePlanner);
   }
 
   @Test
-  void shouldPlanFullSyncFromWhitelistWhenPayloadHasNoTables() {
+  void test_full_sync_plans_whitelist_tables_with_full_reconcile_strategy() {
     SyncRun run = run(SyncRunType.FULL_SYNC);
     GitlabSyncConfig config = config();
     when(syncRunMapper.selectById(77L)).thenReturn(run);
@@ -77,81 +78,52 @@ class SyncRunTablePlanningServiceTest {
             List.of(
                 option("issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
                 option("namespaces", "id", "", SourceCursorStrategy.NONE)));
-    doAnswer(
-            invocation -> {
-              SyncRunTableState state = invocation.getArgument(0);
-              state.setId("issues".equals(state.getSourceTable()) ? 91L : 92L);
-              return 1;
-            })
-        .when(stateMapper)
-        .insert(any(SyncRunTableState.class));
+    assignStateIds();
 
-    int planned = planningService.planRunTables(77L);
+    assertThat(planningService.planRunTables(77L)).isEqualTo(2);
 
-    assertThat(planned).isEqualTo(2);
-
-    ArgumentCaptor<SyncRunTableState> stateCaptor = ArgumentCaptor.forClass(SyncRunTableState.class);
-    verify(stateMapper, times(2)).insert(stateCaptor.capture());
-    assertThat(stateCaptor.getAllValues())
-        .extracting(SyncRunTableState::getSourceTable)
-        .containsExactly("issues", "namespaces");
-    assertThat(stateCaptor.getAllValues())
-        .extracting(SyncRunTableState::getRowStrategy)
-        .containsExactly("INCREMENTAL", "FULL_ONLY");
-
-    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
-    verify(taskMapper, times(2)).insert(taskCaptor.capture());
-    assertThat(taskCaptor.getAllValues())
+    ArgumentCaptor<SyncRunTableTask> tasks = ArgumentCaptor.forClass(SyncRunTableTask.class);
+    verify(taskMapper, times(2)).insert(tasks.capture());
+    assertThat(tasks.getAllValues())
         .extracting(SyncRunTableTask::getSourceTable)
         .containsExactly("issues", "namespaces");
-    assertThat(taskCaptor.getAllValues())
+    assertThat(tasks.getAllValues())
         .extracting(SyncRunTableTask::getRowStrategy)
-        .containsExactly("FULL_RECONCILE", "FULL_RECONCILE");
-    assertThat(taskCaptor.getAllValues())
+        .containsOnly("FULL_RECONCILE");
+    assertThat(tasks.getAllValues())
         .allSatisfy(
             task -> {
-              assertThat(task.getRunId()).isEqualTo(77L);
-              assertThat(task.getConfigId()).isEqualTo(1L);
-              assertThat(task.getSourceInstance()).isEqualTo("default");
               assertThat(task.getTaskType()).isEqualTo("FULL_SYNC");
               assertThat(task.getStatus()).isEqualTo(SyncRunStatus.QUEUED);
-              assertThat(task.getWatermarkAt()).isEqualTo(LocalDateTime.of(1970, 1, 1, 0, 0));
+              assertThat(task.getWatermarkAt())
+                  .isEqualTo(LocalDateTime.of(1970, 1, 1, 0, 0));
             });
   }
 
   @Test
-  void shouldNotDuplicateExistingTasksWhenRunIsPlannedAgain() {
+  void test_replanning_same_run_does_not_duplicate_existing_table_task() {
     SyncRun run = run(SyncRunType.FULL_SYNC);
     GitlabSyncConfig config = config();
     when(syncRunMapper.selectById(77L)).thenReturn(run);
     when(configService.getConfigById(1L)).thenReturn(config);
     when(configService.isSourceConfigured(config)).thenReturn(true);
-    when(taskMapper.selectList(any()))
-        .thenReturn(List.of(existingTask("issues", null)));
+    when(taskMapper.selectList(any())).thenReturn(List.of(existingTask("issues")));
     when(whitelistService.resolveOptions(config))
         .thenReturn(
             List.of(
                 option("issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
                 option("namespaces", "id", "updated_at", SourceCursorStrategy.PRIMARY_KEY_KEYSET)));
-    doAnswer(
-            invocation -> {
-              SyncRunTableState state = invocation.getArgument(0);
-              state.setId("issues".equals(state.getSourceTable()) ? 91L : 92L);
-              return 1;
-            })
-        .when(stateMapper)
-        .insert(any(SyncRunTableState.class));
+    assignStateIds();
 
-    int planned = planningService.planRunTables(77L);
+    assertThat(planningService.planRunTables(77L)).isEqualTo(2);
 
-    assertThat(planned).isEqualTo(2);
-    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
-    verify(taskMapper).insert(taskCaptor.capture());
-    assertThat(taskCaptor.getValue().getSourceTable()).isEqualTo("namespaces");
+    ArgumentCaptor<SyncRunTableTask> task = ArgumentCaptor.forClass(SyncRunTableTask.class);
+    verify(taskMapper).insert(task.capture());
+    assertThat(task.getValue().getSourceTable()).isEqualTo("namespaces");
   }
 
   @Test
-  void shouldPlanFullCompensationFromWhitelistWithReconcileStrategy() {
+  void test_full_compensation_plans_whitelist_tables_from_initial_watermark() {
     SyncRun run = run(SyncRunType.FULL_COMPENSATION_SCAN);
     GitlabSyncConfig config = config();
     when(syncRunMapper.selectById(77L)).thenReturn(run);
@@ -162,110 +134,32 @@ class SyncRunTablePlanningServiceTest {
             List.of(
                 option("issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
                 option("namespaces", "id", "", SourceCursorStrategy.NONE)));
-    doAnswer(
-            invocation -> {
-              SyncRunTableState state = invocation.getArgument(0);
-              state.setId(91L);
-              state.setLastWatermarkAt(LocalDateTime.of(2026, 5, 20, 10, 0));
-              return 1;
-            })
-        .when(stateMapper)
-        .insert(any(SyncRunTableState.class));
+    assignStateIds();
 
-    int planned = planningService.planRunTables(77L);
+    assertThat(planningService.planRunTables(77L)).isEqualTo(2);
 
-    assertThat(planned).isEqualTo(2);
-    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
-    verify(taskMapper, times(2)).insert(taskCaptor.capture());
-    assertThat(taskCaptor.getAllValues())
+    ArgumentCaptor<SyncRunTableTask> tasks = ArgumentCaptor.forClass(SyncRunTableTask.class);
+    verify(taskMapper, times(2)).insert(tasks.capture());
+    assertThat(tasks.getAllValues())
         .extracting(SyncRunTableTask::getTaskType)
-        .containsExactly("FULL_COMPENSATION_SCAN", "FULL_COMPENSATION_SCAN");
-    assertThat(taskCaptor.getAllValues())
-        .extracting(SyncRunTableTask::getSourceTable)
-        .containsExactly("issues", "namespaces");
-    assertThat(taskCaptor.getAllValues())
+        .containsOnly("FULL_COMPENSATION_SCAN");
+    assertThat(tasks.getAllValues())
         .extracting(SyncRunTableTask::getRowStrategy)
-        .containsExactly("FULL_RECONCILE", "FULL_RECONCILE");
-    assertThat(taskCaptor.getAllValues())
-        .extracting(SyncRunTableTask::getWatermarkAt)
-        .containsOnly(LocalDateTime.of(1970, 1, 1, 0, 0));
+        .containsOnly("FULL_RECONCILE");
   }
 
   @Test
-  void shouldPlanCompensationFromExistingStatesWithoutWhitelistDiscovery() {
-    SyncRun run = run(SyncRunType.COMPENSATION_SCAN);
-    SyncRunTableState issueState = existingState(91L, "issues", "id", "updated_at");
-    issueState.setLastWatermarkAt(LocalDateTime.of(2026, 5, 20, 10, 0));
-    SyncRunTableState noteState = existingState(92L, "notes", "id", "updated_at");
-    noteState.setLastWatermarkAt(LocalDateTime.of(2026, 5, 20, 11, 0));
-    when(syncRunMapper.selectById(77L)).thenReturn(run);
-    when(stateMapper.selectList(any())).thenReturn(List.of(issueState, noteState));
-
-    int planned = planningService.planRunTables(77L);
-
-    assertThat(planned).isEqualTo(2);
-    verify(whitelistService, never()).resolveOptions(any());
-    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
-    verify(taskMapper, times(2)).insert(taskCaptor.capture());
-    assertThat(taskCaptor.getAllValues())
-        .extracting(SyncRunTableTask::getSourceTable)
-        .containsExactly("issues", "notes");
-    assertThat(taskCaptor.getAllValues())
-        .extracting(SyncRunTableTask::getRowStrategy)
-        .containsExactly("INCREMENTAL", "INCREMENTAL");
-    assertThat(taskCaptor.getAllValues())
-        .extracting(SyncRunTableTask::getWatermarkAt)
-        .containsExactly(
-            LocalDateTime.of(2026, 5, 20, 9, 55),
-            LocalDateTime.of(2026, 5, 20, 10, 55));
-  }
-
-  @Test
-  void shouldFallBackToWhitelistDiscoveryWhenCompensationHasNoExistingStates() {
-    SyncRun run = run(SyncRunType.COMPENSATION_SCAN);
-    GitlabSyncConfig config = config();
-    when(syncRunMapper.selectById(77L)).thenReturn(run);
-    when(stateMapper.selectList(any())).thenReturn(List.of());
-    when(configService.getConfigById(1L)).thenReturn(config);
-    when(configService.isSourceConfigured(config)).thenReturn(true);
-    when(whitelistService.resolveOptions(config))
-        .thenReturn(List.of(option(
-            "issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET)));
-    doAnswer(
-            invocation -> {
-              SyncRunTableState state = invocation.getArgument(0);
-              state.setId(91L);
-              return 1;
-            })
-        .when(stateMapper)
-        .insert(any(SyncRunTableState.class));
-
-    int planned = planningService.planRunTables(77L);
-
-    assertThat(planned).isEqualTo(1);
-    verify(whitelistService).resolveOptions(config);
-    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
-    verify(taskMapper).insert(taskCaptor.capture());
-    assertThat(taskCaptor.getValue().getSourceTable()).isEqualTo("issues");
-    assertThat(taskCaptor.getValue().getRowStrategy()).isEqualTo("INCREMENTAL");
-  }
-
-  @Test
-  void shouldPlanSystemHookPreciseTargetsFromPayload() {
+  void test_system_hook_authoritative_targets_enter_scope_queue_not_table_tasks() {
     SyncRun run = run(SyncRunType.SYSTEM_HOOK);
     GitlabSyncConfig config = config();
-    Map<String, Object> payload =
-        Map.of(
-            "preciseTargets",
-            List.of(
-                Map.of("tableName", "issues", "lookupScope", Map.of("id", "101")),
-                Map.of("tableName", "issue_assignees", "lookupScope", Map.of("issue_id", "101")),
-                Map.of(
-                    "tableName",
-                    "label_links",
-                    "lookupScope",
-                    Map.of("target_id", "101", "target_type", "Issue"))));
-    run.setPayloadJson(jsonUtils.toJson(payload));
+    run.setPayloadJson(
+        """
+        {"preciseTargets":[
+          {"tableName":"issues","lookupScope":{"id":"101"}},
+          {"tableName":"issue_assignees","lookupScope":{"issue_id":"101"}},
+          {"tableName":"label_links","lookupScope":{"target_id":"101","target_type":"Issue"}}
+        ]}
+        """);
     when(syncRunMapper.selectById(77L)).thenReturn(run);
     when(configService.getConfigById(1L)).thenReturn(config);
     when(configService.isSourceConfigured(config)).thenReturn(true);
@@ -274,288 +168,54 @@ class SyncRunTablePlanningServiceTest {
             List.of(
                 option("issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
                 option("issue_assignees", "issue_id,user_id", "", SourceCursorStrategy.NONE),
-                option("label_links", "label_id,target_id,target_type", "", SourceCursorStrategy.NONE)));
-    doAnswer(
-            invocation -> {
-              SyncRunTableState state = invocation.getArgument(0);
-              state.setId(
-                  "issues".equals(state.getSourceTable())
-                      ? 91L
-                      : "issue_assignees".equals(state.getSourceTable()) ? 92L : 93L);
-              return 1;
-            })
-        .when(stateMapper)
-        .insert(any(SyncRunTableState.class));
+                option("label_links", "id", "", SourceCursorStrategy.NONE)));
+    when(authoritativeScopePlanner.enqueueDeclaredScope(
+            eq(77L), eq("alpha"), any(), any(), any()))
+        .thenReturn(1);
 
-    int planned = planningService.planRunTables(77L);
+    assertThat(planningService.planRunTables(77L)).isEqualTo(3);
 
-    assertThat(planned).isEqualTo(3);
-    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
-    verify(taskMapper, times(3)).insert(taskCaptor.capture());
-    assertThat(taskCaptor.getAllValues())
-        .extracting(SyncRunTableTask::getRowStrategy)
-        .containsExactly("AUTHORITATIVE", "AUTHORITATIVE", "AUTHORITATIVE");
-    assertThat(taskCaptor.getAllValues())
-        .extracting(SyncRunTableTask::getLookupScopeJson)
-        .containsExactly(
-            "{\"id\":\"101\"}",
-            "{\"issue_id\":\"101\"}",
-            "{\"target_id\":\"101\",\"target_type\":\"Issue\"}");
+    verify(taskMapper, never()).insert(any(SyncRunTableTask.class));
+    verify(authoritativeScopePlanner, times(3))
+        .enqueueDeclaredScope(eq(77L), eq("alpha"), any(), any(), any());
   }
 
   @Test
-  void shouldIgnoreMalformedPreciseTargetsWithoutStringifyingNulls() {
+  void test_malformed_system_hook_targets_are_ignored_without_stringifying_nulls() {
     SyncRun run = run(SyncRunType.SYSTEM_HOOK);
     GitlabSyncConfig config = config();
     run.setPayloadJson(
-        jsonUtils.toJson(
-            Map.of(
-                "preciseTargets",
-                List.of(
-                    Map.of("tableName", "issues", "lookupScope", Map.of()),
-                    Map.of("tableName", "issues"),
-                    Map.of("lookupScope", Map.of("id", "101")),
-                    Map.of("tableName", "issues", "lookupScope", Map.of("id", "101"))))));
-    when(syncRunMapper.selectById(77L)).thenReturn(run);
-    when(configService.getConfigById(1L)).thenReturn(config);
-    when(configService.isSourceConfigured(config)).thenReturn(true);
-    when(whitelistService.resolveOptions(config))
-        .thenReturn(List.of(option(
-            "issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET)));
-    doAnswer(
-            invocation -> {
-              SyncRunTableState state = invocation.getArgument(0);
-              state.setId(91L);
-              return 1;
-            })
-        .when(stateMapper)
-        .insert(any(SyncRunTableState.class));
-
-    int planned = planningService.planRunTables(77L);
-
-    assertThat(planned).isEqualTo(1);
-    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
-    verify(taskMapper).insert(taskCaptor.capture());
-    assertThat(taskCaptor.getValue().getLookupScopeJson()).isEqualTo("{\"id\":\"101\"}");
-  }
-
-  @Test
-  void shouldPlanAuthoritativeIssueAssigneeScopesFromIncrementalIssueRows() {
-    SyncRun run = run(SyncRunType.INCREMENTAL_SYNC);
-    GitlabSyncConfig config = config();
-    SyncRunTableTask parentTask = new SyncRunTableTask();
-    parentTask.setRunId(77L);
-    parentTask.setConfigId(1L);
-    parentTask.setSourceTable("issues");
-    parentTask.setRowStrategy("INCREMENTAL");
+        """
+        {"preciseTargets":[
+          {"tableName":"issues","lookupScope":{}},
+          {"tableName":"issues"},
+          {"lookupScope":{"id":"101"}},
+          {"tableName":"issues","lookupScope":{"id":"101"}}
+        ]}
+        """);
     when(syncRunMapper.selectById(77L)).thenReturn(run);
     when(configService.getConfigById(1L)).thenReturn(config);
     when(configService.isSourceConfigured(config)).thenReturn(true);
     when(whitelistService.resolveOptions(config))
         .thenReturn(
-            List.of(
-                option("issue_assignees", "issue_id,user_id", "", SourceCursorStrategy.NONE)));
-    doAnswer(
-            invocation -> {
-              SyncRunTableState state = invocation.getArgument(0);
-              state.setId(92L);
-              return 1;
-            })
-        .when(stateMapper)
-        .insert(any(SyncRunTableState.class));
+            List.of(option("issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET)));
+    when(authoritativeScopePlanner.enqueueDeclaredScope(
+            eq(77L), eq("alpha"), eq("issues"), any(), any()))
+        .thenReturn(1);
 
-    int planned =
-        planningService.planAuthoritativeRelatedTasks(
-            parentTask,
-            List.of(Map.of("id", 101L), Map.of("id", 102L), Map.of("id", 101L)));
+    assertThat(planningService.planRunTables(77L)).isEqualTo(1);
 
-    assertThat(planned).isEqualTo(2);
-    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
-    verify(taskMapper, times(2)).insert(taskCaptor.capture());
-    assertThat(taskCaptor.getAllValues())
-        .extracting(
-            SyncRunTableTask::getSourceTable,
-            SyncRunTableTask::getRowStrategy,
-            SyncRunTableTask::getLookupScopeJson)
-        .containsExactly(
-            org.assertj.core.groups.Tuple.tuple(
-                "issue_assignees", "AUTHORITATIVE", "{\"issue_id\":101}"),
-            org.assertj.core.groups.Tuple.tuple(
-                "issue_assignees", "AUTHORITATIVE", "{\"issue_id\":102}"));
+    verify(authoritativeScopePlanner)
+        .enqueueDeclaredScope(
+            77L,
+            "alpha",
+            "issues",
+            "system-hook:issues",
+            Map.of("id", "101"));
   }
 
   @Test
-  void shouldPlanAllAuthoritativeRelationsFromIncrementalParentRows() {
-    SyncRun run = run(SyncRunType.INCREMENTAL_SYNC);
-    GitlabSyncConfig config = config();
-    SyncRunTableTask issueTask = parentTask("issues");
-    SyncRunTableTask mergeRequestTask = parentTask("merge_requests");
-    when(syncRunMapper.selectById(77L)).thenReturn(run);
-    when(configService.getConfigById(1L)).thenReturn(config);
-    when(configService.isSourceConfigured(config)).thenReturn(true);
-    when(whitelistService.resolveOptions(config))
-        .thenReturn(
-            List.of(
-                option("issue_assignees", "issue_id,user_id", "", SourceCursorStrategy.NONE),
-                option("issue_metrics", "issue_id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
-                option("notes", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
-                option("label_links", "label_id,target_id,target_type", "", SourceCursorStrategy.NONE),
-                option("merge_request_assignees", "merge_request_id,user_id", "", SourceCursorStrategy.NONE),
-                option("merge_request_reviewers", "merge_request_id,user_id", "", SourceCursorStrategy.NONE),
-                option("merge_request_metrics", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET)));
-    doAnswer(
-            invocation -> {
-              SyncRunTableState state = invocation.getArgument(0);
-              state.setId(90L + state.getSourceTable().hashCode());
-              return 1;
-            })
-        .when(stateMapper)
-        .insert(any(SyncRunTableState.class));
-
-    assertThat(planningService.planAuthoritativeRelatedTasks(issueTask, List.of(Map.of("id", 101L))))
-        .isEqualTo(4);
-    assertThat(planningService.planAuthoritativeRelatedTasks(mergeRequestTask, List.of(Map.of("id", 202L))))
-        .isEqualTo(5);
-
-    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
-    verify(taskMapper, times(9)).insert(taskCaptor.capture());
-    assertThat(taskCaptor.getAllValues())
-        .extracting(
-            SyncRunTableTask::getSourceTable,
-            SyncRunTableTask::getRowStrategy,
-            SyncRunTableTask::getLookupScopeJson)
-        .containsExactly(
-            org.assertj.core.groups.Tuple.tuple("issue_assignees", "AUTHORITATIVE", "{\"issue_id\":101}"),
-            org.assertj.core.groups.Tuple.tuple("issue_metrics", "AUTHORITATIVE", "{\"issue_id\":101}"),
-            org.assertj.core.groups.Tuple.tuple("notes", "AUTHORITATIVE", "{\"noteable_id\":101,\"noteable_type\":\"Issue\"}"),
-            org.assertj.core.groups.Tuple.tuple("label_links", "AUTHORITATIVE", "{\"target_id\":101,\"target_type\":\"Issue\"}"),
-            org.assertj.core.groups.Tuple.tuple("merge_request_assignees", "AUTHORITATIVE", "{\"merge_request_id\":202}"),
-            org.assertj.core.groups.Tuple.tuple("merge_request_reviewers", "AUTHORITATIVE", "{\"merge_request_id\":202}"),
-            org.assertj.core.groups.Tuple.tuple("merge_request_metrics", "AUTHORITATIVE", "{\"merge_request_id\":202}"),
-            org.assertj.core.groups.Tuple.tuple("notes", "AUTHORITATIVE", "{\"noteable_id\":202,\"noteable_type\":\"MergeRequest\"}"),
-            org.assertj.core.groups.Tuple.tuple("label_links", "AUTHORITATIVE", "{\"target_id\":202,\"target_type\":\"MergeRequest\"}"));
-    assertThat(taskCaptor.getAllValues())
-        .filteredOn(task -> "label_links".equals(task.getSourceTable()))
-        .extracting(SyncRunTableTask::getLookupScopeJson)
-        .containsExactly("{\"target_id\":101,\"target_type\":\"Issue\"}",
-            "{\"target_id\":202,\"target_type\":\"MergeRequest\"}");
-  }
-
-  @Test
-  void test_incremental_resource_label_event_plans_gitlab_16_typed_label_scopes() {
-    SyncRun run = run(SyncRunType.INCREMENTAL_SYNC);
-    GitlabSyncConfig config = config();
-    SyncRunTableTask eventTask = parentTask("resource_label_events");
-    eventTask.setId(908L);
-    when(syncRunMapper.selectById(77L)).thenReturn(run);
-    when(configService.getConfigById(1L)).thenReturn(config);
-    when(configService.isSourceConfigured(config)).thenReturn(true);
-    when(whitelistService.resolveOptions(config))
-        .thenReturn(List.of(option("label_links", "label_id,target_id,target_type", "", SourceCursorStrategy.NONE)));
-    doAnswer(
-            invocation -> {
-              SyncRunTableState state = invocation.getArgument(0);
-              state.setId(92L);
-              return 1;
-            })
-        .when(stateMapper)
-        .insert(any(SyncRunTableState.class));
-
-    int planned = planningService.planAuthoritativeRelatedTasks(
-        eventTask,
-        List.of(
-            Map.of("issue_id", 101L),
-            Map.of("merge_request_id", 202L)));
-
-    assertThat(planned).isEqualTo(2);
-    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
-    verify(taskMapper, times(2)).insert(taskCaptor.capture());
-    assertThat(taskCaptor.getAllValues())
-        .extracting(SyncRunTableTask::getSourceTable, SyncRunTableTask::getLookupScopeJson)
-        .containsExactly(
-            org.assertj.core.groups.Tuple.tuple(
-                "label_links", "{\"target_id\":101,\"target_type\":\"Issue\"}"),
-            org.assertj.core.groups.Tuple.tuple(
-                "label_links", "{\"target_id\":202,\"target_type\":\"MergeRequest\"}"));
-    assertThat(taskCaptor.getAllValues())
-        .allSatisfy(task -> assertThat(task.getParentTaskId()).isEqualTo(908L));
-  }
-
-  @Test
-  void test_incremental_note_plans_parent_note_scope_without_recursive_authoritative_tasks() {
-    SyncRun run = run(SyncRunType.INCREMENTAL_SYNC);
-    GitlabSyncConfig config = config();
-    SyncRunTableTask noteTask = parentTask("notes");
-    noteTask.setId(909L);
-    when(syncRunMapper.selectById(77L)).thenReturn(run);
-    when(configService.getConfigById(1L)).thenReturn(config);
-    when(configService.isSourceConfigured(config)).thenReturn(true);
-    when(whitelistService.resolveOptions(config))
-        .thenReturn(List.of(option("notes", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET)));
-    doAnswer(
-            invocation -> {
-              SyncRunTableState state = invocation.getArgument(0);
-              state.setId(92L);
-              return 1;
-            })
-        .when(stateMapper)
-        .insert(any(SyncRunTableState.class));
-
-    int planned = planningService.planAuthoritativeRelatedTasks(
-        noteTask,
-        List.of(Map.of("id", 303L, "noteable_id", 101L, "noteable_type", "Issue")));
-
-    assertThat(planned).isEqualTo(1);
-    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
-    verify(taskMapper).insert(taskCaptor.capture());
-    assertThat(taskCaptor.getValue().getRowStrategy()).isEqualTo("AUTHORITATIVE");
-    assertThat(taskCaptor.getValue().getLookupScopeJson())
-        .isEqualTo("{\"noteable_id\":101,\"noteable_type\":\"Issue\"}");
-
-    noteTask.setRowStrategy("AUTHORITATIVE");
-    assertThat(planningService.planAuthoritativeRelatedTasks(
-        noteTask,
-        List.of(Map.of("id", 303L, "noteable_id", 101L, "noteable_type", "Issue"))))
-        .isZero();
-  }
-
-  @Test
-  void shouldNotPlanAuthoritativeRelationsForUnrelatedTable() {
-    SyncRunTableTask parentTask = new SyncRunTableTask();
-    parentTask.setRunId(77L);
-    parentTask.setConfigId(1L);
-    parentTask.setSourceTable("projects");
-    parentTask.setRowStrategy("INCREMENTAL");
-
-    int planned =
-        planningService.planAuthoritativeRelatedTasks(
-            parentTask, List.of(Map.of("id", 101L)));
-
-    assertThat(planned).isZero();
-    verify(syncRunMapper, never()).selectById(any());
-    verify(taskMapper, never()).insert(any(SyncRunTableTask.class));
-  }
-
-  private SyncRunTableTask parentTask(String sourceTable) {
-    SyncRunTableTask task = new SyncRunTableTask();
-    task.setRunId(77L);
-    task.setConfigId(1L);
-    task.setSourceTable(sourceTable);
-    task.setRowStrategy("INCREMENTAL");
-    return task;
-  }
-
-  private TableWhitelistOption option(
-      String tableName,
-      String primaryKey,
-      String updatedAtColumn,
-      SourceCursorStrategy cursorStrategy) {
-    return new TableWhitelistOption(
-        tableName, tableName, primaryKey, updatedAtColumn, cursorStrategy, true);
-  }
-
-  @Test
-  void shouldFailFastBeforeWhitelistDiscoveryWhenSourceIsIncomplete() {
+  void test_incomplete_source_fails_before_whitelist_discovery() {
     SyncRun run = run(SyncRunType.FULL_SYNC);
     GitlabSyncConfig config = config();
     when(syncRunMapper.selectById(77L)).thenReturn(run);
@@ -570,6 +230,17 @@ class SyncRunTablePlanningServiceTest {
     verify(taskMapper, never()).insert(any(SyncRunTableTask.class));
   }
 
+  private void assignStateIds() {
+    doAnswer(
+            invocation -> {
+              SyncRunTableState state = invocation.getArgument(0);
+              state.setId((long) Math.abs(state.getSourceTable().hashCode()));
+              return 1;
+            })
+        .when(stateMapper)
+        .insert(any(SyncRunTableState.class));
+  }
+
   private SyncRun run(SyncRunType runType) {
     SyncRun run = new SyncRun();
     run.setId(77L);
@@ -581,27 +252,20 @@ class SyncRunTablePlanningServiceTest {
     return run;
   }
 
-  private SyncRunTableTask existingTask(String sourceTable, String lookupScopeJson) {
+  private SyncRunTableTask existingTask(String sourceTable) {
     SyncRunTableTask task = new SyncRunTableTask();
     task.setRunId(77L);
     task.setSourceTable(sourceTable);
-    task.setLookupScopeJson(lookupScopeJson);
     return task;
   }
 
-  private SyncRunTableState existingState(Long id, String sourceTable, String primaryKeys, String updatedAtColumn) {
-    SyncRunTableState state = new SyncRunTableState();
-    state.setId(id);
-    state.setConfigId(1L);
-    state.setSourceInstance("alpha");
-    state.setSourceTable(sourceTable);
-    state.setMirrorTable("gitlab_" + sourceTable + "_alpha");
-    state.setPrimaryKeyColumns(primaryKeys);
-    state.setUpdatedAtColumn(updatedAtColumn);
-    state.setCursorStrategy(SourceCursorStrategy.PRIMARY_KEY_KEYSET);
-    state.setRowStrategy("INCREMENTAL");
-    state.setSyncEnabled(true);
-    return state;
+  private TableWhitelistOption option(
+      String tableName,
+      String primaryKey,
+      String updatedAtColumn,
+      SourceCursorStrategy cursorStrategy) {
+    return new TableWhitelistOption(
+        tableName, tableName, primaryKey, updatedAtColumn, cursorStrategy, true);
   }
 
   private GitlabSyncConfig config() {

@@ -21,7 +21,7 @@ public class SyncRunPolicyService {
     return switch (type) {
       case FULL -> SyncRunType.FULL_SYNC;
       case INCREMENTAL -> SyncRunType.INCREMENTAL_SYNC;
-      case COMPENSATION -> SyncRunType.COMPENSATION_SCAN;
+      case COMPENSATION -> SyncRunType.FULL_COMPENSATION_SCAN;
       case SYSTEM_HOOK -> SyncRunType.SYSTEM_HOOK;
       case PURGE -> throw new IllegalArgumentException("PURGE is not a sync run type");
     };
@@ -36,7 +36,6 @@ public class SyncRunPolicyService {
       case INCREMENTAL_SYNC -> SyncType.INCREMENTAL;
       case TABLE_REFRESH -> SyncType.INCREMENTAL;
       case SYSTEM_HOOK -> SyncType.SYSTEM_HOOK;
-      case COMPENSATION_SCAN -> SyncType.COMPENSATION;
       case FULL_COMPENSATION_SCAN -> SyncType.COMPENSATION;
       case FACT_REFRESH -> SyncType.COMPENSATION;
     };
@@ -52,7 +51,6 @@ public class SyncRunPolicyService {
       case SYSTEM_HOOK -> 60;
       case FULL_SYNC -> 40;
       case FULL_COMPENSATION_SCAN -> 25;
-      case COMPENSATION_SCAN -> 20;
       case FACT_REFRESH -> 10;
     };
   }
@@ -61,7 +59,7 @@ public class SyncRunPolicyService {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     String configId = config == null || config.getId() == null ? "unknown" : String.valueOf(config.getId());
     return switch (type) {
-      case FULL_SYNC, INCREMENTAL_SYNC, TABLE_REFRESH, SYSTEM_HOOK, COMPENSATION_SCAN, FULL_COMPENSATION_SCAN ->
+      case FULL_SYNC, INCREMENTAL_SYNC, TABLE_REFRESH, SYSTEM_HOOK, FULL_COMPENSATION_SCAN ->
           "source:" + configId + ":" + sourceInstance + MIRROR_SCOPE_SUFFIX;
       case FACT_REFRESH -> "source:" + configId + ":" + sourceInstance + FACT_SCOPE_SUFFIX;
     };

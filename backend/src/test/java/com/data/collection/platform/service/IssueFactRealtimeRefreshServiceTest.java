@@ -1,7 +1,6 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -52,7 +51,9 @@ class IssueFactRealtimeRefreshServiceTest {
         .thenReturn(
             new RealtimeWorkspaceStatusResponse(
                 "system-test-issues", true, "REFRESHING", "started", true, null, null, null));
-    when(realtimeIncrementalRefreshService.requestIncrementalRefresh(eq("system-test-issues"), anyList()))
+    when(realtimeIncrementalRefreshService.requestIncrementalRefresh(
+            com.data.collection.platform.entity.WorkspaceRefreshRequest.global(
+                "system-test-issues")))
         .thenReturn(
             new RealtimeWorkspaceRefreshResult(
                 41L,
@@ -71,12 +72,10 @@ class IssueFactRealtimeRefreshServiceTest {
         ArgumentCaptor.forClass(Supplier.class);
     verify(realtimeWorkspaceService).requestRefreshWithResult(eq("system-test-issues"), refreshAction.capture());
     RealtimeWorkspaceRefreshResult result = refreshAction.getValue().get();
-    ArgumentCaptor<List<String>> sourceTables = ArgumentCaptor.forClass(List.class);
     verify(realtimeIncrementalRefreshService)
-        .requestIncrementalRefresh(eq("system-test-issues"), sourceTables.capture());
-    assertThat(sourceTables.getValue())
-        .containsExactly(
-            "issues", "projects", "users", "label_links", "resource_label_events", "labels", "notes");
+        .requestIncrementalRefresh(
+            com.data.collection.platform.entity.WorkspaceRefreshRequest.global(
+                "system-test-issues"));
     assertThat(result.jobId()).isEqualTo(41L);
     assertThat(result.sourceTables()).containsExactly("issues", "projects");
     assertThat(result.plannedTasks()).isEqualTo(2);

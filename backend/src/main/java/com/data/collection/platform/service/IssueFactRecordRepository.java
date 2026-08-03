@@ -346,7 +346,11 @@ public class IssueFactRecordRepository {
               )
             ) t where value is not null) as testing_phases,
            (select string_agg(value, E'\n') from (select distinct nullif(btrim(fix_user), '') as value from base) t where value is not null) as fix_users,
-           (select string_agg(value, E'\n') from (select distinct nullif(btrim(delay_cause), '') as value from base) t where value is not null) as delay_causes,
+           (select string_agg(value, E'\n') from (
+              select distinct nullif(btrim(delay_member.value), '') as value
+                from base
+                cross join lateral regexp_split_to_table(coalesce(delay_cause, ''), '[、，,&]') as delay_member(value)
+           ) t where value is not null) as delay_causes,
            (select string_agg(value, E'\n') from (select distinct nullif(btrim(milestone_title), '') as value from base) t where value is not null) as milestone_titles,
           (select string_agg(value, E'\n') from (
              select distinct nullif(btrim(reason), '') as value
@@ -435,7 +439,7 @@ public class IssueFactRecordRepository {
     appendEqIgnoreCase(where, args, "reason_category", query.reasonCategory());
     appendTestingPhaseEquals(where, args, query.directTestingPhase());
     appendEqIgnoreCase(where, args, "fix_user", query.fixUser());
-    appendEqIgnoreCase(where, args, "delay_cause", query.delayCause());
+    appendDelayCauseFilter(where, args, query.delayCause());
     String testingPhaseColumn = testingPhaseColumn(query);
     appendInIgnoreCase(where, args, testingPhaseColumn, query.testingPhases());
     if (query.testingPhases().isEmpty()) {
@@ -702,6 +706,16 @@ public class IssueFactRecordRepository {
     }
     where.append(" and lower(coalesce(").append(column).append(", '')) = ?");
     args.add(normalized.toLowerCase(java.util.Locale.ROOT));
+  }
+
+  private void appendDelayCauseFilter(StringBuilder where, List<Object> args, String value) {
+    String normalized = TextQuerySupport.trimToNull(value);
+    if (normalized == null) {
+      return;
+    }
+    SqlPredicate predicate = IssueDelayCauseMemberSqlSupport.matches("delay_cause", normalized);
+    where.append(" and ").append(predicate.predicate());
+    args.addAll(predicate.args());
   }
 
   private void appendInIgnoreCase(StringBuilder where, List<Object> args, String column, List<String> values) {

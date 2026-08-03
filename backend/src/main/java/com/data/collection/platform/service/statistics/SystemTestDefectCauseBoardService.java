@@ -56,8 +56,6 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   private static final String TOTAL_ROW_LABEL = "共计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-  private static final List<String> REALTIME_REFRESH_TABLES =
-      List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private static final Pattern TURN_LABEL_PATTERN =
       Pattern.compile("(第[一二三四五六七八九十0-9]+轮系统测试|回归测试|系统测试)");
   private static final String PHASE_OPTION_SQL = """
@@ -254,13 +252,19 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   }
 
   @Override
-  public void refreshSnapshots(StatisticBoardSnapshotRefresher.RefreshContext context) {
-    if (!context.affectsIssues()) {
+  public void refreshSnapshots(com.data.collection.platform.entity.FactPublicationContext context) {
+    Set<String> affectedPhases =
+        new LinkedHashSet<>(
+            phaseCatalogService.listParentNames(
+                SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID, context));
+    if (affectedPhases.isEmpty()) {
       return;
     }
     List<StatisticFilterOption> phaseOptions = loadPhaseOptions();
     StatisticBoardDefinition definition = buildDefinition(phaseOptions);
-    for (StatisticFilterOption option : phaseOptions) {
+    for (StatisticFilterOption option : phaseOptions.stream()
+        .filter(candidate -> affectedPhases.contains(candidate.value()))
+        .toList()) {
       Map<String, String> filters = Map.of("testingPhase", option.value());
       StatisticFilterGroup filterGroup =
           SystemTestPhaseFilterGroupExpander.expand(
@@ -507,7 +511,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   }
 
   private com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult refreshMirrorForRealtimeView() {
-    return realtimeIncrementalRefreshService.requestIncrementalRefresh(BOARD_KEY, REALTIME_REFRESH_TABLES);
+    return realtimeIncrementalRefreshService.requestIncrementalRefresh(
+        com.data.collection.platform.entity.WorkspaceRefreshRequest.global(BOARD_KEY));
   }
 
   private List<IssueSource> ensureFactsReady(
@@ -828,7 +833,10 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         "project=" + SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID
             + ";testingPhase=" + (StringUtils.hasText(selectedTestingPhase) ? selectedTestingPhase : "none"),
         RULE_VERSION,
-        snapshotService.issueFactSourceVersion(),
+        snapshotService.issueFactSourceVersion(
+            SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID,
+            com.data.collection.platform.service.IssueScopeDimension.TESTING_PHASE,
+            selectedTestingPhase),
         payload,
         definition,
         effectiveFilterGroup);

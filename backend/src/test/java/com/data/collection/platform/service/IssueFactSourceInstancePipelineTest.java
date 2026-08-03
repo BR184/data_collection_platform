@@ -76,7 +76,7 @@ class IssueFactSourceInstancePipelineTest {
   }
 
   @Test
-  void shouldReconcileIssueFactMissingFromExistingMirrorIssue() {
+  void test_targeted_refresh_creates_missing_fact_and_remains_idempotent() {
     LocalDateTime now = LocalDateTime.of(2026, 7, 22, 13, 0);
     jdbcTemplate.update(
         "insert into ods_gitlab_projects(id, name, mirror_deleted) values (?, ?, false)",
@@ -101,11 +101,13 @@ class IssueFactSourceInstancePipelineTest {
         now,
         1);
 
-    FactBuildResponse firstResponse = factBuildService.reconcileMissingIssueFacts("default");
-    FactBuildResponse secondResponse = factBuildService.reconcileMissingIssueFacts("default");
+    FactBuildResponse firstResponse =
+        factBuildService.rebuildIssueFactsByRootIds("default", List.of(9684L));
+    FactBuildResponse secondResponse =
+        factBuildService.rebuildIssueFactsByRootIds("default", List.of(9684L));
 
     assertThat(firstResponse.affectedRows()).isEqualTo(1);
-    assertThat(secondResponse.affectedRows()).isZero();
+    assertThat(secondResponse.affectedRows()).isEqualTo(1);
     assertThat(jdbcTemplate.queryForObject(
         "select count(*) from issue_fact where source_instance = 'default' and project_id = 325 and issue_id = 9684",
         Integer.class)).isEqualTo(1);
@@ -150,8 +152,7 @@ class IssueFactSourceInstancePipelineTest {
     linkLabel(32L, 9031L);
 
     FactBuildResponse response =
-        factBuildService.rebuildIssueFactsByTargets(
-            "default", List.of(new FactRefreshImpactScopeService.Target(9L, 32129L)));
+        factBuildService.rebuildIssueFactsByRootIds("default", List.of(9031L));
 
     assertThat(response.affectedRows()).isEqualTo(1);
     assertThat(
@@ -197,12 +198,12 @@ class IssueFactSourceInstancePipelineTest {
         """,
         7415L,
         91415L,
-        "# 问题调研情况说明\n## 计划解决时间：2026.06.01\n## 计划合并的版本分支：release/2026R2",
+        "# 问题调研情况说明\n## 计划解决时间：2026.06.01\n## 计划合并的版本分支：CC2026R2",
         now.minusDays(1),
         now.minusDays(1),
         7416L,
         91415L,
-        "# 问题调研情况说明\n## 计划解决时间：2026年7月1日\n## 计划合并的版本分支：release/2026R3",
+        "# 问题调研情况说明\n## 计划解决时间：2026年7月1日\n## 计划合并的版本分支：CC2026R3",
         now,
         now);
 
@@ -228,7 +229,7 @@ class IssueFactSourceInstancePipelineTest {
             jdbcTemplate.queryForObject(
                 "select planned_merge_version_branch from issue_fact where issue_id = 91415",
                 String.class))
-        .isEqualTo("release/2026R3");
+        .isEqualTo("CC2026R3");
   }
 
   @Test

@@ -18,28 +18,37 @@ public class SyncRunWorkerService {
   private final SyncRunLeaseService leaseService;
   private final SyncRunTablePlanningService tablePlanningService;
   private final SyncRunTableWorkerService tableWorkerService;
+  private final SyncRunAuthoritativeScopeWorkerService authoritativeScopeWorkerService;
+  private final SyncRunReconciliationCoordinator reconciliationCoordinator;
   private final GitlabConfigService configService;
   private final ApplicationEventPublisher eventPublisher;
   private final SyncFactRefreshRunExecutor factRefreshRunExecutor;
   private final SyncRunDeadlineGuard deadlineGuard;
+  private final SyncRunCompletionCommitService completionCommitService;
 
   public SyncRunWorkerService(
       SyncRunMapper syncRunMapper,
       SyncRunLeaseService leaseService,
       SyncRunTablePlanningService tablePlanningService,
       SyncRunTableWorkerService tableWorkerService,
+      SyncRunAuthoritativeScopeWorkerService authoritativeScopeWorkerService,
+      SyncRunReconciliationCoordinator reconciliationCoordinator,
       GitlabConfigService configService,
       ApplicationEventPublisher eventPublisher,
       SyncFactRefreshRunExecutor factRefreshRunExecutor,
-      SyncRunDeadlineGuard deadlineGuard) {
+      SyncRunDeadlineGuard deadlineGuard,
+      SyncRunCompletionCommitService completionCommitService) {
     this.syncRunMapper = syncRunMapper;
     this.leaseService = leaseService;
     this.tablePlanningService = tablePlanningService;
     this.tableWorkerService = tableWorkerService;
+    this.authoritativeScopeWorkerService = authoritativeScopeWorkerService;
+    this.reconciliationCoordinator = reconciliationCoordinator;
     this.configService = configService;
     this.eventPublisher = eventPublisher;
     this.factRefreshRunExecutor = factRefreshRunExecutor;
     this.deadlineGuard = deadlineGuard;
+    this.completionCommitService = completionCommitService;
   }
 
   public void executeRun(SyncRun run) {
@@ -92,6 +101,30 @@ public class SyncRunWorkerService {
     if (drainResult.yielded()) {
       return false;
     }
+    SyncRunAuthoritativeScopeWorkerService.DrainResult scopeDrain =
+        authoritativeScopeWorkerService.drainRunScopes(run, resolveTableWorkerCount(run));
+    if (scopeDrain.yielded()) {
+      return false;
+    }
+    SyncRunAuthoritativeScopeRepository.ScopeSummary scopeSummary =
+        authoritativeScopeWorkerService.summarize(run.getId());
+    if (scopeSummary.failed() == 0
+        && (scopeSummary.queued() > 0
+            || scopeSummary.running() > 0
+            || scopeSummary.retryWaiting() > 0)) {
+      deferMirrorRunForScopes(run, scopeSummary);
+      return false;
+    }
+    if (scopeSummary.failed() == 0) {
+      int plannedReconciliations = reconciliationCoordinator.planIfReady(run.getId());
+      if (scopeDrain.processedScopes() > 0 || plannedReconciliations > 0) {
+        SyncRunTableWorkerService.DrainResult reconciliationDrain =
+            tableWorkerService.drainRunTasks(run, resolveTableWorkerCount(run));
+        if (reconciliationDrain.yielded()) {
+          return false;
+        }
+      }
+    }
     SyncRunTableWorkerService.RunTableTaskSummary summary = tableWorkerService.summarizeRun(run.getId());
     planned = Math.max(planned, summary.plannedTasks());
     run.setScannedRows(summary.scannedRows());
@@ -100,14 +133,49 @@ public class SyncRunWorkerService {
       finishRun(run, SyncRunStatus.CANCELLED, planned, summary.completedTasks(), cancellationMessage(run, "同步运行已取消"));
       return true;
     }
-    SyncRunStatus status = tableRunStatus(summary);
-    finishRun(run, status, planned, summary.completedTasks(), tableRunErrorMessage(status, summary));
+    SyncRunStatus status = tableRunStatus(summary, scopeSummary);
+    finishRun(
+        run,
+        status,
+        planned,
+        summary.completedTasks(),
+        tableRunErrorMessage(status, summary, scopeSummary));
     return true;
+  }
+
+  private void deferMirrorRunForScopes(
+      SyncRun run, SyncRunAuthoritativeScopeRepository.ScopeSummary scopeSummary) {
+    LocalDateTime runAfter =
+        scopeSummary.nextRunAfter() == null
+            ? LocalDateTime.now().plusSeconds(5)
+            : scopeSummary.nextRunAfter();
+    String message = "权威关系范围等待重试";
+    run.setStatus(SyncRunStatus.RETRYING);
+    run.setRunAfter(runAfter);
+    run.setErrorMessage(message);
+    if (leaseService.deferOwnedRun(run, SyncRunStatus.RETRYING, runAfter, message) != 1) {
+      throw new SyncRunLeaseLostException(run.getId());
+    }
+    run.setLeaseOwner(null);
+    run.setLeaseUntil(null);
   }
 
   private void executeFactRefreshRun(SyncRun run) {
     SyncFactRefreshRunExecutor.Result result = factRefreshRunExecutor.execute(run);
     run.setAppliedRows(result.affectedRows());
+    if (result.status() == SyncRunStatus.PAUSED || result.status() == SyncRunStatus.RETRYING) {
+      run.setStatus(result.status());
+      run.setRunAfter(result.runAfter());
+      run.setErrorMessage(result.errorMessage());
+      if (leaseService.deferOwnedRun(
+              run, result.status(), result.runAfter(), result.errorMessage())
+          != 1) {
+        throw new SyncRunLeaseLostException(run.getId());
+      }
+      run.setLeaseOwner(null);
+      run.setLeaseUntil(null);
+      return;
+    }
     finishRun(run, result.status(), result.plannedTasks(), result.completedTasks(), result.errorMessage());
   }
 
@@ -149,12 +217,12 @@ public class SyncRunWorkerService {
     run.setFinishedAt(LocalDateTime.now());
     run.setErrorMessage(errorMessage);
     run.setUpdatedAt(LocalDateTime.now());
-    if (leaseService.finishOwnedRun(run) != 1) {
-      throw new SyncRunLeaseLostException(run.getId());
-    }
+    completionCommitService.finishOwnedRun(run);
     run.setLeaseOwner(null);
     run.setLeaseUntil(null);
     tableWorkerService.terminalizeActiveTasksForRun(run.getId(), status, errorMessage);
+    authoritativeScopeWorkerService.terminalizeRun(
+        run.getId(), errorMessage == null ? "父镜像运行已经终态" : errorMessage);
   }
 
   private void updateSyncTimestamps(SyncRun run) {
@@ -188,12 +256,15 @@ public class SyncRunWorkerService {
             || run.getRunType() == SyncRunType.INCREMENTAL_SYNC
             || run.getRunType() == SyncRunType.TABLE_REFRESH
             || run.getRunType() == SyncRunType.SYSTEM_HOOK
-            || run.getRunType() == SyncRunType.COMPENSATION_SCAN
             || run.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN);
   }
 
-  private SyncRunStatus tableRunStatus(SyncRunTableWorkerService.RunTableTaskSummary summary) {
-    if (summary.failedTasks() > 0 || summary.timedOutTasks() > 0) {
+  private SyncRunStatus tableRunStatus(
+      SyncRunTableWorkerService.RunTableTaskSummary summary,
+      SyncRunAuthoritativeScopeRepository.ScopeSummary scopeSummary) {
+    if (summary.failedTasks() > 0
+        || summary.timedOutTasks() > 0
+        || scopeSummary.failed() > 0) {
       return summary.completedTasks() > 0 || summary.appliedRows() > 0L
           ? SyncRunStatus.PARTIAL_SUCCESS
           : SyncRunStatus.FAILED;
@@ -209,9 +280,13 @@ public class SyncRunWorkerService {
 
   private String tableRunErrorMessage(
       SyncRunStatus status,
-      SyncRunTableWorkerService.RunTableTaskSummary summary) {
+      SyncRunTableWorkerService.RunTableTaskSummary summary,
+      SyncRunAuthoritativeScopeRepository.ScopeSummary scopeSummary) {
     if (status == SyncRunStatus.SUCCESS) {
       return null;
+    }
+    if (scopeSummary.failed() > 0) {
+      return "一个或多个权威关系范围失败";
     }
     if (summary.failedTasks() > 0 || summary.timedOutTasks() > 0) {
       return "一个或多个表任务失败";

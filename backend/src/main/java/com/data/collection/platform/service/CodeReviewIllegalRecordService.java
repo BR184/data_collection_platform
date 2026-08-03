@@ -7,7 +7,9 @@ import com.data.collection.platform.entity.CodeReviewIllegalRecordRowResponse;
 import com.data.collection.platform.entity.CodeReviewRuleConfig;
 import com.data.collection.platform.entity.CodeReviewRulePreviewResponse;
 import com.data.collection.platform.entity.CodeReviewRulePreviewSample;
+import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.OptionItemResponse;
+import com.data.collection.platform.entity.ProjectionScopeType;
 import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
@@ -83,18 +85,6 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
     "所属项目名称",
     "Clang-tidy 解析的新增代码行数结果"
   };
-
-  private static final List<String> REALTIME_REFRESH_TABLES =
-      List.of(
-          "merge_requests",
-          "merge_request_metrics",
-          "merge_request_reviewers",
-          "merge_request_assignees",
-          "label_links",
-          "labels",
-          "projects",
-          "namespaces",
-          "users");
 
   private static final List<OptionItemResponse> REQUEST_TYPE_OPTIONS =
       List.of(new OptionItemResponse("合并请求", "merge_request"));
@@ -612,8 +602,12 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   }
 
   @Override
-  public void refreshRecordSnapshots(PageRecordSnapshotRefresher.RefreshContext context) {
-    if (!context.affectsMergeRequests()) {
+  public void refreshRecordSnapshots(com.data.collection.platform.entity.FactPublicationContext context) {
+    if (context == null
+        || !context.covers(
+            FactType.MERGE_REQUEST,
+            ProjectionScopeType.GLOBAL_VIEW,
+            FactProjectionScopeKeyCodec.SINGLETON_SCOPE_KEY)) {
       return;
     }
     getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null, LEGACY_DEFAULT_REPOSITORY_NAME, null, "cc"));
@@ -899,7 +893,8 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   }
 
   private RealtimeWorkspaceRefreshResult refreshMirrorForRealtimeView() {
-    return realtimeIncrementalRefreshService.requestIncrementalRefresh(WORKSPACE_KEY, REALTIME_REFRESH_TABLES);
+    return realtimeIncrementalRefreshService.requestIncrementalRefresh(
+        com.data.collection.platform.entity.WorkspaceRefreshRequest.global(WORKSPACE_KEY));
   }
 
   //兼容模式-MatchMode

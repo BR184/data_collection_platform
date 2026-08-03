@@ -77,7 +77,7 @@ class SyncRunDeadlineGuardTest {
     config.setCompensationWindowStart("09:00");
     config.setCompensationWindowEnd("11:00");
     when(configService.getConfigById(1L)).thenReturn(config);
-    SyncRun run = run(SyncRunType.COMPENSATION_SCAN, LocalDateTime.of(2026, 6, 2, 10, 30));
+    SyncRun run = run(SyncRunType.FULL_COMPENSATION_SCAN, LocalDateTime.of(2026, 6, 2, 10, 30));
 
     boolean cancelled = guard.requestCancellationIfExpired(run);
 

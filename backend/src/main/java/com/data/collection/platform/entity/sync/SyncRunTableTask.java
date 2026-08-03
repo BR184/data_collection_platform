@@ -66,8 +66,8 @@ public class SyncRunTableTask {
   /**
    * 精确任务的完整来源范围（JSON 对象）。
    *
-   * <p>范围是所有精确任务的唯一查询契约。{@code AUTHORITATIVE} 在该范围内替换 ODS 当前集合，
-   * {@code PRECISE} 则只写入来源返回行；两者均使用相同范围读取来源和记录任务身份。
+   * <p>范围是 PRECISE 信号任务的唯一查询契约。权威完整集合由
+   * {@code sync_run_authoritative_scopes} 独立批量处理，不进入表任务队列。
    */
   @TableField("lookup_scope_json")
   private String lookupScopeJson;

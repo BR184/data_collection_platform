@@ -97,7 +97,7 @@ public class SyncRunTableWorkerService {
           taskExecutor.executeTask(task);
         }
         processed++;
-        if (yieldService.shouldYield(run)) {
+        if (yieldService.shouldYieldAfterTableTask(run, task)) {
           yieldRequested.set(true);
         }
       }

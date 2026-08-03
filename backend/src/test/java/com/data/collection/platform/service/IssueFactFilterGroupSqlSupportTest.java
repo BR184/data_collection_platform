@@ -61,8 +61,20 @@ class IssueFactFilterGroupSqlSupportTest {
     assertThat(predicate.predicate()).contains("lower(coalesce(function_name, '')) like ?");
     assertThat(predicate.predicate()).contains("lower(coalesce(testing_phase, '')) = ?");
     assertThat(predicate.predicate()).contains("lower(coalesce(fix_user, '')) = ?");
-    assertThat(predicate.predicate()).contains("lower(coalesce(delay_cause, '')) = ?");
+    assertThat(predicate.predicate()).contains("regexp_split_to_table");
+    assertThat(predicate.predicate()).contains("delay_cause");
     assertThat(predicate.args()).containsExactly("%装配%", "新增需求", "李四", "需求变更");
+  }
+
+  @Test
+  void test_systemTestDelayCause_keepsLabelFallbackInMemory() {
+    StatisticFilterCondition condition =
+        new StatisticFilterCondition("delayCause", "eq", "技术卡点", null);
+
+    assertThat(
+            IssueFactFilterGroupSqlSupport.toSql(
+                new StatisticFilterGroup("AND", List.of(condition))))
+        .isEmpty();
   }
 
   @Test

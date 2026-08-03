@@ -32,7 +32,10 @@ export function mapCustomerIssueRecordTableRows(
     priorityLevel: [{ label: row.priorityLevel || '-', type: 'primary' as const }],
     category: [{ label: row.category || '-', type: row.category ? ('primary' as const) : ('info' as const) }],
     milestoneTitle: row.milestoneTitle || '-',
-    delayCause: row.delayCause || '-',
+    delayCause: parseIssueStatusMembers(row.delayCause).map((label) => ({
+      label,
+      type: 'primary' as const,
+    })),
     fixUser: row.fixUser || '-',
     plannedResolutionAt:
       row.plannedResolutionText || formatCustomerIssueRecordDateTime(row.plannedResolutionAt),
@@ -43,7 +46,7 @@ export function mapCustomerIssueRecordTableRows(
   }));
 }
 
-/** 将事实层规范化的计划合并版本分支转换为表格与详情可复用的标签成员。 */
+/** 将事实层计划合并版本分支按约定的 & 分隔符转换为表格与详情可复用的标签成员。 */
 export function parseCustomerIssuePlannedMergeVersions(value?: string | null): string[] {
   return (value ?? '')
     .split('&')

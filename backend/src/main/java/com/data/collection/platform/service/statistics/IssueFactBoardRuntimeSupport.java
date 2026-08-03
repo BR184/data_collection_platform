@@ -50,13 +50,13 @@ public class IssueFactBoardRuntimeSupport {
     return realtimeWorkspaceService.getStatus(boardKey, filters);
   }
 
-  public RealtimeWorkspaceStatusResponse requestRealtimeRefresh(
-      String boardKey, List<String> realtimeRefreshTables) {
+  public RealtimeWorkspaceStatusResponse requestRealtimeRefresh(String boardKey) {
     return realtimeWorkspaceService.requestRefreshWithResult(
         boardKey,
         () -> {
           RealtimeWorkspaceRefreshResult result =
-              realtimeIncrementalRefreshService.requestIncrementalRefresh(boardKey, realtimeRefreshTables);
+              realtimeIncrementalRefreshService.requestIncrementalRefresh(
+                  com.data.collection.platform.entity.WorkspaceRefreshRequest.global(boardKey));
           return result;
         });
   }

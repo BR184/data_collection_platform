@@ -7,6 +7,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /** 在事实发布事务内维护客户里程碑目录的精确成员集合。 */
 @Service
@@ -22,6 +23,7 @@ public class CustomerIssueMilestoneCatalogReconciliationService {
    *
    * @return 新增的精确成员数量
    */
+  @Transactional
   public int reconcilePublishedFactValues() {
     Map<String, GroupRef> groups = loadEnabledGroups().stream()
         .collect(Collectors.toMap(
@@ -37,7 +39,7 @@ public class CustomerIssueMilestoneCatalogReconciliationService {
       if (group == null) {
         continue;
       }
-      inserted += jdbcTemplate.update(
+      int insertedMember = jdbcTemplate.update(
           """
           insert into issue_scope_members(
             catalog_id, group_id, source_value, display_name, sort_order, enabled, remark
@@ -63,6 +65,17 @@ public class CustomerIssueMilestoneCatalogReconciliationService {
           group.groupId(),
           group.catalogId(),
           sourceValue);
+      if (insertedMember > 0) {
+        jdbcTemplate.update(
+            """
+            update issue_scope_groups
+               set definition_generation = definition_generation + 1,
+                   updated_at = current_timestamp
+             where id = ?
+            """,
+            group.groupId());
+        inserted += insertedMember;
+      }
     }
     return inserted;
   }

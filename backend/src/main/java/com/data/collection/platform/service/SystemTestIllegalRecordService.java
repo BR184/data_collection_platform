@@ -1,5 +1,7 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.entity.FactType;
+import com.data.collection.platform.entity.ProjectionScopeType;
 import com.data.collection.platform.entity.SystemTestIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.SystemTestIllegalRecordListResponse;
 import com.data.collection.platform.entity.SystemTestIllegalRecordRowResponse;
@@ -58,6 +60,9 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_LIST,
             "project:" + defaultProjectId(safeRequest.listRequest().projectId()),
+            safeRequest.listRequest().sourceInstance(),
+            defaultProjectId(safeRequest.listRequest().projectId()),
+            safeRequest.testingPhase(),
             safeRequest),
         SystemTestIllegalRecordListResponse.class,
         () -> loadRecords(safeRequest));
@@ -200,6 +205,9 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
             "project:" + safeProjectId,
+            null,
+            safeProjectId,
+            null,
             requestPayload),
         SystemTestIllegalRecordFilterOptionsResponse.class,
         () -> loadFilterOptions(safeProjectId));
@@ -227,11 +235,27 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   }
 
   @Override
-  public void refreshRecordSnapshots(PageRecordSnapshotRefresher.RefreshContext context) {
-    if (!context.affectsIssues()) {
+  public void refreshRecordSnapshots(com.data.collection.platform.entity.FactPublicationContext context) {
+    if (context == null) {
       return;
     }
-    getFilterOptions(LEGACY_CROWN_CAD_PROJECT_ID);
+    boolean projectAffected =
+        context.covers(
+            FactType.ISSUE,
+            ProjectionScopeType.PROJECT,
+            FactProjectionScopeKeyCodec.project(LEGACY_CROWN_CAD_PROJECT_ID));
+    String defaultPhase = firstPhaseOption();
+    boolean defaultPhaseAffected =
+        defaultPhase != null
+            && phaseCatalogService
+                .listParentNames(LEGACY_CROWN_CAD_PROJECT_ID, context)
+                .contains(defaultPhase);
+    if (projectAffected) {
+      getFilterOptions(LEGACY_CROWN_CAD_PROJECT_ID);
+    }
+    if (!defaultPhaseAffected) {
+      return;
+    }
     listRecords(
         new SystemTestIllegalRecordQueryRequest(
             new IssueFactRecordListRequest(
@@ -258,7 +282,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                 20,
                 DEFAULT_SORT_FIELD,
                 "descending"),
-            firstPhaseOption(),
+            defaultPhase,
             null,
             null,
             null,
@@ -550,13 +574,22 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   }
 
   private PageRecordSnapshotService.SnapshotRequest snapshotRequest(
-      String snapshotType, String scopeKey, Object requestPayload) {
+      String snapshotType,
+      String scopeKey,
+      String sourceInstance,
+      Long projectId,
+      String testingPhaseBusinessKey,
+      Object requestPayload) {
     return new PageRecordSnapshotService.SnapshotRequest(
         WORKSPACE_KEY,
         snapshotType,
         scopeKey,
         RULE_VERSION,
-        pageRecordSnapshotService.issueFactSourceVersion(),
+        pageRecordSnapshotService.issueFactSourceVersion(
+            sourceInstance,
+            projectId == null ? LEGACY_CROWN_CAD_PROJECT_ID : projectId,
+            IssueScopeDimension.TESTING_PHASE,
+            testingPhaseBusinessKey),
         requestPayload);
   }
 

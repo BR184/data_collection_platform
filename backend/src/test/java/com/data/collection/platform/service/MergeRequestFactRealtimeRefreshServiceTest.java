@@ -1,7 +1,6 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -54,7 +53,9 @@ class MergeRequestFactRealtimeRefreshServiceTest {
         .thenReturn(
             new RealtimeWorkspaceStatusResponse(
                 "code-review-multi-board", true, "REFRESHING", "started", true, null, null, null));
-    when(realtimeIncrementalRefreshService.requestIncrementalRefresh(eq("code-review-multi-board"), anyList()))
+    when(realtimeIncrementalRefreshService.requestIncrementalRefresh(
+            com.data.collection.platform.entity.WorkspaceRefreshRequest.global(
+                "code-review-multi-board")))
         .thenReturn(
             new RealtimeWorkspaceRefreshResult(
                 51L,
@@ -73,20 +74,10 @@ class MergeRequestFactRealtimeRefreshServiceTest {
         ArgumentCaptor.forClass(Supplier.class);
     verify(realtimeWorkspaceService).requestRefreshWithResult(eq("code-review-multi-board"), refreshAction.capture());
     RealtimeWorkspaceRefreshResult result = refreshAction.getValue().get();
-    ArgumentCaptor<List<String>> sourceTables = ArgumentCaptor.forClass(List.class);
     verify(realtimeIncrementalRefreshService)
-        .requestIncrementalRefresh(eq("code-review-multi-board"), sourceTables.capture());
-    assertThat(sourceTables.getValue())
-        .containsExactly(
-            "merge_requests",
-            "merge_request_metrics",
-            "merge_request_reviewers",
-            "merge_request_assignees",
-            "label_links",
-            "labels",
-            "projects",
-            "namespaces",
-            "users");
+        .requestIncrementalRefresh(
+            com.data.collection.platform.entity.WorkspaceRefreshRequest.global(
+                "code-review-multi-board"));
     assertThat(result.jobId()).isEqualTo(51L);
     assertThat(result.sourceTables()).containsExactly("merge_requests", "merge_request_metrics");
     assertThat(result.plannedTasks()).isEqualTo(2);

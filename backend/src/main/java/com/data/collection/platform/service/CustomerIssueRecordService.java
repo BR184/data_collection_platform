@@ -3,6 +3,8 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.CustomerIssueRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
 import com.data.collection.platform.entity.CustomerIssueRecordRowResponse;
+import com.data.collection.platform.entity.FactType;
+import com.data.collection.platform.entity.ProjectionScopeType;
 import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
@@ -83,6 +85,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
             PageRecordSnapshotService.SNAPSHOT_TYPE_LIST,
             "topic:" + normalizeTopic(safeRequest.topic()),
             CustomerIssueRecordProfile.forTopic(normalizeTopic(safeRequest.topic())).ruleVersion(),
+            safeRequest.listRequest().sourceInstance(),
+            safeRequest.listRequest().milestoneTitle(),
             safeRequest),
         CustomerIssueRecordPageSnapshot.class,
         () -> loadRecords(safeRequest));
@@ -166,7 +170,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
             .filter(view -> CustomerIssueTestingPhaseSupport.matchesFilter(
                 view.testingPhase(), request.testingPhase()))
             .filter(view -> matchesEquals(view.fixUser(), request.fixUser()))
-            .filter(view -> matchesEquals(view.delayCause(), request.delayCause()))
+            .filter(view -> IssueDelayCauseMembers.matchesSelection(view.delayCause(), request.delayCause()))
             .filter(view -> matchesCustomerName(view.customerNames(), customerName))
             .filter(
                 view ->
@@ -329,6 +333,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
             PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
             "topic:" + safeTopic,
             CustomerIssueRecordProfile.forTopic(safeTopic).ruleVersion(),
+            sourceInstance,
+            null,
             requestPayload),
         CustomerIssueRecordFilterOptionsResponse.class,
         () -> loadFilterOptions(safeTopic, sourceInstance));
@@ -362,13 +368,18 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         toLegacyOptions(values.assigneeNames()),
         toOptions(values.testingPhases()),
         toLegacyOptions(values.fixUsers()),
-        toOptions(values.delayCauses()),
+        OptionItemResponseFactory.fromDelayCauseMembers(values.delayCauses()),
         milestoneCatalogService.listOptions());
   }
 
   @Override
-  public void refreshRecordSnapshots(PageRecordSnapshotRefresher.RefreshContext context) {
-    if (!context.affectsIssues() || pageRecordSnapshotService == null) {
+  public void refreshRecordSnapshots(com.data.collection.platform.entity.FactPublicationContext context) {
+    if (pageRecordSnapshotService == null
+        || context == null
+        || !context.covers(
+            FactType.ISSUE,
+            ProjectionScopeType.PROJECT,
+            FactProjectionScopeKeyCodec.project(LEGACY_CC_PRODUCT_PROJECT_ID))) {
       return;
     }
     for (String topic : List.of(TOPIC_CC_PRODUCT, TOPIC_DELAY)) {
@@ -499,13 +510,22 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   }
 
   private PageRecordSnapshotService.SnapshotRequest snapshotRequest(
-      String snapshotType, String scopeKey, String ruleVersion, Object requestPayload) {
+      String snapshotType,
+      String scopeKey,
+      String ruleVersion,
+      String sourceInstance,
+      String milestoneBusinessKey,
+      Object requestPayload) {
     return new PageRecordSnapshotService.SnapshotRequest(
         "customer-issue-records",
         snapshotType,
         scopeKey,
         ruleVersion,
-        pageRecordSnapshotService.issueFactSourceVersion(),
+        pageRecordSnapshotService.issueFactSourceVersion(
+            sourceInstance,
+            LEGACY_CC_PRODUCT_PROJECT_ID,
+            IssueScopeDimension.MILESTONE,
+            milestoneBusinessKey),
         requestPayload);
   }
 

@@ -67,13 +67,19 @@ public class SyncRunDispatcherService {
            where id = (
              select candidate.id
                from sync_runs candidate
-              where candidate.status in ('QUEUED', 'PAUSED')
+              where candidate.status in ('QUEUED', 'PAUSED', 'RETRYING')
+                and candidate.run_after <= current_timestamp
                 and not exists (
                       select 1
                         from sync_runs active
                        where active.exclusive_scope = candidate.exclusive_scope
                          and active.id <> candidate.id
-                         and active.status in ('RUNNING', 'RETRYING', 'CANCELLING')
+                         and (
+                              active.status in ('RUNNING', 'CANCELLING')
+                           or (active.status = 'RETRYING'
+                               and active.lease_until is not null
+                               and active.lease_until >= current_timestamp)
+                         )
                 )
               order by (
                          candidate.priority
@@ -123,6 +129,7 @@ public class SyncRunDispatcherService {
     run.setCompletedTableCount(rs.getInt("completed_table_count"));
     run.setScannedRows(rs.getLong("scanned_rows"));
     run.setAppliedRows(rs.getLong("applied_rows"));
+    run.setRunAfter(toDateTime(rs.getTimestamp("run_after")));
     run.setHeartbeatAt(toDateTime(rs.getTimestamp("heartbeat_at")));
     run.setLeaseOwner(rs.getString("lease_owner"));
     run.setLeaseUntil(toDateTime(rs.getTimestamp("lease_until")));

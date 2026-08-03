@@ -16,9 +16,12 @@ class SystemTestIssueMetricDimensionSupportTest {
     assertThat(SystemTestIssueMetricDimensionSupport.majorCause(
             "需求问题", "新增理解偏差"))
         .isEqualTo("需求阶段");
-    assertThat(SystemTestIssueMetricDimensionSupport.delayCause(
-            "", "算法问题导致延期", ""))
-        .isEqualTo("算法问题");
+    assertThat(SystemTestIssueMetricDimensionSupport.delayCauses(
+            "方案卡点&技术卡点", "", ""))
+        .containsExactly("方案卡点", "技术卡点");
+    assertThat(SystemTestIssueMetricDimensionSupport.delayCauses(
+            "", "", "申请延期 技术卡点"))
+        .containsExactly("技术卡点");
     assertThat(SystemTestIssueMetricDimensionSupport.matchesCauseMetric(
             "demand_misunderstand", "", "新增理解偏差"))
         .isTrue();

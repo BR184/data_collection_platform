@@ -13,21 +13,19 @@ final class IssueFactFilterGroupSqlSupport {
   private IssueFactFilterGroupSqlSupport() {}
 
   static Optional<SqlPredicate> toSql(StatisticFilterGroup filterGroup) {
-    return toSql(filterGroup, false);
+    return buildSql(filterGroup, false, false);
   }
 
   static Optional<SqlPredicate> toSql(StatisticFilterGroup filterGroup, boolean useFullTestingPhase) {
-    return toSql(filterGroup, useFullTestingPhase, false);
+    return buildSql(filterGroup, useFullTestingPhase, false);
   }
 
   static Optional<SqlPredicate> toCustomerIssueSql(StatisticFilterGroup filterGroup) {
-    return toSql(filterGroup, true, true);
+    return buildSql(filterGroup, true, true);
   }
 
-  private static Optional<SqlPredicate> toSql(
-      StatisticFilterGroup filterGroup,
-      boolean useFullTestingPhase,
-      boolean useFactDelayCause) {
+  private static Optional<SqlPredicate> buildSql(
+      StatisticFilterGroup filterGroup, boolean useFullTestingPhase, boolean useFactDelayCause) {
     if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
       return Optional.of(new SqlPredicate("", List.of()));
     }
@@ -64,8 +62,9 @@ final class IssueFactFilterGroupSqlSupport {
       case "testingPhase" -> phaseCondition(condition, useFullTestingPhase);
       case "reasonCategory" -> textCondition("reason_category", condition);
       case "fixUser" -> searchableTextCondition("fix_user", condition);
-      case "delayCause" ->
-          useFactDelayCause ? searchableTextCondition("delay_cause", condition) : Optional.empty();
+      case "delayCause" -> useFactDelayCause
+          ? Optional.of(IssueDelayCauseMemberSqlSupport.condition("delay_cause", condition))
+          : Optional.empty();
       case "illegalReason" -> illegalReasonCondition(condition);
       case "severityLevel" -> textCondition("severity_level", condition);
       case "priorityLevel" -> textCondition("priority_level", condition);

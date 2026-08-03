@@ -33,7 +33,9 @@ public class GitlabMirrorProperties {
   private int directPoolControlConnectionReserve = 1;
   private int directPoolAcquireTimeoutSeconds = 30;
   private int tableTaskLeaseSeconds = 180;
+  private int authoritativeScopeBatchSize = 200;
   private int maxContinuationTasksPerTable = 50000;
+  private int factTargetBatchSize = 200;
   private int customerIssueDelayCheckDelayMs = 3600000;
   private boolean customerIssueDelayPreWritebackSyncEnabled = true;
   private int customerIssueDelayPreWritebackSyncTimeoutSeconds = 180;
@@ -282,6 +284,14 @@ public class GitlabMirrorProperties {
     this.tableTaskLeaseSeconds = tableTaskLeaseSeconds;
   }
 
+  public int getAuthoritativeScopeBatchSize() {
+    return authoritativeScopeBatchSize;
+  }
+
+  public void setAuthoritativeScopeBatchSize(int authoritativeScopeBatchSize) {
+    this.authoritativeScopeBatchSize = authoritativeScopeBatchSize;
+  }
+
   public int getMaxContinuationTasksPerTable() {
     return maxContinuationTasksPerTable;
   }
@@ -408,5 +418,13 @@ public class GitlabMirrorProperties {
 
   public void setCodeReviewMetricRetryBaseSeconds(int codeReviewMetricRetryBaseSeconds) {
     this.codeReviewMetricRetryBaseSeconds = codeReviewMetricRetryBaseSeconds;
+  }
+
+  public int getFactTargetBatchSize() {
+    return factTargetBatchSize;
+  }
+
+  public void setFactTargetBatchSize(int factTargetBatchSize) {
+    this.factTargetBatchSize = factTargetBatchSize;
   }
 }

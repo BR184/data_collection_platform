@@ -1,11 +1,17 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.entity.FactProjectionScope;
+import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
 import com.data.collection.platform.entity.statistics.StatisticBoardMeta;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.data.collection.platform.service.FactProjectionVersionService;
+import com.data.collection.platform.service.GitlabSourceInstanceSupport;
+import com.data.collection.platform.service.IssueProjectionScopeResolver;
+import com.data.collection.platform.service.IssueScopeDimension;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -16,6 +22,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -27,10 +34,18 @@ public class StatisticBoardSnapshotService {
 
   private final JdbcTemplate jdbcTemplate;
   private final JsonUtils jsonUtils;
+  private final FactProjectionVersionService projectionVersionService;
+  private final IssueProjectionScopeResolver issueScopeResolver;
 
-  public StatisticBoardSnapshotService(JdbcTemplate jdbcTemplate, JsonUtils jsonUtils) {
+  public StatisticBoardSnapshotService(
+      JdbcTemplate jdbcTemplate,
+      JsonUtils jsonUtils,
+      FactProjectionVersionService projectionVersionService,
+      IssueProjectionScopeResolver issueScopeResolver) {
     this.jdbcTemplate = jdbcTemplate;
     this.jsonUtils = jsonUtils;
+    this.projectionVersionService = projectionVersionService;
+    this.issueScopeResolver = issueScopeResolver;
   }
 
   public Optional<Snapshot> findReady(
@@ -137,44 +152,26 @@ public class StatisticBoardSnapshotService {
   }
 
   public String issueFactSourceVersion() {
-    String factVersion = jdbcTemplate.queryForObject(
-        """
-        select coalesce(
-                 (
-                   select concat(id, ':', coalesce(to_char(finished_at, 'YYYY-MM-DD"T"HH24:MI:SS.US'), 'running'))
-                     from fact_build_tasks
-                    where status = 'SUCCESS'
-                      and (coalesce(affected_rows, 0) > 0 or full_build = true)
-                      and (
-                        upper(coalesce(fact_type, '')) = 'ISSUE'
-                        or lower(coalesce(scope, '')) = 'issue'
-                        or lower(coalesce(scope, '')) like '%:issue'
-                        or lower(coalesce(scope, '')) = 'all'
-                      )
-                    order by finished_at desc nulls last, id desc
-                    limit 1
-                 ),
-                 'bootstrap'
-               )
-        """,
-        String.class);
-    String scopeVersion =
-        jdbcTemplate.queryForObject(
-            """
-            select concat(
-                     'issue-scope:',
-                     coalesce(to_char(max(changed_at), 'YYYY-MM-DD"T"HH24:MI:SS.US'), 'empty')
-                   )
-              from (
-                select updated_at as changed_at from issue_scope_catalogs
-                union all
-                select updated_at as changed_at from issue_scope_groups
-                union all
-                select updated_at as changed_at from issue_scope_members
-              ) s
-            """,
-            String.class);
-    return factVersion + "|" + scopeVersion;
+    return projectionVersionService.globalSourceVersion(
+        GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE, FactType.ISSUE);
+  }
+
+  /** 为明确的 Issue 稳定范围生成快照来源版本。 */
+  public String issueFactSourceVersion(Set<FactProjectionScope> scopes) {
+    return projectionVersionService.sourceVersion(
+        GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE, FactType.ISSUE, scopes);
+  }
+
+  /** 为项目或范围组选择生成 Issue 快照来源版本。 */
+  public String issueFactSourceVersion(
+      long projectId, IssueScopeDimension dimension, String businessKey) {
+    return issueFactSourceVersion(
+        issueScopeResolver.resolve(
+            GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE,
+            FactType.ISSUE,
+            projectId,
+            dimension,
+            businessKey));
   }
 
   public String filterHash(Map<String, ?> filters) {

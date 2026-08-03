@@ -5,7 +5,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.data.collection.platform.entity.MirrorBatchWriteResult;
+import com.data.collection.platform.entity.MirrorMutationResult;
+import com.data.collection.platform.entity.MirrorRowChange;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.service.GitlabMirrorTableStorageService;
@@ -29,13 +30,14 @@ class MirrorTableWriterTest {
                 new SourceTableColumn("updated_at", "timestamp without time zone", true, 2)));
     List<Map<String, Object>> rows =
         List.of(Map.of("id", 101L, "updated_at", LocalDateTime.of(2026, 5, 18, 10, 0)));
-    MirrorBatchWriteResult expected = new MirrorBatchWriteResult(1, 1, 0);
-    when(storageService.upsertBatch(schema, rows, 501L)).thenReturn(expected);
+    MirrorMutationResult expected =
+        new MirrorMutationResult(1, List.of(new MirrorRowChange(Map.of(), rows.getFirst())), 0);
+    when(storageService.applyBatch(schema, rows, 501L)).thenReturn(expected);
 
-    MirrorBatchWriteResult actual = writer.writeBatch(schema, rows, 501L);
+    MirrorMutationResult actual = writer.writeBatch(schema, rows, 501L);
 
     assertThat(actual).isEqualTo(expected);
-    verify(storageService).upsertBatch(schema, rows, 501L);
+    verify(storageService).applyBatch(schema, rows, 501L);
   }
 
   @Test
@@ -52,13 +54,14 @@ class MirrorTableWriterTest {
                 new SourceTableColumn("updated_at", "timestamp without time zone", true, 2)));
     List<Map<String, Object>> rows =
         List.of(Map.of("id", 101L, "updated_at", LocalDateTime.of(2026, 5, 18, 10, 0)));
-    MirrorBatchWriteResult expected = new MirrorBatchWriteResult(1, 1, 0);
-    when(storageService.upsertBatch(schema, rows, 501L, true)).thenReturn(expected);
+    MirrorMutationResult expected =
+        new MirrorMutationResult(1, List.of(new MirrorRowChange(Map.of(), rows.getFirst())), 0);
+    when(storageService.applyBatch(schema, rows, 501L, true)).thenReturn(expected);
 
-    MirrorBatchWriteResult actual = writer.writeBatch(schema, rows, 501L, true);
+    MirrorMutationResult actual = writer.writeBatch(schema, rows, 501L, true);
 
     assertThat(actual).isEqualTo(expected);
-    verify(storageService).upsertBatch(schema, rows, 501L, true);
+    verify(storageService).applyBatch(schema, rows, 501L, true);
   }
 
   @Test
@@ -74,11 +77,12 @@ class MirrorTableWriterTest {
                 new SourceTableColumn("issue_id", "bigint", false, 1),
                 new SourceTableColumn("user_id", "bigint", false, 2)));
     List<Map<String, Object>> rows = List.of(Map.of("issue_id", 101L, "user_id", 8L));
-    MirrorBatchWriteResult expected = new MirrorBatchWriteResult(1, 2, 0);
+    MirrorMutationResult expected =
+        new MirrorMutationResult(1, List.of(new MirrorRowChange(Map.of(), rows.getFirst())), 0);
     when(storageService.replaceAuthoritativeScope(schema, Map.of("issue_id", "101"), rows, 501L))
         .thenReturn(expected);
 
-    MirrorBatchWriteResult actual =
+    MirrorMutationResult actual =
         writer.replaceAuthoritativeScope(schema, Map.of("issue_id", "101"), rows, 501L);
 
     assertThat(actual).isEqualTo(expected);

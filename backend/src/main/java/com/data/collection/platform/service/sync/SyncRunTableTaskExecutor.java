@@ -92,17 +92,22 @@ public class SyncRunTableTaskExecutor {
         mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
         return;
       }
+      if ("DELETE_ONLY".equalsIgnoreCase(task.getRowStrategy())) {
+        leaseGuard.requireOwnership();
+        pageCommitService.completeUnchangedTask(task, state, null, null);
+        mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
+        return;
+      }
       LocalDateTime scanStart = task.getWatermarkAt() == null ? INITIAL_WATERMARK : task.getWatermarkAt();
       boolean fullReconcileTask = "FULL_RECONCILE".equalsIgnoreCase(task.getRowStrategy());
       boolean preciseTask = "PRECISE".equalsIgnoreCase(task.getRowStrategy());
-      boolean authoritativeTask = "AUTHORITATIVE".equalsIgnoreCase(task.getRowStrategy());
-      Map<String, Object> lookupScope = (preciseTask || authoritativeTask)
+      Map<String, Object> lookupScope = preciseTask
           ? jsonUtils.toMap(task.getLookupScopeJson())
           : Map.of();
-      if ((preciseTask || authoritativeTask) && lookupScope.isEmpty()) {
+      if (preciseTask && lookupScope.isEmpty()) {
         throw new IllegalStateException("精确任务缺少完整范围：" + task.getSourceTable());
       }
-      boolean scopedTask = preciseTask || authoritativeTask;
+      boolean scopedTask = preciseTask;
       if (!fullReconcileTask
           && !scopedTask
           && !"INCREMENTAL".equalsIgnoreCase(state.getRowStrategy())) {
@@ -162,8 +167,6 @@ public class SyncRunTableTaskExecutor {
           batchSize,
           hasMore,
           fullReconcileTask,
-          authoritativeTask,
-            lookupScope,
           fullReconcileTask);
       mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
     } catch (SyncTaskLeaseLostException e) {
@@ -196,7 +199,8 @@ public class SyncRunTableTaskExecutor {
     Set<String> existingSourceKeys =
         keys.isEmpty()
             ? Set.of()
-            : sourceTableReader.findExistingPrimaryKeySignatures(config, option, keys);
+            : sourceTableReader.findExistingPrimaryKeySignatures(
+                config, option, mirrorSchema, keys);
     List<Map<String, Object>> mirrorOnlyRows =
         keys.stream()
             .filter(

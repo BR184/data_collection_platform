@@ -1,6 +1,6 @@
 package com.data.collection.platform.service.sync;
 
-import com.data.collection.platform.entity.MirrorBatchWriteResult;
+import com.data.collection.platform.entity.MirrorMutationResult;
 import com.data.collection.platform.entity.MirrorPrimaryKeyBatch;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.service.GitlabMirrorTableStorageService;
@@ -16,19 +16,19 @@ public class MirrorTableWriter {
     this.storageService = storageService;
   }
 
-  public MirrorBatchWriteResult writeBatch(
+  public MirrorMutationResult writeBatch(
       SourceTableSchema mirrorSchema,
       List<Map<String, Object>> rows,
       Long taskId) {
-    return storageService.upsertBatch(mirrorSchema, rows, taskId);
+    return storageService.applyBatch(mirrorSchema, rows, taskId);
   }
 
-  public MirrorBatchWriteResult writeBatch(
+  public MirrorMutationResult writeBatch(
       SourceTableSchema mirrorSchema,
       List<Map<String, Object>> rows,
       Long taskId,
       boolean forceUpdate) {
-    return storageService.upsertBatch(mirrorSchema, rows, taskId, forceUpdate);
+    return storageService.applyBatch(mirrorSchema, rows, taskId, forceUpdate);
   }
 
   /**
@@ -40,7 +40,7 @@ public class MirrorTableWriter {
    * @param taskId 当前同步任务编号
    * @return 来源行数及该范围实际写入、删除数量
    */
-  public MirrorBatchWriteResult replaceAuthoritativeScope(
+  public MirrorMutationResult replaceAuthoritativeScope(
       SourceTableSchema mirrorSchema,
       Map<String, Object> lookupScope,
       List<Map<String, Object>> rows,
@@ -56,7 +56,7 @@ public class MirrorTableWriter {
     return storageService.listActivePrimaryKeys(mirrorSchema, cursor, batchSize);
   }
 
-  public int markRowsDeletedByPrimaryKeys(
+  public MirrorMutationResult markRowsDeletedByPrimaryKeys(
       SourceTableSchema mirrorSchema,
       List<Map<String, Object>> primaryKeyRows,
       Long taskId) {

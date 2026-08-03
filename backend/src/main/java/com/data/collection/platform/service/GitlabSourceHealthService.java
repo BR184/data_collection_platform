@@ -252,7 +252,7 @@ public class GitlabSourceHealthService {
 
   private List<String> missingRequiredMirrorTables(String sourceInstance) {
     List<String> missing = new ArrayList<>();
-    for (String sourceTable : GitlabFactRefreshRequirements.allRequiredTables()) {
+    for (String sourceTable : GitlabFactDependencyCatalog.allRequiredTables()) {
       String mirrorTable = GitlabSourceInstanceSupport.buildMirrorTableName(sourceTable);
       if (!tableExists(mirrorTable)) {
         missing.add(mirrorTable);

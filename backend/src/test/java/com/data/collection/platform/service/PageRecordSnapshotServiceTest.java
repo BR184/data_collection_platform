@@ -21,7 +21,11 @@ class PageRecordSnapshotServiceTest {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     when(jdbcTemplate.queryForObject(anyString(), eq(String.class))).thenReturn("source-version");
     PageRecordSnapshotService service =
-        new PageRecordSnapshotService(jdbcTemplate, mock(JsonUtils.class));
+        new PageRecordSnapshotService(
+            jdbcTemplate,
+            mock(JsonUtils.class),
+            mock(FactProjectionVersionService.class),
+            mock(IssueProjectionScopeResolver.class));
 
     String sourceVersion = service.reviewDataSourceVersion();
 

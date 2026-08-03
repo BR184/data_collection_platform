@@ -3,6 +3,8 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.SystemTestIssueSearchFilterOptionsResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchListResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchRowResponse;
+import com.data.collection.platform.entity.FactType;
+import com.data.collection.platform.entity.ProjectionScopeType;
 import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
@@ -81,6 +83,9 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_LIST,
             "project:" + safeRequest.listRequest().projectId(),
+            safeRequest.listRequest().sourceInstance(),
+            safeRequest.listRequest().projectId(),
+            safeRequest.testingPhase(),
             safeRequest),
         SystemTestIssueSearchListResponse.class,
         () -> loadRecords(safeRequest));
@@ -215,6 +220,9 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
             "project:" + requestPayload.get("projectId"),
+            sourceInstance,
+            (Long) requestPayload.get("projectId"),
+            null,
             requestPayload),
         SystemTestIssueSearchFilterOptionsResponse.class,
         () -> loadFilterOptions(projectId, sourceInstance));
@@ -241,8 +249,12 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
   }
 
   @Override
-  public void refreshRecordSnapshots(PageRecordSnapshotRefresher.RefreshContext context) {
-    if (!context.affectsIssues()) {
+  public void refreshRecordSnapshots(com.data.collection.platform.entity.FactPublicationContext context) {
+    if (context == null
+        || !context.covers(
+            FactType.ISSUE,
+            ProjectionScopeType.PROJECT,
+            FactProjectionScopeKeyCodec.project(LEGACY_CROWN_CAD_PROJECT_ID))) {
       return;
     }
     getFilterOptions(LEGACY_CROWN_CAD_PROJECT_ID);
@@ -319,13 +331,22 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
   }
 
   private PageRecordSnapshotService.SnapshotRequest snapshotRequest(
-      String snapshotType, String scopeKey, Object requestPayload) {
+      String snapshotType,
+      String scopeKey,
+      String sourceInstance,
+      Long projectId,
+      String testingPhaseBusinessKey,
+      Object requestPayload) {
     return new PageRecordSnapshotService.SnapshotRequest(
         PAGE_KEY,
         snapshotType,
         scopeKey,
         RULE_VERSION,
-        pageRecordSnapshotService.issueFactSourceVersion(),
+        pageRecordSnapshotService.issueFactSourceVersion(
+            sourceInstance,
+            projectId == null ? LEGACY_CROWN_CAD_PROJECT_ID : projectId,
+            IssueScopeDimension.TESTING_PHASE,
+            testingPhaseBusinessKey),
         requestPayload);
   }
 

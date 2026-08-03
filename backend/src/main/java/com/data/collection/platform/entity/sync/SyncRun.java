@@ -77,6 +77,9 @@ public class SyncRun {
   @TableField("applied_rows")
   private Long appliedRows;
 
+  @TableField("run_after")
+  private LocalDateTime runAfter;
+
   @TableField("heartbeat_at")
   private LocalDateTime heartbeatAt;
 

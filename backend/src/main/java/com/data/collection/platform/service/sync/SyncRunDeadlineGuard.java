@@ -165,7 +165,7 @@ public class SyncRunDeadlineGuard {
   }
 
   private boolean isCompensationRun(SyncRunType runType) {
-    return runType == SyncRunType.COMPENSATION_SCAN || runType == SyncRunType.FULL_COMPENSATION_SCAN;
+    return runType == SyncRunType.FULL_COMPENSATION_SCAN;
   }
 
   private LocalDateTime now() {

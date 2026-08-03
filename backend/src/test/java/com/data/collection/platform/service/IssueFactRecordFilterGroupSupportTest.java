@@ -73,6 +73,18 @@ class IssueFactRecordFilterGroupSupportTest {
   }
 
   @Test
+  void test_customerIssueDelayCauseFilter_matchesOneMemberInsideCombinedValue() {
+    StatisticFilterGroup filterGroup =
+        new StatisticFilterGroup(
+            "AND", List.of(new StatisticFilterCondition("delayCause", "eq", "技术卡点", null)));
+
+    assertThat(
+            IssueFactRecordFilterGroupSupport.matchesCustomerIssue(
+                record("待处理", "", "", "方案卡点&技术卡点"), filterGroup))
+        .isTrue();
+  }
+
+  @Test
   void test_customerIssueTestingPhase_matchesUnspecifiedDisplayValueAgainstEmptyFact() {
     StatisticFilterGroup filterGroup =
         new StatisticFilterGroup(

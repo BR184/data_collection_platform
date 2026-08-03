@@ -17,6 +17,7 @@ import com.data.collection.platform.entity.sync.SyncRunSubmissionResult;
 import com.data.collection.platform.mapper.GitlabMirrorTableRegistryMapper;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
 import com.data.collection.platform.service.sync.SyncRunDeadlineGuard;
+import com.data.collection.platform.service.sync.SyncRunAuthoritativeScopeWorkerService;
 import com.data.collection.platform.service.sync.SyncRunLeaseService;
 import com.data.collection.platform.service.sync.SyncRunSubmissionService;
 import com.data.collection.platform.service.sync.SyncRunTableWorkerService;
@@ -34,6 +35,7 @@ class GitlabMirrorSyncServiceTest {
   private SyncRunLeaseService syncRunLeaseService;
   private SyncRunDeadlineGuard syncRunDeadlineGuard;
   private SyncRunTableWorkerService syncRunTableWorkerService;
+  private SyncRunAuthoritativeScopeWorkerService authoritativeScopeWorkerService;
   private GitlabMirrorTableRegistryMapper registryMapper;
   private SyncRunTableStateMapper tableStateMapper;
   private GitlabMirrorSyncService syncService;
@@ -47,6 +49,7 @@ class GitlabMirrorSyncServiceTest {
     syncRunLeaseService = mock(SyncRunLeaseService.class);
     syncRunDeadlineGuard = mock(SyncRunDeadlineGuard.class);
     syncRunTableWorkerService = mock(SyncRunTableWorkerService.class);
+    authoritativeScopeWorkerService = mock(SyncRunAuthoritativeScopeWorkerService.class);
     registryMapper = mock(GitlabMirrorTableRegistryMapper.class);
     tableStateMapper = mock(SyncRunTableStateMapper.class);
     syncService =
@@ -58,6 +61,7 @@ class GitlabMirrorSyncServiceTest {
             syncRunLeaseService,
             syncRunDeadlineGuard,
             syncRunTableWorkerService,
+            authoritativeScopeWorkerService,
             registryMapper,
             tableStateMapper);
   }
@@ -82,6 +86,7 @@ class GitlabMirrorSyncServiceTest {
     verify(syncRunLeaseService).recoverTimedOutRuns();
     verify(syncRunDeadlineGuard).requestCancellationForExpiredRuns();
     verify(syncRunTableWorkerService).recoverTimedOutTasks();
+    verify(authoritativeScopeWorkerService).recoverExpiredLeases();
   }
 
   @Test
@@ -175,13 +180,24 @@ class GitlabMirrorSyncServiceTest {
         .thenReturn((GitlabMirrorTableRegistry) null);
     when(tableStateMapper.selectOne(any()))
         .thenReturn(tableState("issues", LocalDateTime.of(2026, 5, 15, 10, 0)));
+    com.data.collection.platform.entity.WorkspaceRefreshRequest request =
+        com.data.collection.platform.entity.WorkspaceRefreshRequest.global(
+            "customer-issue-cc-product-records");
+    Map<String, Object> refreshContext =
+        Map.of(
+            "sourcePageKey", "customer-issue-cc-product-records",
+            "triggerSurface", "REALTIME_WORKSPACE_REFRESH",
+            "workspaceRefresh",
+                com.data.collection.platform.service.sync.SyncRunPayload.WorkspaceRefreshSpec.from(
+                    request,
+                    RealtimeWorkspaceDependencyCatalog.resolve(
+                            "customer-issue-cc-product-records", config)
+                        .factTypes()));
     when(syncRunSubmissionService.submitTableRefresh(
             config,
             List.of("issues"),
             "customer-issue-cc-product-records",
-            Map.of(
-                "sourcePageKey", "customer-issue-cc-product-records",
-                "triggerSurface", "REALTIME_WORKSPACE_REFRESH")))
+            refreshContext))
         .thenReturn(
             new SyncRunSubmissionResult(
                 101L,
@@ -195,7 +211,7 @@ class GitlabMirrorSyncServiceTest {
         syncService.refreshAvailableTablesOnDemandDetailed(
             List.of("issues", "resource_label_events"),
             "customer-issue-cc-product-records",
-            "customer-issue-cc-product-records",
+            request,
             "REALTIME_WORKSPACE_REFRESH");
 
     verify(syncRunSubmissionService)
@@ -203,9 +219,7 @@ class GitlabMirrorSyncServiceTest {
             config,
             List.of("issues"),
             "customer-issue-cc-product-records",
-            Map.of(
-                "sourcePageKey", "customer-issue-cc-product-records",
-                "triggerSurface", "REALTIME_WORKSPACE_REFRESH"));
+            refreshContext);
     assertThat(result.jobId()).isEqualTo(101L);
     assertThat(result.sourceTables()).containsExactly("issues");
     assertThat(result.unsupportedTables()).containsExactly("resource_label_events");

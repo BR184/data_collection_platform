@@ -37,18 +37,21 @@ public class SyncRunSubmissionService {
   private final JdbcTemplate jdbcTemplate;
   private final JsonUtils jsonUtils;
   private final SyncThreadBudgetResolver threadBudgetResolver;
+  private final SyncRunPublicationFenceService publicationFenceService;
 
   public SyncRunSubmissionService(
       SyncRunMapper syncRunMapper,
       SyncRunPolicyService policyService,
       JdbcTemplate jdbcTemplate,
       JsonUtils jsonUtils,
-      SyncThreadBudgetResolver threadBudgetResolver) {
+      SyncThreadBudgetResolver threadBudgetResolver,
+      SyncRunPublicationFenceService publicationFenceService) {
     this.syncRunMapper = syncRunMapper;
     this.policyService = policyService;
     this.jdbcTemplate = jdbcTemplate;
     this.jsonUtils = jsonUtils;
     this.threadBudgetResolver = threadBudgetResolver;
+    this.publicationFenceService = publicationFenceService;
   }
 
   @Transactional
@@ -98,7 +101,7 @@ public class SyncRunSubmissionService {
   public SyncRunSubmissionResult submitTableRefresh(
       GitlabSyncConfig config, List<String> sourceTables, String reason, Map<String, Object> extraPayload) {
     List<String> normalizedTables = normalizeTables(sourceTables);
-    return submitRun(
+    SyncRunSubmissionResult result = submitRun(
         config,
         SyncType.INCREMENTAL,
         SyncRunType.TABLE_REFRESH,
@@ -107,6 +110,36 @@ public class SyncRunSubmissionService {
         normalizedTables,
         normalizedTables.isEmpty() ? null : normalizedTables.getFirst(),
         extraPayload);
+    SyncRunPayload.WorkspaceRefreshSpec refresh = workspaceRefreshOf(extraPayload);
+    if (refresh != null
+        && !publicationFenceService.registerRequest(
+            result.runId(), GitlabSourceInstanceSupport.sourceInstanceOf(config), refresh)) {
+      result = submitRun(
+          config,
+          SyncType.INCREMENTAL,
+          SyncRunType.TABLE_REFRESH,
+          SyncTriggerType.MANUAL,
+          reason,
+          normalizedTables,
+          normalizedTables.isEmpty() ? null : normalizedTables.getFirst(),
+          extraPayload);
+      if (!publicationFenceService.registerRequest(
+          result.runId(), GitlabSourceInstanceSupport.sourceInstanceOf(config), refresh)) {
+        throw new IllegalStateException("页面刷新运行在栅栏登记前已经结束");
+      }
+    }
+    return result;
+  }
+
+  private SyncRunPayload.WorkspaceRefreshSpec workspaceRefreshOf(
+      Map<String, Object> extraPayload) {
+    if (extraPayload == null) {
+      return null;
+    }
+    Object value = extraPayload.get("workspaceRefresh");
+    return value instanceof SyncRunPayload.WorkspaceRefreshSpec refresh
+        ? refresh.normalized()
+        : null;
   }
 
   @Transactional
@@ -253,8 +286,7 @@ public class SyncRunSubmissionService {
         && activeRun != null
         && sameFactRefreshParent(activeRun, parentRunId)) {
       return reusedRun(activeRun, apiType, "当前镜像任务的事实刷新已提交，已复用现有任务。");
-    } else if ((runType == SyncRunType.COMPENSATION_SCAN || runType == SyncRunType.FULL_COMPENSATION_SCAN)
-        && activeRun != null) {
+    } else if (runType == SyncRunType.FULL_COMPENSATION_SCAN && activeRun != null) {
       return reusedRun(activeRun, apiType, "补偿同步已在队列中或正在执行，跳过重复提交。");
     } else if (!isForegroundRun(runType)
         && isMirrorRun(runType)
@@ -363,7 +395,7 @@ public class SyncRunSubmissionService {
                and exclusive_scope = ?
                and status = 'QUEUED'
                and priority < ?
-               and run_type in ('INCREMENTAL_SYNC', 'TABLE_REFRESH', 'SYSTEM_HOOK', 'COMPENSATION_SCAN', 'FULL_COMPENSATION_SCAN')
+               and run_type in ('INCREMENTAL_SYNC', 'TABLE_REFRESH', 'SYSTEM_HOOK', 'FULL_COMPENSATION_SCAN')
             """,
             now,
             now,
@@ -381,7 +413,6 @@ public class SyncRunSubmissionService {
         || runType == SyncRunType.INCREMENTAL_SYNC
         || runType == SyncRunType.TABLE_REFRESH
         || runType == SyncRunType.SYSTEM_HOOK
-        || runType == SyncRunType.COMPENSATION_SCAN
         || runType == SyncRunType.FULL_COMPENSATION_SCAN;
   }
 
@@ -392,13 +423,11 @@ public class SyncRunSubmissionService {
     if (activeRun.getRunType() == SyncRunType.FULL_SYNC
         || activeRun.getRunType() == SyncRunType.INCREMENTAL_SYNC
         || activeRun.getRunType() == SyncRunType.SYSTEM_HOOK
-        || activeRun.getRunType() == SyncRunType.COMPENSATION_SCAN
         || activeRun.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN) {
       return true;
     }
     if (requestedType == SyncRunType.INCREMENTAL_SYNC
         || requestedType == SyncRunType.SYSTEM_HOOK
-        || requestedType == SyncRunType.COMPENSATION_SCAN
         || requestedType == SyncRunType.FULL_COMPENSATION_SCAN) {
       return true;
     }
@@ -522,7 +551,6 @@ public class SyncRunSubmissionService {
       case INCREMENTAL_SYNC -> "is";
       case TABLE_REFRESH -> "tr";
       case SYSTEM_HOOK -> "sh";
-      case COMPENSATION_SCAN -> "cs";
       case FULL_COMPENSATION_SCAN -> "fc";
       case FACT_REFRESH -> "fr";
     };

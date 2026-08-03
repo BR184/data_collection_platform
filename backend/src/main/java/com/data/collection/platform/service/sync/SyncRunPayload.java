@@ -1,7 +1,10 @@
 package com.data.collection.platform.service.sync;
 
+import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.SyncTriggerType;
 import com.data.collection.platform.entity.SyncType;
+import com.data.collection.platform.entity.WorkspaceRefreshRequest;
+import com.data.collection.platform.entity.WorkspaceScopeSelectionType;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.util.LinkedHashMap;
@@ -17,7 +20,8 @@ public record SyncRunPayload(
     Long parentRunId,
     Boolean fullBuild,
     Boolean manualFullRebuild,
-    List<PreciseTarget> preciseTargets) {
+    List<PreciseTarget> preciseTargets,
+    WorkspaceRefreshSpec workspaceRefresh) {
   private static final TypeReference<SyncRunPayload> TYPE_REFERENCE = new TypeReference<>() {};
 
   public SyncRunPayload {
@@ -30,7 +34,7 @@ public record SyncRunPayload(
   }
 
   public static SyncRunPayload empty() {
-    return new SyncRunPayload(null, null, null, List.of(), null, null, null, null, List.of());
+    return new SyncRunPayload(null, null, null, List.of(), null, null, null, null, List.of(), null);
   }
 
   public static SyncRunPayload create(
@@ -50,7 +54,8 @@ public record SyncRunPayload(
         parentRunId,
         fullBuild,
         null,
-        List.of());
+        List.of(),
+        null);
   }
 
   public Map<String, Object> toMap(Map<String, Object> extraPayload) {
@@ -80,6 +85,9 @@ public record SyncRunPayload(
     if (!preciseTargets.isEmpty()) {
       payload.put("preciseTargets", preciseTargets);
     }
+    if (workspaceRefresh != null) {
+      payload.put("workspaceRefresh", workspaceRefresh);
+    }
     if (extraPayload != null && !extraPayload.isEmpty()) {
       payload.putAll(extraPayload);
     }
@@ -105,6 +113,50 @@ public record SyncRunPayload(
         .filter(value -> !value.isBlank() && !"null".equals(value))
         .distinct()
         .toList();
+  }
+
+  /** 页面刷新元数据只保存稳定 ID，不保存显示名称。 */
+  public record WorkspaceRefreshSpec(
+      String workspaceKey,
+      List<FactType> factTypes,
+      WorkspaceScopeSelectionType selectorType,
+      List<String> selectorKeys) {
+    public WorkspaceRefreshSpec {
+      workspaceKey =
+          workspaceKey == null
+              ? null
+              : workspaceKey.trim().toLowerCase(java.util.Locale.ROOT);
+      factTypes =
+          factTypes == null
+              ? List.of()
+              : factTypes.stream().filter(java.util.Objects::nonNull).distinct().toList();
+      selectorKeys =
+          selectorKeys == null
+              ? List.of()
+              : selectorKeys.stream()
+                  .map(SyncRunPayload::trimToNull)
+                  .filter(java.util.Objects::nonNull)
+                  .distinct()
+                  .sorted()
+                  .toList();
+    }
+
+    public static WorkspaceRefreshSpec from(
+        WorkspaceRefreshRequest request, List<FactType> factTypes) {
+      return new WorkspaceRefreshSpec(
+          request.workspaceKey(),
+          factTypes,
+          request.scopeSelection().type(),
+          request.scopeSelection().selectorKeys());
+    }
+
+    public WorkspaceRefreshSpec normalized() {
+      if (workspaceKey == null || workspaceKey.isBlank()
+          || selectorType == null || selectorKeys.isEmpty() || factTypes.isEmpty()) {
+        return null;
+      }
+      return new WorkspaceRefreshSpec(workspaceKey, factTypes, selectorType, selectorKeys);
+    }
   }
 
   public List<PreciseTarget> runnablePreciseTargets() {

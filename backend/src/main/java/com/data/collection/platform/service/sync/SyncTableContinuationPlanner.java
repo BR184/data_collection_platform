@@ -4,7 +4,6 @@ import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunTableTask;
-import com.data.collection.platform.entity.sync.SyncRunTableTaskStage;
 import com.data.collection.platform.mapper.SyncRunTableTaskMapper;
 import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
@@ -28,15 +27,6 @@ public class SyncTableContinuationPlanner {
       SyncRunTableTask previousTask, LocalDateTime cursorUpdatedAt, String cursorPk, int batchSize) {
     validateNextPage(previousTask);
     taskMapper.insert(createContinuationTask(previousTask, cursorUpdatedAt, cursorPk, batchSize));
-  }
-
-  public void enqueueReconciliationTask(
-      SyncRunTableTask previousTask, String cursorPk, int batchSize) {
-    validateNextPage(previousTask);
-    SyncRunTableTask task = createContinuationTask(previousTask, null, cursorPk, batchSize);
-    task.setTaskStage(SyncRunTableTaskStage.RECONCILE);
-    task.setCursorUpdatedAt(null);
-    taskMapper.insert(task);
   }
 
   private SyncRunTableTask createContinuationTask(

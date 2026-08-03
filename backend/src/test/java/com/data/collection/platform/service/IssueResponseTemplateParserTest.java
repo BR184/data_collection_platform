@@ -13,13 +13,13 @@ class IssueResponseTemplateParserTest {
         """
         # 问题调研情况说明
         ## 计划解决时间：2026年7月1日
-        ## 计划合并的版本分支：CC2026R3
+        ## 计划合并的版本分支：release_2026R3
         """;
     String earlierTemplate =
         """
         # 问题调研情况说明
         ## 计划解决时间：2026.06.01
-        ## 计划合并的版本分支：CC2026R2
+        ## 计划合并的版本分支：dev
         """;
 
     IssueResponseTemplate template =
@@ -27,7 +27,7 @@ class IssueResponseTemplateParserTest {
 
     assertThat(template.plannedResolutionAt()).isEqualTo(LocalDateTime.of(2026, 7, 1, 0, 0));
     assertThat(template.plannedResolutionText()).isEqualTo("2026年7月1日");
-    assertThat(template.plannedMergeVersionBranch()).isEqualTo("CC2026R3");
+    assertThat(template.plannedMergeVersionBranch()).isEqualTo("release_2026R3");
   }
 
   @Test
@@ -39,12 +39,12 @@ class IssueResponseTemplateParserTest {
             ## 计划解决时间：
             2026.06.30
             ## 计划合并的版本分支：
-            CC2026R2
+            优云智能_release_2026R2
             """);
 
     assertThat(template.plannedResolutionAt()).isEqualTo(LocalDateTime.of(2026, 6, 30, 0, 0));
     assertThat(template.plannedResolutionText()).isEqualTo("2026.06.30");
-    assertThat(template.plannedMergeVersionBranch()).isEqualTo("CC2026R2");
+    assertThat(template.plannedMergeVersionBranch()).isEqualTo("优云智能_release_2026R2");
   }
 
   @Test
@@ -68,7 +68,7 @@ class IssueResponseTemplateParserTest {
   }
 
   @Test
-  void shouldClearPlanFieldsWhenTheirContentsDoNotFollowTheFormat() {
+  void shouldKeepPlanMergeBranchSourceTextWhenPlanDateIsInvalid() {
     IssueResponseTemplate template =
         IssueResponseTemplateParser.parse(
             """
@@ -79,19 +79,22 @@ class IssueResponseTemplateParserTest {
 
     assertThat(template.plannedResolutionAt()).isNull();
     assertThat(template.plannedResolutionText()).isEmpty();
-    assertThat(template.plannedMergeVersionBranch()).isEmpty();
+    assertThat(template.plannedMergeVersionBranch()).isEqualTo("CC2026R4 & release/CC2026R5");
   }
 
   @Test
-  void shouldNormalizeMultiplePlanMergeVersionsIntoStableMembers() {
+  void shouldNormalizePlanMergeBranchWhitespaceWithoutInterpretingBranchSyntax() {
     IssueResponseTemplate template =
         IssueResponseTemplateParser.parse(
             """
             # 问题调研情况说明
             ## 计划解决时间：2026年3月31日
-            ## 计划合并的版本分支： CC2026R4 & CC2026R5 & CC2026R4
+            ## 计划合并的版本分支：
+              crownCAD-Client:dev
+              release_2026R4、优云智能_release_2026R4
             """);
 
-    assertThat(template.plannedMergeVersionBranch()).isEqualTo("CC2026R4 & CC2026R5");
+    assertThat(template.plannedMergeVersionBranch())
+        .isEqualTo("crownCAD-Client:dev release_2026R4、优云智能_release_2026R4");
   }
 }

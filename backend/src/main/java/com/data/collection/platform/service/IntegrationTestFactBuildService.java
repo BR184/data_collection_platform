@@ -170,29 +170,29 @@ public class IntegrationTestFactBuildService {
   }
 
   @Transactional
-  public FactBuildResponse rebuildFactsByTargets(
-      String sourceInstance, List<FactRefreshImpactScopeService.Target> targets) {
+  public FactBuildResponse rebuildFactsByRootIds(
+      String sourceInstance, List<Long> rootIds) {
     String normalizedSource =
         GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
-    List<FactRefreshImpactScopeService.Target> safeTargets = sanitizeTargets(targets);
-    if (safeTargets.isEmpty()) {
+    List<Long> safeRootIds = sanitizeRootIds(rootIds);
+    if (safeRootIds.isEmpty()) {
       return new FactBuildResponse(
           factScope(normalizedSource), false, 0, "没有需要刷新的集成测试事实");
     }
     sourceSchemaGuard.verifyIntegrationTestSource(normalizedSource);
-    List<IntegrationTestFact> facts = loadFacts(normalizedSource, safeTargets);
-    deleteTargetFacts(normalizedSource, safeTargets);
+    List<IntegrationTestFact> facts = loadFacts(normalizedSource, safeRootIds);
+    deleteRootFacts(normalizedSource, safeRootIds);
     facts.forEach(factMapper::upsert);
     return new FactBuildResponse(
         factScope(normalizedSource), false, facts.size(), "集成测试事实已按受影响议题刷新");
   }
 
   private List<IntegrationTestFact> loadFacts(
-      String sourceInstance, List<FactRefreshImpactScopeService.Target> targets) {
-    List<Object> args = new ArrayList<>();
+      String sourceInstance, List<Long> rootIds) {
+    List<Object> args = new ArrayList<>(rootIds);
     // 正式 GitLab 镜像只有一套 ods_gitlab_* 表；source_instance 只标识事实来源，
     // 不再参与镜像表名改写，避免重新引入已废弃的多镜像表结构。
-    String sql = SOURCE_SQL + targetPredicate(targets, args, "i.project_id", "i.iid");
+    String sql = SOURCE_SQL + rootPredicate("i.id", rootIds);
     ModuleDictionary dictionary = moduleDictionaryService.loadDictionary();
     Map<PhaseCalendarKey, PhaseCalendarEntry> calendar = loadPhaseCalendar();
     long startedAt = sqlQueryMonitor.start();
@@ -273,51 +273,34 @@ public class IntegrationTestFactBuildService {
     return fact;
   }
 
-  private void deleteTargetFacts(
-      String sourceInstance, List<FactRefreshImpactScopeService.Target> targets) {
+  private void deleteRootFacts(String sourceInstance, List<Long> rootIds) {
     List<Object> args = new ArrayList<>();
     args.add(DEFAULT_SOURCE_SYSTEM);
     args.add(sourceInstance);
-    String predicate = targetPredicate(targets, args, "project_id", "issue_iid");
+    args.addAll(rootIds);
+    String predicate = rootPredicate("issue_id", rootIds);
     jdbcTemplate.update(
         "delete from integration_test_fact where source_system = ? and source_instance = ?"
             + predicate,
         args.toArray());
   }
 
-  private String targetPredicate(
-      List<FactRefreshImpactScopeService.Target> targets,
-      List<Object> args,
-      String projectColumn,
-      String issueIidColumn) {
-    if (targets == null || targets.isEmpty()) {
+  private String rootPredicate(String rootColumn, List<Long> rootIds) {
+    if (rootIds == null || rootIds.isEmpty()) {
       return "";
     }
-    StringBuilder predicate = new StringBuilder(" and (");
-    for (int index = 0; index < targets.size(); index++) {
-      if (index > 0) {
-        predicate.append(" or ");
-      }
-      predicate
-          .append('(')
-          .append(projectColumn)
-          .append(" = ? and ")
-          .append(issueIidColumn)
-          .append(" = ?)");
-      args.add(targets.get(index).projectId());
-      args.add(targets.get(index).iid());
-    }
-    return predicate.append(')').toString();
+    return " and " + rootColumn + " in ("
+        + String.join(", ", java.util.Collections.nCopies(rootIds.size(), "?")) + ")";
   }
 
-  private List<FactRefreshImpactScopeService.Target> sanitizeTargets(
-      List<FactRefreshImpactScopeService.Target> targets) {
-    if (targets == null || targets.isEmpty()) {
+  private List<Long> sanitizeRootIds(List<Long> rootIds) {
+    if (rootIds == null || rootIds.isEmpty()) {
       return List.of();
     }
-    return targets.stream()
-        .filter(target -> target != null && target.projectId() != null && target.iid() != null)
+    return rootIds.stream()
+        .filter(rootId -> rootId != null && rootId > 0L)
         .distinct()
+        .sorted()
         .toList();
   }
 

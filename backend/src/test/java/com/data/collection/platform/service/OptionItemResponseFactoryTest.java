@@ -42,4 +42,13 @@ class OptionItemResponseFactoryTest {
         .extracting(item -> item.value())
         .containsExactly("历史遗留", "申请延期", "已修复/完成");
   }
+
+  @Test
+  void test_combinedDelayCause_options_returnIndividualCauseMembers() {
+    assertThat(
+            OptionItemResponseFactory.fromDelayCauseMembers(
+                List.of("方案卡点&技术卡点", "技术卡点")))
+        .extracting(item -> item.value())
+        .containsExactly("技术卡点", "方案卡点");
+  }
 }

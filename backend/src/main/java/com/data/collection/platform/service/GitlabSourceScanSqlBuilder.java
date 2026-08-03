@@ -173,28 +173,6 @@ class GitlabSourceScanSqlBuilder {
         quoteQualifiedPublicTable(option.tableName())).strip();
   }
 
-  String buildExistingPrimaryKeysSql(
-      TableWhitelistOption option,
-      List<String> primaryKeys,
-      List<Map<String, Object>> primaryKeyRows) {
-    String selectColumns = primaryKeys.stream()
-        .map(primaryKey -> quoteIdentifier(primaryKey) + "::text as " + quoteIdentifier(primaryKey))
-        .collect(java.util.stream.Collectors.joining(", "));
-    String predicate = primaryKeyRows.stream()
-        .map(row -> primaryKeys.stream()
-            .map(primaryKey -> quoteIdentifier(primaryKey) + " = " + toSqlLiteral(Objects.toString(row.get(primaryKey), "")))
-            .collect(java.util.stream.Collectors.joining(" and ", "(", ")")))
-        .collect(java.util.stream.Collectors.joining(" or "));
-    return """
-        select %s
-          from %s
-         where %s
-        """.formatted(
-        selectColumns,
-        quoteQualifiedPublicTable(option.tableName()),
-        predicate).strip();
-  }
-
   private String quoteIdentifier(String identifier) {
     return "\"" + identifier.replace("\"", "\"\"") + "\"";
   }

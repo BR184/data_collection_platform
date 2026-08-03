@@ -3,7 +3,6 @@ package com.data.collection.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -338,7 +337,8 @@ class CodeReviewIllegalRecordServiceTest {
   void shouldPropagateRealtimeRefreshFailureToWorkspaceStatus() {
     RuntimeException failure = new RuntimeException("incremental refresh failed");
     when(realtimeIncrementalRefreshService.requestIncrementalRefresh(
-            eq(CodeReviewIllegalRecordService.WORKSPACE_KEY), anyList()))
+            com.data.collection.platform.entity.WorkspaceRefreshRequest.global(
+                CodeReviewIllegalRecordService.WORKSPACE_KEY)))
         .thenThrow(failure);
 
     service.requestRealtimeRefresh();
@@ -353,7 +353,8 @@ class CodeReviewIllegalRecordServiceTest {
   @Test
   void shouldReturnStructuredRealtimeRefreshResult() {
     when(realtimeIncrementalRefreshService.requestIncrementalRefresh(
-            eq(CodeReviewIllegalRecordService.WORKSPACE_KEY), anyList()))
+            com.data.collection.platform.entity.WorkspaceRefreshRequest.global(
+                CodeReviewIllegalRecordService.WORKSPACE_KEY)))
         .thenReturn(
             new RealtimeWorkspaceRefreshResult(
                 31L,

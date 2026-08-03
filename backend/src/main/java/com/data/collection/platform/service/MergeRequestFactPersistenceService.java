@@ -43,29 +43,25 @@ public class MergeRequestFactPersistenceService {
    *
    * @param sourceSystem 事实来源系统
    * @param sourceInstance 事实来源实例
-   * @param targets 以项目 ID 和 MR IID 标识的非空目标集合
+   * @param rootIds GitLab MR 数据库根 ID 的非空集合
    * @param facts 目标范围当前仍存在的事实；空集合表示删除旧事实
    */
   @Transactional
-  public void replaceTargetFacts(
+  public void replaceRootFacts(
       String sourceSystem,
       String sourceInstance,
-      List<FactRefreshImpactScopeService.Target> targets,
+      List<Long> rootIds,
       List<MergeRequestFact> facts) {
-    List<FactRefreshImpactScopeService.Target> safeTargets = sanitizeTargets(targets);
-    if (safeTargets.isEmpty()) {
+    List<Long> safeRootIds = sanitizeRootIds(rootIds);
+    if (safeRootIds.isEmpty()) {
       throw new IllegalArgumentException("合并请求事实目标替换必须指定非空目标范围");
     }
-    List<Object> args = new ArrayList<>(2 + safeTargets.size() * 2);
+    List<Object> args = new ArrayList<>(2 + safeRootIds.size());
     args.add(sourceSystem);
     args.add(sourceInstance);
-    for (FactRefreshImpactScopeService.Target target : safeTargets) {
-      args.add(target.projectId());
-      args.add(target.iid());
-    }
-    String predicate = safeTargets.stream()
-        .map(ignored -> "(project_id = ? and merge_request_iid = ?)")
-        .collect(java.util.stream.Collectors.joining(" or ", " and (", ")"));
+    args.addAll(safeRootIds);
+    String predicate = " and merge_request_id in ("
+        + String.join(", ", java.util.Collections.nCopies(safeRootIds.size(), "?")) + ")";
     jdbcTemplate.update(
         "delete from merge_request_fact where source_system = ? and source_instance = ?"
             + predicate,
@@ -90,14 +86,14 @@ public class MergeRequestFactPersistenceService {
     upsertFacts(facts);
   }
 
-  private List<FactRefreshImpactScopeService.Target> sanitizeTargets(
-      List<FactRefreshImpactScopeService.Target> targets) {
-    if (targets == null || targets.isEmpty()) {
+  private List<Long> sanitizeRootIds(List<Long> rootIds) {
+    if (rootIds == null || rootIds.isEmpty()) {
       return List.of();
     }
-    return targets.stream()
-        .filter(target -> target != null && target.projectId() != null && target.iid() != null)
+    return rootIds.stream()
+        .filter(rootId -> rootId != null && rootId > 0L)
         .distinct()
+        .sorted()
         .toList();
   }
 }

@@ -34,8 +34,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -52,8 +54,6 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   private static final String RULE_VERSION = "system-test-phase-statistics@2026-07-09-v5";
   private static final String TESTING_PHASE_FIELD = "testingPhase";
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-  private static final List<String> REALTIME_REFRESH_TABLES =
-      List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private static final Pattern TURN_LABEL_PATTERN =
       Pattern.compile("(第[一二三四五六七八九十0-9]+轮系统测试|回归测试|系统测试)");
   private static final String FACT_SQL = """
@@ -236,15 +236,19 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   }
 
   @Override
-  public void refreshSnapshots(StatisticBoardSnapshotRefresher.RefreshContext context) {
-    if (!context.affectsIssues()) {
+  public void refreshSnapshots(com.data.collection.platform.entity.FactPublicationContext context) {
+    long projectId = SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID;
+    Set<String> affectedPhases =
+        new LinkedHashSet<>(phaseCatalogService.listParentNames(projectId, context));
+    if (affectedPhases.isEmpty()) {
       return;
     }
-    long projectId = SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID;
     List<PhaseDefinition> phaseDefinitions = loadPhaseDefinitions(projectId);
     List<StatisticFilterOption> phaseOptions = phaseOptionsFromDefinitions(phaseDefinitions);
     StatisticBoardDefinition definition = buildDefinition(phaseOptions);
-    for (StatisticFilterOption option : phaseOptions) {
+    for (StatisticFilterOption option : phaseOptions.stream()
+        .filter(candidate -> affectedPhases.contains(candidate.value()))
+        .toList()) {
       Map<String, String> filters = Map.of(TESTING_PHASE_FIELD, option.value());
       StatisticFilterGroup filterGroup =
           SystemTestPhaseFilterGroupExpander.expand(
@@ -481,7 +485,10 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
         BOARD_KEY,
         "project=" + projectId + ";testingPhase=" + (StringUtils.hasText(selectedTestingPhase) ? selectedTestingPhase : "none"),
         RULE_VERSION,
-        snapshotService.issueFactSourceVersion(),
+        snapshotService.issueFactSourceVersion(
+            projectId,
+            com.data.collection.platform.service.IssueScopeDimension.TESTING_PHASE,
+            selectedTestingPhase),
         payload,
         definition,
         effectiveFilterGroup);
@@ -596,7 +603,8 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   }
 
   private com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult refreshMirrorForRealtimeView() {
-    return realtimeIncrementalRefreshService.requestIncrementalRefresh(BOARD_KEY, REALTIME_REFRESH_TABLES);
+    return realtimeIncrementalRefreshService.requestIncrementalRefresh(
+        com.data.collection.platform.entity.WorkspaceRefreshRequest.global(BOARD_KEY));
   }
 
   private List<IssueSource> ensureFactsReady(

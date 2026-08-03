@@ -21,6 +21,7 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.IssueFactQueryService;
+import com.data.collection.platform.service.IssueDelayCauseMembers;
 import com.data.collection.platform.service.RealtimeIncrementalRefreshService;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.SortSupport;
@@ -34,8 +35,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -53,10 +56,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   private static final String TESTING_PHASE_FIELD = "testingPhase";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-  private static final List<String> LEGACY_DELAY_CAUSES =
-      List.of("技术卡点", "方案卡点", "资源卡点", "数据异常", "算法问题", "机制问题", "计算效率");
-  private static final List<String> REALTIME_REFRESH_TABLES =
-      List.of("issues", "projects", "users", "label_links", "labels", "notes");
+  private static final List<String> LEGACY_DELAY_CAUSES = IssueDelayCauseMembers.values();
   private static final Pattern TURN_LABEL_PATTERN =
       Pattern.compile("(第[一二三四五六七八九十0-9]+轮系统测试|回归测试|系统测试)");
   private static final String PHASE_OPTION_SQL = """
@@ -240,13 +240,19 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   }
 
   @Override
-  public void refreshSnapshots(StatisticBoardSnapshotRefresher.RefreshContext context) {
-    if (!context.affectsIssues()) {
+  public void refreshSnapshots(com.data.collection.platform.entity.FactPublicationContext context) {
+    Set<String> affectedPhases =
+        new LinkedHashSet<>(
+            phaseCatalogService.listParentNames(
+                SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID, context));
+    if (affectedPhases.isEmpty()) {
       return;
     }
     List<StatisticFilterOption> phaseOptions = loadPhaseOptions();
     StatisticBoardDefinition definition = buildDefinition(phaseOptions);
-    for (StatisticFilterOption option : phaseOptions) {
+    for (StatisticFilterOption option : phaseOptions.stream()
+        .filter(candidate -> affectedPhases.contains(candidate.value()))
+        .toList()) {
       Map<String, String> filters = Map.of(TESTING_PHASE_FIELD, option.value());
       StatisticFilterGroup filterGroup =
           SystemTestPhaseFilterGroupExpander.expand(
@@ -480,7 +486,10 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
         "project=" + SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID
             + ";testingPhase=" + (StringUtils.hasText(selectedTestingPhase) ? selectedTestingPhase : "none"),
         RULE_VERSION,
-        snapshotService.issueFactSourceVersion(),
+        snapshotService.issueFactSourceVersion(
+            SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID,
+            com.data.collection.platform.service.IssueScopeDimension.TESTING_PHASE,
+            selectedTestingPhase),
         payload,
         definition,
         effectiveFilterGroup);
@@ -564,7 +573,8 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   }
 
   private com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult refreshMirrorForRealtimeView() {
-    return realtimeIncrementalRefreshService.requestIncrementalRefresh(BOARD_KEY, REALTIME_REFRESH_TABLES);
+    return realtimeIncrementalRefreshService.requestIncrementalRefresh(
+        com.data.collection.platform.entity.WorkspaceRefreshRequest.global(BOARD_KEY));
   }
 
   private List<IssueSource> ensureFactsReady(
@@ -802,7 +812,8 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
 
     boolean matchesDelayCause(String cause) {
       return StringUtils.hasText(cause)
-          && (contains(delayCause, cause) || labels.stream().anyMatch(label -> contains(label, cause)));
+          && (IssueDelayCauseMembers.matchesSelection(delayCause, cause)
+              || IssueDelayCauseMembers.fromLabels(labels).contains(cause));
     }
 
     boolean isClosed() {
@@ -879,9 +890,6 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
           && (value.contains("系统测试") || value.contains("回归测试"));
     }
 
-    private boolean contains(String value, String token) {
-      return StringUtils.hasText(value) && value.contains(token);
-    }
   }
 
   private record PhaseOptionSource(String testingPhase, String systemTestLabel, List<String> labels) {

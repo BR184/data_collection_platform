@@ -3,6 +3,7 @@ package com.data.collection.platform.service.sync;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
@@ -18,8 +19,9 @@ import static org.mockito.Mockito.when;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
-import com.data.collection.platform.entity.MirrorBatchWriteResult;
+import com.data.collection.platform.entity.MirrorMutationResult;
 import com.data.collection.platform.entity.MirrorPrimaryKeyBatch;
+import com.data.collection.platform.entity.MirrorRowChange;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SourceCursorStrategy;
 import com.data.collection.platform.entity.SourceTableColumn;
@@ -36,6 +38,7 @@ import com.data.collection.platform.entity.sync.SyncRunTableTask;
 import com.data.collection.platform.entity.sync.SyncRunTableTaskStage;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabMirrorSchemaService;
+import com.data.collection.platform.service.FactChangeTargetService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -60,9 +63,11 @@ class SyncRunTableWorkerServiceTest {
   private GitlabMirrorSchemaService mirrorSchemaService;
   private MirrorTableWriter mirrorTableWriter;
   private SyncTableContinuationPlanner continuationPlanner;
-  private SyncRunTablePlanningService tablePlanningService;
+  private SyncRunAuthoritativeScopePlanner authoritativeScopePlanner;
   private SyncRunTableTaskHeartbeatService heartbeatService;
   private SyncRunTablePageCommitService pageCommitService;
+  private FactChangeTargetService factChangeTargetService;
+  private SyncRunReconciliationCoordinator reconciliationCoordinator;
   private SyncRunYieldService yieldService;
   private SyncRunTableTaskExecutor taskExecutor;
   private SyncRunTableWorkerService workerService;
@@ -81,16 +86,25 @@ class SyncRunTableWorkerServiceTest {
     properties.setExternalQueryTimeoutSeconds(0);
     properties.setTableTaskLeaseSeconds(30);
     continuationPlanner = new SyncTableContinuationPlanner(taskMapper, properties);
-    tablePlanningService = org.mockito.Mockito.mock(SyncRunTablePlanningService.class);
+    authoritativeScopePlanner =
+        org.mockito.Mockito.mock(SyncRunAuthoritativeScopePlanner.class);
     heartbeatService = new SyncRunTableTaskHeartbeatService(taskLeaseService, properties);
     yieldService = org.mockito.Mockito.mock(SyncRunYieldService.class);
+    factChangeTargetService = org.mockito.Mockito.mock(FactChangeTargetService.class);
+    when(factChangeTargetService.registerChanges(anyLong(), anyLong(), any(), any(), any()))
+        .thenReturn(List.of());
+    reconciliationCoordinator =
+        org.mockito.Mockito.mock(SyncRunReconciliationCoordinator.class);
     pageCommitService =
         new SyncRunTablePageCommitService(
             taskLeaseService,
             stateMapper,
             continuationPlanner,
-            tablePlanningService,
-            mirrorTableWriter);
+            authoritativeScopePlanner,
+            mirrorTableWriter,
+            factChangeTargetService,
+            org.mockito.Mockito.mock(SyncRunFactPublicationCoordinator.class),
+            reconciliationCoordinator);
     when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
     taskExecutor =
         new SyncRunTableTaskExecutor(
@@ -162,7 +176,7 @@ class SyncRunTableWorkerServiceTest {
             isNull(),
             eq(500)))
         .thenReturn(rows);
-    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(2, 2, 0));
+    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L)).thenReturn(mutation(2, 2, 0));
 
     int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
 
@@ -174,7 +188,7 @@ class SyncRunTableWorkerServiceTest {
             argThat(
                 (SyncRunTableState updated) ->
                     updated.getId().equals(91L)
-                        && Boolean.FALSE.equals(updated.getDirtyFlag())
+                        && Boolean.TRUE.equals(updated.getDirtyFlag())
                         && nextWatermark.equals(updated.getLastWatermarkAt())
                         && "".equals(updated.getLastCursorPk())
                         && updated.getLastSuccessAt() != null));
@@ -263,7 +277,7 @@ class SyncRunTableWorkerServiceTest {
             eq(500)))
         .thenReturn(rows);
     when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L, true))
-        .thenReturn(new MirrorBatchWriteResult(2, 2, 0));
+        .thenReturn(mutation(2, 2, 0));
 
     int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
 
@@ -327,7 +341,7 @@ class SyncRunTableWorkerServiceTest {
             eq(2)))
         .thenReturn(rows);
     when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L, true))
-        .thenReturn(new MirrorBatchWriteResult(2, 2, 0));
+        .thenReturn(mutation(2, 2, 0));
 
     int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
 
@@ -401,8 +415,9 @@ class SyncRunTableWorkerServiceTest {
             eq(2)))
         .thenReturn(rows);
     when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L, true))
-        .thenReturn(new MirrorBatchWriteResult(2, 2, 0));
-    when(yieldService.shouldYield(run)).thenReturn(true);
+        .thenReturn(mutation(2, 2, 0));
+    when(yieldService.shouldYieldAfterTableTask(eq(run), any(SyncRunTableTask.class)))
+        .thenReturn(true);
     when(yieldService.pauseIfRequested(run))
         .thenAnswer(
             invocation -> {
@@ -434,7 +449,7 @@ class SyncRunTableWorkerServiceTest {
   }
 
   @Test
-  void shouldQueueReconciliationAfterFinalFullSyncBatch() {
+  void shouldRequestReconciliationPlanningAfterFinalFullSyncBatch() {
     SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
     task.setTaskType("FULL_SYNC");
     task.setRowStrategy("FULL_RECONCILE");
@@ -471,18 +486,17 @@ class SyncRunTableWorkerServiceTest {
             eq(500)))
         .thenReturn(rows);
     when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L, true))
-        .thenReturn(new MirrorBatchWriteResult(1, 1, 0));
+        .thenReturn(mutation(1, 1, 0));
 
     int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
 
     assertThat(processed).isEqualTo(1);
-    verify(taskMapper)
+    verify(reconciliationCoordinator).planIfReady(77L);
+    verify(taskMapper, never())
         .insert(
             argThat(
-                (SyncRunTableTask reconciliationTask) ->
-                    reconciliationTask.getTaskStage() == SyncRunTableTaskStage.RECONCILE
-                        && reconciliationTask.getParentTaskId().equals(501L)
-                        && "FULL_RECONCILE".equals(reconciliationTask.getRowStrategy())));
+                (SyncRunTableTask insertedTask) ->
+                    insertedTask.getTaskStage() == SyncRunTableTaskStage.RECONCILE));
     verify(stateMapper)
         .updateById(
             argThat(
@@ -540,26 +554,29 @@ class SyncRunTableWorkerServiceTest {
     when(sourceTableReader.findExistingPrimaryKeySignatures(
             eq(config),
             argThat((TableWhitelistOption option) -> "issues".equals(option.tableName())),
+            eq(mirrorSchema),
             eq(mirrorKeys)))
         .thenReturn(Set.of("101"));
-    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L, true)).thenReturn(new MirrorBatchWriteResult(1, 1, 0));
+    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L, true)).thenReturn(mutation(1, 1, 0));
     when(mirrorTableWriter.listActivePrimaryKeys(mirrorSchema, null, 500))
         .thenReturn(new MirrorPrimaryKeyBatch(mirrorKeys, null));
     when(mirrorTableWriter.markRowsDeletedByPrimaryKeys(mirrorSchema, mirrorOnlyKeys, 502L))
-        .thenReturn(1);
+        .thenReturn(mutation(1, 1, 0));
 
     int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
 
     assertThat(processed).isEqualTo(2);
     verify(mirrorTableWriter).writeBatch(mirrorSchema, rows, 501L, true);
-    verify(sourceTableReader).findExistingPrimaryKeySignatures(eq(config), any(), eq(mirrorKeys));
+    verify(sourceTableReader)
+        .findExistingPrimaryKeySignatures(
+            eq(config), any(), eq(mirrorSchema), eq(mirrorKeys));
     verify(mirrorTableWriter).markRowsDeletedByPrimaryKeys(mirrorSchema, mirrorOnlyKeys, 502L);
-    verify(taskMapper)
+    verify(reconciliationCoordinator).planIfReady(77L);
+    verify(taskMapper, never())
         .insert(
             argThat(
-                (SyncRunTableTask nextTask) ->
-                    nextTask.getTaskStage() == SyncRunTableTaskStage.RECONCILE
-                        && nextTask.getParentTaskId().equals(501L)));
+                (SyncRunTableTask insertedTask) ->
+                    insertedTask.getTaskStage() == SyncRunTableTaskStage.RECONCILE));
     assertThat(state.getDirtyFlag()).isFalse();
     assertThat(state.getLastFullVerifiedAt()).isNotNull();
   }
@@ -568,7 +585,7 @@ class SyncRunTableWorkerServiceTest {
   void shouldUsePreciseScanForSystemHookTask() {
     SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
     task.setTaskType("SYSTEM_HOOK");
-    task.setRowStrategy("AUTHORITATIVE");
+    task.setRowStrategy("PRECISE");
     task.setLookupScopeJson("{\"issue_id\":\"101\"}");
     SyncRunTableState state = state(null);
     state.setSourceTable("issue_assignees");
@@ -599,9 +616,8 @@ class SyncRunTableWorkerServiceTest {
             argThat(option -> "issue_assignees".equals(option.tableName())),
             eq(Map.of("issue_id", "101"))))
         .thenReturn(rows);
-    when(mirrorTableWriter.replaceAuthoritativeScope(
-            mirrorSchema, Map.of("issue_id", "101"), rows, 501L))
-        .thenReturn(new MirrorBatchWriteResult(1, 1, 0));
+    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L))
+        .thenReturn(mutation(1, 1, 0));
 
     int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
 
@@ -610,15 +626,14 @@ class SyncRunTableWorkerServiceTest {
         eq(config),
         argThat(option -> "issue_assignees".equals(option.tableName())),
         eq(Map.of("issue_id", "101")));
-    verify(mirrorTableWriter)
-        .replaceAuthoritativeScope(mirrorSchema, Map.of("issue_id", "101"), rows, 501L);
+    verify(mirrorTableWriter).writeBatch(mirrorSchema, rows, 501L);
   }
 
   @Test
-  void shouldReplaceTypedLabelScopeWithEmptySourceCollection() {
+  void shouldKeepEmptyPreciseResultAsNoOp() {
     SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
     task.setTaskType("SYSTEM_HOOK");
-    task.setRowStrategy("AUTHORITATIVE");
+    task.setRowStrategy("PRECISE");
     task.setLookupScopeJson("{\"target_id\":\"101\",\"target_type\":\"Issue\"}");
     SyncRunTableState state = state(null);
     state.setSourceTable("label_links");
@@ -654,15 +669,13 @@ class SyncRunTableWorkerServiceTest {
             argThat(option -> "label_links".equals(option.tableName())),
             eq(lookupScope)))
         .thenReturn(List.of());
-    when(mirrorTableWriter.replaceAuthoritativeScope(
-            mirrorSchema, lookupScope, List.of(), 501L))
-        .thenReturn(new MirrorBatchWriteResult(0, 1, 0));
+    when(mirrorTableWriter.writeBatch(mirrorSchema, List.of(), 501L))
+        .thenReturn(mutation(0, 0, 0));
 
     int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
 
     assertThat(processed).isEqualTo(1);
-    verify(mirrorTableWriter)
-        .replaceAuthoritativeScope(mirrorSchema, lookupScope, List.of(), 501L);
+    verify(mirrorTableWriter).writeBatch(mirrorSchema, List.of(), 501L);
   }
 
   @Test
@@ -710,7 +723,7 @@ class SyncRunTableWorkerServiceTest {
             eq(Map.of("id", "101"))))
         .thenReturn(rows);
     when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L))
-        .thenReturn(new MirrorBatchWriteResult(1, 1, 0));
+        .thenReturn(mutation(1, 1, 0));
 
     int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
 
@@ -795,6 +808,17 @@ class SyncRunTableWorkerServiceTest {
     task.setRetryCount(0);
     task.setMaxRetryCount(3);
     return task;
+  }
+
+  private MirrorMutationResult mutation(int sourceRows, int appliedRows, int unchangedRows) {
+    List<MirrorRowChange> changes =
+        java.util.stream.IntStream.range(0, appliedRows)
+            .mapToObj(
+                index ->
+                    new MirrorRowChange(
+                        Map.of(), Map.of("id", (long) index + 1L)))
+            .toList();
+    return new MirrorMutationResult(sourceRows, changes, unchangedRows);
   }
 
   private SyncRun run(Long id) {

@@ -70,8 +70,6 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-  private static final List<String> REALTIME_REFRESH_TABLES =
-      List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private static final List<DefectCauseMetricCatalog.Metric> CAUSE_METRICS =
       DefectCauseMetricCatalog.METRICS;
   private static final Map<String, List<String>> LEGACY_CAUSE_TOKEN_OVERRIDES =
@@ -287,14 +285,19 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   }
 
   @Override
-  public void refreshSnapshots(StatisticBoardSnapshotRefresher.RefreshContext context) {
-    if (!context.affectsIssues()) {
+  public void refreshSnapshots(com.data.collection.platform.entity.FactPublicationContext context) {
+    Set<String> affectedMilestones = new LinkedHashSet<>(milestoneCatalogService.listMilestones(context));
+    if (affectedMilestones.isEmpty()) {
       return;
     }
     List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
     StatisticBoardDefinition definition = buildDefinition(milestoneOptions);
+    List<StatisticFilterOption> refreshOptions =
+        milestoneOptions.stream()
+            .filter(option -> affectedMilestones.contains(option.value()))
+            .toList();
     for (StatisticFilterGroup filterGroup :
-        CustomerIssueSqlScopeSupport.milestoneFilterGroups(milestoneOptions, 3)) {
+        CustomerIssueSqlScopeSupport.milestoneFilterGroups(refreshOptions, 3)) {
       StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
       Map<String, String> filters = customerSnapshotFilters(Map.of(), effectiveFilterGroup);
       snapshotService.save(
@@ -312,6 +315,9 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         BOARD_KEY,
         RULE_VERSION,
         "project=325;milestone=" + (StringUtils.hasText(selectedMilestone) ? selectedMilestone : "none"),
+        325L,
+        com.data.collection.platform.service.IssueScopeDimension.MILESTONE,
+        selectedMilestone,
         filters,
         definition,
         effectiveFilterGroup);
@@ -639,7 +645,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   }
 
   private com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult refreshMirrorForRealtimeView() {
-    return realtimeIncrementalRefreshService.requestIncrementalRefresh(BOARD_KEY, REALTIME_REFRESH_TABLES);
+    return realtimeIncrementalRefreshService.requestIncrementalRefresh(
+        com.data.collection.platform.entity.WorkspaceRefreshRequest.global(BOARD_KEY));
   }
 
   private List<IssueSource> ensureFactsReady(Map<String, String> filters, StatisticFilterGroup filterGroup) {

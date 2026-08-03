@@ -6,13 +6,14 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-class AuthoritativeRelationCatalogTest {
+class GitlabSourceLineageCatalogTest {
 
   @Test
   void test_issue_parent_declares_all_bounded_child_collections() {
-    List<Map<String, Object>> scopes = AuthoritativeRelationCatalog.relationsForParent("issues").stream()
-        .map(relation -> relation.scopeForParentRow(Map.of("id", 101L)))
-        .toList();
+    List<Map<String, Object>> scopes =
+        GitlabSourceLineageCatalog.relationsForParent("issues").stream()
+            .map(relation -> relation.scopeForParentRow(Map.of("id", 101L)))
+            .toList();
 
     assertThat(scopes)
         .containsExactly(
@@ -24,10 +25,11 @@ class AuthoritativeRelationCatalogTest {
 
   @Test
   void test_note_parent_scope_preserves_polymorphic_type() {
-    assertThat(AuthoritativeRelationCatalog.relationsForParent("notes"))
+    assertThat(GitlabSourceLineageCatalog.relationsForParent("notes"))
         .extracting(
-            relation -> relation.scopeForParentRow(
-                Map.of("noteable_id", 202L, "noteable_type", "MergeRequest")))
+            relation ->
+                relation.scopeForParentRow(
+                    Map.of("noteable_id", 202L, "noteable_type", "MergeRequest")))
         .containsExactly(
             Map.of(),
             Map.of("noteable_id", 202L, "noteable_type", "MergeRequest"));
@@ -35,24 +37,28 @@ class AuthoritativeRelationCatalogTest {
 
   @Test
   void test_root_entity_and_complete_note_scopes_are_authoritative() {
-    assertThat(AuthoritativeRelationCatalog.isAuthoritativeTarget(
-        "issues", Map.of("id", "101")))
+    assertThat(
+            GitlabSourceLineageCatalog.isAuthoritativeTarget(
+                "issues", Map.of("id", "101")))
         .isTrue();
-    assertThat(AuthoritativeRelationCatalog.isAuthoritativeTarget(
-        "notes", Map.of("noteable_id", "101", "noteable_type", "Issue")))
+    assertThat(
+            GitlabSourceLineageCatalog.isAuthoritativeTarget(
+                "notes", Map.of("noteable_id", "101", "noteable_type", "Issue")))
         .isTrue();
-    assertThat(AuthoritativeRelationCatalog.isAuthoritativeTarget(
-        "notes", Map.of("noteable_id", "101")))
+    assertThat(
+            GitlabSourceLineageCatalog.isAuthoritativeTarget(
+                "notes", Map.of("noteable_id", "101")))
         .isFalse();
-    assertThat(AuthoritativeRelationCatalog.isAuthoritativeTarget(
-        "notes", Map.of("id", "303")))
+    assertThat(
+            GitlabSourceLineageCatalog.isAuthoritativeTarget(
+                "notes", Map.of("id", "303")))
         .isFalse();
   }
 
   @Test
   void test_gitlab_16_label_event_columns_derive_type_isolated_scopes() {
-    List<AuthoritativeRelationCatalog.Relation> relations =
-        AuthoritativeRelationCatalog.relationsForParent("resource_label_events");
+    List<GitlabSourceLineageCatalog.Relation> relations =
+        GitlabSourceLineageCatalog.relationsForParent("resource_label_events");
 
     assertThat(relations)
         .extracting(relation -> relation.scopeForParentRow(Map.of("issue_id", 101L)))
@@ -60,7 +66,8 @@ class AuthoritativeRelationCatalogTest {
             Map.of("target_id", 101L, "target_type", "Issue"),
             Map.of());
     assertThat(relations)
-        .extracting(relation -> relation.scopeForParentRow(Map.of("merge_request_id", 202L)))
+        .extracting(
+            relation -> relation.scopeForParentRow(Map.of("merge_request_id", 202L)))
         .containsExactly(
             Map.of(),
             Map.of("target_id", 202L, "target_type", "MergeRequest"));

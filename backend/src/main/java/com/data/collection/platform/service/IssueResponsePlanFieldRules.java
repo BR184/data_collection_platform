@@ -2,7 +2,6 @@ package com.data.collection.platform.service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.LinkedHashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -14,6 +13,8 @@ final class IssueResponsePlanFieldRules {
       Pattern.compile(
           "^\\s*(\\d{4})\\s*[.,，、/·`年]\\s*(\\d{1,2})\\s*[.,，、/·`月]\\s*(\\d{1,2})\\s*日?\\s*$");
   private static final Pattern VERSION_BRANCH_PATTERN = Pattern.compile("CC\\d{4}R[1-9]\\d*");
+  private static final Pattern DISPLAY_WHITESPACE_PATTERN =
+      Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
 
   private IssueResponsePlanFieldRules() {}
 
@@ -45,24 +46,37 @@ final class IssueResponsePlanFieldRules {
   }
 
   /**
-   * 将计划合并版本分支规范为稳定的版本列表文本。
+   * 将计划合并版本分支规范为单行事实文本，不解释或丢弃来源中的分支语义。
    *
-   * @param value 模板字段内容
-   * @return 以 {@code " & "} 连接的唯一版本；存在非法成员时返回空字符串
+   * @param value 最新调研模板中的字段内容
+   * @return 仅合并连续空白后的来源文本；空输入返回空字符串
    */
-  static String normalizePlannedMergeVersionBranches(String value) {
-    String normalized = TextQuerySupport.trimToNull(value);
-    if (normalized == null) {
+  static String normalizePlannedMergeBranchText(String value) {
+    if (value == null) {
       return "";
     }
-    LinkedHashSet<String> branches = new LinkedHashSet<>();
-    for (String rawBranch : normalized.split("&", -1)) {
-      String branch = TextQuerySupport.trimToNull(rawBranch);
-      if (branch == null || !VERSION_BRANCH_PATTERN.matcher(branch).matches()) {
-        return "";
-      }
-      branches.add(branch);
+    return DISPLAY_WHITESPACE_PATTERN.matcher(value).replaceAll(" ").trim();
+  }
+
+  /**
+   * 判断计划合并版本分支是否只包含规范版本成员。
+   *
+   * <p>该契约只供客户问题非法模板判定使用，不能用于生成展示事实。
+   *
+   * @param value 模板字段内容
+   * @return 一个或多个 {@code CCyyyyRn} 成员以 {@code &} 分隔时返回 {@code true}
+   */
+  static boolean hasOnlyCanonicalVersionBranches(String value) {
+    String normalized = normalizePlannedMergeBranchText(value);
+    if (normalized.isEmpty()) {
+      return false;
     }
-    return String.join(" & ", branches);
+    for (String rawBranch : normalized.split("&", -1)) {
+      String branch = normalizePlannedMergeBranchText(rawBranch);
+      if (branch.isEmpty() || !VERSION_BRANCH_PATTERN.matcher(branch).matches()) {
+        return false;
+      }
+    }
+    return true;
   }
 }

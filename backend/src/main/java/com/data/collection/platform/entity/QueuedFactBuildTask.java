@@ -12,5 +12,6 @@ public record QueuedFactBuildTask(
     boolean full,
     int retryCount,
     int maxRetryCount,
+    String leaseOwner,
     LocalDateTime leaseUntil) {
 }

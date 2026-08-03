@@ -29,7 +29,7 @@ final class IssueResponseTemplateParser {
     return new IssueResponseTemplate(
         plannedResolutionAt,
         plannedResolutionAt == null ? "" : plannedResolutionText.trim(),
-        IssueResponsePlanFieldRules.normalizePlannedMergeVersionBranches(
+        IssueResponsePlanFieldRules.normalizePlannedMergeBranchText(
             sectionContent(latestTemplate, PLAN_MERGE_BRANCH_HEADERS)));
   }
 

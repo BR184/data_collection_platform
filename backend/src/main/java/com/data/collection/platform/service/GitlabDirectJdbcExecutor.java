@@ -14,6 +14,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Statement;
@@ -76,17 +77,7 @@ class GitlabDirectJdbcExecutor implements AutoCloseable {
              Statement statement = connection.createStatement()) {
           statement.setQueryTimeout(connectionSettings.resolveExternalQueryTimeoutSeconds());
           try (ResultSet resultSet = statement.executeQuery(sql)) {
-            List<Map<String, Object>> rows = new ArrayList<>();
-            ResultSetMetaData metaData = resultSet.getMetaData();
-            int count = metaData.getColumnCount();
-            while (resultSet.next()) {
-              Map<String, Object> row = new LinkedHashMap<>();
-              for (int i = 1; i <= count; i++) {
-                row.put(metaData.getColumnLabel(i), jdbcValueNormalizer.normalize(resultSet.getObject(i)));
-              }
-              rows.add(row);
-            }
-            return rows;
+            return readRows(resultSet);
           }
         } catch (Exception e) {
           throw new BizException("Failed to query GitLab database: " + e.getMessage());
@@ -98,6 +89,52 @@ class GitlabDirectJdbcExecutor implements AutoCloseable {
       }
       throw e;
     }
+  }
+
+  List<Map<String, Object>> query(
+      GitlabSyncConfig config,
+      GitlabParameterizedQuery query) {
+    try {
+      return queryRetryPolicy.executeWithRetry(
+          "JDBC parameterized query",
+          () -> {
+            try (Connection connection = openConnection(config);
+                PreparedStatement statement = connection.prepareStatement(query.sql())) {
+              statement.setQueryTimeout(
+                  connectionSettings.resolveExternalQueryTimeoutSeconds());
+              for (int index = 0; index < query.parameters().size(); index++) {
+                statement.setObject(index + 1, query.parameters().get(index));
+              }
+              try (ResultSet resultSet = statement.executeQuery()) {
+                return readRows(resultSet);
+              }
+            } catch (Exception error) {
+              throw new BizException(
+                  "Failed to query GitLab database with parameters: " + error.getMessage());
+            }
+          });
+    } catch (BizException error) {
+      try (SyncRunLogContext.Scope action = SyncRunLogContext.action("Data_Fetching")) {
+        log.error("Failed to query GitLab database via parameterized JDBC", error);
+      }
+      throw error;
+    }
+  }
+
+  private List<Map<String, Object>> readRows(ResultSet resultSet) throws Exception {
+    List<Map<String, Object>> rows = new ArrayList<>();
+    ResultSetMetaData metaData = resultSet.getMetaData();
+    int count = metaData.getColumnCount();
+    while (resultSet.next()) {
+      Map<String, Object> row = new LinkedHashMap<>();
+      for (int index = 1; index <= count; index++) {
+        row.put(
+            metaData.getColumnLabel(index),
+            jdbcValueNormalizer.normalize(resultSet.getObject(index)));
+      }
+      rows.add(row);
+    }
+    return rows;
   }
 
   Connection openConnection(GitlabSyncConfig config) throws Exception {

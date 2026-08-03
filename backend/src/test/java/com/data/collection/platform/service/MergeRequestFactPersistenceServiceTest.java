@@ -22,10 +22,10 @@ class MergeRequestFactPersistenceServiceTest {
     MergeRequestFactPersistenceService service =
         new MergeRequestFactPersistenceService(factMapper, jdbcTemplate);
 
-    service.replaceTargetFacts(
+    service.replaceRootFacts(
         "GITLAB",
         "default",
-        List.of(new FactRefreshImpactScopeService.Target(9L, 202L)),
+        List.of(202L),
         List.of());
 
     ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
@@ -33,9 +33,8 @@ class MergeRequestFactPersistenceServiceTest {
     verify(jdbcTemplate).update(sqlCaptor.capture(), argsCaptor.capture());
     assertThat(sqlCaptor.getValue())
         .contains("delete from merge_request_fact")
-        .contains("project_id = ?")
-        .contains("merge_request_iid = ?");
-    assertThat(argsCaptor.getValue()).containsExactly("GITLAB", "default", 9L, 202L);
+        .contains("merge_request_id in (?)");
+    assertThat(argsCaptor.getValue()).containsExactly("GITLAB", "default", 202L);
     org.mockito.Mockito.verifyNoInteractions(factMapper);
   }
 
@@ -47,10 +46,10 @@ class MergeRequestFactPersistenceServiceTest {
         new MergeRequestFactPersistenceService(factMapper, jdbcTemplate);
     MergeRequestFact currentFact = mock(MergeRequestFact.class);
 
-    service.replaceTargetFacts(
+    service.replaceRootFacts(
         "GITLAB",
         "default",
-        List.of(new FactRefreshImpactScopeService.Target(9L, 202L)),
+        List.of(202L),
         List.of(currentFact));
 
     InOrder ordered = inOrder(jdbcTemplate, factMapper);

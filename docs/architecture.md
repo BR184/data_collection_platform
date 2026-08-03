@@ -25,23 +25,25 @@
 - 镜像层拥有 ODS 原始数据和同步水位；同步成功不代表事实层已重建成功，事实刷新状态必须独立记录。
 - 同一镜像运行的表 worker 数与 DIRECT JDBC 池容量由 `SyncExecutionBudget` 一次解析；`sync_runs.resolved_worker_count` 是该运行不可变并发快照，DIRECT 池容量等于 worker 数加控制面保留连接。连接池按稳定 `configId` 唯一管理，连接或线程配置只能在无活动镜像运行时修改，配置事务提交后旧池退休且不打断已借出连接。
 - 调度器每次领取运行必须生成唯一 `lease_owner`；首次心跳、周期续租、暂停和终态提交均以 `(run_id, lease_owner)` fencing，租约转移后的旧执行器不能覆盖新 owner。执行器拒绝入队时仅释放自己拥有的运行并归还本地容量；截止时间和人工取消使用字段级状态 CAS，禁止用陈旧全实体更新覆盖租约。
-- 表任务是唯一分页恢复边界：源端读取不持有平台库事务，本地镜像写入、任务 owner 条件完成、状态水位和下一阶段任务创建在同一事务提交。任务执行期间按租约心跳续期；租约转移后旧 worker 不得提交状态或镜像副作用。全量删除对账使用可恢复 `RECONCILE` 分页，不执行末页无界整表对账。
+- 表任务是唯一分页恢复边界：源端读取不持有平台库事务，本地镜像写入、变化目标登记、任务 owner 条件完成、状态水位和下一阶段任务创建在同一事务提交。`SCAN` 续页使用独立任务行；每张表的 `RECONCILE` 只使用一个任务行原子累计计数并推进 keyset cursor，不按页增长任务数。任务执行期间按租约心跳续期，租约转移后的旧 worker 不得提交状态或镜像副作用。
 - 源端扫描只使用真实类型复合主键 keyset：全量与删除对账按主键 tuple 分页；增量仅在更新时间列存在有效非部分 B-tree 前导索引时使用 `TIMESTAMP_KEYSET`，否则在固定 `(watermark, scan_upper_bound_at]` 窗口内使用 `PRIMARY_KEY_KEYSET`，保证每次运行最多按主键线性扫描一次。复合游标统一为 JSON 数组并持久化 `page_number`；状态水位只在末页推进。禁止按文本化主键排序、哈希分片重复扫表、`OFFSET` 分页和逐页 `count(*)`。
-- 同一数据源保持单一镜像写入所有权。`INCREMENTAL_SYNC` 与用户 `TABLE_REFRESH` 高于全量/补偿运行；后台运行只在已提交分页边界转为 `PAUSED` 并释放互斥范围，前台运行结束后从持久 cursor 恢复，队列等待时间老化防止后台永久饥饿。System Hook 精准刷新不参与该让行策略。
+- 同一数据源保持单一镜像写入所有权。`INCREMENTAL_SYNC` 与用户 `TABLE_REFRESH` 高于全量/补偿运行；全量与补偿运行在已提交分页边界让行，自动增量只在已提交 `RECONCILE` 页后为等待中的 `TABLE_REFRESH` 让行。让行以 owner CAS 转为 `PAUSED` 并释放互斥范围，前台运行结束后从持久 cursor 恢复；System Hook、增量 `SCAN` 和权威范围处理不扩大该让行边界。
 - 页面同步命令只引用已持久化的 `configId`，不得隐式保存配置；表单存在未保存变更时必须先显式保存。活动镜像运行期间后端继续拒绝连接与容量配置变更，不能为提交前台任务绕过该保护。
 - 同步诊断只把当前活动运行的任务计入当前失败/超时，历史累计使用独立字段；当前表任务必须暴露 `taskId/stage/cursor/retry/heartbeat/lease`。DIRECT 模式同时暴露 Hikari 活动、空闲、等待和容量指标；源总量未知时前端使用不确定进度，不根据动态分页任务数伪造百分比。同步 JSON 日志统一携带 `runId`、`runDbId`、`taskId`、`sourceTable`、`configId`、`sourceInstance`、`runType` 和 `action`。详细决策见 `docs/decisions/ADR-004-sync-runtime-capacity-leases-and-yielding.md`。
-- 每个整体成功或部分成功的镜像运行都必须提交以该运行作为 `parent_run_id` 的 `FACT_REFRESH`；只有整体成功的全量镜像直接使用全量事实构建，部分成功运行提交增量标记并按已成功表任务执行增量/受影响对象刷新；若尚无成功全量基线，则按既有规则先建立事实基线。
-- `FACT_REFRESH` 子运行 ID 与镜像父运行 ID 是两个独立的持久身份：`fact_build_tasks.run_id` 只用于事实任务归属、认领和终态，镜像影响来源只读取 `sync_runs.parent_run_id`；不得把事实任务 `run_id` 直接解释为镜像运行。payload 中既有的 `parentRunId` 只用于日志诊断，不得参与业务解析或覆盖列值，任务表不得复制镜像父 ID。非全量父运行已写入数据但无法加载其表任务时属于发布链不变量破坏，必须失败，不能以空影响成功或静默全量重建。
-- 同一事实范围内不同镜像父运行的事实刷新必须排队串行执行；仅相同父运行的重复事件允许复用，不能丢弃较新的镜像影响范围。
-- 页面实时刷新以触发的镜像 `sync_runs` 及其 `FACT_REFRESH` 子运行作为唯一完成链路；镜像成功而事实子运行排队、运行或失败时，页面不得将旧事实数据标记为最新。
-- 可物理删除实体及关系的完整集合语义由 `AuthoritativeRelationCatalog` 显式声明，不能从 `FULL_ONLY`、更新时间列或任务来源推断。根实体按主键声明；Issue 的指派人、指标、评论和标签，以及 MR 的指派人、审核人、指标、评论和标签按父对象声明，其中评论固定使用 `(noteable_type,noteable_id)`，标签固定使用 `(target_type,target_id)`，避免多态对象的相同数字 ID 互相误删。所有精确任务以非空、规范化的复合 `lookupScope` 作为来源读取、任务去重和 ODS 写入的唯一范围；`PRECISE` 只 upsert 来源返回行，`AUTHORITATIVE` 在同一事务内以完整来源集合替换 ODS active 集合，空集合也是有效替换，缺失行写 tombstone。父资源增量、System Hook 与 GitLab 16.11 `resource_label_events.issue_id/merge_request_id` 命中后共用该目录；事件事实只在所需列完整且 `action` 为整数枚举时启用，`add=1`。派生任务属于同一父运行，父运行必须等待最终任务汇总后再发布事实刷新；`FULL_SYNC` 和 `FULL_COMPENSATION_SCAN` 均执行 `FULL_RECONCILE` 的 `SCAN/RECONCILE` 两阶段，成功补偿必须全量发布事实以清除未收到精确事件的硬删除残留。
-- `FULL_COMPENSATION_SCAN` 是低频反熵与物理删除兜底，不是正常增量发布的正确性前置条件，也不能承担实时刷新。当前镜像阶段只为已排队的 `INCREMENTAL_SYNC`/`TABLE_REFRESH` 在分页边界让行，完成后的全量 `FACT_REFRESH` 不可让行；定时增量在活动全量补偿期间被跳过。当前调度还存在三个已确认限制：每日补偿只在精确分钟尝试、补偿提交会复用任意同源活动镜像运行、成功补偿会把 `last_incremental_sync_at` 改为完成时间；在这些限制修正并完成 270 万行容量基准前，不得把全量补偿提高到每次自动增量后执行。
-- 增量更新保留 PostgreSQL volume、同步状态、镜像表和用户配置，不通过重建容器清库。
+- `GitlabSourceLineageCatalog` 是 23 张推荐来源表的主键、删除探测资格、权威父子范围和派生归属唯一目录；评论和标签分别用 `(noteable_type,noteable_id)`、`(target_type,target_id)` 隔离多态对象。`GitlabFactDependencyCatalog` 统一维护事实读取表与变化信号表，`RealtimeWorkspaceDependencyCatalog` 再把工作区映射到事实类型和扫描依赖；新增推荐表或事实依赖必须显式登记，无派生消费者也必须显式声明。
+- 普通镜像运行统一经过 `SCAN`、批量权威范围和 `RECONCILE`。页提交先锁定运行阶段边界；只有全部 `SCAN` producer 和 `sync_run_authoritative_scopes` 成功后，才为本次范围内每张表幂等创建一个 `RECONCILE` 任务。权威范围按规范 identity 去重后批量领取、批量读取完整来源集合并原子替换 ODS；`QUEUED/RUNNING/RETRY_WAITING` 阻断阶段推进，`FAILED` 使运行失败，禁止把未完成范围解释为空集合。
+- 删除探测只分页读取 ODS active 主键并用真实类型参数化批查询验证 GitLab 存在性；仅成功来源查询返回的 mirror-only 差集可写 tombstone。单列与复合主键均使用声明式类型和 keyset cursor，JVM 工作集为 `O(batchSize)`；来源异常、非法返回子集或平台事务失败不得推进 cursor、`last_delete_reconciled_at` 或删除行。
+- ODS 写入只把插入、业务列真实变化、tombstone 恢复和真实删除输出为 `MirrorRowChange`；lookback 相同行、镜像元数据变化和相同权威集合不产生派生目标。ODS DML、`fact_change_heads` 版本推进、`sync_run_fact_targets` upsert 和定向 `FACT_REFRESH` 创建/唤醒位于同一平台事务；已提交目标不依赖镜像父运行终态才能继续发布。
+- 每个镜像父运行至多复用一个 `FACT_REFRESH` 子运行；`fact_build_tasks.run_id` 只归属该子运行，父运行只从 `sync_runs.parent_run_id` 取得。定向运行仅在存在未发布目标时创建，父运行继续产生更高版本时可重新唤醒已成功、暂停或重试中的同一子运行；失败运行保留原身份供显式恢复。全量同步和成功全量补偿使用明确全量事实发布，普通增量、手动表刷新和 System Hook 不因目标数量改变为全量模式。
+- `FULL_COMPENSATION_SCAN` 只承担首次历史清理、灾难恢复和低频反熵，不是日常实时正确性的前置条件；无生产入口的 `COMPENSATION_SCAN` 已删除。增量更新继续保留 PostgreSQL volume、同步状态、镜像表和用户配置，不通过重建容器清库。270 万行的最终 batch/worker 参数和硬性能门禁必须由内网固定负载基准确定。
 
 ### 事实与统计
 
 - 事实构建负责字段归一化、标签解析、非法判定和派生字段；统计服务只消费事实层和明确的统计快照。
-- 增量事实影响必须优先从成功 `AUTHORITATIVE` 任务的 `lookup_scope_json` 恢复父目标；根 Issue/MR 已 tombstone 时仍从其保留身份读取 `(project_id,iid)`。Issue/MR 定向发布必须在同一事务中先删除指定来源实例与目标的旧事实，Issue 同时删除客户成员，再写入当前来源结果；空来源是有效删除结果。全量 Issue/MR 构建以完整快照替换单一来源实例，不得残留来源已删除的旧事实，也不得影响其他来源实例或事实类型。
+- `sync_run_fact_targets` 是定向事实发布 outbox，稳定身份为 `source_instance + fact_type + GitLab root_id`；`fact_change_heads` 保存最新变化版本和已发布版本并提供乱序 fencing。同一运行同一根再次变化必须提高版本、重置为待发布并清除旧 assignment；事实 worker 在根版本锁内读取当前 ODS，使交错运行不能用旧状态覆盖新事实。
+- 每个定向事实任务只处理一个有界根 ID 批次，不使用长 OR 条件、内部 cursor 或目标数阈值回退。Issue、MR 和集成测试定向构建均以 GitLab 根 `id` 和 `source_instance` 隔离；发布事务先删除目标旧事实及其从属成员，再写当前来源结果，空来源是合法的只删结果。全量构建以完整快照替换单一来源实例，不影响其他来源实例或事实类型。
+- 定向事实事务同时解析变化前后的稳定投影范围并推进 `fact_projection_generations`，为每个 `FULL_EPOCH/GLOBAL_VIEW/PROJECT/ISSUE_SCOPE_GROUP` 范围创建可租约、退避和恢复的投影任务。旧 generation 任务按 superseded no-op 成功；请求 `sourceVersion` 规范包含全量 epoch、消费范围 generation、范围组 definition generation 和规则版本，未受影响范围不失效。
+- 页面手动刷新只扫描工作区依赖表，但扫描发现的全部跨项目变化均进入统一 outbox。请求先持久化 `sync_run_publication_fences`，镜像运行在释放同源 writer 前捕获要求的 change version；页面完成状态等待该版本内事实目标和自身消费的投影 generation 成功，不能因本次 ODS DML 为零或仅镜像运行成功就宣称最新。
 - 同一议题的总量去重、模块多归属、空值展示、默认范围和导出口径遵循 `docs/platform-page-business-rules.md`，禁止在页面 SQL 中复制隐藏规则。
 - 事实字段或统计口径变化必须明确是否重建事实层和预热快照；重建不等于重新全量镜像同步。
 - 手工全量重建复用 `/api/facts/rebuild?configId=`，但接口只提交 `FACT_REFRESH` 后台运行并立即返回运行编号；运行以 `manualFullRebuild=true` 标识，在调度器中调用唯一的 `rebuildAllFactsForConfig` 入口重建 `issue_fact`、`merge_request_fact`、`integration_test_fact`。任何事实表写入前必须聚合预检三类事实的全部 ODS 表/字段；手工全量重建的三类事实和自动任务的单类事实分别在一个发布事务内完成，PostgreSQL MVCC 使其他连接在提交前继续读取上一已提交版本，任一构建失败则整批回滚。提交后按新的事实源版本刷新统计板与记录页快照；快照未命中时只能实时查询完整的新事实代际。手工运行与构建任务使用同一运行编号，状态面板和最近同步日志以 `sync_runs` 为唯一追踪来源；提交服务对同数据源所有活跃镜像或事实运行互斥。后端权限、源表校验和事实构建锁是权威保护，数据镜像页只提供受确认保护的运维入口。
@@ -49,7 +51,7 @@
 - `issue_fact.bug_status` 与 `issue_state/closed_at_source` 是相互独立的事实维度：前者只保存老平台全角 `状态：X` 标签合并值，缺失时保存“未设定议题状态”；后者独立表达 GitLab 议题开闭状态。事实构建、查询、快照、导出和前端不得在两个维度之间回退或互相推断。
 - `scripts/contracts/fact-field-contract.md` 是事实字段静态契约；新增或修改字段必须同步 Flyway、`schema.sql`、生成规则测试、查询/前端/导出影响，并明确是否重建历史事实。`scripts/check_fact_field_contract.py` 校验其与最终 schema 的一致性。
 - `CC_PRODUCT` 客户归属以 `ods_gitlab_issues.description` 的“客户名称”为主、标题双破折号后缀为缺失兜底；`issue_fact_customer_members` 是多对多筛选权威，`issue_fact.customer_names` 仅为展示投影。客户别名必须精确规范化，筛选使用成员关系 `exists`，不得拆分或重复议题事实。
-- `CC_PRODUCT` 的计划解决时间和计划合并版本分支只来自最新“问题调研情况说明”响应模板，不能复用 SLA 截止时间；事实构建必须只保留唯一完整日期及以 `&` 分隔的 `CCyyyyRn` 版本标识，任一字段不合法则写空。页面以事实层版本成员渲染标签，Excel 使用同一稳定文本。缺陷滞留时长只表达当前未闭环年龄：GitLab 已关闭或命中客户问题最终闭环状态时为 `0`，否则按一次请求固定的 `asOf` 与 `created_at_source` 动态计算；它不能写入事实或页面快照，也不能承载历史解决周期。上述字段、候选和导出只属于 CC_PRODUCT，延期专题不消费它们。详见 `docs/decisions/ADR-003-customer-membership-and-response-template-facts.md`。
+- `CC_PRODUCT` 的计划解决时间和计划合并版本分支只来自最新“问题调研情况说明”响应模板，不能复用 SLA 截止时间。事实构建对计划解决时间只保留唯一完整日期；对计划合并版本分支只折叠空白并保留来源文本，不得用非法模板校验过滤事实。客户问题非法模板规则独立要求计划合并分支为一个或多个以 `&` 分隔的 `CCyyyyRn` 成员，校验失败仍保留事实原值。页面和 Excel 使用同一事实字段。缺陷滞留时长只表达当前未闭环年龄：GitLab 已关闭或命中客户问题最终闭环状态时为 `0`，否则按一次请求固定的 `asOf` 与 `created_at_source` 动态计算；它不能写入事实或页面快照，也不能承载历史解决周期。上述字段、候选和导出只属于 CC_PRODUCT，延期专题不消费它们。详见 `docs/decisions/ADR-003-customer-membership-and-response-template-facts.md`。
 - `issue_fact.handler_name` 与 `issue_fact.assignee_name` 是独立人员事实；当前 GitLab ODS 只暴露一份规范指派身份时，事实构建可以写入相同值，但查询、筛选、排序和导出不得把两个字段重新合并。`testing_phase` 原始空值保持为空，CC_PRODUCT 仅在响应投影中显示“未设定测试阶段”。
 - `code_review_external_metrics` 是 GitLab diff 派生行数和 MR 标题功能名的权威补齐模型。既有或手工导入指标默认视为 `SUCCESS`，只有历史/已完成运行扫描明确发现的 CC MR 才进入补齐队列；后台以持久化 keyset 游标分别扫描历史 MR 和已完成镜像运行，队列按 `source_instance` 隔离并经历 `PENDING/RUNNING/RETRY/ENRICHED/SUCCESS/FAILED`。网络、限流和服务端错误使用封顶指数退避持续重试，认证、资源不存在、非法地址和截断响应进入确定性失败。补齐只通过 API Token 访问 GitLab v4 changes 接口，页面请求不得实时访问 GitLab；成功指标在事实构建互斥内定向发布到 `merge_request_fact`，构建忙时保持 `ENRICHED` 等待下一批次。全局调度关闭时补齐任务必须停止。
 

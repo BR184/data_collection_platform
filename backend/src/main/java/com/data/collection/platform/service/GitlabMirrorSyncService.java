@@ -1,14 +1,18 @@
 package com.data.collection.platform.service;
 
-import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.GitlabMirrorTableRegistry;
+import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SyncStatus;
 import com.data.collection.platform.entity.SyncTriggerType;
+import com.data.collection.platform.entity.WorkspaceRefreshRequest;
 import com.data.collection.platform.entity.sync.SyncRunTableState;
 import com.data.collection.platform.entity.sync.SyncRunSubmissionResult;
+import com.data.collection.platform.service.sync.SyncRunAuthoritativeScopeWorkerService;
 import com.data.collection.platform.service.sync.SyncRunDeadlineGuard;
-import com.data.collection.platform.service.sync.SyncRunSubmissionService;
 import com.data.collection.platform.service.sync.SyncRunLeaseService;
+import com.data.collection.platform.service.sync.SyncRunPayload;
+import com.data.collection.platform.service.sync.SyncRunSubmissionService;
 import com.data.collection.platform.service.sync.SyncRunTableWorkerService;
 import com.data.collection.platform.mapper.GitlabMirrorTableRegistryMapper;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
@@ -29,6 +33,7 @@ public class GitlabMirrorSyncService {
   private final SyncRunLeaseService syncRunLeaseService;
   private final SyncRunDeadlineGuard syncRunDeadlineGuard;
   private final SyncRunTableWorkerService syncRunTableWorkerService;
+  private final SyncRunAuthoritativeScopeWorkerService authoritativeScopeWorkerService;
   private final GitlabMirrorTableRegistryMapper registryMapper;
   private final SyncRunTableStateMapper tableStateMapper;
 
@@ -40,6 +45,7 @@ public class GitlabMirrorSyncService {
       SyncRunLeaseService syncRunLeaseService,
       SyncRunDeadlineGuard syncRunDeadlineGuard,
       SyncRunTableWorkerService syncRunTableWorkerService,
+      SyncRunAuthoritativeScopeWorkerService authoritativeScopeWorkerService,
       GitlabMirrorTableRegistryMapper registryMapper,
       SyncRunTableStateMapper tableStateMapper) {
     this.configService = configService;
@@ -49,6 +55,7 @@ public class GitlabMirrorSyncService {
     this.syncRunLeaseService = syncRunLeaseService;
     this.syncRunDeadlineGuard = syncRunDeadlineGuard;
     this.syncRunTableWorkerService = syncRunTableWorkerService;
+    this.authoritativeScopeWorkerService = authoritativeScopeWorkerService;
     this.registryMapper = registryMapper;
     this.tableStateMapper = tableStateMapper;
   }
@@ -66,6 +73,7 @@ public class GitlabMirrorSyncService {
     syncRunLeaseService.recoverTimedOutRuns();
     syncRunDeadlineGuard.requestCancellationForExpiredRuns();
     syncRunTableWorkerService.recoverTimedOutTasks();
+    authoritativeScopeWorkerService.recoverExpiredLeases();
   }
 
   public void testConnection() {
@@ -154,7 +162,7 @@ public class GitlabMirrorSyncService {
   public OnDemandRefreshResult refreshAvailableTablesOnDemandDetailed(
       List<String> sourceTableNames,
       String reason,
-      String sourcePageKey,
+      WorkspaceRefreshRequest workspaceRefreshRequest,
       String triggerSurface) {
     GitlabSyncConfig config = resolveConfig(null);
     List<String> requestedTables = normalizeRequestedTables(sourceTableNames);
@@ -181,7 +189,7 @@ public class GitlabMirrorSyncService {
             config,
             availableTables,
             reason,
-            structuredRefreshContext(sourcePageKey, triggerSurface));
+            structuredRefreshContext(config, workspaceRefreshRequest, triggerSurface));
     return new OnDemandRefreshResult(
         submission.runId(),
         availableTables,
@@ -195,6 +203,27 @@ public class GitlabMirrorSyncService {
     java.util.LinkedHashMap<String, Object> context = new java.util.LinkedHashMap<>();
     if (!isBlank(sourcePageKey)) {
       context.put("sourcePageKey", sourcePageKey.trim());
+    }
+    if (!isBlank(triggerSurface)) {
+      context.put("triggerSurface", triggerSurface.trim());
+    }
+    return Map.copyOf(context);
+  }
+
+  private Map<String, Object> structuredRefreshContext(
+      GitlabSyncConfig config,
+      WorkspaceRefreshRequest workspaceRefreshRequest,
+      String triggerSurface) {
+    java.util.LinkedHashMap<String, Object> context = new java.util.LinkedHashMap<>();
+    if (workspaceRefreshRequest != null) {
+      List<FactType> factTypes =
+          RealtimeWorkspaceDependencyCatalog.resolve(
+                  workspaceRefreshRequest.workspaceKey(), config)
+              .factTypes();
+      context.put(
+          "workspaceRefresh",
+          SyncRunPayload.WorkspaceRefreshSpec.from(workspaceRefreshRequest, factTypes));
+      context.put("sourcePageKey", workspaceRefreshRequest.workspaceKey());
     }
     if (!isBlank(triggerSurface)) {
       context.put("triggerSurface", triggerSurface.trim());

@@ -342,7 +342,7 @@ public class SystemTestIssueMultiBoardService {
                 .map(cause -> point(
                     "delay-cause",
                     cause,
-                    count(delayRows, row -> severity.matches(row) && delayCause(row).equals(cause)),
+                    count(delayRows, row -> severity.matches(row) && delayCauses(row).contains(cause)),
                     scope,
                     List.of(
                         condition("metricSeverity", severity.filterValue()),
@@ -712,8 +712,8 @@ public class SystemTestIssueMultiBoardService {
     return SystemTestIssueMetricDimensionSupport.majorCause(row.reasonCategory(), row.labelNames());
   }
 
-  private String delayCause(IssueRow row) {
-    return SystemTestIssueMetricDimensionSupport.delayCause(
+  private List<String> delayCauses(IssueRow row) {
+    return SystemTestIssueMetricDimensionSupport.delayCauses(
         row.delayCause(), row.delayReason(), row.labelNames());
   }
 

@@ -63,8 +63,6 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final DateTimeFormatter LEGACY_DATE_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd");
-  private static final List<String> REALTIME_REFRESH_TABLES =
-      List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private static final String FACT_SQL =
       """
       select issue_id as id,
@@ -351,11 +349,15 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   }
 
   @Override
-  public void refreshSnapshots(StatisticBoardSnapshotRefresher.RefreshContext context) {
-    if (!context.affectsIssues()) {
+  public void refreshSnapshots(com.data.collection.platform.entity.FactPublicationContext context) {
+    Set<String> affectedMilestones = new LinkedHashSet<>(milestoneCatalogService.listMilestones(context));
+    if (affectedMilestones.isEmpty()) {
       return;
     }
-    List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
+    List<StatisticFilterOption> milestoneOptions =
+        loadMilestoneOptions().stream()
+            .filter(option -> affectedMilestones.contains(option.value()))
+            .toList();
     for (StatisticFilterGroup filterGroup :
         CustomerIssueSqlScopeSupport.milestoneFilterGroups(milestoneOptions, 3)) {
       StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
@@ -375,6 +377,9 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         BOARD_KEY,
         RULE_VERSION,
         "project=325;milestone=" + (StringUtils.hasText(selectedMilestone) ? selectedMilestone : "none"),
+        325L,
+        com.data.collection.platform.service.IssueScopeDimension.MILESTONE,
+        selectedMilestone,
         filters,
         definition,
         effectiveFilterGroup);
@@ -423,7 +428,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
 
   @Override
   public RealtimeWorkspaceStatusResponse requestRealtimeRefresh() {
-    return runtimeSupport.requestRealtimeRefresh(BOARD_KEY, REALTIME_REFRESH_TABLES);
+    return runtimeSupport.requestRealtimeRefresh(BOARD_KEY);
   }
 
   @Override

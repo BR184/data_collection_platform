@@ -3,11 +3,10 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.GitlabTableProbe;
 import com.data.collection.platform.entity.MirrorPrimaryKeyBatch;
-import com.data.collection.platform.entity.MirrorBatchWriteResult;
+import com.data.collection.platform.entity.MirrorMutationResult;
+import com.data.collection.platform.entity.MirrorRowChange;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -18,7 +17,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,41 +32,39 @@ public class GitlabMirrorTableStorageService {
     this.jsonUtils = jsonUtils;
   }
 
-  public MirrorBatchWriteResult upsertBatch(SourceTableSchema mirrorSchema, List<Map<String, Object>> rows, Long taskId) {
-    return upsertBatch(mirrorSchema, rows, taskId, false);
+  public MirrorMutationResult applyBatch(
+      SourceTableSchema mirrorSchema, List<Map<String, Object>> rows, Long taskId) {
+    return applyBatch(mirrorSchema, rows, taskId, false);
   }
 
-  public MirrorBatchWriteResult upsertBatch(
+  /** 批量写入来源行，只把业务列真实变化或 tombstone 恢复报告为变化。 */
+  public MirrorMutationResult applyBatch(
       SourceTableSchema mirrorSchema,
       List<Map<String, Object>> rows,
       Long taskId,
       boolean forceUpdate) {
     if (rows == null || rows.isEmpty()) {
-      return new MirrorBatchWriteResult(0, 0, 0);
+      return MirrorMutationResult.empty();
     }
+    validateSourceRows(mirrorSchema, rows);
+    Map<String, Map<String, Object>> beforeByKey =
+        indexByPrimaryKey(mirrorSchema, listRowsByPrimaryKeys(mirrorSchema, rows));
     String sql = buildUpsertSql(mirrorSchema, forceUpdate);
-    int[] results = jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
-      @Override
-      public void setValues(PreparedStatement ps, int i) throws SQLException {
-        ps.setObject(1, taskId);
-        ps.setString(2, jsonUtils.toJson(rows.get(i)));
-      }
-
-      @Override
-      public int getBatchSize() {
-        return rows.size();
-      }
-    });
-    int appliedRows = 0;
-    int skippedConflicts = 0;
-    for (int result : results) {
-      if (result > 0) {
-        appliedRows++;
-      } else {
-        skippedConflicts++;
-      }
-    }
-    return new MirrorBatchWriteResult(rows.size(), appliedRows, skippedConflicts);
+    List<Map<String, Object>> changedRows =
+        jdbcTemplate.query(
+            sql,
+            (resultSet, rowNum) -> jsonUtils.toMap(resultSet.getString("row_data")),
+            taskId,
+            jsonUtils.toJson(rows));
+    List<MirrorRowChange> changes =
+        changedRows.stream()
+            .map(
+                after ->
+                    new MirrorRowChange(
+                        beforeByKey.getOrDefault(primaryKeySignature(mirrorSchema, after), Map.of()),
+                        sourceColumnsOnly(mirrorSchema, after)))
+            .toList();
+    return new MirrorMutationResult(rows.size(), changes, rows.size() - changes.size());
   }
 
   /**
@@ -82,7 +78,7 @@ public class GitlabMirrorTableStorageService {
    * @throws IllegalArgumentException lookup 契约无效或来源行越出声明范围时抛出
    */
   @Transactional
-  public MirrorBatchWriteResult replaceAuthoritativeScope(
+  public MirrorMutationResult replaceAuthoritativeScope(
       SourceTableSchema mirrorSchema,
       Map<String, Object> lookupScope,
       List<Map<String, Object>> rows,
@@ -94,54 +90,61 @@ public class GitlabMirrorTableStorageService {
     Set<String> sourceSignatures = sourceRows.stream()
         .map(row -> PrimaryKeySignatureSupport.signature(primaryKeys, row))
         .collect(Collectors.toCollection(HashSet::new));
-    List<Map<String, Object>> mirrorOnlyRows = listActivePrimaryKeysByScope(
-            mirrorSchema, normalizedScope).stream()
+    List<Map<String, Object>> mirrorOnlyRows = listActiveRowsByScope(mirrorSchema, normalizedScope).stream()
         .filter(row -> !sourceSignatures.contains(PrimaryKeySignatureSupport.signature(primaryKeys, row)))
         .toList();
-    int deletedRows = markRowsDeletedByPrimaryKeys(mirrorSchema, mirrorOnlyRows, taskId);
-    MirrorBatchWriteResult writeResult = upsertBatch(mirrorSchema, sourceRows, taskId, true);
-    return new MirrorBatchWriteResult(
-        sourceRows.size(),
-        deletedRows + writeResult.appliedRows(),
-        writeResult.skippedConflicts());
+    MirrorMutationResult deleted = markRowsDeletedByPrimaryKeys(mirrorSchema, mirrorOnlyRows, taskId);
+    MirrorMutationResult written = applyBatch(mirrorSchema, sourceRows, taskId, true);
+    List<MirrorRowChange> changes = new ArrayList<>(deleted.changes());
+    changes.addAll(written.changes());
+    return new MirrorMutationResult(sourceRows.size(), changes, written.unchangedRows());
   }
 
-  public int markRowsDeletedByPrimaryKeys(
+  public MirrorMutationResult markRowsDeletedByPrimaryKeys(
       SourceTableSchema mirrorSchema,
       List<Map<String, Object>> primaryKeyRows,
       Long taskId) {
     if (mirrorSchema == null || primaryKeyRows == null || primaryKeyRows.isEmpty()) {
-      return 0;
+      return MirrorMutationResult.empty();
     }
     List<String> primaryKeys = PrimaryKeySignatureSupport.primaryKeyColumns(mirrorSchema);
     String sql = """
-        update %s
+        update %s target
            set mirror_task_id = ?,
                mirror_deleted = true,
                mirror_synced_at = current_timestamp,
                mirror_updated_at = current_timestamp
-         where coalesce(mirror_deleted, false) = false
-           and (%s)
+          from %s
+         where target.mirror_deleted = false
+           and %s
+        returning to_jsonb(target.*) as row_data
         """.formatted(
         quoteIdentifier(mirrorSchema.tableName()),
-        primaryKeyRows.stream()
-            .map(ignored -> primaryKeys.stream()
-                .map(primaryKey -> quoteIdentifier(primaryKey) + " = ?::" + columnType(mirrorSchema, primaryKey))
-                .collect(Collectors.joining(" and ", "(", ")")))
-            .collect(Collectors.joining(" or ")));
+        buildTypedValuesRelation(mirrorSchema, primaryKeys, primaryKeyRows.size()),
+        primaryKeys.stream()
+            .map(
+                primaryKey ->
+                    "target." + quoteIdentifier(primaryKey)
+                        + " = source_keys." + quoteIdentifier(primaryKey))
+            .collect(Collectors.joining(" and ")));
     List<Object> args = new ArrayList<>();
     args.add(taskId);
-    for (Map<String, Object> row : primaryKeyRows) {
-      for (String primaryKey : primaryKeys) {
-        args.add(Objects.toString(row.get(primaryKey), ""));
-      }
-    }
-    return jdbcTemplate.update(sql, args.toArray());
+    addPrimaryKeyArguments(primaryKeys, primaryKeyRows, args);
+    List<MirrorRowChange> changes =
+        jdbcTemplate.query(
+            sql,
+            (resultSet, rowNum) ->
+                new MirrorRowChange(
+                    sourceColumnsOnly(
+                        mirrorSchema, jsonUtils.toMap(resultSet.getString("row_data"))),
+                    Map.of()),
+            args.toArray());
+    return new MirrorMutationResult(
+        primaryKeyRows.size(), changes, primaryKeyRows.size() - changes.size());
   }
 
-  private List<Map<String, Object>> listActivePrimaryKeysByScope(
+  private List<Map<String, Object>> listActiveRowsByScope(
       SourceTableSchema mirrorSchema, Map<String, Object> lookupScope) {
-    List<String> primaryKeys = PrimaryKeySignatureSupport.primaryKeyColumns(mirrorSchema);
     String predicate = lookupScope.keySet().stream()
         .map(column -> quoteIdentifier(column) + " = ?::" + columnType(mirrorSchema, column))
         .collect(Collectors.joining(" and "));
@@ -149,9 +152,10 @@ public class GitlabMirrorTableStorageService {
         select %s
           from %s
          where %s
-           and coalesce(mirror_deleted, false) = false
+           and mirror_deleted = false
         """.formatted(
-        primaryKeys.stream()
+        mirrorSchema.columns().stream()
+            .map(SourceTableColumn::columnName)
             .map(this::quoteIdentifier)
             .collect(Collectors.joining(", ")),
         quoteIdentifier(mirrorSchema.tableName()),
@@ -217,7 +221,7 @@ public class GitlabMirrorTableStorageService {
     String sql = """
         select %s
           from %s
-         where coalesce(mirror_deleted, false) = false
+         where mirror_deleted = false
                %s
          order by %s
          limit ?
@@ -246,7 +250,7 @@ public class GitlabMirrorTableStorageService {
                min(%s)::text as min_pk,
                max(%s)::text as max_pk
           from %s
-         where coalesce(mirror_deleted, false) = false
+         where mirror_deleted = false
         """.formatted(
         quoteIdentifier(primaryKeyColumn),
         quoteIdentifier(primaryKeyColumn),
@@ -257,10 +261,6 @@ public class GitlabMirrorTableStorageService {
         toLocalDateTime(row.get("max_updated_at")),
         Objects.toString(row.get("min_pk"), ""),
         Objects.toString(row.get("max_pk"), ""));
-  }
-
-  private String buildUpsertSql(SourceTableSchema schema) {
-    return buildUpsertSql(schema, false);
   }
 
   private String buildUpsertSql(SourceTableSchema schema, boolean forceUpdate) {
@@ -275,11 +275,12 @@ public class GitlabMirrorTableStorageService {
     String sourceUpdatedExpression = schema.updatedAtColumn() == null || schema.updatedAtColumn().isBlank()
         ? "null"
         : "p." + quoteIdentifier(schema.updatedAtColumn());
-    String conflictGuard = forceUpdate ? "" : buildConflictGuard(schema);
+    String conflictGuard = buildConflictGuard(schema, sourceColumns, forceUpdate);
     return """
-        insert into %s (%s, mirror_task_id, source_updated_at, mirror_synced_at, mirror_deleted, mirror_updated_at)
+        insert into %s as target
+                    (%s, mirror_task_id, source_updated_at, mirror_synced_at, mirror_deleted, mirror_updated_at)
         select %s, ?, %s, current_timestamp, false, current_timestamp
-        from jsonb_populate_record(null::%s, cast(? as jsonb)) as p
+        from jsonb_populate_recordset(null::%s, cast(? as jsonb)) as p
         on conflict (%s) do update
         set %s,
             mirror_task_id = excluded.mirror_task_id,
@@ -288,6 +289,7 @@ public class GitlabMirrorTableStorageService {
             mirror_deleted = false,
             mirror_updated_at = current_timestamp
         %s
+        returning to_jsonb(target.*) as row_data
         """.formatted(
         tableName,
         insertColumns,
@@ -299,18 +301,121 @@ public class GitlabMirrorTableStorageService {
         conflictGuard);
   }
 
-  private String buildConflictGuard(SourceTableSchema schema) {
-    if (schema.updatedAtColumn() == null || schema.updatedAtColumn().isBlank()) {
-      return "";
+  private String buildConflictGuard(
+      SourceTableSchema schema, List<String> sourceColumns, boolean forceUpdate) {
+    String recencyGuard = "true";
+    if (!forceUpdate && schema.updatedAtColumn() != null && !schema.updatedAtColumn().isBlank()) {
+      String updatedAtColumn = quoteIdentifier(schema.updatedAtColumn());
+      recencyGuard =
+          "(excluded.%1$s is null or target.%1$s is null or excluded.%1$s >= target.%1$s)"
+              .formatted(updatedAtColumn);
     }
-    String updatedAtColumn = quoteIdentifier(schema.updatedAtColumn());
-    return "where excluded.%s is null or %s.%s is null or excluded.%s >= %s.%s".formatted(
-        updatedAtColumn,
-        quoteIdentifier(schema.tableName()),
-        updatedAtColumn,
-        updatedAtColumn,
-        quoteIdentifier(schema.tableName()),
-        updatedAtColumn);
+    String currentValues =
+        sourceColumns.stream()
+            .map(column -> "target." + quoteIdentifier(column))
+            .collect(Collectors.joining(", "));
+    String incomingValues =
+        sourceColumns.stream()
+            .map(column -> "excluded." + quoteIdentifier(column))
+            .collect(Collectors.joining(", "));
+    return "where (target.mirror_deleted = true or %s) "
+        .formatted(recencyGuard)
+        + "and (target.mirror_deleted = true or row(%s) is distinct from row(%s))"
+            .formatted(currentValues, incomingValues);
+  }
+
+  private void validateSourceRows(
+      SourceTableSchema mirrorSchema, List<Map<String, Object>> sourceRows) {
+    List<String> primaryKeys = PrimaryKeySignatureSupport.primaryKeyColumns(mirrorSchema);
+    Set<String> signatures = new HashSet<>();
+    for (Map<String, Object> row : sourceRows) {
+      if (row == null || primaryKeys.stream().anyMatch(primaryKey -> row.get(primaryKey) == null)) {
+        throw new IllegalArgumentException("来源批次包含缺少主键的行：" + mirrorSchema.tableName());
+      }
+      String signature = PrimaryKeySignatureSupport.signature(primaryKeys, row);
+      if (!signatures.add(signature)) {
+        throw new IllegalArgumentException("来源批次包含重复主键：" + mirrorSchema.tableName());
+      }
+    }
+  }
+
+  private List<Map<String, Object>> listRowsByPrimaryKeys(
+      SourceTableSchema mirrorSchema, List<Map<String, Object>> primaryKeyRows) {
+    if (primaryKeyRows.isEmpty()) {
+      return List.of();
+    }
+    List<String> primaryKeys = PrimaryKeySignatureSupport.primaryKeyColumns(mirrorSchema);
+    String sql = """
+        select %s
+          from %s target
+          join %s
+            on %s
+         where target.mirror_deleted = false
+        """.formatted(
+        mirrorSchema.columns().stream()
+            .map(SourceTableColumn::columnName)
+            .map(column -> "target." + quoteIdentifier(column))
+            .collect(Collectors.joining(", ")),
+        quoteIdentifier(mirrorSchema.tableName()),
+        buildTypedValuesRelation(mirrorSchema, primaryKeys, primaryKeyRows.size()),
+        primaryKeys.stream()
+            .map(
+                primaryKey ->
+                    "target." + quoteIdentifier(primaryKey)
+                        + " = source_keys." + quoteIdentifier(primaryKey))
+            .collect(Collectors.joining(" and ")));
+    List<Object> args = new ArrayList<>();
+    addPrimaryKeyArguments(primaryKeys, primaryKeyRows, args);
+    return jdbcTemplate.queryForList(sql, args.toArray());
+  }
+
+  private String buildTypedValuesRelation(
+      SourceTableSchema schema, List<String> primaryKeys, int rowCount) {
+    String rowTemplate =
+        primaryKeys.stream()
+            .map(primaryKey -> "?::" + columnType(schema, primaryKey))
+            .collect(Collectors.joining(", ", "(", ")"));
+    String values =
+        java.util.Collections.nCopies(rowCount, rowTemplate).stream()
+            .collect(Collectors.joining(", "));
+    String columns =
+        primaryKeys.stream().map(this::quoteIdentifier).collect(Collectors.joining(", "));
+    return "(values " + values + ") as source_keys(" + columns + ")";
+  }
+
+  private void addPrimaryKeyArguments(
+      List<String> primaryKeys,
+      List<Map<String, Object>> primaryKeyRows,
+      List<Object> arguments) {
+    for (Map<String, Object> row : primaryKeyRows) {
+      for (String primaryKey : primaryKeys) {
+        arguments.add(row.get(primaryKey));
+      }
+    }
+  }
+
+  private Map<String, Map<String, Object>> indexByPrimaryKey(
+      SourceTableSchema mirrorSchema, List<Map<String, Object>> rows) {
+    Map<String, Map<String, Object>> indexed = new java.util.LinkedHashMap<>();
+    for (Map<String, Object> row : rows) {
+      indexed.put(primaryKeySignature(mirrorSchema, row), sourceColumnsOnly(mirrorSchema, row));
+    }
+    return Map.copyOf(indexed);
+  }
+
+  private String primaryKeySignature(
+      SourceTableSchema mirrorSchema, Map<String, Object> row) {
+    return PrimaryKeySignatureSupport.signature(
+        PrimaryKeySignatureSupport.primaryKeyColumns(mirrorSchema), row);
+  }
+
+  private Map<String, Object> sourceColumnsOnly(
+      SourceTableSchema mirrorSchema, Map<String, Object> row) {
+    Map<String, Object> sourceRow = new java.util.LinkedHashMap<>();
+    for (SourceTableColumn column : mirrorSchema.columns()) {
+      sourceRow.put(column.columnName(), row.get(column.columnName()));
+    }
+    return java.util.Collections.unmodifiableMap(sourceRow);
   }
 
   private String quoteIdentifier(String identifier) {

@@ -66,8 +66,7 @@ class IntegrationTestFactPipelineTest {
             + "where noteable_id = 9001");
 
     FactBuildResponse response =
-        factBuildService.rebuildFactsByTargets(
-            "default", List.of(new FactRefreshImpactScopeService.Target(9L, 101L)));
+        factBuildService.rebuildFactsByRootIds("default", List.of(9001L));
 
     assertThat(response.affectedRows()).isZero();
     assertThat(

@@ -39,7 +39,7 @@ public class SyncRuntimeConfigGuard {
                  and source_instance = ?
                  and run_type in (
                    'FULL_SYNC', 'INCREMENTAL_SYNC', 'TABLE_REFRESH', 'SYSTEM_HOOK',
-                   'COMPENSATION_SCAN', 'FULL_COMPENSATION_SCAN'
+                   'FULL_COMPENSATION_SCAN'
                  )
                  and status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'PAUSED', 'CANCELLING')
             )

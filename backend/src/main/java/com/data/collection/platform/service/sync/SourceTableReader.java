@@ -56,6 +56,15 @@ public class SourceTableReader {
     return externalDbService.preciseScan(config, option, lookupScope);
   }
 
+  /** 批量读取一组同构权威范围，缺失范围保留为空集合。 */
+  public Map<Long, List<Map<String, Object>>> readAuthoritativeScopes(
+      GitlabSyncConfig config,
+      TableWhitelistOption option,
+      SourceTableSchema schema,
+      Map<Long, Map<String, Object>> lookupScopes) {
+    return externalDbService.authoritativeScopeScan(config, option, schema, lookupScopes);
+  }
+
   public LocalDateTime findMaxUpdatedAt(GitlabSyncConfig config, TableWhitelistOption option) {
     return externalDbService.findMaxUpdatedAt(config, option);
   }
@@ -67,7 +76,9 @@ public class SourceTableReader {
   public Set<String> findExistingPrimaryKeySignatures(
       GitlabSyncConfig config,
       TableWhitelistOption option,
+      SourceTableSchema schema,
       List<Map<String, Object>> primaryKeyRows) {
-    return externalDbService.findExistingPrimaryKeySignatures(config, option, primaryKeyRows);
+    return externalDbService.findExistingPrimaryKeySignatures(
+        config, option, schema, primaryKeyRows);
   }
 }

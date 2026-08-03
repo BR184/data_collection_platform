@@ -33,11 +33,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -238,11 +239,15 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
   }
 
   @Override
-  public void refreshSnapshots(StatisticBoardSnapshotRefresher.RefreshContext context) {
-    if (!context.affectsIssues()) {
+  public void refreshSnapshots(com.data.collection.platform.entity.FactPublicationContext context) {
+    Set<String> affectedMilestones = new LinkedHashSet<>(milestoneCatalogService.listMilestones(context));
+    if (affectedMilestones.isEmpty()) {
       return;
     }
-    List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
+    List<StatisticFilterOption> milestoneOptions =
+        loadMilestoneOptions().stream()
+            .filter(option -> affectedMilestones.contains(option.value()))
+            .toList();
     for (StatisticFilterGroup filterGroup :
         CustomerIssueSqlScopeSupport.milestoneFilterGroups(milestoneOptions, 3)) {
       StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
@@ -262,6 +267,9 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
         BOARD_KEY,
         RULE_VERSION,
         "project=325;milestone=" + (StringUtils.hasText(selectedMilestone) ? selectedMilestone : "none"),
+        325L,
+        com.data.collection.platform.service.IssueScopeDimension.MILESTONE,
+        selectedMilestone,
         filters,
         definition,
         effectiveFilterGroup);

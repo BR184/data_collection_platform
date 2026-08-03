@@ -2,15 +2,11 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
-import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 
 @Service
 public class IssueFactRealtimeRefreshService {
-  private static final List<String> REALTIME_REFRESH_TABLES =
-      List.of("issues", "projects", "users", "label_links", "resource_label_events", "labels", "notes");
-
   private final RealtimeWorkspaceService realtimeWorkspaceService;
   private final RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;
 
@@ -34,7 +30,8 @@ public class IssueFactRealtimeRefreshService {
         workspaceKey,
         () -> {
           RealtimeWorkspaceRefreshResult result =
-              realtimeIncrementalRefreshService.requestIncrementalRefresh(workspaceKey, REALTIME_REFRESH_TABLES);
+              realtimeIncrementalRefreshService.requestIncrementalRefresh(
+                  com.data.collection.platform.entity.WorkspaceRefreshRequest.global(workspaceKey));
           return result;
         });
   }

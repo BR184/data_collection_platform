@@ -116,7 +116,7 @@ export function syncLogMessage(log: SyncRunLog) {
       if (log.runType === 'FULL_COMPENSATION_SCAN') {
         return '全量补偿对账。';
       }
-      return '自动补偿扫描。';
+      return '全量补偿对账。';
     case 'FULL':
       return '全量校验或初始化同步。';
     case 'PURGE':

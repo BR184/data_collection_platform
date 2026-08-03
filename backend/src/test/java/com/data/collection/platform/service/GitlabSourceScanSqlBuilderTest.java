@@ -10,7 +10,6 @@ import com.data.collection.platform.entity.TableWhitelistOption;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -97,21 +96,6 @@ class GitlabSourceScanSqlBuilderTest {
         .contains("and (\"id\") > ('90000'::bigint)")
         .contains("order by \"id\" asc limit 500")
         .doesNotContain("md5", "concat_ws", "offset");
-  }
-
-  @Test
-  void shouldBuildIndexFriendlyExistingPrimaryKeysSqlForCompositeKeys() {
-    TableWhitelistOption option = option(
-        "label_links", "label_id,target_id,target_type", null, SourceCursorStrategy.NONE);
-
-    String sql = builder.buildExistingPrimaryKeysSql(
-        option,
-        List.of("label_id", "target_id", "target_type"),
-        List.of(Map.of("label_id", "1", "target_id", "101", "target_type", "Issue")));
-
-    assertThat(sql)
-        .contains("where (\"label_id\" = '1' and \"target_id\" = '101' and \"target_type\" = 'Issue')")
-        .doesNotContain("\"label_id\"::text =", "\"target_id\"::text =");
   }
 
   @Test

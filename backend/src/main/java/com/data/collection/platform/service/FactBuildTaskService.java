@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.FactBuildTaskResponse;
+import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
 import com.data.collection.platform.common.exception.BizException;
@@ -19,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Slf4j
@@ -26,14 +28,15 @@ public class FactBuildTaskService {
   static final String BUSY_MESSAGE = "已有事实构建任务正在执行，请稍后再试";
   private static final long FACT_BUILD_LOCK_KEY = 2026043001L;
   private static final String STATUS_RUNNING = "RUNNING";
-  private static final String STATUS_PENDING = "PENDING";
+  private static final String STATUS_QUEUED = "QUEUED";
+  private static final String STATUS_RETRY_WAITING = "RETRY_WAITING";
   private static final String STATUS_SUCCESS = "SUCCESS";
   private static final String STATUS_FAILED = "FAILED";
-  private static final String STATUS_TIMEOUT = "TIMEOUT";
   private static final String STATUS_SKIPPED = "SKIPPED";
   private static final String TRIGGER_MANUAL = "MANUAL";
   private static final String TRIGGER_MIRROR_SYNC = "MIRROR_SYNC";
   private static final int DEFAULT_MAX_RETRY_COUNT = 3;
+  private static final int MAX_ASSIGNMENT_TASKS_PER_PASS = 8;
 
   private final JdbcTemplate jdbcTemplate;
   private final DataSource dataSource;
@@ -106,7 +109,7 @@ public class FactBuildTaskService {
    * @param factRunId 所属 {@code FACT_REFRESH} 运行 ID
    * @return 实际新建的任务数
    */
-  public int enqueueFactRefreshTasks(GitlabSyncConfig config, boolean full, Long factRunId) {
+  public int enqueueFullFactRefreshTasks(GitlabSyncConfig config, Long factRunId) {
     if (config == null || config.getId() == null) {
       return 0;
     }
@@ -115,17 +118,179 @@ public class FactBuildTaskService {
     }
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     int queued = 0;
-    List<String> supportedFactTypes = GitlabFactRefreshRequirements.supportedFactTypes(config);
-    if (supportedFactTypes.contains(GitlabFactRefreshRequirements.FACT_TYPE_ISSUE)) {
-      queued += enqueueFactRefreshTask(config.getId(), sourceInstance, "ISSUE", full, factRunId);
-    }
-    if (supportedFactTypes.contains(GitlabFactRefreshRequirements.FACT_TYPE_MERGE_REQUEST)) {
-      queued += enqueueFactRefreshTask(config.getId(), sourceInstance, "MERGE_REQUEST", full, factRunId);
-    }
-    if (supportedFactTypes.contains(GitlabFactRefreshRequirements.FACT_TYPE_INTEGRATION_TEST)) {
-      queued += enqueueFactRefreshTask(config.getId(), sourceInstance, "INTEGRATION_TEST", full, factRunId);
+    List<FactType> supportedFactTypes = GitlabFactDependencyCatalog.supportedFactTypes(config);
+    for (FactType factType : supportedFactTypes) {
+      queued += enqueueFactRefreshTask(
+          config.getId(), sourceInstance, factType.name(), factRunId);
     }
     return queued;
+  }
+
+  /**
+   * 把镜像运行尚未发布的版本化目标分配为有界事实任务。
+   *
+   * <p>一个任务只对应一个事实类型的一个根 ID 批次，不创建任务内游标。已由其他交错运行覆盖的
+   * 目标直接按版本头结算为已发布。
+   */
+  @Transactional
+  public int assignPendingTargetBatches(
+      GitlabSyncConfig config,
+      Long factRunId,
+      Long mirrorRunId,
+      int requestedBatchSize) {
+    if (config == null || config.getId() == null || factRunId == null || mirrorRunId == null) {
+      throw new IllegalArgumentException("目标事实任务必须包含配置、事实运行和镜像运行");
+    }
+    int batchSize = Math.max(1, Math.min(1000, requestedBatchSize));
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    int assignedTasks = 0;
+    for (FactType factType : GitlabFactDependencyCatalog.supportedFactTypes(config)) {
+      settleCoveredTargets(mirrorRunId, sourceInstance, factType);
+      List<Long> rootIds;
+      while (assignedTasks < MAX_ASSIGNMENT_TASKS_PER_PASS
+          && !(rootIds = lockPendingRootIds(
+              mirrorRunId, sourceInstance, factType, batchSize)).isEmpty()) {
+        Long taskId = insertTargetBatchTask(
+            config.getId(), sourceInstance, factType, factRunId);
+        int assigned = assignRoots(
+            mirrorRunId, sourceInstance, factType, factRunId, taskId, rootIds);
+        if (assigned != rootIds.size()) {
+          throw new IllegalStateException("事实目标批次归属发生并发变化");
+        }
+        assignedTasks++;
+      }
+    }
+    return assignedTasks;
+  }
+
+  /** 返回领取时仍归属当前事实任务的稳定根 ID。 */
+  public List<Long> loadAssignedRootIds(QueuedFactBuildTask task) {
+    if (task == null || task.id() == null) {
+      return List.of();
+    }
+    return jdbcTemplate.queryForList(
+        """
+        select target.root_id
+          from sync_run_fact_targets target
+          join fact_change_heads head
+            on head.source_instance = target.source_instance
+           and head.fact_type = target.fact_type
+           and head.root_id = target.root_id
+         where target.assigned_fact_build_task_id = ?
+           and target.assigned_fact_run_id = ?
+           and target.source_instance = ?
+           and target.fact_type = ?
+           and target.publication_status = 'QUEUED'
+           and head.published_version < target.change_version
+         order by target.root_id
+        """,
+        Long.class,
+        task.id(),
+        task.factRunId(),
+        task.sourceInstance(),
+        task.factType());
+  }
+
+  private void settleCoveredTargets(
+      Long mirrorRunId, String sourceInstance, FactType factType) {
+    jdbcTemplate.update(
+        """
+        update sync_run_fact_targets target
+           set publication_status = 'PUBLISHED',
+               published_version = head.published_version,
+               published_by_fact_build_task_id = head.published_by_fact_build_task_id,
+               published_at = current_timestamp,
+               updated_at = current_timestamp
+          from fact_change_heads head
+         where target.mirror_run_id = ?
+           and target.source_instance = ?
+           and target.fact_type = ?
+           and target.publication_status <> 'PUBLISHED'
+           and head.source_instance = target.source_instance
+           and head.fact_type = target.fact_type
+           and head.root_id = target.root_id
+           and head.published_version >= target.change_version
+        """,
+        mirrorRunId,
+        sourceInstance,
+        factType.name());
+  }
+
+  private List<Long> lockPendingRootIds(
+      Long mirrorRunId, String sourceInstance, FactType factType, int batchSize) {
+    return jdbcTemplate.queryForList(
+        """
+        select root_id
+          from sync_run_fact_targets
+         where mirror_run_id = ?
+           and source_instance = ?
+           and fact_type = ?
+           and publication_status = 'PENDING'
+           and assigned_fact_build_task_id is null
+         order by root_id
+         for update skip locked
+         limit ?
+        """,
+        Long.class,
+        mirrorRunId,
+        sourceInstance,
+        factType.name(),
+        batchSize);
+  }
+
+  private Long insertTargetBatchTask(
+      Long configId, String sourceInstance, FactType factType, Long factRunId) {
+    return jdbcTemplate.queryForObject(
+        """
+        insert into fact_build_tasks(
+          run_id, scope, config_id, source_instance, fact_type, full_build,
+          status, trigger_type, retry_count, max_retry_count, run_after,
+          created_at, updated_at)
+        values (?, ?, ?, ?, ?, false, ?, ?, 0, ?, current_timestamp,
+                current_timestamp, current_timestamp)
+        returning id
+        """,
+        Long.class,
+        String.valueOf(factRunId),
+        factScope(factType.name(), sourceInstance) + "-target-batch",
+        configId,
+        sourceInstance,
+        factType.name(),
+        STATUS_QUEUED,
+        TRIGGER_MIRROR_SYNC,
+        DEFAULT_MAX_RETRY_COUNT);
+  }
+
+  private int assignRoots(
+      Long mirrorRunId,
+      String sourceInstance,
+      FactType factType,
+      Long factRunId,
+      Long taskId,
+      List<Long> rootIds) {
+    String placeholders = String.join(", ", java.util.Collections.nCopies(rootIds.size(), "?"));
+    List<Object> args = new java.util.ArrayList<>(5 + rootIds.size());
+    args.add(factRunId);
+    args.add(taskId);
+    args.add(mirrorRunId);
+    args.add(sourceInstance);
+    args.add(factType.name());
+    args.addAll(rootIds);
+    return jdbcTemplate.update(
+        """
+        update sync_run_fact_targets
+           set publication_status = 'QUEUED',
+               assigned_fact_run_id = ?,
+               assigned_fact_build_task_id = ?,
+               updated_at = current_timestamp
+         where mirror_run_id = ?
+           and source_instance = ?
+           and fact_type = ?
+           and publication_status = 'PENDING'
+           and assigned_fact_build_task_id is null
+           and root_id in (%s)
+        """.formatted(placeholders),
+        args.toArray());
   }
 
   public int recoverTimedOutQueuedTasks() {
@@ -152,7 +317,7 @@ public class FactBuildTaskService {
                 and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'PAUSED', 'CANCELLING')
            )
         """,
-        STATUS_PENDING,
+        STATUS_RETRY_WAITING,
         TRIGGER_MIRROR_SYNC,
         STATUS_RUNNING);
     int timedOut = jdbcTemplate.update(
@@ -174,7 +339,7 @@ public class FactBuildTaskService {
                 and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'PAUSED', 'CANCELLING')
            )
         """,
-        STATUS_TIMEOUT,
+        STATUS_FAILED,
         TRIGGER_MIRROR_SYNC,
         STATUS_RUNNING);
     return retried + timedOut;
@@ -193,7 +358,7 @@ public class FactBuildTaskService {
          where id = (
            select id
              from fact_build_tasks
-            where status = ?
+            where status in (?, ?)
               and trigger_type = ?
               and run_after <= current_timestamp
               and not exists (
@@ -213,7 +378,8 @@ public class FactBuildTaskService {
         STATUS_RUNNING,
         owner,
         Math.max(1, leaseSeconds),
-        STATUS_PENDING,
+        STATUS_QUEUED,
+        STATUS_RETRY_WAITING,
         TRIGGER_MIRROR_SYNC);
     return tasks.isEmpty() ? null : tasks.getFirst();
   }
@@ -243,7 +409,7 @@ public class FactBuildTaskService {
          where id = (
            select id
              from fact_build_tasks
-            where status = ?
+            where status in (?, ?)
               and trigger_type = ?
               and run_id = ?
               and run_after <= current_timestamp
@@ -257,14 +423,123 @@ public class FactBuildTaskService {
         STATUS_RUNNING,
         owner,
         Math.max(1, leaseSeconds),
-        STATUS_PENDING,
+        STATUS_QUEUED,
+        STATUS_RETRY_WAITING,
         TRIGGER_MIRROR_SYNC,
         String.valueOf(factRunId));
     return tasks.isEmpty() ? null : tasks.getFirst();
   }
 
-  public void finishQueuedTask(Long taskId, String status, int affectedRows, String message, String errorMessage) {
-    finishTask(taskId, status, affectedRows, message, errorMessage);
+  /**
+   * 按 owner fencing 记录一次事实任务失败，并在未达到上限时安排指数退避重试。
+   *
+   * @return 新任务状态和下次可执行时间
+   */
+  @Transactional
+  public FailureDisposition failOwnedTask(QueuedFactBuildTask task, String errorMessage) {
+    if (task == null || task.id() == null || task.leaseOwner() == null) {
+      throw new IllegalArgumentException("事实任务失败处理需要任务 ID 和租约 owner");
+    }
+    List<FailureDisposition> result =
+        jdbcTemplate.query(
+            """
+            update fact_build_tasks
+               set retry_count = retry_count + 1,
+                   status = case
+                       when retry_count + 1 < max_retry_count then 'RETRY_WAITING'
+                       else 'FAILED'
+                     end,
+                   run_after = case
+                       when retry_count + 1 < max_retry_count
+                         then current_timestamp
+                              + (power(2, least(retry_count, 6)) * interval '1 second')
+                       else run_after
+                     end,
+                   message = case
+                       when retry_count + 1 < max_retry_count then '事实刷新失败，等待重试'
+                       else '事实刷新达到自动重试上限'
+                     end,
+                   error_message = ?,
+                   lock_owner = null,
+                   heartbeat_at = null,
+                   lease_until = null,
+                   finished_at = case
+                       when retry_count + 1 < max_retry_count then null
+                       else current_timestamp
+                     end,
+                   updated_at = current_timestamp
+             where id = ?
+               and status = 'RUNNING'
+               and lock_owner = ?
+             returning status, run_after
+            """,
+            (resultSet, rowNum) ->
+                new FailureDisposition(
+                    resultSet.getString("status"),
+                    toLocalDateTime(resultSet.getTimestamp("run_after"))),
+            errorMessage,
+            task.id(),
+            task.leaseOwner());
+    if (result.size() != 1) {
+      throw new IllegalStateException("事实任务租约已失效：" + task.id());
+    }
+    return result.getFirst();
+  }
+
+  /** 汇总一个 FACT_REFRESH 运行下的事实批次状态。 */
+  public RunTaskSummary summarizeFactRun(Long factRunId) {
+    if (factRunId == null) {
+      return RunTaskSummary.empty();
+    }
+    return jdbcTemplate.queryForObject(
+        """
+        select count(*) as total_tasks,
+               count(*) filter (where status = 'SUCCESS') as success_tasks,
+               count(*) filter (where status = 'FAILED') as failed_tasks,
+               count(*) filter (where status = 'QUEUED') as queued_tasks,
+               count(*) filter (where status = 'RUNNING') as running_tasks,
+               count(*) filter (where status = 'RETRY_WAITING') as retry_waiting_tasks,
+               min(run_after) filter (where status = 'RETRY_WAITING') as next_run_after,
+               coalesce(sum(affected_rows) filter (where status = 'SUCCESS'), 0) as affected_rows
+          from fact_build_tasks
+         where run_id = ? and trigger_type = ?
+        """,
+        (resultSet, rowNum) ->
+            new RunTaskSummary(
+                resultSet.getInt("total_tasks"),
+                resultSet.getInt("success_tasks"),
+                resultSet.getInt("failed_tasks"),
+                resultSet.getInt("queued_tasks"),
+                resultSet.getInt("running_tasks"),
+                resultSet.getInt("retry_waiting_tasks"),
+                toLocalDateTime(resultSet.getTimestamp("next_run_after")),
+                resultSet.getLong("affected_rows")),
+        String.valueOf(factRunId),
+        TRIGGER_MIRROR_SYNC);
+  }
+
+  /** 判断镜像运行是否仍有尚未被版本头覆盖的持久目标。 */
+  public boolean hasUnpublishedTargets(Long mirrorRunId) {
+    if (mirrorRunId == null) {
+      return false;
+    }
+    Boolean exists =
+        jdbcTemplate.queryForObject(
+            """
+            select exists(
+              select 1
+                from sync_run_fact_targets target
+                join fact_change_heads head
+                  on head.source_instance = target.source_instance
+                 and head.fact_type = target.fact_type
+                 and head.root_id = target.root_id
+               where target.mirror_run_id = ?
+                 and head.published_version < target.change_version
+            )
+            """,
+            Boolean.class,
+            mirrorRunId);
+    return Boolean.TRUE.equals(exists);
   }
 
   public void markQueuedTaskFullBuild(Long taskId) {
@@ -354,7 +629,6 @@ public class FactBuildTaskService {
       Long configId,
       String sourceInstance,
       String factType,
-      boolean full,
       Long factRunId) {
     String scope = factScope(factType, sourceInstance);
     return insertFactRefreshTask(
@@ -362,7 +636,6 @@ public class FactBuildTaskService {
         sourceInstance,
         factType,
         scope,
-        full,
         factRunId);
   }
 
@@ -371,7 +644,6 @@ public class FactBuildTaskService {
       String sourceInstance,
       String factType,
       String scope,
-      boolean full,
       Long factRunId) {
     return jdbcTemplate.update(
         """
@@ -379,14 +651,13 @@ public class FactBuildTaskService {
           run_id, scope, config_id, source_instance, fact_type, full_build, status, trigger_type,
           retry_count, max_retry_count, run_after, created_at, updated_at
         )
-        select ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, current_timestamp, current_timestamp, current_timestamp
+        select ?, ?, ?, ?, ?, true, ?, ?, 0, ?, current_timestamp, current_timestamp, current_timestamp
         where not exists (
           select 1
             from fact_build_tasks
            where run_id = ?
              and fact_type = ?
              and trigger_type = ?
-             and status in (?, ?)
         )
         """,
         String.valueOf(factRunId),
@@ -394,15 +665,12 @@ public class FactBuildTaskService {
         configId,
         sourceInstance,
         factType,
-        full,
-        STATUS_PENDING,
+        STATUS_QUEUED,
         TRIGGER_MIRROR_SYNC,
         DEFAULT_MAX_RETRY_COUNT,
         String.valueOf(factRunId),
         factType,
-        TRIGGER_MIRROR_SYNC,
-        STATUS_PENDING,
-        STATUS_RUNNING);
+        TRIGGER_MIRROR_SYNC);
   }
 
   private void recordSkipped(String scope, boolean full, Long syncRunId, String message) {
@@ -456,6 +724,7 @@ public class FactBuildTaskService {
         rs.getBoolean("full_build"),
         rs.getInt("retry_count"),
         rs.getInt("max_retry_count"),
+        rs.getString("lock_owner"),
         toLocalDateTime(rs.getTimestamp("lease_until")));
   }
 
@@ -508,6 +777,34 @@ public class FactBuildTaskService {
 
   private LocalDateTime toLocalDateTime(Timestamp timestamp) {
     return timestamp == null ? null : timestamp.toLocalDateTime();
+  }
+
+  public record FailureDisposition(String status, LocalDateTime runAfter) {
+    public boolean retryWaiting() {
+      return STATUS_RETRY_WAITING.equals(status);
+    }
+
+    public boolean failed() {
+      return STATUS_FAILED.equals(status);
+    }
+  }
+
+  public record RunTaskSummary(
+      int totalTasks,
+      int successTasks,
+      int failedTasks,
+      int queuedTasks,
+      int runningTasks,
+      int retryWaitingTasks,
+      LocalDateTime nextRunAfter,
+      long affectedRows) {
+    private static RunTaskSummary empty() {
+      return new RunTaskSummary(0, 0, 0, 0, 0, 0, null, 0L);
+    }
+
+    public boolean hasActiveTasks() {
+      return queuedTasks > 0 || runningTasks > 0 || retryWaitingTasks > 0;
+    }
   }
 
   private String normalizeScope(String scope) {

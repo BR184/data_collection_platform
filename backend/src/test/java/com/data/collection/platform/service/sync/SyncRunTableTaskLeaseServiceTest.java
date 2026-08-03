@@ -127,6 +127,32 @@ class SyncRunTableTaskLeaseServiceTest {
   }
 
   @Test
+  void shouldRequeueReconciliationOnSameTaskAndAccumulatePageCounters() {
+    when(jdbcTemplate.update(
+            contains("page_number = page_number + 1"),
+            eq("[\"200\"]"),
+            eq(500L),
+            eq(2L),
+            eq(501L),
+            eq("owner-1")))
+        .thenReturn(1);
+
+    boolean requeued =
+        leaseService.requeueOwnedReconciliationTask(
+            501L, "owner-1", "[\"200\"]", 500L, 2L);
+
+    assertThat(requeued).isTrue();
+    verify(jdbcTemplate)
+        .update(
+            contains("rows_scanned = rows_scanned + ?"),
+            eq("[\"200\"]"),
+            eq(500L),
+            eq(2L),
+            eq(501L),
+            eq("owner-1"));
+  }
+
+  @Test
   void shouldRenewOnlyLeaseOwnedByCurrentWorker() {
     when(jdbcTemplate.update(
             contains("heartbeat_at = current_timestamp"),

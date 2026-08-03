@@ -39,6 +39,7 @@ public class SyncRunTablePlanningService {
   private final GitlabConfigService configService;
   private final GitlabWhitelistService whitelistService;
   private final GitlabMirrorProperties mirrorProperties;
+  private final SyncRunAuthoritativeScopePlanner authoritativeScopePlanner;
 
   public SyncRunTablePlanningService(
       SyncRunMapper syncRunMapper,
@@ -47,7 +48,8 @@ public class SyncRunTablePlanningService {
       JsonUtils jsonUtils,
       GitlabConfigService configService,
       GitlabWhitelistService whitelistService,
-      GitlabMirrorProperties mirrorProperties) {
+      GitlabMirrorProperties mirrorProperties,
+      SyncRunAuthoritativeScopePlanner authoritativeScopePlanner) {
     this.syncRunMapper = syncRunMapper;
     this.stateMapper = stateMapper;
     this.taskMapper = taskMapper;
@@ -55,6 +57,7 @@ public class SyncRunTablePlanningService {
     this.configService = configService;
     this.whitelistService = whitelistService;
     this.mirrorProperties = mirrorProperties;
+    this.authoritativeScopePlanner = authoritativeScopePlanner;
   }
 
   public int planRunTables(Long runId) {
@@ -68,13 +71,6 @@ public class SyncRunTablePlanningService {
     List<SyncRunPayload.PreciseTarget> preciseTargets = payload.runnablePreciseTargets();
     if (run.getRunType() == SyncRunType.SYSTEM_HOOK && !preciseTargets.isEmpty()) {
       return planPreciseTargets(run, preciseTargets, existingTaskKeys);
-    }
-    if (run.getRunType() == SyncRunType.COMPENSATION_SCAN && sourceTables.isEmpty()) {
-      int existingTaskCount = existingTaskKeys.size();
-      int plannedFromStates = planCompensationFromExistingStates(run, existingTaskKeys);
-      if (plannedFromStates > existingTaskCount) {
-        return plannedFromStates;
-      }
     }
     if (shouldPlanFromWhitelist(run, sourceTables)) {
       return planWhitelistTables(run, sourceTables, existingTaskKeys);
@@ -94,84 +90,12 @@ public class SyncRunTablePlanningService {
     return planned;
   }
 
-  /**
-   * 根据增量父表实际返回的行，为无更新时间的关系表派生按父资源范围执行的精确任务。
-   * 关系定义是显式白名单；未声明的表、非增量任务和未启用的目标表均不会受到影响。
-   *
-   * @param parentTask 已完成来源读取和镜像写入的父表任务
-   * @param sourceRows 父表本批次从来源读取的完整行
-   * @return 本次新建的关系范围任务数
-   */
-  public int planAuthoritativeRelatedTasks(
-      SyncRunTableTask parentTask, List<Map<String, Object>> sourceRows) {
-    if (parentTask == null
-        || !"INCREMENTAL".equalsIgnoreCase(parentTask.getRowStrategy())
-        || sourceRows == null
-        || sourceRows.isEmpty()) {
-      return 0;
-    }
-    String parentTable =
-        GitlabSourceInstanceSupport.normalizeSourceTableName(parentTask.getSourceTable());
-    List<AuthoritativeRelationCatalog.Relation> relations =
-        AuthoritativeRelationCatalog.relationsForParent(parentTable);
-    if (relations.isEmpty()) {
-      return 0;
-    }
-    SyncRun run = syncRunMapper.selectById(parentTask.getRunId());
-    if (run == null) {
-      throw new BizException("派生关系任务时找不到父同步运行：" + parentTask.getRunId());
-    }
-    GitlabSyncConfig config = configService.getConfigById(parentTask.getConfigId());
-    ensureSourceConfigured(config);
-    Map<String, TableWhitelistOption> optionsByTable = whitelistService.resolveOptions(config).stream()
-        .collect(Collectors.toMap(
-            option -> GitlabSourceInstanceSupport.normalizeSourceTableName(option.tableName()),
-            option -> option,
-            (first, ignored) -> first));
-    Set<String> existingTaskKeys = existingTaskKeys(parentTask.getRunId());
-    LocalDateTime now = LocalDateTime.now();
-    int planned = 0;
-    for (AuthoritativeRelationCatalog.Relation relation : relations) {
-      TableWhitelistOption option = optionsByTable.get(relation.childTable());
-      if (option == null || isBlank(option.primaryKey())) {
-        continue;
-      }
-      SyncRunTableState state = upsertState(run, config, option, now);
-      Map<String, Map<String, Object>> scopes = sourceRows.stream()
-          .map(relation::scopeForParentRow)
-          .filter(scope -> !scope.isEmpty())
-          .collect(Collectors.toMap(
-              this::scopeSignature,
-              scope -> scope,
-              (first, ignored) -> first,
-              java.util.LinkedHashMap::new));
-      for (Map<String, Object> scope : scopes.values()) {
-        String scopeJson = jsonUtils.toJson(new java.util.TreeMap<>(scope));
-        String key = taskKey(state.getSourceTable(), scopeSignature(scope));
-        if (existingTaskKeys.contains(key)) {
-          continue;
-        }
-        SyncRunTableTask task = createTask(run, state, INITIAL_WATERMARK, now);
-        task.setRowStrategy("AUTHORITATIVE");
-        task.setCursorUpdatedAt(null);
-        task.setCursorPk(null);
-        task.setLookupScopeJson(scopeJson);
-        task.setParentTaskId(parentTask.getId());
-        taskMapper.insert(task);
-        existingTaskKeys.add(key);
-        planned++;
-      }
-    }
-    return planned;
-  }
-
   private boolean shouldPlanFromWhitelist(SyncRun run, List<String> sourceTables) {
     if (run.getRunType() == SyncRunType.FULL_SYNC || run.getRunType() == SyncRunType.INCREMENTAL_SYNC) {
       return true;
     }
     return sourceTables.isEmpty()
-        && (run.getRunType() == SyncRunType.COMPENSATION_SCAN
-            || run.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN
+        && (run.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN
             || run.getRunType() == SyncRunType.SYSTEM_HOOK);
   }
 
@@ -187,9 +111,8 @@ public class SyncRunTablePlanningService {
     }
     LocalDateTime now = LocalDateTime.now();
     int planned = existingTaskKeys.size();
-    boolean fullSync = isFullTableRun(run);
     for (TableWhitelistOption option : options) {
-      if (!isRunnableForRun(fullSync, option)) {
+      if (!isRunnableForRun(option)) {
         log.info("Skipped table without runnable key columns, runId={}, sourceTable={}", run.getId(), option.tableName());
         continue;
       }
@@ -202,33 +125,6 @@ public class SyncRunTablePlanningService {
       existingTaskKeys.add(taskKey(state.getSourceTable(), ""));
     }
     log.info("Planned {} whitelist table tasks for run {}", planned, run.getId());
-    return planned;
-  }
-
-  private int planCompensationFromExistingStates(SyncRun run, Set<String> existingTaskKeys) {
-    List<SyncRunTableState> states =
-        stateMapper.selectList(
-            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SyncRunTableState>()
-                .eq(SyncRunTableState::getConfigId, run.getConfigId())
-                .eq(SyncRunTableState::getSourceInstance, run.getSourceInstance())
-                .eq(SyncRunTableState::getSyncEnabled, true));
-    if (states == null || states.isEmpty()) {
-      return existingTaskKeys.size();
-    }
-    LocalDateTime now = LocalDateTime.now();
-    int planned = existingTaskKeys.size();
-    for (SyncRunTableState state : states) {
-      if (!isRunnableIncrementalState(state)) {
-        continue;
-      }
-      if (existingTaskKeys.contains(taskKey(state.getSourceTable(), ""))) {
-        continue;
-      }
-      taskMapper.insert(createTask(run, state, resolveTaskWatermark(run, state), now));
-      planned++;
-      existingTaskKeys.add(taskKey(state.getSourceTable(), ""));
-    }
-    log.info("Planned {} compensation table tasks from existing states for run {}", planned, run.getId());
     return planned;
   }
 
@@ -251,18 +147,28 @@ public class SyncRunTablePlanningService {
         log.info("Skipped precise target without runnable lookup, runId={}, sourceTable={}", run.getId(), target.tableName());
         continue;
       }
+      String normalizedTable =
+          GitlabSourceInstanceSupport.normalizeSourceTableName(target.tableName());
+      Map<String, Object> normalizedScope = new java.util.TreeMap<>();
+      lookupScope.forEach(normalizedScope::put);
+      if (GitlabSourceLineageCatalog.isAuthoritativeTarget(normalizedTable, normalizedScope)) {
+        planned +=
+            authoritativeScopePlanner.enqueueDeclaredScope(
+                run.getId(),
+                run.getSourceInstance(),
+                normalizedTable,
+                "system-hook:" + normalizedTable,
+                normalizedScope);
+        continue;
+      }
       SyncRunTableState state = upsertState(run, config, option, now);
-      String scopeJson = jsonUtils.toJson(new java.util.TreeMap<>(lookupScope));
-      String taskKey = taskKey(state.getSourceTable(), scopeSignature(new java.util.TreeMap<>(lookupScope)));
+      String scopeJson = jsonUtils.toJson(new java.util.TreeMap<>(normalizedScope));
+      String taskKey = taskKey(state.getSourceTable(), scopeSignature(normalizedScope));
       if (existingTaskKeys.contains(taskKey)) {
         continue;
       }
       SyncRunTableTask task = createTask(run, state, INITIAL_WATERMARK, now);
-      task.setRowStrategy(
-          AuthoritativeRelationCatalog.isAuthoritativeTarget(
-                  target.tableName(), lookupScope)
-              ? "AUTHORITATIVE"
-              : "PRECISE");
+      task.setRowStrategy("PRECISE");
       task.setCursorUpdatedAt(null);
       task.setCursorPk(null);
       task.setLookupScopeJson(scopeJson);
@@ -281,11 +187,8 @@ public class SyncRunTablePlanningService {
     throw new BizException("GitLab 数据源连接配置不完整，跳过外部元数据发现");
   }
 
-  private boolean isRunnableForRun(boolean fullSync, TableWhitelistOption option) {
-    if (option == null || isBlank(option.primaryKey())) {
-      return false;
-    }
-    return fullSync || !isBlank(option.updatedAtColumn());
+  private boolean isRunnableForRun(TableWhitelistOption option) {
+    return option != null && !isBlank(option.primaryKey());
   }
 
   private SyncRunTableState upsertState(
@@ -345,7 +248,7 @@ public class SyncRunTablePlanningService {
     task.setMirrorTable(state.getMirrorTable());
     task.setTaskType(run.getRunType().name());
     task.setStatus(SyncRunStatus.QUEUED);
-    task.setRowStrategy(rowStrategyForTask(run));
+    task.setRowStrategy(rowStrategyForTask(run, state));
     task.setTaskStage(SyncRunTableTaskStage.SCAN);
     task.setWatermarkAt(watermark);
     task.setScanUpperBoundAt(null);
@@ -374,12 +277,12 @@ public class SyncRunTablePlanningService {
     return state.getLastWatermarkAt().minusMinutes(lookbackMinutes);
   }
 
-  private String rowStrategyForTask(SyncRun run) {
+  private String rowStrategyForTask(SyncRun run, SyncRunTableState state) {
     if (run.getRunType() == SyncRunType.FULL_SYNC
         || run.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN) {
       return "FULL_RECONCILE";
     }
-    return "INCREMENTAL";
+    return isBlank(state.getUpdatedAtColumn()) ? "DELETE_ONLY" : "INCREMENTAL";
   }
 
   private String rowStrategyForState(SyncRun run, TableWhitelistOption option) {
@@ -403,19 +306,10 @@ public class SyncRunTablePlanningService {
     if (isBlank(state.getPrimaryKeyColumns())) {
       throw new BizException("手动刷新表需要已识别的主键列：" + sourceTable);
     }
-    if (isBlank(state.getUpdatedAtColumn())) {
-      throw new BizException("手动刷新表需要 updated_at 列：" + sourceTable);
-    }
-    if (state.getLastWatermarkAt() == null) {
+    if (!isBlank(state.getUpdatedAtColumn()) && state.getLastWatermarkAt() == null) {
       throw new BizException("手动刷新表需要先完成一次全量同步基线：" + sourceTable);
     }
     return state;
-  }
-
-  private boolean isRunnableIncrementalState(SyncRunTableState state) {
-    return state != null
-        && !isBlank(state.getPrimaryKeyColumns())
-        && !isBlank(state.getUpdatedAtColumn());
   }
 
   private boolean isBlank(String value) {

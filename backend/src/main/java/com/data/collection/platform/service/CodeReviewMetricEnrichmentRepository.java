@@ -268,17 +268,25 @@ class CodeReviewMetricEnrichmentRepository {
   List<EnrichedTarget> loadEnrichedTargets(String sourceInstance, int limit) {
     return jdbcTemplate.query(
         """
-        select id, source_instance, project_id, merge_request_iid
-          from code_review_external_metrics
-         where source_instance = ?
-           and enrichment_status = 'ENRICHED'
-         order by id
+        select metric.id,
+               metric.source_instance,
+               metric.project_id,
+               mr.id as merge_request_id,
+               metric.merge_request_iid
+          from code_review_external_metrics metric
+          join ods_gitlab_merge_requests mr
+            on mr.target_project_id = metric.project_id
+           and mr.iid = metric.merge_request_iid
+         where metric.source_instance = ?
+           and metric.enrichment_status = 'ENRICHED'
+         order by metric.id
          limit ?
         """,
         (rs, rowNum) -> new EnrichedTarget(
             rs.getLong("id"),
             rs.getString("source_instance"),
             rs.getLong("project_id"),
+            rs.getLong("merge_request_id"),
             rs.getLong("merge_request_iid")),
         sourceInstance,
         Math.max(1, limit));
@@ -355,7 +363,7 @@ class CodeReviewMetricEnrichmentRepository {
          where source_instance = ?
            and run_type in (
              'FULL_SYNC', 'INCREMENTAL_SYNC', 'TABLE_REFRESH',
-             'COMPENSATION_SCAN', 'FULL_COMPENSATION_SCAN'
+             'FULL_COMPENSATION_SCAN'
            )
            and status in ('SUCCESS', 'PARTIAL_SUCCESS')
         on conflict (source_instance) do nothing
@@ -389,7 +397,7 @@ class CodeReviewMetricEnrichmentRepository {
            and source_instance = ?
            and run_type in (
              'FULL_SYNC', 'INCREMENTAL_SYNC', 'TABLE_REFRESH',
-             'COMPENSATION_SCAN', 'FULL_COMPENSATION_SCAN'
+             'FULL_COMPENSATION_SCAN'
            )
            and status in ('SUCCESS', 'PARTIAL_SUCCESS')
          order by id
@@ -426,7 +434,11 @@ class CodeReviewMetricEnrichmentRepository {
       int attempts) {}
 
   record EnrichedTarget(
-      Long id, String sourceInstance, Long projectId, Long mergeRequestIid) {}
+      Long id,
+      String sourceInstance,
+      Long projectId,
+      Long mergeRequestId,
+      Long mergeRequestIid) {}
 
   private record EnrichmentState(
       long lastProcessedSyncRunId,

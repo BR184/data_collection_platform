@@ -36,15 +36,6 @@ final class IssueClassificationRules {
       Map.entry("未识别的前后置任务", List.of("未识别的前后置任务")),
       Map.entry("精度导致约束求解异常", List.of("精度导致约束求解异常")),
       Map.entry("精度导致算法执行异常", List.of("精度导致算法执行异常")));
-  static final Map<String, List<String>> DELAY_REASON_TOKENS = IssueRuleSupport.ordered(
-      Map.entry("技术卡点", List.of("技术卡点")),
-      Map.entry("方案卡点", List.of("方案卡点")),
-      Map.entry("资源卡点", List.of("资源卡点")),
-      Map.entry("数据异常", List.of("数据异常")),
-      Map.entry("算法问题", List.of("算法问题")),
-      Map.entry("机制问题", List.of("机制问题")),
-      Map.entry("计算效率", List.of("计算效率")));
-
   private static final List<String> REGRESSION_TITLE_TOKENS = List.of("回退", "倒退", "（退");
   private static final List<String> LEGACY_LEVEL1_OTHER_EXCLUDE_TITLE_TOKENS =
       List.of("退", "回退", "倒退", "挂机");
@@ -91,16 +82,11 @@ final class IssueClassificationRules {
 
   static boolean hasDelayFlag(List<String> labels, String notesText) {
     return IssueRuleSupport.containsAnyLabel(labels, APPLY_DELAY_LABELS)
-        || normalizeDelayReason(labels, notesText) != null;
+        || !IssueDelayCauseMembers.fromLabels(labels).isEmpty();
   }
 
   static String normalizeDelayReason(List<String> labels, String notesText) {
-    for (Map.Entry<String, List<String>> entry : DELAY_REASON_TOKENS.entrySet()) {
-      if (IssueRuleSupport.containsAnyLabel(labels, entry.getValue())) {
-        return entry.getKey();
-      }
-    }
-    return null;
+    return IssueDelayCauseMembers.normalizeLabels(labels);
   }
 
   static String inferDelayCause(List<String> labels, String notesText) {
@@ -108,9 +94,7 @@ final class IssueClassificationRules {
     if (delayReason != null) {
       return delayReason;
     }
-    if (IssueRuleSupport.containsAnyLabel(labels, APPLY_DELAY_LABELS)) {
-      return "申请延期";
-    }
+    // 申请延期是解决闭环状态，不属于七类延期原因；状态判定由 hasDelayFlag 单独负责。
     return null;
   }
 
@@ -274,8 +258,7 @@ final class IssueClassificationRules {
     if (!hasSinglePlanSolutionDate(lines)) {
       return "计划解决时间非法";
     }
-    return IssueResponsePlanFieldRules.normalizePlannedMergeVersionBranches(plannedMergeVersionBranch)
-            .isEmpty()
+    return !IssueResponsePlanFieldRules.hasOnlyCanonicalVersionBranches(plannedMergeVersionBranch)
         ? "计划合并版本分支非法"
         : TEMPLATE_PASSED;
   }

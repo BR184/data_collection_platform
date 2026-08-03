@@ -359,6 +359,62 @@ public class SyncRunTableTaskLeaseService {
         == 1;
   }
 
+  /**
+   * 在同一对账任务行上提交一页游标并重新排队。
+   *
+   * <p>扫描量和删除量按页累加；owner 与有效租约共同构成 fencing，旧 worker 不能推进游标。
+   *
+   * @param taskId 对账任务 ID
+   * @param owner 当前租约所有者
+   * @param nextCursor 下一页主键游标，必须非空
+   * @param rowsScanned 本页验证的镜像主键数
+   * @param rowsApplied 本页写入 tombstone 的行数
+   * @return 当前 owner 成功提交时返回 {@code true}
+   */
+  public boolean requeueOwnedReconciliationTask(
+      Long taskId,
+      String owner,
+      String nextCursor,
+      long rowsScanned,
+      long rowsApplied) {
+    if (taskId == null
+        || owner == null
+        || owner.isBlank()
+        || nextCursor == null
+        || nextCursor.isBlank()
+        || rowsScanned < 0L
+        || rowsApplied < 0L) {
+      return false;
+    }
+    return jdbcTemplate.update(
+            """
+            update sync_run_table_tasks
+               set status = 'QUEUED',
+                   cursor_pk = ?,
+                   page_number = page_number + 1,
+                   rows_scanned = rows_scanned + ?,
+                   rows_applied = rows_applied + ?,
+                   run_after = current_timestamp,
+                   last_error = null,
+                   lease_owner = null,
+                   lease_until = null,
+                   heartbeat_at = null,
+                   finished_at = null,
+                   updated_at = current_timestamp
+             where id = ?
+               and task_stage = 'RECONCILE'
+               and status = 'RUNNING'
+               and lease_owner = ?
+               and lease_until >= current_timestamp
+            """,
+            nextCursor,
+            rowsScanned,
+            rowsApplied,
+            taskId,
+            owner)
+        == 1;
+  }
+
   public boolean finishOwnedTask(
       Long taskId,
       String owner,

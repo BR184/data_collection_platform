@@ -6,6 +6,8 @@ import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -80,6 +82,53 @@ class GitlabDockerPsqlExecutor {
     }
   }
 
+  /** 通过标准输入执行有界 COPY 脚本，键值不进入 shell 命令行。 */
+  List<String> executeScript(GitlabSyncConfig config, String script) {
+    String containerName = config.getDockerContainerName();
+    if (containerName == null || containerName.isBlank()) {
+      throw new BizException("Docker mode requires a container name");
+    }
+    try {
+      ProcessBuilder builder = new ProcessBuilder(buildDockerStdinCommand(config));
+      builder.redirectErrorStream(true);
+      Process process = builder.start();
+      ExecutorService outputReader = Executors.newSingleThreadExecutor();
+      try {
+        Future<List<String>> outputFuture =
+            outputReader.submit(() -> readProcessOutput(process));
+        try (Writer writer = new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8)) {
+          writer.write(script);
+        }
+        boolean finished =
+            process.waitFor(
+                connectionSettings.resolveExternalQueryTimeoutSeconds(), TimeUnit.SECONDS);
+        if (!finished) {
+          process.destroyForcibly();
+          throw new BizException(
+              "Docker GitLab PostgreSQL COPY command timed out after "
+                  + connectionSettings.resolveExternalQueryTimeoutSeconds()
+                  + " seconds");
+        }
+        List<String> lines = outputFuture.get(5, TimeUnit.SECONDS);
+        if (process.exitValue() != 0) {
+          throw new BizException(
+              "Docker GitLab PostgreSQL COPY command failed: "
+                  + String.join(System.lineSeparator(), lines));
+        }
+        return lines;
+      } finally {
+        outputReader.shutdownNow();
+      }
+    } catch (BizException error) {
+      throw error;
+    } catch (InterruptedException error) {
+      Thread.currentThread().interrupt();
+      throw new BizException("Docker GitLab PostgreSQL COPY command interrupted");
+    } catch (Exception error) {
+      throw new BizException("Docker GitLab PostgreSQL COPY command failed: " + error.getMessage());
+    }
+  }
+
   List<String> buildDockerCommand(GitlabSyncConfig config, String sql) {
     return List.of(
         properties.getDockerCommand(),
@@ -88,6 +137,17 @@ class GitlabDockerPsqlExecutor {
         "bash",
         "-lc",
         connectionSettings.buildDockerPsqlScript(config, sql));
+  }
+
+  List<String> buildDockerStdinCommand(GitlabSyncConfig config) {
+    return List.of(
+        properties.getDockerCommand(),
+        "exec",
+        "-i",
+        config.getDockerContainerName(),
+        "bash",
+        "-lc",
+        connectionSettings.buildDockerPsqlStdinScript(config));
   }
 
   private List<String> readProcessOutput(Process process) throws Exception {

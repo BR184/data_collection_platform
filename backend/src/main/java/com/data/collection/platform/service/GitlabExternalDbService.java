@@ -41,6 +41,8 @@ public class GitlabExternalDbService implements DisposableBean {
 
   private final ObjectMapper objectMapper;
   private final GitlabSourceScanSqlBuilder scanSqlBuilder;
+  private final GitlabPrimaryKeyExistenceQueryBuilder primaryKeyQueryBuilder;
+  private final GitlabAuthoritativeScopeQueryBuilder authoritativeScopeQueryBuilder;
   private final GitlabSourceQueryRetryPolicy queryRetryPolicy;
   private final GitlabSourceConnectionSettings connectionSettings;
   private final GitlabDockerPsqlExecutor dockerPsqlExecutor;
@@ -53,6 +55,8 @@ public class GitlabExternalDbService implements DisposableBean {
   public GitlabExternalDbService(GitlabMirrorProperties properties, ObjectMapper objectMapper) {
     this.objectMapper = objectMapper;
     this.scanSqlBuilder = new GitlabSourceScanSqlBuilder(new JsonUtils(objectMapper));
+    this.primaryKeyQueryBuilder = new GitlabPrimaryKeyExistenceQueryBuilder();
+    this.authoritativeScopeQueryBuilder = new GitlabAuthoritativeScopeQueryBuilder();
     this.queryRetryPolicy = new GitlabSourceQueryRetryPolicy(properties);
     this.connectionSettings = new GitlabSourceConnectionSettings(properties);
     this.dockerPsqlExecutor = new GitlabDockerPsqlExecutor(properties, connectionSettings);
@@ -159,6 +163,52 @@ public class GitlabExternalDbService implements DisposableBean {
     return executeSourceQuery(config, scanSqlBuilder.buildPreciseScanSql(option, lookupScope));
   }
 
+  /**
+   * 在一次来源查询中读取多个同构权威范围的完整当前集合。
+   *
+   * <p>返回映射始终包含全部请求范围；来源没有任何行的范围对应空列表。范围 ID 仅用于
+   * 本批次关联，不进入来源业务数据。
+   */
+  public Map<Long, List<Map<String, Object>>> authoritativeScopeScan(
+      GitlabSyncConfig config,
+      TableWhitelistOption option,
+      SourceTableSchema schema,
+      Map<Long, Map<String, Object>> lookupScopes) {
+    if (lookupScopes == null || lookupScopes.isEmpty()) {
+      return Map.of();
+    }
+    List<GitlabAuthoritativeScopeQueryBuilder.ScopeInput> inputs =
+        lookupScopes.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(
+                entry ->
+                    new GitlabAuthoritativeScopeQueryBuilder.ScopeInput(
+                        entry.getKey(), entry.getValue()))
+            .toList();
+    List<Map<String, Object>> rows =
+        config != null && config.getSourceMode() == SourceMode.DIRECT
+            ? directJdbcExecutor.query(
+                config, authoritativeScopeQueryBuilder.buildDirect(option, schema, inputs))
+            : executeDockerScriptQuery(
+                config,
+                authoritativeScopeQueryBuilder.buildDockerCopyScript(option, schema, inputs));
+    LinkedHashMap<Long, List<Map<String, Object>>> grouped = new LinkedHashMap<>();
+    inputs.forEach(input -> grouped.put(input.scopeId(), new ArrayList<>()));
+    for (Map<String, Object> row : rows) {
+      long scopeId = toLong(row.get(GitlabAuthoritativeScopeQueryBuilder.SCOPE_ID_COLUMN));
+      List<Map<String, Object>> scopeRows = grouped.get(scopeId);
+      if (scopeRows == null) {
+        throw new BizException("GitLab 权威范围查询返回了请求批次之外的范围 ID");
+      }
+      LinkedHashMap<String, Object> sourceRow = new LinkedHashMap<>(row);
+      sourceRow.remove(GitlabAuthoritativeScopeQueryBuilder.SCOPE_ID_COLUMN);
+      scopeRows.add(java.util.Collections.unmodifiableMap(sourceRow));
+    }
+    LinkedHashMap<Long, List<Map<String, Object>>> immutable = new LinkedHashMap<>();
+    grouped.forEach((scopeId, scopeRows) -> immutable.put(scopeId, List.copyOf(scopeRows)));
+    return java.util.Collections.unmodifiableMap(immutable);
+  }
+
   public List<Map<String, Object>> previewTablePage(
       GitlabSyncConfig config,
       TableWhitelistOption option,
@@ -200,17 +250,38 @@ public class GitlabExternalDbService implements DisposableBean {
   public Set<String> findExistingPrimaryKeySignatures(
       GitlabSyncConfig config,
       TableWhitelistOption option,
+      SourceTableSchema schema,
       List<Map<String, Object>> primaryKeyRows) {
     if (primaryKeyRows == null || primaryKeyRows.isEmpty()) {
       return Set.of();
     }
     List<String> configuredPrimaryKeys = splitPrimaryKeys(option.primaryKey());
     List<String> primaryKeys = configuredPrimaryKeys.isEmpty() ? List.of("id") : configuredPrimaryKeys;
-    List<Map<String, Object>> rows =
-        executeSourceQuery(config, buildExistingPrimaryKeysSql(option, primaryKeys, primaryKeyRows));
-    return rows.stream()
+    List<Map<String, Object>> rows;
+    if (config != null && config.getSourceMode() == SourceMode.DIRECT) {
+      rows =
+          directJdbcExecutor.query(
+              config,
+              primaryKeyQueryBuilder.buildDirect(
+                  option, schema, primaryKeys, primaryKeyRows));
+    } else {
+      rows =
+          executeDockerScriptQuery(
+              config,
+              primaryKeyQueryBuilder.buildDockerCopyScript(
+                  option, schema, primaryKeys, primaryKeyRows));
+    }
+    Set<String> requested =
+        primaryKeyRows.stream()
+            .map(row -> PrimaryKeySignatureSupport.signature(primaryKeys, row))
+            .collect(java.util.stream.Collectors.toSet());
+    Set<String> existing = rows.stream()
         .map(row -> PrimaryKeySignatureSupport.signature(primaryKeys, row))
         .collect(java.util.stream.Collectors.toSet());
+    if (!requested.containsAll(existing)) {
+      throw new BizException("GitLab 主键存在性查询返回了请求批次之外的键");
+    }
+    return existing;
   }
 
   private List<Map<String, Object>> timeWindowScan(GitlabSyncConfig config, TableWhitelistOption option, LocalDateTime since) {
@@ -267,13 +338,6 @@ public class GitlabExternalDbService implements DisposableBean {
 
   String buildMaxUpdatedAtProbeSql(TableWhitelistOption option) {
     return scanSqlBuilder.buildMaxUpdatedAtProbeSql(option);
-  }
-
-  String buildExistingPrimaryKeysSql(
-      TableWhitelistOption option,
-      List<String> primaryKeys,
-      List<Map<String, Object>> primaryKeyRows) {
-    return scanSqlBuilder.buildExistingPrimaryKeysSql(option, primaryKeys, primaryKeyRows);
   }
 
   Map<String, String> discoverPrimaryKeysByTable(GitlabSyncConfig config) {
@@ -364,18 +428,10 @@ public class GitlabExternalDbService implements DisposableBean {
     try {
       return executeExternalQueryWithRetry("Docker query", () -> {
         try {
-          List<String> lines = dockerPsqlExecutor.execute(config, "select row_to_json(t)::text from (%s) t".formatted(sql));
-          List<Map<String, Object>> rows = new ArrayList<>();
-          for (String line : lines) {
-            if (line == null || line.isBlank()) {
-              continue;
-            }
-            if (line.startsWith("ERROR:") || line.startsWith("FATAL:")) {
-              throw new BizException(line);
-            }
-            rows.add(objectMapper.readValue(line, MAP_TYPE));
-          }
-          return rows;
+          List<String> lines =
+              dockerPsqlExecutor.execute(
+                  config, "select row_to_json(t)::text from (%s) t".formatted(sql));
+          return parseDockerRows(lines);
         } catch (BizException e) {
           throw e;
         } catch (Exception e) {
@@ -388,6 +444,36 @@ public class GitlabExternalDbService implements DisposableBean {
       }
       throw e;
     }
+  }
+
+  private List<Map<String, Object>> executeDockerScriptQuery(
+      GitlabSyncConfig config, String script) {
+    return executeExternalQueryWithRetry(
+        "Docker COPY query",
+        () -> {
+          try {
+            return parseDockerRows(dockerPsqlExecutor.executeScript(config, script));
+          } catch (BizException error) {
+            throw error;
+          } catch (Exception error) {
+            throw new BizException(
+                "Failed to query GitLab database via Docker COPY: " + error.getMessage());
+          }
+        });
+  }
+
+  private List<Map<String, Object>> parseDockerRows(List<String> lines) throws Exception {
+    List<Map<String, Object>> rows = new ArrayList<>();
+    for (String line : lines) {
+      if (line == null || line.isBlank()) {
+        continue;
+      }
+      if (line.startsWith("ERROR:") || line.startsWith("FATAL:")) {
+        throw new BizException(line);
+      }
+      rows.add(objectMapper.readValue(line, MAP_TYPE));
+    }
+    return rows;
   }
 
   String buildJdbcUrl(GitlabSyncConfig config) {

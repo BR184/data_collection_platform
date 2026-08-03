@@ -112,6 +112,49 @@ public class SyncRunLeaseService {
         run.getLeaseOwner());
   }
 
+  /**
+   * 把当前拥有的事实运行转入 PAUSED 或 RETRYING，并释放执行租约。
+   *
+   * @param run 当前事实运行
+   * @param status 只允许 PAUSED 或 RETRYING
+   * @param runAfter 下次最早领取时间；为空时立即可再次领取
+   * @param message 当前等待或失败原因
+   * @return owner fencing 成功时返回 1
+   */
+  public int deferOwnedRun(
+      SyncRun run,
+      com.data.collection.platform.entity.sync.SyncRunStatus status,
+      java.time.LocalDateTime runAfter,
+      String message) {
+    if (run == null
+        || run.getId() == null
+        || run.getLeaseOwner() == null
+        || (status != com.data.collection.platform.entity.sync.SyncRunStatus.PAUSED
+            && status != com.data.collection.platform.entity.sync.SyncRunStatus.RETRYING)) {
+      return 0;
+    }
+    return jdbcTemplate.update(
+        """
+        update sync_runs
+           set status = ?,
+               run_after = coalesce(?, current_timestamp),
+               error_message = ?,
+               lease_owner = null,
+               lease_until = null,
+               heartbeat_at = null,
+               finished_at = null,
+               updated_at = current_timestamp
+         where id = ?
+           and lease_owner = ?
+           and status in ('RUNNING', 'RETRYING')
+        """,
+        status.name(),
+        runAfter,
+        message,
+        run.getId(),
+        run.getLeaseOwner());
+  }
+
   public int recoverTimedOutRuns() {
     int timedOutRuns =
         jdbcTemplate.update(

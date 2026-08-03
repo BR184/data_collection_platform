@@ -114,12 +114,23 @@ class IssueFactNormalizationRulesTest {
   @Test
   void shouldNormalizeDelayCategories() {
     assertThat(IssueFactNormalizationRules.normalizeDelayReason(
-        List.of("申请延期", "算法问题"), "当前属于算法问题"))
-        .isEqualTo("算法问题");
+        List.of("方案卡点", "申请延期", "技术卡点", "方案卡点"), "当前属于算法问题"))
+        .isEqualTo("方案卡点&技术卡点");
     assertThat(IssueFactNormalizationRules.inferDelayCause(
-        List.of("申请延期", "算法问题"), "当前属于算法问题"))
-        .isEqualTo("算法问题");
+        List.of("方案卡点", "申请延期", "技术卡点", "方案卡点"), "当前属于算法问题"))
+        .isEqualTo("方案卡点&技术卡点");
     assertThat(IssueFactNormalizationRules.inferCustomerIssueDelayCause(List.of(), ""))
+        .isEqualTo("未设定类别");
+  }
+
+  @Test
+  void shouldKeepApplyDelayAsStatusWithoutUsingItAsDelayCause() {
+    List<String> labels = List.of("申请延期");
+
+    assertThat(IssueFactNormalizationRules.hasDelayFlag(labels, "")).isTrue();
+    assertThat(IssueFactNormalizationRules.normalizeDelayReason(labels, "")).isNull();
+    assertThat(IssueFactNormalizationRules.inferDelayCause(labels, "")).isNull();
+    assertThat(IssueFactNormalizationRules.inferCustomerIssueDelayCause(labels, ""))
         .isEqualTo("未设定类别");
   }
 

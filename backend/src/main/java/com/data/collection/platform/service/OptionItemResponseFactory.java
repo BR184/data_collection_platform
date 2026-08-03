@@ -90,6 +90,17 @@ public final class OptionItemResponseFactory {
         IssueStatusMembers.collectMembers(values), Function.identity(), SortPolicy.SOURCE_ORDER);
   }
 
+  /**
+   * 根据事实层延期原因成员构建按显示文本排序的候选。
+   *
+   * @param values 事实层中的延期原因组合文本
+   * @return 每个延期原因成员一条候选值
+   */
+  public static List<OptionItemResponse> fromDelayCauseMembers(Collection<String> values) {
+    return buildOptions(
+        IssueDelayCauseMembers.collectMembers(values), Function.identity(), SortPolicy.LABEL_ASCENDING);
+  }
+
   private static List<OptionItemResponse> buildOptions(
       Collection<String> values, Function<String, String> labeler, SortPolicy sortPolicy) {
     return applySortPolicy(

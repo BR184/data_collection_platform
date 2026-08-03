@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.entity.FactType;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -21,10 +22,18 @@ public class PageRecordSnapshotService {
 
   private final JdbcTemplate jdbcTemplate;
   private final JsonUtils jsonUtils;
+  private final FactProjectionVersionService projectionVersionService;
+  private final IssueProjectionScopeResolver issueScopeResolver;
 
-  public PageRecordSnapshotService(JdbcTemplate jdbcTemplate, JsonUtils jsonUtils) {
+  public PageRecordSnapshotService(
+      JdbcTemplate jdbcTemplate,
+      JsonUtils jsonUtils,
+      FactProjectionVersionService projectionVersionService,
+      IssueProjectionScopeResolver issueScopeResolver) {
     this.jdbcTemplate = jdbcTemplate;
     this.jsonUtils = jsonUtils;
+    this.projectionVersionService = projectionVersionService;
+    this.issueScopeResolver = issueScopeResolver;
   }
 
   public <T> T readOrRefresh(
@@ -143,15 +152,33 @@ public class PageRecordSnapshotService {
   }
 
   public String issueFactSourceVersion() {
-    return factSourceVersion(FACT_TYPE_ISSUE)
-        + "|"
-        + labelGroupSourceVersion()
-        + "|"
-        + issueScopeSourceVersion();
+    return projectionVersionService.globalSourceVersion(
+        GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE, FactType.ISSUE)
+        + "|" + labelGroupSourceVersion();
+  }
+
+  /** 为项目或议题范围组生成记录快照来源版本。 */
+  public String issueFactSourceVersion(
+      String sourceInstance,
+      long projectId,
+      IssueScopeDimension dimension,
+      String businessKey) {
+    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    return projectionVersionService.sourceVersion(
+            normalizedSource,
+            FactType.ISSUE,
+            issueScopeResolver.resolve(
+                normalizedSource,
+                FactType.ISSUE,
+                projectId,
+                dimension,
+                businessKey))
+        + "|" + labelGroupSourceVersion();
   }
 
   public String mergeRequestFactSourceVersion() {
-    return factSourceVersion(FACT_TYPE_MERGE_REQUEST);
+    return projectionVersionService.globalSourceVersion(
+        GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE, FactType.MERGE_REQUEST);
   }
 
   public String codeReviewSourceVersion() {
@@ -252,51 +279,13 @@ public class PageRecordSnapshotService {
         String.class);
   }
 
-  private String issueScopeSourceVersion() {
-    return jdbcTemplate.queryForObject(
-        """
-        select concat(
-                 'issue-scope:',
-                 coalesce(to_char(max(changed_at), 'YYYY-MM-DD"T"HH24:MI:SS.US'), 'empty')
-               )
-          from (
-            select updated_at as changed_at from issue_scope_catalogs
-            union all
-            select updated_at as changed_at from issue_scope_groups
-            union all
-            select updated_at as changed_at from issue_scope_members
-          ) s
-        """,
-        String.class);
-  }
-
   public String factSourceVersion(String factType) {
     String normalizedFactType = factType == null ? "" : factType.trim().toUpperCase();
-    String scope = FACT_TYPE_MERGE_REQUEST.equals(normalizedFactType) ? "merge-request" : "issue";
-    return jdbcTemplate.queryForObject(
-        """
-        select coalesce(
-                 (
-                   select concat(id, ':', coalesce(to_char(finished_at, 'YYYY-MM-DD"T"HH24:MI:SS.US'), 'running'))
-                     from fact_build_tasks
-                    where status = 'SUCCESS'
-                      and (coalesce(affected_rows, 0) > 0 or full_build = true)
-                      and (
-                        upper(coalesce(fact_type, '')) = ?
-                        or lower(coalesce(scope, '')) = ?
-                        or lower(coalesce(scope, '')) like ?
-                        or lower(coalesce(scope, '')) = 'all'
-                      )
-                    order by finished_at desc nulls last, id desc
-                    limit 1
-                 ),
-                 'bootstrap'
-               )
-        """,
-        String.class,
-        normalizedFactType,
-        scope,
-        "%:" + scope);
+    FactType type = FACT_TYPE_MERGE_REQUEST.equals(normalizedFactType)
+        ? FactType.MERGE_REQUEST
+        : FactType.ISSUE;
+    return projectionVersionService.globalSourceVersion(
+        GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE, type);
   }
 
   public String requestHash(Object requestPayload) {

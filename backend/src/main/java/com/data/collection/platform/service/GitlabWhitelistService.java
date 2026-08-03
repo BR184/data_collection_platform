@@ -4,6 +4,7 @@ import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceCursorStrategy;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.WhitelistMode;
+import com.data.collection.platform.service.sync.GitlabSourceLineageCatalog;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -11,7 +12,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -22,31 +22,6 @@ public class GitlabWhitelistService {
   private static final int MAX_CACHE_ENTRIES = 16;
 
   private static final Map<String, String> FRIENDLY_LABELS = new LinkedHashMap<>();
-  private static final Set<String> RECOMMENDED_TABLES = Set.of(
-      "users",
-      "user_details",
-      "projects",
-      "namespaces",
-      "members",
-      "milestones",
-      "issues",
-      "issue_assignees",
-      "issue_metrics",
-      "notes",
-      "labels",
-      "label_links",
-      "resource_label_events",
-      "merge_requests",
-      "merge_request_assignees",
-      "merge_request_reviewers",
-      "merge_request_metrics",
-      "ci_pipelines",
-      "ci_builds",
-      "deployments",
-      "environments",
-      "events",
-      "todos");
-
   static {
     FRIENDLY_LABELS.put("users", "用户");
     FRIENDLY_LABELS.put("user_details", "用户详情");
@@ -120,7 +95,7 @@ public class GitlabWhitelistService {
     List<TableWhitelistOption> discovered = sourceMetadataInspector.discoverTables(
         config,
         FRIENDLY_LABELS,
-        new ArrayList<>(RECOMMENDED_TABLES));
+        GitlabSourceLineageCatalog.recommendedTables());
     evictOldestEntryIfNecessary(signature);
     List<TableWhitelistOption> options = List.copyOf(discovered);
     cacheEntries.put(signature, new CacheEntry(Instant.now(), options));
@@ -152,7 +127,7 @@ public class GitlabWhitelistService {
 
   private List<TableWhitelistOption> fallbackRecommendedOptions() {
     List<TableWhitelistOption> options = new ArrayList<>();
-    for (String tableName : RECOMMENDED_TABLES.stream().sorted().toList()) {
+    for (String tableName : GitlabSourceLineageCatalog.recommendedTables().stream().sorted().toList()) {
       options.add(new TableWhitelistOption(
           tableName,
           FRIENDLY_LABELS.getOrDefault(tableName, tableName),

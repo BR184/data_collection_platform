@@ -3,6 +3,8 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordListResponse;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordRowResponse;
+import com.data.collection.platform.entity.FactType;
+import com.data.collection.platform.entity.ProjectionScopeType;
 import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
@@ -96,6 +98,8 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_LIST,
             "project:" + LEGACY_CC_PRODUCT_PROJECT_ID,
+            safeRequest.listRequest().sourceInstance(),
+            safeRequest.listRequest().milestoneTitle(),
             safeRequest),
         CustomerIssueIllegalRecordListResponse.class,
         () -> loadRecords(safeRequest));
@@ -296,6 +300,8 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
             "project:" + LEGACY_CC_PRODUCT_PROJECT_ID,
+            null,
+            null,
             requestPayload),
         CustomerIssueIllegalRecordFilterOptionsResponse.class,
         this::loadFilterOptions);
@@ -329,8 +335,13 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
   }
 
   @Override
-  public void refreshRecordSnapshots(PageRecordSnapshotRefresher.RefreshContext context) {
-    if (!context.affectsIssues() || pageRecordSnapshotService == null) {
+  public void refreshRecordSnapshots(com.data.collection.platform.entity.FactPublicationContext context) {
+    if (pageRecordSnapshotService == null
+        || context == null
+        || !context.covers(
+            FactType.ISSUE,
+            ProjectionScopeType.PROJECT,
+            FactProjectionScopeKeyCodec.project(LEGACY_CC_PRODUCT_PROJECT_ID))) {
       return;
     }
     getFilterOptions(LEGACY_CC_PRODUCT_PROJECT_ID);
@@ -487,13 +498,21 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
   }
 
   private PageRecordSnapshotService.SnapshotRequest snapshotRequest(
-      String snapshotType, String scopeKey, Object requestPayload) {
+      String snapshotType,
+      String scopeKey,
+      String sourceInstance,
+      String milestoneBusinessKey,
+      Object requestPayload) {
     return new PageRecordSnapshotService.SnapshotRequest(
         WORKSPACE_KEY,
         snapshotType,
         scopeKey,
         RULE_VERSION,
-        pageRecordSnapshotService.issueFactSourceVersion(),
+        pageRecordSnapshotService.issueFactSourceVersion(
+            sourceInstance,
+            LEGACY_CC_PRODUCT_PROJECT_ID,
+            IssueScopeDimension.MILESTONE,
+            milestoneBusinessKey),
         requestPayload);
   }
 

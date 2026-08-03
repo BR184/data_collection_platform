@@ -3,7 +3,7 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import com.data.collection.platform.entity.SyncStatus;
-import java.util.List;
+import com.data.collection.platform.entity.WorkspaceRefreshRequest;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -14,12 +14,14 @@ public class RealtimeIncrementalRefreshService {
     this.gitlabMirrorSyncService = gitlabMirrorSyncService;
   }
 
-  public RealtimeWorkspaceRefreshResult requestIncrementalRefresh(String reason, List<String> coveredSourceTables) {
+  public RealtimeWorkspaceRefreshResult requestIncrementalRefresh(WorkspaceRefreshRequest request) {
+    RealtimeWorkspaceDependencyCatalog.WorkspaceDependency dependency =
+        RealtimeWorkspaceDependencyCatalog.require(request.workspaceKey());
     GitlabMirrorSyncService.OnDemandRefreshResult submission =
         gitlabMirrorSyncService.refreshAvailableTablesOnDemandDetailed(
-            coveredSourceTables,
-            reason,
-            reason,
+            dependency.sourceTables(),
+            request.workspaceKey(),
+            request,
             "REALTIME_WORKSPACE_REFRESH");
     if (submission.sourceTables().isEmpty()) {
       throw new BizException(

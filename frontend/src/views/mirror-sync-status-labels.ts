@@ -15,7 +15,6 @@ const SYNC_RUN_TYPE_LABELS: Record<string, string> = {
   INCREMENTAL_SYNC: '刷新最新数据',
   TABLE_REFRESH: '单表刷新',
   SYSTEM_HOOK: 'System Hook 唤醒',
-  COMPENSATION_SCAN: '自动补偿扫描',
   FULL_COMPENSATION_SCAN: '全量补偿对账',
   FACT_REFRESH: '事实数据刷新',
 };

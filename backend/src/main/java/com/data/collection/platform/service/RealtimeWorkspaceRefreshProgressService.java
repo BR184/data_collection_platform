@@ -5,10 +5,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -60,7 +59,6 @@ public class RealtimeWorkspaceRefreshProgressService {
             'INCREMENTAL_SYNC',
             'TABLE_REFRESH',
             'SYSTEM_HOOK',
-            'COMPENSATION_SCAN',
             'FULL_COMPENSATION_SCAN'
           )
         """,
@@ -115,79 +113,93 @@ public class RealtimeWorkspaceRefreshProgressService {
 
   private RealtimeWorkspaceRefreshProgress toProgress(
       RefreshRunSnapshot snapshot, String workspaceKey) {
-    RealtimeWorkspaceFactRequirementResolver.Requirement requirement =
+    RealtimeWorkspaceDependencyCatalog.Requirement requirement =
         resolveFactRequirement(snapshot.configId(), workspaceKey);
-    String factStatus = resolveFactStatus(snapshot, requirement);
+    FenceSummary fence = loadFenceSummary(snapshot.mirrorRunId(), workspaceKey, requirement);
+    String factStatus = resolveFactStatus(snapshot, requirement, fence);
     return new RealtimeWorkspaceRefreshProgress(
         snapshot.mirrorRunId(),
         snapshot.mirrorStatus(),
         snapshot.factRunId(),
         factStatus,
         requirement.factRefreshRequired(),
-        snapshot.factStartedAt() == null ? snapshot.mirrorStartedAt() : snapshot.factStartedAt(),
-        snapshot.factFinishedAt() == null ? snapshot.mirrorFinishedAt() : snapshot.factFinishedAt());
+        fence.startedAt() == null
+            ? (snapshot.factStartedAt() == null
+                ? snapshot.mirrorStartedAt()
+                : snapshot.factStartedAt())
+            : fence.startedAt(),
+        fence.finishedAt() == null
+            ? (snapshot.factFinishedAt() == null
+                ? snapshot.mirrorFinishedAt()
+                : snapshot.factFinishedAt())
+            : fence.finishedAt());
   }
 
-  private RealtimeWorkspaceFactRequirementResolver.Requirement resolveFactRequirement(
+  private RealtimeWorkspaceDependencyCatalog.Requirement resolveFactRequirement(
       Long configId, String workspaceKey) {
     if (configId == null || configService == null) {
-      return new RealtimeWorkspaceFactRequirementResolver.Requirement(false, List.of());
+      return new RealtimeWorkspaceDependencyCatalog.Requirement(false, List.of());
     }
     GitlabSyncConfig config = configService.getConfigById(configId);
     if (config == null) {
-      return new RealtimeWorkspaceFactRequirementResolver.Requirement(false, List.of());
+      return new RealtimeWorkspaceDependencyCatalog.Requirement(false, List.of());
     }
-    return RealtimeWorkspaceFactRequirementResolver.resolve(workspaceKey, config);
+    return RealtimeWorkspaceDependencyCatalog.resolve(workspaceKey, config);
   }
 
   private String resolveFactStatus(
       RefreshRunSnapshot snapshot,
-      RealtimeWorkspaceFactRequirementResolver.Requirement requirement) {
-    if (!requirement.factRefreshRequired() || snapshot.factRunId() == null) {
+      RealtimeWorkspaceDependencyCatalog.Requirement requirement,
+      FenceSummary fence) {
+    if (!requirement.factRefreshRequired()) {
       return snapshot.factStatus();
     }
-    List<String> taskStatuses = loadRequiredFactTaskStatuses(snapshot.factRunId(), requirement.factTypes());
-    if (taskStatuses.size() < requirement.factTypes().size()) {
-      return isTerminalFactRun(snapshot.factStatus()) ? "FAILED" : snapshot.factStatus();
+    if (fence.factTypes() < requirement.factTypes().size()) {
+      return isTerminalMirrorRun(snapshot.mirrorStatus()) ? "FAILED" : "QUEUED";
     }
-    if (taskStatuses.stream().allMatch("SUCCESS"::equals)) {
-      return "SUCCESS";
-    }
-    if (taskStatuses.stream().anyMatch(this::isFailedFactTask)) {
+    if (fence.failed() > 0) {
       return "FAILED";
     }
-    return taskStatuses.stream().anyMatch("PENDING"::equals) ? "QUEUED" : "RUNNING";
-  }
-
-  private List<String> loadRequiredFactTaskStatuses(Long factRunId, List<String> factTypes) {
-    if (factRunId == null || factTypes == null || factTypes.isEmpty()) {
-      return List.of();
+    if (fence.pending() > 0) {
+      return "RUNNING";
     }
-    String placeholders = String.join(", ", java.util.Collections.nCopies(factTypes.size(), "?"));
-    List<Object> parameters = new ArrayList<>(factTypes.size() + 1);
-    parameters.add(String.valueOf(factRunId));
-    parameters.addAll(factTypes);
-    return jdbcTemplate.query(
-        """
-        select status
-          from fact_build_tasks
-         where run_id = ?
-           and upper(coalesce(fact_type, '')) in (%s)
-        """.formatted(placeholders),
-        (resultSet, rowNum) -> resultSet.getString("status"),
-        parameters.toArray());
+    return "SUCCESS";
   }
 
-  private boolean isTerminalFactRun(String status) {
+  private FenceSummary loadFenceSummary(
+      long mirrorRunId,
+      String workspaceKey,
+      RealtimeWorkspaceDependencyCatalog.Requirement requirement) {
+    if (!requirement.factRefreshRequired()) {
+      return FenceSummary.empty();
+    }
+    return jdbcTemplate.queryForObject(
+        """
+        select count(distinct fact_type) as fact_types,
+               count(*) filter (where status = 'PENDING') as pending,
+               count(*) filter (where status = 'FAILED') as failed,
+               min(created_at) as started_at,
+               max(completed_at) filter (where status = 'SUCCESS') as finished_at
+          from sync_run_publication_fences
+         where run_id = ? and workspace_key = ?
+        """,
+        (resultSet, rowNumber) ->
+            new FenceSummary(
+                resultSet.getInt("fact_types"),
+                resultSet.getInt("pending"),
+                resultSet.getInt("failed"),
+                toLocalDateTime(resultSet.getTimestamp("started_at")),
+                toLocalDateTime(resultSet.getTimestamp("finished_at"))),
+        mirrorRunId,
+        workspaceKey.trim().toLowerCase(java.util.Locale.ROOT));
+  }
+
+  private boolean isTerminalMirrorRun(String status) {
     return "SUCCESS".equals(status)
         || "PARTIAL_SUCCESS".equals(status)
         || "FAILED".equals(status)
         || "CANCELLED".equals(status)
         || "MERGED".equals(status);
-  }
-
-  private boolean isFailedFactTask(String status) {
-    return !"SUCCESS".equals(status) && !"PENDING".equals(status) && !"RUNNING".equals(status);
   }
 
   private Long nullableLong(ResultSet resultSet, String column) throws SQLException {
@@ -209,5 +221,16 @@ public class RealtimeWorkspaceRefreshProgressService {
       String factStatus,
       LocalDateTime factStartedAt,
       LocalDateTime factFinishedAt) {
+  }
+
+  private record FenceSummary(
+      int factTypes,
+      int pending,
+      int failed,
+      LocalDateTime startedAt,
+      LocalDateTime finishedAt) {
+    private static FenceSummary empty() {
+      return new FenceSummary(0, 0, 0, null, null);
+    }
   }
 }

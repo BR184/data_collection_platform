@@ -55,6 +55,9 @@ public class SyncRunTableState {
   @TableField("last_full_verified_at")
   private LocalDateTime lastFullVerifiedAt;
 
+  @TableField("last_delete_reconciled_at")
+  private LocalDateTime lastDeleteReconciledAt;
+
   @TableField("last_watermark_at")
   private LocalDateTime lastWatermarkAt;
 

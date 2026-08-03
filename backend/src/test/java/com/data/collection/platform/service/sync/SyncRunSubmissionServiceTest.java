@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
+import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SyncStatus;
@@ -19,6 +20,7 @@ import com.data.collection.platform.entity.SyncSubmissionAction;
 import com.data.collection.platform.entity.SyncTriggerType;
 import com.data.collection.platform.entity.SyncType;
 import com.data.collection.platform.entity.WhitelistMode;
+import com.data.collection.platform.entity.WorkspaceScopeSelectionType;
 import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunType;
@@ -26,6 +28,7 @@ import com.data.collection.platform.mapper.SyncRunMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -35,12 +38,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class SyncRunSubmissionServiceTest {
   private SyncRunMapper syncRunMapper;
   private JdbcTemplate jdbcTemplate;
+  private SyncRunPublicationFenceService publicationFenceService;
   private SyncRunSubmissionService submissionService;
 
   @BeforeEach
   void setUp() {
     syncRunMapper = org.mockito.Mockito.mock(SyncRunMapper.class);
     jdbcTemplate = org.mockito.Mockito.mock(JdbcTemplate.class);
+    publicationFenceService =
+        org.mockito.Mockito.mock(SyncRunPublicationFenceService.class);
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
     submissionService =
         new SyncRunSubmissionService(
@@ -48,7 +54,8 @@ class SyncRunSubmissionServiceTest {
             new SyncRunPolicyService(),
             jdbcTemplate,
             new JsonUtils(new ObjectMapper()),
-            new SyncThreadBudgetResolver(properties));
+            new SyncThreadBudgetResolver(properties),
+            publicationFenceService);
   }
 
   @Test
@@ -292,12 +299,56 @@ class SyncRunSubmissionServiceTest {
   }
 
   @Test
+  void test_reused_run_finished_before_fence_registration_queues_replacement_run() {
+    GitlabSyncConfig config = config();
+    SyncRun activeRun =
+        activeRun(
+            102L,
+            SyncRunType.TABLE_REFRESH,
+            SyncRunStatus.RUNNING,
+            "source:12:default:mirror");
+    activeRun.setPayloadJson("{\"sourceTables\":[\"issues\",\"notes\"]}");
+    when(syncRunMapper.selectList(any()))
+        .thenReturn(List.of(activeRun), List.of(activeRun), List.of(), List.of());
+    org.mockito.Mockito.doAnswer(
+            invocation -> {
+              ((SyncRun) invocation.getArgument(0)).setId(103L);
+              return 1;
+            })
+        .when(syncRunMapper)
+        .insert(any(SyncRun.class));
+    SyncRunPayload.WorkspaceRefreshSpec refresh =
+        new SyncRunPayload.WorkspaceRefreshSpec(
+            "customer-issue-board",
+            List.of(FactType.ISSUE),
+            WorkspaceScopeSelectionType.GLOBAL,
+            List.of("*"));
+    when(publicationFenceService.registerRequest(102L, "default", refresh))
+        .thenReturn(false);
+    when(publicationFenceService.registerRequest(103L, "default", refresh))
+        .thenReturn(true);
+
+    var result =
+        submissionService.submitTableRefresh(
+            config,
+            List.of("Issues", "notes"),
+            "Board refresh",
+            Map.of("workspaceRefresh", refresh));
+
+    assertThat(result.runId()).isEqualTo(103L);
+    assertThat(result.action()).isEqualTo(SyncSubmissionAction.QUEUED);
+    verify(syncRunMapper).insert(any(SyncRun.class));
+    verify(publicationFenceService).registerRequest(102L, "default", refresh);
+    verify(publicationFenceService).registerRequest(103L, "default", refresh);
+  }
+
+  @Test
   void shouldMergeQueuedLowerPriorityMirrorRunsWhenFullSyncIsSubmitted() {
     GitlabSyncConfig config = config();
     SyncRun queuedCompensation =
         activeRun(
             103L,
-            SyncRunType.COMPENSATION_SCAN,
+            SyncRunType.FULL_COMPENSATION_SCAN,
             SyncRunStatus.QUEUED,
             "source:12:default:mirror");
     when(syncRunMapper.selectList(any())).thenReturn(List.of(queuedCompensation));

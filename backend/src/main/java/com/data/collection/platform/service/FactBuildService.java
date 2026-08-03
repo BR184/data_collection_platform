@@ -37,7 +37,6 @@ public class FactBuildService {
   private static final String MIRROR_INGEST_CHANNEL = "MIRROR";
   private static final int FACT_BATCH_SIZE = 200;
   private static final int SEARCH_INDEX_REPAIR_LIMIT = 1000;
-  private static final int MISSING_ISSUE_FACT_RECONCILIATION_LIMIT = 1000;
   private static final List<String> RESOURCE_LABEL_EVENT_REQUIRED_COLUMNS =
       List.of("issue_id", "label_id", "action", "created_at", "mirror_deleted");
 
@@ -169,9 +168,12 @@ public class FactBuildService {
       throw new BizException("刷新单条议题需要项目 ID 和议题编号");
     }
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
-    FactBuildResponse response = rebuildIssueFactsByTargets(
-        normalizedSource,
-        List.of(new FactRefreshImpactScopeService.Target(projectId, issueIid)));
+    Long rootId = findIssueRootId(normalizedSource, projectId, issueIid);
+    if (rootId == null) {
+      return new FactBuildResponse(
+          factScope("issue", normalizedSource), false, 0, "未找到对应议题事实根");
+    }
+    FactBuildResponse response = rebuildIssueFactsByRootIds(normalizedSource, List.of(rootId));
     return new FactBuildResponse(
         factScope("issue", normalizedSource),
         false,
@@ -185,16 +187,15 @@ public class FactBuildService {
    * <p>目标来源为空时会删除旧事实和客户成员，不能退化为无操作。
    *
    * @param sourceInstance GitLab 来源实例
-   * @param targets 以项目 ID 和 Issue IID 标识的目标集合
+   * @param rootIds GitLab Issue 数据库根 ID 集合
    * @return 当前仍存在并写入的事实数量
    */
   @Transactional
-  public FactBuildResponse rebuildIssueFactsByTargets(
-      String sourceInstance,
-      List<FactRefreshImpactScopeService.Target> targets) {
+  public FactBuildResponse rebuildIssueFactsByRootIds(
+      String sourceInstance, List<Long> rootIds) {
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
-    List<FactRefreshImpactScopeService.Target> safeTargets = distinctTargets(targets);
-    if (safeTargets.isEmpty()) {
+    List<Long> safeRootIds = distinctRootIds(rootIds);
+    if (safeRootIds.isEmpty()) {
       return new FactBuildResponse(factScope("issue", normalizedSource), false, 0, "没有需要刷新的议题事实");
     }
     sourceSchemaGuard.verifyIssueFactSource(normalizedSource);
@@ -202,10 +203,10 @@ public class FactBuildService {
     ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
     Map<String, String> customerNameAliases = issueCustomerNameAliasService.loadAliases();
     List<IssueFact> facts =
-        loadIssueFactsByTargets(
-            normalizedSource, safeTargets, calendar, moduleDictionary, customerNameAliases);
-    issueFactPersistenceService.replaceTargetFacts(
-        DEFAULT_SOURCE_SYSTEM, normalizedSource, safeTargets, facts);
+        loadIssueFactsByRootIds(
+            normalizedSource, safeRootIds, calendar, moduleDictionary, customerNameAliases);
+    issueFactPersistenceService.replaceRootFacts(
+        DEFAULT_SOURCE_SYSTEM, normalizedSource, safeRootIds, facts);
     refreshIssueFactSearchIndexesInBatches(facts);
     milestoneCatalogReconciliationService.reconcilePublishedFactValues();
     return new FactBuildResponse(
@@ -213,52 +214,6 @@ public class FactBuildService {
         false,
         facts.size(),
         "议题事实已按受影响对象刷新");
-  }
-
-  /**
-   * 补齐当前镜像源中尚未落入事实层的议题。
-   *
-   * <p>该补偿只处理 ODS 仍有效、但没有有效 {@code issue_fact} 的议题，并按固定上限分批执行；用于
-   * 镜像零增量时修复历史事实遗漏，不替代全量事实重建。
-   *
-   * @param sourceInstance GitLab 镜像源实例；空值按默认源处理
-   * @return 本次补齐结果；受影响行数只包含实际生成的议题事实
-   */
-  public FactBuildResponse reconcileMissingIssueFacts(String sourceInstance) {
-    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
-    sourceSchemaGuard.verifyIssueFactSource(normalizedSource);
-    Map<PhaseCalendarKey, PhaseCalendarEntry> calendar = loadPhaseCalendar();
-    ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
-    Map<String, String> customerNameAliases = issueCustomerNameAliasService.loadAliases();
-    int processedTargets = 0;
-    int affectedRows = 0;
-
-    while (processedTargets < MISSING_ISSUE_FACT_RECONCILIATION_LIMIT) {
-      int batchLimit = Math.min(FACT_BATCH_SIZE, MISSING_ISSUE_FACT_RECONCILIATION_LIMIT - processedTargets);
-      List<FactRefreshImpactScopeService.Target> missingTargets =
-          loadMissingIssueFactTargets(normalizedSource, batchLimit);
-      if (missingTargets.isEmpty()) {
-        break;
-      }
-      List<IssueFact> facts =
-          loadIssueFactsByTargets(
-              normalizedSource, missingTargets, calendar, moduleDictionary, customerNameAliases);
-      if (facts.isEmpty()) {
-        break;
-      }
-      batchUpsertIssueFacts(facts);
-      processedTargets += missingTargets.size();
-      affectedRows += facts.size();
-    }
-
-    String message = affectedRows == 0
-        ? "议题事实完整性校验完成，未发现缺失数据"
-        : "已补齐 " + affectedRows + " 条缺失议题事实";
-    if (processedTargets >= MISSING_ISSUE_FACT_RECONCILIATION_LIMIT) {
-      message += "；已达到本次补偿上限，后续刷新将继续补齐";
-    }
-    milestoneCatalogReconciliationService.reconcilePublishedFactValues();
-    return new FactBuildResponse(factScope("issue", normalizedSource), false, affectedRows, message);
   }
 
   private FactBuildResponse rebuildIssueFactsInternal(boolean full, String sourceInstance) {
@@ -357,14 +312,14 @@ public class FactBuildService {
     }
   }
 
-  private List<IssueFact> loadIssueFactsByTargets(
+  private List<IssueFact> loadIssueFactsByRootIds(
       String sourceInstance,
-      List<FactRefreshImpactScopeService.Target> targets,
+      List<Long> rootIds,
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
       ModuleDictionary moduleDictionary,
       Map<String, String> customerNameAliases) {
-    String predicate = buildIssueTargetPredicate(targets);
-    List<Object> args = targetArgs(targets);
+    String predicate = buildRootPredicate("i.id", rootIds);
+    List<Object> args = new ArrayList<>(rootIds);
     boolean useResourceLabelEvents = hasResourceLabelEventSource();
     try {
       return queryIssueFacts(
@@ -389,33 +344,6 @@ public class FactBuildService {
           moduleDictionary,
           customerNameAliases);
     }
-  }
-
-  private List<FactRefreshImpactScopeService.Target> loadMissingIssueFactTargets(
-      String sourceInstance, int limit) {
-    return jdbcTemplate.query(
-        """
-        select i.project_id, i.iid
-          from ods_gitlab_issues i
-         where coalesce(i.mirror_deleted, false) = false
-           and i.project_id is not null
-           and i.iid is not null
-           and not exists (
-                 select 1
-                   from issue_fact f
-                  where f.source_system = ?
-                    and f.source_instance = ?
-                    and f.project_id = i.project_id
-                    and f.issue_id = i.id
-                    and coalesce(f.deleted, false) = false
-           )
-         order by coalesce(i.updated_at, i.created_at) asc nulls first, i.id asc
-         limit ?
-        """,
-        (rs, rowNum) -> new FactRefreshImpactScopeService.Target(rs.getLong("project_id"), rs.getLong("iid")),
-        DEFAULT_SOURCE_SYSTEM,
-        sourceInstance,
-        Math.max(1, limit));
   }
 
   private List<IssueFact> queryIssueFacts(
@@ -520,9 +448,12 @@ public class FactBuildService {
       throw new BizException("刷新单条合并请求需要项目 ID 和合并请求编号");
     }
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
-    FactBuildResponse response = rebuildMergeRequestFactsByTargets(
-        normalizedSource,
-        List.of(new FactRefreshImpactScopeService.Target(projectId, mergeRequestIid)));
+    Long rootId = findMergeRequestRootId(normalizedSource, projectId, mergeRequestIid);
+    if (rootId == null) {
+      return new FactBuildResponse(
+          factScope("merge-request", normalizedSource), false, 0, "未找到对应合并请求事实根");
+    }
+    FactBuildResponse response = rebuildMergeRequestFactsByRootIds(normalizedSource, List.of(rootId));
     return new FactBuildResponse(
         factScope("merge-request", normalizedSource),
         false,
@@ -538,16 +469,15 @@ public class FactBuildService {
    * <p>目标来源为空时会删除旧事实，不能退化为无操作。
    *
    * @param sourceInstance GitLab 来源实例
-   * @param targets 以项目 ID 和 MR IID 标识的目标集合
+   * @param rootIds GitLab MR 数据库根 ID 集合
    * @return 当前仍存在并写入的事实数量
    */
   @Transactional
-  public FactBuildResponse rebuildMergeRequestFactsByTargets(
-      String sourceInstance,
-      List<FactRefreshImpactScopeService.Target> targets) {
+  public FactBuildResponse rebuildMergeRequestFactsByRootIds(
+      String sourceInstance, List<Long> rootIds) {
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
-    List<FactRefreshImpactScopeService.Target> safeTargets = distinctTargets(targets);
-    if (safeTargets.isEmpty()) {
+    List<Long> safeRootIds = distinctRootIds(rootIds);
+    if (safeRootIds.isEmpty()) {
       return new FactBuildResponse(factScope("merge-request", normalizedSource), false, 0, "没有需要刷新的合并请求事实");
     }
     sourceSchemaGuard.verifyMergeRequestFactSource(normalizedSource);
@@ -557,13 +487,13 @@ public class FactBuildService {
             "merge-request-fact-target-query",
             normalizedSource,
             factSourceSqlProvider.mergeRequestSourceSql(normalizedSource)
-                + buildMergeRequestTargetPredicate(safeTargets),
+                + buildRootPredicate("mr.id", safeRootIds),
             "",
             null,
-            targetArgs(safeTargets),
+            new ArrayList<>(safeRootIds),
             (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, normalizedSource, moduleDictionary));
-    mergeRequestFactPersistenceService.replaceTargetFacts(
-        DEFAULT_SOURCE_SYSTEM, normalizedSource, safeTargets, facts);
+    mergeRequestFactPersistenceService.replaceRootFacts(
+        DEFAULT_SOURCE_SYSTEM, normalizedSource, safeRootIds, facts);
     refreshMergeRequestFactSearchIndexesInBatches(facts);
     return new FactBuildResponse(
         factScope("merge-request", normalizedSource),
@@ -581,12 +511,12 @@ public class FactBuildService {
    */
   public boolean publishEnrichedMergeRequestFacts(
       String sourceInstance,
-      List<FactRefreshImpactScopeService.Target> targets) {
+      List<Long> rootIds) {
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
     FactBuildResponse response = factBuildTaskService.runGuarded(
         factScope("merge-request", normalizedSource),
         false,
-        () -> rebuildMergeRequestFactsByTargets(normalizedSource, targets));
+        () -> rebuildMergeRequestFactsByRootIds(normalizedSource, rootIds));
     return !FactBuildTaskService.wasSkippedBecauseBusy(response);
   }
 
@@ -1086,45 +1016,80 @@ public class FactBuildService {
     return LocalDateTime.now(ZoneOffset.UTC);
   }
 
-  private List<FactRefreshImpactScopeService.Target> distinctTargets(
-      List<FactRefreshImpactScopeService.Target> targets) {
-    if (targets == null || targets.isEmpty()) {
+  private Long findIssueRootId(String sourceInstance, Long projectId, Long issueIid) {
+    List<Long> roots =
+        jdbcTemplate.query(
+            """
+            select root_id
+              from (
+                select id as root_id, 0 as source_order
+                  from ods_gitlab_issues
+                 where project_id = ? and iid = ?
+                union all
+                select issue_id as root_id, 1 as source_order
+                  from issue_fact
+                 where source_system = ? and source_instance = ?
+                   and project_id = ? and issue_iid = ?
+              ) candidates
+             order by source_order
+             limit 1
+            """,
+            (resultSet, rowNum) -> resultSet.getLong("root_id"),
+            projectId,
+            issueIid,
+            DEFAULT_SOURCE_SYSTEM,
+            sourceInstance,
+            projectId,
+            issueIid);
+    return roots.isEmpty() ? null : roots.getFirst();
+  }
+
+  private Long findMergeRequestRootId(
+      String sourceInstance, Long projectId, Long mergeRequestIid) {
+    List<Long> roots =
+        jdbcTemplate.query(
+            """
+            select root_id
+              from (
+                select id as root_id, 0 as source_order
+                  from ods_gitlab_merge_requests
+                 where target_project_id = ? and iid = ?
+                union all
+                select merge_request_id as root_id, 1 as source_order
+                  from merge_request_fact
+                 where source_system = ? and source_instance = ?
+                   and project_id = ? and merge_request_iid = ?
+              ) candidates
+             order by source_order
+             limit 1
+            """,
+            (resultSet, rowNum) -> resultSet.getLong("root_id"),
+            projectId,
+            mergeRequestIid,
+            DEFAULT_SOURCE_SYSTEM,
+            sourceInstance,
+            projectId,
+            mergeRequestIid);
+    return roots.isEmpty() ? null : roots.getFirst();
+  }
+
+  private List<Long> distinctRootIds(List<Long> rootIds) {
+    if (rootIds == null || rootIds.isEmpty()) {
       return List.of();
     }
-    return targets.stream()
-        .filter(target -> target != null && target.projectId() != null && target.iid() != null)
+    return rootIds.stream()
+        .filter(rootId -> rootId != null && rootId > 0L)
         .distinct()
+        .sorted()
         .toList();
   }
 
-  private String buildIssueTargetPredicate(List<FactRefreshImpactScopeService.Target> targets) {
-    if (targets == null || targets.isEmpty()) {
+  private String buildRootPredicate(String rootColumn, List<Long> rootIds) {
+    if (rootIds == null || rootIds.isEmpty()) {
       return " and false";
     }
-    return targets.stream()
-        .map(ignored -> "(i.project_id = ? and i.iid = ?)")
-        .collect(java.util.stream.Collectors.joining(" or ", " and (", ")"));
-  }
-
-  private String buildMergeRequestTargetPredicate(List<FactRefreshImpactScopeService.Target> targets) {
-    if (targets == null || targets.isEmpty()) {
-      return " and false";
-    }
-    return targets.stream()
-        .map(ignored -> "(mr.target_project_id = ? and mr.iid = ?)")
-        .collect(java.util.stream.Collectors.joining(" or ", " and (", ")"));
-  }
-
-  private List<Object> targetArgs(List<FactRefreshImpactScopeService.Target> targets) {
-    if (targets == null || targets.isEmpty()) {
-      return List.of();
-    }
-    List<Object> args = new ArrayList<>(targets.size() * 2);
-    for (FactRefreshImpactScopeService.Target target : targets) {
-      args.add(target.projectId());
-      args.add(target.iid());
-    }
-    return args;
+    return " and " + rootColumn + " in ("
+        + String.join(", ", java.util.Collections.nCopies(rootIds.size(), "?")) + ")";
   }
 
   private MergeRequestFact mapMergeRequestFact(

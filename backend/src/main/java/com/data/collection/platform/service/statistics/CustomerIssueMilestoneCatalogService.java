@@ -1,6 +1,10 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.entity.OptionItemResponse;
+import com.data.collection.platform.entity.FactPublicationContext;
+import com.data.collection.platform.entity.FactType;
+import com.data.collection.platform.entity.ProjectionScopeType;
+import com.data.collection.platform.service.FactProjectionScopeKeyCodec;
 import com.data.collection.platform.service.IssueScopeCatalogService;
 import com.data.collection.platform.service.IssueScopeDimension;
 import java.util.List;
@@ -19,6 +23,24 @@ public class CustomerIssueMilestoneCatalogService {
   public List<String> listMilestones() {
     return issueScopeCatalogService.listEnabledBusinessKeys(
         IssueScopeCatalogService.CC_PRODUCT_PROJECT_ID, IssueScopeDimension.MILESTONE);
+  }
+
+  /** 返回当前事实发布实际影响的客户里程碑业务键。 */
+  public List<String> listMilestones(FactPublicationContext context) {
+    return issueScopeCatalogService
+        .listEnabledGroups(
+            IssueScopeCatalogService.CC_PRODUCT_PROJECT_ID, IssueScopeDimension.MILESTONE)
+        .stream()
+        .filter(
+            group ->
+                context != null
+                    && context.covers(
+                        FactType.ISSUE,
+                        ProjectionScopeType.ISSUE_SCOPE_GROUP,
+                        FactProjectionScopeKeyCodec.issueScopeGroup(
+                            group.projectId(), group.dimension(), group.id())))
+        .map(IssueScopeCatalogService.ScopeGroup::businessKey)
+        .toList();
   }
 
   /** 返回业务键和管理显示名称组成的下拉选项。 */

@@ -16,7 +16,6 @@ public record SyncRunCompletionEvent(
         || runType == SyncRunType.INCREMENTAL_SYNC
         || runType == SyncRunType.TABLE_REFRESH
         || runType == SyncRunType.SYSTEM_HOOK
-        || runType == SyncRunType.COMPENSATION_SCAN
         || runType == SyncRunType.FULL_COMPENSATION_SCAN;
   }
 

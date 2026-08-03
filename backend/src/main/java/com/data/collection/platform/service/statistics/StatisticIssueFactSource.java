@@ -88,6 +88,10 @@ public record StatisticIssueFactSource(IssueFactRecord record) {
     return record.delayCause();
   }
 
+  public String delayReason() {
+    return record.delayReason();
+  }
+
   public String assigneeName() {
     return record.assigneeName();
   }

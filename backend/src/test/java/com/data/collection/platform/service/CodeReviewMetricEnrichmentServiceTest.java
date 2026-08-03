@@ -55,7 +55,7 @@ class CodeReviewMetricEnrichmentServiceTest {
     var claim = new CodeReviewMetricEnrichmentRepository.EnrichmentClaim(
         8L, "default", 9L, 99L, 7L, "group/project", 1);
     var enriched = new CodeReviewMetricEnrichmentRepository.EnrichedTarget(
-        8L, "default", 9L, 7L);
+        8L, "default", 9L, 99L, 7L);
     when(repository.claim("default", 10)).thenReturn(List.of(claim));
     when(client.fetch(any(), eq(claim)))
         .thenReturn(new CodeReviewDiffMetrics(120, 30, URI.create("http://gitlab/diffs"), "{}"));
@@ -68,7 +68,7 @@ class CodeReviewMetricEnrichmentServiceTest {
 
     verify(repository).markEnriched(8L, 120, 30, "{}", "http://gitlab/diffs");
     verify(factBuildService).publishEnrichedMergeRequestFacts(
-        "default", List.of(new FactRefreshImpactScopeService.Target(9L, 7L)));
+        "default", List.of(99L));
     verify(repository).markPublished(List.of(8L));
   }
 
@@ -103,7 +103,7 @@ class CodeReviewMetricEnrichmentServiceTest {
   @Test
   void factBuildBusyKeepsEnrichedRowsPendingPublication() {
     var enriched = new CodeReviewMetricEnrichmentRepository.EnrichedTarget(
-        8L, "default", 9L, 7L);
+        8L, "default", 9L, 99L, 7L);
     when(repository.loadEnrichedTargets("default", 10)).thenReturn(List.of(enriched));
     when(factBuildService.publishEnrichedMergeRequestFacts(eq("default"), anyList()))
         .thenReturn(false);

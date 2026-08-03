@@ -111,8 +111,7 @@ class CodeReviewMetricEnrichmentService {
     boolean published = factBuildService.publishEnrichedMergeRequestFacts(
         sourceInstance,
         targets.stream()
-            .map(target -> new FactRefreshImpactScopeService.Target(
-                target.projectId(), target.mergeRequestIid()))
+            .map(CodeReviewMetricEnrichmentRepository.EnrichedTarget::mergeRequestId)
             .distinct()
             .toList());
     if (published) {

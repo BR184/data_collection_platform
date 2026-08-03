@@ -50,21 +50,21 @@ public class IssueFactPersistenceService {
    *
    * @param sourceSystem 事实来源系统
    * @param sourceInstance 事实来源实例
-   * @param targets 以项目 ID 和 Issue IID 标识的非空目标集合
+   * @param rootIds GitLab Issue 数据库根 ID 的非空集合
    * @param facts 目标范围当前仍存在的事实
    */
   @Transactional
-  public void replaceTargetFacts(
+  public void replaceRootFacts(
       String sourceSystem,
       String sourceInstance,
-      List<FactRefreshImpactScopeService.Target> targets,
+      List<Long> rootIds,
       List<IssueFact> facts) {
-    List<FactRefreshImpactScopeService.Target> safeTargets = sanitizeTargets(targets);
-    if (safeTargets.isEmpty()) {
+    List<Long> safeRootIds = sanitizeRootIds(rootIds);
+    if (safeRootIds.isEmpty()) {
       throw new IllegalArgumentException("议题事实目标替换必须指定非空目标范围");
     }
-    List<Object> args = targetArgs(sourceSystem, sourceInstance, safeTargets);
-    String predicate = targetPredicate(safeTargets, "fact.project_id", "fact.issue_iid");
+    List<Object> args = targetArgs(sourceSystem, sourceInstance, safeRootIds);
+    String predicate = rootPredicate(safeRootIds, "fact.issue_id");
     jdbcTemplate.update(
         """
         delete from issue_fact_customer_members member
@@ -105,37 +105,30 @@ public class IssueFactPersistenceService {
     upsertIssueFacts(facts);
   }
 
-  private List<FactRefreshImpactScopeService.Target> sanitizeTargets(
-      List<FactRefreshImpactScopeService.Target> targets) {
-    if (targets == null || targets.isEmpty()) {
+  private List<Long> sanitizeRootIds(List<Long> rootIds) {
+    if (rootIds == null || rootIds.isEmpty()) {
       return List.of();
     }
-    return targets.stream()
-        .filter(target -> target != null && target.projectId() != null && target.iid() != null)
+    return rootIds.stream()
+        .filter(rootId -> rootId != null && rootId > 0L)
         .distinct()
+        .sorted()
         .toList();
   }
 
   private List<Object> targetArgs(
       String sourceSystem,
       String sourceInstance,
-      List<FactRefreshImpactScopeService.Target> targets) {
-    List<Object> args = new ArrayList<>(2 + targets.size() * 2);
+      List<Long> rootIds) {
+    List<Object> args = new ArrayList<>(2 + rootIds.size());
     args.add(sourceSystem);
     args.add(sourceInstance);
-    for (FactRefreshImpactScopeService.Target target : targets) {
-      args.add(target.projectId());
-      args.add(target.iid());
-    }
+    args.addAll(rootIds);
     return args;
   }
 
-  private String targetPredicate(
-      List<FactRefreshImpactScopeService.Target> targets,
-      String projectColumn,
-      String iidColumn) {
-    return targets.stream()
-        .map(ignored -> "(" + projectColumn + " = ? and " + iidColumn + " = ?)")
-        .collect(java.util.stream.Collectors.joining(" or ", " and (", ")"));
+  private String rootPredicate(List<Long> rootIds, String rootColumn) {
+    return " and " + rootColumn + " in ("
+        + String.join(", ", java.util.Collections.nCopies(rootIds.size(), "?")) + ")";
   }
 }

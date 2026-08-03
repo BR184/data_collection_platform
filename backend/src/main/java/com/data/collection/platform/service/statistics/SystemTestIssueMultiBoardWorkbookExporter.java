@@ -154,7 +154,7 @@ final class SystemTestIssueMultiBoardWorkbookExporter {
           cause,
           rows.stream()
               .filter(SystemTestIssueMultiBoardService.IssueRow::delay)
-              .filter(row -> cause.equals(resolvedDelayCause(row)))
+              .filter(row -> resolvedDelayCauses(row).contains(cause))
               .toList());
     }
     return grouped;
@@ -333,8 +333,8 @@ final class SystemTestIssueMultiBoardWorkbookExporter {
     return SystemTestIssueMetricDimensionSupport.majorCause(row.reasonCategory(), row.labelNames());
   }
 
-  private static String resolvedDelayCause(SystemTestIssueMultiBoardService.IssueRow row) {
-    return SystemTestIssueMetricDimensionSupport.delayCause(
+  private static List<String> resolvedDelayCauses(SystemTestIssueMultiBoardService.IssueRow row) {
+    return SystemTestIssueMetricDimensionSupport.delayCauses(
         row.delayCause(), row.delayReason(), row.labelNames());
   }
 

@@ -179,16 +179,23 @@ public class IssueScopeDefinitionService {
         || current.dimension() != normalized.dimension()) {
       throw new BizException("目录的项目和匹配维度不可修改，请新建目录");
     }
-    jdbcTemplate.update(
+    int updated = jdbcTemplate.update(
         """
         update issue_scope_catalogs
            set project_name = ?, enabled = ?, remark = ?, updated_at = current_timestamp
          where id = ?
+           and (project_name, enabled, remark) is distinct from (?, ?, ?)
         """,
         normalized.projectName(),
         normalized.enabled(),
         normalized.remark(),
-        id);
+        id,
+        normalized.projectName(),
+        normalized.enabled(),
+        normalized.remark());
+    if (updated > 0) {
+      advanceCatalogGroupGenerations(id);
+    }
     return findCatalog(id);
   }
 
@@ -231,15 +238,23 @@ public class IssueScopeDefinitionService {
           """
           update issue_scope_groups
              set business_key = ?, display_name = ?, sort_order = ?, enabled = ?, remark = ?,
+                 definition_generation = definition_generation + 1,
                  updated_at = current_timestamp
            where id = ?
+             and (business_key, display_name, sort_order, enabled, remark)
+                 is distinct from (?, ?, ?, ?, ?)
           """,
           normalized.businessKey(),
           normalized.displayName(),
           normalized.sortOrder(),
           normalized.enabled(),
           normalized.remark(),
-          id);
+          id,
+          normalized.businessKey(),
+          normalized.displayName(),
+          normalized.sortOrder(),
+          normalized.enabled(),
+          normalized.remark());
     } catch (DuplicateKeyException error) {
       throw new BizException("当前目录中已存在相同业务键");
     }
@@ -271,27 +286,31 @@ public class IssueScopeDefinitionService {
     } catch (DuplicateKeyException error) {
       throw new BizException("该事实值已经归属于当前目录中的其他范围");
     }
+    advanceGroupGeneration(normalized.groupId());
     return findMemberBySourceValue(normalized.catalogId(), normalized.sourceValue());
   }
 
-  /** 更新匹配成员；不允许跨目录或跨范围组移动。 */
+  /** 更新匹配成员；允许在同一目录内移动到另一稳定范围组。 */
   @Transactional
   public IssueScopeMemberResponse updateMember(Long id, IssueScopeMemberSaveRequest request) {
     MemberRef current = requireMember(id);
     NormalizedMember normalized = normalizeMember(request);
-    if (!Objects.equals(current.catalogId(), normalized.catalogId())
-        || !Objects.equals(current.groupId(), normalized.groupId())) {
-      throw new BizException("匹配成员不可移动到其他目录或范围组");
+    if (!Objects.equals(current.catalogId(), normalized.catalogId())) {
+      throw new BizException("匹配成员不可移动到其他目录");
     }
     try {
-      jdbcTemplate.update(
+      int updated = jdbcTemplate.update(
           """
           update issue_scope_members
-             set source_value = ?, display_name = ?, sort_order = ?,
+             set group_id = ?, source_value = ?, display_name = ?, sort_order = ?,
                  active_from = ?, active_until = ?, enabled = ?, source_reference_id = ?,
                  remark = ?, updated_at = current_timestamp
            where id = ?
+             and (group_id, source_value, display_name, sort_order,
+                  active_from, active_until, enabled, source_reference_id, remark)
+                 is distinct from (?, ?, ?, ?, ?, ?, ?, ?, ?)
           """,
+          normalized.groupId(),
           normalized.sourceValue(),
           normalized.displayName(),
           normalized.sortOrder(),
@@ -300,7 +319,22 @@ public class IssueScopeDefinitionService {
           normalized.enabled(),
           normalized.sourceReferenceId(),
           normalized.remark(),
-          id);
+          id,
+          normalized.groupId(),
+          normalized.sourceValue(),
+          normalized.displayName(),
+          normalized.sortOrder(),
+          toTimestamp(normalized.activeFrom()),
+          toTimestamp(normalized.activeUntil()),
+          normalized.enabled(),
+          normalized.sourceReferenceId(),
+          normalized.remark());
+      if (updated > 0) {
+        advanceGroupGeneration(current.groupId());
+        if (!Objects.equals(current.groupId(), normalized.groupId())) {
+          advanceGroupGeneration(normalized.groupId());
+        }
+      }
     } catch (DuplicateKeyException error) {
       throw new BizException("该事实值已经归属于当前目录中的其他范围");
     }
@@ -308,45 +342,74 @@ public class IssueScopeDefinitionService {
   }
 
   /** 设置目录启用状态。 */
+  @Transactional
   public IssueScopeCatalogResponse setCatalogEnabled(Long id, boolean enabled) {
     requireCatalog(id);
-    jdbcTemplate.update(
-        "update issue_scope_catalogs set enabled = ?, updated_at = current_timestamp where id = ?",
+    int updated = jdbcTemplate.update(
+        """
+        update issue_scope_catalogs
+           set enabled = ?, updated_at = current_timestamp
+         where id = ? and enabled is distinct from ?
+        """,
         enabled,
-        id);
+        id,
+        enabled);
+    if (updated > 0) {
+      advanceCatalogGroupGenerations(id);
+    }
     return findCatalog(id);
   }
 
   /** 设置范围组启用状态。 */
+  @Transactional
   public IssueScopeGroupResponse setGroupEnabled(Long id, boolean enabled) {
     requireGroup(id);
     jdbcTemplate.update(
-        "update issue_scope_groups set enabled = ?, updated_at = current_timestamp where id = ?",
+        """
+        update issue_scope_groups
+           set enabled = ?,
+               definition_generation = definition_generation + 1,
+               updated_at = current_timestamp
+         where id = ? and enabled is distinct from ?
+        """,
         enabled,
-        id);
+        id,
+        enabled);
     return findGroup(id);
   }
 
   /** 设置匹配成员启用状态。 */
+  @Transactional
   public IssueScopeMemberResponse setMemberEnabled(Long id, boolean enabled) {
-    requireMember(id);
-    jdbcTemplate.update(
-        "update issue_scope_members set enabled = ?, updated_at = current_timestamp where id = ?",
+    MemberRef current = requireMember(id);
+    int updated = jdbcTemplate.update(
+        """
+        update issue_scope_members
+           set enabled = ?, updated_at = current_timestamp
+         where id = ? and enabled is distinct from ?
+        """,
         enabled,
-        id);
+        id,
+        enabled);
+    if (updated > 0) {
+      advanceGroupGeneration(current.groupId());
+    }
     return findMember(id);
   }
 
   /** 删除范围组及其成员，不修改事实数据。 */
+  @Transactional
   public void deleteGroup(Long id) {
     requireGroup(id);
     jdbcTemplate.update("delete from issue_scope_groups where id = ?", id);
   }
 
   /** 删除匹配成员，不修改事实数据。 */
+  @Transactional
   public void deleteMember(Long id) {
-    requireMember(id);
+    MemberRef current = requireMember(id);
     jdbcTemplate.update("delete from issue_scope_members where id = ?", id);
+    advanceGroupGeneration(current.groupId());
   }
 
   /**
@@ -364,7 +427,11 @@ public class IssueScopeDefinitionService {
             Long.class,
             catalogId);
     validateCompleteOrder(current, ids, "范围组");
+    if (current.equals(ids)) {
+      return;
+    }
     updateOrder("issue_scope_groups", ids);
+    advanceCatalogGroupGenerations(catalogId);
   }
 
   /** 在单一事务内重排范围组下的全部匹配成员。 */
@@ -377,7 +444,11 @@ public class IssueScopeDefinitionService {
             Long.class,
             groupId);
     validateCompleteOrder(current, ids, "匹配成员");
+    if (current.equals(ids)) {
+      return;
+    }
     updateOrder("issue_scope_members", ids);
+    advanceGroupGeneration(groupId);
   }
 
   /** 返回事实层已经存在但尚未归入任何范围组的值。 */
@@ -713,6 +784,32 @@ public class IssueScopeDefinitionService {
           "update " + tableName + " set sort_order = ?, updated_at = current_timestamp where id = ?",
           index + 1,
           ids.get(index));
+    }
+  }
+
+  private void advanceCatalogGroupGenerations(Long catalogId) {
+    jdbcTemplate.update(
+        """
+        update issue_scope_groups
+           set definition_generation = definition_generation + 1,
+               updated_at = current_timestamp
+         where catalog_id = ?
+        """,
+        catalogId);
+  }
+
+  private void advanceGroupGeneration(Long groupId) {
+    int updated =
+        jdbcTemplate.update(
+            """
+            update issue_scope_groups
+               set definition_generation = definition_generation + 1,
+                   updated_at = current_timestamp
+             where id = ?
+            """,
+            groupId);
+    if (updated != 1) {
+      throw new BizException("议题范围组不存在");
     }
   }
 

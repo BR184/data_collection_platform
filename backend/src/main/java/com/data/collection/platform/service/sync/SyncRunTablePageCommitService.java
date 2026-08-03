@@ -1,10 +1,12 @@
 package com.data.collection.platform.service.sync;
 
-import com.data.collection.platform.entity.MirrorBatchWriteResult;
+import com.data.collection.platform.entity.MirrorMutationResult;
 import com.data.collection.platform.entity.SourceTableSchema;
+import com.data.collection.platform.entity.VersionedFactChangeTarget;
 import com.data.collection.platform.entity.sync.SyncRunTableState;
 import com.data.collection.platform.entity.sync.SyncRunTableTask;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
+import com.data.collection.platform.service.FactChangeTargetService;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -17,24 +19,33 @@ public class SyncRunTablePageCommitService {
   private final SyncRunTableTaskLeaseService leaseService;
   private final SyncRunTableStateMapper stateMapper;
   private final SyncTableContinuationPlanner continuationPlanner;
-  private final SyncRunTablePlanningService tablePlanningService;
+  private final SyncRunAuthoritativeScopePlanner authoritativeScopePlanner;
   private final MirrorTableWriter mirrorTableWriter;
+  private final FactChangeTargetService factChangeTargetService;
+  private final SyncRunFactPublicationCoordinator factPublicationCoordinator;
+  private final SyncRunReconciliationCoordinator reconciliationCoordinator;
 
   public SyncRunTablePageCommitService(
       SyncRunTableTaskLeaseService leaseService,
       SyncRunTableStateMapper stateMapper,
       SyncTableContinuationPlanner continuationPlanner,
-      SyncRunTablePlanningService tablePlanningService,
-      MirrorTableWriter mirrorTableWriter) {
+      SyncRunAuthoritativeScopePlanner authoritativeScopePlanner,
+      MirrorTableWriter mirrorTableWriter,
+      FactChangeTargetService factChangeTargetService,
+      SyncRunFactPublicationCoordinator factPublicationCoordinator,
+      SyncRunReconciliationCoordinator reconciliationCoordinator) {
     this.leaseService = leaseService;
     this.stateMapper = stateMapper;
     this.continuationPlanner = continuationPlanner;
-    this.tablePlanningService = tablePlanningService;
+    this.authoritativeScopePlanner = authoritativeScopePlanner;
     this.mirrorTableWriter = mirrorTableWriter;
+    this.factChangeTargetService = factChangeTargetService;
+    this.factPublicationCoordinator = factPublicationCoordinator;
+    this.reconciliationCoordinator = reconciliationCoordinator;
   }
 
   /**
-   * 原子提交扫描页，并在需要时创建下一扫描页或首个删除对账页。
+   * 原子提交扫描页，并在需要时创建下一扫描页或通过阶段屏障规划删除对账。
    */
   @Transactional
   public PageCommitResult commitScanPage(
@@ -47,36 +58,32 @@ public class SyncRunTablePageCommitService {
       int batchSize,
       boolean hasMore,
       boolean forceUpdate,
-      boolean authoritative,
-      Map<String, Object> authoritativeScope,
       boolean fullReconcile) {
     leaseService.lockOwnedTask(task.getId(), task.getLeaseOwner());
-    MirrorBatchWriteResult writeResult =
-        authoritative
-            ? mirrorTableWriter.replaceAuthoritativeScope(
-                mirrorSchema, authoritativeScope, rows, task.getId())
-            : forceUpdate
-                ? mirrorTableWriter.writeBatch(mirrorSchema, rows, task.getId(), true)
-                : mirrorTableWriter.writeBatch(mirrorSchema, rows, task.getId());
-    tablePlanningService.planAuthoritativeRelatedTasks(task, rows);
+    MirrorMutationResult mutationResult =
+        forceUpdate
+            ? mirrorTableWriter.writeBatch(mirrorSchema, rows, task.getId(), true)
+            : mirrorTableWriter.writeBatch(mirrorSchema, rows, task.getId());
+    registerFactTargets(task, mutationResult, fullReconcile);
+    reconciliationCoordinator.lockStageMutation(task.getRunId());
+    authoritativeScopePlanner.enqueueFromParentRows(task, rows);
     if (hasMore) {
       continuationPlanner.enqueueContinuationTask(task, cursorUpdatedAt, cursorPk, batchSize);
-    } else if (fullReconcile) {
-      continuationPlanner.enqueueReconciliationTask(task, null, batchSize);
     }
     if (!leaseService.finishOwnedTask(
         task.getId(),
         task.getLeaseOwner(),
         (long) rows.size(),
-        (long) writeResult.appliedRows(),
+        (long) mutationResult.appliedRows(),
         "SUCCESS",
         null,
         cursorUpdatedAt,
         cursorPk)) {
       throw new SyncTaskLeaseLostException(task.getId());
     }
-    updateScanState(task, state, cursorUpdatedAt, cursorPk, hasMore, fullReconcile);
-    return new PageCommitResult(rows.size(), writeResult.appliedRows());
+    updateScanState(task, state, cursorUpdatedAt, cursorPk, hasMore);
+    reconciliationCoordinator.planIfReady(task.getRunId());
+    return new PageCommitResult(rows.size(), mutationResult.appliedRows());
   }
 
   /** 在不写镜像行时原子完成已确认无变化的增量任务。 */
@@ -87,14 +94,16 @@ public class SyncRunTablePageCommitService {
       LocalDateTime cursorUpdatedAt,
       String cursorPk) {
     leaseService.lockOwnedTask(task.getId(), task.getLeaseOwner());
+    reconciliationCoordinator.lockStageMutation(task.getRunId());
     if (!leaseService.finishOwnedTask(
         task.getId(), task.getLeaseOwner(), 0L, 0L, "SUCCESS", null, cursorUpdatedAt, cursorPk)) {
       throw new SyncTaskLeaseLostException(task.getId());
     }
-    updateScanState(task, state, cursorUpdatedAt, cursorPk, false, false);
+    updateScanState(task, state, cursorUpdatedAt, cursorPk, false);
+    reconciliationCoordinator.planIfReady(task.getRunId());
   }
 
-  /** 原子提交一页删除对账结果，并创建下一对账页或完成整表验证。 */
+  /** 原子提交一页删除对账结果，并重排当前任务或完成整表验证。 */
   @Transactional
   public PageCommitResult commitReconciliationPage(
       SyncRunTableTask task,
@@ -105,35 +114,75 @@ public class SyncRunTablePageCommitService {
       String nextCursor,
       int batchSize) {
     leaseService.lockOwnedTask(task.getId(), task.getLeaseOwner());
-    int deletedRows = mirrorOnlyRows.isEmpty()
-        ? 0
+    MirrorMutationResult mutationResult = mirrorOnlyRows.isEmpty()
+        ? MirrorMutationResult.empty()
         : mirrorTableWriter.markRowsDeletedByPrimaryKeys(mirrorSchema, mirrorOnlyRows, task.getId());
+    registerFactTargets(
+        task,
+        mutationResult,
+        "FULL_RECONCILE".equalsIgnoreCase(task.getRowStrategy()));
     boolean hasMore = nextCursor != null && !nextCursor.isBlank() && scannedRows >= batchSize;
+    long totalScanned = accumulated(task.getRowsScanned(), scannedRows);
+    long totalApplied = accumulated(task.getRowsApplied(), mutationResult.appliedRows());
     if (hasMore) {
-      continuationPlanner.enqueueReconciliationTask(task, nextCursor, batchSize);
-    }
-    if (!leaseService.finishOwnedTask(
-        task.getId(),
-        task.getLeaseOwner(),
-        (long) scannedRows,
-        (long) deletedRows,
-        "SUCCESS",
-        null,
-        null,
-        nextCursor)) {
-      throw new SyncTaskLeaseLostException(task.getId());
+      if (!leaseService.requeueOwnedReconciliationTask(
+          task.getId(),
+          task.getLeaseOwner(),
+          nextCursor,
+          scannedRows,
+          mutationResult.appliedRows())) {
+        throw new SyncTaskLeaseLostException(task.getId());
+      }
+    } else {
+      if (!leaseService.finishOwnedTask(
+          task.getId(),
+          task.getLeaseOwner(),
+          totalScanned,
+          totalApplied,
+          "SUCCESS",
+          null,
+          null,
+          nextCursor)) {
+        throw new SyncTaskLeaseLostException(task.getId());
+      }
     }
     LocalDateTime now = LocalDateTime.now();
     state.setDirtyFlag(hasMore);
     state.setLastSuccessAt(now);
     if (!hasMore) {
-      state.setLastFullVerifiedAt(now);
+      state.setLastDeleteReconciledAt(now);
+      if ("FULL_RECONCILE".equalsIgnoreCase(task.getRowStrategy())) {
+        state.setLastFullVerifiedAt(now);
+      }
     }
     state.setLastError("");
     state.setRetryCount(0);
     state.setUpdatedAt(now);
     stateMapper.updateById(state);
-    return new PageCommitResult(scannedRows, deletedRows);
+    return new PageCommitResult(scannedRows, mutationResult.appliedRows());
+  }
+
+  private long accumulated(Long currentValue, long pageValue) {
+    return Math.addExact(currentValue == null ? 0L : currentValue, pageValue);
+  }
+
+  private void registerFactTargets(
+      SyncRunTableTask task,
+      MirrorMutationResult mutationResult,
+      boolean fullPublication) {
+    if (fullPublication || mutationResult.changes().isEmpty()) {
+      return;
+    }
+    List<VersionedFactChangeTarget> targets = factChangeTargetService.registerChanges(
+        task.getRunId(),
+        task.getId(),
+        task.getSourceInstance(),
+        task.getSourceTable(),
+        mutationResult.changes());
+    if (!targets.isEmpty()) {
+      factPublicationCoordinator.ensurePublication(
+          task.getRunId(), false, "镜像页提交后发布定向事实");
+    }
   }
 
   private void updateScanState(
@@ -141,13 +190,15 @@ public class SyncRunTablePageCommitService {
       SyncRunTableState state,
       LocalDateTime cursorUpdatedAt,
       String cursorPk,
-      boolean hasMore,
-      boolean fullReconcile) {
+      boolean hasMore) {
     LocalDateTime now = LocalDateTime.now();
-    state.setDirtyFlag(fullReconcile || hasMore);
     state.setLastSuccessAt(now);
     boolean globalScan = "INCREMENTAL".equalsIgnoreCase(task.getRowStrategy())
+        || "DELETE_ONLY".equalsIgnoreCase(task.getRowStrategy())
         || "FULL_RECONCILE".equalsIgnoreCase(task.getRowStrategy());
+    if (globalScan) {
+      state.setDirtyFlag(true);
+    }
     if (globalScan && !hasMore && cursorUpdatedAt != null) {
       state.setLastWatermarkAt(cursorUpdatedAt);
       state.setLastCursorPk(cursorPk);

@@ -236,26 +236,6 @@ class GitlabExternalDbServiceTest {
   }
 
   @Test
-  void shouldBuildExistingPrimaryKeysSqlForCompositeKeys() {
-    TableWhitelistOption option =
-        new TableWhitelistOption(
-            "label_links", "Label links", "label_id,target_id,target_type", null, SourceCursorStrategy.NONE, true);
-
-    String sql = service.buildExistingPrimaryKeysSql(
-        option,
-        List.of("label_id", "target_id", "target_type"),
-        List.of(
-            Map.of("label_id", "1", "target_id", "101", "target_type", "Issue"),
-            Map.of("label_id", "2", "target_id", "102", "target_type", "MergeRequest")));
-
-    assertThat(sql)
-        .isEqualTo("select \"label_id\"::text as \"label_id\", \"target_id\"::text as \"target_id\", \"target_type\"::text as \"target_type\"\n"
-            + "  from \"public\".\"label_links\"\n"
-            + " where (\"label_id\" = '1' and \"target_id\" = '101' and \"target_type\" = 'Issue') "
-            + "or (\"label_id\" = '2' and \"target_id\" = '102' and \"target_type\" = 'MergeRequest')");
-  }
-
-  @Test
   void shouldQuoteSourceTableAndScopeColumnsForPreciseScans() {
     TableWhitelistOption option =
         new TableWhitelistOption(

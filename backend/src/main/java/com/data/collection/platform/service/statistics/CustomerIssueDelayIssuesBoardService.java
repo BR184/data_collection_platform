@@ -245,11 +245,15 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   }
 
   @Override
-  public void refreshSnapshots(StatisticBoardSnapshotRefresher.RefreshContext context) {
-    if (!context.affectsIssues()) {
+  public void refreshSnapshots(com.data.collection.platform.entity.FactPublicationContext context) {
+    Set<String> affectedMilestones = new LinkedHashSet<>(milestoneCatalogService.listMilestones(context));
+    if (affectedMilestones.isEmpty()) {
       return;
     }
-    List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
+    List<StatisticFilterOption> milestoneOptions =
+        loadMilestoneOptions().stream()
+            .filter(option -> affectedMilestones.contains(option.value()))
+            .toList();
     for (StatisticFilterGroup filterGroup :
         CustomerIssueSqlScopeSupport.milestoneFilterGroups(milestoneOptions, 3)) {
       StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
@@ -269,6 +273,9 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         BOARD_KEY,
         RULE_VERSION,
         "project=325;milestone=" + (StringUtils.hasText(selectedMilestone) ? selectedMilestone : "none"),
+        325L,
+        com.data.collection.platform.service.IssueScopeDimension.MILESTONE,
+        selectedMilestone,
         filters,
         definition,
         effectiveFilterGroup);

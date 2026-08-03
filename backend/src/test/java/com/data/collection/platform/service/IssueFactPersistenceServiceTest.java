@@ -26,10 +26,10 @@ class IssueFactPersistenceServiceTest {
     IssueFact currentFact = mock(IssueFact.class);
     List<IssueFact> currentFacts = List.of(currentFact);
 
-    service.replaceTargetFacts(
+    service.replaceRootFacts(
         "GITLAB",
         "default",
-        List.of(new FactRefreshImpactScopeService.Target(9L, 101L)),
+        List.of(101L),
         currentFacts);
 
     ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
@@ -44,7 +44,7 @@ class IssueFactPersistenceServiceTest {
         .contains("using issue_fact");
     assertThat(sqlCaptor.getAllValues().get(1)).contains("delete from issue_fact");
     assertThat(argsCaptor.getAllValues())
-        .allSatisfy(args -> assertThat(args).containsExactly("GITLAB", "default", 9L, 101L));
+        .allSatisfy(args -> assertThat(args).containsExactly("GITLAB", "default", 101L));
   }
 
   @Test
@@ -56,10 +56,10 @@ class IssueFactPersistenceServiceTest {
     IssueFactPersistenceService service =
         new IssueFactPersistenceService(factMapper, membershipRepository, jdbcTemplate);
 
-    service.replaceTargetFacts(
+    service.replaceRootFacts(
         "GITLAB",
         "default",
-        List.of(new FactRefreshImpactScopeService.Target(9L, 101L)),
+        List.of(101L),
         List.of());
 
     verify(jdbcTemplate, org.mockito.Mockito.times(2))

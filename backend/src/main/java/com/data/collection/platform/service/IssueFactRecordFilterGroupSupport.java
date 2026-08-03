@@ -303,11 +303,10 @@ final class IssueFactRecordFilterGroupSupport {
           row.reasonCategory(), String.join(" ", row.labels()));
       case "reasonCategory" -> List.of(Objects.toString(row.reasonCategory(), ""));
       case "fixUser" -> List.of(Objects.toString(row.fixUser(), ""));
-      case "delayCause" -> List.of(
-          useFactDelayCause
-              ? Objects.toString(row.delayCause(), "")
-              : SystemTestIssueMetricDimensionSupport.delayCause(
-                  row.delayCause(), row.delayReason(), String.join(" ", row.labels())));
+      case "delayCause" -> useFactDelayCause
+          ? IssueDelayCauseMembers.parse(row.delayCause())
+          : SystemTestIssueMetricDimensionSupport.delayCauses(
+              row.delayCause(), row.delayReason(), String.join(" ", row.labels()));
       case "delayIssue" -> List.of(Boolean.toString(row.delayIssue()));
       case "rollback" -> List.of(Boolean.toString(SystemTestIssueMetricDimensionSupport.rollback(
           row.regression(), row.title(), String.join(" ", row.labels()))));

@@ -55,6 +55,12 @@ class GitlabSourceConnectionSettings {
         sql);
   }
 
+  String buildDockerPsqlStdinScript(GitlabSyncConfig config) {
+    return "gitlab-psql -d \""
+        + sanitizeShell(normalizeDbName(config))
+        + "\" -X -qAt -v ON_ERROR_STOP=1";
+  }
+
   private String sanitizeShell(String text) {
     return text.replace("\"", "\\\"");
   }

@@ -3,6 +3,7 @@ package com.data.collection.platform.service.statistics;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -55,7 +56,7 @@ class CustomerIssueDefectCauseBoardServiceTest {
         new StatisticBoardSnapshotService.SnapshotRequest(
             "customer-issue-defect-cause", "test", "test", "test", Map.of(), null, null);
     when(snapshotRequestFactory.issueRequest(
-            anyString(), anyString(), anyString(), anyMap(), any(), any()))
+            anyString(), anyString(), anyString(), anyLong(), any(), anyString(), anyMap(), any(), any()))
         .thenReturn(snapshotRequest);
     doAnswer(
             invocation ->
@@ -108,6 +109,9 @@ class CustomerIssueDefectCauseBoardServiceTest {
         .issueRequest(
             eq("customer-issue-defect-cause"),
             eq("customer-issue-defect-cause@2026-07-28-v9"),
+            anyString(),
+            anyLong(),
+            any(),
             anyString(),
             anyMap(),
             any(),

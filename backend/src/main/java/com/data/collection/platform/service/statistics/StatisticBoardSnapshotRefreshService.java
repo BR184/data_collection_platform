@@ -1,11 +1,10 @@
 package com.data.collection.platform.service.statistics;
 
+import com.data.collection.platform.entity.FactPublicationContext;
 import java.util.List;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Service
-@Slf4j
 public class StatisticBoardSnapshotRefreshService {
   private final List<StatisticBoardSnapshotRefresher> refreshers;
 
@@ -13,22 +12,13 @@ public class StatisticBoardSnapshotRefreshService {
     this.refreshers = refreshers == null ? List.of() : List.copyOf(refreshers);
   }
 
-  public void refreshAfterFactBuild(String factType, boolean full) {
+  /** 刷新与稳定发布范围匹配的全部统计投影；任一失败由持久任务统一重试。 */
+  public void refreshAfterFactBuild(FactPublicationContext context) {
     if (refreshers.isEmpty()) {
       return;
     }
-    StatisticBoardSnapshotRefresher.RefreshContext context =
-        new StatisticBoardSnapshotRefresher.RefreshContext(factType, full);
     for (StatisticBoardSnapshotRefresher refresher : refreshers) {
-      try {
-        refresher.refreshSnapshots(context);
-      } catch (Exception e) {
-        log.warn(
-            "Statistic board snapshot refresh failed, refresher={}, factType={}",
-            refresher.getClass().getSimpleName(),
-            factType,
-            e);
-      }
+      refresher.refreshSnapshots(context);
     }
   }
 }

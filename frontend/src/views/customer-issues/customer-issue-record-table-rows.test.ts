@@ -46,7 +46,7 @@ const record: CustomerIssueRecordRowResponse = {
 
 describe('customer issue record table rows', () => {
   it('test_customerFields_map_displaysAllCcProductValues', () => {
-    const rows = mapCustomerIssueRecordTableRows([record]);
+    const rows = mapCustomerIssueRecordTableRows([{ ...record, delayCause: '方案卡点&技术卡点' }]);
 
     expect(rows[0]).toMatchObject({
       customerNames: '高晶电器、郑州新世纪',
@@ -57,12 +57,28 @@ describe('customer issue record table rows', () => {
       assigneeName: '张三',
       testingPhase: '未设定测试阶段',
     });
+    expect(rows[0].delayCause).toEqual([
+      { label: '方案卡点', type: 'primary' },
+      { label: '技术卡点', type: 'primary' },
+    ]);
+  });
+
+  it('keeps_emptyDelayCause_asEmptyTagListForTablePlaceholder', () => {
+    const rows = mapCustomerIssueRecordTableRows([{ ...record, delayCause: '' }]);
+
+    expect(rows[0].delayCause).toEqual([]);
   });
 
   it('test_planMergeVersions_parse_displaysEveryVersionAsASeparateTag', () => {
     expect(parseCustomerIssuePlannedMergeVersions('CC2026R4 & CC2026R5')).toEqual([
       'CC2026R4',
       'CC2026R5',
+    ]);
+  });
+
+  it('test_planMergeVersions_parse_preservesNonCanonicalSingleBranchText', () => {
+    expect(parseCustomerIssuePlannedMergeVersions('crownCAD-Client:dev')).toEqual([
+      'crownCAD-Client:dev',
     ]);
   });
 

@@ -1,6 +1,10 @@
 package com.data.collection.platform.service.statistics;
 
+import com.data.collection.platform.service.IssueDelayCauseMembers;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.util.StringUtils;
 
 /**
@@ -11,8 +15,7 @@ import org.springframework.util.StringUtils;
 public final class SystemTestIssueMetricDimensionSupport {
   public static final List<String> MAJOR_CAUSES =
       List.of("需求阶段", "设计阶段", "编码问题", "打包问题", "依赖问题", "精度问题");
-  public static final List<String> DELAY_CAUSES =
-      List.of("技术卡点", "方案卡点", "资源卡点", "数据异常", "算法问题", "机制问题", "计算效率");
+  public static final List<String> DELAY_CAUSES = IssueDelayCauseMembers.values();
 
   private SystemTestIssueMetricDimensionSupport() {}
 
@@ -78,9 +81,22 @@ public final class SystemTestIssueMetricDimensionSupport {
     return "";
   }
 
-  public static String delayCause(String delayCause, String delayReason, String labelsText) {
-    String text = safe(delayCause) + " " + safe(delayReason) + " " + safe(labelsText);
-    return DELAY_CAUSES.stream().filter(text::contains).findFirst().orElse("");
+  /**
+   * 汇总系统测试统计使用的延期原因成员。
+   *
+   * @param delayCause 事实层延期原因
+   * @param delayReason 事实层延期原因兼容字段
+   * @param labelsText 议题标签文本，用于补齐尚未重建的历史事实
+   * @return 按事实或标签首次出现顺序去重后的七类延期原因
+   */
+  public static List<String> delayCauses(String delayCause, String delayReason, String labelsText) {
+    Set<String> causes = new LinkedHashSet<>();
+    List<String> rawValues = new ArrayList<>(2);
+    rawValues.add(delayCause);
+    rawValues.add(delayReason);
+    causes.addAll(IssueDelayCauseMembers.collectKnownCauses(rawValues));
+    causes.addAll(IssueDelayCauseMembers.fromLabelText(labelsText));
+    return List.copyOf(causes);
   }
 
   public static boolean matchesCauseMetric(String metricKey, String reasonCategory, String labelsText) {

@@ -33,6 +33,7 @@ public class SystemTestPhaseCatalogService {
             group ->
                 new PhaseGroup(
                     group.projectId(),
+                    group.id(),
                     group.businessKey(),
                     group.members().stream()
                         .map(IssueScopeCatalogService.ScopeMember::sourceValue)
@@ -48,6 +49,26 @@ public class SystemTestPhaseCatalogService {
     }
     return issueScopeCatalogService.listEnabledBusinessKeys(
         projectId, IssueScopeDimension.TESTING_PHASE);
+  }
+
+  /** 返回当前事实发布实际影响的系统测试版本业务键。 */
+  public List<String> listParentNames(
+      Long projectId, com.data.collection.platform.entity.FactPublicationContext context) {
+    if (projectId == null || context == null) {
+      return List.of();
+    }
+    return issueScopeCatalogService
+        .listEnabledGroups(projectId, IssueScopeDimension.TESTING_PHASE)
+        .stream()
+        .filter(
+            group ->
+                context.covers(
+                    com.data.collection.platform.entity.FactType.ISSUE,
+                    com.data.collection.platform.entity.ProjectionScopeType.ISSUE_SCOPE_GROUP,
+                    FactProjectionScopeKeyCodec.issueScopeGroup(
+                        group.projectId(), group.dimension(), group.id())))
+        .map(IssueScopeCatalogService.ScopeGroup::businessKey)
+        .toList();
   }
 
   /** 返回项目下所有启用的精确测试阶段值。 */
@@ -98,5 +119,6 @@ public class SystemTestPhaseCatalogService {
     return StringUtils.hasText(value) && IssueRuleSupport.containsToken(value, SYSTEM_TEST_TOKENS);
   }
 
-  public record PhaseGroup(Long projectId, String name, List<String> testingPhases, long issueCount) {}
+  public record PhaseGroup(
+      Long projectId, long groupId, String name, List<String> testingPhases, long issueCount) {}
 }

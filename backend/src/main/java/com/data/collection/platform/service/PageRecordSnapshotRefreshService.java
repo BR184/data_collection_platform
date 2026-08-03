@@ -1,11 +1,10 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.entity.FactPublicationContext;
 import java.util.List;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Service
-@Slf4j
 public class PageRecordSnapshotRefreshService {
   private final List<PageRecordSnapshotRefresher> refreshers;
 
@@ -13,22 +12,13 @@ public class PageRecordSnapshotRefreshService {
     this.refreshers = refreshers == null ? List.of() : List.copyOf(refreshers);
   }
 
-  public void refreshAfterFactBuild(String factType, boolean full) {
+  /** 刷新与稳定发布范围匹配的全部记录投影；任一失败由持久任务统一重试。 */
+  public void refreshAfterFactBuild(FactPublicationContext context) {
     if (refreshers.isEmpty()) {
       return;
     }
-    PageRecordSnapshotRefresher.RefreshContext context =
-        new PageRecordSnapshotRefresher.RefreshContext(factType, full);
     for (PageRecordSnapshotRefresher refresher : refreshers) {
-      try {
-        refresher.refreshRecordSnapshots(context);
-      } catch (Exception e) {
-        log.warn(
-            "Page record snapshot refresh failed, refresher={}, factType={}",
-            refresher.getClass().getSimpleName(),
-            factType,
-            e);
-      }
+      refresher.refreshRecordSnapshots(context);
     }
   }
 }

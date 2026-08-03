@@ -3,6 +3,7 @@ package com.data.collection.platform.service.statistics;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -53,7 +54,7 @@ class CustomerIssueResponseEfficiencyBoardServiceTest {
             "customer-issue-response-efficiency", "test", "test", "test", Map.of(), null, null);
     lenient()
         .when(snapshotRequestFactory.issueRequest(
-            anyString(), anyString(), anyString(), anyMap(), any(), any()))
+            anyString(), anyString(), anyString(), anyLong(), any(), anyString(), anyMap(), any(), any()))
         .thenReturn(snapshotRequest);
     lenient()
         .doAnswer(invocation -> ((Supplier<StatisticBoardResponse>) invocation.getArgument(1)).get())

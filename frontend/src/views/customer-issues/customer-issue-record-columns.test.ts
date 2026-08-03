@@ -30,6 +30,7 @@ describe('customer issue record columns', () => {
       '缺陷滞留时长（小时）',
       '更新时间',
     ]);
+    expect(CC_PRODUCT_RECORD_COLUMNS.find((column) => column.key === 'delayCause')?.type).toBe('tags');
   });
 
   it('keeps the existing delay page columns isolated', () => {
