@@ -4,13 +4,19 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /** CC_PRODUCT 计划合并版本分支的成员集合语义。 */
 public final class CustomerIssuePlannedMergeBranchMembers {
+  private static final String MEMBER_DELIMITER_REGEX = "[&,，、]";
+  private static final Pattern MEMBER_DELIMITER_PATTERN = Pattern.compile(MEMBER_DELIMITER_REGEX);
+
   private CustomerIssuePlannedMergeBranchMembers() {}
 
   /**
-   * 按事实字段约定的 {@code &} 分隔符解析分支成员，保留顺序并去重。
+   * 按来源文本中实际使用的列表分隔符解析分支成员，保留顺序并去重。
+   *
+   * <p>成员分隔符包括 {@code &}、半角逗号、全角逗号和顿号；斜杠、下划线、连字符、点号和冒号保留为分支名的一部分。
    *
    * @param rawValue 事实层计划合并版本分支文本
    * @return 不可变的非空成员列表
@@ -21,7 +27,7 @@ public final class CustomerIssuePlannedMergeBranchMembers {
       return List.of();
     }
     Set<String> members = new LinkedHashSet<>();
-    for (String value : normalized.split("&")) {
+    for (String value : MEMBER_DELIMITER_PATTERN.split(normalized)) {
       String member = TextQuerySupport.trimToNull(value);
       if (member != null) {
         members.add(member);
@@ -58,5 +64,9 @@ public final class CustomerIssuePlannedMergeBranchMembers {
     String expected = TextQuerySupport.trimToNull(expectedValue);
     return expected == null
         || parse(rawValue).stream().anyMatch(member -> member.equalsIgnoreCase(expected));
+  }
+
+  static String delimiterRegex() {
+    return MEMBER_DELIMITER_REGEX;
   }
 }

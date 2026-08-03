@@ -34,6 +34,10 @@ class IssueResponsePlanFieldRulesTest {
             IssueResponsePlanFieldRules.hasOnlyCanonicalVersionBranches(
                 "CC2026R4 & release/CC2026R5"))
         .isFalse();
+    assertThat(
+            IssueResponsePlanFieldRules.hasOnlyCanonicalVersionBranches(
+                "CC2026R4, CC2026R5"))
+        .isFalse();
     assertThat(IssueResponsePlanFieldRules.hasOnlyCanonicalVersionBranches("CC2026R4 &"))
         .isFalse();
     assertThat(IssueResponsePlanFieldRules.hasOnlyCanonicalVersionBranches(""))

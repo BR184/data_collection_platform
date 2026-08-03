@@ -14,6 +14,7 @@
 
 ## 已完成
 
+- [验证] 2026-08-03：`CC_PRODUCT议题` 的计划合并版本分支已统一按 `&`、半角/全角逗号和顿号读取成员；候选、精确筛选、表格与详情共享完整成员语义，事实原文、API、Excel 和严格非法模板校验保持不变。后端定向 23 项、前端成员与表格 8 项、CC_PRODUCT 领域与页面挂载 25 项、类型检查、目标 ESLint、生产构建、Checkstyle、SpotBugs 和前端质量检测通过；真实页面确认组合值在表格与详情拆为独立标签且控制台无错误。完整页面挂载套件仍有 2 项既存 `ResizeObserver` 测试环境失败，与本次链路无关。
 - [完成] 2026-07-31：GitLab 日常物理删除收敛已替换为单一目标链路。23 表来源血缘、事实依赖和工作区依赖各有唯一目录；普通增量/手动刷新统一在 `SCAN` 与批量权威范围静止后执行每表单任务 `RECONCILE`，真实变化与 ODS DML 同事务写入版本化事实 outbox，定向事实按 GitLab 根 ID 有界替换并推进旧/新稳定范围 generation。页面通过 publication fence 等待实际事实与投影版本，自动增量只在删除页提交后为手动刷新让行；旧目录、每对象/每页任务、200 目标回退、运行后 ODS 反查和 `COMPENSATION_SCAN` 已删除，`FULL_COMPENSATION_SCAN` 只保留历史基线、反熵和灾难恢复职责。
 - [验证] 2026-08-03：真实 PostgreSQL 全链回归参数化覆盖普通增量和手动单表刷新，均确认同一 `RECONCILE` 任务续页、标签链接物理删除 tombstone、`issue_fact.severity_level` 清空、一级缺陷计数归零、版本化 outbox 发布、仅相关全局/项目 generation 推进且不产生 `FULL_EPOCH`。同步专项 72 项与依赖安全升级后的完整后端 948 项零失败/零错误，Checkstyle/SpotBugs 为 0；前端 103 文件 365 项、ESLint、TypeScript、生产构建及 0 漏洞审计通过；后端 OWASP CVSS 9 门禁通过。最新 JAR 在 8,002 条 `issue_fact` 下以 36 ms 返回此前超过 10 秒的非法记录接口，25 个只读 API 全部成功；721 完整基线 Compose/镜像及 35 项发布测试、打包计划解析通过。
 - [完成] 2026-08-03：验证修复已以 `5e2eb2e6` 推送 GitHub `main`；正式更新包 `qaflex-update-20260803T054734Z-066761e14130`（`196,879,575` bytes，SHA-256 `bc155655414f9f23b3cef2e1d16f095af2e96b6f490d08b6130e8fc90d3cc9b0`）从干净提交构建，直接基线为 721，目标 Flyway `20260803.01`，声明 `all` 事实重建。包审计和 25 项发布契约通过；隔离栈完成备份、升级、应用回滚、第二次备份和再次升级，两轮 dump 可恢复、`counts.diff` 为空，PostgreSQL ID 与 external volume 全程不变，最终目标前后端健康。

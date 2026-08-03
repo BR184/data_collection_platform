@@ -16,10 +16,11 @@ final class CustomerIssuePlannedMergeBranchSqlSupport {
         """
         exists (
           select 1
-            from regexp_split_to_table(coalesce(%s, ''), '&') as planned_merge_member(value)
+            from regexp_split_to_table(coalesce(%s, ''), '%s') as planned_merge_member(value)
            where nullif(btrim(planned_merge_member.value), '') is not null
              and lower(btrim(planned_merge_member.value)) = ?)
-        """.formatted(column),
+        """
+            .formatted(column, CustomerIssuePlannedMergeBranchMembers.delimiterRegex()),
         List.of(expected.toLowerCase(Locale.ROOT)));
   }
 }

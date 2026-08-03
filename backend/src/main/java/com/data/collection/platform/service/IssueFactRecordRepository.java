@@ -357,7 +357,7 @@ public class IssueFactRecordRepository {
               select distinct nullif(btrim(planned_merge_member.value), '') as value
                 from base
                 cross join lateral regexp_split_to_table(
-                  coalesce(planned_merge_version_branch, ''), '&'
+                  coalesce(planned_merge_version_branch, ''), '%s'
                 ) as planned_merge_member(value)
            ) t where value is not null) as planned_merge_version_branches,
            (select string_agg(value, E'\n') from (select distinct nullif(btrim(milestone_title), '') as value from base) t where value is not null) as milestone_titles,
@@ -366,7 +366,8 @@ public class IssueFactRecordRepository {
                from base
                cross join lateral regexp_split_to_table(coalesce(nullif(illegal_reasons, ''), illegal_reason, ''), ',') as reasons(reason)
            ) t where value is not null) as illegal_reasons
-        """;
+        """
+            .formatted(CustomerIssuePlannedMergeBranchMembers.delimiterRegex());
     try {
       List<CustomerIssueFilterValues> rows =
           issueFactQueryService.query(

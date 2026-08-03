@@ -2,6 +2,7 @@ import type { CustomerIssueRecordRowResponse } from '../../types/api';
 import { buildIssueIidCellValue } from '../../utils/issue-record-links';
 import { buildIssueSeverityTag } from '../../utils/issue-severity-display';
 import { parseIssueStatusMembers } from '../../utils/issue-status-members';
+import { parseCustomerIssuePlannedMergeBranchMembers } from './customer-issue-planned-merge-branch-members';
 
 /** 将客户问题领域响应转换为通用记录表所需的显示行。 */
 export function mapCustomerIssueRecordTableRows(
@@ -39,19 +40,13 @@ export function mapCustomerIssueRecordTableRows(
     fixUser: row.fixUser || '-',
     plannedResolutionAt:
       row.plannedResolutionText || formatCustomerIssueRecordDateTime(row.plannedResolutionAt),
-    plannedMergeVersionBranch: parseCustomerIssuePlannedMergeVersions(row.plannedMergeVersionBranch),
+    plannedMergeVersionBranch: parseCustomerIssuePlannedMergeBranchMembers(
+      row.plannedMergeVersionBranch,
+    ),
     createdAt: formatCustomerIssueRecordDateTime(row.createdAt),
     retentionHours: row.retentionHours ?? '-',
     updatedAt: formatCustomerIssueRecordDateTime(row.updatedAt),
   }));
-}
-
-/** 将事实层计划合并版本分支按约定的 & 分隔符转换为表格与详情可复用的标签成员。 */
-export function parseCustomerIssuePlannedMergeVersions(value?: string | null): string[] {
-  return (value ?? '')
-    .split('&')
-    .map((branch) => branch.trim())
-    .filter(Boolean);
 }
 
 /** 将后端 ISO 时间格式化为记录页与详情抽屉统一使用的文本。 */

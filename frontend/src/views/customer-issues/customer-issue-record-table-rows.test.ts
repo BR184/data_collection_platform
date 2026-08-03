@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CustomerIssueRecordRowResponse } from '../../types/api';
-import {
-  mapCustomerIssueRecordTableRows,
-  parseCustomerIssuePlannedMergeVersions,
-} from './customer-issue-record-table-rows';
+import { mapCustomerIssueRecordTableRows } from './customer-issue-record-table-rows';
 
 const record: CustomerIssueRecordRowResponse = {
   issueId: 35679,
@@ -69,17 +66,12 @@ describe('customer issue record table rows', () => {
     expect(rows[0].delayCause).toEqual([]);
   });
 
-  it('test_planMergeVersions_parse_displaysEveryVersionAsASeparateTag', () => {
-    expect(parseCustomerIssuePlannedMergeVersions('CC2026R4 & CC2026R5')).toEqual([
-      'CC2026R4',
-      'CC2026R5',
+  it('test_planMergeVersions_map_keepsEverySourceMemberAsASeparateTableTag', () => {
+    const rows = mapCustomerIssueRecordTableRows([
+      { ...record, plannedMergeVersionBranch: 'release_2026R3, dev' },
     ]);
-  });
 
-  it('test_planMergeVersions_parse_preservesNonCanonicalSingleBranchText', () => {
-    expect(parseCustomerIssuePlannedMergeVersions('crownCAD-Client:dev')).toEqual([
-      'crownCAD-Client:dev',
-    ]);
+    expect(rows[0].plannedMergeVersionBranch).toEqual(['release_2026R3', 'dev']);
   });
 
   it('test_customerFields_map_usesParsedTimeWhenTemplateTextIsEmpty', () => {
