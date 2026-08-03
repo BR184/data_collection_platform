@@ -119,5 +119,6 @@ export interface CustomerIssueRecordFilterOptionsResponse {
   testingPhases: OptionItemResponse[];
   fixUsers: OptionItemResponse[];
   delayCauses: OptionItemResponse[];
+  plannedMergeVersionBranches: OptionItemResponse[];
   milestoneTitles: OptionItemResponse[];
 }

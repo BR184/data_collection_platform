@@ -12,7 +12,11 @@ describe('customer issue quick filter fields', () => {
       'issueState',
       'bugStatus',
       'category',
+      'plannedResolutionAtRange',
+      'plannedMergeVersionBranch',
       'createdAtRange',
+      'retentionHoursRange',
+      'updatedAtRange',
     ].every(isCcProductQuickFilterKey)).toBe(true);
   });
 

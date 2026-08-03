@@ -31,6 +31,11 @@ class CustomerIssueRequestAssemblerTest {
     request.setCreatedAtEnd("2026-04-21");
     request.setUpdatedAtStart("2026-04-10");
     request.setUpdatedAtEnd("2026-04-22");
+    request.setPlannedResolutionAtStart("2026-08-01");
+    request.setPlannedResolutionAtEnd("2026-08-31");
+    request.setPlannedMergeVersionBranch("CC2026R4");
+    request.setRetentionHoursMin(24L);
+    request.setRetentionHoursMax(72L);
     request.setPage(2);
     request.setSize(10);
     request.setSortBy("updatedAt");
@@ -41,10 +46,18 @@ class CustomerIssueRequestAssemblerTest {
     CustomerIssueRecordQueryRequest queryRequest = assembler.toRecordQueryRequest(request);
 
     assertThat(queryRequest.topic()).isEqualTo("delay");
-    assertThat(queryRequest.reasonCategory()).isEqualTo("Design");
+    assertThat(queryRequest.filters().reasonCategory()).isEqualTo("Design");
     assertThat(queryRequest.filterGroupJson()).isEqualTo("{\"logic\":\"AND\",\"conditions\":[]}");
     assertThat(queryRequest.listRequest().projectId()).isEqualTo(325L);
     assertThat(queryRequest.listRequest().priorityLevel()).isEqualTo("P1");
+    assertThat(queryRequest.filters().ccProduct().plannedResolutionAtStart())
+        .isEqualTo("2026-08-01");
+    assertThat(queryRequest.filters().ccProduct().plannedResolutionAtEnd())
+        .isEqualTo("2026-08-31");
+    assertThat(queryRequest.filters().ccProduct().plannedMergeVersionBranch())
+        .isEqualTo("CC2026R4");
+    assertThat(queryRequest.filters().ccProduct().retentionHoursMin()).isEqualTo(24L);
+    assertThat(queryRequest.filters().ccProduct().retentionHoursMax()).isEqualTo(72L);
   }
 
   @Test

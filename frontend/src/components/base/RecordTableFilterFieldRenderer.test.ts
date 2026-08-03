@@ -70,4 +70,40 @@ describe('RecordTableFilterFieldRenderer', () => {
 
     expect(wrapper.emitted('filter-change')).toEqual([['status', 'closed']]);
   });
+
+  it('renders a numeric range with field-specific placeholders and numeric values', async () => {
+    const wrapper = mount(RecordTableFilterFieldRenderer, {
+      props: {
+        filter: {
+          key: 'retentionHoursRange',
+          label: '缺陷滞留时长（小时）',
+          type: 'numberrange',
+          min: 0,
+          step: 1,
+          precision: 0,
+          startPlaceholder: '最小滞留小时',
+          endPlaceholder: '最大滞留小时',
+        },
+        modelValue: [24, 72],
+      },
+      global: {
+        plugins: [ElementPlus],
+      },
+    });
+
+    const inputs = wrapper.findAllComponents({ name: 'ElInputNumber' });
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0].props('modelValue')).toBe(24);
+    expect(inputs[0].props('placeholder')).toBe('最小滞留小时');
+    expect(inputs[0].props('precision')).toBe(0);
+    expect(inputs[1].props('modelValue')).toBe(72);
+    expect(inputs[1].props('placeholder')).toBe('最大滞留小时');
+
+    inputs[0].vm.$emit('update:modelValue', 36);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.emitted('filter-change')).toEqual([
+      ['retentionHoursRange', [36, 72]],
+    ]);
+  });
 });

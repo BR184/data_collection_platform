@@ -10,6 +10,11 @@ public class CustomerIssueRecordListWebRequest extends IssueFactRecordListWebReq
   private String fixUser;
   private String delayCause;
   private String customerName;
+  private String plannedResolutionAtStart;
+  private String plannedResolutionAtEnd;
+  private String plannedMergeVersionBranch;
+  private Long retentionHoursMin;
+  private Long retentionHoursMax;
   private String filterGroup;
 
   public String getTopic() {
@@ -82,6 +87,46 @@ public class CustomerIssueRecordListWebRequest extends IssueFactRecordListWebReq
 
   public void setCustomerName(String customerName) {
     this.customerName = customerName;
+  }
+
+  public String getPlannedResolutionAtStart() {
+    return plannedResolutionAtStart;
+  }
+
+  public void setPlannedResolutionAtStart(String plannedResolutionAtStart) {
+    this.plannedResolutionAtStart = plannedResolutionAtStart;
+  }
+
+  public String getPlannedResolutionAtEnd() {
+    return plannedResolutionAtEnd;
+  }
+
+  public void setPlannedResolutionAtEnd(String plannedResolutionAtEnd) {
+    this.plannedResolutionAtEnd = plannedResolutionAtEnd;
+  }
+
+  public String getPlannedMergeVersionBranch() {
+    return plannedMergeVersionBranch;
+  }
+
+  public void setPlannedMergeVersionBranch(String plannedMergeVersionBranch) {
+    this.plannedMergeVersionBranch = plannedMergeVersionBranch;
+  }
+
+  public Long getRetentionHoursMin() {
+    return retentionHoursMin;
+  }
+
+  public void setRetentionHoursMin(Long retentionHoursMin) {
+    this.retentionHoursMin = retentionHoursMin;
+  }
+
+  public Long getRetentionHoursMax() {
+    return retentionHoursMax;
+  }
+
+  public void setRetentionHoursMax(Long retentionHoursMax) {
+    this.retentionHoursMax = retentionHoursMax;
   }
 
   public String getFilterGroup() {

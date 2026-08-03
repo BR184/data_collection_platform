@@ -27,6 +27,7 @@ const emptyFilterOptions: CustomerIssueRecordFilterOptionsResponse = {
   testingPhases: [],
   fixUsers: [],
   delayCauses: [],
+  plannedMergeVersionBranches: [],
   milestoneTitles: [],
 };
 
@@ -91,7 +92,10 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-async function mountView(topic: 'cc-product' | 'delay' = 'cc-product') {
+async function mountView(
+  topic: 'cc-product' | 'delay' = 'cc-product',
+  query: Record<string, string> = {},
+) {
   const path = topic === 'delay'
     ? '/customer-issues/delay-issues'
     : '/customer-issues/cc-product-issues';
@@ -110,7 +114,7 @@ async function mountView(topic: 'cc-product' | 'delay' = 'cc-product') {
       },
     ],
   });
-  await router.push(path);
+  await router.push({ path, query });
   await router.isReady();
   const wrapper = mount(CustomerIssueRecordsView, {
     attachTo: document.body,
@@ -140,6 +144,85 @@ afterEach(() => {
 });
 
 describe('CustomerIssueRecordsView loading lifecycle', () => {
+  it('sends every CC_PRODUCT range filter and renders distinguishable time controls', async () => {
+    vi.spyOn(api, 'getCustomerIssueRecordFilterOptions').mockResolvedValue({
+      ...emptyFilterOptions,
+      plannedMergeVersionBranches: [{ label: 'CC2026R4', value: 'CC2026R4' }],
+    });
+    const recordsSpy = vi.spyOn(api, 'getCustomerIssueRecords')
+      .mockResolvedValue(recordsResponse('筛选结果'));
+    vi.spyOn(api, 'getCustomerIssueRecordRealtimeStatus').mockResolvedValue(availableStatus);
+
+    ({ router: mountedRouter, wrapper: mountedWrapper } = await mountView('cc-product', {
+      plannedResolutionAtStart: '2026-08-01',
+      plannedResolutionAtEnd: '2026-08-31',
+      plannedMergeVersionBranch: 'CC2026R4',
+      retentionHoursMin: '24',
+      retentionHoursMax: '72',
+      createdAtStart: '2026-01-01',
+      createdAtEnd: '2026-08-31',
+      updatedAtStart: '2026-07-01',
+      updatedAtEnd: '2026-08-31',
+    }));
+    await flushPromises();
+
+    expect(recordsSpy).toHaveBeenCalledWith(expect.objectContaining({
+      plannedResolutionAtStart: '2026-08-01',
+      plannedResolutionAtEnd: '2026-08-31',
+      plannedMergeVersionBranch: 'CC2026R4',
+      retentionHoursMin: 24,
+      retentionHoursMax: 72,
+      createdAtStart: '2026-01-01',
+      createdAtEnd: '2026-08-31',
+      updatedAtStart: '2026-07-01',
+      updatedAtEnd: '2026-08-31',
+    }));
+    const quickFilterButton = mountedWrapper.findAll('button')
+      .find((button) => button.text().includes('快速筛选'));
+    expect(quickFilterButton, '缺少快速筛选入口').toBeDefined();
+    await quickFilterButton?.trigger('click');
+    await flushPromises();
+    for (const placeholder of [
+      '计划解决时间开始',
+      '计划解决时间结束',
+      '提交时间开始',
+      '提交时间结束',
+      '更新时间开始',
+      '更新时间结束',
+      '最小滞留小时',
+      '最大滞留小时',
+    ]) {
+      expect(
+        mountedWrapper.find(`input[placeholder="${placeholder}"]`).exists(),
+        `缺少快速筛选占位符：${placeholder}`,
+      ).toBe(true);
+    }
+  });
+
+  it('does not send CC_PRODUCT-only filters to the delay topic', async () => {
+    vi.spyOn(api, 'getCustomerIssueRecordFilterOptions').mockResolvedValue(emptyFilterOptions);
+    const recordsSpy = vi.spyOn(api, 'getCustomerIssueRecords')
+      .mockResolvedValue(recordsResponse('延期筛选结果'));
+    vi.spyOn(api, 'getCustomerIssueRecordRealtimeStatus').mockResolvedValue(availableStatus);
+
+    ({ router: mountedRouter, wrapper: mountedWrapper } = await mountView('delay', {
+      milestoneTitle: 'CC2026R4',
+      plannedResolutionAtStart: '2026-08-01',
+      plannedResolutionAtEnd: '2026-08-31',
+      plannedMergeVersionBranch: 'CC2026R4',
+      retentionHoursMin: '24',
+      retentionHoursMax: '72',
+    }));
+    await flushPromises();
+
+    const params = recordsSpy.mock.calls[0]?.[0];
+    expect(params).not.toHaveProperty('plannedResolutionAtStart');
+    expect(params).not.toHaveProperty('plannedResolutionAtEnd');
+    expect(params).not.toHaveProperty('plannedMergeVersionBranch');
+    expect(params).not.toHaveProperty('retentionHoursMin');
+    expect(params).not.toHaveProperty('retentionHoursMax');
+  });
+
   it('shows records without waiting for filter options or realtime status', async () => {
     const filters = deferred<CustomerIssueRecordFilterOptionsResponse>();
     const status = deferred<RealtimeWorkspaceStatusResponse>();

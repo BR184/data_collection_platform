@@ -27,6 +27,7 @@ class CustomerIssueRecordFilterOptionsResponseTest {
             null,
             null,
             null,
+            null,
             null);
 
     assertThat(
@@ -47,6 +48,7 @@ class CustomerIssueRecordFilterOptionsResponseTest {
                 response.testingPhases(),
                 response.fixUsers(),
                 response.delayCauses(),
+                response.plannedMergeVersionBranches(),
                 response.milestoneTitles()))
         .allSatisfy(options -> assertThat(options).isEmpty());
   }

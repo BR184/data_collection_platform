@@ -186,6 +186,11 @@ function buildCustomerIssueRecordQuery(params: {
   testingPhase?: string;
   fixUser?: string;
   delayCause?: string;
+  plannedResolutionAtStart?: string;
+  plannedResolutionAtEnd?: string;
+  plannedMergeVersionBranch?: string;
+  retentionHoursMin?: number;
+  retentionHoursMax?: number;
   severityLevel?: string;
   priorityLevel?: string;
   issueState?: string;
@@ -220,6 +225,11 @@ function buildCustomerIssueRecordQuery(params: {
     ...(params.testingPhase ? { testingPhase: params.testingPhase } : {}),
     ...(params.fixUser ? { fixUser: params.fixUser } : {}),
     ...(params.delayCause ? { delayCause: params.delayCause } : {}),
+    ...(params.plannedResolutionAtStart ? { plannedResolutionAtStart: params.plannedResolutionAtStart } : {}),
+    ...(params.plannedResolutionAtEnd ? { plannedResolutionAtEnd: params.plannedResolutionAtEnd } : {}),
+    ...(params.plannedMergeVersionBranch ? { plannedMergeVersionBranch: params.plannedMergeVersionBranch } : {}),
+    ...(params.retentionHoursMin != null ? { retentionHoursMin: String(params.retentionHoursMin) } : {}),
+    ...(params.retentionHoursMax != null ? { retentionHoursMax: String(params.retentionHoursMax) } : {}),
     ...(params.severityLevel ? { severityLevel: params.severityLevel } : {}),
     ...(params.priorityLevel ? { priorityLevel: params.priorityLevel } : {}),
     ...(params.issueState ? { issueState: params.issueState } : {}),

@@ -19,6 +19,7 @@ public record CustomerIssueRecordFilterOptionsResponse(
     List<OptionItemResponse> testingPhases,
     List<OptionItemResponse> fixUsers,
     List<OptionItemResponse> delayCauses,
+    List<OptionItemResponse> plannedMergeVersionBranches,
     List<OptionItemResponse> milestoneTitles) {
 
   public CustomerIssueRecordFilterOptionsResponse {
@@ -38,6 +39,7 @@ public record CustomerIssueRecordFilterOptionsResponse(
     testingPhases = copyOptions(testingPhases);
     fixUsers = copyOptions(fixUsers);
     delayCauses = copyOptions(delayCauses);
+    plannedMergeVersionBranches = copyOptions(plannedMergeVersionBranches);
     milestoneTitles = copyOptions(milestoneTitles);
   }
 

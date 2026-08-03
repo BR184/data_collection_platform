@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
 import com.data.collection.platform.entity.CustomerIssueRecordRowResponse;
@@ -14,7 +15,10 @@ import com.data.collection.platform.service.labelgroup.LabelGroupExpansionServic
 import com.data.collection.platform.service.statistics.CustomerIssueMilestoneCatalogService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayInputStream;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.stream.IntStream;
 import org.apache.poi.ss.usermodel.Row;
@@ -32,6 +36,7 @@ class CustomerIssueRecordServiceTest {
   @Mock private GitlabResourceLinkService issueLinkService;
   @Mock private LabelGroupExpansionService labelGroupExpansionService;
   @Mock private CustomerIssueMilestoneCatalogService milestoneCatalogService;
+  @Mock private PageRecordSnapshotService pageRecordSnapshotService;
 
   @Test
   void shouldForceLegacyCcProductProjectForPlainListRequests() {
@@ -52,7 +57,7 @@ class CustomerIssueRecordServiceTest {
 
     CustomerIssueRecordListResponse response =
         service.listRecords(
-            new CustomerIssueRecordQueryRequest(
+            recordRequest(
                 "cc-product",
                 new IssueFactRecordListRequest(
                     9L,
@@ -98,13 +103,17 @@ class CustomerIssueRecordServiceTest {
 
   @Test
   void shouldApplyCcProductDisplayFieldFiltersToSqlPageQuery() {
+    Clock clock = Clock.fixed(Instant.parse("2026-08-03T10:00:00Z"), ZoneOffset.UTC);
     CustomerIssueRecordService service =
         new CustomerIssueRecordService(
             issueFactRecordRepository,
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService, milestoneCatalogService, null);
+            labelGroupExpansionService,
+            milestoneCatalogService,
+            pageRecordSnapshotService,
+            clock);
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(new PageSlice<>(List.of(), 0, 1, 20));
 
@@ -135,15 +144,22 @@ class CustomerIssueRecordServiceTest {
                 20,
                 "updatedAt",
                 "desc"),
+            new CustomerIssueRecordFilters(
                 null,
                 null,
                 "王五",
                 "张三",
-             "新增需求",
-             "李四",
-             "需求变更",
-             null,
-             "高晶电器"));
+                "新增需求",
+                "李四",
+                "需求变更",
+                new CustomerIssueRecordFilters.CcProductFilters(
+                    "高晶电器",
+                    "2026-08-01",
+                    "2026-08-31",
+                    "CC2026R4",
+                    24L,
+                    72L)),
+            null));
 
     verify(issueFactRecordRepository)
         .findPage(
@@ -155,8 +171,20 @@ class CustomerIssueRecordServiceTest {
                         && "新增需求".equals(query.directTestingPhase())
                         && "李四".equals(query.fixUser())
                         && "需求变更".equals(query.delayCause())
-                        && "高晶电器".equals(query.customerName())
+                        && "高晶电器".equals(query.ccProductFilters().customerName())
+                        && "2026-08-01".equals(
+                            query.ccProductFilters().plannedResolutionAtStart())
+                        && "2026-08-31".equals(
+                            query.ccProductFilters().plannedResolutionAtEnd())
+                        && "CC2026R4".equals(
+                            query.ccProductFilters().plannedMergeVersionBranch())
+                        && Long.valueOf(24L).equals(
+                            query.ccProductFilters().retentionHoursMin())
+                        && Long.valueOf(72L).equals(
+                            query.ccProductFilters().retentionHoursMax())
+                        && LocalDateTime.of(2026, 8, 3, 10, 0).equals(query.retentionAsOf())
                         && query.useFullTestingPhaseFilter()));
+    verifyNoInteractions(pageRecordSnapshotService);
   }
 
   @Test
@@ -175,18 +203,34 @@ class CustomerIssueRecordServiceTest {
         new CustomerIssueRecordQueryRequest(
             "delay",
             defaultListRequest(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            "郑州新世纪"));
+            new CustomerIssueRecordFilters(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new CustomerIssueRecordFilters.CcProductFilters(
+                    "郑州新世纪",
+                    "2026-08-01",
+                    "2026-08-31",
+                    "CC2026R4",
+                    24L,
+                    72L)),
+            null));
 
     verify(issueFactRecordRepository)
-        .findPage(argThat(query -> query.customerName() == null && query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER));
+        .findPage(
+            argThat(
+                query ->
+                    query.ccProductFilters().customerName() == null
+                        && query.ccProductFilters().plannedResolutionAtStart() == null
+                        && query.ccProductFilters().plannedResolutionAtEnd() == null
+                        && query.ccProductFilters().plannedMergeVersionBranch() == null
+                        && query.ccProductFilters().retentionHoursMin() == null
+                        && query.ccProductFilters().retentionHoursMax() == null
+                        && query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER));
   }
 
   @Test
@@ -203,7 +247,7 @@ class CustomerIssueRecordServiceTest {
 
     CustomerIssueRecordListResponse response =
         service.listRecords(
-            new CustomerIssueRecordQueryRequest(
+            recordRequest(
                 "cc-product",
                 defaultListRequest(),
                 null,
@@ -241,7 +285,7 @@ class CustomerIssueRecordServiceTest {
 
     CustomerIssueRecordListResponse response =
         service.listRecords(
-            new CustomerIssueRecordQueryRequest(
+            recordRequest(
                 "cc-product",
                 defaultListRequest(),
                 null,
@@ -294,7 +338,7 @@ class CustomerIssueRecordServiceTest {
 
     CustomerIssueRecordListResponse response =
         service.listRecords(
-            new CustomerIssueRecordQueryRequest(
+            recordRequest(
                 "delay",
                 new IssueFactRecordListRequest(
                     325L,
@@ -362,7 +406,7 @@ class CustomerIssueRecordServiceTest {
 
     CustomerIssueRecordListResponse response =
         service.listRecords(
-            new CustomerIssueRecordQueryRequest(
+            recordRequest(
                 "cc-product",
                 new IssueFactRecordListRequest(
                     325L,
@@ -405,6 +449,75 @@ class CustomerIssueRecordServiceTest {
   }
 
   @Test
+  void shouldKeepCcProductSpecificFiltersEquivalentInTheInMemoryFallback() {
+    Clock clock = Clock.fixed(Instant.parse("2026-08-03T10:00:00Z"), ZoneOffset.UTC);
+    CustomerIssueRecordService service =
+        new CustomerIssueRecordService(
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            issueLinkService,
+            labelGroupExpansionService,
+            milestoneCatalogService,
+            null,
+            clock);
+    when(customerIssueScopeProfile.matches(any())).thenReturn(true);
+    when(issueFactRecordRepository.findByProjectId(325L))
+        .thenReturn(
+            List.of(
+                recordWithQuickFilterFields(
+                    201,
+                    LocalDateTime.of(2026, 8, 1, 10, 0),
+                    LocalDateTime.of(2026, 8, 15, 0, 0),
+                    "CC2026R4 & CC2026R5"),
+                recordWithQuickFilterFields(
+                    202,
+                    LocalDateTime.of(2026, 7, 30, 10, 0),
+                    LocalDateTime.of(2026, 8, 15, 0, 0),
+                    "CC2026R5"),
+                recordWithQuickFilterFields(
+                    203,
+                    LocalDateTime.of(2026, 8, 1, 10, 0),
+                    LocalDateTime.of(2026, 9, 1, 0, 0),
+                    "CC2026R5")));
+    when(labelGroupExpansionService.expand(
+            8L, "STRING", "moduleName", "customer-issues-cc-product-issues", null))
+        .thenReturn(
+            new LabelGroupExpansionResponse(
+                8L, "核心模块", "STRING", List.of("草图"), List.of()));
+
+    CustomerIssueRecordListResponse response =
+        service.listRecords(
+            new CustomerIssueRecordQueryRequest(
+                "cc-product",
+                defaultListRequest(),
+                new CustomerIssueRecordFilters(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    new CustomerIssueRecordFilters.CcProductFilters(
+                        null,
+                        "2026-08-01",
+                        "2026-08-31",
+                        "CC2026R5",
+                        48L,
+                        72L)),
+                """
+                {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":8,"labelGroupName":"核心模块"}]}
+                """));
+
+    assertThat(response.records())
+        .extracting(CustomerIssueRecordRowResponse::issueIid)
+        .containsExactly(201);
+    assertThat(response.records().getFirst().retentionHours()).isEqualTo(48L);
+    verify(issueFactRecordRepository, never()).findPage(any());
+  }
+
+  @Test
   void shouldApplyAssigneeLabelGroupFiltersThroughExistingFilterGroup() {
     CustomerIssueRecordService service =
         new CustomerIssueRecordService(
@@ -425,7 +538,7 @@ class CustomerIssueRecordServiceTest {
 
     CustomerIssueRecordListResponse response =
         service.listRecords(
-            new CustomerIssueRecordQueryRequest(
+            recordRequest(
                 "cc-product",
                 new IssueFactRecordListRequest(
                     325L,
@@ -507,7 +620,7 @@ class CustomerIssueRecordServiceTest {
 
     byte[] exported =
         service.exportRecordsWorkbook(
-            new CustomerIssueRecordQueryRequest(
+            recordRequest(
                 "cc-product",
                 new IssueFactRecordListRequest(
                     325L,
@@ -658,7 +771,7 @@ class CustomerIssueRecordServiceTest {
 
     byte[] exported =
         service.exportRecordsWorkbook(
-            new CustomerIssueRecordQueryRequest(
+            recordRequest(
                 "delay",
                 new IssueFactRecordListRequest(
                     325L,
@@ -720,7 +833,7 @@ class CustomerIssueRecordServiceTest {
 
     byte[] workbook =
         service.exportRecordsWorkbook(
-            new CustomerIssueRecordQueryRequest(
+            recordRequest(
                 "cc-product",
                 new IssueFactRecordListRequest(
                     325L,
@@ -790,6 +903,7 @@ class CustomerIssueRecordServiceTest {
                 List.of(),
                 List.of(),
                 List.of(),
+                List.of("CC2026R4 & CC2026R5"),
                 List.of(),
                 List.of()));
 
@@ -799,6 +913,12 @@ class CustomerIssueRecordServiceTest {
             .toList();
 
     assertThat(assigneeOptions).containsExactly("Bob");
+    assertThat(
+            service.getFilterOptions("cc-product", null, "cc").plannedMergeVersionBranches()
+                .stream()
+                .map(option -> option.value())
+                .toList())
+        .containsExactly("CC2026R4", "CC2026R5");
   }
 
   private IssueFactRecord record(
@@ -971,6 +1091,58 @@ class CustomerIssueRecordServiceTest {
         "release/2026R3");
   }
 
+  private IssueFactRecord recordWithQuickFilterFields(
+      int issueIid,
+      LocalDateTime createdAt,
+      LocalDateTime plannedResolutionAt,
+      String plannedMergeVersionBranch) {
+    return new IssueFactRecord(
+        325L,
+        "default",
+        "CC_PRODUCT",
+        9000L + issueIid,
+        issueIid,
+        "快速筛选议题 " + issueIid,
+        "opened",
+        "",
+        "",
+        "LEVEL2",
+        "P1",
+        "处理中",
+        "缺陷",
+        "",
+        false,
+        "",
+        false,
+        false,
+        false,
+        false,
+        false,
+        "CC2026R4",
+        "Alice",
+        "Handler",
+        "Bob",
+        "Fixer",
+        List.of("草图"),
+        "约束",
+        List.of(),
+        false,
+        "",
+        "",
+        false,
+        false,
+        false,
+        "",
+        List.of(),
+        createdAt,
+        createdAt.plusHours(1),
+        null,
+        List.of("高晶电器"),
+        plannedResolutionAt,
+        plannedResolutionAt.toLocalDate().toString(),
+        plannedMergeVersionBranch);
+  }
+
   private IssueFactRecordListRequest defaultListRequest() {
     return new IssueFactRecordListRequest(
         325L,
@@ -996,6 +1168,34 @@ class CustomerIssueRecordServiceTest {
         20,
         "updatedAt",
         "desc");
+  }
+
+  private CustomerIssueRecordQueryRequest recordRequest(
+      String topic,
+      IssueFactRecordListRequest listRequest,
+      String reasonCategory,
+      String authorName,
+      String handlerName,
+      String assigneeName,
+      String testingPhase,
+      String fixUser,
+      String delayCause,
+      String filterGroupJson,
+      String customerName) {
+    return new CustomerIssueRecordQueryRequest(
+        topic,
+        listRequest,
+        new CustomerIssueRecordFilters(
+            reasonCategory,
+            authorName,
+            handlerName,
+            assigneeName,
+            testingPhase,
+            fixUser,
+            delayCause,
+            new CustomerIssueRecordFilters.CcProductFilters(
+                customerName, null, null, null, null, null)),
+        filterGroupJson);
   }
 
   private List<String> rowValues(Row row) {

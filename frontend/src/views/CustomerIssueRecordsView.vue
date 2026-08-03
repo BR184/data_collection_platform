@@ -33,14 +33,29 @@ import {
 } from './customer-issues/customer-issue-record-table-rows';
 import { isCcProductQuickFilterKey } from './customer-issues/customer-issue-quick-filter-fields';
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
-import { CUSTOMER_ISSUE_RECORD_QUERY_KEYS } from '../feature-manifest/customer-issue-record-query-contract';
+import {
+  CUSTOMER_ISSUE_RECORD_QUERY_KEYS,
+  CUSTOMER_ISSUE_RECORD_RANGE_QUERY_KEYS,
+  isCustomerIssueRecordRangeFilterKey,
+  type CustomerIssueRecordRangeFilterKey,
+} from '../feature-manifest/customer-issue-record-query-contract';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import { useRealtimeWorkspaceStatus, waitForRealtimeWorkspaceRefresh } from '../composables/useRealtimeWorkspaceStatus';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { useRecordPageController } from '../composables/useRecordPageController';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import { useRecordTableFilterPriority } from '../composables/useRecordTableFilterPriority';
-import type { RecordTableActiveFilterTag, RecordTableFilterField } from '../types/record-table';
+import type {
+  RecordTableActiveFilterTag,
+  RecordTableFilterField,
+  RecordTableFilterValue,
+} from '../types/record-table';
+import {
+  buildCustomerIssueRecordRangeQueryPatch,
+  buildCustomerIssueRecordRangeRequestParams,
+  customerIssueRecordRangeFilterKeys,
+  readCustomerIssueRecordRangeValues,
+} from './customer-issues/customer-issue-record-range-filters';
 import { downloadBlob } from '../utils/csv-download';
 import { useRoute } from 'vue-router';
 
@@ -184,17 +199,13 @@ const {
     'bugStatus',
     'category',
     'milestoneTitle',
-    'createdAtStart',
-    'createdAtEnd',
-    'updatedAtStart',
-    'updatedAtEnd',
+    ...new Set(Object.values(CUSTOMER_ISSUE_RECORD_RANGE_QUERY_KEYS)
+      .flatMap((range) => [range.startKey, range.endKey])),
+    'plannedMergeVersionBranch',
   ],
   queryClearKeys: [
   ],
-  rangeKeys: {
-    updatedAtRange: { startKey: 'updatedAtStart', endKey: 'updatedAtEnd' },
-    createdAtRange: { startKey: 'createdAtStart', endKey: 'createdAtEnd' },
-  },
+  rangeKeys: CUSTOMER_ISSUE_RECORD_RANGE_QUERY_KEYS,
 });
 
 const columns = computed(() =>
@@ -202,12 +213,7 @@ const columns = computed(() =>
 );
 
 const filterValues = computed<Record<string, unknown>>(() => ({
-  createdAtRange: route.query.createdAtStart && route.query.createdAtEnd
-    ? [String(route.query.createdAtStart), String(route.query.createdAtEnd)]
-    : [],
-  updatedAtRange: route.query.updatedAtStart && route.query.updatedAtEnd
-    ? [String(route.query.updatedAtStart), String(route.query.updatedAtEnd)]
-    : [],
+  ...readCustomerIssueRecordRangeValues(route.query, isDelayTopic.value),
   milestoneTitle: String(route.query.milestoneTitle ?? ''),
   issueIid: String(route.query.issueIid ?? ''),
   title: String(route.query.title ?? ''),
@@ -222,6 +228,7 @@ const filterValues = computed<Record<string, unknown>>(() => ({
   assigneeName: String(route.query.assigneeName ?? ''),
   fixUser: String(route.query.fixUser ?? ''),
   delayCause: String(route.query.delayCause ?? ''),
+  plannedMergeVersionBranch: String(route.query.plannedMergeVersionBranch ?? ''),
   severityLevel: String(route.query.severityLevel ?? ''),
   priorityLevel: String(route.query.priorityLevel ?? ''),
   issueState: String(route.query.issueState ?? ''),
@@ -363,6 +370,35 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
         width: 180,
         options: [{ label: '全部修复人', value: '' }, ...filterOptions.value.fixUsers],
       },
+      {
+        key: 'plannedResolutionAtRange',
+        label: '计划解决时间',
+        type: 'daterange' as const,
+        width: 300,
+        startPlaceholder: '计划解决时间开始',
+        endPlaceholder: '计划解决时间结束',
+      },
+      {
+        key: 'plannedMergeVersionBranch',
+        label: '计划合并版本分支',
+        type: 'select' as const,
+        width: 220,
+        options: [
+          { label: '全部计划合并版本分支', value: '' },
+          ...filterOptions.value.plannedMergeVersionBranches,
+        ],
+      },
+      {
+        key: 'retentionHoursRange',
+        label: '缺陷滞留时长（小时）',
+        type: 'numberrange' as const,
+        width: 300,
+        min: 0,
+        step: 1,
+        precision: 0,
+        startPlaceholder: '最小滞留小时',
+        endPlaceholder: '最大滞留小时',
+      },
     ]
     : []),
   {
@@ -370,16 +406,16 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
     label: '提交时间',
     type: 'daterange',
     width: 280,
-    startPlaceholder: '开始日期',
-    endPlaceholder: '结束日期',
+    startPlaceholder: '提交时间开始',
+    endPlaceholder: '提交时间结束',
   },
   {
     key: 'updatedAtRange',
     label: '更新时间',
     type: 'daterange',
     width: 280,
-    startPlaceholder: '开始日期',
-    endPlaceholder: '结束日期',
+    startPlaceholder: '更新时间开始',
+    endPlaceholder: '更新时间结束',
   },
 ].filter((filter) => isDelayTopic.value || isCcProductQuickFilterKey(filter.key)));
 
@@ -400,10 +436,7 @@ const {
   quickFilters: priorityQuickFilters,
   quickValues: filterValues,
   filterDraft,
-  rangeKeys: {
-    updatedAtRange: { startKey: 'updatedAtStart', endKey: 'updatedAtEnd' },
-    createdAtRange: { startKey: 'createdAtStart', endKey: 'createdAtEnd' },
-  },
+  rangeKeys: CUSTOMER_ISSUE_RECORD_RANGE_QUERY_KEYS,
 });
 
 const primaryActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
@@ -417,6 +450,9 @@ const primaryActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   }
   if (values.title) {
     tags.push({ key: 'title', label: '议题标题', value: String(values.title) });
+  }
+  if (!isDelayTopic.value && values.customerName) {
+    tags.push({ key: 'customerName', label: '客户', value: String(values.customerName) });
   }
   if (values.projectName) {
     tags.push({ key: 'projectName', label: '项目', value: String(values.projectName) });
@@ -456,6 +492,13 @@ const primaryActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   if (!isDelayTopic.value && values.fixUser) {
     tags.push({ key: 'fixUser', label: '缺陷修复人', value: String(values.fixUser) });
   }
+  if (!isDelayTopic.value && values.plannedMergeVersionBranch) {
+    tags.push({
+      key: 'plannedMergeVersionBranch',
+      label: '计划合并版本分支',
+      value: String(values.plannedMergeVersionBranch),
+    });
+  }
   if (values.severityLevel) {
     tags.push({ key: 'severityLevel', label: '严重程度', value: String(values.severityLevel) });
   }
@@ -471,19 +514,12 @@ const primaryActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   if (values.category) {
     tags.push({ key: 'category', label: '议题类别', value: String(values.category) });
   }
-  if (isDelayTopic.value && Array.isArray(values.createdAtRange) && values.createdAtRange.length === 2) {
-    tags.push({
-      key: 'createdAtRange',
-      label: '提交时间',
-      value: `${values.createdAtRange[0]} ~ ${values.createdAtRange[1]}`,
-    });
-  }
-  if (Array.isArray(values.updatedAtRange) && values.updatedAtRange.length === 2) {
-    tags.push({
-      key: 'updatedAtRange',
-      label: '更新时间',
-      value: `${values.updatedAtRange[0]} ~ ${values.updatedAtRange[1]}`,
-    });
+  for (const key of customerIssueRecordRangeFilterKeys(isDelayTopic.value)) {
+    const value = formatRangeFilterTagValue(key, values[key]);
+    const field = primaryFilters.value.find((filter) => filter.key === key);
+    if (value && field) {
+      tags.push({ key, label: field.label, value });
+    }
   }
   return tags;
 });
@@ -509,6 +545,23 @@ const ruleOverviewCards = computed(() => [
   { label: '命中记录', value: ruleFinalCount.value },
   { label: '命中比例', value: ruleRetainedRate.value },
 ]);
+
+function formatRangeFilterTagValue(key: CustomerIssueRecordRangeFilterKey, value: unknown) {
+  if (!Array.isArray(value)) {
+    return '';
+  }
+  const [start, end] = value;
+  if (CUSTOMER_ISSUE_RECORD_RANGE_QUERY_KEYS[key].valueType === 'number') {
+    if (start != null && end != null) {
+      return `${start} ~ ${end}`;
+    }
+    if (start != null) {
+      return `>= ${start}`;
+    }
+    return end != null ? `<= ${end}` : '';
+  }
+  return start && end ? `${start} ~ ${end}` : '';
+}
 
 function buildDelayFlags(row: CustomerIssueRecordRowResponse) {
   const flags = [];
@@ -550,6 +603,7 @@ function createEmptyFilterOptions(): CustomerIssueRecordFilterOptionsResponse {
     testingPhases: [],
     fixUsers: [],
     delayCauses: [],
+    plannedMergeVersionBranches: [],
     milestoneTitles: [],
   };
 }
@@ -626,6 +680,7 @@ function buildCurrentQueryParams(includePagination: boolean) {
         testingPhase: String(route.query.testingPhase ?? ''),
         fixUser: String(route.query.fixUser ?? ''),
         delayCause: String(route.query.delayCause ?? ''),
+        plannedMergeVersionBranch: String(route.query.plannedMergeVersionBranch ?? ''),
       }
       : {}),
     severityLevel: String(route.query.severityLevel ?? ''),
@@ -634,14 +689,7 @@ function buildCurrentQueryParams(includePagination: boolean) {
     bugStatus: String(route.query.bugStatus ?? ''),
     category: String(route.query.category ?? ''),
     milestoneTitle: String(route.query.milestoneTitle ?? ''),
-    ...(isDelayTopic.value
-      ? {
-        createdAtStart: String(route.query.createdAtStart ?? ''),
-        createdAtEnd: String(route.query.createdAtEnd ?? ''),
-      }
-      : {}),
-    updatedAtStart: String(route.query.updatedAtStart ?? ''),
-    updatedAtEnd: String(route.query.updatedAtEnd ?? ''),
+    ...buildCustomerIssueRecordRangeRequestParams(route.query, isDelayTopic.value),
     filterGroup: buildFilterPayload(),
     ...(includePagination ? { page: page.value, size: pageSize.value } : {}),
     sortBy: sortBy.value || 'updatedAt',
@@ -764,15 +812,12 @@ async function handleClearFilter(key: string) {
   await handleBaseClearFilter(key);
 }
 
-async function handleFilterChange(payload: { key: string; value: string | string[] | null }) {
-  if (payload.key === 'createdAtRange') {
-    const [start, end] = Array.isArray(payload.value) ? payload.value : [];
-    await patchQuery({ page: 1, createdAtStart: start || null, createdAtEnd: end || null });
-    return;
-  }
-  if (payload.key === 'updatedAtRange') {
-    const [start, end] = Array.isArray(payload.value) ? payload.value : [];
-    await patchQuery({ page: 1, updatedAtStart: start || null, updatedAtEnd: end || null });
+async function handleFilterChange(payload: { key: string; value: RecordTableFilterValue }) {
+  if (isCustomerIssueRecordRangeFilterKey(payload.key)) {
+    if (!customerIssueRecordRangeFilterKeys(isDelayTopic.value).includes(payload.key)) {
+      return;
+    }
+    await patchQuery(buildCustomerIssueRecordRangeQueryPatch(payload.key, payload.value));
     return;
   }
   await patchQuery({

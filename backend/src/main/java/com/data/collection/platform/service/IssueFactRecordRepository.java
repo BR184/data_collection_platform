@@ -146,6 +146,7 @@ public class IssueFactRecordRepository {
                 20,
                 "updatedAt",
                 "desc",
+                CustomerIssueRecordFilters.CcProductFilters.empty(),
                 null));
     try {
       return issueFactQueryService.query(FACT_SELECT_SQL + parts.where(), parts.args(), this::mapIssueFact);
@@ -303,6 +304,7 @@ public class IssueFactRecordRepository {
                  coalesce(assignee_name, '') as assignee_name,
                  coalesce(fix_user, '') as fix_user,
                  coalesce(delay_cause, '') as delay_cause,
+                 coalesce(planned_merge_version_branch, '') as planned_merge_version_branch,
                  coalesce(milestone_title, '') as milestone_title,
                  coalesce(illegal_reason, '') as illegal_reason,
                  coalesce(illegal_reasons, '') as illegal_reasons
@@ -351,6 +353,13 @@ public class IssueFactRecordRepository {
                 from base
                 cross join lateral regexp_split_to_table(coalesce(delay_cause, ''), '[、，,&]') as delay_member(value)
            ) t where value is not null) as delay_causes,
+           (select string_agg(value, E'\n') from (
+              select distinct nullif(btrim(planned_merge_member.value), '') as value
+                from base
+                cross join lateral regexp_split_to_table(
+                  coalesce(planned_merge_version_branch, ''), '&'
+                ) as planned_merge_member(value)
+           ) t where value is not null) as planned_merge_version_branches,
            (select string_agg(value, E'\n') from (select distinct nullif(btrim(milestone_title), '') as value from base) t where value is not null) as milestone_titles,
           (select string_agg(value, E'\n') from (
              select distinct nullif(btrim(reason), '') as value
@@ -381,6 +390,7 @@ public class IssueFactRecordRepository {
                        splitAggregatedValues(rs.getString("testing_phases")),
                        splitAggregatedValues(rs.getString("fix_users")),
                        splitAggregatedValues(rs.getString("delay_causes")),
+                       splitAggregatedValues(rs.getString("planned_merge_version_branches")),
                        splitAggregatedValues(rs.getString("milestone_titles")),
                       splitAggregatedValues(rs.getString("illegal_reasons"))));
       return rows.isEmpty() ? CustomerIssueFilterValues.empty() : rows.get(0);
@@ -435,11 +445,13 @@ public class IssueFactRecordRepository {
     appendScope(where, args, query.scope());
     appendSourceInstance(where, args, query.listRequest());
     appendBaseFilters(where, args, query.listRequest(), query.useDisplayModuleFilter());
-    IssueCustomerMembershipSqlSupport.appendSelection(where, args, query.customerName());
+    IssueCustomerMembershipSqlSupport.appendSelection(
+        where, args, query.ccProductFilters().customerName());
     appendEqIgnoreCase(where, args, "reason_category", query.reasonCategory());
     appendTestingPhaseEquals(where, args, query.directTestingPhase());
     appendEqIgnoreCase(where, args, "fix_user", query.fixUser());
     appendDelayCauseFilter(where, args, query.delayCause());
+    appendCcProductFilters(where, args, query);
     String testingPhaseColumn = testingPhaseColumn(query);
     appendInIgnoreCase(where, args, testingPhaseColumn, query.testingPhases());
     if (query.testingPhases().isEmpty()) {
@@ -460,6 +472,34 @@ public class IssueFactRecordRepository {
       args.add("%已拒绝%");
     }
     return new QueryParts(where.toString(), args);
+  }
+
+  private void appendCcProductFilters(
+      StringBuilder where, List<Object> args, IssueFactRecordPageQuery query) {
+    CustomerIssueRecordFilters.CcProductFilters filters = query.ccProductFilters();
+    appendDateFrom(
+        where, args, "planned_resolution_at", filters.plannedResolutionAtStart());
+    appendDateTo(
+        where, args, "planned_resolution_at", filters.plannedResolutionAtEnd());
+    appendPredicate(
+        where,
+        args,
+        CustomerIssuePlannedMergeBranchSqlSupport.matches(
+            "planned_merge_version_branch", filters.plannedMergeVersionBranch()));
+    appendPredicate(
+        where,
+        args,
+        IssueRetentionDurationSqlSupport.range(
+            filters.retentionHoursMin(), filters.retentionHoursMax(), query.retentionAsOf()));
+  }
+
+  private void appendPredicate(
+      StringBuilder where, List<Object> args, SqlPredicate predicate) {
+    if (predicate == null || predicate.predicate().isBlank()) {
+      return;
+    }
+    where.append(" and ").append(predicate.predicate());
+    args.addAll(predicate.args());
   }
 
   private void appendScope(
@@ -1065,10 +1105,12 @@ public class IssueFactRecordRepository {
       List<String> testingPhases,
       List<String> fixUsers,
       List<String> delayCauses,
+      List<String> plannedMergeVersionBranches,
       List<String> milestoneTitles,
       List<String> illegalReasons) {
     static CustomerIssueFilterValues empty() {
       return new CustomerIssueFilterValues(
+          List.of(),
           List.of(),
           List.of(),
           List.of(),
