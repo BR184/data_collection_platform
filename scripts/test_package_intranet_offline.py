@@ -37,6 +37,7 @@ class IntranetLdapPackagingTest(unittest.TestCase):
             expected_flyway_version="20260721.03",
             template_dir=None,
             require_fact_rebuild=False,
+            require_gitlab_full_sync=False,
             fact_rebuild_scope="all",
             frontend_port=18181,
             backend_port=18080,
@@ -76,8 +77,12 @@ class IntranetLdapPackagingTest(unittest.TestCase):
         self.assertEqual(context.release_id, context.backend_tag)
         self.assertEqual(context.release_id, context.frontend_tag)
 
-    def test_fresh_package_rejects_fact_rebuild_and_unused_baseline(self):
-        for extra_argument in ("--require-fact-rebuild", "--baseline-dir"):
+    def test_fresh_package_rejects_data_recovery_flags_and_unused_baseline(self):
+        for extra_argument in (
+            "--require-fact-rebuild",
+            "--require-gitlab-full-sync",
+            "--baseline-dir",
+        ):
             arguments = ["--mode", "fresh-empty", extra_argument]
             if extra_argument == "--baseline-dir":
                 arguments.append("unused")
@@ -105,6 +110,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             expected_flyway_version="20260721.03",
             template_dir=None,
             require_fact_rebuild=True,
+            require_gitlab_full_sync=False,
             fact_rebuild_scope="all",
             frontend_port=18181,
             backend_port=18080,
@@ -121,6 +127,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 baseline_dir=None,
                 template_package_dir=None,
                 require_fact_rebuild=True,
+                require_gitlab_full_sync=False,
                 fact_rebuild_scope="all",
                 frontend_port=18181,
                 backend_port=18080,
@@ -145,6 +152,21 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         with self.assertRaisesRegex(MODULE.PackageError, "cannot include offline Docker debs"):
             MODULE.resolve_context(args)
 
+    def test_incremental_mode_rejects_duplicate_full_fact_recovery_paths(self):
+        args = MODULE.parse_args(
+            [
+                "--mode",
+                "incremental-update",
+                "--baseline-dir",
+                "baseline",
+                "--require-fact-rebuild",
+                "--require-gitlab-full-sync",
+            ]
+        )
+
+        with self.assertRaisesRegex(MODULE.PackageError, "cannot be combined"):
+            MODULE.resolve_context(args)
+
     def test_incremental_mode_uses_new_image_tags_and_records_old_tags(self):
         with tempfile.TemporaryDirectory() as deploy_root:
             baseline = Path(deploy_root) / "baseline"
@@ -164,6 +186,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 baseline_dir=baseline,
                 template_package_dir=None,
                 require_fact_rebuild=True,
+                require_gitlab_full_sync=False,
                 fact_rebuild_scope="all",
                 frontend_port=18181,
                 backend_port=18080,
@@ -344,6 +367,25 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertIn("fact rebuild is not required for this release", content)
         self.assertNotIn("before final statistics acceptance", content)
 
+    def test_gitlab_full_sync_recovery_is_declared_in_readme_and_upgrade_output(self):
+        context = MODULE.BuildContext(
+            **{
+                **self.build_context().__dict__,
+                "require_fact_rebuild": False,
+                "require_gitlab_full_sync": True,
+            }
+        )
+
+        readme = MODULE.incremental_readme(context)
+        upgrade = MODULE.upgrade_helper(context)
+
+        self.assertIn("## 6. 执行一次恢复性 GitLab 全量同步", readme)
+        self.assertIn("FULL_SYNC", readme)
+        self.assertIn("FACT_REFRESH", readme)
+        self.assertIn("不要单独提交事实层重建", readme)
+        self.assertNotIn("不要因为本包部署而触发 GitLab 全量同步", readme)
+        self.assertIn("post-deployment GitLab FULL_SYNC is required", upgrade)
+
     def test_rollback_script_restores_application_configuration_without_database_rewrite(self):
         content = MODULE.rollback_helper(self.build_context())
 
@@ -498,8 +540,49 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 manifest["baseline"]["backendImage"],
             )
             self.assertEqual(MODULE.file_sha256(backend_jar), manifest["source"]["backendJarSha256"])
+            self.assertEqual({"fullSyncRequired": False}, manifest["sourceSync"])
             self.assertFalse((package_dir / "backend").exists())
             self.assertFalse((package_dir / "frontend").exists())
+
+    def test_release_manifest_declares_required_gitlab_full_sync(self):
+        with tempfile.TemporaryDirectory() as root:
+            root_path = Path(root)
+            package_dir = root_path / "package"
+            image_dir = package_dir / "docker-images"
+            image_dir.mkdir(parents=True)
+            context = MODULE.BuildContext(
+                **{
+                    **self.build_context().__dict__,
+                    "deploy_root": root_path,
+                    "package_dir": package_dir,
+                    "archive_path": root_path / "package.tar.gz",
+                    "require_fact_rebuild": False,
+                    "require_gitlab_full_sync": True,
+                }
+            )
+            backend_jar = root_path / "app.jar"
+            backend_jar.write_bytes(b"backend")
+            frontend_dist = root_path / "dist"
+            frontend_dist.mkdir()
+            (frontend_dist / "index.html").write_text("frontend", encoding="utf-8")
+            (image_dir / f"{MODULE.BACKEND_IMAGE}_{context.backend_tag}.tar").write_bytes(
+                b"backend-image"
+            )
+            (image_dir / f"{MODULE.FRONTEND_IMAGE}_{context.frontend_tag}.tar").write_bytes(
+                b"frontend-image"
+            )
+
+            with mock.patch.object(MODULE, "BACKEND_JAR", backend_jar), mock.patch.object(
+                MODULE, "FRONTEND_DIST", frontend_dist
+            ):
+                MODULE.write_release_manifest(context, False, "standard build")
+
+            manifest = json.loads(
+                (package_dir / "RELEASE-MANIFEST.json").read_text(encoding="utf-8")
+            )
+
+        self.assertEqual({"fullSyncRequired": True}, manifest["sourceSync"])
+        self.assertEqual({"rebuildRequired": False, "scope": None}, manifest["facts"])
 
     def test_backend_jar_rejects_migrations_deleted_from_source(self):
         with tempfile.TemporaryDirectory() as root:

@@ -68,6 +68,7 @@ class BuildContext:
     expected_flyway_version: str
     template_dir: Path | None
     require_fact_rebuild: bool
+    require_gitlab_full_sync: bool
     fact_rebuild_scope: str
     frontend_port: int
     backend_port: int
@@ -268,11 +269,15 @@ def verify_backend_migrations_match_source(jar_path: Path, migration_dir: Path) 
 
 
 def resolve_context(args: argparse.Namespace) -> BuildContext:
+    if args.require_fact_rebuild and args.require_gitlab_full_sync:
+        fail("--require-fact-rebuild cannot be combined with --require-gitlab-full-sync")
     if args.mode == "fresh-empty":
         if args.baseline_dir is not None:
             fail("fresh-empty does not accept --baseline-dir")
         if args.require_fact_rebuild:
             fail("fresh-empty cannot require fact rebuild because it contains no business data")
+        if args.require_gitlab_full_sync:
+            fail("fresh-empty already includes initial source synchronization instructions")
     else:
         if args.include_offline_docker_debs:
             fail("incremental-update cannot include offline Docker debs")
@@ -336,6 +341,7 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         expected_flyway_version=latest_flyway_version(),
         template_dir=template_dir,
         require_fact_rebuild=args.require_fact_rebuild,
+        require_gitlab_full_sync=args.require_gitlab_full_sync,
         fact_rebuild_scope=args.fact_rebuild_scope,
         frontend_port=args.frontend_port,
         backend_port=args.backend_port,
@@ -757,20 +763,34 @@ sudo docker compose --env-file .env config
 
 
 def incremental_readme(ctx: BuildContext) -> str:
-    if ctx.require_fact_rebuild:
-        fact_section = f"""\
+    if ctx.require_gitlab_full_sync:
+        post_deployment_section = """\
+## 6. 执行一次恢复性 GitLab 全量同步
+
+发布清单中的 `sourceSync.fullSyncRequired` 为 `true`。旧版本可能没有完整写入 GitLab ODS 数据；升级后必须使用具备数据同步权限的 LDAP 账号，在“系统设置/数据镜像设置”提交一次全量同步，并等待以下两个运行依次成功：
+
+1. 父运行 `FULL_SYNC` 状态为 `SUCCESS`。
+2. 该父运行自动创建的 `FACT_REFRESH` 子运行状态为 `SUCCESS`，统计与记录快照预热完成。
+
+不要清空 ODS，不要执行 `FULL_COMPENSATION_SCAN`，也不要单独提交事实层重建；全量同步成功后会基于完整 ODS 自动执行全量事实发布。此恢复动作只执行一次，之后日常自动增量与手动单表刷新继续按增量删除对账和精准事实发布运行。
+"""
+        gitlab_sync_policy = "- 本包要求升级后由授权用户提交一次恢复性 GitLab 全量同步；升级脚本本身不会自动提交。"
+    elif ctx.require_fact_rebuild:
+        post_deployment_section = f"""\
 ## 6. 事实层重建
 
 本更新包标记为需要事实层重建。该步骤只基于现有镜像表重建事实层和统计快照，不重新全量同步 GitLab，不删除平台数据。
 
 使用具备数据同步权限的 LDAP 账号登录平台，在“系统设置/数据镜像设置”中触发 `{ctx.fact_rebuild_scope}` 范围的事实层重建。平台启用 Session CSRF 保护，不在部署文档中保存账号密码或绕过浏览器安全流程。
 """
+        gitlab_sync_policy = "- 不要因为本包部署而触发 GitLab 全量同步。"
     else:
-        fact_section = """\
+        post_deployment_section = """\
 ## 6. 不执行事实层重建
 
 本更新包只替换后端和前端业务镜像，不改变事实表、统计口径或历史聚合结果。部署后不要主动触发事实重建、全量同步或清空快照。
 """
+        gitlab_sync_policy = "- 不要因为本包部署而触发 GitLab 全量同步。"
 
     return f"""\
 # QA Flex Platform 保数据更新包
@@ -802,7 +822,7 @@ def incremental_readme(ctx: BuildContext) -> str:
 - 不要重建、替换或删除 postgres 容器。
 - 不要清空镜像表、事实表、同步状态、用户、页面设置或平台配置。
 - 不要在内网服务器执行 `docker build`。
-- 不要因为本包部署而触发 GitLab 全量同步。
+{gitlab_sync_policy}
 
 ## 1. 校验并解压更新包
 
@@ -978,7 +998,7 @@ sudo docker compose --env-file .env exec -T postgres sh -c 'psql -U "$POSTGRES_U
 
 使用 LDAP v0.3 账号登录；旧本地 `admin/admin123` 必须被拒绝。LDAP 不可用时，新登录失败，已有 Session 可继续使用到退出或过期。
 
-{fact_section}
+{post_deployment_section}
 
 ## 7. 仅在升级失败时回滚应用
 
@@ -1090,11 +1110,17 @@ log "verified pre-deployment backup completed: $BACKUP_DIR"
 
 
 def upgrade_helper(ctx: BuildContext) -> str:
-    completion_message = (
-        f"login with LDAP and rebuild fact scope '{ctx.fact_rebuild_scope}' before final statistics acceptance"
-        if ctx.require_fact_rebuild
-        else "fact rebuild is not required for this release"
-    )
+    if ctx.require_gitlab_full_sync:
+        completion_message = (
+            "post-deployment GitLab FULL_SYNC is required; wait for its automatic FACT_REFRESH"
+        )
+    elif ctx.require_fact_rebuild:
+        completion_message = (
+            f"login with LDAP and rebuild fact scope '{ctx.fact_rebuild_scope}' "
+            "before final statistics acceptance"
+        )
+    else:
+        completion_message = "fact rebuild is not required for this release"
     return f"""\
 #!/usr/bin/env bash
 set -euo pipefail
@@ -1355,6 +1381,9 @@ def write_release_manifest(ctx: BuildContext, backend_fallback_used: bool, backe
             "rebuildRequired": ctx.require_fact_rebuild,
             "scope": ctx.fact_rebuild_scope if ctx.require_fact_rebuild else None,
         },
+        "sourceSync": {
+            "fullSyncRequired": ctx.require_gitlab_full_sync,
+        },
         "compose": {
             "entrypoint": "docker-compose.yml",
             "model": "single-authoritative-file",
@@ -1603,6 +1632,11 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         help="include Ubuntu 24.04 Docker/Compose debs in a fresh package from the template directory",
     )
     parser.add_argument("--require-fact-rebuild", action="store_true")
+    parser.add_argument(
+        "--require-gitlab-full-sync",
+        action="store_true",
+        help="declare one post-deployment GitLab full sync and its automatic full fact refresh",
+    )
     parser.add_argument("--fact-rebuild-scope", choices=("issue", "merge-request", "all"), default="all")
     parser.add_argument("--frontend-port", type=int, default=18181)
     parser.add_argument("--backend-port", type=int, default=18080)
@@ -1648,6 +1682,7 @@ def main(argv: Sequence[str]) -> int:
                 log(f"baseline: {ctx.baseline_name}")
                 log(f"baseline backend: {BACKEND_IMAGE}:{ctx.baseline_backend_tag}")
                 log(f"baseline frontend: {FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}")
+            log(f"post-deployment GitLab full sync required: {ctx.require_gitlab_full_sync}")
             return 0
 
         backend_fallback_used, backend_build_note = build_products(args)

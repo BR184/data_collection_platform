@@ -62,7 +62,7 @@ qaflex-update-<release-id>/
 | `backup.sh` | 在应用变更前独立生成并校验完整数据库和关键表 custom-format dump，同时保存 Compose、镜像、容器、Flyway 和行数证据；不停止容器、不修改数据库。 |
 | `upgrade.sh` | 只接受同一发布包生成且校验通过的预部署备份；执行基线、任务、磁盘、Flyway、静默迁移、健康、行数守恒和 PostgreSQL 容器不变检查。 |
 | `rollback.sh` | 原子恢复升级前完整 Compose，保持现场 `.env` 不变，校验基线镜像，先等待后端健康再等待前端健康；不擅自回写数据库。 |
-| `RELEASE-MANIFEST.json` | 机器可读地记录包类型、commit、工作树状态、目标/基线镜像、镜像与源码摘要、Flyway 和事实重建要求。 |
+| `RELEASE-MANIFEST.json` | 机器可读地记录包类型、commit、工作树状态、目标/基线镜像、镜像与源码摘要、Flyway、事实重建要求和部署后源同步要求。 |
 | `SHA256SUMS.txt` 与包外 `.sha256` | 分别校验包内文件和离线传输后的完整归档。 |
 | `README-INCREMENTAL-DEPLOY.md` | 内网现场无法访问仓库文档时的同版本操作与验收入口。 |
 
@@ -102,7 +102,7 @@ qa-flex-platform-frontend:<release-id>
 
 每次执行打包器时自动生成 `YYYYMMDDTHHMMSSZ-<12 hex>` 格式的 `release-id`。UTC 时间负责排序和人工定位，6 字节密码学随机熵区分同秒及并发构建；包目录通过原子创建拒绝碰撞，归档和校验文件存在时同样拒绝覆盖。因此每个成功生成的包都有唯一名称，不依赖人工命名。
 
-包名只允许包含产品简称、包类型和发布 ID：全新包为 `qaflex-full-<release-id>.tar.gz`，更新包为 `qaflex-update-<release-id>.tar.gz`。Ubuntu 版本、离线属性、端口、commit、工作树状态、功能说明、Flyway 和事实重建范围均写入 `RELEASE-MANIFEST.json`，不得重复拼接到文件名。前后端镜像复用同一 `release-id`，使一次发布的目录、归档、清单和镜像形成单一身份。
+包名只允许包含产品简称、包类型和发布 ID：全新包为 `qaflex-full-<release-id>.tar.gz`，更新包为 `qaflex-update-<release-id>.tar.gz`。Ubuntu 版本、离线属性、端口、commit、工作树状态、功能说明、Flyway、事实重建范围和源同步要求均写入 `RELEASE-MANIFEST.json`，不得重复拼接到文件名。前后端镜像复用同一 `release-id`，使一次发布的目录、归档、清单和镜像形成单一身份。
 
 打包器在最终归档之外创建临时 Docker build context，构建完成后立即销毁。打包阶段必须核对镜像内 `/app/app.jar` 与本地生产 JAR 的 SHA-256，并核对前端镜像内 `index.html` 与生产 `dist`；审计摘要写入发布清单，不复制裸产物。
 
@@ -180,6 +180,8 @@ git diff --name-status
 
 存在不确定性时先沿调用链、迁移和测试确认，不能为了省事漏报，也不能无依据扩大范围。事实重建只重算现有 ODS；它不等同于 GitLab 全量同步。
 
+若旧发布存在已证实的 ODS 漏写、错误 tombstone 或其他必须重新读取完整 GitLab 源才能恢复的问题，使用 `--require-gitlab-full-sync`。该参数在清单 `sourceSync.fullSyncRequired`、包内 README 和升级完成提示中形成同一事实源；部署后由授权用户提交一次 `FULL_SYNC`，并等待其自动 `FACT_REFRESH` 成功。它不能与 `--require-fact-rebuild` 同时使用，因为成功全量同步已经自动执行全量事实发布；不得通过两条重复恢复路径扩大写放大或制造相反操作指令。
+
 ### 4. 先解析计划，再正式构建
 
 先运行不写产物的计划解析：
@@ -194,6 +196,8 @@ python scripts\package_intranet_offline.py `
 ```
 
 不需要事实重建时省略最后两个事实参数。输出中的基线目录、前后端基线镜像、包类型和目标目录必须全部正确；否则停止。
+
+需要恢复性 GitLab 全量同步时，省略两个事实参数并增加 `--require-gitlab-full-sync`。
 
 确认后用完全相同的参数去掉 `--plan-only`：
 
@@ -237,6 +241,7 @@ cd <package-dir> && sha256sum -c SHA256SUMS.txt
 - `target.images` 使用同一个新 release ID；
 - `flywayVersion` 等于 JAR 内最新迁移；
 - `facts` 与第 3 步结论一致。
+- `sourceSync.fullSyncRequired` 与第 3 步结论一致，且不能和 `facts.rebuildRequired=true` 同时出现。
 
 归档只能包含本标准定义的更新包结构。发现 `backend/`、`frontend/`、`.env`、PostgreSQL 镜像、Docker deb、数据库 dump、volume 数据或运行日志时，包无效。
 
@@ -297,7 +302,7 @@ git diff --check
 git status --short --branch
 ```
 
-若门禁被既有用户文件阻塞，必须报告具体文件，不得擅自删除，也不得声称全绿。将 release ID、归档大小/SHA-256、直接基线、目标 Flyway、事实重建范围、本地升级/回滚/再次升级结果、PostgreSQL ID/行数守恒和未执行项压缩写入 `docs/progress.md`；随后按文档生命周期删除活动计划。
+若门禁被既有用户文件阻塞，必须报告具体文件，不得擅自删除，也不得声称全绿。将 release ID、归档大小/SHA-256、直接基线、目标 Flyway、事实重建范围、源同步要求、本地升级/回滚/再次升级结果、PostgreSQL ID/行数守恒和未执行项压缩写入 `docs/progress.md`；随后按文档生命周期删除活动计划。
 
 最终交付必须提供归档、包外 `.sha256`、包内 `README-INCREMENTAL-DEPLOY.md` 的路径，并明确：适用的直接基线、部署后是否重建哪类事实、是否需要 GitLab 全量同步、哪些真实内网场景尚未验证。现场操作以包内 README 为准，不在聊天中维护另一套可能漂移的部署流程。
 
@@ -347,6 +352,8 @@ bash ../<update-package>/upgrade.sh "$PWD" "$BACKUP_DIR"
 
 需要事实重建时，容器升级完成后由具备权限的用户在“数据镜像设置”提交发布清单指定范围的事实重建，并观察 `FACT_REFRESH` 终态和快照预热。升级脚本不得保存账号密码、绕过 Session/CSRF 或触发 GitLab 全量同步。
 
+清单要求恢复性全量同步时，容器升级完成后由具备权限的用户在“数据镜像设置”提交一次 `FULL_SYNC`，等待父运行和自动创建的 `FACT_REFRESH` 子运行均为 `SUCCESS`；不得再单独提交事实重建或 `FULL_COMPENSATION_SCAN`。升级脚本只输出该待办，不保存凭据或替用户提交业务任务。
+
 应用回滚：
 
 ```bash
@@ -370,7 +377,7 @@ bash ../<update-package>/rollback.sh "$PWD" "$PWD/upgrade-backups/<backup-dir>"
 
 - 定向打包契约测试、前端生产构建、后端生产包和镜像构建通过。
 - Compose 可解析，镜像内产物摘要与生产构建产物一致。
-- `RELEASE-MANIFEST.json` 的基线、目标镜像、Flyway 和事实重建标记与本次发布一致。
+- `RELEASE-MANIFEST.json` 的基线、目标镜像、Flyway、事实重建和源同步标记与本次发布一致。
 - `SHA256SUMS.txt` 覆盖包内全部其他文件，包外 `.sha256` 与最终 tar.gz 一致。
 - 更新包包含独立 `backup.sh`；无有效预部署备份时 `upgrade.sh` 必须拒绝执行。
 - 更新包归档不存在 `backend/`、`frontend/`、真实 `.env`、PostgreSQL 镜像、离线 deb、数据库数据或运行日志。
