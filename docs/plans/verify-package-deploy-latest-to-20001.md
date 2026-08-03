@@ -2,7 +2,7 @@
 
 ## 进度与中间物
 
-- 状态：阶段 4 正式打包前。已在独立工作树 `D:/projects/data_collection_platform_verify_2fd5c34e` 冻结 GitHub `main` 提交 `2fd5c34e4e7a4c1324332338163cfe1ca7ff69f6`，完成第一轮只登记不修复、统一修复、依赖安全升级及最终门禁；当前提交并推送已验证修复，随后从干净提交生成 721 保数据更新包并进入隔离升级演练。
+- 状态：阶段 6 现场部署阻塞。验证修复已提交并推送为 `5e2eb2e655cc55d4367fdb50ce13e8a90919af95`，正式 721 保数据更新包及隔离升级/回滚/再次升级演练全部通过；`172.22.10.115:22` 在 SSH 主机密钥交换前主动关闭连接，尚不能执行现场 Compose 基线核对、独立备份和升级。
 - 隔离原则：主工作树存在用户并行改动，本工作单元不读取其未提交实现作为修复来源，不回退、不覆盖、不纳入发布。所有修复、复验与打包源码均以本隔离工作树为准。
 - 第一轮通过：后端生产包、Checkstyle、SpotBugs、JaCoCo 报告；前端 `npm ci`、类型检查、生产构建；Flyway 迁移集合不可变性、破坏性迁移检查及自测、迁移烟测、标签组矩阵、测试卫生、事实字段、profile 覆盖、产物位置、文本空白、`git diff --check`；Python 打包契约 25 项、对账单元测试 5 项；721 基线 `--plan-only`；旧发布脚本 Bash 语法；本地 `issue_fact.module_names` 只读探针。
 - 第一轮失败：后端 `931` 项中 `21` 失败、`11` 错误、`9` 跳过；前端 `103` 个文件中 `13` 失败、`90` 通过，`365` 项中 `18` 失败并有 `16` 个异步错误；ESLint 3 项；前端高危依赖审计失败；schema/Flyway 漂移、API 契约漂移、冲突标记、验证账本缺失；Flyway profile 事实任务因测试 schema 无法解析 `public.gin_trgm_ops` 产生 9 个上下文错误。
@@ -16,11 +16,14 @@
 - 阶段 2 真实 API 复验：`SystemTestIllegalRecordService` 恢复数据库聚合候选和 SQL 分页后，最新 JAR 在 8,002 条 `issue_fact` 下以 36 ms 返回原超时接口；25 个只读 API 全部成功，总耗时 8.1 秒。探针现会把 socket timeout 记为单项失败，继续执行剩余端点并生成完整非零报告，回归测试通过。
 - 阶段 3 工程与发布门禁：118 个 Flyway 迁移不可变性、破坏性迁移、API/事实字段/标签组/前端边界契约、工作树产物/运行产物/文本空白、`git diff --check`、同步 dry-run 和 35 项 Python 发布测试通过。过期且事实已归入权威文档的冲突计划已删除，不保留历史合并标记。
 - 阶段 3 直接基线：完整 721 runnable 目录、Compose 解析和本机镜像均确认前后端为 `qa-flex-platform-backend/frontend:20260721-f18154c0-working`，两镜像均为 `linux/amd64`；以 20001/20002、`all` 事实重建声明执行 `--plan-only` 通过。
+- 阶段 4 正式发布包：从干净提交 `5e2eb2e6` 生成 `qaflex-update-20260803T054734Z-066761e14130`，归档大小 `196,879,575` bytes，SHA-256 为 `bc155655414f9f23b3cef2e1d16f095af2e96b6f490d08b6130e8fc90d3cc9b0`，目标 Flyway `20260803.01`，发布清单要求 `all` 事实重建。打包器默认构建、镜像摘要、Compose、归档清单、Git Bash 语法、包内摘要和 25 项发布契约均通过。
+- 阶段 5 隔离演练：独立 721 栈从 Flyway `20260720.06` 完成“备份 -> 升级 -> 应用回滚 -> 第二次备份 -> 再次升级”，两轮完整/关键表 dump 均非空且可恢复，`counts.diff` 均为空；PostgreSQL ID `a9d1928db80a74e70f227bb66cbccc1e9d58ae2940adbdf8a246a5521a971401` 与 external volume 全程不变，最终目标前后端健康、后端 UP、前端 200。
+- 阶段 6 现场阻塞证据：22/20001/20002 TCP 均可达，但 Windows OpenSSH、Git OpenSSH 和 `ssh-keyscan` 均在 `kex_exchange_identification` 前被远端关闭，未进入用户名或密钥认证。不得绕过现场唯一 Compose、预部署备份和 PostgreSQL 容器不变检查直接替换应用。
 
 ## 恢复线索
 
-- 当前阶段：阶段 4，全部代码与发布门禁已清零，正在提交已验证修复并生成正式 721 保数据更新包。
-- 恢复后首条命令：`git -C D:/projects/data_collection_platform_verify_2fd5c34e status --short --branch`，随后读取本计划顶部和 `.tmp-logs/first-pass/` 汇总。
+- 当前阶段：阶段 6，等待 `172.22.10.115:22` 恢复正常 SSH 主机密钥交换后执行现场只读基线核对、备份、升级和验收。
+- 恢复后首条命令：`ssh-keyscan -T 8 172.22.10.115`；只有能读取主机密钥后才继续使用已授权密钥登录并读取现场唯一 Compose。
 - 相关基线：`2fd5c34e`；上一实现计划为 `docs/plans/implement-incremental-delete-detection-targeted-refresh.md`；发布规则为 `deploy/intranet-offline-packaging-standard.md`。
 
 ## 目标与边界
@@ -75,5 +78,5 @@
 
 - 主工作树并行改动可能已修复部分相同问题，但未经固定提交验证，不作为本工作单元事实，也不得直接覆盖合并。
 - 本地开发库 Flyway 已比固定提交新，运行冒烟只验证只读兼容性；最终运行测试必须使用与最终源码一致的隔离数据库。
-- 现场 SSH 入口当前不可用；若完整修复、打包和隔离演练后仍无法获得受控入口，部署阶段明确阻塞，不猜测凭据。
+- 现场 SSH TCP 可连接，但远端在主机密钥交换前主动关闭；该问题与用户名、私钥和客户端实现无关。恢复 SSH 服务或访问策略前，现场部署明确阻塞，不猜测凭据、不绕过备份升级脚本。
 - 真实 GitLab 删除验收涉及源端状态，只能使用授权的隔离对象；无授权时完成本地确定性链路并把现场验证列为部署验收项。
