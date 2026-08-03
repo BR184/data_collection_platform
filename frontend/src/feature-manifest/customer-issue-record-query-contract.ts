@@ -1,3 +1,49 @@
+export const CUSTOMER_ISSUE_RECORD_RANGE_QUERY_KEYS = {
+  createdAtRange: {
+    startKey: 'createdAtStart',
+    endKey: 'createdAtEnd',
+    valueType: 'date',
+  },
+  updatedAtRange: {
+    startKey: 'updatedAtStart',
+    endKey: 'updatedAtEnd',
+    valueType: 'date',
+  },
+  plannedResolutionAtRange: {
+    startKey: 'plannedResolutionAtStart',
+    endKey: 'plannedResolutionAtEnd',
+    valueType: 'date',
+  },
+  retentionHoursRange: {
+    startKey: 'retentionHoursMin',
+    endKey: 'retentionHoursMax',
+    valueType: 'number',
+  },
+} as const;
+
+export type CustomerIssueRecordRangeFilterKey =
+  keyof typeof CUSTOMER_ISSUE_RECORD_RANGE_QUERY_KEYS;
+
+/** 判断快速筛选字段是否为客户问题记录页的范围字段。 */
+export function isCustomerIssueRecordRangeFilterKey(
+  key: string,
+): key is CustomerIssueRecordRangeFilterKey {
+  return Object.hasOwn(CUSTOMER_ISSUE_RECORD_RANGE_QUERY_KEYS, key);
+}
+
+export const DELAY_RECORD_RANGE_FILTER_KEYS: readonly CustomerIssueRecordRangeFilterKey[] = [
+  'createdAtRange',
+  'updatedAtRange',
+];
+
+export const CC_PRODUCT_RECORD_RANGE_FILTER_KEYS: readonly CustomerIssueRecordRangeFilterKey[] =
+  Object.keys(CUSTOMER_ISSUE_RECORD_RANGE_QUERY_KEYS) as CustomerIssueRecordRangeFilterKey[];
+
+function rangeQueryKeys(key: CustomerIssueRecordRangeFilterKey): readonly string[] {
+  const range = CUSTOMER_ISSUE_RECORD_RANGE_QUERY_KEYS[key];
+  return [range.startKey, range.endKey];
+}
+
 /**
  * CC_PRODUCT 快速筛选字段到 URL 查询参数的权威映射。
  *
@@ -21,8 +67,11 @@ export const CC_PRODUCT_QUICK_FILTER_QUERY_KEYS: Record<string, readonly string[
   category: ['category'],
   delayCause: ['delayCause'],
   fixUser: ['fixUser'],
-  createdAtRange: ['createdAtStart', 'createdAtEnd'],
-  updatedAtRange: ['updatedAtStart', 'updatedAtEnd'],
+  plannedResolutionAtRange: rangeQueryKeys('plannedResolutionAtRange'),
+  plannedMergeVersionBranch: ['plannedMergeVersionBranch'],
+  retentionHoursRange: rangeQueryKeys('retentionHoursRange'),
+  createdAtRange: rangeQueryKeys('createdAtRange'),
+  updatedAtRange: rangeQueryKeys('updatedAtRange'),
 };
 
 const baseQueryKeys = [

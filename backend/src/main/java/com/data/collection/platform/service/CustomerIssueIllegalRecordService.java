@@ -158,6 +158,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                   safeSize,
                   safeSortField,
                   safeSortOrder,
+                  CustomerIssueRecordFilters.CcProductFilters.empty(),
                   null));
       List<CustomerIssueIllegalRecordRowResponse> records =
           pageSlice.records().stream().map(this::toResponse).toList();

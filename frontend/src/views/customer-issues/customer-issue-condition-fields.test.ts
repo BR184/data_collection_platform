@@ -24,6 +24,7 @@ describe('customer issue condition fields', () => {
       testingPhases: [option],
       fixUsers: [option],
       delayCauses: [option],
+      plannedMergeVersionBranches: [option],
       milestoneTitles: [option],
       reasonCategories: [option],
     });
@@ -60,6 +61,7 @@ describe('customer issue condition fields', () => {
       testingPhases: [option],
       fixUsers: [option],
       delayCauses: [option],
+      plannedMergeVersionBranches: [option],
       milestoneTitles: [option],
       reasonCategories: [option],
     }, false);

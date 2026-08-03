@@ -83,18 +83,27 @@ describe('issueRecordsApi source instance query contract', () => {
       testingPhase: '新增需求',
       fixUser: '李四',
       delayCause: '需求变更',
+      plannedResolutionAtStart: '2026-08-01',
+      plannedResolutionAtEnd: '2026-08-31',
+      plannedMergeVersionBranch: 'CC2026R4',
+      retentionHoursMin: 24,
+      retentionHoursMax: 72,
+      createdAtStart: '2026-01-01',
+      createdAtEnd: '2026-08-31',
+      updatedAtStart: '2026-07-01',
+      updatedAtEnd: '2026-08-31',
     };
 
     issueRecordsApi.getCustomerIssueRecords(params);
 
     expect(decodeURIComponent(String(vi.mocked(request).mock.calls[0][0]))).toContain(
-      '/api/customer-issues/records?topic=cc-product&page=1&size=20&functionName=装配&customerName=郑州新世纪&handlerName=王五&assigneeName=张三&testingPhase=新增需求&fixUser=李四&delayCause=需求变更',
+      '/api/customer-issues/records?topic=cc-product&page=1&size=20&functionName=装配&customerName=郑州新世纪&handlerName=王五&assigneeName=张三&testingPhase=新增需求&fixUser=李四&delayCause=需求变更&plannedResolutionAtStart=2026-08-01&plannedResolutionAtEnd=2026-08-31&plannedMergeVersionBranch=CC2026R4&retentionHoursMin=24&retentionHoursMax=72&createdAtStart=2026-01-01&createdAtEnd=2026-08-31&updatedAtStart=2026-07-01&updatedAtEnd=2026-08-31',
     );
 
     issueRecordsApi.exportCustomerIssueRecords(params);
 
     expect(decodeURIComponent(String(vi.mocked(requestBlob).mock.calls[0][0]))).toContain(
-      '/api/customer-issues/records/export?topic=cc-product&functionName=装配&customerName=郑州新世纪&handlerName=王五&assigneeName=张三&testingPhase=新增需求&fixUser=李四&delayCause=需求变更',
+      '/api/customer-issues/records/export?topic=cc-product&functionName=装配&customerName=郑州新世纪&handlerName=王五&assigneeName=张三&testingPhase=新增需求&fixUser=李四&delayCause=需求变更&plannedResolutionAtStart=2026-08-01&plannedResolutionAtEnd=2026-08-31&plannedMergeVersionBranch=CC2026R4&retentionHoursMin=24&retentionHoursMax=72&createdAtStart=2026-01-01&createdAtEnd=2026-08-31&updatedAtStart=2026-07-01&updatedAtEnd=2026-08-31',
     );
   });
 

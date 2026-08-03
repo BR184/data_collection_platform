@@ -117,6 +117,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                   safeSize,
                   safeSortField,
                   safeSortOrder,
+                  CustomerIssueRecordFilters.CcProductFilters.empty(),
                   null));
       List<SystemTestIllegalRecordRowResponse> records =
           pageSlice.records().stream().map(this::toResponse).toList();

@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public record IssueFactRecordPageQuery(
@@ -29,10 +30,15 @@ public record IssueFactRecordPageQuery(
     int size,
     String sortField,
     String sortOrder,
-    String customerName) {
+    CustomerIssueRecordFilters.CcProductFilters ccProductFilters,
+    LocalDateTime retentionAsOf) {
 
   public IssueFactRecordPageQuery {
     testingPhases = testingPhases == null ? List.of() : List.copyOf(testingPhases);
+    ccProductFilters =
+        ccProductFilters == null
+            ? CustomerIssueRecordFilters.CcProductFilters.empty()
+            : ccProductFilters;
   }
 
   public enum Scope {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import RecordTableFilterFieldRenderer from './RecordTableFilterFieldRenderer.vue';
-import type { RecordTableFilterField } from '../../types/record-table';
+import type { RecordTableFilterField, RecordTableFilterValue } from '../../types/record-table';
 import { filterDimensionKey } from '../filter-priority';
 
 const props = withDefaults(
@@ -30,7 +30,7 @@ defineEmits<{
   (event: 'input-change', key: string, value: string): void;
   (event: 'input-search', key: string): void;
   (event: 'input-clear', key: string): void;
-  (event: 'filter-change', key: string, value: string | string[] | null): void;
+  (event: 'filter-change', key: string, value: RecordTableFilterValue): void;
 }>();
 
 function filterValue(key: string) {

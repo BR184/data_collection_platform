@@ -16,8 +16,10 @@ export interface RecordTableFilterOption {
   variant?: 'normal' | 'label-group';
 }
 
-export type RecordTableFilterType = 'input' | 'select' | 'daterange';
+export type RecordTableFilterType = 'input' | 'select' | 'daterange' | 'numberrange';
 export type RecordTableFilterSelectMode = 'default' | 'compact';
+export type RecordTableNumberRangeValue = [number | null, number | null];
+export type RecordTableFilterValue = string | string[] | RecordTableNumberRangeValue | null;
 
 export interface RecordTableFilterField {
   key: string;
@@ -35,6 +37,10 @@ export interface RecordTableFilterField {
   labelGroupEnabled?: boolean;
   startPlaceholder?: string;
   endPlaceholder?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  precision?: number;
 }
 
 export interface RecordTableActiveFilterTag {

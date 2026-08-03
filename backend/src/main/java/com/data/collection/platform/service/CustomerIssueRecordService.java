@@ -13,7 +13,9 @@ import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinit
 import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
 import com.data.collection.platform.service.statistics.CustomerIssueMilestoneCatalogService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -28,7 +30,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   private static final String TOPIC_CC_PRODUCT = "cc-product";
   private static final String TOPIC_DELAY = "delay";
   private static final String PAGE_KEY = "customer-issues-cc-product-issues";
-  private static final String CC_PRODUCT_RULE_VERSION = "customer-issue-records@2026-07-22-v7";
+  private static final String CC_PRODUCT_RULE_VERSION = "customer-issue-records@2026-08-03-v8";
   private static final String DELAY_RULE_VERSION = "customer-issue-records@2026-07-22-v4";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = CustomerIssueScopeProfile.LEGACY_CC_PRODUCT_PROJECT_ID;
@@ -53,6 +55,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   private final LabelGroupExpansionService labelGroupExpansionService;
   private final CustomerIssueMilestoneCatalogService milestoneCatalogService;
   private final PageRecordSnapshotService pageRecordSnapshotService;
+  private final Clock clock;
 
   @Autowired
   public CustomerIssueRecordService(
@@ -63,22 +66,48 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
       LabelGroupExpansionService labelGroupExpansionService,
       CustomerIssueMilestoneCatalogService milestoneCatalogService,
       PageRecordSnapshotService pageRecordSnapshotService) {
+    this(
+        issueFactRecordRepository,
+        customerIssueScopeProfile,
+        objectMapper,
+        issueLinkService,
+        labelGroupExpansionService,
+        milestoneCatalogService,
+        pageRecordSnapshotService,
+        Clock.systemUTC());
+  }
+
+  CustomerIssueRecordService(
+      IssueFactRecordRepository issueFactRecordRepository,
+      CustomerIssueScopeProfile customerIssueScopeProfile,
+      ObjectMapper objectMapper,
+      GitlabResourceLinkService issueLinkService,
+      LabelGroupExpansionService labelGroupExpansionService,
+      CustomerIssueMilestoneCatalogService milestoneCatalogService,
+      PageRecordSnapshotService pageRecordSnapshotService,
+      Clock clock) {
     super(issueFactRecordRepository, issueLinkService);
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.objectMapper = objectMapper;
     this.labelGroupExpansionService = labelGroupExpansionService;
     this.milestoneCatalogService = milestoneCatalogService;
     this.pageRecordSnapshotService = pageRecordSnapshotService;
+    this.clock = clock == null ? Clock.systemUTC() : clock;
   }
 
   public CustomerIssueRecordListResponse listRecords(CustomerIssueRecordQueryRequest request) {
-    CustomerIssueRecordPageSnapshot snapshot = readRecordSnapshot(withSnapshotDefaults(request));
-    return toListResponse(snapshot, LocalDateTime.now(java.time.ZoneOffset.UTC));
+    CustomerIssueRecordQueryRequest safeRequest = withSnapshotDefaults(request);
+    validateRetentionRange(safeRequest.filters().ccProduct());
+    LocalDateTime asOf = currentTime();
+    CustomerIssueRecordPageSnapshot snapshot = readRecordSnapshot(safeRequest, asOf);
+    return toListResponse(snapshot, asOf);
   }
 
-  private CustomerIssueRecordPageSnapshot readRecordSnapshot(CustomerIssueRecordQueryRequest safeRequest) {
-    if (pageRecordSnapshotService == null) {
-      return loadRecords(safeRequest);
+  private CustomerIssueRecordPageSnapshot readRecordSnapshot(
+      CustomerIssueRecordQueryRequest safeRequest, LocalDateTime asOf) {
+    if (pageRecordSnapshotService == null
+        || safeRequest.filters().ccProduct().hasRetentionRange()) {
+      return loadRecords(safeRequest, asOf);
     }
     return pageRecordSnapshotService.readOrRefresh(
         snapshotRequest(
@@ -89,10 +118,11 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
             safeRequest.listRequest().milestoneTitle(),
             safeRequest),
         CustomerIssueRecordPageSnapshot.class,
-        () -> loadRecords(safeRequest));
+        () -> loadRecords(safeRequest, asOf));
   }
 
-  private CustomerIssueRecordPageSnapshot loadRecords(CustomerIssueRecordQueryRequest request) {
+  private CustomerIssueRecordPageSnapshot loadRecords(
+      CustomerIssueRecordQueryRequest request, LocalDateTime asOf) {
     String selectedMilestone =
         TextQuerySupport.trimToNull(request.listRequest().milestoneTitle());
     List<String> milestoneValues =
@@ -107,6 +137,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     String safeSortOrder = normalizeSortOrder(listRequest.sortOrder());
     String safeTopic = normalizeTopic(request.topic());
     CustomerIssueRecordProfile recordProfile = CustomerIssueRecordProfile.forTopic(safeTopic);
+    CustomerIssueRecordFilters filters = request.filters();
+    CustomerIssueRecordFilters.CcProductFilters ccProductFilters = filters.ccProduct();
     StatisticFilterGroup filterGroup =
         IssueFactRecordFilterGroupSupport.parse(
             objectMapper,
@@ -116,7 +148,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                 : IssueFactRecordFilterGroupSupport.CUSTOMER_ISSUE_FILTER_OPERATORS);
     StatisticFilterGroup expandedFilterGroup = expandLabelGroupConditions(filterGroup, listRequest.sourceInstance());
     boolean hasLabelGroupFilters = IssueFactRecordFilterGroupSupport.hasLabelGroupConditions(expandedFilterGroup);
-    String customerName = recordProfile.supportsCustomerFields() ? request.customerName() : null;
+    String customerName = ccProductFilters.customerName();
 
     if (!hasLabelGroupFilters && canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
       PageSlice<IssueFactRecord> pageSlice =
@@ -125,16 +157,16 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                   recordProfile.pageScope(),
                   listRequest,
                   expandedFilterGroup,
-                  request.reasonCategory(),
+                  filters.reasonCategory(),
                   null,
                   null,
                    milestoneValues,
-                   request.authorName(),
-                   request.handlerName(),
-                   request.assigneeName(),
-                   request.testingPhase(),
-                   request.fixUser(),
-                   request.delayCause(),
+                   filters.authorName(),
+                   filters.handlerName(),
+                   filters.assigneeName(),
+                   filters.testingPhase(),
+                   filters.fixUser(),
+                   filters.delayCause(),
                    recordProfile.delayOnly(),
                   false,
                   recordProfile.excludeExcluded(),
@@ -147,7 +179,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                   safeSize,
                   safeSortField,
                   safeSortOrder,
-                  customerName));
+                  ccProductFilters,
+                  asOf));
       return new CustomerIssueRecordPageSnapshot(
           pageSlice.records(),
           pageSlice.total(),
@@ -163,15 +196,24 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                 listRequest,
                 view -> matchesKeyword(view, listRequest.keyword()))
             .stream()
-            .filter(view -> matchesEquals(view.reasonCategory(), request.reasonCategory()))
-            .filter(view -> matchesEquals(view.authorName(), request.authorName()))
-            .filter(view -> matchesEquals(view.handlerName(), request.handlerName()))
-            .filter(view -> matchesEquals(view.assigneeName(), request.assigneeName()))
+            .filter(view -> matchesEquals(view.reasonCategory(), filters.reasonCategory()))
+            .filter(view -> matchesEquals(view.authorName(), filters.authorName()))
+            .filter(view -> matchesEquals(view.handlerName(), filters.handlerName()))
+            .filter(view -> matchesEquals(view.assigneeName(), filters.assigneeName()))
             .filter(view -> CustomerIssueTestingPhaseSupport.matchesFilter(
-                view.testingPhase(), request.testingPhase()))
-            .filter(view -> matchesEquals(view.fixUser(), request.fixUser()))
-            .filter(view -> IssueDelayCauseMembers.matchesSelection(view.delayCause(), request.delayCause()))
+                view.testingPhase(), filters.testingPhase()))
+            .filter(view -> matchesEquals(view.fixUser(), filters.fixUser()))
+            .filter(view -> IssueDelayCauseMembers.matchesSelection(
+                view.delayCause(), filters.delayCause()))
             .filter(view -> matchesCustomerName(view.customerNames(), customerName))
+            .filter(view -> matchesDateRange(
+                view.plannedResolutionAt(),
+                ccProductFilters.plannedResolutionAtStart(),
+                ccProductFilters.plannedResolutionAtEnd()))
+            .filter(view -> CustomerIssuePlannedMergeBranchMembers.matchesSelection(
+                view.plannedMergeVersionBranch(),
+                ccProductFilters.plannedMergeVersionBranch()))
+            .filter(view -> matchesRetentionRange(view, ccProductFilters, asOf))
             .filter(
                 view ->
                     selectedMilestone == null
@@ -257,13 +299,15 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
 
   public byte[] exportRecordsWorkbook(CustomerIssueRecordQueryRequest request) {
     List<CustomerIssueRecordRowResponse> rows = new ArrayList<>();
-    LocalDateTime asOf = LocalDateTime.now(java.time.ZoneOffset.UTC);
+    CustomerIssueRecordQueryRequest safeRequest = withSnapshotDefaults(request);
+    validateRetentionRange(safeRequest.filters().ccProduct());
+    LocalDateTime asOf = currentTime();
     int page = 1;
     while (true) {
-      IssueFactRecordListRequest listRequest = withCustomerProject(request.listRequest());
+      IssueFactRecordListRequest listRequest = safeRequest.listRequest();
       CustomerIssueRecordQueryRequest pageRequest =
           new CustomerIssueRecordQueryRequest(
-              request.topic(),
+              safeRequest.topic(),
               new IssueFactRecordListRequest(
                   listRequest.projectId(),
                   listRequest.keyword(),
@@ -288,17 +332,10 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                   EXPORT_PAGE_SIZE,
                   listRequest.sortField(),
                   listRequest.sortOrder()),
-               request.reasonCategory(),
-               request.authorName(),
-               request.handlerName(),
-               request.assigneeName(),
-               request.testingPhase(),
-               request.fixUser(),
-               request.delayCause(),
-               request.filterGroupJson(),
-               request.customerName());
+              safeRequest.filters(),
+              safeRequest.filterGroupJson());
       CustomerIssueRecordListResponse response =
-          toListResponse(readRecordSnapshot(withSnapshotDefaults(pageRequest)), asOf);
+          toListResponse(readRecordSnapshot(pageRequest, asOf), asOf);
       rows.addAll(response.records());
       if (response.records().size() < EXPORT_PAGE_SIZE || rows.size() >= response.total()) {
         break;
@@ -306,7 +343,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
       page += 1;
     }
     CustomerIssueRecordProfile profile =
-        CustomerIssueRecordProfile.forTopic(normalizeTopic(request.topic()));
+        CustomerIssueRecordProfile.forTopic(safeRequest.topic());
     return CustomerIssueRecordWorkbookExportSupport.exportRecords(rows, profile.workbookLayout());
   }
 
@@ -369,6 +406,11 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         toOptions(values.testingPhases()),
         toLegacyOptions(values.fixUsers()),
         OptionItemResponseFactory.fromDelayCauseMembers(values.delayCauses()),
+        profile.supportsCustomerFields()
+            ? toOptions(
+                CustomerIssuePlannedMergeBranchMembers.collectMembers(
+                    values.plannedMergeVersionBranches()))
+            : List.of(),
         milestoneCatalogService.listOptions());
   }
 
@@ -457,18 +499,24 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   private CustomerIssueRecordQueryRequest withSnapshotDefaults(CustomerIssueRecordQueryRequest request) {
     String safeTopic = normalizeTopic(request.topic());
     CustomerIssueRecordProfile profile = CustomerIssueRecordProfile.forTopic(safeTopic);
+    CustomerIssueRecordFilters filters = request.filters();
+    CustomerIssueRecordFilters safeFilters =
+        new CustomerIssueRecordFilters(
+            filters.reasonCategory(),
+            filters.authorName(),
+            filters.handlerName(),
+            filters.assigneeName(),
+            filters.testingPhase(),
+            filters.fixUser(),
+            filters.delayCause(),
+            profile.supportsCustomerFields()
+                ? filters.ccProduct()
+                : CustomerIssueRecordFilters.CcProductFilters.empty());
     return new CustomerIssueRecordQueryRequest(
         safeTopic,
         withCustomerProject(request.listRequest()),
-        request.reasonCategory(),
-        request.authorName(),
-        request.handlerName(),
-        request.assigneeName(),
-        request.testingPhase(),
-        request.fixUser(),
-        request.delayCause(),
-        request.filterGroupJson(),
-        profile.supportsCustomerFields() ? request.customerName() : null);
+        safeFilters,
+        request.filterGroupJson());
   }
 
   private CustomerIssueRecordQueryRequest defaultRequest(String topic) {
@@ -498,14 +546,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
             20,
             DEFAULT_SORT_FIELD,
             "descending"),
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
+        CustomerIssueRecordFilters.empty(),
         null);
   }
 
@@ -598,6 +639,42 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         view.updatedAt(),
         view.closedAt(),
         view.labels());
+  }
+
+  private void validateRetentionRange(
+      CustomerIssueRecordFilters.CcProductFilters filters) {
+    Long minimum = filters.retentionHoursMin();
+    Long maximum = filters.retentionHoursMax();
+    if ((minimum != null && minimum < 0) || (maximum != null && maximum < 0)) {
+      throw new com.data.collection.platform.common.exception.BizException("滞留小时范围不能小于 0");
+    }
+    if (minimum != null && maximum != null && minimum > maximum) {
+      throw new com.data.collection.platform.common.exception.BizException(
+          "最小滞留小时不能大于最大滞留小时");
+    }
+  }
+
+  private boolean matchesRetentionRange(
+      IssueFactRecord view,
+      CustomerIssueRecordFilters.CcProductFilters filters,
+      LocalDateTime asOf) {
+    if (!filters.hasRetentionRange()) {
+      return true;
+    }
+    Long retentionHours =
+        IssueRetentionDurationSupport.calculate(
+            view.createdAt(), asOf, view.issueState(), view.closedAt(), view.bugStatus());
+    if (retentionHours == null) {
+      return false;
+    }
+    return (filters.retentionHoursMin() == null
+            || retentionHours >= filters.retentionHoursMin())
+        && (filters.retentionHoursMax() == null
+            || retentionHours <= filters.retentionHoursMax());
+  }
+
+  private LocalDateTime currentTime() {
+    return LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
   }
 
   private boolean matchesCustomerName(List<String> customerNames, String customerName) {

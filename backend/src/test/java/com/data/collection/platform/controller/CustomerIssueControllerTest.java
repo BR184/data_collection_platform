@@ -20,6 +20,7 @@ import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanat
 import com.data.collection.platform.service.CustomerIssueIllegalRecordQueryRequest;
 import com.data.collection.platform.service.CustomerIssueIllegalRecordService;
 import com.data.collection.platform.service.CustomerIssueRecordQueryRequest;
+import com.data.collection.platform.service.CustomerIssueRecordFilters;
 import com.data.collection.platform.service.CustomerIssueRecordService;
 import com.data.collection.platform.service.IssueFactRecordListRequest;
 import com.data.collection.platform.service.IssueFactRealtimeRefreshService;
@@ -58,7 +59,7 @@ class CustomerIssueControllerTest {
   @Test
   void shouldReturnCustomerIssueRecords() throws Exception {
     when(customerIssueRecordService.listRecords(
-            new CustomerIssueRecordQueryRequest(
+            recordRequest(
                 "delay",
                 new IssueFactRecordListRequest(
                     325L,
@@ -181,7 +182,7 @@ class CustomerIssueControllerTest {
   @Test
   void shouldExportCustomerIssueRecordsWorkbookWithCurrentFilters() throws Exception {
     when(customerIssueRecordService.exportRecordsWorkbook(
-            new CustomerIssueRecordQueryRequest(
+            recordRequest(
                 "delay",
                 new IssueFactRecordListRequest(
                     325L,
@@ -257,6 +258,7 @@ class CustomerIssueControllerTest {
                 List.of(new OptionItemResponse("CC2026R3第一轮系统测试", "CC2026R3第一轮系统测试")),
                 List.of(new OptionItemResponse("Carol", "Carol")),
                 List.of(new OptionItemResponse("需求变更", "需求变更")),
+                List.of(),
                 List.of(new OptionItemResponse("R1", "R1"))));
     when(customerIssueRecordService.getRuleExplanation("delay", 325L))
         .thenReturn(
@@ -505,5 +507,33 @@ class CustomerIssueControllerTest {
     mockMvc.perform(post("/api/customer-issues/illegal-records/refresh"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.workspaceKey").value("customer-issue-illegal-records"));
+  }
+
+  private CustomerIssueRecordQueryRequest recordRequest(
+      String topic,
+      IssueFactRecordListRequest listRequest,
+      String reasonCategory,
+      String authorName,
+      String handlerName,
+      String assigneeName,
+      String testingPhase,
+      String fixUser,
+      String delayCause,
+      String filterGroupJson,
+      String customerName) {
+    return new CustomerIssueRecordQueryRequest(
+        topic,
+        listRequest,
+        new CustomerIssueRecordFilters(
+            reasonCategory,
+            authorName,
+            handlerName,
+            assigneeName,
+            testingPhase,
+            fixUser,
+            delayCause,
+            new CustomerIssueRecordFilters.CcProductFilters(
+                customerName, null, null, null, null, null)),
+        filterGroupJson);
   }
 }

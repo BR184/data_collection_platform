@@ -21,6 +21,7 @@ import type {
   RecordTableActiveFilterTag,
   RecordTableColumn,
   RecordTableFilterField,
+  RecordTableFilterValue,
 } from '../../types/record-table';
 
 const props = withDefaults(
@@ -63,7 +64,7 @@ const props = withDefaults(
     defaultSortBy?: string;
     defaultSortOrder?: string;
     showCurrentSort?: boolean;
-    quickFilterChangeGuard?: (key: string, value: string | string[] | null) => boolean;
+    quickFilterChangeGuard?: (key: string, value: RecordTableFilterValue) => boolean;
   }>(),
   {
     loading: false,
@@ -110,7 +111,7 @@ const emit = defineEmits<{
   (event: 'size-change', size: number): void;
   (event: 'current-change', page: number): void;
   (event: 'sort-change', payload: { prop: string; order: 'ascending' | 'descending' | null }): void;
-  (event: 'filter-change', payload: { key: string; value: string | string[] | null }): void;
+  (event: 'filter-change', payload: { key: string; value: RecordTableFilterValue }): void;
   (event: 'query', keyword: string): void;
   (event: 'clear-filter', key: string): void;
   (event: 'update:advancedVisible', value: boolean): void;
@@ -390,7 +391,7 @@ function handleReset() {
   emit('reset');
 }
 
-function handleFilterChange(key: string, value: string | string[] | null) {
+function handleFilterChange(key: string, value: RecordTableFilterValue) {
   if (isQuickFilterControlKey(key) && !props.quickFilterChangeGuard(key, value)) {
     localFilterValues.value = { ...props.filterValues };
     return;
@@ -862,6 +863,20 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
       return '';
     }
     return `${value[0]} ~ ${value[1]}`;
+  }
+  if (filter.type === 'numberrange') {
+    if (!Array.isArray(value)) {
+      return '';
+    }
+    const minimum = value[0];
+    const maximum = value[1];
+    if (minimum != null && maximum != null) {
+      return `${minimum} ~ ${maximum}`;
+    }
+    if (minimum != null) {
+      return `>= ${minimum}`;
+    }
+    return maximum != null ? `<= ${maximum}` : '';
   }
   if (filter.type === 'select') {
     const values = Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [String(value ?? '').trim()].filter(Boolean);

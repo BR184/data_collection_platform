@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import BaseSearchInput from './BaseSearchInput.vue';
 import SmartSelect from './SmartSelect.vue';
-import type { RecordTableFilterField } from '../../types/record-table';
+import type {
+  RecordTableFilterField,
+  RecordTableFilterValue,
+  RecordTableNumberRangeValue,
+} from '../../types/record-table';
 
 const props = withDefaults(
   defineProps<{
@@ -32,7 +36,7 @@ const emit = defineEmits<{
   (event: 'input-change', key: string, value: string): void;
   (event: 'input-search', key: string): void;
   (event: 'input-clear', key: string): void;
-  (event: 'filter-change', key: string, value: string | string[] | null): void;
+  (event: 'filter-change', key: string, value: RecordTableFilterValue): void;
 }>();
 
 function widthStyle(defaultWidth: number) {
@@ -61,6 +65,27 @@ function dateRangeValue(value: unknown) {
 
 function emitDateRangeChange(value: unknown) {
   emit('filter-change', props.filter.key, dateRangeValue(value));
+}
+
+function numberRangeValue(value: unknown): RecordTableNumberRangeValue {
+  if (!Array.isArray(value)) {
+    return [null, null];
+  }
+  return [finiteNumber(value[0]), finiteNumber(value[1])];
+}
+
+function finiteNumber(value: unknown) {
+  if (value == null || value === '') {
+    return null;
+  }
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+function emitNumberRangeChange(index: 0 | 1, value: unknown) {
+  const nextValue = numberRangeValue(props.modelValue);
+  nextValue[index] = finiteNumber(value);
+  emit('filter-change', props.filter.key, nextValue);
 }
 
 function controlClass(baseClass: string) {
@@ -115,6 +140,40 @@ function controlClass(baseClass: string) {
     :disabled="disabled"
     @update:model-value="emitDateRangeChange"
   />
+
+  <div
+    v-else-if="filter.type === 'numberrange'"
+    :class="controlClass('record-filter-number-range')"
+    :style="widthStyle(defaultDateRangeWidth)"
+    role="group"
+    :aria-label="filter.label"
+  >
+    <el-input-number
+      :model-value="numberRangeValue(modelValue)[0]"
+      :min="filter.min"
+      :max="numberRangeValue(modelValue)[1] ?? filter.max"
+      :step="filter.step ?? 1"
+      :precision="filter.precision"
+      :placeholder="filter.startPlaceholder || `最小${filter.label}`"
+      :aria-label="filter.startPlaceholder || `最小${filter.label}`"
+      :controls="false"
+      :disabled="disabled"
+      @update:model-value="emitNumberRangeChange(0, $event)"
+    />
+    <span class="record-filter-number-range__separator" aria-hidden="true">至</span>
+    <el-input-number
+      :model-value="numberRangeValue(modelValue)[1]"
+      :min="numberRangeValue(modelValue)[0] ?? filter.min"
+      :max="filter.max"
+      :step="filter.step ?? 1"
+      :precision="filter.precision"
+      :placeholder="filter.endPlaceholder || `最大${filter.label}`"
+      :aria-label="filter.endPlaceholder || `最大${filter.label}`"
+      :controls="false"
+      :disabled="disabled"
+      @update:model-value="emitNumberRangeChange(1, $event)"
+    />
+  </div>
 </template>
 
 <style scoped>
@@ -154,6 +213,22 @@ function controlClass(baseClass: string) {
 
 .record-filter-main-date {
   min-width: 260px;
+}
+
+.record-filter-number-range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  min-width: 280px;
+}
+
+.record-filter-number-range :deep(.el-input-number) {
+  width: 100%;
+}
+
+.record-filter-number-range__separator {
+  padding: 0 8px;
+  color: var(--el-text-color-secondary);
 }
 
 .record-filter-control--priority-warning {
@@ -201,6 +276,10 @@ function controlClass(baseClass: string) {
   .record-filter-control {
     width: 100% !important;
     max-width: 100%;
+  }
+
+  .record-filter-number-range {
+    min-width: 0;
   }
 }
 </style>
