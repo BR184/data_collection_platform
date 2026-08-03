@@ -177,6 +177,16 @@ class FlywayMigrationSmokeTest {
   }
 
   @Test
+  void shouldUseUnboundedTextForPageRecordSnapshotSourceVersion() throws IOException {
+    String migration = readMigration(
+        "V20260803_01__page_record_snapshot_source_version_text.sql");
+
+    assertThat(migration)
+        .contains("alter table page_record_snapshots")
+        .contains("alter column source_version type text");
+  }
+
+  @Test
   void shouldDefineCustomerMembershipAndResponseTemplateFacts() throws IOException {
     String schemaMigration = readMigration(
         "V20260722_01__customer_issue_customer_and_response_template_schema.sql");

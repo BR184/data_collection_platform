@@ -45,7 +45,11 @@ DEFAULT_ROUTES = [
     "/customer-issues/response-efficiency",
     "/customer-issues/issue-by-function",
     "/system-settings/mirror-settings",
+    "/system-settings/database-settings",
     "/system-settings/database-browser",
+    "/system-settings/permission-settings",
+    "/system-settings/label-group-settings",
+    "/system-settings/testing-phase-definition",
     "/external/code-review-form",
     "/not-found-smoke",
 ]
@@ -270,7 +274,35 @@ def api_payload(path: str) -> Any:
         return {
             "username": "smoke-admin",
             "displayName": "Smoke Admin",
-            "role": "ADMIN",
+            "roleCodes": ["ADMIN"],
+            "roleNames": ["管理员"],
+            "permissions": [
+                "quality.rd.view",
+                "quality.other.view",
+                "review.data.view",
+                "code_review.illegal.view",
+                "code_review.board.view",
+                "system_test.summary.view",
+                "system_test.board.view",
+                "system_test.delay.view",
+                "system_test.illegal.view",
+                "system_test.cause.view",
+                "system_test.phase.view",
+                "system_test.issue.view",
+                "customer_issue.summary.view",
+                "customer_issue.illegal.view",
+                "customer_issue.cause.view",
+                "customer_issue.record.view",
+                "customer_issue.delay.view",
+                "customer_issue.efficiency.view",
+                "customer_issue.function.view",
+                "system.label_group.view",
+                "system.testing_phase.view",
+                "system.mirror.view",
+                "system.match_mode.view",
+                "system.database.view",
+                "system.permission.view",
+            ],
             "authenticated": True,
         }
     if path in {"/api/auth/login", "/api/auth/logout"}:
@@ -382,6 +414,64 @@ def api_payload(path: str) -> Any:
         return rule_explanation()
     if path.startswith("/api/question-metrics/") or path.startswith("/api/customer-issues/"):
         return empty_list()
+
+    if path == "/api/code-review/match-mode-db-settings":
+        return {
+            "enabled": True,
+            "syncEnabled": True,
+            "mysqlHost": "localhost",
+            "mysqlPort": 3306,
+            "mysqlDatabase": "gitlab_spider",
+            "dgmMysqlDatabase": "gitlab_spider_dgm",
+            "mysqlUsername": "root",
+            "mysqlPasswordConfigured": False,
+            "mysqlTableName": "spider_crowncad_data",
+            "legacyApiBaseUrl": "http://localhost:8091",
+            "dgmLegacyApiBaseUrl": "",
+            "selectedTableNames": ["spider_crowncad_data"],
+            "mysqlFetchSize": 1000,
+            "mongoUriConfigured": False,
+            "mongoDatabase": "spider",
+            "selectedMongoCollectionNames": ["reviewReport", "problemDetail", "description"],
+            "reviewReportCollectionName": "reviewReport",
+            "reviewProblemCollectionName": "problemDetail",
+            "reviewDataReadMode": "compatibility",
+            "codeReviewReadMode": "compatibility",
+            "syncStatus": "IDLE",
+            "syncMessage": None,
+            "syncRecordCount": 0,
+            "syncStartedAt": None,
+            "syncFinishedAt": None,
+            "updatedAt": None,
+        }
+    if path == "/api/code-review/match-mode-db-settings/dgm-gitlab-project-source":
+        return {
+            "enabled": False,
+            "gitlabBaseUrl": "",
+            "accessTokenConfigured": False,
+            "groupPath": "",
+            "includeSubgroups": True,
+            "includeArchived": False,
+            "syncIntervalMinutes": 60,
+            "lastSyncStatus": "IDLE",
+            "lastSyncMessage": None,
+            "lastSyncRecordCount": 0,
+            "lastSyncStartedAt": None,
+            "lastSyncFinishedAt": None,
+            "updatedAt": None,
+        }
+    if path == "/api/code-review/match-mode-db-settings/dgm-gitlab-project-options":
+        return []
+
+    if path == "/api/permission-settings":
+        return {
+            "permissions": [],
+            "roles": [],
+            "initialLdapSyncCompleted": True,
+        }
+
+    if path == "/api/label-groups" or path.startswith("/api/label-groups/"):
+        return []
 
     if path == "/api/gitlab-sync/configs":
         return [mirror_config()]
@@ -495,7 +585,10 @@ def smoke_route(page: Page, base_url: str, route_path: str, output_dir: Path) ->
     try:
         page.goto(target, wait_until="networkidle", timeout=30_000)
         page.wait_for_selector("#app", state="attached", timeout=10_000)
-        page.wait_for_timeout(250)
+        page.wait_for_function(
+            "() => (document.querySelector('#app')?.innerText?.trim().length ?? 0) >= 10",
+            timeout=10_000,
+        )
         app_text = page.locator("#app").inner_text(timeout=5_000).strip()
         body_box = page.locator("body").bounding_box()
         final_url = page.url

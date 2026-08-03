@@ -1257,7 +1257,7 @@ create table if not exists page_record_snapshots (
     snapshot_type varchar(64) not null,
     scope_key varchar(512) not null,
     rule_version varchar(128) not null,
-    source_version varchar(256),
+    source_version text,
     request_hash varchar(64) not null,
     request_payload jsonb not null default '{}'::jsonb,
     response_payload jsonb not null default '{}'::jsonb,

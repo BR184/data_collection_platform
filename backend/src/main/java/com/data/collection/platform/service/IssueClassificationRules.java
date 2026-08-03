@@ -58,26 +58,8 @@ final class IssueClassificationRules {
   private IssueClassificationRules() {
   }
 
-  static String normalizeFixReasonCategory(List<String> labels, String notesText) {
-    IssueTemplateSnapshot snapshot = fixTemplateSnapshot(notesText);
-    if (snapshot.legacyReasonText() != null) {
-      return snapshot.legacyReasonText();
-    }
-    return normalizeReasonCategoryFromLabelsOrText(labels, notesText);
-  }
-
-  static String normalizeLegacyFixReasonCategory(String notesText) {
+  static String normalizeFixReasonCategory(String notesText) {
     return fixTemplateSnapshot(notesText).legacyReasonText();
-  }
-
-  private static String normalizeReasonCategoryFromLabelsOrText(List<String> labels, String notesText) {
-    List<String> matched = new java.util.ArrayList<>();
-    for (Map.Entry<String, List<String>> entry : REASON_CATEGORY_TOKENS.entrySet()) {
-      if (IssueRuleSupport.containsAny(labels, notesText, entry.getValue())) {
-        matched.add(entry.getKey());
-      }
-    }
-    return matched.isEmpty() ? null : String.join(" ", matched);
   }
 
   static boolean hasDelayFlag(List<String> labels, String notesText) {

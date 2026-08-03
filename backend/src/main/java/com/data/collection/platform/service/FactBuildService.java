@@ -947,9 +947,7 @@ public class FactBuildService {
     fact.setUrgency(priorityLevel);
     fact.setBugStatus(IssueFactNormalizationRules.normalizeBugStatus(labels));
     fact.setCategory(IssueFactNormalizationRules.normalizeCategory(labels));
-    fact.setReasonCategory(customerIssue
-        ? IssueFactNormalizationRules.normalizeCustomerIssueReasonCategory(labels, notesText)
-        : IssueFactNormalizationRules.normalizeReasonCategory(labels, notesText));
+    fact.setReasonCategory(IssueFactNormalizationRules.normalizeReasonCategory(notesText));
     fact.setSystemTestLabel(IssueFactNormalizationRules.normalizeSystemTestLabel(labels));
     fact.setLabelNames(String.join(", ", labels));
     fact.setExcluded(IssueFactNormalizationRules.isExcluded(labels, closed, fact.getProjectId()));
