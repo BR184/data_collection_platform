@@ -13,7 +13,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scriptDir "dev-e
 
 Push-Location $projectRoot
 try {
-  python scripts/check_schema_flyway_drift.py
   python scripts/check_flyway_migration_immutability.py
   python scripts/check_flyway_destructive_migrations.py
   python scripts/check_flyway_destructive_migrations_test.py

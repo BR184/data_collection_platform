@@ -130,7 +130,6 @@ describe('CodeReviewIllegalRecordsView mount smoke', () => {
       return jsonResponse({});
     });
     vi.stubGlobal('fetch', fetchMock);
-    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:csv'), revokeObjectURL: vi.fn() });
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
 
     const router = createRouter({
@@ -144,12 +143,15 @@ describe('CodeReviewIllegalRecordsView mount smoke', () => {
     });
     await flushPromises();
 
-    await wrapper.findAll('button').find((button) => button.text().includes('导出'))?.trigger('click');
+    await wrapper.findAll('button').find((button) => button.text().includes('下载代码走查非法数据'))?.trigger('click');
     await flushPromises();
 
-    const exportCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/api/code-review/illegal-records/export'));
-    expect(String(exportCall?.[0])).toContain('projectId=325');
-    expect(String(exportCall?.[0])).toContain('keyword=sample');
+    await vi.waitFor(() => {
+      const exportCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/api/code-review/illegal-records/export'));
+      expect(String(exportCall?.[0])).toContain('repositoryName=CrownCAD');
+      expect(String(exportCall?.[0])).toContain('keyword=sample');
+      expect(String(exportCall?.[0])).not.toContain('projectId=');
+    });
 
     clickSpy.mockRestore();
     vi.unstubAllGlobals();

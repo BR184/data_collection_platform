@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.exception.BizException;
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -16,7 +17,7 @@ class GitlabJdbcValueNormalizer {
       return odt.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
     if (value instanceof Timestamp timestamp) {
-      return timestamp.toLocalDateTime();
+      return LocalDateTime.ofInstant(timestamp.toInstant(), ZoneOffset.UTC);
     }
     if (value instanceof java.sql.SQLXML sqlXml) {
       try {

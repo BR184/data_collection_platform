@@ -115,5 +115,6 @@
   "V20260731_02__normalize_fact_task_queue_status.sql": "5fa649dfe9b0cd0b786551e0e6e005d28f94af1395358587486b348afc7d0918",
   "V20260731_03__deduplicate_authoritative_scope_identity.sql": "041cd5b8895ba06f14b3f30261bd70fba23782d897256c05a1eb6884177265f7",
   "V20260731_04__index_pending_publication_targets.sql": "02dd3244fd23d2d2d859989ffc6d1fbf10afd27511d0c5dcef30adeebf8e9779",
-  "V20260731_05__remove_legacy_compensation_run_type.sql": "397bef4b1331834853216bf26f86bb4fc9de267980c0541332fdfd267d1f0f9b"
+  "V20260731_05__remove_legacy_compensation_run_type.sql": "397bef4b1331834853216bf26f86bb4fc9de267980c0541332fdfd267d1f0f9b",
+  "V20260803_01__page_record_snapshot_source_version_text.sql": "30e4e86e6677f88b4558029170a082637d79e20c9cfb64d91e731f1aa1e1cdda"
 }

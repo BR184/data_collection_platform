@@ -18,6 +18,7 @@ describe('label group settings helpers', () => {
     expect(createEmptyLabelGroupForm()).toEqual({
       id: null,
       name: '',
+      systemDefault: false,
       groupType: 'STATIC',
       applicableScope: 'SAME_TYPE',
       sourceFieldKey: '',

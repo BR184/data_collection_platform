@@ -130,7 +130,7 @@ def main() -> int:
             headers=headers,
         )
         report["login"] = {"status": login_status, "csrfTokenPresent": bool(token), "summary": summarize_payload(login_payload)}
-    except (HTTPError, URLError, RuntimeError) as error:
+    except (HTTPError, URLError, TimeoutError, RuntimeError) as error:
         report["login"] = {"status": getattr(error, "code", 0), "error": str(error)}
         report_path = output_dir / "report.json"
         report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -159,7 +159,7 @@ def main() -> int:
             failures += 1
             body = error.read().decode("utf-8", errors="replace")
             report["results"].append({"name": name, "path": path, "status": error.code, "ok": False, "rawPrefix": body[:300]})
-        except URLError as error:
+        except (URLError, TimeoutError) as error:
             failures += 1
             report["results"].append({"name": name, "path": path, "status": 0, "ok": False, "error": str(error)})
 

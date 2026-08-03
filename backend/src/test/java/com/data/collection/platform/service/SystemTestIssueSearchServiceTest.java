@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
@@ -176,8 +175,8 @@ class SystemTestIssueSearchServiceTest {
                 filterGroupJson));
 
     assertThat(response.records()).extracting(record -> record.issueIid()).containsExactly(311);
-    verify(phaseScopeResolver, never()).resolvePhases(anyLong(), anyString());
-    verify(phaseScopeResolver, never()).resolvePhases(anyLong(), anyList());
+    verify(phaseScopeResolver).resolvePhases(1001L, "Rocksdb R2");
+    verify(phaseScopeResolver).resolvePhases(1001L, List.of("Rocksdb R2"));
   }
 
   @Test

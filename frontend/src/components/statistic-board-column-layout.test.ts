@@ -66,6 +66,6 @@ describe('statistic board column layout', () => {
     expect(computeFirstColumnWidth(rows, 'compact')).toBeGreaterThan(100);
     expect(computeFirstColumnMinWidth('row-label', 'content')).toBeGreaterThan(120);
     expect(columnMinWidth(columnGroups[0].children![1].columns![0], 'content', rows)).toBeGreaterThan(120);
-    expect(columnResizable(columnGroups[0].children![0].columns![0])).toBe(false);
+    expect(columnResizable(columnGroups[0].children![0].columns![0])).toBe(true);
   });
 });

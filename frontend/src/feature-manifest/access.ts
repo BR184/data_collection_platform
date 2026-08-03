@@ -1,5 +1,5 @@
 import { modules } from './modules';
-import { pageByKey, pageModuleKeyByPageKey } from './lookups';
+import { pageByKey } from './lookups';
 import type { AccessUser, PageKey, ShellModule, ShellPage } from './types';
 
 export function canAccessPage(page: ShellPage, user: AccessUser) {

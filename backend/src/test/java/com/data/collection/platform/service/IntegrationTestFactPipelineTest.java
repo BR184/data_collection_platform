@@ -134,47 +134,7 @@ class IntegrationTestFactPipelineTest {
   }
 
   private void createMinimalOdsTables() {
-    jdbcTemplate.execute(
-        """
-        create table if not exists ods_gitlab_projects (
-          id bigint primary key, name varchar(255), mirror_deleted boolean default false
-        )
-        """);
-    jdbcTemplate.execute(
-        """
-        create table if not exists ods_gitlab_users (
-          id bigint primary key, name varchar(255), mirror_deleted boolean default false
-        )
-        """);
-    jdbcTemplate.execute(
-        """
-        create table if not exists ods_gitlab_issues (
-          id bigint primary key, iid bigint, project_id bigint, title varchar(512), author_id bigint,
-          created_at timestamp, updated_at timestamp, closed_at timestamp, state_id integer,
-          mirror_deleted boolean default false
-        )
-        """);
-    jdbcTemplate.execute(
-        """
-        create table if not exists ods_gitlab_notes (
-          id bigint primary key, noteable_id bigint, noteable_type varchar(64), note text,
-          created_at timestamp, updated_at timestamp, mirror_deleted boolean default false
-        )
-        """);
-    jdbcTemplate.execute(
-        """
-        create table if not exists ods_gitlab_labels (
-          id bigint primary key, title varchar(255), mirror_deleted boolean default false
-        )
-        """);
-    jdbcTemplate.execute(
-        """
-        create table if not exists ods_gitlab_label_links (
-          id bigint primary key, label_id bigint, target_id bigint, target_type varchar(64),
-          source_updated_at timestamp, updated_at timestamp, created_at timestamp,
-          mirror_deleted boolean default false
-        )
-        """);
+    GitlabIssueMirrorFixture.ensureSchema(jdbcTemplate);
   }
 
   private void cleanTables() {

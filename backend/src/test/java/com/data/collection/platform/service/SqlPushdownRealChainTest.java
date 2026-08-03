@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -35,9 +36,19 @@ class SqlPushdownRealChainTest {
 
   @BeforeEach
   void setUp() throws Exception {
+    jdbcTemplate.update("delete from page_record_snapshots");
+    jdbcTemplate.update("delete from statistic_board_snapshots");
     jdbcTemplate.update("delete from merge_request_fact");
     jdbcTemplate.update("delete from issue_fact");
+    jdbcTemplate.update(
+        "update code_review_match_mode_db_settings set code_review_read_mode = 'formal' where id = 1");
     authHeaders = loginHeaders();
+  }
+
+  @AfterEach
+  void restoreCompatibilityReadMode() {
+    jdbcTemplate.update(
+        "update code_review_match_mode_db_settings set code_review_read_mode = 'compatibility' where id = 1");
   }
 
   @Test
@@ -95,7 +106,7 @@ class SqlPushdownRealChainTest {
   @Test
   void shouldKeepSystemTestPhaseAndAdvancedFilterBehaviorThroughHttpSqlPath() throws Exception {
     insertIssueFact(
-        1001L,
+        9L,
         74001L,
         401,
         "Rocksdb",
@@ -127,8 +138,8 @@ class SqlPushdownRealChainTest {
 
     URI url =
         UriComponentsBuilder.fromPath("/api/question-metrics/illegal-records")
-            .queryParam("projectId", 1001)
-            .queryParam("testingPhase", "CC2026R1第一轮")
+            .queryParam("projectId", 9)
+            .queryParam("testingPhase", "CC2026R1")
             .queryParam("illegalReason", "未设定模块")
             .queryParam("filterGroup", filterGroup)
             .queryParam("page", 1)
@@ -150,7 +161,7 @@ class SqlPushdownRealChainTest {
   void shouldFilterStatisticBoardBySourceInstanceThroughHttpPath() throws Exception {
     insertIssueFact(
         "cc",
-        1001L,
+        9L,
         75001L,
         501,
         "CC_PRODUCT",
@@ -158,8 +169,8 @@ class SqlPushdownRealChainTest {
         "alice",
         "bob",
         "cc-module",
-        "R1\u7cfb\u7edf\u6d4b\u8bd5",
-        "R1\u7cfb\u7edf\u6d4b\u8bd5",
+        "CC2026R1\u7b2c\u4e00\u8f6e\u7cfb\u7edf\u6d4b\u8bd5",
+        "CC2026R1\u7b2c\u4e00\u8f6e\u7cfb\u7edf\u6d4b\u8bd5",
         "CC2026R1",
         false,
         "",
@@ -168,7 +179,7 @@ class SqlPushdownRealChainTest {
         LocalDateTime.of(2026, 3, 2, 10, 0));
     insertIssueFact(
         "dgm",
-        1002L,
+        9L,
         75002L,
         502,
         "DGM_PRODUCT",
@@ -176,8 +187,8 @@ class SqlPushdownRealChainTest {
         "carol",
         "dave",
         "dgm-module",
-        "R1\u7cfb\u7edf\u6d4b\u8bd5",
-        "R1\u7cfb\u7edf\u6d4b\u8bd5",
+        "CC2026R1\u7b2c\u4e00\u8f6e\u7cfb\u7edf\u6d4b\u8bd5",
+        "CC2026R1\u7b2c\u4e00\u8f6e\u7cfb\u7edf\u6d4b\u8bd5",
         "DGM2026R1",
         false,
         "",
@@ -185,7 +196,10 @@ class SqlPushdownRealChainTest {
         "\u7cfb\u7edf\u6d4b\u8bd5",
         LocalDateTime.of(2026, 3, 2, 11, 0));
 
-    JsonNode response = getJson("/api/statistic-boards/system-test-defect-summary", "sourceInstance=cc");
+    JsonNode response =
+        getJson(
+            "/api/statistic-boards/system-test-defect-summary",
+            "sourceInstance=cc&testingPhase=CC2026R1");
 
     assertThat(response.at("/data/appliedFilters/sourceInstance").asText()).isEqualTo("cc");
     assertThat(rowLabels(response)).contains("cc-module").doesNotContain("dgm-module");
@@ -194,11 +208,11 @@ class SqlPushdownRealChainTest {
   @Test
   void shouldKeepCodeReviewKeywordAndFilterGroupBehaviorThroughHttpSqlPath() throws Exception {
     insertMergeRequestFact(
-        2001L,
+        9L,
         75001L,
         501,
         "Repo Project",
-        "repo/demo",
+        "CrownCAD",
         "张三提交登录模块",
         "张三",
         "",
@@ -220,7 +234,7 @@ class SqlPushdownRealChainTest {
                                 .createObjectNode()
                                 .put("fieldKey", "owner")
                                 .put("operator", "contains")
-                                .put("value", "zs"))));
+                                .put("value", "张三"))));
     URI url =
         UriComponentsBuilder.fromPath("/api/code-review/illegal-records")
             .queryParam("keyword", "zhangsan")

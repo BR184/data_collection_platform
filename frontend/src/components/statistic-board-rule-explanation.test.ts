@@ -21,7 +21,7 @@ describe('statistic board rule explanation', () => {
     expect(overview.firstInputCount).toBe(20);
     expect(overview.finalOutputCount).toBe(5);
     expect(overview.finalRetainedRate).toBe('25.0%');
-    expect(overview.summary).toContain('20 条原始数据');
+    expect(overview.summary).toContain('原始数据 20 条');
   });
 
   it('falls back to backend summary when no flow steps exist', () => {
@@ -39,7 +39,7 @@ describe('statistic board rule explanation', () => {
 
     expect(ruleStepRemovedCount(step)).toBe(4);
     expect(ruleStepRetainedRate(step)).toBe('60.0%');
-    expect(ruleStepSummary(step, 1)).toContain('减少 4 条');
+    expect(ruleStepSummary(step, 1)).toContain('排除 4 条');
     expect(metricFormulaSummary({ label: '修复率', definition: '已修复 / 总数' })).toBe('修复率：已修复 / 总数');
   });
 });

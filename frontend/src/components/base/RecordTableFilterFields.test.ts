@@ -32,7 +32,10 @@ describe('RecordTableFilterFields', () => {
     expect(renderers).toHaveLength(2);
     expect(renderers[0].props('modelValue')).toBe('applied');
     expect(renderers[0].props('inputValue')).toBe('draft');
-    expect(renderers[0].props('inputClass')).toEqual({ 'record-filter-main-keyword': true });
+    expect(renderers[0].props('inputClass')).toEqual({
+      'record-filter-main-keyword': true,
+      'record-filter-main-keyword--highlight': true,
+    });
     expect(renderers[0].props('defaultInputWidth')).toBe(260);
     expect(renderers[1].props('modelValue')).toBe('open');
     expect(renderers[1].props('defaultSelectWidth')).toBe(180);

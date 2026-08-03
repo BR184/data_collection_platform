@@ -18,15 +18,18 @@ describe('CustomerIssueIllegalRecordsView mount smoke', () => {
       vi.fn((url: string) => {
         if (url.includes('/api/customer-issues/illegal-records/filter-options')) {
           return jsonResponse({
-            projectNames: ['CC_PRODUCT'],
-            moduleNames: ['Sketch'],
-            illegalReasons: ['Module mismatch'],
-            severityLevels: ['S1'],
-            priorityLevels: ['P0'],
-            issueStates: ['opened'],
-            bugStatuses: ['Open'],
-            categories: ['Bug'],
-            milestoneTitles: ['R1'],
+            projectNames: [{ label: 'CC_PRODUCT', value: 'CC_PRODUCT' }],
+            moduleNames: [{ label: 'Sketch', value: 'Sketch' }],
+            functionNames: [],
+            illegalReasons: [{ label: 'Module mismatch', value: 'Module mismatch' }],
+            severityLevels: [{ label: 'S1', value: 'S1' }],
+            priorityLevels: [{ label: 'P0', value: 'P0' }],
+            issueStates: [{ label: 'opened', value: 'opened' }],
+            bugStatuses: [{ label: 'Open', value: 'Open' }],
+            categories: [{ label: 'Bug', value: 'Bug' }],
+            authorNames: [{ label: 'Alice', value: 'Alice' }],
+            assigneeNames: [],
+            milestoneTitles: [{ label: 'R1', value: 'R1' }],
           });
         }
         if (url.includes('/api/customer-issues/illegal-records?')) {
@@ -80,16 +83,22 @@ describe('CustomerIssueIllegalRecordsView mount smoke', () => {
     });
 
     await flushPromises();
-    expect(wrapper.exists()).toBe(true);
-    expect(wrapper.text()).toContain('Illegal sample');
-    expect(wrapper.text()).toContain('里程碑');
+    await vi.waitFor(() => {
+      expect(wrapper.exists()).toBe(true);
+      expect(wrapper.text()).toContain('Illegal sample');
+      expect(wrapper.text()).toContain('R1');
+    });
 
-    await wrapper.get('.customer-illegal-detail-trigger').trigger('click');
+    const detailButtons = wrapper.findAll('button.customer-illegal-row-action-button');
+    expect(detailButtons.length).toBeGreaterThan(0);
+    await detailButtons.at(-1)!.trigger('click');
     await flushPromises();
 
-    expect(document.body.textContent).toContain('Illegal sample');
-    expect(document.body.textContent).toContain('Module mismatch');
-    expect(document.body.textContent).toContain('CC_PRODUCT');
+    await vi.waitFor(() => {
+      expect(document.body.textContent).toContain('Illegal sample');
+      expect(document.body.textContent).toContain('Module mismatch');
+      expect(document.body.textContent).toContain('CC_PRODUCT');
+    });
 
     wrapper.unmount();
     vi.unstubAllGlobals();
@@ -104,12 +113,15 @@ describe('CustomerIssueIllegalRecordsView mount smoke', () => {
         return jsonResponse({
           projectNames: [],
           moduleNames: [],
+          functionNames: [],
           illegalReasons: [],
           severityLevels: [],
           priorityLevels: [],
           issueStates: [],
           bugStatuses: [],
           categories: [],
+          authorNames: [],
+          assigneeNames: [],
           milestoneTitles: [],
         });
       }
@@ -126,7 +138,6 @@ describe('CustomerIssueIllegalRecordsView mount smoke', () => {
       return jsonResponse({});
     });
     vi.stubGlobal('fetch', fetchSpy);
-    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:csv'), revokeObjectURL: vi.fn() });
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
 
     const router = createRouter({
@@ -149,14 +160,21 @@ describe('CustomerIssueIllegalRecordsView mount smoke', () => {
     });
     await flushPromises();
 
-    await wrapper.findAll('button').find((button) => button.text().includes('导出'))?.trigger('click');
+    await vi.waitFor(() => {
+      expect(wrapper.findAll('button').some((button) => button.text().includes('下载查询数据'))).toBe(true);
+    });
+    const exportButton = wrapper.findAll('button').find((button) => button.text().includes('下载查询数据'));
+    expect(exportButton).toBeDefined();
+    await exportButton!.trigger('click');
     await flushPromises();
 
-    const exportCall = fetchSpy.mock.calls.find(([url]) => String(url).includes('/api/customer-issues/illegal-records/export'));
-    expect(String(exportCall?.[0])).toContain('projectId=325');
-    expect(String(exportCall?.[0])).toContain('keyword=illegal');
-    expect(String(exportCall?.[0])).toContain('illegalReason=Module+mismatch');
-    expect(String(exportCall?.[0])).not.toContain('page=');
+    await vi.waitFor(() => {
+      const exportCall = fetchSpy.mock.calls.find(([url]) => String(url).includes('/api/customer-issues/illegal-records/export'));
+      expect(String(exportCall?.[0])).toContain('projectId=325');
+      expect(String(exportCall?.[0])).toContain('keyword=illegal');
+      expect(String(exportCall?.[0])).toContain('illegalReason=Module+mismatch');
+      expect(String(exportCall?.[0])).not.toContain('page=');
+    });
 
     wrapper.unmount();
     clickSpy.mockRestore();

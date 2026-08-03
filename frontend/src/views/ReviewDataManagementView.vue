@@ -169,10 +169,6 @@ const canCreateReviewRecord = computed(() => hasPermission(authState.currentUser
 const canEditReviewRecord = computed(() => hasPermission(authState.currentUser, 'review.record.edit'));
 const canCreateReviewProblem = computed(() => hasPermission(authState.currentUser, 'review.problem.create'));
 const canEditReviewProblem = computed(() => hasPermission(authState.currentUser, 'review.problem.edit'));
-const canDeleteReviewRecord = computed(() =>
-  hasPermission(authState.currentUser, 'review.record.delete_any')
-  || hasPermission(authState.currentUser, 'review.record.delete_own'),
-);
 const canDeleteReviewProblem = computed(() =>
   hasPermission(authState.currentUser, 'review.problem.delete_any')
   || hasPermission(authState.currentUser, 'review.problem.delete_own'),

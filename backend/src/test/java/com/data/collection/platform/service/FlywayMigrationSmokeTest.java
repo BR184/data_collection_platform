@@ -204,6 +204,17 @@ class FlywayMigrationSmokeTest {
   }
 
   @Test
+  void shouldAllowLongPageSnapshotSourceVersions() throws IOException {
+    String migration = readMigration(
+        "V20260803_01__page_record_snapshot_source_version_text.sql");
+
+    assertThat(migration)
+        .contains("alter table page_record_snapshots")
+        .contains("alter column source_version type text")
+        .contains("using source_version::text");
+  }
+
+  @Test
   void shouldDefineAndBackfillIndependentIssueHandlerFact() throws IOException {
     String schemaMigration = readMigration("V20260722_03__add_issue_fact_handler_name.sql");
     String backfillMigration = readMigration("V20260722_04__backfill_issue_fact_handler_name.sql");

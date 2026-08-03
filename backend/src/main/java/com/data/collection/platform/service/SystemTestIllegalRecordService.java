@@ -192,12 +192,6 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
     return SystemTestIssueRecordWorkbookExportSupport.exportIllegalRecords(rows);
   }
 
-  @Override
-  protected boolean canUseSqlPage(
-      IssueFactRecordListRequest request, String filterGroupJson, String safeSortField) {
-    return false;
-  }
-
   public SystemTestIllegalRecordFilterOptionsResponse getFilterOptions(Long projectId) {
     Long safeProjectId = defaultProjectId(projectId);
     Map<String, Object> requestPayload = Map.of("projectId", safeProjectId);
@@ -214,24 +208,23 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   }
 
   private SystemTestIllegalRecordFilterOptionsResponse loadFilterOptions(Long projectId) {
-    List<IssueFactRecord> values = loadScopedIllegalViews(projectId);
+    IssueFactRecordRepository.SystemTestIllegalFilterValues values =
+        issueFactRecordRepository.findSystemTestIllegalFilterValues(projectId);
     return new SystemTestIllegalRecordFilterOptionsResponse(
-        toLegacyOptions(values, IssueFactRecord::projectName),
-        toLegacyOptions(values.stream().flatMap(row -> displayModuleNames(row).stream()).toList()),
+        toLegacyOptions(values.projectNames()),
+        toLegacyOptions(values.moduleNames()),
         toOptionsPreservingOrder(phaseScopeOptions()),
-        toOptionsPreservingOrder(normalizedExistingIllegalReasons(
-            values.stream().flatMap(row -> displayIllegalReasons(row).stream()).toList())),
-        toLegacyOptions(values, IssueFactRecord::authorName),
-        toLegacyOptions(values, IssueFactRecord::assigneeName),
-        toOptions(values.stream().map(IssueFactRecord::issueState).toList()),
+        toOptionsPreservingOrder(normalizedExistingIllegalReasons(values.illegalReasons())),
+        toLegacyOptions(values.authorNames()),
+        toLegacyOptions(values.assigneeNames()),
+        toOptions(values.issueStates()),
         OptionItemResponseFactory.fromValues(
-            values.stream().map(IssueFactRecord::severityLevel).toList(),
+            values.severityLevels(),
             TextQuerySupport::trimToNull,
             IssueDisplayValueSupport::displaySeverityLevel),
-        OptionItemResponseFactory.fromIssueStatusMembers(
-            values.stream().map(IssueFactRecord::bugStatus).toList()),
-        toOptions(values.stream().map(IssueFactRecord::category).toList()),
-        toLegacyOptions(values, IssueFactRecord::milestoneTitle));
+        OptionItemResponseFactory.fromIssueStatusMembers(values.bugStatuses()),
+        toOptions(values.categories()),
+        toLegacyOptions(values.milestoneTitles()));
   }
 
   @Override
