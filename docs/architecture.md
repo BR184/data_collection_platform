@@ -33,7 +33,7 @@
 - `GitlabSourceLineageCatalog` 是 23 张推荐来源表的主键、删除探测资格、权威父子范围和派生归属唯一目录；评论和标签分别用 `(noteable_type,noteable_id)`、`(target_type,target_id)` 隔离多态对象。`GitlabFactDependencyCatalog` 统一维护事实读取表与变化信号表，`RealtimeWorkspaceDependencyCatalog` 再把工作区映射到事实类型和扫描依赖；新增推荐表或事实依赖必须显式登记，无派生消费者也必须显式声明。
 - 普通镜像运行统一经过 `SCAN`、批量权威范围和 `RECONCILE`。页提交先锁定运行阶段边界；只有全部 `SCAN` producer 和 `sync_run_authoritative_scopes` 成功后，才为本次范围内每张表幂等创建一个 `RECONCILE` 任务。权威范围按规范 identity 去重后批量领取、批量读取完整来源集合并原子替换 ODS；`QUEUED/RUNNING/RETRY_WAITING` 阻断阶段推进，`FAILED` 使运行失败，禁止把未完成范围解释为空集合。
 - 删除探测只分页读取 ODS active 主键并用真实类型参数化批查询验证 GitLab 存在性；仅成功来源查询返回的 mirror-only 差集可写 tombstone。单列与复合主键均使用声明式类型和 keyset cursor，JVM 工作集为 `O(batchSize)`；来源异常、非法返回子集或平台事务失败不得推进 cursor、`last_delete_reconciled_at` 或删除行。
-- ODS 写入只把插入、业务列真实变化、tombstone 恢复和真实删除输出为 `MirrorRowChange`；lookback 相同行、镜像元数据变化和相同权威集合不产生派生目标。ODS DML、`fact_change_heads` 版本推进、`sync_run_fact_targets` upsert 和定向 `FACT_REFRESH` 创建/唤醒位于同一平台事务；已提交目标不依赖镜像父运行终态才能继续发布。
+- ODS 写入只把插入、业务列真实变化、tombstone 恢复和真实删除输出为 `MirrorRowChange`；变化前后快照必须以不可变有序映射完整保留合法数据库 null，不能使用拒绝 null value 的集合工厂。lookback 相同行、镜像元数据变化和相同权威集合不产生派生目标。ODS DML、`fact_change_heads` 版本推进、`sync_run_fact_targets` upsert 和定向 `FACT_REFRESH` 创建/唤醒位于同一平台事务；已提交目标不依赖镜像父运行终态才能继续发布。
 - 每个镜像父运行至多复用一个 `FACT_REFRESH` 子运行；`fact_build_tasks.run_id` 只归属该子运行，父运行只从 `sync_runs.parent_run_id` 取得。定向运行仅在存在未发布目标时创建，父运行继续产生更高版本时可重新唤醒已成功、暂停或重试中的同一子运行；失败运行保留原身份供显式恢复。全量同步和成功全量补偿使用明确全量事实发布，普通增量、手动表刷新和 System Hook 不因目标数量改变为全量模式。
 - `FULL_COMPENSATION_SCAN` 只承担首次历史清理、灾难恢复和低频反熵，不是日常实时正确性的前置条件；无生产入口的 `COMPENSATION_SCAN` 已删除。增量更新继续保留 PostgreSQL volume、同步状态、镜像表和用户配置，不通过重建容器清库。270 万行的最终 batch/worker 参数和硬性能门禁必须由内网固定负载基准确定。
 

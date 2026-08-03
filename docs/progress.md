@@ -8,13 +8,14 @@
 
 ## 当前目标
 
-- [目标] 旧发布 `20260803T054734Z-066761e14130` 已被后续修复替代；新发布 `20260803T082443Z-2ab4bea80a7b` 及其 20001 完整 Compose/`.env` 已完成，当前按 `docs/plans/verify-package-deploy-latest-to-20001.md` 等待用户人工部署与现场验收。
+- [目标] 发布 `20260803T082443Z-2ab4bea80a7b` 的镜像变化快照不能承载 GitLab nullable 列，已在 `docs/plans/fix-label-links-sync-failure-and-package-20001.md` 完成根因修复与真实 23 表链路验证；当前以该发布为直接基线重新打包 20001 更新，部署后需执行一次全量同步修复旧 ODS 缺行，并由成功运行自动完成全量事实刷新。
 - [目标] 完成 GitLab 日常增量与手动刷新中的物理删除探测和精准派生发布收口：来源/事实/工作区目录、批量权威范围、统一 `SCAN -> RECONCILE` 屏障、事务内版本化 outbox、根版本 fencing、有界事实批次、稳定范围 generation、publication fence 和自动增量删除页让行均已落地；新包已完成，等待用户执行 721 保数据升级并完成内网真实删除验收。正常链路不得依赖全量补偿或全量事实刷新。
 - [目标] 在不破坏已完成 LDAP、本地 RBAC、兼容模式隔离、事实层和导出对齐工作的前提下，继续完成老平台口径核验、内网部署验证和正式模块稳定化。
 - [目标] 以 LDAP v0.3 作为内网账号、状态与多角色来源，确保空平台首次部署后可直接使用 LDAP 登录并建立平台本地 Session。
 
 ## 已完成
 
+- [验证] 2026-08-03：当前发布镜像在真实 GitLab 16.11 `RECOMMENDED` 23 表全量运行中稳定复现 `MirrorRowChange` 对 nullable 行调用 `Map.copyOf` 导致 16 张表第一页 `NullPointerException`；统一改为保留 null 的有序不可变防御性快照后，同环境 23 表 578 个扫描/对账任务全部成功，扫描 537,844 行、写入 194,860 行，自动事实子运行 6/6 成功并写入 18,002 条。后续普通增量 46/46 成功、核验 268,932 个主键；`label_links` 单表刷新以同一 `RECONCILE` 任务续页核验 66,165 个主键并成功。最终 `origin/main@3b87d7c3` 上后端 961 项、前端 374 项、Checkstyle、SpotBugs、生产构建、高危依赖审计、118 份迁移与仓库/发布契约门禁全部通过。
 - [完成] 2026-08-03：从 GitHub 干净提交 `d2d3d4af` 和 721 直接基线生成更新包 `qaflex-update-20260803T082443Z-2ab4bea80a7b.tar.gz`（`196,891,673` bytes，SHA-256 `302b823442493fcac93476256f80d0121d2666a3f81aa162b85c4f7e9fb17621`），目标 Flyway `20260803.01`、事实重建 `all`。双镜像 `linux/amd64`、包内/包外摘要、归档清单、Linux Bash 语法、8 项包内校验和 25 项打包器测试通过。隔离栈完成 721 备份/升级/应用回滚/第二次备份/再次升级，两轮 dump 可恢复、`counts.diff` 为空，PostgreSQL ID 与 volume 全程不变，最终新前后端健康。
 - [完成] 2026-08-03：包外 20001 配置目录 `qaflex-update-20260803T082443Z-2ab4bea80a7b-20001-config` 已生成；Compose 与包内权威文件 SHA-256 同为 `70f4161e4e385b33663ff29b6836f502f3ce7fccc49e0347b02a4c4be8da832a`，解析到新前后端镜像、20001/20002、LDAP 116、原 Compose project、PostgreSQL external volume 和日志卷；`.env` 未进入更新归档或 Git，禁止 `down -v`。
 - [验证] 2026-08-03：新发布候选已在 `origin/main@1f977f49` 上合入 `CC_PRODUCT` 查询/计划分支成员和严格缺陷原因修复；后端定向 72 项通过，真实 PostgreSQL 删除全链同时覆盖普通增量与单表刷新，完整后端 957 项零失败、零错误、1 项条件跳过，Checkstyle/SpotBugs/Flyway profile 通过。完整前端 105 文件、374 项、TypeScript、ESLint、生产构建和高危依赖审计通过；118 份迁移及仓库契约门禁、同步 dry-run、25 项打包器测试通过。旧 release `20260803T054734Z-066761e14130` 已替代，禁止继续交付。
