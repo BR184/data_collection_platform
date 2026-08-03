@@ -48,10 +48,6 @@ function normalizeIssueState(value: string) {
   return value === 'closed' ? '已关闭' : value === 'opened' ? '未关闭' : value || '-';
 }
 
-function formatDateTime(value?: string | null) {
-  return value ? value.replace('T', ' ').slice(0, 19) : '-';
-}
-
 function mapRow(row: CustomerIssueIllegalRecordRowResponse): Record<string, unknown> {
   return {
     __raw: row,
@@ -65,9 +61,15 @@ function mapRow(row: CustomerIssueIllegalRecordRowResponse): Record<string, unkn
   };
 }
 
-function loadRecords(params: IssueIllegalRecordQueryParams) {
-  return api.getCustomerIssueIllegalRecords({
+function withLegacyProject(params: IssueIllegalRecordQueryParams): IssueIllegalRecordQueryParams {
+  return {
+    ...params,
     projectId: LEGACY_CC_PRODUCT_PROJECT_ID,
+  };
+}
+
+function loadRecords(params: IssueIllegalRecordQueryParams) {
+  return api.getCustomerIssueIllegalRecords(withLegacyProject({
     keyword: params.keyword,
     issueIid: params.issueIid,
     title: params.title,
@@ -92,11 +94,23 @@ function loadRecords(params: IssueIllegalRecordQueryParams) {
     size: params.size,
     sortBy: params.sortBy,
     sortOrder: params.sortOrder,
-  });
+  }));
+}
+
+function exportRecords(params: IssueIllegalRecordQueryParams) {
+  return api.exportCustomerIssueIllegalRecords(withLegacyProject(params));
 }
 
 async function loadFilterOptions() {
   return api.getCustomerIssueIllegalRecordFilterOptions(LEGACY_CC_PRODUCT_PROJECT_ID);
+}
+
+function loadRuleExplanation() {
+  return api.getCustomerIssueIllegalRecordRuleExplanation(LEGACY_CC_PRODUCT_PROJECT_ID);
+}
+
+function loadRealtimeStatus(params: IssueIllegalRecordQueryParams) {
+  return api.getCustomerIssueIllegalRecordRealtimeStatus(withLegacyProject(params));
 }
 
 function buildConditionFields(options: IssueIllegalRecordFilterOptions): StatisticFilterField[] {
@@ -199,11 +213,11 @@ function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions): RecordTa
     empty-description="当前筛选条件下没有客户问题非法数据。"
     :total-tag-text="(total) => `共 ${total} 条`"
     :load-records="loadRecords"
-    :export-records="api.exportCustomerIssueIllegalRecords"
+    :export-records="exportRecords"
     export-filename-prefix="多元议题查询结果"
     :load-filter-options="loadFilterOptions"
-    :load-rule-explanation="api.getCustomerIssueIllegalRecordRuleExplanation"
-    :load-realtime-status="api.getCustomerIssueIllegalRecordRealtimeStatus"
+    :load-rule-explanation="loadRuleExplanation"
+    :load-realtime-status="loadRealtimeStatus"
     :request-realtime-refresh="api.refreshCustomerIssueIllegalRecordRealtime"
     :initial-filter-options="initialFilterOptions"
     :build-condition-fields="buildConditionFields"

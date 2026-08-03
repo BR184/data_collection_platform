@@ -117,6 +117,6 @@ describe('useStatisticBoardTableAdapters', () => {
     expect(adapters.cellForColumn(row, 'owner')?.displayValue).toBe('Long Owner Name');
     expect(adapters.cellForColumn(row, 'missing')).toBeUndefined();
     expect(adapters.columnMinWidth(ownerColumn)).toBeGreaterThan(120);
-    expect(adapters.columnResizable(countColumn)).toBe(false);
+    expect(adapters.columnResizable(countColumn)).toBe(true);
   });
 });

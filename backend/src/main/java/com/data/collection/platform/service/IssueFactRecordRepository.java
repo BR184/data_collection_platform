@@ -702,7 +702,7 @@ public class IssueFactRecordRepository {
     }
     where.append(" and is_illegal = true");
     if (query.supportedSystemIllegalReasonsOnly()) {
-      appendIllegalReasonsContainsAny(where, args, SystemTestIllegalReasonSupport.SUPPORTED_REASONS);
+      appendIllegalReasonsContainsAny(where, args, SystemTestIllegalReasonSupport.supportedRawReasons());
       List<String> rawReasons = SystemTestIllegalReasonSupport.rawReasonsFor(query.illegalReason());
       if (!rawReasons.isEmpty()) {
         appendIllegalReasonsContainsAny(where, args, rawReasons);

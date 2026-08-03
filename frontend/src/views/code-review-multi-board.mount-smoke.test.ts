@@ -82,9 +82,11 @@ describe('CodeReviewMultiBoardView mount smoke', () => {
 
     await flushPromises();
 
-    expect(wrapper.text()).toContain('代码走查多元看板');
-    expect(wrapper.text()).toContain('模块千行缺陷率');
-    expect(wrapper.findAll('[data-testid="echart-panel"]')).toHaveLength(8);
+    await vi.waitFor(() => {
+      expect(wrapper.text()).toContain('代码走查多元看板');
+      expect(wrapper.text()).toContain('模块千行缺陷率');
+      expect(wrapper.findAll('[data-testid="echart-panel"]')).toHaveLength(8);
+    });
     expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('source=cc'))).toBe(true);
     expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('projectName=CC2026R3'))).toBe(true);
 

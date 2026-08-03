@@ -39,6 +39,25 @@ def normalize_path(path: str) -> str:
     return normalized.rstrip("/") or "/"
 
 
+def normalize_frontend_path(path: str) -> str:
+    """Normalize a frontend URL template while discarding its dynamic query suffix."""
+    normalized = re.sub(r"/\$\{[^}]+}", "/{}", path)
+    query_suffix = normalized.find("${")
+    if query_suffix >= 0:
+        normalized = normalized[:query_suffix]
+    return normalize_path(normalized)
+
+
+def backend_path_matches(backend_path: str, frontend_path: str) -> bool:
+    """Return whether a backend mapping accepts the concrete frontend path."""
+    backend_segments = backend_path.strip("/").split("/")
+    frontend_segments = frontend_path.strip("/").split("/")
+    return len(backend_segments) == len(frontend_segments) and all(
+        backend_segment == "{}" or backend_segment == frontend_segment
+        for backend_segment, frontend_segment in zip(backend_segments, frontend_segments, strict=True)
+    )
+
+
 def backend_paths() -> set[str]:
     paths: set[str] = set()
     for path in BACKEND_CONTROLLERS.glob("*.java"):
@@ -61,18 +80,18 @@ def frontend_paths() -> set[str]:
     for path in FRONTEND_API_CLIENTS.glob("*.ts"):
         text = path.read_text(encoding="utf-8")
         for match in PATH_LITERAL_PATTERN.finditer(text):
-            raw = match.group(1)
-            raw = raw.split("${query.", 1)[0]
-            raw = raw.split("${searchParams.", 1)[0]
-            raw = raw.split("${build", 1)[0]
-            paths.add(normalize_path(raw))
+            paths.add(normalize_frontend_path(match.group(1)))
     return paths
 
 
 def main() -> int:
     backend = backend_paths()
     frontend = frontend_paths()
-    missing = sorted(frontend - backend)
+    missing = sorted(
+        frontend_path
+        for frontend_path in frontend
+        if not any(backend_path_matches(backend_path, frontend_path) for backend_path in backend)
+    )
     print(f"backend_paths={len(backend)} frontend_paths={len(frontend)} missing_frontend_paths={len(missing)}")
     if missing:
         for path in missing:

@@ -6,7 +6,6 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_SQL = ROOT / "backend/src/main/resources/schema.sql"
 MIGRATION_DIR = ROOT / "backend/src/main/resources/db/migration"
 CONTRACT_DOC = ROOT / "scripts/contracts/fact-field-contract.md"
 
@@ -240,7 +239,6 @@ def check_doc() -> bool:
 def main() -> int:
     migrations = sorted(MIGRATION_DIR.glob("*.sql"))
     checks = [
-        check_columns("schema.sql", final_columns([SCHEMA_SQL])),
         check_columns("flyway", final_columns(migrations)),
         check_doc(),
     ]

@@ -65,9 +65,11 @@ class SyncRunDispatcherServiceTest {
     ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
     verify(jdbcTemplate).queryForObject(sqlCaptor.capture(), any(RowMapper.class), eq("sync-dispatcher"), eq(12));
     assertThat(sqlCaptor.getValue())
-        .contains("candidate.status in ('QUEUED', 'PAUSED')")
+        .contains("candidate.status in ('QUEUED', 'PAUSED', 'RETRYING')")
         .contains("extract(epoch from (current_timestamp - candidate.updated_at))")
-        .contains("active.status in ('RUNNING', 'RETRYING', 'CANCELLING')")
+        .contains("active.status in ('RUNNING', 'CANCELLING')")
+        .contains("active.status = 'RETRYING'")
+        .contains("active.lease_until >= current_timestamp")
         .doesNotContain("active.status in ('SUBMITTED', 'QUEUED'");
   }
 

@@ -7,7 +7,6 @@ import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanat
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import java.io.ByteArrayInputStream;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -77,8 +76,12 @@ class StatisticBoardControllerTest {
   @AfterEach
   void cleanStatisticLinkFixtures() {
     jdbcTemplate.update("delete from issue_fact where source_instance = ?", STAT_LINK_SOURCE_INSTANCE);
-    jdbcTemplate.update("delete from ods_gitlab_projects where id in (?, ?)", 325L, 901L);
-    jdbcTemplate.update("delete from ods_gitlab_stat_link_test_projects where id in (?, ?)", 325L, 901L);
+    jdbcTemplate.update(
+        "delete from issue_scope_groups where business_key in (?, ?)",
+        "stat-link-milestone",
+        "stat-link-phase");
+    jdbcTemplate.update("delete from ods_gitlab_projects where id in (?, ?)", 325L, 9L);
+    jdbcTemplate.update("delete from ods_gitlab_stat_link_test_projects where id in (?, ?)", 325L, 9L);
     jdbcTemplate.update("delete from gitlab_sync_configs where source_instance = ?", STAT_LINK_SOURCE_INSTANCE);
   }
 
@@ -101,9 +104,27 @@ class StatisticBoardControllerTest {
 
     assertThat(response).isNotNull();
     assertThat(response.definition().boardKey()).isEqualTo("system-test-defect-summary");
-    assertThat(response.definition().rowHeaderLabel()).isEqualTo("模块名称");
+    assertThat(response.definition().rowHeaderLabel()).isEqualTo("模块名");
     assertThat(response.definition().columnGroups()).extracting("key")
-        .containsExactly("level1", "level2", "level3", "suggestion", "priority-summary", "new-issue", "legacy");
+        .containsExactly(
+            "level1",
+            "level2",
+            "level3",
+            "suggestion",
+            "p1",
+            "p2",
+            "p3",
+            "module_total_group",
+            "defect_ratio_group",
+            "delay_defect_ratio_group",
+            "solved_count_group",
+            "fix_rate_group",
+            "close_rate_group",
+            "open_count_group",
+            "extension_count_group",
+            "retest_failed_count_group",
+            "new-issue",
+            "legacy");
     assertThat(response.definition().filters()).extracting("key")
         .containsExactly(
             "projectName",
@@ -124,17 +145,12 @@ class StatisticBoardControllerTest {
         .anySatisfy(group -> {
           assertThat(group.key()).isEqualTo("level1");
           assertThat(group.leafColumns()).extracting("key")
-              .containsExactly("level1_back", "level1_hang", "level1_other", "level1_fixed", "level1_total", "level1_rate");
+              .containsExactly("level1_fixed", "level1_total", "level1_rate", "level1_back", "level1_hang", "level1_other");
         })
         .anySatisfy(group -> {
-          assertThat(group.key()).isEqualTo("priority-summary");
+          assertThat(group.key()).isEqualTo("p1");
           assertThat(group.leafColumns()).extracting("key")
-              .containsExactly(
-                  "p1_count", "p1_fix_rate", "p1_close_rate",
-                  "p2_count", "p2_fix_rate", "p2_close_rate",
-                  "p3_count", "p3_fix_rate",
-                  "module_total", "defect_ratio", "delay_defect_ratio", "solved_count", "fix_rate", "close_rate",
-                  "open_count", "extension_count", "retest_failed_count");
+              .containsExactly("p1_count", "p1_fix_rate", "p1_close_rate");
         })
         .anySatisfy(group -> {
           assertThat(group.key()).isEqualTo("legacy");
@@ -143,7 +159,7 @@ class StatisticBoardControllerTest {
         });
     assertThat(response.rows()).allSatisfy(row -> assertThat(row.rowLabel()).isNotBlank());
     assertThat(response.meta().rowCount()).isEqualTo(response.rows().size());
-    assertThat(response.meta().columnCount()).isEqualTo(38);
+    assertThat(response.meta().columnCount()).isEqualTo(39);
   }
 
   @Test
@@ -283,7 +299,6 @@ class StatisticBoardControllerTest {
     assertThat(response.definition().filters()).extracting("key")
         .containsExactly(
             "projectName",
-            "testingPhase",
             "milestoneTitle",
             "moduleName",
             "issueIid",
@@ -297,7 +312,7 @@ class StatisticBoardControllerTest {
             "assigneeName");
     assertThat(response.definition().columnGroups()).extracting("key")
         .containsExactly("level1", "level2", "level3", "suggestion", "priority-summary", "new-issue", "legacy");
-    assertThat(response.meta().columnCount()).isEqualTo(38);
+    assertThat(response.meta().columnCount()).isEqualTo(37);
   }
 
   @Test
@@ -351,7 +366,19 @@ class StatisticBoardControllerTest {
     assertThat(response).isNotNull();
     assertThat(response.definition().boardKey()).isEqualTo("customer-issue-defect-cause");
     assertThat(response.definition().rowHeaderLabel()).isEqualTo("模块");
-    assertThat(response.definition().filters()).extracting("key").containsExactly("testingPhase", "milestoneTitle");
+    assertThat(response.definition().filters()).extracting("key")
+        .containsExactly(
+            "milestoneTitle",
+            "projectName",
+            "moduleName",
+            "issueIid",
+            "title",
+            "severityLevel",
+            "bugStatus",
+            "category",
+            "issueState",
+            "authorName",
+            "assigneeName");
     assertThat(response.definition().columnGroups()).extracting("key").containsExactlyElementsOf(DEFECT_CAUSE_COLUMN_GROUP_KEYS);
     assertThat(response.meta().columnCount()).isEqualTo(24);
   }
@@ -380,7 +407,6 @@ class StatisticBoardControllerTest {
     assertThat(response.definition().filters()).extracting("key")
         .containsExactly(
             "projectName",
-            "testingPhase",
             "milestoneTitle",
             "moduleName",
             "severityLevel",
@@ -389,12 +415,12 @@ class StatisticBoardControllerTest {
             "bugStatus",
             "authorName",
             "assigneeName");
-    assertThat(response.definition().columnGroups()).extracting("key").containsExactly("legacy-fields");
-    assertThat(response.definition().columnGroups()).singleElement().satisfies(group -> {
-      assertThat(group.key()).isEqualTo("legacy-fields");
-      assertThat(group.leafColumns()).extracting("key")
-          .containsExactly("milestone_title", "response_cycle_hours", "resolution_cycle_days");
-    });
+    assertThat(response.definition().columnGroups()).extracting("key")
+        .containsExactly("milestone-title", "response-cycle-hours", "resolution-cycle-days");
+    assertThat(response.definition().columnGroups())
+        .flatExtracting(group -> group.leafColumns())
+        .extracting("key")
+        .containsExactly("milestone_title", "response_cycle_hours", "resolution_cycle_days");
     assertThat(response.meta().columnCount()).isEqualTo(3);
   }
 
@@ -421,7 +447,7 @@ class StatisticBoardControllerTest {
     assertThat(response.definition().boardKey()).isEqualTo("customer-issue-by-function");
     assertThat(response.definition().rowHeaderLabel()).isEqualTo("序号");
     assertThat(response.definition().filters()).extracting("key")
-        .containsExactly("projectName", "testingPhase", "moduleName", "functionName", "milestoneTitle", "severityLevel");
+        .containsExactly("projectName", "moduleName", "functionName", "milestoneTitle", "severityLevel");
     assertThat(response.definition().columnGroups()).extracting("key").containsExactly("placeholder");
     assertThat(response.definition().columnGroups()).singleElement().satisfies(group -> {
       assertThat(group.key()).isEqualTo("placeholder");
@@ -513,6 +539,8 @@ class StatisticBoardControllerTest {
 
   @Test
   void shouldExposeGitlabLinksInIssueStatisticDetails() {
+    seedIssueScope(325L, "CC_Product", "MILESTONE", "stat-link-milestone", "Milestone");
+    seedIssueScope(9L, "CrownCAD", "TESTING_PHASE", "stat-link-phase", "系统测试");
     seedStatisticLinkIssue(
         325L,
         11001L,
@@ -524,7 +552,7 @@ class StatisticBoardControllerTest {
         "LEVEL1",
         "stat-links/cc-product");
     seedStatisticLinkIssue(
-        901L,
+        9L,
         12001L,
         12001,
         "System Test Project",
@@ -543,7 +571,7 @@ class StatisticBoardControllerTest {
                 10,
                 null,
                 null,
-                Map.of("sourceInstance", "stat-link-test", "milestoneTitle", "Milestone"))
+                Map.of("sourceInstance", "stat-link-test", "milestoneTitle", "stat-link-milestone"))
             .getData(),
         11001,
         325L,
@@ -558,7 +586,7 @@ class StatisticBoardControllerTest {
                 10,
                 null,
                 null,
-                Map.of("sourceInstance", "stat-link-test", "milestoneTitle", "Milestone"))
+                Map.of("sourceInstance", "stat-link-test", "milestoneTitle", "stat-link-milestone"))
             .getData(),
         11001,
         325L,
@@ -573,19 +601,76 @@ class StatisticBoardControllerTest {
                 10,
                 null,
                 null,
-                Map.of("sourceInstance", "stat-link-test"))
+                Map.of("sourceInstance", "stat-link-test", "testingPhase", "stat-link-phase"))
             .getData(),
         12001,
-        901L,
+        9L,
         "System Test Project",
         "stat-links/system-test-project");
   }
 
   @Test
-  void shouldExportBoardCsv() {
+  void shouldExportBoardWorkbook() throws Exception {
     ResponseEntity<?> response = controller.exportBoard("mirror-table-overview", Map.of());
     assertThat(response.getBody()).isNotNull();
-    assertThat(new String((byte[]) response.getBody(), StandardCharsets.UTF_8)).contains("统计对象");
+    try (XSSFWorkbook workbook =
+        new XSSFWorkbook(new ByteArrayInputStream((byte[]) response.getBody()))) {
+      assertThat(workbook.getSheetAt(0).getRow(0).getCell(0).getStringCellValue())
+          .isEqualTo("统计对象");
+    }
+  }
+
+  private void seedIssueScope(
+      long projectId,
+      String projectName,
+      String dimension,
+      String businessKey,
+      String sourceValue) {
+    Long catalogId =
+        jdbcTemplate.queryForObject(
+            """
+            insert into issue_scope_catalogs(project_id, project_name, dimension, enabled)
+            values (?, ?, ?, true)
+            on conflict (project_id, dimension) do update
+              set project_name = excluded.project_name,
+                  enabled = true,
+                  updated_at = current_timestamp
+            returning id
+            """,
+            Long.class,
+            projectId,
+            projectName,
+            dimension);
+    Long groupId =
+        jdbcTemplate.queryForObject(
+            """
+            insert into issue_scope_groups(catalog_id, business_key, display_name, sort_order, enabled)
+            values (?, ?, ?, 1000000, true)
+            on conflict (catalog_id, business_key) do update
+              set display_name = excluded.display_name,
+                  enabled = true,
+                  updated_at = current_timestamp
+            returning id
+            """,
+            Long.class,
+            catalogId,
+            businessKey,
+            businessKey);
+    jdbcTemplate.update(
+        """
+        insert into issue_scope_members(
+          catalog_id, group_id, source_value, display_name, sort_order, enabled)
+        values (?, ?, ?, ?, 0, true)
+        on conflict (catalog_id, source_value) do update
+          set group_id = excluded.group_id,
+              display_name = excluded.display_name,
+              enabled = true,
+              updated_at = current_timestamp
+        """,
+        catalogId,
+        groupId,
+        sourceValue,
+        sourceValue);
   }
 
   private String textFilter(String fieldKey, String operator, String value) {

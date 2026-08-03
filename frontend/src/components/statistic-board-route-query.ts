@@ -247,7 +247,12 @@ function sanitizeRouteFilterDraftGroup(
 ): RouteStatisticFilterGroup | null {
   const sanitizedFilterGroup = sanitizeFilterDraftGroup({
     logic: filterDraft.logic,
-    conditions: [...filterDraft.conditions],
+    conditions: filterDraft.conditions.map((condition) => condition.valueType === 'LABEL_GROUP'
+      ? {
+          ...condition,
+          operator: normalizeRoutePersistedOperator(condition.operator, condition.valueType),
+        }
+      : condition),
   });
   if (!sanitizedFilterGroup) {
     return null;
