@@ -43,4 +43,3 @@ const emit = defineEmits<{ (event: 'update:modelValue', value: boolean): void }>
 .bi-trace-item { display: grid; gap: 8px; }
 .bi-trace-item__ids { display: flex; flex-wrap: wrap; gap: 6px; }
 </style>
-

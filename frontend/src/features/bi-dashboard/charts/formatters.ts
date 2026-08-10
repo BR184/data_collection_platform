@@ -2,7 +2,6 @@ interface ChartCallbackShape {
   dataIndex?: unknown;
   value?: unknown;
 }
-
 export function callbackItem(params: unknown): ChartCallbackShape | null {
   const candidate = Array.isArray(params) ? params[0] : params;
   return typeof candidate === 'object' && candidate !== null ? candidate as ChartCallbackShape : null;
@@ -26,4 +25,3 @@ export function callbackTupleValue(params: unknown): [number, number, number] | 
     ? [value[0], value[1], value[2]] as [number, number, number]
     : null;
 }
-

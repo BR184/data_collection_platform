@@ -30,4 +30,3 @@ export class CodingTrendComboChart extends BiChart<CodingTrendData> {
     };
   }
 }
-

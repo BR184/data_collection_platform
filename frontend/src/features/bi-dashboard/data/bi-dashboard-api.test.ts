@@ -41,4 +41,3 @@ function jsonResponse(data: unknown): Response {
     headers: { 'Content-Type': 'application/json' },
   });
 }
-

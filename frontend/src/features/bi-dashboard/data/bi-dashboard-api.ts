@@ -16,7 +16,6 @@ export interface BiCodingQuery {
   source: 'all' | 'cc' | 'dgm';
   repositoryId?: string;
 }
-
 function pageQuery(productVersionId: number): URLSearchParams {
   return new URLSearchParams({ productVersionId: String(productVersionId) });
 }
@@ -83,4 +82,3 @@ function pageProgress(pageKey: BiPageKey) {
     },
   };
 }
-

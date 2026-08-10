@@ -27,4 +27,3 @@ export function registerBiChartTheme(): string {
   }
   return BI_THEME_NAME;
 }
-

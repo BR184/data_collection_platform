@@ -26,4 +26,3 @@ export class SubmissionFrequencyBarChart extends BiChart<NamedValue[]> {
     };
   }
 }
-
