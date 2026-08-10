@@ -8,6 +8,7 @@ import com.data.collection.platform.entity.FactChangeIdentity;
 import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.MirrorRowChange;
 import com.data.collection.platform.entity.VersionedFactChangeTarget;
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.service.FactChangeTargetService;
 import com.data.collection.platform.service.GitlabFactChangeResolver;
 import java.util.List;
@@ -50,7 +51,42 @@ class FactChangeTargetServiceIntegrationTest {
     transactionTemplate =
         new TransactionTemplate(new DataSourceTransactionManager(dataSource));
     changeResolver = mock(GitlabFactChangeResolver.class);
-    service = new FactChangeTargetService(jdbcTemplate, changeResolver);
+    GitlabMirrorProperties properties = new GitlabMirrorProperties();
+    properties.setFactTargetBatchSize(2);
+    service = new FactChangeTargetService(jdbcTemplate, changeResolver, properties);
+  }
+
+  @Test
+  void test_multiple_targets_are_batched_without_losing_stable_order_or_versions() {
+    List<FactChangeIdentity> identities =
+        List.of(
+            new FactChangeIdentity("alpha", FactType.MERGE_REQUEST, 601L, 42L, 9L),
+            new FactChangeIdentity("alpha", FactType.ISSUE, 502L, 42L, 8L),
+            new FactChangeIdentity("alpha", FactType.ISSUE, 501L, 42L, 7L));
+    List<MirrorRowChange> changes =
+        List.of(new MirrorRowChange(Map.of("id", 1L), Map.of("id", 1L)));
+    when(changeResolver.resolve("alpha", "users", changes)).thenReturn(identities);
+
+    List<VersionedFactChangeTarget> targets =
+        transactionTemplate.execute(
+            status -> service.registerChanges(10L, 20L, "alpha", "users", changes));
+
+    assertThat(targets)
+        .extracting(target -> target.identity().factType() + ":" + target.identity().rootId())
+        .containsExactly("ISSUE:501", "ISSUE:502", "MERGE_REQUEST:601");
+    List<Long> versions =
+        targets.stream().map(VersionedFactChangeTarget::changeVersion).toList();
+    assertThat(versions.get(0)).isPositive();
+    assertThat(versions.get(1)).isGreaterThan(versions.get(0));
+    assertThat(versions.get(2)).isGreaterThan(versions.get(1));
+    assertThat(
+            jdbcTemplate.queryForObject("select count(*) from fact_change_heads", Integer.class))
+        .isEqualTo(3);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select count(*) from sync_run_fact_targets where mirror_run_id = 10",
+                Integer.class))
+        .isEqualTo(3);
   }
 
   @Test

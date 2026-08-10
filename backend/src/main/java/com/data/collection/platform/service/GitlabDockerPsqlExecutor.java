@@ -47,20 +47,28 @@ class GitlabDockerPsqlExecutor {
             process.waitFor(connectionSettings.resolveExternalQueryTimeoutSeconds(), TimeUnit.SECONDS);
         if (!finished) {
           process.destroyForcibly();
-          throw new BizException("Docker GitLab PostgreSQL command timed out after "
-              + connectionSettings.resolveExternalQueryTimeoutSeconds() + " seconds");
+          throw GitlabSourceAccessException.of(
+              "Docker GitLab PostgreSQL command timed out after "
+                  + connectionSettings.resolveExternalQueryTimeoutSeconds()
+                  + " seconds",
+              null,
+              true);
         }
         try {
           lines = outputFuture.get(5, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
-          throw new BizException("Docker GitLab PostgreSQL command output read timed out");
+          throw GitlabSourceAccessException.of(
+              "Docker GitLab PostgreSQL command output read timed out", e, true);
         }
       } finally {
         outputReader.shutdownNow();
       }
       int exitCode = process.exitValue();
       if (exitCode != 0) {
-        throw new BizException("Docker GitLab PostgreSQL command failed: " + String.join(System.lineSeparator(), lines));
+        throw GitlabSourceAccessException.from(
+            "Docker GitLab PostgreSQL command failed: "
+                + String.join(System.lineSeparator(), lines),
+            null);
       }
       return lines;
     } catch (BizException e) {
@@ -73,12 +81,14 @@ class GitlabDockerPsqlExecutor {
       try (SyncRunLogContext.Scope action = SyncRunLogContext.action("Data_Fetching")) {
         log.error("Docker GitLab PostgreSQL command interrupted", e);
       }
-      throw new BizException("Docker GitLab PostgreSQL command interrupted");
+      throw GitlabSourceAccessException.of(
+          "Docker GitLab PostgreSQL command interrupted", e, false);
     } catch (Exception e) {
       try (SyncRunLogContext.Scope action = SyncRunLogContext.action("Data_Fetching")) {
         log.error("Docker GitLab PostgreSQL command failed", e);
       }
-      throw new BizException("Docker GitLab PostgreSQL command failed: " + e.getMessage());
+      throw GitlabSourceAccessException.from(
+          "Docker GitLab PostgreSQL command failed: " + e.getMessage(), e);
     }
   }
 
@@ -104,16 +114,19 @@ class GitlabDockerPsqlExecutor {
                 connectionSettings.resolveExternalQueryTimeoutSeconds(), TimeUnit.SECONDS);
         if (!finished) {
           process.destroyForcibly();
-          throw new BizException(
+          throw GitlabSourceAccessException.of(
               "Docker GitLab PostgreSQL COPY command timed out after "
                   + connectionSettings.resolveExternalQueryTimeoutSeconds()
-                  + " seconds");
+                  + " seconds",
+              null,
+              true);
         }
         List<String> lines = outputFuture.get(5, TimeUnit.SECONDS);
         if (process.exitValue() != 0) {
-          throw new BizException(
+          throw GitlabSourceAccessException.from(
               "Docker GitLab PostgreSQL COPY command failed: "
-                  + String.join(System.lineSeparator(), lines));
+                  + String.join(System.lineSeparator(), lines),
+              null);
         }
         return lines;
       } finally {
@@ -123,9 +136,11 @@ class GitlabDockerPsqlExecutor {
       throw error;
     } catch (InterruptedException error) {
       Thread.currentThread().interrupt();
-      throw new BizException("Docker GitLab PostgreSQL COPY command interrupted");
+      throw GitlabSourceAccessException.of(
+          "Docker GitLab PostgreSQL COPY command interrupted", error, false);
     } catch (Exception error) {
-      throw new BizException("Docker GitLab PostgreSQL COPY command failed: " + error.getMessage());
+      throw GitlabSourceAccessException.from(
+          "Docker GitLab PostgreSQL COPY command failed: " + error.getMessage(), error);
     }
   }
 

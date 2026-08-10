@@ -15,6 +15,8 @@ import org.springframework.stereotype.Service;
 /** 把 ODS 业务行变化解析为稳定 Issue/MR 根目标。 */
 @Service
 public class GitlabFactChangeResolver {
+  private static final int ROOT_DETAILS_BATCH_SIZE = 1000;
+
   private final JdbcTemplate jdbcTemplate;
 
   public GitlabFactChangeResolver(JdbcTemplate jdbcTemplate) {
@@ -255,18 +257,31 @@ public class GitlabFactChangeResolver {
     if (rootIds.isEmpty()) {
       return Map.of();
     }
-    String sql = "select id, " + projectColumn + " as project_id, iid from " + table
-        + " where id in (" + placeholders(rootIds.size()) + ")";
     Map<Long, RootDetails> details = new java.util.LinkedHashMap<>();
-    jdbcTemplate.query(
-        sql,
-        (org.springframework.jdbc.core.RowCallbackHandler) resultSet ->
-            details.put(
-                resultSet.getLong("id"),
-                new RootDetails(
-                    nullableLong(resultSet.getObject("project_id")),
-                    nullableLong(resultSet.getObject("iid")))),
-        rootIds.toArray());
+    List<Long> orderedIds = rootIds.stream().sorted().toList();
+    for (int start = 0; start < orderedIds.size(); start += ROOT_DETAILS_BATCH_SIZE) {
+      List<Long> batch =
+          orderedIds.subList(
+              start, Math.min(orderedIds.size(), start + ROOT_DETAILS_BATCH_SIZE));
+      String sql =
+          "select id, "
+              + projectColumn
+              + " as project_id, iid from "
+              + table
+              + " where id in ("
+              + placeholders(batch.size())
+              + ")";
+      jdbcTemplate.query(
+          sql,
+          (org.springframework.jdbc.core.RowCallbackHandler)
+              resultSet ->
+                  details.put(
+                      resultSet.getLong("id"),
+                      new RootDetails(
+                          nullableLong(resultSet.getObject("project_id")),
+                          nullableLong(resultSet.getObject("iid")))),
+          batch.toArray());
+    }
     return Map.copyOf(details);
   }
 

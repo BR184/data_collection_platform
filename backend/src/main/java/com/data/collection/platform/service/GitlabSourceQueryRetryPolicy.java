@@ -58,6 +58,9 @@ class GitlabSourceQueryRetryPolicy {
   }
 
   boolean isRetryableExternalFailure(RuntimeException e) {
+    if (e instanceof GitlabSourceAccessException sourceFailure) {
+      return sourceFailure.isRetryable();
+    }
     String message = flattenMessage(e);
     if (message.isBlank()) {
       return false;

@@ -29,6 +29,8 @@
 - 同一镜像运行的表 worker 数与 DIRECT JDBC 池容量由 `SyncExecutionBudget` 一次解析；`sync_runs.resolved_worker_count` 是该运行不可变并发快照，DIRECT 池容量等于 worker 数加控制面保留连接。连接池按稳定 `configId` 唯一管理，连接或线程配置只能在无活动镜像运行时修改，配置事务提交后旧池退休且不打断已借出连接。
 - 调度器每次领取运行必须生成唯一 `lease_owner`；首次心跳、周期续租、暂停和终态提交均以 `(run_id, lease_owner)` fencing，租约转移后的旧执行器不能覆盖新 owner。执行器拒绝入队时仅释放自己拥有的运行并归还本地容量；截止时间和人工取消使用字段级状态 CAS，禁止用陈旧全实体更新覆盖租约。
 - 表任务是唯一分页恢复边界：源端读取不持有平台库事务，本地镜像写入、变化目标登记、任务 owner 条件完成、状态水位和下一阶段任务创建在同一事务提交。`SCAN` 续页使用独立任务行；每张表的 `RECONCILE` 只使用一个任务行原子累计计数并推进 keyset cursor，不按页增长任务数。任务执行期间按租约心跳续期，租约转移后的旧 worker 不得提交状态或镜像副作用。
+- 动态 ODS 表及其查询索引由运行期 schema 控制面统一管理，因为 Flyway 执行时动态表可能尚不存在。每轮在任何表任务入队前按稳定顺序准备全部当前白名单表，并以 `CREATE INDEX CONCURRENTLY` 补齐物理列完整的索引、重建失效同名索引；worker 数据面不得并行建表或维护索引。
+- 表任务的连接、超时、锁/死锁、事务回滚和临时资源异常在原任务内按上限退避重试，父运行复用 `RETRYING/run_after` 等待该任务；租约超时使用同一状态路径。未定义表/列、非法配置和业务契约错误直接失败；任何失败重试都不得推进 cursor、水位或事实发布门禁。
 - 源端扫描只使用真实类型复合主键 keyset：全量与删除对账按主键 tuple 分页；增量仅在更新时间列存在有效非部分 B-tree 前导索引时使用 `TIMESTAMP_KEYSET`，否则在固定 `(watermark, scan_upper_bound_at]` 窗口内使用 `PRIMARY_KEY_KEYSET`，保证每次运行最多按主键线性扫描一次。复合游标统一为 JSON 数组并持久化 `page_number`；状态水位只在末页推进。禁止按文本化主键排序、哈希分片重复扫表、`OFFSET` 分页和逐页 `count(*)`。
 - GitLab 来源时间必须按物理列类型解释：DIRECT JDBC 读取结果同时保留 `ResultSetMetaData.getColumnTypeName()`，`timestamp without time zone` 保留来源墙上值，`timestamp with time zone`/`timestamptz` 按同一瞬间归一为 UTC `LocalDateTime`；DOCKER JSON 的无偏移文本保留墙上值、带偏移文本归一为 UTC。时间窗口 SQL 必须按来源 schema 生成匹配的 `timestamp`/`timestamptz` 字面量，不能只按 JDBC 通用类型或 JVM 默认时区转换。
 - 同一数据源保持单一镜像写入所有权。用户 `TABLE_REFRESH`、`INCREMENTAL_SYNC` 和 System Hook 属于前台运行，独立低优先级 `DELETE_RECONCILIATION` 与全量/补偿运行只在已提交分页边界让行；自动增量仍只为等待中的单表刷新让行。让行以 owner CAS 转为 `PAUSED` 并释放互斥范围，前台运行结束后从持久 cursor 恢复；已经开始的源查询和平台事务不中断。
@@ -38,7 +40,7 @@
 - 日常正确性采用三层模型：普通 `INCREMENTAL_SYNC` 仅按目录声明的 `UPDATED_AT` 或 `MONOTONIC_PRIMARY_KEY` 固定上界快速扫描，并处理事件生成的批量权威范围，不创建全表 `RECONCILE`；`resource_label_events` 等变化信号定位父对象后，批量读取当前完整关系集合并原子替换 ODS；无事件的物理删除由独立低优先级 `DELETE_RECONCILIATION` 为到期表创建 `RECONCILE` 任务最终收敛。权威范围按规范 identity 去重，`QUEUED/RUNNING/RETRY_WAITING` 阻断完成，`FAILED` 使运行失败，禁止把未完成范围解释为空集合。
 - 普通增量的每张快速表必须持久化来源固定上界，并由 checkpoint 覆盖该上界；必需表缺失、零表规划、上界未固化或权威范围未完成均不得记为成功。只有完整覆盖的 `INCREMENTAL_SYNC + SUCCESS` 推进 `last_incremental_sync_at`；活动增量吸收后续到期触发时持久登记一次尾部补跑，并在原运行结束后立即创建新的固定上界运行。执行结果、快速增量新鲜度和删除对账新鲜度分别记录和展示。
 - 删除探测只分页读取 ODS active 主键并用真实类型参数化批查询验证 GitLab 存在性；仅成功来源查询返回的 mirror-only 差集可写 tombstone。单列与复合主键均使用声明式类型和 keyset cursor，JVM 工作集为 `O(batchSize)`；来源异常、非法返回子集或平台事务失败不得推进 cursor、`last_delete_reconciled_at` 或删除行。
-- ODS 写入只把插入、业务列真实变化、tombstone 恢复和真实删除输出为 `MirrorRowChange`；变化快照保留列存在性和数据库 `NULL`，并在构造时复制为不可修改 Map，避免后续来源 Map 变化污染事实发布。lookback 相同行、镜像元数据变化和相同权威集合不产生派生目标。ODS DML、`fact_change_heads` 版本推进和 `sync_run_fact_targets` upsert 位于同一平台事务；镜像活动期间只登记 outbox，不创建可执行事实副作用。
+- ODS 写入只把插入、业务列真实变化、tombstone 恢复和真实删除输出为 `MirrorRowChange`；变化快照保留列存在性和数据库 `NULL`，并在构造时复制为不可修改 Map，避免后续来源 Map 变化污染事实发布。lookback 相同行、镜像元数据变化和相同权威集合不产生派生目标。ODS DML、`fact_change_heads` 版本推进和 `sync_run_fact_targets` 有界批量 upsert 位于同一平台事务；目标按稳定事实键归一化，冲突的根详情必须失败，镜像活动期间只登记 outbox，不创建可执行事实副作用。
 - 事实发布以 `config_id + source_instance + fact_type + source_table` 的持久依赖代际为门禁。镜像终态按本轮实际选择表及表任务、权威范围结果更新依赖为 `READY/BLOCKED`；只有完整 READY 的事实族可创建或唤醒无父运行的来源级 `FACT_REFRESH` 消费者。事实消费者与镜像运行使用同一来源互斥域，从全部历史 `mirror_run_id` 合并未发布目标；失败或取消的消费者释放目标归属，后续来源终态可继续接管。达到重试上限的失败权威范围只由后续选择同一子表的镜像运行重放，成功恢复前对应事实族保持阻塞。全量同步和成功全量补偿登记可合并的全量发布意图，普通增量、手动表刷新和 System Hook 不因目标数量改变为全量模式。
 - `FULL_COMPENSATION_SCAN` 只承担首次历史清理和灾难恢复，不是日常实时正确性或物理删除收敛的前置条件；无生产入口的 `COMPENSATION_SCAN` 已删除。增量更新继续保留 PostgreSQL volume、同步状态、镜像表和用户配置，不通过重建容器清库。约 280 万全部同步表总量的删除反熵 batch、时间片和硬性能门禁必须由内网固定负载基准确定。
 

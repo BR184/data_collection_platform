@@ -69,4 +69,19 @@ class GitlabSourceQueryRetryPolicyTest {
 
     assertThat(retryable).isTrue();
   }
+
+  @Test
+  void shouldUseExplicitSourceFailureClassificationBeforeMessageFallback() {
+    GitlabSourceQueryRetryPolicy policy =
+        new GitlabSourceQueryRetryPolicy(new GitlabMirrorProperties());
+
+    assertThat(
+            policy.isRetryableExternalFailure(
+                GitlabSourceAccessException.of("opaque", null, true)))
+        .isTrue();
+    assertThat(
+            policy.isRetryableExternalFailure(
+                GitlabSourceAccessException.of("connection timeout", null, false)))
+        .isFalse();
+  }
 }

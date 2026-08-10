@@ -38,6 +38,7 @@ public class SyncRunTableTaskExecutor {
   private final SourceTableReader sourceTableReader;
   private final GitlabMirrorSchemaService mirrorSchemaService;
   private final MirrorTableWriter mirrorTableWriter;
+  private final SyncTableTaskFailurePolicy failurePolicy;
 
   public SyncRunTableTaskExecutor(
       SyncRunTableStateMapper stateMapper,
@@ -48,7 +49,8 @@ public class SyncRunTableTaskExecutor {
       GitlabConfigService configService,
       SourceTableReader sourceTableReader,
       GitlabMirrorSchemaService mirrorSchemaService,
-      MirrorTableWriter mirrorTableWriter) {
+      MirrorTableWriter mirrorTableWriter,
+      SyncTableTaskFailurePolicy failurePolicy) {
     this.stateMapper = stateMapper;
     this.jsonUtils = jsonUtils;
     this.taskLeaseService = taskLeaseService;
@@ -58,6 +60,7 @@ public class SyncRunTableTaskExecutor {
     this.sourceTableReader = sourceTableReader;
     this.mirrorSchemaService = mirrorSchemaService;
     this.mirrorTableWriter = mirrorTableWriter;
+    this.failurePolicy = failurePolicy;
   }
 
   public void executeTask(SyncRunTableTask task) {
@@ -310,6 +313,29 @@ public class SyncRunTableTaskExecutor {
 
   private void markFailure(SyncRunTableTask task, SyncRunTableState state, Exception e) {
     String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+    SyncTableTaskFailurePolicy.Decision decision =
+        failurePolicy.evaluate(
+            e,
+            task.getRetryCount() == null ? 0 : task.getRetryCount(),
+            task.getMaxRetryCount() == null ? 0 : task.getMaxRetryCount(),
+            LocalDateTime.now());
+    if (decision.retryable()
+        && taskLeaseService.deferOwnedTask(
+            task.getId(),
+            task.getLeaseOwner(),
+            counter(task.getRowsScanned()),
+            counter(task.getRowsApplied()),
+            decision.runAfter(),
+            message)) {
+      mirrorSchemaService.markTableError(task.getConfigId(), task.getSourceTable());
+      log.info(
+          "Deferred transient table task failure, taskId={}, sourceTable={}, retryCount={}, runAfter={}",
+          task.getId(),
+          task.getSourceTable(),
+          task.getRetryCount() == null ? 1 : task.getRetryCount() + 1,
+          decision.runAfter());
+      return;
+    }
     boolean owned = finishTask(task, task.getRowsScanned(), task.getRowsApplied(), "FAILED", message);
     if (!owned) {
       return;
@@ -323,6 +349,10 @@ public class SyncRunTableTaskExecutor {
     state.setRetryCount(state.getRetryCount() == null ? 1 : state.getRetryCount() + 1);
     state.setUpdatedAt(LocalDateTime.now());
     stateMapper.updateById(state);
+  }
+
+  private long counter(Long value) {
+    return value == null ? 0L : value;
   }
 
   private TableWhitelistOption tableOption(SyncRunTableState state) {

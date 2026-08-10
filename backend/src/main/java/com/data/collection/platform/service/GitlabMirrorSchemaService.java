@@ -10,6 +10,7 @@ import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.mapper.GitlabMirrorTableRegistryMapper;
+import com.data.collection.platform.service.sync.GitlabMirrorIndexService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -37,18 +38,35 @@ public class GitlabMirrorSchemaService {
   private final JdbcTemplate jdbcTemplate;
   private final JsonUtils jsonUtils;
   private final GitlabMirrorProperties properties;
+  private final GitlabMirrorIndexService indexService;
 
   public GitlabMirrorSchemaService(
       SourceMetadataInspector sourceMetadataInspector,
       GitlabMirrorTableRegistryMapper registryMapper,
       JdbcTemplate jdbcTemplate,
       JsonUtils jsonUtils,
-      GitlabMirrorProperties properties) {
+      GitlabMirrorProperties properties,
+      GitlabMirrorIndexService indexService) {
     this.sourceMetadataInspector = sourceMetadataInspector;
     this.registryMapper = registryMapper;
     this.jdbcTemplate = jdbcTemplate;
     this.jsonUtils = jsonUtils;
     this.properties = properties;
+    this.indexService = indexService;
+  }
+
+  /** 在任何数据任务入队前按稳定顺序准备本轮全部动态 ODS 表及索引。 */
+  public void prepareMirrorTablesForRun(
+      GitlabSyncConfig config, List<TableWhitelistOption> options) {
+    if (config == null || options == null) {
+      throw new IllegalArgumentException("同步运行结构准备缺少配置或来源表");
+    }
+    options.stream()
+        .sorted(
+            java.util.Comparator.comparing(
+                option ->
+                    GitlabSourceInstanceSupport.normalizeSourceTableName(option.tableName())))
+        .forEach(option -> prepareMirrorTable(config, option));
   }
 
   /**
@@ -63,6 +81,8 @@ public class GitlabMirrorSchemaService {
         && !isSchemaCheckDue(registry)
         && tableExists(registry.getMirrorTableName())) {
       SourceTableSchema cachedSchema = buildSchemaFromRegistry(registry);
+      indexService.ensureIndexes(
+          option.tableName(), registry.getMirrorTableName(), cachedSchema);
       return new PreparedMirrorTable(cachedSchema, registry.getMirrorTableName(), true, registry);
     }
 
@@ -103,8 +123,15 @@ public class GitlabMirrorSchemaService {
 
     GitlabMirrorTableRegistry updatedRegistry =
         upsertRegistry(config, option, sourceSchema, mirrorTableName, schemaFingerprint, true);
+    SourceTableSchema mirrorSchema =
+        new SourceTableSchema(
+            mirrorTableName,
+            sourceSchema.primaryKeys(),
+            sourceSchema.updatedAtColumn(),
+            sourceSchema.columns());
+    indexService.ensureIndexes(option.tableName(), mirrorTableName, mirrorSchema);
     return new PreparedMirrorTable(
-        new SourceTableSchema(mirrorTableName, sourceSchema.primaryKeys(), sourceSchema.updatedAtColumn(), sourceSchema.columns()),
+        mirrorSchema,
         mirrorTableName,
         !schemaChanged,
         updatedRegistry);

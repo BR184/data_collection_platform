@@ -111,6 +111,12 @@ public class SyncRunWorkerService {
     if (drainResult.yielded()) {
       return false;
     }
+    SyncRunTableWorkerService.RunTableTaskSummary summary =
+        tableWorkerService.summarizeRun(run.getId());
+    if (summary.retryingTasks() > 0) {
+      deferMirrorRunForTables(run, summary);
+      return false;
+    }
     SyncRunAuthoritativeScopeWorkerService.DrainResult scopeDrain =
         authoritativeScopeWorkerService.drainRunScopes(run, resolveTableWorkerCount(run));
     if (scopeDrain.yielded()) {
@@ -133,9 +139,9 @@ public class SyncRunWorkerService {
         if (reconciliationDrain.yielded()) {
           return false;
         }
+        summary = tableWorkerService.summarizeRun(run.getId());
       }
     }
-    SyncRunTableWorkerService.RunTableTaskSummary summary = tableWorkerService.summarizeRun(run.getId());
     planned = Math.max(planned, summary.plannedTasks());
     run.setScannedRows(summary.scannedRows());
     run.setAppliedRows(summary.appliedRows());
@@ -160,6 +166,25 @@ public class SyncRunWorkerService {
         summary.completedTasks(),
         errorMessage);
     return true;
+  }
+
+  private void deferMirrorRunForTables(
+      SyncRun run, SyncRunTableWorkerService.RunTableTaskSummary summary) {
+    LocalDateTime runAfter =
+        summary.nextRunAfter() == null
+            ? LocalDateTime.now().plusSeconds(5)
+            : summary.nextRunAfter();
+    String message = "表任务等待重试";
+    run.setScannedRows(summary.scannedRows());
+    run.setAppliedRows(summary.appliedRows());
+    run.setStatus(SyncRunStatus.RETRYING);
+    run.setRunAfter(runAfter);
+    run.setErrorMessage(message);
+    if (leaseService.deferOwnedRun(run, SyncRunStatus.RETRYING, runAfter, message) != 1) {
+      throw new SyncRunLeaseLostException(run.getId());
+    }
+    run.setLeaseOwner(null);
+    run.setLeaseUntil(null);
   }
 
   private void deferMirrorRunForScopes(

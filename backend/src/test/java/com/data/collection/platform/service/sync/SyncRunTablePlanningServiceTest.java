@@ -28,6 +28,7 @@ import com.data.collection.platform.mapper.SyncRunMapper;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
 import com.data.collection.platform.mapper.SyncRunTableTaskMapper;
 import com.data.collection.platform.service.GitlabConfigService;
+import com.data.collection.platform.service.GitlabMirrorSchemaService;
 import com.data.collection.platform.service.GitlabWhitelistService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
@@ -36,6 +37,7 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 class SyncRunTablePlanningServiceTest {
   private SyncRunMapper syncRunMapper;
@@ -43,6 +45,7 @@ class SyncRunTablePlanningServiceTest {
   private SyncRunTableTaskMapper taskMapper;
   private GitlabConfigService configService;
   private GitlabWhitelistService whitelistService;
+  private GitlabMirrorSchemaService mirrorSchemaService;
   private SyncRunAuthoritativeScopePlanner authoritativeScopePlanner;
   private SyncRunAuthoritativeScopeRepository authoritativeScopeRepository;
   private GitlabMirrorProperties mirrorProperties;
@@ -55,6 +58,7 @@ class SyncRunTablePlanningServiceTest {
     taskMapper = mock(SyncRunTableTaskMapper.class);
     configService = mock(GitlabConfigService.class);
     whitelistService = mock(GitlabWhitelistService.class);
+    mirrorSchemaService = mock(GitlabMirrorSchemaService.class);
     authoritativeScopePlanner = mock(SyncRunAuthoritativeScopePlanner.class);
     authoritativeScopeRepository = mock(SyncRunAuthoritativeScopeRepository.class);
     mirrorProperties = new GitlabMirrorProperties();
@@ -66,9 +70,37 @@ class SyncRunTablePlanningServiceTest {
             new JsonUtils(new ObjectMapper()),
             configService,
             whitelistService,
+            mirrorSchemaService,
             mirrorProperties,
             authoritativeScopePlanner,
             authoritativeScopeRepository);
+  }
+
+  @Test
+  void test_whitelist_schema_is_prepared_before_any_table_task_is_enqueued() {
+    SyncRun run = run(SyncRunType.INCREMENTAL_SYNC);
+    GitlabSyncConfig config = config();
+    List<TableWhitelistOption> options =
+        List.of(
+            option("issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
+            option("projects", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
+            option("users", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
+            option(
+                "resource_label_events",
+                "id",
+                "",
+                SourceCursorStrategy.PRIMARY_KEY_KEYSET));
+    when(syncRunMapper.selectById(77L)).thenReturn(run);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(configService.isSourceConfigured(config)).thenReturn(true);
+    when(whitelistService.resolveOptions(config)).thenReturn(options);
+    assignStateIds();
+
+    assertThat(planningService.planRunTables(77L)).isEqualTo(4);
+
+    InOrder order = org.mockito.Mockito.inOrder(mirrorSchemaService, taskMapper);
+    order.verify(mirrorSchemaService).prepareMirrorTablesForRun(config, options);
+    order.verify(taskMapper, times(4)).insert(any(SyncRunTableTask.class));
   }
 
   @Test

@@ -65,7 +65,8 @@ class GitlabDirectJdbcExecutor implements AutoCloseable {
         statement.execute("select 1");
         return null;
       } catch (Exception e) {
-        throw new BizException("GitLab PostgreSQL connection failed: " + e.getMessage());
+        throw GitlabSourceAccessException.from(
+            "GitLab PostgreSQL connection failed: " + e.getMessage(), e);
       }
     });
   }
@@ -80,7 +81,8 @@ class GitlabDirectJdbcExecutor implements AutoCloseable {
             return readRows(resultSet);
           }
         } catch (Exception e) {
-          throw new BizException("Failed to query GitLab database: " + e.getMessage());
+          throw GitlabSourceAccessException.from(
+              "Failed to query GitLab database: " + e.getMessage(), e);
         }
       });
     } catch (BizException e) {
@@ -109,8 +111,9 @@ class GitlabDirectJdbcExecutor implements AutoCloseable {
                 return readRows(resultSet);
               }
             } catch (Exception error) {
-              throw new BizException(
-                  "Failed to query GitLab database with parameters: " + error.getMessage());
+              throw GitlabSourceAccessException.from(
+                  "Failed to query GitLab database with parameters: " + error.getMessage(),
+                  error);
             }
           });
     } catch (BizException error) {

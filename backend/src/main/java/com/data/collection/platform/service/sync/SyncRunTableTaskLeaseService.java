@@ -24,13 +24,14 @@ public class SyncRunTableTaskLeaseService {
         jdbcTemplate.update(
             """
             update sync_run_table_tasks
-               set status = 'QUEUED',
+               set status = 'RETRYING',
                    retry_count = retry_count + 1,
                    lease_owner = null,
                    lease_until = null,
                    heartbeat_at = null,
-                   last_error = '表任务租约超时，已重新排队',
-                   run_after = current_timestamp,
+                   last_error = '表任务租约超时，已进入退避重试',
+                   run_after = current_timestamp
+                       + (least(300, 5 * power(2, retry_count)) * interval '1 second'),
                    updated_at = current_timestamp
              where status = 'RUNNING'
                and lease_until is not null
@@ -259,7 +260,8 @@ public class SyncRunTableTaskLeaseService {
     return "Parent sync run finished with status " + runStatus.name();
   }
 
-  public SyncRunTableTask claimNextQueuedTask(Long runId, String owner, int leaseSeconds) {
+  /** 领取指定运行中已到期的排队或重试表任务，并建立 owner 租约。 */
+  public SyncRunTableTask claimNextRunnableTask(Long runId, String owner, int leaseSeconds) {
     try {
       return jdbcTemplate.queryForObject(
           """
@@ -274,7 +276,8 @@ public class SyncRunTableTaskLeaseService {
              select candidate.id
                from sync_run_table_tasks candidate
               where candidate.run_id = ?
-                and candidate.status = 'QUEUED'
+                and candidate.status in ('QUEUED', 'RETRYING')
+                and candidate.run_after <= current_timestamp
               order by candidate.run_after asc, candidate.created_at asc, candidate.id asc
               for update skip locked
               limit 1
@@ -288,6 +291,53 @@ public class SyncRunTableTaskLeaseService {
     } catch (EmptyResultDataAccessException ex) {
       return null;
     }
+  }
+
+  /**
+   * 把当前 owner 持有的瞬时失败任务原子转为同任务退避重试。
+   *
+   * <p>该转换不修改扫描游标、水位或完成时间；只有有效租约且尚有重试额度时成功。
+   */
+  public boolean deferOwnedTask(
+      Long taskId,
+      String owner,
+      Long rowsScanned,
+      Long rowsApplied,
+      LocalDateTime runAfter,
+      String errorMessage) {
+    if (taskId == null
+        || owner == null
+        || owner.isBlank()
+        || runAfter == null) {
+      return false;
+    }
+    return jdbcTemplate.update(
+            """
+            update sync_run_table_tasks
+               set status = 'RETRYING',
+                   retry_count = retry_count + 1,
+                   rows_scanned = coalesce(?, rows_scanned),
+                   rows_applied = coalesce(?, rows_applied),
+                   run_after = ?,
+                   last_error = ?,
+                   lease_owner = null,
+                   lease_until = null,
+                   heartbeat_at = null,
+                   finished_at = null,
+                   updated_at = current_timestamp
+             where id = ?
+               and lease_owner = ?
+               and status = 'RUNNING'
+               and lease_until >= current_timestamp
+               and retry_count < max_retry_count
+            """,
+            rowsScanned,
+            rowsApplied,
+            runAfter,
+            errorMessage,
+            taskId,
+            owner)
+        == 1;
   }
 
   /**

@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.sync.SyncRunTableTask;
 import java.sql.ResultSet;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -35,7 +36,7 @@ class SyncRunTableTaskLeaseServiceTest {
     int recovered = leaseService.recoverTimedOutTasks();
 
     assertThat(recovered).isEqualTo(3);
-    verify(jdbcTemplate).update(contains("last_error = '表任务租约超时，已重新排队'"));
+    verify(jdbcTemplate).update(contains("last_error = '表任务租约超时，已进入退避重试'"));
     verify(jdbcTemplate).update(contains("last_error = '表任务租约超时'"));
   }
 
@@ -49,16 +50,73 @@ class SyncRunTableTaskLeaseServiceTest {
             eq(77L)))
         .thenThrow(new EmptyResultDataAccessException(1));
 
-    SyncRunTableTask task = leaseService.claimNextQueuedTask(77L, "owner-1", 0);
+    SyncRunTableTask task = leaseService.claimNextRunnableTask(77L, "owner-1", 0);
 
     assertThat(task).isNull();
     verify(jdbcTemplate)
         .queryForObject(
-            contains("candidate.status = 'QUEUED'"),
+            contains("candidate.status in ('QUEUED', 'RETRYING')"),
             any(RowMapper.class),
             eq("owner-1"),
             eq(1),
             eq(77L));
+  }
+
+  @Test
+  void test_claim_only_selects_queued_or_due_retrying_tasks() {
+    when(jdbcTemplate.queryForObject(
+            contains("for update skip locked"),
+            any(RowMapper.class),
+            eq("owner-1"),
+            eq(30),
+            eq(77L)))
+        .thenThrow(new EmptyResultDataAccessException(1));
+
+    leaseService.claimNextRunnableTask(77L, "owner-1", 30);
+
+    verify(jdbcTemplate)
+        .queryForObject(
+            org.mockito.ArgumentMatchers.<String>argThat(
+                sql ->
+                    sql.contains("candidate.status in ('QUEUED', 'RETRYING')")
+                        && sql.contains("candidate.run_after <= current_timestamp")),
+            any(RowMapper.class),
+            eq("owner-1"),
+            eq(30),
+            eq(77L));
+  }
+
+  @Test
+  void test_transient_failure_defers_same_owned_task_without_advancing_cursor() {
+    LocalDateTime runAfter = LocalDateTime.of(2026, 8, 10, 12, 0, 5);
+    when(jdbcTemplate.update(
+            contains("set status = 'RETRYING'"),
+            eq(2L),
+            eq(1L),
+            eq(runAfter),
+            eq("连接暂时不可用"),
+            eq(501L),
+            eq("owner-1")))
+        .thenReturn(1);
+
+    boolean deferred =
+        leaseService.deferOwnedTask(
+            501L, "owner-1", 2L, 1L, runAfter, "连接暂时不可用");
+
+    assertThat(deferred).isTrue();
+    verify(jdbcTemplate)
+        .update(
+            org.mockito.ArgumentMatchers.<String>argThat(
+                sql ->
+                    sql.contains("retry_count = retry_count + 1")
+                        && sql.contains("cursor_updated_at") == false
+                        && sql.contains("cursor_pk") == false),
+            eq(2L),
+            eq(1L),
+            eq(runAfter),
+            eq("连接暂时不可用"),
+            eq(501L),
+            eq("owner-1"));
   }
 
   @Test
@@ -80,7 +138,7 @@ class SyncRunTableTaskLeaseServiceTest {
               return mapper.mapRow(resultSet, 0);
             });
 
-    SyncRunTableTask task = leaseService.claimNextQueuedTask(77L, "owner-1", 30);
+    SyncRunTableTask task = leaseService.claimNextRunnableTask(77L, "owner-1", 30);
 
     assertThat(task.getLookupScopeJson())
         .isEqualTo("{\"target_id\":\"101\",\"target_type\":\"Issue\"}");

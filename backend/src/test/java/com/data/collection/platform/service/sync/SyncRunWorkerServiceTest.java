@@ -173,6 +173,8 @@ class SyncRunWorkerServiceTest {
     when(tablePlanningService.planRunTables(21L)).thenReturn(2);
     when(tableWorkerService.drainRunTasks(run, 2))
         .thenReturn(new SyncRunTableWorkerService.DrainResult(2, false));
+    when(tableWorkerService.summarizeRun(21L))
+        .thenReturn(new SyncRunTableWorkerService.RunTableTaskSummary(2, 2, 4L, 2L));
     when(authoritativeScopeWorkerService.summarize(21L))
         .thenReturn(
             new SyncRunAuthoritativeScopeRepository.ScopeSummary(
@@ -186,7 +188,31 @@ class SyncRunWorkerServiceTest {
     verify(leaseService)
         .deferOwnedRun(run, SyncRunStatus.RETRYING, retryAt, "权威关系范围等待重试");
     verify(reconciliationCoordinator, never()).planIfReady(21L);
-    verify(tableWorkerService, never()).summarizeRun(21L);
+    verify(tableWorkerService).summarizeRun(21L);
+    verify(completionCommitService, never()).finishOwnedRun(run);
+  }
+
+  @Test
+  void test_retrying_table_defers_same_run_even_when_another_table_failed() {
+    SyncRun run = run(25L, SyncRunType.INCREMENTAL_SYNC);
+    LocalDateTime retryAt = LocalDateTime.now().plusSeconds(5);
+    when(tablePlanningService.planRunTables(25L)).thenReturn(3);
+    when(tableWorkerService.drainRunTasks(run, 2))
+        .thenReturn(new SyncRunTableWorkerService.DrainResult(3, false));
+    when(tableWorkerService.summarizeRun(25L))
+        .thenReturn(
+            new SyncRunTableWorkerService.RunTableTaskSummary(
+                3, 1, 10L, 4L, 1, 0, 0, 0, 0, 1, retryAt));
+    when(leaseService.deferOwnedRun(any(), any(), any(), any())).thenReturn(1);
+
+    workerService.executeRun(run);
+
+    assertThat(run.getStatus()).isEqualTo(SyncRunStatus.RETRYING);
+    assertThat(run.getRunAfter()).isEqualTo(retryAt);
+    verify(leaseService)
+        .deferOwnedRun(run, SyncRunStatus.RETRYING, retryAt, "表任务等待重试");
+    verify(authoritativeScopeWorkerService, never())
+        .drainRunScopes(any(SyncRun.class), anyInt());
     verify(completionCommitService, never()).finishOwnedRun(run);
   }
 

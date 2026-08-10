@@ -51,6 +51,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.dao.TransientDataAccessResourceException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 
@@ -70,6 +71,7 @@ class SyncRunTableWorkerServiceTest {
   private FactChangeTargetService factChangeTargetService;
   private SyncRunReconciliationCoordinator reconciliationCoordinator;
   private SyncRunYieldService yieldService;
+  private SyncTableTaskFailurePolicy failurePolicy;
   private SyncRunTableTaskExecutor taskExecutor;
   private SyncRunTableWorkerService workerService;
 
@@ -91,6 +93,7 @@ class SyncRunTableWorkerServiceTest {
         org.mockito.Mockito.mock(SyncRunAuthoritativeScopePlanner.class);
     heartbeatService = new SyncRunTableTaskHeartbeatService(taskLeaseService, properties);
     yieldService = org.mockito.Mockito.mock(SyncRunYieldService.class);
+    failurePolicy = new SyncTableTaskFailurePolicy();
     factChangeTargetService = org.mockito.Mockito.mock(FactChangeTargetService.class);
     when(factChangeTargetService.registerChanges(anyLong(), anyLong(), any(), any(), any()))
         .thenReturn(List.of());
@@ -116,7 +119,8 @@ class SyncRunTableWorkerServiceTest {
             configService,
             sourceTableReader,
             mirrorSchemaService,
-            mirrorTableWriter);
+            mirrorTableWriter,
+            failurePolicy);
     workerService =
         new SyncRunTableWorkerService(
             jdbcTemplate,
@@ -636,6 +640,44 @@ class SyncRunTableWorkerServiceTest {
     assertThat(state.getLastDeleteReconciledAt()).isNull();
     assertThat(state.getDirtyFlag()).isTrue();
     assertThat(state.getLastError()).isEqualTo("GitLab source unavailable");
+  }
+
+  @Test
+  void test_transient_table_failure_retries_same_task_without_dirtying_table_state() {
+    SyncRunTableTask task = task(LocalDateTime.of(2026, 8, 10, 10, 0));
+    SyncRunTableState state = state(LocalDateTime.of(2026, 8, 10, 10, 0));
+    GitlabSyncConfig config = config();
+
+    when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(77L)))
+        .thenReturn(false, false, false);
+    when(jdbcTemplate.queryForObject(
+            contains("update sync_run_table_tasks"),
+            any(RowMapper.class),
+            startsWith("table-worker-77-"),
+            eq(30),
+            eq(77L)))
+        .thenReturn(task)
+        .thenThrow(new EmptyResultDataAccessException(1));
+    when(stateMapper.selectById(91L)).thenReturn(state);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(eq(config), any()))
+        .thenThrow(new TransientDataAccessResourceException("连接暂时不可用"));
+
+    int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
+
+    assertThat(processed).isEqualTo(1);
+    assertThat(state.getDirtyFlag()).isFalse();
+    assertThat(state.getLastError()).isNull();
+    verify(jdbcTemplate)
+        .update(
+            contains("set status = 'RETRYING'"),
+            eq(0L),
+            eq(0L),
+            any(LocalDateTime.class),
+            eq("连接暂时不可用"),
+            eq(501L),
+            eq(task.getLeaseOwner()));
+    verify(stateMapper, never()).updateById(state);
   }
 
   @Test

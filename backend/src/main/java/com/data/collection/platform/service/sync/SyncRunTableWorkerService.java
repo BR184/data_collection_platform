@@ -80,7 +80,7 @@ public class SyncRunTableWorkerService {
       SyncRunTableTask task;
       while (!yieldRequested.get()
           && !isRunCancellationRequested(runId)
-          && (task = claimNextQueuedTask(runId, owner, heartbeatService.leaseSeconds())) != null) {
+          && (task = claimNextRunnableTask(runId, owner, heartbeatService.leaseSeconds())) != null) {
         if (isRunCancellationRequested(runId)) {
           taskLeaseService.finishOwnedTask(
               task.getId(),
@@ -152,6 +152,7 @@ public class SyncRunTableWorkerService {
                count(*) filter (where status = 'QUEUED') as pending_tasks,
                count(*) filter (where status = 'RUNNING') as running_tasks,
                count(*) filter (where status = 'RETRYING') as retrying_tasks,
+               min(run_after) filter (where status = 'RETRYING') as next_run_after,
                coalesce(sum(rows_scanned), 0) as scanned_rows,
                coalesce(sum(rows_applied), 0) as applied_rows
           from sync_run_table_tasks
@@ -168,7 +169,10 @@ public class SyncRunTableWorkerService {
                 rs.getInt("cancelled_tasks"),
                 rs.getInt("pending_tasks"),
                 rs.getInt("running_tasks"),
-                rs.getInt("retrying_tasks")),
+                rs.getInt("retrying_tasks"),
+                rs.getTimestamp("next_run_after") == null
+                    ? null
+                    : rs.getTimestamp("next_run_after").toLocalDateTime()),
         runId);
   }
 
@@ -188,8 +192,9 @@ public class SyncRunTableWorkerService {
     taskLeaseService.cancelQueuedTasks(runId);
   }
 
-  public SyncRunTableTask claimNextQueuedTask(Long runId, String owner, int leaseSeconds) {
-    return taskLeaseService.claimNextQueuedTask(runId, owner, leaseSeconds);
+  /** 领取指定运行中已到期的排队或重试表任务。 */
+  public SyncRunTableTask claimNextRunnableTask(Long runId, String owner, int leaseSeconds) {
+    return taskLeaseService.claimNextRunnableTask(runId, owner, leaseSeconds);
   }
 
   public record RunTableTaskSummary(
@@ -202,9 +207,35 @@ public class SyncRunTableWorkerService {
       int cancelledTasks,
       int pendingTasks,
       int runningTasks,
-      int retryingTasks) {
+      int retryingTasks,
+      java.time.LocalDateTime nextRunAfter) {
     public RunTableTaskSummary(int plannedTasks, int completedTasks, long scannedRows, long appliedRows) {
-      this(plannedTasks, completedTasks, scannedRows, appliedRows, 0, 0, 0, 0, 0, 0);
+      this(plannedTasks, completedTasks, scannedRows, appliedRows, 0, 0, 0, 0, 0, 0, null);
+    }
+
+    public RunTableTaskSummary(
+        int plannedTasks,
+        int completedTasks,
+        long scannedRows,
+        long appliedRows,
+        int failedTasks,
+        int timedOutTasks,
+        int cancelledTasks,
+        int pendingTasks,
+        int runningTasks,
+        int retryingTasks) {
+      this(
+          plannedTasks,
+          completedTasks,
+          scannedRows,
+          appliedRows,
+          failedTasks,
+          timedOutTasks,
+          cancelledTasks,
+          pendingTasks,
+          runningTasks,
+          retryingTasks,
+          null);
     }
   }
 

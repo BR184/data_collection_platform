@@ -18,6 +18,7 @@ import com.data.collection.platform.mapper.SyncRunTableStateMapper;
 import com.data.collection.platform.mapper.SyncRunTableTaskMapper;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
+import com.data.collection.platform.service.GitlabMirrorSchemaService;
 import com.data.collection.platform.service.GitlabWhitelistService;
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
@@ -39,6 +40,7 @@ public class SyncRunTablePlanningService {
   private final JsonUtils jsonUtils;
   private final GitlabConfigService configService;
   private final GitlabWhitelistService whitelistService;
+  private final GitlabMirrorSchemaService mirrorSchemaService;
   private final GitlabMirrorProperties mirrorProperties;
   private final SyncRunAuthoritativeScopePlanner authoritativeScopePlanner;
   private final SyncRunAuthoritativeScopeRepository authoritativeScopeRepository;
@@ -50,6 +52,7 @@ public class SyncRunTablePlanningService {
       JsonUtils jsonUtils,
       GitlabConfigService configService,
       GitlabWhitelistService whitelistService,
+      GitlabMirrorSchemaService mirrorSchemaService,
       GitlabMirrorProperties mirrorProperties,
       SyncRunAuthoritativeScopePlanner authoritativeScopePlanner,
       SyncRunAuthoritativeScopeRepository authoritativeScopeRepository) {
@@ -59,6 +62,7 @@ public class SyncRunTablePlanningService {
     this.jsonUtils = jsonUtils;
     this.configService = configService;
     this.whitelistService = whitelistService;
+    this.mirrorSchemaService = mirrorSchemaService;
     this.mirrorProperties = mirrorProperties;
     this.authoritativeScopePlanner = authoritativeScopePlanner;
     this.authoritativeScopeRepository = authoritativeScopeRepository;
@@ -79,6 +83,7 @@ public class SyncRunTablePlanningService {
     if (shouldPlanFromWhitelist(run, sourceTables)) {
       return planWhitelistTables(run, sourceTables, existingTaskKeys);
     }
+    prepareAvailableMirrorTables(run);
     LocalDateTime now = LocalDateTime.now();
     int planned = existingTaskKeys.size();
     for (String sourceTable : sourceTables) {
@@ -108,6 +113,7 @@ public class SyncRunTablePlanningService {
     GitlabSyncConfig config = configService.getConfigById(run.getConfigId());
     ensureSourceConfigured(config);
     List<TableWhitelistOption> options = whitelistService.resolveOptions(config);
+    mirrorSchemaService.prepareMirrorTablesForRun(config, options);
     if (requestedTables != null && !requestedTables.isEmpty()) {
       options =
           options.stream()
@@ -150,8 +156,10 @@ public class SyncRunTablePlanningService {
   private int planPreciseTargets(SyncRun run, List<SyncRunPayload.PreciseTarget> targets, Set<String> existingTaskKeys) {
     GitlabSyncConfig config = configService.getConfigById(run.getConfigId());
     ensureSourceConfigured(config);
+    List<TableWhitelistOption> options = whitelistService.resolveOptions(config);
+    mirrorSchemaService.prepareMirrorTablesForRun(config, options);
     Map<String, TableWhitelistOption> optionsByTable =
-        whitelistService.resolveOptions(config).stream()
+        options.stream()
             .collect(
                 Collectors.toMap(
                     option -> GitlabSourceInstanceSupport.normalizeSourceTableName(option.tableName()),
@@ -204,6 +212,13 @@ public class SyncRunTablePlanningService {
       return;
     }
     throw new BizException("GitLab 数据源连接配置不完整，跳过外部元数据发现");
+  }
+
+  private void prepareAvailableMirrorTables(SyncRun run) {
+    GitlabSyncConfig config = configService.getConfigById(run.getConfigId());
+    ensureSourceConfigured(config);
+    mirrorSchemaService.prepareMirrorTablesForRun(
+        config, whitelistService.resolveOptions(config));
   }
 
   private boolean isRunnableForRun(TableWhitelistOption option) {
