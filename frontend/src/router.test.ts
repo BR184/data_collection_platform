@@ -201,6 +201,54 @@ describe('router query normalization', () => {
       keyword: '核心',
     });
   });
+
+  it('keeps the stable product version across BI stages and limits coding filters', () => {
+    const coding = router.resolve({
+      path: '/bi-dashboard/coding',
+      query: {
+        productVersionId: '10',
+        granularity: 'week',
+        source: 'cc',
+        repositoryId: 'repo-1',
+        testingPhase: 'drop',
+      },
+    });
+    expect(normalizeQuery(coding)).toEqual({
+      productVersionId: '10',
+      granularity: 'week',
+      source: 'cc',
+      repositoryId: 'repo-1',
+    });
+
+    const systemTest = router.resolve({
+      path: '/bi-dashboard/system-test',
+      query: { productVersionId: '10', source: 'cc' },
+    });
+    expect(normalizeQuery(systemTest)).toEqual({ productVersionId: '10' });
+  });
+
+  it('uses the managed BI default when entering the module without an explicit version', () => {
+    sessionStorage.setItem('route-query:productVersionId', '9');
+    const to = router.resolve('/bi-dashboard/system-test');
+    const from = router.resolve('/quality-board/rd-quality-board');
+
+    expect(normalizeQuery(to, from)).toBeNull();
+  });
+
+  it('carries the current product version only while navigating inside the BI module', () => {
+    sessionStorage.setItem('route-query:productVersionId', '9');
+    const from = router.resolve('/bi-dashboard/coding?productVersionId=10');
+    const to = router.resolve('/bi-dashboard/system-test');
+
+    expect(normalizeQuery(to, from)).toEqual({ productVersionId: '10' });
+  });
+
+  it('keeps an explicit BI deep-link version instead of replacing it with the current selection', () => {
+    const from = router.resolve('/bi-dashboard/coding?productVersionId=10');
+    const to = router.resolve('/bi-dashboard/system-test?productVersionId=11');
+
+    expect(normalizeQuery(to, from)).toBeNull();
+  });
 });
 
 describe('router access guard', () => {
@@ -226,5 +274,12 @@ describe('router access guard', () => {
     const to = router.resolve('/system-settings/mirror-settings');
 
     expect(routeAccessRedirect(to, { permissions: [], authenticated: false })).toBe('/quality-board/rd-quality-board');
+  });
+
+  it('protects all BI stage routes with the shared view permission', () => {
+    const to = router.resolve('/bi-dashboard/system-test');
+    expect(routeAccessRedirect(to, { permissions: ['quality.rd.view'], authenticated: true }))
+      .toBe('/quality-board/rd-quality-board');
+    expect(routeAccessRedirect(to, { permissions: ['bi.dashboard.view'], authenticated: true })).toBeNull();
   });
 });

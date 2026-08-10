@@ -1,6 +1,8 @@
 package com.data.collection.platform.service.sync;
 
 import com.data.collection.platform.entity.FactType;
+import com.data.collection.platform.entity.SourceTableSchema;
+import com.data.collection.platform.entity.sync.IncrementalReadMode;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -26,15 +28,20 @@ public final class GitlabSourceLineageCatalog {
           dimension("milestones", List.of("id"), FactType.ISSUE),
           direct("issues", List.of("id"), FactType.ISSUE, FactType.INTEGRATION_TEST),
           direct("issue_assignees", List.of("issue_id", "user_id"), FactType.ISSUE),
-          direct("issue_metrics", List.of("issue_id"), FactType.ISSUE),
+          direct("issue_metrics", List.of("id"), FactType.ISSUE),
           polymorphic("notes", List.of("id"), FactType.ISSUE, FactType.MERGE_REQUEST, FactType.INTEGRATION_TEST),
           dimension("labels", List.of("id"), FactType.ISSUE, FactType.MERGE_REQUEST, FactType.INTEGRATION_TEST),
           polymorphic("label_links", List.of("id"), FactType.ISSUE, FactType.MERGE_REQUEST, FactType.INTEGRATION_TEST),
           signal("resource_label_events", List.of("id"), FactType.ISSUE, FactType.MERGE_REQUEST),
           direct("merge_requests", List.of("id"), FactType.MERGE_REQUEST),
-          direct("merge_request_assignees", List.of("merge_request_id", "user_id"), FactType.MERGE_REQUEST),
-          direct("merge_request_reviewers", List.of("merge_request_id", "user_id"), FactType.MERGE_REQUEST),
-          direct("merge_request_metrics", List.of("merge_request_id"), FactType.MERGE_REQUEST),
+          direct("merge_request_assignees", List.of("id"), FactType.MERGE_REQUEST),
+          direct("merge_request_reviewers", List.of("id"), FactType.MERGE_REQUEST),
+          direct("merge_request_metrics", List.of("id"), FactType.MERGE_REQUEST),
+          direct("merge_request_diffs", List.of("id"), FactType.MERGE_REQUEST),
+          direct(
+              "merge_request_diff_commits",
+              List.of("merge_request_diff_id", "relative_order"),
+              FactType.MERGE_REQUEST),
           noConsumer("ci_pipelines", List.of("id")),
           noConsumer("ci_builds", List.of("id", "partition_id")),
           noConsumer("deployments", List.of("id")),
@@ -102,6 +109,18 @@ public final class GitlabSourceLineageCatalog {
               "id",
               "merge_request_metrics",
               "merge_request_id"),
+          Relation.simple(
+              "merge-request-diffs",
+              "merge_requests",
+              "id",
+              "merge_request_diffs",
+              "merge_request_id"),
+          Relation.simple(
+              "merge-request-diff-commits",
+              "merge_request_diffs",
+              "id",
+              "merge_request_diff_commits",
+              "merge_request_diff_id"),
           new Relation(
               "merge-request-notes",
               "merge_requests",
@@ -152,6 +171,14 @@ public final class GitlabSourceLineageCatalog {
         .orElseThrow(() -> new IllegalArgumentException("GitLab 来源表尚未声明血缘：" + normalized));
   }
 
+  /** 返回来源定义；非推荐来源为空。 */
+  public static java.util.Optional<SourceDefinition> findSource(String tableName) {
+    String normalized = normalize(tableName);
+    return SOURCES.stream()
+        .filter(source -> source.tableName().equals(normalized))
+        .findFirst();
+  }
+
   /** 返回由指定父表变更驱动的权威关系。 */
   public static List<Relation> relationsForParent(String parentTable) {
     String normalizedParent = normalize(parentTable);
@@ -199,16 +226,128 @@ public final class GitlabSourceLineageCatalog {
 
   private static SourceDefinition source(
       String table, List<String> primaryKeys, DerivationKind kind, FactType... consumers) {
+    IncrementalContract incrementalContract = incrementalContract(table);
     return new SourceDefinition(
         normalize(table),
         List.copyOf(primaryKeys),
         true,
         kind,
-        Set.of(consumers));
+        Set.of(consumers),
+        incrementalContract.readMode(),
+        incrementalContract.updatedAtColumn(),
+        incrementalContract.requiredForIncremental(),
+        requiredColumns(table, primaryKeys, incrementalContract));
+  }
+
+  private static List<String> requiredColumns(
+      String table, List<String> primaryKeys, IncrementalContract contract) {
+    LinkedHashSet<String> required = new LinkedHashSet<>(primaryKeys);
+    if (contract.updatedAtColumn() != null) {
+      required.add(contract.updatedAtColumn());
+    }
+    switch (normalize(table)) {
+      case "resource_label_events" -> {
+        required.add("issue_id");
+        required.add("merge_request_id");
+      }
+      case "notes" -> {
+        required.add("noteable_id");
+        required.add("noteable_type");
+      }
+      default -> {
+        // 主键和更新时间列已经构成当前来源的最小增量读取契约。
+      }
+    }
+    return List.copyOf(required);
+  }
+
+  private static IncrementalContract incrementalContract(String tableName) {
+    return switch (normalize(tableName)) {
+      case "resource_label_events" ->
+          new IncrementalContract(
+              IncrementalReadMode.MONOTONIC_PRIMARY_KEY,
+              null,
+              true);
+      case "user_details",
+          "issue_assignees",
+          "merge_request_assignees",
+          "merge_request_reviewers",
+          "merge_request_diff_commits" ->
+          new IncrementalContract(IncrementalReadMode.RECONCILE_ONLY, null, false);
+      case "users",
+          "projects",
+          "namespaces",
+          "members",
+          "milestones",
+          "issues",
+          "issue_metrics",
+          "notes",
+          "labels",
+          "label_links",
+          "merge_requests",
+          "merge_request_metrics",
+          "merge_request_diffs",
+          "ci_pipelines",
+          "ci_builds",
+          "deployments",
+          "environments",
+          "events",
+          "todos" ->
+          new IncrementalContract(
+              IncrementalReadMode.UPDATED_AT,
+              "updated_at",
+              "issues".equals(normalize(tableName)));
+      default ->
+          throw new IllegalArgumentException(
+              "GitLab 推荐来源表缺少显式增量读取契约：" + normalize(tableName));
+    };
   }
 
   private static String normalize(String tableName) {
     return GitlabSourceInstanceSupport.normalizeSourceTableName(tableName);
+  }
+
+  /** 在任务首次读取前校验 GitLab 物理表是否满足声明的增量契约。 */
+  public static void validatePhysicalSchema(String tableName, SourceTableSchema schema) {
+    SourceDefinition definition = findSource(tableName).orElse(null);
+    if (definition == null) {
+      return;
+    }
+    if (schema == null) {
+      throw new IllegalStateException("GitLab 来源表结构为空：" + definition.tableName());
+    }
+    if (!definition.primaryKeys().equals(schema.primaryKeys())) {
+      throw new IllegalStateException(
+          "GitLab 来源表主键与 16.11 契约不一致："
+              + definition.tableName()
+              + "，期望="
+              + definition.primaryKeys()
+              + "，实际="
+              + schema.primaryKeys());
+    }
+    Set<String> actualColumns =
+        schema.columns().stream()
+            .map(column -> column.columnName().toLowerCase(java.util.Locale.ROOT))
+            .collect(java.util.stream.Collectors.toSet());
+    List<String> missingColumns =
+        definition.requiredColumns().stream()
+            .filter(column -> !actualColumns.contains(column.toLowerCase(java.util.Locale.ROOT)))
+            .toList();
+    if (!missingColumns.isEmpty()) {
+      throw new IllegalStateException(
+          "GitLab 来源表缺少增量契约字段："
+              + definition.tableName()
+              + "."
+              + String.join(",", missingColumns));
+    }
+    if (definition.incrementalReadMode() == IncrementalReadMode.UPDATED_AT
+        && !definition.incrementalUpdatedAtColumn().equals(schema.updatedAtColumn())) {
+      throw new IllegalStateException(
+          "GitLab 来源表更新时间列与 16.11 契约不一致："
+              + definition.tableName()
+              + "."
+              + definition.incrementalUpdatedAtColumn());
+    }
   }
 
   /** 来源表对删除探测和派生发布的声明。 */
@@ -217,13 +356,32 @@ public final class GitlabSourceLineageCatalog {
       List<String> primaryKeys,
       boolean deletionDetectionEnabled,
       DerivationKind derivationKind,
-      Set<FactType> factConsumers) {
+      Set<FactType> factConsumers,
+      IncrementalReadMode incrementalReadMode,
+      String incrementalUpdatedAtColumn,
+      boolean requiredForIncremental,
+      List<String> requiredColumns) {
     public SourceDefinition {
       tableName = normalize(tableName);
       primaryKeys = List.copyOf(primaryKeys);
       factConsumers = Set.copyOf(factConsumers);
+      requiredColumns = List.copyOf(requiredColumns);
+      if (incrementalReadMode == null) {
+        throw new IllegalArgumentException("GitLab 来源表必须声明增量读取模式：" + tableName);
+      }
+      if (incrementalReadMode == IncrementalReadMode.UPDATED_AT
+          && (incrementalUpdatedAtColumn == null || incrementalUpdatedAtColumn.isBlank())) {
+        throw new IllegalArgumentException("时间增量来源必须声明更新时间列：" + tableName);
+      }
+      if (incrementalReadMode != IncrementalReadMode.UPDATED_AT
+          && incrementalUpdatedAtColumn != null) {
+        throw new IllegalArgumentException("非时间增量来源不能声明更新时间列：" + tableName);
+      }
       if (primaryKeys.isEmpty()) {
         throw new IllegalArgumentException("GitLab 来源表必须声明主键：" + tableName);
+      }
+      if (!requiredColumns.containsAll(primaryKeys)) {
+        throw new IllegalArgumentException("GitLab 来源表必需字段必须包含完整主键：" + tableName);
       }
       if (derivationKind == DerivationKind.NO_DERIVED_CONSUMER && !factConsumers.isEmpty()) {
         throw new IllegalArgumentException("无派生消费者来源不能声明事实类型：" + tableName);
@@ -233,6 +391,11 @@ public final class GitlabSourceLineageCatalog {
       }
     }
   }
+
+  private record IncrementalContract(
+      IncrementalReadMode readMode,
+      String updatedAtColumn,
+      boolean requiredForIncremental) {}
 
   /** 来源变化到事实根目标的解析方式。 */
   public enum DerivationKind {

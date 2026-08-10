@@ -116,5 +116,13 @@
   "V20260731_03__deduplicate_authoritative_scope_identity.sql": "041cd5b8895ba06f14b3f30261bd70fba23782d897256c05a1eb6884177265f7",
   "V20260731_04__index_pending_publication_targets.sql": "02dd3244fd23d2d2d859989ffc6d1fbf10afd27511d0c5dcef30adeebf8e9779",
   "V20260731_05__remove_legacy_compensation_run_type.sql": "397bef4b1331834853216bf26f86bb4fc9de267980c0541332fdfd267d1f0f9b",
-  "V20260803_01__page_record_snapshot_source_version_text.sql": "30e4e86e6677f88b4558029170a082637d79e20c9cfb64d91e731f1aa1e1cdda"
+  "V20260803_01__page_record_snapshot_source_version_text.sql": "30e4e86e6677f88b4558029170a082637d79e20c9cfb64d91e731f1aa1e1cdda",
+  "V20260804_01__bi_dashboard_permissions.sql": "83dc92fd52a985446e55e95cdf06d192347b2be8c0ab97ba9784c762dc53a779",
+  "V20260805_01__bi_coding_source_facts.sql": "1fd36a3d4864461efd76f9ffda335ca2366320fab685a6824050dac2688a01a8",
+  "V20260805_02__incremental_freshness_control_schema.sql": "3a8ec6306cd9ee99cb321c24b1b914a03c06f8357b30f9e9463d3e1e8f042422",
+  "V20260805_03__normalize_incremental_read_modes.sql": "e98eb8ed349760d4b4d81c73bfcd8b7e0099abb42f26a7a15e9b51caec72981c",
+  "V20260805_04__incremental_schedule_index.sql": "55581eb221317a2ea6de62de08991309604eb4da6817cd365ec1ce850417bb24",
+  "V20260806_01__bi_cat_mirror_snapshots.sql": "5a0b082d522a232731af93f5a05d19258553a73cdab61e922eb89546492be5dd",
+  "V20260806_02__move_bi_cat_runtime_limits_to_deployment.sql": "f2fcb0a79b452009b07f9a5775118e7fe971f326871fc25bfc9b5b11ce8c0659",
+  "V20260810_01__source_fact_publication_and_bi_fixes.sql": "fed0f44e4936c93e71b07afa96060a37be79c899c0f38948b9aa9e306a5f13a0"
 }

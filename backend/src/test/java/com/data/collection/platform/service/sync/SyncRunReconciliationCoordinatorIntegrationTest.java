@@ -50,6 +50,16 @@ class SyncRunReconciliationCoordinatorIntegrationTest {
   }
 
   @Test
+  void test_incremental_run_never_plans_full_table_reconciliation() {
+    insertRun(5L, "INCREMENTAL_SYNC");
+    insertScanTask(5L, 51L, "issues", "SUCCESS");
+    insertScanTask(5L, 52L, "notes", "SUCCESS");
+
+    assertThat(coordinator.planIfReady(5L)).isZero();
+    assertThat(reconciliationCount(5L)).isZero();
+  }
+
+  @Test
   void test_retry_waiting_or_failed_scope_never_looks_like_an_empty_queue() {
     insertRun(2L, "INCREMENTAL_SYNC");
     insertScanTask(2L, 21L, "issues", "SUCCESS");
@@ -63,8 +73,8 @@ class SyncRunReconciliationCoordinatorIntegrationTest {
   }
 
   @Test
-  void test_all_producers_and_scopes_success_plan_one_task_per_table_once() {
-    insertRun(3L, "INCREMENTAL_SYNC");
+  void test_full_compensation_producers_and_scopes_plan_one_task_per_table_once() {
+    insertRun(3L, "FULL_COMPENSATION_SCAN");
     insertScanTask(3L, 31L, "issues", "SUCCESS");
     insertScanTask(3L, 32L, "notes", "SUCCESS");
     insertScope(3L, "issue_assignees", "SUCCESS");
@@ -159,7 +169,10 @@ class SyncRunReconciliationCoordinatorIntegrationTest {
             id, run_id, config_id, state_id, source_instance, source_table, mirror_table,
             task_type, status, row_strategy, task_stage, page_number, batch_size, run_after,
             retry_count, max_retry_count, rows_scanned, rows_applied, created_at, updated_at)
-        values (?, ?, 1, ?, 'alpha', ?, ?, 'INCREMENTAL_SYNC', ?, 'INCREMENTAL',
+        values (?, ?, 1, ?, 'alpha', ?, ?,
+                (select run_type from sync_runs where id = ?), ?,
+                case when (select run_type from sync_runs where id = ?) = 'FULL_COMPENSATION_SCAN'
+                     then 'FULL_RECONCILE' else 'INCREMENTAL' end,
                 'SCAN', 1, 500, current_timestamp, 0, 3, 0, 0,
                 current_timestamp, current_timestamp)
         """,
@@ -168,7 +181,9 @@ class SyncRunReconciliationCoordinatorIntegrationTest {
         taskId,
         table,
         "ods_gitlab_" + table,
-        status);
+        runId,
+        status,
+        runId);
   }
 
   private void insertScope(long runId, String childTable, String status) {

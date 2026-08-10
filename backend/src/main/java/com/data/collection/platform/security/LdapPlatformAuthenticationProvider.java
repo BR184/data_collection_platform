@@ -37,9 +37,12 @@ public class LdapPlatformAuthenticationProvider implements PlatformAuthenticatio
     try {
       login = client.login(username, password);
       user = client.currentUser(login.accessToken());
-    } catch (Exception exception) {
-      log.warn("LDAP 认证失败，未创建数据平台会话: {}", exception.getMessage());
+    } catch (LdapPlatformClient.LdapInvalidCredentialsException exception) {
+      log.info("LDAP 拒绝登录凭据，未创建数据平台会话");
       return null;
+    } catch (Exception exception) {
+      log.warn("LDAP 认证服务不可用，未创建数据平台会话: {}", exception.getMessage());
+      throw new AuthenticationServiceUnavailableException("LDAP 认证服务不可用", exception);
     }
 
     Set<String> roleCodes = user.roleCodes() == null || user.roleCodes().isEmpty()
@@ -55,7 +58,7 @@ public class LdapPlatformAuthenticationProvider implements PlatformAuthenticatio
       identityService.markLogin(user.userId());
     } catch (Exception exception) {
       log.warn("LDAP 用户镜像写入失败，未创建数据平台会话: {}", exception.getMessage());
-      return null;
+      throw new AuthenticationServiceUnavailableException("认证身份镜像不可用", exception);
     }
     return new AuthUserResponse(
         user.userId(),

@@ -8,6 +8,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.data.collection.platform.config.PlatformAuthProperties;
 import com.data.collection.platform.entity.AuthUserResponse;
 import com.data.collection.platform.security.LocalPlatformAuthenticationProvider;
+import com.data.collection.platform.security.AuthenticationServiceUnavailableException;
+import com.data.collection.platform.security.PlatformAuthenticationProvider;
 import com.data.collection.platform.service.OperationAuditService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class AuthControllerTest {
   private MockMvc mockMvc;
@@ -247,5 +250,37 @@ class AuthControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.code").value("A0400"));
+  }
+
+  @Test
+  void loginShouldReportUnavailableWhenAuthenticationServiceFails() throws Exception {
+    PlatformAuthenticationProvider unavailableProvider = mock(PlatformAuthenticationProvider.class);
+    when(unavailableProvider.authenticate("admin", "secret"))
+        .thenThrow(new AuthenticationServiceUnavailableException("LDAP 连接失败"));
+    MockMvc unavailableMockMvc = MockMvcBuilders.standaloneSetup(
+        new AuthController(unavailableProvider, operationAuditService)).build();
+
+    unavailableMockMvc.perform(post("/api/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "username": "admin",
+                  "password": "secret"
+                }
+                """))
+        .andExpect(status().isServiceUnavailable())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("C0001"))
+        .andExpect(jsonPath("$.message").value("认证服务暂不可用，请稍后重试"));
+
+    verify(operationAuditService)
+        .record(
+            any(AuthUserResponse.class),
+            eq("POST"),
+            eq("/api/auth/login"),
+            any(),
+            eq(503),
+            eq("LOGIN_UNAVAILABLE"),
+            eq("username=admin"));
   }
 }

@@ -59,6 +59,41 @@ class GitlabExternalDbServiceTest {
   }
 
   @Test
+  void test_offset_timestamp_text_normalizes_same_instant_to_utc_local_datetime() {
+    TableWhitelistOption option =
+        new TableWhitelistOption(
+            "issues",
+            "Issues",
+            "id",
+            "updated_at",
+            SourceCursorStrategy.PRIMARY_KEY_KEYSET,
+            true);
+
+    LocalDateTime updatedAt =
+        service.extractUpdatedAt(
+            option, Map.of("updated_at", "2026-08-06T11:20:22.840104+08:00"));
+
+    assertThat(updatedAt).isEqualTo(LocalDateTime.of(2026, 8, 6, 3, 20, 22, 840_104_000));
+  }
+
+  @Test
+  void test_timestamp_text_without_offset_preserves_source_wall_clock() {
+    TableWhitelistOption option =
+        new TableWhitelistOption(
+            "issues",
+            "Issues",
+            "id",
+            "updated_at",
+            SourceCursorStrategy.PRIMARY_KEY_KEYSET,
+            true);
+
+    LocalDateTime updatedAt =
+        service.extractUpdatedAt(option, Map.of("updated_at", "2026-08-06 03:20:22.840104"));
+
+    assertThat(updatedAt).isEqualTo(LocalDateTime.of(2026, 8, 6, 3, 20, 22, 840_104_000));
+  }
+
+  @Test
   void shouldMarkTablesWithoutUpdatedAtAsFullOnly() {
     assertThat(service.resolveRowStrategy("updated_at")).isEqualTo("INCREMENTAL");
     assertThat(service.resolveRowStrategy(null)).isEqualTo("FULL_ONLY");
@@ -310,7 +345,8 @@ class GitlabExternalDbServiceTest {
 
   @Test
   void shouldNormalizeSqlArrayValuesToDetachedJavaList() throws Exception {
-    StubSqlArray sqlArray = new StubSqlArray(new Object[] {"a", 1L, new Object[] {"x", "y"}});
+    StubSqlArray sqlArray =
+        new StubSqlArray(new Object[] {"a", 1L, new Object[] {"x", "y"}});
 
     Object normalized = service.normalizeJdbcValue(sqlArray);
 
@@ -359,12 +395,12 @@ class GitlabExternalDbServiceTest {
 
     @Override
     public String getBaseTypeName() throws SQLException {
-      throw new UnsupportedOperationException();
+      return "text";
     }
 
     @Override
     public int getBaseType() throws SQLException {
-      throw new UnsupportedOperationException();
+      return java.sql.Types.VARCHAR;
     }
 
     @Override

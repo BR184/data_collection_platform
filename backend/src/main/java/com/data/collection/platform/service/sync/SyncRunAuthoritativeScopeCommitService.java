@@ -17,19 +17,16 @@ public class SyncRunAuthoritativeScopeCommitService {
   private final SyncRunAuthoritativeScopeRepository repository;
   private final MirrorTableWriter mirrorTableWriter;
   private final FactChangeTargetService factChangeTargetService;
-  private final SyncRunFactPublicationCoordinator factPublicationCoordinator;
   private final SyncRunReconciliationCoordinator reconciliationCoordinator;
 
   public SyncRunAuthoritativeScopeCommitService(
       SyncRunAuthoritativeScopeRepository repository,
       MirrorTableWriter mirrorTableWriter,
       FactChangeTargetService factChangeTargetService,
-      SyncRunFactPublicationCoordinator factPublicationCoordinator,
       SyncRunReconciliationCoordinator reconciliationCoordinator) {
     this.repository = repository;
     this.mirrorTableWriter = mirrorTableWriter;
     this.factChangeTargetService = factChangeTargetService;
-    this.factPublicationCoordinator = factPublicationCoordinator;
     this.reconciliationCoordinator = reconciliationCoordinator;
   }
 
@@ -71,10 +68,6 @@ public class SyncRunAuthoritativeScopeCommitService {
                 changes);
     repository.completeOwnedBatch(scopeIds, owner, identity.runId());
     reconciliationCoordinator.planIfReady(identity.runId());
-    if (!targets.isEmpty()) {
-      factPublicationCoordinator.ensurePublication(
-          identity.runId(), false, "权威范围批次提交后发布定向事实");
-    }
     return new CommitResult(scopes.size(), sourceRows, appliedRows, targets.size());
   }
 

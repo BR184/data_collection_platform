@@ -13,12 +13,14 @@ import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.FactBuildResponse;
+import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import com.data.collection.platform.service.sync.SyncFactPublicationStateService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -28,6 +30,7 @@ class FactRefreshTaskWorkerServiceTest {
   private FactBuildService factBuildService;
   private IntegrationTestFactBuildService integrationTestFactBuildService;
   private FactTargetPublicationService targetPublicationService;
+  private SyncFactPublicationStateService publicationStateService;
   private GitlabMirrorProperties properties;
   private FactRefreshTaskWorkerService workerService;
 
@@ -38,6 +41,8 @@ class FactRefreshTaskWorkerServiceTest {
     factBuildService = mock(FactBuildService.class);
     integrationTestFactBuildService = mock(IntegrationTestFactBuildService.class);
     targetPublicationService = mock(FactTargetPublicationService.class);
+    publicationStateService = mock(SyncFactPublicationStateService.class);
+    when(publicationStateService.isReady(anyString(), any(FactType.class))).thenReturn(true);
     properties = new GitlabMirrorProperties();
     properties.setSchedulerEnabled(true);
     properties.setHeartbeatTimeoutSeconds(9);
@@ -48,7 +53,8 @@ class FactRefreshTaskWorkerServiceTest {
             factBuildService,
             integrationTestFactBuildService,
             properties,
-            targetPublicationService);
+            targetPublicationService,
+            publicationStateService);
   }
 
   @Test

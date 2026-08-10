@@ -17,6 +17,7 @@ import com.data.collection.platform.entity.MirrorRowChange;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -89,6 +90,26 @@ class GitlabMirrorTableStorageServiceTest {
   }
 
   @Test
+  void test_find_max_active_primary_key_uses_native_order_and_encodes_cursor() {
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    GitlabMirrorTableStorageService service =
+        new GitlabMirrorTableStorageService(jdbcTemplate, new JsonUtils(new ObjectMapper()));
+    SourceTableSchema schema = issueSchema();
+    when(jdbcTemplate.queryForList(ArgumentMatchers.anyString()))
+        .thenReturn(List.of(Map.of("id", 102L)));
+
+    String cursor = service.findMaxActivePrimaryKeyCursor(schema);
+
+    ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+    verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+    assertThat(sqlCaptor.getValue())
+        .contains("where mirror_deleted = false")
+        .contains("order by \"id\" desc")
+        .contains("limit 1");
+    assertThat(cursor).isEqualTo("[\"102\"]");
+  }
+
+  @Test
   void test_force_apply_bypasses_updated_at_guard_and_returns_changed_rows() {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     JsonUtils jsonUtils = mock(JsonUtils.class);
@@ -121,6 +142,38 @@ class GitlabMirrorTableStorageServiceTest {
     assertThat(result.changes().getFirst().inserted()).isTrue();
     assertThat(result.changes().getFirst().after()).containsEntry("title", "source");
     assertThat(sqlCaptor.getValue()).doesNotContain("where excluded.\"updated_at\"");
+  }
+
+  @Test
+  void test_changed_row_with_nullable_column_preserves_null_without_failure() {
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    JsonUtils jsonUtils = mock(JsonUtils.class);
+    GitlabMirrorTableStorageService service =
+        new GitlabMirrorTableStorageService(jdbcTemplate, jsonUtils);
+    SourceTableSchema schema = issueSchemaWithTitle();
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("id", 101L);
+    row.put("updated_at", "2026-05-21 10:00:00");
+    row.put("title", null);
+    List<Map<String, Object>> rows = List.of(row);
+    when(jdbcTemplate.queryForList(ArgumentMatchers.anyString(), eq(101L)))
+        .thenReturn(List.of());
+    when(jsonUtils.toJson(rows)).thenReturn("[{\"id\":101,\"title\":null}]");
+    when(jdbcTemplate.<Map<String, Object>>query(
+            anyString(),
+            ArgumentMatchers.<RowMapper<Map<String, Object>>>any(),
+            eq(99L),
+            eq("[{\"id\":101,\"title\":null}]")))
+        .thenReturn(rows);
+
+    MirrorMutationResult result = service.applyBatch(schema, rows, 99L);
+
+    assertThat(result.changes()).hasSize(1);
+    assertThat(result.changes().getFirst().after())
+        .containsEntry("id", 101L)
+        .containsEntry("title", null);
+    assertThatThrownBy(() -> result.changes().getFirst().after().put("title", "changed"))
+        .isInstanceOf(UnsupportedOperationException.class);
   }
 
   @Test

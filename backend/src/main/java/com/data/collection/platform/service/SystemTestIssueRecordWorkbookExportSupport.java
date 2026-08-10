@@ -50,6 +50,12 @@ public final class SystemTestIssueRecordWorkbookExportSupport {
           "议题关闭时间");
   private static final List<String> LEGACY_ILLEGAL_HEADERS =
       append(LEGACY_ISSUE_HEADERS, "非法类型");
+  private static final int AFFECTED_FUNCTION_OPTION_COLUMN_INDEX = 25;
+  private static final List<String> ISSUE_DATA_HEADERS =
+      insert(
+          LEGACY_ISSUE_HEADERS,
+          AFFECTED_FUNCTION_OPTION_COLUMN_INDEX,
+          List.of("已知的受影响功能", "新识别的受影响功能"));
 
   private SystemTestIssueRecordWorkbookExportSupport() {
   }
@@ -69,8 +75,8 @@ public final class SystemTestIssueRecordWorkbookExportSupport {
   public static byte[] exportIssueDataRecords(List<SystemTestIssueSearchRowResponse> rows) {
     return exportWorkbook(
         ILLEGAL_SHEET_NAME,
-        LEGACY_ISSUE_HEADERS,
-        rows.stream().map(SystemTestIssueRecordWorkbookExportSupport::recordValues).toList(),
+        ISSUE_DATA_HEADERS,
+        rows.stream().map(SystemTestIssueRecordWorkbookExportSupport::issueDataRecordValues).toList(),
         List.of());
   }
 
@@ -163,6 +169,17 @@ public final class SystemTestIssueRecordWorkbookExportSupport {
         date(row.closedAt()));
   }
 
+  private static List<String> issueDataRecordValues(SystemTestIssueSearchRowResponse row) {
+    SystemTestLegacyCauseExportFields.AffectedFunctionExportFields affectedFunctions =
+        SystemTestLegacyCauseExportFields.affectedFunctionsFromText(row.effectFunction());
+    return insert(
+        recordValues(row),
+        AFFECTED_FUNCTION_OPTION_COLUMN_INDEX,
+        List.of(
+            affectedFunctions.knownAffectedFunction(),
+            affectedFunctions.newlyIdentifiedAffectedFunction()));
+  }
+
   private static List<String> illegalRecordValues(SystemTestIllegalRecordRowResponse row) {
     List<String> values =
         List.of(
@@ -237,6 +254,13 @@ public final class SystemTestIssueRecordWorkbookExportSupport {
   private static List<String> append(List<String> values, String extra) {
     java.util.ArrayList<String> result = new java.util.ArrayList<>(values);
     result.add(extra);
+    return List.copyOf(result);
+  }
+
+  private static List<String> insert(
+      List<String> values, int index, List<String> insertedValues) {
+    java.util.ArrayList<String> result = new java.util.ArrayList<>(values);
+    result.addAll(index, insertedValues);
     return List.copyOf(result);
   }
 

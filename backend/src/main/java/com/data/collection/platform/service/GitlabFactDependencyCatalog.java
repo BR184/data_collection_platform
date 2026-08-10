@@ -126,6 +126,17 @@ public final class GitlabFactDependencyCatalog {
       return List.copyOf(tables);
     }
 
+    /** 返回当前配置下事实类型的完整依赖，MR 提交增强来源按白名单条件加入。 */
+    public List<String> requiredTables(GitlabSyncConfig config) {
+      ArrayList<String> tables = new ArrayList<>(requiredTables());
+      if (factType == FactType.MERGE_REQUEST
+          && GitlabMergeRequestCommitFactCapability.isEnabled(config)) {
+        tables.add("merge_request_diffs");
+        tables.add("merge_request_diff_commits");
+      }
+      return tables.stream().distinct().toList();
+    }
+
     private static List<String> normalizedDistinct(List<String> tables) {
       LinkedHashSet<String> normalized = new LinkedHashSet<>();
       if (tables != null) {

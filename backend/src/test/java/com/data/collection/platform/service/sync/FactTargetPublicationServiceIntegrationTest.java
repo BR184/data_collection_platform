@@ -51,7 +51,8 @@ class FactTargetPublicationServiceIntegrationTest {
             jdbcTemplate,
             new FactProjectionScopeResolver(jdbcTemplate),
             new FactProjectionGenerationService(jdbcTemplate),
-            mock(SyncRunPublicationFenceService.class));
+            mock(SyncRunPublicationFenceService.class),
+            mock(SyncFactPublicationStateService.class));
   }
 
   @Test

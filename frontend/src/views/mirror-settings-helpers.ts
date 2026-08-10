@@ -1,4 +1,8 @@
 export {
+  deleteReconciliationStatusTagType,
+  deleteReconciliationStatusText,
+  freshnessStatusTagType,
+  freshnessStatusText,
   logStatusText,
   logStatusType,
   syncLogTypeText,

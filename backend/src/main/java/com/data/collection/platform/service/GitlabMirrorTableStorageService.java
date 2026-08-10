@@ -242,6 +242,33 @@ public class GitlabMirrorTableStorageService {
     return new MirrorPrimaryKeyBatch(keys, nextCursor);
   }
 
+  /** 返回镜像 active 行的单列最大主键游标；空表返回 {@code null}。 */
+  public String findMaxActivePrimaryKeyCursor(SourceTableSchema mirrorSchema) {
+    List<String> primaryKeys = PrimaryKeySignatureSupport.primaryKeyColumns(mirrorSchema);
+    if (primaryKeys.size() != 1) {
+      throw new IllegalArgumentException("单调主键镜像基线只支持单列主键");
+    }
+    String primaryKey = primaryKeys.getFirst();
+    String sql =
+        """
+        select %s
+          from %s
+         where mirror_deleted = false
+         order by %s desc
+         limit 1
+        """
+            .formatted(
+                quoteIdentifier(primaryKey),
+                quoteIdentifier(mirrorSchema.tableName()),
+                quoteIdentifier(primaryKey))
+            .strip();
+    List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+    if (rows.isEmpty()) {
+      return null;
+    }
+    return PrimaryKeySignatureSupport.encodeCursor(jsonUtils, primaryKeys, rows.getFirst());
+  }
+
   public GitlabTableProbe probeMirrorTable(SourceTableSchema mirrorSchema) {
     String primaryKeyColumn = mirrorSchema.primaryKeys().isEmpty() ? "id" : mirrorSchema.primaryKeys().get(0);
     String sql = """

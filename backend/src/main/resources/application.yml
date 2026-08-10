@@ -48,6 +48,20 @@ logging:
     path: logs
 
 platform:
+  bi:
+    cat:
+      scheduler-delay-ms: ${PLATFORM_BI_CAT_SCHEDULER_DELAY_MS:60000}
+      initial-delay-ms: ${PLATFORM_BI_CAT_INITIAL_DELAY_MS:30000}
+      lease-minutes: ${PLATFORM_BI_CAT_LEASE_MINUTES:30}
+      connect-timeout-ms: ${PLATFORM_BI_CAT_CONNECT_TIMEOUT_MS:3000}
+      read-timeout-ms: ${PLATFORM_BI_CAT_READ_TIMEOUT_MS:15000}
+      max-response-bytes: ${PLATFORM_BI_CAT_MAX_RESPONSE_BYTES:5242880}
+      retained-snapshot-count: ${PLATFORM_BI_CAT_RETAINED_SNAPSHOT_COUNT:10}
+      paths:
+        projects: ${PLATFORM_BI_CAT_PROJECTS_PATH:/integrationSearch/getAllProject}
+        phase-tree: ${PLATFORM_BI_CAT_PHASE_TREE_PATH:/testingPhase/getAllByProjectId}
+        statistics: ${PLATFORM_BI_CAT_STATISTICS_PATH:/integrationSearch/getStatisticsInfoByTPId}
+        feature-statistics: ${PLATFORM_BI_CAT_FEATURE_STATISTICS_PATH:/getFeatureInfoByModuleId}
   auth:
     provider: ${PLATFORM_AUTH_PROVIDER:ldap}
     admin-username: ${PLATFORM_ADMIN_USERNAME:admin}
@@ -57,7 +71,7 @@ platform:
     secure-config-required: ${PLATFORM_SECURE_CONFIG_REQUIRED:true}
     csrf-enabled: ${PLATFORM_AUTH_CSRF_ENABLED:true}
     ldap:
-      base-url: ${PLATFORM_LDAP_BASE_URL:http://127.0.0.1:24837}
+      base-url: ${PLATFORM_LDAP_BASE_URL:http://127.0.0.1:28081}
       connect-timeout-ms: ${PLATFORM_LDAP_CONNECT_TIMEOUT_MS:3000}
       read-timeout-ms: ${PLATFORM_LDAP_READ_TIMEOUT_MS:10000}
       initial-sync-required: ${PLATFORM_LDAP_INITIAL_SYNC_REQUIRED:true}
@@ -91,6 +105,11 @@ platform:
     incremental-lookback-minutes: 5
     max-sync-threads: ${GITLAB_MAX_SYNC_THREADS:16}
     authoritative-scope-batch-size: ${GITLAB_AUTHORITATIVE_SCOPE_BATCH_SIZE:200}
+    # 部署后完成一次历史全量补偿和固定负载验收，再显式开启低优先级删除反熵。
+    delete-reconciliation-enabled: ${GITLAB_DELETE_RECONCILIATION_ENABLED:false}
+    delete-reconciliation-interval-minutes: ${GITLAB_DELETE_RECONCILIATION_INTERVAL_MINUTES:60}
+    delete-reconciliation-time-slice-seconds: ${GITLAB_DELETE_RECONCILIATION_TIME_SLICE_SECONDS:240}
+    delete-reconciliation-page-size: ${GITLAB_DELETE_RECONCILIATION_PAGE_SIZE:500}
     customer-issue-delay-check-delay-ms: ${CUSTOMER_ISSUE_DELAY_CHECK_DELAY_MS:3600000}
     customer-issue-delay-pre-writeback-sync-enabled: ${CUSTOMER_ISSUE_DELAY_PRE_WRITEBACK_SYNC_ENABLED:true}
     customer-issue-delay-pre-writeback-sync-timeout-seconds: ${CUSTOMER_ISSUE_DELAY_PRE_WRITEBACK_SYNC_TIMEOUT_SECONDS:180}

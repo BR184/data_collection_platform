@@ -6,6 +6,7 @@ import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.TableWhitelistOption;
+import com.data.collection.platform.entity.sync.IncrementalReadMode;
 import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunTableState;
@@ -40,6 +41,7 @@ public class SyncRunTablePlanningService {
   private final GitlabWhitelistService whitelistService;
   private final GitlabMirrorProperties mirrorProperties;
   private final SyncRunAuthoritativeScopePlanner authoritativeScopePlanner;
+  private final SyncRunAuthoritativeScopeRepository authoritativeScopeRepository;
 
   public SyncRunTablePlanningService(
       SyncRunMapper syncRunMapper,
@@ -49,7 +51,8 @@ public class SyncRunTablePlanningService {
       GitlabConfigService configService,
       GitlabWhitelistService whitelistService,
       GitlabMirrorProperties mirrorProperties,
-      SyncRunAuthoritativeScopePlanner authoritativeScopePlanner) {
+      SyncRunAuthoritativeScopePlanner authoritativeScopePlanner,
+      SyncRunAuthoritativeScopeRepository authoritativeScopeRepository) {
     this.syncRunMapper = syncRunMapper;
     this.stateMapper = stateMapper;
     this.taskMapper = taskMapper;
@@ -58,6 +61,7 @@ public class SyncRunTablePlanningService {
     this.whitelistService = whitelistService;
     this.mirrorProperties = mirrorProperties;
     this.authoritativeScopePlanner = authoritativeScopePlanner;
+    this.authoritativeScopeRepository = authoritativeScopeRepository;
   }
 
   public int planRunTables(Long runId) {
@@ -96,6 +100,7 @@ public class SyncRunTablePlanningService {
     }
     return sourceTables.isEmpty()
         && (run.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN
+            || run.getRunType() == SyncRunType.DELETE_RECONCILIATION
             || run.getRunType() == SyncRunType.SYSTEM_HOOK);
   }
 
@@ -109,18 +114,32 @@ public class SyncRunTablePlanningService {
               .filter(option -> requestedTables.contains(GitlabSourceInstanceSupport.normalizeSourceTableName(option.tableName())))
               .toList();
     }
+    validateRequiredIncrementalTables(run, options);
+    snapshotSelectedSourceTables(run, options);
     LocalDateTime now = LocalDateTime.now();
     int planned = existingTaskKeys.size();
-    for (TableWhitelistOption option : options) {
-      if (!isRunnableForRun(option)) {
-        log.info("Skipped table without runnable key columns, runId={}, sourceTable={}", run.getId(), option.tableName());
+    for (TableWhitelistOption discoveredOption : options) {
+      TableWhitelistOption option = effectiveOption(discoveredOption);
+      if (run.getRunType() == SyncRunType.INCREMENTAL_SYNC
+          && readMode(option) == IncrementalReadMode.RECONCILE_ONLY) {
         continue;
       }
+      if (!isRunnableForRun(option)) {
+        throw new BizException("GitLab 来源表缺少可执行主键：" + option.tableName());
+      }
       SyncRunTableState state = upsertState(run, config, option, now);
+      if (run.getRunType() == SyncRunType.DELETE_RECONCILIATION
+          && !isDeleteReconciliationDue(state, now)) {
+        continue;
+      }
       if (existingTaskKeys.contains(taskKey(state.getSourceTable(), ""))) {
         continue;
       }
-      taskMapper.insert(createTask(run, state, resolveTaskWatermark(run, state), now));
+      SyncRunTableTask task =
+          run.getRunType() == SyncRunType.DELETE_RECONCILIATION
+              ? createDeleteReconciliationTask(run, state, now)
+              : createTask(run, state, resolveTaskWatermark(run, state), now);
+      taskMapper.insert(task);
       planned++;
       existingTaskKeys.add(taskKey(state.getSourceTable(), ""));
     }
@@ -191,6 +210,69 @@ public class SyncRunTablePlanningService {
     return option != null && !isBlank(option.primaryKey());
   }
 
+  private void validateRequiredIncrementalTables(
+      SyncRun run, List<TableWhitelistOption> options) {
+    if (run.getRunType() != SyncRunType.INCREMENTAL_SYNC) {
+      return;
+    }
+    Set<String> available =
+        options.stream()
+            .map(option -> GitlabSourceInstanceSupport.normalizeSourceTableName(option.tableName()))
+            .collect(Collectors.toSet());
+    List<String> missing =
+        GitlabSourceLineageCatalog.sources().stream()
+            .filter(GitlabSourceLineageCatalog.SourceDefinition::requiredForIncremental)
+            .map(GitlabSourceLineageCatalog.SourceDefinition::tableName)
+            .filter(table -> !available.contains(table))
+            .toList();
+    if (!missing.isEmpty()) {
+      throw new BizException("快速增量缺少必需来源表：" + String.join(",", missing));
+    }
+  }
+
+  private void snapshotSelectedSourceTables(
+      SyncRun run, List<TableWhitelistOption> options) {
+    if (run.getRunType() != SyncRunType.INCREMENTAL_SYNC) {
+      return;
+    }
+    authoritativeScopeRepository.snapshotSelectedSourceTables(
+        run.getId(),
+        options.stream()
+            .map(TableWhitelistOption::tableName)
+            .map(GitlabSourceInstanceSupport::normalizeSourceTableName)
+            .toList());
+  }
+
+  private TableWhitelistOption effectiveOption(TableWhitelistOption option) {
+    GitlabSourceLineageCatalog.SourceDefinition definition =
+        GitlabSourceLineageCatalog.findSource(option.tableName()).orElse(null);
+    if (definition == null) {
+      return option;
+    }
+    String updatedAtColumn = definition.incrementalUpdatedAtColumn();
+    if (definition.incrementalReadMode() == IncrementalReadMode.UPDATED_AT
+        && !updatedAtColumn.equals(option.updatedAtColumn())) {
+      throw new BizException(
+          "GitLab 来源表缺少声明的增量列："
+              + option.tableName()
+              + "."
+              + updatedAtColumn);
+    }
+    com.data.collection.platform.entity.SourceCursorStrategy cursorStrategy =
+        definition.incrementalReadMode() == IncrementalReadMode.MONOTONIC_PRIMARY_KEY
+            ? com.data.collection.platform.entity.SourceCursorStrategy.PRIMARY_KEY_KEYSET
+            : definition.incrementalReadMode() == IncrementalReadMode.RECONCILE_ONLY
+                ? com.data.collection.platform.entity.SourceCursorStrategy.NONE
+                : option.cursorStrategy();
+    return new TableWhitelistOption(
+        option.tableName(),
+        option.label(),
+        option.primaryKey(),
+        updatedAtColumn,
+        cursorStrategy,
+        option.recommended());
+  }
+
   private SyncRunTableState upsertState(
       SyncRun run,
       GitlabSyncConfig config,
@@ -212,7 +294,7 @@ public class SyncRunTablePlanningService {
       state.setMirrorTable(GitlabSourceInstanceSupport.buildMirrorTableName(sourceTable));
       state.setPrimaryKeyColumns(option.primaryKey());
       state.setUpdatedAtColumn(option.updatedAtColumn());
-      state.setRowStrategy(rowStrategyForState(run, option));
+      state.setRowStrategy(rowStrategyForState(option));
       state.setCursorStrategy(option.cursorStrategy());
       state.setSyncEnabled(true);
       state.setDirtyFlag(false);
@@ -226,7 +308,7 @@ public class SyncRunTablePlanningService {
     state.setSourceInstance(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
     state.setPrimaryKeyColumns(option.primaryKey());
     state.setUpdatedAtColumn(option.updatedAtColumn());
-    state.setRowStrategy(rowStrategyForState(run, option));
+    state.setRowStrategy(rowStrategyForState(option));
     state.setCursorStrategy(option.cursorStrategy());
     state.setSyncEnabled(true);
     state.setUpdatedAt(now);
@@ -251,7 +333,12 @@ public class SyncRunTablePlanningService {
     task.setRowStrategy(rowStrategyForTask(run, state));
     task.setTaskStage(SyncRunTableTaskStage.SCAN);
     task.setWatermarkAt(watermark);
+    if (readMode(state) == IncrementalReadMode.MONOTONIC_PRIMARY_KEY
+        && !isFullTableRun(run)) {
+      task.setCursorPk(state.getLastCursorPk());
+    }
     task.setScanUpperBoundAt(null);
+    task.setScanUpperBoundPk(null);
     task.setPageNumber(1);
     task.setBatchSize(500);
     task.setRunAfter(now);
@@ -262,6 +349,30 @@ public class SyncRunTablePlanningService {
     task.setCreatedAt(now);
     task.setUpdatedAt(now);
     return task;
+  }
+
+  private SyncRunTableTask createDeleteReconciliationTask(
+      SyncRun run, SyncRunTableState state, LocalDateTime now) {
+    SyncRunTableTask task = createTask(run, state, null, now);
+    task.setRowStrategy("RECONCILE_ONLY");
+    task.setTaskStage(SyncRunTableTaskStage.RECONCILE);
+    task.setBatchSize(
+        mirrorProperties == null
+            ? 500
+            : Math.max(1, mirrorProperties.getDeleteReconciliationPageSize()));
+    return task;
+  }
+
+  private boolean isDeleteReconciliationDue(
+      SyncRunTableState state, LocalDateTime now) {
+    if (state.getLastDeleteReconciledAt() == null) {
+      return true;
+    }
+    int intervalMinutes =
+        mirrorProperties == null
+            ? 60
+            : Math.max(1, mirrorProperties.getDeleteReconciliationIntervalMinutes());
+    return !state.getLastDeleteReconciledAt().isAfter(now.minusMinutes(intervalMinutes));
   }
 
   private LocalDateTime resolveTaskWatermark(SyncRun run, SyncRunTableState state) {
@@ -282,14 +393,35 @@ public class SyncRunTablePlanningService {
         || run.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN) {
       return "FULL_RECONCILE";
     }
-    return isBlank(state.getUpdatedAtColumn()) ? "DELETE_ONLY" : "INCREMENTAL";
+    return switch (readMode(state)) {
+      case UPDATED_AT -> "INCREMENTAL";
+      case MONOTONIC_PRIMARY_KEY -> "MONOTONIC_PRIMARY_KEY";
+      case RECONCILE_ONLY -> "RECONCILE_ONLY";
+    };
   }
 
-  private String rowStrategyForState(SyncRun run, TableWhitelistOption option) {
-    if (isBlank(option.updatedAtColumn())) {
-      return "FULL_ONLY";
+  private String rowStrategyForState(TableWhitelistOption option) {
+    return readMode(option).name();
+  }
+
+  private IncrementalReadMode readMode(TableWhitelistOption option) {
+    return GitlabSourceLineageCatalog.findSource(option.tableName())
+        .map(GitlabSourceLineageCatalog.SourceDefinition::incrementalReadMode)
+        .orElseGet(
+            () ->
+                isBlank(option.updatedAtColumn())
+                    ? IncrementalReadMode.RECONCILE_ONLY
+                    : IncrementalReadMode.UPDATED_AT);
+  }
+
+  private IncrementalReadMode readMode(SyncRunTableState state) {
+    try {
+      return IncrementalReadMode.valueOf(state.getRowStrategy());
+    } catch (IllegalArgumentException | NullPointerException ignored) {
+      return isBlank(state.getUpdatedAtColumn())
+          ? IncrementalReadMode.RECONCILE_ONLY
+          : IncrementalReadMode.UPDATED_AT;
     }
-    return "INCREMENTAL";
   }
 
   private SyncRunTableState resolveRunnableState(SyncRun run, String sourceTable) {

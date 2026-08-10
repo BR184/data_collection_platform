@@ -58,6 +58,54 @@ class SyncRunAuthoritativeScopePlannerTest {
   }
 
   @Test
+  void test_monotonic_label_events_enqueue_issue_and_merge_request_scopes() {
+    SyncRunTableTask task = producer("resource_label_events");
+    task.setRowStrategy("MONOTONIC_PRIMARY_KEY");
+    when(repository.selectedSourceTables(77L)).thenReturn(java.util.Set.of("label_links"));
+    when(repository.enqueueScopes(
+            eq(77L),
+            eq("alpha"),
+            eq(901L),
+            eq("label_links"),
+            eq("label-event-issue-links"),
+            anyList()))
+        .thenAnswer(invocation -> ((List<?>) invocation.getArgument(5)).size());
+    when(repository.enqueueScopes(
+            eq(77L),
+            eq("alpha"),
+            eq(901L),
+            eq("label_links"),
+            eq("label-event-merge-request-links"),
+            anyList()))
+        .thenAnswer(invocation -> ((List<?>) invocation.getArgument(5)).size());
+
+    int inserted =
+        planner.enqueueFromParentRows(
+            task,
+            List.of(
+                Map.of("id", 1L, "issue_id", 101L),
+                Map.of("id", 2L, "merge_request_id", 202L)));
+
+    assertThat(inserted).isEqualTo(2);
+    verify(repository)
+        .enqueueScopes(
+            eq(77L),
+            eq("alpha"),
+            eq(901L),
+            eq("label_links"),
+            eq("label-event-issue-links"),
+            eq(List.of(Map.of("target_id", 101L, "target_type", "Issue"))));
+    verify(repository)
+        .enqueueScopes(
+            eq(77L),
+            eq("alpha"),
+            eq(901L),
+            eq("label_links"),
+            eq("label-event-merge-request-links"),
+            eq(List.of(Map.of("target_id", 202L, "target_type", "MergeRequest"))));
+  }
+
+  @Test
   void test_non_incremental_rows_do_not_recursively_enqueue_scopes() {
     SyncRunTableTask task = producer("notes");
     task.setRowStrategy("PRECISE");

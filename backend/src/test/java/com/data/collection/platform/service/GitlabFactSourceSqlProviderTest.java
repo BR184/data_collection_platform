@@ -54,4 +54,18 @@ class GitlabFactSourceSqlProviderTest {
         .contains("code_walkthrough_date")
         .contains("ll.target_type = 'MergeRequest'");
   }
+
+  @Test
+  void test_merge_request_commit_sql_uses_only_latest_diff_and_real_commit_time() {
+    assertThat(provider.mergeRequestCommitSourceSql())
+        .contains(
+            "from ods_gitlab_merge_request_diffs diff",
+            "partition by diff.merge_request_id",
+            "diff.authority_rank = 1",
+            "join ods_gitlab_merge_request_diff_commits commit_row",
+            "encode(commit_row.sha, 'hex') as commit_sha",
+            "commit_row.committed_date as committed_at_source")
+        .doesNotContain("mr.updated_at as committed_at_source")
+        .doesNotContain("commits_count as");
+  }
 }

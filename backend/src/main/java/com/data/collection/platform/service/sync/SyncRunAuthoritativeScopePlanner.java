@@ -19,7 +19,7 @@ public class SyncRunAuthoritativeScopePlanner {
   /**
    * 根据普通增量页的来源行登记全部已配置子关系范围。
    *
-   * <p>权威范围 worker 的结果不会递归登记范围；只有普通 INCREMENTAL producer 可以调用。
+   * <p>权威范围 worker 的结果不会递归登记范围；只有时间增量或单调主键增量 producer 可以调用。
    */
   public int enqueueFromParentRows(
       SyncRunTableTask producerTask, List<Map<String, Object>> sourceRows) {
@@ -28,7 +28,7 @@ public class SyncRunAuthoritativeScopePlanner {
         || producerTask.getRunId() <= 0L
         || producerTask.getSourceInstance() == null
         || producerTask.getSourceInstance().isBlank()
-        || !"INCREMENTAL".equalsIgnoreCase(producerTask.getRowStrategy())
+        || !isIncrementalProducer(producerTask)
         || sourceRows == null
         || sourceRows.isEmpty()) {
       return 0;
@@ -64,6 +64,11 @@ public class SyncRunAuthoritativeScopePlanner {
       }
     }
     return inserted;
+  }
+
+  private boolean isIncrementalProducer(SyncRunTableTask task) {
+    return "INCREMENTAL".equalsIgnoreCase(task.getRowStrategy())
+        || "MONOTONIC_PRIMARY_KEY".equalsIgnoreCase(task.getRowStrategy());
   }
 
   /** 登记控制面已经给出的完整权威范围，例如 System Hook 精确信号。 */

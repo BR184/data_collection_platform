@@ -117,6 +117,12 @@ public class GitlabSyncConfig {
   @TableField("last_incremental_sync_at")
   private LocalDateTime lastIncrementalSyncAt;
 
+  @TableField("incremental_rerun_requested_at")
+  private LocalDateTime incrementalRerunRequestedAt;
+
+  @TableField("incremental_rerun_trigger_count")
+  private Integer incrementalRerunTriggerCount;
+
   @TableField("created_at")
   private LocalDateTime createdAt;
 

@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.sync.SyncRun;
+import com.data.collection.platform.entity.sync.SyncRunStatus;
+import com.data.collection.platform.entity.sync.SyncRunType;
 import com.data.collection.platform.mapper.SyncRunMapper;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import java.util.ArrayList;
@@ -20,16 +22,19 @@ public class SyncRunLogService {
   private final JdbcTemplate jdbcTemplate;
   private final SyncRunPolicyService policyService;
   private final JsonUtils jsonUtils;
+  private final SyncIncrementalCoverageService incrementalCoverageService;
 
   public SyncRunLogService(
       SyncRunMapper syncRunMapper,
       JdbcTemplate jdbcTemplate,
       SyncRunPolicyService policyService,
-      JsonUtils jsonUtils) {
+      JsonUtils jsonUtils,
+      SyncIncrementalCoverageService incrementalCoverageService) {
     this.syncRunMapper = syncRunMapper;
     this.jdbcTemplate = jdbcTemplate;
     this.policyService = policyService;
     this.jsonUtils = jsonUtils;
+    this.incrementalCoverageService = incrementalCoverageService;
   }
 
   private record TaskLogSummary(int totalTasks, int completedTasks) {}
@@ -79,6 +84,8 @@ public class SyncRunLogService {
     row.put("parentRunRunId", stringValue(payload.get("parentRunRunId")));
     row.put("fullBuild", payload.get("fullBuild"));
     row.put("status", policyService.toApiStatus(run).name());
+    row.put("freshnessStatus", freshnessStatus(run));
+    row.put("deleteReconciliationStatus", deleteReconciliationStatus(run));
     row.put("message", latestEventMessage(run));
     row.put("tableCount", tableCount);
     row.put("completedTableCount", completedTableCount);
@@ -88,6 +95,28 @@ public class SyncRunLogService {
     row.put("queuedAt", run.getCreatedAt());
     row.put("errorSummary", run.getErrorMessage());
     return row;
+  }
+
+  private String freshnessStatus(SyncRun run) {
+    if (run == null || run.getRunType() != SyncRunType.INCREMENTAL_SYNC) {
+      return "NOT_APPLICABLE";
+    }
+    if (run.getStatus() == SyncRunStatus.SUCCESS) {
+      SyncIncrementalCoverageService.CoverageResult coverage =
+          incrementalCoverageService.evaluate(run.getId());
+      return coverage.complete() ? "CAUGHT_UP" : "NOT_CAUGHT_UP";
+    }
+    return SyncRunStateMachine.isActive(run.getStatus()) ? "VERIFYING" : "NOT_CAUGHT_UP";
+  }
+
+  private String deleteReconciliationStatus(SyncRun run) {
+    if (run == null || run.getRunType() != SyncRunType.DELETE_RECONCILIATION) {
+      return "NOT_APPLICABLE";
+    }
+    if (run.getStatus() == SyncRunStatus.SUCCESS) {
+      return "COMPLETED";
+    }
+    return SyncRunStateMachine.isActive(run.getStatus()) ? "RUNNING" : "INCOMPLETE";
   }
 
   private Map<String, Object> payloadMap(SyncRun run) {

@@ -5,6 +5,7 @@ import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.IssueFact;
 import com.data.collection.platform.entity.MergeRequestFact;
+import com.data.collection.platform.entity.MergeRequestCommitFact;
 import com.data.collection.platform.service.ModuleDictionaryService.ModuleDictionary;
 import java.math.BigDecimal;
 import java.sql.Array;
@@ -86,9 +87,12 @@ public class FactBuildService {
   }
 
   public FactBuildResponse rebuildAllFacts(boolean full, Long configId) {
-    String sourceInstance = sourceInstanceForConfig(configId);
+    GitlabSyncConfig config = configForId(configId);
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     return factBuildTaskService.runGuarded(
-        factScope("all", sourceInstance), full, () -> rebuildAllFactsInternal(full, sourceInstance));
+        factScope("all", sourceInstance),
+        full,
+        () -> rebuildAllFactsInternal(full, sourceInstance, commitFactsEnabled(config)));
   }
 
   public FactBuildResponse rebuildAllFactsForConfig(GitlabSyncConfig config, boolean full) {
@@ -112,13 +116,18 @@ public class FactBuildService {
         factScope("all", sourceInstance),
         full,
         syncRunId,
-        () -> rebuildAllFactsInternal(full, sourceInstance));
+        () -> rebuildAllFactsInternal(full, sourceInstance, commitFactsEnabled(config)));
   }
 
-  private FactBuildResponse rebuildAllFactsInternal(boolean full, String sourceInstance) {
+  private FactBuildResponse rebuildAllFactsInternal(
+      boolean full, String sourceInstance, boolean commitFactsEnabled) {
     sourceSchemaGuard.verifyAllFactSources(sourceInstance);
+    if (commitFactsEnabled) {
+      sourceSchemaGuard.verifyMergeRequestCommitFactSource(sourceInstance);
+    }
     FactBuildResponse issue = rebuildIssueFactsInternal(full, sourceInstance);
-    FactBuildResponse mergeRequest = rebuildMergeRequestFactsInternal(full, sourceInstance);
+    FactBuildResponse mergeRequest =
+        rebuildMergeRequestFactsInternal(full, sourceInstance, commitFactsEnabled);
     FactBuildResponse integrationTest =
         integrationTestFactBuildService.rebuildFactsForSource(sourceInstance, full);
     return new FactBuildResponse(
@@ -419,19 +428,27 @@ public class FactBuildService {
   }
 
   public FactBuildResponse rebuildMergeRequestFacts(boolean full, Long configId) {
-    String sourceInstance = sourceInstanceForConfig(configId);
+    GitlabSyncConfig config = configForId(configId);
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     return factBuildTaskService.runGuarded(
-        factScope("merge-request", sourceInstance), full, () -> rebuildMergeRequestFactsInternal(full, sourceInstance));
+        factScope("merge-request", sourceInstance),
+        full,
+        () -> rebuildMergeRequestFactsInternal(full, sourceInstance, commitFactsEnabled(config)));
   }
 
   public FactBuildResponse rebuildMergeRequestFactsForConfig(GitlabSyncConfig config, boolean full) {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     return factBuildTaskService.runGuarded(
-        factScope("merge-request", sourceInstance), full, () -> rebuildMergeRequestFactsInternal(full, sourceInstance));
+        factScope("merge-request", sourceInstance),
+        full,
+        () -> rebuildMergeRequestFactsInternal(full, sourceInstance, commitFactsEnabled(config)));
   }
 
   public FactBuildResponse rebuildMergeRequestFactsForQueuedTask(GitlabSyncConfig config, boolean full) {
-    return rebuildMergeRequestFactsInternal(full, GitlabSourceInstanceSupport.sourceInstanceOf(config));
+    return rebuildMergeRequestFactsInternal(
+        full,
+        GitlabSourceInstanceSupport.sourceInstanceOf(config),
+        commitFactsEnabled(config));
   }
 
   /**
@@ -481,6 +498,10 @@ public class FactBuildService {
       return new FactBuildResponse(factScope("merge-request", normalizedSource), false, 0, "没有需要刷新的合并请求事实");
     }
     sourceSchemaGuard.verifyMergeRequestFactSource(normalizedSource);
+    boolean commitFactsEnabled = commitFactsEnabled(configService.getConfig());
+    if (commitFactsEnabled) {
+      sourceSchemaGuard.verifyMergeRequestCommitFactSource(normalizedSource);
+    }
     ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
     List<MergeRequestFact> facts =
         factSourceQueryExecutor.query(
@@ -492,8 +513,11 @@ public class FactBuildService {
             null,
             new ArrayList<>(safeRootIds),
             (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, normalizedSource, moduleDictionary));
+    List<MergeRequestCommitFact> commitFacts = commitFactsEnabled
+        ? loadMergeRequestCommitFacts(normalizedSource, safeRootIds)
+        : List.of();
     mergeRequestFactPersistenceService.replaceRootFacts(
-        DEFAULT_SOURCE_SYSTEM, normalizedSource, safeRootIds, facts);
+        DEFAULT_SOURCE_SYSTEM, normalizedSource, safeRootIds, facts, commitFacts);
     refreshMergeRequestFactSearchIndexesInBatches(facts);
     return new FactBuildResponse(
         factScope("merge-request", normalizedSource),
@@ -520,8 +544,12 @@ public class FactBuildService {
     return !FactBuildTaskService.wasSkippedBecauseBusy(response);
   }
 
-  private FactBuildResponse rebuildMergeRequestFactsInternal(boolean full, String sourceInstance) {
+  private FactBuildResponse rebuildMergeRequestFactsInternal(
+      boolean full, String sourceInstance, boolean commitFactsEnabled) {
     sourceSchemaGuard.verifyMergeRequestFactSource(sourceInstance);
+    if (commitFactsEnabled) {
+      sourceSchemaGuard.verifyMergeRequestCommitFactSource(sourceInstance);
+    }
     LocalDateTime changedSince = full ? null : getMergeRequestFactChangedSince(sourceInstance);
     try {
       ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
@@ -533,11 +561,30 @@ public class FactBuildService {
           changedSince,
           (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, sourceInstance, moduleDictionary));
       if (full) {
+        List<MergeRequestCommitFact> commitFacts = commitFactsEnabled
+            ? loadMergeRequestCommitFacts(sourceInstance, List.of())
+            : List.of();
         mergeRequestFactPersistenceService.replaceAllFacts(
-            DEFAULT_SOURCE_SYSTEM, sourceInstance, facts);
+            DEFAULT_SOURCE_SYSTEM, sourceInstance, facts, commitFacts);
         refreshMergeRequestFactSearchIndexesInBatches(facts);
       } else {
-        batchUpsertMergeRequestFacts(facts);
+        List<Long> rootIds = facts.stream()
+            .map(MergeRequestFact::getMergeRequestId)
+            .filter(java.util.Objects::nonNull)
+            .distinct()
+            .sorted()
+            .toList();
+        if (!rootIds.isEmpty()) {
+          mergeRequestFactPersistenceService.replaceRootFacts(
+              DEFAULT_SOURCE_SYSTEM,
+              sourceInstance,
+              rootIds,
+              facts,
+              commitFactsEnabled
+                  ? loadMergeRequestCommitFacts(sourceInstance, rootIds)
+                  : List.of());
+          refreshMergeRequestFactSearchIndexesInBatches(facts);
+        }
       }
       return new FactBuildResponse(
           factScope("merge-request", sourceInstance),
@@ -739,8 +786,15 @@ public class FactBuildService {
   }
 
   private String sourceInstanceForConfig(Long configId) {
-    return GitlabSourceInstanceSupport.sourceInstanceOf(
-        configId == null ? configService.getConfig() : configService.getConfigById(configId));
+    return GitlabSourceInstanceSupport.sourceInstanceOf(configForId(configId));
+  }
+
+  private GitlabSyncConfig configForId(Long configId) {
+    return configId == null ? configService.getConfig() : configService.getConfigById(configId);
+  }
+
+  private boolean commitFactsEnabled(GitlabSyncConfig config) {
+    return GitlabMergeRequestCommitFactCapability.isEnabled(config);
   }
 
   private String factScope(String scope, String sourceInstance) {
@@ -1166,6 +1220,30 @@ public class FactBuildService {
     return fact;
   }
 
+  private List<MergeRequestCommitFact> loadMergeRequestCommitFacts(
+      String sourceInstance, List<Long> rootIds) {
+    List<Long> safeRootIds = distinctRootIds(rootIds);
+    String rootPredicate = safeRootIds.isEmpty()
+        ? ""
+        : buildRootPredicate("mr.id", safeRootIds);
+    return factSourceQueryExecutor.query(
+        "merge-request-commit-fact-source-query",
+        sourceInstance,
+        factSourceSqlProvider.mergeRequestCommitSourceSql() + rootPredicate,
+        "",
+        null,
+        new ArrayList<>(safeRootIds),
+        (resultSet, rowNumber) ->
+            new MergeRequestCommitFact(
+                DEFAULT_SOURCE_SYSTEM,
+                sourceInstance,
+                resultSet.getLong("project_id"),
+                resultSet.getLong("merge_request_id"),
+                nullableLong(resultSet, "merge_request_iid"),
+                resultSet.getString("commit_sha"),
+                toLocalDateTime(resultSet.getTimestamp("committed_at_source"))));
+  }
+
   private Integer reviewSpeedLocPerHour(MergeRequestFact fact) {
     if (fact.getAddedLines() == null
         || fact.getReviewDurationMinutes() == null
@@ -1234,13 +1312,6 @@ public class FactBuildService {
       }
     }
     return List.copyOf(labels);
-  }
-
-  private void batchUpsertMergeRequestFacts(List<MergeRequestFact> facts) {
-    for (List<MergeRequestFact> batch : partition(facts, FACT_BATCH_SIZE)) {
-      mergeRequestFactPersistenceService.upsertFacts(batch);
-      refreshMergeRequestFactSearchIndexes(batch);
-    }
   }
 
   private void refreshIssueFactSearchIndexesInBatches(List<IssueFact> facts) {

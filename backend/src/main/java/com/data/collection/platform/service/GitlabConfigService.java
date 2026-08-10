@@ -133,6 +133,8 @@ public class GitlabConfigService {
       normalized.setCreatedAt(current.getCreatedAt());
       normalized.setLastFullSyncAt(current.getLastFullSyncAt());
       normalized.setLastIncrementalSyncAt(current.getLastIncrementalSyncAt());
+      normalized.setIncrementalRerunRequestedAt(current.getIncrementalRerunRequestedAt());
+      normalized.setIncrementalRerunTriggerCount(current.getIncrementalRerunTriggerCount());
       normalized.setUpdatedAt(now);
       configMapper.updateById(normalized);
     }
@@ -266,6 +268,7 @@ public class GitlabConfigService {
     config.setSyncThreadMode(SyncThreadBudgetResolver.MODE_FIXED);
     config.setSyncThreadValue(SyncThreadBudgetResolver.DEFAULT_FIXED_THREAD_VALUE);
     config.setMaxSyncThreads(Math.max(1, properties.getMaxSyncThreads()));
+    config.setIncrementalRerunTriggerCount(0);
     return config;
   }
 

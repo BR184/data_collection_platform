@@ -20,6 +20,7 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.CustomerIssueScopeProfile;
+import com.data.collection.platform.service.CustomerIssueTestingPhaseSupport;
 import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.IssueFactRecordRepository;
 import com.data.collection.platform.service.IssueDisplayValueSupport;
@@ -55,7 +56,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         StatisticBoardSnapshotRefresher,
         StatisticBoardIssueWorkbookExportSupport {
   private static final String BOARD_KEY = "customer-issue-defect-summary";
-  private static final String RULE_VERSION = "customer-issue-defect-summary@2026-07-28-v5";
+  private static final String RULE_VERSION = "customer-issue-defect-summary@2026-08-06-v6";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
@@ -239,13 +240,15 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
                         "P2",
                         List.of(
                             leaf("p2_count", "P2级别缺陷", true, "count"),
-                            leaf("p2_fix_rate", "P2缺陷修复率(%)", false, "ratio"))),
+                            leaf("p2_fix_rate", "P2缺陷修复率(%)", false, "ratio"),
+                            leaf("p2_close_rate", "P2缺陷关闭率(%)", false, "ratio"))),
                     new StatisticColumnGroup(
                         "p3",
                         "P3",
                         List.of(
                             leaf("p3_count", "P3级别缺陷", true, "count"),
-                            leaf("p3_fix_rate", "P3缺陷修复率(%)", false, "ratio"))),
+                            leaf("p3_fix_rate", "P3缺陷修复率(%)", false, "ratio"),
+                            leaf("p3_close_rate", "P3缺陷关闭率(%)", false, "ratio"))),
                     new StatisticColumnGroup(
                         "summary",
                         "综合汇总",
@@ -876,7 +879,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         issue.assigneeName(),
         issue.isClosed() ? "CLOSED" : "OPEN",
         issue.bugStatus(),
-        issue.testingPhase(),
+        CustomerIssueTestingPhaseSupport.display(issue.testingPhase()),
         issue.severityLabel(),
         issue.category(),
         issue.milestoneTitle(),
@@ -892,6 +895,8 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         causeFields.modification(),
         causeFields.causedByOther(),
         causeFields.effectFunction(),
+        causeFields.knownAffectedFunction(),
+        causeFields.newlyIdentifiedAffectedFunction(),
         causeFields.hasTested(),
         causeFields.potentialImpact(),
         causeFields.relationTableUpdated(),
@@ -1016,8 +1021,10 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
       long p1Closed = issues.stream().filter(issue -> issue.isPriority("P1") && issue.isClosed()).count();
       long p2 = issues.stream().filter(issue -> issue.isPriority("P2")).count();
       long p2Fixed = issues.stream().filter(issue -> issue.isPriority("P2") && issue.isPriorityFixedByLegacySummary()).count();
+      long p2Closed = issues.stream().filter(issue -> issue.isPriority("P2") && issue.isClosed()).count();
       long p3 = issues.stream().filter(issue -> issue.isPriority("P3")).count();
       long p3Fixed = issues.stream().filter(issue -> issue.isPriority("P3") && issue.isPriorityFixedByLegacySummary()).count();
+      long p3Closed = issues.stream().filter(issue -> issue.isPriority("P3") && issue.isClosed()).count();
       long newTotal = issues.stream().filter(IssueSource::isNewIssueByLegacySummary).count();
       long newFixed = issues.stream().filter(issue -> issue.isNewIssueByLegacySummary() && issue.isFixedByLegacySummary()).count();
       long newClosed = issues.stream().filter(issue -> issue.isNewIssueByLegacySummary() && issue.isPriorityClosedByLegacySummary()).count();
@@ -1046,8 +1053,10 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
               cell("p1_close_rate", rateSort(p1Closed, p1), rate(p1Closed, p1), false, rowKey),
               cell("p2_count", p2, count(p2), true, rowKey),
               cell("p2_fix_rate", rateSort(p2Fixed, p2), rate(p2Fixed, p2), false, rowKey),
+              cell("p2_close_rate", rateSort(p2Closed, p2), rate(p2Closed, p2), false, rowKey),
               cell("p3_count", p3, count(p3), true, rowKey),
               cell("p3_fix_rate", rateSort(p3Fixed, p3), rate(p3Fixed, p3), false, rowKey),
+              cell("p3_close_rate", rateSort(p3Closed, p3), rate(p3Closed, p3), false, rowKey),
               cell("module_total", total, count(total), true, rowKey),
               cell("defect_ratio", percentSort(defectRatio), percent(defectRatio), false, rowKey),
               cell("delay_defect_ratio", percentSort(delayRatio), percent(delayRatio), false, rowKey),

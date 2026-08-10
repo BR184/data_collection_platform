@@ -58,6 +58,36 @@ export const analyticsDashboardDetailQueryKeys = [
 ];
 
 const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
+  'bi-dashboard-requirements': {
+    allowedQueryKeys: ['productVersionId'],
+    persistedQueryKeys: [],
+    inheritedQueryKeys: ['productVersionId'],
+  },
+  'bi-dashboard-design': {
+    allowedQueryKeys: ['productVersionId'],
+    persistedQueryKeys: [],
+    inheritedQueryKeys: ['productVersionId'],
+  },
+  'bi-dashboard-coding': {
+    allowedQueryKeys: ['productVersionId', 'granularity', 'source', 'repositoryId'],
+    persistedQueryKeys: [],
+    inheritedQueryKeys: ['productVersionId'],
+  },
+  'bi-dashboard-unit-test': {
+    allowedQueryKeys: ['productVersionId'],
+    persistedQueryKeys: [],
+    inheritedQueryKeys: ['productVersionId'],
+  },
+  'bi-dashboard-integration-test': {
+    allowedQueryKeys: ['productVersionId'],
+    persistedQueryKeys: [],
+    inheritedQueryKeys: ['productVersionId'],
+  },
+  'bi-dashboard-system-test': {
+    allowedQueryKeys: ['productVersionId'],
+    persistedQueryKeys: [],
+    inheritedQueryKeys: ['productVersionId'],
+  },
   'review-data-home': {
     allowedQueryKeys: [
       'page',
@@ -360,6 +390,7 @@ export function buildPageRouteMeta(
     allowedQueryKeys: overrides.allowedQueryKeys ?? contract.allowedQueryKeys,
     allowedQueryPrefixes: overrides.allowedQueryPrefixes ?? contract.allowedQueryPrefixes,
     persistedQueryKeys: overrides.persistedQueryKeys ?? contract.persistedQueryKeys,
+    inheritedQueryKeys: overrides.inheritedQueryKeys ?? contract.inheritedQueryKeys,
     standalone: overrides.standalone ?? contract.standalone,
   };
 }

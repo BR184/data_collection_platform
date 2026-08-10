@@ -58,12 +58,30 @@ class LdapPlatformAuthenticationProviderTest {
     PlatformIdentityService identityService = Mockito.mock(PlatformIdentityService.class);
     PlatformPermissionService permissionService = Mockito.mock(PlatformPermissionService.class);
     when(client.login("alice", "bad"))
-        .thenThrow(new LdapPlatformClient.LdapPlatformClientException("账号或密码错误"));
+        .thenThrow(new LdapPlatformClient.LdapInvalidCredentialsException());
 
     AuthUserResponse result = new LdapPlatformAuthenticationProvider(
         properties, client, identityService, permissionService).authenticate("alice", "bad");
 
     assertThat(result).isNull();
+    verify(client, never()).currentUser(any());
+    verify(identityService, never()).markLogin(any());
+  }
+
+  @Test
+  void shouldReportUnavailableWhenLdapCannotBeReached() {
+    PlatformAuthProperties properties = new PlatformAuthProperties();
+    LdapPlatformClient client = Mockito.mock(LdapPlatformClient.class);
+    PlatformIdentityService identityService = Mockito.mock(PlatformIdentityService.class);
+    PlatformPermissionService permissionService = Mockito.mock(PlatformPermissionService.class);
+    when(client.login("alice", "secret"))
+        .thenThrow(new LdapPlatformClient.LdapPlatformClientException("LDAP 连接失败"));
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+        new LdapPlatformAuthenticationProvider(
+            properties, client, identityService, permissionService).authenticate("alice", "secret"))
+        .isInstanceOf(AuthenticationServiceUnavailableException.class);
+
     verify(client, never()).currentUser(any());
     verify(identityService, never()).markLogin(any());
   }

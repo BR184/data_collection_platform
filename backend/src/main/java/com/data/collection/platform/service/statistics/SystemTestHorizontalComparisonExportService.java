@@ -789,8 +789,10 @@ public class SystemTestHorizontalComparisonExportService {
     columns.add(column("P1", "P1缺陷关闭率(%)", row -> rate(row.priorityClosed("P1"), row.priorityCount("P1"))));
     columns.add(column("P2", "P2级别缺陷", row -> count(row.priorityCount("P2"))));
     columns.add(column("P2", "P2缺陷修复率(%)", row -> rate(row.priorityFixed("P2"), row.priorityCount("P2"))));
+    columns.add(column("P2", "P2缺陷关闭率(%)", row -> rate(row.priorityClosed("P2"), row.priorityCount("P2"))));
     columns.add(column("P3", "P3级别缺陷", row -> count(row.priorityCount("P3"))));
     columns.add(column("P3", "P3缺陷修复率(%)", row -> rate(row.priorityFixed("P3"), row.priorityCount("P3"))));
+    columns.add(column("P3", "P3缺陷关闭率(%)", row -> rate(row.priorityClosed("P3"), row.priorityCount("P3"))));
     columns.add(column("模块总缺陷数(个)", row -> count(row.total())));
     columns.add(column("缺陷占比(%)", row -> rate(row.total(), row.issueOverallCount())));
     columns.add(column("延期缺陷占比(%)", row -> rate(row.delayIssueCount(), row.total())));

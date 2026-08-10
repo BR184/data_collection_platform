@@ -5,11 +5,13 @@ import com.data.collection.platform.common.response.ResultCode;
 import com.data.collection.platform.entity.AuthLoginRequest;
 import com.data.collection.platform.entity.AuthUserResponse;
 import com.data.collection.platform.security.AuthSessionSupport;
+import com.data.collection.platform.security.AuthenticationServiceUnavailableException;
 import com.data.collection.platform.security.PlatformAuthenticationProvider;
 import com.data.collection.platform.security.PlatformAuthenticationToken;
 import com.data.collection.platform.service.OperationAuditService;
 import com.data.collection.platform.service.PlatformPermissionService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -57,9 +59,24 @@ public class AuthController {
   public ApiResponse<AuthUserResponse> login(
       @Valid @RequestBody AuthLoginRequest request,
       HttpSession session,
-      HttpServletRequest servletRequest
+      HttpServletRequest servletRequest,
+      HttpServletResponse servletResponse
   ) {
-    AuthUserResponse user = authenticationProvider.authenticate(request.username(), request.password());
+    AuthUserResponse user;
+    try {
+      user = authenticationProvider.authenticate(request.username(), request.password());
+    } catch (AuthenticationServiceUnavailableException exception) {
+      recordAuthAudit(
+          AuthUserResponse.guest(),
+          "POST",
+          "/api/auth/login",
+          servletRequest,
+          HttpServletResponse.SC_SERVICE_UNAVAILABLE,
+          "LOGIN_UNAVAILABLE",
+          "username=" + safeUsername(request.username()));
+      servletResponse.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+      return ApiResponse.fail(ResultCode.SYSTEM_ERROR, "认证服务暂不可用，请稍后重试");
+    }
     if (user == null) {
       recordAuthAudit(
           AuthUserResponse.guest(),

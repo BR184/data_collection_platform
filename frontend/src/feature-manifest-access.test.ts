@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canAccessPageKey, getVisibleModules, type AccessUser } from './feature-manifest';
+import { canAccessPageKey, getFirstAccessiblePagePath, getVisibleModules, type AccessUser } from './feature-manifest';
 import { modules } from './feature-manifest/modules';
 
 const guest: AccessUser = { permissions: [], authenticated: false };
@@ -26,6 +26,7 @@ describe('feature manifest access rules', () => {
     expect(canAccessPageKey('review-data-home', admin)).toBe(true);
     expect(canAccessPageKey('quality-board-other-board', admin)).toBe(true);
     expect(canAccessPageKey('code-review-multi-board', admin)).toBe(true);
+    expect(canAccessPageKey('bi-dashboard-system-test', admin)).toBe(true);
     expect(canAccessPageKey('label-group-settings', admin)).toBe(true);
     expect(canAccessPageKey('database-browser', admin)).toBe(true);
   });
@@ -42,6 +43,7 @@ describe('feature manifest access rules', () => {
     const visibleKeys = getVisibleModules(approval).map((module) => module.key);
     expect(visibleKeys).not.toContain('system-settings');
     expect(visibleKeys).toContain('quality-board');
+    expect(visibleKeys).not.toContain('bi-dashboard');
   });
 
   it('hides system settings from guest users', () => {
@@ -52,5 +54,16 @@ describe('feature manifest access rules', () => {
   it('does not expose the removed integration test module', () => {
     const visibleKeys = getVisibleModules(admin).map((module) => module.key);
     expect(visibleKeys).not.toContain('integration-test');
+  });
+
+  it('keeps all BI stages behind the shared view permission', () => {
+    const biModule = modules.find((module) => module.key === 'bi-dashboard');
+    expect(biModule?.pages).toHaveLength(6);
+    expect(biModule?.pages.every((page) => page.permission === 'bi.dashboard.view')).toBe(true);
+  });
+
+  it('keeps the quality board as the authenticated default even when BI is first in navigation', () => {
+    expect(getFirstAccessiblePagePath(admin)).toBe('/quality-board/rd-quality-board');
+    expect(getFirstAccessiblePagePath(guest)).toBe('/quality-board/rd-quality-board');
   });
 });

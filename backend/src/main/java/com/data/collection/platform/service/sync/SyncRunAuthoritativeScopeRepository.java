@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.sync;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -81,14 +82,121 @@ public class SyncRunAuthoritativeScopeRepository {
     return inserted == null ? 0 : inserted;
   }
 
-  /** 返回当前运行实际选择的全部扫描来源表。 */
+  /** 将本来源先前达到重试上限的权威范围交给当前镜像运行重放。 */
+  @Transactional
+  public int adoptFailedScopes(long runId, String sourceInstance, java.util.Set<String> selectedTables) {
+    if (runId <= 0L || sourceInstance == null || sourceInstance.isBlank()
+        || selectedTables == null || selectedTables.isEmpty()) {
+      return 0;
+    }
+    String[] tables = selectedTables.stream().sorted().toArray(String[]::new);
+    int inserted = jdbcTemplate.update(
+        """
+        insert into sync_run_authoritative_scopes(
+            run_id, source_instance, child_table, relation_key, scope_signature,
+            lookup_scope_json, status, run_after, created_at, updated_at)
+        select ?, old.source_instance, old.child_table, old.relation_key,
+               old.scope_signature, old.lookup_scope_json, 'QUEUED',
+               current_timestamp, current_timestamp, current_timestamp
+          from sync_run_authoritative_scopes old
+         where old.source_instance = ?
+           and old.status = 'FAILED'
+           and old.recovered_by_run_id is null
+           and old.child_table = any(?::text[])
+           and old.run_id <> ?
+        on conflict (run_id, child_table, relation_key, scope_signature) do nothing
+        """,
+        runId,
+        sourceInstance,
+        tables,
+        runId);
+    jdbcTemplate.update(
+        """
+        update sync_run_authoritative_scopes old
+           set recovered_by_run_id = ?,
+               recovered_at = current_timestamp,
+               updated_at = current_timestamp
+         where old.source_instance = ?
+           and old.status = 'FAILED'
+           and old.recovered_by_run_id is null
+           and old.child_table = any(?::text[])
+           and old.run_id <> ?
+           and exists (
+             select 1 from sync_run_authoritative_scopes adopted
+              where adopted.run_id = ?
+                and adopted.child_table = old.child_table
+                and adopted.relation_key = old.relation_key
+                and adopted.scope_signature = old.scope_signature)
+        """,
+        runId,
+        sourceInstance,
+        tables,
+        runId,
+        runId);
+    return inserted;
+  }
+
+  /**
+   * 把本轮元数据解析后的来源选择保存到运行快照。
+   *
+   * <p>{@code RECONCILE_ONLY} 表不会创建伪扫描任务，但仍必须能由父对象变化驱动权威范围刷新，
+   * 因此不能只从表任务反推本轮选择。
+   */
+  public void snapshotSelectedSourceTables(long runId, List<String> sourceTables) {
+    if (runId <= 0L) {
+      throw new IllegalArgumentException("来源选择快照缺少运行 ID");
+    }
+    List<String> normalizedTables =
+        sourceTables == null
+            ? List.of()
+            : sourceTables.stream()
+                .filter(table -> table != null && !table.isBlank())
+                .map(GitlabSourceInstanceSupport::normalizeSourceTableName)
+                .distinct()
+                .sorted()
+                .toList();
+    int updated =
+        jdbcTemplate.update(
+            """
+            update sync_runs
+               set payload_json = jsonb_set(
+                     coalesce(nullif(payload_json, ''), '{}')::jsonb,
+                     '{resolvedSourceTables}',
+                     ?::jsonb,
+                     true)::text
+             where id = ?
+            """,
+            jsonUtils.toJson(normalizedTables),
+            runId);
+    if (updated != 1) {
+      throw new IllegalStateException("无法持久化运行来源选择快照：" + runId);
+    }
+  }
+
+  /** 返回当前运行实际选择的全部来源表，包括不创建扫描任务的权威关系表。 */
   public java.util.Set<String> selectedSourceTables(long runId) {
     return jdbcTemplate.query(
         """
-        select distinct source_table
-          from sync_run_table_tasks
-         where run_id = ?
-           and task_stage = 'SCAN'
+        with selected_tables as (
+          select source_table
+            from sync_run_table_tasks
+           where run_id = ?
+             and task_stage = 'SCAN'
+          union
+          select jsonb_array_elements_text(
+                   case
+                     when jsonb_typeof(
+                            coalesce(nullif(run.payload_json, ''), '{}')::jsonb
+                              -> 'resolvedSourceTables') = 'array'
+                       then coalesce(nullif(run.payload_json, ''), '{}')::jsonb
+                              -> 'resolvedSourceTables'
+                     else '[]'::jsonb
+                   end)
+            from sync_runs run
+           where run.id = ?
+        )
+        select source_table
+          from selected_tables
          order by source_table
         """,
         resultSet -> {
@@ -98,6 +206,7 @@ public class SyncRunAuthoritativeScopeRepository {
           }
           return java.util.Collections.unmodifiableSet(tables);
         },
+        runId,
         runId);
   }
 

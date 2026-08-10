@@ -71,6 +71,7 @@ class BuildContext:
     fact_rebuild_scope: str
     frontend_port: int
     backend_port: int
+    postgres_port: int
     ldap_base_url: str
     include_offline_docker_debs: bool
 
@@ -246,6 +247,27 @@ def latest_flyway_version() -> str:
     return max(versions, key=lambda item: item[0])[1]
 
 
+def validate_host_ports(frontend_port: int, backend_port: int, postgres_port: int) -> None:
+    """Reject invalid or overlapping host ports before creating package output."""
+    ports = {
+        "frontend": frontend_port,
+        "backend": backend_port,
+        "postgres": postgres_port,
+    }
+    invalid = {name: value for name, value in ports.items() if value < 1 or value > 65535}
+    if invalid:
+        details = ", ".join(f"{name}={value}" for name, value in invalid.items())
+        fail(f"host ports must be between 1 and 65535: {details}")
+    if len(set(ports.values())) != len(ports):
+        details = ", ".join(f"{name}={value}" for name, value in ports.items())
+        fail(f"frontend, backend, and postgres host ports must be distinct: {details}")
+
+
+def default_compose_project_name(ctx: BuildContext) -> str:
+    """Return the release-scoped default project name used by fresh deployments."""
+    return f"qaflex-{ctx.release_id.lower()}"
+
+
 def verify_backend_migrations_match_source(jar_path: Path, migration_dir: Path) -> None:
     require_path(jar_path, "backend jar")
     require_path(migration_dir, "Flyway migration directory")
@@ -268,6 +290,7 @@ def verify_backend_migrations_match_source(jar_path: Path, migration_dir: Path) 
 
 
 def resolve_context(args: argparse.Namespace) -> BuildContext:
+    validate_host_ports(args.frontend_port, args.backend_port, args.postgres_port)
     if args.mode == "fresh-empty":
         if args.baseline_dir is not None:
             fail("fresh-empty does not accept --baseline-dir")
@@ -339,6 +362,7 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         fact_rebuild_scope=args.fact_rebuild_scope,
         frontend_port=args.frontend_port,
         backend_port=args.backend_port,
+        postgres_port=args.postgres_port,
         ldap_base_url=args.ldap_base_url,
         include_offline_docker_debs=args.include_offline_docker_debs,
     )
@@ -356,31 +380,24 @@ def build_products(args: argparse.Namespace) -> tuple[bool, str]:
     env = package_env()
     frontend_dir = REPO_ROOT / "frontend"
 
-    frontend_jobs: list[tuple[str, Sequence[str | Path], Path]] = []
     if not args.skip_frontend_release_tests:
-        frontend_jobs.append(
+        log("frontend release tests")
+        run(
             (
-                "frontend release tests",
-                ("npm.cmd", "run", "test", "--", "feature-manifest-access.test.ts", "ux-interaction-regressions.test.ts"),
-                frontend_dir,
-            )
+                "npm.cmd",
+                "run",
+                "test",
+                "--",
+                "feature-manifest-access.test.ts",
+                "ux-interaction-regressions.test.ts",
+            ),
+            cwd=frontend_dir,
+            env=env,
         )
-    frontend_jobs.append(("frontend production build", ("npm.cmd", "run", "build"), frontend_dir))
-
-    # The tests and production build are independent in this project and can run
-    # concurrently, which trims packaging time without changing output files.
-    if len(frontend_jobs) == 1:
-        name, command, cwd = frontend_jobs[0]
-        log(name)
-        run(command, cwd=cwd, env=env)
-    else:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            futures = {
-                executor.submit(run, command, cwd=cwd, env=env): name
-                for name, command, cwd in frontend_jobs
-            }
-            for future in concurrent.futures.as_completed(futures):
-                future.result()
+    # Both commands load unplugin-vue-components and write src/components.d.ts.
+    # Keep them sequential so a release build cannot race its declaration output.
+    log("frontend production build")
+    run(("npm.cmd", "run", "build"), cwd=frontend_dir, env=env)
 
     strict_args = (
         MAVEN_HOME / "bin" / "mvn.cmd",
@@ -473,6 +490,9 @@ server {
 
 def env_content(ctx: BuildContext) -> str:
     return f"""\
+# Compose project scopes container, network, and named-volume identities.
+COMPOSE_PROJECT_NAME={default_compose_project_name(ctx)}
+
 # Platform URL reachable by users and GitLab system hook.
 PLATFORM_PUBLIC_BASE_URL=http://172.22.10.115:{ctx.frontend_port}
 
@@ -484,7 +504,7 @@ GITLAB_WEB_BASE_URL=http://172.22.10.233
 POSTGRES_USER=qaflex
 POSTGRES_PASSWORD=qaflex
 POSTGRES_DB=qaflex
-POSTGRES_PORT=15432
+POSTGRES_PORT={ctx.postgres_port}
 POSTGRES_BIND=127.0.0.1
 
 # Platform ports.
@@ -504,6 +524,7 @@ PLATFORM_LDAP_INITIAL_SYNC_REQUIRED=true
 # Runtime options.
 GITLAB_SYSTEM_HOOK_MAX_QUEUE_SIZE=1000
 GITLAB_MAX_SYNC_THREADS=16
+GITLAB_DELETE_RECONCILIATION_ENABLED=false
 PLATFORM_QUERY_TIMEOUT_SECONDS=30
 PLATFORM_SLOW_QUERY_THRESHOLD_MS=1000
 REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED=false
@@ -513,11 +534,10 @@ CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED=false
 
 def compose_content(ctx: BuildContext, *, external_postgres_volume: bool = False) -> str:
     """Generate the complete authoritative Compose model for a release."""
-    project_name = (
-        'name: "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}"\n\n'
-        if external_postgres_volume
-        else ""
-    )
+    project_name = 'name: "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}"\n\n'
+    postgres_container_name = "    container_name: qaflex-postgres\n" if external_postgres_volume else ""
+    backend_container_name = "    container_name: qaflex-backend\n" if external_postgres_volume else ""
+    frontend_container_name = "    container_name: qaflex-frontend\n" if external_postgres_volume else ""
     postgres_volume = (
         """  qaflex_pgdata:
     external: true
@@ -535,7 +555,7 @@ def compose_content(ctx: BuildContext, *, external_postgres_volume: bool = False
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: qaflex-postgres
+{postgres_container_name}\
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${{POSTGRES_USER}}
@@ -543,7 +563,7 @@ services:
       POSTGRES_DB: ${{POSTGRES_DB}}
       TZ: Asia/Shanghai
     ports:
-      - "${{POSTGRES_BIND:-127.0.0.1}}:${{POSTGRES_PORT:-15432}}:5432"
+      - "${{POSTGRES_BIND:-127.0.0.1}}:${{POSTGRES_PORT:-{ctx.postgres_port}}}:5432"
     volumes:
       - qaflex_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -554,7 +574,7 @@ services:
 
   backend:
     image: {BACKEND_IMAGE}:{ctx.backend_tag}
-    container_name: qaflex-backend
+{backend_container_name}\
     restart: unless-stopped
     depends_on:
       postgres:
@@ -578,6 +598,7 @@ services:
       GITLAB_SYSTEM_HOOK_BASE_URL: ${{PLATFORM_PUBLIC_BASE_URL}}/api/gitlab-sync/system-hook
       GITLAB_SYSTEM_HOOK_MAX_QUEUE_SIZE: ${{GITLAB_SYSTEM_HOOK_MAX_QUEUE_SIZE:-1000}}
       GITLAB_MAX_SYNC_THREADS: ${{GITLAB_MAX_SYNC_THREADS:-16}}
+      GITLAB_DELETE_RECONCILIATION_ENABLED: ${{GITLAB_DELETE_RECONCILIATION_ENABLED:-false}}
       PLATFORM_QUERY_TIMEOUT_SECONDS: ${{PLATFORM_QUERY_TIMEOUT_SECONDS:-30}}
       PLATFORM_SLOW_QUERY_THRESHOLD_MS: ${{PLATFORM_SLOW_QUERY_THRESHOLD_MS:-1000}}
       REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED: ${{REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED:-false}}
@@ -595,7 +616,7 @@ services:
 
   frontend:
     image: {FRONTEND_IMAGE}:{ctx.frontend_tag}
-    container_name: qaflex-frontend
+{frontend_container_name}\
     restart: unless-stopped
     depends_on:
       backend:
@@ -708,6 +729,8 @@ vi .env
 
 `.env.example` 已写入当前内网地址、端口和 LDAP v0.3 后端地址 `{ctx.ldap_base_url}`；复制后形成的现场 `.env` 才是运行配置。部署前确认平台后端容器能够访问 LDAP 地址；不要把 GitLab / MySQL / MongoDB 源库连接写进平台库变量。
 
+默认 Compose project 为 `{default_compose_project_name(ctx)}`，前端、后端和 PostgreSQL 主机端口分别为 `{ctx.frontend_port}`、`{ctx.backend_port}`、`{ctx.postgres_port}`。同一主机再次部署本包时，必须同时修改 `COMPOSE_PROJECT_NAME` 和三个端口；容器、默认网络、数据库卷及日志卷均按 project 隔离。
+
 ## 5. 全新空数据部署
 
 ```bash
@@ -715,17 +738,7 @@ sudo docker compose --env-file .env up -d --force-recreate postgres backend fron
 sudo docker compose --env-file .env ps
 ```
 
-如果是在测试机上替换旧的 qaflex-* 容器，并且业务方确认要清空平台库，先删除旧容器和旧 volume，再启动本包。删除 volume 会清空平台数据，请确认后再执行。
-
-```bash
-sudo docker rm -f qaflex-frontend qaflex-backend qaflex-postgres
-sudo docker volume ls | grep qaflex
-# 仅在确认清空旧平台数据时执行：
-# sudo docker volume rm <approved-qaflex-volume-name>
-
-sudo docker compose --env-file .env up -d --force-recreate postgres backend frontend
-sudo docker compose --env-file .env ps
-```
+该命令只管理当前 `COMPOSE_PROJECT_NAME` 下的资源，不会替换或删除同机其它 QA Flex 实例。禁止为解决名称冲突删除其它项目的容器或 volume；若 `docker compose config` 显示的 project 或端口不符合预期，应先修改 `.env`。
 
 ## 6. 健康检查
 
@@ -1359,6 +1372,14 @@ def write_release_manifest(ctx: BuildContext, backend_fallback_used: bool, backe
             "entrypoint": "docker-compose.yml",
             "model": "single-authoritative-file",
             "environmentPreserved": ctx.mode == "incremental-update",
+            **({
+                "defaultProjectName": default_compose_project_name(ctx),
+                "hostPorts": {
+                    "frontend": ctx.frontend_port,
+                    "backend": ctx.backend_port,
+                    "postgres": ctx.postgres_port,
+                },
+            } if ctx.mode == "fresh-empty" else {}),
         },
         "preDeploymentBackup": None if ctx.mode == "fresh-empty" else {
             "required": True,
@@ -1606,6 +1627,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--fact-rebuild-scope", choices=("issue", "merge-request", "all"), default="all")
     parser.add_argument("--frontend-port", type=int, default=18181)
     parser.add_argument("--backend-port", type=int, default=18080)
+    parser.add_argument("--postgres-port", type=int, default=15432)
     parser.add_argument(
         "--ldap-base-url",
         default="http://172.22.10.116:80",
@@ -1642,6 +1664,12 @@ def main(argv: Sequence[str]) -> int:
             log(f"deploy root: {ctx.deploy_root}")
             log(f"package dir: {ctx.package_dir}")
             log(f"archive: {ctx.archive_path}")
+            if ctx.mode == "fresh-empty":
+                log(f"compose project: {default_compose_project_name(ctx)}")
+                log(
+                    "host ports: "
+                    f"frontend={ctx.frontend_port}, backend={ctx.backend_port}, postgres={ctx.postgres_port}"
+                )
             if ctx.template_dir is not None:
                 log(f"template dir: {ctx.template_dir}")
             if ctx.baseline_name:

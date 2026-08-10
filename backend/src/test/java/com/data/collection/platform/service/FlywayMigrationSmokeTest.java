@@ -236,6 +236,38 @@ class FlywayMigrationSmokeTest {
   }
 
   @Test
+  void shouldDefineIndependentCatMirrorSnapshotsAndPublicationPointers() throws IOException {
+    String migration = readMigration("V20260806_01__bi_cat_mirror_snapshots.sql");
+
+    assertThat(migration)
+        .contains("create table bi_cat_mirror_configs")
+        .contains("create table bi_cat_scope_mappings")
+        .contains("create table bi_cat_sync_runs")
+        .contains("create table bi_cat_catalog_snapshots")
+        .contains("create table bi_cat_test_snapshots")
+        .contains("create table bi_cat_test_modules")
+        .contains("create table bi_cat_test_functions")
+        .contains("create table bi_cat_raw_responses")
+        .contains("create table bi_cat_test_publications")
+        .contains("snapshot_id uuid not null references bi_cat_test_snapshots(snapshot_id)")
+        .doesNotContain("gitlab_mirror_records")
+        .doesNotContain("code_review_match_mode_records");
+  }
+
+  @Test
+  void shouldMoveCatRuntimeLimitsToDeploymentConfiguration() throws IOException {
+    String migration = readMigration("V20260806_02__move_bi_cat_runtime_limits_to_deployment.sql");
+
+    assertThat(migration)
+        .contains("destructive-migration-reviewed")
+        .contains("destructive-migration-recovery")
+        .contains("drop column connect_timeout_ms")
+        .contains("drop column read_timeout_ms")
+        .contains("drop column max_response_bytes")
+        .contains("drop column retained_snapshot_count");
+  }
+
+  @Test
   void shouldDefineCustomerIssueResponseTimesIndexMigration() throws IOException {
     String migration = readMigration("V20260722_05__add_customer_issue_response_times_index.sql");
 

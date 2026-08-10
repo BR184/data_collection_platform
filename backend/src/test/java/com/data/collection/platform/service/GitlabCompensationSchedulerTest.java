@@ -69,6 +69,52 @@ class GitlabCompensationSchedulerTest {
   }
 
   @Test
+  void test_recent_incremental_submission_consumes_current_interval_boundary() {
+    Clock clock = Clock.fixed(Instant.parse("2026-08-05T12:01:00Z"), ZoneId.of("UTC"));
+    scheduler =
+        new GitlabCompensationScheduler(
+            properties, syncService, configService, submissionService, clock);
+    GitlabSyncConfig config = config(13L, true, true, LocalDateTime.of(2026, 8, 5, 11, 40));
+    config.setCompensationIntervalMinutes(10);
+    when(configService.listConfigs()).thenReturn(List.of(config));
+    when(configService.isReadyForScheduledSync(config)).thenReturn(true);
+    when(submissionService.incrementalScheduleState(config))
+        .thenReturn(
+            new SyncRunSubmissionService.IncrementalScheduleState(
+                LocalDateTime.of(2026, 8, 5, 12, 0), true));
+
+    scheduler.run();
+
+    verify(submissionService, never())
+        .submitIncrementalSync(
+            eq(config),
+            eq(SyncTriggerType.SCHEDULE),
+            eq("Scheduled incremental sync"));
+  }
+
+  @Test
+  void test_running_incremental_crossing_real_interval_requests_one_tail_rerun() {
+    Clock clock = Clock.fixed(Instant.parse("2026-08-05T12:00:00Z"), ZoneId.of("UTC"));
+    scheduler =
+        new GitlabCompensationScheduler(
+            properties, syncService, configService, submissionService, clock);
+    GitlabSyncConfig config = config(14L, true, true, LocalDateTime.of(2026, 8, 5, 11, 30));
+    config.setCompensationIntervalMinutes(10);
+    when(configService.listConfigs()).thenReturn(List.of(config));
+    when(configService.isReadyForScheduledSync(config)).thenReturn(true);
+    when(submissionService.incrementalScheduleState(config))
+        .thenReturn(
+            new SyncRunSubmissionService.IncrementalScheduleState(
+                LocalDateTime.of(2026, 8, 5, 11, 50), true));
+
+    scheduler.run();
+
+    verify(submissionService)
+        .submitIncrementalSync(
+            config, SyncTriggerType.SCHEDULE, "Scheduled incremental sync");
+  }
+
+  @Test
   void shouldSkipIncompleteSourceBeforeSubmittingIncrementalSync() {
     GitlabSyncConfig incomplete = config(4L, true, true, null);
     when(configService.listConfigs()).thenReturn(List.of(incomplete));
@@ -86,7 +132,7 @@ class GitlabCompensationSchedulerTest {
   }
 
   @Test
-  void shouldSkipScheduledCompensationWhenFullCompensationIsActive() {
+  void shouldQueueDueIncrementalBehindActiveFullCompensation() {
     GitlabSyncConfig due = config(9L, true, true, LocalDateTime.now().minusMinutes(20));
     due.setCompensationIntervalMinutes(10);
     when(configService.listConfigs()).thenReturn(List.of(due));
@@ -97,8 +143,6 @@ class GitlabCompensationSchedulerTest {
 
     verify(syncService).recoverTimedOutTasks();
     verify(submissionService)
-        .hasActiveFullCompensationRun(eq(due));
-    verify(submissionService, never())
         .submitIncrementalSync(
             eq(due),
             eq(SyncTriggerType.SCHEDULE),
@@ -134,6 +178,79 @@ class GitlabCompensationSchedulerTest {
   }
 
   @Test
+  void test_pending_tail_rerun_bypasses_daily_schedule_after_abnormal_termination() {
+    Clock clock = Clock.fixed(Instant.parse("2026-06-02T03:31:00Z"), ZoneId.of("UTC"));
+    scheduler =
+        new GitlabCompensationScheduler(
+            properties, syncService, configService, submissionService, clock);
+    GitlabSyncConfig config =
+        config(12L, true, true, LocalDateTime.of(2026, 6, 2, 3, 30));
+    config.setCompensationScheduleMode("DAILY_TIME");
+    config.setCompensationTime("03:30");
+    config.setIncrementalRerunRequestedAt(LocalDateTime.of(2026, 6, 2, 3, 30, 30));
+    when(configService.listConfigs()).thenReturn(List.of(config));
+    when(configService.isReadyForScheduledSync(config)).thenReturn(true);
+    when(submissionService.incrementalScheduleState(config))
+        .thenReturn(new SyncRunSubmissionService.IncrementalScheduleState(null, false));
+
+    scheduler.run();
+
+    verify(submissionService)
+        .submitIncrementalSync(
+            config, SyncTriggerType.SCHEDULE, "Scheduled incremental sync");
+  }
+
+  @Test
+  void test_pending_tail_rerun_is_not_resubmitted_while_incremental_is_active() {
+    Clock clock = Clock.fixed(Instant.parse("2026-08-05T12:01:00Z"), ZoneId.of("UTC"));
+    scheduler =
+        new GitlabCompensationScheduler(
+            properties, syncService, configService, submissionService, clock);
+    GitlabSyncConfig config = config(15L, true, true, LocalDateTime.of(2026, 8, 5, 11, 40));
+    config.setCompensationIntervalMinutes(10);
+    config.setIncrementalRerunRequestedAt(LocalDateTime.of(2026, 8, 5, 12, 0, 30));
+    when(configService.listConfigs()).thenReturn(List.of(config));
+    when(configService.isReadyForScheduledSync(config)).thenReturn(true);
+    when(submissionService.incrementalScheduleState(config))
+        .thenReturn(
+            new SyncRunSubmissionService.IncrementalScheduleState(
+                LocalDateTime.of(2026, 8, 5, 12, 0), true));
+
+    scheduler.run();
+
+    verify(submissionService, never())
+        .submitIncrementalSync(
+            eq(config),
+            eq(SyncTriggerType.SCHEDULE),
+            eq("Scheduled incremental sync"));
+  }
+
+  @Test
+  void test_daily_schedule_does_not_submit_twice_in_same_minute() {
+    Clock clock = Clock.fixed(Instant.parse("2026-06-02T03:30:30Z"), ZoneId.of("UTC"));
+    scheduler =
+        new GitlabCompensationScheduler(
+            properties, syncService, configService, submissionService, clock);
+    GitlabSyncConfig config = config(16L, true, true, LocalDateTime.of(2026, 6, 1, 3, 30));
+    config.setCompensationScheduleMode("DAILY_TIME");
+    config.setCompensationTime("03:30");
+    when(configService.listConfigs()).thenReturn(List.of(config));
+    when(configService.isReadyForScheduledSync(config)).thenReturn(true);
+    when(submissionService.incrementalScheduleState(config))
+        .thenReturn(
+            new SyncRunSubmissionService.IncrementalScheduleState(
+                LocalDateTime.of(2026, 6, 2, 3, 30), true));
+
+    scheduler.run();
+
+    verify(submissionService, never())
+        .submitIncrementalSync(
+            eq(config),
+            eq(SyncTriggerType.SCHEDULE),
+            eq("Scheduled incremental sync"));
+  }
+
+  @Test
   void shouldApplyIntervalOnlyInsideConfiguredCompensationWindow() {
     Clock clock = Clock.fixed(Instant.parse("2026-06-02T10:00:00Z"), ZoneId.of("UTC"));
     scheduler = new GitlabCompensationScheduler(properties, syncService, configService, submissionService, clock);
@@ -163,6 +280,53 @@ class GitlabCompensationSchedulerTest {
             eq(outsideWindow),
             eq(SyncTriggerType.SCHEDULE),
             eq("Scheduled incremental sync"));
+  }
+
+  @Test
+  void test_delete_reconciliation_is_submitted_only_when_enabled_and_due() {
+    Clock clock = Clock.fixed(Instant.parse("2026-08-05T08:00:00Z"), ZoneId.of("UTC"));
+    scheduler =
+        new GitlabCompensationScheduler(
+            properties, syncService, configService, submissionService, clock);
+    properties.setDeleteReconciliationEnabled(true);
+    properties.setDeleteReconciliationIntervalMinutes(45);
+    GitlabSyncConfig config = config(10L, true, true, LocalDateTime.now(clock));
+    when(configService.listConfigs()).thenReturn(List.of(config));
+    when(configService.isReadyForScheduledSync(config)).thenReturn(true);
+    when(submissionService.hasDueDeleteReconciliation(
+            config, LocalDateTime.now(clock), 45))
+        .thenReturn(true);
+
+    scheduler.run();
+
+    verify(submissionService)
+        .submitDeleteReconciliation(config, "Scheduled physical delete reconciliation");
+    verify(submissionService, never())
+        .submitIncrementalSync(
+            eq(config),
+            eq(SyncTriggerType.SCHEDULE),
+            eq("Scheduled incremental sync"));
+  }
+
+  @Test
+  void test_delete_reconciliation_is_not_submitted_when_no_table_is_due() {
+    Clock clock = Clock.fixed(Instant.parse("2026-08-05T08:00:00Z"), ZoneId.of("UTC"));
+    scheduler =
+        new GitlabCompensationScheduler(
+            properties, syncService, configService, submissionService, clock);
+    properties.setDeleteReconciliationEnabled(true);
+    GitlabSyncConfig config = config(11L, true, true, LocalDateTime.now(clock));
+    when(configService.listConfigs()).thenReturn(List.of(config));
+    when(configService.isReadyForScheduledSync(config)).thenReturn(true);
+    when(submissionService.hasDueDeleteReconciliation(
+            config, LocalDateTime.now(clock), 60))
+        .thenReturn(false);
+
+    scheduler.run();
+
+    verify(submissionService, never())
+        .submitDeleteReconciliation(
+            eq(config), eq("Scheduled physical delete reconciliation"));
   }
 
   private GitlabSyncConfig config(Long id, boolean sourceEnabled, boolean autoSyncEnabled, LocalDateTime lastSyncAt) {

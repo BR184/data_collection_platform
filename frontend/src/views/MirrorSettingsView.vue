@@ -14,6 +14,7 @@ import MirrorRunMonitorPanel from './MirrorRunMonitorPanel.vue';
 import MirrorRunTableTaskDrawer from './MirrorRunTableTaskDrawer.vue';
 import MirrorSyncLogTable from './MirrorSyncLogTable.vue';
 import MirrorSyncStatusCard from './MirrorSyncStatusCard.vue';
+import CatMirrorSettingsPanel from './CatMirrorSettingsPanel.vue';
 import { useFactRebuildDialog } from './useFactRebuildDialog';
 import { useMirrorPurgeDialog } from './useMirrorPurgeDialog';
 import { useMirrorStatusController } from './useMirrorStatusController';
@@ -23,6 +24,7 @@ import { useMirrorSystemHookRegistrationController } from './useMirrorSystemHook
 import { useMirrorWhitelistOptionsController } from './useMirrorWhitelistOptionsController';
 
 const initialized = ref(false);
+const catMirrorDirty = ref(false);
 const configs = ref<GitlabSyncConfig[]>([]);
 const sourceHealth = ref<GitlabSourceHealthResponse[]>([]);
 const tableSyncDiagnostics = ref<SyncRunDiagnosticsResponse | null>(null);
@@ -526,7 +528,7 @@ function formSnapshot(config: GitlabSyncConfig) {
 }
 
 async function confirmDiscardUnsavedChanges(message = '存在未保存的同步策略修改，确认离开将丢失这些修改。') {
-  if (!isFormDirty.value) {
+  if (!isFormDirty.value && !catMirrorDirty.value) {
     return true;
   }
   try {
@@ -1131,6 +1133,7 @@ onBeforeRouteLeave(async () => {
       </el-card>
       </div>
     </div>
+    <CatMirrorSettingsPanel @dirty-change="catMirrorDirty = $event" />
   </PageStateShell>
 
   <MirrorRunTableTaskDrawer v-model="tableTaskDrawerVisible" :diagnostics="tableSyncDiagnostics" />

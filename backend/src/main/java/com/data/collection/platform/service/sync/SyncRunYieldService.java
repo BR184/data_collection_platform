@@ -4,6 +4,11 @@ import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunTableTask;
 import com.data.collection.platform.entity.sync.SyncRunTableTaskStage;
 import com.data.collection.platform.entity.sync.SyncRunType;
+import com.data.collection.platform.config.GitlabMirrorProperties;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -11,13 +16,24 @@ import org.springframework.stereotype.Service;
 @Service
 public class SyncRunYieldService {
   private final JdbcTemplate jdbcTemplate;
+  private final GitlabMirrorProperties properties;
+  private final Clock clock;
 
-  public SyncRunYieldService(JdbcTemplate jdbcTemplate) {
+  @Autowired
+  public SyncRunYieldService(
+      JdbcTemplate jdbcTemplate, GitlabMirrorProperties properties) {
+    this(jdbcTemplate, properties, Clock.systemDefaultZone());
+  }
+
+  SyncRunYieldService(
+      JdbcTemplate jdbcTemplate, GitlabMirrorProperties properties, Clock clock) {
     this.jdbcTemplate = jdbcTemplate;
+    this.properties = properties;
+    this.clock = clock;
   }
 
   /**
-   * 判断当前运行是否存在同源的增量同步或用户单表刷新等待者。
+   * 判断当前运行是否存在同源的增量、用户单表刷新或 System Hook 等待者。
    *
    * @param run 当前运行
    * @return 仅后台全量或补偿运行存在前台等待者时返回 true
@@ -30,7 +46,8 @@ public class SyncRunYieldService {
       return false;
     }
     return hasQueuedForegroundWaiter(
-        run, "waiting.run_type in ('INCREMENTAL_SYNC', 'TABLE_REFRESH')");
+        run,
+        "waiting.run_type in ('INCREMENTAL_SYNC', 'TABLE_REFRESH', 'SYSTEM_HOOK')");
   }
 
   /**
@@ -44,6 +61,13 @@ public class SyncRunYieldService {
    * @return 当前页边界允许且存在更高优先级等待者时返回 true
    */
   public boolean shouldYieldAfterTableTask(SyncRun run, SyncRunTableTask completedTask) {
+    if (run != null && run.getRunType() == SyncRunType.DELETE_RECONCILIATION) {
+      if (completedTask == null
+          || completedTask.getTaskStage() != SyncRunTableTaskStage.RECONCILE) {
+        return false;
+      }
+      return shouldYield(run) || deleteTimeSliceExpired(run);
+    }
     if (run != null && run.getRunType() == SyncRunType.INCREMENTAL_SYNC) {
       if (completedTask == null
           || completedTask.getTaskStage() != SyncRunTableTaskStage.RECONCILE) {
@@ -67,10 +91,34 @@ public class SyncRunYieldService {
         || !isYieldableRun(run.getRunType())) {
       return false;
     }
+    if (run.getRunType() == SyncRunType.DELETE_RECONCILIATION
+        && deleteTimeSliceExpired(run)) {
+      int updated =
+          jdbcTemplate.update(
+              """
+              update sync_runs current_run
+                 set status = 'PAUSED',
+                     lease_owner = null,
+                     lease_until = null,
+                     heartbeat_at = null,
+                     error_message = '后台删除反熵达到时间片，已在页边界让行',
+                     updated_at = current_timestamp
+               where current_run.id = ?
+                 and current_run.lease_owner = ?
+                 and current_run.status = 'RUNNING'
+              """,
+              run.getId(),
+              run.getLeaseOwner());
+      if (updated == 1) {
+        markPaused(run);
+        return true;
+      }
+      return false;
+    }
     String waiterPredicate =
         run.getRunType() == SyncRunType.INCREMENTAL_SYNC
             ? "waiting.run_type = 'TABLE_REFRESH'"
-            : "waiting.run_type in ('INCREMENTAL_SYNC', 'TABLE_REFRESH')";
+            : "waiting.run_type in ('INCREMENTAL_SYNC', 'TABLE_REFRESH', 'SYSTEM_HOOK')";
     int updated =
         jdbcTemplate.update(
             """
@@ -95,10 +143,7 @@ public class SyncRunYieldService {
             run.getId(),
             run.getLeaseOwner());
     if (updated == 1) {
-      run.setStatus(com.data.collection.platform.entity.sync.SyncRunStatus.PAUSED);
-      run.setLeaseOwner(null);
-      run.setLeaseUntil(null);
-      run.setHeartbeatAt(null);
+      markPaused(run);
       return true;
     }
     return false;
@@ -106,7 +151,8 @@ public class SyncRunYieldService {
 
   private boolean isYieldableBackgroundRun(SyncRunType runType) {
     return runType == SyncRunType.FULL_SYNC
-        || runType == SyncRunType.FULL_COMPENSATION_SCAN;
+        || runType == SyncRunType.FULL_COMPENSATION_SCAN
+        || runType == SyncRunType.DELETE_RECONCILIATION;
   }
 
   private boolean isYieldableRun(SyncRunType runType) {
@@ -135,5 +181,28 @@ public class SyncRunYieldService {
             run.getId(),
             run.getExclusiveScope());
     return count != null && count > 0;
+  }
+
+  private boolean deleteTimeSliceExpired(SyncRun run) {
+    if (run == null
+        || run.getRunType() != SyncRunType.DELETE_RECONCILIATION
+        || (run.getHeartbeatAt() == null && run.getStartedAt() == null)) {
+      return false;
+    }
+    int timeSliceSeconds =
+        properties == null
+            ? 240
+            : Math.max(1, properties.getDeleteReconciliationTimeSliceSeconds());
+    LocalDateTime sliceStartedAt =
+        run.getHeartbeatAt() == null ? run.getStartedAt() : run.getHeartbeatAt();
+    return Duration.between(sliceStartedAt, LocalDateTime.now(clock)).getSeconds()
+        >= timeSliceSeconds;
+  }
+
+  private void markPaused(SyncRun run) {
+    run.setStatus(com.data.collection.platform.entity.sync.SyncRunStatus.PAUSED);
+    run.setLeaseOwner(null);
+    run.setLeaseUntil(null);
+    run.setHeartbeatAt(null);
   }
 }

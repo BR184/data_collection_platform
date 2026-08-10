@@ -1,6 +1,9 @@
 package com.data.collection.platform.service.sync;
 
 import com.data.collection.platform.entity.sync.SyncRun;
+import com.data.collection.platform.entity.sync.SyncRunStatus;
+import com.data.collection.platform.entity.sync.SyncRunType;
+import com.data.collection.platform.service.GitlabConfigService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -9,12 +12,21 @@ import org.springframework.transaction.annotation.Transactional;
 public class SyncRunCompletionCommitService {
   private final SyncRunPublicationFenceService publicationFenceService;
   private final SyncRunLeaseService leaseService;
+  private final GitlabConfigService configService;
+  private final SyncIncrementalRerunService incrementalRerunService;
+  private final SyncSourceSubmissionLockService sourceSubmissionLockService;
 
   public SyncRunCompletionCommitService(
       SyncRunPublicationFenceService publicationFenceService,
-      SyncRunLeaseService leaseService) {
+      SyncRunLeaseService leaseService,
+      GitlabConfigService configService,
+      SyncIncrementalRerunService incrementalRerunService,
+      SyncSourceSubmissionLockService sourceSubmissionLockService) {
     this.publicationFenceService = publicationFenceService;
     this.leaseService = leaseService;
+    this.configService = configService;
+    this.incrementalRerunService = incrementalRerunService;
+    this.sourceSubmissionLockService = sourceSubmissionLockService;
   }
 
   /**
@@ -24,9 +36,20 @@ public class SyncRunCompletionCommitService {
    */
   @Transactional
   public void finishOwnedRun(SyncRun run) {
+    if (run != null && run.getRunType() == SyncRunType.INCREMENTAL_SYNC) {
+      sourceSubmissionLockService.lock(run.getConfigId(), run.getSourceInstance());
+    }
     publicationFenceService.captureOwnedRun(run);
     if (leaseService.finishOwnedRun(run) != 1) {
       throw new SyncRunLeaseLostException(run == null ? null : run.getId());
     }
+    if (run.getStatus() == SyncRunStatus.SUCCESS) {
+      if (run.getRunType() == SyncRunType.FULL_SYNC) {
+        configService.updateSyncTime(run.getConfigId(), true);
+      } else if (run.getRunType() == SyncRunType.INCREMENTAL_SYNC) {
+        configService.updateSyncTime(run.getConfigId(), false);
+      }
+    }
+    incrementalRerunService.enqueuePendingRerun(run);
   }
 }

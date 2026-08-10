@@ -7,12 +7,12 @@ import com.data.collection.platform.entity.QueuedFactBuildTask;
 import com.data.collection.platform.entity.QueuedFactProjectionTask;
 import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
-import com.data.collection.platform.mapper.SyncRunMapper;
 import com.data.collection.platform.service.FactBuildTaskService;
 import com.data.collection.platform.service.FactProjectionTaskService;
 import com.data.collection.platform.service.FactProjectionTaskWorkerService;
 import com.data.collection.platform.service.FactRefreshTaskWorkerService;
 import com.data.collection.platform.service.GitlabConfigService;
+import com.data.collection.platform.service.GitlabMergeRequestCommitFactCapability;
 import com.data.collection.platform.service.GitlabSourceSchemaGuard;
 import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
@@ -26,7 +26,6 @@ public class SyncFactRefreshRunExecutor {
   private final FactProjectionTaskWorkerService projectionTaskWorkerService;
   private final GitlabSourceSchemaGuard sourceSchemaGuard;
   private final GitlabMirrorProperties properties;
-  private final SyncRunMapper syncRunMapper;
   private final JsonUtils jsonUtils;
 
   public SyncFactRefreshRunExecutor(
@@ -37,7 +36,6 @@ public class SyncFactRefreshRunExecutor {
       FactProjectionTaskWorkerService projectionTaskWorkerService,
       GitlabSourceSchemaGuard sourceSchemaGuard,
       GitlabMirrorProperties properties,
-      SyncRunMapper syncRunMapper,
       JsonUtils jsonUtils) {
     this.configService = configService;
     this.factBuildTaskService = factBuildTaskService;
@@ -46,7 +44,6 @@ public class SyncFactRefreshRunExecutor {
     this.projectionTaskWorkerService = projectionTaskWorkerService;
     this.sourceSchemaGuard = sourceSchemaGuard;
     this.properties = properties;
-    this.syncRunMapper = syncRunMapper;
     this.jsonUtils = jsonUtils;
   }
 
@@ -54,15 +51,15 @@ public class SyncFactRefreshRunExecutor {
     GitlabSyncConfig config = configService.getConfigById(run.getConfigId());
     SyncRunPayload payload = payload(run);
     boolean full = payload.fullBuildEnabled() || payload.manualFullRebuildEnabled();
-    Long mirrorRunId = run.getParentRunId() == null ? payload.parentRunId() : run.getParentRunId();
     if (full) {
       sourceSchemaGuard.verifyAllFactSources(run.getSourceInstance());
+      if (GitlabMergeRequestCommitFactCapability.isEnabled(config)) {
+        sourceSchemaGuard.verifyMergeRequestCommitFactSource(run.getSourceInstance());
+      }
       factBuildTaskService.enqueueFullFactRefreshTasks(config, run.getId());
-    } else if (mirrorRunId == null) {
-      throw new IllegalStateException("定向事实刷新运行缺少镜像父运行");
     }
 
-    drainFactTasks(run, config, mirrorRunId, full);
+    drainFactTasks(run, config, full);
     drainProjectionTasks(run);
 
     FactBuildTaskService.RunTaskSummary factSummary =
@@ -91,16 +88,16 @@ public class SyncFactRefreshRunExecutor {
           retryAt,
           "事实或投影任务等待重试");
     }
-    boolean parentActive = !full && parentRunActive(mirrorRunId);
-    boolean unpublished = !full && factBuildTaskService.hasUnpublishedTargets(mirrorRunId);
-    if (parentActive || unpublished || factSummary.hasActiveTasks() || projectionSummary.hasActiveTasks()) {
+    boolean unpublished = !full
+        && factBuildTaskService.hasUnpublishedTargets(run.getConfigId(), run.getSourceInstance());
+    if (unpublished || factSummary.hasActiveTasks() || projectionSummary.hasActiveTasks()) {
       return new Result(
           planned,
           completed,
           factSummary.affectedRows(),
           SyncRunStatus.PAUSED,
           LocalDateTime.now().plusSeconds(5),
-          parentActive ? "等待镜像父运行提交后续变化目标" : "等待持久事实目标继续收敛");
+          "等待持久事实目标继续收敛");
     }
     return new Result(
         planned,
@@ -112,14 +109,14 @@ public class SyncFactRefreshRunExecutor {
   }
 
   private void drainFactTasks(
-      SyncRun run, GitlabSyncConfig config, Long mirrorRunId, boolean full) {
+      SyncRun run, GitlabSyncConfig config, boolean full) {
     int batchSize = Math.max(1, Math.min(1000, properties.getFactTargetBatchSize()));
     int assigned;
     do {
       assigned = full
           ? 0
-          : factBuildTaskService.assignPendingTargetBatches(
-              config, run.getId(), mirrorRunId, batchSize);
+          : factBuildTaskService.assignPendingSourceTargetBatches(
+              config, run.getId(), batchSize);
       QueuedFactBuildTask task;
       while ((task =
               factBuildTaskService.claimNextQueuedTaskForFactRun(
@@ -141,11 +138,6 @@ public class SyncFactRefreshRunExecutor {
         != null) {
       projectionTaskWorkerService.execute(task);
     }
-  }
-
-  private boolean parentRunActive(Long mirrorRunId) {
-    SyncRun parent = mirrorRunId == null ? null : syncRunMapper.selectById(mirrorRunId);
-    return parent != null && SyncRunStateMachine.activeStatuses().contains(parent.getStatus());
   }
 
   private LocalDateTime earlier(LocalDateTime left, LocalDateTime right) {

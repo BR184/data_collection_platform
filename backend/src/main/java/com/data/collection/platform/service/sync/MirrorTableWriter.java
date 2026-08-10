@@ -56,6 +56,11 @@ public class MirrorTableWriter {
     return storageService.listActivePrimaryKeys(mirrorSchema, cursor, batchSize);
   }
 
+  /** 返回镜像 active 行的单列最大主键游标，供单调事件表首次切换建立基线。 */
+  public String findMaxActivePrimaryKeyCursor(SourceTableSchema mirrorSchema) {
+    return storageService.findMaxActivePrimaryKeyCursor(mirrorSchema);
+  }
+
   public MirrorMutationResult markRowsDeletedByPrimaryKeys(
       SourceTableSchema mirrorSchema,
       List<Map<String, Object>> primaryKeyRows,

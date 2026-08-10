@@ -45,6 +45,42 @@ class GitlabSourceScanSqlBuilder {
         Math.max(1, batchSize)).strip();
   }
 
+  String buildMonotonicPrimaryKeyScanSql(
+      TableWhitelistOption option,
+      SourceTableSchema schema,
+      String cursorPk,
+      String upperBoundPk,
+      int batchSize) {
+    List<String> primaryKeys = primaryKeyColumns(option);
+    if (primaryKeys.size() != 1) {
+      throw new IllegalArgumentException("单调主键增量只支持单列主键：" + option.tableName());
+    }
+    if (upperBoundPk == null || upperBoundPk.isBlank()) {
+      throw new IllegalArgumentException("单调主键增量必须提供固定扫描上界");
+    }
+    String primaryKey = primaryKeys.getFirst();
+    String upperValue =
+        typedPrimaryKeyLiterals(schema, primaryKeys, decodeCursor(primaryKeys, upperBoundPk))
+            .getFirst();
+    String cursorPredicate =
+        buildPrimaryKeyCursorPredicate(schema, primaryKeys, cursorPk, " and ");
+    return """
+        select *
+          from %s
+         where %s <= %s%s
+         order by %s
+         limit %d
+        """
+        .formatted(
+            quoteQualifiedPublicTable(option.tableName()),
+            quoteIdentifier(primaryKey),
+            upperValue,
+            cursorPredicate,
+            orderByPrimaryKeys(primaryKeys),
+            Math.max(1, batchSize))
+        .strip();
+  }
+
   String buildPreciseScanSql(TableWhitelistOption option, Map<String, Object> lookupScope) {
     if (lookupScope == null || lookupScope.isEmpty()) {
       throw new IllegalArgumentException("权威关系来源查询必须指定范围");
@@ -171,6 +207,17 @@ class GitlabSourceScanSqlBuilder {
         """.formatted(
         quoteIdentifier(option.updatedAtColumn()),
         quoteQualifiedPublicTable(option.tableName())).strip();
+  }
+
+  String buildMaxPrimaryKeyProbeSql(TableWhitelistOption option) {
+    List<String> primaryKeys = primaryKeyColumns(option);
+    if (primaryKeys.size() != 1) {
+      throw new IllegalArgumentException("单调主键增量只支持单列主键：" + option.tableName());
+    }
+    return "select max(%s)::text as max_pk from %s"
+        .formatted(
+            quoteIdentifier(primaryKeys.getFirst()),
+            quoteQualifiedPublicTable(option.tableName()));
   }
 
   private String quoteIdentifier(String identifier) {

@@ -2,22 +2,27 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.exception.BizException;
 import java.sql.Timestamp;
-import java.time.LocalDateTime;
+import java.sql.Types;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
+/** 将 JDBC 驱动对象脱离为可安全持久化的 Java 值。 */
 class GitlabJdbcValueNormalizer {
   Object normalize(Object value) {
+    return normalize(value, Types.OTHER, null);
+  }
+
+  Object normalize(Object value, int jdbcType, String jdbcTypeName) {
     if (value == null) {
       return null;
     }
     if (value instanceof OffsetDateTime odt) {
-      return odt.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
+      return GitlabSourceTimestampNormalizer.normalizeOffsetDateTime(odt);
     }
     if (value instanceof Timestamp timestamp) {
-      return LocalDateTime.ofInstant(timestamp.toInstant(), ZoneOffset.UTC);
+      return GitlabSourceTimestampNormalizer.normalizeJdbcTimestamp(
+          timestamp, jdbcType, jdbcTypeName);
     }
     if (value instanceof java.sql.SQLXML sqlXml) {
       try {
@@ -34,7 +39,8 @@ class GitlabJdbcValueNormalizer {
     if (value instanceof java.sql.Array sqlArray) {
       try {
         Object array = sqlArray.getArray();
-        return normalizeArrayValue(array);
+        return normalizeArrayValue(
+            array, sqlArray.getBaseType(), sqlArray.getBaseTypeName());
       } catch (Exception e) {
         throw new BizException("Failed to normalize SQL array value: " + e.getMessage());
       } finally {
@@ -46,7 +52,7 @@ class GitlabJdbcValueNormalizer {
       }
     }
     if (value instanceof Object[]) {
-      return normalizeArrayValue(value);
+      return normalizeArrayValue(value, Types.OTHER, null);
     }
     if (value.getClass().getName().startsWith("org.postgresql.util.PG")) {
       try {
@@ -58,14 +64,14 @@ class GitlabJdbcValueNormalizer {
     return value;
   }
 
-  private Object normalizeArrayValue(Object value) {
+  private Object normalizeArrayValue(Object value, int jdbcType, String jdbcTypeName) {
     if (value == null) {
       return null;
     }
     if (value instanceof Object[] array) {
       List<Object> normalized = new ArrayList<>(array.length);
       for (Object item : array) {
-        normalized.add(normalize(item));
+        normalized.add(normalize(item, jdbcType, jdbcTypeName));
       }
       return normalized;
     }

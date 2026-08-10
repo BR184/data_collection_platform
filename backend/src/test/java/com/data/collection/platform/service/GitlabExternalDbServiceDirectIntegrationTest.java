@@ -13,15 +13,22 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.TimeZone;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Testcontainers(disabledWithoutDocker = true)
+@ResourceLock("default-time-zone")
 class GitlabExternalDbServiceDirectIntegrationTest {
+  private static TimeZone originalTimeZone;
+
   @Container
   private static final PostgreSQLContainer<?> POSTGRES =
       new PostgreSQLContainer<>("postgres:16-alpine")
@@ -34,6 +41,8 @@ class GitlabExternalDbServiceDirectIntegrationTest {
 
   @BeforeAll
   static void setUpSchema() throws Exception {
+    originalTimeZone = TimeZone.getDefault();
+    TimeZone.setDefault(TimeZone.getTimeZone(ZoneId.of("Asia/Shanghai")));
     try (Connection connection =
             DriverManager.getConnection(
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
@@ -43,14 +52,20 @@ class GitlabExternalDbServiceDirectIntegrationTest {
           create table issues (
             id bigint primary key,
             title text not null,
-            updated_at timestamp not null
+            updated_at timestamp not null,
+            wall_time timestamp,
+            instant_time timestamptz
           )
           """);
       statement.execute(
           """
-          insert into issues(id, title, updated_at) values
-            (101, 'first issue', timestamp '2026-01-01 09:00:00'),
-            (202, 'second issue', timestamp '2026-01-01 11:00:00')
+          insert into issues(id, title, updated_at, wall_time, instant_time) values
+            (101,
+             'first issue',
+             timestamp '2026-01-01 09:00:00',
+             timestamp '2026-08-06 03:20:22.840104',
+             timestamptz '2026-08-06 11:20:22.840104+08:00'),
+            (202, 'second issue', timestamp '2026-01-01 11:00:00', null, null)
           """);
       statement.execute(
           """
@@ -64,6 +79,11 @@ class GitlabExternalDbServiceDirectIntegrationTest {
       statement.execute("grant usage on schema public to gitlab_readonly");
       statement.execute("grant select on all tables in schema public to gitlab_readonly");
     }
+  }
+
+  @AfterAll
+  static void restoreTimeZone() {
+    TimeZone.setDefault(originalTimeZone);
   }
 
   @Test
@@ -126,6 +146,28 @@ class GitlabExternalDbServiceDirectIntegrationTest {
     assertThat(service.preciseScan(config, issues, java.util.Map.of("id", 202L)))
         .singleElement()
         .satisfies(row -> assertThat(row.get("title")).isEqualTo("second issue"));
+  }
+
+  @Test
+  void test_direct_mode_preserves_wall_time_and_normalizes_instant_to_utc() {
+    TableWhitelistOption issues =
+        new TableWhitelistOption(
+            "issues",
+            "issues",
+            "id",
+            "updated_at",
+            SourceCursorStrategy.TIMESTAMP_KEYSET,
+            false);
+
+    assertThat(service.preciseScan(directConfig(), issues, java.util.Map.of("id", 101L)))
+        .singleElement()
+        .satisfies(
+            row -> {
+              assertThat(row.get("wall_time"))
+                  .isEqualTo(LocalDateTime.of(2026, 8, 6, 3, 20, 22, 840_104_000));
+              assertThat(row.get("instant_time"))
+                  .isEqualTo(LocalDateTime.of(2026, 8, 6, 3, 20, 22, 840_104_000));
+            });
   }
 
   private GitlabSyncConfig directConfig() {

@@ -44,6 +44,8 @@ class SyncRunTablePlanningServiceTest {
   private GitlabConfigService configService;
   private GitlabWhitelistService whitelistService;
   private SyncRunAuthoritativeScopePlanner authoritativeScopePlanner;
+  private SyncRunAuthoritativeScopeRepository authoritativeScopeRepository;
+  private GitlabMirrorProperties mirrorProperties;
   private SyncRunTablePlanningService planningService;
 
   @BeforeEach
@@ -54,6 +56,8 @@ class SyncRunTablePlanningServiceTest {
     configService = mock(GitlabConfigService.class);
     whitelistService = mock(GitlabWhitelistService.class);
     authoritativeScopePlanner = mock(SyncRunAuthoritativeScopePlanner.class);
+    authoritativeScopeRepository = mock(SyncRunAuthoritativeScopeRepository.class);
+    mirrorProperties = new GitlabMirrorProperties();
     planningService =
         new SyncRunTablePlanningService(
             syncRunMapper,
@@ -62,8 +66,9 @@ class SyncRunTablePlanningServiceTest {
             new JsonUtils(new ObjectMapper()),
             configService,
             whitelistService,
-            new GitlabMirrorProperties(),
-            authoritativeScopePlanner);
+            mirrorProperties,
+            authoritativeScopePlanner,
+            authoritativeScopeRepository);
   }
 
   @Test
@@ -77,7 +82,7 @@ class SyncRunTablePlanningServiceTest {
         .thenReturn(
             List.of(
                 option("issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
-                option("namespaces", "id", "", SourceCursorStrategy.NONE)));
+                option("namespaces", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET)));
     assignStateIds();
 
     assertThat(planningService.planRunTables(77L)).isEqualTo(2);
@@ -133,7 +138,7 @@ class SyncRunTablePlanningServiceTest {
         .thenReturn(
             List.of(
                 option("issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
-                option("namespaces", "id", "", SourceCursorStrategy.NONE)));
+                option("namespaces", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET)));
     assignStateIds();
 
     assertThat(planningService.planRunTables(77L)).isEqualTo(2);
@@ -146,6 +151,75 @@ class SyncRunTablePlanningServiceTest {
     assertThat(tasks.getAllValues())
         .extracting(SyncRunTableTask::getRowStrategy)
         .containsOnly("FULL_RECONCILE");
+  }
+
+  @Test
+  void test_incremental_plans_only_fast_tables_without_delete_only_tasks() {
+    SyncRun run = run(SyncRunType.INCREMENTAL_SYNC);
+    GitlabSyncConfig config = config();
+    when(syncRunMapper.selectById(77L)).thenReturn(run);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(configService.isSourceConfigured(config)).thenReturn(true);
+    when(whitelistService.resolveOptions(config))
+        .thenReturn(
+            List.of(
+                option("issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
+                option("issue_assignees", "issue_id,user_id", "", SourceCursorStrategy.NONE),
+                option("label_links", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
+                option("resource_label_events", "id", "", SourceCursorStrategy.NONE)));
+    assignStateIds();
+
+    assertThat(planningService.planRunTables(77L)).isEqualTo(3);
+
+    ArgumentCaptor<SyncRunTableTask> tasks = ArgumentCaptor.forClass(SyncRunTableTask.class);
+    verify(taskMapper, times(3)).insert(tasks.capture());
+    assertThat(tasks.getAllValues())
+        .extracting(SyncRunTableTask::getSourceTable)
+        .containsExactly("issues", "label_links", "resource_label_events");
+    assertThat(tasks.getAllValues())
+        .extracting(SyncRunTableTask::getRowStrategy)
+        .containsExactly("INCREMENTAL", "INCREMENTAL", "MONOTONIC_PRIMARY_KEY")
+        .doesNotContain("DELETE_ONLY");
+    verify(authoritativeScopeRepository)
+        .snapshotSelectedSourceTables(
+            77L,
+            List.of(
+                "issues", "issue_assignees", "label_links", "resource_label_events"));
+  }
+
+  @Test
+  void test_delete_reconciliation_plans_only_due_tables() {
+    SyncRun run = run(SyncRunType.DELETE_RECONCILIATION);
+    GitlabSyncConfig config = config();
+    mirrorProperties.setDeleteReconciliationIntervalMinutes(60);
+    mirrorProperties.setDeleteReconciliationPageSize(321);
+    SyncRunTableState due = existingState(91L, "issues", null);
+    SyncRunTableState notDue =
+        existingState(92L, "label_links", LocalDateTime.now().plusDays(1));
+    when(syncRunMapper.selectById(77L)).thenReturn(run);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(configService.isSourceConfigured(config)).thenReturn(true);
+    when(whitelistService.resolveOptions(config))
+        .thenReturn(
+            List.of(
+                option("issues", "id", "updated_at", SourceCursorStrategy.TIMESTAMP_KEYSET),
+                option(
+                    "label_links",
+                    "id",
+                    "updated_at",
+                    SourceCursorStrategy.TIMESTAMP_KEYSET)));
+    when(stateMapper.selectOne(any())).thenReturn(due, notDue);
+
+    assertThat(planningService.planRunTables(77L)).isEqualTo(1);
+
+    ArgumentCaptor<SyncRunTableTask> task = ArgumentCaptor.forClass(SyncRunTableTask.class);
+    verify(taskMapper).insert(task.capture());
+    assertThat(task.getValue().getSourceTable()).isEqualTo("issues");
+    assertThat(task.getValue().getTaskType()).isEqualTo("DELETE_RECONCILIATION");
+    assertThat(task.getValue().getRowStrategy()).isEqualTo("RECONCILE_ONLY");
+    assertThat(task.getValue().getTaskStage())
+        .isEqualTo(com.data.collection.platform.entity.sync.SyncRunTableTaskStage.RECONCILE);
+    assertThat(task.getValue().getBatchSize()).isEqualTo(321);
   }
 
   @Test
@@ -257,6 +331,17 @@ class SyncRunTablePlanningServiceTest {
     task.setRunId(77L);
     task.setSourceTable(sourceTable);
     return task;
+  }
+
+  private SyncRunTableState existingState(
+      Long id, String sourceTable, LocalDateTime lastDeleteReconciledAt) {
+    SyncRunTableState state = new SyncRunTableState();
+    state.setId(id);
+    state.setConfigId(1L);
+    state.setSourceInstance("alpha");
+    state.setSourceTable(sourceTable);
+    state.setLastDeleteReconciledAt(lastDeleteReconciledAt);
+    return state;
   }
 
   private TableWhitelistOption option(

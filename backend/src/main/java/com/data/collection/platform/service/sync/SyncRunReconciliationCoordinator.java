@@ -39,8 +39,8 @@ public class SyncRunReconciliationCoordinator {
   /**
    * 在所有扫描 producer 和权威范围均成功后，幂等创建每表唯一的可续跑对账任务。
    *
-   * <p>调用者必须已在当前事务持有运行行锁。精确事件任务不触发全表删除探测；普通增量、
-   * 手动单表刷新、全量同步和全量补偿统一走该阶段屏障。
+   * <p>调用者必须已在当前事务持有运行行锁。普通增量、手动刷新和精确事件不触发全表
+   * 删除探测；只有显式全量同步和全量补偿走该阶段屏障。
    *
    * @param runId 镜像运行数据库 ID
    * @return 本次创建的表级对账任务数
@@ -90,11 +90,9 @@ public class SyncRunReconciliationCoordinator {
               from sync_run_table_tasks task
               join sync_runs run on run.id = task.run_id
              where task.run_id = ?
-               and run.run_type in (
-                   'FULL_SYNC', 'INCREMENTAL_SYNC', 'TABLE_REFRESH',
-                   'FULL_COMPENSATION_SCAN')
+               and run.run_type in ('FULL_SYNC', 'FULL_COMPENSATION_SCAN')
                and task.task_stage = 'SCAN'
-               and task.row_strategy in ('INCREMENTAL', 'DELETE_ONLY', 'FULL_RECONCILE')
+               and task.row_strategy = 'FULL_RECONCILE'
                and coalesce(task.lookup_scope_json, '') = ''
              order by task.source_table, task.id
           ) candidate

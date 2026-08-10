@@ -2,7 +2,6 @@ package com.data.collection.platform.service.sync;
 
 import com.data.collection.platform.entity.MirrorMutationResult;
 import com.data.collection.platform.entity.SourceTableSchema;
-import com.data.collection.platform.entity.VersionedFactChangeTarget;
 import com.data.collection.platform.entity.sync.SyncRunTableState;
 import com.data.collection.platform.entity.sync.SyncRunTableTask;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
@@ -22,7 +21,6 @@ public class SyncRunTablePageCommitService {
   private final SyncRunAuthoritativeScopePlanner authoritativeScopePlanner;
   private final MirrorTableWriter mirrorTableWriter;
   private final FactChangeTargetService factChangeTargetService;
-  private final SyncRunFactPublicationCoordinator factPublicationCoordinator;
   private final SyncRunReconciliationCoordinator reconciliationCoordinator;
 
   public SyncRunTablePageCommitService(
@@ -32,7 +30,6 @@ public class SyncRunTablePageCommitService {
       SyncRunAuthoritativeScopePlanner authoritativeScopePlanner,
       MirrorTableWriter mirrorTableWriter,
       FactChangeTargetService factChangeTargetService,
-      SyncRunFactPublicationCoordinator factPublicationCoordinator,
       SyncRunReconciliationCoordinator reconciliationCoordinator) {
     this.leaseService = leaseService;
     this.stateMapper = stateMapper;
@@ -40,7 +37,6 @@ public class SyncRunTablePageCommitService {
     this.authoritativeScopePlanner = authoritativeScopePlanner;
     this.mirrorTableWriter = mirrorTableWriter;
     this.factChangeTargetService = factChangeTargetService;
-    this.factPublicationCoordinator = factPublicationCoordinator;
     this.reconciliationCoordinator = reconciliationCoordinator;
   }
 
@@ -82,7 +78,9 @@ public class SyncRunTablePageCommitService {
       throw new SyncTaskLeaseLostException(task.getId());
     }
     updateScanState(task, state, cursorUpdatedAt, cursorPk, hasMore);
-    reconciliationCoordinator.planIfReady(task.getRunId());
+    if ("FULL_RECONCILE".equalsIgnoreCase(task.getRowStrategy())) {
+      reconciliationCoordinator.planIfReady(task.getRunId());
+    }
     return new PageCommitResult(rows.size(), mutationResult.appliedRows());
   }
 
@@ -100,7 +98,9 @@ public class SyncRunTablePageCommitService {
       throw new SyncTaskLeaseLostException(task.getId());
     }
     updateScanState(task, state, cursorUpdatedAt, cursorPk, false);
-    reconciliationCoordinator.planIfReady(task.getRunId());
+    if ("FULL_RECONCILE".equalsIgnoreCase(task.getRowStrategy())) {
+      reconciliationCoordinator.planIfReady(task.getRunId());
+    }
   }
 
   /** 原子提交一页删除对账结果，并重排当前任务或完成整表验证。 */
@@ -173,16 +173,12 @@ public class SyncRunTablePageCommitService {
     if (fullPublication || mutationResult.changes().isEmpty()) {
       return;
     }
-    List<VersionedFactChangeTarget> targets = factChangeTargetService.registerChanges(
+    factChangeTargetService.registerChanges(
         task.getRunId(),
         task.getId(),
         task.getSourceInstance(),
         task.getSourceTable(),
         mutationResult.changes());
-    if (!targets.isEmpty()) {
-      factPublicationCoordinator.ensurePublication(
-          task.getRunId(), false, "镜像页提交后发布定向事实");
-    }
   }
 
   private void updateScanState(
@@ -193,14 +189,20 @@ public class SyncRunTablePageCommitService {
       boolean hasMore) {
     LocalDateTime now = LocalDateTime.now();
     state.setLastSuccessAt(now);
-    boolean globalScan = "INCREMENTAL".equalsIgnoreCase(task.getRowStrategy())
-        || "DELETE_ONLY".equalsIgnoreCase(task.getRowStrategy())
-        || "FULL_RECONCILE".equalsIgnoreCase(task.getRowStrategy());
-    if (globalScan) {
+    boolean timestampScan = "INCREMENTAL".equalsIgnoreCase(task.getRowStrategy());
+    boolean monotonicScan =
+        "MONOTONIC_PRIMARY_KEY".equalsIgnoreCase(task.getRowStrategy());
+    boolean fullScan = "FULL_RECONCILE".equalsIgnoreCase(task.getRowStrategy());
+    if (fullScan) {
       state.setDirtyFlag(true);
+    } else if ((timestampScan || monotonicScan) && !hasMore) {
+      state.setDirtyFlag(false);
     }
-    if (globalScan && !hasMore && cursorUpdatedAt != null) {
+    if (timestampScan && !hasMore && cursorUpdatedAt != null) {
       state.setLastWatermarkAt(cursorUpdatedAt);
+      state.setLastCursorPk(cursorPk);
+    }
+    if (monotonicScan && !hasMore && cursorPk != null && !cursorPk.isBlank()) {
       state.setLastCursorPk(cursorPk);
     }
     state.setLastError("");

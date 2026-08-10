@@ -1,5 +1,6 @@
 import { codeReviewApi } from './api-client/code-review-api';
 import { analyticsDashboardApi } from './api-client/analytics-dashboard-api';
+import { catMirrorApi } from './api-client/cat-mirror-api';
 import { collectFormsApi } from './api-client/collect-forms-api';
 import { databaseBrowserApi } from './api-client/database-browser-api';
 import { factBuildApi } from './api-client/fact-build-api';
@@ -16,6 +17,7 @@ export * from './types/api';
 
 export const api = {
   ...analyticsDashboardApi,
+  ...catMirrorApi,
   ...mirrorApi,
   ...statisticBoardsApi,
   ...databaseBrowserApi,

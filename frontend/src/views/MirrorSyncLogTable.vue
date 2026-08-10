@@ -4,8 +4,12 @@ import { computed, ref } from 'vue';
 import { useFloatingHorizontalScrollbar } from '../composables/useFloatingHorizontalScrollbar';
 import type { SyncRunLog } from '../types/api';
 import {
+  deleteReconciliationStatusTagType,
+  deleteReconciliationStatusText,
   formatDuration,
   formatLogTime,
+  freshnessStatusTagType,
+  freshnessStatusText,
   logStatusText,
   logStatusType,
   syncLogTypeText,
@@ -182,6 +186,14 @@ async function handleExpandChange() {
                 <span>当前结果</span>
                 <strong>{{ logDisplayStatusText(row) }}</strong>
               </div>
+              <div class="sync-log-detail-item">
+                <span>数据追平</span>
+                <strong>{{ freshnessStatusText(row.freshnessStatus) }}</strong>
+              </div>
+              <div class="sync-log-detail-item">
+                <span>删除对账</span>
+                <strong>{{ deleteReconciliationStatusText(row.deleteReconciliationStatus) }}</strong>
+              </div>
               <div v-if="isMergedLog(row)" class="sync-log-detail-item">
                 <span>已并入</span>
                 <strong>{{ mergedTargetText(row) }}</strong>
@@ -212,9 +224,27 @@ async function handleExpandChange() {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="结果" width="96">
+        <el-table-column label="执行结果" width="104">
           <template #default="{ row }">
             <el-tag size="small" :type="logDisplayStatusType(row)">{{ logDisplayStatusText(row) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="数据追平" width="112">
+          <template #default="{ row }">
+            <el-tag size="small" effect="plain" :type="freshnessStatusTagType(row.freshnessStatus)">
+              {{ freshnessStatusText(row.freshnessStatus) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="删除对账" width="120">
+          <template #default="{ row }">
+            <el-tag
+              size="small"
+              effect="plain"
+              :type="deleteReconciliationStatusTagType(row.deleteReconciliationStatus)"
+            >
+              {{ deleteReconciliationStatusText(row.deleteReconciliationStatus) }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="时间" width="160">

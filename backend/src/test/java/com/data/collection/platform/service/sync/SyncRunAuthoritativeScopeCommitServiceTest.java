@@ -27,7 +27,6 @@ class SyncRunAuthoritativeScopeCommitServiceTest {
   private SyncRunAuthoritativeScopeRepository repository;
   private MirrorTableWriter mirrorTableWriter;
   private FactChangeTargetService factChangeTargetService;
-  private SyncRunFactPublicationCoordinator publicationCoordinator;
   private SyncRunReconciliationCoordinator reconciliationCoordinator;
   private SyncRunAuthoritativeScopeCommitService commitService;
 
@@ -36,14 +35,12 @@ class SyncRunAuthoritativeScopeCommitServiceTest {
     repository = mock(SyncRunAuthoritativeScopeRepository.class);
     mirrorTableWriter = mock(MirrorTableWriter.class);
     factChangeTargetService = mock(FactChangeTargetService.class);
-    publicationCoordinator = mock(SyncRunFactPublicationCoordinator.class);
     reconciliationCoordinator = mock(SyncRunReconciliationCoordinator.class);
     commitService =
         new SyncRunAuthoritativeScopeCommitService(
             repository,
             mirrorTableWriter,
             factChangeTargetService,
-            publicationCoordinator,
             reconciliationCoordinator);
   }
 
@@ -81,8 +78,6 @@ class SyncRunAuthoritativeScopeCommitServiceTest {
     verify(repository).completeOwnedBatch(List.of(11L, 12L), "owner-1", 77L);
     verify(reconciliationCoordinator).lockStageMutation(77L);
     verify(reconciliationCoordinator).planIfReady(77L);
-    verify(publicationCoordinator)
-        .ensurePublication(77L, false, "权威范围批次提交后发布定向事实");
   }
 
   @Test

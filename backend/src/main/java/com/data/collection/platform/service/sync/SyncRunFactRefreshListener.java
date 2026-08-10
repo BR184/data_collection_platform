@@ -8,8 +8,6 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class SyncRunFactRefreshListener {
-  private static final String MIRROR_COMPLETION_REFRESH_REASON = "镜像同步已完成，刷新事实层";
-
   private final GitlabConfigService configService;
   private final SyncRunFactPublicationCoordinator factPublicationCoordinator;
 
@@ -29,9 +27,6 @@ public class SyncRunFactRefreshListener {
     if (!GitlabFactDependencyCatalog.supportsAnyFactRefresh(config)) {
       return;
     }
-    factPublicationCoordinator.ensurePublication(
-        event.runId(),
-        event.requiresFullFactRefresh() && event.successful(),
-        MIRROR_COMPLETION_REFRESH_REASON);
+    factPublicationCoordinator.onMirrorCompleted(event);
   }
 }

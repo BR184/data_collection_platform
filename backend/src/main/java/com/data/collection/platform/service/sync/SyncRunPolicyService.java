@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class SyncRunPolicyService {
   private static final String MIRROR_SCOPE_SUFFIX = ":mirror";
-  private static final String FACT_SCOPE_SUFFIX = ":fact";
 
   public SyncRunType toRunType(SyncType type) {
     if (type == null) {
@@ -37,6 +36,7 @@ public class SyncRunPolicyService {
       case TABLE_REFRESH -> SyncType.INCREMENTAL;
       case SYSTEM_HOOK -> SyncType.SYSTEM_HOOK;
       case FULL_COMPENSATION_SCAN -> SyncType.COMPENSATION;
+      case DELETE_RECONCILIATION -> SyncType.COMPENSATION;
       case FACT_REFRESH -> SyncType.COMPENSATION;
     };
   }
@@ -50,6 +50,7 @@ public class SyncRunPolicyService {
       case INCREMENTAL_SYNC -> 90;
       case SYSTEM_HOOK -> 60;
       case FULL_SYNC -> 40;
+      case DELETE_RECONCILIATION -> 30;
       case FULL_COMPENSATION_SCAN -> 25;
       case FACT_REFRESH -> 10;
     };
@@ -59,9 +60,11 @@ public class SyncRunPolicyService {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     String configId = config == null || config.getId() == null ? "unknown" : String.valueOf(config.getId());
     return switch (type) {
-      case FULL_SYNC, INCREMENTAL_SYNC, TABLE_REFRESH, SYSTEM_HOOK, FULL_COMPENSATION_SCAN ->
+      case FULL_SYNC, INCREMENTAL_SYNC, TABLE_REFRESH, SYSTEM_HOOK,
+          FULL_COMPENSATION_SCAN, DELETE_RECONCILIATION ->
           "source:" + configId + ":" + sourceInstance + MIRROR_SCOPE_SUFFIX;
-      case FACT_REFRESH -> "source:" + configId + ":" + sourceInstance + FACT_SCOPE_SUFFIX;
+      case FACT_REFRESH ->
+          "source:" + configId + ":" + sourceInstance + MIRROR_SCOPE_SUFFIX;
     };
   }
 

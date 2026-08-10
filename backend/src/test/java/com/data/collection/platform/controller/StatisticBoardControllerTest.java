@@ -312,7 +312,7 @@ class StatisticBoardControllerTest {
             "assigneeName");
     assertThat(response.definition().columnGroups()).extracting("key")
         .containsExactly("level1", "level2", "level3", "suggestion", "priority-summary", "new-issue", "legacy");
-    assertThat(response.meta().columnCount()).isEqualTo(37);
+    assertThat(response.meta().columnCount()).isEqualTo(39);
   }
 
   @Test
@@ -340,7 +340,8 @@ class StatisticBoardControllerTest {
               "议题处理人", "议题状态", "测试状态", "测试阶段", "议题严重程度", "议题类别", "里程碑",
               "议题指派人", "优先级", "延期原因", "缺陷修复人", "功能名称", "修复状态",
               "一级缺陷原因", "二级缺陷原因", "具体原因", "修改方案", "由修改其他缺陷造成的",
-              "修改该缺陷可能影响的功能", "是否对可能影响的功能进行了测试", "有无遗留问题或潜在的影响",
+              "修改该缺陷可能影响的功能", "已知的受影响功能", "新识别的受影响功能",
+              "是否对可能影响的功能进行了测试", "有无遗留问题或潜在的影响",
               "是否更新了关联关系表", "议题关闭时间");
     }
   }

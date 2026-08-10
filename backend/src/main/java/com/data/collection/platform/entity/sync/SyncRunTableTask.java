@@ -60,6 +60,9 @@ public class SyncRunTableTask {
   @TableField("scan_upper_bound_at")
   private LocalDateTime scanUpperBoundAt;
 
+  @TableField("scan_upper_bound_pk")
+  private String scanUpperBoundPk;
+
   @TableField("page_number")
   private Integer pageNumber;
 

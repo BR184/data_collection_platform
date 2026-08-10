@@ -5,7 +5,6 @@ import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunType;
 import com.data.collection.platform.mapper.SyncRunMapper;
-import com.data.collection.platform.service.GitlabConfigService;
 import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -20,11 +19,11 @@ public class SyncRunWorkerService {
   private final SyncRunTableWorkerService tableWorkerService;
   private final SyncRunAuthoritativeScopeWorkerService authoritativeScopeWorkerService;
   private final SyncRunReconciliationCoordinator reconciliationCoordinator;
-  private final GitlabConfigService configService;
   private final ApplicationEventPublisher eventPublisher;
   private final SyncFactRefreshRunExecutor factRefreshRunExecutor;
   private final SyncRunDeadlineGuard deadlineGuard;
   private final SyncRunCompletionCommitService completionCommitService;
+  private final SyncIncrementalCoverageService incrementalCoverageService;
 
   public SyncRunWorkerService(
       SyncRunMapper syncRunMapper,
@@ -33,22 +32,22 @@ public class SyncRunWorkerService {
       SyncRunTableWorkerService tableWorkerService,
       SyncRunAuthoritativeScopeWorkerService authoritativeScopeWorkerService,
       SyncRunReconciliationCoordinator reconciliationCoordinator,
-      GitlabConfigService configService,
       ApplicationEventPublisher eventPublisher,
       SyncFactRefreshRunExecutor factRefreshRunExecutor,
       SyncRunDeadlineGuard deadlineGuard,
-      SyncRunCompletionCommitService completionCommitService) {
+      SyncRunCompletionCommitService completionCommitService,
+      SyncIncrementalCoverageService incrementalCoverageService) {
     this.syncRunMapper = syncRunMapper;
     this.leaseService = leaseService;
     this.tablePlanningService = tablePlanningService;
     this.tableWorkerService = tableWorkerService;
     this.authoritativeScopeWorkerService = authoritativeScopeWorkerService;
     this.reconciliationCoordinator = reconciliationCoordinator;
-    this.configService = configService;
     this.eventPublisher = eventPublisher;
     this.factRefreshRunExecutor = factRefreshRunExecutor;
     this.deadlineGuard = deadlineGuard;
     this.completionCommitService = completionCommitService;
+    this.incrementalCoverageService = incrementalCoverageService;
   }
 
   public void executeRun(SyncRun run) {
@@ -73,7 +72,6 @@ public class SyncRunWorkerService {
       } else {
         finishRun(run, SyncRunStatus.SUCCESS, 0, 0, null);
       }
-      updateSyncTimestamps(run);
       publishRunCompletion(run);
     } catch (SyncRunLeaseLostException e) {
       log.info(
@@ -81,6 +79,7 @@ public class SyncRunWorkerService {
     } catch (Exception e) {
       try {
         finishRun(run, SyncRunStatus.FAILED, 0, 0, e.getMessage());
+        publishRunCompletion(run);
       } catch (SyncRunLeaseLostException leaseLost) {
         log.info(
             "Did not overwrite sync run failure after lease ownership changed, runId={}",
@@ -92,6 +91,17 @@ public class SyncRunWorkerService {
 
   private boolean executeTableRefreshRun(SyncRun run) {
     int planned = tablePlanningService.planRunTables(run.getId());
+    authoritativeScopeWorkerService.adoptFailedScopes(
+        run.getId(), run.getSourceInstance());
+    if (run.getRunType() == SyncRunType.INCREMENTAL_SYNC && planned == 0) {
+      finishRun(
+          run,
+          SyncRunStatus.FAILED,
+          0,
+          0,
+          "快速增量未规划任何快速增量表");
+      return true;
+    }
     if (isCancellationRequested(run) || isDeadlineExpired(run)) {
       finishRun(run, SyncRunStatus.CANCELLED, planned, 0, cancellationMessage(run, "同步运行在表任务执行前已取消"));
       return true;
@@ -117,7 +127,7 @@ public class SyncRunWorkerService {
     }
     if (scopeSummary.failed() == 0) {
       int plannedReconciliations = reconciliationCoordinator.planIfReady(run.getId());
-      if (scopeDrain.processedScopes() > 0 || plannedReconciliations > 0) {
+      if (plannedReconciliations > 0) {
         SyncRunTableWorkerService.DrainResult reconciliationDrain =
             tableWorkerService.drainRunTasks(run, resolveTableWorkerCount(run));
         if (reconciliationDrain.yielded()) {
@@ -134,12 +144,21 @@ public class SyncRunWorkerService {
       return true;
     }
     SyncRunStatus status = tableRunStatus(summary, scopeSummary);
+    String errorMessage = tableRunErrorMessage(status, summary, scopeSummary);
+    if (status == SyncRunStatus.SUCCESS && run.getRunType() == SyncRunType.INCREMENTAL_SYNC) {
+      SyncIncrementalCoverageService.CoverageResult coverage =
+          incrementalCoverageService.evaluate(run.getId());
+      if (!coverage.complete()) {
+        status = SyncRunStatus.FAILED;
+        errorMessage = coverage.message();
+      }
+    }
     finishRun(
         run,
         status,
         planned,
         summary.completedTasks(),
-        tableRunErrorMessage(status, summary, scopeSummary));
+        errorMessage);
     return true;
   }
 
@@ -225,17 +244,6 @@ public class SyncRunWorkerService {
         run.getId(), errorMessage == null ? "父镜像运行已经终态" : errorMessage);
   }
 
-  private void updateSyncTimestamps(SyncRun run) {
-    if (!isMirrorRun(run)) {
-      return;
-    }
-    if (run.getStatus() != SyncRunStatus.SUCCESS && run.getStatus() != SyncRunStatus.PARTIAL_SUCCESS) {
-      return;
-    }
-    boolean fullSync = run.getRunType() == SyncRunType.FULL_SYNC;
-    configService.updateSyncTime(run.getConfigId(), fullSync);
-  }
-
   private void publishRunCompletion(SyncRun run) {
     if (!isMirrorRun(run)) {
       return;
@@ -256,7 +264,8 @@ public class SyncRunWorkerService {
             || run.getRunType() == SyncRunType.INCREMENTAL_SYNC
             || run.getRunType() == SyncRunType.TABLE_REFRESH
             || run.getRunType() == SyncRunType.SYSTEM_HOOK
-            || run.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN);
+            || run.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN
+            || run.getRunType() == SyncRunType.DELETE_RECONCILIATION);
   }
 
   private SyncRunStatus tableRunStatus(

@@ -25,5 +25,9 @@ export function getVisibleModules(user: AccessUser): ShellModule[] {
 }
 
 export function getFirstAccessiblePagePath(user: AccessUser) {
+  const qualityBoardHome = pageByKey.get('quality-board-rd-quality-board');
+  if (qualityBoardHome && canAccessPage(qualityBoardHome, user)) {
+    return qualityBoardHome.path;
+  }
   return getVisibleModules(user)[0]?.pages[0]?.path ?? '/quality-board/rd-quality-board';
 }

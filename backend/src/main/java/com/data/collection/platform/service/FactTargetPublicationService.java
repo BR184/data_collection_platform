@@ -13,6 +13,7 @@ import java.util.function.Function;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.data.collection.platform.service.sync.SyncFactPublicationStateService;
 
 /** 原子提交一个有界根批次的事实、版本头、outbox 和任务终态。 */
 @Service
@@ -22,17 +23,20 @@ public class FactTargetPublicationService {
   private final FactProjectionGenerationService generationService;
   private final com.data.collection.platform.service.sync.SyncRunPublicationFenceService
       publicationFenceService;
+  private final SyncFactPublicationStateService publicationStateService;
 
   public FactTargetPublicationService(
       JdbcTemplate jdbcTemplate,
       FactProjectionScopeResolver scopeResolver,
       FactProjectionGenerationService generationService,
       com.data.collection.platform.service.sync.SyncRunPublicationFenceService
-          publicationFenceService) {
+          publicationFenceService,
+      SyncFactPublicationStateService publicationStateService) {
     this.jdbcTemplate = jdbcTemplate;
     this.scopeResolver = scopeResolver;
     this.generationService = generationService;
     this.publicationFenceService = publicationFenceService;
+    this.publicationStateService = publicationStateService;
   }
 
   /**
@@ -97,6 +101,8 @@ public class FactTargetPublicationService {
             FactProjectionScopeKeyCodec.SINGLETON_SCOPE_KEY);
     generationService.advanceAndQueue(task, Set.of(fullEpoch));
     finishOwnedTask(task, response);
+    publicationStateService.settleAfterFullPublication(
+        task.sourceInstance(), factType, task.id());
     return response;
   }
 
@@ -127,13 +133,14 @@ public class FactTargetPublicationService {
   private List<AssignedTarget> loadAssignedTargets(QueuedFactBuildTask task) {
     return jdbcTemplate.query(
         """
-        select root_id, change_version
+        select root_id, max(change_version) as change_version
           from sync_run_fact_targets
          where assigned_fact_build_task_id = ?
            and assigned_fact_run_id = ?
            and source_instance = ?
            and fact_type = ?
            and publication_status = 'QUEUED'
+         group by root_id
          order by root_id
         """,
         (resultSet, rowNum) ->

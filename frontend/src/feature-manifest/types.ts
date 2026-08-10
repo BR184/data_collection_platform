@@ -1,5 +1,6 @@
 export type ModuleKey =
   | 'quality-board'
+  | 'bi-dashboard'
   | 'review-data'
   | 'code-review'
   | 'question-metrics'
@@ -9,6 +10,12 @@ export type ModuleKey =
 export type PageKey =
   | 'quality-board-rd-quality-board'
   | 'quality-board-other-board'
+  | 'bi-dashboard-requirements'
+  | 'bi-dashboard-design'
+  | 'bi-dashboard-coding'
+  | 'bi-dashboard-unit-test'
+  | 'bi-dashboard-integration-test'
+  | 'bi-dashboard-system-test'
   | 'review-data-home'
   | 'code-review-home'
   | 'code-review-illegal-records'
@@ -65,6 +72,7 @@ export interface PageRouteContract {
   allowedQueryKeys?: string[];
   allowedQueryPrefixes?: string[];
   persistedQueryKeys?: string[];
+  inheritedQueryKeys?: string[];
   boardKey?: string;
   standalone?: boolean;
 }

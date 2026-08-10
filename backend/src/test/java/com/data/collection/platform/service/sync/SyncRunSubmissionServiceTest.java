@@ -27,10 +27,13 @@ import com.data.collection.platform.entity.sync.SyncRunType;
 import com.data.collection.platform.mapper.SyncRunMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -55,7 +58,9 @@ class SyncRunSubmissionServiceTest {
             jdbcTemplate,
             new JsonUtils(new ObjectMapper()),
             new SyncThreadBudgetResolver(properties),
-            publicationFenceService);
+            publicationFenceService,
+            new SyncIncrementalRerunService(jdbcTemplate, syncRunMapper),
+            new SyncSourceSubmissionLockService(jdbcTemplate));
   }
 
   @Test
@@ -99,7 +104,7 @@ class SyncRunSubmissionServiceTest {
     SyncRun saved = runCaptor.getValue();
     assertThat(saved.getRunType()).isEqualTo(SyncRunType.FACT_REFRESH);
     assertThat(saved.getTriggerType()).isEqualTo(SyncTriggerType.MANUAL);
-    assertThat(saved.getExclusiveScope()).isEqualTo("source:12:default:fact");
+    assertThat(saved.getExclusiveScope()).isEqualTo("source:12:default:mirror");
     assertThat(saved.getRequestReason()).isEqualTo("手动重建当前数据源全部事实层");
     assertThat(saved.getPayloadJson())
         .contains("\"fullBuild\":true")
@@ -282,6 +287,154 @@ class SyncRunSubmissionServiceTest {
     assertThat(saved.getFinishedAt()).isNull();
     assertThat(result.status()).isEqualTo(SyncStatus.QUEUED);
     assertThat(result.action()).isEqualTo(SyncSubmissionAction.QUEUED);
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = SyncRunType.class,
+      names = {
+        "FULL_SYNC",
+        "INCREMENTAL_SYNC",
+        "TABLE_REFRESH",
+        "SYSTEM_HOOK",
+        "FULL_COMPENSATION_SCAN",
+        "DELETE_RECONCILIATION"
+      })
+  void test_system_hook_is_queued_behind_every_active_mirror_run(
+      SyncRunType activeRunType) {
+    GitlabSyncConfig config = config();
+    SyncRun activeRun =
+        activeRun(
+            106L,
+            activeRunType,
+            SyncRunStatus.RUNNING,
+            "source:12:default:mirror");
+    when(syncRunMapper.selectList(any())).thenReturn(List.of(activeRun));
+    org.mockito.Mockito.doAnswer(
+            invocation -> {
+              ((SyncRun) invocation.getArgument(0)).setId(107L);
+              return 1;
+            })
+        .when(syncRunMapper)
+        .insert(any(SyncRun.class));
+
+    var result =
+        submissionService.submitRun(
+            config,
+            SyncType.SYSTEM_HOOK,
+            SyncRunType.SYSTEM_HOOK,
+            SyncTriggerType.SYSTEM_HOOK,
+            "Issue hook",
+            List.of("issues"),
+            "issues",
+            Map.of(
+                "preciseTargets",
+                List.of(Map.of("tableName", "issues", "lookupScope", Map.of("id", "101")))));
+
+    ArgumentCaptor<SyncRun> runCaptor = ArgumentCaptor.forClass(SyncRun.class);
+    verify(syncRunMapper).insert(runCaptor.capture());
+    assertThat(runCaptor.getValue().getRunType()).isEqualTo(SyncRunType.SYSTEM_HOOK);
+    assertThat(result.action()).isEqualTo(SyncSubmissionAction.QUEUED);
+    assertThat(result.runId()).isEqualTo(107L);
+  }
+
+  @Test
+  void test_reused_incremental_persists_one_tail_rerun_request() {
+    GitlabSyncConfig config = config();
+    SyncRun activeRun =
+        activeRun(
+            105L,
+            SyncRunType.INCREMENTAL_SYNC,
+            SyncRunStatus.RUNNING,
+            "source:12:default:mirror");
+    when(syncRunMapper.selectList(any())).thenReturn(List.of(activeRun));
+    when(jdbcTemplate.update(contains("incremental_rerun_requested_at"), eq(12L)))
+        .thenReturn(1);
+    when(jdbcTemplate.update(
+            contains("RERUN_REQUESTED"),
+            eq(105L),
+            eq(12L),
+            eq("default"),
+            any(),
+            eq(105L),
+            eq("SCHEDULE"),
+            eq("Scheduled incremental sync"),
+            eq(12L)))
+        .thenReturn(1);
+
+    var result =
+        submissionService.submitIncrementalSync(
+            config, SyncTriggerType.SCHEDULE, "Scheduled incremental sync");
+
+    assertThat(result.runId()).isEqualTo(105L);
+    assertThat(result.action()).isEqualTo(SyncSubmissionAction.REUSED_ACTIVE);
+    verify(jdbcTemplate)
+        .update(
+            contains("incremental_rerun_requested_at"),
+            eq(12L));
+    verify(jdbcTemplate)
+        .update(
+            contains("RERUN_REQUESTED"),
+            eq(105L),
+            eq(12L),
+            eq("default"),
+            any(),
+            eq(105L),
+            eq("SCHEDULE"),
+            eq("Scheduled incremental sync"),
+            eq(12L));
+    verify(syncRunMapper, never()).insert(any(SyncRun.class));
+  }
+
+  @Test
+  void test_incremental_schedule_state_returns_latest_submission_and_active_flag() {
+    GitlabSyncConfig config = config();
+    LocalDateTime submittedAt = LocalDateTime.of(2026, 8, 5, 12, 0);
+    SyncRun latestRun =
+        activeRun(
+            108L,
+            SyncRunType.INCREMENTAL_SYNC,
+            SyncRunStatus.SUCCESS,
+            "source:12:default:mirror");
+    latestRun.setCreatedAt(submittedAt);
+    SyncRun activeRun =
+        activeRun(
+            109L,
+            SyncRunType.INCREMENTAL_SYNC,
+            SyncRunStatus.RUNNING,
+            "source:12:default:mirror");
+    when(syncRunMapper.selectList(any()))
+        .thenReturn(List.of(latestRun), List.of(activeRun));
+
+    SyncRunSubmissionService.IncrementalScheduleState state =
+        submissionService.incrementalScheduleState(config);
+
+    assertThat(state.lastSubmittedAt()).isEqualTo(submittedAt);
+    assertThat(state.activeIncremental()).isTrue();
+  }
+
+  @Test
+  void test_incremental_schedule_state_without_runs_is_empty() {
+    when(syncRunMapper.selectList(any())).thenReturn(List.of(), List.of());
+
+    SyncRunSubmissionService.IncrementalScheduleState state =
+        submissionService.incrementalScheduleState(config());
+
+    assertThat(state.lastSubmittedAt()).isNull();
+    assertThat(state.activeIncremental()).isFalse();
+  }
+
+  @Test
+  void test_incremental_schedule_state_without_saved_config_skips_queries() {
+    GitlabSyncConfig config = config();
+    config.setId(null);
+
+    SyncRunSubmissionService.IncrementalScheduleState state =
+        submissionService.incrementalScheduleState(config);
+
+    assertThat(state.lastSubmittedAt()).isNull();
+    assertThat(state.activeIncremental()).isFalse();
+    verify(syncRunMapper, never()).selectList(any());
   }
 
   @Test

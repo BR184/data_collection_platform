@@ -11,6 +11,7 @@ import com.data.collection.platform.entity.WorkspaceScopeSelection;
 import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunType;
+import com.data.collection.platform.service.GitlabConfigService;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
@@ -60,7 +61,11 @@ class SyncRunPublicationFenceServiceIntegrationTest {
     service = new SyncRunPublicationFenceService(jdbcTemplate);
     completionCommitService =
         new SyncRunCompletionCommitService(
-            service, new SyncRunLeaseService(jdbcTemplate));
+            service,
+            new SyncRunLeaseService(jdbcTemplate),
+            mock(GitlabConfigService.class),
+            mock(SyncIncrementalRerunService.class),
+            mock(SyncSourceSubmissionLockService.class));
   }
 
   @Test
@@ -227,7 +232,12 @@ class SyncRunPublicationFenceServiceIntegrationTest {
     SyncRunLeaseService lostLeaseService = mock(SyncRunLeaseService.class);
     when(lostLeaseService.finishOwnedRun(run)).thenReturn(0);
     SyncRunCompletionCommitService failingCompletion =
-        new SyncRunCompletionCommitService(service, lostLeaseService);
+        new SyncRunCompletionCommitService(
+            service,
+            lostLeaseService,
+            mock(GitlabConfigService.class),
+            mock(SyncIncrementalRerunService.class),
+            mock(SyncSourceSubmissionLockService.class));
 
     assertThatThrownBy(
             () ->

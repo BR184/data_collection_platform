@@ -35,8 +35,7 @@ class SyncRunFactRefreshListenerTest {
     listener.onSyncRunCompleted(
         new SyncRunCompletionEvent(11L, 1L, "alpha", SyncRunType.FULL_SYNC, SyncRunStatus.SUCCESS, 8L));
 
-    verify(factPublicationCoordinator)
-        .ensurePublication(11L, true, "镜像同步已完成，刷新事实层");
+    verify(factPublicationCoordinator).onMirrorCompleted(org.mockito.ArgumentMatchers.any());
   }
 
   @Test
@@ -50,11 +49,7 @@ class SyncRunFactRefreshListenerTest {
     listener.onSyncRunCompleted(
         new SyncRunCompletionEvent(15L, 1L, "alpha", SyncRunType.FULL_SYNC, SyncRunStatus.SUCCESS, 8L));
 
-    verify(factPublicationCoordinator, never())
-        .ensurePublication(
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.anyBoolean(),
-            org.mockito.ArgumentMatchers.any());
+    verify(factPublicationCoordinator, never()).onMirrorCompleted(org.mockito.ArgumentMatchers.any());
   }
 
   @Test
@@ -69,10 +64,8 @@ class SyncRunFactRefreshListenerTest {
         new SyncRunCompletionEvent(13L, 1L, "alpha", SyncRunType.INCREMENTAL_SYNC, SyncRunStatus.SUCCESS, 0L));
 
     verify(configService, org.mockito.Mockito.times(2)).getConfigById(1L);
-    verify(factPublicationCoordinator)
-        .ensurePublication(12L, false, "镜像同步已完成，刷新事实层");
-    verify(factPublicationCoordinator)
-        .ensurePublication(13L, false, "镜像同步已完成，刷新事实层");
+    verify(factPublicationCoordinator, org.mockito.Mockito.times(2))
+        .onMirrorCompleted(org.mockito.ArgumentMatchers.any());
   }
 
   @Test
@@ -90,8 +83,7 @@ class SyncRunFactRefreshListenerTest {
             SyncRunStatus.SUCCESS,
             3L));
 
-    verify(factPublicationCoordinator)
-        .ensurePublication(17L, true, "镜像同步已完成，刷新事实层");
+    verify(factPublicationCoordinator).onMirrorCompleted(org.mockito.ArgumentMatchers.any());
   }
 
   @Test
@@ -103,8 +95,7 @@ class SyncRunFactRefreshListenerTest {
     listener.onSyncRunCompleted(
         new SyncRunCompletionEvent(16L, 1L, "alpha", SyncRunType.INCREMENTAL_SYNC, SyncRunStatus.FAILED, 8L));
 
-    verify(factPublicationCoordinator)
-        .ensurePublication(16L, false, "镜像同步已完成，刷新事实层");
+    verify(factPublicationCoordinator).onMirrorCompleted(org.mockito.ArgumentMatchers.any());
   }
 
   @Test
@@ -117,10 +108,6 @@ class SyncRunFactRefreshListenerTest {
   }
 
   private void verifyNoFactRefreshSubmission() {
-    verify(factPublicationCoordinator, never())
-        .ensurePublication(
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.anyBoolean(),
-            org.mockito.ArgumentMatchers.any());
+    verify(factPublicationCoordinator, never()).onMirrorCompleted(org.mockito.ArgumentMatchers.any());
   }
 }

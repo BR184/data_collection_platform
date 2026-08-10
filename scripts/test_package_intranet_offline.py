@@ -40,6 +40,7 @@ class IntranetLdapPackagingTest(unittest.TestCase):
             fact_rebuild_scope="all",
             frontend_port=18181,
             backend_port=18080,
+            postgres_port=15432,
             ldap_base_url="http://172.22.10.116:80",
             include_offline_docker_debs=False,
         )
@@ -56,6 +57,86 @@ class IntranetLdapPackagingTest(unittest.TestCase):
         args = MODULE.parse_args(["--mode", "fresh-empty"])
 
         self.assertEqual("http://172.22.10.116:80", args.ldap_base_url)
+
+    def test_fresh_environment_scopes_resources_and_declares_distinct_ports(self):
+        context = MODULE.BuildContext(
+            **{
+                **self.build_context().__dict__,
+                "frontend_port": 30001,
+                "backend_port": 30002,
+                "postgres_port": 35432,
+            }
+        )
+
+        content = MODULE.env_content(context)
+
+        self.assertIn("COMPOSE_PROJECT_NAME=qaflex-20260721t120000z-001122334455", content)
+        self.assertIn("FRONTEND_PORT=30001", content)
+        self.assertIn("BACKEND_PORT=30002", content)
+        self.assertIn("POSTGRES_PORT=35432", content)
+        self.assertIn("GITLAB_DELETE_RECONCILIATION_ENABLED=false", content)
+
+    def test_fresh_compose_uses_project_scoped_resource_names(self):
+        content = MODULE.compose_content(self.build_context())
+
+        self.assertTrue(content.startswith('name: "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}"\n\nservices:\n'))
+        self.assertNotIn("container_name:", content)
+        self.assertIn("qaflex_pgdata:/var/lib/postgresql/data", content)
+        self.assertIn("GITLAB_DELETE_RECONCILIATION_ENABLED", content)
+
+    def test_fresh_readme_never_instructs_removing_another_stack(self):
+        content = MODULE.fresh_readme(self.build_context())
+
+        self.assertIn("只管理当前 `COMPOSE_PROJECT_NAME` 下的资源", content)
+        self.assertNotIn("docker rm -f", content)
+        self.assertNotIn("docker volume rm", content)
+
+    def test_resolve_context_rejects_invalid_or_overlapping_host_ports(self):
+        invalid_arguments = (
+            ["--frontend-port", "0"],
+            ["--backend-port", "65536"],
+            ["--frontend-port", "30001", "--backend-port", "30001"],
+            ["--backend-port", "30002", "--postgres-port", "30002"],
+        )
+        for arguments in invalid_arguments:
+            with self.subTest(arguments=arguments), tempfile.TemporaryDirectory() as deploy_root:
+                args = MODULE.parse_args(
+                    ["--mode", "fresh-empty", "--deploy-root", deploy_root, *arguments]
+                )
+                with self.assertRaises(MODULE.PackageError):
+                    MODULE.resolve_context(args)
+
+    def test_frontend_release_test_finishes_before_production_build(self):
+        args = argparse.Namespace(
+            skip_build=False,
+            skip_frontend_release_tests=False,
+            allow_backend_test_source_skip=False,
+        )
+        command_results = []
+
+        def capture_run(command, **_kwargs):
+            command_results.append(tuple(str(part) for part in command))
+            return MODULE.CommandResult(tuple(str(part) for part in command), 0, "")
+
+        with mock.patch.object(MODULE, "package_env", return_value={}), mock.patch.object(
+            MODULE, "run", side_effect=capture_run
+        ), mock.patch.object(MODULE, "verify_backend_migrations_match_source"):
+            MODULE.build_products(args)
+
+        self.assertEqual(
+            (
+                "npm.cmd",
+                "run",
+                "test",
+                "--",
+                "feature-manifest-access.test.ts",
+                "ux-interaction-regressions.test.ts",
+            ),
+            command_results[0],
+        )
+        self.assertEqual(("npm.cmd", "run", "build"), command_results[1])
+        self.assertIn("clean", command_results[2])
+        self.assertIn("package", command_results[2])
 
     def test_release_id_is_compact_sortable_and_contains_random_entropy(self):
         with mock.patch.object(MODULE.secrets, "token_hex", return_value="a1b2c3d4e5f6"):
@@ -108,6 +189,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             fact_rebuild_scope="all",
             frontend_port=18181,
             backend_port=18080,
+            postgres_port=15432,
             ldap_base_url="http://172.22.10.116:80",
             include_offline_docker_debs=False,
         )
@@ -124,6 +206,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 fact_rebuild_scope="all",
                 frontend_port=18181,
                 backend_port=18080,
+                postgres_port=15432,
                 ldap_base_url="http://172.22.10.116:80",
                 include_offline_docker_debs=False,
             )
@@ -167,6 +250,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 fact_rebuild_scope="all",
                 frontend_port=18181,
                 backend_port=18080,
+                postgres_port=15432,
                 ldap_base_url="http://172.22.10.116:80",
                 include_offline_docker_debs=False,
             )
@@ -264,6 +348,9 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertTrue(content.startswith('name: "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}"\n\nservices:\n'))
         self.assertIn('name: "${POSTGRES_VOLUME_NAME:?POSTGRES_VOLUME_NAME is required}"', content)
         self.assertIn('name: "${BACKEND_LOG_VOLUME_NAME:?BACKEND_LOG_VOLUME_NAME is required}"', content)
+        self.assertIn("container_name: qaflex-postgres", content)
+        self.assertIn("container_name: qaflex-backend", content)
+        self.assertIn("container_name: qaflex-frontend", content)
         self.assertNotIn(r"\n", content)
         self.assertIn("PLATFORM_AUTH_PROVIDER: ${PLATFORM_AUTH_PROVIDER}", content)
         self.assertIn('PLATFORM_AUTH_CSRF_ENABLED: "true"', content)

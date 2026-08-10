@@ -54,23 +54,25 @@ public class GitlabCompensationScheduler {
     syncService.recoverTimedOutTasks();
     LocalDateTime now = LocalDateTime.now(clock);
     for (GitlabSyncConfig config : configService.listConfigs()) {
-      if (!isDue(config, now)) {
+      if (!isReady(config)) {
         continue;
       }
-      if (submissionService.hasActiveFullCompensationRun(config)) {
-        log.info(
-            "Skipped scheduled compensation scan for sourceInstance={}, reason=active full compensation run",
-            config.getSourceInstance());
-        continue;
+      if (isDue(config, now)) {
+        submissionService.submitIncrementalSync(
+            config,
+            SyncTriggerType.SCHEDULE,
+            "Scheduled incremental sync");
       }
-      submissionService.submitIncrementalSync(
-          config,
-          SyncTriggerType.SCHEDULE,
-          "Scheduled incremental sync");
+      if (properties.isDeleteReconciliationEnabled()
+          && submissionService.hasDueDeleteReconciliation(
+              config, now, properties.getDeleteReconciliationIntervalMinutes())) {
+        submissionService.submitDeleteReconciliation(
+            config, "Scheduled physical delete reconciliation");
+      }
     }
   }
 
-  private boolean isDue(GitlabSyncConfig config, LocalDateTime now) {
+  private boolean isReady(GitlabSyncConfig config) {
     if (config == null || config.getId() == null) {
       return false;
     }
@@ -81,16 +83,39 @@ public class GitlabCompensationScheduler {
           configService.sourceReadinessIssue(config));
       return false;
     }
-    LocalDateTime lastSyncAt = config.getLastIncrementalSyncAt();
+    return true;
+  }
+
+  private boolean isDue(GitlabSyncConfig config, LocalDateTime now) {
+    SyncRunSubmissionService.IncrementalScheduleState scheduleState =
+        submissionService.incrementalScheduleState(config);
+    if (scheduleState == null) {
+      scheduleState = new SyncRunSubmissionService.IncrementalScheduleState(null, false);
+    }
+    if (config.getIncrementalRerunRequestedAt() != null) {
+      return !scheduleState.activeIncremental();
+    }
+    LocalDateTime lastTriggerAt =
+        latest(config.getLastIncrementalSyncAt(), scheduleState.lastSubmittedAt());
     String mode = config.getCompensationScheduleMode();
     if (GitlabConfigService.COMPENSATION_SCHEDULE_DAILY_TIME.equals(mode)) {
-      return isDailyTimeDue(config, now, lastSyncAt);
+      return isDailyTimeDue(config, now, lastTriggerAt);
     }
     if (GitlabConfigService.COMPENSATION_SCHEDULE_WINDOWED_INTERVAL.equals(mode)
         && !isWithinWindow(config, now.toLocalTime())) {
       return false;
     }
-    return isIntervalDue(config, now, lastSyncAt);
+    return isIntervalDue(config, now, lastTriggerAt);
+  }
+
+  private LocalDateTime latest(LocalDateTime first, LocalDateTime second) {
+    if (first == null) {
+      return second;
+    }
+    if (second == null || first.isAfter(second)) {
+      return first;
+    }
+    return second;
   }
 
   private boolean isIntervalDue(GitlabSyncConfig config, LocalDateTime now, LocalDateTime lastSyncAt) {

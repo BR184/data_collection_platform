@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.MergeRequestFact;
+import com.data.collection.platform.entity.MergeRequestCommitFact;
 import com.data.collection.platform.mapper.MergeRequestFactMapper;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,6 +13,19 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MergeRequestFactPersistenceService {
   private static final int BATCH_SIZE = 200;
+  private static final String COMMIT_UPSERT_SQL = """
+      insert into merge_request_commit_fact(
+        source_system, source_instance, project_id,
+        merge_request_id, merge_request_iid, commit_sha, committed_at_source,
+        fact_refreshed_at, created_at, updated_at
+      ) values (?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp, current_timestamp)
+      on conflict (source_system, source_instance, project_id, merge_request_id, commit_sha)
+      do update set
+        merge_request_iid = excluded.merge_request_iid,
+        committed_at_source = excluded.committed_at_source,
+        fact_refreshed_at = current_timestamp,
+        updated_at = current_timestamp
+      """;
 
   private final MergeRequestFactMapper factMapper;
   private final JdbcTemplate jdbcTemplate;
@@ -44,14 +58,16 @@ public class MergeRequestFactPersistenceService {
    * @param sourceSystem 事实来源系统
    * @param sourceInstance 事实来源实例
    * @param rootIds GitLab MR 数据库根 ID 的非空集合
-   * @param facts 目标范围当前仍存在的事实；空集合表示删除旧事实
+   * @param facts 目标范围当前仍存在的 MR 事实；空集合表示删除旧事实
+   * @param commitFacts 目标范围最新 Diff 的提交关系事实
    */
   @Transactional
   public void replaceRootFacts(
       String sourceSystem,
       String sourceInstance,
       List<Long> rootIds,
-      List<MergeRequestFact> facts) {
+      List<MergeRequestFact> facts,
+      List<MergeRequestCommitFact> commitFacts) {
     List<Long> safeRootIds = sanitizeRootIds(rootIds);
     if (safeRootIds.isEmpty()) {
       throw new IllegalArgumentException("合并请求事实目标替换必须指定非空目标范围");
@@ -66,7 +82,12 @@ public class MergeRequestFactPersistenceService {
         "delete from merge_request_fact where source_system = ? and source_instance = ?"
             + predicate,
         args.toArray());
+    jdbcTemplate.update(
+        "delete from merge_request_commit_fact where source_system = ? and source_instance = ?"
+            + predicate,
+        args.toArray());
     upsertFacts(facts);
+    upsertCommitFacts(commitFacts);
   }
 
   /**
@@ -74,16 +95,48 @@ public class MergeRequestFactPersistenceService {
    *
    * @param sourceSystem 事实来源系统
    * @param sourceInstance 事实来源实例
-   * @param facts 完整来源快照；空集合表示清空该实例事实
+   * @param facts 完整来源快照；空集合表示清空该实例 MR 事实
+   * @param commitFacts 完整来源最新 Diff 的提交关系事实
    */
   @Transactional
   public void replaceAllFacts(
-      String sourceSystem, String sourceInstance, List<MergeRequestFact> facts) {
+      String sourceSystem,
+      String sourceInstance,
+      List<MergeRequestFact> facts,
+      List<MergeRequestCommitFact> commitFacts) {
     jdbcTemplate.update(
         "delete from merge_request_fact where source_system = ? and source_instance = ?",
         sourceSystem,
         sourceInstance);
+    jdbcTemplate.update(
+        "delete from merge_request_commit_fact where source_system = ? and source_instance = ?",
+        sourceSystem,
+        sourceInstance);
     upsertFacts(facts);
+    upsertCommitFacts(commitFacts);
+  }
+
+  private void upsertCommitFacts(List<MergeRequestCommitFact> facts) {
+    if (facts == null || facts.isEmpty()) {
+      return;
+    }
+    jdbcTemplate.batchUpdate(
+        COMMIT_UPSERT_SQL,
+        facts,
+        BATCH_SIZE,
+        (statement, fact) -> {
+          statement.setString(1, fact.sourceSystem());
+          statement.setString(2, fact.sourceInstance());
+          statement.setLong(3, fact.projectId());
+          statement.setLong(4, fact.mergeRequestId());
+          if (fact.mergeRequestIid() == null) {
+            statement.setNull(5, java.sql.Types.BIGINT);
+          } else {
+            statement.setLong(5, fact.mergeRequestIid());
+          }
+          statement.setString(6, fact.commitSha());
+          statement.setTimestamp(7, java.sql.Timestamp.valueOf(fact.committedAtSource()));
+        });
   }
 
   private List<Long> sanitizeRootIds(List<Long> rootIds) {

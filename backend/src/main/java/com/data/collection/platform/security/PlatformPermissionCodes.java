@@ -2,6 +2,8 @@ package com.data.collection.platform.security;
 
 public final class PlatformPermissionCodes {
   public static final String BUSINESS_DATA_REFRESH = "business_data.refresh";
+  public static final String BI_DASHBOARD_VIEW = "bi.dashboard.view";
+  public static final String BI_DASHBOARD_DOWNLOAD = "bi.dashboard.download";
   public static final String REVIEW_DATA_VIEW = "review.data.view";
   public static final String REVIEW_RECORD_CREATE = "review.record.create";
   public static final String REVIEW_RECORD_EDIT = "review.record.edit";

@@ -500,6 +500,36 @@ class GitlabFactSourceSqlProvider {
       where coalesce(mr.mirror_deleted, false) = false
       """;
 
+  private static final String MERGE_REQUEST_COMMIT_SOURCE_SQL = """
+      with ranked_diffs as (
+        select diff.id,
+               diff.merge_request_id,
+               row_number() over (
+                 partition by diff.merge_request_id
+                 order by diff.updated_at desc nulls last,
+                          diff.created_at desc nulls last,
+                          diff.id desc
+               ) as authority_rank
+          from ods_gitlab_merge_request_diffs diff
+         where coalesce(diff.mirror_deleted, false) = false
+      )
+      select mr.target_project_id as project_id,
+             mr.id as merge_request_id,
+             mr.iid as merge_request_iid,
+             encode(commit_row.sha, 'hex') as commit_sha,
+             commit_row.committed_date as committed_at_source
+        from ranked_diffs diff
+        join ods_gitlab_merge_request_diff_commits commit_row
+          on commit_row.merge_request_diff_id = diff.id
+         and coalesce(commit_row.mirror_deleted, false) = false
+        join ods_gitlab_merge_requests mr
+          on mr.id = diff.merge_request_id
+         and coalesce(mr.mirror_deleted, false) = false
+       where diff.authority_rank = 1
+         and commit_row.sha is not null
+         and commit_row.committed_date is not null
+      """;
+
   String issueSourceSql() {
     return ISSUE_SOURCE_SQL;
   }
@@ -520,6 +550,11 @@ class GitlabFactSourceSqlProvider {
     return MERGE_REQUEST_SOURCE_SQL.replace(
         "__SOURCE_INSTANCE__",
         sqlLiteral(GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance)));
+  }
+
+  /** 返回限定最新 MR Diff 的提交事实查询。 */
+  String mergeRequestCommitSourceSql() {
+    return MERGE_REQUEST_COMMIT_SOURCE_SQL;
   }
 
   private String sqlLiteral(String value) {

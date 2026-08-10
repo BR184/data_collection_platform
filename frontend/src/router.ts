@@ -34,6 +34,7 @@ const SystemTestMultiBoardView = () => import('./views/SystemTestMultiBoardView.
 const TestingPhaseDefinitionView = () => import('./views/TestingPhaseDefinitionView.vue');
 const PermissionSettingsView = () => import('./views/PermissionSettingsView.vue');
 const AnalyticsDashboardDetailPage = () => import('./views/AnalyticsDashboardDetailPage.vue');
+const BiDashboardView = () => import('./features/bi-dashboard/BiDashboardView.vue');
 
 type RouteComponent = NonNullable<RouteRecordRaw['component']>;
 type QueryNormalizableRoute = Pick<RouteLocationNormalized, 'hash' | 'matched' | 'meta' | 'path' | 'query'>;
@@ -49,6 +50,7 @@ declare module 'vue-router' {
     allowedQueryKeys?: string[];
     allowedQueryPrefixes?: string[];
     persistedQueryKeys?: string[];
+    inheritedQueryKeys?: string[];
     analyticsDashboardKey?: string;
   }
 }
@@ -106,6 +108,24 @@ const routes: RouteRecordRaw[] = [
   },
   {
     ...buildShellRoute('quality-board-other-board', QualityBoardOtherView),
+  },
+  {
+    ...buildShellRoute('bi-dashboard-requirements', BiDashboardView),
+  },
+  {
+    ...buildShellRoute('bi-dashboard-design', BiDashboardView),
+  },
+  {
+    ...buildShellRoute('bi-dashboard-coding', BiDashboardView),
+  },
+  {
+    ...buildShellRoute('bi-dashboard-unit-test', BiDashboardView),
+  },
+  {
+    ...buildShellRoute('bi-dashboard-integration-test', BiDashboardView),
+  },
+  {
+    ...buildShellRoute('bi-dashboard-system-test', BiDashboardView),
   },
   {
     ...buildShellRoute('review-data-home', ReviewDataManagementView),
@@ -211,6 +231,7 @@ export function normalizeQuery(to: QueryNormalizableRoute, from?: QueryNormaliza
   const allowedKeys = to.meta.allowedQueryKeys ?? [];
   const allowedPrefixes = to.meta.allowedQueryPrefixes ?? [];
   const persistedKeys = to.meta.persistedQueryKeys ?? [];
+  const inheritedKeys = to.meta.inheritedQueryKeys ?? [];
   const moduleChanged = from != null && from.meta.moduleKey !== to.meta.moduleKey;
   const currentEntries = Object.entries(to.query);
   const normalizedEntries: Array<[string, string | string[]]> = [];
@@ -243,6 +264,18 @@ export function normalizeQuery(to: QueryNormalizableRoute, from?: QueryNormaliza
   }
 
   const nextQuery = Object.fromEntries(normalizedEntries);
+
+  if (!moduleChanged && from != null) {
+    for (const key of inheritedKeys) {
+      if (nextQuery[key] != null || !allowedKeys.includes(key)) {
+        continue;
+      }
+      const sourceValue = from.query[key];
+      if (typeof sourceValue === 'string' && sourceValue.trim()) {
+        nextQuery[key] = sourceValue.trim();
+      }
+    }
+  }
 
   for (const key of persistedKeys) {
     const currentValue = nextQuery[key];

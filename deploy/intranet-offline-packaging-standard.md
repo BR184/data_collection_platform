@@ -7,11 +7,13 @@
 
 ## 适用范围与拓扑
 
-本标准适用于无公网访问的 Ubuntu 24.04 amd64 平台服务器。当前运行拓扑由 Compose 管理三个容器：
+本标准适用于无公网访问的 Ubuntu 24.04 amd64 平台服务器。当前运行拓扑由 Compose 管理三个服务：
 
-- `qaflex-postgres`：平台自有 PostgreSQL，只保存平台配置、镜像、事实、同步状态和业务维护数据。
-- `qaflex-backend`：Spring Boot 后端，通过 Compose 内部网络访问平台库。
-- `qaflex-frontend`：Nginx 前端，将 `/api/` 代理到后端。
+- `postgres`：平台自有 PostgreSQL，只保存平台配置、镜像、事实、同步状态和业务维护数据。
+- `backend`：Spring Boot 后端，通过 Compose 内部网络访问平台库。
+- `frontend`：Nginx 前端，将 `/api/` 代理到后端。
+
+全新包必须通过必填 `COMPOSE_PROJECT_NAME` 隔离容器、默认网络和 named volume，不写固定 `container_name`；同一主机部署多套实例时，project 名称及前端、后端、PostgreSQL 三个主机端口必须同时唯一。保数据更新包为兼容既有现场资源身份可继续使用其原容器名和 external volume，但不得把该约束复制到新实例。
 
 GitLab Web、GitLab PostgreSQL、LDAP、老平台 MySQL/MongoDB 均是其他服务器上的外部系统，不进入本包。GitLab 等源数据库只通过平台 UI 配置为只读数据源，不能写入平台库的 `DATASOURCE_URL`。
 
@@ -90,6 +92,8 @@ qaflex-full-<release-id>/
 ```
 
 只有显式选择时才增加 `offline-debs/ubuntu-24.04-amd64/`。全新包同样不携带 `backend/`、`frontend/` 或真实 `.env`；部署人员必须从 `.env.example` 建立现场 `.env` 并设置实际配置。
+
+`.env.example` 必须给出发布级唯一的默认 `COMPOSE_PROJECT_NAME`，并分别声明前端、后端和 PostgreSQL 主机端口。Compose 中所有持久卷由该 project 作用域管理；不得为了部署新实例删除、改名或复用同机其它 project 的容器、网络或卷。自动删除反熵在约 280 万总量现场容量验收前必须显式保持 `GITLAB_DELETE_RECONCILIATION_ENABLED=false`。
 
 ## 镜像与发布身份
 
@@ -308,7 +312,11 @@ git status --short --branch
 全新/灾备包：
 
 ```powershell
-python scripts\package_intranet_offline.py --mode fresh-empty
+python scripts\package_intranet_offline.py `
+  --mode fresh-empty `
+  --frontend-port <独立前端端口> `
+  --backend-port <独立后端端口> `
+  --postgres-port <独立PostgreSQL端口>
 ```
 
 只有目标机缺少 Docker 时增加：

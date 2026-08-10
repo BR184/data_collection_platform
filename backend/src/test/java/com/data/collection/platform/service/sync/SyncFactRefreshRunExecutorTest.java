@@ -1,8 +1,8 @@
 package com.data.collection.platform.service.sync;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -11,10 +11,10 @@ import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
+import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunType;
-import com.data.collection.platform.mapper.SyncRunMapper;
 import com.data.collection.platform.service.FactBuildTaskService;
 import com.data.collection.platform.service.FactProjectionTaskService;
 import com.data.collection.platform.service.FactProjectionTaskWorkerService;
@@ -23,6 +23,7 @@ import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabSourceSchemaGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -33,7 +34,6 @@ class SyncFactRefreshRunExecutorTest {
   private FactProjectionTaskService projectionTaskService;
   private FactProjectionTaskWorkerService projectionTaskWorkerService;
   private GitlabSourceSchemaGuard sourceSchemaGuard;
-  private SyncRunMapper syncRunMapper;
   private SyncFactRefreshRunExecutor executor;
 
   @BeforeEach
@@ -44,7 +44,6 @@ class SyncFactRefreshRunExecutorTest {
     projectionTaskService = mock(FactProjectionTaskService.class);
     projectionTaskWorkerService = mock(FactProjectionTaskWorkerService.class);
     sourceSchemaGuard = mock(GitlabSourceSchemaGuard.class);
-    syncRunMapper = mock(SyncRunMapper.class);
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
     properties.setHeartbeatTimeoutSeconds(30);
     properties.setFactTargetBatchSize(200);
@@ -57,7 +56,6 @@ class SyncFactRefreshRunExecutorTest {
             projectionTaskWorkerService,
             sourceSchemaGuard,
             properties,
-            syncRunMapper,
             new JsonUtils(new ObjectMapper()));
   }
 
@@ -81,6 +79,7 @@ class SyncFactRefreshRunExecutorTest {
     SyncFactRefreshRunExecutor.Result result = executor.execute(run);
 
     verify(sourceSchemaGuard).verifyAllFactSources("alpha");
+    verify(sourceSchemaGuard).verifyMergeRequestCommitFactSource("alpha");
     verify(factBuildTaskService).enqueueFullFactRefreshTasks(config, 14L);
     verify(factRefreshTaskWorkerService).execute(task);
     assertThat(result.status()).isEqualTo(SyncRunStatus.SUCCESS);
@@ -90,28 +89,52 @@ class SyncFactRefreshRunExecutorTest {
   }
 
   @Test
-  void test_targeted_run_pauses_while_parent_can_still_commit_targets() {
-    SyncRun run = run(15L, 5L);
-    when(configService.getConfigById(1L)).thenReturn(config());
-    when(factBuildTaskService.assignPendingTargetBatches(config(), 15L, 5L, 200)).thenReturn(0);
-    stubEmptyDrainsAndSummaries(15L);
-    SyncRun parent = new SyncRun();
-    parent.setStatus(SyncRunStatus.RUNNING);
-    when(syncRunMapper.selectById(5L)).thenReturn(parent);
+  void test_full_custom_run_without_commit_tables_keeps_commit_enhancement_optional() {
+    SyncRun run = run(19L, null);
+    run.setPayloadJson("{\"fullBuild\":true}");
+    GitlabSyncConfig config = config();
+    config.setWhitelistMode(WhitelistMode.CUSTOM);
+    config.setWhitelistTables(
+        List.of(
+            "merge_requests",
+            "merge_request_metrics",
+            "projects",
+            "namespaces",
+            "users",
+            "merge_request_reviewers",
+            "merge_request_assignees",
+            "notes",
+            "label_links",
+            "labels",
+            "resource_label_events"));
+    when(configService.getConfigById(1L)).thenReturn(config);
+    stubEmptyDrainsAndSummaries(19L);
 
     SyncFactRefreshRunExecutor.Result result = executor.execute(run);
 
-    assertThat(result.status()).isEqualTo(SyncRunStatus.PAUSED);
-    assertThat(result.runAfter()).isNotNull();
-    assertThat(result.errorMessage()).contains("镜像父运行");
+    verify(sourceSchemaGuard).verifyAllFactSources("alpha");
+    verify(sourceSchemaGuard, never()).verifyMergeRequestCommitFactSource("alpha");
+    assertThat(result.status()).isEqualTo(SyncRunStatus.SUCCESS);
+  }
+
+  @Test
+  void test_targeted_run_accepts_source_level_consumer_without_parent_lineage() {
+    SyncRun run = run(15L, null);
+    when(configService.getConfigById(1L)).thenReturn(config());
+    when(factBuildTaskService.assignPendingSourceTargetBatches(config(), 15L, 200)).thenReturn(0);
+    stubEmptyDrainsAndSummaries(15L);
+
+    SyncFactRefreshRunExecutor.Result result = executor.execute(run);
+
+    assertThat(result.status()).isEqualTo(SyncRunStatus.SUCCESS);
   }
 
   @Test
   void test_retry_waiting_task_keeps_same_fact_run_retryable() {
-    SyncRun run = run(16L, 6L);
+    SyncRun run = run(16L, null);
     LocalDateTime retryAt = LocalDateTime.of(2026, 7, 31, 16, 0);
     when(configService.getConfigById(1L)).thenReturn(config());
-    when(factBuildTaskService.assignPendingTargetBatches(config(), 16L, 6L, 200)).thenReturn(0);
+    when(factBuildTaskService.assignPendingSourceTargetBatches(config(), 16L, 200)).thenReturn(0);
     when(factBuildTaskService.claimNextQueuedTaskForFactRun(16L, "fact-run-16", 30))
         .thenReturn(null);
     when(projectionTaskService.claimNext(16L, "projection-run-16", 30)).thenReturn(null);
@@ -129,9 +152,9 @@ class SyncFactRefreshRunExecutorTest {
 
   @Test
   void test_failed_projection_task_fails_fact_run_without_false_success() {
-    SyncRun run = run(17L, 7L);
+    SyncRun run = run(17L, null);
     when(configService.getConfigById(1L)).thenReturn(config());
-    when(factBuildTaskService.assignPendingTargetBatches(config(), 17L, 7L, 200)).thenReturn(0);
+    when(factBuildTaskService.assignPendingSourceTargetBatches(config(), 17L, 200)).thenReturn(0);
     when(factBuildTaskService.claimNextQueuedTaskForFactRun(17L, "fact-run-17", 30))
         .thenReturn(null);
     when(projectionTaskService.claimNext(17L, "projection-run-17", 30)).thenReturn(null);
@@ -145,16 +168,6 @@ class SyncFactRefreshRunExecutorTest {
     assertThat(result.errorMessage()).contains("重试上限");
   }
 
-  @Test
-  void test_targeted_run_without_parent_lineage_is_rejected() {
-    SyncRun run = run(18L, null);
-    when(configService.getConfigById(1L)).thenReturn(config());
-
-    assertThatThrownBy(() -> executor.execute(run))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("缺少镜像父运行");
-  }
-
   private void stubEmptyDrainsAndSummaries(long runId) {
     when(factBuildTaskService.claimNextQueuedTaskForFactRun(
             runId, "fact-run-" + runId, 30))
@@ -165,7 +178,7 @@ class SyncFactRefreshRunExecutorTest {
         .thenReturn(factSummary(0, 0, 0, 0, 0, 0, null, 0));
     when(projectionTaskService.summarize(runId))
         .thenReturn(projectionSummary(0, 0, 0, 0, 0, 0, null));
-    when(factBuildTaskService.hasUnpublishedTargets(runId)).thenReturn(false);
+    when(factBuildTaskService.hasUnpublishedTargets(1L, "alpha")).thenReturn(false);
   }
 
   private FactBuildTaskService.RunTaskSummary factSummary(

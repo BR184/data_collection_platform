@@ -66,9 +66,9 @@ class PlatformSecurityConfigurationTest {
   @Test
   void shouldKeepExternalBearerRequestsStatelessAndSeparateFromBrowserCsrf() throws Exception {
     ExternalApiProperties.Client client = new ExternalApiProperties.Client();
-    client.setClientId("bi-dashboard");
+    client.setClientId("sample-client");
     client.setTokenSha256(sha256Hex("external-test-token"));
-    client.setAllowedDatasets(List.of("bi-dashboard"));
+    client.setAllowedDatasets(List.of("sample-dataset"));
     externalApiProperties.setEnabled(true);
     externalApiProperties.setClients(List.of(client));
 

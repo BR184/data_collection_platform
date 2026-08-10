@@ -2,6 +2,7 @@ package com.data.collection.platform.service.sync;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -37,6 +38,12 @@ class SyncRuntimeConfigGuardTest {
     assertThatThrownBy(() -> guard.verifyChangeAllowed(current, replacement))
         .isInstanceOf(BizException.class)
         .hasMessageContaining("活动同步任务");
+    verify(jdbcTemplate)
+        .queryForObject(
+            contains("'DELETE_RECONCILIATION'"),
+            eq(Boolean.class),
+            eq(7L),
+            eq("default"));
   }
 
   @Test

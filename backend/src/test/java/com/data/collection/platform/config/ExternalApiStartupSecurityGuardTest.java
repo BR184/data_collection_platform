@@ -45,20 +45,20 @@ class ExternalApiStartupSecurityGuardTest {
   @Test
   void shouldRejectDuplicateClientIds() {
     ExternalApiProperties properties = enabledProperties(
-        client("bi-dashboard", "a".repeat(64), List.of("bi-dashboard")),
-        client("bi-dashboard", "b".repeat(64), List.of("bi-dashboard")));
+        client("sample-client", "a".repeat(64), List.of("sample-dataset")),
+        client("sample-client", "b".repeat(64), List.of("sample-dataset")));
 
     ExternalApiStartupSecurityGuard guard = new ExternalApiStartupSecurityGuard(properties);
 
     assertThatThrownBy(() -> guard.run(new DefaultApplicationArguments()))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("client-id 重复: bi-dashboard");
+        .hasMessageContaining("client-id 重复: sample-client");
   }
 
   @Test
   void shouldAllowValidExternalApiConfiguration() {
     ExternalApiProperties properties = enabledProperties(
-        client("bi-dashboard", "a".repeat(64), List.of("bi-dashboard")));
+        client("sample-client", "a".repeat(64), List.of("sample-dataset")));
 
     ExternalApiStartupSecurityGuard guard = new ExternalApiStartupSecurityGuard(properties);
 

@@ -24,6 +24,63 @@ import type { ShellModule } from './types';
 
 export const modules: ShellModule[] = [
   {
+    key: 'bi-dashboard',
+    label: 'BI 看板',
+    icon: DataLine,
+    title: 'BI 看板',
+    description: '按研发阶段展示产品版本范围内的质量与效能数据。',
+    pages: [
+      {
+        key: 'bi-dashboard-requirements',
+        label: '需求',
+        icon: Document,
+        description: '展示需求评审问题构成、缺陷密度、评审速率与达标情况。',
+        path: '/bi-dashboard/requirements',
+        permission: 'bi.dashboard.view',
+      },
+      {
+        key: 'bi-dashboard-design',
+        label: '设计',
+        icon: DocumentChecked,
+        description: '展示设计评审问题构成、缺陷密度、评审速率与达标情况。',
+        path: '/bi-dashboard/design',
+        permission: 'bi.dashboard.view',
+      },
+      {
+        key: 'bi-dashboard-coding',
+        label: '编码',
+        icon: Operation,
+        description: '展示提交、代码增量、人员贡献、扫描与人工走查质量。',
+        path: '/bi-dashboard/coding',
+        permission: 'bi.dashboard.view',
+      },
+      {
+        key: 'bi-dashboard-unit-test',
+        label: '单元测试',
+        icon: DataBoard,
+        description: '展示 CAT 单元测试整体、模块和功能达标情况。',
+        path: '/bi-dashboard/unit-test',
+        permission: 'bi.dashboard.view',
+      },
+      {
+        key: 'bi-dashboard-integration-test',
+        label: '集成测试',
+        icon: DataBoard,
+        description: '展示 CAT 集成测试整体、模块和功能达标情况。',
+        path: '/bi-dashboard/integration-test',
+        permission: 'bi.dashboard.view',
+      },
+      {
+        key: 'bi-dashboard-system-test',
+        label: '系统测试',
+        icon: DataAnalysis,
+        description: '展示系统测试质量目标、缺陷修复、原因、延期和人员负荷。',
+        path: '/bi-dashboard/system-test',
+        permission: 'bi.dashboard.view',
+      },
+    ],
+  },
+  {
     key: 'quality-board',
     label: '质量看板',
     icon: DataAnalysis,

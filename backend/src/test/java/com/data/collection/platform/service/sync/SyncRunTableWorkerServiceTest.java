@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -103,7 +104,6 @@ class SyncRunTableWorkerServiceTest {
             authoritativeScopePlanner,
             mirrorTableWriter,
             factChangeTargetService,
-            org.mockito.Mockito.mock(SyncRunFactPublicationCoordinator.class),
             reconciliationCoordinator);
     when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
     taskExecutor =
@@ -188,7 +188,7 @@ class SyncRunTableWorkerServiceTest {
             argThat(
                 (SyncRunTableState updated) ->
                     updated.getId().equals(91L)
-                        && Boolean.TRUE.equals(updated.getDirtyFlag())
+                        && Boolean.FALSE.equals(updated.getDirtyFlag())
                         && nextWatermark.equals(updated.getLastWatermarkAt())
                         && "".equals(updated.getLastCursorPk())
                         && updated.getLastSuccessAt() != null));
@@ -207,7 +207,9 @@ class SyncRunTableWorkerServiceTest {
             "ods_gitlab_alpha_issues",
             List.of("id"),
             "updated_at",
-            List.of(new SourceTableColumn("id", "bigint", false, 1)));
+            List.of(
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn("updated_at", "timestamp", false, 2)));
     List<Map<String, Object>> rows =
         List.of(Map.of("id", 101L, "updated_at", LocalDateTime.of(2026, 5, 17, 10, 1)));
     AtomicBoolean sourceScanCompleted = new AtomicBoolean(false);
@@ -216,7 +218,8 @@ class SyncRunTableWorkerServiceTest {
         .thenAnswer(invocation -> sourceScanCompleted.get());
     when(jdbcTemplate.queryForObject(
             contains("update sync_run_table_tasks"), any(RowMapper.class), startsWith("table-worker-77-"), eq(30), eq(77L)))
-        .thenReturn(task);
+        .thenReturn(task)
+        .thenThrow(new EmptyResultDataAccessException(1));
     when(stateMapper.selectById(91L)).thenReturn(state);
     when(configService.getConfigById(1L)).thenReturn(config);
     when(mirrorSchemaService.getPreparedMirrorTableForSync(eq(config), argThat(option -> "issues".equals(option.tableName()))))
@@ -248,15 +251,17 @@ class SyncRunTableWorkerServiceTest {
     task.setTaskType("FULL_SYNC");
     task.setRowStrategy("FULL_RECONCILE");
     SyncRunTableState state = state(null);
-    state.setUpdatedAtColumn("");
-    state.setRowStrategy("FULL_ONLY");
+    state.setUpdatedAtColumn("updated_at");
+    state.setRowStrategy("UPDATED_AT");
     GitlabSyncConfig config = config();
     SourceTableSchema mirrorSchema =
         new SourceTableSchema(
             "ods_gitlab_alpha_issues",
             List.of("id"),
-            "",
-            List.of(new SourceTableColumn("id", "bigint", false, 1)));
+            "updated_at",
+            List.of(
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn("updated_at", "timestamp", false, 2)));
     List<Map<String, Object>> rows = List.of(Map.of("id", 101L), Map.of("id", 102L));
 
     when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(77L)))
@@ -582,9 +587,63 @@ class SyncRunTableWorkerServiceTest {
   }
 
   @Test
+  void test_delete_reconciliation_source_failure_never_deletes_or_advances_freshness() {
+    SyncRunTableTask reconciliationTask = task(null);
+    reconciliationTask.setTaskType("DELETE_RECONCILIATION");
+    reconciliationTask.setRowStrategy("RECONCILE_ONLY");
+    reconciliationTask.setTaskStage(SyncRunTableTaskStage.RECONCILE);
+    SyncRunTableState state = state(null);
+    GitlabSyncConfig config = config();
+    SourceTableSchema mirrorSchema =
+        new SourceTableSchema(
+            "ods_gitlab_alpha_issues",
+            List.of("id"),
+            "updated_at",
+            List.of(
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn(
+                    "updated_at", "timestamp without time zone", true, 2)));
+    List<Map<String, Object>> mirrorKeys = List.of(Map.of("id", "101"));
+
+    when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(77L)))
+        .thenReturn(false, false, false);
+    when(jdbcTemplate.queryForObject(
+            contains("update sync_run_table_tasks"),
+            any(RowMapper.class),
+            startsWith("table-worker-77-"),
+            eq(30),
+            eq(77L)))
+        .thenReturn(reconciliationTask)
+        .thenThrow(new EmptyResultDataAccessException(1));
+    when(stateMapper.selectById(91L)).thenReturn(state);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(
+            eq(config), argThat(option -> "issues".equals(option.tableName()))))
+        .thenReturn(
+            new GitlabMirrorSchemaService.PreparedMirrorTable(
+                mirrorSchema, "ods_gitlab_alpha_issues", true, null));
+    when(mirrorTableWriter.listActivePrimaryKeys(mirrorSchema, null, 500))
+        .thenReturn(new MirrorPrimaryKeyBatch(mirrorKeys, null));
+    when(sourceTableReader.findExistingPrimaryKeySignatures(
+            eq(config), any(), eq(mirrorSchema), eq(mirrorKeys)))
+        .thenThrow(new IllegalStateException("GitLab source unavailable"));
+
+    int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
+
+    assertThat(processed).isEqualTo(1);
+    verify(mirrorTableWriter, never())
+        .markRowsDeletedByPrimaryKeys(any(), any(), anyLong());
+    assertThat(state.getLastDeleteReconciledAt()).isNull();
+    assertThat(state.getDirtyFlag()).isTrue();
+    assertThat(state.getLastError()).isEqualTo("GitLab source unavailable");
+  }
+
+  @Test
   void shouldUsePreciseScanForSystemHookTask() {
     SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
     task.setTaskType("SYSTEM_HOOK");
+    task.setSourceTable("issue_assignees");
+    task.setMirrorTable("ods_gitlab_alpha_issue_assignees");
     task.setRowStrategy("PRECISE");
     task.setLookupScopeJson("{\"issue_id\":\"101\"}");
     SyncRunTableState state = state(null);
@@ -598,7 +657,9 @@ class SyncRunTableWorkerServiceTest {
             "ods_gitlab_alpha_issue_assignees",
             List.of("issue_id", "user_id"),
             "",
-            List.of(new SourceTableColumn("issue_id", "bigint", false, 1)));
+            List.of(
+                new SourceTableColumn("issue_id", "bigint", false, 1),
+                new SourceTableColumn("user_id", "bigint", false, 2)));
     List<Map<String, Object>> rows = List.of(Map.of("issue_id", 101L, "user_id", 7L));
 
     when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(77L)))
@@ -637,19 +698,21 @@ class SyncRunTableWorkerServiceTest {
     task.setLookupScopeJson("{\"target_id\":\"101\",\"target_type\":\"Issue\"}");
     SyncRunTableState state = state(null);
     state.setSourceTable("label_links");
-    state.setPrimaryKeyColumns("label_id,target_id,target_type");
-    state.setUpdatedAtColumn("");
-    state.setRowStrategy("FULL_ONLY");
+    state.setPrimaryKeyColumns("id");
+    state.setUpdatedAtColumn("updated_at");
+    state.setRowStrategy("UPDATED_AT");
     GitlabSyncConfig config = config();
     SourceTableSchema mirrorSchema =
         new SourceTableSchema(
             "ods_gitlab_label_links",
-            List.of("label_id", "target_id", "target_type"),
-            "",
+            List.of("id"),
+            "updated_at",
             List.of(
-                new SourceTableColumn("label_id", "bigint", false, 1),
-                new SourceTableColumn("target_id", "bigint", false, 2),
-                new SourceTableColumn("target_type", "text", false, 3)));
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn("label_id", "bigint", false, 2),
+                new SourceTableColumn("target_id", "bigint", false, 3),
+                new SourceTableColumn("target_type", "text", false, 4),
+                new SourceTableColumn("updated_at", "timestamp", false, 5)));
     Map<String, Object> lookupScope = Map.of("target_id", "101", "target_type", "Issue");
 
     when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(77L)))
@@ -731,6 +794,129 @@ class SyncRunTableWorkerServiceTest {
     verify(mirrorTableWriter).writeBatch(mirrorSchema, rows, 501L);
     verify(mirrorTableWriter, never())
         .replaceAuthoritativeScope(any(), any(), any(), any());
+  }
+
+  @Test
+  void test_monotonic_label_event_scan_commits_fixed_primary_key_checkpoint() {
+    SyncRunTableTask task = task(null);
+    task.setSourceTable("resource_label_events");
+    task.setMirrorTable("ods_gitlab_alpha_resource_label_events");
+    task.setRowStrategy("MONOTONIC_PRIMARY_KEY");
+    task.setScanUpperBoundPk("[\"12\"]");
+    SyncRunTableState state = state(null);
+    state.setSourceTable("resource_label_events");
+    state.setMirrorTable("ods_gitlab_alpha_resource_label_events");
+    state.setUpdatedAtColumn(null);
+    state.setRowStrategy("MONOTONIC_PRIMARY_KEY");
+    state.setLastCursorPk(null);
+    GitlabSyncConfig config = config();
+    SourceTableSchema mirrorSchema =
+        new SourceTableSchema(
+            "ods_gitlab_alpha_resource_label_events",
+            List.of("id"),
+            null,
+            List.of(
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn("issue_id", "bigint", true, 2),
+                new SourceTableColumn("merge_request_id", "bigint", true, 3)));
+    List<Map<String, Object>> rows =
+        List.of(Map.of("id", 11L, "issue_id", 101L), Map.of("id", 12L, "issue_id", 101L));
+
+    when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(77L)))
+        .thenReturn(false, false, false);
+    when(jdbcTemplate.queryForObject(
+            contains("update sync_run_table_tasks"),
+            any(RowMapper.class),
+            startsWith("table-worker-77-"),
+            eq(30),
+            eq(77L)))
+        .thenReturn(task)
+        .thenThrow(new EmptyResultDataAccessException(1));
+    when(stateMapper.selectById(91L)).thenReturn(state);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(
+            eq(config),
+            argThat(option -> "resource_label_events".equals(option.tableName()))))
+        .thenReturn(
+            new GitlabMirrorSchemaService.PreparedMirrorTable(
+                mirrorSchema, "ods_gitlab_alpha_resource_label_events", true, null));
+    when(mirrorTableWriter.findMaxActivePrimaryKeyCursor(mirrorSchema))
+        .thenReturn("[\"10\"]");
+    when(sourceTableReader.readMonotonicPrimaryKeyBatch(
+            eq(config),
+            argThat(option -> "resource_label_events".equals(option.tableName())),
+            eq(mirrorSchema),
+            eq("[\"10\"]"),
+            eq("[\"12\"]"),
+            eq(500)))
+        .thenReturn(rows);
+    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L))
+        .thenReturn(mutation(2, 2, 0));
+
+    int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
+
+    assertThat(processed).isEqualTo(1);
+    verify(sourceTableReader)
+        .readMonotonicPrimaryKeyBatch(
+            eq(config), any(), eq(mirrorSchema), eq("[\"10\"]"), eq("[\"12\"]"), eq(500));
+    verify(stateMapper)
+        .updateById(
+            ArgumentMatchers.<SyncRunTableState>argThat(
+                updated ->
+                    "[\"12\"]".equals(updated.getLastCursorPk())
+                        && Boolean.FALSE.equals(updated.getDirtyFlag())));
+  }
+
+  @Test
+  void test_monotonic_source_primary_key_regression_fails_without_checkpoint_backslide() {
+    SyncRunTableTask task = task(null);
+    task.setSourceTable("resource_label_events");
+    task.setMirrorTable("ods_gitlab_alpha_resource_label_events");
+    task.setRowStrategy("MONOTONIC_PRIMARY_KEY");
+    task.setCursorPk("[\"12\"]");
+    task.setScanUpperBoundPk("[\"10\"]");
+    SyncRunTableState state = state(null);
+    state.setSourceTable("resource_label_events");
+    state.setMirrorTable("ods_gitlab_alpha_resource_label_events");
+    state.setUpdatedAtColumn(null);
+    state.setRowStrategy("MONOTONIC_PRIMARY_KEY");
+    state.setLastCursorPk("[\"12\"]");
+    GitlabSyncConfig config = config();
+    SourceTableSchema mirrorSchema =
+        new SourceTableSchema(
+            "ods_gitlab_alpha_resource_label_events",
+            List.of("id"),
+            null,
+            List.of(
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn("issue_id", "bigint", true, 2),
+                new SourceTableColumn("merge_request_id", "bigint", true, 3)));
+
+    when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(77L)))
+        .thenReturn(false, false);
+    when(jdbcTemplate.queryForObject(
+            contains("update sync_run_table_tasks"),
+            any(RowMapper.class),
+            startsWith("table-worker-77-"),
+            eq(30),
+            eq(77L)))
+        .thenReturn(task)
+        .thenThrow(new EmptyResultDataAccessException(1));
+    when(stateMapper.selectById(91L)).thenReturn(state);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(eq(config), any()))
+        .thenReturn(
+            new GitlabMirrorSchemaService.PreparedMirrorTable(
+                mirrorSchema, "ods_gitlab_alpha_resource_label_events", true, null));
+
+    int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
+
+    assertThat(processed).isEqualTo(1);
+    assertThat(state.getLastCursorPk()).isEqualTo("[\"12\"]");
+    assertThat(state.getLastError()).contains("单调主键来源上界发生回退");
+    verify(sourceTableReader, never())
+        .readMonotonicPrimaryKeyBatch(any(), any(), any(), any(), any(), anyInt());
+    verify(mirrorTableWriter, never()).writeBatch(any(), any(), anyLong());
   }
 
   @Test

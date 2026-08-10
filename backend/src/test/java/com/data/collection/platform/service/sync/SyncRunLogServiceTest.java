@@ -27,15 +27,21 @@ import org.springframework.jdbc.core.RowMapper;
 class SyncRunLogServiceTest {
   private SyncRunMapper syncRunMapper;
   private JdbcTemplate jdbcTemplate;
+  private SyncIncrementalCoverageService incrementalCoverageService;
   private SyncRunLogService logService;
 
   @BeforeEach
   void setUp() {
     syncRunMapper = org.mockito.Mockito.mock(SyncRunMapper.class);
     jdbcTemplate = org.mockito.Mockito.mock(JdbcTemplate.class);
+    incrementalCoverageService = mock(SyncIncrementalCoverageService.class);
     logService =
         new SyncRunLogService(
-            syncRunMapper, jdbcTemplate, new SyncRunPolicyService(), new JsonUtils(new ObjectMapper()));
+            syncRunMapper,
+            jdbcTemplate,
+            new SyncRunPolicyService(),
+            new JsonUtils(new ObjectMapper()),
+            incrementalCoverageService);
   }
 
   @Test
@@ -79,6 +85,8 @@ class SyncRunLogServiceTest {
         });
     when(jdbcTemplate.queryForObject(any(String.class), eq(String.class), eq(31L)))
         .thenReturn("Run finished cleanly");
+    when(incrementalCoverageService.evaluate(31L))
+        .thenReturn(SyncIncrementalCoverageService.CoverageResult.fresh());
 
     List<Map<String, Object>> logs = logService.recentLogs(config, 10);
 
@@ -95,10 +103,35 @@ class SyncRunLogServiceTest {
         .containsEntry("sourceTables", List.of("issues", "notes"))
         .containsEntry("primaryTableName", "issues")
         .containsEntry("status", SyncStatus.SUCCESS.name())
+        .containsEntry("freshnessStatus", "CAUGHT_UP")
+        .containsEntry("deleteReconciliationStatus", "NOT_APPLICABLE")
         .containsEntry("message", "Run finished cleanly")
         .containsEntry("tableCount", 42)
         .containsEntry("completedTableCount", 39)
         .containsEntry("recordCount", 120L);
+  }
+
+  @Test
+  void test_success_without_incremental_coverage_proof_reports_not_caught_up() {
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(1L);
+    config.setSourceInstance("alpha");
+    SyncRun run = new SyncRun();
+    run.setId(34L);
+    run.setRunId("legacy_incremental_success");
+    run.setConfigId(1L);
+    run.setSourceInstance("alpha");
+    run.setRunType(SyncRunType.INCREMENTAL_SYNC);
+    run.setStatus(SyncRunStatus.SUCCESS);
+    when(syncRunMapper.selectList(any())).thenReturn(List.of(run));
+    when(incrementalCoverageService.evaluate(34L))
+        .thenReturn(
+            SyncIncrementalCoverageService.CoverageResult.incomplete(
+                "快速增量缺少 issues 或 resource_label_events 必需表"));
+
+    List<Map<String, Object>> logs = logService.recentLogs(config, 10);
+
+    assertThat(logs.getFirst()).containsEntry("freshnessStatus", "NOT_CAUGHT_UP");
   }
 
   @Test
@@ -143,5 +176,26 @@ class SyncRunLogServiceTest {
         .containsEntry("parentRunId", 31L)
         .containsEntry("parentRunRunId", "sr_incremental_alpha")
         .containsEntry("sourcePageKey", "issue-search");
+  }
+
+  @Test
+  void shouldExposeDeleteReconciliationCompletionSeparatelyFromIncrementalFreshness() {
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(1L);
+    config.setSourceInstance("alpha");
+    SyncRun run = new SyncRun();
+    run.setId(33L);
+    run.setRunId("sr_dr_alpha");
+    run.setConfigId(1L);
+    run.setSourceInstance("alpha");
+    run.setRunType(SyncRunType.DELETE_RECONCILIATION);
+    run.setStatus(SyncRunStatus.SUCCESS);
+    when(syncRunMapper.selectList(any())).thenReturn(List.of(run));
+
+    List<Map<String, Object>> logs = logService.recentLogs(config, 10);
+
+    assertThat(logs.getFirst())
+        .containsEntry("freshnessStatus", "NOT_APPLICABLE")
+        .containsEntry("deleteReconciliationStatus", "COMPLETED");
   }
 }

@@ -86,6 +86,23 @@ public class GitlabSourceSchemaGuard {
               "mirror_deleted"),
           requirement("ods_gitlab_labels", "id", "title", "color", "mirror_deleted"));
 
+  private static final List<SourceTableRequirement> MERGE_REQUEST_COMMIT_FACT_SOURCE =
+      List.of(
+          requirement(
+              "ods_gitlab_merge_request_diffs",
+              "id",
+              "merge_request_id",
+              "created_at",
+              "updated_at",
+              "mirror_deleted"),
+          requirement(
+              "ods_gitlab_merge_request_diff_commits",
+              "merge_request_diff_id",
+              "relative_order",
+              "sha",
+              "committed_date",
+              "mirror_deleted"));
+
   private static final List<SourceTableRequirement> INTEGRATION_TEST_FACT_SOURCE =
       List.of(
           requirement(
@@ -145,6 +162,20 @@ public class GitlabSourceSchemaGuard {
     verify("合并请求事实表", MERGE_REQUEST_FACT_SOURCE);
   }
 
+  /** 验证可选的 MR 提交事实增强来源，不改变平台通用 MR 事实的结构契约。 */
+  public void verifyMergeRequestCommitFactSource() {
+    verifyMergeRequestCommitFactSource(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
+  }
+
+  /**
+   * 验证指定来源的 MR 提交事实增强表。
+   *
+   * @param sourceInstance GitLab 数据源实例；当前 ODS 结构为共享表
+   */
+  public void verifyMergeRequestCommitFactSource(String sourceInstance) {
+    verify("合并请求提交事实表", MERGE_REQUEST_COMMIT_FACT_SOURCE);
+  }
+
   public void verifyIntegrationTestSource() {
     verifyIntegrationTestSource(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
   }
@@ -154,9 +185,9 @@ public class GitlabSourceSchemaGuard {
   }
 
   /**
-   * 在全量事实重建写入前验证全部 ODS 源表和字段。
+   * 在全量事实重建写入前验证平台通用事实所需的全部 ODS 源表和字段。
    *
-   * <p>全量重建会顺序写入多类事实表；必须先完成统一预检，避免后续源表缺失时前一类事实已经被部分更新。
+   * <p>可选的 MR 提交增强由 {@link #verifyMergeRequestCommitFactSource(String)} 按同步配置单独验证。
    *
    * @param sourceInstance 当前 GitLab 数据源实例；当前 ODS 结构为共享表，参数用于保持与单类校验一致的调用契约
    */

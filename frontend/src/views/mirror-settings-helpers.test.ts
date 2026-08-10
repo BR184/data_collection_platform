@@ -21,6 +21,8 @@ function createLog(overrides: Partial<SyncRunLog> = {}): SyncRunLog {
     id: 1,
     syncType: 'FULL',
     status: 'SUCCESS',
+    freshnessStatus: 'NOT_APPLICABLE',
+    deleteReconciliationStatus: 'NOT_APPLICABLE',
     message: 'Sync completed successfully',
     tableCount: 2,
     recordCount: 10,

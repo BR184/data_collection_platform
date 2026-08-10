@@ -68,6 +68,12 @@ public class SyncRunAuthoritativeScopeWorkerService {
     return repository.terminalizeRun(runId, message);
   }
 
+  /** 把来源上次失败的权威范围纳入本次镜像运行。 */
+  public int adoptFailedScopes(long runId, String sourceInstance) {
+    return repository.adoptFailedScopes(
+        runId, sourceInstance, repository.selectedSourceTables(runId));
+  }
+
   private int drainSerial(
       SyncRun run, String owner, AtomicBoolean yieldRequested) {
     int processed = 0;

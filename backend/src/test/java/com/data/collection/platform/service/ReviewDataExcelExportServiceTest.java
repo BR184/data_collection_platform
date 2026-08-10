@@ -12,6 +12,7 @@ import java.io.ByteArrayInputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.IntStream;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -73,6 +74,22 @@ class ReviewDataExcelExportServiceTest {
             "已确认",
             LocalDateTime.of(2026, 4, 13, 9, 30),
             null);
+    ReviewDataProblemItemResponse secondItem =
+        new ReviewDataProblemItemResponse(
+            10L,
+            1L,
+            "专家B",
+            2.0,
+            "会议评审",
+            "3.2",
+            "功能性",
+            "异常流程无法保存",
+            "增加保存失败提示",
+            "负责人B",
+            "当前版本不处理",
+            "待确认",
+            LocalDateTime.of(2026, 4, 14, 15, 45),
+            null);
     when(queryService.listRecords(new ReviewDataRecordQueryRequest(
             null, null, null, null, null, null, null, null, null, 1, 100, "updatedAt", "desc")))
         .thenReturn(new ReviewDataRecordListResponse(
@@ -84,21 +101,65 @@ class ReviewDataExcelExportServiceTest {
             "desc",
             new ReviewDataSummaryResponse(1, 5, 24, 5)));
     when(queryService.describeExpandedLabelGroupFilters(request)).thenReturn(List.of());
-    when(queryService.listProblemItems(1L)).thenReturn(List.of(item));
+    when(queryService.listProblemItems(1L)).thenReturn(List.of(item, secondItem));
 
     byte[] workbook = new ReviewDataExcelExportService(queryService)
         .exportProblemDetailsWorkbook(request);
 
     try (XSSFWorkbook xlsx = new XSSFWorkbook(new ByteArrayInputStream(workbook))) {
       var sheet = xlsx.getSheet("问题详情");
-      assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("评审文档类型");
-      assertThat(sheet.getRow(0).getCell(7).getStringCellValue()).isEqualTo("问题类别数量统计-文档");
-      assertThat(sheet.getRow(0).getCell(15).getStringCellValue()).isEqualTo("评审规模总和");
-      assertThat(sheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("需求说明书评审");
-      assertThat(sheet.getRow(1).getCell(1).getStringCellValue()).isEqualTo("需求文档");
-      assertThat(sheet.getRow(1).getCell(2).getStringCellValue()).isEqualTo("[独立评审]");
-      assertThat(sheet.getRow(1).getCell(4).getNumericCellValue()).isEqualTo(1);
-      assertThat(sheet.getRow(1).getCell(8).getNumericCellValue()).isEqualTo(1);
+      assertThat(sheet.getRow(0).getPhysicalNumberOfCells()).isEqualTo(15);
+      assertThat(
+              IntStream.range(0, 15)
+                  .mapToObj(index -> sheet.getRow(0).getCell(index).getStringCellValue())
+                  .toList())
+          .containsExactly(
+              "项目名称",
+              "评审文档的类型",
+              "评审的工作产品",
+              "模块名称",
+              "评审专家",
+              "评审工作量",
+              "评审类别",
+              "在文档中的位置",
+              "问题类别",
+              "问题描述",
+              "建议解决方案",
+              "责任人",
+              "不接受理由",
+              "问题状态",
+              "更新日期");
+      assertThat(sheet.getPhysicalNumberOfRows()).isEqualTo(3);
+      assertThat(sheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("CrownCAD");
+      assertThat(sheet.getRow(1).getCell(1).getStringCellValue()).isEqualTo("需求说明书评审");
+      assertThat(sheet.getRow(1).getCell(2).getStringCellValue()).isEqualTo("需求文档");
+      assertThat(sheet.getRow(1).getCell(3).getStringCellValue()).isEqualTo("草图");
+      assertThat(sheet.getRow(1).getCell(4).getStringCellValue()).isEqualTo("专家A");
+      assertThat(sheet.getRow(1).getCell(5).getNumericCellValue()).isEqualTo(1.5);
+      assertThat(sheet.getRow(1).getCell(6).getStringCellValue()).isEqualTo("独立评审");
+      assertThat(sheet.getRow(1).getCell(7).getStringCellValue()).isEqualTo("2.1");
+      assertThat(sheet.getRow(1).getCell(8).getStringCellValue()).isEqualTo("完整性");
+      assertThat(sheet.getRow(1).getCell(9).getStringCellValue()).isEqualTo("缺少异常流程");
+      assertThat(sheet.getRow(1).getCell(10).getStringCellValue()).isEqualTo("补充异常流程");
+      assertThat(sheet.getRow(1).getCell(11).getStringCellValue()).isEqualTo("负责人A");
+      assertThat(sheet.getRow(1).getCell(12).getStringCellValue()).isEmpty();
+      assertThat(sheet.getRow(1).getCell(13).getStringCellValue()).isEqualTo("已确认");
+      assertThat(sheet.getRow(1).getCell(14).getStringCellValue()).isEqualTo("2026-04-13 09:30:00");
+      assertThat(sheet.getRow(2).getCell(0).getStringCellValue()).isEqualTo("CrownCAD");
+      assertThat(sheet.getRow(2).getCell(1).getStringCellValue()).isEqualTo("需求说明书评审");
+      assertThat(sheet.getRow(2).getCell(2).getStringCellValue()).isEqualTo("需求文档");
+      assertThat(sheet.getRow(2).getCell(3).getStringCellValue()).isEqualTo("草图");
+      assertThat(sheet.getRow(2).getCell(4).getStringCellValue()).isEqualTo("专家B");
+      assertThat(sheet.getRow(2).getCell(5).getNumericCellValue()).isEqualTo(2.0);
+      assertThat(sheet.getRow(2).getCell(6).getStringCellValue()).isEqualTo("会议评审");
+      assertThat(sheet.getRow(2).getCell(7).getStringCellValue()).isEqualTo("3.2");
+      assertThat(sheet.getRow(2).getCell(8).getStringCellValue()).isEqualTo("功能性");
+      assertThat(sheet.getRow(2).getCell(9).getStringCellValue()).isEqualTo("异常流程无法保存");
+      assertThat(sheet.getRow(2).getCell(10).getStringCellValue()).isEqualTo("增加保存失败提示");
+      assertThat(sheet.getRow(2).getCell(11).getStringCellValue()).isEqualTo("负责人B");
+      assertThat(sheet.getRow(2).getCell(12).getStringCellValue()).isEqualTo("当前版本不处理");
+      assertThat(sheet.getRow(2).getCell(13).getStringCellValue()).isEqualTo("待确认");
+      assertThat(sheet.getRow(2).getCell(14).getStringCellValue()).isEqualTo("2026-04-14 15:45:00");
     }
   }
 

@@ -16,10 +16,7 @@ import com.data.collection.platform.service.sync.SyncThreadBudgetResolver;
 import com.data.collection.platform.service.sync.GitlabSyncConfigChangedEvent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,6 +37,7 @@ public class GitlabExternalDbService implements DisposableBean {
   private static final TypeReference<LinkedHashMap<String, Object>> MAP_TYPE = new TypeReference<>() {};
 
   private final ObjectMapper objectMapper;
+  private final JsonUtils jsonUtils;
   private final GitlabSourceScanSqlBuilder scanSqlBuilder;
   private final GitlabPrimaryKeyExistenceQueryBuilder primaryKeyQueryBuilder;
   private final GitlabAuthoritativeScopeQueryBuilder authoritativeScopeQueryBuilder;
@@ -54,7 +52,8 @@ public class GitlabExternalDbService implements DisposableBean {
 
   public GitlabExternalDbService(GitlabMirrorProperties properties, ObjectMapper objectMapper) {
     this.objectMapper = objectMapper;
-    this.scanSqlBuilder = new GitlabSourceScanSqlBuilder(new JsonUtils(objectMapper));
+    this.jsonUtils = new JsonUtils(objectMapper);
+    this.scanSqlBuilder = new GitlabSourceScanSqlBuilder(jsonUtils);
     this.primaryKeyQueryBuilder = new GitlabPrimaryKeyExistenceQueryBuilder();
     this.authoritativeScopeQueryBuilder = new GitlabAuthoritativeScopeQueryBuilder();
     this.queryRetryPolicy = new GitlabSourceQueryRetryPolicy(properties);
@@ -152,6 +151,20 @@ public class GitlabExternalDbService implements DisposableBean {
             option, schema, watermark, upperBound, cursorUpdatedAt, cursorPk, batchSize));
   }
 
+  /** 按固定单调主键上界读取追加型来源表。 */
+  public List<Map<String, Object>> monotonicPrimaryKeyScan(
+      GitlabSyncConfig config,
+      TableWhitelistOption option,
+      SourceTableSchema schema,
+      String cursorPk,
+      String upperBoundPk,
+      int batchSize) {
+    return executeSourceQuery(
+        config,
+        scanSqlBuilder.buildMonotonicPrimaryKeyScanSql(
+            option, schema, cursorPk, upperBoundPk, batchSize));
+  }
+
   /** 按完整范围查询来源当前集合。 */
   public List<Map<String, Object>> preciseScan(
       GitlabSyncConfig config,
@@ -245,6 +258,17 @@ public class GitlabExternalDbService implements DisposableBean {
       return null;
     }
     return toLocalDateTime(rows.get(0).get("max_updated_at"));
+  }
+
+  /** 返回单列主键来源当前最大主键的类型化 JSON 游标。 */
+  public String findMaxPrimaryKeyCursor(
+      GitlabSyncConfig config, TableWhitelistOption option) {
+    List<Map<String, Object>> rows =
+        executeSourceQuery(config, scanSqlBuilder.buildMaxPrimaryKeyProbeSql(option));
+    if (rows.isEmpty() || rows.getFirst().get("max_pk") == null) {
+      return null;
+    }
+    return jsonUtils.toJson(List.of(String.valueOf(rows.getFirst().get("max_pk"))));
   }
 
   public Set<String> findExistingPrimaryKeySignatures(
@@ -380,19 +404,7 @@ public class GitlabExternalDbService implements DisposableBean {
     if (value == null) {
       return null;
     }
-    if (value instanceof LocalDateTime localDateTime) {
-      return localDateTime;
-    }
-    if (value instanceof Timestamp timestamp) {
-      return timestamp.toLocalDateTime();
-    }
-    if (value instanceof java.util.Date date) {
-      return LocalDateTime.ofInstant(date.toInstant(), ZoneOffset.UTC);
-    }
-    if (value instanceof String text) {
-      return parseDateTime(text);
-    }
-    return null;
+    return GitlabSourceTimestampNormalizer.normalizeSourceValue(value);
   }
 
   String resolveRowStrategy(String updatedAtColumn) {
@@ -505,22 +517,6 @@ public class GitlabExternalDbService implements DisposableBean {
     return queryRetryPolicy.isRetryableExternalFailure(e);
   }
 
-  private LocalDateTime parseDateTime(String text) {
-    try {
-      return LocalDateTime.parse(text);
-    } catch (Exception ignored) {
-    }
-    try {
-      return LocalDateTime.parse(text.replace(" ", "T"));
-    } catch (Exception ignored) {
-    }
-    try {
-      return OffsetDateTime.parse(text).toLocalDateTime();
-    } catch (Exception ignored) {
-    }
-    return null;
-  }
-
   private long toLong(Object value) {
     if (value instanceof Number number) {
       return number.longValue();
@@ -536,22 +532,7 @@ public class GitlabExternalDbService implements DisposableBean {
   }
 
   private LocalDateTime toLocalDateTime(Object value) {
-    if (value instanceof LocalDateTime localDateTime) {
-      return localDateTime;
-    }
-    if (value instanceof OffsetDateTime odt) {
-      return odt.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
-    }
-    if (value instanceof Timestamp timestamp) {
-      return timestamp.toLocalDateTime();
-    }
-    if (value instanceof java.util.Date date) {
-      return LocalDateTime.ofInstant(date.toInstant(), ZoneOffset.UTC);
-    }
-    if (value instanceof String text) {
-      return parseDateTime(text);
-    }
-    return null;
+    return GitlabSourceTimestampNormalizer.normalizeSourceValue(value);
   }
 
   private interface GitlabSourceAdapter {

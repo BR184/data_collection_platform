@@ -127,34 +127,33 @@ public class FactBuildTaskService {
   }
 
   /**
-   * 把镜像运行尚未发布的版本化目标分配为有界事实任务。
+   * 把同一来源全部历史运行尚未发布的版本化目标分配为有界事实任务。
    *
    * <p>一个任务只对应一个事实类型的一个根 ID 批次，不创建任务内游标。已由其他交错运行覆盖的
    * 目标直接按版本头结算为已发布。
    */
   @Transactional
-  public int assignPendingTargetBatches(
+  public int assignPendingSourceTargetBatches(
       GitlabSyncConfig config,
       Long factRunId,
-      Long mirrorRunId,
       int requestedBatchSize) {
-    if (config == null || config.getId() == null || factRunId == null || mirrorRunId == null) {
-      throw new IllegalArgumentException("目标事实任务必须包含配置、事实运行和镜像运行");
+    if (config == null || config.getId() == null || factRunId == null) {
+      throw new IllegalArgumentException("目标事实任务必须包含配置和事实运行");
     }
     int batchSize = Math.max(1, Math.min(1000, requestedBatchSize));
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     int assignedTasks = 0;
     for (FactType factType : GitlabFactDependencyCatalog.supportedFactTypes(config)) {
-      settleCoveredTargets(mirrorRunId, sourceInstance, factType);
+      settleCoveredTargets(sourceInstance, factType);
       List<Long> rootIds;
-      while (assignedTasks < MAX_ASSIGNMENT_TASKS_PER_PASS
-          && !(rootIds = lockPendingRootIds(
-              mirrorRunId, sourceInstance, factType, batchSize)).isEmpty()) {
+        while (assignedTasks < MAX_ASSIGNMENT_TASKS_PER_PASS
+            && !(rootIds = lockPendingRootIds(
+              config.getId(), sourceInstance, factType, batchSize)).isEmpty()) {
         Long taskId = insertTargetBatchTask(
             config.getId(), sourceInstance, factType, factRunId);
         int assigned = assignRoots(
-            mirrorRunId, sourceInstance, factType, factRunId, taskId, rootIds);
-        if (assigned != rootIds.size()) {
+            sourceInstance, factType, factRunId, taskId, rootIds);
+        if (assigned == 0) {
           throw new IllegalStateException("事实目标批次归属发生并发变化");
         }
         assignedTasks++;
@@ -170,7 +169,7 @@ public class FactBuildTaskService {
     }
     return jdbcTemplate.queryForList(
         """
-        select target.root_id
+        select distinct target.root_id
           from sync_run_fact_targets target
           join fact_change_heads head
             on head.source_instance = target.source_instance
@@ -191,8 +190,7 @@ public class FactBuildTaskService {
         task.factType());
   }
 
-  private void settleCoveredTargets(
-      Long mirrorRunId, String sourceInstance, FactType factType) {
+  private void settleCoveredTargets(String sourceInstance, FactType factType) {
     jdbcTemplate.update(
         """
         update sync_run_fact_targets target
@@ -202,8 +200,7 @@ public class FactBuildTaskService {
                published_at = current_timestamp,
                updated_at = current_timestamp
           from fact_change_heads head
-         where target.mirror_run_id = ?
-           and target.source_instance = ?
+         where target.source_instance = ?
            and target.fact_type = ?
            and target.publication_status <> 'PUBLISHED'
            and head.source_instance = target.source_instance
@@ -211,30 +208,35 @@ public class FactBuildTaskService {
            and head.root_id = target.root_id
            and head.published_version >= target.change_version
         """,
-        mirrorRunId,
         sourceInstance,
         factType.name());
   }
 
   private List<Long> lockPendingRootIds(
-      Long mirrorRunId, String sourceInstance, FactType factType, int batchSize) {
+      Long configId, String sourceInstance, FactType factType, int batchSize) {
     return jdbcTemplate.queryForList(
         """
         select root_id
           from sync_run_fact_targets
-         where mirror_run_id = ?
-           and source_instance = ?
+         where source_instance = ?
            and fact_type = ?
            and publication_status = 'PENDING'
            and assigned_fact_build_task_id is null
+           and exists (
+             select 1
+               from source_fact_publication_states state
+              where state.config_id = ?
+                and state.source_instance = sync_run_fact_targets.source_instance
+                and state.fact_type = sync_run_fact_targets.fact_type
+                and state.readiness_status = 'READY')
+         group by root_id
          order by root_id
-         for update skip locked
          limit ?
         """,
         Long.class,
-        mirrorRunId,
         sourceInstance,
         factType.name(),
+        configId,
         batchSize);
   }
 
@@ -262,17 +264,15 @@ public class FactBuildTaskService {
   }
 
   private int assignRoots(
-      Long mirrorRunId,
       String sourceInstance,
       FactType factType,
       Long factRunId,
       Long taskId,
       List<Long> rootIds) {
     String placeholders = String.join(", ", java.util.Collections.nCopies(rootIds.size(), "?"));
-    List<Object> args = new java.util.ArrayList<>(5 + rootIds.size());
+    List<Object> args = new java.util.ArrayList<>(4 + rootIds.size());
     args.add(factRunId);
     args.add(taskId);
-    args.add(mirrorRunId);
     args.add(sourceInstance);
     args.add(factType.name());
     args.addAll(rootIds);
@@ -283,8 +283,7 @@ public class FactBuildTaskService {
                assigned_fact_run_id = ?,
                assigned_fact_build_task_id = ?,
                updated_at = current_timestamp
-         where mirror_run_id = ?
-           and source_instance = ?
+         where source_instance = ?
            and fact_type = ?
            and publication_status = 'PENDING'
            and assigned_fact_build_task_id is null
@@ -518,9 +517,9 @@ public class FactBuildTaskService {
         TRIGGER_MIRROR_SYNC);
   }
 
-  /** 判断镜像运行是否仍有尚未被版本头覆盖的持久目标。 */
-  public boolean hasUnpublishedTargets(Long mirrorRunId) {
-    if (mirrorRunId == null) {
+  /** 判断来源是否仍有尚未被版本头覆盖的持久目标。 */
+  public boolean hasUnpublishedTargets(Long configId, String sourceInstance) {
+    if (configId == null || sourceInstance == null || sourceInstance.isBlank()) {
       return false;
     }
     Boolean exists =
@@ -533,12 +532,19 @@ public class FactBuildTaskService {
                   on head.source_instance = target.source_instance
                  and head.fact_type = target.fact_type
                  and head.root_id = target.root_id
-               where target.mirror_run_id = ?
+                join source_fact_publication_states state
+                  on state.config_id = ?
+                 and state.source_instance = target.source_instance
+                 and state.fact_type = target.fact_type
+                 and state.readiness_status = 'READY'
+               where target.source_instance = ?
+                 and target.publication_status <> 'PUBLISHED'
                  and head.published_version < target.change_version
             )
             """,
             Boolean.class,
-            mirrorRunId);
+            configId,
+            sourceInstance);
     return Boolean.TRUE.equals(exists);
   }
 

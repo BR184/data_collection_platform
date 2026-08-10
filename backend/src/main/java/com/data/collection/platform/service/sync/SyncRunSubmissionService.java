@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -29,15 +28,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Slf4j
 public class SyncRunSubmissionService {
-  private static final int RUN_ID_MAX_LENGTH = 64;
-  private static final int RUN_ID_SOURCE_SEGMENT_MAX_LENGTH = 24;
-
   private final SyncRunMapper syncRunMapper;
   private final SyncRunPolicyService policyService;
   private final JdbcTemplate jdbcTemplate;
   private final JsonUtils jsonUtils;
   private final SyncThreadBudgetResolver threadBudgetResolver;
   private final SyncRunPublicationFenceService publicationFenceService;
+  private final SyncIncrementalRerunService incrementalRerunService;
+  private final SyncSourceSubmissionLockService sourceSubmissionLockService;
 
   public SyncRunSubmissionService(
       SyncRunMapper syncRunMapper,
@@ -45,13 +43,17 @@ public class SyncRunSubmissionService {
       JdbcTemplate jdbcTemplate,
       JsonUtils jsonUtils,
       SyncThreadBudgetResolver threadBudgetResolver,
-      SyncRunPublicationFenceService publicationFenceService) {
+      SyncRunPublicationFenceService publicationFenceService,
+      SyncIncrementalRerunService incrementalRerunService,
+      SyncSourceSubmissionLockService sourceSubmissionLockService) {
     this.syncRunMapper = syncRunMapper;
     this.policyService = policyService;
     this.jdbcTemplate = jdbcTemplate;
     this.jsonUtils = jsonUtils;
     this.threadBudgetResolver = threadBudgetResolver;
     this.publicationFenceService = publicationFenceService;
+    this.incrementalRerunService = incrementalRerunService;
+    this.sourceSubmissionLockService = sourceSubmissionLockService;
   }
 
   @Transactional
@@ -89,6 +91,47 @@ public class SyncRunSubmissionService {
         reason,
         List.of(),
         null);
+  }
+
+  /** 提交独立低优先级物理删除反熵运行。 */
+  @Transactional
+  public SyncRunSubmissionResult submitDeleteReconciliation(
+      GitlabSyncConfig config, String reason) {
+    return submitRun(
+        config,
+        SyncType.COMPENSATION,
+        SyncRunType.DELETE_RECONCILIATION,
+        SyncTriggerType.SCHEDULE,
+        reason,
+        List.of(),
+        null);
+  }
+
+  /** 判断当前来源是否存在超过删除反熵目标周期的表。 */
+  @Transactional(readOnly = true)
+  public boolean hasDueDeleteReconciliation(
+      GitlabSyncConfig config, LocalDateTime now, int intervalMinutes) {
+    if (config == null || config.getId() == null || now == null) {
+      return false;
+    }
+    Boolean due =
+        jdbcTemplate.queryForObject(
+            """
+            select exists(
+              select 1
+                from sync_run_table_states state
+               where state.config_id = ?
+                 and state.source_instance = ?
+                 and state.sync_enabled = true
+                 and (state.last_delete_reconciled_at is null
+                      or state.last_delete_reconciled_at <= ?)
+            )
+            """,
+            Boolean.class,
+            config.getId(),
+            GitlabSourceInstanceSupport.sourceInstanceOf(config),
+            now.minusMinutes(Math.max(1, intervalMinutes)));
+    return Boolean.TRUE.equals(due);
   }
 
   @Transactional
@@ -199,6 +242,42 @@ public class SyncRunSubmissionService {
     return runs != null && !runs.isEmpty();
   }
 
+  /**
+   * 返回自动增量调度所需的最近提交状态。
+   *
+   * <p>最近提交时间用于区分真实调度间隔与调度器轮询；活动状态用于避免已有尾部补跑时重复提交。
+   */
+  @Transactional(readOnly = true)
+  public IncrementalScheduleState incrementalScheduleState(GitlabSyncConfig config) {
+    if (config == null || config.getId() == null) {
+      return new IncrementalScheduleState(null, false);
+    }
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    List<SyncRun> latestRuns =
+        syncRunMapper.selectList(
+            new LambdaQueryWrapper<SyncRun>()
+                .eq(SyncRun::getConfigId, config.getId())
+                .eq(SyncRun::getSourceInstance, sourceInstance)
+                .eq(SyncRun::getRunType, SyncRunType.INCREMENTAL_SYNC)
+                .orderByDesc(SyncRun::getCreatedAt)
+                .orderByDesc(SyncRun::getId)
+                .last("limit 1"));
+    List<SyncRun> activeRuns =
+        syncRunMapper.selectList(
+            new LambdaQueryWrapper<SyncRun>()
+                .eq(SyncRun::getConfigId, config.getId())
+                .eq(SyncRun::getSourceInstance, sourceInstance)
+                .eq(SyncRun::getRunType, SyncRunType.INCREMENTAL_SYNC)
+                .in(SyncRun::getStatus, SyncRunStateMachine.activeStatuses())
+                .last("limit 1"));
+    LocalDateTime lastSubmittedAt =
+        latestRuns == null || latestRuns.isEmpty()
+            ? null
+            : latestRuns.getFirst().getCreatedAt();
+    return new IncrementalScheduleState(
+        lastSubmittedAt, activeRuns != null && !activeRuns.isEmpty());
+  }
+
   @Transactional
   public SyncRunSubmissionResult submitRun(
       GitlabSyncConfig config,
@@ -255,7 +334,7 @@ public class SyncRunSubmissionService {
     String exclusiveScope = policyService.exclusiveScopeOf(config, runType);
     LocalDateTime now = LocalDateTime.now();
     SyncTriggerType effectiveTriggerType = triggerType == null ? SyncTriggerType.MANUAL : triggerType;
-    lockSourceSubmission(config.getId(), sourceInstance);
+    sourceSubmissionLockService.lock(config.getId(), sourceInstance);
     lockExclusiveScope(exclusiveScope);
 
     boolean manualFullRebuild = isManualFullRebuild(runType, extraPayload);
@@ -271,6 +350,10 @@ public class SyncRunSubmissionService {
     SyncRun reusableForegroundRun =
         findReusableForegroundRun(activeSourceRuns, runType, sourceTables, exclusiveScope);
     if (reusableForegroundRun != null) {
+      if (runType == SyncRunType.INCREMENTAL_SYNC) {
+        incrementalRerunService.requestRerun(
+            reusableForegroundRun, effectiveTriggerType, reason);
+      }
       return reusedRun(
           reusableForegroundRun,
           apiType,
@@ -286,23 +369,20 @@ public class SyncRunSubmissionService {
         && activeRun != null
         && sameFactRefreshParent(activeRun, parentRunId)) {
       return reusedRun(activeRun, apiType, "当前镜像任务的事实刷新已提交，已复用现有任务。");
-    } else if (runType == SyncRunType.FULL_COMPENSATION_SCAN && activeRun != null) {
-      return reusedRun(activeRun, apiType, "补偿同步已在队列中或正在执行，跳过重复提交。");
-    } else if (!isForegroundRun(runType)
-        && isMirrorRun(runType)
-        && activeRun != null
-        && shouldReuseMirrorRun(activeRun, runType, sourceTables)) {
-      return new SyncRunSubmissionResult(
-          activeRun.getId(),
-          apiType,
-          policyService.toApiStatus(activeRun),
-          SyncSubmissionAction.DEDUPED,
-          now,
-          "本次刷新请求已合并到同一数据源正在执行的同步任务中。");
+    } else if (runType == SyncRunType.FULL_COMPENSATION_SCAN) {
+      SyncRun sameRun = activeRunOfType(activeSourceRuns, runType);
+      if (sameRun != null) {
+        return reusedRun(sameRun, apiType, "补偿同步已在队列中或正在执行，跳过重复提交。");
+      }
+    } else if (runType == SyncRunType.DELETE_RECONCILIATION) {
+      SyncRun sameRun = activeRunOfType(activeSourceRuns, runType);
+      if (sameRun != null) {
+        return reusedRun(sameRun, apiType, "删除反熵已在队列中或正在执行，跳过重复提交。");
+      }
     }
 
     SyncRun run = new SyncRun();
-    run.setRunId(generateRunId(runType, sourceInstance));
+    run.setRunId(SyncRunIdGenerator.generate(runType, sourceInstance));
     run.setConfigId(config.getId());
     run.setSourceInstance(sourceInstance);
     run.setRunType(runType);
@@ -334,6 +414,9 @@ public class SyncRunSubmissionService {
     run.setCreatedAt(now);
     run.setUpdatedAt(now);
     syncRunMapper.insert(run);
+    if (runType == SyncRunType.INCREMENTAL_SYNC) {
+      incrementalRerunService.adoptPendingRerun(run);
+    }
 
     log.info(
         "Queued sync run, runId={}, type={}, scope={}, sourceTables={}",
@@ -372,11 +455,6 @@ public class SyncRunSubmissionService {
     jdbcTemplate.queryForObject("select pg_advisory_xact_lock(hashtext(?))", Object.class, exclusiveScope);
   }
 
-  private void lockSourceSubmission(Long configId, String sourceInstance) {
-    String sourceKey = "source:" + configId + ":" + sourceInstance + ":submission";
-    jdbcTemplate.queryForObject("select pg_advisory_xact_lock(hashtext(?))", Object.class, sourceKey);
-  }
-
   private void mergeQueuedLowerPriorityMirrorRuns(
       Long configId,
       String sourceInstance,
@@ -395,7 +473,9 @@ public class SyncRunSubmissionService {
                and exclusive_scope = ?
                and status = 'QUEUED'
                and priority < ?
-               and run_type in ('INCREMENTAL_SYNC', 'TABLE_REFRESH', 'SYSTEM_HOOK', 'FULL_COMPENSATION_SCAN')
+               and run_type in (
+                 'INCREMENTAL_SYNC', 'TABLE_REFRESH', 'SYSTEM_HOOK',
+                 'FULL_COMPENSATION_SCAN', 'DELETE_RECONCILIATION')
             """,
             now,
             now,
@@ -406,35 +486,6 @@ public class SyncRunSubmissionService {
     if (merged > 0) {
       log.info("Merged {} queued lower-priority mirror run(s) into submitted full sync, scope={}", merged, exclusiveScope);
     }
-  }
-
-  private boolean isMirrorRun(SyncRunType runType) {
-    return runType == SyncRunType.FULL_SYNC
-        || runType == SyncRunType.INCREMENTAL_SYNC
-        || runType == SyncRunType.TABLE_REFRESH
-        || runType == SyncRunType.SYSTEM_HOOK
-        || runType == SyncRunType.FULL_COMPENSATION_SCAN;
-  }
-
-  private boolean shouldReuseMirrorRun(SyncRun activeRun, SyncRunType requestedType, List<String> requestedTables) {
-    if (activeRun == null || activeRun.getRunType() == null) {
-      return false;
-    }
-    if (activeRun.getRunType() == SyncRunType.FULL_SYNC
-        || activeRun.getRunType() == SyncRunType.INCREMENTAL_SYNC
-        || activeRun.getRunType() == SyncRunType.SYSTEM_HOOK
-        || activeRun.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN) {
-      return true;
-    }
-    if (requestedType == SyncRunType.INCREMENTAL_SYNC
-        || requestedType == SyncRunType.SYSTEM_HOOK
-        || requestedType == SyncRunType.FULL_COMPENSATION_SCAN) {
-      return true;
-    }
-    if (requestedType != SyncRunType.TABLE_REFRESH || activeRun.getRunType() != SyncRunType.TABLE_REFRESH) {
-      return false;
-    }
-    return normalizeTables(sourceTablesOf(activeRun)).equals(normalizeTables(requestedTables));
   }
 
   private SyncRun findReusableForegroundRun(
@@ -511,6 +562,16 @@ public class SyncRunSubmissionService {
         && Objects.equals(activeRun.getParentRunId(), parentRunId);
   }
 
+  private SyncRun activeRunOfType(List<SyncRun> activeRuns, SyncRunType runType) {
+    if (activeRuns == null || activeRuns.isEmpty()) {
+      return null;
+    }
+    return activeRuns.stream()
+        .filter(run -> run.getRunType() == runType)
+        .findFirst()
+        .orElse(null);
+  }
+
   private String buildPayloadJson(
       SyncType apiType,
       SyncTriggerType triggerType,
@@ -523,37 +584,6 @@ public class SyncRunSubmissionService {
     SyncRunPayload payload =
         SyncRunPayload.create(apiType, triggerType, reason, sourceTables, primaryTableName, parentRunId, fullBuild);
     return jsonUtils.toJson(payload.toMap(extraPayload));
-  }
-
-  private String generateRunId(SyncRunType runType, String sourceInstance) {
-    String randomPart = UUID.randomUUID().toString().replace("-", "");
-    String sourceSegment = sourceInstance == null ? "default" : sourceInstance;
-    if (sourceSegment.length() > RUN_ID_SOURCE_SEGMENT_MAX_LENGTH) {
-      sourceSegment = sourceSegment.substring(0, RUN_ID_SOURCE_SEGMENT_MAX_LENGTH);
-    }
-    String runId = "sr_" + runTypeAlias(runType) + "_" + sourceSegment + "_" + randomPart;
-    if (runId.length() <= RUN_ID_MAX_LENGTH) {
-      return runId;
-    }
-    int allowedSourceLength =
-        RUN_ID_MAX_LENGTH
-            - "sr_".length()
-            - runTypeAlias(runType).length()
-            - 2
-            - randomPart.length();
-    sourceSegment = sourceSegment.substring(0, Math.max(1, allowedSourceLength));
-    return "sr_" + runTypeAlias(runType) + "_" + sourceSegment + "_" + randomPart;
-  }
-
-  private String runTypeAlias(SyncRunType runType) {
-    return switch (runType) {
-      case FULL_SYNC -> "fs";
-      case INCREMENTAL_SYNC -> "is";
-      case TABLE_REFRESH -> "tr";
-      case SYSTEM_HOOK -> "sh";
-      case FULL_COMPENSATION_SCAN -> "fc";
-      case FACT_REFRESH -> "fr";
-    };
   }
 
   private List<String> sourceTablesOf(SyncRun run) {
@@ -580,4 +610,8 @@ public class SyncRunSubmissionService {
     }
     return List.copyOf(normalized);
   }
+
+  /** 自动增量调度的持久运行快照。 */
+  public record IncrementalScheduleState(
+      LocalDateTime lastSubmittedAt, boolean activeIncremental) {}
 }

@@ -1,4 +1,10 @@
-import type { GitlabSyncStatus, GitlabSyncType, SyncRunLog } from '../types/api';
+import type {
+  DeleteReconciliationStatus,
+  GitlabSyncStatus,
+  GitlabSyncType,
+  SyncFreshnessStatus,
+  SyncRunLog,
+} from '../types/api';
 
 export const ACTIVE_POLLING_STATUSES: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING'];
 
@@ -16,7 +22,22 @@ const SYNC_RUN_TYPE_LABELS: Record<string, string> = {
   TABLE_REFRESH: '单表刷新',
   SYSTEM_HOOK: 'System Hook 唤醒',
   FULL_COMPENSATION_SCAN: '全量补偿对账',
+  DELETE_RECONCILIATION: '物理删除对账',
   FACT_REFRESH: '事实数据刷新',
+};
+
+const FRESHNESS_STATUS_LABELS: Record<SyncFreshnessStatus, string> = {
+  NOT_APPLICABLE: '-',
+  VERIFYING: '正在校验',
+  CAUGHT_UP: '数据已追平',
+  NOT_CAUGHT_UP: '数据未追平',
+};
+
+const DELETE_RECONCILIATION_STATUS_LABELS: Record<DeleteReconciliationStatus, string> = {
+  NOT_APPLICABLE: '-',
+  RUNNING: '对账进行中',
+  COMPLETED: '删除对账完成',
+  INCOMPLETE: '删除对账未完成',
 };
 
 const SYNC_TYPE_TAG_TYPES: Record<GitlabSyncType, '' | 'danger' | 'info' | 'success' | 'warning'> = {
@@ -70,6 +91,7 @@ const TABLE_TASK_STATUS_LABELS: Record<GitlabSyncStatus, string> = {
 
 const TRIGGER_TYPE_LABELS: Record<string, string> = {
   MANUAL: '手动触发',
+  SCHEDULE: '定时触发',
   SCHEDULED: '定时触发',
   SYSTEM_HOOK: 'System Hook 触发',
   AUTO: '自动触发',
@@ -121,4 +143,32 @@ export function syncTriggerTypeText(triggerType?: string | null) {
     return '-';
   }
   return TRIGGER_TYPE_LABELS[normalized] ?? '其他触发';
+}
+
+export function freshnessStatusText(status: SyncFreshnessStatus) {
+  return FRESHNESS_STATUS_LABELS[status] ?? '未知状态';
+}
+
+export function freshnessStatusTagType(status: SyncFreshnessStatus) {
+  if (status === 'CAUGHT_UP') {
+    return 'success';
+  }
+  if (status === 'NOT_CAUGHT_UP') {
+    return 'danger';
+  }
+  return 'info';
+}
+
+export function deleteReconciliationStatusText(status: DeleteReconciliationStatus) {
+  return DELETE_RECONCILIATION_STATUS_LABELS[status] ?? '未知状态';
+}
+
+export function deleteReconciliationStatusTagType(status: DeleteReconciliationStatus) {
+  if (status === 'COMPLETED') {
+    return 'success';
+  }
+  if (status === 'INCOMPLETE') {
+    return 'danger';
+  }
+  return 'info';
 }

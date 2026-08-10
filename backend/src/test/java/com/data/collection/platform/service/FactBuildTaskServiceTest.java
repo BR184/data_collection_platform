@@ -222,22 +222,47 @@ class FactBuildTaskServiceTest {
             config.getId(),
             sourceInstance,
             "test:mirror:" + suffix);
+    Long secondParentRunId =
+        jdbcTemplate.queryForObject(
+            """
+            insert into sync_runs(
+              run_id, config_id, source_instance, run_type, trigger_type, status, priority,
+              exclusive_scope, planned_table_count, completed_table_count, applied_rows
+            ) values (?, ?, ?, 'INCREMENTAL_SYNC', 'SCHEDULE', 'SUCCESS', 90, ?, 1, 1, 1)
+            returning id
+            """,
+            Long.class,
+            "test_parent_second_" + suffix,
+            config.getId(),
+            sourceInstance,
+            "test:mirror-second:" + suffix);
     Long factRunId =
         jdbcTemplate.queryForObject(
             """
             insert into sync_runs(
               run_id, config_id, source_instance, run_type, trigger_type, status, priority,
-              exclusive_scope, parent_run_id
-            ) values (?, ?, ?, 'FACT_REFRESH', 'SCHEDULE', 'RUNNING', 10, ?, ?)
+              exclusive_scope
+            ) values (?, ?, ?, 'FACT_REFRESH', 'SCHEDULE', 'RUNNING', 10, ?)
             returning id
             """,
             Long.class,
             "test_fact_" + suffix,
             config.getId(),
             sourceInstance,
-            "test:fact:" + suffix,
-            parentRunId);
+            "test:fact:" + suffix);
+    jdbcTemplate.update(
+        """
+        insert into source_fact_publication_states(
+            config_id, source_instance, fact_type, latest_mirror_run_id,
+            ready_mirror_run_id, readiness_status)
+        values (?, ?, 'ISSUE', ?, ?, 'READY')
+        """,
+        config.getId(),
+        sourceInstance,
+        secondParentRunId,
+        secondParentRunId);
     long issueId = 1_500_000_000L + Math.floorMod(parentRunId, 500_000_000L);
+    long secondIssueId = issueId + 1L;
 
     try {
       jdbcTemplate.update(
@@ -250,6 +275,14 @@ class FactBuildTaskServiceTest {
           issueId);
       jdbcTemplate.update(
           """
+          insert into fact_change_heads(
+            source_instance, fact_type, root_id, latest_change_version, published_version
+          ) values (?, 'ISSUE', ?, 12, 0)
+          """,
+          sourceInstance,
+          secondIssueId);
+      jdbcTemplate.update(
+          """
           insert into sync_run_fact_targets(
             mirror_run_id, source_instance, fact_type, root_id, change_version,
             project_id, iid, publication_status
@@ -258,10 +291,20 @@ class FactBuildTaskServiceTest {
           parentRunId,
           sourceInstance,
           issueId);
+      jdbcTemplate.update(
+          """
+          insert into sync_run_fact_targets(
+            mirror_run_id, source_instance, fact_type, root_id, change_version,
+            project_id, iid, publication_status
+          ) values (?, ?, 'ISSUE', ?, 12, 9, 32130, 'PENDING')
+          """,
+          secondParentRunId,
+          sourceInstance,
+          secondIssueId);
 
       int assigned =
-          factBuildTaskService.assignPendingTargetBatches(
-              config, factRunId, parentRunId, 100);
+          factBuildTaskService.assignPendingSourceTargetBatches(
+              config, factRunId, 100);
       QueuedFactBuildTask task =
           factBuildTaskService.claimNextQueuedTaskForFactRun(
               factRunId, "target-worker", 30);
@@ -271,14 +314,21 @@ class FactBuildTaskServiceTest {
       assertThat(task.full()).isFalse();
       assertThat(task.factType()).isEqualTo("ISSUE");
       assertThat(task.leaseOwner()).isEqualTo("target-worker");
-      assertThat(factBuildTaskService.loadAssignedRootIds(task)).containsExactly(issueId);
+      assertThat(factBuildTaskService.loadAssignedRootIds(task))
+          .containsExactly(issueId, secondIssueId);
     } finally {
       jdbcTemplate.update("delete from fact_build_tasks where run_id = ?", String.valueOf(factRunId));
-      jdbcTemplate.update("delete from sync_runs where id in (?, ?)", factRunId, parentRunId);
       jdbcTemplate.update(
-          "delete from fact_change_heads where source_instance = ? and fact_type = 'ISSUE' and root_id = ?",
+          "delete from source_fact_publication_states where config_id = ? and source_instance = ?",
+          config.getId(), sourceInstance);
+      jdbcTemplate.update(
+          "delete from sync_runs where id in (?, ?, ?)",
+          factRunId, parentRunId, secondParentRunId);
+      jdbcTemplate.update(
+          "delete from fact_change_heads where source_instance = ? and fact_type = 'ISSUE' and root_id in (?, ?)",
           sourceInstance,
-          issueId);
+          issueId,
+          secondIssueId);
       jdbcTemplate.update("delete from gitlab_sync_configs where id = ?", config.getId());
     }
   }

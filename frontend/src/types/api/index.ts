@@ -13,3 +13,4 @@ export * from './customer-issues';
 export * from './label-groups';
 export * from './quality-board';
 export * from './analytics-dashboard';
+export * from './cat-mirror';

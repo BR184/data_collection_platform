@@ -363,7 +363,7 @@ class CodeReviewMetricEnrichmentRepository {
          where source_instance = ?
            and run_type in (
              'FULL_SYNC', 'INCREMENTAL_SYNC', 'TABLE_REFRESH',
-             'FULL_COMPENSATION_SCAN'
+             'SYSTEM_HOOK', 'FULL_COMPENSATION_SCAN', 'DELETE_RECONCILIATION'
            )
            and status in ('SUCCESS', 'PARTIAL_SUCCESS')
         on conflict (source_instance) do nothing
@@ -397,7 +397,7 @@ class CodeReviewMetricEnrichmentRepository {
            and source_instance = ?
            and run_type in (
              'FULL_SYNC', 'INCREMENTAL_SYNC', 'TABLE_REFRESH',
-             'FULL_COMPENSATION_SCAN'
+             'SYSTEM_HOOK', 'FULL_COMPENSATION_SCAN', 'DELETE_RECONCILIATION'
            )
            and status in ('SUCCESS', 'PARTIAL_SUCCESS')
          order by id

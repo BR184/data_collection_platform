@@ -35,6 +35,10 @@ public class GitlabMirrorProperties {
   private int tableTaskLeaseSeconds = 180;
   private int authoritativeScopeBatchSize = 200;
   private int maxContinuationTasksPerTable = 50000;
+  private boolean deleteReconciliationEnabled = false;
+  private int deleteReconciliationIntervalMinutes = 60;
+  private int deleteReconciliationTimeSliceSeconds = 240;
+  private int deleteReconciliationPageSize = 500;
   private int factTargetBatchSize = 200;
   private int customerIssueDelayCheckDelayMs = 3600000;
   private boolean customerIssueDelayPreWritebackSyncEnabled = true;
@@ -298,6 +302,38 @@ public class GitlabMirrorProperties {
 
   public void setMaxContinuationTasksPerTable(int maxContinuationTasksPerTable) {
     this.maxContinuationTasksPerTable = maxContinuationTasksPerTable;
+  }
+
+  public boolean isDeleteReconciliationEnabled() {
+    return deleteReconciliationEnabled;
+  }
+
+  public void setDeleteReconciliationEnabled(boolean deleteReconciliationEnabled) {
+    this.deleteReconciliationEnabled = deleteReconciliationEnabled;
+  }
+
+  public int getDeleteReconciliationIntervalMinutes() {
+    return deleteReconciliationIntervalMinutes;
+  }
+
+  public void setDeleteReconciliationIntervalMinutes(int deleteReconciliationIntervalMinutes) {
+    this.deleteReconciliationIntervalMinutes = deleteReconciliationIntervalMinutes;
+  }
+
+  public int getDeleteReconciliationTimeSliceSeconds() {
+    return deleteReconciliationTimeSliceSeconds;
+  }
+
+  public void setDeleteReconciliationTimeSliceSeconds(int deleteReconciliationTimeSliceSeconds) {
+    this.deleteReconciliationTimeSliceSeconds = deleteReconciliationTimeSliceSeconds;
+  }
+
+  public int getDeleteReconciliationPageSize() {
+    return deleteReconciliationPageSize;
+  }
+
+  public void setDeleteReconciliationPageSize(int deleteReconciliationPageSize) {
+    this.deleteReconciliationPageSize = deleteReconciliationPageSize;
   }
 
   public int getCustomerIssueDelayCheckDelayMs() {

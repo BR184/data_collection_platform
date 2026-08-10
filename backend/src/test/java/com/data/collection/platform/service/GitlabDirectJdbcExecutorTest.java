@@ -15,12 +15,72 @@ import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.HikariPoolMXBean;
 import java.math.BigDecimal;
 import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.sql.Types;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 class GitlabDirectJdbcExecutorTest {
+  @Test
+  @ResourceLock("default-time-zone")
+  void test_query_distinguishes_postgresql_timestamp_types_by_type_name() throws Exception {
+    TimeZone original = TimeZone.getDefault();
+    TimeZone.setDefault(TimeZone.getTimeZone(ZoneId.of("Asia/Shanghai")));
+    try {
+      Connection connection = mock(Connection.class);
+      Statement statement = mock(Statement.class);
+      ResultSet resultSet = mock(ResultSet.class);
+      ResultSetMetaData metaData = mock(ResultSetMetaData.class);
+      HikariDataSource dataSource = mock(HikariDataSource.class);
+      when(dataSource.getConnection()).thenReturn(connection);
+      when(connection.createStatement()).thenReturn(statement);
+      when(statement.executeQuery("select timestamps")).thenReturn(resultSet);
+      when(resultSet.getMetaData()).thenReturn(metaData);
+      when(metaData.getColumnCount()).thenReturn(2);
+      when(metaData.getColumnLabel(1)).thenReturn("naive_time");
+      when(metaData.getColumnLabel(2)).thenReturn("aware_time");
+      when(metaData.getColumnType(1)).thenReturn(Types.TIMESTAMP);
+      when(metaData.getColumnType(2)).thenReturn(Types.TIMESTAMP);
+      when(metaData.getColumnTypeName(1)).thenReturn("timestamp");
+      when(metaData.getColumnTypeName(2)).thenReturn("timestamptz");
+      when(resultSet.next()).thenReturn(true, false);
+      LocalDateTime naiveSource = LocalDateTime.of(2026, 8, 6, 3, 20, 22, 840_104_000);
+      Instant awareSource = Instant.parse("2026-08-06T03:20:22.840104Z");
+      when(resultSet.getObject(1)).thenReturn(Timestamp.valueOf(naiveSource));
+      when(resultSet.getObject(2)).thenReturn(Timestamp.from(awareSource));
+      GitlabMirrorProperties properties = new GitlabMirrorProperties();
+      GitlabDirectJdbcExecutor executor =
+          new GitlabDirectJdbcExecutor(
+              new GitlabSourceConnectionSettings(properties),
+              new GitlabSourceQueryRetryPolicy(properties),
+              new GitlabJdbcValueNormalizer(),
+              new com.data.collection.platform.service.sync.SyncThreadBudgetResolver(properties),
+              (config, ignored) -> dataSource);
+
+      List<Map<String, Object>> rows =
+          executor.query(directConfig("gitlabhq_production", "gitlab"), "select timestamps");
+
+      assertThat(rows)
+          .containsExactly(
+              Map.of(
+                  "naive_time", naiveSource,
+                  "aware_time", LocalDateTime.ofInstant(awareSource, java.time.ZoneOffset.UTC)));
+    } finally {
+      TimeZone.setDefault(original);
+    }
+  }
+
   @Test
   void shouldReuseSamePooledDataSourceForEquivalentDirectConfigs() throws Exception {
     AtomicInteger createCount = new AtomicInteger();

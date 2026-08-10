@@ -78,7 +78,7 @@ public class PlatformAuthProperties {
   }
 
   public static class Ldap {
-    private String baseUrl = "http://127.0.0.1:24837";
+    private String baseUrl = "http://127.0.0.1:28081";
     private int connectTimeoutMs = 3000;
     private int readTimeoutMs = 10000;
     private boolean initialSyncRequired = true;

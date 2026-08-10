@@ -83,6 +83,29 @@ public class CodeReviewMatchModeConfigService {
     return toConfig(normalize(request, loadSettings()));
   }
 
+  /**
+   * 返回老平台 MySQL 的窄只读连接快照。
+   *
+   * <p>调用方只复用连接配置，必须独立声明来源表、暂存表、发布事务和错误状态。
+   */
+  public LegacyMysqlReadConfiguration loadLegacyMysqlReadConfiguration() {
+    CodeReviewMatchModeConfig config = loadConfig();
+    List<LegacyMysqlReadConfiguration.Source> sources = new ArrayList<>();
+    if (StringUtils.hasText(config.mysqlJdbcUrl())) {
+      sources.add(new LegacyMysqlReadConfiguration.Source("cc", config.mysqlJdbcUrl()));
+    }
+    if (StringUtils.hasText(config.dgmMysqlJdbcUrl())
+        && !config.dgmMysqlJdbcUrl().equalsIgnoreCase(config.mysqlJdbcUrl())) {
+      sources.add(new LegacyMysqlReadConfiguration.Source("dgm", config.dgmMysqlJdbcUrl()));
+    }
+    return new LegacyMysqlReadConfiguration(
+        sources,
+        config.mysqlUsername(),
+        config.mysqlPassword(),
+        config.mysqlFetchSize(),
+        config.syncEnabled());
+  }
+
   private CodeReviewMatchModeConfig toConfig(CodeReviewMatchModeDbSettings settings) {
     return new CodeReviewMatchModeConfig(
         buildMysqlJdbcUrl(settings),

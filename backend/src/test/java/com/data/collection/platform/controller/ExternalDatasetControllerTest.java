@@ -25,24 +25,24 @@ class ExternalDatasetControllerTest {
 
   @Test
   void catalogOnlyIncludesDatasetsAllowedForCallingClient() {
-    ExternalDatasetProvider<String> allowed = provider("bi-dashboard");
+    ExternalDatasetProvider<String> allowed = provider("sample-dataset");
     ExternalDatasetProvider<String> denied = provider("internal");
     ExternalDatasetRegistry registry = new ExternalDatasetRegistry(List.of(allowed, denied));
-    authenticate(Set.of("bi-dashboard"));
+    authenticate(Set.of("sample-dataset"));
 
     var response = new ExternalDatasetController(registry).catalog();
 
     assertThat(response.getData().datasets()).extracting(ExternalDatasetDescriptor::datasetKey)
-        .containsExactly("bi-dashboard");
+        .containsExactly("sample-dataset");
   }
 
   @Test
   void forbiddenDatasetReturns403AndUnknownDatasetReturns404() {
-    ExternalDatasetRegistry registry = new ExternalDatasetRegistry(List.of(provider("bi-dashboard")));
+    ExternalDatasetRegistry registry = new ExternalDatasetRegistry(List.of(provider("sample-dataset")));
     ExternalDatasetController controller = new ExternalDatasetController(registry);
     authenticate(Set.of());
 
-    var forbidden = controller.read("bi-dashboard", Map.of());
+    var forbidden = controller.read("sample-dataset", Map.of());
     var missing = controller.read("missing", Map.of());
 
     assertThat(forbidden.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
@@ -51,13 +51,13 @@ class ExternalDatasetControllerTest {
 
   @Test
   void providerValidationErrorReturns400() {
-    ExternalDatasetProvider<String> provider = provider("bi-dashboard");
+    ExternalDatasetProvider<String> provider = provider("sample-dataset");
     when(provider.load(Map.of())).thenThrow(new IllegalArgumentException("productVersion 不能为空"));
     ExternalDatasetController controller = new ExternalDatasetController(
         new ExternalDatasetRegistry(List.of(provider)));
-    authenticate(Set.of("bi-dashboard"));
+    authenticate(Set.of("sample-dataset"));
 
-    var response = controller.read("bi-dashboard", Map.of());
+    var response = controller.read("sample-dataset", Map.of());
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     assertThat(response.getBody().getMessage()).contains("productVersion");

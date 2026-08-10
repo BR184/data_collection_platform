@@ -26,15 +26,19 @@ class MergeRequestFactPersistenceServiceTest {
         "GITLAB",
         "default",
         List.of(202L),
+        List.of(),
         List.of());
 
     ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
     ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
-    verify(jdbcTemplate).update(sqlCaptor.capture(), argsCaptor.capture());
-    assertThat(sqlCaptor.getValue())
-        .contains("delete from merge_request_fact")
-        .contains("merge_request_id in (?)");
-    assertThat(argsCaptor.getValue()).containsExactly("GITLAB", "default", 202L);
+    verify(jdbcTemplate, org.mockito.Mockito.times(2))
+        .update(sqlCaptor.capture(), argsCaptor.capture());
+    assertThat(sqlCaptor.getAllValues())
+        .anyMatch(sql -> sql.contains("delete from merge_request_fact"))
+        .anyMatch(sql -> sql.contains("delete from merge_request_commit_fact"))
+        .allMatch(sql -> sql.contains("merge_request_id in (?)"));
+    assertThat(argsCaptor.getAllValues())
+        .allSatisfy(args -> assertThat(args).containsExactly("GITLAB", "default", 202L));
     org.mockito.Mockito.verifyNoInteractions(factMapper);
   }
 
@@ -50,10 +54,11 @@ class MergeRequestFactPersistenceServiceTest {
         "GITLAB",
         "default",
         List.of(202L),
-        List.of(currentFact));
+        List.of(currentFact),
+        List.of());
 
     InOrder ordered = inOrder(jdbcTemplate, factMapper);
-    ordered.verify(jdbcTemplate)
+    ordered.verify(jdbcTemplate, org.mockito.Mockito.times(2))
         .update(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(Object[].class));
     ordered.verify(factMapper).batchUpsert(List.of(currentFact));
   }
@@ -65,7 +70,7 @@ class MergeRequestFactPersistenceServiceTest {
     MergeRequestFactPersistenceService service =
         new MergeRequestFactPersistenceService(factMapper, jdbcTemplate);
 
-    service.replaceAllFacts("GITLAB", "default", List.of());
+    service.replaceAllFacts("GITLAB", "default", List.of(), List.of());
 
     verify(jdbcTemplate).update(
         org.mockito.ArgumentMatchers.contains("delete from merge_request_fact"),

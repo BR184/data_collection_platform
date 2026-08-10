@@ -48,6 +48,10 @@ public class GitlabFactChangeResolver {
       case "merge_requests" -> addRoots(roots, RootType.MERGE_REQUEST, values(rows, "id"));
       case "merge_request_assignees", "merge_request_reviewers", "merge_request_metrics" ->
           addRoots(roots, RootType.MERGE_REQUEST, values(rows, "merge_request_id"));
+      case "merge_request_diffs" ->
+          addRoots(roots, RootType.MERGE_REQUEST, values(rows, "merge_request_id"));
+      case "merge_request_diff_commits" ->
+          roots.addAll(mergeRequestRootsForDiffs(values(rows, "merge_request_diff_id")));
       case "notes" -> addPolymorphicRoots(roots, rows, "noteable_type", "noteable_id");
       case "label_links" -> addPolymorphicRoots(roots, rows, "target_type", "target_id");
       case "labels" -> roots.addAll(rootsForLabels(values(rows, "id")));
@@ -139,6 +143,15 @@ public class GitlabFactChangeResolver {
     roots.addAll(issueRootsByColumn("project_id", projectIds));
     roots.addAll(mergeRequestRootsByColumn("target_project_id", projectIds));
     return roots;
+  }
+
+  private Set<RootReference> mergeRequestRootsForDiffs(Set<Long> diffIds) {
+    if (diffIds.isEmpty()) {
+      return Set.of();
+    }
+    String sql = "select merge_request_id as id from ods_gitlab_merge_request_diffs "
+        + "where mirror_deleted = false and id in (" + placeholders(diffIds.size()) + ")";
+    return queryRoots(sql, RootType.MERGE_REQUEST, diffIds);
   }
 
   private Set<RootReference> rootsForNamespaces(Set<Long> namespaceIds) {

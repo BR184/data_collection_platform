@@ -99,6 +99,33 @@ class GitlabSourceScanSqlBuilderTest {
   }
 
   @Test
+  void test_monotonic_primary_key_scan_is_bounded_by_fixed_max_id() {
+    TableWhitelistOption option =
+        option(
+            "resource_label_events",
+            "id",
+            null,
+            SourceCursorStrategy.PRIMARY_KEY_KEYSET);
+    SourceTableSchema schema =
+        new SourceTableSchema(
+            "resource_label_events",
+            List.of("id"),
+            null,
+            List.of(new SourceTableColumn("id", "bigint", false, 1)));
+
+    String sql =
+        builder.buildMonotonicPrimaryKeyScanSql(
+            option, schema, "[\"100\"]", "[\"200\"]", 500);
+
+    assertThat(sql)
+        .contains("where \"id\" <= '200'::bigint")
+        .contains("and (\"id\") > ('100'::bigint)")
+        .contains("order by \"id\" asc")
+        .contains("limit 500")
+        .doesNotContain("updated_at", "offset");
+  }
+
+  @Test
   void shouldEscapeQuotesInSourceIdentifiers() {
     TableWhitelistOption option = option(
         "issue\"events", "id", "updated_at", SourceCursorStrategy.PRIMARY_KEY_KEYSET);

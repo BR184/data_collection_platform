@@ -12,25 +12,36 @@ import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunTableTask;
 import com.data.collection.platform.entity.sync.SyncRunTableTaskStage;
 import com.data.collection.platform.entity.sync.SyncRunType;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 class SyncRunYieldServiceTest {
+  private static final Clock FIXED_CLOCK =
+      Clock.fixed(Instant.parse("2026-08-05T08:00:00Z"), ZoneId.of("UTC"));
+
   private JdbcTemplate jdbcTemplate;
   private SyncRunYieldService yieldService;
 
   @BeforeEach
   void setUp() {
     jdbcTemplate = mock(JdbcTemplate.class);
-    yieldService = new SyncRunYieldService(jdbcTemplate);
+    yieldService =
+        new SyncRunYieldService(
+            jdbcTemplate,
+            new com.data.collection.platform.config.GitlabMirrorProperties(),
+            FIXED_CLOCK);
   }
 
   @Test
   void shouldYieldFullCompensationForQueuedIncrementalOrTableRefresh() {
     SyncRun run = run(SyncRunType.FULL_COMPENSATION_SCAN);
     when(jdbcTemplate.queryForObject(
-            contains("run_type in ('INCREMENTAL_SYNC', 'TABLE_REFRESH')"),
+            contains("run_type in ('INCREMENTAL_SYNC', 'TABLE_REFRESH', 'SYSTEM_HOOK')"),
             eq(Integer.class),
             eq(41L),
             eq("source:1:default:mirror")))
@@ -85,6 +96,38 @@ class SyncRunYieldServiceTest {
     assertThat(yieldService.pauseIfRequested(run)).isTrue();
     assertThat(run.getStatus())
         .isEqualTo(com.data.collection.platform.entity.sync.SyncRunStatus.PAUSED);
+  }
+
+  @Test
+  void test_delete_reconciliation_yields_after_time_slice_without_waiter() {
+    SyncRun run = run(SyncRunType.DELETE_RECONCILIATION);
+    run.setHeartbeatAt(LocalDateTime.now(FIXED_CLOCK).minusSeconds(241));
+    SyncRunTableTask reconciliationTask = task(SyncRunTableTaskStage.RECONCILE);
+    when(jdbcTemplate.queryForObject(
+            contains("run_type in ('INCREMENTAL_SYNC', 'TABLE_REFRESH', 'SYSTEM_HOOK')"),
+            eq(Integer.class),
+            eq(41L),
+            eq("source:1:default:mirror")))
+        .thenReturn(0);
+
+    assertThat(yieldService.shouldYieldAfterTableTask(run, reconciliationTask)).isTrue();
+  }
+
+  @Test
+  void test_delete_reconciliation_yields_for_queued_foreground_before_time_slice() {
+    SyncRun run = run(SyncRunType.DELETE_RECONCILIATION);
+    run.setHeartbeatAt(LocalDateTime.now(FIXED_CLOCK).minusSeconds(1));
+    when(jdbcTemplate.queryForObject(
+            contains("run_type in ('INCREMENTAL_SYNC', 'TABLE_REFRESH', 'SYSTEM_HOOK')"),
+            eq(Integer.class),
+            eq(41L),
+            eq("source:1:default:mirror")))
+        .thenReturn(1);
+
+    assertThat(
+            yieldService.shouldYieldAfterTableTask(
+                run, task(SyncRunTableTaskStage.RECONCILE)))
+        .isTrue();
   }
 
   private SyncRunTableTask task(SyncRunTableTaskStage stage) {

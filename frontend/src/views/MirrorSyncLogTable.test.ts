@@ -50,6 +50,8 @@ function createLog(overrides: Partial<SyncRunLog> = {}): SyncRunLog {
     runType: 'FULL_SYNC',
     triggerType: 'MANUAL',
     status: 'SUCCESS',
+    freshnessStatus: 'NOT_APPLICABLE',
+    deleteReconciliationStatus: 'NOT_APPLICABLE',
     message: 'Sync completed successfully',
     tableCount: 3,
     recordCount: 42,
@@ -81,6 +83,18 @@ describe('MirrorSyncLogTable', () => {
             tableCount: 5,
             recordCount: 0,
           }),
+          createLog({
+            id: 3,
+            syncType: 'INCREMENTAL',
+            runType: 'INCREMENTAL_SYNC',
+            freshnessStatus: 'CAUGHT_UP',
+          }),
+          createLog({
+            id: 4,
+            syncType: 'COMPENSATION',
+            runType: 'DELETE_RECONCILIATION',
+            deleteReconciliationStatus: 'COMPLETED',
+          }),
         ],
         refreshing: false,
       },
@@ -95,6 +109,9 @@ describe('MirrorSyncLogTable', () => {
     expect(wrapper.text()).toContain('3');
     expect(wrapper.text()).toContain('42');
     expect(wrapper.text()).toContain('同步已完成');
+    expect(wrapper.text()).toContain('物理删除对账');
+    expect(wrapper.text()).toContain('数据已追平');
+    expect(wrapper.text()).toContain('删除对账完成');
     expect(wrapper.text()).toContain('运行编号');
     expect(wrapper.text()).toContain('同步内容');
     expect(wrapper.text()).toContain('触发来源');

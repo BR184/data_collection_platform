@@ -10,8 +10,11 @@
 ## 系统基线
 
 - 形态：Spring Boot 单体后端 + Vue 3/TypeScript/Vite 前端 + PostgreSQL；前端默认 `18181`，后端默认 `18080`。
-- 数据入口：GitLab 镜像表（ODS）→ 事实层 → 统计服务/快照 → 页面、导出和外部只读数据集 API。
+- 数据入口：GitLab 镜像表（ODS）→ 事实层 → 统计服务/快照 → 平台页面和导出；真实进程外消费者可按 ADR-002 使用默认关闭的外部只读数据集 API。
 - 核心事实表：`issue_fact`、`merge_request_fact`、`integration_test_fact`；评审页面使用 `review_visible_*` 统一读模型：兼容态合并正式评审表与未被平台接管的兼容快照，正式态只读正式表。
+- 系统测试事实来自 `issue_fact`，只表达议题/缺陷数量、级别、状态、原因、延期和缺陷修复率；不存在系统测试执行用例数、通过用例数或系统测试通过率字段。
+- 产品版本解析以有效 `product_version_id` 为第一权威；缺失时由统一版本规则从项目名称主体匹配已登记版本，组合名称展开为多个版本成员，无法确定版本的事实不进入需要确定版本的统计。平台页面、快照、导出和经授权的外部 Provider 不得保留页面级版本特例，详细规则归 `docs/platform-page-business-rules.md`。
+- 普通评审读模型只承载需求、设计、单元测试用例、集成测试用例、系统测试用例五类已确认类型；`code_review_formal_records` 是独立代码走查域。未知 `review_type` 保留原值和追溯样例，但不得被 `其他` 或标题匹配自动归入普通评审。
 - 系统测试与客户问题的可选范围统一以项目级“议题范围目录”为权威来源。目录以稳定业务键、可修改显示名和精确事实成员三层表达；管理员顺序中的第一条启用范围是统一默认值。系统测试目录维度为 `TESTING_PHASE`，成员是 `issue_fact.testing_phase` 的配置值，但页面如何接纳含多个成员的复合事实由页面业务契约决定：统一 `SystemTestPhaseMembershipPolicy` 显式选择精确成员或包含成员，SQL 与内存过滤必须使用同一模式，并在一次请求开始时编译为不可变成员快照，禁止逐事实重复读取目录。客户问题目录维度为 `MILESTONE`，成员匹配 `issue_fact.milestone_title` 时不区分大小写但保留空白等真实值差异。客户事实发布时只向业务键相同的既有启用范围补充缺失成员，不创建范围、不启用停用范围、不改变显示名或顺序。显示名修改不得改变事实匹配，目录变更通过统一源版本使统计与记录快照失效。
 - 数据库迁移统一使用 Flyway；已执行迁移不可修改，新增结构或数据变更必须新建迁移。
 - Flyway 是建库、测试初始化和升级的唯一结构入口；共享库已执行迁移不可修改，结构修复使用新前向迁移，结构变更与大规模回填分开。测试使用独立 schema 并在每个测试 JVM 首次使用该 schema 时清理后完整迁移，不维护第二份结构快照。
@@ -27,20 +30,22 @@
 - 调度器每次领取运行必须生成唯一 `lease_owner`；首次心跳、周期续租、暂停和终态提交均以 `(run_id, lease_owner)` fencing，租约转移后的旧执行器不能覆盖新 owner。执行器拒绝入队时仅释放自己拥有的运行并归还本地容量；截止时间和人工取消使用字段级状态 CAS，禁止用陈旧全实体更新覆盖租约。
 - 表任务是唯一分页恢复边界：源端读取不持有平台库事务，本地镜像写入、变化目标登记、任务 owner 条件完成、状态水位和下一阶段任务创建在同一事务提交。`SCAN` 续页使用独立任务行；每张表的 `RECONCILE` 只使用一个任务行原子累计计数并推进 keyset cursor，不按页增长任务数。任务执行期间按租约心跳续期，租约转移后的旧 worker 不得提交状态或镜像副作用。
 - 源端扫描只使用真实类型复合主键 keyset：全量与删除对账按主键 tuple 分页；增量仅在更新时间列存在有效非部分 B-tree 前导索引时使用 `TIMESTAMP_KEYSET`，否则在固定 `(watermark, scan_upper_bound_at]` 窗口内使用 `PRIMARY_KEY_KEYSET`，保证每次运行最多按主键线性扫描一次。复合游标统一为 JSON 数组并持久化 `page_number`；状态水位只在末页推进。禁止按文本化主键排序、哈希分片重复扫表、`OFFSET` 分页和逐页 `count(*)`。
-- 同一数据源保持单一镜像写入所有权。`INCREMENTAL_SYNC` 与用户 `TABLE_REFRESH` 高于全量/补偿运行；全量与补偿运行在已提交分页边界让行，自动增量只在已提交 `RECONCILE` 页后为等待中的 `TABLE_REFRESH` 让行。让行以 owner CAS 转为 `PAUSED` 并释放互斥范围，前台运行结束后从持久 cursor 恢复；System Hook、增量 `SCAN` 和权威范围处理不扩大该让行边界。
+- GitLab 来源时间必须按物理列类型解释：DIRECT JDBC 读取结果同时保留 `ResultSetMetaData.getColumnTypeName()`，`timestamp without time zone` 保留来源墙上值，`timestamp with time zone`/`timestamptz` 按同一瞬间归一为 UTC `LocalDateTime`；DOCKER JSON 的无偏移文本保留墙上值、带偏移文本归一为 UTC。时间窗口 SQL 必须按来源 schema 生成匹配的 `timestamp`/`timestamptz` 字面量，不能只按 JDBC 通用类型或 JVM 默认时区转换。
+- 同一数据源保持单一镜像写入所有权。用户 `TABLE_REFRESH`、`INCREMENTAL_SYNC` 和 System Hook 属于前台运行，独立低优先级 `DELETE_RECONCILIATION` 与全量/补偿运行只在已提交分页边界让行；自动增量仍只为等待中的单表刷新让行。让行以 owner CAS 转为 `PAUSED` 并释放互斥范围，前台运行结束后从持久 cursor 恢复；已经开始的源查询和平台事务不中断。
 - 页面同步命令只引用已持久化的 `configId`，不得隐式保存配置；表单存在未保存变更时必须先显式保存。活动镜像运行期间后端继续拒绝连接与容量配置变更，不能为提交前台任务绕过该保护。
 - 同步诊断只把当前活动运行的任务计入当前失败/超时，历史累计使用独立字段；当前表任务必须暴露 `taskId/stage/cursor/retry/heartbeat/lease`。DIRECT 模式同时暴露 Hikari 活动、空闲、等待和容量指标；源总量未知时前端使用不确定进度，不根据动态分页任务数伪造百分比。同步 JSON 日志统一携带 `runId`、`runDbId`、`taskId`、`sourceTable`、`configId`、`sourceInstance`、`runType` 和 `action`。详细决策见 `docs/decisions/ADR-004-sync-runtime-capacity-leases-and-yielding.md`。
-- `GitlabSourceLineageCatalog` 是 23 张推荐来源表的主键、删除探测资格、权威父子范围和派生归属唯一目录；评论和标签分别用 `(noteable_type,noteable_id)`、`(target_type,target_id)` 隔离多态对象。`GitlabFactDependencyCatalog` 统一维护事实读取表与变化信号表，`RealtimeWorkspaceDependencyCatalog` 再把工作区映射到事实类型和扫描依赖；新增推荐表或事实依赖必须显式登记，无派生消费者也必须显式声明。
-- 普通镜像运行统一经过 `SCAN`、批量权威范围和 `RECONCILE`。页提交先锁定运行阶段边界；只有全部 `SCAN` producer 和 `sync_run_authoritative_scopes` 成功后，才为本次范围内每张表幂等创建一个 `RECONCILE` 任务。权威范围按规范 identity 去重后批量领取、批量读取完整来源集合并原子替换 ODS；`QUEUED/RUNNING/RETRY_WAITING` 阻断阶段推进，`FAILED` 使运行失败，禁止把未完成范围解释为空集合。
+- `GitlabSourceLineageCatalog` 是 25 张推荐来源表的主键、删除探测资格、权威父子范围和派生归属唯一目录；评论和标签分别用 `(noteable_type,noteable_id)`、`(target_type,target_id)` 隔离多态对象。`GitlabFactDependencyCatalog` 统一维护平台通用事实读取表与变化信号表，`RealtimeWorkspaceDependencyCatalog` 再把工作区映射到事实类型和扫描依赖；新增推荐表或事实依赖必须显式登记，无派生消费者也必须显式声明。`merge_request_diffs` 与 `merge_request_diff_commits` 是可选的 MR 提交增强来源：两表仍登记为 MR 变化血缘，但不属于通用 `MERGE_REQUEST` 事实硬依赖；自定义白名单未同时选择两表时，原有 MR 事实和代码走查工作区必须继续可用。
+- 日常正确性采用三层模型：普通 `INCREMENTAL_SYNC` 仅按目录声明的 `UPDATED_AT` 或 `MONOTONIC_PRIMARY_KEY` 固定上界快速扫描，并处理事件生成的批量权威范围，不创建全表 `RECONCILE`；`resource_label_events` 等变化信号定位父对象后，批量读取当前完整关系集合并原子替换 ODS；无事件的物理删除由独立低优先级 `DELETE_RECONCILIATION` 为到期表创建 `RECONCILE` 任务最终收敛。权威范围按规范 identity 去重，`QUEUED/RUNNING/RETRY_WAITING` 阻断完成，`FAILED` 使运行失败，禁止把未完成范围解释为空集合。
+- 普通增量的每张快速表必须持久化来源固定上界，并由 checkpoint 覆盖该上界；必需表缺失、零表规划、上界未固化或权威范围未完成均不得记为成功。只有完整覆盖的 `INCREMENTAL_SYNC + SUCCESS` 推进 `last_incremental_sync_at`；活动增量吸收后续到期触发时持久登记一次尾部补跑，并在原运行结束后立即创建新的固定上界运行。执行结果、快速增量新鲜度和删除对账新鲜度分别记录和展示。
 - 删除探测只分页读取 ODS active 主键并用真实类型参数化批查询验证 GitLab 存在性；仅成功来源查询返回的 mirror-only 差集可写 tombstone。单列与复合主键均使用声明式类型和 keyset cursor，JVM 工作集为 `O(batchSize)`；来源异常、非法返回子集或平台事务失败不得推进 cursor、`last_delete_reconciled_at` 或删除行。
-- ODS 写入只把插入、业务列真实变化、tombstone 恢复和真实删除输出为 `MirrorRowChange`；lookback 相同行、镜像元数据变化和相同权威集合不产生派生目标。ODS DML、`fact_change_heads` 版本推进、`sync_run_fact_targets` upsert 和定向 `FACT_REFRESH` 创建/唤醒位于同一平台事务；已提交目标不依赖镜像父运行终态才能继续发布。
-- 每个镜像父运行至多复用一个 `FACT_REFRESH` 子运行；`fact_build_tasks.run_id` 只归属该子运行，父运行只从 `sync_runs.parent_run_id` 取得。定向运行仅在存在未发布目标时创建，父运行继续产生更高版本时可重新唤醒已成功、暂停或重试中的同一子运行；失败运行保留原身份供显式恢复。全量同步和成功全量补偿使用明确全量事实发布，普通增量、手动表刷新和 System Hook 不因目标数量改变为全量模式。
-- `FULL_COMPENSATION_SCAN` 只承担首次历史清理、灾难恢复和低频反熵，不是日常实时正确性的前置条件；无生产入口的 `COMPENSATION_SCAN` 已删除。增量更新继续保留 PostgreSQL volume、同步状态、镜像表和用户配置，不通过重建容器清库。270 万行的最终 batch/worker 参数和硬性能门禁必须由内网固定负载基准确定。
+- ODS 写入只把插入、业务列真实变化、tombstone 恢复和真实删除输出为 `MirrorRowChange`；变化快照保留列存在性和数据库 `NULL`，并在构造时复制为不可修改 Map，避免后续来源 Map 变化污染事实发布。lookback 相同行、镜像元数据变化和相同权威集合不产生派生目标。ODS DML、`fact_change_heads` 版本推进和 `sync_run_fact_targets` upsert 位于同一平台事务；镜像活动期间只登记 outbox，不创建可执行事实副作用。
+- 事实发布以 `config_id + source_instance + fact_type + source_table` 的持久依赖代际为门禁。镜像终态按本轮实际选择表及表任务、权威范围结果更新依赖为 `READY/BLOCKED`；只有完整 READY 的事实族可创建或唤醒无父运行的来源级 `FACT_REFRESH` 消费者。事实消费者与镜像运行使用同一来源互斥域，从全部历史 `mirror_run_id` 合并未发布目标；失败或取消的消费者释放目标归属，后续来源终态可继续接管。达到重试上限的失败权威范围只由后续选择同一子表的镜像运行重放，成功恢复前对应事实族保持阻塞。全量同步和成功全量补偿登记可合并的全量发布意图，普通增量、手动表刷新和 System Hook 不因目标数量改变为全量模式。
+- `FULL_COMPENSATION_SCAN` 只承担首次历史清理和灾难恢复，不是日常实时正确性或物理删除收敛的前置条件；无生产入口的 `COMPENSATION_SCAN` 已删除。增量更新继续保留 PostgreSQL volume、同步状态、镜像表和用户配置，不通过重建容器清库。约 280 万全部同步表总量的删除反熵 batch、时间片和硬性能门禁必须由内网固定负载基准确定。
 
 ### 事实与统计
 
 - 事实构建负责字段归一化、标签解析、非法判定和派生字段；统计服务只消费事实层和明确的统计快照。
-- `sync_run_fact_targets` 是定向事实发布 outbox，稳定身份为 `source_instance + fact_type + GitLab root_id`；`fact_change_heads` 保存最新变化版本和已发布版本并提供乱序 fencing。同一运行同一根再次变化必须提高版本、重置为待发布并清除旧 assignment；事实 worker 在根版本锁内读取当前 ODS，使交错运行不能用旧状态覆盖新事实。
+- `sync_run_fact_targets` 是定向事实发布 outbox，稳定身份为 `source_instance + fact_type + GitLab root_id`；`fact_change_heads` 保存最新变化版本和已发布版本并提供乱序 fencing。同一运行同一根再次变化必须提高版本、重置为待发布并清除旧 assignment；来源级消费者跨镜像历史合并目标，事实 worker 在根版本锁内读取当前 READY 代际的 ODS，使交错运行不能用旧状态覆盖新事实。
 - 每个定向事实任务只处理一个有界根 ID 批次，不使用长 OR 条件、内部 cursor 或目标数阈值回退。Issue、MR 和集成测试定向构建均以 GitLab 根 `id` 和 `source_instance` 隔离；发布事务先删除目标旧事实及其从属成员，再写当前来源结果，空来源是合法的只删结果。全量构建以完整快照替换单一来源实例，不影响其他来源实例或事实类型。
 - 定向事实事务同时解析变化前后的稳定投影范围并推进 `fact_projection_generations`，为每个 `FULL_EPOCH/GLOBAL_VIEW/PROJECT/ISSUE_SCOPE_GROUP` 范围创建可租约、退避和恢复的投影任务。旧 generation 任务按 superseded no-op 成功；请求 `sourceVersion` 规范包含全量 epoch、消费范围 generation、范围组 definition generation 和规则版本，未受影响范围不失效。
 - 页面手动刷新只扫描工作区依赖表，但扫描发现的全部跨项目变化均进入统一 outbox。请求先持久化 `sync_run_publication_fences`，镜像运行在释放同源 writer 前捕获要求的 change version；页面完成状态等待该版本内事实目标和自身消费的投影 generation 成功，不能因本次 ODS DML 为零或仅镜像运行成功就宣称最新。
@@ -85,7 +90,7 @@
 
 ### 业务模块
 
-当前模块包括：质量看板、评审数据、代码走查、系统测试、客户问题和系统设置。集成测试是老平台历史口径，不是新平台当前模块，默认不提供集成测试数据，也不属于 `bi-dashboard` 外部数据集。每个模块的字段、导出、非法数据和下钻规则归 `docs/platform-page-business-rules.md`，本文件只维护模块边界和数据责任。
+当前一级模块包括：质量看板、评审数据、代码走查、系统测试、客户问题、BI 看板和系统设置。老平台独立“集成测试”模块不恢复。BI 的全部专属事实从 `docs/bi-dashboard/README.md` 统一路由；其余模块的字段、导出、非法数据和下钻规则归 `docs/platform-page-business-rules.md`。
 
 ## 认证与授权
 
@@ -98,7 +103,6 @@
 - 角色名称可展示和编辑，角色编码是稳定关联键；“一级/二级/三级”不是系统概念，不能进入代码或数据模型。
 - 评审记录和问题项的 `created_by` 为空时表示历史数据无归属，不进行推测回填；评审管理的本人删除和任意删除分别由本地权限控制。
 - 详细边界见 `docs/decisions/ADR-001-ldap-authentication-and-local-authorization.md`。
-
 ## 兼容模式边界
 
 - CC/DGM、老平台评审数据等临时兼容源必须通过明确的 Match mode 服务、表、任务和 API 访问，并在代码中标注 `兼容模式` / `Match mode`。
@@ -108,11 +112,8 @@
 
 ## 外部数据集 API
 
-- `/api/external/v1/datasets` 是版本化、只读、服务间认证的数据集契约，不复用页面 DTO，不向平台回写数据。
-- 外部 API 默认关闭；开启后使用 Bearer token，平台仅保存 SHA-256 摘要并按客户端限制数据集白名单。
-- 外部 API 使用独立的无状态 Spring Security 过滤链，不创建或读取平台 Session、不签发 CSRF Cookie；浏览器业务接口继续使用 LDAP Session 与 CSRF，两条认证链不得合并。
-- 外部 API 开启但客户端、Token 摘要或数据集白名单不完整时，后端必须启动失败，不能以运行时 401/404 掩盖部署错误。
-- 数据集由 provider 注册并声明版本、参数和字段；当前契约及数据集范围见 `docs/decisions/ADR-002-versioned-external-dataset-api.md`。
+- `/api/external/v1/datasets` 仅面向经过确认的进程外消费者。通用边界见 ADR-002；新增 Provider 前必须有真实消费者、schema、权限和移除条件。
+- 外部 API 默认关闭，使用独立无状态 Bearer token 和数据集白名单；浏览器业务接口继续使用 LDAP Session 与 CSRF，两条认证链不得混用。
 
 ## 性能、迁移与发布不变量
 

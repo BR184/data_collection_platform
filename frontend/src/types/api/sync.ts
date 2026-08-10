@@ -96,6 +96,18 @@ export interface TableWhitelistOption {
   recommended: boolean;
 }
 
+export type SyncFreshnessStatus =
+  | 'NOT_APPLICABLE'
+  | 'VERIFYING'
+  | 'CAUGHT_UP'
+  | 'NOT_CAUGHT_UP';
+
+export type DeleteReconciliationStatus =
+  | 'NOT_APPLICABLE'
+  | 'RUNNING'
+  | 'COMPLETED'
+  | 'INCOMPLETE';
+
 export interface SyncRunLog {
   id: number;
   runId?: string | null;
@@ -112,6 +124,8 @@ export interface SyncRunLog {
   parentRunRunId?: string | null;
   fullBuild?: boolean | null;
   status: GitlabSyncStatus;
+  freshnessStatus: SyncFreshnessStatus;
+  deleteReconciliationStatus: DeleteReconciliationStatus;
   message: string;
   tableCount: number;
   completedTableCount?: number | null;

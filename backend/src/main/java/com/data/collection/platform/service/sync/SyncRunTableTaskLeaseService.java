@@ -500,6 +500,32 @@ public class SyncRunTableTaskLeaseService {
         == 1;
   }
 
+  /** 为当前所有者持久化本轮固定单调主键上界。 */
+  public boolean initializeOwnedScanUpperBoundPk(
+      Long taskId, String owner, String scanUpperBoundPk) {
+    if (taskId == null
+        || owner == null
+        || owner.isBlank()
+        || scanUpperBoundPk == null
+        || scanUpperBoundPk.isBlank()) {
+      return false;
+    }
+    return jdbcTemplate.update(
+            """
+            update sync_run_table_tasks
+               set scan_upper_bound_pk = coalesce(scan_upper_bound_pk, ?),
+                   updated_at = current_timestamp
+             where id = ?
+               and lease_owner = ?
+               and status = 'RUNNING'
+               and lease_until >= current_timestamp
+            """,
+            scanUpperBoundPk,
+            taskId,
+            owner)
+        == 1;
+  }
+
   private SyncRunTableTask mapTask(ResultSet rs, int rowNum) throws SQLException {
     SyncRunTableTask task = new SyncRunTableTask();
     task.setId(rs.getLong("id"));
@@ -518,6 +544,7 @@ public class SyncRunTableTaskLeaseService {
     task.setCursorUpdatedAt(toDateTime(rs.getTimestamp("cursor_updated_at")));
     task.setCursorPk(rs.getString("cursor_pk"));
     task.setScanUpperBoundAt(toDateTime(rs.getTimestamp("scan_upper_bound_at")));
+    task.setScanUpperBoundPk(rs.getString("scan_upper_bound_pk"));
     task.setPageNumber(rs.getObject("page_number") == null ? null : rs.getInt("page_number"));
     task.setLookupScopeJson(rs.getString("lookup_scope_json"));
     task.setBatchSize(rs.getInt("batch_size"));

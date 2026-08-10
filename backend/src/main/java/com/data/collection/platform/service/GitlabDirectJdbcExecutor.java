@@ -124,17 +124,34 @@ class GitlabDirectJdbcExecutor implements AutoCloseable {
   private List<Map<String, Object>> readRows(ResultSet resultSet) throws Exception {
     List<Map<String, Object>> rows = new ArrayList<>();
     ResultSetMetaData metaData = resultSet.getMetaData();
-    int count = metaData.getColumnCount();
+    List<ResultColumn> columns = readResultColumns(metaData);
     while (resultSet.next()) {
       Map<String, Object> row = new LinkedHashMap<>();
-      for (int index = 1; index <= count; index++) {
+      for (ResultColumn column : columns) {
         row.put(
-            metaData.getColumnLabel(index),
-            jdbcValueNormalizer.normalize(resultSet.getObject(index)));
+            column.label(),
+            jdbcValueNormalizer.normalize(
+                resultSet.getObject(column.index()),
+                column.jdbcType(),
+                column.jdbcTypeName()));
       }
       rows.add(row);
     }
     return rows;
+  }
+
+  private List<ResultColumn> readResultColumns(ResultSetMetaData metaData) throws Exception {
+    int count = metaData.getColumnCount();
+    List<ResultColumn> columns = new ArrayList<>(count);
+    for (int index = 1; index <= count; index++) {
+      columns.add(
+          new ResultColumn(
+              index,
+              metaData.getColumnLabel(index),
+              metaData.getColumnType(index),
+              metaData.getColumnTypeName(index)));
+    }
+    return List.copyOf(columns);
   }
 
   Connection openConnection(GitlabSyncConfig config) throws Exception {
@@ -262,6 +279,9 @@ class GitlabDirectJdbcExecutor implements AutoCloseable {
           budget.connectionAcquireTimeoutMs());
     }
   }
+
+  private record ResultColumn(
+      int index, String label, int jdbcType, String jdbcTypeName) {}
 
   private static final class ManagedDataSource {
     private final HikariDataSource dataSource;

@@ -2,7 +2,7 @@ package com.data.collection.platform.service.statistics;
 
 import java.util.List;
 
-/** Immutable 29-column projection of the legacy customer-summary issue workbook. */
+/** Immutable 31-column projection of the legacy customer-summary issue workbook. */
 record CustomerIssueSummaryWorkbookRow(
     String updatedDate,
     String submissionDate,
@@ -29,6 +29,8 @@ record CustomerIssueSummaryWorkbookRow(
     String modification,
     String causedByOther,
     String effectFunction,
+    String knownAffectedFunction,
+    String newlyIdentifiedAffectedFunction,
     String hasTested,
     String potentialImpact,
     String relationTableUpdated,
@@ -61,6 +63,8 @@ record CustomerIssueSummaryWorkbookRow(
           "修改方案",
           "由修改其他缺陷造成的",
           "修改该缺陷可能影响的功能",
+          "已知的受影响功能",
+          "新识别的受影响功能",
           "是否对可能影响的功能进行了测试",
           "有无遗留问题或潜在的影响",
           "是否更新了关联关系表",
@@ -93,6 +97,8 @@ record CustomerIssueSummaryWorkbookRow(
         text(modification),
         text(causedByOther),
         text(effectFunction),
+        text(knownAffectedFunction),
+        text(newlyIdentifiedAffectedFunction),
         text(hasTested),
         text(potentialImpact),
         text(relationTableUpdated),

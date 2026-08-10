@@ -10,6 +10,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 @Component
 public class LdapPlatformClient {
@@ -30,13 +32,22 @@ public class LdapPlatformClient {
   }
 
   public LdapLoginData login(String loginId, String password) {
-    LdapApiResponse<LdapLoginData> response = restClient.post()
-        .uri("/api/v1/auth/login")
-        .contentType(MediaType.APPLICATION_JSON)
-        .body(new LdapLoginRequest(loginId, password))
-        .retrieve()
-        .body(new org.springframework.core.ParameterizedTypeReference<>() {});
-    return requireSuccess(response, "LDAP 登录失败");
+    try {
+      LdapApiResponse<LdapLoginData> response = restClient.post()
+          .uri("/api/v1/auth/login")
+          .contentType(MediaType.APPLICATION_JSON)
+          .body(new LdapLoginRequest(loginId, password))
+          .retrieve()
+          .body(new org.springframework.core.ParameterizedTypeReference<>() {});
+      return requireSuccess(response, "LDAP 登录失败");
+    } catch (RestClientResponseException exception) {
+      if (exception.getStatusCode().value() == 401) {
+        throw new LdapInvalidCredentialsException();
+      }
+      throw new LdapPlatformClientException("LDAP 登录服务响应异常", exception);
+    } catch (RestClientException exception) {
+      throw new LdapPlatformClientException("LDAP 登录服务不可用", exception);
+    }
   }
 
   public LdapUserData currentUser(String accessToken) {
@@ -76,7 +87,7 @@ public class LdapPlatformClient {
   }
 
   private String trimBaseUrl(String value) {
-    String normalized = value == null || value.isBlank() ? "http://127.0.0.1:24837" : value.trim();
+    String normalized = value == null || value.isBlank() ? "http://127.0.0.1:28081" : value.trim();
     while (normalized.endsWith("/")) {
       normalized = normalized.substring(0, normalized.length() - 1);
     }
@@ -134,6 +145,12 @@ public class LdapPlatformClient {
 
     public LdapPlatformClientException(String message, Throwable cause) {
       super(message, cause);
+    }
+  }
+
+  public static class LdapInvalidCredentialsException extends RuntimeException {
+    public LdapInvalidCredentialsException() {
+      super("LDAP 拒绝登录凭据");
     }
   }
 }

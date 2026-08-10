@@ -6,7 +6,6 @@ import com.data.collection.platform.entity.ReviewDataRecordListResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -44,22 +43,21 @@ public class ReviewDataExcelExportService {
     "所属项目"
   };
   private static final String[] PROBLEM_HEADERS = {
-    "评审文档类型",
+    "项目名称",
+    "评审文档的类型",
     "评审的工作产品",
+    "模块名称",
+    "评审专家",
+    "评审工作量",
     "评审类别",
-    "文档类别",
-    "评审缺陷个数",
-    "需求页数/个数",
-    "评审工作量（小时）",
-    "问题类别数量统计-文档",
-    "问题类别数量统计-完整性",
-    "问题类别数量统计-功能性",
-    "问题类别数量统计-可行性",
-    "评审缺陷密度",
-    "加权重的评审缺陷密度",
-    "缺陷效率(个/小时)",
-    "评审速率",
-    "评审规模总和"
+    "在文档中的位置",
+    "问题类别",
+    "问题描述",
+    "建议解决方案",
+    "责任人",
+    "不接受理由",
+    "问题状态",
+    "更新日期"
   };
 
   private final ReviewDataRecordQueryService queryService;
@@ -90,10 +88,22 @@ public class ReviewDataExcelExportService {
     }
   }
 
+  /**
+   * 按当前筛选范围导出逐条评审问题清单。
+   *
+   * @param request 与评审列表一致的筛选和排序条件
+   * @return 包含父评审字段和逐条问题字段的 Excel 工作簿字节
+   */
   public byte[] exportProblemDetailsWorkbook(ReviewDataRecordQueryRequest request) {
     return exportProblemDetailsWorkbook(loadAllRecords(request), request);
   }
 
+  /**
+   * 导出指定评审记录下的逐条问题清单。
+   *
+   * @param recordId 评审记录 ID
+   * @return 包含父评审字段和逐条问题字段的 Excel 工作簿字节
+   */
   public byte[] exportProblemDetailsWorkbook(Long recordId) {
     return exportProblemDetailsWorkbook(List.of(queryService.getRecordDetail(recordId).record()), null);
   }
@@ -107,14 +117,16 @@ public class ReviewDataExcelExportService {
       writeHeader(sheet.createRow(0), styles.header, PROBLEM_HEADERS);
       int rowIndex = 1;
       for (ReviewDataRecordRowResponse record : records) {
-        //问题清单导出必须跟前端详情/展开行使用同一合并读源。
+        // 问题清单导出必须跟前端详情/展开行使用同一合并读源。
         List<ReviewDataProblemItemResponse> items = queryService.listProblemItems(record.id());
         if (items.isEmpty()) {
           continue;
         }
-        writeProblemSummaryCells(sheet.createRow(rowIndex++), record, items, styles.body);
+        for (ReviewDataProblemItemResponse item : items) {
+          writeProblemItemCells(sheet.createRow(rowIndex++), record, item, styles.body);
+        }
       }
-      setColumnWidths(sheet, 18, 30, 24, 18, 16, 12, 14, 22, 24, 24, 24, 18, 22, 18, 14, 14);
+      setColumnWidths(sheet, 18, 24, 40, 18, 14, 14, 18, 24, 18, 40, 40, 18, 22, 18, 22);
       sheet.createFreezePane(0, 1);
       ExcelExportStyles.applyHeaderRows(sheet, 1);
       writeFilterSnapshotSheet(workbook, styles, request);
@@ -189,36 +201,23 @@ public class ReviewDataExcelExportService {
     writeText(row, 18, record.projectName(), style);
   }
 
-  private void writeProblemSummaryCells(
-      Row row, ReviewDataRecordRowResponse record, List<ReviewDataProblemItemResponse> items, CellStyle style) {
-    ReviewDataMetricCalculator.ReviewProblemSummary summary =
-        ReviewDataMetricCalculator.problemSummary(record::reviewScalePages, items);
-
-    writeText(row, 0, record.reviewType(), style);
-    writeText(row, 1, record.reviewProduct(), style);
-    writeText(row, 2, legacyReviewCategoryListText(items), style);
-    writeText(row, 3, legacyDocumentCategory(record), style);
-    writeNumber(row, 4, summary.defectCount(), style);
-    writeNumber(row, 5, summary.value1(), style);
-    writeNumber(row, 6, summary.workload(), style);
-    writeNumber(row, 7, summary.docSpecification(), style);
-    writeNumber(row, 8, summary.integrity(), style);
-    writeNumber(row, 9, summary.functionality(), style);
-    writeNumber(row, 10, summary.feasibility(), style);
-    writeNumber(row, 11, record.problemDensity(), style);
-    writeNumber(row, 12, summary.weightedDefectDensity(), style);
-    writeNumber(row, 13, summary.defectEfficiency(), style);
-    writeNumber(row, 14, summary.reviewRate(), style);
-    writeNumber(row, 15, summary.sumCount(), style);
-  }
-
-  private String legacyReviewCategoryListText(List<ReviewDataProblemItemResponse> items) {
-    return items.stream()
-        .map(ReviewDataProblemItemResponse::reviewCategory)
-        .filter(value -> value != null && !value.isBlank())
-        .distinct()
-        .toList()
-        .toString();
+  private void writeProblemItemCells(
+      Row row, ReviewDataRecordRowResponse record, ReviewDataProblemItemResponse item, CellStyle style) {
+    writeText(row, 0, record.projectName(), style);
+    writeText(row, 1, record.reviewType(), style);
+    writeText(row, 2, record.reviewProduct(), style);
+    writeText(row, 3, record.moduleName(), style);
+    writeText(row, 4, item.reviewerName(), style);
+    writeNumber(row, 5, item.workloadHours(), style);
+    writeText(row, 6, item.reviewCategory(), style);
+    writeText(row, 7, item.documentPosition(), style);
+    writeText(row, 8, item.problemCategory(), style);
+    writeText(row, 9, item.problemDescription(), style);
+    writeText(row, 10, item.suggestedSolution(), style);
+    writeText(row, 11, item.ownerName(), style);
+    writeText(row, 12, item.rejectionReason(), style);
+    writeText(row, 13, item.problemStatus(), style);
+    writeText(row, 14, formatDateTime(item.updatedAt()), style);
   }
 
   private String legacyDocumentCategory(ReviewDataRecordRowResponse record) {
@@ -275,10 +274,6 @@ public class ReviewDataExcelExportService {
 
   private void setColumnWidths(org.apache.poi.ss.usermodel.Sheet sheet, int... widths) {
     ExcelExportStyles.setReadableColumnWidths(sheet, widths);
-  }
-
-  private String formatDate(LocalDate value) {
-    return value == null ? "" : value.toString();
   }
 
   private String formatDateTime(LocalDateTime value) {

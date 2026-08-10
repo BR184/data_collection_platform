@@ -48,6 +48,7 @@ public class SyncTableContinuationPlanner {
     task.setCursorUpdatedAt(cursorUpdatedAt);
     task.setCursorPk(cursorPk);
     task.setScanUpperBoundAt(previousTask.getScanUpperBoundAt());
+    task.setScanUpperBoundPk(previousTask.getScanUpperBoundPk());
     task.setPageNumber(previousTask.getPageNumber() == null ? 2 : previousTask.getPageNumber() + 1);
     task.setLookupScopeJson(previousTask.getLookupScopeJson());
     task.setBatchSize(batchSize);

@@ -48,6 +48,17 @@ public class SourceTableReader {
         batchSize);
   }
 
+  public List<Map<String, Object>> readMonotonicPrimaryKeyBatch(
+      GitlabSyncConfig config,
+      TableWhitelistOption option,
+      SourceTableSchema mirrorSchema,
+      String cursorPk,
+      String upperBoundPk,
+      int batchSize) {
+    return externalDbService.monotonicPrimaryKeyScan(
+        config, option, mirrorSchema, cursorPk, upperBoundPk, batchSize);
+  }
+
   /** 按完整范围读取来源当前集合，供所有精确任务使用。 */
   public List<Map<String, Object>> readPrecise(
       GitlabSyncConfig config,
@@ -67,6 +78,11 @@ public class SourceTableReader {
 
   public LocalDateTime findMaxUpdatedAt(GitlabSyncConfig config, TableWhitelistOption option) {
     return externalDbService.findMaxUpdatedAt(config, option);
+  }
+
+  public String findMaxPrimaryKeyCursor(
+      GitlabSyncConfig config, TableWhitelistOption option) {
+    return externalDbService.findMaxPrimaryKeyCursor(config, option);
   }
 
   public GitlabTableProbe probeTable(GitlabSyncConfig config, TableWhitelistOption option) {

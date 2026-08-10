@@ -64,6 +64,28 @@ class CodeReviewMetricEnrichmentRepositoryTest {
   }
 
   @Test
+  void completedRunDiscoveryIncludesHookAndDeleteReconciliationChanges() {
+    RecordingJdbcTemplate jdbc = new RecordingJdbcTemplate();
+    CodeReviewMetricEnrichmentRepository repository = repository(jdbc);
+
+    repository.enqueueNextCompletedRun("default", 25);
+
+    assertThat(jdbc.updates)
+        .anySatisfy(
+            update ->
+                assertThat(update.sql())
+                    .contains("'SYSTEM_HOOK'")
+                    .contains("'DELETE_RECONCILIATION'"));
+    assertThat(jdbc.queries)
+        .anySatisfy(
+            query ->
+                assertThat(query)
+                    .contains("from sync_runs")
+                    .contains("'SYSTEM_HOOK'")
+                    .contains("'DELETE_RECONCILIATION'"));
+  }
+
+  @Test
   void claimReclaimsStaleRunningRowsWithoutAbandoningRetryableWork() {
     RecordingJdbcTemplate jdbc = new RecordingJdbcTemplate();
     CodeReviewMetricEnrichmentRepository repository = repository(jdbc);
@@ -127,6 +149,7 @@ class CodeReviewMetricEnrichmentRepositoryTest {
     private List<Object> queryArgs = List.of();
     private final List<SqlCall> updates = new ArrayList<>();
     private final List<String> events = new ArrayList<>();
+    private final List<String> queries = new ArrayList<>();
 
     @Override
     public int update(String sql, Object... args) {
@@ -151,6 +174,7 @@ class CodeReviewMetricEnrichmentRepositoryTest {
     @Override
     @SuppressWarnings("unchecked")
     public <T> List<T> queryForList(String sql, Class<T> elementType, Object... args) {
+      queries.add(sql);
       return (List<T>) nextRunIds;
     }
 

@@ -12,6 +12,7 @@ import com.data.collection.platform.mapper.SyncRunTableStateMapper;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabMirrorSchemaService;
 import com.data.collection.platform.service.PrimaryKeySignatureSupport;
+import java.math.BigInteger;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -72,6 +73,8 @@ public class SyncRunTableTaskExecutor {
       TableWhitelistOption option = tableOption(state);
       GitlabMirrorSchemaService.PreparedMirrorTable preparedMirrorTable =
           mirrorSchemaService.getPreparedMirrorTableForSync(config, option);
+      GitlabSourceLineageCatalog.validatePhysicalSchema(
+          task.getSourceTable(), preparedMirrorTable.mirrorSchema());
       mirrorSchemaService.markTableSyncing(config.getId(), state.getSourceTable());
       if (isRunCancellationRequested(task.getRunId())) {
         finishOwnedOrThrow(task, 0L, 0L, "CANCELLED", "同步运行已取消");
@@ -92,15 +95,15 @@ public class SyncRunTableTaskExecutor {
         mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
         return;
       }
-      if ("DELETE_ONLY".equalsIgnoreCase(task.getRowStrategy())) {
-        leaseGuard.requireOwnership();
-        pageCommitService.completeUnchangedTask(task, state, null, null);
-        mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
-        return;
-      }
       LocalDateTime scanStart = task.getWatermarkAt() == null ? INITIAL_WATERMARK : task.getWatermarkAt();
       boolean fullReconcileTask = "FULL_RECONCILE".equalsIgnoreCase(task.getRowStrategy());
       boolean preciseTask = "PRECISE".equalsIgnoreCase(task.getRowStrategy());
+      boolean monotonicPrimaryKeyTask =
+          "MONOTONIC_PRIMARY_KEY".equalsIgnoreCase(task.getRowStrategy());
+      if ("RECONCILE_ONLY".equalsIgnoreCase(task.getRowStrategy())) {
+        throw new IllegalStateException(
+            "仅删除反熵来源不能创建普通扫描任务：" + task.getSourceTable());
+      }
       Map<String, Object> lookupScope = preciseTask
           ? jsonUtils.toMap(task.getLookupScopeJson())
           : Map.of();
@@ -110,20 +113,48 @@ public class SyncRunTableTaskExecutor {
       boolean scopedTask = preciseTask;
       if (!fullReconcileTask
           && !scopedTask
+          && !monotonicPrimaryKeyTask
+          && !"UPDATED_AT".equalsIgnoreCase(state.getRowStrategy())
           && !"INCREMENTAL".equalsIgnoreCase(state.getRowStrategy())) {
         throw new IllegalStateException("当前表任务不能由增量同步执行器处理");
       }
       LocalDateTime cursorUpdatedAt = task.getCursorUpdatedAt();
       String cursorPk = task.getCursorPk();
+      if (monotonicPrimaryKeyTask && normalizeCursor(cursorPk).equals("[]")) {
+        cursorPk = normalizeCursor(
+            mirrorTableWriter.findMaxActivePrimaryKeyCursor(
+                preparedMirrorTable.mirrorSchema()));
+        task.setCursorPk(cursorPk);
+      }
       LocalDateTime scanUpperBound = scopedTask
           ? null
-          : resolveScanUpperBound(task, state, config, option, leaseGuard);
+          : monotonicPrimaryKeyTask || fullReconcileTask
+              ? null
+              : resolveScanUpperBound(task, state, config, option, leaseGuard);
+      String scanUpperBoundPk =
+          monotonicPrimaryKeyTask
+              ? resolveScanUpperBoundPk(task, config, option, leaseGuard)
+              : null;
       if (!fullReconcileTask
           && !scopedTask
-          && (scanUpperBound == null || !scanUpperBound.isAfter(scanStart))) {
+          && !monotonicPrimaryKeyTask
+          && !scanUpperBound.isAfter(scanStart)) {
         leaseGuard.requireOwnership();
-        pageCommitService.completeUnchangedTask(
-            task, state, state.getLastWatermarkAt(), "");
+        pageCommitService.completeUnchangedTask(task, state, scanUpperBound, "");
+        mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
+        return;
+      }
+      int monotonicCursorOrder =
+          monotonicPrimaryKeyTask
+              ? compareMonotonicCursors(cursorPk, scanUpperBoundPk)
+              : -1;
+      if (monotonicPrimaryKeyTask && monotonicCursorOrder > 0) {
+        throw new IllegalStateException(
+            "单调主键来源上界发生回退：" + task.getSourceTable());
+      }
+      if (monotonicPrimaryKeyTask && monotonicCursorOrder == 0) {
+        leaseGuard.requireOwnership();
+        pageCommitService.completeUnchangedTask(task, state, null, scanUpperBoundPk);
         mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
         return;
       }
@@ -133,7 +164,15 @@ public class SyncRunTableTaskExecutor {
                   config, option, preparedMirrorTable.mirrorSchema(), task.getCursorPk(), batchSize)
               : scopedTask
                   ? sourceTableReader.readPrecise(config, option, lookupScope)
-                  : sourceTableReader.readIncrementalBatch(
+                  : monotonicPrimaryKeyTask
+                      ? sourceTableReader.readMonotonicPrimaryKeyBatch(
+                          config,
+                          option,
+                          preparedMirrorTable.mirrorSchema(),
+                          cursorPk,
+                          scanUpperBoundPk,
+                          batchSize)
+                      : sourceTableReader.readIncrementalBatch(
                       config,
                       option,
                       preparedMirrorTable.mirrorSchema(),
@@ -148,13 +187,20 @@ public class SyncRunTableTaskExecutor {
         return;
       }
       RowCursor lastCursor =
-          lastCursor(rows, preparedMirrorTable.mirrorSchema(), state, fullReconcileTask);
+          lastCursor(
+              rows,
+              preparedMirrorTable.mirrorSchema(),
+              state,
+              fullReconcileTask,
+              monotonicPrimaryKeyTask);
       boolean hasMore =
           !scopedTask
               && rows.size() >= batchSize
               && !lastCursor.primaryKey().isBlank();
       RowCursor completionCursor = !scopedTask && !hasMore
-          ? new RowCursor(scanUpperBound, "")
+          ? monotonicPrimaryKeyTask
+              ? new RowCursor(null, scanUpperBoundPk)
+              : new RowCursor(scanUpperBound, "")
           : lastCursor;
       leaseGuard.requireOwnership();
       pageCommitService.commitScanPage(
@@ -293,14 +339,15 @@ public class SyncRunTableTaskExecutor {
       List<Map<String, Object>> rows,
       com.data.collection.platform.entity.SourceTableSchema mirrorSchema,
       SyncRunTableState state,
-      boolean fullTask) {
+      boolean fullTask,
+      boolean monotonicPrimaryKeyTask) {
     if (rows == null || rows.isEmpty()) {
       return RowCursor.empty();
     }
     Map<String, Object> row = rows.get(rows.size() - 1);
     String primaryKeyCursor = PrimaryKeySignatureSupport.encodeCursor(
         jsonUtils, PrimaryKeySignatureSupport.primaryKeyColumns(mirrorSchema), row);
-    if (fullTask) {
+    if (fullTask || monotonicPrimaryKeyTask) {
       return new RowCursor(null, primaryKeyCursor);
     }
     if (state.getUpdatedAtColumn() == null || state.getUpdatedAtColumn().isBlank()) {
@@ -324,7 +371,9 @@ public class SyncRunTableTaskExecutor {
     }
     LocalDateTime upperBound = sourceTableReader.findMaxUpdatedAt(config, option);
     if (upperBound == null) {
-      return null;
+      upperBound = task.getWatermarkAt() == null ? INITIAL_WATERMARK : task.getWatermarkAt();
+    } else if (task.getWatermarkAt() != null && upperBound.isBefore(task.getWatermarkAt())) {
+      upperBound = task.getWatermarkAt();
     }
     leaseGuard.requireOwnership();
     if (!taskLeaseService.initializeOwnedScanUpperBound(
@@ -333,6 +382,56 @@ public class SyncRunTableTaskExecutor {
     }
     task.setScanUpperBoundAt(upperBound);
     return upperBound;
+  }
+
+  private String resolveScanUpperBoundPk(
+      SyncRunTableTask task,
+      GitlabSyncConfig config,
+      TableWhitelistOption option,
+      SyncRunTableTaskHeartbeatService.LeaseGuard leaseGuard) {
+    if (task.getScanUpperBoundPk() != null && !task.getScanUpperBoundPk().isBlank()) {
+      return task.getScanUpperBoundPk();
+    }
+    String upperBound = sourceTableReader.findMaxPrimaryKeyCursor(config, option);
+    if (upperBound == null || upperBound.isBlank()) {
+      upperBound = "[]";
+    }
+    leaseGuard.requireOwnership();
+    if (!taskLeaseService.initializeOwnedScanUpperBoundPk(
+        task.getId(), task.getLeaseOwner(), upperBound)) {
+      throw new SyncTaskLeaseLostException(task.getId());
+    }
+    task.setScanUpperBoundPk(upperBound);
+    return upperBound;
+  }
+
+  private String normalizeCursor(String cursor) {
+    return cursor == null || cursor.isBlank() ? "[]" : cursor;
+  }
+
+  private int compareMonotonicCursors(String currentCursor, String upperBoundCursor) {
+    List<String> currentValues =
+        PrimaryKeySignatureSupport.decodeCursor(jsonUtils, normalizeCursor(currentCursor));
+    List<String> upperBoundValues =
+        PrimaryKeySignatureSupport.decodeCursor(jsonUtils, normalizeCursor(upperBoundCursor));
+    if (currentValues.isEmpty() && upperBoundValues.isEmpty()) {
+      return 0;
+    }
+    if (currentValues.isEmpty()) {
+      return -1;
+    }
+    if (upperBoundValues.isEmpty()) {
+      return 1;
+    }
+    if (currentValues.size() != 1 || upperBoundValues.size() != 1) {
+      throw new IllegalStateException("单调主键游标必须包含一个整数值");
+    }
+    try {
+      return new BigInteger(currentValues.getFirst())
+          .compareTo(new BigInteger(upperBoundValues.getFirst()));
+    } catch (NumberFormatException error) {
+      throw new IllegalStateException("单调主键游标不是有效整数", error);
+    }
   }
 
   private int resolveBatchSize(SyncRunTableTask task) {

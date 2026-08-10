@@ -6,20 +6,14 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.data.collection.platform.entity.GitlabSyncConfig;
-import com.data.collection.platform.entity.SourceMode;
-import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunType;
 import com.data.collection.platform.mapper.SyncRunMapper;
-import com.data.collection.platform.service.GitlabConfigService;
 import java.lang.reflect.Method;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,11 +28,11 @@ class SyncRunWorkerServiceTest {
   private SyncRunTableWorkerService tableWorkerService;
   private SyncRunAuthoritativeScopeWorkerService authoritativeScopeWorkerService;
   private SyncRunReconciliationCoordinator reconciliationCoordinator;
-  private GitlabConfigService configService;
   private ApplicationEventPublisher eventPublisher;
   private SyncFactRefreshRunExecutor factRefreshRunExecutor;
   private SyncRunDeadlineGuard deadlineGuard;
   private SyncRunCompletionCommitService completionCommitService;
+  private SyncIncrementalCoverageService incrementalCoverageService;
   private SyncRunWorkerService workerService;
 
   @BeforeEach
@@ -49,11 +43,11 @@ class SyncRunWorkerServiceTest {
     tableWorkerService = mock(SyncRunTableWorkerService.class);
     authoritativeScopeWorkerService = mock(SyncRunAuthoritativeScopeWorkerService.class);
     reconciliationCoordinator = mock(SyncRunReconciliationCoordinator.class);
-    configService = mock(GitlabConfigService.class);
     eventPublisher = mock(ApplicationEventPublisher.class);
     factRefreshRunExecutor = mock(SyncFactRefreshRunExecutor.class);
     deadlineGuard = mock(SyncRunDeadlineGuard.class);
     completionCommitService = mock(SyncRunCompletionCommitService.class);
+    incrementalCoverageService = mock(SyncIncrementalCoverageService.class);
     workerService =
         new SyncRunWorkerService(
             syncRunMapper,
@@ -62,11 +56,13 @@ class SyncRunWorkerServiceTest {
             tableWorkerService,
             authoritativeScopeWorkerService,
             reconciliationCoordinator,
-            configService,
             eventPublisher,
             factRefreshRunExecutor,
             deadlineGuard,
-            completionCommitService);
+            completionCommitService,
+            incrementalCoverageService);
+    when(incrementalCoverageService.evaluate(anyLong()))
+        .thenReturn(SyncIncrementalCoverageService.CoverageResult.fresh());
     when(authoritativeScopeWorkerService.drainRunScopes(any(SyncRun.class), anyInt()))
         .thenReturn(new SyncRunAuthoritativeScopeWorkerService.DrainResult(0, false));
     when(authoritativeScopeWorkerService.summarize(anyLong()))
@@ -78,13 +74,11 @@ class SyncRunWorkerServiceTest {
   @Test
   void shouldCompleteFullRunAndUpdateSyncTimestamp() {
     SyncRun run = run(11L, SyncRunType.FULL_SYNC);
-    GitlabSyncConfig config = config();
     when(tablePlanningService.planRunTables(11L)).thenReturn(4);
     when(tableWorkerService.drainRunTasks(run, 2))
         .thenReturn(new SyncRunTableWorkerService.DrainResult(4, false));
     when(tableWorkerService.summarizeRun(11L))
         .thenReturn(new SyncRunTableWorkerService.RunTableTaskSummary(4, 4, 20L, 18L));
-    when(configService.getConfigById(1L)).thenReturn(config);
 
     workerService.executeRun(run);
 
@@ -92,7 +86,6 @@ class SyncRunWorkerServiceTest {
     verify(tableWorkerService).drainRunTasks(run, 2);
     verify(tableWorkerService).summarizeRun(11L);
     verify(completionCommitService).finishOwnedRun(run);
-    verify(configService).updateSyncTime(1L, true);
     verifyMirrorCompletionEvent(11L, SyncRunType.FULL_SYNC, SyncRunStatus.SUCCESS, 18L);
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.SUCCESS);
     assertThat(run.getStartedAt()).isNotNull();
@@ -104,15 +97,13 @@ class SyncRunWorkerServiceTest {
   }
 
   @Test
-  void shouldPlanAndDrainTableRefreshRun() {
+  void shouldPlanAndDrainTableRefreshWithoutUpdatingGlobalIncrementalClock() {
     SyncRun run = run(12L, SyncRunType.TABLE_REFRESH);
-    GitlabSyncConfig config = config();
     when(tablePlanningService.planRunTables(12L)).thenReturn(3);
     when(tableWorkerService.drainRunTasks(run, 2))
         .thenReturn(new SyncRunTableWorkerService.DrainResult(2, false));
     when(tableWorkerService.summarizeRun(12L))
         .thenReturn(new SyncRunTableWorkerService.RunTableTaskSummary(3, 2, 7L, 5L));
-    when(configService.getConfigById(1L)).thenReturn(config);
 
     workerService.executeRun(run);
 
@@ -120,7 +111,6 @@ class SyncRunWorkerServiceTest {
     verify(tableWorkerService).drainRunTasks(run, 2);
     verify(tableWorkerService).summarizeRun(12L);
     verify(completionCommitService).finishOwnedRun(run);
-    verify(configService).updateSyncTime(1L, false);
     verifyMirrorCompletionEvent(12L, SyncRunType.TABLE_REFRESH, SyncRunStatus.SUCCESS, 5L);
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.SUCCESS);
     assertThat(run.getPlannedTableCount()).isEqualTo(3);
@@ -132,13 +122,11 @@ class SyncRunWorkerServiceTest {
   @Test
   void shouldReportDynamicallyDerivedTasksInFinalPlannedCount() {
     SyncRun run = run(18L, SyncRunType.TABLE_REFRESH);
-    GitlabSyncConfig config = config();
     when(tablePlanningService.planRunTables(18L)).thenReturn(1);
     when(tableWorkerService.drainRunTasks(run, 2))
         .thenReturn(new SyncRunTableWorkerService.DrainResult(3, false));
     when(tableWorkerService.summarizeRun(18L))
         .thenReturn(new SyncRunTableWorkerService.RunTableTaskSummary(3, 3, 6L, 5L));
-    when(configService.getConfigById(1L)).thenReturn(config);
 
     workerService.executeRun(run);
 
@@ -158,10 +146,24 @@ class SyncRunWorkerServiceTest {
 
     workerService.executeRun(run);
 
-    verify(configService).updateSyncTime(1L, false);
     verifyMirrorCompletionEvent(15L, SyncRunType.INCREMENTAL_SYNC, SyncRunStatus.PARTIAL_SUCCESS, 5L);
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.PARTIAL_SUCCESS);
     assertThat(run.getErrorMessage()).isEqualTo("一个或多个表任务失败");
+  }
+
+  @Test
+  void test_zero_table_incremental_run_fails_instead_of_reporting_green_success() {
+    SyncRun run = run(24L, SyncRunType.INCREMENTAL_SYNC);
+    when(tablePlanningService.planRunTables(24L)).thenReturn(0);
+    when(tableWorkerService.drainRunTasks(run, 2))
+        .thenReturn(new SyncRunTableWorkerService.DrainResult(0, false));
+    when(tableWorkerService.summarizeRun(24L))
+        .thenReturn(new SyncRunTableWorkerService.RunTableTaskSummary(0, 0, 0L, 0L));
+
+    workerService.executeRun(run);
+
+    assertThat(run.getStatus()).isEqualTo(SyncRunStatus.FAILED);
+    assertThat(run.getErrorMessage()).contains("未规划任何快速增量表");
   }
 
   @Test
@@ -189,7 +191,7 @@ class SyncRunWorkerServiceTest {
   }
 
   @Test
-  void test_successful_scope_batch_drains_reconciliation_tasks_in_same_run() {
+  void test_successful_scope_batch_does_not_add_full_table_reconciliation() {
     SyncRun run = run(22L, SyncRunType.INCREMENTAL_SYNC);
     when(tablePlanningService.planRunTables(22L)).thenReturn(2);
     when(tableWorkerService.drainRunTasks(run, 2))
@@ -201,11 +203,11 @@ class SyncRunWorkerServiceTest {
             new SyncRunAuthoritativeScopeRepository.ScopeSummary(
                 2, 2, 0, 0, 0, 0, null));
     when(tableWorkerService.summarizeRun(22L))
-        .thenReturn(new SyncRunTableWorkerService.RunTableTaskSummary(4, 4, 12L, 3L));
+        .thenReturn(new SyncRunTableWorkerService.RunTableTaskSummary(2, 2, 12L, 3L));
 
     workerService.executeRun(run);
 
-    verify(tableWorkerService, times(2)).drainRunTasks(run, 2);
+    verify(tableWorkerService).drainRunTasks(run, 2);
     verify(reconciliationCoordinator).planIfReady(22L);
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.SUCCESS);
   }
@@ -234,14 +236,11 @@ class SyncRunWorkerServiceTest {
   void shouldUseRunThreadBudgetSnapshotWhenDrainingMirrorTasks() {
     SyncRun run = run(16L, SyncRunType.TABLE_REFRESH);
     run.setResolvedWorkerCount(3);
-    GitlabSyncConfig config = config();
-    config.setMaxSyncThreads(5);
     when(tablePlanningService.planRunTables(16L)).thenReturn(3);
     when(tableWorkerService.drainRunTasks(run, 3))
         .thenReturn(new SyncRunTableWorkerService.DrainResult(3, false));
     when(tableWorkerService.summarizeRun(16L))
         .thenReturn(new SyncRunTableWorkerService.RunTableTaskSummary(3, 3, 8L, 6L));
-    when(configService.getConfigById(1L)).thenReturn(config);
 
     workerService.executeRun(run);
 
@@ -265,8 +264,6 @@ class SyncRunWorkerServiceTest {
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.PAUSED);
     assertThat(run.getFinishedAt()).isNull();
     verify(tableWorkerService, org.mockito.Mockito.never()).summarizeRun(19L);
-    verify(configService, org.mockito.Mockito.never())
-        .updateSyncTime(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyBoolean());
     verify(eventPublisher, org.mockito.Mockito.never()).publishEvent(org.mockito.ArgumentMatchers.any());
     verify(completionCommitService, never()).finishOwnedRun(run);
   }
@@ -285,8 +282,6 @@ class SyncRunWorkerServiceTest {
 
     workerService.executeRun(run);
 
-    verify(configService, never())
-        .updateSyncTime(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyBoolean());
     verify(eventPublisher, never()).publishEvent(any());
   }
 
@@ -309,7 +304,6 @@ class SyncRunWorkerServiceTest {
     workerService.executeRun(run);
 
     verify(factRefreshRunExecutor).execute(run);
-    verify(configService, org.mockito.Mockito.never()).updateSyncTime(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyBoolean());
     verify(eventPublisher, org.mockito.Mockito.never()).publishEvent(org.mockito.ArgumentMatchers.any());
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.SUCCESS);
     assertThat(run.getPlannedTableCount()).isEqualTo(1);
@@ -332,7 +326,6 @@ class SyncRunWorkerServiceTest {
         .drainRunTasks(
             org.mockito.ArgumentMatchers.any(SyncRun.class),
             org.mockito.ArgumentMatchers.anyInt());
-    verify(configService, org.mockito.Mockito.never()).updateSyncTime(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyBoolean());
     verify(eventPublisher, org.mockito.Mockito.never()).publishEvent(org.mockito.ArgumentMatchers.any());
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.CANCELLED);
     assertThat(run.getErrorMessage()).isEqualTo("同步运行在处理前已取消");
@@ -355,8 +348,6 @@ class SyncRunWorkerServiceTest {
         .drainRunTasks(
             org.mockito.ArgumentMatchers.any(SyncRun.class),
             org.mockito.ArgumentMatchers.anyInt());
-    verify(configService, org.mockito.Mockito.never())
-        .updateSyncTime(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyBoolean());
     verify(eventPublisher, org.mockito.Mockito.never()).publishEvent(org.mockito.ArgumentMatchers.any());
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.CANCELLED);
     assertThat(run.getErrorMessage()).isEqualTo("Sync run exceeded maximum runtime of 60 minutes");
@@ -375,18 +366,6 @@ class SyncRunWorkerServiceTest {
     run.setLeaseOwner("run-owner-" + id);
     run.setResolvedWorkerCount(2);
     return run;
-  }
-
-  private GitlabSyncConfig config() {
-    GitlabSyncConfig config = new GitlabSyncConfig();
-    config.setId(1L);
-    config.setSourceInstance("alpha");
-    config.setSourceMode(SourceMode.DOCKER);
-    config.setWhitelistMode(WhitelistMode.RECOMMENDED);
-    config.setSyncThreadMode(SyncThreadBudgetResolver.MODE_FIXED);
-    config.setSyncThreadValue(BigDecimal.valueOf(2));
-    config.setMaxSyncThreads(4);
-    return config;
   }
 
   private void verifyMirrorCompletionEvent(
