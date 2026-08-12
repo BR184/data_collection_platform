@@ -6,8 +6,8 @@ import {
 } from './platform-progress-events';
 import { rememberAuthRequiredMessage } from './auth-required-message';
 
-const CSRF_COOKIE_NAME = 'XSRF-TOKEN';
 const CSRF_HEADER_NAME = 'X-XSRF-TOKEN';
+const CSRF_TOKEN_STORAGE_KEY = 'platform.security.csrf-token';
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE']);
 
 export const AUTH_REQUIRED_EVENT = 'platform-auth-required';
@@ -119,6 +119,7 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
       }
     }
 
+    rememberCsrfToken(response);
     const rawText = await response.text();
     const payload: any = parseJsonPayload(rawText);
 
@@ -229,6 +230,7 @@ async function requestRaw(url: string, init?: RequestOptions): Promise<Response>
     }
   }
 
+  rememberCsrfToken(response);
   if (!response.ok) {
     const message = await parseErrorMessage(response, errorPrefix);
     notifyAuthRequired(response.status, message);
@@ -470,7 +472,7 @@ function buildRequestHeaders(init?: RequestInit): Headers {
   }
 
   const method = String(init?.method ?? 'GET').toUpperCase();
-  const csrfToken = SAFE_METHODS.has(method) ? '' : readCookie(CSRF_COOKIE_NAME);
+  const csrfToken = SAFE_METHODS.has(method) ? '' : readCsrfToken();
   if (csrfToken && !headers.has(CSRF_HEADER_NAME)) {
     headers.set(CSRF_HEADER_NAME, csrfToken);
   }
@@ -478,15 +480,25 @@ function buildRequestHeaders(init?: RequestInit): Headers {
   return headers;
 }
 
-function readCookie(name: string): string {
-  if (typeof document === 'undefined' || !document.cookie) {
+function rememberCsrfToken(response: Response): void {
+  const token = response.headers?.get?.(CSRF_HEADER_NAME)?.trim();
+  if (!token || typeof window === 'undefined') {
+    return;
+  }
+  try {
+    window.sessionStorage.setItem(CSRF_TOKEN_STORAGE_KEY, token);
+  } catch {
+    // Fail closed when browser policy disables scoped storage; never fall back to shared cookies.
+  }
+}
+
+function readCsrfToken(): string {
+  if (typeof window === 'undefined') {
     return '';
   }
-
-  const prefix = `${name}=`;
-  const cookie = document.cookie
-    .split(';')
-    .map((item) => item.trim())
-    .find((item) => item.startsWith(prefix));
-  return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : '';
+  try {
+    return window.sessionStorage.getItem(CSRF_TOKEN_STORAGE_KEY) ?? '';
+  } catch {
+    return '';
+  }
 }

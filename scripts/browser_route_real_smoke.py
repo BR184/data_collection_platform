@@ -37,11 +37,7 @@ def login(context: BrowserContext, base_url: str, username: str, password: str) 
     current = context.request.get(f"{base_url.rstrip('/')}/api/auth/current", timeout=10000)
     if not current.ok:
         return {"success": False, "status": current.status, "message": current.text()}
-    csrf = ""
-    for cookie in context.cookies(base_url):
-        if cookie.get("name") == "XSRF-TOKEN":
-            csrf = cookie.get("value", "")
-            break
+    csrf = current.headers.get("x-xsrf-token", "")
     headers = {"X-XSRF-TOKEN": csrf} if csrf else {}
     login_response = context.request.post(
         f"{base_url.rstrip('/')}/api/auth/login",

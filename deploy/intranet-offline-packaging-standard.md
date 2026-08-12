@@ -95,6 +95,10 @@ qaflex-full-<release-id>/
 
 `.env.example` 必须给出发布级唯一的默认 `COMPOSE_PROJECT_NAME`，并分别声明前端、后端和 PostgreSQL 主机端口。Compose 中所有持久卷由该 project 作用域管理；不得为了部署新实例删除、改名或复用同机其它 project 的容器、网络或卷。自动删除反熵在约 280 万总量现场容量验收前必须显式保持 `GITLAB_DELETE_RECONCILIATION_ENABLED=false`。
 
+`COMPOSE_PROJECT_NAME` 同时是该平台实例的浏览器会话身份。完整 Compose 必须将其注入后端的 `PLATFORM_INSTANCE_ID`；同一主机上的每个实例必须使用不同值，保数据更新和应用回滚必须保留原值。后端据此派生独立的 Session/CSRF Cookie 名称，使同一 Chrome 可在不同端口同时登录不同账号；LDAP 不参与该隔离。直接运行后端时如未设置 `PLATFORM_INSTANCE_ID`，才按应用名与监听端口回退。
+
+平台 CSRF Cookie 使用实例专属名称并设置为 `HttpOnly`，后端通过 `X-XSRF-TOKEN` 响应头交付 Token，前端按 Origin 保存并为非安全请求设置同名请求头。部署验收必须检查响应中不存在共享的 `JSESSIONID` 和 `XSRF-TOKEN` Cookie，并确认两个实例的专属 Cookie 名不同。
+
 ## 镜像与发布身份
 
 应用镜像固定为：

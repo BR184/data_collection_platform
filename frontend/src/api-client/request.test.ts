@@ -5,13 +5,14 @@ import { isRequestTimeoutError, request, requestBlob, requestText } from './requ
 describe('request', () => {
   afterEach(() => {
     document.cookie = 'XSRF-TOKEN=; Max-Age=0';
+    window.sessionStorage.clear();
     rememberAuthRequiredMessage('', 0);
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
-  it('should attach xsrf token for unsafe requests when cookie exists', async () => {
-    document.cookie = 'XSRF-TOKEN=csrf-token';
+  it('should attach the current origin csrf token returned by the backend', async () => {
+    await primeCsrfToken('csrf-token');
     const fetchSpy = stubSuccessfulFetch();
 
     await request('/api/test', {
@@ -25,7 +26,7 @@ describe('request', () => {
   });
 
   it('should not attach xsrf token for safe requests', async () => {
-    document.cookie = 'XSRF-TOKEN=csrf-token';
+    await primeCsrfToken('csrf-token');
     const fetchSpy = stubSuccessfulFetch();
 
     await request('/api/test');
@@ -34,8 +35,16 @@ describe('request', () => {
     expect(headers.get('X-XSRF-TOKEN')).toBeNull();
   });
 
+  it('should ignore a legacy shared csrf cookie', async () => {
+    document.cookie = 'XSRF-TOKEN=legacy-shared-token';
+    const fetchSpy = stubSuccessfulFetch();
+
+    await request('/api/test', { method: 'POST' });
+
+    expect(getFetchHeaders(fetchSpy).get('X-XSRF-TOKEN')).toBeNull();
+  });
+
   it('should preserve caller headers', async () => {
-    document.cookie = 'XSRF-TOKEN=csrf-token';
     const fetchSpy = stubSuccessfulFetch();
 
     await request('/api/test', {
@@ -52,7 +61,7 @@ describe('request', () => {
   });
 
   it('should let browser set multipart content type for form data uploads', async () => {
-    document.cookie = 'XSRF-TOKEN=csrf-token';
+    await primeCsrfToken('csrf-token');
     const fetchSpy = stubSuccessfulFetch();
     const body = new FormData();
     body.append('file', new Blob(['demo']), 'legacy.xlsx');
@@ -153,7 +162,7 @@ describe('request', () => {
   });
 
   it('should request text downloads with csrf headers', async () => {
-    document.cookie = 'XSRF-TOKEN=csrf-token';
+    await primeCsrfToken('csrf-token');
     const fetchSpy = vi.fn(async () => ({
       ok: true,
       text: async () => 'csv',
@@ -216,10 +225,21 @@ describe('request', () => {
 function stubSuccessfulFetch() {
   const fetchSpy = vi.fn(async (_input: Parameters<typeof fetch>[0], _init?: Parameters<typeof fetch>[1]) => ({
     ok: true,
+    headers: new Headers(),
     text: async () => JSON.stringify({ success: true, data: { ok: true } }),
   } as Response));
   vi.stubGlobal('fetch', fetchSpy);
   return fetchSpy;
+}
+
+async function primeCsrfToken(token: string): Promise<void> {
+  const fetchSpy = vi.fn(async () => ({
+    ok: true,
+    headers: new Headers({ 'X-XSRF-TOKEN': token }),
+    text: async () => JSON.stringify({ success: true, data: { authenticated: false } }),
+  } as Response));
+  vi.stubGlobal('fetch', fetchSpy);
+  await request('/api/auth/current');
 }
 
 function getFetchHeaders(fetchSpy: ReturnType<typeof stubSuccessfulFetch>): Headers {

@@ -97,6 +97,8 @@
 ## 认证与授权
 
 - LDAP 与平台独立。LDAP 提供账号、姓名、状态和角色基础信息；平台创建自己的 HTTP Session，不使用 LDAP JWT 访问业务接口。
+- 同一主机的浏览器 Cookie 不按端口隔离，因此平台实例必须拥有稳定的 Cookie 命名空间：标准 Compose 部署使用唯一且跨更新保持不变的 `COMPOSE_PROJECT_NAME` 作为 `PLATFORM_INSTANCE_ID`，Session 与 CSRF Cookie 名由其摘要派生；直接运行未显式设置实例身份时使用应用名和监听端口。
+- CSRF Cookie 也必须属于该实例命名空间。它由后端以 `X-XSRF-TOKEN` 响应头交付，前端按浏览器 Origin 保存 Token，并仅在非安全请求中通过同名请求头回传；不得恢复固定 `JSESSIONID`、`XSRF-TOKEN` 或从 Cookie 名猜测 Token 的共享契约。
 - 当前产品默认认证 Provider 为 LDAP；本地账号认证只允许通过显式配置启用，缺失配置不得静默把 LDAP 用户切换到本地账号校验。
 - 本地认证仅在 `PLATFORM_AUTH_PROVIDER=local` 时允许；正式安全校验要求本地管理员/审批账号使用 Spring Security password hash，并始终要求有效的数据库密码和 GitLab Web 地址。
 - 内网发布必须显式设置 `PLATFORM_AUTH_PROVIDER=ldap` 和从后端容器可达的 `PLATFORM_LDAP_BASE_URL`；LDAP 发布模式不注入本地管理员/审批账号，Session CSRF 保持启用。

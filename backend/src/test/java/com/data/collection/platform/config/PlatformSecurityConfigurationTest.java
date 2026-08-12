@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.data.collection.platform.common.response.ApiResponse;
@@ -46,6 +47,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 @ContextConfiguration(
     classes = {
       PlatformSecurityConfiguration.class,
+      PlatformCookieConfiguration.class,
       PlatformSecurityConfigurationTest.SecurityTestConfiguration.class,
       PlatformSecurityConfigurationTest.SecurityProbeController.class
     })
@@ -54,6 +56,8 @@ class PlatformSecurityConfigurationTest {
   private WebApplicationContext context;
   @Autowired
   private ExternalApiProperties externalApiProperties;
+  @Autowired
+  private PlatformCookieNames platformCookieNames;
   private MockMvc mockMvc;
 
   @BeforeEach
@@ -75,11 +79,13 @@ class PlatformSecurityConfigurationTest {
     mockMvc.perform(get("/api/external/v1/datasets/security-probe")
             .header("Authorization", "Bearer external-test-token"))
         .andExpect(status().isOk())
-        .andExpect(cookie().doesNotExist("XSRF-TOKEN"));
+        .andExpect(cookie().doesNotExist(platformCookieNames.csrfCookieName()));
 
     mockMvc.perform(get("/api/auth/csrf-probe"))
         .andExpect(status().isOk())
-        .andExpect(cookie().exists("XSRF-TOKEN"));
+        .andExpect(cookie().exists(platformCookieNames.csrfCookieName()))
+        .andExpect(cookie().doesNotExist("XSRF-TOKEN"))
+        .andExpect(header().exists("X-XSRF-TOKEN"));
   }
 
   @Test
@@ -112,8 +118,11 @@ class PlatformSecurityConfigurationTest {
     MvcResult csrfResult = mockMvc.perform(get("/api/auth/csrf-probe"))
         .andExpect(status().isOk())
         .andReturn();
-    Cookie csrfCookie = csrfResult.getResponse().getCookie("XSRF-TOKEN");
+    Cookie csrfCookie = csrfResult.getResponse().getCookie(platformCookieNames.csrfCookieName());
     assertThat(csrfCookie).isNotNull();
+    assertThat(csrfCookie.isHttpOnly()).isTrue();
+    assertThat(csrfResult.getResponse().getHeader("X-XSRF-TOKEN"))
+        .isEqualTo(csrfCookie.getValue());
 
     MockHttpSession session = new MockHttpSession();
     session.setAttribute(
@@ -142,7 +151,7 @@ class PlatformSecurityConfigurationTest {
     MvcResult csrfResult = mockMvc.perform(get("/api/auth/csrf-probe"))
         .andExpect(status().isOk())
         .andReturn();
-    Cookie csrfCookie = csrfResult.getResponse().getCookie("XSRF-TOKEN");
+    Cookie csrfCookie = csrfResult.getResponse().getCookie(platformCookieNames.csrfCookieName());
     assertThat(csrfCookie).isNotNull();
 
     mockMvc.perform(delete("/api/review-data/records/7/problem-items/13")

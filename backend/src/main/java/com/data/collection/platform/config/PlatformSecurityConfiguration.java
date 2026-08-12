@@ -26,6 +26,7 @@ import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 @Configuration
 public class PlatformSecurityConfiguration {
   private static final String SYSTEM_HOOK_PATH = "/api/gitlab-sync/system-hook";
+  private static final String CSRF_HEADER_NAME = "X-XSRF-TOKEN";
   private static final String CODE_REVIEW_ILLEGAL_REFRESH_PATH = "/api/code-review/illegal-records/refresh";
   private static final String CODE_REVIEW_ILLEGAL_REFRESH_ONE_PATH = "/api/code-review/illegal-records/refresh-one";
   private static final String[] SYSTEM_SETTINGS_API_PATHS = {
@@ -61,11 +62,12 @@ public class PlatformSecurityConfiguration {
   public SecurityFilterChain platformSecurityFilterChain(
       HttpSecurity http,
       PlatformAuthProperties authProperties,
+      PlatformCookieNames cookieNames,
       AuthenticationEntryPoint authenticationEntryPoint,
       AccessDeniedHandler accessDeniedHandler) throws Exception {
     if (authProperties.isCsrfEnabled()) {
       http.csrf(csrf -> csrf
-          .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+          .csrfTokenRepository(csrfTokenRepository(cookieNames))
           .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
           .ignoringRequestMatchers(
               SYSTEM_HOOK_PATH,
@@ -98,6 +100,17 @@ public class PlatformSecurityConfiguration {
             .requestMatchers("/api/**").authenticated()
             .anyRequest().permitAll());
     return http.build();
+  }
+
+  private CookieCsrfTokenRepository csrfTokenRepository(PlatformCookieNames cookieNames) {
+    CookieCsrfTokenRepository repository = new CookieCsrfTokenRepository();
+    repository.setCookieName(cookieNames.csrfCookieName());
+    repository.setHeaderName(CSRF_HEADER_NAME);
+    repository.setCookieCustomizer(cookie -> cookie
+        .path("/")
+        .httpOnly(true)
+        .sameSite("Lax"));
+    return repository;
   }
 
   @Bean

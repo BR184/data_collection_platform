@@ -26,6 +26,7 @@ class RealChainApiSmokeTest(unittest.TestCase):
                 output_dir=str(output_dir),
             )
             auth_current_calls = 0
+            login_headers: list[dict[str, str]] = []
 
             def request_json(
                 opener: object,
@@ -34,14 +35,22 @@ class RealChainApiSmokeTest(unittest.TestCase):
                 method: str = "GET",
                 body: object | None = None,
                 headers: dict[str, str] | None = None,
-            ) -> tuple[int, object, str]:
+            ) -> tuple[int, object, str, dict[str, str]]:
                 nonlocal auth_current_calls
-                del opener, base_url, method, body, headers
+                del opener, base_url, method, body
                 if path == real_chain_api_smoke.READ_ONLY_ENDPOINTS[0][1]:
                     auth_current_calls += 1
                     if auth_current_calls == 2:
                         raise TimeoutError("timed out")
-                return 200, {"success": True, "data": {}}, '{"success":true,"data":{}}'
+                    return (
+                        200,
+                        {"success": True, "data": {}},
+                        '{"success":true,"data":{}}',
+                        {"x-xsrf-token": "csrf-token"},
+                    )
+                if path == "/api/auth/login":
+                    login_headers.append(dict(headers or {}))
+                return 200, {"success": True, "data": {}}, '{"success":true,"data":{}}', {}
 
             with (
                 patch.object(real_chain_api_smoke, "parse_args", return_value=args),
@@ -59,6 +68,7 @@ class RealChainApiSmokeTest(unittest.TestCase):
             self.assertEqual("auth-current", report["results"][0]["name"])
             self.assertEqual("timed out", report["results"][0]["error"])
             self.assertTrue(all(result["ok"] for result in report["results"][1:]))
+            self.assertEqual([{"X-XSRF-TOKEN": "csrf-token"}], login_headers)
 
 
 if __name__ == "__main__":

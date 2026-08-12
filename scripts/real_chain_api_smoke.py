@@ -55,7 +55,14 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def request_json(opener: Any, base_url: str, path: str, method: str = "GET", body: Any | None = None, headers: dict[str, str] | None = None) -> tuple[int, Any, str]:
+def request_json(
+    opener: Any,
+    base_url: str,
+    path: str,
+    method: str = "GET",
+    body: Any | None = None,
+    headers: dict[str, str] | None = None,
+) -> tuple[int, Any, str, dict[str, str]]:
     data = None
     request_headers = dict(headers or {})
     if body is not None:
@@ -68,14 +75,8 @@ def request_json(opener: Any, base_url: str, path: str, method: str = "GET", bod
             parsed = json.loads(raw) if raw else None
         except json.JSONDecodeError:
             parsed = None
-        return response.status, parsed, raw
-
-
-def csrf_token(cookies: CookieJar) -> str:
-    for cookie in cookies:
-        if cookie.name == "XSRF-TOKEN":
-            return cookie.value
-    return ""
+        response_headers = {name.lower(): value for name, value in response.headers.items()}
+        return response.status, parsed, raw, response_headers
 
 
 def summarize_payload(payload: Any) -> dict[str, Any]:
@@ -118,10 +119,10 @@ def main() -> int:
     }
 
     try:
-        request_json(opener, args.base_url, "/api/auth/current")
-        token = csrf_token(cookies)
+        _, _, _, current_headers = request_json(opener, args.base_url, "/api/auth/current")
+        token = current_headers.get("x-xsrf-token", "")
         headers = {"X-XSRF-TOKEN": token} if token else {}
-        login_status, login_payload, _ = request_json(
+        login_status, login_payload, _, _ = request_json(
             opener,
             args.base_url,
             "/api/auth/login",
@@ -141,7 +142,7 @@ def main() -> int:
     failures = 0
     for name, path in READ_ONLY_ENDPOINTS:
         try:
-            status, payload, raw = request_json(opener, args.base_url, path)
+            status, payload, raw, _ = request_json(opener, args.base_url, path)
             ok = 200 <= status < 300 and isinstance(payload, dict) and payload.get("success") is True
             if not ok:
                 failures += 1

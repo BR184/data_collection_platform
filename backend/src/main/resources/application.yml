@@ -3,6 +3,8 @@ server:
   servlet:
     session:
       timeout: 0
+      cookie:
+        same-site: lax
 
 spring:
   application:
@@ -48,6 +50,9 @@ logging:
     path: logs
 
 platform:
+  instance:
+    # Standard Compose deployments inject their stable project identity. Direct runs fall back to app name + port.
+    id: ${PLATFORM_INSTANCE_ID:}
   bi:
     cat:
       scheduler-delay-ms: ${PLATFORM_BI_CAT_SCHEDULER_DELAY_MS:60000}

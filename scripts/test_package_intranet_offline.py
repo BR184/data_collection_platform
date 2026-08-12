@@ -83,6 +83,7 @@ class IntranetLdapPackagingTest(unittest.TestCase):
         self.assertNotIn("container_name:", content)
         self.assertIn("qaflex_pgdata:/var/lib/postgresql/data", content)
         self.assertIn("GITLAB_DELETE_RECONCILIATION_ENABLED", content)
+        self.assertIn('PLATFORM_INSTANCE_ID: ${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}', content)
 
     def test_fresh_readme_never_instructs_removing_another_stack(self):
         content = MODULE.fresh_readme(self.build_context())
@@ -354,6 +355,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertNotIn(r"\n", content)
         self.assertIn("PLATFORM_AUTH_PROVIDER: ${PLATFORM_AUTH_PROVIDER}", content)
         self.assertIn('PLATFORM_AUTH_CSRF_ENABLED: "true"', content)
+        self.assertIn('PLATFORM_INSTANCE_ID: ${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}', content)
         self.assertIn('PLATFORM_BACKGROUND_JOBS_ENABLED: "${PLATFORM_BACKGROUND_JOBS_ENABLED:-true}"', content)
         self.assertNotIn("PLATFORM_ADMIN_PASSWORD", content)
 

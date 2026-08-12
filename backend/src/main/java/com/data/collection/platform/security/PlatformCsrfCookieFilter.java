@@ -16,7 +16,8 @@ public class PlatformCsrfCookieFilter extends OncePerRequestFilter {
       FilterChain filterChain) throws ServletException, IOException {
     CsrfToken csrfToken = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
     if (csrfToken != null) {
-      csrfToken.getToken();
+      String token = csrfToken.getToken();
+      response.setHeader(csrfToken.getHeaderName(), token);
     }
     filterChain.doFilter(request, response);
   }
