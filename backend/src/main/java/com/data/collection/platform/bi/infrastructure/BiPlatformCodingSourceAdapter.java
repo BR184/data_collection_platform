@@ -93,38 +93,6 @@ public final class BiPlatformCodingSourceAdapter implements BiCodingSourcePort {
              > timestamp '2024-04-01 00:00:00'
        order by merged_at_source asc, id asc
       """;
-  private static final String COMPATIBILITY_REVIEW_QUERY = """
-      select id,
-             null::bigint as project_id,
-             project_name,
-             source_instance as business_source,
-             repository_name,
-             merge_request_iid as merge_request_key,
-             author_name,
-             module_name,
-             merged_at_source,
-             code_walkthrough_date,
-             added_lines,
-             merge_request_state as review_status,
-             reviewer_names,
-             review_duration_minutes,
-             defect_count,
-             code_specification_count,
-             code_logic_specification_count,
-             performance_specification_count,
-             design_specification_count,
-             other_specification_count,
-             scan_status,
-             scan_bug_count,
-             comment_rate,
-             comment_rate_source
-        from bi_code_review_compatibility_records
-       where upper(coalesce(merge_request_state, '')) = 'MERGED'
-         and target_branch = 'dev'
-         and merged_at_source is not null
-         and merged_at_source > timestamp '2024-04-01 00:00:00'
-       order by merged_at_source asc, id asc
-      """;
 
   private final JdbcTemplate jdbcTemplate;
   private final BiPlatformCodeReviewSourceContextFactory sourceContextFactory;
@@ -163,10 +131,9 @@ public final class BiPlatformCodingSourceAdapter implements BiCodingSourcePort {
     List<BiCodingSource.MergeRequestRecord> mergeRequests = scopedRows.stream()
         .map(row -> mergeRequest(row, sourceContext.readMode()))
         .toList();
-    List<CodingRow> reviewRows =
-        sourceContext.readMode() == BiPlatformCodeReviewSourceContextFactory.ReadMode.COMPATIBILITY
-            ? jdbcTemplate.query(COMPATIBILITY_REVIEW_QUERY, this::mapRow)
-            : codeRows;
+    // 走查记录与合并请求共用同一兼容读源（code_review_match_mode_records / code_review_formal_records），
+    // 不再维护独立的 BI 走查兼容表重复抓取链路。
+    List<CodingRow> reviewRows = codeRows;
     List<CodingRow> completedReviews = reviewRows.stream()
         .filter(row -> versionMatcher.matches(row.projectName(), scope.businessKey()))
         .filter(row -> matchesSource(row.businessSource(), query.source()))

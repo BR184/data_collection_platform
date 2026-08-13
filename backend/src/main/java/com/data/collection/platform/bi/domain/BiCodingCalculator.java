@@ -608,22 +608,22 @@ public final class BiCodingCalculator {
             List.of(
                 new BiMetricTrace.SourceField(
                     "代码走查记录 ID",
-                    "bi_code_review_compatibility_records.id / code_review_formal_records.id"),
+                    "code_review_match_mode_records.id / code_review_formal_records.id"),
                 new BiMetricTrace.SourceField(
                     "人工走查日期",
-                    "bi_code_review_compatibility_records.code_walkthrough_date / "
+                    "code_review_match_mode_records.code_walkthrough_date / "
                         + "code_review_formal_records.code_walkthrough_date"),
                 new BiMetricTrace.SourceField(
                     "被走查代码行数",
-                    "bi_code_review_compatibility_records.added_lines / "
+                    "code_review_match_mode_records.added_lines / "
                         + "code_review_formal_records.added_lines"),
                 new BiMetricTrace.SourceField(
                     "人工走查实际工时（分钟）",
-                    "bi_code_review_compatibility_records.review_duration_minutes / "
+                    "code_review_match_mode_records.review_duration_minutes / "
                         + "code_review_formal_records.review_duration_minutes"),
                 new BiMetricTrace.SourceField(
                     "人工走查有效问题数",
-                    "bi_code_review_compatibility_records.defect_count / "
+                    "code_review_match_mode_records.defect_count / "
                         + "code_review_formal_records.defect_count")),
             "缺陷密度=有效问题数*1000/去重被走查行数；速率=被走查行数/(分钟/60)；密度区间[2,10]达标",
             "BI服务端"),
@@ -633,24 +633,23 @@ public final class BiCodingCalculator {
             List.of(
                 new BiMetricTrace.SourceField(
                     "五类代码走查问题数",
-                    "bi_code_review_compatibility_records.*_specification_count / "
+                    "code_review_match_mode_records.*_specification_count / "
                         + "code_review_formal_records.*_specification_count"),
                 new BiMetricTrace.SourceField(
                     "静态扫描状态",
-                    "bi_code_review_compatibility_records.scan_status / "
+                    "code_review_match_mode_records.scan_status / "
                         + "code_review_formal_records.scan_status"),
                 new BiMetricTrace.SourceField(
                     "静态扫描问题数",
-                    "bi_code_review_compatibility_records.scan_bug_count / "
+                    "code_review_match_mode_records.scan_bug_count / "
                         + "code_review_formal_records.scan_bug_count"),
                 new BiMetricTrace.SourceField(
                     "代码注释率",
-                    "bi_code_review_compatibility_records.comment_rate / "
+                    "code_review_match_mode_records.comment_rate / "
                         + "code_review_formal_records.comment_rate"),
                 new BiMetricTrace.SourceField(
                     "注释率统计来源",
-                    "bi_code_review_compatibility_records.comment_rate_source / "
-                        + "code_review_formal_records.comment_rate_source")),
+                    "code_review_formal_records.comment_rate_source")),
             "类别占比=类别问题数/有效问题总数；注释率直接使用上游值；趋势按总体KLOC公式计算",
             "BI服务端"));
   }

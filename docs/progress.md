@@ -6,6 +6,11 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-08-13 BI 编码走查数据源治本：移除重复抓取链路
+
+- [完成] 编码页人工走查兼容态已改为直接复用兼容表 `code_review_match_mode_records`（与代码规模类同一读源），删除 BI 独占表 `bi_code_review_compatibility_records`、`_loading`、`_sync_state` 及 `BiCodeReviewCompatibilitySyncService`/`Scheduler`/`SnapshotRepository` 重复抓取链路（迁移 `V20260813_01`）。编码页底部走查/扫描/注释率看板不再依赖老平台 MySQL 实时同步，离线也能读兼容表数据。核对表、`data-contracts`、`architecture` 已同步：人工走查兼容态物理来源由 `bi_code_review_compatibility_records` 收敛为 `code_review_match_mode_records`，删除"BI 独占/不得回退"旧约束。
+- [验证] 后端全量 1157 项零失败、零错误、1 项环境条件跳过；前端 typecheck 与生产构建通过；127 个 Flyway 迁移不可变性、破坏性审查通过。编码页 CC2026R3 底部走查看板（走查质量/问题分布/模块质量/散点/静态扫描）由 EMPTY 恢复为 READY；注释率与质量趋势因部分记录缺注释率保持 INCOMPLETE（真实数据状况，符合 CD-38）。走查行集合现按 `legacy_merged_time_source` 过滤 + MR IID 去重，与 MR 事实对齐。
+
 ## 2026-08-10 BI/CAT 与事实发布一致性修复
 
 - [当前] `docs/plans/investigate-bi-intranet-data-gaps-20260806.md` 的生产实现与本地验证已完成：事实发布已改为依赖代际驱动的来源级消费，CAT 保存已原子化，BI 合法观测、提交稳定关联和系统测试 P1/P2 已按确认口径修复。下一步是生成新的内网隔离发布包并执行真实 CAT、BI 页面和约 280 万总表规模验收。

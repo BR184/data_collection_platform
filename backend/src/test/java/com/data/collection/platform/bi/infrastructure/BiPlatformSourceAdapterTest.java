@@ -107,19 +107,11 @@ class BiPlatformSourceAdapterTest {
         assertThat(record.mergeRequestIdentity()).isEqualTo(
             new BiCodingSource.CompatibilityMergeRequestIdentity("cc", 101L)));
     ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-    verify(jdbcTemplate, times(2)).query(sql.capture(), any(RowMapper.class));
-    assertThat(sql.getAllValues())
-        .anySatisfy(
-            codeSql ->
-                assertThat(codeSql)
-                    .contains("from code_review_match_mode_records")
-                    .doesNotContain("from bi_code_review_compatibility_records"))
-        .anySatisfy(
-            reviewSql ->
-                assertThat(reviewSql)
-                    .contains("from bi_code_review_compatibility_records")
-                    .doesNotContain("from code_review_match_mode_records"))
-        .allSatisfy(value -> assertThat(value).doesNotContain("from code_review_formal_records"));
+    verify(jdbcTemplate).query(sql.capture(), any(RowMapper.class));
+    assertThat(sql.getValue())
+        .contains("from code_review_match_mode_records")
+        .doesNotContain("from bi_code_review_compatibility_records")
+        .doesNotContain("from code_review_formal_records");
     verify(compatibilityModeEnabled, times(1)).getAsBoolean();
   }
 

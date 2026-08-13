@@ -141,16 +141,14 @@ class BiCodingCalculatorTest {
             "code_review_match_mode_records.module_name / code_review_formal_records.module_name",
             "merge_request_commit_fact.commit_sha",
             "merge_request_commit_fact.committed_at_source",
-            "bi_code_review_compatibility_records.code_walkthrough_date / code_review_formal_records.code_walkthrough_date",
-            "bi_code_review_compatibility_records.review_duration_minutes / code_review_formal_records.review_duration_minutes",
-            "bi_code_review_compatibility_records.defect_count / code_review_formal_records.defect_count",
-            "bi_code_review_compatibility_records.scan_status / code_review_formal_records.scan_status",
-            "bi_code_review_compatibility_records.comment_rate / code_review_formal_records.comment_rate")
+            "code_review_match_mode_records.code_walkthrough_date / code_review_formal_records.code_walkthrough_date",
+            "code_review_match_mode_records.review_duration_minutes / code_review_formal_records.review_duration_minutes",
+            "code_review_match_mode_records.defect_count / code_review_formal_records.defect_count",
+            "code_review_match_mode_records.scan_status / code_review_formal_records.scan_status",
+            "code_review_match_mode_records.comment_rate / code_review_formal_records.comment_rate")
         .doesNotContain(
             "authorId",
-            "moduleId",
-            "code_review_match_mode_records.review_duration_minutes",
-            "code_review_match_mode_records.scan_status");
+            "moduleId");
   }
 
   @Test
