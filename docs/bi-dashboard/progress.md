@@ -36,7 +36,7 @@
 
 ## 恢复线索
 
-- 开始开发前先读 `README.md`、本文件和 `decisions/ADR-001-embedded-module-and-strong-package-boundary.md`。
+- 开始开发前先读 `README.md`、本文件和 `decisions.md`（D-01）。
 - 首条恢复命令：`mvn -f backend/pom.xml -Dtest=BiCatTestSourceAdapterTest,BiCatTestPageServiceTest test`。
 - 架构基线：保持唯一 `backend/pom.xml` 和单 Spring Boot JAR，不创建 Reactor 子模块。
 - 旧 `D:/projects/bi_dashboard` 只读；静态页面只用于视觉和行为核对，不能成为字段或公式权威。
@@ -47,7 +47,7 @@
 - 平台调度器每分钟检查配置是否到期，默认补偿间隔为 360 分钟；正式环境的 20 分钟属于配置，不是 BI 契约。事实和页面投影在成功发布后才成为可读版本。
 - 平台已有“议题测试阶段定义”及父版本到测试轮次的展开服务，系统测试不需要第二套版本解析器。
 - 老平台 `StaticDataController`、`SpiderCrowncadDataService`、`PageCodeWalkThroughInfo` 和横向导出 DTO 均把代码走查缺陷密度称为千行代码缺陷率，使用同一 KLOC 公式。
-- BI 专属架构决策已记录在 `decisions/ADR-001-embedded-module-and-strong-package-boundary.md`。
+- BI 专属架构决策已记录在 `decisions.md`（D-01）。
 
 ## 实施顺序
 

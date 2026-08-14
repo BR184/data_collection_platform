@@ -5,7 +5,7 @@
 - BI 是数据采集平台内嵌的一级业务模块，不是独立站点、独立服务或外部消费者。
 - 前端随现有 Vue 3、TypeScript、Vite、Element Plus 应用构建；后端随现有 Java 21、Spring Boot 单体构建，继续产出一个前端发布物和一个后端 JAR。
 - BI 共用平台进程、端口、PostgreSQL 数据源、LDAP Session、RBAC、CSRF、日志、健康检查、Docker 和离线发布入口，不创建第二套登录、网关、配置中心或部署单元。
-- 首期不做 Maven Reactor 物理拆分。详细决策、代价和未来重新评估条件见 `decisions/ADR-001-embedded-module-and-strong-package-boundary.md`。
+- 首期不做 Maven Reactor 物理拆分。详细决策、代价和未来重新评估条件见 `decisions.md`（D-01）。
 
 ```text
 浏览器
