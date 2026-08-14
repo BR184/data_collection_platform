@@ -245,8 +245,8 @@ public final class BiCodingCalculator {
         moduleReviewComplete ? moduleReviewQuality(moduleReviewFacts.values()) : List.of(),
         reviewScatterComplete ? reviewPoints(reviewScatterValues) : List.of(),
         commentRatePoints(commentValues),
-        densityTrendValues.isEmpty()
-            ? List.of() : reviewDensityTrend(densityTrendValues, source.granularity()),
+        densityTrendComplete
+            ? reviewDensityTrend(densityTrendValues, source.granularity()) : List.of(),
         coverage(scanFacts.values().size(), scanValues.size()),
         coverage(commentRateFacts.values().size(), commentValues.size()),
         coverage(densityTrendRecords.size(), densityTrendValues.size()));

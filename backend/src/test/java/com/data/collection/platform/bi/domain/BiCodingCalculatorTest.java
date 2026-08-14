@@ -379,6 +379,86 @@ class BiCodingCalculatorTest {
     });
   }
 
+  @Test
+  void keepsQualityTrendDensityEmptyWhenReviewRecordsLackMergeRequestIdentity() {
+    BiCodingSource.CodeReviewRecord reviewWithoutIdentity = new BiCodingSource.CodeReviewRecord(
+        7L,
+        null,
+        LocalDate.of(2026, 8, 7),
+        BiSourceDimension.identified("草图"),
+        900L,
+        new BigDecimal("90"),
+        3L,
+        1L,
+        1L,
+        1L,
+        0L,
+        0L,
+        "SUCCESS_WITH_ISSUES",
+        2L,
+        new BigDecimal("12.50"),
+        null);
+    BiCodingSource.CodeReviewRecord anotherReviewWithoutIdentity = new BiCodingSource.CodeReviewRecord(
+        10L,
+        null,
+        LocalDate.of(2026, 8, 7),
+        BiSourceDimension.identified("装配"),
+        100L,
+        new BigDecimal("10"),
+        1L,
+        0L,
+        0L,
+        1L,
+        0L,
+        0L,
+        "SUCCESS_WITH_ISSUES",
+        1L,
+        new BigDecimal("10.00"),
+        null);
+    BiCodingSource source = source(
+        List.of(mergeRequest(701L, LocalDate.of(2026, 8, 7), "张三", "草图", 900)),
+        List.of(reviewWithoutIdentity, anotherReviewWithoutIdentity),
+        List.of(),
+        false,
+        true,
+        true);
+
+    var response = calculator.calculate(source);
+
+    assertThat(response.data().reviewDensityTrend()).isEmpty();
+    assertThat(response.data().commentRatePoints()).isNotEmpty();
+    assertThat(response.sections()).anySatisfy(section -> {
+      assertThat(section.key()).isEqualTo("quality-trend");
+      assertThat(section.status()).isEqualTo(BiDataStatus.INCOMPLETE);
+    });
+  }
+
+  @Test
+  void calculatesQualityTrendDensityFromPerMergeRequestLinesWhenIdentitiesComplete() {
+    BiCodingSource source = source(
+        List.of(
+            mergeRequest(801L, LocalDate.of(2026, 8, 8), "张三", "草图", 600),
+            mergeRequest(802L, LocalDate.of(2026, 8, 8), "李四", "装配", 400)),
+        List.of(
+            review(8L, 801L, LocalDate.of(2026, 8, 8), "草图", 600, "60", 3, 1, 1, 1, 0, 0),
+            review(9L, 802L, LocalDate.of(2026, 8, 8), "装配", 400, "40", 1, 0, 0, 1, 0, 0)),
+        List.of(),
+        false,
+        true,
+        true);
+
+    var response = calculator.calculate(source);
+
+    assertThat(response.data().reviewDensityTrend()).singleElement().satisfies(point -> {
+      assertThat(point.period()).isEqualTo("2026-08-08");
+      assertThat(point.reviewDefectDensity()).isEqualByComparingTo("4.00");
+    });
+    assertThat(response.sections()).anySatisfy(section -> {
+      assertThat(section.key()).isEqualTo("quality-trend");
+      assertThat(section.status()).isEqualTo(BiDataStatus.READY);
+    });
+  }
+
   private BiCodingSource source(
       List<BiCodingSource.MergeRequestRecord> mergeRequests,
       List<BiCodingSource.CodeReviewRecord> reviews,
