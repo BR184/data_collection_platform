@@ -2,9 +2,13 @@
 
 ## 进度与中间物
 
-- **创建时间**：2026-08-18。状态：**深度调研完成，方案定稿，待分阶段实施**。
-- 已完成：statistics 包全量结构调研（48 文件 / 14,862 行）、双轨筛选证据链、复制粘贴根因定位（见第 4 节）。
-- 无代码变更、无测试运行。当前进行点：阶段 0（金标测试安全网）尚未开始。
+- **创建时间**：2026-08-18。状态：**实施中**。
+- 已完成（2026-08-21）：
+  - 阶段 1 筛选内核：新增 `service/statistics/engine/` 三件套（`StatisticFieldType` / `StatisticFieldDescriptor` / `StatisticFilterEngine`），操作符语义单点化；引擎操作符矩阵测试 `StatisticFilterEngineTest`（7 项）全绿。
+  - 阶段 3 首板迁移（绞杀者第一步）：`CustomerIssueDefectSummaryBoardService` 接入引擎，删除私有 matchesFilterGroup/matchesFilterCondition/valuesForFilterField/matchesSetOperator/normalizeSetOperator/equalsIgnoreCase/containsIgnoreCase 共约 150 行，替换为 `filterFields()` 字段注册表；里程碑与 bugStatus 域逻辑以 override 钩子保留原语义。
+  - 阶段 0 金标安全网（首板）：`CustomerIssueDefectSummaryBoardGoldenMasterTest` —— 14 个筛选矩阵用例 + 2 个工作簿语义指纹，快照落盘 `src/test/resources/golden/customer-issue-defect-summary/`；屏蔽易变字段 generatedAt/queryDurationMs，工作簿用单元格内容指纹而非字节哈希（XLSX 内嵌时间戳不可复现）。生成→比对两连跑稳定全绿。
+- 测试状态：statistics 包 43 项测试全部通过（含既有板测试无回归）；全项目编译通过。
+- 当前进行点：下一板迁移（CustomerIssueDefectCauseBoardService），随后按第 5.4 节顺序推进；SQL↔Engine 平价契约测试待建。
 - 问题三（上帝类）已移交其他同事，本计划不覆盖。
 
 ---
