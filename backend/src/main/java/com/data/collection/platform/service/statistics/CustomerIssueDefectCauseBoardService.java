@@ -39,10 +39,11 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import com.data.collection.platform.service.statistics.engine.StatisticFieldDescriptor;
+import com.data.collection.platform.service.statistics.engine.StatisticFilterEngine;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -520,10 +521,12 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
             .filter(issue -> StringUtils.hasText(issue.milestoneTitle()))
             .toList();
     List<IssueSource> valid = scoped.stream().filter(issue -> !issue.excluded()).toList();
-    List<IssueSource> milestoneFiltered =
-        valid.stream().filter(issue -> matchesMilestone(issue, filterGroup)).toList();
-    List<IssueSource> conditionFiltered =
-        milestoneFiltered.stream().filter(issue -> matchesConditionFilterGroup(issue, filterGroup)).toList();
+    Predicate<IssueSource> milestonePredicate =
+        StatisticFilterEngine.compile(milestoneGroup(filterGroup), filterFields());
+    Predicate<IssueSource> conditionPredicate =
+        StatisticFilterEngine.compile(conditionGroup(filterGroup), filterFields());
+    List<IssueSource> milestoneFiltered = valid.stream().filter(milestonePredicate).toList();
+    List<IssueSource> conditionFiltered = milestoneFiltered.stream().filter(conditionPredicate).toList();
     List<IssueSource> withReason = conditionFiltered.stream().filter(IssueSource::hasDefectCause).toList();
     return new RuleFlowSnapshot(
         conditionFiltered,
@@ -717,154 +720,65 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     return "";
   }
 
-  private boolean matchesMilestone(IssueSource issue, StatisticFilterGroup filterGroup) {
-    if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
-      return true;
-    }
-    List<StatisticFilterCondition> milestoneConditions =
-        filterGroup.conditions().stream()
-            .filter(condition -> MILESTONE_FIELD.equals(condition.fieldKey()))
-            .filter(condition -> StringUtils.hasText(condition.value()))
-            .toList();
-    if (milestoneConditions.isEmpty()) {
-      return true;
-    }
-    boolean useOr = "OR".equalsIgnoreCase(filterGroup.logic());
-    for (StatisticFilterCondition condition : milestoneConditions) {
-      boolean matched = matchesMilestoneCondition(issue, condition);
-      if (useOr && matched) {
-        return true;
-      }
-      if (!useOr && !matched) {
-        return false;
-      }
-    }
-    return !useOr;
-  }
-
-  private boolean matchesMilestoneCondition(IssueSource issue, StatisticFilterCondition condition) {
-    return CustomerIssueMilestoneFilterSupport.matchesCondition(
-        issue.milestoneTitle(), condition, milestoneCatalogService);
-  }
-
-  private boolean matchesConditionFilterGroup(IssueSource issue, StatisticFilterGroup filterGroup) {
-    if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
-      return true;
-    }
+  /** 里程碑前置组：仅含非空值里程碑条件，语义与原两段筛选第一段逐字一致。 */
+  private StatisticFilterGroup milestoneGroup(StatisticFilterGroup filterGroup) {
     List<StatisticFilterCondition> conditions =
-        filterGroup.conditions().stream()
-            .filter(Objects::nonNull)
-            .filter(condition -> !MILESTONE_FIELD.equals(condition.fieldKey()))
-            .toList();
-    if (conditions.isEmpty()) {
-      return true;
-    }
-    boolean useOr = "OR".equalsIgnoreCase(filterGroup.logic());
-    for (StatisticFilterCondition condition : conditions) {
-      boolean matched = matchesCondition(issue, condition);
-      if (useOr && matched) {
-        return true;
-      }
-      if (!useOr && !matched) {
-        return false;
-      }
-    }
-    return !useOr;
+        filterGroup == null || filterGroup.conditions() == null
+            ? List.of()
+            : filterGroup.conditions().stream()
+                .filter(Objects::nonNull)
+                .filter(condition -> MILESTONE_FIELD.equals(condition.fieldKey()))
+                .filter(condition -> StringUtils.hasText(condition.value()))
+                .toList();
+    return new StatisticFilterGroup(filterGroup == null ? "AND" : filterGroup.logic(), conditions);
   }
 
-  private boolean matchesCondition(IssueSource issue, StatisticFilterCondition condition) {
-    if ("bugStatus".equals(condition.fieldKey())) {
-      return condition.usesLabelGroup()
-          ? IssueStatusMembers.matchesLabelGroup(
-              issue.bugStatus(), condition.operator(), condition.values())
-          : IssueStatusMembers.matchesFilter(
-              issue.bugStatus(), condition.operator(), condition.value());
-    }
-    List<String> actualValues = valuesForFilterField(issue, condition.fieldKey());
-    if (condition.usesLabelGroup()) {
-      return matchesSetOperator(actualValues, condition.values(), condition.operator());
-    }
-    return switch (Objects.toString(condition.operator(), "")) {
-      case "isEmpty" -> actualValues.stream().allMatch(value -> trimToNull(value) == null);
-      case "isNotEmpty" -> actualValues.stream().anyMatch(value -> trimToNull(value) != null);
-      case "ne" -> actualValues.stream().noneMatch(value -> equalsIgnoreCase(value, condition.value()));
-      case "contains" -> actualValues.stream().anyMatch(value -> containsIgnoreCase(value, condition.value()));
-      case "notContains" -> actualValues.stream().noneMatch(value -> containsIgnoreCase(value, condition.value()));
-      default -> actualValues.stream().anyMatch(value -> equalsIgnoreCase(value, condition.value()));
-    };
+  /** 条件组：剔除里程碑条件后的其余条件，语义与原两段筛选第二段逐字一致。 */
+  private StatisticFilterGroup conditionGroup(StatisticFilterGroup filterGroup) {
+    List<StatisticFilterCondition> conditions =
+        filterGroup == null || filterGroup.conditions() == null
+            ? List.of()
+            : filterGroup.conditions().stream()
+                .filter(Objects::nonNull)
+                .filter(condition -> !MILESTONE_FIELD.equals(condition.fieldKey()))
+                .toList();
+    return new StatisticFilterGroup(filterGroup == null ? "AND" : filterGroup.logic(), conditions);
   }
 
-  private List<String> valuesForFilterField(IssueSource issue, String fieldKey) {
-    return switch (fieldKey) {
-      case "projectName" -> List.of(issue.projectName());
-      case "moduleName" -> issue.moduleNames();
-      case "issueIid" -> List.of(String.valueOf(issue.iid()));
-      case "title" -> List.of(issue.title());
-      case "severityLevel" -> List.of(issue.severityLevel());
-      case "bugStatus" -> IssueStatusMembers.parse(issue.bugStatus());
-      case "category" -> List.of(issue.category());
-      case "issueState" -> List.of(issue.isClosed() ? "closed" : "open");
-      case "authorName" -> List.of(issue.authorName());
-      case "assigneeName" -> List.of(issue.assigneeName());
-      default -> List.of();
-    };
-  }
-
-  private boolean matchesSetOperator(List<String> actualValues, List<String> expectedValues, String operator) {
-    List<String> safeActual = actualValues == null ? List.of() : actualValues;
-    List<String> safeExpected = expectedValues == null ? List.of() : expectedValues;
-    if (safeExpected.stream().noneMatch(value -> trimToNull(value) != null)) {
-      return false;
-    }
-    if ("partialContainsAny".equals(operator)) {
-      return safeActual.stream()
-          .filter(value -> trimToNull(value) != null)
-          .anyMatch(
-              actual ->
-                  safeExpected.stream()
-                      .filter(value -> trimToNull(value) != null)
-                      .anyMatch(expected -> containsIgnoreCase(actual, expected)));
-    }
-    boolean intersects =
-        safeActual.stream()
-            .filter(value -> trimToNull(value) != null)
-            .anyMatch(
-                actual -> safeExpected.stream().anyMatch(expected -> equalsIgnoreCase(actual, expected)));
-    boolean containsAll =
-        safeExpected.stream()
-            .filter(value -> trimToNull(value) != null)
-            .allMatch(
-                expected -> safeActual.stream().anyMatch(actual -> equalsIgnoreCase(actual, expected)));
-    return switch (normalizeSetOperator(operator)) {
-      case "notIntersects" -> !intersects;
-      case "containsAll" -> containsAll;
-      case "notContainsAll" -> !containsAll;
-      default -> intersects;
-    };
-  }
-
-  private String normalizeSetOperator(String operator) {
-    if ("ne".equals(operator)) {
-      return "notIntersects";
-    }
-    if ("eq".equals(operator)) {
-      return "intersects";
-    }
-    return Objects.toString(operator, "intersects");
-  }
-
-  private boolean equalsIgnoreCase(String left, String right) {
-    String safeLeft = trimToNull(left);
-    String safeRight = trimToNull(right);
-    return safeLeft != null && safeRight != null && safeLeft.equalsIgnoreCase(safeRight);
-  }
-
-  private boolean containsIgnoreCase(String left, String right) {
-    String safeLeft = trimToNull(left);
-    String safeRight = trimToNull(right);
-    return safeLeft != null
-        && safeRight != null
-        && safeLeft.toLowerCase(Locale.ROOT).contains(safeRight.toLowerCase(Locale.ROOT));
+  /** 筛选字段注册表：字段键到行取值器的唯一绑定，操作符语义统一由 StatisticFilterEngine 实现。 */
+  private Map<String, StatisticFieldDescriptor<IssueSource>> filterFields() {
+    return Map.ofEntries(
+        Map.entry("projectName", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "projectName", issue -> List.of(issue.projectName()))),
+        Map.entry("moduleName", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "moduleName", IssueSource::moduleNames)),
+        Map.entry("issueIid", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "issueIid", issue -> List.of(String.valueOf(issue.iid())))),
+        Map.entry("title", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "title", issue -> List.of(issue.title()))),
+        Map.entry("severityLevel", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "severityLevel", issue -> List.of(issue.severityLevel()))),
+        Map.entry("bugStatus", StatisticFieldDescriptor.<IssueSource>multiValueWithOverride(
+            "bugStatus",
+            issue -> IssueStatusMembers.parse(issue.bugStatus()),
+            (issue, condition) -> condition.usesLabelGroup()
+                ? IssueStatusMembers.matchesLabelGroup(
+                    issue.bugStatus(), condition.operator(), condition.values())
+                : IssueStatusMembers.matchesFilter(
+                    issue.bugStatus(), condition.operator(), condition.value()))),
+        Map.entry("category", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "category", issue -> List.of(issue.category()))),
+        Map.entry("issueState", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "issueState", issue -> List.of(issue.isClosed() ? "closed" : "open"))),
+        Map.entry("authorName", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "authorName", issue -> List.of(issue.authorName()))),
+        Map.entry("assigneeName", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "assigneeName", issue -> List.of(issue.assigneeName()))),
+        Map.entry(MILESTONE_FIELD, StatisticFieldDescriptor.<IssueSource>multiValueWithOverride(
+            MILESTONE_FIELD,
+            issue -> List.of(issue.milestoneTitle()),
+            (issue, condition) -> CustomerIssueMilestoneFilterSupport.matchesCondition(
+                issue.milestoneTitle(), condition, milestoneCatalogService))));
   }
 
   private Map<String, String> appliedFilters(

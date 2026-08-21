@@ -137,7 +137,7 @@ public final class StatisticFilterEngine {
     if ("ne".equals(operator)) {
       return "notIntersects";
     }
-    if ("eq".equals(operator)) {
+    if ("eq".equals(operator) || operator == null) {
       return "intersects";
     }
     return operator;
