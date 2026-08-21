@@ -48,6 +48,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import com.data.collection.platform.service.statistics.engine.StatisticFieldDescriptor;
+import com.data.collection.platform.service.statistics.engine.StatisticFilterEngine;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -441,9 +443,16 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     List<IssueSource> scoped = initial;
     List<IssueSource> validBeforeFilter =
         scoped.stream().filter(IssueSource::isVisibleForRegularOrSuggestionColumn).toList();
+    Predicate<IssueSource> userPredicate =
+        StatisticFilterEngine.compile(effectiveFilterGroup.userGroup(), filterFields(phaseValueCache));
+    StatisticFilterCondition defaultCondition = effectiveFilterGroup.defaultCondition();
+    Predicate<IssueSource> defaultPredicate = defaultCondition == null
+        ? issue -> true
+        : StatisticFilterEngine.compile(
+            new StatisticFilterGroup("AND", List.of(defaultCondition)), filterFields(phaseValueCache));
     List<IssueSource> valid =
         hasTestingPhaseCondition(effectiveFilterGroup.userGroup())
-            ? validBeforeFilter.stream().filter(issue -> matchesEffectiveFilterGroup(issue, effectiveFilterGroup, phaseValueCache)).toList()
+            ? validBeforeFilter.stream().filter(userPredicate.and(defaultPredicate)).toList()
             : List.of();
     return new RuleFlowSnapshot(scoped, valid, List.of(
         StatisticRuleFlowSupport.step(
@@ -642,7 +651,10 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private boolean matchesModuleDirectoryFilters(
       IssueSource issue, EffectiveFilterGroup effectiveFilterGroup, Map<String, List<String>> phaseValueCache) {
     if (effectiveFilterGroup.defaultCondition() != null
-        && !matchesCondition(issue, effectiveFilterGroup.defaultCondition(), phaseValueCache)) {
+        && !StatisticFilterEngine.compile(
+                new StatisticFilterGroup("AND", List.of(effectiveFilterGroup.defaultCondition())),
+                filterFields(phaseValueCache))
+            .test(issue)) {
       return false;
     }
     StatisticFilterGroup userGroup = effectiveFilterGroup.userGroup();
@@ -656,17 +668,9 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     if (moduleConditions.isEmpty()) {
       return true;
     }
-    boolean isOr = "OR".equalsIgnoreCase(userGroup.logic());
-    for (StatisticFilterCondition condition : moduleConditions) {
-      boolean matched = matchesCondition(issue, condition, phaseValueCache);
-      if (isOr && matched) {
-        return true;
-      }
-      if (!isOr && !matched) {
-        return false;
-      }
-    }
-    return !isOr;
+    return StatisticFilterEngine.compile(
+        new StatisticFilterGroup(userGroup.logic(), moduleConditions), filterFields(phaseValueCache))
+        .test(issue);
   }
 
   private List<String> loadEnabledPhaseParents() {
@@ -802,171 +806,83 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         .toList();
   }
 
-  private boolean matchesFilterGroup(IssueSource issue, StatisticFilterGroup filterGroup) {
-    return matchesFilterGroup(issue, filterGroup, new LinkedHashMap<>());
+  private List<String> singleValue(String value) {
+    return StringUtils.hasText(value) ? List.of(value) : List.of();
   }
 
-  private boolean matchesEffectiveFilterGroup(
-      IssueSource issue, EffectiveFilterGroup effectiveFilterGroup, Map<String, List<String>> phaseValueCache) {
-    return matchesFilterGroup(issue, effectiveFilterGroup.userGroup(), phaseValueCache)
-        && (effectiveFilterGroup.defaultCondition() == null
-            || matchesCondition(issue, effectiveFilterGroup.defaultCondition(), phaseValueCache));
-  }
-
-  private boolean matchesFilterGroup(
-      IssueSource issue, StatisticFilterGroup filterGroup, Map<String, List<String>> phaseValueCache) {
-    if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
-      return true;
-    }
-    boolean isOr = "OR".equalsIgnoreCase(filterGroup.logic());
-    for (var condition : filterGroup.conditions()) {
-      boolean matched = matchesCondition(issue, condition, phaseValueCache);
-      if (isOr && matched) {
-        return true;
-      }
-      if (!isOr && !matched) {
-        return false;
-      }
-    }
-    return !isOr;
-  }
-
-  private boolean matchesCondition(
-      IssueSource issue,
-      StatisticFilterCondition condition) {
-    return matchesCondition(issue, condition, new LinkedHashMap<>());
-  }
-
-  private boolean matchesCondition(
-      IssueSource issue,
-      StatisticFilterCondition condition,
+  /** 筛选字段注册表：字段键到行取值器的唯一绑定，操作符语义统一由 StatisticFilterEngine 实现。 */
+  private Map<String, StatisticFieldDescriptor<IssueSource>> filterFields(
       Map<String, List<String>> phaseValueCache) {
-    if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
-      return true;
-    }
-    String operator = condition.operator();
-    String value = trimTextToNull(condition.value());
-    if ("bugStatus".equals(condition.fieldKey())) {
-      return condition.usesLabelGroup()
-          ? IssueStatusMembers.matchesLabelGroup(issue.bugStatus(), operator, condition.values())
-          : IssueStatusMembers.matchesFilter(issue.bugStatus(), operator, value);
-    }
-    if ("delayCause".equals(condition.fieldKey())) {
-      return condition.usesLabelGroup()
-          ? IssueDelayCauseMembers.matchesLabelGroup(issue.delayCauseMembers(), operator, condition.values())
-          : IssueDelayCauseMembers.matchesFilter(issue.delayCauseMembers(), operator, value);
-    }
-    if (condition.usesLabelGroup()) {
-      return switch (condition.fieldKey()) {
-        case MODULE_FIELD -> matchesSetOperator(issue.moduleNames(), operator, condition.values());
-        case "projectName" -> matchesSetOperator(singleValue(issue.projectName()), operator, condition.values());
-        case "title" -> matchesSetOperator(singleValue(issue.title()), operator, condition.values());
-        case "severityLevel" -> matchesSetOperator(singleValue(issue.severityLevel()), operator, condition.values());
-        case "priorityLevel" -> matchesSetOperator(singleValue(issue.priorityLevel()), operator, condition.values());
-        case "authorName" -> matchesSetOperator(singleValue(issue.authorName()), operator, condition.values());
-        case "assigneeName" -> matchesSetOperator(singleValue(issue.assigneeName()), operator, condition.values());
-        case "labels" -> matchesSetOperator(issue.labels(), operator, condition.values());
-        default -> true;
-      };
-    }
-    return switch (condition.fieldKey()) {
-      case "projectName" -> matchesText(issue.projectName(), operator, value);
-      case "testingPhase" -> matchesPhase(issue, operator, value, phaseValueCache);
-      case MODULE_FIELD -> matchesAny(issue.moduleNames(), operator, value);
-      case "title" -> matchesText(issue.title(), operator, value);
-      case "severityLevel" -> matchesText(issue.severityLevel(), operator, value);
-      case "priorityLevel" -> matchesText(issue.priorityLevel(), operator, value);
-      case "authorName" -> matchesText(issue.authorName(), operator, value);
-      case "assigneeName" -> matchesText(issue.assigneeName(), operator, value);
-      case "state" -> matchesIssueState(issue, operator, value);
-      case "createdAt" -> matchesDateTime(issue.createdAt(), operator, value, condition.secondaryValue());
-      case "updatedAt" -> matchesDateTime(issue.updatedAt(), operator, value, condition.secondaryValue());
-      case "labels" -> matchesAny(issue.labels(), operator, value);
-      default -> true;
-    };
+    return Map.ofEntries(
+        Map.entry(MODULE_FIELD, StatisticFieldDescriptor.<IssueSource>multiValue(
+            MODULE_FIELD, IssueSource::moduleNames)),
+        Map.entry("projectName", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "projectName", issue -> singleValue(issue.projectName()))),
+        Map.entry("title", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "title", issue -> singleValue(issue.title()))),
+        Map.entry("severityLevel", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "severityLevel", issue -> singleValue(issue.severityLevel()))),
+        Map.entry("priorityLevel", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "priorityLevel", issue -> singleValue(issue.priorityLevel()))),
+        Map.entry("authorName", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "authorName", issue -> singleValue(issue.authorName()))),
+        Map.entry("assigneeName", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "assigneeName", issue -> singleValue(issue.assigneeName()))),
+        Map.entry("labels", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "labels", IssueSource::labels)),
+        Map.entry("state", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "state", issue -> List.of(issue.isClosed() ? "closed" : "open"))),
+        Map.entry("createdAt", StatisticFieldDescriptor.<IssueSource>dateTime(
+            "createdAt", IssueSource::createdAt)),
+        Map.entry("updatedAt", StatisticFieldDescriptor.<IssueSource>dateTime(
+            "updatedAt", IssueSource::updatedAt)),
+        Map.entry("bugStatus", StatisticFieldDescriptor.<IssueSource>multiValueWithOverride(
+            "bugStatus",
+            issue -> IssueStatusMembers.parse(issue.bugStatus()),
+            (issue, condition) -> condition.usesLabelGroup()
+                ? IssueStatusMembers.matchesLabelGroup(
+                    issue.bugStatus(), condition.operator(), condition.values())
+                : IssueStatusMembers.matchesFilter(
+                    issue.bugStatus(), condition.operator(), trimTextToNull(condition.value())))),
+        Map.entry("delayCause", StatisticFieldDescriptor.<IssueSource>multiValueWithOverride(
+            "delayCause",
+            issue -> issue.delayCauseMembers(),
+            (issue, condition) -> condition.usesLabelGroup()
+                ? IssueDelayCauseMembers.matchesLabelGroup(
+                    issue.delayCauseMembers(), condition.operator(), condition.values())
+                : IssueDelayCauseMembers.matchesFilter(
+                    issue.delayCauseMembers(), condition.operator(), trimTextToNull(condition.value())))),
+        Map.entry("testingPhase", StatisticFieldDescriptor.<IssueSource>multiValueWithOverride(
+            "testingPhase",
+            issue -> singleValue(issue.testingPhase()),
+            (issue, condition) -> condition.usesLabelGroup()
+                ? Boolean.TRUE
+                : matchesTestingPhaseMembers(
+                    issue.testingPhase(),
+                    condition.operator(),
+                    trimTextToNull(condition.value()),
+                    phaseValueCache))));
   }
 
-  private boolean matchesIssueState(IssueSource issue, String operator, String value) {
-    String state = issue.isClosed() ? "closed" : "open";
-    return matchesText(state, operator, value);
-  }
-
-  private boolean matchesDateTime(LocalDateTime candidate, String operator, String value, String secondaryValue) {
-    if (candidate == null) {
-      return "isEmpty".equals(operator);
-    }
-    if (!StringUtils.hasText(value)) {
-      return true;
-    }
-    LocalDateTime target = parseDateTimeBoundary(value, false);
-    if (target == null) {
-      return true;
-    }
-    return switch (operator) {
-      case "year" -> candidate.getYear() == target.getYear();
-      case "month" -> candidate.getYear() == target.getYear() && candidate.getMonth() == target.getMonth();
-      case "day", "at" -> candidate.toLocalDate().equals(target.toLocalDate());
-      case "before" -> candidate.isBefore(target);
-      case "after" -> candidate.isAfter(target);
-      case "between" -> {
-        LocalDateTime end = parseDateTimeBoundary(secondaryValue, true);
-        yield end == null || (!candidate.isBefore(target) && !candidate.isAfter(end));
-      }
-      case "isEmpty" -> false;
-      case "isNotEmpty" -> true;
-      default -> true;
-    };
-  }
-
-  private LocalDateTime parseDateTimeBoundary(String value, boolean endOfDay) {
-    String normalized = trimTextToNull(value);
-    if (normalized == null) {
-      return null;
-    }
-    try {
-      return LocalDateTime.parse(normalized);
-    } catch (java.time.format.DateTimeParseException ignored) {
-      // Date-only picker values are common in board filters.
-    }
-    try {
-      LocalDate date = LocalDate.parse(normalized);
-      return endOfDay ? date.atTime(23, 59, 59, 999_999_999) : date.atStartOfDay();
-    } catch (java.time.format.DateTimeParseException ignored) {
-      return null;
-    }
-  }
-
-  private boolean matchesText(String candidate, String operator, String value) {
-    String safeCandidate = trimTextToNull(candidate);
-    return switch (operator) {
-      case "eq" -> value == null || (safeCandidate != null && safeCandidate.equalsIgnoreCase(value));
-      case "ne" -> value == null || safeCandidate == null || !safeCandidate.equalsIgnoreCase(value);
-      case "contains" -> value == null || containsIgnoreCase(safeCandidate, value);
-      case "isEmpty" -> safeCandidate == null;
-      case "isNotEmpty" -> safeCandidate != null;
-      default -> true;
-    };
-  }
-
-  private boolean matchesPhase(
-      IssueSource issue, String operator, String value, Map<String, List<String>> phaseValueCache) {
-    List<String> legacyPhaseValues = legacyPhaseValues(value, phaseValueCache);
+  /**
+   * 测试阶段成员匹配：原 matchesPhase 领域语义，经描述符 override 保留。
+   * phaseValueCache 为每请求共享的阶段值展开缓存。
+   */
+  private boolean matchesTestingPhaseMembers(
+      String testingPhase, String operator, String value, Map<String, List<String>> phaseValueCache) {
+    List<String> resolvedLegacyPhases = legacyPhaseValues(value, phaseValueCache);
     return switch (operator) {
       case "eq" ->
           value == null
               || SystemTestPhaseMembershipPolicy.matches(
-                  issue.testingPhase(),
-                  legacyPhaseValues,
-                  SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER);
+                  testingPhase, resolvedLegacyPhases, SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER);
       case "ne" ->
           value == null
               || !SystemTestPhaseMembershipPolicy.matches(
-                  issue.testingPhase(),
-                  legacyPhaseValues,
-                  SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER);
-      case "contains" -> value == null || containsIgnoreCase(issue.testingPhase(), value);
-      case "isEmpty" -> !StringUtils.hasText(issue.testingPhase());
-      case "isNotEmpty" -> StringUtils.hasText(issue.testingPhase());
+                  testingPhase, resolvedLegacyPhases, SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER);
+      case "contains" -> value == null || containsIgnoreCase(testingPhase, value);
+      case "isEmpty" -> !StringUtils.hasText(testingPhase);
+      case "isNotEmpty" -> StringUtils.hasText(testingPhase);
       default -> true;
     };
   }
@@ -983,60 +899,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     });
   }
 
-  private boolean matchesAny(List<String> candidates, String operator, String value) {
-    List<String> safeCandidates = candidates == null ? List.of() : candidates;
-    return switch (operator) {
-      case "eq" -> value == null || safeCandidates.stream().anyMatch(candidate -> candidate.equalsIgnoreCase(value));
-      case "ne" -> value == null || safeCandidates.stream().noneMatch(candidate -> candidate.equalsIgnoreCase(value));
-      case "contains" -> value == null || safeCandidates.stream().anyMatch(candidate -> containsIgnoreCase(candidate, value));
-      case "isEmpty" -> safeCandidates.isEmpty();
-      case "isNotEmpty" -> !safeCandidates.isEmpty();
-      default -> true;
-    };
-  }
 
-  private boolean matchesSetOperator(List<String> candidates, String operator, List<String> expectedValues) {
-    if ("partialContainsAny".equals(operator)) {
-      return matchesPartialContainsAny(candidates, expectedValues);
-    }
-    Set<String> candidateSet = normalizedSet(candidates);
-    Set<String> expectedSet = normalizedSet(expectedValues);
-    boolean containsAll = candidateSet.containsAll(expectedSet);
-    boolean intersects = expectedSet.stream().anyMatch(candidateSet::contains);
-    return switch (operator) {
-      case "intersects" -> intersects;
-      case "notIntersects" -> !intersects;
-      case "containsAll" -> containsAll;
-      case "notContainsAll" -> !containsAll;
-      default -> true;
-    };
-  }
-
-  private boolean matchesPartialContainsAny(List<String> candidates, List<String> expectedValues) {
-    List<String> safeCandidates = candidates == null ? List.of() : candidates;
-    List<String> safeExpected = expectedValues == null ? List.of() : expectedValues;
-    return safeCandidates.stream()
-        .filter(value -> trimTextToNull(value) != null)
-        .anyMatch(candidate ->
-            safeExpected.stream()
-                .filter(value -> trimTextToNull(value) != null)
-                .anyMatch(expected -> containsIgnoreCase(candidate, expected)));
-  }
-
-  private Set<String> normalizedSet(List<String> values) {
-    if (values == null || values.isEmpty()) {
-      return Set.of();
-    }
-    return values.stream()
-        .map(this::trimTextToNull)
-        .filter(java.util.Objects::nonNull)
-        .map(value -> value.toLowerCase(Locale.ROOT))
-        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
-  }
-
-  private List<String> singleValue(String value) {
-    return StringUtils.hasText(value) ? List.of(value) : List.of();
-  }
 
   private boolean containsIgnoreCase(String candidate, String value) {
     return candidate != null && candidate.toLowerCase(Locale.ROOT).contains(value.toLowerCase(Locale.ROOT));

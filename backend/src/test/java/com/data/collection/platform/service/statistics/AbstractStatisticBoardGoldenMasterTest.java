@@ -67,7 +67,9 @@ public abstract class AbstractStatisticBoardGoldenMasterTest {
 
   /** 序列化看板响应并屏蔽易变字段，保证金标只锁定稳定行为。 */
   private String canonicalJson(StatisticBoardResponse response) throws Exception {
-    ObjectNode tree = (ObjectNode) objectMapper.valueToTree(response);
+    if (!(objectMapper.valueToTree(response) instanceof ObjectNode tree)) {
+      return String.valueOf(response);
+    }
     if (tree.has("meta") && tree.get("meta") instanceof ObjectNode meta) {
       meta.put("generatedAt", "<masked>");
       meta.put("queryDurationMs", 0);
