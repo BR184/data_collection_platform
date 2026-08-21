@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import type { ReviewDataRecordDetailResponse } from '../../types/api';
+import { getErrorMessage } from '../../utils/user-message';
 
 export interface ReviewDataDetailDependencies {
   loadRecordDetail: (recordId: number) => Promise<ReviewDataRecordDetailResponse>;
@@ -15,7 +16,7 @@ export function useReviewDataDetail(deps: ReviewDataDetailDependencies) {
       detailData.value = await deps.loadRecordDetail(recordId);
       detailVisible.value = true;
     } catch (error) {
-      deps.notifyError(error instanceof Error ? error.message : '评审详情加载失败');
+      deps.notifyError(getErrorMessage(error, '评审详情加载失败'));
     }
   }
 

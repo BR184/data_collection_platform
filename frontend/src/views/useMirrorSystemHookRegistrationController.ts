@@ -1,5 +1,6 @@
 import { computed, ref, shallowRef } from 'vue';
 import type { GitlabSystemHookRegistrationStatus } from '../types/api';
+import { getErrorMessage } from '../utils/user-message';
 
 export interface MirrorSystemHookRegistrationControllerDependencies {
   getRegistrationStatus: () => Promise<GitlabSystemHookRegistrationStatus>;
@@ -25,7 +26,7 @@ export function useMirrorSystemHookRegistrationController(
     } catch (error) {
       systemHookRegistrationState.value = null;
       if (showError) {
-        deps.notifyError((error as Error).message);
+        deps.notifyError(getErrorMessage(error, 'System Hook 状态加载失败'));
       }
     } finally {
       systemHookRegistrationLoading.value = false;
@@ -41,7 +42,7 @@ export function useMirrorSystemHookRegistrationController(
       await deps.loadStatus(false, false);
       await loadSystemHookRegistration(false);
     } catch (error) {
-      deps.notifyError((error as Error).message);
+      deps.notifyError(getErrorMessage(error, 'System Hook 注册失败'));
     } finally {
       registeringSystemHook.value = false;
     }

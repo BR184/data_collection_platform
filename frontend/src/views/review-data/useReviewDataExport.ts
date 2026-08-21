@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import { formatExportFileDate } from '../../utils/csv-download';
+import { getErrorMessage } from '../../utils/user-message';
 
 export interface ReviewDataExportDependencies {
   exportReviewRecords: () => Promise<Blob>;
@@ -23,7 +24,7 @@ export function useReviewDataExport(deps: ReviewDataExportDependencies) {
       deps.downloadWorkbook(blob, `评审数据${formatExportFileDate(deps.now?.() ?? new Date())}.xlsx`);
       deps.notifySuccess('已导出评审列表');
     } catch (error) {
-      deps.notifyError(error instanceof Error ? error.message : '评审列表导出失败');
+      deps.notifyError(getErrorMessage(error, '评审列表导出失败'));
     } finally {
       recordExportLoading.value = false;
     }
@@ -36,7 +37,7 @@ export function useReviewDataExport(deps: ReviewDataExportDependencies) {
       deps.downloadWorkbook(blob, '评审问题详情.xlsx');
       deps.notifySuccess('已导出问题列表');
     } catch (error) {
-      deps.notifyError(error instanceof Error ? error.message : '评审问题详情导出失败');
+      deps.notifyError(getErrorMessage(error, '评审问题详情导出失败'));
     } finally {
       problemExportLoading.value = false;
     }
@@ -49,7 +50,7 @@ export function useReviewDataExport(deps: ReviewDataExportDependencies) {
       deps.downloadWorkbook(blob, '模板文件.xls');
       deps.notifySuccess('已下载评审模板');
     } catch (error) {
-      deps.notifyError(error instanceof Error ? error.message : '评审模板下载失败');
+      deps.notifyError(getErrorMessage(error, '评审模板下载失败'));
     } finally {
       templateDownloadLoading.value = false;
     }

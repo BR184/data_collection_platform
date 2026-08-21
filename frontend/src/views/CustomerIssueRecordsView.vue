@@ -57,6 +57,7 @@ import {
   readCustomerIssueRecordRangeValues,
 } from './customer-issues/customer-issue-record-range-filters';
 import { downloadBlob } from '../utils/csv-download';
+import { getErrorMessage } from '../utils/user-message';
 import { useRoute } from 'vue-router';
 
 const currentRoute = useRoute();
@@ -626,7 +627,7 @@ async function loadTableData() {
     }
     rows.value = [];
     total.value = 0;
-    tableLoadError.value = errorMessage(error, `${pageTitle.value}加载失败`);
+    tableLoadError.value = getErrorMessage(error, `${pageTitle.value}加载失败`);
   }
 }
 
@@ -648,17 +649,13 @@ async function loadFilterOptions() {
       return false;
     }
     filterOptionsLoaded.value = false;
-    filterOptionsError.value = errorMessage(error, `${pageTitle.value}筛选项加载失败`);
+    filterOptionsError.value = getErrorMessage(error, `${pageTitle.value}筛选项加载失败`);
     return false;
   } finally {
     if (runId === filterOptionsRunId && requestedTopic === topic.value) {
       filterOptionsLoading.value = false;
     }
   }
-}
-
-function errorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message.trim() ? error.message : fallback;
 }
 
 function buildCurrentQueryParams(includePagination: boolean) {
@@ -703,7 +700,7 @@ async function handleExport() {
     const workbook = await api.exportCustomerIssueRecords(buildCurrentQueryParams(false));
     downloadBlob(workbook, customerIssueExportFilename());
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '导出失败');
+    ElMessage.error(getErrorMessage(error, '导出失败'));
   } finally {
     exportLoading.value = false;
   }
@@ -721,7 +718,7 @@ async function handleRefreshLatestData() {
     await waitForRealtimeWorkspaceRefresh(status, loadSyncStatus);
     await Promise.all([loadFilterOptions(), reload()]);
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
+    ElMessage.error(getErrorMessage(error, '刷新最新数据失败'));
   } finally {
     realtimeRefreshLoading.value = false;
   }

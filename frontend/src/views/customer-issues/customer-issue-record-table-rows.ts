@@ -2,6 +2,7 @@ import type { CustomerIssueRecordRowResponse } from '../../types/api';
 import { buildIssueIidCellValue } from '../../utils/issue-record-links';
 import { buildIssueSeverityTag } from '../../utils/issue-severity-display';
 import { parseIssueStatusMembers } from '../../utils/issue-status-members';
+import { formatLocalDateTime } from '../../utils/beijing-time';
 import { parseCustomerIssuePlannedMergeBranchMembers } from './customer-issue-planned-merge-branch-members';
 
 /** 将客户问题领域响应转换为通用记录表所需的显示行。 */
@@ -51,7 +52,7 @@ export function mapCustomerIssueRecordTableRows(
 
 /** 将后端 ISO 时间格式化为记录页与详情抽屉统一使用的文本。 */
 export function formatCustomerIssueRecordDateTime(value?: string | null) {
-  return value ? value.replace('T', ' ').slice(0, 19) : '-';
+  return formatLocalDateTime(value);
 }
 
 /** 将 GitLab 议题状态转换为页面显示状态。 */

@@ -2,10 +2,10 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import BiDashboardView from './BiDashboardView.vue';
-import { biDashboardApi } from './data/bi-dashboard-api';
+import { biDashboardApi } from '../../api-client/bi-dashboard-api';
 import type { BiPageResponse } from './data/types';
 
-vi.mock('./data/bi-dashboard-api', () => ({
+vi.mock('../../api-client/bi-dashboard-api', () => ({
   biDashboardApi: {
     loadVersions: vi.fn(),
     loadRequirements: vi.fn(),

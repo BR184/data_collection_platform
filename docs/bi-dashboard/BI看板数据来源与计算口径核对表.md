@@ -41,14 +41,14 @@
 | G-08A | 全局 | 来源版本 | 数据状态 | 数据采集平台 / CAT | 平台 `PageRecordSnapshotService` / `issueFactSourceVersion`；CAT 等价稳定身份待提供 | 记录当前页面自己的来源版本，不要求六页采集时刻一致。 | 待确认 | [ ] |
 | G-08B | 全局 | 业务规则版本 | 数据状态 | BI | 各计算器和分类器 `RULE_VERSION` | 由 BI 权威实现输出；规则变化时用于追溯和失效判断。 | BI计算 | [ ] |
 | G-08C | 全局 | 数据状态 | 数据状态 | BI / CAT | BI `BiDataStatus`；CAT 响应 `code/message/data` | BI 按来源完整性和公式边界计算 `READY/EMPTY/NOT_APPLICABLE/INCOMPLETE/ERROR`；CAT 错误分类仍待补充。 | BI计算 | [ ] |
-| G-09 | 全局 | 模块业务键或快照分组维度 | 维度 | 数据采集平台 / CAT | 平台 `review_visible_records.module_name`、编码代码规模兼容态 `code_review_match_mode_records.module_name` / 正式态 `code_review_formal_records.module_name`、编码人工走查兼容态 `bi_code_review_compatibility_records.module_name`、`issue_fact.module_names`；CAT `data.result[].id` | 跨系统关联和 CAT 下钻使用稳定模块 ID；平台四页只在单一冻结来源快照内分组，直接使用名称字段且不伪造全局 ID。缺失值进入“未标注模块”。 | 等价映射 | [ ] |
+| G-09 | 全局 | 模块业务键或快照分组维度 | 维度 | 数据采集平台 / CAT | 平台 `review_visible_records.module_name`、编码代码规模兼容态 `code_review_match_mode_records.module_name` / 正式态 `code_review_formal_records.module_name`、编码人工走查兼容态 `code_review_match_mode_records.module_name`、`issue_fact.module_names`；CAT `data.result[].id` | 跨系统关联和 CAT 下钻使用稳定模块 ID；平台四页只在单一冻结来源快照内分组，直接使用名称字段且不伪造全局 ID。缺失值进入“未标注模块”。 | 等价映射 | [ ] |
 | G-10 | 全局 | 模块名称 | 显示维度 | 数据采集平台 / CAT | 平台同 G-09；CAT `moduleName`、冗余 `name` | 平台快照分组值同时作为显示名；CAT `name` 只做一致性校验，冲突时不可计算。 | 等价映射 | [ ] |
 | G-11 | 全局 | 功能 ID | 维度 | 数据采集平台 / CAT | CAT 功能统计 `featureUniqueId` | `id` 在多功能展示节点下可能为空，不作回退；展示节点与真实功能的基数关系待样例确认。 | 待确认 | [ ] |
 | G-12 | 全局 | 功能名称 | 显示维度 | 数据采集平台 / CAT | CAT 功能统计 `name` | 仅作显示；当前仅集成测试接口已说明。 | 待确认 | [ ] |
-| G-13 | 编码 | 代码来源 | 筛选维度 | 数据采集平台 | `code_review_match_mode_records.source_instance` / `code_review_formal_records.business_source` / `merge_request_commit_fact.source_instance` / `bi_code_review_compatibility_records.source_instance` | 可选 CC、DGM；筛选同时作用于编码页三类事实。物理字段由平台兼容模式及事实族决定，同一请求不得跨模式拼接。 | 等价映射 | [ ] |
+| G-13 | 编码 | 代码来源 | 筛选维度 | 数据采集平台 | `code_review_match_mode_records.source_instance` / `code_review_formal_records.business_source` / `merge_request_commit_fact.source_instance` | 可选 CC、DGM；筛选同时作用于编码页三类事实。物理字段由平台兼容模式及事实族决定，同一请求不得跨模式拼接。 | 等价映射 | [ ] |
 | G-14 | 编码 | 仓库 ID | 筛选维度 | 数据采集平台 | 当前上游未提供稳定仓库 ID | 与版本、来源共同限定编码统计范围；禁止用仓库显示名称代替。 | 上游缺失 | [ ] |
 | G-15 | 编码 | 仓库名称 | 显示/筛选维度 | 数据采集平台 | 兼容态 `code_review_match_mode_records.repository_name` / 正式态 `code_review_formal_records.repository_name` | 当前 Adapter 读取该字段，但页面 DTO 和图表未消费。 | 当前未使用 | [ ] |
-| G-16 | 编码 | 目标分支 | 筛选规则 | 数据采集平台 | 代码规模兼容态 `code_review_match_mode_records.target_branch` / 正式态 `code_review_formal_records.target_branch`；人工走查兼容态 `bi_code_review_compatibility_records.target_branch` | 当前代码趋势和人工走查只查询合并到 `dev` 的记录。 | 直接使用 | [ ] |
+| G-16 | 编码 | 目标分支 | 筛选规则 | 数据采集平台 | 代码规模兼容态 `code_review_match_mode_records.target_branch` / 正式态 `code_review_formal_records.target_branch`；人工走查兼容态 `code_review_match_mode_records.target_branch` | 当前代码趋势和人工走查只查询合并到 `dev` 的记录。 | 直接使用 | [ ] |
 
 ## 需求评审
 
@@ -112,7 +112,7 @@
 
 老平台 KLOC 口径已确认并作为 BI 统一规则：老平台 Controller、Service、Vue 页面和导出 DTO 把“代码走查缺陷密度”“模块千行缺陷率”“走查人/被走查人千行缺陷率”作为同一指标的不同维度。总体、模块和代码提交范围使用 `有效走查缺陷总数 × 1000 ÷ 被走查新增代码行数总数`；走查人、被走查人维度先按每条走查记录计算 `该记录有效缺陷数 × 1000 ÷ 该记录被走查新增代码行数`，再按老平台规则对记录密度取平均。代码规模图的 KLOC 仍为 `去重新增代码行数 ÷ 1000`，不能把人员维度平均密度改成总量比，也不能用代码规模 KLOC 替代缺陷密度。BI 不再建立同义的独立“编码阶段缺陷密度”或第二套“千行代码缺陷率”。
 
-本节在请求开始时冻结平台唯一兼容模式，但按事实族使用三类物理来源：代码趋势、人员贡献和模块增量在兼容态读取 `code_review_match_mode_records`、正式态读取 `code_review_formal_records`；提交趋势和频次读取 `merge_request_commit_fact`；人工走查质量、问题分布、散点、扫描和注释率在兼容态读取 BI 独占 `bi_code_review_compatibility_records`、正式态读取 `code_review_formal_records`。人工走查兼容表不得替代、回填或双写 `code_review_match_mode_records`，三类事实不得互相补数据。
+本节在请求开始时冻结平台唯一兼容模式，但按事实族区分物理来源：代码趋势、人员贡献、模块增量、人工走查质量、问题分布、散点、扫描和注释率在兼容态统一读取 `code_review_match_mode_records`、正式态统一读取 `code_review_formal_records`；提交趋势和频次读取 `merge_request_commit_fact`。三类事实按各自事实族独立计算，不得互相补数据。
 
 | 编号 | 阶段 | 字段 | 类型 | 来源 | 原始字段 | 公式或规则 | 实现状态 | 人工核对 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -132,30 +132,30 @@
 | CD-13 | 编码 | 提交 ID | 明细维度 | 数据采集平台 GitLab 事实层 | `merge_request_commit_fact.source_instance + project_id + commit_sha` | 提交频次和按时间分布的稳定键；同一提交进入多个 MR 时仍按来源、项目和 SHA 去重，不能用显示文本去重。 | 等价映射 | [ ] |
 | CD-14 | 编码 | 提交时间 | 明细维度 | 数据采集平台 GitLab 事实层 | `merge_request_commit_fact.committed_at_source` | 使用 GitLab 原生提交时间定位提交集中阶段，不用 MR 合并时间替代。 | 直接使用 | [ ] |
 | CD-15 | 编码 | 提交频次 | 计算值 | BI | CD-13、CD-14 | 按当前日/周粒度统计每个时间桶内去重提交数量。 | BI计算 | [ ] |
-| CD-16 | 编码 | 代码走查记录 ID | 明细维度 | 数据采集平台 | 兼容态 `bi_code_review_compatibility_records.id`（来源血缘为 `source_instance + legacy_source_id`）/ 正式态 `code_review_formal_records.id` | 人工代码走查的单次散点、问题分布和去重使用当前冻结人工走查来源内的稳定记录 ID。 | 等价映射 | [ ] |
-| CD-16A | 编码 | 人工走查日期 | 明细维度 | 数据采集平台 | 兼容态 `bi_code_review_compatibility_records.code_walkthrough_date` / 正式态 `code_review_formal_records.code_walkthrough_date` | 单次散点、扫描、注释率和走查缺陷密度趋势的业务日期；缺失时只影响依赖日期的序列。 | 等价映射 | [ ] |
-| CD-17 | 编码 | 被走查代码行数 | 原始度量 | 数据采集平台 | 兼容态 `bi_code_review_compatibility_records.added_lines` / 正式态 `code_review_formal_records.added_lines` | 已完成人工走查记录的速率和千行密度输入。 | 等价映射 | [ ] |
-| CD-18 | 编码 | 人工走查实际工时（分钟） | 原始度量 | 数据采集平台 | 兼容态 `bi_code_review_compatibility_records.review_duration_minutes` / 正式态 `code_review_formal_records.review_duration_minutes` | 走查速率的分母；转换为小时需除以 60。 | 等价映射 | [ ] |
-| CD-19 | 编码 | 人工走查有效问题数 | 计算输入 | 数据采集平台 | 兼容态 `bi_code_review_compatibility_records.defect_count` / 正式态 `code_review_formal_records.defect_count` | 使用当前冻结人工走查读源已聚合的有效缺陷数。 | 等价映射 | [ ] |
+| CD-16 | 编码 | 代码走查记录 ID | 明细维度 | 数据采集平台 | 兼容态 `code_review_match_mode_records.id`（来源血缘为 `source_instance + legacy_source_id`）/ 正式态 `code_review_formal_records.id` | 人工代码走查的单次散点、问题分布和去重使用当前冻结人工走查来源内的稳定记录 ID。 | 等价映射 | [ ] |
+| CD-16A | 编码 | 人工走查日期 | 明细维度 | 数据采集平台 | 兼容态 `code_review_match_mode_records.code_walkthrough_date` / 正式态 `code_review_formal_records.code_walkthrough_date` | 单次散点、扫描、注释率和走查缺陷密度趋势的业务日期；缺失时只影响依赖日期的序列。 | 等价映射 | [ ] |
+| CD-17 | 编码 | 被走查代码行数 | 原始度量 | 数据采集平台 | 兼容态 `code_review_match_mode_records.added_lines` / 正式态 `code_review_formal_records.added_lines` | 已完成人工走查记录的速率和千行密度输入。 | 等价映射 | [ ] |
+| CD-18 | 编码 | 人工走查实际工时（分钟） | 原始度量 | 数据采集平台 | 兼容态 `code_review_match_mode_records.review_duration_minutes` / 正式态 `code_review_formal_records.review_duration_minutes` | 走查速率的分母；转换为小时需除以 60。 | 等价映射 | [ ] |
+| CD-19 | 编码 | 人工走查有效问题数 | 计算输入 | 数据采集平台 | 兼容态 `code_review_match_mode_records.defect_count` / 正式态 `code_review_formal_records.defect_count` | 使用当前冻结人工走查读源已聚合的有效缺陷数。 | 等价映射 | [ ] |
 | CD-20 | 编码 | 代码走查缺陷密度（千行代码缺陷率） | 计算值 | BI | CD-17、CD-19 | `有效走查问题数 × 1000 ÷ 被走查代码行数`；目标区间 `[2.00, 10.00]`。 | BI计算 | [ ] |
 | CD-21 | 编码 | 人工走查速率（行/小时） | 计算值 | BI | CD-17、CD-18；可直接提供 `reviewSpeedLocPerHour` | `被走查代码行数 ÷ (实际工时分钟 ÷ 60)`。 | BI计算 | [ ] |
 | CD-22 | 编码 | 人工走查速率（KLOC/小时） | 计算值 | BI | CD-17、CD-18；可直接提供 `reviewSpeedKlocPerHour` | `被走查代码 KLOC ÷ (实际工时分钟 ÷ 60)`。具体展示单位待页面定稿时选择。 | BI计算 | [ ] |
 | CD-23 | 编码 | 人工走查缺陷密度目标下限 | 质量目标 | BI 规则 | `BiCodingCalculator.MIN_REVIEW_DENSITY` | 固定为 `2.00`。 | BI计算 | [ ] |
 | CD-24 | 编码 | 人工走查缺陷密度目标上限 | 质量目标 | BI 规则 | `BiCodingCalculator.MAX_REVIEW_DENSITY` | 固定为 `10.00`。 | BI计算 | [ ] |
 | CD-25 | 编码 | 人工走查缺陷密度达标状态 | 计算值 | BI | CD-20、CD-23、CD-24 | `2.00 ≤ 人工走查缺陷密度 ≤ 10.00` 为达标。 | BI计算 | [ ] |
-| CD-26 | 编码 | 模块人工走查缺陷密度 | 模块计算值 | BI | 兼容态 `bi_code_review_compatibility_records.module_name` / 正式态 `code_review_formal_records.module_name`、CD-17、CD-19 | 按来源快照内模块名称维度计算 `模块有效走查问题数 × 1000 ÷ 模块被走查代码行数`。 | BI计算 | [ ] |
-| CD-27 | 编码 | 模块人工走查速率 | 模块计算值 | BI | 兼容态 `bi_code_review_compatibility_records.module_name` / 正式态 `code_review_formal_records.module_name`、CD-17、CD-18 | 按来源快照内模块名称维度计算 `模块被走查代码行数 ÷ 模块实际工时（小时）`。 | BI计算 | [ ] |
+| CD-26 | 编码 | 模块人工走查缺陷密度 | 模块计算值 | BI | 兼容态 `code_review_match_mode_records.module_name` / 正式态 `code_review_formal_records.module_name`、CD-17、CD-19 | 按来源快照内模块名称维度计算 `模块有效走查问题数 × 1000 ÷ 模块被走查代码行数`。 | BI计算 | [ ] |
+| CD-27 | 编码 | 模块人工走查速率 | 模块计算值 | BI | 兼容态 `code_review_match_mode_records.module_name` / 正式态 `code_review_formal_records.module_name`、CD-17、CD-18 | 按来源快照内模块名称维度计算 `模块被走查代码行数 ÷ 模块实际工时（小时）`。 | BI计算 | [ ] |
 | CD-28 | 编码 | 单次人工走查散点横坐标 | 图表计算值 | BI | CD-17、CD-18 | 当前使用 CD-22 的 KLOC/小时。 | BI计算 | [ ] |
 | CD-29 | 编码 | 单次人工走查散点纵坐标 | 图表计算值 | BI | CD-17、CD-19 | 值等于 CD-20。 | BI计算 | [ ] |
-| CD-30 | 编码 | 代码规范问题数 | 类别计数 | 数据采集平台 | 兼容态 `bi_code_review_compatibility_records.code_specification_count` / 正式态 `code_review_formal_records.code_specification_count` | 当前筛选范围内本类别问题计数。 | 等价映射 | [ ] |
-| CD-31 | 编码 | 代码逻辑规范问题数 | 类别计数 | 数据采集平台 | 兼容态 `bi_code_review_compatibility_records.code_logic_specification_count` / 正式态 `code_review_formal_records.code_logic_specification_count` | 当前筛选范围内本类别问题计数。 | 等价映射 | [ ] |
-| CD-32 | 编码 | 性能规范问题数 | 类别计数 | 数据采集平台 | 兼容态 `bi_code_review_compatibility_records.performance_specification_count` / 正式态 `code_review_formal_records.performance_specification_count` | 当前筛选范围内本类别问题计数。 | 等价映射 | [ ] |
-| CD-33 | 编码 | 设计规范问题数 | 类别计数 | 数据采集平台 | 兼容态 `bi_code_review_compatibility_records.design_specification_count` / 正式态 `code_review_formal_records.design_specification_count` | 当前筛选范围内本类别问题计数。 | 等价映射 | [ ] |
-| CD-34 | 编码 | 其他代码走查问题数 | 类别计数 | 数据采集平台 | 兼容态 `bi_code_review_compatibility_records.other_specification_count` / 正式态 `code_review_formal_records.other_specification_count` | 当前筛选范围内本类别问题计数。 | 等价映射 | [ ] |
+| CD-30 | 编码 | 代码规范问题数 | 类别计数 | 数据采集平台 | 兼容态 `code_review_match_mode_records.code_specification_count` / 正式态 `code_review_formal_records.code_specification_count` | 当前筛选范围内本类别问题计数。 | 等价映射 | [ ] |
+| CD-31 | 编码 | 代码逻辑规范问题数 | 类别计数 | 数据采集平台 | 兼容态 `code_review_match_mode_records.code_logic_specification_count` / 正式态 `code_review_formal_records.code_logic_specification_count` | 当前筛选范围内本类别问题计数。 | 等价映射 | [ ] |
+| CD-32 | 编码 | 性能规范问题数 | 类别计数 | 数据采集平台 | 兼容态 `code_review_match_mode_records.performance_specification_count` / 正式态 `code_review_formal_records.performance_specification_count` | 当前筛选范围内本类别问题计数。 | 等价映射 | [ ] |
+| CD-33 | 编码 | 设计规范问题数 | 类别计数 | 数据采集平台 | 兼容态 `code_review_match_mode_records.design_specification_count` / 正式态 `code_review_formal_records.design_specification_count` | 当前筛选范围内本类别问题计数。 | 等价映射 | [ ] |
+| CD-34 | 编码 | 其他代码走查问题数 | 类别计数 | 数据采集平台 | 兼容态 `code_review_match_mode_records.other_specification_count` / 正式态 `code_review_formal_records.other_specification_count` | 当前筛选范围内本类别问题计数。 | 等价映射 | [ ] |
 | CD-35 | 编码 | 代码走查问题类别占比 | 计算值 | BI | CD-19、CD-30 至 CD-34 | `该类别问题数 ÷ 全部有效走查问题数`。 | BI计算 | [ ] |
-| CD-36 | 编码 | 静态扫描状态 | 原始状态 | 数据采集平台 | 兼容态 `bi_code_review_compatibility_records.scan_status` / 正式态 `code_review_formal_records.scan_status` | 必须区分未执行、执行失败、执行成功且无问题、执行成功有问题。 | 等价映射 | [ ] |
-| CD-37 | 编码 | 静态扫描问题数 | 原始度量 | 数据采集平台 | 兼容态 `bi_code_review_compatibility_records.scan_bug_count` / 正式态 `code_review_formal_records.scan_bug_count` | 当前筛选范围内静态扫描发现的问题数。 | 等价映射 | [ ] |
-| CD-38 | 编码 | 代码注释率 | 原始/计算值 | 数据采集平台 | 兼容态 `bi_code_review_compatibility_records.comment_rate/comment_rate_source` / 正式态 `code_review_formal_records.comment_rate/comment_rate_source` | 直接使用上游返回的注释率及统计来源；单条来源说明缺失时只展示合法注释率，不臆造来源，质量目标未确认。 | 等价映射 | [ ] |
+| CD-36 | 编码 | 静态扫描状态 | 原始状态 | 数据采集平台 | 兼容态 `code_review_match_mode_records.scan_status` / 正式态 `code_review_formal_records.scan_status` | 必须区分未执行、执行失败、执行成功且无问题、执行成功有问题。 | 等价映射 | [ ] |
+| CD-37 | 编码 | 静态扫描问题数 | 原始度量 | 数据采集平台 | 兼容态 `code_review_match_mode_records.scan_bug_count` / 正式态 `code_review_formal_records.scan_bug_count` | 当前筛选范围内静态扫描发现的问题数。 | 等价映射 | [ ] |
+| CD-38 | 编码 | 代码注释率 | 原始/计算值 | 数据采集平台 | 兼容态 `code_review_match_mode_records.comment_rate` / 正式态 `code_review_formal_records.comment_rate/comment_rate_source` | 直接使用上游返回的注释率；兼容态不携带来源说明时只展示合法注释率，不臆造来源，质量目标未确认。 | 等价映射 | [ ] |
 | CD-39 | 编码 | 代码走查缺陷密度趋势 | 时间桶计算值 | BI | CD-16A、CD-01、CD-17、CD-19 | 按人工走查日期的日/周时间桶使用 CD-20 总体公式；同一合并请求的被走查代码行只计一次，不把各记录密度直接相加。 | BI计算 | [ ] |
 
 ## 单元测试
@@ -291,4 +291,4 @@
 | 系统测试修复人及原因评论完整性 | 本地外网镜像只适合验证计算逻辑；待打包进入内网并完成 GitLab 评论同步后，核对合法修复状态评论、`fix_user`、`reason_category` 和原因词典命中率 |
 | CAT 集成测试接口、认证、映射、公式和来源一致性 | 四个查询接口已取得；待补基地址/认证、三层用例计数或基础记录、通过率精确语义、产品版本/阶段映射、原子来源身份和稳定分页规则 |
 | CAT 单元测试接口、字段和来源一致性 | 当前手册未覆盖，待 CAT 提供独立契约；禁止复用集成测试接口或平台数据补齐 |
-| 编码三类事实的内网覆盖率 | 代码规模类继续读取 `code_review_match_mode_records`，提交类读取 `merge_request_commit_fact`，人工走查类读取 BI 独占兼容表；外网已完成来源隔离、去重和计算回归，待内网兼容模式常开环境核对 GitLab 提交与 `spider_crowncad_data` 的真实覆盖率 |
+| 编码三类事实的内网覆盖率 | 代码规模类继续读取 `code_review_match_mode_records`，提交类读取 `merge_request_commit_fact`，人工走查类复用 `code_review_match_mode_records`；外网已完成来源隔离、去重和计算回归，待内网兼容模式常开环境核对 GitLab 提交与 `spider_crowncad_data` 的真实覆盖率 |

@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue';
 import type { FactRebuildSubmission } from '../types/api';
+import { getErrorMessage } from '../utils/user-message';
 
 const CONFIRMATION_DELAY_MS = 5_000;
 const CONFIRMATION_PHRASE = '重建全部事实层';
@@ -75,12 +76,12 @@ export function useFactRebuildDialog(deps: FactRebuildDialogDependencies) {
         await deps.refreshRunStatus();
       } catch (error) {
         deps.notifyError(
-          `事实层重建已提交，但运行状态刷新失败：${error instanceof Error ? error.message : '请手动刷新页面'}`,
+          `事实层重建已提交，但运行状态刷新失败：${getErrorMessage(error, '请手动刷新页面')}`,
         );
       }
       await deps.showResult(result);
     } catch (error) {
-      deps.notifyError(error instanceof Error ? error.message : '事实层重建失败');
+      deps.notifyError(getErrorMessage(error, '事实层重建失败'));
     } finally {
       rebuilding.value = false;
     }

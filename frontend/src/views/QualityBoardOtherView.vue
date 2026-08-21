@@ -19,6 +19,7 @@ import type {
   OptionItemResponse,
 } from '../types/api';
 import { downloadBlob } from '../utils/csv-download';
+import { getErrorMessage } from '../utils/user-message';
 
 const DASHBOARD_KEY = 'quality-board-other';
 const router = useRouter();
@@ -140,7 +141,7 @@ async function refresh(showSuccess = true) {
       ElMessage.success('其他看板已刷新');
     }
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '其他看板加载失败');
+    ElMessage.error(getErrorMessage(error, '其他看板加载失败'));
   }
 }
 
@@ -190,7 +191,7 @@ async function exportChart(chart: AnalyticsDashboardChart) {
     );
     downloadBlob(file.blob, file.filename || `${chart.title}.xlsx`);
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : 'Excel 导出失败');
+    ElMessage.error(getErrorMessage(error, 'Excel 导出失败'));
   } finally {
     exportingKey.value = '';
   }

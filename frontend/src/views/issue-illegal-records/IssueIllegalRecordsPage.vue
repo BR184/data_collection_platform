@@ -26,6 +26,8 @@ import type { StatisticBoardRuleExplanationResponse, StatisticFilterField } from
 import type { IssueIllegalRecordRow, IssueIllegalRecordsPageConfig } from './issue-illegal-records-types';
 import { downloadBlob } from '../../utils/csv-download';
 import { filterFieldsByBlockedDimensions } from '../../components/filter-priority';
+import { formatLocalDateTime as formatDateTime } from '../../utils/beijing-time';
+import { getErrorMessage } from '../../utils/user-message';
 
 const props = defineProps<IssueIllegalRecordsPageConfig>();
 const pageScopeKey = computed(() => `record-page:${props.workspaceKey}`);
@@ -250,10 +252,6 @@ function normalizeIssueState(value: string) {
   return value === 'closed' ? '已关闭' : value === 'opened' ? '未关闭' : value || '-';
 }
 
-function formatDateTime(value?: string | null) {
-  return value ? value.replace('T', ' ').slice(0, 19) : '-';
-}
-
 async function loadFilterOptions() {
   filterOptions.value = await props.loadFilterOptions(projectId.value || undefined);
 }
@@ -341,7 +339,7 @@ async function handleExport() {
     const filenamePrefix = props.exportFilenamePrefix || props.title;
     downloadBlob(exported, `${filenamePrefix}.xlsx`);
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '导出失败');
+    ElMessage.error(getErrorMessage(error, '导出失败'));
   } finally {
     exportLoading.value = false;
   }
@@ -358,7 +356,7 @@ async function handleRefreshLatestData() {
     await waitForRealtimeWorkspaceRefresh(status, loadRealtimeStatus);
     await Promise.all([loadFilterOptions(), loadTableData()]);
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
+    ElMessage.error(getErrorMessage(error, '刷新最新数据失败'));
   } finally {
     realtimeRefreshLoading.value = false;
   }
@@ -377,7 +375,7 @@ bindLoader(async () => {
   try {
     await loadCurrentPage();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : `${props.title}加载失败`);
+    ElMessage.error(getErrorMessage(error, `${props.title}加载失败`));
     rows.value = [];
     total.value = 0;
     pageInitialized.value = true;
@@ -398,7 +396,7 @@ watch(
         await loadCurrentPage();
       }
     } catch (error) {
-      ElMessage.error(error instanceof Error ? error.message : `${props.title}筛选项加载失败`);
+      ElMessage.error(getErrorMessage(error, `${props.title}筛选项加载失败`));
       filterOptionsLoaded.value = true;
       pageInitialized.value = true;
     }

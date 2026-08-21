@@ -3,7 +3,8 @@ import { Refresh } from '@element-plus/icons-vue';
 import { computed, onMounted, ref, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { PageKey } from '../../feature-manifest';
-import { biDashboardApi, type BiCodingQuery } from './data/bi-dashboard-api';
+import { biDashboardApi, type BiCodingQuery } from '../../api-client/bi-dashboard-api';
+import { getErrorMessage } from '../../utils/user-message';
 import type {
   BiCodingPageData,
   BiPageKey,
@@ -100,7 +101,7 @@ async function loadVersions(): Promise<void> {
       await loadPage();
     }
   } catch (error) {
-    loadError.value = error instanceof Error ? error.message : '产品版本加载失败';
+    loadError.value = getErrorMessage(error, '产品版本加载失败');
   } finally {
     loadingVersions.value = false;
   }
@@ -119,7 +120,7 @@ async function loadPage(): Promise<void> {
   } catch (error) {
     if (requestId === pageRequestId) {
       response.value = null;
-      loadError.value = error instanceof Error ? error.message : 'BI 看板加载失败';
+      loadError.value = getErrorMessage(error, 'BI 看板加载失败');
     }
   } finally {
     if (requestId === pageRequestId) loadingPage.value = false;

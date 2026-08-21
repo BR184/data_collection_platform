@@ -124,5 +124,7 @@
   "V20260805_04__incremental_schedule_index.sql": "55581eb221317a2ea6de62de08991309604eb4da6817cd365ec1ce850417bb24",
   "V20260806_01__bi_cat_mirror_snapshots.sql": "5a0b082d522a232731af93f5a05d19258553a73cdab61e922eb89546492be5dd",
   "V20260806_02__move_bi_cat_runtime_limits_to_deployment.sql": "f2fcb0a79b452009b07f9a5775118e7fe971f326871fc25bfc9b5b11ce8c0659",
-  "V20260810_01__source_fact_publication_and_bi_fixes.sql": "fed0f44e4936c93e71b07afa96060a37be79c899c0f38948b9aa9e306a5f13a0"
+  "V20260810_01__source_fact_publication_and_bi_fixes.sql": "fed0f44e4936c93e71b07afa96060a37be79c899c0f38948b9aa9e306a5f13a0",
+  "V20260813_01__remove_bi_code_review_compatibility_sync.sql": "9016f6811c6c43f96e228c0a64af6269211a96a4c754b6ae7a5efd334bdd1fcc",
+  "V20260821_01__bootstrap_customer_milestone_scope_catalog.sql": "8c968ead31b0c2f19e2fa5d9e2b1bae44bb9e0fee9e68cd41d5b92d856a413c9"
 }

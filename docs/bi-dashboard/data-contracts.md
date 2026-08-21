@@ -28,7 +28,7 @@
 | 需求、设计 | 由平台兼容模式上下文决定的评审可见来源；当前统一查询对象为 `review_visible_records`、`review_visible_problem_items` | `id`、`project_name`、`module_name`、`review_date`、`review_scale_pages`、`workload_hours`、`review_category`、`problem_status`、`problem_category` | 模块名称仅作快照内分组；页数或独立评审工时缺失时对应区块不可计算 |
 | 编码-代码规模与维度 | 兼容态 `code_review_match_mode_records`；正式态 `code_review_formal_records` | 来源感知的 MR 稳定键、`author_name`、`module_name`、`merged_at_source`、`added_lines` | 仍无仓库稳定 ID，仓库 ID 筛选保持不完整 |
 | 编码-GitLab 提交 | `merge_request_commit_fact` | `source_instance`、`project_id`、`commit_sha`、`committed_at_source`、`project_name` | 推荐/全部同步默认启用；自定义白名单未同时选择两张提交血缘表时该事实族为 `INCOMPLETE`，不读取残留事实；当前范围存在 MR 但没有任何已发布提交事实时同样为 `INCOMPLETE`，不得把 MR 时间桶补成全零提交趋势；内网需确认真实覆盖率 |
-| 编码-人工走查 | 兼容态 BI 独占 `bi_code_review_compatibility_records`；正式态 `code_review_formal_records` | 走查记录 ID、MR 身份、`module_name`、`code_walkthrough_date`、走查行数/工时/问题计数、扫描和注释率字段 | 兼容态真实数据需连接老平台 MySQL 后验收；不得回退到 `code_review_match_mode_records` |
+| 编码-人工走查 | 兼容态 `code_review_match_mode_records`；正式态 `code_review_formal_records` | 走查记录 ID、MR 身份、`module_name`、`code_walkthrough_date`、走查行数/工时/问题计数、扫描和注释率字段 | 兼容态真实数据来自平台兼容表，需在兼容模式常开环境验收覆盖率 |
 | 系统测试 | `issue_fact`、`issue_scope_groups`、`issue_scope_members` | `issue_id`、`testing_phase`、`severity_level`、`priority_level`、`is_fixed`、`module_names`、`assignee_name`、`fix_user`、`reason_category`、`label_names`、`delay_issue`、`delay_cause`、`delay_reason` | 本地外网镜像的评论覆盖不足；修复人与原因完整性需在内网完成最终验证 |
 
 - 系统测试查询统一排除已删除、已排除和建议类事实，再按 `issue_id` 去重；模块多值按逗号拆分，同一缺陷在同一模块只计一次。
@@ -46,10 +46,10 @@
 ## 平台读源模式
 
 - BI 不拥有独立兼容开关。一次请求只读取一次平台现有兼容模式上下文，并按与对应平台页面相同的规则选择评审或代码走查来源。
-- 兼容态和正式态是同一页面契约的不同物理模式，不是两套业务公式。编码兼容态内部按事实族读取 `code_review_match_mode_records`、`merge_request_commit_fact` 和 BI 独占人工走查表，这不是兼容/正式双读；禁止把三类事实互相替代、跨模式拼接、空结果回退和 BI 专属模式参数。
+- 兼容态和正式态是同一页面契约的不同物理模式，不是两套业务公式。编码兼容态内部按事实族读取 `code_review_match_mode_records`、`merge_request_commit_fact`，人工走查复用 `code_review_match_mode_records`，这不是兼容/正式双读；禁止把三类事实互相替代、跨模式拼接、空结果回退和 BI 专属模式参数。
 - 内网真实环境兼容模式常开，内网发布验收必须覆盖该模式；正式态保留确定性自动测试，不作为常规生产读源假设。
-- BI 独占兼容表中的 `merge_request_state` 承载合并状态，不能作为已完成走查标志。兼容态合法走查按 `reviewer_names` 非空且不属于平台既有非法/无需走查占位值判定；正式态继续使用 `review_status=COMPLETED`。该差异只存在于基础设施映射边界，计算器不感知兼容模式。
-- `comment_rate_source` 是注释率的可选来源说明。兼容同步记录老表 `spider_crowncad_data.annotation_rate` 血缘；若某条来源说明为空但 `comment_rate` 合法，仍可展示数值，不能因缺少说明清空 CD-38。
+- 兼容表 `code_review_match_mode_records` 的 `merge_request_state` 承载合并状态，不能作为已完成走查标志。兼容态合法走查按 `reviewer_names` 非空且不属于平台既有非法/无需走查占位值判定；正式态继续使用 `review_status=COMPLETED`。该差异只存在于基础设施映射边界，计算器不感知兼容模式。
+- `comment_rate_source` 是注释率的可选来源说明，仅正式态 `code_review_formal_records` 携带；兼容态复用 `code_review_match_mode_records.comment_rate`，无来源说明。若某条来源说明为空但 `comment_rate` 合法，仍可展示数值，不能因缺少说明清空 CD-38。
 
 ## 页面与来源边界
 

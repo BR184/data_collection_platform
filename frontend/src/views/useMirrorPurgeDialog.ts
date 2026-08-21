@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue';
 import type { MirrorPurgeResult, MirrorPurgeScope } from '../types/api';
+import { getErrorMessage } from '../utils/user-message';
 
 export interface MirrorPurgeDialogDependencies {
   purgeMirrorData: (scope: MirrorPurgeScope) => Promise<MirrorPurgeResult>;
@@ -68,7 +69,7 @@ export function useMirrorPurgeDialog(deps: MirrorPurgeDialogDependencies) {
       purgeDialogVisible.value = false;
       purgeConfirmText.value = '';
     } catch (error) {
-      deps.notifyError((error as Error).message);
+      deps.notifyError(getErrorMessage(error, '镜像数据删除失败'));
     } finally {
       purging.value = null;
     }

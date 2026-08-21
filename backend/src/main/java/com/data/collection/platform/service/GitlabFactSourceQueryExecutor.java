@@ -5,7 +5,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.stereotype.Component;
 
+@Component
 class GitlabFactSourceQueryExecutor {
   private final JdbcTemplate jdbcTemplate;
   private final SqlQueryMonitor sqlQueryMonitor;

@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.common.SqlIdentifierSupport;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import java.util.ArrayList;
@@ -31,7 +32,7 @@ final class GitlabAuthoritativeScopeQueryBuilder {
             option,
             scopeColumns,
             "(values " + values + ") as requested_scopes("
-                + GitlabTypedValuesSqlSupport.quoteIdentifier(SCOPE_ID_COLUMN)
+                + SqlIdentifierSupport.quoteIdentifier(SCOPE_ID_COLUMN)
                 + ", "
                 + GitlabTypedValuesSqlSupport.quotedColumns(scopeColumns)
                 + ")"),
@@ -46,7 +47,7 @@ final class GitlabAuthoritativeScopeQueryBuilder {
     String definitions = scopeColumns.stream()
         .map(
             column ->
-                GitlabTypedValuesSqlSupport.quoteIdentifier(column)
+                SqlIdentifierSupport.quoteIdentifier(column)
                     + " "
                     + GitlabTypedValuesSqlSupport.sqlType(schema, column))
         .collect(Collectors.joining(", "));
@@ -91,16 +92,16 @@ final class GitlabAuthoritativeScopeQueryBuilder {
         .map(
             column ->
                 "source."
-                    + GitlabTypedValuesSqlSupport.quoteIdentifier(column)
+                    + SqlIdentifierSupport.quoteIdentifier(column)
                     + " = requested_scopes."
-                    + GitlabTypedValuesSqlSupport.quoteIdentifier(column))
+                    + SqlIdentifierSupport.quoteIdentifier(column))
         .collect(Collectors.joining(" and "));
     return "select requested_scopes."
-        + GitlabTypedValuesSqlSupport.quoteIdentifier(SCOPE_ID_COLUMN)
+        + SqlIdentifierSupport.quoteIdentifier(SCOPE_ID_COLUMN)
         + ", source.* from "
-        + GitlabTypedValuesSqlSupport.quoteIdentifier("public")
+        + SqlIdentifierSupport.quoteIdentifier("public")
         + "."
-        + GitlabTypedValuesSqlSupport.quoteIdentifier(option.tableName())
+        + SqlIdentifierSupport.quoteIdentifier(option.tableName())
         + " source join "
         + requestedRelation
         + " on "

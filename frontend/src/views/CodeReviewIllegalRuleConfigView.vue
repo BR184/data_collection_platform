@@ -10,6 +10,8 @@ import CodeReviewRuleConfigPreview from '../components/rule-config/CodeReviewRul
 import { api } from '../api';
 import type { CodeReviewIllegalRecordFilterOptionsResponse } from '../types/api';
 import type { CodeReviewRuleConfig, CodeReviewRulePreviewResponse } from '../types/code-review-rule-config';
+import { formatLocalDateTimeMinute } from '../utils/beijing-time';
+import { getErrorMessage } from '../utils/user-message';
 import { buildCodeReviewRuleFields } from './code-review-rule-config-schema';
 import {
   loadStoredCodeReviewRuleConfig,
@@ -141,7 +143,7 @@ async function loadPreview() {
       },
     });
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '规则配置预览失败');
+    ElMessage.error(getErrorMessage(error, '规则配置预览失败'));
   } finally {
     previewLoading.value = false;
   }
@@ -153,7 +155,7 @@ async function initialize() {
     syncDraftFromStorage();
     await loadPreview();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '规则配置页面加载失败');
+    ElMessage.error(getErrorMessage(error, '规则配置页面加载失败'));
   }
 }
 
@@ -291,7 +293,7 @@ void initialize();
               </span>
               <span class="rule-config-context-meta">列表：{{ savedConfig.enabled ? '我的规则' : '当前规则' }}</span>
               <span class="rule-config-context-meta">
-                最近：{{ savedConfig.updatedAt ? savedConfig.updatedAt.replace('T', ' ').slice(0, 16) : '未保存' }}
+                最近：{{ formatLocalDateTimeMinute(savedConfig.updatedAt, '未保存') }}
               </span>
             </div>
 

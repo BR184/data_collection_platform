@@ -278,6 +278,22 @@ class FlywayMigrationSmokeTest {
   }
 
   @Test
+  void shouldBootstrapEmptyCustomerMilestoneCatalogOnlyFromExistingFacts() throws IOException {
+    String migration = readMigration(
+        "V20260821_01__bootstrap_customer_milestone_scope_catalog.sql");
+
+    assertThat(migration)
+        .contains("from issue_fact")
+        .contains("project_id = 325")
+        .contains("dimension = 'milestone'")
+        .contains("not exists")
+        .contains("from issue_scope_groups")
+        .contains("returning id")
+        .contains("issue_scope_members")
+        .contains("on conflict (catalog_id, source_value) do nothing");
+  }
+
+  @Test
   void shouldDefineRecoverableCodeReviewMetricEnrichmentSchemaAndMemberSeed()
       throws IOException {
     String schemaMigration = readMigration(

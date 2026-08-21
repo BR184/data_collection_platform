@@ -22,6 +22,7 @@ import type {
   OptionItemResponse,
 } from '../types/api';
 import { downloadBlob } from '../utils/csv-download';
+import { getErrorMessage } from '../utils/user-message';
 
 const DASHBOARD_KEY = 'code-review-multi';
 const route = useRoute();
@@ -116,7 +117,7 @@ async function refreshPage() {
     await Promise.all([loadDashboard(), loadSyncStatus()]);
     ElMessage.success('代码走查多元看板已刷新');
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '代码走查多元看板刷新失败');
+    ElMessage.error(getErrorMessage(error, '代码走查多元看板刷新失败'));
   }
 }
 
@@ -127,7 +128,7 @@ async function refreshLatestData() {
     ElMessage.success(status.message || '已开始刷新最新数据');
     await Promise.all([loadDashboard(), loadSyncStatus()]);
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
+    ElMessage.error(getErrorMessage(error, '刷新最新数据失败'));
   } finally {
     realtimeRefreshLoading.value = false;
   }
@@ -160,7 +161,7 @@ async function exportChart(chart: AnalyticsDashboardChart) {
     );
     downloadBlob(file.blob, file.filename || `${chart.title}.xlsx`);
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : 'Excel 导出失败');
+    ElMessage.error(getErrorMessage(error, 'Excel 导出失败'));
   } finally {
     exportingKey.value = '';
   }
@@ -180,7 +181,7 @@ async function initializePage() {
     await loadProjectOptions(true);
     await Promise.all([loadDashboard(), loadSyncStatus()]);
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '代码走查多元看板加载失败');
+    ElMessage.error(getErrorMessage(error, '代码走查多元看板加载失败'));
   } finally {
     initialized.value = true;
   }

@@ -3,6 +3,7 @@ import { Download } from '@element-plus/icons-vue';
 import { computed, ref, type PropType } from 'vue';
 import { ElMessage } from '../../../element-plus-services';
 import { authState } from '../../../composables/auth-state';
+import { getErrorMessage } from '../../../utils/user-message';
 import { hasPermission } from '../../../feature-manifest';
 import type { BiChart } from '../charts/BiChart';
 import { exportBiChartPng } from '../charts/export-chart';
@@ -58,7 +59,7 @@ async function download(): Promise<void> {
     });
     ElMessage.success('图表 PNG 已生成');
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '图表下载失败');
+    ElMessage.error(getErrorMessage(error, '图表下载失败'));
   } finally {
     exporting.value = false;
   }

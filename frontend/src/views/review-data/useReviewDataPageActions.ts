@@ -3,6 +3,7 @@ import type {
   ReviewDataProblemItemResponse,
   ReviewDataRecordRowResponse,
 } from '../../types/api';
+import { getErrorMessage } from '../../utils/user-message';
 
 type TableRowWithRawRecord = Record<string, unknown> & {
   __raw?: ReviewDataRecordRowResponse;
@@ -37,7 +38,7 @@ export function useReviewDataPageActions(deps: ReviewDataPageActionsDependencies
       await deps.refreshRecords();
       deps.notifySuccess('评审数据列表已刷新');
     } catch (error) {
-      deps.notifyError(error instanceof Error ? error.message : '评审数据列表刷新失败');
+      deps.notifyError(getErrorMessage(error, '评审数据列表刷新失败'));
     }
   }
 
@@ -89,7 +90,7 @@ export function useReviewDataPageActions(deps: ReviewDataPageActionsDependencies
       await deps.refreshRecords();
     } catch (error) {
       if (error !== 'cancel') {
-        deps.notifyError(error instanceof Error ? error.message : '评审记录删除失败');
+        deps.notifyError(getErrorMessage(error, '评审记录删除失败'));
       }
     }
   }
@@ -102,7 +103,7 @@ export function useReviewDataPageActions(deps: ReviewDataPageActionsDependencies
       await deps.refreshAfterProblemItemMutation(recordId);
     } catch (error) {
       if (error !== 'cancel') {
-        deps.notifyError(error instanceof Error ? error.message : '评审问题删除失败');
+        deps.notifyError(getErrorMessage(error, '评审问题删除失败'));
       }
     }
   }

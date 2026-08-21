@@ -3,6 +3,7 @@ import { Document } from '@element-plus/icons-vue';
 // 评审详情抽屉只展示单条记录的完整字段，刷新和编辑动作仍由主页面统一调度。
 // 这样详情区可以安全复用，不会意外触发列表查询条件变化。
 import type { ReviewDataRecordDetailResponse } from '../../types/api';
+import { formatLocalDateTime } from '../../utils/beijing-time';
 
 defineProps<{
   visible: boolean;
@@ -79,7 +80,7 @@ function formatNumber(value?: number | null, digits = 2) {
           <el-descriptions-item label="有效会议问题数">{{ detailData.record.meetingReviewProblemCount ?? 0 }}</el-descriptions-item>
           <el-descriptions-item label="是否达标">{{ detailData.record.reachStandard ? '是' : '否' }}</el-descriptions-item>
           <el-descriptions-item label="更新时间">
-            {{ displayText(detailData.record.updatedAt?.replace('T', ' ').slice(0, 19)) }}
+            {{ displayText(formatLocalDateTime(detailData.record.updatedAt)) }}
           </el-descriptions-item>
           <el-descriptions-item label="当前状态">{{ detailData.record.deleted ? '已删除' : '有效' }}</el-descriptions-item>
           <el-descriptions-item label="原文件">{{ displayText(detailData.record.sourceFileName) }}</el-descriptions-item>

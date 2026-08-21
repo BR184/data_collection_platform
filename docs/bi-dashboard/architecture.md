@@ -60,10 +60,9 @@
 |---|---|---|---|
 | 代码规模与维度 | `code_review_match_mode_records` | `code_review_formal_records` | 代码趋势、合并请求数、人员贡献、模块代码增量 |
 | GitLab 提交 | `merge_request_commit_fact` | `merge_request_commit_fact` | 提交趋势、提交频次 |
-| 人工代码走查 | `bi_code_review_compatibility_records` | `code_review_formal_records` | 整体/模块人工走查质量、问题分布、单次散点、静态扫描、注释率和质量趋势 |
+| 人工代码走查 | `code_review_match_mode_records` | `code_review_formal_records` | 整体/模块人工走查质量、问题分布、单次散点、静态扫描、注释率和质量趋势 |
 
-- `bi_code_review_compatibility_records` 只服务 BI 人工走查事实族。它不得读写、回填、双写或替代 `code_review_match_mode_records`，平台现有页面也不得读取 BI 表。
-- BI 人工走查兼容同步只复用平台全局兼容模式和老库只读连接配置；来源固定为老平台 `spider_crowncad_data`。其 loading 表、目标表、同步状态、运行 ID、发布版本和事务均独立，任一同步失败只清理本次 loading 并保留上一版 BI 快照，不能阻断或回滚平台现有兼容同步。
+- 编码页人工走查兼容态复用平台兼容表 `code_review_match_mode_records`，与代码规模类同一读源，不再维护独立的 BI 独占走查表。
 - `merge_request_diffs` 和 `merge_request_diff_commits` 属于平台 GitLab 推荐同步与血缘，不由 BI 另建 GitLab 抓取任务；最新 Diff 的稳定提交 SHA 和真实提交时间发布到 `merge_request_commit_fact` 后供 BI 读取。
 - GitLab 提交明细是独立于平台通用 MR 事实的增强能力。推荐/全部同步模式默认启用；自定义白名单只有同时选择 `merge_request_diffs`、`merge_request_diff_commits` 才启用。缺少任一表时不得阻断、清空或降级平台原有 `merge_request_fact` 和代码走查页面。配置已启用但当前 MR 范围尚未发布任何提交事实时，BI 提交趋势与提交频次仍必须显式返回 `INCOMPLETE`；不得读取残留事实，也不得用 MR 日期生成全零提交序列伪装为当前提交数据。
 
@@ -114,7 +113,7 @@
 
 ## 版本、同步与页面可见性
 
-- BI 不重复同步平台已有 GitLab 或页面事实，也不把“每 20 分钟”硬编码为自身契约。GitLab 提交随平台事实链路发布；只有平台现有兼容同步没有承载的老平台人工走查结构化数据，才由 BI 独立任务发布到 BI 独占兼容表。两条发布版本都纳入编码页请求级来源版本校验。
+- BI 不重复同步平台已有 GitLab 或页面事实，也不把“每 20 分钟”硬编码为自身契约。GitLab 提交随平台事实链路发布；人工走查兼容态直接复用平台兼容表 `code_review_match_mode_records`，不再由 BI 独立任务发布。编码页来源版本由平台代码走查快照版本统一校验。
 - 平台完成一次同步并成功发布新事实后，未打开页面的下一次请求读取新版本；已打开页面保持原版本并提示“有新数据可刷新”，用户刷新后整体切换，不能让同一页面的图表逐块换版本。
 - 集成测试手册已说明 CAT 项目 ID、版本 ID 和测试阶段 ID，但尚未提供与 BI 产品版本的映射规则、同版本多阶段选择规则及来源版本/快照；单元测试版本字段仍未知。CAT 页面在这些边界冻结前保持 `INCOMPLETE`。
 - 系统测试直接使用平台“议题测试阶段定义”及其父级版本到测试轮次的成员关系，不新建 BI 专属版本解析器或第二套阶段目录。

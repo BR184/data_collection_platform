@@ -9,6 +9,7 @@ import {
   createProblemItemFormFromRow,
   type ReviewProblemItemFormModel,
 } from '../review-data-management';
+import { getErrorMessage } from '../../utils/user-message';
 
 export interface ReviewProblemItemDialogDependencies {
   loadRecordDetail: (recordId: number) => Promise<ReviewDataRecordDetailResponse>;
@@ -41,7 +42,7 @@ export function useReviewProblemItemDialog(deps: ReviewProblemItemDialogDependen
       };
       problemDialogVisible.value = true;
     } catch (error) {
-      deps.notifyError(error instanceof Error ? error.message : '评审问题初始化失败');
+      deps.notifyError(getErrorMessage(error, '评审问题初始化失败'));
     }
   }
 
@@ -55,7 +56,7 @@ export function useReviewProblemItemDialog(deps: ReviewProblemItemDialogDependen
       problemForm.value = createProblemItemFormFromRow(item);
       problemDialogVisible.value = true;
     } catch (error) {
-      deps.notifyError(error instanceof Error ? error.message : '评审问题详情加载失败');
+      deps.notifyError(getErrorMessage(error, '评审问题详情加载失败'));
     }
   }
 
@@ -76,7 +77,7 @@ export function useReviewProblemItemDialog(deps: ReviewProblemItemDialogDependen
       problemDialogVisible.value = false;
       await deps.refreshAfterMutation(recordId);
     } catch (error) {
-      deps.notifyError(error instanceof Error ? error.message : '评审问题保存失败');
+      deps.notifyError(getErrorMessage(error, '评审问题保存失败'));
     } finally {
       problemDialogSaving.value = false;
     }

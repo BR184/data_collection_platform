@@ -23,6 +23,7 @@ import type {
   SystemTestIssueMultiBoardSummaryCardResponse,
 } from '../types/api';
 import { downloadBlob } from '../utils/csv-download';
+import { getErrorMessage } from '../utils/user-message';
 import { buildMultiBoardChartOption } from './system-test-multi-board';
 
 const route = useRoute();
@@ -105,7 +106,7 @@ async function handleRefresh() {
     await loadBoard();
     ElMessage.success('议题多元看板已刷新');
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '议题多元看板刷新失败');
+    ElMessage.error(getErrorMessage(error, '议题多元看板刷新失败'));
   }
 }
 
@@ -117,7 +118,7 @@ async function handleRefreshLatestData() {
     await waitForRealtimeWorkspaceRefresh(status, loadSyncStatus);
     await loadBoard();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
+    ElMessage.error(getErrorMessage(error, '刷新最新数据失败'));
   } finally {
     realtimeRefreshLoading.value = false;
   }
@@ -133,7 +134,7 @@ async function handleExport(chart: SystemTestIssueMultiBoardChartResponse) {
     });
     downloadBlob(file.blob, file.filename || `${chart.exportName}.xlsx`);
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '图表数据导出失败');
+    ElMessage.error(getErrorMessage(error, '图表数据导出失败'));
   } finally {
     exportLoadingKey.value = '';
   }
@@ -215,7 +216,7 @@ function openRule(rule: AnalyticsDashboardRule | null) {
 void Promise.all([loadBoard(), loadSyncStatus()]).catch((error) => {
   initialized.value = true;
   loading.value = false;
-  ElMessage.error(error instanceof Error ? error.message : '议题多元看板加载失败');
+  ElMessage.error(getErrorMessage(error, '议题多元看板加载失败'));
 });
 </script>
 

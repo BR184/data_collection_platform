@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.common.SqlIdentifierSupport;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import java.util.ArrayList;
@@ -47,7 +48,7 @@ final class GitlabPrimaryKeyExistenceQueryBuilder {
         primaryKeys.stream()
             .map(
                 primaryKey ->
-                    GitlabTypedValuesSqlSupport.quoteIdentifier(primaryKey)
+                    SqlIdentifierSupport.quoteIdentifier(primaryKey)
                         + " "
                         + GitlabTypedValuesSqlSupport.sqlType(schema, primaryKey))
             .collect(Collectors.joining(", "));
@@ -81,25 +82,25 @@ final class GitlabPrimaryKeyExistenceQueryBuilder {
             .map(
                 primaryKey ->
                     "source."
-                        + GitlabTypedValuesSqlSupport.quoteIdentifier(primaryKey)
+                        + SqlIdentifierSupport.quoteIdentifier(primaryKey)
                         + "::text as "
-                        + GitlabTypedValuesSqlSupport.quoteIdentifier(primaryKey))
+                        + SqlIdentifierSupport.quoteIdentifier(primaryKey))
             .collect(Collectors.joining(", "));
     String joinPredicate =
         primaryKeys.stream()
             .map(
                 primaryKey ->
                     "source."
-                        + GitlabTypedValuesSqlSupport.quoteIdentifier(primaryKey)
+                        + SqlIdentifierSupport.quoteIdentifier(primaryKey)
                         + " = requested_keys."
-                        + GitlabTypedValuesSqlSupport.quoteIdentifier(primaryKey))
+                        + SqlIdentifierSupport.quoteIdentifier(primaryKey))
             .collect(Collectors.joining(" and "));
     return "select "
         + selectColumns
         + " from "
-        + GitlabTypedValuesSqlSupport.quoteIdentifier("public")
+        + SqlIdentifierSupport.quoteIdentifier("public")
         + "."
-        + GitlabTypedValuesSqlSupport.quoteIdentifier(option.tableName())
+        + SqlIdentifierSupport.quoteIdentifier(option.tableName())
         + " source join "
         + requestedRelation
         + " on "

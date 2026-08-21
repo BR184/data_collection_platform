@@ -9,6 +9,7 @@ import type {
   AnalyticsDashboardQuery,
 } from '../types/api';
 import { downloadBlob } from '../utils/csv-download';
+import { getErrorMessage } from '../utils/user-message';
 import AnalyticsDashboardDetailCell from '../components/dashboard/AnalyticsDashboardDetailCell.vue';
 import { shouldShowAnalyticsDetailPagination } from '../components/dashboard/analytics-dashboard-detail-cell';
 import ExportActionMenu from '../components/base/ExportActionMenu.vue';
@@ -76,7 +77,7 @@ async function loadDetail() {
   } catch (error) {
     if (sequence === loadSequence) {
       detail.value = null;
-      errorMessage.value = error instanceof Error ? error.message : '详情数据加载失败';
+      errorMessage.value = getErrorMessage(error, '详情数据加载失败');
     }
   } finally {
     if (sequence === loadSequence) {
@@ -121,7 +122,7 @@ async function exportDetail(action: AnalyticsDashboardExportAction) {
     );
     downloadBlob(file.blob, file.filename || `${detail.value?.title || action.label}.xlsx`);
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '导出失败';
+    errorMessage.value = getErrorMessage(error, '导出失败');
   } finally {
     exportingKey.value = '';
   }

@@ -1,5 +1,6 @@
 package com.data.collection.platform.service.sync;
 
+import com.data.collection.platform.common.SqlIdentifierSupport;
 import com.data.collection.platform.entity.SourceTableSchema;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -62,7 +63,7 @@ public class GitlabMirrorIndexService {
       }
       if (Boolean.FALSE.equals(valid)) {
         jdbcTemplate.execute(
-            "drop index concurrently if exists " + quoteIdentifier(definition.name()));
+            "drop index concurrently if exists " + SqlIdentifierSupport.quoteIdentifier(definition.name()));
       }
       jdbcTemplate.execute(createIndexSql(mirrorTable, definition));
     }
@@ -105,19 +106,16 @@ public class GitlabMirrorIndexService {
         definition.columns().stream()
             .map(
                 column ->
-                    quoteIdentifier(column.name()) + (column.descending() ? " desc" : ""))
+                    SqlIdentifierSupport.quoteIdentifier(column.name()) + (column.descending() ? " desc" : ""))
             .collect(Collectors.joining(", "));
     return "create index concurrently if not exists "
-        + quoteIdentifier(definition.name())
+        + SqlIdentifierSupport.quoteIdentifier(definition.name())
         + " on "
-        + quoteIdentifier(mirrorTable)
+        + SqlIdentifierSupport.quoteIdentifier(mirrorTable)
         + " ("
         + columns
         + ") where "
         + definition.predicate();
   }
 
-  private String quoteIdentifier(String identifier) {
-    return "\"" + identifier.replace("\"", "\"\"") + "\"";
-  }
 }

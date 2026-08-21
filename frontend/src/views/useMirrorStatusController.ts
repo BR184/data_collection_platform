@@ -1,5 +1,6 @@
 import { ref, shallowRef, type Ref } from 'vue';
 import type { GitlabSyncConfig, GitlabSyncStatus, MirrorStatusResponse } from '../types/api';
+import { getErrorMessage } from '../utils/user-message';
 
 const ACTIVE_POLLING_STATUSES: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNING', 'CANCELLING'];
 
@@ -78,7 +79,7 @@ export function useMirrorStatusController(deps: MirrorStatusControllerDependenci
       }
     } catch (error) {
       if (showError) {
-        deps.notifyError((error as Error).message);
+        deps.notifyError(getErrorMessage(error, '镜像状态加载失败'));
       }
     } finally {
       loading.value = false;

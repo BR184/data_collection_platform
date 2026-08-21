@@ -6,6 +6,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { api } from '../api';
 import type { CollectFormDetailResponse } from '../types/api';
+import { getErrorMessage } from '../utils/user-message';
 
 const route = useRoute();
 
@@ -85,7 +86,7 @@ async function loadRecord() {
   } catch (error) {
     lastLoadedRecord.value = null;
     applyRecord(null);
-    ElMessage.error(error instanceof Error ? error.message : '表单记录加载失败');
+    ElMessage.error(getErrorMessage(error, '表单记录加载失败'));
   } finally {
     loading.value = false;
   }
@@ -120,7 +121,7 @@ async function saveForm() {
     applyRecord(record);
     ElMessage.success('表单已保存到平台正式数据表');
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '表单保存失败');
+    ElMessage.error(getErrorMessage(error, '表单保存失败'));
   } finally {
     saving.value = false;
   }
@@ -143,7 +144,7 @@ async function deleteForm() {
     );
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
-      ElMessage.error(error instanceof Error ? error.message : '作废确认失败');
+    ElMessage.error(getErrorMessage(error, '作废确认失败'));
     }
     return;
   }
@@ -162,7 +163,7 @@ async function deleteForm() {
     }
     ElMessage.success('表单记录已作废');
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '表单删除失败');
+    ElMessage.error(getErrorMessage(error, '表单删除失败'));
   } finally {
     deleting.value = false;
   }

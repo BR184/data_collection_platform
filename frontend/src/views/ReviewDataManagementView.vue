@@ -27,6 +27,7 @@ import { api } from '../api';
 import { authState } from '../composables/auth-state';
 import { hasPermission } from '../feature-manifest';
 import { downloadBlob } from '../utils/csv-download';
+import { getErrorMessage } from '../utils/user-message';
 import type { ReviewDataRecordRowResponse } from '../types/api';
 import type {
   RecordTableActiveFilterTag,
@@ -340,7 +341,7 @@ bindLoader(async () => {
     syncFilterDraftFromRoute();
     await loadRows();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '评审数据加载失败');
+    ElMessage.error(getErrorMessage(error, '评审数据加载失败'));
   }
 });
 
@@ -412,7 +413,7 @@ async function handleExportRecordProblemDetails(row: Record<string, unknown>) {
     downloadBlob(blob, '问题详情.xlsx');
     ElMessage.success('已导出当前评审的问题详情');
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '评审问题详情导出失败');
+    ElMessage.error(getErrorMessage(error, '评审问题详情导出失败'));
   }
 }
 

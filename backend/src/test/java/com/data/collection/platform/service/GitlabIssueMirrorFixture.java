@@ -28,9 +28,12 @@ final class GitlabIssueMirrorFixture {
         create table if not exists ods_gitlab_milestones (
           id bigint primary key,
           title varchar(255),
+          project_id bigint,
           mirror_deleted boolean not null default false
         )
         """);
+    jdbcTemplate.execute(
+        "alter table ods_gitlab_milestones add column if not exists project_id bigint");
     jdbcTemplate.execute(
         """
         create table if not exists ods_gitlab_issues (

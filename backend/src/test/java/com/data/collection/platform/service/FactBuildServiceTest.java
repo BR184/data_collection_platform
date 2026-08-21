@@ -78,10 +78,11 @@ class FactBuildServiceTest {
             moduleDictionaryService,
             factBuildTaskService,
             sourceSchemaGuard,
-            sqlQueryMonitor,
             configService,
             integrationTestFactBuildService,
-            reconciliationService);
+            reconciliationService,
+            new GitlabFactSourceSqlProvider(),
+            new GitlabFactSourceQueryExecutor(jdbcTemplate, sqlQueryMonitor));
 
     service.rebuildMergeRequestFactsForConfig(config, true);
 
@@ -136,10 +137,11 @@ class FactBuildServiceTest {
             moduleDictionaryService,
             factBuildTaskService,
             sourceSchemaGuard,
-            sqlQueryMonitor,
             configService,
             integrationTestFactBuildService,
-            reconciliationService);
+            reconciliationService,
+            new GitlabFactSourceSqlProvider(),
+            new GitlabFactSourceQueryExecutor(jdbcTemplate, sqlQueryMonitor));
 
     assertThatThrownBy(() -> service.rebuildAllFacts(true)).isSameAs(preflightFailure);
 
@@ -189,10 +191,11 @@ class FactBuildServiceTest {
             moduleDictionaryService,
             factBuildTaskService,
             sourceSchemaGuard,
-            sqlQueryMonitor,
             configService,
             integrationTestFactBuildService,
-            reconciliationService);
+            reconciliationService,
+            new GitlabFactSourceSqlProvider(),
+            new GitlabFactSourceQueryExecutor(jdbcTemplate, sqlQueryMonitor));
 
     assertThatThrownBy(() -> service.rebuildAllFactsForConfig(config, true, 16L))
         .isSameAs(preflightFailure);

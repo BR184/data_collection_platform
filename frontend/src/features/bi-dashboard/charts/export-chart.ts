@@ -1,7 +1,7 @@
 import { init } from './bi-echarts-runtime';
 import type { BiChart } from './BiChart';
 import { registerBiChartTheme } from './theme';
-import { biDashboardApi } from '../data/bi-dashboard-api';
+import { biDashboardApi } from '../../../api-client/bi-dashboard-api';
 import type { BiPageKey } from '../data/types';
 
 export interface BiChartExportRequest<TData> {

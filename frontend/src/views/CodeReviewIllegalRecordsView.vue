@@ -41,6 +41,7 @@ import {
   mapCodeReviewIllegalTableRows,
 } from './code-review-illegal-records-view-helpers';
 import { downloadBlob, formatExportFileDate } from '../utils/csv-download';
+import { getErrorMessage } from '../utils/user-message';
 import { CODE_REVIEW_SOURCE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
 
@@ -274,7 +275,7 @@ async function handleRefreshMatchModeRow(row: Record<string, unknown>) {
     await loadTableData();
     void loadSyncStatus();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '刷新本条数据失败');
+    ElMessage.error(getErrorMessage(error, '刷新本条数据失败'));
   } finally {
     rowRefreshLoadingKey.value = '';
   }
@@ -373,7 +374,7 @@ async function handleExport() {
     const workbook = await api.exportCodeReviewIllegalRecords(buildCurrentQueryParams(false));
     downloadBlob(workbook, codeReviewIllegalExportFilename());
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '导出失败');
+    ElMessage.error(getErrorMessage(error, '导出失败'));
   } finally {
     exportLoading.value = false;
   }
@@ -412,7 +413,7 @@ async function handleRefreshLatestData() {
     await waitForRealtimeWorkspaceRefresh(status, loadSyncStatus);
     await loadTableData();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
+    ElMessage.error(getErrorMessage(error, '刷新最新数据失败'));
   } finally {
     realtimeRefreshLoading.value = false;
   }
@@ -429,7 +430,7 @@ bindLoader(async () => {
     //兼容模式-MatchMode：老平台同步时间可能依赖外部库，不能阻塞已返回的列表数据和页面操作。
     void loadSyncStatus();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '非法记录数据加载失败');
+    ElMessage.error(getErrorMessage(error, '非法记录数据加载失败'));
     rows.value = [];
     total.value = 0;
   }

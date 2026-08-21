@@ -46,7 +46,6 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
       List.of("广数CAM", "CC2025R4", "CC2026R1", "CC 2025 R4&2026 R1");
   private static final String RULE_VERSION = "code-review-illegal-records@2026-07-10-v8";
   private static final int EXPORT_PAGE_SIZE = 100;
-  private static final DateTimeFormatter CSV_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
   private static final DateTimeFormatter CSV_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
   private static final String[] LEGACY_EXPORT_HEADERS = {
     "走查时间",
@@ -285,31 +284,31 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
         "链接")));
     for (CodeReviewIllegalRecordRowResponse row : rows) {
       lines.add(String.join(",", List.of(
-          csv(row.requestType()),
-          csv(row.mergeRequestIid()),
-          csv(row.projectName()),
-          csv(row.repositoryName()),
-          csv(row.moduleName()),
-          csv(row.author()),
-          csv(row.reviewerNames()),
-          csv(row.assigneeNames()),
-          csv(row.targetBranch()),
-          csv(row.mergedBy()),
-          csv(row.mergedAt() == null ? "" : CSV_DATE_TIME.format(row.mergedAt())),
-          csv(row.illegalTypes() == null ? "" : String.join("；", row.illegalTypes())),
-          csv(row.commentRate()),
-          csv(row.defectCount()),
-          csv(row.addedLines()),
-          csv(row.reviewDurationMinutes()),
-          csv(row.reviewSpeedLocPerHour()),
-          csv(row.defectDensityPerKloc()),
-          csv(row.reviewEfficiencyPerHour()),
-          csv(row.scanStatus()),
-          csv(row.scanBugCount()),
-          csv(row.annotationRateResult()),
-          csv(row.bugCountResult()),
-          csv(row.mergeRequestContent()),
-          csv(row.mergeRequestLink()))));
+          CsvExportSupport.cell(row.requestType()),
+          CsvExportSupport.cell(row.mergeRequestIid()),
+          CsvExportSupport.cell(row.projectName()),
+          CsvExportSupport.cell(row.repositoryName()),
+          CsvExportSupport.cell(row.moduleName()),
+          CsvExportSupport.cell(row.author()),
+          CsvExportSupport.cell(row.reviewerNames()),
+          CsvExportSupport.cell(row.assigneeNames()),
+          CsvExportSupport.cell(row.targetBranch()),
+          CsvExportSupport.cell(row.mergedBy()),
+          CsvExportSupport.cell(CsvExportSupport.dateTime(row.mergedAt())),
+          CsvExportSupport.cell(row.illegalTypes() == null ? "" : String.join("；", row.illegalTypes())),
+          CsvExportSupport.cell(row.commentRate()),
+          CsvExportSupport.cell(row.defectCount()),
+          CsvExportSupport.cell(row.addedLines()),
+          CsvExportSupport.cell(row.reviewDurationMinutes()),
+          CsvExportSupport.cell(row.reviewSpeedLocPerHour()),
+          CsvExportSupport.cell(row.defectDensityPerKloc()),
+          CsvExportSupport.cell(row.reviewEfficiencyPerHour()),
+          CsvExportSupport.cell(row.scanStatus()),
+          CsvExportSupport.cell(row.scanBugCount()),
+          CsvExportSupport.cell(row.annotationRateResult()),
+          CsvExportSupport.cell(row.bugCountResult()),
+          CsvExportSupport.cell(row.mergeRequestContent()),
+          CsvExportSupport.cell(row.mergeRequestLink()))));
     }
     return String.join("\n", lines) + "\n";
   }
@@ -492,7 +491,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
     writeText(row, 6, record.author(), style);
     writeText(row, 7, record.reviewerNames(), style);
     writeText(row, 8, record.assigneeNames(), style);
-    writeText(row, 9, formatDateTime(record.mergedAt()), style);
+    writeText(row, 9, CsvExportSupport.dateTime(record.mergedAt()), style);
     writeText(row, 10, record.mergedBy(), style);
     writeNumber(row, 11, record.reviewDurationMinutes(), style);
     writeNumber(row, 12, record.addedLines(), style);
@@ -538,23 +537,8 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
     ExcelExportStyles.setReadableColumnWidths(sheet, widths);
   }
 
-  private String formatDateTime(java.time.LocalDateTime value) {
-    return value == null ? "" : CSV_DATE_TIME.format(value);
-  }
-
   private String formatDate(java.time.LocalDateTime value) {
     return value == null ? "" : CSV_DATE.format(value);
-  }
-
-  private String csv(Object value) {
-    if (value == null) {
-      return "";
-    }
-    String text = String.valueOf(value);
-    if (text.contains("\"") || text.contains(",") || text.contains("\n") || text.contains("\r")) {
-      return "\"" + text.replace("\"", "\"\"") + "\"";
-    }
-    return text;
   }
 
   private boolean canUseDefaultSqlPage(CodeReviewIllegalRecordQueryRequest request) {

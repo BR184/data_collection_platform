@@ -16,6 +16,8 @@ import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import { buildIssueSeverityTag, displayIssueSeverity } from '../utils/issue-severity-display';
 import { parseIssueStatusMembers } from '../utils/issue-status-members';
 import { downloadBlob } from '../utils/csv-download';
+import { formatLocalDateTime as formatDateTime } from '../utils/beijing-time';
+import { getErrorMessage } from '../utils/user-message';
 import type {
   StatisticFilterField,
   SystemTestIssueSearchFilterOptionsResponse,
@@ -311,7 +313,7 @@ bindLoader(async () => {
     initializeFromQuery(route.query);
     await loadTableData();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '议题查询数据加载失败');
+    ElMessage.error(getErrorMessage(error, '议题查询数据加载失败'));
     rows.value = [];
     total.value = 0;
   }
@@ -332,7 +334,7 @@ async function handleRefreshLatestData() {
     await waitForRealtimeWorkspaceRefresh(status, loadSyncStatus);
     await Promise.all([loadFilterOptions(), loadTableData()]);
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
+    ElMessage.error(getErrorMessage(error, '刷新最新数据失败'));
   } finally {
     realtimeRefreshLoading.value = false;
   }
@@ -379,14 +381,10 @@ async function handleExport() {
     const workbook = await api.exportSystemTestIssueSearchRecords(buildCurrentQueryParams(false));
     downloadBlob(workbook, '多元议题查询结果.xlsx');
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '导出失败');
+    ElMessage.error(getErrorMessage(error, '导出失败'));
   } finally {
     exportLoading.value = false;
   }
-}
-
-function formatDateTime(value?: string | null) {
-  return value ? value.replace('T', ' ').slice(0, 19) : '-';
 }
 
 function splitDisplayList(value: string) {
@@ -510,7 +508,7 @@ async function handleRefresh() {
     await Promise.all([loadFilterOptions(), loadTableData()]);
     ElMessage.success('已刷新议题查询结果');
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '议题查询刷新失败');
+    ElMessage.error(getErrorMessage(error, '议题查询刷新失败'));
   }
 }
 </script>

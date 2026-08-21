@@ -14,3 +14,26 @@ export function toUserMessage(message: unknown, fallback = '') {
   }
   return messageTranslations[text] ?? text;
 }
+
+/**
+ * 从未知异常中提取可展示的消息。
+ *
+ * @param error 捕获到的任意异常值
+ * @param fallback 异常不包含有效消息时使用的兜底文案
+ * @returns 异常消息或兜底文案
+ */
+export function getErrorMessage(error: unknown, fallback = ''): string {
+  if (typeof error === 'string') {
+    return error.trim() || fallback;
+  }
+  if (error instanceof Error) {
+    return error.message.trim() || fallback;
+  }
+  if (typeof error === 'object' && error !== null) {
+    const candidate = error as { message?: unknown };
+    if (typeof candidate.message === 'string') {
+      return candidate.message.trim() || fallback;
+    }
+  }
+  return fallback;
+}

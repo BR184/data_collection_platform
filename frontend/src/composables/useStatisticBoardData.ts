@@ -1,6 +1,7 @@
 import { ref, shallowRef } from 'vue';
 import type { StatisticBoardResponse, StatisticFilterGroup } from '../types/api';
 import type { BlobResponse } from '../api-client/request';
+import { getErrorMessage } from '../utils/user-message';
 
 interface StatisticBoardDataRequest {
   filterGroup: StatisticFilterGroup | null;
@@ -47,9 +48,9 @@ export function useStatisticBoardData(deps: StatisticBoardDataDependencies) {
       board.value = response;
       deps.onBoardLoaded(response);
     } catch (error) {
-      errorMessage.value = (error as Error).message;
+      errorMessage.value = getErrorMessage(error, '看板数据加载失败');
       if (showError) {
-        deps.notifyError((error as Error).message);
+        deps.notifyError(errorMessage.value);
       }
     } finally {
       loading.value = false;
@@ -63,7 +64,7 @@ export function useStatisticBoardData(deps: StatisticBoardDataDependencies) {
       downloadFile(file.blob, file.filename || exportFilename(deps.boardKey()));
       deps.notifySuccess('导出成功');
     } catch (error) {
-      deps.notifyError((error as Error).message);
+      deps.notifyError(getErrorMessage(error, '看板导出失败'));
     }
   }
 

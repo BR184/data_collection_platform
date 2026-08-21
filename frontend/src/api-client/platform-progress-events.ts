@@ -1,3 +1,5 @@
+import { getErrorMessage } from '../utils/user-message';
+
 export type PlatformProgressProfile =
   | 'route'
   | 'table'
@@ -65,7 +67,7 @@ export function failPlatformProgress(
     id,
     source,
     options,
-    errorMessage: error instanceof Error ? error.message : '任务失败',
+    errorMessage: getErrorMessage(error, '任务失败'),
   });
 }
 

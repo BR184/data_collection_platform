@@ -1,9 +1,9 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.common.SqlIdentifierSupport;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 /** GitLab typed VALUES 与 Docker COPY 查询共享的类型和转义规则。 */
 final class GitlabTypedValuesSqlSupport {
@@ -46,15 +46,8 @@ final class GitlabTypedValuesSqlSupport {
 
   static String quotedColumns(Iterable<String> columns) {
     java.util.ArrayList<String> quoted = new java.util.ArrayList<>();
-    columns.forEach(column -> quoted.add(quoteIdentifier(column)));
-    return quoted.stream().collect(Collectors.joining(", "));
-  }
-
-  static String quoteIdentifier(String identifier) {
-    if (identifier == null || identifier.isBlank()) {
-      throw new IllegalArgumentException("SQL 标识符不能为空");
-    }
-    return "\"" + identifier.replace("\"", "\"\"") + "\"";
+    columns.forEach(column -> quoted.add(SqlIdentifierSupport.quoteIdentifier(column)));
+    return String.join(", ", quoted);
   }
 
   static String csvField(Object value) {

@@ -12,16 +12,36 @@ const beijingDateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
   hourCycle: 'h23',
 });
 
+function formatLocalDateTimePrefix(value: string | null | undefined, length: number, emptyText: string) {
+  return value ? value.replace('T', ' ').slice(0, length) : emptyText;
+}
+
+/** 将不带时区的 ISO 日期时间按页面既有约定转换为文本。 */
+export function formatLocalDateTime(value?: string | null, emptyText = '-') {
+  return formatLocalDateTimePrefix(value, 19, emptyText);
+}
+
+/** 将不带时区的 ISO 日期时间按分钟显示，不执行时区转换。 */
+export function formatLocalDateTimeMinute(value?: string | null, emptyText = '-') {
+  return formatLocalDateTimePrefix(value, 16, emptyText);
+}
+
+/** 将日期文本截取为页面使用的年月日。 */
+export function formatLocalDate(value?: string | null, emptyText = '-') {
+  return value ? value.slice(0, 10) : emptyText;
+}
+
+/** 将带时区的日期时间转换为北京时间；无法解析时保留原始文本的本地显示形式。 */
 export function formatBeijingDateTime(value?: string | null, emptyText = '-') {
   if (!value) {
     return emptyText;
   }
   if (!OFFSET_SUFFIX_PATTERN.test(value)) {
-    return value.replace('T', ' ').slice(0, 19);
+    return formatLocalDateTime(value, emptyText);
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return value.replace('T', ' ').slice(0, 19);
+    return formatLocalDateTime(value, emptyText);
   }
   const parts = Object.fromEntries(
     beijingDateTimeFormatter

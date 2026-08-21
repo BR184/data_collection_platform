@@ -12,6 +12,7 @@ import {
 } from './feature-manifest';
 import { authState, loadCurrentUser } from './composables/auth-state';
 import { beginRouteLoading, clearRouteError, endRouteLoading, setRouteError } from './router-state';
+import { getErrorMessage } from './utils/user-message';
 
 const StatisticBoardPage = () => import('./views/StatisticBoardPage.vue');
 const LabelGroupSettingsView = () => import('./views/LabelGroupSettingsView.vue');
@@ -374,7 +375,7 @@ router.afterEach(() => {
 
 router.onError((error) => {
   endRouteLoading();
-  setRouteError(error instanceof Error ? error.message : '页面加载失败，请稍后重试。');
+  setRouteError(getErrorMessage(error, '页面加载失败，请稍后重试。'));
 });
 
 export default router;

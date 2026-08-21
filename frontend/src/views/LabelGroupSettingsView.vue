@@ -7,6 +7,7 @@ import TableFunctionBar from '../components/base/TableFunctionBar.vue';
 import DynamicLabelGroupRuleBuilder from '../components/label-groups/DynamicLabelGroupRuleBuilder.vue';
 import LabelGroupMemberPicker from '../components/label-groups/LabelGroupMemberPicker.vue';
 import { sameLabelGroupFieldKey } from '../utils/label-group-field-key';
+import { getErrorMessage } from '../utils/user-message';
 import type {
   LabelDimension,
   LabelGroup,
@@ -67,6 +68,10 @@ const applicableScopeOptions = [
 ];
 
 const candidateDimensions = computed(() => dimensions.value.filter((item) => item.staticSupported));
+
+function childGroupNames(group: LabelGroup) {
+  return group.childGroups?.map((child) => child.name).join('、') || '-';
+}
 const sourceFieldOptions = computed(() =>
   candidateDimensions.value.map((dimension) => ({ label: dimension.name, value: dimension.key })),
 );
@@ -173,7 +178,7 @@ async function loadDimensions() {
   try {
     dimensions.value = await api.listLabelDimensions();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '候选来源加载失败');
+    ElMessage.error(getErrorMessage(error, '候选来源加载失败'));
   }
 }
 
@@ -185,7 +190,7 @@ async function loadGroups() {
       keyword: keyword.value || undefined,
     });
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '标签组加载失败');
+    ElMessage.error(getErrorMessage(error, '标签组加载失败'));
   } finally {
     loading.value = false;
   }
@@ -195,7 +200,7 @@ async function loadDynamicRuleSources() {
   try {
     dynamicRuleSources.value = await api.listDynamicRuleSources();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '动态规则数据源加载失败');
+    ElMessage.error(getErrorMessage(error, '动态规则数据源加载失败'));
   }
 }
 
@@ -203,7 +208,7 @@ async function loadDynamicRuleRelations() {
   try {
     dynamicRuleRelations.value = await api.listDynamicRuleRelations();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '动态规则逻辑关联加载失败');
+    ElMessage.error(getErrorMessage(error, '动态规则逻辑关联加载失败'));
   }
 }
 
@@ -239,7 +244,7 @@ async function previewDynamicRule() {
     });
     return true;
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '动态规则预览失败');
+    ElMessage.error(getErrorMessage(error, '动态规则预览失败'));
     return false;
   } finally {
     previewingDynamicRule.value = false;
@@ -272,7 +277,7 @@ async function submitForm() {
     dialogVisible.value = false;
     await loadGroups();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '标签组保存失败');
+    ElMessage.error(getErrorMessage(error, '标签组保存失败'));
   } finally {
     saving.value = false;
   }
@@ -298,7 +303,7 @@ async function deleteGroup(group: LabelGroup) {
     ElMessage.success('标签组已删除');
     await loadGroups();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '标签组删除失败');
+    ElMessage.error(getErrorMessage(error, '标签组删除失败'));
   } finally {
     deletingId.value = null;
   }
@@ -327,7 +332,7 @@ async function setGroupEnabled(group: LabelGroup, enabled: boolean) {
     await loadGroups();
   } catch (error) {
     group.enabled = previous;
-    ElMessage.error(error instanceof Error ? error.message : '标签组状态更新失败');
+    ElMessage.error(getErrorMessage(error, '标签组状态更新失败'));
   } finally {
     togglingId.value = null;
   }
@@ -424,7 +429,7 @@ async function setGroupEnabled(group: LabelGroup, enabled: boolean) {
         </el-table-column>
         <el-table-column label="子组" min-width="180">
           <template #default="{ row }">
-            <span>{{ row.childGroups?.map((child: any) => child.name).join('、') || '-' }}</span>
+            <span>{{ childGroupNames(row) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="成员数" width="90">

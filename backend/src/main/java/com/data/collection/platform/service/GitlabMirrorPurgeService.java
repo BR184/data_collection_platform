@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.common.SqlIdentifierSupport;
 import com.data.collection.platform.common.logging.SyncRunLogContext;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.MirrorPurgeResult;
@@ -49,7 +50,7 @@ public class GitlabMirrorPurgeService {
         if (preservedMirrorTables.contains(mirrorTable)) {
           continue;
         }
-        jdbcTemplate.execute("drop table if exists " + quoteIdentifier(mirrorTable));
+        jdbcTemplate.execute("drop table if exists " + SqlIdentifierSupport.quoteIdentifier(mirrorTable));
         droppedTables.add(mirrorTable);
       }
 
@@ -166,10 +167,6 @@ public class GitlabMirrorPurgeService {
         "select mirror_table_name from \"sys_table_registry\" where config_id = ? and source_table_name in (" + placeholders + ")",
         String.class,
         args));
-  }
-
-  private String quoteIdentifier(String identifier) {
-    return "\"" + identifier.replace("\"", "\"\"") + "\"";
   }
 
   private GitlabSyncConfig ensurePersistedConfig(GitlabSyncConfig config) {

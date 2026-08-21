@@ -8,6 +8,7 @@ import {
   createReviewRecordFormFromRow,
   type ReviewRecordFormModel,
 } from '../review-data-management';
+import { getErrorMessage } from '../../utils/user-message';
 
 export interface ReviewRecordDialogDependencies {
   loadRecordDetail: (recordId: number) => Promise<ReviewDataRecordDetailResponse>;
@@ -47,7 +48,7 @@ export function useReviewRecordDialog(deps: ReviewRecordDialogDependencies) {
       );
       recordDialogVisible.value = true;
     } catch (error) {
-      deps.notifyError(error instanceof Error ? error.message : '评审详情加载失败');
+      deps.notifyError(getErrorMessage(error, '评审详情加载失败'));
     }
   }
 
@@ -71,7 +72,7 @@ export function useReviewRecordDialog(deps: ReviewRecordDialogDependencies) {
         return;
       }
     } catch (error) {
-      deps.notifyError(error instanceof Error ? error.message : '评审记录保存失败');
+      deps.notifyError(getErrorMessage(error, '评审记录保存失败'));
     } finally {
       recordDialogSaving.value = false;
     }

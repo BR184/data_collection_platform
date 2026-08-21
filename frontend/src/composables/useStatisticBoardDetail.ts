@@ -16,6 +16,7 @@ import {
   routeDetailSortOrder,
   routeDetailVisible,
 } from '../components/statistic-board-route-query';
+import { getErrorMessage } from '../utils/user-message';
 
 type DetailRouteQuery = LocationQuery;
 
@@ -143,7 +144,7 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
         filterGroup: deps.getFilterGroup(),
       });
     } catch (error) {
-      deps.notifyError((error as Error).message);
+      deps.notifyError(getErrorMessage(error, '看板详情加载失败'));
     } finally {
       detailLoading.value = false;
     }

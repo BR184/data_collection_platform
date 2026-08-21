@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.common.SqlIdentifierSupport;
 import com.data.collection.platform.entity.GitlabSourceHealthResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceMode;
@@ -278,7 +279,7 @@ public class GitlabSourceHealthService {
     try {
       Long total = jdbcTemplate.queryForObject(
           "select count(*) from "
-              + quoteIdentifier(tableName)
+              + SqlIdentifierSupport.quoteIdentifier(tableName)
               + " where lower(coalesce(source_instance, 'default')) = ? and deleted = false",
           Long.class,
           sourceInstance);
@@ -296,7 +297,7 @@ public class GitlabSourceHealthService {
     try {
       return jdbcTemplate.queryForObject(
           "select max(updated_at) from "
-              + quoteIdentifier(tableName)
+              + SqlIdentifierSupport.quoteIdentifier(tableName)
               + " where lower(coalesce(source_instance, 'default')) = ? and deleted = false",
           LocalDateTime.class,
           sourceInstance);
@@ -354,10 +355,6 @@ public class GitlabSourceHealthService {
       return left;
     }
     return left.isAfter(right) ? left : right;
-  }
-
-  private String quoteIdentifier(String identifier) {
-    return "\"" + identifier.replace("\"", "\"\"") + "\"";
   }
 
   private boolean isBlank(String value) {

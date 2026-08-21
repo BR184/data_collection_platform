@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.common.SqlIdentifierSupport;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import java.util.Map;
 import java.util.Optional;
@@ -218,10 +219,10 @@ public class GitlabResourceLinkService {
   }
 
   private String quoteIdentifier(String identifier) {
-    if (!identifier.matches("[A-Za-z0-9_]+")) {
+    if (identifier == null || !identifier.matches("[A-Za-z0-9_]+")) {
       throw new IllegalArgumentException("Invalid table identifier: " + identifier);
     }
-    return "\"" + identifier + "\"";
+    return SqlIdentifierSupport.quoteIdentifier(identifier);
   }
 
   private String normalizeBaseUrl(String baseUrl) {

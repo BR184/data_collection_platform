@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.common.SqlIdentifierSupport;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -81,7 +82,7 @@ public class ReviewDataMirrorOptionRepository {
     if (!mirrorTableExists(mirrorTableName)) {
       return List.of();
     }
-    return queryDistinct(sqlFactory.apply(quoteIdentifier(mirrorTableName)), mirrorTableName);
+    return queryDistinct(sqlFactory.apply(SqlIdentifierSupport.quoteIdentifier(mirrorTableName)), mirrorTableName);
   }
 
   private boolean mirrorTableExists(String tableName) {
@@ -125,7 +126,4 @@ public class ReviewDataMirrorOptionRepository {
     return List.copyOf(values);
   }
 
-  private String quoteIdentifier(String identifier) {
-    return "\"" + identifier.replace("\"", "\"\"") + "\"";
-  }
 }

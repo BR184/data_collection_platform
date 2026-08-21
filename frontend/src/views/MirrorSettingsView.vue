@@ -10,6 +10,7 @@ import type { GitlabSourceHealthResponse, GitlabSyncConfig, SyncRunDiagnosticsRe
 import SmartSelect from '../components/base/SmartSelect.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import { buildPurgeSummaryHtml, syncStatusText, translateSyncMessage } from './mirror-settings-helpers';
+import { getErrorMessage } from '../utils/user-message';
 import MirrorRunMonitorPanel from './MirrorRunMonitorPanel.vue';
 import MirrorRunTableTaskDrawer from './MirrorRunTableTaskDrawer.vue';
 import MirrorSyncLogTable from './MirrorSyncLogTable.vue';
@@ -433,7 +434,7 @@ async function initializePage() {
     await loadConfigs();
     await loadMirrorSection('同步状态', () => loadStatus(false, false));
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '加载 GitLab 数据镜像设置失败');
+    ElMessage.error(getErrorMessage(error, '加载 GitLab 数据镜像设置失败'));
   } finally {
     initialized.value = true;
   }
@@ -479,7 +480,7 @@ async function loadTableSyncDiagnostics(showError = false) {
   } catch (error) {
     tableSyncDiagnostics.value = null;
     if (showError) {
-      ElMessage.error(error instanceof Error ? error.message : '加载表级同步诊断失败');
+      ElMessage.error(getErrorMessage(error, '加载表级同步诊断失败'));
     }
   } finally {
     tableSyncDiagnosticsLoading.value = false;
@@ -578,7 +579,7 @@ async function retryFailedRun() {
       loadMirrorSection('表级同步诊断', () => loadTableSyncDiagnostics(false)),
     ]);
   } catch (error) {
-    ElMessage.error((error as Error).message);
+    ElMessage.error(getErrorMessage(error, '同步任务重试失败'));
   } finally {
     retryingFailedRun.value = false;
   }

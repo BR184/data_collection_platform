@@ -12,6 +12,7 @@ import BaseSearchInput from './base/BaseSearchInput.vue';
 import PageStateShell from './base/PageStateShell.vue';
 import TableFunctionBar from './base/TableFunctionBar.vue';
 import { useRouteTableState } from '../composables/useRouteTableState';
+import { getErrorMessage } from '../utils/user-message';
 
 const tablesLoading = ref(false);
 const refreshingTable = ref(false);
@@ -136,7 +137,7 @@ async function loadTables() {
       await patchQuery({ table: tables[0].tableName }, 'replace');
     }
   } catch (error) {
-    ElMessage.error((error as Error).message);
+    ElMessage.error(getErrorMessage(error, '数据库表列表加载失败'));
   } finally {
     tablesLoading.value = false;
     tablesResolved.value = true;
@@ -159,7 +160,7 @@ async function loadRows(showError = true) {
     });
   } catch (error) {
     if (showError) {
-      ElMessage.error((error as Error).message);
+      ElMessage.error(getErrorMessage(error, '数据库表数据加载失败'));
     }
   } finally {
     if (selectedTable.value) {
@@ -211,7 +212,7 @@ async function handleRefresh() {
     await loadRows();
     ElMessage.success(refreshSubmissionMessage(refreshResult));
   } catch (error) {
-    ElMessage.error((error as Error).message);
+    ElMessage.error(getErrorMessage(error, '数据库表刷新失败'));
   } finally {
     refreshingTable.value = false;
   }
@@ -324,7 +325,7 @@ async function saveCollectFormEdit() {
     editDialogVisible.value = false;
     await loadRows();
   } catch (error) {
-    ElMessage.error((error as Error).message);
+    ElMessage.error(getErrorMessage(error, '表记录更新失败'));
   } finally {
     editSaving.value = false;
   }

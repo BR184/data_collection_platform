@@ -40,6 +40,7 @@ import { useStatisticBoardDataScope } from '../composables/statistic-board-data-
 import PageSettingsDialog from './PageSettingsDialog.vue';
 import { usePageSavedViews } from '../composables/usePageSavedViews';
 import { downloadBlob } from '../utils/csv-download';
+import { getErrorMessage } from '../utils/user-message';
 import {
   type SortDirection,
 } from './statistic-board-sorting';
@@ -694,7 +695,7 @@ async function exportCustomerIssues() {
     downloadBlob(file.blob, file.filename || '客户问题全量议题数据.xlsx');
     ElMessage.success('议题数据导出成功');
   } catch (error) {
-    ElMessage.error((error as Error).message);
+    ElMessage.error(getErrorMessage(error, '导出失败'));
   } finally {
     customerIssueExportLoading.value = false;
   }
@@ -709,7 +710,7 @@ async function exportSystemTestIssues() {
     downloadBlob(file.blob, file.filename || '议题数据.xlsx');
     ElMessage.success('议题数据导出成功');
   } catch (error) {
-    ElMessage.error((error as Error).message);
+    ElMessage.error(getErrorMessage(error, '导出失败'));
   } finally {
     issueExportLoading.value = false;
   }
@@ -724,7 +725,7 @@ async function exportSystemTestHorizontalComparison() {
     downloadBlob(file.blob, file.filename || '系统测试数据分析表.xlsx');
     ElMessage.success('横向对比导出成功');
   } catch (error) {
-    ElMessage.error((error as Error).message);
+    ElMessage.error(getErrorMessage(error, '导出失败'));
   } finally {
     horizontalComparisonExportLoading.value = false;
   }

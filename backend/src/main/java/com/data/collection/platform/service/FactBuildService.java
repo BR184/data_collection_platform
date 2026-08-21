@@ -48,7 +48,6 @@ public class FactBuildService {
   private final ModuleDictionaryService moduleDictionaryService;
   private final FactBuildTaskService factBuildTaskService;
   private final GitlabSourceSchemaGuard sourceSchemaGuard;
-  private final SqlQueryMonitor sqlQueryMonitor;
   private final GitlabConfigService configService;
   private final IntegrationTestFactBuildService integrationTestFactBuildService;
   private final CustomerIssueMilestoneCatalogReconciliationService milestoneCatalogReconciliationService;
@@ -63,10 +62,11 @@ public class FactBuildService {
       ModuleDictionaryService moduleDictionaryService,
       FactBuildTaskService factBuildTaskService,
       GitlabSourceSchemaGuard sourceSchemaGuard,
-      SqlQueryMonitor sqlQueryMonitor,
       GitlabConfigService configService,
       IntegrationTestFactBuildService integrationTestFactBuildService,
-      CustomerIssueMilestoneCatalogReconciliationService milestoneCatalogReconciliationService) {
+      CustomerIssueMilestoneCatalogReconciliationService milestoneCatalogReconciliationService,
+      GitlabFactSourceSqlProvider factSourceSqlProvider,
+      GitlabFactSourceQueryExecutor factSourceQueryExecutor) {
     this.jdbcTemplate = jdbcTemplate;
     this.issueFactPersistenceService = issueFactPersistenceService;
     this.issueCustomerNameAliasService = issueCustomerNameAliasService;
@@ -74,12 +74,11 @@ public class FactBuildService {
     this.moduleDictionaryService = moduleDictionaryService;
     this.factBuildTaskService = factBuildTaskService;
     this.sourceSchemaGuard = sourceSchemaGuard;
-    this.sqlQueryMonitor = sqlQueryMonitor;
     this.configService = configService;
     this.integrationTestFactBuildService = integrationTestFactBuildService;
     this.milestoneCatalogReconciliationService = milestoneCatalogReconciliationService;
-    this.factSourceSqlProvider = new GitlabFactSourceSqlProvider();
-    this.factSourceQueryExecutor = new GitlabFactSourceQueryExecutor(jdbcTemplate, sqlQueryMonitor);
+    this.factSourceSqlProvider = factSourceSqlProvider;
+    this.factSourceQueryExecutor = factSourceQueryExecutor;
   }
 
   public FactBuildResponse rebuildAllFacts(boolean full) {
@@ -298,27 +297,13 @@ public class FactBuildService {
       ModuleDictionary moduleDictionary,
       Map<String, String> customerNameAliases) {
     boolean useResourceLabelEvents = hasResourceLabelEventSource();
-    try {
-      return queryIssueFacts(
-          sourceInstance,
-          factSourceSqlProvider.issueSourceSql(useResourceLabelEvents),
-          changedSince,
-          calendar,
-          moduleDictionary,
-          customerNameAliases);
-    } catch (DataAccessException error) {
-      if (!isMilestoneQueryFallbackAllowed(error)) {
-        throw error;
-      }
-      log.warn("Issue fact build fallback activated because milestone join is unavailable", error);
-      return queryIssueFacts(
-          sourceInstance,
-          factSourceSqlProvider.issueSourceSqlFallback(useResourceLabelEvents),
-          changedSince,
-          calendar,
-          moduleDictionary,
-          customerNameAliases);
-    }
+    return queryIssueFacts(
+        sourceInstance,
+        factSourceSqlProvider.issueSourceSql(useResourceLabelEvents),
+        changedSince,
+        calendar,
+        moduleDictionary,
+        customerNameAliases);
   }
 
   private List<IssueFact> loadIssueFactsByRootIds(
@@ -330,29 +315,14 @@ public class FactBuildService {
     String predicate = buildRootPredicate("i.id", rootIds);
     List<Object> args = new ArrayList<>(rootIds);
     boolean useResourceLabelEvents = hasResourceLabelEventSource();
-    try {
-      return queryIssueFacts(
-          sourceInstance,
-          factSourceSqlProvider.issueSourceSql(useResourceLabelEvents) + predicate,
-          null,
-          args,
-          calendar,
-          moduleDictionary,
-          customerNameAliases);
-    } catch (DataAccessException error) {
-      if (!isMilestoneQueryFallbackAllowed(error)) {
-        throw error;
-      }
-      log.warn("Targeted issue fact build fallback activated because milestone join is unavailable", error);
-      return queryIssueFacts(
-          sourceInstance,
-          factSourceSqlProvider.issueSourceSqlFallback(useResourceLabelEvents) + predicate,
-          null,
-          args,
-          calendar,
-          moduleDictionary,
-          customerNameAliases);
-    }
+    return queryIssueFacts(
+        sourceInstance,
+        factSourceSqlProvider.issueSourceSql(useResourceLabelEvents) + predicate,
+        null,
+        args,
+        calendar,
+        moduleDictionary,
+        customerNameAliases);
   }
 
   private List<IssueFact> queryIssueFacts(
@@ -383,20 +353,6 @@ public class FactBuildService {
         extraArgs,
         (rs, rowNum) ->
             mapIssueFact(rs, sourceInstance, calendar, moduleDictionary, customerNameAliases));
-  }
-
-  private boolean isMilestoneQueryFallbackAllowed(DataAccessException error) {
-    String message =
-        error.getMostSpecificCause() == null
-            ? error.getMessage()
-            : error.getMostSpecificCause().getMessage();
-    if (!StringUtils.hasText(message)) {
-      return false;
-    }
-    String normalized = message.toLowerCase(Locale.ROOT);
-    return normalized.contains("ods_gitlab_milestones")
-        || normalized.contains("milestone_id")
-        || normalized.contains("milestone");
   }
 
   private boolean hasResourceLabelEventSource() {

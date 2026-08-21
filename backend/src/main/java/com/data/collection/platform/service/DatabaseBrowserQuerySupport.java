@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.common.SqlIdentifierSupport;
 import com.data.collection.platform.common.exception.BizException;
 import java.util.ArrayList;
 import java.util.List;
@@ -63,21 +64,18 @@ final class DatabaseBrowserQuerySupport {
     if (StringUtils.hasText(keyword) && !definition.searchableFields().isEmpty()) {
       whereBuilder.append(" and (");
       whereBuilder.append(definition.searchableFields().stream()
-          .map(field -> "cast(" + quoteIdentifier(field) + " as text) ilike ?")
+          .map(field -> "cast(" + SqlIdentifierSupport.quoteIdentifier(field) + " as text) ilike ?")
           .collect(Collectors.joining(" or ")));
       whereBuilder.append(")");
       String likeValue = "%" + keyword + "%";
       definition.searchableFields().forEach(field -> arguments.add(likeValue));
     }
     String orderClause =
-        " order by " + quoteIdentifier(sortField) + " " + sortOrder + ", " + quoteIdentifier(definition.defaultSortField()) + " desc";
-    String countSql = "select count(*) from " + quoteIdentifier(tableName) + whereBuilder;
-    String rowsSql = "select * from " + quoteIdentifier(tableName) + whereBuilder + orderClause + " limit " + size + " offset "
+        " order by " + SqlIdentifierSupport.quoteIdentifier(sortField) + " " + sortOrder + ", "
+            + SqlIdentifierSupport.quoteIdentifier(definition.defaultSortField()) + " desc";
+    String countSql = "select count(*) from " + SqlIdentifierSupport.quoteIdentifier(tableName) + whereBuilder;
+    String rowsSql = "select * from " + SqlIdentifierSupport.quoteIdentifier(tableName) + whereBuilder + orderClause + " limit " + size + " offset "
         + ((page - 1) * size);
     return new DatabaseBrowserSqlBundle(countSql, rowsSql, arguments);
-  }
-
-  private static String quoteIdentifier(String identifier) {
-    return "\"" + identifier.replace("\"", "\"\"") + "\"";
   }
 }

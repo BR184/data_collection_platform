@@ -21,6 +21,7 @@ import type {
   OptionItemResponse,
 } from '../types/api';
 import { downloadBlob } from '../utils/csv-download';
+import { getErrorMessage } from '../utils/user-message';
 
 const DASHBOARD_KEY = 'quality-rd';
 const router = useRouter();
@@ -131,7 +132,7 @@ function openDetail(action: AnalyticsDashboardDetailAction | null | undefined) {
     ));
   } catch (error) {
     console.warn('看板详情入口不可用', error);
-    ElMessage.warning(error instanceof Error ? error.message : '看板详情入口不可用');
+    ElMessage.warning(getErrorMessage(error, '看板详情入口不可用'));
   }
 }
 

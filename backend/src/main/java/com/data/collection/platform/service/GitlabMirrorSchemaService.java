@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.common.SqlIdentifierSupport;
 import com.data.collection.platform.common.logging.SyncRunLogContext;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabMirrorTableRegistry;
@@ -397,9 +398,9 @@ public class GitlabMirrorSchemaService {
     jdbcTemplate.execute(buildCreateTableSql(mirrorTableName, schema));
     for (SourceTableColumn column : schema.columns()) {
       jdbcTemplate.execute(
-          "alter table " + quoteIdentifier(mirrorTableName)
+          "alter table " + SqlIdentifierSupport.quoteIdentifier(mirrorTableName)
               + " add column if not exists "
-              + quoteIdentifier(column.columnName())
+              + SqlIdentifierSupport.quoteIdentifier(column.columnName())
               + " "
               + column.formattedType());
     }
@@ -421,7 +422,7 @@ public class GitlabMirrorSchemaService {
     definitions.add("mirror_id bigserial primary key");
     for (SourceTableColumn column : schema.columns()) {
       StringBuilder builder = new StringBuilder()
-          .append(quoteIdentifier(column.columnName()))
+          .append(SqlIdentifierSupport.quoteIdentifier(column.columnName()))
           .append(' ')
           .append(column.formattedType());
       if (!column.nullable()) {
@@ -435,17 +436,17 @@ public class GitlabMirrorSchemaService {
     definitions.add("mirror_deleted boolean not null default false");
     definitions.add("mirror_created_at timestamp not null default current_timestamp");
     definitions.add("mirror_updated_at timestamp not null default current_timestamp");
-    return "create table if not exists " + quoteIdentifier(mirrorTableName) + " ("
+    return "create table if not exists " + SqlIdentifierSupport.quoteIdentifier(mirrorTableName) + " ("
         + String.join(", ", definitions) + ")";
   }
 
   private void ensureBaseMetadataColumns(String mirrorTableName) {
-    jdbcTemplate.execute("alter table " + quoteIdentifier(mirrorTableName) + " add column if not exists mirror_task_id bigint");
-    jdbcTemplate.execute("alter table " + quoteIdentifier(mirrorTableName) + " add column if not exists source_updated_at timestamp");
-    jdbcTemplate.execute("alter table " + quoteIdentifier(mirrorTableName) + " add column if not exists mirror_synced_at timestamp not null default current_timestamp");
-    jdbcTemplate.execute("alter table " + quoteIdentifier(mirrorTableName) + " add column if not exists mirror_deleted boolean not null default false");
-    jdbcTemplate.execute("alter table " + quoteIdentifier(mirrorTableName) + " add column if not exists mirror_created_at timestamp not null default current_timestamp");
-    jdbcTemplate.execute("alter table " + quoteIdentifier(mirrorTableName) + " add column if not exists mirror_updated_at timestamp not null default current_timestamp");
+    jdbcTemplate.execute("alter table " + SqlIdentifierSupport.quoteIdentifier(mirrorTableName) + " add column if not exists mirror_task_id bigint");
+    jdbcTemplate.execute("alter table " + SqlIdentifierSupport.quoteIdentifier(mirrorTableName) + " add column if not exists source_updated_at timestamp");
+    jdbcTemplate.execute("alter table " + SqlIdentifierSupport.quoteIdentifier(mirrorTableName) + " add column if not exists mirror_synced_at timestamp not null default current_timestamp");
+    jdbcTemplate.execute("alter table " + SqlIdentifierSupport.quoteIdentifier(mirrorTableName) + " add column if not exists mirror_deleted boolean not null default false");
+    jdbcTemplate.execute("alter table " + SqlIdentifierSupport.quoteIdentifier(mirrorTableName) + " add column if not exists mirror_created_at timestamp not null default current_timestamp");
+    jdbcTemplate.execute("alter table " + SqlIdentifierSupport.quoteIdentifier(mirrorTableName) + " add column if not exists mirror_updated_at timestamp not null default current_timestamp");
   }
 
   private void validateColumnTypes(String mirrorTableName, SourceTableSchema schema) {
@@ -483,9 +484,10 @@ public class GitlabMirrorSchemaService {
       return;
     }
     String indexName = abbreviateIdentifier("uq_" + mirrorTableName + "_pk");
-    String columns = primaryKeys.stream().map(this::quoteIdentifier).collect(Collectors.joining(", "));
+    String columns = primaryKeys.stream().map(SqlIdentifierSupport::quoteIdentifier).collect(Collectors.joining(", "));
     jdbcTemplate.execute(
-        "create unique index if not exists " + quoteIdentifier(indexName) + " on " + quoteIdentifier(mirrorTableName) + " (" + columns + ")");
+        "create unique index if not exists " + SqlIdentifierSupport.quoteIdentifier(indexName) + " on "
+            + SqlIdentifierSupport.quoteIdentifier(mirrorTableName) + " (" + columns + ")");
   }
 
   private String buildSchemaFingerprint(SourceTableSchema schema) {
@@ -510,10 +512,6 @@ public class GitlabMirrorSchemaService {
     } catch (Exception e) {
       throw new IllegalStateException("Failed to hash schema fingerprint", e);
     }
-  }
-
-  private String quoteIdentifier(String identifier) {
-    return "\"" + identifier.replace("\"", "\"\"") + "\"";
   }
 
   private String abbreviateIdentifier(String identifier) {

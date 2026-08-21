@@ -102,50 +102,21 @@ class GitlabSourceSchemaGuardTest {
 
   @Test
   void shouldPassWhenIssueFactSourceTablesContainRequiredColumns() {
-    stubColumns(
-        Map.of(
-            "ods_gitlab_issues",
-            List.of(
-                "id",
-                "iid",
-                "project_id",
-                "title",
-                "description",
-                "author_id",
-                "created_at",
-                "updated_at",
-                "closed_at",
-                "state_id",
-                "mirror_deleted"),
-            "ods_gitlab_projects",
-            List.of("id", "name", "mirror_deleted"),
-             "ods_gitlab_users",
-             List.of("id", "name", "mirror_deleted"),
-             "ods_gitlab_issue_assignees",
-             List.of("issue_id", "user_id", "mirror_deleted"),
-             "ods_gitlab_label_links",
-             List.of(
-                 "label_id",
-                 "target_id",
-                 "target_type",
-                 "mirror_deleted",
-                 "created_at",
-                 "updated_at"),
-             "ods_gitlab_labels",
-             List.of("id", "title", "color", "mirror_deleted"),
-             "ods_gitlab_notes",
-             List.of(
-                 "id",
-                 "noteable_id",
-                 "noteable_type",
-                 "author_id",
-                 "note",
-                 "created_at",
-                 "updated_at",
-                 "mirror_deleted")));
+    stubColumns(completeIssueFactSourceColumns());
 
     assertThatCode(() -> new GitlabSourceSchemaGuard(jdbcTemplate).verifyIssueFactSource())
         .doesNotThrowAnyException();
+  }
+
+  @Test
+  void shouldRequireMilestoneSourceTableBeforeFactBuildRunsLargeSql() {
+    Map<String, List<String>> columns = new HashMap<>(completeIssueFactSourceColumns());
+    columns.remove("ods_gitlab_milestones");
+    stubColumns(columns);
+
+    assertThatThrownBy(() -> new GitlabSourceSchemaGuard(jdbcTemplate).verifyIssueFactSource())
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("ods_gitlab_milestones");
   }
 
   @Test
@@ -162,7 +133,11 @@ class GitlabSourceSchemaGuardTest {
             "updated_at",
             "closed_at",
             "state_id",
+            "milestone_id",
             "mirror_deleted"));
+    columns.put(
+        "ods_gitlab_milestones",
+        List.of("id", "title", "project_id", "mirror_deleted"));
     columns.put("ods_gitlab_projects", List.of("id", "name", "mirror_deleted"));
     columns.put("ods_gitlab_users", List.of("id", "name", "mirror_deleted"));
     columns.put("ods_gitlab_label_links", List.of("label_id", "target_id", "target_type", "mirror_deleted"));
@@ -196,6 +171,7 @@ class GitlabSourceSchemaGuardTest {
             "source_updated_at",
             "closed_at",
             "state_id",
+            "milestone_id",
             "mirror_deleted",
             "name",
             "path",
@@ -228,5 +204,49 @@ class GitlabSourceSchemaGuardTest {
   private void stubColumns(Map<String, List<String>> columnsByTable) {
     when(jdbcTemplate.queryForList(anyString(), eq(String.class), any()))
         .thenAnswer(invocation -> columnsByTable.getOrDefault(invocation.getArgument(2), List.of()));
+  }
+
+  private Map<String, List<String>> completeIssueFactSourceColumns() {
+    return Map.ofEntries(
+        Map.entry(
+            "ods_gitlab_issues",
+            List.of(
+                "id",
+                "iid",
+                "project_id",
+                "title",
+                "description",
+                "author_id",
+                "created_at",
+                "updated_at",
+                "closed_at",
+                "state_id",
+                "milestone_id",
+                "mirror_deleted")),
+        Map.entry("ods_gitlab_milestones", List.of("id", "title", "project_id", "mirror_deleted")),
+        Map.entry("ods_gitlab_projects", List.of("id", "name", "mirror_deleted")),
+        Map.entry("ods_gitlab_users", List.of("id", "name", "mirror_deleted")),
+        Map.entry("ods_gitlab_issue_assignees", List.of("issue_id", "user_id", "mirror_deleted")),
+        Map.entry(
+            "ods_gitlab_label_links",
+            List.of(
+                "label_id",
+                "target_id",
+                "target_type",
+                "mirror_deleted",
+                "created_at",
+                "updated_at")),
+        Map.entry("ods_gitlab_labels", List.of("id", "title", "color", "mirror_deleted")),
+        Map.entry(
+            "ods_gitlab_notes",
+            List.of(
+                "id",
+                "noteable_id",
+                "noteable_type",
+                "author_id",
+                "note",
+                "created_at",
+                "updated_at",
+                "mirror_deleted")));
   }
 }

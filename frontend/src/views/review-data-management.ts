@@ -10,6 +10,7 @@ import type {
   StatisticFilterField,
 } from '../types/api';
 import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableTagValue } from '../types/record-table';
+import { formatLocalDate as formatDate, formatLocalDateTime as formatDateTime } from '../utils/beijing-time';
 
 export interface ReviewDataSummaryCard {
   key: string;
@@ -606,14 +607,6 @@ function formatNullableNumber(value: number | null | undefined, fractionDigits =
 
 function formatFixed(value: number, fractionDigits: number) {
   return Number.isFinite(value) ? value.toFixed(fractionDigits) : '0';
-}
-
-function formatDateTime(value?: string | null) {
-  return value ? value.replace('T', ' ').slice(0, 19) : '-';
-}
-
-function formatDate(value?: string | null) {
-  return value ? value.slice(0, 10) : '-';
 }
 
 function escapeCsvCell(value: unknown) {

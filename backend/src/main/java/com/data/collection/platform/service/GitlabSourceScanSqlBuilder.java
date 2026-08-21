@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.common.SqlIdentifierSupport;
 import com.data.collection.platform.entity.SourceCursorStrategy;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
@@ -73,7 +74,7 @@ class GitlabSourceScanSqlBuilder {
         """
         .formatted(
             quoteQualifiedPublicTable(option.tableName()),
-            quoteIdentifier(primaryKey),
+            SqlIdentifierSupport.quoteIdentifier(primaryKey),
             upperValue,
             cursorPredicate,
             orderByPrimaryKeys(primaryKeys),
@@ -87,7 +88,7 @@ class GitlabSourceScanSqlBuilder {
     }
     String predicate = lookupScope.entrySet().stream()
         .sorted(Map.Entry.comparingByKey())
-        .map(entry -> quoteIdentifier(entry.getKey()) + " = " + toSqlLiteral(entry.getValue()))
+        .map(entry -> SqlIdentifierSupport.quoteIdentifier(entry.getKey()) + " = " + toSqlLiteral(entry.getValue()))
         .collect(java.util.stream.Collectors.joining(" and "));
     return "select * from %s where %s".formatted(
         quoteQualifiedPublicTable(option.tableName()), predicate);
@@ -118,7 +119,7 @@ class GitlabSourceScanSqlBuilder {
     if (keyword != null && !keyword.isBlank() && !searchableFields.isEmpty()) {
       String likeValue = "'%" + keyword.trim().replace("'", "''") + "%'";
       whereClause = searchableFields.stream()
-          .map(field -> "cast(" + quoteIdentifier(field) + " as text) ilike " + likeValue)
+          .map(field -> "cast(" + SqlIdentifierSupport.quoteIdentifier(field) + " as text) ilike " + likeValue)
           .collect(java.util.stream.Collectors.joining(" or ", " where (", ")"));
     }
     return """
@@ -130,7 +131,7 @@ class GitlabSourceScanSqlBuilder {
         """.formatted(
         quoteQualifiedPublicTable(option.tableName()),
         whereClause,
-        quoteIdentifier(safeSortField),
+        SqlIdentifierSupport.quoteIdentifier(safeSortField),
         safeSortOrder,
         safeSize,
         (safePage - 1) * safeSize).strip();
@@ -139,7 +140,7 @@ class GitlabSourceScanSqlBuilder {
   String buildTimeWindowScanSql(TableWhitelistOption option, LocalDateTime since) {
     return "select * from %s where %s >= timestamp '%s'".formatted(
         quoteQualifiedPublicTable(option.tableName()),
-        quoteIdentifier(option.updatedAtColumn()),
+        SqlIdentifierSupport.quoteIdentifier(option.updatedAtColumn()),
         formatTimestampLiteral(since));
   }
 
@@ -158,7 +159,7 @@ class GitlabSourceScanSqlBuilder {
       throw new IllegalArgumentException("当前源表没有可执行的增量游标策略");
     }
     List<String> primaryKeys = primaryKeyColumns(option);
-    String updatedAtColumn = quoteIdentifier(option.updatedAtColumn());
+    String updatedAtColumn = SqlIdentifierSupport.quoteIdentifier(option.updatedAtColumn());
     StringBuilder sql = new StringBuilder("select * from ")
         .append(quoteQualifiedPublicTable(option.tableName()))
         .append(" where ")
@@ -183,10 +184,10 @@ class GitlabSourceScanSqlBuilder {
   }
 
   String buildTableProbeSql(TableWhitelistOption option) {
-    String primaryKeyColumn = quoteIdentifier(firstPrimaryKey(option));
+    String primaryKeyColumn = SqlIdentifierSupport.quoteIdentifier(firstPrimaryKey(option));
     String maxUpdatedAtExpression = option.updatedAtColumn() == null || option.updatedAtColumn().isBlank()
         ? "null::timestamp"
-        : "max(" + quoteIdentifier(option.updatedAtColumn()) + ")";
+        : "max(" + SqlIdentifierSupport.quoteIdentifier(option.updatedAtColumn()) + ")";
     return """
         select count(*) as row_count,
                %s as max_updated_at,
@@ -205,7 +206,7 @@ class GitlabSourceScanSqlBuilder {
         select max(%s) as max_updated_at
           from %s
         """.formatted(
-        quoteIdentifier(option.updatedAtColumn()),
+        SqlIdentifierSupport.quoteIdentifier(option.updatedAtColumn()),
         quoteQualifiedPublicTable(option.tableName())).strip();
   }
 
@@ -216,16 +217,12 @@ class GitlabSourceScanSqlBuilder {
     }
     return "select max(%s)::text as max_pk from %s"
         .formatted(
-            quoteIdentifier(primaryKeys.getFirst()),
+            SqlIdentifierSupport.quoteIdentifier(primaryKeys.getFirst()),
             quoteQualifiedPublicTable(option.tableName()));
   }
 
-  private String quoteIdentifier(String identifier) {
-    return "\"" + identifier.replace("\"", "\"\"") + "\"";
-  }
-
   private String quoteQualifiedPublicTable(String tableName) {
-    return quoteIdentifier("public") + "." + quoteIdentifier(tableName);
+    return SqlIdentifierSupport.quoteIdentifier("public") + "." + SqlIdentifierSupport.quoteIdentifier(tableName);
   }
 
   private void appendTimestampCursor(
@@ -243,8 +240,8 @@ class GitlabSourceScanSqlBuilder {
     }
     List<String> cursorValues = decodeCursor(primaryKeys, cursorPk);
     List<String> leftColumns = new java.util.ArrayList<>();
-    leftColumns.add(quoteIdentifier(updatedAtColumn));
-    leftColumns.addAll(primaryKeys.stream().map(this::quoteIdentifier).toList());
+    leftColumns.add(SqlIdentifierSupport.quoteIdentifier(updatedAtColumn));
+    leftColumns.addAll(primaryKeys.stream().map(SqlIdentifierSupport::quoteIdentifier).toList());
     List<String> rightValues = new java.util.ArrayList<>();
     rightValues.add(timestampLiteral(schema, updatedAtColumn, cursorUpdatedAt));
     rightValues.addAll(typedPrimaryKeyLiterals(schema, primaryKeys, cursorValues));
@@ -266,7 +263,8 @@ class GitlabSourceScanSqlBuilder {
     List<String> cursorValues = decodeCursor(primaryKeys, cursorPk);
     return prefix
         + "("
-        + primaryKeys.stream().map(this::quoteIdentifier).collect(java.util.stream.Collectors.joining(", "))
+        + primaryKeys.stream().map(SqlIdentifierSupport::quoteIdentifier)
+            .collect(java.util.stream.Collectors.joining(", "))
         + ") > ("
         + String.join(", ", typedPrimaryKeyLiterals(schema, primaryKeys, cursorValues))
         + ")";
@@ -308,7 +306,7 @@ class GitlabSourceScanSqlBuilder {
 
   private String orderByPrimaryKeys(List<String> primaryKeys) {
     return primaryKeys.stream()
-        .map(primaryKey -> quoteIdentifier(primaryKey) + " asc")
+        .map(primaryKey -> SqlIdentifierSupport.quoteIdentifier(primaryKey) + " asc")
         .collect(java.util.stream.Collectors.joining(", "));
   }
 

@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock('./bi-echarts-runtime', () => ({ init: mocks.init, registerTheme: vi.fn() }));
-vi.mock('../data/bi-dashboard-api', () => ({
+vi.mock('../../../api-client/bi-dashboard-api', () => ({
   biDashboardApi: { authorizeDownload: mocks.authorizeDownload },
 }));
 

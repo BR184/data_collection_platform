@@ -30,8 +30,6 @@ class BiSpringBoundaryContractTest {
         BiPlatformProductVersionAdapter.class,
         BiPlatformReviewSourceAdapter.class,
         BiPlatformCodingSourceAdapter.class,
-        BiCodeReviewCompatibilitySyncService.class,
-        BiCodeReviewCompatibilitySnapshotRepository.class,
         BiCodingCommitFactRepository.class,
         BiPlatformSystemTestSourceAdapter.class,
         BiCatTestSourceAdapter.class);
@@ -39,9 +37,6 @@ class BiSpringBoundaryContractTest {
     internalTypes.forEach(type -> assertThat(hasSpringStereotype(type)).as(type.getName()).isFalse());
     assertThat(BiDashboardRuntimeFactory.class.isAnnotationPresent(Component.class)).isTrue();
     assertThat(BiDashboardRuntimeManager.class.isAnnotationPresent(Component.class)).isTrue();
-    assertThat(
-            BiCodeReviewCompatibilitySyncScheduler.class.isAnnotationPresent(Component.class))
-        .isTrue();
   }
 
   private boolean hasSpringStereotype(Class<?> type) {

@@ -17,6 +17,7 @@ import type {
   CatMirrorSettings,
 } from '../types/api';
 import { formatBeijingDateTime } from '../utils/beijing-time';
+import { getErrorMessage } from '../utils/user-message';
 
 const emit = defineEmits<{
   dirtyChange: [dirty: boolean];
@@ -81,7 +82,7 @@ async function loadSettings(initial = false) {
     );
     savedFingerprint.value = fingerprint();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '加载 CAT 镜像设置失败');
+    ElMessage.error(getErrorMessage(error, '加载 CAT 镜像设置失败'));
   } finally {
     loading.value = false;
     refreshing.value = false;
@@ -96,7 +97,7 @@ async function saveConfig() {
     savedFingerprint.value = fingerprint();
     ElMessage.success('CAT 镜像配置已保存');
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '保存 CAT 镜像配置失败');
+    ElMessage.error(getErrorMessage(error, '保存 CAT 镜像配置失败'));
   } finally {
     savingConfig.value = false;
   }
@@ -129,7 +130,7 @@ async function saveMappings() {
     savedFingerprint.value = fingerprint();
     ElMessage.success('CAT 产品版本映射已保存');
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '保存 CAT 产品版本映射失败');
+    ElMessage.error(getErrorMessage(error, '保存 CAT 产品版本映射失败'));
   } finally {
     savingMappings.value = false;
   }
@@ -141,7 +142,7 @@ async function testConnection() {
     const result = await api.testCatMirrorConnection();
     ElMessage.success(result.message);
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : 'CAT 连接测试失败');
+    ElMessage.error(getErrorMessage(error, 'CAT 连接测试失败'));
   } finally {
     testing.value = false;
   }
@@ -161,7 +162,7 @@ async function startSync(compensation: boolean) {
     await loadSettings(false);
     startPolling();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '提交 CAT 同步失败');
+    ElMessage.error(getErrorMessage(error, '提交 CAT 同步失败'));
   } finally {
     submitting.value = false;
   }

@@ -2,6 +2,7 @@ import { ref, type Ref } from 'vue';
 import { ElMessageBox } from '../element-plus-services';
 import type { GitlabSyncConfig, SyncSubmissionResponse } from '../types/api';
 import type { MirrorStatusLoadOptions } from './useMirrorStatusController';
+import { getErrorMessage } from '../utils/user-message';
 
 export interface MirrorSyncActionsControllerDependencies {
   form: Ref<GitlabSyncConfig>;
@@ -70,7 +71,7 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
       await deps.loadStatus(false, false, { applyRemoteConfig: true });
       deps.loadSystemHookRegistration();
     } catch (error) {
-      deps.notifyError((error as Error).message);
+      deps.notifyError(getErrorMessage(error, '镜像配置保存失败'));
       throw error;
     } finally {
       saving.value = false;
@@ -88,7 +89,7 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
       deps.notifySuccess('连接测试成功');
       await deps.loadStatus(false, false);
     } catch (error) {
-      deps.notifyError((error as Error).message);
+      deps.notifyError(getErrorMessage(error, '连接测试失败'));
     } finally {
       testing.value = false;
     }
@@ -111,7 +112,7 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
       showSubmissionFeedback(result);
       await deps.loadStatus(false, false);
     } catch (error) {
-      deps.notifyError((error as Error).message);
+      deps.notifyError(getErrorMessage(error, '全量同步提交失败'));
     } finally {
       syncing.value = false;
     }
@@ -127,7 +128,7 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
       showSubmissionFeedback(result);
       await deps.loadStatus(false, false);
     } catch (error) {
-      deps.notifyError((error as Error).message);
+      deps.notifyError(getErrorMessage(error, '增量同步提交失败'));
     } finally {
       syncing.value = false;
     }
@@ -150,7 +151,7 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
       showSubmissionFeedback(result);
       await deps.loadStatus(false, false);
     } catch (error) {
-      deps.notifyError((error as Error).message);
+      deps.notifyError(getErrorMessage(error, '全量补偿对账提交失败'));
     } finally {
       syncing.value = false;
     }
@@ -180,7 +181,7 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
       }
       await deps.loadStatus(false, false);
     } catch (error) {
-      deps.notifyError((error as Error).message);
+      deps.notifyError(getErrorMessage(error, '中止同步任务失败'));
     } finally {
       cancelling.value = false;
     }

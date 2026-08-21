@@ -1,5 +1,6 @@
 import { computed, ref, shallowRef, watch, type Ref } from 'vue';
 import type { GitlabSyncConfig, TableWhitelistOption } from '../types/api';
+import { getErrorMessage } from '../utils/user-message';
 
 export interface MirrorWhitelistOptionsControllerDependencies {
   form: Ref<GitlabSyncConfig>;
@@ -34,7 +35,7 @@ export function useMirrorWhitelistOptionsController(
       whitelistOptions.value = await deps.loadWhitelistOptions();
       whitelistOptionsLoaded.value = true;
     } catch (error) {
-      deps.notifyError((error as Error).message);
+      deps.notifyError(getErrorMessage(error, '白名单选项加载失败'));
     } finally {
       whitelistOptionsLoading.value = false;
     }

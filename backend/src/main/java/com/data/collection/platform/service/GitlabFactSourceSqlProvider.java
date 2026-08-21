@@ -1,5 +1,8 @@
 package com.data.collection.platform.service;
 
+import org.springframework.stereotype.Component;
+
+@Component
 class GitlabFactSourceSqlProvider {
   private static final int RESOURCE_LABEL_EVENT_ACTION_ADD = 1;
 
@@ -113,6 +116,7 @@ class GitlabFactSourceSqlProvider {
        and coalesce(p.mirror_deleted, false) = false
       left join ods_gitlab_milestones milestone
         on milestone.id = i.milestone_id
+       and milestone.project_id = i.project_id
        and coalesce(milestone.mirror_deleted, false) = false
       left join ods_gitlab_users author
         on author.id = i.author_id
@@ -132,105 +136,6 @@ class GitlabFactSourceSqlProvider {
   private static final String ISSUE_SOURCE_SQL_RESOURCE_LABEL_EVENTS =
       injectFixLabelEvents(
           ISSUE_SOURCE_SQL_TEMPLATE, FIX_LABEL_EVENTS_FROM_RESOURCE_LABEL_EVENTS);
-
-  private static final String ISSUE_SOURCE_SQL_FALLBACK_TEMPLATE = """
-      with distinct_issue_labels as (
-        select distinct
-               ll.target_id as issue_id,
-               nullif(btrim(l.title), '') as title
-          from ods_gitlab_label_links ll
-          join ods_gitlab_labels l
-            on l.id = ll.label_id
-           and coalesce(l.mirror_deleted, false) = false
-         where coalesce(ll.mirror_deleted, false) = false
-           and ll.target_type = 'Issue'
-           and l.title is not null
-           and l.title <> ''
-      ),
-      issue_labels as (
-        select issue_id,
-               array_agg(title order by lower(title)) as label_titles
-          from distinct_issue_labels
-         group by issue_id
-      ),
-      issue_assignee_names as (
-        select ia.issue_id,
-               string_agg(distinct u.name, ', ' order by u.name) as assignee_names
-          from ods_gitlab_issue_assignees ia
-          join ods_gitlab_users u
-            on u.id = ia.user_id
-           and coalesce(u.mirror_deleted, false) = false
-         where coalesce(ia.mirror_deleted, false) = false
-         group by ia.issue_id
-      ),
-      issue_notes as (
-        select n.noteable_id as issue_id,
-               string_agg(coalesce(n.note, ''), E'\\n---\\n' order by n.created_at desc nulls last, n.id desc) as notes_text,
-               min(n.created_at) filter (where coalesce(n.note, '') like '%# 问题调研情况说明%') as research_template_time,
-               (
-                 array_remove(
-                   array_agg(
-                     nullif(btrim(author.name), '')
-                     order by n.created_at desc nulls last, n.id desc
-                   ) filter (
-                     where regexp_replace(split_part(coalesce(n.note, ''), E'\\n', 1), E'\\r$', '') = '### 1、修复状态'
-                   ),
-                   null
-                 )
-               )[1] as fix_user
-          from ods_gitlab_notes n
-          left join ods_gitlab_users author
-            on author.id = n.author_id
-           and coalesce(author.mirror_deleted, false) = false
-         where coalesce(n.mirror_deleted, false) = false
-           and n.noteable_type = 'Issue'
-         group by n.noteable_id
-      ),
-      __FIX_LABEL_EVENTS__
-      select
-        i.id as issue_id,
-        i.iid as issue_iid,
-        i.project_id,
-        p.name as project_name,
-        '' as milestone_title,
-        i.title,
-        coalesce(i.description, '') as description,
-        coalesce(author.name, '') as author_name,
-        coalesce(assignees.assignee_names, '') as handler_name,
-        coalesce(assignees.assignee_names, '') as assignee_names,
-        i.created_at,
-        i.updated_at,
-        coalesce(i.updated_at, i.created_at) as ods_updated_at,
-        i.closed_at,
-        i.state_id,
-        labels.label_titles,
-        coalesce(notes.notes_text, '') as notes_text,
-        coalesce(notes.fix_user, '') as fix_user,
-        notes.research_template_time,
-        fix_events.fixed_label_time
-      from ods_gitlab_issues i
-      left join ods_gitlab_projects p
-        on p.id = i.project_id
-       and coalesce(p.mirror_deleted, false) = false
-      left join ods_gitlab_users author
-        on author.id = i.author_id
-       and coalesce(author.mirror_deleted, false) = false
-      left join issue_labels labels
-        on labels.issue_id = i.id
-      left join issue_assignee_names assignees
-        on assignees.issue_id = i.id
-      left join issue_notes notes
-        on notes.issue_id = i.id
-      left join fix_label_events fix_events
-        on fix_events.issue_id = i.id
-      where coalesce(i.mirror_deleted, false) = false
-      """;
-  private static final String ISSUE_SOURCE_SQL_FALLBACK =
-      injectFixLabelEvents(
-          ISSUE_SOURCE_SQL_FALLBACK_TEMPLATE, FIX_LABEL_EVENTS_FROM_LABEL_LINKS);
-  private static final String ISSUE_SOURCE_SQL_FALLBACK_RESOURCE_LABEL_EVENTS =
-      injectFixLabelEvents(
-          ISSUE_SOURCE_SQL_FALLBACK_TEMPLATE, FIX_LABEL_EVENTS_FROM_RESOURCE_LABEL_EVENTS);
 
   private static final String MERGE_REQUEST_SOURCE_SQL = """
       with reviewer_names as (
@@ -536,14 +441,6 @@ class GitlabFactSourceSqlProvider {
 
   String issueSourceSql(boolean useResourceLabelEvents) {
     return useResourceLabelEvents ? ISSUE_SOURCE_SQL_RESOURCE_LABEL_EVENTS : ISSUE_SOURCE_SQL;
-  }
-
-  String issueSourceSqlFallback() {
-    return ISSUE_SOURCE_SQL_FALLBACK;
-  }
-
-  String issueSourceSqlFallback(boolean useResourceLabelEvents) {
-    return useResourceLabelEvents ? ISSUE_SOURCE_SQL_FALLBACK_RESOURCE_LABEL_EVENTS : ISSUE_SOURCE_SQL_FALLBACK;
   }
 
   String mergeRequestSourceSql(String sourceInstance) {

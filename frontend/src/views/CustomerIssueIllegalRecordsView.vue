@@ -10,8 +10,9 @@ import type {
   CustomerIssueIllegalRecordRowResponse,
   StatisticFilterField,
 } from '../types/api';
-import type { RecordTableColumn, RecordTableFilterField } from '../types/record-table';
+import type { RecordTableColumn } from '../types/record-table';
 import { buildCustomerIssueIllegalConditionFields } from './customer-issues/customer-issue-condition-fields';
+import { buildIssueIllegalRecordPrimaryFilters } from './issue-illegal-records/issue-illegal-record-primary-filters';
 import type {
   IssueIllegalRecordFilterOptions,
   IssueIllegalRecordQueryParams,
@@ -117,88 +118,20 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
   return buildCustomerIssueIllegalConditionFields(options as CustomerIssueIllegalRecordFilterOptionsResponse);
 }
 
-function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions): RecordTableFilterField[] {
-  return [
-    {
-      key: 'milestoneTitle',
-      label: '里程碑',
-      type: 'select',
-      defaultStrategy: 'first-available',
-      clearable: false,
-      width: 240,
-      options: options.milestoneTitles ?? [],
-    },
-    {
-      key: 'moduleName',
-      label: '模块名',
-      type: 'select',
-      placeholder: '全部模块',
-      width: 168,
-      options: options.moduleNames ?? [],
-    },
-    {
-      key: 'illegalReason',
-      label: '非法类型',
-      type: 'select',
-      placeholder: '全部非法类型',
-      width: 184,
-      options: options.illegalReasons ?? [],
-    },
-    {
-      key: 'issueIid',
-      label: '议题编号',
-      type: 'input',
-      placeholder: '输入议题编号',
-      width: 136,
-    },
-    {
-      key: 'title',
-      label: '议题标题',
-      type: 'input',
-      placeholder: '输入标题关键字',
-      width: 184,
-    },
-    {
-      key: 'assigneeName',
-      label: '议题处理人',
-      type: 'select',
-      placeholder: '全部处理人',
-      width: 156,
-      options: options.assigneeNames ?? [],
-    },
-    {
-      key: 'severityLevel',
-      label: '严重程度',
-      type: 'select',
-      placeholder: '全部严重程度',
-      width: 156,
-      options: options.severityLevels ?? [],
-    },
-    {
-      key: 'priorityLevel',
-      label: '缺陷优先级',
-      type: 'select',
-      placeholder: '全部优先级',
-      width: 156,
-      options: options.priorityLevels ?? [],
-    },
-    {
-      key: 'issueState',
-      label: '议题状态',
-      type: 'select',
-      placeholder: '全部状态',
-      width: 144,
-      options: options.issueStates ?? [],
-    },
-    {
-      key: 'bugStatus',
-      label: '测试状态',
-      type: 'select',
-      placeholder: '全部测试状态',
-      width: 220,
-      options: options.bugStatuses ?? [],
-    },
-  ];
+function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions) {
+  return buildIssueIllegalRecordPrimaryFilters({
+    scopeKey: 'milestoneTitle',
+    scopeLabel: '里程碑',
+    scopeOptions: options.milestoneTitles ?? [],
+    moduleOptions: options.moduleNames,
+    illegalReasonOptions: options.illegalReasons,
+    assigneeOptions: options.assigneeNames ?? [],
+    severityOptions: options.severityLevels,
+    priorityOptions: options.priorityLevels ?? [],
+    issueStateOptions: options.issueStates,
+    bugStatusOptions: options.bugStatuses,
+    bugStatusWidth: 220,
+  });
 }
 
 </script>

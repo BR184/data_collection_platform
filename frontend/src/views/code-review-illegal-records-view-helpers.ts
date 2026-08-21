@@ -6,6 +6,7 @@ import type {
 } from '../types/api';
 import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableFilterField } from '../types/record-table';
 import { buildGitlabResourceLinkCell } from '../utils/issue-record-links';
+import { formatLocalDate, formatLocalDateTime } from '../utils/beijing-time';
 
 const DEFAULT_SELECT_WIDTH = 180;
 const DEFAULT_TEXT_WIDTH = 180;
@@ -279,11 +280,11 @@ export function mapCodeReviewIllegalTableRows(
 }
 
 export function formatCodeReviewDateTime(value?: string | null) {
-  return value ? value.replace('T', ' ').slice(0, 19) : '-';
+  return formatLocalDateTime(value);
 }
 
 export function formatCodeReviewDate(value?: string | null) {
-  return value ? value.replace('T', ' ').slice(0, 10) : '-';
+  return formatLocalDate(value);
 }
 
 export function formatCodeReviewMetric(value?: number | null, suffix = '') {

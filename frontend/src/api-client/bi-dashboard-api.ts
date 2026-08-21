@@ -1,4 +1,4 @@
-import { request } from '../../../api-client/request';
+import { request } from './request';
 import type {
   BiChartTemplateId,
   BiCodingPageData,
@@ -9,13 +9,14 @@ import type {
   BiReviewPageData,
   BiSystemTestPageData,
   BiTestQualityPageData,
-} from './types';
+} from '../features/bi-dashboard/data/types';
 
 export interface BiCodingQuery {
   granularity: 'day' | 'week';
   source: 'all' | 'cc' | 'dgm';
   repositoryId?: string;
 }
+
 function pageQuery(productVersionId: number): URLSearchParams {
   return new URLSearchParams({ productVersionId: String(productVersionId) });
 }

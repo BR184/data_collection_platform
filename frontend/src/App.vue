@@ -21,6 +21,7 @@ import { shellDataScopeState } from './composables/shell-data-scope';
 import { authState, loadCurrentUser, login, logout, setGuestUser } from './composables/auth-state';
 import { routerState } from './router-state';
 import { AUTH_REQUIRED_EVENT } from './api-client/request';
+import { getErrorMessage } from './utils/user-message';
 import GlobalProgressIndicator from './components/GlobalProgressIndicator.vue';
 
 const DataScopeBar = defineAsyncComponent(() => import('./components/data-scope/DataScopeBar.vue'));
@@ -203,7 +204,7 @@ async function handleLogin() {
     ElMessage.success('登录成功');
     ensureRouteAccess();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '登录失败');
+    ElMessage.error(getErrorMessage(error, '登录失败'));
   }
 }
 
@@ -212,7 +213,7 @@ async function handleLogout() {
     await logout();
     ElMessage.success('已退出登录');
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '退出登录失败');
+    ElMessage.error(getErrorMessage(error, '退出登录失败'));
   } finally {
     loginDialogVisible.value = true;
   }

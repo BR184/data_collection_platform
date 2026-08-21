@@ -209,5 +209,6 @@ AI 应在任务收尾和用户纠正工作方式时，检查用户的直接表�
 - 本仓库的实际测试位置是 `backend/src/test/` 和 `frontend/src/**/*.test.ts`，不是模板中的统一 `tests/` 目录；新增测试应遵循各模块现有布局和命名。
 - 项目维护文本、业务规则和代码注释使用中文；代码标识符使用英文。公共 Java 方法按现有 Javadoc 约定补充契约，TypeScript 公共 API 使用 JSDoc 或类型定义表达契约。
 - 当前开发端口为后端 `18080`、前端 `18181`；本地 PostgreSQL 默认连接 `127.0.0.1:15432/qaflex`。内网 Ubuntu 24.04 离线发布规则以 `deploy/intranet-offline-packaging-standard.md` 为准。
+- Windows 开发与验证脚本统一使用已安装的 PowerShell 7 `pwsh.exe` 启动；不得使用系统 PowerShell 5.1 的 `powershell.exe` 启动项目脚本或子进程。
 - 老平台基准源码为 `D:/projects/spidergitdata-dev`，页面业务规则总表为 `docs/platform-page-business-rules.md`；涉及 LDAP、兼容模式、事实层、统计快照或部署时，必须同时遵守对应 ADR、当前架构文档和进度文档。
 - BI 看板的唯一文档入口为 `docs/bi-dashboard/README.md`。`D:/projects/bi_dashboard` 已暂停更新，除非用户后续明确恢复，否则不得对该目录执行任何写入；现有内容只可作为只读迁移证据。

@@ -50,6 +50,34 @@ type SystemTestIllegalRecordQueryParams = SystemTestIssueSearchQueryParams & {
   priorityLevel?: string;
 };
 
+type IllegalRecordQueryParams = {
+  projectId?: string | number | null;
+  keyword?: string;
+  issueIid?: string;
+  title?: string;
+  projectName?: string;
+  moduleName?: string;
+  testingPhase?: string;
+  illegalReason?: string;
+  authorName?: string;
+  assigneeName?: string;
+  severityLevel?: string;
+  priorityLevel?: string;
+  issueState?: string;
+  bugStatus?: string;
+  category?: string;
+  milestoneTitle?: string;
+  createdAtStart?: string;
+  createdAtEnd?: string;
+  updatedAtStart?: string;
+  updatedAtEnd?: string;
+  filterGroup?: StatisticFilterGroup | null;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+};
+
 type SystemTestIssueMultiBoardQueryParams = {
   projectId?: string | number | null;
   testingPhase?: string | null;
@@ -86,61 +114,17 @@ function buildSystemTestIssueSearchQuery(params: SystemTestIssueSearchQueryParam
 }
 
 function buildSystemTestIllegalRecordQuery(params: SystemTestIllegalRecordQueryParams, includePagination = true) {
-  return new URLSearchParams({
-    ...(includePagination ? { page: String(params.page ?? 1), size: String(params.size ?? 20) } : {}),
-    ...(params.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
-    ...(params.keyword ? { keyword: params.keyword } : {}),
-    ...(params.issueIid ? { issueIid: params.issueIid } : {}),
-    ...(params.title ? { title: params.title } : {}),
-    ...(params.projectName ? { projectName: params.projectName } : {}),
-    ...(params.moduleName ? { moduleName: params.moduleName } : {}),
-    ...(params.testingPhase ? { testingPhase: params.testingPhase } : {}),
-    ...(params.illegalReason ? { illegalReason: params.illegalReason } : {}),
-    ...(params.authorName ? { authorName: params.authorName } : {}),
-    ...(params.assigneeName ? { assigneeName: params.assigneeName } : {}),
-    ...(params.issueState ? { issueState: params.issueState } : {}),
-    ...(params.severityLevel ? { severityLevel: params.severityLevel } : {}),
-    ...(params.priorityLevel ? { priorityLevel: params.priorityLevel } : {}),
-    ...(params.bugStatus ? { bugStatus: params.bugStatus } : {}),
-    ...(params.category ? { category: params.category } : {}),
-    ...(params.milestoneTitle ? { milestoneTitle: params.milestoneTitle } : {}),
-    ...(params.createdAtStart ? { createdAtStart: params.createdAtStart } : {}),
-    ...(params.createdAtEnd ? { createdAtEnd: params.createdAtEnd } : {}),
-    ...(params.updatedAtStart ? { updatedAtStart: params.updatedAtStart } : {}),
-    ...(params.updatedAtEnd ? { updatedAtEnd: params.updatedAtEnd } : {}),
-    ...(params.filterGroup ? { filterGroup: stringifyStatisticFilterGroup(params.filterGroup) } : {}),
-    ...(params.sortBy ? { sortBy: params.sortBy } : {}),
-    ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
-  });
+  return buildIllegalRecordQuery(params, includePagination);
 }
 
-function buildCustomerIssueIllegalRecordQuery(params: {
-  projectId?: string | number | null;
-  keyword?: string;
-  issueIid?: string;
-  title?: string;
-  projectName?: string;
-  moduleName?: string;
-  testingPhase?: string;
-  illegalReason?: string;
-  authorName?: string;
-  assigneeName?: string;
-  severityLevel?: string;
-  priorityLevel?: string;
-  issueState?: string;
-  bugStatus?: string;
-  category?: string;
-  milestoneTitle?: string;
-  createdAtStart?: string;
-  createdAtEnd?: string;
-  updatedAtStart?: string;
-  updatedAtEnd?: string;
-  filterGroup?: StatisticFilterGroup | null;
-  page?: number;
-  size?: number;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-}, includePagination = true) {
+function buildCustomerIssueIllegalRecordQuery(
+  params: IllegalRecordQueryParams,
+  includePagination = true,
+) {
+  return buildIllegalRecordQuery(params, includePagination);
+}
+
+function buildIllegalRecordQuery(params: IllegalRecordQueryParams, includePagination: boolean) {
   return new URLSearchParams({
     ...(includePagination ? { page: String(params.page ?? 1), size: String(params.size ?? 20) } : {}),
     ...(params.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
@@ -362,60 +346,8 @@ export const issueRecordsApi = {
       },
     );
   },
-  getCustomerIssueIllegalRecords(params: {
-    projectId?: string | number | null;
-    keyword?: string;
-    issueIid?: string;
-    title?: string;
-    projectName?: string;
-    moduleName?: string;
-    testingPhase?: string;
-    illegalReason?: string;
-    authorName?: string;
-    assigneeName?: string;
-    severityLevel?: string;
-    priorityLevel?: string;
-    issueState?: string;
-    bugStatus?: string;
-    category?: string;
-    milestoneTitle?: string;
-    createdAtStart?: string;
-    createdAtEnd?: string;
-    updatedAtStart?: string;
-    updatedAtEnd?: string;
-    filterGroup?: StatisticFilterGroup | null;
-    page?: number;
-    size?: number;
-    sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
-  }) {
-    const query = new URLSearchParams({
-      page: String(params.page ?? 1),
-      size: String(params.size ?? 20),
-      ...(params.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
-      ...(params.keyword ? { keyword: params.keyword } : {}),
-      ...(params.issueIid ? { issueIid: params.issueIid } : {}),
-      ...(params.title ? { title: params.title } : {}),
-      ...(params.projectName ? { projectName: params.projectName } : {}),
-      ...(params.moduleName ? { moduleName: params.moduleName } : {}),
-      ...(params.testingPhase ? { testingPhase: params.testingPhase } : {}),
-      ...(params.illegalReason ? { illegalReason: params.illegalReason } : {}),
-      ...(params.authorName ? { authorName: params.authorName } : {}),
-      ...(params.assigneeName ? { assigneeName: params.assigneeName } : {}),
-      ...(params.severityLevel ? { severityLevel: params.severityLevel } : {}),
-      ...(params.priorityLevel ? { priorityLevel: params.priorityLevel } : {}),
-      ...(params.issueState ? { issueState: params.issueState } : {}),
-      ...(params.bugStatus ? { bugStatus: params.bugStatus } : {}),
-      ...(params.category ? { category: params.category } : {}),
-      ...(params.milestoneTitle ? { milestoneTitle: params.milestoneTitle } : {}),
-      ...(params.createdAtStart ? { createdAtStart: params.createdAtStart } : {}),
-      ...(params.createdAtEnd ? { createdAtEnd: params.createdAtEnd } : {}),
-      ...(params.updatedAtStart ? { updatedAtStart: params.updatedAtStart } : {}),
-      ...(params.updatedAtEnd ? { updatedAtEnd: params.updatedAtEnd } : {}),
-      ...(params.filterGroup ? { filterGroup: stringifyStatisticFilterGroup(params.filterGroup) } : {}),
-      ...(params.sortBy ? { sortBy: params.sortBy } : {}),
-      ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
-    });
+  getCustomerIssueIllegalRecords(params: Parameters<typeof buildCustomerIssueIllegalRecordQuery>[0]) {
+    const query = buildCustomerIssueIllegalRecordQuery(params);
     return request<CustomerIssueIllegalRecordListResponse>(`/api/customer-issues/illegal-records?${query.toString()}`);
   },
   exportCustomerIssueIllegalRecords(params: Parameters<typeof buildCustomerIssueIllegalRecordQuery>[0]) {

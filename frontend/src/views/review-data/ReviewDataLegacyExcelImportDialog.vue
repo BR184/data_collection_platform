@@ -7,6 +7,7 @@ import type {
   ReviewDataLegacyExcelImportRequest,
   ReviewDataLegacyExcelPreviewResponse,
 } from '../../types/api';
+import { getErrorMessage } from '../../utils/user-message';
 
 const visible = defineModel<boolean>('visible', { default: false });
 
@@ -62,6 +63,10 @@ function rowStatusText(row: ReviewDataLegacyExcelPreviewResponse['rows'][number]
   return rowHasIssues(row) ? '有警告' : '可导入';
 }
 
+function issueMessages(row: ReviewDataLegacyExcelPreviewResponse['rows'][number]) {
+  return row.issues.map((item) => item.message).join('；');
+}
+
 watch(visible, (next) => {
   if (!next) {
     reset();
@@ -108,7 +113,7 @@ async function handlePreview() {
   try {
     preview.value = await props.previewImport(file.value, buildImportPayload());
   } catch (error) {
-    emit('error', error instanceof Error ? error.message : '旧平台 Excel 解析失败');
+    emit('error', getErrorMessage(error, '旧平台 Excel 解析失败'));
   } finally {
     previewLoading.value = false;
   }
@@ -125,7 +130,7 @@ async function handleConfirm() {
     visible.value = false;
     emit('success', result);
   } catch (error) {
-    emit('error', error instanceof Error ? error.message : '旧平台 Excel 导入失败');
+    emit('error', getErrorMessage(error, '旧平台 Excel 导入失败'));
   } finally {
     confirmLoading.value = false;
   }
@@ -221,7 +226,7 @@ async function handleConfirm() {
             </template>
           </el-table-column>
           <el-table-column label="提示" min-width="220" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.issues.map((item: any) => item.message).join('；') }}</template>
+            <template #default="{ row }">{{ issueMessages(row) }}</template>
           </el-table-column>
         </el-table>
       </section>

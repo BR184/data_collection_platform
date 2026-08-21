@@ -56,12 +56,11 @@ public class BiDashboardRuntimeFactory {
     var matcher = new BiProductVersionMatcher();
     var versions = new BiPlatformProductVersionAdapter(catalogService);
     var reviews = new BiPlatformReviewSourceAdapter(jdbcTemplate, snapshotService, matcher);
-    var compatibilityReviews = new BiCodeReviewCompatibilitySnapshotRepository(jdbcTemplate);
     var commits = new BiCodingCommitFactRepository(jdbcTemplate);
     var codeReviewSourceContextFactory = new BiPlatformCodeReviewSourceContextFactory(
         matchModeSwitchService::isCodeReviewCompatibilityReadEnabled,
         snapshotService,
-        compatibilityReviews::sourceVersion,
+        () -> "compatibility",
         () ->
             GitlabMergeRequestCommitFactCapability.isEnabled(
                 gitlabConfigService.getConfig()),

@@ -17,7 +17,8 @@ import type {
   CodeReviewDgmGitlabProjectSourceSaveRequest,
 } from '../types/api';
 import type { RecordTableFilterOption } from '../types/record-table';
-import { formatBeijingDateTime } from '../utils/beijing-time';
+import { formatBeijingDateTime as formatDateTime } from '../utils/beijing-time';
+import { getErrorMessage } from '../utils/user-message';
 
 // 兼容模式-MatchMode：系统设置/数据库兼容模式临时设置。
 // 这是老平台 MySQL/Mongo/DGM 项目候选交接期临时页面，不属于 GitLab 镜像设置；彻底下线兼容模式时可整体删除本页面及 legacy-database-api。
@@ -215,7 +216,7 @@ async function loadSettings() {
   try {
     applySettings(await api.getCodeReviewMatchModeDbSettings());
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '加载数据库兼容模式临时设置失败');
+    ElMessage.error(getErrorMessage(error, '加载数据库兼容模式临时设置失败'));
   } finally {
     initialized.value = true;
     loading.value = false;
@@ -228,7 +229,7 @@ async function saveSettings() {
     applySettings(await api.saveCodeReviewMatchModeDbSettings(buildPayload()));
     ElMessage.success('数据库兼容模式临时设置已保存');
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '保存数据库兼容模式临时设置失败');
+    ElMessage.error(getErrorMessage(error, '保存数据库兼容模式临时设置失败'));
   } finally {
     saving.value = false;
   }
@@ -244,7 +245,7 @@ async function testConnection() {
       ElMessage.warning(result.message || '老平台 MySQL 连接失败');
     }
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '测试 MySQL 连接失败');
+    ElMessage.error(getErrorMessage(error, '测试 MySQL 连接失败'));
   } finally {
     testing.value = false;
   }
@@ -260,7 +261,7 @@ async function testMongoConnection() {
       ElMessage.warning(result.message || '老平台 MongoDB 连接失败');
     }
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '测试 MongoDB 连接失败');
+    ElMessage.error(getErrorMessage(error, '测试 MongoDB 连接失败'));
   } finally {
     mongoTesting.value = false;
   }
@@ -273,7 +274,7 @@ async function syncMysqlNow() {
     ElMessage.success(result.message || '兼容模式代码走查数据导入完成');
     applySettings(await api.getCodeReviewMatchModeDbSettings());
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '导入代码走查数据失败');
+    ElMessage.error(getErrorMessage(error, '导入代码走查数据失败'));
   } finally {
     syncing.value = false;
   }
@@ -286,7 +287,7 @@ async function syncMongoReviewNow() {
     ElMessage.success(result.message || '兼容模式评审数据导入完成');
     applySettings(await api.getCodeReviewMatchModeDbSettings());
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '导入评审数据失败');
+    ElMessage.error(getErrorMessage(error, '导入评审数据失败'));
   } finally {
     mongoSyncing.value = false;
   }
@@ -309,7 +310,7 @@ async function importLegacyPlatformToFormal() {
     formalImportConfirmation.value = '';
     applySettings(await api.getCodeReviewMatchModeDbSettings());
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '代码走查数据转正式失败');
+    ElMessage.error(getErrorMessage(error, '代码走查数据转正式失败'));
   } finally {
     formalImporting.value = false;
   }
@@ -320,7 +321,7 @@ async function loadDgmProjectSourceSettings() {
   try {
     applyDgmProjectSourceSettings(await api.getCodeReviewDgmGitlabProjectSource());
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '加载 DGM GitLab 项目下拉数据源失败');
+    ElMessage.error(getErrorMessage(error, '加载 DGM GitLab 项目下拉数据源失败'));
   } finally {
     dgmProjectSourceLoading.value = false;
   }
@@ -334,7 +335,7 @@ async function saveDgmProjectSourceSettings() {
     );
     ElMessage.success('DGM GitLab 项目下拉数据源已保存');
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '保存 DGM GitLab 项目下拉数据源失败');
+    ElMessage.error(getErrorMessage(error, '保存 DGM GitLab 项目下拉数据源失败'));
   } finally {
     dgmProjectSourceSaving.value = false;
   }
@@ -350,7 +351,7 @@ async function testDgmProjectSourceConnection() {
       ElMessage.warning(result.message || 'DGM GitLab 项目接口连接失败');
     }
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '测试 DGM GitLab 项目接口失败');
+    ElMessage.error(getErrorMessage(error, '测试 DGM GitLab 项目接口失败'));
   } finally {
     dgmProjectSourceTesting.value = false;
   }
@@ -364,7 +365,7 @@ async function syncDgmProjectOptions() {
     await loadDgmProjectSourceSettings();
     await loadDgmProjectOptions();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '同步 DGM GitLab 项目候选失败');
+    ElMessage.error(getErrorMessage(error, '同步 DGM GitLab 项目候选失败'));
   } finally {
     dgmProjectOptionsSyncing.value = false;
   }
@@ -375,7 +376,7 @@ async function loadDgmProjectOptions() {
   try {
     dgmProjectOptions.value = await api.getCodeReviewDgmGitlabProjectOptions();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '加载 DGM GitLab 项目候选失败');
+    ElMessage.error(getErrorMessage(error, '加载 DGM GitLab 项目候选失败'));
   } finally {
     dgmProjectOptionsLoading.value = false;
   }
@@ -393,7 +394,7 @@ async function ensureTableOptions(force = false) {
     tableOptions.value = await api.getCodeReviewMatchModeTableOptions(buildPayload());
     tableOptionsLoaded.value = true;
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '加载老平台 MySQL 表列表失败');
+    ElMessage.error(getErrorMessage(error, '加载老平台 MySQL 表列表失败'));
   } finally {
     tableOptionsLoading.value = false;
   }
@@ -411,7 +412,7 @@ async function ensureMongoCollectionOptions(force = false) {
     mongoCollectionOptions.value = await api.getCodeReviewMatchModeMongoCollectionOptions(buildPayload());
     mongoCollectionOptionsLoaded.value = true;
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '加载老平台 MongoDB 集合列表失败');
+    ElMessage.error(getErrorMessage(error, '加载老平台 MongoDB 集合列表失败'));
   } finally {
     mongoCollectionOptionsLoading.value = false;
   }
@@ -526,10 +527,6 @@ function normalizeSelectedMongoCollectionNames(collectionNames?: string[] | null
     new Set((collectionNames ?? []).map((collectionName) => collectionName.trim()).filter(Boolean)),
   );
   return normalized.length > 0 ? normalized : [...defaultSelectedMongoCollectionNames];
-}
-
-function formatDateTime(value?: string | null) {
-  return value ? formatBeijingDateTime(value, '-') : '-';
 }
 
 function legacyApiDefaultBaseUrl() {

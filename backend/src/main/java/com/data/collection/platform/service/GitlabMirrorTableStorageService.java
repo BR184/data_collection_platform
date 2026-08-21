@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.common.SqlIdentifierSupport;
 import com.data.collection.platform.entity.GitlabTableProbe;
 import com.data.collection.platform.entity.MirrorPrimaryKeyBatch;
 import com.data.collection.platform.entity.MirrorMutationResult;
@@ -119,13 +120,13 @@ public class GitlabMirrorTableStorageService {
            and %s
         returning to_jsonb(target.*) as row_data
         """.formatted(
-        quoteIdentifier(mirrorSchema.tableName()),
+        SqlIdentifierSupport.quoteIdentifier(mirrorSchema.tableName()),
         buildTypedValuesRelation(mirrorSchema, primaryKeys, primaryKeyRows.size()),
         primaryKeys.stream()
             .map(
                 primaryKey ->
-                    "target." + quoteIdentifier(primaryKey)
-                        + " = source_keys." + quoteIdentifier(primaryKey))
+                    "target." + SqlIdentifierSupport.quoteIdentifier(primaryKey)
+                        + " = source_keys." + SqlIdentifierSupport.quoteIdentifier(primaryKey))
             .collect(Collectors.joining(" and ")));
     List<Object> args = new ArrayList<>();
     args.add(taskId);
@@ -146,7 +147,7 @@ public class GitlabMirrorTableStorageService {
   private List<Map<String, Object>> listActiveRowsByScope(
       SourceTableSchema mirrorSchema, Map<String, Object> lookupScope) {
     String predicate = lookupScope.keySet().stream()
-        .map(column -> quoteIdentifier(column) + " = ?::" + columnType(mirrorSchema, column))
+        .map(column -> SqlIdentifierSupport.quoteIdentifier(column) + " = ?::" + columnType(mirrorSchema, column))
         .collect(Collectors.joining(" and "));
     String sql = """
         select %s
@@ -156,9 +157,9 @@ public class GitlabMirrorTableStorageService {
         """.formatted(
         mirrorSchema.columns().stream()
             .map(SourceTableColumn::columnName)
-            .map(this::quoteIdentifier)
+            .map(SqlIdentifierSupport::quoteIdentifier)
             .collect(Collectors.joining(", ")),
-        quoteIdentifier(mirrorSchema.tableName()),
+        SqlIdentifierSupport.quoteIdentifier(mirrorSchema.tableName()),
         predicate);
     Object[] values = lookupScope.values().stream()
         .map(value -> Objects.toString(value, ""))
@@ -227,12 +228,12 @@ public class GitlabMirrorTableStorageService {
          limit ?
         """.formatted(
         primaryKeys.stream()
-            .map(this::quoteIdentifier)
+            .map(SqlIdentifierSupport::quoteIdentifier)
             .collect(Collectors.joining(", ")),
-        quoteIdentifier(mirrorSchema.tableName()),
+        SqlIdentifierSupport.quoteIdentifier(mirrorSchema.tableName()),
         cursorPredicate,
         primaryKeys.stream()
-            .map(primaryKey -> quoteIdentifier(primaryKey) + " asc")
+            .map(primaryKey -> SqlIdentifierSupport.quoteIdentifier(primaryKey) + " asc")
             .collect(Collectors.joining(", ")));
     args.add(Math.max(1, batchSize));
     List<Map<String, Object>> keys = jdbcTemplate.queryForList(sql, args.toArray());
@@ -258,9 +259,9 @@ public class GitlabMirrorTableStorageService {
          limit 1
         """
             .formatted(
-                quoteIdentifier(primaryKey),
-                quoteIdentifier(mirrorSchema.tableName()),
-                quoteIdentifier(primaryKey))
+                SqlIdentifierSupport.quoteIdentifier(primaryKey),
+                SqlIdentifierSupport.quoteIdentifier(mirrorSchema.tableName()),
+                SqlIdentifierSupport.quoteIdentifier(primaryKey))
             .strip();
     List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
     if (rows.isEmpty()) {
@@ -279,9 +280,9 @@ public class GitlabMirrorTableStorageService {
           from %s
          where mirror_deleted = false
         """.formatted(
-        quoteIdentifier(primaryKeyColumn),
-        quoteIdentifier(primaryKeyColumn),
-        quoteIdentifier(mirrorSchema.tableName()));
+        SqlIdentifierSupport.quoteIdentifier(primaryKeyColumn),
+        SqlIdentifierSupport.quoteIdentifier(primaryKeyColumn),
+        SqlIdentifierSupport.quoteIdentifier(mirrorSchema.tableName()));
     Map<String, Object> row = jdbcTemplate.queryForMap(sql);
     return new GitlabTableProbe(
         toLong(row.get("row_count")),
@@ -291,17 +292,22 @@ public class GitlabMirrorTableStorageService {
   }
 
   private String buildUpsertSql(SourceTableSchema schema, boolean forceUpdate) {
-    String tableName = quoteIdentifier(schema.tableName());
+    String tableName = SqlIdentifierSupport.quoteIdentifier(schema.tableName());
     List<String> sourceColumns = schema.columns().stream().map(SourceTableColumn::columnName).toList();
-    String insertColumns = sourceColumns.stream().map(this::quoteIdentifier).collect(Collectors.joining(", "));
-    String selectColumns = sourceColumns.stream().map(column -> "p." + quoteIdentifier(column)).collect(Collectors.joining(", "));
-    String conflictColumns = schema.primaryKeys().stream().map(this::quoteIdentifier).collect(Collectors.joining(", "));
+    String insertColumns = sourceColumns.stream().map(SqlIdentifierSupport::quoteIdentifier).collect(Collectors.joining(", "));
+    String selectColumns = sourceColumns.stream()
+        .map(column -> "p." + SqlIdentifierSupport.quoteIdentifier(column))
+        .collect(Collectors.joining(", "));
+    String conflictColumns = schema.primaryKeys().stream()
+        .map(SqlIdentifierSupport::quoteIdentifier)
+        .collect(Collectors.joining(", "));
     String updateAssignments = sourceColumns.stream()
-        .map(column -> quoteIdentifier(column) + " = excluded." + quoteIdentifier(column))
+        .map(column -> SqlIdentifierSupport.quoteIdentifier(column) + " = excluded."
+            + SqlIdentifierSupport.quoteIdentifier(column))
         .collect(Collectors.joining(", "));
     String sourceUpdatedExpression = schema.updatedAtColumn() == null || schema.updatedAtColumn().isBlank()
         ? "null"
-        : "p." + quoteIdentifier(schema.updatedAtColumn());
+        : "p." + SqlIdentifierSupport.quoteIdentifier(schema.updatedAtColumn());
     String conflictGuard = buildConflictGuard(schema, sourceColumns, forceUpdate);
     return """
         insert into %s as target
@@ -332,18 +338,18 @@ public class GitlabMirrorTableStorageService {
       SourceTableSchema schema, List<String> sourceColumns, boolean forceUpdate) {
     String recencyGuard = "true";
     if (!forceUpdate && schema.updatedAtColumn() != null && !schema.updatedAtColumn().isBlank()) {
-      String updatedAtColumn = quoteIdentifier(schema.updatedAtColumn());
+      String updatedAtColumn = SqlIdentifierSupport.quoteIdentifier(schema.updatedAtColumn());
       recencyGuard =
           "(excluded.%1$s is null or target.%1$s is null or excluded.%1$s >= target.%1$s)"
               .formatted(updatedAtColumn);
     }
     String currentValues =
         sourceColumns.stream()
-            .map(column -> "target." + quoteIdentifier(column))
+            .map(column -> "target." + SqlIdentifierSupport.quoteIdentifier(column))
             .collect(Collectors.joining(", "));
     String incomingValues =
         sourceColumns.stream()
-            .map(column -> "excluded." + quoteIdentifier(column))
+            .map(column -> "excluded." + SqlIdentifierSupport.quoteIdentifier(column))
             .collect(Collectors.joining(", "));
     return "where (target.mirror_deleted = true or %s) "
         .formatted(recencyGuard)
@@ -381,15 +387,15 @@ public class GitlabMirrorTableStorageService {
         """.formatted(
         mirrorSchema.columns().stream()
             .map(SourceTableColumn::columnName)
-            .map(column -> "target." + quoteIdentifier(column))
+            .map(column -> "target." + SqlIdentifierSupport.quoteIdentifier(column))
             .collect(Collectors.joining(", ")),
-        quoteIdentifier(mirrorSchema.tableName()),
+        SqlIdentifierSupport.quoteIdentifier(mirrorSchema.tableName()),
         buildTypedValuesRelation(mirrorSchema, primaryKeys, primaryKeyRows.size()),
         primaryKeys.stream()
             .map(
                 primaryKey ->
-                    "target." + quoteIdentifier(primaryKey)
-                        + " = source_keys." + quoteIdentifier(primaryKey))
+                    "target." + SqlIdentifierSupport.quoteIdentifier(primaryKey)
+                        + " = source_keys." + SqlIdentifierSupport.quoteIdentifier(primaryKey))
             .collect(Collectors.joining(" and ")));
     List<Object> args = new ArrayList<>();
     addPrimaryKeyArguments(primaryKeys, primaryKeyRows, args);
@@ -406,7 +412,7 @@ public class GitlabMirrorTableStorageService {
         java.util.Collections.nCopies(rowCount, rowTemplate).stream()
             .collect(Collectors.joining(", "));
     String columns =
-        primaryKeys.stream().map(this::quoteIdentifier).collect(Collectors.joining(", "));
+        primaryKeys.stream().map(SqlIdentifierSupport::quoteIdentifier).collect(Collectors.joining(", "));
     return "(values " + values + ") as source_keys(" + columns + ")";
   }
 
@@ -445,17 +451,13 @@ public class GitlabMirrorTableStorageService {
     return java.util.Collections.unmodifiableMap(sourceRow);
   }
 
-  private String quoteIdentifier(String identifier) {
-    return "\"" + identifier.replace("\"", "\"\"") + "\"";
-  }
-
   private String buildCursorPredicate(
       SourceTableSchema schema,
       List<String> primaryKeys,
       List<Object> args,
       List<String> cursorValues) {
     args.addAll(cursorValues);
-    String columns = primaryKeys.stream().map(this::quoteIdentifier).collect(Collectors.joining(", "));
+    String columns = primaryKeys.stream().map(SqlIdentifierSupport::quoteIdentifier).collect(Collectors.joining(", "));
     String values = primaryKeys.stream()
         .map(primaryKey -> "?::" + columnType(schema, primaryKey))
         .collect(Collectors.joining(", "));

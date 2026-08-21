@@ -10,6 +10,7 @@ import {
   type PermissionSettingsResponse,
 } from '../api-client/permission-settings-api';
 import { loadCurrentUser } from '../composables/auth-state';
+import { getErrorMessage } from '../utils/user-message';
 
 const loading = ref(false);
 const saving = ref(false);
@@ -74,7 +75,7 @@ async function loadSettings(preferredRoleCode = selectedRoleCode.value) {
       selectRole(role);
     }
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '权限设置加载失败');
+    ElMessage.error(getErrorMessage(error, '权限设置加载失败'));
   } finally {
     loading.value = false;
   }
@@ -95,7 +96,7 @@ async function savePermissions() {
     await loadCurrentUser();
     ElMessage.success('角色权限已保存');
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '角色权限保存失败');
+    ElMessage.error(getErrorMessage(error, '角色权限保存失败'));
   } finally {
     saving.value = false;
   }
@@ -126,7 +127,7 @@ async function restoreDefaults() {
     await loadCurrentUser();
     ElMessage.success('已恢复默认权限');
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '恢复默认权限失败');
+    ElMessage.error(getErrorMessage(error, '恢复默认权限失败'));
   } finally {
     restoring.value = false;
   }

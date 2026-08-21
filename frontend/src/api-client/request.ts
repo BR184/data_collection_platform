@@ -57,6 +57,13 @@ export function isRequestTimeoutError(error: unknown): error is RequestTimeoutEr
   return error instanceof RequestTimeoutError || (error instanceof Error && error.name === 'RequestTimeoutError');
 }
 
+/**
+ * 发起 JSON API 请求，并统一处理超时、取消、CSRF、鉴权事件和业务响应 envelope。
+ *
+ * @param url 同源 API 地址
+ * @param init fetch 参数及平台请求控制选项
+ * @returns 成功响应中的业务数据
+ */
 export async function request<T>(url: string, init?: RequestOptions): Promise<T> {
   const {
     timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
@@ -71,69 +78,26 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
     configuredPlatformProgress ?? configuredExportProgress,
   );
   const progressId = beginPlatformProgress(url, platformProgress);
-  const timeoutController = timeoutMs > 0 ? new AbortController() : null;
-  let didTimeout = false;
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  let abortListener: (() => void) | undefined;
 
   try {
-    await waitForProgressFirstPaint(platformProgress, signal);
-    // The progress first-paint yield can let a caller abort before fetch is
-    // started. Honour that cancellation immediately instead of creating a
-    // request with an already-aborted signal that some fetch implementations
-    // may not reject consistently.
-    if (signal?.aborted) {
-      throw new DOMException('The operation was aborted.', 'AbortError');
-    }
-    if (timeoutController) {
-      timeoutId = setTimeout(() => {
-        didTimeout = true;
-        timeoutController.abort();
-      }, timeoutMs);
-      if (signal?.aborted) {
-        timeoutController.abort();
-      } else if (signal) {
-        abortListener = () => timeoutController.abort();
-        signal.addEventListener('abort', abortListener, { once: true });
-      }
-    }
-
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        ...fetchInit,
-        signal: timeoutController?.signal ?? signal,
-        headers: buildRequestHeaders(fetchInit),
-      });
-    } catch (error) {
-      if (didTimeout && isAbortError(error)) {
-        throw new RequestTimeoutError(url, timeoutMs);
-      }
-      throw error;
-    } finally {
-      if (timeoutId !== undefined) {
-        clearTimeout(timeoutId);
-      }
-      if (signal && abortListener) {
-        signal.removeEventListener('abort', abortListener);
-      }
-    }
+    const response = await fetchWithTimeout(url, fetchInit, signal, timeoutMs, platformProgress);
 
     rememberCsrfToken(response);
     const rawText = await response.text();
-    const payload: any = parseJsonPayload(rawText);
+    const payload = parseJsonPayload(rawText);
 
     if (!response.ok) {
-      notifyAuthRequired(response.status, payload?.message || rawText);
+      const message = messageFromPayload(payload) ?? rawText;
+      notifyAuthRequired(response.status, message);
       throw new HttpRequestError(
-        payload?.message || rawText || `请求失败，状态码：${response.status}`,
+        message || `请求失败，状态码：${response.status}`,
         response.status,
       );
     }
 
-    if (payload && typeof payload === 'object' && 'success' in payload) {
+    if (isJsonObject(payload) && 'success' in payload) {
       if (!payload.success) {
-        throw new Error(payload.message || '请求失败');
+        throw new Error(messageFromPayload(payload) ?? '请求失败');
       }
       finishPlatformProgress(progressId, url, platformProgress);
       return payload.data as T;
@@ -147,7 +111,9 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
   }
 }
 
-function parseJsonPayload(rawText: string): any {
+type JsonObject = Record<string, unknown>;
+
+function parseJsonPayload(rawText: string): unknown {
   try {
     return rawText ? JSON.parse(rawText) : null;
   } catch {
@@ -155,11 +121,25 @@ function parseJsonPayload(rawText: string): any {
   }
 }
 
+function isJsonObject(value: unknown): value is JsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function messageFromPayload(payload: unknown): string | undefined {
+  if (!isJsonObject(payload) || typeof payload.message !== 'string') {
+    return undefined;
+  }
+  const message = payload.message.trim();
+  return message || undefined;
+}
+
+/** 下载文本响应；错误响应仍使用统一的状态码和用户消息转换。 */
 export async function requestText(url: string, init?: RequestOptions): Promise<string> {
   const response = await requestRaw(url, init);
   return response.text();
 }
 
+/** 下载二进制响应，并复用统一的鉴权、超时和进度处理。 */
 export async function requestBlob(url: string, init?: RequestOptions): Promise<Blob> {
   return withPlatformProgress(url, init, async () => {
     const response = await requestRaw(url, init);
@@ -172,6 +152,7 @@ export interface BlobResponse {
   filename?: string;
 }
 
+/** 下载二进制响应，同时返回服务端提供的文件名。 */
 export async function requestBlobResponse(url: string, init?: RequestOptions): Promise<BlobResponse> {
   return withPlatformProgress(url, init, async () => {
     const response = await requestRaw(url, init);
@@ -191,44 +172,7 @@ async function requestRaw(url: string, init?: RequestOptions): Promise<Response>
     signal,
     ...fetchInit
   } = init ?? {};
-  const timeoutController = timeoutMs > 0 ? new AbortController() : null;
-  let didTimeout = false;
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  let abortListener: (() => void) | undefined;
-
-  if (timeoutController) {
-    timeoutId = setTimeout(() => {
-      didTimeout = true;
-      timeoutController.abort();
-    }, timeoutMs);
-    if (signal?.aborted) {
-      timeoutController.abort();
-    } else if (signal) {
-      abortListener = () => timeoutController.abort();
-      signal.addEventListener('abort', abortListener, { once: true });
-    }
-  }
-
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      ...fetchInit,
-      signal: timeoutController?.signal ?? signal,
-      headers: buildRequestHeaders(fetchInit),
-    });
-  } catch (error) {
-    if (didTimeout && isAbortError(error)) {
-      throw new RequestTimeoutError(url, timeoutMs);
-    }
-    throw error;
-  } finally {
-    if (timeoutId !== undefined) {
-      clearTimeout(timeoutId);
-    }
-    if (signal && abortListener) {
-      signal.removeEventListener('abort', abortListener);
-    }
-  }
+  const response = await fetchWithTimeout(url, fetchInit, signal, timeoutMs);
 
   rememberCsrfToken(response);
   if (!response.ok) {
@@ -250,6 +194,58 @@ async function withPlatformProgress<T>(url: string, init: RequestOptions | undef
   } catch (error) {
     failPlatformProgress(progressId, url, platformProgress, error);
     throw error;
+  }
+}
+
+async function fetchWithTimeout(
+  url: string,
+  fetchInit: RequestInit,
+  signal: AbortSignal | null | undefined,
+  timeoutMs: number,
+  progress?: PlatformProgressOptions | false,
+): Promise<Response> {
+  await waitForProgressFirstPaint(progress, signal);
+  // 首屏让渡期间可能已经收到取消信号；此时直接抛出取消错误，避免依赖 fetch 对已取消信号的实现差异。
+  if (signal?.aborted) {
+    throw new DOMException('The operation was aborted.', 'AbortError');
+  }
+
+  const timeoutController = timeoutMs > 0 ? new AbortController() : null;
+  let didTimeout = false;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let abortListener: (() => void) | undefined;
+
+  if (timeoutController) {
+    timeoutId = setTimeout(() => {
+      didTimeout = true;
+      timeoutController.abort();
+    }, timeoutMs);
+    if (signal?.aborted) {
+      timeoutController.abort();
+    } else if (signal) {
+      abortListener = () => timeoutController.abort();
+      signal.addEventListener('abort', abortListener, { once: true });
+    }
+  }
+
+  try {
+    return await fetch(url, {
+      ...fetchInit,
+      signal: timeoutController?.signal ?? signal,
+      headers: buildRequestHeaders(fetchInit),
+    });
+  } catch (error) {
+    if (didTimeout && isAbortError(error)) {
+      throw new RequestTimeoutError(url, timeoutMs);
+    }
+    throw error;
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+    if (signal && abortListener) {
+      signal.removeEventListener('abort', abortListener);
+    }
   }
 }
 
@@ -449,7 +445,7 @@ async function parseErrorMessage(response: Response, errorPrefix = '请求失败
   if (contentType.includes('application/json') && rawText) {
     try {
       const payload = JSON.parse(rawText);
-      return payload?.message || rawText;
+      return messageFromPayload(payload) ?? rawText;
     } catch {
       return rawText;
     }

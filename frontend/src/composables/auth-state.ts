@@ -1,6 +1,7 @@
 import { reactive } from 'vue';
 import { authApi, guestUser, type AuthUserResponse } from '../api-client/auth-api';
 import { HttpRequestError } from '../api-client/request';
+import { getErrorMessage } from '../utils/user-message';
 
 export type AuthStatus = 'unknown' | 'checking' | 'anonymous' | 'authenticated' | 'unavailable';
 
@@ -44,7 +45,7 @@ export async function loadCurrentUser() {
     } catch (error) {
       authState.currentUser = { ...guestUser };
       authState.status = isAuthServiceUnavailable(error) ? 'unavailable' : 'anonymous';
-      authState.error = error instanceof Error ? error.message : '获取登录状态失败';
+      authState.error = getErrorMessage(error, '获取登录状态失败');
       return authState.currentUser;
     } finally {
       authState.loading = false;
@@ -65,7 +66,7 @@ export async function login(username: string, password: string) {
     return user;
   } catch (error) {
     authState.status = isAuthServiceUnavailable(error) ? 'unavailable' : 'anonymous';
-    authState.error = error instanceof Error ? error.message : '登录失败';
+    authState.error = getErrorMessage(error, '登录失败');
     throw error;
   } finally {
     authState.loading = false;
@@ -79,7 +80,7 @@ export async function logout() {
   } catch (error) {
     authState.currentUser = { ...guestUser };
     authState.status = isAuthServiceUnavailable(error) ? 'unavailable' : 'anonymous';
-    authState.error = error instanceof Error ? error.message : '退出登录失败';
+    authState.error = getErrorMessage(error, '退出登录失败');
     // A missing server session already represents the desired logged-out state.
     // Treat it as an idempotent logout; transport/server failures still reach
     // the caller so the UI can report that the operation did not complete.
