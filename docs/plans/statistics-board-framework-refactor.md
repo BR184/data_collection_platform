@@ -8,7 +8,7 @@
   - 阶段 3 首板迁移（绞杀者第一步）：`CustomerIssueDefectSummaryBoardService` 接入引擎，删除私有 matchesFilterGroup/matchesFilterCondition/valuesForFilterField/matchesSetOperator/normalizeSetOperator/equalsIgnoreCase/containsIgnoreCase 共约 150 行，替换为 `filterFields()` 字段注册表；里程碑与 bugStatus 域逻辑以 override 钩子保留原语义。
   - 阶段 0 金标安全网（首板）：`CustomerIssueDefectSummaryBoardGoldenMasterTest` —— 14 个筛选矩阵用例 + 2 个工作簿语义指纹，快照落盘 `src/test/resources/golden/customer-issue-defect-summary/`；屏蔽易变字段 generatedAt/queryDurationMs，工作簿用单元格内容指纹而非字节哈希（XLSX 内嵌时间戳不可复现）。生成→比对两连跑稳定全绿。
 - 测试状态：statistics 包 43 项测试全部通过（含既有板测试无回归）；全项目编译通过。
-- 当前进行点：下一板迁移（CustomerIssueDefectCauseBoardService），随后按第 5.4 节顺序推进；SQL↔Engine 平价契约测试待建。
+- 当前进行点（2026-08-21 范围修正）：精确盘点后**剩余需迁移板块为 5 个**（其余板的单个 matches* 方法是 matchesMetric/matchesRow 等非筛选族，无需迁移）：CustomerIssueResponseEfficiency(5方法)、CustomerIssueDelayIssues(5)、MirrorTableOverview(5)、CustomerIssueByFunction(3)、SystemTestDefectSummary(14，最大留最后)。已完成：DefectSummary ✅(35fae152)、DefectCause ✅(308fd5e2，两段式 milestoneGroup/conditionGroup 模式)。金标基类 AbstractStatisticBoardGoldenMasterTest 已抽取，后续金标继承即可。SQL↔Engine 平价契约测试待建。执行方式：后台 subagent 逐板串行（注意：判定 agent 挂死需谨慎——无 mvn 活动不等于挂死，可能在读/写文件阶段）。
 - 问题三（上帝类）已移交其他同事，本计划不覆盖。
 
 ---
