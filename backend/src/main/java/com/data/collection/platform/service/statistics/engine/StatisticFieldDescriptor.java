@@ -20,13 +20,17 @@ public record StatisticFieldDescriptor<R>(
     StatisticFieldType type,
     Function<R, List<String>> valuesAccessor,
     Function<R, LocalDateTime> dateTimeAccessor,
-    BiFunction<R, StatisticFilterCondition, Boolean> overridePredicate) {
+    BiFunction<R, StatisticFilterCondition, Boolean> overridePredicate,
+    BiFunction<R, StatisticFilterCondition, List<String>> conditionalValuesAccessor) {
 
   public StatisticFieldDescriptor {
     Objects.requireNonNull(fieldKey, "fieldKey 不能为空");
     Objects.requireNonNull(type, "type 不能为空");
-    if (type == StatisticFieldType.MULTI_VALUE) {
-      Objects.requireNonNull(valuesAccessor, "MULTI_VALUE 字段必须提供 valuesAccessor");
+    if (type == StatisticFieldType.MULTI_VALUE
+        && valuesAccessor == null
+        && conditionalValuesAccessor == null) {
+      throw new NullPointerException(
+          "MULTI_VALUE 字段必须提供 valuesAccessor 或 conditionalValuesAccessor");
     }
     if (type == StatisticFieldType.DATETIME) {
       Objects.requireNonNull(dateTimeAccessor, "DATETIME 字段必须提供 dateTimeAccessor");
@@ -36,7 +40,7 @@ public record StatisticFieldDescriptor<R>(
   /** 多值文本字段（单值字段用单元素列表表达）。 */
   public static <R> StatisticFieldDescriptor<R> multiValue(
       String fieldKey, Function<R, List<String>> valuesAccessor) {
-    return new StatisticFieldDescriptor<>(fieldKey, StatisticFieldType.MULTI_VALUE, valuesAccessor, null, null);
+    return new StatisticFieldDescriptor<>(fieldKey, StatisticFieldType.MULTI_VALUE, valuesAccessor, null, null, null);
   }
 
   /** 带覆盖谓词的多值文本字段：override 返回 null 时回落到通用操作符语义。 */
@@ -45,12 +49,20 @@ public record StatisticFieldDescriptor<R>(
       Function<R, List<String>> valuesAccessor,
       BiFunction<R, StatisticFilterCondition, Boolean> overridePredicate) {
     return new StatisticFieldDescriptor<>(
-        fieldKey, StatisticFieldType.MULTI_VALUE, valuesAccessor, null, overridePredicate);
+        fieldKey, StatisticFieldType.MULTI_VALUE, valuesAccessor, null, overridePredicate, null);
+  }
+
+  /** 取值依赖条件本身的多值字段（如按操作符映射候选值的领域字段）。 */
+  public static <R> StatisticFieldDescriptor<R> multiValueWithCondition(
+      String fieldKey,
+      BiFunction<R, StatisticFilterCondition, List<String>> conditionalValuesAccessor) {
+    return new StatisticFieldDescriptor<>(
+        fieldKey, StatisticFieldType.MULTI_VALUE, null, null, null, conditionalValuesAccessor);
   }
 
   /** 日期时间字段。 */
   public static <R> StatisticFieldDescriptor<R> dateTime(
       String fieldKey, Function<R, LocalDateTime> dateTimeAccessor) {
-    return new StatisticFieldDescriptor<>(fieldKey, StatisticFieldType.DATETIME, null, dateTimeAccessor, null);
+    return new StatisticFieldDescriptor<>(fieldKey, StatisticFieldType.DATETIME, null, dateTimeAccessor, null, null);
   }
 }

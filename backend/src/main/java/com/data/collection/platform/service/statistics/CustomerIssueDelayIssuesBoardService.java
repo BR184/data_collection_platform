@@ -32,8 +32,11 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Map;
 import java.util.Set;
+import com.data.collection.platform.service.statistics.engine.StatisticFieldDescriptor;
+import com.data.collection.platform.service.statistics.engine.StatisticFilterEngine;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -372,10 +375,10 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         openIssues.stream().filter(issue -> issue.responseDelayed() || issue.resolveDelayed()).toList();
     List<IssueSource> legacyPriorityIssues =
         delayed.stream().filter(IssueSource::hasLegacyPriorityBucket).toList();
-    List<IssueSource> rowSources =
-        scoped.stream().filter(issue -> matchesFilterGroup(issue, filterGroup)).toList();
-    List<IssueSource> filtered =
-        legacyPriorityIssues.stream().filter(issue -> matchesFilterGroup(issue, filterGroup)).toList();
+    Predicate<IssueSource> filterPredicate =
+        StatisticFilterEngine.compile(filterGroup, filterFields());
+    List<IssueSource> rowSources = scoped.stream().filter(filterPredicate).toList();
+    List<IssueSource> filtered = legacyPriorityIssues.stream().filter(filterPredicate).toList();
     return new RuleFlowSnapshot(
         rowSources,
         filtered,
@@ -639,70 +642,28 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     return record;
   }
 
-  private boolean matchesFilterGroup(IssueSource issue, StatisticFilterGroup filterGroup) {
-    if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
-      return true;
-    }
-    boolean isOr = "OR".equalsIgnoreCase(filterGroup.logic());
-    for (StatisticFilterCondition condition : filterGroup.conditions()) {
-      boolean matched = matchesCondition(issue, condition);
-      if (isOr && matched) {
-        return true;
-      }
-      if (!isOr && !matched) {
-        return false;
-      }
-    }
-    return !isOr;
-  }
-
-  private boolean matchesCondition(IssueSource issue, StatisticFilterCondition condition) {
-    if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
-      return true;
-    }
-    if (CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD.equals(condition.fieldKey())) {
-      return CustomerIssueMilestoneFilterSupport.matchesCondition(
-          issue.milestoneTitle(), condition, milestoneCatalogService);
-    }
-    if ("moduleName".equals(condition.fieldKey())) {
-      return matchesCandidates(issue.displayModuleNames(), condition);
-    }
-    String candidate =
-        switch (condition.fieldKey()) {
-          case "projectName" -> issue.projectName();
-          case "priorityLevel" -> issue.priorityCandidate(condition.operator());
-          case "issueState" -> issue.issueState();
-          case "authorName" -> issue.authorName();
-          case "assigneeName" -> issue.assigneeName();
-          default -> "";
-        };
-    return matchesCandidate(candidate, condition);
-  }
-
-  private boolean matchesCandidates(List<String> candidates, StatisticFilterCondition condition) {
-    List<String> safeCandidates = candidates == null ? List.of() : candidates;
-    String value = trim(condition.value());
-    return switch (condition.operator()) {
-      case "eq" -> value == null || safeCandidates.stream().anyMatch(candidate -> normalizedEquals(candidate, value));
-      case "ne" -> value == null || safeCandidates.stream().noneMatch(candidate -> normalizedEquals(candidate, value));
-      case "contains" ->
-          value == null || safeCandidates.stream().anyMatch(candidate -> normalize(candidate).contains(normalize(value)));
-      case "isEmpty" -> safeCandidates.stream().noneMatch(StringUtils::hasText);
-      case "isNotEmpty" -> safeCandidates.stream().anyMatch(StringUtils::hasText);
-      default -> true;
-    };
-  }
-
-  private boolean matchesCandidate(String candidate, StatisticFilterCondition condition) {
-    String value = trim(condition.value());
-    return switch (condition.operator()) {
-      case "eq" -> value == null || normalizedEquals(candidate, value);
-      case "ne" -> value == null || !normalizedEquals(candidate, value);
-      case "contains" -> value == null || normalize(candidate).contains(normalize(value));
-      case "isEmpty" -> !StringUtils.hasText(candidate);
-      case "isNotEmpty" -> StringUtils.hasText(candidate);
-      default -> true;
-    };
+  /** 筛选字段注册表：字段键到行取值器的唯一绑定，操作符语义统一由 StatisticFilterEngine 实现。 */
+  private Map<String, StatisticFieldDescriptor<IssueSource>> filterFields() {
+    return Map.ofEntries(
+        Map.entry("projectName", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "projectName", issue -> List.of(Objects.toString(issue.projectName(), "")))),
+        Map.entry(CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD,
+            StatisticFieldDescriptor.<IssueSource>multiValueWithOverride(
+                CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD,
+                issue -> List.of(Objects.toString(issue.milestoneTitle(), "")),
+                (issue, condition) -> CustomerIssueMilestoneFilterSupport.matchesCondition(
+                    issue.milestoneTitle(), condition, milestoneCatalogService))),
+        Map.entry("moduleName", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "moduleName", IssueSource::displayModuleNames)),
+        Map.entry("priorityLevel", StatisticFieldDescriptor.<IssueSource>multiValueWithCondition(
+            "priorityLevel",
+            (issue, condition) -> List.of(Objects.toString(issue.priorityCandidate(condition.operator()), "")))),
+        Map.entry("issueState", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "issueState", issue -> List.of(Objects.toString(issue.issueState(), "")))),
+        Map.entry("authorName", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "authorName", issue -> List.of(Objects.toString(issue.authorName(), "")))),
+        Map.entry("assigneeName", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "assigneeName", issue -> List.of(Objects.toString(issue.assigneeName(), "")))));
   }
 
   private StatisticFilterGroup applyDefaultMilestone(StatisticFilterGroup filterGroup) {
@@ -720,10 +681,6 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
 
   private static String normalize(String value) {
     return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
-  }
-
-  private static boolean normalizedEquals(String left, String right) {
-    return normalize(left).equals(normalize(right));
   }
 
   private static String trim(String value) {

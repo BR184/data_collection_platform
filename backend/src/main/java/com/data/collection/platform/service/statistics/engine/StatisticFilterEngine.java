@@ -78,7 +78,10 @@ public final class StatisticFilterEngine {
           trimToNull(condition.value()),
           trimToNull(condition.secondaryValue()));
     }
-    List<String> actualValues = normalize(descriptor.valuesAccessor().apply(row));
+    List<String> actualValues = normalize(
+        descriptor.conditionalValuesAccessor() != null
+            ? descriptor.conditionalValuesAccessor().apply(row, condition)
+            : descriptor.valuesAccessor().apply(row));
     if (condition.usesLabelGroup()) {
       return matchesSet(actualValues, normalize(condition.values()), condition.operator());
     }
