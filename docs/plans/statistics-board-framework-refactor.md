@@ -149,3 +149,14 @@
 - **易错点**：EffectiveFilterGroup（默认条件+用户组分离）与纯 userGroup 两种形态；引擎 API 必须同时支持（compile 接受 defaultCondition+userGroup 双参或合并后的组）。
 - **协调点**：与兼容模式过渡计划（replace-compatibility-mode.md）阶段 4 存在文件交集（statistics 包多个板含 //兼容模式-MatchMode 分支）；约定：本计划先迁板、兼容分支随板迁移一并按原样保留标注，待兼容删除阶段统一摘除，避免两个重构互相踩踏。
 - **回滚**：每板独立提交，git revert 单板即可；金标测试在任何回滚后应依然成立。
+
+## 9. SystemTestDefectSummaryBoardService 迁移配方（下一工作单元直接执行）
+
+目标文件 `service/statistics/SystemTestDefectSummaryBoardService.java`（1335 行）。筛选家族位于 **L805-L1030**：matchesFilterGroup×2 重载、matchesEffectiveFilterGroup、matchesCondition×2 重载、matchesIssueState、matchesDateTime、parseDateTimeBoundary、matchesText、matchesPhase、legacyPhaseValues、matchesAny、matchesSetOperator、matchesPartialContainsAny。调用点：`matchesEffectiveFilterGroup(issue, effectiveFilterGroup, phaseValueCache)`（loadBoardScopedSources 内，默认条件+用户组双段）。
+
+要点：
+1. **phaseValueCache**：跨行共享缓存。做法：filterFields() 内 new LinkedHashMap 并被 testingPhase 描述符 override 闭包捕获（每请求编译一次=一次缓存），override 内调 legacyPhaseValues + SystemTestPhaseMembershipPolicy.matches(CONTAINS_MEMBER)，语义逐字保留。
+2. **EffectiveFilterGroup 双段**：照抄 DefectCause 板模式——defaultCondition 与 userGroup 分别 compile 再 and()；userGroup 为 null 或空条件恒真。
+3. **字段→描述符**：MODULE_FIELD/moduleNames=multiValue；projectName/title/severityLevel/priorityLevel/authorName/assigneeName=multiValue 单值包装；labels=multiValue；state=multiValue(isClosed?closed:open)；createdAt/updatedAt=dateTime(accessor)；testingPhase=multiValueWithOverride(阶段成员语义)；bugStatus/delayCause=multiValueWithOverride(IssueStatusMembers/IssueDelayCauseMembers labelGroup/plain 分支)。
+4. **金标**：无完整既有单测，需从零建夹具：mock phaseCatalogService.listParentNames、phaseScopeResolver.resolvePhases、runtimeSupport.loadFacts（StatisticIssueFactSource 构造行）、issueFactRecordRepository.findForFilterOptions；矩阵 ≥12 用例覆盖 text/set/datetime/phase 全族；继承 AbstractStatisticBoardGoldenMasterTest。
+5. 完成后：全量 statistics 回归 → 独立提交 `refactor(statistics): 迁移系统测试缺陷汇总看板到统一筛选引擎` → 推送。
