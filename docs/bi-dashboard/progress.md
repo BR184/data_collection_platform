@@ -12,7 +12,7 @@
 - 已完成审计与修复：以用户人工确认的 `BI看板数据来源与计算口径核对表.md` 为唯一业务语义与公式口径，真实物理字段从表结构、实体和查询核实后记录为直接使用或等价映射。跨年份组合版本不再误归属，评审、编码和系统测试计算器会隔离冲突稳定 ID、缺失日期/分母、非法负值和不可替代度量，不再任选首条、补零、钳零或用替代日期继续统计。
 - 已完成运行故障修复：需求、设计和编码页曾因 PostgreSQL `integer/int4` 被 JDBC 按 `Long.class` 读取而整体失败；现已在 BI 基础设施边界统一执行空值保真的精确整数映射，并覆盖全部 BI Adapter。页面级 `ERROR` 现只展示明确失败原因和重试入口，不再误显示为一屏“数据暂不完整”或空来源/规则标签。
 - 已完成来源维度及人员语义修复：编码 `author_name/module_name`、评审 `module_name`、系统测试 `module_names` 均按单一冻结平台快照维度处理，不再要求不存在的跨平台实体 ID；系统测试 `reason_category/label_names` 由 BI 版本化词典生成原因大类/子类，`delay_issue/delay_cause/delay_reason` 生成“延期原因 × 严重级别”。人员负荷已统一按 `assignee_name` 聚合总数、已修复数和待修复数，`fix_user` 仅保留实际修复历史语义。
-- 当前平台输入缺口与已确认缺陷：编码仓库稳定 ID 仍缺失；人工走查兼容数据已由 BI 独占表接入，但内网扫描和注释率覆盖率仍待只读统计。提交 ODS 定点来源 SQL可产出 31789 条 MR-提交关系，而本地 `merge_request_commit_fact=0`，来源能力首次就绪后缺少权威回填；同时该事实把 GitLab 仓库名写入 `project_name`，BI 又把它错误用作产品版本筛选。提交事实必须删除错误冗余列并按完整稳定键连接 `merge_request_fact.project_name`，部署后执行一次 MR 全量事实重建。轮次提交总数已确认可由有效缺陷计算，不再列为上游缺口。
+- 当前平台输入缺口与已确认缺陷：编码仓库稳定 ID 仍缺失；人工走查兼容数据已复用平台兼容表 `code_review_match_mode_records` 接入，内网扫描和注释率覆盖率仍待只读统计。提交 ODS 定点来源 SQL可产出 31789 条 MR-提交关系，而本地 `merge_request_commit_fact=0`，来源能力首次就绪后缺少权威回填；同时该事实把 GitLab 仓库名写入 `project_name`，BI 又把它错误用作产品版本筛选。提交事实必须删除错误冗余列并按完整稳定键连接 `merge_request_fact.project_name`，部署后执行一次 MR 全量事实重建。轮次提交总数已确认可由有效缺陷计算，不再列为上游缺口。
 - 已完成审计：系统测试没有执行用例数、通过用例数或通过率，历史 `ST-70`～`ST-72` 已废弃；客户问题统计不属于当前六个 BI 页面公式范围。
 - 已完成 CAT 手册核对：项目、版本/测试阶段、模块统计和功能下钻四个 POST 接口已具备强类型传输事实；当前按用户确认让单元/集成页用各自显式阶段 ID 复用该协议。现有接口没有三层执行/通过用例数、精确通过率公式和快照/来源版本。
 - 已完成 CAT 接入实现：CAT 配置、阶段映射、请求路径、超时和响应上限外置；模块/整体功能达标数量以 `FUNCTION` 单位呈现，功能层缺失计数显示不可用；真实 CAT 数据可在来源身份不完整时查看，但页面保持 `INCOMPLETE` 且不可下载。
@@ -36,7 +36,7 @@
 
 ## 恢复线索
 
-- 开始开发前先读 `README.md`、本文件和 `decisions/ADR-001-embedded-module-and-strong-package-boundary.md`。
+- 开始开发前先读 `README.md`、本文件和 `decisions.md`（D-01）。
 - 首条恢复命令：`mvn -f backend/pom.xml -Dtest=BiCatTestSourceAdapterTest,BiCatTestPageServiceTest test`。
 - 架构基线：保持唯一 `backend/pom.xml` 和单 Spring Boot JAR，不创建 Reactor 子模块。
 - 旧 `D:/projects/bi_dashboard` 只读；静态页面只用于视觉和行为核对，不能成为字段或公式权威。
@@ -47,7 +47,7 @@
 - 平台调度器每分钟检查配置是否到期，默认补偿间隔为 360 分钟；正式环境的 20 分钟属于配置，不是 BI 契约。事实和页面投影在成功发布后才成为可读版本。
 - 平台已有“议题测试阶段定义”及父版本到测试轮次的展开服务，系统测试不需要第二套版本解析器。
 - 老平台 `StaticDataController`、`SpiderCrowncadDataService`、`PageCodeWalkThroughInfo` 和横向导出 DTO 均把代码走查缺陷密度称为千行代码缺陷率，使用同一 KLOC 公式。
-- BI 专属架构决策已记录在 `decisions/ADR-001-embedded-module-and-strong-package-boundary.md`。
+- BI 专属架构决策已记录在 `decisions.md`（D-01）。
 
 ## 实施顺序
 
@@ -58,7 +58,7 @@
 5. [已完成] 图表数据模型、计算器、15 个图表类型类、事实族完整性隔离、PNG 和 PC 页面验收已完成。
 6. [已完成实现与本地验证，待内网联调] 已核对 CAT 四接口并完成强类型适配和 BI 专属快照镜像；单元/集成页面使用同一统计协议及各自显式阶段 ID，并只读取当前发布快照。CAT 仍需补充来源身份、真实用例计数、认证和精确通过率公式。
 7. [已完成] 按核对表编号复核平台真实 `table.column`、公式、规则版本和来源版本；已删除虚构稳定作者/模块/延期状态前置条件，接入来源快照维度与系统测试原因/延期真实字段；编码跟随平台统一兼容模式读源，轮次总数由有效缺陷去重计算，人员负荷统一按当前指派人聚合，并保证所有响应路径返回完整区块状态集合；自动验证和 1366×768 浏览器终验均已通过。
-8. [已完成实现与本地验证，待内网数据验收] GitLab 提交表进入平台推荐同步、血缘与 `merge_request_commit_fact`；老平台 `spider_crowncad_data` 进入 BI 独占 loading/发布/状态表。人工走查表只服务 BI 对应事实族，不替代或修改 `code_review_match_mode_records`。配置已启用但事实尚未发布时，提交区块不会生成全零序列。
+8. [已完成实现与本地验证，待内网数据验收] GitLab 提交表进入平台推荐同步、血缘与 `merge_request_commit_fact`；编码页人工走查兼容态复用平台兼容表 `code_review_match_mode_records`（重复抓取链路已移除，不再维护 BI 独占走查表）。配置已启用但事实尚未发布时，提交区块不会生成全零序列。
 9. [待真实契约/发布工作单元] 完成剩余平台字段和 CAT 接入后，再执行 Docker/离线包、升级/回滚和真实数据验收。
 
 ## 固定边界

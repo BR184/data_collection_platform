@@ -49,7 +49,7 @@
 ## 文档生命周期
 
 - 项目事实与协作规则的核心长期维护文档为本 `AGENTS.md` 以及产品、技术、进度三份权威文档（具体文件名按项目约定，例如 `docs/product.md`、`docs/architecture.md`、`docs/progress.md`）。
-- `docs/` 根目录只保留 `product.md`、`architecture.md`、`progress.md`、`platform-page-business-rules.md` 与 BI 专属的 `bi-dashboard/` 文档域；平台架构决策只放在 `docs/decisions/`，平台活动工作单元计划只放在 `docs/plans/`。机器读取的校验契约放在 `scripts/contracts/`，部署标准与运维 runbook 放在 `deploy/`；不得在 `docs/` 存放归档、展示站点、压缩交付物或临时报告。
+- `docs/` 根目录只保留 `product.md`、`architecture.md`、`progress.md`、`platform-page-business-rules.md`、`decisions.md` 与 BI 专属的 `bi-dashboard/` 文档域；平台架构决策统一记录在单一 `docs/decisions.md`、BI 架构决策在单一 `docs/bi-dashboard/decisions.md`，均持续更新，禁止按决策新开文件；平台活动工作单元计划只放在 `docs/plans/`。机器读取的校验契约放在 `scripts/contracts/`，部署标准与运维 runbook 放在 `deploy/`；不得在 `docs/` 存放归档、展示站点、压缩交付物或临时报告。
 - BI 是文档生命周期的独立子域：产品、数据契约、架构、决策和工作状态按 `docs/bi-dashboard/README.md` 的职责路由维护，不得散入通用产品/架构/进度/业务规则文档。复杂 BI 工作更新 `docs/bi-dashboard/progress.md`；确需增加长期文档时，必须先在入口中定义唯一职责，禁止按时间或任务随意堆文件。
 - 每次长任务或复杂任务（包括跨多文件修改、多个实施阶段、跨系统边界、架构变更或多步验证）都必须在实现开始前于 `docs/plans/`（或项目约定的计划目录）创建或更新当前工作单元计划，明确目的、范围、顺序、验收标准和状态，并在完成调查、确定方案、实施、验证、阻塞或范围变化等关键节点追加浓缩进度，避免上下文压缩后偏离已证实的事实。进度文档只指向当前下一步，不能替代实施计划。
 - 计划文档必须以“进度与中间物”作为起始段落，整体标注已完成文件/变更清单、测试通过/失败状态、当前阻塞或进行点；并包含以下可恢复信息：
@@ -210,5 +210,5 @@ AI 应在任务收尾和用户纠正工作方式时，检查用户的直接表�
 - 项目维护文本、业务规则和代码注释使用中文；代码标识符使用英文。公共 Java 方法按现有 Javadoc 约定补充契约，TypeScript 公共 API 使用 JSDoc 或类型定义表达契约。
 - 当前开发端口为后端 `18080`、前端 `18181`；本地 PostgreSQL 默认连接 `127.0.0.1:15432/qaflex`。内网 Ubuntu 24.04 离线发布规则以 `deploy/intranet-offline-packaging-standard.md` 为准。
 - Windows 开发与验证脚本统一使用已安装的 PowerShell 7 `pwsh.exe` 启动；不得使用系统 PowerShell 5.1 的 `powershell.exe` 启动项目脚本或子进程。
-- 老平台基准源码为 `D:/projects/spidergitdata-dev`，页面业务规则总表为 `docs/platform-page-business-rules.md`；涉及 LDAP、兼容模式、事实层、统计快照或部署时，必须同时遵守对应 ADR、当前架构文档和进度文档。
+- 老平台基准源码为 `D:/projects/spidergitdata-dev`，页面业务规则总表为 `docs/platform-page-business-rules.md`；涉及 LDAP、兼容模式、事实层、统计快照或部署时，必须同时遵守 `docs/decisions.md` 决策记录、当前架构文档和进度文档。
 - BI 看板的唯一文档入口为 `docs/bi-dashboard/README.md`。`D:/projects/bi_dashboard` 已暂停更新，除非用户后续明确恢复，否则不得对该目录执行任何写入；现有内容只可作为只读迁移证据。

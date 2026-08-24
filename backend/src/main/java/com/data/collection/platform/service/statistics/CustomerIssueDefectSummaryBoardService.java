@@ -29,6 +29,8 @@ import com.data.collection.platform.service.IssueStatusMembers;
 import com.data.collection.platform.service.OptionItemResponseFactory;
 import com.data.collection.platform.service.SortSupport;
 import com.data.collection.platform.service.SystemTestLegacyCauseExportFields;
+import com.data.collection.platform.service.statistics.engine.StatisticFieldDescriptor;
+import com.data.collection.platform.service.statistics.engine.StatisticFilterEngine;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -493,7 +495,8 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     List<IssueSource> scoped =
         initial.stream().filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext())).toList();
     List<IssueSource> valid = scoped.stream().filter(issue -> !issue.excluded()).toList();
-    List<IssueSource> filtered = valid.stream().filter(issue -> matchesFilterGroup(issue, filterGroup)).toList();
+    Predicate<IssueSource> filterPredicate = StatisticFilterEngine.compile(filterGroup, filterFields());
+    List<IssueSource> filtered = valid.stream().filter(filterPredicate).toList();
     return new RuleFlowSnapshot(
         filtered,
         List.of(
@@ -540,67 +543,43 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
             )));
   }
 
-  private boolean matchesFilterGroup(IssueSource issue, StatisticFilterGroup filterGroup) {
-    if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
-      return true;
-    }
-    boolean isOr = "OR".equalsIgnoreCase(filterGroup.logic());
-    for (StatisticFilterCondition condition : filterGroup.conditions()) {
-      boolean matched = matchesFilterCondition(issue, condition);
-      if (isOr && matched) {
-        return true;
-      }
-      if (!isOr && !matched) {
-        return false;
-      }
-    }
-    return !isOr;
-  }
-
-  private boolean matchesFilterCondition(IssueSource issue, StatisticFilterCondition condition) {
-    if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
-      return true;
-    }
-    if (CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD.equals(condition.fieldKey())) {
-      return CustomerIssueMilestoneFilterSupport.matchesCondition(
-          issue.milestoneTitle(), condition, milestoneCatalogService);
-    }
-    if ("bugStatus".equals(condition.fieldKey())) {
-      return condition.usesLabelGroup()
-          ? IssueStatusMembers.matchesLabelGroup(
-              issue.bugStatus(), condition.operator(), condition.values())
-          : IssueStatusMembers.matchesFilter(
-              issue.bugStatus(), condition.operator(), condition.value());
-    }
-    List<String> actualValues = valuesForFilterField(issue, condition.fieldKey());
-    if (condition.usesLabelGroup()) {
-      return matchesSetOperator(actualValues, condition.values(), condition.operator());
-    }
-    return switch (Objects.toString(condition.operator(), "")) {
-      case "isEmpty" -> actualValues.stream().allMatch(value -> trimToNull(value) == null);
-      case "isNotEmpty" -> actualValues.stream().anyMatch(value -> trimToNull(value) != null);
-      case "ne" -> actualValues.stream().noneMatch(value -> equalsIgnoreCase(value, condition.value()));
-      case "contains" -> actualValues.stream().anyMatch(value -> containsIgnoreCase(value, condition.value()));
-      case "notContains" -> actualValues.stream().noneMatch(value -> containsIgnoreCase(value, condition.value()));
-      default -> actualValues.stream().anyMatch(value -> equalsIgnoreCase(value, condition.value()));
-    };
-  }
-
-  private List<String> valuesForFilterField(IssueSource issue, String fieldKey) {
-    return switch (fieldKey) {
-      case "projectName" -> List.of(Objects.toString(issue.projectName(), ""));
-      case "moduleName" -> issue.moduleNames();
-      case "issueIid" -> List.of(String.valueOf(issue.iid()));
-      case "title" -> List.of(Objects.toString(issue.title(), ""));
-      case "severityLevel" -> List.of(Objects.toString(issue.severityLevel(), ""));
-      case "priorityLevel" -> List.of(Objects.toString(issue.priorityLevel(), ""));
-      case "bugStatus" -> IssueStatusMembers.parse(issue.bugStatus());
-      case "category" -> List.of(Objects.toString(issue.category(), ""));
-      case "issueState" -> List.of(issue.isClosed() ? "closed" : "open");
-      case "authorName" -> List.of(Objects.toString(issue.authorName(), ""));
-      case "assigneeName" -> List.of(Objects.toString(issue.assigneeName(), ""));
-      default -> List.of();
-    };
+  /** 筛选字段注册表：字段键到行取值器的唯一绑定，操作符语义统一由 StatisticFilterEngine 实现。 */
+  private Map<String, StatisticFieldDescriptor<IssueSource>> filterFields() {
+    return Map.ofEntries(
+        Map.entry("projectName", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "projectName", issue -> List.of(Objects.toString(issue.projectName(), "")))),
+        Map.entry("moduleName", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "moduleName", IssueSource::moduleNames)),
+        Map.entry("issueIid", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "issueIid", issue -> List.of(String.valueOf(issue.iid())))),
+        Map.entry("title", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "title", issue -> List.of(Objects.toString(issue.title(), "")))),
+        Map.entry("severityLevel", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "severityLevel", issue -> List.of(Objects.toString(issue.severityLevel(), "")))),
+        Map.entry("priorityLevel", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "priorityLevel", issue -> List.of(Objects.toString(issue.priorityLevel(), "")))),
+        Map.entry("bugStatus", StatisticFieldDescriptor.<IssueSource>multiValueWithOverride(
+            "bugStatus",
+            issue -> IssueStatusMembers.parse(issue.bugStatus()),
+            (issue, condition) -> condition.usesLabelGroup()
+                ? IssueStatusMembers.matchesLabelGroup(
+                    issue.bugStatus(), condition.operator(), condition.values())
+                : IssueStatusMembers.matchesFilter(
+                    issue.bugStatus(), condition.operator(), condition.value()))),
+        Map.entry("category", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "category", issue -> List.of(Objects.toString(issue.category(), "")))),
+        Map.entry("issueState", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "issueState", issue -> List.of(issue.isClosed() ? "closed" : "open"))),
+        Map.entry("authorName", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "authorName", issue -> List.of(Objects.toString(issue.authorName(), "")))),
+        Map.entry("assigneeName", StatisticFieldDescriptor.<IssueSource>multiValue(
+            "assigneeName", issue -> List.of(Objects.toString(issue.assigneeName(), "")))),
+        Map.entry(CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD,
+            StatisticFieldDescriptor.<IssueSource>multiValueWithOverride(
+                CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD,
+                issue -> List.of(Objects.toString(issue.milestoneTitle(), "")),
+                (issue, condition) -> CustomerIssueMilestoneFilterSupport.matchesCondition(
+                    issue.milestoneTitle(), condition, milestoneCatalogService))));
   }
 
   private CustomerIssueSummaryQuickFilterOptions loadQuickFilterOptions() {
@@ -635,63 +614,6 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   private StatisticFilterGroup applyDefaultMilestone(StatisticFilterGroup filterGroup) {
     return CustomerIssueMilestoneFilterSupport.applyDefaultMilestone(
         filterGroup, milestoneCatalogService);
-  }
-
-  private boolean matchesSetOperator(List<String> actualValues, List<String> expectedValues, String operator) {
-    List<String> safeActual = actualValues == null ? List.of() : actualValues;
-    List<String> safeExpected = expectedValues == null ? List.of() : expectedValues;
-    if (safeExpected.stream().noneMatch(value -> trimToNull(value) != null)) {
-      return false;
-    }
-    if ("partialContainsAny".equals(operator)) {
-      return safeActual.stream()
-          .filter(value -> trimToNull(value) != null)
-          .anyMatch(
-              actual ->
-                  safeExpected.stream()
-                      .filter(value -> trimToNull(value) != null)
-                      .anyMatch(expected -> containsIgnoreCase(actual, expected)));
-    }
-    boolean intersects =
-        safeActual.stream()
-            .filter(value -> trimToNull(value) != null)
-            .anyMatch(
-                actual -> safeExpected.stream().anyMatch(expected -> equalsIgnoreCase(actual, expected)));
-    boolean containsAll =
-        safeExpected.stream()
-            .filter(value -> trimToNull(value) != null)
-            .allMatch(
-                expected -> safeActual.stream().anyMatch(actual -> equalsIgnoreCase(actual, expected)));
-    return switch (normalizeSetOperator(operator)) {
-      case "notIntersects" -> !intersects;
-      case "containsAll" -> containsAll;
-      case "notContainsAll" -> !containsAll;
-      default -> intersects;
-    };
-  }
-
-  private String normalizeSetOperator(String operator) {
-    if ("ne".equals(operator)) {
-      return "notIntersects";
-    }
-    if ("eq".equals(operator)) {
-      return "intersects";
-    }
-    return operator;
-  }
-
-  private boolean equalsIgnoreCase(String left, String right) {
-    String safeLeft = trimToNull(left);
-    String safeRight = trimToNull(right);
-    return safeLeft != null && safeRight != null && safeLeft.equalsIgnoreCase(safeRight);
-  }
-
-  private boolean containsIgnoreCase(String left, String right) {
-    String safeLeft = trimToNull(left);
-    String safeRight = trimToNull(right);
-    return safeLeft != null
-        && safeRight != null
-        && safeLeft.toLowerCase(Locale.ROOT).contains(safeRight.toLowerCase(Locale.ROOT));
   }
 
   private StatisticRuleFlowStepSample toRuleFlowSample(IssueSource issue) {
