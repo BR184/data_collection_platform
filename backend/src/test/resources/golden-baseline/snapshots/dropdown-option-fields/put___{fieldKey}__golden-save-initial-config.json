@@ -1,0 +1,37 @@
+{
+  "httpStatus" : 200,
+  "body" : {
+    "success" : true,
+    "code" : "00000",
+    "message" : "下拉框配置已保存",
+    "data" : {
+      "fieldKey" : "review-data.form.project-name",
+      "displayName" : "评审数据-新增评审-项目名称",
+      "configId" : 1,
+      "configLabel" : "评审数据-新增评审-项目名称",
+      "rules" : {
+        "acquiredRules" : [ {
+          "listType" : "BLACKLIST",
+          "name" : "golden黑名单",
+          "filterGroup" : {
+            "logic" : "OR",
+            "conditions" : [ {
+              "fieldKey" : "optionValue",
+              "operator" : "eq",
+              "value" : "golden-blocked",
+              "secondaryValue" : null,
+              "valueType" : "LITERAL",
+              "labelGroupId" : null,
+              "labelGroupName" : null,
+              "values" : [ ]
+            } ]
+          }
+        } ],
+        "manualRules" : [ ]
+      },
+      "manualOptions" : [ "golden-manual" ],
+      "version" : 0,
+      "consumerFields" : [ "评审数据-新增评审-项目名称" ]
+    }
+  }
+}

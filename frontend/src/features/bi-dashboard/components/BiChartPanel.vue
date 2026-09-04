@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { Download } from '@element-plus/icons-vue';
+import { Document, Download, Loading, Picture } from '@element-plus/icons-vue';
 import { computed, ref, type PropType } from 'vue';
 import { ElMessage } from '../../../element-plus-services';
 import { authState } from '../../../composables/auth-state';
 import { getErrorMessage } from '../../../utils/user-message';
 import { hasPermission } from '../../../feature-manifest';
 import type { BiChart } from '../charts/BiChart';
-import { exportBiChartPng } from '../charts/export-chart';
+import { exportBiChartExcel, exportBiChartPng } from '../charts/export-chart';
 import type { BiDataStatus, BiPageKey } from '../data/types';
 import BiChartCanvas from './BiChartCanvas.vue';
+import BiChartSortControl, { type BiSortOption, type BiSortOrder } from './BiChartSortControl.vue';
 
 const props = defineProps({
   title: { type: String, required: true },
@@ -26,10 +27,15 @@ const props = defineProps({
     default: 'full',
   },
   variant: { type: String as PropType<'default' | 'analysis' | 'pie' | 'summary'>, default: 'default' },
+  sort: { type: String, default: '' },
+  order: { type: String as PropType<BiSortOrder>, default: 'desc' },
+  sortOptions: { type: Array as PropType<BiSortOption[]>, default: () => [] },
 });
 
 const emit = defineEmits<{
   (event: 'point-click', value: { dataIndex: number; name: string }): void;
+  (event: 'update:sort', value: string): void;
+  (event: 'update:order', value: BiSortOrder): void;
 }>();
 
 const exporting = ref(false);
@@ -45,7 +51,7 @@ const stateTitle = computed(() => {
   return '当前范围暂无数据';
 });
 
-async function download(): Promise<void> {
+async function downloadPng(): Promise<void> {
   if (!canDownload.value || exporting.value) return;
   exporting.value = true;
   try {
@@ -64,6 +70,34 @@ async function download(): Promise<void> {
     exporting.value = false;
   }
 }
+
+async function downloadExcel(): Promise<void> {
+  if (!canDownload.value || exporting.value) return;
+  exporting.value = true;
+  try {
+    await exportBiChartExcel({
+      productVersionId: props.productVersionId,
+      pageKey: props.pageKey,
+      sourceVersion: props.sourceVersion,
+      title: props.title,
+      chart: typedChart.value,
+      data: props.data,
+    });
+    ElMessage.success('Excel 数据表已导出');
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, 'Excel 导出失败'));
+  } finally {
+    exporting.value = false;
+  }
+}
+
+function handleExportCommand(command: string): void {
+  if (command === 'excel') {
+    void downloadExcel();
+  } else if (command === 'png') {
+    void downloadPng();
+  }
+}
 </script>
 
 <template>
@@ -75,17 +109,51 @@ async function download(): Promise<void> {
       </div>
       <div class="bi-chart-panel__actions">
         <slot name="actions" />
-        <el-tooltip content="下载完整数据 PNG" placement="top">
-          <el-button
-            class="bi-icon-button"
-            :icon="Download"
-            circle
-            :disabled="!canDownload"
-            :loading="exporting"
-            :aria-label="`下载${title}`"
-            @click="download"
-          />
-        </el-tooltip>
+        <BiChartSortControl
+          v-if="sortOptions.length"
+          :model-value="sort"
+          :order="order"
+          :options="sortOptions"
+          @update:model-value="emit('update:sort', $event)"
+          @update:order="emit('update:order', $event)"
+        />
+        <el-dropdown
+          v-if="canDownload"
+          trigger="click"
+          @command="handleExportCommand"
+        >
+          <el-tooltip content="导出数据表或图片" placement="top">
+            <button
+              type="button"
+              class="bi-export-btn"
+              :class="{ 'is-loading': exporting }"
+              :disabled="exporting"
+              :aria-label="`导出${title}`"
+            >
+              <el-icon v-if="!exporting" :size="14"><Download /></el-icon>
+              <el-icon v-else class="is-loading" :size="14"><Loading /></el-icon>
+            </button>
+          </el-tooltip>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="excel" :icon="Document">
+                导出 Excel 数据表 (.xlsx)
+              </el-dropdown-item>
+              <el-dropdown-item command="png" :icon="Picture">
+                保存高清图片 (.png)
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <button
+          v-else
+          type="button"
+          class="bi-export-btn is-disabled"
+          disabled
+          aria-label="暂无可下载数据"
+        >
+          <el-icon :size="14"><Download /></el-icon>
+        </button>
       </div>
     </header>
 
@@ -188,9 +256,35 @@ async function download(): Promise<void> {
   gap: 8px;
 }
 
-.bi-icon-button {
-  width: 30px;
-  height: 30px;
+.bi-export-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 6px;
+  color: #475467;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.bi-export-btn:hover:not(:disabled) {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+  color: #1e40af;
+}
+
+.bi-export-btn.is-disabled,
+.bi-export-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #94a3b8;
 }
 
 .bi-chart-panel__notice {

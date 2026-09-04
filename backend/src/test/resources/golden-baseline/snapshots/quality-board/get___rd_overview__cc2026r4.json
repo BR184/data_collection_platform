@@ -1,0 +1,65 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "projectName" : "CC2026R4",
+    "demandReviewReportDensity" : 0.0,
+    "designReviewReportDensity" : 0.0,
+    "codeWalkThroughDefectDensityCc" : 3.64,
+    "codeWalkThroughDefectDensityDgm" : 5.72,
+    "integrationPassRate" : 0.0,
+    "defectLeakageRate" : 0.0,
+    "defectEliminationRate" : 0.0,
+    "newIssueFixRate" : 0.0,
+    "metrics" : [ {
+      "key" : "demandReviewReportDensity",
+      "label" : "需求评审缺陷密度",
+      "value" : 0.0,
+      "unit" : "",
+      "targetDescription" : "目标值：[0.20, 0.60]"
+    }, {
+      "key" : "designReviewReportDensity",
+      "label" : "设计评审缺陷密度",
+      "value" : 0.0,
+      "unit" : "",
+      "targetDescription" : "目标值：[0.20, 0.60]"
+    }, {
+      "key" : "codeWalkThroughDefectDensityCc",
+      "label" : "CC代码走查缺陷密度",
+      "value" : 3.64,
+      "unit" : "KLOC",
+      "targetDescription" : "目标值：[2.00, 10.00]"
+    }, {
+      "key" : "codeWalkThroughDefectDensityDgm",
+      "label" : "DGM代码走查缺陷密度",
+      "value" : 5.72,
+      "unit" : "KLOC",
+      "targetDescription" : "目标值：[2.00, 10.00]"
+    }, {
+      "key" : "integrationPassRate",
+      "label" : "集成测试通过率",
+      "value" : 0.0,
+      "unit" : "%",
+      "targetDescription" : "目标值：不低于 90.00%"
+    }, {
+      "key" : "defectLeakageRate",
+      "label" : "发布缺陷遗留率",
+      "value" : 0.0,
+      "unit" : "%",
+      "targetDescription" : "目标值：不超过 15.00%"
+    }, {
+      "key" : "defectEliminationRate",
+      "label" : "开发缺陷遗留率",
+      "value" : 0.0,
+      "unit" : "%",
+      "targetDescription" : "目标值：不低于 90.00%"
+    }, {
+      "key" : "newIssueFixRate",
+      "label" : "新发缺陷修复率",
+      "value" : 0.0,
+      "unit" : "%",
+      "targetDescription" : "新发缺陷中已修复/未复现占比"
+    } ]
+  }
+}

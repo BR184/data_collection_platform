@@ -32,9 +32,10 @@ public class PlatformPermissionService {
       return Set.of();
     }
     String placeholders = String.join(",", roles.stream().map(ignored -> "?").toList());
+    // order by 固定权限码顺序：distinct 无排序时顺序随查询计划漂移，响应契约需要稳定
     return new LinkedHashSet<>(jdbcTemplate.queryForList(
         "select distinct permission_code from platform_role_permissions "
-            + "where role_code in (" + placeholders + ")",
+            + "where role_code in (" + placeholders + ") order by permission_code",
         String.class,
         roles.toArray()));
   }

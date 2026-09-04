@@ -1,0 +1,27 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : [ {
+    "value" : "CrownCAD6.2第一轮系统测试",
+    "issueCount" : 9
+  }, {
+    "value" : "CrownCAD6.2第三轮系统测试",
+    "issueCount" : 3
+  }, {
+    "value" : "CrownCAD6.2第二轮系统测试",
+    "issueCount" : 3
+  }, {
+    "value" : "CC7.1第三轮系统测试",
+    "issueCount" : 1
+  }, {
+    "value" : "CC7.1第二轮系统测试",
+    "issueCount" : 1
+  }, {
+    "value" : "CrownCAD6.1集成测试",
+    "issueCount" : 1
+  }, {
+    "value" : "金砖大赛集成测试",
+    "issueCount" : 1
+  } ]
+}

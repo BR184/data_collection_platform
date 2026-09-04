@@ -1,0 +1,166 @@
+{
+  "table" : "issue_scope_groups",
+  "rows" : [ {
+    "id" : "1",
+    "catalog_id" : "1",
+    "business_key" : "CC2025R4",
+    "display_name" : "CC2025R4",
+    "sort_order" : "5",
+    "enabled" : "t",
+    "remark" : "从 testing_phase_calendar 自动生成父级阶段",
+    "definition_generation" : "1"
+  }, {
+    "id" : "10",
+    "catalog_id" : "1",
+    "business_key" : "CC2024R3",
+    "display_name" : "CC2024R3",
+    "sort_order" : "11",
+    "enabled" : "t",
+    "remark" : "从 testing_phase_calendar 自动生成父级阶段",
+    "definition_generation" : "1"
+  }, {
+    "id" : "11",
+    "catalog_id" : "1",
+    "business_key" : "CC2025R3",
+    "display_name" : "CC2025R3",
+    "sort_order" : "6",
+    "enabled" : "t",
+    "remark" : "从 testing_phase_calendar 自动生成父级阶段",
+    "definition_generation" : "1"
+  }, {
+    "id" : "12",
+    "catalog_id" : "2",
+    "business_key" : "CC2026R3",
+    "display_name" : "CC2026 R3",
+    "sort_order" : "0",
+    "enabled" : "t",
+    "remark" : "由已发布客户事实初始化",
+    "definition_generation" : "2"
+  }, {
+    "id" : "13",
+    "catalog_id" : "2",
+    "business_key" : "CC2026R2",
+    "display_name" : "CC2026 R2",
+    "sort_order" : "1",
+    "enabled" : "t",
+    "remark" : "由已发布客户事实初始化",
+    "definition_generation" : "2"
+  }, {
+    "id" : "14",
+    "catalog_id" : "2",
+    "business_key" : "CC2026R1",
+    "display_name" : "CC2026 R1",
+    "sort_order" : "2",
+    "enabled" : "t",
+    "remark" : "由已发布客户事实初始化",
+    "definition_generation" : "2"
+  }, {
+    "id" : "15",
+    "catalog_id" : "2",
+    "business_key" : "CC2025R4",
+    "display_name" : "CC2025 R4",
+    "sort_order" : "3",
+    "enabled" : "t",
+    "remark" : "由已发布客户事实初始化",
+    "definition_generation" : "2"
+  }, {
+    "id" : "16",
+    "catalog_id" : "2",
+    "business_key" : "CC2025R3",
+    "display_name" : "CC2025 R3",
+    "sort_order" : "4",
+    "enabled" : "t",
+    "remark" : "由已发布客户事实初始化",
+    "definition_generation" : "2"
+  }, {
+    "id" : "17",
+    "catalog_id" : "2",
+    "business_key" : "CC2025R1",
+    "display_name" : "CC2025 R1",
+    "sort_order" : "5",
+    "enabled" : "t",
+    "remark" : "由已发布客户事实初始化",
+    "definition_generation" : "2"
+  }, {
+    "id" : "18",
+    "catalog_id" : "2",
+    "business_key" : "CC2024R4",
+    "display_name" : "CC2024 R4",
+    "sort_order" : "6",
+    "enabled" : "t",
+    "remark" : "由已发布客户事实初始化",
+    "definition_generation" : "2"
+  }, {
+    "id" : "2",
+    "catalog_id" : "1",
+    "business_key" : "CC2025R2",
+    "display_name" : "CC2025R2",
+    "sort_order" : "7",
+    "enabled" : "t",
+    "remark" : "从 testing_phase_calendar 自动生成父级阶段",
+    "definition_generation" : "1"
+  }, {
+    "id" : "3",
+    "catalog_id" : "1",
+    "business_key" : "CC2024R2",
+    "display_name" : "CC2024R2",
+    "sort_order" : "10",
+    "enabled" : "t",
+    "remark" : "从 testing_phase_calendar 自动生成父级阶段",
+    "definition_generation" : "1"
+  }, {
+    "id" : "4",
+    "catalog_id" : "1",
+    "business_key" : "CC2026R1",
+    "display_name" : "CC2026R1",
+    "sort_order" : "4",
+    "enabled" : "t",
+    "remark" : "从 testing_phase_calendar 自动生成父级阶段",
+    "definition_generation" : "1"
+  }, {
+    "id" : "5",
+    "catalog_id" : "1",
+    "business_key" : "CC2026R2",
+    "display_name" : "CC2026R2",
+    "sort_order" : "3",
+    "enabled" : "t",
+    "remark" : "从 testing_phase_calendar 自动生成父级阶段",
+    "definition_generation" : "1"
+  }, {
+    "id" : "6",
+    "catalog_id" : "1",
+    "business_key" : "CC2024R4",
+    "display_name" : "CC2024R4",
+    "sort_order" : "9",
+    "enabled" : "t",
+    "remark" : "从 testing_phase_calendar 自动生成父级阶段",
+    "definition_generation" : "1"
+  }, {
+    "id" : "7",
+    "catalog_id" : "1",
+    "business_key" : "CC2026R3",
+    "display_name" : "CC2026R3",
+    "sort_order" : "1",
+    "enabled" : "t",
+    "remark" : "从 testing_phase_calendar 自动生成父级阶段",
+    "definition_generation" : "1"
+  }, {
+    "id" : "8",
+    "catalog_id" : "1",
+    "business_key" : "CC2026R4",
+    "display_name" : "CC2026R4",
+    "sort_order" : "2",
+    "enabled" : "t",
+    "remark" : "从 testing_phase_calendar 自动生成父级阶段",
+    "definition_generation" : "1"
+  }, {
+    "id" : "9",
+    "catalog_id" : "1",
+    "business_key" : "CC2025R1",
+    "display_name" : "CC2025R1",
+    "sort_order" : "8",
+    "enabled" : "t",
+    "remark" : "从 testing_phase_calendar 自动生成父级阶段",
+    "definition_generation" : "1"
+  } ]
+}

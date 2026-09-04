@@ -1,0 +1,805 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "requestTypes" : [ {
+      "label" : "合并请求",
+      "value" : "merge_request"
+    } ],
+    "projects" : [ {
+      "label" : "BYD / 0",
+      "value" : "0"
+    } ],
+    "repositoryNames" : [ {
+      "label" : "CrownCAD",
+      "value" : "CrownCAD"
+    }, {
+      "label" : "cat-server-v3",
+      "value" : "cat-server-v3"
+    }, {
+      "label" : "cat-web",
+      "value" : "cat-web"
+    }, {
+      "label" : "CrownCAD-Admin",
+      "value" : "CrownCAD-Admin"
+    }, {
+      "label" : "CrownCAD-Client",
+      "value" : "CrownCAD-Client"
+    }, {
+      "label" : "crowncad-plant3d file-repository",
+      "value" : "crowncad-plant3d file-repository"
+    }, {
+      "label" : "CrownCAD2025R1R2",
+      "value" : "CrownCAD2025R1R2"
+    }, {
+      "label" : "CrownCADPortalSite",
+      "value" : "CrownCADPortalSite"
+    }, {
+      "label" : "CrownStyling",
+      "value" : "CrownStyling"
+    }, {
+      "label" : "DGM",
+      "value" : "DGM"
+    }, {
+      "label" : "offline-client",
+      "value" : "offline-client"
+    }, {
+      "label" : "PointCloud",
+      "value" : "PointCloud"
+    }, {
+      "label" : "SiteAdmin",
+      "value" : "SiteAdmin"
+    }, {
+      "label" : "ZJ-BIM",
+      "value" : "ZJ-BIM"
+    } ],
+    "illegalTypes" : [ {
+      "label" : "未标注项目名称",
+      "value" : "未标注项目名称"
+    }, {
+      "label" : "未标注模块名称",
+      "value" : "未标注模块名称"
+    }, {
+      "label" : "无代码走查",
+      "value" : "无代码走查"
+    }, {
+      "label" : "未代码扫描",
+      "value" : "未代码扫描"
+    }, {
+      "label" : "静态扫描问题未关闭",
+      "value" : "静态扫描问题未关闭"
+    }, {
+      "label" : "代码注释量未达标",
+      "value" : "代码注释量未达标"
+    }, {
+      "label" : "静态扫描失败",
+      "value" : "静态扫描失败"
+    }, {
+      "label" : "注释率分析工具Clang分析错误",
+      "value" : "注释率分析工具Clang分析错误"
+    }, {
+      "label" : "GitLab 接口报错",
+      "value" : "GitLab 接口报错"
+    } ],
+    "targetBranches" : [ {
+      "label" : "dev",
+      "value" : "dev"
+    } ],
+    "owners" : [ {
+      "label" : "dengzhixian",
+      "value" : "dengzhixian"
+    }, {
+      "label" : "donghuisheng",
+      "value" : "donghuisheng"
+    }, {
+      "label" : "guanlixiang",
+      "value" : "guanlixiang"
+    }, {
+      "label" : "guoyanqun",
+      "value" : "guoyanqun"
+    }, {
+      "label" : "huanglanying",
+      "value" : "huanglanying"
+    }, {
+      "label" : "Liyaoqi",
+      "value" : "Liyaoqi"
+    }, {
+      "label" : "sunhongbin",
+      "value" : "sunhongbin"
+    }, {
+      "label" : "xuli",
+      "value" : "xuli"
+    }, {
+      "label" : "zhangyijian",
+      "value" : "zhangyijian"
+    }, {
+      "label" : "于恒",
+      "value" : "于恒"
+    }, {
+      "label" : "于震",
+      "value" : "于震"
+    }, {
+      "label" : "付崇莱",
+      "value" : "付崇莱"
+    }, {
+      "label" : "付燕鸿",
+      "value" : "付燕鸿"
+    }, {
+      "label" : "任国瑞",
+      "value" : "任国瑞"
+    }, {
+      "label" : "任宁",
+      "value" : "任宁"
+    }, {
+      "label" : "任帅丽",
+      "value" : "任帅丽"
+    }, {
+      "label" : "侯亚龙",
+      "value" : "侯亚龙"
+    }, {
+      "label" : "侯磊",
+      "value" : "侯磊"
+    }, {
+      "label" : "傅培钰",
+      "value" : "傅培钰"
+    }, {
+      "label" : "冯文婕",
+      "value" : "冯文婕"
+    }, {
+      "label" : "冯钊",
+      "value" : "冯钊"
+    }, {
+      "label" : "刘佳祺",
+      "value" : "刘佳祺"
+    }, {
+      "label" : "刘宗博",
+      "value" : "刘宗博"
+    }, {
+      "label" : "刘尚",
+      "value" : "刘尚"
+    }, {
+      "label" : "刘志国",
+      "value" : "刘志国"
+    }, {
+      "label" : "刘悦",
+      "value" : "刘悦"
+    }, {
+      "label" : "刘纪凯",
+      "value" : "刘纪凯"
+    }, {
+      "label" : "刘金雨",
+      "value" : "刘金雨"
+    }, {
+      "label" : "华程逸",
+      "value" : "华程逸"
+    }, {
+      "label" : "吴梦洁",
+      "value" : "吴梦洁"
+    }, {
+      "label" : "吴霜",
+      "value" : "吴霜"
+    }, {
+      "label" : "周泉成",
+      "value" : "周泉成"
+    }, {
+      "label" : "姚思含",
+      "value" : "姚思含"
+    }, {
+      "label" : "姚辉彩",
+      "value" : "姚辉彩"
+    }, {
+      "label" : "姜汛",
+      "value" : "姜汛"
+    }, {
+      "label" : "孙函娇",
+      "value" : "孙函娇"
+    }, {
+      "label" : "孟桦",
+      "value" : "孟桦"
+    }, {
+      "label" : "孟秀平",
+      "value" : "孟秀平"
+    }, {
+      "label" : "宋彤彤",
+      "value" : "宋彤彤"
+    }, {
+      "label" : "常根",
+      "value" : "常根"
+    }, {
+      "label" : "庄晓",
+      "value" : "庄晓"
+    }, {
+      "label" : "张佳旺",
+      "value" : "张佳旺"
+    }, {
+      "label" : "张华磊",
+      "value" : "张华磊"
+    }, {
+      "label" : "张宽",
+      "value" : "张宽"
+    }, {
+      "label" : "张开宇",
+      "value" : "张开宇"
+    }, {
+      "label" : "张明霞",
+      "value" : "张明霞"
+    }, {
+      "label" : "张晓涵",
+      "value" : "张晓涵"
+    }, {
+      "label" : "张梓瑜",
+      "value" : "张梓瑜"
+    }, {
+      "label" : "张海思",
+      "value" : "张海思"
+    }, {
+      "label" : "张石磊",
+      "value" : "张石磊"
+    }, {
+      "label" : "张硕",
+      "value" : "张硕"
+    }, {
+      "label" : "张祥同",
+      "value" : "张祥同"
+    }, {
+      "label" : "张继远",
+      "value" : "张继远"
+    }, {
+      "label" : "张舰方",
+      "value" : "张舰方"
+    }, {
+      "label" : "徐凯强",
+      "value" : "徐凯强"
+    }, {
+      "label" : "徐建民",
+      "value" : "徐建民"
+    }, {
+      "label" : "徐昊2",
+      "value" : "徐昊2"
+    }, {
+      "label" : "徐琦慧",
+      "value" : "徐琦慧"
+    }, {
+      "label" : "曹庆宇",
+      "value" : "曹庆宇"
+    }, {
+      "label" : "曹步勇",
+      "value" : "曹步勇"
+    }, {
+      "label" : "曾维森",
+      "value" : "曾维森"
+    }, {
+      "label" : "朱梦莹",
+      "value" : "朱梦莹"
+    }, {
+      "label" : "李东尧",
+      "value" : "李东尧"
+    }, {
+      "label" : "李令博",
+      "value" : "李令博"
+    }, {
+      "label" : "李佳徽",
+      "value" : "李佳徽"
+    }, {
+      "label" : "李志",
+      "value" : "李志"
+    }, {
+      "label" : "李文宗",
+      "value" : "李文宗"
+    }, {
+      "label" : "李焕坤",
+      "value" : "李焕坤"
+    }, {
+      "label" : "李玮璇",
+      "value" : "李玮璇"
+    }, {
+      "label" : "李琪",
+      "value" : "李琪"
+    }, {
+      "label" : "李钊",
+      "value" : "李钊"
+    }, {
+      "label" : "杜丙瑜",
+      "value" : "杜丙瑜"
+    }, {
+      "label" : "杜敏敏",
+      "value" : "杜敏敏"
+    }, {
+      "label" : "杨作林",
+      "value" : "杨作林"
+    }, {
+      "label" : "杨玉荣",
+      "value" : "杨玉荣"
+    }, {
+      "label" : "柳冰旸",
+      "value" : "柳冰旸"
+    }, {
+      "label" : "樊雯昊",
+      "value" : "樊雯昊"
+    }, {
+      "label" : "洪浩智",
+      "value" : "洪浩智"
+    }, {
+      "label" : "潘广磊",
+      "value" : "潘广磊"
+    }, {
+      "label" : "潘慧敏",
+      "value" : "潘慧敏"
+    }, {
+      "label" : "燕欣睿",
+      "value" : "燕欣睿"
+    }, {
+      "label" : "牛梦兰",
+      "value" : "牛梦兰"
+    }, {
+      "label" : "牛闯",
+      "value" : "牛闯"
+    }, {
+      "label" : "牟敬芳",
+      "value" : "牟敬芳"
+    }, {
+      "label" : "王威",
+      "value" : "王威"
+    }, {
+      "label" : "王志阳",
+      "value" : "王志阳"
+    }, {
+      "label" : "王念文",
+      "value" : "王念文"
+    }, {
+      "label" : "王楠",
+      "value" : "王楠"
+    }, {
+      "label" : "王琨",
+      "value" : "王琨"
+    }, {
+      "label" : "王苏晓",
+      "value" : "王苏晓"
+    }, {
+      "label" : "田健",
+      "value" : "田健"
+    }, {
+      "label" : "田川",
+      "value" : "田川"
+    }, {
+      "label" : "白云涛",
+      "value" : "白云涛"
+    }, {
+      "label" : "祁雨宣",
+      "value" : "祁雨宣"
+    }, {
+      "label" : "秦龙飞",
+      "value" : "秦龙飞"
+    }, {
+      "label" : "艾文涛",
+      "value" : "艾文涛"
+    }, {
+      "label" : "苏旬阳",
+      "value" : "苏旬阳"
+    }, {
+      "label" : "董家辉",
+      "value" : "董家辉"
+    }, {
+      "label" : "赵佳峻",
+      "value" : "赵佳峻"
+    }, {
+      "label" : "赵鹏帅",
+      "value" : "赵鹏帅"
+    }, {
+      "label" : "郎琳琳",
+      "value" : "郎琳琳"
+    }, {
+      "label" : "金义展",
+      "value" : "金义展"
+    }, {
+      "label" : "钟志鹏",
+      "value" : "钟志鹏"
+    }, {
+      "label" : "陈峥",
+      "value" : "陈峥"
+    }, {
+      "label" : "陈征",
+      "value" : "陈征"
+    }, {
+      "label" : "陈晖",
+      "value" : "陈晖"
+    }, {
+      "label" : "陈雷",
+      "value" : "陈雷"
+    }, {
+      "label" : "隋天宝",
+      "value" : "隋天宝"
+    }, {
+      "label" : "霍志岩",
+      "value" : "霍志岩"
+    }, {
+      "label" : "韩潞钦",
+      "value" : "韩潞钦"
+    }, {
+      "label" : "马骕骎",
+      "value" : "马骕骎"
+    }, {
+      "label" : "骆建彬",
+      "value" : "骆建彬"
+    }, {
+      "label" : "高健峰",
+      "value" : "高健峰"
+    }, {
+      "label" : "高士亮",
+      "value" : "高士亮"
+    }, {
+      "label" : "麻荣雨",
+      "value" : "麻荣雨"
+    }, {
+      "label" : "黄冠",
+      "value" : "黄冠"
+    }, {
+      "label" : "黄可馨",
+      "value" : "黄可馨"
+    } ],
+    "mergedBys" : [ {
+      "label" : "任宁",
+      "value" : "任宁"
+    }, {
+      "label" : "倪见素",
+      "value" : "倪见素"
+    }, {
+      "label" : "刘佳祺",
+      "value" : "刘佳祺"
+    }, {
+      "label" : "华程逸",
+      "value" : "华程逸"
+    }, {
+      "label" : "张华磊",
+      "value" : "张华磊"
+    }, {
+      "label" : "张晓涵",
+      "value" : "张晓涵"
+    }, {
+      "label" : "张硕",
+      "value" : "张硕"
+    }, {
+      "label" : "李焕坤",
+      "value" : "李焕坤"
+    }, {
+      "label" : "李钊",
+      "value" : "李钊"
+    }, {
+      "label" : "柳冰旸",
+      "value" : "柳冰旸"
+    }, {
+      "label" : "燕欣睿",
+      "value" : "燕欣睿"
+    }, {
+      "label" : "牟敬芳",
+      "value" : "牟敬芳"
+    }, {
+      "label" : "王念文",
+      "value" : "王念文"
+    }, {
+      "label" : "田川",
+      "value" : "田川"
+    }, {
+      "label" : "许晓伟",
+      "value" : "许晓伟"
+    }, {
+      "label" : "陈征",
+      "value" : "陈征"
+    }, {
+      "label" : "陈晖",
+      "value" : "陈晖"
+    }, {
+      "label" : "霍志岩",
+      "value" : "霍志岩"
+    }, {
+      "label" : "高士亮",
+      "value" : "高士亮"
+    } ],
+    "moduleNames" : [ {
+      "label" : "AI",
+      "value" : "AI"
+    }, {
+      "label" : "BOM",
+      "value" : "BOM"
+    }, {
+      "label" : "BOM&协同",
+      "value" : "BOM&协同"
+    }, {
+      "label" : "BOM&装配",
+      "value" : "BOM&装配"
+    }, {
+      "label" : "BOM&设置",
+      "value" : "BOM&设置"
+    }, {
+      "label" : "DWG",
+      "value" : "DWG"
+    }, {
+      "label" : "DWG&工程图",
+      "value" : "DWG&工程图"
+    }, {
+      "label" : "MBD",
+      "value" : "MBD"
+    }, {
+      "label" : "MBD&工程图",
+      "value" : "MBD&工程图"
+    }, {
+      "label" : "MBD&工程图&草图",
+      "value" : "MBD&工程图&草图"
+    }, {
+      "label" : "MBD&草图",
+      "value" : "MBD&草图"
+    }, {
+      "label" : "MBD&装配",
+      "value" : "MBD&装配"
+    }, {
+      "label" : "PLM",
+      "value" : "PLM"
+    }, {
+      "label" : "TopDown",
+      "value" : "TopDown"
+    }, {
+      "label" : "TopDown&工具&线缆",
+      "value" : "TopDown&工具&线缆"
+    }, {
+      "label" : "TopDown&草图",
+      "value" : "TopDown&草图"
+    }, {
+      "label" : "TopDown&装配",
+      "value" : "TopDown&装配"
+    }, {
+      "label" : "TopDown&评估",
+      "value" : "TopDown&评估"
+    }, {
+      "label" : "三维搜索",
+      "value" : "三维搜索"
+    }, {
+      "label" : "二次开发",
+      "value" : "二次开发"
+    }, {
+      "label" : "仿真",
+      "value" : "仿真"
+    }, {
+      "label" : "企业版",
+      "value" : "企业版"
+    }, {
+      "label" : "企业版&库",
+      "value" : "企业版&库"
+    }, {
+      "label" : "企业版&设置",
+      "value" : "企业版&设置"
+    }, {
+      "label" : "企业版&轻量化",
+      "value" : "企业版&轻量化"
+    }, {
+      "label" : "关系型数据库适配",
+      "value" : "关系型数据库适配"
+    }, {
+      "label" : "协同",
+      "value" : "协同"
+    }, {
+      "label" : "协同&工程图",
+      "value" : "协同&工程图"
+    }, {
+      "label" : "协同&应用",
+      "value" : "协同&应用"
+    }, {
+      "label" : "后台管理系统",
+      "value" : "后台管理系统"
+    }, {
+      "label" : "工具",
+      "value" : "工具"
+    }, {
+      "label" : "工具&工程图",
+      "value" : "工具&工程图"
+    }, {
+      "label" : "工具&数据交换",
+      "value" : "工具&数据交换"
+    }, {
+      "label" : "工具&曲线曲面",
+      "value" : "工具&曲线曲面"
+    }, {
+      "label" : "工具&装配",
+      "value" : "工具&装配"
+    }, {
+      "label" : "工程图",
+      "value" : "工程图"
+    }, {
+      "label" : "工程图&平台&草图",
+      "value" : "工程图&平台&草图"
+    }, {
+      "label" : "工程图&草图",
+      "value" : "工程图&草图"
+    }, {
+      "label" : "工程图&装配",
+      "value" : "工程图&装配"
+    }, {
+      "label" : "平台",
+      "value" : "平台"
+    }, {
+      "label" : "库",
+      "value" : "库"
+    }, {
+      "label" : "库&管路",
+      "value" : "库&管路"
+    }, {
+      "label" : "库&线缆",
+      "value" : "库&线缆"
+    }, {
+      "label" : "库&装配",
+      "value" : "库&装配"
+    }, {
+      "label" : "库&钣金",
+      "value" : "库&钣金"
+    }, {
+      "label" : "应用",
+      "value" : "应用"
+    }, {
+      "label" : "快速设计",
+      "value" : "快速设计"
+    }, {
+      "label" : "快速设计&集成",
+      "value" : "快速设计&集成"
+    }, {
+      "label" : "数据交换",
+      "value" : "数据交换"
+    }, {
+      "label" : "晶格建模",
+      "value" : "晶格建模"
+    }, {
+      "label" : "曲线",
+      "value" : "曲线"
+    }, {
+      "label" : "曲线曲面",
+      "value" : "曲线曲面"
+    }, {
+      "label" : "步路",
+      "value" : "步路"
+    }, {
+      "label" : "步路&管路",
+      "value" : "步路&管路"
+    }, {
+      "label" : "渲染",
+      "value" : "渲染"
+    }, {
+      "label" : "渲染&点云",
+      "value" : "渲染&点云"
+    }, {
+      "label" : "渲染&轻量化",
+      "value" : "渲染&轻量化"
+    }, {
+      "label" : "点云",
+      "value" : "点云"
+    }, {
+      "label" : "点云&网格建模",
+      "value" : "点云&网格建模"
+    }, {
+      "label" : "焊件",
+      "value" : "焊件"
+    }, {
+      "label" : "焊件&特征&钣金",
+      "value" : "焊件&特征&钣金"
+    }, {
+      "label" : "特征",
+      "value" : "特征"
+    }, {
+      "label" : "特征&装配",
+      "value" : "特征&装配"
+    }, {
+      "label" : "特征&钣金",
+      "value" : "特征&钣金"
+    }, {
+      "label" : "管线",
+      "value" : "管线"
+    }, {
+      "label" : "管路",
+      "value" : "管路"
+    }, {
+      "label" : "管路&线缆",
+      "value" : "管路&线缆"
+    }, {
+      "label" : "管路&线缆&装配",
+      "value" : "管路&线缆&装配"
+    }, {
+      "label" : "线缆",
+      "value" : "线缆"
+    }, {
+      "label" : "网格建模",
+      "value" : "网格建模"
+    }, {
+      "label" : "自动化测试",
+      "value" : "自动化测试"
+    }, {
+      "label" : "草图",
+      "value" : "草图"
+    }, {
+      "label" : "草图&装配",
+      "value" : "草图&装配"
+    }, {
+      "label" : "装配",
+      "value" : "装配"
+    }, {
+      "label" : "装配&评估",
+      "value" : "装配&评估"
+    }, {
+      "label" : "设置",
+      "value" : "设置"
+    }, {
+      "label" : "评估",
+      "value" : "评估"
+    }, {
+      "label" : "轻量化",
+      "value" : "轻量化"
+    }, {
+      "label" : "运动仿真",
+      "value" : "运动仿真"
+    }, {
+      "label" : "速览",
+      "value" : "速览"
+    }, {
+      "label" : "钣金",
+      "value" : "钣金"
+    }, {
+      "label" : "集成",
+      "value" : "集成"
+    }, {
+      "label" : "项目文档",
+      "value" : "项目文档"
+    } ],
+    "projectNames" : [ {
+      "label" : "BYD",
+      "value" : "BYD"
+    }, {
+      "label" : "CC For Linux",
+      "value" : "CC For Linux"
+    }, {
+      "label" : "CC2024R1",
+      "value" : "CC2024R1"
+    }, {
+      "label" : "CC2025R1",
+      "value" : "CC2025R1"
+    }, {
+      "label" : "CC2025R2",
+      "value" : "CC2025R2"
+    }, {
+      "label" : "CC2025R4",
+      "value" : "CC2025R4"
+    }, {
+      "label" : "CC2026R1",
+      "value" : "CC2026R1"
+    }, {
+      "label" : "CC2026R3",
+      "value" : "CC2026R3"
+    }, {
+      "label" : "CC2026R4",
+      "value" : "CC2026R4"
+    }, {
+      "label" : "CC2027R1",
+      "value" : "CC2027R1"
+    }, {
+      "label" : "二次开发平台（2026 R4）研发项目",
+      "value" : "二次开发平台（2026 R4）研发项目"
+    }, {
+      "label" : "云SAM",
+      "value" : "云SAM"
+    }, {
+      "label" : "国创",
+      "value" : "国创"
+    }, {
+      "label" : "无需标注",
+      "value" : "无需标注"
+    }, {
+      "label" : "昊中",
+      "value" : "昊中"
+    }, {
+      "label" : "江山重工",
+      "value" : "江山重工"
+    }, {
+      "label" : "广数CAM",
+      "value" : "广数CAM"
+    }, {
+      "label" : "CC 2025 R4&2026 R1",
+      "value" : "CC 2025 R4&2026 R1"
+    } ]
+  }
+}

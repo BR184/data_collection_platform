@@ -1,0 +1,118 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : [ {
+    "key" : "module",
+    "name" : "模块",
+    "description" : "按老平台规则识别并归一化后的模块",
+    "valueKind" : "STRING_LITERAL",
+    "staticSupported" : true,
+    "dynamicSupported" : false
+  }, {
+    "key" : "project",
+    "name" : "项目",
+    "description" : "事实层项目名称",
+    "valueKind" : "STRING_LITERAL",
+    "staticSupported" : true,
+    "dynamicSupported" : false
+  }, {
+    "key" : "review_owner",
+    "name" : "评审负责人",
+    "description" : "评审数据中的评审负责人",
+    "valueKind" : "STRING_LITERAL",
+    "staticSupported" : true,
+    "dynamicSupported" : false
+  }, {
+    "key" : "review_expert",
+    "name" : "评审专家",
+    "description" : "评审数据中的评审专家，多值字段",
+    "valueKind" : "STRING_LITERAL",
+    "staticSupported" : true,
+    "dynamicSupported" : false
+  }, {
+    "key" : "issue_assignee",
+    "name" : "议题处理人",
+    "description" : "系统测试议题事实层处理人",
+    "valueKind" : "STRING_LITERAL",
+    "staticSupported" : true,
+    "dynamicSupported" : false
+  }, {
+    "key" : "customer_author",
+    "name" : "客户问题提交人",
+    "description" : "客户问题事实层提交人",
+    "valueKind" : "STRING_LITERAL",
+    "staticSupported" : true,
+    "dynamicSupported" : false
+  }, {
+    "key" : "customer_assignee",
+    "name" : "客户问题处理人",
+    "description" : "客户问题事实层处理人",
+    "valueKind" : "STRING_LITERAL",
+    "staticSupported" : true,
+    "dynamicSupported" : false
+  }, {
+    "key" : "target_branch",
+    "name" : "目标分支",
+    "description" : "合并请求目标分支",
+    "valueKind" : "BRANCH_NAME",
+    "staticSupported" : false,
+    "dynamicSupported" : false
+  }, {
+    "key" : "milestone",
+    "name" : "里程碑",
+    "description" : "议题事实层里程碑",
+    "valueKind" : "STRING_LITERAL",
+    "staticSupported" : true,
+    "dynamicSupported" : false
+  }, {
+    "key" : "round",
+    "name" : "轮次",
+    "description" : "系统测试阶段定义中的轮次",
+    "valueKind" : "STRING_LITERAL",
+    "staticSupported" : false,
+    "dynamicSupported" : false
+  }, {
+    "key" : "test_stage",
+    "name" : "测试阶段",
+    "description" : "老平台规则识别出的测试阶段",
+    "valueKind" : "STRING_LITERAL",
+    "staticSupported" : true,
+    "dynamicSupported" : false
+  }, {
+    "key" : "severity_level",
+    "name" : "严重程度",
+    "description" : "一级缺陷、二级缺陷、三级缺陷",
+    "valueKind" : "ENUM_KEY",
+    "staticSupported" : true,
+    "dynamicSupported" : false
+  }, {
+    "key" : "priority_level",
+    "name" : "紧急程度",
+    "description" : "P1、P2、P3",
+    "valueKind" : "ENUM_KEY",
+    "staticSupported" : true,
+    "dynamicSupported" : false
+  }, {
+    "key" : "defect_reason",
+    "name" : "缺陷原因",
+    "description" : "规则层缺陷原因枚举",
+    "valueKind" : "ENUM_KEY",
+    "staticSupported" : false,
+    "dynamicSupported" : false
+  }, {
+    "key" : "delay_reason",
+    "name" : "延期原因",
+    "description" : "规则层延期原因枚举",
+    "valueKind" : "ENUM_KEY",
+    "staticSupported" : false,
+    "dynamicSupported" : false
+  }, {
+    "key" : "closure_status",
+    "name" : "客户问题闭环状态",
+    "description" : "客户问题闭环状态规范值",
+    "valueKind" : "ENUM_KEY",
+    "staticSupported" : true,
+    "dynamicSupported" : false
+  } ]
+}

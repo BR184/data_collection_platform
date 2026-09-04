@@ -1,0 +1,84 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "baseTotal" : 14686,
+    "filteredTotal" : 10244,
+    "deltaCount" : 0,
+    "retainedRate" : 69.75350674111398,
+    "samples" : [ {
+      "mergeRequestId" : 495,
+      "mergeRequestIid" : 495,
+      "projectName" : "未标注项目名",
+      "moduleName" : "",
+      "owner" : "姜汛",
+      "targetBranch" : "master",
+      "mergeRequestContent" : "fix: 自动化测试删除对录制时sign判断",
+      "reasons" : [ "未标注项目名", "未进行代码扫描", "代码注释量未达标", "静态扫描失败" ]
+    }, {
+      "mergeRequestId" : 1520,
+      "mergeRequestIid" : 1520,
+      "projectName" : "BYD",
+      "moduleName" : "工具",
+      "owner" : "胡琨",
+      "targetBranch" : "dev",
+      "mergeRequestContent" : "fix: 修正交窗口视图球导航栏按钮不显示的问题",
+      "reasons" : [ "代码注释量未达标" ]
+    }, {
+      "mergeRequestId" : 29935,
+      "mergeRequestIid" : 29935,
+      "projectName" : "CC2026R1",
+      "moduleName" : "",
+      "owner" : "zhouweizheng",
+      "targetBranch" : "gc_release_2026R1",
+      "mergeRequestContent" : "fix: 更新变量信息增加遗漏的variableDescription字段",
+      "reasons" : [ "代码注释量未达标" ]
+    }, {
+      "mergeRequestId" : 29925,
+      "mergeRequestIid" : 29925,
+      "projectName" : "CC2026R3",
+      "moduleName" : "装配",
+      "owner" : "霍志岩",
+      "targetBranch" : "博诚电气_release_2026R3",
+      "mergeRequestContent" : "Revert \"fix: [博诚电气] 修复reload问题、tab页关闭问题、错误顶层弹窗问题\"",
+      "reasons" : [ "代码注释量未达标" ]
+    }, {
+      "mergeRequestId" : 458,
+      "mergeRequestIid" : 458,
+      "projectName" : "未标注项目名",
+      "moduleName" : "",
+      "owner" : "张继远",
+      "targetBranch" : "dev",
+      "mergeRequestContent" : "feat:[后台管理系统]-用户属性管理引入URLEncoder的包路径修改",
+      "reasons" : [ "未标注项目名", "未进行代码扫描", "代码注释量未达标", "静态扫描失败" ]
+    }, {
+      "mergeRequestId" : 453,
+      "mergeRequestIid" : 453,
+      "projectName" : "未标注项目名",
+      "moduleName" : "",
+      "owner" : "张继远",
+      "targetBranch" : "dev",
+      "mergeRequestContent" : "feat:2026R4-用户属性管理",
+      "reasons" : [ "未标注项目名", "未进行代码扫描", "代码注释量未达标", "静态扫描失败" ]
+    }, {
+      "mergeRequestId" : 1279,
+      "mergeRequestIid" : 1279,
+      "projectName" : "BYD",
+      "moduleName" : "工具",
+      "owner" : "fengxuanming",
+      "targetBranch" : "dev",
+      "mergeRequestContent" : "fix: [layouts]窗口全屏功能完善",
+      "reasons" : [ "代码注释量未达标" ]
+    }, {
+      "mergeRequestId" : 457,
+      "mergeRequestIid" : 457,
+      "projectName" : "未标注项目名",
+      "moduleName" : "",
+      "owner" : "张开宇",
+      "targetBranch" : "dev",
+      "mergeRequestContent" : "feat: [注册]新增用户注册功能",
+      "reasons" : [ "未标注项目名", "未进行代码扫描", "代码注释量未达标", "静态扫描失败" ]
+    } ]
+  }
+}

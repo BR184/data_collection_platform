@@ -1,0 +1,79 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "dashboardKey" : "quality-rd",
+    "viewKey" : "integration-test-results",
+    "title" : "集成测试通过率明细",
+    "description" : "逐条展示参与平均通过率计算的集成测试记录；执行用例为 0 的记录通过率按 0 参与平均。",
+    "columns" : [ {
+      "key" : "projectName",
+      "label" : "项目",
+      "format" : "text",
+      "width" : 150
+    }, {
+      "key" : "issueIid",
+      "label" : "议题编号",
+      "format" : "number",
+      "width" : 110
+    }, {
+      "key" : "title",
+      "label" : "标题",
+      "format" : "text",
+      "width" : 280
+    }, {
+      "key" : "testingPhase",
+      "label" : "测试阶段",
+      "format" : "text",
+      "width" : 180
+    }, {
+      "key" : "moduleName",
+      "label" : "模块",
+      "format" : "text",
+      "width" : 160
+    }, {
+      "key" : "functionName",
+      "label" : "功能",
+      "format" : "text",
+      "width" : 160
+    }, {
+      "key" : "executor",
+      "label" : "执行人",
+      "format" : "text",
+      "width" : 130
+    }, {
+      "key" : "executeCase",
+      "label" : "执行用例数",
+      "format" : "number",
+      "width" : 120
+    }, {
+      "key" : "passCase",
+      "label" : "通过用例数",
+      "format" : "number",
+      "width" : 120
+    }, {
+      "key" : "notPassCase",
+      "label" : "未通过用例数",
+      "format" : "number",
+      "width" : 130
+    }, {
+      "key" : "passRate",
+      "label" : "单条通过率(%)",
+      "format" : "number",
+      "width" : 140
+    }, {
+      "key" : "updatedAt",
+      "label" : "更新时间",
+      "format" : "datetime",
+      "width" : 180
+    } ],
+    "records" : [ ],
+    "total" : 0,
+    "page" : 1,
+    "size" : 20,
+    "exports" : [ ],
+    "filters" : [ ],
+    "chart" : null
+  }
+}

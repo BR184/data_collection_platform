@@ -2,8 +2,8 @@
 import { computed, ref, watch, type PropType } from 'vue';
 import { TestQualityAttainmentChart } from '../charts/types';
 import type { TestAttainmentRow } from '../charts/chart-data';
-import BiAnalysisToolbar, { type BiToolbarOption } from '../components/BiAnalysisToolbar.vue';
 import BiChartPanel from '../components/BiChartPanel.vue';
+import type { BiSortOrder } from '../components/BiChartSortControl.vue';
 import BiMetricStrip, { type BiMetricItem } from '../components/BiMetricStrip.vue';
 import { formatNumber, formatPercent, metricStatus, sectionPresentation } from '../data/presentation';
 import type { BiPageKey, BiPageResponse, BiTestAttainment, BiTestQualityPageData } from '../data/types';
@@ -17,24 +17,23 @@ const props = defineProps({
 
 const chart = new TestQualityAttainmentChart();
 const selectedModuleId = ref('');
-const moduleLimit = ref('all');
-const moduleSort = ref('statusAsc');
-const moduleSearch = ref('');
-const featureLimit = ref('all');
-const featureSort = ref('statusAsc');
-const featureSearch = ref('');
-const limitOptions: BiToolbarOption[] = [
-  { label: '显示全部', value: 'all' },
-  { label: '显示 10 项', value: '10' },
-  { label: '显示 20 项', value: '20' },
+const moduleSort = ref('status');
+const moduleSortOrder = ref<BiSortOrder>('asc');
+const featureSort = ref('status');
+const featureSortOrder = ref<BiSortOrder>('asc');
+
+const moduleSortOptions = [
+  { label: '异常优先', value: 'status' },
+  { label: '通过率', value: 'rate' },
+  { label: '统计总数', value: 'total' },
+  { label: '达标数量', value: 'attained' },
+  { label: '模块名称', value: 'name' },
 ];
-const sortOptions: BiToolbarOption[] = [
-  { label: '未达标优先', value: 'statusAsc' },
-  { label: '通过率升序', value: 'rateAsc' },
-  { label: '统计数降序', value: 'countDesc' },
-  { label: '名称排序', value: 'nameAsc' },
+const featureSortOptions = [
+  { label: '异常优先', value: 'status' },
+  { label: '通过率', value: 'rate' },
+  { label: '功能名称', value: 'name' },
 ];
-const featureSortOptions = sortOptions.filter((item) => item.value !== 'countDesc');
 
 const allModules = computed<TestAttainmentRow[]>(() => (props.response.data?.modules ?? []).map((item) => ({
   id: item.moduleId,
@@ -46,17 +45,13 @@ const allModules = computed<TestAttainmentRow[]>(() => (props.response.data?.mod
 })));
 
 const modules = computed<TestAttainmentRow[]>(() => {
-  const search = moduleSearch.value.trim().toLowerCase();
-  const rows = allModules.value
-    .filter((item) => !search || item.name.toLowerCase().includes(search) || item.id.toLowerCase().includes(search))
+  return allModules.value
     .slice()
-    .sort(sortRows(moduleSort.value));
-  return limitRows(rows, moduleLimit.value);
+    .sort(sortTestRows(moduleSort.value, moduleSortOrder.value));
 });
 
 const functions = computed<TestAttainmentRow[]>(() => {
-  const search = featureSearch.value.trim().toLowerCase();
-  const rows = (props.response.data?.functions ?? [])
+  return (props.response.data?.functions ?? [])
     .filter((item) => item.moduleId === selectedModuleId.value)
     .map((item) => ({
       id: item.functionId,
@@ -66,9 +61,7 @@ const functions = computed<TestAttainmentRow[]>(() => {
       counts: chartCounts(item.attainment),
       achieved: item.attainment.achieved,
     }))
-    .filter((item) => !search || item.name.toLowerCase().includes(search) || item.id.toLowerCase().includes(search))
-    .sort(sortRows(featureSort.value));
-  return limitRows(rows, featureLimit.value);
+    .sort(sortTestRows(featureSort.value, featureSortOrder.value));
 });
 
 const metrics = computed<BiMetricItem[]>(() => {
@@ -93,18 +86,29 @@ watch(allModules, (value) => {
   }
 }, { immediate: true });
 
-function sortRows(sort: string) {
+function sortTestRows(sortBy: string, order: BiSortOrder) {
   return (left: TestAttainmentRow, right: TestAttainmentRow): number => {
-    if (sort === 'rateAsc') return (left.passRate ?? 101) - (right.passRate ?? 101) || left.name.localeCompare(right.name, 'zh-CN');
-    if (sort === 'countDesc') return (right.counts?.total ?? -1) - (left.counts?.total ?? -1) || left.name.localeCompare(right.name, 'zh-CN');
-    if (sort === 'nameAsc') return left.name.localeCompare(right.name, 'zh-CN');
-    return Number(left.achieved ?? true) - Number(right.achieved ?? true) || (left.passRate ?? 101) - (right.passRate ?? 101);
+    if (sortBy === 'rate') {
+      const cmp = (left.passRate ?? 101) - (right.passRate ?? 101);
+      return order === 'asc' ? cmp : -cmp;
+    }
+    if (sortBy === 'total') {
+      const cmp = (left.counts?.total ?? 0) - (right.counts?.total ?? 0);
+      return order === 'asc' ? cmp : -cmp;
+    }
+    if (sortBy === 'attained') {
+      const cmp = (left.counts?.attained ?? 0) - (right.counts?.attained ?? 0);
+      return order === 'asc' ? cmp : -cmp;
+    }
+    if (sortBy === 'name') {
+      const cmp = left.name.localeCompare(right.name, 'zh-CN');
+      return order === 'asc' ? cmp : -cmp;
+    }
+    const statusCmp = Number(left.achieved ?? true) - Number(right.achieved ?? true);
+    if (statusCmp !== 0) return statusCmp;
+    const cmp = (left.passRate ?? 101) - (right.passRate ?? 101);
+    return order === 'asc' ? cmp : -cmp;
   };
-}
-
-function limitRows<T>(rows: T[], limit: string): T[] {
-  const count = Number(limit);
-  return Number.isSafeInteger(count) && count > 0 ? rows.slice(0, count) : rows;
 }
 
 function chartCounts(attainment: BiTestAttainment): TestAttainmentRow['counts'] {
@@ -146,22 +150,11 @@ function setFeatureLimit(value: string | number): void { featureLimit.value = St
         :product-version-id="productVersionId"
         :page-key="pageKey"
         :source-version="response.sourceVersion"
+        v-model:sort="moduleSort"
+        v-model:order="moduleSortOrder"
+        :sort-options="moduleSortOptions"
         @point-click="selectModuleFromChart"
-      >
-        <template #actions>
-          <BiAnalysisToolbar
-            :limit="moduleLimit"
-            :sort="moduleSort"
-            :search="moduleSearch"
-            :limit-options="limitOptions"
-            :sort-options="sortOptions"
-            search-placeholder="搜索模块"
-            @update:limit="setModuleLimit"
-            @update:sort="moduleSort = $event"
-            @update:search="moduleSearch = $event"
-          />
-        </template>
-      </BiChartPanel>
+      />
       <BiChartPanel
         :title="selectedModuleId ? '模块下功能达标情况' : '功能达标情况'"
         :subtitle="selectedModuleId ? `当前模块：${allModules.find((item) => item.id === selectedModuleId)?.name ?? ''}` : '选择模块后查看功能级数据'"
@@ -175,22 +168,14 @@ function setFeatureLimit(value: string | number): void { featureLimit.value = St
         :product-version-id="productVersionId"
         :page-key="pageKey"
         :source-version="response.sourceVersion"
+        v-model:sort="featureSort"
+        v-model:order="featureSortOrder"
+        :sort-options="featureSortOptions"
       >
         <template #actions>
           <el-select v-model="selectedModuleId" class="bi-module-select" size="small" filterable placeholder="选择模块" aria-label="选择功能所属模块">
             <el-option v-for="module in allModules" :key="module.id" :label="module.name" :value="module.id" />
           </el-select>
-          <BiAnalysisToolbar
-            :limit="featureLimit"
-            :sort="featureSort"
-            :search="featureSearch"
-            :limit-options="limitOptions"
-            :sort-options="featureSortOptions"
-            search-placeholder="搜索功能"
-            @update:limit="setFeatureLimit"
-            @update:sort="featureSort = $event"
-            @update:search="featureSearch = $event"
-          />
         </template>
       </BiChartPanel>
     </div>
@@ -198,7 +183,30 @@ function setFeatureLimit(value: string | number): void { featureLimit.value = St
 </template>
 
 <style scoped>
-.bi-module-select { width: 180px; }
+.bi-module-select {
+  width: 150px;
+}
+
+:deep(.bi-module-select .el-select__wrapper) {
+  min-height: 28px;
+  height: 28px;
+  padding: 0 6px;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  box-shadow: none !important;
+  transition: all 0.2s ease;
+}
+
+:deep(.bi-module-select .el-select__wrapper:hover) {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+
+:deep(.bi-module-select .el-select__selected-item) {
+  font-size: 12px;
+  color: #475467;
+}
 
 @media (max-width: 760px) {
   .bi-module-select { width: 100%; }

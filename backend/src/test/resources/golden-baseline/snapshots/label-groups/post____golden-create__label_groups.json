@@ -1,0 +1,169 @@
+{
+  "table" : "label_groups",
+  "rows" : [ {
+    "id" : "1",
+    "name" : "评审数据管理",
+    "value_type" : "STRING",
+    "group_type" : "STATIC",
+    "description" : "系统默认标签组：用于按老平台口径收口该页面模块范围，用户可编辑成员或停用。",
+    "enabled" : "t",
+    "created_by" : "system",
+    "updated_by" : "system",
+    "applicable_scope" : "SAME_TYPE",
+    "source_field_key" : null
+  }, {
+    "id" : "10",
+    "name" : "客户问题缺陷原因分析",
+    "value_type" : "STRING",
+    "group_type" : "STATIC",
+    "description" : "系统默认标签组：用于按老平台口径收口该页面模块范围，用户可编辑成员或停用。",
+    "enabled" : "t",
+    "created_by" : "system",
+    "updated_by" : "system",
+    "applicable_scope" : "SAME_TYPE",
+    "source_field_key" : null
+  }, {
+    "id" : "11",
+    "name" : "CC_PRODUCT议题",
+    "value_type" : "STRING",
+    "group_type" : "STATIC",
+    "description" : "系统默认标签组：用于按老平台口径收口该页面模块范围，用户可编辑成员或停用。",
+    "enabled" : "t",
+    "created_by" : "system",
+    "updated_by" : "system",
+    "applicable_scope" : "SAME_TYPE",
+    "source_field_key" : null
+  }, {
+    "id" : "12",
+    "name" : "延期问题",
+    "value_type" : "STRING",
+    "group_type" : "STATIC",
+    "description" : "系统默认标签组：用于按老平台口径收口该页面模块范围，用户可编辑成员或停用。",
+    "enabled" : "t",
+    "created_by" : "system",
+    "updated_by" : "system",
+    "applicable_scope" : "SAME_TYPE",
+    "source_field_key" : null
+  }, {
+    "id" : "13",
+    "name" : "缺陷响应效率",
+    "value_type" : "STRING",
+    "group_type" : "STATIC",
+    "description" : "系统默认标签组：用于按老平台口径收口该页面模块范围，用户可编辑成员或停用。",
+    "enabled" : "t",
+    "created_by" : "system",
+    "updated_by" : "system",
+    "applicable_scope" : "SAME_TYPE",
+    "source_field_key" : null
+  }, {
+    "id" : "14",
+    "name" : "按功能展示缺陷数量",
+    "value_type" : "STRING",
+    "group_type" : "STATIC",
+    "description" : "系统默认标签组：用于按老平台口径收口该页面模块范围，用户可编辑成员或停用。",
+    "enabled" : "t",
+    "created_by" : "system",
+    "updated_by" : "system",
+    "applicable_scope" : "SAME_TYPE",
+    "source_field_key" : null
+  }, {
+    "id" : "15",
+    "name" : "golden-标签组",
+    "value_type" : "STRING",
+    "group_type" : "STATIC",
+    "description" : "golden 写用例",
+    "enabled" : "t",
+    "created_by" : "system",
+    "updated_by" : "system",
+    "applicable_scope" : "SAME_TYPE",
+    "source_field_key" : null
+  }, {
+    "id" : "2",
+    "name" : "代码走查非法数据",
+    "value_type" : "STRING",
+    "group_type" : "STATIC",
+    "description" : "系统默认标签组：用于按老平台口径收口该页面模块范围，用户可编辑成员或停用。",
+    "enabled" : "t",
+    "created_by" : "system",
+    "updated_by" : "system",
+    "applicable_scope" : "SAME_TYPE",
+    "source_field_key" : null
+  }, {
+    "id" : "3",
+    "name" : "系统测试缺陷汇总",
+    "value_type" : "STRING",
+    "group_type" : "STATIC",
+    "description" : "系统默认标签组：用于按老平台口径收口该页面模块范围，用户可编辑成员或停用。",
+    "enabled" : "t",
+    "created_by" : "system",
+    "updated_by" : "system",
+    "applicable_scope" : "SAME_TYPE",
+    "source_field_key" : null
+  }, {
+    "id" : "4",
+    "name" : "申请延期缺陷分析",
+    "value_type" : "STRING",
+    "group_type" : "STATIC",
+    "description" : "系统默认标签组：用于按老平台口径收口该页面模块范围，用户可编辑成员或停用。",
+    "enabled" : "t",
+    "created_by" : "system",
+    "updated_by" : "system",
+    "applicable_scope" : "SAME_TYPE",
+    "source_field_key" : null
+  }, {
+    "id" : "5",
+    "name" : "系统测试非法数据",
+    "value_type" : "STRING",
+    "group_type" : "STATIC",
+    "description" : "系统默认标签组：用于按老平台口径收口该页面模块范围，用户可编辑成员或停用。",
+    "enabled" : "t",
+    "created_by" : "system",
+    "updated_by" : "system",
+    "applicable_scope" : "SAME_TYPE",
+    "source_field_key" : null
+  }, {
+    "id" : "6",
+    "name" : "系统测试缺陷原因分析",
+    "value_type" : "STRING",
+    "group_type" : "STATIC",
+    "description" : "系统默认标签组：用于按老平台口径收口该页面模块范围，用户可编辑成员或停用。",
+    "enabled" : "t",
+    "created_by" : "system",
+    "updated_by" : "system",
+    "applicable_scope" : "SAME_TYPE",
+    "source_field_key" : null
+  }, {
+    "id" : "7",
+    "name" : "议题阶段统计",
+    "value_type" : "STRING",
+    "group_type" : "STATIC",
+    "description" : "系统默认标签组：用于按老平台口径收口该页面模块范围，用户可编辑成员或停用。",
+    "enabled" : "t",
+    "created_by" : "system",
+    "updated_by" : "system",
+    "applicable_scope" : "SAME_TYPE",
+    "source_field_key" : null
+  }, {
+    "id" : "8",
+    "name" : "客户问题缺陷汇总",
+    "value_type" : "STRING",
+    "group_type" : "STATIC",
+    "description" : "系统默认标签组：用于按老平台口径收口该页面模块范围，用户可编辑成员或停用。",
+    "enabled" : "t",
+    "created_by" : "system",
+    "updated_by" : "system",
+    "applicable_scope" : "SAME_TYPE",
+    "source_field_key" : null
+  }, {
+    "id" : "9",
+    "name" : "客户问题缺陷非法数据",
+    "value_type" : "STRING",
+    "group_type" : "STATIC",
+    "description" : "系统默认标签组：用于按老平台口径收口该页面模块范围，用户可编辑成员或停用。",
+    "enabled" : "t",
+    "created_by" : "system",
+    "updated_by" : "system",
+    "applicable_scope" : "SAME_TYPE",
+    "source_field_key" : null
+  } ]
+}

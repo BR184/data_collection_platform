@@ -1,0 +1,554 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "definition" : {
+      "boardKey" : "system-test-phase-statistics",
+      "title" : "议题阶段统计",
+      "description" : "按系统测试轮次统计各严重程度缺陷数量。",
+      "queryTitle" : "",
+      "queryDescription" : "",
+      "rowHeaderLabel" : "轮次",
+      "filters" : [ {
+        "key" : "testingPhase",
+        "label" : "项目",
+        "type" : "select",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 220,
+        "operators" : [ "eq", "ne" ],
+        "options" : [ {
+          "label" : "CC2026R3",
+          "value" : "CC2026R3"
+        }, {
+          "label" : "CC2026R4",
+          "value" : "CC2026R4"
+        }, {
+          "label" : "CC2026R2",
+          "value" : "CC2026R2"
+        }, {
+          "label" : "CC2026R1",
+          "value" : "CC2026R1"
+        }, {
+          "label" : "CC2025R4",
+          "value" : "CC2025R4"
+        }, {
+          "label" : "CC2025R3",
+          "value" : "CC2025R3"
+        }, {
+          "label" : "CC2025R2",
+          "value" : "CC2025R2"
+        }, {
+          "label" : "CC2025R1",
+          "value" : "CC2025R1"
+        }, {
+          "label" : "CC2024R4",
+          "value" : "CC2024R4"
+        }, {
+          "label" : "CC2024R2",
+          "value" : "CC2024R2"
+        }, {
+          "label" : "CC2024R3",
+          "value" : "CC2024R3"
+        } ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      } ],
+      "columnGroups" : [ {
+        "key" : "phase-summary",
+        "label" : "阶段统计",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "level1",
+          "label" : "一级缺陷(个)",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "level2",
+          "label" : "二级缺陷(个)",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "level3",
+          "label" : "三级缺陷(个)",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "suggestion",
+          "label" : "建议类缺陷(个)",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : "建议类缺陷单独统计，不计入一级、二级、三级、P1/P2/P3、总计、修复率、关闭率和占比。"
+        }, {
+          "key" : "total",
+          "label" : "总计(排除建议类)(个)",
+          "drilldown" : false,
+          "metricType" : "count",
+          "headerTooltip" : null
+        } ]
+      } ],
+      "detailColumns" : [ {
+        "key" : "iid",
+        "label" : "议题编号",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "title",
+        "label" : "议题标题",
+        "width" : 360,
+        "minWidth" : 260,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "state",
+        "label" : "议题状态",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : false
+      }, {
+        "key" : "severityLevel",
+        "label" : "严重程度",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : false
+      }, {
+        "key" : "bugStatus",
+        "label" : "测试状态",
+        "width" : 160,
+        "minWidth" : 160,
+        "sortable" : true,
+        "type" : "tags",
+        "expandOnly" : false
+      }, {
+        "key" : "delayCause",
+        "label" : "延期原因",
+        "width" : 160,
+        "minWidth" : 160,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "authorName",
+        "label" : "议题提交人",
+        "width" : 140,
+        "minWidth" : 140,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "assigneeName",
+        "label" : "议题处理人",
+        "width" : 140,
+        "minWidth" : 140,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "updatedAt",
+        "label" : "更新时间",
+        "width" : 180,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "moduleNames",
+        "label" : "模块名",
+        "width" : null,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : "tags",
+        "expandOnly" : true
+      }, {
+        "key" : "createdAt",
+        "label" : "议题提交时间",
+        "width" : 180,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      } ],
+      "defaultPageSize" : 10,
+      "emptyText" : "当前没有可展示的议题阶段统计结果。"
+    },
+    "appliedFilters" : {
+      "testingPhase" : "CC2026R3"
+    },
+    "appliedFilterGroup" : {
+      "logic" : "AND",
+      "conditions" : [ {
+        "fieldKey" : "testingPhase",
+        "operator" : "eq",
+        "value" : "CC2026R3",
+        "secondaryValue" : null,
+        "valueType" : "RESOLVED_LITERAL_SET",
+        "labelGroupId" : null,
+        "labelGroupName" : null,
+        "values" : [ "CC2026R3第一轮系统测试", "CC2026R3第二轮系统测试", "CC2026R3第三轮系统测试", "CC2026R3第四轮系统测试", "CC2026R3第五轮系统测试", "CC2026R3第六轮系统测试", "CC2026R3回归测试" ]
+      } ]
+    },
+    "rows" : [ {
+      "rowKey" : "CC2026R3第一轮系统测试",
+      "rowLabel" : "CC2026R3第一轮系统测试",
+      "cells" : [ {
+        "columnKey" : "level1",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第一轮系统测试"
+        }
+      }, {
+        "columnKey" : "level2",
+        "numericValue" : 10,
+        "displayValue" : "10",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第一轮系统测试"
+        }
+      }, {
+        "columnKey" : "level3",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第一轮系统测试"
+        }
+      }, {
+        "columnKey" : "suggestion",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第一轮系统测试"
+        }
+      }, {
+        "columnKey" : "total",
+        "numericValue" : 13,
+        "displayValue" : "13",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "CC2026R3第一轮系统测试"
+        }
+      } ]
+    }, {
+      "rowKey" : "CC2026R3第二轮系统测试",
+      "rowLabel" : "CC2026R3第二轮系统测试",
+      "cells" : [ {
+        "columnKey" : "level1",
+        "numericValue" : 4,
+        "displayValue" : "4",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第二轮系统测试"
+        }
+      }, {
+        "columnKey" : "level2",
+        "numericValue" : 9,
+        "displayValue" : "9",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第二轮系统测试"
+        }
+      }, {
+        "columnKey" : "level3",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第二轮系统测试"
+        }
+      }, {
+        "columnKey" : "suggestion",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第二轮系统测试"
+        }
+      }, {
+        "columnKey" : "total",
+        "numericValue" : 14,
+        "displayValue" : "14",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "CC2026R3第二轮系统测试"
+        }
+      } ]
+    }, {
+      "rowKey" : "CC2026R3第三轮系统测试",
+      "rowLabel" : "CC2026R3第三轮系统测试",
+      "cells" : [ {
+        "columnKey" : "level1",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第三轮系统测试"
+        }
+      }, {
+        "columnKey" : "level2",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第三轮系统测试"
+        }
+      }, {
+        "columnKey" : "level3",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第三轮系统测试"
+        }
+      }, {
+        "columnKey" : "suggestion",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第三轮系统测试"
+        }
+      }, {
+        "columnKey" : "total",
+        "numericValue" : 4,
+        "displayValue" : "4",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "CC2026R3第三轮系统测试"
+        }
+      } ]
+    }, {
+      "rowKey" : "CC2026R3第四轮系统测试",
+      "rowLabel" : "CC2026R3第四轮系统测试",
+      "cells" : [ {
+        "columnKey" : "level1",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第四轮系统测试"
+        }
+      }, {
+        "columnKey" : "level2",
+        "numericValue" : 4,
+        "displayValue" : "4",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第四轮系统测试"
+        }
+      }, {
+        "columnKey" : "level3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第四轮系统测试"
+        }
+      }, {
+        "columnKey" : "suggestion",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第四轮系统测试"
+        }
+      }, {
+        "columnKey" : "total",
+        "numericValue" : 4,
+        "displayValue" : "4",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "CC2026R3第四轮系统测试"
+        }
+      } ]
+    }, {
+      "rowKey" : "CC2026R3第五轮系统测试",
+      "rowLabel" : "CC2026R3第五轮系统测试",
+      "cells" : [ {
+        "columnKey" : "level1",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第五轮系统测试"
+        }
+      }, {
+        "columnKey" : "level2",
+        "numericValue" : 8,
+        "displayValue" : "8",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第五轮系统测试"
+        }
+      }, {
+        "columnKey" : "level3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第五轮系统测试"
+        }
+      }, {
+        "columnKey" : "suggestion",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第五轮系统测试"
+        }
+      }, {
+        "columnKey" : "total",
+        "numericValue" : 9,
+        "displayValue" : "9",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "CC2026R3第五轮系统测试"
+        }
+      } ]
+    }, {
+      "rowKey" : "CC2026R3第六轮系统测试",
+      "rowLabel" : "CC2026R3第六轮系统测试",
+      "cells" : [ {
+        "columnKey" : "level1",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第六轮系统测试"
+        }
+      }, {
+        "columnKey" : "level2",
+        "numericValue" : 3,
+        "displayValue" : "3",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第六轮系统测试"
+        }
+      }, {
+        "columnKey" : "level3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第六轮系统测试"
+        }
+      }, {
+        "columnKey" : "suggestion",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3第六轮系统测试"
+        }
+      }, {
+        "columnKey" : "total",
+        "numericValue" : 5,
+        "displayValue" : "5",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "CC2026R3第六轮系统测试"
+        }
+      } ]
+    }, {
+      "rowKey" : "CC2026R3回归测试",
+      "rowLabel" : "CC2026R3回归测试",
+      "cells" : [ {
+        "columnKey" : "level1",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3回归测试"
+        }
+      }, {
+        "columnKey" : "level2",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3回归测试"
+        }
+      }, {
+        "columnKey" : "level3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3回归测试"
+        }
+      }, {
+        "columnKey" : "suggestion",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "CC2026R3回归测试"
+        }
+      }, {
+        "columnKey" : "total",
+        "numericValue" : 4,
+        "displayValue" : "4",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "CC2026R3回归测试"
+        }
+      } ]
+    } ],
+    "meta" : {
+      "generatedAt" : "2026-09-03T18:37:25.8757467+08:00",
+      "queryDurationMs" : 6,
+      "rowCount" : 7,
+      "columnCount" : 5,
+      "drilldownColumnCount" : 4
+    }
+  }
+}

@@ -1,0 +1,275 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "projectName" : "CC2026R3",
+    "functionDefectCountRows" : [ {
+      "name" : "结构构件",
+      "value" : 7.0
+    }, {
+      "name" : "断开的剖视图",
+      "value" : 5.0
+    }, {
+      "name" : "错误配合列表",
+      "value" : 5.0
+    }, {
+      "name" : "尺寸链",
+      "value" : 4.0
+    }, {
+      "name" : "智能尺寸",
+      "value" : 4.0
+    }, {
+      "name" : "基准尺寸",
+      "value" : 3.0
+    }, {
+      "name" : "标注弧长",
+      "value" : 3.0
+    }, {
+      "name" : "倒角尺寸",
+      "value" : 2.0
+    }, {
+      "name" : "孔标注",
+      "value" : 2.0
+    }, {
+      "name" : "拉伸切除",
+      "value" : 2.0
+    }, {
+      "name" : "断裂视图",
+      "value" : 2.0
+    }, {
+      "name" : "BOM工具",
+      "value" : 1.0
+    }, {
+      "name" : "剖视图",
+      "value" : 1.0
+    }, {
+      "name" : "剪裁视图",
+      "value" : 1.0
+    }, {
+      "name" : "孤立",
+      "value" : 1.0
+    }, {
+      "name" : "对齐工程图视图",
+      "value" : 1.0
+    }, {
+      "name" : "导出/打印",
+      "value" : 1.0
+    }, {
+      "name" : "局部视图",
+      "value" : 1.0
+    }, {
+      "name" : "显示/隐藏",
+      "value" : 1.0
+    }, {
+      "name" : "替换零件或装配",
+      "value" : 1.0
+    } ],
+    "functionDefectDensityRows" : [ {
+      "name" : "BOM工具",
+      "value" : 1.75
+    }, {
+      "name" : "渲染",
+      "value" : 0.94
+    }, {
+      "name" : "BOM",
+      "value" : 0.0
+    }, {
+      "name" : "DWG",
+      "value" : 0.0
+    }, {
+      "name" : "PLM",
+      "value" : 0.0
+    }, {
+      "name" : "SView",
+      "value" : 0.0
+    }, {
+      "name" : "SView集成",
+      "value" : 0.0
+    }, {
+      "name" : "ass",
+      "value" : 0.0
+    }, {
+      "name" : "sview",
+      "value" : 0.0
+    }, {
+      "name" : "仿真",
+      "value" : 0.0
+    }, {
+      "name" : "企业版",
+      "value" : 0.0
+    }, {
+      "name" : "企业版&轻量化",
+      "value" : 0.0
+    }, {
+      "name" : "分享",
+      "value" : 0.0
+    }, {
+      "name" : "博诚电气",
+      "value" : 0.0
+    }, {
+      "name" : "实时会话管理",
+      "value" : 0.0
+    }, {
+      "name" : "导出",
+      "value" : 0.0
+    }, {
+      "name" : "工具",
+      "value" : 0.0
+    }, {
+      "name" : "工具栏",
+      "value" : 0.0
+    }, {
+      "name" : "工程图",
+      "value" : 0.0
+    }, {
+      "name" : "平台",
+      "value" : 0.0
+    } ],
+    "qualityRankingRows" : [ {
+      "name" : "guanlixiang",
+      "value" : 0.0
+    }, {
+      "name" : "于震",
+      "value" : 0.0
+    }, {
+      "name" : "付崇莱",
+      "value" : 0.0
+    }, {
+      "name" : "傅培钰",
+      "value" : 0.0
+    }, {
+      "name" : "冯文婕",
+      "value" : 0.0
+    }, {
+      "name" : "冯钊",
+      "value" : 0.0
+    }, {
+      "name" : "刘宗博",
+      "value" : 0.0
+    }, {
+      "name" : "刘志国",
+      "value" : 0.0
+    }, {
+      "name" : "刘悦",
+      "value" : 0.0
+    }, {
+      "name" : "刘纪凯",
+      "value" : 0.0
+    }, {
+      "name" : "吴霜",
+      "value" : 0.0
+    }, {
+      "name" : "姚思含",
+      "value" : 0.0
+    }, {
+      "name" : "孙函娇",
+      "value" : 0.0
+    }, {
+      "name" : "孟桦",
+      "value" : 0.0
+    }, {
+      "name" : "孟秀平",
+      "value" : 0.0
+    }, {
+      "name" : "常根",
+      "value" : 0.0
+    }, {
+      "name" : "庄晓",
+      "value" : 0.0
+    }, {
+      "name" : "张佳旺",
+      "value" : 0.0
+    }, {
+      "name" : "张华磊",
+      "value" : 0.0
+    }, {
+      "name" : "张宽",
+      "value" : 0.0
+    } ],
+    "memberUnresolvedRateRows" : [ {
+      "name" : "",
+      "value" : 0.0
+    }, {
+      "name" : "牛闯",
+      "value" : 0.0
+    }, {
+      "name" : "狄林林",
+      "value" : 0.0
+    }, {
+      "name" : "王青",
+      "value" : 0.0
+    }, {
+      "name" : "马传超",
+      "value" : 0.0
+    } ],
+    "releaseLeakageRateRows" : [ {
+      "name" : "CC2026R3",
+      "value" : 20.0
+    }, {
+      "name" : "CC2026R4",
+      "value" : 0.0
+    }, {
+      "name" : "CC2026R2",
+      "value" : 25.0
+    }, {
+      "name" : "CC2026R1",
+      "value" : 1.72
+    }, {
+      "name" : "CC2025R4",
+      "value" : 0.0
+    }, {
+      "name" : "CC2025R3",
+      "value" : 0.0
+    }, {
+      "name" : "CC2025R2",
+      "value" : 4.35
+    }, {
+      "name" : "CC2025R1",
+      "value" : 0.0
+    }, {
+      "name" : "CC2024R4",
+      "value" : 12.5
+    }, {
+      "name" : "CC2024R2",
+      "value" : 0.0
+    }, {
+      "name" : "CC2024R3",
+      "value" : 0.0
+    } ],
+    "developmentLeakageRateRows" : [ {
+      "name" : "CC2026R3",
+      "value" : 0.0
+    }, {
+      "name" : "CC2026R4",
+      "value" : 0.0
+    }, {
+      "name" : "CC2026R2",
+      "value" : 0.0
+    }, {
+      "name" : "CC2026R1",
+      "value" : 0.0
+    }, {
+      "name" : "CC2025R4",
+      "value" : 0.0
+    }, {
+      "name" : "CC2025R3",
+      "value" : 0.0
+    }, {
+      "name" : "CC2025R2",
+      "value" : 0.0
+    }, {
+      "name" : "CC2025R1",
+      "value" : 0.0
+    }, {
+      "name" : "CC2024R4",
+      "value" : 0.0
+    }, {
+      "name" : "CC2024R2",
+      "value" : 0.0
+    }, {
+      "name" : "CC2024R3",
+      "value" : 0.0
+    } ]
+  }
+}

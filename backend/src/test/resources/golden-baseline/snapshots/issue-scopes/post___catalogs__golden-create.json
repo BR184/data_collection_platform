@@ -1,0 +1,21 @@
+{
+  "httpStatus" : 200,
+  "body" : {
+    "success" : true,
+    "code" : "00000",
+    "message" : "议题范围目录已创建",
+    "data" : {
+      "id" : 3,
+      "projectId" : 999999,
+      "projectName" : "golden-范围目录",
+      "dimension" : "TESTING_PHASE",
+      "dimensionName" : "测试阶段",
+      "enabled" : true,
+      "remark" : "golden 写用例",
+      "groupCount" : 0,
+      "unassignedValueCount" : 0,
+      "createdAt" : "2026-09-03T18:37:20.294865+08:00",
+      "updatedAt" : "2026-09-03T18:37:20.294865+08:00"
+    }
+  }
+}

@@ -1,0 +1,3218 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "dashboardKey" : "code-review-multi",
+    "title" : "代码走查多元看板",
+    "subtitle" : "项目：CC2026R3；按当前筛选范围展示代码走查质量指标",
+    "metrics" : [ ],
+    "charts" : [ {
+      "key" : "module-defect-density",
+      "title" : "模块千行缺陷率",
+      "subtitle" : "用于观察模块维度的平均代码走查缺陷密度。",
+      "option" : {
+        "yAxis" : {
+          "inverse" : true,
+          "type" : "category",
+          "data" : [ "工具&曲线曲面", "焊件", "工程图", "MBD", "渲染", "装配", "MBD&工程图&草图", "工程图&草图", "评估", "管路", "设置", "草图", "线缆", "曲线曲面", "钣金", "步路", "后台管理系统", "速览", "协同", "平台", "AI", "工具", "库", "集成", "管路&线缆", "项目文档", "BOM", "自动化测试", "数据交换", "企业版", "特征", "PLM", "二次开发", "晶格建模", "DWG", "DWG&工程图", "MBD&工程图", "MBD&草图", "TopDown&草图", "仿真", "企业版&库", "企业版&轻量化", "库&线缆", "快速设计", "曲线", "步路&管路", "渲染&轻量化", "点云", "特征&钣金", "轻量化" ],
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "width" : 150
+          }
+        },
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
+        },
+        "series" : [ {
+          "type" : "bar",
+          "barMaxWidth" : 28,
+          "itemStyle" : {
+            "color" : "#2563eb",
+            "borderRadius" : [ 0, 6, 6, 0 ]
+          },
+          "data" : [ {
+            "name" : "工具&曲线曲面",
+            "value" : 166.67,
+            "pointKey" : "工具&曲线曲面",
+            "detailParams" : {
+              "pointKey" : "工具&曲线曲面"
+            }
+          }, {
+            "name" : "焊件",
+            "value" : 70.62,
+            "pointKey" : "焊件",
+            "detailParams" : {
+              "pointKey" : "焊件"
+            }
+          }, {
+            "name" : "工程图",
+            "value" : 32.49,
+            "pointKey" : "工程图",
+            "detailParams" : {
+              "pointKey" : "工程图"
+            }
+          }, {
+            "name" : "MBD",
+            "value" : 30.3,
+            "pointKey" : "MBD",
+            "detailParams" : {
+              "pointKey" : "MBD"
+            }
+          }, {
+            "name" : "渲染",
+            "value" : 20.56,
+            "pointKey" : "渲染",
+            "detailParams" : {
+              "pointKey" : "渲染"
+            }
+          }, {
+            "name" : "装配",
+            "value" : 20.09,
+            "pointKey" : "装配",
+            "detailParams" : {
+              "pointKey" : "装配"
+            }
+          }, {
+            "name" : "MBD&工程图&草图",
+            "value" : 18.52,
+            "pointKey" : "MBD&工程图&草图",
+            "detailParams" : {
+              "pointKey" : "MBD&工程图&草图"
+            }
+          }, {
+            "name" : "工程图&草图",
+            "value" : 18.52,
+            "pointKey" : "工程图&草图",
+            "detailParams" : {
+              "pointKey" : "工程图&草图"
+            }
+          }, {
+            "name" : "评估",
+            "value" : 18.36,
+            "pointKey" : "评估",
+            "detailParams" : {
+              "pointKey" : "评估"
+            }
+          }, {
+            "name" : "管路",
+            "value" : 17.96,
+            "pointKey" : "管路",
+            "detailParams" : {
+              "pointKey" : "管路"
+            }
+          }, {
+            "name" : "设置",
+            "value" : 15.15,
+            "pointKey" : "设置",
+            "detailParams" : {
+              "pointKey" : "设置"
+            }
+          }, {
+            "name" : "草图",
+            "value" : 12.66,
+            "pointKey" : "草图",
+            "detailParams" : {
+              "pointKey" : "草图"
+            }
+          }, {
+            "name" : "线缆",
+            "value" : 12.16,
+            "pointKey" : "线缆",
+            "detailParams" : {
+              "pointKey" : "线缆"
+            }
+          }, {
+            "name" : "曲线曲面",
+            "value" : 11.96,
+            "pointKey" : "曲线曲面",
+            "detailParams" : {
+              "pointKey" : "曲线曲面"
+            }
+          }, {
+            "name" : "钣金",
+            "value" : 11.69,
+            "pointKey" : "钣金",
+            "detailParams" : {
+              "pointKey" : "钣金"
+            }
+          }, {
+            "name" : "步路",
+            "value" : 9.92,
+            "pointKey" : "步路",
+            "detailParams" : {
+              "pointKey" : "步路"
+            }
+          }, {
+            "name" : "后台管理系统",
+            "value" : 8.05,
+            "pointKey" : "后台管理系统",
+            "detailParams" : {
+              "pointKey" : "后台管理系统"
+            }
+          }, {
+            "name" : "速览",
+            "value" : 7.32,
+            "pointKey" : "速览",
+            "detailParams" : {
+              "pointKey" : "速览"
+            }
+          }, {
+            "name" : "协同",
+            "value" : 6.86,
+            "pointKey" : "协同",
+            "detailParams" : {
+              "pointKey" : "协同"
+            }
+          }, {
+            "name" : "平台",
+            "value" : 6.29,
+            "pointKey" : "平台",
+            "detailParams" : {
+              "pointKey" : "平台"
+            }
+          }, {
+            "name" : "AI",
+            "value" : 5.89,
+            "pointKey" : "AI",
+            "detailParams" : {
+              "pointKey" : "AI"
+            }
+          }, {
+            "name" : "工具",
+            "value" : 5.08,
+            "pointKey" : "工具",
+            "detailParams" : {
+              "pointKey" : "工具"
+            }
+          }, {
+            "name" : "库",
+            "value" : 4.72,
+            "pointKey" : "库",
+            "detailParams" : {
+              "pointKey" : "库"
+            }
+          }, {
+            "name" : "集成",
+            "value" : 3.77,
+            "pointKey" : "集成",
+            "detailParams" : {
+              "pointKey" : "集成"
+            }
+          }, {
+            "name" : "管路&线缆",
+            "value" : 3.6,
+            "pointKey" : "管路&线缆",
+            "detailParams" : {
+              "pointKey" : "管路&线缆"
+            }
+          }, {
+            "name" : "项目文档",
+            "value" : 3.47,
+            "pointKey" : "项目文档",
+            "detailParams" : {
+              "pointKey" : "项目文档"
+            }
+          }, {
+            "name" : "BOM",
+            "value" : 3.01,
+            "pointKey" : "BOM",
+            "detailParams" : {
+              "pointKey" : "BOM"
+            }
+          }, {
+            "name" : "自动化测试",
+            "value" : 2.99,
+            "pointKey" : "自动化测试",
+            "detailParams" : {
+              "pointKey" : "自动化测试"
+            }
+          }, {
+            "name" : "数据交换",
+            "value" : 1.47,
+            "pointKey" : "数据交换",
+            "detailParams" : {
+              "pointKey" : "数据交换"
+            }
+          }, {
+            "name" : "企业版",
+            "value" : 1.44,
+            "pointKey" : "企业版",
+            "detailParams" : {
+              "pointKey" : "企业版"
+            }
+          }, {
+            "name" : "特征",
+            "value" : 1.43,
+            "pointKey" : "特征",
+            "detailParams" : {
+              "pointKey" : "特征"
+            }
+          }, {
+            "name" : "PLM",
+            "value" : 1.05,
+            "pointKey" : "PLM",
+            "detailParams" : {
+              "pointKey" : "PLM"
+            }
+          }, {
+            "name" : "二次开发",
+            "value" : 0.85,
+            "pointKey" : "二次开发",
+            "detailParams" : {
+              "pointKey" : "二次开发"
+            }
+          }, {
+            "name" : "晶格建模",
+            "value" : 0.65,
+            "pointKey" : "晶格建模",
+            "detailParams" : {
+              "pointKey" : "晶格建模"
+            }
+          }, {
+            "name" : "DWG",
+            "value" : 0.0,
+            "pointKey" : "DWG",
+            "detailParams" : {
+              "pointKey" : "DWG"
+            }
+          }, {
+            "name" : "DWG&工程图",
+            "value" : 0.0,
+            "pointKey" : "DWG&工程图",
+            "detailParams" : {
+              "pointKey" : "DWG&工程图"
+            }
+          }, {
+            "name" : "MBD&工程图",
+            "value" : 0.0,
+            "pointKey" : "MBD&工程图",
+            "detailParams" : {
+              "pointKey" : "MBD&工程图"
+            }
+          }, {
+            "name" : "MBD&草图",
+            "value" : 0.0,
+            "pointKey" : "MBD&草图",
+            "detailParams" : {
+              "pointKey" : "MBD&草图"
+            }
+          }, {
+            "name" : "TopDown&草图",
+            "value" : 0.0,
+            "pointKey" : "TopDown&草图",
+            "detailParams" : {
+              "pointKey" : "TopDown&草图"
+            }
+          }, {
+            "name" : "仿真",
+            "value" : 0.0,
+            "pointKey" : "仿真",
+            "detailParams" : {
+              "pointKey" : "仿真"
+            }
+          }, {
+            "name" : "企业版&库",
+            "value" : 0.0,
+            "pointKey" : "企业版&库",
+            "detailParams" : {
+              "pointKey" : "企业版&库"
+            }
+          }, {
+            "name" : "企业版&轻量化",
+            "value" : 0.0,
+            "pointKey" : "企业版&轻量化",
+            "detailParams" : {
+              "pointKey" : "企业版&轻量化"
+            }
+          }, {
+            "name" : "库&线缆",
+            "value" : 0.0,
+            "pointKey" : "库&线缆",
+            "detailParams" : {
+              "pointKey" : "库&线缆"
+            }
+          }, {
+            "name" : "快速设计",
+            "value" : 0.0,
+            "pointKey" : "快速设计",
+            "detailParams" : {
+              "pointKey" : "快速设计"
+            }
+          }, {
+            "name" : "曲线",
+            "value" : 0.0,
+            "pointKey" : "曲线",
+            "detailParams" : {
+              "pointKey" : "曲线"
+            }
+          }, {
+            "name" : "步路&管路",
+            "value" : 0.0,
+            "pointKey" : "步路&管路",
+            "detailParams" : {
+              "pointKey" : "步路&管路"
+            }
+          }, {
+            "name" : "渲染&轻量化",
+            "value" : 0.0,
+            "pointKey" : "渲染&轻量化",
+            "detailParams" : {
+              "pointKey" : "渲染&轻量化"
+            }
+          }, {
+            "name" : "点云",
+            "value" : 0.0,
+            "pointKey" : "点云",
+            "detailParams" : {
+              "pointKey" : "点云"
+            }
+          }, {
+            "name" : "特征&钣金",
+            "value" : 0.0,
+            "pointKey" : "特征&钣金",
+            "detailParams" : {
+              "pointKey" : "特征&钣金"
+            }
+          }, {
+            "name" : "轻量化",
+            "value" : 0.0,
+            "pointKey" : "轻量化",
+            "detailParams" : {
+              "pointKey" : "轻量化"
+            }
+          } ],
+          "name" : "缺陷密度(K/LOC)"
+        } ],
+        "xAxis" : {
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value",
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
+          },
+          "name" : "缺陷密度(K/LOC)"
+        },
+        "grid" : {
+          "top" : 24,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 52,
+          "left" : 24
+        },
+        "dataZoom" : [ {
+          "endValue" : 10,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
+          },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
+        "animationDuration" : 450
+      },
+      "ruleKey" : "module-defect-density",
+      "detail" : {
+        "viewKey" : "code-review-statistics",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "module-defect-density"
+        }
+      },
+      "export" : {
+        "exportKey" : "module-defect-density",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "reviewer-defect-density",
+      "title" : "走查人千行缺陷率",
+      "subtitle" : "用于观察实际走查人员发现代码缺陷的密度。",
+      "option" : {
+        "yAxis" : {
+          "inverse" : true,
+          "type" : "category",
+          "data" : [ "李焕坤", "张华磊", "霍志岩", "徐昊", "张晓涵", "田川", "陈晖", "李钊", "张硕", "柳冰旸", "李东尧", "王念文", "牟敬芳", "刘佳祺", "张海思", "华程逸", "冯文婕", "刘志国", "杨玉荣", "燕欣睿", "高士亮" ],
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "width" : 150
+          }
+        },
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
+        },
+        "series" : [ {
+          "type" : "bar",
+          "barMaxWidth" : 28,
+          "itemStyle" : {
+            "color" : "#0f766e",
+            "borderRadius" : [ 0, 6, 6, 0 ]
+          },
+          "data" : [ {
+            "name" : "李焕坤",
+            "value" : 40.54,
+            "pointKey" : "李焕坤",
+            "detailParams" : {
+              "pointKey" : "李焕坤"
+            }
+          }, {
+            "name" : "张华磊",
+            "value" : 32.64,
+            "pointKey" : "张华磊",
+            "detailParams" : {
+              "pointKey" : "张华磊"
+            }
+          }, {
+            "name" : "霍志岩",
+            "value" : 21.94,
+            "pointKey" : "霍志岩",
+            "detailParams" : {
+              "pointKey" : "霍志岩"
+            }
+          }, {
+            "name" : "徐昊",
+            "value" : 20.41,
+            "pointKey" : "徐昊",
+            "detailParams" : {
+              "pointKey" : "徐昊"
+            }
+          }, {
+            "name" : "张晓涵",
+            "value" : 19.41,
+            "pointKey" : "张晓涵",
+            "detailParams" : {
+              "pointKey" : "张晓涵"
+            }
+          }, {
+            "name" : "田川",
+            "value" : 13.05,
+            "pointKey" : "田川",
+            "detailParams" : {
+              "pointKey" : "田川"
+            }
+          }, {
+            "name" : "陈晖",
+            "value" : 10.06,
+            "pointKey" : "陈晖",
+            "detailParams" : {
+              "pointKey" : "陈晖"
+            }
+          }, {
+            "name" : "李钊",
+            "value" : 6.41,
+            "pointKey" : "李钊",
+            "detailParams" : {
+              "pointKey" : "李钊"
+            }
+          }, {
+            "name" : "张硕",
+            "value" : 5.94,
+            "pointKey" : "张硕",
+            "detailParams" : {
+              "pointKey" : "张硕"
+            }
+          }, {
+            "name" : "柳冰旸",
+            "value" : 4.93,
+            "pointKey" : "柳冰旸",
+            "detailParams" : {
+              "pointKey" : "柳冰旸"
+            }
+          }, {
+            "name" : "李东尧",
+            "value" : 4.48,
+            "pointKey" : "李东尧",
+            "detailParams" : {
+              "pointKey" : "李东尧"
+            }
+          }, {
+            "name" : "王念文",
+            "value" : 3.75,
+            "pointKey" : "王念文",
+            "detailParams" : {
+              "pointKey" : "王念文"
+            }
+          }, {
+            "name" : "牟敬芳",
+            "value" : 3.36,
+            "pointKey" : "牟敬芳",
+            "detailParams" : {
+              "pointKey" : "牟敬芳"
+            }
+          }, {
+            "name" : "刘佳祺",
+            "value" : 3.29,
+            "pointKey" : "刘佳祺",
+            "detailParams" : {
+              "pointKey" : "刘佳祺"
+            }
+          }, {
+            "name" : "张海思",
+            "value" : 2.82,
+            "pointKey" : "张海思",
+            "detailParams" : {
+              "pointKey" : "张海思"
+            }
+          }, {
+            "name" : "华程逸",
+            "value" : 0.64,
+            "pointKey" : "华程逸",
+            "detailParams" : {
+              "pointKey" : "华程逸"
+            }
+          }, {
+            "name" : "冯文婕",
+            "value" : 0.0,
+            "pointKey" : "冯文婕",
+            "detailParams" : {
+              "pointKey" : "冯文婕"
+            }
+          }, {
+            "name" : "刘志国",
+            "value" : 0.0,
+            "pointKey" : "刘志国",
+            "detailParams" : {
+              "pointKey" : "刘志国"
+            }
+          }, {
+            "name" : "杨玉荣",
+            "value" : 0.0,
+            "pointKey" : "杨玉荣",
+            "detailParams" : {
+              "pointKey" : "杨玉荣"
+            }
+          }, {
+            "name" : "燕欣睿",
+            "value" : 0.0,
+            "pointKey" : "燕欣睿",
+            "detailParams" : {
+              "pointKey" : "燕欣睿"
+            }
+          }, {
+            "name" : "高士亮",
+            "value" : 0.0,
+            "pointKey" : "高士亮",
+            "detailParams" : {
+              "pointKey" : "高士亮"
+            }
+          } ],
+          "name" : "缺陷密度(K/LOC)"
+        } ],
+        "xAxis" : {
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value",
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
+          },
+          "name" : "缺陷密度(K/LOC)"
+        },
+        "grid" : {
+          "top" : 24,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 52,
+          "left" : 24
+        },
+        "dataZoom" : [ {
+          "endValue" : 10,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
+          },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
+        "animationDuration" : 450
+      },
+      "ruleKey" : "reviewer-defect-density",
+      "detail" : {
+        "viewKey" : "code-review-statistics",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "reviewer-defect-density"
+        }
+      },
+      "export" : {
+        "exportKey" : "reviewer-defect-density",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "reviewer-fixed-defects",
+      "title" : "走查人修复缺陷数量",
+      "subtitle" : "用于观察走查人发现并计入的代码走查缺陷总量。",
+      "option" : {
+        "yAxis" : {
+          "inverse" : true,
+          "type" : "category",
+          "data" : [ "田川", "李焕坤", "霍志岩", "牟敬芳", "张华磊", "华程逸", "王念文", "张硕", "张海思", "张晓涵", "刘佳祺", "柳冰旸", "陈晖", "李东尧", "徐昊", "李钊", "冯文婕", "刘志国", "杨玉荣", "燕欣睿", "高士亮" ],
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "width" : 150
+          }
+        },
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
+        },
+        "series" : [ {
+          "type" : "bar",
+          "barMaxWidth" : 28,
+          "itemStyle" : {
+            "color" : "#7c3aed",
+            "borderRadius" : [ 0, 6, 6, 0 ]
+          },
+          "data" : [ {
+            "name" : "田川",
+            "value" : 190,
+            "pointKey" : "田川",
+            "detailParams" : {
+              "pointKey" : "田川"
+            }
+          }, {
+            "name" : "李焕坤",
+            "value" : 128,
+            "pointKey" : "李焕坤",
+            "detailParams" : {
+              "pointKey" : "李焕坤"
+            }
+          }, {
+            "name" : "霍志岩",
+            "value" : 104,
+            "pointKey" : "霍志岩",
+            "detailParams" : {
+              "pointKey" : "霍志岩"
+            }
+          }, {
+            "name" : "牟敬芳",
+            "value" : 103,
+            "pointKey" : "牟敬芳",
+            "detailParams" : {
+              "pointKey" : "牟敬芳"
+            }
+          }, {
+            "name" : "张华磊",
+            "value" : 50,
+            "pointKey" : "张华磊",
+            "detailParams" : {
+              "pointKey" : "张华磊"
+            }
+          }, {
+            "name" : "华程逸",
+            "value" : 49,
+            "pointKey" : "华程逸",
+            "detailParams" : {
+              "pointKey" : "华程逸"
+            }
+          }, {
+            "name" : "王念文",
+            "value" : 43,
+            "pointKey" : "王念文",
+            "detailParams" : {
+              "pointKey" : "王念文"
+            }
+          }, {
+            "name" : "张硕",
+            "value" : 35,
+            "pointKey" : "张硕",
+            "detailParams" : {
+              "pointKey" : "张硕"
+            }
+          }, {
+            "name" : "张海思",
+            "value" : 31,
+            "pointKey" : "张海思",
+            "detailParams" : {
+              "pointKey" : "张海思"
+            }
+          }, {
+            "name" : "张晓涵",
+            "value" : 28,
+            "pointKey" : "张晓涵",
+            "detailParams" : {
+              "pointKey" : "张晓涵"
+            }
+          }, {
+            "name" : "刘佳祺",
+            "value" : 23,
+            "pointKey" : "刘佳祺",
+            "detailParams" : {
+              "pointKey" : "刘佳祺"
+            }
+          }, {
+            "name" : "柳冰旸",
+            "value" : 23,
+            "pointKey" : "柳冰旸",
+            "detailParams" : {
+              "pointKey" : "柳冰旸"
+            }
+          }, {
+            "name" : "陈晖",
+            "value" : 14,
+            "pointKey" : "陈晖",
+            "detailParams" : {
+              "pointKey" : "陈晖"
+            }
+          }, {
+            "name" : "李东尧",
+            "value" : 9,
+            "pointKey" : "李东尧",
+            "detailParams" : {
+              "pointKey" : "李东尧"
+            }
+          }, {
+            "name" : "徐昊",
+            "value" : 5,
+            "pointKey" : "徐昊",
+            "detailParams" : {
+              "pointKey" : "徐昊"
+            }
+          }, {
+            "name" : "李钊",
+            "value" : 2,
+            "pointKey" : "李钊",
+            "detailParams" : {
+              "pointKey" : "李钊"
+            }
+          }, {
+            "name" : "冯文婕",
+            "value" : 0,
+            "pointKey" : "冯文婕",
+            "detailParams" : {
+              "pointKey" : "冯文婕"
+            }
+          }, {
+            "name" : "刘志国",
+            "value" : 0,
+            "pointKey" : "刘志国",
+            "detailParams" : {
+              "pointKey" : "刘志国"
+            }
+          }, {
+            "name" : "杨玉荣",
+            "value" : 0,
+            "pointKey" : "杨玉荣",
+            "detailParams" : {
+              "pointKey" : "杨玉荣"
+            }
+          }, {
+            "name" : "燕欣睿",
+            "value" : 0,
+            "pointKey" : "燕欣睿",
+            "detailParams" : {
+              "pointKey" : "燕欣睿"
+            }
+          }, {
+            "name" : "高士亮",
+            "value" : 0,
+            "pointKey" : "高士亮",
+            "detailParams" : {
+              "pointKey" : "高士亮"
+            }
+          } ],
+          "name" : "修复缺陷数"
+        } ],
+        "xAxis" : {
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value",
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
+          },
+          "name" : "修复缺陷数"
+        },
+        "grid" : {
+          "top" : 24,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 52,
+          "left" : 24
+        },
+        "dataZoom" : [ {
+          "endValue" : 10,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
+          },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
+        "animationDuration" : 450
+      },
+      "ruleKey" : "reviewer-fixed-defects",
+      "detail" : {
+        "viewKey" : "code-review-statistics",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "reviewer-fixed-defects"
+        }
+      },
+      "export" : {
+        "exportKey" : "reviewer-fixed-defects",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "assignee-fixed-defects",
+      "title" : "指派人修复缺陷数量",
+      "subtitle" : "用于观察各指派人的代码走查缺陷承担分布。",
+      "option" : {
+        "yAxis" : {
+          "inverse" : true,
+          "type" : "category",
+          "data" : [ "田川", "李焕坤", "牟敬芳", "霍志岩", "王念文", "华程逸", "张华磊", "张硕", "刘佳祺", "张晓涵", "柳冰旸", "陈晖", "傅培钰", "冯文婕", "刘宗博", "李钊", "樊雯昊", "燕欣睿", "高士亮" ],
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "width" : 150
+          }
+        },
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
+        },
+        "series" : [ {
+          "type" : "bar",
+          "barMaxWidth" : 28,
+          "itemStyle" : {
+            "color" : "#9333ea",
+            "borderRadius" : [ 0, 6, 6, 0 ]
+          },
+          "data" : [ {
+            "name" : "田川",
+            "value" : 283,
+            "pointKey" : "田川",
+            "detailParams" : {
+              "pointKey" : "田川"
+            }
+          }, {
+            "name" : "李焕坤",
+            "value" : 139,
+            "pointKey" : "李焕坤",
+            "detailParams" : {
+              "pointKey" : "李焕坤"
+            }
+          }, {
+            "name" : "牟敬芳",
+            "value" : 136,
+            "pointKey" : "牟敬芳",
+            "detailParams" : {
+              "pointKey" : "牟敬芳"
+            }
+          }, {
+            "name" : "霍志岩",
+            "value" : 65,
+            "pointKey" : "霍志岩",
+            "detailParams" : {
+              "pointKey" : "霍志岩"
+            }
+          }, {
+            "name" : "王念文",
+            "value" : 56,
+            "pointKey" : "王念文",
+            "detailParams" : {
+              "pointKey" : "王念文"
+            }
+          }, {
+            "name" : "华程逸",
+            "value" : 48,
+            "pointKey" : "华程逸",
+            "detailParams" : {
+              "pointKey" : "华程逸"
+            }
+          }, {
+            "name" : "张华磊",
+            "value" : 42,
+            "pointKey" : "张华磊",
+            "detailParams" : {
+              "pointKey" : "张华磊"
+            }
+          }, {
+            "name" : "张硕",
+            "value" : 34,
+            "pointKey" : "张硕",
+            "detailParams" : {
+              "pointKey" : "张硕"
+            }
+          }, {
+            "name" : "刘佳祺",
+            "value" : 29,
+            "pointKey" : "刘佳祺",
+            "detailParams" : {
+              "pointKey" : "刘佳祺"
+            }
+          }, {
+            "name" : "张晓涵",
+            "value" : 29,
+            "pointKey" : "张晓涵",
+            "detailParams" : {
+              "pointKey" : "张晓涵"
+            }
+          }, {
+            "name" : "柳冰旸",
+            "value" : 23,
+            "pointKey" : "柳冰旸",
+            "detailParams" : {
+              "pointKey" : "柳冰旸"
+            }
+          }, {
+            "name" : "陈晖",
+            "value" : 14,
+            "pointKey" : "陈晖",
+            "detailParams" : {
+              "pointKey" : "陈晖"
+            }
+          }, {
+            "name" : "傅培钰",
+            "value" : 0,
+            "pointKey" : "傅培钰",
+            "detailParams" : {
+              "pointKey" : "傅培钰"
+            }
+          }, {
+            "name" : "冯文婕",
+            "value" : 0,
+            "pointKey" : "冯文婕",
+            "detailParams" : {
+              "pointKey" : "冯文婕"
+            }
+          }, {
+            "name" : "刘宗博",
+            "value" : 0,
+            "pointKey" : "刘宗博",
+            "detailParams" : {
+              "pointKey" : "刘宗博"
+            }
+          }, {
+            "name" : "李钊",
+            "value" : 0,
+            "pointKey" : "李钊",
+            "detailParams" : {
+              "pointKey" : "李钊"
+            }
+          }, {
+            "name" : "樊雯昊",
+            "value" : 0,
+            "pointKey" : "樊雯昊",
+            "detailParams" : {
+              "pointKey" : "樊雯昊"
+            }
+          }, {
+            "name" : "燕欣睿",
+            "value" : 0,
+            "pointKey" : "燕欣睿",
+            "detailParams" : {
+              "pointKey" : "燕欣睿"
+            }
+          }, {
+            "name" : "高士亮",
+            "value" : 0,
+            "pointKey" : "高士亮",
+            "detailParams" : {
+              "pointKey" : "高士亮"
+            }
+          } ],
+          "name" : "修复缺陷数"
+        } ],
+        "xAxis" : {
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value",
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
+          },
+          "name" : "修复缺陷数"
+        },
+        "grid" : {
+          "top" : 24,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 52,
+          "left" : 24
+        },
+        "dataZoom" : [ {
+          "endValue" : 10,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
+          },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
+        "animationDuration" : 450
+      },
+      "ruleKey" : "assignee-fixed-defects",
+      "detail" : {
+        "viewKey" : "code-review-statistics",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "assignee-fixed-defects"
+        }
+      },
+      "export" : {
+        "exportKey" : "assignee-fixed-defects",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "author-defect-density",
+      "title" : "被走查人千行缺陷率",
+      "subtitle" : "用于观察代码提交人在走查中暴露的缺陷密度。",
+      "option" : {
+        "yAxis" : {
+          "inverse" : true,
+          "type" : "category",
+          "data" : [ "张明霞", "郎琳琳", "霍志岩", "孟桦", "樊雯昊", "刘宗博", "孟秀平", "韩潞钦", "牛闯", "杜敏敏", "张海思", "冯文婕", "guanlixiang", "张华磊", "祁雨宣", "傅培钰", "白云涛", "李志", "秦龙飞", "骆建彬", "麻荣雨", "艾文涛", "高士亮", "王志阳", "张开宇", "王念文", "王楠", "李焕坤", "金义展", "张宽", "刘志国", "徐建民", "庄晓", "姚思含", "张佳旺", "Liyaoqi", "隋天宝", "李佳徽", "徐凯强", "孙函娇", "朱梦莹", "冯钊", "潘广磊", "王苏晓", "刘悦", "徐琦慧", "张晓涵", "李令博", "曹步勇", "李东尧", "徐昊2", "guoyanqun", "zhangyijian", "于震", "付崇莱", "侯磊", "刘纪凯", "吴霜", "常根", "张梓瑜", "张硕", "张继远", "李钊", "杜丙瑜", "杨作林", "杨玉荣", "柳冰旸", "燕欣睿", "田健", "田川", "赵佳峻", "陈晖", "高健峰" ],
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "width" : 150
+          }
+        },
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
+        },
+        "series" : [ {
+          "type" : "bar",
+          "barMaxWidth" : 28,
+          "itemStyle" : {
+            "color" : "#c2410c",
+            "borderRadius" : [ 0, 6, 6, 0 ]
+          },
+          "data" : [ {
+            "name" : "张明霞",
+            "value" : 76.53,
+            "pointKey" : "张明霞",
+            "detailParams" : {
+              "pointKey" : "张明霞"
+            }
+          }, {
+            "name" : "郎琳琳",
+            "value" : 53.39,
+            "pointKey" : "郎琳琳",
+            "detailParams" : {
+              "pointKey" : "郎琳琳"
+            }
+          }, {
+            "name" : "霍志岩",
+            "value" : 34.39,
+            "pointKey" : "霍志岩",
+            "detailParams" : {
+              "pointKey" : "霍志岩"
+            }
+          }, {
+            "name" : "孟桦",
+            "value" : 31.46,
+            "pointKey" : "孟桦",
+            "detailParams" : {
+              "pointKey" : "孟桦"
+            }
+          }, {
+            "name" : "樊雯昊",
+            "value" : 30.07,
+            "pointKey" : "樊雯昊",
+            "detailParams" : {
+              "pointKey" : "樊雯昊"
+            }
+          }, {
+            "name" : "刘宗博",
+            "value" : 27.92,
+            "pointKey" : "刘宗博",
+            "detailParams" : {
+              "pointKey" : "刘宗博"
+            }
+          }, {
+            "name" : "孟秀平",
+            "value" : 27.81,
+            "pointKey" : "孟秀平",
+            "detailParams" : {
+              "pointKey" : "孟秀平"
+            }
+          }, {
+            "name" : "韩潞钦",
+            "value" : 27.78,
+            "pointKey" : "韩潞钦",
+            "detailParams" : {
+              "pointKey" : "韩潞钦"
+            }
+          }, {
+            "name" : "牛闯",
+            "value" : 25.71,
+            "pointKey" : "牛闯",
+            "detailParams" : {
+              "pointKey" : "牛闯"
+            }
+          }, {
+            "name" : "杜敏敏",
+            "value" : 21.38,
+            "pointKey" : "杜敏敏",
+            "detailParams" : {
+              "pointKey" : "杜敏敏"
+            }
+          }, {
+            "name" : "张海思",
+            "value" : 20.14,
+            "pointKey" : "张海思",
+            "detailParams" : {
+              "pointKey" : "张海思"
+            }
+          }, {
+            "name" : "冯文婕",
+            "value" : 19.1,
+            "pointKey" : "冯文婕",
+            "detailParams" : {
+              "pointKey" : "冯文婕"
+            }
+          }, {
+            "name" : "guanlixiang",
+            "value" : 18.18,
+            "pointKey" : "guanlixiang",
+            "detailParams" : {
+              "pointKey" : "guanlixiang"
+            }
+          }, {
+            "name" : "张华磊",
+            "value" : 14.11,
+            "pointKey" : "张华磊",
+            "detailParams" : {
+              "pointKey" : "张华磊"
+            }
+          }, {
+            "name" : "祁雨宣",
+            "value" : 14.02,
+            "pointKey" : "祁雨宣",
+            "detailParams" : {
+              "pointKey" : "祁雨宣"
+            }
+          }, {
+            "name" : "傅培钰",
+            "value" : 13.71,
+            "pointKey" : "傅培钰",
+            "detailParams" : {
+              "pointKey" : "傅培钰"
+            }
+          }, {
+            "name" : "白云涛",
+            "value" : 12.35,
+            "pointKey" : "白云涛",
+            "detailParams" : {
+              "pointKey" : "白云涛"
+            }
+          }, {
+            "name" : "李志",
+            "value" : 12.15,
+            "pointKey" : "李志",
+            "detailParams" : {
+              "pointKey" : "李志"
+            }
+          }, {
+            "name" : "秦龙飞",
+            "value" : 10.42,
+            "pointKey" : "秦龙飞",
+            "detailParams" : {
+              "pointKey" : "秦龙飞"
+            }
+          }, {
+            "name" : "骆建彬",
+            "value" : 9.03,
+            "pointKey" : "骆建彬",
+            "detailParams" : {
+              "pointKey" : "骆建彬"
+            }
+          }, {
+            "name" : "麻荣雨",
+            "value" : 7.43,
+            "pointKey" : "麻荣雨",
+            "detailParams" : {
+              "pointKey" : "麻荣雨"
+            }
+          }, {
+            "name" : "艾文涛",
+            "value" : 7.34,
+            "pointKey" : "艾文涛",
+            "detailParams" : {
+              "pointKey" : "艾文涛"
+            }
+          }, {
+            "name" : "高士亮",
+            "value" : 6.96,
+            "pointKey" : "高士亮",
+            "detailParams" : {
+              "pointKey" : "高士亮"
+            }
+          }, {
+            "name" : "王志阳",
+            "value" : 6.92,
+            "pointKey" : "王志阳",
+            "detailParams" : {
+              "pointKey" : "王志阳"
+            }
+          }, {
+            "name" : "张开宇",
+            "value" : 6.9,
+            "pointKey" : "张开宇",
+            "detailParams" : {
+              "pointKey" : "张开宇"
+            }
+          }, {
+            "name" : "王念文",
+            "value" : 6.26,
+            "pointKey" : "王念文",
+            "detailParams" : {
+              "pointKey" : "王念文"
+            }
+          }, {
+            "name" : "王楠",
+            "value" : 6.17,
+            "pointKey" : "王楠",
+            "detailParams" : {
+              "pointKey" : "王楠"
+            }
+          }, {
+            "name" : "李焕坤",
+            "value" : 5.93,
+            "pointKey" : "李焕坤",
+            "detailParams" : {
+              "pointKey" : "李焕坤"
+            }
+          }, {
+            "name" : "金义展",
+            "value" : 5.85,
+            "pointKey" : "金义展",
+            "detailParams" : {
+              "pointKey" : "金义展"
+            }
+          }, {
+            "name" : "张宽",
+            "value" : 5.74,
+            "pointKey" : "张宽",
+            "detailParams" : {
+              "pointKey" : "张宽"
+            }
+          }, {
+            "name" : "刘志国",
+            "value" : 4.8,
+            "pointKey" : "刘志国",
+            "detailParams" : {
+              "pointKey" : "刘志国"
+            }
+          }, {
+            "name" : "徐建民",
+            "value" : 3.91,
+            "pointKey" : "徐建民",
+            "detailParams" : {
+              "pointKey" : "徐建民"
+            }
+          }, {
+            "name" : "庄晓",
+            "value" : 3.76,
+            "pointKey" : "庄晓",
+            "detailParams" : {
+              "pointKey" : "庄晓"
+            }
+          }, {
+            "name" : "姚思含",
+            "value" : 3.73,
+            "pointKey" : "姚思含",
+            "detailParams" : {
+              "pointKey" : "姚思含"
+            }
+          }, {
+            "name" : "张佳旺",
+            "value" : 3.5,
+            "pointKey" : "张佳旺",
+            "detailParams" : {
+              "pointKey" : "张佳旺"
+            }
+          }, {
+            "name" : "Liyaoqi",
+            "value" : 3.4,
+            "pointKey" : "Liyaoqi",
+            "detailParams" : {
+              "pointKey" : "Liyaoqi"
+            }
+          }, {
+            "name" : "隋天宝",
+            "value" : 2.48,
+            "pointKey" : "隋天宝",
+            "detailParams" : {
+              "pointKey" : "隋天宝"
+            }
+          }, {
+            "name" : "李佳徽",
+            "value" : 2.29,
+            "pointKey" : "李佳徽",
+            "detailParams" : {
+              "pointKey" : "李佳徽"
+            }
+          }, {
+            "name" : "徐凯强",
+            "value" : 2.26,
+            "pointKey" : "徐凯强",
+            "detailParams" : {
+              "pointKey" : "徐凯强"
+            }
+          }, {
+            "name" : "孙函娇",
+            "value" : 2.13,
+            "pointKey" : "孙函娇",
+            "detailParams" : {
+              "pointKey" : "孙函娇"
+            }
+          }, {
+            "name" : "朱梦莹",
+            "value" : 1.9,
+            "pointKey" : "朱梦莹",
+            "detailParams" : {
+              "pointKey" : "朱梦莹"
+            }
+          }, {
+            "name" : "冯钊",
+            "value" : 1.51,
+            "pointKey" : "冯钊",
+            "detailParams" : {
+              "pointKey" : "冯钊"
+            }
+          }, {
+            "name" : "潘广磊",
+            "value" : 0.96,
+            "pointKey" : "潘广磊",
+            "detailParams" : {
+              "pointKey" : "潘广磊"
+            }
+          }, {
+            "name" : "王苏晓",
+            "value" : 0.96,
+            "pointKey" : "王苏晓",
+            "detailParams" : {
+              "pointKey" : "王苏晓"
+            }
+          }, {
+            "name" : "刘悦",
+            "value" : 0.82,
+            "pointKey" : "刘悦",
+            "detailParams" : {
+              "pointKey" : "刘悦"
+            }
+          }, {
+            "name" : "徐琦慧",
+            "value" : 0.74,
+            "pointKey" : "徐琦慧",
+            "detailParams" : {
+              "pointKey" : "徐琦慧"
+            }
+          }, {
+            "name" : "张晓涵",
+            "value" : 0.69,
+            "pointKey" : "张晓涵",
+            "detailParams" : {
+              "pointKey" : "张晓涵"
+            }
+          }, {
+            "name" : "李令博",
+            "value" : 0.39,
+            "pointKey" : "李令博",
+            "detailParams" : {
+              "pointKey" : "李令博"
+            }
+          }, {
+            "name" : "曹步勇",
+            "value" : 0.28,
+            "pointKey" : "曹步勇",
+            "detailParams" : {
+              "pointKey" : "曹步勇"
+            }
+          }, {
+            "name" : "李东尧",
+            "value" : 0.22,
+            "pointKey" : "李东尧",
+            "detailParams" : {
+              "pointKey" : "李东尧"
+            }
+          }, {
+            "name" : "徐昊2",
+            "value" : 0.14,
+            "pointKey" : "徐昊2",
+            "detailParams" : {
+              "pointKey" : "徐昊2"
+            }
+          }, {
+            "name" : "guoyanqun",
+            "value" : 0.0,
+            "pointKey" : "guoyanqun",
+            "detailParams" : {
+              "pointKey" : "guoyanqun"
+            }
+          }, {
+            "name" : "zhangyijian",
+            "value" : 0.0,
+            "pointKey" : "zhangyijian",
+            "detailParams" : {
+              "pointKey" : "zhangyijian"
+            }
+          }, {
+            "name" : "于震",
+            "value" : 0.0,
+            "pointKey" : "于震",
+            "detailParams" : {
+              "pointKey" : "于震"
+            }
+          }, {
+            "name" : "付崇莱",
+            "value" : 0.0,
+            "pointKey" : "付崇莱",
+            "detailParams" : {
+              "pointKey" : "付崇莱"
+            }
+          }, {
+            "name" : "侯磊",
+            "value" : 0.0,
+            "pointKey" : "侯磊",
+            "detailParams" : {
+              "pointKey" : "侯磊"
+            }
+          }, {
+            "name" : "刘纪凯",
+            "value" : 0.0,
+            "pointKey" : "刘纪凯",
+            "detailParams" : {
+              "pointKey" : "刘纪凯"
+            }
+          }, {
+            "name" : "吴霜",
+            "value" : 0.0,
+            "pointKey" : "吴霜",
+            "detailParams" : {
+              "pointKey" : "吴霜"
+            }
+          }, {
+            "name" : "常根",
+            "value" : 0.0,
+            "pointKey" : "常根",
+            "detailParams" : {
+              "pointKey" : "常根"
+            }
+          }, {
+            "name" : "张梓瑜",
+            "value" : 0.0,
+            "pointKey" : "张梓瑜",
+            "detailParams" : {
+              "pointKey" : "张梓瑜"
+            }
+          }, {
+            "name" : "张硕",
+            "value" : 0.0,
+            "pointKey" : "张硕",
+            "detailParams" : {
+              "pointKey" : "张硕"
+            }
+          }, {
+            "name" : "张继远",
+            "value" : 0.0,
+            "pointKey" : "张继远",
+            "detailParams" : {
+              "pointKey" : "张继远"
+            }
+          }, {
+            "name" : "李钊",
+            "value" : 0.0,
+            "pointKey" : "李钊",
+            "detailParams" : {
+              "pointKey" : "李钊"
+            }
+          }, {
+            "name" : "杜丙瑜",
+            "value" : 0.0,
+            "pointKey" : "杜丙瑜",
+            "detailParams" : {
+              "pointKey" : "杜丙瑜"
+            }
+          }, {
+            "name" : "杨作林",
+            "value" : 0.0,
+            "pointKey" : "杨作林",
+            "detailParams" : {
+              "pointKey" : "杨作林"
+            }
+          }, {
+            "name" : "杨玉荣",
+            "value" : 0.0,
+            "pointKey" : "杨玉荣",
+            "detailParams" : {
+              "pointKey" : "杨玉荣"
+            }
+          }, {
+            "name" : "柳冰旸",
+            "value" : 0.0,
+            "pointKey" : "柳冰旸",
+            "detailParams" : {
+              "pointKey" : "柳冰旸"
+            }
+          }, {
+            "name" : "燕欣睿",
+            "value" : 0.0,
+            "pointKey" : "燕欣睿",
+            "detailParams" : {
+              "pointKey" : "燕欣睿"
+            }
+          }, {
+            "name" : "田健",
+            "value" : 0.0,
+            "pointKey" : "田健",
+            "detailParams" : {
+              "pointKey" : "田健"
+            }
+          }, {
+            "name" : "田川",
+            "value" : 0.0,
+            "pointKey" : "田川",
+            "detailParams" : {
+              "pointKey" : "田川"
+            }
+          }, {
+            "name" : "赵佳峻",
+            "value" : 0.0,
+            "pointKey" : "赵佳峻",
+            "detailParams" : {
+              "pointKey" : "赵佳峻"
+            }
+          }, {
+            "name" : "陈晖",
+            "value" : 0.0,
+            "pointKey" : "陈晖",
+            "detailParams" : {
+              "pointKey" : "陈晖"
+            }
+          }, {
+            "name" : "高健峰",
+            "value" : 0.0,
+            "pointKey" : "高健峰",
+            "detailParams" : {
+              "pointKey" : "高健峰"
+            }
+          } ],
+          "name" : "缺陷密度(K/LOC)"
+        } ],
+        "xAxis" : {
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value",
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
+          },
+          "name" : "缺陷密度(K/LOC)"
+        },
+        "grid" : {
+          "top" : 24,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 52,
+          "left" : 24
+        },
+        "dataZoom" : [ {
+          "endValue" : 10,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
+          },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
+        "animationDuration" : 450
+      },
+      "ruleKey" : "author-defect-density",
+      "detail" : {
+        "viewKey" : "code-review-statistics",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "author-defect-density"
+        }
+      },
+      "export" : {
+        "exportKey" : "author-defect-density",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "merge-request-count",
+      "title" : "人员合并代码次数",
+      "subtitle" : "同一合并请求的多条走查记录只计一次。",
+      "option" : {
+        "yAxis" : {
+          "inverse" : true,
+          "type" : "category",
+          "data" : [ "田川", "李焕坤", "牟敬芳", "王念文", "华程逸", "张晓涵", "霍志岩", "张华磊", "刘佳祺", "张硕", "柳冰旸", "陈晖", "燕欣睿", "高士亮", "李钊" ],
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "width" : 150
+          }
+        },
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
+        },
+        "series" : [ {
+          "type" : "bar",
+          "barMaxWidth" : 28,
+          "itemStyle" : {
+            "color" : "#0284c7",
+            "borderRadius" : [ 0, 6, 6, 0 ]
+          },
+          "data" : [ {
+            "name" : "田川",
+            "value" : 908,
+            "pointKey" : "田川",
+            "detailParams" : {
+              "pointKey" : "田川"
+            }
+          }, {
+            "name" : "李焕坤",
+            "value" : 380,
+            "pointKey" : "李焕坤",
+            "detailParams" : {
+              "pointKey" : "李焕坤"
+            }
+          }, {
+            "name" : "牟敬芳",
+            "value" : 203,
+            "pointKey" : "牟敬芳",
+            "detailParams" : {
+              "pointKey" : "牟敬芳"
+            }
+          }, {
+            "name" : "王念文",
+            "value" : 161,
+            "pointKey" : "王念文",
+            "detailParams" : {
+              "pointKey" : "王念文"
+            }
+          }, {
+            "name" : "华程逸",
+            "value" : 160,
+            "pointKey" : "华程逸",
+            "detailParams" : {
+              "pointKey" : "华程逸"
+            }
+          }, {
+            "name" : "张晓涵",
+            "value" : 142,
+            "pointKey" : "张晓涵",
+            "detailParams" : {
+              "pointKey" : "张晓涵"
+            }
+          }, {
+            "name" : "霍志岩",
+            "value" : 141,
+            "pointKey" : "霍志岩",
+            "detailParams" : {
+              "pointKey" : "霍志岩"
+            }
+          }, {
+            "name" : "张华磊",
+            "value" : 114,
+            "pointKey" : "张华磊",
+            "detailParams" : {
+              "pointKey" : "张华磊"
+            }
+          }, {
+            "name" : "刘佳祺",
+            "value" : 57,
+            "pointKey" : "刘佳祺",
+            "detailParams" : {
+              "pointKey" : "刘佳祺"
+            }
+          }, {
+            "name" : "张硕",
+            "value" : 49,
+            "pointKey" : "张硕",
+            "detailParams" : {
+              "pointKey" : "张硕"
+            }
+          }, {
+            "name" : "柳冰旸",
+            "value" : 32,
+            "pointKey" : "柳冰旸",
+            "detailParams" : {
+              "pointKey" : "柳冰旸"
+            }
+          }, {
+            "name" : "陈晖",
+            "value" : 12,
+            "pointKey" : "陈晖",
+            "detailParams" : {
+              "pointKey" : "陈晖"
+            }
+          }, {
+            "name" : "燕欣睿",
+            "value" : 3,
+            "pointKey" : "燕欣睿",
+            "detailParams" : {
+              "pointKey" : "燕欣睿"
+            }
+          }, {
+            "name" : "高士亮",
+            "value" : 3,
+            "pointKey" : "高士亮",
+            "detailParams" : {
+              "pointKey" : "高士亮"
+            }
+          }, {
+            "name" : "李钊",
+            "value" : 1,
+            "pointKey" : "李钊",
+            "detailParams" : {
+              "pointKey" : "李钊"
+            }
+          } ],
+          "name" : "合并请求数"
+        } ],
+        "xAxis" : {
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value",
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
+          },
+          "name" : "合并请求数"
+        },
+        "grid" : {
+          "top" : 24,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 52,
+          "left" : 24
+        },
+        "dataZoom" : [ {
+          "endValue" : 10,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
+          },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
+        "animationDuration" : 450
+      },
+      "ruleKey" : "merge-request-count",
+      "detail" : {
+        "viewKey" : "code-review-statistics",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "merge-request-count"
+        }
+      },
+      "export" : {
+        "exportKey" : "merge-request-count",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "code-submission-frequency",
+      "title" : "代码提交频次",
+      "subtitle" : "按提交人统计代码提交频次，不使用缺陷密度口径。",
+      "option" : {
+        "yAxis" : {
+          "inverse" : true,
+          "type" : "category",
+          "data" : [ "艾文涛", "傅培钰", "李焕坤", "高士亮", "刘宗博", "张海思", "庄晓", "骆建彬", "樊雯昊", "隋天宝", "朱梦莹", "郎琳琳", "张明霞", "祁雨宣", "李令博", "张晓涵", "孙函娇", "孟秀平", "牛闯", "张华磊", "徐凯强", "张佳旺", "曹步勇", "刘悦", "秦龙飞", "王苏晓", "冯文婕", "冯钊", "李东尧", "张宽", "徐建民", "李志", "王念文", "刘志国", "麻荣雨", "田川", "孟桦", "王楠", "霍志岩", "王志阳", "吴霜", "潘广磊", "Liyaoqi", "杜敏敏", "杨玉荣", "白云涛", "韩潞钦", "刘纪凯", "李佳徽", "金义展", "guanlixiang", "张硕", "李钊", "姚思含", "田健", "付崇莱", "徐昊2", "于震", "张开宇", "张继远", "徐琦慧", "柳冰旸", "高健峰", "guoyanqun", "zhangyijian", "侯磊", "常根", "张梓瑜", "杜丙瑜", "杨作林", "燕欣睿", "赵佳峻", "陈晖" ],
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "width" : 150
+          }
+        },
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
+        },
+        "series" : [ {
+          "type" : "bar",
+          "barMaxWidth" : 28,
+          "itemStyle" : {
+            "color" : "#059669",
+            "borderRadius" : [ 0, 6, 6, 0 ]
+          },
+          "data" : [ {
+            "name" : "艾文涛",
+            "value" : 204,
+            "pointKey" : "艾文涛",
+            "detailParams" : {
+              "pointKey" : "艾文涛"
+            }
+          }, {
+            "name" : "傅培钰",
+            "value" : 165,
+            "pointKey" : "傅培钰",
+            "detailParams" : {
+              "pointKey" : "傅培钰"
+            }
+          }, {
+            "name" : "李焕坤",
+            "value" : 156,
+            "pointKey" : "李焕坤",
+            "detailParams" : {
+              "pointKey" : "李焕坤"
+            }
+          }, {
+            "name" : "高士亮",
+            "value" : 154,
+            "pointKey" : "高士亮",
+            "detailParams" : {
+              "pointKey" : "高士亮"
+            }
+          }, {
+            "name" : "刘宗博",
+            "value" : 148,
+            "pointKey" : "刘宗博",
+            "detailParams" : {
+              "pointKey" : "刘宗博"
+            }
+          }, {
+            "name" : "张海思",
+            "value" : 147,
+            "pointKey" : "张海思",
+            "detailParams" : {
+              "pointKey" : "张海思"
+            }
+          }, {
+            "name" : "庄晓",
+            "value" : 139,
+            "pointKey" : "庄晓",
+            "detailParams" : {
+              "pointKey" : "庄晓"
+            }
+          }, {
+            "name" : "骆建彬",
+            "value" : 132,
+            "pointKey" : "骆建彬",
+            "detailParams" : {
+              "pointKey" : "骆建彬"
+            }
+          }, {
+            "name" : "樊雯昊",
+            "value" : 126,
+            "pointKey" : "樊雯昊",
+            "detailParams" : {
+              "pointKey" : "樊雯昊"
+            }
+          }, {
+            "name" : "隋天宝",
+            "value" : 108,
+            "pointKey" : "隋天宝",
+            "detailParams" : {
+              "pointKey" : "隋天宝"
+            }
+          }, {
+            "name" : "朱梦莹",
+            "value" : 102,
+            "pointKey" : "朱梦莹",
+            "detailParams" : {
+              "pointKey" : "朱梦莹"
+            }
+          }, {
+            "name" : "郎琳琳",
+            "value" : 92,
+            "pointKey" : "郎琳琳",
+            "detailParams" : {
+              "pointKey" : "郎琳琳"
+            }
+          }, {
+            "name" : "张明霞",
+            "value" : 91,
+            "pointKey" : "张明霞",
+            "detailParams" : {
+              "pointKey" : "张明霞"
+            }
+          }, {
+            "name" : "祁雨宣",
+            "value" : 85,
+            "pointKey" : "祁雨宣",
+            "detailParams" : {
+              "pointKey" : "祁雨宣"
+            }
+          }, {
+            "name" : "李令博",
+            "value" : 83,
+            "pointKey" : "李令博",
+            "detailParams" : {
+              "pointKey" : "李令博"
+            }
+          }, {
+            "name" : "张晓涵",
+            "value" : 79,
+            "pointKey" : "张晓涵",
+            "detailParams" : {
+              "pointKey" : "张晓涵"
+            }
+          }, {
+            "name" : "孙函娇",
+            "value" : 77,
+            "pointKey" : "孙函娇",
+            "detailParams" : {
+              "pointKey" : "孙函娇"
+            }
+          }, {
+            "name" : "孟秀平",
+            "value" : 76,
+            "pointKey" : "孟秀平",
+            "detailParams" : {
+              "pointKey" : "孟秀平"
+            }
+          }, {
+            "name" : "牛闯",
+            "value" : 71,
+            "pointKey" : "牛闯",
+            "detailParams" : {
+              "pointKey" : "牛闯"
+            }
+          }, {
+            "name" : "张华磊",
+            "value" : 69,
+            "pointKey" : "张华磊",
+            "detailParams" : {
+              "pointKey" : "张华磊"
+            }
+          }, {
+            "name" : "徐凯强",
+            "value" : 68,
+            "pointKey" : "徐凯强",
+            "detailParams" : {
+              "pointKey" : "徐凯强"
+            }
+          }, {
+            "name" : "张佳旺",
+            "value" : 60,
+            "pointKey" : "张佳旺",
+            "detailParams" : {
+              "pointKey" : "张佳旺"
+            }
+          }, {
+            "name" : "曹步勇",
+            "value" : 58,
+            "pointKey" : "曹步勇",
+            "detailParams" : {
+              "pointKey" : "曹步勇"
+            }
+          }, {
+            "name" : "刘悦",
+            "value" : 50,
+            "pointKey" : "刘悦",
+            "detailParams" : {
+              "pointKey" : "刘悦"
+            }
+          }, {
+            "name" : "秦龙飞",
+            "value" : 48,
+            "pointKey" : "秦龙飞",
+            "detailParams" : {
+              "pointKey" : "秦龙飞"
+            }
+          }, {
+            "name" : "王苏晓",
+            "value" : 45,
+            "pointKey" : "王苏晓",
+            "detailParams" : {
+              "pointKey" : "王苏晓"
+            }
+          }, {
+            "name" : "冯文婕",
+            "value" : 42,
+            "pointKey" : "冯文婕",
+            "detailParams" : {
+              "pointKey" : "冯文婕"
+            }
+          }, {
+            "name" : "冯钊",
+            "value" : 36,
+            "pointKey" : "冯钊",
+            "detailParams" : {
+              "pointKey" : "冯钊"
+            }
+          }, {
+            "name" : "李东尧",
+            "value" : 36,
+            "pointKey" : "李东尧",
+            "detailParams" : {
+              "pointKey" : "李东尧"
+            }
+          }, {
+            "name" : "张宽",
+            "value" : 34,
+            "pointKey" : "张宽",
+            "detailParams" : {
+              "pointKey" : "张宽"
+            }
+          }, {
+            "name" : "徐建民",
+            "value" : 34,
+            "pointKey" : "徐建民",
+            "detailParams" : {
+              "pointKey" : "徐建民"
+            }
+          }, {
+            "name" : "李志",
+            "value" : 33,
+            "pointKey" : "李志",
+            "detailParams" : {
+              "pointKey" : "李志"
+            }
+          }, {
+            "name" : "王念文",
+            "value" : 33,
+            "pointKey" : "王念文",
+            "detailParams" : {
+              "pointKey" : "王念文"
+            }
+          }, {
+            "name" : "刘志国",
+            "value" : 29,
+            "pointKey" : "刘志国",
+            "detailParams" : {
+              "pointKey" : "刘志国"
+            }
+          }, {
+            "name" : "麻荣雨",
+            "value" : 26,
+            "pointKey" : "麻荣雨",
+            "detailParams" : {
+              "pointKey" : "麻荣雨"
+            }
+          }, {
+            "name" : "田川",
+            "value" : 21,
+            "pointKey" : "田川",
+            "detailParams" : {
+              "pointKey" : "田川"
+            }
+          }, {
+            "name" : "孟桦",
+            "value" : 19,
+            "pointKey" : "孟桦",
+            "detailParams" : {
+              "pointKey" : "孟桦"
+            }
+          }, {
+            "name" : "王楠",
+            "value" : 18,
+            "pointKey" : "王楠",
+            "detailParams" : {
+              "pointKey" : "王楠"
+            }
+          }, {
+            "name" : "霍志岩",
+            "value" : 18,
+            "pointKey" : "霍志岩",
+            "detailParams" : {
+              "pointKey" : "霍志岩"
+            }
+          }, {
+            "name" : "王志阳",
+            "value" : 17,
+            "pointKey" : "王志阳",
+            "detailParams" : {
+              "pointKey" : "王志阳"
+            }
+          }, {
+            "name" : "吴霜",
+            "value" : 16,
+            "pointKey" : "吴霜",
+            "detailParams" : {
+              "pointKey" : "吴霜"
+            }
+          }, {
+            "name" : "潘广磊",
+            "value" : 16,
+            "pointKey" : "潘广磊",
+            "detailParams" : {
+              "pointKey" : "潘广磊"
+            }
+          }, {
+            "name" : "Liyaoqi",
+            "value" : 14,
+            "pointKey" : "Liyaoqi",
+            "detailParams" : {
+              "pointKey" : "Liyaoqi"
+            }
+          }, {
+            "name" : "杜敏敏",
+            "value" : 12,
+            "pointKey" : "杜敏敏",
+            "detailParams" : {
+              "pointKey" : "杜敏敏"
+            }
+          }, {
+            "name" : "杨玉荣",
+            "value" : 10,
+            "pointKey" : "杨玉荣",
+            "detailParams" : {
+              "pointKey" : "杨玉荣"
+            }
+          }, {
+            "name" : "白云涛",
+            "value" : 9,
+            "pointKey" : "白云涛",
+            "detailParams" : {
+              "pointKey" : "白云涛"
+            }
+          }, {
+            "name" : "韩潞钦",
+            "value" : 8,
+            "pointKey" : "韩潞钦",
+            "detailParams" : {
+              "pointKey" : "韩潞钦"
+            }
+          }, {
+            "name" : "刘纪凯",
+            "value" : 7,
+            "pointKey" : "刘纪凯",
+            "detailParams" : {
+              "pointKey" : "刘纪凯"
+            }
+          }, {
+            "name" : "李佳徽",
+            "value" : 7,
+            "pointKey" : "李佳徽",
+            "detailParams" : {
+              "pointKey" : "李佳徽"
+            }
+          }, {
+            "name" : "金义展",
+            "value" : 6,
+            "pointKey" : "金义展",
+            "detailParams" : {
+              "pointKey" : "金义展"
+            }
+          }, {
+            "name" : "guanlixiang",
+            "value" : 5,
+            "pointKey" : "guanlixiang",
+            "detailParams" : {
+              "pointKey" : "guanlixiang"
+            }
+          }, {
+            "name" : "张硕",
+            "value" : 5,
+            "pointKey" : "张硕",
+            "detailParams" : {
+              "pointKey" : "张硕"
+            }
+          }, {
+            "name" : "李钊",
+            "value" : 5,
+            "pointKey" : "李钊",
+            "detailParams" : {
+              "pointKey" : "李钊"
+            }
+          }, {
+            "name" : "姚思含",
+            "value" : 4,
+            "pointKey" : "姚思含",
+            "detailParams" : {
+              "pointKey" : "姚思含"
+            }
+          }, {
+            "name" : "田健",
+            "value" : 4,
+            "pointKey" : "田健",
+            "detailParams" : {
+              "pointKey" : "田健"
+            }
+          }, {
+            "name" : "付崇莱",
+            "value" : 3,
+            "pointKey" : "付崇莱",
+            "detailParams" : {
+              "pointKey" : "付崇莱"
+            }
+          }, {
+            "name" : "徐昊2",
+            "value" : 3,
+            "pointKey" : "徐昊2",
+            "detailParams" : {
+              "pointKey" : "徐昊2"
+            }
+          }, {
+            "name" : "于震",
+            "value" : 2,
+            "pointKey" : "于震",
+            "detailParams" : {
+              "pointKey" : "于震"
+            }
+          }, {
+            "name" : "张开宇",
+            "value" : 2,
+            "pointKey" : "张开宇",
+            "detailParams" : {
+              "pointKey" : "张开宇"
+            }
+          }, {
+            "name" : "张继远",
+            "value" : 2,
+            "pointKey" : "张继远",
+            "detailParams" : {
+              "pointKey" : "张继远"
+            }
+          }, {
+            "name" : "徐琦慧",
+            "value" : 2,
+            "pointKey" : "徐琦慧",
+            "detailParams" : {
+              "pointKey" : "徐琦慧"
+            }
+          }, {
+            "name" : "柳冰旸",
+            "value" : 2,
+            "pointKey" : "柳冰旸",
+            "detailParams" : {
+              "pointKey" : "柳冰旸"
+            }
+          }, {
+            "name" : "高健峰",
+            "value" : 2,
+            "pointKey" : "高健峰",
+            "detailParams" : {
+              "pointKey" : "高健峰"
+            }
+          }, {
+            "name" : "guoyanqun",
+            "value" : 1,
+            "pointKey" : "guoyanqun",
+            "detailParams" : {
+              "pointKey" : "guoyanqun"
+            }
+          }, {
+            "name" : "zhangyijian",
+            "value" : 1,
+            "pointKey" : "zhangyijian",
+            "detailParams" : {
+              "pointKey" : "zhangyijian"
+            }
+          }, {
+            "name" : "侯磊",
+            "value" : 1,
+            "pointKey" : "侯磊",
+            "detailParams" : {
+              "pointKey" : "侯磊"
+            }
+          }, {
+            "name" : "常根",
+            "value" : 1,
+            "pointKey" : "常根",
+            "detailParams" : {
+              "pointKey" : "常根"
+            }
+          }, {
+            "name" : "张梓瑜",
+            "value" : 1,
+            "pointKey" : "张梓瑜",
+            "detailParams" : {
+              "pointKey" : "张梓瑜"
+            }
+          }, {
+            "name" : "杜丙瑜",
+            "value" : 1,
+            "pointKey" : "杜丙瑜",
+            "detailParams" : {
+              "pointKey" : "杜丙瑜"
+            }
+          }, {
+            "name" : "杨作林",
+            "value" : 1,
+            "pointKey" : "杨作林",
+            "detailParams" : {
+              "pointKey" : "杨作林"
+            }
+          }, {
+            "name" : "燕欣睿",
+            "value" : 1,
+            "pointKey" : "燕欣睿",
+            "detailParams" : {
+              "pointKey" : "燕欣睿"
+            }
+          }, {
+            "name" : "赵佳峻",
+            "value" : 1,
+            "pointKey" : "赵佳峻",
+            "detailParams" : {
+              "pointKey" : "赵佳峻"
+            }
+          }, {
+            "name" : "陈晖",
+            "value" : 1,
+            "pointKey" : "陈晖",
+            "detailParams" : {
+              "pointKey" : "陈晖"
+            }
+          } ],
+          "name" : "代码提交次数"
+        } ],
+        "xAxis" : {
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value",
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
+          },
+          "name" : "代码提交次数"
+        },
+        "grid" : {
+          "top" : 24,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 52,
+          "left" : 24
+        },
+        "dataZoom" : [ {
+          "endValue" : 10,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
+          },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
+        "animationDuration" : 450
+      },
+      "ruleKey" : "code-submission-frequency",
+      "detail" : {
+        "viewKey" : "code-review-statistics",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "code-submission-frequency"
+        }
+      },
+      "export" : {
+        "exportKey" : "code-submission-frequency",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "code-submission-defect-density",
+      "title" : "代码提交缺陷密度统计",
+      "subtitle" : "使用缺陷数与新增代码行数重新计算，不复用行级平均密度。",
+      "option" : {
+        "yAxis" : {
+          "inverse" : true,
+          "type" : "category",
+          "data" : [ "工具&曲线曲面", "焊件", "工程图", "工程图&草图", "管路&线缆", "MBD", "MBD&工程图&草图", "库", "后台管理系统", "平台", "数据交换", "评估", "协同", "装配", "BOM", "设置", "自动化测试", "草图", "速览", "线缆", "集成", "管路", "钣金", "曲线曲面", "工具", "PLM", "项目文档", "步路", "渲染", "特征", "企业版", "AI", "晶格建模", "二次开发", "DWG", "DWG&工程图", "MBD&工程图", "MBD&草图", "TopDown&草图", "仿真", "企业版&库", "企业版&轻量化", "库&线缆", "快速设计", "曲线", "步路&管路", "渲染&轻量化", "点云", "特征&钣金", "轻量化" ],
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "width" : 150
+          }
+        },
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
+        },
+        "series" : [ {
+          "type" : "bar",
+          "barMaxWidth" : 28,
+          "itemStyle" : {
+            "color" : "#dc2626",
+            "borderRadius" : [ 0, 6, 6, 0 ]
+          },
+          "data" : [ {
+            "name" : "工具&曲线曲面",
+            "value" : 166.67,
+            "pointKey" : "工具&曲线曲面",
+            "detailParams" : {
+              "pointKey" : "工具&曲线曲面"
+            }
+          }, {
+            "name" : "焊件",
+            "value" : 54.88,
+            "pointKey" : "焊件",
+            "detailParams" : {
+              "pointKey" : "焊件"
+            }
+          }, {
+            "name" : "工程图",
+            "value" : 9.09,
+            "pointKey" : "工程图",
+            "detailParams" : {
+              "pointKey" : "工程图"
+            }
+          }, {
+            "name" : "工程图&草图",
+            "value" : 8.55,
+            "pointKey" : "工程图&草图",
+            "detailParams" : {
+              "pointKey" : "工程图&草图"
+            }
+          }, {
+            "name" : "管路&线缆",
+            "value" : 8.47,
+            "pointKey" : "管路&线缆",
+            "detailParams" : {
+              "pointKey" : "管路&线缆"
+            }
+          }, {
+            "name" : "MBD",
+            "value" : 6.33,
+            "pointKey" : "MBD",
+            "detailParams" : {
+              "pointKey" : "MBD"
+            }
+          }, {
+            "name" : "MBD&工程图&草图",
+            "value" : 5.62,
+            "pointKey" : "MBD&工程图&草图",
+            "detailParams" : {
+              "pointKey" : "MBD&工程图&草图"
+            }
+          }, {
+            "name" : "库",
+            "value" : 5.42,
+            "pointKey" : "库",
+            "detailParams" : {
+              "pointKey" : "库"
+            }
+          }, {
+            "name" : "后台管理系统",
+            "value" : 5.19,
+            "pointKey" : "后台管理系统",
+            "detailParams" : {
+              "pointKey" : "后台管理系统"
+            }
+          }, {
+            "name" : "平台",
+            "value" : 4.5,
+            "pointKey" : "平台",
+            "detailParams" : {
+              "pointKey" : "平台"
+            }
+          }, {
+            "name" : "数据交换",
+            "value" : 4.2,
+            "pointKey" : "数据交换",
+            "detailParams" : {
+              "pointKey" : "数据交换"
+            }
+          }, {
+            "name" : "评估",
+            "value" : 4.13,
+            "pointKey" : "评估",
+            "detailParams" : {
+              "pointKey" : "评估"
+            }
+          }, {
+            "name" : "协同",
+            "value" : 4.07,
+            "pointKey" : "协同",
+            "detailParams" : {
+              "pointKey" : "协同"
+            }
+          }, {
+            "name" : "装配",
+            "value" : 4.02,
+            "pointKey" : "装配",
+            "detailParams" : {
+              "pointKey" : "装配"
+            }
+          }, {
+            "name" : "BOM",
+            "value" : 3.5,
+            "pointKey" : "BOM",
+            "detailParams" : {
+              "pointKey" : "BOM"
+            }
+          }, {
+            "name" : "设置",
+            "value" : 3.46,
+            "pointKey" : "设置",
+            "detailParams" : {
+              "pointKey" : "设置"
+            }
+          }, {
+            "name" : "自动化测试",
+            "value" : 3.41,
+            "pointKey" : "自动化测试",
+            "detailParams" : {
+              "pointKey" : "自动化测试"
+            }
+          }, {
+            "name" : "草图",
+            "value" : 3.39,
+            "pointKey" : "草图",
+            "detailParams" : {
+              "pointKey" : "草图"
+            }
+          }, {
+            "name" : "速览",
+            "value" : 3.2,
+            "pointKey" : "速览",
+            "detailParams" : {
+              "pointKey" : "速览"
+            }
+          }, {
+            "name" : "线缆",
+            "value" : 2.79,
+            "pointKey" : "线缆",
+            "detailParams" : {
+              "pointKey" : "线缆"
+            }
+          }, {
+            "name" : "集成",
+            "value" : 2.71,
+            "pointKey" : "集成",
+            "detailParams" : {
+              "pointKey" : "集成"
+            }
+          }, {
+            "name" : "管路",
+            "value" : 2.44,
+            "pointKey" : "管路",
+            "detailParams" : {
+              "pointKey" : "管路"
+            }
+          }, {
+            "name" : "钣金",
+            "value" : 2.39,
+            "pointKey" : "钣金",
+            "detailParams" : {
+              "pointKey" : "钣金"
+            }
+          }, {
+            "name" : "曲线曲面",
+            "value" : 2.36,
+            "pointKey" : "曲线曲面",
+            "detailParams" : {
+              "pointKey" : "曲线曲面"
+            }
+          }, {
+            "name" : "工具",
+            "value" : 2.28,
+            "pointKey" : "工具",
+            "detailParams" : {
+              "pointKey" : "工具"
+            }
+          }, {
+            "name" : "PLM",
+            "value" : 2.23,
+            "pointKey" : "PLM",
+            "detailParams" : {
+              "pointKey" : "PLM"
+            }
+          }, {
+            "name" : "项目文档",
+            "value" : 2.12,
+            "pointKey" : "项目文档",
+            "detailParams" : {
+              "pointKey" : "项目文档"
+            }
+          }, {
+            "name" : "步路",
+            "value" : 1.98,
+            "pointKey" : "步路",
+            "detailParams" : {
+              "pointKey" : "步路"
+            }
+          }, {
+            "name" : "渲染",
+            "value" : 1.13,
+            "pointKey" : "渲染",
+            "detailParams" : {
+              "pointKey" : "渲染"
+            }
+          }, {
+            "name" : "特征",
+            "value" : 0.85,
+            "pointKey" : "特征",
+            "detailParams" : {
+              "pointKey" : "特征"
+            }
+          }, {
+            "name" : "企业版",
+            "value" : 0.8,
+            "pointKey" : "企业版",
+            "detailParams" : {
+              "pointKey" : "企业版"
+            }
+          }, {
+            "name" : "AI",
+            "value" : 0.75,
+            "pointKey" : "AI",
+            "detailParams" : {
+              "pointKey" : "AI"
+            }
+          }, {
+            "name" : "晶格建模",
+            "value" : 0.65,
+            "pointKey" : "晶格建模",
+            "detailParams" : {
+              "pointKey" : "晶格建模"
+            }
+          }, {
+            "name" : "二次开发",
+            "value" : 0.41,
+            "pointKey" : "二次开发",
+            "detailParams" : {
+              "pointKey" : "二次开发"
+            }
+          }, {
+            "name" : "DWG",
+            "value" : 0.0,
+            "pointKey" : "DWG",
+            "detailParams" : {
+              "pointKey" : "DWG"
+            }
+          }, {
+            "name" : "DWG&工程图",
+            "value" : 0.0,
+            "pointKey" : "DWG&工程图",
+            "detailParams" : {
+              "pointKey" : "DWG&工程图"
+            }
+          }, {
+            "name" : "MBD&工程图",
+            "value" : 0.0,
+            "pointKey" : "MBD&工程图",
+            "detailParams" : {
+              "pointKey" : "MBD&工程图"
+            }
+          }, {
+            "name" : "MBD&草图",
+            "value" : 0.0,
+            "pointKey" : "MBD&草图",
+            "detailParams" : {
+              "pointKey" : "MBD&草图"
+            }
+          }, {
+            "name" : "TopDown&草图",
+            "value" : 0.0,
+            "pointKey" : "TopDown&草图",
+            "detailParams" : {
+              "pointKey" : "TopDown&草图"
+            }
+          }, {
+            "name" : "仿真",
+            "value" : 0.0,
+            "pointKey" : "仿真",
+            "detailParams" : {
+              "pointKey" : "仿真"
+            }
+          }, {
+            "name" : "企业版&库",
+            "value" : 0.0,
+            "pointKey" : "企业版&库",
+            "detailParams" : {
+              "pointKey" : "企业版&库"
+            }
+          }, {
+            "name" : "企业版&轻量化",
+            "value" : 0.0,
+            "pointKey" : "企业版&轻量化",
+            "detailParams" : {
+              "pointKey" : "企业版&轻量化"
+            }
+          }, {
+            "name" : "库&线缆",
+            "value" : 0.0,
+            "pointKey" : "库&线缆",
+            "detailParams" : {
+              "pointKey" : "库&线缆"
+            }
+          }, {
+            "name" : "快速设计",
+            "value" : 0.0,
+            "pointKey" : "快速设计",
+            "detailParams" : {
+              "pointKey" : "快速设计"
+            }
+          }, {
+            "name" : "曲线",
+            "value" : 0.0,
+            "pointKey" : "曲线",
+            "detailParams" : {
+              "pointKey" : "曲线"
+            }
+          }, {
+            "name" : "步路&管路",
+            "value" : 0.0,
+            "pointKey" : "步路&管路",
+            "detailParams" : {
+              "pointKey" : "步路&管路"
+            }
+          }, {
+            "name" : "渲染&轻量化",
+            "value" : 0.0,
+            "pointKey" : "渲染&轻量化",
+            "detailParams" : {
+              "pointKey" : "渲染&轻量化"
+            }
+          }, {
+            "name" : "点云",
+            "value" : 0.0,
+            "pointKey" : "点云",
+            "detailParams" : {
+              "pointKey" : "点云"
+            }
+          }, {
+            "name" : "特征&钣金",
+            "value" : 0.0,
+            "pointKey" : "特征&钣金",
+            "detailParams" : {
+              "pointKey" : "特征&钣金"
+            }
+          }, {
+            "name" : "轻量化",
+            "value" : 0.0,
+            "pointKey" : "轻量化",
+            "detailParams" : {
+              "pointKey" : "轻量化"
+            }
+          } ],
+          "name" : "密度(K/LOC)"
+        } ],
+        "xAxis" : {
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value",
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
+          },
+          "name" : "密度(K/LOC)"
+        },
+        "grid" : {
+          "top" : 24,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 52,
+          "left" : 24
+        },
+        "dataZoom" : [ {
+          "endValue" : 30,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
+          },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
+        "animationDuration" : 450
+      },
+      "ruleKey" : "code-submission-defect-density",
+      "detail" : {
+        "viewKey" : "code-review-statistics",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "code-submission-defect-density"
+        }
+      },
+      "export" : {
+        "exportKey" : "code-submission-defect-density",
+        "label" : "导出"
+      }
+    } ]
+  }
+}

@@ -7,8 +7,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.stereotype.Component;
 
 /** 为 DIRECT 参数查询和 Docker COPY 会话生成同一套主键存在性语义。 */
+@Component
 final class GitlabPrimaryKeyExistenceQueryBuilder {
 
   GitlabParameterizedQuery buildDirect(

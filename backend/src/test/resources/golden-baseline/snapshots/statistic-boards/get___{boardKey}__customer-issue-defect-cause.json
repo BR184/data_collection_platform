@@ -1,0 +1,6265 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "definition" : {
+      "boardKey" : "customer-issue-defect-cause",
+      "title" : "客户问题缺陷原因分析",
+      "description" : "按模块分析客户问题缺陷的原因分类。",
+      "queryTitle" : "",
+      "queryDescription" : "",
+      "rowHeaderLabel" : "模块",
+      "filters" : [ {
+        "key" : "milestoneTitle",
+        "label" : "里程碑",
+        "type" : "select",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 220,
+        "operators" : [ "eq", "ne" ],
+        "options" : [ {
+          "label" : "CC2026R3",
+          "value" : "CC2026R3"
+        }, {
+          "label" : "CC2026R2",
+          "value" : "CC2026R2"
+        }, {
+          "label" : "CC2026R1",
+          "value" : "CC2026R1"
+        }, {
+          "label" : "CC2025R4",
+          "value" : "CC2025R4"
+        }, {
+          "label" : "CC2025R3",
+          "value" : "CC2025R3"
+        }, {
+          "label" : "CC2025R1",
+          "value" : "CC2025R1"
+        }, {
+          "label" : "CC2024R4",
+          "value" : "CC2024R4"
+        } ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "projectName",
+        "label" : "项目名称",
+        "type" : "text",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 200,
+        "operators" : [ "eq", "ne", "contains", "isEmpty", "isNotEmpty" ],
+        "options" : [ ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "moduleName",
+        "label" : "模块名",
+        "type" : "text",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 180,
+        "operators" : [ "eq", "ne", "contains", "isEmpty", "isNotEmpty" ],
+        "options" : [ ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "issueIid",
+        "label" : "议题编号",
+        "type" : "text",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 160,
+        "operators" : [ "eq", "ne", "contains", "isEmpty", "isNotEmpty" ],
+        "options" : [ ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "title",
+        "label" : "议题标题",
+        "type" : "text",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 220,
+        "operators" : [ "eq", "ne", "contains", "isEmpty", "isNotEmpty" ],
+        "options" : [ ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "severityLevel",
+        "label" : "严重程度",
+        "type" : "select",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 180,
+        "operators" : [ "eq", "ne" ],
+        "options" : [ {
+          "label" : "一级缺陷",
+          "value" : "LEVEL1"
+        }, {
+          "label" : "二级缺陷",
+          "value" : "LEVEL2"
+        }, {
+          "label" : "三级缺陷",
+          "value" : "LEVEL3"
+        }, {
+          "label" : "建议类",
+          "value" : "SUGGESTION"
+        } ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "bugStatus",
+        "label" : "测试状态",
+        "type" : "text",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 200,
+        "operators" : [ "eq", "ne", "contains", "isEmpty", "isNotEmpty" ],
+        "options" : [ ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "category",
+        "label" : "议题类别",
+        "type" : "text",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 180,
+        "operators" : [ "eq", "ne", "contains", "isEmpty", "isNotEmpty" ],
+        "options" : [ ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "issueState",
+        "label" : "议题状态",
+        "type" : "select",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 160,
+        "operators" : [ "eq", "ne" ],
+        "options" : [ {
+          "label" : "未关闭",
+          "value" : "open"
+        }, {
+          "label" : "已关闭",
+          "value" : "closed"
+        } ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "authorName",
+        "label" : "议题提交人",
+        "type" : "text",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 180,
+        "operators" : [ "eq", "ne", "contains", "isEmpty", "isNotEmpty" ],
+        "options" : [ ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "assigneeName",
+        "label" : "议题处理人",
+        "type" : "text",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 180,
+        "operators" : [ "eq", "ne", "contains", "isEmpty", "isNotEmpty" ],
+        "options" : [ ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      } ],
+      "columnGroups" : [ {
+        "key" : "requirement-problem",
+        "label" : "需求问题",
+        "children" : [ {
+          "key" : "requirement-basic",
+          "label" : "需求归类",
+          "children" : [ ],
+          "columns" : [ {
+            "key" : "demand_misunderstand",
+            "label" : "新增理解偏差",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "missing_requirement",
+            "label" : "需求遗漏",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "add_demand_2",
+            "label" : "新增需求",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "demand_change_not_sync",
+            "label" : "需求变更未同步",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          } ]
+        } ],
+        "columns" : [ ]
+      }, {
+        "key" : "design-problem",
+        "label" : "设计问题",
+        "children" : [ {
+          "key" : "design-basic",
+          "label" : "设计归类",
+          "children" : [ ],
+          "columns" : [ {
+            "key" : "design_forget",
+            "label" : "功能设计遗漏",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "design_scheme",
+            "label" : "设计方案不合理",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "incomplete",
+            "label" : "场景考虑不全",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "prompt_message",
+            "label" : "术语、提示信息不合适",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          } ]
+        } ],
+        "columns" : [ ]
+      }, {
+        "key" : "code-problem",
+        "label" : "编码规范",
+        "children" : [ {
+          "key" : "code-basic",
+          "label" : "编码归类",
+          "children" : [ ],
+          "columns" : [ {
+            "key" : "standard_error",
+            "label" : "编码规范错误",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "function_forget",
+            "label" : "功能编码遗漏",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "logic_calculation_algorithm_error",
+            "label" : "编码逻辑：计算与算法错误",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "logic_flow_control_error",
+            "label" : "编码逻辑：流程控制错误",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "logic_data_state_process_error",
+            "label" : "编码逻辑：数据与状态处理错误",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "logic_business_logic_error",
+            "label" : "编码逻辑：业务逻辑错误",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "logic_integration_interface_error",
+            "label" : "编码逻辑：集成与接口错误",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          } ]
+        } ],
+        "columns" : [ ]
+      }, {
+        "key" : "package-problem",
+        "label" : "打包问题",
+        "children" : [ {
+          "key" : "package-basic",
+          "label" : "打包归类",
+          "children" : [ ],
+          "columns" : [ {
+            "key" : "environment_config_issue",
+            "label" : "环境配置问题",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "compilation_package_deployment_issue",
+            "label" : "编译/打包/部署问题",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          } ]
+        } ],
+        "columns" : [ ]
+      }, {
+        "key" : "dependency-problem",
+        "label" : "依赖问题",
+        "children" : [ {
+          "key" : "dependency-basic",
+          "label" : "依赖归类",
+          "children" : [ ],
+          "columns" : [ {
+            "key" : "other_thirdParty",
+            "label" : "第三方库问题",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "algorithm_not_support",
+            "label" : "算法不支持",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "mechanism_not_support",
+            "label" : "机制不支持",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "precondition_data_exception",
+            "label" : "前置数据异常",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "other_unIdentifyTask",
+            "label" : "未识别的前后置任务",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          } ]
+        } ],
+        "columns" : [ ]
+      }, {
+        "key" : "precision-problem",
+        "label" : "精度问题",
+        "children" : [ {
+          "key" : "precision-basic",
+          "label" : "精度归类",
+          "children" : [ ],
+          "columns" : [ {
+            "key" : "precision_constraint_exception",
+            "label" : "精度导致约束求解异常",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "precision_algorithm_exception",
+            "label" : "精度导致算法执行异常",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          } ]
+        } ],
+        "columns" : [ ]
+      } ],
+      "detailColumns" : [ {
+        "key" : "iid",
+        "label" : "议题编号",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "moduleNames",
+        "label" : "模块",
+        "width" : 160,
+        "minWidth" : 160,
+        "sortable" : true,
+        "type" : "tags",
+        "expandOnly" : false
+      }, {
+        "key" : "title",
+        "label" : "标题",
+        "width" : 360,
+        "minWidth" : 260,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "reasonCategory",
+        "label" : "缺陷原因",
+        "width" : 160,
+        "minWidth" : 160,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : false
+      }, {
+        "key" : "state",
+        "label" : "状态",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : false
+      }, {
+        "key" : "authorName",
+        "label" : "创建人",
+        "width" : 140,
+        "minWidth" : 140,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "updatedAt",
+        "label" : "议题更新时间",
+        "width" : 180,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "createdAt",
+        "label" : "议题提交时间",
+        "width" : 180,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "moduleNames",
+        "label" : "模块",
+        "width" : null,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : "tags",
+        "expandOnly" : true
+      }, {
+        "key" : "iid",
+        "label" : "议题编号",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "title",
+        "label" : "议题标题",
+        "width" : 420,
+        "minWidth" : 260,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "authorName",
+        "label" : "议题提交人",
+        "width" : 140,
+        "minWidth" : 140,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "assigneeName",
+        "label" : "议题处理人",
+        "width" : 140,
+        "minWidth" : 140,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "state",
+        "label" : "议题状态",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : true
+      }, {
+        "key" : "bugStatus",
+        "label" : "测试状态",
+        "width" : 180,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : "tags",
+        "expandOnly" : true
+      }, {
+        "key" : "reasonCategory",
+        "label" : "缺陷原因",
+        "width" : 160,
+        "minWidth" : 160,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : true
+      }, {
+        "key" : "projectName",
+        "label" : "所属项目",
+        "width" : null,
+        "minWidth" : 160,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      } ],
+      "defaultPageSize" : 10,
+      "emptyText" : "当前没有可展示的客户问题缺陷原因分析结果。"
+    },
+    "appliedFilters" : {
+      "projectId" : "325",
+      "milestoneTitle" : "CC2026R3"
+    },
+    "appliedFilterGroup" : {
+      "logic" : "AND",
+      "conditions" : [ {
+        "fieldKey" : "milestoneTitle",
+        "operator" : "eq",
+        "value" : "CC2026R3",
+        "secondaryValue" : null,
+        "valueType" : "LITERAL",
+        "labelGroupId" : null,
+        "labelGroupName" : null,
+        "values" : [ ]
+      } ]
+    },
+    "rows" : [ {
+      "rowKey" : "BOM",
+      "rowLabel" : "BOM",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      } ]
+    }, {
+      "rowKey" : "MBD",
+      "rowLabel" : "MBD",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      } ]
+    }, {
+      "rowKey" : "二次开发",
+      "rowLabel" : "二次开发",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      } ]
+    }, {
+      "rowKey" : "企业版",
+      "rowLabel" : "企业版",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      } ]
+    }, {
+      "rowKey" : "协同",
+      "rowLabel" : "协同",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      } ]
+    }, {
+      "rowKey" : "实体算法",
+      "rowLabel" : "实体算法",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      } ]
+    }, {
+      "rowKey" : "工具",
+      "rowLabel" : "工具",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      } ]
+    }, {
+      "rowKey" : "工程图",
+      "rowLabel" : "工程图",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      } ]
+    }, {
+      "rowKey" : "平台",
+      "rowLabel" : "平台",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      } ]
+    }, {
+      "rowKey" : "库",
+      "rowLabel" : "库",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      } ]
+    }, {
+      "rowKey" : "快速设计",
+      "rowLabel" : "快速设计",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      } ]
+    }, {
+      "rowKey" : "数据交换",
+      "rowLabel" : "数据交换",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      } ]
+    }, {
+      "rowKey" : "曲线曲面",
+      "rowLabel" : "曲线曲面",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      } ]
+    }, {
+      "rowKey" : "渲染",
+      "rowLabel" : "渲染",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      } ]
+    }, {
+      "rowKey" : "点云",
+      "rowLabel" : "点云",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      } ]
+    }, {
+      "rowKey" : "焊件",
+      "rowLabel" : "焊件",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      } ]
+    }, {
+      "rowKey" : "特征",
+      "rowLabel" : "特征",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 3,
+        "displayValue" : "3",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      } ]
+    }, {
+      "rowKey" : "管路",
+      "rowLabel" : "管路",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      } ]
+    }, {
+      "rowKey" : "草图",
+      "rowLabel" : "草图",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 3,
+        "displayValue" : "3",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 3,
+        "displayValue" : "3",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      } ]
+    }, {
+      "rowKey" : "装配",
+      "rowLabel" : "装配",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      } ]
+    }, {
+      "rowKey" : "设置",
+      "rowLabel" : "设置",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      } ]
+    }, {
+      "rowKey" : "评估",
+      "rowLabel" : "评估",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      } ]
+    }, {
+      "rowKey" : "钣金",
+      "rowLabel" : "钣金",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      } ]
+    }, {
+      "rowKey" : "项目文档",
+      "rowLabel" : "项目文档",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      } ]
+    }, {
+      "rowKey" : "__total__",
+      "rowLabel" : "共计",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 6,
+        "displayValue" : "6",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 6,
+        "displayValue" : "6",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 5,
+        "displayValue" : "5",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 3,
+        "displayValue" : "3",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 3,
+        "displayValue" : "3",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 3,
+        "displayValue" : "3",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      } ]
+    }, {
+      "rowKey" : "__ratio__",
+      "rowLabel" : "比例",
+      "cells" : [ {
+        "columnKey" : "demand_misunderstand",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "missing_requirement",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "add_demand_2",
+        "numericValue" : 1667,
+        "displayValue" : "16.67%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "demand_change_not_sync",
+        "numericValue" : 278,
+        "displayValue" : "2.78%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "design_forget",
+        "numericValue" : 278,
+        "displayValue" : "2.78%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "design_scheme",
+        "numericValue" : 278,
+        "displayValue" : "2.78%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "incomplete",
+        "numericValue" : 1667,
+        "displayValue" : "16.67%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "prompt_message",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "standard_error",
+        "numericValue" : 278,
+        "displayValue" : "2.78%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "function_forget",
+        "numericValue" : 1389,
+        "displayValue" : "13.89%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "logic_calculation_algorithm_error",
+        "numericValue" : 278,
+        "displayValue" : "2.78%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "logic_flow_control_error",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "logic_data_state_process_error",
+        "numericValue" : 833,
+        "displayValue" : "8.33%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "logic_business_logic_error",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "logic_integration_interface_error",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "environment_config_issue",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "compilation_package_deployment_issue",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "other_thirdParty",
+        "numericValue" : 278,
+        "displayValue" : "2.78%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "algorithm_not_support",
+        "numericValue" : 833,
+        "displayValue" : "8.33%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "mechanism_not_support",
+        "numericValue" : 556,
+        "displayValue" : "5.56%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "precondition_data_exception",
+        "numericValue" : 833,
+        "displayValue" : "8.33%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "other_unIdentifyTask",
+        "numericValue" : 278,
+        "displayValue" : "2.78%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "precision_constraint_exception",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      }, {
+        "columnKey" : "precision_algorithm_exception",
+        "numericValue" : 278,
+        "displayValue" : "2.78%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "__ratio__"
+        }
+      } ]
+    } ],
+    "meta" : {
+      "generatedAt" : "2026-09-03T18:37:00.8867709+08:00",
+      "queryDurationMs" : 524,
+      "rowCount" : 26,
+      "columnCount" : 24,
+      "drilldownColumnCount" : 24
+    }
+  }
+}

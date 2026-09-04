@@ -356,6 +356,113 @@ class FactBuildTaskServiceTest {
     assertThat(reclaimed.full()).isTrue();
   }
 
+  @Test
+  void failOwnedTaskShouldEnterRetryWaitingBeforeMaxRetryAndFailedAfter() {
+    GitlabSyncConfig config = config("corp-failure");
+    factBuildTaskService.enqueueFullFactRefreshTasks(config, 903L);
+    // 入队会产生 issue/MR/integration-test 三个任务；本测试只验证单任务的失败-重试链，
+    // 先清掉后两个避免按 created_at 认领到不同任务。
+    jdbcTemplate.update(
+        "delete from fact_build_tasks where id in ("
+            + "select id from fact_build_tasks where run_id = '903' order by created_at desc, id desc limit 2)");
+
+    QueuedFactBuildTask firstAttempt = factBuildTaskService.claimNextQueuedTask("worker-a", 30);
+
+    FactBuildTaskService.FailureDisposition retryDisposition =
+        factBuildTaskService.failOwnedTask(firstAttempt, "第一次瞬时失败");
+
+    assertThat(retryDisposition.retryWaiting()).isTrue();
+    assertThat(retryDisposition.failed()).isFalse();
+    assertThat(retryDisposition.runAfter()).isNotNull();
+
+    // 退避把 run_after 推到未来；把时间拨回以便立即可再认领。
+    jdbcTemplate.update(
+        "update fact_build_tasks set run_after = current_timestamp - interval '1 minute' where run_id = '903'");
+    QueuedFactBuildTask secondAttempt = factBuildTaskService.claimNextQueuedTask("worker-b", 30);
+    assertThat(secondAttempt.id()).isEqualTo(firstAttempt.id());
+    assertThat(secondAttempt.retryCount()).isEqualTo(1);
+
+    factBuildTaskService.failOwnedTask(secondAttempt, "第二次失败");
+    jdbcTemplate.update(
+        "update fact_build_tasks set run_after = current_timestamp - interval '1 minute' where run_id = '903'");
+    QueuedFactBuildTask thirdAttempt = factBuildTaskService.claimNextQueuedTask("worker-c", 30);
+    FactBuildTaskService.FailureDisposition finalDisposition =
+        factBuildTaskService.failOwnedTask(thirdAttempt, "第三次失败");
+
+    // max_retry_count 默认 3：第 3 次失败时 retry_count+1=3 不小于 max_retry_count，进入终态。
+    // 终态分支保留原 run_after 值（不再参与调度），契约只保证 failed 判定。
+    assertThat(finalDisposition.failed()).isTrue();
+    var summary = factBuildTaskService.summarizeFactRun(903L);
+    assertThat(summary.totalTasks()).isEqualTo(1);
+    assertThat(summary.failedTasks()).isEqualTo(1);
+    assertThat(summary.hasActiveTasks()).isFalse();
+    assertThat(summary.affectedRows()).isZero();
+    jdbcTemplate.update("delete from gitlab_sync_configs where id = ?", config.getId());
+  }
+
+  @Test
+  void summarizeFactRunShouldReturnEmptySummaryForUnknownRun() {
+    FactBuildTaskService.RunTaskSummary summary = factBuildTaskService.summarizeFactRun(9_999_999L);
+
+    assertThat(summary.totalTasks()).isZero();
+    assertThat(summary.hasActiveTasks()).isFalse();
+    assertThat(summary.affectedRows()).isZero();
+  }
+
+  @Test
+  void busyLockWithSyncRunBindingShouldThrowInsteadOfReturningSkippedResponse() {
+    jdbcTemplate.execute((ConnectionCallback<Void>) connection -> {
+      try (PreparedStatement lock = connection.prepareStatement("select pg_advisory_lock(?)")) {
+        lock.setLong(1, FACT_BUILD_LOCK_KEY);
+        lock.execute();
+      }
+      try {
+        assertThatThrownBy(() -> factBuildTaskService.runGuarded(
+                "issue", false, 4242L, () -> new FactBuildResponse("issue", false, 1, "should not run")))
+            .isInstanceOf(com.data.collection.platform.common.exception.BizException.class)
+            .hasMessage(FactBuildTaskService.BUSY_MESSAGE);
+        var latest = factBuildTaskService.latest("issue");
+        assertThat(latest).isNotNull();
+        assertThat(latest.status()).isEqualTo("SKIPPED");
+        return null;
+      } finally {
+        try (PreparedStatement unlock = connection.prepareStatement("select pg_advisory_unlock(?)")) {
+          unlock.setLong(1, FACT_BUILD_LOCK_KEY);
+          unlock.execute();
+        }
+      }
+    });
+  }
+
+  @Test
+  void busyDetectionShouldOnlyMatchExactBusyMessage() {
+    assertThat(FactBuildTaskService.wasSkippedBecauseBusy(
+        new FactBuildResponse("issue", true, 0, FactBuildTaskService.BUSY_MESSAGE))).isTrue();
+    assertThat(FactBuildTaskService.wasSkippedBecauseBusy(
+        new FactBuildResponse("issue", true, 5, "议题事实已全量构建"))).isFalse();
+    assertThat(FactBuildTaskService.wasSkippedBecauseBusy(null)).isFalse();
+  }
+
+  @Test
+  void scopeNormalizationShouldFoldUnknownScopesToAllAndKeepSourcePrefix() {
+    // 未知基础范围回退 all；来源前缀先按统一来源实例键契约归一化，再与基础范围组合。
+    factBuildTaskService.runGuarded("not-a-scope", true, () -> new FactBuildResponse("all", true, 0, "ok"));
+    var unknown = factBuildTaskService.latest("all");
+    assertThat(unknown).isNotNull();
+    assertThat(unknown.scope()).isEqualTo("all");
+
+    factBuildTaskService.runGuarded(
+        "corp-x:merge_request", false, () -> new FactBuildResponse("corp-x:merge-request", false, 0, "ok"));
+    var scoped = factBuildTaskService.latest("corp_x:merge-request");
+    assertThat(scoped).isNotNull();
+    assertThat(scoped.scope()).isEqualTo("corp_x:merge-request");
+
+    factBuildTaskService.runGuarded("corp-x:mystery", false, () -> new FactBuildResponse("corp-x:all", false, 0, "ok"));
+    var scopedFallback = factBuildTaskService.latest("corp_x:all");
+    assertThat(scopedFallback).isNotNull();
+    assertThat(scopedFallback.scope()).isEqualTo("corp_x:all");
+  }
+
   private GitlabSyncConfig config(String sourcePrefix) {
     String sourceInstance = sourcePrefix + "-" + UUID.randomUUID();
     Long id = jdbcTemplate.queryForObject(

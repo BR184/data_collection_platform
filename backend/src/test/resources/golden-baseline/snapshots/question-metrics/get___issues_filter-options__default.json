@@ -1,0 +1,789 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "projectNames" : [ {
+      "label" : "CrownCAD",
+      "value" : "CrownCAD"
+    } ],
+    "moduleNames" : [ {
+      "label" : "工程图",
+      "value" : "工程图"
+    }, {
+      "label" : "草图",
+      "value" : "草图"
+    }, {
+      "label" : "实体算法",
+      "value" : "实体算法"
+    }, {
+      "label" : "装配",
+      "value" : "装配"
+    }, {
+      "label" : "TopDown",
+      "value" : "TopDown"
+    }, {
+      "label" : "特征",
+      "value" : "特征"
+    }, {
+      "label" : "钣金",
+      "value" : "钣金"
+    }, {
+      "label" : "渲染",
+      "value" : "渲染"
+    }, {
+      "label" : "焊件",
+      "value" : "焊件"
+    }, {
+      "label" : "工具",
+      "value" : "工具"
+    }, {
+      "label" : "BOM",
+      "value" : "BOM"
+    }, {
+      "label" : "平台",
+      "value" : "平台"
+    }, {
+      "label" : "项目文档",
+      "value" : "项目文档"
+    }, {
+      "label" : "库",
+      "value" : "库"
+    }, {
+      "label" : "数据交换",
+      "value" : "数据交换"
+    }, {
+      "label" : "自动化测试",
+      "value" : "自动化测试"
+    } ],
+    "functionNames" : [ {
+      "label" : "标注弧长",
+      "value" : "标注弧长"
+    }, {
+      "label" : "偏移",
+      "value" : "偏移"
+    }, {
+      "label" : "拉伸切除",
+      "value" : "拉伸切除"
+    }, {
+      "label" : "智能尺寸",
+      "value" : "智能尺寸"
+    }, {
+      "label" : "孔标注",
+      "value" : "孔标注"
+    }, {
+      "label" : "尺寸链",
+      "value" : "尺寸链"
+    }, {
+      "label" : "模板",
+      "value" : "模板"
+    }, {
+      "label" : "特征阵列",
+      "value" : "特征阵列"
+    }, {
+      "label" : "草图-倒角",
+      "value" : "草图-倒角"
+    }, {
+      "label" : "6.1 视口工具缺陷汇总",
+      "value" : "6.1 视口工具缺陷汇总"
+    }, {
+      "label" : "工程图-成组的零件序号",
+      "value" : "工程图-成组的零件序号"
+    }, {
+      "label" : "2D/3D草图-圆周草图阵列",
+      "value" : "2D/3D草图-圆周草图阵列"
+    }, {
+      "label" : "草图-圆周草图阵列",
+      "value" : "草图-圆周草图阵列"
+    }, {
+      "label" : "缩放图元",
+      "value" : "缩放图元"
+    }, {
+      "label" : "草图-圆周阵列",
+      "value" : "草图-圆周阵列"
+    }, {
+      "label" : "草图-缩放图元",
+      "value" : "草图-缩放图元"
+    }, {
+      "label" : "工程图-局部视图",
+      "value" : "工程图-局部视图"
+    }, {
+      "label" : "工程图-草图",
+      "value" : "工程图-草图"
+    }, {
+      "label" : "工程图-锁焦",
+      "value" : "工程图-锁焦"
+    }, {
+      "label" : "装配",
+      "value" : "装配"
+    }, {
+      "label" : "工程图-辅助视图",
+      "value" : "工程图-辅助视图"
+    }, {
+      "label" : "工程图-替换图幅",
+      "value" : "工程图-替换图幅"
+    }, {
+      "label" : "工程图-磁力线",
+      "value" : "工程图-磁力线"
+    }, {
+      "label" : "工程图-格式涂刷器-磁力线",
+      "value" : "工程图-格式涂刷器-磁力线"
+    }, {
+      "label" : "工程图-零件序号",
+      "value" : "工程图-零件序号"
+    }, {
+      "label" : "装配-以三重轴移动",
+      "value" : "装配-以三重轴移动"
+    }, {
+      "label" : "旋转图元",
+      "value" : "旋转图元"
+    }, {
+      "label" : "磁力线",
+      "value" : "磁力线"
+    }, {
+      "label" : "线性阵列",
+      "value" : "线性阵列"
+    }, {
+      "label" : "显示隐藏",
+      "value" : "显示隐藏"
+    }, {
+      "label" : "文件分组",
+      "value" : "文件分组"
+    }, {
+      "label" : "动画",
+      "value" : "动画"
+    }, {
+      "label" : "复制图元",
+      "value" : "复制图元"
+    }, {
+      "label" : "剖视图/辅助视图",
+      "value" : "剖视图/辅助视图"
+    }, {
+      "label" : "旋转视图",
+      "value" : "旋转视图"
+    }, {
+      "label" : "断开的剖视图",
+      "value" : "断开的剖视图"
+    }, {
+      "label" : "导出/打印",
+      "value" : "导出/打印"
+    }, {
+      "label" : "固定/活动",
+      "value" : "固定/活动"
+    }, {
+      "label" : "框选编辑",
+      "value" : "框选编辑"
+    }, {
+      "label" : "显示/隐藏",
+      "value" : "显示/隐藏"
+    }, {
+      "label" : "尺寸约束",
+      "value" : "尺寸约束"
+    }, {
+      "label" : "剪裁视图",
+      "value" : "剪裁视图"
+    }, {
+      "label" : "另存为工程图模板",
+      "value" : "另存为工程图模板"
+    }, {
+      "label" : "基准尺寸",
+      "value" : "基准尺寸"
+    }, {
+      "label" : "以三重轴移动",
+      "value" : "以三重轴移动"
+    }, {
+      "label" : "删除",
+      "value" : "删除"
+    }, {
+      "label" : "移除零部件",
+      "value" : "移除零部件"
+    }, {
+      "label" : "零部件预览窗口",
+      "value" : "零部件预览窗口"
+    }, {
+      "label" : "智能扣件",
+      "value" : "智能扣件"
+    }, {
+      "label" : "回滚",
+      "value" : "回滚"
+    }, {
+      "label" : "辅助视图",
+      "value" : "辅助视图"
+    }, {
+      "label" : "断裂视图",
+      "value" : "断裂视图"
+    }, {
+      "label" : "成组的零件序号",
+      "value" : "成组的零件序号"
+    }, {
+      "label" : "显示隐藏的零部件",
+      "value" : "显示隐藏的零部件"
+    }, {
+      "label" : "删除配合",
+      "value" : "删除配合"
+    }, {
+      "label" : "虚拟零部件",
+      "value" : "虚拟零部件"
+    }, {
+      "label" : "高级配合",
+      "value" : "高级配合"
+    }, {
+      "label" : "边角释放槽",
+      "value" : "边角释放槽"
+    }, {
+      "label" : "倒角尺寸",
+      "value" : "倒角尺寸"
+    }, {
+      "label" : "新建爆炸视图",
+      "value" : "新建爆炸视图"
+    }, {
+      "label" : "错误配合列表",
+      "value" : "错误配合列表"
+    }, {
+      "label" : "结构构件",
+      "value" : "结构构件"
+    }, {
+      "label" : "图纸锁焦",
+      "value" : "图纸锁焦"
+    }, {
+      "label" : "注释阵列",
+      "value" : "注释阵列"
+    }, {
+      "label" : "继承PMI",
+      "value" : "继承PMI"
+    }, {
+      "label" : "局部视图",
+      "value" : "局部视图"
+    }, {
+      "label" : "视图锁焦",
+      "value" : "视图锁焦"
+    }, {
+      "label" : "对齐工程图视图",
+      "value" : "对齐工程图视图"
+    }, {
+      "label" : "读取PMI",
+      "value" : "读取PMI"
+    }, {
+      "label" : "图层管理器",
+      "value" : "图层管理器"
+    }, {
+      "label" : "图纸属性",
+      "value" : "图纸属性"
+    }, {
+      "label" : "系统设置",
+      "value" : "系统设置"
+    }, {
+      "label" : "中心线",
+      "value" : "中心线"
+    }, {
+      "label" : "尺寸标注",
+      "value" : "尺寸标注"
+    }, {
+      "label" : "BOM工具",
+      "value" : "BOM工具"
+    }, {
+      "label" : "免费试用",
+      "value" : "免费试用"
+    }, {
+      "label" : "标题栏",
+      "value" : "标题栏"
+    }, {
+      "label" : "标题块字段",
+      "value" : "标题块字段"
+    }, {
+      "label" : "模版管理",
+      "value" : "模版管理"
+    }, {
+      "label" : "翻译问题",
+      "value" : "翻译问题"
+    }, {
+      "label" : "剖视图",
+      "value" : "剖视图"
+    }, {
+      "label" : "渲染",
+      "value" : "渲染"
+    }, {
+      "label" : "替换零件或装配",
+      "value" : "替换零件或装配"
+    }, {
+      "label" : "端点处理",
+      "value" : "端点处理"
+    }, {
+      "label" : "镜像",
+      "value" : "镜像"
+    }, {
+      "label" : "错误列表",
+      "value" : "错误列表"
+    }, {
+      "label" : "孤立",
+      "value" : "孤立"
+    }, {
+      "label" : "零部件预览",
+      "value" : "零部件预览"
+    }, {
+      "label" : "注册",
+      "value" : "注册"
+    }, {
+      "label" : "折弯系数表",
+      "value" : "折弯系数表"
+    }, {
+      "label" : "登录",
+      "value" : "登录"
+    }, {
+      "label" : "自定义属性",
+      "value" : "自定义属性"
+    }, {
+      "label" : "闭合角",
+      "value" : "闭合角"
+    }, {
+      "label" : "材质库",
+      "value" : "材质库"
+    }, {
+      "label" : "装配特征",
+      "value" : "装配特征"
+    }, {
+      "label" : "导入文件",
+      "value" : "导入文件"
+    }, {
+      "label" : "CAT",
+      "value" : "CAT"
+    }, {
+      "label" : "教育版",
+      "value" : "教育版"
+    }, {
+      "label" : "大国工匠",
+      "value" : "大国工匠"
+    }, {
+      "label" : "工程图",
+      "value" : "工程图"
+    } ],
+    "testingPhases" : [ {
+      "label" : "CC2026R3",
+      "value" : "CC2026R3"
+    }, {
+      "label" : "CC2026R4",
+      "value" : "CC2026R4"
+    }, {
+      "label" : "CC2026R2",
+      "value" : "CC2026R2"
+    }, {
+      "label" : "CC2026R1",
+      "value" : "CC2026R1"
+    }, {
+      "label" : "CC2025R4",
+      "value" : "CC2025R4"
+    }, {
+      "label" : "CC2025R3",
+      "value" : "CC2025R3"
+    }, {
+      "label" : "CC2025R2",
+      "value" : "CC2025R2"
+    }, {
+      "label" : "CC2025R1",
+      "value" : "CC2025R1"
+    }, {
+      "label" : "CC2024R4",
+      "value" : "CC2024R4"
+    }, {
+      "label" : "CC2024R2",
+      "value" : "CC2024R2"
+    }, {
+      "label" : "CC2024R3",
+      "value" : "CC2024R3"
+    } ],
+    "authorNames" : [ {
+      "label" : "杨晓雨",
+      "value" : "杨晓雨"
+    }, {
+      "label" : "白欣慧",
+      "value" : "白欣慧"
+    }, {
+      "label" : "王丽娟",
+      "value" : "王丽娟"
+    }, {
+      "label" : "陈艺珲",
+      "value" : "陈艺珲"
+    }, {
+      "label" : "张月",
+      "value" : "张月"
+    }, {
+      "label" : "武伟",
+      "value" : "武伟"
+    }, {
+      "label" : "李尚玉",
+      "value" : "李尚玉"
+    }, {
+      "label" : "张硕",
+      "value" : "张硕"
+    }, {
+      "label" : "焦方昭",
+      "value" : "焦方昭"
+    }, {
+      "label" : "张金花",
+      "value" : "张金花"
+    }, {
+      "label" : "田松",
+      "value" : "田松"
+    }, {
+      "label" : "刘汝宁",
+      "value" : "刘汝宁"
+    }, {
+      "label" : "王旭",
+      "value" : "王旭"
+    }, {
+      "label" : "刘威麟",
+      "value" : "刘威麟"
+    }, {
+      "label" : "孔帆",
+      "value" : "孔帆"
+    }, {
+      "label" : "曹巧元",
+      "value" : "曹巧元"
+    }, {
+      "label" : "曹晋伟",
+      "value" : "曹晋伟"
+    }, {
+      "label" : "杨依景",
+      "value" : "杨依景"
+    }, {
+      "label" : "陈嘉乐",
+      "value" : "陈嘉乐"
+    }, {
+      "label" : "高玉栋",
+      "value" : "高玉栋"
+    }, {
+      "label" : "姜汛",
+      "value" : "姜汛"
+    }, {
+      "label" : "张华磊",
+      "value" : "张华磊"
+    }, {
+      "label" : "李永正",
+      "value" : "李永正"
+    } ],
+    "assigneeNames" : [ {
+      "label" : "陈魁",
+      "value" : "陈魁"
+    }, {
+      "label" : "吕志金",
+      "value" : "吕志金"
+    }, {
+      "label" : "马传超",
+      "value" : "马传超"
+    }, {
+      "label" : "牛闯",
+      "value" : "牛闯"
+    }, {
+      "label" : "狄林林",
+      "value" : "狄林林"
+    }, {
+      "label" : "王青",
+      "value" : "王青"
+    }, {
+      "label" : "武晓旭",
+      "value" : "武晓旭"
+    }, {
+      "label" : "崔雪峰",
+      "value" : "崔雪峰"
+    }, {
+      "label" : "张硕",
+      "value" : "张硕"
+    }, {
+      "label" : "任国瑞",
+      "value" : "任国瑞"
+    }, {
+      "label" : "王楠",
+      "value" : "王楠"
+    }, {
+      "label" : "王姣",
+      "value" : "王姣"
+    }, {
+      "label" : "陈征",
+      "value" : "陈征"
+    }, {
+      "label" : "王德远",
+      "value" : "王德远"
+    }, {
+      "label" : "侯燕申",
+      "value" : "侯燕申"
+    }, {
+      "label" : "张华磊",
+      "value" : "张华磊"
+    }, {
+      "label" : "张海思",
+      "value" : "张海思"
+    }, {
+      "label" : "韩琦",
+      "value" : "韩琦"
+    }, {
+      "label" : "梁灏",
+      "value" : "梁灏"
+    }, {
+      "label" : "李焕坤",
+      "value" : "李焕坤"
+    }, {
+      "label" : "梁春阳",
+      "value" : "梁春阳"
+    }, {
+      "label" : "霍志岩",
+      "value" : "霍志岩"
+    }, {
+      "label" : "傅培钰",
+      "value" : "傅培钰"
+    }, {
+      "label" : "耿亚慧",
+      "value" : "耿亚慧"
+    }, {
+      "label" : "刘悦",
+      "value" : "刘悦"
+    }, {
+      "label" : "陈荣昌",
+      "value" : "陈荣昌"
+    }, {
+      "label" : "史清杰",
+      "value" : "史清杰"
+    }, {
+      "label" : "冯文婕",
+      "value" : "冯文婕"
+    }, {
+      "label" : "黄冠",
+      "value" : "黄冠"
+    }, {
+      "label" : "徐仕东",
+      "value" : "徐仕东"
+    }, {
+      "label" : "孟秀平",
+      "value" : "孟秀平"
+    }, {
+      "label" : "郭家铭",
+      "value" : "郭家铭"
+    }, {
+      "label" : "郑振松",
+      "value" : "郑振松"
+    }, {
+      "label" : "高玉栋",
+      "value" : "高玉栋"
+    }, {
+      "label" : "李硕彦",
+      "value" : "李硕彦"
+    }, {
+      "label" : "赵冬军",
+      "value" : "赵冬军"
+    }, {
+      "label" : "潘影丽",
+      "value" : "潘影丽"
+    }, {
+      "label" : "赵梦珊",
+      "value" : "赵梦珊"
+    }, {
+      "label" : "刘旭阳",
+      "value" : "刘旭阳"
+    }, {
+      "label" : "刘祥志",
+      "value" : "刘祥志"
+    }, {
+      "label" : "付守帅",
+      "value" : "付守帅"
+    }, {
+      "label" : "吕明康",
+      "value" : "吕明康"
+    }, {
+      "label" : "张明霞",
+      "value" : "张明霞"
+    }, {
+      "label" : "韩潞钦",
+      "value" : "韩潞钦"
+    }, {
+      "label" : "秦龙飞",
+      "value" : "秦龙飞"
+    }, {
+      "label" : "韩旻武",
+      "value" : "韩旻武"
+    }, {
+      "label" : "姜万瑞",
+      "value" : "姜万瑞"
+    }, {
+      "label" : "张计成",
+      "value" : "张计成"
+    }, {
+      "label" : "张静",
+      "value" : "张静"
+    }, {
+      "label" : "艾文涛",
+      "value" : "艾文涛"
+    }, {
+      "label" : "张晓涵",
+      "value" : "张晓涵"
+    }, {
+      "label" : "刘志国",
+      "value" : "刘志国"
+    }, {
+      "label" : "隋天宝",
+      "value" : "隋天宝"
+    }, {
+      "label" : "刘宗博",
+      "value" : "刘宗博"
+    }, {
+      "label" : "高士亮",
+      "value" : "高士亮"
+    }, {
+      "label" : "焦桦坤",
+      "value" : "焦桦坤"
+    }, {
+      "label" : "马泽坤",
+      "value" : "马泽坤"
+    }, {
+      "label" : "张登航",
+      "value" : "张登航"
+    }, {
+      "label" : "于倩倩",
+      "value" : "于倩倩"
+    }, {
+      "label" : "杜敏敏",
+      "value" : "杜敏敏"
+    }, {
+      "label" : "白云涛",
+      "value" : "白云涛"
+    }, {
+      "label" : "樊雯昊",
+      "value" : "樊雯昊"
+    }, {
+      "label" : "王念文",
+      "value" : "王念文"
+    }, {
+      "label" : "郎琳琳",
+      "value" : "郎琳琳"
+    }, {
+      "label" : "刘露",
+      "value" : "刘露"
+    }, {
+      "label" : "田川",
+      "value" : "田川"
+    }, {
+      "label" : "朱梦莹",
+      "value" : "朱梦莹"
+    }, {
+      "label" : "陈晖",
+      "value" : "陈晖"
+    }, {
+      "label" : "骆建彬",
+      "value" : "骆建彬"
+    }, {
+      "label" : "庄晓",
+      "value" : "庄晓"
+    }, {
+      "label" : "牟敬芳",
+      "value" : "牟敬芳"
+    }, {
+      "label" : "高禹阳",
+      "value" : "高禹阳"
+    }, {
+      "label" : "程振昌",
+      "value" : "程振昌"
+    }, {
+      "label" : "刘佳祺",
+      "value" : "刘佳祺"
+    }, {
+      "label" : "李令博",
+      "value" : "李令博"
+    } ],
+    "issueStates" : [ {
+      "label" : "closed",
+      "value" : "closed"
+    }, {
+      "label" : "opened",
+      "value" : "opened"
+    } ],
+    "severityLevels" : [ {
+      "label" : "一级缺陷",
+      "value" : "LEVEL1"
+    }, {
+      "label" : "三级缺陷",
+      "value" : "LEVEL3"
+    }, {
+      "label" : "二级缺陷",
+      "value" : "LEVEL2"
+    }, {
+      "label" : "建议类",
+      "value" : "SUGGESTION"
+    } ],
+    "bugStatuses" : [ {
+      "label" : "Reopen",
+      "value" : "Reopen"
+    }, {
+      "label" : "历史遗留",
+      "value" : "历史遗留"
+    }, {
+      "label" : "已修复/完成",
+      "value" : "已修复/完成"
+    }, {
+      "label" : "已测试通过",
+      "value" : "已测试通过"
+    }, {
+      "label" : "未修复",
+      "value" : "未修复"
+    }, {
+      "label" : "未更新",
+      "value" : "未更新"
+    }, {
+      "label" : "未设定议题状态",
+      "value" : "未设定议题状态"
+    }, {
+      "label" : "申请延期",
+      "value" : "申请延期"
+    }, {
+      "label" : "相同原因",
+      "value" : "相同原因"
+    }, {
+      "label" : "进行中",
+      "value" : "进行中"
+    }, {
+      "label" : "重复问题",
+      "value" : "重复问题"
+    } ],
+    "categories" : [ {
+      "label" : "BUG",
+      "value" : "BUG"
+    }, {
+      "label" : "建议",
+      "value" : "建议"
+    }, {
+      "label" : "未设定类别",
+      "value" : "未设定类别"
+    } ],
+    "milestoneTitles" : [ {
+      "label" : "CrownCAD 2026 R3",
+      "value" : "CrownCAD 2026 R3"
+    }, {
+      "label" : "CrownCAD 2026 R1",
+      "value" : "CrownCAD 2026 R1"
+    }, {
+      "label" : "CrownCAD 2024 R3",
+      "value" : "CrownCAD 2024 R3"
+    }, {
+      "label" : "CrownCAD 2024 R2",
+      "value" : "CrownCAD 2024 R2"
+    }, {
+      "label" : "CrownCAD 2024 R4",
+      "value" : "CrownCAD 2024 R4"
+    }, {
+      "label" : "CrownCAD 2025 R1",
+      "value" : "CrownCAD 2025 R1"
+    }, {
+      "label" : "CrownCAD 2025 R2",
+      "value" : "CrownCAD 2025 R2"
+    }, {
+      "label" : "CrownCAD 2025 R4",
+      "value" : "CrownCAD 2025 R4"
+    }, {
+      "label" : "CrownCAD 2025 R3",
+      "value" : "CrownCAD 2025 R3"
+    }, {
+      "label" : "CrownCAD 2026 R2",
+      "value" : "CrownCAD 2026 R2"
+    }, {
+      "label" : "CrownCAD 2026 R4",
+      "value" : "CrownCAD 2026 R4"
+    } ]
+  }
+}

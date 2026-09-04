@@ -1,0 +1,207 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "summary" : {
+      "projectName" : "CC2026R3",
+      "demandReviewReportDensity" : 0.0,
+      "designReviewReportDensity" : 0.0,
+      "codeWalkThroughDefectDensityCc" : 3.28,
+      "codeWalkThroughDefectDensityDgm" : 2.12,
+      "integrationPassRate" : 0.0,
+      "defectLeakageRate" : 20.0,
+      "defectEliminationRate" : 0.0,
+      "newIssueFixRate" : 86.67,
+      "metrics" : [ {
+        "key" : "demandReviewReportDensity",
+        "label" : "需求评审缺陷密度",
+        "value" : 0.0,
+        "unit" : "",
+        "targetDescription" : "目标值：[0.20, 0.60]"
+      }, {
+        "key" : "designReviewReportDensity",
+        "label" : "设计评审缺陷密度",
+        "value" : 0.0,
+        "unit" : "",
+        "targetDescription" : "目标值：[0.20, 0.60]"
+      }, {
+        "key" : "codeWalkThroughDefectDensityCc",
+        "label" : "CC代码走查缺陷密度",
+        "value" : 3.28,
+        "unit" : "KLOC",
+        "targetDescription" : "目标值：[2.00, 10.00]"
+      }, {
+        "key" : "codeWalkThroughDefectDensityDgm",
+        "label" : "DGM代码走查缺陷密度",
+        "value" : 2.12,
+        "unit" : "KLOC",
+        "targetDescription" : "目标值：[2.00, 10.00]"
+      }, {
+        "key" : "integrationPassRate",
+        "label" : "集成测试通过率",
+        "value" : 0.0,
+        "unit" : "%",
+        "targetDescription" : "目标值：不低于 90.00%"
+      }, {
+        "key" : "defectLeakageRate",
+        "label" : "发布缺陷遗留率",
+        "value" : 20.0,
+        "unit" : "%",
+        "targetDescription" : "目标值：不超过 15.00%"
+      }, {
+        "key" : "defectEliminationRate",
+        "label" : "开发缺陷遗留率",
+        "value" : 0.0,
+        "unit" : "%",
+        "targetDescription" : "目标值：不低于 90.00%"
+      }, {
+        "key" : "newIssueFixRate",
+        "label" : "新发缺陷修复率",
+        "value" : 86.67,
+        "unit" : "%",
+        "targetDescription" : "新发缺陷中已修复/未复现占比"
+      } ]
+    },
+    "codeReviewSource" : "dgm",
+    "codeReviewSourceOptions" : [ {
+      "label" : "CC",
+      "value" : "cc"
+    }, {
+      "label" : "DGM",
+      "value" : "dgm"
+    } ],
+    "assigneeDefectDensityRows" : [ {
+      "name" : "陈晖",
+      "value" : 90.91
+    }, {
+      "name" : "刘佳祺",
+      "value" : 0.0
+    }, {
+      "name" : "华程逸",
+      "value" : 0.0
+    }, {
+      "name" : "张硕",
+      "value" : 0.0
+    }, {
+      "name" : "李焕坤",
+      "value" : 0.0
+    }, {
+      "name" : "牟敬芳",
+      "value" : 0.0
+    }, {
+      "name" : "田川",
+      "value" : 0.0
+    } ],
+    "authorDefectDensityRows" : [ {
+      "name" : "guanlixiang",
+      "value" : 90.91
+    }, {
+      "name" : "冯文婕",
+      "value" : 0.0
+    }, {
+      "name" : "张佳旺",
+      "value" : 0.0
+    }, {
+      "name" : "张继远",
+      "value" : 0.0
+    }, {
+      "name" : "徐凯强",
+      "value" : 0.0
+    }, {
+      "name" : "曹步勇",
+      "value" : 0.0
+    }, {
+      "name" : "李东尧",
+      "value" : 0.0
+    }, {
+      "name" : "王志阳",
+      "value" : 0.0
+    }, {
+      "name" : "王苏晓",
+      "value" : 0.0
+    }, {
+      "name" : "田川",
+      "value" : 0.0
+    } ],
+    "fixUserSeverityRows" : [ {
+      "name" : "狄林林",
+      "level1" : 0,
+      "level2" : 4,
+      "level3" : 0,
+      "suggestion" : 0,
+      "total" : 4
+    }, {
+      "name" : "牛闯",
+      "level1" : 0,
+      "level2" : 1,
+      "level3" : 0,
+      "suggestion" : 0,
+      "total" : 1
+    }, {
+      "name" : "王青",
+      "level1" : 0,
+      "level2" : 1,
+      "level3" : 0,
+      "suggestion" : 0,
+      "total" : 1
+    }, {
+      "name" : "马传超",
+      "level1" : 0,
+      "level2" : 1,
+      "level3" : 0,
+      "suggestion" : 0,
+      "total" : 1
+    } ],
+    "frequencyCodeSubmissionRows" : [ {
+      "name" : "李东尧",
+      "value" : 3.0
+    }, {
+      "name" : "张佳旺",
+      "value" : 2.0
+    }, {
+      "name" : "王志阳",
+      "value" : 2.0
+    }, {
+      "name" : "guanlixiang",
+      "value" : 1.0
+    }, {
+      "name" : "冯文婕",
+      "value" : 1.0
+    }, {
+      "name" : "张继远",
+      "value" : 1.0
+    }, {
+      "name" : "徐凯强",
+      "value" : 1.0
+    }, {
+      "name" : "曹步勇",
+      "value" : 1.0
+    }, {
+      "name" : "王苏晓",
+      "value" : 1.0
+    }, {
+      "name" : "田川",
+      "value" : 1.0
+    } ],
+    "defectRepairUserRows" : [ {
+      "name" : "狄林林",
+      "value" : 4.0
+    }, {
+      "name" : "刘祥志",
+      "value" : 2.0
+    }, {
+      "name" : "刘露",
+      "value" : 2.0
+    }, {
+      "name" : "牛闯",
+      "value" : 1.0
+    }, {
+      "name" : "王青",
+      "value" : 1.0
+    }, {
+      "name" : "马传超",
+      "value" : 1.0
+    } ]
+  }
+}

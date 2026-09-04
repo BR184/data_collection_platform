@@ -1,0 +1,554 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "definition" : {
+      "boardKey" : "system-test-delay-analysis",
+      "title" : "申请延期缺陷分析",
+      "description" : "按预设延期原因分析申请延期缺陷数量。",
+      "queryTitle" : "",
+      "queryDescription" : "",
+      "rowHeaderLabel" : "延期原因",
+      "filters" : [ {
+        "key" : "testingPhase",
+        "label" : "项目",
+        "type" : "select",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 220,
+        "operators" : [ "eq", "ne" ],
+        "options" : [ {
+          "label" : "CC2026R3",
+          "value" : "CC2026R3"
+        }, {
+          "label" : "CC2026R4",
+          "value" : "CC2026R4"
+        }, {
+          "label" : "CC2026R2",
+          "value" : "CC2026R2"
+        }, {
+          "label" : "CC2026R1",
+          "value" : "CC2026R1"
+        }, {
+          "label" : "CC2025R4",
+          "value" : "CC2025R4"
+        }, {
+          "label" : "CC2025R3",
+          "value" : "CC2025R3"
+        }, {
+          "label" : "CC2025R2",
+          "value" : "CC2025R2"
+        }, {
+          "label" : "CC2025R1",
+          "value" : "CC2025R1"
+        }, {
+          "label" : "CC2024R4",
+          "value" : "CC2024R4"
+        }, {
+          "label" : "CC2024R2",
+          "value" : "CC2024R2"
+        }, {
+          "label" : "CC2024R3",
+          "value" : "CC2024R3"
+        } ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      } ],
+      "columnGroups" : [ {
+        "key" : "delay-summary",
+        "label" : "延期原因统计",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "level1",
+          "label" : "一级缺陷(个)",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "level2",
+          "label" : "二级缺陷(个)",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "level3",
+          "label" : "三级缺陷(个)",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "suggestion",
+          "label" : "建议类缺陷(个)",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : "建议类缺陷单独统计，不计入一级、二级、三级、P1/P2/P3、总计、修复率、关闭率和占比。"
+        }, {
+          "key" : "total",
+          "label" : "总计(排除建议类)(个)",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        } ]
+      } ],
+      "detailColumns" : [ {
+        "key" : "iid",
+        "label" : "议题编号",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "title",
+        "label" : "议题标题",
+        "width" : 360,
+        "minWidth" : 260,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "state",
+        "label" : "议题状态",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : false
+      }, {
+        "key" : "severityLevel",
+        "label" : "严重程度",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : false
+      }, {
+        "key" : "bugStatus",
+        "label" : "测试状态",
+        "width" : 160,
+        "minWidth" : 160,
+        "sortable" : true,
+        "type" : "tags",
+        "expandOnly" : false
+      }, {
+        "key" : "delayCause",
+        "label" : "延期原因",
+        "width" : 160,
+        "minWidth" : 160,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "authorName",
+        "label" : "议题提交人",
+        "width" : 140,
+        "minWidth" : 140,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "assigneeName",
+        "label" : "议题处理人",
+        "width" : 160,
+        "minWidth" : 160,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "updatedAt",
+        "label" : "更新时间",
+        "width" : 180,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "moduleNames",
+        "label" : "模块名",
+        "width" : null,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : "tags",
+        "expandOnly" : true
+      }, {
+        "key" : "createdAt",
+        "label" : "议题提交时间",
+        "width" : 180,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      } ],
+      "defaultPageSize" : 10,
+      "emptyText" : "当前没有可展示的申请延期缺陷分析结果。"
+    },
+    "appliedFilters" : {
+      "testingPhase" : "CC2026R3"
+    },
+    "appliedFilterGroup" : {
+      "logic" : "AND",
+      "conditions" : [ {
+        "fieldKey" : "testingPhase",
+        "operator" : "eq",
+        "value" : "CC2026R3",
+        "secondaryValue" : null,
+        "valueType" : "RESOLVED_LITERAL_SET",
+        "labelGroupId" : null,
+        "labelGroupName" : null,
+        "values" : [ "CC2026R3第一轮系统测试", "CC2026R3第二轮系统测试", "CC2026R3第三轮系统测试", "CC2026R3第四轮系统测试", "CC2026R3第五轮系统测试", "CC2026R3第六轮系统测试", "CC2026R3回归测试" ]
+      } ]
+    },
+    "rows" : [ {
+      "rowKey" : "技术卡点",
+      "rowLabel" : "技术卡点",
+      "cells" : [ {
+        "columnKey" : "level1",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "技术卡点"
+        }
+      }, {
+        "columnKey" : "level2",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "技术卡点"
+        }
+      }, {
+        "columnKey" : "level3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "技术卡点"
+        }
+      }, {
+        "columnKey" : "suggestion",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "技术卡点"
+        }
+      }, {
+        "columnKey" : "total",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "技术卡点"
+        }
+      } ]
+    }, {
+      "rowKey" : "方案卡点",
+      "rowLabel" : "方案卡点",
+      "cells" : [ {
+        "columnKey" : "level1",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "方案卡点"
+        }
+      }, {
+        "columnKey" : "level2",
+        "numericValue" : 3,
+        "displayValue" : "3",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "方案卡点"
+        }
+      }, {
+        "columnKey" : "level3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "方案卡点"
+        }
+      }, {
+        "columnKey" : "suggestion",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "方案卡点"
+        }
+      }, {
+        "columnKey" : "total",
+        "numericValue" : 3,
+        "displayValue" : "3",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "方案卡点"
+        }
+      } ]
+    }, {
+      "rowKey" : "资源卡点",
+      "rowLabel" : "资源卡点",
+      "cells" : [ {
+        "columnKey" : "level1",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "资源卡点"
+        }
+      }, {
+        "columnKey" : "level2",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "资源卡点"
+        }
+      }, {
+        "columnKey" : "level3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "资源卡点"
+        }
+      }, {
+        "columnKey" : "suggestion",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "资源卡点"
+        }
+      }, {
+        "columnKey" : "total",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "资源卡点"
+        }
+      } ]
+    }, {
+      "rowKey" : "数据异常",
+      "rowLabel" : "数据异常",
+      "cells" : [ {
+        "columnKey" : "level1",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "数据异常"
+        }
+      }, {
+        "columnKey" : "level2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "数据异常"
+        }
+      }, {
+        "columnKey" : "level3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "数据异常"
+        }
+      }, {
+        "columnKey" : "suggestion",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "数据异常"
+        }
+      }, {
+        "columnKey" : "total",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "数据异常"
+        }
+      } ]
+    }, {
+      "rowKey" : "算法问题",
+      "rowLabel" : "算法问题",
+      "cells" : [ {
+        "columnKey" : "level1",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "算法问题"
+        }
+      }, {
+        "columnKey" : "level2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "算法问题"
+        }
+      }, {
+        "columnKey" : "level3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "算法问题"
+        }
+      }, {
+        "columnKey" : "suggestion",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "算法问题"
+        }
+      }, {
+        "columnKey" : "total",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "算法问题"
+        }
+      } ]
+    }, {
+      "rowKey" : "机制问题",
+      "rowLabel" : "机制问题",
+      "cells" : [ {
+        "columnKey" : "level1",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "机制问题"
+        }
+      }, {
+        "columnKey" : "level2",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "机制问题"
+        }
+      }, {
+        "columnKey" : "level3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "机制问题"
+        }
+      }, {
+        "columnKey" : "suggestion",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "机制问题"
+        }
+      }, {
+        "columnKey" : "total",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "机制问题"
+        }
+      } ]
+    }, {
+      "rowKey" : "计算效率",
+      "rowLabel" : "计算效率",
+      "cells" : [ {
+        "columnKey" : "level1",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "计算效率"
+        }
+      }, {
+        "columnKey" : "level2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "计算效率"
+        }
+      }, {
+        "columnKey" : "level3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "计算效率"
+        }
+      }, {
+        "columnKey" : "suggestion",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "计算效率"
+        }
+      }, {
+        "columnKey" : "total",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "计算效率"
+        }
+      } ]
+    } ],
+    "meta" : {
+      "generatedAt" : "2026-09-03T18:37:25.8424831+08:00",
+      "queryDurationMs" : 11,
+      "rowCount" : 7,
+      "columnCount" : 5,
+      "drilldownColumnCount" : 5
+    }
+  }
+}

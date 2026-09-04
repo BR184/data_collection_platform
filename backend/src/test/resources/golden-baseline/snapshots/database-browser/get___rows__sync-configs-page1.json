@@ -1,0 +1,86 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "tableName" : "gitlab_sync_configs",
+    "label" : "同步配置",
+    "columns" : [ {
+      "key" : "id",
+      "label" : "ID",
+      "sortable" : true
+    }, {
+      "key" : "name",
+      "label" : "数据源名称",
+      "sortable" : true
+    }, {
+      "key" : "source_mode",
+      "label" : "数据源模式",
+      "sortable" : true
+    }, {
+      "key" : "whitelist_mode",
+      "label" : "白名单模式",
+      "sortable" : true
+    }, {
+      "key" : "updated_at",
+      "label" : "更新时间",
+      "sortable" : true
+    }, {
+      "key" : "created_at",
+      "label" : "创建时间",
+      "sortable" : true
+    } ],
+    "rows" : [ {
+      "id" : 1,
+      "name" : "golden-baseline",
+      "enabled" : true,
+      "auto_sync_enabled" : false,
+      "source_mode" : "DIRECT",
+      "whitelist_mode" : "RECOMMENDED",
+      "whitelist_tables" : null,
+      "db_host" : "localhost",
+      "db_port" : 57587,
+      "db_name" : "gitlabhq_full_import_test",
+      "db_username" : "gitlab",
+      "db_password" : "secret",
+      "docker_container_name" : null,
+      "compensation_interval_minutes" : 360,
+      "last_full_sync_at" : "2026-09-03T18:36:49.555+08:00",
+      "last_incremental_sync_at" : null,
+      "created_at" : "2026-09-03T18:36:35.722+08:00",
+      "updated_at" : "2026-09-03T18:36:49.555+08:00",
+      "source_instance" : "default",
+      "source_enabled" : true,
+      "system_hook_secret" : null,
+      "system_hook_enabled" : false,
+      "system_hook_project_id" : null,
+      "sync_thread_mode" : "FIXED",
+      "sync_thread_value" : 2.0,
+      "max_sync_threads" : null,
+      "full_compensation_enabled" : true,
+      "full_compensation_time" : "02:00",
+      "compensation_schedule_mode" : "INTERVAL",
+      "compensation_time" : "03:30",
+      "compensation_window_start" : null,
+      "compensation_window_end" : null,
+      "compensation_missed_window_policy" : "SKIP",
+      "web_base_url" : null,
+      "api_token" : null,
+      "delay_label_writeback_enabled" : false,
+      "match_mode_enabled" : true,
+      "incremental_rerun_requested_at" : null,
+      "incremental_rerun_trigger_count" : 0
+    } ],
+    "total" : 1,
+    "page" : 1,
+    "size" : 20,
+    "sortField" : "id",
+    "sortOrder" : "desc",
+    "keyword" : null,
+    "syncStatus" : "IDLE",
+    "lastSyncTime" : null,
+    "statusMessage" : null,
+    "tableKind" : "LOCAL",
+    "refreshable" : false
+  }
+}

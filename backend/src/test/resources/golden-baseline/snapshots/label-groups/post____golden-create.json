@@ -1,0 +1,40 @@
+{
+  "httpStatus" : 200,
+  "body" : {
+    "success" : true,
+    "code" : "00000",
+    "message" : "成功",
+    "data" : {
+      "id" : 15,
+      "name" : "golden-标签组",
+      "valueType" : "STRING",
+      "groupType" : "STATIC",
+      "applicableScope" : "SAME_TYPE",
+      "sourceFieldKey" : null,
+      "description" : "golden 写用例",
+      "enabled" : true,
+      "memberCount" : 1,
+      "members" : [ {
+        "id" : 1,
+        "value" : "golden-member",
+        "label" : "golden成员",
+        "currentAvailable" : true,
+        "sortOrder" : 0
+      } ],
+      "childGroups" : [ ],
+      "dynamicRule" : null,
+      "expandedPreview" : [ {
+        "id" : null,
+        "value" : "golden-member",
+        "label" : "golden-member",
+        "currentAvailable" : true,
+        "sortOrder" : 0
+      } ],
+      "systemDefault" : false,
+      "createdBy" : "system",
+      "createdAt" : "2026-09-03T18:37:23.366826+08:00",
+      "updatedBy" : "system",
+      "updatedAt" : "2026-09-03T18:37:23.366826+08:00"
+    }
+  }
+}

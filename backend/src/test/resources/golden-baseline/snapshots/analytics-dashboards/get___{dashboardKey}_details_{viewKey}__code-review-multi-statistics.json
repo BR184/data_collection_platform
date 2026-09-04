@@ -1,0 +1,117 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "dashboardKey" : "code-review-multi",
+    "viewKey" : "code-review-statistics",
+    "title" : "模块千行缺陷率详情",
+    "description" : "按当前代码库、项目和已合并请求统计；排除未标注模块及非法走查记录。 用于观察模块维度的平均代码走查缺陷密度。",
+    "columns" : [ {
+      "key" : "rank",
+      "label" : "序号",
+      "format" : "number",
+      "width" : 80
+    }, {
+      "key" : "name",
+      "label" : "模块",
+      "format" : "text",
+      "width" : 220
+    }, {
+      "key" : "value",
+      "label" : "缺陷密度(K/LOC)",
+      "format" : "decimal",
+      "width" : 160
+    } ],
+    "records" : [ {
+      "rank" : 1,
+      "name" : "工具&曲线曲面",
+      "value" : 166.67
+    }, {
+      "rank" : 2,
+      "name" : "焊件",
+      "value" : 70.62
+    }, {
+      "rank" : 3,
+      "name" : "工程图",
+      "value" : 32.49
+    }, {
+      "rank" : 4,
+      "name" : "MBD",
+      "value" : 30.3
+    }, {
+      "rank" : 5,
+      "name" : "渲染",
+      "value" : 20.56
+    }, {
+      "rank" : 6,
+      "name" : "装配",
+      "value" : 20.09
+    }, {
+      "rank" : 7,
+      "name" : "MBD&工程图&草图",
+      "value" : 18.52
+    }, {
+      "rank" : 8,
+      "name" : "工程图&草图",
+      "value" : 18.52
+    }, {
+      "rank" : 9,
+      "name" : "评估",
+      "value" : 18.36
+    }, {
+      "rank" : 10,
+      "name" : "管路",
+      "value" : 17.96
+    }, {
+      "rank" : 11,
+      "name" : "设置",
+      "value" : 15.15
+    }, {
+      "rank" : 12,
+      "name" : "草图",
+      "value" : 12.66
+    }, {
+      "rank" : 13,
+      "name" : "线缆",
+      "value" : 12.16
+    }, {
+      "rank" : 14,
+      "name" : "曲线曲面",
+      "value" : 11.96
+    }, {
+      "rank" : 15,
+      "name" : "钣金",
+      "value" : 11.69
+    }, {
+      "rank" : 16,
+      "name" : "步路",
+      "value" : 9.92
+    }, {
+      "rank" : 17,
+      "name" : "后台管理系统",
+      "value" : 8.05
+    }, {
+      "rank" : 18,
+      "name" : "速览",
+      "value" : 7.32
+    }, {
+      "rank" : 19,
+      "name" : "协同",
+      "value" : 6.86
+    }, {
+      "rank" : 20,
+      "name" : "平台",
+      "value" : 6.29
+    } ],
+    "total" : 50,
+    "page" : 1,
+    "size" : 20,
+    "exports" : [ {
+      "exportKey" : "module-defect-density",
+      "label" : "导出"
+    } ],
+    "filters" : [ ],
+    "chart" : null
+  }
+}

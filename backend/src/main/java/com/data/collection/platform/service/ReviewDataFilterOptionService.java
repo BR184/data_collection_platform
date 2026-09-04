@@ -3,6 +3,8 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.ReviewDataFilterOptionsResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
+import com.data.collection.platform.service.dropdown.DropdownOptionFieldRegistry;
+import com.data.collection.platform.service.dropdown.DropdownOptionFilterService;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -46,16 +48,19 @@ public class ReviewDataFilterOptionService {
   private final ReviewDataHistoricalOptionRepository historicalOptionRepository;
   private final CodeReviewMatchModeSwitchService matchModeSwitchService;
   private final ReviewDataMatchModeRecordRepository matchModeRecordRepository;
+  private final DropdownOptionFilterService dropdownOptionFilterService;
 
   public ReviewDataFilterOptionService(
       ReviewDataMirrorOptionRepository mirrorOptionRepository,
       ReviewDataHistoricalOptionRepository historicalOptionRepository,
       CodeReviewMatchModeSwitchService matchModeSwitchService,
-      ReviewDataMatchModeRecordRepository matchModeRecordRepository) {
+      ReviewDataMatchModeRecordRepository matchModeRecordRepository,
+      DropdownOptionFilterService dropdownOptionFilterService) {
     this.mirrorOptionRepository = mirrorOptionRepository;
     this.historicalOptionRepository = historicalOptionRepository;
     this.matchModeSwitchService = matchModeSwitchService;
     this.matchModeRecordRepository = matchModeRecordRepository;
+    this.dropdownOptionFilterService = dropdownOptionFilterService;
   }
 
   public ReviewDataFilterOptionsResponse getFilterOptions() {
@@ -64,7 +69,6 @@ public class ReviewDataFilterOptionService {
 
     // GitLab 镜像库数据
     List<String> mirrorUserNames = mirrorOptionRepository.loadUserNames();
-    List<String> mirrorLabelProjectNames = mirrorOptionRepository.loadLabelProjectNames();
     List<String> mirrorModuleNames = mirrorOptionRepository.loadModuleNames();
     List<String> mirrorReviewVersions = mirrorOptionRepository.loadMilestoneTitles();
 
@@ -113,7 +117,8 @@ public class ReviewDataFilterOptionService {
         PROBLEM_STATUS_OPTIONS,
         REVIEW_CATEGORY_OPTIONS,
         PROBLEM_CATEGORY_OPTIONS,
-        toOptions(mirrorLabelProjectNames),       // 新增/编辑评审项目：GitLab 项目标签，不影响快速筛选范围
+        toOptions(dropdownOptionFilterService.resolveOptions(
+            DropdownOptionFieldRegistry.REVIEW_FORM_PROJECT_NAME_FIELD)), // 新增/编辑评审项目：GitLab 项目标签经下拉框选项配置判定，不影响快速筛选范围
         toOptions(mirrorModuleNames));            // 新增/编辑评审模块：项目 9、79 的全角“模块：”标签
   }
 

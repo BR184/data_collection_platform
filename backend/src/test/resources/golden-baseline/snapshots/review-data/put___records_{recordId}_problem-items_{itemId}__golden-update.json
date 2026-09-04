@@ -1,0 +1,24 @@
+{
+  "httpStatus" : 200,
+  "body" : {
+    "success" : true,
+    "code" : "00000",
+    "message" : "编辑评审问题成功",
+    "data" : {
+      "id" : 1,
+      "reviewRecordId" : 1,
+      "reviewerName" : "golden-评审员",
+      "workloadHours" : 2.5,
+      "reviewCategory" : "需求",
+      "documentPosition" : "P2",
+      "problemCategory" : "文档",
+      "problemDescription" : "golden 问题描述-更新",
+      "suggestedSolution" : "golden 建议-更新",
+      "ownerName" : "golden-负责人",
+      "rejectionReason" : "",
+      "problemStatus" : "处理中",
+      "updatedAt" : "2026-09-03T18:37:19.209963+08:00",
+      "createdBy" : null
+    }
+  }
+}

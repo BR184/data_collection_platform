@@ -1,0 +1,25 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "id" : 1,
+    "name" : "评审数据管理",
+    "valueType" : "STRING",
+    "groupType" : "STATIC",
+    "applicableScope" : "SAME_TYPE",
+    "sourceFieldKey" : null,
+    "description" : "系统默认标签组：用于按老平台口径收口该页面模块范围，用户可编辑成员或停用。",
+    "enabled" : true,
+    "memberCount" : 0,
+    "members" : [ ],
+    "childGroups" : [ ],
+    "dynamicRule" : null,
+    "expandedPreview" : [ ],
+    "systemDefault" : true,
+    "createdBy" : "system",
+    "createdAt" : "2026-09-03T18:36:00.019763+08:00",
+    "updatedBy" : "system",
+    "updatedAt" : "2026-09-03T18:36:00.019763+08:00"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : [ {
+    "id" : 2,
+    "reviewRecordId" : 1,
+    "reviewerName" : "lulingwei",
+    "workloadHours" : 0.0,
+    "reviewCategory" : "独立评审",
+    "documentPosition" : "",
+    "problemCategory" : "无问题",
+    "problemDescription" : "待评审",
+    "suggestedSolution" : "",
+    "ownerName" : "",
+    "rejectionReason" : "",
+    "problemStatus" : "未评审",
+    "updatedAt" : "2026-07-03T14:44:31.014914+08:00",
+    "createdBy" : null
+  }, {
+    "id" : 1,
+    "reviewRecordId" : 1,
+    "reviewerName" : "张梓瑜",
+    "workloadHours" : 0.0,
+    "reviewCategory" : "独立评审",
+    "documentPosition" : "",
+    "problemCategory" : "无问题",
+    "problemDescription" : "待评审",
+    "suggestedSolution" : "",
+    "ownerName" : "",
+    "rejectionReason" : "",
+    "problemStatus" : "未评审",
+    "updatedAt" : "2026-07-03T14:44:31.014914+08:00",
+    "createdBy" : null
+  } ]
+}

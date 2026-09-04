@@ -6,8 +6,10 @@ import java.sql.Types;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.stereotype.Component;
 
 /** 将 JDBC 驱动对象脱离为可安全持久化的 Java 值。 */
+@Component
 class GitlabJdbcValueNormalizer {
   Object normalize(Object value) {
     return normalize(value, Types.OTHER, null);

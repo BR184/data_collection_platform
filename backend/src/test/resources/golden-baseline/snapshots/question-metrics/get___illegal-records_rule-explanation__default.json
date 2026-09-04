@@ -1,0 +1,104 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "boardKey" : "system-test-illegal-records",
+    "supported" : true,
+    "title" : "系统测试非法数据规则说明",
+    "version" : "system-test-illegal-records@2026-07-22-v4",
+    "scopeDescription" : "当前页面展示系统测试和回归测试范围内命中非法规则的议题。平台会先限定系统测试范围，再剔除不应参与统计的无效议题。",
+    "summary" : "非法类型按系统测试非法数据规则展示；同一个议题可能同时命中多个非法类型，页面筛选和导出都会保留这些类型。",
+    "flowSteps" : [ {
+      "key" : "source-load",
+      "title" : "加载议题数据",
+      "description" : "加载已同步到平台的议题数据，并使用整理后的测试阶段、模块、严重程度和非法类型。",
+      "inputCount" : 297,
+      "outputCount" : 297,
+      "samples" : [ {
+        "label" : "#969 CrownCAD",
+        "detail" : "【模板】缺陷修改的回复模板 | 非法类型: 未设定严重程度,未设定模块"
+      }, {
+        "label" : "#1708 CrownCAD",
+        "detail" : "【特征阵列】特征筋无法阵列 | 非法类型: 未设定模块,未按照模板回复"
+      }, {
+        "label" : "#2444 CrownCAD",
+        "detail" : "【草图-倒角】创建C0.001的倒角，显示大片白色。（中英文版本均存在该问题）"
+      } ]
+    }, {
+      "key" : "scope-filter",
+      "title" : "限定系统测试范围",
+      "description" : "保留系统测试和回归测试相关议题，避免与客户问题等其它范围混在一起。",
+      "inputCount" : 297,
+      "outputCount" : 255,
+      "samples" : [ {
+        "label" : "#10499 CrownCAD",
+        "detail" : "【工程图-成组的零件序号】磁力线选择零件序号，直接点击关闭，零件序号位置显示错误 | 非法类型: 未按照模板回复"
+      }, {
+        "label" : "#3589 CrownCAD",
+        "detail" : "【2D/3D草图-圆周草图阵列】实例数输入过大数值时无反应或挂机 | 非法类型: 未按照模板回复"
+      }, {
+        "label" : "#3590 CrownCAD",
+        "detail" : "【2D/3D草图-圆周草图阵列】角度输入0后，点击确定挂机 | 非法类型: 未按照模板回复"
+      } ]
+    }, {
+      "key" : "exclude-filter",
+      "title" : "剔除排除数据",
+      "description" : "排除功能屏蔽、已拒绝、建议、申请否决关闭、需求如此关闭等数据。",
+      "inputCount" : 255,
+      "outputCount" : 253,
+      "samples" : [ {
+        "label" : "#10499 CrownCAD",
+        "detail" : "【工程图-成组的零件序号】磁力线选择零件序号，直接点击关闭，零件序号位置显示错误 | 非法类型: 未按照模板回复"
+      }, {
+        "label" : "#3589 CrownCAD",
+        "detail" : "【2D/3D草图-圆周草图阵列】实例数输入过大数值时无反应或挂机 | 非法类型: 未按照模板回复"
+      }, {
+        "label" : "#3590 CrownCAD",
+        "detail" : "【2D/3D草图-圆周草图阵列】角度输入0后，点击确定挂机 | 非法类型: 未按照模板回复"
+      } ]
+    }, {
+      "key" : "illegal-filter",
+      "title" : "筛出非法数据",
+      "description" : "保留命中非法判定规则的系统测试议题；同一议题可保留多个非法类型。",
+      "inputCount" : 253,
+      "outputCount" : 239,
+      "samples" : [ {
+        "label" : "#10499 CrownCAD",
+        "detail" : "【工程图-成组的零件序号】磁力线选择零件序号，直接点击关闭，零件序号位置显示错误 | 非法类型: 未按照模板回复"
+      }, {
+        "label" : "#3589 CrownCAD",
+        "detail" : "【2D/3D草图-圆周草图阵列】实例数输入过大数值时无反应或挂机 | 非法类型: 未按照模板回复"
+      }, {
+        "label" : "#3590 CrownCAD",
+        "detail" : "【2D/3D草图-圆周草图阵列】角度输入0后，点击确定挂机 | 非法类型: 未按照模板回复"
+      } ]
+    } ],
+    "metricDefinitions" : [ {
+      "key" : "missing-severity",
+      "label" : "未设定严重程度",
+      "definition" : "严重程度未命中一级缺陷、二级缺陷或三级缺陷。",
+      "formula" : "未设定严重程度 = 系统测试范围内缺少一级/二级/三级缺陷标签的议题数量",
+      "note" : null
+    }, {
+      "key" : "missing-module",
+      "label" : "未设定模块",
+      "definition" : "议题没有模块标签。",
+      "formula" : "未设定模块 = 系统测试范围内缺少有效模块标签的议题数量",
+      "note" : null
+    }, {
+      "key" : "template-not-followed",
+      "label" : "未按照模板回复",
+      "definition" : "议题带已修复/完成标签，但未按缺陷调研模板回复。",
+      "formula" : "未按照模板回复 = 已修复或已完成，但没有按要求填写缺陷调研模板的议题数量",
+      "note" : null
+    }, {
+      "key" : "non-unique-reason",
+      "label" : "缺陷原因不唯一",
+      "definition" : "议题带已修复/完成标签，但缺陷原因数量不是 1 个。",
+      "formula" : "缺陷原因不唯一 = 已修复或已完成，但缺陷原因不是唯一一个的议题数量",
+      "note" : null
+    } ],
+    "unsupportedReason" : null
+  }
+}

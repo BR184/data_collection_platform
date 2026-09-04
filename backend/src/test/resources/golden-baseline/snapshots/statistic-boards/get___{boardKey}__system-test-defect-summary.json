@@ -1,0 +1,1091 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "definition" : {
+      "boardKey" : "system-test-defect-summary",
+      "title" : "系统测试缺陷汇总",
+      "description" : "按模块汇总系统测试范围内的缺陷数量、修复情况、关闭情况和延期情况。",
+      "queryTitle" : "",
+      "queryDescription" : "",
+      "rowHeaderLabel" : "模块名",
+      "filters" : [ {
+        "key" : "projectName",
+        "label" : "项目名称",
+        "type" : "text",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 200,
+        "operators" : [ "eq", "ne", "contains", "isEmpty", "isNotEmpty" ],
+        "options" : [ ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "testingPhase",
+        "label" : "测试阶段",
+        "type" : "select",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 220,
+        "operators" : [ "eq", "ne" ],
+        "options" : [ {
+          "label" : "CC2026R3",
+          "value" : "CC2026R3"
+        }, {
+          "label" : "CC2026R4",
+          "value" : "CC2026R4"
+        }, {
+          "label" : "CC2026R2",
+          "value" : "CC2026R2"
+        }, {
+          "label" : "CC2026R1",
+          "value" : "CC2026R1"
+        }, {
+          "label" : "CC2025R4",
+          "value" : "CC2025R4"
+        }, {
+          "label" : "CC2025R3",
+          "value" : "CC2025R3"
+        }, {
+          "label" : "CC2025R2",
+          "value" : "CC2025R2"
+        }, {
+          "label" : "CC2025R1",
+          "value" : "CC2025R1"
+        }, {
+          "label" : "CC2024R4",
+          "value" : "CC2024R4"
+        }, {
+          "label" : "CC2024R2",
+          "value" : "CC2024R2"
+        }, {
+          "label" : "CC2024R3",
+          "value" : "CC2024R3"
+        } ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "moduleName",
+        "label" : "模块名称",
+        "type" : "select",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 180,
+        "operators" : [ "eq", "ne" ],
+        "options" : [ {
+          "label" : "装配",
+          "value" : "装配"
+        }, {
+          "label" : "工程图",
+          "value" : "工程图"
+        }, {
+          "label" : "草图",
+          "value" : "草图"
+        }, {
+          "label" : "钣金",
+          "value" : "钣金"
+        }, {
+          "label" : "库",
+          "value" : "库"
+        }, {
+          "label" : "数据交换",
+          "value" : "数据交换"
+        }, {
+          "label" : "自动化测试",
+          "value" : "自动化测试"
+        }, {
+          "label" : "BOM",
+          "value" : "BOM"
+        }, {
+          "label" : "TopDown",
+          "value" : "TopDown"
+        }, {
+          "label" : "渲染",
+          "value" : "渲染"
+        }, {
+          "label" : "焊件",
+          "value" : "焊件"
+        }, {
+          "label" : "工具",
+          "value" : "工具"
+        }, {
+          "label" : "实体算法",
+          "value" : "实体算法"
+        }, {
+          "label" : "平台",
+          "value" : "平台"
+        }, {
+          "label" : "特征",
+          "value" : "特征"
+        }, {
+          "label" : "项目文档",
+          "value" : "项目文档"
+        } ],
+        "labelGroupEnabled" : true,
+        "labelGroupValueType" : "STRING"
+      }, {
+        "key" : "title",
+        "label" : "标题",
+        "type" : "text",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 220,
+        "operators" : [ "eq", "ne", "contains", "isEmpty", "isNotEmpty" ],
+        "options" : [ ],
+        "labelGroupEnabled" : true,
+        "labelGroupValueType" : "STRING"
+      }, {
+        "key" : "severityLevel",
+        "label" : "严重程度",
+        "type" : "select",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 180,
+        "operators" : [ "eq", "ne" ],
+        "options" : [ {
+          "label" : "一级缺陷",
+          "value" : "LEVEL1"
+        }, {
+          "label" : "二级缺陷",
+          "value" : "LEVEL2"
+        }, {
+          "label" : "三级缺陷",
+          "value" : "LEVEL3"
+        }, {
+          "label" : "建议类",
+          "value" : "SUGGESTION"
+        } ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "priorityLevel",
+        "label" : "优先级",
+        "type" : "select",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 160,
+        "operators" : [ "eq", "ne" ],
+        "options" : [ {
+          "label" : "P1",
+          "value" : "P1"
+        }, {
+          "label" : "P2",
+          "value" : "P2"
+        }, {
+          "label" : "P3",
+          "value" : "P3"
+        } ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "bugStatus",
+        "label" : "测试状态",
+        "type" : "select",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 180,
+        "operators" : [ "eq", "ne" ],
+        "options" : [ {
+          "label" : "已修复/完成",
+          "value" : "已修复/完成"
+        }, {
+          "label" : "已测试通过",
+          "value" : "已测试通过"
+        }, {
+          "label" : "未设定议题状态",
+          "value" : "未设定议题状态"
+        }, {
+          "label" : "相同原因",
+          "value" : "相同原因"
+        }, {
+          "label" : "历史遗留",
+          "value" : "历史遗留"
+        }, {
+          "label" : "未修复",
+          "value" : "未修复"
+        }, {
+          "label" : "未更新",
+          "value" : "未更新"
+        }, {
+          "label" : "Reopen",
+          "value" : "Reopen"
+        }, {
+          "label" : "申请延期",
+          "value" : "申请延期"
+        }, {
+          "label" : "进行中",
+          "value" : "进行中"
+        }, {
+          "label" : "重复问题",
+          "value" : "重复问题"
+        } ],
+        "labelGroupEnabled" : true,
+        "labelGroupValueType" : "STRING"
+      }, {
+        "key" : "delayCause",
+        "label" : "延期原因",
+        "type" : "select",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 180,
+        "operators" : [ "eq", "ne" ],
+        "options" : [ {
+          "label" : "技术卡点",
+          "value" : "技术卡点"
+        }, {
+          "label" : "方案卡点",
+          "value" : "方案卡点"
+        }, {
+          "label" : "机制问题",
+          "value" : "机制问题"
+        }, {
+          "label" : "资源卡点",
+          "value" : "资源卡点"
+        } ],
+        "labelGroupEnabled" : true,
+        "labelGroupValueType" : "STRING"
+      }, {
+        "key" : "authorName",
+        "label" : "创建人",
+        "type" : "select",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 160,
+        "operators" : [ "eq", "ne" ],
+        "options" : [ {
+          "label" : "白欣慧",
+          "value" : "白欣慧"
+        }, {
+          "label" : "张月",
+          "value" : "张月"
+        }, {
+          "label" : "武伟",
+          "value" : "武伟"
+        }, {
+          "label" : "王旭",
+          "value" : "王旭"
+        }, {
+          "label" : "焦方昭",
+          "value" : "焦方昭"
+        }, {
+          "label" : "高玉栋",
+          "value" : "高玉栋"
+        }, {
+          "label" : "刘威麟",
+          "value" : "刘威麟"
+        }, {
+          "label" : "杨晓雨",
+          "value" : "杨晓雨"
+        }, {
+          "label" : "陈艺珲",
+          "value" : "陈艺珲"
+        }, {
+          "label" : "杨依景",
+          "value" : "杨依景"
+        }, {
+          "label" : "田松",
+          "value" : "田松"
+        }, {
+          "label" : "陈嘉乐",
+          "value" : "陈嘉乐"
+        }, {
+          "label" : "姜汛",
+          "value" : "姜汛"
+        }, {
+          "label" : "曹晋伟",
+          "value" : "曹晋伟"
+        }, {
+          "label" : "张华磊",
+          "value" : "张华磊"
+        }, {
+          "label" : "李永正",
+          "value" : "李永正"
+        }, {
+          "label" : "孔帆",
+          "value" : "孔帆"
+        }, {
+          "label" : "王丽娟",
+          "value" : "王丽娟"
+        }, {
+          "label" : "张金花",
+          "value" : "张金花"
+        }, {
+          "label" : "曹巧元",
+          "value" : "曹巧元"
+        }, {
+          "label" : "李尚玉",
+          "value" : "李尚玉"
+        }, {
+          "label" : "张硕",
+          "value" : "张硕"
+        }, {
+          "label" : "刘汝宁",
+          "value" : "刘汝宁"
+        } ],
+        "labelGroupEnabled" : true,
+        "labelGroupValueType" : "STRING"
+      }, {
+        "key" : "assigneeName",
+        "label" : "处理人",
+        "type" : "select",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 160,
+        "operators" : [ "eq", "ne" ],
+        "options" : [ {
+          "label" : "耿亚慧",
+          "value" : "耿亚慧"
+        }, {
+          "label" : "梁灏",
+          "value" : "梁灏"
+        }, {
+          "label" : "王德远",
+          "value" : "王德远"
+        }, {
+          "label" : "侯燕申",
+          "value" : "侯燕申"
+        }, {
+          "label" : "李焕坤",
+          "value" : "李焕坤"
+        }, {
+          "label" : "吕志金",
+          "value" : "吕志金"
+        }, {
+          "label" : "韩琦",
+          "value" : "韩琦"
+        }, {
+          "label" : "傅培钰",
+          "value" : "傅培钰"
+        }, {
+          "label" : "高玉栋",
+          "value" : "高玉栋"
+        }, {
+          "label" : "王楠",
+          "value" : "王楠"
+        }, {
+          "label" : "陈魁",
+          "value" : "陈魁"
+        }, {
+          "label" : "牟敬芳",
+          "value" : "牟敬芳"
+        }, {
+          "label" : "冯文婕",
+          "value" : "冯文婕"
+        }, {
+          "label" : "高禹阳",
+          "value" : "高禹阳"
+        }, {
+          "label" : "刘悦",
+          "value" : "刘悦"
+        }, {
+          "label" : "程振昌",
+          "value" : "程振昌"
+        }, {
+          "label" : "陈晖",
+          "value" : "陈晖"
+        }, {
+          "label" : "刘佳祺",
+          "value" : "刘佳祺"
+        }, {
+          "label" : "李令博",
+          "value" : "李令博"
+        }, {
+          "label" : "张华磊",
+          "value" : "张华磊"
+        }, {
+          "label" : "郑振松",
+          "value" : "郑振松"
+        }, {
+          "label" : "梁春阳",
+          "value" : "梁春阳"
+        }, {
+          "label" : "李硕彦",
+          "value" : "李硕彦"
+        }, {
+          "label" : "赵冬军",
+          "value" : "赵冬军"
+        }, {
+          "label" : "潘影丽",
+          "value" : "潘影丽"
+        }, {
+          "label" : "崔雪峰",
+          "value" : "崔雪峰"
+        }, {
+          "label" : "张海思",
+          "value" : "张海思"
+        }, {
+          "label" : "赵梦珊",
+          "value" : "赵梦珊"
+        }, {
+          "label" : "刘旭阳",
+          "value" : "刘旭阳"
+        }, {
+          "label" : "霍志岩",
+          "value" : "霍志岩"
+        }, {
+          "label" : "张硕",
+          "value" : "张硕"
+        }, {
+          "label" : "刘祥志",
+          "value" : "刘祥志"
+        }, {
+          "label" : "付守帅",
+          "value" : "付守帅"
+        }, {
+          "label" : "狄林林",
+          "value" : "狄林林"
+        }, {
+          "label" : "吕明康",
+          "value" : "吕明康"
+        }, {
+          "label" : "张明霞",
+          "value" : "张明霞"
+        }, {
+          "label" : "韩潞钦",
+          "value" : "韩潞钦"
+        }, {
+          "label" : "秦龙飞",
+          "value" : "秦龙飞"
+        }, {
+          "label" : "韩旻武",
+          "value" : "韩旻武"
+        }, {
+          "label" : "武晓旭",
+          "value" : "武晓旭"
+        }, {
+          "label" : "姜万瑞",
+          "value" : "姜万瑞"
+        }, {
+          "label" : "史清杰",
+          "value" : "史清杰"
+        }, {
+          "label" : "张计成",
+          "value" : "张计成"
+        }, {
+          "label" : "张静",
+          "value" : "张静"
+        }, {
+          "label" : "王姣",
+          "value" : "王姣"
+        }, {
+          "label" : "艾文涛",
+          "value" : "艾文涛"
+        }, {
+          "label" : "张晓涵",
+          "value" : "张晓涵"
+        }, {
+          "label" : "陈征",
+          "value" : "陈征"
+        }, {
+          "label" : "刘志国",
+          "value" : "刘志国"
+        }, {
+          "label" : "隋天宝",
+          "value" : "隋天宝"
+        }, {
+          "label" : "孟秀平",
+          "value" : "孟秀平"
+        }, {
+          "label" : "刘宗博",
+          "value" : "刘宗博"
+        }, {
+          "label" : "高士亮",
+          "value" : "高士亮"
+        }, {
+          "label" : "焦桦坤",
+          "value" : "焦桦坤"
+        }, {
+          "label" : "马泽坤",
+          "value" : "马泽坤"
+        }, {
+          "label" : "张登航",
+          "value" : "张登航"
+        }, {
+          "label" : "马传超",
+          "value" : "马传超"
+        }, {
+          "label" : "于倩倩",
+          "value" : "于倩倩"
+        }, {
+          "label" : "杜敏敏",
+          "value" : "杜敏敏"
+        }, {
+          "label" : "白云涛",
+          "value" : "白云涛"
+        }, {
+          "label" : "樊雯昊",
+          "value" : "樊雯昊"
+        }, {
+          "label" : "王念文",
+          "value" : "王念文"
+        }, {
+          "label" : "任国瑞",
+          "value" : "任国瑞"
+        }, {
+          "label" : "陈荣昌",
+          "value" : "陈荣昌"
+        }, {
+          "label" : "郎琳琳",
+          "value" : "郎琳琳"
+        }, {
+          "label" : "刘露",
+          "value" : "刘露"
+        }, {
+          "label" : "黄冠",
+          "value" : "黄冠"
+        }, {
+          "label" : "王青",
+          "value" : "王青"
+        }, {
+          "label" : "牛闯",
+          "value" : "牛闯"
+        }, {
+          "label" : "田川",
+          "value" : "田川"
+        }, {
+          "label" : "朱梦莹",
+          "value" : "朱梦莹"
+        }, {
+          "label" : "骆建彬",
+          "value" : "骆建彬"
+        }, {
+          "label" : "庄晓",
+          "value" : "庄晓"
+        }, {
+          "label" : "徐仕东",
+          "value" : "徐仕东"
+        }, {
+          "label" : "郭家铭",
+          "value" : "郭家铭"
+        } ],
+        "labelGroupEnabled" : true,
+        "labelGroupValueType" : "STRING"
+      }, {
+        "key" : "state",
+        "label" : "状态",
+        "type" : "select",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 140,
+        "operators" : [ "eq", "ne" ],
+        "options" : [ {
+          "label" : "open",
+          "value" : "未关闭"
+        }, {
+          "label" : "closed",
+          "value" : "已关闭"
+        } ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "createdAt",
+        "label" : "议题提交时间",
+        "type" : "datetime",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 180,
+        "operators" : [ "year", "month", "day", "at", "before", "after", "between" ],
+        "options" : [ ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "updatedAt",
+        "label" : "更新时间",
+        "type" : "datetime",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 180,
+        "operators" : [ "year", "month", "day", "at", "before", "after", "between" ],
+        "options" : [ ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "labels",
+        "label" : "标签",
+        "type" : "text",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 220,
+        "operators" : [ "eq", "ne", "contains", "isEmpty", "isNotEmpty" ],
+        "options" : [ ],
+        "labelGroupEnabled" : true,
+        "labelGroupValueType" : "STRING"
+      } ],
+      "columnGroups" : [ {
+        "key" : "level1",
+        "label" : "一级缺陷",
+        "children" : [ {
+          "key" : "level1-classification",
+          "label" : "分类",
+          "children" : [ ],
+          "columns" : [ {
+            "key" : "level1_back",
+            "label" : "回退",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "level1_hang",
+            "label" : "挂机",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          }, {
+            "key" : "level1_other",
+            "label" : "其他",
+            "drilldown" : true,
+            "metricType" : "count",
+            "headerTooltip" : null
+          } ]
+        } ],
+        "columns" : [ {
+          "key" : "level1_fixed",
+          "label" : "一级缺陷已修复数量",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "level1_total",
+          "label" : "一级缺陷数量(个)",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "level1_rate",
+          "label" : "一级缺陷修复率（%）",
+          "drilldown" : false,
+          "metricType" : "ratio",
+          "headerTooltip" : null
+        } ]
+      }, {
+        "key" : "level2",
+        "label" : "二级缺陷",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "level2_fixed",
+          "label" : "二级缺陷已修复数量",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "level2_total",
+          "label" : "二级缺陷（个）",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "level2_rate",
+          "label" : "二级缺陷修复率(%)",
+          "drilldown" : false,
+          "metricType" : "ratio",
+          "headerTooltip" : null
+        } ]
+      }, {
+        "key" : "level3",
+        "label" : "三级缺陷",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "level3_fixed",
+          "label" : "三级缺陷修复数量",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "level3_total",
+          "label" : "三级缺陷(个)",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "level3_rate",
+          "label" : "三级缺陷修复率(%)",
+          "drilldown" : false,
+          "metricType" : "ratio",
+          "headerTooltip" : null
+        } ]
+      }, {
+        "key" : "suggestion",
+        "label" : "建议类缺陷",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "suggestion_total",
+          "label" : "建议类缺陷(个)",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : "建议类缺陷单独统计，不计入一级、二级、三级、P1/P2/P3、总计、修复率、关闭率和占比。"
+        } ]
+      }, {
+        "key" : "p1",
+        "label" : "P1",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "p1_count",
+          "label" : "P1级别缺陷",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "p1_fix_rate",
+          "label" : "P1缺陷修复率(%)",
+          "drilldown" : false,
+          "metricType" : "ratio",
+          "headerTooltip" : null
+        }, {
+          "key" : "p1_close_rate",
+          "label" : "P1缺陷关闭率(%)",
+          "drilldown" : false,
+          "metricType" : "ratio",
+          "headerTooltip" : null
+        } ]
+      }, {
+        "key" : "p2",
+        "label" : "P2",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "p2_count",
+          "label" : "P2级别缺陷",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "p2_fix_rate",
+          "label" : "P2缺陷修复率(%)",
+          "drilldown" : false,
+          "metricType" : "ratio",
+          "headerTooltip" : null
+        }, {
+          "key" : "p2_close_rate",
+          "label" : "P2缺陷关闭率(%)",
+          "drilldown" : false,
+          "metricType" : "ratio",
+          "headerTooltip" : null
+        } ]
+      }, {
+        "key" : "p3",
+        "label" : "P3",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "p3_count",
+          "label" : "P3级别缺陷",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "p3_fix_rate",
+          "label" : "P3缺陷修复率(%)",
+          "drilldown" : false,
+          "metricType" : "ratio",
+          "headerTooltip" : null
+        }, {
+          "key" : "p3_close_rate",
+          "label" : "P3缺陷关闭率(%)",
+          "drilldown" : false,
+          "metricType" : "ratio",
+          "headerTooltip" : null
+        } ]
+      }, {
+        "key" : "module_total_group",
+        "label" : "模块总缺陷数(个)",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "module_total",
+          "label" : "模块总缺陷数(个)",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        } ]
+      }, {
+        "key" : "defect_ratio_group",
+        "label" : "缺陷占比(%)",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "defect_ratio",
+          "label" : "缺陷占比(%)",
+          "drilldown" : false,
+          "metricType" : "ratio",
+          "headerTooltip" : null
+        } ]
+      }, {
+        "key" : "delay_defect_ratio_group",
+        "label" : "延期缺陷占比(%)",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "delay_defect_ratio",
+          "label" : "延期缺陷占比(%)",
+          "drilldown" : false,
+          "metricType" : "ratio",
+          "headerTooltip" : null
+        } ]
+      }, {
+        "key" : "solved_count_group",
+        "label" : "已修复/未更新",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "solved_count",
+          "label" : "已修复/未更新",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        } ]
+      }, {
+        "key" : "fix_rate_group",
+        "label" : "修复率(%)",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "fix_rate",
+          "label" : "修复率(%)",
+          "drilldown" : false,
+          "metricType" : "ratio",
+          "headerTooltip" : null
+        } ]
+      }, {
+        "key" : "close_rate_group",
+        "label" : "关闭率(%)",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "close_rate",
+          "label" : "关闭率(%)",
+          "drilldown" : false,
+          "metricType" : "ratio",
+          "headerTooltip" : null
+        } ]
+      }, {
+        "key" : "open_count_group",
+        "label" : "未关闭缺陷数(个)",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "open_count",
+          "label" : "未关闭缺陷数(个)",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        } ]
+      }, {
+        "key" : "extension_count_group",
+        "label" : "申请延期(个)",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "extension_count",
+          "label" : "申请延期(个)",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        } ]
+      }, {
+        "key" : "retest_failed_count_group",
+        "label" : "复测未通过缺陷数(个)",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "retest_failed_count",
+          "label" : "复测未通过缺陷数(个)",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        } ]
+      }, {
+        "key" : "new-issue",
+        "label" : "新发议题",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "new_issue_fixed",
+          "label" : "新发议题修复数量",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "new_issue_total",
+          "label" : "新发议题数量",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "new_issue_fix_rate",
+          "label" : "新发议题修复率(%)",
+          "drilldown" : false,
+          "metricType" : "ratio",
+          "headerTooltip" : null
+        }, {
+          "key" : "new_issue_close_rate",
+          "label" : "新发缺陷关闭率(%)",
+          "drilldown" : false,
+          "metricType" : "ratio",
+          "headerTooltip" : null
+        } ]
+      }, {
+        "key" : "legacy",
+        "label" : "遗留率",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "level1_legacy_rate",
+          "label" : "一级缺陷遗留率(%)",
+          "drilldown" : false,
+          "metricType" : "ratio",
+          "headerTooltip" : null
+        }, {
+          "key" : "level2_legacy_count",
+          "label" : "二级缺陷遗留数量",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "level3_legacy_count",
+          "label" : "三级缺陷遗留数量",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "level23_legacy_rate",
+          "label" : "二三级缺陷遗留率(%)",
+          "drilldown" : false,
+          "metricType" : "ratio",
+          "headerTooltip" : null
+        } ]
+      } ],
+      "detailColumns" : [ {
+        "key" : "iid",
+        "label" : "议题编号",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "moduleNames",
+        "label" : "模块名",
+        "width" : 160,
+        "minWidth" : 160,
+        "sortable" : true,
+        "type" : "tags",
+        "expandOnly" : false
+      }, {
+        "key" : "title",
+        "label" : "议题标题",
+        "width" : 360,
+        "minWidth" : 260,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "state",
+        "label" : "议题状态",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : false
+      }, {
+        "key" : "severityLevel",
+        "label" : "严重程度",
+        "width" : 140,
+        "minWidth" : 140,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : false
+      }, {
+        "key" : "bugStatus",
+        "label" : "测试状态",
+        "width" : 180,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : "tags",
+        "expandOnly" : false
+      }, {
+        "key" : "updatedAt",
+        "label" : "议题更新时间",
+        "width" : 180,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "createdAt",
+        "label" : "议题提交时间",
+        "width" : 180,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "moduleNames",
+        "label" : "模块名",
+        "width" : null,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : "tags",
+        "expandOnly" : true
+      }, {
+        "key" : "iid",
+        "label" : "议题编号",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "title",
+        "label" : "议题标题",
+        "width" : 420,
+        "minWidth" : 260,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "authorName",
+        "label" : "议题提交人",
+        "width" : 140,
+        "minWidth" : 140,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "assigneeName",
+        "label" : "议题处理人",
+        "width" : 140,
+        "minWidth" : 140,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "state",
+        "label" : "议题状态",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : true
+      }, {
+        "key" : "bugStatus",
+        "label" : "测试状态",
+        "width" : 180,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : "tags",
+        "expandOnly" : true
+      }, {
+        "key" : "severityLevel",
+        "label" : "议题严重程度",
+        "width" : 140,
+        "minWidth" : 140,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : true
+      } ],
+      "defaultPageSize" : 10,
+      "emptyText" : "当前没有可展示的系统测试缺陷统计数据。"
+    },
+    "appliedFilters" : { },
+    "appliedFilterGroup" : {
+      "logic" : "AND",
+      "conditions" : [ ]
+    },
+    "rows" : [ ],
+    "meta" : {
+      "generatedAt" : "2026-09-03T18:37:25.6721662+08:00",
+      "queryDurationMs" : 0,
+      "rowCount" : 0,
+      "columnCount" : 39,
+      "drilldownColumnCount" : 22
+    }
+  }
+}

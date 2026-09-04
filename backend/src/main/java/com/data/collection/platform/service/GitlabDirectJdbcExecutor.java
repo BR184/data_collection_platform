@@ -5,6 +5,7 @@ import com.data.collection.platform.common.logging.SyncRunLogContext;
 import com.data.collection.platform.entity.DirectConnectionPoolMetrics;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceMode;
+import com.data.collection.platform.service.sync.GitlabSyncConfigChangedEvent;
 import com.data.collection.platform.service.sync.SyncExecutionBudget;
 import com.data.collection.platform.service.sync.SyncThreadBudgetResolver;
 import com.zaxxer.hikari.HikariConfig;
@@ -27,9 +28,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.DisposableBean;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
+/** DIRECT 模式连接池与 JDBC 查询的唯一执行器；配置提交后精准退休对应数据源。 */
 @Slf4j
-class GitlabDirectJdbcExecutor implements AutoCloseable {
+@Component
+class GitlabDirectJdbcExecutor implements DisposableBean {
   private final GitlabSourceConnectionSettings connectionSettings;
   private final GitlabSourceQueryRetryPolicy queryRetryPolicy;
   private final GitlabJdbcValueNormalizer jdbcValueNormalizer;
@@ -37,6 +45,7 @@ class GitlabDirectJdbcExecutor implements AutoCloseable {
   private final BiFunction<GitlabSyncConfig, SyncExecutionBudget, HikariDataSource> dataSourceFactory;
   private final ConcurrentMap<Long, ManagedDataSource> directDataSources = new ConcurrentHashMap<>();
 
+  @Autowired
   GitlabDirectJdbcExecutor(
       GitlabSourceConnectionSettings connectionSettings,
       GitlabSourceQueryRetryPolicy queryRetryPolicy,
@@ -189,8 +198,9 @@ class GitlabDirectJdbcExecutor implements AutoCloseable {
     return new HikariDataSource(hikariConfig);
   }
 
+  /** Spring 容器销毁时退休全部 DIRECT 连接池。 */
   @Override
-  public void close() {
+  public void destroy() {
     directDataSources.forEach((key, dataSource) -> dataSource.retire());
     directDataSources.clear();
   }
@@ -202,6 +212,14 @@ class GitlabDirectJdbcExecutor implements AutoCloseable {
     ManagedDataSource removed = directDataSources.remove(configId);
     if (removed != null) {
       removed.retire();
+    }
+  }
+
+  /** 配置提交后精准退休对应 DIRECT 连接池，已借出的连接可正常归还。 */
+  @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+  public void onConfigChanged(GitlabSyncConfigChangedEvent event) {
+    if (event != null) {
+      invalidate(event.configId());
     }
   }
 

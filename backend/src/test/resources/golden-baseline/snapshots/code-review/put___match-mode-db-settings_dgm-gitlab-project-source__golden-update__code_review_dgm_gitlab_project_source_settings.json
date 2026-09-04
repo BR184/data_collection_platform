@@ -1,0 +1,16 @@
+{
+  "table" : "code_review_dgm_gitlab_project_source_settings",
+  "rows" : [ {
+    "id" : "1",
+    "enabled" : "t",
+    "gitlab_base_url" : "http://golden.invalid",
+    "access_token" : "golden-token",
+    "group_path" : "golden-group",
+    "include_subgroups" : "t",
+    "include_archived" : "f",
+    "sync_interval_minutes" : "60",
+    "last_sync_status" : "IDLE",
+    "last_sync_message" : null,
+    "last_sync_record_count" : "0"
+  } ]
+}

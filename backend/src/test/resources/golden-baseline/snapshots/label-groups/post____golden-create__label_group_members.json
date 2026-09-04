@@ -1,0 +1,10 @@
+{
+  "table" : "label_group_members",
+  "rows" : [ {
+    "id" : "1",
+    "group_id" : "15",
+    "member_value" : "golden-member",
+    "display_name" : "golden成员",
+    "sort_order" : "0"
+  } ]
+}

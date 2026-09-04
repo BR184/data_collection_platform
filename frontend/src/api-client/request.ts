@@ -49,6 +49,24 @@ export class HttpRequestError extends Error {
   }
 }
 
+/**
+ * 业务 envelope（success:false）抛出的错误，携带平台结果码供调用方分支处理
+ * （如 A0409 版本冲突时提示刷新重载）；是 Error 的子类，既有 catch 逻辑不受影响。
+ */
+export class ApiBizError extends Error {
+  readonly code: string;
+
+  constructor(message: string, code: string) {
+    super(message);
+    this.name = 'ApiBizError';
+    this.code = code;
+  }
+}
+
+export function isApiBizError(error: unknown): error is ApiBizError {
+  return error instanceof ApiBizError;
+}
+
 export function isUnauthorizedError(error: unknown): error is HttpRequestError {
   return error instanceof HttpRequestError && error.status === 401;
 }
@@ -80,9 +98,7 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
   const progressId = beginPlatformProgress(url, platformProgress);
 
   try {
-    const response = await fetchWithTimeout(url, fetchInit, signal, timeoutMs, platformProgress);
-
-    rememberCsrfToken(response);
+    const response = await fetchWithCsrfReplay(url, fetchInit, signal, timeoutMs, platformProgress);
     const rawText = await response.text();
     const payload = parseJsonPayload(rawText);
 
@@ -97,7 +113,10 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
 
     if (isJsonObject(payload) && 'success' in payload) {
       if (!payload.success) {
-        throw new Error(messageFromPayload(payload) ?? '请求失败');
+        throw new ApiBizError(
+          messageFromPayload(payload) ?? '请求失败',
+          typeof payload.code === 'string' ? payload.code : '',
+        );
       }
       finishPlatformProgress(progressId, url, platformProgress);
       return payload.data as T;
@@ -172,9 +191,8 @@ async function requestRaw(url: string, init?: RequestOptions): Promise<Response>
     signal,
     ...fetchInit
   } = init ?? {};
-  const response = await fetchWithTimeout(url, fetchInit, signal, timeoutMs);
+  const response = await fetchWithCsrfReplay(url, fetchInit, signal, timeoutMs);
 
-  rememberCsrfToken(response);
   if (!response.ok) {
     const message = await parseErrorMessage(response, errorPrefix);
     notifyAuthRequired(response.status, message);
@@ -195,6 +213,40 @@ async function withPlatformProgress<T>(url: string, init: RequestOptions | undef
     failPlatformProgress(progressId, url, platformProgress, error);
     throw error;
   }
+}
+
+async function fetchWithCsrfReplay(
+  url: string,
+  fetchInit: RequestInit,
+  signal: AbortSignal | null | undefined,
+  timeoutMs: number,
+  progress?: PlatformProgressOptions | false,
+): Promise<Response> {
+  let response = await fetchWithTimeout(url, fetchInit, signal, timeoutMs, progress);
+  rememberCsrfToken(response);
+  if (response.status === 403 && canReplayWithRefreshedCsrfToken(fetchInit)) {
+    // CSRF token 在登录等会话轮换后可能失效：403 响应会携带最新 token（rememberCsrfToken 已存储），
+    // 换上新 token 重放一次。被拒请求在 CsrfFilter/授权层即终止，未触达业务处理器，重放无副作用。
+    const replayHeaders = new Headers(fetchInit.headers ?? undefined);
+    replayHeaders.delete(CSRF_HEADER_NAME);
+    response = await fetchWithTimeout(
+      url,
+      { ...fetchInit, headers: buildRequestHeaders({ ...fetchInit, headers: replayHeaders }) },
+      signal,
+      timeoutMs,
+      progress,
+    );
+    rememberCsrfToken(response);
+  }
+  return response;
+}
+
+function canReplayWithRefreshedCsrfToken(fetchInit: RequestInit): boolean {
+  const method = String(fetchInit.method ?? 'GET').toUpperCase();
+  if (SAFE_METHODS.has(method)) {
+    return false;
+  }
+  return !(fetchInit.body instanceof ReadableStream);
 }
 
 async function fetchWithTimeout(

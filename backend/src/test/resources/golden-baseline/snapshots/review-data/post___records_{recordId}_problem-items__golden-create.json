@@ -1,0 +1,24 @@
+{
+  "httpStatus" : 200,
+  "body" : {
+    "success" : true,
+    "code" : "00000",
+    "message" : "新增评审问题成功",
+    "data" : {
+      "id" : 25,
+      "reviewRecordId" : 1,
+      "reviewerName" : "golden-评审员",
+      "workloadHours" : 1.5,
+      "reviewCategory" : "代码",
+      "documentPosition" : "P1",
+      "problemCategory" : "逻辑",
+      "problemDescription" : "golden 问题描述",
+      "suggestedSolution" : "golden 建议",
+      "ownerName" : "golden-负责人",
+      "rejectionReason" : "",
+      "problemStatus" : "新提交",
+      "updatedAt" : "2026-09-03T18:37:19.032245+08:00",
+      "createdBy" : "admin"
+    }
+  }
+}

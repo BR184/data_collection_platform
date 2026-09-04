@@ -1,0 +1,24 @@
+{
+  "httpStatus" : 200,
+  "body" : {
+    "success" : true,
+    "code" : "00000",
+    "message" : "议题范围已创建",
+    "data" : {
+      "id" : 19,
+      "catalogId" : 1,
+      "projectId" : 9,
+      "projectName" : "CrownCAD",
+      "dimension" : "TESTING_PHASE",
+      "businessKey" : "golden-group",
+      "displayName" : "golden范围组",
+      "sortOrder" : 99,
+      "enabled" : true,
+      "remark" : "golden 写用例",
+      "issueCount" : 0,
+      "members" : [ ],
+      "createdAt" : "2026-09-03T18:37:20.819132+08:00",
+      "updatedAt" : "2026-09-03T18:37:20.819132+08:00"
+    }
+  }
+}

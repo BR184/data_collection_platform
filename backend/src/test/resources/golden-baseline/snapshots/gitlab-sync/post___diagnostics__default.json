@@ -1,0 +1,4910 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "configId" : 1,
+    "sourceInstance" : "default",
+    "sourceMode" : "DIRECT",
+    "connectionOk" : true,
+    "connectionMessage" : "GitLab PostgreSQL 连接成功",
+    "whitelistOk" : true,
+    "whitelistMessage" : "GitLab 白名单选项已加载",
+    "whitelistOptionCount" : 696,
+    "metadataOk" : true,
+    "metadataMessage" : "GitLab source metadata discovered",
+    "sourceTableCount" : 697,
+    "primaryKeyTableCount" : 696,
+    "missingPrimaryKeyTableCount" : 1,
+    "missingUpdatedAtTableCount" : 211,
+    "sourceTables" : [ {
+      "tableName" : "abuse_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d39fa05135c489f5",
+      "recommended" : false
+    }, {
+      "tableName" : "abuse_report_assignees",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "dedc07408e0f76b1",
+      "recommended" : false
+    }, {
+      "tableName" : "abuse_report_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a220a0f375543336",
+      "recommended" : false
+    }, {
+      "tableName" : "abuse_report_user_mentions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "ba9804cce9baed2f",
+      "recommended" : false
+    }, {
+      "tableName" : "abuse_reports",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "cd04118fb6763110",
+      "recommended" : false
+    }, {
+      "tableName" : "abuse_trust_scores",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a34461605ae990ad",
+      "recommended" : false
+    }, {
+      "tableName" : "achievements",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d8e993a082043358",
+      "recommended" : false
+    }, {
+      "tableName" : "activity_pub_releases_subscriptions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f169c9e9e84bbc68",
+      "recommended" : false
+    }, {
+      "tableName" : "agent_activity_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "21096acfb905ea8f",
+      "recommended" : false
+    }, {
+      "tableName" : "agent_group_authorizations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "0e79444df1a793d9",
+      "recommended" : false
+    }, {
+      "tableName" : "agent_project_authorizations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "3c81be0e81b0c218",
+      "recommended" : false
+    }, {
+      "tableName" : "agent_user_access_group_authorizations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "bcd71686842a92a3",
+      "recommended" : false
+    }, {
+      "tableName" : "agent_user_access_project_authorizations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "4e59a21fea1debf8",
+      "recommended" : false
+    }, {
+      "tableName" : "ai_agent_versions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "aa822e63b4beb09b",
+      "recommended" : false
+    }, {
+      "tableName" : "ai_agents",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "7095ae3cb72e8cf9",
+      "recommended" : false
+    }, {
+      "tableName" : "alert_management_alert_assignees",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "f05d44905140d21c",
+      "recommended" : false
+    }, {
+      "tableName" : "alert_management_alert_metric_images",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "4d3b7eac9c20d4d7",
+      "recommended" : false
+    }, {
+      "tableName" : "alert_management_alert_user_mentions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "4cbe9234db049ef5",
+      "recommended" : false
+    }, {
+      "tableName" : "alert_management_alerts",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "356477919114756b",
+      "recommended" : false
+    }, {
+      "tableName" : "alert_management_http_integrations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0fc2a8d40f9f906c",
+      "recommended" : false
+    }, {
+      "tableName" : "allowed_email_domains",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "665354331de3f6a2",
+      "recommended" : false
+    }, {
+      "tableName" : "analytics_cycle_analytics_aggregations",
+      "primaryKey" : "group_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "6c834ca38bab2ae1",
+      "recommended" : false
+    }, {
+      "tableName" : "analytics_cycle_analytics_group_stages",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "491a76600b5ae8c9",
+      "recommended" : false
+    }, {
+      "tableName" : "analytics_cycle_analytics_group_value_streams",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a4f25cf678fd0bc8",
+      "recommended" : false
+    }, {
+      "tableName" : "analytics_cycle_analytics_stage_event_hashes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "12529c55dc6e0e06",
+      "recommended" : false
+    }, {
+      "tableName" : "analytics_cycle_analytics_value_stream_settings",
+      "primaryKey" : "value_stream_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "c5c51fe44dad2cf4",
+      "recommended" : false
+    }, {
+      "tableName" : "analytics_dashboards_pointers",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "bb031cd1e6e773fb",
+      "recommended" : false
+    }, {
+      "tableName" : "analytics_devops_adoption_segments",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "5bd05bd2e1b66284",
+      "recommended" : false
+    }, {
+      "tableName" : "analytics_devops_adoption_snapshots",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "01c4b90e98026f67",
+      "recommended" : false
+    }, {
+      "tableName" : "analytics_language_trend_repository_languages",
+      "primaryKey" : "programming_language_id,project_id,snapshot_date",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "151834a8dd9ad9be",
+      "recommended" : false
+    }, {
+      "tableName" : "analytics_usage_trends_measurements",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "117f12e999a1081c",
+      "recommended" : false
+    }, {
+      "tableName" : "appearances",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "14e8be5d5c1204f8",
+      "recommended" : false
+    }, {
+      "tableName" : "application_setting_terms",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "0a2c3966632189eb",
+      "recommended" : false
+    }, {
+      "tableName" : "application_settings",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b68b9d9d097f7c63",
+      "recommended" : false
+    }, {
+      "tableName" : "approval_group_rules",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "81e49d7d4d27cf72",
+      "recommended" : false
+    }, {
+      "tableName" : "approval_group_rules_groups",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "7e2ca86db9859d52",
+      "recommended" : false
+    }, {
+      "tableName" : "approval_group_rules_protected_branches",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "c292c2984ee1ffe5",
+      "recommended" : false
+    }, {
+      "tableName" : "approval_group_rules_users",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "007c8fd8dd99638d",
+      "recommended" : false
+    }, {
+      "tableName" : "approval_merge_request_rule_sources",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "b408d15039ddca09",
+      "recommended" : false
+    }, {
+      "tableName" : "approval_merge_request_rules",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "788d65a844be6f1a",
+      "recommended" : false
+    }, {
+      "tableName" : "approval_merge_request_rules_approved_approvers",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "7da4cc5c420b11d0",
+      "recommended" : false
+    }, {
+      "tableName" : "approval_merge_request_rules_groups",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "d9457bc0896c95bd",
+      "recommended" : false
+    }, {
+      "tableName" : "approval_merge_request_rules_users",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "bb5d1b29690d4344",
+      "recommended" : false
+    }, {
+      "tableName" : "approval_policy_rules",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ec9c2e3061922531",
+      "recommended" : false
+    }, {
+      "tableName" : "approval_project_rules",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d89278f901e5265b",
+      "recommended" : false
+    }, {
+      "tableName" : "approval_project_rules_groups",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "f641d5dc26c01564",
+      "recommended" : false
+    }, {
+      "tableName" : "approval_project_rules_protected_branches",
+      "primaryKey" : "approval_project_rule_id,protected_branch_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "7e13682096da0d20",
+      "recommended" : false
+    }, {
+      "tableName" : "approval_project_rules_users",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "b041fd766a4662ef",
+      "recommended" : false
+    }, {
+      "tableName" : "approvals",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8f7724a2921b41c3",
+      "recommended" : false
+    }, {
+      "tableName" : "approver_groups",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "fbfa51af43296eb4",
+      "recommended" : false
+    }, {
+      "tableName" : "approvers",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "6597a4a5e3229064",
+      "recommended" : false
+    }, {
+      "tableName" : "ar_internal_metadata",
+      "primaryKey" : "key",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a8a484a1d68472c2",
+      "recommended" : false
+    }, {
+      "tableName" : "atlassian_identities",
+      "primaryKey" : "user_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "11795e103cb83089",
+      "recommended" : false
+    }, {
+      "tableName" : "audit_events_amazon_s3_configurations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0b2a00c0872ff84e",
+      "recommended" : false
+    }, {
+      "tableName" : "audit_events_external_audit_event_destinations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "1a0225d25e186de3",
+      "recommended" : false
+    }, {
+      "tableName" : "audit_events_google_cloud_logging_configurations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "76c09fbfd78035ed",
+      "recommended" : false
+    }, {
+      "tableName" : "audit_events_group_external_streaming_destinations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d93bea36e1fd0032",
+      "recommended" : false
+    }, {
+      "tableName" : "audit_events_group_streaming_event_type_filters",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "643517f1d57832c8",
+      "recommended" : false
+    }, {
+      "tableName" : "audit_events_instance_amazon_s3_configurations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "13db4784f298ec62",
+      "recommended" : false
+    }, {
+      "tableName" : "audit_events_instance_external_audit_event_destinations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "30b8b81b3ff8e701",
+      "recommended" : false
+    }, {
+      "tableName" : "audit_events_instance_external_streaming_destinations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "6a7a9467b203d81f",
+      "recommended" : false
+    }, {
+      "tableName" : "audit_events_instance_google_cloud_logging_configurations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b5b99df555a6d95b",
+      "recommended" : false
+    }, {
+      "tableName" : "audit_events_instance_streaming_event_type_filters",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "db32f5ca283ad370",
+      "recommended" : false
+    }, {
+      "tableName" : "audit_events_streaming_event_type_filters",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "4f31725e8155aed7",
+      "recommended" : false
+    }, {
+      "tableName" : "audit_events_streaming_headers",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "1d91ea0072207cde",
+      "recommended" : false
+    }, {
+      "tableName" : "audit_events_streaming_http_group_namespace_filters",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "7aedd7a783cdab77",
+      "recommended" : false
+    }, {
+      "tableName" : "audit_events_streaming_http_instance_namespace_filters",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b7698685a1b9bb2b",
+      "recommended" : false
+    }, {
+      "tableName" : "audit_events_streaming_instance_event_type_filters",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "917facebf9555f78",
+      "recommended" : false
+    }, {
+      "tableName" : "authentication_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "79008bee39b5d97e",
+      "recommended" : false
+    }, {
+      "tableName" : "automation_rules",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a39161c38e71e9ec",
+      "recommended" : false
+    }, {
+      "tableName" : "award_emoji",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "2a6985ec330f3880",
+      "recommended" : false
+    }, {
+      "tableName" : "aws_roles",
+      "primaryKey" : "user_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f3a5d52a402cee48",
+      "recommended" : false
+    }, {
+      "tableName" : "background_migration_jobs",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f6301bdb0ace556a",
+      "recommended" : false
+    }, {
+      "tableName" : "badges",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "3a13789e931632bb",
+      "recommended" : false
+    }, {
+      "tableName" : "banned_users",
+      "primaryKey" : "user_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0b92d0b1de1d55b8",
+      "recommended" : false
+    }, {
+      "tableName" : "batched_background_migration_jobs",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "7cad560a23b59a78",
+      "recommended" : false
+    }, {
+      "tableName" : "batched_background_migrations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "878b8890c48a7893",
+      "recommended" : false
+    }, {
+      "tableName" : "board_assignees",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "ec28a9de209485a2",
+      "recommended" : false
+    }, {
+      "tableName" : "board_group_recent_visits",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "9738999d04843d93",
+      "recommended" : false
+    }, {
+      "tableName" : "board_labels",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "916fd893c24b9ec5",
+      "recommended" : false
+    }, {
+      "tableName" : "board_project_recent_visits",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e87616f5adce8486",
+      "recommended" : false
+    }, {
+      "tableName" : "board_user_preferences",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b95f4684af421cbd",
+      "recommended" : false
+    }, {
+      "tableName" : "boards",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "9ce1a8597e30e2ba",
+      "recommended" : false
+    }, {
+      "tableName" : "boards_epic_board_labels",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "b150a80ff2134b4c",
+      "recommended" : false
+    }, {
+      "tableName" : "boards_epic_board_positions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "af9674ba4c916e16",
+      "recommended" : false
+    }, {
+      "tableName" : "boards_epic_board_recent_visits",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a0f46da373dc0023",
+      "recommended" : false
+    }, {
+      "tableName" : "boards_epic_boards",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "af0cc7d201af1617",
+      "recommended" : false
+    }, {
+      "tableName" : "boards_epic_list_user_preferences",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0a8864d064b16d41",
+      "recommended" : false
+    }, {
+      "tableName" : "boards_epic_lists",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "aa9f5f9b57812eee",
+      "recommended" : false
+    }, {
+      "tableName" : "boards_epic_user_preferences",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "da73dfed28a8b740",
+      "recommended" : false
+    }, {
+      "tableName" : "broadcast_messages",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "3b56392602e18760",
+      "recommended" : false
+    }, {
+      "tableName" : "bulk_import_batch_trackers",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8512c4a3bb07cd85",
+      "recommended" : false
+    }, {
+      "tableName" : "bulk_import_configurations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e06a334b376fcea6",
+      "recommended" : false
+    }, {
+      "tableName" : "bulk_import_entities",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d1883631d5c3ea3e",
+      "recommended" : false
+    }, {
+      "tableName" : "bulk_import_export_batches",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "65a5f3bf11855c67",
+      "recommended" : false
+    }, {
+      "tableName" : "bulk_import_export_uploads",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "5ae1b144d1d57dd3",
+      "recommended" : false
+    }, {
+      "tableName" : "bulk_import_exports",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "612400b8abe95736",
+      "recommended" : false
+    }, {
+      "tableName" : "bulk_import_failures",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e9f35d313ebf0b35",
+      "recommended" : false
+    }, {
+      "tableName" : "bulk_import_trackers",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f5aac7d6822cd95e",
+      "recommended" : false
+    }, {
+      "tableName" : "bulk_imports",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d922e0f9e1b911fe",
+      "recommended" : false
+    }, {
+      "tableName" : "catalog_resource_components",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "4c32b177da20bf72",
+      "recommended" : false
+    }, {
+      "tableName" : "catalog_resource_versions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "03070bd9da4d93e2",
+      "recommended" : false
+    }, {
+      "tableName" : "catalog_resources",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a5dff6a8dac8260e",
+      "recommended" : false
+    }, {
+      "tableName" : "catalog_verified_namespaces",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "bbd23d378f1eebab",
+      "recommended" : false
+    }, {
+      "tableName" : "chat_names",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "bc963c166a4204c2",
+      "recommended" : false
+    }, {
+      "tableName" : "chat_teams",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "7b7bd537748d9636",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_build_needs",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "b3be4d1f6fb538f8",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_build_pending_states",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "522a3b458b98fef3",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_build_report_results",
+      "primaryKey" : "build_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "866d7f51888b4927",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_build_trace_chunks",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "80b801e233228900",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_build_trace_metadata",
+      "primaryKey" : "build_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "9bd2bffe40a24b32",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_builds",
+      "primaryKey" : "id,partition_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ac9168bd77eef6f9",
+      "recommended" : true
+    }, {
+      "tableName" : "ci_builds_metadata",
+      "primaryKey" : "id,partition_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "d979930202ba6e5c",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_builds_runner_session",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "b36508b2ee835f64",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_cost_settings",
+      "primaryKey" : "runner_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "bebd1f0e1c0f65ea",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_daily_build_group_report_results",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "d29c1e809261fd03",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_deleted_objects",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "af1fc6670dd12c21",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_freeze_periods",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a7f8409ee968b93d",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_group_variables",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e85d5823c1d5e662",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_instance_variables",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "e5c48df78cf0f69a",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_job_artifact_states",
+      "primaryKey" : "job_artifact_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "ffb1a2a0ab049fa7",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_job_artifacts",
+      "primaryKey" : "id,partition_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "42006a3b7a991b98",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_job_token_group_scope_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "263168b785c9349b",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_job_token_project_scope_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f3e0f6737d9fbc26",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_job_variables",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "e24512a63de42f95",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_minutes_additional_packs",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "04054448e1cb4eb6",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_namespace_mirrors",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "dbfcabee8612e178",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_namespace_monthly_usages",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "c4e1375d95592660",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_partitions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8739d370a1f59a7f",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_pending_builds",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "2f3ceb89ab877ffb",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_pipeline_artifacts",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "bf7f1e526e88ec73",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_pipeline_chat_data",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "c0a734b9e8d280ae",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_pipeline_messages",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "2187a5c4cf8048a2",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_pipeline_metadata",
+      "primaryKey" : "pipeline_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "038acf6a051ad716",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_pipeline_schedule_variables",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "7a744d4a665a8df4",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_pipeline_schedules",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "1042e14fe11d9a80",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_pipeline_variables",
+      "primaryKey" : "id,partition_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "3cd396619bde65e0",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_pipelines",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "7b8270ce5e9674b1",
+      "recommended" : true
+    }, {
+      "tableName" : "ci_pipelines_config",
+      "primaryKey" : "pipeline_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "60f315d4766e2999",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_platform_metrics",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "b07684135587edb7",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_project_mirrors",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "a02fd20e79434104",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_project_monthly_usages",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e0b7f72f45ca87b4",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_refs",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "1eaa34fc55d24f67",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_resource_groups",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "cdf5184e947d1d4c",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_resources",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "6676b7665827287e",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_runner_machines",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f25a99aa61df548a",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_runner_namespaces",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "b9a1fbf554d4fdbb",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_runner_projects",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e6eee5b6d4e3f719",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_runner_versions",
+      "primaryKey" : "version",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "2e8cf6fd57dffa43",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_runners",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f995f730ef7356fc",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_running_builds",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "bd3d6da38947a7a3",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_secure_file_states",
+      "primaryKey" : "ci_secure_file_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "dbdd0e8b80e22644",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_secure_files",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a14f631dfad17dd0",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_sources_pipelines",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "fb461ae8dbd26aab",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_sources_projects",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "e633f075677ee9dd",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_stages",
+      "primaryKey" : "id,partition_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "fa1833ecc9abb01f",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_subscriptions_projects",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "c3895bd4e8b3404b",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_trigger_requests",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "6a30db9fad876af5",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_triggers",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "db85f83e4b81e62b",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_unit_test_failures",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "4ef595b682a09c02",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_unit_tests",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "3e70888ea8db762a",
+      "recommended" : false
+    }, {
+      "tableName" : "ci_variables",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "d6ad3122bb875066",
+      "recommended" : false
+    }, {
+      "tableName" : "cloud_connector_access",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8d9b6b5c2d9ca9f7",
+      "recommended" : false
+    }, {
+      "tableName" : "cluster_agent_tokens",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "522253b529912f38",
+      "recommended" : false
+    }, {
+      "tableName" : "cluster_agents",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "fd062ee51909d165",
+      "recommended" : false
+    }, {
+      "tableName" : "cluster_enabled_grants",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "81211485b526f911",
+      "recommended" : false
+    }, {
+      "tableName" : "cluster_groups",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "506ffd169a8b6533",
+      "recommended" : false
+    }, {
+      "tableName" : "cluster_platforms_kubernetes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "3c41446693fa34a0",
+      "recommended" : false
+    }, {
+      "tableName" : "cluster_projects",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f9fac042e03532a2",
+      "recommended" : false
+    }, {
+      "tableName" : "cluster_providers_aws",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a57ec61681959ac7",
+      "recommended" : false
+    }, {
+      "tableName" : "cluster_providers_gcp",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d09ea3cbfdd06619",
+      "recommended" : false
+    }, {
+      "tableName" : "clusters",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "7575ffada56f9912",
+      "recommended" : false
+    }, {
+      "tableName" : "clusters_integration_prometheus",
+      "primaryKey" : "cluster_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "97eeddd0511c17a1",
+      "recommended" : false
+    }, {
+      "tableName" : "clusters_kubernetes_namespaces",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "35bc26d7f87a39c8",
+      "recommended" : false
+    }, {
+      "tableName" : "commit_user_mentions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "fcf2fb5e4392a48a",
+      "recommended" : false
+    }, {
+      "tableName" : "compliance_framework_security_policies",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "3a514f5ef71596a4",
+      "recommended" : false
+    }, {
+      "tableName" : "compliance_management_frameworks",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "fb000a6ac30d01f4",
+      "recommended" : false
+    }, {
+      "tableName" : "container_expiration_policies",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "6312e2b03bfbe13f",
+      "recommended" : false
+    }, {
+      "tableName" : "container_registry_data_repair_details",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "eb08459c84c1124a",
+      "recommended" : false
+    }, {
+      "tableName" : "container_registry_protection_rules",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "719224ed3a69c42f",
+      "recommended" : false
+    }, {
+      "tableName" : "container_repositories",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d3588e17036a9744",
+      "recommended" : false
+    }, {
+      "tableName" : "container_repository_states",
+      "primaryKey" : "container_repository_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "65c6dab075e1726a",
+      "recommended" : false
+    }, {
+      "tableName" : "content_blocked_states",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f983854ef9f7835d",
+      "recommended" : false
+    }, {
+      "tableName" : "conversational_development_index_metrics",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8772a9d38fb7c94f",
+      "recommended" : false
+    }, {
+      "tableName" : "coverage_fuzzing_corpuses",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "78bc57db59ae6fe3",
+      "recommended" : false
+    }, {
+      "tableName" : "csv_issue_imports",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "6d86e15bae65ae3b",
+      "recommended" : false
+    }, {
+      "tableName" : "custom_emoji",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "37b01a2f02e04c82",
+      "recommended" : false
+    }, {
+      "tableName" : "customer_relations_contacts",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d1816771c75aae9f",
+      "recommended" : false
+    }, {
+      "tableName" : "customer_relations_organizations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "217390183f82d5ad",
+      "recommended" : false
+    }, {
+      "tableName" : "dast_pre_scan_verification_steps",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a5fc17a8d36e8887",
+      "recommended" : false
+    }, {
+      "tableName" : "dast_pre_scan_verifications",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "4841660a43a7e847",
+      "recommended" : false
+    }, {
+      "tableName" : "dast_profile_schedules",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "eecb7a430b732241",
+      "recommended" : false
+    }, {
+      "tableName" : "dast_profiles",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "4cdb8c682f3d6d5c",
+      "recommended" : false
+    }, {
+      "tableName" : "dast_profiles_pipelines",
+      "primaryKey" : "dast_profile_id,ci_pipeline_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "8224e8ca12922f3f",
+      "recommended" : false
+    }, {
+      "tableName" : "dast_profiles_tags",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "20a72cea35760766",
+      "recommended" : false
+    }, {
+      "tableName" : "dast_scanner_profiles",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "55cc2c5baa55c506",
+      "recommended" : false
+    }, {
+      "tableName" : "dast_scanner_profiles_builds",
+      "primaryKey" : "dast_scanner_profile_id,ci_build_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "9198551d1ec6ab6e",
+      "recommended" : false
+    }, {
+      "tableName" : "dast_scanner_profiles_tags",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "1cb3729cfe933a96",
+      "recommended" : false
+    }, {
+      "tableName" : "dast_site_profile_secret_variables",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d598e9013da51a82",
+      "recommended" : false
+    }, {
+      "tableName" : "dast_site_profiles",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "39d4203ee3c5da54",
+      "recommended" : false
+    }, {
+      "tableName" : "dast_site_profiles_builds",
+      "primaryKey" : "dast_site_profile_id,ci_build_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "82334990d945829d",
+      "recommended" : false
+    }, {
+      "tableName" : "dast_site_profiles_pipelines",
+      "primaryKey" : "dast_site_profile_id,ci_pipeline_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "ad28ae647743800f",
+      "recommended" : false
+    }, {
+      "tableName" : "dast_site_tokens",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "55dd9359ce1f8c96",
+      "recommended" : false
+    }, {
+      "tableName" : "dast_site_validations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "aaa8733bf9f90780",
+      "recommended" : false
+    }, {
+      "tableName" : "dast_sites",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0ede1bd01715e3f2",
+      "recommended" : false
+    }, {
+      "tableName" : "dcp_backup_issues_work_item_type_20260702",
+      "primaryKey" : null,
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "5660e35a47ed8d74",
+      "recommended" : false
+    }, {
+      "tableName" : "dependency_list_exports",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "eb09df7e465525be",
+      "recommended" : false
+    }, {
+      "tableName" : "dependency_proxy_blob_states",
+      "primaryKey" : "dependency_proxy_blob_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "8938658185aeba7a",
+      "recommended" : false
+    }, {
+      "tableName" : "dependency_proxy_blobs",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "7995901ba7363710",
+      "recommended" : false
+    }, {
+      "tableName" : "dependency_proxy_group_settings",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f274e0736e785e29",
+      "recommended" : false
+    }, {
+      "tableName" : "dependency_proxy_image_ttl_group_policies",
+      "primaryKey" : "group_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b7147a05575893fd",
+      "recommended" : false
+    }, {
+      "tableName" : "dependency_proxy_manifest_states",
+      "primaryKey" : "dependency_proxy_manifest_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "c85019a237a992be",
+      "recommended" : false
+    }, {
+      "tableName" : "dependency_proxy_manifests",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ed93d525cc80a519",
+      "recommended" : false
+    }, {
+      "tableName" : "dependency_proxy_packages_settings",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d1605d1f29c9b969",
+      "recommended" : false
+    }, {
+      "tableName" : "deploy_keys_projects",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f2974e0c5f48f1bb",
+      "recommended" : false
+    }, {
+      "tableName" : "deploy_tokens",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "fd60f692efed4729",
+      "recommended" : false
+    }, {
+      "tableName" : "deployment_approvals",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "23921b5d06324ddc",
+      "recommended" : false
+    }, {
+      "tableName" : "deployment_clusters",
+      "primaryKey" : "deployment_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "73b10b228d2f5976",
+      "recommended" : false
+    }, {
+      "tableName" : "deployment_merge_requests",
+      "primaryKey" : "deployment_id,merge_request_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "3308e97e60e5a5c4",
+      "recommended" : false
+    }, {
+      "tableName" : "deployments",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "06d20ed910ad22fe",
+      "recommended" : true
+    }, {
+      "tableName" : "description_versions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "14a1798450e2cc6d",
+      "recommended" : false
+    }, {
+      "tableName" : "design_management_designs",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "de418931226ac4b0",
+      "recommended" : false
+    }, {
+      "tableName" : "design_management_designs_versions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "ddd04b83e0572f2a",
+      "recommended" : false
+    }, {
+      "tableName" : "design_management_repositories",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e14e3dd8269a5c53",
+      "recommended" : false
+    }, {
+      "tableName" : "design_management_repository_states",
+      "primaryKey" : "design_management_repository_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "6ba30fcaf81809da",
+      "recommended" : false
+    }, {
+      "tableName" : "design_management_versions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "3d0f0593042e6596",
+      "recommended" : false
+    }, {
+      "tableName" : "design_user_mentions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "f839864eeee700ea",
+      "recommended" : false
+    }, {
+      "tableName" : "detached_partitions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "af5973e244f24780",
+      "recommended" : false
+    }, {
+      "tableName" : "diff_note_positions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "0367cba8004c411a",
+      "recommended" : false
+    }, {
+      "tableName" : "dingtalk_tracker_data",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e61078e9d355a81e",
+      "recommended" : false
+    }, {
+      "tableName" : "dora_configurations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "b647f4ab47291068",
+      "recommended" : false
+    }, {
+      "tableName" : "dora_daily_metrics",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "c759e0f16c6b54a1",
+      "recommended" : false
+    }, {
+      "tableName" : "dora_performance_scores",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "eaf0c83325455bb5",
+      "recommended" : false
+    }, {
+      "tableName" : "draft_notes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "c3f473ecc6b1d86c",
+      "recommended" : false
+    }, {
+      "tableName" : "elastic_group_index_statuses",
+      "primaryKey" : "namespace_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a5d3e803c91aec8e",
+      "recommended" : false
+    }, {
+      "tableName" : "elastic_index_settings",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "c09721c169c592f1",
+      "recommended" : false
+    }, {
+      "tableName" : "elastic_reindexing_slices",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "2346d12f7db4a8c9",
+      "recommended" : false
+    }, {
+      "tableName" : "elastic_reindexing_subtasks",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b99ecde9293ab774",
+      "recommended" : false
+    }, {
+      "tableName" : "elastic_reindexing_tasks",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d4bd36571523ee6a",
+      "recommended" : false
+    }, {
+      "tableName" : "elasticsearch_indexed_namespaces",
+      "primaryKey" : "namespace_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8b0e5bb67309f6a7",
+      "recommended" : false
+    }, {
+      "tableName" : "elasticsearch_indexed_projects",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "84c271c15df7c6b6",
+      "recommended" : false
+    }, {
+      "tableName" : "emails",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "472fbc3d7321a9cb",
+      "recommended" : false
+    }, {
+      "tableName" : "environments",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "661bc9af2eb852da",
+      "recommended" : true
+    }, {
+      "tableName" : "epic_issues",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "535a0a785fce40a4",
+      "recommended" : false
+    }, {
+      "tableName" : "epic_metrics",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "58f2bf1583fa6d17",
+      "recommended" : false
+    }, {
+      "tableName" : "epic_user_mentions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "e8968bc000f45b90",
+      "recommended" : false
+    }, {
+      "tableName" : "epics",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d136085bbb72a75b",
+      "recommended" : false
+    }, {
+      "tableName" : "error_tracking_client_keys",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f3e1956fbf93a887",
+      "recommended" : false
+    }, {
+      "tableName" : "error_tracking_error_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "39e128c3addbc23a",
+      "recommended" : false
+    }, {
+      "tableName" : "error_tracking_errors",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "c7ee377cbc610711",
+      "recommended" : false
+    }, {
+      "tableName" : "events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "adb23bf168df5f9a",
+      "recommended" : true
+    }, {
+      "tableName" : "evidences",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "13c9ca884b6e678b",
+      "recommended" : false
+    }, {
+      "tableName" : "external_approval_rules",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0ce1f26e041c6517",
+      "recommended" : false
+    }, {
+      "tableName" : "external_approval_rules_protected_branches",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "687cf94dfd13790a",
+      "recommended" : false
+    }, {
+      "tableName" : "external_pull_requests",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e2d6c3154eef925f",
+      "recommended" : false
+    }, {
+      "tableName" : "external_status_checks",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "06b6af2e92108ebb",
+      "recommended" : false
+    }, {
+      "tableName" : "external_status_checks_protected_branches",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "2571bf0c3ba87aec",
+      "recommended" : false
+    }, {
+      "tableName" : "feature_gates",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8d9322e0f94e7161",
+      "recommended" : false
+    }, {
+      "tableName" : "features",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "dc533758166975ff",
+      "recommended" : false
+    }, {
+      "tableName" : "fork_network_members",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "27e1813c0e4ed6a3",
+      "recommended" : false
+    }, {
+      "tableName" : "fork_networks",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "1347d30755145f1d",
+      "recommended" : false
+    }, {
+      "tableName" : "geo_cache_invalidation_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "8dfbbd1b51a00727",
+      "recommended" : false
+    }, {
+      "tableName" : "geo_event_log",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "7f1da398522f3f3d",
+      "recommended" : false
+    }, {
+      "tableName" : "geo_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "2b222c49a8a8c2de",
+      "recommended" : false
+    }, {
+      "tableName" : "geo_hashed_storage_attachments_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "82d8ce7ee08dc2d3",
+      "recommended" : false
+    }, {
+      "tableName" : "geo_hashed_storage_migrated_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "24fa5db932298686",
+      "recommended" : false
+    }, {
+      "tableName" : "geo_node_namespace_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "478a707be11c446c",
+      "recommended" : false
+    }, {
+      "tableName" : "geo_node_statuses",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "007e264a9c6dface",
+      "recommended" : false
+    }, {
+      "tableName" : "geo_nodes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b37839fecfd8a17e",
+      "recommended" : false
+    }, {
+      "tableName" : "geo_repositories_changed_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "8d0963abe4b12719",
+      "recommended" : false
+    }, {
+      "tableName" : "geo_repository_created_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "26c01a2a9a958df4",
+      "recommended" : false
+    }, {
+      "tableName" : "geo_repository_deleted_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "c9dae6b04cb378f7",
+      "recommended" : false
+    }, {
+      "tableName" : "geo_repository_renamed_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "0af1b97b12c6f7c6",
+      "recommended" : false
+    }, {
+      "tableName" : "geo_repository_updated_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "a5dad9d1a6d03eda",
+      "recommended" : false
+    }, {
+      "tableName" : "geo_reset_checksum_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "23880c3df459c230",
+      "recommended" : false
+    }, {
+      "tableName" : "ghost_user_migrations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f50f4266271c209c",
+      "recommended" : false
+    }, {
+      "tableName" : "gitlab_subscription_histories",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "c76b8502315da2b4",
+      "recommended" : false
+    }, {
+      "tableName" : "gitlab_subscriptions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "13633be67e70ba8d",
+      "recommended" : false
+    }, {
+      "tableName" : "gpg_key_subkeys",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "af8a232798028d74",
+      "recommended" : false
+    }, {
+      "tableName" : "gpg_keys",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "4352b97deacefbae",
+      "recommended" : false
+    }, {
+      "tableName" : "gpg_signatures",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "fd47a620ea0643f5",
+      "recommended" : false
+    }, {
+      "tableName" : "grafana_integrations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ed76ee091f557248",
+      "recommended" : false
+    }, {
+      "tableName" : "group_crm_settings",
+      "primaryKey" : "group_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "6c5c7657ee3b4688",
+      "recommended" : false
+    }, {
+      "tableName" : "group_custom_attributes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "66fd420338466bf5",
+      "recommended" : false
+    }, {
+      "tableName" : "group_deletion_schedules",
+      "primaryKey" : "group_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "b62ad583b66a6a83",
+      "recommended" : false
+    }, {
+      "tableName" : "group_deploy_keys",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "6dca79ed498a6c03",
+      "recommended" : false
+    }, {
+      "tableName" : "group_deploy_keys_groups",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "6aa42ae98d6e2499",
+      "recommended" : false
+    }, {
+      "tableName" : "group_deploy_tokens",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0425f19d16b984cb",
+      "recommended" : false
+    }, {
+      "tableName" : "group_features",
+      "primaryKey" : "group_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "bcc08e29f3789ff6",
+      "recommended" : false
+    }, {
+      "tableName" : "group_group_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ce2a39c8ae37b338",
+      "recommended" : false
+    }, {
+      "tableName" : "group_import_states",
+      "primaryKey" : "group_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "2dd712d72126024a",
+      "recommended" : false
+    }, {
+      "tableName" : "group_merge_request_approval_settings",
+      "primaryKey" : "group_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "5f58bde072c05015",
+      "recommended" : false
+    }, {
+      "tableName" : "group_repository_storage_moves",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "cc6465eae77a9406",
+      "recommended" : false
+    }, {
+      "tableName" : "group_saved_replies",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "095f7bcbd8877566",
+      "recommended" : false
+    }, {
+      "tableName" : "group_ssh_certificates",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e1c8d68367905a72",
+      "recommended" : false
+    }, {
+      "tableName" : "group_wiki_repositories",
+      "primaryKey" : "group_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "7e0f7389d8713fba",
+      "recommended" : false
+    }, {
+      "tableName" : "group_wiki_repository_states",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "04eaaabc03cb74c0",
+      "recommended" : false
+    }, {
+      "tableName" : "historical_data",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "4969c777f00ccc21",
+      "recommended" : false
+    }, {
+      "tableName" : "identities",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0d1450ca21ac3b93",
+      "recommended" : false
+    }, {
+      "tableName" : "import_export_uploads",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b0a6bb27ab6691ba",
+      "recommended" : false
+    }, {
+      "tableName" : "import_failures",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0c844b66f9dc40f5",
+      "recommended" : false
+    }, {
+      "tableName" : "incident_management_escalation_policies",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "cc661306714c0531",
+      "recommended" : false
+    }, {
+      "tableName" : "incident_management_escalation_rules",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "92031238a1f62f17",
+      "recommended" : false
+    }, {
+      "tableName" : "incident_management_issuable_escalation_statuses",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "2a1842db3dcb2a51",
+      "recommended" : false
+    }, {
+      "tableName" : "incident_management_oncall_participants",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "7a8b24d9fd817f52",
+      "recommended" : false
+    }, {
+      "tableName" : "incident_management_oncall_rotations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "82577ed31c8fed33",
+      "recommended" : false
+    }, {
+      "tableName" : "incident_management_oncall_schedules",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "7df291fe351a9af5",
+      "recommended" : false
+    }, {
+      "tableName" : "incident_management_oncall_shifts",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "dec9de0b3aabe952",
+      "recommended" : false
+    }, {
+      "tableName" : "incident_management_timeline_event_tag_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8856bb2279d1dceb",
+      "recommended" : false
+    }, {
+      "tableName" : "incident_management_timeline_event_tags",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "45ea40113f046c2f",
+      "recommended" : false
+    }, {
+      "tableName" : "incident_management_timeline_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d18053444f81094b",
+      "recommended" : false
+    }, {
+      "tableName" : "index_statuses",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a058a5501b394de2",
+      "recommended" : false
+    }, {
+      "tableName" : "insights",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "62997af8d2c1d88a",
+      "recommended" : false
+    }, {
+      "tableName" : "instance_audit_events_streaming_headers",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8d703798d4f3571b",
+      "recommended" : false
+    }, {
+      "tableName" : "integrations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "6bfba538e5cb586e",
+      "recommended" : false
+    }, {
+      "tableName" : "internal_ids",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "f904d7a3848e2f6c",
+      "recommended" : false
+    }, {
+      "tableName" : "ip_restrictions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "df92ebffecddcf88",
+      "recommended" : false
+    }, {
+      "tableName" : "issuable_metric_images",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "9bf2084e68435187",
+      "recommended" : false
+    }, {
+      "tableName" : "issuable_resource_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a0873b0a701dc461",
+      "recommended" : false
+    }, {
+      "tableName" : "issuable_severities",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "b203538af7451cc0",
+      "recommended" : false
+    }, {
+      "tableName" : "issuable_slas",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "991fd111b4c2e58e",
+      "recommended" : false
+    }, {
+      "tableName" : "issue_assignees",
+      "primaryKey" : "issue_id,user_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "5cd9e139b2001e14",
+      "recommended" : true
+    }, {
+      "tableName" : "issue_assignment_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f7b3fd5ebf3b31fc",
+      "recommended" : false
+    }, {
+      "tableName" : "issue_customer_relations_contacts",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "84aee85886f60999",
+      "recommended" : false
+    }, {
+      "tableName" : "issue_email_participants",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "69675a3c623c4f99",
+      "recommended" : false
+    }, {
+      "tableName" : "issue_emails",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "670eb64e58c02fc1",
+      "recommended" : false
+    }, {
+      "tableName" : "issue_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "13c3f2842e90d059",
+      "recommended" : false
+    }, {
+      "tableName" : "issue_metrics",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ece2c4fa0c8b4a3c",
+      "recommended" : true
+    }, {
+      "tableName" : "issue_tracker_data",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "9c845c49e6c4638e",
+      "recommended" : false
+    }, {
+      "tableName" : "issue_user_mentions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "9e7ba7c6481b3b44",
+      "recommended" : false
+    }, {
+      "tableName" : "issues",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "086c15733fa7118d",
+      "recommended" : true
+    }, {
+      "tableName" : "issues_prometheus_alert_events",
+      "primaryKey" : "issue_id,prometheus_alert_event_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "2e34190f8007a196",
+      "recommended" : false
+    }, {
+      "tableName" : "issues_self_managed_prometheus_alert_events",
+      "primaryKey" : "issue_id,self_managed_prometheus_alert_event_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8ba86366d2ce73af",
+      "recommended" : false
+    }, {
+      "tableName" : "iterations_cadences",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b46499328b21fb6e",
+      "recommended" : false
+    }, {
+      "tableName" : "jira_connect_installations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "8f12fd07e91b18f6",
+      "recommended" : false
+    }, {
+      "tableName" : "jira_connect_subscriptions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8cc34ab2c3a0d4fc",
+      "recommended" : false
+    }, {
+      "tableName" : "jira_imports",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "652cbf6096dcee26",
+      "recommended" : false
+    }, {
+      "tableName" : "jira_tracker_data",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0e797ccd8ef8fb8e",
+      "recommended" : false
+    }, {
+      "tableName" : "keys",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "c34a713b56f0d68b",
+      "recommended" : false
+    }, {
+      "tableName" : "label_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "6cd147e17fb395af",
+      "recommended" : true
+    }, {
+      "tableName" : "label_priorities",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0108fc16a37e5dac",
+      "recommended" : false
+    }, {
+      "tableName" : "labels",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e3cda170f02f24e8",
+      "recommended" : true
+    }, {
+      "tableName" : "ldap_group_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "cc6287e9ff92584d",
+      "recommended" : false
+    }, {
+      "tableName" : "lfs_file_locks",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "faa00463fd1adc97",
+      "recommended" : false
+    }, {
+      "tableName" : "lfs_object_states",
+      "primaryKey" : "lfs_object_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "7e607438d68ebab2",
+      "recommended" : false
+    }, {
+      "tableName" : "lfs_objects",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "96a051a0f940f2ee",
+      "recommended" : false
+    }, {
+      "tableName" : "lfs_objects_projects",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "dc08bd3b8234379f",
+      "recommended" : false
+    }, {
+      "tableName" : "licenses",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "4ccb0b45da4e584b",
+      "recommended" : false
+    }, {
+      "tableName" : "list_user_preferences",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "3ed147b2a8f9cd68",
+      "recommended" : false
+    }, {
+      "tableName" : "lists",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ea815c8ff8e20aa2",
+      "recommended" : false
+    }, {
+      "tableName" : "member_approvals",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "84c9cf8422a4a8cf",
+      "recommended" : false
+    }, {
+      "tableName" : "member_roles",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "eef8b67830a49f10",
+      "recommended" : false
+    }, {
+      "tableName" : "members",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "5b7327f12d84850a",
+      "recommended" : true
+    }, {
+      "tableName" : "merge_request_assignees",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "2f00bcf01e21f151",
+      "recommended" : true
+    }, {
+      "tableName" : "merge_request_assignment_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ea4c8fb3ca52f5a2",
+      "recommended" : false
+    }, {
+      "tableName" : "merge_request_blocks",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "4fcf6563f4531b18",
+      "recommended" : false
+    }, {
+      "tableName" : "merge_request_cleanup_schedules",
+      "primaryKey" : "merge_request_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "73c697044c2f10fc",
+      "recommended" : false
+    }, {
+      "tableName" : "merge_request_context_commit_diff_files",
+      "primaryKey" : "merge_request_context_commit_id,relative_order",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "13608959d1f0c6bb",
+      "recommended" : false
+    }, {
+      "tableName" : "merge_request_context_commits",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "2866908cacd6c3a0",
+      "recommended" : false
+    }, {
+      "tableName" : "merge_request_diff_commit_users",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "61d70d004793994a",
+      "recommended" : false
+    }, {
+      "tableName" : "merge_request_diff_commits",
+      "primaryKey" : "merge_request_diff_id,relative_order",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "81cdb99310c9fe37",
+      "recommended" : true
+    }, {
+      "tableName" : "merge_request_diff_details",
+      "primaryKey" : "merge_request_diff_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "290aa5b252c67d83",
+      "recommended" : false
+    }, {
+      "tableName" : "merge_request_diff_files",
+      "primaryKey" : "merge_request_diff_id,relative_order",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "fd108cf121ec7bfe",
+      "recommended" : false
+    }, {
+      "tableName" : "merge_request_diff_llm_summaries",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "fd079279b165e7b2",
+      "recommended" : false
+    }, {
+      "tableName" : "merge_request_diffs",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "648daab8cb40de2b",
+      "recommended" : true
+    }, {
+      "tableName" : "merge_request_metrics",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "85abb281c621c332",
+      "recommended" : true
+    }, {
+      "tableName" : "merge_request_predictions",
+      "primaryKey" : "merge_request_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "9b737d079deb92a6",
+      "recommended" : false
+    }, {
+      "tableName" : "merge_request_review_llm_summaries",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0741d2cf567a9de3",
+      "recommended" : false
+    }, {
+      "tableName" : "merge_request_reviewers",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "410c2c0b4e897b10",
+      "recommended" : true
+    }, {
+      "tableName" : "merge_request_user_mentions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "7e92a4456a9d8fc5",
+      "recommended" : false
+    }, {
+      "tableName" : "merge_requests",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "09f8bbd0209ef38e",
+      "recommended" : true
+    }, {
+      "tableName" : "merge_requests_closing_issues",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e368680f7d85a704",
+      "recommended" : false
+    }, {
+      "tableName" : "merge_requests_compliance_violations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "d0d5c8b84ab57a61",
+      "recommended" : false
+    }, {
+      "tableName" : "merge_trains",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "386a98750143083e",
+      "recommended" : false
+    }, {
+      "tableName" : "metrics_dashboard_annotations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "514a681cfbcceaeb",
+      "recommended" : false
+    }, {
+      "tableName" : "metrics_users_starred_dashboards",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "9644034a81048d31",
+      "recommended" : false
+    }, {
+      "tableName" : "milestone_releases",
+      "primaryKey" : "milestone_id,release_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "380c6776db14b33c",
+      "recommended" : false
+    }, {
+      "tableName" : "milestones",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d8da2a9ef0230f16",
+      "recommended" : true
+    }, {
+      "tableName" : "ml_candidate_metadata",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "59990a13f0cd8ece",
+      "recommended" : false
+    }, {
+      "tableName" : "ml_candidate_metrics",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "2cd9c4d1063e01e6",
+      "recommended" : false
+    }, {
+      "tableName" : "ml_candidate_params",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "fbfd726c90c50ecc",
+      "recommended" : false
+    }, {
+      "tableName" : "ml_candidates",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "2c982ef8992d37db",
+      "recommended" : false
+    }, {
+      "tableName" : "ml_experiment_metadata",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b12b37fc24389977",
+      "recommended" : false
+    }, {
+      "tableName" : "ml_experiments",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "53c8171b936895d5",
+      "recommended" : false
+    }, {
+      "tableName" : "ml_model_metadata",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "676cdc4645924e7e",
+      "recommended" : false
+    }, {
+      "tableName" : "ml_model_version_metadata",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "562fd6c900f531af",
+      "recommended" : false
+    }, {
+      "tableName" : "ml_model_versions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e0d708ec77813622",
+      "recommended" : false
+    }, {
+      "tableName" : "ml_models",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f96e2272e1f011ef",
+      "recommended" : false
+    }, {
+      "tableName" : "namespace_admin_notes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d6e24a28aa7ef110",
+      "recommended" : false
+    }, {
+      "tableName" : "namespace_aggregation_schedules",
+      "primaryKey" : "namespace_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "f7541e58d4187e79",
+      "recommended" : false
+    }, {
+      "tableName" : "namespace_bans",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a07239fd4f2a2a61",
+      "recommended" : false
+    }, {
+      "tableName" : "namespace_ci_cd_settings",
+      "primaryKey" : "namespace_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "635f573f7251c263",
+      "recommended" : false
+    }, {
+      "tableName" : "namespace_commit_emails",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "1f01ede9aad7b972",
+      "recommended" : false
+    }, {
+      "tableName" : "namespace_details",
+      "primaryKey" : "namespace_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e2deac55094a0f9f",
+      "recommended" : false
+    }, {
+      "tableName" : "namespace_ldap_settings",
+      "primaryKey" : "namespace_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "817272d70c50c9bc",
+      "recommended" : false
+    }, {
+      "tableName" : "namespace_limits",
+      "primaryKey" : "namespace_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "134c361de30ee126",
+      "recommended" : false
+    }, {
+      "tableName" : "namespace_package_settings",
+      "primaryKey" : "namespace_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "74210b7c6c5bf7cf",
+      "recommended" : false
+    }, {
+      "tableName" : "namespace_root_storage_statistics",
+      "primaryKey" : "namespace_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b8fcc91094b58e00",
+      "recommended" : false
+    }, {
+      "tableName" : "namespace_settings",
+      "primaryKey" : "namespace_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "23c8ebd0f37cc5a8",
+      "recommended" : false
+    }, {
+      "tableName" : "namespace_statistics",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "726dea67fb22194c",
+      "recommended" : false
+    }, {
+      "tableName" : "namespaces",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0943058f671a086e",
+      "recommended" : true
+    }, {
+      "tableName" : "namespaces_storage_limit_exclusions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "1611f8007441d6c1",
+      "recommended" : false
+    }, {
+      "tableName" : "namespaces_sync_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "bf457ed7fe69c8b9",
+      "recommended" : false
+    }, {
+      "tableName" : "note_diff_files",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "f86516ef6aed0504",
+      "recommended" : false
+    }, {
+      "tableName" : "note_metadata",
+      "primaryKey" : "note_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "4f0674d4894032d6",
+      "recommended" : false
+    }, {
+      "tableName" : "notes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "327770f26382aed9",
+      "recommended" : true
+    }, {
+      "tableName" : "notification_settings",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a7e4f350ccfa1aee",
+      "recommended" : false
+    }, {
+      "tableName" : "oauth_access_grants",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "43b5ad6f0ead026a",
+      "recommended" : false
+    }, {
+      "tableName" : "oauth_access_tokens",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "1dc0a463b038ac69",
+      "recommended" : false
+    }, {
+      "tableName" : "oauth_applications",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "baa0cb6d232f9556",
+      "recommended" : false
+    }, {
+      "tableName" : "oauth_openid_requests",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "5da65964c1a51d9a",
+      "recommended" : false
+    }, {
+      "tableName" : "onboarding_progresses",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "78bbf7da7127893b",
+      "recommended" : false
+    }, {
+      "tableName" : "operations_feature_flag_scopes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "12ed26b026507a9b",
+      "recommended" : false
+    }, {
+      "tableName" : "operations_feature_flags",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a44e079783843543",
+      "recommended" : false
+    }, {
+      "tableName" : "operations_feature_flags_clients",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "fd4061b8e8305f47",
+      "recommended" : false
+    }, {
+      "tableName" : "operations_feature_flags_issues",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "72fdfa387d2a88a5",
+      "recommended" : false
+    }, {
+      "tableName" : "operations_scopes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "3a6f8807a86beeb5",
+      "recommended" : false
+    }, {
+      "tableName" : "operations_strategies",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "bc8a4ff17660bb05",
+      "recommended" : false
+    }, {
+      "tableName" : "operations_strategies_user_lists",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "a7f99048bc1f5afe",
+      "recommended" : false
+    }, {
+      "tableName" : "operations_user_lists",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e66d69773b4ab77e",
+      "recommended" : false
+    }, {
+      "tableName" : "organization_details",
+      "primaryKey" : "organization_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d4888b5617d21e99",
+      "recommended" : false
+    }, {
+      "tableName" : "organization_settings",
+      "primaryKey" : "organization_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "92d13659b1ec19b3",
+      "recommended" : false
+    }, {
+      "tableName" : "organization_users",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "78908220880e2346",
+      "recommended" : false
+    }, {
+      "tableName" : "organizations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ab7bc6f2163d167e",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_build_infos",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "ef71a3e782916bc4",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_cleanup_policies",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "68803bbc32edaa97",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_composer_cache_files",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "860e237ad51be5fd",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_composer_metadata",
+      "primaryKey" : "package_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "27048d4d8f2fd1c4",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_conan_file_metadata",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "5f1b07c242dacf14",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_conan_metadata",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "05ddd2d0d33bffd0",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_debian_file_metadata",
+      "primaryKey" : "package_file_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "18008fe2af5b7cce",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_debian_group_architectures",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "56bcd51699c66b8c",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_debian_group_component_files",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "4af2ee090520dc41",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_debian_group_components",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "402c583c6498c159",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_debian_group_distribution_keys",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "702a5e60bbbf3343",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_debian_group_distributions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "695136d4a16f99ef",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_debian_project_architectures",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "39992c1149fe0d01",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_debian_project_component_files",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "6d3a75cf41357724",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_debian_project_components",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "4e6427a8ea789a32",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_debian_project_distribution_keys",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "7b877f1701aef959",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_debian_project_distributions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8adae07535d69afb",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_debian_publications",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "17380c9c26971d2d",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_dependencies",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "48790ef9885ed76b",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_dependency_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "9b15b54bcd726ee1",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_helm_file_metadata",
+      "primaryKey" : "package_file_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "75a62a1472bcf28a",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_maven_metadata",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "3e967e510e7855e5",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_npm_metadata",
+      "primaryKey" : "package_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "e933edd1f9c60fc1",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_npm_metadata_caches",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ba37744d8d966ab4",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_nuget_dependency_link_metadata",
+      "primaryKey" : "dependency_link_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "ac7317a8336771bd",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_nuget_metadata",
+      "primaryKey" : "package_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "2884468000d9b16b",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_nuget_symbols",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "59a8b3a537364855",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_package_file_build_infos",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "db7f864f88d675ca",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_package_files",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "7b4a367f4326e2a1",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_packages",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d7349fc9a6fe0751",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_protection_rules",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8f923a884385fe91",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_pypi_metadata",
+      "primaryKey" : "package_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "8a75192299b8a7f1",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_rpm_metadata",
+      "primaryKey" : "package_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "f0be12d071d3c046",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_rpm_repository_files",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "eef45e9408289ce8",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_rubygems_metadata",
+      "primaryKey" : "package_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "73de1448e138b042",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_tags",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f33b44e289ad2ea9",
+      "recommended" : false
+    }, {
+      "tableName" : "packages_terraform_module_metadata",
+      "primaryKey" : "package_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "df5ddd3e4f5d68b7",
+      "recommended" : false
+    }, {
+      "tableName" : "pages_deployment_states",
+      "primaryKey" : "pages_deployment_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "4f7d7dac2c4ba1d6",
+      "recommended" : false
+    }, {
+      "tableName" : "pages_deployments",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "284a8cf76c443f99",
+      "recommended" : false
+    }, {
+      "tableName" : "pages_domain_acme_orders",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "9f4e5ab04fe680b1",
+      "recommended" : false
+    }, {
+      "tableName" : "pages_domains",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "b422823c57ec72e8",
+      "recommended" : false
+    }, {
+      "tableName" : "path_locks",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "928435e1fca571b7",
+      "recommended" : false
+    }, {
+      "tableName" : "personal_access_tokens",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "fd97d87b22300fd9",
+      "recommended" : false
+    }, {
+      "tableName" : "plan_limits",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f9e05f837aaf260b",
+      "recommended" : false
+    }, {
+      "tableName" : "plans",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ad1e87588d40e030",
+      "recommended" : false
+    }, {
+      "tableName" : "pm_advisories",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "97d8041b8a59c4c7",
+      "recommended" : false
+    }, {
+      "tableName" : "pm_affected_packages",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ddea8f93751a7dcb",
+      "recommended" : false
+    }, {
+      "tableName" : "pm_checkpoints",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a60f5775f6cc06f5",
+      "recommended" : false
+    }, {
+      "tableName" : "pm_licenses",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "4ab63b1667845be1",
+      "recommended" : false
+    }, {
+      "tableName" : "pm_package_version_licenses",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "523150373a78f120",
+      "recommended" : false
+    }, {
+      "tableName" : "pm_package_versions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8f5fd2f0a1ba456b",
+      "recommended" : false
+    }, {
+      "tableName" : "pm_packages",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8ad350220236e379",
+      "recommended" : false
+    }, {
+      "tableName" : "pool_repositories",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "63bf3bd79fadb701",
+      "recommended" : false
+    }, {
+      "tableName" : "postgres_async_foreign_key_validations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "11c1759c27bc93d7",
+      "recommended" : false
+    }, {
+      "tableName" : "postgres_async_indexes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f215bbc5e00b183f",
+      "recommended" : false
+    }, {
+      "tableName" : "postgres_reindex_actions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "7a5b3960589f6c74",
+      "recommended" : false
+    }, {
+      "tableName" : "postgres_reindex_queued_actions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "01814e1de3752a80",
+      "recommended" : false
+    }, {
+      "tableName" : "programming_languages",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "13edc50cc68bd006",
+      "recommended" : false
+    }, {
+      "tableName" : "project_access_tokens",
+      "primaryKey" : "personal_access_token_id,project_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "598e0b8f877aced8",
+      "recommended" : false
+    }, {
+      "tableName" : "project_alerting_settings",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "6d041e9025f5ae0b",
+      "recommended" : false
+    }, {
+      "tableName" : "project_aliases",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e8cbcaf2263d86af",
+      "recommended" : false
+    }, {
+      "tableName" : "project_authorizations",
+      "primaryKey" : "user_id,project_id,access_level",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "e0ae986eefc86adf",
+      "recommended" : false
+    }, {
+      "tableName" : "project_auto_devops",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "1cfb315cbd232cc4",
+      "recommended" : false
+    }, {
+      "tableName" : "project_build_artifacts_size_refreshes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "2eb89fd1a0a0d9d5",
+      "recommended" : false
+    }, {
+      "tableName" : "project_ci_cd_settings",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "5c1e41a7e9c3210e",
+      "recommended" : false
+    }, {
+      "tableName" : "project_ci_feature_usages",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "b7eed564eb6612d7",
+      "recommended" : false
+    }, {
+      "tableName" : "project_compliance_framework_settings",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "2e027174bdd8aac8",
+      "recommended" : false
+    }, {
+      "tableName" : "project_compliance_standards_adherence",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "30dc7de2e08588c0",
+      "recommended" : false
+    }, {
+      "tableName" : "project_custom_attributes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "2032ca613f85a4b4",
+      "recommended" : false
+    }, {
+      "tableName" : "project_daily_statistics",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "7b48bd6533d91f39",
+      "recommended" : false
+    }, {
+      "tableName" : "project_data_transfers",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "13ffc92c13819e37",
+      "recommended" : false
+    }, {
+      "tableName" : "project_deploy_tokens",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "3ac3a9f9ca8e1e7c",
+      "recommended" : false
+    }, {
+      "tableName" : "project_error_tracking_settings",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "b3e40cbb62a60326",
+      "recommended" : false
+    }, {
+      "tableName" : "project_export_jobs",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ecfa0cd23e71cd61",
+      "recommended" : false
+    }, {
+      "tableName" : "project_feature_usages",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "59f07531aef69656",
+      "recommended" : false
+    }, {
+      "tableName" : "project_features",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b0864800b6d47758",
+      "recommended" : false
+    }, {
+      "tableName" : "project_group_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "aca34fb0cdf39404",
+      "recommended" : false
+    }, {
+      "tableName" : "project_import_data",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "0042ba8e935114e5",
+      "recommended" : false
+    }, {
+      "tableName" : "project_incident_management_settings",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "c8445d8cac76ca7d",
+      "recommended" : false
+    }, {
+      "tableName" : "project_metrics_settings",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "e21efe684acb9067",
+      "recommended" : false
+    }, {
+      "tableName" : "project_mirror_data",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "b15a40a5be3323ba",
+      "recommended" : false
+    }, {
+      "tableName" : "project_pages_metadata",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "4e55da3842457ee5",
+      "recommended" : false
+    }, {
+      "tableName" : "project_relation_export_uploads",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "742ad5c478076b17",
+      "recommended" : false
+    }, {
+      "tableName" : "project_relation_exports",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a812cb4898ae61b2",
+      "recommended" : false
+    }, {
+      "tableName" : "project_repositories",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "517be2dfea2e96b9",
+      "recommended" : false
+    }, {
+      "tableName" : "project_repository_storage_moves",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "c1f005638439ba83",
+      "recommended" : false
+    }, {
+      "tableName" : "project_saved_replies",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "6108d729a0dcde7d",
+      "recommended" : false
+    }, {
+      "tableName" : "project_security_settings",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "563e50be2273f0c5",
+      "recommended" : false
+    }, {
+      "tableName" : "project_settings",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e3b03d61c1eb3b66",
+      "recommended" : false
+    }, {
+      "tableName" : "project_states",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "e4b03603940f067b",
+      "recommended" : false
+    }, {
+      "tableName" : "project_statistics",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "3f3d55561d41f8cb",
+      "recommended" : false
+    }, {
+      "tableName" : "project_topics",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "4de5e07247b68bee",
+      "recommended" : false
+    }, {
+      "tableName" : "project_wiki_repositories",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "fb57eea6d5c51fd6",
+      "recommended" : false
+    }, {
+      "tableName" : "projects",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "6f7a23c833a37f65",
+      "recommended" : true
+    }, {
+      "tableName" : "projects_sync_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "31a2cd2976967388",
+      "recommended" : false
+    }, {
+      "tableName" : "prometheus_alert_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "9b4de5e0904f1896",
+      "recommended" : false
+    }, {
+      "tableName" : "prometheus_alerts",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "393443b94b578594",
+      "recommended" : false
+    }, {
+      "tableName" : "prometheus_metrics",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e9c109bb83328d3d",
+      "recommended" : false
+    }, {
+      "tableName" : "protected_branch_merge_access_levels",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "5f2656dc07e184f3",
+      "recommended" : false
+    }, {
+      "tableName" : "protected_branch_push_access_levels",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b24d4fdda1ffac83",
+      "recommended" : false
+    }, {
+      "tableName" : "protected_branch_unprotect_access_levels",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "e162b27ad364a179",
+      "recommended" : false
+    }, {
+      "tableName" : "protected_branches",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "45de676ed7554b4f",
+      "recommended" : false
+    }, {
+      "tableName" : "protected_environment_approval_rules",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b6738f12a7d1fb20",
+      "recommended" : false
+    }, {
+      "tableName" : "protected_environment_deploy_access_levels",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "50b75d9f1c1737ef",
+      "recommended" : false
+    }, {
+      "tableName" : "protected_environments",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "125ef8385366a1e4",
+      "recommended" : false
+    }, {
+      "tableName" : "protected_tag_create_access_levels",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "6405b3b4b3bbca99",
+      "recommended" : false
+    }, {
+      "tableName" : "protected_tags",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a8901a4d75cd4f6a",
+      "recommended" : false
+    }, {
+      "tableName" : "push_event_payloads",
+      "primaryKey" : "event_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "aed1454654dae71f",
+      "recommended" : false
+    }, {
+      "tableName" : "push_rules",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0fa4a87b518b2ad2",
+      "recommended" : false
+    }, {
+      "tableName" : "raw_usage_data",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b2b0033a02d6964f",
+      "recommended" : false
+    }, {
+      "tableName" : "redirect_routes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d8e810ba4b4ee418",
+      "recommended" : false
+    }, {
+      "tableName" : "related_epic_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0b5ee6291fd1d8d2",
+      "recommended" : false
+    }, {
+      "tableName" : "relation_import_trackers",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "473ad876bfd728c0",
+      "recommended" : false
+    }, {
+      "tableName" : "release_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "38dcd3dd965fe7cc",
+      "recommended" : false
+    }, {
+      "tableName" : "releases",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a609e7dcf794bc20",
+      "recommended" : false
+    }, {
+      "tableName" : "remote_development_agent_configs",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "193326ad2c9ef9bd",
+      "recommended" : false
+    }, {
+      "tableName" : "remote_development_namespace_cluster_agent_mappings",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "694bb9979c88e77f",
+      "recommended" : false
+    }, {
+      "tableName" : "remote_mirrors",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "96471d8138455adc",
+      "recommended" : false
+    }, {
+      "tableName" : "repository_languages",
+      "primaryKey" : "project_id,programming_language_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "a4ee58537bc1ea0f",
+      "recommended" : false
+    }, {
+      "tableName" : "required_code_owners_sections",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "2512ab6c3bcb375f",
+      "recommended" : false
+    }, {
+      "tableName" : "requirements",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "63580123e78b3702",
+      "recommended" : false
+    }, {
+      "tableName" : "requirements_management_test_reports",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8acc59d5c7986a75",
+      "recommended" : false
+    }, {
+      "tableName" : "resource_iteration_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b3940335ce7c963c",
+      "recommended" : false
+    }, {
+      "tableName" : "resource_label_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8f26deafe255e6ee",
+      "recommended" : true
+    }, {
+      "tableName" : "resource_link_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d7e2ef6326a04e78",
+      "recommended" : false
+    }, {
+      "tableName" : "resource_milestone_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a79b24b3d5f20442",
+      "recommended" : false
+    }, {
+      "tableName" : "resource_state_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a294c17492ecd19d",
+      "recommended" : false
+    }, {
+      "tableName" : "resource_weight_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d521a3b216092be7",
+      "recommended" : false
+    }, {
+      "tableName" : "reviews",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "1c8cc64541fcbfe2",
+      "recommended" : false
+    }, {
+      "tableName" : "routes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "99d5667b59ccf541",
+      "recommended" : false
+    }, {
+      "tableName" : "saml_group_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "9dbeea44a36afa47",
+      "recommended" : false
+    }, {
+      "tableName" : "saml_providers",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "2438dd81ce429aa4",
+      "recommended" : false
+    }, {
+      "tableName" : "saved_replies",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "6f506865c01db0a7",
+      "recommended" : false
+    }, {
+      "tableName" : "sbom_component_versions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "5d3a6d9181a9cd6f",
+      "recommended" : false
+    }, {
+      "tableName" : "sbom_components",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "dd8c8de673e8b1c3",
+      "recommended" : false
+    }, {
+      "tableName" : "sbom_occurrences",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "5b0246b176624f9f",
+      "recommended" : false
+    }, {
+      "tableName" : "sbom_occurrences_vulnerabilities",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "fd7e6d7d04548397",
+      "recommended" : false
+    }, {
+      "tableName" : "sbom_source_packages",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "16af842fade676e4",
+      "recommended" : false
+    }, {
+      "tableName" : "sbom_sources",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "efd2b7dd2ae97fa8",
+      "recommended" : false
+    }, {
+      "tableName" : "scan_result_policies",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "928fff2fc426414c",
+      "recommended" : false
+    }, {
+      "tableName" : "scan_result_policy_violations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b61b342cab79ae56",
+      "recommended" : false
+    }, {
+      "tableName" : "schema_migrations",
+      "primaryKey" : "version",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "74264d5ac88b29dc",
+      "recommended" : false
+    }, {
+      "tableName" : "scim_identities",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "1125152d8f396f24",
+      "recommended" : false
+    }, {
+      "tableName" : "scim_oauth_access_tokens",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "407df213b506dd03",
+      "recommended" : false
+    }, {
+      "tableName" : "search_indices",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d7c6e438784caecc",
+      "recommended" : false
+    }, {
+      "tableName" : "search_namespace_index_assignments",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "1283fae11dbac4c5",
+      "recommended" : false
+    }, {
+      "tableName" : "security_orchestration_policy_configurations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "7c0685b97a891031",
+      "recommended" : false
+    }, {
+      "tableName" : "security_orchestration_policy_rule_schedules",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "3016273ff2e5cf3a",
+      "recommended" : false
+    }, {
+      "tableName" : "security_policies",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "286c36c9857624cb",
+      "recommended" : false
+    }, {
+      "tableName" : "security_scans",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d2f7c5c0aef2f860",
+      "recommended" : false
+    }, {
+      "tableName" : "security_training_providers",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e4872189e1812c19",
+      "recommended" : false
+    }, {
+      "tableName" : "security_trainings",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b6775f35e3fe31e4",
+      "recommended" : false
+    }, {
+      "tableName" : "self_managed_prometheus_alert_events",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "3255284f1046a81d",
+      "recommended" : false
+    }, {
+      "tableName" : "sent_notifications",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "f1bd32effa7f6ad8",
+      "recommended" : false
+    }, {
+      "tableName" : "sentry_issues",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "6cc5af714e5e299a",
+      "recommended" : false
+    }, {
+      "tableName" : "service_access_tokens",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "c7c2b07d4cd2f446",
+      "recommended" : false
+    }, {
+      "tableName" : "service_desk_custom_email_credentials",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ba8e491316526e4a",
+      "recommended" : false
+    }, {
+      "tableName" : "service_desk_custom_email_verifications",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "3ecea96938460f4a",
+      "recommended" : false
+    }, {
+      "tableName" : "service_desk_settings",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "8f32358ecc8b9b6e",
+      "recommended" : false
+    }, {
+      "tableName" : "shards",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "3e399237bb0347ad",
+      "recommended" : false
+    }, {
+      "tableName" : "slack_api_scopes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "aa8ca698031020cd",
+      "recommended" : false
+    }, {
+      "tableName" : "slack_integrations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "aa43b2359dd4af12",
+      "recommended" : false
+    }, {
+      "tableName" : "slack_integrations_scopes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "2aa462d0be89bbac",
+      "recommended" : false
+    }, {
+      "tableName" : "smartcard_identities",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "a2dd6419ccc03b8d",
+      "recommended" : false
+    }, {
+      "tableName" : "snippet_repositories",
+      "primaryKey" : "snippet_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "20daafef0deb1b04",
+      "recommended" : false
+    }, {
+      "tableName" : "snippet_repository_storage_moves",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "5019c62fa6a22a3a",
+      "recommended" : false
+    }, {
+      "tableName" : "snippet_statistics",
+      "primaryKey" : "snippet_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "c0e02aa40f9fd43e",
+      "recommended" : false
+    }, {
+      "tableName" : "snippet_user_mentions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "1fea429765b6698c",
+      "recommended" : false
+    }, {
+      "tableName" : "snippets",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "315f5596e9b80a5b",
+      "recommended" : false
+    }, {
+      "tableName" : "software_license_policies",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "c4636fdf9356dd90",
+      "recommended" : false
+    }, {
+      "tableName" : "software_licenses",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "a2ebf9b9bb15117a",
+      "recommended" : false
+    }, {
+      "tableName" : "spam_logs",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "79c1a7f41ca7f23e",
+      "recommended" : false
+    }, {
+      "tableName" : "sprints",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "62c2f9ecfc2870e4",
+      "recommended" : false
+    }, {
+      "tableName" : "ssh_signatures",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "cbc3ff8a60e8c20f",
+      "recommended" : false
+    }, {
+      "tableName" : "status_check_responses",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "26cd7cce088cd1b2",
+      "recommended" : false
+    }, {
+      "tableName" : "status_page_published_incidents",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ef5fe7bf2e743654",
+      "recommended" : false
+    }, {
+      "tableName" : "status_page_settings",
+      "primaryKey" : "project_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e2df6b8ed554412a",
+      "recommended" : false
+    }, {
+      "tableName" : "subscription_add_on_purchases",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "efae712d33e3dee8",
+      "recommended" : false
+    }, {
+      "tableName" : "subscription_add_ons",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "c55409eef21ac938",
+      "recommended" : false
+    }, {
+      "tableName" : "subscription_user_add_on_assignments",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "68dc715eba3fa09f",
+      "recommended" : false
+    }, {
+      "tableName" : "subscriptions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "de7e2a25bb65d92f",
+      "recommended" : false
+    }, {
+      "tableName" : "suggestions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "b07f78cad8a2bc16",
+      "recommended" : false
+    }, {
+      "tableName" : "system_access_microsoft_applications",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "21120524977b0ac7",
+      "recommended" : false
+    }, {
+      "tableName" : "system_access_microsoft_graph_access_tokens",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0f4d5da4a740e65e",
+      "recommended" : false
+    }, {
+      "tableName" : "system_note_metadata",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ad32eb8774208f75",
+      "recommended" : false
+    }, {
+      "tableName" : "taggings",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "3358bc583ef9de74",
+      "recommended" : false
+    }, {
+      "tableName" : "tags",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "1781e0b4dc8ef961",
+      "recommended" : false
+    }, {
+      "tableName" : "target_branch_rules",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ee68cfa56ceba017",
+      "recommended" : false
+    }, {
+      "tableName" : "temp_notes_backup",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "46b80e68c446b9a0",
+      "recommended" : false
+    }, {
+      "tableName" : "term_agreements",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "7c4fccd84736e3b4",
+      "recommended" : false
+    }, {
+      "tableName" : "terraform_state_versions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "37a8083f498377e8",
+      "recommended" : false
+    }, {
+      "tableName" : "terraform_states",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d1b36642fd913f60",
+      "recommended" : false
+    }, {
+      "tableName" : "timelog_categories",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "609c2b1a725aa0e5",
+      "recommended" : false
+    }, {
+      "tableName" : "timelogs",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e3a6a3de31c88305",
+      "recommended" : false
+    }, {
+      "tableName" : "todos",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "13b8f4067b23c91b",
+      "recommended" : true
+    }, {
+      "tableName" : "token_with_ivs",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "0b575f97d762ec7c",
+      "recommended" : false
+    }, {
+      "tableName" : "topics",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "42c420ff21f6f622",
+      "recommended" : false
+    }, {
+      "tableName" : "trending_projects",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "36a027f34e1984e0",
+      "recommended" : false
+    }, {
+      "tableName" : "upcoming_reconciliations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "aa21b7542a16ef41",
+      "recommended" : false
+    }, {
+      "tableName" : "upload_states",
+      "primaryKey" : "upload_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "0a9030e9eebd6307",
+      "recommended" : false
+    }, {
+      "tableName" : "uploads",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "created_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b4bc16cff144bda1",
+      "recommended" : false
+    }, {
+      "tableName" : "user_achievements",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ce811cf2962d9612",
+      "recommended" : false
+    }, {
+      "tableName" : "user_agent_details",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a1d2002289b8ca19",
+      "recommended" : false
+    }, {
+      "tableName" : "user_callouts",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "082a011a30153041",
+      "recommended" : false
+    }, {
+      "tableName" : "user_canonical_emails",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8e194471e33c4b22",
+      "recommended" : false
+    }, {
+      "tableName" : "user_credit_card_validations",
+      "primaryKey" : "user_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "98972591706e5ee7",
+      "recommended" : false
+    }, {
+      "tableName" : "user_custom_attributes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "9d4776153a4bc4e5",
+      "recommended" : false
+    }, {
+      "tableName" : "user_details",
+      "primaryKey" : "user_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "187065c00314fb7c",
+      "recommended" : true
+    }, {
+      "tableName" : "user_follow_users",
+      "primaryKey" : "follower_id,followee_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "e39f4cb102596598",
+      "recommended" : false
+    }, {
+      "tableName" : "user_group_callouts",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "1c8e178efed146d6",
+      "recommended" : false
+    }, {
+      "tableName" : "user_highest_roles",
+      "primaryKey" : "user_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0e3c30138c83aee3",
+      "recommended" : false
+    }, {
+      "tableName" : "user_namespace_callouts",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "85b681ff03184710",
+      "recommended" : false
+    }, {
+      "tableName" : "user_permission_export_uploads",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "31f008088945e43f",
+      "recommended" : false
+    }, {
+      "tableName" : "user_phone_number_validations",
+      "primaryKey" : "user_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "a75f8b38448e68c4",
+      "recommended" : false
+    }, {
+      "tableName" : "user_preferences",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "43fd755f0265abdc",
+      "recommended" : false
+    }, {
+      "tableName" : "user_project_callouts",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "9b6285d80453f103",
+      "recommended" : false
+    }, {
+      "tableName" : "user_statuses",
+      "primaryKey" : "user_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "b147dc4b1b379d60",
+      "recommended" : false
+    }, {
+      "tableName" : "user_synced_attributes_metadata",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "d40d05f5d2bfe370",
+      "recommended" : false
+    }, {
+      "tableName" : "users",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d702304d0dd5f5c7",
+      "recommended" : true
+    }, {
+      "tableName" : "users_ops_dashboard_projects",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "9d7d02d671906cc1",
+      "recommended" : false
+    }, {
+      "tableName" : "users_security_dashboard_projects",
+      "primaryKey" : "project_id,user_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "040b848e72bdde6e",
+      "recommended" : false
+    }, {
+      "tableName" : "users_star_projects",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "730e258a552d9008",
+      "recommended" : false
+    }, {
+      "tableName" : "users_statistics",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "097d4b4a852c7ae4",
+      "recommended" : false
+    }, {
+      "tableName" : "value_stream_dashboard_aggregations",
+      "primaryKey" : "namespace_id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "b98bd71ec27efb1a",
+      "recommended" : false
+    }, {
+      "tableName" : "vs_code_settings",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "8b8f86933a542b80",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerabilities",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "512c633710fba897",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_exports",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b4c57ac7a1d9610b",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_external_issue_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "79f8e8f58e77763e",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_feedback",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f2e79bd7afdb8e24",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_finding_evidences",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "e4d0c72b71db89a1",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_finding_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "2248ef6c2f27efce",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_finding_signatures",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "6a797fc77921d52f",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_findings_remediations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "3f80472b54d55ac4",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_flags",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "aa6194904487a258",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_historical_statistics",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "bec2722a9f83d14b",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_identifiers",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "72e1bf24f3f09568",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_issue_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "15820153c28367e1",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_merge_request_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "75751b629d89ee0b",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_occurrence_identifiers",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "620655ca841c7a3d",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_occurrence_pipelines",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "2ce0a27f7a3a0429",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_occurrences",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "670a2d3d5815a623",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_reads",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "e715fa32216d2169",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_remediations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "c175043f0a7a5b61",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_scanners",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "7aa8f281eeefbad9",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_state_transitions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "20f210eb01df10c1",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_statistics",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "4ed5a17872287135",
+      "recommended" : false
+    }, {
+      "tableName" : "vulnerability_user_mentions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "38ceb0d6ac0d9d62",
+      "recommended" : false
+    }, {
+      "tableName" : "web_hooks",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "00a920a72bfb46f8",
+      "recommended" : false
+    }, {
+      "tableName" : "webauthn_registrations",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "bb556b723d994121",
+      "recommended" : false
+    }, {
+      "tableName" : "wiki_page_meta",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "cd30b42569e802a3",
+      "recommended" : false
+    }, {
+      "tableName" : "wiki_page_slugs",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "bf47c2ca7ca6e510",
+      "recommended" : false
+    }, {
+      "tableName" : "wiki_repository_states",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "ed360fcd0f049e15",
+      "recommended" : false
+    }, {
+      "tableName" : "work_item_colors",
+      "primaryKey" : "issue_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "b50497cb7ecb9900",
+      "recommended" : false
+    }, {
+      "tableName" : "work_item_dates_sources",
+      "primaryKey" : "issue_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "9c9b1bc90928ffd8",
+      "recommended" : false
+    }, {
+      "tableName" : "work_item_hierarchy_restrictions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "31d3de49e1e0aec9",
+      "recommended" : false
+    }, {
+      "tableName" : "work_item_parent_links",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "27073a8ce3da839d",
+      "recommended" : false
+    }, {
+      "tableName" : "work_item_progresses",
+      "primaryKey" : "issue_id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "059bbc7971c122c1",
+      "recommended" : false
+    }, {
+      "tableName" : "work_item_related_link_restrictions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "3c86b0a4b26398bf",
+      "recommended" : false
+    }, {
+      "tableName" : "work_item_types",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "bc3e7d79e1bffcd7",
+      "recommended" : false
+    }, {
+      "tableName" : "work_item_widget_definitions",
+      "primaryKey" : "id",
+      "updatedAtColumn" : null,
+      "rowStrategy" : "FULL_ONLY",
+      "schemaFingerprint" : "2e11d67b535bfc2d",
+      "recommended" : false
+    }, {
+      "tableName" : "workspace_variables",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "ddc052772be5afb6",
+      "recommended" : false
+    }, {
+      "tableName" : "workspaces",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "c7b49ae4d7e0c829",
+      "recommended" : false
+    }, {
+      "tableName" : "x509_certificates",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "3113866effeece72",
+      "recommended" : false
+    }, {
+      "tableName" : "x509_commit_signatures",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d7808b2a90b52393",
+      "recommended" : false
+    }, {
+      "tableName" : "x509_issuers",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "54dc062230537f96",
+      "recommended" : false
+    }, {
+      "tableName" : "xray_reports",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "0a565b6b84533af6",
+      "recommended" : false
+    }, {
+      "tableName" : "zentao_tracker_data",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f79d98c3c492f802",
+      "recommended" : false
+    }, {
+      "tableName" : "zoekt_enabled_namespaces",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "d6b515b013b1d07a",
+      "recommended" : false
+    }, {
+      "tableName" : "zoekt_indices",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "7956c3cca1719f33",
+      "recommended" : false
+    }, {
+      "tableName" : "zoekt_nodes",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "df6fc5a276c84f79",
+      "recommended" : false
+    }, {
+      "tableName" : "zoekt_repositories",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "f16bd8ef7ffd7edc",
+      "recommended" : false
+    }, {
+      "tableName" : "zoekt_shards",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "42cc87d0e1707244",
+      "recommended" : false
+    }, {
+      "tableName" : "zoom_meetings",
+      "primaryKey" : "id",
+      "updatedAtColumn" : "updated_at",
+      "rowStrategy" : "INCREMENTAL",
+      "schemaFingerprint" : "9c49acd20940a2e5",
+      "recommended" : false
+    } ],
+    "systemHookReceiverUrl" : "http://localhost:18080/api/gitlab-sync/system-hook",
+    "systemHookEnabled" : false,
+    "systemHookSecretConfigured" : false,
+    "systemHookSecretUnique" : true,
+    "systemHookConfigMessage" : "System Hook 接收器未启用",
+    "systemHookAutoRegistrationSupported" : false,
+    "systemHookAutoRegistered" : false,
+    "systemHookMessage" : "直连模式需在 GitLab 手动注册 System Hook，平台无法自动检测注册状态",
+    "runtimeWarnings" : [ ]
+  }
+}

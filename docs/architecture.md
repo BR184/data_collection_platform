@@ -81,6 +81,7 @@
 ### 业务域模块解析
 
 - 评审列表筛选模块读取当前模式下真实可查询记录；新增/编辑候选读取老平台约定的项目标签并允许录入候选外值，保存原始模块值，只做空白清理。
+- 下拉框选项设置是全平台下拉候选的人工干预层：字段在 `DropdownOptionFieldRegistry` 显式注册并经 `dropdown_option_field_bindings` 绑定配置（可共用可拆分，配置名由绑定实时推导）；配置内自动获取值与手动添加值各走一套有序黑白名单（逐值首命中，存在白名单时未命中默认剔除），结果取并集；条件复用 `StatisticFilterEngine`（伪字段 `optionValue`），标签组条件求值期实时展开、失败按不命中降级。配置与绑定任一变化经 `reviewDataSourceVersion()` 指纹使候选快照失效；未绑定或空配置直通现状。详见 `docs/decisions.md`（D-09）。
 - 议题模块只识别全角 `模块：`、`工具箱：`；测试阶段始终是独立事实维度。
 - 代码走查 MR 模块独立识别 `模块[：|-]`、`工具箱[：|-]`，不得复用议题解析器。
 - 快速筛选、高级筛选、导出和下钻只消费同一事实字段；兼容与非兼容模式不跨源提供模块候选。
@@ -136,3 +137,14 @@
 - 后端使用 Java 21、Spring Boot、MyBatis-Plus、JUnit 5/Mockito；测试位于 `backend/src/test/`。
 - 前端使用 Vue 3、TypeScript、Vite、Element Plus、Vitest；测试位于 `frontend/src/**/*.test.ts`。
 - 日常验证按风险选择最小充分入口：后端 `mvn -DskipTests compile`，前端 `npm.cmd run typecheck`，行为变化补定向回归测试；发布前再执行更完整的链路验证。
+
+## 黄金基线回归测试
+
+- 目的：把冻结的源数据夹具走平台真实链路（同步 → 事实 → 统计），对所有产出数据的接口快照输出，机器 diff 检测任何改动引起的产出漂移。快照严格模式：缺失即失败，杜绝静默遗漏。
+- 覆盖清单是机器强制的：`GoldenBaselineCoverageGuardTest`（默认套件）反射枚举全部 Controller 端点，断言每个端点在 `backend/src/test/resources/golden-baseline/endpoint-catalog.yml` 登记（READ/OPTIONS/EXPORT/WRITE 或 EXCLUDED+原因）；新增端点未登记则门禁失败。
+- 运行入口：backend 目录 `mvn test -Pgolden-baseline -Dtest=GoldenBaselineChainTest`（需 Docker；双 Testcontainers PostgreSQL 承载 GitLab 源切片与平台库，真实全量同步后遍历目录用例）。默认快速套件排除 `golden-baseline` 标签，不受影响。
+- 快照体系：读/导出接口比对 ApiResponse JSON（Excel 规范化为 sheet→行→单元格 JSON）；写接口固定输入执行后快照响应与受影响表状态，逐用例隔离还原。易变字段（墙钟时间戳、端口等）在目录中声明掩码：响应 `ignore-paths` 是比对期忽略；表快照 `ignore-columns` 是生成期剔除，改掩码必须 `-Dgolden.update=true` 重跑重生成并人工审阅 diff。
+- 有意的行为变更：显式 `-Dgolden.update=true` 重建受影响快照 → git diff 逐项人工审阅 → 与本次变更同单元提交。无意的快照差异视为回归，必须修复实现，禁止更新快照掩盖。
+- 基线夹具（`golden-baseline/fixtures/`）冻结：改动夹具 = 新基线版本，须同步更新 `baseline-manifest.json`（行数与 SHA-256）并在决策记录留痕；夹具与快照由版本库管理。
+- 基线版本状态：快照基线跟随生成它的工作树代码。解耦重构通过内网测试前，基线为开发期状态（见 `docs/decisions.md` D-08）；内网测试通过后必须 `-Dgolden.update=true` 重冻结升级为可信基线。
+- golden 运行档禁用外部活体与调度（GitLab Web API、MySQL/Mongo 老平台、后台调度、富化与回写 worker）；此类路径在目录中 EXCLUDED 并注明由其他测试层覆盖。

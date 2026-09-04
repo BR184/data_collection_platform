@@ -1,0 +1,8 @@
+{
+  "table" : "dropdown_option_field_bindings",
+  "rows" : [ {
+    "field_key" : "review-data.form.project-name",
+    "config_id" : "1",
+    "bound_by" : "admin"
+  } ]
+}

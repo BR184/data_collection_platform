@@ -18,6 +18,8 @@ public final class PlatformPermissionCodes {
   public static final String SYSTEM_TESTING_PHASE_MANAGE = "system.testing_phase.manage";
   public static final String SYSTEM_PERMISSION_VIEW = "system.permission.view";
   public static final String SYSTEM_PERMISSION_MANAGE = "system.permission.manage";
+  public static final String SYSTEM_DROPDOWN_OPTION_VIEW = "system.dropdown_option.view";
+  public static final String SYSTEM_DROPDOWN_OPTION_MANAGE = "system.dropdown_option.manage";
   public static final String SYSTEM_MIRROR_VIEW = "system.mirror.view";
   public static final String SYSTEM_MIRROR_CONFIG = "system.mirror.config";
   public static final String SYSTEM_MIRROR_SYNC = "system.mirror.sync";

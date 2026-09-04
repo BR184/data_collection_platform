@@ -6,6 +6,7 @@ public enum ResultCode {
   FORBIDDEN("A0303", "无权限"),
   BAD_REQUEST("A0400", "请求参数错误"),
   NOT_FOUND("A0404", "资源不存在"),
+  CONFLICT("A0409", "数据已被他人修改"),
   BIZ_ERROR("B0001", "业务处理失败"),
   SYSTEM_ERROR("C0001", "系统异常");
 

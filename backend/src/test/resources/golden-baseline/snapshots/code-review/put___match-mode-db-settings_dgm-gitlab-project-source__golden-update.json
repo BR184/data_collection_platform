@@ -1,0 +1,23 @@
+{
+  "httpStatus" : 200,
+  "body" : {
+    "success" : true,
+    "code" : "00000",
+    "message" : "DGM GitLab 项目下拉数据源已保存",
+    "data" : {
+      "enabled" : true,
+      "gitlabBaseUrl" : "http://golden.invalid",
+      "accessTokenConfigured" : true,
+      "groupPath" : "golden-group",
+      "includeSubgroups" : true,
+      "includeArchived" : false,
+      "syncIntervalMinutes" : 60,
+      "lastSyncStatus" : "IDLE",
+      "lastSyncMessage" : "",
+      "lastSyncRecordCount" : 0,
+      "lastSyncStartedAt" : null,
+      "lastSyncFinishedAt" : null,
+      "updatedAt" : "2026-09-03T18:37:25.047645+08:00"
+    }
+  }
+}

@@ -1,0 +1,987 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : [ {
+    "key" : "review_records",
+    "name" : "评审记录",
+    "description" : "评审数据管理统一可见记录（正式记录与未转正式历史快照）",
+    "fields" : [ {
+      "key" : "id",
+      "name" : "记录ID",
+      "valueType" : "NUMBER",
+      "outputSupported" : false,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "projectName",
+      "name" : "项目",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "title",
+      "name" : "标题",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "moduleName",
+      "name" : "模块",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "reviewType",
+      "name" : "评审类型",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "reviewDate",
+      "name" : "评审日期",
+      "valueType" : "DATE",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "lastDays", "isEmpty", "isNotEmpty" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "reviewOwner",
+      "name" : "评审负责人",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "reviewScalePages",
+      "name" : "评审规模",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "authorName",
+      "name" : "作者",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "reviewVersion",
+      "name" : "评审版本",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "updatedAt",
+      "name" : "更新时间",
+      "valueType" : "DATE",
+      "outputSupported" : false,
+      "filterSupported" : true,
+      "groupSupported" : false,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "lastDays", "isEmpty", "isNotEmpty" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    } ]
+  }, {
+    "key" : "review_problem_items",
+    "name" : "评审问题项",
+    "description" : "评审数据管理统一可见问题项（正式问题项与未转正式历史快照）",
+    "fields" : [ {
+      "key" : "id",
+      "name" : "问题项ID",
+      "valueType" : "NUMBER",
+      "outputSupported" : false,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "reviewRecordId",
+      "name" : "评审记录ID",
+      "valueType" : "NUMBER",
+      "outputSupported" : false,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "reviewerName",
+      "name" : "评审人",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "workloadHours",
+      "name" : "工作量",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "reviewCategory",
+      "name" : "评审类别",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "problemCategory",
+      "name" : "问题类别",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "ownerName",
+      "name" : "责任人",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "problemStatus",
+      "name" : "问题状态",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "updatedAt",
+      "name" : "更新时间",
+      "valueType" : "DATE",
+      "outputSupported" : false,
+      "filterSupported" : true,
+      "groupSupported" : false,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "lastDays", "isEmpty", "isNotEmpty" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    } ]
+  }, {
+    "key" : "issue_fact",
+    "name" : "议题事实",
+    "description" : "系统测试和客户问题共用议题事实表",
+    "fields" : [ {
+      "key" : "projectId",
+      "name" : "项目ID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "projectName",
+      "name" : "项目",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "issueIid",
+      "name" : "议题IID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "title",
+      "name" : "标题",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "issueState",
+      "name" : "状态",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "milestoneTitle",
+      "name" : "里程碑",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "authorName",
+      "name" : "作者",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "assigneeName",
+      "name" : "处理人",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "createdAt",
+      "name" : "创建时间",
+      "valueType" : "DATE",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "lastDays", "isEmpty", "isNotEmpty" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "updatedAt",
+      "name" : "更新时间",
+      "valueType" : "DATE",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "lastDays", "isEmpty", "isNotEmpty" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "moduleName",
+      "name" : "模块",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "severityLevel",
+      "name" : "严重程度",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "STATIC",
+      "candidateValues" : [ {
+        "label" : "一级缺陷",
+        "value" : "LEVEL1"
+      }, {
+        "label" : "二级缺陷",
+        "value" : "LEVEL2"
+      }, {
+        "label" : "三级缺陷",
+        "value" : "LEVEL3"
+      }, {
+        "label" : "建议类",
+        "value" : "SUGGESTION"
+      } ]
+    }, {
+      "key" : "priorityLevel",
+      "name" : "优先级",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "STATIC",
+      "candidateValues" : [ {
+        "label" : "P1",
+        "value" : "P1"
+      }, {
+        "label" : "P2",
+        "value" : "P2"
+      }, {
+        "label" : "P3",
+        "value" : "P3"
+      } ]
+    }, {
+      "key" : "testingPhase",
+      "name" : "测试阶段",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "isIllegal",
+      "name" : "是否非法",
+      "valueType" : "BOOLEAN",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "isEmpty", "isNotEmpty" ],
+      "candidateMode" : "STATIC",
+      "candidateValues" : [ {
+        "label" : "true",
+        "value" : "true"
+      }, {
+        "label" : "false",
+        "value" : "false"
+      } ]
+    }, {
+      "key" : "delayIssue",
+      "name" : "是否延期",
+      "valueType" : "BOOLEAN",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "isEmpty", "isNotEmpty" ],
+      "candidateMode" : "STATIC",
+      "candidateValues" : [ {
+        "label" : "true",
+        "value" : "true"
+      }, {
+        "label" : "false",
+        "value" : "false"
+      } ]
+    } ]
+  }, {
+    "key" : "merge_request_fact",
+    "name" : "代码走查 MR",
+    "description" : "代码走查合并请求事实表",
+    "fields" : [ {
+      "key" : "projectId",
+      "name" : "项目ID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "projectName",
+      "name" : "项目",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "repositoryName",
+      "name" : "仓库",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "mergeRequestIid",
+      "name" : "MR IID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "title",
+      "name" : "标题",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "state",
+      "name" : "MR 状态",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "targetBranch",
+      "name" : "目标分支",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "authorName",
+      "name" : "作者",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "mergeUserName",
+      "name" : "合并人",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "ownerName",
+      "name" : "负责人",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "reviewerNames",
+      "name" : "审查人",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "assigneeNames",
+      "name" : "指派人",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "moduleName",
+      "name" : "模块",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "createdAt",
+      "name" : "创建时间",
+      "valueType" : "DATE",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "lastDays", "isEmpty", "isNotEmpty" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "updatedAt",
+      "name" : "更新时间",
+      "valueType" : "DATE",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "lastDays", "isEmpty", "isNotEmpty" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "mergedAt",
+      "name" : "合并时间",
+      "valueType" : "DATE",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "lastDays", "isEmpty", "isNotEmpty" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "defectCount",
+      "name" : "代码走查缺陷数",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "scanBugCount",
+      "name" : "扫描缺陷数",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "addedLines",
+      "name" : "新增行数",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    } ]
+  }, {
+    "key" : "ods_gitlab_issues",
+    "name" : "GitLab议题镜像",
+    "description" : "GitLab 原始 issues 镜像表，适合按原始议题字段生成成员",
+    "fields" : [ {
+      "key" : "id",
+      "name" : "议题ID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "iid",
+      "name" : "议题IID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "projectId",
+      "name" : "项目ID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "title",
+      "name" : "标题",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "authorId",
+      "name" : "作者ID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "stateId",
+      "name" : "状态ID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "createdAt",
+      "name" : "创建时间",
+      "valueType" : "DATE",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "lastDays", "isEmpty", "isNotEmpty" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "updatedAt",
+      "name" : "更新时间",
+      "valueType" : "DATE",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "lastDays", "isEmpty", "isNotEmpty" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "closedAt",
+      "name" : "关闭时间",
+      "valueType" : "DATE",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "lastDays", "isEmpty", "isNotEmpty" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    } ]
+  }, {
+    "key" : "ods_gitlab_labels",
+    "name" : "GitLab标签镜像",
+    "description" : "GitLab 原始 labels 镜像表，适合生成标签文本成员",
+    "fields" : [ {
+      "key" : "id",
+      "name" : "标签ID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "title",
+      "name" : "标签名称",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    } ]
+  }, {
+    "key" : "ods_gitlab_label_links",
+    "name" : "GitLab标签关联镜像",
+    "description" : "GitLab 原始 label_links 镜像表，适合按目标类型和标签关联生成成员",
+    "fields" : [ {
+      "key" : "id",
+      "name" : "关联ID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "labelId",
+      "name" : "标签ID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "targetId",
+      "name" : "目标ID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "targetType",
+      "name" : "目标类型",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "STATIC",
+      "candidateValues" : [ {
+        "label" : "Issue",
+        "value" : "Issue"
+      }, {
+        "label" : "MergeRequest",
+        "value" : "MergeRequest"
+      } ]
+    }, {
+      "key" : "createdAt",
+      "name" : "创建时间",
+      "valueType" : "DATE",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "lastDays", "isEmpty", "isNotEmpty" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "updatedAt",
+      "name" : "更新时间",
+      "valueType" : "DATE",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "lastDays", "isEmpty", "isNotEmpty" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    } ]
+  }, {
+    "key" : "ods_gitlab_merge_requests",
+    "name" : "GitLab MR 镜像",
+    "description" : "GitLab 原始 merge_requests 镜像表，适合按 MR 原始字段生成成员",
+    "fields" : [ {
+      "key" : "id",
+      "name" : "MR ID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "iid",
+      "name" : "MR IID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "targetProjectId",
+      "name" : "目标项目ID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "title",
+      "name" : "标题",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "authorId",
+      "name" : "作者ID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "mergeUserId",
+      "name" : "合并人ID",
+      "valueType" : "NUMBER",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : true,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "targetBranch",
+      "name" : "目标分支",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "sourceBranch",
+      "name" : "源分支",
+      "valueType" : "STRING",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in" ],
+      "candidateMode" : "DISTINCT",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "createdAt",
+      "name" : "创建时间",
+      "valueType" : "DATE",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "lastDays", "isEmpty", "isNotEmpty" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    }, {
+      "key" : "updatedAt",
+      "name" : "更新时间",
+      "valueType" : "DATE",
+      "outputSupported" : true,
+      "filterSupported" : true,
+      "groupSupported" : true,
+      "aggregateSupported" : false,
+      "operators" : [ "eq", "ne", "gt", "gte", "lt", "lte", "between", "lastDays", "isEmpty", "isNotEmpty" ],
+      "candidateMode" : "NONE",
+      "candidateValues" : [ ]
+    } ]
+  } ]
+}

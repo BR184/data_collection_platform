@@ -149,6 +149,60 @@ describe('request', () => {
     expect(isRecentAuthRequiredMessage('请先登录')).toBe(true);
   });
 
+  it('should replay a forbidden write request with the refreshed csrf token', async () => {
+    await primeCsrfToken('stale-token');
+    const fetchSpy = vi.fn(async (_input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      const headers = (init?.headers ?? new Headers()) as Headers;
+      const accepted = headers.get('X-XSRF-TOKEN') === 'fresh-token';
+      return {
+        ok: accepted,
+        status: accepted ? 200 : 403,
+        headers: new Headers({ 'X-XSRF-TOKEN': 'fresh-token' }),
+        text: async () => accepted
+          ? JSON.stringify({ success: true, data: { ok: true } })
+          : JSON.stringify({ success: false, code: 'A0303', message: '当前账号无权执行该操作' }),
+      } as Response;
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await expect(request('/api/test', { method: 'POST', body: JSON.stringify({ value: 1 }) }))
+      .resolves
+      .toEqual({ ok: true });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const replayHeaders = (fetchSpy.mock.calls[1][1] as RequestInit).headers as Headers;
+    expect(replayHeaders.get('X-XSRF-TOKEN')).toBe('fresh-token');
+  });
+
+  it('should surface the forbidden error when the csrf replay also fails', async () => {
+    await primeCsrfToken('stale-token');
+    const fetchSpy = vi.fn(async () => ({
+      ok: false,
+      status: 403,
+      headers: new Headers({ 'X-XSRF-TOKEN': 'fresh-token' }),
+      text: async () => JSON.stringify({ success: false, code: 'A0303', message: '当前账号无权执行该操作' }),
+    } as Response));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await expect(request('/api/test', { method: 'POST' })).rejects.toMatchObject({ status: 403 });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('should not replay forbidden safe-method requests', async () => {
+    const fetchSpy = vi.fn(async () => ({
+      ok: false,
+      status: 403,
+      headers: new Headers(),
+      text: async () => JSON.stringify({ success: false, message: '无权限' }),
+    } as Response));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await expect(request('/api/test')).rejects.toMatchObject({ status: 403 });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('should use Chinese fallback copy when an API envelope has no error message', async () => {
     vi.stubGlobal(
       'fetch',

@@ -1,0 +1,4878 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : [ {
+    "tableName" : "abuse_events",
+    "label" : "abuse_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "abuse_report_assignees",
+    "label" : "abuse_report_assignees",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "abuse_report_events",
+    "label" : "abuse_report_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "abuse_report_user_mentions",
+    "label" : "abuse_report_user_mentions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "abuse_reports",
+    "label" : "abuse_reports",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "abuse_trust_scores",
+    "label" : "abuse_trust_scores",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "achievements",
+    "label" : "achievements",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "activity_pub_releases_subscriptions",
+    "label" : "activity_pub_releases_subscriptions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "agent_activity_events",
+    "label" : "agent_activity_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "agent_group_authorizations",
+    "label" : "agent_group_authorizations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "agent_project_authorizations",
+    "label" : "agent_project_authorizations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "agent_user_access_group_authorizations",
+    "label" : "agent_user_access_group_authorizations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "agent_user_access_project_authorizations",
+    "label" : "agent_user_access_project_authorizations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ai_agent_versions",
+    "label" : "ai_agent_versions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ai_agents",
+    "label" : "ai_agents",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "alert_management_alert_assignees",
+    "label" : "alert_management_alert_assignees",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "alert_management_alert_metric_images",
+    "label" : "alert_management_alert_metric_images",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "alert_management_alert_user_mentions",
+    "label" : "alert_management_alert_user_mentions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "alert_management_alerts",
+    "label" : "alert_management_alerts",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "alert_management_http_integrations",
+    "label" : "alert_management_http_integrations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "allowed_email_domains",
+    "label" : "allowed_email_domains",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "analytics_cycle_analytics_aggregations",
+    "label" : "analytics_cycle_analytics_aggregations",
+    "primaryKey" : "group_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "analytics_cycle_analytics_group_stages",
+    "label" : "analytics_cycle_analytics_group_stages",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "analytics_cycle_analytics_group_value_streams",
+    "label" : "analytics_cycle_analytics_group_value_streams",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "analytics_cycle_analytics_stage_event_hashes",
+    "label" : "analytics_cycle_analytics_stage_event_hashes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "analytics_cycle_analytics_value_stream_settings",
+    "label" : "analytics_cycle_analytics_value_stream_settings",
+    "primaryKey" : "value_stream_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "analytics_dashboards_pointers",
+    "label" : "analytics_dashboards_pointers",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "analytics_devops_adoption_segments",
+    "label" : "analytics_devops_adoption_segments",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "analytics_devops_adoption_snapshots",
+    "label" : "analytics_devops_adoption_snapshots",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "analytics_language_trend_repository_languages",
+    "label" : "analytics_language_trend_repository_languages",
+    "primaryKey" : "programming_language_id,project_id,snapshot_date",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "analytics_usage_trends_measurements",
+    "label" : "analytics_usage_trends_measurements",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "appearances",
+    "label" : "appearances",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "application_setting_terms",
+    "label" : "application_setting_terms",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "application_settings",
+    "label" : "application_settings",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "approval_group_rules",
+    "label" : "approval_group_rules",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "approval_group_rules_groups",
+    "label" : "approval_group_rules_groups",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "approval_group_rules_protected_branches",
+    "label" : "approval_group_rules_protected_branches",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "approval_group_rules_users",
+    "label" : "approval_group_rules_users",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "approval_merge_request_rule_sources",
+    "label" : "approval_merge_request_rule_sources",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "approval_merge_request_rules",
+    "label" : "approval_merge_request_rules",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "approval_merge_request_rules_approved_approvers",
+    "label" : "approval_merge_request_rules_approved_approvers",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "approval_merge_request_rules_groups",
+    "label" : "approval_merge_request_rules_groups",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "approval_merge_request_rules_users",
+    "label" : "approval_merge_request_rules_users",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "approval_policy_rules",
+    "label" : "approval_policy_rules",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "approval_project_rules",
+    "label" : "approval_project_rules",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "approval_project_rules_groups",
+    "label" : "approval_project_rules_groups",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "approval_project_rules_protected_branches",
+    "label" : "approval_project_rules_protected_branches",
+    "primaryKey" : "approval_project_rule_id,protected_branch_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "approval_project_rules_users",
+    "label" : "approval_project_rules_users",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "approvals",
+    "label" : "approvals",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "approver_groups",
+    "label" : "approver_groups",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "approvers",
+    "label" : "approvers",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ar_internal_metadata",
+    "label" : "ar_internal_metadata",
+    "primaryKey" : "key",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "atlassian_identities",
+    "label" : "atlassian_identities",
+    "primaryKey" : "user_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "audit_events_amazon_s3_configurations",
+    "label" : "audit_events_amazon_s3_configurations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "audit_events_external_audit_event_destinations",
+    "label" : "audit_events_external_audit_event_destinations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "audit_events_google_cloud_logging_configurations",
+    "label" : "audit_events_google_cloud_logging_configurations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "audit_events_group_external_streaming_destinations",
+    "label" : "audit_events_group_external_streaming_destinations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "audit_events_group_streaming_event_type_filters",
+    "label" : "audit_events_group_streaming_event_type_filters",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "audit_events_instance_amazon_s3_configurations",
+    "label" : "audit_events_instance_amazon_s3_configurations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "audit_events_instance_external_audit_event_destinations",
+    "label" : "audit_events_instance_external_audit_event_destinations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "audit_events_instance_external_streaming_destinations",
+    "label" : "audit_events_instance_external_streaming_destinations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "audit_events_instance_google_cloud_logging_configurations",
+    "label" : "audit_events_instance_google_cloud_logging_configurations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "audit_events_instance_streaming_event_type_filters",
+    "label" : "audit_events_instance_streaming_event_type_filters",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "audit_events_streaming_event_type_filters",
+    "label" : "audit_events_streaming_event_type_filters",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "audit_events_streaming_headers",
+    "label" : "audit_events_streaming_headers",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "audit_events_streaming_http_group_namespace_filters",
+    "label" : "audit_events_streaming_http_group_namespace_filters",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "audit_events_streaming_http_instance_namespace_filters",
+    "label" : "audit_events_streaming_http_instance_namespace_filters",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "audit_events_streaming_instance_event_type_filters",
+    "label" : "audit_events_streaming_instance_event_type_filters",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "authentication_events",
+    "label" : "authentication_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "automation_rules",
+    "label" : "automation_rules",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "award_emoji",
+    "label" : "award_emoji",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "aws_roles",
+    "label" : "aws_roles",
+    "primaryKey" : "user_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "background_migration_jobs",
+    "label" : "background_migration_jobs",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "badges",
+    "label" : "badges",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "banned_users",
+    "label" : "banned_users",
+    "primaryKey" : "user_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "batched_background_migration_jobs",
+    "label" : "batched_background_migration_jobs",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "batched_background_migrations",
+    "label" : "batched_background_migrations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "board_assignees",
+    "label" : "board_assignees",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "board_group_recent_visits",
+    "label" : "board_group_recent_visits",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "board_labels",
+    "label" : "board_labels",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "board_project_recent_visits",
+    "label" : "board_project_recent_visits",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "board_user_preferences",
+    "label" : "board_user_preferences",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "boards",
+    "label" : "boards",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "boards_epic_board_labels",
+    "label" : "boards_epic_board_labels",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "boards_epic_board_positions",
+    "label" : "boards_epic_board_positions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "boards_epic_board_recent_visits",
+    "label" : "boards_epic_board_recent_visits",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "boards_epic_boards",
+    "label" : "boards_epic_boards",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "boards_epic_list_user_preferences",
+    "label" : "boards_epic_list_user_preferences",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "boards_epic_lists",
+    "label" : "boards_epic_lists",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "boards_epic_user_preferences",
+    "label" : "boards_epic_user_preferences",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "broadcast_messages",
+    "label" : "broadcast_messages",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "bulk_import_batch_trackers",
+    "label" : "bulk_import_batch_trackers",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "bulk_import_configurations",
+    "label" : "bulk_import_configurations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "bulk_import_entities",
+    "label" : "bulk_import_entities",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "bulk_import_export_batches",
+    "label" : "bulk_import_export_batches",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "bulk_import_export_uploads",
+    "label" : "bulk_import_export_uploads",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "bulk_import_exports",
+    "label" : "bulk_import_exports",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "bulk_import_failures",
+    "label" : "bulk_import_failures",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "bulk_import_trackers",
+    "label" : "bulk_import_trackers",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "bulk_imports",
+    "label" : "bulk_imports",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "catalog_resource_components",
+    "label" : "catalog_resource_components",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "catalog_resource_versions",
+    "label" : "catalog_resource_versions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "catalog_resources",
+    "label" : "catalog_resources",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "catalog_verified_namespaces",
+    "label" : "catalog_verified_namespaces",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "chat_names",
+    "label" : "chat_names",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "chat_teams",
+    "label" : "chat_teams",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_build_needs",
+    "label" : "ci_build_needs",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_build_pending_states",
+    "label" : "ci_build_pending_states",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_build_report_results",
+    "label" : "ci_build_report_results",
+    "primaryKey" : "build_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_build_trace_chunks",
+    "label" : "ci_build_trace_chunks",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_build_trace_metadata",
+    "label" : "ci_build_trace_metadata",
+    "primaryKey" : "build_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_builds",
+    "label" : "构建任务",
+    "primaryKey" : "id,partition_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "TIMESTAMP_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "ci_builds_metadata",
+    "label" : "ci_builds_metadata",
+    "primaryKey" : "id,partition_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_builds_runner_session",
+    "label" : "ci_builds_runner_session",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_cost_settings",
+    "label" : "ci_cost_settings",
+    "primaryKey" : "runner_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_daily_build_group_report_results",
+    "label" : "ci_daily_build_group_report_results",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_deleted_objects",
+    "label" : "ci_deleted_objects",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_freeze_periods",
+    "label" : "ci_freeze_periods",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_group_variables",
+    "label" : "ci_group_variables",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_instance_variables",
+    "label" : "ci_instance_variables",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_job_artifact_states",
+    "label" : "ci_job_artifact_states",
+    "primaryKey" : "job_artifact_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_job_artifacts",
+    "label" : "ci_job_artifacts",
+    "primaryKey" : "id,partition_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_job_token_group_scope_links",
+    "label" : "ci_job_token_group_scope_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_job_token_project_scope_links",
+    "label" : "ci_job_token_project_scope_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_job_variables",
+    "label" : "ci_job_variables",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_minutes_additional_packs",
+    "label" : "ci_minutes_additional_packs",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_namespace_mirrors",
+    "label" : "ci_namespace_mirrors",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_namespace_monthly_usages",
+    "label" : "ci_namespace_monthly_usages",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_partitions",
+    "label" : "ci_partitions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_pending_builds",
+    "label" : "ci_pending_builds",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_pipeline_artifacts",
+    "label" : "ci_pipeline_artifacts",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_pipeline_chat_data",
+    "label" : "ci_pipeline_chat_data",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_pipeline_messages",
+    "label" : "ci_pipeline_messages",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_pipeline_metadata",
+    "label" : "ci_pipeline_metadata",
+    "primaryKey" : "pipeline_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_pipeline_schedule_variables",
+    "label" : "ci_pipeline_schedule_variables",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_pipeline_schedules",
+    "label" : "ci_pipeline_schedules",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_pipeline_variables",
+    "label" : "ci_pipeline_variables",
+    "primaryKey" : "id,partition_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_pipelines",
+    "label" : "流水线",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "ci_pipelines_config",
+    "label" : "ci_pipelines_config",
+    "primaryKey" : "pipeline_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_platform_metrics",
+    "label" : "ci_platform_metrics",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_project_mirrors",
+    "label" : "ci_project_mirrors",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_project_monthly_usages",
+    "label" : "ci_project_monthly_usages",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_refs",
+    "label" : "ci_refs",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_resource_groups",
+    "label" : "ci_resource_groups",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_resources",
+    "label" : "ci_resources",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_runner_machines",
+    "label" : "ci_runner_machines",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_runner_namespaces",
+    "label" : "ci_runner_namespaces",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_runner_projects",
+    "label" : "ci_runner_projects",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_runner_versions",
+    "label" : "ci_runner_versions",
+    "primaryKey" : "version",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_runners",
+    "label" : "ci_runners",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_running_builds",
+    "label" : "ci_running_builds",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_secure_file_states",
+    "label" : "ci_secure_file_states",
+    "primaryKey" : "ci_secure_file_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_secure_files",
+    "label" : "ci_secure_files",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_sources_pipelines",
+    "label" : "ci_sources_pipelines",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_sources_projects",
+    "label" : "ci_sources_projects",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_stages",
+    "label" : "ci_stages",
+    "primaryKey" : "id,partition_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_subscriptions_projects",
+    "label" : "ci_subscriptions_projects",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_trigger_requests",
+    "label" : "ci_trigger_requests",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_triggers",
+    "label" : "ci_triggers",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_unit_test_failures",
+    "label" : "ci_unit_test_failures",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_unit_tests",
+    "label" : "ci_unit_tests",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ci_variables",
+    "label" : "ci_variables",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "cloud_connector_access",
+    "label" : "cloud_connector_access",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "cluster_agent_tokens",
+    "label" : "cluster_agent_tokens",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "cluster_agents",
+    "label" : "cluster_agents",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "cluster_enabled_grants",
+    "label" : "cluster_enabled_grants",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "cluster_groups",
+    "label" : "cluster_groups",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "cluster_platforms_kubernetes",
+    "label" : "cluster_platforms_kubernetes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "cluster_projects",
+    "label" : "cluster_projects",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "cluster_providers_aws",
+    "label" : "cluster_providers_aws",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "cluster_providers_gcp",
+    "label" : "cluster_providers_gcp",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "clusters",
+    "label" : "clusters",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "clusters_integration_prometheus",
+    "label" : "clusters_integration_prometheus",
+    "primaryKey" : "cluster_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "clusters_kubernetes_namespaces",
+    "label" : "clusters_kubernetes_namespaces",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "commit_user_mentions",
+    "label" : "commit_user_mentions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "compliance_framework_security_policies",
+    "label" : "compliance_framework_security_policies",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "compliance_management_frameworks",
+    "label" : "compliance_management_frameworks",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "container_expiration_policies",
+    "label" : "container_expiration_policies",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "container_registry_data_repair_details",
+    "label" : "container_registry_data_repair_details",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "container_registry_protection_rules",
+    "label" : "container_registry_protection_rules",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "container_repositories",
+    "label" : "container_repositories",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "container_repository_states",
+    "label" : "container_repository_states",
+    "primaryKey" : "container_repository_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "content_blocked_states",
+    "label" : "content_blocked_states",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "conversational_development_index_metrics",
+    "label" : "conversational_development_index_metrics",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "coverage_fuzzing_corpuses",
+    "label" : "coverage_fuzzing_corpuses",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "csv_issue_imports",
+    "label" : "csv_issue_imports",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "custom_emoji",
+    "label" : "custom_emoji",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "customer_relations_contacts",
+    "label" : "customer_relations_contacts",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "customer_relations_organizations",
+    "label" : "customer_relations_organizations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "dast_pre_scan_verification_steps",
+    "label" : "dast_pre_scan_verification_steps",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "dast_pre_scan_verifications",
+    "label" : "dast_pre_scan_verifications",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "dast_profile_schedules",
+    "label" : "dast_profile_schedules",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "dast_profiles",
+    "label" : "dast_profiles",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "dast_profiles_pipelines",
+    "label" : "dast_profiles_pipelines",
+    "primaryKey" : "dast_profile_id,ci_pipeline_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "dast_profiles_tags",
+    "label" : "dast_profiles_tags",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "dast_scanner_profiles",
+    "label" : "dast_scanner_profiles",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "dast_scanner_profiles_builds",
+    "label" : "dast_scanner_profiles_builds",
+    "primaryKey" : "dast_scanner_profile_id,ci_build_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "dast_scanner_profiles_tags",
+    "label" : "dast_scanner_profiles_tags",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "dast_site_profile_secret_variables",
+    "label" : "dast_site_profile_secret_variables",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "dast_site_profiles",
+    "label" : "dast_site_profiles",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "dast_site_profiles_builds",
+    "label" : "dast_site_profiles_builds",
+    "primaryKey" : "dast_site_profile_id,ci_build_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "dast_site_profiles_pipelines",
+    "label" : "dast_site_profiles_pipelines",
+    "primaryKey" : "dast_site_profile_id,ci_pipeline_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "dast_site_tokens",
+    "label" : "dast_site_tokens",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "dast_site_validations",
+    "label" : "dast_site_validations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "dast_sites",
+    "label" : "dast_sites",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "dependency_list_exports",
+    "label" : "dependency_list_exports",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "dependency_proxy_blob_states",
+    "label" : "dependency_proxy_blob_states",
+    "primaryKey" : "dependency_proxy_blob_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "dependency_proxy_blobs",
+    "label" : "dependency_proxy_blobs",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "dependency_proxy_group_settings",
+    "label" : "dependency_proxy_group_settings",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "dependency_proxy_image_ttl_group_policies",
+    "label" : "dependency_proxy_image_ttl_group_policies",
+    "primaryKey" : "group_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "dependency_proxy_manifest_states",
+    "label" : "dependency_proxy_manifest_states",
+    "primaryKey" : "dependency_proxy_manifest_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "dependency_proxy_manifests",
+    "label" : "dependency_proxy_manifests",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "dependency_proxy_packages_settings",
+    "label" : "dependency_proxy_packages_settings",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "deploy_keys_projects",
+    "label" : "deploy_keys_projects",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "deploy_tokens",
+    "label" : "deploy_tokens",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "deployment_approvals",
+    "label" : "deployment_approvals",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "deployment_clusters",
+    "label" : "deployment_clusters",
+    "primaryKey" : "deployment_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "deployment_merge_requests",
+    "label" : "deployment_merge_requests",
+    "primaryKey" : "deployment_id,merge_request_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "deployments",
+    "label" : "部署",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "description_versions",
+    "label" : "description_versions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "design_management_designs",
+    "label" : "design_management_designs",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "design_management_designs_versions",
+    "label" : "design_management_designs_versions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "design_management_repositories",
+    "label" : "design_management_repositories",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "design_management_repository_states",
+    "label" : "design_management_repository_states",
+    "primaryKey" : "design_management_repository_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "design_management_versions",
+    "label" : "design_management_versions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "design_user_mentions",
+    "label" : "design_user_mentions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "detached_partitions",
+    "label" : "detached_partitions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "diff_note_positions",
+    "label" : "diff_note_positions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "dingtalk_tracker_data",
+    "label" : "dingtalk_tracker_data",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "dora_configurations",
+    "label" : "dora_configurations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "dora_daily_metrics",
+    "label" : "dora_daily_metrics",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "dora_performance_scores",
+    "label" : "dora_performance_scores",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "draft_notes",
+    "label" : "draft_notes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "elastic_group_index_statuses",
+    "label" : "elastic_group_index_statuses",
+    "primaryKey" : "namespace_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "elastic_index_settings",
+    "label" : "elastic_index_settings",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "elastic_reindexing_slices",
+    "label" : "elastic_reindexing_slices",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "elastic_reindexing_subtasks",
+    "label" : "elastic_reindexing_subtasks",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "elastic_reindexing_tasks",
+    "label" : "elastic_reindexing_tasks",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "elasticsearch_indexed_namespaces",
+    "label" : "elasticsearch_indexed_namespaces",
+    "primaryKey" : "namespace_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "elasticsearch_indexed_projects",
+    "label" : "elasticsearch_indexed_projects",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "emails",
+    "label" : "emails",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "environments",
+    "label" : "环境",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "epic_issues",
+    "label" : "epic_issues",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "epic_metrics",
+    "label" : "epic_metrics",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "epic_user_mentions",
+    "label" : "epic_user_mentions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "epics",
+    "label" : "epics",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "error_tracking_client_keys",
+    "label" : "error_tracking_client_keys",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "error_tracking_error_events",
+    "label" : "error_tracking_error_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "error_tracking_errors",
+    "label" : "error_tracking_errors",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "events",
+    "label" : "事件",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "evidences",
+    "label" : "evidences",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "external_approval_rules",
+    "label" : "external_approval_rules",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "external_approval_rules_protected_branches",
+    "label" : "external_approval_rules_protected_branches",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "external_pull_requests",
+    "label" : "external_pull_requests",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "external_status_checks",
+    "label" : "external_status_checks",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "external_status_checks_protected_branches",
+    "label" : "external_status_checks_protected_branches",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "feature_gates",
+    "label" : "feature_gates",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "features",
+    "label" : "features",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "fork_network_members",
+    "label" : "fork_network_members",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "fork_networks",
+    "label" : "fork_networks",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "geo_cache_invalidation_events",
+    "label" : "geo_cache_invalidation_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "geo_event_log",
+    "label" : "geo_event_log",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "geo_events",
+    "label" : "geo_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "geo_hashed_storage_attachments_events",
+    "label" : "geo_hashed_storage_attachments_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "geo_hashed_storage_migrated_events",
+    "label" : "geo_hashed_storage_migrated_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "geo_node_namespace_links",
+    "label" : "geo_node_namespace_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "geo_node_statuses",
+    "label" : "geo_node_statuses",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "geo_nodes",
+    "label" : "geo_nodes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "geo_repositories_changed_events",
+    "label" : "geo_repositories_changed_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "geo_repository_created_events",
+    "label" : "geo_repository_created_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "geo_repository_deleted_events",
+    "label" : "geo_repository_deleted_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "geo_repository_renamed_events",
+    "label" : "geo_repository_renamed_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "geo_repository_updated_events",
+    "label" : "geo_repository_updated_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "geo_reset_checksum_events",
+    "label" : "geo_reset_checksum_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ghost_user_migrations",
+    "label" : "ghost_user_migrations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "gitlab_subscription_histories",
+    "label" : "gitlab_subscription_histories",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "gitlab_subscriptions",
+    "label" : "gitlab_subscriptions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "gpg_key_subkeys",
+    "label" : "gpg_key_subkeys",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "gpg_keys",
+    "label" : "gpg_keys",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "gpg_signatures",
+    "label" : "gpg_signatures",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "grafana_integrations",
+    "label" : "grafana_integrations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "group_crm_settings",
+    "label" : "group_crm_settings",
+    "primaryKey" : "group_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "group_custom_attributes",
+    "label" : "group_custom_attributes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "group_deletion_schedules",
+    "label" : "group_deletion_schedules",
+    "primaryKey" : "group_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "group_deploy_keys",
+    "label" : "group_deploy_keys",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "group_deploy_keys_groups",
+    "label" : "group_deploy_keys_groups",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "group_deploy_tokens",
+    "label" : "group_deploy_tokens",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "group_features",
+    "label" : "group_features",
+    "primaryKey" : "group_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "group_group_links",
+    "label" : "group_group_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "group_import_states",
+    "label" : "group_import_states",
+    "primaryKey" : "group_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "group_merge_request_approval_settings",
+    "label" : "group_merge_request_approval_settings",
+    "primaryKey" : "group_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "group_repository_storage_moves",
+    "label" : "group_repository_storage_moves",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "group_saved_replies",
+    "label" : "group_saved_replies",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "group_ssh_certificates",
+    "label" : "group_ssh_certificates",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "group_wiki_repositories",
+    "label" : "group_wiki_repositories",
+    "primaryKey" : "group_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "group_wiki_repository_states",
+    "label" : "group_wiki_repository_states",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "historical_data",
+    "label" : "historical_data",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "identities",
+    "label" : "identities",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "import_export_uploads",
+    "label" : "import_export_uploads",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "TIMESTAMP_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "import_failures",
+    "label" : "import_failures",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "incident_management_escalation_policies",
+    "label" : "incident_management_escalation_policies",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "incident_management_escalation_rules",
+    "label" : "incident_management_escalation_rules",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "incident_management_issuable_escalation_statuses",
+    "label" : "incident_management_issuable_escalation_statuses",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "incident_management_oncall_participants",
+    "label" : "incident_management_oncall_participants",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "incident_management_oncall_rotations",
+    "label" : "incident_management_oncall_rotations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "incident_management_oncall_schedules",
+    "label" : "incident_management_oncall_schedules",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "incident_management_oncall_shifts",
+    "label" : "incident_management_oncall_shifts",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "incident_management_timeline_event_tag_links",
+    "label" : "incident_management_timeline_event_tag_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "incident_management_timeline_event_tags",
+    "label" : "incident_management_timeline_event_tags",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "incident_management_timeline_events",
+    "label" : "incident_management_timeline_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "index_statuses",
+    "label" : "index_statuses",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "insights",
+    "label" : "insights",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "instance_audit_events_streaming_headers",
+    "label" : "instance_audit_events_streaming_headers",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "integrations",
+    "label" : "integrations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "internal_ids",
+    "label" : "internal_ids",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "ip_restrictions",
+    "label" : "ip_restrictions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "issuable_metric_images",
+    "label" : "issuable_metric_images",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "issuable_resource_links",
+    "label" : "issuable_resource_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "issuable_severities",
+    "label" : "issuable_severities",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "issuable_slas",
+    "label" : "issuable_slas",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "issue_assignees",
+    "label" : "缺陷指派",
+    "primaryKey" : "issue_id,user_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : true
+  }, {
+    "tableName" : "issue_assignment_events",
+    "label" : "issue_assignment_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "issue_customer_relations_contacts",
+    "label" : "issue_customer_relations_contacts",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "issue_email_participants",
+    "label" : "issue_email_participants",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "issue_emails",
+    "label" : "issue_emails",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "issue_links",
+    "label" : "issue_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "issue_metrics",
+    "label" : "缺陷指标",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "issue_tracker_data",
+    "label" : "issue_tracker_data",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "issue_user_mentions",
+    "label" : "issue_user_mentions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "issues",
+    "label" : "缺陷 / Issue",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "TIMESTAMP_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "issues_prometheus_alert_events",
+    "label" : "issues_prometheus_alert_events",
+    "primaryKey" : "issue_id,prometheus_alert_event_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "issues_self_managed_prometheus_alert_events",
+    "label" : "issues_self_managed_prometheus_alert_events",
+    "primaryKey" : "issue_id,self_managed_prometheus_alert_event_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "iterations_cadences",
+    "label" : "iterations_cadences",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "jira_connect_installations",
+    "label" : "jira_connect_installations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "jira_connect_subscriptions",
+    "label" : "jira_connect_subscriptions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "jira_imports",
+    "label" : "jira_imports",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "jira_tracker_data",
+    "label" : "jira_tracker_data",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "keys",
+    "label" : "keys",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "label_links",
+    "label" : "标签关联",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "label_priorities",
+    "label" : "label_priorities",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "labels",
+    "label" : "标签",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "ldap_group_links",
+    "label" : "ldap_group_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "lfs_file_locks",
+    "label" : "lfs_file_locks",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "lfs_object_states",
+    "label" : "lfs_object_states",
+    "primaryKey" : "lfs_object_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "lfs_objects",
+    "label" : "lfs_objects",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "lfs_objects_projects",
+    "label" : "lfs_objects_projects",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "licenses",
+    "label" : "licenses",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "list_user_preferences",
+    "label" : "list_user_preferences",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "lists",
+    "label" : "lists",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "member_approvals",
+    "label" : "member_approvals",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "member_roles",
+    "label" : "member_roles",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "members",
+    "label" : "成员关系",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "merge_request_assignees",
+    "label" : "MR 指派",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "merge_request_assignment_events",
+    "label" : "merge_request_assignment_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "merge_request_blocks",
+    "label" : "merge_request_blocks",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "merge_request_cleanup_schedules",
+    "label" : "merge_request_cleanup_schedules",
+    "primaryKey" : "merge_request_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "merge_request_context_commit_diff_files",
+    "label" : "merge_request_context_commit_diff_files",
+    "primaryKey" : "merge_request_context_commit_id,relative_order",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "merge_request_context_commits",
+    "label" : "merge_request_context_commits",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "merge_request_diff_commit_users",
+    "label" : "merge_request_diff_commit_users",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "merge_request_diff_commits",
+    "label" : "合并请求提交明细",
+    "primaryKey" : "merge_request_diff_id,relative_order",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : true
+  }, {
+    "tableName" : "merge_request_diff_details",
+    "label" : "merge_request_diff_details",
+    "primaryKey" : "merge_request_diff_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "merge_request_diff_files",
+    "label" : "merge_request_diff_files",
+    "primaryKey" : "merge_request_diff_id,relative_order",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "merge_request_diff_llm_summaries",
+    "label" : "merge_request_diff_llm_summaries",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "merge_request_diffs",
+    "label" : "合并请求差异版本",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "merge_request_metrics",
+    "label" : "MR 指标",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "merge_request_predictions",
+    "label" : "merge_request_predictions",
+    "primaryKey" : "merge_request_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "merge_request_review_llm_summaries",
+    "label" : "merge_request_review_llm_summaries",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "merge_request_reviewers",
+    "label" : "MR Reviewer",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "merge_request_user_mentions",
+    "label" : "merge_request_user_mentions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "merge_requests",
+    "label" : "合并请求",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "merge_requests_closing_issues",
+    "label" : "merge_requests_closing_issues",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "merge_requests_compliance_violations",
+    "label" : "merge_requests_compliance_violations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "merge_trains",
+    "label" : "merge_trains",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "metrics_dashboard_annotations",
+    "label" : "metrics_dashboard_annotations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "metrics_users_starred_dashboards",
+    "label" : "metrics_users_starred_dashboards",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "milestone_releases",
+    "label" : "milestone_releases",
+    "primaryKey" : "milestone_id,release_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "milestones",
+    "label" : "里程碑",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "ml_candidate_metadata",
+    "label" : "ml_candidate_metadata",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ml_candidate_metrics",
+    "label" : "ml_candidate_metrics",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ml_candidate_params",
+    "label" : "ml_candidate_params",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ml_candidates",
+    "label" : "ml_candidates",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ml_experiment_metadata",
+    "label" : "ml_experiment_metadata",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ml_experiments",
+    "label" : "ml_experiments",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ml_model_metadata",
+    "label" : "ml_model_metadata",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ml_model_version_metadata",
+    "label" : "ml_model_version_metadata",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ml_model_versions",
+    "label" : "ml_model_versions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ml_models",
+    "label" : "ml_models",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "namespace_admin_notes",
+    "label" : "namespace_admin_notes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "namespace_aggregation_schedules",
+    "label" : "namespace_aggregation_schedules",
+    "primaryKey" : "namespace_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "namespace_bans",
+    "label" : "namespace_bans",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "namespace_ci_cd_settings",
+    "label" : "namespace_ci_cd_settings",
+    "primaryKey" : "namespace_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "namespace_commit_emails",
+    "label" : "namespace_commit_emails",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "namespace_details",
+    "label" : "namespace_details",
+    "primaryKey" : "namespace_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "namespace_ldap_settings",
+    "label" : "namespace_ldap_settings",
+    "primaryKey" : "namespace_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "namespace_limits",
+    "label" : "namespace_limits",
+    "primaryKey" : "namespace_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "namespace_package_settings",
+    "label" : "namespace_package_settings",
+    "primaryKey" : "namespace_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "namespace_root_storage_statistics",
+    "label" : "namespace_root_storage_statistics",
+    "primaryKey" : "namespace_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "namespace_settings",
+    "label" : "namespace_settings",
+    "primaryKey" : "namespace_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "namespace_statistics",
+    "label" : "namespace_statistics",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "namespaces",
+    "label" : "命名空间",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "namespaces_storage_limit_exclusions",
+    "label" : "namespaces_storage_limit_exclusions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "namespaces_sync_events",
+    "label" : "namespaces_sync_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "note_diff_files",
+    "label" : "note_diff_files",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "note_metadata",
+    "label" : "note_metadata",
+    "primaryKey" : "note_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "notes",
+    "label" : "评论 / Notes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "notification_settings",
+    "label" : "notification_settings",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "oauth_access_grants",
+    "label" : "oauth_access_grants",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "oauth_access_tokens",
+    "label" : "oauth_access_tokens",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "oauth_applications",
+    "label" : "oauth_applications",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "oauth_openid_requests",
+    "label" : "oauth_openid_requests",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "onboarding_progresses",
+    "label" : "onboarding_progresses",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "operations_feature_flag_scopes",
+    "label" : "operations_feature_flag_scopes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "operations_feature_flags",
+    "label" : "operations_feature_flags",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "operations_feature_flags_clients",
+    "label" : "operations_feature_flags_clients",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "operations_feature_flags_issues",
+    "label" : "operations_feature_flags_issues",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "operations_scopes",
+    "label" : "operations_scopes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "operations_strategies",
+    "label" : "operations_strategies",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "operations_strategies_user_lists",
+    "label" : "operations_strategies_user_lists",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "operations_user_lists",
+    "label" : "operations_user_lists",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "organization_details",
+    "label" : "organization_details",
+    "primaryKey" : "organization_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "organization_settings",
+    "label" : "organization_settings",
+    "primaryKey" : "organization_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "organization_users",
+    "label" : "organization_users",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "organizations",
+    "label" : "organizations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_build_infos",
+    "label" : "packages_build_infos",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_cleanup_policies",
+    "label" : "packages_cleanup_policies",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_composer_cache_files",
+    "label" : "packages_composer_cache_files",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_composer_metadata",
+    "label" : "packages_composer_metadata",
+    "primaryKey" : "package_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_conan_file_metadata",
+    "label" : "packages_conan_file_metadata",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_conan_metadata",
+    "label" : "packages_conan_metadata",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_debian_file_metadata",
+    "label" : "packages_debian_file_metadata",
+    "primaryKey" : "package_file_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_debian_group_architectures",
+    "label" : "packages_debian_group_architectures",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_debian_group_component_files",
+    "label" : "packages_debian_group_component_files",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_debian_group_components",
+    "label" : "packages_debian_group_components",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_debian_group_distribution_keys",
+    "label" : "packages_debian_group_distribution_keys",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_debian_group_distributions",
+    "label" : "packages_debian_group_distributions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_debian_project_architectures",
+    "label" : "packages_debian_project_architectures",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_debian_project_component_files",
+    "label" : "packages_debian_project_component_files",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_debian_project_components",
+    "label" : "packages_debian_project_components",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_debian_project_distribution_keys",
+    "label" : "packages_debian_project_distribution_keys",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_debian_project_distributions",
+    "label" : "packages_debian_project_distributions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_debian_publications",
+    "label" : "packages_debian_publications",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_dependencies",
+    "label" : "packages_dependencies",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_dependency_links",
+    "label" : "packages_dependency_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_helm_file_metadata",
+    "label" : "packages_helm_file_metadata",
+    "primaryKey" : "package_file_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_maven_metadata",
+    "label" : "packages_maven_metadata",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_npm_metadata",
+    "label" : "packages_npm_metadata",
+    "primaryKey" : "package_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_npm_metadata_caches",
+    "label" : "packages_npm_metadata_caches",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_nuget_dependency_link_metadata",
+    "label" : "packages_nuget_dependency_link_metadata",
+    "primaryKey" : "dependency_link_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_nuget_metadata",
+    "label" : "packages_nuget_metadata",
+    "primaryKey" : "package_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_nuget_symbols",
+    "label" : "packages_nuget_symbols",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_package_file_build_infos",
+    "label" : "packages_package_file_build_infos",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_package_files",
+    "label" : "packages_package_files",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_packages",
+    "label" : "packages_packages",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_protection_rules",
+    "label" : "packages_protection_rules",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_pypi_metadata",
+    "label" : "packages_pypi_metadata",
+    "primaryKey" : "package_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_rpm_metadata",
+    "label" : "packages_rpm_metadata",
+    "primaryKey" : "package_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_rpm_repository_files",
+    "label" : "packages_rpm_repository_files",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_rubygems_metadata",
+    "label" : "packages_rubygems_metadata",
+    "primaryKey" : "package_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_tags",
+    "label" : "packages_tags",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "packages_terraform_module_metadata",
+    "label" : "packages_terraform_module_metadata",
+    "primaryKey" : "package_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "pages_deployment_states",
+    "label" : "pages_deployment_states",
+    "primaryKey" : "pages_deployment_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "pages_deployments",
+    "label" : "pages_deployments",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "pages_domain_acme_orders",
+    "label" : "pages_domain_acme_orders",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "pages_domains",
+    "label" : "pages_domains",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "path_locks",
+    "label" : "path_locks",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "personal_access_tokens",
+    "label" : "personal_access_tokens",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "plan_limits",
+    "label" : "plan_limits",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "plans",
+    "label" : "plans",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "pm_advisories",
+    "label" : "pm_advisories",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "pm_affected_packages",
+    "label" : "pm_affected_packages",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "pm_checkpoints",
+    "label" : "pm_checkpoints",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "pm_licenses",
+    "label" : "pm_licenses",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "pm_package_version_licenses",
+    "label" : "pm_package_version_licenses",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "pm_package_versions",
+    "label" : "pm_package_versions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "pm_packages",
+    "label" : "pm_packages",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "pool_repositories",
+    "label" : "pool_repositories",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "postgres_async_foreign_key_validations",
+    "label" : "postgres_async_foreign_key_validations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "postgres_async_indexes",
+    "label" : "postgres_async_indexes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "postgres_reindex_actions",
+    "label" : "postgres_reindex_actions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "postgres_reindex_queued_actions",
+    "label" : "postgres_reindex_queued_actions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "programming_languages",
+    "label" : "programming_languages",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_access_tokens",
+    "label" : "project_access_tokens",
+    "primaryKey" : "personal_access_token_id,project_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "project_alerting_settings",
+    "label" : "project_alerting_settings",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "project_aliases",
+    "label" : "project_aliases",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_authorizations",
+    "label" : "project_authorizations",
+    "primaryKey" : "user_id,project_id,access_level",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "project_auto_devops",
+    "label" : "project_auto_devops",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_build_artifacts_size_refreshes",
+    "label" : "project_build_artifacts_size_refreshes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_ci_cd_settings",
+    "label" : "project_ci_cd_settings",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "project_ci_feature_usages",
+    "label" : "project_ci_feature_usages",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "project_compliance_framework_settings",
+    "label" : "project_compliance_framework_settings",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "project_compliance_standards_adherence",
+    "label" : "project_compliance_standards_adherence",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_custom_attributes",
+    "label" : "project_custom_attributes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_daily_statistics",
+    "label" : "project_daily_statistics",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "project_data_transfers",
+    "label" : "project_data_transfers",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_deploy_tokens",
+    "label" : "project_deploy_tokens",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_error_tracking_settings",
+    "label" : "project_error_tracking_settings",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "project_export_jobs",
+    "label" : "project_export_jobs",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "TIMESTAMP_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_feature_usages",
+    "label" : "project_feature_usages",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "project_features",
+    "label" : "project_features",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_group_links",
+    "label" : "project_group_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_import_data",
+    "label" : "project_import_data",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "project_incident_management_settings",
+    "label" : "project_incident_management_settings",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "project_metrics_settings",
+    "label" : "project_metrics_settings",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "project_mirror_data",
+    "label" : "project_mirror_data",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "project_pages_metadata",
+    "label" : "project_pages_metadata",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "project_relation_export_uploads",
+    "label" : "project_relation_export_uploads",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_relation_exports",
+    "label" : "project_relation_exports",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_repositories",
+    "label" : "project_repositories",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "project_repository_storage_moves",
+    "label" : "project_repository_storage_moves",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_saved_replies",
+    "label" : "project_saved_replies",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_security_settings",
+    "label" : "project_security_settings",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_settings",
+    "label" : "project_settings",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_states",
+    "label" : "project_states",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "project_statistics",
+    "label" : "project_statistics",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_topics",
+    "label" : "project_topics",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "project_wiki_repositories",
+    "label" : "project_wiki_repositories",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "projects",
+    "label" : "项目",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "TIMESTAMP_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "projects_sync_events",
+    "label" : "projects_sync_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "prometheus_alert_events",
+    "label" : "prometheus_alert_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "prometheus_alerts",
+    "label" : "prometheus_alerts",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "prometheus_metrics",
+    "label" : "prometheus_metrics",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "protected_branch_merge_access_levels",
+    "label" : "protected_branch_merge_access_levels",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "protected_branch_push_access_levels",
+    "label" : "protected_branch_push_access_levels",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "protected_branch_unprotect_access_levels",
+    "label" : "protected_branch_unprotect_access_levels",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "protected_branches",
+    "label" : "protected_branches",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "protected_environment_approval_rules",
+    "label" : "protected_environment_approval_rules",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "protected_environment_deploy_access_levels",
+    "label" : "protected_environment_deploy_access_levels",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "protected_environments",
+    "label" : "protected_environments",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "protected_tag_create_access_levels",
+    "label" : "protected_tag_create_access_levels",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "protected_tags",
+    "label" : "protected_tags",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "push_event_payloads",
+    "label" : "push_event_payloads",
+    "primaryKey" : "event_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "push_rules",
+    "label" : "push_rules",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "raw_usage_data",
+    "label" : "raw_usage_data",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "redirect_routes",
+    "label" : "redirect_routes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "related_epic_links",
+    "label" : "related_epic_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "relation_import_trackers",
+    "label" : "relation_import_trackers",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "release_links",
+    "label" : "release_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "releases",
+    "label" : "releases",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "remote_development_agent_configs",
+    "label" : "remote_development_agent_configs",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "remote_development_namespace_cluster_agent_mappings",
+    "label" : "remote_development_namespace_cluster_agent_mappings",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "remote_mirrors",
+    "label" : "remote_mirrors",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "repository_languages",
+    "label" : "repository_languages",
+    "primaryKey" : "project_id,programming_language_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "required_code_owners_sections",
+    "label" : "required_code_owners_sections",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "requirements",
+    "label" : "requirements",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "requirements_management_test_reports",
+    "label" : "requirements_management_test_reports",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "resource_iteration_events",
+    "label" : "resource_iteration_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "resource_label_events",
+    "label" : "标签变更事件",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "resource_link_events",
+    "label" : "resource_link_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "resource_milestone_events",
+    "label" : "resource_milestone_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "TIMESTAMP_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "resource_state_events",
+    "label" : "resource_state_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "resource_weight_events",
+    "label" : "resource_weight_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "reviews",
+    "label" : "reviews",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "routes",
+    "label" : "routes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "saml_group_links",
+    "label" : "saml_group_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "saml_providers",
+    "label" : "saml_providers",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "saved_replies",
+    "label" : "saved_replies",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "sbom_component_versions",
+    "label" : "sbom_component_versions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "sbom_components",
+    "label" : "sbom_components",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "sbom_occurrences",
+    "label" : "sbom_occurrences",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "sbom_occurrences_vulnerabilities",
+    "label" : "sbom_occurrences_vulnerabilities",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "sbom_source_packages",
+    "label" : "sbom_source_packages",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "sbom_sources",
+    "label" : "sbom_sources",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "scan_result_policies",
+    "label" : "scan_result_policies",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "scan_result_policy_violations",
+    "label" : "scan_result_policy_violations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "schema_migrations",
+    "label" : "schema_migrations",
+    "primaryKey" : "version",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "scim_identities",
+    "label" : "scim_identities",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "scim_oauth_access_tokens",
+    "label" : "scim_oauth_access_tokens",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "search_indices",
+    "label" : "search_indices",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "search_namespace_index_assignments",
+    "label" : "search_namespace_index_assignments",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "security_orchestration_policy_configurations",
+    "label" : "security_orchestration_policy_configurations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "security_orchestration_policy_rule_schedules",
+    "label" : "security_orchestration_policy_rule_schedules",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "security_policies",
+    "label" : "security_policies",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "security_scans",
+    "label" : "security_scans",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "security_training_providers",
+    "label" : "security_training_providers",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "security_trainings",
+    "label" : "security_trainings",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "self_managed_prometheus_alert_events",
+    "label" : "self_managed_prometheus_alert_events",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "sent_notifications",
+    "label" : "sent_notifications",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "sentry_issues",
+    "label" : "sentry_issues",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "service_access_tokens",
+    "label" : "service_access_tokens",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "service_desk_custom_email_credentials",
+    "label" : "service_desk_custom_email_credentials",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "service_desk_custom_email_verifications",
+    "label" : "service_desk_custom_email_verifications",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "service_desk_settings",
+    "label" : "service_desk_settings",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "shards",
+    "label" : "shards",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "slack_api_scopes",
+    "label" : "slack_api_scopes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "slack_integrations",
+    "label" : "slack_integrations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "slack_integrations_scopes",
+    "label" : "slack_integrations_scopes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "smartcard_identities",
+    "label" : "smartcard_identities",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "snippet_repositories",
+    "label" : "snippet_repositories",
+    "primaryKey" : "snippet_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "snippet_repository_storage_moves",
+    "label" : "snippet_repository_storage_moves",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "snippet_statistics",
+    "label" : "snippet_statistics",
+    "primaryKey" : "snippet_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "snippet_user_mentions",
+    "label" : "snippet_user_mentions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "snippets",
+    "label" : "snippets",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "TIMESTAMP_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "software_license_policies",
+    "label" : "software_license_policies",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "software_licenses",
+    "label" : "software_licenses",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "spam_logs",
+    "label" : "spam_logs",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "sprints",
+    "label" : "sprints",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "ssh_signatures",
+    "label" : "ssh_signatures",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "status_check_responses",
+    "label" : "status_check_responses",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "status_page_published_incidents",
+    "label" : "status_page_published_incidents",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "status_page_settings",
+    "label" : "status_page_settings",
+    "primaryKey" : "project_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "subscription_add_on_purchases",
+    "label" : "subscription_add_on_purchases",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "subscription_add_ons",
+    "label" : "subscription_add_ons",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "subscription_user_add_on_assignments",
+    "label" : "subscription_user_add_on_assignments",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "subscriptions",
+    "label" : "subscriptions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "suggestions",
+    "label" : "suggestions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "system_access_microsoft_applications",
+    "label" : "system_access_microsoft_applications",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "system_access_microsoft_graph_access_tokens",
+    "label" : "system_access_microsoft_graph_access_tokens",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "system_note_metadata",
+    "label" : "system_note_metadata",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "taggings",
+    "label" : "taggings",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "tags",
+    "label" : "tags",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "target_branch_rules",
+    "label" : "target_branch_rules",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "temp_notes_backup",
+    "label" : "temp_notes_backup",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "term_agreements",
+    "label" : "term_agreements",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "terraform_state_versions",
+    "label" : "terraform_state_versions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "terraform_states",
+    "label" : "terraform_states",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "timelog_categories",
+    "label" : "timelog_categories",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "timelogs",
+    "label" : "timelogs",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "todos",
+    "label" : "待办",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "token_with_ivs",
+    "label" : "token_with_ivs",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "topics",
+    "label" : "topics",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "trending_projects",
+    "label" : "trending_projects",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "upcoming_reconciliations",
+    "label" : "upcoming_reconciliations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "upload_states",
+    "label" : "upload_states",
+    "primaryKey" : "upload_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "uploads",
+    "label" : "uploads",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "created_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "user_achievements",
+    "label" : "user_achievements",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "user_agent_details",
+    "label" : "user_agent_details",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "user_callouts",
+    "label" : "user_callouts",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "user_canonical_emails",
+    "label" : "user_canonical_emails",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "user_credit_card_validations",
+    "label" : "user_credit_card_validations",
+    "primaryKey" : "user_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "user_custom_attributes",
+    "label" : "user_custom_attributes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "user_details",
+    "label" : "用户详情",
+    "primaryKey" : "user_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : true
+  }, {
+    "tableName" : "user_follow_users",
+    "label" : "user_follow_users",
+    "primaryKey" : "follower_id,followee_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "user_group_callouts",
+    "label" : "user_group_callouts",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "user_highest_roles",
+    "label" : "user_highest_roles",
+    "primaryKey" : "user_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "user_namespace_callouts",
+    "label" : "user_namespace_callouts",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "user_permission_export_uploads",
+    "label" : "user_permission_export_uploads",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "user_phone_number_validations",
+    "label" : "user_phone_number_validations",
+    "primaryKey" : "user_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "user_preferences",
+    "label" : "user_preferences",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "user_project_callouts",
+    "label" : "user_project_callouts",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "user_statuses",
+    "label" : "user_statuses",
+    "primaryKey" : "user_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "user_synced_attributes_metadata",
+    "label" : "user_synced_attributes_metadata",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "users",
+    "label" : "用户",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "TIMESTAMP_KEYSET",
+    "recommended" : true
+  }, {
+    "tableName" : "users_ops_dashboard_projects",
+    "label" : "users_ops_dashboard_projects",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "users_security_dashboard_projects",
+    "label" : "users_security_dashboard_projects",
+    "primaryKey" : "project_id,user_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "users_star_projects",
+    "label" : "users_star_projects",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "users_statistics",
+    "label" : "users_statistics",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "value_stream_dashboard_aggregations",
+    "label" : "value_stream_dashboard_aggregations",
+    "primaryKey" : "namespace_id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "vs_code_settings",
+    "label" : "vs_code_settings",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerabilities",
+    "label" : "vulnerabilities",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_exports",
+    "label" : "vulnerability_exports",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_external_issue_links",
+    "label" : "vulnerability_external_issue_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_feedback",
+    "label" : "vulnerability_feedback",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_finding_evidences",
+    "label" : "vulnerability_finding_evidences",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_finding_links",
+    "label" : "vulnerability_finding_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_finding_signatures",
+    "label" : "vulnerability_finding_signatures",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_findings_remediations",
+    "label" : "vulnerability_findings_remediations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_flags",
+    "label" : "vulnerability_flags",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_historical_statistics",
+    "label" : "vulnerability_historical_statistics",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_identifiers",
+    "label" : "vulnerability_identifiers",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_issue_links",
+    "label" : "vulnerability_issue_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_merge_request_links",
+    "label" : "vulnerability_merge_request_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_occurrence_identifiers",
+    "label" : "vulnerability_occurrence_identifiers",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_occurrence_pipelines",
+    "label" : "vulnerability_occurrence_pipelines",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_occurrences",
+    "label" : "vulnerability_occurrences",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_reads",
+    "label" : "vulnerability_reads",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_remediations",
+    "label" : "vulnerability_remediations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_scanners",
+    "label" : "vulnerability_scanners",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_state_transitions",
+    "label" : "vulnerability_state_transitions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_statistics",
+    "label" : "vulnerability_statistics",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "vulnerability_user_mentions",
+    "label" : "vulnerability_user_mentions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "web_hooks",
+    "label" : "web_hooks",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "webauthn_registrations",
+    "label" : "webauthn_registrations",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "wiki_page_meta",
+    "label" : "wiki_page_meta",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "wiki_page_slugs",
+    "label" : "wiki_page_slugs",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "wiki_repository_states",
+    "label" : "wiki_repository_states",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "work_item_colors",
+    "label" : "work_item_colors",
+    "primaryKey" : "issue_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "work_item_dates_sources",
+    "label" : "work_item_dates_sources",
+    "primaryKey" : "issue_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "work_item_hierarchy_restrictions",
+    "label" : "work_item_hierarchy_restrictions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "work_item_parent_links",
+    "label" : "work_item_parent_links",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "work_item_progresses",
+    "label" : "work_item_progresses",
+    "primaryKey" : "issue_id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "work_item_related_link_restrictions",
+    "label" : "work_item_related_link_restrictions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "work_item_types",
+    "label" : "work_item_types",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "work_item_widget_definitions",
+    "label" : "work_item_widget_definitions",
+    "primaryKey" : "id",
+    "updatedAtColumn" : null,
+    "cursorStrategy" : "NONE",
+    "recommended" : false
+  }, {
+    "tableName" : "workspace_variables",
+    "label" : "workspace_variables",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "workspaces",
+    "label" : "workspaces",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "x509_certificates",
+    "label" : "x509_certificates",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "x509_commit_signatures",
+    "label" : "x509_commit_signatures",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "x509_issuers",
+    "label" : "x509_issuers",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "xray_reports",
+    "label" : "xray_reports",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "zentao_tracker_data",
+    "label" : "zentao_tracker_data",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "zoekt_enabled_namespaces",
+    "label" : "zoekt_enabled_namespaces",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "zoekt_indices",
+    "label" : "zoekt_indices",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "zoekt_nodes",
+    "label" : "zoekt_nodes",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "zoekt_repositories",
+    "label" : "zoekt_repositories",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "zoekt_shards",
+    "label" : "zoekt_shards",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  }, {
+    "tableName" : "zoom_meetings",
+    "label" : "zoom_meetings",
+    "primaryKey" : "id",
+    "updatedAtColumn" : "updated_at",
+    "cursorStrategy" : "PRIMARY_KEY_KEYSET",
+    "recommended" : false
+  } ]
+}

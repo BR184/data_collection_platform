@@ -1,0 +1,36 @@
+{
+  "httpStatus" : 200,
+  "body" : {
+    "success" : true,
+    "code" : "00000",
+    "message" : "数据库兼容模式临时设置已保存",
+    "data" : {
+      "enabled" : false,
+      "syncEnabled" : false,
+      "mysqlHost" : "golden.invalid",
+      "mysqlPort" : 13306,
+      "mysqlDatabase" : "legacy_platform",
+      "dgmMysqlDatabase" : "legacy_dgm",
+      "mysqlUsername" : "golden",
+      "mysqlPasswordConfigured" : true,
+      "mysqlTableName" : "code_review_match_mode",
+      "legacyApiBaseUrl" : "http://golden.invalid:8080",
+      "dgmLegacyApiBaseUrl" : "http://golden.invalid:8080",
+      "selectedTableNames" : [ "code_review_match_mode" ],
+      "mysqlFetchSize" : 1000,
+      "mongoUriConfigured" : true,
+      "mongoDatabase" : "legacy_platform",
+      "selectedMongoCollectionNames" : [ "review_report", "reviewReport", "problemDetail", "description" ],
+      "reviewReportCollectionName" : "review_report",
+      "reviewProblemCollectionName" : "review_problem",
+      "reviewDataReadMode" : "compatibility",
+      "codeReviewReadMode" : "compatibility",
+      "syncStatus" : "IDLE",
+      "syncMessage" : "兼容模式尚未同步",
+      "syncRecordCount" : 0,
+      "syncStartedAt" : null,
+      "syncFinishedAt" : null,
+      "updatedAt" : "2026-09-03T18:37:24.95006+08:00"
+    }
+  }
+}

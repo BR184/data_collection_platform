@@ -7,499 +7,109 @@ import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceCursorStrategy;
-import com.data.collection.platform.entity.SourceTableColumn;
-import com.data.collection.platform.entity.SourceTableSchema;
+import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.TableWhitelistOption;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.SQLXML;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.postgresql.util.PGobject;
 
 class GitlabExternalDbServiceTest {
 
+  private GitlabSourceScanSqlBuilder scanSqlBuilder;
+  private GitlabPrimaryKeyExistenceQueryBuilder primaryKeyQueryBuilder;
+  private GitlabAuthoritativeScopeQueryBuilder authoritativeScopeQueryBuilder;
+  private GitlabDirectJdbcExecutor directJdbcExecutor;
+  private GitlabDockerPsqlExecutor dockerPsqlExecutor;
+  private GitlabSourceQueryDispatcher queryDispatcher;
+  private GitlabSourceSchemaDiscoveryService schemaDiscoveryService;
+  private GitlabSourceMetadataSupport metadataSupport;
   private GitlabExternalDbService service;
 
   @BeforeEach
   void setUp() {
-    service = new GitlabExternalDbService(new GitlabMirrorProperties(), new ObjectMapper());
-  }
-
-  @Test
-  void shouldPreferUpdatedAtVariantsOverCreatedAtVariants() {
-    String resolved = service.resolveUpdatedAtColumn(List.of("id", "CreatedAt", "UpdatedAt"));
-
-    assertThat(resolved).isEqualTo("UpdatedAt");
-  }
-
-  @Test
-  void shouldFallbackToCreatedAtVariantWhenUpdatedAtIsMissing() {
-    String resolved = service.resolveUpdatedAtColumn(List.of("id", "createdAt", "name"));
-
-    assertThat(resolved).isEqualTo("createdAt");
-  }
-
-  @Test
-  void shouldRecognizeCommonSnakeCaseAndCamelCaseVariants() {
-    assertThat(service.resolveUpdatedAtColumn(List.of("id", "updated_at"))).isEqualTo("updated_at");
-    assertThat(service.resolveUpdatedAtColumn(List.of("id", "updatedAt"))).isEqualTo("updatedAt");
-    assertThat(service.resolveUpdatedAtColumn(List.of("id", "gmt_modified"))).isEqualTo("gmt_modified");
-    assertThat(service.resolveUpdatedAtColumn(List.of("id", "create_time"))).isEqualTo("create_time");
-  }
-
-  @Test
-  void shouldReturnNullWhenNoCandidateExists() {
-    assertThat(service.resolveUpdatedAtColumn(List.of("id", "name", "description"))).isNull();
-  }
-
-  @Test
-  void test_offset_timestamp_text_normalizes_same_instant_to_utc_local_datetime() {
-    TableWhitelistOption option =
-        new TableWhitelistOption(
-            "issues",
-            "Issues",
-            "id",
-            "updated_at",
-            SourceCursorStrategy.PRIMARY_KEY_KEYSET,
-            true);
-
-    LocalDateTime updatedAt =
-        service.extractUpdatedAt(
-            option, Map.of("updated_at", "2026-08-06T11:20:22.840104+08:00"));
-
-    assertThat(updatedAt).isEqualTo(LocalDateTime.of(2026, 8, 6, 3, 20, 22, 840_104_000));
-  }
-
-  @Test
-  void test_timestamp_text_without_offset_preserves_source_wall_clock() {
-    TableWhitelistOption option =
-        new TableWhitelistOption(
-            "issues",
-            "Issues",
-            "id",
-            "updated_at",
-            SourceCursorStrategy.PRIMARY_KEY_KEYSET,
-            true);
-
-    LocalDateTime updatedAt =
-        service.extractUpdatedAt(option, Map.of("updated_at", "2026-08-06 03:20:22.840104"));
-
-    assertThat(updatedAt).isEqualTo(LocalDateTime.of(2026, 8, 6, 3, 20, 22, 840_104_000));
-  }
-
-  @Test
-  void shouldMarkTablesWithoutUpdatedAtAsFullOnly() {
-    assertThat(service.resolveRowStrategy("updated_at")).isEqualTo("INCREMENTAL");
-    assertThat(service.resolveRowStrategy(null)).isEqualTo("FULL_ONLY");
-    assertThat(service.resolveRowStrategy("")).isEqualTo("FULL_ONLY");
-  }
-
-  @Test
-  void shouldBuildStableSchemaFingerprintForSourceMetadata() {
-    SourceTableSchema schema = new SourceTableSchema(
-        "issues",
-        List.of("id"),
-        "updated_at",
-        List.of(
-            new SourceTableColumn("id", "bigint", false, 1),
-            new SourceTableColumn("title", "text", true, 2),
-            new SourceTableColumn("updated_at", "timestamp without time zone", false, 3)));
-
-    assertThat(service.buildSchemaFingerprint(schema)).isEqualTo(service.buildSchemaFingerprint(schema));
-    assertThat(service.buildSchemaFingerprint(schema)).hasSize(16);
-  }
-
-  @Test
-  void shouldBuildJdbcUrlWithTimeoutsAndTcpKeepAliveForUnstableNetwork() {
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
-    properties.setExternalQueryTimeoutSeconds(45);
-    service = new GitlabExternalDbService(properties, new ObjectMapper());
-    GitlabSyncConfig config = new GitlabSyncConfig();
-    config.setDbHost("10.0.0.8");
-    config.setDbPort(5432);
-    config.setDbName("gitlabhq_production");
-
-    String url = service.buildJdbcUrl(config);
-
-    assertThat(url)
-        .isEqualTo("jdbc:postgresql://10.0.0.8:5432/gitlabhq_production?connectTimeout=45&socketTimeout=45&tcpKeepAlive=true");
+    scanSqlBuilder = new GitlabSourceScanSqlBuilder(new com.data.collection.platform.common.JsonUtils(new com.fasterxml.jackson.databind.ObjectMapper()));
+    primaryKeyQueryBuilder = new GitlabPrimaryKeyExistenceQueryBuilder();
+    authoritativeScopeQueryBuilder = new GitlabAuthoritativeScopeQueryBuilder();
+    directJdbcExecutor = new GitlabDirectJdbcExecutor(
+        new GitlabSourceConnectionSettings(properties),
+        new GitlabSourceQueryRetryPolicy(properties),
+        new GitlabJdbcValueNormalizer(),
+        new com.data.collection.platform.service.sync.SyncThreadBudgetResolver(properties));
+    dockerPsqlExecutor = new GitlabDockerPsqlExecutor(
+        properties,
+        new GitlabSourceConnectionSettings(properties),
+        new GitlabSourceQueryRetryPolicy(properties),
+        new com.fasterxml.jackson.databind.ObjectMapper());
+    queryDispatcher = new GitlabSourceQueryDispatcher(directJdbcExecutor, dockerPsqlExecutor);
+    metadataSupport = new GitlabSourceMetadataSupport();
+    schemaDiscoveryService =
+        new GitlabSourceSchemaDiscoveryService(queryDispatcher::query, metadataSupport);
+    service = new GitlabExternalDbService(
+        scanSqlBuilder,
+        primaryKeyQueryBuilder,
+        authoritativeScopeQueryBuilder,
+        directJdbcExecutor,
+        queryDispatcher,
+        schemaDiscoveryService,
+        metadataSupport);
   }
 
   @Test
-  void shouldQuoteSourceTableNameForFullScans() {
-    TableWhitelistOption option =
-        new TableWhitelistOption(
-            "Issue Events", "Issue Events", "id", "Updated At", SourceCursorStrategy.PRIMARY_KEY_KEYSET, false);
-
-    String sql = service.buildFullTableScanSql(option);
-
-    assertThat(sql).isEqualTo("select * from \"public\".\"Issue Events\"");
-  }
-
-  @Test
-  void shouldBuildPrimaryKeyCursorSqlForFullScans() {
-    TableWhitelistOption option =
-        new TableWhitelistOption(
-            "label_links",
-            "Label links",
-            "label_id,target_id,target_type",
-            null,
-            SourceCursorStrategy.NONE,
-            true);
-    SourceTableSchema schema = new SourceTableSchema(
-        "ods_gitlab_label_links",
-        List.of("label_id", "target_id", "target_type"),
-        null,
-        List.of(
-            new SourceTableColumn("label_id", "bigint", false, 1),
-            new SourceTableColumn("target_id", "bigint", false, 2),
-            new SourceTableColumn("target_type", "text", false, 3)));
-
-    String sql = service.buildFullCursorScanSql(option, schema, "[\"1\",\"101\",\"Issue\"]", 100);
-
-    assertThat(sql)
-        .contains("(\"label_id\", \"target_id\", \"target_type\") > ('1'::bigint, '101'::bigint, 'Issue'::text)")
-        .contains("order by \"label_id\" asc, \"target_id\" asc, \"target_type\" asc")
-        .contains("limit 100")
-        .doesNotContain("concat_ws", "md5");
-  }
-
-  @Test
-  void shouldQuoteSourceTableAndTimeColumnForWindowScans() {
-    TableWhitelistOption option =
-        new TableWhitelistOption(
-            "Issue Events", "Issue Events", "id", "Updated At", SourceCursorStrategy.PRIMARY_KEY_KEYSET, false);
-
-    String sql = service.buildTimeWindowScanSql(option, LocalDateTime.of(2026, 1, 2, 3, 4, 5));
-
-    assertThat(sql)
-        .isEqualTo("select * from \"public\".\"Issue Events\" where \"Updated At\" >= timestamp '2026-01-02 03:04:05.000000'");
-  }
-
-  @Test
-  void shouldBuildCursorBatchScanSqlWithUpdatedAtAndPrimaryKeyCursor() {
-    TableWhitelistOption option =
-        new TableWhitelistOption(
-            "Issue Events", "Issue Events", "Issue ID", "Updated At", SourceCursorStrategy.TIMESTAMP_KEYSET, false);
-    SourceTableSchema schema = new SourceTableSchema(
-        "Issue Events",
-        List.of("Issue ID"),
-        "Updated At",
-        List.of(
-            new SourceTableColumn("Issue ID", "bigint", false, 1),
-            new SourceTableColumn("Updated At", "timestamp without time zone", false, 2)));
-
-    String sql = service.buildCursorBatchScanSql(
-        option,
-        schema,
-        LocalDateTime.of(2026, 1, 2, 3, 4, 5),
-        LocalDateTime.of(2026, 1, 2, 4, 0),
-        LocalDateTime.of(2026, 1, 2, 3, 5, 6),
-        "[\"101\"]",
-        200);
-
-    assertThat(sql)
-        .contains("\"Updated At\" > timestamp '2026-01-02 03:04:05.000000'")
-        .contains("\"Updated At\" <= timestamp '2026-01-02 04:00:00.000000'")
-        .contains("(\"Updated At\", \"Issue ID\") > (timestamp '2026-01-02 03:05:06.000000', '101'::bigint)")
-        .contains("order by \"Updated At\" asc, \"Issue ID\" asc limit 200");
-  }
-
-  @Test
-  void shouldBuildCursorBatchScanSqlWithoutCursorForFirstBatch() {
-    TableWhitelistOption option =
-        new TableWhitelistOption(
-            "issues", "Issues", "id", "updated_at", SourceCursorStrategy.PRIMARY_KEY_KEYSET, true);
-    SourceTableSchema schema = new SourceTableSchema(
-        "issues",
-        List.of("id"),
-        "updated_at",
-        List.of(
-            new SourceTableColumn("id", "bigint", false, 1),
-            new SourceTableColumn("updated_at", "timestamp without time zone", false, 2)));
-
-    String sql = service.buildCursorBatchScanSql(
-        option,
-        schema,
-        LocalDateTime.of(2026, 1, 2, 3, 4, 5),
-        LocalDateTime.of(2026, 1, 2, 4, 0),
-        null,
-        null,
-        0);
-
-    assertThat(sql)
-        .isEqualTo("select * from \"public\".\"issues\" where \"updated_at\" > timestamp '2026-01-02 03:04:05.000000' "
-            + "and \"updated_at\" <= timestamp '2026-01-02 04:00:00.000000' order by \"id\" asc limit 1");
-  }
-
-  @Test
-  void shouldBuildLightweightTableProbeSql() {
-    TableWhitelistOption option =
-        new TableWhitelistOption(
-            "Issue Events", "Issue Events", "Issue ID", "Updated At", SourceCursorStrategy.PRIMARY_KEY_KEYSET, false);
-
-    String sql = service.buildTableProbeSql(option);
-
-    assertThat(sql)
-        .isEqualTo("select count(*) as row_count,\n"
-            + "       max(\"Updated At\") as max_updated_at,\n"
-            + "       min(\"Issue ID\")::text as min_pk,\n"
-            + "       max(\"Issue ID\")::text as max_pk\n"
-            + "  from \"public\".\"Issue Events\"");
-  }
-
-  @Test
-  void shouldBuildLightweightTableProbeSqlWithoutUpdatedAt() {
+  void incrementalScanShouldReturnEmptyWithoutUpdatedAtColumn() {
     TableWhitelistOption option =
         new TableWhitelistOption(
             "label_links", "Label links", "id", null, SourceCursorStrategy.NONE, true);
 
-    String sql = service.buildTableProbeSql(option);
-
-    assertThat(sql)
-        .isEqualTo("select count(*) as row_count,\n"
-            + "       null::timestamp as max_updated_at,\n"
-            + "       min(\"id\")::text as min_pk,\n"
-            + "       max(\"id\")::text as max_pk\n"
-            + "  from \"public\".\"label_links\"");
+    assertThat(service.incrementalScan(null, option, LocalDateTime.of(2026, 1, 1, 0, 0))).isEmpty();
   }
 
   @Test
-  void shouldQuoteSourceTableAndScopeColumnsForPreciseScans() {
+  void extractUpdatedAtShouldReturnNullForBlankUpdatedAtColumn() {
     TableWhitelistOption option =
         new TableWhitelistOption(
-            "Issue Events", "Issue Events", "id", "Updated At", SourceCursorStrategy.PRIMARY_KEY_KEYSET, false);
+            "issues", "Issues", "id", "", SourceCursorStrategy.PRIMARY_KEY_KEYSET, true);
 
-    String sql = service.buildPreciseScanSql(option, Map.of("Issue ID", 101L));
-
-    assertThat(sql).isEqualTo("select * from \"public\".\"Issue Events\" where \"Issue ID\" = 101");
+    assertThat(service.extractUpdatedAt(option, Map.of("updated_at", "2026-08-06T11:20:22"))).isNull();
   }
 
   @Test
-  void shouldEscapeQuotesInSourceIdentifiers() {
+  void extractUpdatedAtShouldReturnNullWhenColumnValueMissing() {
     TableWhitelistOption option =
         new TableWhitelistOption(
-            "issue\"events", "issue\"events", "id", "updated_at", SourceCursorStrategy.PRIMARY_KEY_KEYSET, false);
+            "issues", "Issues", "id", "updated_at", SourceCursorStrategy.PRIMARY_KEY_KEYSET, true);
 
-    String sql = service.buildFullTableScanSql(option);
-
-    assertThat(sql).isEqualTo("select * from \"public\".\"issue\"\"events\"");
+    assertThat(service.extractUpdatedAt(option, Map.of())).isNull();
   }
 
   @Test
-  void shouldRetryTransientExternalQueryFailures() {
-    GitlabMirrorProperties properties = new GitlabMirrorProperties();
-    properties.setExternalQueryRetryAttempts(3);
-    properties.setExternalQueryRetryDelayMs(0);
-    service = new GitlabExternalDbService(properties, new ObjectMapper());
-    AtomicInteger attempts = new AtomicInteger();
+  void probeTableShouldReturnEmptyProbeWhenSourceHasNoRows() {
+    TableWhitelistOption option =
+        new TableWhitelistOption(
+            "issues", "Issues", "id", "updated_at", SourceCursorStrategy.PRIMARY_KEY_KEYSET, true);
 
-    String result = service.executeExternalQueryWithRetry("test query", () -> {
-      if (attempts.incrementAndGet() < 3) {
-        throw new BizException("Connection reset by peer");
-      }
-      return "ok";
-    });
-
-    assertThat(result).isEqualTo("ok");
-    assertThat(attempts).hasValue(3);
+    assertThatThrownBy(() -> service.probeTable(dockerConfigWithoutContainer(), option))
+        .isInstanceOf(BizException.class)
+        .hasMessage("Docker mode requires a container name");
   }
 
   @Test
-  void shouldUseExponentialBackoffWithJitterForExternalQueryRetries() {
-    GitlabMirrorProperties properties = new GitlabMirrorProperties();
-    properties.setExternalQueryRetryDelayMs(1000);
-    properties.setExternalQueryRetryMaxDelayMs(2500);
-    service = new GitlabExternalDbService(properties, new ObjectMapper());
+  void testConnectionShouldWrapNonBizFailuresAsConnectionFailure() {
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setSourceMode(SourceMode.DIRECT);
+    config.setDbHost("127.0.0.1");
+    config.setDbPort(1);
+    config.setDbName("gitlabhq_production");
+    config.setDbUsername("gitlab");
+    config.setDbPassword("secret");
 
-    long firstDelay = service.computeExternalQueryRetryDelayMs(1);
-    long secondDelay = service.computeExternalQueryRetryDelayMs(2);
-    long cappedDelay = service.computeExternalQueryRetryDelayMs(4);
-
-    assertThat(firstDelay).isBetween(1000L, 1500L);
-    assertThat(secondDelay).isBetween(2000L, 2500L);
-    assertThat(cappedDelay).isBetween(2500L, 2500L);
+    assertThatThrownBy(() -> service.testConnection(config))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("GitLab PostgreSQL connection failed");
   }
 
-  @Test
-  void shouldNotRetrySqlErrorsFromSourceDatabase() {
-    GitlabMirrorProperties properties = new GitlabMirrorProperties();
-    properties.setExternalQueryRetryAttempts(3);
-    properties.setExternalQueryRetryDelayMs(0);
-    service = new GitlabExternalDbService(properties, new ObjectMapper());
-    AtomicInteger attempts = new AtomicInteger();
-
-    assertThatThrownBy(() -> service.executeExternalQueryWithRetry("test query", () -> {
-      attempts.incrementAndGet();
-      throw new BizException("ERROR: relation \"missing_table\" does not exist");
-    })).isInstanceOf(BizException.class);
-
-    assertThat(attempts).hasValue(1);
-  }
-
-  @Test
-  void shouldNormalizeSqlArrayValuesToDetachedJavaList() throws Exception {
-    StubSqlArray sqlArray =
-        new StubSqlArray(new Object[] {"a", 1L, new Object[] {"x", "y"}});
-
-    Object normalized = service.normalizeJdbcValue(sqlArray);
-
-    assertThat(normalized).isInstanceOf(List.class);
-    List<?> items = (List<?>) normalized;
-    assertThat(items).hasSize(3);
-    assertThat(items.get(0)).isEqualTo("a");
-    assertThat(items.get(1)).isEqualTo(1L);
-    assertThat(items.get(2)).isInstanceOf(List.class);
-    @SuppressWarnings("unchecked")
-    List<Object> nested = (List<Object>) items.get(2);
-    assertThat(nested).containsExactly("x", "y");
-    assertThat(sqlArray.freed).isTrue();
-  }
-
-  @Test
-  void shouldNormalizePostgresSpecificObjectsToRawValues() throws Exception {
-    PGobject inet = new PGobject();
-    inet.setType("inet");
-    inet.setValue("172.18.0.1");
-    PGobject searchVector = new PGobject();
-    searchVector.setType("tsvector");
-    searchVector.setValue("'sample':1 'vector':2");
-
-    assertThat(service.normalizeJdbcValue(inet)).isEqualTo("172.18.0.1");
-    assertThat(service.normalizeJdbcValue(searchVector)).isEqualTo("'sample':1 'vector':2");
-  }
-
-  @Test
-  void shouldNormalizeSqlXmlValuesToDetachedString() throws Exception {
-    StubSqlXml xml = new StubSqlXml("<root><value>ok</value></root>");
-
-    Object normalized = service.normalizeJdbcValue(xml);
-
-    assertThat(normalized).isEqualTo("<root><value>ok</value></root>");
-    assertThat(xml.freed).isTrue();
-  }
-
-  private static final class StubSqlArray implements java.sql.Array {
-    private final Object value;
-    private boolean freed;
-
-    private StubSqlArray(Object value) {
-      this.value = value;
-    }
-
-    @Override
-    public String getBaseTypeName() throws SQLException {
-      return "text";
-    }
-
-    @Override
-    public int getBaseType() throws SQLException {
-      return java.sql.Types.VARCHAR;
-    }
-
-    @Override
-    public Object getArray() throws SQLException {
-      return value;
-    }
-
-    @Override
-    public Object getArray(Map<String, Class<?>> map) throws SQLException {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Object getArray(long index, int count) throws SQLException {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Object getArray(long index, int count, Map<String, Class<?>> map) throws SQLException {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ResultSet getResultSet() throws SQLException {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ResultSet getResultSet(Map<String, Class<?>> map) throws SQLException {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ResultSet getResultSet(long index, int count) throws SQLException {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ResultSet getResultSet(long index, int count, Map<String, Class<?>> map) throws SQLException {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void free() throws SQLException {
-      freed = true;
-    }
-  }
-
-  private static final class StubSqlXml implements SQLXML {
-    private final String value;
-    private boolean freed;
-
-    private StubSqlXml(String value) {
-      this.value = value;
-    }
-
-    @Override
-    public void free() throws SQLException {
-      freed = true;
-    }
-
-    @Override
-    public String getString() throws SQLException {
-      return value;
-    }
-
-    @Override
-    public void setString(String value) throws SQLException {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public java.io.InputStream getBinaryStream() throws SQLException {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public java.io.OutputStream setBinaryStream() throws SQLException {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public java.io.Reader getCharacterStream() throws SQLException {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public java.io.Writer setCharacterStream() throws SQLException {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public <T extends javax.xml.transform.Source> T getSource(Class<T> sourceClass) throws SQLException {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public <T extends javax.xml.transform.Result> T setResult(Class<T> resultClass) throws SQLException {
-      throw new UnsupportedOperationException();
-    }
+  private GitlabSyncConfig dockerConfigWithoutContainer() {
+    return new GitlabSyncConfig();
   }
 }

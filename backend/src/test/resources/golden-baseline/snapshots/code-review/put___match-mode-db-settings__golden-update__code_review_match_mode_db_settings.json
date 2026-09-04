@@ -1,0 +1,26 @@
+{
+  "table" : "code_review_match_mode_db_settings",
+  "rows" : [ {
+    "id" : "1",
+    "enabled" : "f",
+    "sync_enabled" : "f",
+    "mysql_host" : "golden.invalid",
+    "mysql_port" : "13306",
+    "mysql_database" : "legacy_platform",
+    "mysql_username" : "golden",
+    "mysql_password" : "golden",
+    "mysql_table_name" : "code_review_match_mode",
+    "mysql_fetch_size" : "1000",
+    "selected_table_names" : "code_review_match_mode",
+    "mongo_uri" : "mongodb://golden.invalid:27017",
+    "mongo_database" : "legacy_platform",
+    "selected_mongo_collection_names" : "review_report,reviewReport,problemDetail,description",
+    "review_report_collection_name" : "review_report",
+    "review_problem_collection_name" : "review_problem",
+    "dgm_mysql_database" : "legacy_dgm",
+    "legacy_api_base_url" : "http://golden.invalid:8080",
+    "dgm_legacy_api_base_url" : "http://golden.invalid:8080",
+    "code_review_read_mode" : "compatibility",
+    "review_data_read_mode" : "compatibility"
+  } ]
+}

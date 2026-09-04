@@ -36,8 +36,34 @@ class GitlabExternalDbServiceDirectIntegrationTest {
           .withUsername("gitlab")
           .withPassword("secret");
 
-  private final GitlabExternalDbService service =
-      new GitlabExternalDbService(new GitlabMirrorProperties(), new ObjectMapper());
+  private final GitlabExternalDbService service = newService();
+
+  private static GitlabExternalDbService newService() {
+    GitlabMirrorProperties properties = new GitlabMirrorProperties();
+    com.data.collection.platform.common.JsonUtils jsonUtils =
+        new com.data.collection.platform.common.JsonUtils(new ObjectMapper());
+    GitlabSourceConnectionSettings connectionSettings = new GitlabSourceConnectionSettings(properties);
+    GitlabSourceQueryRetryPolicy retryPolicy = new GitlabSourceQueryRetryPolicy(properties);
+    GitlabDirectJdbcExecutor directJdbcExecutor =
+        new GitlabDirectJdbcExecutor(
+            connectionSettings,
+            retryPolicy,
+            new GitlabJdbcValueNormalizer(),
+            new com.data.collection.platform.service.sync.SyncThreadBudgetResolver(properties));
+    GitlabDockerPsqlExecutor dockerPsqlExecutor =
+        new GitlabDockerPsqlExecutor(properties, connectionSettings, retryPolicy, new ObjectMapper());
+    GitlabSourceQueryDispatcher queryDispatcher =
+        new GitlabSourceQueryDispatcher(directJdbcExecutor, dockerPsqlExecutor);
+    GitlabSourceMetadataSupport metadataSupport = new GitlabSourceMetadataSupport();
+    return new GitlabExternalDbService(
+        new GitlabSourceScanSqlBuilder(jsonUtils),
+        new GitlabPrimaryKeyExistenceQueryBuilder(),
+        new GitlabAuthoritativeScopeQueryBuilder(),
+        directJdbcExecutor,
+        queryDispatcher,
+        new GitlabSourceSchemaDiscoveryService(queryDispatcher::query, metadataSupport),
+        metadataSupport);
+  }
 
   @BeforeAll
   static void setUpSchema() throws Exception {

@@ -1,0 +1,57 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : [ {
+    "label" : "CC2026R3",
+    "value" : "CC2026R3"
+  }, {
+    "label" : "全部",
+    "value" : "全部"
+  }, {
+    "label" : "BYD",
+    "value" : "BYD"
+  }, {
+    "label" : "CC For Linux",
+    "value" : "CC For Linux"
+  }, {
+    "label" : "CC2024R1",
+    "value" : "CC2024R1"
+  }, {
+    "label" : "CC2025R1",
+    "value" : "CC2025R1"
+  }, {
+    "label" : "CC2025R2",
+    "value" : "CC2025R2"
+  }, {
+    "label" : "CC2025R4",
+    "value" : "CC2025R4"
+  }, {
+    "label" : "CC2026R1",
+    "value" : "CC2026R1"
+  }, {
+    "label" : "CC2026R4",
+    "value" : "CC2026R4"
+  }, {
+    "label" : "CC2027R1",
+    "value" : "CC2027R1"
+  }, {
+    "label" : "二次开发平台（2026 R4）研发项目",
+    "value" : "二次开发平台（2026 R4）研发项目"
+  }, {
+    "label" : "云SAM",
+    "value" : "云SAM"
+  }, {
+    "label" : "国创",
+    "value" : "国创"
+  }, {
+    "label" : "无需标注",
+    "value" : "无需标注"
+  }, {
+    "label" : "昊中",
+    "value" : "昊中"
+  }, {
+    "label" : "江山重工",
+    "value" : "江山重工"
+  } ]
+}

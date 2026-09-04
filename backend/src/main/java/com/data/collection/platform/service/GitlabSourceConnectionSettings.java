@@ -2,7 +2,9 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import org.springframework.stereotype.Component;
 
+@Component
 class GitlabSourceConnectionSettings {
   private final GitlabMirrorProperties properties;
 

@@ -1,0 +1,9 @@
+{
+  "httpStatus" : 400,
+  "body" : {
+    "success" : false,
+    "code" : "B0001",
+    "message" : "系统默认标签组不能删除，可编辑成员、备注或停用",
+    "data" : null
+  }
+}

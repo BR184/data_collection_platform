@@ -1,0 +1,9 @@
+{
+  "httpStatus" : 200,
+  "body" : {
+    "success" : true,
+    "code" : "00000",
+    "message" : "删除评审问题成功",
+    "data" : null
+  }
+}

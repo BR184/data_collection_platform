@@ -29,16 +29,16 @@ type AnyBiPageResponse =
 interface StageConfig {
   pageKey: BiPageKey;
   label: string;
-  kicker: string;
+  stageName: string;
 }
 
 const STAGE_BY_ROUTE: Partial<Record<PageKey, StageConfig>> = {
-  'bi-dashboard-requirements': { pageKey: 'requirements', label: '需求', kicker: '评审质量' },
-  'bi-dashboard-design': { pageKey: 'design', label: '设计', kicker: '评审质量' },
-  'bi-dashboard-coding': { pageKey: 'coding', label: '编码', kicker: '研发效能与代码质量' },
-  'bi-dashboard-unit-test': { pageKey: 'unit-test', label: '单元测试', kicker: '质量达标' },
-  'bi-dashboard-integration-test': { pageKey: 'integration-test', label: '集成测试', kicker: '质量达标' },
-  'bi-dashboard-system-test': { pageKey: 'system-test', label: '系统测试', kicker: '缺陷质量' },
+  'bi-dashboard-requirements': { pageKey: 'requirements', label: '需求评审质量', stageName: '需求' },
+  'bi-dashboard-design': { pageKey: 'design', label: '设计评审质量', stageName: '设计' },
+  'bi-dashboard-coding': { pageKey: 'coding', label: '代码走查与研发效能', stageName: '编码' },
+  'bi-dashboard-unit-test': { pageKey: 'unit-test', label: '单元测试质量达成', stageName: '单元测试' },
+  'bi-dashboard-integration-test': { pageKey: 'integration-test', label: '集成测试质量达成', stageName: '集成测试' },
+  'bi-dashboard-system-test': { pageKey: 'system-test', label: '系统测试质量', stageName: '系统测试' },
 };
 
 const route = useRoute();
@@ -170,16 +170,10 @@ onMounted(() => {
   <main class="bi-dashboard" data-bottom-scroll-safe="true">
     <header class="bi-page-head">
       <div class="bi-page-heading">
-        <span>{{ stage.kicker }}</span>
         <h1>{{ stage.label }}</h1>
       </div>
       <div class="bi-page-controls">
         <div v-if="stage.pageKey === 'coding'" class="bi-control-group" aria-label="编码页面筛选">
-          <el-segmented
-            :model-value="codingFilters.granularity"
-            :options="[{ label: '按日', value: 'day' }, { label: '按周', value: 'week' }]"
-            @change="setCodingFilter('granularity', $event)"
-          />
           <el-segmented
             :model-value="codingFilters.source"
             :options="[{ label: '全部来源', value: 'all' }, { label: 'CC', value: 'cc' }, { label: 'DGM', value: 'dgm' }]"
@@ -226,15 +220,21 @@ onMounted(() => {
       :response="reviewResponse"
       :product-version-id="selectedVersionId!"
       :page-key="stage.pageKey"
-      :stage-label="stage.label"
+      :stage-label="stage.stageName"
     />
-    <CodingStageContent v-else-if="codingResponse" :response="codingResponse" :product-version-id="selectedVersionId!" />
+    <CodingStageContent
+      v-else-if="codingResponse"
+      :response="codingResponse"
+      :product-version-id="selectedVersionId!"
+      :granularity="codingFilters.granularity"
+      @update:granularity="setCodingFilter('granularity', $event)"
+    />
     <TestQualityStageContent
       v-else-if="testResponse"
       :response="testResponse"
       :product-version-id="selectedVersionId!"
       :page-key="stage.pageKey"
-      :stage-label="stage.label"
+      :stage-label="stage.stageName"
     />
     <SystemTestStageContent v-else-if="systemResponse" :response="systemResponse" :product-version-id="selectedVersionId!" />
 

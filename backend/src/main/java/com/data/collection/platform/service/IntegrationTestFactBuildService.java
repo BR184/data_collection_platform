@@ -5,6 +5,8 @@ import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.IntegrationTestFact;
 import com.data.collection.platform.mapper.IntegrationTestFactMapper;
 import com.data.collection.platform.service.ModuleDictionaryService.ModuleDictionary;
+import com.data.collection.platform.service.IssuePhaseCalendarLoader.PhaseCalendarEntry;
+import com.data.collection.platform.service.IssuePhaseCalendarLoader.PhaseCalendarKey;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Array;
@@ -13,9 +15,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -109,6 +109,7 @@ public class IntegrationTestFactBuildService {
   private final GitlabSourceSchemaGuard sourceSchemaGuard;
   private final SqlQueryMonitor sqlQueryMonitor;
   private final GitlabConfigService configService;
+  private final IssuePhaseCalendarLoader phaseCalendarLoader;
 
   public IntegrationTestFactBuildService(
       JdbcTemplate jdbcTemplate,
@@ -116,13 +117,15 @@ public class IntegrationTestFactBuildService {
       ModuleDictionaryService moduleDictionaryService,
       GitlabSourceSchemaGuard sourceSchemaGuard,
       SqlQueryMonitor sqlQueryMonitor,
-      GitlabConfigService configService) {
+      GitlabConfigService configService,
+      IssuePhaseCalendarLoader phaseCalendarLoader) {
     this.jdbcTemplate = jdbcTemplate;
     this.factMapper = factMapper;
     this.moduleDictionaryService = moduleDictionaryService;
     this.sourceSchemaGuard = sourceSchemaGuard;
     this.sqlQueryMonitor = sqlQueryMonitor;
     this.configService = configService;
+    this.phaseCalendarLoader = phaseCalendarLoader;
   }
 
   @Transactional
@@ -194,7 +197,8 @@ public class IntegrationTestFactBuildService {
     // 不再参与镜像表名改写，避免重新引入已废弃的多镜像表结构。
     String sql = SOURCE_SQL + rootPredicate("i.id", rootIds);
     ModuleDictionary dictionary = moduleDictionaryService.loadDictionary();
-    Map<PhaseCalendarKey, PhaseCalendarEntry> calendar = loadPhaseCalendar();
+    Map<PhaseCalendarKey, PhaseCalendarEntry> calendar =
+        phaseCalendarLoader.loadIntegrationTestCalendar();
     long startedAt = sqlQueryMonitor.start();
     try {
       return jdbcTemplate.query(
@@ -304,41 +308,6 @@ public class IntegrationTestFactBuildService {
         .toList();
   }
 
-  private Map<PhaseCalendarKey, PhaseCalendarEntry> loadPhaseCalendar() {
-    List<PhaseCalendarEntry> entries =
-        jdbcTemplate.query(
-            """
-            select c.project_id,
-                   m.source_value as testing_phase,
-                   m.active_from as phase_start_at,
-                   m.active_until as phase_end_at,
-                   m.enabled
-              from issue_scope_catalogs c
-              join issue_scope_groups g
-                on g.catalog_id = c.id
-               and g.enabled = true
-              join issue_scope_members m
-                on m.catalog_id = c.id
-               and m.group_id = g.id
-               and m.enabled = true
-             where c.dimension = 'TESTING_PHASE'
-               and c.enabled = true
-            """,
-            (rs, rowNumber) ->
-                new PhaseCalendarEntry(
-                    rs.getLong("project_id"),
-                    defaultText(rs.getString("testing_phase"), null),
-                    toLocalDateTime(rs.getTimestamp("phase_start_at")),
-                    toLocalDateTime(rs.getTimestamp("phase_end_at")),
-                    rs.getBoolean("enabled")));
-    Map<PhaseCalendarKey, PhaseCalendarEntry> result = new LinkedHashMap<>();
-    for (PhaseCalendarEntry entry : entries) {
-      result.putIfAbsent(
-          new PhaseCalendarKey(entry.projectId(), normalizeKey(entry.testingPhase())), entry);
-    }
-    return result;
-  }
-
   private String resolveTestingPhase(
       Long projectId,
       List<String> labels,
@@ -399,10 +368,6 @@ public class IntegrationTestFactBuildService {
     return timestamp == null ? null : timestamp.toLocalDateTime();
   }
 
-  private String normalizeKey(String value) {
-    return StringUtils.hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : null;
-  }
-
   private String defaultText(String value) {
     return defaultText(value, "");
   }
@@ -418,20 +383,4 @@ public class IntegrationTestFactBuildService {
         : sourceInstance + ":integration-test";
   }
 
-  private record PhaseCalendarKey(Long projectId, String testingPhase) {}
-
-  private record PhaseCalendarEntry(
-      Long projectId,
-      String testingPhase,
-      LocalDateTime phaseStartAt,
-      LocalDateTime phaseEndAt,
-      boolean enabled) {
-    private boolean matches(LocalDateTime target) {
-      return enabled
-          && target != null
-          && phaseStartAt != null
-          && !target.isBefore(phaseStartAt)
-          && (phaseEndAt == null || !target.isAfter(phaseEndAt));
-    }
-  }
 }

@@ -1,0 +1,21 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "事实构建任务状态已生成",
+  "data" : {
+    "id" : 3,
+    "runId" : "2",
+    "scope" : "integration-test",
+    "full" : true,
+    "status" : "SUCCESS",
+    "triggerType" : "MIRROR_SYNC",
+    "lockOwner" : null,
+    "affectedRows" : 0,
+    "message" : "集成测试事实已完成一致性重建，当前源无有效数据",
+    "errorMessage" : null,
+    "startedAt" : "2026-09-03T18:37:00.146895+08:00",
+    "finishedAt" : "2026-09-03T18:37:00.150619+08:00",
+    "createdAt" : "2026-09-03T18:36:50.950695+08:00",
+    "updatedAt" : "2026-09-03T18:37:00.150619+08:00"
+  }
+}

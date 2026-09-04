@@ -1,0 +1,46 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : [ {
+    "name" : "评审记录-问题项记录ID",
+    "leftSourceKey" : "review_records",
+    "leftFieldKey" : "id",
+    "rightSourceKey" : "review_problem_items",
+    "rightFieldKey" : "reviewRecordId",
+    "matchOperator" : "eq",
+    "normalizer" : "NONE"
+  }, {
+    "name" : "议题处理人与 MR 负责人",
+    "leftSourceKey" : "issue_fact",
+    "leftFieldKey" : "assigneeName",
+    "rightSourceKey" : "merge_request_fact",
+    "rightFieldKey" : "ownerName",
+    "matchOperator" : "eq",
+    "normalizer" : "TRIM_LOWER"
+  }, {
+    "name" : "议题处理人与 MR 作者",
+    "leftSourceKey" : "issue_fact",
+    "leftFieldKey" : "assigneeName",
+    "rightSourceKey" : "merge_request_fact",
+    "rightFieldKey" : "authorName",
+    "matchOperator" : "eq",
+    "normalizer" : "TRIM_LOWER"
+  }, {
+    "name" : "评审负责人与 MR 负责人",
+    "leftSourceKey" : "review_records",
+    "leftFieldKey" : "reviewOwner",
+    "rightSourceKey" : "merge_request_fact",
+    "rightFieldKey" : "ownerName",
+    "matchOperator" : "eq",
+    "normalizer" : "TRIM_LOWER"
+  }, {
+    "name" : "评审问题责任人与 MR 负责人",
+    "leftSourceKey" : "review_problem_items",
+    "leftFieldKey" : "ownerName",
+    "rightSourceKey" : "merge_request_fact",
+    "rightFieldKey" : "ownerName",
+    "matchOperator" : "eq",
+    "normalizer" : "TRIM_LOWER"
+  } ]
+}

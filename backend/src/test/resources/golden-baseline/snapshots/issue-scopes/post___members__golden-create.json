@@ -1,0 +1,24 @@
+{
+  "httpStatus" : 200,
+  "body" : {
+    "success" : true,
+    "code" : "00000",
+    "message" : "范围匹配值已创建",
+    "data" : {
+      "id" : 58,
+      "catalogId" : 1,
+      "groupId" : 7,
+      "sourceValue" : "golden-member-value",
+      "displayName" : "golden成员",
+      "sortOrder" : 99,
+      "activeFrom" : null,
+      "activeUntil" : null,
+      "enabled" : true,
+      "sourceReferenceId" : null,
+      "remark" : "golden 写用例",
+      "issueCount" : 0,
+      "createdAt" : "2026-09-03T18:37:22.54461+08:00",
+      "updatedAt" : "2026-09-03T18:37:22.54461+08:00"
+    }
+  }
+}

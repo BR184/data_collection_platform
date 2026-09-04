@@ -1,0 +1,26 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "Issue 源数据就绪度诊断已生成",
+  "data" : {
+    "generatedAt" : "2026-09-03T18:40:05.693334+08:00",
+    "projectCount" : 2,
+    "issueCount" : 1200,
+    "milestoneCount" : 18,
+    "issuesWithMilestoneCount" : 1108,
+    "customerProjectCount" : 1,
+    "customerProjectIssueCount" : 903,
+    "customerLabelIssueCount" : 0,
+    "systemTestIssueCount" : 255,
+    "topIssueProjects" : [ {
+      "key" : "325",
+      "label" : "CCProduct",
+      "count" : 903
+    }, {
+      "key" : "9",
+      "label" : "CrownCAD",
+      "count" : 297
+    } ],
+    "warnings" : [ "当前没有带客户问题特征标签的 Issue，若后续规则依赖标签需补充样本。" ]
+  }
+}

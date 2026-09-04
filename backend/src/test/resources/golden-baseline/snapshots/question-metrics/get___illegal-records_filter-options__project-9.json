@@ -1,0 +1,384 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "projectNames" : [ {
+      "label" : "CrownCAD",
+      "value" : "CrownCAD"
+    } ],
+    "moduleNames" : [ {
+      "label" : "TopDown",
+      "value" : "TopDown"
+    }, {
+      "label" : "实体算法",
+      "value" : "实体算法"
+    }, {
+      "label" : "工具",
+      "value" : "工具"
+    }, {
+      "label" : "工程图",
+      "value" : "工程图"
+    }, {
+      "label" : "平台",
+      "value" : "平台"
+    }, {
+      "label" : "渲染",
+      "value" : "渲染"
+    }, {
+      "label" : "焊件",
+      "value" : "焊件"
+    }, {
+      "label" : "特征",
+      "value" : "特征"
+    }, {
+      "label" : "草图",
+      "value" : "草图"
+    }, {
+      "label" : "装配",
+      "value" : "装配"
+    }, {
+      "label" : "钣金",
+      "value" : "钣金"
+    } ],
+    "testingPhases" : [ {
+      "label" : "CC2026R3",
+      "value" : "CC2026R3"
+    }, {
+      "label" : "CC2026R4",
+      "value" : "CC2026R4"
+    }, {
+      "label" : "CC2026R2",
+      "value" : "CC2026R2"
+    }, {
+      "label" : "CC2026R1",
+      "value" : "CC2026R1"
+    }, {
+      "label" : "CC2025R4",
+      "value" : "CC2025R4"
+    }, {
+      "label" : "CC2025R3",
+      "value" : "CC2025R3"
+    }, {
+      "label" : "CC2025R2",
+      "value" : "CC2025R2"
+    }, {
+      "label" : "CC2025R1",
+      "value" : "CC2025R1"
+    }, {
+      "label" : "CC2024R4",
+      "value" : "CC2024R4"
+    }, {
+      "label" : "CC2024R2",
+      "value" : "CC2024R2"
+    }, {
+      "label" : "CC2024R3",
+      "value" : "CC2024R3"
+    } ],
+    "illegalReasons" : [ {
+      "label" : "未按照模板回复",
+      "value" : "未按照模板回复"
+    } ],
+    "authorNames" : [ {
+      "label" : "刘威麟",
+      "value" : "刘威麟"
+    }, {
+      "label" : "孔帆",
+      "value" : "孔帆"
+    }, {
+      "label" : "张月",
+      "value" : "张月"
+    }, {
+      "label" : "张金花",
+      "value" : "张金花"
+    }, {
+      "label" : "李尚玉",
+      "value" : "李尚玉"
+    }, {
+      "label" : "杨依景",
+      "value" : "杨依景"
+    }, {
+      "label" : "杨晓雨",
+      "value" : "杨晓雨"
+    }, {
+      "label" : "焦方昭",
+      "value" : "焦方昭"
+    }, {
+      "label" : "王丽娟",
+      "value" : "王丽娟"
+    }, {
+      "label" : "王旭",
+      "value" : "王旭"
+    }, {
+      "label" : "田松",
+      "value" : "田松"
+    }, {
+      "label" : "白欣慧",
+      "value" : "白欣慧"
+    }, {
+      "label" : "陈艺珲",
+      "value" : "陈艺珲"
+    } ],
+    "assigneeNames" : [ {
+      "label" : "于倩倩",
+      "value" : "于倩倩"
+    }, {
+      "label" : "付守帅",
+      "value" : "付守帅"
+    }, {
+      "label" : "任国瑞",
+      "value" : "任国瑞"
+    }, {
+      "label" : "侯燕申",
+      "value" : "侯燕申"
+    }, {
+      "label" : "傅培钰",
+      "value" : "傅培钰"
+    }, {
+      "label" : "冯文婕",
+      "value" : "冯文婕"
+    }, {
+      "label" : "刘宗博",
+      "value" : "刘宗博"
+    }, {
+      "label" : "刘悦",
+      "value" : "刘悦"
+    }, {
+      "label" : "刘旭阳",
+      "value" : "刘旭阳"
+    }, {
+      "label" : "刘祥志",
+      "value" : "刘祥志"
+    }, {
+      "label" : "史清杰",
+      "value" : "史清杰"
+    }, {
+      "label" : "吕志金",
+      "value" : "吕志金"
+    }, {
+      "label" : "吕明康",
+      "value" : "吕明康"
+    }, {
+      "label" : "姜万瑞",
+      "value" : "姜万瑞"
+    }, {
+      "label" : "孟秀平",
+      "value" : "孟秀平"
+    }, {
+      "label" : "崔雪峰",
+      "value" : "崔雪峰"
+    }, {
+      "label" : "张华磊",
+      "value" : "张华磊"
+    }, {
+      "label" : "张明霞",
+      "value" : "张明霞"
+    }, {
+      "label" : "张晓涵",
+      "value" : "张晓涵"
+    }, {
+      "label" : "张海思",
+      "value" : "张海思"
+    }, {
+      "label" : "张登航",
+      "value" : "张登航"
+    }, {
+      "label" : "张硕",
+      "value" : "张硕"
+    }, {
+      "label" : "张计成",
+      "value" : "张计成"
+    }, {
+      "label" : "张静",
+      "value" : "张静"
+    }, {
+      "label" : "徐仕东",
+      "value" : "徐仕东"
+    }, {
+      "label" : "朱梦莹",
+      "value" : "朱梦莹"
+    }, {
+      "label" : "李焕坤",
+      "value" : "李焕坤"
+    }, {
+      "label" : "李硕彦",
+      "value" : "李硕彦"
+    }, {
+      "label" : "杜敏敏",
+      "value" : "杜敏敏"
+    }, {
+      "label" : "梁春阳",
+      "value" : "梁春阳"
+    }, {
+      "label" : "梁灏",
+      "value" : "梁灏"
+    }, {
+      "label" : "樊雯昊",
+      "value" : "樊雯昊"
+    }, {
+      "label" : "武晓旭",
+      "value" : "武晓旭"
+    }, {
+      "label" : "潘影丽",
+      "value" : "潘影丽"
+    }, {
+      "label" : "焦桦坤",
+      "value" : "焦桦坤"
+    }, {
+      "label" : "狄林林",
+      "value" : "狄林林"
+    }, {
+      "label" : "王姣",
+      "value" : "王姣"
+    }, {
+      "label" : "王德远",
+      "value" : "王德远"
+    }, {
+      "label" : "王念文",
+      "value" : "王念文"
+    }, {
+      "label" : "王楠",
+      "value" : "王楠"
+    }, {
+      "label" : "田川",
+      "value" : "田川"
+    }, {
+      "label" : "白云涛",
+      "value" : "白云涛"
+    }, {
+      "label" : "秦龙飞",
+      "value" : "秦龙飞"
+    }, {
+      "label" : "耿亚慧",
+      "value" : "耿亚慧"
+    }, {
+      "label" : "赵冬军",
+      "value" : "赵冬军"
+    }, {
+      "label" : "赵梦珊",
+      "value" : "赵梦珊"
+    }, {
+      "label" : "郎琳琳",
+      "value" : "郎琳琳"
+    }, {
+      "label" : "郑振松",
+      "value" : "郑振松"
+    }, {
+      "label" : "郭家铭",
+      "value" : "郭家铭"
+    }, {
+      "label" : "陈征",
+      "value" : "陈征"
+    }, {
+      "label" : "陈荣昌",
+      "value" : "陈荣昌"
+    }, {
+      "label" : "陈魁",
+      "value" : "陈魁"
+    }, {
+      "label" : "霍志岩",
+      "value" : "霍志岩"
+    }, {
+      "label" : "韩旻武",
+      "value" : "韩旻武"
+    }, {
+      "label" : "韩潞钦",
+      "value" : "韩潞钦"
+    }, {
+      "label" : "韩琦",
+      "value" : "韩琦"
+    }, {
+      "label" : "马传超",
+      "value" : "马传超"
+    }, {
+      "label" : "马泽坤",
+      "value" : "马泽坤"
+    }, {
+      "label" : "高玉栋",
+      "value" : "高玉栋"
+    }, {
+      "label" : "黄冠",
+      "value" : "黄冠"
+    } ],
+    "issueStates" : [ {
+      "label" : "closed",
+      "value" : "closed"
+    }, {
+      "label" : "opened",
+      "value" : "opened"
+    } ],
+    "severityLevels" : [ {
+      "label" : "一级缺陷",
+      "value" : "LEVEL1"
+    }, {
+      "label" : "三级缺陷",
+      "value" : "LEVEL3"
+    }, {
+      "label" : "二级缺陷",
+      "value" : "LEVEL2"
+    } ],
+    "bugStatuses" : [ {
+      "label" : "Reopen",
+      "value" : "Reopen"
+    }, {
+      "label" : "历史遗留",
+      "value" : "历史遗留"
+    }, {
+      "label" : "已修复/完成",
+      "value" : "已修复/完成"
+    }, {
+      "label" : "已测试通过",
+      "value" : "已测试通过"
+    }, {
+      "label" : "未修复",
+      "value" : "未修复"
+    }, {
+      "label" : "未更新",
+      "value" : "未更新"
+    }, {
+      "label" : "申请延期",
+      "value" : "申请延期"
+    }, {
+      "label" : "相同原因",
+      "value" : "相同原因"
+    }, {
+      "label" : "重复问题",
+      "value" : "重复问题"
+    } ],
+    "categories" : [ {
+      "label" : "未设定类别",
+      "value" : "未设定类别"
+    } ],
+    "milestoneTitles" : [ {
+      "label" : "CrownCAD 2024 R2",
+      "value" : "CrownCAD 2024 R2"
+    }, {
+      "label" : "CrownCAD 2024 R3",
+      "value" : "CrownCAD 2024 R3"
+    }, {
+      "label" : "CrownCAD 2024 R4",
+      "value" : "CrownCAD 2024 R4"
+    }, {
+      "label" : "CrownCAD 2025 R1",
+      "value" : "CrownCAD 2025 R1"
+    }, {
+      "label" : "CrownCAD 2025 R2",
+      "value" : "CrownCAD 2025 R2"
+    }, {
+      "label" : "CrownCAD 2025 R3",
+      "value" : "CrownCAD 2025 R3"
+    }, {
+      "label" : "CrownCAD 2025 R4",
+      "value" : "CrownCAD 2025 R4"
+    }, {
+      "label" : "CrownCAD 2026 R1",
+      "value" : "CrownCAD 2026 R1"
+    }, {
+      "label" : "CrownCAD 2026 R2",
+      "value" : "CrownCAD 2026 R2"
+    }, {
+      "label" : "CrownCAD 2026 R3",
+      "value" : "CrownCAD 2026 R3"
+    } ]
+  }
+}

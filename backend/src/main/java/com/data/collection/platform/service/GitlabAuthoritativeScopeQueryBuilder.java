@@ -9,8 +9,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.stereotype.Component;
 
 /** 为一批同构权威范围生成 DIRECT typed VALUES 或 Docker COPY 查询。 */
+@Component
 final class GitlabAuthoritativeScopeQueryBuilder {
   static final String SCOPE_ID_COLUMN = "__qaflex_scope_id";
 

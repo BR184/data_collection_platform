@@ -1,0 +1,943 @@
+{
+  "table" : "platform_role_permissions",
+  "rows" : [ {
+    "role_code" : "ADMIN",
+    "permission_code" : "bi.dashboard.download"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "bi.dashboard.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "business_data.refresh"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "code_review.board.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "code_review.board.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "code_review.form.create"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "code_review.form.delete"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "code_review.form.edit"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "code_review.illegal.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "code_review.illegal.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "customer_issue.cause.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "customer_issue.cause.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "customer_issue.delay.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "customer_issue.delay.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "customer_issue.efficiency.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "customer_issue.efficiency.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "customer_issue.function.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "customer_issue.function.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "customer_issue.illegal.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "customer_issue.illegal.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "customer_issue.record.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "customer_issue.record.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "customer_issue.summary.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "customer_issue.summary.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "quality.other.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "quality.other.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "quality.rd.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "quality.rd.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "review.data.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "review.legacy_import"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "review.problem.create"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "review.problem.delete_any"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "review.problem.delete_own"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "review.problem.edit"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "review.problem.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "review.record.create"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "review.record.delete_any"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "review.record.delete_own"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "review.record.edit"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "review.record.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "review.template.download"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.database.refresh"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.database.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.dropdown_option.manage"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.dropdown_option.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.fact.rebuild"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.label_group.manage"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.label_group.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.match_mode.config"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.match_mode.formal_import"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.match_mode.sync"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.match_mode.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.mirror.config"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.mirror.purge"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.mirror.sync"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.mirror.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.permission.manage"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.permission.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.testing_phase.manage"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.testing_phase.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system_test.board.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system_test.board.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system_test.cause.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system_test.cause.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system_test.delay.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system_test.delay.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system_test.illegal.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system_test.illegal.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system_test.issue.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system_test.issue.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system_test.phase.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system_test.summary.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system_test.summary.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "bi.dashboard.download"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "bi.dashboard.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "business_data.refresh"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "code_review.board.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "code_review.board.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "code_review.form.create"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "code_review.form.delete"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "code_review.form.edit"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "code_review.illegal.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "code_review.illegal.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "customer_issue.cause.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "customer_issue.cause.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "customer_issue.delay.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "customer_issue.delay.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "customer_issue.efficiency.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "customer_issue.efficiency.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "customer_issue.function.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "customer_issue.function.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "customer_issue.illegal.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "customer_issue.illegal.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "customer_issue.record.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "customer_issue.record.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "customer_issue.summary.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "customer_issue.summary.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "quality.other.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "quality.other.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "quality.rd.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "quality.rd.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "review.data.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "review.legacy_import"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "review.problem.create"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "review.problem.delete_any"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "review.problem.delete_own"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "review.problem.edit"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "review.problem.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "review.record.create"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "review.record.delete_any"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "review.record.delete_own"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "review.record.edit"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "review.record.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "review.template.download"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "system.label_group.manage"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "system.label_group.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "system.testing_phase.manage"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "system.testing_phase.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "system_test.board.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "system_test.board.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "system_test.cause.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "system_test.cause.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "system_test.delay.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "system_test.delay.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "system_test.illegal.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "system_test.illegal.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "system_test.issue.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "system_test.issue.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "system_test.phase.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "system_test.summary.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "system_test.summary.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "bi.dashboard.download"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "bi.dashboard.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "business_data.refresh"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "code_review.board.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "code_review.board.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "code_review.form.create"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "code_review.form.edit"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "code_review.illegal.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "code_review.illegal.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "customer_issue.cause.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "customer_issue.cause.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "customer_issue.delay.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "customer_issue.delay.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "customer_issue.efficiency.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "customer_issue.efficiency.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "customer_issue.function.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "customer_issue.function.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "customer_issue.illegal.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "customer_issue.illegal.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "customer_issue.record.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "customer_issue.record.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "customer_issue.summary.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "customer_issue.summary.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "quality.other.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "quality.other.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "quality.rd.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "quality.rd.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "review.data.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "review.legacy_import"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "review.problem.create"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "review.problem.delete_own"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "review.problem.edit"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "review.problem.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "review.record.create"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "review.record.delete_own"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "review.record.edit"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "review.record.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "review.template.download"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "system_test.board.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "system_test.board.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "system_test.cause.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "system_test.cause.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "system_test.delay.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "system_test.delay.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "system_test.illegal.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "system_test.illegal.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "system_test.issue.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "system_test.issue.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "system_test.phase.view"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "system_test.summary.export"
+  }, {
+    "role_code" : "NORMAL_USER",
+    "permission_code" : "system_test.summary.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "bi.dashboard.download"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "bi.dashboard.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "business_data.refresh"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "code_review.board.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "code_review.board.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "code_review.form.create"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "code_review.form.delete"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "code_review.form.edit"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "code_review.illegal.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "code_review.illegal.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "customer_issue.cause.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "customer_issue.cause.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "customer_issue.delay.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "customer_issue.delay.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "customer_issue.efficiency.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "customer_issue.efficiency.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "customer_issue.function.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "customer_issue.function.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "customer_issue.illegal.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "customer_issue.illegal.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "customer_issue.record.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "customer_issue.record.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "customer_issue.summary.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "customer_issue.summary.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "quality.other.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "quality.other.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "quality.rd.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "quality.rd.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "review.data.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "review.legacy_import"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "review.problem.create"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "review.problem.delete_any"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "review.problem.delete_own"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "review.problem.edit"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "review.problem.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "review.record.create"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "review.record.delete_any"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "review.record.delete_own"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "review.record.edit"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "review.record.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "review.template.download"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.database.refresh"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.database.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.dropdown_option.manage"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.dropdown_option.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.fact.rebuild"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.label_group.manage"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.label_group.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.match_mode.config"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.match_mode.formal_import"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.match_mode.sync"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.match_mode.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.mirror.config"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.mirror.purge"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.mirror.sync"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.mirror.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.permission.manage"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.permission.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.testing_phase.manage"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.testing_phase.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system_test.board.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system_test.board.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system_test.cause.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system_test.cause.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system_test.delay.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system_test.delay.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system_test.illegal.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system_test.illegal.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system_test.issue.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system_test.issue.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system_test.phase.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system_test.summary.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system_test.summary.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "bi.dashboard.download"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "bi.dashboard.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "business_data.refresh"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "code_review.board.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "code_review.board.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "code_review.form.create"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "code_review.form.delete"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "code_review.form.edit"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "code_review.illegal.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "code_review.illegal.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "customer_issue.cause.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "customer_issue.cause.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "customer_issue.delay.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "customer_issue.delay.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "customer_issue.efficiency.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "customer_issue.efficiency.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "customer_issue.function.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "customer_issue.function.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "customer_issue.illegal.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "customer_issue.illegal.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "customer_issue.record.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "customer_issue.record.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "customer_issue.summary.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "customer_issue.summary.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "quality.other.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "quality.other.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "quality.rd.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "quality.rd.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "review.data.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "review.legacy_import"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "review.problem.create"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "review.problem.delete_any"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "review.problem.delete_own"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "review.problem.edit"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "review.problem.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "review.record.create"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "review.record.delete_any"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "review.record.delete_own"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "review.record.edit"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "review.record.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "review.template.download"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "system.label_group.manage"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "system.label_group.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "system.testing_phase.manage"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "system.testing_phase.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "system_test.board.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "system_test.board.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "system_test.cause.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "system_test.cause.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "system_test.delay.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "system_test.delay.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "system_test.illegal.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "system_test.illegal.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "system_test.issue.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "system_test.issue.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "system_test.phase.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "system_test.summary.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "system_test.summary.view"
+  } ]
+}

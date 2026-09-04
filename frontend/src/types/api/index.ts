@@ -14,3 +14,4 @@ export * from './label-groups';
 export * from './quality-board';
 export * from './analytics-dashboard';
 export * from './cat-mirror';
+export * from './dropdown-options';

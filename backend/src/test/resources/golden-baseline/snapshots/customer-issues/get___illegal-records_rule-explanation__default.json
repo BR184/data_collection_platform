@@ -1,0 +1,110 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "boardKey" : "customer-issue-illegal-records",
+    "supported" : true,
+    "title" : "客户问题缺陷非法数据规则说明",
+    "version" : "customer-issue-illegal-records@2026-07-22-v3",
+    "scopeDescription" : "当前页面展示客户问题范围内命中非法规则的缺陷。平台会先限定客户问题范围，再剔除不应参与统计的无效议题。",
+    "summary" : "客户问题非法数据复用系统测试非法规则，并追加客户问题专用要求：缺陷调研模板填写完整、计划解决时间合法、一级缺陷需要负责人签字确认。",
+    "flowSteps" : [ {
+      "key" : "source-load",
+      "title" : "加载议题数据",
+      "description" : "加载已同步到平台的客户问题议题数据，并使用整理后的里程碑、模块、严重程度和非法类型。",
+      "inputCount" : 903,
+      "outputCount" : 903,
+      "samples" : [ {
+        "label" : "#1543 CCProduct",
+        "detail" : "【扫描凸台】特定场景下，扫面特征生成失败——大行 | 非法类型: 未按照模板回复"
+      }, {
+        "label" : "#902 CCProduct",
+        "detail" : "【孤立】对实体进行孤立编辑草图时，点击撤销会直接退出孤立状态——大行科工 | 非法类型: 未按照模板回复"
+      }, {
+        "label" : "#2548 CCProduct",
+        "detail" : "[AUTO-SYNC-SMOKE] 2026-08-06 11:20:21 +0800 | 非法类型: 未设定严重程度,未设定模块"
+      } ]
+    }, {
+      "key" : "scope-filter",
+      "title" : "限定客户问题范围",
+      "description" : "保留 CC_Product 客户问题范围内的议题，避免和系统测试口径混在一起。",
+      "inputCount" : 903,
+      "outputCount" : 880,
+      "samples" : [ {
+        "label" : "#1543 CCProduct",
+        "detail" : "【扫描凸台】特定场景下，扫面特征生成失败——大行 | 非法类型: 未按照模板回复"
+      }, {
+        "label" : "#2548 CCProduct",
+        "detail" : "[AUTO-SYNC-SMOKE] 2026-08-06 11:20:21 +0800 | 非法类型: 未设定严重程度,未设定模块"
+      }, {
+        "label" : "#2549 CCProduct",
+        "detail" : "[AUTO-SYNC-REGRESSION-VERIFY] 2026-08-06T08-09-30-734Z | 非法类型: 未设定严重程度,未设定模块"
+      } ]
+    }, {
+      "key" : "exclude-filter",
+      "title" : "剔除排除数据",
+      "description" : "按老平台 CC_Product 记录页查询口径，排除已关闭的申请否决、需求如此和设计如此类数据。",
+      "inputCount" : 880,
+      "outputCount" : 875,
+      "samples" : [ {
+        "label" : "#1543 CCProduct",
+        "detail" : "【扫描凸台】特定场景下，扫面特征生成失败——大行 | 非法类型: 未按照模板回复"
+      }, {
+        "label" : "#2548 CCProduct",
+        "detail" : "[AUTO-SYNC-SMOKE] 2026-08-06 11:20:21 +0800 | 非法类型: 未设定严重程度,未设定模块"
+      }, {
+        "label" : "#2549 CCProduct",
+        "detail" : "[AUTO-SYNC-REGRESSION-VERIFY] 2026-08-06T08-09-30-734Z | 非法类型: 未设定严重程度,未设定模块"
+      } ]
+    }, {
+      "key" : "illegal-filter",
+      "title" : "筛出非法数据",
+      "description" : "保留命中客户问题非法判定规则的缺陷。",
+      "inputCount" : 875,
+      "outputCount" : 529,
+      "samples" : [ {
+        "label" : "#1543 CCProduct",
+        "detail" : "【扫描凸台】特定场景下，扫面特征生成失败——大行 | 非法类型: 未按照模板回复"
+      }, {
+        "label" : "#2548 CCProduct",
+        "detail" : "[AUTO-SYNC-SMOKE] 2026-08-06 11:20:21 +0800 | 非法类型: 未设定严重程度,未设定模块"
+      }, {
+        "label" : "#2549 CCProduct",
+        "detail" : "[AUTO-SYNC-REGRESSION-VERIFY] 2026-08-06T08-09-30-734Z | 非法类型: 未设定严重程度,未设定模块"
+      } ]
+    } ],
+    "metricDefinitions" : [ {
+      "key" : "illegal-total",
+      "label" : "非法数据总数",
+      "definition" : "客户问题范围内命中任意非法规则的议题数量。",
+      "formula" : "非法数据总数 = 客户问题范围内命中任意非法规则的议题数量",
+      "note" : null
+    }, {
+      "key" : "base-illegal",
+      "label" : "基础非法类型",
+      "definition" : "复用系统测试非法数据规则：未设定严重程度、未设定模块、已修复但未按模板回复、缺陷原因不唯一。",
+      "formula" : "基础非法类型 = 命中系统测试非法规则的非法类型",
+      "note" : null
+    }, {
+      "key" : "research-template",
+      "label" : "缺陷调研模板",
+      "definition" : "客户问题必须按要求填写缺陷调研模板；除计划解决时间和一级缺陷负责人签字项外，其余问题需要有回复内容。",
+      "formula" : "未按照要求填写缺陷调研模板 = 调研模板必填项缺失或回复内容不完整",
+      "note" : null
+    }, {
+      "key" : "plan-solution-time",
+      "label" : "计划解决时间",
+      "definition" : "计划解决时间有且只能填写一个日期时间戳，日期分隔符按规则总表第 5.4 兼容。",
+      "formula" : "计划解决时间非法 = 调研模板计划解决时间为空、无法解析或出现多个日期",
+      "note" : null
+    }, {
+      "key" : "owner-signature",
+      "label" : "一级缺陷负责人签字",
+      "definition" : "一级缺陷必须有模块负责人签字确认；二级、三级缺陷不要求负责人签字。",
+      "formula" : "负责人签字非法 = 一级缺陷缺少负责人签字确认",
+      "note" : null
+    } ],
+    "unsupportedReason" : null
+  }
+}

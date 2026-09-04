@@ -6,8 +6,10 @@ import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
 
 @Slf4j
+@Component
 class GitlabSourceQueryRetryPolicy {
   private final GitlabMirrorProperties properties;
 

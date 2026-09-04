@@ -1,0 +1,9 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "服务启动成功",
+  "data" : {
+    "message" : "Data Collection Platform backend started successfully",
+    "status" : "ok"
+  }
+}

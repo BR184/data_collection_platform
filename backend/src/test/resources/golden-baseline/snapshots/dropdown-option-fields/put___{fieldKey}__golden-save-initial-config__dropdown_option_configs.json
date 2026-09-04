@@ -1,0 +1,10 @@
+{
+  "table" : "dropdown_option_configs",
+  "rows" : [ {
+    "id" : "1",
+    "rules_json" : "{\"manualRules\": [], \"acquiredRules\": [{\"name\": \"golden黑名单\", \"listType\": \"BLACKLIST\", \"filterGroup\": {\"logic\": \"OR\", \"conditions\": [{\"value\": \"golden-blocked\", \"values\": [], \"fieldKey\": \"optionValue\", \"operator\": \"eq\", \"valueType\": \"LITERAL\", \"labelGroupId\": null, \"labelGroupName\": null, \"secondaryValue\": null}]}}]}",
+    "manual_options_json" : "[\"golden-manual\"]",
+    "version" : "0",
+    "updated_by" : "admin"
+  } ]
+}

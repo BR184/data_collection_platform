@@ -1,0 +1,1439 @@
+# 黄金基线端点目录
+#
+# 每个端点必须登记且仅登记一次（key = METHOD + path，与反射枚举逐字一致）。
+# category: READ|OPTIONS|EXPORT|WRITE|EXCLUDED；EXCLUDED 必须给 exclude-reason。
+# READ/OPTIONS/EXPORT 必须至少一个 case；EXPORT 必须 response: excel。
+# case query 不含前导问号；POST 只读预览类用 body 传 JSON 请求体。
+# {{configId}} 为运行期占位符（golden 套件注入的同步配置 id）。
+#
+# 排除理由约定：
+# - async-trigger: 异步触发同步/刷新/重建任务的端点，链路本身由 bootstrap 全链路同步自证
+#   （SUCCESS 终态 + ODS/事实行数断言），重复触发状态翻转与时长成本高。
+# - external-dependency: 依赖 golden 档不可达的外部活体（GitLab Web API、MySQL/Mongo 老平台）。
+# - session: 会话管理端点，是 golden 登录的前置依赖而非被测对象，由 spring-security-test 层覆盖。
+# - destructive: 破坏性或外部副作用操作。
+# - empty-runtime-config: 端点依赖的运行期配置数据在 golden 库恒为空态（无迁移种子），
+#   请求确定性失败且无法在隔离环境中构造稳定输入；由写用例阶段评估补覆盖。
+#
+# 用例参数约定：
+# - query 中的 {{configId}}/{{recordId}}/{{catalogId}}/{{groupId}} 为运行期变量，
+#   golden 套件启动时从库内真实数据解析注入。
+# - 与路径变量 {name} 同名的 query 键会先替换进路径再从查询串移除（如 sourceKey/fieldKey）。
+# 路径空间约定：READ/OPTIONS/EXPORT 的响应树即 ApiResponse，ignore-paths 用 $.data.*；
+# WRITE 的响应快照为 {"httpStatus":N,"body":{...ApiResponse}} 包装（400 校验拒绝同为契约），
+# ignore-paths 一律用 $.body.*。
+endpoints:
+  # =====HomeController=====
+  - method: GET
+    path: /
+    category: READ
+    cases:
+      - id: default
+
+  # =====AuthController（会话管理）=====
+  - method: GET
+    path: /api/auth/current
+    category: EXCLUDED
+    exclude-reason: "session: 会话态端点，golden 登录流程的前置依赖；由 spring-security-test 层覆盖"
+  - method: POST
+    path: /api/auth/login
+    category: EXCLUDED
+    exclude-reason: "session: 会话管理端点，golden 套件登录步骤已真实执行；响应为会话建立而非业务数据"
+  - method: POST
+    path: /api/auth/logout
+    category: EXCLUDED
+    exclude-reason: "session: 会话销毁端点，非业务数据产出"
+
+  # =====StatisticBoardController（统计看板）=====
+  - method: GET
+    path: /api/statistic-boards/{boardKey}
+    category: READ
+    ignore-paths: ["$.data.meta.generatedAt", "$.data.meta.queryDurationMs"]
+    # 筛选选项来自 DISTINCT 聚合，无 ORDER BY，集合内顺序跨运行不稳定（集合本身恒定）
+    ignore-array-order: ["$.data.definition.filters[*].options"]
+    cases:
+      - id: system-test-defect-summary
+        query: boardKey=system-test-defect-summary
+      - id: system-test-defect-cause
+        query: boardKey=system-test-defect-cause
+      - id: system-test-delay-analysis
+        query: boardKey=system-test-delay-analysis
+      - id: system-test-phase-statistics
+        query: boardKey=system-test-phase-statistics
+      - id: customer-issue-defect-summary
+        query: boardKey=customer-issue-defect-summary
+      - id: customer-issue-defect-cause
+        query: boardKey=customer-issue-defect-cause
+      - id: customer-issue-delay-issues
+        query: boardKey=customer-issue-delay-issues
+      - id: customer-issue-by-function
+        query: boardKey=customer-issue-by-function
+      - id: customer-issue-response-efficiency
+        query: boardKey=customer-issue-response-efficiency
+      # mirror-table-overview 未登记在 PagePermissionKeyResolver.BOARD_VIEW（任何环境确定性 400
+      # "统计页面权限未定义"），无页面数据产出，不构成数据基线用例。
+  - method: GET
+    path: /api/statistic-boards/{boardKey}/details
+    category: READ
+    ignore-paths: ["$.data.meta.generatedAt", "$.data.meta.queryDurationMs"]
+    cases:
+      - id: system-test-defect-summary-total
+        query: boardKey=system-test-defect-summary&rowKey=__total__&columnKey=level1_total
+  - method: GET
+    path: /api/statistic-boards/{boardKey}/rule-explanation
+    category: READ
+    cases:
+      - id: system-test-defect-summary
+        query: boardKey=system-test-defect-summary
+  - method: GET
+    path: /api/statistic-boards/{boardKey}/status
+    category: READ
+    ignore-paths:
+      - "$.data.lastSyncedAt"
+      - "$.data.lastRefreshStartedAt"
+      - "$.data.lastRefreshFinishedAt"
+    cases:
+      - id: system-test-defect-summary
+        query: boardKey=system-test-defect-summary
+  - method: GET
+    path: /api/statistic-boards/{boardKey}/export
+    category: EXPORT
+    response: excel
+    cases:
+      - id: system-test-defect-summary
+        query: boardKey=system-test-defect-summary
+      - id: system-test-defect-cause
+        query: boardKey=system-test-defect-cause
+      - id: system-test-delay-analysis
+        query: boardKey=system-test-delay-analysis
+      - id: customer-issue-defect-summary
+        query: boardKey=customer-issue-defect-summary
+      - id: customer-issue-defect-cause
+        query: boardKey=customer-issue-defect-cause
+      - id: customer-issue-delay-issues
+        query: boardKey=customer-issue-delay-issues
+      - id: customer-issue-by-function
+        query: boardKey=customer-issue-by-function
+      - id: customer-issue-response-efficiency
+        query: boardKey=customer-issue-response-efficiency
+      # mirror-table-overview 未登记在 PagePermissionKeyResolver.BOARD_EXPORT（任何环境确定性 400
+      # "统计导出权限未定义"），无导出数据产出，不构成数据基线用例。
+  - method: GET
+    path: /api/statistic-boards/{boardKey}/horizontal-comparison/export
+    category: EXPORT
+    response: excel
+    cases:
+      - id: system-test-defect-summary
+        query: boardKey=system-test-defect-summary
+  - method: GET
+    path: /api/statistic-boards/{boardKey}/issues/export
+    category: EXPORT
+    response: excel
+    cases:
+      - id: system-test-defect-summary
+        query: boardKey=system-test-defect-summary
+      - id: customer-issue-defect-summary
+        query: boardKey=customer-issue-defect-summary
+  - method: POST
+    path: /api/statistic-boards/{boardKey}/refresh
+    category: EXCLUDED
+    exclude-reason: "async-trigger: Realtime 看板异步镜像刷新任务触发；镜像同步链路由 bootstrap 全链路同步自证"
+
+  # =====AnalyticsDashboardController（分析仪表盘）=====
+  - method: GET
+    path: /api/analytics-dashboards/{dashboardKey}
+    category: READ
+    ignore-paths: ["$.data.generatedAt", "$.data.meta.generatedAt"]
+    cases:
+      - id: quality-rd
+        query: dashboardKey=quality-rd
+      - id: quality-board-other
+        query: dashboardKey=quality-board-other
+      - id: code-review-multi-cc
+        query: dashboardKey=code-review-multi&source=cc
+      - id: code-review-multi-dgm
+        query: dashboardKey=code-review-multi&source=dgm
+  - method: GET
+    path: /api/analytics-dashboards/{dashboardKey}/rules
+    category: READ
+    cases:
+      - id: quality-rd
+        query: dashboardKey=quality-rd
+      - id: code-review-multi
+        query: dashboardKey=code-review-multi&source=cc
+  - method: GET
+    path: /api/analytics-dashboards/{dashboardKey}/details/{viewKey}
+    category: READ
+    cases:
+      - id: quality-rd-integration-test-results
+        query: dashboardKey=quality-rd&viewKey=integration-test-results
+      - id: quality-rd-quality-code-review-records
+        query: dashboardKey=quality-rd&viewKey=quality-code-review-records&topic=reviewer-density
+      - id: quality-board-other-function-defect-count
+        query: dashboardKey=quality-board-other&viewKey=other-function-defect-count
+      - id: code-review-multi-statistics
+        query: dashboardKey=code-review-multi&viewKey=code-review-statistics&source=cc&topic=module-defect-density
+  - method: GET
+    path: /api/analytics-dashboards/{dashboardKey}/exports/{exportKey}
+    category: EXPORT
+    response: excel
+    cases:
+      - id: quality-rd-assignee-defect-density
+        query: dashboardKey=quality-rd&exportKey=assignee-defect-density
+      - id: quality-rd-fix-user-severity
+        query: dashboardKey=quality-rd&exportKey=fix-user-severity
+      - id: quality-board-other-quality-ranking
+        query: dashboardKey=quality-board-other&exportKey=quality-ranking-excel
+      - id: code-review-multi-module-defect-density
+        query: dashboardKey=code-review-multi&exportKey=module-defect-density&source=cc
+
+  # =====QualityBoardController（质量看板）=====
+  - method: GET
+    path: /api/quality-board/rd/overview
+    category: READ
+    cases:
+      - id: default
+      - id: cc2026r4
+        query: projectName=CC2026R4
+  - method: GET
+    path: /api/quality-board/rd/dashboard
+    category: READ
+    cases:
+      - id: cc-default
+      - id: cc-cc2026r4
+        query: projectName=CC2026R4
+      - id: dgm-default
+        query: codeReviewSource=dgm
+  - method: GET
+    path: /api/quality-board/other/overview
+    category: READ
+    cases:
+      - id: default
+  - method: GET
+    path: /api/quality-board/rd/project-options
+    category: OPTIONS
+    cases:
+      - id: default
+  - method: GET
+    path: /api/quality-board/rd/filter-options
+    category: OPTIONS
+    cases:
+      - id: default
+  - method: GET
+    path: /api/quality-board/rd/charts/{chartKey}/export
+    category: EXPORT
+    response: excel
+    cases:
+      - id: assignee-defect-density
+        query: chartKey=assignee-defect-density
+      - id: fix-user-severity
+        query: chartKey=fix-user-severity
+  - method: GET
+    path: /api/quality-board/rd/code-review-records/export
+    category: EXPORT
+    response: excel
+    cases:
+      - id: default
+      - id: cc2026r4
+        query: projectName=CC2026R4
+
+  # =====QuestionMetricsController（议题指标）=====
+  - method: GET
+    path: /api/question-metrics/issues
+    category: READ
+    cases:
+      - id: default
+      - id: project-9-page1
+        query: projectId=9&page=1&size=20
+      - id: project-9-keyword
+        query: projectId=9&keyword=异常&searchType=title
+  - method: GET
+    path: /api/question-metrics/issues/export
+    category: EXPORT
+    response: excel
+    cases:
+      - id: project-9
+        query: projectId=9
+  - method: GET
+    path: /api/question-metrics/issues/filter-options
+    category: OPTIONS
+    cases:
+      - id: default
+      - id: project-9
+        query: projectId=9
+  - method: GET
+    path: /api/question-metrics/issues/status
+    category: READ
+    ignore-paths:
+      - "$.data.lastSyncedAt"
+      - "$.data.lastRefreshStartedAt"
+      - "$.data.lastRefreshFinishedAt"
+    cases:
+      - id: default
+  - method: GET
+    path: /api/question-metrics/multi-board
+    category: READ
+    cases:
+      - id: default
+      - id: project-9
+        query: projectId=9
+  - method: GET
+    path: /api/question-metrics/multi-board/export
+    category: EXPORT
+    response: excel
+    cases:
+      - id: severity-level
+        query: projectId=9&chartKey=severity-level
+      - id: major-cause
+        query: projectId=9&chartKey=major-cause
+      - id: module-repair-rate
+        query: projectId=9&chartKey=module-repair-rate
+  - method: GET
+    path: /api/question-metrics/illegal-records
+    category: READ
+    cases:
+      - id: default
+      - id: testing-phase
+        query: testingPhase=系统测试
+  - method: GET
+    path: /api/question-metrics/illegal-records/export
+    category: EXPORT
+    response: excel
+    cases:
+      - id: default
+  - method: GET
+    path: /api/question-metrics/illegal-records/filter-options
+    category: OPTIONS
+    cases:
+      - id: default
+      - id: project-9
+        query: projectId=9
+  - method: GET
+    path: /api/question-metrics/illegal-records/rule-explanation
+    category: READ
+    cases:
+      - id: default
+  - method: GET
+    path: /api/question-metrics/illegal-records/status
+    category: READ
+    ignore-paths:
+      - "$.data.lastSyncedAt"
+      - "$.data.lastRefreshStartedAt"
+      - "$.data.lastRefreshFinishedAt"
+    cases:
+      - id: default
+  - method: POST
+    path: /api/question-metrics/issues/refresh
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 议题 workspace 异步镜像刷新任务触发；由 bootstrap 全链路同步自证"
+  - method: POST
+    path: /api/question-metrics/illegal-records/refresh
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 违规记录 workspace 异步镜像刷新任务触发；由 bootstrap 全链路同步自证"
+  - method: POST
+    path: /api/question-metrics/illegal-records/refresh-one
+    category: WRITE
+    # 行级事实幂等重建；响应 data 依赖该议题是否命中系统测试非法规则（可能为 null，均为确定性契约）
+    write-cases:
+      - id: first-issue
+        body: '{"source":"{{issueKeySource}}","projectId":{{issueKeyProjectId}},"issueIid":{{issueKeyIid}}}'
+        affected-tables:
+          - table: issue_fact
+            scope: "source_instance = '{{issueKeySource}}' and project_id = {{issueKeyProjectId}} and issue_iid = {{issueKeyIid}}"
+            ignore-columns: [fact_refreshed_at, created_at, updated_at]
+          - table: issue_fact_customer_members
+            scope: "source_instance = '{{issueKeySource}}' and project_id = {{issueKeyProjectId}} and issue_id = {{issueKeyDbId}}"
+            ignore-columns: [created_at, updated_at]
+          - table: issue_scope_groups
+            ignore-columns: [created_at, updated_at]
+          - table: issue_scope_members
+            ignore-columns: [created_at, updated_at]
+
+  # =====CustomerIssueController（客户问题）=====
+  - method: GET
+    path: /api/customer-issues/records
+    category: READ
+    # retentionHours=未关闭议题滞留时长，按墙钟逐时递增，非可复现契约
+    ignore-paths: ["$.data.records[*].retentionHours"]
+    cases:
+      - id: delay-default
+        query: topic=delay
+      - id: cc-product-default
+        query: topic=cc-product
+      - id: delay-page1
+        query: topic=delay&page=1&size=20
+  - method: GET
+    path: /api/customer-issues/records/export
+    category: EXPORT
+    response: excel
+    # U 列=缺陷滞留时长（小时），未关闭议题按 DB 当前时间计算（墙钟派生），整列掩码
+    ignore-paths: ["$..U"]
+    cases:
+      - id: delay
+        query: topic=delay
+      - id: cc-product
+        query: topic=cc-product
+  - method: GET
+    path: /api/customer-issues/records/filter-options
+    category: OPTIONS
+    cases:
+      - id: delay
+        query: topic=delay
+      - id: cc-product
+        query: topic=cc-product
+  - method: GET
+    path: /api/customer-issues/records/rule-explanation
+    category: READ
+    cases:
+      - id: delay
+        query: topic=delay
+  - method: GET
+    path: /api/customer-issues/records/status
+    category: READ
+    ignore-paths:
+      - "$.data.lastSyncedAt"
+      - "$.data.lastRefreshStartedAt"
+      - "$.data.lastRefreshFinishedAt"
+    cases:
+      - id: delay
+        query: topic=delay
+  - method: GET
+    path: /api/customer-issues/illegal-records
+    category: READ
+    cases:
+      - id: default
+  - method: GET
+    path: /api/customer-issues/illegal-records/export
+    category: EXPORT
+    response: excel
+    cases:
+      - id: default
+  - method: GET
+    path: /api/customer-issues/illegal-records/filter-options
+    category: OPTIONS
+    cases:
+      - id: default
+  - method: GET
+    path: /api/customer-issues/illegal-records/rule-explanation
+    category: READ
+    cases:
+      - id: default
+  - method: GET
+    path: /api/customer-issues/illegal-records/status
+    category: READ
+    ignore-paths:
+      - "$.data.lastSyncedAt"
+      - "$.data.lastRefreshStartedAt"
+      - "$.data.lastRefreshFinishedAt"
+    cases:
+      - id: default
+  - method: POST
+    path: /api/customer-issues/records/refresh
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 客户问题 workspace 异步镜像刷新任务触发；由 bootstrap 全链路同步自证"
+  - method: POST
+    path: /api/customer-issues/illegal-records/refresh
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 客户问题违规 workspace 异步镜像刷新任务触发；由 bootstrap 全链路同步自证"
+  - method: POST
+    path: /api/customer-issues/illegal-records/refresh-one
+    category: WRITE
+    # 行级事实幂等重建；响应 data 依赖该议题是否命中客户问题非法规则（可能为 null，均为确定性契约）
+    write-cases:
+      - id: first-issue
+        body: '{"source":"{{issueKeySource}}","projectId":{{issueKeyProjectId}},"issueIid":{{issueKeyIid}}}'
+        affected-tables:
+          - table: issue_fact
+            scope: "source_instance = '{{issueKeySource}}' and project_id = {{issueKeyProjectId}} and issue_iid = {{issueKeyIid}}"
+            ignore-columns: [fact_refreshed_at, created_at, updated_at]
+          - table: issue_fact_customer_members
+            scope: "source_instance = '{{issueKeySource}}' and project_id = {{issueKeyProjectId}} and issue_id = {{issueKeyDbId}}"
+            ignore-columns: [created_at, updated_at]
+          - table: issue_scope_groups
+            ignore-columns: [created_at, updated_at]
+          - table: issue_scope_members
+            ignore-columns: [created_at, updated_at]
+
+  # =====CodeReviewController（代码走查）=====
+  - method: GET
+    path: /api/code-review/match-mode/status
+    category: READ
+    cases:
+      - id: default
+  - method: GET
+    path: /api/code-review/illegal-records
+    category: READ
+    cases:
+      - id: default
+      - id: cc-page1
+        query: source=cc&page=1&size=20
+      - id: project-9
+        query: projectId=9
+  - method: GET
+    path: /api/code-review/illegal-records/export
+    category: EXPORT
+    response: excel
+    cases:
+      - id: cc
+        query: source=cc
+      - id: dgm
+        query: source=dgm
+  - method: GET
+    path: /api/code-review/illegal-records/filter-options
+    category: OPTIONS
+    cases:
+      - id: default
+  - method: GET
+    path: /api/code-review/illegal-records/rule-explanation
+    category: READ
+    cases:
+      - id: default
+  - method: GET
+    path: /api/code-review/illegal-records/status
+    category: READ
+    ignore-paths:
+      - "$.data.lastSyncedAt"
+      - "$.data.lastRefreshStartedAt"
+      - "$.data.lastRefreshFinishedAt"
+    cases:
+      - id: cc
+        query: source=cc
+  - method: POST
+    path: /api/code-review/illegal-records/rule-config/preview
+    category: READ
+    cases:
+      - id: default-rule
+        body: '{"ruleConfig":{},"page":1,"size":20}'
+  - method: POST
+    path: /api/code-review/illegal-records/refresh
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 代码走查违规 workspace 异步镜像刷新任务触发；由 bootstrap 全链路同步自证"
+  - method: POST
+    path: /api/code-review/illegal-records/refresh-one
+    category: EXCLUDED
+    exclude-reason: "external-dependency: 兼容读源启用（settings.enabled=true）时行级刷新调用老平台 MySQL/HTTP 活体，golden 禁止触碰外部系统；enabled=false 时的本地 MR 事实重建分支与 issue 维度 refresh-one 复用同一 rebuild 引擎"
+  - method: GET
+    path: /api/code-review/multi-board/overview
+    category: READ
+    cases:
+      - id: cc-default
+        query: source=cc
+      - id: dgm-default
+        query: source=dgm
+      - id: cc-project-9
+        query: source=cc&projectName=gitlab-cornerstone/system-test
+  - method: GET
+    path: /api/code-review/multi-board/project-options
+    category: OPTIONS
+    cases:
+      - id: cc
+        query: source=cc
+  - method: GET
+    path: /api/code-review/multi-board/source-options
+    category: OPTIONS
+    cases:
+      - id: default
+  - method: GET
+    path: /api/code-review/multi-board/status
+    category: READ
+    ignore-paths:
+      - "$.data.lastSyncedAt"
+      - "$.data.lastRefreshStartedAt"
+      - "$.data.lastRefreshFinishedAt"
+    cases:
+      - id: default
+  - method: POST
+    path: /api/code-review/multi-board/refresh
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 多元看板 workspace 异步镜像刷新任务触发；由 bootstrap 全链路同步自证"
+
+  # =====ReviewDataController（评审数据，兼容模式读路径）=====
+  - method: GET
+    path: /api/review-data/records
+    category: READ
+    cases:
+      - id: default
+      - id: page1-size50
+        query: page=1&size=50
+      - id: keyword
+        query: keyword=评审
+  - method: GET
+    path: /api/review-data/records/filter-options
+    category: OPTIONS
+    cases:
+      - id: default
+  - method: GET
+    path: /api/review-data/records/{recordId}
+    category: READ
+    cases:
+      - id: first-record
+        query: recordId={{recordId}}
+  - method: GET
+    path: /api/review-data/records/{recordId}/problem-items
+    category: READ
+    cases:
+      - id: first-record
+        query: recordId={{recordId}}
+  - method: GET
+    path: /api/review-data/records/export
+    category: EXPORT
+    response: excel
+    cases:
+      - id: default
+  - method: GET
+    path: /api/review-data/problem-items/export
+    category: EXPORT
+    response: excel
+    cases:
+      - id: default
+  - method: GET
+    path: /api/review-data/records/{recordId}/problem-items/export
+    category: EXPORT
+    response: excel
+    cases:
+      - id: first-record
+        query: recordId={{recordId}}
+  - method: GET
+    path: /api/review-data/template
+    category: EXPORT
+    response: excel
+    cases:
+      - id: default
+  - method: POST
+    path: /api/review-data/records
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.record.createdAt"
+      - "$.body.data.record.updatedAt"
+      - "$.body.data.descriptions[*].updatedAt"
+      - "$.body.data.problemItems[*].updatedAt"
+    write-cases:
+      - id: golden-create
+        body: '{"projectName":"golden-项目","title":"golden 评审记录","moduleName":"golden-模块","reviewType":"代码走查","reviewDate":"2026-08-15","reviewOwner":"golden-owner","reviewExperts":["golden-专家甲","golden-专家乙"],"reviewScalePages":12,"reviewProduct":"golden-产品","authorName":"golden-作者","reviewVersion":"v1.0","descriptions":[],"contents":[],"createPendingProblemItems":true}'
+        affected-tables:
+          - table: review_records
+            ignore-columns: [created_at, updated_at]
+          - table: review_record_experts
+            ignore-columns: [created_at, updated_at]
+          - table: review_problem_items
+            ignore-columns: [created_at, updated_at]
+          - table: review_record_descriptions
+            ignore-columns: [created_at, updated_at]
+          - table: review_record_contents
+            ignore-columns: [created_at, updated_at]
+  - method: PUT
+    path: /api/review-data/records/{recordId}
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.record.createdAt"
+      - "$.body.data.record.updatedAt"
+      - "$.body.data.descriptions[*].updatedAt"
+      - "$.body.data.problemItems[*].updatedAt"
+    write-cases:
+      - id: golden-update
+        query: recordId={{recordId}}
+        body: '{"projectName":"golden-项目","title":"golden 评审记录-更新","moduleName":"golden-模块-更新","reviewType":"文档评审","reviewDate":"2026-08-16","reviewOwner":"golden-owner-2","reviewExperts":["golden-专家甲","golden-专家丙"],"reviewScalePages":15,"reviewProduct":"golden-产品","authorName":"golden-作者","reviewVersion":"v2.0","descriptions":[],"contents":[],"createPendingProblemItems":false}'
+        affected-tables:
+          - table: review_records
+            ignore-columns: [created_at, updated_at]
+          - table: review_record_experts
+            ignore-columns: [created_at, updated_at]
+          - table: review_problem_items
+            ignore-columns: [created_at, updated_at]
+          - table: review_record_descriptions
+            ignore-columns: [created_at, updated_at]
+          - table: review_record_contents
+            ignore-columns: [created_at, updated_at]
+  - method: DELETE
+    path: /api/review-data/records/{recordId}
+    category: WRITE
+    write-cases:
+      - id: golden-delete
+        query: recordId={{recordId}}
+        affected-tables:
+          - table: review_records
+            ignore-columns: [created_at, updated_at]
+  - method: POST
+    path: /api/review-data/records/{recordId}/problem-items
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.updatedAt"
+    write-cases:
+      - id: golden-create
+        query: recordId={{reviewRecordWithItemsId}}
+        body: '{"reviewerName":"golden-评审员","workloadHours":1.5,"reviewCategory":"代码","documentPosition":"P1","problemCategory":"逻辑","problemDescription":"golden 问题描述","suggestedSolution":"golden 建议","ownerName":"golden-负责人","problemStatus":"新提交"}'
+        affected-tables:
+          - table: review_problem_items
+            ignore-columns: [created_at, updated_at]
+          - table: review_records
+            ignore-columns: [created_at, updated_at]
+  - method: PUT
+    path: /api/review-data/records/{recordId}/problem-items/{itemId}
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.updatedAt"
+    write-cases:
+      - id: golden-update
+        query: recordId={{reviewRecordWithItemsId}}&itemId={{problemItemId}}
+        body: '{"reviewerName":"golden-评审员","workloadHours":2.5,"reviewCategory":"需求","documentPosition":"P2","problemCategory":"文档","problemDescription":"golden 问题描述-更新","suggestedSolution":"golden 建议-更新","ownerName":"golden-负责人","problemStatus":"处理中"}'
+        affected-tables:
+          - table: review_problem_items
+            ignore-columns: [created_at, updated_at]
+          - table: review_records
+            ignore-columns: [created_at, updated_at]
+  - method: DELETE
+    path: /api/review-data/records/{recordId}/problem-items/{itemId}
+    category: WRITE
+    write-cases:
+      - id: golden-delete
+        query: recordId={{reviewRecordWithItemsId}}&itemId={{problemItemId}}
+        affected-tables:
+          - table: review_problem_items
+            ignore-columns: [created_at, updated_at]
+          - table: review_records
+            ignore-columns: [created_at, updated_at]
+  - method: POST
+    path: /api/review-data/records/search-index/backfill
+    category: WRITE
+    write-cases:
+      - id: batch-50
+        query: batchSize=50
+        affected-tables:
+          - table: review_records
+            ignore-columns: [created_at, updated_at]
+  - method: POST
+    path: /api/review-data/legacy-excel-import/preview
+    category: EXCLUDED
+    exclude-reason: "external-dependency: multipart 文件上传 + 内存 PreviewSession TTL 令牌链路，固定输入成本高且会话态非确定；由前端手工链路覆盖"
+  - method: POST
+    path: /api/review-data/legacy-excel-import/confirm
+    category: EXCLUDED
+    exclude-reason: "external-dependency: 依赖 preview 端点的内存 PreviewSession 令牌，无法在隔离快照流程中构造稳定输入；写入路径由 records CRUD 用例代表"
+
+  # =====CollectFormController（采集表单）=====
+  - method: GET
+    path: /api/collect-forms/detail
+    category: READ
+    cases:
+      - id: missing-record
+        query: gitlabBaseUrl=https://gitlab.example.com&projectId=9&resourceType=issue&resourceId=1&templateCode=default
+  - method: GET
+    path: /api/collect-forms/notification-payload
+    category: READ
+    cases:
+      - id: missing-record
+        query: gitlabBaseUrl=https://gitlab.example.com&projectId=9&requestIid=1&resourceType=issue
+  - method: POST
+    path: /api/collect-forms/save
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.createdAt"
+      - "$.body.data.updatedAt"
+    write-cases:
+      - id: golden-save
+        body: '{"gitlabBaseUrl":"http://gitlab.example.com","projectId":9,"requestIid":900001,"resourceType":"issue","resourceId":"900001","templateCode":"default","formTitle":"golden 表单","reviewer":"golden-评审员","reviewDurationMinutes":30,"specificationScore":5,"logicScore":4,"performanceScore":5,"designScore":4,"otherScore":5,"remark":"golden 写用例","editorId":"golden","editorUsername":"admin"}'
+        affected-tables:
+          - table: collect_form_records
+            ignore-columns: [created_at, updated_at]
+  - method: POST
+    path: /api/collect-forms/delete
+    category: WRITE
+    # golden 库 collect_form_records 为空（种子无该表）：删除不存在的上下文确定性返回 data=false
+    write-cases:
+      - id: missing-record
+        body: '{"gitlabBaseUrl":"http://gitlab.example.com","projectId":9,"resourceType":"issue","resourceId":"900002","templateCode":"default","editorId":"golden","editorUsername":"admin"}'
+        affected-tables:
+          - table: collect_form_records
+            ignore-columns: [created_at, updated_at]
+  - method: POST
+    path: /api/collect-forms/update-record
+    category: WRITE
+    # 更新不存在的记录 id：校验前置，确定性 400 契约
+    write-cases:
+      - id: missing-record
+        body: '{"id":999999999,"formTitle":"golden 更新","reviewer":"golden-评审员","reviewDurationMinutes":10,"specificationScore":1,"logicScore":1,"performanceScore":1,"designScore":1,"otherScore":1,"remark":"golden","deleted":false,"editorId":"golden","editorUsername":"admin"}'
+        affected-tables:
+          - table: collect_form_records
+            ignore-columns: [created_at, updated_at]
+
+  # =====IssueScopeDefinitionController（议题范围定义）=====
+  - method: GET
+    path: /api/issue-scopes/catalogs
+    category: READ
+    # 目录行由运行期协调器每次全链路重建，时间戳为本次运行状态
+    ignore-paths:
+      - "$.data[*].createdAt"
+      - "$.data[*].updatedAt"
+    cases:
+      - id: default
+  - method: GET
+    path: /api/issue-scopes/catalogs/{catalogId}/groups
+    category: READ
+    # 组与成员由运行期协调器每次全链路重建，时间戳为本次运行状态
+    ignore-paths:
+      - "$.data[*].createdAt"
+      - "$.data[*].updatedAt"
+      - "$.data[*].members[*].createdAt"
+      - "$.data[*].members[*].updatedAt"
+    cases:
+      - id: first-catalog
+        query: catalogId={{catalogId}}
+  - method: GET
+    path: /api/issue-scopes/catalogs/{catalogId}/unassigned-values
+    category: READ
+    cases:
+      - id: first-catalog
+        query: catalogId={{catalogId}}
+  - method: POST
+    path: /api/issue-scopes/catalogs
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.createdAt"
+      - "$.body.data.updatedAt"
+    write-cases:
+      - id: golden-create
+        body: '{"projectId":999999,"projectName":"golden-范围目录","dimension":"TESTING_PHASE","enabled":true,"remark":"golden 写用例"}'
+        affected-tables:
+          - table: issue_scope_catalogs
+            ignore-columns: [created_at, updated_at]
+  - method: PUT
+    path: /api/issue-scopes/catalogs/{id}
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.createdAt"
+      - "$.body.data.updatedAt"
+    write-cases:
+      - id: golden-update
+        query: id={{scopeCatalogId}}
+        body: '{"projectId":{{scopeCatalogProjectId}},"projectName":"{{scopeCatalogProjectName}}","dimension":"{{scopeCatalogDimension}}","enabled":true,"remark":"golden 更新"}'
+        affected-tables:
+          - table: issue_scope_catalogs
+            ignore-columns: [created_at, updated_at]
+  - method: PATCH
+    path: /api/issue-scopes/catalogs/{id}/enabled
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.createdAt"
+      - "$.body.data.updatedAt"
+    write-cases:
+      - id: golden-disable
+        query: id={{scopeCatalogId}}
+        body: '{"enabled":false}'
+        affected-tables:
+          - table: issue_scope_catalogs
+            ignore-columns: [created_at, updated_at]
+  - method: POST
+    path: /api/issue-scopes/groups
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.createdAt"
+      - "$.body.data.updatedAt"
+    write-cases:
+      - id: golden-create
+        body: '{"catalogId":{{scopeCatalogId}},"businessKey":"golden-group","displayName":"golden范围组","sortOrder":99,"enabled":true,"remark":"golden 写用例"}'
+        affected-tables:
+          - table: issue_scope_groups
+            ignore-columns: [created_at, updated_at]
+          - table: issue_scope_members
+            ignore-columns: [created_at, updated_at]
+  - method: PUT
+    path: /api/issue-scopes/groups/{id}
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.createdAt"
+      - "$.body.data.updatedAt"
+      - "$.body.data.members[*].createdAt"
+      - "$.body.data.members[*].updatedAt"
+    write-cases:
+      - id: golden-update
+        query: id={{scopeGroupId}}
+        body: '{"catalogId":{{scopeGroupCatalogId}},"businessKey":"{{scopeGroupBusinessKey}}","displayName":"golden范围组-更新","sortOrder":98,"enabled":true}'
+        affected-tables:
+          - table: issue_scope_groups
+            ignore-columns: [created_at, updated_at]
+          - table: issue_scope_members
+            ignore-columns: [created_at, updated_at]
+  - method: PATCH
+    path: /api/issue-scopes/groups/{id}/enabled
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.createdAt"
+      - "$.body.data.updatedAt"
+      - "$.body.data.members[*].createdAt"
+      - "$.body.data.members[*].updatedAt"
+    write-cases:
+      - id: golden-disable
+        query: id={{scopeGroupId}}
+        body: '{"enabled":false}'
+        affected-tables:
+          - table: issue_scope_groups
+            ignore-columns: [created_at, updated_at]
+          - table: issue_scope_members
+            ignore-columns: [created_at, updated_at]
+  - method: DELETE
+    path: /api/issue-scopes/groups/{id}
+    category: WRITE
+    write-cases:
+      - id: golden-delete
+        query: id={{scopeGroupId}}
+        affected-tables:
+          - table: issue_scope_groups
+            ignore-columns: [created_at, updated_at]
+          - table: issue_scope_members
+            ignore-columns: [created_at, updated_at]
+  - method: PUT
+    path: /api/issue-scopes/catalogs/{catalogId}/group-order
+    category: WRITE
+    write-cases:
+      - id: golden-reorder
+        query: catalogId={{scopeCatalogId}}
+        body: '{"ids":[{{scopeGroupOrderIds}}]}'
+        affected-tables:
+          - table: issue_scope_groups
+            ignore-columns: [created_at, updated_at]
+  - method: PUT
+    path: /api/issue-scopes/groups/{groupId}/member-order
+    category: WRITE
+    write-cases:
+      - id: golden-reorder
+        query: groupId={{scopeGroupId}}
+        body: '{"ids":[{{scopeMemberOrderIds}}]}'
+        affected-tables:
+          - table: issue_scope_members
+            ignore-columns: [created_at, updated_at]
+  - method: POST
+    path: /api/issue-scopes/members
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.createdAt"
+      - "$.body.data.updatedAt"
+    write-cases:
+      - id: golden-create
+        body: '{"catalogId":{{scopeCatalogId}},"groupId":{{scopeGroupId}},"sourceValue":"golden-member-value","displayName":"golden成员","sortOrder":99,"enabled":true,"remark":"golden 写用例"}'
+        affected-tables:
+          - table: issue_scope_members
+            ignore-columns: [created_at, updated_at]
+  - method: PUT
+    path: /api/issue-scopes/members/{id}
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.createdAt"
+      - "$.body.data.updatedAt"
+    write-cases:
+      - id: golden-update
+        query: id={{scopeMemberId}}
+        body: '{"catalogId":{{scopeMemberCatalogId}},"groupId":{{scopeMemberGroupId}},"sourceValue":"{{scopeMemberSourceValue}}","displayName":"golden成员-更新","enabled":true}'
+        affected-tables:
+          - table: issue_scope_members
+            ignore-columns: [created_at, updated_at]
+  - method: PATCH
+    path: /api/issue-scopes/members/{id}/enabled
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.createdAt"
+      - "$.body.data.updatedAt"
+    write-cases:
+      - id: golden-disable
+        query: id={{scopeMemberId}}
+        body: '{"enabled":false}'
+        affected-tables:
+          - table: issue_scope_members
+            ignore-columns: [created_at, updated_at]
+  - method: DELETE
+    path: /api/issue-scopes/members/{id}
+    category: WRITE
+    write-cases:
+      - id: golden-delete
+        query: id={{scopeMemberId}}
+        affected-tables:
+          - table: issue_scope_members
+            ignore-columns: [created_at, updated_at]
+
+  # =====LabelGroupController（标签组）=====
+  - method: GET
+    path: /api/label-groups
+    category: READ
+    # 标签组及成员时间戳由运行期链路写入，非冻结契约
+    ignore-paths:
+      - "$.data[*].createdAt"
+      - "$.data[*].updatedAt"
+      - "$.data[*].members[*].createdAt"
+      - "$.data[*].members[*].updatedAt"
+    cases:
+      - id: default
+  - method: GET
+    path: /api/label-groups/{groupId}
+    category: READ
+    ignore-paths:
+      - "$.data.createdAt"
+      - "$.data.updatedAt"
+      - "$.data.members[*].createdAt"
+      - "$.data.members[*].updatedAt"
+    cases:
+      - id: first-group
+        query: groupId={{groupId}}
+  - method: GET
+    path: /api/label-groups/dimensions
+    category: READ
+    cases:
+      - id: default
+  - method: GET
+    path: /api/label-groups/dimensions/{dimensionKey}/values
+    category: READ
+    cases:
+      - id: module-page1
+        query: dimensionKey=module&page=1&size=20
+  - method: GET
+    path: /api/label-groups/dimensions/{dimensionKey}/compatible-pages
+    category: READ
+    cases:
+      - id: module
+        query: dimensionKey=module
+  - method: GET
+    path: /api/label-groups/dynamic-rule-sources
+    category: READ
+    ignore-paths: ["$.data[*].createdAt", "$.data[*].updatedAt"]
+    cases:
+      - id: default
+  - method: GET
+    path: /api/label-groups/dynamic-rule-relations
+    category: READ
+    cases:
+      - id: default
+  - method: GET
+    path: /api/label-groups/dynamic-rule-sources/{sourceKey}/fields/{fieldKey}/candidates
+    category: READ
+    cases:
+      - id: issue-fact-project-name
+        query: sourceKey=issue_fact&fieldKey=projectId
+  - method: POST
+    path: /api/label-groups
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.createdAt"
+      - "$.body.data.updatedAt"
+    write-cases:
+      - id: golden-create
+        body: '{"name":"golden-标签组","groupType":"STATIC","applicableScope":"SAME_TYPE","description":"golden 写用例","members":[{"value":"golden-member","label":"golden成员"}],"childGroupIds":[]}'
+        affected-tables:
+          - table: label_groups
+            ignore-columns: [created_at, updated_at]
+          - table: label_group_members
+            ignore-columns: [created_at, updated_at]
+  - method: PUT
+    path: /api/label-groups/{groupId}
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.createdAt"
+      - "$.body.data.updatedAt"
+    # 系统默认组（迁移播种）：名称/适用范围被锁定，成员整体替换为固定值
+    write-cases:
+      - id: golden-update
+        query: groupId={{groupId}}
+        body: '{"groupType":"STATIC","description":"golden 更新描述","enabled":true,"members":[{"value":"golden-member","label":"golden成员"}],"childGroupIds":[]}'
+        affected-tables:
+          - table: label_groups
+            ignore-columns: [created_at, updated_at]
+          - table: label_group_members
+            ignore-columns: [created_at, updated_at]
+  - method: DELETE
+    path: /api/label-groups/{groupId}
+    category: WRITE
+    # 最小 id 组是迁移播种的系统默认组：删除被拒（确定性 400 契约，校验前置不改表）
+    write-cases:
+      - id: default-group-denied
+        query: groupId={{groupId}}
+        affected-tables:
+          - table: label_groups
+            ignore-columns: [created_at, updated_at]
+          - table: label_group_members
+            ignore-columns: [created_at, updated_at]
+  - method: POST
+    path: /api/label-groups/{groupId}/expand
+    category: EXCLUDED
+    exclude-reason: "empty-runtime-config: label_group_members 为运行期配置数据且无迁移种子（golden 库恒为空），展开端点确定性 400（该标签组当前没有可用成员）；成员生成后的展开行为由写用例阶段评估覆盖"
+  - method: POST
+    path: /api/label-groups/dynamic-rule-preview
+    category: READ
+    cases:
+      - id: issue-fact-project-name
+        body: '{"ruleConfig":{"outputSourceKey":"issue_fact","outputFieldKey":"projectName"}}'
+
+  # =====PermissionSettingsController（权限设置）=====
+  - method: GET
+    path: /api/permission-settings
+    category: READ
+    cases:
+      - id: default
+  - method: PUT
+    path: /api/permission-settings/roles/{roleCode}
+    category: WRITE
+    write-cases:
+      - id: normal-user-two-codes
+        query: roleCode=NORMAL_USER
+        body: '{"permissionCodes":["quality.rd.view","quality.other.view"]}'
+        affected-tables:
+          - table: platform_role_permissions
+            ignore-columns: [created_at, updated_at]
+  - method: POST
+    path: /api/permission-settings/restore-defaults
+    category: WRITE
+    write-cases:
+      - id: restore
+        affected-tables:
+          - table: platform_role_permissions
+            ignore-columns: [created_at, updated_at]
+
+  # =====DropdownOptionFieldController（下拉框选项设置）=====
+  - method: GET
+    path: /api/dropdown-option-fields
+    category: READ
+    cases:
+      - id: default
+  - method: GET
+    path: /api/dropdown-option-fields/{fieldKey}
+    category: READ
+    cases:
+      - id: form-project-name
+        query: fieldKey=review-data.form.project-name
+  - method: GET
+    path: /api/dropdown-option-fields/{fieldKey}/acquired-options
+    category: READ
+    cases:
+      - id: form-project-name-keyword
+        query: fieldKey=review-data.form.project-name&keyword=CC&limit=20
+  - method: POST
+    path: /api/dropdown-option-fields/{fieldKey}/preview
+    category: READ
+    cases:
+      - id: form-project-name-empty-draft
+        query: fieldKey=review-data.form.project-name
+        body: '{"rules":{"acquiredRules":[],"manualRules":[]},"manualOptions":[]}'
+  - method: PUT
+    path: /api/dropdown-option-fields/{fieldKey}
+    category: WRITE
+    # 夹具库无配置：首存即建配置并绑定；configId 由序列分配，响应掩码忽略
+    ignore-paths:
+      - "$.body.data.configId"
+    write-cases:
+      - id: golden-save-initial-config
+        query: fieldKey=review-data.form.project-name
+        body: '{"rules":{"acquiredRules":[{"listType":"BLACKLIST","name":"golden黑名单","filterGroup":{"logic":"OR","conditions":[{"fieldKey":"optionValue","operator":"eq","value":"golden-blocked"}]}}],"manualRules":[]},"manualOptions":["golden-manual"],"version":0}'
+        affected-tables:
+          - table: dropdown_option_configs
+            ignore-columns: [created_at, updated_at]
+          - table: dropdown_option_field_bindings
+            ignore-columns: [bound_at]
+  - method: PUT
+    path: /api/dropdown-option-fields/{fieldKey}/binding
+    category: WRITE
+    # 在上一写用例产生的绑定之上复制拆分；新 configId 由序列分配，响应掩码忽略
+    ignore-paths:
+      - "$.body.data.configId"
+    write-cases:
+      - id: golden-bind-copy
+        query: fieldKey=review-data.form.project-name
+        body: '{"target":"COPY"}'
+        affected-tables:
+          - table: dropdown_option_configs
+            ignore-columns: [created_at, updated_at]
+          - table: dropdown_option_field_bindings
+            ignore-columns: [bound_at]
+
+  # =====FactBuildController（事实构建）=====
+  - method: GET
+    path: /api/facts/build-tasks/latest
+    category: READ
+    ignore-paths:
+      - "$.data.startedAt"
+      - "$.data.finishedAt"
+      - "$.data.createdAt"
+      - "$.data.updatedAt"
+    cases:
+      - id: default
+  - method: GET
+    path: /api/facts/issue-diagnostics
+    category: READ
+    ignore-paths: ["$.data.generatedAt"]
+    cases:
+      - id: default
+  - method: GET
+    path: /api/facts/issue-source-readiness
+    category: READ
+    ignore-paths: ["$.data.generatedAt"]
+    cases:
+      - id: default
+  - method: POST
+    path: /api/facts/rebuild
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 全量事实重建异步任务触发；事实链路由 bootstrap 同步后自动事实刷新自证"
+
+  # =====GitlabSyncController（同步）=====
+  - method: GET
+    path: /api/gitlab-sync/configs
+    category: READ
+    # 配置行由全链路启动时种子写入（Testcontainers 端口逐次不同），时间戳/端口为运行状态
+    ignore-paths:
+      - "$.data[*].createdAt"
+      - "$.data[*].updatedAt"
+      - "$.data[*].dbPort"
+      - "$.data[*].lastFullSyncAt"
+    cases:
+      - id: default
+  - method: GET
+    path: /api/gitlab-sync/status
+    category: READ
+    ignore-paths:
+      - "$.data.config.createdAt"
+      - "$.data.config.updatedAt"
+      - "$.data.config.dbPort"
+      - "$.data.config.lastFullSyncAt"
+      - "$.data.logs[*].runId"
+      - "$.data.logs[*].queuedAt"
+      - "$.data.logs[*].startedAt"
+      - "$.data.logs[*].finishedAt"
+    cases:
+      - id: by-config
+        query: configId={{configId}}
+  - method: GET
+    path: /api/gitlab-sync/source-health
+    category: READ
+    # data 为数组；时间戳随每次链路运行刷新
+    ignore-paths:
+      - "$.data[*].currentStartedAt"
+      - "$.data[*].latestLogFinishedAt"
+      - "$.data[*].latestFactUpdatedAt"
+    cases:
+      - id: by-config
+        query: configId={{configId}}
+  - method: GET
+    path: /api/gitlab-sync/table-sync-diagnostics
+    category: READ
+    # 逐表校验时间与连接池指标均为本次运行状态
+    ignore-paths:
+      - "$.data.generatedAt"
+      - "$.data.directPoolMetrics"
+      - "$.data.tables[*].lastAppliedAt"
+      - "$.data.tables[*].lastVerifiedAt"
+    cases:
+      - id: by-config
+        query: configId={{configId}}
+  - method: GET
+    path: /api/gitlab-sync/whitelist-options
+    category: OPTIONS
+    cases:
+      - id: by-config
+        query: configId={{configId}}
+  - method: GET
+    path: /api/gitlab-sync/system-hook-registration-status
+    category: EXCLUDED
+    exclude-reason: "external-dependency: 查询 GitLab Web API 的 hook 注册状态；golden 源库仅 JDBC 直连可达（15434），Web API 不可达"
+  - method: POST
+    path: /api/gitlab-sync/diagnostics
+    category: READ
+    cases:
+      - id: default
+  - method: POST
+    path: /api/gitlab-sync/diagnostics/by-config
+    category: READ
+    cases:
+      - id: by-config
+        query: configId={{configId}}
+  - method: PUT
+    path: /api/gitlab-sync/config
+    category: WRITE
+    # 更新现有 golden-baseline 配置行（uk_source_instance 唯一约束禁止新建）；dbPort 为运行期容器映射端口
+    ignore-paths:
+      - "$.body.data.dbPort"
+      - "$.body.data.createdAt"
+      - "$.body.data.updatedAt"
+      - "$.body.data.lastFullSyncAt"
+      - "$.body.data.lastIncrementalSyncAt"
+    write-cases:
+      - id: golden-update
+        body: '{"id":{{configId}},"name":"golden-baseline","enabled":true,"sourceEnabled":true,"autoSyncEnabled":false,"systemHookEnabled":false,"sourceInstance":null,"webBaseUrl":null,"apiToken":null,"delayLabelWritebackEnabled":false,"matchModeEnabled":false,"sourceMode":"DIRECT","whitelistMode":"RECOMMENDED","whitelistTables":null,"dbHost":"{{sourceDbHost}}","dbPort":{{sourceDbPort}},"dbName":"gitlabhq_full_import_test","dbUsername":"gitlab","dbPassword":"secret","dockerContainerName":null,"systemHookSecret":null,"systemHookProjectId":null,"compensationIntervalMinutes":360,"fullCompensationEnabled":false,"fullCompensationTime":null,"syncThreadMode":"FIXED","syncThreadValue":3,"maxSyncThreads":4}'
+        affected-tables:
+          - table: gitlab_sync_configs
+            ignore-columns: [db_port, created_at, updated_at, last_full_sync_at, last_incremental_sync_at]
+  - method: POST
+    path: /api/gitlab-sync/full-sync
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 全量同步异步任务触发；bootstrap 已用 by-config 变体真实执行全链路同步"
+  - method: POST
+    path: /api/gitlab-sync/full-sync/by-config
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 全量同步异步任务触发；bootstrap 步骤以该端点真实执行全链路同步（SUCCESS + ODS/事实行数断言自证）"
+  - method: POST
+    path: /api/gitlab-sync/incremental-sync
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 增量同步异步任务触发；由 bootstrap 全链路同步自证"
+  - method: POST
+    path: /api/gitlab-sync/incremental-sync/by-config
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 增量同步异步任务触发；由 bootstrap 全链路同步自证"
+  - method: POST
+    path: /api/gitlab-sync/full-compensation-sync
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 全量补偿同步异步任务触发；由 bootstrap 全链路同步自证"
+  - method: POST
+    path: /api/gitlab-sync/full-compensation-sync/by-config
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 全量补偿同步异步任务触发；由 bootstrap 全链路同步自证"
+  - method: POST
+    path: /api/gitlab-sync/retry-failed/by-config
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 失败重试异步任务触发；golden 环境同步必 SUCCESS，无失败可重试"
+  - method: POST
+    path: /api/gitlab-sync/cancel
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 运行取消端点；golden 环境无运行中任务可取消，非数据产出"
+  - method: POST
+    path: /api/gitlab-sync/cancel/by-config
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 运行取消端点；golden 环境无运行中任务可取消，非数据产出"
+  - method: POST
+    path: /api/gitlab-sync/purge
+    category: EXCLUDED
+    exclude-reason: "destructive: 按范围清理镜像数据的破坏性操作，会销毁基线环境状态"
+  - method: POST
+    path: /api/gitlab-sync/register-system-hook
+    category: EXCLUDED
+    exclude-reason: "destructive: 向 GitLab 创建 System Hook，写外部系统状态"
+  - method: POST
+    path: /api/gitlab-sync/register-system-hook/by-config
+    category: EXCLUDED
+    exclude-reason: "destructive: 向 GitLab 创建 System Hook，写外部系统状态"
+  - method: POST
+    path: /api/gitlab-sync/system-hook
+    category: EXCLUDED
+    exclude-reason: "external-dependency: GitLab 系统回调接收器（X-Gitlab-Token 外部调用方），非平台主动数据产出"
+  - method: POST
+    path: /api/gitlab-sync/test-connection
+    category: EXCLUDED
+    exclude-reason: "external-dependency: 源库连接探测，响应依赖外部活体状态；由 diagnostics 用例覆盖同链路"
+  - method: POST
+    path: /api/gitlab-sync/test-connection/by-config
+    category: EXCLUDED
+    exclude-reason: "external-dependency: 源库连接探测，响应依赖外部活体状态；由 diagnostics 用例覆盖同链路"
+
+  # =====DatabaseBrowserController（数据库浏览器）=====
+  - method: GET
+    path: /api/database-browser/tables
+    category: READ
+    ignore-paths: ["$.data[*].lastSyncTime"]
+    cases:
+      - id: default
+  - method: GET
+    path: /api/database-browser/rows
+    category: READ
+    # db_port 为 Testcontainers 映射端口（逐次不同）；last_full_sync_at 为本次链路时间
+    ignore-paths:
+      - "$.data.lastSyncTime"
+      - "$.data.rows[*].created_at"
+      - "$.data.rows[*].updated_at"
+      - "$.data.rows[*].db_port"
+      - "$.data.rows[*].last_full_sync_at"
+    cases:
+      - id: sync-configs-page1
+        query: tableName=gitlab_sync_configs&page=1&size=20
+  - method: POST
+    path: /api/database-browser/refresh
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 镜像表增量刷新任务触发；由 bootstrap 全链路同步自证"
+
+  # =====CodeReviewMatchModeDbSettingsController（兼容模式设置）=====
+  - method: GET
+    path: /api/code-review/match-mode-db-settings
+    category: READ
+    ignore-paths:
+      - "$.data.syncStartedAt"
+      - "$.data.syncFinishedAt"
+      - "$.data.updatedAt"
+    cases:
+      - id: default
+  - method: PUT
+    path: /api/code-review/match-mode-db-settings
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.syncStartedAt"
+      - "$.body.data.syncFinishedAt"
+      - "$.body.data.updatedAt"
+    write-cases:
+      - id: golden-update
+        body: '{"enabled":false,"syncEnabled":false,"mysqlHost":"golden.invalid","mysqlPort":13306,"mysqlDatabase":"legacy_platform","dgmMysqlDatabase":"legacy_dgm","mysqlUsername":"golden","mysqlPassword":"golden","mysqlTableName":"code_review_match_mode","legacyApiBaseUrl":"http://golden.invalid:8080","dgmLegacyApiBaseUrl":"http://golden.invalid:8080","selectedTableNames":["code_review_match_mode"],"mysqlFetchSize":1000,"mongoUri":"mongodb://golden.invalid:27017","mongoDatabase":"legacy_platform","selectedMongoCollectionNames":["review_report"],"reviewReportCollectionName":"review_report","reviewProblemCollectionName":"review_problem","reviewDataReadMode":"DB","codeReviewReadMode":"DB"}'
+        affected-tables:
+          - table: code_review_match_mode_db_settings
+            ignore-columns: [created_at, updated_at, sync_started_at, sync_finished_at]
+  - method: POST
+    path: /api/code-review/match-mode-db-settings/sync-now
+    category: EXCLUDED
+    exclude-reason: "external-dependency: 从外部 MySQL 活体全量拉取兼容表；该链路将被 replace-compatibility-mode 计划删除，物化结果已由平台种子冻结"
+  - method: POST
+    path: /api/code-review/match-mode-db-settings/mongo/sync-now
+    category: EXCLUDED
+    exclude-reason: "external-dependency: 从外部 Mongo 活体拉取；该链路将被 replace-compatibility-mode 计划删除，物化结果已由平台种子冻结"
+  - method: POST
+    path: /api/code-review/match-mode-db-settings/formal-import
+    category: EXCLUDED
+    exclude-reason: "external-dependency: 确认文本与乐观锁校验通过后即连接外部 MySQL 活体执行正式导入（种子配置 mysqlHost 非空），golden 禁止触碰外部系统且导入会改写正式事实归属"
+  - method: POST
+    path: /api/code-review/match-mode-db-settings/test-connection
+    category: EXCLUDED
+    exclude-reason: "external-dependency: 外部 MySQL 连接探测"
+  - method: POST
+    path: /api/code-review/match-mode-db-settings/table-options
+    category: EXCLUDED
+    exclude-reason: "external-dependency: 连接外部 MySQL 枚举库表；活体不在 golden 范围（兼容链路将删除）"
+  - method: POST
+    path: /api/code-review/match-mode-db-settings/mongo/test-connection
+    category: EXCLUDED
+    exclude-reason: "external-dependency: 外部 Mongo 连接探测"
+  - method: POST
+    path: /api/code-review/match-mode-db-settings/mongo/collection-options
+    category: EXCLUDED
+    exclude-reason: "external-dependency: 连接外部 Mongo 枚举集合；活体不在 golden 范围（兼容链路将删除）"
+  - method: GET
+    path: /api/code-review/match-mode-db-settings/dgm-gitlab-project-source
+    category: READ
+    ignore-paths:
+      - "$.data.lastSyncStartedAt"
+      - "$.data.lastSyncFinishedAt"
+      - "$.data.updatedAt"
+    cases:
+      - id: default
+  - method: PUT
+    path: /api/code-review/match-mode-db-settings/dgm-gitlab-project-source
+    category: WRITE
+    ignore-paths:
+      - "$.body.data.lastSyncStartedAt"
+      - "$.body.data.lastSyncFinishedAt"
+      - "$.body.data.updatedAt"
+    write-cases:
+      - id: golden-update
+        body: '{"enabled":true,"gitlabBaseUrl":"http://golden.invalid","accessToken":"golden-token","groupPath":"golden-group","includeSubgroups":true,"includeArchived":false,"syncIntervalMinutes":60}'
+        affected-tables:
+          - table: code_review_dgm_gitlab_project_source_settings
+            ignore-columns: [updated_at, last_sync_started_at, last_sync_finished_at]
+  - method: POST
+    path: /api/code-review/match-mode-db-settings/dgm-gitlab-project-source/test-connection
+    category: EXCLUDED
+    exclude-reason: "external-dependency: DGM GitLab 项目候选 API 连通性测试"
+  - method: GET
+    path: /api/code-review/match-mode-db-settings/dgm-gitlab-project-options
+    category: READ
+    cases:
+      - id: default
+  - method: POST
+    path: /api/code-review/match-mode-db-settings/dgm-gitlab-project-options/sync-now
+    category: EXCLUDED
+    exclude-reason: "external-dependency: DGM 项目下拉缓存刷新依赖 GitLab Web API"
+
+  # =====ExternalDatasetController（外部数据集 API）=====
+  - method: GET
+    path: /api/external/v1/datasets
+    category: EXCLUDED
+    exclude-reason: "external-dependency: 外部数据集 API 默认关闭（platform.external-api.enabled=false），且 generatedAt 每次必变；由独立安全链路（机器 Token）覆盖"
+  - method: GET
+    path: /api/external/v1/datasets/{datasetKey}
+    category: EXCLUDED
+    exclude-reason: "external-dependency: 外部数据集 API 默认关闭（platform.external-api.enabled=false），且 generatedAt 每次必变；由独立安全链路（机器 Token）覆盖"

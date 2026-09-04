@@ -4,13 +4,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.JsonUtils;
-import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.service.IssueFactRecord;
 import com.data.collection.platform.service.IssueFactRecordRepository;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;

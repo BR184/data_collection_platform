@@ -1,0 +1,145 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "title" : "系统测试缺陷明细",
+    "description" : "展示当前模块与指标命中的议题明细。",
+    "columns" : [ {
+      "key" : "iid",
+      "label" : "议题编号",
+      "width" : 120,
+      "minWidth" : 120,
+      "sortable" : true,
+      "type" : null,
+      "expandOnly" : false
+    }, {
+      "key" : "moduleNames",
+      "label" : "模块名",
+      "width" : 160,
+      "minWidth" : 160,
+      "sortable" : true,
+      "type" : "tags",
+      "expandOnly" : false
+    }, {
+      "key" : "title",
+      "label" : "议题标题",
+      "width" : 360,
+      "minWidth" : 260,
+      "sortable" : true,
+      "type" : null,
+      "expandOnly" : false
+    }, {
+      "key" : "state",
+      "label" : "议题状态",
+      "width" : 120,
+      "minWidth" : 120,
+      "sortable" : true,
+      "type" : "tag",
+      "expandOnly" : false
+    }, {
+      "key" : "severityLevel",
+      "label" : "严重程度",
+      "width" : 140,
+      "minWidth" : 140,
+      "sortable" : true,
+      "type" : "tag",
+      "expandOnly" : false
+    }, {
+      "key" : "bugStatus",
+      "label" : "测试状态",
+      "width" : 180,
+      "minWidth" : 180,
+      "sortable" : true,
+      "type" : "tags",
+      "expandOnly" : false
+    }, {
+      "key" : "updatedAt",
+      "label" : "议题更新时间",
+      "width" : 180,
+      "minWidth" : 180,
+      "sortable" : true,
+      "type" : null,
+      "expandOnly" : true
+    }, {
+      "key" : "createdAt",
+      "label" : "议题提交时间",
+      "width" : 180,
+      "minWidth" : 180,
+      "sortable" : true,
+      "type" : null,
+      "expandOnly" : true
+    }, {
+      "key" : "moduleNames",
+      "label" : "模块名",
+      "width" : null,
+      "minWidth" : 180,
+      "sortable" : true,
+      "type" : "tags",
+      "expandOnly" : true
+    }, {
+      "key" : "iid",
+      "label" : "议题编号",
+      "width" : 120,
+      "minWidth" : 120,
+      "sortable" : true,
+      "type" : null,
+      "expandOnly" : true
+    }, {
+      "key" : "title",
+      "label" : "议题标题",
+      "width" : 420,
+      "minWidth" : 260,
+      "sortable" : true,
+      "type" : null,
+      "expandOnly" : true
+    }, {
+      "key" : "authorName",
+      "label" : "议题提交人",
+      "width" : 140,
+      "minWidth" : 140,
+      "sortable" : true,
+      "type" : null,
+      "expandOnly" : true
+    }, {
+      "key" : "assigneeName",
+      "label" : "议题处理人",
+      "width" : 140,
+      "minWidth" : 140,
+      "sortable" : true,
+      "type" : null,
+      "expandOnly" : true
+    }, {
+      "key" : "state",
+      "label" : "议题状态",
+      "width" : 120,
+      "minWidth" : 120,
+      "sortable" : true,
+      "type" : "tag",
+      "expandOnly" : true
+    }, {
+      "key" : "bugStatus",
+      "label" : "测试状态",
+      "width" : 180,
+      "minWidth" : 180,
+      "sortable" : true,
+      "type" : "tags",
+      "expandOnly" : true
+    }, {
+      "key" : "severityLevel",
+      "label" : "议题严重程度",
+      "width" : 140,
+      "minWidth" : 140,
+      "sortable" : true,
+      "type" : "tag",
+      "expandOnly" : true
+    } ],
+    "records" : [ ],
+    "total" : 0,
+    "page" : 1,
+    "size" : 10,
+    "sortField" : "updatedAt",
+    "sortOrder" : "descending",
+    "quickFilterOptions" : { }
+  }
+}

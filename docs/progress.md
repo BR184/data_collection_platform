@@ -6,6 +6,29 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-04 标签组候选来源改镜像库直取
+
+- [完成] 静态标签组候选值改镜像库表直取（方案 `docs/plans/label-group-mirror-candidates-20260904.md`）：删除 5 个旧人员维度（review_owner/review_expert/issue_assignee/customer_author/customer_assignee）合并为单一 person（镜像 users 表全量人名）；project 改镜像 labels"项目："标签全量解析（与新增评审项目名称下拉同源同值）；milestone 改镜像 milestones.title 全量；模块/测试阶段保持现状；复用 `ReviewDataMirrorOptionRepository`，零迁移；删除死代码 `existsStaticCandidateValue`。前端同步接线：review 页负责人/评审专家字段 `labelDimensionKey` 改 person，customer/system-test 页人员字段新增 `personConditionField` 携带 person，删除指向已删键的别名映射。
+- [验证] 后端 labelgroup 测试 27/27；前端受影响 16/16、typecheck 零错误、全量 vitest 457/457；后端全量默认套件（注入测试库 env）1241 项 / 1 失败 / 0 错误——唯一失败为同事 untracked WIP `ReviewDataRecordReadSupportTest`，零回归；四项门禁脚本全绿。
+- [待办] 提交待用户确认（工作树含他人进行中改动，仅摘取本单元文件）；黄金基线 `/api/label-groups/dimensions` 快照变化留待打包验收时更新模式重建 + 人工审阅。
+
+## 2026-09-04 内网评审页间歇性故障修复
+
+- [完成] 兼容模式同步治本（方案 `docs/plans/intranet-review-intermittent-failure-20260904.md`）：Mongo 5 处 replace 改"raw_payload 守卫 upsert + 键反连接点删"（未变行零写入，id/synced_at 稳定、指纹不漂移），MySQL raw 行同模式、代码走查表（无唯一键）改装载表原子换名接管（rename 后 `ALTER SEQUENCE ... OWNED BY 新表.id` 移交序列所有权，提交后 ANALYZE），全部 5 处 TRUNCATE 删除，零新增迁移。指纹 5+2 段 3s 短超时 + 首败短路 + 5 分钟桶降级标记，降级时 readOrRefresh 读最近快照（含 STALE）；readOrRefresh 增加进程内 single-flight 合并同键并发重建（失败共享）；match 仓库读路径点查化；评审写后异步预热 FILTER_OPTIONS；两个 @RestControllerAdvice 合并为单一 GlobalExceptionHandler（DataAccessException →"数据库操作失败，请稍后重试"，兼容模式记录缺失改 BizException）。
+- [验证] 受影响单测 16/16；testcontainers 真实 PG 集成 6/6（Mongo 合并 4 + MySQL 换名/raw 合并 2，实证 id/synced_at 稳定、消失行点删、换名+序列移交+索引存在）；全量默认套件注入测试库 env 后 1239 项 / 1 失败 / 0 错误 / 1 跳过——唯一失败为同事 2026-08-25 untracked WIP（`ReviewDataRecordReadSupportTest` 期望值不一致），零回归。实施期发现并修复换名方案真缺陷（退役表持有序列所有权致 DROP 失败）。
+- [待办] 提交与推送待用户确认：工作树同时含进行中的解耦第二阶段改动（Gitlab 执行器/统计/pom/AGENTS.md 及 untracked 拆分件）与本单元无关，仅可摘取本单元文件（5 个主实现 + GlobalRestExceptionHandler 删除 + 7 个测试 + 本单元计划文档）；黄金基线门禁按 AGENTS.md 留待打包验收时运行。
+
+## 2026-09-02 黄金基线回归测试系统
+
+- [完成] 全链路黄金基线回归系统建成：冻结夹具（GitLab 源切片 Issue≈1200/MR≈1500 + 平台种子 16 表，manifest 记 SHA-256）→ Testcontainers 双 PostgreSQL 真实链路（全量同步→事实→统计）→ 165 端点目录（READ 62/OPTIONS 11/EXPORT 16/WRITE 33/EXCLUDED 43 全部显式登记原因）→ 严格快照 229 个（读/导出 139 + 写响应 33 + 写表状态 57）。运行入口 backend 目录 `mvn test -Pgolden-baseline -Dtest=GoldenBaselineChainTest`（需 Docker）；快照缺失即失败，重建须显式 `-Dgolden.update=true` + git diff 人工审阅；默认快速套件排除 golden-baseline 标签不受影响。
+- [验证] 173 用例（139 读/导出 + 33 写 + 1 链路 smoke）在全新运行零差异（两轮确认：417.8s 与突变还原复绿 370.1s）；突变自证通过——破坏 `displaySeverityLevel` 标签 → 25 处失败全部为可读 diff（快照名+JSON 路径+期望/实际），删目录条目 → 覆盖护栏 2.3s 失败并精确指出未登记端点，还原均复绿。默认快速套件注入测试库 env 后 1196 项 / 1 失败 / 0 错误（唯一失败为同事未提交 WIP 测试，先前存在）；SpotBugs 0 bugs；Checkstyle 仅 2 处违规均在同事 untracked 文件；四项门禁脚本全绿。本单元零新增失败。
+- [修复] 建设过程根治的生产级缺陷：导出 `sortField=null` 在不可变 Map 上 `getOrDefault` NPE ×3 处；match_mode 唯一约束迁移硬编码 public schema；查询非确定性 3 处同根因（`FACT_SQL` 无 ORDER BY、候选值 `string_agg` ×30 无序、`permissionsForRoles` distinct 无序）加排序根治；2 处 sortColumn null 防御。
+- [运行] 实测全量含容器启动/真实同步/写用例约 7 分钟（测试本体 ~400s），高于 1 分钟理想目标，差距来自双容器+Flyway+真实同步+173 端点遍历的固有成本。
+- [文档] `architecture.md` 新增"黄金基线回归测试"章节；`decisions.md` D-08 基线冻结与变更规则；计划 `docs/plans/golden-baseline-regression-20260901.md` 已收口。
+- [基线状态] 2026-09-02 与用户核实：内网验证过的版本为 2026-08-06 全量包 `qaflex-full-20260806T111653Z-8269d2b61253`（该提交与空平台里程碑前向迁移分支 `codex/golden-baseline-predecouple` 的 `0ccd4b1c` 均在独立克隆谱系，不在本仓库）；内网测试发现的小问题（空平台 CCProduct 里程碑列表为空等）已在本地修复，解耦前修复与解耦重构均未再进内网。当前输出快照基线对应本地开发树，属开发期基线（能捕获解耦收尾期的产出漂移，不能证明与内网验证版产出一致）；解耦版内网测试通过后 `-Dgolden.update=true` 重冻结升级为可信基线（已记入 D-08 与 architecture.md）。
+- [解耦状态] 2026-09-02 实证核对并更新 `decouple-round2-20260824.md`：R2/R3/R4 拆分件已实现并接线（阶段日历按"保留双语义"路径统一为 IssuePhaseCalendarLoader），实际进度领先文档；R5 经用户决定暂停；R6 收口待办（含 R4 红灯测试修正——经逐字符对比定性为测试期望值错误而非行为变化，解耦契约"产出与解耦前一致"由 golden 两轮零差异佐证）。
+- [下一步] 工作树含同事未提交改动，本单元文件清单与提交动作待用户确认后执行；提交动作建议随解耦收尾一并规划。
+
 ## 2026-08-13 BI 编码走查数据源治本：移除重复抓取链路
 
 - [完成] 编码页人工走查兼容态已改为直接复用兼容表 `code_review_match_mode_records`（与代码规模类同一读源），删除 BI 独占表 `bi_code_review_compatibility_records`、`_loading`、`_sync_state` 及 `BiCodeReviewCompatibilitySyncService`/`Scheduler`/`SnapshotRepository` 重复抓取链路（迁移 `V20260813_01`）。编码页底部走查/扫描/注释率看板不再依赖老平台 MySQL 实时同步，离线也能读兼容表数据。核对表、`data-contracts`、`architecture` 已同步：人工走查兼容态物理来源由 `bi_code_review_compatibility_records` 收敛为 `code_review_match_mode_records`，删除"BI 独占/不得回退"旧约束。
@@ -15,22 +38,51 @@
 
 - [当前] 2026-08-06 内网 BI/CAT 缺口的生产实现与本地验证已完成：事实发布已改为依赖代际驱动的来源级消费，CAT 保存已原子化，BI 合法观测、提交稳定关联和系统测试 P1/P2 已按确认口径修复。下一步是生成新的内网隔离发布包并执行真实 CAT、BI 页面和约 280 万总表规模验收。
 - [完成] BI 产品版本入口已改为后台目录首项默认、模块内部当前版本继承和显式深链优先三种单一语义；系统测试轮次只展示有有效缺陷事实的目录子集，代码走查质量图按评审/编码数据域使用正确单位，并以共享自适应值轴保留极值、压缩显著空白区间。该修复只修改 BI 页面、BI 计算器及通用路由参数契约，未修改平台其它表格。
-- [迁移] 当前迁移头为 `V20260810_01`，126 个迁移已更新并通过不可变性校验；提交事实错误仓库名冗余列已删除，审计角色列已改为 `text`，关键运行引用默认限制删除。
+- [迁移] 当前迁移头为 `V20260821_01`，128 个迁移已更新并通过不可变性校验；提交事实错误仓库名冗余列已删除，审计角色列已改为 `text`，关键运行引用默认限制删除。
 - [下一步] 按内网离线发布标准生成全新隔离部署包；部署后执行自动增删改到 ODS/事实/投影、BI 六阶段页面和 CAT 正式四接口联调。CAT 证书链、认证和完整路径仍以维护方或浏览器 Network 的真实请求为准，不在客户端猜测或 trust-all。
 - [验证] 只做直击真实控制流的确定性测试，本地数据量不冒充约 280 万总数据容量；发布前执行后端全量测试与静态分析、前端全量测试与构建以及仓库四项门禁。
 - [验证] 当前代码状态后端 1138 项零失败、零错误、1 项环境条件跳过，可执行 JAR 构建成功；前端 115 个测试文件、421 项、ESLint、TypeScript 和生产构建全部通过。真实 PostgreSQL 删除链确认标签物理删除进入 ODS 后，由来源级事实运行清除 `issue_fact` 旧状态并发布目标和投影；READY SQL、失败目标释放、失败权威范围重放及 CAT 双表事务均有直接数据库回归。Flyway 126 项不可变性校验通过，本地结果不外推约 280 万容量。
 
+## 2026-08-25 黄金线基线候选部署
+
+- [否决] 独立项目 `D:/projects/data_collection_platform_golden_20260821` 的 `d15ac937` 候选未通过空平台业务验收：`CCProduct/325/MILESTONE` 目录为 0 组、0 成员，客户问题页面和阶段定义页的 325 里程碑列表仍为空；该候选不作为黄金线。
+- [根因] `V20260821_01` 只从既有 `issue_fact` 回填，运行期协调器只在非空 325 事实首次发布后建目录；本地开发库因已有 1512 条 325 事实而生成 9 组、9 成员，曾显示正常不能证明空平台修复。项目 9 的测试阶段目录在独立空库中已有 11 组、50 成员，与 325 目录不是同一数据状态。
+- [调查] 全部分支、reflog、stash 和不可达对象均没有另一版完整修复；现有 Git 历史中不存在同时包含 `projects/users` 修复且满足空平台 325 里程碑验收的提交。
+- [完成] 两套本地 GitLab 数据库、ODS 和开发目录一致确认项目 325 的 9 个活动里程碑；已从解耦前 `c093db20` 创建独立分支 `codex/golden-baseline-predecouple`，提交 `0ccd4b1c` 仅增加空目录前向迁移、迁移回归、校验清单和架构契约，并继承 `3a3a4ff3` 的 `projects/users` 修复。已有任意人工组时迁移不补种、不覆盖。
+- [验证] 迁移测试 2 项和 Flyway 烟测 19 项通过，Checkstyle/SpotBugs 零问题；Flyway 不可变性/破坏性/配置覆盖、文本和产物门禁通过。全新包 `qaflex-full-20260825T033623Z-61991b4f5011` 为 clean `0ccd4b1c`、Flyway `20260825.01`，17 项前端发布测试、类型检查、生产构建、后端生产包、镜像摘要、Compose、归档及 30 项打包器测试通过，归档 SHA-256=`a9b6c6aea49bddfd147392619356326c7eb3f45e2cf387dd1c3dc1d960916dab`。
+- [验证] 新包已在 `30201/30202/15436` 以全新 volume 启动，三容器健康、后端 `UP`、前端 HTTP 200；127 个迁移完整成功，项目 9 目录为 11 组/50 成员，项目 325 目录为 9 组/9 成员且顺序为 `CC2026 R3` 至 `CC2024 R3`。
+- [运行] 黄金线已恢复在 `30201/30202/15436`，LDAP 已恢复在 `28081/28082`；常用 GitLab `gitlab-data-web-1` 健康，通过 `qaflex-gitlab-cc-socket-proxy:15434` 以 `DIRECT`/peer 只读链路连接 `gitlabhq_full_import_test`。源库实查为 260 个项目、8005 个 Issue、10000 个 MR 和 66165 条标签关系；全量同步 `665/665`、扫描 621476 行、应用 310738 行成功，事实刷新 `6/6`、应用 18005 行成功，ODS 与事实层均为 Issue 8005、MR 10000。System Hook、API Token 和自动同步仍关闭。
+- [下一步] 使用 LDAP 登录 `http://localhost:30201`，验收阶段定义页和客户问题页面的里程碑可见结果、验证 `projects/users` 同步终态并开始覆盖数据与黄金线采集。若页面数量少于 ODS/事实层，按页面项目、版本和状态过滤条件定位；当前不推送，远端尚未由用户指定。
+
+## 2026-08-24 解耦第一轮收口
+
+- [当前] 第二轮解耦已进入 R2；R1 仅补事实任务服务行为测试，不改生产代码。`FactBuildTaskServiceTest` 在 `qaflex_clean` 隔离库实跑 14 项全绿，已锁定 advisory lock、SKIPPED、重试终态、运行汇总和来源 scope 归一语义；下一步按 `docs/plans/decouple-round2-20260824.md` 拆分阶段日历、事实行映射与搜索索引职责。
+- [修复] 2026-08-24 本地系统测试无数据的根因是平台数据源配置连接了不完整的 `gitlabhq_production`，而 Docker GitLab Rails 实际运行库为 `gitlabhq_full_import_test`；已将本地 `gitlab_sync_configs.id=1.db_name` 切换到实际业务库。全量镜像运行 `2269` 成功（665/665，扫描 700527、应用 359543），事实刷新运行 `2271` 成功（6/6，应用 18005），项目 9 带测试阶段事实恢复至 4983/5774 条，系统测试非法数据 `CC2026R3` 页面返回 1816 条。当前本地样本没有 `CC2026R4` 测试阶段数据，R4 默认筛选为空属于数据状态，不是同步代码回归。
+- [完成] 2026-08-21 客户问题 325 里程碑目录修复已并入当前代码：运行期首次事实发布可初始化目录，标准 CC 版本按业务键归一化，已有人工目录只补同键成员；`V20260821_01` 覆盖已有事实但目录为空的升级场景，`GitlabSourceSchemaGuard` 强制校验里程碑源结构并删除空值 SQL fallback。相关协调器、迁移、目录/业务键、源结构/事实 SQL、Flyway 和事实构建回归均通过。
+- [完成] 阶段三完成 `CodeReviewIllegalRecordService` 职责拆分：Excel 导出、筛选选项装配、响应映射分别外移，删除零调用死代码；公开控制器契约、导出列布局和兼容模式分支未改变。
+- [完成] 阶段四、五完成前端职责外移：`BaseRecordTable` 列宽/展示纯逻辑和 `MirrorSettingsView` 健康展示、配置指纹、诊断编排分别进入独立模块；页面模板和 API 契约未改变。
+- [验证] 后端 Java 21 编译和全量 `mvn test` 在新建隔离库 `qaflex_clean` 上通过：260 个测试套件、1169 项，0 failures、0 errors、1 项条件跳过；包含 `FilterEngineSqlParityTest`。此前复用历史库 `qaflex` 的 10 个套件失败均由旧 schema 不完整造成，不作为源码回归结论。
+- [验证] 全局 Checkstyle、SpotBugs 通过；前端 122 个测试文件、446 项、TypeScript、ESLint 和生产构建通过。
+- [验证] `check_worktree_artifacts.py`、`check_runtime_artifact_locations.py`、`check_text_whitespace.py`、`check_frontend_api_boundary.py`、Flyway 不可变性/破坏性检查和 `git diff --check` 全部通过。
+- [验证] 当前 `18080` 后端以 LDAP 配置连接 Docker GitLab `gitlab-data-web-1`，真实全量 `300/300`、事实刷新 `6/6`（写入 15392 行）、增量 `20/20` 均完成；`resource_label_events` 游标为 `[\"387476\"]`、待修复为否、错误为空。
+- [验证] 真实 API 烟测通过 25 个只读端点；`18181` 页面实测评审数据、代码走查、系统测试、客户问题均可加载筛选区和数据，代码走查返回 8545 条、评审 440 条、客户问题接口 906 条、系统测试接口 3608 条。
+- [约束] 旧 `qaflex` 测试库保留原状但不作为全量测试基线；后续后端全量验证使用干净数据库或明确隔离 schema。当前工作树包含他人未提交改动，不提交、不推送、不回滚。
+- [范围] 当前工作树的 statistics 目录另有 7 个文件共 11 行未使用 import 删除，属于合并后的既有同事改动；本轮解耦未改变其业务逻辑，验证时保留并覆盖该状态。
+- [修复] 合并后补齐同步执行器在“全量扫描 + 单调主键”终态的游标语义：非空终态保存本页最终主键，空终态写入 `[]` 清除旧游标；新增 `SyncRunTablePageCommitServiceTest` 2 项覆盖非空和空页，避免下一轮重复使用陈旧游标。
+- [限制] `FilterEngineSqlParityTest` 依赖外部 PostgreSQL 凭据；本次独立复核因 `localhost:15433` 凭据/上下文未建立而产生 3 个环境性 Error，不作为源码回归结论。此前在隔离库 `qaflex_clean` 上的 1169 项全量结果包含该测试并全部通过。
+- [约束] 解耦版本完成内网部署并通过现场测试后，建立唯一行为基线，逐项记录所有按钮、功能和显示结果；测试数据由本地 GitLab 生成并覆盖全部业务场景，代码走查非法数据至少覆盖每种非法类型、多个非法类型同时命中及其他已定义组合各一条。后续变更须使用相同数据和操作步骤与基线做结果对比。
+
 ## 2026-08-21 深度代码审计与第一轮重构
 
-- [当前] 已完成第一轮全仓静态扫描、核心链路深读和基于真实行号的违规清单；当前进入统计查询/明细映射与大类职责拆分前的边界复核，不改变业务公式、事实发布代际、数据库迁移或外部 CAT/GitLab 契约。
+- [完成] 已完成第一轮全仓静态扫描、核心链路深读和基于真实行号的违规清单；后续阶段在不改变业务公式、事实发布代际、数据库迁移或外部 CAT/GitLab 契约的边界内完成。
 - [完成] 前端请求客户端已合并超时/取消执行路径，JSON 边界由 `any` 收敛为 `unknown`；BI API 客户端已归入 `frontend/src/api-client/`；日期显示、异常消息提取和两个生产 `any` 已收敛到可测试工具/辅助函数。
 - [完成] `FactBuildService` 不再手动创建事实来源 SQL provider/query executor，两个协作者由 Spring 注入；`FactBuildServiceTest`、来源 SQL/查询执行器测试已同步装配。
-- [验证] 前端 typecheck、异常/日期/标签组定向 15 项测试和本轮定向 ESLint 通过；Docker Java 21/Maven 定向后端 9 项测试通过并完成生产/测试源码编译。后端本轮尚未单独运行 Checkstyle/SpotBugs。
-- [下一步] 复核统计看板 `toDetailRecord` 与 SQL `quoteIdentifier` 的真实语义差异；仅抽取可证明相同的公共字段/安全规则，再逐项补行为测试。
+- [验证] 前端 typecheck、异常/日期/标签组定向 15 项测试和本轮定向 ESLint 通过；Docker Java 21/Maven 定向后端测试通过并完成生产/测试源码编译。
 - [风险] 工作树包含用户已有大量删除、迁移和文档修改，本工作单元继续保留；不执行破坏性 Flyway、真实全量同步、发布或推送。
 
 ## 当前目标
 
+- [完成] GitLab 交接快照已从实际 Compose bind mount `D:/gitlab-data` 与 `D:/gitlab-data-dgm`（均 GitLab CE 16.11.10）一致停机生成，不使用较旧的 `D:/数据采集平台数据` 副本。归档 `D:/gitlab-handover-backups/gitlab-handover-20260825T065156Z.tar` 为 14,437,099,520 bytes，SHA-256=`c4f8965b7d107463c8f09d5623725c968ad87239dc40456e1a2aeedea644d99f`；保留 `config + data`、Compose 和三份评审 JSON，仅排除顶层日志与运行 socket/Gitaly 临时端点。两套 `gitlab:check` 通过且归档后健康恢复；DGM 密钥检查通过，CC 已有 WebHook/User/Project 等加密字段不可解密，交接必须作为既有风险。隔离恢复演练尚未执行；不将含密钥数据推送到代码仓库。
 - [目标] 旧发布 `20260803T054734Z-066761e14130` 已被后续修复替代；新发布 `20260803T082443Z-2ab4bea80a7b` 及其 20001 完整 Compose/`.env` 已完成，当前等待用户人工部署与现场验收。
 - [目标] 2026-08-05 GitLab 镜像回归修复：代码、完整自动化门禁、本地 GitLab 10 分钟自动 Issue/标签增删链路及全新隔离发布包均已完成。下一步在内网 `172.22.10.115:30001` 部署并执行约 280 万全部同步表总量的删除反熵基准、无事件静默删除和前台让行验收；删除反熵在验收前保持关闭，容量结论不使用本地小规模数据外推。
 - [目标] 在不破坏已完成 LDAP、本地 RBAC、兼容模式隔离、事实层和导出对齐工作的前提下，继续完成老平台口径核验、内网部署验证和正式模块稳定化。

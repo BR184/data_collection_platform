@@ -1,0 +1,29 @@
+{
+  "httpStatus" : 200,
+  "body" : {
+    "success" : true,
+    "code" : "00000",
+    "message" : "表单已保存到平台正式数据表",
+    "data" : {
+      "id" : 1,
+      "gitlabBaseUrl" : "http://gitlab.example.com",
+      "projectId" : 9,
+      "requestIid" : 900001,
+      "resourceType" : "issue",
+      "resourceId" : "900001",
+      "templateCode" : "default",
+      "formTitle" : "golden 表单",
+      "reviewer" : "golden-评审员",
+      "reviewDurationMinutes" : 30,
+      "specificationScore" : 5,
+      "logicScore" : 4,
+      "performanceScore" : 5,
+      "designScore" : 4,
+      "otherScore" : 5,
+      "remark" : "golden 写用例",
+      "deleted" : false,
+      "createdAt" : "2026-09-03T18:37:19.772017+08:00",
+      "updatedAt" : "2026-09-03T18:37:19.772017+08:00"
+    }
+  }
+}

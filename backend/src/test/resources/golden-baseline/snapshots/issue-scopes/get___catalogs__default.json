@@ -1,0 +1,30 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : [ {
+    "id" : 1,
+    "projectId" : 9,
+    "projectName" : "CrownCAD",
+    "dimension" : "TESTING_PHASE",
+    "dimensionName" : "测试阶段",
+    "enabled" : true,
+    "remark" : "由系统测试阶段定义迁移",
+    "groupCount" : 11,
+    "unassignedValueCount" : 7,
+    "createdAt" : "2026-09-03T18:36:01.31839+08:00",
+    "updatedAt" : "2026-09-03T18:36:01.31839+08:00"
+  }, {
+    "id" : 2,
+    "projectId" : 325,
+    "projectName" : "CCProduct",
+    "dimension" : "MILESTONE",
+    "dimensionName" : "里程碑",
+    "enabled" : true,
+    "remark" : "由客户问题真实里程碑初始化",
+    "groupCount" : 7,
+    "unassignedValueCount" : 0,
+    "createdAt" : "2026-09-03T18:36:01.31839+08:00",
+    "updatedAt" : "2026-09-03T18:36:01.31839+08:00"
+  } ]
+}

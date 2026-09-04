@@ -1,0 +1,22 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "workspaceKey" : "system-test-illegal-records",
+    "supported" : true,
+    "status" : "READY",
+    "message" : "已展示当前可用数据",
+    "refreshing" : false,
+    "lastSyncedAt" : "2026-09-03T18:36:49.555397+08:00",
+    "lastRefreshStartedAt" : null,
+    "lastRefreshFinishedAt" : null,
+    "jobId" : null,
+    "sourceTables" : [ ],
+    "plannedTasks" : null,
+    "unsupportedTables" : [ ],
+    "factRefreshPlanned" : null,
+    "mirrorStatus" : null,
+    "factStatus" : null
+  }
+}

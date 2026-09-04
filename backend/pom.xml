@@ -132,6 +132,12 @@
       <artifactId>postgresql</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>net.javacrumbs.json-unit</groupId>
+      <artifactId>json-unit-assertj</artifactId>
+      <version>4.1.0</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -239,6 +245,7 @@
           <systemPropertyVariables>
             <debug>false</debug>
           </systemPropertyVariables>
+          <excludedGroups>golden-baseline</excludedGroups>
         </configuration>
       </plugin>
       <plugin>
@@ -247,4 +254,26 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <profile>
+      <id>golden-baseline</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <excludedGroups combine.self="override"></excludedGroups>
+              <groups>golden-baseline</groups>
+              <systemPropertyVariables>
+                <debug>false</debug>
+                <golden.update>${golden.update}</golden.update>
+              </systemPropertyVariables>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

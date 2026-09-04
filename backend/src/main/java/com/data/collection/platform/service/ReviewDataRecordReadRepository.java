@@ -1,13 +1,10 @@
 package com.data.collection.platform.service;
 
-import com.data.collection.platform.entity.ReviewDataSummaryResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
+import com.data.collection.platform.entity.ReviewDataSummaryResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -17,93 +14,17 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class ReviewDataRecordReadRepository {
-  private static final String BASE_LIST_SQL =
-      """
-      select
-        r.id,
-        r.project_name,
-        r.title,
-        r.module_name,
-        r.review_type,
-        r.review_date,
-        r.review_owner,
-        r.review_scale_pages,
-        r.review_product,
-        r.author_name,
-        r.review_version,
-        r.not_reach_standard_reason,
-        r.source_file_name,
-        """
-          + ReviewDataMetricSqlExpressions.WEIGHTED_DEFECT_DENSITY
-          + " as weighted_defect_density,\n        "
-          + """
-        r.gitlab_project_id,
-        r.gitlab_resource_iid,
-        r.gitlab_resource_type,
-        r.created_at,
-        r.updated_at,
-        r.created_by,
-        r.deleted,
-        coalesce(expert.expert_names, '') as review_experts_summary,
-        coalesce(problem.problem_count, 0) as problem_count,
-        coalesce(problem.total_workload_hours, 0) as total_workload_hours,
-        coalesce(problem.review_category_summary, '') as review_category_summary,
-        coalesce(problem.doc_specification_count, 0) as doc_specification_count,
-        coalesce(problem.integrity_count, 0) as integrity_count,
-        coalesce(problem.functionality_count, 0) as functionality_count,
-        coalesce(problem.feasibility_count, 0) as feasibility_count,
-        coalesce(problem.independent_review_workload, 0) as independent_review_workload,
-        coalesce(problem.independent_review_problem_count, 0) as independent_review_problem_count,
-        coalesce(problem.meeting_review_workload, 0) as meeting_review_workload,
-        coalesce(problem.meeting_review_problem_count, 0) as meeting_review_problem_count,
-        """
-          + ReviewDataMetricSqlExpressions.REVIEW_EFFICIENCY
-          + " as review_efficiency,\n        "
-          + ReviewDataMetricSqlExpressions.REVIEW_RATE
-          + " as review_rate\n"
-          + """
-      from review_records r
-      left join (
-        select
-          review_record_id,
-          string_agg(expert_name, '、' order by sort_order asc, id asc) as expert_names
-        from review_record_experts
-        where deleted = false
-        group by review_record_id
-      ) expert on expert.review_record_id = r.id
-      left join (
-        select
-          review_record_id,
-          count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category <> '无问题')::integer as problem_count,
-          coalesce(sum(workload_hours), 0) as total_workload_hours,
-          string_agg(distinct nullif(review_category, ''), '、') as review_category_summary,
-          count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category = '文档规范')::integer as doc_specification_count,
-          count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category = '完整性')::integer as integrity_count,
-          count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category = '功能性')::integer as functionality_count,
-          count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category = '可行性')::integer as feasibility_count,
-          coalesce(sum(workload_hours) filter (where review_category = '独立评审'), 0) as independent_review_workload,
-          count(*) filter (
-            where review_category = '独立评审'
-              and problem_status not in ('已拒绝', '未评审', '无问题')
-              and problem_category <> '无问题'
-          )::integer as independent_review_problem_count,
-          coalesce(sum(workload_hours) filter (where review_category = '会议评审'), 0) as meeting_review_workload,
-          count(*) filter (
-            where review_category = '会议评审'
-              and problem_status not in ('已拒绝', '未评审', '无问题')
-              and problem_category <> '无问题'
-          )::integer as meeting_review_problem_count
-        from review_problem_items
-        where deleted = false
-        group by review_record_id
-      ) problem on problem.review_record_id = r.id
-      where r.deleted = false
-      """;
-
   private final JdbcTemplate jdbcTemplate;
+  private final ReviewDataRecordRowMapper rowMapper;
+  private final ReviewDataRecordQueryBuilder queryBuilder;
 
-  public ReviewDataRecordReadRepository(JdbcTemplate jdbcTemplate) {
+  public ReviewDataRecordReadRepository(
+      JdbcTemplate jdbcTemplate,
+      ReviewDataRecordRowMapper rowMapper,
+      ReviewDataRecordQueryBuilder queryBuilder) {
     this.jdbcTemplate = jdbcTemplate;
+    this.rowMapper = rowMapper;
+    this.queryBuilder = queryBuilder;
   }
 
   public List<ReviewDataRecordRowResponse> loadRecords(
@@ -115,24 +36,21 @@ public class ReviewDataRecordReadRepository {
       String problemStatus,
       String reviewExpert,
       String keyword) {
-    StringBuilder sql = new StringBuilder(BASE_LIST_SQL);
-    List<Object> args = new ArrayList<>();
-
-    appendContains(sql, args, "r.title", title);
-    appendEqText(sql, args, "r.project_name", projectName);
-    appendEqText(sql, args, "r.module_name", moduleName);
-    appendContains(sql, args, "r.review_owner", reviewOwner);
-    appendEqText(sql, args, "r.review_type", reviewType);
-    appendProblemStatusFilter(sql, args, problemStatus);
-    appendReviewExpertFilter(sql, args, reviewExpert);
-    appendKeywordSearch(sql, args, keyword);
-
-    return jdbcTemplate.query(sql.toString(), this::mapRecordRow, args.toArray());
+    ReviewDataRecordQueryBuilder.SqlParts query =
+        queryBuilder.buildListQuery(
+            title,
+            projectName,
+            moduleName,
+            reviewOwner,
+            reviewType,
+            problemStatus,
+            reviewExpert,
+            keyword);
+    return jdbcTemplate.query(query.sql(), rowMapper::mapRecordRow, query.args().toArray());
   }
 
   public List<ReviewDataRecordRowResponse> loadRecordsForFilterOptions() {
-    StringBuilder sql = new StringBuilder(BASE_LIST_SQL);
-    return jdbcTemplate.query(sql.toString(), this::mapRecordRow);
+    return jdbcTemplate.query(queryBuilder.baseListSql(), rowMapper::mapRecordRow);
   }
 
   public RecordPageResult loadRecordPage(
@@ -149,17 +67,18 @@ public class ReviewDataRecordReadRepository {
       int size,
       String sortField,
       String sortOrder) {
-    SqlParts from = buildFilteredFromSql(
-        title,
-        projectName,
-        moduleName,
-        reviewOwner,
-        reviewType,
-        problemStatus,
-        reviewExpert,
-        keyword,
-        filterGroup);
-    String orderBy = buildWindowOrderBy(sortField, sortOrder);
+    ReviewDataRecordQueryBuilder.SqlParts from =
+        queryBuilder.buildFilteredFromSql(
+            title,
+            projectName,
+            moduleName,
+            reviewOwner,
+            reviewType,
+            problemStatus,
+            reviewExpert,
+            keyword,
+            filterGroup);
+    String orderBy = queryBuilder.buildWindowOrderBy(sortField, sortOrder);
     int safePage = page <= 0 ? 1 : page;
     int safeSize = size <= 0 ? 20 : Math.min(size, 100);
     int offset = (safePage - 1) * safeSize;
@@ -300,7 +219,7 @@ public class ReviewDataRecordReadRepository {
                     rs.getDouble("average_review_scale_pages"),
                     rs.getDouble("average_problem_count"));
             if (rs.getObject("id") != null) {
-              records.add(mapRecordRow(rs, records.size()));
+              records.add(rowMapper.mapRecordRow(rs, records.size()));
             }
           }
           return new RecordPageResult(records, total, summary);
@@ -395,257 +314,11 @@ public class ReviewDataRecordReadRepository {
 
   public ReviewDataRecordRowResponse getRecordOrThrow(Long recordId) {
     try {
-      return jdbcTemplate.queryForObject(BASE_LIST_SQL + " and r.id = ?", this::mapRecordRow, recordId);
+      return jdbcTemplate.queryForObject(
+          queryBuilder.baseListSql() + " and r.id = ?", rowMapper::mapRecordRow, recordId);
     } catch (EmptyResultDataAccessException exception) {
       throw new IllegalArgumentException("评审记录不存在: " + recordId);
     }
-  }
-
-  private ReviewDataRecordRowResponse mapRecordRow(ResultSet rs, int rowNum) throws SQLException {
-    Integer reviewScalePages = (Integer) rs.getObject("review_scale_pages");
-    Integer problemCount = (Integer) rs.getObject("problem_count");
-    Double reviewEfficiency = getDoubleOrDefault(rs, "review_efficiency");
-    Double reviewRate = getDoubleOrDefault(rs, "review_rate");
-    return new ReviewDataRecordRowResponse(
-        rs.getLong("id"),
-        TextQuerySupport.normalizeDisplay(rs.getString("project_name")),
-        TextQuerySupport.normalizeDisplay(rs.getString("title")),
-        ReviewDataModuleNameSupport.normalize(rs.getString("module_name")),
-        TextQuerySupport.normalizeDisplay(rs.getString("review_type")),
-        rs.getDate("review_date") == null ? null : rs.getDate("review_date").toLocalDate(),
-        TextQuerySupport.normalizeDisplay(rs.getString("review_owner")),
-        TextQuerySupport.normalizeDisplay(rs.getString("review_experts_summary")),
-        reviewScalePages,
-        TextQuerySupport.normalizeDisplay(rs.getString("review_product")),
-        TextQuerySupport.normalizeDisplay(rs.getString("author_name")),
-        TextQuerySupport.normalizeDisplay(rs.getString("review_version")),
-        problemCount == null ? 0 : problemCount,
-        calculateProblemDensity(problemCount, reviewScalePages),
-        reviewEfficiency,
-        reviewRate,
-        TextQuerySupport.normalizeDisplay(rs.getString("review_category_summary")),
-        getIntegerOrDefault(rs, "doc_specification_count"),
-        getIntegerOrDefault(rs, "integrity_count"),
-        getIntegerOrDefault(rs, "functionality_count"),
-        getIntegerOrDefault(rs, "feasibility_count"),
-        getDoubleOrDefault(rs, "independent_review_workload"),
-        getIntegerOrDefault(rs, "independent_review_problem_count"),
-        getDoubleOrDefault(rs, "meeting_review_workload"),
-        getIntegerOrDefault(rs, "meeting_review_problem_count"),
-        TextQuerySupport.normalizeDisplay(rs.getString("not_reach_standard_reason")),
-        isReachStandard(problemCount, reviewScalePages),
-        TextQuerySupport.normalizeDisplay(rs.getString("source_file_name")),
-        getDoubleOrNull(rs, "weighted_defect_density"),
-        rs.getTimestamp("created_at") == null ? null : rs.getTimestamp("created_at").toLocalDateTime(),
-        rs.getTimestamp("updated_at") == null ? null : rs.getTimestamp("updated_at").toLocalDateTime(),
-        rs.getBoolean("deleted"),
-        (Long) rs.getObject("gitlab_project_id"),
-        (Long) rs.getObject("gitlab_resource_iid"),
-        TextQuerySupport.trimToNull(rs.getString("gitlab_resource_type")),
-        TextQuerySupport.trimToNull(rs.getString("created_by")));
-  }
-
-  private Double calculateProblemDensity(Integer problemCount, Integer reviewScalePages) {
-    if (problemCount == null || reviewScalePages == null || reviewScalePages <= 0) {
-      return 0D;
-    }
-    return ReviewDataNumberSupport.roundToTwoDecimals(
-        problemCount.doubleValue() / reviewScalePages.doubleValue());
-  }
-
-  private Boolean isReachStandard(Integer problemCount, Integer reviewScalePages) {
-    Double density = calculateProblemDensity(problemCount, reviewScalePages);
-    return density >= 0.2D && density <= 0.6D;
-  }
-
-  private Double getDoubleOrDefault(ResultSet rs, String columnName) throws SQLException {
-    Object value = rs.getObject(columnName);
-    return value == null ? 0D : rs.getDouble(columnName);
-  }
-
-  private Double getDoubleOrNull(ResultSet rs, String columnName) throws SQLException {
-    Object value = rs.getObject(columnName);
-    return value == null ? null : rs.getDouble(columnName);
-  }
-
-  private Integer getIntegerOrDefault(ResultSet rs, String columnName) throws SQLException {
-    Object value = rs.getObject(columnName);
-    return value == null ? 0 : rs.getInt(columnName);
-  }
-
-  private SqlParts buildFilteredFromSql(
-      String title,
-      String projectName,
-      String moduleName,
-      String reviewOwner,
-      String reviewType,
-      String problemStatus,
-      String reviewExpert,
-      String keyword,
-      StatisticFilterGroup filterGroup) {
-    StringBuilder sql =
-        new StringBuilder(
-            """
-             from review_records r
-             left join lateral (
-               select
-                 count(*) filter (
-                   where problem_status not in ('已拒绝', '未评审', '无问题')
-                     and problem_category <> '无问题'
-                 )::integer as problem_count,
-                 coalesce(sum(workload_hours), 0) as total_workload_hours,
-                 string_agg(distinct nullif(review_category, ''), '、') as review_category_summary,
-                 count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category = '文档规范')::integer as doc_specification_count,
-                 count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category = '完整性')::integer as integrity_count,
-                 count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category = '功能性')::integer as functionality_count,
-                 count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category = '可行性')::integer as feasibility_count,
-                 coalesce(sum(workload_hours) filter (where review_category = '独立评审'), 0) as independent_review_workload,
-                 count(*) filter (
-                   where review_category = '独立评审'
-                     and problem_status not in ('已拒绝', '未评审', '无问题')
-                     and problem_category <> '无问题'
-                 )::integer as independent_review_problem_count,
-                 coalesce(sum(workload_hours) filter (where review_category = '会议评审'), 0) as meeting_review_workload,
-                 count(*) filter (
-                   where review_category = '会议评审'
-                     and problem_status not in ('已拒绝', '未评审', '无问题')
-                     and problem_category <> '无问题'
-                 )::integer as meeting_review_problem_count
-               from review_problem_items
-               where review_record_id = r.id and deleted = false
-             ) problem on true
-             where r.deleted = false
-            """);
-    List<Object> args = new ArrayList<>();
-    appendContains(sql, args, "r.title", title);
-    appendEqText(sql, args, "r.project_name", projectName);
-    appendEqText(sql, args, "r.module_name", moduleName);
-    appendContains(sql, args, "r.review_owner", reviewOwner);
-    appendEqText(sql, args, "r.review_type", reviewType);
-    appendProblemStatusFilter(sql, args, problemStatus);
-    appendReviewExpertFilter(sql, args, reviewExpert);
-    appendKeywordSearch(sql, args, keyword);
-    appendFilterGroup(sql, args, filterGroup);
-    return new SqlParts(sql.toString(), args);
-  }
-
-  private String buildWindowOrderBy(String sortField, String sortOrder) {
-    String direction = "asc".equalsIgnoreCase(sortOrder) ? "asc" : "desc";
-    String expression =
-        switch (sortField) {
-          case "title" -> "fr.title";
-          case "projectName" -> "fr.project_name";
-          case "moduleName" -> "fr.module_name";
-          case "reviewType" -> "fr.review_type";
-          case "reviewDate" -> "fr.review_date";
-          case "reviewOwner" -> "fr.review_owner";
-          case "reviewScalePages" -> "fr.review_scale_pages";
-          case "problemCount" -> "fr.problem_count";
-          case "problemDensity" -> "fr.problem_density";
-          case "reviewEfficiency" -> "fr.review_efficiency";
-          case "reviewRate" -> "fr.review_rate";
-          case "weightedDefectDensity" -> "fr.weighted_defect_density";
-          case "reviewCategorySummary" -> "fr.review_category_summary";
-          case "docSpecificationCount" -> "fr.doc_specification_count";
-          case "integrityCount" -> "fr.integrity_count";
-          case "functionalityCount" -> "fr.functionality_count";
-          case "feasibilityCount" -> "fr.feasibility_count";
-          case "independentReviewWorkload" -> "fr.independent_review_workload";
-          case "independentReviewProblemCount" -> "fr.independent_review_problem_count";
-          case "meetingReviewWorkload" -> "fr.meeting_review_workload";
-          case "meetingReviewProblemCount" -> "fr.meeting_review_problem_count";
-          case "reachStandard" ->
-              "case when fr.problem_density >= 0.2 and fr.problem_density <= 0.6 then 1 else 0 end";
-          case "createdAt" -> "fr.created_at";
-          default -> "fr.updated_at";
-        };
-    return " order by " + expression + " " + direction + " nulls last, fr.id asc";
-  }
-
-  private void appendContains(StringBuilder sql, List<Object> args, String column, String value) {
-    String normalized = TextQuerySupport.trimToNull(value);
-    if (normalized == null) {
-      return;
-    }
-    sql.append(" and lower(coalesce(").append(column).append(", '')) like ?");
-    args.add("%" + normalized.toLowerCase(Locale.ROOT) + "%");
-  }
-
-  private void appendEqText(StringBuilder sql, List<Object> args, String column, String value) {
-    String normalized = TextQuerySupport.trimToNull(value);
-    if (normalized == null) {
-      return;
-    }
-    sql.append(" and ").append(column).append(" = ?");
-    args.add(normalized);
-  }
-
-  private void appendProblemStatusFilter(StringBuilder sql, List<Object> args, String problemStatus) {
-    String normalized = TextQuerySupport.trimToNull(problemStatus);
-    if (normalized == null) {
-      return;
-    }
-    sql.append(
-        """
-         and exists (
-          select 1
-          from review_problem_items problem_filter
-          where problem_filter.review_record_id = r.id
-            and problem_filter.deleted = false
-            and problem_filter.problem_status = ?
-        )
-        """);
-    args.add(normalized);
-  }
-
-  private void appendReviewExpertFilter(StringBuilder sql, List<Object> args, String reviewExpert) {
-    String normalized = TextQuerySupport.trimToNull(reviewExpert);
-    if (normalized == null) {
-      return;
-    }
-    sql.append(
-        """
-         and exists (
-          select 1
-          from review_record_experts expert_filter
-          where expert_filter.review_record_id = r.id
-            and expert_filter.deleted = false
-            and expert_filter.expert_name = ?
-        )
-        """);
-    args.add(normalized);
-  }
-
-  private void appendKeywordSearch(StringBuilder sql, List<Object> args, String keyword) {
-    List<String> candidates = ReviewDataSearchIndexSupport.keywordCandidates(keyword);
-    if (candidates.isEmpty()) {
-      return;
-    }
-    List<String> predicates = new ArrayList<>();
-    for (String ignored : candidates) {
-      predicates.add("r.search_text like ?");
-      predicates.add("r.search_compact like ?");
-      predicates.add("r.search_spell like ?");
-      predicates.add("r.search_initials like ?");
-    }
-    sql.append(" and (").append(String.join(" or ", predicates)).append(")");
-    for (String candidate : candidates) {
-      String pattern = "%" + candidate + "%";
-      args.add(pattern);
-      args.add(pattern);
-      args.add(pattern);
-      args.add(pattern);
-    }
-  }
-
-  private void appendFilterGroup(StringBuilder sql, List<Object> args, StatisticFilterGroup filterGroup) {
-    ReviewDataFilterGroupSqlSupport.toSql(filterGroup)
-        .filter(filter -> TextQuerySupport.trimToNull(filter.predicate()) != null)
-        .ifPresent(
-            filter -> {
-              sql.append(" and (").append(filter.predicate()).append(")");
-              args.addAll(filter.args());
-            });
   }
 
   public record RecordPageResult(
@@ -653,5 +326,4 @@ public class ReviewDataRecordReadRepository {
       long total,
       ReviewDataSummaryResponse summary) {}
 
-  private record SqlParts(String sql, List<Object> args) {}
 }

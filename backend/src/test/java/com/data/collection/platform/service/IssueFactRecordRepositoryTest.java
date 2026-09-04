@@ -20,7 +20,12 @@ class IssueFactRecordRepositoryTest {
 
   @Test
   void keywordSearchShouldFallbackToRawIssueFieldsWhenSearchIndexesAreEmpty() {
-    IssueFactRecordRepository repository = new IssueFactRecordRepository(issueFactQueryService);
+    IssueFactRecordRepository repository =
+        new IssueFactRecordRepository(
+            issueFactQueryService,
+            new IssueFactRecordConditionBuilder(),
+            new IssueFactRecordRowMapper(),
+            new IssueFactFilterValuesQuerySupport());
     when(issueFactQueryService.count(anyString(), anyList())).thenReturn(0L);
 
     repository.findPage(
@@ -69,7 +74,12 @@ class IssueFactRecordRepositoryTest {
 
   @Test
   void issueNumberSearchTypeShouldUseIssueIidInsteadOfComprehensiveKeywordSearch() {
-    IssueFactRecordRepository repository = new IssueFactRecordRepository(issueFactQueryService);
+    IssueFactRecordRepository repository =
+        new IssueFactRecordRepository(
+            issueFactQueryService,
+            new IssueFactRecordConditionBuilder(),
+            new IssueFactRecordRowMapper(),
+            new IssueFactFilterValuesQuerySupport());
     when(issueFactQueryService.count(anyString(), anyList())).thenReturn(0L);
 
     repository.findPage(
@@ -113,7 +123,12 @@ class IssueFactRecordRepositoryTest {
 
   @Test
   void customerSelectionShouldUseMembershipExistsWithoutDuplicatingIssueRows() {
-    IssueFactRecordRepository repository = new IssueFactRecordRepository(issueFactQueryService);
+    IssueFactRecordRepository repository =
+        new IssueFactRecordRepository(
+            issueFactQueryService,
+            new IssueFactRecordConditionBuilder(),
+            new IssueFactRecordRowMapper(),
+            new IssueFactFilterValuesQuerySupport());
     when(issueFactQueryService.count(anyString(), anyList())).thenReturn(0L);
 
     repository.findPage(
@@ -159,7 +174,12 @@ class IssueFactRecordRepositoryTest {
 
   @Test
   void ccProductSpecificFiltersShouldUseDateMemberAndRequestTimeRetentionSemantics() {
-    IssueFactRecordRepository repository = new IssueFactRecordRepository(issueFactQueryService);
+    IssueFactRecordRepository repository =
+        new IssueFactRecordRepository(
+            issueFactQueryService,
+            new IssueFactRecordConditionBuilder(),
+            new IssueFactRecordRowMapper(),
+            new IssueFactFilterValuesQuerySupport());
     when(issueFactQueryService.count(anyString(), anyList())).thenReturn(0L);
     java.time.LocalDateTime asOf = java.time.LocalDateTime.of(2026, 8, 3, 10, 0);
 
@@ -222,7 +242,12 @@ class IssueFactRecordRepositoryTest {
 
   @Test
   void plannedMergeBranchCandidatesShouldUseTheSameMemberDelimiterContract() {
-    IssueFactRecordRepository repository = new IssueFactRecordRepository(issueFactQueryService);
+    IssueFactRecordRepository repository =
+        new IssueFactRecordRepository(
+            issueFactQueryService,
+            new IssueFactRecordConditionBuilder(),
+            new IssueFactRecordRowMapper(),
+            new IssueFactFilterValuesQuerySupport());
     when(issueFactQueryService.query(anyString(), anyList(), any())).thenReturn(java.util.List.of());
 
     repository.findCustomerIssueRecordFilterValues(true, false, false, true, "default");

@@ -9,7 +9,9 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.springframework.stereotype.Component;
 
+@Component
 class GitlabSourceMetadataSupport {
   private static final List<String> UPDATED_AT_CANDIDATES = List.of(
       "updatedat",

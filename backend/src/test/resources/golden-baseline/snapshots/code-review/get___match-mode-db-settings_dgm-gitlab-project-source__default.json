@@ -1,0 +1,20 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "enabled" : false,
+    "gitlabBaseUrl" : "",
+    "accessTokenConfigured" : false,
+    "groupPath" : "",
+    "includeSubgroups" : true,
+    "includeArchived" : false,
+    "syncIntervalMinutes" : 60,
+    "lastSyncStatus" : "IDLE",
+    "lastSyncMessage" : "",
+    "lastSyncRecordCount" : 0,
+    "lastSyncStartedAt" : null,
+    "lastSyncFinishedAt" : null,
+    "updatedAt" : "2026-09-03T18:36:00.659897+08:00"
+  }
+}

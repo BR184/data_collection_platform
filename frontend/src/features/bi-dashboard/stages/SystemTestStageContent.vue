@@ -12,11 +12,12 @@ import {
   StackedCategoryBarChart,
 } from '../charts/types';
 import { BI_PALETTE } from '../charts/palette';
-import BiAnalysisToolbar, { type BiToolbarOption } from '../components/BiAnalysisToolbar.vue';
 import BiChartPanel from '../components/BiChartPanel.vue';
+import type { BiSortOrder } from '../components/BiChartSortControl.vue';
 import BiMetricStrip, { type BiMetricItem } from '../components/BiMetricStrip.vue';
 import BiQualityTargetPanel, { type BiQualityTargetItem } from '../components/BiQualityTargetPanel.vue';
 import { formatNumber, formatPercent, metricStatus, sectionPresentation, systemTestTargetLabel } from '../data/presentation';
+import { sortDeveloperWorkloadRows, sortNamedValues, sortRoundQualityRows } from '../data/sorting';
 import { buildDefectCauseBreakdownData, buildDelayHeatmapData } from '../data/system-test-presentation';
 import type { BiPageResponse, BiSystemTestPageData } from '../data/types';
 
@@ -36,33 +37,56 @@ const developerChart = new DeveloperWorkloadChart();
 const causeChartHeight = 432;
 const data = computed(() => props.response.data);
 
-const listOptions: BiToolbarOption[] = [
-  { label: '显示全部', value: 'all' },
-  { label: '显示 10 项', value: '10' },
-  { label: '显示 20 项', value: '20' },
+// 各图表排序状态
+const roundSort = ref('name');
+const roundSortOrder = ref<BiSortOrder>('asc');
+const severitySort = ref('count');
+const severitySortOrder = ref<BiSortOrder>('desc');
+const repairSort = ref('status');
+const repairSortOrder = ref<BiSortOrder>('asc');
+const moduleSeveritySort = ref('total');
+const moduleSeveritySortOrder = ref<BiSortOrder>('desc');
+const overlaySort = ref('open');
+const overlaySortOrder = ref<BiSortOrder>('desc');
+const causeCategorySort = ref('count');
+const causeCategorySortOrder = ref<BiSortOrder>('desc');
+const developerSort = ref('open');
+const developerSortOrder = ref<BiSortOrder>('desc');
+
+const roundSortOptions = [
+  { label: '轮次顺序', value: 'name' },
+  { label: '提交缺陷总数', value: 'submitted' },
+  { label: '缺陷关闭率', value: 'closeRate' },
+  { label: '未关闭缺陷数', value: 'open' },
 ];
-const repairSortOptions: BiToolbarOption[] = [
-  { label: '修复率升序', value: 'rateAsc' },
-  { label: '未修复数降序', value: 'openDesc' },
-  { label: '模块名称', value: 'nameAsc' },
+const countNameSortOptions = [
+  { label: '数量排序', value: 'count' },
+  { label: '名称排序', value: 'name' },
 ];
-const developerSortOptions: BiToolbarOption[] = [
-  { label: '待修复数降序', value: 'openDesc' },
-  { label: '缺陷总数降序', value: 'totalDesc' },
-  { label: '修复率升序', value: 'rateAsc' },
-  { label: '人员名称', value: 'nameAsc' },
+const repairSortOptions = [
+  { label: '异常优先', value: 'status' },
+  { label: '整体修复率', value: 'rate' },
+  { label: '未修复数', value: 'open' },
+  { label: '累计总数', value: 'total' },
+  { label: '模块名称', value: 'name' },
 ];
-const developerStatusOptions: BiToolbarOption[] = [
-  { label: '全部指派人', value: 'all' },
-  { label: '存在待修复', value: 'open' },
+const moduleSeveritySortOptions = [
+  { label: '缺陷总数', value: 'total' },
+  { label: '未修复数', value: 'open' },
+  { label: '模块名称', value: 'name' },
 ];
-const repairLimit = ref<string>('all');
-const repairSort = ref('rateAsc');
-const repairSearch = ref('');
-const developerLimit = ref<string>('all');
-const developerSort = ref('openDesc');
-const developerSearch = ref('');
-const developerStatus = ref('all');
+const overlaySortOptions = [
+  { label: '当前未修复', value: 'open' },
+  { label: '累计发现总数', value: 'total' },
+  { label: '模块名称', value: 'name' },
+];
+const developerSortOptions = [
+  { label: '待修复数', value: 'open' },
+  { label: '缺陷总数', value: 'total' },
+  { label: '已修复数', value: 'fixed' },
+  { label: '修复率', value: 'rate' },
+  { label: '人员姓名', value: 'name' },
+];
 
 const targetMetrics = computed<BiQualityTargetItem[]>(() => (data.value?.qualityTargets ?? []).map((item) => ({
   key: item.key,
@@ -86,47 +110,83 @@ const overviewMetrics = computed<BiMetricItem[]>(() => {
   ];
 });
 
-const rounds = computed<RoundQualityRow[]>(() => (data.value?.rounds ?? []).map((item) => ({
-  name: item.roundName,
-  levelOne: item.levelOneCount,
-  levelTwo: item.levelTwoCount,
-  levelThree: item.levelThreeCount,
-  submitted: item.submittedCount,
-  closed: item.closedCount,
-  open: item.openCount,
-  closeRate: item.closeRate,
-})));
+const rounds = computed<RoundQualityRow[]>(() => {
+  const raw = (data.value?.rounds ?? []).map((item) => ({
+    name: item.roundName,
+    levelOne: item.levelOneCount,
+    levelTwo: item.levelTwoCount,
+    levelThree: item.levelThreeCount,
+    submitted: item.submittedCount,
+    closed: item.closedCount,
+    open: item.openCount,
+    closeRate: item.closeRate,
+  }));
+  return sortRoundQualityRows(raw, roundSort.value, roundSortOrder.value);
+});
 
 const severity = computed<NamedValue[]>(() => {
   const value = data.value?.severity;
-  return value ? [
+  const raw = value ? [
     { name: '一级', value: value.levelOneCount, color: BI_PALETTE.red },
     { name: '二级', value: value.levelTwoCount, color: BI_PALETTE.orange },
     { name: '三级', value: value.levelThreeCount, color: BI_PALETTE.blue },
   ] : [];
+  return sortNamedValues(raw, severitySort.value, severitySortOrder.value);
 });
 
 const visibleModules = computed(() => {
-  const search = repairSearch.value.trim().toLowerCase();
-  const rows = (data.value?.modules ?? [])
-    .filter((item) => !search || item.module.displayName.toLowerCase().includes(search))
-    .slice()
-    .sort((left, right) => {
-      if (repairSort.value === 'openDesc') return right.openCount - left.openCount || left.module.displayName.localeCompare(right.module.displayName, 'zh-CN');
-      if (repairSort.value === 'nameAsc') return left.module.displayName.localeCompare(right.module.displayName, 'zh-CN');
-      return (left.fixRate ?? 101) - (right.fixRate ?? 101) || left.module.displayName.localeCompare(right.module.displayName, 'zh-CN');
-    });
-  return limitRows(rows, repairLimit.value);
+  const rows = (data.value?.modules ?? []).slice().sort((left, right) => {
+    const order = repairSortOrder.value;
+    if (repairSort.value === 'open') {
+      const cmp = left.openCount - right.openCount;
+      return order === 'asc' ? cmp : -cmp || left.module.displayName.localeCompare(right.module.displayName, 'zh-CN');
+    }
+    if (repairSort.value === 'total') {
+      const cmp = left.totalCount - right.totalCount;
+      return order === 'asc' ? cmp : -cmp || left.module.displayName.localeCompare(right.module.displayName, 'zh-CN');
+    }
+    if (repairSort.value === 'rate') {
+      const cmp = (left.fixRate ?? 101) - (right.fixRate ?? 101);
+      return order === 'asc' ? cmp : -cmp || left.module.displayName.localeCompare(right.module.displayName, 'zh-CN');
+    }
+    if (repairSort.value === 'name') {
+      const cmp = left.module.displayName.localeCompare(right.module.displayName, 'zh-CN');
+      return order === 'asc' ? cmp : -cmp;
+    }
+    // 默认 status 异常优先
+    const achievedA = left.fixRate != null && left.fixRate >= 0.95;
+    const achievedB = right.fixRate != null && right.fixRate >= 0.95;
+    const statusCmp = Number(achievedA) - Number(achievedB);
+    if (statusCmp !== 0) return statusCmp;
+    const cmp = (left.fixRate ?? 101) - (right.fixRate ?? 101);
+    return order === 'asc' ? cmp : -cmp;
+  });
+  return rows;
 });
 
-const moduleSeverity = computed<CategorySeriesData>(() => ({
-  categories: visibleModules.value.map((item) => item.module.displayName),
-  series: [
-    { name: '一级缺陷', values: visibleModules.value.map((item) => item.levelOneCount), color: BI_PALETTE.red },
-    { name: '二级缺陷', values: visibleModules.value.map((item) => item.levelTwoCount), color: BI_PALETTE.orange },
-    { name: '三级缺陷', values: visibleModules.value.map((item) => item.levelThreeCount), color: BI_PALETTE.blue },
-  ],
-}));
+const moduleSeverity = computed<CategorySeriesData>(() => {
+  const rows = (data.value?.modules ?? []).slice().sort((left, right) => {
+    const order = moduleSeveritySortOrder.value;
+    if (moduleSeveritySort.value === 'open') {
+      const cmp = left.openCount - right.openCount;
+      return order === 'asc' ? cmp : -cmp;
+    }
+    if (moduleSeveritySort.value === 'name') {
+      const cmp = left.module.displayName.localeCompare(right.module.displayName, 'zh-CN');
+      return order === 'asc' ? cmp : -cmp;
+    }
+    const cmp = left.totalCount - right.totalCount;
+    return order === 'asc' ? cmp : -cmp;
+  });
+  return {
+    categories: rows.map((item) => item.module.displayName),
+    series: [
+      { name: '一级缺陷', values: rows.map((item) => item.levelOneCount), color: BI_PALETTE.red },
+      { name: '二级缺陷', values: rows.map((item) => item.levelTwoCount), color: BI_PALETTE.orange },
+      { name: '三级缺陷', values: rows.map((item) => item.levelThreeCount), color: BI_PALETTE.blue },
+    ],
+  };
+});
 
 const repair = computed<ModuleRepairRow[]>(() => visibleModules.value.map((item) => ({
   name: item.module.displayName,
@@ -136,45 +196,47 @@ const repair = computed<ModuleRepairRow[]>(() => visibleModules.value.map((item)
   p2Rate: item.p2FixRate,
 })));
 
-const overlay = computed<OverlayBarRow[]>(() => visibleModules.value.map((item) => ({
-  name: item.module.displayName,
-  total: item.totalCount,
-  overlay: item.openCount,
-})));
+const overlay = computed<OverlayBarRow[]>(() => {
+  const rows = (data.value?.modules ?? []).slice().sort((left, right) => {
+    const order = overlaySortOrder.value;
+    if (overlaySort.value === 'total') {
+      const cmp = left.totalCount - right.totalCount;
+      return order === 'asc' ? cmp : -cmp;
+    }
+    if (overlaySort.value === 'name') {
+      const cmp = left.module.displayName.localeCompare(right.module.displayName, 'zh-CN');
+      return order === 'asc' ? cmp : -cmp;
+    }
+    const cmp = left.openCount - right.openCount;
+    return order === 'asc' ? cmp : -cmp;
+  });
+  return rows.map((item) => ({
+    name: item.module.displayName,
+    total: item.totalCount,
+    overlay: item.openCount,
+  }));
+});
 
-const causeCategories = computed<NamedValue[]>(() => (data.value?.causeCategories ?? []).map((item, index) => ({
-  name: item.categoryName,
-  value: item.count,
-  color: [BI_PALETTE.blue, BI_PALETTE.teal, BI_PALETTE.green, BI_PALETTE.orange, BI_PALETTE.red, BI_PALETTE.slate][index % 6],
-})));
+const causeCategories = computed<NamedValue[]>(() => {
+  const raw = (data.value?.causeCategories ?? []).map((item, index) => ({
+    name: item.categoryName,
+    value: item.count,
+    color: [BI_PALETTE.blue, BI_PALETTE.teal, BI_PALETTE.green, BI_PALETTE.orange, BI_PALETTE.red, BI_PALETTE.slate][index % 6],
+  }));
+  return sortNamedValues(raw, causeCategorySort.value, causeCategorySortOrder.value);
+});
 const causeSubcategories = computed(() => buildDefectCauseBreakdownData(data.value?.causeSubcategories ?? []));
 const delay = computed<DelayHeatmapData>(() => buildDelayHeatmapData(data.value?.delays ?? []));
 
 const developers = computed<DeveloperWorkloadRow[]>(() => {
-  const search = developerSearch.value.trim().toLowerCase();
-  const rows = (data.value?.developers ?? [])
-    .filter((item) => (!search || item.assignee.displayName.toLowerCase().includes(search)) && (developerStatus.value === 'all' || item.openCount > 0))
-    .slice()
-    .sort((left, right) => {
-      if (developerSort.value === 'totalDesc') return right.totalCount - left.totalCount || right.openCount - left.openCount;
-      if (developerSort.value === 'rateAsc') return repairRate(left.fixedCount, left.totalCount) - repairRate(right.fixedCount, right.totalCount);
-      if (developerSort.value === 'nameAsc') return left.assignee.displayName.localeCompare(right.assignee.displayName, 'zh-CN');
-      return right.openCount - left.openCount || right.totalCount - left.totalCount;
-    });
-  return limitRows(rows, developerLimit.value).map((item) => ({ name: item.assignee.displayName, total: item.totalCount, open: item.openCount, fixed: item.fixedCount }));
+  const raw = (data.value?.developers ?? []).map((item) => ({
+    name: item.assignee.displayName,
+    total: item.totalCount,
+    open: item.openCount,
+    fixed: item.fixedCount,
+  }));
+  return sortDeveloperWorkloadRows(raw, developerSort.value, developerSortOrder.value);
 });
-
-function limitRows<T>(rows: T[], limit: string): T[] {
-  const count = Number(limit);
-  return Number.isSafeInteger(count) && count > 0 ? rows.slice(0, count) : rows;
-}
-
-function repairRate(fixed: number, total: number): number {
-  return total > 0 ? fixed / total : 101;
-}
-
-function setRepairLimit(value: string | number): void { repairLimit.value = String(value); }
-function setDeveloperLimit(value: string | number): void { developerLimit.value = String(value); }
 </script>
 
 <template>
@@ -195,6 +257,9 @@ function setDeveloperLimit(value: string | number): void { developerLimit.value 
         :product-version-id="productVersionId"
         page-key="system-test"
         :source-version="response.sourceVersion"
+        v-model:sort="roundSort"
+        v-model:order="roundSortOrder"
+        :sort-options="roundSortOptions"
       />
       <BiChartPanel
         title="缺陷严重度分布"
@@ -208,6 +273,9 @@ function setDeveloperLimit(value: string | number): void { developerLimit.value 
         :product-version-id="productVersionId"
         page-key="system-test"
         :source-version="response.sourceVersion"
+        v-model:sort="severitySort"
+        v-model:order="severitySortOrder"
+        :sort-options="countNameSortOptions"
       />
 
       <BiChartPanel
@@ -222,23 +290,12 @@ function setDeveloperLimit(value: string | number): void { developerLimit.value 
         :product-version-id="productVersionId"
         page-key="system-test"
         :source-version="response.sourceVersion"
-      >
-        <template #actions>
-          <BiAnalysisToolbar
-            :limit="repairLimit"
-            :sort="repairSort"
-            :search="repairSearch"
-            :limit-options="listOptions"
-            :sort-options="repairSortOptions"
-            search-placeholder="搜索模块"
-            @update:limit="setRepairLimit"
-            @update:sort="repairSort = $event"
-            @update:search="repairSearch = $event"
-          />
-        </template>
-      </BiChartPanel>
+        v-model:sort="repairSort"
+        v-model:order="repairSortOrder"
+        :sort-options="repairSortOptions"
+      />
       <BiChartPanel
-        title="申请延期缺陷情况"
+        title="系统测试缺陷延期情况"
         :chart="delayChart"
         :data="delay"
         :height="430"
@@ -263,6 +320,9 @@ function setDeveloperLimit(value: string | number): void { developerLimit.value 
         :product-version-id="productVersionId"
         page-key="system-test"
         :source-version="response.sourceVersion"
+        v-model:sort="moduleSeveritySort"
+        v-model:order="moduleSeveritySortOrder"
+        :sort-options="moduleSeveritySortOptions"
       />
       <BiChartPanel
         title="各模块累计发现与当前未修复缺陷对比"
@@ -276,6 +336,9 @@ function setDeveloperLimit(value: string | number): void { developerLimit.value 
         :product-version-id="productVersionId"
         page-key="system-test"
         :source-version="response.sourceVersion"
+        v-model:sort="overlaySort"
+        v-model:order="overlaySortOrder"
+        :sort-options="overlaySortOptions"
       />
 
       <BiChartPanel
@@ -291,6 +354,9 @@ function setDeveloperLimit(value: string | number): void { developerLimit.value 
         :product-version-id="productVersionId"
         page-key="system-test"
         :source-version="response.sourceVersion"
+        v-model:sort="causeCategorySort"
+        v-model:order="causeCategorySortOrder"
+        :sort-options="countNameSortOptions"
       />
       <BiChartPanel
         class="bi-cause-chart-panel"
@@ -319,24 +385,10 @@ function setDeveloperLimit(value: string | number): void { developerLimit.value 
         :product-version-id="productVersionId"
         page-key="system-test"
         :source-version="response.sourceVersion"
-      >
-        <template #actions>
-          <BiAnalysisToolbar
-            :limit="developerLimit"
-            :sort="developerSort"
-            :search="developerSearch"
-            :status="developerStatus"
-            :limit-options="listOptions"
-            :sort-options="developerSortOptions"
-            :status-options="developerStatusOptions"
-            search-placeholder="搜索指派人"
-            @update:limit="setDeveloperLimit"
-            @update:sort="developerSort = $event"
-            @update:search="developerSearch = $event"
-            @update:status="developerStatus = $event"
-          />
-        </template>
-      </BiChartPanel>
+        v-model:sort="developerSort"
+        v-model:order="developerSortOrder"
+        :sort-options="developerSortOptions"
+      />
     </div>
   </div>
 </template>

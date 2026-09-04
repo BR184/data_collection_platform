@@ -1,0 +1,22 @@
+{
+  "table" : "collect_form_records",
+  "rows" : [ {
+    "id" : "1",
+    "gitlab_base_url" : "http://gitlab.example.com",
+    "project_id" : "9",
+    "request_iid" : "900001",
+    "resource_type" : "issue",
+    "resource_id" : "900001",
+    "template_code" : "default",
+    "form_title" : "golden 表单",
+    "reviewer" : "golden-评审员",
+    "review_duration_minutes" : "30",
+    "specification_score" : "5",
+    "logic_score" : "4",
+    "performance_score" : "5",
+    "design_score" : "4",
+    "other_score" : "5",
+    "remark" : "golden 写用例",
+    "deleted" : "f"
+  } ]
+}

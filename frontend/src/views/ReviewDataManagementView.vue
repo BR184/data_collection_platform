@@ -538,6 +538,18 @@ const {
         </StatisticFilterBuilder>
       </template>
 
+      <template #toolbar-prefix>
+        <el-button
+          v-if="canCreateReviewRecord"
+          type="primary"
+          class="app-action-button app-action-button--create"
+          :icon="Plus"
+          @click="handleCreateRecord"
+        >
+          新增评审
+        </el-button>
+      </template>
+
       <template #primary-actions>
         <div class="review-data-toolbar-actions">
           <el-tag effect="plain" type="primary">当前 {{ total }} 条</el-tag>
@@ -594,15 +606,6 @@ const {
             导入
           </el-button>
           <PageSettingsButton :scope-key="PAGE_SCOPE_KEY" />
-          <el-button
-            v-if="canCreateReviewRecord"
-            type="primary"
-            class="app-action-button app-action-button--create"
-            :icon="Plus"
-            @click="handleCreateRecord"
-          >
-            新增评审
-          </el-button>
         </div>
       </template>
 

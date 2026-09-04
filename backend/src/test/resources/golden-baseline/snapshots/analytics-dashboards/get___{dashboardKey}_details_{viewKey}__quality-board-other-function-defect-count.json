@@ -1,0 +1,117 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "dashboardKey" : "quality-board-other",
+    "viewKey" : "other-function-defect-count",
+    "title" : "功能缺陷数量数据详情",
+    "description" : "按功能统计系统测试缺陷数量",
+    "columns" : [ {
+      "key" : "scope",
+      "label" : "统计范围",
+      "format" : "text",
+      "width" : 160
+    }, {
+      "key" : "name",
+      "label" : "功能名称",
+      "format" : "text",
+      "width" : 180
+    }, {
+      "key" : "numerator",
+      "label" : "缺陷数量",
+      "format" : "number",
+      "width" : 150
+    } ],
+    "records" : [ {
+      "scope" : "CC2026R3",
+      "name" : "结构构件",
+      "numerator" : 7
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "断开的剖视图",
+      "numerator" : 5
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "错误配合列表",
+      "numerator" : 5
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "尺寸链",
+      "numerator" : 4
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "智能尺寸",
+      "numerator" : 4
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "基准尺寸",
+      "numerator" : 3
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "标注弧长",
+      "numerator" : 3
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "倒角尺寸",
+      "numerator" : 2
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "孔标注",
+      "numerator" : 2
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "拉伸切除",
+      "numerator" : 2
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "断裂视图",
+      "numerator" : 2
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "BOM工具",
+      "numerator" : 1
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "剖视图",
+      "numerator" : 1
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "剪裁视图",
+      "numerator" : 1
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "孤立",
+      "numerator" : 1
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "对齐工程图视图",
+      "numerator" : 1
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "导出/打印",
+      "numerator" : 1
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "局部视图",
+      "numerator" : 1
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "显示/隐藏",
+      "numerator" : 1
+    }, {
+      "scope" : "CC2026R3",
+      "name" : "替换零件或装配",
+      "numerator" : 1
+    } ],
+    "total" : 27,
+    "page" : 1,
+    "size" : 20,
+    "exports" : [ {
+      "exportKey" : "function-defect-count-excel",
+      "label" : "导出"
+    } ],
+    "filters" : [ ],
+    "chart" : null
+  }
+}

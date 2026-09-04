@@ -314,6 +314,10 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
     allowedQueryKeys: ['role'],
     persistedQueryKeys: [],
   },
+  'dropdown-option-settings': {
+    allowedQueryKeys: ['field'],
+    persistedQueryKeys: [],
+  },
 };
 
 const specialRouteContractByKey: Record<SpecialRouteKey, SpecialRouteContract> = {

@@ -1,0 +1,33 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "enabled" : true,
+    "syncEnabled" : true,
+    "mysqlHost" : "172.22.10.72",
+    "mysqlPort" : 3306,
+    "mysqlDatabase" : "gitlab_spider",
+    "dgmMysqlDatabase" : "gitlab_spider_dgm",
+    "mysqlUsername" : "root",
+    "mysqlPasswordConfigured" : false,
+    "mysqlTableName" : "spider_crowncad_data",
+    "legacyApiBaseUrl" : "http://172.22.10.72:8091",
+    "dgmLegacyApiBaseUrl" : null,
+    "selectedTableNames" : [ "spider_crowncad_data" ],
+    "mysqlFetchSize" : 1000,
+    "mongoUriConfigured" : true,
+    "mongoDatabase" : "spider",
+    "selectedMongoCollectionNames" : [ "reviewReport", "problemDetail", "description" ],
+    "reviewReportCollectionName" : "reviewReport",
+    "reviewProblemCollectionName" : "problemDetail",
+    "reviewDataReadMode" : "compatibility",
+    "codeReviewReadMode" : "compatibility",
+    "syncStatus" : "IDLE",
+    "syncMessage" : "兼容模式尚未同步",
+    "syncRecordCount" : 0,
+    "syncStartedAt" : null,
+    "syncFinishedAt" : null,
+    "updatedAt" : "2026-09-03T18:36:00.324218+08:00"
+  }
+}

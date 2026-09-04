@@ -1,0 +1,9 @@
+{
+  "httpStatus" : 400,
+  "body" : {
+    "success" : false,
+    "code" : "B0001",
+    "message" : "当前字段尚未绑定配置，无法复制拆分",
+    "data" : null
+  }
+}

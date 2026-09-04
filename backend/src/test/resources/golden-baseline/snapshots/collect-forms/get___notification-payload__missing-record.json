@@ -1,0 +1,11 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "sourceAddress" : "https://gitlab.example.com",
+    "projectId" : 9,
+    "requestIid" : 1,
+    "resourceType" : "issue"
+  }
+}

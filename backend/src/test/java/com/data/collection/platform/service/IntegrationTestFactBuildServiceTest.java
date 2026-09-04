@@ -34,7 +34,8 @@ class IntegrationTestFactBuildServiceTest {
             moduleDictionaryService,
             sourceSchemaGuard,
             sqlQueryMonitor,
-            configService);
+            configService,
+            new IssuePhaseCalendarLoader(jdbcTemplate));
 
     assertThatThrownBy(() -> service.rebuildFacts(true, 42L)).isSameAs(schemaFailure);
 

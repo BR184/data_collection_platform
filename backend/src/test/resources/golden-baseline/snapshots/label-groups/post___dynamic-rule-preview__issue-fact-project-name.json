@@ -1,0 +1,17 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "outputValueType" : "STRING",
+    "status" : "SUCCESS",
+    "message" : "已计算出 1 个成员",
+    "members" : [ {
+      "id" : null,
+      "value" : "CCProduct",
+      "label" : "CCProduct",
+      "currentAvailable" : true,
+      "sortOrder" : 0
+    } ]
+  }
+}

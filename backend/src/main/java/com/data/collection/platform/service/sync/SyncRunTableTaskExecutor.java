@@ -103,6 +103,9 @@ public class SyncRunTableTaskExecutor {
       boolean preciseTask = "PRECISE".equalsIgnoreCase(task.getRowStrategy());
       boolean monotonicPrimaryKeyTask =
           "MONOTONIC_PRIMARY_KEY".equalsIgnoreCase(task.getRowStrategy());
+      boolean fullMonotonicPrimaryKeyTask =
+          fullReconcileTask
+              && "MONOTONIC_PRIMARY_KEY".equalsIgnoreCase(state.getRowStrategy());
       if ("RECONCILE_ONLY".equalsIgnoreCase(task.getRowStrategy())) {
         throw new IllegalStateException(
             "仅删除反熵来源不能创建普通扫描任务：" + task.getSourceTable());
@@ -200,11 +203,16 @@ public class SyncRunTableTaskExecutor {
           !scopedTask
               && rows.size() >= batchSize
               && !lastCursor.primaryKey().isBlank();
-      RowCursor completionCursor = !scopedTask && !hasMore
-          ? monotonicPrimaryKeyTask
-              ? new RowCursor(null, scanUpperBoundPk)
-              : new RowCursor(scanUpperBound, "")
-          : lastCursor;
+      RowCursor completionCursor =
+          !scopedTask && !hasMore
+              ? monotonicPrimaryKeyTask || fullMonotonicPrimaryKeyTask
+                  ? new RowCursor(
+                      null,
+                      fullMonotonicPrimaryKeyTask
+                          ? normalizeCursor(lastCursor.primaryKey())
+                          : scanUpperBoundPk)
+                  : new RowCursor(scanUpperBound, "")
+              : lastCursor;
       leaseGuard.requireOwnership();
       pageCommitService.commitScanPage(
           task,

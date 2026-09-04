@@ -102,12 +102,11 @@ describe('BI chart type contract', () => {
 
     expect(option.xAxis).toMatchObject({ type: 'category', data: ['张三'] });
     expect(option.yAxis).toMatchObject({ type: 'value', min: 0, max: 15 });
-    expect(series.slice(0, 3)).toEqual([
-      expect.objectContaining({ name: '缺陷总数', type: 'bar', label: { show: false }, data: [12] }),
-      expect.objectContaining({ name: '已修复', type: 'bar', stack: 'status', label: { show: false }, data: [8] }),
-      expect.objectContaining({ name: '待修复', type: 'bar', stack: 'status', label: { show: false }, data: [4] }),
+    expect(series.slice(0, 2)).toEqual([
+      expect.objectContaining({ name: '已修复', type: 'bar', stack: 'workload', data: [8] }),
+      expect.objectContaining({ name: '待修复', type: 'bar', stack: 'workload', data: [4] }),
     ]);
-    expect(series[3]).toMatchObject({ name: '指派人摘要', type: 'custom', data: [[0, 12, 4]], tooltip: { show: false } });
+    expect(series[2]).toMatchObject({ name: '总数标顶', type: 'custom', data: [[0, 12]], tooltip: { show: false } });
   });
 
   it('centers review quality axis units so paired panels do not clip them', () => {

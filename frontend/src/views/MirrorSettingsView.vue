@@ -9,18 +9,21 @@ import { api } from '../api';
 import type { GitlabSourceHealthResponse, GitlabSyncConfig, SyncRunDiagnosticsResponse } from '../types/api';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
-import { buildPurgeSummaryHtml, syncStatusText, translateSyncMessage } from './mirror-settings-helpers';
+import { buildPurgeSummaryHtml } from './mirror-settings-helpers';
 import { getErrorMessage } from '../utils/user-message';
 import MirrorRunMonitorPanel from './MirrorRunMonitorPanel.vue';
 import MirrorRunTableTaskDrawer from './MirrorRunTableTaskDrawer.vue';
 import MirrorSyncLogTable from './MirrorSyncLogTable.vue';
 import MirrorSyncStatusCard from './MirrorSyncStatusCard.vue';
 import CatMirrorSettingsPanel from './CatMirrorSettingsPanel.vue';
+import { formSnapshot } from './mirror-config-fingerprint';
 import { useFactRebuildDialog } from './useFactRebuildDialog';
+import { useMirrorDiagnosticsController } from './useMirrorDiagnosticsController';
 import { useMirrorPurgeDialog } from './useMirrorPurgeDialog';
 import { useMirrorStatusController } from './useMirrorStatusController';
 import { useMirrorStatusPresentation } from './useMirrorStatusPresentation';
 import { useMirrorSyncActionsController } from './useMirrorSyncActionsController';
+import { useMirrorSourceHealthPresentation } from './useMirrorSourceHealthPresentation';
 import { useMirrorSystemHookRegistrationController } from './useMirrorSystemHookRegistrationController';
 import { useMirrorWhitelistOptionsController } from './useMirrorWhitelistOptionsController';
 
@@ -29,9 +32,7 @@ const catMirrorDirty = ref(false);
 const configs = ref<GitlabSyncConfig[]>([]);
 const sourceHealth = ref<GitlabSourceHealthResponse[]>([]);
 const tableSyncDiagnostics = ref<SyncRunDiagnosticsResponse | null>(null);
-const tableSyncDiagnosticsLoading = ref(false);
 const tableTaskDrawerVisible = ref(false);
-const retryingFailedRun = ref(false);
 const selectedConfigId = ref<number | undefined>(undefined);
 const savedFormSnapshot = ref('');
 const ACTIVE_SYNC_STATUSES = ['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING'];
@@ -186,148 +187,49 @@ const threadBudgetPreview = computed(() => {
 function handleSyncThreadModeChange(mode: string | number | boolean | undefined) {
   form.value.syncThreadValue = mode === 'CPU_RATIO' ? 0.8 : 2;
 }
-const systemHookStatusTagType = computed(() => {
-  if (!isDockerMode.value || systemHookRegistrationLoading.value) {
-    return 'info';
-  }
-  if (systemHookRegistration.value?.registered) {
-    return 'success';
-  }
-  return systemHookRegistration.value?.configured ? 'warning' : 'info';
-});
-const systemHookStatusLabel = computed(() => {
-  if (systemHookRegistrationLoading.value) {
-    return '检测中';
-  }
-  if (!isDockerMode.value) {
-    return '需手动注册';
-  }
-  if (systemHookRegistration.value?.registered) {
-    return '已注册';
-  }
-  return systemHookRegistration.value?.configured ? '未注册' : '未配置';
-});
-const systemHookStatusMessage = computed(() => {
-  if (systemHookRegistrationLoading.value) {
-    return '正在异步检测 GitLab System Hook 状态，不影响页面其他信息加载。';
-  }
-  if (!isDockerMode.value) {
-    return '直连模式需在 GitLab 管理后台手动注册 System Hook，平台无法自动检测注册状态。';
-  }
-  return systemHookRegistration.value?.message || '尚未检测 GitLab System Hook 状态。';
-});
 const isFormDirty = computed(() => savedFormSnapshot.value !== '' && formSnapshot(form.value) !== savedFormSnapshot.value);
 const currentSourceText = computed(() => form.value.name || 'GitLab 数据镜像');
-const currentSourceHealth = computed(() => {
-  const healthItems = Array.isArray(sourceHealth.value) ? sourceHealth.value : [];
-  return healthItems.find((item) => item.configId === selectedConfigId.value);
+const {
+  currentSourceHealth,
+  currentFactLaggingDomains,
+  currentSourceHealthTone,
+  currentSourceHealthText,
+  currentSourceHealthSummary,
+  currentSourceLatestSyncStatusText,
+  currentSourceHealthMessageText,
+  missingRequiredMirrorTablesPreview,
+  systemHookStatusTagType,
+  systemHookStatusLabel,
+  systemHookStatusMessage,
+} = useMirrorSourceHealthPresentation({
+  sourceHealth,
+  selectedConfigId,
+  isDockerMode,
+  systemHookRegistrationLoading,
+  systemHookRegistration,
 });
-const currentFactLaggingDomains = computed(() => {
-  const health = currentSourceHealth.value;
-  if (!health) {
-    return [];
-  }
-  const domains: string[] = [];
-  if (health.mergeRequestFactLagging) {
-    domains.push('代码走查事实');
-  }
-  if (health.issueFactLagging) {
-    domains.push('系统测试/客户问题事实');
-  }
-  return domains;
-});
-const currentSourceHealthTone = computed(() => {
-  const health = currentSourceHealth.value;
-  if (!health) {
-    return 'info';
-  }
-  if (
-    health.missingRequiredMirrorTables.length > 0 ||
-    health.latestLogStatus === 'FAILED' ||
-    health.latestLogStatus === 'TIMEOUT'
-  ) {
-    return 'danger';
-  }
-  if (
-    health.factLayerLagging ||
-    health.latestLogStatus === 'PARTIAL_SUCCESS' ||
-    ['RUNNING', 'QUEUED', 'RETRYING'].includes(health.currentStatus)
-  ) {
-    return 'warning';
-  }
-  if (!health.enabled) {
-    return 'info';
-  }
-  return 'success';
-});
-const currentSourceHealthText = computed(() => {
-  const health = currentSourceHealth.value;
-  if (!health) {
-    return '暂无诊断';
-  }
-  if (!health.enabled) {
-    return '已停用';
-  }
-  if (health.missingRequiredMirrorTables.length > 0) {
-    return '镜像不完整';
-  }
-  if (health.latestLogStatus === 'FAILED' || health.latestLogStatus === 'TIMEOUT') {
-    return '同步异常';
-  }
-  if (health.latestLogStatus === 'PARTIAL_SUCCESS') {
-    return '部分表异常';
-  }
-  if (health.factLayerLagging) {
-    return '事实层滞后';
-  }
-  if (['RUNNING', 'QUEUED', 'RETRYING'].includes(health.currentStatus)) {
-    return '同步中';
-  }
-  return '健康';
-});
-const currentSourceHealthSummary = computed(() => {
-  const health = currentSourceHealth.value;
-  if (!health) {
-    return '当前数据源还没有健康诊断结果。';
-  }
-  if (!health.enabled) {
-    return '该数据源已停用，不会参与自动同步。';
-  }
-  if (health.missingRequiredMirrorTables.length > 0) {
-    return '关键镜像表缺失，代码走查相关数据可能无法完整展示。';
-  }
-  if (health.factLayerLagging) {
-    return '镜像数据已经更新，但部分展示或统计使用的事实层还没有刷新到最新。';
-  }
-  if (health.latestLogStatus === 'FAILED' || health.latestLogStatus === 'TIMEOUT') {
-    return health.latestLogMessage || '最近一次同步未成功，请查看同步日志并重新触发。';
-  }
-  if (health.latestLogStatus === 'PARTIAL_SUCCESS') {
-    return health.latestLogMessage || '最近一次同步部分表未成功，系统会继续按表级任务恢复。';
-  }
-  return '镜像表、事实层和最近同步状态未发现阻断问题。';
-});
-const currentSourceLatestSyncStatusText = computed(() => {
-  const health = currentSourceHealth.value;
-  if (!health) {
-    return '-';
-  }
-  const rawStatus = health.latestLogStatus || health.currentStatus;
-  return rawStatus ? syncStatusText(rawStatus) : '-';
-});
-const currentSourceHealthMessageText = computed(() => {
-  const health = currentSourceHealth.value;
-  if (!health) {
-    return '';
-  }
-  return translateSyncMessage(health.latestLogMessage || health.currentMessage) || '';
-});
-const missingRequiredMirrorTablesPreview = computed(() => {
-  const tables = currentSourceHealth.value?.missingRequiredMirrorTables ?? [];
-  return {
-    visible: tables.slice(0, 5),
-    hiddenCount: Math.max(tables.length - 5, 0),
-  };
+const {
+  tableSyncDiagnosticsLoading,
+  retryingFailedRun,
+  loadMirrorSection,
+  loadDeferredMirrorSections,
+  loadSourceHealth,
+  loadTableSyncDiagnostics,
+  retryFailedRun,
+} = useMirrorDiagnosticsController({
+  selectedConfigId,
+  sourceHealth,
+  tableSyncDiagnostics,
+  getSourceHealth: () => api.getSourceHealth(),
+  getTableSyncDiagnostics: (configId) => api.getTableSyncDiagnostics(configId),
+  retryFailedSync: (configId) => api.retryFailedSync(configId),
+  showSubmissionFeedback,
+  loadStatus: (showError, blocking) => loadStatus(showError, blocking),
+  loadSystemHookRegistration,
+  hasUnsavedChanges: () => isFormDirty.value,
+  actionDisabled: () => savedConfigActionDisabled.value,
+  notifyWarning: (message) => ElMessage.warning(message),
+  notifyError: (message) => ElMessage.error(message),
 });
 const {
   progress,
@@ -441,91 +343,11 @@ async function initializePage() {
   void loadDeferredMirrorSections();
 }
 
-async function loadDeferredMirrorSections() {
-  await Promise.all([
-    loadMirrorSection('数据源健康状态', loadSourceHealth),
-    loadMirrorSection('表级同步诊断', () => loadTableSyncDiagnostics(false)),
-    loadMirrorSection('System Hook 状态', () => loadSystemHookRegistration(false)),
-  ]);
-}
-
-async function loadMirrorSection(sectionName: string, loader: () => Promise<void>) {
-  try {
-    await loader();
-  } catch (error) {
-    console.warn(`${sectionName} 加载失败`, error);
-  }
-}
-
 async function loadConfigs() {
   configs.value = await api.getConfigs();
   if (selectedConfigId.value == null) {
     selectedConfigId.value = configs.value.find((item) => item.id != null)?.id;
   }
-}
-
-async function loadSourceHealth() {
-  const healthItems = await api.getSourceHealth();
-  sourceHealth.value = Array.isArray(healthItems) ? healthItems : [];
-}
-
-async function loadTableSyncDiagnostics(showError = false) {
-  if (selectedConfigId.value == null) {
-    tableSyncDiagnostics.value = null;
-    return;
-  }
-  tableSyncDiagnosticsLoading.value = true;
-  try {
-    tableSyncDiagnostics.value = await api.getTableSyncDiagnostics(selectedConfigId.value);
-  } catch (error) {
-    tableSyncDiagnostics.value = null;
-    if (showError) {
-      ElMessage.error(getErrorMessage(error, '加载表级同步诊断失败'));
-    }
-  } finally {
-    tableSyncDiagnosticsLoading.value = false;
-  }
-}
-
-function normalizeFingerprintPart(value: string | number | null | undefined) {
-  return String(value ?? '').trim().toLowerCase();
-}
-
-function formSnapshot(config: GitlabSyncConfig) {
-  return JSON.stringify({
-    id: config.id ?? null,
-    name: config.name ?? '',
-    enabled: Boolean(config.sourceEnabled ?? config.enabled),
-    sourceEnabled: Boolean(config.sourceEnabled ?? config.enabled),
-    sourceInstance: normalizeFingerprintPart(config.sourceInstance) || 'default',
-    autoSyncEnabled: Boolean(config.autoSyncEnabled),
-    sourceMode: config.sourceMode ?? 'DOCKER',
-    whitelistMode: config.whitelistMode ?? 'RECOMMENDED',
-    whitelistTables: [...(config.whitelistTables ?? [])].sort(),
-    dbHost: normalizeFingerprintPart(config.dbHost),
-    dbPort: Number(config.dbPort ?? 5432),
-    dbName: normalizeFingerprintPart(config.dbName),
-    dbUsername: normalizeFingerprintPart(config.dbUsername),
-    dbPassword: config.dbPassword ?? '',
-    apiToken: config.apiToken ?? '',
-    delayLabelWritebackEnabled: Boolean(config.delayLabelWritebackEnabled),
-    matchModeEnabled: config.matchModeEnabled ?? true,
-    dockerContainerName: normalizeFingerprintPart(config.dockerContainerName),
-    systemHookSecret: config.systemHookSecret ?? '',
-    systemHookEnabled: Boolean(config.systemHookEnabled),
-    systemHookProjectId: config.systemHookProjectId ?? null,
-    compensationIntervalMinutes: Number(config.compensationIntervalMinutes ?? 360),
-    compensationScheduleMode: config.compensationScheduleMode ?? 'INTERVAL',
-    compensationTime: config.compensationTime ?? '03:30',
-    compensationWindowStart: config.compensationWindowStart ?? null,
-    compensationWindowEnd: config.compensationWindowEnd ?? null,
-    compensationMissedWindowPolicy: config.compensationMissedWindowPolicy ?? 'SKIP',
-    fullCompensationEnabled: config.fullCompensationEnabled ?? true,
-    fullCompensationTime: config.fullCompensationTime ?? '02:00',
-    syncThreadMode: config.syncThreadMode ?? 'FIXED',
-    syncThreadValue: Number(config.syncThreadValue ?? 2),
-    maxSyncThreads: Number(config.maxSyncThreads ?? 16),
-  });
 }
 
 async function confirmDiscardUnsavedChanges(message = '存在未保存的同步策略修改，确认离开将丢失这些修改。') {
@@ -559,30 +381,6 @@ function openTableTaskDrawer() {
 async function cancelSyncFromMonitor() {
   await cancelSyncTask();
   await loadTableSyncDiagnostics(false);
-}
-
-async function retryFailedRun() {
-  if (savedConfigActionDisabled.value || retryingFailedRun.value) {
-    return;
-  }
-  if (isFormDirty.value) {
-    ElMessage.warning('当前设置尚未保存，请先保存配置后再重试同步任务。');
-    return;
-  }
-  retryingFailedRun.value = true;
-  try {
-    const result = await api.retryFailedSync(selectedConfigId.value);
-    showSubmissionFeedback(result);
-    await loadStatus(false, false);
-    await Promise.all([
-      loadMirrorSection('数据源健康状态', loadSourceHealth),
-      loadMirrorSection('表级同步诊断', () => loadTableSyncDiagnostics(false)),
-    ]);
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, '同步任务重试失败'));
-  } finally {
-    retryingFailedRun.value = false;
-  }
 }
 
 function openCurrentSourceFactRebuildDialog() {

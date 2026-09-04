@@ -511,7 +511,10 @@ public class CodeReviewMatchModeRecordLoader {
   }
 
   private String sortColumn(String sortField) {
-    return SORT_COLUMNS.getOrDefault(sortField, "merged_at_source");
+    // sortField 为 null 是合法输入（导出请求可不带排序字段）；不可变映射对 null 键查询会抛 NPE。
+    return sortField == null
+        ? "merged_at_source"
+        : SORT_COLUMNS.getOrDefault(sortField, "merged_at_source");
   }
 
   private String orderByClause(String sortField, String sortOrder) {

@@ -1,0 +1,24 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : [ {
+    "pageKey" : "review-data-home",
+    "pageName" : "评审数据管理",
+    "fieldKey" : "moduleName",
+    "fieldName" : "模块",
+    "mvpEnabled" : true
+  }, {
+    "pageKey" : "question-metrics-issue-search",
+    "pageName" : "系统测试议题查询",
+    "fieldKey" : "moduleName",
+    "fieldName" : "模块",
+    "mvpEnabled" : true
+  }, {
+    "pageKey" : "customer-issues-cc-product-issues",
+    "pageName" : "客户问题列表",
+    "fieldKey" : "moduleName",
+    "fieldName" : "模块",
+    "mvpEnabled" : true
+  } ]
+}

@@ -1,0 +1,24 @@
+{
+  "httpStatus" : 200,
+  "body" : {
+    "success" : true,
+    "code" : "00000",
+    "message" : "范围匹配值已更新",
+    "data" : {
+      "id" : 1,
+      "catalogId" : 1,
+      "groupId" : 3,
+      "sourceValue" : "CC2024R2第一轮系统测试",
+      "displayName" : "golden成员-更新",
+      "sortOrder" : 5,
+      "activeFrom" : null,
+      "activeUntil" : null,
+      "enabled" : true,
+      "sourceReferenceId" : null,
+      "remark" : "",
+      "issueCount" : 2,
+      "createdAt" : "2026-09-03T18:35:59.910001+08:00",
+      "updatedAt" : "2026-09-03T18:37:22.708794+08:00"
+    }
+  }
+}

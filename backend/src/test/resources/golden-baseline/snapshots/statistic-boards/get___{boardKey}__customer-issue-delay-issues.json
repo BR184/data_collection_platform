@@ -1,0 +1,2908 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "definition" : {
+      "boardKey" : "customer-issue-delay-issues",
+      "title" : "客户问题延期问题",
+      "description" : "按模块展示客户问题的响应延期和解决延期数量。",
+      "queryTitle" : "",
+      "queryDescription" : "",
+      "rowHeaderLabel" : "模块",
+      "filters" : [ {
+        "key" : "projectName",
+        "label" : "项目名称",
+        "type" : "text",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 200,
+        "operators" : [ "eq", "ne", "contains", "isEmpty", "isNotEmpty" ],
+        "options" : [ ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "milestoneTitle",
+        "label" : "里程碑",
+        "type" : "text",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 180,
+        "operators" : [ "eq", "ne", "contains", "isEmpty", "isNotEmpty" ],
+        "options" : [ ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "moduleName",
+        "label" : "模块名",
+        "type" : "text",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 180,
+        "operators" : [ "eq", "ne", "contains", "isEmpty", "isNotEmpty" ],
+        "options" : [ ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "priorityLevel",
+        "label" : "紧急程度",
+        "type" : "select",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 160,
+        "operators" : [ "eq", "ne" ],
+        "options" : [ {
+          "label" : "P1",
+          "value" : "P1"
+        }, {
+          "label" : "P2",
+          "value" : "P2"
+        }, {
+          "label" : "P3",
+          "value" : "P3"
+        } ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "issueState",
+        "label" : "议题状态",
+        "type" : "text",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 160,
+        "operators" : [ "eq", "ne", "contains", "isEmpty", "isNotEmpty" ],
+        "options" : [ ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "authorName",
+        "label" : "议题提交人",
+        "type" : "select",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 160,
+        "operators" : [ "eq", "ne" ],
+        "options" : [ {
+          "label" : "Administrator",
+          "value" : "Administrator"
+        }, {
+          "label" : "yangkun",
+          "value" : "yangkun"
+        }, {
+          "label" : "zhouweizheng",
+          "value" : "zhouweizheng"
+        }, {
+          "label" : "刘威麟",
+          "value" : "刘威麟"
+        }, {
+          "label" : "刘尚",
+          "value" : "刘尚"
+        }, {
+          "label" : "刘汝宁",
+          "value" : "刘汝宁"
+        }, {
+          "label" : "姜汛",
+          "value" : "姜汛"
+        }, {
+          "label" : "孔帆",
+          "value" : "孔帆"
+        }, {
+          "label" : "张月",
+          "value" : "张月"
+        }, {
+          "label" : "张辉",
+          "value" : "张辉"
+        }, {
+          "label" : "张金花",
+          "value" : "张金花"
+        }, {
+          "label" : "曹巧元",
+          "value" : "曹巧元"
+        }, {
+          "label" : "曹晋伟",
+          "value" : "曹晋伟"
+        }, {
+          "label" : "李尚玉",
+          "value" : "李尚玉"
+        }, {
+          "label" : "李焕坤",
+          "value" : "李焕坤"
+        }, {
+          "label" : "杨依景",
+          "value" : "杨依景"
+        }, {
+          "label" : "杨晓雨",
+          "value" : "杨晓雨"
+        }, {
+          "label" : "林家彬",
+          "value" : "林家彬"
+        }, {
+          "label" : "焦方昭",
+          "value" : "焦方昭"
+        }, {
+          "label" : "王丽娟",
+          "value" : "王丽娟"
+        }, {
+          "label" : "王旭",
+          "value" : "王旭"
+        }, {
+          "label" : "王琦琪",
+          "value" : "王琦琪"
+        }, {
+          "label" : "田松",
+          "value" : "田松"
+        }, {
+          "label" : "白欣慧",
+          "value" : "白欣慧"
+        }, {
+          "label" : "董鹏宇",
+          "value" : "董鹏宇"
+        }, {
+          "label" : "赵成名",
+          "value" : "赵成名"
+        }, {
+          "label" : "陈嘉乐",
+          "value" : "陈嘉乐"
+        }, {
+          "label" : "陈艺珲",
+          "value" : "陈艺珲"
+        } ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      }, {
+        "key" : "assigneeName",
+        "label" : "议题处理人",
+        "type" : "select",
+        "placeholder" : "",
+        "defaultValue" : "",
+        "width" : 160,
+        "operators" : [ "eq", "ne" ],
+        "options" : [ {
+          "label" : "zhouweizheng",
+          "value" : "zhouweizheng"
+        }, {
+          "label" : "于健",
+          "value" : "于健"
+        }, {
+          "label" : "付守帅",
+          "value" : "付守帅"
+        }, {
+          "label" : "付崇莱",
+          "value" : "付崇莱"
+        }, {
+          "label" : "任国瑞",
+          "value" : "任国瑞"
+        }, {
+          "label" : "侯燕申",
+          "value" : "侯燕申"
+        }, {
+          "label" : "傅培钰",
+          "value" : "傅培钰"
+        }, {
+          "label" : "冯文婕",
+          "value" : "冯文婕"
+        }, {
+          "label" : "冯钊",
+          "value" : "冯钊"
+        }, {
+          "label" : "刘佳祺",
+          "value" : "刘佳祺"
+        }, {
+          "label" : "刘尚",
+          "value" : "刘尚"
+        }, {
+          "label" : "刘志国",
+          "value" : "刘志国"
+        }, {
+          "label" : "刘悦",
+          "value" : "刘悦"
+        }, {
+          "label" : "刘旭阳",
+          "value" : "刘旭阳"
+        }, {
+          "label" : "刘祥志",
+          "value" : "刘祥志"
+        }, {
+          "label" : "刘纪凯",
+          "value" : "刘纪凯"
+        }, {
+          "label" : "刘露",
+          "value" : "刘露"
+        }, {
+          "label" : "史清杰",
+          "value" : "史清杰"
+        }, {
+          "label" : "吕志金",
+          "value" : "吕志金"
+        }, {
+          "label" : "吕明康",
+          "value" : "吕明康"
+        }, {
+          "label" : "姚辉彩",
+          "value" : "姚辉彩"
+        }, {
+          "label" : "姜万瑞",
+          "value" : "姜万瑞"
+        }, {
+          "label" : "孔帆",
+          "value" : "孔帆"
+        }, {
+          "label" : "孟桦",
+          "value" : "孟桦"
+        }, {
+          "label" : "孟秀平",
+          "value" : "孟秀平"
+        }, {
+          "label" : "崔雪峰",
+          "value" : "崔雪峰"
+        }, {
+          "label" : "席莎",
+          "value" : "席莎"
+        }, {
+          "label" : "常根",
+          "value" : "常根"
+        }, {
+          "label" : "庄晓",
+          "value" : "庄晓"
+        }, {
+          "label" : "张丽丽",
+          "value" : "张丽丽"
+        }, {
+          "label" : "张宽",
+          "value" : "张宽"
+        }, {
+          "label" : "张文才",
+          "value" : "张文才"
+        }, {
+          "label" : "张明霞",
+          "value" : "张明霞"
+        }, {
+          "label" : "张晓涵",
+          "value" : "张晓涵"
+        }, {
+          "label" : "张海思",
+          "value" : "张海思"
+        }, {
+          "label" : "张登航",
+          "value" : "张登航"
+        }, {
+          "label" : "张硕",
+          "value" : "张硕"
+        }, {
+          "label" : "张计成",
+          "value" : "张计成"
+        }, {
+          "label" : "张静",
+          "value" : "张静"
+        }, {
+          "label" : "彭环环",
+          "value" : "彭环环"
+        }, {
+          "label" : "徐凯强",
+          "value" : "徐凯强"
+        }, {
+          "label" : "徐昊2",
+          "value" : "徐昊2"
+        }, {
+          "label" : "徐雪雨",
+          "value" : "徐雪雨"
+        }, {
+          "label" : "曹巧元",
+          "value" : "曹巧元"
+        }, {
+          "label" : "曹步勇",
+          "value" : "曹步勇"
+        }, {
+          "label" : "朱梦莹",
+          "value" : "朱梦莹"
+        }, {
+          "label" : "李东尧",
+          "value" : "李东尧"
+        }, {
+          "label" : "李令博",
+          "value" : "李令博"
+        }, {
+          "label" : "李庚辰",
+          "value" : "李庚辰"
+        }, {
+          "label" : "李永正",
+          "value" : "李永正"
+        }, {
+          "label" : "李焕坤",
+          "value" : "李焕坤"
+        }, {
+          "label" : "李硕彦",
+          "value" : "李硕彦"
+        }, {
+          "label" : "杜丙瑜",
+          "value" : "杜丙瑜"
+        }, {
+          "label" : "杜敏敏",
+          "value" : "杜敏敏"
+        }, {
+          "label" : "杨依景",
+          "value" : "杨依景"
+        }, {
+          "label" : "杨哲",
+          "value" : "杨哲"
+        }, {
+          "label" : "杨晓雨",
+          "value" : "杨晓雨"
+        }, {
+          "label" : "柳冰旸",
+          "value" : "柳冰旸"
+        }, {
+          "label" : "梁春阳",
+          "value" : "梁春阳"
+        }, {
+          "label" : "梁灏",
+          "value" : "梁灏"
+        }, {
+          "label" : "武晓旭",
+          "value" : "武晓旭"
+        }, {
+          "label" : "潘广磊",
+          "value" : "潘广磊"
+        }, {
+          "label" : "潘影丽",
+          "value" : "潘影丽"
+        }, {
+          "label" : "潘慧敏",
+          "value" : "潘慧敏"
+        }, {
+          "label" : "焦桦坤",
+          "value" : "焦桦坤"
+        }, {
+          "label" : "牟敬芳",
+          "value" : "牟敬芳"
+        }, {
+          "label" : "狄林林",
+          "value" : "狄林林"
+        }, {
+          "label" : "王俏月",
+          "value" : "王俏月"
+        }, {
+          "label" : "王德远",
+          "value" : "王德远"
+        }, {
+          "label" : "王志阳",
+          "value" : "王志阳"
+        }, {
+          "label" : "王念文",
+          "value" : "王念文"
+        }, {
+          "label" : "王楠",
+          "value" : "王楠"
+        }, {
+          "label" : "王苏晓",
+          "value" : "王苏晓"
+        }, {
+          "label" : "王菲",
+          "value" : "王菲"
+        }, {
+          "label" : "王青",
+          "value" : "王青"
+        }, {
+          "label" : "王馨宇",
+          "value" : "王馨宇"
+        }, {
+          "label" : "田川",
+          "value" : "田川"
+        }, {
+          "label" : "田松",
+          "value" : "田松"
+        }, {
+          "label" : "白云涛",
+          "value" : "白云涛"
+        }, {
+          "label" : "秦龙飞",
+          "value" : "秦龙飞"
+        }, {
+          "label" : "程振昌",
+          "value" : "程振昌"
+        }, {
+          "label" : "耿亚慧",
+          "value" : "耿亚慧"
+        }, {
+          "label" : "艾文涛",
+          "value" : "艾文涛"
+        }, {
+          "label" : "訾义龙",
+          "value" : "訾义龙"
+        }, {
+          "label" : "谭海燕",
+          "value" : "谭海燕"
+        }, {
+          "label" : "贾吉喆",
+          "value" : "贾吉喆"
+        }, {
+          "label" : "赵冬军",
+          "value" : "赵冬军"
+        }, {
+          "label" : "路士坤",
+          "value" : "路士坤"
+        }, {
+          "label" : "邢胜南",
+          "value" : "邢胜南"
+        }, {
+          "label" : "邹绪杰",
+          "value" : "邹绪杰"
+        }, {
+          "label" : "郎琳琳",
+          "value" : "郎琳琳"
+        }, {
+          "label" : "郑振松",
+          "value" : "郑振松"
+        }, {
+          "label" : "郝晨凯",
+          "value" : "郝晨凯"
+        }, {
+          "label" : "郭良星",
+          "value" : "郭良星"
+        }, {
+          "label" : "郭英科",
+          "value" : "郭英科"
+        }, {
+          "label" : "闫芝浩",
+          "value" : "闫芝浩"
+        }, {
+          "label" : "陈明",
+          "value" : "陈明"
+        }, {
+          "label" : "陈晖",
+          "value" : "陈晖"
+        }, {
+          "label" : "陈荣昌",
+          "value" : "陈荣昌"
+        }, {
+          "label" : "陈魁",
+          "value" : "陈魁"
+        }, {
+          "label" : "隋天宝",
+          "value" : "隋天宝"
+        }, {
+          "label" : "霍志岩",
+          "value" : "霍志岩"
+        }, {
+          "label" : "韩旻武",
+          "value" : "韩旻武"
+        }, {
+          "label" : "韩潞钦",
+          "value" : "韩潞钦"
+        }, {
+          "label" : "马伟芳",
+          "value" : "马伟芳"
+        }, {
+          "label" : "马传超",
+          "value" : "马传超"
+        }, {
+          "label" : "马泽坤",
+          "value" : "马泽坤"
+        }, {
+          "label" : "骆昱",
+          "value" : "骆昱"
+        }, {
+          "label" : "高士亮",
+          "value" : "高士亮"
+        }, {
+          "label" : "高扬",
+          "value" : "高扬"
+        }, {
+          "label" : "高玉栋",
+          "value" : "高玉栋"
+        }, {
+          "label" : "高贯孟",
+          "value" : "高贯孟"
+        }, {
+          "label" : "麻荣雨",
+          "value" : "麻荣雨"
+        } ],
+        "labelGroupEnabled" : false,
+        "labelGroupValueType" : null
+      } ],
+      "columnGroups" : [ {
+        "key" : "response-delay",
+        "label" : "响应延期的缺陷数量",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "resp_delay_p1",
+          "label" : "P1",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "resp_delay_p2",
+          "label" : "P2",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "resp_delay_p3",
+          "label" : "P3",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "resp_delay_sum",
+          "label" : "总计",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        } ]
+      }, {
+        "key" : "resolve-delay",
+        "label" : "解决延期的缺陷数量",
+        "children" : [ ],
+        "columns" : [ {
+          "key" : "fix_delay_p1",
+          "label" : "P1",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "fix_delay_p2",
+          "label" : "P2",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "fix_delay_p3",
+          "label" : "P3",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        }, {
+          "key" : "fix_delay_sum",
+          "label" : "总计",
+          "drilldown" : true,
+          "metricType" : "count",
+          "headerTooltip" : null
+        } ]
+      } ],
+      "detailColumns" : [ {
+        "key" : "iid",
+        "label" : "议题编号",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "moduleNames",
+        "label" : "模块名",
+        "width" : 160,
+        "minWidth" : 160,
+        "sortable" : true,
+        "type" : "tags",
+        "expandOnly" : false
+      }, {
+        "key" : "title",
+        "label" : "议题标题",
+        "width" : 360,
+        "minWidth" : 260,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "state",
+        "label" : "议题状态",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : false
+      }, {
+        "key" : "priorityLevel",
+        "label" : "紧急程度",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : false
+      }, {
+        "key" : "delayType",
+        "label" : "延期类型",
+        "width" : 140,
+        "minWidth" : 140,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : false
+      }, {
+        "key" : "bugStatus",
+        "label" : "测试状态",
+        "width" : 160,
+        "minWidth" : 160,
+        "sortable" : true,
+        "type" : "tags",
+        "expandOnly" : false
+      }, {
+        "key" : "authorName",
+        "label" : "议题提交人",
+        "width" : 140,
+        "minWidth" : 140,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "assigneeName",
+        "label" : "议题处理人",
+        "width" : 160,
+        "minWidth" : 160,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : false
+      }, {
+        "key" : "updatedAt",
+        "label" : "议题更新时间",
+        "width" : 180,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "createdAt",
+        "label" : "议题提交时间",
+        "width" : 180,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "moduleNames",
+        "label" : "模块名",
+        "width" : null,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : "tags",
+        "expandOnly" : true
+      }, {
+        "key" : "iid",
+        "label" : "议题编号",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "title",
+        "label" : "议题标题",
+        "width" : 420,
+        "minWidth" : 260,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "authorName",
+        "label" : "议题提交人",
+        "width" : 140,
+        "minWidth" : 140,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "assigneeName",
+        "label" : "议题处理人",
+        "width" : 140,
+        "minWidth" : 140,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      }, {
+        "key" : "state",
+        "label" : "议题状态",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : true
+      }, {
+        "key" : "bugStatus",
+        "label" : "测试状态",
+        "width" : 180,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : "tags",
+        "expandOnly" : true
+      }, {
+        "key" : "priorityLevel",
+        "label" : "紧急程度",
+        "width" : 120,
+        "minWidth" : 120,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : true
+      }, {
+        "key" : "delayType",
+        "label" : "延期类型",
+        "width" : 140,
+        "minWidth" : 140,
+        "sortable" : true,
+        "type" : "tag",
+        "expandOnly" : true
+      }, {
+        "key" : "milestoneTitle",
+        "label" : "里程碑",
+        "width" : 180,
+        "minWidth" : 180,
+        "sortable" : true,
+        "type" : null,
+        "expandOnly" : true
+      } ],
+      "defaultPageSize" : 10,
+      "emptyText" : "当前没有可展示的客户问题延期统计数据。"
+    },
+    "appliedFilters" : {
+      "projectId" : "325",
+      "milestoneTitle" : "CC2026R3"
+    },
+    "appliedFilterGroup" : {
+      "logic" : "AND",
+      "conditions" : [ {
+        "fieldKey" : "milestoneTitle",
+        "operator" : "eq",
+        "value" : "CC2026R3",
+        "secondaryValue" : null,
+        "valueType" : "LITERAL",
+        "labelGroupId" : null,
+        "labelGroupName" : null,
+        "values" : [ ]
+      } ]
+    },
+    "rows" : [ {
+      "rowKey" : "BOM",
+      "rowLabel" : "BOM",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 9,
+        "displayValue" : "9",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 3,
+        "displayValue" : "3",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 12,
+        "displayValue" : "12",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 7,
+        "displayValue" : "7",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 3,
+        "displayValue" : "3",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 10,
+        "displayValue" : "10",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      } ]
+    }, {
+      "rowKey" : "DWG",
+      "rowLabel" : "DWG",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "DWG"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "DWG"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "DWG"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "DWG"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "DWG"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "DWG"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "DWG"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "DWG"
+        }
+      } ]
+    }, {
+      "rowKey" : "MBD",
+      "rowLabel" : "MBD",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "MBD"
+        }
+      } ]
+    }, {
+      "rowKey" : "二次开发",
+      "rowLabel" : "二次开发",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "二次开发"
+        }
+      } ]
+    }, {
+      "rowKey" : "企业版",
+      "rowLabel" : "企业版",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 3,
+        "displayValue" : "3",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "企业版"
+        }
+      } ]
+    }, {
+      "rowKey" : "协同",
+      "rowLabel" : "协同",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "协同"
+        }
+      } ]
+    }, {
+      "rowKey" : "实体算法",
+      "rowLabel" : "实体算法",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 9,
+        "displayValue" : "9",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 9,
+        "displayValue" : "9",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "实体算法"
+        }
+      } ]
+    }, {
+      "rowKey" : "工具",
+      "rowLabel" : "工具",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 14,
+        "displayValue" : "14",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 11,
+        "displayValue" : "11",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 26,
+        "displayValue" : "26",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 18,
+        "displayValue" : "18",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 13,
+        "displayValue" : "13",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 33,
+        "displayValue" : "33",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      } ]
+    }, {
+      "rowKey" : "工程图",
+      "rowLabel" : "工程图",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 33,
+        "displayValue" : "33",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 9,
+        "displayValue" : "9",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 42,
+        "displayValue" : "42",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 37,
+        "displayValue" : "37",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 8,
+        "displayValue" : "8",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 45,
+        "displayValue" : "45",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      } ]
+    }, {
+      "rowKey" : "平台",
+      "rowLabel" : "平台",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 13,
+        "displayValue" : "13",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 15,
+        "displayValue" : "15",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 12,
+        "displayValue" : "12",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 15,
+        "displayValue" : "15",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "平台"
+        }
+      } ]
+    }, {
+      "rowKey" : "库",
+      "rowLabel" : "库",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 5,
+        "displayValue" : "5",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 6,
+        "displayValue" : "6",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 11,
+        "displayValue" : "11",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 5,
+        "displayValue" : "5",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 6,
+        "displayValue" : "6",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 11,
+        "displayValue" : "11",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      } ]
+    }, {
+      "rowKey" : "快速设计",
+      "rowLabel" : "快速设计",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      } ]
+    }, {
+      "rowKey" : "数据交换",
+      "rowLabel" : "数据交换",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 8,
+        "displayValue" : "8",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 5,
+        "displayValue" : "5",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 15,
+        "displayValue" : "15",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 8,
+        "displayValue" : "8",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 6,
+        "displayValue" : "6",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 16,
+        "displayValue" : "16",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      } ]
+    }, {
+      "rowKey" : "曲线曲面",
+      "rowLabel" : "曲线曲面",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 3,
+        "displayValue" : "3",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 4,
+        "displayValue" : "4",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 3,
+        "displayValue" : "3",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 4,
+        "displayValue" : "4",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "曲线曲面"
+        }
+      } ]
+    }, {
+      "rowKey" : "未设定模块",
+      "rowLabel" : "未设定模块",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 6,
+        "displayValue" : "6",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "未设定模块"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 5,
+        "displayValue" : "5",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "未设定模块"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "未设定模块"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 11,
+        "displayValue" : "11",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "未设定模块"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 7,
+        "displayValue" : "7",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "未设定模块"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 4,
+        "displayValue" : "4",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "未设定模块"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "未设定模块"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 11,
+        "displayValue" : "11",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "未设定模块"
+        }
+      } ]
+    }, {
+      "rowKey" : "渲染",
+      "rowLabel" : "渲染",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "渲染"
+        }
+      } ]
+    }, {
+      "rowKey" : "点云",
+      "rowLabel" : "点云",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "点云"
+        }
+      } ]
+    }, {
+      "rowKey" : "焊件",
+      "rowLabel" : "焊件",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "焊件"
+        }
+      } ]
+    }, {
+      "rowKey" : "特征",
+      "rowLabel" : "特征",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 14,
+        "displayValue" : "14",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 12,
+        "displayValue" : "12",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 26,
+        "displayValue" : "26",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 10,
+        "displayValue" : "10",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 10,
+        "displayValue" : "10",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 20,
+        "displayValue" : "20",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "特征"
+        }
+      } ]
+    }, {
+      "rowKey" : "管路",
+      "rowLabel" : "管路",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "管路"
+        }
+      } ]
+    }, {
+      "rowKey" : "草图",
+      "rowLabel" : "草图",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 9,
+        "displayValue" : "9",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 6,
+        "displayValue" : "6",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 16,
+        "displayValue" : "16",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 8,
+        "displayValue" : "8",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 8,
+        "displayValue" : "8",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 17,
+        "displayValue" : "17",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      } ]
+    }, {
+      "rowKey" : "装配",
+      "rowLabel" : "装配",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 35,
+        "displayValue" : "35",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 5,
+        "displayValue" : "5",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 40,
+        "displayValue" : "40",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 27,
+        "displayValue" : "27",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 5,
+        "displayValue" : "5",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 32,
+        "displayValue" : "32",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "装配"
+        }
+      } ]
+    }, {
+      "rowKey" : "设置",
+      "rowLabel" : "设置",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 5,
+        "displayValue" : "5",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 6,
+        "displayValue" : "6",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 5,
+        "displayValue" : "5",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 7,
+        "displayValue" : "7",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      } ]
+    }, {
+      "rowKey" : "评估",
+      "rowLabel" : "评估",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 5,
+        "displayValue" : "5",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 4,
+        "displayValue" : "4",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 9,
+        "displayValue" : "9",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 4,
+        "displayValue" : "4",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 4,
+        "displayValue" : "4",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 8,
+        "displayValue" : "8",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "评估"
+        }
+      } ]
+    }, {
+      "rowKey" : "钣金",
+      "rowLabel" : "钣金",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 11,
+        "displayValue" : "11",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 7,
+        "displayValue" : "7",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 18,
+        "displayValue" : "18",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 12,
+        "displayValue" : "12",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 7,
+        "displayValue" : "7",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 19,
+        "displayValue" : "19",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "钣金"
+        }
+      } ]
+    }, {
+      "rowKey" : "集成",
+      "rowLabel" : "集成",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "集成"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "集成"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "集成"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "集成"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "集成"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "集成"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "集成"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "集成"
+        }
+      } ]
+    }, {
+      "rowKey" : "项目文档",
+      "rowLabel" : "项目文档",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 11,
+        "displayValue" : "11",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 4,
+        "displayValue" : "4",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 17,
+        "displayValue" : "17",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 11,
+        "displayValue" : "11",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 2,
+        "displayValue" : "2",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 4,
+        "displayValue" : "4",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 17,
+        "displayValue" : "17",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      } ]
+    }, {
+      "rowKey" : "__total__",
+      "rowLabel" : "总数",
+      "cells" : [ {
+        "columnKey" : "resp_delay_p1",
+        "numericValue" : 175,
+        "displayValue" : "175",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "resp_delay_p2",
+        "numericValue" : 85,
+        "displayValue" : "85",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 11,
+        "displayValue" : "11",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 271,
+        "displayValue" : "271",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 185,
+        "displayValue" : "185",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 87,
+        "displayValue" : "87",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 12,
+        "displayValue" : "12",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      }, {
+        "columnKey" : "fix_delay_sum",
+        "numericValue" : 284,
+        "displayValue" : "284",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "__total__"
+        }
+      } ]
+    } ],
+    "meta" : {
+      "generatedAt" : "2026-09-03T18:37:03.457366+08:00",
+      "queryDurationMs" : 669,
+      "rowCount" : 28,
+      "columnCount" : 8,
+      "drilldownColumnCount" : 8
+    }
+  }
+}

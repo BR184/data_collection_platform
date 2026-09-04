@@ -1,0 +1,428 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "summary" : {
+      "projectName" : "CC2026R4",
+      "demandReviewReportDensity" : 0.0,
+      "designReviewReportDensity" : 0.0,
+      "codeWalkThroughDefectDensityCc" : 3.64,
+      "codeWalkThroughDefectDensityDgm" : 5.72,
+      "integrationPassRate" : 0.0,
+      "defectLeakageRate" : 0.0,
+      "defectEliminationRate" : 0.0,
+      "newIssueFixRate" : 0.0,
+      "metrics" : [ {
+        "key" : "demandReviewReportDensity",
+        "label" : "需求评审缺陷密度",
+        "value" : 0.0,
+        "unit" : "",
+        "targetDescription" : "目标值：[0.20, 0.60]"
+      }, {
+        "key" : "designReviewReportDensity",
+        "label" : "设计评审缺陷密度",
+        "value" : 0.0,
+        "unit" : "",
+        "targetDescription" : "目标值：[0.20, 0.60]"
+      }, {
+        "key" : "codeWalkThroughDefectDensityCc",
+        "label" : "CC代码走查缺陷密度",
+        "value" : 3.64,
+        "unit" : "KLOC",
+        "targetDescription" : "目标值：[2.00, 10.00]"
+      }, {
+        "key" : "codeWalkThroughDefectDensityDgm",
+        "label" : "DGM代码走查缺陷密度",
+        "value" : 5.72,
+        "unit" : "KLOC",
+        "targetDescription" : "目标值：[2.00, 10.00]"
+      }, {
+        "key" : "integrationPassRate",
+        "label" : "集成测试通过率",
+        "value" : 0.0,
+        "unit" : "%",
+        "targetDescription" : "目标值：不低于 90.00%"
+      }, {
+        "key" : "defectLeakageRate",
+        "label" : "发布缺陷遗留率",
+        "value" : 0.0,
+        "unit" : "%",
+        "targetDescription" : "目标值：不超过 15.00%"
+      }, {
+        "key" : "defectEliminationRate",
+        "label" : "开发缺陷遗留率",
+        "value" : 0.0,
+        "unit" : "%",
+        "targetDescription" : "目标值：不低于 90.00%"
+      }, {
+        "key" : "newIssueFixRate",
+        "label" : "新发缺陷修复率",
+        "value" : 0.0,
+        "unit" : "%",
+        "targetDescription" : "新发缺陷中已修复/未复现占比"
+      } ]
+    },
+    "codeReviewSource" : "cc",
+    "codeReviewSourceOptions" : [ {
+      "label" : "CC",
+      "value" : "cc"
+    }, {
+      "label" : "DGM",
+      "value" : "dgm"
+    } ],
+    "assigneeDefectDensityRows" : [ {
+      "name" : "李焕坤",
+      "value" : 115.13
+    }, {
+      "name" : "徐凯强",
+      "value" : 21.59
+    }, {
+      "name" : "田川",
+      "value" : 13.95
+    }, {
+      "name" : "陈晖",
+      "value" : 7.88
+    }, {
+      "name" : "王念文",
+      "value" : 6.25
+    }, {
+      "name" : "李东尧",
+      "value" : 4.92
+    }, {
+      "name" : "霍志岩",
+      "value" : 3.74
+    }, {
+      "name" : "刘佳祺",
+      "value" : 3.1
+    }, {
+      "name" : "牟敬芳",
+      "value" : 1.59
+    }, {
+      "name" : "张华磊",
+      "value" : 0.98
+    }, {
+      "name" : "华程逸",
+      "value" : 0.24
+    }, {
+      "name" : "张晓涵",
+      "value" : 0.0
+    }, {
+      "name" : "张硕",
+      "value" : 0.0
+    }, {
+      "name" : "杨玉荣",
+      "value" : 0.0
+    }, {
+      "name" : "柳冰旸",
+      "value" : 0.0
+    }, {
+      "name" : "燕欣睿",
+      "value" : 0.0
+    } ],
+    "authorDefectDensityRows" : [ {
+      "name" : "刘宗博",
+      "value" : 145.29
+    }, {
+      "name" : "张明霞",
+      "value" : 88.83
+    }, {
+      "name" : "张佳旺",
+      "value" : 48.13
+    }, {
+      "name" : "牛闯",
+      "value" : 28.61
+    }, {
+      "name" : "孟秀平",
+      "value" : 23.66
+    }, {
+      "name" : "付崇莱",
+      "value" : 20.83
+    }, {
+      "name" : "高士亮",
+      "value" : 19.45
+    }, {
+      "name" : "庄晓",
+      "value" : 13.33
+    }, {
+      "name" : "姚思含",
+      "value" : 9.81
+    }, {
+      "name" : "常根",
+      "value" : 9.52
+    }, {
+      "name" : "潘广磊",
+      "value" : 7.71
+    }, {
+      "name" : "张海思",
+      "value" : 5.08
+    }, {
+      "name" : "艾文涛",
+      "value" : 4.73
+    }, {
+      "name" : "张继远",
+      "value" : 4.04
+    }, {
+      "name" : "傅培钰",
+      "value" : 3.51
+    }, {
+      "name" : "冯文婕",
+      "value" : 2.67
+    }, {
+      "name" : "徐凯强",
+      "value" : 2.51
+    }, {
+      "name" : "郎琳琳",
+      "value" : 2.33
+    }, {
+      "name" : "麻荣雨",
+      "value" : 2.23
+    }, {
+      "name" : "祁雨宣",
+      "value" : 2.02
+    }, {
+      "name" : "秦龙飞",
+      "value" : 1.68
+    }, {
+      "name" : "张晓涵",
+      "value" : 1.09
+    }, {
+      "name" : "王苏晓",
+      "value" : 0.87
+    }, {
+      "name" : "李焕坤",
+      "value" : 0.53
+    }, {
+      "name" : "张华磊",
+      "value" : 0.49
+    }, {
+      "name" : "侯磊",
+      "value" : 0.31
+    }, {
+      "name" : "隋天宝",
+      "value" : 0.25
+    }, {
+      "name" : "李令博",
+      "value" : 0.23
+    }, {
+      "name" : "冯钊",
+      "value" : 0.0
+    }, {
+      "name" : "刘志国",
+      "value" : 0.0
+    }, {
+      "name" : "吴霜",
+      "value" : 0.0
+    }, {
+      "name" : "姚辉彩",
+      "value" : 0.0
+    }, {
+      "name" : "孙函娇",
+      "value" : 0.0
+    }, {
+      "name" : "孟桦",
+      "value" : 0.0
+    }, {
+      "name" : "张宽",
+      "value" : 0.0
+    }, {
+      "name" : "张梓瑜",
+      "value" : 0.0
+    }, {
+      "name" : "徐昊2",
+      "value" : 0.0
+    }, {
+      "name" : "朱梦莹",
+      "value" : 0.0
+    }, {
+      "name" : "杜敏敏",
+      "value" : 0.0
+    }, {
+      "name" : "樊雯昊",
+      "value" : 0.0
+    }, {
+      "name" : "燕欣睿",
+      "value" : 0.0
+    }, {
+      "name" : "王志阳",
+      "value" : 0.0
+    }, {
+      "name" : "王念文",
+      "value" : 0.0
+    }, {
+      "name" : "王楠",
+      "value" : 0.0
+    }, {
+      "name" : "王琨",
+      "value" : 0.0
+    }, {
+      "name" : "田健",
+      "value" : 0.0
+    }, {
+      "name" : "田川",
+      "value" : 0.0
+    }, {
+      "name" : "金义展",
+      "value" : 0.0
+    }, {
+      "name" : "韩潞钦",
+      "value" : 0.0
+    }, {
+      "name" : "骆建彬",
+      "value" : 0.0
+    } ],
+    "fixUserSeverityRows" : [ ],
+    "frequencyCodeSubmissionRows" : [ {
+      "name" : "田川",
+      "value" : 57.0
+    }, {
+      "name" : "艾文涛",
+      "value" : 31.0
+    }, {
+      "name" : "高士亮",
+      "value" : 28.0
+    }, {
+      "name" : "张晓涵",
+      "value" : 27.0
+    }, {
+      "name" : "张海思",
+      "value" : 27.0
+    }, {
+      "name" : "郎琳琳",
+      "value" : 26.0
+    }, {
+      "name" : "庄晓",
+      "value" : 25.0
+    }, {
+      "name" : "张明霞",
+      "value" : 18.0
+    }, {
+      "name" : "秦龙飞",
+      "value" : 18.0
+    }, {
+      "name" : "张华磊",
+      "value" : 16.0
+    }, {
+      "name" : "傅培钰",
+      "value" : 15.0
+    }, {
+      "name" : "牛闯",
+      "value" : 15.0
+    }, {
+      "name" : "徐凯强",
+      "value" : 14.0
+    }, {
+      "name" : "李焕坤",
+      "value" : 14.0
+    }, {
+      "name" : "王苏晓",
+      "value" : 13.0
+    }, {
+      "name" : "隋天宝",
+      "value" : 12.0
+    }, {
+      "name" : "张佳旺",
+      "value" : 11.0
+    }, {
+      "name" : "朱梦莹",
+      "value" : 10.0
+    }, {
+      "name" : "李令博",
+      "value" : 10.0
+    }, {
+      "name" : "杜敏敏",
+      "value" : 10.0
+    }, {
+      "name" : "王琨",
+      "value" : 10.0
+    }, {
+      "name" : "祁雨宣",
+      "value" : 9.0
+    }, {
+      "name" : "姚辉彩",
+      "value" : 8.0
+    }, {
+      "name" : "韩潞钦",
+      "value" : 7.0
+    }, {
+      "name" : "常根",
+      "value" : 6.0
+    }, {
+      "name" : "樊雯昊",
+      "value" : 6.0
+    }, {
+      "name" : "田健",
+      "value" : 6.0
+    }, {
+      "name" : "冯文婕",
+      "value" : 5.0
+    }, {
+      "name" : "刘志国",
+      "value" : 5.0
+    }, {
+      "name" : "孙函娇",
+      "value" : 5.0
+    }, {
+      "name" : "王楠",
+      "value" : 5.0
+    }, {
+      "name" : "侯磊",
+      "value" : 4.0
+    }, {
+      "name" : "刘宗博",
+      "value" : 4.0
+    }, {
+      "name" : "麻荣雨",
+      "value" : 4.0
+    }, {
+      "name" : "付崇莱",
+      "value" : 3.0
+    }, {
+      "name" : "冯钊",
+      "value" : 3.0
+    }, {
+      "name" : "孟秀平",
+      "value" : 3.0
+    }, {
+      "name" : "骆建彬",
+      "value" : 3.0
+    }, {
+      "name" : "吴霜",
+      "value" : 2.0
+    }, {
+      "name" : "姚思含",
+      "value" : 2.0
+    }, {
+      "name" : "孟桦",
+      "value" : 2.0
+    }, {
+      "name" : "张宽",
+      "value" : 2.0
+    }, {
+      "name" : "张梓瑜",
+      "value" : 2.0
+    }, {
+      "name" : "潘广磊",
+      "value" : 2.0
+    }, {
+      "name" : "王志阳",
+      "value" : 2.0
+    }, {
+      "name" : "王念文",
+      "value" : 2.0
+    }, {
+      "name" : "张继远",
+      "value" : 1.0
+    }, {
+      "name" : "徐昊2",
+      "value" : 1.0
+    }, {
+      "name" : "燕欣睿",
+      "value" : 1.0
+    }, {
+      "name" : "金义展",
+      "value" : 1.0
+    } ],
+    "defectRepairUserRows" : [ ]
+  }
+}

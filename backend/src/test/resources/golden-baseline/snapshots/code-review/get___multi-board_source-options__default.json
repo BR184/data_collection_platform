@@ -1,0 +1,12 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : [ {
+    "label" : "CC",
+    "value" : "cc"
+  }, {
+    "label" : "DGM",
+    "value" : "dgm"
+  } ]
+}

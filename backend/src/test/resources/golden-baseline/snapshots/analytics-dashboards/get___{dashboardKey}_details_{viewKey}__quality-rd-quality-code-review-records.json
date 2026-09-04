@@ -1,0 +1,339 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "dashboardKey" : "quality-rd",
+    "viewKey" : "quality-code-review-records",
+    "title" : "质量看板代码走查明细",
+    "description" : "展示质量看板当前 CC/DGM 读源和项目范围内的代码走查记录，不使用非法数据页口径。",
+    "columns" : [ {
+      "key" : "source",
+      "label" : "数据源",
+      "format" : "text",
+      "width" : 120
+    }, {
+      "key" : "projectName",
+      "label" : "项目",
+      "format" : "text",
+      "width" : 160
+    }, {
+      "key" : "repositoryName",
+      "label" : "仓库",
+      "format" : "text",
+      "width" : 160
+    }, {
+      "key" : "mergeRequestIid",
+      "label" : "合并请求编号",
+      "format" : "number",
+      "width" : 140
+    }, {
+      "key" : "title",
+      "label" : "标题",
+      "format" : "text",
+      "width" : 300
+    }, {
+      "key" : "authorName",
+      "label" : "被走查人/提交人",
+      "format" : "text",
+      "width" : 170
+    }, {
+      "key" : "reviewerName",
+      "label" : "走查人",
+      "format" : "text",
+      "width" : 160
+    }, {
+      "key" : "targetBranch",
+      "label" : "目标分支",
+      "format" : "text",
+      "width" : 140
+    }, {
+      "key" : "mergeRequestState",
+      "label" : "状态",
+      "format" : "text",
+      "width" : 110
+    }, {
+      "key" : "addedLines",
+      "label" : "新增行数",
+      "format" : "number",
+      "width" : 120
+    }, {
+      "key" : "defectCount",
+      "label" : "缺陷数",
+      "format" : "number",
+      "width" : 110
+    }, {
+      "key" : "defectDensity",
+      "label" : "缺陷密度(K/LOC)",
+      "format" : "number",
+      "width" : 160
+    } ],
+    "records" : [ {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 30015,
+      "title" : "fix: [大国工匠] 搜索输入框和搜索按钮同时禁用 #31471",
+      "authorName" : "李令博",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "release_2026R3",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 1,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29986,
+      "title" : "fix: [二次开发] 修复CCScript草图模块部分脚本参数不适配的问题cc-product #2523",
+      "authorName" : "曹步勇",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "release_2026R3",
+      "mergeRequestState" : "OPEN",
+      "addedLines" : 11,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29972,
+      "title" : "fix: [协同]优化删除已打开的共享文档时的提示信息 cc-product#2444",
+      "authorName" : "麻荣雨",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "release_2026R3",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 2,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29967,
+      "title" : "fix: [二次开发] 修复草图模块宏录制错误cc-product#2521",
+      "authorName" : "曹步勇",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "release_2026R3",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 2,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29965,
+      "title" : "fix: [二次开发] 修复草图模块宏录制错误cc-product#2521",
+      "authorName" : "曹步勇",
+      "reviewerName" : "张硕",
+      "targetBranch" : "dev",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 2,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29964,
+      "title" : "fix: [工程图]修复立讯提出的二维码识别码和图纸格式字体样式更新问题",
+      "authorName" : "牛闯",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "立讯_release_2026R3",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 37,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29953,
+      "title" : "fix: [SView集成] SViewApp模式下不新开标签页跳转cloudcad/crowncad#31465（需外网验证）",
+      "authorName" : "李令博",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "release_2026R3",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 33,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29951,
+      "title" : "fix: 修正仿真模块帮助手册跳转路径 #31461",
+      "authorName" : "李令博",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "release_2026R3",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 10,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29919,
+      "title" : "feat: [PLM]PDM使用新版本编码器",
+      "authorName" : "冯钊",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "PLMV9.6.01_release_2026R3(第二阶段)",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 3656,
+      "defectCount" : 2,
+      "defectDensity" : 0.55
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29891,
+      "title" : "fix: [数据转换]修复批量导出时压缩包名称不对的问题",
+      "authorName" : "张宽",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "信创版_release_2026R3",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 3,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29888,
+      "title" : "fix: 修改编辑装配草图退出后对proto的处理",
+      "authorName" : "傅培钰",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "博诚电气_release_2026R3",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 3,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29885,
+      "title" : "fix: 二维码关联零件属性名称和图号, 没有链接到识别码的注释不进行更新",
+      "authorName" : "牛闯",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "立讯_release_2026R3",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 34,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29883,
+      "title" : "fix: [BOM] 修改错误入参导致的保存不提示问题 cloudcad/cc-product#2482",
+      "authorName" : "隋天宝",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "立讯_release_2026R3",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 9,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29881,
+      "title" : "fix: 修复草图快速裁剪重建数组越界情况cc-product#2469",
+      "authorName" : "张晓涵",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "release_2026R3",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 2,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29877,
+      "title" : "fix: 更新2026R3背景图",
+      "authorName" : "庄晓",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "立讯_release_2026R3",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 49,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29873,
+      "title" : "fix: 修改配置",
+      "authorName" : "牛闯",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "立讯_release_2026R3",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 3,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29871,
+      "title" : "fix: 修改getter和setter",
+      "authorName" : "牛闯",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "立讯_release_2026R3",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 46,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29856,
+      "title" : "fix: [DWG]修复将带有材料明细表的工程图导出DWG再导入，材料明细表内容丢失（倒退）#31418",
+      "authorName" : "韩潞钦",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "release_2026R3",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 9,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29836,
+      "title" : "fix: [装配]迁移dev分支的合并请求至信创分支，解决快速配合错误显示在侧边栏的问题。",
+      "authorName" : "樊雯昊",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "信创版_release_2026R3",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 13,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    }, {
+      "source" : "cc",
+      "projectName" : "CC2026R3",
+      "repositoryName" : "CrownCAD",
+      "mergeRequestIid" : 29835,
+      "title" : "fix: [装配]屏蔽圆锥和球创建相切配合的场景",
+      "authorName" : "樊雯昊",
+      "reviewerName" : "无需走查扫描",
+      "targetBranch" : "信创版_release_2026R3",
+      "mergeRequestState" : "MERGED",
+      "addedLines" : 3,
+      "defectCount" : 0,
+      "defectDensity" : 0.0
+    } ],
+    "total" : 2942,
+    "page" : 1,
+    "size" : 20,
+    "exports" : [ ],
+    "filters" : [ ],
+    "chart" : null
+  }
+}

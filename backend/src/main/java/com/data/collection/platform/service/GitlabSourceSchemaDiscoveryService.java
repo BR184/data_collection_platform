@@ -16,10 +16,20 @@ import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.function.BiFunction;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
+@Component
 class GitlabSourceSchemaDiscoveryService {
   private final BiFunction<GitlabSyncConfig, String, List<Map<String, Object>>> queryRunner;
   private final GitlabSourceMetadataSupport metadataSupport;
+
+  @Autowired
+  GitlabSourceSchemaDiscoveryService(
+      GitlabSourceQueryDispatcher queryDispatcher,
+      GitlabSourceMetadataSupport metadataSupport) {
+    this(queryDispatcher::query, metadataSupport);
+  }
 
   GitlabSourceSchemaDiscoveryService(
       BiFunction<GitlabSyncConfig, String, List<Map<String, Object>>> queryRunner,

@@ -2,10 +2,11 @@ package com.data.collection.platform.service;
 
 import java.util.List;
 
-final class LabelGroupFilterOperatorSupport {
+/** 标签组筛选操作符的全平台唯一词表与归一化规则，供统计看板与下拉框选项设置共用。 */
+public final class LabelGroupFilterOperatorSupport {
   private LabelGroupFilterOperatorSupport() {}
 
-  static boolean isSetOperator(String operator) {
+  public static boolean isSetOperator(String operator) {
     return "eq".equals(operator)
         || "ne".equals(operator)
         || "intersects".equals(operator)
@@ -23,7 +24,7 @@ final class LabelGroupFilterOperatorSupport {
     return !isPartialContainsAny(operator) || "STRING".equalsIgnoreCase(TextQuerySupport.trimToNull(fieldValueType));
   }
 
-  static String normalize(String operator) {
+  public static String normalize(String operator) {
     if ("eq".equals(operator)) {
       return "intersects";
     }

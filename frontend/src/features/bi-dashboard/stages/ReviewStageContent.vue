@@ -3,10 +3,11 @@ import { computed, ref, type PropType } from 'vue';
 import { DistributionDonutChart, ReviewQualityDualPanelChart, ReviewQualityScatterChart } from '../charts/types';
 import type { NamedValue, ReviewQualityRow, ReviewScatterPoint } from '../charts/chart-data';
 import { BI_PALETTE } from '../charts/palette';
-import BiAnalysisToolbar, { type BiToolbarOption } from '../components/BiAnalysisToolbar.vue';
 import BiChartPanel from '../components/BiChartPanel.vue';
+import type { BiSortOrder } from '../components/BiChartSortControl.vue';
 import BiMetricStrip, { type BiMetricItem } from '../components/BiMetricStrip.vue';
 import { formatNumber, metricStatus, sectionPresentation } from '../data/presentation';
+import { sortNamedValues, sortReviewQualityRows, sortReviewScatterPoints } from '../data/sorting';
 import type { BiPageKey, BiPageResponse, BiReviewPageData } from '../data/types';
 
 const props = defineProps({
@@ -17,21 +18,31 @@ const props = defineProps({
 });
 
 const donutChart = new DistributionDonutChart();
-const qualityChart = new ReviewQualityDualPanelChart({ densityRange: [0.2, 0.6], densityUnit: '问题/页', rateUnit: '页/小时' });
-const scatterChart = new ReviewQualityScatterChart({ densityRange: [0.2, 0.6], densityUnit: '问题/页', rateUnit: '页/小时' });
-const moduleLimit = ref('all');
-const moduleSort = ref('statusAsc');
-const moduleSearch = ref('');
-const limitOptions: BiToolbarOption[] = [
-  { label: '显示全部', value: 'all' },
-  { label: '显示 10 项', value: '10' },
-  { label: '显示 20 项', value: '20' },
+const qualityChart = new ReviewQualityDualPanelChart({ densityRange: [0.2, 0.6], densityUnit: '个/页', rateUnit: '页/小时' });
+const scatterChart = new ReviewQualityScatterChart({ densityRange: [0.2, 0.6], densityUnit: '个/页', rateUnit: '页/小时' });
+
+const moduleSort = ref('status');
+const moduleSortOrder = ref<BiSortOrder>('asc');
+const categorySort = ref('count');
+const categorySortOrder = ref<BiSortOrder>('desc');
+const scatterSort = ref('density');
+const scatterSortOrder = ref<BiSortOrder>('desc');
+
+const moduleSortOptions = [
+  { label: '异常优先', value: 'status' },
+  { label: '缺陷密度', value: 'density' },
+  { label: '评审速率', value: 'rate' },
+  { label: '模块名称', value: 'name' },
 ];
-const sortOptions: BiToolbarOption[] = [
-  { label: '异常优先', value: 'statusAsc' },
-  { label: '密度降序', value: 'densityDesc' },
-  { label: '速率降序', value: 'rateDesc' },
-  { label: '模块名称', value: 'nameAsc' },
+const categorySortOptions = [
+  { label: '问题数量', value: 'count' },
+  { label: '类别名称', value: 'name' },
+];
+const scatterSortOptions = [
+  { label: '缺陷密度', value: 'density' },
+  { label: '评审速率', value: 'rate' },
+  { label: '评审日期', value: 'date' },
+  { label: '模块名称', value: 'name' },
 ];
 
 const metrics = computed<BiMetricItem[]>(() => {
@@ -39,64 +50,51 @@ const metrics = computed<BiMetricItem[]>(() => {
   if (!summary) return [];
   const exceptionCount = (props.response.data?.modules ?? []).filter((item) => item.achieved === false).length;
   return [
-    { label: '整体缺陷密度', value: formatNumber(summary.defectDensity, 2), detail: '问题 / 页', status: metricStatus(summary.achieved) },
+    { label: '整体缺陷密度', value: formatNumber(summary.defectDensity, 2), detail: '个 / 页', status: metricStatus(summary.achieved) },
     { label: '整体评审速率', value: formatNumber(summary.reviewRate, 2), detail: '页 / 小时' },
-    { label: '缺陷密度目标', value: '0.20–0.60', detail: '问题 / 页' },
+    { label: '缺陷密度目标', value: '0.20–0.60', detail: '个 / 页' },
     { label: '达标状态', value: summary.achieved == null ? '不可计算' : summary.achieved ? '达标' : '未达标', detail: '按缺陷密度判断', status: metricStatus(summary.achieved) },
     { label: '异常模块', value: String(exceptionCount), detail: '超出目标区间', status: exceptionCount > 0 ? 'danger' : 'success' },
   ];
 });
 
-const categories = computed<NamedValue[]>(() => (props.response.data?.categories ?? []).map((item, index) => ({
-  name: item.category,
-  value: item.count,
-  color: [BI_PALETTE.blue, BI_PALETTE.teal, BI_PALETTE.green, BI_PALETTE.orange, BI_PALETTE.red][index % 5],
-})));
+const categories = computed<NamedValue[]>(() => {
+  const raw: NamedValue[] = (props.response.data?.categories ?? []).map((item, index) => ({
+    name: item.category,
+    value: item.count,
+    color: [BI_PALETTE.blue, BI_PALETTE.teal, BI_PALETTE.green, BI_PALETTE.orange, BI_PALETTE.red][index % 5],
+  }));
+  return sortNamedValues(raw, categorySort.value, categorySortOrder.value);
+});
 
 const modules = computed<ReviewQualityRow[]>(() => {
-  const search = moduleSearch.value.trim().toLowerCase();
-  const rows = (props.response.data?.modules ?? [])
-    .filter((item) => !search || item.module.displayName.toLowerCase().includes(search))
-    .slice()
-    .sort((left, right) => {
-      if (moduleSort.value === 'densityDesc') return (right.defectDensity ?? -1) - (left.defectDensity ?? -1);
-      if (moduleSort.value === 'rateDesc') return (right.reviewRate ?? -1) - (left.reviewRate ?? -1);
-      if (moduleSort.value === 'nameAsc') return left.module.displayName.localeCompare(right.module.displayName, 'zh-CN');
-      return Number(left.achieved ?? true) - Number(right.achieved ?? true) || (right.defectDensity ?? -1) - (left.defectDensity ?? -1);
-    });
-  return limitRows(rows, moduleLimit.value).map((item) => ({
+  const raw: ReviewQualityRow[] = (props.response.data?.modules ?? []).map((item) => ({
     name: item.module.displayName,
     density: item.defectDensity,
     rate: item.reviewRate,
     achieved: item.achieved,
   }));
+  return sortReviewQualityRows(raw, moduleSort.value, moduleSortOrder.value);
 });
 
-const points = computed<ReviewScatterPoint[]>(() => (props.response.data?.reviewPoints ?? []).map((item) => ({
-  name: item.module.displayName,
-  date: item.reviewDate,
-  rate: item.reviewRate,
-  density: item.defectDensity,
-  achieved: item.achieved,
-})));
-
-function limitRows<T>(rows: T[], limit: string): T[] {
-  const count = Number(limit);
-  return Number.isSafeInteger(count) && count > 0 ? rows.slice(0, count) : rows;
-}
-
-function setModuleLimit(value: string | number): void { moduleLimit.value = String(value); }
+const points = computed<ReviewScatterPoint[]>(() => {
+  const raw: ReviewScatterPoint[] = (props.response.data?.reviewPoints ?? []).map((item) => ({
+    name: item.module.displayName,
+    date: item.reviewDate,
+    rate: item.reviewRate,
+    density: item.defectDensity,
+    achieved: item.achieved,
+  }));
+  return sortReviewScatterPoints(raw, scatterSort.value, scatterSortOrder.value);
+});
 </script>
 
 <template>
   <div class="bi-stage-stack">
-    <section class="bi-review-intro">
-      <div>
-        <span>{{ stageLabel }}评审质量</span>
-        <h2>整体质量摘要</h2>
-      </div>
-      <p>缺陷密度目标 0.20–0.60 问题/页 · 评审速率不设目标</p>
-    </section>
+    <div class="bi-rule-bar">
+      <span class="bi-rule-bar__tag">质量目标</span>
+      <span class="bi-rule-bar__text">缺陷密度目标：0.20 ~ 0.60 个/页 · 评审速率不设目标</span>
+    </div>
     <BiMetricStrip v-if="metrics.length" variant="review" :items="metrics" />
 
     <div class="bi-charts-grid">
@@ -112,6 +110,9 @@ function setModuleLimit(value: string | number): void { moduleLimit.value = Stri
         :product-version-id="productVersionId"
         :page-key="pageKey"
         :source-version="response.sourceVersion"
+        v-model:sort="categorySort"
+        v-model:order="categorySortOrder"
+        :sort-options="categorySortOptions"
       />
       <BiChartPanel
         :title="`各模块${stageLabel}评审质量`"
@@ -126,21 +127,10 @@ function setModuleLimit(value: string | number): void { moduleLimit.value = Stri
         :product-version-id="productVersionId"
         :page-key="pageKey"
         :source-version="response.sourceVersion"
-      >
-        <template #actions>
-          <BiAnalysisToolbar
-            :limit="moduleLimit"
-            :sort="moduleSort"
-            :search="moduleSearch"
-            :limit-options="limitOptions"
-            :sort-options="sortOptions"
-            search-placeholder="搜索模块"
-            @update:limit="setModuleLimit"
-            @update:sort="moduleSort = $event"
-            @update:search="moduleSearch = $event"
-          />
-        </template>
-      </BiChartPanel>
+        v-model:sort="moduleSort"
+        v-model:order="moduleSortOrder"
+        :sort-options="moduleSortOptions"
+      />
       <BiChartPanel
         :title="`每次${stageLabel}评审质量分布`"
         subtitle="横轴评审速率，纵轴缺陷密度"
@@ -154,27 +144,36 @@ function setModuleLimit(value: string | number): void { moduleLimit.value = Stri
         :product-version-id="productVersionId"
         :page-key="pageKey"
         :source-version="response.sourceVersion"
+        v-model:sort="scatterSort"
+        v-model:order="scatterSortOrder"
+        :sort-options="scatterSortOptions"
       />
     </div>
   </div>
 </template>
 
 <style scoped>
-.bi-review-intro {
-  min-height: 42px;
-  margin: 0 2px;
+.bi-rule-bar {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 18px;
 }
 
-.bi-review-intro span { color: #344e86; font-size: 12px; font-weight: 650; line-height: 18px; }
-.bi-review-intro h2 { margin: 0; color: #1d2939; font-size: 18px; line-height: 26px; }
-.bi-review-intro p { margin: 0; color: #667085; font-size: 12px; line-height: 18px; white-space: nowrap; }
+.bi-rule-bar__tag {
+  font-weight: 600;
+  color: #166534;
+  padding: 0 6px;
+  background: #dcfce7;
+  border-radius: 4px;
+}
 
-@media (max-width: 760px) {
-  .bi-review-intro { align-items: flex-start; flex-direction: column; gap: 3px; }
-  .bi-review-intro p { white-space: normal; }
+.bi-rule-bar__text {
+  color: #15803d;
 }
 </style>

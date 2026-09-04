@@ -1,0 +1,2527 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "dashboardKey" : "quality-rd",
+    "title" : "研发质量看板",
+    "subtitle" : "汇总评审、代码走查、集成测试与系统测试质量指标。",
+    "metrics" : [ {
+      "key" : "demand-review-density",
+      "title" : "需求评审缺陷密度",
+      "value" : 0.0,
+      "displayValue" : "0.00",
+      "unit" : "",
+      "ruleKey" : "quality-rd.demand-review-density",
+      "detail" : {
+        "viewKey" : "review-data-records",
+        "params" : {
+          "projectName" : "CC2026R3",
+          "reviewType" : "需求说明书评审"
+        }
+      },
+      "export" : null,
+      "status" : "danger"
+    }, {
+      "key" : "design-review-density",
+      "title" : "设计评审缺陷密度",
+      "value" : 0.0,
+      "displayValue" : "0.00",
+      "unit" : "",
+      "ruleKey" : "quality-rd.design-review-density",
+      "detail" : {
+        "viewKey" : "review-data-records",
+        "params" : {
+          "projectName" : "CC2026R3",
+          "reviewType" : "设计说明书评审"
+        }
+      },
+      "export" : null,
+      "status" : "danger"
+    }, {
+      "key" : "code-review-density-cc",
+      "title" : "CC代码走查缺陷密度",
+      "value" : 3.28,
+      "displayValue" : "3.28",
+      "unit" : "KLOC",
+      "ruleKey" : "quality-rd.code-review-density-cc",
+      "detail" : null,
+      "export" : {
+        "exportKey" : "code-review-records-cc",
+        "label" : "下载 CC 代码走查数据"
+      },
+      "status" : "success"
+    }, {
+      "key" : "code-review-density-dgm",
+      "title" : "DGM代码走查缺陷密度",
+      "value" : 2.12,
+      "displayValue" : "2.12",
+      "unit" : "KLOC",
+      "ruleKey" : "quality-rd.code-review-density-dgm",
+      "detail" : null,
+      "export" : {
+        "exportKey" : "code-review-records-dgm",
+        "label" : "下载 DGM 代码走查数据"
+      },
+      "status" : "success"
+    }, {
+      "key" : "integration-pass-rate",
+      "title" : "集成测试通过率",
+      "value" : 0.0,
+      "displayValue" : "0.00",
+      "unit" : "%",
+      "ruleKey" : "quality-rd.integration-pass-rate",
+      "detail" : {
+        "viewKey" : "integration-test-results",
+        "params" : {
+          "projectName" : "CC2026R3"
+        }
+      },
+      "export" : null,
+      "status" : "danger"
+    }, {
+      "key" : "release-leakage-rate",
+      "title" : "发布缺陷遗留率",
+      "value" : 20.0,
+      "displayValue" : "20.00",
+      "unit" : "%",
+      "ruleKey" : "quality-rd.release-leakage-rate",
+      "detail" : {
+        "viewKey" : "release-leakage-defects",
+        "params" : {
+          "projectName" : "CC2026R3"
+        }
+      },
+      "export" : null,
+      "status" : "danger"
+    }, {
+      "key" : "development-leakage-rate",
+      "title" : "开发缺陷遗留率",
+      "value" : 0.0,
+      "displayValue" : "0.00",
+      "unit" : "%",
+      "ruleKey" : "quality-rd.development-leakage-rate",
+      "detail" : {
+        "viewKey" : "development-leakage-defects",
+        "params" : {
+          "projectName" : "CC2026R3"
+        }
+      },
+      "export" : null,
+      "status" : "danger"
+    }, {
+      "key" : "new-issue-fix-rate",
+      "title" : "新发缺陷修复率",
+      "value" : 86.67,
+      "displayValue" : "86.67",
+      "unit" : "%",
+      "ruleKey" : "quality-rd.new-issue-fix-rate",
+      "detail" : {
+        "viewKey" : "system-test-defect-summary",
+        "params" : {
+          "testingPhase" : "CC2026R3"
+        }
+      },
+      "export" : null,
+      "status" : "success"
+    } ],
+    "charts" : [ {
+      "key" : "assignee-defect-density",
+      "title" : "按走查人统计代码走查缺陷密度",
+      "subtitle" : "当前代码走查来源：CC",
+      "option" : {
+        "yAxis" : {
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "color" : "#475569",
+            "width" : 132
+          },
+          "type" : "category",
+          "data" : [ "李焕坤", "张华磊", "霍志岩", "徐昊", "张晓涵", "田川", "陈晖", "李钊", "张硕", "柳冰旸", "李东尧", "王念文", "牟敬芳", "刘佳祺", "张海思", "华程逸", "冯文婕", "刘志国", "杨玉荣", "燕欣睿", "高士亮" ],
+          "axisTick" : {
+            "show" : false
+          },
+          "axisLine" : {
+            "show" : false
+          }
+        },
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
+        },
+        "series" : [ {
+          "barMaxWidth" : 26,
+          "data" : [ {
+            "value" : 40.54,
+            "pointKey" : "reviewer-density:李焕坤",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "李焕坤",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 32.44,
+            "pointKey" : "reviewer-density:张华磊",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "张华磊",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 21.85,
+            "pointKey" : "reviewer-density:霍志岩",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "霍志岩",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 20.41,
+            "pointKey" : "reviewer-density:徐昊",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "徐昊",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 19.41,
+            "pointKey" : "reviewer-density:张晓涵",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "张晓涵",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 13.14,
+            "pointKey" : "reviewer-density:田川",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "田川",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 10.06,
+            "pointKey" : "reviewer-density:陈晖",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "陈晖",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 6.41,
+            "pointKey" : "reviewer-density:李钊",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "李钊",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 5.94,
+            "pointKey" : "reviewer-density:张硕",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "张硕",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 4.77,
+            "pointKey" : "reviewer-density:柳冰旸",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "柳冰旸",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 4.48,
+            "pointKey" : "reviewer-density:李东尧",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "李东尧",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 3.75,
+            "pointKey" : "reviewer-density:王念文",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "王念文",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 3.36,
+            "pointKey" : "reviewer-density:牟敬芳",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "牟敬芳",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 3.29,
+            "pointKey" : "reviewer-density:刘佳祺",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "刘佳祺",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 2.82,
+            "pointKey" : "reviewer-density:张海思",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "张海思",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.64,
+            "pointKey" : "reviewer-density:华程逸",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "华程逸",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "reviewer-density:冯文婕",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "冯文婕",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "reviewer-density:刘志国",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "刘志国",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "reviewer-density:杨玉荣",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "杨玉荣",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "reviewer-density:燕欣睿",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "燕欣睿",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "reviewer-density:高士亮",
+            "detailParams" : {
+              "topic" : "reviewer-density",
+              "reviewerName" : "高士亮",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          } ],
+          "name" : "缺陷密度(K/LOC)",
+          "type" : "bar",
+          "itemStyle" : {
+            "color" : "#2563eb",
+            "borderRadius" : [ 0, 5, 5, 0 ]
+          },
+          "emphasis" : {
+            "focus" : "series"
+          }
+        } ],
+        "xAxis" : {
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
+          },
+          "minInterval" : 1,
+          "type" : "value",
+          "axisLine" : {
+            "show" : false
+          }
+        },
+        "grid" : {
+          "top" : 12,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 28,
+          "left" : 16
+        },
+        "dataZoom" : [ {
+          "endValue" : 10,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
+          },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
+        "animationDuration" : 420
+      },
+      "ruleKey" : "quality-rd.assignee-defect-density",
+      "detail" : {
+        "viewKey" : "quality-code-review-records",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "reviewer-density"
+        }
+      },
+      "export" : {
+        "exportKey" : "assignee-defect-density",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "author-defect-density",
+      "title" : "按被走查人统计代码走查缺陷密度",
+      "subtitle" : "当前代码走查来源：CC",
+      "option" : {
+        "yAxis" : {
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "color" : "#475569",
+            "width" : 132
+          },
+          "type" : "category",
+          "data" : [ "张明霞", "郎琳琳", "霍志岩", "樊雯昊", "孟桦", "刘宗博", "孟秀平", "韩潞钦", "牛闯", "张海思", "冯文婕", "杜敏敏", "guanlixiang", "张华磊", "祁雨宣", "傅培钰", "白云涛", "李志", "秦龙飞", "骆建彬", "麻荣雨", "艾文涛", "王志阳", "张开宇", "高士亮", "王念文", "李焕坤", "王楠", "张宽", "金义展", "刘志国", "徐建民", "庄晓", "姚思含", "张佳旺", "Liyaoqi", "隋天宝", "李佳徽", "徐凯强", "孙函娇", "朱梦莹", "冯钊", "潘广磊", "王苏晓", "刘悦", "徐琦慧", "张晓涵", "李令博", "曹步勇", "李东尧", "徐昊2", "guoyanqun", "zhangyijian", "于震", "付崇莱", "侯磊", "刘纪凯", "吴霜", "姜汛", "常根", "张梓瑜", "张硕", "张继远", "李钊", "杜丙瑜", "杨作林", "杨玉荣", "柳冰旸", "燕欣睿", "田健", "田川", "赵佳峻", "郑乾枫", "陈晖", "高健峰" ],
+          "axisTick" : {
+            "show" : false
+          },
+          "axisLine" : {
+            "show" : false
+          }
+        },
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
+        },
+        "series" : [ {
+          "barMaxWidth" : 26,
+          "data" : [ {
+            "value" : 75.69,
+            "pointKey" : "author-density:张明霞",
+            "detailParams" : {
+              "authorName" : "张明霞",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 52.81,
+            "pointKey" : "author-density:郎琳琳",
+            "detailParams" : {
+              "authorName" : "郎琳琳",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 34.39,
+            "pointKey" : "author-density:霍志岩",
+            "detailParams" : {
+              "authorName" : "霍志岩",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 30.0,
+            "pointKey" : "author-density:樊雯昊",
+            "detailParams" : {
+              "authorName" : "樊雯昊",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 28.47,
+            "pointKey" : "author-density:孟桦",
+            "detailParams" : {
+              "authorName" : "孟桦",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 27.92,
+            "pointKey" : "author-density:刘宗博",
+            "detailParams" : {
+              "authorName" : "刘宗博",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 27.81,
+            "pointKey" : "author-density:孟秀平",
+            "detailParams" : {
+              "authorName" : "孟秀平",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 27.78,
+            "pointKey" : "author-density:韩潞钦",
+            "detailParams" : {
+              "authorName" : "韩潞钦",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 25.36,
+            "pointKey" : "author-density:牛闯",
+            "detailParams" : {
+              "authorName" : "牛闯",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 20.14,
+            "pointKey" : "author-density:张海思",
+            "detailParams" : {
+              "authorName" : "张海思",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 19.1,
+            "pointKey" : "author-density:冯文婕",
+            "detailParams" : {
+              "authorName" : "冯文婕",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 18.32,
+            "pointKey" : "author-density:杜敏敏",
+            "detailParams" : {
+              "authorName" : "杜敏敏",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 18.18,
+            "pointKey" : "author-density:guanlixiang",
+            "detailParams" : {
+              "authorName" : "guanlixiang",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 14.11,
+            "pointKey" : "author-density:张华磊",
+            "detailParams" : {
+              "authorName" : "张华磊",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 13.7,
+            "pointKey" : "author-density:祁雨宣",
+            "detailParams" : {
+              "authorName" : "祁雨宣",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 13.57,
+            "pointKey" : "author-density:傅培钰",
+            "detailParams" : {
+              "authorName" : "傅培钰",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 12.35,
+            "pointKey" : "author-density:白云涛",
+            "detailParams" : {
+              "authorName" : "白云涛",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 12.15,
+            "pointKey" : "author-density:李志",
+            "detailParams" : {
+              "authorName" : "李志",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 9.62,
+            "pointKey" : "author-density:秦龙飞",
+            "detailParams" : {
+              "authorName" : "秦龙飞",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 9.03,
+            "pointKey" : "author-density:骆建彬",
+            "detailParams" : {
+              "authorName" : "骆建彬",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 7.43,
+            "pointKey" : "author-density:麻荣雨",
+            "detailParams" : {
+              "authorName" : "麻荣雨",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 7.27,
+            "pointKey" : "author-density:艾文涛",
+            "detailParams" : {
+              "authorName" : "艾文涛",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 6.92,
+            "pointKey" : "author-density:王志阳",
+            "detailParams" : {
+              "authorName" : "王志阳",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 6.9,
+            "pointKey" : "author-density:张开宇",
+            "detailParams" : {
+              "authorName" : "张开宇",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 6.79,
+            "pointKey" : "author-density:高士亮",
+            "detailParams" : {
+              "authorName" : "高士亮",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 6.26,
+            "pointKey" : "author-density:王念文",
+            "detailParams" : {
+              "authorName" : "王念文",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 5.89,
+            "pointKey" : "author-density:李焕坤",
+            "detailParams" : {
+              "authorName" : "李焕坤",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 5.85,
+            "pointKey" : "author-density:王楠",
+            "detailParams" : {
+              "authorName" : "王楠",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 5.74,
+            "pointKey" : "author-density:张宽",
+            "detailParams" : {
+              "authorName" : "张宽",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 5.01,
+            "pointKey" : "author-density:金义展",
+            "detailParams" : {
+              "authorName" : "金义展",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 4.64,
+            "pointKey" : "author-density:刘志国",
+            "detailParams" : {
+              "authorName" : "刘志国",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 3.91,
+            "pointKey" : "author-density:徐建民",
+            "detailParams" : {
+              "authorName" : "徐建民",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 3.76,
+            "pointKey" : "author-density:庄晓",
+            "detailParams" : {
+              "authorName" : "庄晓",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 3.73,
+            "pointKey" : "author-density:姚思含",
+            "detailParams" : {
+              "authorName" : "姚思含",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 3.5,
+            "pointKey" : "author-density:张佳旺",
+            "detailParams" : {
+              "authorName" : "张佳旺",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 3.4,
+            "pointKey" : "author-density:Liyaoqi",
+            "detailParams" : {
+              "authorName" : "Liyaoqi",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 2.48,
+            "pointKey" : "author-density:隋天宝",
+            "detailParams" : {
+              "authorName" : "隋天宝",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 2.29,
+            "pointKey" : "author-density:李佳徽",
+            "detailParams" : {
+              "authorName" : "李佳徽",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 2.22,
+            "pointKey" : "author-density:徐凯强",
+            "detailParams" : {
+              "authorName" : "徐凯强",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 2.1,
+            "pointKey" : "author-density:孙函娇",
+            "detailParams" : {
+              "authorName" : "孙函娇",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 1.88,
+            "pointKey" : "author-density:朱梦莹",
+            "detailParams" : {
+              "authorName" : "朱梦莹",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 1.51,
+            "pointKey" : "author-density:冯钊",
+            "detailParams" : {
+              "authorName" : "冯钊",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.96,
+            "pointKey" : "author-density:潘广磊",
+            "detailParams" : {
+              "authorName" : "潘广磊",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.94,
+            "pointKey" : "author-density:王苏晓",
+            "detailParams" : {
+              "authorName" : "王苏晓",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.82,
+            "pointKey" : "author-density:刘悦",
+            "detailParams" : {
+              "authorName" : "刘悦",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.74,
+            "pointKey" : "author-density:徐琦慧",
+            "detailParams" : {
+              "authorName" : "徐琦慧",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.69,
+            "pointKey" : "author-density:张晓涵",
+            "detailParams" : {
+              "authorName" : "张晓涵",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.39,
+            "pointKey" : "author-density:李令博",
+            "detailParams" : {
+              "authorName" : "李令博",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.28,
+            "pointKey" : "author-density:曹步勇",
+            "detailParams" : {
+              "authorName" : "曹步勇",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.22,
+            "pointKey" : "author-density:李东尧",
+            "detailParams" : {
+              "authorName" : "李东尧",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.14,
+            "pointKey" : "author-density:徐昊2",
+            "detailParams" : {
+              "authorName" : "徐昊2",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:guoyanqun",
+            "detailParams" : {
+              "authorName" : "guoyanqun",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:zhangyijian",
+            "detailParams" : {
+              "authorName" : "zhangyijian",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:于震",
+            "detailParams" : {
+              "authorName" : "于震",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:付崇莱",
+            "detailParams" : {
+              "authorName" : "付崇莱",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:侯磊",
+            "detailParams" : {
+              "authorName" : "侯磊",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:刘纪凯",
+            "detailParams" : {
+              "authorName" : "刘纪凯",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:吴霜",
+            "detailParams" : {
+              "authorName" : "吴霜",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:姜汛",
+            "detailParams" : {
+              "authorName" : "姜汛",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:常根",
+            "detailParams" : {
+              "authorName" : "常根",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:张梓瑜",
+            "detailParams" : {
+              "authorName" : "张梓瑜",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:张硕",
+            "detailParams" : {
+              "authorName" : "张硕",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:张继远",
+            "detailParams" : {
+              "authorName" : "张继远",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:李钊",
+            "detailParams" : {
+              "authorName" : "李钊",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:杜丙瑜",
+            "detailParams" : {
+              "authorName" : "杜丙瑜",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:杨作林",
+            "detailParams" : {
+              "authorName" : "杨作林",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:杨玉荣",
+            "detailParams" : {
+              "authorName" : "杨玉荣",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:柳冰旸",
+            "detailParams" : {
+              "authorName" : "柳冰旸",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:燕欣睿",
+            "detailParams" : {
+              "authorName" : "燕欣睿",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:田健",
+            "detailParams" : {
+              "authorName" : "田健",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:田川",
+            "detailParams" : {
+              "authorName" : "田川",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:赵佳峻",
+            "detailParams" : {
+              "authorName" : "赵佳峻",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:郑乾枫",
+            "detailParams" : {
+              "authorName" : "郑乾枫",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:陈晖",
+            "detailParams" : {
+              "authorName" : "陈晖",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 0.0,
+            "pointKey" : "author-density:高健峰",
+            "detailParams" : {
+              "authorName" : "高健峰",
+              "topic" : "author-density",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          } ],
+          "name" : "缺陷密度(K/LOC)",
+          "type" : "bar",
+          "itemStyle" : {
+            "color" : "#0f9f6e",
+            "borderRadius" : [ 0, 5, 5, 0 ]
+          },
+          "emphasis" : {
+            "focus" : "series"
+          }
+        } ],
+        "xAxis" : {
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
+          },
+          "minInterval" : 1,
+          "type" : "value",
+          "axisLine" : {
+            "show" : false
+          }
+        },
+        "grid" : {
+          "top" : 12,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 28,
+          "left" : 16
+        },
+        "dataZoom" : [ {
+          "endValue" : 10,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
+          },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
+        "animationDuration" : 420
+      },
+      "ruleKey" : "quality-rd.author-defect-density",
+      "detail" : {
+        "viewKey" : "quality-code-review-records",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "author-density"
+        }
+      },
+      "export" : {
+        "exportKey" : "author-defect-density",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "fix-user-severity",
+      "title" : "按修复人统计缺陷数",
+      "subtitle" : "按一级、二级、三级和建议类缺陷分层统计",
+      "option" : {
+        "legend" : {
+          "left" : 0,
+          "top" : 0
+        },
+        "dataZoom" : [ {
+          "endValue" : 3,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
+          },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
+        },
+        "grid" : {
+          "top" : 44,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 28,
+          "left" : 16
+        },
+        "series" : [ {
+          "itemStyle" : {
+            "color" : "#ef4444"
+          },
+          "barMaxWidth" : 28,
+          "data" : [ {
+            "value" : 0,
+            "pointKey" : "fix-user:狄林林:level1",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "fixUser" : "狄林林",
+              "severityLevel" : "LEVEL1"
+            }
+          }, {
+            "value" : 0,
+            "pointKey" : "fix-user:牛闯:level1",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "fixUser" : "牛闯",
+              "severityLevel" : "LEVEL1"
+            }
+          }, {
+            "value" : 0,
+            "pointKey" : "fix-user:王青:level1",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "fixUser" : "王青",
+              "severityLevel" : "LEVEL1"
+            }
+          }, {
+            "value" : 0,
+            "pointKey" : "fix-user:马传超:level1",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "fixUser" : "马传超",
+              "severityLevel" : "LEVEL1"
+            }
+          } ],
+          "name" : "一级缺陷",
+          "stack" : "severity",
+          "emphasis" : {
+            "focus" : "series"
+          },
+          "type" : "bar"
+        }, {
+          "itemStyle" : {
+            "color" : "#f59e0b"
+          },
+          "barMaxWidth" : 28,
+          "data" : [ {
+            "value" : 4,
+            "pointKey" : "fix-user:狄林林:level2",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "fixUser" : "狄林林",
+              "severityLevel" : "LEVEL2"
+            }
+          }, {
+            "value" : 1,
+            "pointKey" : "fix-user:牛闯:level2",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "fixUser" : "牛闯",
+              "severityLevel" : "LEVEL2"
+            }
+          }, {
+            "value" : 1,
+            "pointKey" : "fix-user:王青:level2",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "fixUser" : "王青",
+              "severityLevel" : "LEVEL2"
+            }
+          }, {
+            "value" : 1,
+            "pointKey" : "fix-user:马传超:level2",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "fixUser" : "马传超",
+              "severityLevel" : "LEVEL2"
+            }
+          } ],
+          "name" : "二级缺陷",
+          "stack" : "severity",
+          "emphasis" : {
+            "focus" : "series"
+          },
+          "type" : "bar"
+        }, {
+          "itemStyle" : {
+            "color" : "#3b82f6"
+          },
+          "barMaxWidth" : 28,
+          "data" : [ {
+            "value" : 0,
+            "pointKey" : "fix-user:狄林林:level3",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "fixUser" : "狄林林",
+              "severityLevel" : "LEVEL3"
+            }
+          }, {
+            "value" : 0,
+            "pointKey" : "fix-user:牛闯:level3",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "fixUser" : "牛闯",
+              "severityLevel" : "LEVEL3"
+            }
+          }, {
+            "value" : 0,
+            "pointKey" : "fix-user:王青:level3",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "fixUser" : "王青",
+              "severityLevel" : "LEVEL3"
+            }
+          }, {
+            "value" : 0,
+            "pointKey" : "fix-user:马传超:level3",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "fixUser" : "马传超",
+              "severityLevel" : "LEVEL3"
+            }
+          } ],
+          "name" : "三级缺陷",
+          "stack" : "severity",
+          "emphasis" : {
+            "focus" : "series"
+          },
+          "type" : "bar"
+        }, {
+          "itemStyle" : {
+            "color" : "#94a3b8"
+          },
+          "barMaxWidth" : 28,
+          "data" : [ {
+            "value" : 0,
+            "pointKey" : "fix-user:狄林林:suggestion",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "fixUser" : "狄林林",
+              "severityLevel" : "SUGGESTION"
+            }
+          }, {
+            "value" : 0,
+            "pointKey" : "fix-user:牛闯:suggestion",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "fixUser" : "牛闯",
+              "severityLevel" : "SUGGESTION"
+            }
+          }, {
+            "value" : 0,
+            "pointKey" : "fix-user:王青:suggestion",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "fixUser" : "王青",
+              "severityLevel" : "SUGGESTION"
+            }
+          }, {
+            "value" : 0,
+            "pointKey" : "fix-user:马传超:suggestion",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "fixUser" : "马传超",
+              "severityLevel" : "SUGGESTION"
+            }
+          } ],
+          "name" : "建议类",
+          "stack" : "severity",
+          "emphasis" : {
+            "focus" : "series"
+          },
+          "type" : "bar"
+        } ],
+        "animationDuration" : 420,
+        "xAxis" : {
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
+          },
+          "minInterval" : 1,
+          "type" : "value",
+          "axisLine" : {
+            "show" : false
+          }
+        },
+        "yAxis" : {
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "color" : "#475569",
+            "width" : 132
+          },
+          "type" : "category",
+          "data" : [ "狄林林", "牛闯", "王青", "马传超" ],
+          "axisTick" : {
+            "show" : false
+          },
+          "axisLine" : {
+            "show" : false
+          }
+        }
+      },
+      "ruleKey" : "quality-rd.fix-user-severity",
+      "detail" : {
+        "viewKey" : "fix-user-defects",
+        "params" : {
+          "projectName" : "CC2026R3"
+        }
+      },
+      "export" : {
+        "exportKey" : "fix-user-severity",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "frequency-code-submission",
+      "title" : "代码提交频次",
+      "subtitle" : "当前代码走查来源：CC",
+      "option" : {
+        "yAxis" : {
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "color" : "#475569",
+            "width" : 132
+          },
+          "type" : "category",
+          "data" : [ "艾文涛", "傅培钰", "高士亮", "李焕坤", "刘宗博", "张海思", "庄晓", "骆建彬", "樊雯昊", "朱梦莹", "隋天宝", "郎琳琳", "张明霞", "祁雨宣", "李令博", "张晓涵", "孙函娇", "孟秀平", "牛闯", "张华磊", "徐凯强", "张佳旺", "曹步勇", "秦龙飞", "刘悦", "王苏晓", "冯文婕", "冯钊", "李东尧", "张宽", "徐建民", "李志", "王念文", "刘志国", "麻荣雨", "孟桦", "田川", "王楠", "霍志岩", "王志阳", "吴霜", "潘广磊", "Liyaoqi", "杜敏敏", "杨玉荣", "白云涛", "韩潞钦", "刘纪凯", "李佳徽", "金义展", "guanlixiang", "张硕", "李钊", "田健", "姚思含", "guoyanqun", "付崇莱", "徐昊2", "于震", "姜汛", "张开宇", "张继远", "徐琦慧", "柳冰旸", "高健峰", "zhangyijian", "侯磊", "常根", "张梓瑜", "杜丙瑜", "杨作林", "燕欣睿", "赵佳峻", "郑乾枫", "陈晖" ],
+          "axisTick" : {
+            "show" : false
+          },
+          "axisLine" : {
+            "show" : false
+          }
+        },
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
+        },
+        "series" : [ {
+          "barMaxWidth" : 26,
+          "data" : [ {
+            "value" : 206.0,
+            "pointKey" : "submission-frequency:艾文涛",
+            "detailParams" : {
+              "authorName" : "艾文涛",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 168.0,
+            "pointKey" : "submission-frequency:傅培钰",
+            "detailParams" : {
+              "authorName" : "傅培钰",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 158.0,
+            "pointKey" : "submission-frequency:高士亮",
+            "detailParams" : {
+              "authorName" : "高士亮",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 157.0,
+            "pointKey" : "submission-frequency:李焕坤",
+            "detailParams" : {
+              "authorName" : "李焕坤",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 148.0,
+            "pointKey" : "submission-frequency:刘宗博",
+            "detailParams" : {
+              "authorName" : "刘宗博",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 147.0,
+            "pointKey" : "submission-frequency:张海思",
+            "detailParams" : {
+              "authorName" : "张海思",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 139.0,
+            "pointKey" : "submission-frequency:庄晓",
+            "detailParams" : {
+              "authorName" : "庄晓",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 132.0,
+            "pointKey" : "submission-frequency:骆建彬",
+            "detailParams" : {
+              "authorName" : "骆建彬",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 130.0,
+            "pointKey" : "submission-frequency:樊雯昊",
+            "detailParams" : {
+              "authorName" : "樊雯昊",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 109.0,
+            "pointKey" : "submission-frequency:朱梦莹",
+            "detailParams" : {
+              "authorName" : "朱梦莹",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 108.0,
+            "pointKey" : "submission-frequency:隋天宝",
+            "detailParams" : {
+              "authorName" : "隋天宝",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 93.0,
+            "pointKey" : "submission-frequency:郎琳琳",
+            "detailParams" : {
+              "authorName" : "郎琳琳",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 92.0,
+            "pointKey" : "submission-frequency:张明霞",
+            "detailParams" : {
+              "authorName" : "张明霞",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 87.0,
+            "pointKey" : "submission-frequency:祁雨宣",
+            "detailParams" : {
+              "authorName" : "祁雨宣",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 83.0,
+            "pointKey" : "submission-frequency:李令博",
+            "detailParams" : {
+              "authorName" : "李令博",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 79.0,
+            "pointKey" : "submission-frequency:张晓涵",
+            "detailParams" : {
+              "authorName" : "张晓涵",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 78.0,
+            "pointKey" : "submission-frequency:孙函娇",
+            "detailParams" : {
+              "authorName" : "孙函娇",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 76.0,
+            "pointKey" : "submission-frequency:孟秀平",
+            "detailParams" : {
+              "authorName" : "孟秀平",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 72.0,
+            "pointKey" : "submission-frequency:牛闯",
+            "detailParams" : {
+              "authorName" : "牛闯",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 69.0,
+            "pointKey" : "submission-frequency:张华磊",
+            "detailParams" : {
+              "authorName" : "张华磊",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 68.0,
+            "pointKey" : "submission-frequency:徐凯强",
+            "detailParams" : {
+              "authorName" : "徐凯强",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 60.0,
+            "pointKey" : "submission-frequency:张佳旺",
+            "detailParams" : {
+              "authorName" : "张佳旺",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 59.0,
+            "pointKey" : "submission-frequency:曹步勇",
+            "detailParams" : {
+              "authorName" : "曹步勇",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 52.0,
+            "pointKey" : "submission-frequency:秦龙飞",
+            "detailParams" : {
+              "authorName" : "秦龙飞",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 50.0,
+            "pointKey" : "submission-frequency:刘悦",
+            "detailParams" : {
+              "authorName" : "刘悦",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 46.0,
+            "pointKey" : "submission-frequency:王苏晓",
+            "detailParams" : {
+              "authorName" : "王苏晓",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 42.0,
+            "pointKey" : "submission-frequency:冯文婕",
+            "detailParams" : {
+              "authorName" : "冯文婕",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 36.0,
+            "pointKey" : "submission-frequency:冯钊",
+            "detailParams" : {
+              "authorName" : "冯钊",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 36.0,
+            "pointKey" : "submission-frequency:李东尧",
+            "detailParams" : {
+              "authorName" : "李东尧",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 34.0,
+            "pointKey" : "submission-frequency:张宽",
+            "detailParams" : {
+              "authorName" : "张宽",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 34.0,
+            "pointKey" : "submission-frequency:徐建民",
+            "detailParams" : {
+              "authorName" : "徐建民",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 33.0,
+            "pointKey" : "submission-frequency:李志",
+            "detailParams" : {
+              "authorName" : "李志",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 33.0,
+            "pointKey" : "submission-frequency:王念文",
+            "detailParams" : {
+              "authorName" : "王念文",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 30.0,
+            "pointKey" : "submission-frequency:刘志国",
+            "detailParams" : {
+              "authorName" : "刘志国",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 26.0,
+            "pointKey" : "submission-frequency:麻荣雨",
+            "detailParams" : {
+              "authorName" : "麻荣雨",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 21.0,
+            "pointKey" : "submission-frequency:孟桦",
+            "detailParams" : {
+              "authorName" : "孟桦",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 21.0,
+            "pointKey" : "submission-frequency:田川",
+            "detailParams" : {
+              "authorName" : "田川",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 19.0,
+            "pointKey" : "submission-frequency:王楠",
+            "detailParams" : {
+              "authorName" : "王楠",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 18.0,
+            "pointKey" : "submission-frequency:霍志岩",
+            "detailParams" : {
+              "authorName" : "霍志岩",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 17.0,
+            "pointKey" : "submission-frequency:王志阳",
+            "detailParams" : {
+              "authorName" : "王志阳",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 16.0,
+            "pointKey" : "submission-frequency:吴霜",
+            "detailParams" : {
+              "authorName" : "吴霜",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 16.0,
+            "pointKey" : "submission-frequency:潘广磊",
+            "detailParams" : {
+              "authorName" : "潘广磊",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 14.0,
+            "pointKey" : "submission-frequency:Liyaoqi",
+            "detailParams" : {
+              "authorName" : "Liyaoqi",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 14.0,
+            "pointKey" : "submission-frequency:杜敏敏",
+            "detailParams" : {
+              "authorName" : "杜敏敏",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 10.0,
+            "pointKey" : "submission-frequency:杨玉荣",
+            "detailParams" : {
+              "authorName" : "杨玉荣",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 9.0,
+            "pointKey" : "submission-frequency:白云涛",
+            "detailParams" : {
+              "authorName" : "白云涛",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 8.0,
+            "pointKey" : "submission-frequency:韩潞钦",
+            "detailParams" : {
+              "authorName" : "韩潞钦",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 7.0,
+            "pointKey" : "submission-frequency:刘纪凯",
+            "detailParams" : {
+              "authorName" : "刘纪凯",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 7.0,
+            "pointKey" : "submission-frequency:李佳徽",
+            "detailParams" : {
+              "authorName" : "李佳徽",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 7.0,
+            "pointKey" : "submission-frequency:金义展",
+            "detailParams" : {
+              "authorName" : "金义展",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 5.0,
+            "pointKey" : "submission-frequency:guanlixiang",
+            "detailParams" : {
+              "authorName" : "guanlixiang",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 5.0,
+            "pointKey" : "submission-frequency:张硕",
+            "detailParams" : {
+              "authorName" : "张硕",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 5.0,
+            "pointKey" : "submission-frequency:李钊",
+            "detailParams" : {
+              "authorName" : "李钊",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 5.0,
+            "pointKey" : "submission-frequency:田健",
+            "detailParams" : {
+              "authorName" : "田健",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 4.0,
+            "pointKey" : "submission-frequency:姚思含",
+            "detailParams" : {
+              "authorName" : "姚思含",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 3.0,
+            "pointKey" : "submission-frequency:guoyanqun",
+            "detailParams" : {
+              "authorName" : "guoyanqun",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 3.0,
+            "pointKey" : "submission-frequency:付崇莱",
+            "detailParams" : {
+              "authorName" : "付崇莱",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 3.0,
+            "pointKey" : "submission-frequency:徐昊2",
+            "detailParams" : {
+              "authorName" : "徐昊2",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 2.0,
+            "pointKey" : "submission-frequency:于震",
+            "detailParams" : {
+              "authorName" : "于震",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 2.0,
+            "pointKey" : "submission-frequency:姜汛",
+            "detailParams" : {
+              "authorName" : "姜汛",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 2.0,
+            "pointKey" : "submission-frequency:张开宇",
+            "detailParams" : {
+              "authorName" : "张开宇",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 2.0,
+            "pointKey" : "submission-frequency:张继远",
+            "detailParams" : {
+              "authorName" : "张继远",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 2.0,
+            "pointKey" : "submission-frequency:徐琦慧",
+            "detailParams" : {
+              "authorName" : "徐琦慧",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 2.0,
+            "pointKey" : "submission-frequency:柳冰旸",
+            "detailParams" : {
+              "authorName" : "柳冰旸",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 2.0,
+            "pointKey" : "submission-frequency:高健峰",
+            "detailParams" : {
+              "authorName" : "高健峰",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 1.0,
+            "pointKey" : "submission-frequency:zhangyijian",
+            "detailParams" : {
+              "authorName" : "zhangyijian",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 1.0,
+            "pointKey" : "submission-frequency:侯磊",
+            "detailParams" : {
+              "authorName" : "侯磊",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 1.0,
+            "pointKey" : "submission-frequency:常根",
+            "detailParams" : {
+              "authorName" : "常根",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 1.0,
+            "pointKey" : "submission-frequency:张梓瑜",
+            "detailParams" : {
+              "authorName" : "张梓瑜",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 1.0,
+            "pointKey" : "submission-frequency:杜丙瑜",
+            "detailParams" : {
+              "authorName" : "杜丙瑜",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 1.0,
+            "pointKey" : "submission-frequency:杨作林",
+            "detailParams" : {
+              "authorName" : "杨作林",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 1.0,
+            "pointKey" : "submission-frequency:燕欣睿",
+            "detailParams" : {
+              "authorName" : "燕欣睿",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 1.0,
+            "pointKey" : "submission-frequency:赵佳峻",
+            "detailParams" : {
+              "authorName" : "赵佳峻",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 1.0,
+            "pointKey" : "submission-frequency:郑乾枫",
+            "detailParams" : {
+              "authorName" : "郑乾枫",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          }, {
+            "value" : 1.0,
+            "pointKey" : "submission-frequency:陈晖",
+            "detailParams" : {
+              "authorName" : "陈晖",
+              "topic" : "submission-frequency",
+              "source" : "cc",
+              "projectName" : "CC2026R3"
+            }
+          } ],
+          "name" : "提交次数",
+          "type" : "bar",
+          "itemStyle" : {
+            "color" : "#d97706",
+            "borderRadius" : [ 0, 5, 5, 0 ]
+          },
+          "emphasis" : {
+            "focus" : "series"
+          }
+        } ],
+        "xAxis" : {
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
+          },
+          "minInterval" : 1,
+          "type" : "value",
+          "axisLine" : {
+            "show" : false
+          }
+        },
+        "grid" : {
+          "top" : 12,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 28,
+          "left" : 16
+        },
+        "dataZoom" : [ {
+          "endValue" : 10,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
+          },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
+        "animationDuration" : 420
+      },
+      "ruleKey" : "quality-rd.frequency-code-submission",
+      "detail" : {
+        "viewKey" : "quality-code-review-records",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "submission-frequency"
+        }
+      },
+      "export" : {
+        "exportKey" : "frequency-code-submission",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "defect-repair-user",
+      "title" : "指派人剩余缺陷数量",
+      "subtitle" : "按当前未关闭系统测试缺陷统计",
+      "option" : {
+        "yAxis" : {
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "color" : "#475569",
+            "width" : 132
+          },
+          "type" : "category",
+          "data" : [ "狄林林", "刘祥志", "刘露", "牛闯", "王青", "马传超" ],
+          "axisTick" : {
+            "show" : false
+          },
+          "axisLine" : {
+            "show" : false
+          }
+        },
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
+        },
+        "series" : [ {
+          "barMaxWidth" : 26,
+          "data" : [ {
+            "value" : 4.0,
+            "pointKey" : "remaining-defects:狄林林",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "projectId" : "9",
+              "assigneeName" : "狄林林"
+            }
+          }, {
+            "value" : 2.0,
+            "pointKey" : "remaining-defects:刘祥志",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "projectId" : "9",
+              "assigneeName" : "刘祥志"
+            }
+          }, {
+            "value" : 2.0,
+            "pointKey" : "remaining-defects:刘露",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "projectId" : "9",
+              "assigneeName" : "刘露"
+            }
+          }, {
+            "value" : 1.0,
+            "pointKey" : "remaining-defects:牛闯",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "projectId" : "9",
+              "assigneeName" : "牛闯"
+            }
+          }, {
+            "value" : 1.0,
+            "pointKey" : "remaining-defects:王青",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "projectId" : "9",
+              "assigneeName" : "王青"
+            }
+          }, {
+            "value" : 1.0,
+            "pointKey" : "remaining-defects:马传超",
+            "detailParams" : {
+              "projectName" : "CC2026R3",
+              "projectId" : "9",
+              "assigneeName" : "马传超"
+            }
+          } ],
+          "name" : "剩余缺陷数",
+          "type" : "bar",
+          "itemStyle" : {
+            "color" : "#dc5360",
+            "borderRadius" : [ 0, 5, 5, 0 ]
+          },
+          "emphasis" : {
+            "focus" : "series"
+          }
+        } ],
+        "xAxis" : {
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
+          },
+          "minInterval" : 1,
+          "type" : "value",
+          "axisLine" : {
+            "show" : false
+          }
+        },
+        "grid" : {
+          "top" : 12,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 28,
+          "left" : 16
+        },
+        "dataZoom" : [ {
+          "endValue" : 5,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
+          },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
+        "animationDuration" : 420
+      },
+      "ruleKey" : "quality-rd.defect-repair-user",
+      "detail" : {
+        "viewKey" : "assignee-remaining-defects",
+        "params" : {
+          "projectId" : "9",
+          "projectName" : "CC2026R3"
+        }
+      },
+      "export" : {
+        "exportKey" : "defect-repair-user",
+        "label" : "导出"
+      }
+    } ]
+  }
+}

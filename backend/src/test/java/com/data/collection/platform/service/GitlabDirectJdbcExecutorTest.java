@@ -140,7 +140,7 @@ class GitlabDirectJdbcExecutorTest {
       throw new AssertionError(e);
     }
 
-    executor.close();
+    executor.destroy();
 
     verify(first).close();
     verify(second).close();

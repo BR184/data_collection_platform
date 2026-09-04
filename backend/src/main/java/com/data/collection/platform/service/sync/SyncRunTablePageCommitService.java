@@ -193,6 +193,8 @@ public class SyncRunTablePageCommitService {
     boolean monotonicScan =
         "MONOTONIC_PRIMARY_KEY".equalsIgnoreCase(task.getRowStrategy());
     boolean fullScan = "FULL_RECONCILE".equalsIgnoreCase(task.getRowStrategy());
+    boolean fullMonotonicScan =
+        fullScan && "MONOTONIC_PRIMARY_KEY".equalsIgnoreCase(state.getRowStrategy());
     if (fullScan) {
       state.setDirtyFlag(true);
     } else if ((timestampScan || monotonicScan) && !hasMore) {
@@ -202,8 +204,8 @@ public class SyncRunTablePageCommitService {
       state.setLastWatermarkAt(cursorUpdatedAt);
       state.setLastCursorPk(cursorPk);
     }
-    if (monotonicScan && !hasMore && cursorPk != null && !cursorPk.isBlank()) {
-      state.setLastCursorPk(cursorPk);
+    if ((monotonicScan || fullMonotonicScan) && !hasMore) {
+      state.setLastCursorPk(cursorPk == null || cursorPk.isBlank() ? "[]" : cursorPk);
     }
     state.setLastError("");
     state.setRetryCount(0);

@@ -1,0 +1,49 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "defaultProjectName" : "CC2026R3",
+    "projectOptions" : [ {
+      "label" : "CC2026R3",
+      "value" : "CC2026R3"
+    }, {
+      "label" : "CC2026R4",
+      "value" : "CC2026R4"
+    }, {
+      "label" : "CC2026R2",
+      "value" : "CC2026R2"
+    }, {
+      "label" : "CC2026R1",
+      "value" : "CC2026R1"
+    }, {
+      "label" : "CC2025R4",
+      "value" : "CC2025R4"
+    }, {
+      "label" : "CC2025R3",
+      "value" : "CC2025R3"
+    }, {
+      "label" : "CC2025R2",
+      "value" : "CC2025R2"
+    }, {
+      "label" : "CC2025R1",
+      "value" : "CC2025R1"
+    }, {
+      "label" : "CC2024R4",
+      "value" : "CC2024R4"
+    }, {
+      "label" : "CC2024R2",
+      "value" : "CC2024R2"
+    }, {
+      "label" : "CC2024R3",
+      "value" : "CC2024R3"
+    } ],
+    "codeReviewSourceOptions" : [ {
+      "label" : "CC",
+      "value" : "cc"
+    }, {
+      "label" : "DGM",
+      "value" : "dgm"
+    } ]
+  }
+}

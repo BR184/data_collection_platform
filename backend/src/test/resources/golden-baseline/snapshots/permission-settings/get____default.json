@@ -1,0 +1,473 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "permissions" : [ {
+      "permissionCode" : "quality.rd.view",
+      "permissionName" : "查看研发质量看板",
+      "moduleName" : "质量看板",
+      "description" : "访问研发质量看板及其详情",
+      "sortOrder" : 1010
+    }, {
+      "permissionCode" : "quality.other.view",
+      "permissionName" : "查看其他看板",
+      "moduleName" : "质量看板",
+      "description" : "访问其他质量看板及其详情",
+      "sortOrder" : 1020
+    }, {
+      "permissionCode" : "quality.rd.export",
+      "permissionName" : "导出研发质量看板",
+      "moduleName" : "质量看板",
+      "description" : "导出研发质量看板数据",
+      "sortOrder" : 1110
+    }, {
+      "permissionCode" : "quality.other.export",
+      "permissionName" : "导出其他看板",
+      "moduleName" : "质量看板",
+      "description" : "导出其他看板数据",
+      "sortOrder" : 1120
+    }, {
+      "permissionCode" : "review.data.view",
+      "permissionName" : "查看评审数据",
+      "moduleName" : "评审数据",
+      "description" : "访问评审数据管理页面及详情",
+      "sortOrder" : 2010
+    }, {
+      "permissionCode" : "review.record.export",
+      "permissionName" : "导出评审列表",
+      "moduleName" : "评审数据",
+      "description" : "导出评审记录列表",
+      "sortOrder" : 2110
+    }, {
+      "permissionCode" : "review.problem.export",
+      "permissionName" : "导出评审问题",
+      "moduleName" : "评审数据",
+      "description" : "导出评审问题列表和详情",
+      "sortOrder" : 2120
+    }, {
+      "permissionCode" : "review.template.download",
+      "permissionName" : "下载评审模板",
+      "moduleName" : "评审数据",
+      "description" : "下载评审数据导入模板",
+      "sortOrder" : 2130
+    }, {
+      "permissionCode" : "review.record.create",
+      "permissionName" : "新增评审记录",
+      "moduleName" : "评审数据",
+      "description" : "新增评审主记录",
+      "sortOrder" : 2210
+    }, {
+      "permissionCode" : "review.record.edit",
+      "permissionName" : "编辑评审记录",
+      "moduleName" : "评审数据",
+      "description" : "编辑评审主记录",
+      "sortOrder" : 2220
+    }, {
+      "permissionCode" : "review.record.delete_any",
+      "permissionName" : "删除任意评审记录",
+      "moduleName" : "评审数据",
+      "description" : "删除任意创建人的评审主记录",
+      "sortOrder" : 2230
+    }, {
+      "permissionCode" : "review.record.delete_own",
+      "permissionName" : "删除本人评审记录",
+      "moduleName" : "评审数据",
+      "description" : "删除本人创建的评审主记录",
+      "sortOrder" : 2240
+    }, {
+      "permissionCode" : "review.problem.create",
+      "permissionName" : "新增评审问题",
+      "moduleName" : "评审数据",
+      "description" : "新增评审问题项",
+      "sortOrder" : 2250
+    }, {
+      "permissionCode" : "review.problem.edit",
+      "permissionName" : "编辑评审问题",
+      "moduleName" : "评审数据",
+      "description" : "编辑评审问题项",
+      "sortOrder" : 2260
+    }, {
+      "permissionCode" : "review.problem.delete_any",
+      "permissionName" : "删除任意评审问题",
+      "moduleName" : "评审数据",
+      "description" : "删除任意创建人的评审问题项",
+      "sortOrder" : 2270
+    }, {
+      "permissionCode" : "review.problem.delete_own",
+      "permissionName" : "删除本人评审问题",
+      "moduleName" : "评审数据",
+      "description" : "删除本人创建的评审问题项",
+      "sortOrder" : 2280
+    }, {
+      "permissionCode" : "review.legacy_import",
+      "permissionName" : "导入老平台评审数据",
+      "moduleName" : "评审数据",
+      "description" : "预览并确认导入老平台评审 Excel",
+      "sortOrder" : 2290
+    }, {
+      "permissionCode" : "code_review.illegal.view",
+      "permissionName" : "查看代码走查非法数据",
+      "moduleName" : "代码走查",
+      "description" : "访问代码走查非法数据页面",
+      "sortOrder" : 3010
+    }, {
+      "permissionCode" : "code_review.board.view",
+      "permissionName" : "查看代码走查多元看板",
+      "moduleName" : "代码走查",
+      "description" : "访问代码走查多元看板及详情",
+      "sortOrder" : 3020
+    }, {
+      "permissionCode" : "code_review.illegal.export",
+      "permissionName" : "导出代码走查非法数据",
+      "moduleName" : "代码走查",
+      "description" : "导出代码走查非法数据",
+      "sortOrder" : 3110
+    }, {
+      "permissionCode" : "code_review.board.export",
+      "permissionName" : "导出代码走查看板",
+      "moduleName" : "代码走查",
+      "description" : "导出代码走查多元看板数据",
+      "sortOrder" : 3120
+    }, {
+      "permissionCode" : "code_review.form.create",
+      "permissionName" : "新增代码走查表单",
+      "moduleName" : "代码走查",
+      "description" : "通过代码走查表单新增记录",
+      "sortOrder" : 3210
+    }, {
+      "permissionCode" : "code_review.form.edit",
+      "permissionName" : "编辑代码走查表单",
+      "moduleName" : "代码走查",
+      "description" : "编辑代码走查表单记录",
+      "sortOrder" : 3220
+    }, {
+      "permissionCode" : "code_review.form.delete",
+      "permissionName" : "删除代码走查表单",
+      "moduleName" : "代码走查",
+      "description" : "删除代码走查表单记录",
+      "sortOrder" : 3230
+    }, {
+      "permissionCode" : "system_test.summary.view",
+      "permissionName" : "查看系统测试缺陷汇总",
+      "moduleName" : "系统测试",
+      "description" : "访问系统测试缺陷汇总及详情",
+      "sortOrder" : 4010
+    }, {
+      "permissionCode" : "system_test.board.view",
+      "permissionName" : "查看系统测试议题多元看板",
+      "moduleName" : "系统测试",
+      "description" : "访问系统测试议题多元看板及详情",
+      "sortOrder" : 4020
+    }, {
+      "permissionCode" : "system_test.delay.view",
+      "permissionName" : "查看申请延期缺陷分析",
+      "moduleName" : "系统测试",
+      "description" : "访问申请延期缺陷分析及详情",
+      "sortOrder" : 4030
+    }, {
+      "permissionCode" : "system_test.illegal.view",
+      "permissionName" : "查看系统测试非法数据",
+      "moduleName" : "系统测试",
+      "description" : "访问系统测试非法数据页面",
+      "sortOrder" : 4040
+    }, {
+      "permissionCode" : "system_test.cause.view",
+      "permissionName" : "查看系统测试缺陷原因分析",
+      "moduleName" : "系统测试",
+      "description" : "访问系统测试缺陷原因分析及详情",
+      "sortOrder" : 4050
+    }, {
+      "permissionCode" : "system_test.phase.view",
+      "permissionName" : "查看系统测试议题阶段统计",
+      "moduleName" : "系统测试",
+      "description" : "访问系统测试议题阶段统计",
+      "sortOrder" : 4060
+    }, {
+      "permissionCode" : "system_test.issue.view",
+      "permissionName" : "查看系统测试议题查询",
+      "moduleName" : "系统测试",
+      "description" : "访问系统测试议题查询页面",
+      "sortOrder" : 4070
+    }, {
+      "permissionCode" : "system_test.summary.export",
+      "permissionName" : "导出系统测试缺陷汇总",
+      "moduleName" : "系统测试",
+      "description" : "导出缺陷汇总、议题数据和横向对比",
+      "sortOrder" : 4110
+    }, {
+      "permissionCode" : "system_test.board.export",
+      "permissionName" : "导出系统测试多元看板",
+      "moduleName" : "系统测试",
+      "description" : "导出议题多元看板图表数据",
+      "sortOrder" : 4120
+    }, {
+      "permissionCode" : "system_test.delay.export",
+      "permissionName" : "导出申请延期缺陷分析",
+      "moduleName" : "系统测试",
+      "description" : "导出申请延期缺陷分析数据",
+      "sortOrder" : 4130
+    }, {
+      "permissionCode" : "system_test.illegal.export",
+      "permissionName" : "导出系统测试非法数据",
+      "moduleName" : "系统测试",
+      "description" : "导出系统测试非法数据",
+      "sortOrder" : 4140
+    }, {
+      "permissionCode" : "system_test.cause.export",
+      "permissionName" : "导出系统测试缺陷原因",
+      "moduleName" : "系统测试",
+      "description" : "导出系统测试缺陷原因分析",
+      "sortOrder" : 4150
+    }, {
+      "permissionCode" : "system_test.issue.export",
+      "permissionName" : "导出系统测试议题",
+      "moduleName" : "系统测试",
+      "description" : "导出系统测试议题查询数据",
+      "sortOrder" : 4160
+    }, {
+      "permissionCode" : "customer_issue.summary.view",
+      "permissionName" : "查看客户问题缺陷汇总",
+      "moduleName" : "客户问题",
+      "description" : "访问客户问题缺陷汇总及详情",
+      "sortOrder" : 5010
+    }, {
+      "permissionCode" : "customer_issue.illegal.view",
+      "permissionName" : "查看客户问题非法数据",
+      "moduleName" : "客户问题",
+      "description" : "访问客户问题非法数据页面",
+      "sortOrder" : 5020
+    }, {
+      "permissionCode" : "customer_issue.cause.view",
+      "permissionName" : "查看客户问题缺陷原因分析",
+      "moduleName" : "客户问题",
+      "description" : "访问客户问题缺陷原因分析及详情",
+      "sortOrder" : 5030
+    }, {
+      "permissionCode" : "customer_issue.record.view",
+      "permissionName" : "查看客户问题议题",
+      "moduleName" : "客户问题",
+      "description" : "访问客户问题议题查询页面",
+      "sortOrder" : 5040
+    }, {
+      "permissionCode" : "customer_issue.delay.view",
+      "permissionName" : "查看客户问题延期问题",
+      "moduleName" : "客户问题",
+      "description" : "访问客户问题延期问题及详情",
+      "sortOrder" : 5050
+    }, {
+      "permissionCode" : "customer_issue.efficiency.view",
+      "permissionName" : "查看客户问题缺陷响应效率",
+      "moduleName" : "客户问题",
+      "description" : "访问客户问题缺陷响应效率及详情",
+      "sortOrder" : 5060
+    }, {
+      "permissionCode" : "customer_issue.function.view",
+      "permissionName" : "查看客户问题功能统计",
+      "moduleName" : "客户问题",
+      "description" : "访问客户问题按功能统计及详情",
+      "sortOrder" : 5070
+    }, {
+      "permissionCode" : "customer_issue.summary.export",
+      "permissionName" : "导出客户问题缺陷汇总",
+      "moduleName" : "客户问题",
+      "description" : "导出缺陷汇总和议题数据",
+      "sortOrder" : 5110
+    }, {
+      "permissionCode" : "customer_issue.illegal.export",
+      "permissionName" : "导出客户问题非法数据",
+      "moduleName" : "客户问题",
+      "description" : "导出客户问题非法数据",
+      "sortOrder" : 5120
+    }, {
+      "permissionCode" : "customer_issue.cause.export",
+      "permissionName" : "导出客户问题缺陷原因",
+      "moduleName" : "客户问题",
+      "description" : "导出客户问题缺陷原因分析",
+      "sortOrder" : 5130
+    }, {
+      "permissionCode" : "customer_issue.record.export",
+      "permissionName" : "导出客户问题议题",
+      "moduleName" : "客户问题",
+      "description" : "导出客户问题议题数据",
+      "sortOrder" : 5140
+    }, {
+      "permissionCode" : "customer_issue.delay.export",
+      "permissionName" : "导出客户问题延期问题",
+      "moduleName" : "客户问题",
+      "description" : "导出客户问题延期问题",
+      "sortOrder" : 5150
+    }, {
+      "permissionCode" : "customer_issue.efficiency.export",
+      "permissionName" : "导出客户问题响应效率",
+      "moduleName" : "客户问题",
+      "description" : "导出客户问题缺陷响应效率",
+      "sortOrder" : 5160
+    }, {
+      "permissionCode" : "customer_issue.function.export",
+      "permissionName" : "导出客户问题功能统计",
+      "moduleName" : "客户问题",
+      "description" : "导出客户问题按功能统计",
+      "sortOrder" : 5170
+    }, {
+      "permissionCode" : "system.label_group.view",
+      "permissionName" : "查看标签组管理",
+      "moduleName" : "系统设置",
+      "description" : "访问标签组管理页面",
+      "sortOrder" : 6010
+    }, {
+      "permissionCode" : "system.testing_phase.view",
+      "permissionName" : "查看议题测试阶段定义",
+      "moduleName" : "系统设置",
+      "description" : "访问议题测试阶段定义页面",
+      "sortOrder" : 6020
+    }, {
+      "permissionCode" : "system.permission.view",
+      "permissionName" : "查看权限设置",
+      "moduleName" : "系统设置",
+      "description" : "访问权限设置页面",
+      "sortOrder" : 6030
+    }, {
+      "permissionCode" : "system.mirror.view",
+      "permissionName" : "查看数据镜像设置",
+      "moduleName" : "系统设置",
+      "description" : "访问数据镜像设置页面",
+      "sortOrder" : 6040
+    }, {
+      "permissionCode" : "system.match_mode.view",
+      "permissionName" : "查看数据库兼容模式设置",
+      "moduleName" : "系统设置",
+      "description" : "访问数据库兼容模式临时设置页面",
+      "sortOrder" : 6050
+    }, {
+      "permissionCode" : "system.database.view",
+      "permissionName" : "查看数据库",
+      "moduleName" : "系统设置",
+      "description" : "访问数据库查看页面",
+      "sortOrder" : 6060
+    }, {
+      "permissionCode" : "system.label_group.manage",
+      "permissionName" : "管理标签组",
+      "moduleName" : "系统设置",
+      "description" : "新增、修改、删除和预览标签组",
+      "sortOrder" : 6110
+    }, {
+      "permissionCode" : "system.testing_phase.manage",
+      "permissionName" : "管理议题测试阶段",
+      "moduleName" : "系统设置",
+      "description" : "新增、修改、启停和删除测试阶段及分组",
+      "sortOrder" : 6120
+    }, {
+      "permissionCode" : "system.permission.manage",
+      "permissionName" : "管理角色权限",
+      "moduleName" : "系统设置",
+      "description" : "修改 LDAP 角色在数据采集平台的权限",
+      "sortOrder" : 6130
+    }, {
+      "permissionCode" : "system.mirror.config",
+      "permissionName" : "配置数据镜像",
+      "moduleName" : "系统设置",
+      "description" : "修改数据镜像连接、白名单和 Hook 配置",
+      "sortOrder" : 6140
+    }, {
+      "permissionCode" : "system.mirror.sync",
+      "permissionName" : "执行数据镜像同步",
+      "moduleName" : "系统设置",
+      "description" : "测试连接、同步、补偿、重试、注册 Hook 和中止任务",
+      "sortOrder" : 6150
+    }, {
+      "permissionCode" : "system.mirror.purge",
+      "permissionName" : "删除镜像数据",
+      "moduleName" : "系统设置",
+      "description" : "删除本地镜像数据",
+      "sortOrder" : 6160
+    }, {
+      "permissionCode" : "system.fact.rebuild",
+      "permissionName" : "重建事实数据",
+      "moduleName" : "系统设置",
+      "description" : "重建事实层并查看事实诊断",
+      "sortOrder" : 6170
+    }, {
+      "permissionCode" : "system.match_mode.config",
+      "permissionName" : "配置数据库兼容模式",
+      "moduleName" : "系统设置",
+      "description" : "修改兼容模式数据库和项目源配置",
+      "sortOrder" : 6180
+    }, {
+      "permissionCode" : "system.match_mode.sync",
+      "permissionName" : "同步兼容模式数据",
+      "moduleName" : "系统设置",
+      "description" : "执行兼容数据同步和选项刷新",
+      "sortOrder" : 6190
+    }, {
+      "permissionCode" : "system.match_mode.formal_import",
+      "permissionName" : "转入正式数据源",
+      "moduleName" : "系统设置",
+      "description" : "将兼容数据转入正式数据源",
+      "sortOrder" : 6200
+    }, {
+      "permissionCode" : "system.database.refresh",
+      "permissionName" : "刷新数据库表",
+      "moduleName" : "系统设置",
+      "description" : "刷新数据库查看中的允许表",
+      "sortOrder" : 6210
+    }, {
+      "permissionCode" : "business_data.refresh",
+      "permissionName" : "刷新业务数据",
+      "moduleName" : "数据维护",
+      "description" : "刷新统计、记录和非法数据页面的最新数据",
+      "sortOrder" : 7010
+    }, {
+      "permissionCode" : "bi.dashboard.view",
+      "permissionName" : "查看 BI 看板",
+      "moduleName" : "BI 看板",
+      "description" : "访问 BI 看板六个阶段页面",
+      "sortOrder" : 8010
+    }, {
+      "permissionCode" : "bi.dashboard.download",
+      "permissionName" : "下载 BI 图表",
+      "moduleName" : "BI 看板",
+      "description" : "下载当前授权页面完整数据图表 PNG",
+      "sortOrder" : 8020
+    }, {
+      "permissionCode" : "system.dropdown_option.view",
+      "permissionName" : "查看下拉框选项设置",
+      "moduleName" : "系统设置",
+      "description" : "查看各下拉字段选项配置与最终预览",
+      "sortOrder" : 8210
+    }, {
+      "permissionCode" : "system.dropdown_option.manage",
+      "permissionName" : "维护下拉框选项设置",
+      "moduleName" : "系统设置",
+      "description" : "配置黑白名单规则、手动选项与字段绑定",
+      "sortOrder" : 8220
+    } ],
+    "roles" : [ {
+      "roleCode" : "SUPER_ADMIN",
+      "roleName" : "超级管理员",
+      "displayOrder" : 10,
+      "permissionCodes" : [ "bi.dashboard.download", "bi.dashboard.view", "business_data.refresh", "code_review.board.export", "code_review.board.view", "code_review.form.create", "code_review.form.delete", "code_review.form.edit", "code_review.illegal.export", "code_review.illegal.view", "customer_issue.cause.export", "customer_issue.cause.view", "customer_issue.delay.export", "customer_issue.delay.view", "customer_issue.efficiency.export", "customer_issue.efficiency.view", "customer_issue.function.export", "customer_issue.function.view", "customer_issue.illegal.export", "customer_issue.illegal.view", "customer_issue.record.export", "customer_issue.record.view", "customer_issue.summary.export", "customer_issue.summary.view", "quality.other.export", "quality.other.view", "quality.rd.export", "quality.rd.view", "review.data.view", "review.legacy_import", "review.problem.create", "review.problem.delete_any", "review.problem.delete_own", "review.problem.edit", "review.problem.export", "review.record.create", "review.record.delete_any", "review.record.delete_own", "review.record.edit", "review.record.export", "review.template.download", "system.database.refresh", "system.database.view", "system.dropdown_option.manage", "system.dropdown_option.view", "system.fact.rebuild", "system.label_group.manage", "system.label_group.view", "system.match_mode.config", "system.match_mode.formal_import", "system.match_mode.sync", "system.match_mode.view", "system.mirror.config", "system.mirror.purge", "system.mirror.sync", "system.mirror.view", "system.permission.manage", "system.permission.view", "system.testing_phase.manage", "system.testing_phase.view", "system_test.board.export", "system_test.board.view", "system_test.cause.export", "system_test.cause.view", "system_test.delay.export", "system_test.delay.view", "system_test.illegal.export", "system_test.illegal.view", "system_test.issue.export", "system_test.issue.view", "system_test.phase.view", "system_test.summary.export", "system_test.summary.view" ]
+    }, {
+      "roleCode" : "ADMIN",
+      "roleName" : "管理员",
+      "displayOrder" : 20,
+      "permissionCodes" : [ "bi.dashboard.download", "bi.dashboard.view", "business_data.refresh", "code_review.board.export", "code_review.board.view", "code_review.form.create", "code_review.form.delete", "code_review.form.edit", "code_review.illegal.export", "code_review.illegal.view", "customer_issue.cause.export", "customer_issue.cause.view", "customer_issue.delay.export", "customer_issue.delay.view", "customer_issue.efficiency.export", "customer_issue.efficiency.view", "customer_issue.function.export", "customer_issue.function.view", "customer_issue.illegal.export", "customer_issue.illegal.view", "customer_issue.record.export", "customer_issue.record.view", "customer_issue.summary.export", "customer_issue.summary.view", "quality.other.export", "quality.other.view", "quality.rd.export", "quality.rd.view", "review.data.view", "review.legacy_import", "review.problem.create", "review.problem.delete_any", "review.problem.delete_own", "review.problem.edit", "review.problem.export", "review.record.create", "review.record.delete_any", "review.record.delete_own", "review.record.edit", "review.record.export", "review.template.download", "system.database.refresh", "system.database.view", "system.dropdown_option.manage", "system.dropdown_option.view", "system.fact.rebuild", "system.label_group.manage", "system.label_group.view", "system.match_mode.config", "system.match_mode.formal_import", "system.match_mode.sync", "system.match_mode.view", "system.mirror.config", "system.mirror.purge", "system.mirror.sync", "system.mirror.view", "system.permission.manage", "system.permission.view", "system.testing_phase.manage", "system.testing_phase.view", "system_test.board.export", "system_test.board.view", "system_test.cause.export", "system_test.cause.view", "system_test.delay.export", "system_test.delay.view", "system_test.illegal.export", "system_test.illegal.view", "system_test.issue.export", "system_test.issue.view", "system_test.phase.view", "system_test.summary.export", "system_test.summary.view" ]
+    }, {
+      "roleCode" : "DIRECT_MANAGER",
+      "roleName" : "直属上级",
+      "displayOrder" : 30,
+      "permissionCodes" : [ "bi.dashboard.download", "bi.dashboard.view", "business_data.refresh", "code_review.board.export", "code_review.board.view", "code_review.form.create", "code_review.form.delete", "code_review.form.edit", "code_review.illegal.export", "code_review.illegal.view", "customer_issue.cause.export", "customer_issue.cause.view", "customer_issue.delay.export", "customer_issue.delay.view", "customer_issue.efficiency.export", "customer_issue.efficiency.view", "customer_issue.function.export", "customer_issue.function.view", "customer_issue.illegal.export", "customer_issue.illegal.view", "customer_issue.record.export", "customer_issue.record.view", "customer_issue.summary.export", "customer_issue.summary.view", "quality.other.export", "quality.other.view", "quality.rd.export", "quality.rd.view", "review.data.view", "review.legacy_import", "review.problem.create", "review.problem.delete_any", "review.problem.delete_own", "review.problem.edit", "review.problem.export", "review.record.create", "review.record.delete_any", "review.record.delete_own", "review.record.edit", "review.record.export", "review.template.download", "system.label_group.manage", "system.label_group.view", "system.testing_phase.manage", "system.testing_phase.view", "system_test.board.export", "system_test.board.view", "system_test.cause.export", "system_test.cause.view", "system_test.delay.export", "system_test.delay.view", "system_test.illegal.export", "system_test.illegal.view", "system_test.issue.export", "system_test.issue.view", "system_test.phase.view", "system_test.summary.export", "system_test.summary.view" ]
+    }, {
+      "roleCode" : "TREE_MANAGER",
+      "roleName" : "部门经理",
+      "displayOrder" : 40,
+      "permissionCodes" : [ "bi.dashboard.download", "bi.dashboard.view", "business_data.refresh", "code_review.board.export", "code_review.board.view", "code_review.form.create", "code_review.form.delete", "code_review.form.edit", "code_review.illegal.export", "code_review.illegal.view", "customer_issue.cause.export", "customer_issue.cause.view", "customer_issue.delay.export", "customer_issue.delay.view", "customer_issue.efficiency.export", "customer_issue.efficiency.view", "customer_issue.function.export", "customer_issue.function.view", "customer_issue.illegal.export", "customer_issue.illegal.view", "customer_issue.record.export", "customer_issue.record.view", "customer_issue.summary.export", "customer_issue.summary.view", "quality.other.export", "quality.other.view", "quality.rd.export", "quality.rd.view", "review.data.view", "review.legacy_import", "review.problem.create", "review.problem.delete_any", "review.problem.delete_own", "review.problem.edit", "review.problem.export", "review.record.create", "review.record.delete_any", "review.record.delete_own", "review.record.edit", "review.record.export", "review.template.download", "system.label_group.manage", "system.label_group.view", "system.testing_phase.manage", "system.testing_phase.view", "system_test.board.export", "system_test.board.view", "system_test.cause.export", "system_test.cause.view", "system_test.delay.export", "system_test.delay.view", "system_test.illegal.export", "system_test.illegal.view", "system_test.issue.export", "system_test.issue.view", "system_test.phase.view", "system_test.summary.export", "system_test.summary.view" ]
+    }, {
+      "roleCode" : "NORMAL_USER",
+      "roleName" : "普通用户",
+      "displayOrder" : 50,
+      "permissionCodes" : [ "bi.dashboard.download", "bi.dashboard.view", "business_data.refresh", "code_review.board.export", "code_review.board.view", "code_review.form.create", "code_review.form.edit", "code_review.illegal.export", "code_review.illegal.view", "customer_issue.cause.export", "customer_issue.cause.view", "customer_issue.delay.export", "customer_issue.delay.view", "customer_issue.efficiency.export", "customer_issue.efficiency.view", "customer_issue.function.export", "customer_issue.function.view", "customer_issue.illegal.export", "customer_issue.illegal.view", "customer_issue.record.export", "customer_issue.record.view", "customer_issue.summary.export", "customer_issue.summary.view", "quality.other.export", "quality.other.view", "quality.rd.export", "quality.rd.view", "review.data.view", "review.legacy_import", "review.problem.create", "review.problem.delete_own", "review.problem.edit", "review.problem.export", "review.record.create", "review.record.delete_own", "review.record.edit", "review.record.export", "review.template.download", "system_test.board.export", "system_test.board.view", "system_test.cause.export", "system_test.cause.view", "system_test.delay.export", "system_test.delay.view", "system_test.illegal.export", "system_test.illegal.view", "system_test.issue.export", "system_test.issue.view", "system_test.phase.view", "system_test.summary.export", "system_test.summary.view" ]
+    } ],
+    "initialLdapSyncCompleted" : false
+  }
+}

@@ -1,0 +1,131 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "items" : [ {
+      "value" : "AI",
+      "label" : "AI",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "BOM",
+      "label" : "BOM",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "CAMDoctor",
+      "label" : "CAMDoctor",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "Curve Edit",
+      "label" : "Curve Edit",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "DWG",
+      "label" : "DWG",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "MBD",
+      "label" : "MBD",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "Mesh",
+      "label" : "Mesh",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "Subdivision",
+      "label" : "Subdivision",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "TopDown",
+      "label" : "TopDown",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "二次开发",
+      "label" : "二次开发",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "仿真",
+      "label" : "仿真",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "企业版",
+      "label" : "企业版",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "其他",
+      "label" : "其他",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "几何",
+      "label" : "几何",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "协同",
+      "label" : "协同",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "后台管理",
+      "label" : "后台管理",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "后台管理系统",
+      "label" : "后台管理系统",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "实体算法",
+      "label" : "实体算法",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "工具",
+      "label" : "工具",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "工程图",
+      "label" : "工程图",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    } ],
+    "total" : 46,
+    "page" : 1,
+    "size" : 20
+  }
+}

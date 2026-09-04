@@ -8,7 +8,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordListResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
@@ -43,8 +42,6 @@ class CodeReviewIllegalRecordServiceTest {
 
   @BeforeEach
   void setUp() {
-    GitlabMirrorProperties gitlabMirrorProperties = new GitlabMirrorProperties();
-    gitlabMirrorProperties.setWebBaseUrl("http://gitlab.example.com");
     org.mockito.Mockito.lenient()
         .when(pageRecordSnapshotService.codeReviewSourceVersion())
         .thenReturn("test-code-review-version");
@@ -62,10 +59,12 @@ class CodeReviewIllegalRecordServiceTest {
             matchModeLegacyRefreshService,
             legacyPlatformFormalImportService,
             dgmProjectOptionService,
-            gitlabResourceLinkService,
             new ObjectMapper(),
-            gitlabMirrorProperties,
-            pageRecordSnapshotService);
+            pageRecordSnapshotService,
+            new CodeReviewIllegalRecordExcelExporter(),
+            new CodeReviewIllegalRecordFilterOptionAssembler(),
+            new CodeReviewIllegalRecordResponseMapper(
+                gitlabResourceLinkService, matchModeSwitchService));
   }
 
   @Test

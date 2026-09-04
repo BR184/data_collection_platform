@@ -1,0 +1,81 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "boardKey" : "system-test-defect-summary",
+    "supported" : true,
+    "title" : "系统测试缺陷汇总规则说明",
+    "version" : "system-test-defect-summary@2026-07-28-v13",
+    "scopeDescription" : "当前统计限定为 CrownCAD 系统测试范围。选择一个测试阶段后，平台会按阶段定义展开对应轮次，再统计这些议题在各模块下的缺陷数量、修复情况、关闭情况、延期情况和遗留情况。",
+    "summary" : "主表数字和下钻明细使用同一套筛选条件、模块归属和指标判定规则；点击数字后看到的明细数量应与主表单元格保持一致。",
+    "flowSteps" : [ {
+      "key" : "source-load",
+      "title" : "加载议题数据",
+      "description" : "加载已同步到平台的议题数据，并使用统一的项目、阶段、模块、严重程度和处理状态字段。",
+      "inputCount" : 0,
+      "outputCount" : 0,
+      "samples" : [ ]
+    }, {
+      "key" : "scope-filter",
+      "title" : "限定系统测试范围",
+      "description" : "按 CrownCAD 项目和测试阶段定义限定范围，不以“系统测试/回归测试”标签作为前置条件。",
+      "inputCount" : 0,
+      "outputCount" : 0,
+      "samples" : [ ]
+    }, {
+      "key" : "exclude-invalid-issues",
+      "title" : "排除无效数据",
+      "description" : "剔除功能屏蔽、已拒绝以及关闭后属于申请否决/需求如此的议题；仅因建议类被排除的数据只允许回到建议类列。",
+      "inputCount" : 0,
+      "outputCount" : 0,
+      "samples" : [ ]
+    }, {
+      "key" : "apply-filter-group",
+      "title" : "应用页面筛选",
+      "description" : "按页面上的测试阶段、项目、模块、严重程度和优先级等条件进一步收敛统计范围。",
+      "inputCount" : 0,
+      "outputCount" : 0,
+      "samples" : [ ]
+    }, {
+      "key" : "module-expand",
+      "title" : "按模块展开",
+      "description" : "一个议题如果属于多个模块，会分别计入命中的模块；主表单元格与下钻明细使用同一套模块归属和指标判定规则。",
+      "inputCount" : 0,
+      "outputCount" : 0,
+      "samples" : [ ]
+    } ],
+    "metricDefinitions" : [ {
+      "key" : "level1",
+      "label" : "一级缺陷",
+      "definition" : "严重程度为一级缺陷的议题会进入一级缺陷统计，并继续拆分为回退、挂机和其他一级缺陷。",
+      "formula" : "一级缺陷修复率 = 一级缺陷已修复数量 / 一级缺陷总数",
+      "note" : null
+    }, {
+      "key" : "priority-summary",
+      "label" : "P1/P2/P3",
+      "definition" : "P1/P2/P3 是优先级统计，一级/二级/三级是严重程度统计，两套口径不能混用。",
+      "formula" : "某优先级修复率 = 该优先级已修复、已完成、未复现或已关闭数量 / 该优先级总数；缺陷汇总表只展示 P1 关闭率",
+      "note" : null
+    }, {
+      "key" : "summary",
+      "label" : "综合汇总",
+      "definition" : "综合区展示模块总缺陷数、缺陷占比、延期占比、已修复或未更新、修复率、关闭率、未关闭数量、申请延期和复测未通过。",
+      "formula" : "修复率 = 已修复、待合并或未更新数量 / 模块总缺陷数；复测未通过按处理状态包含未修复统计",
+      "note" : null
+    }, {
+      "key" : "new-issue",
+      "label" : "新发议题",
+      "definition" : "新发议题不包含标记为历史遗留的议题。",
+      "formula" : "新发议题修复率 = 新发议题中已修复、待合并或未更新数量 / 新发议题总数；关闭率还要求议题已关闭且状态为已修复、已完成或未复现",
+      "note" : null
+    }, {
+      "key" : "legacy",
+      "label" : "遗留率",
+      "definition" : "遗留率按系统测试缺陷汇总的既定规则判定。",
+      "formula" : "一级缺陷遗留率 = 一级缺陷未按已修复口径命中的数量 / 一级缺陷总数；二级、三级遗留按对应严重程度中未修复、未待合并、未更新的数据统计",
+      "note" : null
+    } ],
+    "unsupportedReason" : null
+  }
+}

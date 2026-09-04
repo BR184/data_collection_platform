@@ -135,6 +135,7 @@ function optionVariant(option: RecordTableFilterOption) {
     :model-value="modelValue"
     filterable
     :filter-method="handleFilter"
+    :reserve-keyword="false"
     :placeholder="placeholder"
     :clearable="clearable"
     :multiple="multiple"

@@ -39,7 +39,8 @@ export type PageKey =
   | 'mirror-settings'
   | 'database-settings'
   | 'database-browser'
-  | 'permission-settings';
+  | 'permission-settings'
+  | 'dropdown-option-settings';
 
 export interface ShellPage {
   key: PageKey;

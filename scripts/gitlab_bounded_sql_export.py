@@ -73,6 +73,7 @@ DEFAULT_TABLE_ORDER = [
     "plans",
     "plan_limits",
     "shards",
+    "work_item_types",
     "organizations",
     "organization_details",
     "organization_settings",
@@ -533,7 +534,7 @@ def collect_mini_gitlab_repo_extras(
     issue_ids = selected.get("issues", set())
     merge_request_ids = selected.get("merge_requests", set())
 
-    for table in ("application_settings", "appearances", "features", "plans", "plan_limits", "shards"):
+    for table in ("application_settings", "appearances", "features", "plans", "plan_limits", "shards", "work_item_types"):
         selected[table] |= select_ids(cur, table, "true", (), None, "order by id")
 
     if namespace_ids:
@@ -591,6 +592,17 @@ def collect_mini_gitlab_repo_extras(
         collect_user_refs_from_table(cur, selected, criteria, "project_authorizations", ("user_id",))
         collect_ids_from_table(cur, selected, criteria, "project_topics", "topic_id", "topics")
         collect_ids_from_table(cur, selected, criteria, "repository_languages", "programming_language_id", "programming_languages")
+
+        if selected["project_group_links"]:
+            group_ids = collect_distinct_values(
+                cur,
+                "project_group_links",
+                "group_id",
+                "id = any(%s)",
+                (list(selected["project_group_links"]),),
+            )
+            selected["namespaces"] |= group_ids
+            selected["namespaces"] |= collect_parent_namespaces(cur, group_ids)
 
     if selected.get("organizations"):
         for table in ("organization_details", "organization_settings", "organization_users"):

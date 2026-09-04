@@ -82,7 +82,11 @@ class FactBuildServiceTest {
             integrationTestFactBuildService,
             reconciliationService,
             new GitlabFactSourceSqlProvider(),
-            new GitlabFactSourceQueryExecutor(jdbcTemplate, sqlQueryMonitor));
+            new GitlabFactSourceQueryExecutor(jdbcTemplate, sqlQueryMonitor),
+            new IssuePhaseCalendarLoader(jdbcTemplate),
+            new IssueFactSourceRowMapper(),
+            new MergeRequestFactSourceRowMapper(),
+            newSearchIndexRepairService(jdbcTemplate));
 
     service.rebuildMergeRequestFactsForConfig(config, true);
 
@@ -141,7 +145,11 @@ class FactBuildServiceTest {
             integrationTestFactBuildService,
             reconciliationService,
             new GitlabFactSourceSqlProvider(),
-            new GitlabFactSourceQueryExecutor(jdbcTemplate, sqlQueryMonitor));
+            new GitlabFactSourceQueryExecutor(jdbcTemplate, sqlQueryMonitor),
+            new IssuePhaseCalendarLoader(jdbcTemplate),
+            new IssueFactSourceRowMapper(),
+            new MergeRequestFactSourceRowMapper(),
+            newSearchIndexRepairService(jdbcTemplate));
 
     assertThatThrownBy(() -> service.rebuildAllFacts(true)).isSameAs(preflightFailure);
 
@@ -195,7 +203,11 @@ class FactBuildServiceTest {
             integrationTestFactBuildService,
             reconciliationService,
             new GitlabFactSourceSqlProvider(),
-            new GitlabFactSourceQueryExecutor(jdbcTemplate, sqlQueryMonitor));
+            new GitlabFactSourceQueryExecutor(jdbcTemplate, sqlQueryMonitor),
+            new IssuePhaseCalendarLoader(jdbcTemplate),
+            new IssueFactSourceRowMapper(),
+            new MergeRequestFactSourceRowMapper(),
+            newSearchIndexRepairService(jdbcTemplate));
 
     assertThatThrownBy(() -> service.rebuildAllFactsForConfig(config, true, 16L))
         .isSameAs(preflightFailure);
@@ -209,5 +221,13 @@ class FactBuildServiceTest {
         moduleDictionaryService,
         integrationTestFactBuildService,
         jdbcTemplate);
+  }
+
+  private FactSearchIndexRepairService newSearchIndexRepairService(
+      JdbcTemplate jdbcTemplate) {
+    return new FactSearchIndexRepairService(
+        jdbcTemplate,
+        new IssueFactSourceRowMapper(),
+        new MergeRequestFactSourceRowMapper());
   }
 }

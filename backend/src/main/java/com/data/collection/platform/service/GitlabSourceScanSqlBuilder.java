@@ -11,7 +11,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.springframework.stereotype.Component;
 
+@Component
 class GitlabSourceScanSqlBuilder {
   private static final DateTimeFormatter TIMESTAMP_LITERAL_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS");
@@ -219,6 +221,11 @@ class GitlabSourceScanSqlBuilder {
         .formatted(
             SqlIdentifierSupport.quoteIdentifier(primaryKeys.getFirst()),
             quoteQualifiedPublicTable(option.tableName()));
+  }
+
+  /** 把单列主键上界序列化为与 {@link #buildMaxPrimaryKeyProbeSql} 配套的 JSON 游标。 */
+  String toJsonCursor(List<String> primaryKeyValues) {
+    return jsonUtils.toJson(primaryKeyValues);
   }
 
   private String quoteQualifiedPublicTable(String tableName) {
