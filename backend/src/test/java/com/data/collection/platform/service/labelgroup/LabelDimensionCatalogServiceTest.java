@@ -1,7 +1,9 @@
 package com.data.collection.platform.service.labelgroup;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.labelgroup.LabelGroupCompatiblePageResponse;
 import org.junit.jupiter.api.Test;
 
@@ -13,18 +15,24 @@ class LabelDimensionCatalogServiceTest {
   void shouldReturnChineseDimensionNamesAndStableKeys() {
     assertThat(service.listDimensions())
         .extracting(LabelDimensionDefinition::key)
-        .contains(
+        .containsExactly(
             "module",
             "project",
-            "review_owner",
-            "review_expert",
-            "issue_assignee",
-            "customer_assignee",
+            "person",
+            "target_branch",
+            "milestone",
+            "round",
+            "test_stage",
+            "severity_level",
+            "priority_level",
+            "defect_reason",
+            "delay_reason",
             "closure_status");
 
     assertThat(service.getDimension("module").name()).isEqualTo("模块");
-    assertThat(service.getDimension("review_owner").name()).isEqualTo("评审负责人");
-    assertThat(service.getDimension("customer_assignee").name()).isEqualTo("客户问题处理人");
+    assertThat(service.getDimension("person").name()).isEqualTo("人员");
+    assertThat(service.getDimension("project").description()).contains("镜像");
+    assertThat(service.getDimension("milestone").description()).contains("镜像");
   }
 
   @Test
@@ -41,13 +49,43 @@ class LabelDimensionCatalogServiceTest {
   }
 
   @Test
-  void shouldReturnCompatiblePagesForDimension() {
-    assertThat(service.listCompatiblePages("review_owner"))
-        .extracting(LabelGroupCompatiblePageResponse::pageKey)
-        .containsExactly("review-data-home");
+  void shouldRejectLegacyPersonDimensions() {
+    assertThatThrownBy(() -> service.getDimension("review_owner"))
+        .isInstanceOf(BizException.class)
+        .hasMessage("标签维度不存在：review_owner");
+    assertThatThrownBy(() -> service.getDimension("review_expert"))
+        .isInstanceOf(BizException.class)
+        .hasMessage("标签维度不存在：review_expert");
+    assertThatThrownBy(() -> service.getDimension("issue_assignee"))
+        .isInstanceOf(BizException.class)
+        .hasMessage("标签维度不存在：issue_assignee");
+    assertThatThrownBy(() -> service.getDimension("customer_author"))
+        .isInstanceOf(BizException.class)
+        .hasMessage("标签维度不存在：customer_author");
+    assertThatThrownBy(() -> service.getDimension("customer_assignee"))
+        .isInstanceOf(BizException.class)
+        .hasMessage("标签维度不存在：customer_assignee");
+  }
 
-    assertThat(service.listCompatiblePages("issue_assignee"))
+  @Test
+  void shouldReturnCompatiblePagesForDimensions() {
+    assertThat(service.listCompatiblePages("person"))
+        .extracting(LabelGroupCompatiblePageResponse::pageKey)
+        .containsExactly(
+            "review-data-home",
+            "question-metrics-issue-search",
+            "customer-issues-cc-product-issues");
+
+    assertThat(service.listCompatiblePages("project"))
+        .extracting(LabelGroupCompatiblePageResponse::pageKey)
+        .containsExactly("review-data-home", "question-metrics-issue-search");
+
+    assertThat(service.listCompatiblePages("test_stage"))
         .extracting(LabelGroupCompatiblePageResponse::pageKey)
         .containsExactly("question-metrics-issue-search");
+
+    assertThat(service.listCompatiblePages("closure_status"))
+        .extracting(LabelGroupCompatiblePageResponse::pageKey)
+        .containsExactly("customer-issues-cc-product-issues");
   }
 }

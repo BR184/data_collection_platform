@@ -9,6 +9,7 @@ import com.data.collection.platform.entity.labelgroup.LabelGroupCompatiblePageRe
 import com.data.collection.platform.entity.labelgroup.LabelValuePageResponse;
 import com.data.collection.platform.entity.labelgroup.LabelValueResponse;
 import com.data.collection.platform.service.CustomerIssueRecordService;
+import com.data.collection.platform.service.ReviewDataMirrorOptionRepository;
 import com.data.collection.platform.service.ReviewDataRecordService;
 import com.data.collection.platform.service.SystemTestIssueSearchService;
 import com.data.collection.platform.service.TextQuerySupport;
@@ -16,6 +17,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -26,19 +28,28 @@ public class LabelValueQueryService {
   private static final String CUSTOMER_PAGE = "customer-issues-cc-product-issues";
 
   private final LabelDimensionCatalogService dimensionCatalogService;
+  private final ReviewDataMirrorOptionRepository mirrorOptionRepository;
   private final ReviewDataRecordService reviewDataRecordService;
   private final SystemTestIssueSearchService systemTestIssueSearchService;
   private final CustomerIssueRecordService customerIssueRecordService;
+  private final Map<String, Supplier<List<String>>> mirrorValueLoaders;
 
   public LabelValueQueryService(
       LabelDimensionCatalogService dimensionCatalogService,
+      ReviewDataMirrorOptionRepository mirrorOptionRepository,
       ReviewDataRecordService reviewDataRecordService,
       SystemTestIssueSearchService systemTestIssueSearchService,
       CustomerIssueRecordService customerIssueRecordService) {
     this.dimensionCatalogService = dimensionCatalogService;
+    this.mirrorOptionRepository = mirrorOptionRepository;
     this.reviewDataRecordService = reviewDataRecordService;
     this.systemTestIssueSearchService = systemTestIssueSearchService;
     this.customerIssueRecordService = customerIssueRecordService;
+    this.mirrorValueLoaders =
+        Map.of(
+            "project", mirrorOptionRepository::loadLabelProjectNames,
+            "person", mirrorOptionRepository::loadUserNames,
+            "milestone", mirrorOptionRepository::loadMilestoneTitles);
   }
 
   public LabelValuePageResponse listValues(
@@ -70,20 +81,14 @@ public class LabelValueQueryService {
     return new LabelValuePageResponse(values.subList(from, to), values.size(), safePage, safeSize);
   }
 
-  public boolean existsStaticCandidateValue(String value) {
-    String text = TextQuerySupport.trimToNull(value);
-    if (text == null) {
-      return false;
-    }
-    return dimensionCatalogService.listDimensions().stream()
-        .filter(LabelDimensionDefinition::staticSupported)
-        .flatMap(dimension -> loadOptions(dimension.key(), null, null).stream())
-        .anyMatch(option -> text.equals(option.value()));
-  }
-
   private List<OptionItemResponse> loadOptions(String dimensionKey, String pageKey, String sourceInstanceId) {
     if ("closure_status".equals(dimensionKey)) {
       return List.of(new OptionItemResponse("需求如此", "需求如此"));
+    }
+    Supplier<List<String>> mirrorLoader = mirrorValueLoaders.get(dimensionKey);
+    if (mirrorLoader != null) {
+      // 镜像直取维度：候选值来自镜像库全量，不随页面数据过滤；页面只是使用位置。
+      return toOptions(mirrorLoader.get());
     }
     if (pageKey != null) {
       return loadPageOptions(dimensionKey, pageKey, sourceInstanceId);
@@ -94,6 +99,10 @@ public class LabelValueQueryService {
           .forEach(option -> merged.putIfAbsent(option.value(), option));
     }
     return List.copyOf(merged.values());
+  }
+
+  private static List<OptionItemResponse> toOptions(List<String> values) {
+    return values.stream().map(value -> new OptionItemResponse(value, value)).toList();
   }
 
   private List<OptionItemResponse> loadPageOptions(String dimensionKey, String pageKey, String sourceInstanceId) {
@@ -108,10 +117,7 @@ public class LabelValueQueryService {
   private List<OptionItemResponse> reviewOptions(String dimensionKey) {
     ReviewDataFilterOptionsResponse options = reviewDataRecordService.getFilterOptions();
     return switch (dimensionKey) {
-      case "project" -> options.projectNames();
       case "module" -> options.moduleNames();
-      case "review_owner" -> options.reviewOwners();
-      case "review_expert" -> options.reviewExperts();
       default -> List.of();
     };
   }
@@ -120,16 +126,13 @@ public class LabelValueQueryService {
     SystemTestIssueSearchFilterOptionsResponse options =
         systemTestIssueSearchService.getFilterOptions(null, TextQuerySupport.trimToNull(sourceInstanceId));
     return switch (dimensionKey) {
-      case "project" -> options.projectNames();
       case "module" -> options.moduleNames();
       case "test_stage" -> options.testingPhases();
-      case "issue_assignee" -> options.assigneeNames();
       case "severity_level" -> options.severityLevels();
       case "priority_level" -> List.of(
           new OptionItemResponse("P1", "P1"),
           new OptionItemResponse("P2", "P2"),
           new OptionItemResponse("P3", "P3"));
-      case "milestone" -> options.milestoneTitles();
       default -> List.of();
     };
   }
@@ -140,10 +143,7 @@ public class LabelValueQueryService {
             "cc-product", null, TextQuerySupport.trimToNull(sourceInstanceId));
     return switch (dimensionKey) {
       case "module" -> options.moduleNames();
-      case "customer_author" -> options.authorNames();
-      case "customer_assignee" -> options.assigneeNames();
       case "priority_level" -> options.priorityLevels();
-      case "milestone" -> options.milestoneTitles();
       default -> List.of();
     };
   }

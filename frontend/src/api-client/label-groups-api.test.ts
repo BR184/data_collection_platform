@@ -104,8 +104,8 @@ describe('labelGroupsApi', () => {
     labelGroupsApi.listLabelGroups({ valueType: 'STRING', keyword: '核心', enabled: true });
     expect(request).toHaveBeenCalledWith('/api/label-groups?valueType=STRING&keyword=%E6%A0%B8%E5%BF%83&enabled=true');
 
-    labelGroupsApi.listLabelGroupCompatiblePages('review_owner');
-    expect(request).toHaveBeenCalledWith('/api/label-groups/dimensions/review_owner/compatible-pages');
+    labelGroupsApi.listLabelGroupCompatiblePages('person');
+    expect(request).toHaveBeenCalledWith('/api/label-groups/dimensions/person/compatible-pages');
 
     labelGroupsApi.expandLabelGroup(1, { valueType: 'STRING', fieldKey: 'moduleName', pageKey: 'review-data-home' });
     expect(request).toHaveBeenCalledWith('/api/label-groups/1/expand?valueType=STRING&fieldKey=moduleName&pageKey=review-data-home', {

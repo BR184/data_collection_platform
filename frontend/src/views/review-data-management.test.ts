@@ -81,6 +81,8 @@ describe('review-data-management helpers', () => {
     const columns = reviewDataColumns();
 
     expect(columns[0]).toMatchObject({ key: 'title', fixed: 'left' });
+    expect(columns[1]).toMatchObject({ key: 'projectName', label: '项目', sortable: true });
+    expect(columns[2]).toMatchObject({ key: 'reviewType', label: '评审类型', sortable: true, width: 120 });
     expect(columns.find((column) => column.key === 'reachStandard'))
       .toMatchObject({ fixed: 'right' });
   });
@@ -209,11 +211,11 @@ describe('review-data-management helpers', () => {
       labelGroupEnabled: true,
     });
     expect(fields.find((field) => field.key === 'reviewOwner')).toMatchObject({
-      labelDimensionKey: 'review_owner',
+      labelDimensionKey: 'person',
       labelGroupEnabled: true,
     });
     expect(fields.find((field) => field.key === 'reviewExpert')).toMatchObject({
-      labelDimensionKey: 'review_expert',
+      labelDimensionKey: 'person',
       labelGroupEnabled: true,
     });
     expect(fields.find((field) => field.key === 'reviewType')?.labelGroupEnabled).toBeUndefined();

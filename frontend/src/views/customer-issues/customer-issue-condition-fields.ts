@@ -35,6 +35,13 @@ function selectConditionField(
   };
 }
 
+function personConditionField(key: string, label: string, options: Option[], width = 180): StatisticFilterField {
+  return {
+    ...selectConditionField(key, label, options, width, true),
+    labelDimensionKey: 'person',
+  };
+}
+
 function datetimeConditionField(key: string, label: string, width = 220): StatisticFilterField {
   return {
     key,
@@ -75,24 +82,20 @@ function commonIssueConditionFields(options: {
     selectConditionField('issueState', '议题状态', options.issueStates),
     selectConditionField('bugStatus', '测试状态', options.bugStatuses, 180, true),
     selectConditionField('category', '议题类别', options.categories),
-    selectConditionField('authorName', '议题提交人', options.authorNames ?? [], 180, true),
+    personConditionField('authorName', '议题提交人', options.authorNames ?? []),
     ...(options.includeHandlerName
       ? [
-        selectConditionField(
+        personConditionField(
           'handlerName',
           options.handlerNameLabel ?? '议题处理人',
           options.handlerNames ?? [],
-          180,
-          true,
         ),
       ]
       : []),
-    selectConditionField(
+    personConditionField(
       'assigneeName',
       options.assigneeNameLabel ?? '议题处理人',
       options.assigneeNames ?? [],
-      180,
-      true,
     ),
     selectConditionField('milestoneTitle', '里程碑', options.milestoneTitles, 180, true),
     datetimeConditionField('createdAt', '提交时间'),

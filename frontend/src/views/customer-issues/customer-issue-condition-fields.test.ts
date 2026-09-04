@@ -32,6 +32,9 @@ describe('customer issue condition fields', () => {
     expect(fields.find((field) => field.key === 'moduleName')?.labelGroupEnabled).toBe(true);
     expect(fields.find((field) => field.key === 'handlerName')?.labelGroupValueType).toBe('STRING');
     expect(fields.find((field) => field.key === 'assigneeName')?.labelGroupValueType).toBe('STRING');
+    expect(fields.find((field) => field.key === 'authorName')?.labelDimensionKey).toBe('person');
+    expect(fields.find((field) => field.key === 'handlerName')?.labelDimensionKey).toBe('person');
+    expect(fields.find((field) => field.key === 'assigneeName')?.labelDimensionKey).toBe('person');
     expect(fields.find((field) => field.key === 'priorityLevel')?.labelGroupEnabled).toBe(true);
     expect(fields.find((field) => field.key === 'bugStatus')?.labelGroupEnabled).toBe(true);
     expect(fields.find((field) => field.key === 'reasonCategory')?.labelGroupEnabled).toBeUndefined();

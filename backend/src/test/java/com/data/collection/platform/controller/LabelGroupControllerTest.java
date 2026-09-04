@@ -99,11 +99,13 @@ class LabelGroupControllerTest {
 
   @Test
   void shouldReturnCompatiblePages() throws Exception {
-    mockMvc.perform(get("/api/label-groups/dimensions/review_owner/compatible-pages"))
+    mockMvc.perform(get("/api/label-groups/dimensions/person/compatible-pages"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data[0].pageKey").value("review-data-home"))
-        .andExpect(jsonPath("$.data[0].pageName").value("评审数据管理"));
+        .andExpect(jsonPath("$.data[0].pageName").value("评审数据管理"))
+        .andExpect(jsonPath("$.data[1].pageKey").value("question-metrics-issue-search"))
+        .andExpect(jsonPath("$.data[2].pageKey").value("customer-issues-cc-product-issues"));
   }
 
   @Test

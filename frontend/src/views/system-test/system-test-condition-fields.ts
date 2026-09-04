@@ -34,6 +34,18 @@ function selectConditionField(
   };
 }
 
+function personConditionField(
+  key: string,
+  label: string,
+  options: OptionItemResponse[] = [],
+  width = 180,
+): StatisticFilterField {
+  return {
+    ...selectConditionField(key, label, options, width, true),
+    labelDimensionKey: 'person',
+  };
+}
+
 function datetimeConditionField(key: string, label: string, width = 220): StatisticFilterField {
   return {
     key,
@@ -151,8 +163,8 @@ export function buildSystemTestIssueSearchConditionFields(
     selectConditionField('bugStatus', '缺陷状态', options.bugStatuses, 180, true),
     selectConditionField('category', '分类', options.categories, 180, true),
     selectConditionField('milestoneTitle', '里程碑', options.milestoneTitles, 180, true),
-    selectConditionField('authorName', '创建人', options.authorNames, 180, true),
-    selectConditionField('assigneeName', '处理人', options.assigneeNames, 180, true),
+    personConditionField('authorName', '创建人', options.authorNames),
+    personConditionField('assigneeName', '处理人', options.assigneeNames),
     datetimeConditionField('createdAt', '创建时间'),
     datetimeConditionField('updatedAt', '更新时间'),
   ];

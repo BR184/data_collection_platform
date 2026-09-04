@@ -616,14 +616,10 @@ function normalizeFieldKey(value: string) {
     module: 'moduleName',
     moduleName: 'moduleName',
     moduleNames: 'moduleName',
-    review_owner: 'reviewOwner',
     reviewOwner: 'reviewOwner',
-    review_expert: 'reviewExpert',
     reviewExpert: 'reviewExpert',
     project: 'projectName',
     projectName: 'projectName',
-    customer_assignee: 'assigneeName',
-    issue_assignee: 'assigneeName',
     assigneeName: 'assigneeName',
   } as Record<string, string>)[value] ?? value;
 }

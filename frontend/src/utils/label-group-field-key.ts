@@ -19,8 +19,6 @@ export function normalizeLabelGroupFieldKey(value: string | null | undefined) {
     case 'projectName':
       return 'projectName';
     case '客户问题处理人':
-    case 'customer_assignee':
-    case 'issue_assignee':
     case 'assigneeName':
       return 'assigneeName';
     default:
