@@ -6,12 +6,18 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-04 全新部署包 30001（缺陷测试用）
+
+- [完成] fresh-empty 全新空数据包已生成：归档 `D:\projects\data_collection_platform_deploy\qaflex-full-20260904T104638Z-8cf0508d8832.tar.gz`（306,760,347 bytes，SHA-256 `f7f436d05381bc0bfb1d6846d5e0cb1995b89b213bd2cb48ed6df40af3c3cce0`）。包内内网参数沿用 20260806 全新包先例：平台 `172.22.10.115:30001`、后端 `30002`（127.0.0.1）、PostgreSQL `15434`（127.0.0.1）、LDAP `http://172.22.10.116:80`，`GITLAB_DELETE_RECONCILIATION_ENABLED=false` 显式保持，`COMPOSE_PROJECT_NAME=qaflex-20260904t104638z-8cf0508d8832` 强制注入 `PLATFORM_INSTANCE_ID`。代码基线 = 本地 main `f66aff80`（该树黄金基线 180/180 零差异，用户明确本次不再跑回归）；manifest 如实标注工作区非干净（仅同事 untracked WIP 测试文件，未阻塞构建，backendTestSourceFallbackUsed=false）。
+- [验证] 打包器默认门禁全过：前端发布测试 17/17、typecheck、生产构建、后端 clean package、双业务镜像无缓存构建、镜像内 app.jar/index.html 摘要与本地生产产物核对一致、Compose 解析、SHA256SUMS 7 文件校验。独立审计：Flyway `20260903.01` 与最新迁移 `V20260903_01` 一致、目标镜像同 release-id、包外 `.sha256` 与实测归档哈希一致、归档清单严格符合全新包结构契约（无 `backend/`、`frontend/`、真实 `.env`、数据库 dump、运行日志）、打包器契约测试 30/30、四项仓库门禁全绿。
+- [限制] 本地未做隔离栈部署演练（全新包验证以打包器门禁+独立审计为准，部署演练仅更新包工作流要求）；内网 30001 部署与缺陷测试由用户执行，现场命令以包内 `README-INTRANET-DEPLOY.md` 为准。
+
 ## 2026-09-04 黄金基线套件更新（12 维度基线）
 
 - [完成] 快照套件更新至当前实现（用户"版本趋于稳定"指令触发）：`endpoint-catalog.yml` 为 values 端点补 `person-page1` 用例（按镜像直取单元计划约定锁定 person 维度镜像直取行为）；`-Dgolden.update=true` 重建全量快照。唯一语义变化 = label-groups dimensions 16→12 维度（源自 58e770a7）；其余 60 文件差异经语义级全量审计全部为掩码易变字段刷新（时间戳/runId/testcontainers 随机端口/retentionHours 库龄）、`ignore-array-order` 已声明集合乱序与键序噪声。
 - [修复] 更新后比对复跑暴露既有缺陷：`IssueFactRecordRepository.findForFilterOptions` SQL 缺 `order by id`（全量路径有、此漏拼），question-metrics issues/filter-options 的 assigneeNames 等 75 项候选顺序随查询计划漂移（PG 无排序行序不定 + 候选工厂 LinkedHashSet 首次出现序）——与基线建设期修复的"FACT_SQL 无 ORDER BY"同族漏网点。追加既有 `FACT_SQL_ORDER` 固定行序，候选集合不变仅顺序确定化（受影响快照已按新序重建）；受影响单测 12/12。
 - [验证] 更新模式 180/180（第二轮 3 处 Windows 文件锁瞬态 Error，涉及文件均为掩码字段且 JSON 完整）；比对模式复跑 180/180 零差异（BUILD SUCCESS）——候选顺序稳定性经两次独立运行实证。夹具未动（baseline-manifest.json 零变化），基线版本不变，D-08 无需留痕。
-- [状态] 目录 + 快照 + 实现修复 + 文档待同单元提交（门禁纪律）；推送与 18080 重启待用户决定。
+- [状态] 已同单元提交 f66aff80（目录+快照+实现修复+文档）；推送 origin 与 18080 重启待用户决定。
 
 ## 2026-09-04 标签组成员候选全量分页加载
 
@@ -27,7 +33,7 @@
 
 - [完成] 兼容模式同步治本（方案 `docs/plans/intranet-review-intermittent-failure-20260904.md`）：Mongo 5 处 replace 改"raw_payload 守卫 upsert + 键反连接点删"（未变行零写入，id/synced_at 稳定、指纹不漂移），MySQL raw 行同模式、代码走查表（无唯一键）改装载表原子换名接管（rename 后 `ALTER SEQUENCE ... OWNED BY 新表.id` 移交序列所有权，提交后 ANALYZE），全部 5 处 TRUNCATE 删除，零新增迁移。指纹 5+2 段 3s 短超时 + 首败短路 + 5 分钟桶降级标记，降级时 readOrRefresh 读最近快照（含 STALE）；readOrRefresh 增加进程内 single-flight 合并同键并发重建（失败共享）；match 仓库读路径点查化；评审写后异步预热 FILTER_OPTIONS；两个 @RestControllerAdvice 合并为单一 GlobalExceptionHandler（DataAccessException →"数据库操作失败，请稍后重试"，兼容模式记录缺失改 BizException）。
 - [验证] 受影响单测 16/16；testcontainers 真实 PG 集成 6/6（Mongo 合并 4 + MySQL 换名/raw 合并 2，实证 id/synced_at 稳定、消失行点删、换名+序列移交+索引存在）；全量默认套件注入测试库 env 后 1239 项 / 1 失败 / 0 错误 / 1 跳过——唯一失败为同事 2026-08-25 untracked WIP（`ReviewDataRecordReadSupportTest` 期望值不一致），零回归。实施期发现并修复换名方案真缺陷（退役表持有序列所有权致 DROP 失败）。
-- [待办] 提交与推送待用户确认：工作树同时含进行中的解耦第二阶段改动（Gitlab 执行器/统计/pom/AGENTS.md 及 untracked 拆分件）与本单元无关，仅可摘取本单元文件（5 个主实现 + GlobalRestExceptionHandler 删除 + 7 个测试 + 本单元计划文档）；黄金基线门禁按 AGENTS.md 留待打包验收时运行。
+- [状态] 已提交并推送 6707b433；当时并存的解耦第二阶段改动已随后归集提交 b66fe7dd。黄金基线门禁已在套件更新单元执行（180/180 零差异）。
 
 ## 2026-09-02 黄金基线回归测试系统
 
