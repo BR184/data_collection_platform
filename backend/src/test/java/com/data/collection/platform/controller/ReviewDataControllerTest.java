@@ -21,7 +21,7 @@ import com.data.collection.platform.entity.ReviewDataRecordListResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
 import com.data.collection.platform.entity.ReviewDataSummaryResponse;
-import com.data.collection.platform.common.exception.GlobalRestExceptionHandler;
+import com.data.collection.platform.common.exception.GlobalExceptionHandler;
 import com.data.collection.platform.config.ReviewDataProperties;
 import com.data.collection.platform.service.ReviewDataLegacyExcelImportService;
 import com.data.collection.platform.service.ReviewDataExcelExportService;
@@ -66,7 +66,7 @@ class ReviewDataControllerTest {
                     excelExportService,
                     templateWorkbookService,
                     reviewDataProperties))
-            .setControllerAdvice(new GlobalRestExceptionHandler())
+            .setControllerAdvice(new GlobalExceptionHandler())
             .build();
   }
 
@@ -427,7 +427,7 @@ class ReviewDataControllerTest {
             new byte[] {1, 2, 3, 4});
 
     mockMvc.perform(multipart("/api/review-data/legacy-excel-import/preview").file(file))
-        .andExpect(status().isOk())
+        .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("1MB")))
         .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("分批导出")));

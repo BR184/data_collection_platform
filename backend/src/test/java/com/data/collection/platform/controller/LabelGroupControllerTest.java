@@ -11,7 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.data.collection.platform.common.exception.BizException;
-import com.data.collection.platform.common.exception.GlobalRestExceptionHandler;
+import com.data.collection.platform.common.exception.GlobalExceptionHandler;
 import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRulePreviewResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupMemberResponse;
@@ -59,7 +59,7 @@ class LabelGroupControllerTest {
                     new LabelGroupDynamicRuleCatalogService(),
                     dynamicRuleCandidateService,
                     dynamicRuleEvaluationService))
-            .setControllerAdvice(new GlobalRestExceptionHandler())
+            .setControllerAdvice(new GlobalExceptionHandler())
             .build();
   }
 
@@ -190,7 +190,7 @@ class LabelGroupControllerTest {
         .thenThrow(new BizException("标签维度不存在：missing"));
 
     mockMvc.perform(get("/api/label-groups/dimensions/missing/values"))
-        .andExpect(status().isOk())
+        .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.message").value("标签维度不存在：missing"));
   }

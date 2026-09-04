@@ -1,16 +1,19 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.common.exception.BizException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 
 class ReviewDataMatchModeRecordRepositoryTest {
 
@@ -31,5 +34,18 @@ class ReviewDataMatchModeRecordRepositoryTest {
         .contains("or match_mode_problem_legacy_id = ?");
     assertThat(sqlStatements.get(1))
         .contains("on conflict (match_mode_problem_legacy_id)");
+  }
+
+  @Test
+  void missingMatchModeRecordRaisesBusinessErrorInsteadOfDatabaseError() {
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    when(jdbcTemplate.<Object>query(anyString(), any(RowMapper.class), any(Object[].class)))
+        .thenReturn(List.of());
+    ReviewDataMatchModeRecordRepository repository =
+        new ReviewDataMatchModeRecordRepository(jdbcTemplate);
+
+    assertThatThrownBy(() -> repository.getRecordOrThrow(-404L))
+        .isInstanceOf(BizException.class)
+        .hasMessage("该评审记录已被重新同步，请刷新列表后重试");
   }
 }

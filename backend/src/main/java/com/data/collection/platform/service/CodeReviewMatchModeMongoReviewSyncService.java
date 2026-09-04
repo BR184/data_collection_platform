@@ -28,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.PreparedStatementSetter;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -212,19 +213,27 @@ public class CodeReviewMatchModeMongoReviewSyncService {
     });
   }
 
-  private void replaceRawDocuments(String collectionName, List<Document> documents) {
-    jdbcTemplate.update("delete from " + RAW_TARGET_TABLE + " where collection_name = ?", collectionName);
+  // 兼容模式-MatchMode：增量合并代替 TRUNCATE 全量重填——payload 未变的行完全不写，
+  // 保持自增 id 与 synced_at 稳定（快照指纹不漂移），并消除全表排他锁窗口。
+  void replaceRawDocuments(String collectionName, List<Document> documents) {
     String sql = """
         insert into legacy_mongo_imported_documents (
           collection_name, document_key, raw_payload, synced_at
         ) values (
           ?, ?, ?::jsonb, current_timestamp
         )
+        on conflict (collection_name, document_key) do update
+           set raw_payload = excluded.raw_payload,
+               synced_at = excluded.synced_at
+         where legacy_mongo_imported_documents.raw_payload is distinct from excluded.raw_payload
         """;
+    List<String> documentKeys = new ArrayList<>(documents.size());
     List<Object[]> batch = new ArrayList<>();
     for (int index = 0; index < documents.size(); index++) {
       Document document = documents.get(index);
-      batch.add(new Object[] {collectionName, documentKey(collectionName, document, index + 1), document.toJson()});
+      String documentKey = documentKey(collectionName, document, index + 1);
+      documentKeys.add(documentKey);
+      batch.add(new Object[] {collectionName, documentKey, document.toJson()});
       if (batch.size() >= 500) {
         jdbcTemplate.batchUpdate(sql, batch);
         batch.clear();
@@ -233,6 +242,18 @@ public class CodeReviewMatchModeMongoReviewSyncService {
     if (!batch.isEmpty()) {
       jdbcTemplate.batchUpdate(sql, batch);
     }
+    jdbcTemplate.update(
+        """
+        delete from legacy_mongo_imported_documents
+         where collection_name = ?
+           and not exists (
+             select 1 from unnest(?::text[]) as k(document_key)
+              where k.document_key = legacy_mongo_imported_documents.document_key)
+        """,
+        (PreparedStatementSetter) ps -> {
+          ps.setString(1, collectionName);
+          ps.setArray(2, ps.getConnection().createArrayOf("text", documentKeys.toArray(String[]::new)));
+        });
     jdbcTemplate.update("""
         insert into legacy_mongo_imported_collections (
           collection_name, record_count, last_synced_at, synced_at
@@ -248,8 +269,17 @@ public class CodeReviewMatchModeMongoReviewSyncService {
         documents.size());
   }
 
-  private void replaceReviewReports(List<Document> documents) {
-    jdbcTemplate.execute("truncate table " + REVIEW_REPORT_TABLE);
+  /** 删除本轮同步键集合之外的历史快照行：缺失行点删，存续行零写入。 */
+  private void deleteRowsMissingTextKey(String tableName, String keyColumn, List<String> keys) {
+    jdbcTemplate.update(
+        "delete from " + tableName
+            + " where not exists (select 1 from unnest(?::text[]) as k(key) where k.key = "
+            + tableName + "." + keyColumn + ")",
+        (PreparedStatementSetter) ps ->
+            ps.setArray(1, ps.getConnection().createArrayOf("text", keys.toArray(String[]::new))));
+  }
+
+  void replaceReviewReports(List<Document> documents) {
     String sql = """
         insert into review_data_match_mode_reports (
           legacy_id, project_name, title, module_name, source_type, doc_type, review_type_str,
@@ -261,12 +291,43 @@ public class CodeReviewMatchModeMongoReviewSyncService {
           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb,
           current_timestamp
         )
+        on conflict (legacy_id) do update set
+          project_name = excluded.project_name,
+          title = excluded.title,
+          module_name = excluded.module_name,
+          source_type = excluded.source_type,
+          doc_type = excluded.doc_type,
+          review_type_str = excluded.review_type_str,
+          review_time = excluded.review_time,
+          review_charger = excluded.review_charger,
+          review_experts = excluded.review_experts,
+          defect_value = excluded.defect_value,
+          defect_count_sum = excluded.defect_count_sum,
+          review_defect_density = excluded.review_defect_density,
+          weighted_defect_density = excluded.weighted_defect_density,
+          review_efficiency = excluded.review_efficiency,
+          review_rate = excluded.review_rate,
+          doc_specification = excluded.doc_specification,
+          integrity = excluded.integrity,
+          functionality = excluded.functionality,
+          feasibility = excluded.feasibility,
+          not_reach_stand_cause = excluded.not_reach_stand_cause,
+          problem_detail_ids = excluded.problem_detail_ids,
+          description_ids = excluded.description_ids,
+          content_ids = excluded.content_ids,
+          create_time = excluded.create_time,
+          raw_payload = excluded.raw_payload,
+          synced_at = excluded.synced_at
+        where review_data_match_mode_reports.raw_payload is distinct from excluded.raw_payload
         """;
+    List<String> legacyIds = new ArrayList<>(documents.size());
     List<Object[]> batch = new ArrayList<>();
     for (int index = 0; index < documents.size(); index++) {
       Document document = documents.get(index);
+      String legacyId = documentKey("reviewReport", document, index + 1);
+      legacyIds.add(legacyId);
       batch.add(new Object[] {
-          documentKey("reviewReport", document, index + 1),
+          legacyId,
           text(document, "projectName"),
           text(document, "title"),
           ReviewDataModuleNameSupport.normalize(text(document, "moduleName")),
@@ -301,17 +362,29 @@ public class CodeReviewMatchModeMongoReviewSyncService {
     if (!batch.isEmpty()) {
       jdbcTemplate.batchUpdate(sql, batch);
     }
+    deleteRowsMissingTextKey(REVIEW_REPORT_TABLE, "legacy_id", legacyIds);
   }
 
-  private void replaceReviewContents(List<Document> reports) {
-    jdbcTemplate.execute("truncate table " + REVIEW_CONTENT_TABLE);
+  void replaceReviewContents(List<Document> reports) {
     String sql = """
         insert into review_data_match_mode_contents (
           match_mode_report_legacy_id, content_order, reviewer_name, assignment_content,
           independent_workload_hours, independent_problem_count, meeting_workload_hours,
           meeting_problem_count, raw_payload, synced_at
         ) values (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, current_timestamp)
+        on conflict (match_mode_report_legacy_id, content_order) do update
+           set reviewer_name = excluded.reviewer_name,
+               assignment_content = excluded.assignment_content,
+               independent_workload_hours = excluded.independent_workload_hours,
+               independent_problem_count = excluded.independent_problem_count,
+               meeting_workload_hours = excluded.meeting_workload_hours,
+               meeting_problem_count = excluded.meeting_problem_count,
+               raw_payload = excluded.raw_payload,
+               synced_at = excluded.synced_at
+         where review_data_match_mode_contents.raw_payload is distinct from excluded.raw_payload
         """;
+    List<String> reportLegacyIds = new ArrayList<>();
+    List<Integer> contentOrders = new ArrayList<>();
     List<Object[]> batch = new ArrayList<>();
     for (int reportIndex = 0; reportIndex < reports.size(); reportIndex++) {
       Document report = reports.get(reportIndex);
@@ -326,9 +399,11 @@ public class CodeReviewMatchModeMongoReviewSyncService {
         if (content == null) {
           continue;
         }
+        reportLegacyIds.add(reportLegacyId);
+        contentOrders.add(contentOrder++);
         batch.add(new Object[] {
             reportLegacyId,
-            contentOrder++,
+            contentOrders.get(contentOrders.size() - 1),
             text(content, "name"),
             text(content, "content"),
             decimal(content.get("workload")),
@@ -346,6 +421,19 @@ public class CodeReviewMatchModeMongoReviewSyncService {
     if (!batch.isEmpty()) {
       jdbcTemplate.batchUpdate(sql, batch);
     }
+    jdbcTemplate.update(
+        """
+        delete from review_data_match_mode_contents
+         where not exists (
+           select 1
+             from unnest(?::text[], ?::int[]) as k(report_legacy_id, content_order)
+            where k.report_legacy_id = review_data_match_mode_contents.match_mode_report_legacy_id
+              and k.content_order = review_data_match_mode_contents.content_order)
+        """,
+        (PreparedStatementSetter) ps -> {
+          ps.setArray(1, ps.getConnection().createArrayOf("text", reportLegacyIds.toArray(String[]::new)));
+          ps.setArray(2, ps.getConnection().createArrayOf("int4", contentOrders.toArray(Integer[]::new)));
+        });
   }
 
   private Document asDocument(Object value) {
@@ -360,8 +448,7 @@ public class CodeReviewMatchModeMongoReviewSyncService {
     return null;
   }
 
-  private void replaceReviewProblems(List<Document> documents) {
-    jdbcTemplate.execute("truncate table " + REVIEW_PROBLEM_TABLE);
+  void replaceReviewProblems(List<Document> documents) {
     String sql = """
         insert into review_data_match_mode_problem_details (
           legacy_id, reviewer, workload, review_type, position, problem_type, description, suggestion,
@@ -370,12 +457,32 @@ public class CodeReviewMatchModeMongoReviewSyncService {
         ) values (
           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, current_timestamp
         )
+        on conflict (legacy_id) do update set
+          reviewer = excluded.reviewer,
+          workload = excluded.workload,
+          review_type = excluded.review_type,
+          position = excluded.position,
+          problem_type = excluded.problem_type,
+          description = excluded.description,
+          suggestion = excluded.suggestion,
+          liable_person = excluded.liable_person,
+          reason_for_not_accepting = excluded.reason_for_not_accepting,
+          problem_status = excluded.problem_status,
+          close_time = excluded.close_time,
+          create_time = excluded.create_time,
+          update_time = excluded.update_time,
+          raw_payload = excluded.raw_payload,
+          synced_at = excluded.synced_at
+        where review_data_match_mode_problem_details.raw_payload is distinct from excluded.raw_payload
         """;
+    List<String> legacyIds = new ArrayList<>(documents.size());
     List<Object[]> batch = new ArrayList<>();
     for (int index = 0; index < documents.size(); index++) {
       Document document = documents.get(index);
+      String legacyId = documentKey("problemDetail", document, index + 1);
+      legacyIds.add(legacyId);
       batch.add(new Object[] {
-          documentKey("problemDetail", document, index + 1),
+          legacyId,
           text(document, "reviewer"),
           decimal(document.get("workload")),
           text(document, "reviewType"),
@@ -399,22 +506,34 @@ public class CodeReviewMatchModeMongoReviewSyncService {
     if (!batch.isEmpty()) {
       jdbcTemplate.batchUpdate(sql, batch);
     }
+    deleteRowsMissingTextKey(REVIEW_PROBLEM_TABLE, "legacy_id", legacyIds);
   }
 
-  private void replaceReviewDescriptions(List<Document> documents) {
-    jdbcTemplate.execute("truncate table " + REVIEW_DESCRIPTION_TABLE);
+  void replaceReviewDescriptions(List<Document> documents) {
     String sql = """
         insert into review_data_match_mode_descriptions (
           legacy_id, review_product, version, author, review_scale_pages, unit, raw_payload, synced_at
         ) values (
           ?, ?, ?, ?, ?, ?, ?::jsonb, current_timestamp
         )
+        on conflict (legacy_id) do update set
+          review_product = excluded.review_product,
+          version = excluded.version,
+          author = excluded.author,
+          review_scale_pages = excluded.review_scale_pages,
+          unit = excluded.unit,
+          raw_payload = excluded.raw_payload,
+          synced_at = excluded.synced_at
+        where review_data_match_mode_descriptions.raw_payload is distinct from excluded.raw_payload
         """;
+    List<String> legacyIds = new ArrayList<>(documents.size());
     List<Object[]> batch = new ArrayList<>();
     for (int index = 0; index < documents.size(); index++) {
       Document document = documents.get(index);
+      String legacyId = documentKey(REVIEW_DESCRIPTION_COLLECTION, document, index + 1);
+      legacyIds.add(legacyId);
       batch.add(new Object[] {
-          documentKey(REVIEW_DESCRIPTION_COLLECTION, document, index + 1),
+          legacyId,
           text(document, "reviewProduct"),
           text(document, "version"),
           text(document, "author"),
@@ -430,6 +549,7 @@ public class CodeReviewMatchModeMongoReviewSyncService {
     if (!batch.isEmpty()) {
       jdbcTemplate.batchUpdate(sql, batch);
     }
+    deleteRowsMissingTextKey(REVIEW_DESCRIPTION_TABLE, "legacy_id", legacyIds);
   }
 
   private String listText(Document document, String fieldName) {

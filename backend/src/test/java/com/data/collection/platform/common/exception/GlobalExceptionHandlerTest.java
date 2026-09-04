@@ -48,6 +48,14 @@ class GlobalExceptionHandlerTest {
   }
 
   @Test
+  void shouldReturnDatabaseMessageForDataAccessExceptions() throws Exception {
+    mockMvc.perform(get("/failure/database"))
+        .andExpect(status().isInternalServerError())
+        .andExpect(jsonPath("$.code").value("C0001"))
+        .andExpect(jsonPath("$.message").value("数据库操作失败，请稍后重试"));
+  }
+
+  @Test
   void shouldReturnNotFoundForMissingResources() throws Exception {
     mockMvc.perform(get("/missing-resource"))
         .andExpect(status().isNotFound())
@@ -70,6 +78,11 @@ class GlobalExceptionHandlerTest {
     @GetMapping("/failure/system")
     void system() {
       throw new IllegalStateException("boom");
+    }
+
+    @GetMapping("/failure/database")
+    void database() {
+      throw new org.springframework.dao.DataAccessResourceFailureException("connection lost");
     }
   }
 }

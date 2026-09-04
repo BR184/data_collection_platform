@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import java.math.BigDecimal;
@@ -16,7 +17,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -26,6 +26,26 @@ import org.springframework.stereotype.Repository;
 public class ReviewDataMatchModeRecordRepository {
   private static final Pattern OBJECT_ID_PATTERN = Pattern.compile("ObjectId\\(['\"]?([^'\")]+)['\"]?\\)");
   private static final Pattern QUOTED_VALUE_PATTERN = Pattern.compile("[\"']([^\"']+)[\"']");
+
+  private static final String REPORT_COLUMNS = """
+      id, legacy_id, project_name, title, module_name, source_type, doc_type, review_type_str,
+      review_time, review_charger, review_experts, defect_value, defect_count_sum,
+      review_defect_density, weighted_defect_density, review_efficiency, review_rate,
+      doc_specification, integrity, functionality, feasibility, not_reach_stand_cause,
+      problem_detail_ids, description_ids, create_time
+      """;
+  private static final String PROBLEM_COLUMNS = """
+      id, legacy_id, reviewer, workload, review_type, position, problem_type, description,
+      suggestion, liable_person, reason_for_not_accepting, problem_status, create_time, update_time
+      """;
+  private static final String DESCRIPTION_COLUMNS = """
+      id, legacy_id, review_product, version, author, review_scale_pages, unit
+      """;
+  private static final String CONTENT_COLUMNS = """
+      id, match_mode_report_legacy_id, content_order, reviewer_name, assignment_content,
+      independent_workload_hours, independent_problem_count, meeting_workload_hours,
+      meeting_problem_count
+      """;
 
   private final JdbcTemplate jdbcTemplate;
 
@@ -103,10 +123,15 @@ public class ReviewDataMatchModeRecordRepository {
 
   //兼容模式-MatchMode
   public MatchModeRecordSource getRecordSourceOrThrow(Long matchModeRecordId) {
-    return loadAllRecordSources().stream()
-        .filter(source -> Objects.equals(source.record().id(), storageId(matchModeRecordId)))
-        .findFirst()
-        .orElseThrow(() -> new EmptyResultDataAccessException("兼容模式评审记录不存在: " + matchModeRecordId, 1));
+    ReportRow report = loadReportRow(storageId(matchModeRecordId));
+    if (report == null) {
+      throw matchModeRecordNotFound(matchModeRecordId);
+    }
+    return new MatchModeRecordSource(
+        report,
+        loadReportProblems(report),
+        loadReportDescriptions(report),
+        loadContentRowsByReportLegacyId(report.legacyId()));
   }
 
   //兼容模式-MatchMode
@@ -216,20 +241,35 @@ public class ReviewDataMatchModeRecordRepository {
 
   //兼容模式-MatchMode
   public ReviewDataRecordRowResponse getRecordOrThrow(Long recordId) {
-    return buildRows().records().stream()
-        .filter(row -> Objects.equals(row.id(), publicRecordId(storageId(recordId))))
-        .findFirst()
-        .orElseThrow(() -> new EmptyResultDataAccessException("兼容模式评审记录不存在: " + recordId, 1));
+    ReportRow report = loadReportRow(storageId(recordId));
+    if (report == null) {
+      throw matchModeRecordNotFound(recordId);
+    }
+    return buildRecordRow(report, loadReportProblems(report), loadReportDescriptions(report));
+  }
+
+  //兼容模式-MatchMode：同步每轮后老平台行键稳定，此处缺失通常意味着页面持有
+  // 已被重新同步取代的旧引用——按业务语义返回 400 引导刷新，而不是数据库异常。
+  private BizException matchModeRecordNotFound(Long matchModeRecordId) {
+    return new BizException("该评审记录已被重新同步，请刷新列表后重试");
   }
 
   //兼容模式-MatchMode
   public List<ReviewDataProblemItemResponse> listProblemItems(Long recordId) {
-    return buildRows().problemItemsByRecordId().getOrDefault(publicRecordId(storageId(recordId)), List.of());
+    ReportRow report = loadReportRow(storageId(recordId));
+    if (report == null) {
+      return List.of();
+    }
+    Long publicRecordId = publicRecordId(storageId(recordId));
+    return loadReportProblems(report).stream()
+        .map(problem -> toProblemResponse(publicRecordId, problem))
+        .toList();
   }
 
   //兼容模式-MatchMode
   public List<String> listRecordExperts(Long recordId) {
-    return buildRows().expertsByRecordId().getOrDefault(publicRecordId(storageId(recordId)), List.of());
+    ReportRow report = loadReportRow(storageId(recordId));
+    return report == null ? List.of() : report.reviewExperts();
   }
 
   //兼容模式-MatchMode
@@ -237,15 +277,37 @@ public class ReviewDataMatchModeRecordRepository {
     if (records == null || records.isEmpty()) {
       return Map.of();
     }
-    MatchModeRows rows = buildRows();
+    List<Long> storageIds =
+        records.stream().map(row -> storageId(row.id())).filter(Objects::nonNull).distinct().toList();
+    if (storageIds.isEmpty()) {
+      return Map.of();
+    }
+    Map<Long, ReportRow> reportByStorageId = new LinkedHashMap<>();
+    for (ReportRow report : loadReportRowsByIds(storageIds)) {
+      reportByStorageId.put(report.id(), report);
+    }
+    List<String> allProblemLegacyIds =
+        reportByStorageId.values().stream()
+            .flatMap(report -> report.problemDetailIds().stream())
+            .distinct()
+            .toList();
+    Map<String, ProblemRow> problemByLegacyId = new LinkedHashMap<>();
+    for (ProblemRow problem : loadProblemRowsByLegacyIds(allProblemLegacyIds)) {
+      problemByLegacyId.put(problem.legacyId(), problem);
+    }
     Map<Long, List<String>> result = new LinkedHashMap<>();
     for (ReviewDataRecordRowResponse record : records) {
+      ReportRow report = reportByStorageId.get(storageId(record.id()));
       List<String> statuses =
-          rows.problemItemsByRecordId().getOrDefault(record.id(), List.of()).stream()
-              .map(ReviewDataProblemItemResponse::problemStatus)
-              .map(TextQuerySupport::normalizeDisplay)
-              .filter(value -> !value.isBlank())
-              .toList();
+          report == null
+              ? List.of()
+              : report.problemDetailIds().stream()
+                  .map(problemByLegacyId::get)
+                  .filter(Objects::nonNull)
+                  .map(ProblemRow::problemStatus)
+                  .map(TextQuerySupport::normalizeDisplay)
+                  .filter(value -> !value.isBlank())
+                  .toList();
       result.put(record.id(), statuses);
     }
     return result;
@@ -311,52 +373,132 @@ public class ReviewDataMatchModeRecordRepository {
               .map(descriptionByLegacyId::get)
               .filter(Objects::nonNull)
               .toList();
-      RecordMetrics metrics = metrics(report, reportProblems, reportDescriptions);
-      String expertsSummary = String.join("、", report.reviewExperts());
-      records.add(
-          new ReviewDataRecordRowResponse(
-              publicRecordId,
-              TextQuerySupport.normalizeDisplay(report.projectName()),
-              TextQuerySupport.normalizeDisplay(report.title()),
-              ReviewDataModuleNameSupport.normalize(report.moduleName()),
-              firstText(report.docType(), report.sourceType(), report.reviewTypeStr()),
-              report.reviewTime() == null ? null : report.reviewTime().toLocalDate(),
-              TextQuerySupport.normalizeDisplay(report.reviewCharger()),
-              expertsSummary,
-              metrics.reviewScalePages(),
-              firstDescriptionText(reportDescriptions, DescriptionRow::reviewProduct),
-              firstDescriptionText(reportDescriptions, DescriptionRow::author),
-              firstDescriptionText(reportDescriptions, DescriptionRow::version),
-              metrics.problemCount(),
-              metrics.problemDensity(),
-              metrics.reviewEfficiency(),
-              metrics.reviewRate(),
-              metrics.reviewCategorySummary(),
-              metrics.docSpecificationCount(),
-              metrics.integrityCount(),
-              metrics.functionalityCount(),
-              metrics.feasibilityCount(),
-              metrics.independentReviewWorkload(),
-              metrics.independentReviewProblemCount(),
-              metrics.meetingReviewWorkload(),
-              metrics.meetingReviewProblemCount(),
-              TextQuerySupport.normalizeDisplay(report.notReachStandCause()),
-              reachStandard(metrics.problemDensity()),
-              null,
-              metrics.weightedDefectDensity(),
-              report.createTime(),
-              report.createTime(),
-              false,
-              null,
-              null,
-              null,
-              null));
+      records.add(buildRecordRow(report, reportProblems, reportDescriptions));
       problemItemsByRecordId.put(
           publicRecordId,
           reportProblems.stream().map(problem -> toProblemResponse(publicRecordId, problem)).toList());
       expertsByRecordId.put(publicRecordId, report.reviewExperts());
     }
     return new MatchModeRows(records, problemItemsByRecordId, expertsByRecordId);
+  }
+
+  private ReviewDataRecordRowResponse buildRecordRow(
+      ReportRow report,
+      List<ProblemRow> reportProblems,
+      List<DescriptionRow> reportDescriptions) {
+    RecordMetrics metrics = metrics(report, reportProblems, reportDescriptions);
+    String expertsSummary = String.join("、", report.reviewExperts());
+    return new ReviewDataRecordRowResponse(
+        publicRecordId(report.id()),
+        TextQuerySupport.normalizeDisplay(report.projectName()),
+        TextQuerySupport.normalizeDisplay(report.title()),
+        ReviewDataModuleNameSupport.normalize(report.moduleName()),
+        firstText(report.docType(), report.sourceType(), report.reviewTypeStr()),
+        report.reviewTime() == null ? null : report.reviewTime().toLocalDate(),
+        TextQuerySupport.normalizeDisplay(report.reviewCharger()),
+        expertsSummary,
+        metrics.reviewScalePages(),
+        firstDescriptionText(reportDescriptions, DescriptionRow::reviewProduct),
+        firstDescriptionText(reportDescriptions, DescriptionRow::author),
+        firstDescriptionText(reportDescriptions, DescriptionRow::version),
+        metrics.problemCount(),
+        metrics.problemDensity(),
+        metrics.reviewEfficiency(),
+        metrics.reviewRate(),
+        metrics.reviewCategorySummary(),
+        metrics.docSpecificationCount(),
+        metrics.integrityCount(),
+        metrics.functionalityCount(),
+        metrics.feasibilityCount(),
+        metrics.independentReviewWorkload(),
+        metrics.independentReviewProblemCount(),
+        metrics.meetingReviewWorkload(),
+        metrics.meetingReviewProblemCount(),
+        TextQuerySupport.normalizeDisplay(report.notReachStandCause()),
+        reachStandard(metrics.problemDensity()),
+        null,
+        metrics.weightedDefectDensity(),
+        report.createTime(),
+        report.createTime(),
+        false,
+        null,
+        null,
+        null,
+        null);
+  }
+
+  /** 单条评审记录的问题明细：按 report.problemDetailIds 的顺序还原，与全量组装口径一致。 */
+  private List<ProblemRow> loadReportProblems(ReportRow report) {
+    Map<String, ProblemRow> problemByLegacyId = new LinkedHashMap<>();
+    for (ProblemRow problem : loadProblemRowsByLegacyIds(report.problemDetailIds())) {
+      problemByLegacyId.put(problem.legacyId(), problem);
+    }
+    return report.problemDetailIds().stream()
+        .map(problemByLegacyId::get)
+        .filter(Objects::nonNull)
+        .toList();
+  }
+
+  /** 单条评审记录的描述明细：按 report.descriptionIds 的顺序还原，与全量组装口径一致。 */
+  private List<DescriptionRow> loadReportDescriptions(ReportRow report) {
+    Map<String, DescriptionRow> descriptionByLegacyId = new LinkedHashMap<>();
+    for (DescriptionRow description : loadDescriptionRowsByLegacyIds(report.descriptionIds())) {
+      descriptionByLegacyId.put(description.legacyId(), description);
+    }
+    return report.descriptionIds().stream()
+        .map(descriptionByLegacyId::get)
+        .filter(Objects::nonNull)
+        .toList();
+  }
+
+  private ReportRow loadReportRow(Long storageReportId) {
+    List<ReportRow> rows = loadReportRowsByIds(List.of(storageReportId));
+    return rows.isEmpty() ? null : rows.getFirst();
+  }
+
+  private List<ReportRow> loadReportRowsByIds(List<Long> storageReportIds) {
+    if (storageReportIds.isEmpty()) {
+      return List.of();
+    }
+    return jdbcTemplate.query(
+        "select " + REPORT_COLUMNS + " from review_data_match_mode_reports where id in "
+            + placeholders(storageReportIds.size()),
+        this::mapReportRow,
+        storageReportIds.toArray());
+  }
+
+  private List<ProblemRow> loadProblemRowsByLegacyIds(List<String> legacyIds) {
+    if (legacyIds.isEmpty()) {
+      return List.of();
+    }
+    return jdbcTemplate.query(
+        "select " + PROBLEM_COLUMNS + " from review_data_match_mode_problem_details where legacy_id in "
+            + placeholders(legacyIds.size()),
+        this::mapProblemRow,
+        legacyIds.toArray());
+  }
+
+  private List<DescriptionRow> loadDescriptionRowsByLegacyIds(List<String> legacyIds) {
+    if (legacyIds.isEmpty()) {
+      return List.of();
+    }
+    return jdbcTemplate.query(
+        "select " + DESCRIPTION_COLUMNS + " from review_data_match_mode_descriptions where legacy_id in "
+            + placeholders(legacyIds.size()),
+        this::mapDescriptionRow,
+        legacyIds.toArray());
+  }
+
+  private List<ContentRow> loadContentRowsByReportLegacyId(String reportLegacyId) {
+    return jdbcTemplate.query(
+        "select " + CONTENT_COLUMNS + " from review_data_match_mode_contents "
+            + "where match_mode_report_legacy_id = ? order by content_order, id",
+        this::mapContentRow,
+        reportLegacyId);
+  }
+
+  private static String placeholders(int count) {
+    return "(" + String.join(", ", java.util.Collections.nCopies(count, "?")) + ")";
   }
 
   private RecordMetrics metrics(ReportRow report, List<ProblemRow> problems, List<DescriptionRow> descriptions) {
@@ -487,60 +629,43 @@ public class ReviewDataMatchModeRecordRepository {
 
   private List<ReportRow> loadReportRows() {
     return jdbcTemplate.query(
-        """
-        select id, legacy_id, project_name, title, module_name, source_type, doc_type, review_type_str,
-               review_time, review_charger, review_experts, defect_value, defect_count_sum,
-               review_defect_density, weighted_defect_density, review_efficiency, review_rate,
-               doc_specification, integrity, functionality, feasibility, not_reach_stand_cause,
-               problem_detail_ids, description_ids, create_time
-          from review_data_match_mode_reports
-         order by review_time desc nulls last, id desc
-        """,
+        "select " + REPORT_COLUMNS + " from review_data_match_mode_reports"
+            + " order by review_time desc nulls last, id desc",
         this::mapReportRow);
   }
 
   private List<ProblemRow> loadProblemRows() {
     return jdbcTemplate.query(
-        """
-        select id, legacy_id, reviewer, workload, review_type, position, problem_type, description,
-               suggestion, liable_person, reason_for_not_accepting, problem_status, create_time, update_time
-          from review_data_match_mode_problem_details
-         order by id asc
-        """,
+        "select " + PROBLEM_COLUMNS + " from review_data_match_mode_problem_details order by id asc",
         this::mapProblemRow);
   }
 
   private List<DescriptionRow> loadDescriptionRows() {
     return jdbcTemplate.query(
-        """
-        select id, legacy_id, review_product, version, author, review_scale_pages, unit
-          from review_data_match_mode_descriptions
-         order by id asc
-        """,
+        "select " + DESCRIPTION_COLUMNS + " from review_data_match_mode_descriptions order by id asc",
         this::mapDescriptionRow);
   }
 
   private List<ContentRow> loadContentRows() {
     return jdbcTemplate.query(
-        """
-        select id, match_mode_report_legacy_id, content_order, reviewer_name, assignment_content,
-               independent_workload_hours, independent_problem_count, meeting_workload_hours,
-               meeting_problem_count
-          from review_data_match_mode_contents
-         order by match_mode_report_legacy_id, content_order, id
-        """,
-        (rs, rowNum) -> new ContentRow(
-            rs.getLong("id"),
-            rs.getString("match_mode_report_legacy_id"),
-            rs.getInt("content_order"),
-            rs.getString("reviewer_name"),
-            rs.getBigDecimal("independent_workload_hours") == null
-                ? null : rs.getBigDecimal("independent_workload_hours").doubleValue(),
-            rs.getString("assignment_content"),
-            (Integer) rs.getObject("independent_problem_count"),
-            rs.getBigDecimal("meeting_workload_hours") == null
-                ? null : rs.getBigDecimal("meeting_workload_hours").doubleValue(),
-            (Integer) rs.getObject("meeting_problem_count")));
+        "select " + CONTENT_COLUMNS + " from review_data_match_mode_contents"
+            + " order by match_mode_report_legacy_id, content_order, id",
+        this::mapContentRow);
+  }
+
+  private ContentRow mapContentRow(ResultSet rs, int rowNum) throws SQLException {
+    return new ContentRow(
+        rs.getLong("id"),
+        rs.getString("match_mode_report_legacy_id"),
+        rs.getInt("content_order"),
+        rs.getString("reviewer_name"),
+        rs.getBigDecimal("independent_workload_hours") == null
+            ? null : rs.getBigDecimal("independent_workload_hours").doubleValue(),
+        rs.getString("assignment_content"),
+        (Integer) rs.getObject("independent_problem_count"),
+        rs.getBigDecimal("meeting_workload_hours") == null
+            ? null : rs.getBigDecimal("meeting_workload_hours").doubleValue(),
+        (Integer) rs.getObject("meeting_problem_count"));
   }
 
   private ReportRow mapReportRow(ResultSet rs, int rowNum) throws SQLException {

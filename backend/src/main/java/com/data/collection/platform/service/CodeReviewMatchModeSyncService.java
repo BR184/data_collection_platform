@@ -34,6 +34,7 @@ public class CodeReviewMatchModeSyncService {
   private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
   private static final String CODE_REVIEW_TARGET_TABLE = "code_review_match_mode_records";
   private static final String CODE_REVIEW_TEMP_TABLE = "code_review_match_mode_records_loading";
+  private static final String CODE_REVIEW_RETIRING_TABLE = "code_review_match_mode_records_retiring";
   private static final String RAW_TARGET_TABLE = "legacy_mysql_imported_rows";
   private static final String RAW_TEMP_TABLE = "legacy_mysql_imported_rows_loading";
 
@@ -139,6 +140,10 @@ public class CodeReviewMatchModeSyncService {
     }
     transactionTemplate.executeWithoutResult(
         ignored -> replaceSnapshots(refreshCodeReviewRecords, summary));
+    if (refreshCodeReviewRecords) {
+      // 换名接管的新表尚无统计信息，事务提交后立即采集，避免计划器按默认估算生成劣化计划。
+      jdbcTemplate.execute("analyze " + CODE_REVIEW_TARGET_TABLE);
+    }
     return summary;
   }
 
@@ -491,6 +496,8 @@ public class CodeReviewMatchModeSyncService {
     return String.join(",", labels);
   }
 
+  // 兼容模式-MatchMode：装载表按目标表现状建型；including indexes 让换名接管后的
+  // 新表自带全部性能索引，避免换名后查询退化为顺序扫描。
   protected void createTempTables(boolean refreshCodeReviewRecords) {
     dropTempTables(refreshCodeReviewRecords);
     jdbcTemplate.execute(
@@ -505,23 +512,40 @@ public class CodeReviewMatchModeSyncService {
               + CODE_REVIEW_TEMP_TABLE
               + " (like "
               + CODE_REVIEW_TARGET_TABLE
-              + " including defaults including constraints)");
+              + " including defaults including constraints including indexes)");
     }
   }
 
+  // 兼容模式-MatchMode：raw 行按 (table_name, row_key) 增量合并——payload 未变的行零写入，
+  // 自增 id 与 synced_at 保持稳定；代码走查表无唯一键（老平台同一 MR 允许多条走查记录），
+  // 改用装载表原子换名接管：换名仅元数据操作，消除 TRUNCATE 全表排他锁窗口与整表行级重写。
   protected void replaceSnapshots(
       boolean refreshCodeReviewRecords,
       ImportSummary summary) {
     for (TableSummary tableSummary : summary.tableSummaries()) {
-      jdbcTemplate.update("delete from " + RAW_TARGET_TABLE + " where table_name = ?", tableSummary.tableName());
-    }
-    jdbcTemplate.execute(
-        "insert into "
-            + RAW_TARGET_TABLE
-            + " (table_name, row_key, raw_payload, synced_at) "
-            + "select table_name, row_key, raw_payload, synced_at from "
-            + RAW_TEMP_TABLE);
-    for (TableSummary tableSummary : summary.tableSummaries()) {
+      jdbcTemplate.update(
+          """
+          insert into %s (table_name, row_key, raw_payload, synced_at)
+          select table_name, row_key, raw_payload, synced_at from %s
+           where table_name = ?
+          on conflict (table_name, row_key) do update
+             set raw_payload = excluded.raw_payload,
+                 synced_at = excluded.synced_at
+           where %s.raw_payload is distinct from excluded.raw_payload
+          """
+              .formatted(RAW_TARGET_TABLE, RAW_TEMP_TABLE, RAW_TARGET_TABLE),
+          tableSummary.tableName());
+      jdbcTemplate.update(
+          """
+          delete from %s
+           where table_name = ?
+             and not exists (
+               select 1 from %s s
+                where s.table_name = %s.table_name
+                  and s.row_key = %s.row_key)
+          """
+              .formatted(RAW_TARGET_TABLE, RAW_TEMP_TABLE, RAW_TARGET_TABLE, RAW_TARGET_TABLE),
+          tableSummary.tableName());
       jdbcTemplate.update("""
           insert into legacy_mysql_imported_tables(
             table_name, record_count, last_synced_at, column_names, synced_at
@@ -539,12 +563,16 @@ public class CodeReviewMatchModeSyncService {
           jsonUtils.toJson(tableSummary.columnNames()));
     }
     if (refreshCodeReviewRecords) {
-      jdbcTemplate.execute("truncate table " + CODE_REVIEW_TARGET_TABLE);
+      jdbcTemplate.execute("drop table if exists " + CODE_REVIEW_RETIRING_TABLE);
       jdbcTemplate.execute(
-          "insert into "
-              + CODE_REVIEW_TARGET_TABLE
-              + " select * from "
-              + CODE_REVIEW_TEMP_TABLE);
+          "alter table " + CODE_REVIEW_TARGET_TABLE + " rename to " + CODE_REVIEW_RETIRING_TABLE);
+      jdbcTemplate.execute(
+          "alter table " + CODE_REVIEW_TEMP_TABLE + " rename to " + CODE_REVIEW_TARGET_TABLE);
+      // 换名后必须把 id 序列所有权移交新表，否则退役表仍持有序列所有权，DROP 会被依赖阻止。
+      jdbcTemplate.execute(
+          "alter sequence " + CODE_REVIEW_TARGET_TABLE + "_id_seq owned by "
+              + CODE_REVIEW_TARGET_TABLE + ".id");
+      jdbcTemplate.execute("drop table " + CODE_REVIEW_RETIRING_TABLE);
     }
     dropTempTables(refreshCodeReviewRecords);
   }
@@ -785,7 +813,8 @@ public class CodeReviewMatchModeSyncService {
     return text.isEmpty() ? null : new BigDecimal(text);
   }
 
-  private static final class ImportSummary {
+  // 包内可见：同步合并语义的集成测试需要直接构造同步摘要。
+  static final class ImportSummary {
     private final Map<String, TableSummary> tables = new LinkedHashMap<>();
     private int codeReviewRecordCount;
 
@@ -827,7 +856,7 @@ public class CodeReviewMatchModeSyncService {
   private record TableLoadResult(int count, List<String> columnNames) {
   }
 
-  private record TableSummary(String tableName, int count, List<String> columnNames) {
+  record TableSummary(String tableName, int count, List<String> columnNames) {
   }
 
   private record LegacyMysqlSource(String sourceInstance, String jdbcUrl) {
