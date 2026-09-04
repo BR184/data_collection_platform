@@ -3,7 +3,7 @@
   "code" : "00000",
   "message" : "Issue 源数据就绪度诊断已生成",
   "data" : {
-    "generatedAt" : "2026-09-03T18:40:05.693334+08:00",
+    "generatedAt" : "2026-09-04T18:31:08.645249+08:00",
     "projectCount" : 2,
     "issueCount" : 1200,
     "milestoneCount" : 18,

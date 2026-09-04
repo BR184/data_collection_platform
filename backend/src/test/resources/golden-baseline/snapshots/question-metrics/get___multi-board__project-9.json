@@ -190,8 +190,8 @@
       "ruleKey" : "severity-level",
       "detailViewKey" : "system-test-defect-summary",
       "detailParams" : {
-        "projectName" : "CrownCAD",
         "testingPhase" : "CC2026R3",
+        "projectName" : "CrownCAD",
         "projectId" : "9"
       },
       "exportName" : "缺陷严重程度分析",
@@ -204,9 +204,9 @@
         "detailViewKey" : "system-test-issue-records",
         "detailParams" : {
           "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-          "testingPhase" : "CC2026R3",
+          "projectId" : "9",
           "projectName" : "CrownCAD",
-          "projectId" : "9"
+          "testingPhase" : "CC2026R3"
         }
       }, {
         "name" : "二级缺陷",
@@ -215,9 +215,9 @@
         "detailViewKey" : "system-test-issue-records",
         "detailParams" : {
           "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-          "testingPhase" : "CC2026R3",
+          "projectId" : "9",
           "projectName" : "CrownCAD",
-          "projectId" : "9"
+          "testingPhase" : "CC2026R3"
         }
       }, {
         "name" : "三级缺陷",
@@ -226,9 +226,9 @@
         "detailViewKey" : "system-test-issue-records",
         "detailParams" : {
           "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-          "testingPhase" : "CC2026R3",
+          "projectId" : "9",
           "projectName" : "CrownCAD",
-          "projectId" : "9"
+          "testingPhase" : "CC2026R3"
         }
       }, {
         "name" : "建议类缺陷",
@@ -237,9 +237,9 @@
         "detailViewKey" : "system-test-issue-records",
         "detailParams" : {
           "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-          "testingPhase" : "CC2026R3",
+          "projectId" : "9",
           "projectName" : "CrownCAD",
-          "projectId" : "9"
+          "testingPhase" : "CC2026R3"
         }
       } ],
       "metadata" : {
@@ -253,8 +253,8 @@
       "ruleKey" : "phase-severity",
       "detailViewKey" : "system-test-phase-statistics",
       "detailParams" : {
-        "projectName" : "CrownCAD",
         "testingPhase" : "CC2026R3",
+        "projectName" : "CrownCAD",
         "projectId" : "9"
       },
       "exportName" : "缺陷阶段分析",
@@ -268,9 +268,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第一轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第二轮系统测试",
@@ -279,9 +279,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第二轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第三轮系统测试",
@@ -290,9 +290,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第三轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第四轮系统测试",
@@ -301,9 +301,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第四轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第五轮系统测试",
@@ -312,9 +312,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第五轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第六轮系统测试",
@@ -323,9 +323,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第六轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3回归测试",
@@ -334,9 +334,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3回归测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       }, {
@@ -348,9 +348,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第一轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第二轮系统测试",
@@ -359,9 +359,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第二轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第三轮系统测试",
@@ -370,9 +370,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第三轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第四轮系统测试",
@@ -381,9 +381,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第四轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第五轮系统测试",
@@ -392,9 +392,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第五轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第六轮系统测试",
@@ -403,9 +403,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第六轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3回归测试",
@@ -414,9 +414,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3回归测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       }, {
@@ -428,9 +428,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第一轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第二轮系统测试",
@@ -439,9 +439,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第二轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第三轮系统测试",
@@ -450,9 +450,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第三轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第四轮系统测试",
@@ -461,9 +461,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第四轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第五轮系统测试",
@@ -472,9 +472,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第五轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第六轮系统测试",
@@ -483,9 +483,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第六轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3回归测试",
@@ -494,9 +494,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3回归测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       }, {
@@ -508,9 +508,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第一轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第二轮系统测试",
@@ -519,9 +519,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第二轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第三轮系统测试",
@@ -530,9 +530,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第三轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第四轮系统测试",
@@ -541,9 +541,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第四轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第五轮系统测试",
@@ -552,9 +552,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第五轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3第六轮系统测试",
@@ -563,9 +563,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3第六轮系统测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "CC2026R3回归测试",
@@ -574,9 +574,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\",\"value\":\"CC2026R3回归测试\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       } ],
@@ -592,8 +592,8 @@
       "ruleKey" : "module-severity",
       "detailViewKey" : "system-test-defect-summary",
       "detailParams" : {
-        "projectName" : "CrownCAD",
         "testingPhase" : "CC2026R3",
+        "projectName" : "CrownCAD",
         "projectId" : "9"
       },
       "exportName" : "缺陷模块分析",
@@ -607,9 +607,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"工程图\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "装配",
@@ -618,9 +618,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"装配\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "焊件",
@@ -629,9 +629,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"焊件\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "工具",
@@ -640,9 +640,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"工具\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "特征",
@@ -651,9 +651,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"特征\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "草图",
@@ -662,9 +662,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"草图\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "实体算法",
@@ -673,9 +673,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"实体算法\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "BOM",
@@ -684,9 +684,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"BOM\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "平台",
@@ -695,9 +695,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"平台\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "渲染",
@@ -706,9 +706,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"渲染\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       }, {
@@ -720,9 +720,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"工程图\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "装配",
@@ -731,9 +731,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"装配\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "焊件",
@@ -742,9 +742,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"焊件\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "工具",
@@ -753,9 +753,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"工具\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "特征",
@@ -764,9 +764,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"特征\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "草图",
@@ -775,9 +775,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"草图\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "实体算法",
@@ -786,9 +786,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"实体算法\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "BOM",
@@ -797,9 +797,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"BOM\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "平台",
@@ -808,9 +808,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"平台\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "渲染",
@@ -819,9 +819,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"渲染\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       }, {
@@ -833,9 +833,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"工程图\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "装配",
@@ -844,9 +844,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"装配\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "焊件",
@@ -855,9 +855,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"焊件\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "工具",
@@ -866,9 +866,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"工具\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "特征",
@@ -877,9 +877,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"特征\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "草图",
@@ -888,9 +888,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"草图\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "实体算法",
@@ -899,9 +899,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"实体算法\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "BOM",
@@ -910,9 +910,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"BOM\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "平台",
@@ -921,9 +921,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"平台\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "渲染",
@@ -932,9 +932,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"渲染\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       }, {
@@ -946,9 +946,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"工程图\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "装配",
@@ -957,9 +957,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"装配\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "焊件",
@@ -968,9 +968,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"焊件\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "工具",
@@ -979,9 +979,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"工具\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "特征",
@@ -990,9 +990,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"特征\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "草图",
@@ -1001,9 +1001,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"草图\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "实体算法",
@@ -1012,9 +1012,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"实体算法\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "BOM",
@@ -1023,9 +1023,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"BOM\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "平台",
@@ -1034,9 +1034,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"平台\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "渲染",
@@ -1045,9 +1045,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"渲染\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       } ],
@@ -1063,8 +1063,8 @@
       "ruleKey" : "major-cause",
       "detailViewKey" : "system-test-defect-cause",
       "detailParams" : {
-        "projectName" : "CrownCAD",
         "testingPhase" : "CC2026R3",
+        "projectName" : "CrownCAD",
         "projectId" : "9"
       },
       "exportName" : "缺陷原因占比分析",
@@ -1077,9 +1077,9 @@
         "detailViewKey" : "system-test-issue-records",
         "detailParams" : {
           "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"majorCause\",\"operator\":\"eq\",\"value\":\"编码问题\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-          "testingPhase" : "CC2026R3",
+          "projectId" : "9",
           "projectName" : "CrownCAD",
-          "projectId" : "9"
+          "testingPhase" : "CC2026R3"
         }
       } ],
       "metadata" : {
@@ -1093,8 +1093,8 @@
       "ruleKey" : "cause-detail",
       "detailViewKey" : "system-test-defect-cause",
       "detailParams" : {
-        "projectName" : "CrownCAD",
         "testingPhase" : "CC2026R3",
+        "projectName" : "CrownCAD",
         "projectId" : "9"
       },
       "exportName" : "缺陷原因分析",
@@ -1108,9 +1108,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"demand_misunderstand\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "需求遗漏",
@@ -1119,9 +1119,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"missing_requirement\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "新增需求",
@@ -1130,9 +1130,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"add_demand_2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "需求变更未同步",
@@ -1141,9 +1141,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"demand_change_not_sync\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "功能设计遗漏",
@@ -1152,9 +1152,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"design_forget\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "设计方案不合理",
@@ -1163,9 +1163,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"design_scheme\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "场景考虑不全",
@@ -1174,9 +1174,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"incomplete\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "术语、提示信息不合适",
@@ -1185,9 +1185,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"prompt_message\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码规范错误",
@@ -1196,9 +1196,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"standard_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "功能编码遗漏",
@@ -1207,9 +1207,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"function_forget\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码逻辑：计算与算法错误",
@@ -1218,9 +1218,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"logic_calculation_algorithm_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码逻辑：流程控制错误",
@@ -1229,9 +1229,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"logic_flow_control_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码逻辑：数据与状态处理错误",
@@ -1240,9 +1240,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"logic_data_state_process_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码逻辑：业务逻辑错误",
@@ -1251,9 +1251,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"logic_business_logic_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码逻辑：集成与接口错误",
@@ -1262,9 +1262,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"logic_integration_interface_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "环境配置问题",
@@ -1273,9 +1273,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"environment_config_issue\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编译/打包/部署问题",
@@ -1284,9 +1284,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"compilation_package_deployment_issue\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "第三方库问题",
@@ -1295,9 +1295,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"other_thirdParty\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "算法不支持",
@@ -1306,9 +1306,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"algorithm_not_support\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "机制不支持",
@@ -1317,9 +1317,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"mechanism_not_support\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "前置数据异常",
@@ -1328,9 +1328,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"precondition_data_exception\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "未识别的前后置任务",
@@ -1339,9 +1339,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"other_unIdentifyTask\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "精度导致约束求解异常",
@@ -1350,9 +1350,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"precision_constraint_exception\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "精度导致算法执行异常",
@@ -1361,9 +1361,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"precision_algorithm_exception\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       }, {
@@ -1375,9 +1375,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"demand_misunderstand\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "需求遗漏",
@@ -1386,9 +1386,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"missing_requirement\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "新增需求",
@@ -1397,9 +1397,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"add_demand_2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "需求变更未同步",
@@ -1408,9 +1408,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"demand_change_not_sync\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "功能设计遗漏",
@@ -1419,9 +1419,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"design_forget\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "设计方案不合理",
@@ -1430,9 +1430,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"design_scheme\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "场景考虑不全",
@@ -1441,9 +1441,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"incomplete\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "术语、提示信息不合适",
@@ -1452,9 +1452,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"prompt_message\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码规范错误",
@@ -1463,9 +1463,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"standard_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "功能编码遗漏",
@@ -1474,9 +1474,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"function_forget\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码逻辑：计算与算法错误",
@@ -1485,9 +1485,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"logic_calculation_algorithm_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码逻辑：流程控制错误",
@@ -1496,9 +1496,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"logic_flow_control_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码逻辑：数据与状态处理错误",
@@ -1507,9 +1507,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"logic_data_state_process_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码逻辑：业务逻辑错误",
@@ -1518,9 +1518,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"logic_business_logic_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码逻辑：集成与接口错误",
@@ -1529,9 +1529,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"logic_integration_interface_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "环境配置问题",
@@ -1540,9 +1540,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"environment_config_issue\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编译/打包/部署问题",
@@ -1551,9 +1551,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"compilation_package_deployment_issue\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "第三方库问题",
@@ -1562,9 +1562,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"other_thirdParty\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "算法不支持",
@@ -1573,9 +1573,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"algorithm_not_support\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "机制不支持",
@@ -1584,9 +1584,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"mechanism_not_support\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "前置数据异常",
@@ -1595,9 +1595,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"precondition_data_exception\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "未识别的前后置任务",
@@ -1606,9 +1606,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"other_unIdentifyTask\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "精度导致约束求解异常",
@@ -1617,9 +1617,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"precision_constraint_exception\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "精度导致算法执行异常",
@@ -1628,9 +1628,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"precision_algorithm_exception\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       }, {
@@ -1642,9 +1642,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"demand_misunderstand\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "需求遗漏",
@@ -1653,9 +1653,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"missing_requirement\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "新增需求",
@@ -1664,9 +1664,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"add_demand_2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "需求变更未同步",
@@ -1675,9 +1675,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"demand_change_not_sync\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "功能设计遗漏",
@@ -1686,9 +1686,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"design_forget\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "设计方案不合理",
@@ -1697,9 +1697,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"design_scheme\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "场景考虑不全",
@@ -1708,9 +1708,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"incomplete\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "术语、提示信息不合适",
@@ -1719,9 +1719,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"prompt_message\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码规范错误",
@@ -1730,9 +1730,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"standard_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "功能编码遗漏",
@@ -1741,9 +1741,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"function_forget\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码逻辑：计算与算法错误",
@@ -1752,9 +1752,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"logic_calculation_algorithm_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码逻辑：流程控制错误",
@@ -1763,9 +1763,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"logic_flow_control_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码逻辑：数据与状态处理错误",
@@ -1774,9 +1774,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"logic_data_state_process_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码逻辑：业务逻辑错误",
@@ -1785,9 +1785,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"logic_business_logic_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编码逻辑：集成与接口错误",
@@ -1796,9 +1796,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"logic_integration_interface_error\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "环境配置问题",
@@ -1807,9 +1807,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"environment_config_issue\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "编译/打包/部署问题",
@@ -1818,9 +1818,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"compilation_package_deployment_issue\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "第三方库问题",
@@ -1829,9 +1829,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"other_thirdParty\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "算法不支持",
@@ -1840,9 +1840,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"algorithm_not_support\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "机制不支持",
@@ -1851,9 +1851,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"mechanism_not_support\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "前置数据异常",
@@ -1862,9 +1862,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"precondition_data_exception\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "未识别的前后置任务",
@@ -1873,9 +1873,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"other_unIdentifyTask\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "精度导致约束求解异常",
@@ -1884,9 +1884,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"precision_constraint_exception\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "精度导致算法执行异常",
@@ -1895,9 +1895,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"causeMetric\",\"operator\":\"eq\",\"value\":\"precision_algorithm_exception\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       } ],
@@ -1913,8 +1913,8 @@
       "ruleKey" : "module-repair-rate",
       "detailViewKey" : "system-test-defect-summary",
       "detailParams" : {
-        "projectName" : "CrownCAD",
         "testingPhase" : "CC2026R3",
+        "projectName" : "CrownCAD",
         "projectId" : "9"
       },
       "exportName" : "模块修复率",
@@ -1928,9 +1928,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"工程图\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "装配",
@@ -1939,9 +1939,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"装配\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "焊件",
@@ -1950,9 +1950,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"焊件\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "工具",
@@ -1961,9 +1961,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"工具\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "特征",
@@ -1972,9 +1972,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"特征\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "实体算法",
@@ -1983,9 +1983,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"实体算法\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "草图",
@@ -1994,9 +1994,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"草图\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "平台",
@@ -2005,9 +2005,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"平台\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "渲染",
@@ -2016,9 +2016,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"渲染\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       } ],
@@ -2034,8 +2034,8 @@
       "ruleKey" : "open-issue",
       "detailViewKey" : "system-test-defect-summary",
       "detailParams" : {
-        "projectName" : "CrownCAD",
         "testingPhase" : "CC2026R3",
+        "projectName" : "CrownCAD",
         "projectId" : "9"
       },
       "exportName" : "未关闭缺陷占比",
@@ -2048,9 +2048,9 @@
         "detailViewKey" : "system-test-issue-records",
         "detailParams" : {
           "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"openIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-          "testingPhase" : "CC2026R3",
+          "projectId" : "9",
           "projectName" : "CrownCAD",
-          "projectId" : "9"
+          "testingPhase" : "CC2026R3"
         }
       } ],
       "metadata" : {
@@ -2064,8 +2064,8 @@
       "ruleKey" : "fix-user-severity",
       "detailViewKey" : "system-test-defect-summary",
       "detailParams" : {
-        "projectName" : "CrownCAD",
         "testingPhase" : "CC2026R3",
+        "projectName" : "CrownCAD",
         "projectId" : "9"
       },
       "exportName" : "修复人-缺陷数量统计",
@@ -2079,9 +2079,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"fixUser\",\"operator\":\"eq\",\"value\":\"狄林林\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "牛闯",
@@ -2090,9 +2090,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"fixUser\",\"operator\":\"eq\",\"value\":\"牛闯\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "王青",
@@ -2101,9 +2101,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"fixUser\",\"operator\":\"eq\",\"value\":\"王青\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "马传超",
@@ -2112,9 +2112,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"fixUser\",\"operator\":\"eq\",\"value\":\"马传超\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       }, {
@@ -2126,9 +2126,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"fixUser\",\"operator\":\"eq\",\"value\":\"狄林林\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "牛闯",
@@ -2137,9 +2137,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"fixUser\",\"operator\":\"eq\",\"value\":\"牛闯\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "王青",
@@ -2148,9 +2148,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"fixUser\",\"operator\":\"eq\",\"value\":\"王青\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "马传超",
@@ -2159,9 +2159,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"fixUser\",\"operator\":\"eq\",\"value\":\"马传超\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       }, {
@@ -2173,9 +2173,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"fixUser\",\"operator\":\"eq\",\"value\":\"狄林林\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "牛闯",
@@ -2184,9 +2184,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"fixUser\",\"operator\":\"eq\",\"value\":\"牛闯\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "王青",
@@ -2195,9 +2195,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"fixUser\",\"operator\":\"eq\",\"value\":\"王青\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "马传超",
@@ -2206,9 +2206,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"fixUser\",\"operator\":\"eq\",\"value\":\"马传超\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       }, {
@@ -2220,9 +2220,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"fixUser\",\"operator\":\"eq\",\"value\":\"狄林林\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "牛闯",
@@ -2231,9 +2231,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"fixUser\",\"operator\":\"eq\",\"value\":\"牛闯\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "王青",
@@ -2242,9 +2242,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"fixUser\",\"operator\":\"eq\",\"value\":\"王青\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "马传超",
@@ -2253,9 +2253,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"fixUser\",\"operator\":\"eq\",\"value\":\"马传超\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       } ],
@@ -2271,8 +2271,8 @@
       "ruleKey" : "extension-module",
       "detailViewKey" : "system-test-delay-analysis",
       "detailParams" : {
-        "projectName" : "CrownCAD",
         "testingPhase" : "CC2026R3",
+        "projectName" : "CrownCAD",
         "projectId" : "9"
       },
       "exportName" : "申请延期模块分析",
@@ -2285,9 +2285,9 @@
         "detailViewKey" : "system-test-issue-records",
         "detailParams" : {
           "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"工程图\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-          "testingPhase" : "CC2026R3",
+          "projectId" : "9",
           "projectName" : "CrownCAD",
-          "projectId" : "9"
+          "testingPhase" : "CC2026R3"
         }
       }, {
         "name" : "特征",
@@ -2296,9 +2296,9 @@
         "detailViewKey" : "system-test-issue-records",
         "detailParams" : {
           "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"特征\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-          "testingPhase" : "CC2026R3",
+          "projectId" : "9",
           "projectName" : "CrownCAD",
-          "projectId" : "9"
+          "testingPhase" : "CC2026R3"
         }
       } ],
       "metadata" : {
@@ -2312,8 +2312,8 @@
       "ruleKey" : "delay-cause",
       "detailViewKey" : "system-test-delay-analysis",
       "detailParams" : {
-        "projectName" : "CrownCAD",
         "testingPhase" : "CC2026R3",
+        "projectName" : "CrownCAD",
         "projectId" : "9"
       },
       "exportName" : "申请延期缺陷原因分析",
@@ -2327,9 +2327,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"技术卡点\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "方案卡点",
@@ -2338,9 +2338,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"方案卡点\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "资源卡点",
@@ -2349,9 +2349,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"资源卡点\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "数据异常",
@@ -2360,9 +2360,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"数据异常\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "算法问题",
@@ -2371,9 +2371,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"算法问题\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "机制问题",
@@ -2382,9 +2382,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"机制问题\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "计算效率",
@@ -2393,9 +2393,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL1\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"计算效率\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       }, {
@@ -2407,9 +2407,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"技术卡点\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "方案卡点",
@@ -2418,9 +2418,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"方案卡点\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "资源卡点",
@@ -2429,9 +2429,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"资源卡点\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "数据异常",
@@ -2440,9 +2440,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"数据异常\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "算法问题",
@@ -2451,9 +2451,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"算法问题\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "机制问题",
@@ -2462,9 +2462,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"机制问题\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "计算效率",
@@ -2473,9 +2473,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL2\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"计算效率\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       }, {
@@ -2487,9 +2487,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"技术卡点\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "方案卡点",
@@ -2498,9 +2498,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"方案卡点\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "资源卡点",
@@ -2509,9 +2509,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"资源卡点\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "数据异常",
@@ -2520,9 +2520,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"数据异常\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "算法问题",
@@ -2531,9 +2531,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"算法问题\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "机制问题",
@@ -2542,9 +2542,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"机制问题\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "计算效率",
@@ -2553,9 +2553,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"LEVEL3\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"计算效率\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       }, {
@@ -2567,9 +2567,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"技术卡点\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "方案卡点",
@@ -2578,9 +2578,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"方案卡点\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "资源卡点",
@@ -2589,9 +2589,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"资源卡点\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "数据异常",
@@ -2600,9 +2600,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"数据异常\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "算法问题",
@@ -2611,9 +2611,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"算法问题\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "机制问题",
@@ -2622,9 +2622,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"机制问题\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         }, {
           "name" : "计算效率",
@@ -2633,9 +2633,9 @@
           "detailViewKey" : "system-test-issue-records",
           "detailParams" : {
             "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"metricSeverity\",\"operator\":\"eq\",\"value\":\"SUGGESTION\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayIssue\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"delayCause\",\"operator\":\"eq\",\"value\":\"计算效率\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-            "testingPhase" : "CC2026R3",
+            "projectId" : "9",
             "projectName" : "CrownCAD",
-            "projectId" : "9"
+            "testingPhase" : "CC2026R3"
           }
         } ]
       } ],
@@ -2651,8 +2651,8 @@
       "ruleKey" : "rollback-module",
       "detailViewKey" : "system-test-defect-summary",
       "detailParams" : {
-        "projectName" : "CrownCAD",
         "testingPhase" : "CC2026R3",
+        "projectName" : "CrownCAD",
         "projectId" : "9"
       },
       "exportName" : "回退模块缺陷占比",
@@ -2665,9 +2665,9 @@
         "detailViewKey" : "system-test-issue-records",
         "detailParams" : {
           "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"rollback\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"工程图\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-          "testingPhase" : "CC2026R3",
+          "projectId" : "9",
           "projectName" : "CrownCAD",
-          "projectId" : "9"
+          "testingPhase" : "CC2026R3"
         }
       }, {
         "name" : "工具",
@@ -2676,9 +2676,9 @@
         "detailViewKey" : "system-test-issue-records",
         "detailParams" : {
           "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"rollback\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"工具\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-          "testingPhase" : "CC2026R3",
+          "projectId" : "9",
           "projectName" : "CrownCAD",
-          "projectId" : "9"
+          "testingPhase" : "CC2026R3"
         }
       }, {
         "name" : "装配",
@@ -2687,9 +2687,9 @@
         "detailViewKey" : "system-test-issue-records",
         "detailParams" : {
           "filterGroup" : "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"regularMetric\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"rollback\",\"operator\":\"eq\",\"value\":\"true\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]},{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"value\":\"装配\",\"secondaryValue\":null,\"valueType\":\"LITERAL\",\"labelGroupId\":null,\"labelGroupName\":null,\"values\":[]}]}",
-          "testingPhase" : "CC2026R3",
+          "projectId" : "9",
           "projectName" : "CrownCAD",
-          "projectId" : "9"
+          "testingPhase" : "CC2026R3"
         }
       } ],
       "metadata" : {

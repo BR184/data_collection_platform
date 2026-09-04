@@ -6,17 +6,22 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-04 黄金基线套件更新（12 维度基线）
+
+- [完成] 快照套件更新至当前实现（用户"版本趋于稳定"指令触发）：`endpoint-catalog.yml` 为 values 端点补 `person-page1` 用例（按镜像直取单元计划约定锁定 person 维度镜像直取行为）；`-Dgolden.update=true` 重建全量快照。唯一语义变化 = label-groups dimensions 16→12 维度（源自 58e770a7）；其余 60 文件差异经语义级全量审计全部为掩码易变字段刷新（时间戳/runId/testcontainers 随机端口/retentionHours 库龄）、`ignore-array-order` 已声明集合乱序与键序噪声。
+- [修复] 更新后比对复跑暴露既有缺陷：`IssueFactRecordRepository.findForFilterOptions` SQL 缺 `order by id`（全量路径有、此漏拼），question-metrics issues/filter-options 的 assigneeNames 等 75 项候选顺序随查询计划漂移（PG 无排序行序不定 + 候选工厂 LinkedHashSet 首次出现序）——与基线建设期修复的"FACT_SQL 无 ORDER BY"同族漏网点。追加既有 `FACT_SQL_ORDER` 固定行序，候选集合不变仅顺序确定化（受影响快照已按新序重建）；受影响单测 12/12。
+- [验证] 更新模式 180/180（第二轮 3 处 Windows 文件锁瞬态 Error，涉及文件均为掩码字段且 JSON 完整）；比对模式复跑 180/180 零差异（BUILD SUCCESS）——候选顺序稳定性经两次独立运行实证。夹具未动（baseline-manifest.json 零变化），基线版本不变，D-08 无需留痕。
+- [状态] 目录 + 快照 + 实现修复 + 文档待同单元提交（门禁纪律）；推送与 18080 重启待用户决定。
+
 ## 2026-09-04 标签组成员候选全量分页加载
 
 - [完成] 成员值候选从"单页 50 条"改"循环拉全部分页"（方案 `docs/plans/label-group-member-candidates-full-load-20260904.md`，仅改前端 `LabelGroupMemberPicker.vue` + 测试）：`fetchValues` 契约扩为 4 参（dimensionKey/keyword/page/size），按 200/页（后端单页上限）顺序拉取至 total 取满或空页终止，按 value 去重合并；`loadToken` 自增令牌丢弃 keyword/维度切换时旧分页循环的在途结果。后端零改动。背景：person 维度 461 行按字母序 ASCII 先于中文，首屏 50 条全拼音致用户误判缺中文人员。
-- [验证] 组件测试 9/9（含新增多页合并与竞态丢弃用例；实施期修复前次遗留的测试桩参数遮蔽缺陷）；typecheck 绿；全量 vitest 459/459（首轮 1 例未捕获名失败，两轮复跑全绿，与既有偶发模式一致非回归）；UI 实机验证：候选来源=人员 触发 page=1..4&size=200 共 4 请求，下拉渲染 456 项与库内去重名（461 行含 5 重名）精确一致，中文名 140+ 位起可见，关键字"王"搜索 34 项命中。用户决策留痕：bot/系统账号不剔除；`carmazhao` name 前导空格脏值（全库唯一，GitLab 源数据原样同步，被选入组有精确匹配失配风险）暂不处理待用户厘清；排序语义不改。
-- [待办] 提交待用户确认（仅摘取本单元 2 文件 + 计划文档）。
+- [验证] 组件测试 9/9（含新增多页合并与竞态丢弃用例；实施期修复前次遗留的测试桩参数遮蔽缺陷）；typecheck 绿；全量 vitest 459/459（首轮 1 例未捕获名失败，两轮复跑全绿，与既有偶发模式一致非回归）；UI 实机验证：候选来源=人员 触发 page=1..4&size=200 共 4 请求，下拉渲染 456 项与库内去重名（461 行含 5 重名）精确一致，中文名 140+ 位起可见，关键字"王"搜索 34 项命中。用户决策留痕：bot/系统账号不剔除；`carmazhao` name 前导空格脏值（全库唯一，GitLab 源数据原样同步，被选入组有精确匹配失配风险）暂不处理待用户厘清；排序语义不改。已提交 ad8bda1b。
 
 ## 2026-09-04 标签组候选来源改镜像库直取
 
 - [完成] 静态标签组候选值改镜像库表直取（方案 `docs/plans/label-group-mirror-candidates-20260904.md`）：删除 5 个旧人员维度（review_owner/review_expert/issue_assignee/customer_author/customer_assignee）合并为单一 person（镜像 users 表全量人名）；project 改镜像 labels"项目："标签全量解析（与新增评审项目名称下拉同源同值）；milestone 改镜像 milestones.title 全量；模块/测试阶段保持现状；复用 `ReviewDataMirrorOptionRepository`，零迁移；删除死代码 `existsStaticCandidateValue`。前端同步接线：review 页负责人/评审专家字段 `labelDimensionKey` 改 person，customer/system-test 页人员字段新增 `personConditionField` 携带 person，删除指向已删键的别名映射。
-- [验证] 后端 labelgroup 测试 27/27；前端受影响 16/16、typecheck 零错误、全量 vitest 457/457；后端全量默认套件（注入测试库 env）1241 项 / 1 失败 / 0 错误——唯一失败为同事 untracked WIP `ReviewDataRecordReadSupportTest`，零回归；四项门禁脚本全绿。
-- [待办] 提交待用户确认（工作树含他人进行中改动，仅摘取本单元文件）；黄金基线 `/api/label-groups/dimensions` 快照变化留待打包验收时更新模式重建 + 人工审阅。
+- [验证] 后端 labelgroup 测试 27/27；前端受影响 16/16、typecheck 零错误、全量 vitest 457/457；后端全量默认套件（注入测试库 env）1241 项 / 1 失败 / 0 错误——唯一失败为同事 untracked WIP `ReviewDataRecordReadSupportTest`，零回归；四项门禁脚本全绿。已提交 58e770a7 并推送；黄金基线 dimensions 快照重建见"黄金基线套件更新"条目。
 
 ## 2026-09-04 内网评审页间歇性故障修复
 

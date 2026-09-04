@@ -12,42 +12,14 @@
   }, {
     "key" : "project",
     "name" : "项目",
-    "description" : "事实层项目名称",
+    "description" : "镜像 labels 表项目标签解析",
     "valueKind" : "STRING_LITERAL",
     "staticSupported" : true,
     "dynamicSupported" : false
   }, {
-    "key" : "review_owner",
-    "name" : "评审负责人",
-    "description" : "评审数据中的评审负责人",
-    "valueKind" : "STRING_LITERAL",
-    "staticSupported" : true,
-    "dynamicSupported" : false
-  }, {
-    "key" : "review_expert",
-    "name" : "评审专家",
-    "description" : "评审数据中的评审专家，多值字段",
-    "valueKind" : "STRING_LITERAL",
-    "staticSupported" : true,
-    "dynamicSupported" : false
-  }, {
-    "key" : "issue_assignee",
-    "name" : "议题处理人",
-    "description" : "系统测试议题事实层处理人",
-    "valueKind" : "STRING_LITERAL",
-    "staticSupported" : true,
-    "dynamicSupported" : false
-  }, {
-    "key" : "customer_author",
-    "name" : "客户问题提交人",
-    "description" : "客户问题事实层提交人",
-    "valueKind" : "STRING_LITERAL",
-    "staticSupported" : true,
-    "dynamicSupported" : false
-  }, {
-    "key" : "customer_assignee",
-    "name" : "客户问题处理人",
-    "description" : "客户问题事实层处理人",
+    "key" : "person",
+    "name" : "人员",
+    "description" : "镜像库 users 表全量人名",
     "valueKind" : "STRING_LITERAL",
     "staticSupported" : true,
     "dynamicSupported" : false
@@ -61,7 +33,7 @@
   }, {
     "key" : "milestone",
     "name" : "里程碑",
-    "description" : "议题事实层里程碑",
+    "description" : "镜像库里程碑标题全量",
     "valueKind" : "STRING_LITERAL",
     "staticSupported" : true,
     "dynamicSupported" : false

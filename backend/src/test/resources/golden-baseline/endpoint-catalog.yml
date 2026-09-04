@@ -983,6 +983,9 @@ endpoints:
     cases:
       - id: module-page1
         query: dimensionKey=module&page=1&size=20
+      # person 维度走镜像 users 表全量（58e770a7），锁定镜像直取行为
+      - id: person-page1
+        query: dimensionKey=person&page=1&size=20
   - method: GET
     path: /api/label-groups/dimensions/{dimensionKey}/compatible-pages
     category: READ

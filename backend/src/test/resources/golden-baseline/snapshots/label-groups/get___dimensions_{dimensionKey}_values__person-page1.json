@@ -1,0 +1,131 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "items" : [ {
+      "value" : "   carmazhao",
+      "label" : "   carmazhao",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "1 1",
+      "label" : "1 1",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "Administrator",
+      "label" : "Administrator",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "Assembly",
+      "label" : "Assembly",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "AutoCheck",
+      "label" : "AutoCheck",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "caijunxian",
+      "label" : "caijunxian",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "caoguangxu",
+      "label" : "caoguangxu",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "caohuaiyi",
+      "label" : "caohuaiyi",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "caowei",
+      "label" : "caowei",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "caoyongxin",
+      "label" : "caoyongxin",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "Chen xiaojun",
+      "label" : "Chen xiaojun",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "Chenjialu",
+      "label" : "Chenjialu",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "ChenJiawang",
+      "label" : "ChenJiawang",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "chenxing",
+      "label" : "chenxing",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "chenyu",
+      "label" : "chenyu",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "chenyunxiu",
+      "label" : "chenyunxiu",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "CI Robot",
+      "label" : "CI Robot",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "cuirusu",
+      "label" : "cuirusu",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "cuizongshuai",
+      "label" : "cuizongshuai",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    }, {
+      "value" : "das",
+      "label" : "das",
+      "valueKind" : "STRING_LITERAL",
+      "source" : "FACT",
+      "hitCount" : 0
+    } ],
+    "total" : 461,
+    "page" : 1,
+    "size" : 20
+  }
+}

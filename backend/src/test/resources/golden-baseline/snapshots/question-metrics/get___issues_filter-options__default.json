@@ -8,14 +8,11 @@
       "value" : "CrownCAD"
     } ],
     "moduleNames" : [ {
-      "label" : "工程图",
-      "value" : "工程图"
-    }, {
       "label" : "草图",
       "value" : "草图"
     }, {
-      "label" : "实体算法",
-      "value" : "实体算法"
+      "label" : "工程图",
+      "value" : "工程图"
     }, {
       "label" : "装配",
       "value" : "装配"
@@ -41,6 +38,9 @@
       "label" : "BOM",
       "value" : "BOM"
     }, {
+      "label" : "实体算法",
+      "value" : "实体算法"
+    }, {
       "label" : "平台",
       "value" : "平台"
     }, {
@@ -57,24 +57,6 @@
       "value" : "自动化测试"
     } ],
     "functionNames" : [ {
-      "label" : "标注弧长",
-      "value" : "标注弧长"
-    }, {
-      "label" : "偏移",
-      "value" : "偏移"
-    }, {
-      "label" : "拉伸切除",
-      "value" : "拉伸切除"
-    }, {
-      "label" : "智能尺寸",
-      "value" : "智能尺寸"
-    }, {
-      "label" : "孔标注",
-      "value" : "孔标注"
-    }, {
-      "label" : "尺寸链",
-      "value" : "尺寸链"
-    }, {
       "label" : "模板",
       "value" : "模板"
     }, {
@@ -95,9 +77,6 @@
     }, {
       "label" : "草图-圆周草图阵列",
       "value" : "草图-圆周草图阵列"
-    }, {
-      "label" : "缩放图元",
-      "value" : "缩放图元"
     }, {
       "label" : "草图-圆周阵列",
       "value" : "草图-圆周阵列"
@@ -120,11 +99,17 @@
       "label" : "工程图-辅助视图",
       "value" : "工程图-辅助视图"
     }, {
+      "label" : "尺寸链",
+      "value" : "尺寸链"
+    }, {
       "label" : "工程图-替换图幅",
       "value" : "工程图-替换图幅"
     }, {
       "label" : "工程图-磁力线",
       "value" : "工程图-磁力线"
+    }, {
+      "label" : "缩放图元",
+      "value" : "缩放图元"
     }, {
       "label" : "工程图-格式涂刷器-磁力线",
       "value" : "工程图-格式涂刷器-磁力线"
@@ -188,6 +173,9 @@
     }, {
       "label" : "基准尺寸",
       "value" : "基准尺寸"
+    }, {
+      "label" : "标注弧长",
+      "value" : "标注弧长"
     }, {
       "label" : "以三重轴移动",
       "value" : "以三重轴移动"
@@ -261,6 +249,9 @@
       "label" : "对齐工程图视图",
       "value" : "对齐工程图视图"
     }, {
+      "label" : "孔标注",
+      "value" : "孔标注"
+    }, {
       "label" : "读取PMI",
       "value" : "读取PMI"
     }, {
@@ -297,6 +288,9 @@
       "label" : "翻译问题",
       "value" : "翻译问题"
     }, {
+      "label" : "智能尺寸",
+      "value" : "智能尺寸"
+    }, {
       "label" : "剖视图",
       "value" : "剖视图"
     }, {
@@ -320,6 +314,9 @@
     }, {
       "label" : "零部件预览",
       "value" : "零部件预览"
+    }, {
+      "label" : "拉伸切除",
+      "value" : "拉伸切除"
     }, {
       "label" : "注册",
       "value" : "注册"
@@ -347,6 +344,9 @@
     }, {
       "label" : "CAT",
       "value" : "CAT"
+    }, {
+      "label" : "偏移",
+      "value" : "偏移"
     }, {
       "label" : "教育版",
       "value" : "教育版"
@@ -392,23 +392,11 @@
       "value" : "CC2024R3"
     } ],
     "authorNames" : [ {
-      "label" : "杨晓雨",
-      "value" : "杨晓雨"
+      "label" : "武伟",
+      "value" : "武伟"
     }, {
       "label" : "白欣慧",
       "value" : "白欣慧"
-    }, {
-      "label" : "王丽娟",
-      "value" : "王丽娟"
-    }, {
-      "label" : "陈艺珲",
-      "value" : "陈艺珲"
-    }, {
-      "label" : "张月",
-      "value" : "张月"
-    }, {
-      "label" : "武伟",
-      "value" : "武伟"
     }, {
       "label" : "李尚玉",
       "value" : "李尚玉"
@@ -416,14 +404,23 @@
       "label" : "张硕",
       "value" : "张硕"
     }, {
+      "label" : "张月",
+      "value" : "张月"
+    }, {
       "label" : "焦方昭",
       "value" : "焦方昭"
+    }, {
+      "label" : "杨晓雨",
+      "value" : "杨晓雨"
     }, {
       "label" : "张金花",
       "value" : "张金花"
     }, {
       "label" : "田松",
       "value" : "田松"
+    }, {
+      "label" : "陈艺珲",
+      "value" : "陈艺珲"
     }, {
       "label" : "刘汝宁",
       "value" : "刘汝宁"
@@ -436,6 +433,9 @@
     }, {
       "label" : "孔帆",
       "value" : "孔帆"
+    }, {
+      "label" : "王丽娟",
+      "value" : "王丽娟"
     }, {
       "label" : "曹巧元",
       "value" : "曹巧元"
@@ -462,24 +462,6 @@
       "value" : "李永正"
     } ],
     "assigneeNames" : [ {
-      "label" : "陈魁",
-      "value" : "陈魁"
-    }, {
-      "label" : "吕志金",
-      "value" : "吕志金"
-    }, {
-      "label" : "马传超",
-      "value" : "马传超"
-    }, {
-      "label" : "牛闯",
-      "value" : "牛闯"
-    }, {
-      "label" : "狄林林",
-      "value" : "狄林林"
-    }, {
-      "label" : "王青",
-      "value" : "王青"
-    }, {
       "label" : "武晓旭",
       "value" : "武晓旭"
     }, {
@@ -528,6 +510,9 @@
       "label" : "霍志岩",
       "value" : "霍志岩"
     }, {
+      "label" : "马传超",
+      "value" : "马传超"
+    }, {
       "label" : "傅培钰",
       "value" : "傅培钰"
     }, {
@@ -549,11 +534,17 @@
       "label" : "黄冠",
       "value" : "黄冠"
     }, {
+      "label" : "吕志金",
+      "value" : "吕志金"
+    }, {
       "label" : "徐仕东",
       "value" : "徐仕东"
     }, {
       "label" : "孟秀平",
       "value" : "孟秀平"
+    }, {
+      "label" : "陈魁",
+      "value" : "陈魁"
     }, {
       "label" : "郭家铭",
       "value" : "郭家铭"
@@ -584,6 +575,9 @@
     }, {
       "label" : "付守帅",
       "value" : "付守帅"
+    }, {
+      "label" : "狄林林",
+      "value" : "狄林林"
     }, {
       "label" : "吕明康",
       "value" : "吕明康"
@@ -656,6 +650,12 @@
     }, {
       "label" : "刘露",
       "value" : "刘露"
+    }, {
+      "label" : "王青",
+      "value" : "王青"
+    }, {
+      "label" : "牛闯",
+      "value" : "牛闯"
     }, {
       "label" : "田川",
       "value" : "田川"
@@ -752,12 +752,6 @@
       "value" : "未设定类别"
     } ],
     "milestoneTitles" : [ {
-      "label" : "CrownCAD 2026 R3",
-      "value" : "CrownCAD 2026 R3"
-    }, {
-      "label" : "CrownCAD 2026 R1",
-      "value" : "CrownCAD 2026 R1"
-    }, {
       "label" : "CrownCAD 2024 R3",
       "value" : "CrownCAD 2024 R3"
     }, {
@@ -766,6 +760,9 @@
     }, {
       "label" : "CrownCAD 2024 R4",
       "value" : "CrownCAD 2024 R4"
+    }, {
+      "label" : "CrownCAD 2026 R1",
+      "value" : "CrownCAD 2026 R1"
     }, {
       "label" : "CrownCAD 2025 R1",
       "value" : "CrownCAD 2025 R1"
@@ -781,6 +778,9 @@
     }, {
       "label" : "CrownCAD 2026 R2",
       "value" : "CrownCAD 2026 R2"
+    }, {
+      "label" : "CrownCAD 2026 R3",
+      "value" : "CrownCAD 2026 R3"
     }, {
       "label" : "CrownCAD 2026 R4",
       "value" : "CrownCAD 2026 R4"

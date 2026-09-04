@@ -12,271 +12,271 @@
       "title" : "功能缺陷数量",
       "subtitle" : "按功能统计系统测试缺陷数量",
       "option" : {
+        "tooltip" : {
+          "trigger" : "axis",
+          "confine" : true
+        },
         "dataZoom" : [ {
-          "endValue" : 10,
-          "startValue" : 0,
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "type" : "slider",
+          "handleSize" : "100%",
+          "height" : 30,
+          "showDetail" : false,
+          "moveHandleSize" : 12,
+          "xAxisIndex" : 0,
+          "borderColor" : "#cbd5e1",
+          "bottom" : 28,
+          "filterMode" : "filter",
           "handleStyle" : {
-            "borderColor" : "#2563eb",
-            "borderWidth" : 1.5,
-            "shadowBlur" : 3,
             "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "shadowBlur" : 3,
+            "borderWidth" : 1.5,
+            "borderColor" : "#2563eb",
             "color" : "#ffffff"
           },
-          "filterMode" : "filter",
-          "bottom" : 28,
-          "borderColor" : "#cbd5e1",
-          "xAxisIndex" : 0,
-          "moveHandleSize" : 12,
-          "showDetail" : false,
-          "height" : 30,
-          "handleSize" : "100%",
-          "type" : "slider",
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "backgroundColor" : "#f8fafc",
-          "borderRadius" : 6,
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          },
-          "selectedDataBackground" : {
-            "areaStyle" : {
-              "color" : "#bfdbfe",
-              "opacity" : 0.72
-            },
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
+          "startValue" : 0,
+          "endValue" : 10,
+          "show" : true,
+          "emphasis" : {
+            "handleStyle" : {
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "shadowBlur" : 3,
+              "borderWidth" : 1.5,
+              "borderColor" : "#1d4ed8",
+              "color" : "#ffffff"
             }
           },
           "dataBackground" : {
             "areaStyle" : {
-              "color" : "#e2e8f0",
-              "opacity" : 0.58
+              "opacity" : 0.58,
+              "color" : "#e2e8f0"
             },
             "lineStyle" : {
               "color" : "#cbd5e1",
               "width" : 1
             }
           },
-          "emphasis" : {
-            "handleStyle" : {
-              "borderColor" : "#1d4ed8",
-              "borderWidth" : 1.5,
-              "shadowBlur" : 3,
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "color" : "#ffffff"
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "opacity" : 0.72,
+              "color" : "#bfdbfe"
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
             }
           },
-          "show" : true
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "borderRadius" : 6,
+          "backgroundColor" : "#f8fafc"
         } ],
-        "tooltip" : {
-          "trigger" : "axis",
-          "confine" : true
+        "yAxis" : {
+          "name" : "数量",
+          "type" : "value"
         },
-        "grid" : {
-          "top" : 28,
-          "containLabel" : true,
-          "right" : 24,
-          "bottom" : 112,
-          "left" : 20
+        "xAxis" : {
+          "axisLabel" : {
+            "rotate" : 28,
+            "overflow" : "truncate",
+            "hideOverlap" : true,
+            "width" : 96,
+            "interval" : "auto"
+          },
+          "type" : "category",
+          "data" : [ "结构构件", "断开的剖视图", "错误配合列表", "尺寸链", "智能尺寸", "基准尺寸", "标注弧长", "倒角尺寸", "孔标注", "拉伸切除", "断裂视图", "BOM工具", "剖视图", "剪裁视图", "孤立", "对齐工程图视图", "导出/打印", "局部视图", "显示/隐藏", "替换零件或装配", "渲染", "端点处理", "线性阵列", "继承PMI", "错误列表", "镜像", "零部件预览" ]
         },
-        "series" : [ {
-          "itemStyle" : {
-            "color" : "#2563eb",
-            "borderRadius" : [ 6, 6, 0, 0 ]
-          },
-          "barMaxWidth" : 52,
-          "data" : [ {
-            "pointKey" : "结构构件",
-            "detailParams" : {
-              "pointKey" : "结构构件"
-            },
-            "value" : 7.0
-          }, {
-            "pointKey" : "断开的剖视图",
-            "detailParams" : {
-              "pointKey" : "断开的剖视图"
-            },
-            "value" : 5.0
-          }, {
-            "pointKey" : "错误配合列表",
-            "detailParams" : {
-              "pointKey" : "错误配合列表"
-            },
-            "value" : 5.0
-          }, {
-            "pointKey" : "尺寸链",
-            "detailParams" : {
-              "pointKey" : "尺寸链"
-            },
-            "value" : 4.0
-          }, {
-            "pointKey" : "智能尺寸",
-            "detailParams" : {
-              "pointKey" : "智能尺寸"
-            },
-            "value" : 4.0
-          }, {
-            "pointKey" : "基准尺寸",
-            "detailParams" : {
-              "pointKey" : "基准尺寸"
-            },
-            "value" : 3.0
-          }, {
-            "pointKey" : "标注弧长",
-            "detailParams" : {
-              "pointKey" : "标注弧长"
-            },
-            "value" : 3.0
-          }, {
-            "pointKey" : "倒角尺寸",
-            "detailParams" : {
-              "pointKey" : "倒角尺寸"
-            },
-            "value" : 2.0
-          }, {
-            "pointKey" : "孔标注",
-            "detailParams" : {
-              "pointKey" : "孔标注"
-            },
-            "value" : 2.0
-          }, {
-            "pointKey" : "拉伸切除",
-            "detailParams" : {
-              "pointKey" : "拉伸切除"
-            },
-            "value" : 2.0
-          }, {
-            "pointKey" : "断裂视图",
-            "detailParams" : {
-              "pointKey" : "断裂视图"
-            },
-            "value" : 2.0
-          }, {
-            "pointKey" : "BOM工具",
-            "detailParams" : {
-              "pointKey" : "BOM工具"
-            },
-            "value" : 1.0
-          }, {
-            "pointKey" : "剖视图",
-            "detailParams" : {
-              "pointKey" : "剖视图"
-            },
-            "value" : 1.0
-          }, {
-            "pointKey" : "剪裁视图",
-            "detailParams" : {
-              "pointKey" : "剪裁视图"
-            },
-            "value" : 1.0
-          }, {
-            "pointKey" : "孤立",
-            "detailParams" : {
-              "pointKey" : "孤立"
-            },
-            "value" : 1.0
-          }, {
-            "pointKey" : "对齐工程图视图",
-            "detailParams" : {
-              "pointKey" : "对齐工程图视图"
-            },
-            "value" : 1.0
-          }, {
-            "pointKey" : "导出/打印",
-            "detailParams" : {
-              "pointKey" : "导出/打印"
-            },
-            "value" : 1.0
-          }, {
-            "pointKey" : "局部视图",
-            "detailParams" : {
-              "pointKey" : "局部视图"
-            },
-            "value" : 1.0
-          }, {
-            "pointKey" : "显示/隐藏",
-            "detailParams" : {
-              "pointKey" : "显示/隐藏"
-            },
-            "value" : 1.0
-          }, {
-            "pointKey" : "替换零件或装配",
-            "detailParams" : {
-              "pointKey" : "替换零件或装配"
-            },
-            "value" : 1.0
-          }, {
-            "pointKey" : "渲染",
-            "detailParams" : {
-              "pointKey" : "渲染"
-            },
-            "value" : 1.0
-          }, {
-            "pointKey" : "端点处理",
-            "detailParams" : {
-              "pointKey" : "端点处理"
-            },
-            "value" : 1.0
-          }, {
-            "pointKey" : "线性阵列",
-            "detailParams" : {
-              "pointKey" : "线性阵列"
-            },
-            "value" : 1.0
-          }, {
-            "pointKey" : "继承PMI",
-            "detailParams" : {
-              "pointKey" : "继承PMI"
-            },
-            "value" : 1.0
-          }, {
-            "pointKey" : "错误列表",
-            "detailParams" : {
-              "pointKey" : "错误列表"
-            },
-            "value" : 1.0
-          }, {
-            "pointKey" : "镜像",
-            "detailParams" : {
-              "pointKey" : "镜像"
-            },
-            "value" : 1.0
-          }, {
-            "pointKey" : "零部件预览",
-            "detailParams" : {
-              "pointKey" : "零部件预览"
-            },
-            "value" : 1.0
-          } ],
-          "name" : "功能缺陷数量",
-          "label" : {
-            "show" : true,
-            "position" : "top"
-          },
-          "labelLayout" : {
-            "hideOverlap" : true
-          },
-          "type" : "bar"
-        } ],
-        "animationDuration" : 500,
         "aria" : {
           "description" : "按功能统计系统测试缺陷数量",
           "enabled" : true
         },
-        "xAxis" : {
-          "type" : "category",
-          "axisLabel" : {
-            "overflow" : "truncate",
-            "rotate" : 28,
-            "interval" : "auto",
-            "width" : 96,
+        "animationDuration" : 500,
+        "series" : [ {
+          "name" : "功能缺陷数量",
+          "data" : [ {
+            "value" : 7.0,
+            "detailParams" : {
+              "pointKey" : "结构构件"
+            },
+            "pointKey" : "结构构件"
+          }, {
+            "value" : 5.0,
+            "detailParams" : {
+              "pointKey" : "断开的剖视图"
+            },
+            "pointKey" : "断开的剖视图"
+          }, {
+            "value" : 5.0,
+            "detailParams" : {
+              "pointKey" : "错误配合列表"
+            },
+            "pointKey" : "错误配合列表"
+          }, {
+            "value" : 4.0,
+            "detailParams" : {
+              "pointKey" : "尺寸链"
+            },
+            "pointKey" : "尺寸链"
+          }, {
+            "value" : 4.0,
+            "detailParams" : {
+              "pointKey" : "智能尺寸"
+            },
+            "pointKey" : "智能尺寸"
+          }, {
+            "value" : 3.0,
+            "detailParams" : {
+              "pointKey" : "基准尺寸"
+            },
+            "pointKey" : "基准尺寸"
+          }, {
+            "value" : 3.0,
+            "detailParams" : {
+              "pointKey" : "标注弧长"
+            },
+            "pointKey" : "标注弧长"
+          }, {
+            "value" : 2.0,
+            "detailParams" : {
+              "pointKey" : "倒角尺寸"
+            },
+            "pointKey" : "倒角尺寸"
+          }, {
+            "value" : 2.0,
+            "detailParams" : {
+              "pointKey" : "孔标注"
+            },
+            "pointKey" : "孔标注"
+          }, {
+            "value" : 2.0,
+            "detailParams" : {
+              "pointKey" : "拉伸切除"
+            },
+            "pointKey" : "拉伸切除"
+          }, {
+            "value" : 2.0,
+            "detailParams" : {
+              "pointKey" : "断裂视图"
+            },
+            "pointKey" : "断裂视图"
+          }, {
+            "value" : 1.0,
+            "detailParams" : {
+              "pointKey" : "BOM工具"
+            },
+            "pointKey" : "BOM工具"
+          }, {
+            "value" : 1.0,
+            "detailParams" : {
+              "pointKey" : "剖视图"
+            },
+            "pointKey" : "剖视图"
+          }, {
+            "value" : 1.0,
+            "detailParams" : {
+              "pointKey" : "剪裁视图"
+            },
+            "pointKey" : "剪裁视图"
+          }, {
+            "value" : 1.0,
+            "detailParams" : {
+              "pointKey" : "孤立"
+            },
+            "pointKey" : "孤立"
+          }, {
+            "value" : 1.0,
+            "detailParams" : {
+              "pointKey" : "对齐工程图视图"
+            },
+            "pointKey" : "对齐工程图视图"
+          }, {
+            "value" : 1.0,
+            "detailParams" : {
+              "pointKey" : "导出/打印"
+            },
+            "pointKey" : "导出/打印"
+          }, {
+            "value" : 1.0,
+            "detailParams" : {
+              "pointKey" : "局部视图"
+            },
+            "pointKey" : "局部视图"
+          }, {
+            "value" : 1.0,
+            "detailParams" : {
+              "pointKey" : "显示/隐藏"
+            },
+            "pointKey" : "显示/隐藏"
+          }, {
+            "value" : 1.0,
+            "detailParams" : {
+              "pointKey" : "替换零件或装配"
+            },
+            "pointKey" : "替换零件或装配"
+          }, {
+            "value" : 1.0,
+            "detailParams" : {
+              "pointKey" : "渲染"
+            },
+            "pointKey" : "渲染"
+          }, {
+            "value" : 1.0,
+            "detailParams" : {
+              "pointKey" : "端点处理"
+            },
+            "pointKey" : "端点处理"
+          }, {
+            "value" : 1.0,
+            "detailParams" : {
+              "pointKey" : "线性阵列"
+            },
+            "pointKey" : "线性阵列"
+          }, {
+            "value" : 1.0,
+            "detailParams" : {
+              "pointKey" : "继承PMI"
+            },
+            "pointKey" : "继承PMI"
+          }, {
+            "value" : 1.0,
+            "detailParams" : {
+              "pointKey" : "错误列表"
+            },
+            "pointKey" : "错误列表"
+          }, {
+            "value" : 1.0,
+            "detailParams" : {
+              "pointKey" : "镜像"
+            },
+            "pointKey" : "镜像"
+          }, {
+            "value" : 1.0,
+            "detailParams" : {
+              "pointKey" : "零部件预览"
+            },
+            "pointKey" : "零部件预览"
+          } ],
+          "barMaxWidth" : 52,
+          "itemStyle" : {
+            "color" : "#2563eb",
+            "borderRadius" : [ 6, 6, 0, 0 ]
+          },
+          "type" : "bar",
+          "labelLayout" : {
             "hideOverlap" : true
           },
-          "data" : [ "结构构件", "断开的剖视图", "错误配合列表", "尺寸链", "智能尺寸", "基准尺寸", "标注弧长", "倒角尺寸", "孔标注", "拉伸切除", "断裂视图", "BOM工具", "剖视图", "剪裁视图", "孤立", "对齐工程图视图", "导出/打印", "局部视图", "显示/隐藏", "替换零件或装配", "渲染", "端点处理", "线性阵列", "继承PMI", "错误列表", "镜像", "零部件预览" ]
-        },
-        "yAxis" : {
-          "name" : "数量",
-          "type" : "value"
+          "label" : {
+            "position" : "top",
+            "show" : true
+          }
+        } ],
+        "grid" : {
+          "right" : 24,
+          "containLabel" : true,
+          "top" : 28,
+          "left" : 20,
+          "bottom" : 112
         }
       },
       "ruleKey" : "function-defect-count",
@@ -295,445 +295,445 @@
       "title" : "功能缺陷密度",
       "subtitle" : "系统测试缺陷数与 CC 代码新增行的比值",
       "option" : {
+        "tooltip" : {
+          "trigger" : "axis",
+          "confine" : true
+        },
         "dataZoom" : [ {
-          "endValue" : 10,
-          "startValue" : 0,
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "type" : "slider",
+          "handleSize" : "100%",
+          "height" : 30,
+          "showDetail" : false,
+          "moveHandleSize" : 12,
+          "xAxisIndex" : 0,
+          "borderColor" : "#cbd5e1",
+          "bottom" : 28,
+          "filterMode" : "filter",
           "handleStyle" : {
-            "borderColor" : "#2563eb",
-            "borderWidth" : 1.5,
-            "shadowBlur" : 3,
             "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "shadowBlur" : 3,
+            "borderWidth" : 1.5,
+            "borderColor" : "#2563eb",
             "color" : "#ffffff"
           },
-          "filterMode" : "filter",
-          "bottom" : 28,
-          "borderColor" : "#cbd5e1",
-          "xAxisIndex" : 0,
-          "moveHandleSize" : 12,
-          "showDetail" : false,
-          "height" : 30,
-          "handleSize" : "100%",
-          "type" : "slider",
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "backgroundColor" : "#f8fafc",
-          "borderRadius" : 6,
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          },
-          "selectedDataBackground" : {
-            "areaStyle" : {
-              "color" : "#bfdbfe",
-              "opacity" : 0.72
-            },
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
+          "startValue" : 0,
+          "endValue" : 10,
+          "show" : true,
+          "emphasis" : {
+            "handleStyle" : {
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "shadowBlur" : 3,
+              "borderWidth" : 1.5,
+              "borderColor" : "#1d4ed8",
+              "color" : "#ffffff"
             }
           },
           "dataBackground" : {
             "areaStyle" : {
-              "color" : "#e2e8f0",
-              "opacity" : 0.58
+              "opacity" : 0.58,
+              "color" : "#e2e8f0"
             },
             "lineStyle" : {
               "color" : "#cbd5e1",
               "width" : 1
             }
           },
-          "emphasis" : {
-            "handleStyle" : {
-              "borderColor" : "#1d4ed8",
-              "borderWidth" : 1.5,
-              "shadowBlur" : 3,
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "color" : "#ffffff"
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "opacity" : 0.72,
+              "color" : "#bfdbfe"
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
             }
           },
-          "show" : true
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "borderRadius" : 6,
+          "backgroundColor" : "#f8fafc"
         } ],
-        "tooltip" : {
-          "trigger" : "axis",
-          "confine" : true
+        "yAxis" : {
+          "name" : "%",
+          "type" : "value"
         },
-        "grid" : {
-          "top" : 28,
-          "containLabel" : true,
-          "right" : 24,
-          "bottom" : 112,
-          "left" : 20
+        "xAxis" : {
+          "axisLabel" : {
+            "rotate" : 28,
+            "overflow" : "truncate",
+            "hideOverlap" : true,
+            "width" : 96,
+            "interval" : "auto"
+          },
+          "type" : "category",
+          "data" : [ "导出", "BOM工具", "装配", "渲染", "工具", "工程图", "BOM", "CAT", "DWG", "PLM", "SView", "SView集成", "ass", "sview", "二次开发", "仿真", "企业版", "企业版&轻量化", "分享", "协同", "博诚电气", "大国工匠", "实时会话管理", "工具栏", "平台", "库", "快捷面板", "快速确认", "打包", "批量修改属性", "批量修改属性/名称", "教育版", "数据转换", "文档属性", "智能助手", "曲线", "曲线曲面", "曲面", "材质库", "标准件库管理", "样式修改", "模板", "步路", "海外版", "焊件", "特征", "用户在线数", "登录记录", "知识库", "管路", "自动化测试", "评估", "超大装配", "速览模式", "钣金", "集成" ]
         },
-        "series" : [ {
-          "itemStyle" : {
-            "color" : "#0f9f8f",
-            "borderRadius" : [ 6, 6, 0, 0 ]
-          },
-          "barMaxWidth" : 52,
-          "data" : [ {
-            "pointKey" : "导出",
-            "detailParams" : {
-              "pointKey" : "导出"
-            },
-            "value" : 20.0
-          }, {
-            "pointKey" : "BOM工具",
-            "detailParams" : {
-              "pointKey" : "BOM工具"
-            },
-            "value" : 1.75
-          }, {
-            "pointKey" : "装配",
-            "detailParams" : {
-              "pointKey" : "装配"
-            },
-            "value" : 1.54
-          }, {
-            "pointKey" : "渲染",
-            "detailParams" : {
-              "pointKey" : "渲染"
-            },
-            "value" : 0.94
-          }, {
-            "pointKey" : "工具",
-            "detailParams" : {
-              "pointKey" : "工具"
-            },
-            "value" : 0.1
-          }, {
-            "pointKey" : "工程图",
-            "detailParams" : {
-              "pointKey" : "工程图"
-            },
-            "value" : 0.05
-          }, {
-            "pointKey" : "BOM",
-            "detailParams" : {
-              "pointKey" : "BOM"
-            },
-            "value" : 0.01
-          }, {
-            "pointKey" : "CAT",
-            "detailParams" : {
-              "pointKey" : "CAT"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "DWG",
-            "detailParams" : {
-              "pointKey" : "DWG"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "PLM",
-            "detailParams" : {
-              "pointKey" : "PLM"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "SView",
-            "detailParams" : {
-              "pointKey" : "SView"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "SView集成",
-            "detailParams" : {
-              "pointKey" : "SView集成"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "ass",
-            "detailParams" : {
-              "pointKey" : "ass"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "sview",
-            "detailParams" : {
-              "pointKey" : "sview"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "二次开发",
-            "detailParams" : {
-              "pointKey" : "二次开发"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "仿真",
-            "detailParams" : {
-              "pointKey" : "仿真"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "企业版",
-            "detailParams" : {
-              "pointKey" : "企业版"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "企业版&轻量化",
-            "detailParams" : {
-              "pointKey" : "企业版&轻量化"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "分享",
-            "detailParams" : {
-              "pointKey" : "分享"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "协同",
-            "detailParams" : {
-              "pointKey" : "协同"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "博诚电气",
-            "detailParams" : {
-              "pointKey" : "博诚电气"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "大国工匠",
-            "detailParams" : {
-              "pointKey" : "大国工匠"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "实时会话管理",
-            "detailParams" : {
-              "pointKey" : "实时会话管理"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "工具栏",
-            "detailParams" : {
-              "pointKey" : "工具栏"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "平台",
-            "detailParams" : {
-              "pointKey" : "平台"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "库",
-            "detailParams" : {
-              "pointKey" : "库"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "快捷面板",
-            "detailParams" : {
-              "pointKey" : "快捷面板"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "快速确认",
-            "detailParams" : {
-              "pointKey" : "快速确认"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "打包",
-            "detailParams" : {
-              "pointKey" : "打包"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "批量修改属性",
-            "detailParams" : {
-              "pointKey" : "批量修改属性"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "批量修改属性/名称",
-            "detailParams" : {
-              "pointKey" : "批量修改属性/名称"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "教育版",
-            "detailParams" : {
-              "pointKey" : "教育版"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "数据转换",
-            "detailParams" : {
-              "pointKey" : "数据转换"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "文档属性",
-            "detailParams" : {
-              "pointKey" : "文档属性"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "智能助手",
-            "detailParams" : {
-              "pointKey" : "智能助手"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "曲线",
-            "detailParams" : {
-              "pointKey" : "曲线"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "曲线曲面",
-            "detailParams" : {
-              "pointKey" : "曲线曲面"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "曲面",
-            "detailParams" : {
-              "pointKey" : "曲面"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "材质库",
-            "detailParams" : {
-              "pointKey" : "材质库"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "标准件库管理",
-            "detailParams" : {
-              "pointKey" : "标准件库管理"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "样式修改",
-            "detailParams" : {
-              "pointKey" : "样式修改"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "模板",
-            "detailParams" : {
-              "pointKey" : "模板"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "步路",
-            "detailParams" : {
-              "pointKey" : "步路"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "海外版",
-            "detailParams" : {
-              "pointKey" : "海外版"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "焊件",
-            "detailParams" : {
-              "pointKey" : "焊件"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "特征",
-            "detailParams" : {
-              "pointKey" : "特征"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "用户在线数",
-            "detailParams" : {
-              "pointKey" : "用户在线数"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "登录记录",
-            "detailParams" : {
-              "pointKey" : "登录记录"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "知识库",
-            "detailParams" : {
-              "pointKey" : "知识库"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "管路",
-            "detailParams" : {
-              "pointKey" : "管路"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "自动化测试",
-            "detailParams" : {
-              "pointKey" : "自动化测试"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "评估",
-            "detailParams" : {
-              "pointKey" : "评估"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "超大装配",
-            "detailParams" : {
-              "pointKey" : "超大装配"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "速览模式",
-            "detailParams" : {
-              "pointKey" : "速览模式"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "钣金",
-            "detailParams" : {
-              "pointKey" : "钣金"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "集成",
-            "detailParams" : {
-              "pointKey" : "集成"
-            },
-            "value" : 0.0
-          } ],
-          "name" : "功能缺陷密度",
-          "label" : {
-            "show" : true,
-            "position" : "top"
-          },
-          "labelLayout" : {
-            "hideOverlap" : true
-          },
-          "type" : "bar"
-        } ],
-        "animationDuration" : 500,
         "aria" : {
           "description" : "系统测试缺陷数与 CC 代码新增行的比值",
           "enabled" : true
         },
-        "xAxis" : {
-          "type" : "category",
-          "axisLabel" : {
-            "overflow" : "truncate",
-            "rotate" : 28,
-            "interval" : "auto",
-            "width" : 96,
+        "animationDuration" : 500,
+        "series" : [ {
+          "name" : "功能缺陷密度",
+          "data" : [ {
+            "value" : 20.0,
+            "detailParams" : {
+              "pointKey" : "导出"
+            },
+            "pointKey" : "导出"
+          }, {
+            "value" : 1.75,
+            "detailParams" : {
+              "pointKey" : "BOM工具"
+            },
+            "pointKey" : "BOM工具"
+          }, {
+            "value" : 1.54,
+            "detailParams" : {
+              "pointKey" : "装配"
+            },
+            "pointKey" : "装配"
+          }, {
+            "value" : 0.94,
+            "detailParams" : {
+              "pointKey" : "渲染"
+            },
+            "pointKey" : "渲染"
+          }, {
+            "value" : 0.1,
+            "detailParams" : {
+              "pointKey" : "工具"
+            },
+            "pointKey" : "工具"
+          }, {
+            "value" : 0.05,
+            "detailParams" : {
+              "pointKey" : "工程图"
+            },
+            "pointKey" : "工程图"
+          }, {
+            "value" : 0.01,
+            "detailParams" : {
+              "pointKey" : "BOM"
+            },
+            "pointKey" : "BOM"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "CAT"
+            },
+            "pointKey" : "CAT"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "DWG"
+            },
+            "pointKey" : "DWG"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "PLM"
+            },
+            "pointKey" : "PLM"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "SView"
+            },
+            "pointKey" : "SView"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "SView集成"
+            },
+            "pointKey" : "SView集成"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "ass"
+            },
+            "pointKey" : "ass"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "sview"
+            },
+            "pointKey" : "sview"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "二次开发"
+            },
+            "pointKey" : "二次开发"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "仿真"
+            },
+            "pointKey" : "仿真"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "企业版"
+            },
+            "pointKey" : "企业版"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "企业版&轻量化"
+            },
+            "pointKey" : "企业版&轻量化"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "分享"
+            },
+            "pointKey" : "分享"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "协同"
+            },
+            "pointKey" : "协同"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "博诚电气"
+            },
+            "pointKey" : "博诚电气"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "大国工匠"
+            },
+            "pointKey" : "大国工匠"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "实时会话管理"
+            },
+            "pointKey" : "实时会话管理"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "工具栏"
+            },
+            "pointKey" : "工具栏"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "平台"
+            },
+            "pointKey" : "平台"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "库"
+            },
+            "pointKey" : "库"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "快捷面板"
+            },
+            "pointKey" : "快捷面板"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "快速确认"
+            },
+            "pointKey" : "快速确认"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "打包"
+            },
+            "pointKey" : "打包"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "批量修改属性"
+            },
+            "pointKey" : "批量修改属性"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "批量修改属性/名称"
+            },
+            "pointKey" : "批量修改属性/名称"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "教育版"
+            },
+            "pointKey" : "教育版"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "数据转换"
+            },
+            "pointKey" : "数据转换"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "文档属性"
+            },
+            "pointKey" : "文档属性"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "智能助手"
+            },
+            "pointKey" : "智能助手"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "曲线"
+            },
+            "pointKey" : "曲线"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "曲线曲面"
+            },
+            "pointKey" : "曲线曲面"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "曲面"
+            },
+            "pointKey" : "曲面"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "材质库"
+            },
+            "pointKey" : "材质库"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "标准件库管理"
+            },
+            "pointKey" : "标准件库管理"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "样式修改"
+            },
+            "pointKey" : "样式修改"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "模板"
+            },
+            "pointKey" : "模板"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "步路"
+            },
+            "pointKey" : "步路"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "海外版"
+            },
+            "pointKey" : "海外版"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "焊件"
+            },
+            "pointKey" : "焊件"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "特征"
+            },
+            "pointKey" : "特征"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "用户在线数"
+            },
+            "pointKey" : "用户在线数"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "登录记录"
+            },
+            "pointKey" : "登录记录"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "知识库"
+            },
+            "pointKey" : "知识库"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "管路"
+            },
+            "pointKey" : "管路"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "自动化测试"
+            },
+            "pointKey" : "自动化测试"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "评估"
+            },
+            "pointKey" : "评估"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "超大装配"
+            },
+            "pointKey" : "超大装配"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "速览模式"
+            },
+            "pointKey" : "速览模式"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "钣金"
+            },
+            "pointKey" : "钣金"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "集成"
+            },
+            "pointKey" : "集成"
+          } ],
+          "barMaxWidth" : 52,
+          "itemStyle" : {
+            "color" : "#0f9f8f",
+            "borderRadius" : [ 6, 6, 0, 0 ]
+          },
+          "type" : "bar",
+          "labelLayout" : {
             "hideOverlap" : true
           },
-          "data" : [ "导出", "BOM工具", "装配", "渲染", "工具", "工程图", "BOM", "CAT", "DWG", "PLM", "SView", "SView集成", "ass", "sview", "二次开发", "仿真", "企业版", "企业版&轻量化", "分享", "协同", "博诚电气", "大国工匠", "实时会话管理", "工具栏", "平台", "库", "快捷面板", "快速确认", "打包", "批量修改属性", "批量修改属性/名称", "教育版", "数据转换", "文档属性", "智能助手", "曲线", "曲线曲面", "曲面", "材质库", "标准件库管理", "样式修改", "模板", "步路", "海外版", "焊件", "特征", "用户在线数", "登录记录", "知识库", "管路", "自动化测试", "评估", "超大装配", "速览模式", "钣金", "集成" ]
-        },
-        "yAxis" : {
-          "name" : "%",
-          "type" : "value"
+          "label" : {
+            "position" : "top",
+            "show" : true
+          }
+        } ],
+        "grid" : {
+          "right" : 24,
+          "containLabel" : true,
+          "top" : 28,
+          "left" : 20,
+          "bottom" : 112
         }
       },
       "ruleKey" : "function-defect-density",
@@ -752,167 +752,167 @@
       "title" : "质量达人榜",
       "subtitle" : "按成员各测试阶段平均千行缺陷密度排名",
       "option" : {
+        "tooltip" : {
+          "trigger" : "axis",
+          "confine" : true
+        },
         "dataZoom" : [ {
-          "endValue" : 9,
-          "startValue" : 0,
+          "right" : 16,
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "type" : "slider",
+          "handleSize" : "100%",
+          "showDetail" : false,
+          "moveHandleSize" : 12,
+          "borderColor" : "#cbd5e1",
+          "filterMode" : "filter",
           "handleStyle" : {
-            "borderColor" : "#2563eb",
-            "borderWidth" : 1.5,
-            "shadowBlur" : 3,
             "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "shadowBlur" : 3,
+            "borderWidth" : 1.5,
+            "borderColor" : "#2563eb",
             "color" : "#ffffff"
           },
-          "filterMode" : "filter",
-          "borderColor" : "#cbd5e1",
-          "moveHandleSize" : 12,
-          "showDetail" : false,
-          "handleSize" : "100%",
-          "type" : "slider",
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "right" : 16,
-          "backgroundColor" : "#f8fafc",
-          "width" : 30,
-          "borderRadius" : 6,
-          "yAxisIndex" : 0,
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          },
-          "selectedDataBackground" : {
-            "areaStyle" : {
-              "color" : "#bfdbfe",
-              "opacity" : 0.72
-            },
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
+          "startValue" : 0,
+          "endValue" : 9,
+          "show" : true,
+          "emphasis" : {
+            "handleStyle" : {
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "shadowBlur" : 3,
+              "borderWidth" : 1.5,
+              "borderColor" : "#1d4ed8",
+              "color" : "#ffffff"
             }
           },
           "dataBackground" : {
             "areaStyle" : {
-              "color" : "#e2e8f0",
-              "opacity" : 0.58
+              "opacity" : 0.58,
+              "color" : "#e2e8f0"
             },
             "lineStyle" : {
               "color" : "#cbd5e1",
               "width" : 1
             }
           },
-          "emphasis" : {
-            "handleStyle" : {
-              "borderColor" : "#1d4ed8",
-              "borderWidth" : 1.5,
-              "shadowBlur" : 3,
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "color" : "#ffffff"
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "opacity" : 0.72,
+              "color" : "#bfdbfe"
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
             }
           },
-          "show" : true
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "yAxisIndex" : 0,
+          "borderRadius" : 6,
+          "width" : 30,
+          "backgroundColor" : "#f8fafc"
         } ],
-        "tooltip" : {
-          "trigger" : "axis",
-          "confine" : true
-        },
-        "grid" : {
-          "top" : 28,
-          "containLabel" : true,
-          "right" : 64,
-          "bottom" : 34,
-          "left" : 24
-        },
-        "series" : [ {
-          "itemStyle" : {
-            "color" : "#7c3aed",
-            "borderRadius" : [ 0, 6, 6, 0 ]
+        "yAxis" : {
+          "axisLabel" : {
+            "hideOverlap" : true,
+            "overflow" : "truncate",
+            "width" : 130
           },
-          "barMaxWidth" : 24,
-          "data" : [ {
-            "pointKey" : "田松",
-            "detailParams" : {
-              "pointKey" : "田松"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "梁启星",
-            "detailParams" : {
-              "pointKey" : "梁启星"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "杨依景",
-            "detailParams" : {
-              "pointKey" : "杨依景"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "李尚玉",
-            "detailParams" : {
-              "pointKey" : "李尚玉"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "曹巧元",
-            "detailParams" : {
-              "pointKey" : "曹巧元"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "张金花",
-            "detailParams" : {
-              "pointKey" : "张金花"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "张辉",
-            "detailParams" : {
-              "pointKey" : "张辉"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "张月",
-            "detailParams" : {
-              "pointKey" : "张月"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "刘敏",
-            "detailParams" : {
-              "pointKey" : "刘敏"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "mengxiangyu",
-            "detailParams" : {
-              "pointKey" : "mengxiangyu"
-            },
-            "value" : 0.0
-          } ],
-          "name" : "质量达人榜",
-          "label" : {
-            "show" : true,
-            "position" : "right"
-          },
-          "labelLayout" : {
-            "hideOverlap" : true
-          },
-          "type" : "bar"
-        } ],
-        "animationDuration" : 500,
-        "aria" : {
-          "description" : "按成员各测试阶段平均千行缺陷密度排名",
-          "enabled" : true
+          "type" : "category",
+          "data" : [ "田松", "梁启星", "杨依景", "李尚玉", "曹巧元", "张金花", "张辉", "张月", "刘敏", "mengxiangyu" ]
         },
         "xAxis" : {
           "name" : "KLOC",
           "type" : "value"
         },
-        "yAxis" : {
-          "type" : "category",
-          "axisLabel" : {
-            "overflow" : "truncate",
-            "hideOverlap" : true,
-            "width" : 130
+        "aria" : {
+          "description" : "按成员各测试阶段平均千行缺陷密度排名",
+          "enabled" : true
+        },
+        "animationDuration" : 500,
+        "series" : [ {
+          "name" : "质量达人榜",
+          "data" : [ {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "田松"
+            },
+            "pointKey" : "田松"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "梁启星"
+            },
+            "pointKey" : "梁启星"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "杨依景"
+            },
+            "pointKey" : "杨依景"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "李尚玉"
+            },
+            "pointKey" : "李尚玉"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "曹巧元"
+            },
+            "pointKey" : "曹巧元"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "张金花"
+            },
+            "pointKey" : "张金花"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "张辉"
+            },
+            "pointKey" : "张辉"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "张月"
+            },
+            "pointKey" : "张月"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "刘敏"
+            },
+            "pointKey" : "刘敏"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "mengxiangyu"
+            },
+            "pointKey" : "mengxiangyu"
+          } ],
+          "barMaxWidth" : 24,
+          "itemStyle" : {
+            "color" : "#7c3aed",
+            "borderRadius" : [ 0, 6, 6, 0 ]
           },
-          "data" : [ "田松", "梁启星", "杨依景", "李尚玉", "曹巧元", "张金花", "张辉", "张月", "刘敏", "mengxiangyu" ]
+          "type" : "bar",
+          "labelLayout" : {
+            "hideOverlap" : true
+          },
+          "label" : {
+            "position" : "right",
+            "show" : true
+          }
+        } ],
+        "grid" : {
+          "right" : 64,
+          "containLabel" : true,
+          "top" : 28,
+          "left" : 24,
+          "bottom" : 34
         }
       },
       "ruleKey" : "quality-ranking",
@@ -931,109 +931,109 @@
       "title" : "成员未修复缺陷率",
       "subtitle" : "个人未修复缺陷数占个人缺陷总数的比例",
       "option" : {
+        "tooltip" : {
+          "trigger" : "axis",
+          "confine" : true
+        },
         "dataZoom" : [ {
-          "endValue" : 0,
-          "startValue" : 0,
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "type" : "slider",
+          "handleSize" : "100%",
+          "height" : 30,
+          "showDetail" : false,
+          "moveHandleSize" : 12,
+          "xAxisIndex" : 0,
+          "borderColor" : "#cbd5e1",
+          "bottom" : 28,
+          "filterMode" : "filter",
           "handleStyle" : {
-            "borderColor" : "#2563eb",
-            "borderWidth" : 1.5,
-            "shadowBlur" : 3,
             "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "shadowBlur" : 3,
+            "borderWidth" : 1.5,
+            "borderColor" : "#2563eb",
             "color" : "#ffffff"
           },
-          "filterMode" : "filter",
-          "bottom" : 28,
-          "borderColor" : "#cbd5e1",
-          "xAxisIndex" : 0,
-          "moveHandleSize" : 12,
-          "showDetail" : false,
-          "height" : 30,
-          "handleSize" : "100%",
-          "type" : "slider",
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "backgroundColor" : "#f8fafc",
-          "borderRadius" : 6,
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          },
-          "selectedDataBackground" : {
-            "areaStyle" : {
-              "color" : "#bfdbfe",
-              "opacity" : 0.72
-            },
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
+          "startValue" : 0,
+          "endValue" : 0,
+          "show" : true,
+          "emphasis" : {
+            "handleStyle" : {
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "shadowBlur" : 3,
+              "borderWidth" : 1.5,
+              "borderColor" : "#1d4ed8",
+              "color" : "#ffffff"
             }
           },
           "dataBackground" : {
             "areaStyle" : {
-              "color" : "#e2e8f0",
-              "opacity" : 0.58
+              "opacity" : 0.58,
+              "color" : "#e2e8f0"
             },
             "lineStyle" : {
               "color" : "#cbd5e1",
               "width" : 1
             }
           },
-          "emphasis" : {
-            "handleStyle" : {
-              "borderColor" : "#1d4ed8",
-              "borderWidth" : 1.5,
-              "shadowBlur" : 3,
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "color" : "#ffffff"
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "opacity" : 0.72,
+              "color" : "#bfdbfe"
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
             }
           },
-          "show" : true
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "borderRadius" : 6,
+          "backgroundColor" : "#f8fafc"
         } ],
-        "tooltip" : {
-          "trigger" : "axis",
-          "confine" : true
+        "yAxis" : {
+          "name" : "%",
+          "type" : "value"
         },
-        "grid" : {
-          "top" : 28,
-          "containLabel" : true,
-          "right" : 24,
-          "bottom" : 112,
-          "left" : 20
+        "xAxis" : {
+          "axisLabel" : {
+            "rotate" : 28,
+            "overflow" : "truncate",
+            "hideOverlap" : true,
+            "width" : 96,
+            "interval" : "auto"
+          },
+          "type" : "category",
+          "data" : [ ]
         },
-        "series" : [ {
-          "itemStyle" : {
-            "color" : "#dc4c64",
-            "borderRadius" : [ 6, 6, 0, 0 ]
-          },
-          "barMaxWidth" : 52,
-          "data" : [ ],
-          "name" : "成员未修复缺陷率",
-          "label" : {
-            "show" : true,
-            "position" : "top"
-          },
-          "labelLayout" : {
-            "hideOverlap" : true
-          },
-          "type" : "bar"
-        } ],
-        "animationDuration" : 500,
         "aria" : {
           "description" : "个人未修复缺陷数占个人缺陷总数的比例",
           "enabled" : true
         },
-        "xAxis" : {
-          "type" : "category",
-          "axisLabel" : {
-            "overflow" : "truncate",
-            "rotate" : 28,
-            "interval" : "auto",
-            "width" : 96,
+        "animationDuration" : 500,
+        "series" : [ {
+          "name" : "成员未修复缺陷率",
+          "data" : [ ],
+          "barMaxWidth" : 52,
+          "itemStyle" : {
+            "color" : "#dc4c64",
+            "borderRadius" : [ 6, 6, 0, 0 ]
+          },
+          "type" : "bar",
+          "labelLayout" : {
             "hideOverlap" : true
           },
-          "data" : [ ]
-        },
-        "yAxis" : {
-          "name" : "%",
-          "type" : "value"
+          "label" : {
+            "position" : "top",
+            "show" : true
+          }
+        } ],
+        "grid" : {
+          "right" : 24,
+          "containLabel" : true,
+          "top" : 28,
+          "left" : 20,
+          "bottom" : 112
         }
       },
       "ruleKey" : "member-unresolved-rate",
@@ -1052,183 +1052,183 @@
       "title" : "发布缺陷遗留率",
       "subtitle" : "各发布版本未关闭系统测试缺陷占比",
       "option" : {
+        "tooltip" : {
+          "trigger" : "axis",
+          "confine" : true
+        },
         "dataZoom" : [ {
-          "endValue" : 10,
-          "startValue" : 0,
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "type" : "slider",
+          "handleSize" : "100%",
+          "height" : 30,
+          "showDetail" : false,
+          "moveHandleSize" : 12,
+          "xAxisIndex" : 0,
+          "borderColor" : "#cbd5e1",
+          "bottom" : 28,
+          "filterMode" : "filter",
           "handleStyle" : {
-            "borderColor" : "#2563eb",
-            "borderWidth" : 1.5,
-            "shadowBlur" : 3,
             "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "shadowBlur" : 3,
+            "borderWidth" : 1.5,
+            "borderColor" : "#2563eb",
             "color" : "#ffffff"
           },
-          "filterMode" : "filter",
-          "bottom" : 28,
-          "borderColor" : "#cbd5e1",
-          "xAxisIndex" : 0,
-          "moveHandleSize" : 12,
-          "showDetail" : false,
-          "height" : 30,
-          "handleSize" : "100%",
-          "type" : "slider",
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "backgroundColor" : "#f8fafc",
-          "borderRadius" : 6,
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          },
-          "selectedDataBackground" : {
-            "areaStyle" : {
-              "color" : "#bfdbfe",
-              "opacity" : 0.72
-            },
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
+          "startValue" : 0,
+          "endValue" : 10,
+          "show" : true,
+          "emphasis" : {
+            "handleStyle" : {
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "shadowBlur" : 3,
+              "borderWidth" : 1.5,
+              "borderColor" : "#1d4ed8",
+              "color" : "#ffffff"
             }
           },
           "dataBackground" : {
             "areaStyle" : {
-              "color" : "#e2e8f0",
-              "opacity" : 0.58
+              "opacity" : 0.58,
+              "color" : "#e2e8f0"
             },
             "lineStyle" : {
               "color" : "#cbd5e1",
               "width" : 1
             }
           },
-          "emphasis" : {
-            "handleStyle" : {
-              "borderColor" : "#1d4ed8",
-              "borderWidth" : 1.5,
-              "shadowBlur" : 3,
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "color" : "#ffffff"
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "opacity" : 0.72,
+              "color" : "#bfdbfe"
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
             }
           },
-          "show" : true
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "borderRadius" : 6,
+          "backgroundColor" : "#f8fafc"
         } ],
-        "tooltip" : {
-          "trigger" : "axis",
-          "confine" : true
+        "yAxis" : {
+          "name" : "%",
+          "type" : "value"
         },
-        "grid" : {
-          "top" : 28,
-          "containLabel" : true,
-          "right" : 24,
-          "bottom" : 112,
-          "left" : 20
+        "xAxis" : {
+          "axisLabel" : {
+            "rotate" : 28,
+            "overflow" : "truncate",
+            "hideOverlap" : true,
+            "width" : 96,
+            "interval" : "auto"
+          },
+          "boundaryGap" : false,
+          "data" : [ "CC2026R2", "CC2026R3", "CC2024R4", "CC2025R2", "CC2026R1", "CC2024R2", "CC2024R3", "CC2025R1", "CC2025R3", "CC2025R4", "CC2026R4" ],
+          "type" : "category"
         },
-        "series" : [ {
-          "symbolSize" : 8,
-          "labelLayout" : {
-            "hideOverlap" : true
-          },
-          "areaStyle" : {
-            "opacity" : 0.12
-          },
-          "lineStyle" : {
-            "color" : "#d97706",
-            "width" : 3
-          },
-          "name" : "发布缺陷遗留率",
-          "type" : "line",
-          "smooth" : true,
-          "data" : [ {
-            "pointKey" : "CC2026R2",
-            "detailParams" : {
-              "pointKey" : "CC2026R2"
-            },
-            "value" : 25.0
-          }, {
-            "pointKey" : "CC2026R3",
-            "detailParams" : {
-              "pointKey" : "CC2026R3"
-            },
-            "value" : 20.0
-          }, {
-            "pointKey" : "CC2024R4",
-            "detailParams" : {
-              "pointKey" : "CC2024R4"
-            },
-            "value" : 12.5
-          }, {
-            "pointKey" : "CC2025R2",
-            "detailParams" : {
-              "pointKey" : "CC2025R2"
-            },
-            "value" : 4.35
-          }, {
-            "pointKey" : "CC2026R1",
-            "detailParams" : {
-              "pointKey" : "CC2026R1"
-            },
-            "value" : 1.72
-          }, {
-            "pointKey" : "CC2024R2",
-            "detailParams" : {
-              "pointKey" : "CC2024R2"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "CC2024R3",
-            "detailParams" : {
-              "pointKey" : "CC2024R3"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "CC2025R1",
-            "detailParams" : {
-              "pointKey" : "CC2025R1"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "CC2025R3",
-            "detailParams" : {
-              "pointKey" : "CC2025R3"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "CC2025R4",
-            "detailParams" : {
-              "pointKey" : "CC2025R4"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "CC2026R4",
-            "detailParams" : {
-              "pointKey" : "CC2026R4"
-            },
-            "value" : 0.0
-          } ],
-          "itemStyle" : {
-            "color" : "#d97706"
-          },
-          "label" : {
-            "show" : true,
-            "position" : "top"
-          }
-        } ],
-        "animationDuration" : 500,
         "aria" : {
           "description" : "各发布版本未关闭系统测试缺陷占比",
           "enabled" : true
         },
-        "xAxis" : {
-          "type" : "category",
-          "data" : [ "CC2026R2", "CC2026R3", "CC2024R4", "CC2025R2", "CC2026R1", "CC2024R2", "CC2024R3", "CC2025R1", "CC2025R3", "CC2025R4", "CC2026R4" ],
-          "boundaryGap" : false,
-          "axisLabel" : {
-            "overflow" : "truncate",
-            "rotate" : 28,
-            "interval" : "auto",
-            "width" : 96,
+        "animationDuration" : 500,
+        "series" : [ {
+          "lineStyle" : {
+            "color" : "#d97706",
+            "width" : 3
+          },
+          "areaStyle" : {
+            "opacity" : 0.12
+          },
+          "labelLayout" : {
             "hideOverlap" : true
-          }
-        },
-        "yAxis" : {
-          "name" : "%",
-          "type" : "value"
+          },
+          "symbolSize" : 8,
+          "label" : {
+            "position" : "top",
+            "show" : true
+          },
+          "itemStyle" : {
+            "color" : "#d97706"
+          },
+          "data" : [ {
+            "value" : 25.0,
+            "detailParams" : {
+              "pointKey" : "CC2026R2"
+            },
+            "pointKey" : "CC2026R2"
+          }, {
+            "value" : 20.0,
+            "detailParams" : {
+              "pointKey" : "CC2026R3"
+            },
+            "pointKey" : "CC2026R3"
+          }, {
+            "value" : 12.5,
+            "detailParams" : {
+              "pointKey" : "CC2024R4"
+            },
+            "pointKey" : "CC2024R4"
+          }, {
+            "value" : 4.35,
+            "detailParams" : {
+              "pointKey" : "CC2025R2"
+            },
+            "pointKey" : "CC2025R2"
+          }, {
+            "value" : 1.72,
+            "detailParams" : {
+              "pointKey" : "CC2026R1"
+            },
+            "pointKey" : "CC2026R1"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "CC2024R2"
+            },
+            "pointKey" : "CC2024R2"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "CC2024R3"
+            },
+            "pointKey" : "CC2024R3"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "CC2025R1"
+            },
+            "pointKey" : "CC2025R1"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "CC2025R3"
+            },
+            "pointKey" : "CC2025R3"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "CC2025R4"
+            },
+            "pointKey" : "CC2025R4"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "CC2026R4"
+            },
+            "pointKey" : "CC2026R4"
+          } ],
+          "smooth" : true,
+          "type" : "line",
+          "name" : "发布缺陷遗留率"
+        } ],
+        "grid" : {
+          "right" : 24,
+          "containLabel" : true,
+          "top" : 28,
+          "left" : 20,
+          "bottom" : 112
         }
       },
       "ruleKey" : "release-leakage-rate",
@@ -1245,183 +1245,183 @@
       "title" : "开发缺陷遗留率",
       "subtitle" : "各发布版本未关闭系统测试缺陷占比",
       "option" : {
+        "tooltip" : {
+          "trigger" : "axis",
+          "confine" : true
+        },
         "dataZoom" : [ {
-          "endValue" : 10,
-          "startValue" : 0,
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "type" : "slider",
+          "handleSize" : "100%",
+          "height" : 30,
+          "showDetail" : false,
+          "moveHandleSize" : 12,
+          "xAxisIndex" : 0,
+          "borderColor" : "#cbd5e1",
+          "bottom" : 28,
+          "filterMode" : "filter",
           "handleStyle" : {
-            "borderColor" : "#2563eb",
-            "borderWidth" : 1.5,
-            "shadowBlur" : 3,
             "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "shadowBlur" : 3,
+            "borderWidth" : 1.5,
+            "borderColor" : "#2563eb",
             "color" : "#ffffff"
           },
-          "filterMode" : "filter",
-          "bottom" : 28,
-          "borderColor" : "#cbd5e1",
-          "xAxisIndex" : 0,
-          "moveHandleSize" : 12,
-          "showDetail" : false,
-          "height" : 30,
-          "handleSize" : "100%",
-          "type" : "slider",
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "backgroundColor" : "#f8fafc",
-          "borderRadius" : 6,
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          },
-          "selectedDataBackground" : {
-            "areaStyle" : {
-              "color" : "#bfdbfe",
-              "opacity" : 0.72
-            },
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
+          "startValue" : 0,
+          "endValue" : 10,
+          "show" : true,
+          "emphasis" : {
+            "handleStyle" : {
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "shadowBlur" : 3,
+              "borderWidth" : 1.5,
+              "borderColor" : "#1d4ed8",
+              "color" : "#ffffff"
             }
           },
           "dataBackground" : {
             "areaStyle" : {
-              "color" : "#e2e8f0",
-              "opacity" : 0.58
+              "opacity" : 0.58,
+              "color" : "#e2e8f0"
             },
             "lineStyle" : {
               "color" : "#cbd5e1",
               "width" : 1
             }
           },
-          "emphasis" : {
-            "handleStyle" : {
-              "borderColor" : "#1d4ed8",
-              "borderWidth" : 1.5,
-              "shadowBlur" : 3,
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "color" : "#ffffff"
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "opacity" : 0.72,
+              "color" : "#bfdbfe"
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
             }
           },
-          "show" : true
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "borderRadius" : 6,
+          "backgroundColor" : "#f8fafc"
         } ],
-        "tooltip" : {
-          "trigger" : "axis",
-          "confine" : true
+        "yAxis" : {
+          "name" : "%",
+          "type" : "value"
         },
-        "grid" : {
-          "top" : 28,
-          "containLabel" : true,
-          "right" : 24,
-          "bottom" : 112,
-          "left" : 20
+        "xAxis" : {
+          "axisLabel" : {
+            "rotate" : 28,
+            "overflow" : "truncate",
+            "hideOverlap" : true,
+            "width" : 96,
+            "interval" : "auto"
+          },
+          "boundaryGap" : false,
+          "data" : [ "CC2026R2", "CC2026R3", "CC2024R4", "CC2025R2", "CC2026R1", "CC2024R2", "CC2024R3", "CC2025R1", "CC2025R3", "CC2025R4", "CC2026R4" ],
+          "type" : "category"
         },
-        "series" : [ {
-          "symbolSize" : 8,
-          "labelLayout" : {
-            "hideOverlap" : true
-          },
-          "areaStyle" : {
-            "opacity" : 0.12
-          },
-          "lineStyle" : {
-            "color" : "#0284c7",
-            "width" : 3
-          },
-          "name" : "开发缺陷遗留率",
-          "type" : "line",
-          "smooth" : true,
-          "data" : [ {
-            "pointKey" : "CC2026R2",
-            "detailParams" : {
-              "pointKey" : "CC2026R2"
-            },
-            "value" : 25.0
-          }, {
-            "pointKey" : "CC2026R3",
-            "detailParams" : {
-              "pointKey" : "CC2026R3"
-            },
-            "value" : 20.0
-          }, {
-            "pointKey" : "CC2024R4",
-            "detailParams" : {
-              "pointKey" : "CC2024R4"
-            },
-            "value" : 12.5
-          }, {
-            "pointKey" : "CC2025R2",
-            "detailParams" : {
-              "pointKey" : "CC2025R2"
-            },
-            "value" : 4.35
-          }, {
-            "pointKey" : "CC2026R1",
-            "detailParams" : {
-              "pointKey" : "CC2026R1"
-            },
-            "value" : 1.72
-          }, {
-            "pointKey" : "CC2024R2",
-            "detailParams" : {
-              "pointKey" : "CC2024R2"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "CC2024R3",
-            "detailParams" : {
-              "pointKey" : "CC2024R3"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "CC2025R1",
-            "detailParams" : {
-              "pointKey" : "CC2025R1"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "CC2025R3",
-            "detailParams" : {
-              "pointKey" : "CC2025R3"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "CC2025R4",
-            "detailParams" : {
-              "pointKey" : "CC2025R4"
-            },
-            "value" : 0.0
-          }, {
-            "pointKey" : "CC2026R4",
-            "detailParams" : {
-              "pointKey" : "CC2026R4"
-            },
-            "value" : 0.0
-          } ],
-          "itemStyle" : {
-            "color" : "#0284c7"
-          },
-          "label" : {
-            "show" : true,
-            "position" : "top"
-          }
-        } ],
-        "animationDuration" : 500,
         "aria" : {
           "description" : "各发布版本未关闭系统测试缺陷占比",
           "enabled" : true
         },
-        "xAxis" : {
-          "type" : "category",
-          "data" : [ "CC2026R2", "CC2026R3", "CC2024R4", "CC2025R2", "CC2026R1", "CC2024R2", "CC2024R3", "CC2025R1", "CC2025R3", "CC2025R4", "CC2026R4" ],
-          "boundaryGap" : false,
-          "axisLabel" : {
-            "overflow" : "truncate",
-            "rotate" : 28,
-            "interval" : "auto",
-            "width" : 96,
+        "animationDuration" : 500,
+        "series" : [ {
+          "lineStyle" : {
+            "color" : "#0284c7",
+            "width" : 3
+          },
+          "areaStyle" : {
+            "opacity" : 0.12
+          },
+          "labelLayout" : {
             "hideOverlap" : true
-          }
-        },
-        "yAxis" : {
-          "name" : "%",
-          "type" : "value"
+          },
+          "symbolSize" : 8,
+          "label" : {
+            "position" : "top",
+            "show" : true
+          },
+          "itemStyle" : {
+            "color" : "#0284c7"
+          },
+          "data" : [ {
+            "value" : 25.0,
+            "detailParams" : {
+              "pointKey" : "CC2026R2"
+            },
+            "pointKey" : "CC2026R2"
+          }, {
+            "value" : 20.0,
+            "detailParams" : {
+              "pointKey" : "CC2026R3"
+            },
+            "pointKey" : "CC2026R3"
+          }, {
+            "value" : 12.5,
+            "detailParams" : {
+              "pointKey" : "CC2024R4"
+            },
+            "pointKey" : "CC2024R4"
+          }, {
+            "value" : 4.35,
+            "detailParams" : {
+              "pointKey" : "CC2025R2"
+            },
+            "pointKey" : "CC2025R2"
+          }, {
+            "value" : 1.72,
+            "detailParams" : {
+              "pointKey" : "CC2026R1"
+            },
+            "pointKey" : "CC2026R1"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "CC2024R2"
+            },
+            "pointKey" : "CC2024R2"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "CC2024R3"
+            },
+            "pointKey" : "CC2024R3"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "CC2025R1"
+            },
+            "pointKey" : "CC2025R1"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "CC2025R3"
+            },
+            "pointKey" : "CC2025R3"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "CC2025R4"
+            },
+            "pointKey" : "CC2025R4"
+          }, {
+            "value" : 0.0,
+            "detailParams" : {
+              "pointKey" : "CC2026R4"
+            },
+            "pointKey" : "CC2026R4"
+          } ],
+          "smooth" : true,
+          "type" : "line",
+          "name" : "开发缺陷遗留率"
+        } ],
+        "grid" : {
+          "right" : 24,
+          "containLabel" : true,
+          "top" : 28,
+          "left" : 20,
+          "bottom" : 112
         }
       },
       "ruleKey" : "development-leakage-rate",

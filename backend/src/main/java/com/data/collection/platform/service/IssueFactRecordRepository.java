@@ -158,7 +158,10 @@ public class IssueFactRecordRepository {
                 CustomerIssueRecordFilters.CcProductFilters.empty(),
                 null));
     try {
-      return issueFactQueryService.query(FACT_SELECT_SQL + parts.where(), parts.args(), rowMapper);
+      // 候选值选项按事实行序取首次出现顺序，必须与全量路径同样 order by id 固定行序，
+      // 否则 assigneeNames 等候选顺序随查询计划漂移（黄金基线复跑实测漂移）。
+      return issueFactQueryService.query(
+          FACT_SELECT_SQL + parts.where() + " " + FACT_SQL_ORDER, parts.args(), rowMapper);
     } catch (DataAccessException error) {
       return List.of();
     }

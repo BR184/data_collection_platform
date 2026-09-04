@@ -35,8 +35,8 @@
         "reachStandard" : false,
         "sourceFileName" : "",
         "weightedDefectDensity" : 0.0,
-        "createdAt" : "2026-09-03T18:37:17.885655+08:00",
-        "updatedAt" : "2026-09-03T18:37:17.885655+08:00",
+        "createdAt" : "2026-09-04T18:28:34.566691+08:00",
+        "updatedAt" : "2026-09-04T18:28:34.566691+08:00",
         "deleted" : false,
         "gitlabProjectId" : null,
         "gitlabResourceIid" : null,
@@ -57,7 +57,7 @@
         "ownerName" : "",
         "rejectionReason" : "",
         "problemStatus" : "未评审",
-        "updatedAt" : "2026-09-03T18:37:17.885655+08:00",
+        "updatedAt" : "2026-09-04T18:28:34.566691+08:00",
         "createdBy" : "admin"
       }, {
         "id" : 25,
@@ -72,7 +72,7 @@
         "ownerName" : "",
         "rejectionReason" : "",
         "problemStatus" : "未评审",
-        "updatedAt" : "2026-09-03T18:37:17.885655+08:00",
+        "updatedAt" : "2026-09-04T18:28:34.566691+08:00",
         "createdBy" : "admin"
       } ],
       "descriptions" : [ {
@@ -84,7 +84,7 @@
         "reviewScalePages" : 12,
         "unit" : "页",
         "sortOrder" : 0,
-        "updatedAt" : "2026-09-03T18:37:17.885655+08:00"
+        "updatedAt" : "2026-09-04T18:28:34.566691+08:00"
       } ],
       "contents" : [ ]
     }
