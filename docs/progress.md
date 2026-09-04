@@ -10,7 +10,7 @@
 
 - [完成] fresh-empty 全新空数据包已生成：归档 `D:\projects\data_collection_platform_deploy\qaflex-full-20260904T104638Z-8cf0508d8832.tar.gz`（306,760,347 bytes，SHA-256 `f7f436d05381bc0bfb1d6846d5e0cb1995b89b213bd2cb48ed6df40af3c3cce0`）。包内内网参数沿用 20260806 全新包先例：平台 `172.22.10.115:30001`、后端 `30002`（127.0.0.1）、PostgreSQL `15434`（127.0.0.1）、LDAP `http://172.22.10.116:80`，`GITLAB_DELETE_RECONCILIATION_ENABLED=false` 显式保持，`COMPOSE_PROJECT_NAME=qaflex-20260904t104638z-8cf0508d8832` 强制注入 `PLATFORM_INSTANCE_ID`。代码基线 = 本地 main `f66aff80`（该树黄金基线 180/180 零差异，用户明确本次不再跑回归）；manifest 如实标注工作区非干净（仅同事 untracked WIP 测试文件，未阻塞构建，backendTestSourceFallbackUsed=false）。
 - [验证] 打包器默认门禁全过：前端发布测试 17/17、typecheck、生产构建、后端 clean package、双业务镜像无缓存构建、镜像内 app.jar/index.html 摘要与本地生产产物核对一致、Compose 解析、SHA256SUMS 7 文件校验。独立审计：Flyway `20260903.01` 与最新迁移 `V20260903_01` 一致、目标镜像同 release-id、包外 `.sha256` 与实测归档哈希一致、归档清单严格符合全新包结构契约（无 `backend/`、`frontend/`、真实 `.env`、数据库 dump、运行日志）、打包器契约测试 30/30、四项仓库门禁全绿。
-- [限制] 本地未做隔离栈部署演练（全新包验证以打包器门禁+独立审计为准，部署演练仅更新包工作流要求）；内网 30001 部署与缺陷测试由用户执行，现场命令以包内 `README-INTRANET-DEPLOY.md` 为准。
+- [验证] 本地隔离部署演练已完成（2026-09-04 晚，忠实按包内 README 流程：解压到 `localtest-30001-20260904/` → docker load 三镜像 → .env → compose up）：postgres/backend/frontend 三容器全部 healthy，后端 `/actuator/health` UP，前端 HTTP 200，空库 Flyway 130 项迁移至 `v20260903.01`，经前端 30001 的 `/api/` 代理返回后端正常未登录 401（Nginx→后端接线正确）。唯一本地偏差：PG 主机端口 15434→15437（15434 被本机既有 GitLab 代理容器占用）；登录依赖内网 LDAP 本地不可达属预期。内网 30001 部署与缺陷测试由用户执行，现场命令以包内 `README-INTRANET-DEPLOY.md` 为准。
 
 ## 2026-09-04 黄金基线套件更新（12 维度基线）
 
