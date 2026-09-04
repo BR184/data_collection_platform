@@ -9,7 +9,7 @@ const props = withDefaults(defineProps<{
   dimensionKey?: string;
   valueType?: string | null;
   disabled?: boolean;
-  fetchValues?: (dimensionKey: string, keyword: string) => Promise<LabelValuePage>;
+  fetchValues?: (dimensionKey: string, keyword: string, page: number, size: number) => Promise<LabelValuePage>;
 }>(), {
   dimensionKey: '',
   valueType: null,
@@ -21,9 +21,14 @@ const emit = defineEmits<{
   (event: 'update:modelValue', value: LabelGroupMember[]): void;
 }>();
 
+// 200 是后端 values 接口的单页上限，超出会被静默收敛到 200
+const CANDIDATE_PAGE_SIZE = 200;
+
 const loading = ref(false);
 const keyword = ref('');
 const candidates = ref<LabelGroupMember[]>([]);
+// remote-method 高频触发，令牌递增用于丢弃旧一轮分页循环的在途结果
+let loadToken = 0;
 
 const selectedValues = computed({
   get: () => props.modelValue.map((member) => member.value),
@@ -68,41 +73,52 @@ const unavailableMembers = computed(() => props.modelValue.filter((member) => me
 
 watch(
   () => props.dimensionKey,
-  async (dimensionKey) => {
+  async () => {
     candidates.value = [];
-    keyword.value = '';
-    if (dimensionKey) {
-      await loadCandidates('');
-    }
+    await loadCandidates('');
   },
   { immediate: true },
 );
 
-async function loadCandidates(nextKeyword: string) {
+async function loadCandidates(nextKeyword: string): Promise<void> {
+  const token = ++loadToken;
   keyword.value = nextKeyword;
-  if (!props.dimensionKey) {
-    candidates.value = [];
-    return;
-  }
   loading.value = true;
   try {
+    if (!props.dimensionKey) {
+      candidates.value = [];
+      return;
+    }
     const fetcher = props.fetchValues ?? defaultFetchValues;
-    const response = await fetcher(props.dimensionKey, nextKeyword);
-    candidates.value = response.items.map((item) => ({
-      value: item.value,
-      label: item.label,
-      currentAvailable: true,
-    })).filter((item) => !props.valueType || inferValueType(item.value) === props.valueType);
+    const collected = new Map<string, LabelGroupMember>();
+    for (let page = 1; ; page += 1) {
+      const response = await fetcher(props.dimensionKey, nextKeyword, page, CANDIDATE_PAGE_SIZE);
+      if (token !== loadToken) {
+        return;
+      }
+      for (const item of response.items) {
+        if (!collected.has(item.value)) {
+          collected.set(item.value, { value: item.value, label: item.label, currentAvailable: true });
+        }
+      }
+      if (response.items.length === 0 || collected.size >= response.total) {
+        break;
+      }
+    }
+    candidates.value = Array.from(collected.values())
+      .filter((item) => !props.valueType || inferValueType(item.value) === props.valueType);
   } finally {
-    loading.value = false;
+    if (token === loadToken) {
+      loading.value = false;
+    }
   }
 }
 
-function defaultFetchValues(dimensionKey: string, searchKeyword: string) {
+function defaultFetchValues(dimensionKey: string, searchKeyword: string, page: number, size: number): Promise<LabelValuePage> {
   return api.listLabelDimensionValues(dimensionKey, {
     keyword: searchKeyword,
-    page: 1,
-    size: 50,
+    page,
+    size,
   });
 }
 </script>

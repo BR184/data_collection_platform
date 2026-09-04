@@ -6,6 +6,12 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-04 标签组成员候选全量分页加载
+
+- [完成] 成员值候选从"单页 50 条"改"循环拉全部分页"（方案 `docs/plans/label-group-member-candidates-full-load-20260904.md`，仅改前端 `LabelGroupMemberPicker.vue` + 测试）：`fetchValues` 契约扩为 4 参（dimensionKey/keyword/page/size），按 200/页（后端单页上限）顺序拉取至 total 取满或空页终止，按 value 去重合并；`loadToken` 自增令牌丢弃 keyword/维度切换时旧分页循环的在途结果。后端零改动。背景：person 维度 461 行按字母序 ASCII 先于中文，首屏 50 条全拼音致用户误判缺中文人员。
+- [验证] 组件测试 9/9（含新增多页合并与竞态丢弃用例；实施期修复前次遗留的测试桩参数遮蔽缺陷）；typecheck 绿；全量 vitest 459/459（首轮 1 例未捕获名失败，两轮复跑全绿，与既有偶发模式一致非回归）；UI 实机验证：候选来源=人员 触发 page=1..4&size=200 共 4 请求，下拉渲染 456 项与库内去重名（461 行含 5 重名）精确一致，中文名 140+ 位起可见，关键字"王"搜索 34 项命中。用户决策留痕：bot/系统账号不剔除；`carmazhao` name 前导空格脏值（全库唯一，GitLab 源数据原样同步，被选入组有精确匹配失配风险）暂不处理待用户厘清；排序语义不改。
+- [待办] 提交待用户确认（仅摘取本单元 2 文件 + 计划文档）。
+
 ## 2026-09-04 标签组候选来源改镜像库直取
 
 - [完成] 静态标签组候选值改镜像库表直取（方案 `docs/plans/label-group-mirror-candidates-20260904.md`）：删除 5 个旧人员维度（review_owner/review_expert/issue_assignee/customer_author/customer_assignee）合并为单一 person（镜像 users 表全量人名）；project 改镜像 labels"项目："标签全量解析（与新增评审项目名称下拉同源同值）；milestone 改镜像 milestones.title 全量；模块/测试阶段保持现状；复用 `ReviewDataMirrorOptionRepository`，零迁移；删除死代码 `existsStaticCandidateValue`。前端同步接线：review 页负责人/评审专家字段 `labelDimensionKey` 改 person，customer/system-test 页人员字段新增 `personConditionField` 携带 person，删除指向已删键的别名映射。
