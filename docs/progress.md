@@ -6,6 +6,10 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-07 同事 WIP 测试处置（ReviewDataRecordReadSupportTest）
+
+- [决策] 用户实测评审数据页筛选（标题搜 bom 命中 BOM、负责人搜 xiao 命中 Chen xiaojun）证实现实现的大小写不敏感搜索正确；同事 2026-08-25 的 untracked WIP 测试期望与之相反（`%Alice%` 大小写敏感、`%41%` 剥离 #），其 RowMapper 用例针对已重构进 `ReviewDataMetricSqlExpressions` 的旧逻辑（现由黄金基线全链路锁定，覆盖更强）。经用户确认删除该文件（untracked，无 Git 痕迹，零代码改动，D-10 全量套件后常规套件可全绿）。
+
 ## 2026-09-07 全新包去除 PostgreSQL 镜像交付
 
 - [完成] fresh-empty 打包器不再携带 `postgres_16-alpine.tar`（用户拍板：PG 镜像自初始部署加载后从未变更，115 目标机各实例共用同一本地镜像；历史全新包归档可满足真正新服务器场景）。打包器删除 fresh 模式的 PG `docker image inspect`/`docker save`、manifest `target.images.postgres` 与 required_files 条目；`docker-images/postgres_16-alpine.tar` 由仅更新包禁止升级为任何模式禁止交付；compose 的 PG 镜像引用收敛到 `POSTGRES_IMAGE` 常量单一事实源；包内 README 镜像加载节改为「目标机 `docker image inspect postgres:16-alpine` 守卫 + 缺失时从部署资料归档历史全新包加载」。附带修复既有契约测试对打包机 `backend/target` JAR 的产物依赖（补 mock 使测试独立，消除"仅当本机刚构建过才全绿"的脆弱性）。规范同步：`deploy/intranet-offline-packaging-standard.md` 全新包结构契约、发布策略例外段、「镜像与发布身份」新增 PG 镜像通用规则、发布验收统一为任何包不含 PG 镜像。计划 `docs/plans/fresh-package-drop-postgres-image-20260907.md`。
