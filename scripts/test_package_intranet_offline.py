@@ -493,7 +493,15 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             image_dir.mkdir()
             (image_dir / "qa-flex-platform-backend_20260721T120000Z-001122334455.tar").write_bytes(b"backend")
             (image_dir / "qa-flex-platform-frontend_20260721T120000Z-001122334455.tar").write_bytes(b"frontend")
-            MODULE.write_release_manifest(context, False, "test")
+            jar_path = package_dir / "app.jar"
+            jar_path.write_bytes(b"jar")
+            dist_dir = package_dir / "dist"
+            dist_dir.mkdir()
+            (dist_dir / "index.html").write_text("frontend", encoding="utf-8")
+            with mock.patch.object(MODULE, "BACKEND_JAR", jar_path), mock.patch.object(
+                MODULE, "FRONTEND_DIST", dist_dir
+            ):
+                MODULE.write_release_manifest(context, False, "test")
 
             manifest = json.loads((package_dir / "RELEASE-MANIFEST.json").read_text(encoding="utf-8"))
 
@@ -534,8 +542,78 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 else:
                     path.mkdir(parents=True, exist_ok=True)
 
-            with self.assertRaisesRegex(MODULE.PackageError, "backend, .env, docker-images/postgres_16-alpine.tar"):
+            with self.assertRaisesRegex(MODULE.PackageError, "backend, docker-images/postgres_16-alpine.tar, .env"):
                 MODULE.validate_forbidden_delivery_items(context)
+
+    def test_fresh_layout_rejects_build_context_and_database_image(self):
+        with tempfile.TemporaryDirectory() as root:
+            package_dir = Path(root)
+            context = MODULE.BuildContext(
+                **{**IntranetLdapPackagingTest().build_context().__dict__, "package_dir": package_dir}
+            )
+            (package_dir / "backend").mkdir()
+            image_dir = package_dir / "docker-images"
+            image_dir.mkdir()
+            (image_dir / "postgres_16-alpine.tar").write_text("forbidden", encoding="utf-8")
+
+            with self.assertRaisesRegex(MODULE.PackageError, "backend, docker-images/postgres_16-alpine.tar"):
+                MODULE.validate_forbidden_delivery_items(context)
+
+    def test_fresh_layout_contains_only_application_images_and_release_controls(self):
+        context = IntranetLdapPackagingTest().build_context()
+
+        relative = {path.relative_to(context.package_dir).as_posix() for path in MODULE.required_files(context)}
+
+        self.assertEqual(
+            {
+                "docker-images/qa-flex-platform-backend_test.tar",
+                "docker-images/qa-flex-platform-frontend_test.tar",
+                "RELEASE-MANIFEST.json",
+                ".env.example",
+                "docker-compose.yml",
+                "README-INTRANET-DEPLOY.md",
+            },
+            relative,
+        )
+
+    def test_fresh_manifest_lists_only_application_images(self):
+        with tempfile.TemporaryDirectory() as root:
+            root_path = Path(root)
+            package_dir = root_path / "package"
+            image_dir = package_dir / "docker-images"
+            image_dir.mkdir(parents=True)
+            context = MODULE.BuildContext(
+                **{
+                    **IntranetLdapPackagingTest().build_context().__dict__,
+                    "deploy_root": root_path,
+                    "package_dir": package_dir,
+                    "archive_path": root_path / "package.tar.gz",
+                }
+            )
+            backend_jar = root_path / "app.jar"
+            backend_jar.write_bytes(b"backend")
+            frontend_dist = root_path / "dist"
+            frontend_dist.mkdir()
+            (frontend_dist / "index.html").write_text("frontend", encoding="utf-8")
+            (image_dir / f"{MODULE.BACKEND_IMAGE}_{context.backend_tag}.tar").write_bytes(b"backend-image")
+            (image_dir / f"{MODULE.FRONTEND_IMAGE}_{context.frontend_tag}.tar").write_bytes(b"frontend-image")
+
+            with mock.patch.object(MODULE, "BACKEND_JAR", backend_jar), mock.patch.object(
+                MODULE, "FRONTEND_DIST", frontend_dist
+            ):
+                MODULE.write_release_manifest(context, False, "standard build")
+
+            manifest = json.loads((package_dir / "RELEASE-MANIFEST.json").read_text(encoding="utf-8"))
+            self.assertEqual({"backend", "frontend"}, set(manifest["target"]["images"]))
+            self.assertIsNone(manifest["baseline"])
+            self.assertEqual("fresh-empty", manifest["package"]["type"])
+
+    def test_fresh_readme_defers_postgres_image_to_target_host(self):
+        content = MODULE.fresh_readme(self.build_context())
+
+        self.assertNotIn("docker load -i docker-images/postgres_16-alpine.tar", content)
+        self.assertIn("docker image inspect postgres:16-alpine", content)
+        self.assertIn("不携带", content)
 
     def test_fresh_layout_only_requires_offline_debs_when_explicitly_enabled(self):
         context = IntranetLdapPackagingTest().build_context()

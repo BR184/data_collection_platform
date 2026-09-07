@@ -6,6 +6,11 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-07 全新包去除 PostgreSQL 镜像交付
+
+- [完成] fresh-empty 打包器不再携带 `postgres_16-alpine.tar`（用户拍板：PG 镜像自初始部署加载后从未变更，115 目标机各实例共用同一本地镜像；历史全新包归档可满足真正新服务器场景）。打包器删除 fresh 模式的 PG `docker image inspect`/`docker save`、manifest `target.images.postgres` 与 required_files 条目；`docker-images/postgres_16-alpine.tar` 由仅更新包禁止升级为任何模式禁止交付；compose 的 PG 镜像引用收敛到 `POSTGRES_IMAGE` 常量单一事实源；包内 README 镜像加载节改为「目标机 `docker image inspect postgres:16-alpine` 守卫 + 缺失时从部署资料归档历史全新包加载」。附带修复既有契约测试对打包机 `backend/target` JAR 的产物依赖（补 mock 使测试独立，消除"仅当本机刚构建过才全绿"的脆弱性）。规范同步：`deploy/intranet-offline-packaging-standard.md` 全新包结构契约、发布策略例外段、「镜像与发布身份」新增 PG 镜像通用规则、发布验收统一为任何包不含 PG 镜像。计划 `docs/plans/fresh-package-drop-postgres-image-20260907.md`。
+- [验证] 打包器契约测试 34/34（新增 4 项：fresh required_files 完整集合不含 PG tar、fresh 模式拒 PG tar 交付、fresh manifest `target.images` 仅 backend/frontend 且 baseline 为 null、fresh README 守卫断言；既有 incremental 拒 PG tar 断言随 forbidden 顺序更新）；`--mode fresh-empty --plan-only` 端到端解析正常；仓库四项门禁全绿。保数据更新包行为零变化（本轮零业务代码改动，不触发黄金基线）。
+
 ## 2026-09-07 事实构建分批发布与租约治理（D-10）
 
 - [完成] 内网 30001 暴露的「全量事实构建无进度 + 假超时反复重试 + 互锁回滚」已根治（用户批准实施，方案 = 解决文档 P2 的 F1/F2/F3/F5，F4 advisory-lock 论证否决）：全量构建改为分批事务提交（每批原子完成事实+客户成员/提交关系+搜索列刷新，默认 2000 行/批可配 `GITLAB_FACT_FULL_BUILD_CHUNK_SIZE`）→ 末端反连接清理快照外事实 → 短结算事务（FULL_EPOCH 推进+任务终态+发布结算）；批间续期任务租约（owner 围栏，失效即中止）并写 `FACT_BUILD_PROGRESS` 事件；重试/超时/完成事件写入 `sync_run_events`；run 心跳调度器由全运行共享单线程改为按最大并发数定容。`replaceAllFacts` 双轨删除，中断语义 = 已提交批次保留 + 重试幂等重做收敛。决策与等价性论证见 `docs/decisions.md` D-10；工作单元细节见 `docs/plans/fact-build-chunked-publish-20260907.md`。

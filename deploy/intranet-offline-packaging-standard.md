@@ -33,7 +33,7 @@ GitLab Web、GitLab PostgreSQL、LDAP、老平台 MySQL/MongoDB 均是其他服�
 
 ### 例外：全新/灾备部署包
 
-仅在新服务器首次部署、明确清空环境或灾难恢复时制作 `fresh-empty` 包。它包含平台 PostgreSQL 镜像和完整基础 Compose，但不包含任何数据库文件、dump、volume、ODS、事实或用户数据。
+仅在新服务器首次部署、明确清空环境或灾难恢复时制作 `fresh-empty` 包。它包含最新前后端镜像和完整基础 Compose，不包含平台 PostgreSQL 镜像（见“镜像与发布身份”），也不包含任何数据库文件、dump、volume、ODS、事实或用户数据。
 
 Docker/Compose 的 Ubuntu deb 不是应用运行产物。目标服务器尚未安装 Docker 且确需同包交付时，才显式使用 `--include-offline-docker-debs`；已有容器的更新包永远不携带这些 deb。
 
@@ -72,7 +72,7 @@ qaflex-update-<release-id>/
 
 - `backend/`、`frontend/`、Dockerfile、`.dockerignore`：它们只是镜像构建上下文，应用内容已存在于镜像 tar；重复交付没有运行用途。
 - `.env` 或 `.env.example`：现场 `.env` 是该实例配置的唯一事实源，更新包不得用开发机模板覆盖数据库连接、端口或凭据。
-- `postgres` 镜像、`offline-debs/`：应用更新不创建平台库，也不安装容器运行时。
+- `offline-debs/`：应用更新不安装容器运行时。
 - 数据 dump、volume、数据库物理文件或运行日志：备份只能在现场升级前生成并留在现场。
 - `VERSION.txt`：已由结构化 `RELEASE-MANIFEST.json` 取代，禁止双份版本事实源。
 
@@ -81,7 +81,6 @@ qaflex-update-<release-id>/
 ```text
 qaflex-full-<release-id>/
 ├── docker-images/
-│   ├── postgres_16-alpine.tar
 │   ├── qa-flex-platform-backend_<image-tag>.tar
 │   └── qa-flex-platform-frontend_<image-tag>.tar
 ├── docker-compose.yml
@@ -113,6 +112,8 @@ qa-flex-platform-frontend:<release-id>
 包名只允许包含产品简称、包类型和发布 ID：全新包为 `qaflex-full-<release-id>.tar.gz`，更新包为 `qaflex-update-<release-id>.tar.gz`。Ubuntu 版本、离线属性、端口、commit、工作树状态、功能说明、Flyway 和事实重建范围均写入 `RELEASE-MANIFEST.json`，不得重复拼接到文件名。前后端镜像复用同一 `release-id`，使一次发布的目录、归档、清单和镜像形成单一身份。
 
 打包器在最终归档之外创建临时 Docker build context，构建完成后立即销毁。打包阶段必须核对镜像内 `/app/app.jar` 与本地生产 JAR 的 SHA-256，并核对前端镜像内 `index.html` 与生产 `dist`；审计摘要写入发布清单，不复制裸产物。
+
+平台 PostgreSQL 镜像不进入任何发布包：`postgres:16-alpine` 是稳定基础镜像，自初始部署加载后从未变更，目标机所有实例共用同一本地镜像。打包器不导出、不校验、也不要求打包机本地存在该镜像，任何模式的包内出现 `docker-images/postgres_16-alpine.tar` 一律拒绝交付；`RELEASE-MANIFEST.json` 的 `target.images` 只含前后端镜像。包内部署 README 要求部署前以 `docker image inspect postgres:16-alpine` 确认目标机已有该镜像；真正的新服务器缺失时，从部署资料归档中既有历史全新包的 `docker-images/postgres_16-alpine.tar` 加载后再继续部署。
 
 ## 基线与连续更新
 
@@ -385,7 +386,7 @@ bash ../<update-package>/rollback.sh "$PWD" "$PWD/upgrade-backups/<backup-dir>"
 - `RELEASE-MANIFEST.json` 的基线、目标镜像、Flyway 和事实重建标记与本次发布一致。
 - `SHA256SUMS.txt` 覆盖包内全部其他文件，包外 `.sha256` 与最终 tar.gz 一致。
 - 更新包包含独立 `backup.sh`；无有效预部署备份时 `upgrade.sh` 必须拒绝执行。
-- 更新包归档不存在 `backend/`、`frontend/`、真实 `.env`、PostgreSQL 镜像、离线 deb、数据库数据或运行日志。
+- 更新包归档不存在 `backend/`、`frontend/`、真实 `.env`、离线 deb、数据库数据或运行日志；任何包归档都不存在 PostgreSQL 镜像。
 - 使用隔离的 20260714/当前更新链副本完成升级、再次升级和应用回滚验证；验证期间 PostgreSQL 容器 ID 与受保护数据保持不变。
 
 ## GitLab 源库访问边界

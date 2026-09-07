@@ -554,7 +554,7 @@ def compose_content(ctx: BuildContext, *, external_postgres_volume: bool = False
 {project_name}\
 services:
   postgres:
-    image: postgres:16-alpine
+    image: {POSTGRES_IMAGE}
 {postgres_container_name}\
     restart: unless-stopped
     environment:
@@ -715,8 +715,17 @@ cd {ctx.package_name}
 
 ## 3. 加载镜像
 
+PostgreSQL 使用目标机既有的 `{POSTGRES_IMAGE}` 镜像，本包不携带它。先确认镜像存在：
+
 ```bash
-sudo docker load -i docker-images/postgres_16-alpine.tar
+sudo docker image inspect {POSTGRES_IMAGE}
+```
+
+若目标机缺失该镜像（真正的新服务器），先从既有历史全新包（部署资料归档）的 `docker-images/postgres_16-alpine.tar` 执行 `docker load` 加载，再继续本节。
+
+加载本包应用镜像：
+
+```bash
 sudo docker load -i docker-images/{BACKEND_IMAGE}_{ctx.backend_tag}.tar
 sudo docker load -i docker-images/{FRONTEND_IMAGE}_{ctx.frontend_tag}.tar
 ```
@@ -1393,13 +1402,6 @@ def write_release_manifest(ctx: BuildContext, backend_fallback_used: bool, backe
             "backendBuildNote": backend_build_note,
         },
     }
-    if ctx.mode == "fresh-empty":
-        postgres_archive = image_dir / "postgres_16-alpine.tar"
-        manifest["target"]["images"]["postgres"] = {
-            "reference": POSTGRES_IMAGE,
-            "archive": postgres_archive.name,
-            "sha256": file_sha256(postgres_archive),
-        }
     write_text(
         ctx.package_dir / "RELEASE-MANIFEST.json",
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
@@ -1423,9 +1425,6 @@ def build_and_save_images(ctx: BuildContext, args: argparse.Namespace) -> None:
 
     image_dir = ctx.package_dir / "docker-images"
     save_jobs: list[tuple[str, tuple[str, ...]]] = []
-    if ctx.mode == "fresh-empty":
-        run(("docker", "image", "inspect", POSTGRES_IMAGE), cwd=ctx.package_dir)
-        save_jobs.append(("postgres image", ("docker", "save", POSTGRES_IMAGE, "-o", str(image_dir / "postgres_16-alpine.tar"))))
     save_jobs.append(("backend image", ("docker", "save", backend_ref, "-o", str(image_dir / f"{BACKEND_IMAGE}_{ctx.backend_tag}.tar"))))
     save_jobs.append(("frontend image", ("docker", "save", frontend_ref, "-o", str(image_dir / f"{FRONTEND_IMAGE}_{ctx.frontend_tag}.tar"))))
 
@@ -1499,7 +1498,6 @@ def required_files(ctx: BuildContext) -> list[Path]:
             [
                 ctx.package_dir / ".env.example",
                 ctx.package_dir / "docker-compose.yml",
-                ctx.package_dir / "docker-images" / "postgres_16-alpine.tar",
                 ctx.package_dir / "README-INTRANET-DEPLOY.md",
             ]
         )
@@ -1519,12 +1517,13 @@ def required_files(ctx: BuildContext) -> list[Path]:
 
 
 def validate_forbidden_delivery_items(ctx: BuildContext) -> None:
-    """Reject build contexts, duplicate metadata, secrets and mode-specific payloads."""
+    """Reject build contexts, duplicate metadata, secrets, the database image and mode-specific payloads."""
     forbidden = [
         ctx.package_dir / "backend",
         ctx.package_dir / "frontend",
         ctx.package_dir / ".dockerignore",
         ctx.package_dir / "VERSION.txt",
+        ctx.package_dir / "docker-images" / "postgres_16-alpine.tar",
     ]
     if ctx.mode == "incremental-update":
         forbidden.extend(
@@ -1532,7 +1531,6 @@ def validate_forbidden_delivery_items(ctx: BuildContext) -> None:
                 ctx.package_dir / ".env",
                 ctx.package_dir / ".env.example",
                 ctx.package_dir / "offline-debs",
-                ctx.package_dir / "docker-images" / "postgres_16-alpine.tar",
             ]
         )
     offenders = [path.relative_to(ctx.package_dir).as_posix() for path in forbidden if path.exists()]
