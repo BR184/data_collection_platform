@@ -6,6 +6,11 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-07 全新包 .env 直出
+
+- [完成] 修复 4cac4c19（2026-07-27，混合提交顺带引入）造成的部署摩擦：fresh-empty 包恢复直接生成 `.env`（内容与原 `.env.example` 相同，仅发布级默认内网地址/端口与 qaflex 占位密码，无真实密钥），`.env.example` 概念全链路退役——用户部署不再需要手动 cp/改名。README 第 4 节删 `cp`/`vi` 步骤；required_files、包内 compose 解析校验、增量包禁带清单同步（增量包仍禁带 `.env`，现场 env 唯一事实源约束不变）；规范 `deploy/intranet-offline-packaging-standard.md` 同步 4 处。计划 `docs/plans/fresh-package-env-direct-20260907.md`。
+- [验证] 打包器契约测试 34/34（fresh required 集合断言 `.env`、README 断言锁定 `cp .env.example` 步骤不再出现）；仓库四项门禁全绿。零业务代码，不触发黄金基线。
+
 ## 2026-09-07 同事 WIP 测试处置（ReviewDataRecordReadSupportTest）
 
 - [决策] 用户实测评审数据页筛选（标题搜 bom 命中 BOM、负责人搜 xiao 命中 Chen xiaojun）证实现实现的大小写不敏感搜索正确；同事 2026-08-25 的 untracked WIP 测试期望与之相反（`%Alice%` 大小写敏感、`%41%` 剥离 #），其 RowMapper 用例针对已重构进 `ReviewDataMetricSqlExpressions` 的旧逻辑（现由黄金基线全链路锁定，覆盖更强）。经用户确认删除该文件（untracked，无 Git 痕迹，零代码改动，D-10 全量套件后常规套件可全绿）。

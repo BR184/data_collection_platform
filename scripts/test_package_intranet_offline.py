@@ -569,7 +569,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 "docker-images/qa-flex-platform-backend_test.tar",
                 "docker-images/qa-flex-platform-frontend_test.tar",
                 "RELEASE-MANIFEST.json",
-                ".env.example",
+                ".env",
                 "docker-compose.yml",
                 "README-INTRANET-DEPLOY.md",
             },
@@ -614,6 +614,8 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertNotIn("docker load -i docker-images/postgres_16-alpine.tar", content)
         self.assertIn("docker image inspect postgres:16-alpine", content)
         self.assertIn("不携带", content)
+        self.assertNotIn("cp .env.example", content)
+        self.assertIn(".env` 已写入当前内网地址", content)
 
     def test_fresh_layout_only_requires_offline_debs_when_explicitly_enabled(self):
         context = IntranetLdapPackagingTest().build_context()
@@ -627,7 +629,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
 
         self.assertNotIn("offline-debs/ubuntu-24.04-amd64", normal)
         self.assertIn("offline-debs/ubuntu-24.04-amd64", with_debs)
-        self.assertNotIn(".env", normal)
+        self.assertIn(".env", normal)
 
     def test_release_manifest_replaces_raw_build_artifacts_with_auditable_hashes(self):
         with tempfile.TemporaryDirectory() as root:

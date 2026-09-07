@@ -71,7 +71,7 @@ qaflex-update-<release-id>/
 更新包明确不包含：
 
 - `backend/`、`frontend/`、Dockerfile、`.dockerignore`：它们只是镜像构建上下文，应用内容已存在于镜像 tar；重复交付没有运行用途。
-- `.env` 或 `.env.example`：现场 `.env` 是该实例配置的唯一事实源，更新包不得用开发机模板覆盖数据库连接、端口或凭据。
+- `.env`：现场 `.env` 是该实例配置的唯一事实源，更新包不得用开发机模板覆盖数据库连接、端口或凭据。
 - `offline-debs/`：应用更新不安装容器运行时。
 - 数据 dump、volume、数据库物理文件或运行日志：备份只能在现场升级前生成并留在现场。
 - `VERSION.txt`：已由结构化 `RELEASE-MANIFEST.json` 取代，禁止双份版本事实源。
@@ -84,15 +84,15 @@ qaflex-full-<release-id>/
 │   ├── qa-flex-platform-backend_<image-tag>.tar
 │   └── qa-flex-platform-frontend_<image-tag>.tar
 ├── docker-compose.yml
-├── .env.example
+├── .env
 ├── RELEASE-MANIFEST.json
 ├── SHA256SUMS.txt
 └── README-INTRANET-DEPLOY.md
 ```
 
-只有显式选择时才增加 `offline-debs/ubuntu-24.04-amd64/`。全新包同样不携带 `backend/`、`frontend/` 或真实 `.env`；部署人员必须从 `.env.example` 建立现场 `.env` 并设置实际配置。
+只有显式选择时才增加 `offline-debs/ubuntu-24.04-amd64/`。全新包不携带 `backend/`、`frontend/`；包内 `.env` 即运行配置，已写入发布级默认内网地址与端口，部署人员按需调整后直接部署。
 
-`.env.example` 必须给出发布级唯一的默认 `COMPOSE_PROJECT_NAME`，并分别声明前端、后端和 PostgreSQL 主机端口。Compose 中所有持久卷由该 project 作用域管理；不得为了部署新实例删除、改名或复用同机其它 project 的容器、网络或卷。自动删除反熵在约 280 万总量现场容量验收前必须显式保持 `GITLAB_DELETE_RECONCILIATION_ENABLED=false`。
+包内 `.env` 必须给出发布级唯一的默认 `COMPOSE_PROJECT_NAME`，并分别声明前端、后端和 PostgreSQL 主机端口。Compose 中所有持久卷由该 project 作用域管理；不得为了部署新实例删除、改名或复用同机其它 project 的容器、网络或卷。自动删除反熵在约 280 万总量现场容量验收前必须显式保持 `GITLAB_DELETE_RECONCILIATION_ENABLED=false`。
 
 `COMPOSE_PROJECT_NAME` 同时是该平台实例的浏览器会话身份。完整 Compose 必须将其注入后端的 `PLATFORM_INSTANCE_ID`；同一主机上的每个实例必须使用不同值，保数据更新和应用回滚必须保留原值。后端据此派生独立的 Session/CSRF Cookie 名称，使同一 Chrome 可在不同端口同时登录不同账号；LDAP 不参与该隔离。直接运行后端时如未设置 `PLATFORM_INSTANCE_ID`，才按应用名与监听端口回退。
 

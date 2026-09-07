@@ -732,12 +732,7 @@ sudo docker load -i docker-images/{FRONTEND_IMAGE}_{ctx.frontend_tag}.tar
 
 ## 4. 准备环境变量
 
-```bash
-cp .env.example .env
-vi .env
-```
-
-`.env.example` 已写入当前内网地址、端口和 LDAP v0.3 后端地址 `{ctx.ldap_base_url}`；复制后形成的现场 `.env` 才是运行配置。部署前确认平台后端容器能够访问 LDAP 地址；不要把 GitLab / MySQL / MongoDB 源库连接写进平台库变量。
+`.env` 已写入当前内网地址、端口和 LDAP v0.3 后端地址 `{ctx.ldap_base_url}`，是本实例的运行配置；如需调整端口或密码，先编辑该文件再部署。部署前确认平台后端容器能够访问 LDAP 地址；不要把 GitLab / MySQL / MongoDB 源库连接写进平台库变量。
 
 默认 Compose project 为 `{default_compose_project_name(ctx)}`，前端、后端和 PostgreSQL 主机端口分别为 `{ctx.frontend_port}`、`{ctx.backend_port}`、`{ctx.postgres_port}`。同一主机再次部署本包时，必须同时修改 `COMPOSE_PROJECT_NAME` 和三个端口；容器、默认网络、数据库卷及日志卷均按 project 隔离。
 
@@ -1316,7 +1311,7 @@ log "database was not rewritten; Flyway is forward-only. Use database.dump only 
 
 def write_operational_files(ctx: BuildContext) -> None:
     if ctx.mode == "fresh-empty":
-        write_text(ctx.package_dir / ".env.example", env_content(ctx))
+        write_text(ctx.package_dir / ".env", env_content(ctx))
         write_text(ctx.package_dir / "docker-compose.yml", compose_content(ctx))
         write_text(ctx.package_dir / "README-INTRANET-DEPLOY.md", fresh_readme(ctx))
     else:
@@ -1496,7 +1491,7 @@ def required_files(ctx: BuildContext) -> list[Path]:
     if ctx.mode == "fresh-empty":
         files.extend(
             [
-                ctx.package_dir / ".env.example",
+                ctx.package_dir / ".env",
                 ctx.package_dir / "docker-compose.yml",
                 ctx.package_dir / "README-INTRANET-DEPLOY.md",
             ]
@@ -1529,7 +1524,6 @@ def validate_forbidden_delivery_items(ctx: BuildContext) -> None:
         forbidden.extend(
             [
                 ctx.package_dir / ".env",
-                ctx.package_dir / ".env.example",
                 ctx.package_dir / "offline-debs",
             ]
         )
@@ -1543,7 +1537,7 @@ def validate_layout(ctx: BuildContext) -> None:
         require_path(path, f"required package item {path.relative_to(ctx.package_dir)}")
     validate_forbidden_delivery_items(ctx)
     if ctx.mode == "fresh-empty":
-        run(("docker", "compose", "--env-file", ".env.example", "config"), cwd=ctx.package_dir)
+        run(("docker", "compose", "--env-file", ".env", "config"), cwd=ctx.package_dir)
     else:
         compose_env = os.environ.copy()
         compose_env.update(
