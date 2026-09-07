@@ -6,6 +6,7 @@ import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
 import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.service.sync.SyncFactPublicationStateService;
+import com.data.collection.platform.service.sync.SyncRunEventRecorder;
 import java.net.InetAddress;
 import java.util.Locale;
 import java.util.UUID;
@@ -25,6 +26,7 @@ public class FactRefreshTaskWorkerService {
   private final GitlabMirrorProperties properties;
   private final FactTargetPublicationService targetPublicationService;
   private final SyncFactPublicationStateService publicationStateService;
+  private final SyncRunEventRecorder eventRecorder;
 
   public FactRefreshTaskWorkerService(
       FactBuildTaskService taskService,
@@ -33,7 +35,8 @@ public class FactRefreshTaskWorkerService {
       IntegrationTestFactBuildService integrationTestFactBuildService,
       GitlabMirrorProperties properties,
       FactTargetPublicationService targetPublicationService,
-      SyncFactPublicationStateService publicationStateService) {
+      SyncFactPublicationStateService publicationStateService,
+      SyncRunEventRecorder eventRecorder) {
     this.taskService = taskService;
     this.configService = configService;
     this.factBuildService = factBuildService;
@@ -41,6 +44,7 @@ public class FactRefreshTaskWorkerService {
     this.properties = properties;
     this.targetPublicationService = targetPublicationService;
     this.publicationStateService = publicationStateService;
+    this.eventRecorder = eventRecorder;
   }
 
   @Scheduled(fixedDelayString = "${platform.gitlab-mirror.fact-worker-delay-ms:5000}")
@@ -66,19 +70,36 @@ public class FactRefreshTaskWorkerService {
       }
       FactBuildResponse response = task.full()
           ? targetPublicationService.publishFull(
-              task, () -> rebuildFullFacts(config, factType))
+              task, progress -> rebuildFullFacts(config, factType, progress))
           : targetPublicationService.publish(
               task, rootIds -> rebuildTargetedFacts(task, factType, rootIds));
       return response;
     } catch (Exception e) {
       try {
-        taskService.failOwnedTask(task, e.getMessage());
+        FactBuildTaskService.FailureDisposition disposition =
+            taskService.failOwnedTask(task, e.getMessage());
+        if (disposition.retryWaiting()) {
+          eventRecorder.record(
+              task.factRunId(),
+              task.configId(),
+              task.sourceInstance(),
+              "FACT_BUILD_RETRY",
+              "事实构建失败，已安排自动重试：" + truncateReason(e.getMessage()));
+        }
       } catch (Exception leaseError) {
         log.warn("Fact refresh failure could not update owned task, taskId={}", task.id(), leaseError);
       }
       log.warn("Fact refresh task failed, taskId={}, factType={}", task.id(), task.factType(), e);
       return null;
     }
+  }
+
+  private String truncateReason(String message) {
+    if (message == null || message.isBlank()) {
+      return "无错误信息";
+    }
+    String normalized = message.strip().replaceAll("[\\r\\n\\t]", " ");
+    return normalized.length() <= 200 ? normalized : normalized.substring(0, 200) + "…";
   }
 
   private FactType parseFactType(String factType) {
@@ -90,12 +111,17 @@ public class FactRefreshTaskWorkerService {
     }
   }
 
-  private FactBuildResponse rebuildFullFacts(GitlabSyncConfig config, FactType factType) {
+  private FactBuildResponse rebuildFullFacts(
+      GitlabSyncConfig config, FactType factType, FactBuildProgress progress) {
     return switch (factType) {
-      case ISSUE -> factBuildService.rebuildIssueFactsForQueuedTask(config, true);
+      case ISSUE -> factBuildService.rebuildIssueFactsForQueuedTask(config, true, progress);
       case MERGE_REQUEST ->
-          factBuildService.rebuildMergeRequestFactsForQueuedTask(config, true);
-      case INTEGRATION_TEST -> integrationTestFactBuildService.rebuildFactsForConfig(config, true);
+          factBuildService.rebuildMergeRequestFactsForQueuedTask(config, true, progress);
+      case INTEGRATION_TEST -> {
+        FactBuildResponse response = integrationTestFactBuildService.rebuildFactsForConfig(config, true);
+        progress.chunkCommitted(1, 1, response.affectedRows());
+        yield response;
+      }
     };
   }
 

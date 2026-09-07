@@ -10,7 +10,6 @@ import com.data.collection.platform.entity.MergeRequestFact;
 import com.data.collection.platform.service.IssuePhaseCalendarLoader.PhaseCalendarEntry;
 import com.data.collection.platform.service.IssuePhaseCalendarLoader.PhaseCalendarKey;
 import com.data.collection.platform.service.ModuleDictionaryService.ModuleDictionary;
-import java.math.BigDecimal;
 import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.Timestamp;

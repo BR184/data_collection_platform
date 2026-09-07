@@ -6,11 +6,19 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-07 事实构建分批发布与租约治理（D-10）
+
+- [完成] 内网 30001 暴露的「全量事实构建无进度 + 假超时反复重试 + 互锁回滚」已根治（用户批准实施，方案 = 解决文档 P2 的 F1/F2/F3/F5，F4 advisory-lock 论证否决）：全量构建改为分批事务提交（每批原子完成事实+客户成员/提交关系+搜索列刷新，默认 2000 行/批可配 `GITLAB_FACT_FULL_BUILD_CHUNK_SIZE`）→ 末端反连接清理快照外事实 → 短结算事务（FULL_EPOCH 推进+任务终态+发布结算）；批间续期任务租约（owner 围栏，失效即中止）并写 `FACT_BUILD_PROGRESS` 事件；重试/超时/完成事件写入 `sync_run_events`；run 心跳调度器由全运行共享单线程改为按最大并发数定容。`replaceAllFacts` 双轨删除，中断语义 = 已提交批次保留 + 重试幂等重做收敛。决策与等价性论证见 `docs/decisions.md` D-10；工作单元细节见 `docs/plans/fact-build-chunked-publish-20260907.md`。
+- [验证] 后端全量默认套件 1247 项：唯一失败 = 同事 untracked WIP `ReviewDataRecordReadSupportTest`（非本单元，预期），本单元新增/受影响测试全绿（含 `FactTargetPublicationServiceIntegrationTest` 4 项：targeted 回滚、publishFull 结算、租约被盗中止不结算；`FactBuildTaskServiceTest` 续租 owner 围栏真实库用例）。runGuarded 事务包装移除后暴露的增量分支原子性缺口已在构建层补显式单事务（ISSUE 增量：事实+搜索列+目录对账同提交；MR 增量：替换+提交关系+搜索列同提交），语义与改动前严格等价。golden 更新模式曾拦截本单元快照外清理缺陷（身份分片互删，1200/1500 行快照被整体清空且任务 SUCCESS 无 WARN，默认套件不可见）——修复为会话临时表+`NOT EXISTS`（`IS NOT DISTINCT FROM`）全集反连接（内网 4.6 万行规模安全），并新增 `IssueFactSnapshotCleanupIntegrationTest`/`MergeRequestFactSnapshotCleanupIntegrationTest` 各 1200 行跨分片规模真实库回归。
+- [验证] Checkstyle 0 违规、SpotBugs 0 问题、仓库四项门禁全绿。顺带清理 HEAD 既存的 3 个无用 import（`DropdownOptionFieldService`/`FactBuildServiceOrchestrationTest`/`FactSourceRowMapperTest`，早前提交门禁遗漏）。
+- [基线状态] 黄金基线 180/180 全绿（更新模式重建 + git diff 人工审阅 + 比对模式复跑）。60 个快照文件差异经语义树终审全部归类闭合：掩码内易变字段（时间戳/UUID/Testcontainers 端口/retentionHours 墙钟派生/queryDurationMs）+ `Map.of` 构建的 detailParams 图表配置属性序文本噪声（JDK 不可变集合每次 JVM 迭代序随机，实测 10 次 4 种排列；JSONUnit 语义比对对对象属性序不敏感，不影响比对）+ 唯一实质差异 `/api/gitlab-sync/status` 的 fact 完成日志文案（本单元有意变更）。golden 门禁另立一功：其全链路断言拦截了本单元分片互删清理缺陷（默认套件不可见），修复后回归测试见上条。
+
 ## 2026-09-04 全新部署包 30001（缺陷测试用）
 
 - [完成] fresh-empty 全新空数据包已生成：归档 `D:\projects\data_collection_platform_deploy\qaflex-full-20260904T104638Z-8cf0508d8832.tar.gz`（306,760,347 bytes，SHA-256 `f7f436d05381bc0bfb1d6846d5e0cb1995b89b213bd2cb48ed6df40af3c3cce0`）。包内内网参数沿用 20260806 全新包先例：平台 `172.22.10.115:30001`、后端 `30002`（127.0.0.1）、PostgreSQL `15434`（127.0.0.1）、LDAP `http://172.22.10.116:80`，`GITLAB_DELETE_RECONCILIATION_ENABLED=false` 显式保持，`COMPOSE_PROJECT_NAME=qaflex-20260904t104638z-8cf0508d8832` 强制注入 `PLATFORM_INSTANCE_ID`。代码基线 = 本地 main `f66aff80`（该树黄金基线 180/180 零差异，用户明确本次不再跑回归）；manifest 如实标注工作区非干净（仅同事 untracked WIP 测试文件，未阻塞构建，backendTestSourceFallbackUsed=false）。
 - [验证] 打包器默认门禁全过：前端发布测试 17/17、typecheck、生产构建、后端 clean package、双业务镜像无缓存构建、镜像内 app.jar/index.html 摘要与本地生产产物核对一致、Compose 解析、SHA256SUMS 7 文件校验。独立审计：Flyway `20260903.01` 与最新迁移 `V20260903_01` 一致、目标镜像同 release-id、包外 `.sha256` 与实测归档哈希一致、归档清单严格符合全新包结构契约（无 `backend/`、`frontend/`、真实 `.env`、数据库 dump、运行日志）、打包器契约测试 30/30、四项仓库门禁全绿。
 - [验证] 本地隔离部署演练已完成（2026-09-04 晚，忠实按包内 README 流程：解压到 `localtest-30001-20260904/` → docker load 三镜像 → .env → compose up）：postgres/backend/frontend 三容器全部 healthy，后端 `/actuator/health` UP，前端 HTTP 200，空库 Flyway 130 项迁移至 `v20260903.01`，经前端 30001 的 `/api/` 代理返回后端正常未登录 401（Nginx→后端接线正确）。唯一本地偏差：PG 主机端口 15434→15437（15434 被本机既有 GitLab 代理容器占用）；登录依赖内网 LDAP 本地不可达属预期。内网 30001 部署与缺陷测试由用户执行，现场命令以包内 `README-INTRANET-DEPLOY.md` 为准。
+- [验证] 内网 30001 测试结果（2026-09-07 用户同步）：三类现场问题全部解决——登录 403 A0303（浏览器缓存旧 20260806 前端 vs 新后端 CSRF 交付机制不匹配，代码+本地镜像双向实证）强制刷新恢复；CCProduct 里程碑分组缺失（V20260727_02 空库播种 0 组）由内网 AI 按迁移逻辑手工重建生效；FACT_REFRESH 互锁（单一大事务+180s 任务租约无续租+假超时重试级联）等待自然收敛完成事实层重建。遗留工程缺陷未修：完整根因链与分层修复方案（P1 配置缓解/P2 五项工程修复/nginx no-cache 加固）见 `docs/plans/intranet-test-issues-resolution-20260904.md`，待批决策 = D-2（20001 里程碑分组时机）、D-5（nginx 加固）、D-6（P2 排期）。20001 保数据升级时将复现事实构建互锁（等待可收敛勿中途终止），且升级后首次成功的 ISSUE 事实构建会自动 bootstrap 里程碑分组。
 
 ## 2026-09-04 黄金基线套件更新（12 维度基线）
 

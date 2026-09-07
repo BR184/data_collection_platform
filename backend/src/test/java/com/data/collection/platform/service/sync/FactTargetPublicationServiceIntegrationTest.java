@@ -2,10 +2,16 @@ package com.data.collection.platform.service.sync;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
+import com.data.collection.platform.service.FactBuildTaskService;
+import com.data.collection.platform.service.FactPublicationTransaction;
 import com.data.collection.platform.service.FactProjectionGenerationService;
 import com.data.collection.platform.service.FactProjectionScopeResolver;
 import com.data.collection.platform.service.FactTargetPublicationService;
@@ -24,6 +30,8 @@ class FactTargetPublicationServiceIntegrationTest {
 
   private JdbcTemplate jdbcTemplate;
   private TransactionTemplate transactionTemplate;
+  private FactBuildTaskService taskService;
+  private SyncRunEventRecorder eventRecorder;
   private FactTargetPublicationService service;
 
   @BeforeAll
@@ -46,13 +54,19 @@ class FactTargetPublicationServiceIntegrationTest {
     createSchema();
     transactionTemplate =
         new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+    taskService = mock(FactBuildTaskService.class);
+    eventRecorder = mock(SyncRunEventRecorder.class);
     service =
         new FactTargetPublicationService(
             jdbcTemplate,
             new FactProjectionScopeResolver(jdbcTemplate),
             new FactProjectionGenerationService(jdbcTemplate),
             mock(SyncRunPublicationFenceService.class),
-            mock(SyncFactPublicationStateService.class));
+            mock(SyncFactPublicationStateService.class),
+            new FactPublicationTransaction(),
+            taskService,
+            eventRecorder,
+            new GitlabMirrorProperties());
   }
 
   @Test
@@ -145,6 +159,101 @@ class FactTargetPublicationServiceIntegrationTest {
         .isZero();
   }
 
+  @Test
+  void test_full_publication_commits_build_then_settles_epoch_and_task() {
+    insertFullPublicationState("worker-a");
+    when(taskService.renewTaskLease(any(), anyInt())).thenReturn(true);
+
+    FactBuildResponse response =
+        service.publishFull(
+            fullTask("worker-a"),
+            progress -> {
+              jdbcTemplate.update(
+                  "update issue_fact set project_id = 99 where issue_id = 501");
+              progress.chunkCommitted(1, 1, 1);
+              return new FactBuildResponse("issue", true, 1, "built");
+            });
+
+    assertThat(response.affectedRows()).isOne();
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select project_id from issue_fact where issue_id = 501", Long.class))
+        .isEqualTo(99L);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select status from fact_build_tasks where id = 100", String.class))
+        .isEqualTo("SUCCESS");
+    assertThat(
+            jdbcTemplate.queryForList(
+                "select scope_type || ':' || scope_key from fact_projection_refresh_tasks",
+                String.class))
+        .containsExactly("FULL_EPOCH:*");
+    org.mockito.Mockito.verify(eventRecorder)
+        .record(
+            org.mockito.ArgumentMatchers.eq(200L),
+            org.mockito.ArgumentMatchers.eq(300L),
+            org.mockito.ArgumentMatchers.eq("alpha"),
+            org.mockito.ArgumentMatchers.eq("FACT_BUILD_COMPLETED"),
+            org.mockito.ArgumentMatchers.anyString());
+  }
+
+  @Test
+  void test_full_publication_aborts_without_settlement_when_lease_stolen_mid_build() {
+    insertFullPublicationState("new-owner");
+    when(taskService.renewTaskLease(any(), anyInt())).thenReturn(false);
+
+    assertThatThrownBy(
+            () ->
+                service.publishFull(
+                    fullTask("expired-owner"),
+                    progress -> {
+                      jdbcTemplate.update(
+                          "update issue_fact set project_id = 99 where issue_id = 501");
+                      progress.chunkCommitted(1, 1, 1);
+                      return new FactBuildResponse("issue", true, 1, "built");
+                    }))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("事实任务租约已失效：100");
+
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select project_id from issue_fact where issue_id = 501", Long.class))
+        .isEqualTo(99L);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select status from fact_build_tasks where id = 100", String.class))
+        .isEqualTo("RUNNING");
+    assertThat(
+            jdbcTemplate.queryForList(
+                "select publication_status from sync_run_fact_targets order by mirror_run_id",
+                String.class))
+        .containsExactly("QUEUED", "PENDING");
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select count(*) from fact_projection_refresh_tasks", Integer.class))
+        .isZero();
+  }
+
+  private void insertFullPublicationState(String databaseOwner) {
+    insertPublicationState(databaseOwner);
+    jdbcTemplate.update("update fact_build_tasks set full_build = true where id = 100");
+  }
+
+  private QueuedFactBuildTask fullTask(String owner) {
+    return new QueuedFactBuildTask(
+        100L,
+        200L,
+        300L,
+        "alpha",
+        "ISSUE",
+        "issue",
+        true,
+        0,
+        3,
+        owner,
+        LocalDateTime.now().plusMinutes(1));
+  }
+
   private void insertPublicationState(String databaseOwner) {
     jdbcTemplate.update(
         """
@@ -194,6 +303,7 @@ class FactTargetPublicationServiceIntegrationTest {
   }
 
   private void dropSchema() {
+    jdbcTemplate.execute("drop table if exists sync_run_events cascade");
     jdbcTemplate.execute("drop table if exists fact_projection_refresh_tasks cascade");
     jdbcTemplate.execute("drop table if exists fact_projection_generations cascade");
     jdbcTemplate.execute("drop table if exists sync_run_fact_targets cascade");
@@ -212,6 +322,7 @@ class FactTargetPublicationServiceIntegrationTest {
           id bigint primary key,
           status varchar(32) not null,
           lock_owner varchar(128),
+          full_build boolean not null default false,
           affected_rows integer not null,
           message text,
           error_message text,
@@ -297,6 +408,18 @@ class FactTargetPublicationServiceIntegrationTest {
           project_id bigint,
           testing_phase varchar(255),
           milestone_title varchar(255)
+        )
+        """);
+    jdbcTemplate.execute(
+        """
+        create table sync_run_events (
+          id bigserial primary key,
+          run_id bigint,
+          config_id bigint,
+          source_instance varchar(128),
+          event_type varchar(64) not null,
+          message text,
+          created_at timestamp not null default current_timestamp
         )
         """);
     jdbcTemplate.execute(

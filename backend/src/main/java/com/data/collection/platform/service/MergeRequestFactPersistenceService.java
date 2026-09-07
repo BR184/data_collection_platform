@@ -91,32 +91,12 @@ public class MergeRequestFactPersistenceService {
   }
 
   /**
-   * 用完整来源快照替换指定实例的全部合并请求事实。
+   * 批量 upsert 合并请求提交关系事实。
    *
-   * @param sourceSystem 事实来源系统
-   * @param sourceInstance 事实来源实例
-   * @param facts 完整来源快照；空集合表示清空该实例 MR 事实
-   * @param commitFacts 完整来源最新 Diff 的提交关系事实
+   * @param facts 同一批次的提交关系事实
    */
   @Transactional
-  public void replaceAllFacts(
-      String sourceSystem,
-      String sourceInstance,
-      List<MergeRequestFact> facts,
-      List<MergeRequestCommitFact> commitFacts) {
-    jdbcTemplate.update(
-        "delete from merge_request_fact where source_system = ? and source_instance = ?",
-        sourceSystem,
-        sourceInstance);
-    jdbcTemplate.update(
-        "delete from merge_request_commit_fact where source_system = ? and source_instance = ?",
-        sourceSystem,
-        sourceInstance);
-    upsertFacts(facts);
-    upsertCommitFacts(commitFacts);
-  }
-
-  private void upsertCommitFacts(List<MergeRequestCommitFact> facts) {
+  public void upsertCommitFacts(List<MergeRequestCommitFact> facts) {
     if (facts == null || facts.isEmpty()) {
       return;
     }
@@ -137,6 +117,87 @@ public class MergeRequestFactPersistenceService {
           statement.setString(6, fact.commitSha());
           statement.setTimestamp(7, java.sql.Timestamp.valueOf(fact.committedAtSource()));
         });
+  }
+
+  /**
+   * 删除完整来源快照之外的同源合并请求事实、提交关系事实。
+   *
+   * <p>与分批 upsert 配合替代旧的「删全部再重插」全量替换：快照内的行经 upsert 保留行身份，
+   * 快照外的行（上游已删除的 MR 或已从 Diff 消失的提交）在此清除，最终状态与全量替换一致。
+   *
+   * @param sourceSystem 事实来源系统
+   * @param sourceInstance 事实来源实例
+   * @param snapshotFacts 完整来源 MR 事实快照；空集合表示清空该实例全部 MR 事实
+   * @param snapshotCommits 完整来源提交关系快照
+   */
+  @Transactional
+  public void deleteFactsNotInSnapshot(
+      String sourceSystem,
+      String sourceInstance,
+      List<MergeRequestFact> snapshotFacts,
+      List<MergeRequestCommitFact> snapshotCommits) {
+    if (snapshotFacts == null || snapshotFacts.isEmpty()) {
+      jdbcTemplate.update(
+          "delete from merge_request_commit_fact where source_system = ? and source_instance = ?",
+          sourceSystem,
+          sourceInstance);
+      jdbcTemplate.update(
+          "delete from merge_request_fact where source_system = ? and source_instance = ?",
+          sourceSystem,
+          sourceInstance);
+      return;
+    }
+    jdbcTemplate.execute(
+        "create temp table merge_request_snapshot_ids (project_id bigint, merge_request_id bigint) on commit drop");
+    jdbcTemplate.execute(
+        "create temp table merge_request_snapshot_commit_ids (project_id bigint, merge_request_id bigint, commit_sha varchar) on commit drop");
+    List<Object[]> mrIdentities = new ArrayList<>(snapshotFacts.size());
+    for (MergeRequestFact fact : snapshotFacts) {
+      mrIdentities.add(new Object[] {fact.getProjectId(), fact.getMergeRequestId()});
+    }
+    jdbcTemplate.batchUpdate(
+        "insert into merge_request_snapshot_ids(project_id, merge_request_id) values (?, ?)",
+        mrIdentities);
+    List<Object[]> commitIdentities =
+        new ArrayList<>(snapshotCommits == null ? 0 : snapshotCommits.size());
+    if (snapshotCommits != null) {
+      for (MergeRequestCommitFact commit : snapshotCommits) {
+        commitIdentities.add(
+            new Object[] {commit.projectId(), commit.mergeRequestId(), commit.commitSha()});
+      }
+      jdbcTemplate.batchUpdate(
+          "insert into merge_request_snapshot_commit_ids(project_id, merge_request_id, commit_sha) values (?, ?, ?)",
+          commitIdentities);
+    }
+    jdbcTemplate.update(
+        """
+        delete from merge_request_commit_fact commit_fact
+         where commit_fact.source_system = ?
+           and commit_fact.source_instance = ?
+           and not exists (
+             select 1
+               from merge_request_snapshot_commit_ids snapshot
+              where snapshot.project_id is not distinct from commit_fact.project_id
+                and snapshot.merge_request_id is not distinct from commit_fact.merge_request_id
+                and snapshot.commit_sha is not distinct from commit_fact.commit_sha
+           )
+        """,
+        sourceSystem,
+        sourceInstance);
+    jdbcTemplate.update(
+        """
+        delete from merge_request_fact fact
+         where fact.source_system = ?
+           and fact.source_instance = ?
+           and not exists (
+             select 1
+               from merge_request_snapshot_ids snapshot
+              where snapshot.project_id is not distinct from fact.project_id
+                and snapshot.merge_request_id is not distinct from fact.merge_request_id
+           )
+        """,
+        sourceSystem,
+        sourceInstance);
   }
 
   private List<Long> sanitizeRootIds(List<Long> rootIds) {

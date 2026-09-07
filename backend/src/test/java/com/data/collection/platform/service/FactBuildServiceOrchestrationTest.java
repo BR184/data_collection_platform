@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -101,7 +100,9 @@ class FactBuildServiceOrchestrationTest {
         new FactSearchIndexRepairService(
             jdbcTemplate,
             new IssueFactSourceRowMapper(),
-            new MergeRequestFactSourceRowMapper()));
+            new MergeRequestFactSourceRowMapper()),
+        new FactPublicationTransaction(),
+        new com.data.collection.platform.config.GitlabMirrorProperties());
   }
 
   @Test
@@ -157,7 +158,7 @@ class FactBuildServiceOrchestrationTest {
     verify(sourceSchemaGuard).verifyAllFactSources("default");
     verify(sourceSchemaGuard, never()).verifyMergeRequestCommitFactSource("default");
     verify(mergeRequestFactPersistenceService)
-        .replaceAllFacts(eq("GITLAB"), eq("default"), anyList(), eq(List.of()));
+        .deleteFactsNotInSnapshot(eq("GITLAB"), eq("default"), anyList(), eq(List.of()));
   }
 
   @Test

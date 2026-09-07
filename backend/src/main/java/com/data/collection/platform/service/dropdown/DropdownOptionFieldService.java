@@ -3,7 +3,6 @@ package com.data.collection.platform.service.dropdown;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.dropdown.DropdownOptionBindingRequest;
-import com.data.collection.platform.entity.dropdown.DropdownOptionBindingTarget;
 import com.data.collection.platform.entity.dropdown.DropdownOptionConfigSaveRequest;
 import com.data.collection.platform.entity.dropdown.DropdownOptionFieldConfigResponse;
 import com.data.collection.platform.entity.dropdown.DropdownOptionFieldSummaryResponse;

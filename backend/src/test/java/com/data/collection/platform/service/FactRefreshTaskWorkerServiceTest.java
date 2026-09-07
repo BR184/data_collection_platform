@@ -19,8 +19,8 @@ import com.data.collection.platform.entity.QueuedFactBuildTask;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import com.data.collection.platform.service.sync.SyncFactPublicationStateService;
+import com.data.collection.platform.service.sync.SyncRunEventRecorder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -31,6 +31,7 @@ class FactRefreshTaskWorkerServiceTest {
   private IntegrationTestFactBuildService integrationTestFactBuildService;
   private FactTargetPublicationService targetPublicationService;
   private SyncFactPublicationStateService publicationStateService;
+  private SyncRunEventRecorder eventRecorder;
   private GitlabMirrorProperties properties;
   private FactRefreshTaskWorkerService workerService;
 
@@ -42,6 +43,7 @@ class FactRefreshTaskWorkerServiceTest {
     integrationTestFactBuildService = mock(IntegrationTestFactBuildService.class);
     targetPublicationService = mock(FactTargetPublicationService.class);
     publicationStateService = mock(SyncFactPublicationStateService.class);
+    eventRecorder = mock(SyncRunEventRecorder.class);
     when(publicationStateService.isReady(anyString(), any(FactType.class))).thenReturn(true);
     properties = new GitlabMirrorProperties();
     properties.setSchedulerEnabled(true);
@@ -54,7 +56,8 @@ class FactRefreshTaskWorkerServiceTest {
             integrationTestFactBuildService,
             properties,
             targetPublicationService,
-            publicationStateService);
+            publicationStateService,
+            eventRecorder);
   }
 
   @Test
@@ -128,13 +131,12 @@ class FactRefreshTaskWorkerServiceTest {
             });
   }
 
-  @SuppressWarnings("unchecked")
   private void invokeFullPublication(QueuedFactBuildTask task) {
     when(targetPublicationService.publishFull(eq(task), any()))
         .thenAnswer(
             invocation -> {
-              Supplier<FactBuildResponse> action = invocation.getArgument(1);
-              return action.get();
+              FactTargetPublicationService.FullFactBuildAction action = invocation.getArgument(1);
+              return action.build(FactBuildProgress.NO_OP);
             });
   }
 

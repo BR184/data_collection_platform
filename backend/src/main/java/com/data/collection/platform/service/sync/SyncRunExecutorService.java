@@ -42,7 +42,9 @@ public class SyncRunExecutorService {
         leaseService,
         workerLeaseService,
         createBoundedWorkerExecutor(properties),
-        java.util.concurrent.Executors.newSingleThreadScheduledExecutor(new SyncRunThreadFactory("sync-run-heartbeat")),
+        java.util.concurrent.Executors.newScheduledThreadPool(
+            Math.max(2, properties.getMaxSyncThreads()),
+            new SyncRunThreadFactory("sync-run-heartbeat")),
         null);
   }
 

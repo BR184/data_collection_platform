@@ -40,6 +40,7 @@ public class GitlabMirrorProperties {
   private int deleteReconciliationTimeSliceSeconds = 240;
   private int deleteReconciliationPageSize = 500;
   private int factTargetBatchSize = 200;
+  private int factFullBuildChunkSize = 2000;
   private int customerIssueDelayCheckDelayMs = 3600000;
   private boolean customerIssueDelayPreWritebackSyncEnabled = true;
   private int customerIssueDelayPreWritebackSyncTimeoutSeconds = 180;
@@ -462,5 +463,13 @@ public class GitlabMirrorProperties {
 
   public void setFactTargetBatchSize(int factTargetBatchSize) {
     this.factTargetBatchSize = factTargetBatchSize;
+  }
+
+  public int getFactFullBuildChunkSize() {
+    return factFullBuildChunkSize;
+  }
+
+  public void setFactFullBuildChunkSize(int factFullBuildChunkSize) {
+    this.factFullBuildChunkSize = factFullBuildChunkSize;
   }
 }

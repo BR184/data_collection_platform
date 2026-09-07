@@ -110,6 +110,8 @@ platform:
     incremental-lookback-minutes: 5
     max-sync-threads: ${GITLAB_MAX_SYNC_THREADS:16}
     authoritative-scope-batch-size: ${GITLAB_AUTHORITATIVE_SCOPE_BATCH_SIZE:200}
+    # 全量事实构建的分批提交大小；批间续租任务租约并上报进度事件
+    fact-full-build-chunk-size: ${GITLAB_FACT_FULL_BUILD_CHUNK_SIZE:2000}
     # 部署后完成一次历史全量补偿和固定负载验收，再显式开启低优先级删除反熵。
     delete-reconciliation-enabled: ${GITLAB_DELETE_RECONCILIATION_ENABLED:false}
     delete-reconciliation-interval-minutes: ${GITLAB_DELETE_RECONCILIATION_INTERVAL_MINUTES:60}

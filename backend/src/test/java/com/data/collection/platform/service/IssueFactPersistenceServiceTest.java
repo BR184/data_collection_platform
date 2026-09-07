@@ -76,7 +76,7 @@ class IssueFactPersistenceServiceTest {
     IssueFactPersistenceService service =
         new IssueFactPersistenceService(factMapper, membershipRepository, jdbcTemplate);
 
-    service.replaceAllFacts("GITLAB", "default", List.of());
+    service.deleteFactsNotInSnapshot("GITLAB", "default", List.of());
 
     ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
     verify(jdbcTemplate, org.mockito.Mockito.times(2))
@@ -85,5 +85,45 @@ class IssueFactPersistenceServiceTest {
     assertThat(sqlCaptor.getAllValues().get(0)).contains("issue_fact_customer_members");
     assertThat(sqlCaptor.getAllValues().get(1)).contains("issue_fact");
     org.mockito.Mockito.verifyNoInteractions(factMapper, membershipRepository);
+  }
+
+  @Test
+  void test_full_snapshot_cleanup_stages_identities_then_deletes_outside_rows() {
+    IssueFactMapper factMapper = mock(IssueFactMapper.class);
+    IssueFactCustomerMembershipRepository membershipRepository =
+        mock(IssueFactCustomerMembershipRepository.class);
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    IssueFactPersistenceService service =
+        new IssueFactPersistenceService(factMapper, membershipRepository, jdbcTemplate);
+    IssueFact keptFact = mock(IssueFact.class);
+    org.mockito.Mockito.when(keptFact.getProjectId()).thenReturn(9L);
+    org.mockito.Mockito.when(keptFact.getIssueId()).thenReturn(101L);
+
+    service.deleteFactsNotInSnapshot("GITLAB", "default", List.of(keptFact));
+
+    verify(jdbcTemplate)
+        .execute(org.mockito.ArgumentMatchers.contains("create temp table issue_fact_snapshot_ids"));
+    org.mockito.Mockito.verifyNoInteractions(factMapper, membershipRepository);
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    ArgumentCaptor<List<Object[]>> batchCaptor = ArgumentCaptor.forClass((Class) List.class);
+    verify(jdbcTemplate)
+        .batchUpdate(
+            org.mockito.ArgumentMatchers.contains("insert into issue_fact_snapshot_ids"),
+            batchCaptor.capture());
+    assertThat(batchCaptor.getValue()).hasSize(1);
+    assertThat(batchCaptor.getValue().get(0)).containsExactly(9L, 101L);
+    ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+    ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
+    verify(jdbcTemplate, org.mockito.Mockito.times(2))
+        .update(sqlCaptor.capture(), argsCaptor.capture());
+    assertThat(sqlCaptor.getAllValues().get(0))
+        .contains("delete from issue_fact_customer_members")
+        .contains("using issue_fact")
+        .contains("not exists");
+    assertThat(sqlCaptor.getAllValues().get(1))
+        .contains("delete from issue_fact")
+        .contains("not exists");
+    assertThat(argsCaptor.getAllValues())
+        .allSatisfy(args -> assertThat(args).containsExactly("GITLAB", "default"));
   }
 }

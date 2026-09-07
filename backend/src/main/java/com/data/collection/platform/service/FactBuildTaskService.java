@@ -6,6 +6,7 @@ import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
 import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.service.sync.SyncRunEventRecorder;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -40,16 +41,16 @@ public class FactBuildTaskService {
 
   private final JdbcTemplate jdbcTemplate;
   private final DataSource dataSource;
-  private final FactPublicationTransaction publicationTransaction;
+  private final SyncRunEventRecorder eventRecorder;
   private final String lockOwner = UUID.randomUUID().toString();
 
   public FactBuildTaskService(
       JdbcTemplate jdbcTemplate,
       DataSource dataSource,
-      FactPublicationTransaction publicationTransaction) {
+      SyncRunEventRecorder eventRecorder) {
     this.jdbcTemplate = jdbcTemplate;
     this.dataSource = dataSource;
-    this.publicationTransaction = publicationTransaction;
+    this.eventRecorder = eventRecorder;
   }
 
   public FactBuildResponse runGuarded(
@@ -79,7 +80,8 @@ public class FactBuildTaskService {
       }
       Long taskId = startTask(safeScope, full, syncRunId);
       try {
-        FactBuildResponse response = publicationTransaction.execute(action);
+        // 构建逻辑自管事务（全量分批提交、增量小事务）；此处只负责互斥锁与任务状态记账。
+        FactBuildResponse response = action.get();
         finishTask(taskId, STATUS_SUCCESS, response.affectedRows(), response.message(), null);
         return response;
       } catch (RuntimeException error) {
@@ -293,56 +295,127 @@ public class FactBuildTaskService {
   }
 
   public int recoverTimedOutQueuedTasks() {
-    int retried = jdbcTemplate.update(
-        """
-        update fact_build_tasks
-           set status = ?,
-               retry_count = retry_count + 1,
-               lock_owner = null,
-               heartbeat_at = null,
-               lease_until = null,
-               run_after = current_timestamp,
-               message = 'Fact refresh task lease timed out; retry queued',
-               updated_at = current_timestamp
-         where trigger_type = ?
-           and status = ?
-           and lease_until < current_timestamp
-           and retry_count < max_retry_count
-           and not exists (
-             select 1
-               from sync_runs run
-              where run.id::text = fact_build_tasks.run_id
-                and run.run_type = 'FACT_REFRESH'
-                and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'PAUSED', 'CANCELLING')
-           )
-        """,
-        STATUS_RETRY_WAITING,
-        TRIGGER_MIRROR_SYNC,
-        STATUS_RUNNING);
-    int timedOut = jdbcTemplate.update(
-        """
-        update fact_build_tasks
-           set status = ?,
-               error_message = 'Fact refresh task lease timed out',
-               finished_at = current_timestamp,
-               updated_at = current_timestamp
-         where trigger_type = ?
-           and status = ?
-           and lease_until < current_timestamp
-           and retry_count >= max_retry_count
-           and not exists (
-             select 1
-               from sync_runs run
-              where run.id::text = fact_build_tasks.run_id
-                and run.run_type = 'FACT_REFRESH'
-                and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'PAUSED', 'CANCELLING')
-           )
-        """,
-        STATUS_FAILED,
-        TRIGGER_MIRROR_SYNC,
-        STATUS_RUNNING);
-    return retried + timedOut;
+    List<RecoveredFactTask> requeued =
+        jdbcTemplate.query(
+            """
+            update fact_build_tasks
+               set status = ?,
+                   retry_count = retry_count + 1,
+                   lock_owner = null,
+                   heartbeat_at = null,
+                   lease_until = null,
+                   run_after = current_timestamp,
+                   message = 'Fact refresh task lease timed out; retry queued',
+                   updated_at = current_timestamp
+             where trigger_type = ?
+               and status = ?
+               and lease_until < current_timestamp
+               and retry_count < max_retry_count
+               and not exists (
+                 select 1
+                   from sync_runs run
+                  where run.id::text = fact_build_tasks.run_id
+                    and run.run_type = 'FACT_REFRESH'
+                    and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'PAUSED', 'CANCELLING')
+               )
+             returning id, run_id, config_id, source_instance, retry_count
+            """,
+            (rs, rowNum) -> mapRecoveredFactTask(rs),
+            STATUS_RETRY_WAITING,
+            TRIGGER_MIRROR_SYNC,
+            STATUS_RUNNING);
+    for (RecoveredFactTask task : requeued) {
+      eventRecorder.record(
+          task.runId(),
+          task.configId(),
+          task.sourceInstance(),
+          "FACT_BUILD_TIMEOUT_RETRY",
+          "事实构建任务租约超时，自动重试（第 " + task.attempt() + " 次）");
+    }
+    List<RecoveredFactTask> exhausted =
+        jdbcTemplate.query(
+            """
+            update fact_build_tasks
+               set status = ?,
+                   error_message = 'Fact refresh task lease timed out',
+                   finished_at = current_timestamp,
+                   updated_at = current_timestamp
+             where trigger_type = ?
+               and status = ?
+               and lease_until < current_timestamp
+               and retry_count >= max_retry_count
+               and not exists (
+                 select 1
+                   from sync_runs run
+                  where run.id::text = fact_build_tasks.run_id
+                    and run.run_type = 'FACT_REFRESH'
+                    and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'PAUSED', 'CANCELLING')
+               )
+             returning id, run_id, config_id, source_instance, retry_count
+            """,
+            (rs, rowNum) -> mapRecoveredFactTask(rs),
+            STATUS_FAILED,
+            TRIGGER_MIRROR_SYNC,
+            STATUS_RUNNING);
+    for (RecoveredFactTask task : exhausted) {
+      eventRecorder.record(
+          task.runId(),
+          task.configId(),
+          task.sourceInstance(),
+          "FACT_BUILD_TIMEOUT_FAILED",
+          "事实构建任务租约超时且自动重试已达上限，标记失败");
+    }
+    return requeued.size() + exhausted.size();
   }
+
+  /**
+   * 续期当前 owner 持有的运行中事实任务租约。
+   *
+   * @return false 表示租约已易主（任务被回收重派），调用方应立即中止构建
+   */
+  public boolean renewTaskLease(QueuedFactBuildTask task, int leaseSeconds) {
+    if (task == null || task.id() == null || task.leaseOwner() == null) {
+      return false;
+    }
+    int updated =
+        jdbcTemplate.update(
+            """
+            update fact_build_tasks
+               set heartbeat_at = current_timestamp,
+                   lease_until = current_timestamp + (? * interval '1 second'),
+                   updated_at = current_timestamp
+             where id = ?
+               and status = 'RUNNING'
+               and lock_owner = ?
+            """,
+            Math.max(1, leaseSeconds),
+            task.id(),
+            task.leaseOwner());
+    return updated == 1;
+  }
+
+  private RecoveredFactTask mapRecoveredFactTask(ResultSet rs) throws java.sql.SQLException {
+    Long configId = rs.getObject("config_id") == null ? null : rs.getLong("config_id");
+    return new RecoveredFactTask(
+        parseEventRunId(rs.getString("run_id")),
+        configId,
+        rs.getString("source_instance"),
+        rs.getInt("retry_count"));
+  }
+
+  private Long parseEventRunId(String value) {
+    if (value == null || value.isBlank()) {
+      return null;
+    }
+    try {
+      return Long.parseLong(value.trim());
+    } catch (NumberFormatException error) {
+      return null;
+    }
+  }
+
+  private record RecoveredFactTask(
+      Long runId, Long configId, String sourceInstance, int attempt) {}
 
   public QueuedFactBuildTask claimNextQueuedTask(String owner, int leaseSeconds) {
     List<QueuedFactBuildTask> tasks = jdbcTemplate.query(

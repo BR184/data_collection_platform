@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.FactProjectionScope;
 import com.data.collection.platform.entity.FactType;
@@ -14,6 +15,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.data.collection.platform.service.sync.SyncFactPublicationStateService;
+import com.data.collection.platform.service.sync.SyncRunEventRecorder;
 
 /** 原子提交一个有界根批次的事实、版本头、outbox 和任务终态。 */
 @Service
@@ -24,6 +26,10 @@ public class FactTargetPublicationService {
   private final com.data.collection.platform.service.sync.SyncRunPublicationFenceService
       publicationFenceService;
   private final SyncFactPublicationStateService publicationStateService;
+  private final FactPublicationTransaction publicationTransaction;
+  private final FactBuildTaskService taskService;
+  private final SyncRunEventRecorder eventRecorder;
+  private final GitlabMirrorProperties mirrorProperties;
 
   public FactTargetPublicationService(
       JdbcTemplate jdbcTemplate,
@@ -31,12 +37,26 @@ public class FactTargetPublicationService {
       FactProjectionGenerationService generationService,
       com.data.collection.platform.service.sync.SyncRunPublicationFenceService
           publicationFenceService,
-      SyncFactPublicationStateService publicationStateService) {
+      SyncFactPublicationStateService publicationStateService,
+      FactPublicationTransaction publicationTransaction,
+      FactBuildTaskService taskService,
+      SyncRunEventRecorder eventRecorder,
+      GitlabMirrorProperties mirrorProperties) {
     this.jdbcTemplate = jdbcTemplate;
     this.scopeResolver = scopeResolver;
     this.generationService = generationService;
     this.publicationFenceService = publicationFenceService;
     this.publicationStateService = publicationStateService;
+    this.publicationTransaction = publicationTransaction;
+    this.taskService = taskService;
+    this.eventRecorder = eventRecorder;
+    this.mirrorProperties = mirrorProperties;
+  }
+
+  /** 全量事实构建动作；构建内部以分批事务提交，批间通过进度回调续租并上报进度。 */
+  @FunctionalInterface
+  public interface FullFactBuildAction {
+    FactBuildResponse build(FactBuildProgress progress);
   }
 
   /**
@@ -84,26 +104,59 @@ public class FactTargetPublicationService {
     return response;
   }
 
-  /** 在同一事务内完成全量事实替换、FULL_EPOCH 推进、投影任务和事实任务终态。 */
-  @Transactional
-  public FactBuildResponse publishFull(
-      QueuedFactBuildTask task, java.util.function.Supplier<FactBuildResponse> factAction) {
+  /**
+   * 编排全量事实发布：分批构建后，在单一短事务内完成 FULL_EPOCH 推进、任务终态与发布状态结算。
+   *
+   * <p>构建批次各自独立提交，批间续期任务租约并写入用户可见进度事件；结算事务失败时已提交批次
+   * 保留，由任务重试幂等重做收敛。
+   */
+  public FactBuildResponse publishFull(QueuedFactBuildTask task, FullFactBuildAction action) {
     if (task == null || task.id() == null || task.leaseOwner() == null || !task.full()) {
       throw new IllegalArgumentException("全量事实发布需要已领取的全量任务");
     }
     FactType factType = FactType.valueOf(task.factType());
-    FactBuildResponse response = factAction.get();
+    FactBuildResponse response = action.build(progressReporter(task));
     FactProjectionScope fullEpoch =
         new FactProjectionScope(
             task.sourceInstance(),
             factType,
             ProjectionScopeType.FULL_EPOCH,
             FactProjectionScopeKeyCodec.SINGLETON_SCOPE_KEY);
-    generationService.advanceAndQueue(task, Set.of(fullEpoch));
-    finishOwnedTask(task, response);
-    publicationStateService.settleAfterFullPublication(
-        task.sourceInstance(), factType, task.id());
+    publicationTransaction.execute(() -> {
+      generationService.advanceAndQueue(task, Set.of(fullEpoch));
+      finishOwnedTask(task, response);
+      publicationStateService.settleAfterFullPublication(
+          task.sourceInstance(), factType, task.id());
+      return null;
+    });
+    eventRecorder.record(
+        task.factRunId(),
+        task.configId(),
+        task.sourceInstance(),
+        "FACT_BUILD_COMPLETED",
+        "全量事实构建完成（" + response.affectedRows() + " 行）");
     return response;
+  }
+
+  private FactBuildProgress progressReporter(QueuedFactBuildTask task) {
+    int leaseSeconds = Math.max(1, mirrorProperties.getHeartbeatTimeoutSeconds());
+    return (completedChunks, totalChunks, processedRows) -> {
+      if (!taskService.renewTaskLease(task, leaseSeconds)) {
+        throw new IllegalStateException("事实任务租约已失效：" + task.id());
+      }
+      eventRecorder.record(
+          task.factRunId(),
+          task.configId(),
+          task.sourceInstance(),
+          "FACT_BUILD_PROGRESS",
+          "全量事实构建进度 "
+              + completedChunks
+              + "/"
+              + totalChunks
+              + " 批次（"
+              + processedRows
+              + " 行）");
+    };
   }
 
   private void settleCoveredAssignment(QueuedFactBuildTask task, LockedTarget target) {

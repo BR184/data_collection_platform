@@ -85,24 +85,71 @@ public class IssueFactPersistenceService {
   }
 
   /**
-   * 用完整来源快照替换指定实例的全部议题事实及客户成员。
+   * 删除完整来源快照之外的同源事实与客户成员。
+   *
+   * <p>与分批 upsert 配合替代旧的「删全部再重插」全量替换：快照内的行经 upsert 保留行身份，
+   * 快照外的行（上游已删除的议题）在此清除，最终状态与全量替换一致。快照身份先写入会话级临时表
+   * 再以单条 NOT EXISTS 反连接删除，保证任意快照规模（含内网数万行）下只清除全集之外的行，
+   * 且空值身份按 IS NOT DISTINCT FROM 精确匹配。
    *
    * @param sourceSystem 事实来源系统
    * @param sourceInstance 事实来源实例
-   * @param facts 完整来源快照；空集合表示清空该实例事实
+   * @param snapshotFacts 完整来源快照；空集合表示清空该实例全部事实
    */
   @Transactional
-  public void replaceAllFacts(
-      String sourceSystem, String sourceInstance, List<IssueFact> facts) {
+  public void deleteFactsNotInSnapshot(
+      String sourceSystem, String sourceInstance, List<IssueFact> snapshotFacts) {
+    if (snapshotFacts == null || snapshotFacts.isEmpty()) {
+      jdbcTemplate.update(
+          "delete from issue_fact_customer_members where source_system = ? and source_instance = ?",
+          sourceSystem,
+          sourceInstance);
+      jdbcTemplate.update(
+          "delete from issue_fact where source_system = ? and source_instance = ?",
+          sourceSystem,
+          sourceInstance);
+      return;
+    }
+    jdbcTemplate.execute(
+        "create temp table issue_fact_snapshot_ids (project_id bigint, issue_id bigint) on commit drop");
+    List<Object[]> identities = new ArrayList<>(snapshotFacts.size());
+    for (IssueFact fact : snapshotFacts) {
+      identities.add(new Object[] {fact.getProjectId(), fact.getIssueId()});
+    }
+    jdbcTemplate.batchUpdate(
+        "insert into issue_fact_snapshot_ids(project_id, issue_id) values (?, ?)", identities);
+    String outsideSnapshot =
+        """
+        and not exists (
+          select 1
+            from issue_fact_snapshot_ids snapshot
+           where snapshot.project_id is not distinct from fact.project_id
+             and snapshot.issue_id is not distinct from fact.issue_id
+        )
+        """;
     jdbcTemplate.update(
-        "delete from issue_fact_customer_members where source_system = ? and source_instance = ?",
+        """
+        delete from issue_fact_customer_members member
+         using issue_fact fact
+         where member.source_system = fact.source_system
+           and member.source_instance = fact.source_instance
+           and member.project_id = fact.project_id
+           and member.issue_id = fact.issue_id
+           and fact.source_system = ?
+           and fact.source_instance = ?
+        """
+            + outsideSnapshot,
         sourceSystem,
         sourceInstance);
     jdbcTemplate.update(
-        "delete from issue_fact where source_system = ? and source_instance = ?",
+        """
+        delete from issue_fact fact
+         where fact.source_system = ?
+           and fact.source_instance = ?
+        """
+            + outsideSnapshot,
         sourceSystem,
         sourceInstance);
-    upsertIssueFacts(facts);
   }
 
   private List<Long> sanitizeRootIds(List<Long> rootIds) {

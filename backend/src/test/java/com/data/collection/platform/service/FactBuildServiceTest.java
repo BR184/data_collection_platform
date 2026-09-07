@@ -86,7 +86,9 @@ class FactBuildServiceTest {
             new IssuePhaseCalendarLoader(jdbcTemplate),
             new IssueFactSourceRowMapper(),
             new MergeRequestFactSourceRowMapper(),
-            newSearchIndexRepairService(jdbcTemplate));
+            newSearchIndexRepairService(jdbcTemplate),
+            new FactPublicationTransaction(),
+            new com.data.collection.platform.config.GitlabMirrorProperties());
 
     service.rebuildMergeRequestFactsForConfig(config, true);
 
@@ -103,7 +105,7 @@ class FactBuildServiceTest {
             org.mockito.ArgumentMatchers.<RowMapper<Object>>any(),
             any(Object[].class));
     verify(mergeRequestFactPersistenceService)
-        .replaceAllFacts("GITLAB", "default", List.of(), List.of());
+        .deleteFactsNotInSnapshot("GITLAB", "default", List.of(), List.of());
   }
 
   @Test
@@ -149,7 +151,9 @@ class FactBuildServiceTest {
             new IssuePhaseCalendarLoader(jdbcTemplate),
             new IssueFactSourceRowMapper(),
             new MergeRequestFactSourceRowMapper(),
-            newSearchIndexRepairService(jdbcTemplate));
+            newSearchIndexRepairService(jdbcTemplate),
+            new FactPublicationTransaction(),
+            new com.data.collection.platform.config.GitlabMirrorProperties());
 
     assertThatThrownBy(() -> service.rebuildAllFacts(true)).isSameAs(preflightFailure);
 
@@ -207,7 +211,9 @@ class FactBuildServiceTest {
             new IssuePhaseCalendarLoader(jdbcTemplate),
             new IssueFactSourceRowMapper(),
             new MergeRequestFactSourceRowMapper(),
-            newSearchIndexRepairService(jdbcTemplate));
+            newSearchIndexRepairService(jdbcTemplate),
+            new FactPublicationTransaction(),
+            new com.data.collection.platform.config.GitlabMirrorProperties());
 
     assertThatThrownBy(() -> service.rebuildAllFactsForConfig(config, true, 16L))
         .isSameAs(preflightFailure);

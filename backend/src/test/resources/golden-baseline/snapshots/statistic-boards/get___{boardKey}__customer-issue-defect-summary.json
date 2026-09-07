@@ -10769,8 +10769,8 @@
       } ]
     } ],
     "meta" : {
-      "generatedAt" : "2026-09-04T18:28:18.4255223+08:00",
-      "queryDurationMs" : 360,
+      "generatedAt" : "2026-09-07T12:58:28.5309233+08:00",
+      "queryDurationMs" : 363,
       "rowCount" : 27,
       "columnCount" : 39,
       "drilldownColumnCount" : 22
