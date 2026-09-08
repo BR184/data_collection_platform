@@ -99,12 +99,12 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
        where deleted = false
          and ((%s) or (%s))
       """.formatted(
-          SystemTestSuggestionMetricSupport.regularMetricSql("issue_fact"),
-          SystemTestSuggestionMetricSupport.regularMetricSql("issue_fact"),
-          SystemTestSuggestionMetricSupport.regularMetricSql("issue_fact"),
-          SystemTestSuggestionMetricSupport.suggestionMetricSql("issue_fact"),
-          SystemTestSuggestionMetricSupport.regularMetricSql("issue_fact"),
-          SystemTestSuggestionMetricSupport.suggestionMetricSql("issue_fact"));
+          SuggestionMetricSupport.regularMetricSql("issue_fact"),
+          SuggestionMetricSupport.regularMetricSql("issue_fact"),
+          SuggestionMetricSupport.regularMetricSql("issue_fact"),
+          SuggestionMetricSupport.suggestionMetricSql("issue_fact"),
+          SuggestionMetricSupport.regularMetricSql("issue_fact"),
+          SuggestionMetricSupport.suggestionMetricSql("issue_fact"));
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
       StatisticIssueDetailColumns.systemTest(
           "议题标题",
@@ -372,7 +372,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
           label,
           drilldown,
           metricType,
-          SystemTestSuggestionMetricSupport.SUGGESTION_HEADER_TOOLTIP);
+          SuggestionMetricSupport.SUGGESTION_HEADER_TOOLTIP);
     }
     return new StatisticColumnLeaf(key, label, drilldown, metricType);
   }
@@ -839,11 +839,11 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
      * 这段业务决策。
      */
     boolean isSuggestion() {
-      return SystemTestSuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
     }
 
     boolean isRegularMetricIssue() {
-      return SystemTestSuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
     }
 
     boolean isVisibleForRegularOrSuggestionColumn() {

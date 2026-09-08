@@ -535,8 +535,8 @@ public class SystemTestIssueMultiBoardService {
            and project_id = ?
            and ((%s) or (%s))
         """.formatted(
-            SystemTestSuggestionMetricSupport.regularMetricSql(null),
-            SystemTestSuggestionMetricSupport.suggestionMetricSql(null)));
+            SuggestionMetricSupport.regularMetricSql(null),
+            SuggestionMetricSupport.suggestionMetricSql(null)));
     args.add(scope.projectId());
     if (!scope.expandedTestingPhases().isEmpty()) {
       SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
@@ -958,11 +958,11 @@ public class SystemTestIssueMultiBoardService {
      * 把这里改回 0，应先确认这段业务决策。
      */
     boolean isSuggestion() {
-      return SystemTestSuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
     }
 
     boolean isRegularMetricIssue() {
-      return SystemTestSuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
     }
   }
 

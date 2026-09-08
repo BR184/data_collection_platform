@@ -13,6 +13,8 @@ import static org.mockito.Mockito.when;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticCellData;
+import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
+import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
 import com.data.collection.platform.service.CustomerIssueScopeProfile;
 import com.data.collection.platform.service.IssueFactQueryService;
@@ -49,14 +51,16 @@ class CustomerIssueDefectSummaryBoardServiceTest {
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
 
   @BeforeEach
-  @SuppressWarnings("unchecked")
   void setUp() throws Exception {
     when(milestoneCatalogService.defaultMilestone()).thenReturn("CC2026R3");
     when(milestoneCatalogService.resolveMilestoneValues("CC2026R3"))
         .thenReturn(List.of("CC2026 R3"));
     when(milestoneCatalogService.matches("CC2026R3", "CC2026 R3")).thenReturn(true);
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
+  }
 
+  @SuppressWarnings("unchecked")
+  private void stubDefaultIssueRows() {
     doAnswer(
             invocation -> {
               RowMapper<Object> mapper = invocation.getArgument(4);
@@ -69,7 +73,65 @@ class CustomerIssueDefectSummaryBoardServiceTest {
   }
 
   @Test
+  void test_suggestion_issues_excluded_from_regular_metrics_but_listed_in_suggestion_column()
+      throws Exception {
+    doAnswer(
+            invocation -> {
+              RowMapper<Object> mapper = invocation.getArgument(4);
+              return List.of(
+                  mapper.mapRow(issue(1001, "P2", true, "已知的受影响功能"), 0),
+                  mapper.mapRow(
+                      issue(
+                          1003,
+                          "P3",
+                          false,
+                          "新识别的受影响功能",
+                          new IssueOverrides("SUGGESTION", "", "建议")),
+                      1));
+            })
+        .when(issueFactQueryService)
+        .query(anyString(), anyMap(), anyString(), anyList(), any(RowMapper.class));
+    stubBoardLoad();
+    CustomerIssueDefectSummaryBoardService service = newService();
+
+    StatisticBoardResponse response = service.loadBoard(Map.of());
+
+    StatisticRowData total = row(response, "__total__");
+    assertThat(cell(total, "module_total").numericValue()).isEqualTo(1);
+    assertThat(cell(total, "suggestion_total").numericValue()).isEqualTo(1);
+    assertThat(cell(total, "solved_count").numericValue()).isEqualTo(0);
+    assertThat(cell(total, "p3_count").numericValue()).isEqualTo(0);
+
+    StatisticDetailResponse suggestionDetail =
+        service.loadDetail(
+            new StatisticDetailRequest(
+                "customer-issue-defect-summary",
+                "__total__",
+                "suggestion_total",
+                1,
+                10,
+                "",
+                "ascending",
+                Map.of()));
+    assertThat(suggestionDetail.total()).isEqualTo(1);
+
+    StatisticDetailResponse regularDetail =
+        service.loadDetail(
+            new StatisticDetailRequest(
+                "customer-issue-defect-summary",
+                "__total__",
+                "module_total",
+                1,
+                10,
+                "",
+                "ascending",
+                Map.of()));
+    assertThat(regularDetail.total()).isEqualTo(1);
+  }
+
+  @Test
   void test_stable_milestone_key_matches_exact_fact_member() throws Exception {
+    stubDefaultIssueRows();
     stubBoardLoad();
     CustomerIssueDefectSummaryBoardService service = newService();
 
@@ -81,6 +143,7 @@ class CustomerIssueDefectSummaryBoardServiceTest {
 
   @Test
   void test_summary_export_writes_p2_and_p3_close_rates() throws Exception {
+    stubDefaultIssueRows();
     stubBoardLoad();
     CustomerIssueDefectSummaryBoardService service = newService();
 
@@ -104,6 +167,7 @@ class CustomerIssueDefectSummaryBoardServiceTest {
 
   @Test
   void test_issue_export_uses_stable_empty_phase_and_affected_function_values() throws Exception {
+    stubDefaultIssueRows();
     CustomerIssueDefectSummaryBoardService service = newService();
 
     byte[] content = service.exportIssueRecordsWorkbook(Map.of());
@@ -158,8 +222,16 @@ class CustomerIssueDefectSummaryBoardServiceTest {
         .query(anyString(), anyList(), any(RowMapper.class));
   }
 
+  private record IssueOverrides(String severityLevel, String exclusionReason, String category) {}
+
   private ResultSet issue(
       int issueIid, String priority, boolean closed, String affectedFunction) throws Exception {
+    return issue(issueIid, priority, closed, affectedFunction, null);
+  }
+
+  private ResultSet issue(
+      int issueIid, String priority, boolean closed, String affectedFunction, IssueOverrides overrides)
+      throws Exception {
     ResultSet rs = mock(ResultSet.class);
     when(rs.getLong("id")).thenReturn((long) issueIid);
     when(rs.getInt("iid")).thenReturn(issueIid);
@@ -178,10 +250,14 @@ class CustomerIssueDefectSummaryBoardServiceTest {
     when(rs.getString("issue_state")).thenReturn(closed ? "closed" : "opened");
     when(rs.getString("testing_phase")).thenReturn("");
     when(rs.getString("system_test_label")).thenReturn("");
-    when(rs.getString("severity_level")).thenReturn("二级缺陷");
+    when(rs.getString("severity_level"))
+        .thenReturn(overrides == null ? "二级缺陷" : overrides.severityLevel());
     when(rs.getString("priority_level")).thenReturn(priority);
+    when(rs.getBoolean("is_excluded")).thenReturn(false);
+    when(rs.getString("exclusion_reason"))
+        .thenReturn(overrides == null ? "" : overrides.exclusionReason());
     when(rs.getString("bug_status")).thenReturn("处理中");
-    when(rs.getString("category")).thenReturn("缺陷");
+    when(rs.getString("category")).thenReturn(overrides == null ? "缺陷" : overrides.category());
     when(rs.getString("reason_category"))
         .thenReturn(
             "已解决 具体原因, 请描述：原因"

@@ -357,7 +357,7 @@ class StatisticBoardControllerTest {
     assertThat(response.version()).isNotBlank();
     assertThat(response.flowSteps()).hasSizeGreaterThanOrEqualTo(4);
     assertThat(response.metricDefinitions()).extracting("key")
-        .containsExactly("level1", "priority-summary", "summary", "new-issue", "legacy");
+        .containsExactly("level1", "priority-summary", "summary", "suggestion", "new-issue", "legacy");
   }
 
   @Test

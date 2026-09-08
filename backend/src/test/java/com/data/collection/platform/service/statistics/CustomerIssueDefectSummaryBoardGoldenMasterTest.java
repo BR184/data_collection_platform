@@ -274,6 +274,8 @@ class CustomerIssueDefectSummaryBoardGoldenMasterTest {
     when(rs.getString("system_test_label")).thenReturn("");
     when(rs.getString("severity_level")).thenReturn("二级缺陷");
     when(rs.getString("priority_level")).thenReturn(priority);
+    when(rs.getBoolean("is_excluded")).thenReturn(false);
+    when(rs.getString("exclusion_reason")).thenReturn("");
     when(rs.getString("bug_status")).thenReturn("处理中");
     when(rs.getString("category")).thenReturn("缺陷");
     when(rs.getString("reason_category"))

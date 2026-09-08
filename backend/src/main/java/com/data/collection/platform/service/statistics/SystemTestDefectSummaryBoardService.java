@@ -220,7 +220,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
           label,
           drilldown,
           metricType,
-          SystemTestSuggestionMetricSupport.SUGGESTION_HEADER_TOOLTIP);
+          SuggestionMetricSupport.SUGGESTION_HEADER_TOOLTIP);
     }
     return new StatisticColumnLeaf(key, label, drilldown, metricType);
   }
@@ -1227,10 +1227,10 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
      * 为了避免建议类污染二级/三级等指标才整体排除了建议类。
      */
     boolean isSuggestion() {
-      return SystemTestSuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
     }
     boolean isRegularMetricIssue() {
-      return SystemTestSuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
     }
     boolean isVisibleForRegularOrSuggestionColumn() {
       return isRegularMetricIssue() || isSuggestion();

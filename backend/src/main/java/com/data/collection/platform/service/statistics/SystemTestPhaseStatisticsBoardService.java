@@ -90,12 +90,12 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
               or coalesce(severity_alias,'') like '%%三级缺陷%%'))
               or (%s))
       """.formatted(
-          SystemTestSuggestionMetricSupport.regularMetricSql("issue_fact"),
-          SystemTestSuggestionMetricSupport.regularMetricSql("issue_fact"),
-          SystemTestSuggestionMetricSupport.regularMetricSql("issue_fact"),
-          SystemTestSuggestionMetricSupport.suggestionMetricSql("issue_fact"),
-          SystemTestSuggestionMetricSupport.regularMetricSql("issue_fact"),
-          SystemTestSuggestionMetricSupport.suggestionMetricSql("issue_fact"));
+          SuggestionMetricSupport.regularMetricSql("issue_fact"),
+          SuggestionMetricSupport.regularMetricSql("issue_fact"),
+          SuggestionMetricSupport.regularMetricSql("issue_fact"),
+          SuggestionMetricSupport.suggestionMetricSql("issue_fact"),
+          SuggestionMetricSupport.regularMetricSql("issue_fact"),
+          SuggestionMetricSupport.suggestionMetricSql("issue_fact"));
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
       StatisticIssueDetailColumns.systemTest(
           "议题标题",
@@ -357,7 +357,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
           label,
           drilldown,
           metricType,
-          SystemTestSuggestionMetricSupport.SUGGESTION_HEADER_TOOLTIP);
+          SuggestionMetricSupport.SUGGESTION_HEADER_TOOLTIP);
     }
     return new StatisticColumnLeaf(key, label, drilldown, metricType);
   }
@@ -877,11 +877,11 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
      * 想按“老平台建议列为 0”回退，请先和业务/开发确认这段例外口径。
      */
     boolean isSuggestion() {
-      return SystemTestSuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
     }
 
     boolean isRegularMetricIssue() {
-      return SystemTestSuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
     }
 
     boolean isVisibleForRegularOrSuggestionColumn() {

@@ -24,11 +24,11 @@ public final class SystemTestIssueMetricDimensionSupport {
       String exclusionReason,
       String severityLevel,
       String category) {
-    if (SystemTestSuggestionMetricSupport.isSuggestionColumnIssue(
+    if (SuggestionMetricSupport.isSuggestionColumnIssue(
         excluded, exclusionReason, severityLevel, category)) {
       return "SUGGESTION";
     }
-    if (!SystemTestSuggestionMetricSupport.isRegularMetricIssue(
+    if (!SuggestionMetricSupport.isRegularMetricIssue(
         excluded, exclusionReason, severityLevel, category)) {
       return "";
     }
@@ -50,7 +50,7 @@ public final class SystemTestIssueMetricDimensionSupport {
       String exclusionReason,
       String severityLevel,
       String category) {
-    return SystemTestSuggestionMetricSupport.isRegularMetricIssue(
+    return SuggestionMetricSupport.isRegularMetricIssue(
         excluded, exclusionReason, severityLevel, category);
   }
 

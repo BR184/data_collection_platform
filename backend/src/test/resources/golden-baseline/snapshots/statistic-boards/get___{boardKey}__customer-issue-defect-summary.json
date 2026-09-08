@@ -807,7 +807,7 @@
           "label" : "建议类缺陷(个)",
           "drilldown" : true,
           "metricType" : "count",
-          "headerTooltip" : null
+          "headerTooltip" : "建议类缺陷单独统计，不计入一级、二级、三级、P1/P2/P3、总计、修复率、关闭率和占比。"
         } ]
       }, {
         "key" : "priority-summary",
@@ -1295,8 +1295,8 @@
         }
       }, {
         "columnKey" : "suggestion_total",
-        "numericValue" : 3,
-        "displayValue" : "3",
+        "numericValue" : 9,
+        "displayValue" : "9",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1304,8 +1304,8 @@
         }
       }, {
         "columnKey" : "p1_count",
-        "numericValue" : 10,
-        "displayValue" : "10",
+        "numericValue" : 5,
+        "displayValue" : "5",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1313,8 +1313,8 @@
         }
       }, {
         "columnKey" : "p1_fix_rate",
-        "numericValue" : 4000,
-        "displayValue" : "40.00%",
+        "numericValue" : 6000,
+        "displayValue" : "60.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -1331,8 +1331,8 @@
         }
       }, {
         "columnKey" : "p2_count",
-        "numericValue" : 4,
-        "displayValue" : "4",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1340,8 +1340,8 @@
         }
       }, {
         "columnKey" : "p2_fix_rate",
-        "numericValue" : 2500,
-        "displayValue" : "25.00%",
+        "numericValue" : 0,
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -1350,7 +1350,7 @@
       }, {
         "columnKey" : "p2_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -1385,33 +1385,6 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 14,
-        "displayValue" : "14",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "BOM"
-        }
-      }, {
-        "columnKey" : "defect_ratio",
-        "numericValue" : 400,
-        "displayValue" : "4.00%",
-        "drilldown" : false,
-        "detailViewKey" : null,
-        "detailParams" : {
-          "rowKey" : "BOM"
-        }
-      }, {
-        "columnKey" : "delay_defect_ratio",
-        "numericValue" : 714,
-        "displayValue" : "7.14%",
-        "drilldown" : false,
-        "detailViewKey" : null,
-        "detailParams" : {
-          "rowKey" : "BOM"
-        }
-      }, {
-        "columnKey" : "solved_count",
         "numericValue" : 5,
         "displayValue" : "5",
         "drilldown" : true,
@@ -1420,9 +1393,36 @@
           "rowKey" : "BOM"
         }
       }, {
+        "columnKey" : "defect_ratio",
+        "numericValue" : 284,
+        "displayValue" : "2.84%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "delay_defect_ratio",
+        "numericValue" : 2000,
+        "displayValue" : "20.00%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "solved_count",
+        "numericValue" : 3,
+        "displayValue" : "3",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
         "columnKey" : "fix_rate",
-        "numericValue" : 3571,
-        "displayValue" : "35.71%",
+        "numericValue" : 6000,
+        "displayValue" : "60.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -1439,8 +1439,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 14,
-        "displayValue" : "14",
+        "numericValue" : 5,
+        "displayValue" : "5",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1466,6 +1466,15 @@
         }
       }, {
         "columnKey" : "new_issue_fixed",
+        "numericValue" : 3,
+        "displayValue" : "3",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "BOM"
+        }
+      }, {
+        "columnKey" : "new_issue_total",
         "numericValue" : 5,
         "displayValue" : "5",
         "drilldown" : true,
@@ -1474,18 +1483,9 @@
           "rowKey" : "BOM"
         }
       }, {
-        "columnKey" : "new_issue_total",
-        "numericValue" : 14,
-        "displayValue" : "14",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "BOM"
-        }
-      }, {
         "columnKey" : "new_issue_fix_rate",
-        "numericValue" : 3571,
-        "displayValue" : "35.71%",
+        "numericValue" : 6000,
+        "displayValue" : "60.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -1529,8 +1529,8 @@
         }
       }, {
         "columnKey" : "level23_legacy_rate",
-        "numericValue" : 1429,
-        "displayValue" : "14.29%",
+        "numericValue" : 4000,
+        "displayValue" : "40.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -2005,8 +2005,8 @@
         }
       }, {
         "columnKey" : "suggestion_total",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2041,8 +2041,8 @@
         }
       }, {
         "columnKey" : "p2_count",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2051,7 +2051,7 @@
       }, {
         "columnKey" : "p2_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -2060,7 +2060,7 @@
       }, {
         "columnKey" : "p2_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -2095,8 +2095,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2104,8 +2104,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 29,
-        "displayValue" : "0.29%",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -2132,7 +2132,7 @@
       }, {
         "columnKey" : "fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -2141,7 +2141,7 @@
       }, {
         "columnKey" : "close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -2149,8 +2149,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2185,8 +2185,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2195,7 +2195,7 @@
       }, {
         "columnKey" : "new_issue_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -2204,7 +2204,7 @@
       }, {
         "columnKey" : "new_issue_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -2240,7 +2240,7 @@
       }, {
         "columnKey" : "level23_legacy_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -2459,8 +2459,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 86,
-        "displayValue" : "0.86%",
+        "numericValue" : 170,
+        "displayValue" : "1.70%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -2751,8 +2751,8 @@
         }
       }, {
         "columnKey" : "p2_count",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2761,7 +2761,7 @@
       }, {
         "columnKey" : "p2_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -2770,7 +2770,7 @@
       }, {
         "columnKey" : "p2_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -2805,8 +2805,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 3,
-        "displayValue" : "3",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2814,8 +2814,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 86,
-        "displayValue" : "0.86%",
+        "numericValue" : 114,
+        "displayValue" : "1.14%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -2859,8 +2859,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 3,
-        "displayValue" : "3",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2895,8 +2895,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 3,
-        "displayValue" : "3",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -3169,8 +3169,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 57,
-        "displayValue" : "0.57%",
+        "numericValue" : 114,
+        "displayValue" : "1.14%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -3524,8 +3524,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 257,
-        "displayValue" : "2.57%",
+        "numericValue" : 511,
+        "displayValue" : "5.11%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -3762,8 +3762,8 @@
         }
       }, {
         "columnKey" : "level3_total",
-        "numericValue" : 3,
-        "displayValue" : "3",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -3780,8 +3780,8 @@
         }
       }, {
         "columnKey" : "suggestion_total",
-        "numericValue" : 6,
-        "displayValue" : "6",
+        "numericValue" : 24,
+        "displayValue" : "24",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -3789,8 +3789,8 @@
         }
       }, {
         "columnKey" : "p1_count",
-        "numericValue" : 21,
-        "displayValue" : "21",
+        "numericValue" : 12,
+        "displayValue" : "12",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -3798,8 +3798,8 @@
         }
       }, {
         "columnKey" : "p1_fix_rate",
-        "numericValue" : 476,
-        "displayValue" : "4.76%",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -3816,8 +3816,8 @@
         }
       }, {
         "columnKey" : "p2_count",
-        "numericValue" : 13,
-        "displayValue" : "13",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -3843,8 +3843,8 @@
         }
       }, {
         "columnKey" : "p3_count",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -3853,7 +3853,7 @@
       }, {
         "columnKey" : "p3_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -3862,7 +3862,7 @@
       }, {
         "columnKey" : "p3_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -3870,8 +3870,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 37,
-        "displayValue" : "37",
+        "numericValue" : 13,
+        "displayValue" : "13",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -3879,8 +3879,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 1057,
-        "displayValue" : "10.57%",
+        "numericValue" : 739,
+        "displayValue" : "7.39%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -3888,8 +3888,8 @@
         }
       }, {
         "columnKey" : "delay_defect_ratio",
-        "numericValue" : 1351,
-        "displayValue" : "13.51%",
+        "numericValue" : 3077,
+        "displayValue" : "30.77%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -3897,8 +3897,8 @@
         }
       }, {
         "columnKey" : "solved_count",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -3906,8 +3906,8 @@
         }
       }, {
         "columnKey" : "fix_rate",
-        "numericValue" : 541,
-        "displayValue" : "5.41%",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -3924,8 +3924,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 37,
-        "displayValue" : "37",
+        "numericValue" : 13,
+        "displayValue" : "13",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -3951,8 +3951,8 @@
         }
       }, {
         "columnKey" : "new_issue_fixed",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -3960,8 +3960,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 35,
-        "displayValue" : "35",
+        "numericValue" : 12,
+        "displayValue" : "12",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -3969,8 +3969,8 @@
         }
       }, {
         "columnKey" : "new_issue_fix_rate",
-        "numericValue" : 571,
-        "displayValue" : "5.71%",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4005,8 +4005,8 @@
         }
       }, {
         "columnKey" : "level3_legacy_count",
-        "numericValue" : 3,
-        "displayValue" : "3",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -4135,6 +4135,42 @@
         }
       }, {
         "columnKey" : "suggestion_total",
+        "numericValue" : 17,
+        "displayValue" : "17",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "p1_count",
+        "numericValue" : 40,
+        "displayValue" : "40",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "p1_fix_rate",
+        "numericValue" : 2500,
+        "displayValue" : "25.00%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "p1_close_rate",
+        "numericValue" : 1750,
+        "displayValue" : "17.50%",
+        "drilldown" : false,
+        "detailViewKey" : null,
+        "detailParams" : {
+          "rowKey" : "工程图"
+        }
+      }, {
+        "columnKey" : "p2_count",
         "numericValue" : 2,
         "displayValue" : "2",
         "drilldown" : true,
@@ -4143,45 +4179,9 @@
           "rowKey" : "工程图"
         }
       }, {
-        "columnKey" : "p1_count",
-        "numericValue" : 50,
-        "displayValue" : "50",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "工程图"
-        }
-      }, {
-        "columnKey" : "p1_fix_rate",
-        "numericValue" : 2200,
-        "displayValue" : "22.00%",
-        "drilldown" : false,
-        "detailViewKey" : null,
-        "detailParams" : {
-          "rowKey" : "工程图"
-        }
-      }, {
-        "columnKey" : "p1_close_rate",
-        "numericValue" : 1400,
-        "displayValue" : "14.00%",
-        "drilldown" : false,
-        "detailViewKey" : null,
-        "detailParams" : {
-          "rowKey" : "工程图"
-        }
-      }, {
-        "columnKey" : "p2_count",
-        "numericValue" : 9,
-        "displayValue" : "9",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "工程图"
-        }
-      }, {
         "columnKey" : "p2_fix_rate",
-        "numericValue" : 1111,
-        "displayValue" : "11.11%",
+        "numericValue" : 5000,
+        "displayValue" : "50.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4225,8 +4225,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 59,
-        "displayValue" : "59",
+        "numericValue" : 42,
+        "displayValue" : "42",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -4234,8 +4234,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 1686,
-        "displayValue" : "16.86%",
+        "numericValue" : 2386,
+        "displayValue" : "23.86%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4243,8 +4243,8 @@
         }
       }, {
         "columnKey" : "delay_defect_ratio",
-        "numericValue" : 508,
-        "displayValue" : "5.08%",
+        "numericValue" : 714,
+        "displayValue" : "7.14%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4252,8 +4252,8 @@
         }
       }, {
         "columnKey" : "solved_count",
-        "numericValue" : 10,
-        "displayValue" : "10",
+        "numericValue" : 9,
+        "displayValue" : "9",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -4261,8 +4261,8 @@
         }
       }, {
         "columnKey" : "fix_rate",
-        "numericValue" : 1695,
-        "displayValue" : "16.95%",
+        "numericValue" : 2143,
+        "displayValue" : "21.43%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4270,8 +4270,8 @@
         }
       }, {
         "columnKey" : "close_rate",
-        "numericValue" : 1186,
-        "displayValue" : "11.86%",
+        "numericValue" : 1667,
+        "displayValue" : "16.67%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4279,8 +4279,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 52,
-        "displayValue" : "52",
+        "numericValue" : 35,
+        "displayValue" : "35",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -4306,8 +4306,8 @@
         }
       }, {
         "columnKey" : "new_issue_fixed",
-        "numericValue" : 10,
-        "displayValue" : "10",
+        "numericValue" : 9,
+        "displayValue" : "9",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -4315,8 +4315,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 59,
-        "displayValue" : "59",
+        "numericValue" : 42,
+        "displayValue" : "42",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -4324,8 +4324,8 @@
         }
       }, {
         "columnKey" : "new_issue_fix_rate",
-        "numericValue" : 1695,
-        "displayValue" : "16.95%",
+        "numericValue" : 2143,
+        "displayValue" : "21.43%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4333,8 +4333,8 @@
         }
       }, {
         "columnKey" : "new_issue_close_rate",
-        "numericValue" : 1186,
-        "displayValue" : "11.86%",
+        "numericValue" : 1667,
+        "displayValue" : "16.67%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4369,8 +4369,8 @@
         }
       }, {
         "columnKey" : "level23_legacy_rate",
-        "numericValue" : 678,
-        "displayValue" : "6.78%",
+        "numericValue" : 952,
+        "displayValue" : "9.52%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4490,8 +4490,8 @@
         }
       }, {
         "columnKey" : "suggestion_total",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 5,
+        "displayValue" : "5",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -4499,8 +4499,8 @@
         }
       }, {
         "columnKey" : "p1_count",
-        "numericValue" : 20,
-        "displayValue" : "20",
+        "numericValue" : 18,
+        "displayValue" : "18",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -4508,8 +4508,8 @@
         }
       }, {
         "columnKey" : "p1_fix_rate",
-        "numericValue" : 3500,
-        "displayValue" : "35.00%",
+        "numericValue" : 3889,
+        "displayValue" : "38.89%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4526,8 +4526,8 @@
         }
       }, {
         "columnKey" : "p2_count",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -4536,7 +4536,7 @@
       }, {
         "columnKey" : "p2_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4545,7 +4545,7 @@
       }, {
         "columnKey" : "p2_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4553,8 +4553,8 @@
         }
       }, {
         "columnKey" : "p3_count",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -4563,7 +4563,7 @@
       }, {
         "columnKey" : "p3_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4572,7 +4572,7 @@
       }, {
         "columnKey" : "p3_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4580,8 +4580,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 23,
-        "displayValue" : "23",
+        "numericValue" : 18,
+        "displayValue" : "18",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -4589,8 +4589,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 657,
-        "displayValue" : "6.57%",
+        "numericValue" : 1023,
+        "displayValue" : "10.23%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4598,8 +4598,8 @@
         }
       }, {
         "columnKey" : "delay_defect_ratio",
-        "numericValue" : 435,
-        "displayValue" : "4.35%",
+        "numericValue" : 556,
+        "displayValue" : "5.56%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4616,8 +4616,8 @@
         }
       }, {
         "columnKey" : "fix_rate",
-        "numericValue" : 2609,
-        "displayValue" : "26.09%",
+        "numericValue" : 3333,
+        "displayValue" : "33.33%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4634,8 +4634,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 23,
-        "displayValue" : "23",
+        "numericValue" : 18,
+        "displayValue" : "18",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -4670,8 +4670,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 23,
-        "displayValue" : "23",
+        "numericValue" : 18,
+        "displayValue" : "18",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -4679,8 +4679,8 @@
         }
       }, {
         "columnKey" : "new_issue_fix_rate",
-        "numericValue" : 2609,
-        "displayValue" : "26.09%",
+        "numericValue" : 3333,
+        "displayValue" : "33.33%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4724,8 +4724,8 @@
         }
       }, {
         "columnKey" : "level23_legacy_rate",
-        "numericValue" : 1739,
-        "displayValue" : "17.39%",
+        "numericValue" : 2222,
+        "displayValue" : "22.22%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4845,6 +4845,15 @@
         }
       }, {
         "columnKey" : "suggestion_total",
+        "numericValue" : 10,
+        "displayValue" : "10",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "库"
+        }
+      }, {
+        "columnKey" : "p1_count",
         "numericValue" : 1,
         "displayValue" : "1",
         "drilldown" : true,
@@ -4853,18 +4862,9 @@
           "rowKey" : "库"
         }
       }, {
-        "columnKey" : "p1_count",
-        "numericValue" : 5,
-        "displayValue" : "5",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "库"
-        }
-      }, {
         "columnKey" : "p1_fix_rate",
-        "numericValue" : 6000,
-        "displayValue" : "60.00%",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4881,8 +4881,8 @@
         }
       }, {
         "columnKey" : "p2_count",
-        "numericValue" : 6,
-        "displayValue" : "6",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -4891,7 +4891,7 @@
       }, {
         "columnKey" : "p2_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4900,7 +4900,7 @@
       }, {
         "columnKey" : "p2_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4935,8 +4935,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 11,
-        "displayValue" : "11",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -4944,8 +4944,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 314,
-        "displayValue" : "3.14%",
+        "numericValue" : 57,
+        "displayValue" : "0.57%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4962,8 +4962,8 @@
         }
       }, {
         "columnKey" : "solved_count",
-        "numericValue" : 3,
-        "displayValue" : "3",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -4971,8 +4971,8 @@
         }
       }, {
         "columnKey" : "fix_rate",
-        "numericValue" : 2727,
-        "displayValue" : "27.27%",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -4989,8 +4989,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 11,
-        "displayValue" : "11",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -5016,8 +5016,8 @@
         }
       }, {
         "columnKey" : "new_issue_fixed",
-        "numericValue" : 3,
-        "displayValue" : "3",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -5025,8 +5025,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 11,
-        "displayValue" : "11",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -5034,8 +5034,8 @@
         }
       }, {
         "columnKey" : "new_issue_fix_rate",
-        "numericValue" : 2727,
-        "displayValue" : "27.27%",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -5200,15 +5200,6 @@
         }
       }, {
         "columnKey" : "suggestion_total",
-        "numericValue" : 0,
-        "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "快速设计"
-        }
-      }, {
-        "columnKey" : "p1_count",
         "numericValue" : 1,
         "displayValue" : "1",
         "drilldown" : true,
@@ -5217,9 +5208,18 @@
           "rowKey" : "快速设计"
         }
       }, {
+        "columnKey" : "p1_count",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "快速设计"
+        }
+      }, {
         "columnKey" : "p1_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -5228,7 +5228,7 @@
       }, {
         "columnKey" : "p1_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -5290,8 +5290,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -5299,8 +5299,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 29,
-        "displayValue" : "0.29%",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -5327,7 +5327,7 @@
       }, {
         "columnKey" : "fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -5336,7 +5336,7 @@
       }, {
         "columnKey" : "close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -5344,8 +5344,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -5380,8 +5380,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -5390,7 +5390,7 @@
       }, {
         "columnKey" : "new_issue_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -5399,7 +5399,7 @@
       }, {
         "columnKey" : "new_issue_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -5435,7 +5435,7 @@
       }, {
         "columnKey" : "level23_legacy_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -5555,8 +5555,8 @@
         }
       }, {
         "columnKey" : "suggestion_total",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 11,
+        "displayValue" : "11",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -5564,8 +5564,8 @@
         }
       }, {
         "columnKey" : "p1_count",
-        "numericValue" : 10,
-        "displayValue" : "10",
+        "numericValue" : 5,
+        "displayValue" : "5",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -5591,8 +5591,8 @@
         }
       }, {
         "columnKey" : "p2_count",
-        "numericValue" : 7,
-        "displayValue" : "7",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -5618,8 +5618,8 @@
         }
       }, {
         "columnKey" : "p3_count",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -5628,7 +5628,7 @@
       }, {
         "columnKey" : "p3_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -5637,7 +5637,7 @@
       }, {
         "columnKey" : "p3_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -5645,8 +5645,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 19,
-        "displayValue" : "19",
+        "numericValue" : 8,
+        "displayValue" : "8",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -5654,8 +5654,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 543,
-        "displayValue" : "5.43%",
+        "numericValue" : 455,
+        "displayValue" : "4.55%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -5663,8 +5663,8 @@
         }
       }, {
         "columnKey" : "delay_defect_ratio",
-        "numericValue" : 1579,
-        "displayValue" : "15.79%",
+        "numericValue" : 3750,
+        "displayValue" : "37.50%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -5699,8 +5699,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 19,
-        "displayValue" : "19",
+        "numericValue" : 8,
+        "displayValue" : "8",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -5735,8 +5735,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 18,
-        "displayValue" : "18",
+        "numericValue" : 7,
+        "displayValue" : "7",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -5910,8 +5910,8 @@
         }
       }, {
         "columnKey" : "suggestion_total",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -5946,8 +5946,8 @@
         }
       }, {
         "columnKey" : "p2_count",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -5956,7 +5956,7 @@
       }, {
         "columnKey" : "p2_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -5965,7 +5965,7 @@
       }, {
         "columnKey" : "p2_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -6000,8 +6000,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 4,
-        "displayValue" : "4",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -6009,8 +6009,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 114,
-        "displayValue" : "1.14%",
+        "numericValue" : 170,
+        "displayValue" : "1.70%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -6054,8 +6054,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 4,
-        "displayValue" : "4",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -6090,8 +6090,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 4,
-        "displayValue" : "4",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -6301,8 +6301,8 @@
         }
       }, {
         "columnKey" : "p2_count",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -6311,7 +6311,7 @@
       }, {
         "columnKey" : "p2_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -6320,7 +6320,7 @@
       }, {
         "columnKey" : "p2_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -6355,8 +6355,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -6373,8 +6373,8 @@
         }
       }, {
         "columnKey" : "delay_defect_ratio",
-        "numericValue" : 5000,
-        "displayValue" : "50.00%",
+        "numericValue" : 0,
+        "displayValue" : "0.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -6409,8 +6409,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -6445,8 +6445,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -6719,8 +6719,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 29,
-        "displayValue" : "0.29%",
+        "numericValue" : 57,
+        "displayValue" : "0.57%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -6975,8 +6975,8 @@
         }
       }, {
         "columnKey" : "suggestion_total",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -7038,8 +7038,8 @@
         }
       }, {
         "columnKey" : "p3_count",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -7048,7 +7048,7 @@
       }, {
         "columnKey" : "p3_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -7057,7 +7057,7 @@
       }, {
         "columnKey" : "p3_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -7065,8 +7065,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -7119,8 +7119,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -7155,8 +7155,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -7330,8 +7330,8 @@
         }
       }, {
         "columnKey" : "suggestion_total",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 13,
+        "displayValue" : "13",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -7339,8 +7339,8 @@
         }
       }, {
         "columnKey" : "p1_count",
-        "numericValue" : 18,
-        "displayValue" : "18",
+        "numericValue" : 14,
+        "displayValue" : "14",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -7348,8 +7348,8 @@
         }
       }, {
         "columnKey" : "p1_fix_rate",
-        "numericValue" : 1111,
-        "displayValue" : "11.11%",
+        "numericValue" : 1429,
+        "displayValue" : "14.29%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -7366,8 +7366,8 @@
         }
       }, {
         "columnKey" : "p2_count",
-        "numericValue" : 12,
-        "displayValue" : "12",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -7420,8 +7420,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 30,
-        "displayValue" : "30",
+        "numericValue" : 17,
+        "displayValue" : "17",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -7429,8 +7429,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 857,
-        "displayValue" : "8.57%",
+        "numericValue" : 966,
+        "displayValue" : "9.66%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -7438,8 +7438,8 @@
         }
       }, {
         "columnKey" : "delay_defect_ratio",
-        "numericValue" : 3000,
-        "displayValue" : "30.00%",
+        "numericValue" : 5294,
+        "displayValue" : "52.94%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -7456,8 +7456,8 @@
         }
       }, {
         "columnKey" : "fix_rate",
-        "numericValue" : 667,
-        "displayValue" : "6.67%",
+        "numericValue" : 1176,
+        "displayValue" : "11.76%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -7474,8 +7474,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 30,
-        "displayValue" : "30",
+        "numericValue" : 17,
+        "displayValue" : "17",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -7510,8 +7510,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 29,
-        "displayValue" : "29",
+        "numericValue" : 16,
+        "displayValue" : "16",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -7519,8 +7519,8 @@
         }
       }, {
         "columnKey" : "new_issue_fix_rate",
-        "numericValue" : 690,
-        "displayValue" : "6.90%",
+        "numericValue" : 1250,
+        "displayValue" : "12.50%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -7564,8 +7564,8 @@
         }
       }, {
         "columnKey" : "level23_legacy_rate",
-        "numericValue" : 667,
-        "displayValue" : "6.67%",
+        "numericValue" : 1176,
+        "displayValue" : "11.76%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -7784,8 +7784,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 29,
-        "displayValue" : "0.29%",
+        "numericValue" : 57,
+        "displayValue" : "0.57%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8040,8 +8040,8 @@
         }
       }, {
         "columnKey" : "suggestion_total",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 12,
+        "displayValue" : "12",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8049,8 +8049,8 @@
         }
       }, {
         "columnKey" : "p1_count",
-        "numericValue" : 15,
-        "displayValue" : "15",
+        "numericValue" : 11,
+        "displayValue" : "11",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8058,8 +8058,8 @@
         }
       }, {
         "columnKey" : "p1_fix_rate",
-        "numericValue" : 2667,
-        "displayValue" : "26.67%",
+        "numericValue" : 2727,
+        "displayValue" : "27.27%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8076,8 +8076,8 @@
         }
       }, {
         "columnKey" : "p2_count",
-        "numericValue" : 9,
-        "displayValue" : "9",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8085,8 +8085,8 @@
         }
       }, {
         "columnKey" : "p2_fix_rate",
-        "numericValue" : 1111,
-        "displayValue" : "11.11%",
+        "numericValue" : 5000,
+        "displayValue" : "50.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8103,8 +8103,8 @@
         }
       }, {
         "columnKey" : "p3_count",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8113,7 +8113,7 @@
       }, {
         "columnKey" : "p3_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8122,7 +8122,7 @@
       }, {
         "columnKey" : "p3_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8130,8 +8130,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 25,
-        "displayValue" : "25",
+        "numericValue" : 13,
+        "displayValue" : "13",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8139,8 +8139,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 714,
-        "displayValue" : "7.14%",
+        "numericValue" : 739,
+        "displayValue" : "7.39%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8148,8 +8148,8 @@
         }
       }, {
         "columnKey" : "delay_defect_ratio",
-        "numericValue" : 1600,
-        "displayValue" : "16.00%",
+        "numericValue" : 3077,
+        "displayValue" : "30.77%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8157,8 +8157,8 @@
         }
       }, {
         "columnKey" : "solved_count",
-        "numericValue" : 5,
-        "displayValue" : "5",
+        "numericValue" : 4,
+        "displayValue" : "4",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8166,8 +8166,8 @@
         }
       }, {
         "columnKey" : "fix_rate",
-        "numericValue" : 2000,
-        "displayValue" : "20.00%",
+        "numericValue" : 3077,
+        "displayValue" : "30.77%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8184,8 +8184,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 25,
-        "displayValue" : "25",
+        "numericValue" : 13,
+        "displayValue" : "13",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8211,8 +8211,8 @@
         }
       }, {
         "columnKey" : "new_issue_fixed",
-        "numericValue" : 5,
-        "displayValue" : "5",
+        "numericValue" : 4,
+        "displayValue" : "4",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8220,8 +8220,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 25,
-        "displayValue" : "25",
+        "numericValue" : 13,
+        "displayValue" : "13",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8229,8 +8229,8 @@
         }
       }, {
         "columnKey" : "new_issue_fix_rate",
-        "numericValue" : 2000,
-        "displayValue" : "20.00%",
+        "numericValue" : 3077,
+        "displayValue" : "30.77%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8274,8 +8274,8 @@
         }
       }, {
         "columnKey" : "level23_legacy_rate",
-        "numericValue" : 400,
-        "displayValue" : "4.00%",
+        "numericValue" : 769,
+        "displayValue" : "7.69%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8395,8 +8395,8 @@
         }
       }, {
         "columnKey" : "suggestion_total",
-        "numericValue" : 6,
-        "displayValue" : "6",
+        "numericValue" : 19,
+        "displayValue" : "19",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8404,8 +8404,8 @@
         }
       }, {
         "columnKey" : "p1_count",
-        "numericValue" : 41,
-        "displayValue" : "41",
+        "numericValue" : 25,
+        "displayValue" : "25",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8413,8 +8413,8 @@
         }
       }, {
         "columnKey" : "p1_fix_rate",
-        "numericValue" : 1463,
-        "displayValue" : "14.63%",
+        "numericValue" : 2000,
+        "displayValue" : "20.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8431,8 +8431,8 @@
         }
       }, {
         "columnKey" : "p2_count",
-        "numericValue" : 5,
-        "displayValue" : "5",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8485,8 +8485,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 46,
-        "displayValue" : "46",
+        "numericValue" : 27,
+        "displayValue" : "27",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8494,8 +8494,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 1314,
-        "displayValue" : "13.14%",
+        "numericValue" : 1534,
+        "displayValue" : "15.34%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8503,8 +8503,8 @@
         }
       }, {
         "columnKey" : "delay_defect_ratio",
-        "numericValue" : 1957,
-        "displayValue" : "19.57%",
+        "numericValue" : 3333,
+        "displayValue" : "33.33%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8512,8 +8512,8 @@
         }
       }, {
         "columnKey" : "solved_count",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8521,8 +8521,8 @@
         }
       }, {
         "columnKey" : "fix_rate",
-        "numericValue" : 435,
-        "displayValue" : "4.35%",
+        "numericValue" : 370,
+        "displayValue" : "3.70%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8539,8 +8539,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 46,
-        "displayValue" : "46",
+        "numericValue" : 27,
+        "displayValue" : "27",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8566,8 +8566,8 @@
         }
       }, {
         "columnKey" : "new_issue_fixed",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8575,8 +8575,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 46,
-        "displayValue" : "46",
+        "numericValue" : 27,
+        "displayValue" : "27",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8584,8 +8584,8 @@
         }
       }, {
         "columnKey" : "new_issue_fix_rate",
-        "numericValue" : 435,
-        "displayValue" : "4.35%",
+        "numericValue" : 370,
+        "displayValue" : "3.70%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8750,8 +8750,8 @@
         }
       }, {
         "columnKey" : "suggestion_total",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 5,
+        "displayValue" : "5",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8786,8 +8786,8 @@
         }
       }, {
         "columnKey" : "p2_count",
-        "numericValue" : 5,
-        "displayValue" : "5",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8813,8 +8813,8 @@
         }
       }, {
         "columnKey" : "p3_count",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8823,7 +8823,7 @@
       }, {
         "columnKey" : "p3_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8832,7 +8832,7 @@
       }, {
         "columnKey" : "p3_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8840,8 +8840,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 7,
-        "displayValue" : "7",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8849,8 +8849,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 200,
-        "displayValue" : "2.00%",
+        "numericValue" : 114,
+        "displayValue" : "1.14%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -8894,8 +8894,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 7,
-        "displayValue" : "7",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -8930,8 +8930,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 7,
-        "displayValue" : "7",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -9105,8 +9105,8 @@
         }
       }, {
         "columnKey" : "suggestion_total",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 6,
+        "displayValue" : "6",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -9114,8 +9114,8 @@
         }
       }, {
         "columnKey" : "p1_count",
-        "numericValue" : 5,
-        "displayValue" : "5",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -9123,8 +9123,8 @@
         }
       }, {
         "columnKey" : "p1_fix_rate",
-        "numericValue" : 2000,
-        "displayValue" : "20.00%",
+        "numericValue" : 5000,
+        "displayValue" : "50.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -9141,8 +9141,8 @@
         }
       }, {
         "columnKey" : "p2_count",
-        "numericValue" : 4,
-        "displayValue" : "4",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -9195,8 +9195,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 9,
-        "displayValue" : "9",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -9204,8 +9204,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 257,
-        "displayValue" : "2.57%",
+        "numericValue" : 170,
+        "displayValue" : "1.70%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -9213,8 +9213,8 @@
         }
       }, {
         "columnKey" : "delay_defect_ratio",
-        "numericValue" : 1111,
-        "displayValue" : "11.11%",
+        "numericValue" : 3333,
+        "displayValue" : "33.33%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -9231,8 +9231,8 @@
         }
       }, {
         "columnKey" : "fix_rate",
-        "numericValue" : 1111,
-        "displayValue" : "11.11%",
+        "numericValue" : 3333,
+        "displayValue" : "33.33%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -9249,8 +9249,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 9,
-        "displayValue" : "9",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -9285,8 +9285,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 8,
-        "displayValue" : "8",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -9339,8 +9339,8 @@
         }
       }, {
         "columnKey" : "level23_legacy_rate",
-        "numericValue" : 1111,
-        "displayValue" : "11.11%",
+        "numericValue" : 3333,
+        "displayValue" : "33.33%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -9460,8 +9460,8 @@
         }
       }, {
         "columnKey" : "suggestion_total",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 17,
+        "displayValue" : "17",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -9469,8 +9469,8 @@
         }
       }, {
         "columnKey" : "p1_count",
-        "numericValue" : 12,
-        "displayValue" : "12",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -9496,8 +9496,8 @@
         }
       }, {
         "columnKey" : "p2_count",
-        "numericValue" : 7,
-        "displayValue" : "7",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -9506,7 +9506,7 @@
       }, {
         "columnKey" : "p2_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -9515,7 +9515,7 @@
       }, {
         "columnKey" : "p2_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -9550,8 +9550,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 19,
-        "displayValue" : "19",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -9559,8 +9559,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 543,
-        "displayValue" : "5.43%",
+        "numericValue" : 114,
+        "displayValue" : "1.14%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -9604,8 +9604,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 19,
-        "displayValue" : "19",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -9640,8 +9640,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 19,
-        "displayValue" : "19",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10170,15 +10170,6 @@
         }
       }, {
         "columnKey" : "suggestion_total",
-        "numericValue" : 3,
-        "displayValue" : "3",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "项目文档"
-        }
-      }, {
-        "columnKey" : "p1_count",
         "numericValue" : 13,
         "displayValue" : "13",
         "drilldown" : true,
@@ -10187,9 +10178,18 @@
           "rowKey" : "项目文档"
         }
       }, {
+        "columnKey" : "p1_count",
+        "numericValue" : 5,
+        "displayValue" : "5",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
         "columnKey" : "p1_fix_rate",
-        "numericValue" : 3846,
-        "displayValue" : "38.46%",
+        "numericValue" : 4000,
+        "displayValue" : "40.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10197,8 +10197,8 @@
         }
       }, {
         "columnKey" : "p1_close_rate",
-        "numericValue" : 769,
-        "displayValue" : "7.69%",
+        "numericValue" : 2000,
+        "displayValue" : "20.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10206,8 +10206,8 @@
         }
       }, {
         "columnKey" : "p2_count",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10233,8 +10233,8 @@
         }
       }, {
         "columnKey" : "p3_count",
-        "numericValue" : 4,
-        "displayValue" : "4",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10243,7 +10243,7 @@
       }, {
         "columnKey" : "p3_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10252,7 +10252,7 @@
       }, {
         "columnKey" : "p3_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10260,8 +10260,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 19,
-        "displayValue" : "19",
+        "numericValue" : 6,
+        "displayValue" : "6",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10269,8 +10269,8 @@
         }
       }, {
         "columnKey" : "defect_ratio",
-        "numericValue" : 543,
-        "displayValue" : "5.43%",
+        "numericValue" : 341,
+        "displayValue" : "3.41%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10287,8 +10287,8 @@
         }
       }, {
         "columnKey" : "solved_count",
-        "numericValue" : 5,
-        "displayValue" : "5",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10296,8 +10296,8 @@
         }
       }, {
         "columnKey" : "fix_rate",
-        "numericValue" : 2632,
-        "displayValue" : "26.32%",
+        "numericValue" : 3333,
+        "displayValue" : "33.33%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10305,8 +10305,8 @@
         }
       }, {
         "columnKey" : "close_rate",
-        "numericValue" : 526,
-        "displayValue" : "5.26%",
+        "numericValue" : 1667,
+        "displayValue" : "16.67%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10314,8 +10314,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 18,
-        "displayValue" : "18",
+        "numericValue" : 5,
+        "displayValue" : "5",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10341,8 +10341,8 @@
         }
       }, {
         "columnKey" : "new_issue_fixed",
-        "numericValue" : 5,
-        "displayValue" : "5",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10350,8 +10350,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 19,
-        "displayValue" : "19",
+        "numericValue" : 6,
+        "displayValue" : "6",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10359,8 +10359,8 @@
         }
       }, {
         "columnKey" : "new_issue_fix_rate",
-        "numericValue" : 2632,
-        "displayValue" : "26.32%",
+        "numericValue" : 3333,
+        "displayValue" : "33.33%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10368,8 +10368,8 @@
         }
       }, {
         "columnKey" : "new_issue_close_rate",
-        "numericValue" : 526,
-        "displayValue" : "5.26%",
+        "numericValue" : 1667,
+        "displayValue" : "16.67%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10404,8 +10404,8 @@
         }
       }, {
         "columnKey" : "level23_legacy_rate",
-        "numericValue" : 1053,
-        "displayValue" : "10.53%",
+        "numericValue" : 3333,
+        "displayValue" : "33.33%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10507,8 +10507,8 @@
         }
       }, {
         "columnKey" : "level3_total",
-        "numericValue" : 9,
-        "displayValue" : "9",
+        "numericValue" : 8,
+        "displayValue" : "8",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10516,8 +10516,8 @@
         }
       }, {
         "columnKey" : "level3_rate",
-        "numericValue" : 3333,
-        "displayValue" : "33.33%",
+        "numericValue" : 3750,
+        "displayValue" : "37.50%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10525,8 +10525,8 @@
         }
       }, {
         "columnKey" : "suggestion_total",
-        "numericValue" : 29,
-        "displayValue" : "29",
+        "numericValue" : 174,
+        "displayValue" : "174",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10534,8 +10534,8 @@
         }
       }, {
         "columnKey" : "p1_count",
-        "numericValue" : 242,
-        "displayValue" : "242",
+        "numericValue" : 156,
+        "displayValue" : "156",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10543,8 +10543,8 @@
         }
       }, {
         "columnKey" : "p1_fix_rate",
-        "numericValue" : 1901,
-        "displayValue" : "19.01%",
+        "numericValue" : 2244,
+        "displayValue" : "22.44%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10552,8 +10552,8 @@
         }
       }, {
         "columnKey" : "p1_close_rate",
-        "numericValue" : 372,
-        "displayValue" : "3.72%",
+        "numericValue" : 577,
+        "displayValue" : "5.77%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10561,8 +10561,8 @@
         }
       }, {
         "columnKey" : "p2_count",
-        "numericValue" : 95,
-        "displayValue" : "95",
+        "numericValue" : 20,
+        "displayValue" : "20",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10570,8 +10570,8 @@
         }
       }, {
         "columnKey" : "p2_fix_rate",
-        "numericValue" : 632,
-        "displayValue" : "6.32%",
+        "numericValue" : 2500,
+        "displayValue" : "25.00%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10588,8 +10588,8 @@
         }
       }, {
         "columnKey" : "p3_count",
-        "numericValue" : 12,
-        "displayValue" : "12",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10598,7 +10598,7 @@
       }, {
         "columnKey" : "p3_fix_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10607,7 +10607,7 @@
       }, {
         "columnKey" : "p3_close_rate",
         "numericValue" : 0,
-        "displayValue" : "0.00%",
+        "displayValue" : "/",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10615,8 +10615,8 @@
         }
       }, {
         "columnKey" : "module_total",
-        "numericValue" : 350,
-        "displayValue" : "350",
+        "numericValue" : 176,
+        "displayValue" : "176",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10633,8 +10633,8 @@
         }
       }, {
         "columnKey" : "delay_defect_ratio",
-        "numericValue" : 971,
-        "displayValue" : "9.71%",
+        "numericValue" : 1818,
+        "displayValue" : "18.18%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10642,8 +10642,8 @@
         }
       }, {
         "columnKey" : "solved_count",
-        "numericValue" : 46,
-        "displayValue" : "46",
+        "numericValue" : 33,
+        "displayValue" : "33",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10651,8 +10651,8 @@
         }
       }, {
         "columnKey" : "fix_rate",
-        "numericValue" : 1314,
-        "displayValue" : "13.14%",
+        "numericValue" : 1875,
+        "displayValue" : "18.75%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10660,8 +10660,8 @@
         }
       }, {
         "columnKey" : "close_rate",
-        "numericValue" : 257,
-        "displayValue" : "2.57%",
+        "numericValue" : 511,
+        "displayValue" : "5.11%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10669,8 +10669,8 @@
         }
       }, {
         "columnKey" : "open_count",
-        "numericValue" : 341,
-        "displayValue" : "341",
+        "numericValue" : 167,
+        "displayValue" : "167",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10696,8 +10696,8 @@
         }
       }, {
         "columnKey" : "new_issue_fixed",
-        "numericValue" : 45,
-        "displayValue" : "45",
+        "numericValue" : 32,
+        "displayValue" : "32",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10705,8 +10705,8 @@
         }
       }, {
         "columnKey" : "new_issue_total",
-        "numericValue" : 345,
-        "displayValue" : "345",
+        "numericValue" : 172,
+        "displayValue" : "172",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10714,8 +10714,8 @@
         }
       }, {
         "columnKey" : "new_issue_fix_rate",
-        "numericValue" : 1304,
-        "displayValue" : "13.04%",
+        "numericValue" : 1860,
+        "displayValue" : "18.60%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10723,8 +10723,8 @@
         }
       }, {
         "columnKey" : "new_issue_close_rate",
-        "numericValue" : 261,
-        "displayValue" : "2.61%",
+        "numericValue" : 523,
+        "displayValue" : "5.23%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10750,8 +10750,8 @@
         }
       }, {
         "columnKey" : "level3_legacy_count",
-        "numericValue" : 6,
-        "displayValue" : "6",
+        "numericValue" : 5,
+        "displayValue" : "5",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -10759,8 +10759,8 @@
         }
       }, {
         "columnKey" : "level23_legacy_rate",
-        "numericValue" : 629,
-        "displayValue" : "6.29%",
+        "numericValue" : 1250,
+        "displayValue" : "12.50%",
         "drilldown" : false,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10769,8 +10769,8 @@
       } ]
     } ],
     "meta" : {
-      "generatedAt" : "2026-09-07T12:58:28.5309233+08:00",
-      "queryDurationMs" : 363,
+      "generatedAt" : "2026-09-08T14:01:33.2134556+08:00",
+      "queryDurationMs" : 738,
       "rowCount" : 27,
       "columnCount" : 39,
       "drilldownColumnCount" : 22

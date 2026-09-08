@@ -519,8 +519,8 @@ public class SystemTestHorizontalComparisonExportService {
             SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER);
     predicates.add("(" + phasePredicate.sql() + ")");
     args.addAll(phasePredicate.args());
-    predicates.add("((" + SystemTestSuggestionMetricSupport.regularMetricSql(null) + ") or ("
-        + SystemTestSuggestionMetricSupport.suggestionMetricSql(null) + "))");
+    predicates.add("((" + SuggestionMetricSupport.regularMetricSql(null) + ") or ("
+        + SuggestionMetricSupport.suggestionMetricSql(null) + "))");
     if (StringUtils.hasText(scope.projectName())) {
       predicates.add("lower(coalesce(project_name, '')) like ?");
       args.add(like(scope.projectName()));
@@ -1126,11 +1126,11 @@ public class SystemTestHorizontalComparisonExportService {
      * 避免污染其它指标的折中，不是新平台应回退的目标；若未来要改，请先确认业务决策。
      */
     boolean isSuggestion() {
-      return SystemTestSuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
     }
 
     boolean isRegularMetricIssue() {
-      return SystemTestSuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
     }
 
     boolean isPriority(String priority) {

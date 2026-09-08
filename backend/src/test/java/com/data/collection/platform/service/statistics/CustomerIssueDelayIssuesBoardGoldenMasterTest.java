@@ -43,7 +43,6 @@ class CustomerIssueDelayIssuesBoardGoldenMasterTest
     when(milestoneCatalogService.defaultMilestone()).thenReturn("CC2026R2");
     when(milestoneCatalogService.resolveMilestoneValues("CC2026R2"))
         .thenReturn(List.of("CC2026 R2"));
-    when(milestoneCatalogService.matches("CC2026R2", "CC2026 R2")).thenReturn(true);
     StatisticBoardSnapshotService.SnapshotRequest snapshotRequest =
         new StatisticBoardSnapshotService.SnapshotRequest(
             "customer-issue-delay-issues", "test", "test", "test", Map.of(), null, null);
@@ -138,6 +137,7 @@ class CustomerIssueDelayIssuesBoardGoldenMasterTest
     when(rs.getString("issue_state")).thenReturn("opened");
     when(rs.getString("testing_phase")).thenReturn("");
     when(rs.getString("system_test_label")).thenReturn("");
+    when(rs.getString("severity_level")).thenReturn("LEVEL2");
     when(rs.getString("priority_level")).thenReturn(priorityLevel);
     when(rs.getString("bug_status")).thenReturn("处理中");
     when(rs.getString("category")).thenReturn("功能");
@@ -147,6 +147,7 @@ class CustomerIssueDelayIssuesBoardGoldenMasterTest
     when(rs.getString("module_names")).thenReturn("装配");
     when(rs.getString("label_names")).thenReturn(priorityLevel);
     when(rs.getBoolean("is_excluded")).thenReturn(false);
+    when(rs.getString("exclusion_reason")).thenReturn("");
     when(rs.getBoolean("delay_issue")).thenReturn(false);
     return rs;
   }

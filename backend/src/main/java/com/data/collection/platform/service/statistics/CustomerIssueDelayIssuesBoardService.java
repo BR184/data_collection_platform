@@ -47,7 +47,7 @@ import org.springframework.util.StringUtils;
 public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoardService
     implements RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-delay-issues";
-  private static final String RULE_VERSION = "customer-issue-delay-issues@2026-07-28-v4";
+  private static final String RULE_VERSION = "customer-issue-delay-issues@2026-09-08-v5";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总数";
   private static final String EMPTY_MODULE_LABEL = "未设定模块";
@@ -69,6 +69,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
              coalesce(issue_state, 'opened') as issue_state,
              coalesce(testing_phase, '') as testing_phase,
              coalesce(system_test_label, '') as system_test_label,
+             coalesce(severity_level, '') as severity_level,
              coalesce(priority_level, '') as priority_level,
              coalesce(bug_status, '') as bug_status,
              coalesce(category, '') as category,
@@ -78,6 +79,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
              coalesce(module_names, '') as module_names,
              coalesce(label_names, '') as label_names,
              coalesce(is_excluded, false) as is_excluded,
+             coalesce(exclusion_reason, '') as exclusion_reason,
              coalesce(delay_issue, false) as delay_issue,
              coalesce(is_response_delayed, false) as is_response_delayed,
              coalesce(is_resolve_delayed, false) as is_resolve_delayed,
@@ -325,7 +327,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         true,
         "客户问题延期问题规则说明",
         RULE_VERSION,
-        "当前统计先限定客户问题范围，再保留仍未关闭且已经命中延期规则的议题，按模块、紧急程度和延期类型统计。",
+        "当前统计先限定客户问题范围，剔除建议类与其他排除数据后，保留仍未关闭且已经命中延期规则的议题，按模块、紧急程度和延期类型统计。建议类问题（严重程度归一为建议类，或类别包含“建议”）不计入响应延期和解决延期数量。",
         "表格数量只统计紧急程度命中 P1、P2 或 P3 的议题；未设定紧急程度可参与延期事实判定，但不计入 P3 和总计。",
         snapshot.flowSteps(),
         List.of(
@@ -365,7 +367,11 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
     List<IssueSource> scoped =
         initial.stream().filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext())).toList();
-    List<IssueSource> visible = scoped.stream().filter(issue -> !issue.excluded()).toList();
+    List<IssueSource> visible =
+        scoped.stream()
+            .filter(issue -> SuggestionMetricSupport.isRegularMetricIssue(
+                issue.excluded(), issue.exclusionReason(), issue.severityLevel(), issue.category()))
+            .toList();
     List<IssueSource> gitlabReadable =
         visible.stream().filter(issue -> !issue.hasGitLabApiError()).toList();
     List<IssueSource> openIssues =
@@ -376,10 +382,8 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         delayed.stream().filter(IssueSource::hasLegacyPriorityBucket).toList();
     Predicate<IssueSource> filterPredicate =
         StatisticFilterEngine.compile(filterGroup, filterFields());
-    List<IssueSource> rowSources = scoped.stream().filter(filterPredicate).toList();
     List<IssueSource> filtered = legacyPriorityIssues.stream().filter(filterPredicate).toList();
     return new RuleFlowSnapshot(
-        rowSources,
         filtered,
         List.of(
             StatisticRuleFlowSupport.step(
@@ -399,7 +403,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
             StatisticRuleFlowSupport.step(
                 "exclude-filter",
                 "剔除排除数据",
-                "客户问题统计不排除建议类问题；仅剔除关闭后属于申请否决、需求如此或设计如此的数据。",
+                "剔除关闭后属于申请否决、需求如此或设计如此的数据，以及建议类问题。",
                 scoped.size(),
                 visible,
                 this::toRuleFlowSample),
@@ -558,6 +562,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         StatisticSourceValueSupport.text(rs.getString("issue_state")),
         StatisticSourceValueSupport.text(rs.getString("testing_phase")),
         StatisticSourceValueSupport.text(rs.getString("system_test_label")),
+        StatisticSourceValueSupport.text(rs.getString("severity_level")),
         StatisticSourceValueSupport.text(rs.getString("priority_level")),
         StatisticSourceValueSupport.text(rs.getString("bug_status")),
         StatisticSourceValueSupport.text(rs.getString("category")),
@@ -567,6 +572,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         splitLegacyModuleNames(rs.getString("module_names")),
         StatisticSourceValueSupport.split(rs.getString("label_names")),
         rs.getBoolean("is_excluded"),
+        StatisticSourceValueSupport.text(rs.getString("exclusion_reason")),
         rs.getBoolean("delay_issue"),
         rs.getBoolean("is_response_delayed"),
         rs.getBoolean("is_resolve_delayed"),
@@ -752,6 +758,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       String issueState,
       String testingPhase,
       String systemTestLabel,
+      String severityLevel,
       String priorityLevel,
       String bugStatus,
       String category,
@@ -761,6 +768,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       List<String> moduleNames,
       List<String> labels,
       boolean excluded,
+      String exclusionReason,
       boolean delayIssue,
       boolean responseDelayed,
       boolean resolveDelayed,
@@ -849,7 +857,6 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   }
 
   private record RuleFlowSnapshot(
-      List<IssueSource> rowSources,
       List<IssueSource> finalSources,
       List<StatisticRuleFlowStep> flowSteps) {}
 

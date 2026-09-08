@@ -2,13 +2,13 @@ package com.data.collection.platform.service.statistics;
 
 import org.springframework.util.StringUtils;
 
-final class SystemTestSuggestionMetricSupport {
+final class SuggestionMetricSupport {
   static final String SUGGESTION_HEADER_TOOLTIP =
       "建议类缺陷单独统计，不计入一级、二级、三级、P1/P2/P3、总计、修复率、关闭率和占比。";
 
   private static final String SUGGESTION = "建议";
 
-  private SystemTestSuggestionMetricSupport() {}
+  private SuggestionMetricSupport() {}
 
   /*
    * 业务背景：

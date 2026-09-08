@@ -773,8 +773,8 @@
       "rowLabel" : "BOM",
       "cells" : [ {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 9,
-        "displayValue" : "9",
+        "numericValue" : 5,
+        "displayValue" : "5",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -782,8 +782,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 3,
-        "displayValue" : "3",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -800,8 +800,8 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 12,
-        "displayValue" : "12",
+        "numericValue" : 5,
+        "displayValue" : "5",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -809,8 +809,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 7,
-        "displayValue" : "7",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -818,8 +818,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p2",
-        "numericValue" : 3,
-        "displayValue" : "3",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -836,8 +836,8 @@
         }
       }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 10,
-        "displayValue" : "10",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -970,8 +970,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p2",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -988,8 +988,8 @@
         }
       }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1086,8 +1086,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1104,8 +1104,8 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1122,8 +1122,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p2",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1140,8 +1140,8 @@
         }
       }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 3,
-        "displayValue" : "3",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1305,8 +1305,8 @@
       "rowLabel" : "工具",
       "cells" : [ {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 14,
-        "displayValue" : "14",
+        "numericValue" : 7,
+        "displayValue" : "7",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1314,8 +1314,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 11,
-        "displayValue" : "11",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1323,6 +1323,33 @@
         }
       }, {
         "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "resp_delay_sum",
+        "numericValue" : 7,
+        "displayValue" : "7",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 9,
+        "displayValue" : "9",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "工具"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
         "numericValue" : 1,
         "displayValue" : "1",
         "drilldown" : true,
@@ -1331,36 +1358,9 @@
           "rowKey" : "工具"
         }
       }, {
-        "columnKey" : "resp_delay_sum",
-        "numericValue" : 26,
-        "displayValue" : "26",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "工具"
-        }
-      }, {
-        "columnKey" : "fix_delay_p1",
-        "numericValue" : 18,
-        "displayValue" : "18",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "工具"
-        }
-      }, {
-        "columnKey" : "fix_delay_p2",
-        "numericValue" : 13,
-        "displayValue" : "13",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "工具"
-        }
-      }, {
         "columnKey" : "fix_delay_p3",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1368,8 +1368,8 @@
         }
       }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 33,
-        "displayValue" : "33",
+        "numericValue" : 10,
+        "displayValue" : "10",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1381,8 +1381,8 @@
       "rowLabel" : "工程图",
       "cells" : [ {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 33,
-        "displayValue" : "33",
+        "numericValue" : 23,
+        "displayValue" : "23",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1390,8 +1390,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 9,
-        "displayValue" : "9",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1408,8 +1408,8 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 42,
-        "displayValue" : "42",
+        "numericValue" : 25,
+        "displayValue" : "25",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1417,8 +1417,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 37,
-        "displayValue" : "37",
+        "numericValue" : 28,
+        "displayValue" : "28",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1426,8 +1426,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p2",
-        "numericValue" : 8,
-        "displayValue" : "8",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1444,8 +1444,8 @@
         }
       }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 45,
-        "displayValue" : "45",
+        "numericValue" : 29,
+        "displayValue" : "29",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1457,8 +1457,8 @@
       "rowLabel" : "平台",
       "cells" : [ {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 13,
-        "displayValue" : "13",
+        "numericValue" : 11,
+        "displayValue" : "11",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1466,8 +1466,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1475,8 +1475,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p3",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1484,8 +1484,8 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 15,
-        "displayValue" : "15",
+        "numericValue" : 11,
+        "displayValue" : "11",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1493,8 +1493,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 12,
-        "displayValue" : "12",
+        "numericValue" : 10,
+        "displayValue" : "10",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1502,8 +1502,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p2",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1511,8 +1511,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p3",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1520,8 +1520,8 @@
         }
       }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 15,
-        "displayValue" : "15",
+        "numericValue" : 10,
+        "displayValue" : "10",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1533,8 +1533,8 @@
       "rowLabel" : "库",
       "cells" : [ {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 5,
-        "displayValue" : "5",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1542,8 +1542,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 6,
-        "displayValue" : "6",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1560,8 +1560,8 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 11,
-        "displayValue" : "11",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1569,8 +1569,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 5,
-        "displayValue" : "5",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1578,8 +1578,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p2",
-        "numericValue" : 6,
-        "displayValue" : "6",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1596,8 +1596,8 @@
         }
       }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 11,
-        "displayValue" : "11",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1609,8 +1609,8 @@
       "rowLabel" : "快速设计",
       "cells" : [ {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1636,8 +1636,8 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1645,8 +1645,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1672,8 +1672,8 @@
         }
       }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1685,8 +1685,8 @@
       "rowLabel" : "数据交换",
       "cells" : [ {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 8,
-        "displayValue" : "8",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1694,8 +1694,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 5,
-        "displayValue" : "5",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1703,8 +1703,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p3",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1712,8 +1712,8 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 15,
-        "displayValue" : "15",
+        "numericValue" : 4,
+        "displayValue" : "4",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1721,8 +1721,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 8,
-        "displayValue" : "8",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1730,15 +1730,6 @@
         }
       }, {
         "columnKey" : "fix_delay_p2",
-        "numericValue" : 6,
-        "displayValue" : "6",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "数据交换"
-        }
-      }, {
-        "columnKey" : "fix_delay_p3",
         "numericValue" : 2,
         "displayValue" : "2",
         "drilldown" : true,
@@ -1747,9 +1738,18 @@
           "rowKey" : "数据交换"
         }
       }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "数据交换"
+        }
+      }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 16,
-        "displayValue" : "16",
+        "numericValue" : 5,
+        "displayValue" : "5",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1770,8 +1770,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1788,8 +1788,8 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 4,
-        "displayValue" : "4",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1806,8 +1806,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p2",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1824,8 +1824,8 @@
         }
       }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 4,
-        "displayValue" : "4",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1837,8 +1837,8 @@
       "rowLabel" : "未设定模块",
       "cells" : [ {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 6,
-        "displayValue" : "6",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1846,8 +1846,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 5,
-        "displayValue" : "5",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1864,8 +1864,8 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 11,
-        "displayValue" : "11",
+        "numericValue" : 4,
+        "displayValue" : "4",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1873,8 +1873,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 7,
-        "displayValue" : "7",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1882,8 +1882,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p2",
-        "numericValue" : 4,
-        "displayValue" : "4",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1900,8 +1900,8 @@
         }
       }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 11,
-        "displayValue" : "11",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1922,8 +1922,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1940,8 +1940,8 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1958,8 +1958,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p2",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -1976,8 +1976,8 @@
         }
       }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2083,8 +2083,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p3",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2092,8 +2092,8 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2119,8 +2119,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p3",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2128,8 +2128,8 @@
         }
       }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2141,8 +2141,8 @@
       "rowLabel" : "特征",
       "cells" : [ {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 14,
-        "displayValue" : "14",
+        "numericValue" : 10,
+        "displayValue" : "10",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2150,8 +2150,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 12,
-        "displayValue" : "12",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2168,8 +2168,8 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 26,
-        "displayValue" : "26",
+        "numericValue" : 13,
+        "displayValue" : "13",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2177,8 +2177,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 10,
-        "displayValue" : "10",
+        "numericValue" : 6,
+        "displayValue" : "6",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2186,8 +2186,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p2",
-        "numericValue" : 10,
-        "displayValue" : "10",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2204,8 +2204,8 @@
         }
       }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 20,
-        "displayValue" : "20",
+        "numericValue" : 7,
+        "displayValue" : "7",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2293,15 +2293,6 @@
       "rowLabel" : "草图",
       "cells" : [ {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 9,
-        "displayValue" : "9",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "草图"
-        }
-      }, {
-        "columnKey" : "resp_delay_p2",
         "numericValue" : 6,
         "displayValue" : "6",
         "drilldown" : true,
@@ -2310,9 +2301,18 @@
           "rowKey" : "草图"
         }
       }, {
-        "columnKey" : "resp_delay_p3",
+        "columnKey" : "resp_delay_p2",
         "numericValue" : 1,
         "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2320,8 +2320,8 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 16,
-        "displayValue" : "16",
+        "numericValue" : 7,
+        "displayValue" : "7",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2329,8 +2329,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 8,
-        "displayValue" : "8",
+        "numericValue" : 5,
+        "displayValue" : "5",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2338,15 +2338,6 @@
         }
       }, {
         "columnKey" : "fix_delay_p2",
-        "numericValue" : 8,
-        "displayValue" : "8",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "草图"
-        }
-      }, {
-        "columnKey" : "fix_delay_p3",
         "numericValue" : 1,
         "displayValue" : "1",
         "drilldown" : true,
@@ -2355,9 +2346,18 @@
           "rowKey" : "草图"
         }
       }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "草图"
+        }
+      }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 17,
-        "displayValue" : "17",
+        "numericValue" : 6,
+        "displayValue" : "6",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2369,8 +2369,8 @@
       "rowLabel" : "装配",
       "cells" : [ {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 35,
-        "displayValue" : "35",
+        "numericValue" : 19,
+        "displayValue" : "19",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2378,8 +2378,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 5,
-        "displayValue" : "5",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2396,8 +2396,8 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 40,
-        "displayValue" : "40",
+        "numericValue" : 21,
+        "displayValue" : "21",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2405,8 +2405,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 27,
-        "displayValue" : "27",
+        "numericValue" : 11,
+        "displayValue" : "11",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2414,8 +2414,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p2",
-        "numericValue" : 5,
-        "displayValue" : "5",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2432,8 +2432,8 @@
         }
       }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 32,
-        "displayValue" : "32",
+        "numericValue" : 13,
+        "displayValue" : "13",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2454,15 +2454,6 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 5,
-        "displayValue" : "5",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "设置"
-        }
-      }, {
-        "columnKey" : "resp_delay_p3",
         "numericValue" : 1,
         "displayValue" : "1",
         "drilldown" : true,
@@ -2471,9 +2462,18 @@
           "rowKey" : "设置"
         }
       }, {
+        "columnKey" : "resp_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 6,
-        "displayValue" : "6",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2490,15 +2490,6 @@
         }
       }, {
         "columnKey" : "fix_delay_p2",
-        "numericValue" : 5,
-        "displayValue" : "5",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "设置"
-        }
-      }, {
-        "columnKey" : "fix_delay_p3",
         "numericValue" : 1,
         "displayValue" : "1",
         "drilldown" : true,
@@ -2507,9 +2498,18 @@
           "rowKey" : "设置"
         }
       }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "设置"
+        }
+      }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 7,
-        "displayValue" : "7",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2521,8 +2521,8 @@
       "rowLabel" : "评估",
       "cells" : [ {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 5,
-        "displayValue" : "5",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2530,8 +2530,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 4,
-        "displayValue" : "4",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2548,8 +2548,8 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 9,
-        "displayValue" : "9",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2557,8 +2557,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 4,
-        "displayValue" : "4",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2566,8 +2566,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p2",
-        "numericValue" : 4,
-        "displayValue" : "4",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2584,8 +2584,8 @@
         }
       }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 8,
-        "displayValue" : "8",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2597,8 +2597,8 @@
       "rowLabel" : "钣金",
       "cells" : [ {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 11,
-        "displayValue" : "11",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2606,8 +2606,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 7,
-        "displayValue" : "7",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2624,8 +2624,8 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 18,
-        "displayValue" : "18",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2633,8 +2633,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 12,
-        "displayValue" : "12",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2642,8 +2642,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p2",
-        "numericValue" : 7,
-        "displayValue" : "7",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2660,8 +2660,8 @@
         }
       }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 19,
-        "displayValue" : "19",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2749,8 +2749,8 @@
       "rowLabel" : "项目文档",
       "cells" : [ {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 11,
-        "displayValue" : "11",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2758,8 +2758,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2767,8 +2767,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p3",
-        "numericValue" : 4,
-        "displayValue" : "4",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2776,33 +2776,6 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 17,
-        "displayValue" : "17",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "项目文档"
-        }
-      }, {
-        "columnKey" : "fix_delay_p1",
-        "numericValue" : 11,
-        "displayValue" : "11",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "项目文档"
-        }
-      }, {
-        "columnKey" : "fix_delay_p2",
-        "numericValue" : 2,
-        "displayValue" : "2",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
-        "detailParams" : {
-          "rowKey" : "项目文档"
-        }
-      }, {
-        "columnKey" : "fix_delay_p3",
         "numericValue" : 4,
         "displayValue" : "4",
         "drilldown" : true,
@@ -2811,9 +2784,36 @@
           "rowKey" : "项目文档"
         }
       }, {
+        "columnKey" : "fix_delay_p1",
+        "numericValue" : 4,
+        "displayValue" : "4",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "fix_delay_p2",
+        "numericValue" : 1,
+        "displayValue" : "1",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
+        "columnKey" : "fix_delay_p3",
+        "numericValue" : 0,
+        "displayValue" : "0",
+        "drilldown" : true,
+        "detailViewKey" : "issue-list",
+        "detailParams" : {
+          "rowKey" : "项目文档"
+        }
+      }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 17,
-        "displayValue" : "17",
+        "numericValue" : 5,
+        "displayValue" : "5",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2825,8 +2825,8 @@
       "rowLabel" : "总数",
       "cells" : [ {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 175,
-        "displayValue" : "175",
+        "numericValue" : 94,
+        "displayValue" : "94",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2834,8 +2834,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 85,
-        "displayValue" : "85",
+        "numericValue" : 16,
+        "displayValue" : "16",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2843,8 +2843,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p3",
-        "numericValue" : 11,
-        "displayValue" : "11",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2852,8 +2852,8 @@
         }
       }, {
         "columnKey" : "resp_delay_sum",
-        "numericValue" : 271,
-        "displayValue" : "271",
+        "numericValue" : 110,
+        "displayValue" : "110",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2861,8 +2861,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 185,
-        "displayValue" : "185",
+        "numericValue" : 102,
+        "displayValue" : "102",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2870,8 +2870,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p2",
-        "numericValue" : 87,
-        "displayValue" : "87",
+        "numericValue" : 13,
+        "displayValue" : "13",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2879,8 +2879,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p3",
-        "numericValue" : 12,
-        "displayValue" : "12",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2888,8 +2888,8 @@
         }
       }, {
         "columnKey" : "fix_delay_sum",
-        "numericValue" : 284,
-        "displayValue" : "284",
+        "numericValue" : 115,
+        "displayValue" : "115",
         "drilldown" : true,
         "detailViewKey" : "issue-list",
         "detailParams" : {
@@ -2898,8 +2898,8 @@
       } ]
     } ],
     "meta" : {
-      "generatedAt" : "2026-09-07T12:58:30.0873148+08:00",
-      "queryDurationMs" : 530,
+      "generatedAt" : "2026-09-08T14:01:34.3739212+08:00",
+      "queryDurationMs" : 277,
       "rowCount" : 28,
       "columnCount" : 8,
       "drilldownColumnCount" : 8
