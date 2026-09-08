@@ -6,6 +6,13 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-08 20001 保数据更新包制作与本地升级演练
+
+- [完成] 20001 现场（直接基线 20260803T122027Z-ad35f6c0e8c3 全新包，现场运行镜像逐字一致）保数据更新包生成：`qaflex-update-20260908T075021Z-c3539eefab51`，归档 197,383,444 bytes，SHA-256 `f55781200161e89e01a25af747cdec9e5d38cd1ea29bb2627b5102d24de0f9cc`；source.commit=05ecadda（工作树非干净=遗留文档/SQL 非发布代码），目标前后端镜像同 release-id，Flyway 20260803.01→20260903.01（12 迁移），facts={rebuildRequired:true, scope:issue}（客户问题统计排除建议类口径变更；MR 侧基线以来仅等价重构，不扩 all）。打包器全门禁+独立审计通过（契约测试 34/34、镜像内产物摘要、包内外校验和、归档结构合规、bash -n）。
+- [验证] 本地隔离栈（project=qaflex-upgrade-sim-20001，端口 20111/20112/15533，基线镜像自基线包 docker load）完成 backup→upgrade→rollback→再 backup→再 upgrade 三腿演练：目标镜像双 healthy、后端 health UP、前端 200、Flyway=20260903.01、两次备份 counts.diff 均空、双 dump pg_restore --list 可读、PostgreSQL 容器 ID `8f200ca68ab075aeba2c54385d41b492bd395c4ebea4b548eb280b547a300bd7` 全程不变，栈最终停留目标镜像。演练期两次无害失败均已定位：sim `.env` 缺 `POSTGRES_VOLUME_NAME`/`BACKEND_LOG_VOLUME_NAME`（现场 -20001-config 模板已含，20001 现场升级前须确认现场 `.env` 具备此二变量，否则升级在同一检查点无害停止）；本机 8/3 演练残留 `qaflex-backend`/`qaflex-frontend` 固定名容器与新包 compose 冲突（按标准仅清理精确应用容器，未碰任何 postgres）。
+- [限制] 未验证：LDAP 真实登录、内网真实数据规模与 issue 事实重建（现场升级后由用户在「数据镜像设置」提交 FACT_REFRESH，不走 GitLab 全量同步）。
+- [发现] 打包生产构建再生成 `frontend/src/components.d.ts`，移除 ElPopover 声明——规则配置路由已于 5144c23c 有意下线，`CodeReviewIllegalRuleConfigView.vue` 及其测试/manifest 契约成为孤儿残留（仅测试引用）；dts 再生成与生产模块图一致，随本单元以 chore 提交。孤儿视图文件清理与否待用户拍板。
+
 ## 2026-09-08 评审问题同名专家覆盖缺陷修复（状态必填+占位守卫）
 
 - [完成] 修复「新增评审问题」同名专家覆盖缺陷并放开同专家多条问题：根因是新增态状态可空→后端默认化为"未评审"→真实内容项停留"未评审"被 `findPendingProblemItem` 无限劫持覆盖。实施（方案 A+守卫，定稿时否决用户"下拉框加回未评审"提议——显式选"未评审"的真实条目会重新成为劫持目标，且后端 `requireUserSelectableProblemStatus` 本就拒绝该值）：`ReviewDataRecordCommandService` 创建路径改 `requireProblemStatus`（空/未评审拒绝）并删除 `defaultPendingStatus`；劫持谓词收紧为 `isDefaultPendingProblemItem`（只劫持系统纯占位行，30001 存量脏行不再被覆盖）；DTO `problemStatus` 补 `@NotBlank`；前端 `ReviewProblemItemFormDialog` 状态新增/编辑均必填、候选维持不含"未评审"；业务规则 6.x 第 13 条修订。计划 `docs/plans/review-problem-item-expert-override-fix-20260908.md`。
