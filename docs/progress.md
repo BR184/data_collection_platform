@@ -16,7 +16,7 @@
 
 - [完成] 按领导 2026-09-08 指示，客户问题延期问题与缺陷汇总两看板统计层排除建议类：共享判定类改名 `SuggestionMetricSupport`（6 处系统测试看板调用点同步）；缺陷汇总整块常规指标 regular/suggestion 拆分（`CustomerIssueDefectSummaryBoardService`，FACT_SQL 接入 exclusion_reason、matchesMetric/toRowData 全面拆分、建议类列加 tooltip、补 module_total 下钻口径 case）；延期看板 exclude-filter 改 regular 判定（`CustomerIssueDelayIssuesBoardService`，补 severity_level/exclusion_reason 事实列）。两看板 RULE_VERSION 升级（v7/v5），内网存量快照将自动失效重建。事实层 is_excluded 与其余三个客户问题看板（响应效率/缺陷原因/按功能）不动；业务规则 5.1 第 4 条/5.2 第 6 条/5.3 第 15 条修订。计划 `docs/plans/customer-issue-suggestion-exclusion-20260908.md`。
 - [验证] statistics 包 56 测试全绿；后端默认套件 1246 全绿（0 失败 0 错误，15433 测试库容器 `qaflex-test-postgres-15433` 重建后复跑，此前 68 个错误均为该容器缺失导致的上下文加载失败）；新增建议类用例 2 个（延期排除+汇总"建议+二级"混合排除）；两 GoldenMaster 期望重建（延期金标与旧版零内容差异，缺陷汇总仅建议类列 tooltip 变化）；本地库复核（15432 真实数据）：延期样本 815→461、缺陷汇总样本 1054→722、修复率 32.9%→42.8%。
-- [风险] 黄金基线两看板相关快照待发布打包前门禁时机重建（有意行为变更，走确认→update→审阅流程）；系统测试缺陷汇总存在 module_total 下钻含建议类的既有不一致（本次未动系统测试侧行为，待后续拍板）；API 级界面验证需登录凭据，待用户在浏览器复核两看板数字。
+- [风险] 黄金基线快照已重建（2026-09-08 发布门禁：更新模式+62 文件全量归一化审计+比对模式 180/180 全绿，审计轨迹见 `docs/plans/golden-baseline-rebuild-release-gate-20260908.md`）；系统测试缺陷汇总存在 module_total 下钻含建议类的既有不一致（本次未动系统测试侧行为，待后续拍板）；API 级界面验证需登录凭据，待用户在浏览器复核两看板数字。
 
 ## 2026-09-07 全新包 .env 直出
 
