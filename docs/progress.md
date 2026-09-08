@@ -6,6 +6,12 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-08 评审问题同名专家覆盖缺陷修复（状态必填+占位守卫）
+
+- [完成] 修复「新增评审问题」同名专家覆盖缺陷并放开同专家多条问题：根因是新增态状态可空→后端默认化为"未评审"→真实内容项停留"未评审"被 `findPendingProblemItem` 无限劫持覆盖。实施（方案 A+守卫，定稿时否决用户"下拉框加回未评审"提议——显式选"未评审"的真实条目会重新成为劫持目标，且后端 `requireUserSelectableProblemStatus` 本就拒绝该值）：`ReviewDataRecordCommandService` 创建路径改 `requireProblemStatus`（空/未评审拒绝）并删除 `defaultPendingStatus`；劫持谓词收紧为 `isDefaultPendingProblemItem`（只劫持系统纯占位行，30001 存量脏行不再被覆盖）；DTO `problemStatus` 补 `@NotBlank`；前端 `ReviewProblemItemFormDialog` 状态新增/编辑均必填、候选维持不含"未评审"；业务规则 6.x 第 13 条修订。计划 `docs/plans/review-problem-item-expert-override-fix-20260908.md`。
+- [验证] 后端单测 7/7（新增 4 用例：空状态拒绝、手动未评审拒绝、同专家已有项走 insert、未评审+真实内容脏行走 insert）；搜索索引集成 4/4；后端默认套件 1250 全绿；前端 vitest 459/459、typecheck 干净。影响面实证：golden-create/update 显式传真实状态且夹具零"未评审"行、Excel 导入恒传"已关闭"或用户指定状态——零快照影响，不触发黄金基线。
+- [风险] 30001 存量"未评审+有内容"脏数据不可自愈也不可恢复已丢内容：部署后需按计划文档第 6 步 SQL 人工核查，逐条编辑补选状态，被覆盖丢失的历史内容按原始记录重录。
+
 ## 2026-09-08 客户问题统计排除建议类（延期+缺陷汇总）
 
 - [完成] 按领导 2026-09-08 指示，客户问题延期问题与缺陷汇总两看板统计层排除建议类：共享判定类改名 `SuggestionMetricSupport`（6 处系统测试看板调用点同步）；缺陷汇总整块常规指标 regular/suggestion 拆分（`CustomerIssueDefectSummaryBoardService`，FACT_SQL 接入 exclusion_reason、matchesMetric/toRowData 全面拆分、建议类列加 tooltip、补 module_total 下钻口径 case）；延期看板 exclude-filter 改 regular 判定（`CustomerIssueDelayIssuesBoardService`，补 severity_level/exclusion_reason 事实列）。两看板 RULE_VERSION 升级（v7/v5），内网存量快照将自动失效重建。事实层 is_excluded 与其余三个客户问题看板（响应效率/缺陷原因/按功能）不动；业务规则 5.1 第 4 条/5.2 第 6 条/5.3 第 15 条修订。计划 `docs/plans/customer-issue-suggestion-exclusion-20260908.md`。

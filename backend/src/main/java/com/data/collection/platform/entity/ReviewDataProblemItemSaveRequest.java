@@ -14,4 +14,4 @@ public record ReviewDataProblemItemSaveRequest(
     String suggestedSolution,
     String ownerName,
     String rejectionReason,
-    String problemStatus) {}
+    @NotBlank(message = "必须选择问题状态") String problemStatus) {}

@@ -107,7 +107,7 @@ public class ReviewDataRecordCommandService {
       Long recordId, ReviewDataProblemItemSaveRequest request, String createdBy) {
     recordId = materializeRecordIfNeeded(recordId);
     persistenceSupport.assertRecordExists(recordId);
-    String problemStatus = defaultPendingStatus(request.problemStatus());
+    String problemStatus = requireProblemStatus(request.problemStatus());
     ReviewDataProblemItemResponse pendingItem = findPendingProblemItem(recordId, request.reviewerName());
     if (pendingItem != null) {
       persistenceSupport.updateProblemItem(
@@ -349,15 +349,10 @@ public class ReviewDataRecordCommandService {
     return TextQuerySupport.trimToNull(value) == null;
   }
 
-  private String defaultPendingStatus(String problemStatus) {
-    String normalized = TextQuerySupport.trimToNull(problemStatus);
-    return normalized == null ? DEFAULT_PENDING_REVIEW_STATUS : requireUserSelectableProblemStatus(normalized);
-  }
-
   private String requireProblemStatus(String problemStatus) {
     String normalized = TextQuerySupport.trimToNull(problemStatus);
     if (normalized == null) {
-      throw new IllegalArgumentException("编辑评审问题时必须选择问题状态");
+      throw new IllegalArgumentException("必须选择问题状态");
     }
     return requireUserSelectableProblemStatus(normalized);
   }
@@ -390,9 +385,10 @@ public class ReviewDataRecordCommandService {
     if (normalizedReviewer == null) {
       return null;
     }
+    //只劫持系统自动创建的纯占位行；「未评审但含真实内容」的存量行不劫持，避免同专家后续新增覆盖既有内容。
     return persistenceSupport.listProblemItems(recordId).stream()
         .filter(item -> Objects.equals(TextQuerySupport.normalizeForMatch(item.reviewerName()), normalizedReviewer))
-        .filter(item -> DEFAULT_PENDING_REVIEW_STATUS.equals(item.problemStatus()))
+        .filter(this::isDefaultPendingProblemItem)
         .findFirst()
         .orElse(null);
   }

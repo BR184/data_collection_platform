@@ -94,14 +94,8 @@ const rules = computed<FormRules<ReviewProblemItemFormModel>>(() => ({
   problemCategory: [{ required: true, message: '请选择问题类别', trigger: 'change' }],
   problemDescription: [{ required: true, message: '请输入问题描述', trigger: 'blur' }],
   ownerName: [{ required: true, message: '请选择责任人', trigger: 'change' }],
-  ...(props.editMode
-    ? { problemStatus: [{ required: true, message: '请选择问题状态', trigger: 'change' }] }
-    : {}),
+  problemStatus: [{ required: true, message: '请选择问题状态', trigger: 'change' }],
 }));
-
-const problemStatusPlaceholder = computed(() =>
-  props.editMode ? '请选择问题状态' : '可不选择，系统将标注为未评审',
-);
 
 async function handleSubmit() {
   const valid = await formRef.value?.validate().catch(() => false);
@@ -167,7 +161,7 @@ function normalizeEditableProblemStatus(value: string) {
             v-model="form.problemStatus"
             :options="problemStatusOptions"
             compact
-            :placeholder="problemStatusPlaceholder"
+            placeholder="请选择问题状态"
           />
         </el-form-item>
         <el-form-item label="在文档中的位置" prop="documentPosition" class="span-2">
