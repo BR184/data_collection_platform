@@ -1081,8 +1081,8 @@
     },
     "rows" : [ ],
     "meta" : {
-      "generatedAt" : "2026-09-09T12:51:06.4011493+08:00",
-      "queryDurationMs" : 0,
+      "generatedAt" : "2026-09-09T19:20:32.6261409+08:00",
+      "queryDurationMs" : 1,
       "rowCount" : 0,
       "columnCount" : 39,
       "drilldownColumnCount" : 22

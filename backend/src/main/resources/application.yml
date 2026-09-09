@@ -53,6 +53,19 @@ platform:
   instance:
     # Standard Compose deployments inject their stable project identity. Direct runs fall back to app name + port.
     id: ${PLATFORM_INSTANCE_ID:}
+  backup:
+    # 容器内为 compose 挂载的宿主机备份目录；直跑开发默认落在仓库 .tmp 下。
+    root: ${PLATFORM_BACKUP_ROOT:./.tmp/qaflex-backups}
+    instance-label: ${PLATFORM_BACKUP_INSTANCE_LABEL:${platform.instance.id:}}
+    secret-key: ${PLATFORM_BACKUP_SECRET_KEY:}
+    pg-dump-bin: ${PLATFORM_BACKUP_PG_DUMP_BIN:pg_dump}
+    pg-restore-bin: ${PLATFORM_BACKUP_PG_RESTORE_BIN:pg_restore}
+    dump-timeout-minutes: ${PLATFORM_BACKUP_DUMP_TIMEOUT_MINUTES:60}
+    lease-seconds: ${PLATFORM_BACKUP_LEASE_SECONDS:300}
+    headroom-mb: ${PLATFORM_BACKUP_HEADROOM_MB:1024}
+    scheduler-delay-ms: ${PLATFORM_BACKUP_SCHEDULER_DELAY_MS:60000}
+    scheduler-initial-delay-ms: ${PLATFORM_BACKUP_SCHEDULER_INITIAL_DELAY_MS:15000}
+    remote-connect-timeout-ms: ${PLATFORM_BACKUP_REMOTE_CONNECT_TIMEOUT_MS:10000}
   bi:
     cat:
       scheduler-delay-ms: ${PLATFORM_BI_CAT_SCHEDULER_DELAY_MS:60000}

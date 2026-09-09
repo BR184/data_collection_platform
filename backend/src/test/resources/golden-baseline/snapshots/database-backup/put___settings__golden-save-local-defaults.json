@@ -1,0 +1,26 @@
+{
+  "httpStatus" : 200,
+  "body" : {
+    "success" : true,
+    "code" : "00000",
+    "message" : "备份配置已保存",
+    "data" : {
+      "enabled" : false,
+      "scheduleTime" : "03:30",
+      "retentionCopies" : 14,
+      "storageMode" : "LOCAL",
+      "localSubdirectory" : null,
+      "remoteHost" : null,
+      "remotePort" : 22,
+      "remoteUsername" : null,
+      "hasRemotePassword" : false,
+      "remoteDirectory" : null,
+      "remoteHostKeyFingerprint" : null,
+      "version" : 1,
+      "updatedAt" : "2026-09-09 19:20:29",
+      "localRootEffective" : "./.tmp/qaflex-backups/default",
+      "secretKeyConfigured" : false,
+      "instanceLabel" : "default"
+    }
+  }
+}

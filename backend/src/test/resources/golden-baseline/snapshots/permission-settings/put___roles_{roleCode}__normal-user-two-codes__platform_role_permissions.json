@@ -125,6 +125,12 @@
     "permission_code" : "review.template.download"
   }, {
     "role_code" : "ADMIN",
+    "permission_code" : "system.backup.manage"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "system.backup.view"
+  }, {
+    "role_code" : "ADMIN",
     "permission_code" : "system.database.refresh"
   }, {
     "role_code" : "ADMIN",
@@ -522,6 +528,12 @@
   }, {
     "role_code" : "SUPER_ADMIN",
     "permission_code" : "review.template.download"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.backup.manage"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "system.backup.view"
   }, {
     "role_code" : "SUPER_ADMIN",
     "permission_code" : "system.database.refresh"

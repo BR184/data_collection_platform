@@ -1,0 +1,23 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "enabled" : false,
+    "scheduleTime" : "03:00",
+    "retentionCopies" : 14,
+    "storageMode" : "LOCAL",
+    "localSubdirectory" : null,
+    "remoteHost" : null,
+    "remotePort" : 22,
+    "remoteUsername" : null,
+    "hasRemotePassword" : false,
+    "remoteDirectory" : null,
+    "remoteHostKeyFingerprint" : null,
+    "version" : 0,
+    "updatedAt" : null,
+    "localRootEffective" : "./.tmp/qaflex-backups/default",
+    "secretKeyConfigured" : false,
+    "instanceLabel" : "default"
+  }
+}

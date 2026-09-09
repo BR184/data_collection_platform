@@ -1143,6 +1143,49 @@ endpoints:
           - table: dropdown_option_field_bindings
             ignore-columns: [bound_at]
 
+  # =====DatabaseBackupController（数据库备份管理）=====
+  - method: GET
+    path: /api/database-backup/settings
+    category: READ
+    # 夹具库无配置行：呈现建表默认配置（版本 0）；localRootEffective 随实例标识恒定
+    cases:
+      - id: default
+  - method: PUT
+    path: /api/database-backup/settings
+    category: WRITE
+    # 首存即插行（版本 0→1）；remote_password_cipher 含随机 IV、时间戳属易变列；用例保持 enabled=false
+    # 避免基线运行期间后台调度器真实触发备份（宿主无 pg_dump）造成快照竞态
+    ignore-paths:
+      - "$.body.data.updatedAt"
+    write-cases:
+      - id: golden-save-local-defaults
+        body: '{"enabled":false,"scheduleTime":"03:30","retentionCopies":14,"storageMode":"LOCAL","localSubdirectory":"","remoteHost":"","remotePort":22,"remoteUsername":"","remotePassword":"","remoteDirectory":"","remoteHostKeyFingerprint":"","version":0}'
+        affected-tables:
+          - table: backup_settings
+            ignore-columns: [created_at, updated_at, remote_password_cipher]
+  - method: POST
+    path: /api/database-backup/test-connection
+    category: EXCLUDED
+    exclude-reason: "external-dependency: 结果取决于外部 SSH/SFTP 服务器与网络环境，无法在基线环境确定性复现；三查结构与分支由 BackupSettingsServiceTest 与 MINA sshd 集成测试覆盖"
+  - method: POST
+    path: /api/database-backup/runs
+    category: EXCLUDED
+    exclude-reason: "async-trigger: 备份异步执行触发；执行依赖宿主 pg_dump 进程与文件系统（基线宿主无该二进制），运行记录在快照后异步变化存在竞态；全链路由容器化 E2E 演练自证"
+  - method: GET
+    path: /api/database-backup/status
+    category: READ
+    # 基线环境无备份运行：running=false、current/last 为空；nextRunAt 依赖墙钟为非可复现契约
+    ignore-paths:
+      - "$.data.nextRunAt"
+    cases:
+      - id: default
+  - method: GET
+    path: /api/database-backup/runs
+    category: READ
+    cases:
+      - id: default
+        query: page=1&size=10
+
   # =====FactBuildController（事实构建）=====
   - method: GET
     path: /api/facts/build-tasks/latest

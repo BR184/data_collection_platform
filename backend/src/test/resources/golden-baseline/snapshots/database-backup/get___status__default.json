@@ -1,0 +1,13 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "running" : false,
+    "currentRun" : null,
+    "lastCompleted" : null,
+    "enabled" : false,
+    "scheduleTime" : "03:00",
+    "nextRunAt" : null
+  }
+}
