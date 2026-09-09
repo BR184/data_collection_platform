@@ -459,6 +459,54 @@ class BiCodingCalculatorTest {
     });
   }
 
+  @Test
+  void judgesManualWalkthroughDensityBelowUpdatedLowerBoundAsNotAchieved() {
+    BiCodingSource source = source(
+        List.of(mergeRequest(301L, LocalDate.of(2026, 8, 10), "张三", "草图", 1200)),
+        List.of(review(31L, 301L, LocalDate.of(2026, 8, 10), "草图", 1200, "60", 3, 1, 1, 1, 0, 0)),
+        List.of(),
+        false,
+        false,
+        false);
+
+    var response = calculator.calculate(source);
+
+    assertThat(response.data().summary().reviewDefectDensity()).isEqualByComparingTo("2.50");
+    assertThat(response.data().summary().reviewDensityAchieved()).isFalse();
+  }
+
+  @Test
+  void judgesManualWalkthroughDensityBetweenOldAndNewUpperBoundAsAchieved() {
+    BiCodingSource source = source(
+        List.of(mergeRequest(302L, LocalDate.of(2026, 8, 11), "李四", "装配", 1000)),
+        List.of(review(32L, 302L, LocalDate.of(2026, 8, 11), "装配", 1000, "60", 11, 3, 3, 3, 1, 1)),
+        List.of(),
+        false,
+        false,
+        false);
+
+    var response = calculator.calculate(source);
+
+    assertThat(response.data().summary().reviewDefectDensity()).isEqualByComparingTo("11.00");
+    assertThat(response.data().summary().reviewDensityAchieved()).isTrue();
+  }
+
+  @Test
+  void judgesManualWalkthroughDensityAboveNewUpperBoundAsNotAchieved() {
+    BiCodingSource source = source(
+        List.of(mergeRequest(303L, LocalDate.of(2026, 8, 12), "王五", "工程图", 1000)),
+        List.of(review(33L, 303L, LocalDate.of(2026, 8, 12), "工程图", 1000, "60", 13, 4, 4, 3, 1, 1)),
+        List.of(),
+        false,
+        false,
+        false);
+
+    var response = calculator.calculate(source);
+
+    assertThat(response.data().summary().reviewDefectDensity()).isEqualByComparingTo("13.00");
+    assertThat(response.data().summary().reviewDensityAchieved()).isFalse();
+  }
+
   private BiCodingSource source(
       List<BiCodingSource.MergeRequestRecord> mergeRequests,
       List<BiCodingSource.CodeReviewRecord> reviews,

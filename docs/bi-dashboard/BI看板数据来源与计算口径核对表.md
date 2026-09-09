@@ -91,9 +91,9 @@
 | DS-04 | 设计 | 有效评审问题数 | 计算输入 | 数据采集平台 / BI | `review_visible_problem_items.id/problem_status/problem_category` | 有效问题排除规则同 RQ-06。 | BI计算 | [ ] |
 | DS-05 | 设计 | 评审缺陷密度 | 计算值 | BI | DS-02、DS-04 | `有效评审问题数 ÷ 被评审页数`。 | BI计算 | [ ] |
 | DS-06 | 设计 | 评审速率 | 计算值 | BI | DS-02、DS-03；可直接提供 `reviewRate` | `被评审页数 ÷ 独立评审实际工作量（小时）`。 | BI计算 | [ ] |
-| DS-07 | 设计 | 缺陷密度目标下限 | 质量目标 | BI 规则 | `BiReviewCalculator.MIN_DENSITY` | 固定为 `0.20`。 | BI计算 | [ ] |
-| DS-08 | 设计 | 缺陷密度目标上限 | 质量目标 | BI 规则 | `BiReviewCalculator.MAX_DENSITY` | 固定为 `0.60`。 | BI计算 | [ ] |
-| DS-09 | 设计 | 缺陷密度达标状态 | 计算值 | BI | DS-05、DS-07、DS-08 | `0.20 ≤ 评审缺陷密度 ≤ 0.60` 为达标。 | BI计算 | [ ] |
+| DS-07 | 设计 | 缺陷密度目标下限 | 质量目标 | BI 规则 | `BiReviewCalculator.DESIGN_MIN_DENSITY` | 固定为 `0.30`（2026-09-09 起与需求评审口径分离）。 | BI计算 | [ ] |
+| DS-08 | 设计 | 缺陷密度目标上限 | 质量目标 | BI 规则 | `BiReviewCalculator.DESIGN_MAX_DENSITY` | 固定为 `0.80`（2026-09-09 起与需求评审口径分离）。 | BI计算 | [ ] |
+| DS-09 | 设计 | 缺陷密度达标状态 | 计算值 | BI | DS-05、DS-07、DS-08 | `0.30 ≤ 评审缺陷密度 ≤ 0.80` 为达标。 | BI计算 | [ ] |
 | DS-10 | 设计 | 文档规范问题数 | 类别计数 | 数据采集平台 / BI | `review_visible_problem_items.problem_status/problem_category` | 本类别有效问题计数。 | BI计算 | [ ] |
 | DS-11 | 设计 | 完整性问题数 | 类别计数 | 数据采集平台 / BI | `review_visible_problem_items.problem_status/problem_category` | 本类别有效问题计数。 | BI计算 | [ ] |
 | DS-12 | 设计 | 功能性问题数 | 类别计数 | 数据采集平台 / BI | `review_visible_problem_items.problem_status/problem_category` | 本类别有效问题计数。 | BI计算 | [ ] |
@@ -137,12 +137,12 @@
 | CD-17 | 编码 | 被走查代码行数 | 原始度量 | 数据采集平台 | 兼容态 `code_review_match_mode_records.added_lines` / 正式态 `code_review_formal_records.added_lines` | 已完成人工走查记录的速率和千行密度输入。 | 等价映射 | [ ] |
 | CD-18 | 编码 | 人工走查实际工时（分钟） | 原始度量 | 数据采集平台 | 兼容态 `code_review_match_mode_records.review_duration_minutes` / 正式态 `code_review_formal_records.review_duration_minutes` | 走查速率的分母；转换为小时需除以 60。 | 等价映射 | [ ] |
 | CD-19 | 编码 | 人工走查有效问题数 | 计算输入 | 数据采集平台 | 兼容态 `code_review_match_mode_records.defect_count` / 正式态 `code_review_formal_records.defect_count` | 使用当前冻结人工走查读源已聚合的有效缺陷数。 | 等价映射 | [ ] |
-| CD-20 | 编码 | 代码走查缺陷密度（千行代码缺陷率） | 计算值 | BI | CD-17、CD-19 | `有效走查问题数 × 1000 ÷ 被走查代码行数`；目标区间 `[2.00, 10.00]`。 | BI计算 | [ ] |
+| CD-20 | 编码 | 代码走查缺陷密度（千行代码缺陷率） | 计算值 | BI | CD-17、CD-19 | `有效走查问题数 × 1000 ÷ 被走查代码行数`；目标区间 `[3.00, 12.00]`（2026-09-09 更新）。 | BI计算 | [ ] |
 | CD-21 | 编码 | 人工走查速率（行/小时） | 计算值 | BI | CD-17、CD-18；可直接提供 `reviewSpeedLocPerHour` | `被走查代码行数 ÷ (实际工时分钟 ÷ 60)`。 | BI计算 | [ ] |
 | CD-22 | 编码 | 人工走查速率（KLOC/小时） | 计算值 | BI | CD-17、CD-18；可直接提供 `reviewSpeedKlocPerHour` | `被走查代码 KLOC ÷ (实际工时分钟 ÷ 60)`。具体展示单位待页面定稿时选择。 | BI计算 | [ ] |
-| CD-23 | 编码 | 人工走查缺陷密度目标下限 | 质量目标 | BI 规则 | `BiCodingCalculator.MIN_REVIEW_DENSITY` | 固定为 `2.00`。 | BI计算 | [ ] |
-| CD-24 | 编码 | 人工走查缺陷密度目标上限 | 质量目标 | BI 规则 | `BiCodingCalculator.MAX_REVIEW_DENSITY` | 固定为 `10.00`。 | BI计算 | [ ] |
-| CD-25 | 编码 | 人工走查缺陷密度达标状态 | 计算值 | BI | CD-20、CD-23、CD-24 | `2.00 ≤ 人工走查缺陷密度 ≤ 10.00` 为达标。 | BI计算 | [ ] |
+| CD-23 | 编码 | 人工走查缺陷密度目标下限 | 质量目标 | BI 规则 | `BiCodingCalculator.MIN_REVIEW_DENSITY` | 固定为 `3.00`（2026-09-09 更新）。 | BI计算 | [ ] |
+| CD-24 | 编码 | 人工走查缺陷密度目标上限 | 质量目标 | BI 规则 | `BiCodingCalculator.MAX_REVIEW_DENSITY` | 固定为 `12.00`（2026-09-09 更新）。 | BI计算 | [ ] |
+| CD-25 | 编码 | 人工走查缺陷密度达标状态 | 计算值 | BI | CD-20、CD-23、CD-24 | `3.00 ≤ 人工走查缺陷密度 ≤ 12.00` 为达标。 | BI计算 | [ ] |
 | CD-26 | 编码 | 模块人工走查缺陷密度 | 模块计算值 | BI | 兼容态 `code_review_match_mode_records.module_name` / 正式态 `code_review_formal_records.module_name`、CD-17、CD-19 | 按来源快照内模块名称维度计算 `模块有效走查问题数 × 1000 ÷ 模块被走查代码行数`。 | BI计算 | [ ] |
 | CD-27 | 编码 | 模块人工走查速率 | 模块计算值 | BI | 兼容态 `code_review_match_mode_records.module_name` / 正式态 `code_review_formal_records.module_name`、CD-17、CD-18 | 按来源快照内模块名称维度计算 `模块被走查代码行数 ÷ 模块实际工时（小时）`。 | BI计算 | [ ] |
 | CD-28 | 编码 | 单次人工走查散点横坐标 | 图表计算值 | BI | CD-17、CD-18 | 当前使用 CD-22 的 KLOC/小时。 | BI计算 | [ ] |

@@ -12,90 +12,14 @@
       "title" : "功能缺陷数量",
       "subtitle" : "按功能统计系统测试缺陷数量",
       "option" : {
-        "tooltip" : {
-          "trigger" : "axis",
-          "confine" : true
-        },
-        "dataZoom" : [ {
-          "borderRadius" : 6,
-          "backgroundColor" : "#f8fafc",
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "type" : "slider",
-          "handleSize" : "100%",
-          "height" : 30,
-          "showDetail" : false,
-          "moveHandleSize" : 12,
-          "xAxisIndex" : 0,
-          "borderColor" : "#cbd5e1",
-          "bottom" : 28,
-          "filterMode" : "filter",
-          "handleStyle" : {
-            "shadowColor" : "rgba(37, 99, 235, 0.18)",
-            "shadowBlur" : 3,
-            "borderWidth" : 1.5,
-            "borderColor" : "#2563eb",
-            "color" : "#ffffff"
-          },
-          "startValue" : 0,
-          "endValue" : 10,
-          "show" : true,
-          "emphasis" : {
-            "handleStyle" : {
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "shadowBlur" : 3,
-              "borderWidth" : 1.5,
-              "borderColor" : "#1d4ed8",
-              "color" : "#ffffff"
-            }
-          },
-          "dataBackground" : {
-            "areaStyle" : {
-              "opacity" : 0.58,
-              "color" : "#e2e8f0"
-            },
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            }
-          },
-          "selectedDataBackground" : {
-            "areaStyle" : {
-              "opacity" : 0.72,
-              "color" : "#bfdbfe"
-            },
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
-            }
-          },
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          }
-        } ],
-        "yAxis" : {
-          "name" : "数量",
-          "type" : "value"
-        },
-        "xAxis" : {
-          "axisLabel" : {
-            "rotate" : 28,
-            "overflow" : "truncate",
-            "hideOverlap" : true,
-            "width" : 96,
-            "interval" : "auto"
-          },
-          "type" : "category",
-          "data" : [ "结构构件", "断开的剖视图", "错误配合列表", "尺寸链", "智能尺寸", "基准尺寸", "标注弧长", "倒角尺寸", "孔标注", "拉伸切除", "断裂视图", "BOM工具", "剖视图", "剪裁视图", "孤立", "对齐工程图视图", "导出/打印", "局部视图", "显示/隐藏", "替换零件或装配", "渲染", "端点处理", "线性阵列", "继承PMI", "错误列表", "镜像", "零部件预览" ]
-        },
-        "aria" : {
-          "description" : "按功能统计系统测试缺陷数量",
-          "enabled" : true
-        },
         "animationDuration" : 500,
         "series" : [ {
+          "labelLayout" : {
+            "hideOverlap" : true
+          },
           "label" : {
-            "position" : "top",
-            "show" : true
+            "show" : true,
+            "position" : "top"
           },
           "name" : "功能缺陷数量",
           "data" : [ {
@@ -266,10 +190,7 @@
             "color" : "#2563eb",
             "borderRadius" : [ 6, 6, 0, 0 ]
           },
-          "type" : "bar",
-          "labelLayout" : {
-            "hideOverlap" : true
-          }
+          "type" : "bar"
         } ],
         "grid" : {
           "right" : 24,
@@ -277,6 +198,85 @@
           "top" : 28,
           "left" : 20,
           "bottom" : 112
+        },
+        "tooltip" : {
+          "confine" : true,
+          "trigger" : "axis"
+        },
+        "dataZoom" : [ {
+          "selectedDataBackground" : {
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            },
+            "areaStyle" : {
+              "opacity" : 0.72,
+              "color" : "#bfdbfe"
+            }
+          },
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "borderRadius" : 6,
+          "backgroundColor" : "#f8fafc",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "type" : "slider",
+          "handleSize" : "100%",
+          "height" : 30,
+          "showDetail" : false,
+          "moveHandleSize" : 12,
+          "xAxisIndex" : 0,
+          "borderColor" : "#cbd5e1",
+          "bottom" : 28,
+          "filterMode" : "filter",
+          "handleStyle" : {
+            "color" : "#ffffff",
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "shadowBlur" : 3,
+            "borderWidth" : 1.5,
+            "borderColor" : "#2563eb"
+          },
+          "startValue" : 0,
+          "endValue" : 10,
+          "show" : true,
+          "emphasis" : {
+            "handleStyle" : {
+              "color" : "#ffffff",
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "shadowBlur" : 3,
+              "borderWidth" : 1.5,
+              "borderColor" : "#1d4ed8"
+            }
+          },
+          "dataBackground" : {
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            },
+            "areaStyle" : {
+              "opacity" : 0.58,
+              "color" : "#e2e8f0"
+            }
+          }
+        } ],
+        "yAxis" : {
+          "name" : "数量",
+          "type" : "value"
+        },
+        "xAxis" : {
+          "data" : [ "结构构件", "断开的剖视图", "错误配合列表", "尺寸链", "智能尺寸", "基准尺寸", "标注弧长", "倒角尺寸", "孔标注", "拉伸切除", "断裂视图", "BOM工具", "剖视图", "剪裁视图", "孤立", "对齐工程图视图", "导出/打印", "局部视图", "显示/隐藏", "替换零件或装配", "渲染", "端点处理", "线性阵列", "继承PMI", "错误列表", "镜像", "零部件预览" ],
+          "axisLabel" : {
+            "width" : 96,
+            "interval" : "auto",
+            "rotate" : 28,
+            "overflow" : "truncate",
+            "hideOverlap" : true
+          },
+          "type" : "category"
+        },
+        "aria" : {
+          "enabled" : true,
+          "description" : "按功能统计系统测试缺陷数量"
         }
       },
       "ruleKey" : "function-defect-count",
@@ -295,90 +295,14 @@
       "title" : "功能缺陷密度",
       "subtitle" : "系统测试缺陷数与 CC 代码新增行的比值",
       "option" : {
-        "tooltip" : {
-          "trigger" : "axis",
-          "confine" : true
-        },
-        "dataZoom" : [ {
-          "borderRadius" : 6,
-          "backgroundColor" : "#f8fafc",
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "type" : "slider",
-          "handleSize" : "100%",
-          "height" : 30,
-          "showDetail" : false,
-          "moveHandleSize" : 12,
-          "xAxisIndex" : 0,
-          "borderColor" : "#cbd5e1",
-          "bottom" : 28,
-          "filterMode" : "filter",
-          "handleStyle" : {
-            "shadowColor" : "rgba(37, 99, 235, 0.18)",
-            "shadowBlur" : 3,
-            "borderWidth" : 1.5,
-            "borderColor" : "#2563eb",
-            "color" : "#ffffff"
-          },
-          "startValue" : 0,
-          "endValue" : 10,
-          "show" : true,
-          "emphasis" : {
-            "handleStyle" : {
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "shadowBlur" : 3,
-              "borderWidth" : 1.5,
-              "borderColor" : "#1d4ed8",
-              "color" : "#ffffff"
-            }
-          },
-          "dataBackground" : {
-            "areaStyle" : {
-              "opacity" : 0.58,
-              "color" : "#e2e8f0"
-            },
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            }
-          },
-          "selectedDataBackground" : {
-            "areaStyle" : {
-              "opacity" : 0.72,
-              "color" : "#bfdbfe"
-            },
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
-            }
-          },
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          }
-        } ],
-        "yAxis" : {
-          "name" : "%",
-          "type" : "value"
-        },
-        "xAxis" : {
-          "axisLabel" : {
-            "rotate" : 28,
-            "overflow" : "truncate",
-            "hideOverlap" : true,
-            "width" : 96,
-            "interval" : "auto"
-          },
-          "type" : "category",
-          "data" : [ "导出", "BOM工具", "装配", "渲染", "工具", "工程图", "BOM", "CAT", "DWG", "PLM", "SView", "SView集成", "ass", "sview", "二次开发", "仿真", "企业版", "企业版&轻量化", "分享", "协同", "博诚电气", "大国工匠", "实时会话管理", "工具栏", "平台", "库", "快捷面板", "快速确认", "打包", "批量修改属性", "批量修改属性/名称", "教育版", "数据转换", "文档属性", "智能助手", "曲线", "曲线曲面", "曲面", "材质库", "标准件库管理", "样式修改", "模板", "步路", "海外版", "焊件", "特征", "用户在线数", "登录记录", "知识库", "管路", "自动化测试", "评估", "超大装配", "速览模式", "钣金", "集成" ]
-        },
-        "aria" : {
-          "description" : "系统测试缺陷数与 CC 代码新增行的比值",
-          "enabled" : true
-        },
         "animationDuration" : 500,
         "series" : [ {
+          "labelLayout" : {
+            "hideOverlap" : true
+          },
           "label" : {
-            "position" : "top",
-            "show" : true
+            "show" : true,
+            "position" : "top"
           },
           "name" : "功能缺陷密度",
           "data" : [ {
@@ -723,10 +647,7 @@
             "color" : "#0f9f8f",
             "borderRadius" : [ 6, 6, 0, 0 ]
           },
-          "type" : "bar",
-          "labelLayout" : {
-            "hideOverlap" : true
-          }
+          "type" : "bar"
         } ],
         "grid" : {
           "right" : 24,
@@ -734,6 +655,85 @@
           "top" : 28,
           "left" : 20,
           "bottom" : 112
+        },
+        "tooltip" : {
+          "confine" : true,
+          "trigger" : "axis"
+        },
+        "dataZoom" : [ {
+          "selectedDataBackground" : {
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            },
+            "areaStyle" : {
+              "opacity" : 0.72,
+              "color" : "#bfdbfe"
+            }
+          },
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "borderRadius" : 6,
+          "backgroundColor" : "#f8fafc",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "type" : "slider",
+          "handleSize" : "100%",
+          "height" : 30,
+          "showDetail" : false,
+          "moveHandleSize" : 12,
+          "xAxisIndex" : 0,
+          "borderColor" : "#cbd5e1",
+          "bottom" : 28,
+          "filterMode" : "filter",
+          "handleStyle" : {
+            "color" : "#ffffff",
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "shadowBlur" : 3,
+            "borderWidth" : 1.5,
+            "borderColor" : "#2563eb"
+          },
+          "startValue" : 0,
+          "endValue" : 10,
+          "show" : true,
+          "emphasis" : {
+            "handleStyle" : {
+              "color" : "#ffffff",
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "shadowBlur" : 3,
+              "borderWidth" : 1.5,
+              "borderColor" : "#1d4ed8"
+            }
+          },
+          "dataBackground" : {
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            },
+            "areaStyle" : {
+              "opacity" : 0.58,
+              "color" : "#e2e8f0"
+            }
+          }
+        } ],
+        "yAxis" : {
+          "name" : "%",
+          "type" : "value"
+        },
+        "xAxis" : {
+          "data" : [ "导出", "BOM工具", "装配", "渲染", "工具", "工程图", "BOM", "CAT", "DWG", "PLM", "SView", "SView集成", "ass", "sview", "二次开发", "仿真", "企业版", "企业版&轻量化", "分享", "协同", "博诚电气", "大国工匠", "实时会话管理", "工具栏", "平台", "库", "快捷面板", "快速确认", "打包", "批量修改属性", "批量修改属性/名称", "教育版", "数据转换", "文档属性", "智能助手", "曲线", "曲线曲面", "曲面", "材质库", "标准件库管理", "样式修改", "模板", "步路", "海外版", "焊件", "特征", "用户在线数", "登录记录", "知识库", "管路", "自动化测试", "评估", "超大装配", "速览模式", "钣金", "集成" ],
+          "axisLabel" : {
+            "width" : 96,
+            "interval" : "auto",
+            "rotate" : 28,
+            "overflow" : "truncate",
+            "hideOverlap" : true
+          },
+          "type" : "category"
+        },
+        "aria" : {
+          "enabled" : true,
+          "description" : "系统测试缺陷数与 CC 代码新增行的比值"
         }
       },
       "ruleKey" : "function-defect-density",
@@ -752,88 +752,14 @@
       "title" : "质量达人榜",
       "subtitle" : "按成员各测试阶段平均千行缺陷密度排名",
       "option" : {
-        "tooltip" : {
-          "trigger" : "axis",
-          "confine" : true
-        },
-        "dataZoom" : [ {
-          "width" : 30,
-          "backgroundColor" : "#f8fafc",
-          "right" : 16,
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "type" : "slider",
-          "handleSize" : "100%",
-          "showDetail" : false,
-          "moveHandleSize" : 12,
-          "borderColor" : "#cbd5e1",
-          "filterMode" : "filter",
-          "handleStyle" : {
-            "shadowColor" : "rgba(37, 99, 235, 0.18)",
-            "shadowBlur" : 3,
-            "borderWidth" : 1.5,
-            "borderColor" : "#2563eb",
-            "color" : "#ffffff"
-          },
-          "startValue" : 0,
-          "endValue" : 9,
-          "show" : true,
-          "emphasis" : {
-            "handleStyle" : {
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "shadowBlur" : 3,
-              "borderWidth" : 1.5,
-              "borderColor" : "#1d4ed8",
-              "color" : "#ffffff"
-            }
-          },
-          "dataBackground" : {
-            "areaStyle" : {
-              "opacity" : 0.58,
-              "color" : "#e2e8f0"
-            },
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            }
-          },
-          "selectedDataBackground" : {
-            "areaStyle" : {
-              "opacity" : 0.72,
-              "color" : "#bfdbfe"
-            },
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
-            }
-          },
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          },
-          "yAxisIndex" : 0,
-          "borderRadius" : 6
-        } ],
-        "yAxis" : {
-          "axisLabel" : {
-            "hideOverlap" : true,
-            "overflow" : "truncate",
-            "width" : 130
-          },
-          "type" : "category",
-          "data" : [ "田松", "梁启星", "杨依景", "李尚玉", "曹巧元", "张金花", "张辉", "张月", "刘敏", "mengxiangyu" ]
-        },
-        "xAxis" : {
-          "name" : "KLOC",
-          "type" : "value"
-        },
-        "aria" : {
-          "description" : "按成员各测试阶段平均千行缺陷密度排名",
-          "enabled" : true
-        },
         "animationDuration" : 500,
         "series" : [ {
+          "labelLayout" : {
+            "hideOverlap" : true
+          },
           "label" : {
-            "position" : "right",
-            "show" : true
+            "show" : true,
+            "position" : "right"
           },
           "name" : "质量达人榜",
           "data" : [ {
@@ -902,10 +828,7 @@
             "color" : "#7c3aed",
             "borderRadius" : [ 0, 6, 6, 0 ]
           },
-          "type" : "bar",
-          "labelLayout" : {
-            "hideOverlap" : true
-          }
+          "type" : "bar"
         } ],
         "grid" : {
           "right" : 64,
@@ -913,6 +836,83 @@
           "top" : 28,
           "left" : 24,
           "bottom" : 34
+        },
+        "tooltip" : {
+          "confine" : true,
+          "trigger" : "axis"
+        },
+        "dataZoom" : [ {
+          "selectedDataBackground" : {
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            },
+            "areaStyle" : {
+              "opacity" : 0.72,
+              "color" : "#bfdbfe"
+            }
+          },
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "yAxisIndex" : 0,
+          "borderRadius" : 6,
+          "width" : 30,
+          "backgroundColor" : "#f8fafc",
+          "right" : 16,
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "type" : "slider",
+          "handleSize" : "100%",
+          "showDetail" : false,
+          "moveHandleSize" : 12,
+          "borderColor" : "#cbd5e1",
+          "filterMode" : "filter",
+          "handleStyle" : {
+            "color" : "#ffffff",
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "shadowBlur" : 3,
+            "borderWidth" : 1.5,
+            "borderColor" : "#2563eb"
+          },
+          "startValue" : 0,
+          "endValue" : 9,
+          "show" : true,
+          "emphasis" : {
+            "handleStyle" : {
+              "color" : "#ffffff",
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "shadowBlur" : 3,
+              "borderWidth" : 1.5,
+              "borderColor" : "#1d4ed8"
+            }
+          },
+          "dataBackground" : {
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            },
+            "areaStyle" : {
+              "opacity" : 0.58,
+              "color" : "#e2e8f0"
+            }
+          }
+        } ],
+        "yAxis" : {
+          "data" : [ "田松", "梁启星", "杨依景", "李尚玉", "曹巧元", "张金花", "张辉", "张月", "刘敏", "mengxiangyu" ],
+          "axisLabel" : {
+            "hideOverlap" : true,
+            "overflow" : "truncate",
+            "width" : 130
+          },
+          "type" : "category"
+        },
+        "xAxis" : {
+          "name" : "KLOC",
+          "type" : "value"
+        },
+        "aria" : {
+          "enabled" : true,
+          "description" : "按成员各测试阶段平均千行缺陷密度排名"
         }
       },
       "ruleKey" : "quality-ranking",
@@ -931,11 +931,49 @@
       "title" : "成员未修复缺陷率",
       "subtitle" : "个人未修复缺陷数占个人缺陷总数的比例",
       "option" : {
+        "animationDuration" : 500,
+        "series" : [ {
+          "labelLayout" : {
+            "hideOverlap" : true
+          },
+          "label" : {
+            "show" : true,
+            "position" : "top"
+          },
+          "name" : "成员未修复缺陷率",
+          "data" : [ ],
+          "barMaxWidth" : 52,
+          "itemStyle" : {
+            "color" : "#dc4c64",
+            "borderRadius" : [ 6, 6, 0, 0 ]
+          },
+          "type" : "bar"
+        } ],
+        "grid" : {
+          "right" : 24,
+          "containLabel" : true,
+          "top" : 28,
+          "left" : 20,
+          "bottom" : 112
+        },
         "tooltip" : {
-          "trigger" : "axis",
-          "confine" : true
+          "confine" : true,
+          "trigger" : "axis"
         },
         "dataZoom" : [ {
+          "selectedDataBackground" : {
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            },
+            "areaStyle" : {
+              "opacity" : 0.72,
+              "color" : "#bfdbfe"
+            }
+          },
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
           "borderRadius" : 6,
           "backgroundColor" : "#f8fafc",
           "fillerColor" : "rgba(37, 99, 235, 0.18)",
@@ -949,46 +987,33 @@
           "bottom" : 28,
           "filterMode" : "filter",
           "handleStyle" : {
+            "color" : "#ffffff",
             "shadowColor" : "rgba(37, 99, 235, 0.18)",
             "shadowBlur" : 3,
             "borderWidth" : 1.5,
-            "borderColor" : "#2563eb",
-            "color" : "#ffffff"
+            "borderColor" : "#2563eb"
           },
           "startValue" : 0,
           "endValue" : 0,
           "show" : true,
           "emphasis" : {
             "handleStyle" : {
+              "color" : "#ffffff",
               "shadowColor" : "rgba(37, 99, 235, 0.18)",
               "shadowBlur" : 3,
               "borderWidth" : 1.5,
-              "borderColor" : "#1d4ed8",
-              "color" : "#ffffff"
+              "borderColor" : "#1d4ed8"
             }
           },
           "dataBackground" : {
-            "areaStyle" : {
-              "opacity" : 0.58,
-              "color" : "#e2e8f0"
-            },
             "lineStyle" : {
               "color" : "#cbd5e1",
               "width" : 1
-            }
-          },
-          "selectedDataBackground" : {
-            "areaStyle" : {
-              "opacity" : 0.72,
-              "color" : "#bfdbfe"
             },
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
+            "areaStyle" : {
+              "opacity" : 0.58,
+              "color" : "#e2e8f0"
             }
-          },
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
           }
         } ],
         "yAxis" : {
@@ -996,44 +1021,19 @@
           "type" : "value"
         },
         "xAxis" : {
+          "data" : [ ],
           "axisLabel" : {
+            "width" : 96,
+            "interval" : "auto",
             "rotate" : 28,
             "overflow" : "truncate",
-            "hideOverlap" : true,
-            "width" : 96,
-            "interval" : "auto"
+            "hideOverlap" : true
           },
-          "type" : "category",
-          "data" : [ ]
+          "type" : "category"
         },
         "aria" : {
-          "description" : "个人未修复缺陷数占个人缺陷总数的比例",
-          "enabled" : true
-        },
-        "animationDuration" : 500,
-        "series" : [ {
-          "label" : {
-            "position" : "top",
-            "show" : true
-          },
-          "name" : "成员未修复缺陷率",
-          "data" : [ ],
-          "barMaxWidth" : 52,
-          "itemStyle" : {
-            "color" : "#dc4c64",
-            "borderRadius" : [ 6, 6, 0, 0 ]
-          },
-          "type" : "bar",
-          "labelLayout" : {
-            "hideOverlap" : true
-          }
-        } ],
-        "grid" : {
-          "right" : 24,
-          "containLabel" : true,
-          "top" : 28,
-          "left" : 20,
-          "bottom" : 112
+          "enabled" : true,
+          "description" : "个人未修复缺陷数占个人缺陷总数的比例"
         }
       },
       "ruleKey" : "member-unresolved-rate",
@@ -1052,88 +1052,10 @@
       "title" : "发布缺陷遗留率",
       "subtitle" : "各发布版本未关闭系统测试缺陷占比",
       "option" : {
-        "tooltip" : {
-          "trigger" : "axis",
-          "confine" : true
-        },
-        "dataZoom" : [ {
-          "borderRadius" : 6,
-          "backgroundColor" : "#f8fafc",
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "type" : "slider",
-          "handleSize" : "100%",
-          "height" : 30,
-          "showDetail" : false,
-          "moveHandleSize" : 12,
-          "xAxisIndex" : 0,
-          "borderColor" : "#cbd5e1",
-          "bottom" : 28,
-          "filterMode" : "filter",
-          "handleStyle" : {
-            "shadowColor" : "rgba(37, 99, 235, 0.18)",
-            "shadowBlur" : 3,
-            "borderWidth" : 1.5,
-            "borderColor" : "#2563eb",
-            "color" : "#ffffff"
-          },
-          "startValue" : 0,
-          "endValue" : 10,
-          "show" : true,
-          "emphasis" : {
-            "handleStyle" : {
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "shadowBlur" : 3,
-              "borderWidth" : 1.5,
-              "borderColor" : "#1d4ed8",
-              "color" : "#ffffff"
-            }
-          },
-          "dataBackground" : {
-            "areaStyle" : {
-              "opacity" : 0.58,
-              "color" : "#e2e8f0"
-            },
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            }
-          },
-          "selectedDataBackground" : {
-            "areaStyle" : {
-              "opacity" : 0.72,
-              "color" : "#bfdbfe"
-            },
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
-            }
-          },
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          }
-        } ],
-        "yAxis" : {
-          "name" : "%",
-          "type" : "value"
-        },
-        "xAxis" : {
-          "type" : "category",
-          "axisLabel" : {
-            "rotate" : 28,
-            "overflow" : "truncate",
-            "hideOverlap" : true,
-            "width" : 96,
-            "interval" : "auto"
-          },
-          "boundaryGap" : false,
-          "data" : [ "CC2026R2", "CC2026R3", "CC2024R4", "CC2025R2", "CC2026R1", "CC2024R2", "CC2024R3", "CC2025R1", "CC2025R3", "CC2025R4", "CC2026R4" ]
-        },
-        "aria" : {
-          "description" : "各发布版本未关闭系统测试缺陷占比",
-          "enabled" : true
-        },
         "animationDuration" : 500,
         "series" : [ {
+          "type" : "line",
+          "name" : "发布缺陷遗留率",
           "lineStyle" : {
             "color" : "#d97706",
             "width" : 3
@@ -1146,8 +1068,8 @@
           },
           "symbolSize" : 8,
           "label" : {
-            "position" : "top",
-            "show" : true
+            "show" : true,
+            "position" : "top"
           },
           "itemStyle" : {
             "color" : "#d97706"
@@ -1219,9 +1141,7 @@
             },
             "pointKey" : "CC2026R4"
           } ],
-          "smooth" : true,
-          "type" : "line",
-          "name" : "发布缺陷遗留率"
+          "smooth" : true
         } ],
         "grid" : {
           "right" : 24,
@@ -1229,6 +1149,86 @@
           "top" : 28,
           "left" : 20,
           "bottom" : 112
+        },
+        "tooltip" : {
+          "confine" : true,
+          "trigger" : "axis"
+        },
+        "dataZoom" : [ {
+          "selectedDataBackground" : {
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            },
+            "areaStyle" : {
+              "opacity" : 0.72,
+              "color" : "#bfdbfe"
+            }
+          },
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "borderRadius" : 6,
+          "backgroundColor" : "#f8fafc",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "type" : "slider",
+          "handleSize" : "100%",
+          "height" : 30,
+          "showDetail" : false,
+          "moveHandleSize" : 12,
+          "xAxisIndex" : 0,
+          "borderColor" : "#cbd5e1",
+          "bottom" : 28,
+          "filterMode" : "filter",
+          "handleStyle" : {
+            "color" : "#ffffff",
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "shadowBlur" : 3,
+            "borderWidth" : 1.5,
+            "borderColor" : "#2563eb"
+          },
+          "startValue" : 0,
+          "endValue" : 10,
+          "show" : true,
+          "emphasis" : {
+            "handleStyle" : {
+              "color" : "#ffffff",
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "shadowBlur" : 3,
+              "borderWidth" : 1.5,
+              "borderColor" : "#1d4ed8"
+            }
+          },
+          "dataBackground" : {
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            },
+            "areaStyle" : {
+              "opacity" : 0.58,
+              "color" : "#e2e8f0"
+            }
+          }
+        } ],
+        "yAxis" : {
+          "name" : "%",
+          "type" : "value"
+        },
+        "xAxis" : {
+          "data" : [ "CC2026R2", "CC2026R3", "CC2024R4", "CC2025R2", "CC2026R1", "CC2024R2", "CC2024R3", "CC2025R1", "CC2025R3", "CC2025R4", "CC2026R4" ],
+          "type" : "category",
+          "axisLabel" : {
+            "width" : 96,
+            "interval" : "auto",
+            "rotate" : 28,
+            "overflow" : "truncate",
+            "hideOverlap" : true
+          },
+          "boundaryGap" : false
+        },
+        "aria" : {
+          "enabled" : true,
+          "description" : "各发布版本未关闭系统测试缺陷占比"
         }
       },
       "ruleKey" : "release-leakage-rate",
@@ -1245,88 +1245,10 @@
       "title" : "开发缺陷遗留率",
       "subtitle" : "各发布版本未关闭系统测试缺陷占比",
       "option" : {
-        "tooltip" : {
-          "trigger" : "axis",
-          "confine" : true
-        },
-        "dataZoom" : [ {
-          "borderRadius" : 6,
-          "backgroundColor" : "#f8fafc",
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "type" : "slider",
-          "handleSize" : "100%",
-          "height" : 30,
-          "showDetail" : false,
-          "moveHandleSize" : 12,
-          "xAxisIndex" : 0,
-          "borderColor" : "#cbd5e1",
-          "bottom" : 28,
-          "filterMode" : "filter",
-          "handleStyle" : {
-            "shadowColor" : "rgba(37, 99, 235, 0.18)",
-            "shadowBlur" : 3,
-            "borderWidth" : 1.5,
-            "borderColor" : "#2563eb",
-            "color" : "#ffffff"
-          },
-          "startValue" : 0,
-          "endValue" : 10,
-          "show" : true,
-          "emphasis" : {
-            "handleStyle" : {
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "shadowBlur" : 3,
-              "borderWidth" : 1.5,
-              "borderColor" : "#1d4ed8",
-              "color" : "#ffffff"
-            }
-          },
-          "dataBackground" : {
-            "areaStyle" : {
-              "opacity" : 0.58,
-              "color" : "#e2e8f0"
-            },
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            }
-          },
-          "selectedDataBackground" : {
-            "areaStyle" : {
-              "opacity" : 0.72,
-              "color" : "#bfdbfe"
-            },
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
-            }
-          },
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          }
-        } ],
-        "yAxis" : {
-          "name" : "%",
-          "type" : "value"
-        },
-        "xAxis" : {
-          "type" : "category",
-          "axisLabel" : {
-            "rotate" : 28,
-            "overflow" : "truncate",
-            "hideOverlap" : true,
-            "width" : 96,
-            "interval" : "auto"
-          },
-          "boundaryGap" : false,
-          "data" : [ "CC2026R2", "CC2026R3", "CC2024R4", "CC2025R2", "CC2026R1", "CC2024R2", "CC2024R3", "CC2025R1", "CC2025R3", "CC2025R4", "CC2026R4" ]
-        },
-        "aria" : {
-          "description" : "各发布版本未关闭系统测试缺陷占比",
-          "enabled" : true
-        },
         "animationDuration" : 500,
         "series" : [ {
+          "type" : "line",
+          "name" : "开发缺陷遗留率",
           "lineStyle" : {
             "color" : "#0284c7",
             "width" : 3
@@ -1339,8 +1261,8 @@
           },
           "symbolSize" : 8,
           "label" : {
-            "position" : "top",
-            "show" : true
+            "show" : true,
+            "position" : "top"
           },
           "itemStyle" : {
             "color" : "#0284c7"
@@ -1412,9 +1334,7 @@
             },
             "pointKey" : "CC2026R4"
           } ],
-          "smooth" : true,
-          "type" : "line",
-          "name" : "开发缺陷遗留率"
+          "smooth" : true
         } ],
         "grid" : {
           "right" : 24,
@@ -1422,6 +1342,86 @@
           "top" : 28,
           "left" : 20,
           "bottom" : 112
+        },
+        "tooltip" : {
+          "confine" : true,
+          "trigger" : "axis"
+        },
+        "dataZoom" : [ {
+          "selectedDataBackground" : {
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            },
+            "areaStyle" : {
+              "opacity" : 0.72,
+              "color" : "#bfdbfe"
+            }
+          },
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "borderRadius" : 6,
+          "backgroundColor" : "#f8fafc",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "type" : "slider",
+          "handleSize" : "100%",
+          "height" : 30,
+          "showDetail" : false,
+          "moveHandleSize" : 12,
+          "xAxisIndex" : 0,
+          "borderColor" : "#cbd5e1",
+          "bottom" : 28,
+          "filterMode" : "filter",
+          "handleStyle" : {
+            "color" : "#ffffff",
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "shadowBlur" : 3,
+            "borderWidth" : 1.5,
+            "borderColor" : "#2563eb"
+          },
+          "startValue" : 0,
+          "endValue" : 10,
+          "show" : true,
+          "emphasis" : {
+            "handleStyle" : {
+              "color" : "#ffffff",
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "shadowBlur" : 3,
+              "borderWidth" : 1.5,
+              "borderColor" : "#1d4ed8"
+            }
+          },
+          "dataBackground" : {
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            },
+            "areaStyle" : {
+              "opacity" : 0.58,
+              "color" : "#e2e8f0"
+            }
+          }
+        } ],
+        "yAxis" : {
+          "name" : "%",
+          "type" : "value"
+        },
+        "xAxis" : {
+          "data" : [ "CC2026R2", "CC2026R3", "CC2024R4", "CC2025R2", "CC2026R1", "CC2024R2", "CC2024R3", "CC2025R1", "CC2025R3", "CC2025R4", "CC2026R4" ],
+          "type" : "category",
+          "axisLabel" : {
+            "width" : 96,
+            "interval" : "auto",
+            "rotate" : 28,
+            "overflow" : "truncate",
+            "hideOverlap" : true
+          },
+          "boundaryGap" : false
+        },
+        "aria" : {
+          "enabled" : true,
+          "description" : "各发布版本未关闭系统测试缺陷占比"
         }
       },
       "ruleKey" : "development-leakage-rate",

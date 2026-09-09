@@ -16,21 +16,21 @@
       "title" : "设计评审缺陷密度",
       "formula" : "有效设计评审问题数 / 设计评审规模页数",
       "scope" : "CC2026R3 的设计说明书评审；问题与规模按评审数据统一有效口径重算",
-      "target" : "[0.20, 0.60]",
+      "target" : "[0.30, 0.80]",
       "description" : "问题数量与评审规模均以有效记录为准。"
     }, {
       "key" : "quality-rd.code-review-density-cc",
       "title" : "CC代码走查缺陷密度",
       "formula" : "合并请求缺陷数合计 / 新增代码行数合计 × 1000",
       "scope" : "CC2026R3 的 CC 已合并 dev 分支数据；按合并请求去重，重复行缺陷数相加、新增行数取第一条",
-      "target" : "[2.00, 10.00] KLOC",
+      "target" : "[3.00, 12.00] KLOC",
       "description" : "同一合并请求仅计一次新增行，重复走查记录的缺陷数累计。"
     }, {
       "key" : "quality-rd.code-review-density-dgm",
       "title" : "DGM代码走查缺陷密度",
       "formula" : "合并请求缺陷数合计 / 新增代码行数合计 × 1000",
       "scope" : "CC2026R3 的 DGM 已合并 dev 分支数据；按合并请求去重，重复行缺陷数相加、新增行数取第一条",
-      "target" : "[2.00, 10.00] KLOC",
+      "target" : "[3.00, 12.00] KLOC",
       "description" : "同一合并请求仅计一次新增行，重复走查记录的缺陷数累计。"
     }, {
       "key" : "quality-rd.integration-pass-rate",
@@ -65,14 +65,14 @@
       "title" : "按走查人统计代码走查缺陷密度",
       "formula" : "人员有效行级缺陷密度之和 / 该人员全部匹配记录数",
       "scope" : "CC2026R3，CC 代码走查数据；排除空值、占位值和非法人员值",
-      "target" : "[2.00, 10.00] KLOC",
+      "target" : "[3.00, 12.00] KLOC",
       "description" : "人员名称为空或为占位值时不参与统计。"
     }, {
       "key" : "quality-rd.author-defect-density",
       "title" : "按被走查人统计代码走查缺陷密度",
       "formula" : "人员有效行级缺陷密度之和 / 该人员全部匹配记录数",
       "scope" : "CC2026R3，CC 代码走查数据；额外排除走查人字段为非法占位值的记录",
-      "target" : "[2.00, 10.00] KLOC",
+      "target" : "[3.00, 12.00] KLOC",
       "description" : "走查人或被走查人字段为占位值时不参与统计。"
     }, {
       "key" : "quality-rd.fix-user-severity",

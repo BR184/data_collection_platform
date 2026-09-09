@@ -7,6 +7,7 @@ import BiChartPanel from '../components/BiChartPanel.vue';
 import type { BiSortOrder } from '../components/BiChartSortControl.vue';
 import BiMetricStrip, { type BiMetricItem } from '../components/BiMetricStrip.vue';
 import { formatNumber, metricStatus, sectionPresentation } from '../data/presentation';
+import { reviewDensityRange } from '../data/quality-targets';
 import { sortNamedValues, sortReviewQualityRows, sortReviewScatterPoints } from '../data/sorting';
 import type { BiPageKey, BiPageResponse, BiReviewPageData } from '../data/types';
 
@@ -18,8 +19,9 @@ const props = defineProps({
 });
 
 const donutChart = new DistributionDonutChart();
-const qualityChart = new ReviewQualityDualPanelChart({ densityRange: [0.2, 0.6], densityUnit: '个/页', rateUnit: '页/小时' });
-const scatterChart = new ReviewQualityScatterChart({ densityRange: [0.2, 0.6], densityUnit: '个/页', rateUnit: '页/小时' });
+const densityRange = reviewDensityRange(props.pageKey);
+const qualityChart = new ReviewQualityDualPanelChart({ densityRange, densityUnit: '个/页', rateUnit: '页/小时' });
+const scatterChart = new ReviewQualityScatterChart({ densityRange, densityUnit: '个/页', rateUnit: '页/小时' });
 
 const moduleSort = ref('status');
 const moduleSortOrder = ref<BiSortOrder>('asc');

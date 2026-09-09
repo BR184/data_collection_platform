@@ -22,11 +22,11 @@ import java.util.Set;
 
 /** 严格实现 CD-01 至 CD-39 人工确认口径的编码阶段计算器。 */
 public final class BiCodingCalculator {
-  private static final BigDecimal MIN_REVIEW_DENSITY = new BigDecimal("2.00");
-  private static final BigDecimal MAX_REVIEW_DENSITY = new BigDecimal("10.00");
+  private static final BigDecimal MIN_REVIEW_DENSITY = new BigDecimal("3.00");
+  private static final BigDecimal MAX_REVIEW_DENSITY = new BigDecimal("12.00");
   private static final BigDecimal ONE_THOUSAND = new BigDecimal("1000");
   private static final BigDecimal MINUTES_PER_HOUR = new BigDecimal("60");
-  private static final String RULE_VERSION = "bi-coding-v2";
+  private static final String RULE_VERSION = "bi-coding-v3";
 
   /**
    * 计算编码页面；上游能力、来源维度或计算分母不足时保留可用数据并标记相应分区。
@@ -625,7 +625,7 @@ public final class BiCodingCalculator {
                     "人工走查有效问题数",
                     "code_review_match_mode_records.defect_count / "
                         + "code_review_formal_records.defect_count")),
-            "缺陷密度=有效问题数*1000/去重被走查行数；速率=被走查行数/(分钟/60)；密度区间[2,10]达标",
+            "缺陷密度=有效问题数*1000/去重被走查行数；速率=被走查行数/(分钟/60)；密度区间[3,12]达标",
             "BI服务端"),
         new BiMetricTrace(
             List.of("CD-30", "CD-31", "CD-32", "CD-33", "CD-34", "CD-35", "CD-36", "CD-37", "CD-38", "CD-39"),

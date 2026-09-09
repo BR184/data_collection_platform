@@ -249,6 +249,57 @@ class BiReviewCalculatorTest {
     assertThat(response.data().summary().reviewedPages()).isEqualTo(10L);
   }
 
+  @Test
+  void judgesDesignPageDensityBelowDesignSpecificLowerBoundAsNotAchieved() {
+    BiReviewSource source = new BiReviewSource(
+        "review-source-design-band-low",
+        "review-snapshot-design-band-low",
+        List.of(record(21L, "草图", 8, "2.0", 2, 1, 1, 0, 0)));
+
+    var response = calculator.calculate("design", source);
+
+    assertThat(response.data().summary().defectDensity()).isEqualByComparingTo("0.25");
+    assertThat(response.data().summary().achieved()).isFalse();
+    assertThat(response.data().reviewPoints()).singleElement()
+        .satisfies(point -> assertThat(point.achieved()).isFalse());
+  }
+
+  @Test
+  void judgesDesignPageDensityInsideDesignSpecificBandAsAchieved() {
+    BiReviewSource source = new BiReviewSource(
+        "review-source-design-band-in",
+        "review-snapshot-design-band-in",
+        List.of(record(22L, "草图", 10, "2.0", 5, 2, 2, 1, 0)));
+
+    var response = calculator.calculate("design", source);
+
+    assertThat(response.data().summary().defectDensity()).isEqualByComparingTo("0.50");
+    assertThat(response.data().summary().achieved()).isTrue();
+  }
+
+  @Test
+  void keepsRequirementPageDensityTargetBandUnchanged() {
+    BiReviewSource source = new BiReviewSource(
+        "review-source-requirement-band",
+        "review-snapshot-requirement-band",
+        List.of(record(23L, "草图", 8, "2.0", 2, 1, 1, 0, 0)));
+
+    var response = calculator.calculate("requirements", source);
+
+    assertThat(response.data().summary().defectDensity()).isEqualByComparingTo("0.25");
+    assertThat(response.data().summary().achieved()).isTrue();
+  }
+
+  @Test
+  void exposesDesignSpecificDensityTargetInRuleTrace() {
+    var response = calculator.calculate(
+        "design",
+        new BiReviewSource("review-source-trace-design", "review-snapshot-trace-design", List.of()));
+
+    assertThat(response.traces()).singleElement().satisfies(trace ->
+        assertThat(trace.formula()).contains("密度区间 [0.30, 0.80] 达标"));
+  }
+
   private BiReviewSource.ReviewRecord record(
       long id,
       String moduleName,

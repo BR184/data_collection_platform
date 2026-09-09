@@ -282,21 +282,21 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
                 "设计评审缺陷密度",
                 "有效设计评审问题数 / 设计评审规模页数",
                 projectName + " 的设计说明书评审；问题与规模按评审数据统一有效口径重算",
-                "[0.20, 0.60]",
+                "[0.30, 0.80]",
                 "问题数量与评审规模均以有效记录为准。"),
             rule(
                 "code-review-density-cc",
                 "CC代码走查缺陷密度",
                 "合并请求缺陷数合计 / 新增代码行数合计 × 1000",
                 projectName + " 的 CC 已合并 dev 分支数据；按合并请求去重，重复行缺陷数相加、新增行数取第一条",
-                "[2.00, 10.00] KLOC",
+                "[3.00, 12.00] KLOC",
                 "同一合并请求仅计一次新增行，重复走查记录的缺陷数累计。"),
             rule(
                 "code-review-density-dgm",
                 "DGM代码走查缺陷密度",
                 "合并请求缺陷数合计 / 新增代码行数合计 × 1000",
                 projectName + " 的 DGM 已合并 dev 分支数据；按合并请求去重，重复行缺陷数相加、新增行数取第一条",
-                "[2.00, 10.00] KLOC",
+                "[3.00, 12.00] KLOC",
                 "同一合并请求仅计一次新增行，重复走查记录的缺陷数累计。"),
             rule(
                 "integration-pass-rate",
@@ -331,14 +331,14 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
                 "按走查人统计代码走查缺陷密度",
                 "人员有效行级缺陷密度之和 / 该人员全部匹配记录数",
                 codeReviewScope + "；排除空值、占位值和非法人员值",
-                "[2.00, 10.00] KLOC",
+                "[3.00, 12.00] KLOC",
                 "人员名称为空或为占位值时不参与统计。"),
             rule(
                 "author-defect-density",
                 "按被走查人统计代码走查缺陷密度",
                 "人员有效行级缺陷密度之和 / 该人员全部匹配记录数",
                 codeReviewScope + "；额外排除走查人字段为非法占位值的记录",
-                "[2.00, 10.00] KLOC",
+                "[3.00, 12.00] KLOC",
                 "走查人或被走查人字段为占位值时不参与统计。"),
             rule(
                 "fix-user-severity",
@@ -565,8 +565,9 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
       return "neutral";
     }
     return switch (key) {
-      case "demand-review-density", "design-review-density" -> inRange(value, 0.2D, 0.6D);
-      case "code-review-density-cc", "code-review-density-dgm" -> inRange(value, 2D, 10D);
+      case "demand-review-density" -> inRange(value, 0.2D, 0.6D);
+      case "design-review-density" -> inRange(value, 0.3D, 0.8D);
+      case "code-review-density-cc", "code-review-density-dgm" -> inRange(value, 3D, 12D);
       case "integration-pass-rate", "development-leakage-rate" -> value >= 90D ? "success" : "danger";
       case "release-leakage-rate" -> value <= 15D ? "success" : "danger";
       // 老平台新发缺陷修复率使用恒为 success 的标签，不做额外阈值判断。

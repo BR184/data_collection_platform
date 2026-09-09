@@ -17,6 +17,7 @@ import BiChartPanel from '../components/BiChartPanel.vue';
 import BiChartSortControl, { type BiSortOrder } from '../components/BiChartSortControl.vue';
 import BiMetricStrip, { type BiMetricItem } from '../components/BiMetricStrip.vue';
 import { formatNumber, metricStatus, sectionPresentation } from '../data/presentation';
+import { codingDensityRange } from '../data/quality-targets';
 import {
   sortCategorySeriesData,
   sortNamedValues,
@@ -41,8 +42,8 @@ const categoryChart = new DistributionDonutChart();
 const verticalBarChart = new VerticalCategoryBarChart();
 const frequencyChart = new SubmissionFrequencyBarChart();
 const scanChart = new StackedCategoryBarChart();
-const reviewQualityChart = new ReviewQualityDualPanelChart({ densityRange: [2, 10], densityUnit: '个/KLOC', rateUnit: '行/小时' });
-const reviewScatterChart = new ReviewQualityScatterChart({ densityRange: [2, 10], densityUnit: '个/KLOC', rateUnit: 'KLOC/小时' });
+const reviewQualityChart = new ReviewQualityDualPanelChart({ densityRange: codingDensityRange, densityUnit: '个/KLOC', rateUnit: '行/小时' });
+const reviewScatterChart = new ReviewQualityScatterChart({ densityRange: codingDensityRange, densityUnit: '个/KLOC', rateUnit: 'KLOC/小时' });
 const qualityTrendChart = new QualityTrendSmallMultiplesChart();
 const data = computed(() => props.response.data);
 

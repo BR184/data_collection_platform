@@ -6,6 +6,12 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-09 质量指标目标值更新（设计评审与代码走查缺陷密度）
+
+- [完成] 按用户 2026-09-09 更新：设计评审缺陷密度目标 `[0.20,0.60]`→`[0.30,0.80]`、CC/DGM 代码走查缺陷密度 `[2.00,10.00]`→`[3.00,12.00]`、需求评审保持 `[0.20,0.60]` 不变。后端：`BiReviewCalculator` 新增设计页专用常量 `DESIGN_MIN/MAX_DENSITY` 与 pageKey 选择器（整体/模块/散点达标判定与 trace 区间文案全部由选择器驱动，`RULE_VERSION`→bi-review-v3）；`BiCodingCalculator` 常量与 trace 更新（v3）；`QualityBoardRdService` 三条目标文案；`QualityRdAnalyticsDashboardProvider` metricStatus 拆分需求/设计带并更新 CC/DGM 带 + 5 条规则 target 文案。前端：新增 `features/bi-dashboard/data/quality-targets.ts`（`reviewDensityRange(pageKey)` + `codingDensityRange`），BI 需求/设计/编码页图表目标带与质量看板卡片色调带接入；核对表 DS-07/08/09、CD-20/23/24/25 同步。计划 `docs/plans/quality-metric-target-band-update-20260909.md`。
+- [验证] 后端默认套件 1258 全绿；前端 Vitest 462 全绿（125 文件）。golden compare 首跑 180 例中恰好 7 预期文件失败（与预测清单逐字一致，无清单外差异）→ 更新模式重建 → 66 快照文件全量归一化审计零未解释差异（7 预期语义变更 + 3 纯键序布局漂移 + 56 时间/端口噪声与导出 U 列 +23h 墙钟老化）→ compare 复跑 **180/180 全绿**。夹具与 `baseline-manifest.json` 未动。
+- [状态] 本地提交未推送（远端待用户指定）。BI 达标语义变化随 `RULE_VERSION` 升版留痕；基线数据 DGM=2.12 在新区间下分析看板状态翻转为 danger 属预期结果。20001 生产 20260908 更新包不含本变更，随下一更新包发布。
+
 ## 2026-09-08 20001 保数据更新包制作与本地升级演练
 
 - [完成] 20001 现场（直接基线 20260803T122027Z-ad35f6c0e8c3 全新包，现场运行镜像逐字一致）保数据更新包生成：`qaflex-update-20260908T075021Z-c3539eefab51`，归档 197,383,444 bytes，SHA-256 `f55781200161e89e01a25af747cdec9e5d38cd1ea29bb2627b5102d24de0f9cc`；source.commit=05ecadda（工作树非干净=遗留文档/SQL 非发布代码），目标前后端镜像同 release-id，Flyway 20260803.01→20260903.01（12 迁移），facts={rebuildRequired:true, scope:issue}（客户问题统计排除建议类口径变更；MR 侧基线以来仅等价重构，不扩 all）。打包器全门禁+独立审计通过（契约测试 34/34、镜像内产物摘要、包内外校验和、归档结构合规、bash -n）。

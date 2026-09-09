@@ -87,9 +87,9 @@ public class QualityBoardRdService {
     List<QualityBoardMetricResponse> metrics =
         List.of(
             new QualityBoardMetricResponse("demandReviewReportDensity", "需求评审缺陷密度", demandReviewDensity, "", "目标值：[0.20, 0.60]"),
-            new QualityBoardMetricResponse("designReviewReportDensity", "设计评审缺陷密度", designReviewDensity, "", "目标值：[0.20, 0.60]"),
-            new QualityBoardMetricResponse("codeWalkThroughDefectDensityCc", "CC代码走查缺陷密度", codeReviewCcDensity, "KLOC", "目标值：[2.00, 10.00]"),
-            new QualityBoardMetricResponse("codeWalkThroughDefectDensityDgm", "DGM代码走查缺陷密度", codeReviewDgmDensity, "KLOC", "目标值：[2.00, 10.00]"),
+            new QualityBoardMetricResponse("designReviewReportDensity", "设计评审缺陷密度", designReviewDensity, "", "目标值：[0.30, 0.80]"),
+            new QualityBoardMetricResponse("codeWalkThroughDefectDensityCc", "CC代码走查缺陷密度", codeReviewCcDensity, "KLOC", "目标值：[3.00, 12.00]"),
+            new QualityBoardMetricResponse("codeWalkThroughDefectDensityDgm", "DGM代码走查缺陷密度", codeReviewDgmDensity, "KLOC", "目标值：[3.00, 12.00]"),
             new QualityBoardMetricResponse("integrationPassRate", "集成测试通过率", integrationPassRate, "%", "目标值：不低于 90.00%"),
             new QualityBoardMetricResponse("defectLeakageRate", "发布缺陷遗留率", defectLeakageRate, "%", "目标值：不超过 15.00%"),
             new QualityBoardMetricResponse("defectEliminationRate", "开发缺陷遗留率", defectEliminationRate, "%", "目标值：不低于 90.00%"),

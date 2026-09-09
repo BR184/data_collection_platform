@@ -89,19 +89,19 @@ export function buildQualityBoardCards(input: {
       key: 'design-density',
       label: '设计评审缺陷密度',
       value: formatFixed(overview?.designReviewReportDensity),
-      tone: resolveBandTone(overview?.designReviewReportDensity ?? null, 0.2, 0.6),
+      tone: resolveBandTone(overview?.designReviewReportDensity ?? null, 0.3, 0.8),
     },
     {
       key: 'code-review-cc',
       label: 'CC代码走查缺陷密度',
       value: `${formatFixed(overview?.codeWalkThroughDefectDensityCc)} KLOC`,
-      tone: resolveBandTone(overview?.codeWalkThroughDefectDensityCc ?? null, 2, 10),
+      tone: resolveBandTone(overview?.codeWalkThroughDefectDensityCc ?? null, 3, 12),
     },
     {
       key: 'code-review-dgm',
       label: 'DGM代码走查缺陷密度',
       value: `${formatFixed(overview?.codeWalkThroughDefectDensityDgm)} KLOC`,
-      tone: resolveBandTone(overview?.codeWalkThroughDefectDensityDgm ?? null, 2, 10),
+      tone: resolveBandTone(overview?.codeWalkThroughDefectDensityDgm ?? null, 3, 12),
     },
     {
       key: 'integration-pass-rate',

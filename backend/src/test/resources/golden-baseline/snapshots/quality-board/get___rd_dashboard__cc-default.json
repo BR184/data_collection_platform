@@ -24,19 +24,19 @@
         "label" : "设计评审缺陷密度",
         "value" : 0.0,
         "unit" : "",
-        "targetDescription" : "目标值：[0.20, 0.60]"
+        "targetDescription" : "目标值：[0.30, 0.80]"
       }, {
         "key" : "codeWalkThroughDefectDensityCc",
         "label" : "CC代码走查缺陷密度",
         "value" : 3.28,
         "unit" : "KLOC",
-        "targetDescription" : "目标值：[2.00, 10.00]"
+        "targetDescription" : "目标值：[3.00, 12.00]"
       }, {
         "key" : "codeWalkThroughDefectDensityDgm",
         "label" : "DGM代码走查缺陷密度",
         "value" : 2.12,
         "unit" : "KLOC",
-        "targetDescription" : "目标值：[2.00, 10.00]"
+        "targetDescription" : "目标值：[3.00, 12.00]"
       }, {
         "key" : "integrationPassRate",
         "label" : "集成测试通过率",

@@ -13,6 +13,7 @@ import com.data.collection.platform.entity.QualityBoardFixUserSeverityRowRespons
 import com.data.collection.platform.entity.QualityBoardRdDashboardResponse;
 import com.data.collection.platform.entity.QualityBoardRdOverviewResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
+import com.data.collection.platform.entity.analytics.AnalyticsDashboardResponse;
 import com.data.collection.platform.service.CodeReviewDataReadMode;
 import com.data.collection.platform.service.QualityBoardCodeReviewReadSupport;
 import com.data.collection.platform.service.QualityBoardRdService;
@@ -120,6 +121,66 @@ class QualityRdAnalyticsDashboardProviderTest {
       assertThat(rule.scope()).contains("保留已拒绝状态记录");
       assertThat(rule.description()).contains("空指派人不生成分组");
     });
+  }
+
+  @Test
+  void judgesReviewAndCodeReviewDensityStatusAgainstUpdatedTargetBands() {
+    when(rdService.normalizeProjectName("CC2026R4")).thenReturn("CC2026R4");
+    when(rdService.getRdDashboard("CC2026R4", "dgm", CodeReviewDataReadMode.MATCH_MODE))
+        .thenReturn(bandDashboard());
+    var context = new AnalyticsDashboardQueryContext(
+        Map.of("projectName", "CC2026R4", "codeReviewSource", "dgm"),
+        1,
+        20,
+        null,
+        null,
+        AnalyticsDashboardQueryContext.ReadMode.MATCH_MODE);
+
+    var dashboard = provider.loadDashboard(context);
+    var rules = provider.loadRules(context);
+
+    assertThat(statusOf(dashboard, "demand-review-density")).isEqualTo("success");
+    assertThat(statusOf(dashboard, "design-review-density")).isEqualTo("danger");
+    assertThat(statusOf(dashboard, "code-review-density-cc")).isEqualTo("danger");
+    assertThat(statusOf(dashboard, "code-review-density-dgm")).isEqualTo("success");
+    assertThat(rules.rules()).anySatisfy(rule -> {
+      assertThat(rule.key()).isEqualTo("quality-rd.demand-review-density");
+      assertThat(rule.target()).isEqualTo("[0.20, 0.60]");
+    });
+    assertThat(rules.rules()).anySatisfy(rule -> {
+      assertThat(rule.key()).isEqualTo("quality-rd.design-review-density");
+      assertThat(rule.target()).isEqualTo("[0.30, 0.80]");
+    });
+    assertThat(rules.rules()).anySatisfy(rule -> {
+      assertThat(rule.key()).isEqualTo("quality-rd.code-review-density-cc");
+      assertThat(rule.target()).isEqualTo("[3.00, 12.00] KLOC");
+    });
+    assertThat(rules.rules()).anySatisfy(rule -> {
+      assertThat(rule.key()).isEqualTo("quality-rd.author-defect-density");
+      assertThat(rule.target()).isEqualTo("[3.00, 12.00] KLOC");
+    });
+  }
+
+  private QualityBoardRdDashboardResponse bandDashboard() {
+    var overview = new QualityBoardRdOverviewResponse(
+        "CC2026R4", 0.25D, 0.25D, 2.5D, 11.5D, 92D, 10D, 91D, 88D, List.of());
+    return new QualityBoardRdDashboardResponse(
+        overview,
+        "dgm",
+        List.of(new OptionItemResponse("DGM", "dgm")),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of());
+  }
+
+  private String statusOf(AnalyticsDashboardResponse dashboard, String key) {
+    return dashboard.metrics().stream()
+        .filter(metric -> metric.key().equals(key))
+        .findFirst()
+        .orElseThrow()
+        .status();
   }
 
   @Test

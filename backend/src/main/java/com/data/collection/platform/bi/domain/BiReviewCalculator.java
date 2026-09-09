@@ -19,11 +19,15 @@ import java.util.Objects;
 public final class BiReviewCalculator {
   private static final BigDecimal MIN_DENSITY = new BigDecimal("0.20");
   private static final BigDecimal MAX_DENSITY = new BigDecimal("0.60");
-  private static final String RULE_VERSION = "bi-review-v2";
+  private static final BigDecimal DESIGN_MIN_DENSITY = new BigDecimal("0.30");
+  private static final BigDecimal DESIGN_MAX_DENSITY = new BigDecimal("0.80");
+  private static final String RULE_VERSION = "bi-review-v3";
 
   /** 计算需求或设计页面；冲突、缺失和非法输入不会进入任何标记为完整的统计。 */
   public BiPageResponse<BiReviewPageData> calculate(String pageKey, BiReviewSource source) {
     Objects.requireNonNull(source, "source");
+    BigDecimal minimumDensity = densityMinimum(pageKey);
+    BigDecimal maximumDensity = densityMaximum(pageKey);
     // 阶段一：空范围单独返回 EMPTY，避免把“没有数据”误报为计算失败。
     if (source.records().isEmpty()) {
       return BiPageResponse.create(
@@ -65,7 +69,7 @@ public final class BiReviewCalculator {
         ? null : divide(problemCount, reviewedPages);
     BigDecimal rate = reviewedPages == null
         ? null : divide(reviewedPages, workloadHours);
-    Boolean achieved = achieved(density);
+    Boolean achieved = achieved(density, minimumDensity, maximumDensity);
     boolean denominatorComplete = density != null && rate != null;
     boolean categoriesComplete = records.stream().allMatch(this::validCategoryInputs);
     List<BiReviewSource.ReviewRecord> moduleRecords = records.stream()
@@ -120,8 +124,8 @@ public final class BiReviewCalculator {
                 rate,
                 achieved),
             categoriesComplete ? categories(records) : List.of(),
-            modules(moduleRecords),
-            points(scatterRecords),
+            modules(moduleRecords, minimumDensity, maximumDensity),
+            points(scatterRecords, minimumDensity, maximumDensity),
             coverage(records.size(), moduleRecords.size()),
             coverage(records.size(), scatterRecords.size())));
   }
@@ -180,18 +184,24 @@ public final class BiReviewCalculator {
     return new BiReviewPageData.CategoryBreakdown(name, count, percent(count, total));
   }
 
-  private List<BiReviewPageData.ModuleQuality> modules(List<BiReviewSource.ReviewRecord> records) {
+  private List<BiReviewPageData.ModuleQuality> modules(
+      List<BiReviewSource.ReviewRecord> records,
+      BigDecimal minimumDensity,
+      BigDecimal maximumDensity) {
     Map<BiSourceDimension, ModuleAccumulator> modules = new LinkedHashMap<>();
     for (BiReviewSource.ReviewRecord record : records) {
       modules.computeIfAbsent(
               record.module(),
-              ModuleAccumulator::new)
+              module -> new ModuleAccumulator(module, minimumDensity, maximumDensity))
           .add(record);
     }
     return modules.values().stream().map(ModuleAccumulator::toData).toList();
   }
 
-  private List<BiReviewPageData.ReviewPoint> points(List<BiReviewSource.ReviewRecord> records) {
+  private List<BiReviewPageData.ReviewPoint> points(
+      List<BiReviewSource.ReviewRecord> records,
+      BigDecimal minimumDensity,
+      BigDecimal maximumDensity) {
     List<BiReviewPageData.ReviewPoint> points = new ArrayList<>();
     for (BiReviewSource.ReviewRecord record : records) {
       BigDecimal rate = divide(record.reviewedPages(), record.workloadHours());
@@ -202,7 +212,7 @@ public final class BiReviewCalculator {
           record.module(),
           rate,
           density,
-          achieved(density)));
+          achieved(density, minimumDensity, maximumDensity)));
     }
     return points;
   }
@@ -226,7 +236,8 @@ public final class BiReviewCalculator {
             new BiMetricTrace.SourceField("独立评审实际工作量（小时）", "review_visible_problem_items.workload_hours"),
             new BiMetricTrace.SourceField("问题状态", "review_visible_problem_items.problem_status"),
             new BiMetricTrace.SourceField("问题类别", "review_visible_problem_items.problem_category")),
-        "有效问题数 / 被评审页数；被评审页数 / 独立评审工作量；密度区间 [0.20, 0.60] 达标",
+        "有效问题数 / 被评审页数；被评审页数 / 独立评审工作量；密度区间 ["
+            + densityMinimum(pageKey) + ", " + densityMaximum(pageKey) + "] 达标",
         "BI服务端"));
   }
 
@@ -245,9 +256,20 @@ public final class BiReviewCalculator {
         .divide(BigDecimal.valueOf(denominator), 2, RoundingMode.HALF_UP);
   }
 
-  private Boolean achieved(BigDecimal density) {
+  /** 设计页与需求页的人工确认目标区间不同，按页面键选择缺陷密度达标下限。 */
+  private static BigDecimal densityMinimum(String pageKey) {
+    return "design".equals(pageKey) ? DESIGN_MIN_DENSITY : MIN_DENSITY;
+  }
+
+  /** 设计页与需求页的人工确认目标区间不同，按页面键选择缺陷密度达标上限。 */
+  private static BigDecimal densityMaximum(String pageKey) {
+    return "design".equals(pageKey) ? DESIGN_MAX_DENSITY : MAX_DENSITY;
+  }
+
+  private Boolean achieved(
+      BigDecimal density, BigDecimal minimumDensity, BigDecimal maximumDensity) {
     return density == null ? null
-        : density.compareTo(MIN_DENSITY) >= 0 && density.compareTo(MAX_DENSITY) <= 0;
+        : density.compareTo(minimumDensity) >= 0 && density.compareTo(maximumDensity) <= 0;
   }
 
   private boolean validReviewedPages(BiReviewSource.ReviewRecord record) {
@@ -323,10 +345,15 @@ public final class BiReviewCalculator {
 
   private final class ModuleAccumulator {
     private final BiSourceDimension module;
+    private final BigDecimal minimumDensity;
+    private final BigDecimal maximumDensity;
     private final Totals totals = new Totals();
 
-    private ModuleAccumulator(BiSourceDimension module) {
+    private ModuleAccumulator(
+        BiSourceDimension module, BigDecimal minimumDensity, BigDecimal maximumDensity) {
       this.module = module;
+      this.minimumDensity = minimumDensity;
+      this.maximumDensity = maximumDensity;
     }
 
     private void add(BiReviewSource.ReviewRecord record) {
@@ -342,7 +369,7 @@ public final class BiReviewCalculator {
           totals.problemCount,
           density,
           divide(totals.reviewedPages, totals.workloadHours),
-          achieved(density));
+          achieved(density, minimumDensity, maximumDensity));
     }
   }
 
