@@ -2,7 +2,8 @@
 
 ## 进度与中间物
 
-- 状态：**golden 更新模式已重建并完成 66 文件全量归一化审计（零未解释差异），compare 复跑运行中**。
+- 状态：**工作单元已完成（2026-09-09）**。提交 `2bd626ee`（81 文件：7 后端代码/测试 + 66 golden 快照 + 5 前端 + 3 文档），未推送（远端待用户指定）。全部门禁绿：后端默认套件 1258、前端 Vitest 462、golden compare 复跑 180/180、仓库四项门禁。
+- 收尾留痕：`frontend/src/components.d.ts`（dts 再生成漂移，恢复 ElPopover 声明，与生产构建真实状态相反）与 `docs/plans/fresh-package-env-direct-20260907.md` 为其他单元/生成物遗留，未纳入本提交。
 - 默认套件验证（2026-09-09）：后端 mvn 默认套件 **1258 全绿**（BUILD SUCCESS，1 skipped 为既有）；前端 Vitest **462 全绿（125 文件）**。首次运行因测试缺 `AnalyticsDashboardResponse` 导入编译失败（`entity.analytics` 包），补导入后复跑全绿。
 - golden compare 第一次：**180 例中恰好 7 文件失败**，与"证据与根因"预期清单逐字一致，无清单外差异。
 - golden 更新模式重建：180/180 BUILD SUCCESS（更新模式只写不比）。
