@@ -74,7 +74,7 @@ export function reviewDataColumns(): RecordTableColumn[] {
     {
       key: 'reachStandard',
       label: '是否达标',
-      headerTooltip: '达标判断：评审缺陷密度介于[0.2~0.6]',
+      headerTooltip: '达标判断：设计评审缺陷密度介于[0.3~0.8]，其余评审类型介于[0.2~0.6]',
       type: 'tag',
       sortable: true,
       width: 78,

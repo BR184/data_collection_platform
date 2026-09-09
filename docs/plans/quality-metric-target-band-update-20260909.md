@@ -109,6 +109,16 @@
   3. **`RULE_VERSION` 升版**：`bi-review-v2→v3`、`bi-coding-v2→v3`（达标语义变化应留痕于响应的规则版本字段；该字段仅透传展示，无消费逻辑依赖具体值）。
 - 已否决：把 7 处目标值集中为单一配置源的重构（超出本单元范围，避免与口径变更耦合）；同步改需求评审区间（用户明确否决）。
 
+## 延伸工作单元：评审数据页"是否达标"拆分与 BI 设计页文案漏网修复（2026-09-09 下午）
+
+- 触发：用户在 18181 BI 设计页发现质量目标说明仍为旧值——根因是本单元残留扫描模式只匹配逗号形式 `0.2, 0.6`，漏掉波浪号/短横形式。全仓宽扫复查后发现两处 BI 硬编码文案（`ReviewStageContent.vue` 指标条 + 规则条）与评审数据管理模块的统一 `[0.2,0.6]` 达标口径（后端 3 处计算 + 前端 2 处文案 + 业务规则第 15 条）。
+- BI 文案修复：两处改为从 `reviewDensityRange(pageKey)` 派生（与图表目标带同源），随并行会话提交 `005af66a` 入库（内容经逐行核验）。
+- 用户拍板（AskUserQuestion 确认）：评审数据页"是否达标"按评审类型拆分——设计说明书评审 `[0.3,0.8]`、其余类型（含需求评审）维持 `[0.2,0.6]`。
+- 实现：新建 `ReviewDataReachStandardRule` 统一口径（读取判定 + 排序 SQL 表达式双入口），正式态 `ReviewDataRecordRowMapper`（复用展示类型展示值与密度局部变量）、兼容态 `ReviewDataMatchModeRecordRepository`（复用 `firstText` 展示类型）、排序 SQL `ReviewDataRecordQueryBuilder` 三处全部收敛接入；前端 tooltip 与规则说明文案同步；业务规则第 15 条修订并记录收敛点；新增 `ReviewDataReachStandardRuleTest`（设计带边界、需求带不变锁、未知/空类型兜底、空白容忍、SQL 表达式片段）。
+- 明确不受影响：Excel 导出"不达标原因"为存量导入值（`notReachStandardReason`），不动态计算；BI 达标判定（`BiReviewCalculator`）本就按页拆分，不引用本规则。
+- 验证：按新写入 AGENTS.md 的服务处置纪律执行——停 18080/18181 → 后端默认套件 + 前端 Vitest → golden compare/update/审计/compare → 拉起服务并验证健康。
+- 预期 golden 差异：review-data records 相关快照中，夹具里设计说明书评审记录密度落在 `(0.2,0.3)∪(0.6,0.8)` 的行 `reachStandard` 翻转；导出快照不受影响。
+
 ## 接口契约
 
 - 无新增/删除 API，无表结构变更。

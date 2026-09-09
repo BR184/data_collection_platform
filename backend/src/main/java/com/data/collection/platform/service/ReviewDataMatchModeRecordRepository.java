@@ -388,12 +388,13 @@ public class ReviewDataMatchModeRecordRepository {
       List<DescriptionRow> reportDescriptions) {
     RecordMetrics metrics = metrics(report, reportProblems, reportDescriptions);
     String expertsSummary = String.join("、", report.reviewExperts());
+    String reviewType = firstText(report.docType(), report.sourceType(), report.reviewTypeStr());
     return new ReviewDataRecordRowResponse(
         publicRecordId(report.id()),
         TextQuerySupport.normalizeDisplay(report.projectName()),
         TextQuerySupport.normalizeDisplay(report.title()),
         ReviewDataModuleNameSupport.normalize(report.moduleName()),
-        firstText(report.docType(), report.sourceType(), report.reviewTypeStr()),
+        reviewType,
         report.reviewTime() == null ? null : report.reviewTime().toLocalDate(),
         TextQuerySupport.normalizeDisplay(report.reviewCharger()),
         expertsSummary,
@@ -415,7 +416,7 @@ public class ReviewDataMatchModeRecordRepository {
         metrics.meetingReviewWorkload(),
         metrics.meetingReviewProblemCount(),
         TextQuerySupport.normalizeDisplay(report.notReachStandCause()),
-        reachStandard(metrics.problemDensity()),
+        reachStandard(reviewType, metrics.problemDensity()),
         null,
         metrics.weightedDefectDensity(),
         report.createTime(),
@@ -782,9 +783,8 @@ public class ReviewDataMatchModeRecordRepository {
     return "";
   }
 
-  private Boolean reachStandard(Double density) {
-    double value = density == null ? 0D : density;
-    return value >= 0.2D && value <= 0.6D;
+  private Boolean reachStandard(String reviewType, Double density) {
+    return ReviewDataReachStandardRule.reached(reviewType, density == null ? 0D : density);
   }
 
   private Long publicRecordId(Long storageId) {

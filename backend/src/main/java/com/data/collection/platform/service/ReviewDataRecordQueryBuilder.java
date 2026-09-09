@@ -199,7 +199,7 @@ final class ReviewDataRecordQueryBuilder {
           case "meetingReviewWorkload" -> "fr.meeting_review_workload";
           case "meetingReviewProblemCount" -> "fr.meeting_review_problem_count";
           case "reachStandard" ->
-              "case when fr.problem_density >= 0.2 and fr.problem_density <= 0.6 then 1 else 0 end";
+              ReviewDataReachStandardRule.orderExpression("fr.review_type", "fr.problem_density");
           case "createdAt" -> "fr.created_at";
           default -> "fr.updated_at";
         };

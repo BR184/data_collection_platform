@@ -13,12 +13,14 @@ class ReviewDataRecordRowMapper {
     Integer problemCount = (Integer) resultSet.getObject("problem_count");
     Double reviewEfficiency = getDoubleOrDefault(resultSet, "review_efficiency");
     Double reviewRate = getDoubleOrDefault(resultSet, "review_rate");
+    String reviewType = TextQuerySupport.normalizeDisplay(resultSet.getString("review_type"));
+    Double problemDensity = calculateProblemDensity(problemCount, reviewScalePages);
     return new ReviewDataRecordRowResponse(
         resultSet.getLong("id"),
         TextQuerySupport.normalizeDisplay(resultSet.getString("project_name")),
         TextQuerySupport.normalizeDisplay(resultSet.getString("title")),
         ReviewDataModuleNameSupport.normalize(resultSet.getString("module_name")),
-        TextQuerySupport.normalizeDisplay(resultSet.getString("review_type")),
+        reviewType,
         resultSet.getDate("review_date") == null
             ? null
             : resultSet.getDate("review_date").toLocalDate(),
@@ -29,7 +31,7 @@ class ReviewDataRecordRowMapper {
         TextQuerySupport.normalizeDisplay(resultSet.getString("author_name")),
         TextQuerySupport.normalizeDisplay(resultSet.getString("review_version")),
         problemCount == null ? 0 : problemCount,
-        calculateProblemDensity(problemCount, reviewScalePages),
+        problemDensity,
         reviewEfficiency,
         reviewRate,
         TextQuerySupport.normalizeDisplay(resultSet.getString("review_category_summary")),
@@ -42,7 +44,7 @@ class ReviewDataRecordRowMapper {
         getDoubleOrDefault(resultSet, "meeting_review_workload"),
         getIntegerOrDefault(resultSet, "meeting_review_problem_count"),
         TextQuerySupport.normalizeDisplay(resultSet.getString("not_reach_standard_reason")),
-        isReachStandard(problemCount, reviewScalePages),
+        ReviewDataReachStandardRule.reached(reviewType, problemDensity),
         TextQuerySupport.normalizeDisplay(resultSet.getString("source_file_name")),
         getDoubleOrNull(resultSet, "weighted_defect_density"),
         toLocalDateTime(resultSet, "created_at"),
@@ -60,11 +62,6 @@ class ReviewDataRecordRowMapper {
     }
     return ReviewDataNumberSupport.roundToTwoDecimals(
         problemCount.doubleValue() / reviewScalePages.doubleValue());
-  }
-
-  private Boolean isReachStandard(Integer problemCount, Integer reviewScalePages) {
-    Double density = calculateProblemDensity(problemCount, reviewScalePages);
-    return density >= 0.2D && density <= 0.6D;
   }
 
   private Double getDoubleOrDefault(ResultSet resultSet, String columnName) throws SQLException {

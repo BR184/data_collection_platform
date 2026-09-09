@@ -92,8 +92,8 @@ export const reviewDataRuleExplanationContent: ReviewDataRuleExplanationContent 
     {
       key: 'reachStandard',
       label: '是否达标',
-      definition: '达标判断：评审缺陷密度介于[0.2~0.6]',
-      formula: '达标判断：评审缺陷密度介于[0.2~0.6]',
+      definition: '达标判断：设计评审缺陷密度介于[0.3~0.8]，其余评审类型介于[0.2~0.6]',
+      formula: '达标判断：设计评审缺陷密度介于[0.3~0.8]，其余评审类型介于[0.2~0.6]',
     },
     {
       key: 'totalRecords',
