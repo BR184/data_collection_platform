@@ -6,6 +6,12 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-09 数据库备份管理页（系统设置模块）方案
+
+- [状态] 用户 2026-09-09 拍板放弃"独立脚本先行"路线（已实现并 5 项本地验证全过的 `deploy/daily-backup.sh` 未提交、已删除），直接进入系统设置·备份管理页方案；**方案定稿待用户审批，未动任何代码**。完整方案（数据模型/API/执行流程/加密/打包增量/黄金基线登记/E2E 演练/恢复 runbook）：`docs/plans/database-backup-automation-20260909.md`。
+- [决策] 技术选型全部基于仓库既有先例：页面照抄下拉框选项设置模式；调度/异步/防重复照抄 BiCAT 镜像三表模式（补孤儿 RUNNING 巡检）；加密用 JCA AES-256-GCM + 主密钥 `PLATFORM_BACKUP_SECRET_KEY`（.env 注入）；pg_dump 在后端容器内执行（打包器 `backend_dockerfile()` 装 postgresql-client-16、基础镜像钉住 21-jre-noble——现默认 tag 实测已漂到 Ubuntu 26.04）；本地产物经 compose bind mount 落宿主机。20001 上线依赖携带新镜像+compose 增量的更新包，与容器身份策略方案（同日待批）同包或先后由用户排期。
+- [决策] 全部开放点已拍板（2026-09-09）：测试连接绝不自动触发备份（备份只能手动点「立即备份」或每日定时执行）；自动备份三要素（备份时刻/备份服务器地址/备份路径）页面可配；REMOTE 副本策略 = 仅远端一份（配置了远程地址与路径即备份到远端、上传成功后删本地临时文件；未配置则默认备份在部署服务器本地）；主密钥 = fresh 包 .env 预生成随机密钥（更新包场景现场在 .env 补一行；轮换需重录远程密码）。**方案所有决策已收口，整体待用户审批后开始实现。**
+
 ## 2026-09-09 18181→20001 评审数据增量迁移工具与本地全链路演练
 
 - [完成] 有人误在 18181 实例新建评审数据，产出两个迁移脚本（`deploy/migrate-review-data-export.sh` 18181 只读导出 7 CSV+manifest+SHA256；`deploy/migrate-review-data-merge.sh` 20001 侧 dry-run/apply 增量合并）。决策规则：三层匹配键（兼容快照 legacy_id > GitLab 三元组 > 业务五元组）、effective_updated_at=greatest(主行,四子表 max)、严格新于才整树替换（保留 20001 主行 id）、软删与 LEGACY_MANAGED 默认跳过（后者 `--include-legacy-managed` 可开关，authority 重写 PLATFORM_OWNED）、同目标多源竞争保留最新其余 SKIP_CONFLICT、两类 edit_links 按 legacy_id 在 20001 兼容表重解析、守恒校验不过整体回滚、apply 先全库 pg_dump 备份（校验通过才写）、合并后清 page_record_snapshots。方案与执行 runbook：`docs/plans/review-data-18181-to-20001-migration-20260909.md`。经平台 Excel 导入模块迁移的通道已否决（代码实证：只增不改、无时间比较、管道改写数据、丢 gitlab 关联）。
@@ -17,6 +23,7 @@
 
 - [完成] 按用户 2026-09-09 更新：设计评审缺陷密度目标 `[0.20,0.60]`→`[0.30,0.80]`、CC/DGM 代码走查缺陷密度 `[2.00,10.00]`→`[3.00,12.00]`、需求评审保持 `[0.20,0.60]` 不变。后端：`BiReviewCalculator` 新增设计页专用常量 `DESIGN_MIN/MAX_DENSITY` 与 pageKey 选择器（整体/模块/散点达标判定与 trace 区间文案全部由选择器驱动，`RULE_VERSION`→bi-review-v3）；`BiCodingCalculator` 常量与 trace 更新（v3）；`QualityBoardRdService` 三条目标文案；`QualityRdAnalyticsDashboardProvider` metricStatus 拆分需求/设计带并更新 CC/DGM 带 + 5 条规则 target 文案。前端：新增 `features/bi-dashboard/data/quality-targets.ts`（`reviewDensityRange(pageKey)` + `codingDensityRange`），BI 需求/设计/编码页图表目标带与质量看板卡片色调带接入；核对表 DS-07/08/09、CD-20/23/24/25 同步。计划 `docs/plans/quality-metric-target-band-update-20260909.md`。
 - [验证] 后端默认套件 1258 全绿；前端 Vitest 462 全绿（125 文件）。golden compare 首跑 180 例中恰好 7 预期文件失败（与预测清单逐字一致，无清单外差异）→ 更新模式重建 → 66 快照文件全量归一化审计零未解释差异（7 预期语义变更 + 3 纯键序布局漂移 + 56 时间/端口噪声与导出 U 列 +23h 墙钟老化）→ compare 复跑 **180/180 全绿**。夹具与 `baseline-manifest.json` 未动。
+- [完成·延伸] 用户在 18181 发现 BI 设计页质量目标说明仍为旧值——根因是残留扫描只匹配逗号形式、漏掉波浪号/短横形式：BI 需求/设计共用两处硬编码文案改为由 `reviewDensityRange(pageKey)` 派生（随并行提交 005af66a 入库）。宽扫复查发现评审数据管理页"是否达标"统一 [0.2,0.6]（业务规则第 15 条对齐老平台），经用户拍板按评审类型拆分：设计说明书评审 [0.3,0.8]、其余类型维持 [0.2,0.6]——新建 `ReviewDataReachStandardRule` 统一口径，正式态 RowMapper、兼容态 MatchModeRepository、正式态排序 SQL 三处收敛接入，前端 tooltip/规则说明同步；Excel 导出"不达标原因"为存量值不受影响。验证：后端默认套件 1263 全绿、前端 Vitest 475 全绿、golden compare 180/180 零差异（快照含 reachStandard，夹具设计记录密度不落新旧差异区间故零翻转）；本单元首次执行 AGENTS.md 新增的回归服务处置纪律（停 18080/18181 → 测试 → 复起并验证健康）。
 - [状态] 本地提交未推送（远端待用户指定）。BI 达标语义变化随 `RULE_VERSION` 升版留痕；基线数据 DGM=2.12 在新区间下分析看板状态翻转为 danger 属预期结果。20001 生产 20260908 更新包不含本变更，随下一更新包发布。
 
 ## 2026-09-08 20001 保数据更新包制作与本地升级演练
