@@ -154,6 +154,14 @@ export function sortModuleRepairRows(
   order: BiSortOrder = 'desc',
 ): ModuleRepairRow[] {
   return items.slice().sort((a, b) => {
+    if (sortBy === 'open') {
+      const cmp = (a.openCount ?? 0) - (b.openCount ?? 0);
+      return order === 'asc' ? cmp : -cmp;
+    }
+    if (sortBy === 'total') {
+      const cmp = (a.totalCount ?? 0) - (b.totalCount ?? 0);
+      return order === 'asc' ? cmp : -cmp;
+    }
     if (sortBy === 'rate') {
       const cmp = (a.fixRate ?? 0) - (b.fixRate ?? 0);
       return order === 'asc' ? cmp : -cmp;

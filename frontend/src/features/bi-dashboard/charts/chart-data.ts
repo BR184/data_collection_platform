@@ -58,6 +58,8 @@ export interface ModuleRepairRow {
   levelOneRate: number | null;
   p1Rate: number | null;
   p2Rate: number | null;
+  openCount?: number;
+  totalCount?: number;
 }
 
 export interface TestAttainmentRow {

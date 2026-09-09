@@ -14,8 +14,8 @@ import {
 import { BI_PALETTE } from '../charts/palette';
 import BiChartPanel from '../components/BiChartPanel.vue';
 import type { BiSortOrder } from '../components/BiChartSortControl.vue';
-import BiMetricStrip, { type BiMetricItem } from '../components/BiMetricStrip.vue';
-import BiQualityTargetPanel, { type BiQualityTargetItem } from '../components/BiQualityTargetPanel.vue';
+import type { BiMetricItem } from '../components/BiMetricStrip.vue';
+import type { BiQualityTargetItem } from '../components/BiQualityTargetPanel.vue';
 import { formatNumber, formatPercent, metricStatus, sectionPresentation, systemTestTargetLabel } from '../data/presentation';
 import { sortDeveloperWorkloadRows, sortNamedValues, sortRoundQualityRows } from '../data/sorting';
 import { buildDefectCauseBreakdownData, buildDelayHeatmapData } from '../data/system-test-presentation';
@@ -194,6 +194,8 @@ const repair = computed<ModuleRepairRow[]>(() => visibleModules.value.map((item)
   levelOneRate: item.levelOneFixRate,
   p1Rate: item.p1FixRate,
   p2Rate: item.p2FixRate,
+  openCount: item.openCount,
+  totalCount: item.totalCount,
 })));
 
 const overlay = computed<OverlayBarRow[]>(() => {
@@ -241,8 +243,42 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
 
 <template>
   <div class="bi-stage-stack">
-    <BiQualityTargetPanel v-if="targetMetrics.length" :items="targetMetrics" />
-    <BiMetricStrip v-if="overviewMetrics.length" variant="supporting" :items="overviewMetrics" />
+    <!-- 顶部 7 个指标单行化横向整合：左侧 3 项质量目标，右侧 4 项缺陷概览 -->
+    <section v-if="targetMetrics.length || overviewMetrics.length" class="bi-system-test-metric-bar" aria-label="系统测试质量指标及概览">
+      <!-- 左侧：质量目标 (3 项) -->
+      <div v-if="targetMetrics.length" class="bi-metric-group bi-metric-group--targets">
+        <article
+          v-for="item in targetMetrics"
+          :key="item.key"
+          class="bi-strip-cell bi-strip-cell--target"
+          :class="`is-${item.status}`"
+        >
+          <div class="bi-cell-head">
+            <span class="bi-cell-label">{{ item.label }}</span>
+            <b class="bi-target-badge" :class="`is-${item.status}`">{{ item.statusLabel }}</b>
+          </div>
+          <strong class="bi-cell-value">{{ item.value }}</strong>
+          <span class="bi-target-subtext">{{ item.target }}</span>
+        </article>
+      </div>
+
+      <!-- 垂直细分割线 -->
+      <div v-if="targetMetrics.length && overviewMetrics.length" class="bi-metric-bar-divider" role="separator" />
+
+      <!-- 右侧：测试概览 (4 项) -->
+      <div v-if="overviewMetrics.length" class="bi-metric-group bi-metric-group--overview">
+        <article
+          v-for="item in overviewMetrics"
+          :key="item.label"
+          class="bi-strip-cell bi-strip-cell--overview"
+          :class="`is-${item.status ?? 'neutral'}`"
+        >
+          <span class="bi-cell-label">{{ item.label }}</span>
+          <strong class="bi-cell-value">{{ item.value }}</strong>
+          <span class="bi-cell-placeholder">&nbsp;</span>
+        </article>
+      </div>
+    </section>
 
     <div class="bi-charts-grid">
       <BiChartPanel
@@ -394,8 +430,152 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
 </template>
 
 <style scoped>
+.bi-system-test-metric-bar {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid #e8edf4;
+  border-radius: 6px;
+  background: #ffffff;
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+
+.bi-metric-group {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.bi-metric-group--targets {
+  flex: 3 1 0;
+}
+
+.bi-metric-group--overview {
+  flex: 4 1 0;
+}
+
+.bi-metric-bar-divider {
+  width: 1px;
+  background: #e2e8f0;
+  margin: 8px 0;
+  flex-shrink: 0;
+}
+
+.bi-strip-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 10px 14px 9px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-right: 1px solid #f0f4f9;
+  position: relative;
+}
+
+.bi-strip-cell:last-child {
+  border-right: 0;
+}
+
+.bi-strip-cell.is-success {
+  background: rgba(145, 204, 117, 0.06);
+}
+
+.bi-strip-cell.is-danger {
+  background: rgba(238, 102, 102, 0.05);
+}
+
+.bi-cell-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.bi-cell-label {
+  color: #475467;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bi-target-badge {
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.bi-target-badge.is-success {
+  background: rgba(145, 204, 117, 0.18);
+  color: #47724f;
+}
+
+.bi-target-badge.is-danger {
+  background: rgba(238, 102, 102, 0.16);
+  color: #993e45;
+}
+
+.bi-target-badge.is-neutral {
+  background: rgba(154, 159, 176, 0.16);
+  color: #5b6570;
+}
+
+.bi-cell-value {
+  display: block;
+  margin-top: 3px;
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 28px;
+  color: #344054;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bi-strip-cell--overview .bi-cell-value {
+  color: #5470c6;
+}
+
+.bi-strip-cell.is-success .bi-cell-value {
+  color: #47724f;
+}
+
+.bi-strip-cell.is-danger .bi-cell-value {
+  color: #993e45;
+}
+
+.bi-target-subtext {
+  margin-top: 2px;
+  font-size: 11px;
+  color: #667085;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.bi-cell-placeholder {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 16px;
+}
+
 .bi-cause-chart-panel {
   height: 100%;
   align-self: stretch;
+}
+
+@media (max-width: 900px) {
+  .bi-system-test-metric-bar {
+    flex-direction: column;
+  }
+  .bi-metric-bar-divider {
+    width: 100%;
+    height: 1px;
+    margin: 0;
+  }
 }
 </style>

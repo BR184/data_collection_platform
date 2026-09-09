@@ -335,7 +335,13 @@ export function routeAccessRedirect(to: AccessCheckRoute, user: AccessUser) {
 const router = createRouter({
   history: createWebHashHistory(),
   routes,
-  scrollBehavior() {
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition;
+    }
+    if (to.path === from.path) {
+      return false;
+    }
     return { top: 0 };
   },
 });

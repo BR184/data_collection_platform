@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue';
-import { computed, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { PageKey } from '../../feature-manifest';
 import { biDashboardApi, type BiCodingQuery } from '../../api-client/bi-dashboard-api';
@@ -107,6 +107,8 @@ async function loadVersions(): Promise<void> {
   }
 }
 
+let preservedScrollY: number | null = null;
+
 async function loadPage(): Promise<void> {
   const versionId = selectedVersionId.value;
   if (versionId == null || !catalog.value) return;
@@ -123,7 +125,16 @@ async function loadPage(): Promise<void> {
       loadError.value = getErrorMessage(error, 'BI 看板加载失败');
     }
   } finally {
-    if (requestId === pageRequestId) loadingPage.value = false;
+    if (requestId === pageRequestId) {
+      loadingPage.value = false;
+      if (preservedScrollY != null) {
+        const y = preservedScrollY;
+        preservedScrollY = null;
+        void nextTick(() => {
+          window.scrollTo({ top: y, behavior: 'instant' });
+        });
+      }
+    }
   }
 }
 
@@ -153,7 +164,14 @@ function selectVersion(value: number): void {
 }
 
 function setCodingFilter(key: 'granularity' | 'source', value: string | number | boolean | undefined): void {
-  if (typeof value === 'string') void updateQuery({ [key]: value });
+  if (typeof value === 'string') {
+    preservedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    void updateQuery({ [key]: value }).then(() => {
+      if (preservedScrollY != null) {
+        window.scrollTo({ top: preservedScrollY, behavior: 'instant' });
+      }
+    });
+  }
 }
 
 watch(requestSignature, () => {
@@ -227,7 +245,6 @@ onMounted(() => {
       :response="codingResponse"
       :product-version-id="selectedVersionId!"
       :granularity="codingFilters.granularity"
-      @update:granularity="setCodingFilter('granularity', $event)"
     />
     <TestQualityStageContent
       v-else-if="testResponse"

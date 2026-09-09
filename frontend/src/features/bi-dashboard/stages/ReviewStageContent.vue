@@ -20,6 +20,8 @@ const props = defineProps({
 
 const donutChart = new DistributionDonutChart();
 const densityRange = reviewDensityRange(props.pageKey);
+const densityTargetValue = `${densityRange[0].toFixed(2)}–${densityRange[1].toFixed(2)}`;
+const densityTargetRule = `缺陷密度目标：${densityRange[0].toFixed(2)} ~ ${densityRange[1].toFixed(2)} 个/页 · 评审速率不设目标`;
 const qualityChart = new ReviewQualityDualPanelChart({ densityRange, densityUnit: '个/页', rateUnit: '页/小时' });
 const scatterChart = new ReviewQualityScatterChart({ densityRange, densityUnit: '个/页', rateUnit: '页/小时' });
 
@@ -54,7 +56,7 @@ const metrics = computed<BiMetricItem[]>(() => {
   return [
     { label: '整体缺陷密度', value: formatNumber(summary.defectDensity, 2), detail: '个 / 页', status: metricStatus(summary.achieved) },
     { label: '整体评审速率', value: formatNumber(summary.reviewRate, 2), detail: '页 / 小时' },
-    { label: '缺陷密度目标', value: '0.20–0.60', detail: '个 / 页' },
+    { label: '缺陷密度目标', value: densityTargetValue, detail: '个 / 页' },
     { label: '达标状态', value: summary.achieved == null ? '不可计算' : summary.achieved ? '达标' : '未达标', detail: '按缺陷密度判断', status: metricStatus(summary.achieved) },
     { label: '异常模块', value: String(exceptionCount), detail: '超出目标区间', status: exceptionCount > 0 ? 'danger' : 'success' },
   ];
@@ -95,7 +97,7 @@ const points = computed<ReviewScatterPoint[]>(() => {
   <div class="bi-stage-stack">
     <div class="bi-rule-bar">
       <span class="bi-rule-bar__tag">质量目标</span>
-      <span class="bi-rule-bar__text">缺陷密度目标：0.20 ~ 0.60 个/页 · 评审速率不设目标</span>
+      <span class="bi-rule-bar__text">{{ densityTargetRule }}</span>
     </div>
     <BiMetricStrip v-if="metrics.length" variant="review" :items="metrics" />
 
@@ -104,7 +106,7 @@ const points = computed<ReviewScatterPoint[]>(() => {
         :title="`${stageLabel}评审问题类别分布`"
         :chart="donutChart"
         :data="categories"
-        :height="356"
+        :height="430"
         variant="pie"
         layout="compact"
         :status="sectionPresentation(response, 'problem-categories').status"

@@ -221,9 +221,11 @@ export function buildChartExcelData(templateId: string, data: unknown): BiExcelT
     case 'module-repair-matrix': {
       const list = data as ModuleRepairRow[];
       return {
-        headers: ['模块名称', '整体修复率 (%)', '一级缺陷修复率 (%)', 'P1修复率 (%)', 'P2修复率 (%)'],
+        headers: ['模块名称', '遗留缺陷数 (个)', '累计缺陷数 (个)', '整体修复率 (%)', '一级缺陷修复率 (%)', 'P1修复率 (%)', 'P2修复率 (%)'],
         rows: list.map((item) => [
           item.name,
+          item.openCount ?? 0,
+          item.totalCount ?? 0,
           item.fixRate != null ? Number((item.fixRate * 100).toFixed(1)) : '--',
           item.levelOneRate != null ? Number((item.levelOneRate * 100).toFixed(1)) : '--',
           item.p1Rate != null ? Number((item.p1Rate * 100).toFixed(1)) : '--',

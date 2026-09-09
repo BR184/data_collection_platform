@@ -117,43 +117,53 @@ function handleExportCommand(command: string): void {
           @update:model-value="emit('update:sort', $event)"
           @update:order="emit('update:order', $event)"
         />
-        <el-dropdown
+        <el-tooltip
           v-if="canDownload"
-          trigger="click"
-          @command="handleExportCommand"
+          content="导出数据表或图片"
+          placement="top"
+          :disabled="exporting"
         >
-          <el-tooltip content="导出数据表或图片" placement="top">
+          <el-dropdown
+            trigger="click"
+            @command="handleExportCommand"
+          >
             <button
               type="button"
               class="bi-export-btn"
               :class="{ 'is-loading': exporting }"
               :disabled="exporting"
               :aria-label="`导出${title}`"
+              title="导出数据表或图片"
             >
               <el-icon v-if="!exporting" :size="14"><Download /></el-icon>
               <el-icon v-else class="is-loading" :size="14"><Loading /></el-icon>
             </button>
-          </el-tooltip>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="excel" :icon="Document">
-                导出 Excel 数据表 (.xlsx)
-              </el-dropdown-item>
-              <el-dropdown-item command="png" :icon="Picture">
-                保存高清图片 (.png)
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-        <button
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="excel" :icon="Document">
+                  导出 Excel 数据表 (.xlsx)
+                </el-dropdown-item>
+                <el-dropdown-item command="png" :icon="Picture">
+                  保存高清图片 (.png)
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </el-tooltip>
+        <el-tooltip
           v-else
-          type="button"
-          class="bi-export-btn is-disabled"
-          disabled
-          aria-label="暂无可下载数据"
+          :content="hasData ? '当前账号暂无下载权限' : '暂无可下载数据'"
+          placement="top"
         >
-          <el-icon :size="14"><Download /></el-icon>
-        </button>
+          <button
+            type="button"
+            class="bi-export-btn is-disabled"
+            disabled
+            :aria-label="hasData ? '无下载权限' : '暂无可下载数据'"
+          >
+            <el-icon :size="14"><Download /></el-icon>
+          </button>
+        </el-tooltip>
       </div>
     </header>
 
@@ -223,8 +233,7 @@ function handleExportCommand(command: string): void {
   margin-bottom: 4px;
 }
 
-.bi-chart-panel--summary,
-.bi-chart-panel--pie {
+.bi-chart-panel--summary {
   height: auto;
   align-self: start;
 }
@@ -300,6 +309,8 @@ function handleExportCommand(command: string): void {
 }
 
 .bi-chart-panel__state {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;

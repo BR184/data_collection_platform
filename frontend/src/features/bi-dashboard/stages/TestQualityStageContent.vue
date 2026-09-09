@@ -129,8 +129,7 @@ function selectModuleFromChart(event: { dataIndex: number }): void {
   if (module) selectedModuleId.value = module.id;
 }
 
-function setModuleLimit(value: string | number): void { moduleLimit.value = String(value); }
-function setFeatureLimit(value: string | number): void { featureLimit.value = String(value); }
+
 </script>
 
 <template>

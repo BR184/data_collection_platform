@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, type PropType } from 'vue';
+import { computed, ref, watch, type PropType } from 'vue';
 import type { CategorySeriesData, CodingTrendData, NamedValue, QualityTrendData, ReviewQualityRow, ReviewScatterPoint, SubmissionTrendData } from '../charts/chart-data';
 import {
   CodingTrendComboChart,
@@ -14,8 +14,13 @@ import {
 } from '../charts/types';
 import { BI_PALETTE } from '../charts/palette';
 import BiChartPanel from '../components/BiChartPanel.vue';
-import BiChartSortControl, { type BiSortOrder } from '../components/BiChartSortControl.vue';
+import type { BiSortOrder } from '../components/BiChartSortControl.vue';
 import BiMetricStrip, { type BiMetricItem } from '../components/BiMetricStrip.vue';
+import {
+  aggregateCodeTrendByWeek,
+  aggregateFrequenciesByWeek,
+  aggregateSubmissionTrendByWeek,
+} from '../data/aggregation';
 import { formatNumber, metricStatus, sectionPresentation } from '../data/presentation';
 import { codingDensityRange } from '../data/quality-targets';
 import {
@@ -32,9 +37,16 @@ const props = defineProps({
   granularity: { type: String, default: 'day' },
 });
 
-defineEmits<{
-  (event: 'update:granularity', value: string | number | boolean | undefined): void;
-}>();
+// 三个具有时间维度的图表各自持有独立的粒度状态，互不干扰
+const codeTrendGranularity = ref<'day' | 'week'>(props.granularity === 'week' ? 'week' : 'day');
+const submissionTrendGranularity = ref<'day' | 'week'>('day');
+const frequencyGranularity = ref<'day' | 'week'>('day');
+
+watch(() => props.granularity, (val) => {
+  if (val === 'day' || val === 'week') {
+    codeTrendGranularity.value = val;
+  }
+});
 
 const submissionChart = new SubmissionTrendComboChart();
 const codingTrendChart = new CodingTrendComboChart();
@@ -110,23 +122,44 @@ const metrics = computed<BiMetricItem[]>(() => {
   ];
 });
 
-const submissionTrend = computed<SubmissionTrendData>(() => ({
+const rawDailySubmissionTrend = computed<SubmissionTrendData>(() => ({
   periods: data.value?.submissionTrend.map((item) => item.period) ?? [],
   commits: data.value?.submissionTrend.map((item) => item.commitCount) ?? [],
   mergeRequests: data.value?.submissionTrend.map((item) => item.mergeRequestCount) ?? [],
 }));
-const codeTrend = computed<CodingTrendData>(() => ({
+
+const submissionTrend = computed<SubmissionTrendData>(() => (
+  submissionTrendGranularity.value === 'week'
+    ? aggregateSubmissionTrendByWeek(rawDailySubmissionTrend.value)
+    : rawDailySubmissionTrend.value
+));
+
+const rawDailyCodeTrend = computed<CodingTrendData>(() => ({
   periods: data.value?.codeTrend.map((item) => item.period) ?? [],
   addedLines: data.value?.codeTrend.map((item) => item.addedLines) ?? [],
   cumulativeLines: data.value?.codeTrend.map((item) => item.cumulativeLines) ?? [],
 }));
+
+const codeTrend = computed<CodingTrendData>(() => (
+  codeTrendGranularity.value === 'week'
+    ? aggregateCodeTrendByWeek(rawDailyCodeTrend.value)
+    : rawDailyCodeTrend.value
+));
+
 const contributors = computed<NamedValue[]>(() => {
   const raw = (data.value?.contributors ?? []).map((item) => ({ name: item.contributor.displayName, value: item.addedLines }));
   return sortNamedValues(raw, contributorSort.value, contributorSortOrder.value);
 });
+
 const frequencies = computed<NamedValue[]>(() => {
-  const raw = (data.value?.submissionTrend ?? []).map((item) => ({ name: item.period, value: item.commitCount ?? 0 }));
-  return sortNamedValues(raw, frequencySort.value, frequencySortOrder.value);
+  const rawDaily: NamedValue[] = (data.value?.submissionTrend ?? []).map((item) => ({
+    name: item.period,
+    value: item.commitCount ?? 0,
+  }));
+  const targetRaw = frequencyGranularity.value === 'week'
+    ? aggregateFrequenciesByWeek(rawDaily)
+    : rawDaily;
+  return sortNamedValues(targetRaw, frequencySort.value, frequencySortOrder.value);
 });
 const modules = computed<NamedValue[]>(() => {
   const raw = (data.value?.moduleIncrements ?? []).map((item) => ({ name: item.module.displayName, value: item.addedLines }));
@@ -295,7 +328,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         :source-version="response.sourceVersion"
       />
 
-      <!-- 5. 代码增量趋势 (50%, 内部包含“按日/按周”控件) + 提交趋势 (50%) -->
+      <!-- 5. 代码增量趋势 (50%, 内部包含独立“按日/按周”控件) + 提交趋势 (50%, 内部包含独立“按日/按周”控件) -->
       <BiChartPanel
         title="代码增量趋势"
         subtitle="单位：代码量 (KLOC)"
@@ -312,10 +345,9 @@ const qualityTrend = computed<QualityTrendData>(() => {
       >
         <template #actions>
           <el-segmented
-            :model-value="granularity"
+            v-model="codeTrendGranularity"
             :options="[{ label: '按日', value: 'day' }, { label: '按周', value: 'week' }]"
             size="small"
-            @change="$emit('update:granularity', $event)"
           />
         </template>
       </BiChartPanel>
@@ -331,9 +363,17 @@ const qualityTrend = computed<QualityTrendData>(() => {
         :product-version-id="productVersionId"
         page-key="coding"
         :source-version="response.sourceVersion"
-      />
+      >
+        <template #actions>
+          <el-segmented
+            v-model="submissionTrendGranularity"
+            :options="[{ label: '按日', value: 'day' }, { label: '按周', value: 'week' }]"
+            size="small"
+          />
+        </template>
+      </BiChartPanel>
 
-      <!-- 6. 最底：代码提交频次时间分布 (全幅置底) -->
+      <!-- 6. 最底：代码提交频次时间分布 (全幅置底，支持独立按日/按周切换与排序) -->
       <BiChartPanel
         title="代码提交频次时间分布"
         :chart="frequencyChart"
@@ -349,7 +389,15 @@ const qualityTrend = computed<QualityTrendData>(() => {
         v-model:sort="frequencySort"
         v-model:order="frequencySortOrder"
         :sort-options="frequencySortOptions"
-      />
+      >
+        <template #actions>
+          <el-segmented
+            v-model="frequencyGranularity"
+            :options="[{ label: '按日', value: 'day' }, { label: '按周', value: 'week' }]"
+            size="small"
+          />
+        </template>
+      </BiChartPanel>
 
       <!-- 单次人工走查质量分布 (下钻/明细) -->
       <BiChartPanel
