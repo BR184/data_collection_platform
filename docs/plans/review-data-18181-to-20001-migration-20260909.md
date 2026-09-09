@@ -43,7 +43,7 @@
 
 ## 证据与根因（迁移史逐文件实证）
 
-- 评审数据持久化全集 = 8 张表：主表 `review_records`；四张子表 `review_record_experts`（唯一键 record+expert_name）、`review_problem_items`、`review_record_descriptions`、`review_record_contents`（均 `on delete cascade` 指向主表）；两张正式↔老平台链接表 `review_data_match_mode_edit_links`、`review_data_match_mode_problem_edit_links`（无外键、有唯一约束）。
+- 评审数据持久化全集 = 7 张表：主表 `review_records`；四张子表 `review_record_experts`（唯一键 record+expert_name）、`review_problem_items`、`review_record_descriptions`、`review_record_contents`（均 `on delete cascade` 指向主表）；两张正式↔老平台链接表 `review_data_match_mode_edit_links`、`review_data_match_mode_problem_edit_links`（无外键、有唯一约束）。（迁移史 `create table` 全集枚举复核：其余 `review_data_match_mode_*` 均为兼容快照表、`code_review_*`/`bi_code_review_*` 为代码走查域，均不在迁移域。）
 - 版本差异：20260724→20260803 区间唯一触及评审表的迁移 V20260730_07 不改数据表列 → **六张数据表（主表+四子表+problem_edit_links）列集两版本完全一致**；唯一结构差异在 edit_links：18181 多 `last_handover_at` 列且 authority 允许 LEGACY_MANAGED，20001 已删列并只允许 PLATFORM_OWNED（演练以 information_schema 实证）。
 - 链接表关键事实（V20260702_13 实证）：`match_mode_report_legacy_id`/`match_mode_problem_legacy_id` 均为 varchar(128) **NOT NULL** → 按 legacy_id 重解析恒可行；compat 表 `review_data_match_mode_reports`/`review_data_match_mode_problem_details` 均有 `unique(legacy_id)` → 重解析确定性（至多一行）；edit_links 有 `unique(review_record_id)`（替换前必须先删目标旧链接），problem_edit_links 对 review_record_id 仅普通索引（一条记录可挂多条问题链接）。
 - 平台自身"同一条记录"判定（Excel 导入 SKIP 重复键，`ReviewDataRecordReadRepository.existsDuplicateRecord`）：`deleted=false AND project_name/title/review_type/review_date/review_version` 精确相等——迁移复用为业务匹配键。

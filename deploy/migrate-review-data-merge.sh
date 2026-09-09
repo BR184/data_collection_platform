@@ -29,7 +29,8 @@ set -euo pipefail
 # 更新时间 = 主行 updated_at 与四张子表 max(updated_at) 的最大值。
 #
 # 安全边界:
-#   - 全程只操作传入部署目录 compose 项目内的 postgres 容器（三实例同机互不干扰）
+#   - 全程只操作传入部署目录 compose 项目内的 postgres 容器（三实例同机互不干扰；
+#     只需 20001 的 postgres 在运行，前后端容器状态与本脚本无关）
 #   - dry-run 对正式表零写入（暂存 schema mig_18181 属草稿，合并后自动删除）
 #   - --apply 前自动全库 pg_dump 备份到导出目录，并经 pg_restore --list 校验后才继续
 #   - 合并在单事务内执行：决策守恒 / 子树守恒 / 链接守恒自动校验，任一不符整体回滚
@@ -50,7 +51,8 @@ fail() { echo "[merge] ERROR: $*" >&2; exit 1; }
 log() { echo "[merge] $*"; }
 
 usage() {
-  sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
+  # 打印文件头注释块（第 4 行起到首个非注释行止），随头部说明增删自动适配。
+  awk 'NR>3 && $0 !~ /^#/ {exit} NR>3 {sub(/^# ?/, ""); print}' "$0"
   exit 1
 }
 

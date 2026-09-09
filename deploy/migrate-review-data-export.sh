@@ -1,9 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# 18181 -> 20001 评审数据迁移 · 第一步：从源实例（18181）只读导出评审数据 8 张表。
-# 源实例全程只读，不做任何写入；导出物为显式列清单的 CSV + manifest + SHA256。
-# 用法: bash migrate-review-data-export.sh <18181部署目录> <导出目录>
+# 18181 -> 20001 评审数据迁移 · 第一步：从源实例（18181）只读导出评审数据 7 张表
+# （主表 + 四张子表 + 两张老平台链接表；兼容快照表不迁，20001 自有同源同步）。
+# 源实例全程只读，不做任何写入；导出物为显式列清单的 7 个 CSV + manifest + SHA256。
+#
+# 用法:
+#   bash migrate-review-data-export.sh <18181部署目录> <导出目录>
+#
+# 前置（源栈当前已 docker compose down、数据卷保留时，先临时只起 postgres）:
+#   cd <18181部署目录>
+#   docker volume ls | grep 18181                                 # 确认数据卷仍在（外部卷）
+#   docker ps -a --format '{{.Names}}\t{{.Status}}' | grep qaflex # qaflex-postgres 名占用预检
+#   docker compose up -d postgres                                 # 只起 postgres，勿整套 up
+#   docker ps | grep postgres                                     # 等 healthy（WAL 回放约 10-60 秒）
+#   - qaflex-postgres 名未被占用 -> 直接 up；已被同机其他实例占用（如其曾手动升级）->
+#     在部署目录写临时 docker-compose.override.yml 把 postgres 的 container_name 改名
+#     （如 qaflex-postgres-18181-export）再 up；本脚本按部署目录的项目+服务定位容器，
+#     不依赖容器名，改名不影响导出。
+#   - 勿整套 `docker compose up -d`：源栈 compose 声明固定名 qaflex-{frontend,backend,postgres}，
+#     前后端名可能已被同机其他实例占用，整套 up 会撞名失败。
+#   - 导出完成后 `docker compose down`（不带 -v）恢复 down 状态、数据卷保留；
+#     用过 override 则一并删除该文件。
+#
+# 版本守卫：对 7 张表逐表做 information_schema 列集合精确比对，任何列漂移立即中止
+# （18181 实况构建 20260729T093338Z；20260724→20260729 窗口迁移零触及评审表，列集已核对一致）。
 
 SRC_DIR="${1:-}"
 OUT_DIR="${2:-}"
