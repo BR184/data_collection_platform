@@ -6,6 +6,12 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-09 18181→20001 评审数据增量迁移工具与本地全链路演练
+
+- [完成] 有人误在 18181 实例新建评审数据，产出两个迁移脚本（`deploy/migrate-review-data-export.sh` 18181 只读导出 7 CSV+manifest+SHA256；`deploy/migrate-review-data-merge.sh` 20001 侧 dry-run/apply 增量合并）。决策规则：三层匹配键（兼容快照 legacy_id > GitLab 三元组 > 业务五元组）、effective_updated_at=greatest(主行,四子表 max)、严格新于才整树替换（保留 20001 主行 id）、软删与 LEGACY_MANAGED 默认跳过（后者 `--include-legacy-managed` 可开关，authority 重写 PLATFORM_OWNED）、同目标多源竞争保留最新其余 SKIP_CONFLICT、两类 edit_links 按 legacy_id 在 20001 兼容表重解析、守恒校验不过整体回滚、apply 先全库 pg_dump 备份（校验通过才写）、合并后清 page_record_snapshots。方案与执行 runbook：`docs/plans/review-data-18181-to-20001-migration-20260909.md`。经平台 Excel 导入模块迁移的通道已否决（代码实证：只增不改、无时间比较、管道改写数据、丢 gitlab 关联）。
+- [验证] 本地演练栈 qaflex-upgrade-sim-20001（20260803 基线真实形态）全链路实测：export 全流程 → dry-run 五决策分支逐项命中（INSERT / REPLACE[k1 链接匹配+重解析] / KEEP / SKIP_DELETED / SKIP_LEGACY）→ `--apply --include-legacy-managed` 单事务提交 → 合并后逐项核对（整树替换删旧、新 id 序列分配、authority 重写、staging 清理）全部符合；演练数据已清理、栈已还原。演练暴露并修复三缺陷：psql 参数透传丢失（-At 不生效致列校验误报）、空表 0 行误判失败、Git Bash MSYS 路径转换与 flock 缺失（Linux 无影响）。两次模拟失败（备份校验阶段）零残留直接重跑成功，验证"备份先于一切写入"的失败安全语义。
+- [状态] 待用户在 115 服务器执行（导出→dry-run 复核→apply）；已提交未推送。dry-run 报告在真实 18181 数据上首次生成时仍须人工复核（闸门不因演练豁免）。
+
 ## 2026-09-09 质量指标目标值更新（设计评审与代码走查缺陷密度）
 
 - [完成] 按用户 2026-09-09 更新：设计评审缺陷密度目标 `[0.20,0.60]`→`[0.30,0.80]`、CC/DGM 代码走查缺陷密度 `[2.00,10.00]`→`[3.00,12.00]`、需求评审保持 `[0.20,0.60]` 不变。后端：`BiReviewCalculator` 新增设计页专用常量 `DESIGN_MIN/MAX_DENSITY` 与 pageKey 选择器（整体/模块/散点达标判定与 trace 区间文案全部由选择器驱动，`RULE_VERSION`→bi-review-v3）；`BiCodingCalculator` 常量与 trace 更新（v3）；`QualityBoardRdService` 三条目标文案；`QualityRdAnalyticsDashboardProvider` metricStatus 拆分需求/设计带并更新 CC/DGM 带 + 5 条规则 target 文案。前端：新增 `features/bi-dashboard/data/quality-targets.ts`（`reviewDensityRange(pageKey)` + `codingDensityRange`），BI 需求/设计/编码页图表目标带与质量看板卡片色调带接入；核对表 DS-07/08/09、CD-20/23/24/25 同步。计划 `docs/plans/quality-metric-target-band-update-20260909.md`。
