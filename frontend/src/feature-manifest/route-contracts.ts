@@ -318,6 +318,9 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
     allowedQueryKeys: ['field'],
     persistedQueryKeys: [],
   },
+  'backup-settings': {
+    persistedQueryKeys: [],
+  },
 };
 
 const specialRouteContractByKey: Record<SpecialRouteKey, SpecialRouteContract> = {

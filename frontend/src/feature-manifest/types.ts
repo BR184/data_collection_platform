@@ -40,7 +40,8 @@ export type PageKey =
   | 'database-settings'
   | 'database-browser'
   | 'permission-settings'
-  | 'dropdown-option-settings';
+  | 'dropdown-option-settings'
+  | 'backup-settings';
 
 export interface ShellPage {
   key: PageKey;

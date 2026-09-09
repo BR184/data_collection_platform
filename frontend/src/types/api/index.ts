@@ -15,3 +15,4 @@ export * from './quality-board';
 export * from './analytics-dashboard';
 export * from './cat-mirror';
 export * from './dropdown-options';
+export * from './backup';
