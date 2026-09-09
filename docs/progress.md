@@ -11,6 +11,7 @@
 - [完成] 有人误在 18181 实例新建评审数据，产出两个迁移脚本（`deploy/migrate-review-data-export.sh` 18181 只读导出 7 CSV+manifest+SHA256；`deploy/migrate-review-data-merge.sh` 20001 侧 dry-run/apply 增量合并）。决策规则：三层匹配键（兼容快照 legacy_id > GitLab 三元组 > 业务五元组）、effective_updated_at=greatest(主行,四子表 max)、严格新于才整树替换（保留 20001 主行 id）、软删与 LEGACY_MANAGED 默认跳过（后者 `--include-legacy-managed` 可开关，authority 重写 PLATFORM_OWNED）、同目标多源竞争保留最新其余 SKIP_CONFLICT、两类 edit_links 按 legacy_id 在 20001 兼容表重解析、守恒校验不过整体回滚、apply 先全库 pg_dump 备份（校验通过才写）、合并后清 page_record_snapshots。方案与执行 runbook：`docs/plans/review-data-18181-to-20001-migration-20260909.md`。经平台 Excel 导入模块迁移的通道已否决（代码实证：只增不改、无时间比较、管道改写数据、丢 gitlab 关联）。
 - [验证] 本地演练栈 qaflex-upgrade-sim-20001（20260803 基线真实形态）全链路实测：export 全流程 → dry-run 五决策分支逐项命中（INSERT / REPLACE[k1 链接匹配+重解析] / KEEP / SKIP_DELETED / SKIP_LEGACY）→ `--apply --include-legacy-managed` 单事务提交 → 合并后逐项核对（整树替换删旧、新 id 序列分配、authority 重写、staging 清理）全部符合；演练数据已清理、栈已还原。演练暴露并修复三缺陷：psql 参数透传丢失（-At 不生效致列校验误报）、空表 0 行误判失败、Git Bash MSYS 路径转换与 flock 缺失（Linux 无影响）。两次模拟失败（备份校验阶段）零残留直接重跑成功，验证"备份先于一切写入"的失败安全语义。
 - [状态] 待用户在 115 服务器执行（导出→dry-run 复核→apply）；已提交未推送。dry-run 报告在真实 18181 数据上首次生成时仍须人工复核（闸门不因演练豁免）。
+- [更正] 2026-09-09 用户截图实证：18181 实际构建 20260729T093338Z-72635b164fee（非此前假设的 20260724 链末端）且已 `docker compose down`（容器删、数据卷保留）——20260724→20260729 窗口 7 个迁移零触及评审表，脚本零改动；执行前按 runbook 第 0 步临时只起 postgres（预检 `qaflex-postgres` 固定名占用，被占则临时 override 改名），禁止整套 up。merge.sh 只需 20001 的 postgres 在跑。截图另提及 20081（0/3 基线）实例，身份待用户确认。
 
 ## 2026-09-09 质量指标目标值更新（设计评审与代码走查缺陷密度）
 

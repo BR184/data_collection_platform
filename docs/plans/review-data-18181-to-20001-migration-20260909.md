@@ -5,16 +5,28 @@
 - 状态：**两个脚本已完成并通过本地全链路演练，待用户在 115 服务器执行**。演练栈 = `qaflex-upgrade-sim-20001`（20260803 基线真实形态），演练覆盖：export 全流程 → dry-run 五分支决策（INSERT/REPLACE[k1 链接匹配]/KEEP/SKIP_DELETED/SKIP_LEGACY 逐项命中预期）→ `--apply --include-legacy-managed` 单事务合并 → 合并后逐项核对（整树替换删旧/插入新 id 分配/authority 重写 PLATFORM_OWNED/链接按 legacy_id 重解析/staging 清理）全部符合 → 演练数据已清理还原。
 - 演练发现并已修复（脚本缺陷，真机同样会踩）：①`psql_exec` 的 `sh -c` 未透传 `-At` 参数（补 `"$@"` 透传）；②空表（0 行）导出为空 CSV 属合法状态，不再误判失败，行数以 manifest 为准；③Git Bash 环境的 MSYS 路径转换（`MSYS_NO_PATHCONV=1` 豁免，Linux 无影响）与 `flock` 缺失（降级跳过）；④--apply 的备份/校验先于一切写入，演练中两次失败均零残留、直接重跑成功，验证了失败安全语义。
 - 恢复线索：脚本 `deploy/migrate-review-data-export.sh`（18181 侧）与 `deploy/migrate-review-data-merge.sh`（20001 侧）；执行顺序与指令见「执行 runbook」。
+- 2026-09-09 实况更正（用户截图）：18181 实际构建 `20260729T093338Z-72635b164fee`（非假设的 20260724 链末端）且当前已 down（容器删、卷留）——版本差异已排除（窗口迁移零触及评审表，脚本零改动），执行前须按 runbook 第 0 步临时只起 PG；另提及 20081（0/3 基线）实例，身份待用户确认（疑为 20001 笔误）。
 - 调查已完成（代码与迁移史实证，见「证据与根因」）；零应用代码改动，纯数据迁移 runbook。
 
 ## 执行 runbook（115 服务器，两实例同机，导出目录无需预建）
 
+0. **起源库 PG（18181 当前已 down，导出前临时只起 postgres，不碰前后端）**：
+   ```bash
+   cd <18181部署目录>
+   docker volume ls | grep 18181                                  # 数据卷仍在（外部卷，卷名以现场 .env 的 POSTGRES_VOLUME_NAME 为准）
+   docker ps -a --format '{{.Names}}\t{{.Status}}' | grep qaflex  # qaflex-postgres 名字占用预检
+   docker compose up -d postgres                                  # 只起 postgres
+   docker ps | grep postgres                                      # 等 healthy（WAL 回放，约 10-60 秒）
+   ```
+   - 预检无 qaflex-postgres 占用 → 直接起；被其他实例占用（如 30001 手动升级后）→ 在 18181 部署目录写临时 `docker-compose.override.yml`（postgres 的 `container_name` 改为 `qaflex-postgres-18181-export`）再 up——export.sh 按部署目录的项目+服务定位容器，不依赖容器名。
+   - **禁止整套 `docker compose up -d`**（会以固定名创建前后端容器，与现占用者冲突）。
+   - 导出完成后 `docker compose down`（不带 -v）恢复 down 状态、数据卷保留；用过 override 则一并删除该文件。
 1. 导出（18181 只读）：`bash migrate-review-data-export.sh <18181部署目录> <导出目录>`。
 2. 预演（默认 dry-run，不落库）：`bash migrate-review-data-merge.sh <20001部署目录> <导出目录>`——输出逐条决策报告，存档 `dry-run-report-<时间戳>.txt`。
 3. 人工复核：逐条看 INSERT/REPLACE/SKIP_CONFLICT 与链接重解析 `resolved id`。
 4. 执行：`bash migrate-review-data-merge.sh <20001部署目录> <导出目录> --apply`（如需一并迁移 LEGACY_MANAGED 记录追加 `--include-legacy-managed`）——自动先全库 pg_dump 备份到导出目录并校验，再单事务合并；失败整体回滚，处置后直接重跑。
 5. apply 后抽查 20001 页面（列表/详情/搜索）；报告、日志、pre-merge 备份均留在导出目录。
-- 注意：传错部署目录 = 操作错实例；脚本日志打印实际操作的容器 ID 与两侧 Flyway 版本（18181≈20260724.x、20001=20260803.01），核对后再继续。
+- 注意：传错部署目录 = 操作错实例；脚本日志打印实际操作的容器 ID 与两侧 Flyway 版本（18181≈20260729.x、20001=20260803.01），核对后再继续。merge.sh 只需 20001 的 postgres 在跑（前后端状态与其无关）。
 
 ## 目标与边界
 
@@ -24,7 +36,8 @@
 
 ## 约束与背景
 
-- 18181 = 20260724 链末端实例（Flyway ≈20260724.x）；20001 = 20260803 全新包（Flyway 20260803.01），正式生产（DNS）。
+- 18181 实况（2026-09-09 用户截图更正，推翻此前"20260724 链末端"假设）：构建 `20260729T093338Z-72635b164fee`（全机最老实例），固定容器名 `qaflex-{frontend,backend,postgres}`、部署路径 `/home/huayun/data_collection_platform/officical_verston_18181`、端口 18181/18080/15432，**当前已 `docker compose down`（容器已删、数据卷保留）**。20260724→20260729 窗口 7 个迁移（V20260727_01~04、V20260729_01~03）零触及评审 8 表（已逐文件核实，仅注释含 review 字样）→ 列集与既有分析完全一致，脚本 EXPECT_* 零改动；删除 `last_handover_at` 的迁移在该窗口之后，18181 仍持有该列（与 EXPECT_EL 一致）。
+- 20001 = 20260803 全新包（Flyway 20260803.01），正式生产（DNS）。
 - 两实例同 LDAP、同一老平台数据源；`created_by` 为 varchar(128) 用户名字符串（非外键），可直接复制，无用户 id 映射问题。
 - 20001 未升级 20260908 更新包（现场因容器名冲突失败待回退/重建包），迁移与其无关、先行执行。
 
@@ -62,7 +75,7 @@
 
 ## 风险与假设
 
-- 假设：18181 Flyway ≤20260724.x、20001 =20260803.01（脚本运行时以 information_schema 列集合精确校验兜底，漂移即中止而非带病迁移）。
+- 假设：18181 Flyway ≈20260729.x（实况构建 20260729T093338Z；20260724→20260729 窗口迁移零触及评审表已核实）、20001 =20260803.01（脚本运行时以 information_schema 列集合精确校验兜底，漂移即中止而非带病迁移）。
 - 假设：误录数据不含 30001 侧（用户明示仅 18181）。
 - 风险：业务五元组可能误并/漏并（同名同日同版本的不同评审）——dry-run 逐条报告人工复核是硬闸门；匹配命中多行时取 updated_at 最新并在报告标注 multiple。
 - 风险：导出→合并窗口内 18181 再有新编辑不在本次迁移内（runbook 提示导出后勿再在 18181 录入，或重跑导出）。

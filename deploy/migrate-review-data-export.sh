@@ -28,9 +28,9 @@ cd "$SRC_DIR"
 [[ -f .env && -f docker-compose.yml ]] || fail "run from an existing deployment directory containing .env and docker-compose.yml"
 
 PG_ID="$("${DOCKER[@]}" compose --env-file .env ps -q postgres)"
-[[ -n "$PG_ID" ]] || fail "postgres service is not running in $SRC_DIR"
+[[ -n "$PG_ID" ]] || fail "postgres service is not running in $SRC_DIR (if the stack was brought down: run 'docker compose up -d postgres' in that directory, wait for healthy, then rerun; do NOT bring up the full stack)"
 
-# 评审数据持久化全集（导出列 = 20260724 链实例实际列集，迁移史逐文件核对）。
+# 评审数据持久化全集（导出列 = 20260724→20260729 链实例实际列集，迁移史逐文件核对：该窗口迁移零触及评审表）。
 RR_COLS="id, project_name, title, module_name, review_type, review_date, review_owner, review_scale_pages, review_product, author_name, review_version, not_reach_standard_reason, source_file_name, weighted_defect_density, gitlab_project_id, gitlab_resource_iid, gitlab_resource_type, search_text, search_compact, search_spell, search_initials, title_search_text, title_search_compact, title_search_spell, title_search_initials, created_by, deleted, created_at, updated_at"
 RE_COLS="id, review_record_id, expert_name, sort_order, deleted, created_at, updated_at"
 PI_COLS="id, review_record_id, reviewer_name, workload_hours, review_category, document_position, problem_category, problem_description, suggested_solution, owner_name, rejection_reason, problem_status, created_by, deleted, created_at, updated_at"
