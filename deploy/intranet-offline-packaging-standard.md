@@ -113,6 +113,10 @@ qa-flex-platform-frontend:<release-id>
 
 打包器在最终归档之外创建临时 Docker build context，构建完成后立即销毁。打包阶段必须核对镜像内 `/app/app.jar` 与本地生产 JAR 的 SHA-256，并核对前端镜像内 `index.html` 与生产 `dist`；审计摘要写入发布清单，不复制裸产物。
 
+后端镜像基础层显式钉住 `eclipse-temurin:21-jre-noble`（浮动 `21-jre` tag 曾漂移到 Ubuntu 26.04，禁止回退），并在构建期安装 `postgresql-client-16`——数据库备份功能在后端容器内执行 `pg_dump`/`pg_restore`，客户端主版本必须与目标 PG 16 一致。打包阶段除 JAR 哈希核对之外，还必须运行镜像内 `pg_dump --version` 并断言输出为 `pg_dump (PostgreSQL) 16.x`，缺失或版本不符即拒绝交付。
+
+数据库备份的部署增量属于 compose/env 的允许变更（compose 单一权威文件直接携带）：backend 服务环境变量注入 `PLATFORM_BACKUP_ROOT=/var/lib/qaflex/backups` 与 `PLATFORM_BACKUP_SECRET_KEY`，并以 bind mount 挂载 `${PLATFORM_BACKUP_HOST_DIR:-/opt/qaflex-backups}:/var/lib/qaflex/backups`（宿主机目录由 Docker 自动创建）。`.env` 仅全新包由打包器预生成：`PLATFORM_BACKUP_SECRET_KEY` 为每次构建随机生成的 base64 32 字节主密钥（远程备份凭据的加密根；轮换会使已存远程密码失效，需在页面重录），`PLATFORM_BACKUP_HOST_DIR=/opt/qaflex-backups` 独立于部署目录以免清栈误伤备份。保数据更新包不修改现场 `.env`；现场启用 REMOTE 远程备份前须手动在 `.env` 补一行 `PLATFORM_BACKUP_SECRET_KEY=<base64 32B>`（`openssl rand -base64 32` 生成），未配置时备份功能仅禁用远程凭据保存，本地备份不受影响。
+
 平台 PostgreSQL 镜像不进入任何发布包：`postgres:16-alpine` 是稳定基础镜像，自初始部署加载后从未变更，目标机所有实例共用同一本地镜像。打包器不导出、不校验、也不要求打包机本地存在该镜像，任何模式的包内出现 `docker-images/postgres_16-alpine.tar` 一律拒绝交付；`RELEASE-MANIFEST.json` 的 `target.images` 只含前后端镜像。包内部署 README 要求部署前以 `docker image inspect postgres:16-alpine` 确认目标机已有该镜像；真正的新服务器缺失时，从部署资料归档中既有历史全新包的 `docker-images/postgres_16-alpine.tar` 加载后再继续部署。
 
 ## 基线与连续更新

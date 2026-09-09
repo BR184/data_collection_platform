@@ -85,6 +85,42 @@ class IntranetLdapPackagingTest(unittest.TestCase):
         self.assertIn("GITLAB_DELETE_RECONCILIATION_ENABLED", content)
         self.assertIn('PLATFORM_INSTANCE_ID: ${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}', content)
 
+    def test_backend_dockerfile_pins_noble_and_installs_postgresql_client_16(self):
+        content = MODULE.backend_dockerfile()
+
+        self.assertIn("FROM eclipse-temurin:21-jre-noble", content)
+        self.assertNotIn("FROM eclipse-temurin:21-jre\n", content)
+        self.assertIn("postgresql-client-16", content)
+        self.assertIn("rm -rf /var/lib/apt/lists/*", content)
+
+    def test_fresh_env_generates_random_backup_master_key_and_host_dir(self):
+        content = MODULE.env_content(self.build_context())
+        second = MODULE.env_content(self.build_context())
+
+        first_keys = [line for line in content.splitlines() if line.startswith("PLATFORM_BACKUP_SECRET_KEY=")]
+        second_keys = [line for line in second.splitlines() if line.startswith("PLATFORM_BACKUP_SECRET_KEY=")]
+        self.assertEqual(1, len(first_keys))
+        self.assertEqual(1, len(second_keys))
+        first_value = first_keys[0].split("=", 1)[1]
+        second_value = second_keys[0].split("=", 1)[1]
+        self.assertNotEqual(first_value, second_value)
+        self.assertEqual(32, len(MODULE.base64.b64decode(first_value)))
+        self.assertEqual(32, len(MODULE.base64.b64decode(second_value)))
+        self.assertIn("PLATFORM_BACKUP_HOST_DIR=/opt/qaflex-backups", content)
+
+    def test_compose_passes_backup_config_and_binds_host_backup_dir(self):
+        content = MODULE.compose_content(self.build_context())
+
+        self.assertIn("PLATFORM_BACKUP_ROOT: /var/lib/qaflex/backups", content)
+        self.assertIn("PLATFORM_BACKUP_SECRET_KEY: ${PLATFORM_BACKUP_SECRET_KEY:-}", content)
+        self.assertIn('"${PLATFORM_BACKUP_HOST_DIR:-/opt/qaflex-backups}:/var/lib/qaflex/backups"', content)
+
+    def test_incremental_compose_keeps_backup_mount_for_external_volume_mode(self):
+        content = MODULE.compose_content(self.build_context(), external_postgres_volume=True)
+
+        self.assertIn("PLATFORM_BACKUP_ROOT: /var/lib/qaflex/backups", content)
+        self.assertIn('"${PLATFORM_BACKUP_HOST_DIR:-/opt/qaflex-backups}:/var/lib/qaflex/backups"', content)
+
     def test_fresh_readme_never_instructs_removing_another_stack(self):
         content = MODULE.fresh_readme(self.build_context())
 

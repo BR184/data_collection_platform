@@ -9,6 +9,7 @@ Docker paths and Windows quoting behave the same every time.
 from __future__ import annotations
 
 import argparse
+import base64
 import concurrent.futures
 import datetime as dt
 import hashlib
@@ -441,10 +442,15 @@ def build_products(args: argparse.Namespace) -> tuple[bool, str]:
 
 
 def backend_dockerfile() -> str:
+    # noble 显式钉住 Ubuntu 24.04 底座：21-jre 浮动 tag 已漂移到 26.04，会导致 apt 源不可预期。
+    # postgresql-client-16 提供容器内 pg_dump/pg_restore（数据库备份功能），与目标 PG 16 主版本一致。
     return """\
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:21-jre-noble
 WORKDIR /app
 COPY app.jar /app/app.jar
+RUN apt-get update \
+        && apt-get install -y --no-install-recommends postgresql-client-16 \
+        && rm -rf /var/lib/apt/lists/*
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=75.0 -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Shanghai"
 EXPOSE 18080
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
@@ -488,6 +494,11 @@ server {
 """
 
 
+def generate_backup_master_key() -> str:
+    """Generate a fresh base64-encoded 32-byte AES master key for one release."""
+    return base64.b64encode(secrets.token_bytes(32)).decode("ascii")
+
+
 def env_content(ctx: BuildContext) -> str:
     return f"""\
 # Compose project scopes container, network, and named-volume identities.
@@ -520,6 +531,15 @@ PLATFORM_LDAP_BASE_URL={ctx.ldap_base_url}
 PLATFORM_LDAP_CONNECT_TIMEOUT_MS=3000
 PLATFORM_LDAP_READ_TIMEOUT_MS=10000
 PLATFORM_LDAP_INITIAL_SYNC_REQUIRED=true
+
+# Database backup master key: base64 of 32 random bytes, generated per fresh
+# package. Remote backup credentials entered in the UI are encrypted with it.
+# Rotating it invalidates stored remote passwords (re-enter them in the UI).
+PLATFORM_BACKUP_SECRET_KEY={generate_backup_master_key()}
+
+# Host directory bound into the backend container for database backup files.
+# Kept separate from the deployment directory so stack removal never touches backups.
+PLATFORM_BACKUP_HOST_DIR=/opt/qaflex-backups
 
 # Runtime options.
 GITLAB_SYSTEM_HOOK_MAX_QUEUE_SIZE=1000
@@ -587,6 +607,8 @@ services:
       SPRING_SQL_INIT_MODE: never
       PLATFORM_TIME_ZONE: Asia/Shanghai
       PLATFORM_INSTANCE_ID: ${{COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}}
+      PLATFORM_BACKUP_ROOT: /var/lib/qaflex/backups
+      PLATFORM_BACKUP_SECRET_KEY: ${{PLATFORM_BACKUP_SECRET_KEY:-}}
       PLATFORM_AUTH_PROVIDER: ${{PLATFORM_AUTH_PROVIDER}}
       PLATFORM_LDAP_BASE_URL: ${{PLATFORM_LDAP_BASE_URL}}
       PLATFORM_LDAP_CONNECT_TIMEOUT_MS: ${{PLATFORM_LDAP_CONNECT_TIMEOUT_MS:-3000}}
@@ -608,6 +630,7 @@ services:
       - "${{BACKEND_BIND:-127.0.0.1}}:${{BACKEND_PORT:-{ctx.backend_port}}}:18080"
     volumes:
       - qaflex_backend_logs:/app/logs
+      - "${{PLATFORM_BACKUP_HOST_DIR:-/opt/qaflex-backups}}:/var/lib/qaflex/backups"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:18080/actuator/health >/dev/null || exit 1"]
       interval: 20s
@@ -1438,6 +1461,12 @@ def build_and_save_images(ctx: BuildContext, args: argparse.Namespace) -> None:
     if image_hash != local_hash:
         fail(f"backend image jar hash mismatch: local={local_hash} image={image_hash}")
     log(f"backend image jar hash verified: {local_hash}")
+
+    pg_dump_result = run(("docker", "run", "--rm", "--entrypoint", "pg_dump", backend_ref, "--version"), capture=True)
+    pg_dump_version = pg_dump_result.output.strip()
+    if not pg_dump_version.startswith("pg_dump (PostgreSQL) 16."):
+        fail(f"backend image pg_dump version unexpected: {pg_dump_version}")
+    log(f"backend image pg_dump verified: {pg_dump_version}")
 
     frontend_index_hash = file_sha256(FRONTEND_DIST / "index.html")
     result = run(
