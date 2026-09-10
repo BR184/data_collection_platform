@@ -120,3 +120,11 @@
 - **动机**：旧形态下全量构建（内网约 4.6 万行、实测 4.6–17 分钟）必然超过 180s 任务租约且执行中无续租；run 心跳为共享单线程，被长事务饿死后 run 判 TIMEOUT → 任务重派 → 新旧事务行锁互锁 → 原事务 owner 围栏失败整体回滚丢全部工作。git 考古：机制 2026-05-09（e00c5998）引入、2026-08-03（2fd5c34e）随版本化发布重构定型，非近期修复回归。
 - **边界**：定向（增量）事实构建路径与 `replaceRootFacts` 语义不变——其原子性由原 runGuarded 外层事务改为构建层显式单事务（事实+客户成员/提交关系+搜索列刷新+目录对账同事务）承担；手工构建（runGuarded）仅去掉外层事务包装，互斥仍由全局 advisory lock 承担；`fact_build_tasks` 表结构不变；分批大小可配 `platform.gitlab-mirror.fact-full-build-chunk-size`（默认 2000）。
 - **禁止**：不得为「构建中断后部分批次已提交」引入回滚/补偿双轨——重试幂等重做是唯一收敛路径。
+
+## D-11 数据库备份管理页：执行域自治与恢复仅走 Runbook
+
+- **状态**：2026-09-09 生效（方案经用户审批后实施；后端 8159c49b、前端 181c9fc2、打包 0ab971d0，恢复演练与黄金基线 184/184 全绿实证）。
+- **决策**：备份执行域完全自治——三表复用 BiCAT 单行条件 UPDATE 抢运行权 + `backup_state` 租约续期模式，`pg_dump --format=custom` 在后端容器内执行（镜像内置 `postgresql-client-16`，与目标 PG 16 主版本一致），产物经 `pg_restore --list` 可恢复性校验后落位：LOCAL 经 bind mount 原子落宿主机目录（默认 `/opt/qaflex-backups`，独立于部署目录），REMOTE 经 sshj 上传备份服务器（TOFU 指纹校验通过才发凭据、`.part-` 临时名远端改名、大小+SHA-256 双校验，成品仅存远端一份）。轮转按份数（默认 14）且只匹配 `qaflex_<实例标识>_*.dump` 本实例模式。每日定时判期与孤儿 RUNNING 回收共用 60s 巡检；失败不自动重试。远程密码 AES-256-GCM 版本化密文落库，主密钥 `PLATFORM_BACKUP_SECRET_KEY`（base64 32B）由 fresh 包 `.env` 预生成、更新包现场手动补行；轮换密钥需页面重录远程密码。
+- **恢复边界**：页面不做一键恢复（误点即全库覆盖）；恢复仅走 `deploy/runbooks/database-backup-restore.md`（停 backend → drop/create → pg_restore --exit-on-error → 起 backend → 页面验收）。custom 格式不向后兼容：恢复用 pg_restore 主版本 ≥ 产物 pg_dump 主版本（本地演练实证 PG18 产物不能被 PG16 pg_restore 读取；生产镜像 client-16 与 PG16 服务端天然一致）。
+- **动机**：20001 生产库此前无任何自动备份；独立脚本/cron 路线无法安全驱动且不可配置（用户拍板放弃），页面化让备份时刻/备份服务器/保留策略可运维。测试连接绝不触发备份、REMOTE 未配置时默认本机落位均为用户确认的产品语义。
+- **禁止**：页面一键恢复；后端容器挂 docker socket；失败自动重试；轮转触碰非本实例命名模式的文件；把远程密码明文落库或回显。

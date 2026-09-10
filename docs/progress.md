@@ -6,11 +6,13 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
-## 2026-09-09 数据库备份管理页（系统设置模块）方案
+## 2026-09-09 数据库备份管理页（系统设置模块）全量交付
 
-- [状态] 用户 2026-09-09 拍板放弃"独立脚本先行"路线（已实现并 5 项本地验证全过的 `deploy/daily-backup.sh` 未提交、已删除），直接进入系统设置·备份管理页方案；**方案定稿待用户审批，未动任何代码**。完整方案（数据模型/API/执行流程/加密/打包增量/黄金基线登记/E2E 演练/恢复 runbook）：`docs/plans/database-backup-automation-20260909.md`。
-- [决策] 技术选型全部基于仓库既有先例：页面照抄下拉框选项设置模式；调度/异步/防重复照抄 BiCAT 镜像三表模式（补孤儿 RUNNING 巡检）；加密用 JCA AES-256-GCM + 主密钥 `PLATFORM_BACKUP_SECRET_KEY`（.env 注入）；pg_dump 在后端容器内执行（打包器 `backend_dockerfile()` 装 postgresql-client-16、基础镜像钉住 21-jre-noble——现默认 tag 实测已漂到 Ubuntu 26.04）；本地产物经 compose bind mount 落宿主机。20001 上线依赖携带新镜像+compose 增量的更新包，与容器身份策略方案（同日待批）同包或先后由用户排期。
-- [决策] 全部开放点已拍板（2026-09-09）：测试连接绝不自动触发备份（备份只能手动点「立即备份」或每日定时执行）；自动备份三要素（备份时刻/备份服务器地址/备份路径）页面可配；REMOTE 副本策略 = 仅远端一份（配置了远程地址与路径即备份到远端、上传成功后删本地临时文件；未配置则默认备份在部署服务器本地）；主密钥 = fresh 包 .env 预生成随机密钥（更新包场景现场在 .env 补一行；轮换需重录远程密码）。**方案所有决策已收口，整体待用户审批后开始实现。**
+- [完成] 方案（`docs/plans/database-backup-automation-20260909.md`）审批后单阶段全量实现：后端三表迁移（backup_settings/backup_runs/backup_state+权限种子 sort 8230/8240）、AES-256-GCM 加密凭据（主密钥 .env 注入、留空不修改、永不回显）、sshj 远程存储（TOFU 指纹校验+`.part-` 改名+大小/SHA-256 双校验）、pg_dump 编排（磁盘预检/导出/pg_restore --list 校验/原子落位/按份数轮转只清本实例模式）、租约调度+孤儿回收、6 端点 Controller；前端三卡片页面（dirty-check+乐观锁弹窗、测试连接三查面板+指纹采纳、状态 2s/15s 自适应轮询+运行结束自动刷历史）；manifest 四文件登记 PageKey `backup-settings`；打包器五件套（Dockerfile 钉 21-jre-noble+postgresql-client-16+pg_dump 16.x 断言、compose 注入备份根与主密钥并 bind mount 宿主机目录、fresh .env 预生成随机主密钥、契约测试、标准文档）；恢复 runbook `deploy/runbooks/database-backup-restore.md`。决策留痕 D-11，架构机制条目入 architecture.md。
+- [验证] 后端 11 测试类 67 用例+默认套件 1330 全绿；前端 Vitest 11 新用例+全量 486 全绿+typecheck 干净；黄金基线 6 端点登记（4+1 新快照、PUT 用例 enabled=false 防调度竞态），更新模式重建后 git diff 审阅（66 既有快照=易变字段重写+权限种子预期增量），比对模式 184/184 全绿零差异；浏览器端到端真实闭环（REMOTE 切换/必填守卫/主密钥警告/无密码业务拒绝 400/SSH 不可达三查失败面板/两次立即备份真实成功 49.6MiB×2 落位 `backend/.tmp/qaflex-backups/default/`）；真实恢复演练一次性 postgres:18-alpine 容器 `pg_restore --exit-on-error` 完整恢复（117 表、Flyway 20260909.01、backup_runs 2 行）后销毁。开发服务已按门禁纪律复起并验证健康（backend UP、frontend 200）。
+- [发现] 开发机后端 JVM 环境实际存在 pg_dump（PG 18 客户端，产物格式 1.16）——此前"开发机无 pg_dump"仅对 golden 宿主链路成立；custom 格式不向后兼容（PG18 产物不能被 PG16 pg_restore 读取），已在 runbook 补版本匹配警示，生产路径由镜像 client-16 断言保障一致。
+- [修复·防复发] ①双构造器 Spring Bean 必须显式 `@Autowired` 主构造器（3 处踩坑，@SpringBootTest 上下文 "No default constructor found"）②BackupScheduler 判期必须用注入 Clock（首版真实时钟被单测暴露）③后端未保存配置时字符串字段序列化 null，前端 dirty 签名 `.trim()` 炸渲染——统一 `?? ''` 归一化，Vitest mock 同步对齐 null 契约（空串 mock 曾掩盖该缺陷）④运行结束后历史表停留过期 RUNNING 行——status 轮询检测转换补拉历史。
+- [状态] 本地提交未推送（远端待用户指定）：后端+快照 8159c49b、前端 181c9fc2、打包 0ab971d0，文档单元随后提交。20001 上线依赖携带新镜像+compose 增量的更新包（与容器身份策略方案排期由用户定）；上线前 20001 无自动备份（现状不变）。计划文档随本单元完成后删除。
 
 ## 2026-09-09 18181→20001 评审数据增量迁移工具与本地全链路演练
 

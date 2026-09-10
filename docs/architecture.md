@@ -85,6 +85,7 @@
 - 议题模块只识别全角 `模块：`、`工具箱：`；测试阶段始终是独立事实维度。
 - 代码走查 MR 模块独立识别 `模块[：|-]`、`工具箱[：|-]`，不得复用议题解析器。
 - 快速筛选、高级筛选、导出和下钻只消费同一事实字段；兼容与非兼容模式不跨源提供模块候选。
+- 数据库备份管理（系统设置→备份管理）：三表 `backup_settings`/`backup_runs`/`backup_state` 复用 BiCAT 单行条件 UPDATE 抢运行权与租约模式；执行流水线为磁盘预检 → 后端容器内 `pg_dump --format=custom` → `pg_restore --list` 可恢复性校验 → 本地原子落位（bind mount 直落宿主机）或 REMOTE 上传（sshj，TOFU 指纹校验 + `.part-` 临时名远端改名 + 大小/SHA-256 校验，成品仅存远端一份）→ 按份数轮转（只匹配 `qaflex_<实例标识>_*.dump` 本实例命名模式）；远程密码 AES-256-GCM 加密落库（主密钥 `PLATFORM_BACKUP_SECRET_KEY` .env 注入，页面不回显、留空不修改）；每日定时判期与孤儿回收共用 60s 巡检（注入 Clock 判期，失败不自动重试）；测试连接为纯只读三查（SSH 登录与指纹/目录写探针/磁盘余量），绝不触发备份；页面不做一键恢复，恢复仅走 `deploy/runbooks/database-backup-restore.md`。详见 `docs/decisions.md`（D-11）。
 
 ### 质量看板契约
 
