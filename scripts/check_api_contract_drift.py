@@ -6,7 +6,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BACKEND_CONTROLLERS = ROOT / "backend/src/main/java/com/data/collection/platform/controller"
+# 递归扫描平台全部 @RestController：一级模块（如 BI 的 com.data.collection.platform.bi.api）
+# 可能位于 controller 包之外，只扫单一目录会漏检其端点，导致前端路径被误判为 MISSING_BACKEND。
+BACKEND_SOURCE_ROOT = ROOT / "backend/src/main/java/com/data/collection/platform"
 FRONTEND_API_CLIENTS = ROOT / "frontend/src/api-client"
 
 
@@ -14,6 +16,8 @@ MAPPING_PATTERN = re.compile(
     r"@(?P<method>Get|Post|Put|Patch|Delete|Request)Mapping(?:\((?P<args>[^)]*)\))?"
 )
 PATH_LITERAL_PATTERN = re.compile(r'["`](/api/[^"`?]*)')
+# \b 确保只匹配 @RestController 而不匹配 @RestControllerAdvice（后者 r 与 A 之间无词边界）。
+REST_CONTROLLER_PATTERN = re.compile(r"@RestController\b")
 
 
 def extract_mapping_path(args: str | None) -> str:
@@ -60,8 +64,10 @@ def backend_path_matches(backend_path: str, frontend_path: str) -> bool:
 
 def backend_paths() -> set[str]:
     paths: set[str] = set()
-    for path in BACKEND_CONTROLLERS.glob("*.java"):
+    for path in BACKEND_SOURCE_ROOT.rglob("*.java"):
         text = path.read_text(encoding="utf-8")
+        if not REST_CONTROLLER_PATTERN.search(text):
+            continue
         class_mapping = re.search(r"@RequestMapping\(([^)]*)\)", text)
         base = extract_mapping_path(class_mapping.group(1) if class_mapping else None)
         for match in MAPPING_PATTERN.finditer(text):
