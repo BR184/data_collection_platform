@@ -6,6 +6,15 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-11 BI 单元独立复核：验证基础设施补提交、门禁修复与达标线收敛
+
+- [完成] 复核 `d6078941`/`9f618719` 时发现该单元的验证基础设施全部滞留工作树，**已提交的 main 实际为红灯**：`scripts/check_api_contract_drift.py` 的 HEAD 版只 glob `platform/controller/*.java`，退出码 1 并报 6 条 `MISSING_BACKEND`（`/api/bi/{coding,design,integration-test,requirements,system-test,unit-test}`）；`GoldenBaselineCoverageGuardTest` 的 HEAD 版不扫描 `bi.api`，使新增端点 `POST /api/bi/download/excel` 在已提交状态下既无目录登记也无快照，属零防护覆盖空洞。已按“端点增删与功能变更同工作单元完成”纪律补提交 `a7af73ec`（护栏扫描扩至 `controller + bi.api`、目录登记 BI 与 CAT 镜像共 15 个端点、`snapshots/bi/` 7 个 READ 快照、ChainTest 新增 `biProductVersionId`）与 `02628b4a`（扫描器递归覆盖平台全部 `@RestController`，`backend_paths` 160→175）。
+- [完成] 收敛 BI 模块修复率达标线：95 原以字面量重复在 4 处（`data/sorting.ts`、矩阵图 `targets`、卡片表头「目标95%」文案、问号词条正文），现归一到 `data/quality-targets.ts` 的 `systemTestRepairTargets` 并由常量插值生成表头（提交 `36ebbf65`）；同一提交修正「代码走查缺陷密度」词条与口径核对表 CD-23/CD-24 冲突的 `[2.0~10.0]`→`[3.0~12.0]`，并修正「模块修复率」词条在降序下与实现不符的断言。BI 专属细节入 `docs/bi-dashboard/progress.md`。
+- [验证] 独立复跑与报告一致：后端 BI 包 109 项全绿；前端 BI 套件 14 文件 75 项全绿（较此前 +1，为新增四条达标线断言）；`GoldenBaselineCoverageGuardTest` 2 项通过；`tsc --noEmit`、ESLint 0 错；`check_api_contract_drift.py` 现 `backend_paths=175 / missing=0 / exit=0`，六项门禁与 `git diff --check` 全部 exit 0。快照有效性按提交史核对：生成时间（2026-09-10 11:46）之后无任何提交改动 BI 页面数据产出（`d6078941` 仅改 RuntimeFactory 装配与新增 Excel 端点），故 `snapshots/bi/` 对当前代码有效；完整黄金链按门禁纪律本次未运行。
+- [待确认] BI「整体修复率 ≥ 95%」达标线在 `BI看板数据来源与计算口径核对表.md` 中**没有对应编号**——该表只登记了一级 100%（ST-13）、P1 90%（ST-25）、P2 80%（ST-31），后端 `BiSystemTestCalculator` 也只产出这三个目标。属未登记口径，需人工确认后补行；确认前不得据其调整实现或词条。
+- [发现] `ModuleQuality.fixRate` 取自 `percent(fixed, issues.size())`，而模块只在存在缺陷事实时才创建（`issues.size() >= 1`），故该字段实际**永不为 null**：`sorting.ts` 的 null 分支、单测中「修复率不可计算」用例与词条「仅无可计算数值时置于列表末尾」均是不可达描述，属 v1.0 同类“业务前提未钉到后端契约”的残留，本次未改。
+- [待办] 同单元遗留的轻微问题：`BiExcelExportRequest` 的 `headers` 元素无 `@NotBlank`/长度上限（含 null 元素会在 `columnWidths → displayWidth` 抛 NPE 返回 500，`title`/`explanation`/`rows` 亦无上限）；`SystemTestStageContent.vue` 的 `moduleSeverity`、`overlay` 两处仍为页面内联比较器且无“无数据恒置底”处理。
+
 ## 2026-09-10 BI 看板实测反馈修复与全看板业务说明（v2.0 复核执行）
 
 - [完成] 按已审定的 D1〜D4 执行 `docs/plans/bi-dashboard-feedback-and-fixes-comprehensive-20260910.md` 的 v2.0 计划：解除并行单元造成的 2 处 `int`→`Long` 编译阻塞（仅 2 行）；修正 v1.0 的“0% 修复率置底”错误业务前提（`BiSystemTestCalculator.modules()` 只含已发现缺陷的模块，故 0% ＝全部未修复、最高风险，仅 `null` 在默认异常优先视图置底，用户显式选排序维度时不干预）；删除 `SystemTestStageContent.vue` 与 `sorting.ts` 已漂移的内联比较器副本（消除“测试只护住死代码”的虚假防护网）；补齐问号 Tooltip 的非 scoped popper 样式（teleport 至 body，scoped 无效）；“代码提交频次时间分布”图按卡片+图表类+联合类型+周聚合+后端模板白名单+两处测试计数+两处权威文档条目彻底清零；Excel 导出增“口径说明：…”行（`explanation` 可空，行索引与冻结行游标推导，空白不占行）。BI 专属细节入 `docs/bi-dashboard/progress.md`。

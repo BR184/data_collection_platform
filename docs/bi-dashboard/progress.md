@@ -2,6 +2,13 @@
 
 ## 当前状态
 
+- 当前阶段：2026-09-11，BI 单元独立复核后的三项收口提交，把此前只存在于工作树、未随功能变更入库的验证基础设施补齐（平台级结论见 `../progress.md` 同日条目）：
+  ① `a7af73ec` 真正把 BI 端点纳入黄金基线——`GoldenBaselineCoverageGuardTest` 扫描包由 `controller` 扩至 `controller + bi.api`；`endpoint-catalog.yml` 登记 `BiDashboardController` 的 7 个页面/版本 GET（READ，掩码 `generatedAt`/`sourceVersion`/`snapshotId`）与 2 个下载 POST（EXCLUDED，chain-dependency）、`BiCatMirrorController` 的 6 个端点（EXCLUDED，external-dependency / async-trigger）；`snapshots/bi/` 补入 7 个 READ 快照；`GoldenBaselineChainTest` 新增 `biProductVersionId`（与 `BiPlatformProductVersionAdapter.catalog()` 的 defaultId 同口径）。此前已提交状态下 BI 端点不受护栏约束，新端点 `POST /api/bi/download/excel` 既无目录登记也无快照。
+  ② `02628b4a` 修 `check_api_contract_drift.py`：原只 glob `platform/controller/*.java`，main 上该门禁退出码 1 并报 6 条 `/api/bi/*` `MISSING_BACKEND`，现递归覆盖平台全部 `@RestController`。
+  ③ `36ebbf65` 把模块修复率达标线从 4 处字面量（`data/sorting.ts`、矩阵图 `targets`、卡片表头「目标95%」文案、问号词条正文）收敛为 `data/quality-targets.ts` 的 `systemTestRepairTargets` 单一来源，表头文案改由常量插值生成；同一提交修正两处词条——「代码走查缺陷密度」`[2.0~10.0]`→`[3.0~12.0]`（对齐口径核对表 CD-23/CD-24 与后端 `MIN/MAX_REVIEW_DENSITY`），「模块修复率」原断言“异常优先视图下排在最前”在降序下与实现不符，改为“未达标组始终在前、升降序只调整组内顺序”。
+- 待人工确认：模块修复率矩阵的**整体修复率 95% 达标线在 `BI看板数据来源与计算口径核对表.md` 中没有对应编号**（表内只登记一级 100%/ST-13、P1 90%/ST-25、P2 80%/ST-31，后端 `BiSystemTestCalculator` 也只产出这三个），常量注释已标注为待确认登记口径；确认前不得据其调整实现或词条。
+- 未改动但已知的轻微问题：`ModuleQuality.fixRate` 因模块必然 `issues.size() >= 1` 而实际永不为 null，故 `sorting.ts` 的 null 分支与词条“仅无可计算数值时置于列表末尾”不可达；`SystemTestStageContent.vue` 的 `moduleSeverity`、`overlay` 仍为页面内联比较器；`BiExcelExportRequest` 的 `headers` 元素无 `@NotBlank`（null 元素会 NPE 返回 500）。
+
 - 当前阶段：2026-09-10，已完成 BI 看板实测反馈修复与全看板图表业务说明落地（v1.0 十项修复 + v2.0 复核修正），计划 `docs/plans/bi-dashboard-feedback-and-fixes-comprehensive-20260910.md`：
   ① 图表下载菜单被 `el-tooltip` 包层拦截、编码页切换粒度跳顶、系统测试顶部 7 指标双行、饼图高度未对齐、趋势粒度跨图联动、Tooltip 缺新增代码量等 8 项前端修复已闭环（详见计划 3.1~3.7）；
   ② 系统测试轮次自然排序：`sorting.ts` 的 `parseRoundOrder` 优先使用后端 `roundOrder` 整数，兜底解析中文/数字轮次名（回归测试固定沉底）；
