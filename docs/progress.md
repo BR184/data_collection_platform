@@ -6,6 +6,25 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-10 BI 看板实测反馈修复与全看板业务说明（v2.0 复核执行）
+
+- [完成] 按已审定的 D1〜D4 执行 `docs/plans/bi-dashboard-feedback-and-fixes-comprehensive-20260910.md` 的 v2.0 计划：解除并行单元造成的 2 处 `int`→`Long` 编译阻塞（仅 2 行）；修正 v1.0 的“0% 修复率置底”错误业务前提（`BiSystemTestCalculator.modules()` 只含已发现缺陷的模块，故 0% ＝全部未修复、最高风险，仅 `null` 在默认异常优先视图置底，用户显式选排序维度时不干预）；删除 `SystemTestStageContent.vue` 与 `sorting.ts` 已漂移的内联比较器副本（消除“测试只护住死代码”的虚假防护网）；补齐问号 Tooltip 的非 scoped popper 样式（teleport 至 body，scoped 无效）；“代码提交频次时间分布”图按卡片+图表类+联合类型+周聚合+后端模板白名单+两处测试计数+两处权威文档条目彻底清零；Excel 导出增“口径说明：…”行（`explanation` 可空，行索引与冻结行游标推导，空白不占行）。BI 专属细节入 `docs/bi-dashboard/progress.md`。
+- [验证] 后端 `test-compile` EXIT=0、默认套件 287 类 1342 项全绿（0 失败 0 错误 1 跳过，含已覆盖 `bi.api` 的黄金基线覆盖护栏）、BI 包 109 项全绿、SpotBugs 0 发现；前端 lint/typecheck 0 错、全量 133 文件 519 项全绿、生产构建成功；五项仓库门禁与 `git diff --check` 通过；开发后端已重启至当前代码并验证 18080 health=UP、18181=200。
+- [验证] 浏览器真实界面四项验收已完成（2026-09-11，登录 18181 真实实例）：编码页 9 卡确认频次图已消失且全部带问号说明；最长词条气泡实测 `width=320`、视觉折行 4 行（teleport popper 上的非 scoped 样式生效）；含 0% 模块的版本在默认“异常优先”下 0% 模块位列前 3，按“未修复数降序”时完全由该维度决定；真实下载的 `.xlsx` 解压确认口径说明行、行 5 表头与 `ySplit=5` 冻结窗格均与设计一致（细节见 BI 进度与本单元计划第六部分）。
+- [发现] 平台请求层 `frontend/src/api-client/request.ts` 的 `waitForProgressFirstPaint` 在发出导出/筛选类请求前 `await requestAnimationFrame`，而隐藏/最小化窗口（典型如 headless 与后台标签页）永不触发 rAF，导致页面永停“加载中”且不报错——影响一切隐藏窗自动验收，属平台通用耦合而非 BI 专属，本次只记录未修，后续如要改应以超时兜底而非删除首绘等待。
+- [待确认] BI 图表排序的“异常优先”维度被实现为**分组**（未达标组永远在前，升降序只重排组内），因此降序时 0%（最危险）模块会从顶部移到组末尾；行为已用单测固定，但是否符合领导预期需裁定（若期望降序即“单纯按修复率反向”，需同时改实现与问号词条）。
+- [待裁定] 静态代码扫描图下线、按指派人统计的模块/组织维度后端供数（经实证 DTO 无“人×模块”交叉明细，纯前端不可行）。
+
+## 2026-09-10 统计看板比率列“无数据”排序异常修复（领导反馈）
+
+- [完成] 根因修复：`StatisticCellData.numericValue` 由 `long` 改为可空 `Long`，`StatisticMetricCalculator.ratioSortValue` 在分母≤0（显示 `/`）时返回 `null`，与真实 `0.00%` 的排序键 `0` 严格区分；比率文件（客户问题/系统测试缺陷汇总、`DefectSummaryBoardSupport`、两个缺陷原因看板 `ratioRow`）同步改为可空传递，`SystemTestDefectSummaryBoardService.metricNumericValue` 显式剔除 null 消除拆箱隐患。
+- [完成] 前端单一规则：新增 `frontend/src/utils/missing-value-sorting.ts`（数值与文本“无数据恒置底”比较器）与 `components/statistic-board-metric.ts`（列是否携带数值排序键的契约，取代 `metricType` 子串巧合匹配）；`statistic-board-sorting.ts` 统一走该规则并删除无列使用的 time/date 死分支；BI `data/sorting.ts`、`TestQualityStageContent.vue`、`SystemTestStageContent.vue` 的 `?? 0`/`?? -1`/`?? 101` 哨兵改用共享比较器（当时保留的 BI 修复率矩阵“0% 或无数据置底”规则已在本日后续的 BI v2.0 复核单元被推翻，现仅 `null` 置底，见上一节）。
+- [完成] 快照失效：`customer-issue-defect-summary` v7→v8、`system-test-defect-summary` v13→v14，避免部署后仍命中 numericValue 为 0 的旧快照；两个缺陷原因看板仅被钉住的“比例”行受影响且无用户可见差异，不递增规则版本。
+- [验证] 后端默认套件 1342 项全绿（前提：15433 测试库容器 `qaflex-test-postgres-15433` 在运行；未启动时约 70 个 @SpringBootTest 因无监听报环境错，非回归；也可注入 `TEST_DATASOURCE_URL` 指向 15432 的 `qaflex_test`）。新增 `StatisticMetricCalculatorTest` 3 项与看板 null 排序键断言；统计看板金标 15 个快照由删除重生模式重建，逐文件结构化 diff 复核仅 numericValue 由 0 变 null 且全部落在 displayValue 为 `/` 的单元格，两个 workbook 指纹未变（导出不受影响）。
+- [验证] 前端 Vitest 133 文件 518 项全绿、`tsc --noEmit` 与改动文件 ESLint 0 错误；本地 18181/18080 真实页面验收：“一级缺陷修复率%”降序从之前的 `/` 与 `0.00%` 交错（共 28 行，第 9 行起混排）修正为真实百分比→0.00% 连续段→`/` 全部置底，升序不翻顶，“总计”行仍钉底，“缺陷原因分析”页无异常，控制台无报错。
+- [待办] 黄金基线（`golden-baseline/snapshots/statistic-boards/` 与 rule-explanation 的 system-test-defect-summary 快照）必然出现 numericValue 为 null 与规则版本差异；按门禁纪律日常不跑，下次发布打包或内网验收前须 `-Dgolden.update=true` 重建并交用户审阅。
+- [待确认] 记录列表/下钻明细的服务端排序 `SortSupport.applyDirection` 对 nullsLast 比较器整体 `reversed()`，降序时把“无数据”翻到顶部（同一缺陷族，涉及约 12 个记录查询服务）；改造需把方向语义收进 `SortSupport` 单一入口并改所有调用点，属跨页面用户可见行为变更，需用户确认后在同一工作单元完成。
+
 ## 2026-09-09 数据库备份管理页（系统设置模块）全量交付
 
 - [完成] 方案（`docs/plans/database-backup-automation-20260909.md`）审批后单阶段全量实现：后端三表迁移（backup_settings/backup_runs/backup_state+权限种子 sort 8230/8240）、AES-256-GCM 加密凭据（主密钥 .env 注入、留空不修改、永不回显）、sshj 远程存储（TOFU 指纹校验+`.part-` 改名+大小/SHA-256 双校验）、pg_dump 编排（磁盘预检/导出/pg_restore --list 校验/原子落位/按份数轮转只清本实例模式）、租约调度+孤儿回收、6 端点 Controller；前端三卡片页面（dirty-check+乐观锁弹窗、测试连接三查面板+指纹采纳、状态 2s/15s 自适应轮询+运行结束自动刷历史）；manifest 四文件登记 PageKey `backup-settings`；打包器五件套（Dockerfile 钉 21-jre-noble+postgresql-client-16+pg_dump 16.x 断言、compose 注入备份根与主密钥并 bind mount 宿主机目录、fresh .env 预生成随机主密钥、契约测试、标准文档）；恢复 runbook `deploy/runbooks/database-backup-restore.md`。决策留痕 D-11，架构机制条目入 architecture.md。
@@ -263,6 +282,9 @@
 - [验证] 权限设置页已通过本地页面加载和角色排序视觉检查；认证切换页面重新挂载修复已通过前端构建与回归测试。
 - [限制] 尚未用内网真实数据库完成本轮所有统计和导出结果的最终验收，不将本地测试结果表述为内网业务对齐完成。
 - [限制] 当前开发机无法路由到内网 LDAP `172.22.10.116:80`；包内地址和容器配置已校验，真实网络连通与登录仍须在内网部署后验收。
+- [验证] 2026-09-10：内网 20001 保数据更新包 `qaflex-update-20260910T042253Z-94cd3a4d2a47` 制作完成（归档 205,793,765 字节，SHA-256 `6d69e716366ae9ba3d6fbae6ef48c7768907d84f6133c9588e686ef157141738`）；直接基线=20001 现场 `qa-flex-platform-*:20260803T122027Z-ad35f6c0e8c3`（基线目录 `qaflex-full-20260803T122027Z-ad35f6c0e8c3`，与 9/08 包 manifest 交叉印证）；目标 Flyway=`20260909.01`；事实重建范围=`issue`；镜像内 `pg_dump` 16.15、契约 unittest 38 项、`bash -n`/`sha256sum -c`、包结构（无 postgres 镜像/.env/backend/frontend/deb/dump）门禁均通过；清单如实标记工作区非干净。
+- [验证] 2026-09-10：本地隔离栈（project `qaflex-pkgtest-20001-20260910`，端口 20301/20302/15601，基线镜像 8/3）完成 backup→upgrade→rollback→backup→upgrade；两次 upgrade 均达目标镜像且健康（后端 `UP`、前端 200）、Flyway 到 `20260909.01`、`counts.diff` 空、PostgreSQL 容器 ID 全程 `cb4ac7fd…` 不变、database/critical dump 非空且可 `pg_restore --list`；rollback 恢复 8/3 基线镜像且健康、不重写数据库。
+- [限制] 本地验收经 Linux 工具容器（ubuntu+curl+docker+compose v2，`--network host`，挂载 docker socket 与隔离目录）执行包内脚本；真实内网 20001 现场升级、LDAP/GitLab 真实连通与 issue 事实重建终态未在本机验证，现场以包内 README-INCREMENTAL-DEPLOY.md 为准。
 
 ## 有效历史
 
