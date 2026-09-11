@@ -3,6 +3,7 @@ import { BiChart, type BiChartRenderContext, type BiChartSize, type BiExcelTable
 import type { ModuleRepairRow } from '../chart-data';
 import { BI_PALETTE } from '../palette';
 import { excelPercent } from '../excel-format';
+import { systemTestRepairTargets } from '../../data/quality-targets';
 
 export class ModuleRepairMatrixChart extends BiChart<ModuleRepairRow[]> {
   readonly templateId = 'module-repair-matrix' as const;
@@ -31,13 +32,18 @@ export class ModuleRepairMatrixChart extends BiChart<ModuleRepairRow[]> {
   }
 
   build(data: ModuleRepairRow[], context: BiChartRenderContext): EChartsOption {
-    const targets = [95, 100, 90, 80];
+    const targets = [
+      systemTestRepairTargets.overall,
+      systemTestRepairTargets.levelOne,
+      systemTestRepairTargets.p1,
+      systemTestRepairTargets.p2,
+    ];
     const headerColumns = [
-      { text: '整体修复率\n目标95%', left: '32%' },
+      { text: `整体修复率\n目标${systemTestRepairTargets.overall}%`, left: '32%' },
       { text: '遗留缺陷\n未修复数', left: '52%' },
-      { text: '一级缺陷\n目标100%', left: '67%' },
-      { text: 'P1优先级\n目标90%', left: '79%' },
-      { text: 'P2优先级\n目标80%', left: '91%' },
+      { text: `一级缺陷\n目标${systemTestRepairTargets.levelOne}%`, left: '67%' },
+      { text: `P1优先级\n目标${systemTestRepairTargets.p1}%`, left: '79%' },
+      { text: `P2优先级\n目标${systemTestRepairTargets.p2}%`, left: '91%' },
     ];
     return {
       ...this.baseOption(`模块修复率达成矩阵，共 ${data.length} 个模块。`),

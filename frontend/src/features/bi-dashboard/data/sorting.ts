@@ -8,6 +8,7 @@ import type {
   RoundQualityRow,
 } from '../charts/chart-data';
 import { compareNumericNullsLast } from '../../../utils/missing-value-sorting';
+import { systemTestRepairTargets } from './quality-targets';
 
 export type BiSortOrder = 'asc' | 'desc';
 
@@ -209,9 +210,6 @@ export function sortRoundQualityRows(
   });
 }
 
-/** 整体修复率达标线，与模块修复率矩阵图表的 targets[0] 及口径核对表一致。 */
-const MODULE_REPAIR_TARGET_RATE = 95;
-
 /**
  * 对模块系统测试修复率达成数据进行排序（卡片排序控件的唯一权威实现）。
  *
@@ -258,7 +256,7 @@ export function sortModuleRepairRows(
       return rateA == null ? 1 : -1;
     }
     const statusCmp
-      = Number(rateA >= MODULE_REPAIR_TARGET_RATE) - Number(rateB >= MODULE_REPAIR_TARGET_RATE);
+      = Number(rateA >= systemTestRepairTargets.overall) - Number(rateB >= systemTestRepairTargets.overall);
     return statusCmp || byNumeric(a, b, (row) => row.fixRate);
   });
 }
