@@ -35,7 +35,7 @@ describe('SystemTestStageContent', () => {
     };
 
     const wrapper = shallowMount(SystemTestStageContent, {
-      props: { response, productVersionId: 11 },
+      props: { response, productVersionId: 11, productVersionName: 'v1.0' },
     });
     const workloadPanel = wrapper.findAllComponents({ name: 'BiChartPanel' })
       .find((panel) => panel.props('title') === '按指派人统计缺陷数');
@@ -58,5 +58,67 @@ describe('SystemTestStageContent', () => {
     expect(causePanels).toHaveLength(2);
     expect(causePanels.map((panel) => panel.props('height'))).toEqual([432, 432]);
     expect(causePanels.every((panel) => panel.classes().includes('bi-cause-chart-panel'))).toBe(true);
+
+    // Verify description on workloadPanel and severityPanel
+    expect(workloadPanel?.props('description')).toContain('统计各处理人员被指派的缺陷总数');
+    expect(severityPanel?.props('description')).toContain('统计系统测试期间一级缺陷');
+  });
+
+  it('sorts test rounds in natural ascending order and sinks 0% module repair rate to bottom', () => {
+    const response: BiPageResponse<BiSystemTestPageData> = {
+      pageKey: 'system-test',
+      status: 'READY',
+      sourceVersion: 'issue-v2',
+      snapshotId: 'issue-v2',
+      ruleVersion: 'bi-system-test-v3',
+      generatedAt: '2026-08-05T00:00:00Z',
+      sections: [],
+      traces: [],
+      data: {
+        overview: { totalCount: 20, fixedCount: 18, openCount: 2, fixRate: 90.0 },
+        qualityTargets: [],
+        rounds: [
+          { roundId: '2', roundName: 'CC2026R3第二轮系统测试', roundOrder: 2, levelOneCount: 1, levelTwoCount: 2, levelThreeCount: 0, submittedCount: 3, closedCount: 3, openCount: 0, closeRate: 100.0 },
+          { roundId: '3', roundName: 'CC2026R3回归测试', roundOrder: 3, levelOneCount: 0, levelTwoCount: 1, levelThreeCount: 0, submittedCount: 1, closedCount: 1, openCount: 0, closeRate: 100.0 },
+          { roundId: '1', roundName: 'CC2026R3第一轮系统测试', roundOrder: 1, levelOneCount: 2, levelTwoCount: 5, levelThreeCount: 1, submittedCount: 8, closedCount: 7, openCount: 1, closeRate: 87.5 },
+        ],
+        severity: { levelOneCount: 3, levelTwoCount: 8, levelThreeCount: 1 },
+        modules: [
+          { module: { sourceValue: 'M_UNFIXED', displayName: '模块全部未修复', identified: true }, fixRate: 0, fixedCount: 0, openCount: 12, totalCount: 12, levelOneFixRate: null, p1FixRate: 0, p2FixRate: 0, levelOneCount: 2, levelTwoCount: 6, levelThreeCount: 4 },
+          { module: { sourceValue: 'M_FAIL', displayName: '模块未达标80%', identified: true }, fixRate: 80, fixedCount: 8, openCount: 2, totalCount: 10, levelOneFixRate: 100, p1FixRate: 80, p2FixRate: 75, levelOneCount: 1, levelTwoCount: 5, levelThreeCount: 4 },
+          { module: { sourceValue: 'M_PASS', displayName: '模块已达标96%', identified: true }, fixRate: 96, fixedCount: 24, openCount: 1, totalCount: 25, levelOneFixRate: 100, p1FixRate: 95, p2FixRate: 90, levelOneCount: 2, levelTwoCount: 15, levelThreeCount: 8 },
+        ],
+        causeCategories: [],
+        causeSubcategories: [],
+        delays: [],
+        developers: [],
+      },
+    };
+
+    const wrapper = shallowMount(SystemTestStageContent, {
+      props: { response, productVersionId: 11, productVersionName: 'v1.0' },
+    });
+
+    const roundPanel = wrapper.findAllComponents({ name: 'BiChartPanel' })
+      .find((panel) => panel.props('title') === '系统测试各轮次缺陷修复情况');
+    expect(roundPanel).toBeDefined();
+    const roundData = roundPanel?.props('data') as Array<{ name: string; order?: number }>;
+    expect(roundData.map((r) => r.name)).toEqual([
+      'CC2026R3第一轮系统测试',
+      'CC2026R3第二轮系统测试',
+      'CC2026R3回归测试',
+    ]);
+
+    const repairPanel = wrapper.findAllComponents({ name: 'BiChartPanel' })
+      .find((panel) => panel.props('title') === '各模块系统测试修复率达成情况');
+    expect(repairPanel).toBeDefined();
+    const repairData = repairPanel?.props('data') as Array<{ name: string; fixRate: number | null }>;
+    // 异常优先：未达标组在前并按修复率升序，故“有缺陷且全部未修复”的 0% 模块作为最高风险排最前；
+    // 后端只为存在缺陷的模块产出该列表，因此不能再把 0% 当作“无缺陷”沉底。
+    expect(repairData.map((r) => r.name)).toEqual([
+      '模块全部未修复',
+      '模块未达标80%',
+      '模块已达标96%',
+    ]);
   });
 });

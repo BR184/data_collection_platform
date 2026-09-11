@@ -43,6 +43,7 @@ export interface DeveloperWorkloadRow {
 
 export interface RoundQualityRow {
   name: string;
+  order?: number;
   levelOne: number;
   levelTwo: number;
   levelThree: number;
@@ -80,6 +81,7 @@ export interface ReviewQualityRow {
   density: number | null;
   rate: number | null;
   achieved: boolean | null;
+  addedLines?: number | null;
 }
 
 export interface ReviewScatterPoint {

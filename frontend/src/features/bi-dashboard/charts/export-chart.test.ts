@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
   const authorizeDownload = vi.fn(async () => undefined);
+  const exportExcel = vi.fn(async (): Promise<{ blob: Blob; filename?: string }> => ({
+    blob: new Blob(['xlsx-bytes'], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    }),
+    filename: '按指派人统计缺陷数_20260910083015.xlsx',
+  }));
   const flush = vi.fn();
   const setOption = vi.fn();
   const getDataURL = vi.fn(() => 'data:image/png;base64,AAAA');
@@ -12,16 +18,16 @@ const mocks = vi.hoisted(() => {
     getDataURL,
     dispose,
   }));
-  return { authorizeDownload, flush, setOption, getDataURL, dispose, init };
+  return { authorizeDownload, exportExcel, flush, setOption, getDataURL, dispose, init };
 });
 
 vi.mock('./bi-echarts-runtime', () => ({ init: mocks.init, registerTheme: vi.fn() }));
 vi.mock('../../../api-client/bi-dashboard-api', () => ({
-  biDashboardApi: { authorizeDownload: mocks.authorizeDownload },
+  biDashboardApi: { authorizeDownload: mocks.authorizeDownload, exportExcel: mocks.exportExcel },
 }));
 
 import { DeveloperWorkloadChart, SubmissionTrendComboChart } from './types';
-import { buildChartExcelData, exportBiChartExcel, exportBiChartPng } from './export-chart';
+import { exportBiChartExcel, exportBiChartPng } from './export-chart';
 
 describe('BI chart export', () => {
   beforeEach(() => {
@@ -58,15 +64,21 @@ describe('BI chart export', () => {
     click.mockRestore();
   });
 
-  it('extracts structured table data and triggers Excel XML download', async () => {
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+  it('sends the extracted table to the backend and downloads the workbook it returns', async () => {
+    const downloads: string[] = [];
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(function recordDownload(this: HTMLAnchorElement) {
+        downloads.push(this.download);
+      });
 
     await exportBiChartExcel({
       productVersionId: 10,
-      productVersionName: 'CC2026R3',
+      productVersionName: 'CC2026R4',
       pageKey: 'system-test',
       sourceVersion: 'source-1',
       title: '按指派人统计缺陷数',
+      description: '统计各处理人员被指派的缺陷总数。',
       chart: new DeveloperWorkloadChart(),
       data: [
         { name: '张三', total: 10, fixed: 8, open: 2 },
@@ -74,14 +86,53 @@ describe('BI chart export', () => {
       ],
     });
 
-    expect(mocks.authorizeDownload).toHaveBeenCalledWith(10, 'system-test', 'developer-workload', 'source-1');
-    expect(click).toHaveBeenCalledOnce();
+    // Excel 端点内部复用同一道下载授权门，前端不再单独调用授权端点。
+    expect(mocks.authorizeDownload).not.toHaveBeenCalled();
+    // 前端只按图表语义提取表格，序列化交给后端；比率字段忠实呈现图表数值（不再 *100）。
+    // 问号词条的业务口径随行下发，由后端写入标题下的说明行。
+    expect(mocks.exportExcel).toHaveBeenCalledWith({
+      productVersionId: 10,
+      pageKey: 'system-test',
+      chartTemplateId: 'developer-workload',
+      sourceVersion: 'source-1',
+      title: '按指派人统计缺陷数',
+      productVersionName: 'CC2026R4',
+      explanation: '统计各处理人员被指派的缺陷总数。',
+      headers: ['指派责任人', '缺陷总数', '已修复缺陷数', '待修复缺陷数', '修复率 (%)'],
+      rows: [
+        ['张三', 10, 8, 2, 80],
+        ['李四', 5, 5, 0, 100],
+      ],
+    });
+    // 优先采用服务端 Content-Disposition 提供的文件名。
+    expect(downloads).toEqual(['按指派人统计缺陷数_20260910083015.xlsx']);
 
-    const table = buildChartExcelData('developer-workload', [
-      { name: '张三', total: 10, fixed: 8, open: 2 },
-    ]);
-    expect(table.headers).toEqual(['指派责任人', '缺陷总数', '已修复缺陷数', '待修复缺陷数', '修复率 (%)']);
-    expect(table.rows[0]).toEqual(['张三', 10, 8, 2, 80]);
+    click.mockRestore();
+  });
+
+  it('falls back to a sanitized local filename when the backend omits one', async () => {
+    mocks.exportExcel.mockResolvedValueOnce({ blob: new Blob(['xlsx-bytes']), filename: undefined });
+    const downloads: string[] = [];
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(function recordDownload(this: HTMLAnchorElement) {
+        downloads.push(this.download);
+      });
+
+    await exportBiChartExcel({
+      productVersionId: 10,
+      productVersionName: 'CC2026R4',
+      pageKey: 'coding',
+      sourceVersion: 'source-1',
+      title: '评审/质量:分析',
+      chart: new DeveloperWorkloadChart(),
+      data: [{ name: '张三', total: 4, fixed: 2, open: 2 }],
+    });
+
+    // 无词条时仍传空串，后端不因此占行，不产生空行漂移。
+    expect(mocks.exportExcel).toHaveBeenCalledWith(expect.objectContaining({ explanation: '' }));
+    expect(downloads).toHaveLength(1);
+    expect(downloads[0]).toMatch(/^评审-质量-分析_\d{14}\.xlsx$/);
 
     click.mockRestore();
   });

@@ -1,8 +1,9 @@
 import type { EChartsOption } from 'echarts';
-import { BiChart, type BiChartRenderContext, type BiChartSize } from '../BiChart';
+import { BiChart, type BiChartRenderContext, type BiChartSize, type BiExcelTableData } from '../BiChart';
 import type { TestAttainmentRow } from '../chart-data';
 import { BI_PALETTE, readableTextColor } from '../palette';
 import { callbackDataIndex } from '../formatters';
+import { excelAchieved, excelPercent } from '../excel-format';
 
 export class TestQualityAttainmentChart extends BiChart<TestAttainmentRow[]> {
   readonly templateId = 'test-quality-attainment' as const;
@@ -13,6 +14,20 @@ export class TestQualityAttainmentChart extends BiChart<TestAttainmentRow[]> {
 
   exportSize(data: TestAttainmentRow[]): BiChartSize {
     return this.horizontalExportSize(data.length);
+  }
+
+  excelTable(data: TestAttainmentRow[]): BiExcelTableData {
+    return {
+      headers: ['模块/功能名称', '通过率 (%)', '目标通过率 (%)', '达标状态', '达标/通过数', '统计/执行总数'],
+      rows: data.map((item) => [
+        item.name,
+        excelPercent(item.passRate, 1),
+        excelPercent(item.targetRate, 1),
+        excelAchieved(item.achieved),
+        item.counts?.attained ?? '--',
+        item.counts?.total ?? '--',
+      ]),
+    };
   }
 
   build(data: TestAttainmentRow[], context: BiChartRenderContext): EChartsOption {

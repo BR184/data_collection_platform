@@ -58,6 +58,12 @@ const selectedVersionId = computed<number | null>(() => {
   const value = Number(route.query.productVersionId);
   return Number.isSafeInteger(value) && value > 0 ? value : null;
 });
+// 导出 Excel/PNG 时需要可读的产品版本名（而非稳定 ID），从已加载的版本目录按当前选中 ID 取显示名。
+const productVersionName = computed<string>(() => {
+  const id = selectedVersionId.value;
+  if (id == null || !catalog.value) return '';
+  return catalog.value.versions.find((item) => item.id === id)?.displayName ?? '';
+});
 const codingFilters = computed<BiCodingQuery>(() => ({
   granularity: route.query.granularity === 'week' ? 'week' : 'day',
   source: route.query.source === 'cc' || route.query.source === 'dgm' ? route.query.source : 'all',
@@ -237,6 +243,7 @@ onMounted(() => {
       v-else-if="reviewResponse"
       :response="reviewResponse"
       :product-version-id="selectedVersionId!"
+      :product-version-name="productVersionName"
       :page-key="stage.pageKey"
       :stage-label="stage.stageName"
     />
@@ -244,16 +251,18 @@ onMounted(() => {
       v-else-if="codingResponse"
       :response="codingResponse"
       :product-version-id="selectedVersionId!"
+      :product-version-name="productVersionName"
       :granularity="codingFilters.granularity"
     />
     <TestQualityStageContent
       v-else-if="testResponse"
       :response="testResponse"
       :product-version-id="selectedVersionId!"
+      :product-version-name="productVersionName"
       :page-key="stage.pageKey"
       :stage-label="stage.stageName"
     />
-    <SystemTestStageContent v-else-if="systemResponse" :response="systemResponse" :product-version-id="selectedVersionId!" />
+    <SystemTestStageContent v-else-if="systemResponse" :response="systemResponse" :product-version-id="selectedVersionId!" :product-version-name="productVersionName" />
 
     <el-empty v-else-if="!loadingVersions" description="当前没有可展示的 BI 数据" />
   </main>

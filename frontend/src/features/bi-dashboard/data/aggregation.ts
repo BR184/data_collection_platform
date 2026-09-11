@@ -1,4 +1,4 @@
-import type { CodingTrendData, NamedValue, SubmissionTrendData } from '../charts/chart-data';
+import type { CodingTrendData, SubmissionTrendData } from '../charts/chart-data';
 
 /**
  * 计算给定 ISO 日期字符串（YYYY-MM-DD）所在周的周一对应日期。
@@ -81,23 +81,4 @@ export function aggregateSubmissionTrendByWeek(daily: SubmissionTrendData): Subm
   }
 
   return { periods, commits, mergeRequests };
-}
-
-/**
- * 将日级提交频次聚合为周级。
- * 保持时间升序，name 为周一日期字符串，value 为当周提交总频次。
- */
-export function aggregateFrequenciesByWeek(daily: NamedValue[]): NamedValue[] {
-  if (!daily || daily.length === 0) return [];
-  const weeklyMap = new Map<string, number>();
-  for (const item of daily) {
-    const monday = getMondayOfWeek(item.name);
-    weeklyMap.set(monday, (weeklyMap.get(monday) ?? 0) + (item.value ?? 0));
-  }
-
-  const periods = Array.from(weeklyMap.keys()).sort();
-  return periods.map((monday) => ({
-    name: monday,
-    value: weeklyMap.get(monday) ?? 0,
-  }));
 }

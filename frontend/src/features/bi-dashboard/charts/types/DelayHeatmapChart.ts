@@ -1,5 +1,5 @@
 import type { EChartsOption } from 'echarts';
-import { BiChart, type BiChartRenderContext, type BiChartSize } from '../BiChart';
+import { BiChart, type BiChartRenderContext, type BiChartSize, type BiExcelTableData } from '../BiChart';
 import type { DelayHeatmapData } from '../chart-data';
 import { BI_PALETTE } from '../palette';
 import { callbackTupleValue } from '../formatters';
@@ -13,6 +13,18 @@ export class DelayHeatmapChart extends BiChart<DelayHeatmapData> {
 
   exportSize(data: DelayHeatmapData): BiChartSize {
     return { width: Math.max(1200, data.severities.length * 150 + 260), height: Math.max(620, data.reasons.length * 48 + 180) };
+  }
+
+  excelTable(data: DelayHeatmapData): BiExcelTableData {
+    // 热力元组为 [严重级别索引, 原因索引, 延期缺陷数]，与图表 xAxis=严重级别、yAxis=原因一致。
+    return {
+      headers: ['原因分类', '缺陷级别', '延期缺陷数'],
+      rows: data.values.map(([severityIndex, reasonIndex, count]) => [
+        data.reasons[reasonIndex] ?? '',
+        data.severities[severityIndex] ?? '',
+        count,
+      ]),
+    };
   }
 
   build(data: DelayHeatmapData, _context: BiChartRenderContext): EChartsOption {

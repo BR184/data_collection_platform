@@ -14,7 +14,7 @@ public final class BiDownloadAuthorizationService {
       "design", Set.of("distribution-donut", "review-quality-dual-panel", "review-quality-scatter"),
       "coding", Set.of(
           "vertical-category-bar", "coding-trend-combo", "submission-trend-combo",
-          "submission-frequency-bar", "distribution-donut", "stacked-category-bar",
+          "distribution-donut", "stacked-category-bar",
           "review-quality-dual-panel", "review-quality-scatter", "quality-trend-small-multiples"),
       "unit-test", Set.of("test-quality-attainment"),
       "integration-test", Set.of("test-quality-attainment"),
@@ -46,7 +46,7 @@ public final class BiDownloadAuthorizationService {
     try {
       String current = sourceVersionPort.current(request.pageKey(), scope);
       if (!request.sourceVersion().equals(current)) {
-        throw new BizException("页面已有新数据，请刷新整页后再下载 PNG");
+        throw new BizException("页面已有新数据，请刷新整页后再下载");
       }
     } catch (BiCatContractUnavailableException unavailable) {
       throw new BizException(unavailable.getMessage() + "，当前页面不能下载");

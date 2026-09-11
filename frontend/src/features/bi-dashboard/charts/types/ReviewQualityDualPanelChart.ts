@@ -1,8 +1,9 @@
 import type { EChartsOption } from 'echarts';
-import { BiChart, type BiChartRenderContext, type BiChartSize } from '../BiChart';
+import { BiChart, type BiChartRenderContext, type BiChartSize, type BiExcelTableData } from '../BiChart';
 import type { ReviewQualityRow } from '../chart-data';
 import { BI_PALETTE } from '../palette';
 import { buildAdaptiveValueAxis } from '../adaptive-value-axis';
+import { excelAchieved } from '../excel-format';
 
 export interface ReviewQualityChartConfig {
   densityRange: readonly [number, number];
@@ -23,6 +24,30 @@ export class ReviewQualityDualPanelChart extends BiChart<ReviewQualityRow[]> {
 
   exportSize(data: ReviewQualityRow[]): BiChartSize {
     return this.horizontalExportSize(data.length);
+  }
+
+  excelTable(data: ReviewQualityRow[]): BiExcelTableData {
+    const hasAddedLines = data.some((item) => item.addedLines != null);
+    const headers = ['模块名称', `缺陷密度 (${this.config.densityUnit})`, `评审速率 (${this.config.rateUnit})`];
+    if (hasAddedLines) {
+      headers.push('新增代码量 (行)');
+    }
+    headers.push('达标状态');
+    return {
+      headers,
+      rows: data.map((item) => {
+        const row: (string | number)[] = [
+          item.name,
+          item.density ?? '--',
+          item.rate ?? '--',
+        ];
+        if (hasAddedLines) {
+          row.push(item.addedLines ?? '--');
+        }
+        row.push(excelAchieved(item.achieved));
+        return row;
+      }),
+    };
   }
 
   build(data: ReviewQualityRow[], context: BiChartRenderContext): EChartsOption {
@@ -50,7 +75,9 @@ export class ReviewQualityDualPanelChart extends BiChart<ReviewQualityRow[]> {
         trigger: 'item',
         formatter: (params: unknown) => {
           const item = data[Number((params as { dataIndex?: number }).dataIndex ?? 0)];
-          return item ? `${item.name}<br/>缺陷密度：${formatValue(item.density)} ${this.config.densityUnit}<br/>评审速率：${formatValue(item.rate)} ${this.config.rateUnit}` : '';
+          if (!item) return '';
+          const addedLinesText = item.addedLines != null ? `<br/>新增代码：${item.addedLines.toLocaleString()} 行` : '';
+          return `${item.name}<br/>缺陷密度：${formatValue(item.density)} ${this.config.densityUnit}<br/>评审速率：${formatValue(item.rate)} ${this.config.rateUnit}${addedLinesText}`;
         },
       },
       xAxis: [

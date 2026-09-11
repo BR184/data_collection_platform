@@ -4,7 +4,7 @@ import type {
   CustomSeriesRenderItemReturn,
   EChartsOption,
 } from 'echarts';
-import { BiChart, type BiChartRenderContext, type BiChartSize } from '../BiChart';
+import { BiChart, type BiChartRenderContext, type BiChartSize, type BiExcelTableData } from '../BiChart';
 import type { DeveloperWorkloadRow } from '../chart-data';
 import { BI_PALETTE } from '../palette';
 
@@ -19,6 +19,16 @@ export class DeveloperWorkloadChart extends BiChart<DeveloperWorkloadRow[]> {
 
   exportSize(data: DeveloperWorkloadRow[]): BiChartSize {
     return this.verticalExportSize(data.length);
+  }
+
+  excelTable(data: DeveloperWorkloadRow[]): BiExcelTableData {
+    return {
+      headers: ['指派责任人', '缺陷总数', '已修复缺陷数', '待修复缺陷数', '修复率 (%)'],
+      rows: data.map((item) => {
+        const fixRate = item.total > 0 ? Number(((item.fixed / item.total) * 100).toFixed(1)) : 100;
+        return [item.name, item.total, item.fixed, item.open, fixRate];
+      }),
+    };
   }
 
   build(data: DeveloperWorkloadRow[], context: BiChartRenderContext): EChartsOption {

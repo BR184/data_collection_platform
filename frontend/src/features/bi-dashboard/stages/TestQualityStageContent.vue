@@ -5,12 +5,15 @@ import type { TestAttainmentRow } from '../charts/chart-data';
 import BiChartPanel from '../components/BiChartPanel.vue';
 import type { BiSortOrder } from '../components/BiChartSortControl.vue';
 import BiMetricStrip, { type BiMetricItem } from '../components/BiMetricStrip.vue';
+import { BI_CHART_EXPLANATIONS } from '../data/chart-explanations';
 import { formatNumber, formatPercent, metricStatus, sectionPresentation } from '../data/presentation';
+import { compareNumericNullsLast } from '../../../utils/missing-value-sorting';
 import type { BiPageKey, BiPageResponse, BiTestAttainment, BiTestQualityPageData } from '../data/types';
 
 const props = defineProps({
   response: { type: Object as PropType<BiPageResponse<BiTestQualityPageData>>, required: true },
   productVersionId: { type: Number, required: true },
+  productVersionName: { type: String, required: true },
   stageLabel: { type: String, required: true },
   pageKey: { type: String as PropType<BiPageKey>, required: true },
 });
@@ -89,25 +92,22 @@ watch(allModules, (value) => {
 function sortTestRows(sortBy: string, order: BiSortOrder) {
   return (left: TestAttainmentRow, right: TestAttainmentRow): number => {
     if (sortBy === 'rate') {
-      const cmp = (left.passRate ?? 101) - (right.passRate ?? 101);
-      return order === 'asc' ? cmp : -cmp;
+      return compareNumericNullsLast(left.passRate, right.passRate, order);
     }
     if (sortBy === 'total') {
-      const cmp = (left.counts?.total ?? 0) - (right.counts?.total ?? 0);
-      return order === 'asc' ? cmp : -cmp;
+      return compareNumericNullsLast(left.counts?.total, right.counts?.total, order);
     }
     if (sortBy === 'attained') {
-      const cmp = (left.counts?.attained ?? 0) - (right.counts?.attained ?? 0);
-      return order === 'asc' ? cmp : -cmp;
+      return compareNumericNullsLast(left.counts?.attained, right.counts?.attained, order);
     }
     if (sortBy === 'name') {
       const cmp = left.name.localeCompare(right.name, 'zh-CN');
       return order === 'asc' ? cmp : -cmp;
     }
+    // 默认异常优先，再按通过率；CAT 未提供通过率或计数的模块恒置底，不随方向翻到顶部。
     const statusCmp = Number(left.achieved ?? true) - Number(right.achieved ?? true);
     if (statusCmp !== 0) return statusCmp;
-    const cmp = (left.passRate ?? 101) - (right.passRate ?? 101);
-    return order === 'asc' ? cmp : -cmp;
+    return compareNumericNullsLast(left.passRate, right.passRate, order);
   };
 }
 
@@ -139,6 +139,7 @@ function selectModuleFromChart(event: { dataIndex: number }): void {
       <BiChartPanel
         :title="`各模块${stageLabel}达标情况`"
         subtitle="按模块比较通过率、目标线和达标功能 / 统计功能；点击模块定位下方功能"
+        :description="BI_CHART_EXPLANATIONS.testQualityAttainment"
         :chart="chart"
         :data="modules"
         :height="520"
@@ -147,6 +148,7 @@ function selectModuleFromChart(event: { dataIndex: number }): void {
         :status="sectionPresentation(response, 'test-quality').status"
         :status-message="sectionPresentation(response, 'test-quality').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         :page-key="pageKey"
         :source-version="response.sourceVersion"
         v-model:sort="moduleSort"
@@ -157,6 +159,7 @@ function selectModuleFromChart(event: { dataIndex: number }): void {
       <BiChartPanel
         :title="selectedModuleId ? '模块下功能达标情况' : '功能达标情况'"
         :subtitle="selectedModuleId ? `当前模块：${allModules.find((item) => item.id === selectedModuleId)?.name ?? ''}` : '选择模块后查看功能级数据'"
+        :description="BI_CHART_EXPLANATIONS.testQualityExecution"
         :chart="chart"
         :data="functions"
         :height="430"
@@ -165,6 +168,7 @@ function selectModuleFromChart(event: { dataIndex: number }): void {
         :status="sectionPresentation(response, 'test-quality').status"
         :status-message="sectionPresentation(response, 'test-quality').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         :page-key="pageKey"
         :source-version="response.sourceVersion"
         v-model:sort="featureSort"

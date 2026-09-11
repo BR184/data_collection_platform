@@ -14,7 +14,6 @@ export type BiChartTemplateId =
   | 'stacked-category-bar'
   | 'coding-trend-combo'
   | 'submission-trend-combo'
-  | 'submission-frequency-bar'
   | 'overlay-category-bar'
   | 'developer-workload'
   | 'quality-round-track'

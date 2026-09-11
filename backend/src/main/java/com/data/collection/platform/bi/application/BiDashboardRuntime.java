@@ -9,4 +9,5 @@ public record BiDashboardRuntime(
     BiCatTestPageService unitTest,
     BiCatTestPageService integrationTest,
     BiSystemTestPageService systemTest,
-    BiDownloadAuthorizationService downloads) {}
+    BiDownloadAuthorizationService downloads,
+    BiExcelExportService excel) {}

@@ -15,6 +15,12 @@ export interface BiChartSize {
   height: number;
 }
 
+/** 图表导出为 Excel 数据表时的结构化表格：表头文本 + 数据行（单元格为文本或数值）。 */
+export interface BiExcelTableData {
+  headers: string[];
+  rows: Array<Array<string | number>>;
+}
+
 /** BI 图表类型的公共契约；具体类型类只实现自己的图形语义。 */
 export abstract class BiChart<TData> {
   // 每个具体图表必须声明稳定模板 ID，供页面绑定、下载授权和回归测试共同识别。
@@ -35,6 +41,15 @@ export abstract class BiChart<TData> {
   exportSize(_data: TData): BiChartSize {
     return { width: 1440, height: 720 };
   }
+
+  /**
+   * 把当前图表的强类型数据提取为可导出的 Excel 表格（表头 + 数据行）。
+   *
+   * 每个图表类基于自身数据结构与配置（如单位）实现，取代过去按 templateId 分支的脆弱提取；
+   * 因 templateId 与数据结构并非一一对应（多个图表可共用同一 templateId），只有图表类自身
+   * 才拥有所需的类型信息。前端只负责"导出哪些单元格"，后端负责序列化为标准 .xlsx。
+   */
+  abstract excelTable(data: TData): BiExcelTableData;
 
   protected baseOption(description: string): EChartsOption {
     // 公共视觉、无障碍和交互配置集中在基类，具体图表只补充自身 series/grid 等配置。

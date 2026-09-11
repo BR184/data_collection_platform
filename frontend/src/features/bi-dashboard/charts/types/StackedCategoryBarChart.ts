@@ -1,5 +1,5 @@
 import type { EChartsOption } from 'echarts';
-import { BiChart, type BiChartRenderContext, type BiChartSize } from '../BiChart';
+import { BiChart, type BiChartRenderContext, type BiChartSize, type BiExcelTableData } from '../BiChart';
 import type { CategorySeriesData } from '../chart-data';
 import { BI_SERIES_COLORS } from '../palette';
 
@@ -12,6 +12,16 @@ export class StackedCategoryBarChart extends BiChart<CategorySeriesData> {
 
   exportSize(data: CategorySeriesData): BiChartSize {
     return this.verticalExportSize(data.categories.length);
+  }
+
+  excelTable(data: CategorySeriesData): BiExcelTableData {
+    return {
+      headers: ['分类/模块', ...data.series.map((series) => series.name)],
+      rows: data.categories.map((category, index) => [
+        category,
+        ...data.series.map((series) => series.values[index] ?? 0),
+      ]),
+    };
   }
 
   build(data: CategorySeriesData, context: BiChartRenderContext): EChartsOption {

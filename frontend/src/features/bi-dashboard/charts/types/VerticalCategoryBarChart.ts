@@ -1,5 +1,5 @@
 import type { EChartsOption } from 'echarts';
-import { BiChart, type BiChartRenderContext, type BiChartSize } from '../BiChart';
+import { BiChart, type BiChartRenderContext, type BiChartSize, type BiExcelTableData } from '../BiChart';
 import type { NamedValue } from '../chart-data';
 import { BI_PALETTE, BI_SERIES_COLORS, readableTextColor } from '../palette';
 
@@ -12,6 +12,13 @@ export class VerticalCategoryBarChart extends BiChart<NamedValue[]> {
 
   exportSize(data: NamedValue[]): BiChartSize {
     return this.verticalExportSize(data.length);
+  }
+
+  excelTable(data: NamedValue[]): BiExcelTableData {
+    return {
+      headers: ['名称/人员/模块', '代码量 (行)'],
+      rows: data.map((item) => [item.name, item.value]),
+    };
   }
 
   build(data: NamedValue[], context: BiChartRenderContext): EChartsOption {

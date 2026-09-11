@@ -1,7 +1,8 @@
 import type { CustomSeriesRenderItemAPI, CustomSeriesRenderItemParams, CustomSeriesRenderItemReturn, EChartsOption } from 'echarts';
-import { BiChart, type BiChartRenderContext, type BiChartSize } from '../BiChart';
+import { BiChart, type BiChartRenderContext, type BiChartSize, type BiExcelTableData } from '../BiChart';
 import type { ModuleRepairRow } from '../chart-data';
 import { BI_PALETTE } from '../palette';
+import { excelPercent } from '../excel-format';
 
 export class ModuleRepairMatrixChart extends BiChart<ModuleRepairRow[]> {
   readonly templateId = 'module-repair-matrix' as const;
@@ -12,6 +13,21 @@ export class ModuleRepairMatrixChart extends BiChart<ModuleRepairRow[]> {
 
   exportSize(data: ModuleRepairRow[]): BiChartSize {
     return this.horizontalExportSize(data.length);
+  }
+
+  excelTable(data: ModuleRepairRow[]): BiExcelTableData {
+    return {
+      headers: ['模块名称', '遗留缺陷数 (个)', '累计缺陷数 (个)', '整体修复率 (%)', '一级缺陷修复率 (%)', 'P1修复率 (%)', 'P2修复率 (%)'],
+      rows: data.map((item) => [
+        item.name,
+        item.openCount ?? 0,
+        item.totalCount ?? 0,
+        excelPercent(item.fixRate, 1),
+        excelPercent(item.levelOneRate, 1),
+        excelPercent(item.p1Rate, 1),
+        excelPercent(item.p2Rate, 1),
+      ]),
+    };
   }
 
   build(data: ModuleRepairRow[], context: BiChartRenderContext): EChartsOption {

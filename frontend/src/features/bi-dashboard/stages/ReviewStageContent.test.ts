@@ -56,6 +56,7 @@ describe('ReviewStageContent height alignment', () => {
       props: {
         response,
         productVersionId: 11,
+        productVersionName: 'v1.0',
         stageLabel: '需求',
         pageKey: 'requirements',
       },

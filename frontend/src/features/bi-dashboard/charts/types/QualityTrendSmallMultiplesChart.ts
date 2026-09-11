@@ -1,8 +1,9 @@
 import type { EChartsOption } from 'echarts';
-import { BiChart, type BiChartRenderContext, type BiChartSize } from '../BiChart';
+import { BiChart, type BiChartRenderContext, type BiChartSize, type BiExcelTableData } from '../BiChart';
 import type { QualityTrendData } from '../chart-data';
 import { BI_PALETTE } from '../palette';
 import { buildAdaptiveValueAxis } from '../adaptive-value-axis';
+import { excelPercent } from '../excel-format';
 
 export class QualityTrendSmallMultiplesChart extends BiChart<QualityTrendData> {
   readonly templateId = 'quality-trend-small-multiples' as const;
@@ -13,6 +14,17 @@ export class QualityTrendSmallMultiplesChart extends BiChart<QualityTrendData> {
 
   exportSize(data: QualityTrendData): BiChartSize {
     return this.verticalExportSize(data.periods.length);
+  }
+
+  excelTable(data: QualityTrendData): BiExcelTableData {
+    return {
+      headers: ['统计周期', '代码注释率 (%)', '走查缺陷密度 (个/KLOC)'],
+      rows: data.periods.map((period, index) => [
+        period,
+        excelPercent(data.commentRates[index], 2),
+        data.defectDensities[index] ?? '--',
+      ]),
+    };
   }
 
   build(data: QualityTrendData, context: BiChartRenderContext): EChartsOption {

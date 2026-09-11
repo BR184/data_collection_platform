@@ -1,7 +1,8 @@
 import type { EChartsOption } from 'echarts';
-import { BiChart, type BiChartRenderContext, type BiChartRenderMode } from '../BiChart';
+import { BiChart, type BiChartRenderContext, type BiChartRenderMode, type BiExcelTableData } from '../BiChart';
 import { BI_PALETTE, BI_SERIES_COLORS } from '../palette';
 import type { NamedValue } from '../chart-data';
+import { excelSharePercent } from '../excel-format';
 
 export const PIE_MINOR_SHARE_THRESHOLD = 1;
 
@@ -39,6 +40,14 @@ export class DistributionDonutChart extends BiChart<NamedValue[]> {
 
   hasData(data: NamedValue[]): boolean {
     return data.some((item) => item.value > 0);
+  }
+
+  excelTable(data: NamedValue[]): BiExcelTableData {
+    const total = data.reduce((sum, item) => sum + (item.value ?? 0), 0);
+    return {
+      headers: ['分类名称', '数量', '占比 (%)'],
+      rows: data.map((item) => [item.name, item.value, excelSharePercent(item.value, total)]),
+    };
   }
 
   build(data: NamedValue[], context: BiChartRenderContext): EChartsOption {

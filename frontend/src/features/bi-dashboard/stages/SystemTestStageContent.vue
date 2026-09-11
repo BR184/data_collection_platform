@@ -16,14 +16,16 @@ import BiChartPanel from '../components/BiChartPanel.vue';
 import type { BiSortOrder } from '../components/BiChartSortControl.vue';
 import type { BiMetricItem } from '../components/BiMetricStrip.vue';
 import type { BiQualityTargetItem } from '../components/BiQualityTargetPanel.vue';
+import { BI_CHART_EXPLANATIONS } from '../data/chart-explanations';
 import { formatNumber, formatPercent, metricStatus, sectionPresentation, systemTestTargetLabel } from '../data/presentation';
-import { sortDeveloperWorkloadRows, sortNamedValues, sortRoundQualityRows } from '../data/sorting';
+import { sortDeveloperWorkloadRows, sortModuleRepairRows, sortNamedValues, sortRoundQualityRows } from '../data/sorting';
 import { buildDefectCauseBreakdownData, buildDelayHeatmapData } from '../data/system-test-presentation';
 import type { BiPageResponse, BiSystemTestPageData } from '../data/types';
 
 const props = defineProps({
   response: { type: Object as PropType<BiPageResponse<BiSystemTestPageData>>, required: true },
   productVersionId: { type: Number, required: true },
+  productVersionName: { type: String, required: true },
 });
 
 const roundChart = new QualityRoundTrackChart();
@@ -113,6 +115,7 @@ const overviewMetrics = computed<BiMetricItem[]>(() => {
 const rounds = computed<RoundQualityRow[]>(() => {
   const raw = (data.value?.rounds ?? []).map((item) => ({
     name: item.roundName,
+    order: item.roundOrder,
     levelOne: item.levelOneCount,
     levelTwo: item.levelTwoCount,
     levelThree: item.levelThreeCount,
@@ -132,36 +135,6 @@ const severity = computed<NamedValue[]>(() => {
     { name: '三级', value: value.levelThreeCount, color: BI_PALETTE.blue },
   ] : [];
   return sortNamedValues(raw, severitySort.value, severitySortOrder.value);
-});
-
-const visibleModules = computed(() => {
-  const rows = (data.value?.modules ?? []).slice().sort((left, right) => {
-    const order = repairSortOrder.value;
-    if (repairSort.value === 'open') {
-      const cmp = left.openCount - right.openCount;
-      return order === 'asc' ? cmp : -cmp || left.module.displayName.localeCompare(right.module.displayName, 'zh-CN');
-    }
-    if (repairSort.value === 'total') {
-      const cmp = left.totalCount - right.totalCount;
-      return order === 'asc' ? cmp : -cmp || left.module.displayName.localeCompare(right.module.displayName, 'zh-CN');
-    }
-    if (repairSort.value === 'rate') {
-      const cmp = (left.fixRate ?? 101) - (right.fixRate ?? 101);
-      return order === 'asc' ? cmp : -cmp || left.module.displayName.localeCompare(right.module.displayName, 'zh-CN');
-    }
-    if (repairSort.value === 'name') {
-      const cmp = left.module.displayName.localeCompare(right.module.displayName, 'zh-CN');
-      return order === 'asc' ? cmp : -cmp;
-    }
-    // 默认 status 异常优先
-    const achievedA = left.fixRate != null && left.fixRate >= 0.95;
-    const achievedB = right.fixRate != null && right.fixRate >= 0.95;
-    const statusCmp = Number(achievedA) - Number(achievedB);
-    if (statusCmp !== 0) return statusCmp;
-    const cmp = (left.fixRate ?? 101) - (right.fixRate ?? 101);
-    return order === 'asc' ? cmp : -cmp;
-  });
-  return rows;
 });
 
 const moduleSeverity = computed<CategorySeriesData>(() => {
@@ -188,15 +161,20 @@ const moduleSeverity = computed<CategorySeriesData>(() => {
   };
 });
 
-const repair = computed<ModuleRepairRow[]>(() => visibleModules.value.map((item) => ({
-  name: item.module.displayName,
-  fixRate: item.fixRate,
-  levelOneRate: item.levelOneFixRate,
-  p1Rate: item.p1FixRate,
-  p2Rate: item.p2FixRate,
-  openCount: item.openCount,
-  totalCount: item.totalCount,
-})));
+// 先映射为图表行，再交由 sorting.ts 的唯一权威比较器排序，避免页面内联一份会漂移的副本。
+const repair = computed<ModuleRepairRow[]>(() => sortModuleRepairRows(
+  (data.value?.modules ?? []).map((item) => ({
+    name: item.module.displayName,
+    fixRate: item.fixRate,
+    levelOneRate: item.levelOneFixRate,
+    p1Rate: item.p1FixRate,
+    p2Rate: item.p2FixRate,
+    openCount: item.openCount,
+    totalCount: item.totalCount,
+  })),
+  repairSort.value,
+  repairSortOrder.value,
+));
 
 const overlay = computed<OverlayBarRow[]>(() => {
   const rows = (data.value?.modules ?? []).slice().sort((left, right) => {
@@ -283,6 +261,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
     <div class="bi-charts-grid">
       <BiChartPanel
         title="系统测试各轮次缺陷修复情况"
+        :description="BI_CHART_EXPLANATIONS.systemTestRounds"
         :chart="roundChart"
         :data="rounds"
         :height="272"
@@ -291,6 +270,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         :status="sectionPresentation(response, 'round-quality').status"
         :status-message="sectionPresentation(response, 'round-quality').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="system-test"
         :source-version="response.sourceVersion"
         v-model:sort="roundSort"
@@ -299,6 +279,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
       />
       <BiChartPanel
         title="缺陷严重度分布"
+        :description="BI_CHART_EXPLANATIONS.systemTestSeverityDistribution"
         :chart="donutChart"
         :data="severity"
         :height="272"
@@ -307,6 +288,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         :status="sectionPresentation(response, 'severity-distribution').status"
         :status-message="sectionPresentation(response, 'severity-distribution').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="system-test"
         :source-version="response.sourceVersion"
         v-model:sort="severitySort"
@@ -316,6 +298,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
 
       <BiChartPanel
         title="各模块系统测试修复率达成情况"
+        :description="BI_CHART_EXPLANATIONS.systemTestModuleRepair"
         :chart="repairChart"
         :data="repair"
         :height="430"
@@ -324,6 +307,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         :status="sectionPresentation(response, 'module-repair-targets').status"
         :status-message="sectionPresentation(response, 'module-repair-targets').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="system-test"
         :source-version="response.sourceVersion"
         v-model:sort="repairSort"
@@ -332,6 +316,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
       />
       <BiChartPanel
         title="系统测试缺陷延期情况"
+        :description="BI_CHART_EXPLANATIONS.systemTestDelayAnalysis"
         :chart="delayChart"
         :data="delay"
         :height="430"
@@ -340,12 +325,14 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         :status="sectionPresentation(response, 'delay-analysis').status"
         :status-message="sectionPresentation(response, 'delay-analysis').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="system-test"
         :source-version="response.sourceVersion"
       />
 
       <BiChartPanel
         title="各模块缺陷级别"
+        :description="BI_CHART_EXPLANATIONS.systemTestModuleSeverity"
         :chart="stackedChart"
         :data="moduleSeverity"
         :height="430"
@@ -354,6 +341,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         :status="sectionPresentation(response, 'module-quality').status"
         :status-message="sectionPresentation(response, 'module-quality').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="system-test"
         :source-version="response.sourceVersion"
         v-model:sort="moduleSeveritySort"
@@ -362,6 +350,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
       />
       <BiChartPanel
         title="各模块累计发现与当前未修复缺陷对比"
+        :description="BI_CHART_EXPLANATIONS.systemTestModuleOverlay"
         :chart="overlayChart"
         :data="overlay"
         :height="430"
@@ -370,6 +359,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         :status="sectionPresentation(response, 'module-quality').status"
         :status-message="sectionPresentation(response, 'module-quality').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="system-test"
         :source-version="response.sourceVersion"
         v-model:sort="overlaySort"
@@ -380,6 +370,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
       <BiChartPanel
         class="bi-cause-chart-panel"
         title="系统测试缺陷原因大类分布"
+        :description="BI_CHART_EXPLANATIONS.systemTestCauseDistribution"
         :chart="donutChart"
         :data="causeCategories"
         :height="causeChartHeight"
@@ -388,6 +379,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         :status="sectionPresentation(response, 'cause-distribution').status"
         :status-message="sectionPresentation(response, 'cause-distribution').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="system-test"
         :source-version="response.sourceVersion"
         v-model:sort="causeCategorySort"
@@ -397,6 +389,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
       <BiChartPanel
         class="bi-cause-chart-panel"
         title="系统测试缺陷原因子类分布"
+        :description="BI_CHART_EXPLANATIONS.systemTestCauseSubcategories"
         :chart="causeBreakdownChart"
         :data="causeSubcategories"
         :height="causeChartHeight"
@@ -405,12 +398,14 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         :status="sectionPresentation(response, 'cause-distribution').status"
         :status-message="sectionPresentation(response, 'cause-distribution').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="system-test"
         :source-version="response.sourceVersion"
       />
 
       <BiChartPanel
         title="按指派人统计缺陷数"
+        :description="BI_CHART_EXPLANATIONS.systemTestDeveloperWorkload"
         :chart="developerChart"
         :data="developers"
         :height="430"
@@ -419,6 +414,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         :status="sectionPresentation(response, 'developer-workload').status"
         :status-message="sectionPresentation(response, 'developer-workload').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="system-test"
         :source-version="response.sourceVersion"
         v-model:sort="developerSort"

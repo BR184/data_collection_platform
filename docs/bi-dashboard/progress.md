@@ -2,6 +2,27 @@
 
 ## 当前状态
 
+- 当前阶段：2026-09-10，已完成 BI 看板实测反馈修复与全看板图表业务说明落地（v1.0 十项修复 + v2.0 复核修正），计划 `docs/plans/bi-dashboard-feedback-and-fixes-comprehensive-20260910.md`：
+  ① 图表下载菜单被 `el-tooltip` 包层拦截、编码页切换粒度跳顶、系统测试顶部 7 指标双行、饼图高度未对齐、趋势粒度跨图联动、Tooltip 缺新增代码量等 8 项前端修复已闭环（详见计划 3.1~3.7）；
+  ② 系统测试轮次自然排序：`sorting.ts` 的 `parseRoundOrder` 优先使用后端 `roundOrder` 整数，兜底解析中文/数字轮次名（回归测试固定沉底）；
+  ③ 模块修复率排序（v2.0 按证据修正 v1.0 错误前提）：达标阈值由 `>= 0.95` 纠正为 `>= 95`；`BiSystemTestCalculator.modules()` 只包含已发现缺陷的模块，`fixRate` 永不因“无缺陷”为 `null`，因此 **0% 严格等于“有缺陷且全部未修复”＝最高风险**，不得置底；置底仅限真正不可计算的 `null` 且只在默认 `status`（异常优先）维度生效，用户显式选 `open`/`total`/`rate`/`name` 时不干预排序；同时删除 `SystemTestStageContent.vue` 中与 `sorting.ts` 已漂移的内联比较器副本，收敛为单一权威实现 `sortModuleRepairRows`（消除“测试只护住死代码”的虚假防护网）；
+  ④ 全看板图表业务说明问号 Tooltip：字典 `chart-explanations.ts` 共 **26 条词条 / 23 个卡片实例**（需求与设计评审共用同一组卡片位，故不是“21 个图表”），全部已接线；`BiChartPanel.vue` 的 `description` 走深色 `el-tooltip` + `<QuestionFilled />`（静置 `#94a3b8`、悬停 `#475467`）；Element Plus popper 被 teleport 到 `body`，所以 `max-width: 320px`、`line-height: 1.6`、`word-break` 必须写在**非 scoped `<style>` 块**的 `.bi-chart-panel__tooltip.el-popper` 上（v1.0 只写了 `popper-class`、样式全库不存在）；
+  ⑤ “代码提交频次时间分布”图表已按用户确认**彻底下线**（v1.0 仅删卡片，残留死代码已于 v2.0 清零）：图表类 `SubmissionFrequencyBarChart.ts`、`types/index.ts` 导出、`data/types.ts` 联合类型成员、`aggregateFrequenciesByWeek` 及其用例、后端 `BiDownloadAuthorizationService.PAGE_TEMPLATES.coding` 条目全部删除，并同步修正两处图表清单测试计数与 `docs/bi-dashboard/product.md`、`architecture.md` 中的频次图表条目；全库 `SubmissionFrequency`/`submission-frequency-bar` 零引用；
+  ⑥ Excel 导出增补口径说明行（D4）：前端 `BiChartExportRequest.description` 透传至 `biDashboardApi.exportExcel` 的 `explanation` 字段（无词条时传空串），后端 `BiExcelExportRequest.explanation` 可空，`BiExcelExportService` 在元信息行下写“口径说明：…”，表头/数据/冻结行索引由游标推导（无说明 4 行、有说明 5 行），空白说明不占行以免行索引漂移；
+  ⑦ 本单元另需的两项后端最小改动：解除并行统计看板工作流造成的 2 处 `int`→`Long` 编译阻塞（`CustomerIssueByFunctionBoardService`、`CustomerIssueResponseEfficiencyBoardService` 的纯文本单元格的 `numericValue` 改为 `0L` 并加注释）；以上后端改动已作为“纯前端闭环”原则的显式例外记录在同一计划的 1.2；
+  ⑧ 调研结论（未改生产代码）：静态代码扫描图因量纲堆叠硬伤建议下线或待接入真实分级数据后重建；“按指派人统计缺陷数”的按模块/组织查看经实证 **DTO 无“人×模块”交叉明细，纯前端筛选不可行**，必须合并为单一后端供数任务。
+  ⑨ 浏览器真实界面验收（2026-09-11，登录具备 `bi.dashboard.view` 权限的账号访问 18181）四项均通过：编码页 9 张卡片确认无“代码提交频次时间分布”且 9/9 带问号；最长词条悬停实测 popper `width=320`、视觉折行 4 行（非 scoped 样式已在 teleport 到 body 的 popper 上命中）；含 3 个 0% 模块的 CC2026R2 在默认“异常优先”下 0% 模块均位列前 3，切“未修复数降序”时完全由该维度决定；真实下载的 `.xlsx` 解压确认行 1 标题、行 2 版本与导出时间、**行 3 “口径说明：…”**、行 5 表头、行 6 起数据与 `ySplit=5` 冻结，数值保持百分量纲（16.9 而非 1690）。
+  ⑩ 验收带出的两项待裁定/待记录事实：其一，“异常优先”维度切到**降序**时未达标组仍在前、组内按修复率从高到低重排，0%（最危险）模块因此落在组末尾，当前实现把该维度定义为“分组而非方向”并已用单测固定，是否符合领导预期待裁定；其二，前端 `api-client/request.ts` 的 `waitForProgressFirstPaint` 在发请求前 `await requestAnimationFrame`，在隐藏/最小化窗口下 rAF 永不触发使 BI 页永停“加载中”——属平台请求层通用耦合（非 BI 专属），影响一切 headless/隐藏窗自动验收，本次只记录不改。
+- 当前阶段：2026-09-10，已完成 BI 看板“导出 Excel 数据表”从前端伪 `.xlsx` 到后端标准 OOXML 的完善改造，并修复调查中暴露的既有缺陷：
+  ① 职责重划——前端把表格提取下沉为 `BiChart<TData>` 抽象方法 `excelTable()`，图表类各自用强类型数据与配置实现（本轮下线频次图后为 15 个），彻底删除 `switch(templateId) + as 强断言` 脆弱提取、死代码与本地 XML Spreadsheet 2003 拼接；后端新增无状态 `BiExcelExportService`（延迟 Runtime、Factory 装配），用 Apache POI `XSSFWorkbook` 产出真正的标准 `.xlsx`（`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`），复用平台 `ExcelExportStyles` 与 `DownloadResponseHeaders`；
+  ② 修复 `DefectCauseBreakdownChart`（与垂直柱状图共用 `vertical-category-bar` 模板但数据为对象）导出即崩溃——旧代码把对象当 `NamedValue[]` 调 `.map()`，现按大类/子类/缺陷数/占比展开并含未归类行；
+  ③ 修复评审质量双面板/散点图表头单位写死“个/页”“页/小时”，改取图表自身 `config.densityUnit/rateUnit`（编码页实为 `个/KLOC`、`行/小时`、`KLOC/小时`）；
+  ④ 修复比率类字段（修复率、通过率、关闭率、注释率）二次乘 100 导致“9500%”——这些字段在页面数据中已是百分数（0-100），`excelTable()` 原样忠实呈现图表口径；
+  ⑤ 修复延期热力图元组索引反转——按 `[严重级别索引, 原因索引, 数量]` 与图表 xAxis/yAxis 一致地映射为“原因 × 级别”；
+  ⑥ 补齐 `productVersionName` 从 `BiDashboardView` 经四个阶段内容组件透传至全部 23 个 `BiChartPanel`，元信息不再回退成 `Version-{id}`；
+  ⑦ Excel 端点 `POST /api/bi/download/excel` 内部复用与 PNG 完全相同的下载授权门（`BiDownloadAuthorizationService`），授权提示措辞由“PNG”泛化为通用下载，`@RequirePermission` 查看 + 下载双权限 `requireAll`。黄金基线覆盖护栏**不豁免** `bi.api`：并行工作流已将 `GoldenBaselineCoverageGuardTest` 扩展为同时扫描 `controller` 与 `bi.api`，BI 的 7 个页面/版本 GET 已登记为 READ（遮 `generatedAt`/`sourceVersion`/`snapshotId` 三个墙钟字段），`POST /api/bi/download/authorize` 与 `POST /api/bi/download/excel` 因必须携带页面当前 `sourceVersion` 指纹而登记为 EXCLUDED（chain-dependency）。
+  同时修复既有验证门禁红灯：`scripts/check_api_contract_drift.py` 后端扫描器由单一 `controller` 包扩展为递归扫描平台全部 `@RestController`（含 `bi.api`），6 个 BI 页面路径不再被误判 `MISSING_BACKEND`。
+  验证（2026-09-10 本单元收尾时复跑，涵盖同日统计看板并行单元）：`check_api_contract_drift.py` 0 missing（backend_paths=175、frontend_paths=87）、`check_frontend_api_boundary.py`、`check_worktree_artifacts.py`、`check_runtime_artifact_locations.py`、`check_text_whitespace.py` 与 `git diff --check` 均通过；后端默认套件 287 个测试类 1342 项全绿（0 失败 0 错误 1 跳过，含已覆盖 `bi.api` 的黄金基线覆盖护栏），BI 包定向 109 项全绿（含 `BiExcelExportServiceTest` 6 项、`BiDashboardControllerExcelExportTest` 2 项），SpotBugs 0 发现，BI 代码 Checkstyle 0 违规（仓库仅剩 `backup` 模块 7 处既有未用 import，与本单元无关）；前端 ESLint、TypeScript 0 错误，全量 133 个测试文件 519 项单测通过，生产构建成功；本地开发服务已重启至当前代码并验证 `http://127.0.0.1:18080/actuator/health` 为 UP、18181 可访问；2026-09-11 另已用登录账号在真实浏览器完成 Excel 下载验收（解压核对标题/版本行/口径说明行/表头行/冻结 5 行与百分量纲数值）。
 - 当前阶段：2026-09-09，已完成实测反馈的两轮共 6 项前端体验与功能缺陷修复：
   ① 修复图表卡片下载按钮因 Element Plus `el-tooltip` 内部嵌套阻断点击事件而无法弹出的问题，调整触发器结构并增加清晰的状态提示；
   ② 修复全局路由 `scrollBehavior` 在同页面 query 变更时强制 `{ top: 0 }` 导致切换跳顶的问题，并在视图层增加滚动位置记忆保护；

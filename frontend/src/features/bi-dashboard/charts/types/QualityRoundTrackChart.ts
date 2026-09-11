@@ -1,8 +1,9 @@
 import type { EChartsOption } from 'echarts';
-import { BiChart, type BiChartRenderContext, type BiChartSize } from '../BiChart';
+import { BiChart, type BiChartRenderContext, type BiChartSize, type BiExcelTableData } from '../BiChart';
 import type { RoundQualityRow } from '../chart-data';
 import { BI_PALETTE, readableTextColor } from '../palette';
 import { callbackDataIndex, callbackNumericValue } from '../formatters';
+import { excelPercent } from '../excel-format';
 
 export class QualityRoundTrackChart extends BiChart<RoundQualityRow[]> {
   readonly templateId = 'quality-round-track' as const;
@@ -13,6 +14,22 @@ export class QualityRoundTrackChart extends BiChart<RoundQualityRow[]> {
 
   exportSize(data: RoundQualityRow[]): BiChartSize {
     return this.horizontalExportSize(data.length);
+  }
+
+  excelTable(data: RoundQualityRow[]): BiExcelTableData {
+    return {
+      headers: ['测试轮次', '提交缺陷总数', '已关闭数', '未关闭数', '关闭率 (%)', '一级缺陷', '二级缺陷', '三级缺陷'],
+      rows: data.map((item) => [
+        item.name,
+        item.submitted,
+        item.closed,
+        item.open,
+        excelPercent(item.closeRate, 1),
+        item.levelOne,
+        item.levelTwo,
+        item.levelThree,
+      ]),
+    };
   }
 
   build(data: RoundQualityRow[], context: BiChartRenderContext): EChartsOption {

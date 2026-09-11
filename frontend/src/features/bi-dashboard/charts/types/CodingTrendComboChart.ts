@@ -1,5 +1,5 @@
 import type { EChartsOption } from 'echarts';
-import { BiChart, type BiChartRenderContext, type BiChartSize } from '../BiChart';
+import { BiChart, type BiChartRenderContext, type BiChartSize, type BiExcelTableData } from '../BiChart';
 import type { CodingTrendData } from '../chart-data';
 import { BI_PALETTE } from '../palette';
 
@@ -12,6 +12,17 @@ export class CodingTrendComboChart extends BiChart<CodingTrendData> {
 
   exportSize(data: CodingTrendData): BiChartSize {
     return this.verticalExportSize(data.periods.length);
+  }
+
+  excelTable(data: CodingTrendData): BiExcelTableData {
+    return {
+      headers: ['统计周期', '周期新增代码量 (行)', '累计代码量 (行)'],
+      rows: data.periods.map((period, index) => [
+        period,
+        data.addedLines[index] ?? 0,
+        data.cumulativeLines[index] ?? 0,
+      ]),
+    };
   }
 
   build(data: CodingTrendData, context: BiChartRenderContext): EChartsOption {

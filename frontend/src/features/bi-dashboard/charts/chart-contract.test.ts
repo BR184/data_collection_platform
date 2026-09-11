@@ -13,7 +13,6 @@ import {
   ReviewQualityDualPanelChart,
   ReviewQualityScatterChart,
   StackedCategoryBarChart,
-  SubmissionFrequencyBarChart,
   SubmissionTrendComboChart,
   TestQualityAttainmentChart,
   VerticalCategoryBarChart,
@@ -28,7 +27,6 @@ describe('BI chart type contract', () => {
       new StackedCategoryBarChart(),
       new CodingTrendComboChart(),
       new SubmissionTrendComboChart(),
-      new SubmissionFrequencyBarChart(),
       new OverlayCategoryBarChart(),
       new DeveloperWorkloadChart(),
       new QualityRoundTrackChart(),
@@ -40,7 +38,8 @@ describe('BI chart type contract', () => {
       new DelayHeatmapChart(),
     ];
 
-    expect(new Set(charts.map((chart) => chart.templateId)).size).toBe(15);
+    // 15 个图表类共用 14 个模板 ID：缺陷原因子类分布与分类柱状图共用 vertical-category-bar。
+    expect(new Set(charts.map((chart) => chart.templateId)).size).toBe(14);
   });
 
   it('chooses contrasting label colors for dark and light fills', () => {

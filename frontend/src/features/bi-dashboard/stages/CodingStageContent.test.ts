@@ -52,20 +52,34 @@ function mockCodingResponse(): BiPageResponse<BiCodingPageData> {
 }
 
 describe('CodingStageContent', () => {
-  it('renders code trend, submission trend, and frequency with default daily data', () => {
+  it('renders code trend and submission trend with default daily data and descriptions, without removed frequency chart', () => {
     const response = mockCodingResponse();
+    response.data!.moduleIncrements = [
+      { module: { sourceValue: 'M1', displayName: '模块1', identified: true }, addedLines: 2500 },
+    ];
+    response.data!.moduleReviewQuality = [
+      { module: { sourceValue: 'M1', displayName: '模块1', identified: true }, defectDensity: 3.2, reviewSpeedLocPerHour: 450, achieved: true },
+    ];
+
     const wrapper = shallowMount(CodingStageContent, {
-      props: { response, productVersionId: 11 },
+      props: { response, productVersionId: 11, productVersionName: 'v1.0' },
     });
 
     const panels = wrapper.findAllComponents({ name: 'BiChartPanel' });
     const codeTrendPanel = panels.find((p) => p.props('title') === '代码增量趋势');
     const submissionTrendPanel = panels.find((p) => p.props('title') === '提交趋势');
     const frequencyPanel = panels.find((p) => p.props('title') === '代码提交频次时间分布');
+    const reviewQualityPanel = panels.find((p) => p.props('title') === '各模块人工代码走查质量');
 
     expect(codeTrendPanel).toBeDefined();
     expect(submissionTrendPanel).toBeDefined();
-    expect(frequencyPanel).toBeDefined();
+    // Frequency chart must be removed
+    expect(frequencyPanel).toBeUndefined();
+
+    // Verify descriptions
+    expect(codeTrendPanel?.props('description')).toContain('展示按日或按周的新增代码量');
+    expect(submissionTrendPanel?.props('description')).toContain('展示按日或按周的代码提交次数');
+    expect(reviewQualityPanel?.props('description')).toContain('统计各模块人工代码走查缺陷密度');
 
     // Default is day
     expect(codeTrendPanel?.props('data')).toEqual({
@@ -80,10 +94,15 @@ describe('CodingStageContent', () => {
       mergeRequests: [2, 1, 2],
     });
 
-    expect(frequencyPanel?.props('data')).toEqual([
-      { name: '2026-08-01', value: 5 },
-      { name: '2026-08-02', value: 3 },
-      { name: '2026-08-03', value: 8 },
+    // Review quality data includes mapped addedLines
+    expect(reviewQualityPanel?.props('data')).toEqual([
+      {
+        name: '模块1',
+        density: 3.2,
+        rate: 450,
+        achieved: true,
+        addedLines: 2500,
+      },
     ]);
   });
 });

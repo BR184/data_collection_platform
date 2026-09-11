@@ -7,6 +7,7 @@ import BiChartPanel from '../components/BiChartPanel.vue';
 import type { BiSortOrder } from '../components/BiChartSortControl.vue';
 import BiMetricStrip, { type BiMetricItem } from '../components/BiMetricStrip.vue';
 import { formatNumber, metricStatus, sectionPresentation } from '../data/presentation';
+import { BI_CHART_EXPLANATIONS } from '../data/chart-explanations';
 import { reviewDensityRange } from '../data/quality-targets';
 import { sortNamedValues, sortReviewQualityRows, sortReviewScatterPoints } from '../data/sorting';
 import type { BiPageKey, BiPageResponse, BiReviewPageData } from '../data/types';
@@ -14,6 +15,7 @@ import type { BiPageKey, BiPageResponse, BiReviewPageData } from '../data/types'
 const props = defineProps({
   response: { type: Object as PropType<BiPageResponse<BiReviewPageData>>, required: true },
   productVersionId: { type: Number, required: true },
+  productVersionName: { type: String, required: true },
   stageLabel: { type: String, required: true },
   pageKey: { type: String as PropType<BiPageKey>, required: true },
 });
@@ -24,6 +26,22 @@ const densityTargetValue = `${densityRange[0].toFixed(2)}–${densityRange[1].to
 const densityTargetRule = `缺陷密度目标：${densityRange[0].toFixed(2)} ~ ${densityRange[1].toFixed(2)} 个/页 · 评审速率不设目标`;
 const qualityChart = new ReviewQualityDualPanelChart({ densityRange, densityUnit: '个/页', rateUnit: '页/小时' });
 const scatterChart = new ReviewQualityScatterChart({ densityRange, densityUnit: '个/页', rateUnit: '页/小时' });
+
+const categoryDescription = computed(() => (
+  props.pageKey === 'requirement-review'
+    ? BI_CHART_EXPLANATIONS.requirementReviewCategories
+    : BI_CHART_EXPLANATIONS.designReviewCategories
+));
+const qualityDescription = computed(() => (
+  props.pageKey === 'requirement-review'
+    ? BI_CHART_EXPLANATIONS.requirementReviewQuality
+    : BI_CHART_EXPLANATIONS.designReviewQuality
+));
+const scatterDescription = computed(() => (
+  props.pageKey === 'requirement-review'
+    ? BI_CHART_EXPLANATIONS.requirementReviewScatter
+    : BI_CHART_EXPLANATIONS.designReviewScatter
+));
 
 const moduleSort = ref('status');
 const moduleSortOrder = ref<BiSortOrder>('asc');
@@ -104,6 +122,7 @@ const points = computed<ReviewScatterPoint[]>(() => {
     <div class="bi-charts-grid">
       <BiChartPanel
         :title="`${stageLabel}评审问题类别分布`"
+        :description="categoryDescription"
         :chart="donutChart"
         :data="categories"
         :height="430"
@@ -112,6 +131,7 @@ const points = computed<ReviewScatterPoint[]>(() => {
         :status="sectionPresentation(response, 'problem-categories').status"
         :status-message="sectionPresentation(response, 'problem-categories').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         :page-key="pageKey"
         :source-version="response.sourceVersion"
         v-model:sort="categorySort"
@@ -121,6 +141,7 @@ const points = computed<ReviewScatterPoint[]>(() => {
       <BiChartPanel
         :title="`各模块${stageLabel}评审质量`"
         subtitle="左：缺陷密度与目标区间；右：评审速率"
+        :description="qualityDescription"
         :chart="qualityChart"
         :data="modules"
         :height="430"
@@ -129,6 +150,7 @@ const points = computed<ReviewScatterPoint[]>(() => {
         :status="sectionPresentation(response, 'module-quality').status"
         :status-message="sectionPresentation(response, 'module-quality').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         :page-key="pageKey"
         :source-version="response.sourceVersion"
         v-model:sort="moduleSort"
@@ -138,6 +160,7 @@ const points = computed<ReviewScatterPoint[]>(() => {
       <BiChartPanel
         :title="`每次${stageLabel}评审质量分布`"
         subtitle="横轴评审速率，纵轴缺陷密度"
+        :description="scatterDescription"
         :chart="scatterChart"
         :data="points"
         :height="390"
@@ -146,6 +169,7 @@ const points = computed<ReviewScatterPoint[]>(() => {
         :status="sectionPresentation(response, 'review-scatter').status"
         :status-message="sectionPresentation(response, 'review-scatter').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         :page-key="pageKey"
         :source-version="response.sourceVersion"
         v-model:sort="scatterSort"

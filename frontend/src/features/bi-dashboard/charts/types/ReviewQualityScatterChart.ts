@@ -1,8 +1,9 @@
 import type { EChartsOption } from 'echarts';
-import { BiChart, type BiChartRenderContext } from '../BiChart';
+import { BiChart, type BiChartRenderContext, type BiExcelTableData } from '../BiChart';
 import type { ReviewScatterPoint } from '../chart-data';
 import { BI_PALETTE } from '../palette';
 import { buildAdaptiveValueAxis } from '../adaptive-value-axis';
+import { excelAchieved } from '../excel-format';
 
 export interface ReviewScatterChartConfig {
   densityRange: readonly [number, number];
@@ -19,6 +20,19 @@ export class ReviewQualityScatterChart extends BiChart<ReviewScatterPoint[]> {
 
   hasData(data: ReviewScatterPoint[]): boolean {
     return data.some((item) => item.rate != null && item.density != null);
+  }
+
+  excelTable(data: ReviewScatterPoint[]): BiExcelTableData {
+    return {
+      headers: ['模块名称', '评审日期', `评审速率 (${this.config.rateUnit})`, `缺陷密度 (${this.config.densityUnit})`, '达标状态'],
+      rows: data.map((item) => [
+        item.name,
+        item.date ?? '--',
+        item.rate ?? '--',
+        item.density ?? '--',
+        excelAchieved(item.achieved),
+      ]),
+    };
   }
 
   build(data: ReviewScatterPoint[], _context: BiChartRenderContext): EChartsOption {

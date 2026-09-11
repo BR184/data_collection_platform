@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.data.collection.platform.bi.application.BiCatTestPageService;
 import com.data.collection.platform.bi.application.BiCodingPageService;
+import com.data.collection.platform.bi.application.BiExcelExportService;
 import com.data.collection.platform.bi.application.BiReviewPageService;
 import com.data.collection.platform.bi.application.BiSystemTestPageService;
 import com.data.collection.platform.bi.domain.BiCodingCalculator;
@@ -24,6 +25,7 @@ class BiSpringBoundaryContractTest {
         BiCodingPageService.class,
         BiReviewPageService.class,
         BiSystemTestPageService.class,
+        BiExcelExportService.class,
         BiCodingCalculator.class,
         BiReviewCalculator.class,
         BiSystemTestCalculator.class,

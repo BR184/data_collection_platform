@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   aggregateCodeTrendByWeek,
-  aggregateFrequenciesByWeek,
   aggregateSubmissionTrendByWeek,
   getMondayOfWeek,
 } from './aggregation';
-import type { CodingTrendData, NamedValue, SubmissionTrendData } from '../charts/chart-data';
+import type { CodingTrendData, SubmissionTrendData } from '../charts/chart-data';
 
 describe('BI dashboard trend aggregation', () => {
   describe('getMondayOfWeek', () => {
@@ -81,26 +80,6 @@ describe('BI dashboard trend aggregation', () => {
       expect(empty.periods).toEqual([]);
       expect(empty.commits).toEqual([]);
       expect(empty.mergeRequests).toEqual([]);
-    });
-  });
-
-  describe('aggregateFrequenciesByWeek', () => {
-    it('aggregates commit frequencies by week', () => {
-      const daily: NamedValue[] = [
-        { name: '2026-08-01', value: 5 },
-        { name: '2026-08-02', value: 3 },
-        { name: '2026-08-03', value: 12 },
-      ];
-      const weekly = aggregateFrequenciesByWeek(daily);
-
-      expect(weekly).toEqual([
-        { name: '2026-07-27', value: 8 },
-        { name: '2026-08-03', value: 12 },
-      ]);
-    });
-
-    it('returns empty array for empty input', () => {
-      expect(aggregateFrequenciesByWeek([])).toEqual([]);
     });
   });
 });

@@ -1,6 +1,7 @@
 package com.data.collection.platform.bi.api;
 
 import com.data.collection.platform.bi.application.BiDownloadAuthorizationService;
+import com.data.collection.platform.bi.application.BiExcelExportService;
 import com.data.collection.platform.bi.domain.model.BiCodingPageData;
 import com.data.collection.platform.bi.domain.model.BiPageResponse;
 import com.data.collection.platform.bi.domain.model.BiProductVersionCatalog;
@@ -10,11 +11,16 @@ import com.data.collection.platform.bi.domain.model.BiTestQualityPageData;
 import com.data.collection.platform.bi.domain.port.BiCodingSourcePort;
 import com.data.collection.platform.bi.domain.source.BiCodingSource;
 import com.data.collection.platform.bi.infrastructure.BiDashboardRuntimeManager;
+import com.data.collection.platform.common.DownloadResponseHeaders;
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.security.PlatformPermissionCodes;
 import com.data.collection.platform.security.RequirePermission;
 import jakarta.validation.Valid;
+import java.util.List;
 import java.util.Locale;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -115,6 +121,37 @@ public class BiDashboardController {
             request.pageKey(),
             request.chartTemplateId(),
             request.sourceVersion())));
+  }
+
+  /** 校验下载授权后，把前端按图表语义提取的表格序列化为标准 .xlsx 并回传下载。 */
+  @PostMapping("/download/excel")
+  @RequirePermission(
+      value = {
+          PlatformPermissionCodes.BI_DASHBOARD_VIEW,
+          PlatformPermissionCodes.BI_DASHBOARD_DOWNLOAD
+      },
+      requireAll = true)
+  public ResponseEntity<byte[]> exportExcel(@Valid @RequestBody BiExcelExportRequest request) {
+    // 与 PNG 走同一道授权门：先校验页面/图表模板/来源版本，避免绕过下载权限直接取文件。
+    runtimeManager.runtime().downloads().authorize(
+        new BiDownloadAuthorizationService.Request(
+            request.productVersionId(),
+            request.pageKey(),
+            request.chartTemplateId(),
+            request.sourceVersion()));
+    List<List<Object>> rows = request.rows() == null ? List.of() : request.rows();
+    BiExcelExportService.Export export = runtimeManager.runtime().excel().export(
+        request.title(),
+        request.productVersionName(),
+        request.explanation(),
+        request.headers(),
+        rows);
+    return ResponseEntity.ok()
+        .contentType(MediaType.parseMediaType(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .header(HttpHeaders.CONTENT_DISPOSITION,
+            DownloadResponseHeaders.attachment(export.filename()))
+        .body(export.content());
   }
 
   private BiCodingSource.Granularity parseGranularity(String value) {

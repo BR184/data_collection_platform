@@ -4,6 +4,7 @@ import com.data.collection.platform.bi.application.BiCatTestPageService;
 import com.data.collection.platform.bi.application.BiCodingPageService;
 import com.data.collection.platform.bi.application.BiDashboardRuntime;
 import com.data.collection.platform.bi.application.BiDownloadAuthorizationService;
+import com.data.collection.platform.bi.application.BiExcelExportService;
 import com.data.collection.platform.bi.application.BiReviewPageService;
 import com.data.collection.platform.bi.application.BiSystemTestPageService;
 import com.data.collection.platform.bi.application.BiVersionService;
@@ -89,6 +90,7 @@ public class BiDashboardRuntimeFactory {
         new BiCatTestPageService(BiCatTestSourcePort.TestStage.UNIT_TEST, versions, cat),
         new BiCatTestPageService(BiCatTestSourcePort.TestStage.INTEGRATION_TEST, versions, cat),
         new BiSystemTestPageService(versions, systemTest, new BiSystemTestCalculator()),
-        new BiDownloadAuthorizationService(versions, currentVersions));
+        new BiDownloadAuthorizationService(versions, currentVersions),
+        new BiExcelExportService());
   }
 }

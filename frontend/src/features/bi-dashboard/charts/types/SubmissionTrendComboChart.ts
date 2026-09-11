@@ -1,5 +1,5 @@
 import type { EChartsOption } from 'echarts';
-import { BiChart, type BiChartRenderContext, type BiChartSize } from '../BiChart';
+import { BiChart, type BiChartRenderContext, type BiChartSize, type BiExcelTableData } from '../BiChart';
 import type { SubmissionTrendData } from '../chart-data';
 import { BI_PALETTE } from '../palette';
 
@@ -12,6 +12,17 @@ export class SubmissionTrendComboChart extends BiChart<SubmissionTrendData> {
 
   exportSize(data: SubmissionTrendData): BiChartSize {
     return this.verticalExportSize(data.periods.length);
+  }
+
+  excelTable(data: SubmissionTrendData): BiExcelTableData {
+    return {
+      headers: ['统计周期', '提交次数 (Commit)', '合并请求数 (MR)'],
+      rows: data.periods.map((period, index) => [
+        period,
+        data.commits[index] ?? 0,
+        data.mergeRequests[index] ?? 0,
+      ]),
+    };
   }
 
   build(data: SubmissionTrendData, context: BiChartRenderContext): EChartsOption {

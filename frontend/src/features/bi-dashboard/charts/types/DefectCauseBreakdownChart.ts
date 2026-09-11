@@ -1,7 +1,8 @@
 import type { EChartsOption } from 'echarts';
-import { BiChart, type BiChartRenderContext, type BiChartSize } from '../BiChart';
+import { BiChart, type BiChartRenderContext, type BiChartSize, type BiExcelTableData } from '../BiChart';
 import type { DefectCauseBreakdownData } from '../chart-data';
 import { BI_PALETTE } from '../palette';
+import { excelPercent } from '../excel-format';
 
 interface GroupRange {
   name: string;
@@ -19,6 +20,23 @@ export class DefectCauseBreakdownChart extends BiChart<DefectCauseBreakdownData>
 
   exportSize(): BiChartSize {
     return { width: 1680, height: 780 };
+  }
+
+  excelTable(data: DefectCauseBreakdownData): BiExcelTableData {
+    const rows: Array<Array<string | number>> = data.items.map((item) => [
+      item.groupName,
+      item.name,
+      item.count,
+      excelPercent(item.sharePercent, 2),
+    ]);
+    // 未归类与图表一致作为独立一行显式呈现，不隐入已归类子类。
+    if (data.unclassifiedCount > 0) {
+      rows.push(['未归类', '未归类', data.unclassifiedCount, excelPercent(data.unclassifiedSharePercent, 2)]);
+    }
+    return {
+      headers: ['缺陷原因大类', '缺陷原因子类', '缺陷数 (个)', '占比 (%)'],
+      rows,
+    };
   }
 
   build(data: DefectCauseBreakdownData, context: BiChartRenderContext): EChartsOption {

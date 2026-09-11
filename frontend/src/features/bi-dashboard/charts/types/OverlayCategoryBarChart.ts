@@ -1,5 +1,5 @@
 import type { EChartsOption } from 'echarts';
-import { BiChart, type BiChartRenderContext, type BiChartSize } from '../BiChart';
+import { BiChart, type BiChartRenderContext, type BiChartSize, type BiExcelTableData } from '../BiChart';
 import type { OverlayBarRow } from '../chart-data';
 import { BI_PALETTE } from '../palette';
 
@@ -16,6 +16,17 @@ export class OverlayCategoryBarChart extends BiChart<OverlayBarRow[]> {
 
   exportSize(data: OverlayBarRow[]): BiChartSize {
     return this.verticalExportSize(data.length);
+  }
+
+  excelTable(data: OverlayBarRow[]): BiExcelTableData {
+    return {
+      headers: ['模块名称', '累计发现缺陷数', '当前未修复缺陷数', '已修复缺陷数', '修复率 (%)'],
+      rows: data.map((item) => {
+        const fixed = item.total - item.overlay;
+        const fixRate = item.total > 0 ? Number(((fixed / item.total) * 100).toFixed(1)) : 100;
+        return [item.name, item.total, item.overlay, fixed, fixRate];
+      }),
+    };
   }
 
   build(data: OverlayBarRow[], context: BiChartRenderContext): EChartsOption {

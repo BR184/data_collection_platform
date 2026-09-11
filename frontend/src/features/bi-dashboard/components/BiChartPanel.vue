@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Document, Download, Loading, Picture } from '@element-plus/icons-vue';
+import { Document, Download, Loading, Picture, QuestionFilled } from '@element-plus/icons-vue';
 import { computed, ref, type PropType } from 'vue';
 import { ElMessage } from '../../../element-plus-services';
 import { authState } from '../../../composables/auth-state';
@@ -14,12 +14,14 @@ import BiChartSortControl, { type BiSortOption, type BiSortOrder } from './BiCha
 const props = defineProps({
   title: { type: String, required: true },
   subtitle: { type: String, default: '' },
+  description: { type: String, default: '' },
   chart: { type: Object as PropType<BiChart<never>>, required: true },
   data: { type: null as unknown as PropType<unknown>, required: true },
   height: { type: Number, default: 340 },
   status: { type: String as PropType<BiDataStatus>, default: 'READY' },
   statusMessage: { type: String, default: '' },
   productVersionId: { type: Number, required: true },
+  productVersionName: { type: String, default: '' },
   pageKey: { type: String as PropType<BiPageKey>, required: true },
   sourceVersion: { type: String, default: '' },
   layout: {
@@ -77,9 +79,11 @@ async function downloadExcel(): Promise<void> {
   try {
     await exportBiChartExcel({
       productVersionId: props.productVersionId,
+      productVersionName: props.productVersionName,
       pageKey: props.pageKey,
       sourceVersion: props.sourceVersion,
       title: props.title,
+      description: props.description,
       chart: typedChart.value,
       data: props.data,
     });
@@ -104,7 +108,23 @@ function handleExportCommand(command: string): void {
   <section class="bi-chart-panel" :class="[`bi-chart-panel--${layout}`, `bi-chart-panel--${variant}`]">
     <header class="bi-chart-panel__header">
       <div class="bi-chart-panel__heading">
-        <h3>{{ title }}</h3>
+        <div class="bi-chart-panel__title-row">
+          <h3>{{ title }}</h3>
+          <el-tooltip
+            v-if="description"
+            :content="description"
+            placement="top"
+            effect="dark"
+            popper-class="bi-chart-panel__tooltip"
+          >
+            <span
+              class="bi-chart-panel__help-trigger"
+              :aria-label="`${title}说明`"
+            >
+              <el-icon class="bi-chart-panel__help-icon"><QuestionFilled /></el-icon>
+            </span>
+          </el-tooltip>
+        </div>
         <p v-if="subtitle">{{ subtitle }}</p>
       </div>
       <div class="bi-chart-panel__actions">
@@ -242,6 +262,29 @@ function handleExportCommand(command: string): void {
   min-width: 0;
 }
 
+.bi-chart-panel__title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bi-chart-panel__help-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.bi-chart-panel__help-trigger:hover {
+  color: #475467;
+}
+
+.bi-chart-panel__help-icon {
+  font-size: 14px;
+}
+
 .bi-chart-panel__heading h3 {
   margin: 0;
   color: #27364a;
@@ -359,5 +402,18 @@ function handleExportCommand(command: string): void {
   .bi-chart-panel--secondary,
   .bi-chart-panel--half,
   .bi-chart-panel--wide-only { grid-column: span 1; }
+}
+</style>
+
+<style>
+/*
+ * 口径说明气泡的 popper 被 Element Plus teleport 到 body，组件 scoped 样式无法命中，
+ * 故按 SmartSelect.vue 的既有惯例用非 scoped 块就近承载，避免污染全局样式表。
+ * 最长词条约 110 字，必须限宽并允许折行，否则会渲染成超出视口的单行气泡。
+ */
+.bi-chart-panel__tooltip.el-popper {
+  max-width: 320px;
+  line-height: 1.6;
+  word-break: break-word;
 }
 </style>

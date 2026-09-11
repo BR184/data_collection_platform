@@ -7,6 +7,7 @@ import type {
   ReviewScatterPoint,
   RoundQualityRow,
 } from '../charts/chart-data';
+import { compareNumericNullsLast } from '../../../utils/missing-value-sorting';
 
 export type BiSortOrder = 'asc' | 'desc';
 
@@ -41,19 +42,17 @@ export function sortReviewQualityRows(
     if (sortBy === 'status') {
       const cmp = Number(a.achieved ?? true) - Number(b.achieved ?? true);
       if (cmp !== 0) return cmp;
-      return (b.density ?? -1) - (a.density ?? -1);
+      return compareNumericNullsLast(a.density, b.density, 'desc');
     }
     if (sortBy === 'rate') {
-      const cmp = (a.rate ?? -1) - (b.rate ?? -1);
-      return order === 'asc' ? cmp : -cmp;
+      return compareNumericNullsLast(a.rate, b.rate, order);
     }
     if (sortBy === 'name') {
       const cmp = a.name.localeCompare(b.name, 'zh-CN');
       return order === 'asc' ? cmp : -cmp;
     }
     // 默认 density
-    const cmp = (a.density ?? -1) - (b.density ?? -1);
-    return order === 'asc' ? cmp : -cmp;
+    return compareNumericNullsLast(a.density, b.density, order);
   });
 }
 
@@ -69,15 +68,13 @@ export function sortReviewScatterPoints(
       return order === 'asc' ? cmp : -cmp;
     }
     if (sortBy === 'rate') {
-      const cmp = (a.rate ?? -1) - (b.rate ?? -1);
-      return order === 'asc' ? cmp : -cmp;
+      return compareNumericNullsLast(a.rate, b.rate, order);
     }
     if (sortBy === 'name') {
       const cmp = a.name.localeCompare(b.name, 'zh-CN');
       return order === 'asc' ? cmp : -cmp;
     }
-    const cmp = (a.density ?? -1) - (b.density ?? -1);
-    return order === 'asc' ? cmp : -cmp;
+    return compareNumericNullsLast(a.density, b.density, order);
   });
 }
 
@@ -118,11 +115,75 @@ export function sortCategorySeriesData(
   };
 }
 
+const CHINESE_NUMBER_MAP: Record<string, number> = {
+  零: 0,
+  一: 1,
+  二: 2,
+  两: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  七: 7,
+  八: 8,
+  九: 9,
+  十: 10,
+};
+
+/** 解析轮次顺序序号，优先依据后端整数 order，兜底解析中文/数字轮次名（回归测试沉底） */
+export function parseRoundOrder(name: string, order?: number): number {
+  if (order != null && !Number.isNaN(order)) {
+    return order;
+  }
+  if (!name) return 99999;
+  if (name.includes('回归')) {
+    return 99000;
+  }
+  if (name.includes('首轮') || name.includes('初轮')) {
+    return 1;
+  }
+
+  // 匹配形如“第一轮”、“第1轮”、“二轮”、“10轮”
+  const roundMatch = name.match(/第?\s*([一二两三四五六七八九十\d]+)\s*轮/);
+  if (roundMatch) {
+    const raw = roundMatch[1]!;
+    if (/^\d+$/.test(raw)) {
+      return parseInt(raw, 10);
+    }
+    if (raw.length === 1 && CHINESE_NUMBER_MAP[raw] != null) {
+      return CHINESE_NUMBER_MAP[raw]!;
+    }
+    if (raw.startsWith('十') && raw.length === 2 && CHINESE_NUMBER_MAP[raw[1]!] != null) {
+      return 10 + CHINESE_NUMBER_MAP[raw[1]!]!;
+    }
+    if (raw.length === 2 && raw.endsWith('十') && CHINESE_NUMBER_MAP[raw[0]!] != null) {
+      return CHINESE_NUMBER_MAP[raw[0]!]! * 10;
+    }
+    if (raw.length === 3 && raw[1] === '十' && CHINESE_NUMBER_MAP[raw[0]!] != null && CHINESE_NUMBER_MAP[raw[2]!] != null) {
+      return CHINESE_NUMBER_MAP[raw[0]!]! * 10 + CHINESE_NUMBER_MAP[raw[2]!]!;
+    }
+  }
+
+  // 匹配类似 Round 1, R2
+  const roundEnMatch = name.match(/(?:round|r)\s*(\d+)/i);
+  if (roundEnMatch) {
+    return parseInt(roundEnMatch[1]!, 10);
+  }
+
+  // 末尾数字，如 测试1, Test2
+  const trailingDigit = name.match(/(\d+)\s*$/);
+  if (trailingDigit) {
+    return parseInt(trailingDigit[1]!, 10);
+  }
+
+  return 99999;
+}
+
 /** 对轮次质量数据进行排序 */
 export function sortRoundQualityRows(
   items: RoundQualityRow[],
   sortBy: string,
-  order: BiSortOrder = 'desc',
+  order: BiSortOrder = 'asc',
 ): RoundQualityRow[] {
   return items.slice().sort((a, b) => {
     if (sortBy === 'submitted') {
@@ -138,57 +199,67 @@ export function sortRoundQualityRows(
       return order === 'asc' ? cmp : -cmp;
     }
     if (sortBy === 'closeRate') {
-      const cmp = (a.closeRate ?? 0) - (b.closeRate ?? 0);
-      return order === 'asc' ? cmp : -cmp;
+      return compareNumericNullsLast(a.closeRate, b.closeRate, order);
     }
-    // 默认 round 顺序 (name)
-    const cmp = a.name.localeCompare(b.name, 'zh-CN', { numeric: true });
+    // 默认轮次自然顺序 (name/order)
+    const orderA = parseRoundOrder(a.name, a.order);
+    const orderB = parseRoundOrder(b.name, b.order);
+    const cmp = orderA - orderB || a.name.localeCompare(b.name, 'zh-CN');
     return order === 'asc' ? cmp : -cmp;
   });
 }
 
-/** 对模块系统测试修复率达成数据进行排序 */
+/** 整体修复率达标线，与模块修复率矩阵图表的 targets[0] 及口径核对表一致。 */
+const MODULE_REPAIR_TARGET_RATE = 95;
+
+/**
+ * 对模块系统测试修复率达成数据进行排序（卡片排序控件的唯一权威实现）。
+ *
+ * 口径依据：后端只为“存在缺陷事实”的模块产出该列表，且整体修复率在分母为 0 时返回 null，
+ * 所以列表内 `fixRate === 0` 严格表示“有缺陷且一个都未修复”，是**最高风险**而非“无缺陷/未开始测试”。
+ * 按 missing-value-sorting 的全局规则，真实 0 是有效值，不得与“无数据”坍缩同类，
+ * 故这里只让 null 恒置底，0% 正常参与比较，保证“异常优先”下最危险的模块排最前。
+ * 用户显式选择排序字段时，方向完全由该字段决定，不再按 fixRate 干预。
+ */
 export function sortModuleRepairRows(
   items: ModuleRepairRow[],
   sortBy: string,
-  order: BiSortOrder = 'desc',
+  order: BiSortOrder = 'asc',
 ): ModuleRepairRow[] {
+  const byName = (a: ModuleRepairRow, b: ModuleRepairRow) => a.name.localeCompare(b.name, 'zh-CN');
+  // 数值比序：无数据恒置底、方向只作用于有值元素，相等时按模块名稳定收敛。
+  const byNumeric = (
+    a: ModuleRepairRow,
+    b: ModuleRepairRow,
+    value: (row: ModuleRepairRow) => number | null,
+  ) => compareNumericNullsLast(value(a), value(b), order) || byName(a, b);
+
   return items.slice().sort((a, b) => {
     if (sortBy === 'open') {
-      const cmp = (a.openCount ?? 0) - (b.openCount ?? 0);
-      return order === 'asc' ? cmp : -cmp;
+      return byNumeric(a, b, (row) => row.openCount ?? null);
     }
     if (sortBy === 'total') {
-      const cmp = (a.totalCount ?? 0) - (b.totalCount ?? 0);
-      return order === 'asc' ? cmp : -cmp;
+      return byNumeric(a, b, (row) => row.totalCount ?? null);
     }
     if (sortBy === 'rate') {
-      const cmp = (a.fixRate ?? 0) - (b.fixRate ?? 0);
-      return order === 'asc' ? cmp : -cmp;
-    }
-    if (sortBy === 'levelOneRate') {
-      const cmp = (a.levelOneRate ?? 0) - (b.levelOneRate ?? 0);
-      return order === 'asc' ? cmp : -cmp;
-    }
-    if (sortBy === 'p1Rate') {
-      const cmp = (a.p1Rate ?? 0) - (b.p1Rate ?? 0);
-      return order === 'asc' ? cmp : -cmp;
-    }
-    if (sortBy === 'p2Rate') {
-      const cmp = (a.p2Rate ?? 0) - (b.p2Rate ?? 0);
-      return order === 'asc' ? cmp : -cmp;
+      return byNumeric(a, b, (row) => row.fixRate);
     }
     if (sortBy === 'name') {
-      const cmp = a.name.localeCompare(b.name, 'zh-CN');
+      const cmp = byName(a, b);
       return order === 'asc' ? cmp : -cmp;
     }
-    // 默认 status 异常优先
-    const achievedA = a.fixRate != null && a.fixRate >= 0.95;
-    const achievedB = b.fixRate != null && b.fixRate >= 0.95;
-    const statusCmp = Number(achievedA) - Number(achievedB);
-    if (statusCmp !== 0) return statusCmp;
-    const cmp = (a.fixRate ?? 0) - (b.fixRate ?? 0);
-    return order === 'asc' ? cmp : -cmp;
+    // 默认 status「异常优先」：未达标组在前（不随升降序翻转），无可计算数值恒置底。
+    const rateA = a.fixRate;
+    const rateB = b.fixRate;
+    if (rateA == null || rateB == null) {
+      if (rateA == null && rateB == null) {
+        return byName(a, b);
+      }
+      return rateA == null ? 1 : -1;
+    }
+    const statusCmp
+      = Number(rateA >= MODULE_REPAIR_TARGET_RATE) - Number(rateB >= MODULE_REPAIR_TARGET_RATE);
+    return statusCmp || byNumeric(a, b, (row) => row.fixRate);
   });
 }
 

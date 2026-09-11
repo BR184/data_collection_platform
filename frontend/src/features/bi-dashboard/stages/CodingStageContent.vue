@@ -8,7 +8,6 @@ import {
   ReviewQualityDualPanelChart,
   ReviewQualityScatterChart,
   StackedCategoryBarChart,
-  SubmissionFrequencyBarChart,
   SubmissionTrendComboChart,
   VerticalCategoryBarChart,
 } from '../charts/types';
@@ -18,9 +17,9 @@ import type { BiSortOrder } from '../components/BiChartSortControl.vue';
 import BiMetricStrip, { type BiMetricItem } from '../components/BiMetricStrip.vue';
 import {
   aggregateCodeTrendByWeek,
-  aggregateFrequenciesByWeek,
   aggregateSubmissionTrendByWeek,
 } from '../data/aggregation';
+import { BI_CHART_EXPLANATIONS } from '../data/chart-explanations';
 import { formatNumber, metricStatus, sectionPresentation } from '../data/presentation';
 import { codingDensityRange } from '../data/quality-targets';
 import {
@@ -34,13 +33,13 @@ import type { BiCodingPageData, BiPageResponse } from '../data/types';
 const props = defineProps({
   response: { type: Object as PropType<BiPageResponse<BiCodingPageData>>, required: true },
   productVersionId: { type: Number, required: true },
+  productVersionName: { type: String, required: true },
   granularity: { type: String, default: 'day' },
 });
 
-// 三个具有时间维度的图表各自持有独立的粒度状态，互不干扰
+// 代码增量趋势与提交趋势各自持有独立的粒度状态，互不干扰
 const codeTrendGranularity = ref<'day' | 'week'>(props.granularity === 'week' ? 'week' : 'day');
 const submissionTrendGranularity = ref<'day' | 'week'>('day');
-const frequencyGranularity = ref<'day' | 'week'>('day');
 
 watch(() => props.granularity, (val) => {
   if (val === 'day' || val === 'week') {
@@ -52,7 +51,6 @@ const submissionChart = new SubmissionTrendComboChart();
 const codingTrendChart = new CodingTrendComboChart();
 const categoryChart = new DistributionDonutChart();
 const verticalBarChart = new VerticalCategoryBarChart();
-const frequencyChart = new SubmissionFrequencyBarChart();
 const scanChart = new StackedCategoryBarChart();
 const reviewQualityChart = new ReviewQualityDualPanelChart({ densityRange: codingDensityRange, densityUnit: '个/KLOC', rateUnit: '行/小时' });
 const reviewScatterChart = new ReviewQualityScatterChart({ densityRange: codingDensityRange, densityUnit: '个/KLOC', rateUnit: 'KLOC/小时' });
@@ -70,8 +68,6 @@ const contributorSort = ref('count');
 const contributorSortOrder = ref<BiSortOrder>('desc');
 const moduleIncrementSort = ref('count');
 const moduleIncrementSortOrder = ref<BiSortOrder>('desc');
-const frequencySort = ref('name');
-const frequencySortOrder = ref<BiSortOrder>('asc');
 const reviewScatterSort = ref('density');
 const reviewScatterSortOrder = ref<BiSortOrder>('desc');
 
@@ -97,10 +93,6 @@ const contributorSortOptions = [
 const moduleIncrementSortOptions = [
   { label: '代码增量', value: 'count' },
   { label: '模块名称', value: 'name' },
-];
-const frequencySortOptions = [
-  { label: '时间顺序', value: 'name' },
-  { label: '提交频次', value: 'count' },
 ];
 const reviewScatterSortOptions = [
   { label: '缺陷密度', value: 'density' },
@@ -151,19 +143,16 @@ const contributors = computed<NamedValue[]>(() => {
   return sortNamedValues(raw, contributorSort.value, contributorSortOrder.value);
 });
 
-const frequencies = computed<NamedValue[]>(() => {
-  const rawDaily: NamedValue[] = (data.value?.submissionTrend ?? []).map((item) => ({
-    name: item.period,
-    value: item.commitCount ?? 0,
-  }));
-  const targetRaw = frequencyGranularity.value === 'week'
-    ? aggregateFrequenciesByWeek(rawDaily)
-    : rawDaily;
-  return sortNamedValues(targetRaw, frequencySort.value, frequencySortOrder.value);
-});
 const modules = computed<NamedValue[]>(() => {
   const raw = (data.value?.moduleIncrements ?? []).map((item) => ({ name: item.module.displayName, value: item.addedLines }));
   return sortNamedValues(raw, moduleIncrementSort.value, moduleIncrementSortOrder.value);
+});
+const moduleIncrementsMap = computed(() => {
+  const map = new Map<string, number>();
+  for (const item of data.value?.moduleIncrements ?? []) {
+    map.set(item.module.displayName, item.addedLines);
+  }
+  return map;
 });
 const reviewCategories = computed<NamedValue[]>(() => {
   const raw = (data.value?.reviewCategories ?? []).map((item, index) => ({
@@ -194,7 +183,13 @@ const scanData = computed<CategorySeriesData>(() => {
   return sortCategorySeriesData(raw, scanSort.value, scanSortOrder.value);
 });
 const moduleReviews = computed<ReviewQualityRow[]>(() => {
-  const raw = (data.value?.moduleReviewQuality ?? []).map((item) => ({ name: item.module.displayName, density: item.defectDensity, rate: item.reviewSpeedLocPerHour, achieved: item.achieved }));
+  const raw = (data.value?.moduleReviewQuality ?? []).map((item) => ({
+    name: item.module.displayName,
+    density: item.defectDensity,
+    rate: item.reviewSpeedLocPerHour,
+    achieved: item.achieved,
+    addedLines: moduleIncrementsMap.value.get(item.module.displayName) ?? null,
+  }));
   return sortReviewQualityRows(raw, moduleReviewSort.value, moduleReviewSortOrder.value);
 });
 const reviewPoints = computed<ReviewScatterPoint[]>(() => {
@@ -226,6 +221,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
       <BiChartPanel
         title="各模块人工代码走查质量"
         subtitle="左：走查缺陷密度（个/KLOC）；右：走查速率（行/小时）"
+        :description="BI_CHART_EXPLANATIONS.codingReviewQuality"
         :chart="reviewQualityChart"
         :data="moduleReviews"
         :height="470"
@@ -234,6 +230,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         :status="sectionPresentation(response, 'module-review-quality').status"
         :status-message="sectionPresentation(response, 'module-review-quality').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="coding"
         :source-version="response.sourceVersion"
         v-model:sort="moduleReviewSort"
@@ -244,6 +241,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
       <!-- 2. 代码走查问题分布 (50%) + 静态代码扫描结果 (50%) -->
       <BiChartPanel
         title="代码走查问题分布"
+        :description="BI_CHART_EXPLANATIONS.codingReviewCategories"
         :chart="categoryChart"
         :data="reviewCategories"
         :height="356"
@@ -252,6 +250,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         :status="sectionPresentation(response, 'review-categories').status"
         :status-message="sectionPresentation(response, 'review-categories').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="coding"
         :source-version="response.sourceVersion"
         v-model:sort="reviewCategorySort"
@@ -261,6 +260,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
       <BiChartPanel
         title="静态代码扫描结果"
         subtitle="单位：个"
+        :description="BI_CHART_EXPLANATIONS.codingScanResult"
         :chart="scanChart"
         :data="scanData"
         :height="356"
@@ -269,6 +269,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         :status="sectionPresentation(response, 'static-scan').status"
         :status-message="sectionPresentation(response, 'static-scan').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="coding"
         :source-version="response.sourceVersion"
         v-model:sort="scanSort"
@@ -280,6 +281,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
       <BiChartPanel
         title="开发人员代码贡献"
         subtitle="单位：新增代码行数 (行)"
+        :description="BI_CHART_EXPLANATIONS.codingContributors"
         :chart="verticalBarChart"
         :data="contributors"
         :height="356"
@@ -288,6 +290,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         :status="sectionPresentation(response, 'contributors').status"
         :status-message="sectionPresentation(response, 'contributors').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="coding"
         :source-version="response.sourceVersion"
         v-model:sort="contributorSort"
@@ -297,6 +300,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
       <BiChartPanel
         title="各模块代码增量"
         subtitle="单位：新增代码行数 (行)"
+        :description="BI_CHART_EXPLANATIONS.codingModuleIncrements"
         :chart="verticalBarChart"
         :data="modules"
         :height="356"
@@ -305,6 +309,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         :status="sectionPresentation(response, 'module-increments').status"
         :status-message="sectionPresentation(response, 'module-increments').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="coding"
         :source-version="response.sourceVersion"
         v-model:sort="moduleIncrementSort"
@@ -316,6 +321,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
       <BiChartPanel
         title="代码注释率与走查密度趋势"
         subtitle="左轨：代码注释率 (%)；右轨：人工走查缺陷密度 (个/KLOC)"
+        :description="BI_CHART_EXPLANATIONS.codingQualityTrend"
         :chart="qualityTrendChart"
         :data="qualityTrend"
         :height="390"
@@ -324,6 +330,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         :status="sectionPresentation(response, 'quality-trend').status"
         :status-message="sectionPresentation(response, 'quality-trend').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="coding"
         :source-version="response.sourceVersion"
       />
@@ -332,6 +339,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
       <BiChartPanel
         title="代码增量趋势"
         subtitle="单位：代码量 (KLOC)"
+        :description="BI_CHART_EXPLANATIONS.codingCodeTrend"
         :chart="codingTrendChart"
         :data="codeTrend"
         :height="356"
@@ -340,6 +348,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         :status="sectionPresentation(response, 'code-trend').status"
         :status-message="sectionPresentation(response, 'code-trend').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="coding"
         :source-version="response.sourceVersion"
       >
@@ -353,6 +362,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
       </BiChartPanel>
       <BiChartPanel
         title="提交趋势"
+        :description="BI_CHART_EXPLANATIONS.codingSubmissionTrend"
         :chart="submissionChart"
         :data="submissionTrend"
         :height="356"
@@ -361,6 +371,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         :status="sectionPresentation(response, 'submission-trend').status"
         :status-message="sectionPresentation(response, 'submission-trend').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="coding"
         :source-version="response.sourceVersion"
       >
@@ -373,36 +384,11 @@ const qualityTrend = computed<QualityTrendData>(() => {
         </template>
       </BiChartPanel>
 
-      <!-- 6. 最底：代码提交频次时间分布 (全幅置底，支持独立按日/按周切换与排序) -->
-      <BiChartPanel
-        title="代码提交频次时间分布"
-        :chart="frequencyChart"
-        :data="frequencies"
-        :height="300"
-        variant="analysis"
-        layout="full"
-        :status="sectionPresentation(response, 'submission-trend').status"
-        :status-message="sectionPresentation(response, 'submission-trend').message"
-        :product-version-id="productVersionId"
-        page-key="coding"
-        :source-version="response.sourceVersion"
-        v-model:sort="frequencySort"
-        v-model:order="frequencySortOrder"
-        :sort-options="frequencySortOptions"
-      >
-        <template #actions>
-          <el-segmented
-            v-model="frequencyGranularity"
-            :options="[{ label: '按日', value: 'day' }, { label: '按周', value: 'week' }]"
-            size="small"
-          />
-        </template>
-      </BiChartPanel>
-
-      <!-- 单次人工走查质量分布 (下钻/明细) -->
+      <!-- 6. 单次人工走查质量分布 (下钻/明细) -->
       <BiChartPanel
         title="单次人工走查质量分布"
         subtitle="横轴：走查速率 (KLOC/小时)；纵轴：缺陷密度 (个/KLOC)"
+        :description="BI_CHART_EXPLANATIONS.codingReviewScatter"
         :chart="reviewScatterChart"
         :data="reviewPoints"
         :height="390"
@@ -411,6 +397,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         :status="sectionPresentation(response, 'review-scatter').status"
         :status-message="sectionPresentation(response, 'review-scatter').message"
         :product-version-id="productVersionId"
+        :product-version-name="productVersionName"
         page-key="coding"
         :source-version="response.sourceVersion"
         v-model:sort="reviewScatterSort"

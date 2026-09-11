@@ -10,7 +10,6 @@ export { QualityTrendSmallMultiplesChart } from './QualityTrendSmallMultiplesCha
 export { ReviewQualityDualPanelChart } from './ReviewQualityDualPanelChart';
 export { ReviewQualityScatterChart } from './ReviewQualityScatterChart';
 export { StackedCategoryBarChart } from './StackedCategoryBarChart';
-export { SubmissionFrequencyBarChart } from './SubmissionFrequencyBarChart';
 export { SubmissionTrendComboChart } from './SubmissionTrendComboChart';
 export { TestQualityAttainmentChart } from './TestQualityAttainmentChart';
 export { VerticalCategoryBarChart } from './VerticalCategoryBarChart';
