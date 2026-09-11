@@ -13,7 +13,8 @@
 - [验证] 独立复跑与报告一致：后端 BI 包 109 项全绿；前端 BI 套件 14 文件 75 项全绿（较此前 +1，为新增四条达标线断言）；`GoldenBaselineCoverageGuardTest` 2 项通过；`tsc --noEmit`、ESLint 0 错；`check_api_contract_drift.py` 现 `backend_paths=175 / missing=0 / exit=0`，六项门禁与 `git diff --check` 全部 exit 0。快照有效性按提交史核对：生成时间（2026-09-10 11:46）之后无任何提交改动 BI 页面数据产出（`d6078941` 仅改 RuntimeFactory 装配与新增 Excel 端点），故 `snapshots/bi/` 对当前代码有效；完整黄金链按门禁纪律本次未运行。
 - [待确认] BI「整体修复率 ≥ 95%」达标线在 `BI看板数据来源与计算口径核对表.md` 中**没有对应编号**——该表只登记了一级 100%（ST-13）、P1 90%（ST-25）、P2 80%（ST-31），后端 `BiSystemTestCalculator` 也只产出这三个目标。属未登记口径，需人工确认后补行；确认前不得据其调整实现或词条。
 - [发现] `ModuleQuality.fixRate` 取自 `percent(fixed, issues.size())`，而模块只在存在缺陷事实时才创建（`issues.size() >= 1`），故该字段实际**永不为 null**：`sorting.ts` 的 null 分支、单测中「修复率不可计算」用例与词条「仅无可计算数值时置于列表末尾」均是不可达描述，属 v1.0 同类“业务前提未钉到后端契约”的残留，本次未改。
-- [待办] 同单元遗留的轻微问题：`BiExcelExportRequest` 的 `headers` 元素无 `@NotBlank`/长度上限（含 null 元素会在 `columnWidths → displayWidth` 抛 NPE 返回 500，`title`/`explanation`/`rows` 亦无上限）；`SystemTestStageContent.vue` 的 `moduleSeverity`、`overlay` 两处仍为页面内联比较器且无“无数据恒置底”处理。
+- [完成] 补 `BiExcelExportRequest` 入参契约：`headers` 改为 `@NotEmpty List<@NotBlank String>`、`rows` 改为 `List<@NotNull List<Object>>`。此前表头元素为 `null` 会在 `columnWidths → displayWidth` 抛 NPE、数据行本身为 `null` 会在行遍历抛 NPE，均为已授权客户端可构造的 500；现由校验层拒绝为 400，单元格 `null` 仍合法（写空串）。新增 `BiExcelExportRequestTest` 6 项覆盖上述边界，含「单元格可为 null」「`rows` 可为 null」两条正向用例。
+- [决定] `SystemTestStageContent.vue` 的 `moduleSeverity`、`overlay` 两处页面内联比较器**本次不收敛**：后端下发的 `totalCount`/`openCount` 是 `long`、不可能为 `null`，为其补空值处理属于为尚未出现的场景做抽象，违反 AGENTS.md「不得为尚未出现的需求进行过度抽象」；将来计数字段若变为可空，应连同这两处一起改走 `missing-value-sorting` 共享比较器。
 
 ## 2026-09-10 BI 看板实测反馈修复与全看板业务说明（v2.0 复核执行）
 

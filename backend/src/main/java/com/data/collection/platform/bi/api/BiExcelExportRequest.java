@@ -2,6 +2,7 @@ package com.data.collection.platform.bi.api;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import java.util.List;
 
@@ -19,8 +20,8 @@ import java.util.List;
  * @param title 图表标题，用于工作表名与文件名
  * @param productVersionName 产品版本可读名，写入元信息行；可为空
  * @param explanation 图表业务口径与达标标准说明，写入标题下的说明行；可为空
- * @param headers 表头文本，不可为空
- * @param rows 数据行，单元格为数值或文本；可为空列表
+ * @param headers 表头文本，不可为空且每个表头都必须有文本（服务按表头推导列宽，空表头元素会被拒绝）
+ * @param rows 数据行，单元格为数值或文本（单元格 {@code null} 写空串）；行本身不可为 {@code null}，整体可为空列表
  */
 public record BiExcelExportRequest(
     @Positive long productVersionId,
@@ -30,5 +31,5 @@ public record BiExcelExportRequest(
     @NotBlank String title,
     String productVersionName,
     String explanation,
-    @NotEmpty List<String> headers,
-    List<List<Object>> rows) {}
+    @NotEmpty List<@NotBlank String> headers,
+    List<@NotNull List<Object>> rows) {}
