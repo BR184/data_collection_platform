@@ -1,0 +1,107 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "pageKey" : "requirements",
+    "status" : "INCOMPLETE",
+    "sourceVersion" : "review-read-mode:t:compatibility:2026-09-10T11:41:44.823888|review:6:24:2026-07-10T20:43:04.105548|match-review:436:4550:2026-07-06T09:33:18.418666|fact-projection:v1:0f9e035c7c22fbb16e40d395cfabc033e89665e7e8686340effde7607aaa2421|label-group:2026-09-10T11:41:44.244530|dropdown:0:empty:empty:0",
+    "snapshotId" : "review-read-mode:t:compatibility:2026-09-10T11:41:44.823888|review:6:24:2026-07-10T20:43:04.105548|match-review:436:4550:2026-07-06T09:33:18.418666|fact-projection:v1:0f9e035c7c22fbb16e40d395cfabc033e89665e7e8686340effde7607aaa2421|label-group:2026-09-10T11:41:44.244530|dropdown:0:empty:empty:0",
+    "ruleVersion" : "bi-review-v3",
+    "generatedAt" : "2026-09-10T11:46:39.9567885+08:00",
+    "sections" : [ {
+      "key" : "source-consistency",
+      "label" : "来源一致性",
+      "status" : "READY",
+      "message" : ""
+    }, {
+      "key" : "overview",
+      "label" : "整体评审质量",
+      "status" : "INCOMPLETE",
+      "message" : "被评审页数或独立评审工作量不足，相关指标不可计算"
+    }, {
+      "key" : "problem-categories",
+      "label" : "评审问题类别",
+      "status" : "READY",
+      "message" : ""
+    }, {
+      "key" : "module-quality",
+      "label" : "模块评审质量",
+      "status" : "INCOMPLETE",
+      "message" : "有效观测 0/18；其余记录缺少模块、页数或独立评审工作量"
+    }, {
+      "key" : "review-scatter",
+      "label" : "单次评审质量分布",
+      "status" : "INCOMPLETE",
+      "message" : "有效观测 0/18；其余记录缺少日期、页数或独立评审工作量"
+    } ],
+    "traces" : [ {
+      "metricIds" : [ "RQ-01", "RQ-02", "RQ-03", "RQ-04", "RQ-05", "RQ-06", "RQ-07", "RQ-08", "RQ-09", "RQ-10", "RQ-11", "RQ-12", "RQ-13", "RQ-14", "RQ-15", "RQ-16", "RQ-17", "RQ-18", "RQ-19", "RQ-20", "RQ-21", "RQ-22", "RQ-23", "RQ-24" ],
+      "sourcePlatform" : "数据采集平台",
+      "sourceFields" : [ {
+        "chineseName" : "评审记录 ID",
+        "englishName" : "review_visible_records.id"
+      }, {
+        "chineseName" : "评审日期",
+        "englishName" : "review_visible_records.review_date"
+      }, {
+        "chineseName" : "模块名称",
+        "englishName" : "review_visible_records.module_name"
+      }, {
+        "chineseName" : "被评审页数",
+        "englishName" : "review_visible_records.review_scale_pages"
+      }, {
+        "chineseName" : "独立评审实际工作量（小时）",
+        "englishName" : "review_visible_problem_items.workload_hours"
+      }, {
+        "chineseName" : "问题状态",
+        "englishName" : "review_visible_problem_items.problem_status"
+      }, {
+        "chineseName" : "问题类别",
+        "englishName" : "review_visible_problem_items.problem_category"
+      } ],
+      "formula" : "有效问题数 / 被评审页数；被评审页数 / 独立评审工作量；密度区间 [0.20, 0.60] 达标",
+      "calculationOwner" : "BI服务端"
+    } ],
+    "data" : {
+      "summary" : {
+        "reviewCount" : 18,
+        "reviewedPages" : 0,
+        "workloadHours" : 68.8,
+        "effectiveProblemCount" : 212,
+        "defectDensity" : null,
+        "reviewRate" : 0.0,
+        "achieved" : null
+      },
+      "categories" : [ {
+        "category" : "文档规范",
+        "count" : 19,
+        "sharePercent" : 8.96
+      }, {
+        "category" : "完整性",
+        "count" : 83,
+        "sharePercent" : 39.15
+      }, {
+        "category" : "功能性",
+        "count" : 66,
+        "sharePercent" : 31.13
+      }, {
+        "category" : "可行性",
+        "count" : 44,
+        "sharePercent" : 20.75
+      } ],
+      "modules" : [ ],
+      "reviewPoints" : [ ],
+      "moduleCoverage" : {
+        "totalObservations" : 18,
+        "validObservations" : 0,
+        "coveragePercent" : 0.0
+      },
+      "reviewPointCoverage" : {
+        "totalObservations" : 18,
+        "validObservations" : 0,
+        "coveragePercent" : 0.0
+      }
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "defaultVersionId" : 7,
+    "versions" : [ {
+      "id" : 7,
+      "businessKey" : "CC2026R3",
+      "displayName" : "CC2026R3",
+      "sortOrder" : 1
+    }, {
+      "id" : 8,
+      "businessKey" : "CC2026R4",
+      "displayName" : "CC2026R4",
+      "sortOrder" : 2
+    }, {
+      "id" : 5,
+      "businessKey" : "CC2026R2",
+      "displayName" : "CC2026R2",
+      "sortOrder" : 3
+    }, {
+      "id" : 4,
+      "businessKey" : "CC2026R1",
+      "displayName" : "CC2026R1",
+      "sortOrder" : 4
+    }, {
+      "id" : 1,
+      "businessKey" : "CC2025R4",
+      "displayName" : "CC2025R4",
+      "sortOrder" : 5
+    }, {
+      "id" : 11,
+      "businessKey" : "CC2025R3",
+      "displayName" : "CC2025R3",
+      "sortOrder" : 6
+    }, {
+      "id" : 2,
+      "businessKey" : "CC2025R2",
+      "displayName" : "CC2025R2",
+      "sortOrder" : 7
+    }, {
+      "id" : 9,
+      "businessKey" : "CC2025R1",
+      "displayName" : "CC2025R1",
+      "sortOrder" : 8
+    }, {
+      "id" : 6,
+      "businessKey" : "CC2024R4",
+      "displayName" : "CC2024R4",
+      "sortOrder" : 9
+    }, {
+      "id" : 3,
+      "businessKey" : "CC2024R2",
+      "displayName" : "CC2024R2",
+      "sortOrder" : 10
+    }, {
+      "id" : 10,
+      "businessKey" : "CC2024R3",
+      "displayName" : "CC2024R3",
+      "sortOrder" : 11
+    } ]
+  }
+}

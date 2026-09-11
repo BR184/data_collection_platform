@@ -1,0 +1,52 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "pageKey" : "integration-test",
+    "status" : "INCOMPLETE",
+    "sourceVersion" : "",
+    "snapshotId" : "",
+    "ruleVersion" : "bi-cat-test-v2",
+    "generatedAt" : "2026-09-10T11:46:42.4331351+08:00",
+    "sections" : [ {
+      "key" : "test-quality",
+      "label" : "测试质量达成",
+      "status" : "INCOMPLETE",
+      "message" : "当前产品版本尚未发布 CAT 集成测试镜像，请先在数据镜像设置中同步，当前页面不会使用数据采集平台或 mock 补齐"
+    } ],
+    "traces" : [ {
+      "metricIds" : [ "IT-01", "IT-02", "IT-03", "IT-04", "IT-05", "IT-06", "IT-07", "IT-08", "IT-09", "IT-10", "IT-11", "IT-12", "IT-13", "IT-14", "IT-15", "IT-16", "IT-17", "IT-18", "IT-19" ],
+      "sourcePlatform" : "CAT",
+      "sourceFields" : [ {
+        "chineseName" : "模块 ID",
+        "englishName" : "data.result[].id"
+      }, {
+        "chineseName" : "功能 ID",
+        "englishName" : "statisticsInfoList[].featureUniqueId"
+      }, {
+        "chineseName" : "整体通过率",
+        "englishName" : "data.passRate"
+      }, {
+        "chineseName" : "模块通过率",
+        "englishName" : "data.result[].testPassRate"
+      }, {
+        "chineseName" : "功能通过率",
+        "englishName" : "statisticsInfoList[].testPassRate"
+      }, {
+        "chineseName" : "达标功能数",
+        "englishName" : "data.result[].passFeatureCount"
+      }, {
+        "chineseName" : "未达标功能数",
+        "englishName" : "data.result[].notPassFeatureCount"
+      } ],
+      "formula" : "统计功能数=达标功能数+未达标功能数；整体/模块/功能通过率不低于95%为达标；功能数量不映射为用例数量",
+      "calculationOwner" : "CAT提供通过率与功能达标数量，BI服务端计算达标状态"
+    } ],
+    "data" : {
+      "overall" : null,
+      "modules" : [ ],
+      "functions" : [ ]
+    }
+  }
+}

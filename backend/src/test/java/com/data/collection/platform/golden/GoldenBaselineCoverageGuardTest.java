@@ -29,7 +29,10 @@ import org.springframework.web.bind.annotation.RestController;
  */
 class GoldenBaselineCoverageGuardTest {
 
-  private static final String CONTROLLER_PACKAGE = "com.data.collection.platform.controller";
+  // 黄金基线覆盖范围：核心 controller 包 + BI 看板 bi.api 包（BI 端点也纳入目录强制登记）。
+  private static final List<String> CONTROLLER_PACKAGES = List.of(
+      "com.data.collection.platform.controller",
+      "com.data.collection.platform.bi.api");
 
   /** 验证代码中每个 Controller 端点都登记在目录中，且目录不含幽灵条目。 */
   @Test
@@ -137,12 +140,14 @@ class GoldenBaselineCoverageGuardTest {
         new ClassPathScanningCandidateComponentProvider(false);
     scanner.addIncludeFilter(new AnnotationTypeFilter(RestController.class));
     Set<String> endpoints = new HashSet<>();
-    for (BeanDefinition definition
-        : scanner.findCandidateComponents(CONTROLLER_PACKAGE)) {
-      Class<?> controllerType = loadControllerType(definition);
-      String base = classBasePath(controllerType);
-      for (Method method : controllerType.getDeclaredMethods()) {
-        collectMethodEndpoints(method, base, endpoints);
+    for (String basePackage : CONTROLLER_PACKAGES) {
+      for (BeanDefinition definition
+          : scanner.findCandidateComponents(basePackage)) {
+        Class<?> controllerType = loadControllerType(definition);
+        String base = classBasePath(controllerType);
+        for (Method method : controllerType.getDeclaredMethods()) {
+          collectMethodEndpoints(method, base, endpoints);
+        }
       }
     }
     assertThat(endpoints)

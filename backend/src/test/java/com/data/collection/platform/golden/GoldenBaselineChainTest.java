@@ -310,6 +310,15 @@ class GoldenBaselineChainTest {
     vars.put("settingsUpdatedAt", GoldenBaselineSupport.queryScalar(
         "select replace(cast(updated_at as text), ' ', 'T') "
             + "from code_review_match_mode_db_settings where id = 1"));
+    // BI 产品版本 id：与 BiPlatformProductVersionAdapter.catalog() 的 defaultId 同口径
+    //（CrownCAD 项目 9 + TESTING_PHASE 维度 + 启用组，按 sort_order,id 取首个）。
+    // coalesce 兜底 0：夹具若缺该组也不致整链在变量解析阶段崩溃；届时 BI 数据页返回
+    // 确定性错误响应，由 update 后的 git diff 审阅拦截并改判 EXCLUDED。
+    vars.put("biProductVersionId", GoldenBaselineSupport.queryScalar(
+        "select coalesce((select g.id from issue_scope_catalogs c "
+            + "join issue_scope_groups g on g.catalog_id = c.id and g.enabled = true "
+            + "where c.project_id = 9 and c.dimension = 'TESTING_PHASE' and c.enabled = true "
+            + "order by g.sort_order asc, g.id asc limit 1), 0)"));
     return vars;
   }
 

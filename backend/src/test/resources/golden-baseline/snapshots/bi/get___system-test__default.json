@@ -1,0 +1,731 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "pageKey" : "system-test",
+    "status" : "READY",
+    "sourceVersion" : "fact-projection:v1:298f14a6ba81ce31f479978433f182084ebb0b73d82e9f8176f52e705498def9|label-group:2026-09-10T11:41:44.244530",
+    "snapshotId" : "fact-projection:v1:298f14a6ba81ce31f479978433f182084ebb0b73d82e9f8176f52e705498def9|label-group:2026-09-10T11:41:44.244530",
+    "ruleVersion" : "bi-system-test-v3",
+    "generatedAt" : "2026-09-10T11:46:42.3141918+08:00",
+    "sections" : [ {
+      "key" : "source-consistency",
+      "label" : "来源一致性",
+      "status" : "READY",
+      "message" : ""
+    }, {
+      "key" : "quality-targets",
+      "label" : "质量目标及达标情况",
+      "status" : "READY",
+      "message" : ""
+    }, {
+      "key" : "round-quality",
+      "label" : "各轮系统测试质量",
+      "status" : "READY",
+      "message" : ""
+    }, {
+      "key" : "severity-distribution",
+      "label" : "缺陷级别分布",
+      "status" : "READY",
+      "message" : ""
+    }, {
+      "key" : "module-quality",
+      "label" : "模块累计发现与当前未修复",
+      "status" : "READY",
+      "message" : ""
+    }, {
+      "key" : "module-repair-targets",
+      "label" : "模块一级/P1/P2修复率",
+      "status" : "READY",
+      "message" : ""
+    }, {
+      "key" : "cause-distribution",
+      "label" : "缺陷原因分布",
+      "status" : "READY",
+      "message" : ""
+    }, {
+      "key" : "delay-analysis",
+      "label" : "申请延期缺陷情况",
+      "status" : "READY",
+      "message" : ""
+    }, {
+      "key" : "developer-workload",
+      "label" : "按指派人统计缺陷数",
+      "status" : "READY",
+      "message" : ""
+    } ],
+    "traces" : [ {
+      "metricIds" : [ "ST-01", "ST-04", "ST-05", "ST-06", "ST-07", "ST-08" ],
+      "sourcePlatform" : "数据采集平台",
+      "sourceFields" : [ {
+        "chineseName" : "缺陷 ID",
+        "englishName" : "issue_fact.issue_id"
+      }, {
+        "chineseName" : "当前修复状态",
+        "englishName" : "issue_fact.is_fixed"
+      } ],
+      "formula" : "按有效缺陷 ID 去重；未修复数=总数-已修复数；修复率=已修复数/总数",
+      "calculationOwner" : "BI服务端"
+    }, {
+      "metricIds" : [ "ST-09", "ST-10", "ST-12", "ST-13", "ST-14", "ST-21", "ST-22", "ST-24", "ST-25", "ST-26", "ST-27", "ST-28", "ST-30", "ST-31", "ST-32" ],
+      "sourcePlatform" : "数据采集平台",
+      "sourceFields" : [ {
+        "chineseName" : "缺陷严重级别",
+        "englishName" : "issue_fact.severity_level"
+      }, {
+        "chineseName" : "缺陷优先级",
+        "englishName" : "issue_fact.priority_level"
+      }, {
+        "chineseName" : "当前修复状态",
+        "englishName" : "issue_fact.is_fixed"
+      } ],
+      "formula" : "一级=100%；P1>=90%；P2>=80%，各指标独立判定",
+      "calculationOwner" : "BI服务端"
+    }, {
+      "metricIds" : [ "ST-33", "ST-34", "ST-35", "ST-36", "ST-37", "ST-38", "ST-39", "ST-40", "ST-41", "ST-42" ],
+      "sourcePlatform" : "数据采集平台",
+      "sourceFields" : [ {
+        "chineseName" : "测试轮次 ID",
+        "englishName" : "issue_scope_members.id"
+      }, {
+        "chineseName" : "测试轮次事实值",
+        "englishName" : "issue_scope_members.source_value / issue_fact.testing_phase"
+      }, {
+        "chineseName" : "轮次顺序",
+        "englishName" : "issue_scope_members.sort_order"
+      }, {
+        "chineseName" : "缺陷 ID",
+        "englishName" : "issue_fact.issue_id"
+      }, {
+        "chineseName" : "缺陷严重级别",
+        "englishName" : "issue_fact.severity_level"
+      }, {
+        "chineseName" : "当前修复状态",
+        "englishName" : "issue_fact.is_fixed"
+      } ],
+      "formula" : "轮次提交总数=有效缺陷 ID 去重数=三级严重度之和=已关闭+未关闭；关闭率=已关闭/提交总数",
+      "calculationOwner" : "BI服务端"
+    }, {
+      "metricIds" : [ "ST-43", "ST-44", "ST-45", "ST-46", "ST-47", "ST-48", "ST-49", "ST-49A", "ST-49B", "ST-49C", "ST-50", "ST-51", "ST-52", "ST-53" ],
+      "sourcePlatform" : "数据采集平台",
+      "sourceFields" : [ {
+        "chineseName" : "模块名称集合",
+        "englishName" : "issue_fact.module_names"
+      }, {
+        "chineseName" : "当前指派人",
+        "englishName" : "issue_fact.assignee_name"
+      } ],
+      "formula" : "模块按来源快照内名称维度聚合并允许一缺陷多归属；人员负荷按当前指派人聚合，缺失值进入显式未知组",
+      "calculationOwner" : "BI服务端"
+    }, {
+      "metricIds" : [ "ST-54", "ST-55", "ST-56", "ST-57", "ST-58", "ST-59", "ST-60", "ST-61", "ST-62", "ST-63" ],
+      "sourcePlatform" : "数据采集平台",
+      "sourceFields" : [ {
+        "chineseName" : "原因分类",
+        "englishName" : "issue_fact.reason_category"
+      }, {
+        "chineseName" : "议题标签",
+        "englishName" : "issue_fact.label_names"
+      }, {
+        "chineseName" : "是否延期",
+        "englishName" : "issue_fact.delay_issue"
+      }, {
+        "chineseName" : "延期原因",
+        "englishName" : "issue_fact.delay_cause / delay_reason"
+      } ],
+      "formula" : "原因按 BI 版本化大类/子类词典匹配并保留未归类；延期仅统计 delay_issue=true，按原因和严重级别交叉聚合",
+      "calculationOwner" : "BI服务端"
+    } ],
+    "data" : {
+      "overview" : {
+        "totalCount" : 53,
+        "fixedCount" : 49,
+        "openCount" : 4,
+        "fixRate" : 92.45
+      },
+      "qualityTargets" : [ {
+        "key" : "level-one",
+        "label" : "一级缺陷",
+        "totalCount" : 13,
+        "fixedCount" : 13,
+        "fixRate" : 100.0,
+        "targetRate" : 100.0,
+        "status" : "READY",
+        "achieved" : true
+      }, {
+        "key" : "p1",
+        "label" : "P1",
+        "totalCount" : 42,
+        "fixedCount" : 39,
+        "fixRate" : 92.86,
+        "targetRate" : 90.0,
+        "status" : "READY",
+        "achieved" : true
+      }, {
+        "key" : "p2",
+        "label" : "P2",
+        "totalCount" : 10,
+        "fixedCount" : 9,
+        "fixRate" : 90.0,
+        "targetRate" : 80.0,
+        "status" : "READY",
+        "achieved" : true
+      } ],
+      "rounds" : [ {
+        "roundId" : "37",
+        "roundName" : "CC2026R3第一轮系统测试",
+        "roundOrder" : 1,
+        "levelOneCount" : 2,
+        "levelTwoCount" : 10,
+        "levelThreeCount" : 1,
+        "submittedCount" : 13,
+        "closedCount" : 12,
+        "openCount" : 1,
+        "closeRate" : 92.31
+      }, {
+        "roundId" : "38",
+        "roundName" : "CC2026R3第二轮系统测试",
+        "roundOrder" : 2,
+        "levelOneCount" : 4,
+        "levelTwoCount" : 9,
+        "levelThreeCount" : 1,
+        "submittedCount" : 14,
+        "closedCount" : 13,
+        "openCount" : 1,
+        "closeRate" : 92.86
+      }, {
+        "roundId" : "39",
+        "roundName" : "CC2026R3第三轮系统测试",
+        "roundOrder" : 3,
+        "levelOneCount" : 2,
+        "levelTwoCount" : 1,
+        "levelThreeCount" : 1,
+        "submittedCount" : 4,
+        "closedCount" : 4,
+        "openCount" : 0,
+        "closeRate" : 100.0
+      }, {
+        "roundId" : "40",
+        "roundName" : "CC2026R3第四轮系统测试",
+        "roundOrder" : 4,
+        "levelOneCount" : 0,
+        "levelTwoCount" : 4,
+        "levelThreeCount" : 0,
+        "submittedCount" : 4,
+        "closedCount" : 4,
+        "openCount" : 0,
+        "closeRate" : 100.0
+      }, {
+        "roundId" : "41",
+        "roundName" : "CC2026R3第五轮系统测试",
+        "roundOrder" : 5,
+        "levelOneCount" : 1,
+        "levelTwoCount" : 8,
+        "levelThreeCount" : 0,
+        "submittedCount" : 9,
+        "closedCount" : 7,
+        "openCount" : 2,
+        "closeRate" : 77.78
+      }, {
+        "roundId" : "42",
+        "roundName" : "CC2026R3第六轮系统测试",
+        "roundOrder" : 6,
+        "levelOneCount" : 2,
+        "levelTwoCount" : 3,
+        "levelThreeCount" : 0,
+        "submittedCount" : 5,
+        "closedCount" : 5,
+        "openCount" : 0,
+        "closeRate" : 100.0
+      }, {
+        "roundId" : "43",
+        "roundName" : "CC2026R3回归测试",
+        "roundOrder" : 7,
+        "levelOneCount" : 2,
+        "levelTwoCount" : 2,
+        "levelThreeCount" : 0,
+        "submittedCount" : 4,
+        "closedCount" : 4,
+        "openCount" : 0,
+        "closeRate" : 100.0
+      } ],
+      "severity" : {
+        "levelOneCount" : 13,
+        "levelTwoCount" : 37,
+        "levelThreeCount" : 3
+      },
+      "modules" : [ {
+        "module" : {
+          "sourceValue" : "工程图",
+          "displayName" : "工程图",
+          "identified" : true
+        },
+        "totalCount" : 28,
+        "fixedCount" : 26,
+        "openCount" : 2,
+        "fixRate" : 92.86,
+        "levelOneCount" : 9,
+        "levelTwoCount" : 18,
+        "levelThreeCount" : 1,
+        "levelOneFixRate" : 100.0,
+        "p1FixRate" : 95.83,
+        "p2FixRate" : 75.0
+      }, {
+        "module" : {
+          "sourceValue" : "装配",
+          "displayName" : "装配",
+          "identified" : true
+        },
+        "totalCount" : 9,
+        "fixedCount" : 9,
+        "openCount" : 0,
+        "fixRate" : 100.0,
+        "levelOneCount" : 1,
+        "levelTwoCount" : 6,
+        "levelThreeCount" : 2,
+        "levelOneFixRate" : 100.0,
+        "p1FixRate" : 100.0,
+        "p2FixRate" : 100.0
+      }, {
+        "module" : {
+          "sourceValue" : "焊件",
+          "displayName" : "焊件",
+          "identified" : true
+        },
+        "totalCount" : 5,
+        "fixedCount" : 5,
+        "openCount" : 0,
+        "fixRate" : 100.0,
+        "levelOneCount" : 1,
+        "levelTwoCount" : 4,
+        "levelThreeCount" : 0,
+        "levelOneFixRate" : 100.0,
+        "p1FixRate" : 100.0,
+        "p2FixRate" : null
+      }, {
+        "module" : {
+          "sourceValue" : "工具",
+          "displayName" : "工具",
+          "identified" : true
+        },
+        "totalCount" : 3,
+        "fixedCount" : 3,
+        "openCount" : 0,
+        "fixRate" : 100.0,
+        "levelOneCount" : 1,
+        "levelTwoCount" : 2,
+        "levelThreeCount" : 0,
+        "levelOneFixRate" : 100.0,
+        "p1FixRate" : 100.0,
+        "p2FixRate" : null
+      }, {
+        "module" : {
+          "sourceValue" : "特征",
+          "displayName" : "特征",
+          "identified" : true
+        },
+        "totalCount" : 3,
+        "fixedCount" : 1,
+        "openCount" : 2,
+        "fixRate" : 33.33,
+        "levelOneCount" : 0,
+        "levelTwoCount" : 3,
+        "levelThreeCount" : 0,
+        "levelOneFixRate" : null,
+        "p1FixRate" : 33.33,
+        "p2FixRate" : null
+      }, {
+        "module" : {
+          "sourceValue" : "草图",
+          "displayName" : "草图",
+          "identified" : true
+        },
+        "totalCount" : 2,
+        "fixedCount" : 2,
+        "openCount" : 0,
+        "fixRate" : 100.0,
+        "levelOneCount" : 1,
+        "levelTwoCount" : 1,
+        "levelThreeCount" : 0,
+        "levelOneFixRate" : 100.0,
+        "p1FixRate" : 100.0,
+        "p2FixRate" : 100.0
+      }, {
+        "module" : {
+          "sourceValue" : "实体算法",
+          "displayName" : "实体算法",
+          "identified" : true
+        },
+        "totalCount" : 2,
+        "fixedCount" : 2,
+        "openCount" : 0,
+        "fixRate" : 100.0,
+        "levelOneCount" : 0,
+        "levelTwoCount" : 2,
+        "levelThreeCount" : 0,
+        "levelOneFixRate" : null,
+        "p1FixRate" : 100.0,
+        "p2FixRate" : 100.0
+      }, {
+        "module" : {
+          "sourceValue" : "渲染",
+          "displayName" : "渲染",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0,
+        "fixRate" : 100.0,
+        "levelOneCount" : 0,
+        "levelTwoCount" : 1,
+        "levelThreeCount" : 0,
+        "levelOneFixRate" : null,
+        "p1FixRate" : 100.0,
+        "p2FixRate" : null
+      }, {
+        "module" : {
+          "sourceValue" : "平台",
+          "displayName" : "平台",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0,
+        "fixRate" : 100.0,
+        "levelOneCount" : 0,
+        "levelTwoCount" : 0,
+        "levelThreeCount" : 1,
+        "levelOneFixRate" : null,
+        "p1FixRate" : 100.0,
+        "p2FixRate" : null
+      } ],
+      "causeCategories" : [ {
+        "categoryId" : "unclassified",
+        "categoryName" : "未归类",
+        "count" : 46,
+        "sharePercent" : 86.79
+      }, {
+        "categoryId" : "design",
+        "categoryName" : "设计问题",
+        "count" : 6,
+        "sharePercent" : 11.32
+      }, {
+        "categoryId" : "coding",
+        "categoryName" : "编码规范",
+        "count" : 1,
+        "sharePercent" : 1.89
+      } ],
+      "causeSubcategories" : [ {
+        "categoryId" : "unclassified",
+        "categoryName" : "未归类",
+        "subcategoryId" : "unclassified",
+        "subcategoryName" : "未归类",
+        "count" : 46,
+        "sharePercent" : 86.79
+      }, {
+        "categoryId" : "design",
+        "categoryName" : "设计问题",
+        "subcategoryId" : "design_scheme",
+        "subcategoryName" : "设计方案不合理",
+        "count" : 6,
+        "sharePercent" : 11.32
+      }, {
+        "categoryId" : "coding",
+        "categoryName" : "编码规范",
+        "subcategoryId" : "logic_calculation_algorithm_error",
+        "subcategoryName" : "编码逻辑：计算与算法错误",
+        "count" : 1,
+        "sharePercent" : 1.89
+      } ],
+      "delays" : [ {
+        "reason" : "技术卡点",
+        "severity" : "LEVEL2",
+        "count" : 1
+      }, {
+        "reason" : "方案卡点",
+        "severity" : "LEVEL2",
+        "count" : 3
+      }, {
+        "reason" : "机制问题",
+        "severity" : "LEVEL2",
+        "count" : 2
+      }, {
+        "reason" : "资源卡点",
+        "severity" : "LEVEL2",
+        "count" : 1
+      } ],
+      "developers" : [ {
+        "assignee" : {
+          "sourceValue" : "刘祥志",
+          "displayName" : "刘祥志",
+          "identified" : true
+        },
+        "totalCount" : 5,
+        "fixedCount" : 3,
+        "openCount" : 2
+      }, {
+        "assignee" : {
+          "sourceValue" : "刘露",
+          "displayName" : "刘露",
+          "identified" : true
+        },
+        "totalCount" : 2,
+        "fixedCount" : 0,
+        "openCount" : 2
+      }, {
+        "assignee" : {
+          "sourceValue" : "付守帅",
+          "displayName" : "付守帅",
+          "identified" : true
+        },
+        "totalCount" : 4,
+        "fixedCount" : 4,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "张海思",
+          "displayName" : "张海思",
+          "identified" : true
+        },
+        "totalCount" : 4,
+        "fixedCount" : 4,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "张明霞",
+          "displayName" : "张明霞",
+          "identified" : true
+        },
+        "totalCount" : 4,
+        "fixedCount" : 4,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "狄林林",
+          "displayName" : "狄林林",
+          "identified" : true
+        },
+        "totalCount" : 4,
+        "fixedCount" : 4,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "赵梦珊",
+          "displayName" : "赵梦珊",
+          "identified" : true
+        },
+        "totalCount" : 3,
+        "fixedCount" : 3,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "张晓涵",
+          "displayName" : "张晓涵",
+          "identified" : true
+        },
+        "totalCount" : 2,
+        "fixedCount" : 2,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "侯燕申",
+          "displayName" : "侯燕申",
+          "identified" : true
+        },
+        "totalCount" : 2,
+        "fixedCount" : 2,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "白云涛",
+          "displayName" : "白云涛",
+          "identified" : true
+        },
+        "totalCount" : 2,
+        "fixedCount" : 2,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "李焕坤",
+          "displayName" : "李焕坤",
+          "identified" : true
+        },
+        "totalCount" : 2,
+        "fixedCount" : 2,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "张静",
+          "displayName" : "张静",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "焦桦坤",
+          "displayName" : "焦桦坤",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "武晓旭",
+          "displayName" : "武晓旭",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "马泽坤",
+          "displayName" : "马泽坤",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "王德远",
+          "displayName" : "王德远",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "张登航",
+          "displayName" : "张登航",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "刘宗博",
+          "displayName" : "刘宗博",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "于倩倩",
+          "displayName" : "于倩倩",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "杜敏敏",
+          "displayName" : "杜敏敏",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "樊雯昊",
+          "displayName" : "樊雯昊",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "王念文",
+          "displayName" : "王念文",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "郎琳琳",
+          "displayName" : "郎琳琳",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "韩琦",
+          "displayName" : "韩琦",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "刘悦",
+          "displayName" : "刘悦",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "王青",
+          "displayName" : "王青",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "牛闯",
+          "displayName" : "牛闯",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "田川",
+          "displayName" : "田川",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "马传超",
+          "displayName" : "马传超",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      }, {
+        "assignee" : {
+          "sourceValue" : "朱梦莹",
+          "displayName" : "朱梦莹",
+          "identified" : true
+        },
+        "totalCount" : 1,
+        "fixedCount" : 1,
+        "openCount" : 0
+      } ]
+    }
+  }
+}
