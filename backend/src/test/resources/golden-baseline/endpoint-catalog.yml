@@ -1488,7 +1488,7 @@ endpoints:
   # 数据页响应信封 BiPageResponse 需掩码 3 个墙钟易变字段：generatedAt（响应生成时刻）、
   # sourceVersion 与 snapshotId（溯源指纹，内嵌本次链路 sync/观测时刻——如 coding 的 commits:...:<now>、
   # design/requirements 的 review-read-mode:...:<now>、system-test 的 label-group:<now>，跨运行必漂移）。
-  # 数据本体（sections/traces/scanDate/reviewDate/observedOn/metrics）为夹具确定的历史日期与内容，全量参与比对。
+  # 数据本体（sections/traces/reviewDate/observedOn/metrics）为夹具确定的历史日期与内容，全量参与比对。
   # unit-test/integration-test 在 CAT 未接入下 sourceVersion 为空，一并声明以保持信封一致并防未来接入后漂移。
   - method: GET
     path: /api/bi/versions

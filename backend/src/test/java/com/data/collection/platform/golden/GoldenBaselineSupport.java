@@ -46,6 +46,9 @@ public final class GoldenBaselineSupport {
   private static final Duration POLL_INTERVAL = Duration.ofSeconds(2);
   private static final Duration SYNC_TIMEOUT = Duration.ofMinutes(8);
   private static final Duration FACT_TIMEOUT = Duration.ofMinutes(5);
+  // 冷启动全量重建下，大数据集 Excel 导出端点（如 illegal-records/export）的生成耗时可显著超过
+  // JSON 端点的 120s 读预算；仅对二进制导出放宽读超时，JSON 端点契约不变，避免误判为产出回归。
+  private static final Duration EXPORT_READ_TIMEOUT = Duration.ofMinutes(6);
   private static final Set<String> SYNC_RUN_TERMINAL_STATUSES =
       Set.of("SUCCESS", "PARTIAL_SUCCESS", "FAILED", "CANCELLED", "TIMEOUT", "MERGED");
   private static final ObjectMapper JSON = new ObjectMapper();
@@ -372,7 +375,10 @@ public final class GoldenBaselineSupport {
 
     /** GET 并返回导出内容字节（Excel/CSV 等二进制或文本响应体）。 */
     public byte[] getBytes(String path) throws IOException, InterruptedException {
-      HttpRequest request = newRequest("GET", path, null).header("Accept", "*/*").build();
+      HttpRequest request = newRequest("GET", path, null)
+          .header("Accept", "*/*")
+          .timeout(EXPORT_READ_TIMEOUT)
+          .build();
       HttpResponse<byte[]> response =
           client.send(request, HttpResponse.BodyHandlers.ofByteArray());
       requireOk(response.statusCode(), new String(response.body(), StandardCharsets.UTF_8));
