@@ -5,6 +5,61 @@ import { BI_PALETTE } from '../palette';
 import { excelPercent } from '../excel-format';
 import { systemTestRepairTargets } from '../../data/quality-targets';
 
+export interface ModuleRepairColumnLayout {
+  startX: number;
+  totalWidth: number;
+  overallWidth: number;
+  col1Center: number;
+  openStartX: number;
+  openWidth: number;
+  col2Center: number;
+  matrixStart: number;
+  cellWidth: number;
+  cellGap: number;
+  col3Center: number;
+  col4Center: number;
+  col5Center: number;
+}
+
+export function computeModuleRepairColumnLayout(
+  containerWidth: number,
+  hasViewZoom: boolean,
+): ModuleRepairColumnLayout {
+  const startX = 118;
+  const rightMargin = hasViewZoom ? 46 : 28;
+  const totalWidth = Math.max(200, containerWidth - startX - rightMargin);
+  const overallWidth = totalWidth * 0.35;
+  const col1Center = startX + overallWidth / 2;
+
+  const openStartX = startX + totalWidth * 0.38;
+  const openWidth = Math.max(54, totalWidth * 0.13);
+  const col2Center = openStartX + openWidth / 2;
+
+  const matrixStart = startX + totalWidth * 0.54;
+  const cellGap = 8;
+  const cellWidth = Math.max(24, (totalWidth * 0.44 - cellGap * 2) / 3);
+
+  const col3Center = matrixStart + cellWidth / 2;
+  const col4Center = matrixStart + (cellWidth + cellGap) + cellWidth / 2;
+  const col5Center = matrixStart + (cellWidth + cellGap) * 2 + cellWidth / 2;
+
+  return {
+    startX,
+    totalWidth,
+    overallWidth,
+    col1Center,
+    openStartX,
+    openWidth,
+    col2Center,
+    matrixStart,
+    cellWidth,
+    cellGap,
+    col3Center,
+    col4Center,
+    col5Center,
+  };
+}
+
 export class ModuleRepairMatrixChart extends BiChart<ModuleRepairRow[]> {
   readonly templateId = 'module-repair-matrix' as const;
 
@@ -38,24 +93,42 @@ export class ModuleRepairMatrixChart extends BiChart<ModuleRepairRow[]> {
       systemTestRepairTargets.p1,
       systemTestRepairTargets.p2,
     ];
+    const hasViewZoom = context.mode === 'view' && data.length > 10;
+    const containerWidth = context.width ?? (context.mode === 'export' ? 1440 : 800);
+    const layout = computeModuleRepairColumnLayout(containerWidth, hasViewZoom);
+
     const headerColumns = [
-      { text: `整体修复率\n目标${systemTestRepairTargets.overall}%`, left: '32%' },
-      { text: '遗留缺陷\n未修复数', left: '52%' },
-      { text: `一级缺陷\n目标${systemTestRepairTargets.levelOne}%`, left: '67%' },
-      { text: `P1优先级\n目标${systemTestRepairTargets.p1}%`, left: '79%' },
-      { text: `P2优先级\n目标${systemTestRepairTargets.p2}%`, left: '91%' },
+      { text: `整体修复率\n目标${systemTestRepairTargets.overall}%`, x: layout.col1Center },
+      { text: '遗留缺陷\n未修复数', x: layout.col2Center },
+      { text: `一级缺陷\n目标${systemTestRepairTargets.levelOne}%`, x: layout.col3Center },
+      { text: `P1优先级\n目标${systemTestRepairTargets.p1}%`, x: layout.col4Center },
+      { text: `P2优先级\n目标${systemTestRepairTargets.p2}%`, x: layout.col5Center },
     ];
     return {
       ...this.baseOption(`模块修复率达成矩阵，共 ${data.length} 个模块。`),
       legend: { show: false },
       graphic: headerColumns.map((col) => ({
-        type: 'text',
-        left: col.left,
-        top: 8,
+        type: 'text' as const,
+        x: col.x,
+        y: 8,
         silent: true,
-        style: { text: col.text, fill: '#475467', fontSize: 12, fontWeight: 600, lineHeight: 16, textAlign: 'center' },
+        style: {
+          text: col.text,
+          fill: '#475467',
+          fontSize: 12,
+          fontWeight: 600,
+          lineHeight: 16,
+          textAlign: 'center' as const,
+          textVerticalAlign: 'top' as const,
+        },
       })),
-      grid: { top: 54, right: context.mode === 'view' && data.length > 10 ? 46 : 28, bottom: context.mode === 'view' && data.length > 10 ? 48 : 24, left: 118, containLabel: true },
+      grid: {
+        top: 54,
+        right: hasViewZoom ? 46 : 28,
+        bottom: hasViewZoom ? 48 : 24,
+        left: layout.startX,
+        containLabel: false,
+      },
       tooltip: {
         trigger: 'item',
         formatter: (params: unknown) => {
@@ -70,8 +143,20 @@ export class ModuleRepairMatrixChart extends BiChart<ModuleRepairRow[]> {
         },
       },
       xAxis: { type: 'value', min: 0, max: 100, show: false },
-      yAxis: { type: 'category', inverse: true, data: data.map((item) => item.name), axisLabel: { width: 104, overflow: 'truncate', color: '#5F6B7A' } },
-      dataZoom: context.mode === 'view' && data.length > 10
+      yAxis: {
+        type: 'category',
+        inverse: true,
+        data: data.map((item) => item.name),
+        axisTick: { show: false },
+        axisLabel: {
+          width: 104,
+          overflow: 'truncate',
+          color: '#5F6B7A',
+          align: 'right',
+          margin: 10,
+        },
+      },
+      dataZoom: hasViewZoom
         ? [{ type: 'slider', yAxisIndex: 0, startValue: 0, endValue: 9, width: 14, right: 4 }]
         : [],
       series: [{

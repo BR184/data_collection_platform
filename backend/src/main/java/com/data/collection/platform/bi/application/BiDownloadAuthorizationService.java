@@ -14,7 +14,7 @@ public final class BiDownloadAuthorizationService {
       "design", Set.of("distribution-donut", "review-quality-dual-panel", "review-quality-scatter"),
       "coding", Set.of(
           "vertical-category-bar", "coding-trend-combo", "submission-trend-combo",
-          "distribution-donut", "stacked-category-bar",
+          "distribution-donut",
           "review-quality-dual-panel", "review-quality-scatter", "quality-trend-small-multiples"),
       "unit-test", Set.of("test-quality-attainment"),
       "integration-test", Set.of("test-quality-attainment"),

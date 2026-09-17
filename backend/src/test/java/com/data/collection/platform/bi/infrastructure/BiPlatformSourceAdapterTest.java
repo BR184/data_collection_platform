@@ -132,8 +132,23 @@ class BiPlatformSourceAdapterTest {
 
     assertThat(source.codeReviews()).hasSize(1);
     assertThat(source.reviewMetricsAvailable()).isTrue();
-    assertThat(source.scanDataAvailable()).isTrue();
+    assertThat(source.reviewDensityDataAvailable()).isTrue();
     assertThat(source.commentRateDataAvailable()).isTrue();
+  }
+
+  @Test
+  void codingAdapterExposesDensityCapabilityWithoutReviewDuration() throws Exception {
+    ResultSet rs = codingRow();
+    when(rs.getBigDecimal("review_duration_minutes")).thenReturn(null);
+    when(jdbcTemplate.query(anyString(), any(RowMapper.class)))
+        .thenAnswer(invocation -> List.of(mapper(invocation.getArgument(1)).mapRow(rs, 0)));
+    when(snapshotService.codeReviewSourceVersion()).thenReturn("coding-v1");
+    when(compatibilityModeEnabled.getAsBoolean()).thenReturn(false);
+
+    BiCodingSource source = codingAdapter().load(scope(), codingQuery());
+
+    assertThat(source.reviewMetricsAvailable()).isFalse();
+    assertThat(source.reviewDensityDataAvailable()).isTrue();
   }
 
   @Test
@@ -366,8 +381,6 @@ class BiPlatformSourceAdapterTest {
     when(rs.getObject("performance_specification_count")).thenReturn(0L);
     when(rs.getObject("design_specification_count")).thenReturn(0L);
     when(rs.getObject("other_specification_count")).thenReturn(0L);
-    when(rs.getString("scan_status")).thenReturn("SUCCESS_WITH_ISSUES");
-    when(rs.getObject("scan_bug_count")).thenReturn(2L);
     when(rs.getBigDecimal("comment_rate")).thenReturn(new BigDecimal("12.50"));
     when(rs.getString("comment_rate_source")).thenReturn("upstream");
     return rs;

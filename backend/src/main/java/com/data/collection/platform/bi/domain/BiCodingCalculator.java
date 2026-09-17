@@ -15,18 +15,19 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** 严格实现 CD-01 至 CD-39 人工确认口径的编码阶段计算器。 */
+/** 严格实现 CD-01 至 CD-39（含 CD-38A）人工确认口径的编码阶段计算器。 */
 public final class BiCodingCalculator {
   private static final BigDecimal MIN_REVIEW_DENSITY = new BigDecimal("3.00");
   private static final BigDecimal MAX_REVIEW_DENSITY = new BigDecimal("12.00");
   private static final BigDecimal ONE_THOUSAND = new BigDecimal("1000");
   private static final BigDecimal MINUTES_PER_HOUR = new BigDecimal("60");
-  private static final String RULE_VERSION = "bi-coding-v3";
+  private static final String RULE_VERSION = "bi-coding-v5";
 
   /**
    * 计算编码页面；上游能力、来源维度或计算分母不足时保留可用数据并标记相应分区。
@@ -38,50 +39,48 @@ public final class BiCodingCalculator {
     Objects.requireNonNull(source, "source");
     // 阶段一：为不同图表建立各自的事实投影，同时按稳定业务 ID 消除重复采集记录。
     // 每个投影独立记录冲突，避免一个缺失字段让所有编码图表一起失效。
-    DistinctResult<BiCodingSource.MergeRequestRecord> mergeRequestIdentities = distinct(
+    DistinctResult<BiCodingSource.MergeRequestRecord, BiCodingSource.MergeRequestIdentity> mergeRequestIdentities = distinct(
         source.mergeRequests(), BiCodingSource.MergeRequestRecord::mergeRequestIdentity,
         ignored -> Boolean.TRUE);
-    DistinctResult<BiCodingSource.MergeRequestRecord> mergeRequestConsistency = distinct(
+    DistinctResult<BiCodingSource.MergeRequestRecord, BiCodingSource.MergeRequestIdentity> mergeRequestConsistency = distinct(
         source.mergeRequests(), BiCodingSource.MergeRequestRecord::mergeRequestIdentity,
         this::mergeRequestConsistency);
-    DistinctResult<BiCodingSource.MergeRequestRecord> codeScaleFacts = distinct(
+    DistinctResult<BiCodingSource.MergeRequestRecord, BiCodingSource.MergeRequestIdentity> codeScaleFacts = distinct(
         source.mergeRequests(), BiCodingSource.MergeRequestRecord::mergeRequestIdentity,
         BiCodingSource.MergeRequestRecord::addedLines);
-    DistinctResult<BiCodingSource.MergeRequestRecord> codeTrendFacts = distinct(
+    DistinctResult<BiCodingSource.MergeRequestRecord, BiCodingSource.MergeRequestIdentity> codeTrendFacts = distinct(
         source.mergeRequests(), BiCodingSource.MergeRequestRecord::mergeRequestIdentity,
         record -> new CodeTrendFact(record.mergedOn(), record.addedLines()));
-    DistinctResult<BiCodingSource.MergeRequestRecord> mergeDateFacts = distinct(
+    DistinctResult<BiCodingSource.MergeRequestRecord, BiCodingSource.MergeRequestIdentity> mergeDateFacts = distinct(
         source.mergeRequests(), BiCodingSource.MergeRequestRecord::mergeRequestIdentity,
         BiCodingSource.MergeRequestRecord::mergedOn);
-    DistinctResult<BiCodingSource.MergeRequestRecord> authorFacts = distinct(
+    DistinctResult<BiCodingSource.MergeRequestRecord, BiCodingSource.MergeRequestIdentity> authorFacts = distinct(
         source.mergeRequests(), BiCodingSource.MergeRequestRecord::mergeRequestIdentity,
         BiCodingSource.MergeRequestRecord::author);
-    DistinctResult<BiCodingSource.MergeRequestRecord> contributionFacts = distinct(
+    DistinctResult<BiCodingSource.MergeRequestRecord, BiCodingSource.MergeRequestIdentity> contributionFacts = distinct(
         source.mergeRequests(), BiCodingSource.MergeRequestRecord::mergeRequestIdentity,
         record -> new ContributionFact(record.author(), record.addedLines()));
-    DistinctResult<BiCodingSource.MergeRequestRecord> moduleIncrementFacts = distinct(
+    DistinctResult<BiCodingSource.MergeRequestRecord, BiCodingSource.MergeRequestIdentity> moduleIncrementFacts = distinct(
         source.mergeRequests(), BiCodingSource.MergeRequestRecord::mergeRequestIdentity,
         record -> new ModuleIncrementFact(record.module(), record.addedLines()));
 
-    DistinctResult<BiCodingSource.CodeReviewRecord> reviewIdentities = distinct(
+    DistinctResult<BiCodingSource.CodeReviewRecord, Long> reviewIdentities = distinct(
         source.codeReviews(), this::codeReviewIdentity, ignored -> Boolean.TRUE);
-    DistinctResult<BiCodingSource.CodeReviewRecord> reviewConsistency = distinct(
+    DistinctResult<BiCodingSource.CodeReviewRecord, Long> reviewConsistency = distinct(
         source.codeReviews(), this::codeReviewIdentity, java.util.function.Function.identity());
-    DistinctResult<BiCodingSource.CodeReviewRecord> reviewQualityFacts = distinct(
+    DistinctResult<BiCodingSource.CodeReviewRecord, Long> reviewQualityFacts = distinct(
         source.codeReviews(), this::codeReviewIdentity, this::reviewQualityFact);
-    DistinctResult<BiCodingSource.CodeReviewRecord> reviewCategoryFacts = distinct(
+    DistinctResult<BiCodingSource.CodeReviewRecord, Long> reviewCategoryFacts = distinct(
         source.codeReviews(), this::codeReviewIdentity, this::reviewCategoryFact);
-    DistinctResult<BiCodingSource.CodeReviewRecord> moduleReviewFacts = distinct(
+    DistinctResult<BiCodingSource.CodeReviewRecord, Long> moduleReviewFacts = distinct(
         source.codeReviews(), this::codeReviewIdentity, this::moduleReviewFact);
-    DistinctResult<BiCodingSource.CodeReviewRecord> reviewScatterFacts = distinct(
+    DistinctResult<BiCodingSource.CodeReviewRecord, Long> reviewScatterFacts = distinct(
         source.codeReviews(), this::codeReviewIdentity, this::reviewScatterFact);
-    DistinctResult<BiCodingSource.CodeReviewRecord> scanFacts = distinct(
-        source.codeReviews(), this::codeReviewIdentity, this::scanFact);
-    DistinctResult<BiCodingSource.CodeReviewRecord> commentRateFacts = distinct(
+    DistinctResult<BiCodingSource.CodeReviewRecord, Long> commentRateFacts = distinct(
         source.codeReviews(), this::codeReviewIdentity, this::commentRateFact);
-    DistinctResult<BiCodingSource.CodeReviewRecord> densityTrendFacts = distinct(
+    DistinctResult<BiCodingSource.CodeReviewRecord, Long> densityTrendFacts = distinct(
         source.codeReviews(), this::codeReviewIdentity, this::densityTrendFact);
-    DistinctResult<BiCodingSource.CommitRecord> commits = distinct(
+    DistinctResult<BiCodingSource.CommitRecord, String> commits = distinct(
         source.commits(), this::commitIdentity, java.util.function.Function.identity());
 
     // 阶段二：没有任何平台事实时返回 EMPTY；这和存在事实但分母不完整是两种状态。
@@ -159,27 +158,32 @@ public final class BiCodingCalculator {
         && source.reviewMetricsAvailable()
         && !reviewScatterValues.isEmpty()
         && reviewScatterValues.stream().allMatch(this::validScatterInputs);
-    List<BiCodingSource.CodeReviewRecord> scanValues = scanFacts.values().stream()
-        .filter(this::validScanInputs)
+    // 注释率趋势按 CD-38A：稳定走查记录 ID 去重后，同一 ID 核心字段冲突的记录整组剔除，
+    // 不按输入顺序任选一条；坏行只从自身序列剔除，与 CD-39 的覆盖率语义保持一致。
+    List<BiCodingSource.CodeReviewRecord> commentRateRecords = commentRateFacts.values().stream()
+        .filter(record -> !commentRateFacts.conflictingIdentities()
+            .contains(codeReviewIdentity(record)))
         .toList();
-    List<BiCodingSource.CodeReviewRecord> commentValues = commentRateFacts.values().stream()
+    List<BiCodingSource.CodeReviewRecord> commentValues = commentRateRecords.stream()
         .filter(this::validCommentRateInputs)
         .toList();
-    boolean scansComplete = reviewIdentitiesComplete && scanFacts.complete()
-        && source.scanDataAvailable() && scanValues.size() == scanFacts.values().size();
     boolean commentsComplete = reviewIdentitiesComplete && commentRateFacts.complete()
         && source.commentRateDataAvailable()
         && commentValues.size() == commentRateFacts.values().size();
     List<BiCodingSource.CodeReviewRecord> densityTrendRecords = densityTrendFacts.values();
     List<BiCodingSource.CodeReviewRecord> densityTrendValues = removeConflictingReviewLines(
-        densityTrendRecords.stream().filter(this::validDensityTrendInputs).toList());
-    boolean densityTrendComplete = reviewIdentitiesComplete
+        densityTrendRecords.stream()
+            .filter(record -> !densityTrendFacts.conflictingIdentities()
+                .contains(codeReviewIdentity(record)))
+            .filter(this::validDensityTrendInputs)
+            .toList());
+    // 密度趋势采用覆盖率语义：坏行（缺走查日期、被走查行数≤0、缺陷数缺失或同 MR 行数冲突）只从自身序列剔除，
+    // 不再让整条曲线置空；是否全覆盖仅决定分区状态标签，与 comment-rate 保持一致。
+    boolean densityTrendFullyCovered = reviewIdentitiesComplete
         && densityTrendFacts.complete()
-        && source.reviewMetricsAvailable()
-        && !densityTrendValues.isEmpty()
-        && densityTrendValues.size() == densityTrendRecords.size()
-        && densityTrendRecords.stream().allMatch(this::validDensityTrendInputs);
-    boolean qualityTrendComplete = commentsComplete && densityTrendComplete;
+        && source.reviewDensityDataAvailable()
+        && densityTrendValues.size() == densityTrendRecords.size();
+    boolean qualityTrendComplete = commentsComplete && densityTrendFullyCovered;
 
     List<BiCodingSource.CodeReviewRecord> codeReviews = reviewIdentities.values();
 
@@ -205,14 +209,12 @@ public final class BiCodingCalculator {
         dataSection("review-scatter", "人工代码走查散点", reviewScatterValues,
             reviewScatterFacts.values().size(), reviewScatterComplete,
             "部分走查记录缺少日期、模块或计算分母"),
-        coverageSection("static-scan", "静态扫描", scanFacts.values(), scanValues,
-            scansComplete, "静态扫描状态、日期或问题数"),
-        coverageSection("comment-rate", "代码注释率", commentRateFacts.values(), commentValues,
-            commentsComplete, "合法注释率或观测日期"),
-        dataSection("quality-trend", "代码质量趋势",
-            java.util.stream.Stream.concat(commentValues.stream(), densityTrendValues.stream()).toList(),
-            commentRateFacts.values().size() + densityTrendRecords.size(), qualityTrendComplete,
-            "部分记录缺少注释率或走查缺陷密度趋势输入"));
+        coverageSection("comment-rate", "代码注释率", "走查记录", commentRateFacts.values(),
+            commentValues, commentsComplete, "合法注释率或观测日期"),
+        qualityTrendSection(
+            commentRateFacts.values().size(), commentValues.size(),
+            densityTrendRecords.size(), densityTrendValues.size(), qualityTrendComplete,
+            "合法注释率或有效密度输入（走查日期、被走查行数大于 0、缺陷数非负且同 MR 行数一致）"));
 
     Long addedLines = codeScaleComplete
         ? codeScaleFacts.values().stream()
@@ -241,13 +243,10 @@ public final class BiCodingCalculator {
         categoriesConsistent ? categories(reviewCategoryFacts.values()) : List.of(),
         contributionsComplete ? contributors(contributionFacts.values()) : List.of(),
         moduleIncrementsComplete ? moduleIncrements(moduleIncrementFacts.values()) : List.of(),
-        scanPoints(scanValues),
         moduleReviewComplete ? moduleReviewQuality(moduleReviewFacts.values()) : List.of(),
         reviewScatterComplete ? reviewPoints(reviewScatterValues) : List.of(),
-        commentRatePoints(commentValues),
-        densityTrendComplete
-            ? reviewDensityTrend(densityTrendValues, source.granularity()) : List.of(),
-        coverage(scanFacts.values().size(), scanValues.size()),
+        commentRateTrend(commentValues, source.granularity()),
+        reviewDensityTrend(densityTrendValues, source.granularity()),
         coverage(commentRateFacts.values().size(), commentValues.size()),
         coverage(densityTrendRecords.size(), densityTrendValues.size()));
     return BiPageResponse.create(
@@ -264,8 +263,8 @@ public final class BiCodingCalculator {
   private BiPageResponse<BiCodingPageData> empty(BiCodingSource source) {
     BiCodingPageData data = new BiCodingPageData(
         new BiCodingPageData.Summary(0L, BigDecimal.ZERO, 0L, null, null, null, null),
-        List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-        List.of(), List.of(), coverage(0, 0), coverage(0, 0), coverage(0, 0));
+        List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+        List.of(), List.of(), coverage(0, 0), coverage(0, 0));
     return BiPageResponse.create(
         "coding",
         BiDataStatus.EMPTY,
@@ -289,7 +288,6 @@ public final class BiCodingCalculator {
         new BiPageSection("review-categories", "代码走查问题分布", BiDataStatus.EMPTY, message),
         new BiPageSection("module-review-quality", "模块人工代码走查质量", BiDataStatus.EMPTY, message),
         new BiPageSection("review-scatter", "人工代码走查散点", BiDataStatus.EMPTY, message),
-        new BiPageSection("static-scan", "静态扫描", BiDataStatus.EMPTY, message),
         new BiPageSection("comment-rate", "代码注释率", BiDataStatus.EMPTY, message),
         new BiPageSection("quality-trend", "代码质量趋势", BiDataStatus.EMPTY, message));
   }
@@ -369,15 +367,6 @@ public final class BiCodingCalculator {
         .toList();
   }
 
-  private List<BiCodingPageData.ScanPoint> scanPoints(
-      List<BiCodingSource.CodeReviewRecord> records) {
-    return records.stream()
-        .sorted(Comparator.comparing(BiCodingSource.CodeReviewRecord::reviewedOn))
-        .map(record -> new BiCodingPageData.ScanPoint(
-            record.codeReviewId(), record.reviewedOn(), record.scanStatus(), record.scanBugCount()))
-        .toList();
-  }
-
   private List<BiCodingPageData.ModuleReviewQuality> moduleReviewQuality(
       List<BiCodingSource.CodeReviewRecord> records) {
     Map<BiSourceDimension, ReviewAccumulator> values = new LinkedHashMap<>();
@@ -409,12 +398,27 @@ public final class BiCodingCalculator {
         }).toList();
   }
 
-  private List<BiCodingPageData.CommentRatePoint> commentRatePoints(
-      List<BiCodingSource.CodeReviewRecord> records) {
-    return records.stream()
-        .sorted(Comparator.comparing(BiCodingSource.CodeReviewRecord::reviewedOn))
-        .map(record -> new BiCodingPageData.CommentRatePoint(
-            record.codeReviewId(), record.reviewedOn(), record.commentRate(), record.commentRateSource()))
+  /**
+   * 按 CD-38A 把合法注释率观测聚合为趋势点：与密度趋势使用同一日期桶，桶内先累加原始
+   * {@link BigDecimal}，最后一次性除以有效记录数并保留 2 位小数，避免逐条四舍五入引入偏差。
+   * 没有合法记录的时间桶不生成点位，由页面与密度轨对齐后显示为 {@code null}。
+   *
+   * @param records     已去重、无冲突且通过 {@code validCommentRateInputs} 的走查记录
+   * @param granularity 请求的时间粒度；周粒度以周一为桶值
+   * @return 按周期升序、每个周期至多一个元素的注释率趋势
+   */
+  private List<BiCodingPageData.CommentRateTrendPoint> commentRateTrend(
+      List<BiCodingSource.CodeReviewRecord> records,
+      BiCodingSource.Granularity granularity) {
+    Map<LocalDate, CommentRateAccumulator> values = new java.util.TreeMap<>();
+    for (BiCodingSource.CodeReviewRecord record : records) {
+      values.computeIfAbsent(bucket(record.reviewedOn(), granularity),
+              ignored -> new CommentRateAccumulator())
+          .add(record.commentRate());
+    }
+    return values.entrySet().stream()
+        .map(entry -> new BiCodingPageData.CommentRateTrendPoint(
+            entry.getKey(), entry.getValue().average()))
         .toList();
   }
 
@@ -530,9 +534,14 @@ public final class BiCodingCalculator {
     return section(key, label, ready, incompleteMessage);
   }
 
+  /**
+   * 构造记录级覆盖率分区。{@code observationLabel} 用于明确覆盖率统计的是走查记录数，
+   * 而不是趋势周期数，避免页面把 {@code valid/total} 误读为时间桶覆盖。
+   */
   private BiPageSection coverageSection(
       String key,
       String label,
+      String observationLabel,
       List<?> total,
       List<?> valid,
       boolean complete,
@@ -542,13 +551,45 @@ public final class BiCodingCalculator {
     }
     if (valid.isEmpty()) {
       return new BiPageSection(key, label, BiDataStatus.INCOMPLETE,
-          "有效观测 0/" + total.size() + "；其余记录缺少" + requiredInputs);
+          "有效" + observationLabel + " 0/" + total.size() + "；其余记录缺少" + requiredInputs);
     }
     String message = complete
         ? ""
-        : "有效观测 " + valid.size() + "/" + total.size() + "；其余记录缺少" + requiredInputs;
+        : "有效" + observationLabel + " " + valid.size() + "/" + total.size()
+            + "；其余记录缺少" + requiredInputs;
     return new BiPageSection(
         key, label, complete ? BiDataStatus.READY : BiDataStatus.INCOMPLETE, message);
+  }
+
+  /**
+   * 构造同时依赖注释率和密度两个事实族的质量趋势分区，分别披露两组记录级覆盖率。
+   *
+   * @param commentTotal 注释率事实去重后的记录总数
+   * @param commentValid 通过注释率合法性与冲突校验的记录数
+   * @param densityTotal 密度趋势事实去重后的记录总数
+   * @param densityValid 通过密度输入校验的记录数
+   * @param complete 两条趋势是否都完整
+   * @param requiredInputs 不完整时的缺失输入说明
+   * @return 质量趋势分区状态和不完整原因
+   */
+  private BiPageSection qualityTrendSection(
+      int commentTotal,
+      int commentValid,
+      int densityTotal,
+      int densityValid,
+      boolean complete,
+      String requiredInputs) {
+    if (commentTotal == 0 && densityTotal == 0) {
+      return new BiPageSection("quality-trend", "代码质量趋势", BiDataStatus.EMPTY,
+          "当前范围没有可计算的代码质量趋势数据");
+    }
+    if (complete) {
+      return new BiPageSection("quality-trend", "代码质量趋势", BiDataStatus.READY, "");
+    }
+    String message = "注释率有效走查记录 " + commentValid + "/" + commentTotal
+        + "；密度有效走查记录 " + densityValid + "/" + densityTotal
+        + "；其余记录缺少" + requiredInputs;
+    return new BiPageSection("quality-trend", "代码质量趋势", BiDataStatus.INCOMPLETE, message);
   }
 
   private BiCodingPageData.Coverage coverage(long total, long valid) {
@@ -628,7 +669,8 @@ public final class BiCodingCalculator {
             "缺陷密度=有效问题数*1000/去重被走查行数；速率=被走查行数/(分钟/60)；密度区间[3,12]达标",
             "BI服务端"),
         new BiMetricTrace(
-            List.of("CD-30", "CD-31", "CD-32", "CD-33", "CD-34", "CD-35", "CD-36", "CD-37", "CD-38", "CD-39"),
+            List.of("CD-30", "CD-31", "CD-32", "CD-33", "CD-34", "CD-35", "CD-38", "CD-38A",
+                "CD-39"),
             "数据采集平台",
             List.of(
                 new BiMetricTrace.SourceField(
@@ -636,21 +678,14 @@ public final class BiCodingCalculator {
                     "code_review_match_mode_records.*_specification_count / "
                         + "code_review_formal_records.*_specification_count"),
                 new BiMetricTrace.SourceField(
-                    "静态扫描状态",
-                    "code_review_match_mode_records.scan_status / "
-                        + "code_review_formal_records.scan_status"),
-                new BiMetricTrace.SourceField(
-                    "静态扫描问题数",
-                    "code_review_match_mode_records.scan_bug_count / "
-                        + "code_review_formal_records.scan_bug_count"),
-                new BiMetricTrace.SourceField(
                     "代码注释率",
                     "code_review_match_mode_records.comment_rate / "
                         + "code_review_formal_records.comment_rate"),
                 new BiMetricTrace.SourceField(
                     "注释率统计来源",
                     "code_review_formal_records.comment_rate_source")),
-            "类别占比=类别问题数/有效问题总数；注释率直接使用上游值；趋势按总体KLOC公式计算",
+            "类别占比=类别问题数/有效问题总数；注释率=周期内合法注释率非加权算术平均，忽略 NULL，"
+                + "保留 2 位小数；密度按 CD-39 以总体 KLOC 公式计算",
             "BI服务端"));
   }
 
@@ -709,13 +744,9 @@ public final class BiCodingCalculator {
         record.effectiveProblemCount());
   }
 
-  private ScanFact scanFact(BiCodingSource.CodeReviewRecord record) {
-    return new ScanFact(record.reviewedOn(), record.scanStatus(), record.scanBugCount());
-  }
-
   private CommentRateFact commentRateFact(BiCodingSource.CodeReviewRecord record) {
-    return new CommentRateFact(
-        record.reviewedOn(), record.commentRate(), record.commentRateSource());
+    // commentRateSource 是可选追溯信息，不属于注释率业务值；来源为空/非空不能构成事实冲突。
+    return new CommentRateFact(record.reviewedOn(), record.commentRate());
   }
 
   private DensityTrendFact densityTrendFact(BiCodingSource.CodeReviewRecord record) {
@@ -745,12 +776,6 @@ public final class BiCodingCalculator {
         && record.otherSpecificationCount() != null && record.otherSpecificationCount() >= 0;
   }
 
-  private boolean validScanInputs(BiCodingSource.CodeReviewRecord record) {
-    return record.reviewedOn() != null
-        && hasText(record.scanStatus())
-        && (record.scanBugCount() == null || record.scanBugCount() >= 0);
-  }
-
   private boolean validCommentRateInputs(BiCodingSource.CodeReviewRecord record) {
     return record.reviewedOn() != null
         && record.commentRate() != null
@@ -772,8 +797,10 @@ public final class BiCodingCalculator {
         && record.reviewDurationMinutes().signum() > 0;
   }
 
+  /** 密度趋势的单行输入契约：除日期与数值外还要求稳定合并请求身份，否则无法执行 CD-39 的同 MR 行数只计一次。 */
   private boolean validDensityTrendInputs(BiCodingSource.CodeReviewRecord record) {
     return record.reviewedOn() != null
+        && record.mergeRequestIdentity() != null
         && record.reviewedLines() != null && record.reviewedLines() > 0
         && record.effectiveProblemCount() != null && record.effectiveProblemCount() >= 0;
   }
@@ -813,13 +840,21 @@ public final class BiCodingCalculator {
         .toList();
   }
 
-  private <K, T, S> DistinctResult<T> distinct(
+  /**
+   * 按稳定身份对来源记录去重，并记录哪些身份出现了核心字段冲突。
+   *
+   * @param values    来源记录，顺序即来源顺序
+   * @param identity  稳定身份提取函数；返回 {@code null} 表示该记录无法确定身份
+   * @param signature 该事实族的完整性签名；同一身份出现不同签名即判定为冲突
+   * @return 每个身份保留的首条值、冲突身份集合与完整性标志
+   */
+  private <K, T, S> DistinctResult<T, K> distinct(
       List<T> values,
       java.util.function.Function<T, K> identity,
       java.util.function.Function<T, S> signature) {
     Map<K, T> distinct = new LinkedHashMap<>();
     Map<K, S> signatures = new LinkedHashMap<>();
-    boolean conflict = false;
+    Set<K> conflictingIdentities = new LinkedHashSet<>();
     boolean invalidIdentity = false;
     for (T value : values) {
       K key = identity.apply(value);
@@ -832,14 +867,28 @@ public final class BiCodingCalculator {
       if (previous == null) {
         signatures.put(key, currentSignature);
       } else if (!Objects.equals(signatures.get(key), currentSignature)) {
-        conflict = true;
+        conflictingIdentities.add(key);
       }
     }
-    return new DistinctResult<>(List.copyOf(distinct.values()), invalidIdentity, conflict);
+    return new DistinctResult<>(
+        List.copyOf(distinct.values()),
+        Set.copyOf(conflictingIdentities),
+        invalidIdentity,
+        !conflictingIdentities.isEmpty());
   }
 
-  private record DistinctResult<T>(
+  /**
+   * 稳定身份去重结果。
+   *
+   * @param values                每个稳定身份保留的首条值，顺序与输入一致
+   * @param conflictingIdentities 核心字段与其他同身份记录冲突的稳定身份；调用方必须整组剔除，
+   *                              不得按输入顺序把首条当作权威值
+   * @param invalidIdentity       是否存在无法确定稳定身份的记录
+   * @param conflict              是否存在同一稳定身份的核心字段冲突
+   */
+  private record DistinctResult<T, K>(
       List<T> values,
+      Set<K> conflictingIdentities,
       boolean invalidIdentity,
       boolean conflict) {
     private boolean complete() {
@@ -890,18 +939,30 @@ public final class BiCodingCalculator {
       BigDecimal reviewDurationMinutes,
       Long effectiveProblemCount) {}
 
-  private record ScanFact(LocalDate reviewedOn, String scanStatus, Long scanBugCount) {}
-
   private record CommentRateFact(
       LocalDate reviewedOn,
-      BigDecimal commentRate,
-      String commentRateSource) {}
+      BigDecimal commentRate) {}
 
   private record DensityTrendFact(
       LocalDate reviewedOn,
       BiCodingSource.MergeRequestIdentity mergeRequestIdentity,
       Long reviewedLines,
       Long effectiveProblemCount) {}
+
+  /** 注释率时间桶累加器：先累加原始值，最后一次性求平均，避免逐条舍入。 */
+  private static final class CommentRateAccumulator {
+    private BigDecimal sum = BigDecimal.ZERO;
+    private long count;
+
+    private void add(BigDecimal commentRate) {
+      sum = sum.add(commentRate);
+      count++;
+    }
+
+    private BigDecimal average() {
+      return sum.divide(BigDecimal.valueOf(count), 2, RoundingMode.HALF_UP);
+    }
+  }
 
   private static final class NamedLongAccumulator {
     private final BiSourceDimension dimension;
@@ -930,7 +991,10 @@ public final class BiCodingCalculator {
     private void add(BiCodingSource.CodeReviewRecord record) {
       reviewedLinesByMergeRequest.putIfAbsent(
           record.mergeRequestIdentity(), record.reviewedLines());
-      durationMinutes = durationMinutes.add(record.reviewDurationMinutes());
+      // 工时仅速率类消费方需要；密度趋势子集不要求工时，缺失时按零参与不参与处理。
+      if (record.reviewDurationMinutes() != null) {
+        durationMinutes = durationMinutes.add(record.reviewDurationMinutes());
+      }
       problemCount += record.effectiveProblemCount();
     }
 

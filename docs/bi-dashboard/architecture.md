@@ -60,7 +60,7 @@
 |---|---|---|---|
 | 代码规模与维度 | `code_review_match_mode_records` | `code_review_formal_records` | 代码趋势、合并请求数、人员贡献、模块代码增量 |
 | GitLab 提交 | `merge_request_commit_fact` | `merge_request_commit_fact` | 提交趋势（含按日/周的提交次数） |
-| 人工代码走查 | `code_review_match_mode_records` | `code_review_formal_records` | 整体/模块人工走查质量、问题分布、单次散点、静态扫描、注释率和质量趋势 |
+| 人工代码走查 | `code_review_match_mode_records` | `code_review_formal_records` | 整体/模块人工走查质量、问题分布、单次散点、注释率和质量趋势 |
 
 - 编码页人工走查兼容态复用平台兼容表 `code_review_match_mode_records`，与代码规模类同一读源，不再维护独立的 BI 独占走查表。
 - `merge_request_diffs` 和 `merge_request_diff_commits` 属于平台 GitLab 推荐同步与血缘，不由 BI 另建 GitLab 抓取任务；最新 Diff 的稳定提交 SHA 和真实提交时间发布到 `merge_request_commit_fact` 后供 BI 读取。

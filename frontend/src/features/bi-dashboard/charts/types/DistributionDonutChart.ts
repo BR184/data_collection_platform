@@ -156,7 +156,6 @@ export class DistributionDonutChart extends BiChart<NamedValue[]> {
           maxSurfaceAngle: 80,
           lineStyle: { width: 1.1, color: '#98A2B3' },
         },
-        labelLayout: { moveOverlap: 'shiftY', hideOverlap: false },
         emphasis: { scaleSize: 4 },
         data: displayData,
       }],

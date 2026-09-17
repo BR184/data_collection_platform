@@ -18,8 +18,8 @@ public record BiCodingSource(
     boolean codeScaleAvailable,
     boolean commitDetailsAvailable,
     boolean reviewMetricsAvailable,
-    boolean scanDataAvailable,
-    boolean commentRateDataAvailable) {
+    boolean commentRateDataAvailable,
+    boolean reviewDensityDataAvailable) {
   public BiCodingSource {
     granularity = granularity == null ? Granularity.DAY : granularity;
     mergeRequests = copy(mergeRequests);
@@ -78,7 +78,7 @@ public record BiCodingSource(
   /** 提交频次所需的稳定提交事实。 */
   public record CommitRecord(String commitId, LocalDate committedOn) {}
 
-  /** 单次人工走查、静态扫描和注释率所需的基础事实。 */
+  /** 单次人工走查和注释率所需的基础事实。 */
   public record CodeReviewRecord(
       long codeReviewId,
       MergeRequestIdentity mergeRequestIdentity,
@@ -92,8 +92,6 @@ public record BiCodingSource(
       Long performanceSpecificationCount,
       Long designSpecificationCount,
       Long otherSpecificationCount,
-      String scanStatus,
-      Long scanBugCount,
       BigDecimal commentRate,
       String commentRateSource) {}
 }

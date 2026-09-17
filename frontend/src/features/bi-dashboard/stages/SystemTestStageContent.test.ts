@@ -64,6 +64,48 @@ describe('SystemTestStageContent', () => {
     expect(severityPanel?.props('description')).toContain('统计系统测试期间一级缺陷');
   });
 
+  it('renders overview metrics before quality targets in the top metric bar', () => {
+    const response: BiPageResponse<BiSystemTestPageData> = {
+      pageKey: 'system-test',
+      status: 'READY',
+      sourceVersion: 'issue-v1',
+      snapshotId: 'issue-v1',
+      ruleVersion: 'bi-system-test-v3',
+      generatedAt: '2026-08-05T00:00:00Z',
+      sections: [],
+      traces: [],
+      data: {
+        overview: { totalCount: 1320, fixedCount: 826, openCount: 494, fixRate: 62.58 },
+        qualityTargets: [
+          { key: 'level-one', label: '一级缺陷', totalCount: 10000, fixedCount: 8304, fixRate: 83.04, targetRate: 100, achieved: false, status: 'READY' },
+          { key: 'p1', label: 'P1', totalCount: 10000, fixedCount: 6929, fixRate: 69.29, targetRate: 90, achieved: false, status: 'READY' },
+          { key: 'p2', label: 'P2', totalCount: 10000, fixedCount: 4960, fixRate: 49.60, targetRate: 80, achieved: false, status: 'READY' },
+        ],
+        rounds: [],
+        severity: { levelOneCount: 0, levelTwoCount: 0, levelThreeCount: 0 },
+        modules: [],
+        causeCategories: [],
+        causeSubcategories: [],
+        delays: [],
+        developers: [],
+      },
+    };
+
+    const wrapper = shallowMount(SystemTestStageContent, {
+      props: { response, productVersionId: 11, productVersionName: 'v1.0' },
+    });
+    const labels = wrapper.findAll('.bi-cell-label').map((node) => node.text());
+    expect(labels).toEqual([
+      '累计发现缺陷数',
+      '已修复缺陷数',
+      '当前未修复数',
+      '整体修复率',
+      '一级缺陷修复率（严重程度）',
+      'P1修复率（优先级）',
+      'P2修复率（优先级）',
+    ]);
+  });
+
   it('sorts test rounds in natural ascending order and sinks 0% module repair rate to bottom', () => {
     const response: BiPageResponse<BiSystemTestPageData> = {
       pageKey: 'system-test',

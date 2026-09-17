@@ -153,10 +153,11 @@
 | CD-33 | 编码 | 设计规范问题数 | 类别计数 | 数据采集平台 | 兼容态 `code_review_match_mode_records.design_specification_count` / 正式态 `code_review_formal_records.design_specification_count` | 当前筛选范围内本类别问题计数。 | 等价映射 | [ ] |
 | CD-34 | 编码 | 其他代码走查问题数 | 类别计数 | 数据采集平台 | 兼容态 `code_review_match_mode_records.other_specification_count` / 正式态 `code_review_formal_records.other_specification_count` | 当前筛选范围内本类别问题计数。 | 等价映射 | [ ] |
 | CD-35 | 编码 | 代码走查问题类别占比 | 计算值 | BI | CD-19、CD-30 至 CD-34 | `该类别问题数 ÷ 全部有效走查问题数`。 | BI计算 | [ ] |
-| CD-36 | 编码 | 静态扫描状态 | 原始状态 | 数据采集平台 | 兼容态 `code_review_match_mode_records.scan_status` / 正式态 `code_review_formal_records.scan_status` | 必须区分未执行、执行失败、执行成功且无问题、执行成功有问题。 | 等价映射 | [ ] |
-| CD-37 | 编码 | 静态扫描问题数 | 原始度量 | 数据采集平台 | 兼容态 `code_review_match_mode_records.scan_bug_count` / 正式态 `code_review_formal_records.scan_bug_count` | 当前筛选范围内静态扫描发现的问题数。 | 等价映射 | [ ] |
+| CD-36 | 编码 | 静态扫描状态 | 原始状态 | 数据采集平台 | 兼容态 `code_review_match_mode_records.scan_status` / 正式态 `code_review_formal_records.scan_status` | 【BI 编码页已下线（2026-09-15，D-12），待 PMD-Biome 重建；底层 scan_status 列仍供代码走查记录页】原口径：必须区分未执行、执行失败、执行成功且无问题、执行成功有问题。 | 等价映射 | [x] |
+| CD-37 | 编码 | 静态扫描问题数 | 原始度量 | 数据采集平台 | 兼容态 `code_review_match_mode_records.scan_bug_count` / 正式态 `code_review_formal_records.scan_bug_count` | 【BI 编码页已下线（2026-09-15，D-12），待 PMD-Biome 重建；底层 scan_bug_count 列仍供代码走查记录页】原口径：当前筛选范围内静态扫描发现的问题数。 | 等价映射 | [x] |
 | CD-38 | 编码 | 代码注释率 | 原始/计算值 | 数据采集平台 | 兼容态 `code_review_match_mode_records.comment_rate` / 正式态 `code_review_formal_records.comment_rate/comment_rate_source` | 直接使用上游返回的注释率；兼容态不携带来源说明时只展示合法注释率，不臆造来源，质量目标未确认。 | 等价映射 | [ ] |
-| CD-39 | 编码 | 代码走查缺陷密度趋势 | 时间桶计算值 | BI | CD-16A、CD-01、CD-17、CD-19 | 按人工走查日期的日/周时间桶使用 CD-20 总体公式；同一合并请求的被走查代码行只计一次，不把各记录密度直接相加。 | BI计算 | [ ] |
+| CD-38A | 编码 | 代码注释率趋势 | 时间桶计算值 | BI | CD-16、CD-16A、CD-38 | 代码注释率趋势以 CD-16 去重后的合法走查记录为输入，使用 CD-16A 的走查日期按请求粒度分桶：日粒度使用自然日，周粒度使用周一所在日期。每个时间桶对 `comment_rate` 做非加权算术平均，忽略 `NULL` 和现有合法性校验排除的记录，结果保留 2 位小数。缺少合法记录的时间桶不生成注释率值，由页面与密度轨对齐后显示为 `null`；不得取最后一条、按新增代码行数加权、按 MR 再去重、补零或插值。`comment_rate_source` 仅作为来源追溯字段，兼容态为空不影响合法注释率参与计算。（2026-09-16 经用户确认冻结） | BI计算 | [ ] |
+| CD-39 | 编码 | 代码走查缺陷密度趋势 | 时间桶计算值 | BI | CD-16A、CD-01、CD-17、CD-19 | 按人工走查日期的日/周时间桶使用 CD-20 总体公式；同一合并请求的被走查代码行只计一次，不把各记录密度直接相加。仅纳入走查日期非空、具备稳定 MR 身份、被走查行数 > 0、缺陷数非负且同 MR 行数一致的记录；坏行只剔除自身、按合法子集出数并以“有效观测 X/Y”披露覆盖率，不再因坏行整条置空（2026-09-14 经用户确认改为覆盖率语义）。 | BI计算 | [ ] |
 
 ## 单元测试
 

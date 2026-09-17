@@ -15,7 +15,7 @@ class BiCodingCalculatorTest {
 
   @Test
   void returnsEveryFrontendSectionContractWhenCodingSourceIsEmpty() {
-    var response = calculator.calculate(source(List.of(), List.of(), List.of(), false, false, false));
+    var response = calculator.calculate(source(List.of(), List.of(), List.of(), false, false));
 
     assertThat(response.status()).isEqualTo(BiDataStatus.EMPTY);
     assertThat(response.sections()).extracting("key")
@@ -27,7 +27,6 @@ class BiCodingCalculatorTest {
             "review-categories",
             "module-review-quality",
             "review-scatter",
-            "static-scan",
             "quality-trend");
   }
 
@@ -44,7 +43,6 @@ class BiCodingCalculatorTest {
         List.of(
             new BiCodingSource.CommitRecord("commit-a", LocalDate.of(2026, 8, 1)),
             new BiCodingSource.CommitRecord("commit-b", LocalDate.of(2026, 8, 1))),
-        true,
         true,
         true);
 
@@ -82,7 +80,6 @@ class BiCodingCalculatorTest {
         List.of(review(3L, 201L, LocalDate.of(2026, 8, 3), "工程图", 500, "30", 2, 1, 1, 0, 0, 0)),
         List.of(),
         false,
-        false,
         false);
 
     var response = calculator.calculate(source);
@@ -111,7 +108,6 @@ class BiCodingCalculatorTest {
         List.of(),
         List.of(),
         true,
-        false,
         false);
 
     var response = calculator.calculate(source);
@@ -131,7 +127,6 @@ class BiCodingCalculatorTest {
         List.of(),
         List.of(),
         false,
-        false,
         false));
 
     assertThat(response.traces()).flatExtracting(trace -> trace.sourceFields())
@@ -144,7 +139,6 @@ class BiCodingCalculatorTest {
             "code_review_match_mode_records.code_walkthrough_date / code_review_formal_records.code_walkthrough_date",
             "code_review_match_mode_records.review_duration_minutes / code_review_formal_records.review_duration_minutes",
             "code_review_match_mode_records.defect_count / code_review_formal_records.defect_count",
-            "code_review_match_mode_records.scan_status / code_review_formal_records.scan_status",
             "code_review_match_mode_records.comment_rate / code_review_formal_records.comment_rate")
         .doesNotContain(
             "authorId",
@@ -157,7 +151,6 @@ class BiCodingCalculatorTest {
         List.of(mergeRequest(301L, LocalDate.of(2026, 8, 4), "张三", "草图", 0)),
         List.of(review(4L, 301L, LocalDate.of(2026, 8, 4), "草图", 0, "0", 1, 1, 0, 0, 0, 0)),
         List.of(),
-        true,
         true,
         true);
 
@@ -179,7 +172,6 @@ class BiCodingCalculatorTest {
             review(41L, 311L, LocalDate.of(2026, 8, 4), "草图", 1000, "60", 4, 1, 1, 1, 1, 0),
             review(42L, 312L, LocalDate.of(2026, 8, 4), "草图", 0, "0", 0, 0, 0, 0, 0, 0)),
         List.of(new BiCodingSource.CommitRecord("commit-zero-denominator", LocalDate.of(2026, 8, 4))),
-        true,
         true,
         true);
 
@@ -203,7 +195,6 @@ class BiCodingCalculatorTest {
         List.of(review(5L, 401L, LocalDate.of(2026, 8, 5), "草图", 500, "30", 2, 1, 1, 0, 0, 0)),
         List.of(new BiCodingSource.CommitRecord("commit-c", LocalDate.of(2026, 8, 5))),
         true,
-        true,
         true);
 
     var response = calculator.calculate(source);
@@ -222,7 +213,6 @@ class BiCodingCalculatorTest {
         List.of(mergeRequest(501L, LocalDate.of(2026, 8, 6), "张三", "草图", -5)),
         List.of(),
         List.of(),
-        false,
         false,
         false);
 
@@ -245,7 +235,6 @@ class BiCodingCalculatorTest {
         List.of(first, conflicting),
         List.of(),
         false,
-        true,
         true);
 
     var response = calculator.calculate(source);
@@ -261,22 +250,20 @@ class BiCodingCalculatorTest {
     BiCodingSource.CodeReviewRecord review = new BiCodingSource.CodeReviewRecord(
         7L, identity(701L), null, BiSourceDimension.identified("草图"), 500L,
         new BigDecimal("30"),
-        2L, 1L, 1L, 0L, 0L, 0L, "SUCCESS_WITH_ISSUES", 2L,
+        2L, 1L, 1L, 0L, 0L, 0L,
         new BigDecimal("12.50"), "upstream");
     BiCodingSource source = source(
         List.of(mergeRequest(701L, LocalDate.of(2026, 8, 8), "张三", "草图", 500)),
         List.of(review),
         List.of(),
         false,
-        true,
         true);
 
     var response = calculator.calculate(source);
 
     assertThat(response.data().summary().reviewDefectDensity()).isEqualByComparingTo("4.00");
     assertThat(response.data().reviewPoints()).isEmpty();
-    assertThat(response.data().scanTrend()).isEmpty();
-    assertThat(response.data().commentRatePoints()).isEmpty();
+    assertThat(response.data().commentRateTrend()).isEmpty();
     assertThat(response.data().reviewDensityTrend()).isEmpty();
   }
 
@@ -289,7 +276,6 @@ class BiCodingCalculatorTest {
             review(9L, 801L, LocalDate.of(2026, 8, 10), "草图", 600, "30", 2, 1, 1, 0, 0, 0)),
         List.of(),
         false,
-        true,
         true);
 
     var response = calculator.calculate(source);
@@ -308,7 +294,6 @@ class BiCodingCalculatorTest {
             mergeRequest(851L, LocalDate.of(2026, 8, 10), "李四", "草图", 500)),
         List.of(),
         List.of(),
-        false,
         false,
         false);
 
@@ -330,7 +315,6 @@ class BiCodingCalculatorTest {
             mergeRequest(852L, LocalDate.of(2026, 8, 10), "张三", "装配", 500)),
         List.of(),
         List.of(),
-        false,
         false,
         false);
 
@@ -357,8 +341,6 @@ class BiCodingCalculatorTest {
         0L,
         0L,
         0L,
-        "SUCCESS_WITH_ISSUES",
-        2L,
         new BigDecimal("12.50"),
         null);
     BiCodingSource source = source(
@@ -366,13 +348,14 @@ class BiCodingCalculatorTest {
         List.of(review),
         List.of(),
         false,
-        true,
         true);
 
     var response = calculator.calculate(source);
 
-    assertThat(response.data().commentRatePoints()).singleElement().satisfies(point ->
-        assertThat(point.commentRate()).isEqualByComparingTo("12.50"));
+    assertThat(response.data().commentRateTrend()).singleElement().satisfies(point -> {
+      assertThat(point.period()).isEqualTo(LocalDate.of(2026, 8, 11));
+      assertThat(point.averageCommentRate()).isEqualByComparingTo("12.50");
+    });
     assertThat(response.sections()).anySatisfy(section -> {
       assertThat(section.key()).isEqualTo("comment-rate");
       assertThat(section.status()).isEqualTo(BiDataStatus.READY);
@@ -394,8 +377,6 @@ class BiCodingCalculatorTest {
         1L,
         0L,
         0L,
-        "SUCCESS_WITH_ISSUES",
-        2L,
         new BigDecimal("12.50"),
         null);
     BiCodingSource.CodeReviewRecord anotherReviewWithoutIdentity = new BiCodingSource.CodeReviewRecord(
@@ -411,8 +392,6 @@ class BiCodingCalculatorTest {
         1L,
         0L,
         0L,
-        "SUCCESS_WITH_ISSUES",
-        1L,
         new BigDecimal("10.00"),
         null);
     BiCodingSource source = source(
@@ -420,13 +399,16 @@ class BiCodingCalculatorTest {
         List.of(reviewWithoutIdentity, anotherReviewWithoutIdentity),
         List.of(),
         false,
-        true,
         true);
 
     var response = calculator.calculate(source);
 
     assertThat(response.data().reviewDensityTrend()).isEmpty();
-    assertThat(response.data().commentRatePoints()).isNotEmpty();
+    // 密度因缺少稳定 MR 身份为空，但注释率仍按同一时间桶聚合出数：12.50 与 10.00 的平均为 11.25。
+    assertThat(response.data().commentRateTrend()).singleElement().satisfies(point -> {
+      assertThat(point.period()).isEqualTo(LocalDate.of(2026, 8, 7));
+      assertThat(point.averageCommentRate()).isEqualByComparingTo("11.25");
+    });
     assertThat(response.sections()).anySatisfy(section -> {
       assertThat(section.key()).isEqualTo("quality-trend");
       assertThat(section.status()).isEqualTo(BiDataStatus.INCOMPLETE);
@@ -444,7 +426,6 @@ class BiCodingCalculatorTest {
             review(9L, 802L, LocalDate.of(2026, 8, 8), "装配", 400, "40", 1, 0, 0, 1, 0, 0)),
         List.of(),
         false,
-        true,
         true);
 
     var response = calculator.calculate(source);
@@ -453,9 +434,138 @@ class BiCodingCalculatorTest {
       assertThat(point.period()).isEqualTo("2026-08-08");
       assertThat(point.reviewDefectDensity()).isEqualByComparingTo("4.00");
     });
+    assertThat(response.data().reviewDensityCoverage().totalObservations()).isEqualTo(2L);
+    assertThat(response.data().reviewDensityCoverage().validObservations()).isEqualTo(2L);
+    assertThat(response.data().reviewDensityCoverage().coveragePercent()).isEqualByComparingTo("100.00");
     assertThat(response.sections()).anySatisfy(section -> {
       assertThat(section.key()).isEqualTo("quality-trend");
       assertThat(section.status()).isEqualTo(BiDataStatus.READY);
+      assertThat(section.message()).isEmpty();
+    });
+  }
+
+  @Test
+  void rendersDensityTrendFromValidSubsetWhenSomeReviewRowsAreBad() {
+    BiCodingSource source = source(
+        List.of(
+            mergeRequest(901L, LocalDate.of(2026, 8, 8), "张三", "草图", 1000),
+            mergeRequest(902L, LocalDate.of(2026, 8, 8), "李四", "装配", 0)),
+        List.of(
+            review(21L, 901L, LocalDate.of(2026, 8, 8), "草图", 1000, "60", 4, 1, 1, 1, 1, 0),
+            review(22L, 902L, LocalDate.of(2026, 8, 8), "装配", 0, "0", 9, 0, 0, 0, 0, 0)),
+        List.of(),
+        false,
+        true);
+
+    var response = calculator.calculate(source);
+
+    // 坏行（被走查行数为 0）只剔除自身：密度曲线仍基于合法子集出数，且其缺陷不计入分子。
+    assertThat(response.data().reviewDensityTrend()).singleElement().satisfies(point -> {
+      assertThat(point.period()).isEqualTo("2026-08-08");
+      assertThat(point.reviewDefectDensity()).isEqualByComparingTo("4.00");
+    });
+    assertThat(response.data().reviewDensityCoverage().totalObservations()).isEqualTo(2L);
+    assertThat(response.data().reviewDensityCoverage().validObservations()).isEqualTo(1L);
+    assertThat(response.data().reviewDensityCoverage().coveragePercent()).isEqualByComparingTo("50.00");
+    assertThat(response.sections()).anySatisfy(section -> {
+      assertThat(section.key()).isEqualTo("quality-trend");
+      assertThat(section.status()).isEqualTo(BiDataStatus.INCOMPLETE);
+      assertThat(section.message()).contains("注释率有效走查记录 2/2")
+          .contains("密度有效走查记录 1/2");
+    });
+  }
+
+  @Test
+  void rendersDensityTrendExcludingOnlyConflictingMergeRequestRecords() {
+    BiCodingSource source = source(
+        List.of(
+            mergeRequest(911L, LocalDate.of(2026, 8, 8), "张三", "草图", 1000),
+            mergeRequest(912L, LocalDate.of(2026, 8, 8), "李四", "装配", 500)),
+        List.of(
+            review(30L, 911L, LocalDate.of(2026, 8, 8), "草图", 1000, "60", 5, 2, 1, 1, 1, 0),
+            review(31L, 912L, LocalDate.of(2026, 8, 8), "装配", 500, "30", 2, 1, 1, 0, 0, 0),
+            review(32L, 912L, LocalDate.of(2026, 8, 9), "装配", 600, "30", 2, 1, 1, 0, 0, 0)),
+        List.of(),
+        false,
+        true);
+
+    var response = calculator.calculate(source);
+
+    // 同 MR 行数冲突只剔除冲突 MR 的走查记录，其余合法记录仍参与密度趋势。
+    assertThat(response.data().reviewDensityTrend()).singleElement().satisfies(point -> {
+      assertThat(point.period()).isEqualTo("2026-08-08");
+      assertThat(point.reviewDefectDensity()).isEqualByComparingTo("5.00");
+    });
+    assertThat(response.data().reviewDensityCoverage().totalObservations()).isEqualTo(3L);
+    assertThat(response.data().reviewDensityCoverage().validObservations()).isEqualTo(1L);
+    assertThat(response.sections()).anySatisfy(section -> {
+      assertThat(section.key()).isEqualTo("quality-trend");
+      assertThat(section.status()).isEqualTo(BiDataStatus.INCOMPLETE);
+      assertThat(section.message()).contains("注释率有效走查记录 3/3")
+          .contains("密度有效走查记录 1/3");
+    });
+  }
+
+  @Test
+  void includesDensityTrendObservationsWithoutReviewDuration() {
+    BiCodingSource.CodeReviewRecord noDuration = new BiCodingSource.CodeReviewRecord(
+        51L, identity(921L), LocalDate.of(2026, 8, 8), BiSourceDimension.identified("草图"),
+        1000L, null, 3L, 1L, 1L, 1L, 0L, 0L,
+        new BigDecimal("12.50"), "upstream");
+    BiCodingSource source = source(
+        List.of(mergeRequest(921L, LocalDate.of(2026, 8, 8), "张三", "草图", 1000)),
+        List.of(noDuration),
+        List.of(),
+        false,
+        true,
+        BiCodingSource.Granularity.DAY,
+        false,
+        true);
+
+    var response = calculator.calculate(source);
+
+    // 密度趋势不依赖工时；工时缺失的合法记录仍应出数而不是被丢弃。
+    assertThat(response.data().reviewDensityTrend()).singleElement().satisfies(point -> {
+      assertThat(point.period()).isEqualTo("2026-08-08");
+      assertThat(point.reviewDefectDensity()).isEqualByComparingTo("3.00");
+    });
+    assertThat(response.data().reviewDensityCoverage().coveragePercent())
+        .isEqualByComparingTo("100.00");
+    assertThat(response.sections()).anySatisfy(section -> {
+      assertThat(section.key()).isEqualTo("quality-trend");
+      assertThat(section.status()).isEqualTo(BiDataStatus.READY);
+    });
+  }
+
+  @Test
+  void excludesConflictingDensityFactsRegardlessOfInputOrder() {
+    BiCodingSource.CodeReviewRecord first = review(
+        61L, 931L, LocalDate.of(2026, 8, 9), "草图", 500, "30", 2,
+        1, 1, 0, 0, 0, new BigDecimal("20"), "upstream");
+    BiCodingSource.CodeReviewRecord conflicting = review(
+        61L, 931L, LocalDate.of(2026, 8, 9), "草图", 500, "30", 3,
+        1, 1, 1, 0, 0, new BigDecimal("20"), "upstream");
+
+    var forward = calculator.calculate(source(
+        List.of(mergeRequest(931L, LocalDate.of(2026, 8, 9), "张三", "草图", 500)),
+        List.of(first, conflicting), List.of(), false, true));
+    var reversed = calculator.calculate(source(
+        List.of(mergeRequest(931L, LocalDate.of(2026, 8, 9), "张三", "草图", 500)),
+        List.of(conflicting, first), List.of(), false, true));
+
+    // 同一走查 ID 的缺陷数冲突不能把首条记录当作密度事实；交换来源顺序后的结果必须相同且不出点。
+    assertThat(forward.data().reviewDensityTrend()).isEmpty();
+    assertThat(reversed.data().reviewDensityTrend()).isEmpty();
+    assertThat(forward.data().reviewDensityCoverage().totalObservations()).isEqualTo(1L);
+    assertThat(forward.data().reviewDensityCoverage().validObservations()).isEqualTo(0L);
+    assertThat(forward.data().reviewDensityCoverage().coveragePercent())
+        .isEqualByComparingTo("0.00");
+    assertThat(reversed.data().reviewDensityCoverage()).isEqualTo(
+        forward.data().reviewDensityCoverage());
+    assertThat(forward.sections()).anySatisfy(section -> {
+      assertThat(section.key()).isEqualTo("quality-trend");
+      assertThat(section.status()).isEqualTo(BiDataStatus.INCOMPLETE);
+      assertThat(section.message()).contains("密度有效走查记录 0/1");
     });
   }
 
@@ -465,7 +575,6 @@ class BiCodingCalculatorTest {
         List.of(mergeRequest(301L, LocalDate.of(2026, 8, 10), "张三", "草图", 1200)),
         List.of(review(31L, 301L, LocalDate.of(2026, 8, 10), "草图", 1200, "60", 3, 1, 1, 1, 0, 0)),
         List.of(),
-        false,
         false,
         false);
 
@@ -482,7 +591,6 @@ class BiCodingCalculatorTest {
         List.of(review(32L, 302L, LocalDate.of(2026, 8, 11), "装配", 1000, "60", 11, 3, 3, 3, 1, 1)),
         List.of(),
         false,
-        false,
         false);
 
     var response = calculator.calculate(source);
@@ -498,7 +606,6 @@ class BiCodingCalculatorTest {
         List.of(review(33L, 303L, LocalDate.of(2026, 8, 12), "工程图", 1000, "60", 13, 4, 4, 3, 1, 1)),
         List.of(),
         false,
-        false,
         false);
 
     var response = calculator.calculate(source);
@@ -507,17 +614,251 @@ class BiCodingCalculatorTest {
     assertThat(response.data().summary().reviewDensityAchieved()).isFalse();
   }
 
+  @Test
+  void averagesCommentRatesWithinTheSameDayInsteadOfKeepingTheLastRecord() {
+    BiCodingSource source = source(
+        List.of(mergeRequest(1001L, LocalDate.of(2025, 11, 17), "张三", "草图", 500)),
+        List.of(
+            review(1001L, 1001L, LocalDate.of(2025, 11, 17), "草图", 500, "30", 2, 1, 1, 0, 0, 0,
+                new BigDecimal("0"), "upstream"),
+            review(1002L, 1001L, LocalDate.of(2025, 11, 17), "草图", 500, "30", 2, 1, 1, 0, 0, 0,
+                new BigDecimal("10"), "upstream"),
+            review(1003L, 1001L, LocalDate.of(2025, 11, 17), "草图", 500, "30", 2, 1, 1, 0, 0, 0,
+                new BigDecimal("50"), "upstream"),
+            review(1004L, 1001L, LocalDate.of(2025, 11, 17), "草图", 500, "30", 2, 1, 1, 0, 0, 0,
+                new BigDecimal("100"), "upstream")),
+        List.of(),
+        false,
+        true);
+
+    var response = calculator.calculate(source);
+
+    // 同日 0、10、50、100 的非加权算术平均为 40.00，绝不返回输入顺序中的最后一条 100。
+    assertThat(response.data().commentRateTrend()).singleElement().satisfies(point -> {
+      assertThat(point.period()).isEqualTo(LocalDate.of(2025, 11, 17));
+      assertThat(point.averageCommentRate()).isEqualByComparingTo("40.00");
+    });
+  }
+
+  @Test
+  void ignoresNullNegativeAndUndatedCommentRatesWhileReportingRecordCoverage() {
+    BiCodingSource.CodeReviewRecord undatedReview = new BiCodingSource.CodeReviewRecord(
+        1104L, identity(1101L), null, BiSourceDimension.identified("草图"), 500L,
+        new BigDecimal("30"), 2L, 1L, 1L, 0L, 0L, 0L, new BigDecimal("80"), "upstream");
+    BiCodingSource source = source(
+        List.of(mergeRequest(1101L, LocalDate.of(2026, 8, 20), "张三", "草图", 500)),
+        List.of(
+            review(1101L, 1101L, LocalDate.of(2026, 8, 20), "草图", 500, "30", 2, 1, 1, 0, 0, 0,
+                new BigDecimal("10"), "upstream"),
+            review(1102L, 1101L, LocalDate.of(2026, 8, 20), "草图", 500, "30", 2, 1, 1, 0, 0, 0,
+                new BigDecimal("-5"), "upstream"),
+            review(1103L, 1101L, LocalDate.of(2026, 8, 20), "草图", 500, "30", 2, 1, 1, 0, 0, 0,
+                null, "upstream"),
+            undatedReview),
+        List.of(),
+        false,
+        true);
+
+    var response = calculator.calculate(source);
+
+    // 只有 10 是合法观测：NULL、负值与缺失日期都不进入平均。
+    assertThat(response.data().commentRateTrend()).singleElement().satisfies(point -> {
+      assertThat(point.period()).isEqualTo(LocalDate.of(2026, 8, 20));
+      assertThat(point.averageCommentRate()).isEqualByComparingTo("10.00");
+    });
+    // 覆盖率仍按走查记录数统计，而不是趋势周期数。
+    assertThat(response.data().commentRateCoverage().totalObservations()).isEqualTo(4L);
+    assertThat(response.data().commentRateCoverage().validObservations()).isEqualTo(1L);
+    assertThat(response.data().commentRateCoverage().coveragePercent()).isEqualByComparingTo("25.00");
+  }
+
+  @Test
+  void bucketsCommentRateByWeekStartingOnMondayWhenWeekGranularityIsRequested() {
+    BiCodingSource source = source(
+        List.of(
+            mergeRequest(1201L, LocalDate.of(2026, 8, 19), "张三", "草图", 500),
+            mergeRequest(1202L, LocalDate.of(2026, 8, 21), "李四", "装配", 500),
+            mergeRequest(1203L, LocalDate.of(2026, 8, 25), "王五", "工程图", 500)),
+        List.of(
+            review(1201L, 1201L, LocalDate.of(2026, 8, 19), "草图", 500, "30", 2, 1, 1, 0, 0, 0,
+                new BigDecimal("10"), "upstream"),
+            review(1202L, 1202L, LocalDate.of(2026, 8, 21), "装配", 500, "30", 2, 1, 1, 0, 0, 0,
+                new BigDecimal("20"), "upstream"),
+            review(1203L, 1203L, LocalDate.of(2026, 8, 25), "工程图", 500, "30", 2, 1, 1, 0, 0, 0,
+                new BigDecimal("60"), "upstream")),
+        List.of(),
+        false,
+        true,
+        BiCodingSource.Granularity.WEEK);
+
+    var response = calculator.calculate(source);
+
+    // 08-19（周三）与 08-21（周五）归入 08-17 那一周，平均 (10+20)/2=15.00；08-25（周二）归入 08-24 那一周。
+    assertThat(response.data().commentRateTrend()).extracting("period", "averageCommentRate")
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple(LocalDate.of(2026, 8, 17), new BigDecimal("15.00")),
+            org.assertj.core.groups.Tuple.tuple(LocalDate.of(2026, 8, 24), new BigDecimal("60.00")));
+    // 注释率与密度必须使用同一套周期键。
+    assertThat(response.data().reviewDensityTrend()).extracting("period")
+        .containsExactly(LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 24));
+  }
+
+  @Test
+  void doesNotWeightCommentRateByAddedLinesOrReviewedLines() {
+    BiCodingSource source = source(
+        List.of(
+            mergeRequest(1301L, LocalDate.of(2026, 8, 22), "张三", "草图", 100000),
+            mergeRequest(1302L, LocalDate.of(2026, 8, 22), "李四", "装配", 1)),
+        List.of(
+            review(1301L, 1301L, LocalDate.of(2026, 8, 22), "草图", 100000, "30", 2, 1, 1, 0, 0, 0,
+                new BigDecimal("0"), "upstream"),
+            review(1302L, 1302L, LocalDate.of(2026, 8, 22), "装配", 1, "30", 2, 1, 1, 0, 0, 0,
+                new BigDecimal("100"), "upstream")),
+        List.of(),
+        false,
+        true);
+
+    var response = calculator.calculate(source);
+
+    // 非加权算术平均为 50.00；若按新增行数或被走查行数加权，结果会趋近 0。
+    assertThat(response.data().commentRateTrend()).singleElement().satisfies(point ->
+        assertThat(point.averageCommentRate()).isEqualByComparingTo("50.00"));
+  }
+
+  @Test
+  void countsFullyDuplicatedReviewRecordOnlyOnceInCommentRateTrend() {
+    BiCodingSource.CodeReviewRecord duplicated = review(1401L, 1401L,
+        LocalDate.of(2026, 8, 23), "草图", 500, "30", 2, 1, 1, 0, 0, 0,
+        new BigDecimal("20"), "upstream");
+    BiCodingSource source = source(
+        List.of(mergeRequest(1401L, LocalDate.of(2026, 8, 23), "张三", "草图", 500)),
+        List.of(duplicated, duplicated),
+        List.of(),
+        false,
+        true);
+
+    var response = calculator.calculate(source);
+
+    // 完全相同的走查记录只计一次，平均值仍是 20.00 而不是被重复累加或产生冲突。
+    assertThat(response.data().commentRateTrend()).singleElement().satisfies(point ->
+        assertThat(point.averageCommentRate()).isEqualByComparingTo("20.00"));
+    assertThat(response.data().commentRateCoverage().totalObservations()).isEqualTo(1L);
+    assertThat(response.data().commentRateCoverage().validObservations()).isEqualTo(1L);
+  }
+
+  @Test
+  void ignoresOptionalCommentRateSourceDifferencesWhenDeduplicatingSameRateFact() {
+    BiCodingSource.CodeReviewRecord withoutSource = review(
+        1451L, 1451L, LocalDate.of(2026, 8, 23), "草图", 500, "30", 2, 1, 1, 0, 0, 0,
+        new BigDecimal("20"), null);
+    BiCodingSource.CodeReviewRecord withSource = review(
+        1451L, 1451L, LocalDate.of(2026, 8, 23), "草图", 500, "30", 2, 1, 1, 0, 0, 0,
+        new BigDecimal("20"), "upstream");
+    BiCodingSource source = source(
+        List.of(mergeRequest(1451L, LocalDate.of(2026, 8, 23), "张三", "草图", 500)),
+        List.of(withoutSource, withSource),
+        List.of(),
+        false,
+        true);
+
+    var response = calculator.calculate(source);
+
+    // 来源说明是可选追溯字段，不能把相同日期/注释率的重复事实判为冲突。
+    assertThat(response.data().commentRateTrend()).singleElement().satisfies(point ->
+        assertThat(point.averageCommentRate()).isEqualByComparingTo("20.00"));
+    assertThat(response.data().commentRateCoverage().totalObservations()).isEqualTo(1L);
+    assertThat(response.data().commentRateCoverage().validObservations()).isEqualTo(1L);
+    assertThat(response.sections()).anySatisfy(section -> {
+      assertThat(section.key()).isEqualTo("comment-rate");
+      assertThat(section.status()).isEqualTo(BiDataStatus.READY);
+    });
+  }
+
+  @Test
+  void excludesConflictingCommentRateFactsButKeepsOtherPeriods() {
+    BiCodingSource source = source(
+        List.of(
+            mergeRequest(1501L, LocalDate.of(2026, 8, 24), "张三", "草图", 500),
+            mergeRequest(1502L, LocalDate.of(2026, 8, 25), "李四", "装配", 500)),
+        List.of(
+            review(1501L, 1501L, LocalDate.of(2026, 8, 24), "草图", 500, "30", 2, 1, 1, 0, 0, 0,
+                new BigDecimal("10"), "upstream"),
+            review(1501L, 1501L, LocalDate.of(2026, 8, 24), "草图", 500, "30", 2, 1, 1, 0, 0, 0,
+                new BigDecimal("90"), "upstream"),
+            review(1502L, 1502L, LocalDate.of(2026, 8, 25), "装配", 500, "30", 2, 1, 1, 0, 0, 0,
+                new BigDecimal("30"), "upstream")),
+        List.of(),
+        false,
+        true);
+
+    var response = calculator.calculate(source);
+
+    // 同一走查 ID 的核心字段冲突不得按输入顺序任选首条或末条，整组剔除；
+    // 其它无冲突的合法记录仍能形成周期点，注释率区块标记为 INCOMPLETE。
+    assertThat(response.data().commentRateTrend()).singleElement().satisfies(point -> {
+      assertThat(point.period()).isEqualTo(LocalDate.of(2026, 8, 25));
+      assertThat(point.averageCommentRate()).isEqualByComparingTo("30.00");
+    });
+    assertThat(response.data().commentRateCoverage().totalObservations()).isEqualTo(2L);
+    assertThat(response.data().commentRateCoverage().validObservations()).isEqualTo(1L);
+    assertThat(response.sections()).anySatisfy(section -> {
+      assertThat(section.key()).isEqualTo("comment-rate");
+      assertThat(section.status()).isEqualTo(BiDataStatus.INCOMPLETE);
+      assertThat(section.message()).contains("有效走查记录 1/2");
+    });
+    assertThat(response.sections()).anySatisfy(section -> {
+      assertThat(section.key()).isEqualTo("quality-trend");
+      assertThat(section.status()).isEqualTo(BiDataStatus.INCOMPLETE);
+      assertThat(section.message()).contains("注释率有效走查记录 1/2")
+          .contains("密度有效走查记录 2/2");
+    });
+  }
+
+  @Test
+  void omitsPeriodsWithoutLegalCommentRateInsteadOfFillingZero() {
+    BiCodingSource source = source(
+        List.of(
+            mergeRequest(1601L, LocalDate.of(2026, 8, 26), "张三", "草图", 500),
+            mergeRequest(1602L, LocalDate.of(2026, 8, 27), "李四", "装配", 500)),
+        List.of(
+            review(1601L, 1601L, LocalDate.of(2026, 8, 26), "草图", 500, "30", 2, 1, 1, 0, 0, 0,
+                new BigDecimal("40"), "upstream"),
+            review(1602L, 1602L, LocalDate.of(2026, 8, 27), "装配", 500, "30", 2, 1, 1, 0, 0, 0,
+                null, "upstream")),
+        List.of(),
+        false,
+        true);
+
+    var response = calculator.calculate(source);
+
+    // 08-27 没有合法注释率观测，注释率轨整体缺位而不是补 0；密度轨仍保留该周期。
+    assertThat(response.data().commentRateTrend()).extracting("period")
+        .containsExactly(LocalDate.of(2026, 8, 26));
+    assertThat(response.data().reviewDensityTrend()).extracting("period")
+        .containsExactly(LocalDate.of(2026, 8, 26), LocalDate.of(2026, 8, 27));
+  }
+
   private BiCodingSource source(
       List<BiCodingSource.MergeRequestRecord> mergeRequests,
       List<BiCodingSource.CodeReviewRecord> reviews,
       List<BiCodingSource.CommitRecord> commits,
       boolean commitDetails,
-      boolean scan,
       boolean comments) {
+    return source(mergeRequests, reviews, commits, commitDetails, comments,
+        BiCodingSource.Granularity.DAY);
+  }
+
+  private BiCodingSource source(
+      List<BiCodingSource.MergeRequestRecord> mergeRequests,
+      List<BiCodingSource.CodeReviewRecord> reviews,
+      List<BiCodingSource.CommitRecord> commits,
+      boolean commitDetails,
+      boolean comments,
+      BiCodingSource.Granularity granularity) {
     return new BiCodingSource(
         "coding-source-1",
         "coding-snapshot-1",
-        BiCodingSource.Granularity.DAY,
+        granularity,
         mergeRequests,
         commits,
         reviews,
@@ -525,8 +866,32 @@ class BiCodingCalculatorTest {
         true,
         commitDetails,
         true,
-        scan,
-        comments);
+        comments,
+        true);
+  }
+
+  private BiCodingSource source(
+      List<BiCodingSource.MergeRequestRecord> mergeRequests,
+      List<BiCodingSource.CodeReviewRecord> reviews,
+      List<BiCodingSource.CommitRecord> commits,
+      boolean commitDetails,
+      boolean comments,
+      BiCodingSource.Granularity granularity,
+      boolean reviewMetrics,
+      boolean reviewDensity) {
+    return new BiCodingSource(
+        "coding-source-1",
+        "coding-snapshot-1",
+        granularity,
+        mergeRequests,
+        commits,
+        reviews,
+        true,
+        true,
+        commitDetails,
+        reviewMetrics,
+        comments,
+        reviewDensity);
   }
 
   private BiCodingSource.MergeRequestRecord mergeRequest(
@@ -558,6 +923,25 @@ class BiCodingCalculatorTest {
       long performance,
       long design,
       long other) {
+    return review(id, mergeRequestId, date, moduleName, lines, minutes, problems, code, logic,
+        performance, design, other, new BigDecimal("12.50"), "upstream");
+  }
+
+  private BiCodingSource.CodeReviewRecord review(
+      long id,
+      long mergeRequestId,
+      LocalDate date,
+      String moduleName,
+      long lines,
+      String minutes,
+      long problems,
+      long code,
+      long logic,
+      long performance,
+      long design,
+      long other,
+      BigDecimal commentRate,
+      String commentRateSource) {
     return new BiCodingSource.CodeReviewRecord(
         id,
         identity(mergeRequestId),
@@ -571,10 +955,8 @@ class BiCodingCalculatorTest {
         performance,
         design,
         other,
-        "SUCCESS_WITH_ISSUES",
-        2L,
-        new BigDecimal("12.50"),
-        "upstream");
+        commentRate,
+        commentRateSource);
   }
 
   private BiCodingSource.MergeRequestIdentity identity(long mergeRequestId) {

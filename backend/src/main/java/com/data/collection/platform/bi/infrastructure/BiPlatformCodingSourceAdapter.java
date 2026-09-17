@@ -50,8 +50,6 @@ public final class BiPlatformCodingSourceAdapter implements BiCodingSourcePort {
              performance_specification_count,
              design_specification_count,
              other_specification_count,
-             scan_status,
-             scan_bug_count,
              comment_rate,
              comment_rate_source
         from code_review_formal_records
@@ -81,8 +79,6 @@ public final class BiPlatformCodingSourceAdapter implements BiCodingSourcePort {
              performance_specification_count,
              design_specification_count,
              other_specification_count,
-             scan_status,
-             scan_bug_count,
              comment_rate,
              null::varchar as comment_rate_source
         from code_review_match_mode_records
@@ -141,13 +137,14 @@ public final class BiPlatformCodingSourceAdapter implements BiCodingSourcePort {
         .toList();
     boolean reviewMetricsAvailable = !completedReviews.isEmpty()
         && completedReviews.stream().allMatch(CodingRow::reviewMetricsAvailable);
-    boolean scanDataAvailable = !completedReviews.isEmpty()
-        && completedReviews.stream().anyMatch(row -> hasText(row.scanStatus())
-            && (row.scanBugCount() == null || row.scanBugCount() >= 0));
+    boolean reviewDensityDataAvailable = !completedReviews.isEmpty()
+        && completedReviews.stream().allMatch(row ->
+            mergeRequestIdentity(row, sourceContext.readMode()) != null
+                && row.reviewDensityDataAvailable());
     boolean commentRateDataAvailable = !completedReviews.isEmpty()
         && completedReviews.stream().anyMatch(row -> row.commentRate() != null
             && row.commentRate().signum() >= 0);
-    // 阶段三：只纳入已完成且具备必要指标的评审事实；扫描和注释率能力分别标记。
+    // 阶段三：只纳入已完成的评审事实；工时类质量能力、密度能力和注释率能力分别标记。
     List<BiCodingSource.CodeReviewRecord> codeReviews = completedReviews.stream()
         .map(row -> codeReview(row, sourceContext.readMode()))
         .toList();
@@ -171,8 +168,8 @@ public final class BiPlatformCodingSourceAdapter implements BiCodingSourcePort {
         codeScaleAvailable,
         sourceContext.commitDetailsAvailable(),
         reviewMetricsAvailable,
-        scanDataAvailable,
-        commentRateDataAvailable);
+        commentRateDataAvailable,
+        reviewDensityDataAvailable);
   }
 
   private BiCodingSource.CommitRecord commit(
@@ -209,8 +206,6 @@ public final class BiPlatformCodingSourceAdapter implements BiCodingSourcePort {
         BiJdbcValueReader.nullableLong(rs, "performance_specification_count"),
         BiJdbcValueReader.nullableLong(rs, "design_specification_count"),
         BiJdbcValueReader.nullableLong(rs, "other_specification_count"),
-        rs.getString("scan_status"),
-        BiJdbcValueReader.nullableLong(rs, "scan_bug_count"),
         rs.getBigDecimal("comment_rate"),
         rs.getString("comment_rate_source"));
   }
@@ -244,8 +239,6 @@ public final class BiPlatformCodingSourceAdapter implements BiCodingSourcePort {
         row.performanceSpecificationCount(),
         row.designSpecificationCount(),
         row.otherSpecificationCount(),
-        row.scanStatus(),
-        row.scanBugCount(),
         row.commentRate(),
         row.commentRateSource());
   }
@@ -323,8 +316,6 @@ public final class BiPlatformCodingSourceAdapter implements BiCodingSourcePort {
       Long performanceSpecificationCount,
       Long designSpecificationCount,
       Long otherSpecificationCount,
-      String scanStatus,
-      Long scanBugCount,
       BigDecimal commentRate,
       String commentRateSource) {
     private boolean reviewMetricsAvailable() {
@@ -332,6 +323,14 @@ public final class BiPlatformCodingSourceAdapter implements BiCodingSourcePort {
           && addedLines >= 0
           && reviewDurationMinutes != null
           && reviewDurationMinutes.signum() >= 0
+          && defectCount != null
+          && defectCount >= 0;
+    }
+
+    private boolean reviewDensityDataAvailable() {
+      return reviewedOn != null
+          && addedLines != null
+          && addedLines > 0
           && defectCount != null
           && defectCount >= 0;
     }

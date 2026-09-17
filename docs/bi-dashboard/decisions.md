@@ -32,3 +32,21 @@
   3. 页面只读取已发布快照，不在请求链路直接依赖 CAT 网络状态或半成品响应。
 - **理由**：CAT 是外部测试平台，接口契约不稳定；镜像快照把外部依赖隔离在 BI 域内，保证页面请求只读稳定快照。
 - **关联**：`docs/bi-dashboard/architecture.md`、`docs/bi-dashboard/data-contracts.md`
+
+## D-03 代码注释率趋势按请求粒度在后端做非加权算术平均
+
+- **状态**：已接受 / 已实施（规则版本 `bi-coding-v5`）
+- **背景**：编码页「代码注释率与走查密度趋势」中，密度轨已按请求粒度在后端聚合，注释率轨却由后端逐条返回 `comment_rate`、前端以走查日期为键构造 `Map` 折叠。JavaScript `Map` 对重复键保留最后一次写入，同一周期的展示值因此取决于来源行顺序（`merged_at_source, id`），既无业务含义也无法复现；两条轨道输出粒度不一致。
+- **决策**：
+  1. 注释率趋势由 BI 后端按请求的 `granularity` 分桶（日=自然日，周=周一所在日期，与 CD-39 的 `bucket` 一致），对桶内合法 `comment_rate` 做非加权算术平均，忽略 `NULL`，先累加原始值、最后一次性保留 2 位小数（`HALF_UP`）。
+  2. 记录粒度为 CD-16 的稳定走查记录 ID：完全相同的重复事实只计一次；同一 ID 核心字段冲突时整组不进入聚合，`comment-rate` 与 `quality-trend` 区块标记 `INCOMPLETE`，其它无关事实族不被清空。
+  3. 页面 DTO 直接替换为 `commentRateTrend(period, averageCommentRate)`，删除 `commentRatePoints`/`CommentRatePoint`/`observedOn`/`commentRate`/`commentRateSource` 页面输出字段，不保留兼容别名或双轨路径。
+  4. 没有合法记录的时间桶不生成点位，前端与密度轨对齐后显示 `null` 并保持 `connectNulls=false`。
+- **理由**：核对表「编码与人工代码走查」前言已确立记录级比率的聚合模式——先按每条记录计算、再对记录值取平均；上游只提供比值，没有注释行数与代码行数，加权与总量比不可计算。聚合放后端使两条轨道同粒度，并让页面 DTO 承载口径，避免前端二次加工造成页面与 Excel 口径分叉。
+- **否决方案**：
+  1. 取当日最后一条（原实现）：取决于来源顺序，无业务依据，无法复现解释。
+  2. 按 `added_lines`／被走查行数加权或总量比：来源没有注释行数/代码行数分子分母，属臆造口径。
+  3. 按合并请求去重：那是 CD-39 密度轨的专用规则（同一 MR 被走查行数只计一次），不适用于注释率。
+  4. 前端聚合：绕过页面数据契约，页面与 Excel 口径可能分叉。
+  5. 补零／前向填充／插值／连接断点：把「无观测」画成「有观测」，与 CD-38「只展示合法注释率、不臆造」冲突。
+- **关联**：`docs/bi-dashboard/BI看板数据来源与计算口径核对表.md`（CD-38A、CD-39）、`docs/bi-dashboard/data-contracts.md`（页面 API）、`docs/plans/bi-coding-comment-rate-period-aggregation-20260916.md`

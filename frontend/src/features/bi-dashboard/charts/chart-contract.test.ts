@@ -18,6 +18,7 @@ import {
   VerticalCategoryBarChart,
 } from './types';
 import { prepareDistributionDonutData } from './types/DistributionDonutChart';
+import { computeModuleRepairColumnLayout } from './types/ModuleRepairMatrixChart';
 
 describe('BI chart type contract', () => {
   it('provides one concrete class for every registered template id', () => {
@@ -136,7 +137,7 @@ describe('BI chart type contract', () => {
       { name: '装配', density: 7.31, rate: 720, achieved: true },
       { name: '隐藏异常模块', density: 166.7, rate: 37_600, achieved: false },
     ], { mode: 'view' });
-    const axes = option.xAxis as Array<{ name?: string; max?: number; breaks?: unknown[] }>;
+    const axes = option.xAxis as Array<{ name?: string; max?: number; interval?: number; breaks?: unknown[] }>;
     const series = option.series as Array<{ data?: Array<{ value?: number | unknown[] }> }>;
 
     expect(axes[0]).toMatchObject({ name: '个/KLOC' });
@@ -145,6 +146,9 @@ describe('BI chart type contract', () => {
     expect(axes[1].max).toBeGreaterThanOrEqual(37_600);
     expect(axes[0].breaks?.length).toBeGreaterThan(0);
     expect(axes[1].breaks?.length).toBeGreaterThan(0);
+    // 主体刻度保持均匀可读：密度 0–8 步长 2，速率 0–800 步长 200，极值在断轴带内。
+    expect(axes[0].interval).toBe(2);
+    expect(axes[1].interval).toBe(200);
     expect(series[0].data?.at(-1)).toMatchObject({ value: 166.7 });
     expect(series[1].data?.at(-1)).toMatchObject({ value: [37_600, '隐藏异常模块'] });
   });
@@ -159,8 +163,8 @@ describe('BI chart type contract', () => {
       { name: '装配', date: '2026-08-02', rate: 1.2, density: 7, achieved: true },
       { name: '异常记录', date: '2026-08-03', rate: 180, density: 1_000, achieved: false },
     ], { mode: 'view' });
-    const xAxis = option.xAxis as { max?: number; breaks?: unknown[] };
-    const yAxis = option.yAxis as { max?: number; breaks?: unknown[]; name?: string };
+    const xAxis = option.xAxis as { max?: number; interval?: number; breaks?: unknown[] };
+    const yAxis = option.yAxis as { max?: number; interval?: number; breaks?: unknown[]; name?: string };
     const series = option.series as Array<{ data?: unknown[] }>;
 
     expect(xAxis.max).toBeGreaterThanOrEqual(180);
@@ -168,6 +172,8 @@ describe('BI chart type contract', () => {
     expect(yAxis.max).toBeGreaterThanOrEqual(1_000);
     expect(xAxis.breaks?.length).toBeGreaterThan(0);
     expect(yAxis.breaks?.length).toBeGreaterThan(0);
+    expect(xAxis.interval).toBe(5);
+    expect(yAxis.interval).toBe(2);
     expect(series.flatMap((item) => item.data ?? [])).toHaveLength(3);
   });
 
@@ -177,11 +183,12 @@ describe('BI chart type contract', () => {
       commentRates: [20, 22, 24, 21],
       defectDensities: [3.2, 4.1, 5.3, 166.7],
     }, { mode: 'view' });
-    const axes = option.yAxis as Array<{ max?: number; splitNumber?: number; breaks?: unknown[] }>;
+    const axes = option.yAxis as Array<{ max?: number; interval?: number; breaks?: unknown[] }>;
 
-    expect(axes[0]).toMatchObject({ max: 100, splitNumber: 4 });
-    expect(axes[1].max).toBeGreaterThanOrEqual(166.7);
-    expect(axes[1].splitNumber).toBe(4);
+    expect(axes[0]).toMatchObject({ max: 100, interval: 20 });
+    expect(axes[0].breaks?.length ?? 0).toBe(0);
+    expect(axes[1].max).toBe(166.7);
+    expect(axes[1].interval).toBe(1);
     expect(axes[1].breaks?.length).toBeGreaterThan(0);
   });
 
@@ -229,6 +236,25 @@ describe('BI chart type contract', () => {
 
     expect(series[0]).toMatchObject({ center: [250, 136], radius: [78.4, 112] });
     expect(graphic[0]).toMatchObject({ x: 250, y: 136 });
+  });
+
+  it('aligns module repair matrix header columns with cell layout centers', () => {
+    const layout = computeModuleRepairColumnLayout(800, false);
+    const chart = new ModuleRepairMatrixChart();
+    const option = chart.build(
+      [{ name: '模块A', fixRate: 95, levelOneRate: 100, p1Rate: 90, p2Rate: 80, openCount: 0, totalCount: 10 }],
+      { mode: 'view', width: 800 },
+    );
+    const graphic = option.graphic as Array<{ x?: number; y?: number; style?: { textAlign?: string; text?: string } }>;
+    const grid = option.grid as { left?: number; containLabel?: boolean };
+
+    expect(grid).toMatchObject({ left: 118, containLabel: false });
+    expect(graphic).toHaveLength(5);
+    expect(graphic[0]).toMatchObject({ x: layout.col1Center, y: 8, style: { textAlign: 'center' } });
+    expect(graphic[1]).toMatchObject({ x: layout.col2Center, y: 8, style: { textAlign: 'center' } });
+    expect(graphic[2]).toMatchObject({ x: layout.col3Center, y: 8, style: { textAlign: 'center' } });
+    expect(graphic[3]).toMatchObject({ x: layout.col4Center, y: 8, style: { textAlign: 'center' } });
+    expect(graphic[4]).toMatchObject({ x: layout.col5Center, y: 8, style: { textAlign: 'center' } });
   });
 
   it('merges categories below one percent into the other-problem note', () => {

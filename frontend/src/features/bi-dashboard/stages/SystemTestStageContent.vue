@@ -221,9 +221,26 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
 
 <template>
   <div class="bi-stage-stack">
-    <!-- 顶部 7 个指标单行化横向整合：左侧 3 项质量目标，右侧 4 项缺陷概览 -->
+    <!-- 顶部 7 个指标单行化横向整合：左侧 4 项缺陷概览，右侧 3 项质量目标 -->
     <section v-if="targetMetrics.length || overviewMetrics.length" class="bi-system-test-metric-bar" aria-label="系统测试质量指标及概览">
-      <!-- 左侧：质量目标 (3 项) -->
+      <!-- 左侧：测试概览 (4 项) -->
+      <div v-if="overviewMetrics.length" class="bi-metric-group bi-metric-group--overview">
+        <article
+          v-for="item in overviewMetrics"
+          :key="item.label"
+          class="bi-strip-cell bi-strip-cell--overview"
+          :class="`is-${item.status ?? 'neutral'}`"
+        >
+          <span class="bi-cell-label">{{ item.label }}</span>
+          <strong class="bi-cell-value">{{ item.value }}</strong>
+          <span class="bi-cell-placeholder">&nbsp;</span>
+        </article>
+      </div>
+
+      <!-- 垂直细分割线 -->
+      <div v-if="targetMetrics.length && overviewMetrics.length" class="bi-metric-bar-divider" role="separator" />
+
+      <!-- 右侧：质量目标 (3 项) -->
       <div v-if="targetMetrics.length" class="bi-metric-group bi-metric-group--targets">
         <article
           v-for="item in targetMetrics"
@@ -237,23 +254,6 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
           </div>
           <strong class="bi-cell-value">{{ item.value }}</strong>
           <span class="bi-target-subtext">{{ item.target }}</span>
-        </article>
-      </div>
-
-      <!-- 垂直细分割线 -->
-      <div v-if="targetMetrics.length && overviewMetrics.length" class="bi-metric-bar-divider" role="separator" />
-
-      <!-- 右侧：测试概览 (4 项) -->
-      <div v-if="overviewMetrics.length" class="bi-metric-group bi-metric-group--overview">
-        <article
-          v-for="item in overviewMetrics"
-          :key="item.label"
-          class="bi-strip-cell bi-strip-cell--overview"
-          :class="`is-${item.status ?? 'neutral'}`"
-        >
-          <span class="bi-cell-label">{{ item.label }}</span>
-          <strong class="bi-cell-value">{{ item.value }}</strong>
-          <span class="bi-cell-placeholder">&nbsp;</span>
         </article>
       </div>
     </section>

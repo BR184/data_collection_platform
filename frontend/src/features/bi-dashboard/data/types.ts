@@ -123,7 +123,6 @@ export interface BiCodingPageData {
   reviewCategories: Array<{ category: string; count: number; sharePercent: number | null }>;
   contributors: Array<{ contributor: BiSourceDimension; addedLines: number }>;
   moduleIncrements: Array<{ module: BiSourceDimension; addedLines: number }>;
-  scanTrend: Array<{ codeReviewId: number; scanDate: string; status: string | null; bugCount: number | null }>;
   moduleReviewQuality: Array<{
     module: BiSourceDimension;
     defectDensity: number | null;
@@ -138,14 +137,8 @@ export interface BiCodingPageData {
     defectDensity: number | null;
     achieved: boolean | null;
   }>;
-  commentRatePoints: Array<{
-    codeReviewId: number;
-    observedOn: string;
-    commentRate: number | null;
-    commentRateSource: string | null;
-  }>;
+  commentRateTrend: Array<{ period: string; averageCommentRate: number | null }>;
   reviewDensityTrend: Array<{ period: string; reviewDefectDensity: number | null }>;
-  scanCoverage: BiMetricCoverage;
   commentRateCoverage: BiMetricCoverage;
   reviewDensityCoverage: BiMetricCoverage;
 }

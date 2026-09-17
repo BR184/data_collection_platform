@@ -6,11 +6,12 @@ import { manualChunks } from './build/manual-chunks';
 
 const apiProxyTarget = process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:18080';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [
     vue(),
     Components({
-      dts: 'src/components.d.ts',
+      // 开发时持续维护类型声明；生产构建只消费已提交声明，避免构建过程改写源码文件。
+      dts: command === 'serve' ? 'src/components.d.ts' : false,
       resolvers: [ElementPlusResolver({ importStyle: 'css' })],
     }),
   ],
@@ -42,4 +43,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

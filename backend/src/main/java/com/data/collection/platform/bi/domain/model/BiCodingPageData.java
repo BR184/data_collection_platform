@@ -13,12 +13,10 @@ public record BiCodingPageData(
     List<CategoryBreakdown> reviewCategories,
     List<Contributor> contributors,
     List<ModuleIncrement> moduleIncrements,
-    List<ScanPoint> scanTrend,
     List<ModuleReviewQuality> moduleReviewQuality,
     List<ReviewPoint> reviewPoints,
-    List<CommentRatePoint> commentRatePoints,
+    List<CommentRateTrendPoint> commentRateTrend,
     List<ReviewDensityTrendPoint> reviewDensityTrend,
-    Coverage scanCoverage,
     Coverage commentRateCoverage,
     Coverage reviewDensityCoverage) {
   public BiCodingPageData {
@@ -27,10 +25,9 @@ public record BiCodingPageData(
     reviewCategories = copy(reviewCategories);
     contributors = copy(contributors);
     moduleIncrements = copy(moduleIncrements);
-    scanTrend = copy(scanTrend);
     moduleReviewQuality = copy(moduleReviewQuality);
     reviewPoints = copy(reviewPoints);
-    commentRatePoints = copy(commentRatePoints);
+    commentRateTrend = copy(commentRateTrend);
     reviewDensityTrend = copy(reviewDensityTrend);
   }
 
@@ -66,13 +63,6 @@ public record BiCodingPageData(
   /** 来源快照内按模块字段分组的模块代码增量。 */
   public record ModuleIncrement(BiSourceDimension module, long addedLines) {}
 
-  /** 一次走查记录对应的静态扫描状态和问题总数。 */
-  public record ScanPoint(
-      long codeReviewId,
-      LocalDate scanDate,
-      String status,
-      Long bugCount) {}
-
   /** 来源快照内按模块字段分组的人工走查质量。 */
   public record ModuleReviewQuality(
       BiSourceDimension module,
@@ -89,12 +79,8 @@ public record BiCodingPageData(
       BigDecimal defectDensity,
       Boolean achieved) {}
 
-  /** 上游直接提供的一次注释率观测值，不在 BI 中臆造聚合公式。 */
-  public record CommentRatePoint(
-      long codeReviewId,
-      LocalDate observedOn,
-      BigDecimal commentRate,
-      String commentRateSource) {}
+  /** 按日或周对合法注释率观测取非加权算术平均后的代码注释率趋势点（CD-38A）。 */
+  public record CommentRateTrendPoint(LocalDate period, BigDecimal averageCommentRate) {}
 
   /** 按日或周使用总体 KLOC 公式计算的代码走查缺陷密度。 */
   public record ReviewDensityTrendPoint(LocalDate period, BigDecimal reviewDefectDensity) {}
