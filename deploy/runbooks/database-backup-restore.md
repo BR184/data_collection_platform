@@ -82,3 +82,8 @@
 - **pg_restore 报错中断**：`--exit-on-error` 模式下库处于部分恢复状态——不要尝试"续传"；重新 drop/create 后换产物重试，或回退到上一份备份。
 - **恢复后后端起不来**：查 `docker logs`；常见为 Flyway 校验失败（备份点版本低于当前镜像预期）——说明该产物早于某次升级，须与升级基线对齐后再恢复对应时代的镜像版本。
 - **产物校验不符**（大小/SHA-256 与页面记录不一致）：禁止使用该产物；换用历史列表中的其他成功备份。
+
+## 相关文档
+
+- 备份主密钥 `PLATFORM_BACKUP_SECRET_KEY` 的生成/放置/生效/轮换（REMOTE 远程备份前置）：`deploy/runbooks/database-backup-secret-key.md`
+- 离线包备份 env/compose 接线与密钥自动生成（权威）：`deploy/intranet-offline-packaging-standard.md`

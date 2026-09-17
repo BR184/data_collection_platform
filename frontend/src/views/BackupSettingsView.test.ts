@@ -218,4 +218,38 @@ describe('BackupSettingsView', () => {
 
     wrapper.unmount();
   });
+
+  it('stops status polling when unmounted while a poll is in flight (no leaked interval)', async () => {
+    vi.useFakeTimers();
+    try {
+      const pending: Array<(value: unknown) => void> = [];
+      mocks.getStatus.mockImplementation(
+        () => new Promise((resolve) => { pending.push(resolve); }),
+      );
+
+      const wrapper = mount(BackupSettingsView, { global: { plugins: [ElementPlus] } });
+      // onMounted 首屏 reloadStatus 会发起一次状态查询并挂起。
+      expect(pending.length).toBe(1);
+      // 放行首屏查询，令 onMounted 完成并进入空闲 15s 轮询。
+      pending.shift()?.(emptyStatus);
+      await vi.advanceTimersByTimeAsync(0);
+
+      // 到时间隔触发一次空闲轮询，此时仍有一个在途请求。
+      await vi.advanceTimersByTimeAsync(15000);
+      expect(pending.length).toBe(1);
+
+      // 在途请求未返回时卸载组件。
+      wrapper.unmount();
+
+      // 让在途轮询返回：存在竞态泄漏时，会在此重新创建 interval。
+      pending.shift()?.(emptyStatus);
+      await vi.advanceTimersByTimeAsync(0);
+
+      // 继续推进远超一个轮询周期：泄漏的 interval 会再次触发状态查询。
+      await vi.advanceTimersByTimeAsync(60000);
+      expect(pending.length).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

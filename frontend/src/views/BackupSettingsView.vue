@@ -57,6 +57,8 @@ const testActualFingerprint = ref<string | null>(null);
 
 let statusTimer: ReturnType<typeof setInterval> | undefined;
 let tickTimer: ReturnType<typeof setInterval> | undefined;
+// 组件是否仍挂载：用于阻断异步轮询在卸载返回后重建定时器导致的轮询泄漏。
+let alive = false;
 
 const isRemote = computed(() => draft.value.storageMode === 'REMOTE');
 const running = computed(() => Boolean(status.value?.running));
@@ -84,11 +86,16 @@ const passwordPlaceholder = computed(() =>
 );
 
 onMounted(async () => {
+  alive = true;
   await Promise.all([reloadSettings(), reloadStatus(), reloadHistory()]);
-  startTimers();
+  // 首屏加载期间可能已被卸载（快速切换路由）：仅在仍挂载时启动轮询。
+  if (alive) {
+    startTimers();
+  }
 });
 
 onBeforeUnmount(() => {
+  alive = false;
   stopTimers();
 });
 
@@ -199,7 +206,12 @@ function stopTimers() {
 async function refreshStatusQuietly() {
   try {
     const previous = status.value;
-    status.value = await databaseBackupApi.getStatus();
+    const loaded = await databaseBackupApi.getStatus();
+    // 轮询响应返回时组件可能已卸载：丢弃结果并停止续期，避免卸载后重建 interval。
+    if (!alive) {
+      return;
+    }
+    status.value = loaded;
     nowTick.value = Date.now();
     statusTimer = restartInterval(statusTimer, running.value ? 2000 : 15000);
     // 运行结束瞬间补拉历史，避免历史表停留在过期的 RUNNING 行。
