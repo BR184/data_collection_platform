@@ -113,7 +113,7 @@ public final class DefectSummaryBoardSupport {
     return StatisticMetricCalculator.percent(value);
   }
 
-  private static long rateSort(long numerator, long denominator) {
+  private static Long rateSort(long numerator, long denominator) {
     return StatisticMetricCalculator.ratioSortValue(numerator, denominator);
   }
 
@@ -232,7 +232,7 @@ public final class DefectSummaryBoardSupport {
     }
 
     private StatisticCellData cell(
-        String key, long numericValue, String displayValue, boolean drilldown, String rowKey) {
+        String key, Long numericValue, String displayValue, boolean drilldown, String rowKey) {
       return new StatisticCellData(
           key,
           numericValue,

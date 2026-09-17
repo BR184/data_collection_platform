@@ -189,6 +189,23 @@ class CustomerIssueDefectSummaryBoardServiceTest {
     }
   }
 
+  @Test
+  void test_no_data_rate_cell_keeps_null_sort_key_distinct_from_real_zero() throws Exception {
+    stubDefaultIssueRows();
+    stubBoardLoad();
+    CustomerIssueDefectSummaryBoardService service = newService();
+
+    StatisticBoardResponse response = service.loadBoard(Map.of());
+
+    // 分母为 0 的比率没有可计算数值：显示 `/`，排序键必须为 null，前端才能把它与真实 0% 分开并恒置底。
+    StatisticRowData total = row(response, "__total__");
+    assertThat(cell(total, "level1_rate").displayValue()).isEqualTo("/");
+    assertThat(cell(total, "level1_rate").numericValue()).isNull();
+    // 分子为 0 但分母有效的比率仍是真实 0，排序键保持 0。
+    assertThat(cell(total, "p3_close_rate").displayValue()).isEqualTo("0.00%");
+    assertThat(cell(total, "p3_close_rate").numericValue()).isZero();
+  }
+
   private CustomerIssueDefectSummaryBoardService newService() {
     return new CustomerIssueDefectSummaryBoardService(
         new JsonUtils(new ObjectMapper()),

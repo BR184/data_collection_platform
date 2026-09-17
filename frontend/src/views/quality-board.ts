@@ -27,7 +27,8 @@ const TOTAL_ROW_KEY = '__total__';
 
 function cellNumber(row: StatisticRowData | null | undefined, key: string) {
   const cell = (row?.cells ?? []).find((item) => item.columnKey === key);
-  return Number.isFinite(cell?.numericValue) ? Number(cell?.numericValue) : 0;
+  const value = cell?.numericValue;
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
 function cellPercentNumber(row: StatisticRowData | null | undefined, key: string) {
@@ -39,7 +40,8 @@ function cellPercentNumber(row: StatisticRowData | null | undefined, key: string
       return parsed;
     }
   }
-  return Number.isFinite(cell?.numericValue) ? Number(cell?.numericValue) : 0;
+  const value = cell?.numericValue;
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
 function totalRow(board: StatisticBoardResponse | null) {

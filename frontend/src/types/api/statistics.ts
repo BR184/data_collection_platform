@@ -159,7 +159,8 @@ export interface StatisticBoardRuleExplanationResponse {
 
 export interface StatisticCellData {
   columnKey: string;
-  numericValue: number;
+  // null 表示无数据（如比率分母为 0），与真实 0 区分；排序时无数据恒置底。
+  numericValue: number | null;
   displayValue: string;
   drilldown: boolean;
   detailViewKey?: string | null;

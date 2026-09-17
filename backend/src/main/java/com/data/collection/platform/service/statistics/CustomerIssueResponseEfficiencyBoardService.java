@@ -792,7 +792,8 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     }
 
     private StatisticCellData textCell(String key, String value) {
-      return new StatisticCellData(key, 0, value, false, null, Map.of("rowKey", rowKey));
+      // 文本列不参与数值排序，numericValue 只是占位 0；前端按显示文本比较（见 statistic-board-sorting）。
+      return new StatisticCellData(key, 0L, value, false, null, Map.of("rowKey", rowKey));
     }
 
     private StatisticCellData cycleCell(String key, Long numericValue, String displayValue, boolean drilldown) {

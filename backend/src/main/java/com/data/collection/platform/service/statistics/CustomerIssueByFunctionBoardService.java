@@ -616,7 +616,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         String rowKey = String.valueOf(rowIndex + 1);
         cells.add(new StatisticCellData(
             functionColumnKey(moduleName),
-            0,
+            0L,
             functionName,
             false,
             null,

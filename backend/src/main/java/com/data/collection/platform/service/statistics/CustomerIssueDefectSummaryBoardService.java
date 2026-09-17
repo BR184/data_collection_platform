@@ -56,7 +56,8 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         StatisticBoardSnapshotRefresher,
         StatisticBoardIssueWorkbookExportSupport {
   private static final String BOARD_KEY = "customer-issue-defect-summary";
-  private static final String RULE_VERSION = "customer-issue-defect-summary@2026-09-08-v7";
+  // 2026-09-10 v8：无数据比率单元格的 numericValue 由 0 改为 null，同时作废旧快照，避免修复后仍命中旧排序键。
+  private static final String RULE_VERSION = "customer-issue-defect-summary@2026-09-10-v8";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
@@ -859,7 +860,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     return StatisticMetricCalculator.percent(value);
   }
 
-  private static long rateSort(long numerator, long denominator) {
+  private static Long rateSort(long numerator, long denominator) {
     return StatisticMetricCalculator.ratioSortValue(numerator, denominator);
   }
 
@@ -968,7 +969,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     }
 
     private StatisticCellData cell(
-        String key, long numericValue, String displayValue, boolean drilldown, String rowKey) {
+        String key, Long numericValue, String displayValue, boolean drilldown, String rowKey) {
       return new StatisticCellData(
           key,
           numericValue,

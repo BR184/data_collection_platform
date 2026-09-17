@@ -4,6 +4,7 @@ import type {
   StatisticRowData,
 } from '../types/api';
 import { flattenStatisticColumnLeavesFromGroup } from '../types/api';
+import { hasNumericSortKey } from './statistic-board-metric';
 import type { StatisticBoardViewPrefs } from './statistic-board-view-prefs';
 import {
   tableHeaderLongestLineUnits,
@@ -97,7 +98,7 @@ export function columnWidth(
   widthStrategy: StatisticBoardViewPrefs['widthStrategy'],
   rows: StatisticRowData[],
 ) {
-  if (column.metricType.includes('count') || column.metricType.includes('ratio') || column.metricType.includes('number')) {
+  if (hasNumericSortKey(column.metricType)) {
     return widthStrategy === 'compact' ? 98 : widthStrategy === 'header' ? 126 : 148;
   }
   if (widthStrategy === 'compact') {

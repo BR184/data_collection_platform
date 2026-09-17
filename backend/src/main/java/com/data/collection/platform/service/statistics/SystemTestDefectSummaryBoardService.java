@@ -42,6 +42,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -63,7 +64,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         StatisticBoardIssueWorkbookExportSupport {
   private static final String BOARD_KEY = "system-test-defect-summary";
   private static final String MODULE_FIELD = "moduleName";
-  private static final String RULE_VERSION = "system-test-defect-summary@2026-07-28-v13";
+  // 2026-09-10 v14：无数据比率单元格的 numericValue 由 0 改为 null，同时作废旧快照，避免修复后仍命中旧排序键。
+  private static final String RULE_VERSION = "system-test-defect-summary@2026-09-10-v14";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -603,10 +605,13 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         .thenComparing(StatisticRowData::rowLabel, String.CASE_INSENSITIVE_ORDER);
   }
 
+  /** 读取单元格排序键；比率列的“无数据”以 null 表达，此处按缺值 0 参与总计排序，不得直接拆箱。 */
   private long metricNumericValue(StatisticRowData row, String columnKey) {
     return row.cells().stream()
         .filter(cell -> columnKey.equals(cell.columnKey()))
-        .mapToLong(StatisticCellData::numericValue)
+        .map(StatisticCellData::numericValue)
+        .filter(Objects::nonNull)
+        .mapToLong(Long::longValue)
         .findFirst()
         .orElse(0L);
   }
@@ -1061,7 +1066,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private static String count(long v) { return StatisticMetricCalculator.count(v); }
   private static String rate(long n, long d) { return StatisticMetricCalculator.rate(n, d); }
   private static String percent(double value) { return StatisticMetricCalculator.percent(value); }
-  private static long rateSort(long n, long d) { return StatisticMetricCalculator.ratioSortValue(n, d); }
+  private static Long rateSort(long n, long d) { return StatisticMetricCalculator.ratioSortValue(n, d); }
   private static long percentSort(double value) { return StatisticMetricCalculator.percentSortValue(value); }
 
   private StatisticRowData toSummaryRowData(String rowKey, String rowLabel, List<IssueSource> sourceIssues) {
@@ -1110,7 +1115,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         cell("level23_legacy_rate", rateSort(counts.level23Legacy(), counts.total()), rate(counts.level23Legacy(), counts.total()), false, rowKey)));
   }
 
-  private StatisticCellData cell(String key, long numericValue, String displayValue, boolean drilldown, String rowKey) {
+  private StatisticCellData cell(String key, Long numericValue, String displayValue, boolean drilldown, String rowKey) {
     return new StatisticCellData(key, numericValue, displayValue, drilldown, drilldown ? "issue-list" : null, Map.of("rowKey", rowKey));
   }
 
