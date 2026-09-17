@@ -6,6 +6,21 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-15 BI 编码页静态代码扫描图表下线（工作单元 SA、D-12）与黄金基线回归更新
+
+- [决定→已执行] 用户裁定静态扫描数据太薄（仅 scan_status 三态 + scan_bug_count 计数，无分级/分类/规则/文件维度），下线 BI 编码页“静态代码扫描结果”图表及 BI 侧全部供数，待 PMD-Biome 结构化 issues[] 接入后重建；决策入 `docs/decisions.md` D-12，方案与验证见 `docs/plans/bi-static-scan-retire-and-regression-20260915.md`。BI 专属细节入 `bi-dashboard/progress.md` 同日条目。
+- [完成] 前端移除卡片+`scanData`/`scanChart`/词条+`types.ts` 字段；后端移除 `BiCodingCalculator` scan 链（scanFacts/static-scan 分区/ScanPoint/scanTrend/scanCoverage/CD-36、CD-37 溯源）+`BiCodingSource.scanDataAvailable`+适配器 scan 列 SELECT+`BiDownloadAuthorizationService` coding 白名单 `stacked-category-bar`；`RULE_VERSION` 保持 `bi-coding-v4`（并入未发布变更集）；布局重排为三卡等宽。红线：DB 列 `code_review_*.scan_status/scan_bug_count`（代码走查记录页消费）与共享图表类 `StackedCategoryBarChart`（SystemTest 复用）保留；`chart-contract`/`excel-table` 计数不变。
+- [验证] 后端定向 BiCodingCalculatorTest 23/BiPlatformSourceAdapterTest 10/BiDownloadAuthorizationServiceTest 1 全绿；前端 BI 定向 81/81 绿。全量后端默认套件、全量前端 vitest/typecheck/lint/build、三项仓库门禁与黄金基线 bi/coding 快照更新模式重建（同时锁定密度 v4 与本项产出）结果见下条与计划第六部分。
+- [完成] 黄金基线回归套件已跑完（计划 B-2）：先前“case[88] BI coding 超时+基线全局发散”的归因经实测推翻——真因是 `code-review/illegal-records/export` Excel 导出在冷库超 120s（非 coding；动态测试彼此独立不中断全链）。给 `GoldenBaselineSupport.getBytes` 单独加 `EXPORT_READ_TIMEOUT`（仅二进制导出，JSON 端点 120s 不变）后更新模式 191/191 零 error 跑完；`bi/get___coding__day-all.json` 重建后逐项审阅 diff 恰为预期八项（ruleVersion v4、static-scan 分区/scanTrend/scanCoverage/CD-36-37 删、reviewDensityTrend 由空变合法子集），含 scan 列的走查记录页列表快照零 diff。compare 复跑 191 例、coding 全绿，仅 2 例 statistic-boards 失败（board 定义 v13→v14、numericValue 无数据 0→null）系本文件下方同日统计看板单元已登记的既有基线漂移，非本单元回归、留待发布门禁统一回灌，本单元未吞入。当前工作树快照区仅剩该 coding 快照一处待提交。
+
+## 2026-09-14 内网实测：FACT_REFRESH 长跑压缩读取指纹窗口、走查行数数据质量缺陷（问题一与数据侧待裁定；问题二 BI 侧同日已修）
+
+- [发现] BI 切换阶段页面偶发报“来源版本发生变化”的平台侧根因：BI 读取的“前后双指纹”一致性锁（机制与症状见 `bi-dashboard/progress.md` 同日条目）依赖 merge_request 事实投影全局版本（`fact_projection_generations` 所有 MERGE_REQUEST 行 generation 聚合哈希），而每 15 分钟一轮 INCREMENTAL_SYNC→FACT_REFRESH 持续刷新该 generation。内网实测 FACT_REFRESH 单次耗时波动大：多数几十秒，但近几天出现 02:03-02:13（失败重试）、08:11-08:27、08:43-09:06、09:06-09:29 等 16~23 分钟长跑，同时段日志大量 merge-request-fact-target-query 慢 SQL 告警（每条 1 秒以上）；重建跑得越久“指纹持续变化”窗口越长，读取撞上的概率越大。退化根因已经复核更正（见 `docs/plans/bi-intranet-two-defects-solution-20260914.md` 问题三：变更目标洪峰经全列差异判定+粗粒度血缘放大至 4 万级、重型 CTE 逐批重跑、逐根 FOR UPDATE 锁；非“diff 源表缺失”本身），根治方向为同步层工作单元 C，待裁定。
+- [核实→结论] 对照旧包与后续发布线后，问题应记录为三层链条：2026-08-03 及更早已存在定向增量的扩展性边界；2026-08-10 `c367258a`（随 `qaflex-update-20260810T065129Z-4ca35ca63f73` 发布线）增加 MR commit facts 定向查询并扩大历史待处理目标领取范围，成为明确放大因素；2026-09-14 的 3.6 万～4.5 万级 ISSUE/MR 目标洪峰触发长跑。2026-09-10 包的 `issue` 事实重建标记、CAT 客户端、BI 前端和已移除的老平台独立集成测试模块均不是可单独成立的根因。详见 `docs/decisions.md` D-13。
+- [发现→已修 BI 侧] 走查行数数据质量缺陷（BI 代码走查缺陷密度恒空的数据侧根因，门槛与修复见 `bi-dashboard/progress.md` 同日条目）：内网实测符合基础条件走查记录 27,787 行中 added_lines=0 共 1,446 行、同一 MR added_lines 多次记录不一致共 745 个 MR，坏行几乎每月都有。归因更正（经本仓代码实证，推翻此前“与 `ods_gitlab_merge_request_diffs` 缺失是同一件事两面”的内网推测）：BI 走查 `added_lines` 直读 `code_review_formal/match_mode_records`（老平台镜像/导入），该镜像表只喂 `merge_request_commit_fact`，两者无因果；数据侧根治应面向走查记录历史数据（回填 1,446 行、统一 745 个冲突 MR 口径），待内网导出清单后裁定。BI 侧全有全无门槛已于同日经用户批准改为覆盖率语义（计划 `docs/plans/bi-intranet-two-defects-solution-20260914.md` 工作单元 B）。
+- [决定] 问题一（FACT_REFRESH 长跑/指纹窗口，含工作单元 A/C）本轮仍只记录不修（用户指示“先按下不表”）；问题二 BI 侧门槛已经用户批准同日修复，数据侧清洗（S2-C）待立项。（原与问题一同列“只记录”的 BI 静态扫描图已于 2026-09-15 裁定下线并执行，见 D-12 与本文顶部条目。）
+- [完成→落档] 本次用户要求的版本归因已同步至 `docs/architecture.md`、`docs/decisions.md` D-13、本文、两个平台事实构建计划，并在现有跨域 BI 问题计划中仅补充平台归因引用；未修改 BI 代码或 `docs/bi-dashboard/` 专属文档。
+
 ## 2026-09-11 BI 单元独立复核：验证基础设施补提交、门禁修复与达标线收敛
 
 - [完成] 复核 `d6078941`/`9f618719` 时发现该单元的验证基础设施全部滞留工作树，**已提交的 main 实际为红灯**：`scripts/check_api_contract_drift.py` 的 HEAD 版只 glob `platform/controller/*.java`，退出码 1 并报 6 条 `MISSING_BACKEND`（`/api/bi/{coding,design,integration-test,requirements,system-test,unit-test}`）；`GoldenBaselineCoverageGuardTest` 的 HEAD 版不扫描 `bi.api`，使新增端点 `POST /api/bi/download/excel` 在已提交状态下既无目录登记也无快照，属零防护覆盖空洞。已按“端点增删与功能变更同工作单元完成”纪律补提交 `a7af73ec`（护栏扫描扩至 `controller + bi.api`、目录登记 BI 与 CAT 镜像共 15 个端点、`snapshots/bi/` 7 个 READ 快照、ChainTest 新增 `biProductVersionId`）与 `02628b4a`（扫描器递归覆盖平台全部 `@RestController`，`backend_paths` 160→175）。
@@ -23,7 +38,7 @@
 - [验证] 浏览器真实界面四项验收已完成（2026-09-11，登录 18181 真实实例）：编码页 9 卡确认频次图已消失且全部带问号说明；最长词条气泡实测 `width=320`、视觉折行 4 行（teleport popper 上的非 scoped 样式生效）；含 0% 模块的版本在默认“异常优先”下 0% 模块位列前 3，按“未修复数降序”时完全由该维度决定；真实下载的 `.xlsx` 解压确认口径说明行、行 5 表头与 `ySplit=5` 冻结窗格均与设计一致（细节见 BI 进度与本单元计划第六部分）。
 - [发现] 平台请求层 `frontend/src/api-client/request.ts` 的 `waitForProgressFirstPaint` 在发出导出/筛选类请求前 `await requestAnimationFrame`，而隐藏/最小化窗口（典型如 headless 与后台标签页）永不触发 rAF，导致页面永停“加载中”且不报错——影响一切隐藏窗自动验收，属平台通用耦合而非 BI 专属，本次只记录未修，后续如要改应以超时兜底而非删除首绘等待。
 - [待确认] BI 图表排序的“异常优先”维度被实现为**分组**（未达标组永远在前，升降序只重排组内），因此降序时 0%（最危险）模块会从顶部移到组末尾；行为已用单测固定，但是否符合领导预期需裁定（若期望降序即“单纯按修复率反向”，需同时改实现与问号词条）。
-- [待裁定] 静态代码扫描图下线、按指派人统计的模块/组织维度后端供数（经实证 DTO 无“人×模块”交叉明细，纯前端不可行）。
+- [待裁定] 按指派人统计的模块/组织维度后端供数（经实证 DTO 无“人×模块”交叉明细，纯前端不可行）。注：静态代码扫描图下线已于 2026-09-15 裁定并执行（D-12）。
 
 ## 2026-09-10 统计看板比率列“无数据”排序异常修复（领导反馈）
 

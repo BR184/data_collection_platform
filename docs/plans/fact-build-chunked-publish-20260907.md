@@ -54,6 +54,7 @@
 - 旧 `replaceAllFacts`（issue：删成员→删全部事实→重插；MR：删 MR 事实+提交事实→重插）是单事务全量替换；`publishFull`（@Transactional）再包 FULL_EPOCH+owner 围栏终态+发布状态结算 → 17 分钟无提交窗口。
 - 任务租约认领时一次性设置，执行中零续租；run 心跳 = 全运行共享单线程调度器 → 假超时级联（详见 intranet-test-issues-resolution 问题 3）。
 - 定向路径（`publish`+`replaceRootFacts`）每任务一小事务（实测 0.4–0.9 分钟），无需改造。
+- **范围边界（2026-09-16 补）**：本单元只治理显式全量事实构建的分批发布、租约续期和互锁；不覆盖定向增量的目标洪峰、默认 200 根/批串行排空、重型 MR/Issue CTE 或逐根锁成本。2026-09-14 增量长跑的版本归因和后续基准要求以 `docs/decisions.md` D-13 为准。
 - 等价性论证：空库首建时「upsert 快照+反连接清理」与「删全+重插」结果逐行一致（黄金基线环境即空库首建）；存量库上分批方案保留既有行 id（优于旧方案重建 id）。
 - 黄金基线影响：`/api/facts/rebuild` 为 EXCLUDED；`refresh-one` 锁行级最终状态（定向路径未动）→ 无影响；唯一预期差异 = `/api/gitlab-sync/status` 的 `logs[*].message`（fact 运行最新事件从 fallback 变为确定性完成事件文案）。
 

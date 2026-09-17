@@ -118,7 +118,7 @@
 - **决策**：全量事实构建（ISSUE/MR/集成测试）从「单一大事务原子发布」改为「分批事务提交 + 末端反连接清理 + 短结算事务」；运行中事实任务按批续期租约（owner 围栏）；run 心跳调度器从全运行共享单线程改为按最大并发运行数定容；重试/租约超时/进度/完成事件写入 `sync_run_events` 供 UI 可见。
 - **等价性**：分批 upsert + 快照外清理与旧「删全部+重插」的最终状态逐行一致（黄金基线空库首建背书）；存量库上保留既有行 id，优于旧方案重建 id。中断恢复语义从「全量回滚」改为「已提交批次保留、重试幂等重做收敛」。
 - **动机**：旧形态下全量构建（内网约 4.6 万行、实测 4.6–17 分钟）必然超过 180s 任务租约且执行中无续租；run 心跳为共享单线程，被长事务饿死后 run 判 TIMEOUT → 任务重派 → 新旧事务行锁互锁 → 原事务 owner 围栏失败整体回滚丢全部工作。git 考古：机制 2026-05-09（e00c5998）引入、2026-08-03（2fd5c34e）随版本化发布重构定型，非近期修复回归。
-- **边界**：定向（增量）事实构建路径与 `replaceRootFacts` 语义不变——其原子性由原 runGuarded 外层事务改为构建层显式单事务（事实+客户成员/提交关系+搜索列刷新+目录对账同事务）承担；手工构建（runGuarded）仅去掉外层事务包装，互斥仍由全局 advisory lock 承担；`fact_build_tasks` 表结构不变；分批大小可配 `platform.gitlab-mirror.fact-full-build-chunk-size`（默认 2000）。
+- **边界**：定向（增量）事实构建路径与 `replaceRootFacts` 的事实替换语义不变——其原子性由原 runGuarded 外层事务改为构建层显式单事务（事实+客户成员/提交关系+搜索列刷新+目录对账同事务）承担；手工构建（runGuarded）仅去掉外层事务包装，互斥仍由全局 advisory lock 承担；`fact_build_tasks` 表结构不变；分批大小可配 `platform.gitlab-mirror.fact-full-build-chunk-size`（默认 2000）。本条不覆盖定向目标生成/领取的性能边界，后者以 D-13 为准。
 - **禁止**：不得为「构建中断后部分批次已提交」引入回滚/补偿双轨——重试幂等重做是唯一收敛路径。
 
 ## D-11 数据库备份管理页：执行域自治与恢复仅走 Runbook
@@ -128,3 +128,24 @@
 - **恢复边界**：页面不做一键恢复（误点即全库覆盖）；恢复仅走 `deploy/runbooks/database-backup-restore.md`（停 backend → drop/create → pg_restore --exit-on-error → 起 backend → 页面验收）。custom 格式不向后兼容：恢复用 pg_restore 主版本 ≥ 产物 pg_dump 主版本（本地演练实证 PG18 产物不能被 PG16 pg_restore 读取；生产镜像 client-16 与 PG16 服务端天然一致）。
 - **动机**：20001 生产库此前无任何自动备份；独立脚本/cron 路线无法安全驱动且不可配置（用户拍板放弃），页面化让备份时刻/备份服务器/保留策略可运维。测试连接绝不触发备份、REMOTE 未配置时默认本机落位均为用户确认的产品语义。
 - **禁止**：页面一键恢复；后端容器挂 docker socket；失败自动重试；轮转触碰非本实例命名模式的文件；把远程密码明文落库或回显。
+
+## D-12 BI 编码页静态代码扫描图表下线（待 PMD-Biome 重建）
+
+- **状态**：2026-09-15 生效（用户裁定“先下线、数据太少、PMD-Biome 启用后再上线”；工作单元 SA 代码/测试/文档已实施，黄金基线 bi/coding 快照以更新模式重建后审阅）。
+- **决策**：下线 BI 编码页“静态代码扫描结果”图表及其 BI 侧供数——前端删除该卡片与 `scanData`/`scanChart`/词条，后端删除 `BiCodingCalculator` 的 scanFacts/scanValues/static-scan 分区/`ScanPoint`/`scanTrend`/`scanCoverage`/CD-36、CD-37 溯源、`BiCodingSource.scanDataAvailable` 与适配器对 `scan_status`/`scan_bug_count` 的 SELECT、`BiDownloadAuthorizationService` 的 coding 白名单 `stacked-category-bar` 条目。按开发期演进红线一次性清理干净，不留死代码。
+- **理由**：现有静态扫描数据仅 `scan_status`（三态）+ `scan_bug_count`（计数），无严重级别/分类/规则/文件/模块维度，前端只能按状态堆“记录数+问题总数”，量纲混淆无业务价值；`product.md` 旧述“阻断/严重/一般/提示堆叠”从未被数据支持（SURVEY-01 调研结论）。SonarQube 正被 PMD-Biome 替换，但 PMD-Biome 尚未接入平台（全库零引用）。
+- **边界**：底层 `code_review_formal_records`/`code_review_match_mode_records` 的 `scan_status`/`scan_bug_count` 列保留（代码走查记录页 illegal-records 与其黄金基线快照合法消费，不受影响）；共享图表类 `StackedCategoryBarChart`、templateId `stacked-category-bar`（SystemTest 模块缺陷级别图复用）、`CategorySeriesData`/`sortCategorySeriesData` 均保留；`RULE_VERSION` 保持 `bi-coding-v4`（静态扫描下线并入同一未发布变更集，不虚增版本号）。
+- **重建条件**：PMD-Biome 正式启用并以结构化 `issues[]`（severity/category/rule/文件行列/GitLab 深链）接入平台后，按严重级别/分类/工具/Top 规则/模块密度趋势全新设计重建，届时重新登记核对表 CD 口径与黄金基线快照。
+
+## D-13 增量 FACT_REFRESH 长跑的版本归因与问题边界
+
+- **状态**：2026-09-16 生效（用户要求将旧版/后续离线包与本地代码对照结论落档；本条是已确认诊断，不代表实现已修复）。
+- **结论**：该问题不是“完全由某次更新新引入”或“从设计之初就已达到当前耗时”二选一，而是既有增量扩展性缺陷在后续更新和数据规模下被放大：
+  1. `qaflex-full-20260803T122027Z-ad35f6c0e8c3` 已包含默认 200 根/批、FACT_REFRESH 内串行定向任务、粗粒度来源反向血缘、重型 Issue/MR CTE 和逐根版本锁；因此大目标量下的容量风险早已存在。该包 manifest 还是 `fresh-empty`、`facts.rebuildRequired=false`、工作树 clean，不能用“旧包当时很快”证明架构可扩展。
+  2. 首个改变后续性能特征的明确更新是 2026-08-10 的 `c367258a`（随 `qaflex-update-20260810T065129Z-4ca35ca63f73` 版本线发布）：默认 MR 提交事实路径增加 `ranked_diffs` 窗口排序查询，定向 MR 批次额外执行该查询；待处理目标领取也从单次镜像运行范围扩大为来源范围历史待处理目标。它是放大因素，不是全部根因。
+  3. 2026-09-14 的 3.6 万～4.5 万级 ISSUE/MR 目标洪峰是实际触发条件；目标来源的具体 ODS 表/列和每条 SQL 的耗时占比仍需内网按 `last_task_id → source_table` 聚合及 `EXPLAIN (ANALYZE, BUFFERS)` 确认，不能仅凭源码虚构。
+  4. `qaflex-update-20260910T042253Z-94cd3a4d2a47` 的 manifest 只说明升级后必须人工执行 `issue` 范围事实重建；随包 README 明确“不触发 GitLab 全量同步”。这可能造成一次性重建工作，但不能单独解释持续的增量 FACT_REFRESH 长跑。
+- **排除项**：问题不归因于已移除的老平台独立“集成测试”模块、CAT 集成测试客户端、BI 前端看板改动或 2026-09-10 的打包动作。`integration_test_fact` 仍是后端事实类型/兼容数据边界的一部分，但不是本次 GitLab ISSUE/MR 目标洪峰的证据。
+- **边界**：D-10 只覆盖全量构建的大事务、租约和互锁治理；当前并未修复定向增量的目标洪峰、串行批处理、重型 CTE 或逐根锁成本。未经固定负载基准和内网 SQL 计划验证，不得通过盲目增大批次、关闭依赖或改快照来宣称修复。
+- **后续要求**：任何性能修复必须先按事实类型、来源表、批次耗时和锁等待建立可复现基准，再单独设计增量路径变更；修复前保持 ISSUE/MR 事实正确性、乱序 fencing、空来源删除和来源级 READY 门禁不变。
+- **关联证据**：`docs/architecture.md` 事实与统计/性能章节；`docs/progress.md` 2026-09-14 条目；`docs/plans/fact-refresh-root-cause-documentation-20260916.md`；发布包清单 `D:/projects/data_collection_platform_deploy/qaflex-full-20260803T122027Z-ad35f6c0e8c3/RELEASE-MANIFEST.json`、`D:/projects/data_collection_platform_deploy/qaflex-update-20260810T065129Z-4ca35ca63f73/RELEASE-MANIFEST.json` 和 `D:/projects/data_collection_platform_deploy/qaflex-update-20260910T042253Z-94cd3a4d2a47/RELEASE-MANIFEST.json`。

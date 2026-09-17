@@ -49,11 +49,14 @@
 - 事实构建负责字段归一化、标签解析、非法判定和派生字段；统计服务只消费事实层和明确的统计快照。
 - `sync_run_fact_targets` 是定向事实发布 outbox，稳定身份为 `source_instance + fact_type + GitLab root_id`；`fact_change_heads` 保存最新变化版本和已发布版本并提供乱序 fencing。同一运行同一根再次变化必须提高版本、重置为待发布并清除旧 assignment；来源级消费者跨镜像历史合并目标，事实 worker 在根版本锁内读取当前 READY 代际的 ODS，使交错运行不能用旧状态覆盖新事实。
 - 每个定向事实任务只处理一个有界根 ID 批次，不使用长 OR 条件、内部 cursor 或目标数阈值回退。Issue、MR 和集成测试定向构建均以 GitLab 根 `id` 和 `source_instance` 隔离；发布事务先删除目标旧事实及其从属成员，再写当前来源结果，空来源是合法的只删结果。全量构建以完整快照替换单一来源实例，不影响其他来源实例或事实类型。
+- 定向增量的已知容量边界：默认 `factTargetBatchSize=200`，`SyncFactRefreshRunExecutor` 在同一 `FACT_REFRESH` 内连续串行领取并执行根批次；项目、命名空间、用户等粗粒度来源变化可展开为全部 Issue/MR 根。2026-08-03 版本已具备该边界，旧包运行较快不构成可扩展性证明。
+- 2026-08-10 `c367258a` 后，默认启用的 MR 提交事实路径在定向 MR 批次中额外执行 `ranked_diffs` 窗口排序查询，并将待处理目标领取扩大为来源范围内的历史待处理目标；这是既有增量瓶颈的性能放大因素。具体版本归属、已排除归因和未修复边界见 `docs/decisions.md` D-13；不得将 CAT 客户端、BI 前端或 2026-09-10 打包动作单独定性为根因。
 - 定向事实事务同时解析变化前后的稳定投影范围并推进 `fact_projection_generations`，为每个 `FULL_EPOCH/GLOBAL_VIEW/PROJECT/ISSUE_SCOPE_GROUP` 范围创建可租约、退避和恢复的投影任务。旧 generation 任务按 superseded no-op 成功；请求 `sourceVersion` 规范包含全量 epoch、消费范围 generation、范围组 definition generation 和规则版本，未受影响范围不失效。
 - 页面手动刷新只扫描工作区依赖表，但扫描发现的全部跨项目变化均进入统一 outbox。请求先持久化 `sync_run_publication_fences`，镜像运行在释放同源 writer 前捕获要求的 change version；页面完成状态等待该版本内事实目标和自身消费的投影 generation 成功，不能因本次 ODS DML 为零或仅镜像运行成功就宣称最新。
 - 同一议题的总量去重、模块多归属、空值展示、默认范围和导出口径遵循 `docs/platform-page-business-rules.md`，禁止在页面 SQL 中复制隐藏规则。
 - 事实字段或统计口径变化必须明确是否重建事实层和预热快照；重建不等于重新全量镜像同步。
 - 手工全量重建复用 `/api/facts/rebuild?configId=`，但接口只提交 `FACT_REFRESH` 后台运行并立即返回运行编号；运行以 `manualFullRebuild=true` 标识，在调度器中调用唯一的 `rebuildAllFactsForConfig` 入口重建 `issue_fact`、`merge_request_fact`、`integration_test_fact`。任何事实表写入前必须聚合预检三类事实的全部 ODS 表/字段；手工全量重建的三类事实和自动任务的单类事实以分批事务发布：每个批次在独立事务内原子完成事实与客户成员/提交关系 upsert 及搜索列刷新，批间续期任务租约并写入 `sync_run_events` 进度事件；全部批次提交后反连接清理快照之外的同源事实，并在单一短事务内完成 FULL_EPOCH 推进、任务终态与发布状态结算（决策见 `docs/decisions.md` D-10）。构建中页面可读到已提交批次的最新事实；任一批失败由任务按幂等重做收敛。提交后按新的事实源版本刷新统计板与记录页快照；快照未命中时只能实时查询完整的新事实代际。手工运行与构建任务使用同一运行编号，状态面板和最近同步日志以 `sync_runs` 为唯一追踪来源；提交服务对同数据源所有活跃镜像或事实运行互斥。后端权限、源表校验和事实构建锁是权威保护，数据镜像页只提供受确认保护的运维入口。
+- D-10 只治理显式全量事实构建的分批发布、租约和互锁；它不等于定向增量目标洪峰已解决。增量长跑的当前诊断与版本边界以 D-13 为准，具体源表/列和 SQL 执行计划仍需内网固定负载探针确认。
 - 事实表的搜索影子字段和业务分类字段是持久化查询契约：Java 生成归一化值，SQL 只过滤、排序、聚合，前端字段必须可追溯至请求对象和事实字段，不能在查询层临时重算复杂索引。`issue_fact.reason_category` 只由老平台固定修复模板的勾选原因段生成，非法模板写空并复用非法判定，禁止标签、普通评论或完整 `raw_payload` 回退。
 - `issue_fact.bug_status` 与 `issue_state/closed_at_source` 是相互独立的事实维度：前者只保存老平台全角 `状态：X` 标签合并值，缺失时保存“未设定议题状态”；后者独立表达 GitLab 议题开闭状态。事实构建、查询、快照、导出和前端不得在两个维度之间回退或互相推断。
 - `scripts/contracts/fact-field-contract.md` 是事实字段静态契约；新增或修改字段必须同步 Flyway、生成规则测试、查询/前端/导出影响，并明确是否重建历史事实。`scripts/check_fact_field_contract.py` 校验其与 Flyway 最终结构的一致性。
@@ -66,6 +69,7 @@
 
 - 页面导航和权限入口由 `frontend/src/feature-manifest/` 维护；领域 API 位于 `frontend/src/api-client/`。
 - 统计板复用统一运行时、筛选、排序、明细和导出契约；记录页复用共享查询、筛选状态和页面控制器，确有业务差异时保留显式特例。
+- `StatisticCellData.numericValue` 是后端下发的排序键，只对计数、比率和时长列有效：比率分母为 `0`（显示 `/`）时必须为 `null`，不得写成 `0`；文本列的 `0` 只是占位。前端统一使用 `frontend/src/utils/missing-value-sorting.ts` 的“无数据恒置底”比较器排序，列是否携带数值排序键由 `frontend/src/components/statistic-board-metric.ts` 判定，不得恢复为 `metricType` 子串匹配或局部哨兵。
 - 统计板筛选操作符语义唯一归属 `service/statistics/engine/StatisticFilterEngine`：看板通过 `StatisticFieldDescriptor` 注册表声明字段绑定，禁止再私有实现 matches*/操作符分支；领域特有判定（里程碑、成员表、阶段成员）经描述符 override 钩子注入。SQL 下推路径与引擎语义由金标矩阵与契约测试锁定；`MirrorTableOverviewBoardService` 为展示层汇总行方言（大小写敏感+数值操作符），豁免迁移。
 - 页面组件负责展示和交互，业务口径由事实层、规则层或共享查询提供；页面切换、登录态变化和刷新必须触发正确的数据加载生命周期。记录页首屏以列表为关键资源，筛选候选和辅助同步状态不得阻塞列表渲染；各资源失败必须保留可见错误和明确重试入口，不能以整页骨架或空数据掩盖失败。
 - 非看板、非外部来源的记录页默认复用 `api-client`、路由查询、条件筛选、分页、导出、详情与加载错误底座；特例只在接口或产品形态未稳定时存在，稳定后必须收口并以挂载/关键交互测试保护，页面组件不得直接请求 `/api/**` 或调用 `fetch`。
