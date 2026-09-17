@@ -10,6 +10,8 @@
 
 ## 执行 runbook（115 服务器，两实例同机，导出目录无需预建）
 
+> 权威执行手册已抽出为常驻 runbook：`deploy/runbooks/review-data-migration-18181-to-20001.md`（更详细的环境要求 / 逐步指令 / 参数与产物 / 失败处置以其为准）；本节保留为速览。
+
 0. **起源库 PG（18181 当前已 down，导出前临时只起 postgres，不碰前后端）**：
    ```bash
    cd <18181部署目录>

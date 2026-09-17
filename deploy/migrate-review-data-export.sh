@@ -8,23 +8,37 @@ set -euo pipefail
 # 用法:
 #   bash migrate-review-data-export.sh <18181部署目录> <导出目录>
 #
+# 在内网总流程中的位置（权威手册：deploy/runbooks/review-data-migration-18181-to-20001.md §5「总顺序」）:
+#   ① backup.sh → ② upgrade.sh 把最新版部署到 20001 → ③ 本脚本从 18181 只读导出
+#   → ④ merge.sh dry-run + 逐条人工复核 → ⑤ merge.sh --apply
+#   - 备份必须在部署之前：upgrade.sh 的第二参数就是预部署备份目录，缺它直接拒执行。
+#   - 本迁移不得插在 ①② 之间：upgrade.sh 会比对静默迁移窗口前后的受保护表行数，中途写入会让它失败。
+#   - 18181 全程不部署、不升级，只临时起 postgres（它必须停在 20260729.03，升级后本脚本列集校验必失配）。
+#   - ⑤ 在写入前已自动做一次全库备份（那是合并的恢复点）；迁移完成后再补备份只是留档，不提供回退能力。
+#
 # 前置（源栈当前已 docker compose down、数据卷保留时，先临时只起 postgres）:
 #   cd <18181部署目录>
+#   grep -nE 'image:' docker-compose.yml                          # 身份闸门：必须出现 20260729T093338Z-72635b164fee
 #   docker volume ls | grep 18181                                 # 确认数据卷仍在（外部卷）
 #   docker ps -a --format '{{.Names}}\t{{.Status}}' | grep qaflex # qaflex-postgres 名占用预检
-#   docker compose up -d postgres                                 # 只起 postgres，勿整套 up
+#   docker compose --env-file .env up -d postgres                 # 只起 postgres，勿整套 up
 #   docker ps | grep postgres                                     # 等 healthy（WAL 回放约 10-60 秒）
+#   - image 行不含上述 tag = 目录选错（同机多实例）-> 立即停止，不要起库：
+#     起了别的实例的 postgres 再导出，就是把别人的库当成迁移源。
 #   - qaflex-postgres 名未被占用 -> 直接 up；已被同机其他实例占用（如其曾手动升级）->
 #     在部署目录写临时 docker-compose.override.yml 把 postgres 的 container_name 改名
 #     （如 qaflex-postgres-18181-export）再 up；本脚本按部署目录的项目+服务定位容器，
-#     不依赖容器名，改名不影响导出。
+#     不依赖容器名，改名不影响导出。宿主机端口 15432 若也被占用，同一 override 里改 ports
+#     即可——导出走容器内 docker exec psql，不依赖宿主机端口映射。
 #   - 勿整套 `docker compose up -d`：源栈 compose 声明固定名 qaflex-{frontend,backend,postgres}，
 #     前后端名可能已被同机其他实例占用，整套 up 会撞名失败。
 #   - 导出完成后 `docker compose down`（不带 -v）恢复 down 状态、数据卷保留；
 #     用过 override 则一并删除该文件。
 #
 # 版本守卫：对 7 张表逐表做 information_schema 列集合精确比对，任何列漂移立即中止
-# （18181 实况构建 20260729T093338Z；20260724→20260729 窗口迁移零触及评审表，列集已核对一致）。
+# （18181 实况构建 20260729T093338Z-72635b164fee / Flyway 20260729.03；20260724→20260729
+#   窗口迁移零触及评审表，列集已逐文件核对一致）。本脚本日志打印的 source flyway version
+#   必须是 20260729.03；若打出 20260803.01 或其他值 = 连到了别的实例的库，立即 down 并回到上面的目录核对。
 
 SRC_DIR="${1:-}"
 OUT_DIR="${2:-}"
