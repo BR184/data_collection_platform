@@ -134,7 +134,7 @@
 - **状态**：2026-09-15 生效（用户裁定“先下线、数据太少、PMD-Biome 启用后再上线”；工作单元 SA 代码/测试/文档已实施，黄金基线 bi/coding 快照以更新模式重建后审阅）。
 - **决策**：下线 BI 编码页“静态代码扫描结果”图表及其 BI 侧供数——前端删除该卡片与 `scanData`/`scanChart`/词条，后端删除 `BiCodingCalculator` 的 scanFacts/scanValues/static-scan 分区/`ScanPoint`/`scanTrend`/`scanCoverage`/CD-36、CD-37 溯源、`BiCodingSource.scanDataAvailable` 与适配器对 `scan_status`/`scan_bug_count` 的 SELECT、`BiDownloadAuthorizationService` 的 coding 白名单 `stacked-category-bar` 条目。按开发期演进红线一次性清理干净，不留死代码。
 - **理由**：现有静态扫描数据仅 `scan_status`（三态）+ `scan_bug_count`（计数），无严重级别/分类/规则/文件/模块维度，前端只能按状态堆“记录数+问题总数”，量纲混淆无业务价值；`product.md` 旧述“阻断/严重/一般/提示堆叠”从未被数据支持（SURVEY-01 调研结论）。SonarQube 正被 PMD-Biome 替换，但 PMD-Biome 尚未接入平台（全库零引用）。
-- **边界**：底层 `code_review_formal_records`/`code_review_match_mode_records` 的 `scan_status`/`scan_bug_count` 列保留（代码走查记录页 illegal-records 与其黄金基线快照合法消费，不受影响）；共享图表类 `StackedCategoryBarChart`、templateId `stacked-category-bar`（SystemTest 模块缺陷级别图复用）、`CategorySeriesData`/`sortCategorySeriesData` 均保留；`RULE_VERSION` 保持 `bi-coding-v4`（静态扫描下线并入同一未发布变更集，不虚增版本号）。
+- **边界**：底层 `code_review_formal_records`/`code_review_match_mode_records` 的 `scan_status`/`scan_bug_count` 列保留（代码走查记录页 illegal-records 与其黄金基线快照合法消费，不受影响）；共享图表类 `StackedCategoryBarChart`、templateId `stacked-category-bar`（SystemTest 模块缺陷级别图复用）、`CategorySeriesData`/`sortCategorySeriesData` 均保留；最终 `RULE_VERSION` 为 `bi-coding-v5`，静态扫描下线本身不另行增加版本号，版本升级来自同一变更集随后冻结的 CD-38A 注释率聚合口径。
 - **重建条件**：PMD-Biome 正式启用并以结构化 `issues[]`（severity/category/rule/文件行列/GitLab 深链）接入平台后，按严重级别/分类/工具/Top 规则/模块密度趋势全新设计重建，届时重新登记核对表 CD 口径与黄金基线快照。
 
 ## D-13 增量 FACT_REFRESH 长跑的版本归因与问题边界
