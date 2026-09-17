@@ -461,6 +461,16 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertIn("## 6. 事实层重建", content)
         self.assertNotIn(f"cd {context.baseline_name}", content)
 
+    def test_incremental_readme_does_not_claim_application_outputs_are_unchanged(self):
+        context = MODULE.BuildContext(
+            **{**self.build_context().__dict__, "require_fact_rebuild": False}
+        )
+
+        content = MODULE.incremental_readme(context)
+
+        self.assertIn("未声明事实重建不等于所有 API、图表或统计展示数值必须不变", content)
+        self.assertNotIn("不改变事实表、统计口径或历史聚合结果", content)
+
     def test_upgrade_script_does_not_request_fact_rebuild_when_release_does_not_require_it(self):
         context = MODULE.BuildContext(**{**self.build_context().__dict__, "require_fact_rebuild": False})
 
