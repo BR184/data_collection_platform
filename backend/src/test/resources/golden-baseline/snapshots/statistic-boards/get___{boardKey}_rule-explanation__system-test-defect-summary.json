@@ -6,7 +6,7 @@
     "boardKey" : "system-test-defect-summary",
     "supported" : true,
     "title" : "系统测试缺陷汇总规则说明",
-    "version" : "system-test-defect-summary@2026-07-28-v13",
+    "version" : "system-test-defect-summary@2026-09-10-v14",
     "scopeDescription" : "当前统计限定为 CrownCAD 系统测试范围。选择一个测试阶段后，平台会按阶段定义展开对应轮次，再统计这些议题在各模块下的缺陷数量、修复情况、关闭情况、延期情况和遗留情况。",
     "summary" : "主表数字和下钻明细使用同一套筛选条件、模块归属和指标判定规则；点击数字后看到的明细数量应与主表单元格保持一致。",
     "flowSteps" : [ {
