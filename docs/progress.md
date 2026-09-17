@@ -6,6 +6,13 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-17 内网前后端保数据更新包
+
+- [完成] 以 `qaflex-update-20260910T042253Z-94cd3a4d2a47` 的目标前后端镜像为直接基线，生成最终交付包 `D:\projects\data_collection_platform_deploy\qaflex-update-20260917T035349Z-72ab3b365acb.tar.gz`（208,160,897 bytes，SHA-256 `ab9fc619cb5ad086619cad4caf1ca97152d811ed6eaa0cf992a4ade7bc87d37e`）；目标前后端同 release-id，source.commit=`78dc204f`，目标 Flyway=`20260909.01`，`facts.rebuildRequired=false`，不执行事实层重建或 GitLab 全量同步。
+- [完成] 包内仅含后端/前端镜像 tar、唯一 `docker-compose.yml`、`backup.sh`/`upgrade.sh`/`rollback.sh`、发布清单、包内 SHA-256 和详细部署手册；不含 `.env`、PostgreSQL 镜像、数据库 dump、源码、裸 JAR/dist、offline deb 或日志。Compose 保留现场 `.env`、PostgreSQL 容器/外部卷；回退只恢复应用配置与镜像，不自动 `pg_restore`。
+- [验证] 正式打包无 `--skip-*`：前端发布测试 17/17、TypeScript/生产构建、后端 `clean package`、双业务镜像无缓存构建；镜像产物摘要、镜像内 `pg_dump 16.15`、Compose 解析、包内 8 项校验、包外归档校验、归档结构、三个 Bash 脚本 `bash -n`、打包器契约测试 39/39 和仓库四项门禁均通过。模板修订已提交并推送 `f228541e`，纠正“未重建事实层即所有应用输出不变”的错误表述。
+- [限制] 未在本机对该最终包执行完整 backup→upgrade→rollback→再 backup→再 upgrade：Docker 中已有其他演练遗留的固定名 `qaflex-postgres`、`qaflex-backend`、`qaflex-frontend`，且其中 PostgreSQL 容器归属旧演练；按保数据和不擅自删除其他栈的纪律未强行清理。现场部署前必须按包内手册实证当前镜像与 PostgreSQL 容器 ID，真实内网 LDAP、数据规模和运行中任务检查仍属现场验收。
+
 ## 2026-09-15 BI 编码页静态代码扫描图表下线（工作单元 SA、D-12）与黄金基线回归更新
 
 - [决定→已执行] 用户裁定静态扫描数据太薄（仅 scan_status 三态 + scan_bug_count 计数，无分级/分类/规则/文件维度），下线 BI 编码页“静态代码扫描结果”图表及 BI 侧全部供数，待 PMD-Biome 结构化 issues[] 接入后重建；决策入 `docs/decisions.md` D-12，方案与验证见 `docs/plans/bi-static-scan-retire-and-regression-20260915.md`。BI 专属细节入 `bi-dashboard/progress.md` 同日条目。
