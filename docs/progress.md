@@ -6,6 +6,12 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-18 前后端保数据更新包本地隔离验收
+
+- [验证] 在专用数据库副本 `qaflex-pkgtest-20260918-72ab3b365acb` 上完成两轮 backup→upgrade、期间 rollback、再 backup→upgrade；目标前后端均健康，PostgreSQL 容器 ID 全程为同一值，Flyway 保持 `20260909.01`，两轮 `counts.diff` 均为空，两个 custom-format dump 与校验清单均通过；最终栈停留在 `20260917T035349Z-72ab3b365acb` 目标镜像。
+- [验证] 通过真实前端代理与隔离 LDAP 替身登录；浏览器打开 BI 需求、编码页面，目标包六个 BI 页面 API 均返回 200，编码规则版本为 `bi-coding-v5`，浏览器控制台无 error/warn。测试库无事实/走查业务数据，页面显示 EMPTY/INCOMPLETE，不能替代有数据趋势图的验收。后台对未接通的旧 MySQL/Mongo 外部地址产生网络不可达告警，属于隔离环境限制，未改变健康检查或受保护行数。
+- [阻塞→待修包脚本] 对 `rollback.sh` 做隔离负向复现：备份 Compose 镜像错误时，脚本在镜像检查前已 `mv` 覆盖现场 `docker-compose.yml`，随后才失败；另一个仅含 `.env` 与 `docker-compose.yml`、缺失 `SHA256SUMS.txt`/`backup-manifest.env` 的目录被接受并返回成功。该缺陷不影响本次正确备份回滚，但发布前应先校验备份清单、校验和、现场 `.env`/PostgreSQL 身份及基线镜像，再以临时文件验证通过后原子替换，失败时不得改变现场 Compose。
+
 ## 2026-09-17 内网前后端保数据更新包
 
 - [完成] 以 `qaflex-update-20260910T042253Z-94cd3a4d2a47` 的目标前后端镜像为直接基线，生成最终交付包 `D:\projects\data_collection_platform_deploy\qaflex-update-20260917T035349Z-72ab3b365acb.tar.gz`（208,160,897 bytes，SHA-256 `ab9fc619cb5ad086619cad4caf1ca97152d811ed6eaa0cf992a4ade7bc87d37e`）；目标前后端同 release-id，source.commit=`78dc204f`，目标 Flyway=`20260909.01`，`facts.rebuildRequired=false`，不执行事实层重建或 GitLab 全量同步。
