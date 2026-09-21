@@ -17,7 +17,7 @@
     "whitelistMode" : "RECOMMENDED",
     "whitelistTables" : null,
     "dbHost" : "localhost",
-    "dbPort" : 63769,
+    "dbPort" : 61323,
     "dbName" : "gitlabhq_full_import_test",
     "dbUsername" : "gitlab",
     "dbPassword" : "",
@@ -36,11 +36,11 @@
     "syncThreadMode" : "FIXED",
     "syncThreadValue" : 2.0,
     "maxSyncThreads" : 16,
-    "lastFullSyncAt" : "2026-09-09T19:19:39.924365+08:00",
+    "lastFullSyncAt" : "2026-09-16T16:48:53.829501+08:00",
     "lastIncrementalSyncAt" : null,
     "incrementalRerunRequestedAt" : null,
     "incrementalRerunTriggerCount" : null,
-    "createdAt" : "2026-09-09T19:19:23.597125+08:00",
-    "updatedAt" : "2026-09-09T19:19:39.924365+08:00"
+    "createdAt" : "2026-09-16T16:48:37.27696+08:00",
+    "updatedAt" : "2026-09-16T16:48:53.829501+08:00"
   } ]
 }

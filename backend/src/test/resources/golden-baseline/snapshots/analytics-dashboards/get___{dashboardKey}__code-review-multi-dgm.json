@@ -12,81 +12,28 @@
       "title" : "模块千行缺陷率",
       "subtitle" : "用于观察模块维度的平均代码走查缺陷密度。",
       "option" : {
-        "dataZoom" : [ {
-          "emphasis" : {
-            "handleStyle" : {
-              "color" : "#ffffff",
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "shadowBlur" : 3,
-              "borderWidth" : 1.5,
-              "borderColor" : "#1d4ed8"
-            }
-          },
-          "dataBackground" : {
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            },
-            "areaStyle" : {
-              "opacity" : 0.58,
-              "color" : "#e2e8f0"
-            }
-          },
-          "selectedDataBackground" : {
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
-            },
-            "areaStyle" : {
-              "opacity" : 0.72,
-              "color" : "#bfdbfe"
-            }
-          },
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          },
-          "yAxisIndex" : 0,
-          "borderRadius" : 6,
-          "width" : 30,
-          "backgroundColor" : "#f8fafc",
-          "right" : 16,
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "type" : "slider",
-          "handleSize" : "100%",
-          "showDetail" : false,
-          "moveHandleSize" : 12,
-          "borderColor" : "#cbd5e1",
-          "filterMode" : "filter",
-          "handleStyle" : {
-            "color" : "#ffffff",
-            "shadowColor" : "rgba(37, 99, 235, 0.18)",
-            "shadowBlur" : 3,
-            "borderWidth" : 1.5,
-            "borderColor" : "#2563eb"
-          },
-          "startValue" : 0,
-          "endValue" : 6,
-          "show" : true
-        } ],
-        "grid" : {
-          "bottom" : 52,
-          "right" : 64,
-          "containLabel" : true,
-          "top" : 24,
-          "left" : 24
+        "yAxis" : {
+          "inverse" : true,
+          "type" : "category",
+          "data" : [ "后台管理系统", "AI", "二次开发", "企业版", "工具", "工程图", "库" ],
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "width" : 150
+          }
         },
-        "xAxis" : {
-          "splitLine" : {
-            "lineStyle" : {
-              "color" : "#eef2f7"
-            }
-          },
-          "type" : "value",
-          "nameGap" : 34,
-          "nameLocation" : "middle",
-          "name" : "缺陷密度(K/LOC)"
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
         },
         "series" : [ {
+          "type" : "bar",
+          "barMaxWidth" : 28,
+          "itemStyle" : {
+            "color" : "#2563eb",
+            "borderRadius" : [ 0, 6, 6, 0 ]
+          },
           "data" : [ {
             "name" : "后台管理系统",
             "value" : 90.91,
@@ -137,38 +84,91 @@
               "pointKey" : "库"
             }
           } ],
-          "itemStyle" : {
-            "color" : "#2563eb",
-            "borderRadius" : [ 0, 6, 6, 0 ]
-          },
-          "barMaxWidth" : 28,
-          "type" : "bar",
           "name" : "缺陷密度(K/LOC)"
         } ],
-        "tooltip" : {
-          "axisPointer" : {
-            "type" : "shadow"
+        "xAxis" : {
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value",
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
           },
-          "trigger" : "axis"
+          "name" : "缺陷密度(K/LOC)"
         },
-        "yAxis" : {
-          "axisLabel" : {
-            "overflow" : "truncate",
-            "width" : 150
+        "grid" : {
+          "top" : 24,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 52,
+          "left" : 24
+        },
+        "dataZoom" : [ {
+          "endValue" : 6,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
           },
-          "data" : [ "后台管理系统", "AI", "二次开发", "企业版", "工具", "工程图", "库" ],
-          "type" : "category",
-          "inverse" : true
-        },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
         "animationDuration" : 450
       },
       "ruleKey" : "module-defect-density",
       "detail" : {
         "viewKey" : "code-review-statistics",
         "params" : {
-          "topic" : "module-defect-density",
+          "source" : "dgm",
           "projectName" : "CC2026R3",
-          "source" : "dgm"
+          "topic" : "module-defect-density"
         }
       },
       "export" : {
@@ -180,81 +180,28 @@
       "title" : "走查人千行缺陷率",
       "subtitle" : "用于观察实际走查人员发现代码缺陷的密度。",
       "option" : {
-        "dataZoom" : [ {
-          "emphasis" : {
-            "handleStyle" : {
-              "color" : "#ffffff",
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "shadowBlur" : 3,
-              "borderWidth" : 1.5,
-              "borderColor" : "#1d4ed8"
-            }
-          },
-          "dataBackground" : {
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            },
-            "areaStyle" : {
-              "opacity" : 0.58,
-              "color" : "#e2e8f0"
-            }
-          },
-          "selectedDataBackground" : {
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
-            },
-            "areaStyle" : {
-              "opacity" : 0.72,
-              "color" : "#bfdbfe"
-            }
-          },
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          },
-          "yAxisIndex" : 0,
-          "borderRadius" : 6,
-          "width" : 30,
-          "backgroundColor" : "#f8fafc",
-          "right" : 16,
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "type" : "slider",
-          "handleSize" : "100%",
-          "showDetail" : false,
-          "moveHandleSize" : 12,
-          "borderColor" : "#cbd5e1",
-          "filterMode" : "filter",
-          "handleStyle" : {
-            "color" : "#ffffff",
-            "shadowColor" : "rgba(37, 99, 235, 0.18)",
-            "shadowBlur" : 3,
-            "borderWidth" : 1.5,
-            "borderColor" : "#2563eb"
-          },
-          "startValue" : 0,
-          "endValue" : 6,
-          "show" : true
-        } ],
-        "grid" : {
-          "bottom" : 52,
-          "right" : 64,
-          "containLabel" : true,
-          "top" : 24,
-          "left" : 24
+        "yAxis" : {
+          "inverse" : true,
+          "type" : "category",
+          "data" : [ "陈晖", "刘佳祺", "华程逸", "张硕", "李焕坤", "牟敬芳", "田川" ],
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "width" : 150
+          }
         },
-        "xAxis" : {
-          "splitLine" : {
-            "lineStyle" : {
-              "color" : "#eef2f7"
-            }
-          },
-          "type" : "value",
-          "nameGap" : 34,
-          "nameLocation" : "middle",
-          "name" : "缺陷密度(K/LOC)"
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
         },
         "series" : [ {
+          "type" : "bar",
+          "barMaxWidth" : 28,
+          "itemStyle" : {
+            "color" : "#0f766e",
+            "borderRadius" : [ 0, 6, 6, 0 ]
+          },
           "data" : [ {
             "name" : "陈晖",
             "value" : 90.91,
@@ -305,38 +252,91 @@
               "pointKey" : "田川"
             }
           } ],
-          "itemStyle" : {
-            "color" : "#0f766e",
-            "borderRadius" : [ 0, 6, 6, 0 ]
-          },
-          "barMaxWidth" : 28,
-          "type" : "bar",
           "name" : "缺陷密度(K/LOC)"
         } ],
-        "tooltip" : {
-          "axisPointer" : {
-            "type" : "shadow"
+        "xAxis" : {
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value",
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
           },
-          "trigger" : "axis"
+          "name" : "缺陷密度(K/LOC)"
         },
-        "yAxis" : {
-          "axisLabel" : {
-            "overflow" : "truncate",
-            "width" : 150
+        "grid" : {
+          "top" : 24,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 52,
+          "left" : 24
+        },
+        "dataZoom" : [ {
+          "endValue" : 6,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
           },
-          "data" : [ "陈晖", "刘佳祺", "华程逸", "张硕", "李焕坤", "牟敬芳", "田川" ],
-          "type" : "category",
-          "inverse" : true
-        },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
         "animationDuration" : 450
       },
       "ruleKey" : "reviewer-defect-density",
       "detail" : {
         "viewKey" : "code-review-statistics",
         "params" : {
-          "topic" : "reviewer-defect-density",
+          "source" : "dgm",
           "projectName" : "CC2026R3",
-          "source" : "dgm"
+          "topic" : "reviewer-defect-density"
         }
       },
       "export" : {
@@ -348,81 +348,28 @@
       "title" : "走查人修复缺陷数量",
       "subtitle" : "用于观察走查人发现并计入的代码走查缺陷总量。",
       "option" : {
-        "dataZoom" : [ {
-          "emphasis" : {
-            "handleStyle" : {
-              "color" : "#ffffff",
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "shadowBlur" : 3,
-              "borderWidth" : 1.5,
-              "borderColor" : "#1d4ed8"
-            }
-          },
-          "dataBackground" : {
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            },
-            "areaStyle" : {
-              "opacity" : 0.58,
-              "color" : "#e2e8f0"
-            }
-          },
-          "selectedDataBackground" : {
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
-            },
-            "areaStyle" : {
-              "opacity" : 0.72,
-              "color" : "#bfdbfe"
-            }
-          },
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          },
-          "yAxisIndex" : 0,
-          "borderRadius" : 6,
-          "width" : 30,
-          "backgroundColor" : "#f8fafc",
-          "right" : 16,
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "type" : "slider",
-          "handleSize" : "100%",
-          "showDetail" : false,
-          "moveHandleSize" : 12,
-          "borderColor" : "#cbd5e1",
-          "filterMode" : "filter",
-          "handleStyle" : {
-            "color" : "#ffffff",
-            "shadowColor" : "rgba(37, 99, 235, 0.18)",
-            "shadowBlur" : 3,
-            "borderWidth" : 1.5,
-            "borderColor" : "#2563eb"
-          },
-          "startValue" : 0,
-          "endValue" : 6,
-          "show" : true
-        } ],
-        "grid" : {
-          "bottom" : 52,
-          "right" : 64,
-          "containLabel" : true,
-          "top" : 24,
-          "left" : 24
+        "yAxis" : {
+          "inverse" : true,
+          "type" : "category",
+          "data" : [ "陈晖", "刘佳祺", "华程逸", "张硕", "李焕坤", "牟敬芳", "田川" ],
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "width" : 150
+          }
         },
-        "xAxis" : {
-          "splitLine" : {
-            "lineStyle" : {
-              "color" : "#eef2f7"
-            }
-          },
-          "type" : "value",
-          "nameGap" : 34,
-          "nameLocation" : "middle",
-          "name" : "修复缺陷数"
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
         },
         "series" : [ {
+          "type" : "bar",
+          "barMaxWidth" : 28,
+          "itemStyle" : {
+            "color" : "#7c3aed",
+            "borderRadius" : [ 0, 6, 6, 0 ]
+          },
           "data" : [ {
             "name" : "陈晖",
             "value" : 1,
@@ -473,38 +420,91 @@
               "pointKey" : "田川"
             }
           } ],
-          "itemStyle" : {
-            "color" : "#7c3aed",
-            "borderRadius" : [ 0, 6, 6, 0 ]
-          },
-          "barMaxWidth" : 28,
-          "type" : "bar",
           "name" : "修复缺陷数"
         } ],
-        "tooltip" : {
-          "axisPointer" : {
-            "type" : "shadow"
+        "xAxis" : {
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value",
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
           },
-          "trigger" : "axis"
+          "name" : "修复缺陷数"
         },
-        "yAxis" : {
-          "axisLabel" : {
-            "overflow" : "truncate",
-            "width" : 150
+        "grid" : {
+          "top" : 24,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 52,
+          "left" : 24
+        },
+        "dataZoom" : [ {
+          "endValue" : 6,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
           },
-          "data" : [ "陈晖", "刘佳祺", "华程逸", "张硕", "李焕坤", "牟敬芳", "田川" ],
-          "type" : "category",
-          "inverse" : true
-        },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
         "animationDuration" : 450
       },
       "ruleKey" : "reviewer-fixed-defects",
       "detail" : {
         "viewKey" : "code-review-statistics",
         "params" : {
-          "topic" : "reviewer-fixed-defects",
+          "source" : "dgm",
           "projectName" : "CC2026R3",
-          "source" : "dgm"
+          "topic" : "reviewer-fixed-defects"
         }
       },
       "export" : {
@@ -516,81 +516,28 @@
       "title" : "指派人修复缺陷数量",
       "subtitle" : "用于观察各指派人的代码走查缺陷承担分布。",
       "option" : {
-        "dataZoom" : [ {
-          "emphasis" : {
-            "handleStyle" : {
-              "color" : "#ffffff",
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "shadowBlur" : 3,
-              "borderWidth" : 1.5,
-              "borderColor" : "#1d4ed8"
-            }
-          },
-          "dataBackground" : {
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            },
-            "areaStyle" : {
-              "opacity" : 0.58,
-              "color" : "#e2e8f0"
-            }
-          },
-          "selectedDataBackground" : {
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
-            },
-            "areaStyle" : {
-              "opacity" : 0.72,
-              "color" : "#bfdbfe"
-            }
-          },
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          },
-          "yAxisIndex" : 0,
-          "borderRadius" : 6,
-          "width" : 30,
-          "backgroundColor" : "#f8fafc",
-          "right" : 16,
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "type" : "slider",
-          "handleSize" : "100%",
-          "showDetail" : false,
-          "moveHandleSize" : 12,
-          "borderColor" : "#cbd5e1",
-          "filterMode" : "filter",
-          "handleStyle" : {
-            "color" : "#ffffff",
-            "shadowColor" : "rgba(37, 99, 235, 0.18)",
-            "shadowBlur" : 3,
-            "borderWidth" : 1.5,
-            "borderColor" : "#2563eb"
-          },
-          "startValue" : 0,
-          "endValue" : 6,
-          "show" : true
-        } ],
-        "grid" : {
-          "bottom" : 52,
-          "right" : 64,
-          "containLabel" : true,
-          "top" : 24,
-          "left" : 24
+        "yAxis" : {
+          "inverse" : true,
+          "type" : "category",
+          "data" : [ "陈晖", "刘佳祺", "华程逸", "张硕", "李焕坤", "牟敬芳", "田川" ],
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "width" : 150
+          }
         },
-        "xAxis" : {
-          "splitLine" : {
-            "lineStyle" : {
-              "color" : "#eef2f7"
-            }
-          },
-          "type" : "value",
-          "nameGap" : 34,
-          "nameLocation" : "middle",
-          "name" : "修复缺陷数"
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
         },
         "series" : [ {
+          "type" : "bar",
+          "barMaxWidth" : 28,
+          "itemStyle" : {
+            "color" : "#9333ea",
+            "borderRadius" : [ 0, 6, 6, 0 ]
+          },
           "data" : [ {
             "name" : "陈晖",
             "value" : 1,
@@ -641,38 +588,91 @@
               "pointKey" : "田川"
             }
           } ],
-          "itemStyle" : {
-            "color" : "#9333ea",
-            "borderRadius" : [ 0, 6, 6, 0 ]
-          },
-          "barMaxWidth" : 28,
-          "type" : "bar",
           "name" : "修复缺陷数"
         } ],
-        "tooltip" : {
-          "axisPointer" : {
-            "type" : "shadow"
+        "xAxis" : {
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value",
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
           },
-          "trigger" : "axis"
+          "name" : "修复缺陷数"
         },
-        "yAxis" : {
-          "axisLabel" : {
-            "overflow" : "truncate",
-            "width" : 150
+        "grid" : {
+          "top" : 24,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 52,
+          "left" : 24
+        },
+        "dataZoom" : [ {
+          "endValue" : 6,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
           },
-          "data" : [ "陈晖", "刘佳祺", "华程逸", "张硕", "李焕坤", "牟敬芳", "田川" ],
-          "type" : "category",
-          "inverse" : true
-        },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
         "animationDuration" : 450
       },
       "ruleKey" : "assignee-fixed-defects",
       "detail" : {
         "viewKey" : "code-review-statistics",
         "params" : {
-          "topic" : "assignee-fixed-defects",
+          "source" : "dgm",
           "projectName" : "CC2026R3",
-          "source" : "dgm"
+          "topic" : "assignee-fixed-defects"
         }
       },
       "export" : {
@@ -684,81 +684,28 @@
       "title" : "被走查人千行缺陷率",
       "subtitle" : "用于观察代码提交人在走查中暴露的缺陷密度。",
       "option" : {
-        "dataZoom" : [ {
-          "emphasis" : {
-            "handleStyle" : {
-              "color" : "#ffffff",
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "shadowBlur" : 3,
-              "borderWidth" : 1.5,
-              "borderColor" : "#1d4ed8"
-            }
-          },
-          "dataBackground" : {
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            },
-            "areaStyle" : {
-              "opacity" : 0.58,
-              "color" : "#e2e8f0"
-            }
-          },
-          "selectedDataBackground" : {
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
-            },
-            "areaStyle" : {
-              "opacity" : 0.72,
-              "color" : "#bfdbfe"
-            }
-          },
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          },
-          "yAxisIndex" : 0,
-          "borderRadius" : 6,
-          "width" : 30,
-          "backgroundColor" : "#f8fafc",
-          "right" : 16,
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "type" : "slider",
-          "handleSize" : "100%",
-          "showDetail" : false,
-          "moveHandleSize" : 12,
-          "borderColor" : "#cbd5e1",
-          "filterMode" : "filter",
-          "handleStyle" : {
-            "color" : "#ffffff",
-            "shadowColor" : "rgba(37, 99, 235, 0.18)",
-            "shadowBlur" : 3,
-            "borderWidth" : 1.5,
-            "borderColor" : "#2563eb"
-          },
-          "startValue" : 0,
-          "endValue" : 9,
-          "show" : true
-        } ],
-        "grid" : {
-          "bottom" : 52,
-          "right" : 64,
-          "containLabel" : true,
-          "top" : 24,
-          "left" : 24
+        "yAxis" : {
+          "inverse" : true,
+          "type" : "category",
+          "data" : [ "guanlixiang", "冯文婕", "张佳旺", "张继远", "徐凯强", "曹步勇", "李东尧", "王志阳", "王苏晓", "田川" ],
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "width" : 150
+          }
         },
-        "xAxis" : {
-          "splitLine" : {
-            "lineStyle" : {
-              "color" : "#eef2f7"
-            }
-          },
-          "type" : "value",
-          "nameGap" : 34,
-          "nameLocation" : "middle",
-          "name" : "缺陷密度(K/LOC)"
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
         },
         "series" : [ {
+          "type" : "bar",
+          "barMaxWidth" : 28,
+          "itemStyle" : {
+            "color" : "#c2410c",
+            "borderRadius" : [ 0, 6, 6, 0 ]
+          },
           "data" : [ {
             "name" : "guanlixiang",
             "value" : 90.91,
@@ -830,38 +777,91 @@
               "pointKey" : "田川"
             }
           } ],
-          "itemStyle" : {
-            "color" : "#c2410c",
-            "borderRadius" : [ 0, 6, 6, 0 ]
-          },
-          "barMaxWidth" : 28,
-          "type" : "bar",
           "name" : "缺陷密度(K/LOC)"
         } ],
-        "tooltip" : {
-          "axisPointer" : {
-            "type" : "shadow"
+        "xAxis" : {
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value",
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
           },
-          "trigger" : "axis"
+          "name" : "缺陷密度(K/LOC)"
         },
-        "yAxis" : {
-          "axisLabel" : {
-            "overflow" : "truncate",
-            "width" : 150
+        "grid" : {
+          "top" : 24,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 52,
+          "left" : 24
+        },
+        "dataZoom" : [ {
+          "endValue" : 9,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
           },
-          "data" : [ "guanlixiang", "冯文婕", "张佳旺", "张继远", "徐凯强", "曹步勇", "李东尧", "王志阳", "王苏晓", "田川" ],
-          "type" : "category",
-          "inverse" : true
-        },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
         "animationDuration" : 450
       },
       "ruleKey" : "author-defect-density",
       "detail" : {
         "viewKey" : "code-review-statistics",
         "params" : {
-          "topic" : "author-defect-density",
+          "source" : "dgm",
           "projectName" : "CC2026R3",
-          "source" : "dgm"
+          "topic" : "author-defect-density"
         }
       },
       "export" : {
@@ -873,81 +873,28 @@
       "title" : "人员合并代码次数",
       "subtitle" : "同一合并请求的多条走查记录只计一次。",
       "option" : {
-        "dataZoom" : [ {
-          "emphasis" : {
-            "handleStyle" : {
-              "color" : "#ffffff",
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "shadowBlur" : 3,
-              "borderWidth" : 1.5,
-              "borderColor" : "#1d4ed8"
-            }
-          },
-          "dataBackground" : {
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            },
-            "areaStyle" : {
-              "opacity" : 0.58,
-              "color" : "#e2e8f0"
-            }
-          },
-          "selectedDataBackground" : {
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
-            },
-            "areaStyle" : {
-              "opacity" : 0.72,
-              "color" : "#bfdbfe"
-            }
-          },
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          },
-          "yAxisIndex" : 0,
-          "borderRadius" : 6,
-          "width" : 30,
-          "backgroundColor" : "#f8fafc",
-          "right" : 16,
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "type" : "slider",
-          "handleSize" : "100%",
-          "showDetail" : false,
-          "moveHandleSize" : 12,
-          "borderColor" : "#cbd5e1",
-          "filterMode" : "filter",
-          "handleStyle" : {
-            "color" : "#ffffff",
-            "shadowColor" : "rgba(37, 99, 235, 0.18)",
-            "shadowBlur" : 3,
-            "borderWidth" : 1.5,
-            "borderColor" : "#2563eb"
-          },
-          "startValue" : 0,
-          "endValue" : 6,
-          "show" : true
-        } ],
-        "grid" : {
-          "bottom" : 52,
-          "right" : 64,
-          "containLabel" : true,
-          "top" : 24,
-          "left" : 24
+        "yAxis" : {
+          "inverse" : true,
+          "type" : "category",
+          "data" : [ "华程逸", "田川", "刘佳祺", "张硕", "李焕坤", "牟敬芳", "陈晖" ],
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "width" : 150
+          }
         },
-        "xAxis" : {
-          "splitLine" : {
-            "lineStyle" : {
-              "color" : "#eef2f7"
-            }
-          },
-          "type" : "value",
-          "nameGap" : 34,
-          "nameLocation" : "middle",
-          "name" : "合并请求数"
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
         },
         "series" : [ {
+          "type" : "bar",
+          "barMaxWidth" : 28,
+          "itemStyle" : {
+            "color" : "#0284c7",
+            "borderRadius" : [ 0, 6, 6, 0 ]
+          },
           "data" : [ {
             "name" : "华程逸",
             "value" : 4,
@@ -998,38 +945,91 @@
               "pointKey" : "陈晖"
             }
           } ],
-          "itemStyle" : {
-            "color" : "#0284c7",
-            "borderRadius" : [ 0, 6, 6, 0 ]
-          },
-          "barMaxWidth" : 28,
-          "type" : "bar",
           "name" : "合并请求数"
         } ],
-        "tooltip" : {
-          "axisPointer" : {
-            "type" : "shadow"
+        "xAxis" : {
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value",
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
           },
-          "trigger" : "axis"
+          "name" : "合并请求数"
         },
-        "yAxis" : {
-          "axisLabel" : {
-            "overflow" : "truncate",
-            "width" : 150
+        "grid" : {
+          "top" : 24,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 52,
+          "left" : 24
+        },
+        "dataZoom" : [ {
+          "endValue" : 6,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
           },
-          "data" : [ "华程逸", "田川", "刘佳祺", "张硕", "李焕坤", "牟敬芳", "陈晖" ],
-          "type" : "category",
-          "inverse" : true
-        },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
         "animationDuration" : 450
       },
       "ruleKey" : "merge-request-count",
       "detail" : {
         "viewKey" : "code-review-statistics",
         "params" : {
-          "topic" : "merge-request-count",
+          "source" : "dgm",
           "projectName" : "CC2026R3",
-          "source" : "dgm"
+          "topic" : "merge-request-count"
         }
       },
       "export" : {
@@ -1041,81 +1041,28 @@
       "title" : "代码提交频次",
       "subtitle" : "按提交人统计代码提交频次，不使用缺陷密度口径。",
       "option" : {
-        "dataZoom" : [ {
-          "emphasis" : {
-            "handleStyle" : {
-              "color" : "#ffffff",
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "shadowBlur" : 3,
-              "borderWidth" : 1.5,
-              "borderColor" : "#1d4ed8"
-            }
-          },
-          "dataBackground" : {
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            },
-            "areaStyle" : {
-              "opacity" : 0.58,
-              "color" : "#e2e8f0"
-            }
-          },
-          "selectedDataBackground" : {
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
-            },
-            "areaStyle" : {
-              "opacity" : 0.72,
-              "color" : "#bfdbfe"
-            }
-          },
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          },
-          "yAxisIndex" : 0,
-          "borderRadius" : 6,
-          "width" : 30,
-          "backgroundColor" : "#f8fafc",
-          "right" : 16,
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "type" : "slider",
-          "handleSize" : "100%",
-          "showDetail" : false,
-          "moveHandleSize" : 12,
-          "borderColor" : "#cbd5e1",
-          "filterMode" : "filter",
-          "handleStyle" : {
-            "color" : "#ffffff",
-            "shadowColor" : "rgba(37, 99, 235, 0.18)",
-            "shadowBlur" : 3,
-            "borderWidth" : 1.5,
-            "borderColor" : "#2563eb"
-          },
-          "startValue" : 0,
-          "endValue" : 9,
-          "show" : true
-        } ],
-        "grid" : {
-          "bottom" : 52,
-          "right" : 64,
-          "containLabel" : true,
-          "top" : 24,
-          "left" : 24
+        "yAxis" : {
+          "inverse" : true,
+          "type" : "category",
+          "data" : [ "李东尧", "张佳旺", "王志阳", "guanlixiang", "冯文婕", "张继远", "徐凯强", "曹步勇", "王苏晓", "田川" ],
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "width" : 150
+          }
         },
-        "xAxis" : {
-          "splitLine" : {
-            "lineStyle" : {
-              "color" : "#eef2f7"
-            }
-          },
-          "type" : "value",
-          "nameGap" : 34,
-          "nameLocation" : "middle",
-          "name" : "代码提交次数"
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
         },
         "series" : [ {
+          "type" : "bar",
+          "barMaxWidth" : 28,
+          "itemStyle" : {
+            "color" : "#059669",
+            "borderRadius" : [ 0, 6, 6, 0 ]
+          },
           "data" : [ {
             "name" : "李东尧",
             "value" : 3,
@@ -1187,38 +1134,91 @@
               "pointKey" : "田川"
             }
           } ],
-          "itemStyle" : {
-            "color" : "#059669",
-            "borderRadius" : [ 0, 6, 6, 0 ]
-          },
-          "barMaxWidth" : 28,
-          "type" : "bar",
           "name" : "代码提交次数"
         } ],
-        "tooltip" : {
-          "axisPointer" : {
-            "type" : "shadow"
+        "xAxis" : {
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value",
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
           },
-          "trigger" : "axis"
+          "name" : "代码提交次数"
         },
-        "yAxis" : {
-          "axisLabel" : {
-            "overflow" : "truncate",
-            "width" : 150
+        "grid" : {
+          "top" : 24,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 52,
+          "left" : 24
+        },
+        "dataZoom" : [ {
+          "endValue" : 9,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
           },
-          "data" : [ "李东尧", "张佳旺", "王志阳", "guanlixiang", "冯文婕", "张继远", "徐凯强", "曹步勇", "王苏晓", "田川" ],
-          "type" : "category",
-          "inverse" : true
-        },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
         "animationDuration" : 450
       },
       "ruleKey" : "code-submission-frequency",
       "detail" : {
         "viewKey" : "code-review-statistics",
         "params" : {
-          "topic" : "code-submission-frequency",
+          "source" : "dgm",
           "projectName" : "CC2026R3",
-          "source" : "dgm"
+          "topic" : "code-submission-frequency"
         }
       },
       "export" : {
@@ -1230,81 +1230,28 @@
       "title" : "代码提交缺陷密度统计",
       "subtitle" : "使用缺陷数与新增代码行数重新计算，不复用行级平均密度。",
       "option" : {
-        "dataZoom" : [ {
-          "emphasis" : {
-            "handleStyle" : {
-              "color" : "#ffffff",
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "shadowBlur" : 3,
-              "borderWidth" : 1.5,
-              "borderColor" : "#1d4ed8"
-            }
-          },
-          "dataBackground" : {
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            },
-            "areaStyle" : {
-              "opacity" : 0.58,
-              "color" : "#e2e8f0"
-            }
-          },
-          "selectedDataBackground" : {
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
-            },
-            "areaStyle" : {
-              "opacity" : 0.72,
-              "color" : "#bfdbfe"
-            }
-          },
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          },
-          "yAxisIndex" : 0,
-          "borderRadius" : 6,
-          "width" : 30,
-          "backgroundColor" : "#f8fafc",
-          "right" : 16,
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "type" : "slider",
-          "handleSize" : "100%",
-          "showDetail" : false,
-          "moveHandleSize" : 12,
-          "borderColor" : "#cbd5e1",
-          "filterMode" : "filter",
-          "handleStyle" : {
-            "color" : "#ffffff",
-            "shadowColor" : "rgba(37, 99, 235, 0.18)",
-            "shadowBlur" : 3,
-            "borderWidth" : 1.5,
-            "borderColor" : "#2563eb"
-          },
-          "startValue" : 0,
-          "endValue" : 6,
-          "show" : true
-        } ],
-        "grid" : {
-          "bottom" : 52,
-          "right" : 64,
-          "containLabel" : true,
-          "top" : 24,
-          "left" : 24
+        "yAxis" : {
+          "inverse" : true,
+          "type" : "category",
+          "data" : [ "后台管理系统", "AI", "二次开发", "企业版", "工具", "工程图", "库" ],
+          "axisLabel" : {
+            "overflow" : "truncate",
+            "width" : 150
+          }
         },
-        "xAxis" : {
-          "splitLine" : {
-            "lineStyle" : {
-              "color" : "#eef2f7"
-            }
-          },
-          "type" : "value",
-          "nameGap" : 34,
-          "nameLocation" : "middle",
-          "name" : "密度(K/LOC)"
+        "tooltip" : {
+          "trigger" : "axis",
+          "axisPointer" : {
+            "type" : "shadow"
+          }
         },
         "series" : [ {
+          "type" : "bar",
+          "barMaxWidth" : 28,
+          "itemStyle" : {
+            "color" : "#dc2626",
+            "borderRadius" : [ 0, 6, 6, 0 ]
+          },
           "data" : [ {
             "name" : "后台管理系统",
             "value" : 90.91,
@@ -1355,38 +1302,91 @@
               "pointKey" : "库"
             }
           } ],
-          "itemStyle" : {
-            "color" : "#dc2626",
-            "borderRadius" : [ 0, 6, 6, 0 ]
-          },
-          "barMaxWidth" : 28,
-          "type" : "bar",
           "name" : "密度(K/LOC)"
         } ],
-        "tooltip" : {
-          "axisPointer" : {
-            "type" : "shadow"
+        "xAxis" : {
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value",
+          "splitLine" : {
+            "lineStyle" : {
+              "color" : "#eef2f7"
+            }
           },
-          "trigger" : "axis"
+          "name" : "密度(K/LOC)"
         },
-        "yAxis" : {
-          "axisLabel" : {
-            "overflow" : "truncate",
-            "width" : 150
+        "grid" : {
+          "top" : 24,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 52,
+          "left" : 24
+        },
+        "dataZoom" : [ {
+          "endValue" : 6,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
           },
-          "data" : [ "后台管理系统", "AI", "二次开发", "企业版", "工具", "工程图", "库" ],
-          "type" : "category",
-          "inverse" : true
-        },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          },
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true
+        } ],
         "animationDuration" : 450
       },
       "ruleKey" : "code-submission-defect-density",
       "detail" : {
         "viewKey" : "code-review-statistics",
         "params" : {
-          "topic" : "code-submission-defect-density",
+          "source" : "dgm",
           "projectName" : "CC2026R3",
-          "source" : "dgm"
+          "topic" : "code-submission-defect-density"
         }
       },
       "export" : {

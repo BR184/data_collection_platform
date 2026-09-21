@@ -3,7 +3,7 @@
   "code" : "00000",
   "message" : "Issue Fact 验收诊断已生成",
   "data" : {
-    "generatedAt" : "2026-09-09T19:23:46.8414649+08:00",
+    "generatedAt" : "2026-09-16T16:52:07.0666946+08:00",
     "overall" : {
       "scopeKey" : "overall",
       "scopeLabel" : "全部 Issue Fact",

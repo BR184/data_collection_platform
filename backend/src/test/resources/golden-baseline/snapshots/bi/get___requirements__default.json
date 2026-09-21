@@ -5,10 +5,10 @@
   "data" : {
     "pageKey" : "requirements",
     "status" : "INCOMPLETE",
-    "sourceVersion" : "review-read-mode:t:compatibility:2026-09-10T11:41:44.823888|review:6:24:2026-07-10T20:43:04.105548|match-review:436:4550:2026-07-06T09:33:18.418666|fact-projection:v1:0f9e035c7c22fbb16e40d395cfabc033e89665e7e8686340effde7607aaa2421|label-group:2026-09-10T11:41:44.244530|dropdown:0:empty:empty:0",
-    "snapshotId" : "review-read-mode:t:compatibility:2026-09-10T11:41:44.823888|review:6:24:2026-07-10T20:43:04.105548|match-review:436:4550:2026-07-06T09:33:18.418666|fact-projection:v1:0f9e035c7c22fbb16e40d395cfabc033e89665e7e8686340effde7607aaa2421|label-group:2026-09-10T11:41:44.244530|dropdown:0:empty:empty:0",
+    "sourceVersion" : "review-read-mode:t:compatibility:2026-09-16T16:47:59.957419|review:6:24:2026-07-10T20:43:04.105548|match-review:436:4550:2026-07-06T09:33:18.418666|fact-projection:v1:0f9e035c7c22fbb16e40d395cfabc033e89665e7e8686340effde7607aaa2421|label-group:2026-09-16T16:47:59.431704|dropdown:0:empty:empty:0",
+    "snapshotId" : "review-read-mode:t:compatibility:2026-09-16T16:47:59.957419|review:6:24:2026-07-10T20:43:04.105548|match-review:436:4550:2026-07-06T09:33:18.418666|fact-projection:v1:0f9e035c7c22fbb16e40d395cfabc033e89665e7e8686340effde7607aaa2421|label-group:2026-09-16T16:47:59.431704|dropdown:0:empty:empty:0",
     "ruleVersion" : "bi-review-v3",
-    "generatedAt" : "2026-09-10T11:46:39.9567885+08:00",
+    "generatedAt" : "2026-09-16T16:52:08.8872661+08:00",
     "sections" : [ {
       "key" : "source-consistency",
       "label" : "来源一致性",
