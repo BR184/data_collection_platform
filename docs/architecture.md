@@ -53,6 +53,9 @@
 - 2026-08-10 `c367258a` 后，默认启用的 MR 提交事实路径在定向 MR 批次中额外执行 `ranked_diffs` 窗口排序查询，并将待处理目标领取扩大为来源范围内的历史待处理目标；这是既有增量瓶颈的性能放大因素。具体版本归属、已排除归因和未修复边界见 `docs/decisions.md` D-13；不得将 CAT 客户端、BI 前端或 2026-09-10 打包动作单独定性为根因。
 - 定向事实事务同时解析变化前后的稳定投影范围并推进 `fact_projection_generations`，为每个 `FULL_EPOCH/GLOBAL_VIEW/PROJECT/ISSUE_SCOPE_GROUP` 范围创建可租约、退避和恢复的投影任务。旧 generation 任务按 superseded no-op 成功；请求 `sourceVersion` 规范包含全量 epoch、消费范围 generation、范围组 definition generation 和规则版本，未受影响范围不失效。
 - 页面手动刷新只扫描工作区依赖表，但扫描发现的全部跨项目变化均进入统一 outbox。请求先持久化 `sync_run_publication_fences`，镜像运行在释放同源 writer 前捕获要求的 change version；页面完成状态等待该版本内事实目标和自身消费的投影 generation 成功，不能因本次 ODS DML 为零或仅镜像运行成功就宣称最新。
+- 延期标签写回在比对差异前必须先增量刷新镜像并等待 ISSUE 事实族发布收敛，判据是该来源实例已无未发布目标（`fact_change_heads.published_version` 与目标 `change_version` 的版本栅栏，唯一读法见 `SyncFactPublicationStateService.countUnpublishedTargets`），而不是某一次事实运行的终态。事实消费者是来源级、无父运行的并按来源合并历史目标，因此任何依赖父子运行关联判断事实就绪的写法都无效；未收敛时跳过写回，禁止基于落后于镜像的事实写标签。该来源是否具备写回资格仍由全局开关与数据源开关共同决定，见 `docs/platform-page-business-rules.md`。
+- 上述等待由运行终态事件驱动，由 `CustomerIssueDelayClosureOrchestrator` 按「提交前置刷新 → 等发布收敛 → 重算事实并登记写回候选」三段推进，不轮询、不设固定超时：调度触发只把周期提交到应用异步执行器，收敛评估在运行终态事件监听中完成，阶段 3 直接在该执行器上执行。运行终态事件对全部运行类型发布，订阅方各自按 `mirrorRun()` 或运行类型过滤；事实发布登记方必须先于收敛消费方执行（顺序契约见 `SyncRunCompletionListenerOrder`），否则目标尚未登记时会把"未发布目标为 0"误判为已收敛。在飞状态按数据源配置粒度保存在内存，只拥有一个调度周期，跨周期重启（重启复用同互斥域的活跃运行，且候选登记幂等）。
+- 客户问题延期重算的写入面固定为 `issue_fact(is_response_delayed, response_overdue, is_resolve_delayed, updated_at)` 并按主键 `id` 定位，不写其它列、不写客户成员关系、不刷新搜索列（决策见 `docs/decisions.md` D-15）。原因是该重算从库中读入记忆快照后与当前时间比较，快照必然落后于并发事实发布；沿用共用整行 upsert 会把已发布的其它列、成员关系与搜索列一并回退，且发布状态已推进、不会重发。按主键定位使事实目标替换后的陈旧快照自然落空（影响 0 行），残留偏差由下一轮重算自愈。
 - 同一议题的总量去重、模块多归属、空值展示、默认范围和导出口径遵循 `docs/platform-page-business-rules.md`，禁止在页面 SQL 中复制隐藏规则。
 - 事实字段或统计口径变化必须明确是否重建事实层和预热快照；重建不等于重新全量镜像同步。
 - 手工全量重建复用 `/api/facts/rebuild?configId=`，但接口只提交 `FACT_REFRESH` 后台运行并立即返回运行编号；运行以 `manualFullRebuild=true` 标识，在调度器中调用唯一的 `rebuildAllFactsForConfig` 入口重建 `issue_fact`、`merge_request_fact`、`integration_test_fact`。任何事实表写入前必须聚合预检三类事实的全部 ODS 表/字段；手工全量重建的三类事实和自动任务的单类事实以分批事务发布：每个批次在独立事务内原子完成事实与客户成员/提交关系 upsert 及搜索列刷新，批间续期任务租约并写入 `sync_run_events` 进度事件；全部批次提交后反连接清理快照之外的同源事实，并在单一短事务内完成 FULL_EPOCH 推进、任务终态与发布状态结算（决策见 `docs/decisions.md` D-10）。构建中页面可读到已提交批次的最新事实；任一批失败由任务按幂等重做收敛。提交后按新的事实源版本刷新统计板与记录页快照；快照未命中时只能实时查询完整的新事实代际。手工运行与构建任务使用同一运行编号，状态面板和最近同步日志以 `sync_runs` 为唯一追踪来源；提交服务对同数据源所有活跃镜像或事实运行互斥。后端权限、源表校验和事实构建锁是权威保护，数据镜像页只提供受确认保护的运维入口。
@@ -129,6 +132,7 @@
 ## 性能、迁移与发布不变量
 
 - 规模敏感路径先测量再优化；统计查询、事实构建、同步任务和前端渲染不得无限积压或无界等待。
+- 调度线程池只承载短触发性任务：`@Scheduled` 方法不得阻塞、等待或执行长任务；`@Async` 与后台编排一律落在具名应用异步执行器 `platformAsyncExecutor`（`@Async` 必须显式指定它，且它同时是 `@Primary`，使未限定的 `@Async` 也不会回落到调度池）。原因是 Spring Boot 默认调度池只有 1 个线程且承载全应用 `@Scheduled` 触发，长任务落在其上会挤占全部调度，"等待一个由同一线程池派发的运行"更会形成永久自锁。跨子系统的收敛一律由运行终态事件推进，不得用「轮询 + 固定超时」表达：超时阈值与规模无关，超时即整轮跳过。
 - 后台事实构建通过带版本的结果提交，页面读取已完成版本，不让主请求同步等待非关键后台任务。
 - 内网 Ubuntu 24.04 无公网发布必须携带已构建业务镜像；增量包只替换后端和前端，不加载 PostgreSQL、不删 volume、不执行 `docker compose down -v`。
 - 保数据更新包是默认发布形态，只包含前后端镜像、发布 Compose、升级/回滚入口、结构化发布清单、校验和及离线说明；镜像构建上下文、裸 JAR/`dist`、现场 `.env`、PostgreSQL 镜像和 Docker deb 不得进入更新归档。完整结构以 `deploy/intranet-offline-packaging-standard.md` 为准。

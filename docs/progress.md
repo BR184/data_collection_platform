@@ -6,7 +6,62 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
-## 2026-09-18 前后端保数据更新包本地隔离验收
+## 2026-09-20 延期标签写回真实链路测试（本机 18181 + 本地 GitLab）
+
+- [完成] 走真实链路验证写回功能：以闸门修复后的代码启动后端（写回全局开关开启、数据源开关已开），在本地 GitLab project 325 制造双向差异样本——移除议题 1300 的「响应已延期」、给议题 2251 添加「响应已延期」——两个样本均被平台按事实收敛，最终标签集合与测试前基线逐字节一致；写回日志 `addLabels=[响应已延期]` 与 `removeLabels=[响应已延期]` 均为 HTTP 200，`add_labels`/`remove_labels` 两个分支首次同时实测通过。
+- [验证] **闸门修复在真实链路通过**：本轮镜像运行确实应用了增量（含人工标签变更），新判据输出 `publication converged, waitedMillis=4065` 后继续写回——旧判据在该场景会直接跳过整轮（这正是原缺陷）。各轮入队 51→40→24→9→0→0，队列 54 条全部 SUCCEEDED，写回成功 66 次、失败 0 次，无死循环。
+- [验证] 全量对比测试前后 GitLab 标签：1512 条议题中 51 条变化，**新增仅 `解决已延期`(51) 与 `响应已延期`(1) 两类延期标签，非延期标签零改动**；其它标签相对顺序保持（新增项按 GitLab 规则插入，未重排、未删除）。
+- [风险→已修复] 默认调度配置下写回**不可能完成**：`@Async` 的执行器解析落在单线程调度池上，延期编排等待的镜像运行又由同一池上的 `SyncRunDispatcherService` 派发，形成自锁（实测 `TABLE_REFRESH` 卡 QUEUED 180 秒后判超时，期间自动增量同步未触发）。已按运行终态驱动编排 + 显式异步执行器修复，见上方「延期标签写回调度自锁修复（D-16）」。
+- [风险→已修复] 延期事实重算 `refreshCustomerIssueDelayFactsForConfig` 原把「刷新三列」实现成「读快照 → 整行 upsert + 客户成员替换 + 搜索列重写」，`issue_fact` 无版本守卫，并发事实发布会被旧快照静默回退且不会重发。已按方案 A 实现并验证，见下方「延期事实重算写入面收敛（D-15）」。
+- [副作用→已回滚] 本轮写回把测试前存在的自然差异一并收敛（51 条议题被补 `解决已延期`、议题 2251 被补 `响应已延期`）。按用户指示已全部回滚到测试前基线并复验零差异（1512 条议题逐条标签序列一致，`restored=51`、`failures=0`），该基线保留作为后续写回测试的对照起点；回滚脚本 `.tmp/writeback-test/rollback-labels.mjs`（默认 dry-run，`--execute` 才写）。
+- [环境] 测试用运行时覆盖：写回全局开关、`customer-issue-delay-check-delay-ms=120000`（缩短观测周期）、`spring.task.scheduling.pool.size=4`（绕过上述缺陷）。测试期间与门禁期间曾停机，现已恢复常态后端（写回开关关闭，已确认不再触碰 GitLab）与前端。
+
+## 2026-09-20 延期标签写回调度自锁修复（D-16）
+
+- [完成] 默认配置下写回不再自锁：`@Async` 的执行器解析落在单线程调度池上、方法又在调度线程上轮询等待同池派发的镜像运行，实测派发被推迟整 180 秒且全局 `@Scheduled` 同期停摆。现删除全部轮询/`sleep`/活动状态集合/超时配置，改为**运行终态事件驱动的三段编排**（提交前置刷新 → 等来源级发布收敛 → 重算事实并登记写回候选）；新增具名应用异步执行器 `platformAsyncExecutor`（`@Primary`，线程数按处理器收敛 2～8）承接 `@Async` 与后台编排，调度方法只做常量时间移交。根因、选择与否决项见 `docs/decisions.md` D-16。
+- [完成] 事件发布面扩到**全部运行类型**：事实刷新分支在终态后补发布，`publishRunCompletion` 去掉镜像守卫（枚举里除 `FACT_REFRESH` 外全是镜像类型，受影响面精确等于事实运行）；新增 `SyncRunCompletionListenerOrder` 声明"登记先于评估"的顺序契约（否则目标未登记时会误判已收敛）。删除 `customer-issue-delay-pre-writeback-sync-timeout-seconds` 配置项、属性字段、环境变量绑定与死参数。
+- [验证] 默认快速套件 `Tests run: 1389, Failures: 0, Errors: 0, Skipped: 1` 全绿。新增/重写：编排状态机 10、调度器轻量触发 2、提交结果语义 4、执行器与 `@Async` 归属 3、监听顺序契约 1、事实终态发布 2。移除 `@Primary` 的复现实验确认 `unqualifiedAsyncDoesNotFallBackToTheSchedulingPool` 必红。
+- [验证] 真实链路**默认参数**（未覆盖 `spring.task.scheduling.pool.size`）：两轮编排均完成——调度线程只有 1 条移交日志且空闲时执行了其它定时任务；收敛评估在 `sync-run-worker-*`；阶段 3 在 `platform-async-2/4`；第二轮镜像终态读到 `unpublishedTargets=45` 后继续等待、直到 `FACT_REFRESH` 终态才推进（实证顺序契约生效）；`pre-writeback sync timed out` 出现 0 次；运行派发排队时长 2s/0s/0s（缺陷时 180s）；54 条队列全部 `SUCCEEDED`、`FAILED` 为 0；线程栈中无任何线程阻塞在延期路径。
+- [环境] 测试期间开启写回并缩短周期（`customer-issue-delay-check-delay-ms=300000`）观察两轮编排；测试产生的 51 条 `解决已延期` 已按用户指示回滚到测试前基线并复验零差异，基线继续作为后续写回测试的对照起点；数据源写回开关已复位为 `false`，后端已用 `run-backend.ps1` 恢复常态（启动后仅刷新延期事实、0 次写回尝试、队列无新增），18080 与 18181 可用。
+- [遗留] 写回 worker 自身仍是 `@Scheduled` 内联执行 GitLab HTTP 调用，仍会短时占用调度线程（既有形态，本次未纳入范围）。
+- [下一步] 待用户验收实现与方案；`docs/plans/delay-writeback-scheduler-starvation-fix-20260920.md` 按仓库规则应在验收后压缩入权威文档并删除。内网启用真实写回前仍需显式批准，并现场核对一次未通过环境变量设置过调度池大小。
+
+## 2026-09-20 延期事实重算写入面收敛（D-15，方案 A）
+
+- [完成] 延期重算不再复用整行 upsert：新增 `FactBuildService.updateCustomerIssueDelayFlags`，只写 `is_response_delayed`/`response_overdue`/`is_resolve_delayed`/`updated_at` 四列并按主键 `id` 定位；`IssueFactSourceRowMapper.mapOpenCustomerIssue` 补映射 `id`。根因与决策见 `docs/decisions.md` D-15（否决「在共用 upsert 上加版本守卫」与「时间戳 CAS 守卫」两条路线）。
+- [验证] 回归锚点旧实现必红：`FactBuildServiceTest` 断言延期重算只发出定向 SQL、且不再调用 `issueFactPersistenceService` 与 `searchIndexRepairService`；临时回退调用点确认 RED 后恢复 GREEN。
+- [验证] 真库写入面边界 `FactBuildServiceCustomerIssueDelayFlagsTest` 3/3 通过：目标行四列更新、其余列逐列相等、客户成员与搜索列不变、范围外行（非 325／已关闭／2026 前创建）逐字节不变、三列已一致时不产生写入。
+- [验证] 默认快速套件 `mvn test` 全绿 `Tests run: 1377, Failures: 0, Errors: 0, Skipped: 1`。
+- [验证] 真实链路全列 diff（本机 18181 + 本地 GitLab project 325）：1506 行完全未变，仅 5 行变化且变化列集合恰为上述四列，越界写入 0；另 1 行 `id` 变化属事实发布的删除-重写（`fact_refreshed_at` 推进），非本路径写入。
+- [文档] 已同步 `docs/architecture.md`（延期重算写入面）与 `docs/decisions.md` D-15；同时合并了 D-14 的重复条目。
+- [门禁] 黄金基线门禁本次出现 1 项失败，**与本改动无关**：`readAndExportSnapshots()[103]` 的 `review-data/records/filter-options` 报 `data.reviewTypes` 期望 5、实得 6。归属已取证——该端点快照自 HEAD 起未被改动，而归因来自工作区未提交的 `ReviewDataFilterOptionService` 新增第 6 项「测试用例评审」。按纪律**未更新快照、未加掩码**，待该工作单元自行按流程重建。
+- [环境] 门禁运行前后已按规则停机与复启：后端 `run-backend.ps1`（常态开关，写回关闭）、前端 `run-frontend.ps1`，18080 与 18181 均恢复。
+
+## 2026-09-20 写回前发布收敛判据修复（闸门）
+
+- [完成] 修复写回前的发布就绪判据：原判据按 `sync_runs.parent_run_id` 查找镜像运行的 `FACT_REFRESH` 子运行，而 2026-08-10 `c367258a` 起事实消费者已改为来源级、无父运行，判据静默失效——只要本轮同步应用了增量就跳过整轮写回（实测 `applied_rows=7` → `no fact refresh run was queued` → 不入队），只有零增量周期才写回。现判据改为来源级发布收敛（`SyncFactPublicationStateService.countUnpublishedTargets`，按 `published_version` 与 `change_version` 版本栅栏），删除 10 秒子运行窗口、`applied_rows` 门槛与死结果类型。
+- [完成] 同源清理：删除 `submitFactRefresh` 恒空父运行参数、`sameFactRefreshParent` 与按父运行区分事实刷新的复用分支（改为复用同互斥域内活跃 `FACT_REFRESH`，且必须校验运行类型，因 `exclusiveScopeOf` 对镜像与事实刷新返回同一互斥域）；`RealtimeWorkspaceRefreshProgress(Service)` 删除失效的父运行关联、事实运行身份字段与不可达分支，事实阶段状态只由 `sync_run_publication_fences` 派生。
+- [验证] 定向 49 项全绿（新增闸门单测 6、真库收敛判据集成 6，更新 5 个既有测试类）；默认快速套件全绿（当时为 `Tests run: 1373`，后续随 D-15 增至 1377）。本次无端点产出变化，未运行黄金基线、未改快照（该路径本就 EXCLUDED）。
+- [环境] 本机 `qaflex-test-postgres-15433` 容器在 Docker 重启后不存在，已按仓库既有方式重建（`RestartPolicy=no`），否则约 70 个 `@SpringBootTest` 报环境错；与本次代码改动无关。
+- [文档] 已同步 `docs/architecture.md`（写回前发布收敛判据）、`docs/decisions.md` D-14、`docs/platform-page-business-rules.md` 第 14 条判据表述（业务语义不变）。
+- [下一步] 待用户复核实现与方案；`docs/plans/delay-label-writeback-prewriteback-gate-fix-20260920.md` 按仓库规则应在验收后压缩入权威文档并删除。响应延期口径变更（`docs/plans/response-delay-dual-template-rule-20260920.md`）中 D1（模板身份）已用老平台源码与真实夹具三重证据核实关闭，仅 D2〜D4 待裁决，未开始实现。
+- [风险] 内网启用真实写回前仍需显式批准；超时默认值 180s 未因本地观察调整，本次仅输出测量日志，阈值待内网实测。
+
+## 2026-09-20 数据-10 客户问题修复时间筛选方案
+
+- [方案待审] 已完成需求与前后端链路只读核查，用户已确认当前已修复＋最近修复时间、保留2026创建范围、页面/详情/Excel增加修复时间；技术方案及验收边界见 `docs/plans/data-10-customer-issue-fixed-time-20260920.md`。
+- [下一步] 待用户审核技术方案并指派实施；来源回退退役、事件直接派生和来源完整性门禁均尚未实施或授权执行。本轮未运行业务测试、查询真实数据库或修改业务代码，保留原有工作树与快照改动。
+
+## 2026-09-18 前后端保数据更新包重打（当前工作区小改，基线仍为 0910）
+
+- [完成] 用户在内网 0910 基线、`72ab3b365acb` 保数据包之上又做了一点前后端改动；据其指示以打包器按同参数（`--mode incremental-update`、`--baseline-dir` 指向 0910 包目录、不加事实重建/`--skip-*`）重打，直接替换旧前后端镜像并更新包名，产出 `D:\projects\data_collection_platform_deploy\qaflex-update-20260918T034645Z-d9cc19237d45.tar.gz`（SHA-256 `b620c1cd6118ff69c10d1ae5785d7450ee45d7c808975b7189c2dbb2905825a9`）。
+- [完成] 清单：`source.commit=7565afd5`（含未提交工作区，非干净标记）、新 `backendJarSha256`/`frontendDistSha256`/前后端镜像 sha256、目标前后端同 release-id `20260918T034645Z-d9cc19237d45`、`baseline` 仍为 0910 镜像、`flywayVersion=20260909.01`（无新增迁移）、`facts.rebuildRequired=false`——只换前后端镜像，不动 schema、不重建事实、不做 GitLab 全量同步。
+- [验证] 无 `--skip-*`：前端发布测试 17/17、TypeScript/生产构建、后端 `clean package`、双镜像无缓存构建（镜像内 `pg_dump 16.15`、产物摘要核对）、Compose 解析、包内 8 项 `SHA256SUMS` 校验、归档结构（仅包契约文件，无 `.env`/postgres 镜像/源码/dump/日志）、`bash -n` 三脚本与 `sha256sum -c` 在 Ubuntu 容器实测通过、打包器契约测试 39/39。
+- [验证] 在隔离数据库副本 `qaflex-pkgtest-20260918-72ab3b365acb` 上按清单声明的 0910 直接基线完成新包 backup→upgrade、真实 API/页面验收、rollback、再 backup→upgrade；两次升级前后端均 healthy，PostgreSQL 容器 ID 全程为 `3e839459864bb5a94fcf0fca03f5012ad22e8209e34ed3dbf26e8952047aa34d`，Flyway 保持 `20260909.01`，两轮 `counts.diff` 为空，`.env` SHA-256 未变化，最终运行目标镜像为 `20260918T034645Z-d9cc19237d45`。数据库中 `review-data-records@2026-09-18-v7` 快照为 READY 且包含“测试用例评审”；隔离端口真实页面新增评审类型列表通过，目标前端资源包含三个问题标签，但测试库无评审记录，详情抽屉未做数据态实测。
+- [阻塞→需重打包] 当前包 `RELEASE-MANIFEST.json` 的 `baseline` 仍为 `20260910T042253Z-94cd3a4d2a47`，而昨天包的目标镜像为 `20260917T035349Z-72ab3b365acb`；因此已部署昨天包的内网现场不能直接使用本包，`backup.sh` 会按基线保护拒绝执行。若现场基线确为昨天包，必须以昨天包/现场 Compose 为 `--baseline-dir` 重新生成连续更新包并重新做同样隔离验收。
+- [限制] 清单仍标记 `source.workspaceState` 为未提交工作区；隔离栈开启后台任务后对未接通的旧 MySQL/Mongo 地址产生网络不可达告警，属于测试环境限制，未影响健康检查、功能验收或受保护表行数守恒。`rollback.sh` 负向复现缺陷仍见下条同日条目，正确备份路径本次回滚通过。
+
+## 2026-09-18 前后端保数据更新包本地隔离验收（20260917 包，历史结果）
 
 - [验证] 在专用数据库副本 `qaflex-pkgtest-20260918-72ab3b365acb` 上完成两轮 backup→upgrade、期间 rollback、再 backup→upgrade；目标前后端均健康，PostgreSQL 容器 ID 全程为同一值，Flyway 保持 `20260909.01`，两轮 `counts.diff` 均为空，两个 custom-format dump 与校验清单均通过；最终栈停留在 `20260917T035349Z-72ab3b365acb` 目标镜像。
 - [验证] 通过真实前端代理与隔离 LDAP 替身登录；浏览器打开 BI 需求、编码页面，目标包六个 BI 页面 API 均返回 200，编码规则版本为 `bi-coding-v5`，浏览器控制台无 error/warn。测试库无事实/走查业务数据，页面显示 EMPTY/INCOMPLETE，不能替代有数据趋势图的验收。后台对未接通的旧 MySQL/Mongo 外部地址产生网络不可达告警，属于隔离环境限制，未改变健康检查或受保护行数。

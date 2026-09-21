@@ -25,3 +25,6 @@ infra/postgres-data/
 *.log
 .DS_Store
 Thumbs.db
+
+# AI 工作目录（本地会话与记忆，不入库）
+.workbuddy-ai/

@@ -1,166 +1,225 @@
-# 调查报告：以 LDAP 稳定人员ID 为权威源治理评审数据重名/脏数据的可行性
+# LDAP 人员选择治理与跨模块姓名统一调查报告
 
-> 性质：**调查报告（findings/evidence only）**。按用户要求，本文不含实现方案与代码改动；实现设计（数据模型、注入点、迁移、设置页等）待用户批准方向后另行产出。
-> 关联：本报告为工作单元「评审数据人名治理」的证据基线，取代既有计划 `docs/plans/review-person-name-alias-mapping-20260909.md` 中"以 GitLab 镜像 + 花名册 XLSX 为权威源"的假设；该计划待本报告确认后修订。
-> 数据快照：本地库 `127.0.0.1:15432/qaflex`，采集时刻 2026-09-09。生产 LDAP 结构一致、具体人员以生产目录为准。
+## 进度与中间物
 
-## 0. 术语澄清（消除歧义）
+- 状态：2026-09-18 只读调查完成；推荐方向待用户确认，尚未进入实现。
+- 本次交付：更新本报告，替代 2026-09-09 版本中的过强结论；未修改业务代码、数据库、LDAP 配置、权限或黄金快照。
+- 证据基线：采集平台本地 `main@7565afd5` 及调查时工作树；LDAP 服务端本地 `D:/projects/ldap`、`HEAD=d0dc914` 及调查时工作树。两个仓库均有既有未提交改动，本次未改动它们。
+- 验证范围：读取用户截图、平台文档、前后端代码、迁移、测试代码及 LDAP 服务端实现；未连接数据库或内网接口，未运行应用、自动化测试、同步或事实重建。静态结论不等于内网部署版本、人员数量和映射覆盖率的实测结果。
+- 恢复线索：下一步先确认本报告第 7 节的产品边界和上游契约，再制定实施计划；不要把旧报告中的姓名映射清单直接当作可执行迁移。
 
-- 用户所说"**飞书ID**"，经确认**指的是 LDAP 中的稳定人员ID**，而非飞书开放平台的 `open_id`。
-- 本报告据此把"稳定人员ID"落到实证对象：LDAP 目录的 `user_id`（LDAP uid，如 `xuh`/`wx`/`lizhi2`）与 `employee_no`（工号）。二者均唯一、稳定、已同步进采集平台。
+## 1. 结论摘要
 
-## 1. 结论摘要（可行性判定）
+**用 LDAP 权威姓名治理人工选人是可行且推荐的；但不能仅把 `users.name` 查询替换成 LDAP 姓名查询，也不能把“LDAP 用户 ID”直接理解为永久人员身份。**
 
-**可行，且比原"纯别名映射"方案更根治。** 依据：
+1. **新建/编辑评审可以独立治理，不需要先统一所有 GitLab 用户。** 人工选择应采用身份键作为值、LDAP 权威姓名作为标签，保存、专家匹配、导入和旧记录编辑一并适配。
+2. **当前脏候选有两个入口：GitLab 姓名与历史姓名补充。** 只换 GitLab 来源，历史拼音和错名仍会回流；只保留中文也不能证明姓名正确、在职或人员唯一。
+3. **平台已有 LDAP 用户镜像，但不是持续维护的完整在职名录。** 首次登录尝试拉目录，以后主要刷新登录者；完整性、删除、离职、新入职和改名传播都存在缺口。
+4. **本地 LDAP 上游允许工号修改、账号删除后复用。** `userId` 只在普通编辑时不可改；数据库 `id` 是账号记录身份，不是跨删除重建的永久员工身份。必须先明确生命周期契约。
+5. **设置中的“人员标签组”不是简单选人表单。** 它目前是跨页面复用的字符串筛选集合。若直接存 LDAP ID/中文名，而系统测试、客户问题仍按 GitLab 姓名筛选，会出现“选了正确的人却查不到记录”。
+6. **系统测试、客户问题、代码走查保持原样是安全且符合本次需求的边界。** 将它们全面统一为 LDAP 姓名可作为后续工作，但需要来源身份映射；只改字符串会影响筛选、人员统计、榜单和导出，不属于可以顺手完成的视觉修整。
 
-1. LDAP 目录（`platform_ldap_users`，已同步进采集平台）是一份**干净的"当前在职权威名录"**：264 人 `ACTIVE`、`real_name` **全局唯一（0 重名）**、离职者已移除。质量远优于 GitLab 镜像（111 个离职账号仍在、缺在职者、显示名与 HR 不符）与花名册 XLSX（静态快照）。
-2. 每人具备**两个稳定ID**（`user_id`、`employee_no`）+ 权威 `real_name` + `employment_status`；平台**已有 `displayNameForUser(userId)→real_name` 的按ID解析能力**。
-3. LDAP `real_name` **全量验证并纠正**了此前基于 GitLab/花名册推导的种子清单（详见 §5），证明它是比人工交叉核对更可靠正名权威。
+## 2. 当前链路：问题不只在 GitLab 用户表
 
-**不可回避的硬约束**：评审数据（正式表 + 老平台 Mongo 快照）以**姓名字符串**存储，非ID。正确名/拼音名可自动匹配 LDAP，但真脏名（错字、同音、离职后缀）匹配不上，**仍需别名映射**——LDAP 不替代别名表，而是给别名表提供权威、稳定、可校验的目标，并可把下拉候选源直接换成干净目录。
+### 2.1 候选来源与人员匹配
 
-## 2. 调查方法与证据来源
+当前链路为：
 
-- **LDAP 服务端源码**：`D:/projects/ldap`（Spring Boot + Vue 的身份管理服务，含飞书同步能力）。读取其 `User` 实体、`UserResponse`、`UserResponseAssembler`、`FeishuUserRemoteService`、迁移 `V1/V23/V24/V25` 等。
-- **采集平台 LDAP 集成代码**：`LdapPlatformClient`、`LdapPlatformAuthenticationProvider`、`PlatformIdentityService`、`PlatformPermissionService`、迁移 `V20260720_01/02`。
-- **本地库实测**：对 `platform_ldap_users`（270 行）执行只读查询（user_id 格式统计、real_name 重名检测、在职状态分布、歧义名核对、种子全量校验）。查询脚本见 `.tmp/query-ldap-*.sql`，结果见 `.tmp/query-ldap-*.txt`。
+```text
+GitLab users.name + 正式评审历史姓名 + 兼容快照姓名
+    → value=姓名、label=姓名
+    → 前端提交姓名
+    → 后端保存姓名，并用姓名关联专家与问题项
+```
 
-## 3. 发现一：采集平台 LDAP 集成现状
+- `ReviewDataMirrorOptionRepository.loadUserNames()` 只读取 `name`，排除镜像删除和空值；没有 GitLab 账号状态、在职、中文姓名或真人账号限制。[P1]
+- `ReviewDataFilterOptionService` 将镜像、历史负责人、历史专家/作者以及兼容姓名合并，最终只做空白清理和字符串去重，返回 `value=label`。负责人池与专家/作者池范围不同，但都含历史补充。[P2]
+- 因此，同一个人的中文名、拼音名、旧名可能并列；两个不同人的完全同名又可能被合成一个选项。截图显示的混杂与此链路一致，但不能仅凭截图判断每个账号属于谁。
+- 正式评审的 `review_owner`、`author_name`、专家 `expert_name`、问题 `reviewer_name/owner_name` 都是姓名字符串；描述作者、内容评审人也需要纳入身份改造范围。[P3]
+- 专家占位项的补建、清理、首次填写和删除最后一个问题后的专家移除，都按归一化姓名匹配。换成新中文名而不迁移关联，会把同人视作新人；同名不同人仍不能区分。现有实现已保护含真实内容的问题，不应误报为仍会任意覆盖同名问题。[P4]
 
-- 通过 `LdapPlatformClient` 以 **HTTP API**（`PLATFORM_LDAP_BASE_URL=http://127.0.0.1:28081`）访问 LDAP：
-  - `POST /api/v1/auth/login` → 登录（返回 accessToken）
-  - `GET /api/v1/auth/me` → 当前用户
-  - `GET /api/v1/roles` → 角色
-  - `GET /api/v1/users` → **全量用户目录**
-- 用户数据落本地镜像表 `platform_ldap_users`，字段含：`user_id`(PK)、`ldap_id`、`real_name`、`email`、`intranet_email`、`mobile`、`employee_no`、`dept_name`、`dept_code`、`job_title`、`direct_leader_raw`、`leader_ref`、`account_status`、`status`、`employment_status`、`ldap_dn`、`last_login_at`、`source_synced_at`。
-- `LdapUserData` DTO 标注 `@JsonIgnoreProperties(ignoreUnknown=true)`：LDAP 若返回未映射字段会被静默丢弃。**当前 DTO 无 feishu/open_id 字段。**
-- 平台已有 `PlatformIdentityService.displayNameForUser(userId, fallback)` → 查 `platform_ldap_users.real_name`，即**已具备"按稳定ID解析权威显示名"的现成能力**。
+### 2.2 范围矩阵
 
-## 4. 发现二：LDAP 服务端身份模型（为何 user_id 是 uid 而非 open_id）
+| 场景 | 当前事实 | 建议处理 |
+|---|---|---|
+| 新建/编辑评审负责人、专家、作者 | 提交并保存姓名，候选混入历史值 | 改成目录身份选择，服务端校验有效身份 |
+| 新建/编辑问题专家、责任人 | 复用候选池，专家还混入当前记录姓名 | 与主记录同时改，保留旧值回显与明确的待关联状态 |
+| Excel 导入默认人员 | 默认负责人、专家允许自由创建；默认作者为文本；文件内姓名还能覆盖默认值 | 默认人员改目录选择；历史文件保留原文并做受控关联，不能按姓名自动认领 |
+| 评审历史筛选 | 当前比较的是历史姓名字符串 | 必须继续能查旧名、离职者及未关联记录，不能直接复用“新评审可选人员”名单 |
+| 设置 → 标签组 → 人员 | 全局 `person` 候选取镜像姓名；组展开使用字符串成员值 | 与人工分配人员分开设计，详见第 4 节 |
+| 设置 → 下拉框选项设置 | 当前仅注册评审项目名称，没有人员字段 | 不存在现成的人员黑白名单可直接切源；若扩展，应另行明确身份规则 |
+| 系统测试、客户问题 | 事实构建关联 GitLab 用户；筛选取业务范围 | 本轮保留原始来源和语义 |
+| 代码走查 | GitLab 关联、评论文本、老平台数据等混合来源 | 本轮保持原样，不能假设全部来自 `users.name` |
+| 质量达人榜、BI 按人分组 | 存在按姓名关联/聚合的逻辑 | 不随评审候选治理改动 |
 
-- LDAP 服务 `sys_user` 身份列经历重键：`V24__user_identifier_rekey` + `V25__rename_user_identity_column` 把 `username` 置为 `external_id`（存在时）并 `CHANGE COLUMN username user_id`，随后 **`DROP COLUMN external_id`**。
-- `FeishuUserRemoteService.fetchUsers()` 调飞书 `contact/v3/users`（`user_id_type=open_id`），取 `open_id` 作为该来源用户的标识 → 即**只有"飞书来源(sourceType=FEISHU_*)"用户，其 `user_id` 才是飞书 open_id**。
-- `User` 实体与 `UserResponse` 字段：`id,userId,realName,email,intranetEmail,mobile,employeeNo,deptName,deptCode,departmentPath,jobTitle,directLeaderRaw,leaderRef,accountStatus,partTime*,permissionLevel,accessAllowed,employmentStatus,sourceType,ldapDn,roleCodes`。**无任何独立 feishu/open_id/union_id 字段**；所有迁移中也未新增此类列。
-- **实测印证**：采集平台 `platform_ldap_users` 270 人的 `user_id` **全部为 LDAP 拼音 uid**（`ou_`/`on_` 开头 = 0），说明当前目录是 **LDAP 来源**、非飞书来源 → 现网拿不到 open_id，但拿得到 LDAP uid + 工号这两个稳定ID（正是用户所指"稳定人员ID"）。
+导入入口已明确存在，旧报告对此的疑问已解除；仅改前端下拉不能阻止 Excel/API 再写入任意姓名。[P5]
 
-> 补充：若未来确需飞书 `open_id`，需在 LDAP 服务端改动（改走飞书同步使 `user_id=open_id`，或新增 `feishu_id` 字段并纳入 `/api/v1/users` 响应）。对本治理目标而言无额外收益，非必需。
+## 3. LDAP 可复用什么，又缺少什么
 
-## 5. 发现三：LDAP 目录实测（决定性数据）
+### 3.1 已有能力
 
-### 5.1 目录整体质量
-- 总人数 **270**；`employment_status`：**ACTIVE 264**、空值 6（含 `admin/超级管理员`、`chenkui/陈魁` 等系统或特殊账号）。
-- **`real_name` 重名检测：0 行**（同 `real_name` 多 `user_id` 不存在）→ **目录内姓名唯一，name→人 在目录内天然无歧义**。
-- 离职者不在目录中（对比 GitLab 镜像 111 个离职账号仍进候选）。
-- **两个稳定ID均唯一且全覆盖（实测）**：`user_id`（LDAP 登录账号/拼音 uid，如 `dll`/`xuh`/`lizhi2`）与 `employee_no`（**工号**，如 `0163`/`2481`）**是两个不同字段**；各 270/270 distinct、0 空值、工号 0 重复 → 二者都可作稳定人员主键。工号是**含前导零的字符串**（`0102`/`0163`/`0902`；`admin` 特殊为 `E0001`），**不可当整数处理**。平台现有约定以 `user_id` 作人员键（`platform_ldap_users` 主键、`displayNameForUser(userId)`、`review_records.created_by` 均存 `user_id`）；工号更贴近 HR，可作交叉校验/HR 关联。
+平台不是直接查询 LDAP 协议目录，而是调用身份平台 HTTP API：登录、当前用户、角色、用户列表。`LdapUserData` 已接收 `id/userId/realName/employeeNo/employmentStatus` 等字段；本地 `platform_ldap_users` 保存它们，`user_id` 为主键，`ldap_id`、工号均不是本地唯一键。[P6]
 
-### 5.2 歧义/后缀名在 LDAP 的真实形态
-| LDAP uid (`user_id`) | `real_name`（权威正名） | 工号 | 状态 |
-|---|---|---|---|
-| liujiaqi | 刘佳祺 | 1760 | ACTIVE |
-| liumin | **刘敏2** | 1108 | ACTIVE |
-| mengxiuping | 孟秀平 | 2602 | ACTIVE |
-| xuh | **徐昊2** | 2481 | ACTIVE |
-| lizhi2 | **李志** | 2796 | ACTIVE |
-| dll | 狄林林 | 0163 | ACTIVE |
-| wx | **王旭3** | 2632 | ACTIVE |
-| baixinhui | 白欣慧 | 1778 | ACTIVE |
-| xsn | 邢胜南 | 0164 | ACTIVE |
-| chenjiale | 陈嘉乐 | 3011 | ACTIVE |
-| chenyihui | 陈艺珲 | 2609 | ACTIVE |
-| gaoyang | 高扬 | 2679 | ACTIVE |
-| gaoguanmeng | 高贯孟 | 2156 | ACTIVE |
+已有 `displayNameForUser(userId, fallback)` 可按账号查询姓名，但它会在无姓名时返回 fallback；不能原样用它保证“新选人只显示经过确认的中文姓名”。普通业务候选还需要最小字段接口，不应借用能暴露手机号、邮箱等信息的数据库查看入口。[P7]
 
-关键观察：
-- 目录里**每个歧义姓名只保留一个在职者**（徐昊只有"徐昊2"、王旭只有"王旭3"、李志只有一个"李志"），离职的同名者已移除 → 从源头消除"选错人"。
-- **后缀并非统一规则**：`xuh`/`wx`/`liumin` 的正名**带后缀**（徐昊2/王旭3/刘敏2），而 `lizhi2` 的正名**不带后缀**（李志）。→ 说明**必须以 LDAP `real_name` 为准逐个核定，不能靠"后缀最大=正名"这类启发式**。
+### 3.2 同步完整性是实际缺口
 
-## 6. 发现四：种子清单全量校验与两处纠正
+现有认证流程在成功登录后尝试一次目录同步；`initial_full_sync_completed` 为真后不再全量拉取，仅继续刷新登录者。目录逐人 upsert，没有消失用户对账，也没有周期性完整刷新。目录抓取失败不阻止该用户登录。[P8]
 
-以 LDAP 目录全量校验此前拟议的 17 组映射（查询同时列入拟议 canonical 与拟议 alias）：
+更重要的是，本地 LDAP 上游 `/api/v1/users` 按调用者权限过滤：`USER_READ` 可以查看全部候选，仅有 `USER_READ_SELF_AND_SUBORDINATE_TREE` 则只有本人及下属。接口返回成功并不等于目录完整，而采集平台当前遍历成功即标记首次全量完成，空数组也会完成。[L1][P8]
 
-- **17 个拟议 canonical 全部命中 LDAP 且 ACTIVE**：刘佳祺·杨晓雨·白欣慧·邢胜南·陈艺珲·陈嘉乐·孟秀平·张梓瑜·张佳旺·燕欣睿·高扬·狄林林·高贯孟·徐昊2·王旭3·李志·刘敏2。
-- **所有拟议 alias（脏名）在 LDAP 全部查无**：刘佳琪·杨晓宇·白新慧·形胜南·陈艺辉·陈家乐·孟秀萍·张子瑜·张家旺·燕新睿·高杨·狄琳琳·李志2·刘敏·徐昊·王旭 → 确认它们不是目录内真名。
+因此，后续目录维护需要：
 
-### 两处纠正（相对既有计划）
-1. **删除 `李志 → 李志2`**：LDAP 正名是 **"李志"**（uid `lizhi2`, ACTIVE）；"李志2"只是 GitLab 显示名、在 LDAP 查无。评审数据里的"李志"**已等于权威正名，无需映射**。（此前基于 GitLab + 时间线得出的 `李志→李志2` 被 LDAP 权威数据推翻。）
-2. **新增 `刘敏 → 刘敏2`**：LDAP 正名是 **"刘敏2"**（uid `liumin`, ACTIVE）；评审数据里的"刘敏"（本地遗留 15 条）需映射到"刘敏2"才对齐权威正名。（此前"刘敏与刘敏2同账号故不映射"的结论，在"以 LDAP `real_name` 为 canonical"的标准下应改为映射。）
+- 使用明确拥有完整目录读取能力、经授权的接入方式；不能依赖随机登录者的可见范围，也不能凭空假设上游已有机器令牌接口。
+- 周期刷新与可控手工刷新，记录最后成功时间和失败状态；只在确认完整抓取后发布新目录。
+- 对上游消失者停止新选择，但保留历史身份引用；失败、权限缩小或不完整响应不能被当作全员离职。
+- 将目录变更纳入相关候选/名称投影的缓存版本。现有评审快照指纹没有 LDAP 目录版本，仅改库中姓名并不能保证候选立即刷新。[P9]
 
-### LDAP 校验后的种子清单（17 组，全部 canonical 命中在职目录）
-| # | alias（脏名，LDAP 查无） | canonical（LDAP `real_name`, ACTIVE） | LDAP uid | 工号 |
-|---|---|---|---|---|
-| 1 | 刘佳琪 | 刘佳祺 | liujiaqi | 1760 |
-| 2 | 杨晓宇 | 杨晓雨 | yangxiaoyu | 1779 |
-| 3 | 白新慧 | 白欣慧 | baixinhui | 1778 |
-| 4 | 形胜南 | 邢胜南 | xsn | 0164 |
-| 5 | 陈艺辉 | 陈艺珲 | chenyihui | 2609 |
-| 6 | 陈家乐 | 陈嘉乐 | chenjiale | 3011 |
-| 7 | 孟秀萍 | 孟秀平 | mengxiuping | 2602 |
-| 8 | 张子瑜 | 张梓瑜 | zhangziyu | 2556 |
-| 9 | 张家旺 | 张佳旺 | zhangjiawang | 2833 |
-| 10 | 燕新睿 | 燕欣睿 | yanxinrui | 1862 |
-| 11 | 高杨 | 高扬 | gaoyang | 2679 |
-| 12 | 狄琳琳 | 狄林林 | dll | 0163 |
-| 13 | dilin | 狄林林 | dll | 0163 |
-| 14 | gaoguanmeng | 高贯孟 | gaoguanmeng | 2156 |
-| 15 | 徐昊 | 徐昊2 | xuh | 2481 |
-| 16 | 王旭 | 王旭3 | wx | 2632 |
-| 17 | 刘敏 | 刘敏2 | liumin | 1108 |
+这些是业务名录维护要求，不表示本轮要改变既有 Session、RBAC 或“下次登录更新账号状态”的安全契约。
 
-> 注：本清单为**本地目录实测**结果；上线前应以生产 LDAP 目录复核（正名是否仍在职、有无新增脏名）。
+### 3.3 “稳定 ID”的准确含义
 
-## 7. 发现五：拼音脏名与 LDAP uid 的关系（解析红利与边界）
+| 字段 | 本地 LDAP 上游实际保证 | 适用判断 |
+|---|---|---|
+| `userId` | 普通更新禁止修改；删除会回收旧字符串，之后可重新创建同 ID 账号 | 账号标识，不能裸值作为永久人员身份 |
+| `employeeNo` | 当前唯一约束；普通更新允许修改；删除会清空并释放工号 | HR 交叉核验属性，不宜直接充当不可变主键 |
+| `id` → 平台 `ldap_id` | 本库自增账号记录主键；普通改名不变，新建账号通常获得新 ID | 同一身份服务数据库生命周期内，比可复用账号名更合适的外部记录键；不是跨实例、删建或库重置的永久人员键 |
+| `realName` | 可修改，没有姓名唯一约束，也不保证纯汉字 | 展示属性，不是身份键 |
 
-- 部分拼音脏名**恰好等于 LDAP uid**：`gaoguanmeng`（=uid `gaoguanmeng`→高贯孟）。→ 解析时"先按 `real_name` 精确、再按 `user_id`(uid) 精确"可**自动归一这类拼音名**，无需别名。
-- 但**并非全部**：`dilin` ≠ 狄林林的 uid `dll`。→ 这类仍需别名表。
-- 结论：uid 匹配是"锦上添花"的自动解析层，不能取代别名表。
+证据：普通更新直接写姓名和工号，同时校验 `userId` 不变；删除把 `userId` 改成回收值并清空工号，创建重新检查当前冲突后插入新记录。[L2][L3]
 
-## 8. 关键约束与边界（硬事实，非方案）
+历史迁移 V24/V25 也曾整体重设账号键。因此旧报告所谓“两个永久稳定 ID”不能成立。
 
-1. **存储是姓名、不是ID**：评审正式表（`review_records.review_owner/author_name`、`review_record_experts.expert_name`、`review_problem_items.reviewer_name/owner_name` 等）与兼容快照（`review_data_match_mode_reports.review_charger/review_experts` 及 contents/problem_details/descriptions 人名列）均以姓名字符串存储。引入 LDAP ID 不改变"历史数据是姓名"的事实。
-2. **脏名解析仍需别名**：错字/同音/离职后缀名无法自动匹配 LDAP，必须人工/种子维护 alias→（LDAP 正名 或 稳定ID）。
-3. **目录新鲜度缺口**：`platform_ldap_users` 目前**仅首次登录触发一次全量同步**（`synchronizeDirectoryIfNeeded`，受 `initial_full_sync_completed` 标志保护）+ 各用户登录时 upsert 自己；**无定期全量重同步**（现有 `@Scheduled` 均为 gitlab-mirror/match-mode/BI/fact，无 LDAP 目录）。若把 LDAP 当"活"的权威下拉源，需补一个定期/手动"刷新目录"机制（用具备目录读权限的服务账号执行 `client.users()`）。
-4. **同步依赖权限**：首次全量同步为尽力而为——登录账号无目录读权限时跳过并保留待同步状态（本地已有 270 行，说明曾以有权账号登录）。
-5. **特殊账号**：6 个 `employment_status` 为空者（admin/超级管理员、chenkui 等）需在"作为下拉源"时明确纳入或排除口径（留待方案）。
+**建议的身份原则**：限定身份服务实例，以不可混淆的账号实体身份建立业务引用；检测同 `userId` 对应 `ldap_id` 改变的情况，禁止自动继承旧人员关联。若要保证同一个自然人在多账号、返聘、删建之后仍为一人，需要上游永久人员标识或人工确认的身份关联，不能靠姓名/工号相等猜测。具体数据模型待批准后设计，不在本报告中定稿。
 
-## 9. 人员数据来源全景与标签组 person 耦合（实测）
+### 3.4 正确姓名与可选状态还需要业务口径
 
-### 9.1 各模块人员字段来源
-| 模块 | 人员字段 | 来源 | 与评审数据耦合 |
-|---|---|---|---|
-| 评审数据 | 评审专家/负责人(reviewOwner)/作者 | 下拉候选=`loadUserNames()`（GitLab 镜像 users）+ 历史/快照名 | — |
-| 标签组 person 维度 | 候选值=`loadUserNames()`（GitLab，全平台共用一份） | 绑定：评审→reviewOwner、系统测试议题→assigneeName、客户问题→assigneeName | **是：与评审下拉同源，且绑定 reviewOwner** |
-| 系统测试议题 | assigneeName(处理人) | issue_fact（GitLab 事实） | 否（数据）；仅经标签组 person 间接 |
-| 代码走查 | reviewer/assignee/author/fix_user | GitLab 事实（`GitlabFactSourceSqlProvider` join `ods_gitlab_users`） | 否 |
-| 客户问题 | authorName/assigneeName | issue_fact（GitLab 事实） | 否（数据）；仅经标签组 person 间接 |
-| BI 看板 | 评审页**无人名输出**；编码/系统测试页用 GitLab 事实 | `review_visible_*` 视图（仅度量）/GitLab 事实 | 否 |
-| 质量看板 | fix_user/assignee/代码走查 reviewer | issue_fact + 代码走查事实（GitLab） | 否 |
+- LDAP 是推荐的权威姓名来源，但不能由“改用 LDAP”推出“所有姓名一定纯中文且全局唯一”。权威姓名可能有数字后缀；不能自行去数字、同音纠错或拼音反推汉字。
+- “一人只有一个选项”应按身份去重；若确有同名不同人，应展示姓名加部门/工号作辅助区分，不能吞掉其中一人。若领导要求不显示任何后缀，应先在权威名录确认真实姓名字段。
+- 离职、账号禁用、系统账号不是同一概念。在职但无平台登录权限的人是否能担任专家，需业务确认，不能直接把“能登录”等同“能被选择”。
+- 当前本地上游返回 `accessAllowed`，没有旧式 `status` 字段；采集平台 DTO 接收 `status` 却未接收 `accessAllowed`，未知字段会忽略。若按本地当前接口接入，不能依赖这个 `status` 判断可选状态。内网是否部署同版本仍需核对。[L4][P6]
 
-- `loadUserNames()` 全平台**仅 2 个生产调用方**：`ReviewDataFilterOptionService`（评审下拉）与 `LabelValueQueryService`（标签组 person）。其 SQL 只过滤 `mirror_deleted`、不过滤 `state`。
-- 其余模块人员均为"事实构建期 join `ods_gitlab_users` 取名"或"数据驱动的实际参与者"，**不是从 users 表拉全量下拉**。
+## 4. 设置页：标签组是必须单独处理的耦合点
 
-### 9.2 标签组耦合的实测证据（决定性）
-- LDAP 在职 266 人中，**33 人（约 12%）的 `real_name` 在 GitLab 镜像 users 表缺失**（如 **王旭3(wx)**、**刘敏2(liumin)**、李伟6、侯文涛、冉爱华…）。
-- 本次种子正名中，**王旭3、刘敏2 在 GitLab 镜像查无**（刘佳祺/徐昊2/李志/狄林林/白欣慧/高贯孟 在）。
-- 含义：若评审 `reviewOwner` 归一为 LDAP 正名（如"王旭3""刘敏2"），而标签组 person 候选仍取 GitLab（`loadUserNames`），则**这 33 人无法作为标签组 person 值被选中来筛评审数据** → 标签组按人筛评审会漏。
+`LabelValueQueryService` 的 `person` 在页面分支之前统一读取 GitLab 姓名；现有 `pageKey` 参数不会自动把它切成评审 LDAP 名单。`LabelGroupService` 展开组时使用 `member_value`，不是 `display_name`。[P10]
 
-### 9.3 判定
-- **评审改 LDAP → 标签组 person 维度存在真实耦合，必须在方案中处理**（不是"可改可不改"）：至少要让 person 候选能覆盖 LDAP 正名。
-- **但标签组 person 是"一份候选跨三页"**：系统测试/客户问题的 `assigneeName` 仍是 GitLab 事实来源；若把 person 候选整体换 LDAP，会与这两页的 GitLab 名产生新的不一致（如 LDAP"李志" vs GitLab 事实里的"李志2"）。
-- **系统测试/代码走查/客户问题/BI 的人员数据本身：与评审解耦，保持原样即可**（改评审不影响它们的人员数据与展示）。唯一间接接触点是"标签组 person 维度"这一个共享候选。
+以虚构例说明：某人的 LDAP 姓名是“张三”，GitLab 历史显示名是 `zhangsan`。
 
-## 10. 待决 / 留给方案阶段的事项（本报告不设计）
+- 把组成员值改为“张三”：仍保存 `zhangsan` 的客户问题不会因此命中。
+- 只把组成员标签显示为“张三”，保留值 `zhangsan`：可保留原匹配，但若此人有多个旧名，就不能自动成为“一人一个成员”；仅凭旧名还可能与其他人重名。
+- 直接把组成员值改成 LDAP ID：所有继续比较姓名字符串的调用方都需要适配。
 
-- 稳定ID 的落地形态：仅用 LDAP `real_name` 作 canonical，还是在评审人名旁**另存 `user_id`/工号**（后者是跨快照/视图/BI/搜索/导出的大改，需评估）。
-- 下拉候选源切换到 LDAP 目录的具体口径（在职过滤、特殊账号、与既有候选框架 `DropdownOptionFieldRegistry`/`getFilterOptions` 的关系）。
-- 目录刷新机制（定期 vs 手动、服务账号来源）。
-- 别名表 canonical 与 LDAP 的校验绑定、解析优先级（real_name→uid→alias→原样）的具体实现。
-- 黄金基线影响面（下拉候选、评审产出、权限快照）与门禁流程。
-- **复核评审 Excel 导入写入路径**：权限表存在 `review.legacy_import`（导入老平台评审 Excel）、`review.template.download`（下载导入模板），但前次 grep 未定位到导入写入口（仅见导出），结论存疑；实施前必须确认是否存在该写入路径并纳入规范化覆盖，否则会成为绕过持久化门面的死角。
-- **标签组 person 候选源口径（方案必决项）**：评审页（→LDAP）与系统测试/客户问题页（→GitLab 事实）共用一份 person 候选（`loadUserNames`）。需决定：按页分源（评审页用 LDAP、议题/客户页用 GitLab 事实），还是统一到 LDAP 并要求议题/客户人员也规范化（后者范围更大）。实测 33 名在职者 GitLab 缺失，维持现状会导致标签组按人筛评审漏这 33 人。
+**结论：只换候选或只按页面分源，都不足以解决全局标签组的跨页面身份语义。** 当前产品明确定义标签组是按类型组织的原始值集合，不是员工组织模型，不能静默把全部字符串组改成人员组。
 
-## 11. 附：可复现证据
+推荐区分两个需求：
 
-- 查询脚本（只读）：`.tmp/query-ldap-users.sql`、`.tmp/query-ldap-names.sql`、`.tmp/query-ldap-seedcheck.sql`、`.tmp/query-ldap-idcheck.sql`、`.tmp/query-ldap-vs-gitlab.sql`
-- 查询结果：对应 `.tmp/query-ldap-*.txt`
-- 运行方式：`psql "<本地连接串>" -f <脚本> -o <结果文件>`（UTF-8）
-- 诊断脚本（评审侧人名全集，已存在）：`scripts/audit-review-person-names.sql`
+1. 给评审分配真实人员：用目录身份选择，不依赖通用字符串标签组。
+2. 设置“一个人员集合”并跨模块筛选：需要人员身份到各来源用户的明确关联，以及调用方按当前字段解释该关联的契约。已有通用标签组的非人员成员、动态规则、旧筛选值必须保持正确；没有可靠映射的历史文本不能承诺精确归人。
+
+如果“设置里选人也必须全部正确且一人一项”包含全局人员标签组，那么身份关联与标签组调用方改造必须纳入同一验收范围，不能以“评审下拉已干净”宣称整个需求完成。
+
+## 5. 其他模块能否一起统一
+
+### 5.1 现有来源并不一致
+
+- Issue 作者来自 `issues.author_id → users.name`；指派人由用户关系聚合为姓名；`handler_name` 当前取同一指派集合，但作为独立字段输出。修复人取符合修复状态模板的评论作者，不等同当前指派人。[P11]
+- MR 作者/审核人等部分字段有用户关系，但走查人还可来自评论“走查人”文本、人工表单和占位状态。部分字段在聚合成姓名字符串后已不携带全部人员 ID。[P12]
+- 老平台兼容走查保存 `author/assignee/merged_user_name` 等文本，转正式不会凭空补出 LDAP 身份。现有 MR 提交事实也不能提供完整 Git commit 作者身份。[P12][P13]
+- GitLab `users.id` 必须限定真实 GitLab 实例。当前通用镜像使用 `default` 来源和 `ods_gitlab_*` 表；不能把兼容业务标签 `cc/dgm` 不经核实就视作完整账号命名空间。[P14]
+- 当前代码没有 GitLab 用户到 LDAP 用户的关联链路。用户整行镜像可能包含 username/email，但其相等不证明同人；常规来源目录未登记 `identities` 作为现成身份桥。若使用 `provider/extern_uid`，应先核实真实源表、目录提供者和键含义。[P15]
+
+### 5.2 风险不止“名字变了”
+
+| 做法 | 后果 |
+|---|---|
+| 直接修改 GitLab/ODS `users.name` | 破坏原始证据边界；ODS 手改会被同步覆盖，还不能保证走过完整事实失效链 |
+| 在事实构建中统一替换姓名 | 影响历史事实、搜索、筛选、人员聚合和快照，可能改变按人统计归属 |
+| 把质量达人名单换中文，业务事实不改 | 名单精确匹配失效，代码量等分母可能取零，并非仅显示不同 |
+| 仅网页换名、Excel 不改 | 页面、导出和筛选条件不一致 |
+| 按当前 LDAP 同名自动回填旧记录 | 可能把已离职同名者、复用账号的历史贡献归给当前人员 |
+
+质量达人榜实际以 `member.name()` 查作者代码量并关联缺陷；BI 人员维度目前也按来源中的名称值分组。合并旧名为一个人员，是统计分组语义改变，必须单独审批和验证。[P16][P17]
+
+### 5.3 可行的后续方向
+
+若后续确需统一，先建立经过验证的 `(实际来源实例, 源用户ID) → 目录身份` 关联，允许同一个人关联多个来源账号。仅保留姓名的旧记录需独立核验；邮箱、账号、中文名相等只能作为候选证据，不作为自动确认依据。
+
+可先对可靠映射的记录提供统一显示名，同时保留原始来源名、角色和追溯信息；不要同时自动重算“按人”聚合。未映射/歧义值保持原文并报告覆盖不足。要做到跨模块一人一行统计，则还需迁移人员分组键、标签组、筛选、导出与缓存，不能只增加显示函数。
+
+**本轮建议不执行该扩展。** 不统一 GitLab 姓名并不妨碍新评审从 LDAP 选择正确人员。
+
+## 6. 推荐范围与验收标准（待批准）
+
+### 6.1 推荐顺序
+
+1. **先明确上游契约**：姓名权威字段、账号实体键、重建/复用规则、在职与可选条件、完整目录读取方式及内网实际版本。
+2. **建立可持续的人员目录读取能力**：完整性判定、目录刷新、历史引用保留、最小字段业务接口、候选缓存更新；不复用用户密码缓存，不扩大普通用户目录权限。
+3. **完整改造评审人工输入链**：创建、编辑、问题、专家同步、描述/内容作者及导入默认人员一起改。新身份与原始姓名不是两套竞争真相：身份用于关联，原始文本仅用于历史证据或待关联记录。
+4. **明确历史迁移策略**：新记录必须有有效身份；历史记录允许未关联，正常回显且可筛选；人工确认关联后整棵评审一致迁移，不按中文同名批量认领，不改变原创建人归属。
+5. **设置人员集合单独验收**：若包含通用标签组跨模块选人，先解决来源身份匹配及已有组迁移，再宣称这部分完成；不能用 LDAP 候选替换掩盖筛选失效。
+6. **GitLab 自动采集人员暂不变**：源表、ODS、事实计算、系统测试/客户问题/代码走查展示及其原有筛选均保持。
+
+`created_by` 是权限归属，不是负责人或评审专家。当前平台按登录 `userId` 保存并检查本人权限；人员治理不得顺手改它，也不得以新负责人回填历史空创建人。账号复用对旧归属的潜在影响需单独做安全评估。[P18]
+
+### 6.2 必须验证的场景
+
+- 同一身份多个旧名只在新选人目录中出现一项；真实同名不同身份均保留且可辨别。
+- 改名不改变专家身份；增删专家不误删真实问题、不制造重复占位项；删除最后一个问题正确同步对应专家。
+- 新入职、离职、禁用、特殊账号、目录不可达及无权查看全目录均有明确行为；部分目录不能覆盖完整目录。
+- 同 `userId` 删除重建且 `ldap_id` 改变时，不继承旧业务身份；工号修改不丢历史关联。
+- 历史英文/拼音/未关联人员可回显和筛选；改动无关字段不强制把整条历史记录认领给当前人员。
+- Excel 默认人员、文件人员及直接 API 写入均不能绕过新记录身份校验；历史导入的未关联状态不得静默伪装为目录人员。
+- 标签组选择、保存、跨页面展开、导出条件与实际筛选结果一致；不能只验下拉中文标签。
+- LDAP 姓名/状态变化使相关候选或显示快照更新；所有未纳入范围的 GitLab 展示和统计保持不变。
+- 上线前按仓库门禁审阅有意变化、更新受影响黄金快照并回归；调查阶段不运行或改写黄金基线。
+
+## 7. 实施前仍需确认的事项
+
+1. “设置选择用户名字段”是否包含全局人员标签组跨系统测试/客户问题筛选；若包含，必须接受其大于“换下拉源”的改造范围。
+2. 可选对象是全部在职人员，还是还要排除禁用/无准入/系统账号；外部专家及历史离职人员如何处理。
+3. LDAP `realName` 是否已由业务确认；数字后缀是否就是权威显示名；同名时是否允许显示部门/工号辅助区分。
+4. 对历史评审只要求保留并可人工补关联，还是要审核后批量归一；是否要求历史导出始终反映最新姓名。
+5. 内网 LDAP 实际版本、完整目录接入权限、账号重建/复用政策及多账号归人依据。当前代码可说明机制，但无法代替这些现场契约。
+
+## 8. 对旧调查的更正
+
+旧报告的本地查询记录只能代表 2026-09-09 的一次快照，本轮未重跑，不能继续表述为当前内网实测。
+
+- “user_id/employee_no 都稳定、都能直接作永久人员主键”：更正为第 3.3 节的有限保证。
+- “LDAP 是完整、干净的在职目录，离职者已经全部移除”：不能作为机制保证；目录可保留离职者，API 有权限过滤，本地镜像也不对账删除。
+- “当前姓名无重名，因此旧名可自动映射当前人员”：推论不成立；当前唯一无法证明历史身份唯一，也无法识别账号复用。
+- “LDAP 所有名字一定是正确纯中文名”：代码不提供此保证；不能擅自删除权威姓名后缀。
+- 原文出现的 264/266 在职统计口径不一致，本轮不沿用这些数量，也不沿用未经历史身份核验的 17 组自动迁移建议。
+- “可能没有 Excel 导入写入口”：已确认存在，纳入改造边界。
+- “只按页换 person 来源即可解决”：只能改变候选来源，不能解决全局字符串标签组的跨字段身份匹配。
+
+## 9. 主要代码证据索引
+
+平台路径均相对 `D:/projects/data_collection_platform/`；LDAP 路径相对 `D:/projects/ldap/`。行号对应本次读取状态。
+
+| 编号 | 文件与行号 | 证实内容 |
+|---|---|---|
+| P1 | `backend/src/main/java/com/data/collection/platform/service/ReviewDataMirrorOptionRepository.java:31` | GitLab 姓名候选 SQL |
+| P2 | `backend/src/main/java/com/data/collection/platform/service/ReviewDataFilterOptionService.java:67`、`:144` | 历史池合并、姓名即选项值 |
+| P3 | `backend/src/main/java/com/data/collection/platform/service/ReviewDataRecordWriteRepository.java:83`；`ReviewDataExpertRepository.java:28`（同目录） | 主记录/专家按姓名保存 |
+| P4 | `backend/src/main/java/com/data/collection/platform/service/ReviewDataRecordCommandService.java:216`、`:287`、`:383` | 专家与问题按姓名匹配；真实问题保护 |
+| P5 | `frontend/src/views/review-data/ReviewDataLegacyExcelImportDialog.vue:158`；`backend/src/main/java/com/data/collection/platform/service/ReviewDataLegacyExcelImportService.java:64` | 导入默认人员与真实写入口 |
+| P6 | `backend/src/main/java/com/data/collection/platform/service/LdapPlatformClient.java:71`、`:112`；`backend/src/main/resources/db/migration/V20260720_01__ldap_identity_and_local_permissions.sql:3` | 用户 API、DTO、本地身份键 |
+| P7 | `backend/src/main/java/com/data/collection/platform/service/PlatformIdentityService.java:37`、`:105` | 按账号 upsert、姓名解析 |
+| P8 | `backend/src/main/java/com/data/collection/platform/security/LdapPlatformAuthenticationProvider.java:48`、`:81` | 登录刷新、一次目录同步和完成标记 |
+| P9 | `backend/src/main/java/com/data/collection/platform/service/PageRecordSnapshotService.java:340` | 现有评审来源指纹未纳入 LDAP |
+| P10 | `backend/src/main/java/com/data/collection/platform/service/labelgroup/LabelValueQueryService.java:48`、`:84`；`LabelGroupService.java:192`（同目录）；`backend/src/main/java/com/data/collection/platform/service/dropdown/DropdownOptionFieldRegistry.java:35` | person 全局姓名池、按原始值展开、只注册项目下拉 |
+| P11 | `backend/src/main/java/com/data/collection/platform/service/GitlabFactSourceSqlProvider.java:58`、`:68`、`:100` | Issue 人员字段血缘 |
+| P12 | `backend/src/main/java/com/data/collection/platform/service/GitlabFactSourceSqlProvider.java:217`、`:382` | MR 多种人员来源与提交事实字段 |
+| P13 | `backend/src/main/java/com/data/collection/platform/service/CodeReviewMatchModeSyncService.java:358`；`LegacyPlatformFormalImportService.java:252`（同目录） | 兼容与交接保留来源人员文本 |
+| P14 | `backend/src/main/java/com/data/collection/platform/service/GitlabSourceInstanceSupport.java:12`、`:43` | 当前通用来源及镜像命名 |
+| P15 | `backend/src/main/java/com/data/collection/platform/service/GitlabSourceScanSqlBuilder.java:31`；`backend/src/main/java/com/data/collection/platform/service/sync/GitlabSourceLineageCatalog.java:21` | 动态源列与已登记同步来源 |
+| P16 | `backend/src/main/java/com/data/collection/platform/service/analytics/QualityBoardOtherQueryService.java:141`、`:380` | 姓名参与榜单匹配和数值计算 |
+| P17 | `docs/bi-dashboard/BI看板数据来源与计算口径核对表.md:121`、`:270` | BI 来源姓名维度，非全局员工身份 |
+| P18 | `backend/src/main/java/com/data/collection/platform/service/ReviewDataAuthorizationService.java:40`；`docs/architecture.md:115`；`docs/decisions.md:16` | 创建归属、历史空值和认证授权边界 |
+| L1 | `src/main/java/com/company/idm/interfaces/user/UserController.java:62`；`src/main/java/com/company/idm/application/user/UserReadScopeService.java:41`、`:77` | 用户列表受权限范围约束 |
+| L2 | `src/main/java/com/company/idm/application/user/UserApplicationService.java:141`、`:200`、`:700`、`:732` | 创建、可改工号/姓名、不可普通改账号、删除回收 |
+| L3 | `src/main/java/com/company/idm/infrastructure/persistence/repository/MybatisUserRepository.java:249`、`:300` | 新账号插入，删除释放工号及账号 |
+| L4 | `src/main/java/com/company/idm/interfaces/user/UserResponse.java:9`；`UserResponseAssembler.java:34`（同目录） | 当前上游身份与准入字段，不含旧 status |
+
+最终建议：先完成“可靠目录 + 评审人工选人身份化”，明确设置人员标签组的独立验收边界；GitLab 自动采集模块保留原样。全面中文姓名统一不是第一步的前置条件，也不应在未经身份核验时顺带实施。
