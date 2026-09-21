@@ -19,6 +19,7 @@ public class ReviewDataFilterOptionService {
           new OptionItemResponse("设计说明书评审", "设计说明书评审"),
           new OptionItemResponse("产品用户手册", "产品用户手册"),
           new OptionItemResponse("项目计划评审", "项目计划评审"),
+          new OptionItemResponse("测试用例评审", "测试用例评审"),
           new OptionItemResponse("其他", "其他"));
 
   private static final List<OptionItemResponse> REVIEW_CATEGORY_OPTIONS =

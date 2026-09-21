@@ -25,7 +25,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class ReviewDataLegacyExcelParser {
   private static final List<String> REVIEW_TYPE_VALUES =
-      List.of("需求说明书评审", "设计说明书评审", "产品用户手册", "项目计划评审", "其他");
+      List.of("需求说明书评审", "设计说明书评审", "产品用户手册", "项目计划评审", "测试用例评审", "其他");
   private static final String FALLBACK_REVIEW_TYPE = "其他";
   private static final List<DateTimeFormatter> DATE_FORMATS =
       List.of(

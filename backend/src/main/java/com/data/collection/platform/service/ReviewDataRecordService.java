@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 public class ReviewDataRecordService {
   private static final String PAGE_KEY = "review-data-records";
   // 候选来源或查询口径变化时必须升级版本，使持久化页面快照自然失效，禁止靠人工清缓存生效。
-  private static final String RULE_VERSION = "review-data-records@2026-07-20-v6";
+  private static final String RULE_VERSION = "review-data-records@2026-09-18-v7";
   private static final String FILTER_OPTIONS_SCOPE_KEY = "all";
 
   private final ExecutorService snapshotPrewarmExecutor =

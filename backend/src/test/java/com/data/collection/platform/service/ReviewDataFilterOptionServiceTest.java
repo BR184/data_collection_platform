@@ -170,7 +170,7 @@ class ReviewDataFilterOptionServiceTest {
     var options = service.getFilterOptions();
 
     assertThat(options.reviewTypes().stream().map(option -> option.value()).toList())
-        .containsExactly("需求说明书评审", "设计说明书评审", "产品用户手册", "项目计划评审", "其他");
+        .containsExactly("需求说明书评审", "设计说明书评审", "产品用户手册", "项目计划评审", "测试用例评审", "其他");
   }
 
   private ReviewDataFilterOptionService service() {

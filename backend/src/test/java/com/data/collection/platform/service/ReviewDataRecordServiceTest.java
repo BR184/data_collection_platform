@@ -48,6 +48,6 @@ class ReviewDataRecordServiceTest {
         .readOrRefresh(
             requestCaptor.capture(), eq(ReviewDataRecordListResponse.class), any());
     assertThat(requestCaptor.getValue().ruleVersion())
-        .isEqualTo("review-data-records@2026-07-20-v6");
+        .isEqualTo("review-data-records@2026-09-18-v7");
   }
 }

@@ -88,6 +88,21 @@ class ReviewDataLegacyExcelParserTest {
   }
 
   @Test
+  void shouldPreserveTestCaseReviewTypeDuringLegacyImport() throws Exception {
+    byte[] workbook =
+        workbook(
+            List.of("评审的工作产品", "文档类型", "评审规模", "所属项目"),
+            List.of("测试用例评审文档", "测试用例评审", 10, "CC2026R4"));
+
+    ReviewDataLegacyExcelParseResult result =
+        new ReviewDataLegacyExcelParser()
+            .parse(new ByteArrayInputStream(workbook), "legacy.xlsx", null);
+
+    assertEquals("测试用例评审", result.rows().getFirst().reviewType());
+    assertTrue(result.issues().stream().noneMatch(issue -> issue.message().contains("不在新平台选项中")));
+  }
+
+  @Test
   void shouldReportMissingReviewTypeWhenSourceTypeColumnIsAbsent() throws Exception {
     byte[] workbook =
         workbook(
