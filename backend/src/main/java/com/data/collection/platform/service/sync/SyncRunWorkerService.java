@@ -221,6 +221,7 @@ public class SyncRunWorkerService {
       return;
     }
     finishRun(run, result.status(), result.plannedTasks(), result.completedTasks(), result.errorMessage());
+    publishRunCompletion(run);
   }
 
   private void initializeRunningSnapshot(SyncRun run) {
@@ -269,10 +270,14 @@ public class SyncRunWorkerService {
         run.getId(), errorMessage == null ? "父镜像运行已经终态" : errorMessage);
   }
 
+  /**
+   * 发布运行终态事件。
+   *
+   * <p>调用点只存在于终态路径（镜像终态、事实刷新终态、异常失败），因此这里不再按运行类型过滤：
+   * 每次终态都对应一个 {@link SyncRunCompletionEvent}，由订阅方各自按 {@code mirrorRun()} 或运行类型
+   * 判定是否关心。为事实运行另立事件类型会让同一语义出现两套订阅面。
+   */
   private void publishRunCompletion(SyncRun run) {
-    if (!isMirrorRun(run)) {
-      return;
-    }
     eventPublisher.publishEvent(
         new SyncRunCompletionEvent(
             run.getId(),

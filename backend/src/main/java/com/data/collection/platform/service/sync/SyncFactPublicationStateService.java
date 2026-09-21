@@ -149,6 +149,36 @@ public class SyncFactPublicationStateService {
     return updated;
   }
 
+  /**
+   * 统计指定来源实例与事实族下尚未发布到最新变化版本的目标数量。
+   *
+   * <p>判定依据是 {@code fact_change_heads.published_version} 与目标 {@code change_version} 的版本栅栏，
+   * 而不是目标的 {@code publication_status}：状态字段可能与真实发布版本脱节，版本比较才是发布收敛的权威口径。
+   * 消费者按来源实例合并全部历史目标，因此未发布目标不区分由哪一轮镜像运行登记。
+   *
+   * @param sourceInstance 来源实例
+   * @param factType 事实族
+   * @return 未发布目标数量；{@code 0} 表示该事实族已登记的变化全部发布完成
+   */
+  public long countUnpublishedTargets(String sourceInstance, FactType factType) {
+    Long unpublished =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+              from sync_run_fact_targets target
+              join fact_change_heads head
+                on head.source_instance = target.source_instance
+               and head.fact_type = target.fact_type
+               and head.root_id = target.root_id
+             where target.source_instance = ? and target.fact_type = ?
+               and head.published_version < target.change_version
+            """,
+            Long.class,
+            sourceInstance,
+            factType.name());
+    return unpublished == null ? 0L : unpublished;
+  }
+
   /** 返回一个事实族所有来源表（含条件 MR 提交增强来源）。 */
   public List<String> requiredTables(GitlabSyncConfig config, FactType factType) {
     GitlabFactDependencyCatalog.FactDependency dependency =
@@ -267,20 +297,6 @@ public class SyncFactPublicationStateService {
   }
 
   private boolean hasPendingTargets(String sourceInstance, FactType factType) {
-    Boolean pending = jdbcTemplate.queryForObject(
-        """
-        select exists(
-          select 1 from sync_run_fact_targets target
-           join fact_change_heads head
-             on head.source_instance = target.source_instance
-            and head.fact_type = target.fact_type
-            and head.root_id = target.root_id
-          where target.source_instance = ? and target.fact_type = ?
-            and head.published_version < target.change_version)
-        """,
-        Boolean.class,
-        sourceInstance,
-        factType.name());
-    return Boolean.TRUE.equals(pending);
+    return countUnpublishedTargets(sourceInstance, factType) > 0L;
   }
 }

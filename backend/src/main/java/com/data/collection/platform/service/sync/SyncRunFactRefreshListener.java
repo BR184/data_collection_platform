@@ -4,6 +4,7 @@ import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabFactDependencyCatalog;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -18,6 +19,7 @@ public class SyncRunFactRefreshListener {
     this.factPublicationCoordinator = factPublicationCoordinator;
   }
 
+  @Order(SyncRunCompletionListenerOrder.FACT_PUBLICATION)
   @EventListener
   public void onSyncRunCompleted(SyncRunCompletionEvent event) {
     if (event == null || !event.mirrorRun()) {

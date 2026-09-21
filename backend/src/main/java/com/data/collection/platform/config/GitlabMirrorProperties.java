@@ -43,7 +43,6 @@ public class GitlabMirrorProperties {
   private int factFullBuildChunkSize = 2000;
   private int customerIssueDelayCheckDelayMs = 3600000;
   private boolean customerIssueDelayPreWritebackSyncEnabled = true;
-  private int customerIssueDelayPreWritebackSyncTimeoutSeconds = 180;
   private String customerIssueDelayPreWritebackSyncTables = "issues,notes,label_links,labels";
   private boolean customerIssueDelayWritebackWorkerEnabled = true;
   private int customerIssueDelayWritebackWorkerDelayMs = 5000;
@@ -351,14 +350,6 @@ public class GitlabMirrorProperties {
 
   public void setCustomerIssueDelayPreWritebackSyncEnabled(boolean customerIssueDelayPreWritebackSyncEnabled) {
     this.customerIssueDelayPreWritebackSyncEnabled = customerIssueDelayPreWritebackSyncEnabled;
-  }
-
-  public int getCustomerIssueDelayPreWritebackSyncTimeoutSeconds() {
-    return customerIssueDelayPreWritebackSyncTimeoutSeconds;
-  }
-
-  public void setCustomerIssueDelayPreWritebackSyncTimeoutSeconds(int customerIssueDelayPreWritebackSyncTimeoutSeconds) {
-    this.customerIssueDelayPreWritebackSyncTimeoutSeconds = customerIssueDelayPreWritebackSyncTimeoutSeconds;
   }
 
   public String getCustomerIssueDelayPreWritebackSyncTables() {

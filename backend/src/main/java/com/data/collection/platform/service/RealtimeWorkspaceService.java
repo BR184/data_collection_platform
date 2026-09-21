@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.config.PlatformAsyncConfiguration;
 import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import java.time.Duration;
@@ -110,7 +111,7 @@ public class RealtimeWorkspaceService {
     return toResponse(workspaceKey, state, syncMetadataService.resolve(workspaceKey, Map.of()));
   }
 
-  @Async
+  @Async(PlatformAsyncConfiguration.PLATFORM_ASYNC_EXECUTOR)
   public void executeRefreshAsync(String workspaceKey, Runnable refreshAction) {
     executeRefreshWithResultAsync(
         workspaceKey,
@@ -121,7 +122,7 @@ public class RealtimeWorkspaceService {
         });
   }
 
-  @Async
+  @Async(PlatformAsyncConfiguration.PLATFORM_ASYNC_EXECUTOR)
   public void executeRefreshWithResultAsync(
       String workspaceKey,
       Supplier<RealtimeWorkspaceRefreshResult> refreshAction) {
@@ -266,9 +267,6 @@ public class RealtimeWorkspaceService {
     }
     if (SUCCESS_SYNC_STATUSES.contains(progress.factStatus())) {
       return ProgressState.ready("已展示最新事实数据");
-    }
-    if (progress.factRunId() == null && progress.factStatus() == null) {
-      return ProgressState.refreshing("镜像同步已完成，等待事实刷新任务提交");
     }
     return ProgressState.failed("事实刷新未完成，已展示当前可用数据");
   }

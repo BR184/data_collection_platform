@@ -520,36 +520,48 @@ class SyncRunSubmissionServiceTest {
   }
 
   @Test
-  void shouldReuseFactRefreshForSameMirrorParent() {
+  void shouldReuseQueuedSourceLevelFactRefresh() {
     GitlabSyncConfig config = config();
-    SyncRun activeRun = activeRun(104L, SyncRunType.FACT_REFRESH, SyncRunStatus.QUEUED, "source:12:default:fact");
-    activeRun.setParentRunId(91L);
+    SyncRun activeRun =
+        activeRun(104L, SyncRunType.FACT_REFRESH, SyncRunStatus.QUEUED, "source:12:default:mirror");
     when(syncRunMapper.selectList(any())).thenReturn(List.of(activeRun));
 
-    var result = submissionService.submitFactRefresh(config, 91L, true, "Mirror run completed");
+    var result = submissionService.submitFactRefresh(config, true, "Mirror run completed");
 
     verify(syncRunMapper, never()).insert(any(SyncRun.class));
     assertThat(result.runId()).isEqualTo(104L);
     assertThat(result.type()).isEqualTo(SyncType.COMPENSATION);
     assertThat(result.action()).isEqualTo(SyncSubmissionAction.REUSED_QUEUED);
-    assertThat(result.message()).isEqualTo("当前镜像任务的事实刷新已提交，已复用现有任务。");
+    assertThat(result.message()).isEqualTo("当前数据源的事实发布任务已在队列中或正在执行，已复用现有任务。");
   }
 
   @Test
-  void shouldQueueDistinctFactRefreshForAnotherMirrorParent() {
+  void shouldReuseRunningSourceLevelFactRefreshWithoutSubmittingParallelConsumer() {
     GitlabSyncConfig config = config();
-    SyncRun activeRun = activeRun(104L, SyncRunType.FACT_REFRESH, SyncRunStatus.RUNNING, "source:12:default:fact");
-    activeRun.setParentRunId(88L);
-    when(syncRunMapper.selectList(any())).thenReturn(List.of(), List.of(activeRun));
+    SyncRun runningFactRefresh =
+        activeRun(104L, SyncRunType.FACT_REFRESH, SyncRunStatus.RUNNING, "source:12:default:mirror");
+    when(syncRunMapper.selectList(any())).thenReturn(List.of(runningFactRefresh));
 
-    submissionService.submitFactRefresh(config, 91L, false, "Mirror run completed");
+    var result = submissionService.submitFactRefresh(config, false, "Mirror run completed");
+
+    verify(syncRunMapper, never()).insert(any(SyncRun.class));
+    assertThat(result.runId()).isEqualTo(104L);
+    assertThat(result.action()).isEqualTo(SyncSubmissionAction.REUSED_ACTIVE);
+  }
+
+  @Test
+  void shouldQueueSourceLevelFactRefreshWithoutParentRun() {
+    GitlabSyncConfig config = config();
+    when(syncRunMapper.selectList(any())).thenReturn(List.of());
+
+    submissionService.submitFactRefresh(config, false, "Mirror run completed");
 
     ArgumentCaptor<SyncRun> runCaptor = ArgumentCaptor.forClass(SyncRun.class);
     verify(syncRunMapper).insert(runCaptor.capture());
     SyncRun saved = runCaptor.getValue();
     assertThat(saved.getRunType()).isEqualTo(SyncRunType.FACT_REFRESH);
     assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.QUEUED);
-    assertThat(saved.getParentRunId()).isEqualTo(91L);
+    assertThat(saved.getParentRunId()).isNull();
   }
 
   private GitlabSyncConfig config() {

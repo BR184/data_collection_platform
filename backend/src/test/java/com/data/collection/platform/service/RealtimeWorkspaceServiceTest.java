@@ -114,7 +114,6 @@ class RealtimeWorkspaceServiceTest {
             new RealtimeWorkspaceRefreshProgress(
                 21L,
                 "SUCCESS",
-                22L,
                 "QUEUED",
                 true,
                 startedAt,
@@ -145,7 +144,6 @@ class RealtimeWorkspaceServiceTest {
             new RealtimeWorkspaceRefreshProgress(
                 21L,
                 "SUCCESS",
-                22L,
                 "SUCCESS",
                 true,
                 startedAt,
@@ -171,7 +169,6 @@ class RealtimeWorkspaceServiceTest {
             new RealtimeWorkspaceRefreshProgress(
                 31L,
                 "SUCCESS",
-                32L,
                 "RUNNING",
                 true,
                 startedAt,

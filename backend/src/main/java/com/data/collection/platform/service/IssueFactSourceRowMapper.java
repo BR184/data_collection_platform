@@ -177,6 +177,7 @@ class IssueFactSourceRowMapper {
   IssueFact mapOpenCustomerIssue(ResultSet resultSet, String sourceInstance)
       throws SQLException {
     IssueFact fact = new IssueFact();
+    fact.setId(resultSet.getLong("id"));
     fact.setSourceSystem(
         defaultText(resultSet.getString("source_system"), DEFAULT_SOURCE_SYSTEM));
     fact.setSourceInstance(defaultText(resultSet.getString("source_instance"), sourceInstance));

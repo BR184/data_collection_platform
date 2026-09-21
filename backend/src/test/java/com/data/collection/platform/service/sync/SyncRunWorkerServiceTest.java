@@ -319,7 +319,7 @@ class SyncRunWorkerServiceTest {
   }
 
   @Test
-  void shouldExecuteFactRefreshRunThroughQueuedFactTasks() {
+  void shouldPublishTerminalEventWhenFactRefreshRunReachedTerminalStatus() {
     SyncRun run = run(14L, SyncRunType.FACT_REFRESH);
     run.setPayloadJson("{\"fullBuild\":true}");
     when(factRefreshRunExecutor.execute(run))
@@ -330,11 +330,37 @@ class SyncRunWorkerServiceTest {
     workerService.executeRun(run);
 
     verify(factRefreshRunExecutor).execute(run);
-    verify(eventPublisher, org.mockito.Mockito.never()).publishEvent(org.mockito.ArgumentMatchers.any());
+    verifyMirrorCompletionEvent(14L, SyncRunType.FACT_REFRESH, SyncRunStatus.SUCCESS, 8L);
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.SUCCESS);
     assertThat(run.getPlannedTableCount()).isEqualTo(1);
     assertThat(run.getCompletedTableCount()).isEqualTo(1);
     assertThat(run.getAppliedRows()).isEqualTo(8L);
+  }
+
+  @Test
+  void shouldNotPublishTerminalEventWhenFactRefreshRunWasDeferred() {
+    SyncRun run = run(21L, SyncRunType.FACT_REFRESH);
+    when(factRefreshRunExecutor.execute(run))
+        .thenReturn(
+            new SyncFactRefreshRunExecutor.Result(
+                0, 0, 0L, SyncRunStatus.RETRYING, LocalDateTime.now(), "事实构建任务尚未完成"));
+    when(leaseService.deferOwnedRun(
+            org.mockito.ArgumentMatchers.eq(run),
+            org.mockito.ArgumentMatchers.eq(SyncRunStatus.RETRYING),
+            any(),
+            org.mockito.ArgumentMatchers.eq("事实构建任务尚未完成")))
+        .thenReturn(1);
+
+    workerService.executeRun(run);
+
+    verify(leaseService)
+        .deferOwnedRun(
+            org.mockito.ArgumentMatchers.eq(run),
+            org.mockito.ArgumentMatchers.eq(SyncRunStatus.RETRYING),
+            any(),
+            org.mockito.ArgumentMatchers.eq("事实构建任务尚未完成"));
+    verify(eventPublisher, never()).publishEvent(any());
+    assertThat(run.getStatus()).isEqualTo(SyncRunStatus.RETRYING);
   }
 
   @Test

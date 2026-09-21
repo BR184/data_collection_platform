@@ -335,12 +335,46 @@ public class FactBuildService {
       fact.setResolveDelayed(nextResolveDelayed);
       changedFacts.add(fact);
     }
-    batchUpsertIssueFacts(changedFacts);
+    updateCustomerIssueDelayFlags(changedFacts);
     return new FactBuildResponse(
         factScope("customer-issue-delay", sourceInstance),
         false,
         changedFacts.size(),
         "客户问题延期事实已按当前时间刷新");
+  }
+
+  /**
+   * 只回写延期判定拥有的三列。
+   *
+   * <p>本次刷新的入参是从库中读入的记忆快照，若沿用整行 upsert（含客户成员关系与搜索列刷新），
+   * 会把快照读取之后已发布的事实、成员关系与搜索列一并回退，且发布状态已推进、不会重发。
+   * 因此这里只写本任务真正拥有的三列，并保持写入面窄于读取面。
+   *
+   * <p>按主键定位：事实目标替换会删除旧行并写入新行，陈旧快照应自然落空（影响 0 行、下一轮重算收敛），
+   * 而不是把旧值写到刚发布的新行上。
+   *
+   * @param changedFacts 三列判定结果发生变化的事实行；空集合不产生任何写入
+   */
+  private void updateCustomerIssueDelayFlags(List<IssueFact> changedFacts) {
+    for (List<IssueFact> batch : partition(changedFacts, FACT_BATCH_SIZE)) {
+      jdbcTemplate.batchUpdate(
+          """
+          update issue_fact
+             set is_response_delayed = ?,
+                 response_overdue = ?,
+                 is_resolve_delayed = ?,
+                 updated_at = current_timestamp
+           where id = ?
+          """,
+          batch,
+          batch.size(),
+          (statement, fact) -> {
+            statement.setBoolean(1, Boolean.TRUE.equals(fact.getResponseDelayed()));
+            statement.setBoolean(2, Boolean.TRUE.equals(fact.getResponseOverdue()));
+            statement.setBoolean(3, Boolean.TRUE.equals(fact.getResolveDelayed()));
+            statement.setLong(4, fact.getId());
+          });
+    }
   }
 
   private List<IssueFact> loadIssueFacts(

@@ -1,7 +1,6 @@
 package com.data.collection.platform.service.sync;
 
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -45,7 +44,7 @@ class SyncRunFactPublicationCoordinatorTest {
 
     verify(publicationStateService).releaseFailedFactAssignments("alpha");
     verify(submissionService, never()).submitFactRefresh(
-        org.mockito.ArgumentMatchers.any(), isNull(),
+        org.mockito.ArgumentMatchers.any(),
         org.mockito.ArgumentMatchers.anyBoolean(), anyString());
   }
 
@@ -62,7 +61,7 @@ class SyncRunFactPublicationCoordinatorTest {
     coordinator.onMirrorCompleted(event);
 
     verify(submissionService).submitFactRefresh(
-        org.mockito.ArgumentMatchers.any(), isNull(),
+        org.mockito.ArgumentMatchers.any(),
         org.mockito.ArgumentMatchers.eq(false), anyString());
   }
 

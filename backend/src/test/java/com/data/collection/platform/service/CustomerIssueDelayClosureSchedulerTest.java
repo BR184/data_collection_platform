@@ -1,80 +1,68 @@
 package com.data.collection.platform.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-import com.data.collection.platform.entity.FactBuildResponse;
-import com.data.collection.platform.entity.GitlabSyncConfig;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+/**
+ * 调度触发点必须只做移交：本机调度线程池只有 1 个线程且承载全应用 {@code @Scheduled} 触发，
+ * 在这里执行编排（更不用说等待）会让同一池上的运行派发器拿不到线程，形成"等待自身派发"的自锁。
+ */
 class CustomerIssueDelayClosureSchedulerTest {
-  private GitlabConfigService configService;
-  private FactBuildService factBuildService;
-  private CustomerIssueDelayLabelWritebackService writebackService;
-  private CustomerIssueDelayPreWritebackSyncService preWritebackSyncService;
-  private CustomerIssueDelayLabelWritebackQueueService queueService;
+  private CustomerIssueDelayClosureOrchestrator orchestrator;
+  private RecordingExecutor executor;
   private CustomerIssueDelayClosureScheduler scheduler;
-  private GitlabSyncConfig config;
 
   @BeforeEach
   void setUp() {
-    configService = mock(GitlabConfigService.class);
-    factBuildService = mock(FactBuildService.class);
-    writebackService = mock(CustomerIssueDelayLabelWritebackService.class);
-    preWritebackSyncService = mock(CustomerIssueDelayPreWritebackSyncService.class);
-    queueService = mock(CustomerIssueDelayLabelWritebackQueueService.class);
-    scheduler =
-        new CustomerIssueDelayClosureScheduler(
-            configService,
-            factBuildService,
-            writebackService,
-            preWritebackSyncService,
-            queueService);
-    config = new GitlabSyncConfig();
-    config.setId(1L);
-    config.setSourceEnabled(true);
-    config.setSourceInstance("default");
-    when(configService.listConfigs()).thenReturn(List.of(config));
-    when(factBuildService.refreshCustomerIssueDelayFactsForConfig(config))
-        .thenReturn(new FactBuildResponse("customer-issue-delay", false, 1, "ok"));
+    orchestrator = mock(CustomerIssueDelayClosureOrchestrator.class);
+    executor = new RecordingExecutor();
+    scheduler = new CustomerIssueDelayClosureScheduler(orchestrator, executor);
   }
 
   @Test
-  void shouldRefreshFactsButNotEnqueueWhenWritebackSwitchIsOff() {
-    when(writebackService.isEnabled(config)).thenReturn(false);
+  void shouldHandOffCycleWithoutRunningItOnTheTriggeringThread() {
+    scheduler.triggerCustomerIssueDelayClosure();
 
-    scheduler.refreshCustomerIssueDelayFacts();
+    verify(orchestrator, never()).runCycleForAllSources();
+    assertThat(executor.tasks()).hasSize(1);
 
-    verify(factBuildService).refreshCustomerIssueDelayFactsForConfig(config);
-    verify(preWritebackSyncService, never()).refreshBeforeWriteback(config);
-    verify(queueService, never()).enqueueCandidates(config);
+    executor.drain();
+
+    verify(orchestrator).runCycleForAllSources();
   }
 
   @Test
-  void shouldNotEnqueueWhenPreSyncFails() {
-    when(writebackService.isEnabled(config)).thenReturn(true);
-    when(preWritebackSyncService.refreshBeforeWriteback(config))
-        .thenReturn(new CustomerIssueDelayPreWritebackSyncService.PreWritebackSyncResult(false, false));
+  void shouldSubmitOneCyclePerTrigger() {
+    scheduler.triggerCustomerIssueDelayClosure();
+    scheduler.triggerCustomerIssueDelayClosure();
 
-    scheduler.refreshCustomerIssueDelayFacts();
-
-    verify(factBuildService, never()).refreshCustomerIssueDelayFactsForConfig(config);
-    verify(queueService, never()).enqueueCandidates(config);
+    assertThat(executor.tasks()).hasSize(2);
   }
 
-  @Test
-  void shouldEnqueueAfterSuccessfulFactRefreshWhenWritebackIsEnabled() {
-    when(writebackService.isEnabled(config)).thenReturn(true);
-    when(preWritebackSyncService.refreshBeforeWriteback(config))
-        .thenReturn(new CustomerIssueDelayPreWritebackSyncService.PreWritebackSyncResult(true, true));
+  private static final class RecordingExecutor implements Executor {
+    private final List<Runnable> tasks = new ArrayList<>();
 
-    scheduler.refreshCustomerIssueDelayFacts();
+    @Override
+    public void execute(Runnable command) {
+      tasks.add(command);
+    }
 
-    verify(factBuildService).refreshCustomerIssueDelayFactsForConfig(config);
-    verify(queueService).enqueueCandidates(config);
+    List<Runnable> tasks() {
+      return tasks;
+    }
+
+    void drain() {
+      List<Runnable> pending = new ArrayList<>(tasks);
+      tasks.clear();
+      pending.forEach(Runnable::run);
+    }
   }
 }

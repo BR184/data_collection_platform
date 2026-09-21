@@ -52,10 +52,7 @@ public class SyncRunFactPublicationCoordinator {
     }
     upgradeQueuedFullIntent(config, event.requiresFullFactRefresh() && event.successful());
     submissionService.submitFactRefresh(
-        config,
-        null,
-        event.requiresFullFactRefresh() && event.successful(),
-        DEFAULT_REASON);
+        config, event.requiresFullFactRefresh() && event.successful(), DEFAULT_REASON);
   }
 
   private void upgradeQueuedFullIntent(GitlabSyncConfig config, boolean full) {

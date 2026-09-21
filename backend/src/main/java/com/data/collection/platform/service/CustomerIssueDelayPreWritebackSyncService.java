@@ -2,85 +2,57 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
-import com.data.collection.platform.entity.sync.SyncRun;
-import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunSubmissionResult;
-import com.data.collection.platform.mapper.SyncRunMapper;
 import com.data.collection.platform.service.sync.SyncRunSubmissionService;
-import java.time.Duration;
-import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+/**
+ * 延期标签写回前的镜像增量刷新：只负责提交阶段 1 运行。
+ *
+ * <p>写回差异由延期事实与 GitLab 当前标签比对得出，因此必须先刷新镜像，并等本次增量被事实消费者
+ * 发布到 {@code issue_fact} 之后才能比对。本类只承担"提交刷新运行"这一半职责：提交是同步的、
+ * 有界的；等待发布收敛由 {@link CustomerIssueDelayClosureOrchestrator} 通过运行终态事件推进，
+ * 不再由本类轮询——轮询会占用线程，且任何固定超时都与内网规模无关（镜像耗时超过阈值就整轮跳过）。
+ */
 @Service
 @Slf4j
 public class CustomerIssueDelayPreWritebackSyncService {
-  private static final long POLL_INTERVAL_MS = 1000L;
-  private static final long FACT_TASK_APPEAR_WAIT_SECONDS = 10L;
-  private static final Set<SyncRunStatus> ACTIVE_RUN_STATUSES =
-      Set.of(
-          SyncRunStatus.SUBMITTED,
-          SyncRunStatus.QUEUED,
-          SyncRunStatus.RUNNING,
-          SyncRunStatus.RETRYING,
-          SyncRunStatus.PAUSED,
-          SyncRunStatus.CANCELLING);
-  private static final Set<String> ACTIVE_FACT_RUN_STATUSES =
-      Set.of("SUBMITTED", "QUEUED", "RUNNING", "RETRYING", "PAUSED", "CANCELLING");
+  private static final String SUBMISSION_REASON = "客户问题延期标签写回前增量刷新";
 
   private final SyncRunSubmissionService submissionService;
-  private final SyncRunMapper syncRunMapper;
-  private final JdbcTemplate jdbcTemplate;
   private final GitlabMirrorProperties properties;
 
   public CustomerIssueDelayPreWritebackSyncService(
-      SyncRunSubmissionService submissionService,
-      SyncRunMapper syncRunMapper,
-      JdbcTemplate jdbcTemplate,
-      GitlabMirrorProperties properties) {
+      SyncRunSubmissionService submissionService, GitlabMirrorProperties properties) {
     this.submissionService = submissionService;
-    this.syncRunMapper = syncRunMapper;
-    this.jdbcTemplate = jdbcTemplate;
     this.properties = properties;
   }
 
-  public PreWritebackSyncResult refreshBeforeWriteback(GitlabSyncConfig config) {
+  /**
+   * 提交写回前的镜像增量刷新运行。
+   *
+   * @param config 当前数据源配置
+   * @return 提交结果：{@link Outcome.NotRequired} 表示开关关闭、无需前置刷新，调用方可以直接推进；
+   *     {@link Outcome.Submitted} 携带已入队运行的编号，调用方据此等待该运行的终态事件；
+   *     {@link Outcome.Rejected} 表示配置不具备刷新条件，本轮必须放弃写回
+   */
+  public Outcome submitPreWritebackSync(GitlabSyncConfig config) {
     if (!properties.isCustomerIssueDelayPreWritebackSyncEnabled()) {
-      return PreWritebackSyncResult.success(false);
+      return new Outcome.NotRequired();
     }
     List<String> sourceTables = preWritebackSyncTables();
     if (sourceTables.isEmpty()) {
       log.warn("Customer issue delay pre-writeback sync skipped because no source tables were configured");
-      return PreWritebackSyncResult.failed();
+      return new Outcome.Rejected("未配置写回前增量刷新的来源表");
     }
     SyncRunSubmissionResult submission =
-        submissionService.submitTableRefresh(
-            config,
-            sourceTables,
-            "客户问题延期标签写回前增量刷新");
-    SyncRun run = waitForMirrorRun(submission.runId());
-    if (run == null) {
-      return PreWritebackSyncResult.failed();
-    }
-    if (run.getStatus() != SyncRunStatus.SUCCESS) {
-      log.warn(
-          "Customer issue delay pre-writeback sync did not finish successfully, runId={}, status={}, error={}",
-          run.getId(),
-          run.getStatus(),
-          run.getErrorMessage());
-      return PreWritebackSyncResult.failed();
-    }
-    if (run.getAppliedRows() == null || run.getAppliedRows() <= 0L) {
-      return PreWritebackSyncResult.success(false);
-    }
-    return waitForIssueFactRefresh(run.getId())
-        ? PreWritebackSyncResult.success(true)
-        : PreWritebackSyncResult.failed();
+        submissionService.submitTableRefresh(config, sourceTables, SUBMISSION_REASON);
+    return new Outcome.Submitted(submission.runId());
   }
 
   private List<String> preWritebackSyncTables() {
@@ -88,7 +60,7 @@ public class CustomerIssueDelayPreWritebackSyncService {
     if (!StringUtils.hasText(configuredTables)) {
       return List.of();
     }
-    return java.util.Arrays.stream(configuredTables.split(","))
+    return Arrays.stream(configuredTables.split(","))
         .map(String::trim)
         .filter(StringUtils::hasText)
         .map(table -> table.toLowerCase(Locale.ROOT))
@@ -96,105 +68,15 @@ public class CustomerIssueDelayPreWritebackSyncService {
         .toList();
   }
 
-  private SyncRun waitForMirrorRun(Long runId) {
-    if (runId == null) {
-      return null;
-    }
-    Instant deadline = Instant.now().plus(waitTimeout());
-    SyncRun run = syncRunMapper.selectById(runId);
-    while (run != null && ACTIVE_RUN_STATUSES.contains(run.getStatus())) {
-      if (Instant.now().isAfter(deadline)) {
-        log.warn("Customer issue delay pre-writeback sync timed out, runId={}, status={}", runId, run.getStatus());
-        return null;
-      }
-      sleep();
-      run = syncRunMapper.selectById(runId);
-    }
-    return run;
-  }
+  /** 写回前增量刷新的提交结果。 */
+  public sealed interface Outcome {
+    /** 前置刷新开关关闭，无需提交运行。 */
+    record NotRequired() implements Outcome {}
 
-  private boolean waitForIssueFactRefresh(Long mirrorRunId) {
-    Instant deadline = Instant.now().plus(waitTimeout());
-    Instant runAppearDeadline = Instant.now().plusSeconds(FACT_TASK_APPEAR_WAIT_SECONDS);
-    FactRunStatus status = factRefreshRunStatus(mirrorRunId);
-    while (status.missing() && Instant.now().isBefore(runAppearDeadline)) {
-      sleep();
-      status = factRefreshRunStatus(mirrorRunId);
-    }
-    if (status.missing()) {
-      log.warn("Customer issue delay pre-writeback sync applied rows but no fact refresh run was queued, mirrorRunId={}", mirrorRunId);
-      return false;
-    }
-    while (status.active()) {
-      if (Instant.now().isAfter(deadline)) {
-        log.warn(
-            "Customer issue delay pre-writeback ISSUE fact refresh timed out, mirrorRunId={}, status={}",
-            mirrorRunId,
-            status.status());
-        return false;
-      }
-      sleep();
-      status = factRefreshRunStatus(mirrorRunId);
-    }
-    if (!"SUCCESS".equals(status.status())) {
-      log.warn(
-          "Customer issue delay pre-writeback ISSUE fact refresh did not finish successfully, mirrorRunId={}, status={}",
-          mirrorRunId,
-          status.status());
-      return false;
-    }
-    return true;
-  }
+    /** 已提交镜像刷新运行。 */
+    record Submitted(long runId) implements Outcome {}
 
-  private FactRunStatus factRefreshRunStatus(Long mirrorRunId) {
-    List<String> rows =
-        jdbcTemplate.query(
-            """
-            select status
-              from sync_runs
-             where parent_run_id = ?
-               and run_type = 'FACT_REFRESH'
-             order by created_at desc, id desc
-             limit 1
-            """,
-            (rs, rowNum) -> rs.getString("status"),
-            mirrorRunId);
-    if (rows.isEmpty()) {
-      return new FactRunStatus(null);
-    }
-    return new FactRunStatus(rows.getFirst());
-  }
-
-  private Duration waitTimeout() {
-    return Duration.ofSeconds(Math.max(1, properties.getCustomerIssueDelayPreWritebackSyncTimeoutSeconds()));
-  }
-
-  private void sleep() {
-    try {
-      Thread.sleep(POLL_INTERVAL_MS);
-    } catch (InterruptedException error) {
-      Thread.currentThread().interrupt();
-      throw new IllegalStateException("客户问题延期标签写回前同步等待被中断", error);
-    }
-  }
-
-  private record FactRunStatus(String status) {
-    boolean missing() {
-      return !StringUtils.hasText(status);
-    }
-
-    boolean active() {
-      return ACTIVE_FACT_RUN_STATUSES.contains(status == null ? "" : status.trim().toUpperCase(Locale.ROOT));
-    }
-  }
-
-  public record PreWritebackSyncResult(boolean success, boolean factsRefreshed) {
-    static PreWritebackSyncResult success(boolean factsRefreshed) {
-      return new PreWritebackSyncResult(true, factsRefreshed);
-    }
-
-    static PreWritebackSyncResult failed() {
-      return new PreWritebackSyncResult(false, false);
-    }
+    /** 不具备提交条件，本轮写回必须放弃。 */
+    record Rejected(String reason) implements Outcome {}
   }
 }

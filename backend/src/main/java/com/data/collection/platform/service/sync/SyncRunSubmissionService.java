@@ -185,9 +185,20 @@ public class SyncRunSubmissionService {
         : null;
   }
 
+  /**
+   * 提交来源级事实发布运行。
+   *
+   * <p>事实消费者不绑定父镜像运行：它按来源实例合并全部历史镜像运行的未发布目标，
+   * 因此这里不接收也不落库父运行编号。
+   *
+   * @param config 当前数据源配置
+   * @param full 是否需要全量事实重建
+   * @param reason 提交原因
+   * @return 已入队或被复用的事实发布运行结果
+   */
   @Transactional
   public SyncRunSubmissionResult submitFactRefresh(
-      GitlabSyncConfig config, Long parentRunId, boolean full, String reason) {
+      GitlabSyncConfig config, boolean full, String reason) {
     return submitRun(
         config,
         SyncType.COMPENSATION,
@@ -196,7 +207,7 @@ public class SyncRunSubmissionService {
         reason,
         List.of(),
         null,
-        parentRunId,
+        null,
         full);
   }
 
@@ -367,8 +378,8 @@ public class SyncRunSubmissionService {
       mergeQueuedLowerPriorityMirrorRuns(config.getId(), sourceInstance, exclusiveScope, now);
     } else if (runType == SyncRunType.FACT_REFRESH
         && activeRun != null
-        && sameFactRefreshParent(activeRun, parentRunId)) {
-      return reusedRun(activeRun, apiType, "当前镜像任务的事实刷新已提交，已复用现有任务。");
+        && activeRun.getRunType() == SyncRunType.FACT_REFRESH) {
+      return reusedRun(activeRun, apiType, "当前数据源的事实发布任务已在队列中或正在执行，已复用现有任务。");
     } else if (runType == SyncRunType.FULL_COMPENSATION_SCAN) {
       SyncRun sameRun = activeRunOfType(activeSourceRuns, runType);
       if (sameRun != null) {
@@ -555,11 +566,6 @@ public class SyncRunSubmissionService {
     }
     SyncRunPayload payload = jsonUtils.fromJson(run.getPayloadJson(), SyncRunPayload.typeReference());
     return payload != null && payload.manualFullRebuildEnabled();
-  }
-
-  private boolean sameFactRefreshParent(SyncRun activeRun, Long parentRunId) {
-    return activeRun.getRunType() == SyncRunType.FACT_REFRESH
-        && Objects.equals(activeRun.getParentRunId(), parentRunId);
   }
 
   private SyncRun activeRunOfType(List<SyncRun> activeRuns, SyncRunType runType) {

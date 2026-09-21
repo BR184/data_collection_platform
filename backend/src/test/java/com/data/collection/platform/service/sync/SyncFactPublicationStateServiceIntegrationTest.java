@@ -100,6 +100,88 @@ class SyncFactPublicationStateServiceIntegrationTest {
         .isTrue();
   }
 
+  @Test
+  void test_unpublished_target_versions_are_counted_regardless_of_registering_mirror_run() {
+    jdbcTemplate.update(
+        """
+        insert into fact_change_heads(
+            source_instance, fact_type, root_id, latest_change_version, published_version)
+        values ('alpha', 'ISSUE', 601, 9, 4),
+               ('alpha', 'ISSUE', 602, 12, 12)
+        """);
+    jdbcTemplate.update(
+        """
+        insert into sync_run_fact_targets(
+            id, source_instance, fact_type, root_id, change_version,
+            publication_status, mirror_run_id)
+        values (301, 'alpha', 'ISSUE', 601, 9, 'PENDING', 11),
+               (302, 'alpha', 'ISSUE', 601, 9, 'PUBLISHED', 12),
+               (303, 'alpha', 'ISSUE', 602, 12, 'PUBLISHED', 12)
+        """);
+
+    assertThat(
+            service.countUnpublishedTargets(
+                "alpha", com.data.collection.platform.entity.FactType.ISSUE))
+        .isEqualTo(2L);
+  }
+
+  @Test
+  void test_published_target_versions_are_not_pending() {
+    jdbcTemplate.update(
+        """
+        insert into fact_change_heads(
+            source_instance, fact_type, root_id, latest_change_version, published_version)
+        values ('alpha', 'ISSUE', 701, 9, 9)
+        """);
+    jdbcTemplate.update(
+        """
+        insert into sync_run_fact_targets(
+            id, source_instance, fact_type, root_id, change_version, publication_status)
+        values (401, 'alpha', 'ISSUE', 701, 9, 'PENDING')
+        """);
+
+    assertThat(
+            service.countUnpublishedTargets(
+                "alpha", com.data.collection.platform.entity.FactType.ISSUE))
+        .isZero();
+  }
+
+  @Test
+  void test_other_fact_type_targets_do_not_block_issue_convergence() {
+    jdbcTemplate.update(
+        """
+        insert into fact_change_heads(
+            source_instance, fact_type, root_id, latest_change_version, published_version)
+        values ('alpha', 'MERGE_REQUEST', 801, 7, 2)
+        """);
+    jdbcTemplate.update(
+        """
+        insert into sync_run_fact_targets(
+            id, source_instance, fact_type, root_id, change_version, publication_status)
+        values (501, 'alpha', 'MERGE_REQUEST', 801, 7, 'PENDING')
+        """);
+
+    assertThat(
+            service.countUnpublishedTargets(
+                "alpha", com.data.collection.platform.entity.FactType.ISSUE))
+        .isZero();
+  }
+
+  @Test
+  void test_target_without_change_head_is_not_counted() {
+    jdbcTemplate.update(
+        """
+        insert into sync_run_fact_targets(
+            id, source_instance, fact_type, root_id, change_version, publication_status)
+        values (601, 'alpha', 'ISSUE', 901, 5, 'PENDING')
+        """);
+
+    assertThat(
+            service.countUnpublishedTargets(
+                "alpha", com.data.collection.platform.entity.FactType.ISSUE))
+        .isZero();
+  }
+
   private java.util.Map<String, Object> targetState(long id) {
     return jdbcTemplate.queryForMap(
         """
@@ -134,6 +216,7 @@ class SyncFactPublicationStateServiceIntegrationTest {
           publication_status varchar(32) not null,
           assigned_fact_run_id bigint,
           assigned_fact_build_task_id bigint,
+          mirror_run_id bigint,
           updated_at timestamp not null default current_timestamp
         )
         """);

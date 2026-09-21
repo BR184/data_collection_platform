@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+/** 查询页面刷新的镜像运行状态与事实阶段状态。 */
 @Service
 public class RealtimeWorkspaceRefreshProgressService {
   private final JdbcTemplate jdbcTemplate;
@@ -27,7 +28,7 @@ public class RealtimeWorkspaceRefreshProgressService {
   }
 
   /**
-   * 查询指定镜像运行及其最新事实子运行的阶段状态。
+   * 查询指定镜像运行的阶段状态。
    *
    * @param mirrorRunId 页面刷新提交或复用的镜像运行 ID
    * @param workspaceKey 页面工作区稳定标识，用于确定需要等待的事实类型
@@ -41,7 +42,7 @@ public class RealtimeWorkspaceRefreshProgressService {
   }
 
   /**
-   * 查询某工作区最近一次页面触发的镜像运行及其事实子运行状态。
+   * 查询某工作区最近一次页面触发的镜像运行状态。
    *
    * @param workspaceKey 页面工作区稳定标识
    * @return 最近的两阶段状态；未找到页面运行时返回 {@code null}
@@ -74,20 +75,8 @@ public class RealtimeWorkspaceRefreshProgressService {
                    mirror.config_id as config_id,
                    mirror.status as mirror_status,
                    mirror.started_at as mirror_started_at,
-                   mirror.finished_at as mirror_finished_at,
-                   fact.id as fact_run_id,
-                   fact.status as fact_status,
-                   fact.started_at as fact_started_at,
-                   fact.finished_at as fact_finished_at
+                   mirror.finished_at as mirror_finished_at
               from sync_runs mirror
-              left join lateral (
-                select child.*
-                  from sync_runs child
-                 where child.parent_run_id = mirror.id
-                   and child.run_type = 'FACT_REFRESH'
-                 order by child.created_at desc, child.id desc
-                 limit 1
-              ) fact on true
             %s
              order by mirror.created_at desc, mirror.id desc
              limit 1
@@ -104,11 +93,7 @@ public class RealtimeWorkspaceRefreshProgressService {
         nullableLong(resultSet, "config_id"),
         resultSet.getString("mirror_status"),
         toLocalDateTime(resultSet.getTimestamp("mirror_started_at")),
-        toLocalDateTime(resultSet.getTimestamp("mirror_finished_at")),
-        nullableLong(resultSet, "fact_run_id"),
-        resultSet.getString("fact_status"),
-        toLocalDateTime(resultSet.getTimestamp("fact_started_at")),
-        toLocalDateTime(resultSet.getTimestamp("fact_finished_at")));
+        toLocalDateTime(resultSet.getTimestamp("mirror_finished_at")));
   }
 
   private RealtimeWorkspaceRefreshProgress toProgress(
@@ -116,23 +101,13 @@ public class RealtimeWorkspaceRefreshProgressService {
     RealtimeWorkspaceDependencyCatalog.Requirement requirement =
         resolveFactRequirement(snapshot.configId(), workspaceKey);
     FenceSummary fence = loadFenceSummary(snapshot.mirrorRunId(), workspaceKey, requirement);
-    String factStatus = resolveFactStatus(snapshot, requirement, fence);
     return new RealtimeWorkspaceRefreshProgress(
         snapshot.mirrorRunId(),
         snapshot.mirrorStatus(),
-        snapshot.factRunId(),
-        factStatus,
+        resolveFactStatus(snapshot, requirement, fence),
         requirement.factRefreshRequired(),
-        fence.startedAt() == null
-            ? (snapshot.factStartedAt() == null
-                ? snapshot.mirrorStartedAt()
-                : snapshot.factStartedAt())
-            : fence.startedAt(),
-        fence.finishedAt() == null
-            ? (snapshot.factFinishedAt() == null
-                ? snapshot.mirrorFinishedAt()
-                : snapshot.factFinishedAt())
-            : fence.finishedAt());
+        fence.startedAt() == null ? snapshot.mirrorStartedAt() : fence.startedAt(),
+        fence.finishedAt() == null ? snapshot.mirrorFinishedAt() : fence.finishedAt());
   }
 
   private RealtimeWorkspaceDependencyCatalog.Requirement resolveFactRequirement(
@@ -147,12 +122,16 @@ public class RealtimeWorkspaceRefreshProgressService {
     return RealtimeWorkspaceDependencyCatalog.resolve(workspaceKey, config);
   }
 
+  /**
+   * 事实阶段状态只由该镜像运行登记的发布栅栏决定；来源级事实消费者不绑定父运行，
+   * 因此不存在“某个事实子运行”的状态可以读取。工作区不要求事实刷新时没有事实阶段，返回 {@code null}。
+   */
   private String resolveFactStatus(
       RefreshRunSnapshot snapshot,
       RealtimeWorkspaceDependencyCatalog.Requirement requirement,
       FenceSummary fence) {
     if (!requirement.factRefreshRequired()) {
-      return snapshot.factStatus();
+      return null;
     }
     if (fence.factTypes() < requirement.factTypes().size()) {
       return isTerminalMirrorRun(snapshot.mirrorStatus()) ? "FAILED" : "QUEUED";
@@ -216,11 +195,7 @@ public class RealtimeWorkspaceRefreshProgressService {
       Long configId,
       String mirrorStatus,
       LocalDateTime mirrorStartedAt,
-      LocalDateTime mirrorFinishedAt,
-      Long factRunId,
-      String factStatus,
-      LocalDateTime factStartedAt,
-      LocalDateTime factFinishedAt) {
+      LocalDateTime mirrorFinishedAt) {
   }
 
   private record FenceSummary(
