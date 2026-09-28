@@ -55,6 +55,7 @@
 | `issue_fact` | `reason_category` | 根据标签、标题、备注和原因规则生成缺陷原因分类 | 按原因过滤和聚合 | 缺陷原因分析、记录页原因筛选 | 规则变化需要补充原因映射样例 |
 | `issue_fact` | `is_illegal` / `illegal_reason` | 根据字段完整性和业务规则判断非法数据 | 按非法状态过滤、排序和统计 | 非法数据页、待确认提示 | 规则变化需要补充非法原因样例 |
 | `issue_fact` | `is_legacy` | 根据时间、状态和标签判断历史遗留 | 按历史遗留过滤和统计 | 记录页、分析页口径说明 | 避免在 SQL 中重复实现 |
+| `issue_fact` | `is_customer_requirement` | 从原始标签集合派生：精确包含“需求”或“类别：建议”（R1）；非客户项目写 false；null=未重建 | 需求集合 N 的成员过滤，不模糊匹配 label_names | BI 客户问题需求区、客户统计需求指标 | 规则变化必须重建目标来源议题事实；禁止默认 false 伪造历史 |
 | `issue_fact` | `resolve_sla_days` / `resolve_deadline_at` | 根据计划解决时间和响应数据计算 SLA 口径 | 过滤、排序和统计 | 响应效率类页面 | 修改规则前先确认产品口径 |
 | `integration_test_fact` | `execute_case` / `pass_case` / `not_pass_case` / `not_pass_case_now` / `problem_case` / `exception_count` / `pass_rate` | 从备注解析结果生成执行、通过、未通过等计数 | 汇总、明细查询和导出 | 集成测试分析页 | 解析规则变化需要补充端到端链路测试 |
 | `integration_test_fact` | `parse_status` / `validation_reason` / `legal` | 标记备注解析完整性、校验原因和合法状态 | 明细过滤和待确认提示 | 集成测试分析页 | 校验规则变化需要补充 parser 与 pipeline 测试 |

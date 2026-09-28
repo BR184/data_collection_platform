@@ -14,36 +14,12 @@ dimensions:
     source: 事实层项目名称字段
     mvpSupported: true
     notes: 字段候选来自现有项目筛选字段；静态字符串标签组成员必须来自平台登记候选来源
-  - key: review_owner
-    name: 评审负责人
+  - key: person
+    name: 人员
     valueKind: STRING_LITERAL
-    source: 评审数据 reviewOwner 文本字段
+    source: 镜像库 users 表全量人名
     mvpSupported: true
-    notes: 字段值类型为字符串；标签组成员只保存字符串值本身，不按评审负责人身份保存
-  - key: review_expert
-    name: 评审专家
-    valueKind: STRING_LITERAL
-    source: 评审数据 reviewExpert/reviewExpertsSummary 多值字段
-    mvpSupported: true
-    notes: 多值字段按成员集合相交匹配，复用 ReviewDataRecordFilterGroupSupport.splitMultiValue 同款拆分逻辑
-  - key: issue_assignee
-    name: 议题处理人
-    valueKind: STRING_LITERAL
-    source: 议题事实层 assigneeName 文本字段
-    mvpSupported: true
-    notes: 字段值类型为字符串；标签组成员只保存字符串值本身，不按议题处理人身份保存
-  - key: customer_assignee
-    name: 客户问题处理人
-    valueKind: STRING_LITERAL
-    source: 客户问题事实层 assigneeName 文本字段
-    mvpSupported: true
-    notes: 字段值类型为字符串；标签组成员只保存字符串值本身；第一版不接入客户问题负责人字段
-  - key: customer_author
-    name: 客户问题提交人
-    valueKind: STRING_LITERAL
-    source: 客户问题事实层 authorName 文本字段
-    mvpSupported: true
-    notes: 字段值类型为字符串；标签组成员只保存字符串值本身
+    notes: 统一人员候选维度；页面按业务字段（评审负责人、评审专家、议题处理人、客户问题处理人/提交人）分别引用，单值字段按等值匹配，多值字段（如评审专家）按成员集合相交匹配，复用 ReviewDataRecordFilterGroupSupport.splitMultiValue 拆分逻辑
   - key: target_branch
     name: 目标分支
     valueKind: BRANCH_NAME
@@ -118,10 +94,10 @@ pages:
       - dimensionKey: module
         fieldKey: moduleName
         requestField: ReviewDataRecordQueryRequest.moduleName
-      - dimensionKey: review_owner
+      - dimensionKey: person
         fieldKey: reviewOwner
         requestField: ReviewDataRecordQueryRequest.reviewOwner
-      - dimensionKey: review_expert
+      - dimensionKey: person
         fieldKey: reviewExpert
         requestField: ReviewDataRecordQueryRequest.reviewExpert
         matchMode: ANY_INTERSECT
@@ -149,7 +125,7 @@ pages:
       - dimensionKey: milestone
         fieldKey: milestoneTitle
         requestField: SystemTestIssueSearchQueryRequest.milestoneTitle
-      - dimensionKey: issue_assignee
+      - dimensionKey: person
         fieldKey: assigneeName
         requestField: SystemTestIssueSearchQueryRequest.assigneeName
   - pageKey: customer-issues-cc-product-issues
@@ -161,10 +137,10 @@ pages:
       - dimensionKey: module
         fieldKey: moduleName
         requestField: IssueFactRecordPageQuery.moduleName
-      - dimensionKey: customer_assignee
+      - dimensionKey: person
         fieldKey: assigneeName
         requestField: IssueFactRecordPageQuery.assigneeName
-      - dimensionKey: customer_author
+      - dimensionKey: person
         fieldKey: authorName
         requestField: IssueFactRecordPageQuery.authorName
         notes: Phase 5 需补客户问题页面处理人候选入口

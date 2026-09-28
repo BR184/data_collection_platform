@@ -191,9 +191,18 @@ def validate_matrix(matrix: Matrix) -> list[str]:
             errors.append(f"页面 {page.page_key} 缺少中文名称。")
         if page.mvp_enabled is None:
             errors.append(f"页面 {page.page_key} 的 mvpEnabled 必须是 true 或 false。")
-        page_dimension_keys = [dimension.dimension_key for dimension in page.dimensions]
-        for key in _duplicates(page_dimension_keys):
-            errors.append(f"页面 {page.page_key} 重复声明维度：{key}。")
+        # 统一人员维度可合法映射到同一页面的多个业务字段，
+        # 只有维度与字段同时重复才是非法登记（而非旧的按维度去重）。
+        field_registration_keys = [
+            f"{dimension.dimension_key}#{dimension.field_key}"
+            for dimension in page.dimensions
+            if dimension.field_key
+        ]
+        for registration in _duplicates(field_registration_keys):
+            dimension_key, _, field_key = registration.partition("#")
+            errors.append(
+                f"页面 {page.page_key} 重复声明维度 {dimension_key} 的字段 {field_key}。"
+            )
         if page.mvp_enabled and not page.dimensions:
             errors.append(f"MVP 页面 {page.page_key} 必须声明至少一个标签维度。")
         for page_dimension in page.dimensions:
@@ -270,12 +279,51 @@ def compare_with_code(matrix: Matrix, code_dimension_keys: set[str] | None) -> l
     return errors
 
 
+def extract_code_page_field_triples(catalog_root: Path = CATALOG_ROOT) -> set[tuple[str, str, str]] | None:
+    """从代码兼容目录 add(pages, 维度, 页面, 页面名, 字段, ...) 调用提取 (pageKey, dimensionKey, fieldKey) 三元组。"""
+    if not catalog_root.exists():
+        return None
+    triples: set[tuple[str, str, str]] = set()
+    pattern = re.compile(
+        r'\badd\(\s*pages\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"[^"]*"\s*,\s*"([^"]+)"'
+    )
+    for path in catalog_root.rglob("*.java"):
+        text = path.read_text(encoding="utf-8")
+        for dimension_key, page_key, field_key in pattern.findall(text):
+            triples.add((page_key, dimension_key, field_key))
+    return triples
+
+
+def compare_page_field_mappings(
+    matrix: Matrix, code_triples: set[tuple[str, str, str]] | None
+) -> list[str]:
+    """双向核对 YAML 页面/字段映射与代码兼容目录，任一方向缺失都视为字段契约不一致。"""
+    if code_triples is None:
+        return []
+    yaml_triples: set[tuple[str, str, str]] = set()
+    for page in matrix.pages:
+        for dimension in page.dimensions:
+            if dimension.field_key:
+                yaml_triples.add((page.page_key, dimension.dimension_key, dimension.field_key))
+    errors: list[str] = []
+    for page_key, dimension_key, field_key in sorted(yaml_triples - code_triples):
+        errors.append(
+            f"代码兼容目录缺少页面 {page_key} 的维度 {dimension_key} 字段 {field_key}。"
+        )
+    for page_key, dimension_key, field_key in sorted(code_triples - yaml_triples):
+        errors.append(
+            f"维度矩阵缺少代码兼容目录声明的页面 {page_key} 的维度 {dimension_key} 字段 {field_key}。"
+        )
+    return errors
+
+
 def run_check(matrix_path: Path = MATRIX_PATH, catalog_root: Path = CATALOG_ROOT) -> list[str]:
     if not matrix_path.exists():
         return [f"维度矩阵文件不存在：{matrix_path}。"]
     matrix = parse_matrix(matrix_path.read_text(encoding="utf-8"))
     errors = validate_matrix(matrix)
     errors.extend(compare_with_code(matrix, extract_code_dimension_keys(catalog_root)))
+    errors.extend(compare_page_field_mappings(matrix, extract_code_page_field_triples(catalog_root)))
     return errors
 
 

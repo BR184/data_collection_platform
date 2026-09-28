@@ -500,9 +500,12 @@ def generate_backup_master_key() -> str:
 
 
 def env_content(ctx: BuildContext) -> str:
+    compose_project_name = default_compose_project_name(ctx)
     return f"""\
 # Compose project scopes container, network, and named-volume identities.
-COMPOSE_PROJECT_NAME={default_compose_project_name(ctx)}
+COMPOSE_PROJECT_NAME={compose_project_name}
+POSTGRES_VOLUME_NAME={compose_project_name}_qaflex_pgdata
+BACKEND_LOG_VOLUME_NAME={compose_project_name}_qaflex_backend_logs
 
 # Platform URL reachable by users and GitLab system hook.
 PLATFORM_PUBLIC_BASE_URL=http://172.22.10.115:{ctx.frontend_port}
@@ -550,6 +553,189 @@ PLATFORM_SLOW_QUERY_THRESHOLD_MS=1000
 REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED=false
 CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED=false
 """
+
+
+def _deployment_preflight_shell() -> str:
+    """Return shared read-only validators used before a deployment transition."""
+    return r'''
+BACKUP_CHECKSUM_FILES=(
+  .env
+  docker-compose.yml
+  postgres.container-id
+  postgres.inspect.json
+  compose-images.txt
+  flyway-before.txt
+  counts-before.txt
+  database.dump
+  critical-tables.dump
+  database.restore-list.txt
+  critical-tables.restore-list.txt
+  backup-manifest.env
+)
+
+verify_backup_checksums() {
+  local requested_dir="$1" target_root backup_root backup_dir line filename
+  [[ -n "$requested_dir" && -d "$requested_dir" && ! -L "$requested_dir" ]] || fail "invalid pre-deployment backup directory"
+  target_root="$(realpath -e -- "$TARGET_DIR")" || fail "deployment directory cannot be resolved"
+  backup_root="$(realpath -m -- "$target_root/upgrade-backups")" || fail "backup root cannot be resolved"
+  backup_dir="$(realpath -e -- "$requested_dir")" || fail "backup directory cannot be resolved"
+  [[ "$(dirname -- "$backup_dir")" == "$backup_root" ]] || fail "backup directory is outside this deployment's upgrade-backups"
+  [[ ! -L "$backup_dir" && -f "$backup_dir/SHA256SUMS.txt" && ! -L "$backup_dir/SHA256SUMS.txt" ]] || fail "backup checksum manifest is missing or unsafe"
+
+  declare -A allowed=() seen=()
+  for filename in "${BACKUP_CHECKSUM_FILES[@]}"; do allowed["$filename"]=1; done
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^([a-f0-9]{64})\ \ \./([A-Za-z0-9._-]+)$ ]] || fail "invalid checksum entry in backup"
+    filename="${BASH_REMATCH[2]}"
+    [[ -n "${allowed[$filename]:-}" && -z "${seen[$filename]:-}" ]] || fail "unexpected or duplicate backup checksum entry: $filename"
+    [[ -f "$backup_dir/$filename" && ! -L "$backup_dir/$filename" ]] || fail "backup file is missing or unsafe: $filename"
+    seen["$filename"]=1
+  done < "$backup_dir/SHA256SUMS.txt"
+  for filename in "${BACKUP_CHECKSUM_FILES[@]}"; do
+    [[ -n "${seen[$filename]:-}" ]] || fail "backup checksum entry is missing: $filename"
+  done
+  [[ "${#seen[@]}" -eq "${#BACKUP_CHECKSUM_FILES[@]}" ]] || fail "backup checksum manifest has an unexpected file count"
+
+  while IFS= read -r -d '' line; do
+    [[ ! -L "$line" && ( -f "$line" || "$line" == "$backup_dir/SHA256SUMS.txt" ) ]] || fail "backup contains an unsafe entry"
+  done < <(find "$backup_dir" -mindepth 1 -maxdepth 1 -print0)
+  (cd "$backup_dir" && sha256sum --strict -c SHA256SUMS.txt >/dev/null) || fail "invalid pre-deployment backup checksums"
+  BACKUP_DIR="$backup_dir"
+}
+
+read_backup_manifest() {
+  local manifest="$1" line key value
+  declare -A fields=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^([A-Z_]+)=([A-Za-z0-9._:-]+)$ ]] || fail "invalid backup manifest field"
+    key="${BASH_REMATCH[1]}"
+    value="${BASH_REMATCH[2]}"
+    case "$key" in
+      BACKUP_SCHEMA_VERSION|PACKAGE_NAME|BACKUP_EXPECTED_BACKEND|BACKUP_EXPECTED_FRONTEND|BACKUP_POSTGRES_ID|CREATED_AT_UTC) ;;
+      *) fail "unknown backup manifest field: $key" ;;
+    esac
+    [[ -z "${fields[$key]:-}" ]] || fail "duplicate backup manifest field: $key"
+    fields["$key"]="$value"
+  done < "$manifest"
+  [[ "${#fields[@]}" -eq 6 ]] || fail "backup manifest is incomplete"
+  [[ "${fields[BACKUP_SCHEMA_VERSION]:-}" == 1 ]] || fail "unsupported backup manifest schema"
+  [[ "${fields[PACKAGE_NAME]:-}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail "invalid backup package identity"
+  [[ "${fields[BACKUP_EXPECTED_BACKEND]:-}" =~ ^[A-Za-z0-9._/-]+:[A-Za-z0-9._-]+$ ]] || fail "invalid backup backend identity"
+  [[ "${fields[BACKUP_EXPECTED_FRONTEND]:-}" =~ ^[A-Za-z0-9._/-]+:[A-Za-z0-9._-]+$ ]] || fail "invalid backup frontend identity"
+  [[ "${fields[BACKUP_POSTGRES_ID]:-}" =~ ^[a-f0-9]{12,64}$ ]] || fail "invalid backup PostgreSQL container identity"
+  [[ "${fields[CREATED_AT_UTC]:-}" =~ ^[0-9]{8}T[0-9]{6}Z$ ]] || fail "invalid backup creation time"
+  BACKUP_MANIFEST_PACKAGE_NAME="${fields[PACKAGE_NAME]}"
+  BACKUP_MANIFEST_BACKEND="${fields[BACKUP_EXPECTED_BACKEND]}"
+  BACKUP_MANIFEST_FRONTEND="${fields[BACKUP_EXPECTED_FRONTEND]}"
+  BACKUP_MANIFEST_POSTGRES_ID="${fields[BACKUP_POSTGRES_ID]}"
+}
+
+compose_identity() {
+  python3 -c '
+import json, sys
+config = json.load(sys.stdin)
+project = config.get("name")
+volumes = config.get("volumes", {})
+volume_names = {
+    key: spec.get("name") or (f"{project}_{key}" if project else key)
+    for key, spec in volumes.items()
+}
+networks = config.get("networks", {})
+normalized_networks = {
+    key: {"name": spec.get("name") or (f"{project}_{key}" if project else key),
+          "external": bool(spec.get("external", False)),
+          "internal": bool(spec.get("internal", False))}
+    for key, spec in networks.items()
+}
+services = {}
+for service_name in ("postgres", "backend", "frontend"):
+    service = config.get("services", {}).get(service_name)
+    if service is None:
+        raise SystemExit(f"missing service: {service_name}")
+    mounts = []
+    for mount in service.get("volumes", []):
+        source = mount.get("source", "")
+        if mount.get("type") == "volume":
+            source = volume_names.get(source, source)
+        mounts.append({"type": mount.get("type"), "source": source,
+                       "target": mount.get("target"),
+                       "read_only": bool(mount.get("read_only", False))})
+    ports = [{key: port.get(key) for key in ("host_ip", "published", "target", "protocol")}
+             for port in service.get("ports", [])]
+    services[service_name] = {
+        "mounts": sorted(mounts, key=lambda item: json.dumps(item, sort_keys=True)),
+        "ports": sorted(ports, key=lambda item: json.dumps(item, sort_keys=True)),
+        "networks": sorted(service.get("networks", {}).keys()),
+    }
+print(json.dumps({"project": project, "volumes": volume_names,
+                  "networks": normalized_networks, "services": services},
+                 sort_keys=True, separators=(",", ":")))
+'
+}
+
+verify_compose_images() {
+  local config_json="$1" expected_backend="$2" expected_frontend="$3"
+  python3 -c '
+import json, sys
+config = json.load(sys.stdin)
+expected = {"backend": sys.argv[1], "frontend": sys.argv[2]}
+services = config.get("services", {})
+if any(services.get(name, {}).get("image") != image for name, image in expected.items()):
+    raise SystemExit("Compose application image identity mismatch")
+' "$expected_backend" "$expected_frontend" <<< "$config_json" || fail "Compose application image identity mismatch"
+}
+
+verify_configured_volumes() {
+  local current_json="$1" candidate_json="$2"
+  local current_identity candidate_identity
+  current_identity="$(compose_identity <<< "$current_json")" || fail "cannot read current Compose identity"
+  candidate_identity="$(compose_identity <<< "$candidate_json")" || fail "cannot read candidate Compose identity"
+  python3 -c '
+import json, sys
+current, candidate = map(json.loads, sys.argv[1:3])
+if current["project"] != candidate["project"]:
+    raise SystemExit("Compose project identity changed")
+for key in ("qaflex_pgdata", "qaflex_backend_logs"):
+    if current["volumes"].get(key) != candidate["volumes"].get(key):
+        raise SystemExit(f"persistent volume identity changed: {key}")
+if current["networks"] != candidate["networks"]:
+    raise SystemExit("Compose network identity changed")
+if current["services"] != candidate["services"]:
+    raise SystemExit("Compose ports or mount identity changed")
+' "$current_identity" "$candidate_identity" || fail "candidate Compose changes project, volume, network, port, or mount identity"
+  CURRENT_POSTGRES_VOLUME="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["volumes"]["qaflex_pgdata"])' <<< "$current_identity")" || fail "PostgreSQL volume is not declared"
+  CURRENT_BACKEND_LOG_VOLUME="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["volumes"]["qaflex_backend_logs"])' <<< "$current_identity")" || fail "backend log volume is not declared"
+}
+
+verify_container_volume_mount() {
+  local container_id="$1" expected_volume="$2" expected_target="$3" inspect_json
+  [[ -n "$container_id" ]] || fail "cannot verify volume mount for a missing container"
+  inspect_json="$("${DOCKER[@]}" inspect -f '{{json .Mounts}}' "$container_id")" || fail "cannot inspect container mounts"
+  python3 -c '
+import json, sys
+mounts = json.loads(sys.stdin.read())
+expected_volume, expected_target = sys.argv[1:3]
+matches = [mount for mount in mounts
+           if mount.get("Type") == "volume"
+           and mount.get("Name") == expected_volume
+           and mount.get("Destination") == expected_target]
+if len(matches) != 1:
+    raise SystemExit("container volume mount identity mismatch")
+' "$expected_volume" "$expected_target" <<< "$inspect_json" || fail "container is not mounted on the expected persistent volume"
+}
+
+verify_named_volume_exists() {
+  local volume_name="$1"
+  "${DOCKER[@]}" volume inspect "$volume_name" >/dev/null 2>&1 || fail "required persistent volume is missing: $volume_name"
+}
+
+require_preflight_runtime() {
+  local command_name
+  for command_name in python3 realpath sha256sum; do
+    command -v "$command_name" >/dev/null 2>&1 || fail "required read-only preflight tool is missing: $command_name"
+  done
+}
+'''
 
 
 def compose_content(ctx: BuildContext, *, external_postgres_volume: bool = False) -> str:
@@ -1055,6 +1241,7 @@ PACKAGE_NAME="{ctx.package_name}"
 
 fail() {{ echo "[backup] ERROR: $*" >&2; exit 1; }}
 log() {{ echo "[backup] $*"; }}
+{_deployment_preflight_shell()}
 
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
@@ -1063,22 +1250,35 @@ elif sudo docker info >/dev/null 2>&1; then
 else
   fail "Docker is unavailable"
 fi
+require_preflight_runtime
+TARGET_DIR="$(realpath -e -- "$TARGET_DIR")" || fail "deployment directory cannot be resolved"
 
 cd "$TARGET_DIR"
 [[ -f .env && -f docker-compose.yml ]] || fail "run from an existing deployment directory containing .env and docker-compose.yml"
 [[ -z "$(find . -maxdepth 1 -type f -name 'docker-compose.*.yml' -print -quit)" ]] || fail "refusing layered Compose configuration; keep only docker-compose.yml before backing up"
-compose() {{ "${{DOCKER[@]}}" compose --env-file .env "$@"; }}
+compose() {{ env -u COMPOSE_PROJECT_NAME -u POSTGRES_VOLUME_NAME -u BACKEND_LOG_VOLUME_NAME -u COMPOSE_FILE -u COMPOSE_PROFILES "${{DOCKER[@]}}" compose --project-directory "$TARGET_DIR" --env-file "$TARGET_DIR/.env" "$@"; }}
 db_query() {{
   local sql="$1"
   compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"' sh "$sql"
 }}
 
-BASE_CONFIG="$(compose config)"
-grep -Fq "image: $EXPECTED_BACKEND" <<<"$BASE_CONFIG" || fail "backend baseline image does not match $EXPECTED_BACKEND"
-grep -Fq "image: $EXPECTED_FRONTEND" <<<"$BASE_CONFIG" || fail "frontend baseline image does not match $EXPECTED_FRONTEND"
+BASE_CONFIG="$(compose config --format json)" || fail "current Compose configuration cannot be resolved"
+verify_compose_images "$BASE_CONFIG" "$EXPECTED_BACKEND" "$EXPECTED_FRONTEND"
+BASE_IDENTITY="$(compose_identity <<< "$BASE_CONFIG")" || fail "current Compose identity cannot be read"
+CURRENT_POSTGRES_VOLUME="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["volumes"]["qaflex_pgdata"])' <<< "$BASE_IDENTITY")" || fail "PostgreSQL volume is not declared"
+CURRENT_BACKEND_LOG_VOLUME="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["volumes"]["qaflex_backend_logs"])' <<< "$BASE_IDENTITY")" || fail "backend log volume is not declared"
+ENV_POSTGRES_VOLUME="$(awk -F= '$1 == "POSTGRES_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
+ENV_BACKEND_LOG_VOLUME="$(awk -F= '$1 == "BACKEND_LOG_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
+[[ -n "$ENV_POSTGRES_VOLUME" && "$ENV_POSTGRES_VOLUME" == "$CURRENT_POSTGRES_VOLUME" ]] || fail "PostgreSQL volume identity is missing or inconsistent in .env"
+[[ -n "$ENV_BACKEND_LOG_VOLUME" && "$ENV_BACKEND_LOG_VOLUME" == "$CURRENT_BACKEND_LOG_VOLUME" ]] || fail "backend log volume identity is missing or inconsistent in .env"
+verify_named_volume_exists "$CURRENT_POSTGRES_VOLUME"
+verify_named_volume_exists "$CURRENT_BACKEND_LOG_VOLUME"
 POSTGRES_ID="$(compose ps -q postgres)"
 [[ -n "$POSTGRES_ID" ]] || fail "postgres service is not running"
 [[ "$("${{DOCKER[@]}}" inspect -f '{{{{.State.Health.Status}}}}' "$POSTGRES_ID")" == "healthy" ]] || fail "postgres is not healthy"
+BACKEND_ID="$(compose ps -q backend)"
+verify_container_volume_mount "$POSTGRES_ID" "$CURRENT_POSTGRES_VOLUME" /var/lib/postgresql/data
+verify_container_volume_mount "$BACKEND_ID" "$CURRENT_BACKEND_LOG_VOLUME" /app/logs
 ACTIVE_JOBS="$(db_query "select (select count(*) from sync_runs where status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','CANCELLING')) + (select count(*) from fact_build_tasks where status in ('PENDING','QUEUED','RUNNING','RETRYING'));" )"
 [[ "$ACTIVE_JOBS" == "0" ]] || fail "$ACTIVE_JOBS sync/fact jobs are active; wait for completion or cancel them before backing up"
 
@@ -1152,14 +1352,9 @@ TARGET_FLYWAY="{ctx.expected_flyway_version}"
 
 fail() {{ echo "[upgrade] ERROR: $*" >&2; exit 1; }}
 log() {{ echo "[upgrade] $*"; }}
+{_deployment_preflight_shell()}
 
 [[ -n "$BACKUP_DIR" ]] || fail "usage: upgrade.sh <deployment-dir> <backup-dir>"
-[[ -f "$BACKUP_DIR/backup-manifest.env" && -f "$BACKUP_DIR/SHA256SUMS.txt" ]] || fail "invalid pre-deployment backup: $BACKUP_DIR"
-(cd "$BACKUP_DIR" && sha256sum -c SHA256SUMS.txt) || fail "invalid pre-deployment backup checksums"
-source "$BACKUP_DIR/backup-manifest.env"
-[[ "${{PACKAGE_NAME:-}}" == "{ctx.package_name}" ]] || fail "pre-deployment backup belongs to another release package"
-[[ "${{BACKUP_EXPECTED_BACKEND:-}}" == "{BACKEND_IMAGE}:{ctx.baseline_backend_tag}" ]] || fail "pre-deployment backup backend baseline mismatch"
-[[ "${{BACKUP_EXPECTED_FRONTEND:-}}" == "{FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}" ]] || fail "pre-deployment backup frontend baseline mismatch"
 
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
@@ -1168,23 +1363,46 @@ elif sudo docker info >/dev/null 2>&1; then
 else
   fail "Docker is unavailable"
 fi
+require_preflight_runtime
+TARGET_DIR="$(realpath -e -- "$TARGET_DIR")" || fail "deployment directory cannot be resolved"
+BACKUP_DIR="$(realpath -e -- "$BACKUP_DIR")" || fail "pre-deployment backup directory cannot be resolved"
 
 cd "$TARGET_DIR"
 [[ -f .env && -f docker-compose.yml ]] || fail "run from an existing deployment directory containing .env and docker-compose.yml"
 [[ -z "$(find . -maxdepth 1 -type f -name 'docker-compose.*.yml' -print -quit)" ]] || fail "refusing layered Compose configuration; keep only docker-compose.yml"
+verify_backup_checksums "$BACKUP_DIR"
+read_backup_manifest "$BACKUP_DIR/backup-manifest.env"
+[[ "$BACKUP_MANIFEST_PACKAGE_NAME" == "$PACKAGE_NAME" ]] || fail "pre-deployment backup belongs to another release package"
+[[ "$BACKUP_MANIFEST_BACKEND" == "$EXPECTED_BACKEND" ]] || fail "pre-deployment backup backend baseline mismatch"
+[[ "$BACKUP_MANIFEST_FRONTEND" == "$EXPECTED_FRONTEND" ]] || fail "pre-deployment backup frontend baseline mismatch"
+[[ "$BACKUP_DIR" == "$(realpath -e -- "$BACKUP_DIR")" ]] || fail "backup path must be canonical"
+cmp -s "$BACKUP_DIR/.env" .env || fail "live .env differs from the verified pre-deployment backup"
+[[ "$(<"$BACKUP_DIR/postgres.container-id")" == "$BACKUP_MANIFEST_POSTGRES_ID" ]] || fail "backup PostgreSQL container identity is inconsistent"
 
-compose() {{ "${{DOCKER[@]}}" compose --env-file .env "$@"; }}
+compose() {{ env -u COMPOSE_PROJECT_NAME -u POSTGRES_VOLUME_NAME -u BACKEND_LOG_VOLUME_NAME -u COMPOSE_FILE -u COMPOSE_PROFILES "${{DOCKER[@]}}" compose --project-directory "$TARGET_DIR" --env-file "$TARGET_DIR/.env" "$@"; }}
 db_query() {{
   local sql="$1"
   compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"' sh "$sql"
 }}
 
-BASE_CONFIG="$(compose config)"
-grep -Fq "image: $EXPECTED_BACKEND" <<<"$BASE_CONFIG" || fail "backend baseline image does not match $EXPECTED_BACKEND"
-grep -Fq "image: $EXPECTED_FRONTEND" <<<"$BASE_CONFIG" || fail "frontend baseline image does not match $EXPECTED_FRONTEND"
+BASE_CONFIG="$(compose config --format json)" || fail "current Compose configuration cannot be resolved"
+TARGET_CONFIG="$(compose -f "$TARGET_COMPOSE" config --format json)" || fail "target Compose configuration cannot be resolved"
+verify_compose_images "$BASE_CONFIG" "$EXPECTED_BACKEND" "$EXPECTED_FRONTEND"
+verify_compose_images "$TARGET_CONFIG" "{BACKEND_IMAGE}:{ctx.backend_tag}" "{FRONTEND_IMAGE}:{ctx.frontend_tag}"
+verify_configured_volumes "$BASE_CONFIG" "$TARGET_CONFIG"
+ENV_POSTGRES_VOLUME="$(awk -F= '$1 == "POSTGRES_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
+ENV_BACKEND_LOG_VOLUME="$(awk -F= '$1 == "BACKEND_LOG_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
+[[ "$ENV_POSTGRES_VOLUME" == "$CURRENT_POSTGRES_VOLUME" ]] || fail "PostgreSQL volume identity is missing or inconsistent in .env"
+[[ "$ENV_BACKEND_LOG_VOLUME" == "$CURRENT_BACKEND_LOG_VOLUME" ]] || fail "backend log volume identity is missing or inconsistent in .env"
+verify_named_volume_exists "$CURRENT_POSTGRES_VOLUME"
+verify_named_volume_exists "$CURRENT_BACKEND_LOG_VOLUME"
 POSTGRES_ID="$(compose ps -q postgres)"
 [[ -n "$POSTGRES_ID" ]] || fail "postgres service is not running"
 [[ "$("${{DOCKER[@]}}" inspect -f '{{{{.State.Health.Status}}}}' "$POSTGRES_ID")" == "healthy" ]] || fail "postgres is not healthy"
+[[ "$POSTGRES_ID" == "$BACKUP_MANIFEST_POSTGRES_ID" ]] || fail "PostgreSQL container changed after the pre-deployment backup"
+BACKEND_ID="$(compose ps -q backend)"
+verify_container_volume_mount "$POSTGRES_ID" "$CURRENT_POSTGRES_VOLUME" /var/lib/postgresql/data
+verify_container_volume_mount "$BACKEND_ID" "$CURRENT_BACKEND_LOG_VOLUME" /app/logs
 
 ACTIVE_JOBS="$(db_query "select (select count(*) from sync_runs where status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','CANCELLING')) + (select count(*) from fact_build_tasks where status in ('PENDING','QUEUED','RUNNING','RETRYING'));" )"
 [[ "$ACTIVE_JOBS" == "0" ]] || fail "$ACTIVE_JOBS sync/fact jobs are active; wait for completion or cancel them before upgrading"
@@ -1203,11 +1421,14 @@ capture_counts() {{
   done < "$BACKUP_DIR/counts-before.txt"
 }}
 
-[[ "$POSTGRES_ID" == "${{BACKUP_POSTGRES_ID:-}}" ]] || fail "PostgreSQL container changed after the pre-deployment backup"
+[[ -f "$PACKAGE_DIR/docker-images/{BACKEND_IMAGE}_{ctx.backend_tag}.tar" && ! -L "$PACKAGE_DIR/docker-images/{BACKEND_IMAGE}_{ctx.backend_tag}.tar" ]] || fail "target backend image archive is missing or unsafe"
+[[ -f "$PACKAGE_DIR/docker-images/{FRONTEND_IMAGE}_{ctx.frontend_tag}.tar" && ! -L "$PACKAGE_DIR/docker-images/{FRONTEND_IMAGE}_{ctx.frontend_tag}.tar" ]] || fail "target frontend image archive is missing or unsafe"
 
 log "loading new application images"
 "${{DOCKER[@]}}" load -i "$PACKAGE_DIR/docker-images/{BACKEND_IMAGE}_{ctx.backend_tag}.tar"
 "${{DOCKER[@]}}" load -i "$PACKAGE_DIR/docker-images/{FRONTEND_IMAGE}_{ctx.frontend_tag}.tar"
+"${{DOCKER[@]}}" image inspect "{BACKEND_IMAGE}:{ctx.backend_tag}" >/dev/null || fail "target backend image is unavailable after loading"
+"${{DOCKER[@]}}" image inspect "{FRONTEND_IMAGE}:{ctx.frontend_tag}" >/dev/null || fail "target frontend image is unavailable after loading"
 TEMP_COMPOSE="docker-compose.yml.$PACKAGE_NAME.tmp"
 trap 'rm -f "$TEMP_COMPOSE"' EXIT
 cp "$TARGET_COMPOSE" "$TEMP_COMPOSE"
@@ -1272,13 +1493,14 @@ set -euo pipefail
 
 TARGET_DIR="${{1:-$PWD}}"
 BACKUP_DIR="${{2:-}}"
+PACKAGE_NAME="{ctx.package_name}"
 EXPECTED_BACKEND="{BACKEND_IMAGE}:{ctx.baseline_backend_tag}"
 EXPECTED_FRONTEND="{FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}"
 [[ -n "$BACKUP_DIR" ]] || {{ echo "usage: rollback.sh <deployment-dir> <backup-dir>" >&2; exit 2; }}
-[[ -f "$BACKUP_DIR/.env" && -f "$BACKUP_DIR/docker-compose.yml" ]] || {{ echo "invalid backup directory: $BACKUP_DIR" >&2; exit 2; }}
 
 fail() {{ echo "[rollback] ERROR: $*" >&2; exit 1; }}
-log() {{ echo "[rollback] $*"; }}
+log() {{ echo "[rollback] $*"; if [[ -n "${{RECOVERY_LOG:-}}" ]]; then printf '%s\n' "[rollback] $*" >> "$RECOVERY_LOG"; fi; }}
+{_deployment_preflight_shell()}
 
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
@@ -1287,23 +1509,67 @@ elif sudo docker info >/dev/null 2>&1; then
 else
   fail "Docker is unavailable"
 fi
+require_preflight_runtime
+TARGET_DIR="$(realpath -e -- "$TARGET_DIR")" || fail "deployment directory cannot be resolved"
+BACKUP_DIR="$(realpath -e -- "$BACKUP_DIR")" || fail "pre-deployment backup directory cannot be resolved"
 
 cd "$TARGET_DIR"
-compose() {{ "${{DOCKER[@]}}" compose --env-file .env "$@"; }}
+[[ -z "$(find . -maxdepth 1 -type f -name 'docker-compose.*.yml' -print -quit)" ]] || fail "refusing layered Compose configuration during rollback"
+verify_backup_checksums "$BACKUP_DIR"
+read_backup_manifest "$BACKUP_DIR/backup-manifest.env"
+[[ "$BACKUP_MANIFEST_PACKAGE_NAME" == "$PACKAGE_NAME" ]] || fail "pre-deployment backup belongs to another release package"
+[[ "$BACKUP_MANIFEST_BACKEND" == "$EXPECTED_BACKEND" ]] || fail "pre-deployment backup backend baseline mismatch"
+[[ "$BACKUP_MANIFEST_FRONTEND" == "$EXPECTED_FRONTEND" ]] || fail "pre-deployment backup frontend baseline mismatch"
+cmp -s "$BACKUP_DIR/.env" .env || fail "live .env differs from the verified pre-deployment backup"
+[[ "$(<"$BACKUP_DIR/postgres.container-id")" == "$BACKUP_MANIFEST_POSTGRES_ID" ]] || fail "backup PostgreSQL container identity is inconsistent"
+
+compose() {{ env -u COMPOSE_PROJECT_NAME -u POSTGRES_VOLUME_NAME -u BACKEND_LOG_VOLUME_NAME -u COMPOSE_FILE -u COMPOSE_PROFILES "${{DOCKER[@]}}" compose --project-directory "$TARGET_DIR" --env-file "$TARGET_DIR/.env" "$@"; }}
+db_query() {{
+  local sql="$1"
+  compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"' sh "$sql"
+}}
+
+CURRENT_CONFIG="$(compose config --format json)" || fail "current Compose configuration cannot be resolved"
 POSTGRES_ID="$(compose ps -q postgres)"
 [[ -n "$POSTGRES_ID" ]] || fail "postgres service is not running"
+[[ "$("${{DOCKER[@]}}" inspect -f '{{{{.State.Health.Status}}}}' "$POSTGRES_ID")" == "healthy" ]] || fail "postgres is not healthy"
+BACKEND_ID="$(compose ps -q backend)"
+[[ -n "$BACKEND_ID" ]] || fail "backend container is unavailable for volume identity verification"
 
-[[ -z "$(find . -maxdepth 1 -type f -name 'docker-compose.*.yml' -print -quit)" ]] || fail "refusing layered Compose configuration during rollback"
-TEMP_COMPOSE="docker-compose.yml.rollback.tmp"
+TEMP_COMPOSE="$(mktemp "$TARGET_DIR/.docker-compose.rollback.XXXXXX")" || fail "cannot create rollback candidate on deployment filesystem"
 trap 'rm -f "$TEMP_COMPOSE"' EXIT
-cp -a "$BACKUP_DIR/docker-compose.yml" "$TEMP_COMPOSE"
-"${{DOCKER[@]}}" compose --env-file .env -f "$TEMP_COMPOSE" config >/dev/null
-mv -f "$TEMP_COMPOSE" docker-compose.yml
-trap - EXIT
+cp -p "$BACKUP_DIR/docker-compose.yml" "$TEMP_COMPOSE" || fail "cannot prepare rollback candidate"
+chmod --reference="$TARGET_DIR/docker-compose.yml" "$TEMP_COMPOSE" || fail "cannot preserve Compose file permissions"
+CANDIDATE_CONFIG="$(compose -f "$TEMP_COMPOSE" config --format json)" || fail "rollback candidate Compose configuration cannot be resolved"
+verify_compose_images "$CANDIDATE_CONFIG" "$EXPECTED_BACKEND" "$EXPECTED_FRONTEND"
+verify_configured_volumes "$CURRENT_CONFIG" "$CANDIDATE_CONFIG"
+ENV_POSTGRES_VOLUME="$(awk -F= '$1 == "POSTGRES_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
+ENV_BACKEND_LOG_VOLUME="$(awk -F= '$1 == "BACKEND_LOG_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
+[[ "$ENV_POSTGRES_VOLUME" == "$CURRENT_POSTGRES_VOLUME" ]] || fail "PostgreSQL volume identity is missing or inconsistent in .env"
+[[ "$ENV_BACKEND_LOG_VOLUME" == "$CURRENT_BACKEND_LOG_VOLUME" ]] || fail "backend log volume identity is missing or inconsistent in .env"
+[[ "$POSTGRES_ID" == "$BACKUP_MANIFEST_POSTGRES_ID" ]] || fail "PostgreSQL container changed after the pre-deployment backup"
+verify_named_volume_exists "$CURRENT_POSTGRES_VOLUME"
+verify_named_volume_exists "$CURRENT_BACKEND_LOG_VOLUME"
+verify_container_volume_mount "$POSTGRES_ID" "$CURRENT_POSTGRES_VOLUME" /var/lib/postgresql/data
+verify_container_volume_mount "$BACKEND_ID" "$CURRENT_BACKEND_LOG_VOLUME" /app/logs
 
-RESTORED_CONFIG="$(compose config)"
-grep -Fq "image: $EXPECTED_BACKEND" <<<"$RESTORED_CONFIG" || fail "restored backend image does not match $EXPECTED_BACKEND"
-grep -Fq "image: $EXPECTED_FRONTEND" <<<"$RESTORED_CONFIG" || fail "restored frontend image does not match $EXPECTED_FRONTEND"
+"${{DOCKER[@]}}" image inspect "$EXPECTED_BACKEND" >/dev/null 2>&1 || fail "baseline backend image is unavailable: $EXPECTED_BACKEND"
+"${{DOCKER[@]}}" image inspect "$EXPECTED_FRONTEND" >/dev/null 2>&1 || fail "baseline frontend image is unavailable: $EXPECTED_FRONTEND"
+BASELINE_FLYWAY="$(cat "$BACKUP_DIR/flyway-before.txt")"
+[[ "$BASELINE_FLYWAY" =~ ^([A-Za-z0-9._-]+)\\|true$ ]] || fail "backup Flyway baseline is invalid"
+BASELINE_FLYWAY_VERSION="${{BASH_REMATCH[1]}}"
+CURRENT_FLYWAY="$(db_query "select version from flyway_schema_history where success order by installed_rank desc limit 1;")"
+[[ "$CURRENT_FLYWAY" == "$BASELINE_FLYWAY_VERSION" ]] || fail "database schema advanced from $BASELINE_FLYWAY_VERSION to $CURRENT_FLYWAY; application-only rollback is refused; follow the approved database recovery runbook"
+
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+RECOVERY_DIR="$TARGET_DIR/upgrade-backups/rollback-recovery-$STAMP"
+mkdir -m 700 -- "$RECOVERY_DIR" || fail "cannot create rollback recovery directory"
+RECOVERY_LOG="$RECOVERY_DIR/rollback.log"
+: > "$RECOVERY_LOG"
+cp -p "$TARGET_DIR/docker-compose.yml" "$RECOVERY_DIR/pre-rollback-compose.yml" || fail "cannot preserve the current Compose configuration"
+cp -p "$TEMP_COMPOSE" "$RECOVERY_DIR/rollback-candidate-compose.yml" || fail "cannot preserve the rollback candidate"
+printf '%s\n' "PREFLIGHT_PASSED" > "$RECOVERY_DIR/state.txt"
+log "rollback recovery evidence: $RECOVERY_DIR"
 
 wait_healthy() {{
   local service="$1" timeout_seconds="$2" started container status
@@ -1312,23 +1578,48 @@ wait_healthy() {{
     container="$(compose ps -q "$service")"
     status="$("${{DOCKER[@]}}" inspect -f '{{{{if .State.Health}}}}{{{{.State.Health.Status}}}}{{{{else}}}}{{{{.State.Status}}}}{{{{end}}}}' "$container" 2>/dev/null || true)"
     [[ "$status" == "healthy" ]] && return 0
-    [[ "$status" == "unhealthy" || "$status" == "exited" || "$status" == "dead" ]] && fail "$service entered state $status"
-    (( $(date +%s) - started < timeout_seconds )) || fail "$service health timeout"
+    [[ "$status" == "unhealthy" || "$status" == "exited" || "$status" == "dead" ]] && return 1
+    (( $(date +%s) - started < timeout_seconds )) || return 1
     sleep 5
   done
 }}
 
-log "recreating baseline backend"
-compose up -d --no-deps --force-recreate backend
-wait_healthy backend 900
-[[ "$(compose ps -q postgres)" == "$POSTGRES_ID" ]] || fail "postgres container changed unexpectedly"
+start_application() {{
+  compose up -d --no-deps --force-recreate backend || return 1
+  wait_healthy backend 900 || return 1
+  [[ "$(compose ps -q postgres)" == "$POSTGRES_ID" ]] || return 1
+  compose up -d --no-deps --force-recreate frontend || return 1
+  wait_healthy frontend 300 || return 1
+  [[ "$(compose ps -q postgres)" == "$POSTGRES_ID" ]] || return 1
+}}
 
-log "recreating baseline frontend after backend health verification"
-compose up -d --no-deps --force-recreate frontend
-wait_healthy frontend 300
-compose ps
-log "application configuration and images restored; both services are healthy"
-log "database was not rewritten; Flyway is forward-only. Use database.dump only through an approved database restore procedure."
+mv -f "$TEMP_COMPOSE" "$TARGET_DIR/docker-compose.yml" || fail "cannot atomically install rollback Compose configuration"
+trap - EXIT
+printf '%s\n' "ROLLBACK_CONFIG_INSTALLED" > "$RECOVERY_DIR/state.txt"
+if start_application; then
+  printf '%s\n' "ROLLBACK_SUCCEEDED" > "$RECOVERY_DIR/state.txt"
+  log "application configuration and images restored; both services are healthy"
+  log "database was not rewritten; Flyway matched the pre-upgrade baseline"
+  exit 0
+fi
+
+log "baseline startup failed; restoring the pre-rollback Compose configuration"
+printf '%s\n' "ROLLBACK_START_FAILED_COMPENSATING" > "$RECOVERY_DIR/state.txt"
+COMPENSATION_COMPOSE="$(mktemp "$TARGET_DIR/.docker-compose.compensation.XXXXXX")" || {{ printf '%s\n' "COMPENSATION_FILE_CREATION_FAILED" > "$RECOVERY_DIR/state.txt"; log "rollback and compensation failed while preparing the previous configuration; inspect $RECOVERY_DIR"; exit 21; }}
+cp -p "$RECOVERY_DIR/pre-rollback-compose.yml" "$COMPENSATION_COMPOSE" || {{ printf '%s\n' "COMPENSATION_COPY_FAILED" > "$RECOVERY_DIR/state.txt"; log "rollback and compensation failed while copying the previous configuration; inspect $RECOVERY_DIR"; exit 21; }}
+chmod --reference="$RECOVERY_DIR/pre-rollback-compose.yml" "$COMPENSATION_COMPOSE" || {{ printf '%s\n' "COMPENSATION_PERMISSION_FAILED" > "$RECOVERY_DIR/state.txt"; log "rollback and compensation failed while preserving permissions; inspect $RECOVERY_DIR"; exit 21; }}
+mv -f "$COMPENSATION_COMPOSE" "$TARGET_DIR/docker-compose.yml" || {{ printf '%s\n' "COMPENSATION_REPLACE_FAILED" > "$RECOVERY_DIR/state.txt"; log "rollback and compensation failed while restoring Compose; inspect $RECOVERY_DIR"; exit 21; }}
+if start_application; then
+  printf '%s\n' "ROLLBACK_FAILED_PREVIOUS_VERSION_RECOVERED" > "$RECOVERY_DIR/state.txt"
+  log "rollback did not complete; the pre-rollback application configuration and services were restored"
+  log "recovery evidence: $RECOVERY_DIR"
+  exit 20
+fi
+
+printf '%s\n' "ROLLBACK_AND_COMPENSATION_FAILED" > "$RECOVERY_DIR/state.txt"
+log "rollback and compensation both failed; service state requires operator recovery"
+log "recovery evidence: $RECOVERY_DIR"
+exit 21
 """
 
 

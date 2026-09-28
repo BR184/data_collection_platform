@@ -1,6 +1,10 @@
 import argparse
+import hashlib
 import importlib.util
 import json
+import os
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -71,6 +75,8 @@ class IntranetLdapPackagingTest(unittest.TestCase):
         content = MODULE.env_content(context)
 
         self.assertIn("COMPOSE_PROJECT_NAME=qaflex-20260721t120000z-001122334455", content)
+        self.assertIn("POSTGRES_VOLUME_NAME=qaflex-20260721t120000z-001122334455_qaflex_pgdata", content)
+        self.assertIn("BACKEND_LOG_VOLUME_NAME=qaflex-20260721t120000z-001122334455_qaflex_backend_logs", content)
         self.assertIn("FRONTEND_PORT=30001", content)
         self.assertIn("BACKEND_PORT=30002", content)
         self.assertIn("POSTGRES_PORT=35432", content)
@@ -84,6 +90,43 @@ class IntranetLdapPackagingTest(unittest.TestCase):
         self.assertIn("qaflex_pgdata:/var/lib/postgresql/data", content)
         self.assertIn("GITLAB_DELETE_RECONCILIATION_ENABLED", content)
         self.assertIn('PLATFORM_INSTANCE_ID: ${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}', content)
+
+    def test_fresh_env_resolves_incremental_compose_without_shell_overrides(self):
+        docker = shutil.which("docker")
+        if docker is None:
+            self.skipTest("Docker Compose is required for the generated config integration check")
+
+        fresh_context = self.build_context()
+        incremental_context = IntranetPreservingUpgradePackagingTest().build_context()
+        with tempfile.TemporaryDirectory() as root:
+            env_path = Path(root) / ".env"
+            compose_path = Path(root) / "docker-compose.yml"
+            env_path.write_text(MODULE.env_content(fresh_context), encoding="utf-8")
+            compose_path.write_text(
+                MODULE.compose_content(incremental_context, external_postgres_volume=True),
+                encoding="utf-8",
+            )
+            process_env = {
+                key: value
+                for key, value in os.environ.items()
+                if key not in {
+                    "COMPOSE_PROJECT_NAME",
+                    "POSTGRES_VOLUME_NAME",
+                    "BACKEND_LOG_VOLUME_NAME",
+                    "COMPOSE_FILE",
+                    "COMPOSE_PROFILES",
+                }
+            }
+            for upgrade_number in (1, 2):
+                result = subprocess.run(
+                    [docker, "compose", "--env-file", str(env_path), "-f", str(compose_path), "config", "--quiet"],
+                    cwd=root,
+                    env=process_env,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(0, result.returncode, f"upgrade {upgrade_number}: {result.stderr}")
 
     def test_backend_dockerfile_pins_noble_and_installs_postgresql_client_16(self):
         content = MODULE.backend_dockerfile()
@@ -410,7 +453,8 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertNotIn("--force-recreate", backup)
         self.assertIn('BACKUP_DIR="${2:-}"', content)
         self.assertIn("invalid pre-deployment backup", content)
-        self.assertIn("sha256sum -c SHA256SUMS.txt", content)
+        self.assertIn("sha256sum --strict -c SHA256SUMS.txt", content)
+        self.assertNotIn('source "$BACKUP_DIR/backup-manifest.env"', content)
         self.assertNotIn("pg_dump -Fc", content)
         self.assertIn("sync_runs", content)
         self.assertIn("fact_build_tasks", content)
@@ -482,18 +526,350 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
     def test_rollback_script_restores_application_configuration_without_database_rewrite(self):
         content = MODULE.rollback_helper(self.build_context())
 
-        self.assertIn('TEMP_COMPOSE="docker-compose.yml.rollback.tmp"', content)
-        self.assertIn('mv -f "$TEMP_COMPOSE" docker-compose.yml', content)
+        self.assertIn('TEMP_COMPOSE="$(mktemp "$TARGET_DIR/.docker-compose.rollback.XXXXXX")"', content)
+        self.assertIn('mv -f "$TEMP_COMPOSE" "$TARGET_DIR/docker-compose.yml"', content)
         self.assertNotIn("docker-compose.override.yml", content)
-        self.assertIn("restored backend image does not match", content)
+        self.assertIn('verify_compose_images "$CANDIDATE_CONFIG" "$EXPECTED_BACKEND" "$EXPECTED_FRONTEND"', content)
         self.assertIn("wait_healthy backend 900", content)
         self.assertIn("wait_healthy frontend 300", content)
-        self.assertIn("postgres container changed unexpectedly", content)
+        self.assertIn("PostgreSQL container changed after the pre-deployment backup", content)
         self.assertIn("--force-recreate backend", content)
         self.assertIn("--force-recreate frontend", content)
         self.assertLess(content.index("wait_healthy backend 900"), content.index("--force-recreate frontend"))
         self.assertNotIn("pg_restore", content)
         self.assertNotIn("down -v", content)
+        self.assertIn("exit 20", content)
+        self.assertIn("exit 21", content)
+        self.assertIn("ROLLBACK_FAILED_PREVIOUS_VERSION_RECOVERED", content)
+        self.assertIn("ROLLBACK_AND_COMPENSATION_FAILED", content)
+
+    def test_rollback_preflights_verified_backup_and_volume_identity_before_replace(self):
+        content = MODULE.rollback_helper(self.build_context())
+
+        self.assertIn("verify_backup_checksums", content)
+        self.assertIn("backup-manifest.env", content)
+        self.assertIn("BACKUP_SCHEMA_VERSION", content)
+        self.assertNotIn('source "$BACKUP_DIR/backup-manifest.env"', content)
+        self.assertIn("POSTGRES_VOLUME_NAME", content)
+        self.assertIn("BACKEND_LOG_VOLUME_NAME", content)
+        self.assertIn("compose -f", content)
+        self.assertIn("--format json", content)
+        self.assertIn("postgres.container-id", content)
+        self.assertIn("cmp -s", content)
+        self.assertIn("volume inspect", content)
+        self.assertIn("verify_container_volume_mount", content)
+        self.assertLess(content.index("verify_backup_checksums", content.index("cd \"$TARGET_DIR\"")), content.index('mv -f "$TEMP_COMPOSE" "$TARGET_DIR/docker-compose.yml"'))
+        self.assertLess(content.index("--format json"), content.index('mv -f "$TEMP_COMPOSE" "$TARGET_DIR/docker-compose.yml"'))
+        self.assertLess(content.index("verify_compose_images \"$CANDIDATE_CONFIG\""), content.index('mv -f "$TEMP_COMPOSE" "$TARGET_DIR/docker-compose.yml"'))
+        self.assertLess(content.index("image inspect \"$EXPECTED_BACKEND\""), content.index('mv -f "$TEMP_COMPOSE" "$TARGET_DIR/docker-compose.yml"'))
+        self.assertNotIn('source "$BACKUP_DIR/backup-manifest.env"', content)
+
+    @staticmethod
+    def _git_bash_path():
+        git = shutil.which("git")
+        if git is None:
+            return None
+        candidate = Path(git).resolve().parents[1] / "bin" / "bash.exe"
+        return candidate if candidate.is_file() else None
+
+    @staticmethod
+    def _msys_path(path: Path) -> str:
+        drive, tail = os.path.splitdrive(str(path.resolve()))
+        if not drive:
+            return str(path.resolve()).replace("\\", "/")
+        return f"/{drive[0].lower()}{tail.replace(os.sep, '/')}"
+
+    def _write_rollback_preflight_fixture(self, root: Path, *, manifest_extra: str = ""):
+        context = self.build_context()
+        deployment = root / "deployment"
+        backup = deployment / "upgrade-backups" / "predeploy"
+        fake_bin = root / "fake-bin"
+        deployment.mkdir(parents=True)
+        backup.mkdir(parents=True)
+        fake_bin.mkdir()
+        env_content = (
+            "COMPOSE_PROJECT_NAME=qaflex-test\n"
+            "POSTGRES_VOLUME_NAME=qaflex-test_qaflex_pgdata\n"
+            "BACKEND_LOG_VOLUME_NAME=qaflex-test_qaflex_backend_logs\n"
+            "POSTGRES_PASSWORD=private-test-value\n"
+        )
+        (deployment / ".env").write_text(env_content, encoding="utf-8", newline="\n")
+        (deployment / "docker-compose.yml").write_text("services:\n  backend:\n    image: current\n", encoding="utf-8", newline="\n")
+        (backup / ".env").write_text(env_content, encoding="utf-8", newline="\n")
+        (backup / "docker-compose.yml").write_text("services:\n  backend:\n    image: baseline\n", encoding="utf-8", newline="\n")
+        (backup / "postgres.container-id").write_text("abcdef012345\n", encoding="utf-8", newline="\n")
+        (backup / "postgres.inspect.json").write_text("{}\n", encoding="utf-8", newline="\n")
+        (backup / "compose-images.txt").write_text("images\n", encoding="utf-8", newline="\n")
+        (backup / "flyway-before.txt").write_text("20260714.01|true\n", encoding="utf-8", newline="\n")
+        (backup / "counts-before.txt").write_text("example_table=1\n", encoding="utf-8", newline="\n")
+        (backup / "database.dump").write_bytes(b"database dump")
+        (backup / "critical-tables.dump").write_bytes(b"critical table dump")
+        (backup / "database.restore-list.txt").write_text("database toc\n", encoding="utf-8", newline="\n")
+        (backup / "critical-tables.restore-list.txt").write_text("critical toc\n", encoding="utf-8", newline="\n")
+        manifest = (
+            "BACKUP_SCHEMA_VERSION=1\n"
+            f"PACKAGE_NAME={context.package_name}\n"
+            f"BACKUP_EXPECTED_BACKEND={MODULE.BACKEND_IMAGE}:{context.baseline_backend_tag}\n"
+            f"BACKUP_EXPECTED_FRONTEND={MODULE.FRONTEND_IMAGE}:{context.baseline_frontend_tag}\n"
+            "BACKUP_POSTGRES_ID=abcdef012345\n"
+            "CREATED_AT_UTC=20260721T120000Z\n"
+            f"{manifest_extra}"
+        )
+        (backup / "backup-manifest.env").write_text(manifest, encoding="utf-8", newline="\n")
+        required = [
+            ".env", "docker-compose.yml", "postgres.container-id", "postgres.inspect.json",
+            "compose-images.txt", "flyway-before.txt", "counts-before.txt", "database.dump",
+            "critical-tables.dump", "database.restore-list.txt", "critical-tables.restore-list.txt",
+            "backup-manifest.env",
+        ]
+        (backup / "SHA256SUMS.txt").write_text(
+            "".join(
+                f"{hashlib.sha256((backup / name).read_bytes()).hexdigest()}  ./{name}\n"
+                for name in required
+            ),
+            encoding="utf-8",
+            newline="\n",
+        )
+        (backup / "database.dump").write_bytes(b"tampered after checksum creation")
+        script = root / "rollback.sh"
+        script.write_text(MODULE.rollback_helper(context), encoding="utf-8", newline="\n")
+        mutation_log = root / "docker-mutations.log"
+        fake_docker = fake_bin / "docker"
+        fake_docker.write_text(
+            "#!/usr/bin/env bash\n"
+            "set -euo pipefail\n"
+            "if [[ \"${1:-}\" == info ]]; then exit 0; fi\n"
+            "case \"$*\" in\n"
+            "  *' compose up '*|*' compose stop '*|*' compose down '*|*' load -i *|*' volume rm '*|*' rm *)\n"
+            "    printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\";;\n"
+            "esac\n"
+            "exit 99\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        fake_docker.chmod(0o755)
+        return context, deployment, backup, script, fake_bin, mutation_log
+
+    def _run_rejected_rollback(
+        self,
+        root: Path,
+        deployment: Path,
+        backup: Path,
+        script: Path,
+        fake_bin: Path,
+        mutation_log: Path,
+        *,
+        extra_env: dict[str, str] | None = None,
+    ):
+        bash = self._git_bash_path()
+        env = os.environ.copy()
+        env["PATH"] = f"{self._msys_path(fake_bin)}:/usr/bin:/bin:" + env.get("PATH", "")
+        env["FAKE_DOCKER_MUTATIONS"] = self._msys_path(mutation_log)
+        if extra_env:
+            env.update(extra_env)
+        return subprocess.run(
+            [str(bash), self._msys_path(script), self._msys_path(deployment), self._msys_path(backup)],
+            cwd=deployment,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    def test_generated_rollback_rejects_corrupt_backup_without_changing_deployment(self):
+        bash = self._git_bash_path()
+        if bash is None:
+            self.skipTest("Git Bash is required to execute the generated deployment script in isolation")
+        probe = subprocess.run([str(bash), "-lc", "python3 --version"], capture_output=True, text=True, check=False)
+        if probe.returncode != 0:
+            self.skipTest("Git Bash Python runtime is required for structured Compose preflight")
+
+        with tempfile.TemporaryDirectory() as temp_root:
+            root = Path(temp_root)
+            _, deployment, backup, script, fake_bin, mutation_log = self._write_rollback_preflight_fixture(root)
+            before = ((deployment / ".env").read_bytes(), (deployment / "docker-compose.yml").read_bytes())
+            result = self._run_rejected_rollback(root, deployment, backup, script, fake_bin, mutation_log)
+
+            self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+            self.assertIn("invalid pre-deployment backup checksums", result.stderr)
+            self.assertEqual(before, ((deployment / ".env").read_bytes(), (deployment / "docker-compose.yml").read_bytes()))
+            self.assertFalse(mutation_log.exists())
+
+    def test_generated_rollback_rejects_manifest_code_without_executing_it(self):
+        bash = self._git_bash_path()
+        if bash is None:
+            self.skipTest("Git Bash is required to execute the generated deployment script in isolation")
+        probe = subprocess.run([str(bash), "-lc", "python3 --version"], capture_output=True, text=True, check=False)
+        if probe.returncode != 0:
+            self.skipTest("Git Bash Python runtime is required for structured Compose preflight")
+
+        with tempfile.TemporaryDirectory() as temp_root:
+            root = Path(temp_root)
+            marker = root / "manifest-executed"
+            code = f"$(touch {self._msys_path(marker)})"
+            _, deployment, backup, script, fake_bin, mutation_log = self._write_rollback_preflight_fixture(
+                root, manifest_extra=f"UNTRUSTED={code}\n"
+            )
+            checksums = backup / "SHA256SUMS.txt"
+            lines = []
+            for line in checksums.read_text(encoding="utf-8").splitlines():
+                name = line.split("  ./", 1)[1]
+                lines.append(f"{hashlib.sha256((backup / name).read_bytes()).hexdigest()}  ./{name}\n")
+            checksums.write_text("".join(lines), encoding="utf-8", newline="\n")
+            before = ((deployment / ".env").read_bytes(), (deployment / "docker-compose.yml").read_bytes())
+            result = self._run_rejected_rollback(root, deployment, backup, script, fake_bin, mutation_log)
+
+            self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+            self.assertIn("invalid backup manifest field", result.stderr)
+            self.assertFalse(marker.exists())
+            self.assertEqual(before, ((deployment / ".env").read_bytes(), (deployment / "docker-compose.yml").read_bytes()))
+            self.assertFalse(mutation_log.exists())
+
+    def test_generated_rollback_rejects_environment_drift_before_compose_inspection(self):
+        bash = self._git_bash_path()
+        if bash is None:
+            self.skipTest("Git Bash is required to execute the generated deployment script in isolation")
+        probe = subprocess.run([str(bash), "-lc", "python3 --version"], capture_output=True, text=True, check=False)
+        if probe.returncode != 0:
+            self.skipTest("Git Bash Python runtime is required for structured Compose preflight")
+
+        with tempfile.TemporaryDirectory() as temp_root:
+            root = Path(temp_root)
+            _, deployment, backup, script, fake_bin, mutation_log = self._write_rollback_preflight_fixture(root)
+            (backup / ".env").write_text(
+                (deployment / ".env").read_text(encoding="utf-8").replace("private-test-value", "changed-value"),
+                encoding="utf-8",
+                newline="\n",
+            )
+            checksum_path = backup / "SHA256SUMS.txt"
+            names = [line.split("  ./", 1)[1] for line in checksum_path.read_text(encoding="utf-8").splitlines()]
+            checksum_path.write_text(
+                "".join(
+                    f"{hashlib.sha256((backup / name).read_bytes()).hexdigest()}  ./{name}\n"
+                    for name in names
+                ),
+                encoding="utf-8",
+                newline="\n",
+            )
+            before = ((deployment / ".env").read_bytes(), (deployment / "docker-compose.yml").read_bytes())
+            result = self._run_rejected_rollback(root, deployment, backup, script, fake_bin, mutation_log)
+
+            self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+            self.assertIn("live .env differs from the verified pre-deployment backup", result.stderr)
+            self.assertEqual(before, ((deployment / ".env").read_bytes(), (deployment / "docker-compose.yml").read_bytes()))
+            self.assertFalse(mutation_log.exists())
+
+    def test_generated_rollback_rejects_structural_mismatch_before_compose_replacement(self):
+        bash = self._git_bash_path()
+        if bash is None:
+            self.skipTest("Git Bash is required to execute the generated deployment script in isolation")
+        probe = subprocess.run([str(bash), "-lc", "python3 --version"], capture_output=True, text=True, check=False)
+        if probe.returncode != 0:
+            self.skipTest("Git Bash Python runtime is required for structured Compose preflight")
+
+        for case in ("project", "backend-image", "volume", "network", "port", "mount"):
+            with self.subTest(mismatch=case), tempfile.TemporaryDirectory() as temp_root:
+                root = Path(temp_root)
+                context, deployment, backup, script, fake_bin, mutation_log = self._write_rollback_preflight_fixture(root)
+                checksum_path = backup / "SHA256SUMS.txt"
+                checksum_names = [line.split("  ./", 1)[1] for line in checksum_path.read_text(encoding="utf-8").splitlines()]
+                checksum_path.write_text(
+                    "".join(
+                        f"{hashlib.sha256((backup / name).read_bytes()).hexdigest()}  ./{name}\n"
+                        for name in checksum_names
+                    ),
+                    encoding="utf-8",
+                    newline="\n",
+                )
+                backend_baseline = f"{MODULE.BACKEND_IMAGE}:{context.baseline_backend_tag}"
+                frontend_baseline = f"{MODULE.FRONTEND_IMAGE}:{context.baseline_frontend_tag}"
+
+                def compose_config(project: str, backend_image: str) -> dict:
+                    return {
+                        "name": project,
+                        "volumes": {
+                            "qaflex_pgdata": {"name": "qaflex-test_qaflex_pgdata", "external": True},
+                            "qaflex_backend_logs": {"name": "qaflex-test_qaflex_backend_logs"},
+                        },
+                        "networks": {"default": {"name": "qaflex-test_default"}},
+                        "services": {
+                            "postgres": {
+                                "image": MODULE.POSTGRES_IMAGE,
+                                "networks": {"default": None},
+                                "ports": [{"host_ip": "127.0.0.1", "published": "15432", "target": 5432, "protocol": "tcp"}],
+                                "volumes": [{"type": "volume", "source": "qaflex_pgdata", "target": "/var/lib/postgresql/data"}],
+                            },
+                            "backend": {
+                                "image": backend_image,
+                                "networks": {"default": None},
+                                "ports": [{"host_ip": "127.0.0.1", "published": "18080", "target": 18080, "protocol": "tcp"}],
+                                "volumes": [
+                                    {"type": "volume", "source": "qaflex_backend_logs", "target": "/app/logs"},
+                                    {"type": "bind", "source": "/opt/qaflex-backups", "target": "/var/lib/qaflex/backups"},
+                                ],
+                            },
+                            "frontend": {
+                                "image": frontend_baseline,
+                                "networks": {"default": None},
+                                "ports": [{"host_ip": "0.0.0.0", "published": "18181", "target": 80, "protocol": "tcp"}],
+                                "volumes": [],
+                            },
+                        },
+                    }
+
+                current_config = compose_config("qaflex-test", f"{MODULE.BACKEND_IMAGE}:current")
+                candidate_project = "qaflex-other" if case == "project" else "qaflex-test"
+                candidate_backend_image = "wrong-backend" if case == "backend-image" else backend_baseline
+                candidate_config = compose_config(candidate_project, candidate_backend_image)
+                if case == "volume":
+                    candidate_config["volumes"]["qaflex_pgdata"]["name"] = "qaflex-test_wrong_pgdata"
+                elif case == "network":
+                    candidate_config["networks"]["default"]["name"] = "qaflex-test_wrong_network"
+                elif case == "port":
+                    candidate_config["services"]["backend"]["ports"][0]["published"] = "18081"
+                elif case == "mount":
+                    candidate_config["services"]["backend"]["volumes"][1]["source"] = "/srv/qaflex-backups"
+                current_path = root / "current-compose.json"
+                candidate_path = root / "candidate-compose.json"
+                current_path.write_text(json.dumps(current_config), encoding="utf-8", newline="\n")
+                candidate_path.write_text(json.dumps(candidate_config), encoding="utf-8", newline="\n")
+                docker = fake_bin / "docker"
+                docker.write_text(
+                    "#!/usr/bin/env bash\n"
+                    "set -euo pipefail\n"
+                    "if [[ \"${1:-}\" == info ]]; then exit 0; fi\n"
+                    "if [[ \"${1:-}\" == compose && \"$*\" == *' config --format json'* ]]; then\n"
+                    "  if [[ \"$*\" == *'.docker-compose.rollback.'* ]]; then cat \"$FAKE_CANDIDATE_JSON\"; else cat \"$FAKE_CURRENT_JSON\"; fi\n"
+                    "  exit 0\n"
+                    "fi\n"
+                    "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q postgres'* ]]; then echo abcdef012345; exit 0; fi\n"
+                    "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q backend'* ]]; then echo backend123456; exit 0; fi\n"
+                    "if [[ \"${1:-}\" == inspect && \"$*\" == *'State.Health.Status'* ]]; then echo healthy; exit 0; fi\n"
+                    "case \"$*\" in *' compose up '*|*' compose stop '*|*' compose down '*|* load -i *|*' volume rm '*|* rm *) printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\";; esac\n"
+                    "exit 99\n",
+                    encoding="utf-8",
+                    newline="\n",
+                )
+                docker.chmod(0o755)
+                before = ((deployment / ".env").read_bytes(), (deployment / "docker-compose.yml").read_bytes())
+                result = self._run_rejected_rollback(
+                    root,
+                    deployment,
+                    backup,
+                    script,
+                    fake_bin,
+                    mutation_log,
+                    extra_env={
+                        "FAKE_CURRENT_JSON": self._msys_path(current_path),
+                        "FAKE_CANDIDATE_JSON": self._msys_path(candidate_path),
+                    },
+                )
+
+                self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+                expected_message = "Compose application image identity mismatch" if case == "backend-image" else "candidate Compose changes project, volume, network, port, or mount identity"
+                self.assertIn(expected_message, result.stderr)
+                self.assertEqual(before, ((deployment / ".env").read_bytes(), (deployment / "docker-compose.yml").read_bytes()))
+                self.assertFalse(mutation_log.exists())
 
     def test_baseline_reads_only_authoritative_full_compose(self):
         with tempfile.TemporaryDirectory() as root:

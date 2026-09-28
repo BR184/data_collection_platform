@@ -44,6 +44,7 @@ DEFAULT_ROUTES = [
     "/customer-issues/delay-issues",
     "/customer-issues/response-efficiency",
     "/customer-issues/issue-by-function",
+    "/customer-issues/customer-statistics",
     "/system-settings/mirror-settings",
     "/system-settings/database-settings",
     "/system-settings/database-browser",

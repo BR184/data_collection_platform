@@ -40,6 +40,7 @@ READ_ONLY_ENDPOINTS = [
     ("customer-defect-cause", "/api/statistic-boards/customer-issue-defect-cause"),
     ("customer-response-efficiency", "/api/statistic-boards/customer-issue-response-efficiency"),
     ("customer-by-function", "/api/statistic-boards/customer-issue-by-function"),
+    ("customer-statistics", "/api/statistic-boards/customer-issue-customer-statistics"),
     ("customer-records", "/api/customer-issues/records?page=1&size=10&topic=cc-product"),
     ("customer-record-options", "/api/customer-issues/records/filter-options?topic=cc-product"),
     ("customer-illegal-records", "/api/customer-issues/illegal-records?page=1&size=10"),
