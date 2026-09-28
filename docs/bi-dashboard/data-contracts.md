@@ -158,7 +158,7 @@ platform:
 
 ## 页面 API
 
-六页使用六个独立入口，不建立全阶段大接口：
+六个产品阶段各用独立入口；客户问题页使用独立范围入口，不进入产品版本目录：
 
 | 页面 | 目标入口 |
 |---|---|
@@ -168,9 +168,13 @@ platform:
 | 单元测试 | `/api/bi/unit-test` |
 | 集成测试 | `/api/bi/integration-test` |
 | 系统测试 | `/api/bi/system-test` |
+| 独立客户问题 | `/api/bi/customer-issues` |
+
+独立客户问题 GET 接受可选的`milestoneBusinessKey`及`customerKind/customer`、`moduleKind/module`、`functionKind/function`。成员组合只允许`ALL`且无值、`MISSING`且无值、或`VALUE`且携带非空原始成员值。单次读取返回默认/所选里程碑、完整范围候选、业务日、来源版本、10项缺陷指标、4项需求指标和8张图数据。候选来自未按成员筛选的完整基础范围；成员值不参与里程碑或其他类型范围解析。非法或不完整参数返回400。
 
 - 同一请求先冻结产品版本、页面筛选和来源版本，再生成该页全部指标、图表和表格 DTO；不能逐图读取不同发布版本。
 - 页面 API 只返回页面需要的聚合结果、有限明细和下钻标识，不默认导出上游一条一条的完整原始数据。
+- 客户问题页固定按完整议题四列身份去重，返回`pageKey=customer-issues`；不从客户统计板DTO拼页面数据。来源资格、来源版本、业务日和事实读取位于同一真实只读一致性事务。
 - 页面 DTO 是 BI 内部契约，不是跨系统公共 API；事实关联和跨系统映射使用稳定业务 ID，单一冻结来源快照内的图表分组使用 `BiSourceDimension`，两者不得混用。
 - 时间桶趋势（编码页代码注释率、代码走查缺陷密度）由 BI 后端按请求的 `granularity` 聚合后返回周期值，页面 DTO 只承载“周期 → 值”；前端只做周期轴并集与查找，禁止在页面层对明细做二次聚合，也禁止按重复周期键取最后一条。
 - 记录级覆盖率（`totalObservations`/`validObservations`）统计的是走查记录数，不能解释为趋势周期数量；没有合法记录的时间桶不返回点位，由前端对齐为 `null`，不得补零、前向填充或连接断点。
@@ -191,9 +195,10 @@ platform:
 | 页面 | 必须返回的区块键 |
 |---|---|
 | 需求、设计 | `source-consistency`、`overview`、`problem-categories`、`module-quality`、`review-scatter` |
-| 编码 | `source-consistency`、`code-trend`、`submission-trend`、`contributors`、`module-increments`、`review-quality`、`review-categories`、`module-review-quality`、`review-scatter`、`static-scan`、`comment-rate`、`quality-trend` |
+| 编码 | `source-consistency`、`code-trend`、`submission-trend`、`contributors`、`module-increments`、`review-quality`、`review-categories`、`module-review-quality`、`review-scatter`、`comment-rate`、`quality-trend` |
 | 单元、集成 | `test-quality` |
 | 系统测试 | `source-consistency`、`quality-targets`、`round-quality`、`severity-distribution`、`module-quality`、`module-repair-targets`、`cause-distribution`、`delay-analysis`、`developer-workload` |
+| 独立客户问题 | `source-consistency`、`defect-overview`、`today-activity`、`module-defects`、`severity-distribution`、`module-severity`、`cause-distribution`、`delay-analysis`、`assignee-workload`、`requirement-overview`、`module-requirements`、`daily-defect-trend` |
 
 - 页面级 `ERROR` 只展示一次真实失败原因和重试入口，不继续渲染业务图表；但响应仍返回完整区块键集合，使状态契约可验证且不退化为“页面响应缺少该区块状态契约”。
 - 已打开页面持有加载时的 `sourceVersion`。平台或 CAT 出现同产品版本的新来源时只提示可刷新；刷新前不得把新旧版本数据混在同一页。
@@ -208,4 +213,7 @@ platform:
 - Excel 数据表必须忠实呈现图表所展示的数值口径：比率类字段（修复率、通过率、关闭率、注释率、占比等）在页面数据中已是百分数（0-100），原样输出、不再二次乘 100；表头单位取自图表自身配置（如评审质量图的 `个/KLOC`、`行/小时`）。
 - Excel 端点 `POST /api/bi/download/excel` 内部复用与 PNG 完全相同的下载授权门（校验查看 + 下载权限、页面/模板合法、来源版本为当前发布版）；附件文件名由服务端消毒标题与时间戳生成。
 - Excel 数据表在元信息行下携带一行“口径说明：…”（取自该图表卡片的问号词条，请求字段 `explanation`，可空）：与看板呈现的达标门槛与计算口径保持单一事实源；空白说明不写入，因此表头/数据行索引与冻结行数随是否携带说明动态推导（无说明时冻结 4 行、有说明时 5 行）。
+- 下载范围为显式封闭联合类型：六阶段使用`rangeType=PRODUCT_VERSION`及正数`productVersionId`；客户页使用`rangeType=CUSTOMER_ISSUE`，携带`milestoneBusinessKey`、`businessDate`及客户/模块/功能的`ALL|MISSING|VALUE`选择。两种范围字段互斥，kind/value不匹配时拒绝请求。
+- 客户问题页八个稳定图实例为`customer-issue-module-defects`、`customer-issue-severity-distribution`、`customer-issue-module-severity`、`customer-issue-cause-distribution`、`customer-issue-delay-analysis`、`customer-issue-assignee-workload`、`customer-issue-module-demand`、`customer-issue-daily-trend`。后端逐项校验范围类型、`pageKey`、图实例和模板；PNG授权与Excel共用同一下载入口和服务。
+- 客户页点击下载时复制图表数据与完整上下文；授权阶段重新读取一致来源，核对来源版本、固定业务日和成员候选。Excel日趋势包含完整自然日轴、日期、日新增、日修复、未知空值、范围和口径说明；PNG覆盖完整日期范围，不受当前缩放窗口裁剪。
 - 首期仍不输出 CSV、原始明细包或整页长截图。BI Excel 数据表与平台其它 Excel 导出只共享无状态样式工具（`ExcelExportStyles`），数据提取与授权等业务实现各自独立，不互相复用。

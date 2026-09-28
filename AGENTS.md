@@ -214,6 +214,8 @@ AI 应在任务收尾和用户纠正工作方式时，检查用户的直接表�
 - 优先使用最小化、可审查的补丁方式编辑文件（如 `apply_patch` 或项目约定工具）。
 - 不提交缓存、构建产物、临时日志、密钥、本地环境文件或系统特定文件。
 - 运行产物仅可位于 `backend/logs/`、`frontend/dist/`、`frontend/node_modules/`、`backend/target/`、`.tmp/`、`.tmp-logs/` 或 `tools/`；提交前运行 `scripts/check_worktree_artifacts.py`、`scripts/check_runtime_artifact_locations.py`、`scripts/check_text_whitespace.py` 和 `git diff --check`。
+- 新增 Flyway 迁移必须把校验和登记到 `scripts/flyway-migration-checksums.json`（运行 `scripts/check_flyway_migration_immutability.py` 校验）。登记只允许新增条目：先确认既有迁移零改动、零删除，再写入新条目；禁止用整体重写锁文件的方式掩盖既有迁移的改动。
+- 新增统计板页面/看板端点时必须同工作单元完成四类登记，缺一不可：`PagePermissionKeyResolver` 的 view/export 映射、权限目录与角色授予迁移、实时工作区同步元数据、工作区事实依赖；并在对应回归测试中锁定，避免只在运行期暴露。
 - 路径、代码与目录结构以版本仓库为事实源；文档只记录理解项目所需的稳定信息。
 
 ## 项目实际配置

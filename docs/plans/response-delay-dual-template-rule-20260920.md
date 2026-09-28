@@ -2,49 +2,54 @@
 
 ## 进度与中间物
 
-- 状态：调查完成，**模板身份已核实**（用户 2026-09-20 指示以老平台源码为参考），业务与实现口径待审批；**未开始实现**，未修改任何代码、配置、数据库或既有文档（本方案自身除外）。
-- 需求来源：领导 2026-09-20 原话「CCProduct 上的『响应已延期』标签打的规则改一下吧。按照响应模板或回复模板回复的，都不需要打响应已延期。」
-- 交付物：本方案（口径目标版本、单一权威模型设计、消费面与影响、待裁决项）。
-- 本轮证据：只读代码走查 + 本地真库（`qaflex-dev-postgres-15432`，project 325 镜像）只读统计 + 老平台源码（`D:/projects/spidergitdata-dev`）与冻结夹具的模板身份核实。未运行应用、未跑测试、未触发同步或事实重建；不把静态走查表述为功能验证。用户对「响应模板」身份提出质疑后已重做交叉核实（新老平台源码 + 路由 + 用户可见规则文案 + 规则文档 + 真实评论结构枚举），结论未变，证据见 §3.2。
-- 未提交工作树改动（评审代码、文档、大量黄金快照）全部保留，与本工作单元无关。
-- 前置依赖：`docs/plans/delay-label-writeback-prewriteback-gate-fix-20260920.md`（写回闸门缺陷已修复并完成真实链路验证，`remove_labels` 分支已于 2026-09-20 在本地 GitLab 实测通过）。
-- 待裁决：**D1 已核实关闭**（三个叫法同一模板：`# 问题调研情况说明` 正文；「响应模板」= 新平台自身术语 D-03/11.4/11.5，「缺陷调研模板」= 老平台 CC 页面文案；回复模板 = 《【模板】缺陷修改的回复模板》首行 `### 1、修复状态`）；D2（是否要求按规范填写，建议「出现即算」）、D3（响应时间列与响应效率口径是否同步放宽）、D4（存量 30 余条与写回开关的处理时机）仍待裁决。
+- 状态：**2026-09-23 复核，待审批、未实现**。已找到 2026-09-20 同一需求的本方案，不另建重复文档；当前 `IssueSlaRules.hasResponse` 仍只识别调研模板。
+- 需求来源：2026-09-20 原记录与用户 2026-09-23 再次提出的要求一致：「CCProduct 上的『响应已延期』标签打的规则改一下。照响应模板或回复模板回复的，都不需要打响应已延期。」
+- 交付物：更新本方案与 `docs/progress.md` 的入口；业务代码、配置、数据库、黄金快照均未修改。用户已有客户统计、事实发布、前后端与文档改动全部保留。
+- 证据分层：§3.2、§4 的源码对照与本地样本数量来自 2026-09-20 调查记录，本次未重新查询数据库或枚举老平台数据。2026-09-23 仅由主 AI 核对当前代码、测试源码、文档与 Git 历史，未使用任何子代理；未启动应用、运行功能测试、触发同步、重建事实或真实写回。
+- 前置修复已落地：`98ff4b4c` 包含来源级发布收敛（D-14）、三列窄写（D-15）及运行终态驱动编排和异步执行器隔离（D-16）；历史真实链路验证见 `docs/progress.md` 2026-09-20 条目。`remove_labels` 已实测通过，不是本次新增分支。当前工作树还包含延期窄写与范围 generation 同事务推进的改动，实施时须保留。
+- 本次订正：历史 31 条仅是模板集合样本，不是必删标签数量；删除分支早已可达；既有延期重算测试已补齐部分覆盖；D3 不应把响应效率、修复人等不同业务含义强行统一。推荐本单元只改响应延期判据，响应效率保持既有口径，`fix_user` 不纳入范围，见 §5.3。
+- 待裁决：**D1 模板身份已核实关闭**；D2（出现即算或要求完整填写）、D3（是否扩大响应效率指标范围）、D4（存量收敛时机与写回责任方）仍待用户裁定。本次重复提出原需求不视为对旧方案所有扩展项的批准。
 
 ## 1. 恢复线索
 
-- 调查基点：`main` 的 `7565afd5` 加当前工作树；不能仅凭该 commit 重现工作树中已有的未提交状态。
-- 恢复后首条命令：`git status --short`。随后读取 `AGENTS.md`、`docs/progress.md`、本方案与前置方案，核对实施指派与工作树变化。
-- 相关权威：`docs/platform-page-business-rules.md` 5.3 节（:366-391）、`docs/decisions.md` D-03/D-07、`docs/architecture.md` 响应判定与事实发布相关段落。
-- 当前下一步：用户裁决 D1〜D4 并指派实施；批准方案不等于自动开始编码。
+- 原调查基点：`7565afd5` 加当时工作树；本方案已随 `c818e720` 入库。本次复核基点：`main@c818e720` 加 2026-09-23 当前未提交工作树，不能只凭 commit 重现全部状态。
+- 恢复后首条命令：`git status --short`。随后读取 `AGENTS.md`、`docs/progress.md`、本方案，核对实施指派与工作树变化；前置修复以 D-14～D-16 及当前代码为准，不重复实施旧修复计划。
+- 相关权威：`docs/platform-page-business-rules.md` 5.3、5.4、5.6 节；`docs/decisions.md` D-03、D-07、D-14～D-16；`docs/architecture.md` 事实与统计章节。
+- 当前下一步：用户裁决 D2～D4 并指派实施；批准方案不等于自动开始编码。
 
 ## 2. 目标与边界
 
 ### 2.1 目标版本
 
-把「响应已延期」中「已响应」的判据，从当前单一的「问题调研情况说明」扩展为「**响应模板 ∨ 回复模板**」，并把该判据收敛为全仓**唯一权威定义**：现在同一个模板身份散落在至少 5 处、语义互不一致（见 §3.3），本次一并消除，不新增第二套并行定义。
+把「响应已延期」的豁免判据从单一响应模板扩展为「**响应模板 ∨ 回复模板**」。2026-09-23 复核建议：在既有 `IssueSlaRules` 中组合已有的两种检测能力，事实构建和周期重算继续共用该规则；不在队列或 HTTP 写回层另做模板过滤。原稿的全仓模板目录重构不是实现本需求的必要条件，暂不纳入推荐范围。
 
 ### 2.2 明确不做
 
-- 不改「解决已延期」判定。该侧已用 `### 1、修复状态`（`hasFixCaseNote`）参与解决闭环豁免，属既有正确行为，本次不动。
+- 不改「解决已延期」判定。该侧已用 `### 1、修复状态`（`hasFixCaseNote`）参与解决闭环豁免，本次仅复用检测能力，不改其闭环条件。
 - 不改 SLA 时长（P1 24h / P2 48h / P3 72h）、不改 2026-01-01 创建时间下限、不改项目 325 范围、不改建议类排除口径。
 - 不改标签名与写回协议。写回仍只允许 `add_labels` / `remove_labels` 增删 `响应已延期`、`解决已延期`。
-- 不为兼容旧行为保留新旧双套 token 列表、开关或回退分支。
+- 推荐范围内不改变 `has_response` 的既有调研模板存在性语义，不改 `research_template_time`、`fix_user`、计划解决时间、缺陷原因与非法模板校验。是否扩大响应效率指标另由 D3 裁定。
+- 不新增 token 副本、规则开关、并行写回通路或为了本需求改造整套模板解析器。
 
 ### 2.3 成功标准（可验证）
 
-1. 同一份评论文本，Java 判定「已响应」的结果在全仓**只有一个来源**，`IssueSlaRules`、`IssueClassificationRules`、模板解析与展示解析不再各自持有 token 副本。
-2. 「仅回复模板、无调研模板」的议题不再被判为响应已延期；「两者都无」的议题行为与现状完全一致。
-3. 相关后端默认快速套件全绿；受影响端点的既有测试与黄金快照按门禁流程同步更新并经用户审阅。
-4. 未触碰任何与响应判定无关的既有功能产出（解决延期、延期原因、BI、评审域等）。
+1. 同一输入经事实构建和周期重算得到相同的响应延期判定，均由 `IssueSlaRules` 负责；2 参和 5 参重载的模板豁免条件一致。
+2. 「仅回复模板、无调研模板」的范围内议题不再响应延期；已有标签按现有差异写回移除，没有标签则不添加。「两者都无」的议题行为与现状完全一致，包括后来补模板也解除原有延期。
+3. 相关后端默认快速套件全绿；受影响端点与快照按黄金基线门禁纪律处理，未获授权不得更新快照或为本次调查运行黄金链。
+4. 解决延期、非延期标签、响应效率、修复人、其他项目业务输出与既有事实窄写边界不发生非预期变化。
 
 ## 3. 约束与背景（现状实现事实）
 
 ### 3.1 判定链路
 
-- 生产唯一入口：`backend/src/main/java/com/data/collection/platform/service/IssueSlaRules.java:29-42`（5 参重载）。先 `hasResponse` 短路为「不延期」，否则比 `now - created_at_source` 是否超过响应 SLA（`:14-16`、`:105-114`）。
-- 两处计算点共用该入口：同步构建 `service/IssueFactSourceRowMapper.java:139-147`、每小时兜底 `service/FactBuildService.java:308-344`（仅三个布尔发生变化才回写）。**口径只需改一处即两处生效。**
-- `hasResponse` 当前语义（宽松）：`IssueSlaRules.java:21-23` → `service/IssueTemplateParsingSupport.java:65` → `service/IssueRuleSupport.java:31-43,54-59`，即对**整串聚合评论**做 `trim().toLowerCase()` 后 `contains`。后果：不要求任何小节被填写、空模板算已响应、任何人在评论里提到这句话也算、全角字符不匹配、无评论边界。
-- 评论输入：`service/GitlabFactSourceSqlProvider.java:70` 把 `ods_gitlab_notes.note` 按 `created_at desc, id desc` 用 `\n---\n` **全量倒序拼接**（不过滤系统评论与作者、无截断），落入 `issue_fact.raw_payload`。
+以下 `service/` 路径均相对 `backend/src/main/java/com/data/collection/platform/`，行号按 2026-09-23 工作树核对。
+
+- 生产延期计算入口：`service/IssueSlaRules.java:29-42`（5 参重载）。先 `hasResponse` 短路为「不延期」，否则按 `Duration.toHours() > SLA小时数` 判定；2 参重载 `:25-27` 使用同一响应判据但按既有标签判延期。不得借本需求改动整小时截断、严格大于或缺时间时的既有行为。
+- 两处计算点共用入口：同步构建 `service/IssueFactSourceRowMapper.java:141-149`、周期兜底 `service/FactBuildService.java:323-361`。后者只在三个布尔变化时按主键窄写，并在同一事务推进实际命中范围的 generation（`:376-432`），不写 `has_response` 或其他来源字段。
+- `hasResponse` 当前语义（宽松）：`IssueSlaRules.java:21-23` → `service/IssueTemplateParsingSupport.java:65` → `service/IssueRuleSupport.java:31-43,54-59`，即对**整串聚合评论**做 `trim().toLowerCase()` 后 `contains`。不要求小节已填写，空模板与正文提及也算，不增加全角字符归一或评论边界检查。
+- 评论输入：`service/GitlabFactSourceSqlProvider.java:70` 把非删除 Issue 评论按 `created_at desc, id desc` 用 `\n---\n` 全量倒序拼接（不过滤系统评论与作者），落入 `issue_fact.raw_payload`。
+- 写回闭环：`CustomerIssueDelayClosureOrchestrator.java:229-239` 先重算再登记候选；`CustomerIssueDelayLabelWritebackPlanner.java:17-24` 只消费事实布尔；`CustomerIssueDelayLabelWritebackService.java:41-63` 计算增删集合；worker `CustomerIssueDelayLabelWritebackWorkerService.java:62-78` 在执行前重读候选并重算差异，不盲用入队时保存的标签动作。
+- 写回范围由 `CustomerIssueDelayLabelWritebackQueueService.java:152-179` 固定为 GITLAB、对应来源、project 325、未删除、未关闭、2026 起创建且无 GitLab 接口报错。统计排除建议类不等于队列排除建议类，本次两者原有范围均不变。
 
 ### 3.2 两类模板的真实身份（已用新老平台源码、规则文档与真实数据交叉核实）
 
@@ -76,7 +81,9 @@
 - 现状：**只有响应模板参与「已响应」判定**；回复模板仅参与解决闭环豁免与缺陷原因归类（`IssueSlaRules.java:13,71-73`、`IssueClassificationRules.java:44,182-184`）。
 - 老平台对两类模板的**匹配语义先例**（实现时须对齐）：豁免判定一律用"出现即算"——响应用 `content.contains("# 问题调研情况说明")`（大小写敏感、必须带 `# `），回复豁免用 `hasIssueCaseNote`（任一评论 `contains("### 1、修复状态")`）；**内容规范性只用于"非法模板"判定，从不参与豁免**。归属/解析另有更严口径：`fix_user` 与缺陷原因归类要求**评论首行**命中 `### 1、修复状态`。新平台现状与这一分工一致（`IssueSlaRules` contains 用于豁免、`IssueTemplateParsingSupport:213` 与 SQL `fix_user` 首行用于解析），因此回复模板只需接入豁免判据，不需改动解析侧。
 
-### 3.3 同一身份的重复定义（本次要收敛的屎山）
+### 3.3 现有模板定义与不同消费语义
+
+以下保留原调查定位，行号可能随工作树变化。相同模板标记在不同业务中采用 contains、首行匹配或完整校验，不自动构成规则冲突；本次不以全仓去重为由改变这些契约。
 
 | 位置 | 定义 | 语义 |
 |---|---|---|
@@ -92,106 +99,112 @@
 ### 3.4 老平台对照与模块边界
 
 - 老平台响应判定只认 `# 问题调研情况说明`，且比新平台严格（区分大小写、必须带 `# `）：`D:/projects/spidergitdata-dev` 的 `IssueServiceImpl.java:84,864-881,1002-1021`。老平台不认回复模板——**本次是相对老平台的口径变更**，涉及新旧并存期的职责边界（见 §8）。
-- 「响应已延期 / 解决已延期」是**客户问题模块专有口径**：新平台业务规则只在 5.3（客户问题 → 延期问题）定义响应检测；系统测试模块（第 4 章）只有「申请延期缺陷原因分析」，口径来自标签 `delay_cause`，与响应判定无关。老平台同样只有 `/getDelayIssueCCProduct` 一个延期页，且硬编码 `projectId=325`。
-- 事实列 `is_response_delayed` / `has_response` 按数据源全量计算（含项目 9 等非 CC 来源），但消费方只有客户问题侧：`CustomerIssueDelayIssuesBoardService`、`CustomerIssueByFunctionBoardService`、`CustomerIssueDelayLabelWritebackQueueService`、`CustomerIssueRecordService`（`delayOnly` 筛选）与 `IssueFactDiagnosticsService` 诊断。系统测试页面不消费该列，故本次口径变更的可见影响面限定在客户问题模块内。
+- 「响应已延期 / 解决已延期」是客户问题延期模块的判定；系统测试的「申请延期缺陷原因分析」来自标签 `delay_cause`，不因本需求改变。
+- 2026-09-23 核实：`IssueFactSourceRowMapper.java:141-149` 对各项目派生 `has_response`，但 `is_response_delayed` / `response_overdue` 还受 `openCustomerIssue` 限制，不能把三者都描述为对所有项目计算延期。扩展共用 `hasResponse` 会改变其他项目的该事实布尔及诊断输出；若采纳该扩展必须在验收中列明，不能宣称仅有标签变化。
 
 ## 4. 证据与影响规模
 
-本地真库只读统计（project 325，`created_at >= 2026-01-01`，2026-09-20 复核）：
+以下仅保留 2026-09-20 调查记录的本地样本统计（project 325，`created_at >= 2026-01-01`），**不是本次实测，更不是内网待删数量**：
 
 | 指标 | 数量 |
 |---|---|
 | 议题 | 1156（open 876） |
 | 含响应模板（`# 问题调研情况说明`） | 148 |
 | 含回复模板（`### 1、修复状态`） | 83 |
-| **仅有回复模板、无响应模板** | **31（open 28）** |
+| 仅有回复模板、无响应模板 | 31（open 28） |
 
-口径变更的实际增量即这类议题：它们会从「维持/新增标签」翻转为「**删除标签**」，写回侧 `remove_labels` 分支首次被真实触发，内网等同于批量摘除标签。这不是文案级改动，需明确确认为预期效果。上一版记录的 30 条为同一量级（镜像数据随后续同步自然增长）。
+模板集合不等于实际标签差异。只有仍在写回范围内、按目标判据不再响应延期且当前持有「响应已延期」标签的议题才需摘标；没有该标签的命中议题保持不添加。实际清单还须应用新平台现有的宽松响应匹配、接口报错过滤、当前标签与来源状态，不能直接取上述 31 或 28 条。`remove_labels` 已在此前修复中实测，不是本次首次可达。
 
 ## 5. 方案与步骤
 
-### 5.1 建立单一权威模型（核心）
+### 5.1 复用现有规则入口（推荐方案，待审批）
 
-新增一个包内可见的模板目录职责（建议命名 `IssueTemplateCatalog`，置于 `service` 包），唯一定义两类模板：
+保留 `IssueSlaRules.hasResponse(notesText)` 与 `hasFixCaseNote(notesText)` 的既有语义，仅在两个 `isResponseDelayed` 重载中将豁免条件改为二者的逻辑或。两种模板检测均已存在，底层均使用 `IssueRuleSupport.containsToken`，无需新增模板目录、token 副本或通用规则框架。
 
-- `RESPONSE`（响应模板）：问题调研情况说明；
-- `REPLY`（回复模板）：`### 1、修复状态`。
-
-对外只暴露判据方法，例如 `hasResponseReply(notesText)` 与 `hasReplyReply(notesText)`，并在类文档中**显式写明匹配语义**（是否忽略大小写、是否要求独立评论边界或首行命中、是否要求小节非空）。全仓其余定义改为引用该目录，删除副本：`IssueSlaRules:11-13`、`IssueClassificationRules:44-46`、`IssueTemplateParsingSupport:24`、`IssueResponseTemplateParser:9`。匹配语义与「是否要求规范填写」由 **D2** 决定；token 集合已由 D1 核实确定。
+`has_response` 继续表达原有调研模板存在性；「是否豁免响应延期」由两个模板存在性共同决定。这是两个不同业务问题，不把模板存在性、模板规范性、修复人归属和指标样本资格强行改成同一判据。
 
 ### 5.2 判据变更
 
-`IssueSlaRules.isResponseDelayed` 的短路条件由「有响应模板」改为「响应模板 ∨ 回复模板」。方法签名保持不变，两处计算点零改动。
+- 5 参 `isResponseDelayed`：`hasResponse(notesText) || hasFixCaseNote(notesText)` 成立立即返回 false，否则原有缺时间处理与 SLA 判定不变。
+- 2 参 `isResponseDelayed`：同一豁免条件成立返回 false，否则保留原有标签存在性判断；方法签名与所有调用点不变。
+- `IssueFactSourceRowMapper` 与 `FactBuildService` 不增加特例，分别经既有入口派生/重算 `is_response_delayed` 与 `response_overdue`。`is_resolve_delayed` 虽仍在周期任务中重算，其公式与结果不得因本改动变化。
+- 推荐 D2 沿用“出现即算”：响应模板保持现有带/不带 `# ` 的匹配能力，回复模板保持 `### 1、修复状态` 的 contains 语义；空模板、非首行提及的处理不额外收紧。完整填写与否继续由非法模板规则负责，不作为延期豁免门槛。
+- 回复发生在 SLA 之后同样解除响应延期；本需求不新增历史迟响应惩罚或永久保留标签规则。
 
-匹配语义按 §3.2 核实到的老平台先例落地（D2 建议「出现即算」）：
+### 5.3 响应效率与修复人边界（D3）
 
-- 两类模板共用**同一个**匹配函数（忽略大小写、整串 contains），严格度差异只体现在各自的 token 列表，不引入第二套匹配逻辑。
-- **响应模板必须保持现有双 token（`# 问题调研情况说明` 与 `问题调研情况说明`）与忽略大小写语义，本次不得收紧**：现有 139 条命中里包含仅出现无 `#` 变体的评论，收紧会让部分议题掉出豁免、把标签范围反向扩大，超出领导要求的变更边界。老平台更严（大小写敏感且必须带 `# `）属既有差异，不在本次一并收紧。
-- 回复模板采用老平台同款 token `### 1、修复状态`；解析侧（`fix_user`、缺陷原因归类）继续用"评论首行命中"的更严口径，豁免侧用 contains——这一分工与老平台完全一致，不改。
+2026-09-23 复核订正原稿：`research_template_time` 是第一条调研模板时间（`GitlabFactSourceSqlProvider.java:71`），`fix_user` 是最新首行精确匹配修复模板的作者（`:72-82`），两列不是同一“响应”概念。业务规则 5.6 第 2～3 条明确只以调研模板计算响应周期；修复人还被质量看板消费（`QualityBoardOtherQueryService.java:185-198`）。不能以“同源一致”为由连带改写二者。
 
-### 5.3 事实层与展示层口径一致性（D3）
+- **选项 B（本次推荐，替代旧稿的 A 推荐）**：只扩展延期豁免，保持 `has_response`、`research_template_time`、`fix_user` 及响应效率指标不变。只有回复模板的议题可豁免延期，但不因此成为调研响应周期样本；两种业务规则职责不同，不是新旧兼容双轨。
+- 选项 A（扩展需求，未授权）：若用户同时要求响应效率也接受两种模板，需明确首次时间取值、样本资格、字段名称/契约、缓存与历史重建范围后补全方案；不能直接照旧稿修改 SQL。无论是否选择 A，`fix_user` 均不因本次响应延期需求改变。
 
-`research_template_time`（`GitlabFactSourceSqlProvider.java:71`）是响应效率看板「调研模板回复时间」的一等输入（`statistics/CustomerIssueResponseEfficiencyBoardService.java:86,104,423,577,854,864`）。若只改布尔而不动该列，会出现「已响应但无响应时间」的自相矛盾状态（30 条议题不进响应效率明细，却被豁免响应延期）。两个选项：
+### 5.4 版本号、缓存与存量收敛
 
-- **选项 A（推荐）**：以新权威模型重写 `research_template_time` 与 `fix_user` 两列语义，使事实层与判定层同源。代价：响应效率看板的行集合与「回复时间」取值口径随之变化，属**业务指标语义变更**，需领导确认。
-- 选项 B：仅改布尔判定，两列保留旧语义并记为「展示口径」。缺点是制造半新半旧的双口径，后续维护必须同时理解两套语义，与本次「消除重复定义」的目标相冲突，不推荐。
+- 实施时升级延期看板 `CustomerIssueDelayIssuesBoardService.RULE_VERSION`（当前 v5）及受影响记录页 `CustomerIssueRecordService.CC_PRODUCT_RULE_VERSION` / `DELAY_RULE_VERSION`；逐个核对其他实际消费延期字段的快照，不机械升级无关看板。
+- 规则版本升级只负责废弃旧规则缓存，不能替代事实重算。已有开放议题由现有周期重算更新两个响应延期布尔；窄写与范围 generation 原子推进保持不变，不能恢复整行 upsert。
+- 推荐范围不改变模板来源字段或 schema，不要求仅为本单元新增迁移、全量 GitLab 同步或扩大事实重建范围。发布时须确认来源评论已同步，等待原有重算/发布链路收敛后再验收；只更新代码而不等待事实更新不能算生效。
+- 正式启用写回前须经授权确认两个开关、唯一写回责任方，并审阅当前差异清单。不要从“历史测试开过开关”推断现在获准写入。
 
-### 5.4 版本号与缓存
+### 5.5 测试（先加复现，再改实现）
 
-口径变化必须 bump 规则版本，否则统计与记录快照读旧结果：
+所有测试放在既有 `backend/src/test/` 与前端相邻测试目录，以下均为待实施验证，不是本次通过结果。
 
-- `statistics/CustomerIssueDelayIssuesBoardService.java:50` `RULE_VERSION`（当前 `customer-issue-delay-issues@2026-09-08-v5`）；
-- `service/CustomerIssueRecordService.java:33-34` `CC_PRODUCT_RULE_VERSION` / `DELAY_RULE_VERSION`。
-
-### 5.5 测试（先加测试，后改实现）
-
-- `service/IssueFactNormalizationRulesTest.java:414-476` 已有「出现模板即取消延期」的断言，扩展覆盖双模板组合。
-- 补上当前空白：`FactSourceRowMapperTest`、`FactBuildServiceTest`、`IssueFactSourceInstancePipelineTest` 对 `is_response_delayed` **零断言**，需先加可复现测试再改实现。
-- 边界用例：仅回复模板、两模板都有、两模板都无、空模板、正文随手提及、大小写混排、全角字符、首行命中与非首行命中（取决于 D2 语义）。
-- 前端：`utils/rule-explanation-copy.ts:63` 的规则说明文案需与后端语义一致。
-
-### 5.6 消费面核对（不改逻辑，只确认无意外）
-
-| 消费方 | 影响 |
+| 层次 | 覆盖范围与验收标准 |
 |---|---|
-| 延期问题看板 `resp_delay_p1/p2/p3/sum` 与延期类型文案 | 30 条议题计数与明细变化（`statistics/CustomerIssueDelayIssuesBoardService.java:600-603,830-841`） |
-| 客户问题列表「仅看延期」筛选 | 行集合变化（`IssueFactRecordConditionBuilder.java:49-51,84-86` 的 `delayOnly`） |
-| 记录页红 tag「响应延期」 | 展示变化（`frontend/src/views/CustomerIssueRecordsView.vue:570`） |
-| `/api/facts/issue-diagnostics` | `responseDelayedCount` 变化（当前 736） |
-| 响应效率看板 | 仅当 D3 选 A 时变化 |
-| BI 看板 | **不消费**该布尔（`docs/bi-dashboard/data-contracts.md:36` 用 `delay_issue` + `delay_cause`） |
-| `delay_issue` / `delay_reason` / `delay_cause` / `fixed_label_time` / `is_resolve_delayed` | 各自独立计算，取值不受本次影响 |
+| 规则单测 `IssueFactNormalizationRulesTest` | 仅响应、仅回复、两者都有、两者都无；两个重载结果符合各自契约；仅回复且已超时的用例旧实现必红；SLA 临界点、迟到回复、缺时间、无优先级行为保持 |
+| 模板边界 | 依 D2 锁定空模板、正文提及、无 `#` 响应模板、全角改写、非首行回复模板；空评论不豁免；非法模板判定和解决延期不变 |
+| 来源映射 `FactSourceRowMapperTest` / `IssueFactSourceInstancePipelineTest` | 真实调用映射与事实链后两个响应延期列一致；`has_response`、响应时间、修复人、计划字段与其他项目结果保持原语义 |
+| 周期重算 | 扩展现有 `FactBuildServiceTest`、`FactBuildServiceCustomerIssueDelayFlagsTest`，补仅回复模板由 true→false 的回归；已有后者 `:107-178` 已验证窄写、范围外不变与无变化不写入，不能再描述为零覆盖 |
+| 范围版本 | 复用 `CustomerIssueDelayRefreshScopeVersionTest`，验证变化只推进实际写入范围，无变化不推进，事务失败不留下部分状态 |
+| 队列与 worker | 使用真实规则输出接 planner/worker：命中模板且带标签时只摘「响应已延期」；不带则无动作；旧入队 add 动作在消费前因新事实改为 remove/无动作；解决标签仍按原事实，其他标签不被触碰；关闭写回开关不发 HTTP |
+| 页面与导出 | 延期计数、明细、记录标识、delayOnly 与导出一致；仍解决延期的议题不能因响应已豁免而从所有延期集合消失；响应效率与修复人保持原值 |
 
-### 5.7 文档同步
+前端 `frontend/src/utils/rule-explanation-copy.ts` 及后端规则说明如包含旧单模板表述须同步修改并补相邻测试。涉及页面说明的改动实施后须启动开发服务做浏览器验收，不能只以类型检查代替。
 
-- `docs/platform-page-business-rules.md:26`、`:375`（第 4 条）、`:376`（第 5 条）改写为双模板口径；
-- `:390`（第 14 条写回规则）补注「删除分支因口径变更现已可达」；
-- `docs/architecture.md` 响应判定段落同步；
-- `docs/decisions.md` 新增一条决策（口径权威与单一模板目录），编号顺延 D-14；
-- `scripts/contracts/fact-field-contract.md` 目前**未登记** `is_response_delayed` / `has_response`，本次补齐登记。
+### 5.6 消费面核对
+
+| 消费方 | 推荐范围的预期影响 |
+|---|---|
+| 延期问题看板 `resp_delay_p1/p2/p3/sum` | 命中回复模板、原本计入响应延期的样本退出该计数/明细；不是全部历史模板样本都变化 |
+| 客户问题列表 delayOnly 与响应延期标识 | 随事实变化；仍命中解决延期的记录继续保留 |
+| `/api/facts/issue-diagnostics` | 响应延期布尔和计数可能改变；不改变 `has_response` 的原语义 |
+| 响应效率、修复人及相关质量指标 | D3 选 B 时全部保持 |
+| `delay_issue` / `delay_reason` / `delay_cause` / `fixed_label_time` / `is_resolve_delayed` | 各自独立计算，值不因本次规则变更改变；不连带修改 BI 口径 |
+
+### 5.7 实施顺序与文档收口
+
+1. 用户裁定 D2～D4 并指派后，重新检查工作树与有关事实/统计并行改动；锁定本单元差异，不混入他人文件。
+2. 增加上述旧规则必红测试；只修改规则入口及必要说明，保留已落地的 D-14～D-16 与范围失效机制。
+3. 先运行定向规则/映射/写回测试，再运行默认后端套件及受影响前端测试；实际结果写回本方案。真实 GitLab 端到端测试须另获授权，用可恢复样本检验评论新增、修改、删除后自动进入镜像、事实与标签闭环。
+4. 审阅预期产出差异；黄金链仅在用户明确要求或发布门禁时运行，更新快照必须另外确认，不能手改快照、弱化比较或顺带覆盖并行工作单元差异。
+5. 实施后更新业务规则 5.3 第 4～5 条、架构中的响应延期豁免说明及事实字段契约，明确它与调研响应周期的区别。第 14 条原有 add/remove 协议与闸门不变，不再写“删除分支首次可达”。
+6. 确认后的决策记录进 `docs/decisions.md`，按落地时实际末位编号续号，不复用已占用的 D-14；当前阶段与验证记录进 `docs/progress.md`。验收收口后再依仓库规则处理活动计划。
 
 ## 6. 决策记录
 
-| 编号 | 待裁决事项 | 建议 | 影响 |
-|---|---|---|---|
-| D1 | 「响应模板」与「回复模板」分别指什么 | **已核实关闭**：二者同属客户问题模块使用的两个模板。「响应模板」= `# 问题调研情况说明` 正文（新平台 D-03/11.4/11.5 自称「响应模板」，老平台 CC 页面称「缺陷调研模板」）；「回复模板」= 《【模板】缺陷修改的回复模板》首行 `### 1、修复状态`。CC 议题评论中不存在第三类模板结构，字面量「响应模板」出现 0 次 | 决定 token 集合；依据见 §3.2 |
-| D2 | 「按模板回复」是否要求内容按规范填写才豁免 | **建议沿用"出现即算"**（与老平台先例一致，且方向性理由：改成"必须规范填写"会使豁免面变小、被标"响应已延期"的议题反而变多，与领导意图相反）；内容规范性只继续服务 `is_illegal` | 决定空模板/错填模板是否仍算已响应；影响豁免范围 |
-| D3 | 是否同步放宽 `research_template_time` 与响应效率口径 | 选项 A（同源一致） | 选项 A 改变业务指标语义；选项 B 留下双口径 |
-| D4 | 存量 30 条与写回开关的处理时机 | 本次只落口径、写回开关保持关闭，等正式接管时统一执行 | 决定内网是否立刻批量删标签 |
+以下是待审批方案，不表示已获得实施或现场写入授权。
 
-已否决：在 `IssueSlaRules` 上再挂一份回复模板 token 列表（新增副本，屎山）；在写回侧做特例过滤（错位的补丁）；给老平台加兼容分支或双轨判定（开发期禁止）。
+| 编号 | 事项 | 当前建议/状态 | 影响 |
+|---|---|---|---|
+| D1 | 两种模板身份 | 已核实：响应模板为 `# 问题调研情况说明`；回复模板以 `### 1、修复状态` 开头，依据 §3.2 | 不再增加第三种猜测模板 |
+| D2 | 是否要求规范填写才豁免 | 推荐沿用“出现即算”，规范性仍由非法模板校验负责；待裁定 | 决定空模板与正文提及等边界 |
+| D3 | 是否同步扩展响应效率 | 本次推荐 B：仅改变延期豁免；A 属额外指标需求，须补全并批准后才实施；`fix_user` 不在本次范围 | 防止修改标签规则时意外改变响应周期、修复人或其他项目事实 |
+| D4 | 存量标签与写回责任方 | 先验收新事实和差异清单；真实摘标、写回开关启用及责任方切换须单独授权 | 不把历史 31 条当作当前待删清单，不让新旧平台同时按不同规则写回 |
+
+推荐不采用：新增回复模板 token 副本；在队列/HTTP 层添加过滤补丁；为了两模板逻辑或重构全仓解析目录；用“同源”理由扩大修复人语义。这些是本次方案建议，不伪记为用户已裁决。
 
 ## 7. 接口契约
 
-- `IssueSlaRules.isResponseDelayed(List, String, LocalDateTime, String, LocalDateTime)` 签名不变，调用点不变。
-- 新增模板目录类为**包内可见**，不新增公开 API、不新增表结构、不新增端点。
-- 若 D3 选 A：`research_template_time` 与 `fix_user` 的语义变化属事实层契约变化，须同时在 `scripts/contracts/fact-field-contract.md` 登记。
-- 端点目录不变（无新增/删除端点），但既有端点响应内容变化。受影响黄金快照（需按门禁流程更新并经用户审阅）：`customer-issues/get___records__delay-default.json`、`__delay-page1.json`、`__cc-product-default.json`、`get___records_export__delay.json`、`get___records_filter-options__delay.json`、`get___records_rule-explanation__delay.json`、`statistic-boards/get___{boardKey}__customer-issue-delay-issues.json` 及其 `_export`、`facts/get___issue-diagnostics__default.json`；`golden/customer-issue-delay-issues/*.json` 9 个 golden-master 文件含 `resp_delay` 字段。
+- `IssueSlaRules.isResponseDelayed(List<String>, String)` 及 5 参重载签名均不变；只改变响应延期豁免条件。
+- 推荐范围不新增类、公共 API、表结构或端点；`hasResponse` / `has_response`、`research_template_time`、`fix_user` 语义保持。
+- `CustomerIssueDelayLabelWritebackService.LabelChange` 及 `add_labels` / `remove_labels` 协议不变，仍只允许两种延期标签。符合写回范围的议题已持有响应延期标签时会生成删除动作，不是仅停止未来添加。
+- 快照影响初筛范围：客户问题记录/筛选/规则说明/导出、延期看板与导出、事实诊断及 `golden/customer-issue-delay-issues/`。具体文件和变化必须以冻结夹具及实际 diff 为准；响应效率、修复人等差异在推荐范围内应视为回归，不能直接更新为新基线。
 
 ## 8. 风险与假设
 
-- **新旧平台并存冲突（高）**：内网写回目前仍由老平台承担，老平台只认 `# 问题调研情况说明`。只改新平台口径会导致新平台判定「这 30 条不该延期」而老平台继续保留标签，两端长期不一致；若新平台同时开写回，则与老平台小时级任务互相拉扯。落地前必须明确写回责任方（改老平台 or 切换接管）。
-- **批量删标签不可逆（中）**：`remove_labels` 在生产 GitLab 上会真实摘除 30 个标签，需人工恢复成本；建议按 D4 先关写回、只落口径。
-- 已排除的假设：D1 已由三重证据核实（§3.2），领导所指「响应模板」「回复模板」与本仓库两类模板文本一致，不再是待验证假设。
-- 未验证：口径变更后的真实链路行为需在前置缺陷修复后，于本地 GitLab 用真实链路实测（含 `remove_labels` 分支），不得以静态走查代替。
-- 风险：若 D2 选择「要求规范填写」，需确认 `validateCustomerResearchTemplate` 现有校验失败路径不会把「已响应」误判为「未响应」而扩大标签打回范围。
+- **新旧平台写回冲突**：旧方案记录内网由老平台承担写回，本次未查询现场，不能断言当前责任方。上线前须核实；两个系统若按不同规则写同一标签，会产生反复增删。
+- **共享系统副作用**：摘标虽可按事前清单重新补回，仍是真实 GitLab 变更，会留下事件与通知，不是完全无副作用回滚。先保存标签基线、限定授权样本并审阅预期差异；未经授权不触碰真实标签。
+- **范围限制**：已关闭、2026 前创建、接口报错等范围外议题不会被现有队列清理历史标签。若要求这些存量也摘标，须另行确认范围，不能混入本次保持原写回范围的方案。
+- **待验证**：历史 D-14～D-16 实测证明写回机制可用，不证明新双模板语义已通过。仍须补新语义测试、真实链路验收与获授权后的发布门禁。
+- **D2 的扩展成本**：若要求完整填写才豁免，应先分别定义两种模板的完整性标准并补充本方案，不能把仅针对调研模板的校验直接用于回复模板。
+- **并行工作树**：当前 `FactBuildService`、范围版本及多个统计服务已有未提交改动；本次仅修订方案，不重启服务、不触发迁移、不运行黄金链、不提交或推送。
