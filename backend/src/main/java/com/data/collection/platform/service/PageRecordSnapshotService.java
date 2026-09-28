@@ -36,6 +36,7 @@ public class PageRecordSnapshotService {
   private final JsonUtils jsonUtils;
   private final FactProjectionVersionService projectionVersionService;
   private final IssueProjectionScopeResolver issueScopeResolver;
+  private final FactProjectionPublicationGuardService publicationGuardService;
   private final JdbcTemplate fingerprintJdbcTemplate;
   private final ConcurrentHashMap<String, CompletableFuture<Object>> inFlightRebuilds =
       new ConcurrentHashMap<>();
@@ -44,11 +45,13 @@ public class PageRecordSnapshotService {
       JdbcTemplate jdbcTemplate,
       JsonUtils jsonUtils,
       FactProjectionVersionService projectionVersionService,
-      IssueProjectionScopeResolver issueScopeResolver) {
+      IssueProjectionScopeResolver issueScopeResolver,
+      FactProjectionPublicationGuardService publicationGuardService) {
     this.jdbcTemplate = jdbcTemplate;
     this.jsonUtils = jsonUtils;
     this.projectionVersionService = projectionVersionService;
     this.issueScopeResolver = issueScopeResolver;
+    this.publicationGuardService = publicationGuardService;
     this.fingerprintJdbcTemplate = buildFingerprintJdbcTemplate(jdbcTemplate);
   }
 
@@ -66,17 +69,19 @@ public class PageRecordSnapshotService {
       SnapshotRequest request,
       Class<T> responseType,
       Supplier<T> responseSupplier) {
-    if (isDegradedVersion(request.sourceVersion())) {
+    // 进入读取时解析一次版本用于查缓存；重建完成后再解析一次，用于识别检查与读取之间发生的发布。
+    String sourceVersion = request.resolveSourceVersion();
+    if (isDegradedVersion(sourceVersion)) {
       Optional<T> degraded = findLatestSnapshot(request, responseType);
       if (degraded.isPresent()) {
         return degraded.get();
       }
     }
-    Optional<T> snapshot = findReadyOrInvalidate(request, responseType);
+    Optional<T> snapshot = findReadyOrInvalidate(request, responseType, sourceVersion);
     if (snapshot.isPresent()) {
       return snapshot.get();
     }
-    return rebuildWithSingleFlight(request, responseType, responseSupplier);
+    return rebuildWithSingleFlight(request, responseType, sourceVersion, responseSupplier);
   }
 
   /**
@@ -87,6 +92,7 @@ public class PageRecordSnapshotService {
   private <T> T rebuildWithSingleFlight(
       SnapshotRequest request,
       Class<T> responseType,
+      String sourceVersion,
       Supplier<T> responseSupplier) {
     String rebuildKey = request.pageKey() + "|" + request.snapshotType() + "|" + request.scopeKey()
         + "|" + request.ruleVersion() + "|" + requestHash(request.requestPayload());
@@ -101,7 +107,7 @@ public class PageRecordSnapshotService {
     }
     try {
       T response = responseSupplier.get();
-      save(request, response);
+      saveUnlessSourceMoved(request, sourceVersion, response);
       future.complete(response);
       return response;
     } catch (RuntimeException error) {
@@ -110,6 +116,28 @@ public class PageRecordSnapshotService {
     } finally {
       inFlightRebuilds.remove(rebuildKey, future);
     }
+  }
+
+  /**
+   * 只在来源版本没有推进时缓存重建结果。
+   *
+   * <p>缓存查找用的是进入读取时解析的版本，事实读取发生在其后。期间一旦发生发布，本次结果就跨了两代
+   * 数据，写进旧版本键会让后续按该版本命中的请求长期读到混合代际的内容。此处放弃缓存，只返回本次结果，
+   * 由下一次请求按新版本重建；不靠重试或延时掩盖这个窗口。
+   */
+  private void saveUnlessSourceMoved(
+      SnapshotRequest request, String sourceVersion, Object response) {
+    String versionAfterRebuild = request.resolveSourceVersion();
+    if (sourceVersion.equals(versionAfterRebuild)) {
+      save(request, sourceVersion, response);
+      return;
+    }
+    log.warn(
+        "Skip page snapshot cache for {} ({}): source version moved from {} to {} during rebuild",
+        request.pageKey(),
+        request.snapshotType(),
+        sourceVersion,
+        versionAfterRebuild);
   }
 
   private static RuntimeException asRuntimeException(CompletionException error) {
@@ -182,16 +210,18 @@ public class PageRecordSnapshotService {
     }
   }
 
-  private <T> Optional<T> findReadyOrInvalidate(SnapshotRequest request, Class<T> responseType) {
+  private <T> Optional<T> findReadyOrInvalidate(
+      SnapshotRequest request, Class<T> responseType, String sourceVersion) {
     try {
-      return findReady(request, responseType);
+      return findReady(request, responseType, sourceVersion);
     } catch (IllegalStateException e) {
       invalidateSnapshot(request);
       return Optional.empty();
     }
   }
 
-  public <T> Optional<T> findReady(SnapshotRequest request, Class<T> responseType) {
+  public <T> Optional<T> findReady(
+      SnapshotRequest request, Class<T> responseType, String sourceVersion) {
     String requestHash = requestHash(request.requestPayload());
     List<String> rows =
         jdbcTemplate.queryForList(
@@ -213,7 +243,7 @@ public class PageRecordSnapshotService {
             request.snapshotType(),
             request.scopeKey(),
             request.ruleVersion(),
-            request.sourceVersion(),
+            sourceVersion,
             requestHash);
     if (rows.isEmpty()) {
       return Optional.empty();
@@ -221,67 +251,82 @@ public class PageRecordSnapshotService {
     return Optional.ofNullable(jsonUtils.fromJson(rows.getFirst(), responseType));
   }
 
+  /**
+   * 按请求当前解析出的来源版本写入快照。
+   *
+   * <p>读取入口使用 {@link #save(SnapshotRequest, String, Object)} 显式传入本次一致性判定所用的版本。
+   */
   public void save(SnapshotRequest request, Object response) {
-    jdbcTemplate.update(
-        """
-        insert into page_record_snapshots(
-          page_key, snapshot_type, scope_key, rule_version, source_version, request_hash,
-          request_payload, response_payload, status, error_message,
-          generated_at, refreshed_at, created_at, updated_at
-        ) values (?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, 'READY', null,
-                  current_timestamp, current_timestamp, current_timestamp, current_timestamp)
-        on conflict (page_key, snapshot_type, scope_key, rule_version, request_hash)
-        do update set
-          source_version = excluded.source_version,
-          request_payload = excluded.request_payload,
-          response_payload = excluded.response_payload,
-          status = 'READY',
-          error_message = null,
-          generated_at = current_timestamp,
-          refreshed_at = current_timestamp,
-          updated_at = current_timestamp
-        """,
-        request.pageKey(),
-        request.snapshotType(),
-        request.scopeKey(),
-        request.ruleVersion(),
-        request.sourceVersion(),
-        requestHash(request.requestPayload()),
-        payloadJson(request.requestPayload()),
-        jsonUtils.toJson(response));
+    save(request, request.resolveSourceVersion(), response);
+  }
+
+  private void save(SnapshotRequest request, String sourceVersion, Object response) {
+    publicationGuardService.writeSnapshot(
+        () ->
+            jdbcTemplate.update(
+                """
+                insert into page_record_snapshots(
+                  page_key, snapshot_type, scope_key, rule_version, source_version, request_hash,
+                  request_payload, response_payload, status, error_message,
+                  generated_at, refreshed_at, created_at, updated_at
+                ) values (?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, 'READY', null,
+                          current_timestamp, current_timestamp, current_timestamp, current_timestamp)
+                on conflict (page_key, snapshot_type, scope_key, rule_version, request_hash)
+                do update set
+                  source_version = excluded.source_version,
+                  request_payload = excluded.request_payload,
+                  response_payload = excluded.response_payload,
+                  status = 'READY',
+                  error_message = null,
+                  generated_at = current_timestamp,
+                  refreshed_at = current_timestamp,
+                  updated_at = current_timestamp
+                """,
+                request.pageKey(),
+                request.snapshotType(),
+                request.scopeKey(),
+                request.ruleVersion(),
+                sourceVersion,
+                requestHash(request.requestPayload()),
+                payloadJson(request.requestPayload()),
+                jsonUtils.toJson(response)));
   }
 
   public void invalidatePage(String pageKey) {
-    jdbcTemplate.update(
-        """
-        update page_record_snapshots
-           set status = 'STALE',
-               updated_at = current_timestamp
-         where page_key = ?
-           and status = 'READY'
-        """,
-        pageKey);
+    publicationGuardService.writeSnapshot(
+        () ->
+            jdbcTemplate.update(
+                """
+                update page_record_snapshots
+                   set status = 'STALE',
+                       updated_at = current_timestamp
+                 where page_key = ?
+                   and status = 'READY'
+                """,
+                pageKey));
   }
 
   private void invalidateSnapshot(SnapshotRequest request) {
-    jdbcTemplate.update(
-        """
-        update page_record_snapshots
-           set status = 'STALE',
-               error_message = 'Cached payload could not be parsed; refresh on next read',
-               updated_at = current_timestamp
-         where page_key = ?
-           and snapshot_type = ?
-           and scope_key = ?
-           and rule_version = ?
-           and request_hash = ?
-           and status = 'READY'
-        """,
-        request.pageKey(),
-        request.snapshotType(),
-        request.scopeKey(),
-        request.ruleVersion(),
-        requestHash(request.requestPayload()));
+    publicationGuardService.writeSnapshot(
+        () ->
+            jdbcTemplate.update(
+                """
+                update page_record_snapshots
+                   set status = 'STALE',
+                       error_message = 'Cached payload could not be parsed; refresh on next read',
+                       updated_at = current_timestamp
+                 where page_key = ?
+                   and snapshot_type = ?
+                   and scope_key = ?
+                   and rule_version = ?
+                   and request_hash = ?
+                   and status = 'READY'
+                """,
+                request.pageKey(),
+                request.snapshotType(),
+                request.scopeKey(),
+                request.ruleVersion(),
+                requestHash(request.requestPayload())));
   }
 
   public String issueFactSourceVersion() {
@@ -484,12 +529,28 @@ public class PageRecordSnapshotService {
     return jsonUtils.toJson(requestPayload);
   }
 
+  /**
+   * 页面记录快照请求。
+   *
+   * <p>{@code sourceVersionSupplier} 提供来源版本，而不是由调用方提前算好塞进键值：读取入口在查缓存前
+   * 解析一次，重建完成后再解析一次，用来识别“缓存键判定之后、事实读取期间发生了发布”的窗口。
+   */
   public record SnapshotRequest(
       String pageKey,
       String snapshotType,
       String scopeKey,
       String ruleVersion,
-      String sourceVersion,
+      Supplier<String> sourceVersionSupplier,
       Object requestPayload) {
+
+    /**
+     * 解析调用时刻的来源版本。
+     *
+     * @return 来源版本；解析器缺失时返回空串，按无版本处理
+     */
+    public String resolveSourceVersion() {
+      String version = sourceVersionSupplier == null ? null : sourceVersionSupplier.get();
+      return version == null ? "" : version;
+    }
   }
 }

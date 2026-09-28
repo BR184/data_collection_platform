@@ -179,6 +179,7 @@ class GitlabSourceSchemaGuardTest {
             "issue_id",
             "user_id",
             "label_id",
+            "action",
             "target_id",
             "target_type",
             "color",
@@ -233,10 +234,17 @@ class GitlabSourceSchemaGuardTest {
                 "label_id",
                 "target_id",
                 "target_type",
-                "mirror_deleted",
-                "created_at",
-                "updated_at")),
+                "mirror_deleted")),
         Map.entry("ods_gitlab_labels", List.of("id", "title", "color", "mirror_deleted")),
+        Map.entry(
+            "ods_gitlab_resource_label_events",
+            List.of(
+                "issue_id",
+                "merge_request_id",
+                "label_id",
+                "action",
+                "created_at",
+                "mirror_deleted")),
         Map.entry(
             "ods_gitlab_notes",
             List.of(

@@ -1,5 +1,6 @@
 package com.data.collection.platform.service.statistics;
 
+import com.data.collection.platform.domain.issue.DefectCauseMetricCatalog;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
@@ -10,6 +11,7 @@ import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.entity.statistics.StatisticColumnGroup;
 import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
 import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
+import com.data.collection.platform.entity.statistics.StatisticDetailCollection;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
@@ -102,6 +104,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   private final SystemTestPhaseCatalogService phaseCatalogService;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final StatisticBoardSnapshotService snapshotService;
+  private final StatisticBoardReadScopeResolver readScopeResolver;
 
   public SystemTestDefectCauseBoardService(
       JsonUtils jsonUtils,
@@ -111,7 +114,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       StatisticIssueLinkSupport issueLinkSupport,
       SystemTestPhaseCatalogService phaseCatalogService,
       SystemTestPhaseScopeResolver phaseScopeResolver,
-      StatisticBoardSnapshotService snapshotService) {
+      StatisticBoardSnapshotService snapshotService,
+      StatisticBoardReadScopeResolver readScopeResolver) {
     super(jsonUtils);
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.realtimeIncrementalRefreshService = realtimeIncrementalRefreshService;
@@ -120,6 +124,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     this.phaseCatalogService = phaseCatalogService;
     this.phaseScopeResolver = phaseScopeResolver;
     this.snapshotService = snapshotService;
+    this.readScopeResolver = readScopeResolver;
   }
 
   @Override
@@ -200,7 +205,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     StatisticFilterGroup appliedGroup = effectiveFilterGroup;
     return snapshotService.readOrRefresh(
         snapshotRequest(filters, appliedGroup, definition, selectedTestingPhase),
-        () -> buildBoardResponse(filters, appliedGroup, definition));
+        ignored -> buildBoardResponse(filters, appliedGroup, definition));
   }
 
   private StatisticBoardResponse buildBoardResponse(
@@ -294,6 +299,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     return new StatisticDetailResponse(
         "缺陷原因分析明细",
         "展示当前模块与缺陷原因命中的议题明细。",
+        List.of(StatisticDetailCollection.detailList()),
+        StatisticDetailCollection.DETAIL_KEY,
         DETAIL_COLUMNS,
         pageSlice.records(),
         pageSlice.total(),
@@ -833,10 +840,13 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         "project=" + SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID
             + ";testingPhase=" + (StringUtils.hasText(selectedTestingPhase) ? selectedTestingPhase : "none"),
         RULE_VERSION,
-        snapshotService.issueFactSourceVersion(
-            SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID,
-            com.data.collection.platform.service.IssueScopeDimension.TESTING_PHASE,
-            selectedTestingPhase),
+        StatisticBoardSnapshotService.SourceReadPlan.of(
+            () ->
+                readScopeResolver.resolve(
+                    payload,
+                    SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID,
+                    com.data.collection.platform.service.IssueScopeDimension.TESTING_PHASE,
+                    selectedTestingPhase)),
         payload,
         definition,
         effectiveFilterGroup);
@@ -953,8 +963,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
           key,
           numericValue,
           count(numericValue),
-          drilldown && numericValue > 0,
-          drilldown && numericValue > 0 ? "issue-list" : null,
+          StatisticDrilldownSupport.legacyCellDrilldown(drilldown, numericValue),
+          StatisticDrilldownSupport.legacyCellDrilldown(drilldown, numericValue) ? "issue-list" : null,
           detailParams);
     }
 

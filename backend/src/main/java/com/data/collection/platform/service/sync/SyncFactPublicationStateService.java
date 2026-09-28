@@ -71,6 +71,9 @@ public class SyncFactPublicationStateService {
 
   /** 判断指定事实族当前是否允许读取 ODS 并提交事实。 */
   public boolean isReady(String sourceInstance, FactType factType) {
+    if (!labelEventHistoryVerified(sourceInstance, factType)) {
+      return false;
+    }
     Boolean ready = jdbcTemplate.queryForObject(
         """
         select exists(
@@ -92,6 +95,93 @@ public class SyncFactPublicationStateService {
         sourceInstance,
         factType.name());
     return Boolean.TRUE.equals(ready);
+  }
+
+  /** 判断 ISSUE 事实读取依赖的标签事件历史是否已经完成全量核验。 */
+  public boolean isIssueSourceHistoryComplete(String sourceInstance) {
+    return labelEventHistoryVerified(sourceInstance, FactType.ISSUE);
+  }
+
+  /**
+   * 读取来源的对外可读资格。
+   *
+   * <p>与 {@link #isReady} 的“有没有待提交工作”含义不同：这里回答“当前能否把已提交事实当作完整来源对外输出”。
+   * 依赖未就绪（镜像失败或依赖表未形成代际）、全量重建已请求但尚未结算、以及仍有未发布到最新变化版本的目标，
+   * 都属于不完整发布窗口，此时不得对外产出新的 READY 结果。
+   *
+   * <p>来源尚无任何发布记录时，只有“该来源从未产生事实投影”才算可证明的完整（它不贡献任何数据）；
+   * 已经有事实投影却没有发布记录，属于完整性无从证实的未知状态，一律拒绝，不得把未知当作可读，
+   * 也不得因为测试夹具里存在这样的数据就放行。
+   *
+   * @param sourceInstance 来源实例
+   * @param factType 事实族
+   * @return 资格结果；不可读时 {@code reason} 为可直接展示的原因
+   */
+  public SourceQualification qualification(String sourceInstance, FactType factType) {
+    SourceQualificationRow row =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*) as state_count,
+                   count(*) filter (where readiness_status <> 'READY') as not_ready_count,
+                   coalesce(bool_or(full_publication_requested), false) as full_publication_pending,
+                   min(error_message) filter (where readiness_status <> 'READY') as error_message
+              from source_fact_publication_states
+             where source_instance = ? and fact_type = ?
+            """,
+            (resultSet, rowNumber) ->
+                new SourceQualificationRow(
+                    resultSet.getLong("state_count"),
+                    resultSet.getLong("not_ready_count"),
+                    resultSet.getBoolean("full_publication_pending"),
+                    resultSet.getString("error_message")),
+            sourceInstance,
+            factType.name());
+    if (row == null || row.stateCount() == 0L) {
+      if (hasPublishedProjections(sourceInstance, factType)) {
+        return new SourceQualification(
+            false,
+            "来源 "
+                + sourceInstance
+                + " 已有事实投影但没有发布代际记录，无法确认完整性，暂不产出统计结果");
+      }
+      return new SourceQualification(true, null);
+    }
+    if (row.notReadyCount() > 0L) {
+      String detail = row.errorMessage() == null ? "事实来源依赖未就绪" : row.errorMessage();
+      return new SourceQualification(false, "来源 " + sourceInstance + " 当前不可读：" + detail);
+    }
+    if (row.fullPublicationPending()) {
+      return new SourceQualification(
+          false, "来源 " + sourceInstance + " 的全量事实重建尚未结算，暂不产出统计结果");
+    }
+    long unpublished = countUnpublishedTargets(sourceInstance, factType);
+    if (unpublished > 0L) {
+      return new SourceQualification(
+          false, "来源 " + sourceInstance + " 仍有 " + unpublished + " 个目标未发布，暂不产出统计结果");
+    }
+    if (!labelEventHistoryVerified(sourceInstance, factType)) {
+      return new SourceQualification(
+          false,
+          "来源 "
+              + GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance)
+              + " 的 resource_label_events 尚未完成完整全量核验，暂不产出统计结果");
+    }
+    return new SourceQualification(true, null);
+  }
+
+  /** 判断来源是否已经产生过事实投影代际；有代际却没有发布记录时，完整性无从证实。 */
+  private boolean hasPublishedProjections(String sourceInstance, FactType factType) {
+    Boolean exists =
+        jdbcTemplate.queryForObject(
+            """
+            select exists(
+              select 1 from fact_projection_generations
+               where source_instance = ? and fact_type = ?)
+            """,
+            Boolean.class,
+            GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance),
+            factType.name());
+    return Boolean.TRUE.equals(exists);
   }
 
   /** 清除失败事实运行对目标的归属，使来源级消费者可以继续接管历史目标。 */
@@ -225,7 +315,30 @@ public class SyncFactPublicationStateService {
         configId,
         sourceInstance,
         factType.name());
-    return count != null && count == 0;
+    return count != null
+        && count == 0
+        && labelEventHistoryVerified(sourceInstance, factType);
+  }
+
+  private boolean labelEventHistoryVerified(String sourceInstance, FactType factType) {
+    if (factType != FactType.ISSUE) {
+      return true;
+    }
+    Boolean verified =
+        jdbcTemplate.queryForObject(
+            """
+            select exists(
+              select 1
+                from sync_run_table_states
+               where source_instance = ?
+                 and source_table = 'resource_label_events'
+                 and sync_enabled = true
+                 and dirty_flag = false
+                 and last_full_verified_at is not null)
+            """,
+            Boolean.class,
+            GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance));
+    return Boolean.TRUE.equals(verified);
   }
 
   private void upsertDependency(
@@ -299,4 +412,16 @@ public class SyncFactPublicationStateService {
   private boolean hasPendingTargets(String sourceInstance, FactType factType) {
     return countUnpublishedTargets(sourceInstance, factType) > 0L;
   }
+
+  /** 来源对外可读资格；{@code reason} 仅在不可读时有值。 */
+  public record SourceQualification(boolean readable, String reason) {
+    public SourceQualification {
+      if (!readable && (reason == null || reason.isBlank())) {
+        throw new IllegalArgumentException("不可读来源必须给出原因");
+      }
+    }
+  }
+
+  private record SourceQualificationRow(
+      long stateCount, long notReadyCount, boolean fullPublicationPending, String errorMessage) {}
 }

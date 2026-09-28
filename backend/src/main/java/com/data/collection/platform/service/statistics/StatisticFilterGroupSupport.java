@@ -15,6 +15,20 @@ final class StatisticFilterGroupSupport {
   static final String FILTER_GROUP_PARAM = "filterGroup";
   static final String DETAIL_KEYWORD_PARAM = "detailKeyword";
   static final String DETAIL_FILTER_PARAM_PREFIX = "detailFilter.";
+  // 统计表控制参数：参与规范化请求、快照键与下钻规格，但不是业务筛选字段，不能被当成筛选条件解析。
+  // 注意：sourceInstance 是既有查询参数（由 IssueFactQueryService 下推到 SQL），不属于控制参数。
+  private static final java.util.Set<String> CONTROL_PARAMS =
+      java.util.Set.of(
+          "groupBy",
+          "customer",
+          "customerKind",
+          "module",
+          "moduleKind",
+          "function",
+          "functionKind",
+          "businessDate",
+          "population",
+          "sourceVersion");
 
   private StatisticFilterGroupSupport() {
   }
@@ -47,6 +61,7 @@ final class StatisticFilterGroupSupport {
   private static boolean isReservedFilterKey(String key) {
     return FILTER_GROUP_PARAM.equals(key)
         || DETAIL_KEYWORD_PARAM.equals(key)
+        || CONTROL_PARAMS.contains(key)
         || (key != null && key.startsWith(DETAIL_FILTER_PARAM_PREFIX));
   }
 

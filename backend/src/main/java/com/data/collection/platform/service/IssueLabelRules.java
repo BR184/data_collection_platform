@@ -15,10 +15,9 @@ final class IssueLabelRules {
       Map.entry("LEVEL2", List.of("二级缺陷", "二级严重")),
       Map.entry("LEVEL3", List.of("三级缺陷", "三级严重")),
       Map.entry("SUGGESTION", List.of("建议", "需求", "需求如此")));
-  private static final Map<String, List<String>> PRIORITY_TOKENS = IssueRuleSupport.ordered(
-      Map.entry("P1", List.of("P1")),
-      Map.entry("P2", List.of("P2")),
-      Map.entry("P3", List.of("P3")));
+  // 优先级是平台封闭枚举：只比较标签的“值”（前缀后的取值，或裸标签整条），禁止整条标签子串匹配；
+  // 否则 CC2026R4SP1系统测试 这类含 "P1" 子串的阶段名会把该阶段全部议题判成 P1。
+  private static final List<String> PRIORITY_VALUES = List.of("P1", "P2", "P3");
   private static final List<String> EXCLUDED_LABELS = List.of("功能屏蔽", "已拒绝", "建议");
   // 对齐老平台 QueryUtil.setQueryFilter：系统测试/普通议题统计只排除关闭的申请否决和需求如此。
   private static final List<String> LEGACY_CLOSED_EXCLUSION_LABELS = List.of("申请否决", "需求如此");
@@ -91,13 +90,41 @@ final class IssueLabelRules {
     return String.join(" & ", categories);
   }
 
+  /**
+   * 解析议题优先级：只看标签的“值”是否恰好是 P1/P2/P3，前缀不作要求。
+   * 多个优先级标签时取最高优先级（P1 优先于 P2、P3），未命中返回 {@code null}。
+   */
   static String normalizePriorityLevel(List<String> labels) {
-    for (Map.Entry<String, List<String>> entry : PRIORITY_TOKENS.entrySet()) {
-      if (IssueRuleSupport.containsAnyLabel(labels, entry.getValue())) {
-        return entry.getKey();
+    if (labels == null || labels.isEmpty()) {
+      return null;
+    }
+    List<String> values = new ArrayList<>();
+    for (String label : labels) {
+      String value = legacyLabelValuePart(label);
+      if (value != null) {
+        values.add(value);
+      }
+    }
+    for (String candidate : PRIORITY_VALUES) {
+      if (values.contains(IssueRuleSupport.normalizeText(candidate))) {
+        return candidate;
       }
     }
     return null;
+  }
+
+  /**
+   * 取标签的值部分：含分隔符（：、:、-）时取分隔符之后的内容，否则取整条标签；空白与大小写归一。
+   * 只允许比较标签值、不得把整条文本当匹配对象的封闭枚举字段使用本方法。
+   */
+  private static String legacyLabelValuePart(String label) {
+    String normalizedLabel = IssueRuleSupport.normalizeText(label);
+    if (normalizedLabel == null) {
+      return null;
+    }
+    int separatorIndex = firstLegacyPrefixSeparatorIndex(label);
+    return IssueRuleSupport.normalizeText(
+        separatorIndex > 0 ? label.substring(separatorIndex + 1) : label);
   }
 
   static boolean isLegacyByLabel(List<String> labels) {

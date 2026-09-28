@@ -2,6 +2,7 @@ package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
+import com.data.collection.platform.entity.statistics.StatisticBoardControlOptions;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
@@ -46,6 +47,19 @@ public abstract class AbstractStatisticBoardService implements StatisticBoardWor
     StatisticBoardDefinition definition = buildDefinition();
     StatisticFilterGroup filterGroup = parseFilterGroup(request.filters(), definition);
     return doLoadDetail(request, filterGroup);
+  }
+
+  /**
+   * 成员控制条的候选。
+   *
+   * <p>候选必须由同一份窄事实在"完整基础范围"（同一生效里程碑与来源，未施加成员选择）上求得，
+   * 不随当前已选成员或当前结果行收缩；只有带成员控制的板覆写本方法。
+   *
+   * @param filters 页面当前的范围参数（里程碑与来源选择参与范围判定，成员选择不参与）
+   * @return 候选组；不支持成员控制的板返回空候选并说明原因
+   */
+  public StatisticBoardControlOptions controlOptions(Map<String, String> filters) {
+    return StatisticBoardControlOptions.empty();
   }
 
   public String exportBoardCsv(Map<String, String> filters) {

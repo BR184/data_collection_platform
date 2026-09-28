@@ -1,5 +1,7 @@
 package com.data.collection.platform.service.statistics;
 
+import com.data.collection.platform.domain.issue.DefectCauseMetricCatalog;
+import com.data.collection.platform.domain.issue.SuggestionMetricRules;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
@@ -1126,11 +1128,11 @@ public class SystemTestHorizontalComparisonExportService {
      * 避免污染其它指标的折中，不是新平台应回退的目标；若未来要改，请先确认业务决策。
      */
     boolean isSuggestion() {
-      return SuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricRules.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
     }
 
     boolean isRegularMetricIssue() {
-      return SuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricRules.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
     }
 
     boolean isPriority(String priority) {

@@ -116,6 +116,19 @@ class SshjBackupRemoteStorageIntegrationTest {
     }
   }
 
+  @Test
+  void test_cancel_closesSftpSessionAndIsIdempotent() {
+    BackupRemoteStorage storage = open();
+    storage.authenticate(PASSWORD);
+
+    storage.cancel();
+    storage.cancel();
+
+    assertThatThrownBy(() -> storage.ensureDirectory("/after-cancel"))
+        .isInstanceOf(BackupRemoteException.class)
+        .hasMessageContaining("已关闭或取消");
+  }
+
   private static BackupRemoteStorage open() {
     return new SshjBackupRemoteStorage(new BackupRemoteEndpoint("127.0.0.1", port, USER), 10_000);
   }

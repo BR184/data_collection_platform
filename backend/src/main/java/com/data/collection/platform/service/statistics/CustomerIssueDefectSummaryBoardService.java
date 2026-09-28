@@ -1,6 +1,8 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.domain.customerissue.CustomerIssueMetricRules;
+import com.data.collection.platform.domain.issue.SuggestionMetricRules;
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
@@ -10,6 +12,7 @@ import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanat
 import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.entity.statistics.StatisticColumnGroup;
 import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
+import com.data.collection.platform.entity.statistics.StatisticDetailCollection;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
@@ -311,7 +314,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     Map<String, String> snapshotFilters = customerSnapshotFilters(filters, effectiveFilterGroup);
     return snapshotService.readOrRefresh(
         snapshotRequest(snapshotFilters, effectiveFilterGroup, buildDefinition()),
-        () -> buildBoardResponse(filters, effectiveFilterGroup));
+        ignored -> buildBoardResponse(filters, effectiveFilterGroup));
   }
 
   private StatisticBoardResponse buildBoardResponse(
@@ -417,6 +420,8 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     return new StatisticDetailResponse(
         "客户问题缺陷明细",
         "展示当前模块与指标命中的客户问题议题明细。",
+        List.of(StatisticDetailCollection.detailList()),
+        StatisticDetailCollection.DETAIL_KEY,
         buildDefinition().detailColumns(),
         pageSlice.records(),
         pageSlice.total(),
@@ -970,12 +975,13 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
 
     private StatisticCellData cell(
         String key, Long numericValue, String displayValue, boolean drilldown, String rowKey) {
+      boolean canDrilldown = StatisticDrilldownSupport.legacyCellDrilldown(drilldown, numericValue);
       return new StatisticCellData(
           key,
           numericValue,
           displayValue,
-          drilldown,
-          drilldown ? "issue-list" : null,
+          canDrilldown,
+          canDrilldown ? "issue-list" : null,
           Map.of("rowKey", rowKey));
     }
   }
@@ -1058,15 +1064,15 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     }
 
     boolean isSuggestion() {
-      return SuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricRules.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
     }
 
     boolean isRegularMetricIssue() {
-      return SuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricRules.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
     }
 
     boolean hasExtensionLabel() {
-      return contains(bugStatus, "申请延期");
+      return CustomerIssueMetricRules.hasAppliedDelay(bugStatus);
     }
 
     boolean isRetestFailed() {
@@ -1074,11 +1080,11 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     }
 
     boolean isFixedByLegacySummary() {
-      return contains(bugStatus, "已修复") || contains(bugStatus, "待合并") || contains(bugStatus, "未更新");
+      return CustomerIssueMetricRules.isFixedBySummary(bugStatus);
     }
 
     boolean isPriorityFixedByLegacySummary() {
-      return contains(bugStatus, "已修复/完成") || contains(bugStatus, "未复现") || isClosed();
+      return CustomerIssueMetricRules.isPriorityFixed(bugStatus, isClosed());
     }
 
     boolean isPriorityClosedByLegacySummary() {
@@ -1086,7 +1092,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     }
 
     boolean isUnfixedByLegacySummary() {
-      return !contains(bugStatus, "已修复") && !contains(bugStatus, "待合并") && !contains(bugStatus, "未更新");
+      return !isFixedByLegacySummary();
     }
 
     boolean isNewIssueByLegacySummary() {

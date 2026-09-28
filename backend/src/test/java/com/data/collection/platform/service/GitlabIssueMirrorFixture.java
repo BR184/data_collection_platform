@@ -2,7 +2,7 @@ package com.data.collection.platform.service;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/** 为 Issue 事实管道集成测试提供唯一的 GitLab 镜像表结构。 */
+/** 为 GitLab 事实管道集成测试提供唯一的最小镜像表结构。 */
 final class GitlabIssueMirrorFixture {
   private GitlabIssueMirrorFixture() {}
 
@@ -12,9 +12,14 @@ final class GitlabIssueMirrorFixture {
         create table if not exists ods_gitlab_projects (
           id bigint primary key,
           name varchar(255),
+          path varchar(255),
+          namespace_id bigint,
           mirror_deleted boolean not null default false
         )
         """);
+    jdbcTemplate.execute("alter table ods_gitlab_projects add column if not exists path varchar(255)");
+    jdbcTemplate.execute(
+        "alter table ods_gitlab_projects add column if not exists namespace_id bigint");
     jdbcTemplate.execute(
         """
         create table if not exists ods_gitlab_users (
@@ -91,6 +96,87 @@ final class GitlabIssueMirrorFixture {
         create table if not exists ods_gitlab_issue_assignees (
           issue_id bigint,
           user_id bigint,
+          mirror_deleted boolean not null default false
+        )
+        """);
+    jdbcTemplate.execute(
+        """
+        create table if not exists ods_gitlab_resource_label_events (
+          id bigint primary key,
+          issue_id bigint,
+          merge_request_id bigint,
+          label_id bigint,
+          action smallint,
+          created_at timestamp,
+          mirror_deleted boolean not null default false
+        )
+        """);
+    jdbcTemplate.execute(
+        """
+        create table if not exists ods_gitlab_merge_requests (
+          id bigint primary key,
+          iid bigint,
+          target_project_id bigint,
+          title varchar(512),
+          author_id bigint,
+          merge_user_id bigint,
+          target_branch varchar(255),
+          source_branch varchar(255),
+          created_at timestamp,
+          updated_at timestamp,
+          mirror_deleted boolean not null default false
+        )
+        """);
+    jdbcTemplate.execute(
+        """
+        create table if not exists ods_gitlab_merge_request_metrics (
+          merge_request_id bigint,
+          merged_at timestamp,
+          added_lines integer,
+          mirror_deleted boolean not null default false
+        )
+        """);
+    jdbcTemplate.execute(
+        """
+        create table if not exists ods_gitlab_namespaces (
+          id bigint primary key,
+          path varchar(255),
+          mirror_deleted boolean not null default false
+        )
+        """);
+    jdbcTemplate.execute(
+        """
+        create table if not exists ods_gitlab_merge_request_reviewers (
+          merge_request_id bigint,
+          user_id bigint,
+          mirror_deleted boolean not null default false
+        )
+        """);
+    jdbcTemplate.execute(
+        """
+        create table if not exists ods_gitlab_merge_request_assignees (
+          merge_request_id bigint,
+          user_id bigint,
+          mirror_deleted boolean not null default false
+        )
+        """);
+    jdbcTemplate.execute(
+        """
+        create table if not exists ods_gitlab_merge_request_diffs (
+          id bigint primary key,
+          merge_request_id bigint,
+          created_at timestamp,
+          updated_at timestamp,
+          mirror_deleted boolean not null default false
+        )
+        """);
+    jdbcTemplate.execute(
+        """
+        create table if not exists ods_gitlab_merge_request_diff_commits (
+          merge_request_diff_id bigint,
+          relative_order integer,
+          sha varchar(64),
+          committed_date timestamp,
           mirror_deleted boolean not null default false
         )
         """);

@@ -1,5 +1,7 @@
 package com.data.collection.platform.service.statistics;
 
+import com.data.collection.platform.domain.customerissue.CustomerIssueCauseRules;
+import com.data.collection.platform.domain.issue.DefectCauseMetricCatalog;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
@@ -10,6 +12,7 @@ import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.entity.statistics.StatisticColumnGroup;
 import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
 import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
+import com.data.collection.platform.entity.statistics.StatisticDetailCollection;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
@@ -73,11 +76,6 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final List<DefectCauseMetricCatalog.Metric> CAUSE_METRICS =
       DefectCauseMetricCatalog.METRICS;
-  private static final Map<String, List<String>> LEGACY_CAUSE_TOKEN_OVERRIDES =
-      Map.of(
-          "prompt_message", List.of("术语、提示信息不合适"),
-          "logic_integration_interface_error", List.of("编码逻辑：集成与接口错误"),
-          "precondition_data_exception", List.of("前置数据异常（如缺少模板文件、前置输入文件本身错误等）"));
   private static final String FACT_SQL = """
       select issue_id as id, issue_iid as iid, source_instance, title, project_id, project_name,
              coalesce(author_name,'') as author_name, created_at_source as created_at,
@@ -229,7 +227,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     Map<String, String> snapshotFilters = customerSnapshotFilters(filters, effectiveFilterGroup);
     return snapshotService.readOrRefresh(
         snapshotRequest(snapshotFilters, effectiveFilterGroup, definition),
-        () -> buildBoardResponse(filters, effectiveFilterGroup, definition));
+        ignored -> buildBoardResponse(filters, effectiveFilterGroup, definition));
   }
 
   private StatisticBoardResponse buildBoardResponse(
@@ -345,6 +343,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     return new StatisticDetailResponse(
         "客户问题缺陷原因分析明细",
         "展示当前模块与缺陷原因命中的客户问题议题明细。",
+        List.of(StatisticDetailCollection.detailList()),
+        StatisticDetailCollection.DETAIL_KEY,
         DETAIL_COLUMNS,
         pageSlice.records(),
         pageSlice.total(),
@@ -802,7 +802,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   }
 
   private static List<String> causeTokens(DefectCauseMetricCatalog.Metric metric) {
-    return LEGACY_CAUSE_TOKEN_OVERRIDES.getOrDefault(metric.key(), metric.tokens());
+    return CustomerIssueCauseRules.tokensFor(metric);
   }
 
   private static String count(long value) {
@@ -869,8 +869,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
           key,
           numericValue,
           count(numericValue),
-          drilldown && numericValue > 0,
-          drilldown && numericValue > 0 ? "issue-list" : null,
+          StatisticDrilldownSupport.legacyCellDrilldown(drilldown, numericValue),
+          StatisticDrilldownSupport.legacyCellDrilldown(drilldown, numericValue) ? "issue-list" : null,
           Map.of("rowKey", rowKey));
     }
   }

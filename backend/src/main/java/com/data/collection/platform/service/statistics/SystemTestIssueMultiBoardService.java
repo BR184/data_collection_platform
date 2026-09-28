@@ -1,5 +1,7 @@
 package com.data.collection.platform.service.statistics;
 
+import com.data.collection.platform.domain.issue.DefectCauseMetricCatalog;
+import com.data.collection.platform.domain.issue.SuggestionMetricRules;
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
@@ -958,11 +960,11 @@ public class SystemTestIssueMultiBoardService {
      * 把这里改回 0，应先确认这段业务决策。
      */
     boolean isSuggestion() {
-      return SuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricRules.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
     }
 
     boolean isRegularMetricIssue() {
-      return SuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricRules.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
     }
   }
 

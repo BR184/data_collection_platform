@@ -195,6 +195,7 @@ class SqlPushdownRealChainTest {
         "\u7f16\u7801\u903b\u8f91\u9519\u8bef",
         "\u7cfb\u7edf\u6d4b\u8bd5",
         LocalDateTime.of(2026, 3, 2, 11, 0));
+    LabelEventHistoryTestSupport.markComplete(jdbcTemplate, "cc");
 
     JsonNode response =
         getJson(

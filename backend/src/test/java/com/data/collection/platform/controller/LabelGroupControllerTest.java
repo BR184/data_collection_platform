@@ -104,8 +104,15 @@ class LabelGroupControllerTest {
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data[0].pageKey").value("review-data-home"))
         .andExpect(jsonPath("$.data[0].pageName").value("评审数据管理"))
-        .andExpect(jsonPath("$.data[1].pageKey").value("question-metrics-issue-search"))
-        .andExpect(jsonPath("$.data[2].pageKey").value("customer-issues-cc-product-issues"));
+        .andExpect(jsonPath("$.data[0].fieldKey").value("reviewOwner"))
+        .andExpect(jsonPath("$.data[1].pageKey").value("review-data-home"))
+        .andExpect(jsonPath("$.data[1].fieldKey").value("reviewExpert"))
+        .andExpect(jsonPath("$.data[2].pageKey").value("question-metrics-issue-search"))
+        .andExpect(jsonPath("$.data[2].fieldKey").value("assigneeName"))
+        .andExpect(jsonPath("$.data[3].pageKey").value("customer-issues-cc-product-issues"))
+        .andExpect(jsonPath("$.data[3].fieldKey").value("assigneeName"))
+        .andExpect(jsonPath("$.data[4].pageKey").value("customer-issues-cc-product-issues"))
+        .andExpect(jsonPath("$.data[4].fieldKey").value("authorName"));
   }
 
   @Test

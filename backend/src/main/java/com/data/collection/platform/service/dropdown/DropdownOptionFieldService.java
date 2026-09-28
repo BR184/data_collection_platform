@@ -2,6 +2,7 @@ package com.data.collection.platform.service.dropdown;
 
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.common.response.ResultCode;
 import com.data.collection.platform.entity.dropdown.DropdownOptionBindingRequest;
 import com.data.collection.platform.entity.dropdown.DropdownOptionConfigSaveRequest;
 import com.data.collection.platform.entity.dropdown.DropdownOptionFieldConfigResponse;
@@ -132,16 +133,26 @@ public class DropdownOptionFieldService {
   public DropdownOptionFieldConfigResponse saveConfig(
       String fieldKey, DropdownOptionConfigSaveRequest request, String operator) {
     fieldRegistry.requireField(fieldKey);
+    configRepository.lockFieldMutation(fieldKey);
     DropdownOptionRulesPayload rules = ruleSupport.normalizeAndValidate(request.rules());
     List<String> manualOptions = ruleSupport.normalizeManualOptions(request.manualOptions());
     String rulesJson = jsonUtils.toJson(rules);
     String manualOptionsJson = jsonUtils.toJson(manualOptions);
     Optional<Long> bound = configRepository.findBoundConfigId(fieldKey);
     if (bound.isEmpty()) {
+      if (request.configId() != null || !Long.valueOf(0L).equals(request.version())) {
+        throw new BizException(ResultCode.CONFLICT, "字段绑定已变化，请刷新配置后重试");
+      }
       long configId = configRepository.insertConfig(rulesJson, manualOptionsJson, operator);
       configRepository.bindField(fieldKey, configId, operator);
     } else {
-      long expectedVersion = request.version() == null ? 0L : request.version();
+      if (!bound.get().equals(request.configId())) {
+        throw new BizException(ResultCode.CONFLICT, "字段配置身份已变化，请刷新配置后重试");
+      }
+      if (request.version() == null) {
+        throw new BizException(ResultCode.CONFLICT, "缺少配置版本，请刷新配置后重试");
+      }
+      long expectedVersion = request.version();
       configRepository.updateConfig(bound.get(), rulesJson, manualOptionsJson, expectedVersion, operator);
     }
     return getConfig(fieldKey);
@@ -161,6 +172,7 @@ public class DropdownOptionFieldService {
   public DropdownOptionFieldConfigResponse bindField(
       String fieldKey, DropdownOptionBindingRequest request, String operator) {
     fieldRegistry.requireField(fieldKey);
+    configRepository.lockFieldMutation(fieldKey);
     if (request == null || request.target() == null) {
       throw new BizException("缺少绑定目标类型");
     }

@@ -6,20 +6,6 @@ import org.springframework.stereotype.Component;
 class GitlabFactSourceSqlProvider {
   private static final int RESOURCE_LABEL_EVENT_ACTION_ADD = 1;
 
-  private static final String FIX_LABEL_EVENTS_FROM_LABEL_LINKS = """
-      fix_label_events as (
-        select ll.target_id as issue_id,
-               max(coalesce(ll.created_at, ll.updated_at)) as fixed_label_time
-          from ods_gitlab_label_links ll
-          join ods_gitlab_labels l
-            on l.id = ll.label_id
-           and coalesce(l.mirror_deleted, false) = false
-         where coalesce(ll.mirror_deleted, false) = false
-           and ll.target_type = 'Issue'
-           and l.title = '状态：已修复/完成'
-         group by ll.target_id
-      )
-""";
   private static final String FIX_LABEL_EVENTS_FROM_RESOURCE_LABEL_EVENTS = """
       fix_label_events as (
         select rle.issue_id,
@@ -132,8 +118,6 @@ class GitlabFactSourceSqlProvider {
       where coalesce(i.mirror_deleted, false) = false
       """;
   private static final String ISSUE_SOURCE_SQL =
-      injectFixLabelEvents(ISSUE_SOURCE_SQL_TEMPLATE, FIX_LABEL_EVENTS_FROM_LABEL_LINKS);
-  private static final String ISSUE_SOURCE_SQL_RESOURCE_LABEL_EVENTS =
       injectFixLabelEvents(
           ISSUE_SOURCE_SQL_TEMPLATE, FIX_LABEL_EVENTS_FROM_RESOURCE_LABEL_EVENTS);
 
@@ -437,10 +421,6 @@ class GitlabFactSourceSqlProvider {
 
   String issueSourceSql() {
     return ISSUE_SOURCE_SQL;
-  }
-
-  String issueSourceSql(boolean useResourceLabelEvents) {
-    return useResourceLabelEvents ? ISSUE_SOURCE_SQL_RESOURCE_LABEL_EVENTS : ISSUE_SOURCE_SQL;
   }
 
   String mergeRequestSourceSql(String sourceInstance) {

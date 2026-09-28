@@ -9,6 +9,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -62,6 +63,66 @@ public class FactProjectionVersionService {
       }
     }
     return VERSION_PREFIX + ":" + sha256(String.join("|", components));
+  }
+
+  /**
+   * 为一次可能读取多个来源实例的查询生成合并版本。
+   *
+   * <p>范围自带来源实例，按来源分组后逐个套用 {@link #sourceVersion}，再对排序后的分量取哈希。
+   * 这样单源读取的版本精确锁定该源，多源读取的版本覆盖每一个实际读取的来源，
+   * 不会用某一个来源（例如隐式默认源）的版本替代其余来源的变化。
+   *
+   * @param factType 事实类型
+   * @param requestedScopes 实际读取的全部分量范围；不能为空
+   * @return 与来源集合和范围集合迭代顺序无关的规范版本串
+   */
+  public String combinedSourceVersion(
+      FactType factType, Set<FactProjectionScope> requestedScopes) {
+    if (requestedScopes == null || requestedScopes.isEmpty()) {
+      throw new IllegalArgumentException("快照来源版本必须声明实际读取的范围");
+    }
+    java.util.TreeMap<String, java.util.TreeSet<FactProjectionScope>> scopesBySource =
+        new java.util.TreeMap<>();
+    for (FactProjectionScope scope : requestedScopes) {
+      if (scope.factType() != factType) {
+        throw new IllegalArgumentException("快照范围与事实类型不一致：" + scope);
+      }
+      scopesBySource
+          .computeIfAbsent(scope.sourceInstance(), key -> new java.util.TreeSet<>())
+          .add(scope);
+    }
+    List<String> components = new ArrayList<>();
+    for (Map.Entry<String, java.util.TreeSet<FactProjectionScope>> entry :
+        scopesBySource.entrySet()) {
+      components.add(
+          "SOURCE:" + entry.getKey() + "=" + sourceVersion(entry.getKey(), factType, entry.getValue()));
+    }
+    return VERSION_PREFIX + ":" + sha256(String.join("|", components));
+  }
+
+  /**
+   * 列出指定事实类型已经产生投影代际的来源实例。
+   *
+   * <p>统计查询在未选择具体来源时读取全部来源，因此版本必须覆盖每一个已存在代际的来源；
+   * 新来源一旦发布事实就会出现新代际，使旧快照自然失效。
+   *
+   * @param factType 事实类型
+   * @return 已规范化、排序的来源实例集合；缺失时返回默认来源
+   */
+  public Set<String> knownSourceInstances(FactType factType) {
+    List<String> sources =
+        jdbcTemplate.queryForList(
+            "select distinct source_instance from fact_projection_generations where fact_type = ?",
+            String.class,
+            factType.name());
+    java.util.TreeSet<String> normalized = new java.util.TreeSet<>();
+    for (String source : sources) {
+      normalized.add(GitlabSourceInstanceSupport.normalizeSourceInstance(source));
+    }
+    if (normalized.isEmpty()) {
+      normalized.add(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
+    }
+    return java.util.Collections.unmodifiableSet(normalized);
   }
 
   /** 为真正的全局消费者生成稳定来源版本。 */

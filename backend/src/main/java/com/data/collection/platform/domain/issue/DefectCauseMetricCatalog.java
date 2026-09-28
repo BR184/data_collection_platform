@@ -1,11 +1,17 @@
-package com.data.collection.platform.service.statistics;
+package com.data.collection.platform.domain.issue;
 
 import java.util.Collection;
 import java.util.List;
 import org.springframework.util.StringUtils;
 
-final class DefectCauseMetricCatalog {
-  static final List<Metric> METRICS =
+/**
+ * 缺陷原因分类词典（中立规则包）。
+ *
+ * <p>词典只描述原因分类、所属大类与匹配 token，不依赖页面 DTO、Spring Bean 或数据库。
+ * 客户原因页的 token 覆盖由 {@code CustomerIssueCauseRules} 承担，不得把客户覆盖作用于系统测试。
+ */
+public final class DefectCauseMetricCatalog {
+  public static final List<Metric> METRICS =
       List.of(
           new Metric("demand_misunderstand", "新增理解偏差", "需求问题", List.of("新增理解偏差", "新增理解偏差数量", "需求理解有误", "需求理解有误数量")),
           new Metric("missing_requirement", "需求遗漏", "需求问题", List.of("需求遗漏", "需求遗漏数量")),
@@ -34,14 +40,14 @@ final class DefectCauseMetricCatalog {
 
   private DefectCauseMetricCatalog() {}
 
-  static Metric get(String key) {
+  public static Metric get(String key) {
     return METRICS.stream()
         .filter(metric -> metric.key().equals(key))
         .findFirst()
         .orElseThrow(() -> new IllegalArgumentException("Unknown defect cause metric key: " + key));
   }
 
-  static boolean containsAny(String text, Collection<String> tokens) {
+  public static boolean containsAny(String text, Collection<String> tokens) {
     if (!StringUtils.hasText(text) || tokens == null || tokens.isEmpty()) {
       return false;
     }
@@ -53,5 +59,5 @@ final class DefectCauseMetricCatalog {
     return false;
   }
 
-  record Metric(String key, String label, String groupLabel, List<String> tokens) {}
+  public record Metric(String key, String label, String groupLabel, List<String> tokens) {}
 }

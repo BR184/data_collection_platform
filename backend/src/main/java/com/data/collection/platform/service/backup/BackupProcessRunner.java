@@ -12,11 +12,13 @@ public interface BackupProcessRunner {
    *
    * @param command 完整命令行（含可执行文件与全部参数）
    * @param env 追加到进程环境变量（如 PGPASSWORD）
-   * @param timeout 最长等待时长；超时进程被强制销毁并抛出 {@link BackupProcessException}
+   * @param timeout 最长等待时长；超时或执行权撤销时终止本次启动的进程
+   * @param context 当前运行身份，负责登记进程并在失租时取消它
    * @return 退出码与合并后的标准错误内容（已截断）
    * @throws BackupProcessException 进程启动失败或超时
    */
-  ProcessResult run(List<String> command, Map<String, String> env, Duration timeout);
+  ProcessResult run(
+      List<String> command, Map<String, String> env, Duration timeout, BackupExecutionContext context);
 
   record ProcessResult(int exitCode, String stderr) {}
 }

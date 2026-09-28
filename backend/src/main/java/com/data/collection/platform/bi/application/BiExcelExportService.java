@@ -22,7 +22,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
  *
  * <p>职责边界：前端拥有"导出哪些单元格"（各图表类的 {@code excelTable}），本服务只拥有
  * "如何把表头与数据行写成真正的 Excel 文件"。因此本服务不理解任何图表业务语义，也不重算数据，
- * 只按传入的标题、产品版本名、表头与数据行生成带标题行、元信息行、冻结表头和统一样式的工作簿。</p>
+ * 只按传入的标题、授权范围说明、表头与数据行生成带标题行、元信息行、冻结表头和统一样式的工作簿。</p>
  *
  * <p>无状态、无启动副作用，由 {@code BiDashboardRuntimeFactory} 显式装配为普通 Java 对象。
  * 表头/数据样式复用平台成熟基础设施 {@link ExcelExportStyles}，与全平台其它 Excel 导出视觉一致。</p>
@@ -60,7 +60,7 @@ public final class BiExcelExportService {
    * 生成标准 .xlsx 工作簿。
    *
    * @param title 图表标题，同时用于工作表名（消毒后）与文件名主干；不可为空
-   * @param productVersionName 产品版本可读名，写入元信息行；为空时以占位符呈现
+   * @param rangeDescription 经下载授权服务核验的统计范围说明，写入元信息行；为空时以占位符呈现
    * @param explanation 该图表的业务口径与达标标准说明，取自看板问号词条；空白时不占用行
    * @param headers 表头文本，决定列数与列宽；不可为空
    * @param rows 数据行，单元格为 {@link Number}（写数值）或其它（写文本，{@code null} 视为空串）
@@ -68,7 +68,7 @@ public final class BiExcelExportService {
    */
   public Export export(
       String title,
-      String productVersionName,
+      String rangeDescription,
       String explanation,
       List<String> headers,
       List<List<Object>> rows) {
@@ -88,7 +88,7 @@ public final class BiExcelExportService {
 
       Row metaRow = sheet.createRow(META_ROW_INDEX);
       metaRow.setHeightInPoints(16F);
-      writeText(metaRow, 0, metaText(productVersionName, now), metaStyle);
+      writeText(metaRow, 0, metaText(rangeDescription, now), metaStyle);
 
       // 上方说明区块的行数可变（口径说明可能缺省），因此表头与数据行位置由游标推导，
       // 保证冻结窗格在任何组合下都恰好覆盖到表头为止。
@@ -130,10 +130,9 @@ public final class BiExcelExportService {
     }
   }
 
-  private String metaText(String productVersionName, LocalDateTime now) {
-    String version =
-        productVersionName == null || productVersionName.isBlank() ? "--" : productVersionName;
-    return "产品版本：" + version + "  |  导出时间：" + now.format(META_TIME);
+  private String metaText(String rangeDescription, LocalDateTime now) {
+    String range = rangeDescription == null || rangeDescription.isBlank() ? "--" : rangeDescription;
+    return "统计范围：" + range + "  |  导出时间：" + now.format(META_TIME);
   }
 
   private String sheetName(String title) {

@@ -19,6 +19,7 @@ import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.IssueFact;
 import com.data.collection.platform.entity.WhitelistMode;
+import com.data.collection.platform.service.sync.SyncFactPublicationStateService;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -83,6 +84,7 @@ class FactBuildServiceTest {
             mergeRequestFactPersistenceService,
             moduleDictionaryService,
             factBuildTaskService,
+            readyPublicationStateService(),
             sourceSchemaGuard,
             configService,
             integrationTestFactBuildService,
@@ -94,7 +96,9 @@ class FactBuildServiceTest {
             new MergeRequestFactSourceRowMapper(),
             newSearchIndexRepairService(jdbcTemplate),
             new FactPublicationTransaction(),
-            new com.data.collection.platform.config.GitlabMirrorProperties());
+            new com.data.collection.platform.config.GitlabMirrorProperties(),
+            new FactProjectionScopeResolver(jdbcTemplate),
+            new FactProjectionGenerationService(jdbcTemplate));
 
     service.rebuildMergeRequestFactsForConfig(config, true);
 
@@ -148,6 +152,7 @@ class FactBuildServiceTest {
             mergeRequestFactPersistenceService,
             moduleDictionaryService,
             factBuildTaskService,
+            readyPublicationStateService(),
             sourceSchemaGuard,
             configService,
             integrationTestFactBuildService,
@@ -159,7 +164,9 @@ class FactBuildServiceTest {
             new MergeRequestFactSourceRowMapper(),
             newSearchIndexRepairService(jdbcTemplate),
             new FactPublicationTransaction(),
-            new com.data.collection.platform.config.GitlabMirrorProperties());
+            new com.data.collection.platform.config.GitlabMirrorProperties(),
+            new FactProjectionScopeResolver(jdbcTemplate),
+            new FactProjectionGenerationService(jdbcTemplate));
 
     assertThatThrownBy(() -> service.rebuildAllFacts(true)).isSameAs(preflightFailure);
 
@@ -208,6 +215,7 @@ class FactBuildServiceTest {
             mergeRequestFactPersistenceService,
             moduleDictionaryService,
             factBuildTaskService,
+            readyPublicationStateService(),
             sourceSchemaGuard,
             configService,
             integrationTestFactBuildService,
@@ -219,7 +227,9 @@ class FactBuildServiceTest {
             new MergeRequestFactSourceRowMapper(),
             newSearchIndexRepairService(jdbcTemplate),
             new FactPublicationTransaction(),
-            new com.data.collection.platform.config.GitlabMirrorProperties());
+            new com.data.collection.platform.config.GitlabMirrorProperties(),
+            new FactProjectionScopeResolver(jdbcTemplate),
+            new FactProjectionGenerationService(jdbcTemplate));
 
     assertThatThrownBy(() -> service.rebuildAllFactsForConfig(config, true, 16L))
         .isSameAs(preflightFailure);
@@ -273,6 +283,7 @@ class FactBuildServiceTest {
             mergeRequestFactPersistenceService,
             moduleDictionaryService,
             factBuildTaskService,
+            readyPublicationStateService(),
             sourceSchemaGuard,
             configService,
             integrationTestFactBuildService,
@@ -284,11 +295,15 @@ class FactBuildServiceTest {
             new MergeRequestFactSourceRowMapper(),
             searchIndexRepairService,
             new FactPublicationTransaction(),
-            new com.data.collection.platform.config.GitlabMirrorProperties());
+            new com.data.collection.platform.config.GitlabMirrorProperties(),
+            new FactProjectionScopeResolver(jdbcTemplate),
+            new FactProjectionGenerationService(jdbcTemplate));
 
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(1L);
     config.setSourceInstance("default");
+    when(jdbcTemplate.batchUpdate(anyString(), any(), anyInt(), any()))
+        .thenReturn(new int[][] {{1}});
     service.refreshCustomerIssueDelayFactsForConfig(config);
 
     ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
@@ -298,6 +313,12 @@ class FactBuildServiceTest {
             "update issue_fact set is_response_delayed = ?, response_overdue = ?,"
                 + " is_resolve_delayed = ?, updated_at = current_timestamp where id = ?");
     verifyNoInteractions(issueFactPersistenceService, searchIndexRepairService);
+  }
+
+  private SyncFactPublicationStateService readyPublicationStateService() {
+    SyncFactPublicationStateService service = mock(SyncFactPublicationStateService.class);
+    when(service.isIssueSourceHistoryComplete(anyString())).thenReturn(true);
+    return service;
   }
 
   private FactSearchIndexRepairService newSearchIndexRepairService(

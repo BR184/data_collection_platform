@@ -1,5 +1,6 @@
 package com.data.collection.platform.service.statistics;
 
+import com.data.collection.platform.domain.issue.DefectCauseMetricCatalog;
 import com.data.collection.platform.entity.statistics.SystemTestIssueMultiBoardResponse;
 import com.data.collection.platform.service.ExcelExportStyles;
 import com.data.collection.platform.service.SystemTestLegacyCauseExportFields;

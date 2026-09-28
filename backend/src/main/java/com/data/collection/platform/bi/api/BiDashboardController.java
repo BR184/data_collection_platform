@@ -3,6 +3,7 @@ package com.data.collection.platform.bi.api;
 import com.data.collection.platform.bi.application.BiDownloadAuthorizationService;
 import com.data.collection.platform.bi.application.BiExcelExportService;
 import com.data.collection.platform.bi.domain.model.BiCodingPageData;
+import com.data.collection.platform.bi.domain.model.BiCustomerIssuePageData;
 import com.data.collection.platform.bi.domain.model.BiPageResponse;
 import com.data.collection.platform.bi.domain.model.BiProductVersionCatalog;
 import com.data.collection.platform.bi.domain.model.BiReviewPageData;
@@ -13,6 +14,8 @@ import com.data.collection.platform.bi.domain.source.BiCodingSource;
 import com.data.collection.platform.bi.infrastructure.BiDashboardRuntimeManager;
 import com.data.collection.platform.common.DownloadResponseHeaders;
 import com.data.collection.platform.common.response.ApiResponse;
+import com.data.collection.platform.service.CustomerIssueFactQueryService;
+import com.data.collection.platform.bi.application.BiCustomerIssuePageService;
 import com.data.collection.platform.security.PlatformPermissionCodes;
 import com.data.collection.platform.security.RequirePermission;
 import jakarta.validation.Valid;
@@ -21,12 +24,14 @@ import java.util.Locale;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 /** BI 六阶段页面、产品版本和 PNG 授权的薄 HTTP 网关。 */
 @RestController
@@ -104,6 +109,26 @@ public class BiDashboardController {
         "system-test", runtime -> runtime.systemTest().load(productVersionId)));
   }
 
+  /** 返回不使用产品版本范围的独立客户问题 BI 页面。 */
+  @GetMapping("/customer-issues")
+  public ApiResponse<BiPageResponse<BiCustomerIssuePageData>> customerIssues(
+      @RequestParam(required = false) String milestoneBusinessKey,
+      @RequestParam(required = false) String customerKind,
+      @RequestParam(required = false) String customer,
+      @RequestParam(required = false) String moduleKind,
+      @RequestParam(required = false) String module,
+      @RequestParam(required = false) String functionKind,
+      @RequestParam(required = false) String function) {
+    var query = new BiCustomerIssuePageService.Query(
+        milestoneBusinessKey,
+        parseMemberSelection(customerKind, customer, "customer"),
+        parseMemberSelection(moduleKind, module, "module"),
+        parseMemberSelection(functionKind, function, "function"));
+    return ApiResponse.success(runtimeManager.page(
+        BiCustomerIssuePageService.PAGE_KEY,
+        runtime -> runtime.customerIssues().load(query)));
+  }
+
   /** 校验查看、下载、图表模板和来源版本后授权浏览器本地生成 PNG。 */
   @PostMapping("/download/authorize")
   @RequirePermission(
@@ -117,8 +142,9 @@ public class BiDashboardController {
     // 浏览器只申请当前图表的下载资格，不上传像素；服务端再次校验页面、模板和来源版本。
     return ApiResponse.success(runtimeManager.runtime().downloads().authorize(
         new BiDownloadAuthorizationService.Request(
-            request.productVersionId(),
+            request.scope().toScope(),
             request.pageKey(),
+            request.chartInstanceId(),
             request.chartTemplateId(),
             request.sourceVersion())));
   }
@@ -133,16 +159,17 @@ public class BiDashboardController {
       requireAll = true)
   public ResponseEntity<byte[]> exportExcel(@Valid @RequestBody BiExcelExportRequest request) {
     // 与 PNG 走同一道授权门：先校验页面/图表模板/来源版本，避免绕过下载权限直接取文件。
-    runtimeManager.runtime().downloads().authorize(
+    BiDownloadAuthorizationService.Authorization authorization = runtimeManager.runtime().downloads().authorize(
         new BiDownloadAuthorizationService.Request(
-            request.productVersionId(),
+            request.scope().toScope(),
             request.pageKey(),
+            request.chartInstanceId(),
             request.chartTemplateId(),
             request.sourceVersion()));
     List<List<Object>> rows = request.rows() == null ? List.of() : request.rows();
     BiExcelExportService.Export export = runtimeManager.runtime().excel().export(
         request.title(),
-        request.productVersionName(),
+        authorization.rangeDescription(),
         request.explanation(),
         request.headers(),
         rows);
@@ -173,5 +200,35 @@ public class BiDashboardController {
 
   private String normalize(String value) {
     return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+  }
+
+  private CustomerIssueFactQueryService.MemberSelection parseMemberSelection(
+      String kind, String value, String parameter) {
+    if (kind == null && value == null) {
+      return CustomerIssueFactQueryService.MemberSelection.all();
+    }
+    if (kind == null) {
+      throw invalidSelection(parameter, "缺少 kind");
+    }
+    return switch (kind) {
+      case "ALL" -> {
+        if (value != null) throw invalidSelection(parameter, "ALL 不接受 value");
+        yield CustomerIssueFactQueryService.MemberSelection.all();
+      }
+      case "MISSING" -> {
+        if (value != null) throw invalidSelection(parameter, "MISSING 不接受 value");
+        yield CustomerIssueFactQueryService.MemberSelection.missing();
+      }
+      case "VALUE" -> {
+        if (value == null || value.isBlank()) throw invalidSelection(parameter, "VALUE 必须携带非空 value");
+        yield CustomerIssueFactQueryService.MemberSelection.of(value);
+      }
+      default -> throw invalidSelection(parameter, "kind 仅支持 ALL、MISSING、VALUE");
+    };
+  }
+
+  private ResponseStatusException invalidSelection(String parameter, String detail) {
+    return new ResponseStatusException(
+        HttpStatus.BAD_REQUEST, "非法客户问题筛选参数 " + parameter + "：" + detail);
   }
 }

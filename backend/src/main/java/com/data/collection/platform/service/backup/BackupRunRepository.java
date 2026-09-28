@@ -10,6 +10,7 @@ import java.util.OptionalLong;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 /** backup_runs 运行历史的读写：运行登记、阶段推进、终态落库、历史分页与判期依据查询。 */
 @Repository
@@ -53,27 +54,59 @@ public class BackupRunRepository {
     return id;
   }
 
-  /** 以预分配 ID 登记一条 RUNNING 运行。 */
-  public void insertRunning(long runId, String triggerType, String storageMode, Instant startedAt) {
-    jdbcTemplate.update(
+  /** 以预分配 ID 与当前执行 token 登记一条 RUNNING 运行。 */
+  @Transactional
+  public void insertRunning(
+      long runId, String executionToken, String triggerType, String storageMode, Instant startedAt) {
+    lockActiveOwner(runId, executionToken, startedAt);
+    int inserted = jdbcTemplate.update(
         """
         insert into backup_runs (id, trigger_type, status, storage_mode, stage, started_at)
-        values (?, ?, 'RUNNING', ?, 'PRECHECK', ?)
+        select ?, ?, 'RUNNING', ?, 'PRECHECK', ?
+         where exists (
+           select 1 from backup_state
+            where id = 1 and active_run_id = ? and execution_token = ?
+              and execution_revoked = false and lease_expires_at >= ?
+         )
         """,
         runId,
         triggerType,
         storageMode,
+        Timestamp.from(startedAt),
+        runId,
+        executionToken,
         Timestamp.from(startedAt));
+    requireOwnedUpdate(inserted, runId);
   }
 
-  /** 推进运行阶段（PRECHECK/DUMP/VERIFY/STORE/RETENTION/DONE）。 */
-  public void updateStage(long runId, String stage) {
-    jdbcTemplate.update("update backup_runs set stage = ? where id = ?", stage, runId);
+  /** 推进当前有效运行的阶段（PRECHECK/DUMP/VERIFY/STORE/RETENTION）。 */
+  @Transactional
+  public void updateStage(long runId, String executionToken, String stage, Instant now) {
+    lockActiveOwner(runId, executionToken, now);
+    int updated =
+        jdbcTemplate.update(
+            """
+            update backup_runs set stage = ?
+             where id = ? and status = 'RUNNING'
+               and exists (
+                 select 1 from backup_state
+                  where id = 1 and active_run_id = ? and execution_token = ?
+                    and execution_revoked = false and lease_expires_at >= ?
+               )
+            """,
+            stage,
+            runId,
+            runId,
+            executionToken,
+            Timestamp.from(now));
+    requireOwnedUpdate(updated, runId);
   }
 
   /** 成功终态：写入产物统计与耗时。 */
+  @Transactional
   public void finishSuccess(
       long runId,
+      String executionToken,
       String targetPath,
       String fileName,
       long fileBytes,
@@ -82,12 +115,18 @@ public class BackupRunRepository {
       String flywayVersion,
       Instant startedAt,
       Instant finishedAt) {
-    jdbcTemplate.update(
+    lockActiveOwner(runId, executionToken, finishedAt);
+    int updated = jdbcTemplate.update(
         """
         update backup_runs
-           set status = 'SUCCESS', stage = 'DONE', target_path = ?, file_name = ?, file_bytes = ?,
+           set status = 'SUCCESS', stage = 'RETENTION', target_path = ?, file_name = ?, file_bytes = ?,
                sha256 = ?, pg_server_version = ?, flyway_version = ?, finished_at = ?, duration_ms = ?
-         where id = ?
+         where id = ? and status = 'RUNNING'
+           and exists (
+             select 1 from backup_state
+              where id = 1 and active_run_id = ? and execution_token = ?
+                and execution_revoked = false and lease_expires_at >= ?
+           )
         """,
         targetPath,
         fileName,
@@ -97,21 +136,90 @@ public class BackupRunRepository {
         flywayVersion,
         Timestamp.from(finishedAt),
         finishedAt.toEpochMilli() - startedAt.toEpochMilli(),
-        runId);
+        runId,
+        runId,
+        executionToken,
+        Timestamp.from(finishedAt));
+    requireOwnedUpdate(updated, runId);
   }
 
-  /** 失败终态：保留最后阶段与错误信息；duration 未知（如孤儿回收）时传 null。 */
-  public void finishFailure(long runId, String errorMessage, Instant startedAt, Instant finishedAt) {
-    jdbcTemplate.update(
+  /** 在写入或上传前登记本次产物候选；RUNNING/FAILED 候选不能进入成功集合。 */
+  @Transactional
+  public void recordCandidateArtifact(
+      long runId, String executionToken, String targetPath, String fileName, Instant now) {
+    lockActiveOwner(runId, executionToken, now);
+    int updated =
+        jdbcTemplate.update(
+            """
+            update backup_runs set target_path = ?, file_name = ?
+             where id = ? and status = 'RUNNING'
+            """,
+            targetPath,
+            fileName,
+            runId);
+    requireOwnedUpdate(updated, runId);
+  }
+
+  /** 失败终态只接受仍持有未过期运行权的执行者。 */
+  @Transactional
+  public void finishFailure(
+      long runId,
+      String executionToken,
+      String errorMessage,
+      Instant startedAt,
+      Instant finishedAt) {
+    lockActiveOwner(runId, executionToken, finishedAt);
+    int updated = jdbcTemplate.update(
         """
         update backup_runs
            set status = 'FAILED', finished_at = ?, duration_ms = ?, error_message = ?
-         where id = ?
+         where id = ? and status = 'RUNNING'
+           and exists (
+             select 1 from backup_state
+              where id = 1 and active_run_id = ? and execution_token = ?
+                and execution_revoked = false and lease_expires_at >= ?
+           )
         """,
         Timestamp.from(finishedAt),
-        finishedAt.toEpochMilli() - startedAt.toEpochMilli(),
+        startedAt == null ? null : finishedAt.toEpochMilli() - startedAt.toEpochMilli(),
         errorMessage,
-        runId);
+        runId,
+        runId,
+        executionToken,
+        Timestamp.from(finishedAt));
+    requireOwnedUpdate(updated, runId);
+  }
+
+  /** 数据库已登记成功产物后完成轮转阶段。 */
+  @Transactional
+  public void finishRetention(long runId, String executionToken, Instant now) {
+    lockActiveOwner(runId, executionToken, now);
+    int updated =
+        jdbcTemplate.update(
+            """
+            update backup_runs set stage = 'DONE'
+             where id = ? and status = 'SUCCESS'
+               and exists (
+                 select 1 from backup_state
+                  where id = 1 and active_run_id = ? and execution_token = ?
+                    and execution_revoked = false and lease_expires_at >= ?
+               )
+            """,
+            runId,
+            runId,
+            executionToken,
+            Timestamp.from(now));
+    requireOwnedUpdate(updated, runId);
+  }
+
+  /** 仅返回本实例已登记成功的备份文件名，供安全轮转使用。 */
+  public List<SuccessfulArtifact> successfulArtifacts(String storageMode) {
+    return jdbcTemplate.query(
+        "select distinct target_path, file_name from backup_runs "
+            + "where status = 'SUCCESS' and storage_mode = ? "
+            + "and target_path is not null and file_name is not null",
+        (rs, rowNum) -> new SuccessfulArtifact(rs.getString("target_path"), rs.getString("file_name")),
+        storageMode);
   }
 
   /** 读取单条运行（状态展示用）。 */
@@ -186,4 +294,27 @@ public class BackupRunRepository {
   public String databaseServerVersion() {
     return jdbcTemplate.queryForObject("select current_setting('server_version')", String.class);
   }
+
+  private static void requireOwnedUpdate(int updated, long runId) {
+    if (updated != 1) {
+      throw new BackupLeaseLostException(runId);
+    }
+  }
+
+  private void lockActiveOwner(long runId, String executionToken, Instant now) {
+    List<Integer> rows =
+        jdbcTemplate.query(
+            "select id from backup_state where id = 1 and active_run_id = ? "
+                + "and execution_token = ? and execution_revoked = false and lease_expires_at >= ? for update",
+            (rs, rowNum) -> rs.getInt(1),
+            runId,
+            executionToken,
+            Timestamp.from(now));
+    if (rows.isEmpty()) {
+      throw new BackupLeaseLostException(runId);
+    }
+  }
+
+  /** 成功提交过的制品身份；轮转必须同时匹配存储目录与文件名。 */
+  public record SuccessfulArtifact(String targetPath, String fileName) {}
 }

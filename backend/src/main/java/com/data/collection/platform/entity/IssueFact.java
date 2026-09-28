@@ -129,6 +129,10 @@ public class IssueFact {
   @TableField("is_fixed")
   private Boolean fixed;
 
+  /** 客户需求身份（R1）：labels 精确包含“需求”或“类别：建议”。null 表示尚未重建。 */
+  @TableField("is_customer_requirement")
+  private Boolean isCustomerRequirement;
+
   @TableField("delay_issue")
   private Boolean delayIssue;
 

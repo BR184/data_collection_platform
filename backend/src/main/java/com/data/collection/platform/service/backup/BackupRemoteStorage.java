@@ -42,6 +42,9 @@ public interface BackupRemoteStorage extends AutoCloseable {
   /** 删除目录下指定文件。 */
   void deleteFile(String directory, String fileName);
 
+  /** 幂等关闭连接并中断当前远程 I/O；执行租约撤销时由运行上下文调用。 */
+  void cancel();
+
   /** 远端 sha256sum 摘要；命令不可用时返回 empty（调用侧以大小校验兜底）。 */
   Optional<String> sha256(String directory, String fileName);
 

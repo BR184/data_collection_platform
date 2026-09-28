@@ -13,6 +13,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import net.schmizz.sshj.SSHClient;
 import net.schmizz.sshj.common.Buffer;
@@ -35,6 +36,7 @@ public final class SshjBackupRemoteStorage implements BackupRemoteStorage {
   private final SSHClient client;
   private final String username;
   private final String fingerprint;
+  private final AtomicBoolean closed = new AtomicBoolean();
   private SFTPClient sftp;
 
   public SshjBackupRemoteStorage(BackupRemoteEndpoint endpoint, int connectTimeoutMillis) {
@@ -189,8 +191,22 @@ public final class SshjBackupRemoteStorage implements BackupRemoteStorage {
 
   @Override
   public void close() {
-    if (sftp != null) {
-      sftp = null;
+    cancel();
+  }
+
+  @Override
+  public void cancel() {
+    if (!closed.compareAndSet(false, true)) {
+      return;
+    }
+    SFTPClient activeSftp = sftp;
+    sftp = null;
+    if (activeSftp != null) {
+      try {
+        activeSftp.close();
+      } catch (IOException ignored) {
+        // disconnect 仍会关闭底层通道。
+      }
     }
     try {
       client.disconnect();
@@ -200,6 +216,9 @@ public final class SshjBackupRemoteStorage implements BackupRemoteStorage {
   }
 
   private SFTPClient sftp() {
+    if (closed.get()) {
+      throw new BackupRemoteException("远程备份会话已关闭或取消");
+    }
     if (sftp == null) {
       try {
         sftp = client.newSFTPClient();

@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -14,6 +15,7 @@ import static org.mockito.Mockito.when;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.WhitelistMode;
+import com.data.collection.platform.service.sync.SyncFactPublicationStateService;
 import java.util.List;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +45,7 @@ class FactBuildServiceOrchestrationTest {
   @Mock private MergeRequestFactPersistenceService mergeRequestFactPersistenceService;
   @Mock private ModuleDictionaryService moduleDictionaryService;
   @Mock private FactBuildTaskService factBuildTaskService;
+  @Mock private SyncFactPublicationStateService publicationStateService;
   @Mock private GitlabSourceSchemaGuard sourceSchemaGuard;
   @Mock private SqlQueryMonitor sqlQueryMonitor;
   @Mock private GitlabConfigService configService;
@@ -75,6 +78,7 @@ class FactBuildServiceOrchestrationTest {
     when(issueCustomerNameAliasService.loadAliases()).thenReturn(java.util.Map.of());
     when(integrationTestFactBuildService.rebuildFactsForSource(anyString(), anyBoolean()))
         .thenReturn(new FactBuildResponse("integration-test", true, 0, "集成测试完成"));
+    when(publicationStateService.isIssueSourceHistoryComplete(anyString())).thenReturn(true);
     // 所有 jdbcTemplate.query 返回空集合（阶段日历/事实来源查询）。
     when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
         .thenReturn(List.of());
@@ -88,6 +92,7 @@ class FactBuildServiceOrchestrationTest {
         mergeRequestFactPersistenceService,
         moduleDictionaryService,
         factBuildTaskService,
+        publicationStateService,
         sourceSchemaGuard,
         configService,
         integrationTestFactBuildService,
@@ -102,7 +107,9 @@ class FactBuildServiceOrchestrationTest {
             new IssueFactSourceRowMapper(),
             new MergeRequestFactSourceRowMapper()),
         new FactPublicationTransaction(),
-        new com.data.collection.platform.config.GitlabMirrorProperties());
+        new com.data.collection.platform.config.GitlabMirrorProperties(),
+            new FactProjectionScopeResolver(jdbcTemplate),
+            new FactProjectionGenerationService(jdbcTemplate));
   }
 
   @Test
@@ -111,6 +118,16 @@ class FactBuildServiceOrchestrationTest {
 
     assertThat(response.affectedRows()).isZero();
     verifyNoInteractions(sourceSchemaGuard, issueFactPersistenceService, jdbcTemplate);
+  }
+
+  @Test
+  void issueFactBuildIsBlockedUntilLabelEventHistoryIsFullyVerified() {
+    when(publicationStateService.isIssueSourceHistoryComplete("default")).thenReturn(false);
+
+    assertThatThrownBy(() -> service.rebuildIssueFactsByRootIds("default", List.of(101L)))
+        .hasMessageContaining("resource_label_events")
+        .hasMessageContaining("全量核验");
+    verifyNoInteractions(sourceSchemaGuard, issueFactPersistenceService);
   }
 
   @Test

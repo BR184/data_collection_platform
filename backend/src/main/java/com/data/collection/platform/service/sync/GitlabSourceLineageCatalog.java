@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.sync;
 
 import com.data.collection.platform.entity.FactType;
+import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.sync.IncrementalReadMode;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
@@ -32,7 +33,7 @@ public final class GitlabSourceLineageCatalog {
           polymorphic("notes", List.of("id"), FactType.ISSUE, FactType.MERGE_REQUEST, FactType.INTEGRATION_TEST),
           dimension("labels", List.of("id"), FactType.ISSUE, FactType.MERGE_REQUEST, FactType.INTEGRATION_TEST),
           polymorphic("label_links", List.of("id"), FactType.ISSUE, FactType.MERGE_REQUEST, FactType.INTEGRATION_TEST),
-          signal("resource_label_events", List.of("id"), FactType.ISSUE, FactType.MERGE_REQUEST),
+          direct("resource_label_events", List.of("id"), FactType.ISSUE),
           direct("merge_requests", List.of("id"), FactType.MERGE_REQUEST),
           direct("merge_request_assignees", List.of("id"), FactType.MERGE_REQUEST),
           direct("merge_request_reviewers", List.of("id"), FactType.MERGE_REQUEST),
@@ -215,11 +216,6 @@ public final class GitlabSourceLineageCatalog {
     return source(table, primaryKeys, DerivationKind.DIMENSION_REVERSE_LOOKUP, consumers);
   }
 
-  private static SourceDefinition signal(
-      String table, List<String> primaryKeys, FactType... consumers) {
-    return source(table, primaryKeys, DerivationKind.CHANGE_SIGNAL, consumers);
-  }
-
   private static SourceDefinition noConsumer(String table, List<String> primaryKeys) {
     return source(table, primaryKeys, DerivationKind.NO_DERIVED_CONSUMER);
   }
@@ -249,6 +245,9 @@ public final class GitlabSourceLineageCatalog {
       case "resource_label_events" -> {
         required.add("issue_id");
         required.add("merge_request_id");
+        required.add("label_id");
+        required.add("action");
+        required.add("created_at");
       }
       case "notes" -> {
         required.add("noteable_id");
@@ -340,6 +339,20 @@ public final class GitlabSourceLineageCatalog {
               + "."
               + String.join(",", missingColumns));
     }
+    if ("resource_label_events".equals(definition.tableName())) {
+      String actionType =
+          schema.columns().stream()
+              .filter(column -> "action".equalsIgnoreCase(column.columnName()))
+              .map(SourceTableColumn::formattedType)
+              .map(type -> type.toLowerCase(java.util.Locale.ROOT))
+              .findFirst()
+              .orElse("");
+      if (!Set.of("smallint", "integer", "bigint").contains(actionType)) {
+        throw new IllegalStateException(
+            "GitLab 来源表 resource_label_events.action 必须为整数类型，实际="
+                + (actionType.isBlank() ? "缺失" : actionType));
+      }
+    }
     if (definition.incrementalReadMode() == IncrementalReadMode.UPDATED_AT
         && !definition.incrementalUpdatedAtColumn().equals(schema.updatedAtColumn())) {
       throw new IllegalStateException(
@@ -402,7 +415,6 @@ public final class GitlabSourceLineageCatalog {
     DIRECT_ROOT,
     POLYMORPHIC_ROOT,
     DIMENSION_REVERSE_LOOKUP,
-    CHANGE_SIGNAL,
     NO_DERIVED_CONSUMER
   }
 

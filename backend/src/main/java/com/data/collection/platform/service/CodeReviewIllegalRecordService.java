@@ -263,7 +263,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
         snapshotType,
         scopeKey + "|readMode:" + readModeScope,
         RULE_VERSION,
-        pageRecordSnapshotService.codeReviewSourceVersion(),
+        () -> pageRecordSnapshotService.codeReviewSourceVersion(),
         requestPayload);
   }
 

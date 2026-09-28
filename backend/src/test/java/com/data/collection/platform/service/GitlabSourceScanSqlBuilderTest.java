@@ -126,6 +126,26 @@ class GitlabSourceScanSqlBuilderTest {
   }
 
   @Test
+  void test_monotonic_primary_key_scan_with_empty_cursor_starts_at_first_row() {
+    TableWhitelistOption option =
+        option("resource_label_events", "id", null, SourceCursorStrategy.PRIMARY_KEY_KEYSET);
+    SourceTableSchema schema =
+        new SourceTableSchema(
+            "resource_label_events",
+            List.of("id"),
+            null,
+            List.of(new SourceTableColumn("id", "bigint", false, 1)));
+
+    String sql =
+        builder.buildMonotonicPrimaryKeyScanSql(option, schema, "[]", "[\"17\"]", 50);
+
+    assertThat(sql)
+        .contains("where \"id\" <= '17'::bigint")
+        .doesNotContain("and (\"id\") >")
+        .contains("order by \"id\" asc");
+  }
+
+  @Test
   void shouldEscapeQuotesInSourceIdentifiers() {
     TableWhitelistOption option = option(
         "issue\"events", "id", "updated_at", SourceCursorStrategy.PRIMARY_KEY_KEYSET);

@@ -48,6 +48,7 @@ public class SyncFactRefreshRunExecutor {
   }
 
   public Result execute(SyncRun run) {
+    projectionTaskService.recoverExpiredTasks();
     GitlabSyncConfig config = configService.getConfigById(run.getConfigId());
     SyncRunPayload payload = payload(run);
     boolean full = payload.fullBuildEnabled() || payload.manualFullRebuildEnabled();
@@ -133,7 +134,7 @@ public class SyncFactRefreshRunExecutor {
     while ((task =
             projectionTaskService.claimNext(
                 run.getId(),
-                "projection-run-" + run.getId(),
+                run.getLeaseOwner(),
                 Math.max(1, properties.getHeartbeatTimeoutSeconds())))
         != null) {
       projectionTaskWorkerService.execute(task);

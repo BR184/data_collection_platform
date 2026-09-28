@@ -1,5 +1,6 @@
 package com.data.collection.platform.service.statistics;
 
+import com.data.collection.platform.domain.issue.SuggestionMetricRules;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
@@ -10,6 +11,7 @@ import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.entity.statistics.StatisticColumnGroup;
 import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
 import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
+import com.data.collection.platform.entity.statistics.StatisticDetailCollection;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
@@ -117,6 +119,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   private final SystemTestPhaseCatalogService phaseCatalogService;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final StatisticBoardSnapshotService snapshotService;
+  private final StatisticBoardReadScopeResolver readScopeResolver;
 
   public SystemTestPhaseStatisticsBoardService(
       JsonUtils jsonUtils,
@@ -126,7 +129,8 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       StatisticIssueLinkSupport issueLinkSupport,
       SystemTestPhaseCatalogService phaseCatalogService,
       SystemTestPhaseScopeResolver phaseScopeResolver,
-      StatisticBoardSnapshotService snapshotService) {
+      StatisticBoardSnapshotService snapshotService,
+      StatisticBoardReadScopeResolver readScopeResolver) {
     super(jsonUtils);
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.realtimeIncrementalRefreshService = realtimeIncrementalRefreshService;
@@ -135,6 +139,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     this.phaseCatalogService = phaseCatalogService;
     this.phaseScopeResolver = phaseScopeResolver;
     this.snapshotService = snapshotService;
+    this.readScopeResolver = readScopeResolver;
   }
 
   @Override
@@ -185,7 +190,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     StatisticFilterGroup appliedGroup = effectiveFilterGroup;
     return snapshotService.readOrRefresh(
         snapshotRequest(filters, appliedGroup, definition, selectedTestingPhase),
-        () -> buildBoardResponse(filters, appliedGroup, definition, phaseDefinitions, selectedTestingPhase));
+        ignored -> buildBoardResponse(filters, appliedGroup, definition, phaseDefinitions, selectedTestingPhase));
   }
 
   private StatisticBoardResponse buildBoardResponse(
@@ -280,6 +285,8 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     return new StatisticDetailResponse(
         "议题阶段统计明细",
         "展示当前轮次与指标命中的议题明细。",
+        List.of(StatisticDetailCollection.detailList()),
+        StatisticDetailCollection.DETAIL_KEY,
         DETAIL_COLUMNS,
         pageSlice.records(),
         pageSlice.total(),
@@ -485,10 +492,13 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
         BOARD_KEY,
         "project=" + projectId + ";testingPhase=" + (StringUtils.hasText(selectedTestingPhase) ? selectedTestingPhase : "none"),
         RULE_VERSION,
-        snapshotService.issueFactSourceVersion(
-            projectId,
-            com.data.collection.platform.service.IssueScopeDimension.TESTING_PHASE,
-            selectedTestingPhase),
+        StatisticBoardSnapshotService.SourceReadPlan.of(
+            () ->
+                readScopeResolver.resolve(
+                    payload,
+                    projectId,
+                    com.data.collection.platform.service.IssueScopeDimension.TESTING_PHASE,
+                    selectedTestingPhase)),
         payload,
         definition,
         effectiveFilterGroup);
@@ -799,12 +809,13 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     }
 
     private StatisticCellData cell(String key, long numericValue, boolean drilldown) {
+      boolean canDrilldown = StatisticDrilldownSupport.legacyCellDrilldown(drilldown, numericValue);
       return new StatisticCellData(
           key,
           numericValue,
           count(numericValue),
-          drilldown,
-          drilldown ? "issue-list" : null,
+          canDrilldown,
+          canDrilldown ? "issue-list" : null,
           Map.of("rowKey", rowKey));
     }
   }
@@ -877,11 +888,11 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
      * 想按“老平台建议列为 0”回退，请先和业务/开发确认这段例外口径。
      */
     boolean isSuggestion() {
-      return SuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricRules.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
     }
 
     boolean isRegularMetricIssue() {
-      return SuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricRules.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
     }
 
     boolean isVisibleForRegularOrSuggestionColumn() {

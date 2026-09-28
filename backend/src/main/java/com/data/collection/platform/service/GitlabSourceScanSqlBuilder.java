@@ -267,7 +267,13 @@ class GitlabSourceScanSqlBuilder {
     if (cursorPk == null || cursorPk.isBlank()) {
       return "";
     }
-    List<String> cursorValues = decodeCursor(primaryKeys, cursorPk);
+    List<String> cursorValues = jsonUtils.toStringList(cursorPk);
+    if (cursorValues.isEmpty()) {
+      return "";
+    }
+    if (cursorValues.size() != primaryKeys.size()) {
+      throw new IllegalArgumentException("主键游标列数与源表主键不一致");
+    }
     return prefix
         + "("
         + primaryKeys.stream().map(SqlIdentifierSupport::quoteIdentifier)

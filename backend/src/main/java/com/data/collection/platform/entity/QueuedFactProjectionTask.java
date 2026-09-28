@@ -11,5 +11,5 @@ public record QueuedFactProjectionTask(
     long targetGeneration,
     int retryCount,
     int maxRetryCount,
-    String leaseOwner,
+    String leaseToken,
     LocalDateTime leaseUntil) {}

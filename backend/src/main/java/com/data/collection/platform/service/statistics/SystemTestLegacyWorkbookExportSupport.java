@@ -1,5 +1,6 @@
 package com.data.collection.platform.service.statistics;
 
+import com.data.collection.platform.domain.issue.DefectCauseMetricCatalog;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.entity.statistics.StatisticRowData;

@@ -1,5 +1,6 @@
 package com.data.collection.platform.service.statistics;
 
+import com.data.collection.platform.domain.issue.SuggestionMetricRules;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchRowResponse;
@@ -19,6 +20,7 @@ import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanat
 import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.entity.statistics.StatisticColumnGroup;
 import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
+import com.data.collection.platform.entity.statistics.StatisticDetailCollection;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
@@ -339,7 +341,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     StatisticBoardDefinition definition = buildDefinition();
     return snapshotService.readOrRefresh(
         snapshotRequest(filters, effectiveFilterGroup, definition),
-        () -> buildBoardResponse(filters, effectiveFilterGroup, definition));
+        ignored -> buildBoardResponse(filters, effectiveFilterGroup, definition));
   }
 
   private StatisticBoardResponse buildBoardResponse(
@@ -397,7 +399,12 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         .filter(issue -> matchesRow(issue, request.rowKey())).filter(matchesMetric(request.columnKey()))
         .sorted(buildDetailComparator(request.sortField(), request.sortOrder())).toList();
     DetailRecordPage pageSlice = sliceDetailRecords(request, scoped, this::toDetailRecord);
-    return new StatisticDetailResponse("系统测试缺陷明细", "展示当前模块与指标命中的议题明细。", buildDefinition().detailColumns(),
+    return new StatisticDetailResponse(
+        "系统测试缺陷明细",
+        "展示当前模块与指标命中的议题明细。",
+        List.of(StatisticDetailCollection.detailList()),
+        StatisticDetailCollection.DETAIL_KEY,
+        buildDefinition().detailColumns(),
         pageSlice.records(), pageSlice.total(), pageSlice.page(), pageSlice.size(),
         StringUtils.hasText(request.sortField()) ? request.sortField() : "updatedAt",
         "ascending".equalsIgnoreCase(request.sortOrder()) ? "ascending" : "descending",
@@ -1116,7 +1123,9 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   }
 
   private StatisticCellData cell(String key, Long numericValue, String displayValue, boolean drilldown, String rowKey) {
-    return new StatisticCellData(key, numericValue, displayValue, drilldown, drilldown ? "issue-list" : null, Map.of("rowKey", rowKey));
+    boolean canDrilldown = StatisticDrilldownSupport.legacyCellDrilldown(drilldown, numericValue);
+    return new StatisticCellData(
+        key, numericValue, displayValue, canDrilldown, canDrilldown ? "issue-list" : null, Map.of("rowKey", rowKey));
   }
 
   private record SummaryCounts(
@@ -1232,10 +1241,10 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
      * 为了避免建议类污染二级/三级等指标才整体排除了建议类。
      */
     boolean isSuggestion() {
-      return SuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricRules.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
     }
     boolean isRegularMetricIssue() {
-      return SuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
+      return SuggestionMetricRules.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
     }
     boolean isVisibleForRegularOrSuggestionColumn() {
       return isRegularMetricIssue() || isSuggestion();

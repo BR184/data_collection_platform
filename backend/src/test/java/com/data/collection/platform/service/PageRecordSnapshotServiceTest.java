@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -37,7 +38,8 @@ class PageRecordSnapshotServiceTest {
             jdbcTemplate,
             mock(JsonUtils.class),
             mock(FactProjectionVersionService.class),
-            mock(IssueProjectionScopeResolver.class));
+            mock(IssueProjectionScopeResolver.class),
+            publicationGuard(jdbcTemplate));
 
     String sourceVersion = service.reviewDataSourceVersion();
 
@@ -59,7 +61,8 @@ class PageRecordSnapshotServiceTest {
             jdbcTemplate,
             mock(JsonUtils.class),
             mock(FactProjectionVersionService.class),
-            mock(IssueProjectionScopeResolver.class));
+            mock(IssueProjectionScopeResolver.class),
+            publicationGuard(jdbcTemplate));
 
     String sourceVersion = service.reviewDataSourceVersion();
 
@@ -79,7 +82,8 @@ class PageRecordSnapshotServiceTest {
             jdbcTemplate,
             mock(JsonUtils.class),
             mock(FactProjectionVersionService.class),
-            mock(IssueProjectionScopeResolver.class));
+            mock(IssueProjectionScopeResolver.class),
+            publicationGuard(jdbcTemplate));
 
     String sourceVersion = service.reviewDataSourceVersion();
 
@@ -100,11 +104,12 @@ class PageRecordSnapshotServiceTest {
             jdbcTemplate,
             jsonUtils,
             mock(FactProjectionVersionService.class),
-            mock(IssueProjectionScopeResolver.class));
+            mock(IssueProjectionScopeResolver.class),
+            publicationGuard(jdbcTemplate));
     AtomicInteger supplierInvocations = new AtomicInteger();
     PageRecordSnapshotService.SnapshotRequest request =
         new PageRecordSnapshotService.SnapshotRequest(
-            "review-data-records", "LIST", "all", "review-v6", "degraded-48215", Map.of());
+            "review-data-records", "LIST", "all", "review-v6", () -> "degraded-48215", Map.of());
 
     String payload =
         service.readOrRefresh(request, String.class, () -> {
@@ -128,13 +133,14 @@ class PageRecordSnapshotServiceTest {
             jdbcTemplate,
             jsonUtils,
             mock(FactProjectionVersionService.class),
-            mock(IssueProjectionScopeResolver.class));
+            mock(IssueProjectionScopeResolver.class),
+            publicationGuard(jdbcTemplate));
     CountDownLatch supplierEntered = new CountDownLatch(1);
     CountDownLatch releaseSupplier = new CountDownLatch(1);
     AtomicInteger supplierInvocations = new AtomicInteger();
     PageRecordSnapshotService.SnapshotRequest request =
         new PageRecordSnapshotService.SnapshotRequest(
-            "review-data-records", "LIST", "all", "review-v6", "source-version", Map.of());
+            "review-data-records", "LIST", "all", "review-v6", () -> "source-version", Map.of());
 
     ExecutorService pool = Executors.newFixedThreadPool(1);
     try {
@@ -188,6 +194,86 @@ class PageRecordSnapshotServiceTest {
     }
   }
 
+  /** 来源版本在重建期间保持不动时，重建结果必须按同一版本写入缓存。 */
+  @Test
+  void rebuildIsCachedWhenSourceVersionStaysTheSame() {
+    JdbcTemplate jdbcTemplate = snapshotMissJdbcTemplate();
+    JsonUtils jsonUtils = mock(JsonUtils.class);
+    when(jsonUtils.toJson(any())).thenReturn("{}");
+    PageRecordSnapshotService service = service(jdbcTemplate, jsonUtils);
+    AtomicInteger versionResolutions = new AtomicInteger();
+
+    String payload =
+        service.readOrRefresh(
+            snapshotRequest(
+                () -> versionResolutions.getAndIncrement() == 0 ? "source-v1" : "source-v1"),
+            String.class,
+            () -> "rebuilt");
+
+    assertThat(payload).isEqualTo("rebuilt");
+    assertThat(versionResolutions.get())
+        .as("查缓存前与重建后各解析一次版本，才可能发现检查期间的发布")
+        .isEqualTo(2);
+    verify(jdbcTemplate, times(1)).update(anyString(), any(Object[].class));
+  }
+
+  /**
+   * “检查后发布”窄化防护：重建期间来源版本已经推进时，不得把跨代际的结果写进旧版本键。
+   *
+   * <p>本次读取的结果仍然返回（记录页宁可展示更新后的数据），但缓存必须放弃写入，
+   * 由下一次请求按新版本重建；不靠重试或延时掩盖窗口。
+   */
+  @Test
+  void rebuildResultIsNotCachedWhenSourceVersionMovesDuringRebuild() {
+    JdbcTemplate jdbcTemplate = snapshotMissJdbcTemplate();
+    JsonUtils jsonUtils = mock(JsonUtils.class);
+    when(jsonUtils.toJson(any())).thenReturn("{}");
+    PageRecordSnapshotService service = service(jdbcTemplate, jsonUtils);
+    AtomicInteger versionResolutions = new AtomicInteger();
+
+    String payload =
+        service.readOrRefresh(
+            snapshotRequest(
+                () -> versionResolutions.getAndIncrement() == 0 ? "source-v1" : "source-v2"),
+            String.class,
+            () -> "rebuilt");
+
+    assertThat(payload).isEqualTo("rebuilt");
+    verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
+  }
+
+  /** 未命中缓存的记录快照查询桩：来源版本永远没有可复用的 READY 行。 */
+  private static JdbcTemplate snapshotMissJdbcTemplate() {
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    when(jdbcTemplate.queryForList(anyString(), eq(String.class), any(), any(), any(), any(), any(), any()))
+        .thenReturn(List.of());
+    return jdbcTemplate;
+  }
+
+  private static PageRecordSnapshotService service(
+      JdbcTemplate jdbcTemplate, JsonUtils jsonUtils) {
+    return new PageRecordSnapshotService(
+        jdbcTemplate,
+        jsonUtils,
+        mock(FactProjectionVersionService.class),
+        mock(IssueProjectionScopeResolver.class),
+        publicationGuard(jdbcTemplate));
+  }
+
+  private static FactProjectionPublicationGuardService publicationGuard(
+      JdbcTemplate jdbcTemplate) {
+    return new FactProjectionPublicationGuardService(
+        jdbcTemplate,
+        new FactProjectionExecutionContext(),
+        mock(org.springframework.transaction.PlatformTransactionManager.class));
+  }
+
+  private static PageRecordSnapshotService.SnapshotRequest snapshotRequest(
+      java.util.function.Supplier<String> sourceVersion) {
+    return new PageRecordSnapshotService.SnapshotRequest(
+        "review-data-records", "LIST", "all", "review-v6", sourceVersion, Map.of());
+  }
+
   /** 轮询等待线程进入 WAITING——该路径上唯一的 park 点是合并窗口内的 winner.join()。 */
   private static boolean waitUntilParkedInJoin(Thread thread) throws InterruptedException {
     long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
@@ -212,7 +298,8 @@ class PageRecordSnapshotServiceTest {
             jdbcTemplate,
             mock(JsonUtils.class),
             mock(FactProjectionVersionService.class),
-            mock(IssueProjectionScopeResolver.class));
+            mock(IssueProjectionScopeResolver.class),
+            publicationGuard(jdbcTemplate));
 
     service.reviewDataSourceVersion();
 
@@ -235,7 +322,8 @@ class PageRecordSnapshotServiceTest {
             jdbcTemplate,
             mock(JsonUtils.class),
             projectionVersionService,
-            mock(IssueProjectionScopeResolver.class));
+            mock(IssueProjectionScopeResolver.class),
+            publicationGuard(jdbcTemplate));
 
     String sourceVersion = service.reviewDataSourceVersion();
 
@@ -252,11 +340,12 @@ class PageRecordSnapshotServiceTest {
             jdbcTemplate,
             jsonUtils,
             mock(FactProjectionVersionService.class),
-            mock(IssueProjectionScopeResolver.class));
+            mock(IssueProjectionScopeResolver.class),
+            publicationGuard(jdbcTemplate));
     String sourceVersion = "source-version-component-".repeat(12);
     PageRecordSnapshotService.SnapshotRequest request =
         new PageRecordSnapshotService.SnapshotRequest(
-            "review-data", "LIST", "all", "review-v1", sourceVersion, java.util.Map.of());
+            "review-data", "LIST", "all", "review-v1", () -> sourceVersion, java.util.Map.of());
 
     service.save(request, java.util.Map.of());
 

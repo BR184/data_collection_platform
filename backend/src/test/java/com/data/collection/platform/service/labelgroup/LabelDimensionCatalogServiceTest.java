@@ -2,6 +2,7 @@ package com.data.collection.platform.service.labelgroup;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.labelgroup.LabelGroupCompatiblePageResponse;
@@ -69,12 +70,16 @@ class LabelDimensionCatalogServiceTest {
 
   @Test
   void shouldReturnCompatiblePagesForDimensions() {
+    // 人员维度按“页面 + 业务字段”登记适用范围：统一 person 维度下，
+    // 评审负责人/评审专家/议题处理人/客户问题处理人/提交人各自保留独立字段身份。
     assertThat(service.listCompatiblePages("person"))
-        .extracting(LabelGroupCompatiblePageResponse::pageKey)
+        .extracting(LabelGroupCompatiblePageResponse::pageKey, LabelGroupCompatiblePageResponse::fieldKey)
         .containsExactly(
-            "review-data-home",
-            "question-metrics-issue-search",
-            "customer-issues-cc-product-issues");
+            tuple("review-data-home", "reviewOwner"),
+            tuple("review-data-home", "reviewExpert"),
+            tuple("question-metrics-issue-search", "assigneeName"),
+            tuple("customer-issues-cc-product-issues", "assigneeName"),
+            tuple("customer-issues-cc-product-issues", "authorName"));
 
     assertThat(service.listCompatiblePages("project"))
         .extracting(LabelGroupCompatiblePageResponse::pageKey)

@@ -80,8 +80,10 @@ public class LabelDimensionCatalogService {
     add(pages, "project", "review-data-home", "评审数据管理", "projectName", "项目", true);
     add(pages, "module", "review-data-home", "评审数据管理", "moduleName", "模块", true);
     add(pages, "person", "review-data-home", "评审数据管理", "reviewOwner", "负责人", true);
+    add(pages, "person", "review-data-home", "评审数据管理", "reviewExpert", "评审专家", true);
     add(pages, "person", "question-metrics-issue-search", "系统测试议题查询", "assigneeName", "处理人", true);
     add(pages, "person", "customer-issues-cc-product-issues", "客户问题列表", "assigneeName", "处理人", true);
+    add(pages, "person", "customer-issues-cc-product-issues", "客户问题列表", "authorName", "提交人", true);
     add(pages, "project", "question-metrics-issue-search", "系统测试议题查询", "projectName", "项目", true);
     add(pages, "module", "question-metrics-issue-search", "系统测试议题查询", "moduleName", "模块", true);
     add(pages, "test_stage", "question-metrics-issue-search", "系统测试议题查询", "testingPhase", "测试阶段", true);

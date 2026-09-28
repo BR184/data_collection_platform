@@ -1,6 +1,7 @@
 package com.data.collection.platform.bi.infrastructure;
 
 import com.data.collection.platform.bi.application.BiCatTestPageService;
+import com.data.collection.platform.bi.application.BiCustomerIssuePageService;
 import com.data.collection.platform.bi.application.BiCodingPageService;
 import com.data.collection.platform.bi.application.BiDashboardRuntime;
 import com.data.collection.platform.bi.application.BiDownloadAuthorizationService;
@@ -9,6 +10,7 @@ import com.data.collection.platform.bi.application.BiReviewPageService;
 import com.data.collection.platform.bi.application.BiSystemTestPageService;
 import com.data.collection.platform.bi.application.BiVersionService;
 import com.data.collection.platform.bi.domain.BiCodingCalculator;
+import com.data.collection.platform.bi.domain.BiCustomerIssueCalculator;
 import com.data.collection.platform.bi.domain.BiProductVersionMatcher;
 import com.data.collection.platform.bi.domain.BiReviewCalculator;
 import com.data.collection.platform.bi.domain.BiSystemTestCalculator;
@@ -21,6 +23,10 @@ import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabMergeRequestCommitFactCapability;
 import com.data.collection.platform.service.IssueScopeCatalogService;
 import com.data.collection.platform.service.PageRecordSnapshotService;
+import com.data.collection.platform.service.CustomerIssueFactQueryService;
+import com.data.collection.platform.service.statistics.CustomerIssueMilestoneCatalogService;
+import com.data.collection.platform.service.statistics.StatisticBoardReadScopeResolver;
+import com.data.collection.platform.service.statistics.StatisticBoardSnapshotService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -33,6 +39,10 @@ public class BiDashboardRuntimeFactory {
   private final CodeReviewMatchModeSwitchService matchModeSwitchService;
   private final GitlabConfigService gitlabConfigService;
   private final BiCatMirrorManager catMirrorManager;
+  private final CustomerIssueFactQueryService customerIssueFactQueryService;
+  private final CustomerIssueMilestoneCatalogService customerIssueMilestoneCatalogService;
+  private final StatisticBoardSnapshotService statisticBoardSnapshotService;
+  private final StatisticBoardReadScopeResolver statisticBoardReadScopeResolver;
 
   public BiDashboardRuntimeFactory(
       JdbcTemplate jdbcTemplate,
@@ -40,13 +50,21 @@ public class BiDashboardRuntimeFactory {
       PageRecordSnapshotService snapshotService,
       CodeReviewMatchModeSwitchService matchModeSwitchService,
       GitlabConfigService gitlabConfigService,
-      BiCatMirrorManager catMirrorManager) {
+      BiCatMirrorManager catMirrorManager,
+      CustomerIssueFactQueryService customerIssueFactQueryService,
+      CustomerIssueMilestoneCatalogService customerIssueMilestoneCatalogService,
+      StatisticBoardSnapshotService statisticBoardSnapshotService,
+      StatisticBoardReadScopeResolver statisticBoardReadScopeResolver) {
     this.jdbcTemplate = jdbcTemplate;
     this.catalogService = catalogService;
     this.snapshotService = snapshotService;
     this.matchModeSwitchService = matchModeSwitchService;
     this.gitlabConfigService = gitlabConfigService;
     this.catMirrorManager = catMirrorManager;
+    this.customerIssueFactQueryService = customerIssueFactQueryService;
+    this.customerIssueMilestoneCatalogService = customerIssueMilestoneCatalogService;
+    this.statisticBoardSnapshotService = statisticBoardSnapshotService;
+    this.statisticBoardReadScopeResolver = statisticBoardReadScopeResolver;
   }
 
   /** 创建一个没有启动期副作用、没有后台线程和没有网络调用的 BI Runtime。 */
@@ -79,6 +97,13 @@ public class BiDashboardRuntimeFactory {
     var cat = new BiCatTestSourceAdapter(catRepository);
     var currentVersions = new BiPlatformCurrentSourceVersionAdapter(
         snapshotService, codeReviewSourceContextFactory, catRepository);
+    var customerIssues = new BiCustomerIssuePageService(
+        customerIssueFactQueryService,
+        customerIssueMilestoneCatalogService,
+        statisticBoardSnapshotService,
+        statisticBoardReadScopeResolver,
+        jdbcTemplate,
+        new BiCustomerIssueCalculator());
     // 最后把“版本范围 -> 数据源 -> 计算器 -> 页面服务”逐页绑定，Controller 不感知具体实现。
     return new BiDashboardRuntime(
         new BiVersionService(versions),
@@ -90,7 +115,8 @@ public class BiDashboardRuntimeFactory {
         new BiCatTestPageService(BiCatTestSourcePort.TestStage.UNIT_TEST, versions, cat),
         new BiCatTestPageService(BiCatTestSourcePort.TestStage.INTEGRATION_TEST, versions, cat),
         new BiSystemTestPageService(versions, systemTest, new BiSystemTestCalculator()),
-        new BiDownloadAuthorizationService(versions, currentVersions),
+        customerIssues,
+        new BiDownloadAuthorizationService(versions, currentVersions, customerIssues),
         new BiExcelExportService());
   }
 }

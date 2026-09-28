@@ -233,12 +233,13 @@ public final class DefectSummaryBoardSupport {
 
     private StatisticCellData cell(
         String key, Long numericValue, String displayValue, boolean drilldown, String rowKey) {
+      boolean canDrilldown = StatisticDrilldownSupport.legacyCellDrilldown(drilldown, numericValue);
       return new StatisticCellData(
           key,
           numericValue,
           displayValue,
-          drilldown,
-          drilldown ? "issue-list" : null,
+          canDrilldown,
+          canDrilldown ? "issue-list" : null,
           Map.of("rowKey", rowKey));
     }
   }

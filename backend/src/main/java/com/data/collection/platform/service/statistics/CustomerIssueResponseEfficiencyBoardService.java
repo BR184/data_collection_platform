@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.domain.customerissue.CustomerIssueEfficiencyRules;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
 import com.data.collection.platform.entity.statistics.StatisticBoardMeta;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
@@ -9,6 +10,7 @@ import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.entity.statistics.StatisticColumnGroup;
 import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
 import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
+import com.data.collection.platform.entity.statistics.StatisticDetailCollection;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
@@ -27,7 +29,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -194,7 +195,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     Map<String, String> snapshotFilters = customerSnapshotFilters(filters, effectiveFilterGroup);
     return snapshotService.readOrRefresh(
         snapshotRequest(snapshotFilters, effectiveFilterGroup, buildDefinition()),
-        () -> buildBoardResponse(filters, effectiveFilterGroup));
+        ignored -> buildBoardResponse(filters, effectiveFilterGroup));
   }
 
   private StatisticBoardResponse buildBoardResponse(
@@ -299,6 +300,8 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     return new StatisticDetailResponse(
         "客户问题响应效率明细",
         "展示当前模块与响应/解决周期指标命中的 CC_Product 议题明细。",
+        List.of(StatisticDetailCollection.detailList()),
+        StatisticDetailCollection.DETAIL_KEY,
         DETAIL_COLUMNS,
         pageSlice.records(),
         pageSlice.total(),
@@ -682,13 +685,12 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
   }
 
   private static boolean matchesLegacyQueryFilter(IssueSource issue) {
-    if (issue == null || !issue.isClosed()) {
+    if (issue == null) {
       return true;
     }
-    return !containsBusinessText(issue.labels(), "申请否决")
-        && !containsBusinessText(issue.bugStatus(), "申请否决")
-        && !containsBusinessText(issue.labels(), "需求如此")
-        && !containsBusinessText(issue.bugStatus(), "需求如此");
+    List<String> labels = issue.labels();
+    return !CustomerIssueEfficiencyRules.isExcludedFromEfficiencyScope(
+        issue.isClosed(), labels == null ? null : String.join(",", labels), issue.bugStatus());
   }
 
   private static boolean isCatalogModule(String moduleName) {
@@ -772,23 +774,13 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     }
 
     private long averageHours(List<IssueSource> records) {
-      if (records.isEmpty()) {
-        return 0;
-      }
-      double average =
-          records.stream().mapToLong(IssueSource::responseCycleHours).average().orElse(0D);
-      return Math.round(average);
+      return CustomerIssueEfficiencyRules.averageResponseHours(
+          records.stream().map(IssueSource::responseCycleHours).toList());
     }
 
     private BigDecimal averageDays(List<IssueSource> records) {
-      if (records.isEmpty()) {
-        return BigDecimal.ZERO.setScale(1, RoundingMode.HALF_UP);
-      }
-      BigDecimal sum =
-          records.stream()
-              .map(IssueSource::resolutionCycleDays)
-              .reduce(BigDecimal.ZERO, BigDecimal::add);
-      return sum.divide(BigDecimal.valueOf(records.size()), 1, RoundingMode.HALF_UP);
+      return CustomerIssueEfficiencyRules.averageResolutionDays(
+          records.stream().map(IssueSource::resolutionCycleDays).toList());
     }
 
     private StatisticCellData textCell(String key, String value) {
@@ -797,12 +789,13 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     }
 
     private StatisticCellData cycleCell(String key, Long numericValue, String displayValue, boolean drilldown) {
+      boolean canDrilldown = StatisticDrilldownSupport.legacyCellDrilldown(drilldown, numericValue);
       return new StatisticCellData(
           key,
           numericValue == null ? 0L : numericValue,
           displayValue,
-          drilldown,
-          drilldown ? "issue-list" : null,
+          canDrilldown,
+          canDrilldown ? "issue-list" : null,
           Map.of("rowKey", rowKey));
     }
   }
@@ -851,26 +844,22 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     }
 
     boolean hasResponseCycle() {
-      return createdAt != null && researchTemplateTime != null;
+      return CustomerIssueEfficiencyRules.hasResponseCycle(createdAt, researchTemplateTime);
     }
 
     boolean hasResolutionCycle() {
-      return createdAt != null
-          && fixedLabelTime != null
-          && IssueStatusMembers.matchesSelection(bugStatus, FIXED_STATUS);
+      return CustomerIssueEfficiencyRules.hasResolutionCycle(
+          createdAt, fixedLabelTime, IssueStatusMembers.matchesSelection(bugStatus, FIXED_STATUS));
     }
 
     long responseCycleHours() {
-      return hasResponseCycle() ? Duration.between(createdAt, researchTemplateTime).toHours() : 0L;
+      return CustomerIssueEfficiencyRules.responseCycleHours(createdAt, researchTemplateTime);
     }
 
     BigDecimal resolutionCycleDays() {
-      if (!hasResolutionCycle()) {
-        return BigDecimal.ZERO;
-      }
-      long millis = Duration.between(createdAt, fixedLabelTime).toMillis();
-      return BigDecimal.valueOf(millis)
-          .divide(BigDecimal.valueOf(24L * 60L * 60L * 1000L), 6, RoundingMode.HALF_UP);
+      return hasResolutionCycle()
+          ? CustomerIssueEfficiencyRules.resolutionCycleDays(createdAt, fixedLabelTime)
+          : BigDecimal.ZERO;
     }
 
     String responseCycleDisplay() {

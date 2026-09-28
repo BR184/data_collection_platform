@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 import com.data.collection.platform.bi.application.BiDashboardRuntime;
 import com.data.collection.platform.bi.application.BiDownloadAuthorizationService;
 import com.data.collection.platform.bi.application.BiExcelExportService;
+import com.data.collection.platform.bi.domain.model.BiDownloadScope;
+import com.data.collection.platform.bi.domain.model.BiDownloadScope.RangeType;
 import com.data.collection.platform.bi.infrastructure.BiDashboardRuntimeManager;
 import com.data.collection.platform.common.exception.BizException;
 import java.io.ByteArrayInputStream;
@@ -30,17 +32,23 @@ class BiDashboardControllerExcelExportTest {
     when(manager.runtime()).thenReturn(runtime);
     when(runtime.downloads()).thenReturn(downloads);
     when(runtime.excel()).thenReturn(new BiExcelExportService());
+    when(downloads.authorize(any())).thenReturn(new BiDownloadAuthorizationService.Authorization(
+        true, BiDownloadScope.productVersion(10L), "system-test", "system-test-assignee-workload",
+        "developer-workload", "issue-version-3", "产品版本：CC2026R4"));
     BiDashboardController controller = new BiDashboardController(manager);
 
     ResponseEntity<byte[]> response = controller.exportExcel(new BiExcelExportRequest(
-        10L, "system-test", "developer-workload", "issue-version-3",
-        "按指派人统计缺陷数", "CC2026R4", "统计各处理人员被指派的缺陷总数。",
+        new BiDownloadScopeRequest(RangeType.PRODUCT_VERSION, 10L, null, null,
+            null, null, null, null, null, null),
+        "system-test", "system-test-assignee-workload", "developer-workload", "issue-version-3",
+        "按指派人统计缺陷数", "统计各处理人员被指派的缺陷总数。",
         List.of("指派责任人", "缺陷总数"),
         List.of(List.<Object>of("张三", 10))));
 
     // 授权必须先于生成执行，避免绕过下载权限直接取文件。
     verify(downloads).authorize(new BiDownloadAuthorizationService.Request(
-        10L, "system-test", "developer-workload", "issue-version-3"));
+        BiDownloadScope.productVersion(10L), "system-test", "system-test-assignee-workload",
+        "developer-workload", "issue-version-3"));
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getHeaders().getContentType()).isNotNull();
     assertThat(response.getHeaders().getContentType().toString())
@@ -69,11 +77,31 @@ class BiDashboardControllerExcelExportTest {
     BiDashboardController controller = new BiDashboardController(manager);
 
     BiExcelExportRequest request = new BiExcelExportRequest(
-        10L, "system-test", "developer-workload", "stale-version",
-        "按指派人统计缺陷数", "CC2026R4", null, List.of("指派责任人"), List.of());
+        new BiDownloadScopeRequest(RangeType.PRODUCT_VERSION, 10L, null, null,
+            null, null, null, null, null, null),
+        "system-test", "system-test-assignee-workload", "developer-workload", "stale-version",
+        "按指派人统计缺陷数", null, List.of("指派责任人"), List.of());
 
     assertThatThrownBy(() -> controller.exportExcel(request))
         .isInstanceOf(BizException.class)
         .hasMessageContaining("刷新整页");
+  }
+
+  @Test
+  void rejectsMalformedCustomerSelectorsBeforeLoadingRuntime() {
+    BiDashboardController controller = new BiDashboardController(mock(BiDashboardRuntimeManager.class));
+
+    assertThatThrownBy(() -> controller.customerIssues(
+        null, "UNKNOWN", "x", null, null, null, null))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+        .hasMessageContaining("kind 仅支持");
+    assertThatThrownBy(() -> controller.customerIssues(
+        null, "VALUE", null, null, null, null, null))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+        .hasMessageContaining("VALUE 必须携带");
+    assertThatThrownBy(() -> controller.customerIssues(
+        null, "ALL", "x", null, null, null, null))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+        .hasMessageContaining("ALL 不接受");
   }
 }

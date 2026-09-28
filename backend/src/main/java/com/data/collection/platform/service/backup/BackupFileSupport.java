@@ -11,12 +11,13 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
  * 备份文件命名、轮转与本地目录解析的纯函数支撑。
- * 文件名 {@code qaflex_<实例标识>_<yyyyMMdd-HHmmss>.dump}：字典序即时间序，轮转据此保留最新 N 份；
+ * 文件名带实例标识、时间、运行 ID 与执行 token；旧版历史文件仍可识别，轮转另受成功登记记录约束；
  * 匹配严格限定本实例命名模式，同目录其他实例或其他文件绝不进入删除候选。
  */
 public final class BackupFileSupport {
@@ -35,14 +36,21 @@ public final class BackupFileSupport {
     return sanitized.length() > 100 ? sanitized.substring(0, 100) : sanitized;
   }
 
-  /** 生成最终备份文件名。 */
-  public static String fileNameFor(String label, LocalDateTime timestamp) {
-    return "qaflex_" + label + "_" + FILE_NAME_TIME.format(timestamp) + ".dump";
+  /** 生成绑定单次执行身份的最终文件名，避免同秒触发覆盖已有产物。 */
+  public static String fileNameFor(
+      String label, LocalDateTime timestamp, long runId, String executionToken) {
+    if (runId <= 0L || executionToken == null || !executionToken.matches("[A-Fa-f0-9-]{36}")) {
+      throw new IllegalArgumentException("备份文件名必须携带有效运行 ID 与 UUID token");
+    }
+    return "qaflex_" + label + "_" + FILE_NAME_TIME.format(timestamp)
+        + "_" + String.format(Locale.ROOT, "%020d", runId) + "-" + executionToken + ".dump";
   }
 
   /** 本实例备份文件的匹配模式；只有完全命中该模式的文件才可能被轮转删除。 */
   public static Pattern dumpFilePattern(String label) {
-    return Pattern.compile("^qaflex_" + Pattern.quote(label) + "_\\d{8}-\\d{6}\\.dump$");
+    return Pattern.compile(
+        "^qaflex_" + Pattern.quote(label)
+            + "_\\d{8}-\\d{6}(?:_\\d{20}-[A-Fa-f0-9-]{36})?\\.dump$");
   }
 
   /**

@@ -113,7 +113,45 @@ class GitlabFactChangeResolverIntegrationTest {
         .allSatisfy(identity -> assertThat(identity.projectId()).isEqualTo(10L));
   }
 
+  @Test
+  void resource_label_event_change_resolves_the_before_and_after_issue_roots_only() {
+    jdbcTemplate.update(
+        "insert into ods_gitlab_issues(id, project_id, iid) values (301, 10, 1), (302, 10, 2)");
+
+    List<FactChangeIdentity> identities =
+        resolver.resolve(
+            "alpha",
+            "resource_label_events",
+            List.of(
+                new MirrorRowChange(
+                    Map.of("id", 901L, "issue_id", 301L, "merge_request_id", 700L),
+                    Map.of("id", 901L, "issue_id", 302L, "merge_request_id", 700L))));
+
+    assertThat(identities)
+        .extracting(FactChangeIdentity::factType)
+        .containsOnly(FactType.ISSUE);
+    assertThat(identities).extracting(FactChangeIdentity::rootId).containsExactly(301L, 302L);
+  }
+
+  @Test
+  void label_change_resolves_historical_event_roots_when_current_label_links_are_missing() {
+    jdbcTemplate.update("insert into ods_gitlab_issues(id, project_id, iid) values (303, 10, 3)");
+    jdbcTemplate.update(
+        "insert into ods_gitlab_resource_label_events(id, issue_id, label_id) values (902, 303, 44)");
+
+    List<FactChangeIdentity> identities =
+        resolver.resolve(
+            "alpha", "labels", List.of(new MirrorRowChange(Map.of("id", 44L), Map.of("id", 44L))));
+
+    assertThat(identities)
+        .filteredOn(identity -> identity.factType() == FactType.ISSUE)
+        .extracting(FactChangeIdentity::rootId)
+        .containsExactly(303L);
+  }
+
   private void resetSchema() {
+    jdbcTemplate.execute("drop table if exists ods_gitlab_resource_label_events");
+    jdbcTemplate.execute("drop table if exists ods_gitlab_label_links");
     jdbcTemplate.execute("drop table if exists ods_gitlab_merge_request_reviewers");
     jdbcTemplate.execute("drop table if exists ods_gitlab_merge_request_assignees");
     jdbcTemplate.execute("drop table if exists ods_gitlab_issue_assignees");
@@ -171,6 +209,28 @@ class GitlabFactChangeResolverIntegrationTest {
           noteable_id bigint,
           noteable_type varchar(32),
           author_id bigint,
+          mirror_deleted boolean not null default false
+        )
+        """);
+    jdbcTemplate.execute(
+        """
+        create table ods_gitlab_label_links (
+          id bigint primary key,
+          target_id bigint,
+          target_type varchar(32),
+          label_id bigint,
+          mirror_deleted boolean not null default false
+        )
+        """);
+    jdbcTemplate.execute(
+        """
+        create table ods_gitlab_resource_label_events (
+          id bigint primary key,
+          issue_id bigint,
+          merge_request_id bigint,
+          label_id bigint,
+          action integer,
+          created_at timestamp,
           mirror_deleted boolean not null default false
         )
         """);

@@ -1,12 +1,14 @@
 package com.data.collection.platform.service.statistics;
 
+import com.data.collection.platform.domain.issue.SuggestionMetricRules;
 import org.springframework.util.StringUtils;
 
+/**
+ * 建议类统计 SQL 谓词与表头说明。纯成员判定唯一实现见 {@link SuggestionMetricRules}。
+ */
 final class SuggestionMetricSupport {
   static final String SUGGESTION_HEADER_TOOLTIP =
       "建议类缺陷单独统计，不计入一级、二级、三级、P1/P2/P3、总计、修复率、关闭率和占比。";
-
-  private static final String SUGGESTION = "建议";
 
   private SuggestionMetricSupport() {}
 
@@ -25,28 +27,7 @@ final class SuggestionMetricSupport {
    * 领导口径保留建议类独立列，同时保护其它缺陷指标不被建议类污染。
    */
   static boolean isSuggestionColumnIssue(boolean excluded, String exclusionReason, String severityLevel, String category) {
-    if (!isSuggestionFact(severityLevel, category, exclusionReason)) {
-      return false;
-    }
-    return !excluded || isExcludedOnlyBecauseSuggestion(excluded, exclusionReason);
-  }
-
-  static boolean isRegularMetricIssue(boolean excluded, String exclusionReason, String severityLevel, String category) {
-    return !excluded && !isSuggestionFact(severityLevel, category, exclusionReason);
-  }
-
-  private static boolean isSuggestionFact(String severityLevel, String category, String exclusionReason) {
-    return "SUGGESTION".equalsIgnoreCase(severityLevel)
-        || containsSuggestion(category)
-        || SUGGESTION.equals(exclusionReason);
-  }
-
-  static boolean isExcludedOnlyBecauseSuggestion(boolean excluded, String exclusionReason) {
-    return excluded && SUGGESTION.equals(exclusionReason);
-  }
-
-  static boolean containsSuggestion(String category) {
-    return StringUtils.hasText(category) && category.contains(SUGGESTION);
+    return SuggestionMetricRules.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
   }
 
   static String regularMetricSql(String tableAlias) {

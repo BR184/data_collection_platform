@@ -33,6 +33,7 @@ final class DatabaseBrowserCollectionTableDefinitions {
             column("performance_score", "性能"),
             column("design_score", "设计"),
             column("other_score", "其他"),
+            column("remark", "备注"),
             column("deleted", "是否作废"),
             column("updated_at", "更新时间"),
             column("created_at", "创建时间")),

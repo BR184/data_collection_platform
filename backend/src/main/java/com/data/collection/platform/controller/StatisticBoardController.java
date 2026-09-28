@@ -3,6 +3,7 @@ package com.data.collection.platform.controller;
 import com.data.collection.platform.common.DownloadResponseHeaders;
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
+import com.data.collection.platform.entity.statistics.StatisticBoardControlOptions;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
@@ -57,8 +58,21 @@ public class StatisticBoardController {
     return ApiResponse.success(registry.getRequired(boardKey).loadBoard(filters));
   }
 
-  @GetMapping("/{boardKey}/details")
+  /**
+   * 成员控制条候选：由同一事实源在该板的完整基础范围上求得，不随当前成员选择收缩。
+   *
+   * @param boardKey 统计板标识
+   * @param filters 页面范围参数（里程碑与来源参与范围判定，成员参与筛选但不参与候选求解）
+   */
+  @GetMapping("/{boardKey}/control-options")
   @RequirePagePermission(resource = RequirePagePermission.Resource.STATISTIC_BOARD, action = RequirePagePermission.Action.VIEW)
+  public ApiResponse<StatisticBoardControlOptions> getControlOptions(
+      @PathVariable @NotBlank String boardKey,
+      @RequestParam Map<String, String> filters) {
+    return ApiResponse.success(registry.getRequired(boardKey).controlOptions(filters));
+  }
+
+  @GetMapping("/{boardKey}/details")  @RequirePagePermission(resource = RequirePagePermission.Resource.STATISTIC_BOARD, action = RequirePagePermission.Action.VIEW)
   public ApiResponse<StatisticDetailResponse> getDetails(
       @PathVariable @NotBlank String boardKey,
       @RequestParam String rowKey,

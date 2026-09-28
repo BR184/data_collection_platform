@@ -579,11 +579,12 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         snapshotType,
         scopeKey,
         RULE_VERSION,
-        pageRecordSnapshotService.issueFactSourceVersion(
-            sourceInstance,
-            projectId == null ? LEGACY_CROWN_CAD_PROJECT_ID : projectId,
-            IssueScopeDimension.TESTING_PHASE,
-            testingPhaseBusinessKey),
+        () ->
+            pageRecordSnapshotService.issueFactSourceVersion(
+                sourceInstance,
+                projectId == null ? LEGACY_CROWN_CAD_PROJECT_ID : projectId,
+                IssueScopeDimension.TESTING_PHASE,
+                testingPhaseBusinessKey),
         requestPayload);
   }
 

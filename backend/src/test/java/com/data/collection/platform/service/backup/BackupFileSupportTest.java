@@ -25,10 +25,26 @@ class BackupFileSupportTest {
   @Test
   void test_fileNameFor_followsQaflexTimestampContract() {
     String name = BackupFileSupport.fileNameFor(
-        "20001", LocalDateTime.of(2026, 9, 10, 3, 0, 5));
+        "20001", LocalDateTime.of(2026, 9, 10, 3, 0, 5), 42L,
+        "01234567-89ab-cdef-0123-456789abcdef");
 
-    assertThat(name).isEqualTo("qaflex_20001_20260910-030005.dump");
+    assertThat(name).isEqualTo(
+        "qaflex_20001_20260910-030005_00000000000000000042-01234567-89ab-cdef-0123-456789abcdef.dump");
     assertThat(BackupFileSupport.dumpFilePattern("20001").matcher(name).matches()).isTrue();
+    assertThat(BackupFileSupport.dumpFilePattern("20001")
+        .matcher("qaflex_20001_20260910-030005.dump").matches()).isTrue();
+  }
+
+  @Test
+  void test_fileNameFor_sameSecondDifferentExecutions_producesDistinctNames() {
+    LocalDateTime timestamp = LocalDateTime.of(2026, 9, 10, 3, 0, 5);
+
+    String first = BackupFileSupport.fileNameFor(
+        "20001", timestamp, 42L, "01234567-89ab-cdef-0123-456789abcdef");
+    String second = BackupFileSupport.fileNameFor(
+        "20001", timestamp, 43L, "fedcba98-7654-3210-fedc-ba9876543210");
+
+    assertThat(first).isNotEqualTo(second);
   }
 
   @Test

@@ -2,14 +2,25 @@ package com.data.collection.platform.service.backup;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Clock;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -23,7 +34,7 @@ class ProcessBackupProcessRunnerTest {
     List<String> command = stubCommand();
 
     BackupProcessRunner.ProcessResult result =
-        runner.run(command, Map.of("STUB_EXIT", "0"), Duration.ofSeconds(30));
+        runner.run(command, Map.of("STUB_EXIT", "0"), Duration.ofSeconds(30), context(mockActiveState()));
 
     assertThat(result.exitCode()).isZero();
     assertThat(result.stderr()).isEmpty();
@@ -34,7 +45,7 @@ class ProcessBackupProcessRunnerTest {
     List<String> command = stubCommand();
 
     BackupProcessRunner.ProcessResult result =
-        runner.run(command, Map.of("STUB_EXIT", "3"), Duration.ofSeconds(30));
+        runner.run(command, Map.of("STUB_EXIT", "3"), Duration.ofSeconds(30), context(mockActiveState()));
 
     assertThat(result.exitCode()).isEqualTo(3);
     assertThat(result.stderr()).contains("pg_dump: error details");
@@ -48,7 +59,8 @@ class ProcessBackupProcessRunnerTest {
     runner.run(
         command,
         Map.of("PGPASSWORD", "s3cret", "STUB_OUTPUT", output.toString(), "STUB_EXIT", "0"),
-        Duration.ofSeconds(30));
+        Duration.ofSeconds(30),
+        context(mockActiveState()));
 
     assertThat(Files.readString(output, StandardCharsets.UTF_8).strip()).isEqualTo("s3cret");
   }
@@ -57,19 +69,60 @@ class ProcessBackupProcessRunnerTest {
   void test_run_hangingProcess_timesOutAndDestroys() {
     List<String> command = stubCommand();
 
-    assertThatThrownBy(() -> runner.run(command, Map.of("STUB_SLEEP", "1"), Duration.ofMillis(500)))
+    assertThatThrownBy(() -> runner.run(
+            command, Map.of("STUB_SLEEP", "1"), Duration.ofMillis(500), context(mockActiveState())))
         .isInstanceOf(BackupProcessException.class)
         .hasMessageContaining("超过");
+  }
+
+  @Test
+  void test_run_whenExecutionIdentityIsRevoked_terminatesRegisteredProcess() throws Exception {
+    BackupStateRepository stateRepository = mockActiveState();
+    CountDownLatch processRegistered = new CountDownLatch(1);
+    doAnswer(invocation -> {
+      processRegistered.countDown();
+      return true;
+    }).when(stateRepository).recordProcessIdentity(anyLong(), anyString(), anyLong(), any(), any());
+    BackupExecutionContext context = context(stateRepository);
+    var executor = Executors.newSingleThreadExecutor();
+    try {
+      var result = executor.submit(() ->
+          runner.run(stubCommand(), Map.of("STUB_SLEEP", "1"), Duration.ofSeconds(20), context));
+      assertThat(processRegistered.await(5, TimeUnit.SECONDS)).isTrue();
+
+      context.requestStop("test lease revoked");
+
+      assertThatThrownBy(() -> result.get(5, TimeUnit.SECONDS))
+          .hasCauseInstanceOf(BackupExecutionStoppedException.class);
+      assertThat(context.awaitExternalEffectsStopped(Duration.ZERO)).isTrue();
+    } finally {
+      executor.shutdownNow();
+      executor.awaitTermination(5, TimeUnit.SECONDS);
+    }
   }
 
   @Test
   void test_run_missingExecutable_throwsWithGuidance() {
     assertThatThrownBy(
             () ->
-                runner.run(
-                    List.of("definitely-not-a-real-binary-xyz"), Map.of(), Duration.ofSeconds(5)))
+            runner.run(
+                    List.of("definitely-not-a-real-binary-xyz"),
+                    Map.of(),
+                    Duration.ofSeconds(5),
+                    context(mockActiveState())))
         .isInstanceOf(BackupProcessException.class)
         .hasMessageContaining("命令启动失败");
+  }
+
+  private BackupStateRepository mockActiveState() {
+    BackupStateRepository repository = mock(BackupStateRepository.class);
+    when(repository.isOwnedActive(anyLong(), anyString(), any())).thenReturn(true);
+    when(repository.recordProcessIdentity(anyLong(), anyString(), anyLong(), any(), any())).thenReturn(true);
+    return repository;
+  }
+
+  private BackupExecutionContext context(BackupStateRepository repository) {
+    return new BackupExecutionContext(7L, UUID.randomUUID().toString(), repository, Clock.systemUTC());
   }
 
   private List<String> stubCommand() {

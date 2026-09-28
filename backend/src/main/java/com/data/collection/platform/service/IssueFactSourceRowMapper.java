@@ -6,6 +6,7 @@ import static com.data.collection.platform.service.FactSourceRowValueSupport.nul
 import static com.data.collection.platform.service.FactSourceRowValueSupport.readTextArray;
 import static com.data.collection.platform.service.FactSourceRowValueSupport.toLocalDateTime;
 
+import com.data.collection.platform.domain.customerissue.CustomerRequirementRules;
 import com.data.collection.platform.entity.IssueFact;
 import com.data.collection.platform.service.IssuePhaseCalendarLoader.PhaseCalendarEntry;
 import com.data.collection.platform.service.IssuePhaseCalendarLoader.PhaseCalendarKey;
@@ -105,6 +106,7 @@ class IssueFactSourceRowMapper {
     fact.setExclusionReason(
         IssueFactNormalizationRules.exclusionReason(labels, closed, fact.getProjectId()));
     fact.setFixed(IssueFactNormalizationRules.isFixed(labels, closed));
+    fact.setIsCustomerRequirement(CustomerRequirementRules.derive(labels, customerProject));
     fact.setDelayIssue(IssueFactNormalizationRules.hasDelayFlag(labels, notesText));
     fact.setDelayReason(IssueFactNormalizationRules.normalizeDelayReason(labels, notesText));
     fact.setDelayCause(
@@ -151,9 +153,7 @@ class IssueFactSourceRowMapper {
     fact.setPlannedResolutionText(responseTemplate.plannedResolutionText());
     fact.setPlannedMergeVersionBranch(responseTemplate.plannedMergeVersionBranch());
     fact.setFixedLabelTime(
-        Boolean.TRUE.equals(fact.getFixed())
-                && StringUtils.hasText(fact.getBugStatus())
-                && fact.getBugStatus().contains("已修复/完成")
+        IssueStatusMembers.parse(fact.getBugStatus()).contains("已修复/完成")
             ? toLocalDateTime(resultSet.getTimestamp("fixed_label_time"))
             : null);
     fact.setResolveDelayed(

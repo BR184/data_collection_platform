@@ -6,6 +6,7 @@ import com.data.collection.platform.common.response.ResultCode;
 import com.data.collection.platform.entity.dropdown.DropdownOptionRulesPayload;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -71,6 +72,24 @@ public class DropdownOptionConfigRepository {
             Long.class,
             fieldKey);
     return rows.stream().findFirst();
+  }
+
+  /**
+   * 在当前事务中获取字段级互斥锁，串行化首次保存与任何绑定变更。
+   *
+   * <p>PostgreSQL 事务级 advisory lock 可跨应用实例生效，并在事务结束时自动释放；
+   * hash 冲突只会额外串行化无关字段，不会削弱同一字段的互斥。
+   *
+   * @param fieldKey 注册字段键
+   */
+  public void lockFieldMutation(String fieldKey) {
+    jdbcTemplate.execute((ConnectionCallback<Void>) connection -> {
+      try (var statement = connection.prepareStatement("select pg_advisory_xact_lock(hashtext(?))")) {
+        statement.setString(1, fieldKey);
+        statement.execute();
+      }
+      return null;
+    });
   }
 
   /**

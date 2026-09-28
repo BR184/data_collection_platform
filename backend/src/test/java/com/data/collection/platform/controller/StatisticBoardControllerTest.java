@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
+import com.data.collection.platform.service.LabelEventHistoryTestSupport;
 import java.io.ByteArrayInputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -71,6 +72,7 @@ class StatisticBoardControllerTest {
   void resetStatisticLinkFixtures() {
     ensureStatisticLinkProjectTables();
     cleanStatisticLinkFixtures();
+    LabelEventHistoryTestSupport.markComplete(jdbcTemplate, "default");
   }
 
   @AfterEach

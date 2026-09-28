@@ -44,10 +44,12 @@ class ReviewDataRecordServiceTest {
 
     ArgumentCaptor<PageRecordSnapshotService.SnapshotRequest> requestCaptor =
         ArgumentCaptor.forClass(PageRecordSnapshotService.SnapshotRequest.class);
-    verify(pageRecordSnapshotService)
-        .readOrRefresh(
+    verify(pageRecordSnapshotService)        .readOrRefresh(
             requestCaptor.capture(), eq(ReviewDataRecordListResponse.class), any());
     assertThat(requestCaptor.getValue().ruleVersion())
         .isEqualTo("review-data-records@2026-09-18-v7");
+    assertThat(requestCaptor.getValue().resolveSourceVersion())
+        .as("来源版本以解析动作交给快照服务，才能在重建完成后再解析一次识别检查后发布")
+        .isEqualTo("review-source");
   }
 }

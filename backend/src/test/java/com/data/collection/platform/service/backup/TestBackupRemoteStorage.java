@@ -18,6 +18,7 @@ final class TestBackupRemoteStorage implements BackupRemoteStorage {
   RuntimeException freeSpaceFailure;
   Long fileSizeOverride;
   Runnable onUpload;
+  Runnable onCancel;
   Optional<String> sha256 = Optional.of("sha-value");
   List<String> remoteFiles = new ArrayList<>();
 
@@ -87,6 +88,14 @@ final class TestBackupRemoteStorage implements BackupRemoteStorage {
   public void deleteFile(String directory, String fileName) {
     operations.add("delete:" + directory + "/" + fileName);
     remoteFiles.remove(fileName);
+  }
+
+  @Override
+  public void cancel() {
+    operations.add("cancel");
+    if (onCancel != null) {
+      onCancel.run();
+    }
   }
 
   @Override

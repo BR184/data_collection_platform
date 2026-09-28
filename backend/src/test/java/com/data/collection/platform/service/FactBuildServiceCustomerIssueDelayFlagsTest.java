@@ -3,9 +3,11 @@ package com.data.collection.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.service.sync.SyncFactPublicationStateService;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,6 +82,9 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
     jdbcTemplate.update("delete from ods_gitlab_issues");
     issueFactPersistenceService = mock(IssueFactPersistenceService.class);
     searchIndexRepairService = mock(FactSearchIndexRepairService.class);
+    SyncFactPublicationStateService publicationStateService =
+        mock(SyncFactPublicationStateService.class);
+    when(publicationStateService.isIssueSourceHistoryComplete("default")).thenReturn(true);
     service =
         new FactBuildService(
             jdbcTemplate,
@@ -88,6 +93,7 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
             mock(MergeRequestFactPersistenceService.class),
             mock(ModuleDictionaryService.class),
             mock(FactBuildTaskService.class),
+            publicationStateService,
             mock(GitlabSourceSchemaGuard.class),
             mock(GitlabConfigService.class),
             mock(IntegrationTestFactBuildService.class),
@@ -99,7 +105,9 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
             new MergeRequestFactSourceRowMapper(),
             searchIndexRepairService,
             new FactPublicationTransaction(),
-            new GitlabMirrorProperties());
+            new GitlabMirrorProperties(),
+            new FactProjectionScopeResolver(jdbcTemplate),
+            new FactProjectionGenerationService(jdbcTemplate));
   }
 
   @Test

@@ -36,9 +36,7 @@ public class GitlabFactChangeResolver {
     GitlabSourceLineageCatalog.SourceDefinition source =
         GitlabSourceLineageCatalog.requireSource(sourceTable);
     if (source.derivationKind()
-        == GitlabSourceLineageCatalog.DerivationKind.NO_DERIVED_CONSUMER
-        || source.derivationKind()
-            == GitlabSourceLineageCatalog.DerivationKind.CHANGE_SIGNAL) {
+        == GitlabSourceLineageCatalog.DerivationKind.NO_DERIVED_CONSUMER) {
       return List.of();
     }
     LinkedHashSet<RootReference> roots = new LinkedHashSet<>();
@@ -46,6 +44,8 @@ public class GitlabFactChangeResolver {
     switch (source.tableName()) {
       case "issues" -> addRoots(roots, RootType.ISSUE, values(rows, "id"));
       case "issue_assignees", "issue_metrics" ->
+          addRoots(roots, RootType.ISSUE, values(rows, "issue_id"));
+      case "resource_label_events" ->
           addRoots(roots, RootType.ISSUE, values(rows, "issue_id"));
       case "merge_requests" -> addRoots(roots, RootType.MERGE_REQUEST, values(rows, "id"));
       case "merge_request_assignees", "merge_request_reviewers", "merge_request_metrics" ->
@@ -124,19 +124,40 @@ public class GitlabFactChangeResolver {
     if (labelIds.isEmpty()) {
       return Set.of();
     }
-    String sql = """
-        select target_type, target_id
-          from ods_gitlab_label_links
-         where mirror_deleted = false
-           and label_id in (%s)
-        """.formatted(placeholders(labelIds.size()));
     LinkedHashSet<RootReference> roots = new LinkedHashSet<>();
-    jdbcTemplate.query(
-        sql,
-        (org.springframework.jdbc.core.RowCallbackHandler) resultSet ->
-            addPolymorphicRoot(
-                roots, resultSet.getString("target_type"), resultSet.getLong("target_id")),
-        labelIds.toArray());
+    String labelPlaceholders = placeholders(labelIds.size());
+    roots.addAll(
+        queryRoots(
+            "select target_id as id from ods_gitlab_label_links "
+                + "where mirror_deleted = false and target_type = 'Issue' and label_id in ("
+                + labelPlaceholders
+                + ")",
+            RootType.ISSUE,
+            labelIds));
+    roots.addAll(
+        queryRoots(
+            "select target_id as id from ods_gitlab_label_links "
+                + "where mirror_deleted = false and target_type = 'MergeRequest' and label_id in ("
+                + labelPlaceholders
+                + ")",
+            RootType.MERGE_REQUEST,
+            labelIds));
+    roots.addAll(
+        queryRoots(
+            "select issue_id as id from ods_gitlab_resource_label_events "
+                + "where issue_id is not null and label_id in ("
+                + labelPlaceholders
+                + ")",
+            RootType.ISSUE,
+            labelIds));
+    roots.addAll(
+        queryRoots(
+            "select merge_request_id as id from ods_gitlab_resource_label_events "
+                + "where merge_request_id is not null and label_id in ("
+                + labelPlaceholders
+                + ")",
+            RootType.MERGE_REQUEST,
+            labelIds));
     return roots;
   }
 

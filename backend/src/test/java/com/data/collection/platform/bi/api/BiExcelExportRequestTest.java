@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import com.data.collection.platform.bi.domain.model.BiDownloadScope.RangeType;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -39,12 +40,13 @@ class BiExcelExportRequestTest {
 
   private static BiExcelExportRequest request(List<String> headers, List<List<Object>> rows) {
     return new BiExcelExportRequest(
-        10L,
+        new BiDownloadScopeRequest(RangeType.PRODUCT_VERSION, 10L, null, null,
+            null, null, null, null, null, null),
         "system-test",
+        "system-test-assignee-workload",
         "developer-workload",
         "issue-version-3",
         "按指派人统计缺陷数",
-        "CC2026R4",
         "统计各处理人员被指派的缺陷总数。",
         headers,
         rows);
@@ -90,5 +92,17 @@ class BiExcelExportRequestTest {
   @Test
   void acceptsNullRows() {
     assertThat(validator.validate(request(List.of("模块名称"), null))).isEmpty();
+  }
+
+  @Test
+  void rejectsCustomerRangeWithIncompleteMemberSelection() {
+    BiExcelExportRequest invalid = new BiExcelExportRequest(
+        new BiDownloadScopeRequest(RangeType.CUSTOMER_ISSUE, null, "mile-1",
+            java.time.LocalDate.of(2026, 9, 24), "VALUE", null, "ALL", null, "MISSING", null),
+        "customer-issues", "customer-issue-daily-trend", "daily-defect-trend", "version-1",
+        "缺陷日增与日修复", null, List.of("日期"), List.of());
+
+    assertThat(validator.validate(invalid)).anySatisfy(violation ->
+        assertThat(violation.getPropertyPath().toString()).contains("scope"));
   }
 }

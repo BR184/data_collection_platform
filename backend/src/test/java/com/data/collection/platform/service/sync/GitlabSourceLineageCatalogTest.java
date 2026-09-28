@@ -5,7 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
+import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.sync.IncrementalReadMode;
+import com.data.collection.platform.entity.FactType;
+import com.data.collection.platform.service.GitlabFactDependencyCatalog;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -58,7 +61,10 @@ class GitlabSourceLineageCatalogTest {
             List.of(
                 new SourceTableColumn("id", "bigint", false, 1),
                 new SourceTableColumn("issue_id", "bigint", true, 2),
-                new SourceTableColumn("merge_request_id", "bigint", true, 3)));
+                new SourceTableColumn("merge_request_id", "bigint", true, 3),
+                new SourceTableColumn("label_id", "bigint", true, 4),
+                new SourceTableColumn("action", "smallint", false, 5),
+                new SourceTableColumn("created_at", "timestamp without time zone", false, 6)));
 
     GitlabSourceLineageCatalog.validatePhysicalSchema(
         "resource_label_events", validSchema);
@@ -75,6 +81,50 @@ class GitlabSourceLineageCatalogTest {
                     "resource_label_events", missingMergeRequest))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("merge_request_id");
+  }
+
+  @Test
+  void label_event_schema_rejects_non_integer_action_values() {
+    SourceTableSchema invalidActionSchema =
+        new SourceTableSchema(
+            "resource_label_events",
+            List.of("id"),
+            null,
+            List.of(
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn("issue_id", "bigint", true, 2),
+                new SourceTableColumn("merge_request_id", "bigint", true, 3),
+                new SourceTableColumn("label_id", "bigint", true, 4),
+                new SourceTableColumn("action", "character varying", false, 5),
+                new SourceTableColumn("created_at", "timestamp without time zone", false, 6)));
+
+    assertThatThrownBy(
+            () ->
+                GitlabSourceLineageCatalog.validatePhysicalSchema(
+                    "resource_label_events", invalidActionSchema))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("action");
+  }
+
+  @Test
+  void label_event_direct_derivation_targets_only_issue_facts() {
+    GitlabSourceLineageCatalog.SourceDefinition source =
+        GitlabSourceLineageCatalog.requireSource("resource_label_events");
+
+    assertThat(source.derivationKind())
+        .isEqualTo(GitlabSourceLineageCatalog.DerivationKind.DIRECT_ROOT);
+    assertThat(source.factConsumers())
+        .containsExactly(FactType.ISSUE);
+  }
+
+  @Test
+  void issue_reads_label_events_as_business_data_while_merge_requests_keep_signal_dependency() {
+    var issue = GitlabFactDependencyCatalog.require(FactType.ISSUE);
+    var mergeRequest = GitlabFactDependencyCatalog.require(FactType.MERGE_REQUEST);
+
+    assertThat(issue.businessTables()).contains("resource_label_events");
+    assertThat(issue.changeSignalTables()).doesNotContain("resource_label_events");
+    assertThat(mergeRequest.changeSignalTables()).contains("resource_label_events");
   }
 
   @Test

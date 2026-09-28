@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.FactProjectionScope;
+import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
 import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -38,6 +39,35 @@ public class FactProjectionGenerationService {
       long generation = advanceGeneration(scope);
       queueProjectionTask(task, scope, generation);
     }
+  }
+
+  /**
+   * 只推进给定 Issue 范围的 generation，不创建投影任务。
+   *
+   * <p>用于"只定向更新事实列、没有行级重建"的写路径：这类写入不经过发布链路，但会改变
+   * {@link FactProjectionVersionService} 生成的来源版本，因此必须让以该版本为键的统计快照失效，
+   * 否则统计页会继续命中旧 READY 快照。必须在与列更新同一事务内调用。
+   *
+   * @param sourceInstance 来源实例
+   * @param scopes 受影响范围；空集合不产生任何写入
+   * @return 实际推进的范围数
+   */
+  public int advanceIssueScopeGenerations(
+      String sourceInstance, Set<FactProjectionScope> scopes) {
+    if (scopes == null || scopes.isEmpty()) {
+      return 0;
+    }
+    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    int advanced = 0;
+    for (FactProjectionScope scope : new java.util.TreeSet<>(scopes)) {
+      if (!scope.sourceInstance().equals(normalizedSource)
+          || scope.factType() != FactType.ISSUE) {
+        throw new IllegalArgumentException("定向列更新的失效范围与来源或事实类型不一致：" + scope);
+      }
+      advanceGeneration(scope);
+      advanced++;
+    }
+    return advanced;
   }
 
   private long advanceGeneration(FactProjectionScope scope) {

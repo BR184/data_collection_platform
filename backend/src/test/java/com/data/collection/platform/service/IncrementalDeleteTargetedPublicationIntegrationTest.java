@@ -29,8 +29,26 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
-@SpringBootTest
+@Testcontainers(disabledWithoutDocker = true)
+@SpringBootTest(
+    properties = {
+      "platform.background-jobs.enabled=false",
+      "platform.gitlab-mirror.scheduler-enabled=false",
+      "platform.gitlab-mirror.delete-reconciliation-enabled=false",
+      "platform.gitlab-mirror.customer-issue-delay-pre-writeback-sync-enabled=false",
+      "platform.gitlab-mirror.customer-issue-delay-writeback-worker-enabled=false",
+      "platform.gitlab-mirror.code-review-metric-enrichment-enabled=false",
+      "platform.gitlab-mirror.delay-label-writeback-api-enabled=false",
+      "platform.review-data.search-index-backfill-enabled=false",
+      "platform.auth.provider=local",
+      "platform.auth.secure-config-required=false"
+    })
 class IncrementalDeleteTargetedPublicationIntegrationTest {
   private static final long ISSUE_ID = 9031L;
   private static final long PROJECT_ID = 9L;
@@ -38,6 +56,24 @@ class IncrementalDeleteTargetedPublicationIntegrationTest {
   private static final long STATUS_LABEL_ID = 32L;
   private static final long SEVERITY_LINK_ID = 7001L;
   private static final long STATUS_LINK_ID = 7002L;
+  private static final String LABEL_EVENTS_TABLE = "resource_label_events";
+
+  @Container
+  private static final PostgreSQLContainer<?> POSTGRES =
+      new PostgreSQLContainer<>("postgres:16-alpine")
+          .withDatabaseName("qaflex")
+          .withUsername("qaflex")
+          .withPassword("isolated-test");
+
+  @DynamicPropertySource
+  static void registerIsolatedDatabase(DynamicPropertyRegistry registry) {
+    registry.add(
+        "spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
+    registry.add("spring.datasource.username", POSTGRES::getUsername);
+    registry.add("spring.datasource.password", POSTGRES::getPassword);
+    registry.add("spring.flyway.schemas", () -> "public");
+    registry.add("spring.flyway.default-schema", () -> "public");
+  }
 
   @Autowired private JdbcTemplate jdbcTemplate;
   @Autowired private DataSourceProperties dataSourceProperties;
@@ -57,6 +93,7 @@ class IncrementalDeleteTargetedPublicationIntegrationTest {
     GitlabIssueMirrorFixture.ensureSchema(jdbcTemplate);
     cleanPlatformState();
     jdbcTemplate.execute("drop table if exists public.label_links");
+    jdbcTemplate.execute("drop table if exists public.resource_label_events");
     jdbcTemplate.execute(
         """
         create table public.label_links (
@@ -68,6 +105,17 @@ class IncrementalDeleteTargetedPublicationIntegrationTest {
           updated_at timestamp
         )
         """);
+    jdbcTemplate.execute(
+        """
+        create table public.resource_label_events (
+          id bigint primary key,
+          issue_id bigint,
+          merge_request_id bigint,
+          label_id bigint,
+          action smallint,
+          created_at timestamp
+        )
+        """);
     insertGitlabLabelLink(SEVERITY_LINK_ID, SEVERITY_LABEL_ID);
     insertGitlabLabelLink(STATUS_LINK_ID, STATUS_LABEL_ID);
   }
@@ -75,6 +123,7 @@ class IncrementalDeleteTargetedPublicationIntegrationTest {
   @AfterEach
   void dropGitlabSourceTable() {
     jdbcTemplate.execute("drop table if exists public.label_links");
+    jdbcTemplate.execute("drop table if exists public.resource_label_events");
     cleanPlatformState();
   }
 
@@ -231,6 +280,17 @@ class IncrementalDeleteTargetedPublicationIntegrationTest {
             true);
     GitlabMirrorSchemaService.PreparedMirrorTable mirrorTable =
         mirrorSchemaService.prepareMirrorTable(config, labelLinks);
+    TableWhitelistOption labelEvents =
+        new TableWhitelistOption(
+            LABEL_EVENTS_TABLE,
+            "Resource label events",
+            "id",
+            "",
+            SourceCursorStrategy.PRIMARY_KEY_KEYSET,
+            true);
+    GitlabMirrorSchemaService.PreparedMirrorTable labelEventMirror =
+        mirrorSchemaService.prepareMirrorTable(config, labelEvents);
+    establishVerifiedLabelEventHistory(config, labelEventMirror);
     LocalDateTime sourceTime = LocalDateTime.of(2026, 7, 31, 9, 0);
     mirrorStorageService.applyBatch(
         mirrorTable.mirrorSchema(),
@@ -240,6 +300,57 @@ class IncrementalDeleteTargetedPublicationIntegrationTest {
         null);
     seedIssueFacts(sourceTime);
     return config;
+  }
+
+  private void establishVerifiedLabelEventHistory(
+      GitlabSyncConfig config,
+      GitlabMirrorSchemaService.PreparedMirrorTable labelEventMirror) {
+    Long stateId =
+        jdbcTemplate.queryForObject(
+            """
+            insert into sync_run_table_states(
+                config_id, source_instance, source_table, mirror_table,
+                primary_key_columns, updated_at_column, row_strategy,
+                cursor_strategy, sync_enabled)
+            values (?, 'default', ?, ?, 'id', '', 'MONOTONIC_PRIMARY_KEY',
+                    'PRIMARY_KEY_KEYSET', true)
+            returning id
+            """,
+            Long.class,
+            config.getId(),
+            LABEL_EVENTS_TABLE,
+            labelEventMirror.mirrorSchema().tableName());
+    long runId = insertMirrorRun(config.getId(), SyncRunType.FULL_SYNC);
+    authoritativeScopeRepository.snapshotSelectedSourceTables(
+        runId, List.of(LABEL_EVENTS_TABLE));
+    jdbcTemplate.update(
+        """
+        insert into sync_run_table_tasks(
+            run_id, config_id, state_id, source_instance, source_table, mirror_table,
+            task_type, status, row_strategy, task_stage, batch_size,
+            run_after, retry_count, max_retry_count, rows_scanned, rows_applied)
+        values (?, ?, ?, 'default', ?, ?, 'FULL_SYNC', 'QUEUED', 'FULL_RECONCILE', 'SCAN', 500,
+                current_timestamp, 0, 3, 0, 0)
+        """,
+        runId,
+        config.getId(),
+        requireId(stateId, "修复事件同步表状态"),
+        LABEL_EVENTS_TABLE,
+        labelEventMirror.mirrorSchema().tableName());
+    SyncRunTableWorkerService.DrainResult drainResult =
+        tableWorkerService.drainRunTasks(syncRunMapper.selectById(runId), 1);
+    assertThat(drainResult.yielded()).isFalse();
+    finishMirrorRun(runId);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                """
+                select sync_enabled and not dirty_flag and last_full_verified_at is not null
+                  from sync_run_table_states
+                 where id = ?
+                """,
+                Boolean.class,
+                stateId))
+        .isTrue();
   }
 
   private void seedIssueFacts(LocalDateTime sourceTime) {
@@ -565,6 +676,7 @@ class IncrementalDeleteTargetedPublicationIntegrationTest {
     jdbcTemplate.update("delete from issue_scope_catalogs");
     jdbcTemplate.update("delete from gitlab_sync_configs");
     jdbcTemplate.update("delete from ods_gitlab_label_links");
+    jdbcTemplate.update("delete from ods_gitlab_resource_label_events");
     jdbcTemplate.update("delete from ods_gitlab_issue_assignees");
     jdbcTemplate.update("delete from ods_gitlab_labels");
     jdbcTemplate.update("delete from ods_gitlab_notes");

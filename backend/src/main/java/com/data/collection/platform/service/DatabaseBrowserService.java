@@ -132,7 +132,7 @@ public class DatabaseBrowserService {
     List<Map<String, Object>> rows =
         jdbcTemplate.query(
             sqlBundle.rowsSql(),
-            DatabaseBrowserRowMapperFactory.createTableRowMapper(),
+            DatabaseBrowserRowMapperFactory.createTableRowMapper(context.definition().columns()),
             sqlBundle.arguments().toArray());
 
     TableSyncStatus syncStatus = resolveTableSyncStatus(context.registry());

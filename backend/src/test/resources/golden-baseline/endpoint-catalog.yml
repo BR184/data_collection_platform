@@ -70,6 +70,8 @@ endpoints:
         query: boardKey=customer-issue-by-function
       - id: customer-issue-response-efficiency
         query: boardKey=customer-issue-response-efficiency
+      - id: customer-issue-customer-statistics
+        query: boardKey=customer-issue-customer-statistics
       # mirror-table-overview 未登记在 PagePermissionKeyResolver.BOARD_VIEW（任何环境确定性 400
       # "统计页面权限未定义"），无页面数据产出，不构成数据基线用例。
   - method: GET
@@ -80,11 +82,19 @@ endpoints:
       - id: system-test-defect-summary-total
         query: boardKey=system-test-defect-summary&rowKey=__total__&columnKey=level1_total
   - method: GET
+    path: /api/statistic-boards/{boardKey}/control-options
+    category: READ
+    cases:
+      - id: customer-issue-customer-statistics
+        query: boardKey=customer-issue-customer-statistics
+  - method: GET
     path: /api/statistic-boards/{boardKey}/rule-explanation
     category: READ
     cases:
       - id: system-test-defect-summary
         query: boardKey=system-test-defect-summary
+      - id: customer-issue-customer-statistics
+        query: boardKey=customer-issue-customer-statistics
   - method: GET
     path: /api/statistic-boards/{boardKey}/status
     category: READ
@@ -95,6 +105,8 @@ endpoints:
     cases:
       - id: system-test-defect-summary
         query: boardKey=system-test-defect-summary
+      - id: customer-issue-customer-statistics
+        query: boardKey=customer-issue-customer-statistics
   - method: GET
     path: /api/statistic-boards/{boardKey}/export
     category: EXPORT
@@ -1537,6 +1549,13 @@ endpoints:
     cases:
       - id: default
         query: productVersionId={{biProductVersionId}}
+  - method: GET
+    path: /api/bi/customer-issues
+    category: READ
+    ignore-paths: ["$.data.generatedAt", "$.data.sourceVersion", "$.data.snapshotId"]
+    cases:
+      - id: default
+        query: customerKind=ALL&moduleKind=ALL&functionKind=ALL
   - method: POST
     path: /api/bi/download/authorize
     category: EXCLUDED

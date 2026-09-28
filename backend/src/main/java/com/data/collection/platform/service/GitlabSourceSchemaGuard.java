@@ -40,9 +40,15 @@ public class GitlabSourceSchemaGuard {
               "label_id",
               "target_id",
               "target_type",
-              "mirror_deleted",
+              "mirror_deleted"),
+          requirement(
+              "ods_gitlab_resource_label_events",
+              "issue_id",
+              "merge_request_id",
+              "label_id",
+              "action",
               "created_at",
-              "updated_at"),
+              "mirror_deleted"),
           requirement("ods_gitlab_labels", "id", "title", "color", "mirror_deleted"),
           requirement(
               "ods_gitlab_notes",

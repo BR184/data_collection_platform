@@ -126,5 +126,11 @@
   "V20260806_02__move_bi_cat_runtime_limits_to_deployment.sql": "f2fcb0a79b452009b07f9a5775118e7fe971f326871fc25bfc9b5b11ce8c0659",
   "V20260810_01__source_fact_publication_and_bi_fixes.sql": "fed0f44e4936c93e71b07afa96060a37be79c899c0f38948b9aa9e306a5f13a0",
   "V20260813_01__remove_bi_code_review_compatibility_sync.sql": "9016f6811c6c43f96e228c0a64af6269211a96a4c754b6ae7a5efd334bdd1fcc",
-  "V20260821_01__bootstrap_customer_milestone_scope_catalog.sql": "8c968ead31b0c2f19e2fa5d9e2b1bae44bb9e0fee9e68cd41d5b92d856a413c9"
+  "V20260821_01__bootstrap_customer_milestone_scope_catalog.sql": "8c968ead31b0c2f19e2fa5d9e2b1bae44bb9e0fee9e68cd41d5b92d856a413c9",
+  "V20260901_01__fix_match_mode_unique_constraint_schema_scope.sql": "7a39b4dec70e4a74163b164b6943e44a824ef46c6b82930d596393b2e612d9d5",
+  "V20260903_01__dropdown_option_configs.sql": "122d6eef04cdb90e48245a464eee16eb222cea815d6fc76576359e2884e35ffe",
+  "V20260909_01__database_backup_management.sql": "748d7a1dd7e0a9692f24dbf3e0f23b7d5af3575c2921c4e746ffd838890241d8",
+  "V20260922_01__issue_fact_customer_requirement_flag.sql": "07b6478d6ae5c6eeebad39e3b0e19cfb93d0db115e9b86b135bece9516fc0651",
+  "V20260922_02__customer_issue_customer_statistics_permissions.sql": "64ec73afa9a2af0651e1aa4eb5c55f9d09e3d44afce758a5e2a2712d2f529753",
+  "V20260924_01__backup_execution_fencing.sql": "e78097e89bb8594bd76a7ab6db8dfe222433984b7821ad5448a9c92224bf94fe"
 }

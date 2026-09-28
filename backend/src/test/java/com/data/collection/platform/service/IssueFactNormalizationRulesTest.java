@@ -25,6 +25,29 @@ class IssueFactNormalizationRulesTest {
   }
 
   @Test
+  void test_priority_labels_with_arbitrary_prefix_and_phase_text_normalize_by_value_only() {
+    assertThat(IssueFactNormalizationRules.normalizePriorityLevel(List.of("优先级：P1"))).isEqualTo("P1");
+    assertThat(IssueFactNormalizationRules.normalizePriorityLevel(List.of("任务等级：P2"))).isEqualTo("P2");
+    assertThat(IssueFactNormalizationRules.normalizePriorityLevel(List.of("紧急程度：P3"))).isEqualTo("P3");
+    assertThat(IssueFactNormalizationRules.normalizePriorityLevel(List.of("优先级:P1"))).isEqualTo("P1");
+    assertThat(IssueFactNormalizationRules.normalizePriorityLevel(List.of("P1", "优先级：P3")))
+        .isEqualTo("P1");
+    assertThat(IssueFactNormalizationRules.normalizePriorityLevel(List.of("CC2026R4SP1系统测试", "P2")))
+        .isEqualTo("P2");
+    assertThat(IssueFactNormalizationRules.normalizePriorityLevel(List.of("CC2026R4SP1系统测试")))
+        .isNull();
+    assertThat(IssueFactNormalizationRules.normalizePriorityLevel(List.of("CC2026R4SP2系统测试")))
+        .isNull();
+    assertThat(IssueFactNormalizationRules.normalizePriorityLevel(List.of("CC2026R4SP3系统测试")))
+        .isNull();
+    assertThat(IssueFactNormalizationRules.normalizePriorityLevel(List.of("CC2026R4SP3系统测试", "P1")))
+        .isEqualTo("P1");
+    assertThat(IssueFactNormalizationRules.normalizePriorityLevel(List.of("SP1回归测试", "任务等级：P3")))
+        .isEqualTo("P3");
+    assertThat(IssueFactNormalizationRules.normalizePriorityLevel(List.of("任务等级：P1级"))).isNull();
+  }
+
+  @Test
   void shouldNormalizeCategoryFromLegacyIssueCategoryLabels() {
     assertThat(IssueFactNormalizationRules.normalizeCategory(List.of("类别：建议"))).isEqualTo("建议");
     assertThat(IssueFactNormalizationRules.normalizeCategory(List.of("类别：需求", "类别：建议"))).isEqualTo("需求 & 建议");

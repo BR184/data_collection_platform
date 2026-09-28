@@ -1,7 +1,5 @@
 package com.data.collection.platform.service.backup;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -14,8 +12,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * 备份后台调度：①每日判期——启用调度、到达配置时刻且当日尚无定时触发尝试时经统一流水线补跑
- * （当日尝试过即不再补，失败等次日，与"失败不自动重试"一致）；②孤儿回收——运行权租约过期后把
- * RUNNING 运行标 FAILED 并清理临时文件，防止服务重启留下永久 RUNNING 记录。两项巡检共用固定
+ * （当日尝试过即不再补，失败等次日，与"失败不自动重试"一致）；②孤儿回收——租约过期后先撤销执行 token，
+ * 协调停止 worker/子进程/远程会话，再删除该运行唯一暂存文件并收敛历史状态。两项巡检共用固定
  * 节拍，均受 platform.background-jobs.enabled 总开关约束。
  */
 @Component
@@ -26,7 +24,6 @@ public class BackupScheduler {
   private final BackupRunRepository runRepository;
   private final BackupStateRepository stateRepository;
   private final BackupOrchestrationService orchestration;
-  private final BackupConfigurationProperties properties;
   private final Clock clock;
 
   @Autowired
@@ -34,14 +31,12 @@ public class BackupScheduler {
       BackupSettingsRepository settingsRepository,
       BackupRunRepository runRepository,
       BackupStateRepository stateRepository,
-      BackupOrchestrationService orchestration,
-      BackupConfigurationProperties properties) {
+      BackupOrchestrationService orchestration) {
     this(
         settingsRepository,
         runRepository,
         stateRepository,
         orchestration,
-        properties,
         Clock.systemUTC());
   }
 
@@ -50,13 +45,11 @@ public class BackupScheduler {
       BackupRunRepository runRepository,
       BackupStateRepository stateRepository,
       BackupOrchestrationService orchestration,
-      BackupConfigurationProperties properties,
       Clock clock) {
     this.settingsRepository = settingsRepository;
     this.runRepository = runRepository;
     this.stateRepository = stateRepository;
     this.orchestration = orchestration;
-    this.properties = properties;
     this.clock = clock;
   }
 
@@ -84,7 +77,7 @@ public class BackupScheduler {
     }
   }
 
-  /** 孤儿回收巡检：租约过期的 RUNNING 运行标 FAILED 并清理 staging 临时文件。 */
+  /** 孤儿回收巡检：先撤销、停止并确认执行，再清理身份化 staging 文件与运行权。 */
   @Scheduled(
       fixedDelayString = "${platform.backup.scheduler-delay-ms:60000}",
       initialDelayString = "${platform.backup.scheduler-initial-delay-ms:15000}")
@@ -92,37 +85,42 @@ public class BackupScheduler {
     try {
       Instant now = clock.instant();
       stateRepository
-          .expiredActiveRunId(now)
-          .ifPresent(
-              runId -> {
-                runRepository
-                    .get(runId)
-                    .filter(run -> BackupRun.STATUS_RUNNING.equals(run.status()))
-                    .ifPresent(
-                        run ->
-                            runRepository.finishFailure(
-                                runId,
-                                "备份执行进程异常中断（服务重启或进程被终止），请重新触发备份",
-                                run.startedAt(),
-                                now));
-                stateRepository.release(runId, now);
-                cleanupStagingFor(runId);
-                log.warn("backup_orphan_recovered runId={}", runId);
-              });
+          .revokeExpiredExecution(now)
+          .ifPresent(execution -> {
+            boolean stopped = orchestration.stopExpiredExecution(execution);
+            if (!stopped) {
+              stateRepository.recordRecoveryPending(
+                  execution,
+                  "备份租约已撤销，但无法确认外部执行已停止；保留运行权与暂存文件等待后续恢复巡检",
+                  now);
+              log.error("backup_orphan_stop_unconfirmed runId={}", execution.runId());
+              return;
+            }
+            if (execution.processId() != null) {
+              stateRepository.clearProcessIdentity(
+                  execution.runId(),
+                  execution.executionToken(),
+                  execution.processId(),
+                  now);
+            }
+            if (!orchestration.cleanupExpiredStaging(execution)) {
+              stateRepository.recordRecoveryPending(
+                  execution,
+                  "备份执行已停止，但本次暂存文件清理失败；保留运行权等待后续恢复巡检",
+                  now);
+              log.error("backup_orphan_cleanup_unconfirmed runId={}", execution.runId());
+              return;
+            }
+            if (stateRepository.completeExpiredRecovery(
+                execution,
+                "备份执行租约过期，恢复器已确认执行停止并完成本次暂存清理",
+                now)) {
+              log.warn("backup_orphan_recovered runId={}", execution.runId());
+            }
+          });
     } catch (RuntimeException failure) {
       log.warn("backup_orphan_recovery_failed message={}", failure.getMessage());
     }
   }
 
-  private void cleanupStagingFor(long runId) {
-    try {
-      String label = BackupFileSupport.sanitizeLabel(properties.getInstanceLabel());
-      Path stagingDir =
-          Path.of(properties.getRoot()).resolve(label).resolve(BackupFileSupport.STAGING_DIR_NAME);
-      Path orphanFile = stagingDir.resolve("tmp-" + runId + ".dump");
-      Files.deleteIfExists(orphanFile);
-    } catch (RuntimeException | java.io.IOException cleanupFailure) {
-      log.warn("backup_orphan_cleanup_failed runId={} message={}", runId, cleanupFailure.getMessage());
-    }
-  }
 }

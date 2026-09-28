@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -22,6 +23,7 @@ import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -50,6 +52,7 @@ class BackupOrchestrationServiceTest {
   private BackupStateRepository stateRepository;
   private BackupConfigurationProperties properties;
   private final TestBackupRemoteStorage storage = new TestBackupRemoteStorage();
+  private final List<BackupRunRepository.SuccessfulArtifact> committedArtifacts = new ArrayList<>();
   private ExecutorService runExecutor;
   private ScheduledExecutorService heartbeatExecutor;
   private ScheduledFuture<?> heartbeatFuture;
@@ -79,7 +82,15 @@ class BackupOrchestrationServiceTest {
     when(runRepository.databaseServerVersion()).thenReturn("16.4");
     when(runRepository.latestFlywayVersion()).thenReturn("20260903.01");
     when(runRepository.maxSuccessfulBytes()).thenReturn(OptionalLong.empty());
-    when(stateRepository.tryStartRun(anyLong(), any(), any())).thenReturn(true);
+    when(runRepository.successfulArtifacts(anyString())).thenAnswer(invocation -> List.copyOf(committedArtifacts));
+    doAnswer(invocation -> {
+      committedArtifacts.add(new BackupRunRepository.SuccessfulArtifact(
+          invocation.getArgument(2), invocation.getArgument(3)));
+      return null;
+    }).when(runRepository).finishSuccess(
+        anyLong(), anyString(), anyString(), anyString(), anyLong(), anyString(), anyString(), anyString(), any(), any());
+    when(stateRepository.tryStartRun(anyLong(), anyString(), any(), any())).thenReturn(true);
+    when(stateRepository.isOwnedActive(anyLong(), anyString(), any())).thenReturn(true);
 
     service = new BackupOrchestrationService(
         settingsRepository,
@@ -103,14 +114,22 @@ class BackupOrchestrationServiceTest {
 
   @Test
   void test_triggerManual_whenRunAlreadyActive_rejectedWithoutNewRun() {
-    when(stateRepository.tryStartRun(anyLong(), any(), any())).thenReturn(false);
+    when(stateRepository.tryStartRun(anyLong(), anyString(), any(), any())).thenReturn(false);
 
     BackupTriggerResponse response = service.triggerManual();
 
     assertThat(response.accepted()).isFalse();
     assertThat(response.runId()).isNull();
     assertThat(response.message()).contains("已有备份正在运行");
-    verify(runRepository, never()).insertRunning(anyLong(), any(), any(), any());
+    verify(runRepository, never()).insertRunning(anyLong(), anyString(), any(), any(), any());
+  }
+
+  @Test
+  void test_stopExpiredExecution_withoutContextOrRecordedProcess_keepsOwnerPending() {
+    BackupStateRepository.ExpiredExecution expired =
+        new BackupStateRepository.ExpiredExecution(43L, "legacy-43", null, null);
+
+    assertThat(service.stopExpiredExecution(expired)).isFalse();
   }
 
   @Test
@@ -120,24 +139,34 @@ class BackupOrchestrationServiceTest {
     Files.createDirectories(targetDir);
     Files.writeString(targetDir.resolve("qaflex_" + LABEL + "_20260901-030000.dump"), "old-1");
     Files.writeString(targetDir.resolve("qaflex_" + LABEL + "_20260902-030000.dump"), "old-2");
+    Files.writeString(targetDir.resolve("qaflex_" + LABEL + "_20260903-030000.dump"), "unregistered orphan");
+    committedArtifacts.add(new BackupRunRepository.SuccessfulArtifact(
+        targetDir.resolve("qaflex_" + LABEL + "_20260901-030000.dump").toString(),
+        "qaflex_" + LABEL + "_20260901-030000.dump"));
+    committedArtifacts.add(new BackupRunRepository.SuccessfulArtifact(
+        targetDir.resolve("qaflex_" + LABEL + "_20260902-030000.dump").toString(),
+        "qaflex_" + LABEL + "_20260902-030000.dump"));
     Files.writeString(targetDir.resolve("qaflex_other_20260901-030000.dump"), "foreign");
     Files.writeString(targetDir.resolve("notes.txt"), "unrelated");
+    String otherToken = "11223344-5566-7788-99aa-bbccddeeff00";
+    Path priorStaging = tempRoot.resolve(LABEL + "/.staging");
+    Files.createDirectories(priorStaging);
+    Files.writeString(priorStaging.resolve("tmp-41-" + otherToken + ".dump"), "protected orphan");
 
     BackupTriggerResponse response = service.triggerManual();
 
     assertThat(response.accepted()).isTrue();
     assertThat(response.runId()).isEqualTo(42L);
-    verify(stateRepository).tryStartRun(eq(42L), any(), any());
-    verify(runRepository).insertRunning(eq(42L), eq("MANUAL"), eq("LOCAL"), any());
-    verify(runRepository).updateStage(42L, BackupOrchestrationService.STAGE_PRECHECK);
-    verify(runRepository).updateStage(42L, BackupOrchestrationService.STAGE_DUMP);
-    verify(runRepository).updateStage(42L, BackupOrchestrationService.STAGE_VERIFY);
-    verify(runRepository).updateStage(42L, BackupOrchestrationService.STAGE_STORE);
-    verify(runRepository).updateStage(42L, BackupOrchestrationService.STAGE_RETENTION);
+    verify(stateRepository).tryStartRun(eq(42L), anyString(), any(), any());
+    verify(runRepository).insertRunning(eq(42L), anyString(), eq("MANUAL"), eq("LOCAL"), any());
+    verify(runRepository).updateStage(eq(42L), anyString(), eq(BackupOrchestrationService.STAGE_PRECHECK), any());
+    verify(runRepository).updateStage(eq(42L), anyString(), eq(BackupOrchestrationService.STAGE_DUMP), any());
+    verify(runRepository).updateStage(eq(42L), anyString(), eq(BackupOrchestrationService.STAGE_VERIFY), any());
+    verify(runRepository).updateStage(eq(42L), anyString(), eq(BackupOrchestrationService.STAGE_STORE), any());
 
     ArgumentCaptor<String> targetPath = ArgumentCaptor.forClass(String.class);
     verify(runRepository).finishSuccess(
-        eq(42L), targetPath.capture(), any(), eq((long) DUMP_BYTES.length), any(), eq("16.4"),
+        eq(42L), anyString(), targetPath.capture(), anyString(), eq((long) DUMP_BYTES.length), any(), eq("16.4"),
         eq("20260903.01"), any(), any());
     assertThat(Path.of(targetPath.getValue())).exists();
     assertThat(Path.of(targetPath.getValue()).getParent()).isEqualTo(targetDir);
@@ -145,13 +174,14 @@ class BackupOrchestrationServiceTest {
     // 保留 2 份：新产物 + 最新旧文件；最旧删除；无关文件与本实例模式之外绝不触碰。
     List<String> remaining = BackupFileSupport.listMatchedFileNames(
         targetDir, BackupFileSupport.dumpFilePattern(LABEL));
-    assertThat(remaining).hasSize(2);
+    assertThat(remaining).hasSize(3);
     assertThat(remaining).anySatisfy(name -> assertThat(name).endsWith("_20260902-030000.dump"));
+    assertThat(targetDir.resolve("qaflex_" + LABEL + "_20260903-030000.dump")).exists();
     assertThat(targetDir.resolve("qaflex_other_20260901-030000.dump")).exists();
     assertThat(targetDir.resolve("notes.txt")).exists();
     // staging 中临时文件已随原子改名消失。
-    assertThat(stagingFiles()).isEmpty();
-    verify(stateRepository).release(eq(42L), any());
+    assertThat(stagingFiles()).containsExactly("tmp-41-" + otherToken + ".dump");
+    verify(stateRepository).release(eq(42L), anyString(), any());
     verify(heartbeatFuture).cancel(false);
   }
 
@@ -184,12 +214,13 @@ class BackupOrchestrationServiceTest {
 
     service.triggerManual();
 
-    verify(runRepository, never()).finishSuccess(anyLong(), any(), any(), anyLong(), any(), any(), any(), any(), any());
+    verify(runRepository, never()).finishSuccess(
+        anyLong(), anyString(), anyString(), anyString(), anyLong(), anyString(), anyString(), anyString(), any(), any());
     ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
-    verify(runRepository).finishFailure(eq(42L), message.capture(), any(), any());
+    verify(runRepository).finishFailure(eq(42L), anyString(), message.capture(), any(), any());
     assertThat(message.getValue()).contains("pg_dump").contains("connection refused");
     assertThat(stagingFiles()).isEmpty();
-    verify(stateRepository).release(eq(42L), any());
+    verify(stateRepository).release(eq(42L), anyString(), any());
   }
 
   @Test
@@ -212,7 +243,7 @@ class BackupOrchestrationServiceTest {
     service.triggerManual();
 
     ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
-    verify(runRepository).finishFailure(eq(42L), message.capture(), any(), any());
+    verify(runRepository).finishFailure(eq(42L), anyString(), message.capture(), any(), any());
     assertThat(message.getValue()).contains("可恢复性校验未通过").contains("pg_restore: unsupported");
   }
 
@@ -224,9 +255,9 @@ class BackupOrchestrationServiceTest {
     service.triggerManual();
 
     ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
-    verify(runRepository).finishFailure(eq(42L), message.capture(), any(), any());
+    verify(runRepository).finishFailure(eq(42L), anyString(), message.capture(), any(), any());
     assertThat(message.getValue()).contains("可用空间不足");
-    verify(runRepository, never()).updateStage(42L, BackupOrchestrationService.STAGE_DUMP);
+    verify(runRepository, never()).updateStage(eq(42L), anyString(), eq(BackupOrchestrationService.STAGE_DUMP), any());
   }
 
   @Test
@@ -244,11 +275,11 @@ class BackupOrchestrationServiceTest {
         .satisfies(op -> assertThat(op).startsWith("upload:/remote/backups/").endsWith(".dump"));
     ArgumentCaptor<String> targetPath = ArgumentCaptor.forClass(String.class);
     verify(runRepository).finishSuccess(
-        eq(42L), targetPath.capture(), any(), eq((long) DUMP_BYTES.length), any(), any(), any(), any(), any());
+        eq(42L), anyString(), targetPath.capture(), anyString(), eq((long) DUMP_BYTES.length), any(), any(), any(), any(), any());
     assertThat(targetPath.getValue()).startsWith("/remote/backups/");
     // 成品仅存远端一份：本地 staging 临时文件已删除。
     assertThat(stagingFiles()).isEmpty();
-    verify(runRepository).updateStage(42L, BackupOrchestrationService.STAGE_RETENTION);
+    verify(runRepository).finishRetention(eq(42L), anyString(), any());
   }
 
   @Test
@@ -259,10 +290,11 @@ class BackupOrchestrationServiceTest {
     service.triggerManual();
 
     ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
-    verify(runRepository).finishFailure(eq(42L), message.capture(), any(), any());
+    verify(runRepository).finishFailure(eq(42L), anyString(), message.capture(), any(), any());
     assertThat(message.getValue()).contains("指纹与已保存配置不一致");
     assertThat(storage.operations).doesNotContain("authenticate");
-    verify(runRepository, never()).finishSuccess(anyLong(), any(), any(), anyLong(), any(), any(), any(), any(), any());
+    verify(runRepository, never()).finishSuccess(
+        anyLong(), anyString(), anyString(), anyString(), anyLong(), anyString(), anyString(), anyString(), any(), any());
   }
 
   @Test
@@ -274,7 +306,7 @@ class BackupOrchestrationServiceTest {
     service.triggerManual();
 
     ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
-    verify(runRepository).finishFailure(eq(42L), message.capture(), any(), any());
+    verify(runRepository).finishFailure(eq(42L), anyString(), message.capture(), any(), any());
     assertThat(message.getValue()).contains("SHA-256");
     assertThat(storage.operations).noneMatch(op -> op.startsWith("delete:"));
   }
@@ -287,7 +319,7 @@ class BackupOrchestrationServiceTest {
     service.triggerManual();
 
     ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
-    verify(runRepository).finishFailure(eq(42L), message.capture(), any(), any());
+    verify(runRepository).finishFailure(eq(42L), anyString(), message.capture(), any(), any());
     assertThat(message.getValue()).contains("远程目录可用空间不足");
     assertThat(storage.operations).noneMatch(op -> op.startsWith("upload:"));
   }
@@ -315,8 +347,8 @@ class BackupOrchestrationServiceTest {
 
     assertThatThrownBy(() -> service.triggerManual()).isInstanceOf(BizException.class);
 
-    verify(runRepository).finishFailure(eq(42L), any(), any(), any());
-    verify(stateRepository).release(eq(42L), any());
+    verify(runRepository).finishFailure(eq(42L), anyString(), any(), any(), any());
+    verify(stateRepository).release(eq(42L), anyString(), any());
   }
 
   @Test
@@ -326,13 +358,31 @@ class BackupOrchestrationServiceTest {
     service.triggerManual();
 
     ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
-    verify(runRepository).finishFailure(eq(42L), message.capture(), any(), any());
+    verify(runRepository).finishFailure(eq(42L), anyString(), message.capture(), any(), any());
     assertThat(message.getValue()).contains("远程密码尚未保存");
+  }
+
+  @Test
+  void test_cleanupExpiredStaging_deletesOnlyTheRecordedExecutionFile() throws Exception {
+    String token = "01234567-89ab-cdef-0123-456789abcdef";
+    Path staging = tempRoot.resolve(LABEL + "/.staging");
+    Files.createDirectories(staging);
+    Path ownedFile = staging.resolve("tmp-42-" + token + ".dump");
+    Path otherFile = staging.resolve("tmp-41-11223344-5566-7788-99aa-bbccddeeff00.dump");
+    Files.writeString(ownedFile, "owned");
+    Files.writeString(otherFile, "other attempt");
+
+    boolean cleaned = service.cleanupExpiredStaging(
+        new BackupStateRepository.ExpiredExecution(42L, token, null, null));
+
+    assertThat(cleaned).isTrue();
+    assertThat(ownedFile).doesNotExist();
+    assertThat(otherFile).exists();
   }
 
   private BackupProcessRunner processRunnerThatWritesDump(int verifyExitCode, String verifyStderr) {
     BackupProcessRunner runner = mock(BackupProcessRunner.class);
-    when(runner.run(any(), any(), any()))
+    when(runner.run(any(), any(), any(), any()))
         .thenAnswer((Answer<BackupProcessRunner.ProcessResult>) invocation -> {
           List<String> command = invocation.getArgument(0);
           if (command.get(0).equals("pg_dump")) {

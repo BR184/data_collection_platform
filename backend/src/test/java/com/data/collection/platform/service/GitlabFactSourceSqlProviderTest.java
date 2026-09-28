@@ -20,13 +20,16 @@ class GitlabFactSourceSqlProviderTest {
   }
 
   @Test
-  void test_resource_label_event_sql_uses_gitlab_16_issue_identity() {
-    assertThat(provider.issueSourceSql(true))
+  void issueFixedTimeUsesOnlyTheResourceLabelEventHistory() {
+    assertThat(provider.issueSourceSql())
+        .contains("from ods_gitlab_resource_label_events rle")
         .contains("rle.issue_id")
         .contains("rle.action = 1")
+        .contains("max(rle.created_at) as fixed_label_time")
         .doesNotContain("rle.action = 'add'")
         .doesNotContain("rle.resource_id")
-        .doesNotContain("rle.resource_type");
+        .doesNotContain("rle.resource_type")
+        .doesNotContain("max(coalesce(ll.created_at, ll.updated_at)) as fixed_label_time");
   }
 
   @Test

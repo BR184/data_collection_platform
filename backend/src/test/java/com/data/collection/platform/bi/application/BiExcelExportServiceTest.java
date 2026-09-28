@@ -27,7 +27,7 @@ class BiExcelExportServiceTest {
   void writesTitleMetaHeaderAndTypedDataRowsIntoRealWorkbook() throws Exception {
     BiExcelExportService.Export export = service.export(
         "按指派人统计缺陷数",
-        "CC2026R4",
+        "产品版本：CC2026R4",
         null,
         List.of("指派责任人", "缺陷总数", "修复率 (%)"),
         List.of(
@@ -40,7 +40,7 @@ class BiExcelExportServiceTest {
       assertThat(sheet.getSheetName()).isEqualTo("按指派人统计缺陷数");
       assertThat(text(sheet, 0, 0)).isEqualTo("按指派人统计缺陷数");
       assertThat(text(sheet, 1, 0))
-          .isEqualTo("产品版本：CC2026R4  |  导出时间：2026-09-10 08:30:15");
+          .isEqualTo("统计范围：产品版本：CC2026R4  |  导出时间：2026-09-10 08:30:15");
       // 第 2 行为空行分隔，第 3 行为表头。
       assertThat(sheet.getRow(2)).isNotNull();
       assertThat(text(sheet, 3, 0)).isEqualTo("指派责任人");
@@ -62,7 +62,7 @@ class BiExcelExportServiceTest {
   }
 
   @Test
-  void writesNullCellAsEmptyStringAndBlankVersionAsPlaceholder() throws Exception {
+  void writesNullCellAsEmptyStringAndBlankRangeAsPlaceholder() throws Exception {
     BiExcelExportService.Export export = service.export(
         "空值处理",
         "   ",
@@ -72,7 +72,7 @@ class BiExcelExportServiceTest {
 
     try (Workbook workbook = new XSSFWorkbook(new ByteArrayInputStream(export.content()))) {
       Sheet sheet = workbook.getSheetAt(0);
-      assertThat(text(sheet, 1, 0)).contains("产品版本：--");
+      assertThat(text(sheet, 1, 0)).contains("统计范围：--");
       Row dataRow = sheet.getRow(4);
       assertThat(dataRow.getCell(1).getCellType()).isEqualTo(CellType.STRING);
       assertThat(dataRow.getCell(1).getStringCellValue()).isEmpty();

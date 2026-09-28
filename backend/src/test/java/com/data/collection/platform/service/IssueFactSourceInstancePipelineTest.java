@@ -28,6 +28,7 @@ class IssueFactSourceInstancePipelineTest {
     GitlabSyncConfig config = baseConfig();
     config.setSourceInstance("default");
     configService.saveConfig(config);
+    LabelEventHistoryTestSupport.markComplete(jdbcTemplate, "default");
   }
 
   @Test

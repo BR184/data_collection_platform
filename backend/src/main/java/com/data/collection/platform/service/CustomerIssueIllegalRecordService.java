@@ -509,11 +509,12 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         snapshotType,
         scopeKey,
         RULE_VERSION,
-        pageRecordSnapshotService.issueFactSourceVersion(
-            sourceInstance,
-            LEGACY_CC_PRODUCT_PROJECT_ID,
-            IssueScopeDimension.MILESTONE,
-            milestoneBusinessKey),
+        () ->
+            pageRecordSnapshotService.issueFactSourceVersion(
+                sourceInstance,
+                LEGACY_CC_PRODUCT_PROJECT_ID,
+                IssueScopeDimension.MILESTONE,
+                milestoneBusinessKey),
         requestPayload);
   }
 

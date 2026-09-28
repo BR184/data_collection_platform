@@ -854,13 +854,16 @@ class SyncRunTableWorkerServiceTest {
     GitlabSyncConfig config = config();
     SourceTableSchema mirrorSchema =
         new SourceTableSchema(
-            "ods_gitlab_alpha_resource_label_events",
+                "ods_gitlab_alpha_resource_label_events",
             List.of("id"),
             null,
             List.of(
                 new SourceTableColumn("id", "bigint", false, 1),
                 new SourceTableColumn("issue_id", "bigint", true, 2),
-                new SourceTableColumn("merge_request_id", "bigint", true, 3)));
+                new SourceTableColumn("merge_request_id", "bigint", true, 3),
+                new SourceTableColumn("label_id", "bigint", true, 4),
+                new SourceTableColumn("action", "smallint", false, 5),
+                new SourceTableColumn("created_at", "timestamp", true, 6)));
     List<Map<String, Object>> rows =
         List.of(Map.of("id", 11L, "issue_id", 101L), Map.of("id", 12L, "issue_id", 101L));
 
@@ -926,13 +929,16 @@ class SyncRunTableWorkerServiceTest {
     GitlabSyncConfig config = config();
     SourceTableSchema mirrorSchema =
         new SourceTableSchema(
-            "ods_gitlab_alpha_resource_label_events",
+                "ods_gitlab_alpha_resource_label_events",
             List.of("id"),
             null,
             List.of(
                 new SourceTableColumn("id", "bigint", false, 1),
                 new SourceTableColumn("issue_id", "bigint", true, 2),
-                new SourceTableColumn("merge_request_id", "bigint", true, 3)));
+                new SourceTableColumn("merge_request_id", "bigint", true, 3),
+                new SourceTableColumn("label_id", "bigint", true, 4),
+                new SourceTableColumn("action", "smallint", false, 5),
+                new SourceTableColumn("created_at", "timestamp", true, 6)));
 
     when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(77L)))
         .thenReturn(false, false);

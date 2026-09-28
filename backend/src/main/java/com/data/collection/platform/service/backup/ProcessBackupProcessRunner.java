@@ -14,24 +14,32 @@ import org.springframework.stereotype.Component;
 @Component
 public class ProcessBackupProcessRunner implements BackupProcessRunner {
   private static final int MAX_STDERR_CHARS = 8000;
-  private static final long DESTROY_GRACE_MILLIS = 10_000;
 
   @Override
-  public ProcessResult run(List<String> command, Map<String, String> env, Duration timeout) {
+  public ProcessResult run(
+      List<String> command, Map<String, String> env, Duration timeout, BackupExecutionContext context) {
     Path stderrFile = null;
+    Process process = null;
     try {
+      context.requireActive();
       ProcessBuilder builder = new ProcessBuilder(command);
       builder.environment().putAll(env);
       // stdout 无用途；stderr 重定向到临时文件后再读取，避免管道缓冲填满导致进程阻塞。
       builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
       stderrFile = Files.createTempFile("qaflex-backup-process", ".stderr");
       builder.redirectError(stderrFile.toFile());
-      Process process = builder.start();
+      process = builder.start();
+      context.attachProcess(process);
       if (!process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
-        process.destroyForcibly();
-        process.waitFor(DESTROY_GRACE_MILLIS, TimeUnit.MILLISECONDS);
+        context.requestStop("备份命令超过最长执行时间");
+        if (!context.awaitExternalEffectsStopped(Duration.ZERO)) {
+          throw new BackupExecutionStoppedException("备份命令超时后无法确认进程树已停止");
+        }
         throw new BackupProcessException(
             "命令执行超过 " + timeout.toSeconds() + " 秒被终止：" + command.get(0));
+      }
+      if (context.stopRequested()) {
+        throw new BackupExecutionStoppedException(context.stopReason());
       }
       String stderr = Files.readString(stderrFile, StandardCharsets.UTF_8);
       return new ProcessResult(process.exitValue(), truncate(stderr));
@@ -42,6 +50,9 @@ public class ProcessBackupProcessRunner implements BackupProcessRunner {
       Thread.currentThread().interrupt();
       throw new BackupProcessException("命令等待被中断：" + command.get(0), failure);
     } finally {
+      if (process != null && !process.isAlive()) {
+        context.detachProcess(process);
+      }
       if (stderrFile != null) {
         try {
           Files.deleteIfExists(stderrFile);

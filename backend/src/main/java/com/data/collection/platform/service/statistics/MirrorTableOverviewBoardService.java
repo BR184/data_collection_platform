@@ -10,6 +10,7 @@ import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.entity.statistics.StatisticColumnGroup;
 import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
 import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
+import com.data.collection.platform.entity.statistics.StatisticDetailCollection;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
@@ -134,13 +135,16 @@ public class MirrorTableOverviewBoardService extends AbstractStatisticBoardServi
     return new StatisticDetailResponse(
         buildDetailTitle(tableName, columnKey),
         "展示当前统计单元格对应的镜像原始记录。",
+        List.of(StatisticDetailCollection.detailList()),
+        StatisticDetailCollection.DETAIL_KEY,
         DETAIL_COLUMNS,
         records,
         total,
         page,
         size,
         request.sortField() == null ? "syncedAt" : request.sortField(),
-        "ascending".equalsIgnoreCase(request.sortOrder()) ? "ascending" : "descending");
+        "ascending".equalsIgnoreCase(request.sortOrder()) ? "ascending" : "descending",
+        Map.of());
   }
 
   @Override
@@ -373,12 +377,13 @@ public class MirrorTableOverviewBoardService extends AbstractStatisticBoardServi
 
   private StatisticCellData buildCell(String tableName, String columnKey, Object value) {
     long numericValue = value == null ? 0L : ((Number) value).longValue();
+    boolean canDrilldown = StatisticDrilldownSupport.legacyCellDrilldown(true, numericValue);
     return new StatisticCellData(
         columnKey,
         numericValue,
         String.valueOf(numericValue),
-        true,
-        DETAIL_VIEW_KEY,
+        canDrilldown,
+        canDrilldown ? DETAIL_VIEW_KEY : null,
         Map.of("tableName", tableName, "columnKey", columnKey));
   }
 
@@ -409,13 +414,16 @@ public class MirrorTableOverviewBoardService extends AbstractStatisticBoardServi
     return new StatisticDetailResponse(
         buildDetailTitle(tableName, columnKey),
         "当前筛选条件下没有可展示的明细记录。",
+        List.of(StatisticDetailCollection.detailList()),
+        StatisticDetailCollection.DETAIL_KEY,
         DETAIL_COLUMNS,
         List.of(),
         0,
         page,
         size,
         request.sortField() == null ? "syncedAt" : request.sortField(),
-        "ascending".equalsIgnoreCase(request.sortOrder()) ? "ascending" : "descending");
+        "ascending".equalsIgnoreCase(request.sortOrder()) ? "ascending" : "descending",
+        Map.of());
   }
 
   private String buildDetailTitle(String tableName, String columnKey) {

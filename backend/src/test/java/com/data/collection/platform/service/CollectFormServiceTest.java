@@ -158,6 +158,47 @@ class CollectFormServiceTest {
   }
 
   @Test
+  void updateRecordShouldWriteRemarkAndNotCarryContextColumns() {
+    CollectFormRecord existing = new CollectFormRecord();
+    existing.setId(7L);
+    existing.setGitlabBaseUrl("http://172.22.10.233");
+    existing.setProjectId(88L);
+    existing.setRequestIid(12L);
+    existing.setResourceType("merge_request");
+    existing.setResourceId("12");
+    existing.setTemplateCode("code_review");
+    existing.setRemark("必须保留的原备注");
+    when(collectFormRecordMapper.selectById(7L)).thenReturn(existing).thenReturn(existing);
+
+    // R01 修复后编辑器能读到原备注并原样回写：非空 remark 按 trim 保存。
+    collectFormService.updateRecord(
+        7L, "代码走查表", "李测试", 8, 2, 3, 4, 5, 6, "  必须保留的原备注  ", false, editContext());
+
+    ArgumentCaptor<CollectFormRecord> keepCaptor = ArgumentCaptor.forClass(CollectFormRecord.class);
+    verify(collectFormRecordMapper).updateById(keepCaptor.capture());
+    CollectFormRecord keep = keepCaptor.getValue();
+    assertEquals("必须保留的原备注", keep.getRemark());
+    // 上下文列不进 update 对象，updateById 才不会改写它们（保持唯一记录归属）。
+    org.junit.jupiter.api.Assertions.assertNull(keep.getGitlabBaseUrl());
+    org.junit.jupiter.api.Assertions.assertNull(keep.getProjectId());
+    org.junit.jupiter.api.Assertions.assertNull(keep.getRequestIid());
+    org.junit.jupiter.api.Assertions.assertNull(keep.getResourceType());
+    org.junit.jupiter.api.Assertions.assertNull(keep.getResourceId());
+    org.junit.jupiter.api.Assertions.assertNull(keep.getTemplateCode());
+
+    org.mockito.Mockito.reset(collectFormRecordMapper);
+    when(collectFormRecordMapper.selectById(7L)).thenReturn(existing).thenReturn(existing);
+
+    // 主动清空备注仍有效：空串写入空串，不被掩盖成保留原值。
+    collectFormService.updateRecord(
+        7L, "代码走查表", "李测试", 8, 2, 3, 4, 5, 6, "", false, editContext());
+
+    ArgumentCaptor<CollectFormRecord> clearCaptor = ArgumentCaptor.forClass(CollectFormRecord.class);
+    verify(collectFormRecordMapper).updateById(clearCaptor.capture());
+    assertEquals("", clearCaptor.getValue().getRemark());
+  }
+
+  @Test
   void deleteShouldDelegateLogicalDeleteByUniqueContext() {
     CollectFormRecord existing = new CollectFormRecord();
     existing.setId(9L);

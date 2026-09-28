@@ -82,6 +82,7 @@ class SyncFactPublicationStateServiceIntegrationTest {
             source_instance, fact_type, readiness_status, full_publication_requested)
         values ('alpha', 'ISSUE', 'READY', false)
         """);
+    verifiedLabelEventSource();
     jdbcTemplate.update(
         """
         insert into fact_change_heads(
@@ -98,6 +99,55 @@ class SyncFactPublicationStateServiceIntegrationTest {
 
     assertThat(service.isReady("alpha", com.data.collection.platform.entity.FactType.ISSUE))
         .isTrue();
+  }
+
+  @Test
+  void issue_family_is_not_consumable_when_label_events_have_no_full_verification() {
+    jdbcTemplate.update(
+        """
+        insert into source_fact_publication_states(
+            source_instance, fact_type, readiness_status, full_publication_requested)
+        values ('alpha', 'ISSUE', 'READY', true)
+        """);
+    jdbcTemplate.update(
+        """
+        insert into sync_run_table_states(
+            source_instance, source_table, sync_enabled, dirty_flag, last_full_verified_at)
+        values ('alpha', 'resource_label_events', true, false, null)
+        """);
+
+    assertThat(service.isReady("alpha", com.data.collection.platform.entity.FactType.ISSUE))
+        .isFalse();
+  }
+
+  @Test
+  void issue_qualification_requires_verified_event_history_but_accepts_a_verified_empty_source() {
+    jdbcTemplate.update(
+        """
+        insert into source_fact_publication_states(
+            source_instance, fact_type, readiness_status, full_publication_requested)
+        values ('alpha', 'ISSUE', 'READY', false)
+        """);
+    jdbcTemplate.update(
+        """
+        insert into sync_run_table_states(
+            source_instance, source_table, sync_enabled, dirty_flag, last_full_verified_at)
+        values ('alpha', 'resource_label_events', true, false, null)
+        """);
+
+    assertThat(service.qualification("alpha", com.data.collection.platform.entity.FactType.ISSUE))
+        .satisfies(
+            qualification -> {
+              assertThat(qualification.readable()).isFalse();
+              assertThat(qualification.reason()).contains("resource_label_events");
+            });
+
+    jdbcTemplate.update(
+        "update sync_run_table_states set last_full_verified_at = current_timestamp "
+            + "where source_instance = 'alpha' and source_table = 'resource_label_events'");
+
+    assertThat(service.qualification("alpha", com.data.collection.platform.entity.FactType.ISSUE))
+        .satisfies(qualification -> assertThat(qualification.readable()).isTrue());
   }
 
   @Test
@@ -192,6 +242,7 @@ class SyncFactPublicationStateServiceIntegrationTest {
   }
 
   private void resetSchema() {
+    jdbcTemplate.execute("drop table if exists sync_run_table_states");
     jdbcTemplate.execute("drop table if exists sync_run_fact_targets");
     jdbcTemplate.execute("drop table if exists fact_change_heads");
     jdbcTemplate.execute("drop table if exists source_fact_publication_states");
@@ -237,9 +288,29 @@ class SyncFactPublicationStateServiceIntegrationTest {
           source_instance varchar(128) not null,
           fact_type varchar(64) not null,
           readiness_status varchar(16) not null,
+          error_message text,
           full_publication_requested boolean not null default false,
           primary key (source_instance, fact_type)
         )
+        """);
+    jdbcTemplate.execute(
+        """
+        create table sync_run_table_states (
+          source_instance varchar(128) not null,
+          source_table varchar(128) not null,
+          sync_enabled boolean not null,
+          dirty_flag boolean not null,
+          last_full_verified_at timestamp
+        )
+        """);
+  }
+
+  private void verifiedLabelEventSource() {
+    jdbcTemplate.update(
+        """
+        insert into sync_run_table_states(
+            source_instance, source_table, sync_enabled, dirty_flag, last_full_verified_at)
+        values ('alpha', 'resource_label_events', true, false, current_timestamp)
         """);
   }
 }

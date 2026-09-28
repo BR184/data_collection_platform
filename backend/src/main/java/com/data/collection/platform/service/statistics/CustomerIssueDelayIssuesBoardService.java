@@ -1,6 +1,8 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.domain.customerissue.CustomerIssueDelayRules;
+import com.data.collection.platform.domain.issue.SuggestionMetricRules;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
 import com.data.collection.platform.entity.statistics.StatisticBoardMeta;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
@@ -9,6 +11,7 @@ import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.entity.statistics.StatisticColumnGroup;
 import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
 import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
+import com.data.collection.platform.entity.statistics.StatisticDetailCollection;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
@@ -51,10 +54,6 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总数";
   private static final String EMPTY_MODULE_LABEL = "未设定模块";
-  private static final String P1 = "P1";
-  private static final String P2 = "P2";
-  private static final String P3 = "P3";
-  private static final String GITLAB_API_ERROR = "GitLab接口报错";
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -163,9 +162,9 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
                 "紧急程度",
                 160,
                 List.of(
-                    new StatisticFilterOption("P1", P1),
-                    new StatisticFilterOption("P2", P2),
-                    new StatisticFilterOption("P3", P3))),
+                    new StatisticFilterOption("P1", CustomerIssueDelayRules.P1),
+                    new StatisticFilterOption("P2", CustomerIssueDelayRules.P2),
+                    new StatisticFilterOption("P3", CustomerIssueDelayRules.P3))),
             StatisticFilterFieldFactory.text("issueState", "议题状态", 160),
             StatisticFilterFieldFactory.select("authorName", "议题提交人", 160, personOptions.authorNames()),
             StatisticFilterFieldFactory.select("assigneeName", "议题处理人", 160, personOptions.assigneeNames())),
@@ -198,7 +197,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     Map<String, String> snapshotFilters = customerSnapshotFilters(filters, effectiveFilterGroup);
     return snapshotService.readOrRefresh(
         snapshotRequest(snapshotFilters, effectiveFilterGroup, buildDefinition()),
-        () -> buildBoardResponse(filters, effectiveFilterGroup));
+        ignored -> buildBoardResponse(filters, effectiveFilterGroup));
   }
 
   private StatisticBoardResponse buildBoardResponse(
@@ -307,6 +306,8 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     return new StatisticDetailResponse(
         "客户问题延期明细",
         "展示当前模块、紧急程度和延期类型命中的 CC_Product 议题明细。",
+        List.of(StatisticDetailCollection.detailList()),
+        StatisticDetailCollection.DETAIL_KEY,
         DETAIL_COLUMNS,
         pageSlice.records(),
         pageSlice.total(),
@@ -369,7 +370,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         initial.stream().filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext())).toList();
     List<IssueSource> visible =
         scoped.stream()
-            .filter(issue -> SuggestionMetricSupport.isRegularMetricIssue(
+            .filter(issue -> SuggestionMetricRules.isRegularMetricIssue(
                 issue.excluded(), issue.exclusionReason(), issue.severityLevel(), issue.category()))
             .toList();
     List<IssueSource> gitlabReadable =
@@ -471,7 +472,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
             and (coalesce(is_response_delayed, false) = true or coalesce(is_resolve_delayed, false) = true)
             and replace(coalesce(illegal_reason, '') || ',' || coalesce(illegal_reasons, ''), ' ', '') not like ?
             """,
-            List.of("%" + GITLAB_API_ERROR + "%"));
+            List.of("%" + CustomerIssueDelayRules.GITLAB_API_ERROR + "%"));
     try {
       return issueFactQueryService.query(
           FACT_SQL,
@@ -597,13 +598,13 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
 
   private Predicate<IssueSource> matchesMetric(String columnKey) {
     return switch (columnKey) {
-      case "resp_delay_p1" -> issue -> issue.responseDelayed() && issue.matchesLegacyPriority(P1);
-      case "resp_delay_p2" -> issue -> issue.responseDelayed() && issue.matchesLegacyPriority(P2);
-      case "resp_delay_p3" -> issue -> issue.responseDelayed() && issue.matchesLegacyPriority(P3);
+      case "resp_delay_p1" -> issue -> issue.responseDelayed() && issue.matchesLegacyPriority(CustomerIssueDelayRules.P1);
+      case "resp_delay_p2" -> issue -> issue.responseDelayed() && issue.matchesLegacyPriority(CustomerIssueDelayRules.P2);
+      case "resp_delay_p3" -> issue -> issue.responseDelayed() && issue.matchesLegacyPriority(CustomerIssueDelayRules.P3);
       case "resp_delay_sum" -> issue -> issue.responseDelayed() && issue.hasLegacyPriorityBucket();
-      case "fix_delay_p1" -> issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(P1);
-      case "fix_delay_p2" -> issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(P2);
-      case "fix_delay_p3" -> issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(P3);
+      case "fix_delay_p1" -> issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(CustomerIssueDelayRules.P1);
+      case "fix_delay_p2" -> issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(CustomerIssueDelayRules.P2);
+      case "fix_delay_p3" -> issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(CustomerIssueDelayRules.P3);
       case "fix_delay_sum" -> issue -> issue.resolveDelayed() && issue.hasLegacyPriorityBucket();
       default -> issue -> true;
     };
@@ -684,10 +685,6 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     return StatisticMetricCalculator.count(value);
   }
 
-  private static String normalize(String value) {
-    return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
-  }
-
   private static String trim(String value) {
     return StringUtils.hasText(value) ? value.trim() : null;
   }
@@ -711,13 +708,13 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     }
 
     StatisticRowData toRowData() {
-      long respP1 = count(issue -> issue.responseDelayed() && issue.matchesLegacyPriority(P1));
-      long respP2 = count(issue -> issue.responseDelayed() && issue.matchesLegacyPriority(P2));
-      long respP3 = count(issue -> issue.responseDelayed() && issue.matchesLegacyPriority(P3));
+      long respP1 = count(issue -> issue.responseDelayed() && issue.matchesLegacyPriority(CustomerIssueDelayRules.P1));
+      long respP2 = count(issue -> issue.responseDelayed() && issue.matchesLegacyPriority(CustomerIssueDelayRules.P2));
+      long respP3 = count(issue -> issue.responseDelayed() && issue.matchesLegacyPriority(CustomerIssueDelayRules.P3));
       long respSum = count(issue -> issue.responseDelayed() && issue.hasLegacyPriorityBucket());
-      long fixP1 = count(issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(P1));
-      long fixP2 = count(issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(P2));
-      long fixP3 = count(issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(P3));
+      long fixP1 = count(issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(CustomerIssueDelayRules.P1));
+      long fixP2 = count(issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(CustomerIssueDelayRules.P2));
+      long fixP3 = count(issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(CustomerIssueDelayRules.P3));
       long fixSum = count(issue -> issue.resolveDelayed() && issue.hasLegacyPriorityBucket());
       return new StatisticRowData(
           rowKey,
@@ -738,12 +735,13 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     }
 
     private StatisticCellData countCell(String key, long numericValue) {
+      boolean canDrilldown = StatisticDrilldownSupport.legacyCellDrilldown(true, numericValue);
       return new StatisticCellData(
           key,
           numericValue,
           CustomerIssueDelayIssuesBoardService.count(numericValue),
-          true,
-          "issue-list",
+          canDrilldown,
+          canDrilldown ? "issue-list" : null,
           Map.of("rowKey", rowKey));
     }
   }
@@ -806,25 +804,15 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     }
 
     String priorityBucket() {
-      String normalized = normalize(priorityLevel);
-      if (normalized.contains("p1")) {
-        return P1;
-      }
-      if (normalized.contains("p2")) {
-        return P2;
-      }
-      if (normalized.contains("p3")) {
-        return P3;
-      }
-      return "";
+      return CustomerIssueDelayRules.priorityBucket(priorityLevel);
     }
 
     boolean hasLegacyPriorityBucket() {
-      return matchesLegacyPriority(P1) || matchesLegacyPriority(P2) || matchesLegacyPriority(P3);
+      return CustomerIssueDelayRules.hasLegacyPriorityBucket(priorityLevel);
     }
 
     boolean matchesLegacyPriority(String expectedPriority) {
-      return normalize(priorityLevel).contains(normalize(expectedPriority));
+      return CustomerIssueDelayRules.matchesLegacyPriority(priorityLevel, expectedPriority);
     }
 
     String delayType() {
@@ -841,19 +829,8 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     }
 
     boolean hasGitLabApiError() {
-      if (matchesGitLabApiError(illegalReason)) {
-        return true;
-      }
-      return illegalReasons != null && illegalReasons.stream().anyMatch(CustomerIssueDelayIssuesBoardService::matchesGitLabApiError);
+      return CustomerIssueDelayRules.hasGitLabApiError(illegalReason, illegalReasons);
     }
-  }
-
-  private static boolean matchesGitLabApiError(String value) {
-    return GITLAB_API_ERROR.equals(normalizeApiError(value));
-  }
-
-  private static String normalizeApiError(String value) {
-    return value == null ? "" : value.replace(" ", "").trim();
   }
 
   private record RuleFlowSnapshot(

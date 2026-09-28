@@ -132,7 +132,7 @@ public class ReviewDataRecordService {
         snapshotType,
         scopeKey,
         RULE_VERSION,
-        pageRecordSnapshotService.reviewDataSourceVersion(),
+        () -> pageRecordSnapshotService.reviewDataSourceVersion(),
         requestPayload);
   }
 

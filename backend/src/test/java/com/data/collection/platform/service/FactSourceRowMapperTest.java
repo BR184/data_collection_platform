@@ -76,6 +76,32 @@ class FactSourceRowMapperTest {
   }
 
   @Test
+  void issueMapperMustNotKeepCompletionTimeForAStatusThatOnlyContainsTheCompletionText()
+      throws Exception {
+    ResultSet resultSet = mock(ResultSet.class);
+    Array issueLabels = sqlArray("状态：不是已修复/完成", "状态：未复现");
+    when(resultSet.getArray("label_titles")).thenReturn(issueLabels);
+    when(resultSet.getString("project_name")).thenReturn("CC_Product");
+    when(resultSet.getLong("project_id")).thenReturn(325L);
+    when(resultSet.getLong("issue_id")).thenReturn(9001L);
+    when(resultSet.getLong("issue_iid")).thenReturn(1L);
+    when(resultSet.getObject("state_id")).thenReturn(2);
+    when(resultSet.getTimestamp("created_at"))
+        .thenReturn(Timestamp.valueOf(LocalDateTime.of(2026, 9, 1, 12, 0)));
+    LocalDateTime eventTime = LocalDateTime.of(2026, 9, 2, 9, 0);
+    when(resultSet.getTimestamp("fixed_label_time")).thenReturn(Timestamp.valueOf(eventTime));
+    ModuleDictionary dictionary = mock(ModuleDictionary.class);
+    when(dictionary.normalizeIssueModules(325L, List.of())).thenReturn(List.of());
+
+    IssueFact fact =
+        new IssueFactSourceRowMapper().mapSource(resultSet, "default", Map.of(), dictionary, Map.of());
+
+    assertThat(fact.getFixed()).isTrue();
+    assertThat(fact.getBugStatus()).contains("已修复/完成");
+    assertThat(fact.getFixedLabelTime()).isNull();
+  }
+
+  @Test
   void mergeRequestMapperShouldCalculateMissingDerivedMetricsFromRawValues()
       throws Exception {
     ResultSet resultSet = mock(ResultSet.class);

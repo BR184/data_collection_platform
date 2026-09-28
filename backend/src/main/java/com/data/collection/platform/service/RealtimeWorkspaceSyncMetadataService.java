@@ -149,6 +149,7 @@ public class RealtimeWorkspaceSyncMetadataService {
         || "customer-issue-delay-issues".equals(workspaceKey)
         || "customer-issue-response-efficiency".equals(workspaceKey)
         || "customer-issue-by-function".equals(workspaceKey)
+        || "customer-issue-customer-statistics".equals(workspaceKey)
         || "customer-issue-illegal-records".equals(workspaceKey)
         || "customer-issue-delay-records".equals(workspaceKey)
         || "customer-issue-cc-product-records".equals(workspaceKey);

@@ -25,7 +25,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,11 +51,13 @@ class CustomerIssueDelayIssuesBoardServiceTest {
     when(milestoneCatalogService.matches("CC2026R2", "CC2026 R2")).thenReturn(true);
     StatisticBoardSnapshotService.SnapshotRequest snapshotRequest =
         new StatisticBoardSnapshotService.SnapshotRequest(
-            "customer-issue-delay-issues", "test", "test", "test", Map.of(), null, null);
+            "customer-issue-delay-issues", "test", "test", StatisticBoardTestSnapshotScopes.defaultProjectScopes(), Map.of(), null, null);
     when(snapshotRequestFactory.issueRequest(
             anyString(), anyString(), anyString(), anyLong(), any(), anyString(), anyMap(), any(), any()))
         .thenReturn(snapshotRequest);
-    doAnswer(invocation -> ((Supplier<StatisticBoardResponse>) invocation.getArgument(1)).get())
+    doAnswer(invocation -> ((Function<StatisticBoardSnapshotService.SourceRead, StatisticBoardResponse>)
+                invocation.getArgument(1))
+            .apply(StatisticBoardTestSnapshotScopes.testSourceRead()))
         .when(snapshotService)
         .readOrRefresh(any(), any());
     doAnswer(

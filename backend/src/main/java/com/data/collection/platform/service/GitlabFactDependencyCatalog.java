@@ -65,8 +65,9 @@ public final class GitlabFactDependencyCatalog {
                 "labels",
                 "label_links",
                 "notes",
-                "issue_assignees"),
-            List.of("resource_label_events", "issue_metrics")));
+                "issue_assignees",
+                "resource_label_events"),
+            List.of("issue_metrics")));
     dependencies.put(
         FactType.MERGE_REQUEST,
         new FactDependency(

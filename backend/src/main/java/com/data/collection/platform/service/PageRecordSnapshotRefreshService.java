@@ -12,13 +12,15 @@ public class PageRecordSnapshotRefreshService {
     this.refreshers = refreshers == null ? List.of() : List.copyOf(refreshers);
   }
 
-  /** 刷新与稳定发布范围匹配的全部记录投影；任一失败由持久任务统一重试。 */
-  public void refreshAfterFactBuild(FactPublicationContext context) {
+  /** 刷新与稳定发布范围匹配的记录投影；在每个刷新器边界确认并续租执行身份。 */
+  public void refreshAfterFactBuild(FactPublicationContext context, Runnable requireLease) {
     if (refreshers.isEmpty()) {
       return;
     }
     for (PageRecordSnapshotRefresher refresher : refreshers) {
+      requireLease.run();
       refresher.refreshRecordSnapshots(context);
+      requireLease.run();
     }
   }
 }

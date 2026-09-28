@@ -3,6 +3,8 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.FactBuildResponse;
+import com.data.collection.platform.entity.FactProjectionScope;
+import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.IssueFact;
 import com.data.collection.platform.entity.MergeRequestFact;
@@ -10,11 +12,13 @@ import com.data.collection.platform.entity.MergeRequestCommitFact;
 import com.data.collection.platform.service.ModuleDictionaryService.ModuleDictionary;
 import com.data.collection.platform.service.IssuePhaseCalendarLoader.PhaseCalendarEntry;
 import com.data.collection.platform.service.IssuePhaseCalendarLoader.PhaseCalendarKey;
+import com.data.collection.platform.service.sync.SyncFactPublicationStateService;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -30,8 +34,6 @@ public class FactBuildService {
   private static final String DEFAULT_SOURCE_SYSTEM = "GITLAB";
   private static final String DEFAULT_SOURCE_INSTANCE = "default";
   private static final int FACT_BATCH_SIZE = 200;
-  private static final List<String> RESOURCE_LABEL_EVENT_REQUIRED_COLUMNS =
-      List.of("issue_id", "label_id", "action", "created_at", "mirror_deleted");
 
   private final JdbcTemplate jdbcTemplate;
   private final IssueFactPersistenceService issueFactPersistenceService;
@@ -39,6 +41,7 @@ public class FactBuildService {
   private final MergeRequestFactPersistenceService mergeRequestFactPersistenceService;
   private final ModuleDictionaryService moduleDictionaryService;
   private final FactBuildTaskService factBuildTaskService;
+  private final SyncFactPublicationStateService publicationStateService;
   private final GitlabSourceSchemaGuard sourceSchemaGuard;
   private final GitlabConfigService configService;
   private final IntegrationTestFactBuildService integrationTestFactBuildService;
@@ -51,6 +54,8 @@ public class FactBuildService {
   private final FactSearchIndexRepairService searchIndexRepairService;
   private final FactPublicationTransaction publicationTransaction;
   private final GitlabMirrorProperties mirrorProperties;
+  private final FactProjectionScopeResolver projectionScopeResolver;
+  private final FactProjectionGenerationService projectionGenerationService;
 
   public FactBuildService(
       JdbcTemplate jdbcTemplate,
@@ -59,6 +64,7 @@ public class FactBuildService {
       MergeRequestFactPersistenceService mergeRequestFactPersistenceService,
       ModuleDictionaryService moduleDictionaryService,
       FactBuildTaskService factBuildTaskService,
+      SyncFactPublicationStateService publicationStateService,
       GitlabSourceSchemaGuard sourceSchemaGuard,
       GitlabConfigService configService,
       IntegrationTestFactBuildService integrationTestFactBuildService,
@@ -70,13 +76,16 @@ public class FactBuildService {
       MergeRequestFactSourceRowMapper mergeRequestRowMapper,
       FactSearchIndexRepairService searchIndexRepairService,
       FactPublicationTransaction publicationTransaction,
-      GitlabMirrorProperties mirrorProperties) {
+      GitlabMirrorProperties mirrorProperties,
+      FactProjectionScopeResolver projectionScopeResolver,
+      FactProjectionGenerationService projectionGenerationService) {
     this.jdbcTemplate = jdbcTemplate;
     this.issueFactPersistenceService = issueFactPersistenceService;
     this.issueCustomerNameAliasService = issueCustomerNameAliasService;
     this.mergeRequestFactPersistenceService = mergeRequestFactPersistenceService;
     this.moduleDictionaryService = moduleDictionaryService;
     this.factBuildTaskService = factBuildTaskService;
+    this.publicationStateService = publicationStateService;
     this.sourceSchemaGuard = sourceSchemaGuard;
     this.configService = configService;
     this.integrationTestFactBuildService = integrationTestFactBuildService;
@@ -89,6 +98,8 @@ public class FactBuildService {
     this.searchIndexRepairService = searchIndexRepairService;
     this.publicationTransaction = publicationTransaction;
     this.mirrorProperties = mirrorProperties;
+    this.projectionScopeResolver = projectionScopeResolver;
+    this.projectionGenerationService = projectionGenerationService;
   }
 
   public FactBuildResponse rebuildAllFacts(boolean full) {
@@ -160,6 +171,7 @@ public class FactBuildService {
 
   public FactBuildResponse rebuildIssueFacts(boolean full, Long configId) {
     String sourceInstance = sourceInstanceForConfig(configId);
+    requireIssueSourceHistoryComplete(sourceInstance);
     return factBuildTaskService.runGuarded(
         factScope("issue", sourceInstance),
         full,
@@ -168,6 +180,7 @@ public class FactBuildService {
 
   public FactBuildResponse rebuildIssueFactsForConfig(GitlabSyncConfig config, boolean full) {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    requireIssueSourceHistoryComplete(sourceInstance);
     return factBuildTaskService.runGuarded(
         factScope("issue", sourceInstance),
         full,
@@ -194,6 +207,7 @@ public class FactBuildService {
       throw new BizException("刷新单条议题需要项目 ID 和议题编号");
     }
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    requireIssueSourceHistoryComplete(normalizedSource);
     Long rootId = findIssueRootId(normalizedSource, projectId, issueIid);
     if (rootId == null) {
       return new FactBuildResponse(
@@ -224,6 +238,7 @@ public class FactBuildService {
     if (safeRootIds.isEmpty()) {
       return new FactBuildResponse(factScope("issue", normalizedSource), false, 0, "没有需要刷新的议题事实");
     }
+    requireIssueSourceHistoryComplete(normalizedSource);
     sourceSchemaGuard.verifyIssueFactSource(normalizedSource);
     Map<PhaseCalendarKey, PhaseCalendarEntry> calendar =
         phaseCalendarLoader.loadFactProjectionCalendar();
@@ -245,6 +260,7 @@ public class FactBuildService {
 
   private FactBuildResponse rebuildIssueFactsInternal(
       boolean full, String sourceInstance, FactBuildProgress progress) {
+    requireIssueSourceHistoryComplete(sourceInstance);
     sourceSchemaGuard.verifyIssueFactSource(sourceInstance);
     LocalDateTime changedSince = full ? null : getIssueFactChangedSince(sourceInstance);
     try {
@@ -273,6 +289,15 @@ public class FactBuildService {
     } catch (DataAccessException e) {
       log.warn("Failed to rebuild issue facts", e);
       throw e;
+    }
+  }
+
+  private void requireIssueSourceHistoryComplete(String sourceInstance) {
+    if (!publicationStateService.isIssueSourceHistoryComplete(sourceInstance)) {
+      throw new BizException(
+          "来源 "
+              + GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance)
+              + " 的 resource_label_events 尚未完成完整全量核验，暂不构建 ISSUE 事实");
     }
   }
 
@@ -305,6 +330,13 @@ public class FactBuildService {
     return (size + chunkSize - 1) / chunkSize;
   }
 
+  /**
+   * 按当前时间重算客户问题的响应/解决延期三列，并在同一事务内推进受影响范围的 generation。
+   *
+   * <p>三列更新与范围失效必须原子提交：若只写列不推进版本，统计快照会继续命中旧结果；
+   * 若推进版本但列更新回滚，则别的消费者会在“版本已变”的假前提下读到旧列。
+   */
+  @Transactional
   public FactBuildResponse refreshCustomerIssueDelayFactsForConfig(GitlabSyncConfig config) {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     List<IssueFact> facts = loadOpenCustomerIssueFacts(sourceInstance);
@@ -335,12 +367,42 @@ public class FactBuildService {
       fact.setResolveDelayed(nextResolveDelayed);
       changedFacts.add(fact);
     }
-    updateCustomerIssueDelayFlags(changedFacts);
+    List<IssueFact> updatedFacts = updateCustomerIssueDelayFlags(changedFacts);
+    int invalidatedScopes = invalidateDelayRefreshScopes(sourceInstance, updatedFacts);
     return new FactBuildResponse(
         factScope("customer-issue-delay", sourceInstance),
         false,
-        changedFacts.size(),
-        "客户问题延期事实已按当前时间刷新");
+        updatedFacts.size(),
+        "客户问题延期事实已按当前时间刷新，失效范围数："
+            + invalidatedScopes);
+  }
+
+  /**
+   * 让受三列定向更新影响的统计结果失效。
+   *
+   * <p>本路径按主键只改三列、不经过事实发布链路，因此不会自然推进范围 generation：
+   * 统计快照以来源版本（由各范围 generation 组成）为键，版本不变就会继续命中旧 READY 结果，
+   * 把刷新前的延期判定继续对外输出。失效范围由既有 {@link FactProjectionScopeResolver} 从真正写入的行解析，
+   * 因此写入 0 行或只影响本范围时不会波及无关范围。
+   *
+   * @param sourceInstance 来源实例
+   * @param updatedFacts 真正写入成功的事实行；空集合不产生任何推进
+   * @return 实际推进的范围数
+   */
+  private int invalidateDelayRefreshScopes(String sourceInstance, List<IssueFact> updatedFacts) {
+    if (updatedFacts.isEmpty()) {
+      return 0;
+    }
+    List<Long> updatedIssueIds =
+        updatedFacts.stream()
+            .map(IssueFact::getIssueId)
+            .filter(issueId -> issueId != null && issueId > 0L)
+            .distinct()
+            .toList();
+    Set<FactProjectionScope> scopes =
+        projectionScopeResolver.resolveCurrentScopes(
+            sourceInstance, FactType.ISSUE, updatedIssueIds);
+    return projectionGenerationService.advanceIssueScopeGenerations(sourceInstance, scopes);
   }
 
   /**
@@ -354,27 +416,36 @@ public class FactBuildService {
    * 而不是把旧值写到刚发布的新行上。
    *
    * @param changedFacts 三列判定结果发生变化的事实行；空集合不产生任何写入
+   * @return 真正命中并写入的主键行；陈旧快照落空的行不计入，避免用未发生的写入伪造范围失效
    */
-  private void updateCustomerIssueDelayFlags(List<IssueFact> changedFacts) {
+  private List<IssueFact> updateCustomerIssueDelayFlags(List<IssueFact> changedFacts) {
+    List<IssueFact> updatedFacts = new ArrayList<>();
     for (List<IssueFact> batch : partition(changedFacts, FACT_BATCH_SIZE)) {
-      jdbcTemplate.batchUpdate(
-          """
-          update issue_fact
-             set is_response_delayed = ?,
-                 response_overdue = ?,
-                 is_resolve_delayed = ?,
-                 updated_at = current_timestamp
-           where id = ?
-          """,
-          batch,
-          batch.size(),
-          (statement, fact) -> {
-            statement.setBoolean(1, Boolean.TRUE.equals(fact.getResponseDelayed()));
-            statement.setBoolean(2, Boolean.TRUE.equals(fact.getResponseOverdue()));
-            statement.setBoolean(3, Boolean.TRUE.equals(fact.getResolveDelayed()));
-            statement.setLong(4, fact.getId());
-          });
+      int[][] rowsWritten =
+          jdbcTemplate.batchUpdate(
+              """
+              update issue_fact
+                 set is_response_delayed = ?,
+                     response_overdue = ?,
+                     is_resolve_delayed = ?,
+                     updated_at = current_timestamp
+               where id = ?
+              """,
+              batch,
+              batch.size(),
+              (statement, fact) -> {
+                statement.setBoolean(1, Boolean.TRUE.equals(fact.getResponseDelayed()));
+                statement.setBoolean(2, Boolean.TRUE.equals(fact.getResponseOverdue()));
+                statement.setBoolean(3, Boolean.TRUE.equals(fact.getResolveDelayed()));
+                statement.setLong(4, fact.getId());
+              });
+      for (int index = 0; index < batch.size(); index++) {
+        if (rowsWritten.length > 0 && rowsWritten[0][index] > 0) {
+          updatedFacts.add(batch.get(index));
+        }
+      }
     }
+    return updatedFacts;
   }
 
   private List<IssueFact> loadIssueFacts(
@@ -383,10 +454,9 @@ public class FactBuildService {
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
       ModuleDictionary moduleDictionary,
       Map<String, String> customerNameAliases) {
-    boolean useResourceLabelEvents = hasResourceLabelEventSource();
     return queryIssueFacts(
         sourceInstance,
-        factSourceSqlProvider.issueSourceSql(useResourceLabelEvents),
+        factSourceSqlProvider.issueSourceSql(),
         changedSince,
         calendar,
         moduleDictionary,
@@ -401,10 +471,9 @@ public class FactBuildService {
       Map<String, String> customerNameAliases) {
     String predicate = buildRootPredicate("i.id", rootIds);
     List<Object> args = new ArrayList<>(rootIds);
-    boolean useResourceLabelEvents = hasResourceLabelEventSource();
     return queryIssueFacts(
         sourceInstance,
-        factSourceSqlProvider.issueSourceSql(useResourceLabelEvents) + predicate,
+        factSourceSqlProvider.issueSourceSql() + predicate,
         null,
         args,
         calendar,
@@ -441,30 +510,6 @@ public class FactBuildService {
         (rs, rowNum) ->
             issueRowMapper.mapSource(
                 rs, sourceInstance, calendar, moduleDictionary, customerNameAliases));
-  }
-
-  private boolean hasResourceLabelEventSource() {
-    try {
-      Integer matchedColumns =
-          jdbcTemplate.queryForObject(
-              """
-              select count(*)
-                from information_schema.columns
-               where table_schema = current_schema()
-                 and table_name = 'ods_gitlab_resource_label_events'
-                 and column_name in (?, ?, ?, ?, ?)
-                 and (
-                   column_name <> 'action'
-                   or data_type in ('smallint', 'integer', 'bigint')
-                 )
-               """,
-              Integer.class,
-              RESOURCE_LABEL_EVENT_REQUIRED_COLUMNS.toArray());
-      return matchedColumns != null && matchedColumns == RESOURCE_LABEL_EVENT_REQUIRED_COLUMNS.size();
-    } catch (DataAccessException error) {
-      log.debug("GitLab resource_label_events mirror table is unavailable; falling back to label_links fixed time", error);
-      return false;
-    }
   }
 
   public FactBuildResponse rebuildMergeRequestFacts(boolean full) {

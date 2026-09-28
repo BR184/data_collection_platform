@@ -1,5 +1,7 @@
 package com.data.collection.platform.service.statistics;
 
+import com.data.collection.platform.domain.issue.DefectCauseMetricCatalog;
+import com.data.collection.platform.domain.issue.SuggestionMetricRules;
 import com.data.collection.platform.service.IssueDelayCauseMembers;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -24,11 +26,11 @@ public final class SystemTestIssueMetricDimensionSupport {
       String exclusionReason,
       String severityLevel,
       String category) {
-    if (SuggestionMetricSupport.isSuggestionColumnIssue(
+    if (SuggestionMetricRules.isSuggestionColumnIssue(
         excluded, exclusionReason, severityLevel, category)) {
       return "SUGGESTION";
     }
-    if (!SuggestionMetricSupport.isRegularMetricIssue(
+    if (!SuggestionMetricRules.isRegularMetricIssue(
         excluded, exclusionReason, severityLevel, category)) {
       return "";
     }
@@ -50,7 +52,7 @@ public final class SystemTestIssueMetricDimensionSupport {
       String exclusionReason,
       String severityLevel,
       String category) {
-    return SuggestionMetricSupport.isRegularMetricIssue(
+    return SuggestionMetricRules.isRegularMetricIssue(
         excluded, exclusionReason, severityLevel, category);
   }
 

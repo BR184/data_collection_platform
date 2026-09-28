@@ -9,6 +9,7 @@ import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.entity.statistics.StatisticColumnGroup;
 import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
 import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
+import com.data.collection.platform.entity.statistics.StatisticDetailCollection;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
@@ -176,7 +177,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     Map<String, String> snapshotFilters = customerSnapshotFilters(filters, effectiveFilterGroup);
     return snapshotService.readOrRefresh(
         snapshotRequest(snapshotFilters, effectiveFilterGroup, buildDefinition()),
-        () -> buildBoardResponse(filters, effectiveFilterGroup));
+        ignored -> buildBoardResponse(filters, effectiveFilterGroup));
   }
 
   private StatisticBoardResponse buildBoardResponse(
@@ -252,6 +253,8 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     return new StatisticDetailResponse(
         "客户问题功能缺陷明细",
         "展示当前模块/功能与指标命中的客户问题议题明细。",
+        List.of(StatisticDetailCollection.detailList()),
+        StatisticDetailCollection.DETAIL_KEY,
         DETAIL_COLUMNS,
         pageSlice.records(),
         pageSlice.total(),

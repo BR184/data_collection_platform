@@ -81,13 +81,15 @@ class DropdownOptionFieldServiceTest {
     DropdownOptionFieldConfigResponse response = service.saveConfig(
         FIELD,
         new DropdownOptionConfigSaveRequest(
+            null,
             new DropdownOptionRulesPayload(
                 List.of(new DropdownOptionRule("BLACKLIST", null, new StatisticFilterGroup("OR", List.of(literal("eq", "旧项目"))))),
                 List.of()),
             List.of("李四"),
-            null),
+            0L),
         "admin");
 
+    verify(configRepository).lockFieldMutation(FIELD);
     verify(configRepository).bindField(FIELD, 42L, "admin");
     assertThat(response.configId()).isEqualTo(42L);
     assertThat(response.configLabel()).isEqualTo(DISPLAY_NAME);
@@ -109,11 +111,45 @@ class DropdownOptionFieldServiceTest {
 
     DropdownOptionFieldConfigResponse response = service.saveConfig(
         FIELD,
-        new DropdownOptionConfigSaveRequest(DropdownOptionRulesPayload.empty(), List.of(), 3L),
+        new DropdownOptionConfigSaveRequest(42L, DropdownOptionRulesPayload.empty(), List.of(), 3L),
         "admin");
 
+    verify(configRepository).lockFieldMutation(FIELD);
     verify(configRepository).updateConfig(eq(42L), any(), any(), eq(3L), eq("admin"));
     assertThat(response.configId()).isEqualTo(42L);
+  }
+
+  @Test
+  void test_firstSaveRejectsFieldBoundAfterDraftWasReadWithoutCreatingConfig() {
+    DropdownOptionFieldService service = service();
+    when(configRepository.findBoundConfigId(FIELD)).thenReturn(Optional.of(99L));
+
+    assertThatThrownBy(() -> service.saveConfig(
+            FIELD,
+            new DropdownOptionConfigSaveRequest(null, DropdownOptionRulesPayload.empty(), List.of(), 0L),
+            "admin"))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("身份已变化");
+
+    verify(configRepository).lockFieldMutation(FIELD);
+    verify(configRepository, never()).insertConfig(any(), any(), any());
+    verify(configRepository, never()).updateConfig(anyLong(), any(), any(), anyLong(), any());
+  }
+
+  @Test
+  void test_boundSaveRejectsMismatchedConfigIdentityWithoutUpdatingEitherConfig() {
+    DropdownOptionFieldService service = service();
+    when(configRepository.findBoundConfigId(FIELD)).thenReturn(Optional.of(42L));
+
+    assertThatThrownBy(() -> service.saveConfig(
+            FIELD,
+            new DropdownOptionConfigSaveRequest(43L, DropdownOptionRulesPayload.empty(), List.of(), 3L),
+            "admin"))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("身份已变化");
+
+    verify(configRepository, never()).updateConfig(anyLong(), any(), any(), anyLong(), any());
+    verify(configRepository, never()).insertConfig(any(), any(), any());
   }
 
   @Test
