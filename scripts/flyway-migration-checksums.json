@@ -132,5 +132,8 @@
   "V20260909_01__database_backup_management.sql": "748d7a1dd7e0a9692f24dbf3e0f23b7d5af3575c2921c4e746ffd838890241d8",
   "V20260922_01__issue_fact_customer_requirement_flag.sql": "07b6478d6ae5c6eeebad39e3b0e19cfb93d0db115e9b86b135bece9516fc0651",
   "V20260922_02__customer_issue_customer_statistics_permissions.sql": "64ec73afa9a2af0651e1aa4eb5c55f9d09e3d44afce758a5e2a2712d2f529753",
-  "V20260924_01__backup_execution_fencing.sql": "e78097e89bb8594bd76a7ab6db8dfe222433984b7821ad5448a9c92224bf94fe"
+  "V20260924_01__backup_execution_fencing.sql": "e78097e89bb8594bd76a7ab6db8dfe222433984b7821ad5448a9c92224bf94fe",
+  "V20260928_01__bi_dashboard_page_permissions.sql": "10e710e8b24af76703da438d80d21d29c74e49633927e60aeae51164c98d2f5f",
+  "V20260929_01__bi_dashboard_default_permissions.sql": "89e6a704906f0332a69aac9308ab2c32cb4c0110299204739debd5ff34b522a3",
+  "V20260930_01__fact_publication_authoritative_heads.sql": "0eca090aef2982619c41855bf0d2b96a9332f2c0e6a794078c5e8dcd1e3f8658"
 }
