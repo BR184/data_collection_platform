@@ -4,6 +4,7 @@ import type {
   ReviewDataRecordRowResponse,
 } from '../../types/api';
 import { useReviewDataPageActions } from './useReviewDataPageActions';
+import type { RouteTableLoadOutcome } from '../../composables/useRouteTableState';
 
 function record(id = 3): ReviewDataRecordRowResponse {
   return {
@@ -46,7 +47,7 @@ function problemItem(id = 9): ReviewDataProblemItemResponse {
 
 function setup() {
   return {
-    refreshRecords: vi.fn<() => Promise<void>>(() => Promise.resolve()),
+    refreshRecords: vi.fn<() => Promise<RouteTableLoadOutcome>>(() => Promise.resolve({ status: 'committed' })),
     openProblemList: vi.fn<(row: ReviewDataRecordRowResponse) => Promise<void>>(() => Promise.resolve()),
     openDetail: vi.fn<(recordId: number) => Promise<void>>(() => Promise.resolve()),
     openCreateRecord: vi.fn<() => void>(),

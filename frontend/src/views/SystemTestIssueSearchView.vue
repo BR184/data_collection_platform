@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import type { LocationQuery } from 'vue-router';
 // 系统测试议题查询页承担 issue_fact 的明细检索入口，路由参数就是可分享的查询状态。
 // 组件内部只处理页面交互，阶段、模块和非法规则的口径由共享条件字段提供。
 import { ElMessage } from '../element-plus-services';
@@ -38,7 +39,7 @@ import { useRecordTableFilterPriority } from '../composables/useRecordTableFilte
 
 const PAGE_SCOPE_KEY = 'record-page:system-test-issue-search';
 const { readAutoRefreshOnEnter } = usePageAutoRefreshPreference(PAGE_SCOPE_KEY);
-const { route, page, pageSize, sortBy, sortOrder, patchQuery, bindLoader, isTableLoading } =
+const { route, page, pageSize, sortBy, sortOrder, patchQuery, reload, bindLoader, isTableLoading } =
   useRouteTableState({
     defaults: {
       page: 1,
@@ -307,22 +308,28 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
   })),
 );
 
-bindLoader(async () => {
-  try {
-    await Promise.all([loadFilterOptions(), loadSyncStatus()]);
-    initializeFromQuery(route.query);
-    await loadTableData();
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, '议题查询数据加载失败'));
-    rows.value = [];
-    total.value = 0;
-  }
+bindLoader(async ({ query, isCurrent }) => {
+  const options = await loadFilterOptions(query);
+  if (!isCurrent()) return null;
+  initializeFromQuery(query as LocationQuery);
+  const response = await loadTableData(query);
+  return { options, response };
+}, (result) => {
+  if (!result) return;
+  filterOptions.value = result.options;
+  rows.value = result.response.records;
+  total.value = result.response.total;
+  void loadSyncStatus();
+}, (error) => {
+  ElMessage.error(getErrorMessage(error, '议题查询数据加载失败'));
+  rows.value = [];
+  total.value = 0;
 });
 
-async function loadFilterOptions() {
-  filterOptions.value = await api.getSystemTestIssueSearchFilterOptions(
+async function loadFilterOptions(query: Readonly<Record<string, unknown>>) {
+  return api.getSystemTestIssueSearchFilterOptions(
     undefined,
-    String(route.query.sourceInstance ?? '') || undefined,
+    String(query.sourceInstance ?? '') || undefined,
   );
 }
 
@@ -332,7 +339,7 @@ async function handleRefreshLatestData() {
     const status = await api.refreshSystemTestIssueSearchRealtime();
     ElMessage.success(status.message || '已开始刷新最新数据');
     await waitForRealtimeWorkspaceRefresh(status, loadSyncStatus);
-    await Promise.all([loadFilterOptions(), loadTableData()]);
+    await reload();
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '刷新最新数据失败'));
   } finally {
@@ -340,39 +347,48 @@ async function handleRefreshLatestData() {
   }
 }
 
-async function loadTableData() {
-  const response = await api.getSystemTestIssueSearchRecords(buildCurrentQueryParams(true));
-  rows.value = response.records;
-  total.value = response.total;
+async function loadTableData(query: Readonly<Record<string, unknown>>) {
+  return api.getSystemTestIssueSearchRecords(buildCurrentQueryParams(true, query));
 }
 
-function buildCurrentQueryParams(includePagination: boolean) {
+function buildCurrentQueryParams(
+  includePagination: boolean,
+  query: Readonly<Record<string, unknown>> = route.query,
+) {
   return {
     projectId: undefined,
-    sourceInstance: String(route.query.sourceInstance ?? ''),
-    keyword: String(route.query.keyword ?? ''),
-    issueIid: String(route.query.issueIid ?? ''),
-    title: String(route.query.title ?? ''),
-    projectName: String(route.query.projectName ?? ''),
-    moduleName: String(route.query.moduleName ?? ''),
-    functionName: String(route.query.functionName ?? ''),
-    testingPhase: serializeMultiQueryValue(route.query.testingPhase),
-    authorName: String(route.query.authorName ?? ''),
-    assigneeName: String(route.query.assigneeName ?? ''),
-    issueState: String(route.query.issueState ?? ''),
-    severityLevel: String(route.query.severityLevel ?? ''),
-    bugStatus: String(route.query.bugStatus ?? ''),
-    category: String(route.query.category ?? ''),
-    milestoneTitle: String(route.query.milestoneTitle ?? ''),
-    createdAtStart: String(route.query.createdAtStart ?? ''),
-    createdAtEnd: String(route.query.createdAtEnd ?? ''),
-    updatedAtStart: String(route.query.updatedAtStart ?? ''),
-    updatedAtEnd: String(route.query.updatedAtEnd ?? ''),
+    sourceInstance: String(query.sourceInstance ?? ''),
+    keyword: String(query.keyword ?? ''),
+    issueIid: String(query.issueIid ?? ''),
+    title: String(query.title ?? ''),
+    projectName: String(query.projectName ?? ''),
+    moduleName: String(query.moduleName ?? ''),
+    functionName: String(query.functionName ?? ''),
+    testingPhase: serializeMultiQueryValue(query.testingPhase),
+    authorName: String(query.authorName ?? ''),
+    assigneeName: String(query.assigneeName ?? ''),
+    issueState: String(query.issueState ?? ''),
+    severityLevel: String(query.severityLevel ?? ''),
+    bugStatus: String(query.bugStatus ?? ''),
+    category: String(query.category ?? ''),
+    milestoneTitle: String(query.milestoneTitle ?? ''),
+    createdAtStart: String(query.createdAtStart ?? ''),
+    createdAtEnd: String(query.createdAtEnd ?? ''),
+    updatedAtStart: String(query.updatedAtStart ?? ''),
+    updatedAtEnd: String(query.updatedAtEnd ?? ''),
     filterGroup: buildFilterPayload(),
-    ...(includePagination ? { page: page.value, size: pageSize.value } : {}),
-    sortBy: sortBy.value || 'updatedAt',
-    sortOrder: (sortOrder.value || 'desc') as 'asc' | 'desc',
+    ...(includePagination ? {
+      page: parseQueryPositiveInteger(query.page, 1),
+      size: parseQueryPositiveInteger(query.pageSize, 20),
+    } : {}),
+    sortBy: String(query.sortBy ?? '') || 'updatedAt',
+    sortOrder: (String(query.sortOrder ?? '') || 'desc') as 'asc' | 'desc',
   };
+}
+
+function parseQueryPositiveInteger(value: unknown, fallback: number) {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 async function handleExport() {
@@ -504,11 +520,8 @@ async function handleClearFilter(key: string) {
 }
 
 async function handleRefresh() {
-  try {
-    await Promise.all([loadFilterOptions(), loadTableData()]);
+  if ((await reload()).status === 'committed') {
     ElMessage.success('已刷新议题查询结果');
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, '议题查询刷新失败'));
   }
 }
 </script>

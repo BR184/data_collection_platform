@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import type { LocationQuery } from 'vue-router';
 // 评审数据页是记录、问题项、详情抽屉和导出的组合入口。
 // 复杂状态拆到 review-data composable 中，本页只编排跨区块刷新和用户动作。
 import { ElMessage, ElMessageBox } from '../element-plus-services';
@@ -47,7 +48,7 @@ import {
 
 const PAGE_SCOPE_KEY = 'record-page:review-data-management';
 const { readAutoRefreshOnEnter } = usePageAutoRefreshPreference(PAGE_SCOPE_KEY);
-const { route, page, pageSize, sortBy, sortOrder, keyword, patchQuery, bindLoader, isTableLoading } = useRouteTableState({
+const { route, page, pageSize, sortBy, sortOrder, keyword, patchQuery, reload, bindLoader, isTableLoading } = useRouteTableState({
   defaults: {
     page: 1,
     pageSize: 20,
@@ -63,13 +64,16 @@ const {
   filterOptions,
   summaryCards,
   tableRows,
-  loadFilterOptions,
-  loadRows: loadReviewRows,
-  refresh: refreshReviewDataRecords,
+  fetchFilterOptions,
+  fetchRows: fetchReviewRows,
+  commitFilterOptions,
+  commitRows,
+  clearRows,
 } = useReviewDataRecords({
   fetchFilterOptions: () => api.getReviewDataFilterOptions(),
   fetchRecords: (params) => api.getReviewDataRecords(params),
 });
+let filterOptionsRequestId = 0;
 
 const {
   problemDialogVisible: problemListDialogVisible,
@@ -80,6 +84,7 @@ const {
   openProblemList,
   closeProblemList,
   problemItemsFor,
+  isProblemListOpenFor,
 } = useReviewProblemItems((recordId) => api.getReviewDataProblemItems(recordId));
 
 const {
@@ -108,6 +113,8 @@ async function refreshAfterRecordUpdate(recordId: number) {
 const {
   recordDialogVisible,
   recordDialogSaving,
+  recordDialogReady,
+  recordDialogSessionId,
   recordEditMode,
   recordForm,
   openCreateRecord,
@@ -122,6 +129,11 @@ const {
   afterCreateRecord: async (detail) => {
     const recordId = detail.record.id;
     await openProblemList(detail.record);
+    // 清单可能在加载期间被用户关闭或切到别的评审；页面也可能已被销毁。
+    // 只有清单仍是本次新增打开的那个才继续打开问题编辑器。
+    if (!isProblemListOpenFor(recordId)) {
+      return;
+    }
     await handleCreateProblemItem(recordId);
   },
   notifySuccess: (message) => ElMessage.success(message),
@@ -131,6 +143,8 @@ const {
 const {
   problemDialogVisible,
   problemDialogSaving,
+  problemDialogReady,
+  problemDialogSessionId,
   problemDialogEditMode,
   currentProblemExpertOptions,
   problemForm,
@@ -335,21 +349,28 @@ const {
   loadRows: () => loadRows(),
 });
 
-bindLoader(async () => {
-  try {
-    await loadFilterOptions();
-    syncFilterDraftFromRoute();
-    await loadRows();
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, '评审数据加载失败'));
-  }
+bindLoader(async ({ query, isCurrent }) => {
+  const options = await fetchFilterOptions();
+  if (!isCurrent()) return null;
+  syncFilterDraftFromRoute(query as LocationQuery);
+  const response = await fetchReviewRows(buildReviewDataRecordQueryParams({}, query as LocationQuery));
+  return { options, response };
+}, (result) => {
+  if (!result) return;
+  commitFilterOptions(result.options);
+  commitRows(result.response);
+}, (error) => {
+  clearRows();
+  ElMessage.error(getErrorMessage(error, '评审数据加载失败'));
 });
 
 async function loadRows() {
-  await loadReviewRows(buildReviewDataRecordQueryParams({
-    page: page.value,
-    size: pageSize.value,
-  }));
+  await reload();
+}
+async function loadFilterOptions() {
+  const requestId = ++filterOptionsRequestId;
+  const options = await fetchFilterOptions();
+  if (requestId === filterOptionsRequestId) commitFilterOptions(options);
 }
 
 async function handleClearFilter(key: string) {
@@ -390,11 +411,9 @@ async function handleQuery(nextKeyword = keyword.value) {
   await baseHandleQuery(priorityPatch.keyword === null ? '' : nextKeyword);
 }
 
+/** 刷新评审记录列表，并把加载归属交给调用者判断，避免把未提交的结果当成刷新成功。 */
 async function refreshReviewRecords() {
-  await refreshReviewDataRecords(buildReviewDataRecordQueryParams({
-    page: page.value,
-    size: pageSize.value,
-  }));
+  return reload();
 }
 
 async function handleLegacyImportSuccess(result: { importedRecords: number; importedProblemItems: number }) {
@@ -669,6 +688,8 @@ const {
     <ReviewRecordFormDialog
       v-model:visible="recordDialogVisible"
       :saving="recordDialogSaving"
+      :ready="recordDialogReady"
+      :session-id="recordDialogSessionId"
       :model-value="recordForm"
       :filter-options="filterOptions"
       :tip-text="reviewDataRuleExplanationContent.recordDialogTip"
@@ -679,6 +700,8 @@ const {
     <ReviewProblemItemFormDialog
       v-model:visible="problemDialogVisible"
       :saving="problemDialogSaving"
+      :ready="problemDialogReady"
+      :session-id="problemDialogSessionId"
       :model-value="problemForm"
       :filter-options="filterOptions"
       :expert-options-override="currentProblemExpertOptions"

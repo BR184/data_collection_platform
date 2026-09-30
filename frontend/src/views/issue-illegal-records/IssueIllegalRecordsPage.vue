@@ -39,6 +39,7 @@ const {
   pageSize,
   sortBy,
   sortOrder,
+  reload,
   patchQuery,
   bindLoader,
   isTableLoading,
@@ -64,6 +65,7 @@ const realtimeRefreshLoading = ref(false);
 const primaryDefaultPatchInFlight = ref(false);
 const projectId = computed(() => String(route.query.projectId ?? props.defaultProjectId ?? ''));
 const filterOptions = ref({ ...props.initialFilterOptions });
+let filterOptionsRunId = 0;
 const canRefreshLatestData = computed(
   () => hasPermission(authState.currentUser, 'business_data.refresh') && Boolean(props.requestRealtimeRefresh),
 );
@@ -129,6 +131,7 @@ useDataScope({
   provider: props.scopeProvider,
   options: scopeOptions,
   mountToShell: true,
+  patchRouteQuery: patchQuery,
 });
 
 watch(
@@ -137,10 +140,7 @@ watch(
     if (!filterOptionsLoaded.value || primaryDefaultPatchInFlight.value) {
       return;
     }
-    const patchedDefault = await applyPrimaryFilterDefaults();
-    if (patchedDefault) {
-      await loadCurrentPage();
-    }
+    await applyPrimaryFilterDefaults();
   },
   { immediate: true, deep: true },
 );
@@ -157,6 +157,7 @@ const {
   buildConditionResetQueryPatch,
 } = useConditionFilterGroupState(conditionFilterFields);
 const conditionFiltersExpanded = ref(false);
+const loadTableData = async () => { await reload(); };
 
 const priorityQuickFilters = computed(() => [
   { key: 'keyword', label: '任意关键字', type: 'input' as const, placeholder: '输入任意关键字搜索', width: 260 },
@@ -252,16 +253,6 @@ function normalizeIssueState(value: string) {
   return value === 'closed' ? '已关闭' : value === 'opened' ? '未关闭' : value || '-';
 }
 
-async function loadFilterOptions() {
-  filterOptions.value = await props.loadFilterOptions(projectId.value || undefined);
-}
-
-async function loadTableData() {
-  const response = await props.loadRecords(buildCurrentQueryParams(true));
-  rows.value = response.records;
-  total.value = response.total;
-}
-
 async function applyPrimaryFilterDefaults() {
   if (!filterOptionsLoaded.value || primaryDefaultPatchInFlight.value) {
     return false;
@@ -292,41 +283,45 @@ async function applyPrimaryFilterDefaults() {
   return true;
 }
 
-async function loadCurrentPage() {
-  initializeFromQuery(route.query);
-  await loadTableData();
-  pageInitialized.value = true;
-  void loadRealtimeStatus();
+function buildCurrentQueryParams(
+  includePagination: boolean,
+  query: Readonly<Record<string, unknown>> = route.query,
+) {
+  return {
+    projectId: (query.projectId as string | undefined)
+      ?? (props.defaultProjectId == null ? undefined : String(props.defaultProjectId)),
+    keyword: String(query.keyword ?? ''),
+    issueIid: String(query.issueIid ?? ''),
+    title: String(query.title ?? ''),
+    projectName: String(query.projectName ?? ''),
+    moduleName: String(query.moduleName ?? ''),
+    testingPhase: String(query.testingPhase ?? ''),
+    illegalReason: String(query.illegalReason ?? ''),
+    severityLevel: String(query.severityLevel ?? ''),
+    priorityLevel: String(query.priorityLevel ?? ''),
+    issueState: String(query.issueState ?? ''),
+    bugStatus: String(query.bugStatus ?? ''),
+    category: String(query.category ?? ''),
+    milestoneTitle: String(query.milestoneTitle ?? ''),
+    authorName: String(query.authorName ?? ''),
+    assigneeName: String(query.assigneeName ?? ''),
+    createdAtStart: String(query.createdAtStart ?? ''),
+    createdAtEnd: String(query.createdAtEnd ?? ''),
+    updatedAtStart: String(query.updatedAtStart ?? ''),
+    updatedAtEnd: String(query.updatedAtEnd ?? ''),
+    filterGroup: buildFilterPayload(),
+    ...(includePagination ? {
+      page: parseQueryPositiveInteger(query.page, 1),
+      size: parseQueryPositiveInteger(query.pageSize, 20),
+    } : {}),
+    sortBy: String(query.sortBy ?? '') || props.defaultSortBy || 'updatedAt',
+    sortOrder: (String(query.sortOrder ?? '') || props.defaultSortOrder || 'desc') as 'asc' | 'desc',
+  };
 }
 
-function buildCurrentQueryParams(includePagination: boolean) {
-  return {
-    projectId: (route.query.projectId as string | undefined)
-      ?? (props.defaultProjectId == null ? undefined : String(props.defaultProjectId)),
-    keyword: String(route.query.keyword ?? ''),
-    issueIid: String(route.query.issueIid ?? ''),
-    title: String(route.query.title ?? ''),
-    projectName: String(route.query.projectName ?? ''),
-    moduleName: String(route.query.moduleName ?? ''),
-    testingPhase: String(route.query.testingPhase ?? ''),
-    illegalReason: String(route.query.illegalReason ?? ''),
-    severityLevel: String(route.query.severityLevel ?? ''),
-    priorityLevel: String(route.query.priorityLevel ?? ''),
-    issueState: String(route.query.issueState ?? ''),
-    bugStatus: String(route.query.bugStatus ?? ''),
-    category: String(route.query.category ?? ''),
-    milestoneTitle: String(route.query.milestoneTitle ?? ''),
-    authorName: String(route.query.authorName ?? ''),
-    assigneeName: String(route.query.assigneeName ?? ''),
-    createdAtStart: String(route.query.createdAtStart ?? ''),
-    createdAtEnd: String(route.query.createdAtEnd ?? ''),
-    updatedAtStart: String(route.query.updatedAtStart ?? ''),
-    updatedAtEnd: String(route.query.updatedAtEnd ?? ''),
-    filterGroup: buildFilterPayload(),
-    ...(includePagination ? { page: page.value, size: pageSize.value } : {}),
-    sortBy: sortBy.value || props.defaultSortBy || 'updatedAt',
-    sortOrder: (sortOrder.value || props.defaultSortOrder || 'desc') as 'asc' | 'desc',
-  };
+function parseQueryPositiveInteger(value: unknown, fallback: number) {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 async function handleExport() {
@@ -354,7 +349,12 @@ async function handleRefreshLatestData() {
     const status = await props.requestRealtimeRefresh();
     ElMessage.success(status.message || '已开始刷新最新数据');
     await waitForRealtimeWorkspaceRefresh(status, loadRealtimeStatus);
-    await Promise.all([loadFilterOptions(), loadTableData()]);
+    const requestedProjectId = projectId.value;
+    const optionsRunId = ++filterOptionsRunId;
+    const refreshedOptions = await props.loadFilterOptions(requestedProjectId || undefined);
+    if (optionsRunId !== filterOptionsRunId || requestedProjectId !== projectId.value) return;
+    filterOptions.value = refreshedOptions;
+    await reload();
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '刷新最新数据失败'));
   } finally {
@@ -362,40 +362,50 @@ async function handleRefreshLatestData() {
   }
 }
 
-bindLoader(async () => {
+bindLoader(async ({ query, isCurrent }) => {
   if (!filterOptionsLoaded.value) {
-    return;
+    return null;
   }
   if (primaryDefaultPatchInFlight.value) {
-    return;
+    return null;
   }
   if (!primaryFilterDefaultsReady.value) {
-    return;
+    return null;
   }
-  try {
-    await loadCurrentPage();
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, `${props.title}加载失败`));
-    rows.value = [];
-    total.value = 0;
-    pageInitialized.value = true;
-  }
+  if (!isCurrent()) return null;
+  initializeFromQuery(query);
+  return props.loadRecords(buildCurrentQueryParams(true, query));
+}, (response) => {
+  if (!response) return;
+  rows.value = response.records;
+  total.value = response.total;
+  pageInitialized.value = true;
+  void loadRealtimeStatus();
+}, (error) => {
+  ElMessage.error(getErrorMessage(error, `${props.title}加载失败`));
+  rows.value = [];
+  total.value = 0;
+  pageInitialized.value = true;
 });
 
 watch(
   projectId,
-  async () => {
+  async (requestedProjectId) => {
+    const runId = ++filterOptionsRunId;
     filterOptionsLoaded.value = false;
     pageInitialized.value = false;
+    rows.value = [];
+    total.value = 0;
     resetRuleExplanation();
     try {
-      await loadFilterOptions();
+      const loadedOptions = await props.loadFilterOptions(requestedProjectId || undefined);
+      if (runId !== filterOptionsRunId || requestedProjectId !== projectId.value) return;
+      filterOptions.value = loadedOptions;
       filterOptionsLoaded.value = true;
       const patchedDefault = await applyPrimaryFilterDefaults();
-      if ((patchedDefault || primaryFilterDefaultsReady.value)) {
-        await loadCurrentPage();
-      }
+      if (!patchedDefault && primaryFilterDefaultsReady.value) await reload();
     } catch (error) {
+      if (runId !== filterOptionsRunId || requestedProjectId !== projectId.value) return;
       ElMessage.error(getErrorMessage(error, `${props.title}筛选项加载失败`));
       filterOptionsLoaded.value = true;
       pageInitialized.value = true;

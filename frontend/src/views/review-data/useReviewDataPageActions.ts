@@ -3,6 +3,7 @@ import type {
   ReviewDataProblemItemResponse,
   ReviewDataRecordRowResponse,
 } from '../../types/api';
+import type { RouteTableLoadOutcome } from '../../composables/useRouteTableState';
 import { getErrorMessage } from '../../utils/user-message';
 
 type TableRowWithRawRecord = Record<string, unknown> & {
@@ -10,7 +11,7 @@ type TableRowWithRawRecord = Record<string, unknown> & {
 };
 
 export interface ReviewDataPageActionsDependencies {
-  refreshRecords: () => Promise<void>;
+  refreshRecords: () => Promise<RouteTableLoadOutcome>;
   openProblemList: (record: ReviewDataRecordRowResponse) => Promise<void>;
   openDetail: (recordId: number) => Promise<void>;
   openCreateRecord: () => void;
@@ -34,11 +35,10 @@ export function useReviewDataPageActions(deps: ReviewDataPageActionsDependencies
   }
 
   async function handleRefresh() {
-    try {
-      await deps.refreshRecords();
+    // 失败与未提交都由加载回路自身的错误通道或后续查询负责，只有真正提交的新数据才算刷新成功。
+    const outcome = await deps.refreshRecords();
+    if (outcome.status === 'committed') {
       deps.notifySuccess('评审数据列表已刷新');
-    } catch (error) {
-      deps.notifyError(getErrorMessage(error, '评审数据列表刷新失败'));
     }
   }
 

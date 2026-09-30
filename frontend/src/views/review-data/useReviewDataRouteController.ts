@@ -28,27 +28,31 @@ export interface ReviewDataRouteControllerDependencies {
 export function useReviewDataRouteController(deps: ReviewDataRouteControllerDependencies) {
   const appliedFilterGroup = ref<StatisticFilterGroup | null>(null);
 
-  function buildRecordQueryParams(overrides: { page?: number; size?: number } = {}): ReviewDataRecordQueryParams {
+  function buildRecordQueryParams(
+    overrides: { page?: number; size?: number } = {},
+    query?: LocationQuery,
+  ): ReviewDataRecordQueryParams {
+    const routeQuery = query ?? deps.getRouteQuery();
     return {
-      keyword: deps.getKeyword().trim(),
-      title: routeString(deps.getRouteQuery().title),
-      projectName: routeString(deps.getRouteQuery().projectName),
-      moduleName: routeString(deps.getRouteQuery().moduleName),
-      reviewOwner: routeString(deps.getRouteQuery().reviewOwner),
-      reviewType: routeString(deps.getRouteQuery().reviewType),
-      problemStatus: routeString(deps.getRouteQuery().problemStatus),
-      reviewExpert: routeString(deps.getRouteQuery().reviewExpert),
+      keyword: (query ? routeString(routeQuery.keyword) : deps.getKeyword()).trim(),
+      title: routeString(routeQuery.title),
+      projectName: routeString(routeQuery.projectName),
+      moduleName: routeString(routeQuery.moduleName),
+      reviewOwner: routeString(routeQuery.reviewOwner),
+      reviewType: routeString(routeQuery.reviewType),
+      problemStatus: routeString(routeQuery.problemStatus),
+      reviewExpert: routeString(routeQuery.reviewExpert),
       filterGroup: appliedFilterGroup.value,
       sourceInstance: deps.getSourceInstance?.() || undefined,
-      page: overrides.page ?? deps.getPage(),
-      size: overrides.size ?? deps.getPageSize(),
-      sortBy: deps.getSortBy(),
-      sortOrder: deps.getSortOrder() || 'desc',
+      page: overrides.page ?? (query ? parsePositiveInteger(routeQuery.page, 1) : deps.getPage()),
+      size: overrides.size ?? (query ? parsePositiveInteger(routeQuery.pageSize, 20) : deps.getPageSize()),
+      sortBy: query ? routeString(routeQuery.sortBy) || 'updatedAt' : deps.getSortBy(),
+      sortOrder: ((query ? routeString(routeQuery.sortOrder) : deps.getSortOrder()) || 'desc') as 'asc' | 'desc',
     };
   }
 
-  function syncFilterDraftFromRoute() {
-    deps.initializeFromQuery(deps.getRouteQuery());
+  function syncFilterDraftFromRoute(query?: LocationQuery) {
+    deps.initializeFromQuery(query ?? deps.getRouteQuery());
     appliedFilterGroup.value = deps.buildFilterPayload();
   }
 
@@ -127,4 +131,9 @@ export function useReviewDataRouteController(deps: ReviewDataRouteControllerDepe
 function routeString(rawValue: LocationQuery[string]) {
   const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
   return value == null ? '' : String(value);
+}
+
+function parsePositiveInteger(rawValue: LocationQuery[string], fallback: number) {
+  const parsed = Number.parseInt(routeString(rawValue), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }

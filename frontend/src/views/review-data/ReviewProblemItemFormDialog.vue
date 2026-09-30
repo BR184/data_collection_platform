@@ -4,16 +4,19 @@ import { computed, reactive, ref, watch } from 'vue';
 // 保存后的列表刷新留给父级流程处理，避免弹窗知道过多页面结构。
 import { ElMessage } from '../../element-plus-services';
 import type { FormInstance, FormRules } from 'element-plus';
-import type { ReviewDataFilterOptionsResponse, ReviewDataProblemItemSaveRequest } from '../../types/api';
+import type { ReviewDataFilterOptionsResponse } from '../../types/api';
 import SmartSelect from '../../components/base/SmartSelect.vue';
 import type { ReviewProblemItemFormModel } from '../review-data-management';
 import { focusFirstInvalidFormField } from '../../utils/formFocus';
+import type { ReviewProblemItemDialogSubmit } from './useReviewProblemItemDialog';
 
 const DEFAULT_PENDING_REVIEW_STATUS = '未评审';
 
 const props = defineProps<{
   visible: boolean;
   saving: boolean;
+  ready: boolean;
+  sessionId: number | null;
   modelValue: ReviewProblemItemFormModel;
   filterOptions: ReviewDataFilterOptionsResponse;
   expertOptionsOverride?: string[];
@@ -23,10 +26,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: 'update:visible', value: boolean): void;
-  (event: 'submit', value: ReviewDataProblemItemSaveRequest): void;
+  (event: 'submit', value: ReviewProblemItemDialogSubmit): void;
 }>();
 
 const formRef = ref<FormInstance>();
+const validating = ref(false);
 const form = reactive<ReviewProblemItemFormModel>({
   reviewerName: '',
   workloadHours: 0,
@@ -98,23 +102,39 @@ const rules = computed<FormRules<ReviewProblemItemFormModel>>(() => ({
 }));
 
 async function handleSubmit() {
-  const valid = await formRef.value?.validate().catch(() => false);
+  if (validating.value || props.saving || !props.ready || !props.visible || props.sessionId == null) {
+    return;
+  }
+  const sessionId = props.sessionId;
+  validating.value = true;
+  let valid: boolean | undefined;
+  try {
+    valid = await formRef.value?.validate().catch(() => false);
+  } finally {
+    validating.value = false;
+  }
+  if (props.sessionId !== sessionId || !props.visible || !props.ready || props.saving) {
+    return;
+  }
   if (!valid) {
     ElMessage.warning('请先补全评审问题信息');
     focusFirstInvalidFormField(formRef.value);
     return;
   }
   emit('submit', {
-    reviewerName: form.reviewerName.trim(),
-    workloadHours: Number(form.workloadHours ?? 0),
-    reviewCategory: form.reviewCategory.trim(),
-    documentPosition: form.documentPosition.trim(),
-    problemCategory: form.problemCategory.trim(),
-    problemDescription: form.problemDescription.trim(),
-    suggestedSolution: form.suggestedSolution.trim(),
-    ownerName: form.ownerName.trim(),
-    rejectionReason: form.rejectionReason.trim(),
-    problemStatus: form.problemStatus.trim(),
+    sessionId,
+    payload: {
+      reviewerName: form.reviewerName.trim(),
+      workloadHours: Number(form.workloadHours ?? 0),
+      reviewCategory: form.reviewCategory.trim(),
+      documentPosition: form.documentPosition.trim(),
+      problemCategory: form.problemCategory.trim(),
+      problemDescription: form.problemDescription.trim(),
+      suggestedSolution: form.suggestedSolution.trim(),
+      ownerName: form.ownerName.trim(),
+      rejectionReason: form.rejectionReason.trim(),
+      problemStatus: form.problemStatus.trim(),
+    },
   });
 }
 
@@ -145,7 +165,9 @@ function normalizeEditableProblemStatus(value: string) {
     />
     <div v-if="tipText" class="problem-form-tip-note">{{ tipText }}</div>
 
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="136px" class="problem-form" @submit.prevent="handleSubmit">
+    <el-alert v-if="!ready" type="info" :closable="false" title="正在加载评审问题所需的评审详情，请稍候。" />
+
+    <el-form v-else ref="formRef" :model="form" :rules="rules" :disabled="saving || validating" label-width="136px" class="problem-form" @submit.prevent="handleSubmit">
       <div class="problem-form-grid">
         <el-form-item label="评审专家" prop="reviewerName">
           <SmartSelect v-model="form.reviewerName" :options="reviewerOptions" compact placeholder="请选择评审专家" />
@@ -188,7 +210,7 @@ function normalizeEditableProblemStatus(value: string) {
     <template #footer>
       <div class="problem-form-actions">
         <el-button @click="handleClose">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="handleSubmit">{{ editMode ? '保存修改' : '新增问题' }}</el-button>
+        <el-button type="primary" :loading="saving" :disabled="!ready || validating" @click="handleSubmit">{{ editMode ? '保存修改' : '新增问题' }}</el-button>
       </div>
     </template>
   </el-dialog>

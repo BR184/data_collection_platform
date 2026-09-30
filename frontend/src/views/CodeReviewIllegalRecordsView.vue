@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import type { LocationQuery } from 'vue-router';
 // 代码走查非法记录页承接固定老平台口径下的记录检索结果，重点是让违规数据可筛选、可导出。
 import { ElMessage } from '../element-plus-services';
 import { Download, InfoFilled, RefreshRight, View } from '@element-plus/icons-vue';
@@ -53,6 +54,7 @@ const {
   pageSize,
   sortBy,
   sortOrder,
+  reload,
   patchQuery,
   bindLoader,
   isTableLoading,
@@ -223,6 +225,7 @@ const sourceScope = useDataScope({
     'filterLogic',
   ],
   loading: isTableLoading,
+  patchRouteQuery: patchQuery,
 });
 
 const tableEmptyDescription = computed(() =>
@@ -272,7 +275,7 @@ async function handleRefreshMatchModeRow(row: Record<string, unknown>) {
       mergeRequestIid: raw.mergeRequestIid,
     });
     ElMessage.success('已刷新本条合并请求数据');
-    await loadTableData();
+    await reload();
     void loadSyncStatus();
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '刷新本条数据失败'));
@@ -281,49 +284,59 @@ async function handleRefreshMatchModeRow(row: Record<string, unknown>) {
   }
 }
 
-async function loadFilterOptions() {
-  filterOptions.value = await api.getCodeReviewIllegalRecordFilterOptions(
+async function loadFilterOptions(
+  query: Readonly<Record<string, unknown>>,
+  effectiveSource: string,
+  matchMode: boolean,
+  repositoryName: string,
+) {
+  return api.getCodeReviewIllegalRecordFilterOptions(
     undefined,
-    effectiveSourceValue.value || undefined,
-    String(route.query.projectName ?? ''),
-    matchModeEnabled.value ? effectiveRepositoryName.value : undefined,
+    effectiveSource || undefined,
+    String(query.projectName ?? ''),
+    matchMode ? repositoryName : undefined,
   );
 }
 
 async function loadSourceOptions() {
   const options = await api.getCodeReviewMultiBoardSourceOptions();
-  sourceOptions.value = Array.isArray(options) ? options : [];
+  return Array.isArray(options) ? options : [];
 }
 
 async function loadMatchModeStatus() {
   //兼容模式-MatchMode：代码走查页是否读取兼容表由 codeReviewCompatibilityRead 决定，不能只看全局开关。
   const status = await api.getCodeReviewMatchModeStatus();
-  matchModeEnabled.value = status.codeReviewCompatibilityRead;
+  return status.codeReviewCompatibilityRead;
 }
 
-async function syncCodeReviewRouteDefaults() {
+async function syncCodeReviewRouteDefaults(
+  query: Readonly<Record<string, unknown>>,
+  effectiveSource: string,
+  isDgm: boolean,
+) {
   const patch: Record<string, string | number | null> = {};
-  if (!String(route.query.source ?? '').trim() && effectiveSourceValue.value) {
-    patch.source = effectiveSourceValue.value;
+  if (!String(query.source ?? '').trim() && effectiveSource) {
+    patch.source = effectiveSource;
   }
   if (
-    !activeSourceIsDgm.value &&
-    !String(route.query.repositoryName ?? '').trim()
+    !isDgm &&
+    !String(query.repositoryName ?? '').trim()
   ) {
     //兼容模式-MatchMode：对齐老平台代码走查非法数据页，进入 CC 库默认选择 CrownCAD 所属项目；
     //非兼容读源也复用这一默认范围，避免交接前后同一页面候选口径漂移。
     patch.repositoryName = 'CrownCAD';
   }
-  if (activeSourceIsDgm.value && String(route.query.repositoryName ?? '').trim()) {
+  if (isDgm && String(query.repositoryName ?? '').trim()) {
     patch.repositoryName = null;
   }
   if (!Object.keys(patch).length) {
-    return;
+    return false;
   }
   await patchQuery({
     ...patch,
     page: 1,
   });
+  return true;
 }
 
 const {
@@ -335,33 +348,50 @@ const {
   emptyText: '-',
 });
 
-async function loadTableData() {
-  const response = await api.getCodeReviewIllegalRecords(buildCurrentQueryParams(true));
-  rows.value = response.records;
-  total.value = response.total;
+async function loadTableData(
+  query: Readonly<Record<string, unknown>> = route.query,
+  effectiveSource: string = effectiveSourceValue.value,
+  repositoryName: string = effectiveRepositoryName.value,
+) {
+  return api.getCodeReviewIllegalRecords(
+    buildCurrentQueryParams(true, query, effectiveSource, repositoryName),
+  );
 }
 
-function buildCurrentQueryParams(includePagination: boolean) {
+function buildCurrentQueryParams(
+  includePagination: boolean,
+  query: Readonly<Record<string, unknown>> = route.query,
+  effectiveSource: string = effectiveSourceValue.value,
+  repositoryName: string = effectiveRepositoryName.value,
+) {
   return {
     projectId: undefined,
-    repositoryName: effectiveRepositoryName.value,
-    mergedAtStart: String(route.query.mergedAtStart ?? ''),
-    mergedAtEnd: String(route.query.mergedAtEnd ?? ''),
-    keyword: String(route.query.keyword ?? ''),
-    projectName: String(route.query.projectName ?? ''),
-    requestType: String(route.query.requestType ?? ''),
-    targetBranch: String(route.query.targetBranch ?? ''),
-    mergedBy: String(route.query.mergedBy ?? ''),
-    moduleName: String(route.query.moduleName ?? ''),
-    illegalType: String(route.query.illegalType ?? ''),
-    mergeRequestIid: String(route.query.mergeRequestIid ?? ''),
-    owner: String(route.query.owner ?? ''),
-    source: effectiveSourceValue.value || undefined,
+    repositoryName,
+    mergedAtStart: String(query.mergedAtStart ?? ''),
+    mergedAtEnd: String(query.mergedAtEnd ?? ''),
+    keyword: String(query.keyword ?? ''),
+    projectName: String(query.projectName ?? ''),
+    requestType: String(query.requestType ?? ''),
+    targetBranch: String(query.targetBranch ?? ''),
+    mergedBy: String(query.mergedBy ?? ''),
+    moduleName: String(query.moduleName ?? ''),
+    illegalType: String(query.illegalType ?? ''),
+    mergeRequestIid: String(query.mergeRequestIid ?? ''),
+    owner: String(query.owner ?? ''),
+    source: effectiveSource || undefined,
     filterGroup: buildFilterPayload(),
-    ...(includePagination ? { page: page.value, size: pageSize.value } : {}),
-    sortBy: sortBy.value || 'mergedAt',
-    sortOrder: (sortOrder.value || 'desc') as 'asc' | 'desc',
+    ...(includePagination ? {
+      page: parseQueryPositiveInteger(query.page, 1),
+      size: parseQueryPositiveInteger(query.pageSize, 40),
+    } : {}),
+    sortBy: String(query.sortBy ?? '') || 'mergedAt',
+    sortOrder: (String(query.sortOrder ?? '') || 'desc') as 'asc' | 'desc',
   };
+}
+
+function parseQueryPositiveInteger(value: unknown, fallback: number) {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function defaultRepositoryNameForSource(source: string) {
@@ -411,7 +441,7 @@ async function handleRefreshLatestData() {
     const status = await api.refreshCodeReviewIllegalRecords();
     ElMessage.success(status.message || '已开始刷新最新数据');
     await waitForRealtimeWorkspaceRefresh(status, loadSyncStatus);
-    await loadTableData();
+    await reload();
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '刷新最新数据失败'));
   } finally {
@@ -419,21 +449,44 @@ async function handleRefreshLatestData() {
   }
 }
 
-bindLoader(async () => {
-  try {
-    await loadSourceOptions();
-    await loadMatchModeStatus();
-    await syncCodeReviewRouteDefaults();
-    await loadFilterOptions();
-    initializeFromQuery(route.query);
-    await loadTableData();
-    //兼容模式-MatchMode：老平台同步时间可能依赖外部库，不能阻塞已返回的列表数据和页面操作。
-    void loadSyncStatus();
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, '非法记录数据加载失败'));
-    rows.value = [];
-    total.value = 0;
-  }
+bindLoader(async ({ query, isCurrent }) => {
+  const [loadedSources, loadedMatchMode] = await Promise.all([
+    loadSourceOptions(),
+    loadMatchModeStatus(),
+  ]);
+  if (!isCurrent()) return null;
+  const selectedSource = String(query.source ?? '').trim();
+  const effectiveSource = selectedSource
+    || (loadedMatchMode ? 'cc' : loadedSources[0]?.value || '');
+  const isDgm = effectiveSource === 'dgm';
+  const repositoryName = String(query.repositoryName ?? '')
+    || (!isDgm ? defaultRepositoryNameForSource(effectiveSource) : '');
+  const patchedDefaults = await syncCodeReviewRouteDefaults(query, effectiveSource, isDgm);
+  if (patchedDefaults || !isCurrent()) return null;
+
+  const loadedFilterOptions = await loadFilterOptions(
+    query,
+    effectiveSource,
+    loadedMatchMode,
+    repositoryName,
+  );
+  if (!isCurrent()) return null;
+  initializeFromQuery(query as LocationQuery);
+  const response = await loadTableData(query, effectiveSource, repositoryName);
+  return { loadedSources, loadedMatchMode, loadedFilterOptions, response };
+}, (result) => {
+  if (!result) return;
+  sourceOptions.value = result.loadedSources;
+  matchModeEnabled.value = result.loadedMatchMode;
+  filterOptions.value = result.loadedFilterOptions;
+  rows.value = result.response.records;
+  total.value = result.response.total;
+  void loadSyncStatus();
+}, (error) => {
+  rows.value = [];
+  total.value = 0;
+  filterOptions.value = createDefaultCodeReviewFilterOptions();
+  ElMessage.error(getErrorMessage(error, '非法记录数据加载失败'));
 });
 
 async function handleClearFilter(key: string) {

@@ -4,13 +4,14 @@ import { computed, reactive, ref, watch } from 'vue';
 // 弹窗只负责表单展示与提交事件，不直接判断刷新列表或详情抽屉。
 import { ElMessage } from '../../element-plus-services';
 import type { FormInstance, FormRules } from 'element-plus';
-import type { ReviewDataFilterOptionsResponse, ReviewDataRecordSaveRequest } from '../../types/api';
+import type { ReviewDataFilterOptionsResponse } from '../../types/api';
 import SmartSelect from '../../components/base/SmartSelect.vue';
 import {
   createPrimaryDescriptionForm,
   type ReviewRecordFormModel,
 } from '../review-data-management';
 import { focusFirstInvalidFormField } from '../../utils/formFocus';
+import type { ReviewRecordDialogSubmit } from './useReviewRecordDialog';
 
 const REVIEW_VERSION_FORM_OPTIONS = ['V0.1', 'V0.2', 'V0.3', 'V0.4', 'V0.5', 'V0.6', 'V1', 'V2', 'V3'].map(
   (value) => ({ label: value, value }),
@@ -19,6 +20,8 @@ const REVIEW_VERSION_FORM_OPTIONS = ['V0.1', 'V0.2', 'V0.3', 'V0.4', 'V0.5', 'V0
 const props = defineProps<{
   visible: boolean;
   saving: boolean;
+  ready: boolean;
+  sessionId: number | null;
   modelValue: ReviewRecordFormModel;
   filterOptions: ReviewDataFilterOptionsResponse;
   tipText?: string;
@@ -27,10 +30,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: 'update:visible', value: boolean): void;
-  (event: 'submit', value: ReviewDataRecordSaveRequest): void;
+  (event: 'submit', value: ReviewRecordDialogSubmit): void;
 }>();
 
 const formRef = ref<FormInstance>();
+const validating = ref(false);
 const form = reactive<ReviewRecordFormModel>({
   projectName: '',
   title: '',
@@ -123,37 +127,53 @@ function syncPrimaryFields() {
 }
 
 async function handleSubmit() {
+  if (validating.value || props.saving || !props.ready || !props.visible || props.sessionId == null) {
+    return;
+  }
+  const sessionId = props.sessionId;
+  validating.value = true;
   syncPrimaryFields();
-  const valid = await formRef.value?.validate().catch(() => false);
+  let valid: boolean | undefined;
+  try {
+    valid = await formRef.value?.validate().catch(() => false);
+  } finally {
+    validating.value = false;
+  }
+  if (props.sessionId !== sessionId || !props.visible || !props.ready || props.saving) {
+    return;
+  }
   if (!valid) {
     ElMessage.warning('请先补全评审信息');
     focusFirstInvalidFormField(formRef.value);
     return;
   }
   emit('submit', {
-    projectName: form.projectName.trim(),
-    title: form.title.trim(),
-    moduleName: form.moduleName.trim(),
-    reviewType: form.reviewType.trim(),
-    reviewDate: form.reviewDate,
-    reviewOwner: form.reviewOwner.trim(),
-    reviewExperts: [...form.reviewExperts],
-    reviewScalePages: Number(form.reviewScalePages ?? 0),
-    reviewProduct: form.reviewProduct.trim(),
-    authorName: form.authorName.trim(),
-    reviewVersion: form.reviewVersion.trim(),
-    notReachStandardReason: form.notReachStandardReason.trim(),
-    sourceFileName: form.sourceFileName.trim(),
-    weightedDefectDensity: form.weightedDefectDensity,
-    descriptions: form.descriptions.map((description, index) => ({
-      reviewProduct: description.reviewProduct.trim(),
-      reviewVersion: description.reviewVersion.trim(),
-      authorName: description.authorName.trim(),
-      reviewScalePages: Number(description.reviewScalePages ?? 0),
-      unit: (description.unit || '页').trim(),
-      sortOrder: index,
-    })),
-    createPendingProblemItems: !props.editMode,
+    sessionId,
+    payload: {
+      projectName: form.projectName.trim(),
+      title: form.title.trim(),
+      moduleName: form.moduleName.trim(),
+      reviewType: form.reviewType.trim(),
+      reviewDate: form.reviewDate,
+      reviewOwner: form.reviewOwner.trim(),
+      reviewExperts: [...form.reviewExperts],
+      reviewScalePages: Number(form.reviewScalePages ?? 0),
+      reviewProduct: form.reviewProduct.trim(),
+      authorName: form.authorName.trim(),
+      reviewVersion: form.reviewVersion.trim(),
+      notReachStandardReason: form.notReachStandardReason.trim(),
+      sourceFileName: form.sourceFileName.trim(),
+      weightedDefectDensity: form.weightedDefectDensity,
+      descriptions: form.descriptions.map((description, index) => ({
+        reviewProduct: description.reviewProduct.trim(),
+        reviewVersion: description.reviewVersion.trim(),
+        authorName: description.authorName.trim(),
+        reviewScalePages: Number(description.reviewScalePages ?? 0),
+        unit: (description.unit || '页').trim(),
+        sortOrder: index,
+      })),
+      createPendingProblemItems: !props.editMode,
+    },
   });
 }
 
@@ -179,7 +199,9 @@ function handleClose() {
     />
     <div v-if="tipText" class="review-form-tip-note">{{ tipText }}</div>
 
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="136px" class="review-form" @submit.prevent="handleSubmit">
+    <el-alert v-if="!ready" type="info" :closable="false" title="正在加载评审详情，请稍候。" />
+
+    <el-form v-else ref="formRef" :model="form" :rules="rules" :disabled="saving || validating" label-width="136px" class="review-form" @submit.prevent="handleSubmit">
       <div class="review-form-grid">
         <el-form-item label="项目名称" prop="projectName">
           <SmartSelect v-model="form.projectName" :options="projectOptions" compact placeholder="请选择项目名称" />
@@ -248,7 +270,7 @@ function handleClose() {
     <template #footer>
       <div class="review-form-actions">
         <el-button @click="handleClose">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="handleSubmit">{{ editMode ? '保存修改' : '保存评审' }}</el-button>
+        <el-button type="primary" :loading="saving" :disabled="!ready || validating" @click="handleSubmit">{{ editMode ? '保存修改' : '保存评审' }}</el-button>
       </div>
     </template>
   </el-dialog>

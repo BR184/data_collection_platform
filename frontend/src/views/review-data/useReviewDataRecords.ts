@@ -57,19 +57,28 @@ export function useReviewDataRecords(deps: ReviewDataRecordsDependencies) {
   const summaryCards = computed(() => buildReviewDataSummaryCards(summary.value));
   const tableRows = computed(() => buildReviewDataTableRows(rows.value));
 
-  async function loadFilterOptions() {
-    filterOptions.value = await deps.fetchFilterOptions();
+  async function fetchFilterOptions() {
+    return deps.fetchFilterOptions();
   }
 
-  async function loadRows(params: ReviewDataRecordQueryParams) {
-    const response = await deps.fetchRecords(params);
+  async function fetchRows(params: ReviewDataRecordQueryParams) {
+    return deps.fetchRecords(params);
+  }
+
+  function commitFilterOptions(options: ReviewDataFilterOptionsResponse) {
+    filterOptions.value = options;
+  }
+
+  function commitRows(response: ReviewDataRecordListResponse) {
     rows.value = response.records;
     total.value = response.total;
     summary.value = response.summary;
   }
 
-  async function refresh(params: ReviewDataRecordQueryParams) {
-    await Promise.all([loadFilterOptions(), loadRows(params)]);
+  function clearRows() {
+    rows.value = [];
+    total.value = 0;
+    summary.value = null;
   }
 
   return {
@@ -79,8 +88,10 @@ export function useReviewDataRecords(deps: ReviewDataRecordsDependencies) {
     filterOptions,
     summaryCards,
     tableRows,
-    loadFilterOptions,
-    loadRows,
-    refresh,
+    fetchFilterOptions,
+    fetchRows,
+    commitFilterOptions,
+    commitRows,
+    clearRows,
   };
 }

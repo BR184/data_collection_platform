@@ -58,7 +58,7 @@ import {
 } from './customer-issues/customer-issue-record-range-filters';
 import { downloadBlob } from '../utils/csv-download';
 import { getErrorMessage } from '../utils/user-message';
-import { useRoute } from 'vue-router';
+import { useRoute, type LocationQuery } from 'vue-router';
 
 const currentRoute = useRoute();
 const resolveTopic = () => currentRoute.meta.pageKey === 'customer-issues-delay-issues' ? 'delay' : 'cc-product';
@@ -70,6 +70,7 @@ const {
   pageSize,
   sortBy,
   sortOrder,
+  invalidatePendingQuery,
   patchQuery,
   bindLoader,
   reload,
@@ -101,7 +102,6 @@ const milestoneDefaultPatchInFlight = ref(false);
 
 const filterOptions = ref<CustomerIssueRecordFilterOptionsResponse>(createEmptyFilterOptions());
 let filterOptionsRunId = 0;
-let tableDataRunId = 0;
 
 const topic = computed<CustomerIssueRecordTopic>(() =>
   resolveTopic(),
@@ -173,7 +173,7 @@ const {
 } = useRecordPageController({
   getRouteQuery: () => route.query,
   patchQuery,
-  loadTableData: reload,
+  loadTableData: async () => { await reload(); },
   resetDraft,
   buildApplyQueryPatch,
   buildResetQueryPatch,
@@ -609,31 +609,8 @@ function createEmptyFilterOptions(): CustomerIssueRecordFilterOptionsResponse {
   };
 }
 
-async function loadTableData() {
-  const runId = ++tableDataRunId;
-  const requestedTopic = topic.value;
-  tableLoadError.value = '';
-  initializeFromQuery(route.query);
-  try {
-    const response = await api.getCustomerIssueRecords(buildCurrentQueryParams(true));
-    if (runId !== tableDataRunId || requestedTopic !== topic.value) {
-      return;
-    }
-    rows.value = response.records;
-    total.value = response.total;
-  } catch (error) {
-    if (runId !== tableDataRunId || requestedTopic !== topic.value) {
-      return;
-    }
-    rows.value = [];
-    total.value = 0;
-    tableLoadError.value = getErrorMessage(error, `${pageTitle.value}加载失败`);
-  }
-}
-
-async function loadFilterOptions() {
+async function loadFilterOptions(requestedTopic = topic.value) {
   const runId = ++filterOptionsRunId;
-  const requestedTopic = topic.value;
   filterOptionsLoading.value = true;
   filterOptionsError.value = '';
   try {
@@ -658,40 +635,53 @@ async function loadFilterOptions() {
   }
 }
 
-function buildCurrentQueryParams(includePagination: boolean) {
+function buildCurrentQueryParams(
+  includePagination: boolean,
+  query: Readonly<Record<string, unknown>> = route.query,
+  requestedTopic: CustomerIssueRecordTopic = topic.value,
+) {
+  const delayTopic = requestedTopic === 'delay';
   return {
-    topic: topic.value,
-    keyword: String(route.query.keyword ?? ''),
-    issueIid: String(route.query.issueIid ?? ''),
-    title: String(route.query.title ?? ''),
-    projectName: String(route.query.projectName ?? ''),
-    moduleName: String(route.query.moduleName ?? ''),
-    functionName: String(route.query.functionName ?? ''),
-    ...(!isDelayTopic.value ? { customerName: String(route.query.customerName ?? '') } : {}),
-    reasonCategory: String(route.query.reasonCategory ?? ''),
-    authorName: String(route.query.authorName ?? ''),
-    ...(!isDelayTopic.value ? { handlerName: String(route.query.handlerName ?? '') } : {}),
-    assigneeName: String(route.query.assigneeName ?? ''),
-    ...(!isDelayTopic.value
+    topic: requestedTopic,
+    keyword: String(query.keyword ?? ''),
+    issueIid: String(query.issueIid ?? ''),
+    title: String(query.title ?? ''),
+    projectName: String(query.projectName ?? ''),
+    moduleName: String(query.moduleName ?? ''),
+    functionName: String(query.functionName ?? ''),
+    ...(!delayTopic ? { customerName: String(query.customerName ?? '') } : {}),
+    reasonCategory: String(query.reasonCategory ?? ''),
+    authorName: String(query.authorName ?? ''),
+    ...(!delayTopic ? { handlerName: String(query.handlerName ?? '') } : {}),
+    assigneeName: String(query.assigneeName ?? ''),
+    ...(!delayTopic
       ? {
-        testingPhase: String(route.query.testingPhase ?? ''),
-        fixUser: String(route.query.fixUser ?? ''),
-        delayCause: String(route.query.delayCause ?? ''),
-        plannedMergeVersionBranch: String(route.query.plannedMergeVersionBranch ?? ''),
+        testingPhase: String(query.testingPhase ?? ''),
+        fixUser: String(query.fixUser ?? ''),
+        delayCause: String(query.delayCause ?? ''),
+        plannedMergeVersionBranch: String(query.plannedMergeVersionBranch ?? ''),
       }
       : {}),
-    severityLevel: String(route.query.severityLevel ?? ''),
-    priorityLevel: String(route.query.priorityLevel ?? ''),
-    issueState: String(route.query.issueState ?? ''),
-    bugStatus: String(route.query.bugStatus ?? ''),
-    category: String(route.query.category ?? ''),
-    milestoneTitle: String(route.query.milestoneTitle ?? ''),
-    ...buildCustomerIssueRecordRangeRequestParams(route.query, isDelayTopic.value),
+    severityLevel: String(query.severityLevel ?? ''),
+    priorityLevel: String(query.priorityLevel ?? ''),
+    issueState: String(query.issueState ?? ''),
+    bugStatus: String(query.bugStatus ?? ''),
+    category: String(query.category ?? ''),
+    milestoneTitle: String(query.milestoneTitle ?? ''),
+    ...buildCustomerIssueRecordRangeRequestParams(query as LocationQuery, delayTopic),
     filterGroup: buildFilterPayload(),
-    ...(includePagination ? { page: page.value, size: pageSize.value } : {}),
-    sortBy: sortBy.value || 'updatedAt',
-    sortOrder: (sortOrder.value || 'desc') as 'asc' | 'desc',
+    ...(includePagination ? {
+      page: parseQueryPositiveInteger(query.page, 1),
+      size: parseQueryPositiveInteger(query.pageSize, 20),
+    } : {}),
+    sortBy: String(query.sortBy ?? '') || 'updatedAt',
+    sortOrder: (String(query.sortOrder ?? '') || 'desc') as 'asc' | 'desc',
   };
+}
+
+function parseQueryPositiveInteger(value: unknown, fallback: number) {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 async function handleExport() {
@@ -712,11 +702,16 @@ function customerIssueExportFilename() {
 
 async function handleRefreshLatestData() {
   realtimeRefreshLoading.value = true;
+  const requestedTopic = topic.value;
   try {
-    const status = await api.refreshCustomerIssueRecordRealtime(topic.value);
+    const status = await api.refreshCustomerIssueRecordRealtime(requestedTopic);
     ElMessage.success(status.message || '已开始刷新最新数据');
     await waitForRealtimeWorkspaceRefresh(status, loadSyncStatus);
-    await Promise.all([loadFilterOptions(), reload()]);
+    if (requestedTopic !== topic.value) return;
+    const optionsLoaded = await loadFilterOptions(requestedTopic);
+    if (!optionsLoaded || requestedTopic !== topic.value) return;
+    if (requestedTopic === 'delay' && !milestoneDefaultReady.value) return;
+    await reload();
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '刷新最新数据失败'));
   } finally {
@@ -724,19 +719,33 @@ async function handleRefreshLatestData() {
   }
 }
 
-bindLoader(async () => {
-  void loadSyncStatus();
+bindLoader(async ({ query, isCurrent }) => {
   if (milestoneDefaultPatchInFlight.value || !milestoneDefaultReady.value) {
-    return;
+    return null;
   }
-  await loadTableData();
+  if (!isCurrent()) return null;
+  const requestedTopic = topic.value;
+  initializeFromQuery(query as LocationQuery);
+  const response = await api.getCustomerIssueRecords(
+    buildCurrentQueryParams(true, query, requestedTopic),
+  );
+  return { response, requestedTopic };
+}, (result) => {
+  if (!result || result.requestedTopic !== topic.value) return;
+  rows.value = result.response.records;
+  total.value = result.response.total;
+  tableLoadError.value = '';
+  void loadSyncStatus();
+}, (error) => {
+  rows.value = [];
+  total.value = 0;
+  tableLoadError.value = getErrorMessage(error, `${pageTitle.value}加载失败`);
 });
 
 watch(
-  [topic],
-  async () => {
-    filterOptionsRunId += 1;
-    tableDataRunId += 1;
+  topic,
+  async (requestedTopic) => {
+    invalidatePendingQuery();
     filterOptions.value = createEmptyFilterOptions();
     filterOptionsLoaded.value = false;
     filterOptionsLoading.value = false;
@@ -746,14 +755,17 @@ watch(
     total.value = 0;
     resetRuleExplanation();
     const hasExplicitMilestone = Boolean(String(route.query.milestoneTitle ?? '').trim());
-    if (!isDelayTopic.value || hasExplicitMilestone) {
-      void loadFilterOptions();
+    const canLoadRecordsImmediately = !isDelayTopic.value || hasExplicitMilestone;
+    const recordsPromise = canLoadRecordsImmediately ? reload() : null;
+    const optionsLoaded = await loadFilterOptions(requestedTopic);
+    if (requestedTopic !== topic.value) return;
+    if (recordsPromise) {
+      await recordsPromise;
+    } else if (!optionsLoaded && milestoneDefaultReady.value) {
       await reload();
-      return;
     }
-    await loadFilterOptions();
   },
-  { immediate: true },
+  { immediate: true, flush: 'sync' },
 );
 
 watch(
@@ -768,9 +780,7 @@ watch(
       return;
     }
     const patchedDefault = await applyMilestoneDefault();
-    if (patchedDefault || milestoneDefaultReady.value) {
-      await reload();
-    }
+    if (patchedDefault || milestoneDefaultReady.value) await reload();
   },
 );
 

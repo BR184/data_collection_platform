@@ -67,8 +67,10 @@ describe('useReviewDataRecords', () => {
     const fetchRecords = vi.fn(async () => listResponse([record(1)]));
     const state = useReviewDataRecords({ fetchFilterOptions, fetchRecords });
 
-    await state.loadFilterOptions();
-    await state.loadRows({ keyword: 'review', page: 1, size: 20, sortBy: 'updatedAt', sortOrder: 'desc' });
+    const loadedOptions = await state.fetchFilterOptions();
+    const loadedRows = await state.fetchRows({ keyword: 'review', page: 1, size: 20, sortBy: 'updatedAt', sortOrder: 'desc' });
+    state.commitFilterOptions(loadedOptions);
+    state.commitRows(loadedRows);
 
     expect(state.filterOptions.value).toStrictEqual(options);
     expect(fetchRecords).toHaveBeenCalledWith({
@@ -84,16 +86,16 @@ describe('useReviewDataRecords', () => {
     expect(state.summaryCards.value[0].value).toBe('1');
   });
 
-  it('refreshes filter options and rows together', async () => {
-    const fetchFilterOptions = vi.fn(async () => filterOptions());
+  it('returns a query result without mutating rows before the current request commits', async () => {
     const fetchRecords = vi.fn(async () => listResponse([record(1), record(2)]));
-    const state = useReviewDataRecords({ fetchFilterOptions, fetchRecords });
+    const state = useReviewDataRecords({ fetchFilterOptions: vi.fn(async () => filterOptions()), fetchRecords });
     const params = { keyword: '', page: 2, size: 10, sortBy: 'title', sortOrder: 'asc' as const };
 
-    await state.refresh(params);
+    const result = await state.fetchRows(params);
 
-    expect(fetchFilterOptions).toHaveBeenCalledOnce();
     expect(fetchRecords).toHaveBeenCalledWith(params);
+    expect(state.total.value).toBe(0);
+    state.commitRows(result);
     expect(state.total.value).toBe(2);
   });
 });
