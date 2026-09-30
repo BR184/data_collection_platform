@@ -551,7 +551,6 @@ GITLAB_DELETE_RECONCILIATION_ENABLED=false
 PLATFORM_QUERY_TIMEOUT_SECONDS=30
 PLATFORM_SLOW_QUERY_THRESHOLD_MS=1000
 REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED=false
-CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED=false
 """
 
 
@@ -708,25 +707,63 @@ if current["services"] != candidate["services"]:
 }
 
 verify_container_volume_mount() {
+  # Container paths are passed on stdin, never as argv: shells that translate
+  # absolute-path arguments would otherwise corrupt the expected mount target.
   local container_id="$1" expected_volume="$2" expected_target="$3" inspect_json
   [[ -n "$container_id" ]] || fail "cannot verify volume mount for a missing container"
   inspect_json="$("${DOCKER[@]}" inspect -f '{{json .Mounts}}' "$container_id")" || fail "cannot inspect container mounts"
-  python3 -c '
+  {
+    printf '%s\n' "$expected_volume"
+    printf '%s\n' "$expected_target"
+    printf '%s\n' "$inspect_json"
+  } | python3 -c '
 import json, sys
-mounts = json.loads(sys.stdin.read())
-expected_volume, expected_target = sys.argv[1:3]
+expected_volume = sys.stdin.readline().rstrip("\n")
+expected_target = sys.stdin.readline().rstrip("\n")
+mounts = json.load(sys.stdin)
 matches = [mount for mount in mounts
            if mount.get("Type") == "volume"
            and mount.get("Name") == expected_volume
            and mount.get("Destination") == expected_target]
 if len(matches) != 1:
     raise SystemExit("container volume mount identity mismatch")
-' "$expected_volume" "$expected_target" <<< "$inspect_json" || fail "container is not mounted on the expected persistent volume"
+' || fail "container is not mounted on the expected persistent volume"
 }
 
 verify_named_volume_exists() {
   local volume_name="$1"
   "${DOCKER[@]}" volume inspect "$volume_name" >/dev/null 2>&1 || fail "required persistent volume is missing: $volume_name"
+}
+
+current_compose_project() {
+  python3 -c '
+import json, sys
+project = json.load(sys.stdin).get("name")
+if not project:
+    raise SystemExit("current Compose project identity is missing")
+print(project)
+' <<< "$CURRENT_CONFIG" || fail "current Compose project identity cannot be read"
+}
+
+resolve_service_container() {
+  local service="$1" project="$2" candidate
+  local matches=()
+  while IFS= read -r candidate || [[ -n "$candidate" ]]; do
+    [[ -n "$candidate" ]] && matches+=("$candidate")
+  done < <("${DOCKER[@]}" ps -a \
+    --no-trunc \
+    --filter "label=com.docker.compose.project=$project" \
+    --filter "label=com.docker.compose.service=$service" \
+    --format '{{.ID}}')
+  [[ "${#matches[@]}" -le 1 ]] || fail "multiple $service containers claim the current Compose project identity"
+  printf '%s' "${matches[0]:-}"
+}
+
+verify_container_compose_identity() {
+  local container_id="$1" service="$2" project="$3" labels
+  [[ -n "$container_id" ]] || fail "cannot verify the Compose identity of a missing $service container"
+  labels="$("${DOCKER[@]}" inspect -f '{{index .Config.Labels "com.docker.compose.project"}}/{{index .Config.Labels "com.docker.compose.service"}}' "$container_id")" || fail "cannot inspect the $service container identity"
+  [[ "$labels" == "$project/$service" ]] || fail "the $service container does not belong to the current Compose project"
 }
 
 require_preflight_runtime() {
@@ -811,7 +848,6 @@ services:
       PLATFORM_QUERY_TIMEOUT_SECONDS: ${{PLATFORM_QUERY_TIMEOUT_SECONDS:-30}}
       PLATFORM_SLOW_QUERY_THRESHOLD_MS: ${{PLATFORM_SLOW_QUERY_THRESHOLD_MS:-1000}}
       REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED: ${{REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED:-false}}
-      CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED: ${{CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED:-false}}
     ports:
       - "${{BACKEND_BIND:-127.0.0.1}}:${{BACKEND_PORT:-{ctx.backend_port}}}:18080"
     volumes:
@@ -1258,8 +1294,10 @@ cd "$TARGET_DIR"
 [[ -z "$(find . -maxdepth 1 -type f -name 'docker-compose.*.yml' -print -quit)" ]] || fail "refusing layered Compose configuration; keep only docker-compose.yml before backing up"
 compose() {{ env -u COMPOSE_PROJECT_NAME -u POSTGRES_VOLUME_NAME -u BACKEND_LOG_VOLUME_NAME -u COMPOSE_FILE -u COMPOSE_PROFILES "${{DOCKER[@]}}" compose --project-directory "$TARGET_DIR" --env-file "$TARGET_DIR/.env" "$@"; }}
 db_query() {{
+  # psql must never inherit the caller's stdin: `docker compose exec` consumes it,
+  # which silently truncates caller loops that drive themselves from stdin.
   local sql="$1"
-  compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"' sh "$sql"
+  compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"' sh "$sql" </dev/null
 }}
 
 BASE_CONFIG="$(compose config --format json)" || fail "current Compose configuration cannot be resolved"
@@ -1381,8 +1419,10 @@ cmp -s "$BACKUP_DIR/.env" .env || fail "live .env differs from the verified pre-
 
 compose() {{ env -u COMPOSE_PROJECT_NAME -u POSTGRES_VOLUME_NAME -u BACKEND_LOG_VOLUME_NAME -u COMPOSE_FILE -u COMPOSE_PROFILES "${{DOCKER[@]}}" compose --project-directory "$TARGET_DIR" --env-file "$TARGET_DIR/.env" "$@"; }}
 db_query() {{
+  # psql must never inherit the caller's stdin: `docker compose exec` consumes it,
+  # which silently truncates caller loops that drive themselves from stdin.
   local sql="$1"
-  compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"' sh "$sql"
+  compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"' sh "$sql" </dev/null
 }}
 
 BASE_CONFIG="$(compose config --format json)" || fail "current Compose configuration cannot be resolved"
@@ -1412,13 +1452,21 @@ FREE_BYTES="$(df -PB1 "$TARGET_DIR" | awk 'NR==2 {{print $4}}')"
 REQUIRED_BYTES="$(( IMAGE_BYTES * 2 + 1073741824 ))"
 (( FREE_BYTES >= REQUIRED_BYTES )) || fail "insufficient disk space: free=$FREE_BYTES required=$REQUIRED_BYTES"
 
+# Row counts must be identical across the quiet migration window for these tables.
+# The permission catalog (platform_permissions, platform_role_permissions,
+# platform_default_role_permissions) is deliberately absent: those three tables are
+# versioned, migration-owned resources that every permission migration rewrites by
+# design, so demanding a constant row count would abort legitimate upgrades. They stay
+# inside the critical-table backup and are restored with it.
+CONSERVATION_TABLES=(gitlab_sync_configs ods_gitlab_issues ods_gitlab_merge_requests issue_fact merge_request_fact integration_test_fact issue_fact_customer_members sync_runs sync_run_table_tasks fact_build_tasks review_records review_problem_items review_data_match_mode_reports review_data_match_mode_problem_details code_review_match_mode_records platform_ldap_users platform_ldap_roles platform_ldap_user_roles issue_scope_catalogs issue_scope_groups issue_scope_members statistic_board_snapshots page_record_snapshots)
+
 capture_counts() {{
-  local output="$1"
+  local output="$1" table
   : > "$output"
-  while IFS='=' read -r table _count; do
-    [[ "$table" =~ ^[a-z_][a-z0-9_]*$ ]] || fail "invalid table name in backup counts: $table"
+  for table in "${{CONSERVATION_TABLES[@]}}"; do
+    [[ "$(db_query "select to_regclass('public.$table') is not null;")" == "t" ]] || continue
     printf '%s=%s\n' "$table" "$(db_query "select count(*) from $table;")" >> "$output"
-  done < "$BACKUP_DIR/counts-before.txt"
+  done
 }}
 
 [[ -f "$PACKAGE_DIR/docker-images/{BACKEND_IMAGE}_{ctx.backend_tag}.tar" && ! -L "$PACKAGE_DIR/docker-images/{BACKEND_IMAGE}_{ctx.backend_tag}.tar" ]] || fail "target backend image archive is missing or unsafe"
@@ -1525,16 +1573,26 @@ cmp -s "$BACKUP_DIR/.env" .env || fail "live .env differs from the verified pre-
 
 compose() {{ env -u COMPOSE_PROJECT_NAME -u POSTGRES_VOLUME_NAME -u BACKEND_LOG_VOLUME_NAME -u COMPOSE_FILE -u COMPOSE_PROFILES "${{DOCKER[@]}}" compose --project-directory "$TARGET_DIR" --env-file "$TARGET_DIR/.env" "$@"; }}
 db_query() {{
+  # psql must never inherit the caller's stdin: `docker compose exec` consumes it,
+  # which silently truncates caller loops that drive themselves from stdin.
   local sql="$1"
-  compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"' sh "$sql"
+  compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"' sh "$sql" </dev/null
 }}
 
 CURRENT_CONFIG="$(compose config --format json)" || fail "current Compose configuration cannot be resolved"
-POSTGRES_ID="$(compose ps -q postgres)"
-[[ -n "$POSTGRES_ID" ]] || fail "postgres service is not running"
+CURRENT_PROJECT="$(current_compose_project)"
+POSTGRES_ID="$(resolve_service_container postgres "$CURRENT_PROJECT")"
+[[ -n "$POSTGRES_ID" ]] || fail "no postgres container claims the current Compose project identity"
+verify_container_compose_identity "$POSTGRES_ID" postgres "$CURRENT_PROJECT"
 [[ "$("${{DOCKER[@]}}" inspect -f '{{{{.State.Health.Status}}}}' "$POSTGRES_ID")" == "healthy" ]] || fail "postgres is not healthy"
-BACKEND_ID="$(compose ps -q backend)"
-[[ -n "$BACKEND_ID" ]] || fail "backend container is unavailable for volume identity verification"
+# A stopped or exited backend is the situation rollback exists for; only its verifiable
+# Compose identity and mounts are required, never that it is currently running.
+BACKEND_ID="$(resolve_service_container backend "$CURRENT_PROJECT")"
+if [[ -n "$BACKEND_ID" ]]; then
+  verify_container_compose_identity "$BACKEND_ID" backend "$CURRENT_PROJECT"
+else
+  log "no previous backend container claims the current Compose project identity; persistent volume identity is confirmed from the installed configuration"
+fi
 
 TEMP_COMPOSE="$(mktemp "$TARGET_DIR/.docker-compose.rollback.XXXXXX")" || fail "cannot create rollback candidate on deployment filesystem"
 trap 'rm -f "$TEMP_COMPOSE"' EXIT
@@ -1551,19 +1609,17 @@ ENV_BACKEND_LOG_VOLUME="$(awk -F= '$1 == "BACKEND_LOG_VOLUME_NAME" {{print subst
 verify_named_volume_exists "$CURRENT_POSTGRES_VOLUME"
 verify_named_volume_exists "$CURRENT_BACKEND_LOG_VOLUME"
 verify_container_volume_mount "$POSTGRES_ID" "$CURRENT_POSTGRES_VOLUME" /var/lib/postgresql/data
-verify_container_volume_mount "$BACKEND_ID" "$CURRENT_BACKEND_LOG_VOLUME" /app/logs
+[[ -z "$BACKEND_ID" ]] || verify_container_volume_mount "$BACKEND_ID" "$CURRENT_BACKEND_LOG_VOLUME" /app/logs
 
 "${{DOCKER[@]}}" image inspect "$EXPECTED_BACKEND" >/dev/null 2>&1 || fail "baseline backend image is unavailable: $EXPECTED_BACKEND"
 "${{DOCKER[@]}}" image inspect "$EXPECTED_FRONTEND" >/dev/null 2>&1 || fail "baseline frontend image is unavailable: $EXPECTED_FRONTEND"
-BASELINE_FLYWAY="$(cat "$BACKUP_DIR/flyway-before.txt")"
-[[ "$BASELINE_FLYWAY" =~ ^([A-Za-z0-9._-]+)\\|true$ ]] || fail "backup Flyway baseline is invalid"
-BASELINE_FLYWAY_VERSION="${{BASH_REMATCH[1]}}"
 CURRENT_FLYWAY="$(db_query "select version from flyway_schema_history where success order by installed_rank desc limit 1;")"
-[[ "$CURRENT_FLYWAY" == "$BASELINE_FLYWAY_VERSION" ]] || fail "database schema advanced from $BASELINE_FLYWAY_VERSION to $CURRENT_FLYWAY; application-only rollback is refused; follow the approved database recovery runbook"
+log "database schema is at $CURRENT_FLYWAY; Flyway is forward-only and stays there across an application-only rollback"
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 RECOVERY_DIR="$TARGET_DIR/upgrade-backups/rollback-recovery-$STAMP"
-mkdir -m 700 -- "$RECOVERY_DIR" || fail "cannot create rollback recovery directory"
+mkdir -- "$RECOVERY_DIR" || fail "cannot create rollback recovery directory"
+chmod 700 -- "$RECOVERY_DIR" || fail "cannot restrict rollback recovery directory permissions"
 RECOVERY_LOG="$RECOVERY_DIR/rollback.log"
 : > "$RECOVERY_LOG"
 cp -p "$TARGET_DIR/docker-compose.yml" "$RECOVERY_DIR/pre-rollback-compose.yml" || fail "cannot preserve the current Compose configuration"
@@ -1599,7 +1655,7 @@ printf '%s\n' "ROLLBACK_CONFIG_INSTALLED" > "$RECOVERY_DIR/state.txt"
 if start_application; then
   printf '%s\n' "ROLLBACK_SUCCEEDED" > "$RECOVERY_DIR/state.txt"
   log "application configuration and images restored; both services are healthy"
-  log "database was not rewritten; Flyway matched the pre-upgrade baseline"
+  log "database was not rewritten; the PostgreSQL schema and data are unchanged by rollback"
   exit 0
 fi
 

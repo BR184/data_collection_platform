@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 import hashlib
 import importlib.util
 import json
@@ -483,6 +484,79 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertNotIn("down -v", content)
         self.assertNotIn("volume rm", content)
 
+    def test_generated_scripts_never_let_psql_consume_caller_stdin(self):
+        context = self.build_context()
+
+        # `docker compose exec` drains its own stdin, so an unredirected psql silently
+        # truncates any caller loop that drives itself from stdin.
+        for name, content in (
+            ("backup.sh", MODULE.backup_helper(context)),
+            ("upgrade.sh", MODULE.upgrade_helper(context)),
+            ("rollback.sh", MODULE.rollback_helper(context)),
+        ):
+            with self.subTest(script=name):
+                self.assertIn('sh "$sql" </dev/null', content)
+
+    def test_rollback_allows_an_advanced_schema(self):
+        context = self.build_context()
+        content = MODULE.rollback_helper(context)
+
+        # Flyway is forward-only: a pre-deployment backup taken before the migration must
+        # still support rolling the application back, leaving the schema where the
+        # migration put it. No schema comparison may block that rollback.
+        self.assertNotIn("application-only rollback is refused", content)
+        self.assertNotIn("BASELINE_FLYWAY_VERSION", content)
+        self.assertIn("Flyway is forward-only and stays there across an application-only rollback", content)
+        # The schema legitimately stays ahead of the backup, so the success message must
+        # not claim the two versions match.
+        self.assertNotIn("Flyway matched the pre-upgrade baseline", content)
+        self.assertIn("the PostgreSQL schema and data are unchanged by rollback", content)
+        self.assertIn("flyway-before.txt", MODULE.backup_helper(context))
+
+    def test_generated_scripts_resolve_untruncated_container_ids(self):
+        context = self.build_context()
+
+        # `docker ps` prints 12-character IDs unless --no-trunc is requested, while
+        # `docker compose ps -q` always prints full IDs. A truncated lookup can never
+        # match the identity recorded in the pre-deployment backup, which would make
+        # rollback refuse a legitimate backup.
+        for name, content in (
+            ("backup.sh", MODULE.backup_helper(context)),
+            ("upgrade.sh", MODULE.upgrade_helper(context)),
+            ("rollback.sh", MODULE.rollback_helper(context)),
+        ):
+            with self.subTest(script=name):
+                self.assertIn("--no-trunc", content)
+
+    def test_migration_count_conservation_excludes_versioned_permission_catalog(self):
+        context = self.build_context()
+        upgrade = MODULE.upgrade_helper(context)
+        backup = MODULE.backup_helper(context)
+
+        # The permission catalog is migration-owned: every permission migration rewrites
+        # it, so it cannot be held to a constant row count during the migration window.
+        conservation = next(
+            line for line in upgrade.splitlines() if line.startswith("CONSERVATION_TABLES=(")
+        )
+        for catalog_table in (
+            "platform_permissions",
+            "platform_role_permissions",
+            "platform_default_role_permissions",
+        ):
+            self.assertNotIn(catalog_table, conservation)
+        self.assertIn("issue_fact", conservation)
+        self.assertIn("platform_ldap_users", conservation)
+        self.assertIn("page_record_snapshots", conservation)
+        self.assertIn('for table in "${CONSERVATION_TABLES[@]}"', upgrade)
+        self.assertNotIn('done < "$BACKUP_DIR/counts-before.txt"', upgrade)
+        self.assertIn("counts-migration-start.txt", upgrade)
+        self.assertIn("counts-after-migration.txt", upgrade)
+        self.assertIn("protected business row counts changed during migration", upgrade)
+
+        # Catalog tables remain inside the critical-table backup and its row-count evidence.
+        self.assertIn("platform_permissions", backup)
+        self.assertIn("platform_default_role_permissions", backup)
+
     def test_incremental_readme_distinguishes_release_baseline_from_live_deployment_directory(self):
         context = self.build_context()
 
@@ -579,22 +653,20 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             return str(path.resolve()).replace("\\", "/")
         return f"/{drive[0].lower()}{tail.replace(os.sep, '/')}"
 
-    def _write_rollback_preflight_fixture(self, root: Path, *, manifest_extra: str = ""):
-        context = self.build_context()
-        deployment = root / "deployment"
-        backup = deployment / "upgrade-backups" / "predeploy"
-        fake_bin = root / "fake-bin"
-        deployment.mkdir(parents=True)
-        backup.mkdir(parents=True)
-        fake_bin.mkdir()
+    ROLLBACK_BACKUP_FILES = (
+        ".env", "docker-compose.yml", "postgres.container-id", "postgres.inspect.json",
+        "compose-images.txt", "flyway-before.txt", "counts-before.txt", "database.dump",
+        "critical-tables.dump", "database.restore-list.txt", "critical-tables.restore-list.txt",
+        "backup-manifest.env",
+    )
+
+    def _write_rollback_backup(self, backup: Path, context, *, manifest_extra: str = "", tamper_dump: bool = False) -> None:
         env_content = (
             "COMPOSE_PROJECT_NAME=qaflex-test\n"
             "POSTGRES_VOLUME_NAME=qaflex-test_qaflex_pgdata\n"
             "BACKEND_LOG_VOLUME_NAME=qaflex-test_qaflex_backend_logs\n"
             "POSTGRES_PASSWORD=private-test-value\n"
         )
-        (deployment / ".env").write_text(env_content, encoding="utf-8", newline="\n")
-        (deployment / "docker-compose.yml").write_text("services:\n  backend:\n    image: current\n", encoding="utf-8", newline="\n")
         (backup / ".env").write_text(env_content, encoding="utf-8", newline="\n")
         (backup / "docker-compose.yml").write_text("services:\n  backend:\n    image: baseline\n", encoding="utf-8", newline="\n")
         (backup / "postgres.container-id").write_text("abcdef012345\n", encoding="utf-8", newline="\n")
@@ -616,21 +688,34 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             f"{manifest_extra}"
         )
         (backup / "backup-manifest.env").write_text(manifest, encoding="utf-8", newline="\n")
-        required = [
-            ".env", "docker-compose.yml", "postgres.container-id", "postgres.inspect.json",
-            "compose-images.txt", "flyway-before.txt", "counts-before.txt", "database.dump",
-            "critical-tables.dump", "database.restore-list.txt", "critical-tables.restore-list.txt",
-            "backup-manifest.env",
-        ]
         (backup / "SHA256SUMS.txt").write_text(
             "".join(
                 f"{hashlib.sha256((backup / name).read_bytes()).hexdigest()}  ./{name}\n"
-                for name in required
+                for name in self.ROLLBACK_BACKUP_FILES
             ),
             encoding="utf-8",
             newline="\n",
         )
-        (backup / "database.dump").write_bytes(b"tampered after checksum creation")
+        if tamper_dump:
+            (backup / "database.dump").write_bytes(b"tampered after checksum creation")
+
+    def _write_rollback_preflight_fixture(self, root: Path, *, manifest_extra: str = ""):
+        context = self.build_context()
+        deployment = root / "deployment"
+        backup = deployment / "upgrade-backups" / "predeploy"
+        fake_bin = root / "fake-bin"
+        deployment.mkdir(parents=True)
+        backup.mkdir(parents=True)
+        fake_bin.mkdir()
+        env_content = (
+            "COMPOSE_PROJECT_NAME=qaflex-test\n"
+            "POSTGRES_VOLUME_NAME=qaflex-test_qaflex_pgdata\n"
+            "BACKEND_LOG_VOLUME_NAME=qaflex-test_qaflex_backend_logs\n"
+            "POSTGRES_PASSWORD=private-test-value\n"
+        )
+        (deployment / ".env").write_text(env_content, encoding="utf-8", newline="\n")
+        (deployment / "docker-compose.yml").write_text("services:\n  backend:\n    image: current\n", encoding="utf-8", newline="\n")
+        self._write_rollback_backup(backup, context, manifest_extra=manifest_extra, tamper_dump=True)
         script = root / "rollback.sh"
         script.write_text(MODULE.rollback_helper(context), encoding="utf-8", newline="\n")
         mutation_log = root / "docker-mutations.log"
@@ -842,9 +927,17 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                     "  if [[ \"$*\" == *'.docker-compose.rollback.'* ]]; then cat \"$FAKE_CANDIDATE_JSON\"; else cat \"$FAKE_CURRENT_JSON\"; fi\n"
                     "  exit 0\n"
                     "fi\n"
+                    "if [[ \"${1:-}\" == ps ]]; then\n"
+                    "  if [[ \"$*\" == *'service=postgres'* ]]; then echo abcdef012345; else echo backend123456; fi\n"
+                    "  exit 0\n"
+                    "fi\n"
                     "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q postgres'* ]]; then echo abcdef012345; exit 0; fi\n"
                     "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q backend'* ]]; then echo backend123456; exit 0; fi\n"
                     "if [[ \"${1:-}\" == inspect && \"$*\" == *'State.Health.Status'* ]]; then echo healthy; exit 0; fi\n"
+                    "if [[ \"${1:-}\" == inspect && \"$*\" == *'.Config.Labels'* ]]; then\n"
+                    "  if [[ \"${@: -1}\" == abcdef012345 ]]; then echo qaflex-test/postgres; else echo qaflex-test/backend; fi\n"
+                    "  exit 0\n"
+                    "fi\n"
                     "case \"$*\" in *' compose up '*|*' compose stop '*|*' compose down '*|* load -i *|*' volume rm '*|* rm *) printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\";; esac\n"
                     "exit 99\n",
                     encoding="utf-8",
@@ -870,6 +963,263 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 self.assertIn(expected_message, result.stderr)
                 self.assertEqual(before, ((deployment / ".env").read_bytes(), (deployment / "docker-compose.yml").read_bytes()))
                 self.assertFalse(mutation_log.exists())
+
+    def _write_rollback_execution_fixture(
+        self,
+        root: Path,
+        *,
+        backend_state: str,
+        backend_label: str = "qaflex-test/backend",
+        backend_mounts: str = '[{"Type":"volume","Name":"qaflex-test_qaflex_backend_logs","Destination":"/app/logs","RW":true}]',
+        up_failures: int = 0,
+    ):
+        """Build a deployment fixture whose Docker stub models a real container lifecycle.
+
+        ``backend_state`` is one of ``running``, ``stopped`` or ``absent`` so the generated
+        rollback script can be exercised against the exact situation it exists for.
+        """
+        context = self.build_context()
+        deployment = root / "deployment"
+        backup = deployment / "upgrade-backups" / "predeploy"
+        fake_bin = root / "fake-bin"
+        state = root / "docker-state"
+        deployment.mkdir(parents=True)
+        backup.mkdir(parents=True)
+        fake_bin.mkdir()
+        state.mkdir()
+        env_content = (
+            "COMPOSE_PROJECT_NAME=qaflex-test\n"
+            "POSTGRES_VOLUME_NAME=qaflex-test_qaflex_pgdata\n"
+            "BACKEND_LOG_VOLUME_NAME=qaflex-test_qaflex_backend_logs\n"
+            "POSTGRES_PASSWORD=private-test-value\n"
+        )
+        (deployment / ".env").write_text(env_content, encoding="utf-8", newline="\n")
+        (deployment / "docker-compose.yml").write_text("services:\n  backend:\n    image: current\n", encoding="utf-8", newline="\n")
+        self._write_rollback_backup(backup, context)
+        (state / "postgres.id").write_text("abcdef012345", encoding="utf-8", newline="\n")
+        (state / "backend.id").write_text("backend123456", encoding="utf-8", newline="\n")
+        (state / "frontend.id").write_text("frontend1234", encoding="utf-8", newline="\n")
+        if backend_state in ("running", "stopped"):
+            (state / "backend.exists").write_text("", encoding="utf-8", newline="\n")
+        if backend_state == "running":
+            (state / "backend.running").write_text("", encoding="utf-8", newline="\n")
+        current_json = {
+            "name": "qaflex-test",
+            "volumes": {
+                "qaflex_pgdata": {"name": "qaflex-test_qaflex_pgdata", "external": True},
+                "qaflex_backend_logs": {"name": "qaflex-test_qaflex_backend_logs"},
+            },
+            "networks": {"default": {"name": "qaflex-test_default"}},
+            "services": {
+                "postgres": {
+                    "image": MODULE.POSTGRES_IMAGE,
+                    "networks": {"default": None},
+                    "ports": [{"host_ip": "127.0.0.1", "published": "15432", "target": 5432, "protocol": "tcp"}],
+                    "volumes": [{"type": "volume", "source": "qaflex_pgdata", "target": "/var/lib/postgresql/data"}],
+                },
+                "backend": {
+                    "image": f"{MODULE.BACKEND_IMAGE}:current",
+                    "networks": {"default": None},
+                    "ports": [{"host_ip": "127.0.0.1", "published": "18080", "target": 18080, "protocol": "tcp"}],
+                    "volumes": [
+                        {"type": "volume", "source": "qaflex_backend_logs", "target": "/app/logs"},
+                        {"type": "bind", "source": "/opt/qaflex-backups", "target": "/var/lib/qaflex/backups"},
+                    ],
+                },
+                "frontend": {
+                    "image": f"{MODULE.FRONTEND_IMAGE}:current",
+                    "networks": {"default": None},
+                    "ports": [{"host_ip": "0.0.0.0", "published": "18181", "target": 80, "protocol": "tcp"}],
+                    "volumes": [],
+                },
+            },
+        }
+        candidate_json = json.loads(json.dumps(current_json))
+        candidate_json["services"]["backend"]["image"] = f"{MODULE.BACKEND_IMAGE}:{context.baseline_backend_tag}"
+        candidate_json["services"]["frontend"]["image"] = f"{MODULE.FRONTEND_IMAGE}:{context.baseline_frontend_tag}"
+        current_path = root / "current-compose.json"
+        candidate_path = root / "candidate-compose.json"
+        current_path.write_text(json.dumps(current_json), encoding="utf-8", newline="\n")
+        candidate_path.write_text(json.dumps(candidate_json), encoding="utf-8", newline="\n")
+        script = root / "rollback.sh"
+        script.write_text(MODULE.rollback_helper(context), encoding="utf-8", newline="\n")
+        mutation_log = root / "docker-mutations.log"
+        docker = fake_bin / "docker"
+        docker.write_text(
+            "#!/usr/bin/env bash\n"
+            "set -euo pipefail\n"
+            "state=\"${FAKE_STATE:?}\"\n"
+            "if [[ \"${1:-}\" == info ]]; then exit 0; fi\n"
+            "if [[ \"${1:-}\" == compose && \"$*\" == *' config --format json'* ]]; then\n"
+            "  if [[ \"$*\" == *'.docker-compose.rollback.'* || \"$*\" == *'.docker-compose.compensation.'* ]]; then cat \"$FAKE_CANDIDATE_JSON\"; else cat \"$FAKE_CURRENT_JSON\"; fi\n"
+            "  exit 0\n"
+            "fi\n"
+            "if [[ \"${1:-}\" == ps ]]; then\n"
+            "  if [[ \"$*\" == *'service=postgres'* ]]; then printf '%s\\n' \"$(cat \"$state/postgres.id\")\"; exit 0; fi\n"
+            "  if [[ -f \"$state/backend.exists\" ]]; then printf '%s\\n' \"$(cat \"$state/backend.id\")\"; fi\n"
+            "  exit 0\n"
+            "fi\n"
+            "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q postgres'* ]]; then printf '%s\\n' \"$(cat \"$state/postgres.id\")\"; exit 0; fi\n"
+            "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q backend'* ]]; then [[ -f \"$state/backend.running\" ]] && printf '%s\\n' \"$(cat \"$state/backend.id\")\"; exit 0; fi\n"
+            "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q frontend'* ]]; then [[ -f \"$state/frontend.running\" ]] && printf '%s\\n' \"$(cat \"$state/frontend.id\")\"; exit 0; fi\n"
+            "if [[ \"${1:-}\" == compose && \"$*\" == *' exec -T postgres '* ]]; then printf '%s\\n' \"$FAKE_FLYWAY_VERSION\"; exit 0; fi\n"
+            "if [[ \"${1:-}\" == compose && \"$*\" == *' up '* ]]; then\n"
+            "  printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\"\n"
+            "  count=0; [[ -f \"$state/up.count\" ]] && count=\"$(cat \"$state/up.count\")\"\n"
+            "  count=$((count + 1)); printf '%s' \"$count\" > \"$state/up.count\"\n"
+            "  if (( count <= ${FAKE_UP_FAILURES:-0} )); then exit 1; fi\n"
+            "  if [[ \"$*\" == *'force-recreate backend'* ]]; then : > \"$state/backend.running\"; fi\n"
+            "  if [[ \"$*\" == *'force-recreate frontend'* ]]; then : > \"$state/frontend.running\"; fi\n"
+            "  exit 0\n"
+            "fi\n"
+            "if [[ \"${1:-}\" == inspect ]]; then\n"
+            "  target=\"${@: -1}\"\n"
+            "  if [[ \"$*\" == *'State.Health.Status'* ]]; then echo healthy; exit 0; fi\n"
+            "  if [[ \"$*\" == *'.Config.Labels'* ]]; then\n"
+            "    if [[ \"$target\" == \"$(cat \"$state/postgres.id\")\" ]]; then echo 'qaflex-test/postgres'; else echo \"${FAKE_BACKEND_LABEL:-qaflex-test/backend}\"; fi\n"
+            "    exit 0\n"
+            "  fi\n"
+            "  if [[ \"$*\" == *'.Mounts'* ]]; then\n"
+            "    if [[ \"$target\" == \"$(cat \"$state/postgres.id\")\" ]]; then\n"
+            "      echo '[{\"Type\":\"volume\",\"Name\":\"qaflex-test_qaflex_pgdata\",\"Destination\":\"/var/lib/postgresql/data\",\"RW\":true}]'\n"
+            "    else\n"
+            "      echo \"${FAKE_BACKEND_MOUNTS}\"\n"
+            "    fi\n"
+            "    exit 0\n"
+            "  fi\n"
+            "  if [[ \"$*\" == *'.State.Health'* || \"$*\" == *'State.Status'* ]]; then echo healthy; exit 0; fi\n"
+            "  exit 99\n"
+            "fi\n"
+            "if [[ \"${1:-}\" == volume && \"$*\" == *' inspect '* ]]; then exit 0; fi\n"
+            "if [[ \"${1:-}\" == image && \"$*\" == *' inspect '* ]]; then exit 0; fi\n"
+            "case \"$*\" in *' compose stop '*|*' compose down '*|*' load -i *|*' volume rm '*|*' rm *) printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\";; esac\n"
+            "exit 99\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        docker.chmod(0o755)
+        return {
+            "context": context,
+            "deployment": deployment,
+            "backup": backup,
+            "script": script,
+            "fake_bin": fake_bin,
+            "state": state,
+            "mutation_log": mutation_log,
+            "extra_env": {
+                "FAKE_STATE": self._msys_path(state),
+                "FAKE_CURRENT_JSON": self._msys_path(current_path),
+                "FAKE_CANDIDATE_JSON": self._msys_path(candidate_path),
+                "FAKE_FLYWAY_VERSION": "20260714.01",
+                "FAKE_BACKEND_LABEL": backend_label,
+                "FAKE_BACKEND_MOUNTS": backend_mounts,
+                "FAKE_UP_FAILURES": str(up_failures),
+            },
+        }
+
+    def _run_rollback_execution(self, root: Path, fixture: dict, *, extra_env: dict[str, str] | None = None):
+        bash = self._git_bash_path()
+        env = os.environ.copy()
+        env["PATH"] = f"{self._msys_path(fixture['fake_bin'])}:/usr/bin:/bin:" + env.get("PATH", "")
+        env["FAKE_DOCKER_MUTATIONS"] = self._msys_path(fixture["mutation_log"])
+        env.update(fixture["extra_env"])
+        if extra_env:
+            env.update(extra_env)
+        return subprocess.run(
+            [
+                str(bash),
+                self._msys_path(fixture["script"]),
+                self._msys_path(fixture["deployment"]),
+                self._msys_path(fixture["backup"]),
+            ],
+            cwd=fixture["deployment"],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    @staticmethod
+    def _recovery_state(deployment: Path) -> str:
+        states = sorted((deployment / "upgrade-backups").glob("rollback-recovery-*/state.txt"))
+        return states[-1].read_text(encoding="utf-8").strip() if states else ""
+
+    @contextlib.contextmanager
+    def _rollback_execution_case(self, *, backend_state: str, **fixture_kwargs):
+        bash = self._git_bash_path()
+        if bash is None:
+            self.skipTest("Git Bash is required to execute the generated deployment script in isolation")
+        probe = subprocess.run([str(bash), "-lc", "python3 --version"], capture_output=True, text=True, check=False)
+        if probe.returncode != 0:
+            self.skipTest("Git Bash Python runtime is required for structured Compose preflight")
+        with tempfile.TemporaryDirectory() as temp_root:
+            root = Path(temp_root)
+            fixture = self._write_rollback_execution_fixture(root, backend_state=backend_state, **fixture_kwargs)
+            yield root, fixture
+
+    def test_generated_rollback_completes_for_a_stopped_backend(self):
+        with self._rollback_execution_case(backend_state="stopped") as (_, fixture):
+            deployment = fixture["deployment"]
+            current_compose_before = (deployment / "docker-compose.yml").read_bytes()
+            result = self._run_rollback_execution(deployment.parent, fixture)
+
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertIn("ROLLBACK_SUCCEEDED", self._recovery_state(deployment))
+            self.assertNotEqual(current_compose_before, (deployment / "docker-compose.yml").read_bytes())
+            self.assertEqual("services:\n  backend:\n    image: baseline\n", (deployment / "docker-compose.yml").read_text(encoding="utf-8"))
+            mutations = fixture["mutation_log"].read_text(encoding="utf-8")
+            self.assertIn("force-recreate backend", mutations)
+            self.assertIn("force-recreate frontend", mutations)
+
+    def test_generated_rollback_completes_when_no_previous_backend_container_exists(self):
+        with self._rollback_execution_case(backend_state="absent") as (_, fixture):
+            result = self._run_rollback_execution(fixture["deployment"].parent, fixture)
+
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertIn(
+                "no previous backend container claims the current Compose project identity",
+                result.stdout + result.stderr,
+            )
+            self.assertIn("ROLLBACK_SUCCEEDED", self._recovery_state(fixture["deployment"]))
+
+    def test_generated_rollback_rejects_a_backend_container_from_another_project(self):
+        with self._rollback_execution_case(backend_state="running", backend_label="qaflex-other/backend") as (_, fixture):
+            before = (fixture["deployment"] / "docker-compose.yml").read_bytes()
+            result = self._run_rollback_execution(fixture["deployment"].parent, fixture)
+
+            self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+            self.assertIn("does not belong to the current Compose project", result.stderr)
+            self.assertEqual(before, (fixture["deployment"] / "docker-compose.yml").read_bytes())
+            self.assertFalse(fixture["mutation_log"].exists())
+
+    def test_generated_rollback_rejects_a_backend_mounted_on_the_wrong_volume(self):
+        with self._rollback_execution_case(
+            backend_state="running",
+            backend_mounts='[{"Type":"volume","Name":"qaflex-test_wrong_logs","Destination":"/app/logs","RW":true}]',
+        ) as (_, fixture):
+            before = (fixture["deployment"] / "docker-compose.yml").read_bytes()
+            result = self._run_rollback_execution(fixture["deployment"].parent, fixture)
+
+            self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+            self.assertIn("container is not mounted on the expected persistent volume", result.stderr)
+            self.assertEqual(before, (fixture["deployment"] / "docker-compose.yml").read_bytes())
+            self.assertFalse(fixture["mutation_log"].exists())
+
+    def test_generated_rollback_compensates_when_the_baseline_does_not_start(self):
+        with self._rollback_execution_case(backend_state="stopped", up_failures=1) as (_, fixture):
+            original = (fixture["deployment"] / "docker-compose.yml").read_bytes()
+            result = self._run_rollback_execution(fixture["deployment"].parent, fixture)
+
+            self.assertEqual(20, result.returncode, result.stdout + result.stderr)
+            self.assertIn("ROLLBACK_FAILED_PREVIOUS_VERSION_RECOVERED", self._recovery_state(fixture["deployment"]))
+            self.assertEqual(original, (fixture["deployment"] / "docker-compose.yml").read_bytes())
+
+    def test_generated_rollback_reports_exit_21_when_compensation_also_fails(self):
+        with self._rollback_execution_case(backend_state="stopped", up_failures=9) as (_, fixture):
+            result = self._run_rollback_execution(fixture["deployment"].parent, fixture)
+
+            self.assertEqual(21, result.returncode, result.stdout + result.stderr)
+            self.assertIn("ROLLBACK_AND_COMPENSATION_FAILED", self._recovery_state(fixture["deployment"]))
 
     def test_baseline_reads_only_authoritative_full_compose(self):
         with tempfile.TemporaryDirectory() as root:

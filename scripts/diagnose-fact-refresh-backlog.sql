@@ -6,17 +6,31 @@
 -- 安全性：本文件**只含 SELECT**，不含任何 DDL/DML，可直接在内网生产库执行。
 -- 建议用只读账号执行，逐节运行；每节的判读结论见文件末尾「判定表」。
 --
--- 背景：FACT_REFRESH 耗时 ∝ 本轮待发布目标数。正常基线为每轮 1~5 个批次、
---       0~几十行、约 53 秒；退化后为每轮 3.7 万~4.5 万目标、17~24 分钟。
---       目标由增量扫描返回的「父行」派生（SyncRunAuthoritativeScopePlanner
---       .enqueueFromParentRows），因此目标数暴涨意味着增量每轮返回了几乎全部行。
+-- 背景：FACT_REFRESH 耗时由「本轮待发布根数 × 单批查询成本」决定。待发布权威是
+--       fact_change_heads 的版本栅栏（published_version < latest_change_version）；
+--       sync_run_fact_targets 只是按轮登记的审计日志，不参与控制面判定。
+--       退化时曾出现每轮 3.7 万~4.5 万目标、17~24 分钟，根因是血缘展开把维度表变化
+--       放大成根集合，且单批查询对全表做聚合。
 -- ============================================================================
 
 
 -- ---------------------------------------------------------------------------
--- 第 1 节：积压规模与起始时刻
--- 判读：PENDING 的 created_at 最小值 ≈ 积压开始累积的时刻。正常应为空或仅近十几分钟。
+-- 第 1 节：权威积压规模（版本栅栏）
+-- 判读：pending_roots > 0 的 fact_type 即「仍有变化未发布到最新版本」，它是读出资格
+--       降级与刷新耗时的权威来源；正常应在几个发布周期内回到 0。
 -- ---------------------------------------------------------------------------
+select head.source_instance,
+       head.fact_type,
+       count(*)                              as pending_roots,
+       max(head.latest_change_version)        as max_latest_version,
+       min(head.updated_at)                   as oldest_touch
+  from fact_change_heads head
+ where head.published_version < head.latest_change_version
+ group by head.source_instance, head.fact_type
+ order by pending_roots desc;
+
+-- 1b. 发布会话日志规模（审计用，已不参与控制面判定；由归档 job 收敛到保留窗口内）
+--     判读：rows 随历史轮次单调增长即归档 job 未生效；oldest 应不早于保留窗口。
 select fact_type,
        publication_status,
        count(*)                        as rows,
@@ -27,16 +41,6 @@ select fact_type,
   from sync_run_fact_targets
  group by fact_type, publication_status
  order by fact_type, publication_status;
-
--- 1b. 真正会被认领的那批（跨全部历史 PENDING 且未认领）——这是每轮的重放量
-select fact_type,
-       count(distinct root_id) as claimable_roots,
-       count(distinct mirror_run_id) as spanning_runs,
-       min(created_at) as oldest
-  from sync_run_fact_targets
- where publication_status = 'PENDING'
-   and assigned_fact_build_task_id is null
- group by fact_type;
 
 
 -- ---------------------------------------------------------------------------
@@ -169,8 +173,9 @@ select to_char(started_at, 'YYYY-MM-DD') as day,
 -- ============================================================================
 -- 判定表
 -- ============================================================================
--- 第 1 节：PENDING 的 oldest 明显早于今天 → 积压已持续累积，属"只增不减"型；
---          若 PENDING 为空且耗时仍高 → 瓶颈在单批查询本身（查第 4 节与慢 SQL）。
+-- 第 1 节：待发布根数应在一个发布周期内回到 0；长期为正说明发布追不上登记，
+--          结合第 2 节看是哪一族失败，结合第 3/4 节看重扫是否把登记量放大。
+--          第 1b 节日志 rows 单调增长且 oldest 早于保留窗口 → 归档 job 未生效。
 -- 第 2 节：MERGE_REQUEST 持续 FAILED/TIMEOUT 且 reason 指向缺表 →
 --          触发点确认，先补齐源表再谈其他优化。
 -- 第 3 节：last_watermark_at 远早于 last_success_at → 水位不推进，每轮重扫；
@@ -179,5 +184,6 @@ select to_char(started_at, 'YYYY-MM-DD') as day,
 --          索引缺口导致降级；需补「非部分、updated_at 前导」索引。
 -- 第 5 节：whitelist_tables 选中两表但第 5b 节缺表 → commitFactsEnabled 打开却无源，
 --          每轮构建失败；或第 5c 节 readiness_status = BLOCKED → 该事实族发布被阻断。
--- 第 6 节：seconds 与 targets 强正相关 → 佐证"耗时 ∝ 目标数"，优化须先降目标数。
+-- 第 6 节：日志 targets 不再等于本轮处理量（控制面只按待发布根取批）；若 seconds 仍高，
+--          先看第 1 节待发布根数，再看第 4 节索引是否让单批聚合退化为全表扫描。
 -- ============================================================================
