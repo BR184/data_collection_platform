@@ -49,6 +49,7 @@ describe('dropdownOptionApi', () => {
 
   it('saves config via PUT payload', () => {
     const payload = {
+      configId: 42,
       rules: { acquiredRules: [], manualRules: [] },
       manualOptions: [],
       version: 3,

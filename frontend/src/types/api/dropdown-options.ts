@@ -50,6 +50,7 @@ export interface DropdownOptionBindingRequest {
 }
 
 export interface DropdownOptionConfigSaveRequest {
+  configId: number | null;
   rules: DropdownOptionRulesPayload;
   manualOptions: string[];
   version: number;

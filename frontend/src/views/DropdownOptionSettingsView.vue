@@ -39,21 +39,44 @@ interface RuleDraft {
   group: StatisticFilterDraftGroup;
 }
 
+interface ConfigDraft {
+  config: DropdownOptionFieldConfig;
+  acquiredRuleDrafts: RuleDraft[];
+  manualRuleDrafts: RuleDraft[];
+  manualOptions: string[];
+  loadedSignature: string;
+}
+
+type FieldSession =
+  | { status: 'empty' | 'loading' | 'failed'; id: number; fieldKey: string; draft: null }
+  | { status: 'ready' | 'saving'; id: number; fieldKey: string; draft: ConfigDraft };
+
 let ruleSeed = 0;
 let previewTimer: ReturnType<typeof setTimeout> | null = null;
 
 const fields = ref<DropdownOptionFieldSummary[]>([]);
 const fieldsLoading = ref(false);
 const selectedFieldKey = ref('');
-const configLoading = ref(false);
-const saving = ref(false);
-const config = ref<DropdownOptionFieldConfig | null>(null);
-
-const acquiredRuleDrafts = ref<RuleDraft[]>([]);
-const manualRuleDrafts = ref<RuleDraft[]>([]);
-const manualOptions = ref<string[]>([]);
-const configVersion = ref(0);
-const loadedSignature = ref('');
+const session = ref<FieldSession>({ status: 'empty', id: 0, fieldKey: '', draft: null });
+const configLoading = computed(() => session.value.status === 'loading');
+const saving = computed(() => session.value.status === 'saving');
+const config = computed(() => session.value.draft?.config ?? null);
+const acquiredRuleDrafts = computed(() => session.value.draft?.acquiredRuleDrafts ?? []);
+const manualRuleDrafts = computed(() => session.value.draft?.manualRuleDrafts ?? []);
+const manualOptions = computed({
+  get: () => session.value.draft?.manualOptions ?? [],
+  set: (value: string[]) => {
+    if (session.value.status === 'ready') {
+      session.value.draft.manualOptions = value;
+    }
+  },
+});
+let sessionSequence = 0;
+let fieldsRequestSequence = 0;
+let candidateRequestSequence = 0;
+let previewRevision = 0;
+let previewRequestSequence = 0;
+let disposed = false;
 
 const acquiredCandidates = ref<string[]>([]);
 const acquiredLoading = ref(false);
@@ -85,7 +108,8 @@ const draftSignature = computed(() => {
   const manual = manualRuleDrafts.value.map((rule) => serializeRuleForSignature(rule));
   return JSON.stringify({ acquired, manual, manualOptions: manualOptions.value });
 });
-const dirty = computed(() => draftSignature.value !== loadedSignature.value);
+const dirty = computed(() => session.value.status === 'ready'
+  && draftSignature.value !== session.value.draft.loadedSignature);
 
 const previewOptions = ref<string[]>([]);
 const previewUnavailable = computed(() => !rulesEditable.value);
@@ -95,70 +119,136 @@ onMounted(async () => {
   if (!selectedFieldKey.value && fields.value.length) {
     selectedFieldKey.value = fields.value[0]!.fieldKey;
   }
-  await reloadConfig();
-  void loadAcquiredCandidates('');
 });
 
 onBeforeUnmount(() => {
+  disposed = true;
+  sessionSequence += 1;
+  fieldsRequestSequence += 1;
+  candidateRequestSequence += 1;
+  previewRevision += 1;
   if (previewTimer) {
     clearTimeout(previewTimer);
+    previewTimer = null;
   }
 });
 
-watch(selectedFieldKey, () => {
-  void reloadConfig();
+watch(selectedFieldKey, (fieldKey) => {
+  void activateField(fieldKey);
   void loadAcquiredCandidates('');
 });
 
-watch([acquiredRuleDrafts, manualRuleDrafts, manualOptions], () => {
-  if (previewTimer) {
-    clearTimeout(previewTimer);
-  }
-  previewTimer = setTimeout(() => void refreshPreview(), 600);
-}, { deep: true });
+watch(
+  () => session.value.status === 'ready'
+    ? `${session.value.id}:${draftSignature.value}`
+    : `${session.value.id}:${session.value.status}`,
+  () => {
+    previewRevision += 1;
+    if (previewTimer) {
+      clearTimeout(previewTimer);
+      previewTimer = null;
+    }
+    previewOptions.value = [];
+    if (session.value.status === 'ready') {
+      const id = session.value.id;
+      const revision = previewRevision;
+      previewTimer = setTimeout(() => void refreshPreview(id, revision), 600);
+    }
+  },
+  { flush: 'sync' },
+);
 
 async function reloadFields() {
+  const requestId = ++fieldsRequestSequence;
   fieldsLoading.value = true;
   try {
-    fields.value = await dropdownOptionApi.listFields();
+    const loaded = await dropdownOptionApi.listFields();
+    if (requestId === fieldsRequestSequence) {
+      fields.value = loaded;
+    }
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, '加载下拉字段清单失败'));
+    if (requestId === fieldsRequestSequence) {
+      ElMessage.error(getErrorMessage(error, '加载下拉字段清单失败'));
+    }
   } finally {
-    fieldsLoading.value = false;
+    if (requestId === fieldsRequestSequence) {
+      fieldsLoading.value = false;
+    }
   }
 }
 
 async function reloadConfig() {
-  if (!selectedFieldKey.value) {
-    config.value = null;
-    return;
-  }
-  configLoading.value = true;
+  await activateField(selectedFieldKey.value);
+}
+
+async function activateField(fieldKey: string) {
+  const id = beginSessionLoad(fieldKey);
+  if (!fieldKey) return;
   try {
-    const loaded = await dropdownOptionApi.getFieldConfig(selectedFieldKey.value);
-    applyConfig(loaded);
+    const loaded = await dropdownOptionApi.getFieldConfig(fieldKey);
+    if (!isCurrentSession(id, 'loading')) {
+      return;
+    }
+    session.value = { status: 'ready', id, fieldKey, draft: createDraft(loaded) };
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, '加载下拉框配置失败'));
-  } finally {
-    configLoading.value = false;
+    if (isCurrentSession(id, 'loading')) {
+      session.value = { status: 'failed', id, fieldKey, draft: null };
+      ElMessage.error(getErrorMessage(error, '加载下拉框配置失败'));
+    }
   }
 }
 
-function applyConfig(loaded: DropdownOptionFieldConfig) {
-  config.value = loaded;
-  acquiredRuleDrafts.value = toRuleDrafts(loaded.rules.acquiredRules);
-  manualRuleDrafts.value = toRuleDrafts(loaded.rules.manualRules);
-  manualOptions.value = [...loaded.manualOptions];
-  configVersion.value = loaded.version;
-  loadedSignature.value = JSON.stringify(signatureSource());
-  void refreshPreview();
+function beginSessionLoad(fieldKey: string): number {
+  const id = ++sessionSequence;
+  sharedTargetConfigId.value = null;
+  candidateRequestSequence += 1;
+  acquiredCandidates.value = [];
+  acquiredLoading.value = false;
+  previewRevision += 1;
+  previewRequestSequence += 1;
+  previewOptions.value = [];
+  if (previewTimer) {
+    clearTimeout(previewTimer);
+    previewTimer = null;
+  }
+  session.value = {
+    status: fieldKey ? 'loading' : 'empty',
+    id,
+    fieldKey,
+    draft: null,
+  };
+  return id;
 }
 
-function signatureSource() {
+/**
+ * 判定某个异步续点是否仍属于当前活动会话。
+ *
+ * 组件销毁后作用域整体失效：此时任何 await 之后的续点都不得再回填页面状态、提示消息或发起写入，
+ * 否则已离开页面的用户仍会触发保存或改绑确认。会话身份只负责区分同一页面内的先后加载。
+ */
+function isCurrentSession(id: number, status?: FieldSession['status']) {
+  return !disposed
+    && session.value.id === id
+    && (status === undefined || session.value.status === status);
+}
+
+function createDraft(loaded: DropdownOptionFieldConfig): ConfigDraft {
+  const draft: ConfigDraft = {
+    config: loaded,
+    acquiredRuleDrafts: toRuleDrafts(loaded.rules.acquiredRules),
+    manualRuleDrafts: toRuleDrafts(loaded.rules.manualRules),
+    manualOptions: [...loaded.manualOptions],
+    loadedSignature: '',
+  };
+  draft.loadedSignature = JSON.stringify(signatureSource(draft));
+  return draft;
+}
+
+function signatureSource(draft: ConfigDraft) {
   return {
-    acquired: acquiredRuleDrafts.value.map((rule) => serializeRuleForSignature(rule)),
-    manual: manualRuleDrafts.value.map((rule) => serializeRuleForSignature(rule)),
-    manualOptions: manualOptions.value,
+    acquired: draft.acquiredRuleDrafts.map((rule) => serializeRuleForSignature(rule)),
+    manual: draft.manualRuleDrafts.map((rule) => serializeRuleForSignature(rule)),
+    manualOptions: draft.manualOptions,
   };
 }
 
@@ -232,24 +322,34 @@ function buildRulesPayload(): DropdownOptionRulesPayload | null {
 }
 
 async function saveConfig() {
-  if (!selectedFieldKey.value) {
+  const current = session.value;
+  if (current.status !== 'ready' || !current.fieldKey) {
     return;
   }
   const rules = buildRulesPayload();
   if (rules === null) {
     return;
   }
-  saving.value = true;
+  const id = current.id;
+  const fieldKey = current.fieldKey;
+  const configId = current.draft.config.configId;
+  const payload = {
+    configId,
+    rules,
+    manualOptions: [...current.draft.manualOptions],
+    version: current.draft.config.version,
+  };
+  session.value = { ...current, status: 'saving' };
   try {
-    const updated = await dropdownOptionApi.saveConfig(selectedFieldKey.value, {
-      rules,
-      manualOptions: manualOptions.value,
-      version: configVersion.value,
-    });
-    applyConfig(updated);
-    ElMessage.success('下拉框配置已保存，相关页面下次加载候选时生效');
-    await reloadFields();
+    const updated = await dropdownOptionApi.saveConfig(fieldKey, payload);
+    if (isCurrentSession(id, 'saving')) {
+      session.value = { status: 'ready', id, fieldKey, draft: createDraft(updated) };
+      ElMessage.success('下拉框配置已保存，相关页面下次加载候选时生效');
+    }
+    if (!disposed) await reloadFields();
   } catch (error) {
+    if (!isCurrentSession(id, 'saving')) return;
+    session.value = { ...session.value, status: 'ready' };
     if (isApiBizError(error) && error.code === 'A0409') {
       try {
         await ElMessageBox.confirm(error.message, '配置已被他人修改', {
@@ -257,23 +357,25 @@ async function saveConfig() {
           confirmButtonText: '重新加载',
           cancelButtonText: '留在当前编辑',
         });
-        await reloadConfig();
+        if (isCurrentSession(id, 'ready')) await reloadConfig();
       } catch {
         // 用户选择留在当前编辑。
       }
     } else {
       ElMessage.error(getErrorMessage(error, '保存下拉框配置失败'));
     }
-  } finally {
-    saving.value = false;
   }
 }
 
 async function bindTarget(target: 'NEW' | 'COPY') {
-  if (!selectedFieldKey.value) {
+  const current = session.value;
+  if (current.status !== 'ready' || !current.fieldKey) {
     return;
   }
-  if (target === 'COPY' && !config.value?.configId) {
+  const fieldKey = current.fieldKey;
+  const id = current.id;
+  const sourceConfigId = current.draft.config.configId;
+  if (target === 'COPY' && !sourceConfigId) {
     ElMessage.warning('当前字段尚未绑定配置，请先保存一份配置再复制拆分');
     return;
   }
@@ -285,24 +387,32 @@ async function bindTarget(target: 'NEW' | 'COPY') {
   } catch {
     return;
   }
-  configLoading.value = true;
+  if (!isCurrentSession(id, 'ready')) return;
+  const bindingSessionId = beginSessionLoad(fieldKey);
   try {
-    const updated = await dropdownOptionApi.bindField(selectedFieldKey.value, { target });
-    applyConfig(updated);
-    ElMessage.success('字段绑定已更新');
-    await reloadFields();
+    const updated = await dropdownOptionApi.bindField(fieldKey, { target });
+    if (isCurrentSession(bindingSessionId, 'loading')) {
+      session.value = { status: 'ready', id: bindingSessionId, fieldKey, draft: createDraft(updated) };
+      ElMessage.success('字段绑定已更新');
+    }
+    if (!disposed) await reloadFields();
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, '更新字段绑定失败'));
-  } finally {
-    configLoading.value = false;
+    if (isCurrentSession(bindingSessionId, 'loading')) {
+      ElMessage.error(getErrorMessage(error, '更新字段绑定失败'));
+      void activateField(fieldKey);
+    }
   }
 }
 
 async function bindToExistingConfig() {
-  if (!selectedFieldKey.value || sharedTargetConfigId.value == null) {
+  const current = session.value;
+  if (current.status !== 'ready' || sharedTargetConfigId.value == null) {
     return;
   }
-  const target = otherConfigs.value.find((item) => item.configId === sharedTargetConfigId.value);
+  const fieldKey = current.fieldKey;
+  const id = current.id;
+  const targetConfigId = sharedTargetConfigId.value;
+  const target = otherConfigs.value.find((item) => item.configId === targetConfigId);
   try {
     await ElMessageBox.confirm(
       `将本字段绑定到配置「${target?.label ?? sharedTargetConfigId.value}」并与其共用，确认？`,
@@ -312,61 +422,75 @@ async function bindToExistingConfig() {
   } catch {
     return;
   }
-  configLoading.value = true;
+  if (!isCurrentSession(id, 'ready')) return;
+  const bindingSessionId = beginSessionLoad(fieldKey);
   try {
-    const updated = await dropdownOptionApi.bindField(selectedFieldKey.value, {
+    const updated = await dropdownOptionApi.bindField(fieldKey, {
       target: 'CONFIG',
-      configId: sharedTargetConfigId.value,
+      configId: targetConfigId,
     });
-    applyConfig(updated);
-    ElMessage.success('字段绑定已更新');
-    await reloadFields();
+    if (isCurrentSession(bindingSessionId, 'loading')) {
+      session.value = { status: 'ready', id: bindingSessionId, fieldKey, draft: createDraft(updated) };
+      ElMessage.success('字段绑定已更新');
+    }
+    if (!disposed) await reloadFields();
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, '更新字段绑定失败'));
-  } finally {
-    configLoading.value = false;
+    if (isCurrentSession(bindingSessionId, 'loading')) {
+      ElMessage.error(getErrorMessage(error, '更新字段绑定失败'));
+      void activateField(fieldKey);
+    }
   }
 }
 
 async function loadAcquiredCandidates(keyword: string) {
-  if (!selectedFieldKey.value) {
+  const fieldKey = selectedFieldKey.value;
+  const requestId = ++candidateRequestSequence;
+  if (!fieldKey || session.value.fieldKey !== fieldKey || session.value.status === 'empty') {
     acquiredCandidates.value = [];
+    acquiredLoading.value = false;
     return;
   }
   acquiredLoading.value = true;
   try {
-    acquiredCandidates.value = await dropdownOptionApi.listAcquiredOptions(selectedFieldKey.value, keyword);
+    const candidates = await dropdownOptionApi.listAcquiredOptions(fieldKey, keyword);
+    if (requestId === candidateRequestSequence && session.value.fieldKey === fieldKey) {
+      acquiredCandidates.value = candidates;
+    }
   } catch (error) {
-    acquiredCandidates.value = [];
-    ElMessage.error(getErrorMessage(error, '搜索自动获取值失败'));
+    if (requestId === candidateRequestSequence && session.value.fieldKey === fieldKey) {
+      acquiredCandidates.value = [];
+      ElMessage.error(getErrorMessage(error, '搜索自动获取值失败'));
+    }
   } finally {
-    acquiredLoading.value = false;
+    if (requestId === candidateRequestSequence) {
+      acquiredLoading.value = false;
+    }
   }
 }
 
-async function refreshPreview() {
-  if (!selectedFieldKey.value) {
-    previewOptions.value = [];
-    return;
-  }
-  if (previewUnavailable.value) {
-    previewOptions.value = [];
-    return;
-  }
+async function refreshPreview(sessionId: number, revision: number) {
+  const current = session.value;
+  if (current.status !== 'ready' || current.id !== sessionId || previewRevision !== revision) return;
+  const requestId = ++previewRequestSequence;
+  const fieldKey = current.fieldKey;
+  if (previewUnavailable.value) return;
   const rules = buildRulesPayload();
-  if (rules === null) {
-    previewOptions.value = [];
-    return;
-  }
+  if (rules === null) return;
+  const payload = { rules, manualOptions: [...current.draft.manualOptions] };
   try {
-    const result = await dropdownOptionApi.previewOptions(selectedFieldKey.value, {
-      rules,
-      manualOptions: manualOptions.value,
-    });
-    previewOptions.value = result.finalOptions;
+    const result = await dropdownOptionApi.previewOptions(fieldKey, payload);
+    if (requestId === previewRequestSequence
+      && previewRevision === revision
+      && isCurrentSession(sessionId, 'ready')) {
+      previewOptions.value = result.finalOptions;
+    }
   } catch (error) {
-    previewOptions.value = [];
-    ElMessage.error(getErrorMessage(error, '预览下拉选项失败'));
+    if (requestId === previewRequestSequence
+      && previewRevision === revision
+      && isCurrentSession(sessionId, 'ready')) {
+      previewOptions.value = [];
+      ElMessage.error(getErrorMessage(error, '预览下拉选项失败'));
+    }
   }
 }
 </script>
@@ -395,7 +519,7 @@ async function refreshPreview() {
         </div>
       </el-card>
 
-      <el-card class="config-card" v-loading="configLoading">
+      <el-card class="config-card" v-loading="configLoading || saving">
         <template #header>
           <div class="config-header">
             <div class="config-title">
