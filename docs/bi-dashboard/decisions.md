@@ -50,3 +50,20 @@
   4. 前端聚合：绕过页面数据契约，页面与 Excel 口径可能分叉。
   5. 补零／前向填充／插值／连接断点：把「无观测」画成「有观测」，与 CD-38「只展示合法注释率、不臆造」冲突。
 - **关联**：`docs/bi-dashboard/BI看板数据来源与计算口径核对表.md`（CD-38A、CD-39）、`docs/bi-dashboard/data-contracts.md`（页面 API）、`docs/plans/bi-coding-comment-rate-period-aggregation-20260916.md`
+
+## D-04 BI 权限按页面拆分：每页独立 view/download，删除模块级码
+
+- **状态**：已接受 / 已实施（迁移 `V20260928_01__bi_dashboard_page_permissions.sql` + 前向修正 `V20260929_01__bi_dashboard_default_permissions.sql`）
+- **背景**：BI 原为「一个模块一个查看权限」（`bi.dashboard.view` / `bi.dashboard.download` 挂在控制器类级注解上），无法按页面独立授予或下线；统计板与分析看板早已是页面级 view/export 成对权限。新增的客户问题页需要与统计板客户问题统计页一致地按页面收敛。
+- **决策**：
+  1. 单层权限，不做模块准入码：删除 `bi.dashboard.view` / `bi.dashboard.download`，新增 7 页 × (view + download) 共 14 个码（`bi.dashboard.<页面>.view` / `.download`），命名与下划线分词对齐统计板范式。
+  2. 页面 key 与权限码的唯一映射收敛在后端 `BiPagePermissionResolver`（前端对应 `features/bi-dashboard/data/page-permissions.ts`，由导航清单与 BI 单测锁定一致）；查看端点各自标注本页查看码，产品版本目录用「任一页面查看码」，下载端点用「任一页面下载码」粗粒度门禁 + 控制器按请求体 `pageKey` 精确校验该页查看与下载码（页面身份在请求体，拦截器拿不到；不改下载端点路径与请求体）。
+  3. 角色授权（`platform_role_permissions`）按迁移前旧码持有角色**逐角色复制**：升级前后逐角色可见性一致，内网既有定制（含上线期临时隐藏）原样保留。默认授权（`platform_default_role_permissions`）**不随当前持有漂移**，固定为平台托管五角色全员可见，使「恢复默认权限」回到既定默认口径（全员可见），而不是把临时隐藏固化成默认。`V20260929_01` 即为归位该口径的前向修正。
+  4. 不保留别名、转发或双码并存；前端下载按钮按本页下载码显示，但按钮隐藏不代替后端授权。
+- **理由**：与统计板/分析看板范式一致，撤销某页权限即菜单不可见且后端与下载通道同步拒绝；单层结构避免「有模块码无页面码」的空菜单中间态。
+- **否决方案**：
+  1. 保留模块级码作为 BI 模块准入（两层）：会出现拿不到任何页面权限却能看到空菜单的中间态。
+  2. 只拆查看、下载保留单一模块码：下载通道会绕过页面权限。
+  3. 把下载路径改成 `/api/bi/{pageKey}/download/*` 以便拦截器解析：破坏对外契约并让 pageKey 出现两个来源。
+  4. 在迁移里把新页面设为管理员专属：默认口径是全员可见，「除管理员外不可见」只是上线后为避免领导使用未完成版本的临时手段（在权限设置页撤销，点「恢复默认权限」即回到全员可见）。
+- **关联**：`docs/bi-dashboard/architecture.md`（请求与安全）、`docs/bi-dashboard/product.md`、`docs/decisions.md` D-22（程序化鉴权 403 与权限默认授权登记口径）、`docs/plans/bi-dashboard-permission-split-20260928.md`

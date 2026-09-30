@@ -29,6 +29,41 @@
 - 迁移前遗留的 `legacy-<运行 ID>` 执行身份若没有持久化 PID/进程启动时间，系统不能证明旧进程已停止，会保留运行权和暂存文件。先核实宿主机相关进程已结束，再按受控运维流程完成清理；不得仅因租约过期而释放运行权。
 - 应用重启后若没有当前执行上下文和持久化 PID，系统无法证明后台 worker、远程会话或子进程均已停止，也会保留运行权与 staging；按受控运维流程确认全部外部执行已结束后再处置，不可将“PID 缺失”当作停止证明。
 
+### 受控运维流程：确认停止后结算被占用的运行权
+
+恢复巡检对“无法自证已停止”的执行只做保留，不做猜测。若这类状态长期不收敛（新备份一直返回“已有备份正在运行”），按下列步骤人工确认并结算；**先确认、后结算**，不得为尽快恢复而跳过确认。
+
+1. 读取待处理运行与其持久化身份：
+   ```sql
+   select active_run_id, execution_token, execution_revoked, process_id, process_started_at, lease_expires_at
+     from backup_state where id = 1;
+   select id, status, stage, error_message from backup_runs where status = 'RUNNING';
+   ```
+2. 在宿主机证明外部执行已结束（缺一不可）：
+   - 按记录中的 PID 与启动时刻核对进程：`ps -o pid,lstart,cmd -p <记录中的 PID>`。PID 不存在，或启动时刻与 `process_started_at` 不一致（PID 已被复用）都视为已停止。
+   - 确认没有仍在运行的导出/校验子进程：`pgrep -af 'pg_dump|pg_restore'`。
+   - REMOTE 模式另需确认没有正在写入的远端会话；后端进程已停止时其会话随进程结束。
+   - 任一项无法证明，就继续保留并升级处理，不要执行第 3 步。
+3. 用与恢复巡检完全相同的单一结算语句收敛（历史终态与运行权必须同时变更）：
+   ```sql
+   begin;
+   select active_run_id from backup_state
+    where id = 1 and active_run_id = <运行 ID> and execution_token = '<执行 token>' for update;
+   update backup_runs
+      set status = 'FAILED', finished_at = now(),
+          duration_ms = (extract(epoch from (now() - started_at)) * 1000)::bigint,
+          error_message = 'operator confirmed the orphaned execution stopped'
+    where id = <运行 ID> and status = 'RUNNING';
+   update backup_state
+      set active_run_id = null, execution_token = null, execution_revoked = false,
+          lease_expires_at = null, process_id = null, process_started_at = null, updated_at = now()
+    where id = 1 and active_run_id = <运行 ID> and execution_token = '<执行 token>';
+   commit;
+   ```
+   两个 `where` 都必须带运行 ID 与 token：只改历史会留下永久占用的运行权，只改状态会留下没有恢复索引的 RUNNING 历史。
+4. 结算确认后再删除该次唯一暂存文件：`<备份根目录>/<实例标签>/.staging/tmp-<运行 ID>-<token>.dump`。未确认停止前不得删除、覆盖或复用。
+5. 复核：`backup_state` 无活动运行、该历史行为 `FAILED`，且可在备份页触发一次新备份。
+
 ## 醒目警示
 
 **恢复 = 全库覆盖回备份时刻点，备份点之后写入的全部数据永久丢失。**

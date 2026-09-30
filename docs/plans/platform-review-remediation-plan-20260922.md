@@ -1,12 +1,15 @@
 # 进度与中间物
 
 - **工作单元**：平台评审 R01—R12 详细整改方案与 AI 员工执行任务书。
-- **最新裁决（2026-09-24，第六轮）**：整批不通过，退回整改。七项功能缺陷 R03-F01、R05-F01、R07-F01/F02、R08-F01、R09-F03、R10-F01；两项正式测试缺口 R04-T01、R07-T01；另有应用/schema 回滚政策 R03-D01 待裁定。根因、方案与关闭条件见第八节第六轮；第九节是无上下文接手入口。
+- **最新裁决（2026-09-29，第七轮）**：用户指示“按检查结果直接修复”，本轮由原评审 AI 亲自实施全部退回项。七项功能缺陷（R03-F01、R05-F01、R07-F01/F02、R08-F01、R09-F03、R10-F01）与两项正式测试缺口（R04-T01、R07-T01）均已按第六轮方案改完并通过 RED→GREEN 定向复验；R03-D01（应用/schema 回滚政策）仍为用户裁定项，拒绝保护保留。详见第八节第七轮。
+- **第七轮实施范围**：只改受控文件——前端 `useRouteTableState.ts`／`auth-state.ts`／`DatabaseBrowserView.vue`／`SystemTestIssueSearchView.vue`／`ReviewDataManagementView.vue`／`review-data/*`／`DropdownOptionSettingsView.vue` 及其正式测试；后端 `scripts/package_intranet_offline.py` 与其测试、`service/backup/*`（第六轮回退项）与 `FactProjectionTaskLeaseIntegrationTest`、`deploy/runbooks/database-backup-restore.md`。生产投影 guard、共享并行文件（`CustomerIssueRecordsView.vue`、`IssueIllegalRecordsPage.vue`、客户统计/BI）未改。
+- **第七轮验证**：前端全量套件 698 项、typecheck exit 0（唯一失败为并行在途重构的 `customer-issue-illegal-records.mount-smoke.test.ts`，见下）；后端投影租约正式 8 项、备份套件 87 项通过；四项（R03 打包、R05 备份、R07/R10 前端、R04 投影）均以“先改实现→复验、再临时回退证明用例失败”的方式取得 RED 证据。完整后端默认套件与 13 项门禁在本轮收尾时因并行套件占用未跑（见第八节第七轮“未跑项”）。
+- **并行集成风险线索（非本 AI 复验）**：本轮期间另一工作单元正在跑完整后端 `mvn -o -B test`（现场进程 10:04 启动），本 AI 的两次 `-Dtest=` 定向运行与其同模块重叠；重叠期间未发现对方失败增加，但其结果不宜与本轮计数合并，复核归属前不得据此判定回归。前端全量套件的唯一失败 `customer-issue-illegal-records.mount-smoke.test.ts` 已定性为其在途重构（`IssueIllegalRecordsPage.vue` 删除了默认筛选后的显式加载、并新增 `primaryDefaultPatchInFlight` 守卫），非本轮改动引入。
 - **有效进展**：R02 显式卷身份与脚本确定性测试通过；R08 后端身份/事务、R09-F01/REG-02 和原 R09-F02 详情销毁保护有效，但外围页面续点仍需整改。R01/R06/R11 前轮限定通过保留，R12 本候选 134 项登记核对通过；不能据此关闭整批或宣布可发布。
 - **独立验证**：前端原交付范围 119 项通过，另补 DatabaseBrowserView 正式 8 项中 6 通过、2 失败；可控时钟对照三项通过但未修改原测试。后端定向 84 项通过、打包 45 个不同用例执行通过、typecheck 与 Flyway 检查通过。缺陷探针是反例证据，不计入业务通过；完整默认套件、build、外部浏览器、业务库/历史备份、现场部署及黄金均未由本轮验收。
 - **实施交付与版本**：`.tmp-logs/platform-remediation-20260924/handoff.md` 及 ZIP/补丁/清单/29 份日志摘要实核相符；固定 HEAD=`c818e7202090d22f14b9ae687e3a41b83b34f82c`。323 项共享变更可重建：292 份文件原始字节一致、1 项删除符合清单、30 份文件仅 CRLF/LF 归一化差异；补丁包含并行采集平台/客户统计/BI 内容，不是整改人员的独立归属补丁。
-- **职责与受控变更**：实施 AI 负责修复与自测，原评审 AI 负责独立复审，不接管生产代码。本轮只编辑两份评审计划及 `.tmp/review-implementation-round6-c818e720-20260924/` 隔离证据；不使用子代理、不覆盖并行文件、不启停共享服务、不接业务库或共享测试 schema、不运行黄金、不提交推送。
-- **当前下一步**：用户将本任务书第八节第六轮与第九节交给实施 AI，按整批整改→自测修复→统一复交组织；不逐小阶段停等。R03-D01 先给可回退范围与推荐供用户裁定，不擅改交付政策，其余明确修复不停工。
+- **职责与受控变更**：第六轮前实施 AI 负责修复与自测、原评审 AI 负责独立复审；第七轮经用户指示改由原评审 AI 实施全部退回项，仍在同一受控边界内：不使用子代理、不覆盖并行文件、不启停共享服务、不接业务库或共享测试 schema、不运行黄金、不提交推送。第六轮的隔离证据目录保留为历史。
+- **当前下一步**：R03-D01 仍需用户裁定（保留拒绝保护，不擅改交付政策）；完整后端默认套件、13 项门禁、真实浏览器、内网部署演练、历史备份恢复与黄金门禁仍按各自授权边界待验。本单元实现与定向证据已齐，等待用户决定是否在无并行套件的窗口补齐全量回归并指定远端提交。
 - **收尾证据**：本轮 `evidence/document-close-audit.json` 与 `document-close.patch` 已记录两份文档差异及四项只读门禁通过；隔离候选原文件无非预期修改，29 份交付日志未漂移。相对本轮开始另有四个并行文件变化，原样保留，路径/前后摘要单列；旧轮次“R09 四文件、17 个并行文件”仅属第五轮历史。
 - **文档边界**：核验记录负责原始基线证据；本文负责整改设计、实施交付和后续评审事实，不替代权威产品/架构文档。为避免并行覆盖，本次不编辑另一 AI 正在修改的 `docs/progress.md` 等共享文档；索引统一收口留待并行工作协调后处理。
 - **生命周期**：整改期间维护本活动计划；工作单元关闭后，将已确认且具有长期价值的结论归入对应权威文档，再按仓库规则清理活动计划，不长期堆积过程报告。
@@ -882,15 +885,15 @@ git diff --check
 | --- | --- | --- | --- | --- |
 | R01 | 其他 AI 员工 | 代码修复与正式确定性测试通过 | 前轮 R01-T01/REG-01 关闭保留；第六轮五项完整 payload/备注测试通过 | 第四轮后端定向 12、组件 8 通过及评分变异有效；第六轮组件文件另两项刷新失败归 R07-T01。真实持久写入、浏览器及黄金待验 |
 | R02 | 其他 AI 员工 | 显式卷身份已实现 | 代码与脚本确定性测试通过 | 第六轮打包 45 个不同用例已执行通过；真实新装→首升与旧包受控转换待验，不关闭部署生命周期 |
-| R03 | 其他 AI 员工 | 预检/原子切换有效，回滚生命周期退回 | R03-F01：停止后端无法回滚；R03-D01：schema 回退政策与文档冲突待裁定 | 生成脚本反例已复现，无现场副作用；正常/补偿完整自动覆盖及真实部署待补 |
-| R04 | 其他 AI 员工 | 身份/回收/发布守卫已实现，正式测试退补 | R04-T01：重复 DataSource 与非代理调用不证明事务锁覆盖；不是已证实的生产事务失效 | 正式定向通过，但独立库反证测试夹具；真实双连接发布/回收及两类快照存储覆盖待补 |
-| R05 | 其他 AI 员工 | token/停止/产物保护有效，结算收敛退回 | R05-F01：终态未落库先释放索引，或撤销后丢失停止证据导致永久占用 | 正式最终选择器 51＋迁移 2 通过；真实编排/事务库复现两条反例；历史备份/真实恢复待验 |
-| R06 | 其他 AI 员工 | 代码自测完成 | 首轮代码、第三轮请求层 22 项限定通过保留 | 第六轮未无理由重跑；真实后台标签页/进度/下载待验 |
-| R07 | 其他 AI 员工 | 六个 loader 调用方已迁移，退回 | R07-F01 防抖被 reload 绕过；R07-F02 刷新失败仍提示成功；R07-T01 正式测试计时缺口 | 真实 hook/页面反例成立；关联正式 6 通过 2 失败，计时对照 3 通过不代表正式文件已修；全调用方/浏览器待验 |
-| R08 | 其他 AI 员工 | 后端身份/首次绑定锁与前端会话已实现，前端退回 | R08-F01：销毁未使会话失效，迟到确认仍发新写；后端已通过路径保留 | 后端 11 项通过；组件卸载后 bindField 调用和错误通知已复现；真实界面待验 |
-| R09 | 其他 AI 员工 | 第五轮主要退回项有效修复，页面续点退回 | R09-F01/REG-02 与原 R09-F02 详情保护有效；R09-F03：新增后清单关闭/页面卸载仍打开编辑器或新发请求 | 本轮 119 项含 29 hook＋4 表单会话测试通过；实际页面编排反例成立，真实浏览器/写入目标待验 |
-| R10 | 其他 AI 员工 | 初始化/主动刷新分离已实现，身份交错退回 | R10-F01：登录在途启动 current，登录成功后迟到旧用户仍覆盖身份 | auth/App/router/权限页定向通过但未覆盖该顺序；新增正式交错及浏览器验收待补，不推断服务端越权 |
-| R11 | 其他 AI 员工 | 代码与门禁修复通过 | 前轮 R11-F01 关闭保留；person/五字段/双向三元组及真实 run_check 入口有效 | 前轮脚本 15、后端 18 项通过；第六轮未重跑，真实标签组/多值人员及黄金覆盖待补 |
+| R03 | 原评审 AI（第七轮接手实施） | 回滚入口已按身份判定修复，R03-D01 待裁定 | R03-F01 已修：回滚预检改为 Compose 标签身份查询，允许停止的后端，挂载改经 stdin 比较；R03-D01 保留拒绝保护 | 打包套件 51 项通过（新增 6 项覆盖停止后端/错身份/错挂载/合法回滚/补偿 20/补偿失败 21）；第六轮独立反例已复验转绿；真实部署演练待验 |
+| R04 | 原评审 AI（第七轮接手实施） | 正式测试夹具已按真实事务契约重建 | R04-T01 已修：夹具单一 DataSource、`@Transactional` 服务经显式 TransactionTemplate 调用、断言落到真实两张快照表 | 正式 8 项通过；双连接交错测试实测“A 持锁→B 等锁→A 提交→B 高代际发布→B 回收重领→A 迟到被拒”，回退接线实验使 2 项失败（含发布锁根本未持有）；生产 guard 未改 |
+| R05 | 原评审 AI（第七轮接手实施） | 结算收敛已修复 | R05-F01 已修：`settleOwnedRun` 成为唯一按 token 结算入口，删除 `release`/`finishFailure`/`completeExpiredRecovery` 三处竞争路径 | 备份套件 87 项通过（含真实编排＋仓库＋隔离 PostgreSQL 的 3 项结算交错测试与 DB 失败保留恢复索引）；runbook 补“确认停止后受控结算”可执行步骤；历史备份/真实恢复待验 |
+| R06 | 其他 AI 员工 | 代码自测完成 | 首轮代码、第三轮请求层 22 项限定通过保留 | 第六、七轮未无理由重跑；真实后台标签页/进度/下载待验 |
+| R07 | 原评审 AI（第七轮接手实施） | 查询意图与返回契约已修复 | R07-F01 已修：`debouncedPatchQuery` 记录待应用意图，`reload()` 先提交意图再加载，绝不为被取代的旧查询授予提交资格；R07-F02 已修：`RouteTableLoadOutcome`（committed/superseded/failed）迁移全部调用方，非提交不再当刷新成功；R07-T01 已修：正式用例改用可控时钟两阶段（网络完成＋220ms 最短展示）并补 SUCCESS 正例 | 组合式 12 项、DatabaseBrowserView 9 项、review-data 相关 24 项通过；新建“待应用意图被 reload 绕过”“失败不得报成功”用例在回退实现上实测失败；真实浏览器待验 |
+| R08 | 原评审 AI（第七轮接手实施） | 前端销毁边界已修复 | R08-F01 已修：销毁同步递增字段清单请求序列，`isCurrentSession` 统一覆盖加载/保存/改绑确认/字段清单/异常续点 | 组件 4 项新增用例在回退实现上 4/4 失败、修复后通过；后端 11 项通过保留；真实界面待验 |
+| R09 | 原评审 AI（第七轮接手实施） | 页面后续编排边界已修复 | R09-F03 已修：新增 `isProblemListOpenFor`，`afterCreateRecord` 每次 await 后确认清单仍属本次评审，问题项对话框 open 入口拒绝已销毁作用域 | 正式 `ReviewDataManagementView.test.ts` 3 项（关闭清单/整页销毁/保持打开）在回退实现上 2 项失败、修复后通过；R09-F01/REG-02 保留；真实浏览器待验 |
+| R10 | 原评审 AI（第七轮接手实施） | 身份生命周期已统一 | R10-F01 已修：登录/退出/读取登记到同一操作槽，读取携带代次＋读取序号＋结算计数，登录/退出结算使在途读取失效；`ensureCurrentUser` 在变更在途时合并到身份变更结果而不再发起竞争读取 | 正式交错 11 项通过；在候选实现（重建副本）上新增 4 项全部失败，含第六轮记录的 `alice` 回退身份方向；不推断服务端越权 |
+| R11 | 其他 AI 员工 | 代码与门禁修复通过 | 前轮 R11-F01 关闭保留；person/五字段/双向三元组及真实 run_check 入口有效 | 前轮脚本 15、后端 18 项通过；第七轮未重跑，真实标签组/多值人员及黄金覆盖待补 |
 | R12 | 实施方负责最终集成核对 | 第六轮 134 项登记通过 | 基线 128 项原摘要零改动/删除，追加六项含并行迁移，未吞并归属 | 仅本候选登记核对及 R05 隔离升级测试；非业务库应用或发布，后续迁移再核对 |
 
 #### 每个单元的交付模板
@@ -1388,13 +1391,109 @@ git diff --check
 
 **并行集成风险线索（非本 AI 复验）**：收尾只读 `docs/progress.md` 的客户统计/BI 条目还报告全量前端 680 项中 3 失败、后端 1524 项中 1 失败/2 错误/1 跳过，涉及数据库浏览器、下拉首次保存时序与备份夹具等。版本/环境未独立对齐，不能与本轮计数合并，也不能据此认定本轮定向日志虚假。新实施者须向该工作单元核对原始日志与候选摘要，在自己的隔离环境确认归属；共享失败不能因定向绿而忽略，非本单元问题交还对应负责人，禁止接管对方环境或覆盖文件。
 
+##### 第七轮实施与自验（2026-09-29，用户指示按检查结果直接修复）
+
+**裁决：八项修复全部落地并通过定向复验，整批待用户决定是否补齐全量回归后发布。** 本轮由原评审 AI 亲自实施第六轮退回的七项功能缺陷与两项正式测试缺口，工作方式与第六轮一致：先改权威实现，再运行定向套件，然后临时回退本次改动证明新用例确实失败（RED），最后恢复并复验转绿。R03-D01 仍是用户政策裁定项，未改交付政策，拒绝保护原样保留。
+
+###### 逐项实现
+
+**R03-F01（回滚入口不再被运行态前提阻断，`scripts/package_intranet_offline.py`）**
+
+- `_deployment_preflight_shell()` 新增三个身份函数：`current_compose_project()`（从 `docker compose config --format json` 读项目名）、`resolve_service_container()`（按 `label=com.docker.compose.project/service` 查 `docker ps -a`，多于一个候选即失败）、`verify_container_compose_identity()`（inspect 真实标签必须等于 `项目/服务`）。回滚预检改为：postgres 必须存在且 healthy，backend 只要求“Query 得到的容器属于当前 Compose 项目”，容器已停止/退出时明确记录并改由已安装配置确认持久卷身份。
+- 卷挂载校验 `verify_container_volume_mount` 改为经 stdin 传入期望卷与目标路径：MSYS 会把绝对路径 argv 改写成 Windows 路径，实测导致校验恒失败；stdin 在 Ubuntu 目标机上同样正确。`mkdir -m 700` 在 Windows 文件系统上无法应用模式，拆为 `mkdir --` + `chmod 700 --`。
+- `while IFS= read -r candidate || [[ -n "$candidate" ]]` 修正无结尾换行时首行被跳过的问题；测试替身按 docker 真实行为用 `printf '%s\n'` 输出。
+- 测试 `scripts/test_package_intranet_offline.py` 新增 6 项：状态化 docker 替身（`postgres.id`/`backend.id`/`backend.exists`/`backend.running`/`up.count`）驱动的停止后端回滚、错标签、错挂载、合法回滚、启动补偿成功（exit 20）、补偿失败（exit 21），并抽出 `_write_rollback_backup`/`_write_rollback_execution_fixture`/`_rollback_execution_case`。结果 `python3 -m unittest scripts.test_package_intranet_offline` = 51 项通过。
+
+**R05-F01（终态、撤销与运行权收敛到同一结算协议）**
+
+- `BackupStateRepository` 新增唯一结算入口 `settleOwnedRun(runId, executionToken, failureMessage, now)`：在同一事务内先按 `id=1 and active_run_id=? and execution_token=? for update` 锁定唯一运行权，失败时同时把历史 RUNNING 收敛为 FAILED（与释放同一事务，键集不变），再清空运行权；**token 是唯一前置条件**，租约过期与 `execution_revoked` 都不再阻断结算，数据库不可用时整事务回滚、恢复索引保留。删除 `release()`、`completeExpiredRecovery()` 与 `BackupRunRepository.finishFailure()` 三条竞争路径。
+- `BackupOrchestrationService.executeRun` 改为累加 `failureMessage`，finally 中先结算再 `endWorker`，只有结算成功才移除执行上下文；停止未确认（`quiescent=false`）时保留上下文并记录 `backup_execution_stop_unconfirmed`。`submit` 的失败分支统一走 `settleQuietly`。`BackupScheduler.recoverOrphans` 对“停止未确认”“暂存清理失败”改为记录待回收，不再静默清除唯一索引。
+- `deploy/runbooks/database-backup-restore.md` 新增“受控运维流程：确认停止后结算被占用的运行权”，含状态查询、进程已消失证明（PID 起始时间不一致与 `pgrep -af 'pg_dump|pg_restore'`）、带双 `where` 的结算 SQL、按身份命名的暂存文件删除与复核，路径/ID/token 全部用 `<>` 占位符。
+- 测试：`BackupOrchestrationServiceTest`、`BackupSchedulerTest`、`BackupRunStateRepositoryTest`（新增过期租约收敛、撤销后收敛并允许新运行、旧 owner 不能结算他人槽位）迁移到新协议；新增 `BackupOrchestrationSettlementIntegrationTest`（真实编排＋真实仓库＋隔离 PostgreSQL＋可控时钟）3 项，覆盖停止后结算、并发交错与结算落库失败后恢复索引保留。结果 `-Dtest=service.backup.*Test` = 87 项通过。
+
+**R07-F01/F02（查询意图归属与刷新返回契约，`frontend/src/composables/useRouteTableState.ts` 及全部调用方）**
+
+- 新增 `RouteTableLoadOutcome = { status: 'committed' } | { status: 'superseded' } | { status: 'failed'; error }`，`bindLoader` 的回调按“提交是否真的发生且当时仍是当前请求”返回该结论；`reload()` 在存在尚未落到路由的查询意图时**先提交意图再加载**，因此绝不为已被取代的旧查询授予提交资格；`debouncedPatchQuery` 记录并合并待应用意图（`pendingIntent`），`patchQuery`/`cancelDebouncedQuery` 负责清理，被取消的意图不会事后被 reload 应用。
+- 调用方全部迁移：`DatabaseBrowserView.vue`、`SystemTestIssueSearchView.vue`（同时删除空的 try/catch）改为仅 `committed` 才提示成功；`ReviewDataManagementView.refreshReviewRecords()` 返回结论；`useReviewDataPageActions.handleRefresh` 仅在 `committed` 提示“已刷新”，失败与取代交给加载回路自身的错误通道，去掉双提示；`useReviewRecordDialog` 把刷新失败改为读取结论（`superseded` 不算失败）并保留“已保存但刷新失败”提示；`review-data` 两个依赖类型与测试替身同步。
+- 新用例：组合式 4 项（提交/取代/失败三类结论、待应用意图不得被绕过）与页面级 1 项（刷新失败不报成功）。回退 `reload()` 的意图提交后，“待应用意图被绕过”用例实测返回旧查询结果而失败；把成功提示条件改回无条件后，页面级用例实测失败。
+
+**R07-T01（数据库浏览器刷新提示的正式计时契约）**
+
+- `DatabaseBrowserView.test.ts` 三类状态用例改为可控时钟两阶段：`flushPromises()` 排空网络续点，再 `advanceTimersByTimeAsync(220)` 跨过最短展示时间；`finally` 内卸载包装器并恢复真实时钟，避免上一例的迟到提示进入下一例——这正是第六轮观察到的 QUEUED/RUNNING 断言为 0 次、DEDUPED 收到上一例文案的根因。另补 SUCCESS 正例断言“当前表数据已刷新，同步任务 #88”，防止修复后提示被永久抑制。五项 `collect_form_records` 完整 payload 断言未改。把提交判定反转后 4 项全部失败，证明断言与提交门禁真实绑定。
+
+**R08-F01（销毁即失效配置会话，`DropdownOptionSettingsView.vue`）**
+
+- `onBeforeUnmount` 除 `disposed`/`sessionSequence`/`candidateRequestSequence`/`previewRevision` 外同步递增 `fieldsRequestSequence`；`isCurrentSession()` 增加 `!disposed` 前置条件，使销毁后所有 async 续点（配置加载、保存、改绑确认、字段清单、异常通道）统一失效，已发写入不回填旧页面、未发确认不再发新写请求。
+- `DropdownOptionSettingsView.test.ts` 新增 4 项：销毁后改绑确认不再调用 bindField、在途配置加载失败静默、字段清单失败静默、销毁后保存不提示成功。回退修复后 4 项全部失败。
+- 关闭条件中“预览”一项未新增用例：预览续点本就有 `previewRevision` 自增保护（销毁时递增），加一条“卸载后预览失败不提示”在当前与候选实现下都会通过，属不可判别用例，故不加；已由既有“同一草稿只保留最新预览”用例覆盖预览与草稿的绑定关系。
+
+**R09-F03（新增后的页面后续编排携带活动资格）**
+
+- `useReviewProblemItems.ts` 新增并导出 `isProblemListOpenFor(recordId)`（清单可见且活动记录仍是该评审）；`useReviewProblemItemDialog` 的两个 open 入口在作用域失效时直接返回，不再先发请求；`ReviewDataManagementView.afterCreateRecord` 在 `await openProblemList()` 之后确认清单仍属本次新增才继续打开问题编辑器。
+- 新增正式 `ReviewDataManagementView.test.ts`（真实页面 shallowMount＋假计时器，3 项：清单关闭后不再打开编辑器、整页销毁后不再发详情请求、清单保持打开时仍打开编辑器）。回退修复后 2 项失败。
+
+**R10-F01（登录/退出/读取纳入同一身份生命周期，`frontend/src/composables/auth-state.ts`）**
+
+- 统一模型：`IdentityOperation{kind, generation, id, promise}` 覆盖 `read|login|logout`，`activeOperation` 只保留一个当前操作槽；读取额外携带 `settlementRevision`（登录/退出每次结算递增），`isCurrentRead()` 要求代次、读取序号与结算计数同时未变。`ensureCurrentUser()` 在变更在途时**合并到该变更的结果**（失败时返回已结算的权威身份，不抛出），不再发起竞争的 current 请求；`refreshCurrentUser()` 仍是显式读取，但会被随后的身份结算作废。`login`/`logout` 改为同步登记操作槽、异步结算，成功与失败都推进结算计数，`finishIdentityChange` 只由仍最新的变更收尾加载态与操作槽。删除冗余的 `initializationRequest`（与 `activeRequest` 判定等价）。
+- `auth-state.test.ts` 新增 4 项：登录在途不发竞争 current 且加载态不被读取抢占、登录结束后迟到 current 不得回退身份、退出方向同样不得回退、合并到失败登录的读取不抛出而返回匿名身份。为取得 RED，把候选实现（重建副本）临时放回生产文件运行：新增 4 项全部失败，其中登录方向实测 `expected 'alice' to be 'bob'`，与第六轮记录的确定性复现一致；恢复后 11 项全绿。
+
+**R04-T01（投影发布栅栏的真实事务证据，`FactProjectionTaskLeaseIntegrationTest`）**
+
+- 夹具改为**持有单一 DataSource**（`@BeforeAll` 中取一次），事务管理器、guard、两个快照服务、任务服务共享同一实例；`@Transactional` 服务按方案要求经**显式 TransactionTemplate** 调用（`inTransaction`），不再直接 `new` 后裸调。
+- 删除合成 `snapshot_writes` 表，建表语句取自真实迁移（`V20260703_05`＋`V20260803_01` 的 `page_record_snapshots`、`V20260629_02`＋`V20260629_04` 的 `statistic_board_snapshots`），写入经真实服务 `PageRecordSnapshotService.save`／`StatisticBoardSnapshotService.save`，断言直接读两张真实存储表。
+- 新增 3 项：①当前所有者可提交两类真实存储写入；②预热中断（先成功写页面快照，随后看板写入撞真实列宽约束）使同一发布事务整体回滚，两张表均为 0 行；③双连接确定性交错——owner 线程在发布事务内写真实看板快照并持锁，另一连接提升 generation 必须等待（以 `pg_stat_activity` 的 `wait_event_type='Lock'` 观察，非固定 sleep 推测）、owner 提交后该连接完成、调度器回收过期租约并重新领取新身份、旧 owner 迟到写入被 `ProjectionTaskSupersededException` 拒绝且不新增任何行。保留 token 条件更新、调度恢复、更高代际与父运行终态四类既有语义，发布栅栏断言不使用 mock。
+- 复验：`-Dtest=FactProjectionTaskLeaseIntegrationTest` = 8 项通过。RED 证据：临时把事务管理器换回“另取一次 `database.dataSource()`”的旧接线后，2 项失败——回滚用例的页面快照行残留（正是第六轮取证到的失真），交错用例在 `awaitBlockedRegistration` 失败（说明旧接线连接为 autocommit，发布锁**根本没有被持有**）。恢复后 8 项全绿。
+
+###### 本轮验证与未跑项
+
+| 项 | 结果 | 边界 |
+| --- | --- | --- |
+| 前端全量 `npx vitest run` | 707 项 / 1 失败（最终候选态复跑，结论不变） | 唯一失败 `customer-issue-illegal-records.mount-smoke.test.ts` 归并行在途重构（见上）；本单元相关的组合式 12、DatabaseBrowserView 9、review-data 24、ReviewDataManagementView 4、auth-state 11、下拉配置 7 全绿 |
+| 前端 `npm run typecheck` | exit 0 | 不替代组件交互与生产构建 |
+| 后端 `service.backup.*Test` | 87 项 / 0 失败 | 含真实编排与隔离 PostgreSQL 的 3 项结算交错 |
+| 后端 `FactProjectionTaskLeaseIntegrationTest` | 8 项 / 0 失败 | 真实两张快照表与双连接锁等待 |
+| 打包脚本 `unittest` | 51 项 / 0 失败 | 真实生成脚本 + 状态化 docker 替身 |
+| 仓库 python 护栏 | 13 项全部 exit 0 | `verify-local.ps1` 列出的 12 项 + `check_label_group_dimension_matrix.py`；`git diff --check` exit 0（仅并行快照的 CRLF 提示） |
+| 后端完整默认套件 `mvn -o -B test` | 1580 项 / 0 失败 / 0 错误 / 1 跳过（`GitlabWhitelistServiceIntegrationTest`） | 在并行套件结束后的窗口内串行执行；含本单元 R04/R05 新增用例 |
+| 前端 `npm run lint` | exit 0 | 覆盖本单元全部前端改动 |
+| 后端 spotbugs:check | 0 BugInstance，BUILD SUCCESS | — |
+| 后端 checkstyle:check | 失败，16 处无用导入 | **全部不在本单元文件内**：4 处属已提交的备份功能（`DatabaseBackupController`、`BackupFileSupport`、`BackupMonitorService`×2、`BackupSettingsService`），其余属并行在途的客户统计/BI 测试与服务（`CustomerIssueDelayIssuesBoardService`、`BiCustomerIssuePageServiceTest`、`CustomerIssueCustomerStatistics*`、`CustomerIssueRequirementLabelAutoChainIntegrationTest`）。本单元文件（含 `BackupOrchestrationServiceTest` 的既存无用导入）已清空，未改他人文件 |
+| 真实浏览器（R07/R08 零写库；R09 经授权写库并已清理复原） | 7 项 PASS | 见下表 |
+| `build`（打包）、黄金门禁 | 未跑 | 打包需在最终候选与发布窗口执行；黄金按既有授权边界不主动运行 |
+| 内网部署演练、历史备份恢复 | 未跑 | 无授权/无环境，按第六轮边界原样保留 |
+| 提交推送 | 未做 | 共享工作树存在并行未提交改动，本轮不提交不推送，等待用户指定远端与时机 |
+
+###### 真实浏览器实测（2026-09-29，18181/18080 LDAP，账号 admin）
+
+browser-use 因 `NATIVE_BROWSER_VIEWPORT_UNAVAILABLE` 全部改用 `evaluate_script` 派发 JS click；R07/R08 的网络故障与写请求均在浏览器端 `window.fetch` 注入（写请求记录后以伪造 200 回应，不转发服务端），未向服务端/共享库写入数据。R09-F03 经用户单独授权后写共享库，创建 4 条临时记录并已全部删除复原（总数回到 436）。
+
+| 项 | 操作 | 结果 | 判定 |
+| --- | --- | --- | --- |
+| R07-T01 / C（刷新消息契约） | 数据库浏览器 MIRROR 表，注入 `{status:'QUEUED',taskId:88}` 后点「刷新表数据」 | 仅提示「刷新请求已提交，正在排队等待同步执行，同步任务 #88」，无「当前表数据已刷新」 | PASS |
+| R07-F01（待提交意图不被绕过） | 关键字框输入 `zzq7`（debounce 未到期）后立即点「重新加载表数据」 | rows 请求两次均带 `keyword=zzq7`，无空/旧关键字请求，URL 收敛为 `?table=ods_gitlab_issues&keyword=zzq7&page=1` | PASS |
+| R07-F02（失败不报成功） | 拦截 `/api/review-data/records*` 返回 500 后点「刷新」 | 仅提示「伪造的评审数据加载失败」，无「评审数据列表已刷新」 | PASS |
+| 成功路径未过度抑制 | `location.reload()` 还原原生 fetch 后点「刷新」 | 真实 `GET /api/review-data/records?...`，提示「评审数据列表已刷新」 | PASS |
+| R08-F01 正对照 | 下拉配置页（活动页面）点「新建空白配置」→「确认改绑」 | 捕获到 `PUT /api/dropdown-option-fields/.../binding` | PASS（对照） |
+| R08-F01 销毁路径 | 同一确认框打开时切 hash 到 `#/review-data/home`（视图已卸载）→ 点「确认改绑」 | 写日志为空、无「字段绑定已更新」提示 | PASS |
+| R09-F03 | 真实新增评审（#12）；清单 `problem-items` 请求延迟 4s，在途时 `atMs=1012` 关闭清单 | 延迟请求正常 200 且写入 `problemItemsMap[12]`；`新增评审问题` 编辑器未打开、其详情请求未发出 | PASS |
+
+R10-F01 由真实登录（admin）后路由守卫与页面数据正常加载间接确认；其确定性竞态由 `auth-state.test.ts`（11 项）与 `ReviewDataManagementView.test.ts`（4 项）覆盖。R09-F03 的正对照（记录 #9，清单不关闭 → 编辑器打开）与负路径（记录 #12）构成双侧取证；#11 轮次因注入包装器误用回调 `arguments` 导致延迟请求打到 `undefined` URL（响应为 SPA HTML），该轮判定作废并已记录。原始记录见 `.tmp/review-round7-20260929/evidence/browser-verification.md`。
+
+证据目录：`.tmp/review-round7-20260929/evidence/`（前端全量/typecheck、13 项护栏、投影用例三次运行日志、浏览器实测记录）；RED 实验的两份候选副本分别在 `.tmp/review-r10/auth-state.candidate.ts`（第六轮候选实现）与 `.tmp/review-r04/FactProjectionTaskLeaseIntegrationTest.mine.java`（修复后副本，回退实验后已由它恢复）。
+
+新增/变更文件清单（第七轮）：`scripts/package_intranet_offline.py`、`scripts/test_package_intranet_offline.py`、`deploy/runbooks/database-backup-restore.md`、`backend/src/main/java/.../service/backup/{BackupStateRepository,BackupRunRepository,BackupOrchestrationService,BackupScheduler}.java`、`backend/src/test/java/.../service/backup/{BackupOrchestrationServiceTest,BackupSchedulerTest,BackupRunStateRepositoryTest,TestBackupRemoteStorage,BackupOrchestrationSettlementIntegrationTest}.java`、`backend/src/test/java/.../service/sync/FactProjectionTaskLeaseIntegrationTest.java`、`frontend/src/composables/{useRouteTableState.ts,useRouteTableState.test.ts,auth-state.ts,auth-state.test.ts}`、`frontend/src/components/{DatabaseBrowserView.vue,DatabaseBrowserView.test.ts}`、`frontend/src/views/SystemTestIssueSearchView.vue`、`frontend/src/views/ReviewDataManagementView.vue`、`frontend/src/views/ReviewDataManagementView.test.ts`、`frontend/src/views/DropdownOptionSettingsView.vue`、`frontend/src/views/DropdownOptionSettingsView.test.ts`、`frontend/src/views/review-data/{useReviewDataPageActions.ts,useReviewDataPageActions.test.ts,useReviewRecordDialog.ts,useReviewRecordDialog.test.ts,useReviewProblemItems.ts,useReviewProblemItemDialog.ts}`。回退实验的候选副本与命令日志只存在于 `.tmp/review-r10/`、`.tmp/review-r04/` 与 `/tmp/`，不进入仓库目录或交付。
+
+
+
 ### 九、新 AI 接手入口（2026-09-24，第六轮复审后）
+
+> 第七轮后状态：本节原为更换实施 AI 准备。第七轮已由原评审 AI 完成全部退回项，并已跑完完整后端默认套件（1580/0/0/1）与 13 项护栏；真实浏览器已覆盖全部八个退回项中的前端部分（R07 四项、R08-F01 含正对照、R09-F03 含正对照，R09 写库已清理复原）。仍待授权的项只有打包 build、黄金门禁、内网部署演练、历史备份恢复与提交推送；若再次交接，恢复入口改为第七节台账 + 第八节第七轮 + 下述本地路径，`.tmp-logs/platform-remediation-20260924/` 的 ZIP/补丁只对应第六轮候选，不能代表第七轮实现。
 
 本节为用户更换实施 AI 准备，不授予新增环境或发布权限；当前状态以第七节台账及第八节最新独立评审为准，前几轮“退回/通过”均有版本边界。新 AI 负责实施与自测，原评审 AI 继续独立复审；不要照着旧报告直接宣布完成。
 
 #### 先读什么、从哪里恢复
 
-1. 仓库根 `AGENTS.md` → `docs/progress.md`（只了解并行工作）→ 本文顶部、第七节、第八节**第六轮**、第九节 → 对应 W 单元。旧五轮是根因历史，不要重复实施已有效的改造；原始十二项核验在 `docs/plans/platform-review-verification-20260922.md`。
+1. 仓库根 `AGENTS.md` → `docs/progress.md`（只了解并行工作）→ 本文顶部、第七节、第八节**第七轮**（已实施结论）与**第六轮**（根因要求）、第九节。旧五轮是根因历史，不要重复实施已有效的改造；原始十二项核验在 `docs/plans/platform-review-verification-20260922.md`。
 2. 恢复首条命令为仓库根 `git status --short`，再执行 `git rev-parse HEAD` 与目标文件 diff。本次 HEAD 仍为 `c818e7202090d22f14b9ae687e3a41b83b34f82c`；整改与并行功能均混在未提交工作树，**只 clone/checkout HEAD 无法得到候选**。两份计划及新增测试/生产文件尚未跟踪，不得清理。
 3. 完整候选工件在 `.tmp-logs/platform-remediation-20260924/`：`handoff.md`、`platform-review-remediation-review-bundle.zip`、`platform-review-remediation-complete-worktree.patch`、`delivery-manifest.json`、`SHA256SUMS.txt` 和日志。三份主工件摘要见第六轮评审；先核对，再在自己的隔离副本从固定基线重建，不把整份共享补丁反向覆盖到活跃工作树。
 4. 本 AI 取证副本为 `.tmp/review-implementation-round6-c818e720-20260924/source/`，相邻 `evidence/` 为独立日志；含后来追加的评审探针，不是干净交付源码。`normalized-delivery-audit.json` 是纠正换行/ZIP 子目录映射后的核验结论，初始 `delivery-audit.json` 不能单独判读。原始生产/正式测试内容保持候选版本。

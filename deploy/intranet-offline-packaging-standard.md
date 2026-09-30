@@ -294,7 +294,7 @@ BACKUP_DIR="$(cat <simulation-deployment-dir>/upgrade-backups/latest-backup.txt)
 bash <package-dir>/rollback.sh <simulation-deployment-dir> "$BACKUP_DIR"
 ```
 
-回滚后前后端必须恢复直接基线镜像并健康，PostgreSQL 容器 ID 仍不变。Flyway 保持前向版本是预期行为；不得为了测试回滚而执行 `pg_restore`。
+回滚后前后端必须恢复直接基线镜像并健康，PostgreSQL 容器 ID 仍不变。Flyway 保持前向版本是预期行为；不得为了测试回滚而执行 `pg_restore`。应用回滚**不得**因为数据库中已有的 schema 比备份点前进而拒绝执行——旧镜像与新 schema 并存是回滚的既定代价，只有应用回滚仍无法恢复服务时，才按数据库恢复 runbook 处理。
 
 最后从已恢复的基线重新运行 `backup.sh`，再以新备份运行同一 `upgrade.sh`，并重复目标镜像、健康、Flyway、备份可恢复性、空 `counts.diff` 和 PostgreSQL ID 检查。本地隔离栈最终停留在目标镜像，证明连续操作可重复。
 
@@ -362,7 +362,7 @@ bash ../<update-package>/upgrade.sh "$PWD" "$BACKUP_DIR"
 3. 由独立 `backup.sh` 保存 Compose、容器/镜像、Flyway、关键表行数、完整数据库 dump 和关键表 dump，并验证可恢复性和校验和。
 4. `upgrade.sh` 校验备份绑定当前包、直接基线与同一 PostgreSQL 容器；停止旧后端后记录迁移起点行数。
 5. 以全部后台调度关闭的模式重建后端并完成 Flyway、健康和行数守恒，再恢复正常调度后端，最后重建前端。
-6. 确认 PostgreSQL 容器 ID 未变化，迁移静默窗口内受保护业务表行数守恒。
+6. 确认 PostgreSQL 容器 ID 未变化，迁移静默窗口内受保护业务表行数守恒。守恒对象是业务数据表（事实、ODS、评审、用户、范围与快照等）；权限目录三表 `platform_permissions`、`platform_role_permissions`、`platform_default_role_permissions` 是迁移自有的版本化资源，权限类迁移按设计重写它们，因此只随 `critical-tables.dump` 备份、不参与守恒比对。
 
 需要事实重建时，容器升级完成后由具备权限的用户在“数据镜像设置”提交发布清单指定范围的事实重建，并观察 `FACT_REFRESH` 终态和快照预热。升级脚本不得保存账号密码、绕过 Session/CSRF 或触发 GitLab 全量同步。
 

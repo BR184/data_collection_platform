@@ -6,6 +6,103 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-09-30 内网保数据更新包交付与本地演练（已完成，待用户现场部署）
+
+- [交付] 包 `qaflex-update-20260930T044004Z-e275334105bb`（`.tar.gz` 208,412,572 字节，SHA-256 `9979e5e60eb3c15e76ecbbd225b52e18125d249a7e5669fb4ce9a5b1ad6204c7`，含包外 `.sha256`，归档在 `D:\projects\data_collection_platform_deploy\`）：`incremental-update`，直接基线 `qaflex-update-20260918T034645Z-d9cc19237d45`（前后端基线镜像同 ID），目标 Flyway `20260930.01`，**事实重建未声明**（`rebuildRequired=false`，按用户「只更新前后端、不动db」指令）；工作树非干净（在途多单元），清单已标 dirty。
+- [纪律] 规范第 5 步独立审计全绿：`bash -n` 三脚本通过；`sha256sum -c SHA256SUMS.txt` 8/8；`python -m unittest scripts.test_package_intranet_offline` **55 项（跳 10）**；归档仅 9 项且无 `backend/`、`frontend/`、`.env`、PostgreSQL 镜像、离线 deb、数据库 dump；清单 `baseline`/`target.images`/`flywayVersion`/`facts` 与本次发布一致；打包器四项既有修复（`db_query` 追加 `</dev/null`、`CONSERVATION_TABLES`、短 ID `--no-trunc`、回滚不因 schema 前进拒绝）在生成脚本中生效。
+- [门禁偏差] 黄金基线 compare **本轮未跑**：用户明确要求本轮不重复运行（称已跑过回归套件），因此本次交付缺少产出前门禁的差异证据；被中止的那次运行遗留 3 个 Testcontainers 临时容器已清理。
+- [验证-隔离栈] 在 `qaflex-pkgtest-20260918-72ab3b365acb` 隔离栈执行规范第 6–7 步，起点即直接基线（0918 镜像 healthy；库 `20260929.01`；PG 容器 ID `c7162bd6…aa34d`）——与内网 20001「应用回退到 0918、**库不回退**」的真实起点同构：`backup → upgrade → rollback → backup → upgrade` 连续链 **EXIT=0**。两次升级均：目标镜像 healthy、后端 `/actuator/health` `{"status":"UP"}`、前端 HTTP 200、Flyway→`20260930.01`、`counts.diff` **0 字节**且实际存在的 21 张守恒表逐行零差异、PG 容器 ID 恒定不变；迁移后端确认 `PLATFORM_BACKGROUND_JOBS_ENABLED=false` 已生效、正常后端恢复 `true`。回滚恢复直接基线镜像且均 healthy，schema 停留 `20260930.01`（符合规范：纯应用回滚不写库，Flyway 前向）。
+- [环境事实] 演练 runner 经 `/work` 挂载在 `qaflex-pkgtool:py3` 内执行，`tee` 输出有延迟、勿据此误判断点；Docker socket 必须挂 `//var/run/docker.sock`（命名管道形式会静默失败成目录）；基线后端停止时退出码 137（compose 宽限后强杀）属正常路径，不影响判定。
+- [口径观察，既有打包器范围，非本单元引入] 守恒/关键表清单含 `ods_gitlab_issues`、`ods_gitlab_merge_requests`，而演练夹具无这两张表（`to_regclass('public.<table>')` 存在性守卫跳过）→ 本地覆盖 21 张，生产存在 GitLab 同步后覆盖 23 张；两份清单均不含 `gitlab_mirror_records`（通用镜像行存储）与 `sync_run_fact_targets`（审计日志），是否纳入守恒建议另立单元确认口径。
+- [迁移兼容实证] 「库停在 `20260929.01`、应用为新代码」组合下（即内网真实起点）：Flyway 只执行 `V20260930_01`，`flyway_schema_history` 137 条 0 失败；`V20260924_01` 的 `backup_state` 围栏列由迁移回填（`execution_token='legacy-'||active_run_id`）并受约束 `(active_run_id is null) = (execution_token is null)`，实测 1 行且 `execution_token`/`process_id`/`process_started_at` 均为 null、`revoked=false`，约束不冲突；新后端在该库上健康启动，日志仅演练栈缺老平台 MySQL/MongoDB/LDAP 的环境噪声，无与本包、迁移、事实发布控制面、备份围栏相关的异常。
+- [未验证] 真实内网 Ubuntu 现场未演练；现场须以包内 `README-INCREMENTAL-DEPLOY.md` 为准。内网 `issue` 范围事实重建由用户人工提交（`issue_fact.is_customer_requirement` 在重建前可能为 NULL，客户统计相关页面在重建前偏空属预期）；黄金基线 compare 与远端推送待用户授权/指定。
+
+
+
+## 2026-09-30 事实发布控制面单一权威化（S1–S5 实施收口，待用户审批与授权项）
+
+- [方案] 按 [计划](plans/fact-publication-authoritative-rework-20260930.md) 整批实施（DEC-1/2/3）：`fact_change_heads` 版本栅栏为唯一控制面，`sync_run_fact_targets` 降级为只插入审计日志（30 天窗口归档），字段级血缘止血目标爆炸，门控③降级为「上一完整发布点＋新鲜度披露」。决策与语义见 `docs/decisions.md` D-24、`docs/architecture.md`「事实与统计」。
+- [根因-实施期新发现] ①领取查询未排除在途任务已领取的根 → 同一批根单轮内被重复派发到每轮上限 8，来源无待发布工作后多出的任务触发就绪门禁失败，运行停在 `RETRYING`（两个链级测试复现）；修复：`lockPendingRootIds` 排除 `fact_build_task_roots` 在途领取，加双方向测试（单根只派一批、失败运行收敛后由后续运行接管）。②手工全量重建永不收敛：原实现在构建完成后才取版本上界并结算，构建期间登记的版本被一并吞掉；改为构建前冻结 `publicationUpperBound`、构建后按 `greatest(published, least(latest, 上界))` 结算（`test_full_publication_commits_build_then_settles_epoch_and_task` 以 InOrder 锁定先冻结后结算）。
+- [计划偏差] 5 项全部记录在计划「进度与中间物」与 D-24：领取排除条件、coveredVersion 冻结、`lockPendingRootIds`/`loadAssignedRootIds` 保留名称但实现迁到 heads/根批次表（targets 版整段删除）、归档判据不以 `publication_status` 为条件（日志降级后没有代码再改写它）、S4 在「降级但该视图从未有过完整发布点」时按方案 S4.2 拒绝并说明。
+- [审批补交] 计划 S3.3 锁并发测试：`test_concurrent_publishers_on_same_root_one_advances_and_one_yields`——两并发发布者竞争同批根，根行集合锁让先到者推进、后到者按「已由当前版本覆盖」幂等完成，持锁期间后到者必未完成。
+- [验证-后端] 全量快速套件 **1614 项 / 0 失败 / 0 错误 / 1 跳过（BUILD SUCCESS，`.tmp/full-suite-final2.log` 记录后已清理；为最终代码版一次跑通）**；定向 RED→GREEN 全绿（领取/接管、围栏版本脱节、降级取上一发布点与无发布点拒绝、JSON 契约双向、全量 vs 根集合逐列对拍、归档、两个链级测试类 6+2 项）。
+- [验证-前端] 横幅＋工具栏 **11 项全绿**（`StatisticBoardFreshnessBanner`、`StatisticBoardToolbar`）。
+- [验证-门禁] 五项仓库门禁全绿：工作树产物、运行产物位置、文本空白、Flyway 不可变（137 迁移）、`git diff --check`。
+- [验证-性能冒烟] 本地合成负载（5 万根其中 1 未发布 ＋ 500 万已发布日志行，一次性 postgres:16-alpine 容器，`EXPLAIN (ANALYZE, BUFFERS)`）：旧口径（targets 联接）并行全表扫 **1593 ms / 59,062 buffers**；新口径（heads 版本栅栏）走待发布部分索引 **0.091 ms / 2 buffers**。容量结论以内网 S0 同脚本复测为准，容器已删除。
+- [待授权] 黄金基线 compare（预期零差异：新响应字段 `NON_NULL` 且门禁夹具来源全部收敛；未跑，属产出门禁时机）、内网升级打包与 S0 基准复测、远端推送。工作树混有多单元在途改动，不提交不推送。
+- [遗留边界] 空批次任务在来源级就绪门禁下会按旧口径重试至 FAILED（与 targets 版同构的 pre-existing 行为，非本单元回归；领取排除后仅「交错全量结算恰好覆盖该任务的根」可触发）；前端 `activeStatuses` 的 `DEGRADED` 为惰性防御项（后端 realtime 状态不发该值），轮询由 `refreshing` 驱动，行为不变。
+
+
+
+## 2026-09-29 内网保数据更新包交付与本地部署演练（已完成，待用户指定远端推送）
+
+- [交付] 包 `qaflex-update-20260929T064546Z-2037a9298ebb`（`.tar.gz` + 包外 `.sha256` sha256 `6df10d7b1d8ecd435a2aec42fca57fa0bd2a5fce3600b40df8036fcdd1bb8646`，归档在 `D:\projects\data_collection_platform_deploy\`）：`incremental-update`，直接基线 `qaflex-update-20260918T034645Z-d9cc19237d45`，目标 Flyway `20260929.01`，事实重建范围 `issue`。工作树非干净（在途多单元），清单已标 dirty。
+- [纪律] 规范第 5 步独立审计全绿：清单字段（基线/目标镜像/`flywayVersion`/`facts`）、包外 `.sha256` 与归档一致、归档仅 9 项且无 `backend/`/`frontend/`/`.env`/离线 deb/PG 镜像/dump、`python -m unittest scripts.test_package_intranet_offline` **55 项（跳 10）**、三脚本 `bash -n`、`sha256sum -c` 8/8。
+- [打包器修复 4 处]（本地演练发现，逐项加回归测试；首包即因此作废）
+  1. **行数守恒门假绿**：`upgrade.sh` 的 `capture_counts` 以 stdin 驱动 `while read`，而循环体内的 `db_query` 执行 `docker compose exec` **会耗尽调用者 stdin** → 只比第一张表、`counts.diff` 恒空。三脚本模板的 `db_query` 均追加 `</dev/null`。
+  2. **守恒表集合口径**（用户 2026-09-29 裁定「从守恒集移出」）：本发布迁移按设计重写 `platform_permissions`(75→89)、`platform_role_permissions`(317→387)、`platform_default_role_permissions`(317→387)，而原实现把权限目录当业务表要求「零变化」→ **任何现场升级都会中止**，与规范「受保护**业务表**」冲突。`upgrade.sh` 新增 `CONSERVATION_TABLES`（26 张减权限目录三表 = 23 张）并由该数组驱动（顺带消除该类循环对 stdin 的依赖）；三表仍完整进入 `critical-tables.dump` 与 `counts-before.txt`；规范第 365 行补排除说明。
+  3. **回滚被短 ID 误拒**：`resolve_service_container()` 用 `docker ps --format '{{.ID}}'`，Docker CLI 29 默认只给 **12 位短 ID**（需 `--no-trunc`），与 `docker compose ps -q` 的 64 位比对 → `rollback.sh` 永远拒绝合法备份。该处加 `--no-trunc`。
+  4. **回滚守卫与规范冲突**（用户 2026-09-29 裁定「按规范，移除守卫」）：`rollback.sh` 原以 `flyway-before.txt` 比对并拒绝 schema 已前进的纯应用回滚，该守卫由 `bafee799` 引入且未同步规范，与新规范第 297 行「Flyway 保持前向版本是预期行为」直接矛盾。删除该拒绝分支与非阻断日志，订正成功文案为「the PostgreSQL schema and data are unchanged by rollback」；规范第 297 行补「不得因 schema 前进拒绝应用回滚」。
+- [验证-隔离栈] 在 `qaflex-pkgtest-20260918-72ab3b365acb` 隔离栈执行规范第 6-7 步，DB 先由该包备份的 `database.dump` 还原到 `20260909.01`（同时证明 dump 可恢复、24 张关键表行数逐一相符）：`backup → upgrade → rollback → backup → upgrade` 连续链 **EXIT=0**。两次升级均：目标镜像 healthy、后端 `/actuator/health` `UP`、前端 HTTP `200`、Flyway→`20260929.01`、`counts.diff` **0 字节且覆盖 21 张守恒表**、PG 容器 ID 恒为 `c7162bd6…aa34d`、迁移期后台调度关闭后恢复 `PLATFORM_BACKGROUND_JOBS_ENABLED=true`；回滚恢复直接基线镜像且均 healthy，schema 停留在 `20260929.01`（符合规范）。
+- [环境事实] 本机**不得用 Git Bash 执行包内脚本**：其 `sha256sum` 输出二进制模式 `*./` 前缀（触发 `invalid checksum entry in backup`）、且 `~/.local/bin/env` 是坏 shim（`env -u` 会让 `docker compose config` 输出为空）。演练统一在 `qaflex-pkgtool:py3`（由 `qaflex-pkgtool:local` 派生的 Ubuntu 24.04 + bash/curl/coreutils/docker.io/compose-v2 **+ python3**）容器内执行：挂载部署根为 `/deploy` 与 Docker socket，健康检查用的两条 `curl 127.0.0.1:<port>` 经栈内 `inbound_proxy.py` 桥接。该栈的 compose 在 Docker Desktop 上不发布宿主端口（与包无关）。
+- [未验证] 真实内网 Ubuntu 现场未演练；现场须以包内 `README-INCREMENTAL-DEPLOY.md` 为准，升级完成后由具备权限用户在「数据镜像设置」提交 `issue` 范围事实重建（`issue_fact.is_customer_requirement` 在重建前为 null，相关统计可能降级属预期），不得触发 GitLab 全量同步。
+- [待用户处置] 归档目录中另有 4 个已被取代的 20260929 包（`…T045413Z-6f4fbfcb8e48`、`…T052043Z-fdd53853a500`、`…T054504Z-7e7174e7fbc5`、`…T062214Z-f00fb579f977`），均含上述 1-4 号缺陷，**不得部署**；是否删除待用户指示。
+
+
+
+## 2026-09-29 黄金基线统一收口（compare → 修根因 → update → 复跑，最终 196/0 全绿）
+
+- [目的] 结掉 2026-09-28 因「新功能完成后统一收口」挂起的门禁：先用比对模式取差异并逐项定性，用户确认后 `-Dgolden.update=true` 重建受影响快照，再以比对模式复跑。纪律见 `AGENTS.md` 门禁章节与 `docs/decisions.md` D-08；本单元未改 `endpoint-catalog.yml`、`fixtures/`、`baseline-manifest.json`（非夹具变更）。
+- [比对第 1 轮] `196 / 5 失败 / 0 错误`（`compare-1.log`）。5 项定性为三堆、零未解释：①**BI 权限按页面拆分**（已提交单元、快照此前未重建）4 项 `permission-settings` 系列（目录 77→89、12 条 `moduleName` 系统设置→BI 看板、`sortOrder` 重排）＋2 张**表状态**快照（`platform_role_permissions` 317→387、276→324 行，此前被响应断言先抛错而掩盖）；②**跨日墙钟噪声** 2 项（`businessDate` 09-28→09-29、`dailyTrend` 271→272）；③**第七轮评审整改零影响实证**（其改动面不含 Controller 产出路径）。
+- [update-1 + 语义审计] `196 / 0 / 0` + `BUILD SUCCESS`（383.7s）。归一化审计 `layout-only 7 / volatile-only 56 / SEMANTIC 14 / unparsed 0`，14 项逐项定性**零未解释差异**；审计脚本盲区已记录（易变字段正则未覆盖下划线式 `created_at`/`updated_at`、内嵌时间戳的 `snapshotId`/`sourceVersion`、`businessDate`、`dailyTrend`、导出小时列）。
+- [非确定性根因 1，用户裁定「修根因，完成门禁」] update 后复跑 `196/1`：`statistic-boards/…_rule-explanation__customer-issue-customer-statistics` 的 `samples` 换成另一批议题。根因：`CustomerIssueFactQueryService.FACT_SQL` 无 `ORDER BY`，而 `CustomerIssueCustomerStatisticsBoardService.step()` 取过滤结果**前 5 条**作样本。修复：补 `FACT_SQL_ORDER = " order by issue_fact.id"`（与 `IssueFactRecordRepository` 同口径，属 2026-09-04 `findForFilterOptions` 同族疏漏），新增 `CustomerIssueFactQueryServiceTest`（RED/GREEN 双向），消费方 5 类回归 **61 项 / 0 失败**。**不改掩码、不放宽比对**。
+- [非确定性根因 2] 第二次复跑仍 `196/1`，失败者换成 `code-review/get___illegal-records_export__cc`：整行互换（3848↔3849、3902↔3903…）。根因：`orderByClause(null,null)` 末位排序键 `merge_request_iid` **只在项目内唯一**，跨项目并列由物理行序决定；同一子句被 `CodeReviewIllegalRecordSourceLoader` 分页列表**逐字复制**，故列表分页同样有跨页重复/漏行风险。修复：末位补 `, id <order>`（视图主键唯一），列表分页改为复用 `orderByClause` + `limit ? offset ?`（消除重复子句），legacy 全量导出子句补 `, id desc`；新增 `CodeReviewIllegalRecordSqlQueryBuilderTest`（2 项，断言末位唯一 tie-break 且方向跟随请求，RED/GREEN 双向），连同既有 loader 4 项 + service 8 项共 **14 项 / 0 失败**。
+- [update-3] `196 / 0 / 1`：唯一 Error 为 **Windows 快照写入占用瞬态**（`put___roles_{roleCode}__normal-user-two-codes__platform_role_permissions.json` 写入失败），属本单元既定风险项、非内容缺陷；随后独立只读复跑 compare-4 **含该文件在内 196 项全过**，即其内容正确的独立证据。审计 `changed=257 / added=0 / removed=0`。
+- [最终验证] 比对模式复跑 **`196 / 0 失败 / 0 错误 / BUILD SUCCESS`**（`compare-4.log`，EXIT=0）——门禁恢复为可信看门锁。
+- [未处理同族风险] `backend/src/main/java` 共约 230 处 `order by`，仍有仅按名称排序的子句（如 `order by lower(name)`）在重名时并列；本次只修**已被门禁证实**的两条路径，不做无证据的全量改写，建议另立工作单元。
+- [服务处置] 门禁运行前停掉的 18080/18181 已于 2026-09-29 重新拉起并验证：后端 `/actuator/health` `UP`、前端 18181 返回 `200`。
+- [未提交] 工作树混有多个并行单元的在途改动，不提交不推送；远端与时机待用户指定。
+
+
+
+## 2026-09-29 延期标签写回改为唯一页面开关（已实施）
+
+- [方案] 按 [计划](plans/delay-writeback-single-switch-20260929.md) 实施方案 A（用户 2026-09-29 选定）：写回只由镜像设置页「延期标签写回」开关控制，默认关闭，删除部署级全局开关层；理由与应急停止清单见 `docs/decisions.md` D-23。
+- [后端] 删除 `platform.gitlab-mirror.delay-label-writeback-api-enabled`（含 env `CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED`）与 `CustomerIssueDelayLabelWritebackService` 的 `@Value` 注入、`apiWritebackEnabled` 字段和测试用双参构造器；`isEnabled` 改为「数据源开关 ∧ `web_base_url` ∧ `api_token`」并补契约注释。写回判据、差异计算、队列协议、重试/租约与编排流程未改动。
+- [前端] 镜像设置页开关两向确认：开启说明会真实调用 GitLab API 增删「响应已延期」「解决已延期」标签、且未填写 Web 地址时补充「保存后仍不会写回」；关闭说明仍监控延期事实但不再写标签、已排队任务会被跳过；取消开启自动回退开关状态；开启时该表单项常驻 `el-alert` 警示。文案抽为纯函数 `delayWritebackSwitchPrompt`（`frontend/src/views/delay-writeback-switch-prompt.ts`）并单测。
+- [打包与文档] 内网离线打包脚本删除两处钉 `false` 的 `.env` 与 compose 项；业务规则第 14 条改为唯一开关口径、`docs/architecture.md` 写回段、`deploy/runbooks/gitlab-sync-orchestrator-runbook.md` 改为「单一开关 + 不依赖前端的四道应急停止」；`docs/decisions.md` 新增 D-23。
+- [验证] 定向：后端写回相关 5 个测试类 **26 项全绿**；前端新增 5 项 + `mirror-settings.mount-smoke`／`mirror-settings-helpers` 共 **14 项全绿**；`npm run typecheck`、改动文件 `eslint`、仓库护栏（文本空白／工作树产物／运行产物位置／Flyway 不可变 136 迁移）与打包脚本自测 **51 项（跳过 10）全绿**。全量 `mvn test`：**1577 项、0 失败、14 错误、1 跳过**，14 个错误全部为 `NoClassDefFoundError: StatisticBoardTestSnapshotScopes`——并发 Maven 构建在我运行期间重写 `backend/target/test-classes`（该 `.class` 于 10:09 落盘），单独复跑这两个类 **16 项全绿**，属环境干扰而非代码缺陷；本单元不涉及客户统计逻辑，亦未触碰相关文件。
+- [状态风险] 开发实例 18080 仍运行改动前的字节码：页面开关当前为关，行为与改动后一致（都不写回）；若要实机试用新交互并验证「打开即生效」，需重启后端——18080 为共用实例，须经用户确认后执行。
+- [未跑] 黄金基线门禁按既定决定待新功能完成后统一收口（本单元无端点产出变化，预期快照零差异）。
+
+## 2026-09-28 BI 看板权限按页面拆分（已实施；黄金快照待统一收口）
+
+- [方案] 按 [BI 权限按页面拆分方案](plans/bi-dashboard-permission-split-20260928.md) 实施：由「模块级 `bi.dashboard.view`/`bi.dashboard.download`」改为「7 个页面各自持有查看与下载码」，与统计板 view/export 成对范式一致；删除模块级码，不做别名或双码并存。
+- [后端] `PlatformPermissionCodes` 换成 14 个页面码；新增 `BiPagePermissionResolver`（pageKey → view/download 唯一映射，未登记 key 报 `BizException`，含 null）；`BiDashboardController` 去掉类级注解，7 个页面端点各挂本页查看码、`/versions` 任一查看码、两个下载端点「任一页面下载码」粗门禁 + 控制器按请求体 `pageKey` 精确校验该页查看与下载码（当前用户与拦截器同源 `AuthSessionSupport.currentUser(request)`）；`GlobalExceptionHandler` 补 `AccessDeniedException` → 403 `A0303`（原会落成 500，见 `docs/decisions.md` D-22）。
+- [迁移] 两个迁移、均不可变登记（只新增条目，既有迁移零改动）：`V20260928_01__bi_dashboard_page_permissions.sql` 把 14 码入目录（sort_order 独占 8010–8026）、角色授权按旧码持有角色**逐角色复制**（升级前后逐角色可见性一致、内网既有定制原样保留）、同批补齐 `customer_issue.customer.view/export` 的 defaults 缺口、删除两旧码；`V20260929_01__bi_dashboard_default_permissions.sql` 为前向修正——见 [偏差] ⑤。
+- [前端] `modules.ts` 7 页改本页查看码；新增 `features/bi-dashboard/data/page-permissions.ts` 作为前端页面码单一映射，`BiChartPanel` 下载按钮按 `downloadContext.pageKey` 取本页下载码（方案遗漏项：不同步会让所有人看不到下载按钮）。
+- [偏差] ①当前用户改用请求对象取值（与拦截器同源），未新增无参重载；②补 403 映射以满足「无权限 403」契约；③前端下载门新增页面码映射；④BI 权限事实按文档路由写入 `docs/bi-dashboard/`（`decisions.md` D-04、`architecture.md`、`product.md`、`progress.md`），平台通用机制写入 `docs/architecture.md` 与 `docs/decisions.md` D-22，不改 `platform-page-business-rules.md`；⑤**defaults 与角色授权解耦**：`V20260928_01` 原按「当前持有」写 defaults，开发库实测暴露 `NORMAL_USER` 升级前本就不持有 BI 查看码（上线期临时隐藏），该隐藏会被写进默认口径、使「恢复默认权限」无法回到全员可见，与既定口径冲突；因已登记迁移不可改，改用 `V20260929_01` 把 14 码 defaults 归位为平台托管五角色全量且**不动角色授权**，故升级前后逐角色可见性不变、「恢复默认权限」回到全员可见。规则已固化为 `docs/decisions.md` D-22。详见方案 §9。
+- [验证-迁移] 隔离库三场景（测试容器 15433 临时库，脚本 `.tmp/bi-perm-verify/verify_migration.py`，按顺序执行两个新迁移）：默认五角色全量 → 各得 7+7 码、旧码三处清除、defaults 为五角色全量、模拟「恢复默认权限」后仍持有；定制场景（撤销 `NORMAL_USER` 查看、撤销 `DIRECT_MANAGER` 下载，旧 defaults 未改动＝开发库现状）→ 先记录「仅 928_01 会把隐藏带入 defaults」的中间态，929_01 后逐角色可见性不变而 defaults 一律回到五角色全量、「恢复默认权限」回到全员可见；`customer_issue.customer.*` defaults 缺口补齐。**RESULT=PASS**，临时库已删除，未触碰开发库与测试库既有 `qaflex`。
+- [验证-套件] 后端默认套件 **1567 项 / 0 失败 / 0 错误 / 1 跳过（BUILD SUCCESS，`.tmp-logs/backend-suite-bi-perm2.log`；含 `V20260929_01` 在测试库应用）**；前端全量 147 文件 / 685 用例 → 682 通过、3 失败（仍为数据库浏览器 2 项与客户非法记录挂载冒烟 1 项，与既有定性一致）；`eslint`/`tsc --noEmit` 通过；13 项仓库护栏全绿（含 Flyway 不可变 136 迁移）、`git diff --check` exit 0；`check_issue_fact_module_pollution` 连开发库只读复跑无污染。定向：本单元 27 项后端 + 39 项前端全绿。
+- [验证-开发实例] 2026-09-29 经用户授权重启开发后端：Flyway 应用 `20260929.01`（13 ms），`/actuator/health` UP、前端 18181 200；只读核对开发库——BI 目录 14 码、旧码在目录/角色/defaults 三处为 0、角色授权 4 角色×14（`NORMAL_USER` 0 码，临时隐藏保留）、defaults 5 角色×14；以 `admin` 登录实测 `/api/permission-settings` 返回 14 个页面码且无旧码，7 个 BI 页面端点与 `/api/bi/versions` 全部 200（新按页面查看码生效）；另观察到越权/CSRF 拒绝在实例上稳定返回 403 `A0303`（新映射生效）。
+- [状态风险] 已消除：开发实例已于 2026-09-29 重启并应用两个迁移，前后端一致（18080 UP / 18181 200），BI 菜单与页面接口按新页面码正常工作。
+- [下一步] 黄金基线门禁按用户 2026-09-28 决定待新功能完成后统一收口（预期 `permission-settings` 目录与 `post/put` 相关快照变化）；本单元代码/迁移/文档已完成，无其它遗留。
+
+## 2026-09-28 整体回归（工作树全量后端/前端套件 + 仓库护栏）
+
+- [验证-后端] 默认快速套件 `mvn -o test`（本机 15433 测试库在线）**1552 项、0 失败、0 错误、1 跳过、BUILD SUCCESS**（`.tmp-logs/backend-full-20260928-regression.log`），与响应延期单元上一轮全量结果逐项一致。
+- [验证-前端] 全量 `vitest run` **146 文件 / 680 用例 → 677 通过、3 失败**（`DatabaseBrowserView.test.ts` 的 QUEUED、DEDUPED 两项与 `customer-issue-illegal-records.mount-smoke.test.ts` 一项），失败项名称、断言与 2026-09-28 已定性结论完全一致，分别归属数据库浏览器单元（`DatabaseBrowserView.vue/.test.ts`）与平台评审整改单元（`IssueIllegalRecordsPage.vue`/`useRouteTableState.ts`/`useDataScope.ts`）的**进行中改动**，与本单元（后端判据改动，未触碰前端）无关。`eslint`、`tsc --noEmit`、`vite build` 均 exit 0。
+- [验证-护栏] 13 项仓库脚本（Flyway 不可变/破坏性、标签组维度矩阵、后端测试卫生、API 契约漂移、前端 API 边界、事实字段契约、Flyway profile 冒烟覆盖、工作树产物、运行产物位置、文本空白）全部 OK，`git diff --check` exit 0。
+- [未跑] 黄金基线门禁按 AGENTS.md 纪律未主动运行：本口径变更属「有意修改产出」，须先展示差异并取得授权，再以 `-Dgolden.update=true` 更新模式重建快照；门禁运行前置还需停本机 18080/18181 开发服务。夹具实测含响应模板 166 处、回复模板 26 处、`响应已延期` 787 处，预计产生快照差异。
+
+- [验证-黄金门禁] 2026-09-28 按用户授权跑比对模式（无 `-Dgolden.update=true`；运行前停 18080/18181，跑完已恢复且后端 `/actuator/health` UP、前端 200；日志 `.tmp-logs/golden-baseline-compare-20260928.log`）：**Tests run 196、Failures 19、Errors 5（BUILD FAILURE）**，端点目录/夹具/快照均未改动。差异按归属分三类：
+  1. **本单元（8 个快照，预计有意变更）**：`facts/get___issue-diagnostics__default`（`responseDelayedCount` 736→754）、`customer-issues/get___records__delay-default` 与 `__delay-page1`（`total` 813→795）、`get___records_export__delay`（导出行集变化）、`get___records_filter-options__delay`（`authorNames` 26→25，作者仅在延期范围内取候选）、`get___records_rule-explanation__delay`（`version` `customer-issue-records@2026-07-22-v4`→`@2026-09-28-v5`、`outputCount` 813→795）、`statistic-boards/get___{boardKey}__customer-issue-delay-issues`（单元格值变化）与其 `_export`。证据：本工作树后端 diff **仅含本单元 5 个文件**（判据 2 个 + 规则版本/文案 3 个），上述字段均为其直接产出。
+  2. **其他单元已提交但快照未重建（11 项，红在 HEAD 即存在）**：`permission-settings` 三例（权限 75→77：`system.backup.view` 等备份条目与 `customer_issue.customer.view`）、`review-data/get___records_filter-options__default`（评审类型 5→6，新增「测试用例评审」）、`database-browser/get___rows__sync-configs-page1`（同步配置列增减）、两个 `illegal-records_refresh-one` 快照（新增 `is_customer_requirement` 列）、四个 `statistic-boards` 快照（跨看板 `detailViewKey`/`drilldown` 改为 `data.collection`/`data.collections` 协议 + 空值排序）。这些字段的生产代码在工作树上**零diff**（均来自 HEAD 既有提交，如 `b3dd8e2a`、`c818e720` 与备份单元），`docs/decisions.md` 已记录其「黄金快照重建仍待授权执行」。
+  3. **新端点快照缺失（5 项，Errors）**：`bi/get___customer-issues__default` 与 `customer-issue-customer-statistics` 的 `control-options`/`rule-explanation`/`status`/`__default` —— 客户维度统计单元已登记端点但从未生成快照。
+- [重建] 2026-09-28 经用户授权以 `-Dgolden.update=true` 重建（日志 `.tmp-logs/golden-baseline-update-20260928.log`）：`Tests run 196 / Failures 0 / Errors 1`，**79 个快照修改 + 5 个新增**（新增即前述 5 个缺失端点快照，JSON 全部可解析）；唯一 Error 是 `code-review/illegal-records/rule-config/preview :: default-rule` 的 HTTP 请求超时（120s，与本单元无关，随后复验通过）。修改中除 24 个语义差异外，其余差异抽样确认仅为时间戳与键序等掩码内易变字段。
+- [复验] 紧接以比对模式复跑（`.tmp-logs/golden-baseline-verify-20260928.log`）：**196 项 / 1 失败 / 0 错误**，本单元 8 个快照全部通过；唯一失败 `statistic-boards/get___{boardKey}_rule-explanation__customer-issue-customer-statistics.json` 属**客户统计单元新端点的非确定性**——`CustomerIssueCustomerStatisticsBoardService.step()` 取过滤结果前 5 条作 `samples`，其输入来自 `CustomerIssueFactQueryService.load` 的**无 `ORDER BY`** 查询，两次独立运行取到不同议题（如 `#2390/#2417/#2315` ↔ `#2224/#2187/...`）；该端点此前从未生成过快照，非确定性由此首次暴露，与本次口径变更无关。
+- [未决] 上述非确定性快照须由客户统计单元处理（加确定性排序，或按授权在目录对该用例掩码 `$.data.flowSteps[*].samples`），不由本单元自行放宽掩码；处理后再跑一次比对模式方可判定门禁全绿。另需留意 `code-review/illegal-records/rule-config/preview :: default-rule` 的 120s 超时为间歇性（update 轮出现、比对轮通过）。**用户 2026-09-28 决定：暂不处理，待新功能完成后统一收口回归**；重建后的快照保持在工作树未提交状态。
+
 ## 2026-09-28 系统测试缺陷汇总优先级误判（子串匹配污染，已修代码、待重建存量）
 
 - [缺陷] 内网新阶段 `CC2026R4SP1`（阶段标签 `CC2026R4SP1系统测试`）下全部议题被统计到 P1，P2/P3 恒为 0。根因：`IssueLabelRules.normalizePriorityLevel` 用 `IssueRuleSupport.containsToken` 对整条标签做小写子串匹配，阶段名含 `P1` 子串即命中，且 P1 先于 P2/P3 判定。该值在同步期写入 `issue_fact.priority_level`/`urgency`，看板按精确相等计数，故全量落 P1；客户问题响应延期时限（`IssueSlaRules.responseSlaHours`）与 BI 系统测试看板同源受影响。命名规律决定 `SP1/SP2/SP3` 阶段会周期性复现。
@@ -15,16 +112,33 @@
 - [验证] 单元护栏覆盖任意前缀命中、裸标签命中、`CC2026R4SP1/SP2/SP3系统测试` 与 `SP1回归测试` 不命中、多标签取最高、`P1级` 不命中；`IssueFactNormalizationRulesTest` 32 项通过。系统测试范围定向套件（`SystemTest*`、`IssueFact*`、`IssueLabel*`、`FilterEngineSqlParity`、`PhaseCalendarContract`、`BiSystemTest*`）147 项、0 失败 0 错误、BUILD SUCCESS。
 - [本地真实链路验证] 在本地 GitLab 库（`gitlabhq_full_import_test` 项目 9）插入 4 条验证议题（iid 990001-990004 = SP1×P1/P2/P3、SP3×P2）并触发镜像增量同步：事实层 `priority_level` 落为 P1/P2/P3/P2（SP3 不再落 P3）；看板 `CC2026R4SP1系统测试` 总计 P1=1/P2=1/P3=1（修复前会全部落 P1、P2/P3 为 0），`CC2026R4SP3系统测试` 总计 P2=1/P3=0。验证脚本与响应留存 `.tmp/verify-sp1-phase/`，验证数据未清理。
 
-## 2026-09-23 响应延期双模板规则（已有方案复核，待审批、未实施）
+## 2026-09-28 响应延期口径：响应模板须有计划解决时间 ∨ 回复模板（已实施，默认套件与真实链路验证通过；黄金快照与真实写回待授权）
 
-- [方案] 已找到并更新 [2026-09-20 双模板方案](plans/response-delay-dual-template-rule-20260920.md)，未另建重复文档。当前代码仍只用调研模板豁免响应延期；D-14～D-16 是已落地的写回链路修复，不代表本需求已实现。
-- [下一步] 待用户裁定方案 D2～D4 并指派实施；本次将推荐范围收敛为只扩展延期豁免，响应效率与修复人不随之改动。历史模板样本数不能直接作为摘标数量；真实写回需另获授权。
-- [验证边界] 本次只核对当前代码、测试源码、文档与 Git 历史并修订两份文档；未使用子代理，未运行业务测试、查询数据库、修改功能代码、重启服务或触发标签写回，已有工作树改动保留。
+- [方案] 已重写 [双模板方案](plans/response-delay-dual-template-rule-20260920.md)（未另建文件）：判据改为 `豁免 = 回复模板存在 ∨ (响应模板存在 ∧ 计划解决时间可解析)`，回复模板存在优先、两者都有时不看响应模板的计划解决时间；计划解决时间按最新响应模板取值、不可解析则回退更早模板（对齐老平台 `getPlanSolutionTime`）。三段需求来源必须分别留痕：领导 2026-09-28 只提了响应模板侧的新增检查，「回复模板也豁免」是用户 2026-09-20 的需求，不是领导口径。
+- [唯一落点] 全后端只有 `IssueSlaRules` 计算响应延期（两个 `isResponseDelayed` 重载的豁免条件），事实构建与周期重算两个调用点均无需改签名；下游（延期看板、记录页/导出、按功能展示、客户维度统计、诊断、写回）全部只读 `issue_fact.is_response_delayed`。不需要迁移、新列或全量重建，存量由现有周期重算收敛。
+- [影响面] 开发库 project 325（open、2026 起，875 条）只读实测：含响应模板 139 条（计划解决时间严格合法 48），仅回复模板 30 条。按 D5 严格口径，净效果 **加标 70、摘标 30**；「两者都有」21 条中最新模板为回复模板 19 条、为响应模板 2 条。不合格字段实写值以真留空 46 与空话（暂无/待定等）为主，另有残写、无分隔符、占位符与非白名单尾随字符（`2026年6月18号`）等；按严格口径全部判「没有写时间」。
+- [裁定] D1～D7 已全部裁定：判据为 `回复模板存在 ∨ (响应模板存在 ∧ 计划解决时间合法)`；取值按最新响应模板、不可解析则回退更早模板（D6）；两者都有时回复模板优先、不做「按最新模板类型分流」（D7）；**「计划解决时间」的合法格式以 wiki（规则总表 5.4/11.4）为唯一标准，凡不符合即视为「没有写时间」（D5 严格口径，2026-09-28 领导统一格式）**，故豁免判据与非法模板判定同源、直接复用 `IssueResponsePlanFieldRules.parsePlannedResolutionAt`，不新增第二套判据。另记录 D8 既有隐患：`IssueTemplateParsingSupport.planSolutionTime` 取最旧模板、老平台取最新，解决延期方向本就新老不一致，本单元不修。
+- [现场前提] 2026-09-28 只读核实老平台源码：其标签写回**无法在运行期关闭**——`Main` 无条件 `@EnableScheduling`，`CCProductScheduleTask:65` 的小时任务在爬取后无条件调用 `updateIssueDelayLabels`（无 feature flag），最终走 `GitLabApiTool.setIssueLabels:395` 的**覆盖式**写标签接口（源码自标「高危」）；全仓无 `@ConditionalOnProperty`/`@Profile`，无 controller 开关。`application-prod1.properties` 的 `do.schedule=true` 无任何代码读取（唯一被读的 `do.mergerequest.note` 落在 `ApiService` 名 `doSchedule` 的字段上，管合并请求评论推送），改它无效。故新判据上线前必须先让老平台停止写回（改码重部署或停进程，后者会同时断掉其代码走查非法数据供给），否则两边互相覆盖、反复增删。
+- [实施] 判据落在 `IssueSlaRules`：新增私有 `isResponseExempt`（`hasFixCaseNote ∨ IssueResponseTemplateParser.hasParseablePlanSolutionTime`），两个 `isResponseDelayed` 重载改调它，**签名与调用点不变**；`IssueResponseTemplateParser` 新增 `hasParseablePlanSolutionTime`（最新优先 + 回退，复用 `IssueResponsePlanFieldRules.parsePlannedResolutionAt`）；`has_response`/`research_template_time`/`fix_user`/响应效率/解决延期/写回协议/SQL/表结构全部未动，无迁移。`docs/platform-page-business-rules.md` 5.3 与 `docs/architecture.md` 事实与统计同步；`docs/decisions.md` D-21 留痕。规则版本四处升级：`customer-issue-delay-issues@2026-09-28-v6`、`customer-issue-records@2026-09-28-v9`（CC_PRODUCT 议题）/`-v5`（延期专题）、`customer-issue-customer-statistics@2026-09-28-v2`。
+- [验证-定向] 规则 36、解析 8、事实链 5 项（`IssueFactNormalizationRulesTest`/`IssueResponseTemplateParserTest`/`FactBuildServiceCustomerIssueDelayFlagsTest`，49 项）与受影响看板/记录页定向全部通过；新增测试覆盖行为表 5 行、最新缺失回退上一份、严格格式白名单正反例（含 `2026年6月18号`、`20260615`、`2026.13.45` 等）与「严格判据与非法模板判定同源」断言。
+- [验证-默认套件] 后端默认快速套件 1552 项、0 失败、0 错误、1 跳过（BUILD SUCCESS，`.tmp-logs/backend-full-20260928-delayrule.log`；较上轮 1543 项恰为本单元新增 9 项）。工作树含其他单元的未提交改动，本次未触碰其文件。
+- [验证-真实链路] 用**隔离克隆库**（`pg_dump` 克隆开发库，独立后端 18083，写回全局/数据源开关与写回 worker、指标补齐、搜索索引回填全关，`auto_sync_enabled=false`，CAT 与匹配模式在克隆内关闭）驱动真实本地 GitLab 链路，全程未触碰开发库与 18080/18181：
+  1. 增量镜像（run 3780，真实读取本地 GitLab 的 issues/label_links/notes/resource_label_events，镜像 SUCCESS）。
+  2. 周期重算路径启动即执行：**875 条在辖议题**中 100 条翻转 = 加延期 70、转豁免 30，**判定不一致 0、范围外写入 0、解决延期变化 0**，与 §4 只读预测的 70/30 完全一致。
+  3. 主路径全量重建（run 3782，`ISSUE` task SUCCESS、affected_rows=8009）后，响应延期值与重算路径**逐行完全一致（0 差异）**；全行哈希（剔除 3 个延期列与时间戳）**0 处不符**，`has_response` 变化 0，行数仍 8009、无删除 —— 证明本次改动之外无任何产出变化。同一来源 `is_response_delayed` 真值数由 736（旧口径）变为 776（= 736+70−30）。
+  4. 产出端：隔离实例规则说明返回 `customer-issue-delay-issues@2026-09-28-v6` 与新公式，开发实例仍为 `@2026-09-08-v5` 旧口径（未受影响）；延期看板同一来源下响应延期合计 旧 228 → 新 287，用户可见行为随判据变化。
+- [真实链路发现的既有现象] ①`/api/facts/rebuild` 在**未紧跟全量镜像**时对 ISSUE/INTEGRATION_TEST 报 `事实来源依赖代际尚未就绪`：`SyncFactPublicationStateService.isReady` 要求 `full_publication_requested=true` 或有未发布目标，而该标志只由镜像结算（`recordMirrorCompletion`）写入；把该标志在克隆内置真后 ISSUE/INTEGRATION_TEST 全量重建成功。②MERGE_REQUEST 全量重建因 `delete from merge_request_commit_fact ... not exists` 超过 30s 查询超时失败（`PLATFORM_QUERY_TIMEOUT_SECONDS`）。两者均与本单元改动无关（本单元未触碰发布围栏、超时与 MR 事实），留待确认是否属预期。
+- [复跑与人工核对] 第二轮在独立克隆库（`qaflex_delayverify2`）复跑并改为**无基线预言机**核对（由生产代码分别算旧/新期望值与库中事实比对）：875 条在辖议题 0 处不一致、翻转仍为加延期 70 / 转豁免 30、无边界行；启动重算对克隆库零写入（幂等）；真实增量镜像与 `ISSUE` 全量重建再次成功且重建后 0 不一致、全行哈希 0 处不符；隔离实例与开发实例延期看板产出完全一致（响应延期合计 287、解决延期合计 237）。人工核对清单（地址/优先级/超期时长/计划解决时间原文摘录/现有标签）见 `.tmp/delay-rule-real-chain-20260928/人工核对清单.md` 与 `flip-issues.csv`。
+- [开发环境现状] 2026-09-28 16:01 开发后端被重启并载入本工作树代码（规则说明返回 `@2026-09-28-v6`），其启动重算已把新判据写入开发库事实（正好 100 行、736→776）；**该重启非本单元操作**。写回开关仍全关，本地 GitLab 标签未变动。
+- [写回真实验证] 2026-09-28 在隔离克隆库 + 本地 GitLab 上**真实执行**延期标签写回：先取写前快照（875 条在辖议题的标签），再走生产链路（前置镜像刷新 → 发布收敛 → 重算 → 登记候选 → worker 调 GitLab API）。结果**恰好 70 条加「响应已延期」、30 条摘「响应已延期」**，其余 775 条零变动，无任何其他标签被改写（写前/写后逐条比对 `RESULT=PASS`）；抽样 #1492 加标、#2077 摘标均已生效。写回后再跑一轮编排得 `enqueued=0`、零新增写入，证明镜像已收敛、不会反复增删；并用 GitLab 自身 `resource_label_events` 审计交叉核对：变更涉及 100 个不同议题、范围外 0 个。**本地 GitLab 的这 100 条标签已按新判据更新**（内网数据未动，开发库未被本轮操作写入）。
+- [发现-凭据] 平台配置里的 GitLab token（`gitlab_sync_configs.api_token`，库中明文存储）**已于 2026-09-27 过期**：写回时 API 返回 401 `invalid_token`，作业转 DEAD 且不改任何标签；读链路走数据源库（DOCKER 模式）所以完全无感，只有首次写标签才会暴露。已按用户要求在 `deploy/runbooks/gitlab-sync-orchestrator-runbook.md` 新增「Delay Label Writeback Credential Preflight」上线前核对清单（到期/作用域/身份/端点一致性/开关/队列复位六项）。本次经用户授权在本地 GitLab 新建 api 权限 PAT（`qaflex-local-writeback-verify-20260928`，root，2026-10-28 到期）完成验证，可随时在 UI 吊销。
+- [下一步] 剩余两件需单独授权：①黄金快照属「有意修改产出」，须先展示差异并经用户审阅后以更新模式重建；②内网真实写回（加标 70/摘标 30）需先停老平台写回并核对内网 token 有效期。
+- [验证边界] 代码与测试在工作树内改动并可复现；最新全量套件结论已按上条记录，真实链路证据来自隔离克隆库（已清理）与本地 GitLab 只读镜像，未对开发库、真实 GitLab 标签或黄金快照做任何写入。
 
 ## 2026-09-22 客户维度统计与 BI 客户问题（2026-09-24 整批实现完成；S11整体验收未完成）
 
-- [验证] 2026-09-28 最终代码状态前端全量 146 文件、144 通过，失败仅 `DatabaseBrowserView` 两项与客户非法记录挂载冒烟一项；两者经受控还原实验分别确证由数据库浏览器单元（`DatabaseBrowserView.vue`/`.test.ts`）与平台评审整改单元（`IssueIllegalRecordsPage.vue`/`useRouteTableState.ts`/`useDataScope.ts`）的进行中改动引入，还原 HEAD 后各自通过。本任务文件在全量中全部通过；8 项仓库护栏与 `git diff --check` 复跑 exit 0。另修客户 BI 页分区归属错误（“模块需求分布”原在“缺陷指标”分区内，致“需求指标”分区无图），移入需求分区后视图测试 5/5、全量仍 144/146（失败项不变）、lint/build/typecheck 通过。
-- [验证] 2026-09-28 最终代码状态后端全量 1543 项、0 失败、0 错误、1 跳过（BUILD SUCCESS，`.tmp-logs/backend-full-20260928c.log`）；本轮首跑 121 项连接错误系测试库容器 `qaflex-test-postgres-15433` 处于 Exited 所致（`docker start` 后消失），非代码回归；员工上轮报告的备份 2 错误与下拉并发 1 失败复跑未复现。
+- [验证] 2026-09-28 最终代码状态前端全量 146 文件、144 通过，失败仅 `DatabaseBrowserView` 两项与客户非法记录挂载冒烟一项；两者经受控还原实验分别确证由数据库浏览器单元（`DatabaseBrowserView.vue`/`.test.ts`）与平台评审整改单元（`IssueIllegalRecordsPage.vue`/`useRouteTableState.ts`/`useDataScope.ts`）的进行中改动引入，还原 HEAD 后各自通过。本任务文件在全量中全部通过；仓库护栏与 `git diff --check` 复跑 exit 0（最新树级数字与 13 项护栏结果见上「2026-09-28 整体回归」）。另修客户 BI 页分区归属错误（“模块需求分布”原在“缺陷指标”分区内，致“需求指标”分区无图），移入需求分区后视图测试 5/5、全量仍 144/146（失败项不变）、lint/build/typecheck 通过。
+- [验证] 2026-09-28 该轮代码状态后端全量 1543 项、0 失败、0 错误、1 跳过（BUILD SUCCESS，`.tmp-logs/backend-full-20260928c.log`；此后含响应延期单元的当前树级最新数字为 1552 项，见上「2026-09-28 整体回归」）；本轮首跑 121 项连接错误系测试库容器 `qaflex-test-postgres-15433` 处于 Exited 所致（`docker start` 后消失），非代码回归；员工上轮报告的备份 2 错误与下拉并发 1 失败复跑未复现。
 - [返修] 2026-09-28 经理整体审查后亲自修正一处实现缺陷：BI 趋势日轴起点不再硬编码 `2026-01-01`，改由页面服务传入 `CustomerIssueFactQueryService.CUSTOMER_ISSUE_START_DATE`，`CustomerIssueScopeRules` 的两处重复常量收敛为同一事实源，并新增“轴起点跟随范围下限”“缺失起点拒绝”两项测试。返修后后端 BI 定向 10 项、本任务前端定向 81 项全绿。审查另确认数据-10 S1/S2、八图、下载范围统一与 CI-45/46 登记已落地；趋势 INCOMPLETE 由 `daily-defect-trend` 分区与 `BiChartPanel` 的 `stateTitle`/`statusMessage` 共同表达，并修正该分区“只呈现已知日期贡献”与实际整条留空不一致的文案。
 - [归属] 全量回归失败均来自工作树其他工作单元的进行中改动，不属本任务、也不由本任务修复：客户非法记录挂载冒烟经受控实验确证由平台评审整改改动引入（把 `IssueIllegalRecordsPage.vue`/`useRouteTableState.ts`/`useDataScope.ts` 还原到 HEAD 后 2/2 通过，恢复后 diff 统计一致）；`DatabaseBrowserView` 两项属数据库浏览器单元；后端 `BackupRunStateRepositoryTest` 两项错误属备份单元（`ck_backup_state_execution_owner`）；`DropdownOptionFieldServiceConcurrencyIntegrationTest` 一项属下拉选项单元；`api-client/request.ts` 移除首绘让渡属平台评审整改计划 R06。
 - [环境] 2026-09-28 后续验证改在**工作树**执行（前轮全量在 `.tmp/customer-issue-batch-validation-20260924/backend` 副本内运行，副本与工作树有 5 个备份模块文件差异）。18181/18080 已由用户恢复（`/actuator/health=UP`、前端 HTTP 200）；隔离 18090/18190 当前未运行，下条的隔离前提与全局调度确认仍待重验。

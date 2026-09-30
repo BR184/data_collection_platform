@@ -198,6 +198,85 @@ Common remediation:
 - Dirty with row-count drift: verify mirror writes and rerun the affected table
   once the source is stable.
 
+## Delay Label Writeback Credential Preflight
+
+Delay label writeback is the only runtime path that calls the GitLab REST API. Source
+reads use the source database (DOCKER source mode) instead, so an invalid or expired
+token produces no read-side error: sync, facts and statistics all keep working, and the
+problem stays invisible until the first label write is attempted.
+
+Where the credential lives:
+
+- `gitlab_sync_configs.api_token` (plain text in the platform database; masked in API
+  responses and in the database browser) and `web_base_url` (API base).
+- A single switch gates the path: the per-source `delay_label_writeback_enabled` column,
+  edited as the "延期标签写回" toggle on the mirror settings page (default off). There is
+  no deployment-level global switch: once the toggle is on and saved, the platform really
+  calls the GitLab API of the configured `web_base_url` with the configured token.
+
+Stopping writeback without the frontend (all of these are independent of the UI):
+
+1. `update gitlab_sync_configs set delay_label_writeback_enabled = false;` — effective
+   within one worker tick (the worker re-checks the switch before each job and marks the
+   remaining queue rows as skipped); no restart needed.
+2. Clear `api_token` or `web_base_url` for that source — the same check then fails for
+   the same reason.
+3. Set `CUSTOMER_ISSUE_DELAY_WRITEBACK_WORKER_ENABLED=false` (worker stops draining the
+   queue) or `platform.gitlab-mirror.scheduler-enabled=false` (no cycles at all) and
+   restart the backend.
+4. Revoke or expire the token in GitLab — writeback then fails with 401 and the job moves
+   to `DEAD` without touching any label.
+
+Failure signature (observed 2026-09-28 on the local stack, token `expires_at` already
+passed):
+
+- Job rows carry `last_http_status = 401` and
+  `last_error = GitLab label update failed: HTTP 401 {"error":"invalid_token",...}`,
+  then move to `DEAD`. No label is modified: nothing is corrupted, but nothing is
+  written either, and the queue drains silently.
+
+Preflight checks before enabling writeback:
+
+1. Expiry: confirm `personal_access_tokens.expires_at` for the configured token is in
+   the future and `revoked = false`. Expiry is silent for the read path, so rotate
+   ahead of time instead of reacting to a 401.
+2. Scope: the token needs the `api` scope; `read_api` is enough for the checks below
+   but not for writing.
+3. Identity: the owning user must be able to edit issues of the source project.
+   Confirm with `GET /api/v4/projects/<projectId>/issues/<iid>` using the same token
+   and compare the returned `project_id`/`iid` with the fact rows.
+4. Endpoint consistency: `web_base_url` must point at the same GitLab instance the
+   mirror reads from, and be reachable from the platform host. In DOCKER source mode a
+   mismatch is not caught by the sync diagnostics.
+5. Switch state: global flag on plus per-source switch on. A writeback job only adds or
+   removes `响应已延期`/`解决已延期`; it never rewrites unrelated labels.
+6. Queue drain: after rotating the credential, requeue the failed rows and confirm the
+   next attempts return HTTP 200:
+
+```sql
+-- source GitLab database: token inventory
+select id, user_id, name, scopes, revoked, expires_at
+  from personal_access_tokens
+ where revoked = false
+ order by expires_at asc;
+
+-- platform database: requeue deterministic credential failures
+update customer_issue_delay_label_writeback_jobs
+   set status = 'PENDING', attempt_count = 0, next_run_at = current_timestamp,
+       lease_owner = null, lease_until = null, last_error = null,
+       last_http_status = null, finished_at = null
+ where status in ('DEAD', 'RETRY_WAIT');
+
+-- inspection: who is still failing on credentials
+select status, count(*), count(*) filter (where last_http_status = 401) as http_401
+  from customer_issue_delay_label_writeback_jobs
+ group by status;
+```
+
+Because `api_token` is stored as plain text, it is also copied by every platform
+database backup; treat the backup archive as a credential store (see
+`database-backup-secret-key.md`).
+
 ## Incident Report Checklist
 
 Collect these before changing data:
