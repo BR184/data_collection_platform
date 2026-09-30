@@ -136,8 +136,10 @@ class FactChangeTargetServiceIntegrationTest {
           source_instance varchar(128) not null,
           fact_type varchar(64) not null,
           root_id bigint not null,
+          project_id bigint,
           latest_change_version bigint not null,
           published_version bigint not null default 0,
+          published_by_fact_build_task_id bigint,
           updated_at timestamp not null default current_timestamp,
           primary key (source_instance, fact_type, root_id)
         )

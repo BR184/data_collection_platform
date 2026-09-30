@@ -129,10 +129,13 @@ public class FactBuildTaskService {
   }
 
   /**
-   * 把同一来源全部历史运行尚未发布的版本化目标分配为有界事实任务。
+   * 把该来源尚未发布到最新变化版本的根分配为有界事实任务。
    *
-   * <p>一个任务只对应一个事实类型的一个根 ID 批次，不创建任务内游标。已由其他交错运行覆盖的
-   * 目标直接按版本头结算为已发布。
+   * <p>待发布权威是 {@code fact_change_heads}（每根每事实族一行，行数有界）：领取条件即
+   * {@code published_version < latest_change_version}，不再依赖目标的归属状态列。同一来源同时
+   * 只允许一个事实刷新运行，运行租约本身就是领取凭据，因此失败运行不会留下需要释放的归属。
+   *
+   * <p>一个任务只对应一个事实类型的一个根 ID 批次，不创建任务内游标。
    */
   @Transactional
   public int assignPendingSourceTargetBatches(
@@ -146,17 +149,16 @@ public class FactBuildTaskService {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     int assignedTasks = 0;
     for (FactType factType : GitlabFactDependencyCatalog.supportedFactTypes(config)) {
-      settleCoveredTargets(sourceInstance, factType);
       List<Long> rootIds;
-        while (assignedTasks < MAX_ASSIGNMENT_TASKS_PER_PASS
-            && !(rootIds = lockPendingRootIds(
-              config.getId(), sourceInstance, factType, batchSize)).isEmpty()) {
-        Long taskId = insertTargetBatchTask(
-            config.getId(), sourceInstance, factType, factRunId);
-        int assigned = assignRoots(
-            sourceInstance, factType, factRunId, taskId, rootIds);
-        if (assigned == 0) {
-          throw new IllegalStateException("事实目标批次归属发生并发变化");
+      while (assignedTasks < MAX_ASSIGNMENT_TASKS_PER_PASS
+          && !(rootIds = lockPendingRootIds(
+                  config.getId(), sourceInstance, factType, batchSize))
+              .isEmpty()) {
+        Long taskId =
+            insertTargetBatchTask(config.getId(), sourceInstance, factType, factRunId);
+        int assigned = assignRoots(sourceInstance, factType, taskId, rootIds);
+        if (assigned != rootIds.size()) {
+          throw new IllegalStateException("事实任务根批次写入不完整：" + taskId);
         }
         assignedTasks++;
       }
@@ -164,76 +166,53 @@ public class FactBuildTaskService {
     return assignedTasks;
   }
 
-  /** 返回领取时仍归属当前事实任务的稳定根 ID。 */
+  /** 返回任务当前归属的稳定根 ID（根批次关联表，任务终态即随任务收敛）。 */
   public List<Long> loadAssignedRootIds(QueuedFactBuildTask task) {
     if (task == null || task.id() == null) {
       return List.of();
     }
     return jdbcTemplate.queryForList(
         """
-        select distinct target.root_id
-          from sync_run_fact_targets target
-          join fact_change_heads head
-            on head.source_instance = target.source_instance
-           and head.fact_type = target.fact_type
-           and head.root_id = target.root_id
-         where target.assigned_fact_build_task_id = ?
-           and target.assigned_fact_run_id = ?
-           and target.source_instance = ?
-           and target.fact_type = ?
-           and target.publication_status = 'QUEUED'
-           and head.published_version < target.change_version
-         order by target.root_id
+        select root_id
+          from fact_build_task_roots
+         where task_id = ?
+         order by root_id
         """,
         Long.class,
-        task.id(),
-        task.factRunId(),
-        task.sourceInstance(),
-        task.factType());
+        task.id());
   }
 
-  private void settleCoveredTargets(String sourceInstance, FactType factType) {
-    jdbcTemplate.update(
-        """
-        update sync_run_fact_targets target
-           set publication_status = 'PUBLISHED',
-               published_version = head.published_version,
-               published_by_fact_build_task_id = head.published_by_fact_build_task_id,
-               published_at = current_timestamp,
-               updated_at = current_timestamp
-          from fact_change_heads head
-         where target.source_instance = ?
-           and target.fact_type = ?
-           and target.publication_status <> 'PUBLISHED'
-           and head.source_instance = target.source_instance
-           and head.fact_type = target.fact_type
-           and head.root_id = target.root_id
-           and head.published_version >= target.change_version
-        """,
-        sourceInstance,
-        factType.name());
-  }
-
+  /**
+   * 取该事实族尚未发布到最新变化版本、且尚未被在途任务领取的根；同事务内锁行，保证与根批次写入原子。
+   *
+   * <p>{@code fact_build_task_roots} 就是领取记录（任务进入终态即删除行），因此排除它即可保证
+   * 同一批根不会在同一轮或后续轮次被重复派发。
+   */
   private List<Long> lockPendingRootIds(
       Long configId, String sourceInstance, FactType factType, int batchSize) {
     return jdbcTemplate.queryForList(
         """
-        select root_id
-          from sync_run_fact_targets
-         where source_instance = ?
-           and fact_type = ?
-           and publication_status = 'PENDING'
-           and assigned_fact_build_task_id is null
+        select head.root_id
+          from fact_change_heads head
+         where head.source_instance = ?
+           and head.fact_type = ?
+           and head.published_version < head.latest_change_version
            and exists (
              select 1
                from source_fact_publication_states state
               where state.config_id = ?
-                and state.source_instance = sync_run_fact_targets.source_instance
-                and state.fact_type = sync_run_fact_targets.fact_type
+                and state.source_instance = head.source_instance
+                and state.fact_type = head.fact_type
                 and state.readiness_status = 'READY')
-         group by root_id
-         order by root_id
+           and not exists (
+             select 1
+               from fact_build_task_roots claimed
+              where claimed.source_instance = head.source_instance
+                and claimed.fact_type = head.fact_type
+                and claimed.root_id = head.root_id)
+         order by head.root_id
          limit ?
+         for update of head skip locked
         """,
         Long.class,
         sourceInstance,
@@ -266,32 +245,31 @@ public class FactBuildTaskService {
   }
 
   private int assignRoots(
-      String sourceInstance,
-      FactType factType,
-      Long factRunId,
-      Long taskId,
-      List<Long> rootIds) {
-    String placeholders = String.join(", ", java.util.Collections.nCopies(rootIds.size(), "?"));
-    List<Object> args = new java.util.ArrayList<>(4 + rootIds.size());
-    args.add(factRunId);
-    args.add(taskId);
-    args.add(sourceInstance);
-    args.add(factType.name());
-    args.addAll(rootIds);
+      String sourceInstance, FactType factType, Long taskId, List<Long> rootIds) {
+    String values =
+        String.join(", ", java.util.Collections.nCopies(rootIds.size(), "(?, ?, ?, ?)"));
+    List<Object> args = new java.util.ArrayList<>(rootIds.size() * 4);
+    for (Long rootId : rootIds) {
+      args.add(taskId);
+      args.add(sourceInstance);
+      args.add(factType.name());
+      args.add(rootId);
+    }
     return jdbcTemplate.update(
         """
-        update sync_run_fact_targets
-           set publication_status = 'QUEUED',
-               assigned_fact_run_id = ?,
-               assigned_fact_build_task_id = ?,
-               updated_at = current_timestamp
-         where source_instance = ?
-           and fact_type = ?
-           and publication_status = 'PENDING'
-           and assigned_fact_build_task_id is null
-           and root_id in (%s)
-        """.formatted(placeholders),
+        insert into fact_build_task_roots(task_id, source_instance, fact_type, root_id)
+        values %s
+        on conflict (task_id, root_id) do nothing
+        """.formatted(values),
         args.toArray());
+  }
+
+  /** 任务进入终态后释放根批次关联；待发布权威在版本头上，无需保留归属。 */
+  public void releaseTaskRoots(Long taskId) {
+    if (taskId == null) {
+      return;
+    }
+    jdbcTemplate.update("delete from fact_build_task_roots where task_id = ?", taskId);
   }
 
   public int recoverTimedOutQueuedTasks() {
@@ -358,6 +336,7 @@ public class FactBuildTaskService {
             TRIGGER_MIRROR_SYNC,
             STATUS_RUNNING);
     for (RecoveredFactTask task : exhausted) {
+      releaseTaskRoots(task.taskId());
       eventRecorder.record(
           task.runId(),
           task.configId(),
@@ -397,6 +376,7 @@ public class FactBuildTaskService {
   private RecoveredFactTask mapRecoveredFactTask(ResultSet rs) throws java.sql.SQLException {
     Long configId = rs.getObject("config_id") == null ? null : rs.getLong("config_id");
     return new RecoveredFactTask(
+        rs.getLong("id"),
         parseEventRunId(rs.getString("run_id")),
         configId,
         rs.getString("source_instance"),
@@ -415,7 +395,7 @@ public class FactBuildTaskService {
   }
 
   private record RecoveredFactTask(
-      Long runId, Long configId, String sourceInstance, int attempt) {}
+      long taskId, Long runId, Long configId, String sourceInstance, int attempt) {}
 
   public QueuedFactBuildTask claimNextQueuedTask(String owner, int leaseSeconds) {
     List<QueuedFactBuildTask> tasks = jdbcTemplate.query(
@@ -555,7 +535,11 @@ public class FactBuildTaskService {
     if (result.size() != 1) {
       throw new IllegalStateException("事实任务租约已失效：" + task.id());
     }
-    return result.getFirst();
+    FailureDisposition disposition = result.getFirst();
+    if (STATUS_FAILED.equals(disposition.status())) {
+      releaseTaskRoots(task.id());
+    }
+    return disposition;
   }
 
   /** 汇总一个 FACT_REFRESH 运行下的事实批次状态。 */
@@ -590,7 +574,7 @@ public class FactBuildTaskService {
         TRIGGER_MIRROR_SYNC);
   }
 
-  /** 判断来源是否仍有尚未被版本头覆盖的持久目标。 */
+  /** 判断来源是否仍有尚未发布到最新变化版本的根；权威读法是版本头，与历史目标规模无关。 */
   public boolean hasUnpublishedTargets(Long configId, String sourceInstance) {
     if (configId == null || sourceInstance == null || sourceInstance.isBlank()) {
       return false;
@@ -600,19 +584,14 @@ public class FactBuildTaskService {
             """
             select exists(
               select 1
-                from sync_run_fact_targets target
-                join fact_change_heads head
-                  on head.source_instance = target.source_instance
-                 and head.fact_type = target.fact_type
-                 and head.root_id = target.root_id
+                from fact_change_heads head
                 join source_fact_publication_states state
                   on state.config_id = ?
-                 and state.source_instance = target.source_instance
-                 and state.fact_type = target.fact_type
+                 and state.source_instance = head.source_instance
+                 and state.fact_type = head.fact_type
                  and state.readiness_status = 'READY'
-               where target.source_instance = ?
-                 and target.publication_status <> 'PUBLISHED'
-                 and head.published_version < target.change_version
+               where head.source_instance = ?
+                 and head.published_version < head.latest_change_version
             )
             """,
             Boolean.class,

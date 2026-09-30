@@ -72,7 +72,9 @@ class GitlabFactChangeResolverIntegrationTest {
         resolver.resolve(
             "alpha",
             "users",
-            List.of(new MirrorRowChange(Map.of("id", 20L), Map.of("id", 20L))));
+            List.of(
+                new MirrorRowChange(
+                    Map.of("id", 20L, "name", "before"), Map.of("id", 20L, "name", "after"))));
 
     assertThat(identities)
         .filteredOn(identity -> identity.factType() == FactType.ISSUE)
@@ -141,7 +143,12 @@ class GitlabFactChangeResolverIntegrationTest {
 
     List<FactChangeIdentity> identities =
         resolver.resolve(
-            "alpha", "labels", List.of(new MirrorRowChange(Map.of("id", 44L), Map.of("id", 44L))));
+            "alpha",
+            "labels",
+            List.of(
+                new MirrorRowChange(
+                    Map.of("id", 44L, "title", "before"),
+                    Map.of("id", 44L, "title", "after"))));
 
     assertThat(identities)
         .filteredOn(identity -> identity.factType() == FactType.ISSUE)

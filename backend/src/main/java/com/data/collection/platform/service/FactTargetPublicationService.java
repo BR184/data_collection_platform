@@ -6,7 +6,6 @@ import com.data.collection.platform.entity.FactProjectionScope;
 import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.ProjectionScopeType;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -71,12 +70,11 @@ public class FactTargetPublicationService {
     if (task == null || task.id() == null || task.leaseOwner() == null) {
       throw new IllegalArgumentException("事实发布需要已领取且带 owner 的任务");
     }
-    List<AssignedTarget> assignedTargets = loadAssignedTargets(task);
-    List<LockedTarget> lockedTargets = lockCurrentHeads(task, assignedTargets);
+    List<LockedHead> lockedHeads = lockTaskHeads(task);
     List<Long> rootIds =
-        lockedTargets.stream()
-            .filter(target -> target.publishedVersion() < target.changeVersion())
-            .map(LockedTarget::rootId)
+        lockedHeads.stream()
+            .filter(head -> head.publishedVersion() < head.latestChangeVersion())
+            .map(LockedHead::rootId)
             .distinct()
             .sorted()
             .toList();
@@ -92,11 +90,9 @@ public class FactTargetPublicationService {
         scopeResolver.resolveCurrentScopes(task.sourceInstance(), factType, rootIds));
     generationService.advanceAndQueue(task, affectedScopes);
     java.util.Set<Long> publishedRootIds = java.util.Set.copyOf(rootIds);
-    for (LockedTarget target : lockedTargets) {
-      if (publishedRootIds.contains(target.rootId())) {
-        publishHeadAndCoveredTargets(task, target);
-      } else {
-        settleCoveredAssignment(task, target);
+    for (LockedHead head : lockedHeads) {
+      if (publishedRootIds.contains(head.rootId())) {
+        publishHead(task, head);
       }
     }
     publicationFenceService.advanceAfterFactPublication(task.sourceInstance(), factType);
@@ -115,6 +111,8 @@ public class FactTargetPublicationService {
       throw new IllegalArgumentException("全量事实发布需要已领取的全量任务");
     }
     FactType factType = FactType.valueOf(task.factType());
+    long coveredVersion =
+        publicationStateService.publicationUpperBound(task.sourceInstance(), factType);
     FactBuildResponse response = action.build(progressReporter(task));
     FactProjectionScope fullEpoch =
         new FactProjectionScope(
@@ -126,7 +124,7 @@ public class FactTargetPublicationService {
       generationService.advanceAndQueue(task, Set.of(fullEpoch));
       finishOwnedTask(task, response);
       publicationStateService.settleAfterFullPublication(
-          task.sourceInstance(), factType, task.id());
+          task.sourceInstance(), factType, task.id(), coveredVersion);
       return null;
     });
     eventRecorder.record(
@@ -159,89 +157,29 @@ public class FactTargetPublicationService {
     };
   }
 
-  private void settleCoveredAssignment(QueuedFactBuildTask task, LockedTarget target) {
-    jdbcTemplate.update(
-        """
-        update sync_run_fact_targets
-           set publication_status = 'PUBLISHED',
-               published_version = ?,
-               published_by_fact_build_task_id = ?,
-               published_at = current_timestamp,
-               updated_at = current_timestamp
-         where assigned_fact_build_task_id = ?
-           and source_instance = ?
-           and fact_type = ?
-           and root_id = ?
-           and change_version <= ?
-        """,
-        target.publishedVersion(),
-        target.publishedByFactBuildTaskId(),
-        task.id(),
-        task.sourceInstance(),
-        task.factType(),
-        target.rootId(),
-        target.publishedVersion());
-  }
-
-  private List<AssignedTarget> loadAssignedTargets(QueuedFactBuildTask task) {
+  private List<LockedHead> lockTaskHeads(QueuedFactBuildTask task) {
     return jdbcTemplate.query(
         """
-        select root_id, max(change_version) as change_version
-          from sync_run_fact_targets
-         where assigned_fact_build_task_id = ?
-           and assigned_fact_run_id = ?
-           and source_instance = ?
-           and fact_type = ?
-           and publication_status = 'QUEUED'
-         group by root_id
-         order by root_id
+        select head.root_id, head.latest_change_version, head.published_version
+          from fact_change_heads head
+         where head.source_instance = ?
+           and head.fact_type = ?
+           and head.root_id in (
+             select roots.root_id from fact_build_task_roots roots where roots.task_id = ?)
+         order by head.root_id
+         for update
         """,
         (resultSet, rowNum) ->
-            new AssignedTarget(
-                resultSet.getLong("root_id"), resultSet.getLong("change_version")),
-        task.id(),
-        task.factRunId(),
+            new LockedHead(
+                resultSet.getLong("root_id"),
+                resultSet.getLong("latest_change_version"),
+                resultSet.getLong("published_version")),
         task.sourceInstance(),
-        task.factType());
+        task.factType(),
+        task.id());
   }
 
-  private List<LockedTarget> lockCurrentHeads(
-      QueuedFactBuildTask task, List<AssignedTarget> assignedTargets) {
-    ArrayList<LockedTarget> locked = new ArrayList<>(assignedTargets.size());
-    for (AssignedTarget target : assignedTargets) {
-      LockedTarget head =
-          jdbcTemplate.queryForObject(
-              """
-              select root_id, latest_change_version, published_version,
-                     published_by_fact_build_task_id
-                from fact_change_heads
-               where source_instance = ?
-                 and fact_type = ?
-                 and root_id = ?
-               for update
-              """,
-              (resultSet, rowNum) ->
-                  new LockedTarget(
-                      resultSet.getLong("root_id"),
-                      target.changeVersion(),
-                      resultSet.getLong("latest_change_version"),
-                      resultSet.getLong("published_version"),
-                      resultSet.getObject("published_by_fact_build_task_id") == null
-                          ? null
-                          : resultSet.getLong("published_by_fact_build_task_id")),
-              task.sourceInstance(),
-              task.factType(),
-              target.rootId());
-      if (head == null) {
-        throw new IllegalStateException("事实目标缺少版本头：" + target.rootId());
-      }
-      locked.add(head);
-    }
-    return List.copyOf(locked);
-  }
-
-  private void publishHeadAndCoveredTargets(
-      QueuedFactBuildTask task, LockedTarget target) {
+  private void publishHead(QueuedFactBuildTask task, LockedHead head) {
     jdbcTemplate.update(
         """
         update fact_change_heads
@@ -250,31 +188,11 @@ public class FactTargetPublicationService {
                updated_at = current_timestamp
          where source_instance = ? and fact_type = ? and root_id = ?
         """,
-        target.latestChangeVersion(),
+        head.latestChangeVersion(),
         task.id(),
         task.sourceInstance(),
         task.factType(),
-        target.rootId());
-    jdbcTemplate.update(
-        """
-        update sync_run_fact_targets
-           set publication_status = 'PUBLISHED',
-               published_version = ?,
-               published_by_fact_build_task_id = ?,
-               published_at = current_timestamp,
-               updated_at = current_timestamp
-         where source_instance = ?
-           and fact_type = ?
-           and root_id = ?
-           and change_version <= ?
-           and publication_status <> 'PUBLISHED'
-        """,
-        target.latestChangeVersion(),
-        task.id(),
-        task.sourceInstance(),
-        task.factType(),
-        target.rootId(),
-        target.latestChangeVersion());
+        head.rootId());
   }
 
   private void finishOwnedTask(QueuedFactBuildTask task, FactBuildResponse response) {
@@ -300,14 +218,8 @@ public class FactTargetPublicationService {
     if (updated != 1) {
       throw new IllegalStateException("事实任务租约已失效：" + task.id());
     }
+    taskService.releaseTaskRoots(task.id());
   }
 
-  private record AssignedTarget(long rootId, long changeVersion) {}
-
-  private record LockedTarget(
-      long rootId,
-      long changeVersion,
-      long latestChangeVersion,
-      long publishedVersion,
-      Long publishedByFactBuildTaskId) {}
+  private record LockedHead(long rootId, long latestChangeVersion, long publishedVersion) {}
 }

@@ -1,10 +1,51 @@
 package com.data.collection.platform.service;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Component;
 
+/**
+ * 事实来源 SQL 的单一模板来源。
+ *
+ * <p>模板带两类占位符：{@code __TARGET_ROOTS__} 声明本次要发布的稳定根集合，{@code __ROOT_FILTER_*}__
+ * 让每个聚合子查询先按该集合收窄。全量读取时两类占位符都替换为空串，SQL 与历史逐字一致；定向读取时
+ * 根集合成为首个 CTE，聚合只在批次根上计算，避免每批都全表聚合。
+ */
 @Component
 class GitlabFactSourceSqlProvider {
   private static final int RESOURCE_LABEL_EVENT_ACTION_ADD = 1;
+
+  private static final String TARGET_ROOTS_MARKER = "__TARGET_ROOTS__";
+
+  /**
+   * 根集合收窄片段。
+   *
+   * <p>键是模板占位符，值是"只在定向读取时注入"的条件。每个被收窄的子查询都按同一个稳定根键分组，
+   * 结果也只通过该键与最终查询连接，因此"先按根集合收窄"与"读全量后再过滤"语义等价。
+   */
+  private static final Map<String, String> ROOT_FILTERS =
+      Map.ofEntries(
+          Map.entry("__ROOT_FILTER_LL__", " and ll.target_id in (select root_id from target_roots)"),
+          Map.entry("__ROOT_FILTER_IA__", " and ia.issue_id in (select root_id from target_roots)"),
+          Map.entry("__ROOT_FILTER_N__", " and n.noteable_id in (select root_id from target_roots)"),
+          Map.entry(
+              "__ROOT_FILTER_RLE__", " and rle.issue_id in (select root_id from target_roots)"),
+          Map.entry("__ROOT_FILTER_I__", " and i.id in (select root_id from target_roots)"),
+          Map.entry(
+              "__ROOT_FILTER_MR_REV__",
+              " and mr.merge_request_id in (select root_id from target_roots)"),
+          Map.entry(
+              "__ROOT_FILTER_MA__", " and ma.merge_request_id in (select root_id from target_roots)"),
+          Map.entry(
+              "__ROOT_FILTER_MR_LABELS__",
+              " and ll.target_id in (select root_id from target_roots)"),
+          Map.entry(
+              "__ROOT_FILTER_MR_NOTES_SRC__", " and id in (select root_id from target_roots)"),
+          Map.entry("__ROOT_FILTER_MR__", " and mr.id in (select root_id from target_roots)"),
+          Map.entry(
+              "__ROOT_FILTER_DIFF__",
+              " and diff.merge_request_id in (select root_id from target_roots)"));
 
   private static final String FIX_LABEL_EVENTS_FROM_RESOURCE_LABEL_EVENTS = """
       fix_label_events as (
@@ -15,14 +56,14 @@ class GitlabFactSourceSqlProvider {
             on l.id = rle.label_id
            and coalesce(l.mirror_deleted, false) = false
          where coalesce(rle.mirror_deleted, false) = false
-           and rle.issue_id is not null
+           and rle.issue_id is not null__ROOT_FILTER_RLE__
            and rle.action = %d
            and l.title = '状态：已修复/完成'
          group by rle.issue_id
        )
 """.formatted(RESOURCE_LABEL_EVENT_ACTION_ADD);
   private static final String ISSUE_SOURCE_SQL_TEMPLATE = """
-      with distinct_issue_labels as (
+      with __TARGET_ROOTS__distinct_issue_labels as (
         select distinct
                ll.target_id as issue_id,
                nullif(btrim(l.title), '') as title
@@ -31,7 +72,7 @@ class GitlabFactSourceSqlProvider {
             on l.id = ll.label_id
            and coalesce(l.mirror_deleted, false) = false
          where coalesce(ll.mirror_deleted, false) = false
-           and ll.target_type = 'Issue'
+           and ll.target_type = 'Issue'__ROOT_FILTER_LL__
            and l.title is not null
            and l.title <> ''
       ),
@@ -48,7 +89,7 @@ class GitlabFactSourceSqlProvider {
           join ods_gitlab_users u
             on u.id = ia.user_id
            and coalesce(u.mirror_deleted, false) = false
-         where coalesce(ia.mirror_deleted, false) = false
+         where coalesce(ia.mirror_deleted, false) = false__ROOT_FILTER_IA__
          group by ia.issue_id
       ),
       issue_notes as (
@@ -71,7 +112,7 @@ class GitlabFactSourceSqlProvider {
             on author.id = n.author_id
            and coalesce(author.mirror_deleted, false) = false
          where coalesce(n.mirror_deleted, false) = false
-           and n.noteable_type = 'Issue'
+           and n.noteable_type = 'Issue'__ROOT_FILTER_N__
          group by n.noteable_id
       ),
       __FIX_LABEL_EVENTS__
@@ -115,21 +156,21 @@ class GitlabFactSourceSqlProvider {
         on notes.issue_id = i.id
       left join fix_label_events fix_events
         on fix_events.issue_id = i.id
-      where coalesce(i.mirror_deleted, false) = false
+      where coalesce(i.mirror_deleted, false) = false__ROOT_FILTER_I__
       """;
   private static final String ISSUE_SOURCE_SQL =
       injectFixLabelEvents(
           ISSUE_SOURCE_SQL_TEMPLATE, FIX_LABEL_EVENTS_FROM_RESOURCE_LABEL_EVENTS);
 
   private static final String MERGE_REQUEST_SOURCE_SQL = """
-      with reviewer_names as (
+      with __TARGET_ROOTS__reviewer_names as (
         select mr.merge_request_id,
                string_agg(distinct u.name, ', ' order by u.name) as reviewer_names
           from ods_gitlab_merge_request_reviewers mr
           join ods_gitlab_users u
             on u.id = mr.user_id
            and coalesce(u.mirror_deleted, false) = false
-         where coalesce(mr.mirror_deleted, false) = false
+         where coalesce(mr.mirror_deleted, false) = false__ROOT_FILTER_MR_REV__
          group by mr.merge_request_id
       ),
       assignee_names as (
@@ -139,7 +180,7 @@ class GitlabFactSourceSqlProvider {
           join ods_gitlab_users u
             on u.id = ma.user_id
            and coalesce(u.mirror_deleted, false) = false
-         where coalesce(ma.mirror_deleted, false) = false
+         where coalesce(ma.mirror_deleted, false) = false__ROOT_FILTER_MA__
          group by ma.merge_request_id
       ),
       merge_request_labels as (
@@ -163,7 +204,7 @@ class GitlabFactSourceSqlProvider {
             on l.id = ll.label_id
            and coalesce(l.mirror_deleted, false) = false
          where coalesce(ll.mirror_deleted, false) = false
-           and ll.target_type = 'MergeRequest'
+           and ll.target_type = 'MergeRequest'__ROOT_FILTER_MR_LABELS__
          group by ll.target_id
       ),
       imported_metrics as (
@@ -270,7 +311,7 @@ class GitlabFactSourceSqlProvider {
           from (
             select distinct id as merge_request_id
               from ods_gitlab_merge_requests
-             where coalesce(mirror_deleted, false) = false
+             where coalesce(mirror_deleted, false) = false__ROOT_FILTER_MR_NOTES_SRC__
           ) mr_notes
           left join ods_gitlab_notes n
             on n.noteable_id = mr_notes.merge_request_id
@@ -386,11 +427,11 @@ class GitlabFactSourceSqlProvider {
        and forms.request_iid = mr.iid
       left join walkthrough_notes
         on walkthrough_notes.merge_request_id = mr.id
-      where coalesce(mr.mirror_deleted, false) = false
+      where coalesce(mr.mirror_deleted, false) = false__ROOT_FILTER_MR__
       """;
 
   private static final String MERGE_REQUEST_COMMIT_SOURCE_SQL = """
-      with ranked_diffs as (
+      with __TARGET_ROOTS__ranked_diffs as (
         select diff.id,
                diff.merge_request_id,
                row_number() over (
@@ -400,7 +441,7 @@ class GitlabFactSourceSqlProvider {
                           diff.id desc
                ) as authority_rank
           from ods_gitlab_merge_request_diffs diff
-         where coalesce(diff.mirror_deleted, false) = false
+         where coalesce(diff.mirror_deleted, false) = false__ROOT_FILTER_DIFF__
       )
       select mr.target_project_id as project_id,
              mr.id as merge_request_id,
@@ -420,18 +461,79 @@ class GitlabFactSourceSqlProvider {
       """;
 
   String issueSourceSql() {
-    return ISSUE_SOURCE_SQL;
+    return applyRootScope(ISSUE_SOURCE_SQL, 0);
+  }
+
+  /**
+   * 返回只读取指定稳定根的议题来源查询。
+   *
+   * <p>根集合绑定到 SQL 的第一个占位符，因此调用方必须把根 ID 作为首批参数传入。
+   *
+   * @param rootIds 本次要发布的稳定根 ID，不能为空
+   * @return 已按根集合收窄的 SQL
+   */
+  String issueSourceSqlForRoots(List<Long> rootIds) {
+    return applyRootScope(ISSUE_SOURCE_SQL, rootCount(rootIds));
   }
 
   String mergeRequestSourceSql(String sourceInstance) {
-    return MERGE_REQUEST_SOURCE_SQL.replace(
-        "__SOURCE_INSTANCE__",
-        sqlLiteral(GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance)));
+    return applyRootScope(
+        MERGE_REQUEST_SOURCE_SQL.replace(
+            "__SOURCE_INSTANCE__",
+            sqlLiteral(GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance))),
+        0);
+  }
+
+  /**
+   * 返回只读取指定稳定根的合并请求来源查询。
+   *
+   * @param sourceInstance 来源实例
+   * @param rootIds 本次要发布的稳定根 ID，不能为空
+   * @return 已按根集合收窄的 SQL
+   */
+  String mergeRequestSourceSqlForRoots(String sourceInstance, List<Long> rootIds) {
+    return applyRootScope(
+        MERGE_REQUEST_SOURCE_SQL.replace(
+            "__SOURCE_INSTANCE__",
+            sqlLiteral(GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance))),
+        rootCount(rootIds));
   }
 
   /** 返回限定最新 MR Diff 的提交事实查询。 */
   String mergeRequestCommitSourceSql() {
-    return MERGE_REQUEST_COMMIT_SOURCE_SQL;
+    return applyRootScope(MERGE_REQUEST_COMMIT_SOURCE_SQL, 0);
+  }
+
+  /**
+   * 返回只读取指定稳定根最新 MR Diff 的提交事实查询。
+   *
+   * @param rootIds 本次要发布的稳定根 ID，不能为空
+   * @return 已按根集合收窄的 SQL
+   */
+  String mergeRequestCommitSourceSqlForRoots(List<Long> rootIds) {
+    return applyRootScope(MERGE_REQUEST_COMMIT_SOURCE_SQL, rootCount(rootIds));
+  }
+
+  private static int rootCount(List<Long> rootIds) {
+    if (rootIds == null || rootIds.isEmpty()) {
+      throw new IllegalArgumentException("定向事实查询必须给出稳定根集合");
+    }
+    return rootIds.size();
+  }
+
+  private String applyRootScope(String sql, int rootCount) {
+    boolean scoped = rootCount > 0;
+    String targetRoots =
+        scoped
+            ? "target_roots(root_id) as (values "
+                + String.join(", ", Collections.nCopies(rootCount, "(?)"))
+                + "), "
+            : "";
+    String scopedSql = sql.replace(TARGET_ROOTS_MARKER, targetRoots);
+    for (Map.Entry<String, String> filter : ROOT_FILTERS.entrySet()) {
+      scopedSql = scopedSql.replace(filter.getKey(), scoped ? filter.getValue() : "");
+    }
+    return scopedSql;
   }
 
   private String sqlLiteral(String value) {

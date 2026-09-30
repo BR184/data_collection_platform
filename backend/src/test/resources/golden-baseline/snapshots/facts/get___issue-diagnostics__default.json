@@ -3,7 +3,7 @@
   "code" : "00000",
   "message" : "Issue Fact 验收诊断已生成",
   "data" : {
-    "generatedAt" : "2026-09-16T16:52:07.0666946+08:00",
+    "generatedAt" : "2026-09-29T12:47:45.5203969+08:00",
     "overall" : {
       "scopeKey" : "overall",
       "scopeLabel" : "全部 Issue Fact",
@@ -11,7 +11,7 @@
       "withReasonCategoryCount" : 54,
       "withMilestoneTitleCount" : 1108,
       "withTemplateReplyCount" : 81,
-      "responseDelayedCount" : 736,
+      "responseDelayedCount" : 754,
       "resolveDelayedCount" : 582
     },
     "systemTest" : {
@@ -31,7 +31,7 @@
       "withReasonCategoryCount" : 43,
       "withMilestoneTitleCount" : 817,
       "withTemplateReplyCount" : 81,
-      "responseDelayedCount" : 736,
+      "responseDelayedCount" : 754,
       "resolveDelayedCount" : 582
     },
     "overallReasonCategories" : [ {

@@ -21,17 +21,43 @@ import java.util.Set;
 public final class GitlabSourceLineageCatalog {
   private static final List<SourceDefinition> SOURCES =
       List.of(
-          dimension("users", List.of("id"), FactType.ISSUE, FactType.MERGE_REQUEST, FactType.INTEGRATION_TEST),
+          dimension(
+              "users",
+              List.of("id"),
+              List.of("id", "name", "mirror_deleted"),
+              FactType.ISSUE,
+              FactType.MERGE_REQUEST,
+              FactType.INTEGRATION_TEST),
           noConsumer("user_details", List.of("user_id")),
-          dimension("projects", List.of("id"), FactType.ISSUE, FactType.MERGE_REQUEST, FactType.INTEGRATION_TEST),
-          dimension("namespaces", List.of("id"), FactType.MERGE_REQUEST),
+          dimension(
+              "projects",
+              List.of("id"),
+              List.of("id", "name", "path", "namespace_id", "mirror_deleted"),
+              FactType.ISSUE,
+              FactType.MERGE_REQUEST,
+              FactType.INTEGRATION_TEST),
+          dimension(
+              "namespaces",
+              List.of("id"),
+              List.of("id", "path", "mirror_deleted"),
+              FactType.MERGE_REQUEST),
           noConsumer("members", List.of("id")),
-          dimension("milestones", List.of("id"), FactType.ISSUE),
+          dimension(
+              "milestones",
+              List.of("id"),
+              List.of("id", "title", "project_id", "mirror_deleted"),
+              FactType.ISSUE),
           direct("issues", List.of("id"), FactType.ISSUE, FactType.INTEGRATION_TEST),
           direct("issue_assignees", List.of("issue_id", "user_id"), FactType.ISSUE),
           direct("issue_metrics", List.of("id"), FactType.ISSUE),
           polymorphic("notes", List.of("id"), FactType.ISSUE, FactType.MERGE_REQUEST, FactType.INTEGRATION_TEST),
-          dimension("labels", List.of("id"), FactType.ISSUE, FactType.MERGE_REQUEST, FactType.INTEGRATION_TEST),
+          dimension(
+              "labels",
+              List.of("id"),
+              List.of("id", "title", "color", "mirror_deleted"),
+              FactType.ISSUE,
+              FactType.MERGE_REQUEST,
+              FactType.INTEGRATION_TEST),
           polymorphic("label_links", List.of("id"), FactType.ISSUE, FactType.MERGE_REQUEST, FactType.INTEGRATION_TEST),
           direct("resource_label_events", List.of("id"), FactType.ISSUE),
           direct("merge_requests", List.of("id"), FactType.MERGE_REQUEST),
@@ -203,25 +229,37 @@ public final class GitlabSourceLineageCatalog {
 
   private static SourceDefinition direct(
       String table, List<String> primaryKeys, FactType... consumers) {
-    return source(table, primaryKeys, DerivationKind.DIRECT_ROOT, consumers);
+    return source(table, primaryKeys, DerivationKind.DIRECT_ROOT, List.of(), consumers);
   }
 
   private static SourceDefinition polymorphic(
       String table, List<String> primaryKeys, FactType... consumers) {
-    return source(table, primaryKeys, DerivationKind.POLYMORPHIC_ROOT, consumers);
+    return source(table, primaryKeys, DerivationKind.POLYMORPHIC_ROOT, List.of(), consumers);
   }
 
   private static SourceDefinition dimension(
-      String table, List<String> primaryKeys, FactType... consumers) {
-    return source(table, primaryKeys, DerivationKind.DIMENSION_REVERSE_LOOKUP, consumers);
+      String table,
+      List<String> primaryKeys,
+      List<String> factRelevantColumns,
+      FactType... consumers) {
+    return source(
+        table,
+        primaryKeys,
+        DerivationKind.DIMENSION_REVERSE_LOOKUP,
+        factRelevantColumns,
+        consumers);
   }
 
   private static SourceDefinition noConsumer(String table, List<String> primaryKeys) {
-    return source(table, primaryKeys, DerivationKind.NO_DERIVED_CONSUMER);
+    return source(table, primaryKeys, DerivationKind.NO_DERIVED_CONSUMER, List.of());
   }
 
   private static SourceDefinition source(
-      String table, List<String> primaryKeys, DerivationKind kind, FactType... consumers) {
+      String table,
+      List<String> primaryKeys,
+      DerivationKind kind,
+      List<String> factRelevantColumns,
+      FactType... consumers) {
     IncrementalContract incrementalContract = incrementalContract(table);
     return new SourceDefinition(
         normalize(table),
@@ -232,7 +270,8 @@ public final class GitlabSourceLineageCatalog {
         incrementalContract.readMode(),
         incrementalContract.updatedAtColumn(),
         incrementalContract.requiredForIncremental(),
-        requiredColumns(table, primaryKeys, incrementalContract));
+        requiredColumns(table, primaryKeys, incrementalContract),
+        List.copyOf(factRelevantColumns));
   }
 
   private static List<String> requiredColumns(
@@ -363,7 +402,16 @@ public final class GitlabSourceLineageCatalog {
     }
   }
 
-  /** 来源表对删除探测和派生发布的声明。 */
+  /**
+   * 来源表对删除探测和派生发布的声明。
+   *
+   * <p>{@code factRelevantColumns} 只对维表（{@link DerivationKind#DIMENSION_REVERSE_LOOKUP}）
+   * 有意义：它声明该维表哪几列变化会影响事实根，取值来自 {@code GitlabSourceSchemaGuard}
+   * 各事实族对该表的来源契约列（是事实查询实际消费列的父集）。镜像按全列比对上报变化，
+   * 维表的非事实列（如 {@code projects.last_activity_at}、{@code users.avatar_url}）变化
+   * 因此不再反向展开为全部 Issue/MR 根。直接根与多态根的根身份由行自身决定，任一列变化都影响
+   * 其根，故必须声明为空集合。
+   */
   public record SourceDefinition(
       String tableName,
       List<String> primaryKeys,
@@ -373,12 +421,14 @@ public final class GitlabSourceLineageCatalog {
       IncrementalReadMode incrementalReadMode,
       String incrementalUpdatedAtColumn,
       boolean requiredForIncremental,
-      List<String> requiredColumns) {
+      List<String> requiredColumns,
+      List<String> factRelevantColumns) {
     public SourceDefinition {
       tableName = normalize(tableName);
       primaryKeys = List.copyOf(primaryKeys);
       factConsumers = Set.copyOf(factConsumers);
       requiredColumns = List.copyOf(requiredColumns);
+      factRelevantColumns = List.copyOf(factRelevantColumns);
       if (incrementalReadMode == null) {
         throw new IllegalArgumentException("GitLab 来源表必须声明增量读取模式：" + tableName);
       }
@@ -402,6 +452,38 @@ public final class GitlabSourceLineageCatalog {
       if (derivationKind != DerivationKind.NO_DERIVED_CONSUMER && factConsumers.isEmpty()) {
         throw new IllegalArgumentException("派生来源必须声明事实消费者：" + tableName);
       }
+      if (derivationKind == DerivationKind.DIMENSION_REVERSE_LOOKUP) {
+        if (factRelevantColumns.isEmpty()) {
+          throw new IllegalArgumentException(
+              "维表必须显式声明影响事实的列集合，不存在默认忽略路径：" + tableName);
+        }
+        if (!factRelevantColumns.containsAll(primaryKeys)) {
+          throw new IllegalArgumentException("维表影响事实的列集合必须包含完整主键：" + tableName);
+        }
+      } else if (!factRelevantColumns.isEmpty()) {
+        throw new IllegalArgumentException(
+            "只有维表可以声明影响事实的列集合，其余来源的根由行自身决定：" + tableName);
+      }
+    }
+
+    /** 判断一次维表行变化是否触及影响事实的列；删除与恢复恒为影响。 */
+    public boolean changeAffectsFactRoots(com.data.collection.platform.entity.MirrorRowChange change) {
+      if (change == null) {
+        return false;
+      }
+      if (derivationKind != DerivationKind.DIMENSION_REVERSE_LOOKUP) {
+        return true;
+      }
+      if (change.deleted() || change.inserted()) {
+        return true;
+      }
+      for (String column : factRelevantColumns) {
+        if (!java.util.Objects.equals(
+            change.before().get(column), change.after().get(column))) {
+          return true;
+        }
+      }
+      return false;
     }
   }
 

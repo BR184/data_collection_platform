@@ -31,7 +31,7 @@ class SyncRunFactPublicationCoordinatorTest {
   }
 
   @Test
-  void test_blocked_dependency_keeps_targets_pending_without_starting_fact_run() {
+  void test_blocked_dependency_starts_no_fact_run_and_leaves_no_ownership_to_release() {
     SyncRunCompletionEvent event = event(SyncRunStatus.FAILED);
     when(publicationStateService.recordMirrorCompletion(
             org.mockito.ArgumentMatchers.any(),
@@ -42,7 +42,6 @@ class SyncRunFactPublicationCoordinatorTest {
 
     coordinator.onMirrorCompleted(event);
 
-    verify(publicationStateService).releaseFailedFactAssignments("alpha");
     verify(submissionService, never()).submitFactRefresh(
         org.mockito.ArgumentMatchers.any(),
         org.mockito.ArgumentMatchers.anyBoolean(), anyString());

@@ -186,11 +186,11 @@ public class SyncRunPublicationFenceService {
 
   private long loadRequiredVersion(
       String sourceInstance, FactType factType, TargetSelector selector) {
-    QueryArguments query = targetQueryArguments(sourceInstance, factType, selector);
+    QueryArguments query = headQueryArguments(sourceInstance, factType, selector);
     Long version =
         jdbcTemplate.queryForObject(
-            "select coalesce(max(target.change_version), 0) "
-                + "from sync_run_fact_targets target where "
+            "select coalesce(max(head.latest_change_version), 0) "
+                + "from fact_change_heads head where "
                 + query.predicate(),
             Long.class,
             query.arguments().toArray());
@@ -239,9 +239,15 @@ public class SyncRunPublicationFenceService {
     return fences.getFirst();
   }
 
+  /**
+   * 判断栅栏水位内是否仍有未发布的根。
+   *
+   * <p>权威读法是版本头：{@code published_version} 表示该根截至该版本的变化均已发布，因此
+   * "水位内存在未发布变化"即 {@code published_version < least(latest_change_version, 水位)}。
+   */
   private boolean hasPendingTargets(Fence fence) {
     QueryArguments query =
-        targetQueryArguments(fence.sourceInstance(), fence.factType(), fence.selector());
+        headQueryArguments(fence.sourceInstance(), fence.factType(), fence.selector());
     ArrayList<Object> arguments = new ArrayList<>(query.arguments());
     arguments.add(fence.requiredVersion());
     Boolean pending =
@@ -249,13 +255,9 @@ public class SyncRunPublicationFenceService {
             """
             select exists(
               select 1
-                from sync_run_fact_targets target
+                from fact_change_heads head
                where %s
-                 and target.change_version <= ?
-                 and (
-                   target.publication_status <> 'PUBLISHED'
-                   or target.published_version is null
-                   or target.published_version < target.change_version)
+                 and head.published_version < least(head.latest_change_version, ?)
             )
             """.formatted(query.predicate()),
             Boolean.class,
@@ -264,12 +266,12 @@ public class SyncRunPublicationFenceService {
   }
 
   private void synchronizeOutstandingScopes(Fence fence) {
-    QueryArguments targetQuery =
-        targetQueryArguments(fence.sourceInstance(), fence.factType(), fence.selector());
+    QueryArguments headQuery =
+        headQueryArguments(fence.sourceInstance(), fence.factType(), fence.selector());
     ProjectionPredicate projection = projectionPredicate(fence.selector());
     ArrayList<Object> arguments = new ArrayList<>();
     arguments.add(fence.id());
-    arguments.addAll(targetQuery.arguments());
+    arguments.addAll(headQuery.arguments());
     arguments.add(fence.requiredVersion());
     arguments.addAll(projection.arguments());
     jdbcTemplate.update(
@@ -285,14 +287,14 @@ public class SyncRunPublicationFenceService {
             select distinct on (task.scope_type, task.scope_key)
                    task.scope_type, task.scope_key, task.target_generation,
                    task.id as task_id, task.status as task_status
-              from sync_run_fact_targets target
+              from fact_change_heads head
               join fact_projection_refresh_tasks task
-                on task.fact_build_task_id = target.published_by_fact_build_task_id
-               and task.source_instance = target.source_instance
-               and task.fact_type = target.fact_type
+                on task.fact_build_task_id = head.published_by_fact_build_task_id
+               and task.source_instance = head.source_instance
+               and task.fact_type = head.fact_type
              where %s
-               and target.change_version <= ?
-               and target.publication_status = 'PUBLISHED'
+               and head.published_version <= ?
+               and head.published_by_fact_build_task_id is not null
                and task.status <> 'SUCCESS'
                and (%s)
              order by task.scope_type, task.scope_key,
@@ -315,7 +317,7 @@ public class SyncRunPublicationFenceService {
                    else sync_run_publication_fence_scopes.status
                  end,
                updated_at = current_timestamp
-        """.formatted(targetQuery.predicate(), projection.predicate()),
+        """.formatted(headQuery.predicate(), projection.predicate()),
         arguments.toArray());
   }
 
@@ -396,16 +398,16 @@ public class SyncRunPublicationFenceService {
         fenceId);
   }
 
-  private QueryArguments targetQueryArguments(
+  private QueryArguments headQueryArguments(
       String sourceInstance,
       FactType factType,
       TargetSelector selector) {
-    String predicate = "target.source_instance = ? and target.fact_type = ?";
+    String predicate = "head.source_instance = ? and head.fact_type = ?";
     ArrayList<Object> arguments = new ArrayList<>();
     arguments.add(sourceInstance);
     arguments.add(factType.name());
     if (selector.type() == WorkspaceScopeSelectionType.PROJECT) {
-      predicate += " and target.project_id = ?";
+      predicate += " and head.project_id = ?";
       arguments.add(parsePositiveId(selector.key(), "projectId"));
     }
     return new QueryArguments(predicate, List.copyOf(arguments));

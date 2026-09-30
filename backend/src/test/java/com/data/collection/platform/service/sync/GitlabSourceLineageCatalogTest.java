@@ -3,6 +3,7 @@ package com.data.collection.platform.service.sync;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.data.collection.platform.entity.MirrorRowChange;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.FactType;
@@ -220,5 +221,69 @@ class GitlabSourceLineageCatalogTest {
         .containsExactly(
             Map.of(),
             Map.of("target_id", 202L, "target_type", "MergeRequest"));
+  }
+
+  @Test
+  void dimension_sources_declare_fact_relevant_columns_and_others_declare_none() {
+    assertThat(GitlabSourceLineageCatalog.requireSource("users").factRelevantColumns())
+        .containsExactlyInAnyOrder("id", "name", "mirror_deleted");
+    assertThat(GitlabSourceLineageCatalog.requireSource("projects").factRelevantColumns())
+        .containsExactlyInAnyOrder("id", "name", "path", "namespace_id", "mirror_deleted");
+    assertThat(GitlabSourceLineageCatalog.requireSource("namespaces").factRelevantColumns())
+        .containsExactlyInAnyOrder("id", "path", "mirror_deleted");
+    assertThat(GitlabSourceLineageCatalog.requireSource("milestones").factRelevantColumns())
+        .containsExactlyInAnyOrder("id", "title", "project_id", "mirror_deleted");
+    assertThat(GitlabSourceLineageCatalog.requireSource("labels").factRelevantColumns())
+        .containsExactlyInAnyOrder("id", "title", "color", "mirror_deleted");
+
+    assertThat(GitlabSourceLineageCatalog.sources())
+        .filteredOn(
+            source ->
+                source.derivationKind()
+                    != GitlabSourceLineageCatalog.DerivationKind.DIMENSION_REVERSE_LOOKUP)
+        .allSatisfy(source -> assertThat(source.factRelevantColumns()).isEmpty());
+    assertThat(GitlabSourceLineageCatalog.sources())
+        .filteredOn(
+            source ->
+                source.derivationKind()
+                    == GitlabSourceLineageCatalog.DerivationKind.DIMENSION_REVERSE_LOOKUP)
+        .allSatisfy(
+            source -> {
+              assertThat(source.factRelevantColumns()).isNotEmpty();
+              assertThat(source.factRelevantColumns())
+                  .containsAll(source.primaryKeys());
+            });
+  }
+
+  @Test
+  void change_affects_fact_roots_only_for_relevant_columns_or_lifecycle_changes() {
+    GitlabSourceLineageCatalog.SourceDefinition projects =
+        GitlabSourceLineageCatalog.requireSource("projects");
+    GitlabSourceLineageCatalog.SourceDefinition issues =
+        GitlabSourceLineageCatalog.requireSource("issues");
+
+    assertThat(
+            projects.changeAffectsFactRoots(
+                new MirrorRowChange(
+                    Map.of("id", 7L, "name", "old", "description", "before"),
+                    Map.of("id", 7L, "name", "old", "description", "after"))))
+        .isFalse();
+    assertThat(
+            projects.changeAffectsFactRoots(
+                new MirrorRowChange(
+                    Map.of("id", 7L, "name", "old"), Map.of("id", 7L, "name", "renamed"))))
+        .isTrue();
+    assertThat(
+            projects.changeAffectsFactRoots(
+                new MirrorRowChange(Map.of("id", 7L, "name", "old"), Map.of())))
+        .isTrue();
+    assertThat(projects.changeAffectsFactRoots(new MirrorRowChange(Map.of(), Map.of("id", 8L))))
+        .isTrue();
+    assertThat(
+            issues.changeAffectsFactRoots(
+                new MirrorRowChange(
+                    Map.of("id", 9L, "description", "before"),
+                    Map.of("id", 9L, "description", "after"))))
+        .isTrue();
   }
 }

@@ -6,7 +6,7 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 /** 为 PostgreSQL 集成测试选择外部隔离库或本机 Testcontainers。 */
-final class PostgresIntegrationTestDatabase implements AutoCloseable {
+public final class PostgresIntegrationTestDatabase implements AutoCloseable {
   private static final String JDBC_URL_ENV = "TEST_POSTGRES_JDBC_URL";
   private static final String USERNAME_ENV = "TEST_POSTGRES_USERNAME";
   private static final String PASSWORD_ENV = "TEST_POSTGRES_PASSWORD";
@@ -27,7 +27,7 @@ final class PostgresIntegrationTestDatabase implements AutoCloseable {
     this.container = container;
   }
 
-  static PostgresIntegrationTestDatabase open(String databaseName) {
+  public static PostgresIntegrationTestDatabase open(String databaseName) {
     String externalUrl = trimToNull(System.getenv(JDBC_URL_ENV));
     if (externalUrl != null) {
       return new PostgresIntegrationTestDatabase(
@@ -52,7 +52,7 @@ final class PostgresIntegrationTestDatabase implements AutoCloseable {
     }
   }
 
-  DataSource dataSource() {
+  public DataSource dataSource() {
     return new DriverManagerDataSource(jdbcUrl, username, password);
   }
 

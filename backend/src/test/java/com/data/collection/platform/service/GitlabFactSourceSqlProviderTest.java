@@ -1,7 +1,9 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class GitlabFactSourceSqlProviderTest {
@@ -63,5 +65,59 @@ class GitlabFactSourceSqlProviderTest {
             "commit_row.committed_date as committed_at_source")
         .doesNotContain("mr.updated_at as committed_at_source")
         .doesNotContain("commits_count as");
+  }
+
+  @Test
+  void test_root_scoped_issue_sql_declares_roots_first_and_narrows_every_aggregate() {
+    String sql = provider.issueSourceSqlForRoots(List.of(7L, 8L, 9L));
+
+    assertThat(sql)
+        .startsWith("with target_roots(root_id) as (values (?), (?), (?)), distinct_issue_labels as (")
+        .contains("and ll.target_id in (select root_id from target_roots)")
+        .contains("and ia.issue_id in (select root_id from target_roots)")
+        .contains("and n.noteable_id in (select root_id from target_roots)")
+        .contains("and rle.issue_id in (select root_id from target_roots)")
+        .contains("and i.id in (select root_id from target_roots)")
+        .containsOnlyOnce("target_roots(root_id) as (values")
+        .doesNotContain("__");
+  }
+
+  @Test
+  void test_root_scoped_merge_request_sql_narrows_every_aggregate() {
+    String sql = provider.mergeRequestSourceSqlForRoots("default", List.of(7L));
+
+    assertThat(sql)
+        .startsWith("with target_roots(root_id) as (values (?)), reviewer_names as (")
+        .contains("and mr.merge_request_id in (select root_id from target_roots)")
+        .contains("and ma.merge_request_id in (select root_id from target_roots)")
+        .contains("and ll.target_id in (select root_id from target_roots)")
+        .contains("and id in (select root_id from target_roots)")
+        .contains("and mr.id in (select root_id from target_roots)")
+        .contains("lower('default')")
+        .doesNotContain("__");
+  }
+
+  @Test
+  void test_root_scoped_commit_sql_narrows_ranked_diff_window() {
+    String sql = provider.mergeRequestCommitSourceSqlForRoots(List.of(7L));
+
+    assertThat(sql)
+        .startsWith("with target_roots(root_id) as (values (?)), ranked_diffs as (")
+        .contains("and diff.merge_request_id in (select root_id from target_roots)")
+        .contains("diff.authority_rank = 1")
+        .doesNotContain("__");
+  }
+
+  @Test
+  void test_root_scoped_sql_requires_a_non_empty_root_set() {
+    assertThatThrownBy(() -> provider.issueSourceSqlForRoots(List.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("稳定根集合");
+    assertThatThrownBy(() -> provider.mergeRequestSourceSqlForRoots("default", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("稳定根集合");
+    assertThatThrownBy(() -> provider.mergeRequestCommitSourceSqlForRoots(List.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("稳定根集合");
   }
 }

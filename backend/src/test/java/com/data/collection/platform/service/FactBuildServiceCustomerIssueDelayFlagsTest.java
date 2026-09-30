@@ -172,7 +172,7 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
             CC_PROJECT_ID,
             5L,
             "opened",
-            "# 问题调研情况说明",
+            "# 问题调研情况说明\n## 计划解决时间：2026.04.08",
             false,
             false,
             false,
@@ -182,6 +182,51 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
     service.refreshCustomerIssueDelayFactsForConfig(config());
 
     assertThat(rowSnapshot(factId)).isEqualTo(before);
+  }
+
+  @Test
+  void shouldMarkResponseDelayWhenResponseTemplateHasNoLegalPlanSolutionTime() {
+    insertSourceIssue(9003L, CC_PROJECT_ID, 6L);
+    long factId =
+        insertIssueFact(
+            CC_PROJECT_ID,
+            6L,
+            "opened",
+            "# 问题调研情况说明\n## 问题原因：已定位",
+            false,
+            false,
+            false,
+            "now() - interval '100 days'");
+    Map<String, Object> before = rowSnapshot(factId);
+
+    service.refreshCustomerIssueDelayFactsForConfig(config());
+
+    Map<String, Object> after = rowSnapshot(factId);
+    assertThat(after.get("is_response_delayed")).isEqualTo(true);
+    assertThat(after.get("response_overdue")).isEqualTo(true);
+    assertThat(after.get("is_resolve_delayed")).isEqualTo(false);
+    assertThat(changedColumns(before, after)).isEmpty();
+  }
+
+  @Test
+  void shouldClearResponseDelayOnceALegalPlanSolutionTimeAppears() {
+    insertSourceIssue(9004L, CC_PROJECT_ID, 7L);
+    long factId =
+        insertIssueFact(
+            CC_PROJECT_ID,
+            7L,
+            "opened",
+            "# 问题调研情况说明\n## 计划解决时间：2026.04.08",
+            true,
+            true,
+            false,
+            "now() - interval '100 days'");
+
+    service.refreshCustomerIssueDelayFactsForConfig(config());
+
+    Map<String, Object> after = rowSnapshot(factId);
+    assertThat(after.get("is_response_delayed")).isEqualTo(false);
+    assertThat(after.get("response_overdue")).isEqualTo(false);
   }
 
   private GitlabSyncConfig config() {

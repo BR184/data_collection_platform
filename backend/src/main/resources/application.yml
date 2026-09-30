@@ -130,6 +130,10 @@ platform:
     delete-reconciliation-interval-minutes: ${GITLAB_DELETE_RECONCILIATION_INTERVAL_MINUTES:60}
     delete-reconciliation-time-slice-seconds: ${GITLAB_DELETE_RECONCILIATION_TIME_SLICE_SECONDS:240}
     delete-reconciliation-page-size: ${GITLAB_DELETE_RECONCILIATION_PAGE_SIZE:500}
+    # 事实发布会话日志保留窗口：只有超过该天数、且已被版本栅栏覆盖的行才会被归档删除
+    fact-target-journal-retention-days: ${GITLAB_FACT_TARGET_JOURNAL_RETENTION_DAYS:30}
+    fact-target-journal-archive-page-size: ${GITLAB_FACT_TARGET_JOURNAL_ARCHIVE_PAGE_SIZE:2000}
+    fact-target-journal-archive-batches-per-run: ${GITLAB_FACT_TARGET_JOURNAL_ARCHIVE_BATCHES_PER_RUN:20}
     customer-issue-delay-check-delay-ms: ${CUSTOMER_ISSUE_DELAY_CHECK_DELAY_MS:3600000}
     customer-issue-delay-pre-writeback-sync-enabled: ${CUSTOMER_ISSUE_DELAY_PRE_WRITEBACK_SYNC_ENABLED:true}
     customer-issue-delay-pre-writeback-sync-tables: ${CUSTOMER_ISSUE_DELAY_PRE_WRITEBACK_SYNC_TABLES:issues,notes,label_links,labels}
@@ -144,7 +148,6 @@ platform:
     code-review-metric-historical-scan-size: ${CODE_REVIEW_METRIC_HISTORICAL_SCAN_SIZE:200}
     code-review-metric-request-timeout-seconds: ${CODE_REVIEW_METRIC_REQUEST_TIMEOUT_SECONDS:30}
     code-review-metric-retry-base-seconds: ${CODE_REVIEW_METRIC_RETRY_BASE_SECONDS:30}
-    delay-label-writeback-api-enabled: ${CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED:false}
   review-data:
     search-index-backfill-enabled: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED:false}
     search-index-backfill-delay-ms: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_DELAY_MS:300000}

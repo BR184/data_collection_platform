@@ -44,7 +44,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
       "platform.gitlab-mirror.customer-issue-delay-pre-writeback-sync-enabled=false",
       "platform.gitlab-mirror.customer-issue-delay-writeback-worker-enabled=false",
       "platform.gitlab-mirror.code-review-metric-enrichment-enabled=false",
-      "platform.gitlab-mirror.delay-label-writeback-api-enabled=false",
       "platform.review-data.search-index-backfill-enabled=false",
       "platform.auth.provider=local",
       "platform.auth.secure-config-required=false"
@@ -550,28 +549,24 @@ class IncrementalDeleteTargetedPublicationIntegrationTest {
   }
 
   private void assertTargetPublished(long mirrorRunId) {
+    // 待发布权威是版本栅栏；日志行的 publication_status 已不再被任何代码维护。
     Map<String, Object> issueTarget =
         jdbcTemplate.queryForMap(
             """
-            select publication_status, change_version, published_version
-              from sync_run_fact_targets
-             where mirror_run_id = ? and fact_type = 'ISSUE' and root_id = ?
+            select target.change_version, head.published_version, head.latest_change_version
+              from sync_run_fact_targets target
+              join fact_change_heads head
+                on head.source_instance = target.source_instance
+               and head.fact_type = target.fact_type
+               and head.root_id = target.root_id
+             where target.mirror_run_id = ? and target.fact_type = 'ISSUE' and target.root_id = ?
             """,
             mirrorRunId,
             ISSUE_ID);
-    assertThat(issueTarget).containsEntry("publication_status", "PUBLISHED");
-    assertThat(issueTarget.get("change_version"))
-        .isEqualTo(issueTarget.get("published_version"));
-    assertThat(
-            jdbcTemplate.queryForObject(
-                """
-                select published_version = latest_change_version
-                  from fact_change_heads
-                 where source_instance = 'default' and fact_type = 'ISSUE' and root_id = ?
-                """,
-                Boolean.class,
-                ISSUE_ID))
-        .isTrue();
+    assertThat(((Number) issueTarget.get("published_version")).longValue())
+        .isGreaterThanOrEqualTo(((Number) issueTarget.get("change_version")).longValue());
+    assertThat(issueTarget.get("published_version"))
+        .isEqualTo(issueTarget.get("latest_change_version"));
   }
 
   private void assertTargetedProjectionPublication(long factRunId) {

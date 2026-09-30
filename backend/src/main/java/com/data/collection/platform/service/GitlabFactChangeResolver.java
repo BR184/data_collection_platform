@@ -26,7 +26,9 @@ public class GitlabFactChangeResolver {
   /**
    * 解析一批已确认真实发生的镜像变化。
    *
-   * <p>同时读取 before/after 归属，确保关系迁移和删除不会丢失旧根；维表通过固定反向关系批量解析。
+   * <p>同时读取 before/after 归属，确保关系迁移和删除不会丢失旧根；维表通过固定反向关系批量解析，
+   * 且只在该行变化触及 {@link GitlabSourceLineageCatalog.SourceDefinition#factRelevantColumns()}
+   * 声明的列（或删除/恢复）时才反向展开根——镜像按全列比对上报变化，非事实列变化不得放大为整项目根。
    */
   public List<FactChangeIdentity> resolve(
       String sourceInstance, String sourceTable, List<MirrorRowChange> changes) {
@@ -40,7 +42,7 @@ public class GitlabFactChangeResolver {
       return List.of();
     }
     LinkedHashSet<RootReference> roots = new LinkedHashSet<>();
-    List<Map<String, Object>> rows = changedRows(changes);
+    List<Map<String, Object>> rows = changedRows(changes, source);
     switch (source.tableName()) {
       case "issues" -> addRoots(roots, RootType.ISSUE, values(rows, "id"));
       case "issue_assignees", "issue_metrics" ->
@@ -66,9 +68,14 @@ public class GitlabFactChangeResolver {
     return identities(sourceInstance, source, roots);
   }
 
-  private List<Map<String, Object>> changedRows(List<MirrorRowChange> changes) {
+  private List<Map<String, Object>> changedRows(
+      List<MirrorRowChange> changes,
+      GitlabSourceLineageCatalog.SourceDefinition source) {
     ArrayList<Map<String, Object>> rows = new ArrayList<>(changes.size() * 2);
     for (MirrorRowChange change : changes) {
+      if (!source.changeAffectsFactRoots(change)) {
+        continue;
+      }
       if (!change.before().isEmpty()) {
         rows.add(change.before());
       }

@@ -77,18 +77,13 @@ public class SyncFactPublicationStateService {
     Boolean ready = jdbcTemplate.queryForObject(
         """
         select exists(
-          select 1 from source_fact_publication_states
-           where source_instance = ? and fact_type = ? and readiness_status = 'READY'
-             and (full_publication_requested or exists(
-               select 1 from sync_run_fact_targets target
-                join fact_change_heads head
-                  on head.source_instance = target.source_instance
-                 and head.fact_type = target.fact_type
-                 and head.root_id = target.root_id
-                where target.source_instance = source_fact_publication_states.source_instance
-                  and target.fact_type = source_fact_publication_states.fact_type
-                  and target.publication_status <> 'PUBLISHED'
-                  and head.published_version < target.change_version))
+          select 1 from source_fact_publication_states state
+           where state.source_instance = ? and state.fact_type = ? and state.readiness_status = 'READY'
+             and (state.full_publication_requested or exists(
+               select 1 from fact_change_heads head
+                where head.source_instance = state.source_instance
+                  and head.fact_type = state.fact_type
+                  and head.published_version < head.latest_change_version))
         )
         """,
         Boolean.class,
@@ -138,35 +133,32 @@ public class SyncFactPublicationStateService {
             factType.name());
     if (row == null || row.stateCount() == 0L) {
       if (hasPublishedProjections(sourceInstance, factType)) {
-        return new SourceQualification(
-            false,
+        return SourceQualification.refused(
             "来源 "
                 + sourceInstance
                 + " 已有事实投影但没有发布代际记录，无法确认完整性，暂不产出统计结果");
       }
-      return new SourceQualification(true, null);
+      return SourceQualification.healthy();
     }
     if (row.notReadyCount() > 0L) {
       String detail = row.errorMessage() == null ? "事实来源依赖未就绪" : row.errorMessage();
-      return new SourceQualification(false, "来源 " + sourceInstance + " 当前不可读：" + detail);
+      return SourceQualification.refused("来源 " + sourceInstance + " 当前不可读：" + detail);
     }
     if (row.fullPublicationPending()) {
-      return new SourceQualification(
-          false, "来源 " + sourceInstance + " 的全量事实重建尚未结算，暂不产出统计结果");
+      return SourceQualification.refused(
+          "来源 " + sourceInstance + " 的全量事实重建尚未结算，暂不产出统计结果");
     }
     long unpublished = countUnpublishedTargets(sourceInstance, factType);
     if (unpublished > 0L) {
-      return new SourceQualification(
-          false, "来源 " + sourceInstance + " 仍有 " + unpublished + " 个目标未发布，暂不产出统计结果");
+      return SourceQualification.degraded(unpublished);
     }
     if (!labelEventHistoryVerified(sourceInstance, factType)) {
-      return new SourceQualification(
-          false,
+      return SourceQualification.refused(
           "来源 "
               + GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance)
               + " 的 resource_label_events 尚未完成完整全量核验，暂不产出统计结果");
     }
-    return new SourceQualification(true, null);
+    return SourceQualification.healthy();
   }
 
   /** 判断来源是否已经产生过事实投影代际；有代际却没有发布记录时，完整性无从证实。 */
@@ -184,49 +176,76 @@ public class SyncFactPublicationStateService {
     return Boolean.TRUE.equals(exists);
   }
 
-  /** 清除失败事实运行对目标的归属，使来源级消费者可以继续接管历史目标。 */
-  @Transactional
-  public int releaseFailedFactAssignments(String sourceInstance) {
-    return jdbcTemplate.update(
-        """
-        update sync_run_fact_targets target
-           set publication_status = 'PENDING',
-               assigned_fact_run_id = null,
-               assigned_fact_build_task_id = null,
-               updated_at = current_timestamp
-         where target.publication_status = 'QUEUED'
-           and target.assigned_fact_run_id in (
-             select id from sync_runs
-              where run_type = 'FACT_REFRESH'
-                and source_instance = ?
-                and status in ('FAILED', 'CANCELLED'))
-        """,
-        sourceInstance);
+  /**
+   * 统计指定来源实例与事实族下尚未发布到最新变化版本的根数量。
+   *
+   * <p>权威读法是 {@code fact_change_heads} 的版本栅栏：{@code published_version} 表示该根截至该版本
+   * 的变化均已发布。目标表只是按轮累积的登记日志，不参与控制面判定，因此计数成本与历史规模无关。
+   *
+   * @param sourceInstance 来源实例
+   * @param factType 事实族
+   * @return 未发布根数量；{@code 0} 表示该事实族已登记的变化全部发布完成
+   */
+  public long countUnpublishedTargets(String sourceInstance, FactType factType) {
+    Long unpublished =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+              from fact_change_heads head
+             where head.source_instance = ? and head.fact_type = ?
+               and head.published_version < head.latest_change_version
+            """,
+            Long.class,
+            sourceInstance,
+            factType.name());
+    return unpublished == null ? 0L : unpublished;
   }
 
-  /** 在成功全量事实发布后将全部历史目标结算到最新事实版本。 */
+  /**
+   * 返回该事实族当前已登记变化的版本上界。
+   *
+   * <p>全量发布必须在构建开始前用它冻结"本次构建覆盖到哪一版"：构建期间新登记的更高版本保持待发布，
+   * 由后续定向刷新收敛，不会被全量结算误标为已发布。
+   */
+  public long publicationUpperBound(String sourceInstance, FactType factType) {
+    Long bound =
+        jdbcTemplate.queryForObject(
+            """
+            select coalesce(max(head.latest_change_version), 0)
+              from fact_change_heads head
+             where head.source_instance = ? and head.fact_type = ?
+            """,
+            Long.class,
+            sourceInstance,
+            factType.name());
+    return bound == null ? 0L : bound;
+  }
+
+  /**
+   * 在成功全量事实发布后把该事实族的版本头结算到构建覆盖的版本上界。
+   *
+   * @param coveredVersion 构建开始前冻结的版本上界；只有不高于它的变化才可标记为已发布
+   */
   @Transactional
-  public int settleAfterFullPublication(String sourceInstance, FactType factType, Long taskId) {
-    int updated = jdbcTemplate.update(
-        """
-        update sync_run_fact_targets target
-           set publication_status = 'PUBLISHED',
-               published_version = head.latest_change_version,
-               published_by_fact_build_task_id = ?,
-               published_at = current_timestamp,
-               updated_at = current_timestamp
-          from fact_change_heads head
-         where target.source_instance = ?
-           and target.fact_type = ?
-           and target.publication_status <> 'PUBLISHED'
-           and head.source_instance = target.source_instance
-           and head.fact_type = target.fact_type
-           and head.root_id = target.root_id
-           and head.published_version >= head.latest_change_version
-        """,
-        taskId,
-        sourceInstance,
-        factType.name());
+  public int settleAfterFullPublication(
+      String sourceInstance, FactType factType, Long taskId, long coveredVersion) {
+    int updated =
+        jdbcTemplate.update(
+            """
+            update fact_change_heads head
+               set published_version = greatest(
+                       head.published_version, least(head.latest_change_version, ?)),
+                   published_by_fact_build_task_id = ?,
+                   updated_at = current_timestamp
+             where head.source_instance = ?
+               and head.fact_type = ?
+               and head.published_version < least(head.latest_change_version, ?)
+            """,
+            coveredVersion,
+            taskId,
+            sourceInstance,
+            factType.name(),
+            coveredVersion);
     jdbcTemplate.update(
         """
         update source_fact_publication_states
@@ -237,36 +256,6 @@ public class SyncFactPublicationStateService {
         sourceInstance,
         factType.name());
     return updated;
-  }
-
-  /**
-   * 统计指定来源实例与事实族下尚未发布到最新变化版本的目标数量。
-   *
-   * <p>判定依据是 {@code fact_change_heads.published_version} 与目标 {@code change_version} 的版本栅栏，
-   * 而不是目标的 {@code publication_status}：状态字段可能与真实发布版本脱节，版本比较才是发布收敛的权威口径。
-   * 消费者按来源实例合并全部历史目标，因此未发布目标不区分由哪一轮镜像运行登记。
-   *
-   * @param sourceInstance 来源实例
-   * @param factType 事实族
-   * @return 未发布目标数量；{@code 0} 表示该事实族已登记的变化全部发布完成
-   */
-  public long countUnpublishedTargets(String sourceInstance, FactType factType) {
-    Long unpublished =
-        jdbcTemplate.queryForObject(
-            """
-            select count(*)
-              from sync_run_fact_targets target
-              join fact_change_heads head
-                on head.source_instance = target.source_instance
-               and head.fact_type = target.fact_type
-               and head.root_id = target.root_id
-             where target.source_instance = ? and target.fact_type = ?
-               and head.published_version < target.change_version
-            """,
-            Long.class,
-            sourceInstance,
-            factType.name());
-    return unpublished == null ? 0L : unpublished;
   }
 
   /** 返回一个事实族所有来源表（含条件 MR 提交增强来源）。 */
@@ -413,12 +402,37 @@ public class SyncFactPublicationStateService {
     return countUnpublishedTargets(sourceInstance, factType) > 0L;
   }
 
-  /** 来源对外可读资格；{@code reason} 仅在不可读时有值。 */
-  public record SourceQualification(boolean readable, String reason) {
+  /**
+   * 来源对外可读资格。
+   *
+   * <p>三种取值：可读（可产出当前结果）、降级可读（完整性可证，但尚未收敛到最新变化版本——允许输出
+   * 上一个完整发布点并显式披露待更新数量）、不可读（完整性无从证实，必须拒绝）。区分"未知完整性"
+   * 与"已知暂未收敛"，使持续积压不再表现为长时间全空，同时不放宽真正的完整性拒绝。
+   */
+  public record SourceQualification(
+      boolean readable, boolean degraded, long pendingUpdates, String reason) {
     public SourceQualification {
-      if (!readable && (reason == null || reason.isBlank())) {
+      if (!readable && !degraded && (reason == null || reason.isBlank())) {
         throw new IllegalArgumentException("不可读来源必须给出原因");
       }
+      if (degraded && pendingUpdates <= 0L) {
+        throw new IllegalArgumentException("降级可读必须给出待更新数量");
+      }
+    }
+
+    /** 可产出当前结果。 */
+    public static SourceQualification healthy() {
+      return new SourceQualification(true, false, 0L, null);
+    }
+
+    /** 完整性可证但尚未收敛：可输出上一完整发布点，并披露待更新数量。 */
+    public static SourceQualification degraded(long pendingUpdates) {
+      return new SourceQualification(true, true, pendingUpdates, null);
+    }
+
+    /** 完整性无从证实：拒绝输出。 */
+    public static SourceQualification refused(String reason) {
+      return new SourceQualification(false, false, 0L, reason);
     }
   }
 

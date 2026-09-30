@@ -41,6 +41,9 @@ public class GitlabMirrorProperties {
   private int deleteReconciliationPageSize = 500;
   private int factTargetBatchSize = 200;
   private int factFullBuildChunkSize = 2000;
+  private int factTargetJournalRetentionDays = 30;
+  private int factTargetJournalArchivePageSize = 2000;
+  private int factTargetJournalArchiveBatchesPerRun = 20;
   private int customerIssueDelayCheckDelayMs = 3600000;
   private boolean customerIssueDelayPreWritebackSyncEnabled = true;
   private String customerIssueDelayPreWritebackSyncTables = "issues,notes,label_links,labels";
@@ -334,6 +337,33 @@ public class GitlabMirrorProperties {
 
   public void setDeleteReconciliationPageSize(int deleteReconciliationPageSize) {
     this.deleteReconciliationPageSize = deleteReconciliationPageSize;
+  }
+
+  /** 事实发布会话日志的保留天数；超过该天数且已被版本栅栏覆盖的行才可归档。 */
+  public int getFactTargetJournalRetentionDays() {
+    return factTargetJournalRetentionDays;
+  }
+
+  public void setFactTargetJournalRetentionDays(int factTargetJournalRetentionDays) {
+    this.factTargetJournalRetentionDays = factTargetJournalRetentionDays;
+  }
+
+  /** 单批归档删除的行数上限。 */
+  public int getFactTargetJournalArchivePageSize() {
+    return factTargetJournalArchivePageSize;
+  }
+
+  public void setFactTargetJournalArchivePageSize(int factTargetJournalArchivePageSize) {
+    this.factTargetJournalArchivePageSize = factTargetJournalArchivePageSize;
+  }
+
+  /** 单次归档巡检允许提交的批次数上限，避免长时间占用调度线程。 */
+  public int getFactTargetJournalArchiveBatchesPerRun() {
+    return factTargetJournalArchiveBatchesPerRun;
+  }
+
+  public void setFactTargetJournalArchiveBatchesPerRun(int factTargetJournalArchiveBatchesPerRun) {
+    this.factTargetJournalArchiveBatchesPerRun = factTargetJournalArchiveBatchesPerRun;
   }
 
   public int getCustomerIssueDelayCheckDelayMs() {

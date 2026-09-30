@@ -469,13 +469,11 @@ public class FactBuildService {
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
       ModuleDictionary moduleDictionary,
       Map<String, String> customerNameAliases) {
-    String predicate = buildRootPredicate("i.id", rootIds);
-    List<Object> args = new ArrayList<>(rootIds);
     return queryIssueFacts(
         sourceInstance,
-        factSourceSqlProvider.issueSourceSql() + predicate,
+        factSourceSqlProvider.issueSourceSqlForRoots(rootIds),
         null,
-        args,
+        new ArrayList<>(rootIds),
         calendar,
         moduleDictionary,
         customerNameAliases);
@@ -602,8 +600,7 @@ public class FactBuildService {
         factSourceQueryExecutor.query(
             "merge-request-fact-target-query",
             normalizedSource,
-            factSourceSqlProvider.mergeRequestSourceSql(normalizedSource)
-                + buildRootPredicate("mr.id", safeRootIds),
+            factSourceSqlProvider.mergeRequestSourceSqlForRoots(normalizedSource, safeRootIds),
             "",
             null,
             new ArrayList<>(safeRootIds),
@@ -895,24 +892,16 @@ public class FactBuildService {
         .toList();
   }
 
-  private String buildRootPredicate(String rootColumn, List<Long> rootIds) {
-    if (rootIds == null || rootIds.isEmpty()) {
-      return " and false";
-    }
-    return " and " + rootColumn + " in ("
-        + String.join(", ", java.util.Collections.nCopies(rootIds.size(), "?")) + ")";
-  }
-
   private List<MergeRequestCommitFact> loadMergeRequestCommitFacts(
       String sourceInstance, List<Long> rootIds) {
     List<Long> safeRootIds = distinctRootIds(rootIds);
-    String rootPredicate = safeRootIds.isEmpty()
-        ? ""
-        : buildRootPredicate("mr.id", safeRootIds);
+    if (safeRootIds.isEmpty()) {
+      return List.of();
+    }
     return factSourceQueryExecutor.query(
         "merge-request-commit-fact-source-query",
         sourceInstance,
-        factSourceSqlProvider.mergeRequestCommitSourceSql() + rootPredicate,
+        factSourceSqlProvider.mergeRequestCommitSourceSqlForRoots(safeRootIds),
         "",
         null,
         new ArrayList<>(safeRootIds),

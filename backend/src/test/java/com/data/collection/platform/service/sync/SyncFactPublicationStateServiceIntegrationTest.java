@@ -3,6 +3,8 @@ package com.data.collection.platform.service.sync;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
+import com.data.collection.platform.entity.FactType;
+import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,45 +39,7 @@ class SyncFactPublicationStateServiceIntegrationTest {
   }
 
   @Test
-  void test_failed_fact_run_releases_only_its_source_target_assignments() {
-    jdbcTemplate.update(
-        """
-        insert into sync_runs(id, run_type, source_instance, status) values
-          (11, 'FACT_REFRESH', 'alpha', 'FAILED'),
-          (12, 'FACT_REFRESH', 'alpha', 'RUNNING'),
-          (13, 'FACT_REFRESH', 'beta', 'CANCELLED')
-        """);
-    jdbcTemplate.update(
-        """
-        insert into sync_run_fact_targets(
-            id, source_instance, publication_status,
-            assigned_fact_run_id, assigned_fact_build_task_id) values
-          (101, 'alpha', 'QUEUED', 11, 1001),
-          (102, 'alpha', 'QUEUED', 12, 1002),
-          (103, 'beta', 'QUEUED', 13, 1003),
-          (104, 'alpha', 'PUBLISHED', 11, 1004)
-        """);
-
-    int released = service.releaseFailedFactAssignments("alpha");
-
-    assertThat(released).isOne();
-    assertThat(targetState(101L))
-        .containsEntry("publication_status", "PENDING")
-        .containsEntry("assigned_fact_run_id", null)
-        .containsEntry("assigned_fact_build_task_id", null);
-    assertThat(targetState(102L))
-        .containsEntry("publication_status", "QUEUED")
-        .containsEntry("assigned_fact_run_id", 12L);
-    assertThat(targetState(103L))
-        .containsEntry("publication_status", "QUEUED")
-        .containsEntry("assigned_fact_run_id", 13L);
-    assertThat(targetState(104L))
-        .containsEntry("publication_status", "PUBLISHED")
-        .containsEntry("assigned_fact_run_id", 11L);
-  }
-
-  @Test
-  void test_ready_family_with_pending_target_is_consumable() {
+  void test_ready_family_with_pending_head_is_consumable() {
     jdbcTemplate.update(
         """
         insert into source_fact_publication_states(
@@ -83,22 +47,9 @@ class SyncFactPublicationStateServiceIntegrationTest {
         values ('alpha', 'ISSUE', 'READY', false)
         """);
     verifiedLabelEventSource();
-    jdbcTemplate.update(
-        """
-        insert into fact_change_heads(
-            source_instance, fact_type, root_id, latest_change_version, published_version)
-        values ('alpha', 'ISSUE', 501, 9, 4)
-        """);
-    jdbcTemplate.update(
-        """
-        insert into sync_run_fact_targets(
-            id, source_instance, fact_type, root_id, change_version,
-            publication_status)
-        values (201, 'alpha', 'ISSUE', 501, 9, 'PENDING')
-        """);
+    insertHead(501L, 9L, 4L);
 
-    assertThat(service.isReady("alpha", com.data.collection.platform.entity.FactType.ISSUE))
-        .isTrue();
+    assertThat(service.isReady("alpha", FactType.ISSUE)).isTrue();
   }
 
   @Test
@@ -109,15 +60,9 @@ class SyncFactPublicationStateServiceIntegrationTest {
             source_instance, fact_type, readiness_status, full_publication_requested)
         values ('alpha', 'ISSUE', 'READY', true)
         """);
-    jdbcTemplate.update(
-        """
-        insert into sync_run_table_states(
-            source_instance, source_table, sync_enabled, dirty_flag, last_full_verified_at)
-        values ('alpha', 'resource_label_events', true, false, null)
-        """);
+    insertTableState("resource_label_events", null);
 
-    assertThat(service.isReady("alpha", com.data.collection.platform.entity.FactType.ISSUE))
-        .isFalse();
+    assertThat(service.isReady("alpha", FactType.ISSUE)).isFalse();
   }
 
   @Test
@@ -128,14 +73,9 @@ class SyncFactPublicationStateServiceIntegrationTest {
             source_instance, fact_type, readiness_status, full_publication_requested)
         values ('alpha', 'ISSUE', 'READY', false)
         """);
-    jdbcTemplate.update(
-        """
-        insert into sync_run_table_states(
-            source_instance, source_table, sync_enabled, dirty_flag, last_full_verified_at)
-        values ('alpha', 'resource_label_events', true, false, null)
-        """);
+    insertTableState("resource_label_events", null);
 
-    assertThat(service.qualification("alpha", com.data.collection.platform.entity.FactType.ISSUE))
+    assertThat(service.qualification("alpha", FactType.ISSUE))
         .satisfies(
             qualification -> {
               assertThat(qualification.readable()).isFalse();
@@ -146,79 +86,85 @@ class SyncFactPublicationStateServiceIntegrationTest {
         "update sync_run_table_states set last_full_verified_at = current_timestamp "
             + "where source_instance = 'alpha' and source_table = 'resource_label_events'");
 
-    assertThat(service.qualification("alpha", com.data.collection.platform.entity.FactType.ISSUE))
+    assertThat(service.qualification("alpha", FactType.ISSUE))
         .satisfies(qualification -> assertThat(qualification.readable()).isTrue());
   }
 
   @Test
-  void test_unpublished_target_versions_are_counted_regardless_of_registering_mirror_run() {
+  void test_pending_publishable_source_is_degraded_with_pending_head_count() {
     jdbcTemplate.update(
         """
-        insert into fact_change_heads(
-            source_instance, fact_type, root_id, latest_change_version, published_version)
-        values ('alpha', 'ISSUE', 601, 9, 4),
-               ('alpha', 'ISSUE', 602, 12, 12)
+        insert into source_fact_publication_states(
+            source_instance, fact_type, readiness_status, full_publication_requested)
+        values ('alpha', 'ISSUE', 'READY', false)
         """);
-    jdbcTemplate.update(
-        """
-        insert into sync_run_fact_targets(
-            id, source_instance, fact_type, root_id, change_version,
-            publication_status, mirror_run_id)
-        values (301, 'alpha', 'ISSUE', 601, 9, 'PENDING', 11),
-               (302, 'alpha', 'ISSUE', 601, 9, 'PUBLISHED', 12),
-               (303, 'alpha', 'ISSUE', 602, 12, 'PUBLISHED', 12)
-        """);
+    verifiedLabelEventSource();
+    insertHead(601L, 9L, 4L);
 
-    assertThat(
-            service.countUnpublishedTargets(
-                "alpha", com.data.collection.platform.entity.FactType.ISSUE))
-        .isEqualTo(2L);
+    assertThat(service.qualification("alpha", FactType.ISSUE))
+        .satisfies(
+            qualification -> {
+              assertThat(qualification.readable()).isTrue();
+              assertThat(qualification.degraded()).isTrue();
+              assertThat(qualification.pendingUpdates()).isEqualTo(1L);
+            });
   }
 
   @Test
-  void test_published_target_versions_are_not_pending() {
+  void test_unsettled_full_publication_blocks_output_even_when_heads_are_converged() {
     jdbcTemplate.update(
         """
-        insert into fact_change_heads(
-            source_instance, fact_type, root_id, latest_change_version, published_version)
-        values ('alpha', 'ISSUE', 701, 9, 9)
+        insert into source_fact_publication_states(
+            source_instance, fact_type, readiness_status, full_publication_requested)
+        values ('alpha', 'ISSUE', 'READY', true)
         """);
-    jdbcTemplate.update(
-        """
-        insert into sync_run_fact_targets(
-            id, source_instance, fact_type, root_id, change_version, publication_status)
-        values (401, 'alpha', 'ISSUE', 701, 9, 'PENDING')
-        """);
+    verifiedLabelEventSource();
+    insertHead(701L, 9L, 9L);
 
-    assertThat(
-            service.countUnpublishedTargets(
-                "alpha", com.data.collection.platform.entity.FactType.ISSUE))
-        .isZero();
+    assertThat(service.qualification("alpha", FactType.ISSUE))
+        .satisfies(
+            qualification -> {
+              assertThat(qualification.readable()).isFalse();
+              assertThat(qualification.degraded()).isFalse();
+              assertThat(qualification.reason()).contains("全量事实重建尚未结算");
+            });
   }
 
   @Test
-  void test_other_fact_type_targets_do_not_block_issue_convergence() {
+  void test_unpublished_head_versions_are_counted_from_version_fence() {
+    insertHead(601L, 9L, 4L);
+    insertHead(602L, 12L, 12L);
+
+    assertThat(service.countUnpublishedTargets("alpha", FactType.ISSUE)).isEqualTo(1L);
+  }
+
+  @Test
+  void test_published_head_versions_are_not_pending() {
+    insertHead(701L, 9L, 9L);
+
+    assertThat(service.countUnpublishedTargets("alpha", FactType.ISSUE)).isZero();
+  }
+
+  @Test
+  void test_other_fact_type_heads_do_not_block_issue_convergence() {
     jdbcTemplate.update(
         """
         insert into fact_change_heads(
             source_instance, fact_type, root_id, latest_change_version, published_version)
         values ('alpha', 'MERGE_REQUEST', 801, 7, 2)
         """);
-    jdbcTemplate.update(
-        """
-        insert into sync_run_fact_targets(
-            id, source_instance, fact_type, root_id, change_version, publication_status)
-        values (501, 'alpha', 'MERGE_REQUEST', 801, 7, 'PENDING')
-        """);
 
-    assertThat(
-            service.countUnpublishedTargets(
-                "alpha", com.data.collection.platform.entity.FactType.ISSUE))
-        .isZero();
+    assertThat(service.countUnpublishedTargets("alpha", FactType.ISSUE)).isZero();
   }
 
   @Test
-  void test_target_without_change_head_is_not_counted() {
+  void test_unregistered_root_is_not_counted() {
+    assertThat(service.countUnpublishedTargets("alpha", FactType.ISSUE)).isZero();
+  }
+
+  @Test
+  void test_journal_rows_never_change_the_authoritative_count() {
+    insertHead(901L, 5L, 5L);
     jdbcTemplate.update(
         """
         insert into sync_run_fact_targets(
@@ -226,19 +172,87 @@ class SyncFactPublicationStateServiceIntegrationTest {
         values (601, 'alpha', 'ISSUE', 901, 5, 'PENDING')
         """);
 
-    assertThat(
-            service.countUnpublishedTargets(
-                "alpha", com.data.collection.platform.entity.FactType.ISSUE))
-        .isZero();
+    assertThat(service.countUnpublishedTargets("alpha", FactType.ISSUE)).isZero();
   }
 
-  private java.util.Map<String, Object> targetState(long id) {
+  @Test
+  void test_publication_upper_bound_reads_latest_change_version_of_family() {
+    insertHead(1001L, 4L, 4L);
+    insertHead(1002L, 12L, 12L);
+    jdbcTemplate.update(
+        """
+        insert into fact_change_heads(
+            source_instance, fact_type, root_id, latest_change_version, published_version)
+        values ('alpha', 'MERGE_REQUEST', 1003, 99, 99)
+        """);
+
+    assertThat(service.publicationUpperBound("alpha", FactType.ISSUE)).isEqualTo(12L);
+  }
+
+  @Test
+  void test_full_publication_settles_heads_only_up_to_frozen_covered_version() {
+    insertHead(1101L, 10L, 0L);
+    insertHead(1102L, 20L, 5L);
+    jdbcTemplate.update(
+        """
+        insert into source_fact_publication_states(
+            source_instance, fact_type, readiness_status, full_publication_requested)
+        values ('alpha', 'ISSUE', 'READY', true)
+        """);
+
+    int updated = service.settleAfterFullPublication("alpha", FactType.ISSUE, 77L, 12L);
+
+    assertThat(updated).isEqualTo(2);
+    assertThat(headState(1101L))
+        .containsEntry("published_version", 10L)
+        .containsEntry("published_by_fact_build_task_id", 77L);
+    assertThat(headState(1102L)).containsEntry("published_version", 12L);
+    assertThat(fullPublicationRequested()).isFalse();
+    assertThat(service.countUnpublishedTargets("alpha", FactType.ISSUE)).isEqualTo(1L);
+  }
+
+  @Test
+  void test_full_publication_never_regresses_an_already_newer_published_version() {
+    insertHead(1201L, 30L, 30L);
+
+    int updated = service.settleAfterFullPublication("alpha", FactType.ISSUE, 88L, 20L);
+
+    assertThat(updated).isZero();
+    assertThat(headState(1201L)).containsEntry("published_version", 30L);
+  }
+
+  private void insertHead(long rootId, long latestVersion, long publishedVersion) {
+    jdbcTemplate.update(
+        """
+        insert into fact_change_heads(
+            source_instance, fact_type, root_id, latest_change_version, published_version)
+        values ('alpha', 'ISSUE', ?, ?, ?)
+        """,
+        rootId,
+        latestVersion,
+        publishedVersion);
+  }
+
+  private Map<String, Object> headState(long rootId) {
     return jdbcTemplate.queryForMap(
         """
-        select publication_status, assigned_fact_run_id, assigned_fact_build_task_id
-          from sync_run_fact_targets where id = ?
+        select latest_change_version, published_version, published_by_fact_build_task_id
+          from fact_change_heads
+         where source_instance = 'alpha' and fact_type = 'ISSUE' and root_id = ?
         """,
-        id);
+        rootId);
+  }
+
+  private boolean fullPublicationRequested() {
+    Boolean requested =
+        jdbcTemplate.queryForObject(
+            """
+            select full_publication_requested
+              from source_fact_publication_states
+             where source_instance = 'alpha' and fact_type = 'ISSUE'
+            """,
+            Boolean.class);
+    return Boolean.TRUE.equals(requested);
   }
 
   private void resetSchema() {
@@ -279,6 +293,8 @@ class SyncFactPublicationStateServiceIntegrationTest {
           root_id bigint not null,
           latest_change_version bigint not null,
           published_version bigint not null,
+          published_by_fact_build_task_id bigint,
+          updated_at timestamp not null default current_timestamp,
           primary key (source_instance, fact_type, root_id)
         )
         """);
@@ -290,6 +306,7 @@ class SyncFactPublicationStateServiceIntegrationTest {
           readiness_status varchar(16) not null,
           error_message text,
           full_publication_requested boolean not null default false,
+          updated_at timestamp not null default current_timestamp,
           primary key (source_instance, fact_type)
         )
         """);
@@ -305,12 +322,18 @@ class SyncFactPublicationStateServiceIntegrationTest {
         """);
   }
 
-  private void verifiedLabelEventSource() {
+  private void insertTableState(String sourceTable, java.time.LocalDateTime lastFullVerifiedAt) {
     jdbcTemplate.update(
         """
         insert into sync_run_table_states(
             source_instance, source_table, sync_enabled, dirty_flag, last_full_verified_at)
-        values ('alpha', 'resource_label_events', true, false, current_timestamp)
-        """);
+        values ('alpha', ?, true, false, ?)
+        """,
+        sourceTable,
+        lastFullVerifiedAt);
+  }
+
+  private void verifiedLabelEventSource() {
+    insertTableState("resource_label_events", java.time.LocalDateTime.now());
   }
 }

@@ -150,7 +150,7 @@ class FactBuildTaskServiceTest {
   }
 
   @Test
-  void test_pending_versioned_targets_are_assigned_as_bounded_fact_task() {
+  void test_pending_heads_are_assigned_as_bounded_fact_task() {
     GitlabSyncConfig config = config("fact-target-assignment");
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     String suffix = UUID.randomUUID().toString().replace("-", "");
@@ -227,26 +227,6 @@ class FactBuildTaskServiceTest {
           """,
           sourceInstance,
           secondIssueId);
-      jdbcTemplate.update(
-          """
-          insert into sync_run_fact_targets(
-            mirror_run_id, source_instance, fact_type, root_id, change_version,
-            project_id, iid, publication_status
-          ) values (?, ?, 'ISSUE', ?, 11, 9, 32129, 'PENDING')
-          """,
-          parentRunId,
-          sourceInstance,
-          issueId);
-      jdbcTemplate.update(
-          """
-          insert into sync_run_fact_targets(
-            mirror_run_id, source_instance, fact_type, root_id, change_version,
-            project_id, iid, publication_status
-          ) values (?, ?, 'ISSUE', ?, 12, 9, 32130, 'PENDING')
-          """,
-          secondParentRunId,
-          sourceInstance,
-          secondIssueId);
 
       int assigned =
           factBuildTaskService.assignPendingSourceTargetBatches(
@@ -255,13 +235,15 @@ class FactBuildTaskServiceTest {
           factBuildTaskService.claimNextQueuedTaskForFactRun(
               factRunId, "target-worker", 30);
 
-      assertThat(assigned).isOne();
+      // 来源默认共享同一事实控制面，因此本断言只锁定"本事实运行确实认领了这两个根"，
+      // 不对同源其他待发布根的归属数量做假设。
+      assertThat(assigned).isPositive();
       assertThat(task).isNotNull();
       assertThat(task.full()).isFalse();
       assertThat(task.factType()).isEqualTo("ISSUE");
       assertThat(task.leaseOwner()).isEqualTo("target-worker");
-      assertThat(factBuildTaskService.loadAssignedRootIds(task))
-          .containsExactly(issueId, secondIssueId);
+      assertThat(assignedRootsOfFactRun(factRunId, sourceInstance))
+          .contains(issueId, secondIssueId);
     } finally {
       jdbcTemplate.update("delete from fact_build_tasks where run_id = ?", String.valueOf(factRunId));
       jdbcTemplate.update(
@@ -277,6 +259,120 @@ class FactBuildTaskServiceTest {
           secondIssueId);
       jdbcTemplate.update("delete from gitlab_sync_configs where id = ?", config.getId());
     }
+  }
+
+  @Test
+  void test_pending_head_is_claimed_once_and_taken_over_after_claim_holder_fails() {
+    GitlabSyncConfig config = config("fact-target-takeover");
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    String suffix = UUID.randomUUID().toString().replace("-", "");
+    Long firstFactRunId = insertFactRun(config, sourceInstance, "test_first_" + suffix);
+    Long secondFactRunId = insertFactRun(config, sourceInstance, "test_second_" + suffix);
+    jdbcTemplate.update(
+        """
+        insert into source_fact_publication_states(
+            config_id, source_instance, fact_type, latest_mirror_run_id,
+            ready_mirror_run_id, readiness_status)
+        values (?, ?, 'ISSUE', ?, ?, 'READY')
+        """,
+        config.getId(),
+        sourceInstance,
+        firstFactRunId,
+        firstFactRunId);
+    long issueId = 1_600_000_000L + Math.floorMod(firstFactRunId + secondFactRunId, 100_000_000L);
+
+    try {
+      jdbcTemplate.update(
+          """
+          insert into fact_change_heads(
+            source_instance, fact_type, root_id, latest_change_version, published_version
+          ) values (?, 'ISSUE', ?, 21, 0)
+          """,
+          sourceInstance,
+          issueId);
+
+      // 唯一待发布根只派发一个批次任务：领取记录写入即生效，重复派发会造出空跑任务。
+      int firstAssigned =
+          factBuildTaskService.assignPendingSourceTargetBatches(config, firstFactRunId, 100);
+      assertThat(firstAssigned).isOne();
+      assertThat(assignedRootsOfFactRun(firstFactRunId, sourceInstance)).containsExactly(issueId);
+      QueuedFactBuildTask firstTask =
+          factBuildTaskService.claimNextQueuedTaskForFactRun(firstFactRunId, "first-worker", 30);
+      assertThat(firstTask).isNotNull();
+
+      // 在途任务持有领取记录：同一根不会被再次派发给别的运行。
+      int duplicatedAssigned =
+          factBuildTaskService.assignPendingSourceTargetBatches(config, secondFactRunId, 100);
+      assertThat(duplicatedAssigned).isZero();
+      assertThat(assignedRootsOfFactRun(secondFactRunId, sourceInstance)).doesNotContain(issueId);
+
+      // 领取者所在运行失败、任务租约超时且重试耗尽后，领取记录随任务终态释放。
+      jdbcTemplate.update("update sync_runs set status = 'FAILED' where id = ?", firstFactRunId);
+      jdbcTemplate.update(
+          """
+          update fact_build_tasks
+             set retry_count = max_retry_count,
+                 lease_until = current_timestamp - interval '1 minute'
+           where id = ?
+          """,
+          firstTask.id());
+      assertThat(factBuildTaskService.recoverTimedOutQueuedTasks()).isPositive();
+      assertThat(assignedRootsOfFactRun(firstFactRunId, sourceInstance)).isEmpty();
+
+      // 未发布根不归任何运行私有：失败运行收敛后，后续运行可再次认领同一根。
+      int takeoverAssigned =
+          factBuildTaskService.assignPendingSourceTargetBatches(config, secondFactRunId, 100);
+      assertThat(takeoverAssigned).isOne();
+      assertThat(assignedRootsOfFactRun(secondFactRunId, sourceInstance)).containsExactly(issueId);
+    } finally {
+      jdbcTemplate.update(
+          "delete from fact_build_tasks where run_id in (?, ?)",
+          String.valueOf(firstFactRunId),
+          String.valueOf(secondFactRunId));
+      jdbcTemplate.update(
+          "delete from source_fact_publication_states where config_id = ? and source_instance = ?",
+          config.getId(), sourceInstance);
+      jdbcTemplate.update(
+          "delete from sync_runs where id in (?, ?)", firstFactRunId, secondFactRunId);
+      jdbcTemplate.update(
+          "delete from fact_change_heads where source_instance = ? and fact_type = 'ISSUE' and root_id = ?",
+          sourceInstance,
+          issueId);
+      jdbcTemplate.update("delete from gitlab_sync_configs where id = ?", config.getId());
+    }
+  }
+
+  private Long insertFactRun(
+      GitlabSyncConfig config, String sourceInstance, String runId) {
+    return jdbcTemplate.queryForObject(
+        """
+        insert into sync_runs(
+          run_id, config_id, source_instance, run_type, trigger_type, status, priority,
+          exclusive_scope
+        ) values (?, ?, ?, 'FACT_REFRESH', 'SCHEDULE', 'RUNNING', 10, ?)
+        returning id
+        """,
+        Long.class,
+        runId,
+        config.getId(),
+        sourceInstance,
+        "test:fact:" + runId);
+  }
+
+  private java.util.List<Long> assignedRootsOfFactRun(
+      Long factRunId, String sourceInstance) {
+    return jdbcTemplate.queryForList(
+        """
+        select roots.root_id
+          from fact_build_task_roots roots
+          join fact_build_tasks task on task.id = roots.task_id
+         where task.run_id = ?
+           and roots.source_instance = ?
+           and roots.fact_type = 'ISSUE'
+        """,
+        Long.class,
+        String.valueOf(factRunId),
+        sourceInstance);
   }
 
   @Test

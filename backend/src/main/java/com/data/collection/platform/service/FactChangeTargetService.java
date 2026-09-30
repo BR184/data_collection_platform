@@ -108,9 +108,9 @@ public class FactChangeTargetService {
            order by ordinal
         ), updated_heads as (
           insert into fact_change_heads(
-              source_instance, fact_type, root_id,
+              source_instance, fact_type, root_id, project_id,
               latest_change_version, published_version, updated_at)
-          select source_instance, fact_type, root_id,
+          select source_instance, fact_type, root_id, project_id,
                  change_version, 0, current_timestamp
             from allocated
            order by ordinal
@@ -118,9 +118,12 @@ public class FactChangeTargetService {
              set latest_change_version = greatest(
                      fact_change_heads.latest_change_version,
                      excluded.latest_change_version),
+                 project_id = coalesce(excluded.project_id, fact_change_heads.project_id),
                  updated_at = current_timestamp
           returning source_instance, fact_type, root_id, latest_change_version
         )
+        -- 目标表是审计登记日志：待发布权威已收敛到 fact_change_heads，此处只记录"哪一轮镜像登记了哪个根"。
+        -- 同键再登记时只刷新本轮登记事实；发布状态列自日志降级后不再被任何代码读写，故保持原值不动。
         insert into sync_run_fact_targets(
             mirror_run_id, source_instance, fact_type, root_id,
             change_version, project_id, iid, first_task_id, last_task_id,
@@ -136,12 +139,6 @@ public class FactChangeTargetService {
                project_id = coalesce(excluded.project_id, sync_run_fact_targets.project_id),
                iid = coalesce(excluded.iid, sync_run_fact_targets.iid),
                last_task_id = excluded.last_task_id,
-               publication_status = 'PENDING',
-               assigned_fact_run_id = null,
-               assigned_fact_build_task_id = null,
-               published_version = null,
-               published_by_fact_build_task_id = null,
-               published_at = null,
                updated_at = current_timestamp
         returning source_instance, fact_type, root_id, change_version
         """

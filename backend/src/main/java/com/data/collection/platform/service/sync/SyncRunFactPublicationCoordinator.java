@@ -30,7 +30,7 @@ public class SyncRunFactPublicationCoordinator {
   /**
    * 为镜像运行提交依赖代际，并创建或唤醒来源级事实消费者。
    *
-   * <p>事实消费者不再绑定父镜像运行；失败消费者释放目标归属后由下一次来源终态接管。
+   * <p>事实消费者不再绑定父镜像运行；待发布权威是版本头，失败运行不留下归属，因此无需释放动作。
    *
    * @param event 已提交的镜像终态事件
    */
@@ -45,8 +45,6 @@ public class SyncRunFactPublicationCoordinator {
         event.runId(),
         event.status(),
         event.requiresFullFactRefresh() && event.successful());
-    String sourceInstance = event.sourceInstance();
-    publicationStateService.releaseFailedFactAssignments(sourceInstance);
     if (!hasIntent) {
       return;
     }

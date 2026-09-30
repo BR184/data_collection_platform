@@ -71,7 +71,7 @@ class SyncRunPublicationFenceServiceIntegrationTest {
   @Test
   void test_zero_dml_manual_run_waits_for_older_unpublished_target_and_projection() {
     SyncRun run = insertOwnedRun(10L, WorkspaceRefreshRequest.global("system-test-board"));
-    insertTarget(9L, 41L, 7L, "PENDING", null, null, 42L);
+    insertHead(41L, 7L, null, null, 42L);
 
     captureOwnedRun(run);
 
@@ -79,7 +79,7 @@ class SyncRunPublicationFenceServiceIntegrationTest {
     assertThat(fenceRequiredVersion(10L)).isEqualTo(7L);
 
     insertProjectionTask(60L, 50L, "PROJECT", "42", 3L, "QUEUED");
-    publishTarget(9L, 41L, 7L, 50L);
+    publishHead(41L, 7L, 50L);
     advanceAfterFactPublication();
 
     assertThat(fenceStatus(10L)).isEqualTo("PENDING");
@@ -99,23 +99,40 @@ class SyncRunPublicationFenceServiceIntegrationTest {
         new WorkspaceRefreshRequest(
             "system-test-project-board", WorkspaceScopeSelection.projects(Set.of(42L)));
     SyncRun run = insertOwnedRun(20L, request);
-    insertTarget(18L, 51L, 8L, "PENDING", null, null, 42L);
-    insertTarget(19L, 52L, 9L, "PENDING", null, null, 99L);
+    insertHead(51L, 8L, null, null, 42L);
+    insertHead(52L, 9L, null, null, 99L);
 
     captureOwnedRun(run);
 
     assertThat(fenceRequiredVersion(20L)).isEqualTo(8L);
     assertThat(fenceStatus(20L)).isEqualTo("PENDING");
-    publishTarget(18L, 51L, 8L, 70L);
+    publishHead(51L, 8L, 70L);
     advanceAfterFactPublication();
 
     assertThat(fenceStatus(20L)).isEqualTo("SUCCESS");
   }
 
   @Test
+  void test_partially_published_head_still_waits_until_latest_version_is_published() {
+    SyncRun run = insertOwnedRun(25L, WorkspaceRefreshRequest.global("system-test-board"));
+    // 已发布到 4、但最新变化已到 7：版本栅栏口径下仍属待发布，不因迁移到 heads 而放宽。
+    insertHead(71L, 7L, 4L, 70L, 42L);
+
+    captureOwnedRun(run);
+
+    assertThat(fenceRequiredVersion(25L)).isEqualTo(7L);
+    assertThat(fenceStatus(25L)).isEqualTo("PENDING");
+
+    publishHead(71L, 7L, 72L);
+    advanceAfterFactPublication();
+
+    assertThat(fenceStatus(25L)).isEqualTo("SUCCESS");
+  }
+
+  @Test
   void test_failed_projection_marks_fence_failed_and_later_success_recovers_it() {
     SyncRun run = insertOwnedRun(30L, WorkspaceRefreshRequest.global("customer-issue-board"));
-    insertTarget(29L, 61L, 11L, "PUBLISHED", 11L, 80L, 42L);
+    insertHead(61L, 11L, 11L, 80L, 42L);
     insertProjectionTask(81L, 80L, "PROJECT", "42", 4L, "FAILED");
 
     captureOwnedRun(run);
@@ -139,7 +156,7 @@ class SyncRunPublicationFenceServiceIntegrationTest {
             "system-test-project-board", WorkspaceScopeSelection.projects(Set.of(42L)));
     assertThat(registerRequest(40L, global)).isTrue();
     assertThat(registerRequest(40L, project)).isTrue();
-    insertTarget(39L, 71L, 13L, "PENDING", null, null, 42L);
+    insertHead(71L, 13L, null, null, 42L);
 
     captureOwnedRun(run);
 
@@ -151,7 +168,7 @@ class SyncRunPublicationFenceServiceIntegrationTest {
   @Test
   void test_registration_lock_acquired_first_is_captured_by_same_run() throws Exception {
     SyncRun run = insertOwnedRunWithoutRequest(50L);
-    insertTarget(49L, 81L, 17L, "PENDING", null, null, 42L);
+    insertHead(81L, 17L, null, null, 42L);
     WorkspaceRefreshRequest request =
         WorkspaceRefreshRequest.global("customer-issue-board");
     ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -228,7 +245,7 @@ class SyncRunPublicationFenceServiceIntegrationTest {
   @Test
   void test_lost_lease_rolls_back_captured_fence_watermark() {
     SyncRun run = insertOwnedRun(70L, WorkspaceRefreshRequest.global("customer-issue-board"));
-    insertTarget(69L, 91L, 19L, "PENDING", null, null, 42L);
+    insertHead(91L, 19L, null, null, 42L);
     SyncRunLeaseService lostLeaseService = mock(SyncRunLeaseService.class);
     when(lostLeaseService.finishOwnedRun(run)).thenReturn(0);
     SyncRunCompletionCommitService failingCompletion =
@@ -282,44 +299,36 @@ class SyncRunPublicationFenceServiceIntegrationTest {
     return run;
   }
 
-  private void insertTarget(
-      long mirrorRunId,
+  private void insertHead(
       long rootId,
-      long changeVersion,
-      String status,
+      long latestChangeVersion,
       Long publishedVersion,
-      Long taskId,
+      Long publishedByTaskId,
       long projectId) {
     jdbcTemplate.update(
         """
-        insert into sync_run_fact_targets(
-            mirror_run_id, source_instance, fact_type, root_id, change_version,
-            project_id, publication_status, published_version,
-            published_by_fact_build_task_id)
-        values (?, 'alpha', 'ISSUE', ?, ?, ?, ?, ?, ?)
+        insert into fact_change_heads(
+            source_instance, fact_type, root_id, project_id,
+            latest_change_version, published_version, published_by_fact_build_task_id)
+        values ('alpha', 'ISSUE', ?, ?, ?, ?, ?)
         """,
-        mirrorRunId,
         rootId,
-        changeVersion,
         projectId,
-        status,
-        publishedVersion,
-        taskId);
+        latestChangeVersion,
+        publishedVersion == null ? 0L : publishedVersion,
+        publishedByTaskId);
   }
 
-  private void publishTarget(
-      long mirrorRunId, long rootId, long publishedVersion, long taskId) {
+  private void publishHead(long rootId, long publishedVersion, long taskId) {
     jdbcTemplate.update(
         """
-        update sync_run_fact_targets
-           set publication_status = 'PUBLISHED',
-               published_version = ?,
+        update fact_change_heads
+           set published_version = ?,
                published_by_fact_build_task_id = ?
-         where mirror_run_id = ? and root_id = ?
+         where source_instance = 'alpha' and fact_type = 'ISSUE' and root_id = ?
         """,
         publishedVersion,
         taskId,
-        mirrorRunId,
         rootId);
   }
 
@@ -442,6 +451,7 @@ class SyncRunPublicationFenceServiceIntegrationTest {
     jdbcTemplate.execute("drop table if exists sync_run_publication_fence_scopes cascade");
     jdbcTemplate.execute("drop table if exists sync_run_publication_fences cascade");
     jdbcTemplate.execute("drop table if exists fact_projection_refresh_tasks cascade");
+    jdbcTemplate.execute("drop table if exists fact_change_heads cascade");
     jdbcTemplate.execute("drop table if exists sync_run_fact_targets cascade");
     jdbcTemplate.execute("drop table if exists issue_scope_groups cascade");
     jdbcTemplate.execute("drop table if exists issue_scope_catalogs cascade");
@@ -465,6 +475,19 @@ class SyncRunPublicationFenceServiceIntegrationTest {
           finished_at timestamp,
           error_message text,
           updated_at timestamp
+        )
+        """);
+    jdbcTemplate.execute(
+        """
+        create table fact_change_heads (
+          source_instance varchar(128) not null,
+          fact_type varchar(64) not null,
+          root_id bigint not null,
+          project_id bigint,
+          latest_change_version bigint not null,
+          published_version bigint not null default 0,
+          published_by_fact_build_task_id bigint,
+          primary key (source_instance, fact_type, root_id)
         )
         """);
     jdbcTemplate.execute(

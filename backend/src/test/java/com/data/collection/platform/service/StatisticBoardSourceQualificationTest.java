@@ -26,7 +26,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * S04 / T18：来源不完整时不得产出新的 READY 结果，命中缓存也必须校验发布资格。
  *
- * <p>覆盖三种不完整发布窗口：依赖未就绪（镜像失败）、全量重建已请求但未结算、仍有未发布目标。
+ * <p>覆盖两个必须拒绝的窗口（依赖未就绪、全量重建已请求但未结算）与一个降级可读窗口（仍有未发布变化）：
+ * 降级可读退回上一个完整发布点并披露待更新数量，且只读不写，避免降级结果被当成该来源版本的完整产出。
  *
  * <p>“没有发布记录”本身不是可读理由：来源从未产生任何事实投影时可以证明它不贡献数据，因此可读；
  * 已经有事实投影却没有发布记录，属于完整性无从证实的未知状态，必须拒绝。
@@ -106,7 +107,7 @@ class StatisticBoardSourceQualificationTest {
   }
 
   @Test
-  void incompletePublicationIsRejectedEvenWhenReadySnapshotAlreadyExists() {
+  void unsettledPublicationIsRejectedEvenWhenReadySnapshotAlreadyExists() {
     read(new AtomicInteger());
     assertThat(readySnapshotCount()).isOne();
 
@@ -122,21 +123,59 @@ class StatisticBoardSourceQualificationTest {
         .as("全量重建未结算时必须拒绝")
         .isInstanceOf(BizException.class)
         .hasMessageContaining("尚未结算");
+    assertThat(readySnapshotCount()).isOne();
+  }
+
+  @Test
+  void unpublishedChangesServeLastCompleteSnapshotWithFreshnessHint() {
+    read(new AtomicInteger());
+    assertThat(readySnapshotCount()).isOne();
 
     upsertPublicationState("READY", false, null);
     insertUnpublishedTarget();
-    assertThatThrownBy(() -> read(new AtomicInteger()))
-        .as("仍有未发布目标时必须拒绝")
-        .isInstanceOf(BizException.class)
-        .hasMessageContaining("未发布");
+    AtomicInteger degradedBuilds = new AtomicInteger();
+    StatisticBoardResponse degraded =
+        read(
+            degradedBuilds,
+            () -> {
+              throw new AssertionError("降级可读必须退回上一个完整发布点，不得重新构建");
+            });
+    assertThat(degraded.pendingUpdates()).as("未收敛的来源必须披露待更新数量").isEqualTo(1L);
+    assertThat(degraded.dataAsOf()).as("降级产出必须披露数据时刻").isNotNull();
+    assertThat(degradedBuilds).hasValue(0);
+    assertThat(readySnapshotCount()).as("降级读取不得改写既有完整快照").isOne();
 
     deleteUnpublishedTarget();
-    AtomicInteger builds = new AtomicInteger();
-    read(builds, () -> {
-      throw new AssertionError("结算完成后应命中既有 READY 快照");
-    });
+    StatisticBoardResponse converged =
+        read(
+            new AtomicInteger(),
+            () -> {
+              throw new AssertionError("收敛完成后应重新命中完整快照");
+            });
+    assertThat(converged.pendingUpdates()).as("收敛后不得再携带新鲜度提示").isNull();
+    assertThat(converged.dataAsOf()).isNull();
+  }
+
+  @Test
+  void degradedReadWithoutAnyCompleteSnapshotIsRefusedInsteadOfServingMixedView() {
+    upsertPublicationState("READY", false, null);
+    insertUnpublishedTarget();
+
+    AtomicInteger degradedBuilds = new AtomicInteger();
+    assertThatThrownBy(() -> read(degradedBuilds))
+        .as("没有可退回的完整发布点时不得以进行中的混合视图冒充完整产出")
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("尚未收敛到最新变化版本")
+        .hasMessageContaining("1 项待更新");
+    assertThat(degradedBuilds).as("拒绝时不得开始计算").hasValue(0);
+    assertThat(readySnapshotCount()).isZero();
+
+    deleteUnpublishedTarget();
+    AtomicInteger convergedBuilds = new AtomicInteger();
+    StatisticBoardResponse converged = read(convergedBuilds);
+    assertThat(converged.pendingUpdates()).isNull();
+    assertThat(convergedBuilds).hasValue(1);
     assertThat(readySnapshotCount()).isOne();
-    assertThat(builds).hasValue(0);
   }
 
   private StatisticBoardResponse read(AtomicInteger builds) {
@@ -175,7 +214,9 @@ class StatisticBoardSourceQualificationTest {
         Map.of(),
         null,
         List.of(),
-        new StatisticBoardMeta(LocalDateTime.now(), 0L, 0, 0, 0));
+        new StatisticBoardMeta(LocalDateTime.now(), 0L, 0, 0, 0),
+        null,
+        null);
   }
 
   private long readySnapshotCount() {
