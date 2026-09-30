@@ -10,7 +10,7 @@ import {
   type ModuleKey,
   type PageKey,
 } from './feature-manifest';
-import { authState, loadCurrentUser } from './composables/auth-state';
+import { authState, ensureCurrentUser } from './composables/auth-state';
 import { beginRouteLoading, clearRouteError, endRouteLoading, setRouteError } from './router-state';
 import { getErrorMessage } from './utils/user-message';
 
@@ -38,6 +38,7 @@ const DropdownOptionSettingsView = () => import('./views/DropdownOptionSettingsV
 const BackupSettingsView = () => import('./views/BackupSettingsView.vue');
 const AnalyticsDashboardDetailPage = () => import('./views/AnalyticsDashboardDetailPage.vue');
 const BiDashboardView = () => import('./features/bi-dashboard/BiDashboardView.vue');
+const BiCustomerIssueDashboardView = () => import('./features/bi-dashboard/CustomerIssueDashboardView.vue');
 
 type RouteComponent = NonNullable<RouteRecordRaw['component']>;
 type QueryNormalizableRoute = Pick<RouteLocationNormalized, 'hash' | 'matched' | 'meta' | 'path' | 'query'>;
@@ -131,6 +132,9 @@ const routes: RouteRecordRaw[] = [
     ...buildShellRoute('bi-dashboard-system-test', BiDashboardView),
   },
   {
+    ...buildShellRoute('bi-dashboard-customer-issues', BiCustomerIssueDashboardView),
+  },
+  {
     ...buildShellRoute('review-data-home', ReviewDataManagementView),
   },
   {
@@ -184,6 +188,9 @@ const routes: RouteRecordRaw[] = [
   },
   {
     ...buildShellRoute('customer-issues-issue-by-function', StatisticBoardPage),
+  },
+  {
+    ...buildShellRoute('customer-issues-customer-statistics', StatisticBoardPage),
   },
   {
     ...buildShellRoute('label-group-settings', LabelGroupSettingsView),
@@ -362,7 +369,7 @@ router.beforeEach(async (to, from) => {
     endRouteLoading();
   }
   if (!authState.initialized) {
-    await loadCurrentUser();
+    await ensureCurrentUser();
   }
   const accessRedirect = routeAccessRedirect(to, authState.currentUser);
   if (accessRedirect) {

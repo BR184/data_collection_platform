@@ -104,6 +104,54 @@ describe('router query normalization', () => {
     });
   });
 
+  it('keeps row dimension and member selection on the customer statistics board', () => {
+    const to = router.resolve({
+      path: '/customer-issues/customer-statistics',
+      query: {
+        groupBy: 'CUSTOMER_MODULE',
+        customer: '客户甲',
+        module: '模块A',
+        milestoneTitle: 'CC2026R3',
+        unknown: 'drop-me',
+      },
+    });
+
+    expect(normalizeQuery(to)).toEqual({
+      groupBy: 'CUSTOMER_MODULE',
+      customer: '客户甲',
+      module: '模块A',
+      milestoneTitle: 'CC2026R3',
+    });
+  });
+
+  it('keeps the drilldown collection on statistic board deep links', () => {
+    const to = router.resolve({
+      path: '/customer-issues/customer-statistics',
+      query: {
+        detailVisible: '1',
+        detailRowKey: '{"groupBy":"CUSTOMER"}',
+        detailColumnKey: 'defect_fix_rate',
+        detailCollection: 'NUMERATOR',
+        unknown: 'drop-me',
+      },
+    });
+
+    expect(normalizeQuery(to)).toMatchObject({ detailCollection: 'NUMERATOR' });
+  });
+
+  it('carries row dimension and member selection across customer issue pages', () => {
+    const from = router.resolve({
+      path: '/customer-issues/customer-statistics',
+      query: { groupBy: 'CUSTOMER_FUNCTION', function: '功能A' },
+    });
+    const to = router.resolve({
+      path: '/customer-issues/customer-statistics',
+      query: { groupBy: 'CUSTOMER_FUNCTION', function: '功能A', detailVisible: '1' },
+    });
+
+    expect(normalizeQuery(to, from)).toBeNull();
+  });
+
   it('drops non-whitelisted query params on special standalone routes', () => {
     const to = router.resolve({
       path: '/external/code-review-form',
@@ -249,6 +297,28 @@ describe('router query normalization', () => {
 
     expect(normalizeQuery(to, from)).toBeNull();
   });
+
+  it('keeps the customer issue page independent from product-version BI scopes', () => {
+    const from = router.resolve('/bi-dashboard/coding?productVersionId=10&repositoryId=repo-1');
+    const to = router.resolve({
+      path: '/bi-dashboard/customer-issues',
+      query: {
+        productVersionId: '11',
+        milestoneBusinessKey: 'customer-mile-1',
+        customerKind: 'VALUE',
+        customer: 'missing',
+        moduleKind: 'MISSING',
+        repositoryId: 'drop-me',
+      },
+    });
+
+    expect(normalizeQuery(to, from)).toEqual({
+      milestoneBusinessKey: 'customer-mile-1',
+      customerKind: 'VALUE',
+      customer: 'missing',
+      moduleKind: 'MISSING',
+    });
+  });
 });
 
 describe('router access guard', () => {
@@ -276,10 +346,20 @@ describe('router access guard', () => {
     expect(routeAccessRedirect(to, { permissions: [], authenticated: false })).toBe('/quality-board/rd-quality-board');
   });
 
-  it('protects all BI stage routes with the shared view permission', () => {
+  it('protects each BI stage route with its own view permission', () => {
     const to = router.resolve('/bi-dashboard/system-test');
     expect(routeAccessRedirect(to, { permissions: ['quality.rd.view'], authenticated: true }))
       .toBe('/quality-board/rd-quality-board');
-    expect(routeAccessRedirect(to, { permissions: ['bi.dashboard.view'], authenticated: true })).toBeNull();
+    // 只持有需求页权限时不得进入系统测试页，改跳到自己可访问的第一个页面。
+    expect(routeAccessRedirect(to, { permissions: ['bi.dashboard.requirements.view'], authenticated: true }))
+      .toBe('/bi-dashboard/requirements');
+    expect(routeAccessRedirect(to, { permissions: ['bi.dashboard.system_test.view'], authenticated: true }))
+      .toBeNull();
+    const customerPage = router.resolve('/bi-dashboard/customer-issues');
+    expect(routeAccessRedirect(customerPage, { permissions: ['bi.dashboard.customer_issues.view'], authenticated: true }))
+      .toBeNull();
+    // 反向：持有系统测试页权限时同样不得进入客户问题页，改跳到自己可访问的第一个页面。
+    expect(routeAccessRedirect(customerPage, { permissions: ['bi.dashboard.system_test.view'], authenticated: true }))
+      .toBe('/bi-dashboard/system-test');
   });
 });

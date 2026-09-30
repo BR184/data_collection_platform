@@ -169,6 +169,77 @@ describe('App auth dialog', () => {
     expect(appSource).not.toContain('(currentUser.value.roleNames ?? []).join');
   });
 
+  it('retries an unavailable session with a fresh current-user request', async () => {
+    authState.currentUser = {
+      username: 'guest',
+      displayName: '游客',
+      roleCodes: [],
+      roleNames: [],
+      permissions: [],
+      authenticated: false,
+    };
+    authState.status = 'unavailable';
+    authState.loading = false;
+    authState.error = '网络不可用';
+    authState.initialized = true;
+    const fetchSpy = vi.fn((input: RequestInfo | URL) => {
+      if (String(input).includes('/api/auth/current')) {
+        return jsonResponse({
+          username: 'admin',
+          displayName: '管理员',
+          roleCodes: ['ADMIN'],
+          roleNames: ['管理员'],
+          permissions: ['quality.rd.view'],
+          authenticated: true,
+        });
+      }
+      return jsonResponse({ enabled: false, codeReviewReadMode: 'formal', codeReviewCompatibilityRead: false });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    vi.spyOn(api, 'getCodeReviewMatchModeStatus').mockResolvedValue({
+      enabled: false,
+      codeReviewReadMode: 'formal',
+      codeReviewCompatibilityRead: false,
+    });
+    const router = createRouter({
+      history: createWebHashHistory(),
+      routes: [{
+        path: '/quality-board/rd-quality-board',
+        component: { template: '<div />' },
+        meta: { pageKey: 'quality-board-rd-quality-board', moduleKey: 'quality-board' },
+      }],
+    });
+    await router.push('/quality-board/rd-quality-board');
+    await router.isReady();
+    const wrapper = mount(App, {
+      global: {
+        plugins: [router],
+        stubs: {
+          RouterView: RouterViewStub,
+          'el-alert': passthroughStub,
+          'el-button': buttonStub,
+          'el-config-provider': passthroughStub,
+          'el-dialog': ElDialogStub,
+          'el-form': passthroughStub,
+          'el-form-item': passthroughStub,
+          'el-icon': passthroughStub,
+          'el-input': ElInputStub,
+          'el-tag': passthroughStub,
+        },
+      },
+    });
+    await flushPromises();
+
+    await wrapper.findAll('.auth-service-state button')[0]!.trigger('click');
+    await flushPromises();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toContain('/api/auth/current');
+    expect(authState.currentUser.username).toBe('admin');
+    expect(authState.currentUser.permissions).toEqual(['quality.rd.view']);
+    wrapper.unmount();
+  });
+
   it('remounts the active page when the authentication session changes', () => {
     expect(appSource).toContain('const pageRenderKey = computed(');
     expect(appSource).toContain('<component :is="Component" :key="pageRenderKey" />');

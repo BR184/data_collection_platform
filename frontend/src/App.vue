@@ -18,7 +18,7 @@ import {
   type ShellModule,
 } from './feature-manifest';
 import { shellDataScopeState } from './composables/shell-data-scope';
-import { authState, loadCurrentUser, login, logout, setGuestUser } from './composables/auth-state';
+import { authState, ensureCurrentUser, refreshCurrentUser, login, logout, setGuestUser } from './composables/auth-state';
 import { routerState } from './router-state';
 import { AUTH_REQUIRED_EVENT } from './api-client/request';
 import { getErrorMessage } from './utils/user-message';
@@ -221,9 +221,11 @@ async function handleLogout() {
 }
 
 async function retryAuthState() {
-  authState.initialized = false;
-  authState.error = '';
-  await loadCurrentUser();
+  try {
+    await refreshCurrentUser();
+  } catch {
+    // 认证状态中的错误由不可用状态与当前登录弹窗呈现，重试不重置身份代次。
+  }
   if (authState.status === 'unavailable') {
     ElMessage.error('登录服务暂时不可用，请稍后重试');
     return;
@@ -233,7 +235,7 @@ async function retryAuthState() {
 
 onMounted(async () => {
   if (!authState.initialized) {
-    await loadCurrentUser();
+    await ensureCurrentUser();
   }
   if (!currentUser.value.authenticated && authState.status !== 'unavailable') {
     loginDialogVisible.value = true;
