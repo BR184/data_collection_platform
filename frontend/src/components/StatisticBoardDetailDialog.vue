@@ -10,6 +10,7 @@ import { parseIssueStatusMembers } from '../utils/issue-status-members';
 import type {
   StatisticDetailCellValue,
   StatisticDetailColumn,
+  StatisticDetailCollection,
   StatisticDetailLinkValue,
   StatisticDetailResponse,
 } from '../types/api';
@@ -29,6 +30,9 @@ const props = defineProps<{
   };
   quickFilterValues: Record<string, string>;
   quickFilterInputDrafts: Record<string, string>;
+  /** 当前选中的下钻集合键；空表示沿用指标默认集合。 */
+  collection?: string;
+  onCollectionChange?: (key: string) => void;
   detailTableClass?: string;
   detailCellValue: (record: Record<string, unknown>, column: StatisticDetailColumn) => StatisticDetailCellValue;
   onSortChange: (event: { column: unknown; prop: string; order: 'ascending' | 'descending' | null }) => void;
@@ -124,6 +128,19 @@ const quickFilterToggleText = computed(() =>
   quickFiltersExpanded.value ? '收起快速筛选' : `快速筛选（${quickFilterCount.value}）`,
 );
 const quickFilterToggleIcon = computed(() => (quickFiltersExpanded.value ? ArrowUp : ArrowDown));
+const detailCollections = computed<StatisticDetailCollection[]>(() => props.detail?.collections ?? []);
+
+// 只有一套集合的旧看板不渲染切换控件，保持原弹窗形态。
+const showCollectionSwitch = computed(() => detailCollections.value.length > 1);
+
+const activeCollection = computed(
+  () => props.collection || String(props.detail?.collection ?? ''),
+);
+
+const activeCollectionDescription = computed(
+  () => detailCollections.value.find((item) => item.key === activeCollection.value)?.description ?? '',
+);
+
 const currentSortSummary = computed(() => {
   const fieldKey = String(props.pagination.sortField ?? '').trim();
   const direction = String(props.pagination.sortOrder ?? '').trim();
@@ -429,6 +446,22 @@ function readableDetailSortDirection(direction: string) {
           {{ detail?.title || '明细数据' }}
         </h2>
         <div v-if="detail" class="stat-detail-header-actions">
+          <el-radio-group
+            v-if="showCollectionSwitch"
+            class="stat-detail-collection-switch"
+            size="small"
+            :model-value="activeCollection"
+            @update:model-value="onCollectionChange?.($event as string)"
+          >
+            <el-radio-button
+              v-for="item in detailCollections"
+              :key="item.key"
+              :value="item.key"
+              :title="item.description"
+            >
+              {{ item.label }}
+            </el-radio-button>
+          </el-radio-group>
           <el-button
             class="app-action-button app-action-button--filter stat-detail-filter-toggle"
             plain
@@ -451,6 +484,12 @@ function readableDetailSortDirection(direction: string) {
         />
       </div>
     </template>
+    <div
+      v-if="detail && showCollectionSwitch && activeCollectionDescription"
+      class="stat-detail-collection-note"
+    >
+      {{ activeCollectionDescription }}
+    </div>
     <div class="stat-detail-shell" :class="{ 'is-loading-empty': loading && !detail }" v-loading="loading">
       <el-collapse-transition>
         <div v-show="detail && quickFiltersExpanded" class="stat-detail-filterbar">
@@ -643,6 +682,18 @@ function readableDetailSortDirection(direction: string) {
   justify-content: flex-end;
   gap: 10px;
   min-width: 0;
+}
+
+/* 集合说明放在标题下方，说明当前集合包含哪些议题以及空集合的含义。 */
+.stat-detail-collection-note {
+  grid-column: 1 / -1;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.stat-detail-collection-switch {
+  flex: 0 0 auto;
 }
 
 .stat-detail-filter-toggle {

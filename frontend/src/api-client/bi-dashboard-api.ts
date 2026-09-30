@@ -2,7 +2,11 @@ import { request, requestBlobResponse, EXPORT_REQUEST_TIMEOUT_MS, type BlobRespo
 import type {
   BiChartTemplateId,
   BiCodingPageData,
+  BiCustomerIssuePageData,
+  BiDownloadScope,
   BiDownloadAuthorization,
+  BiChartDownloadContext,
+  BiMemberSelection,
   BiPageKey,
   BiPageResponse,
   BiProductVersionCatalog,
@@ -17,18 +21,29 @@ export interface BiCodingQuery {
   repositoryId?: string;
 }
 
+export interface BiCustomerIssueQuery {
+  milestoneBusinessKey?: string;
+  customer?: BiMemberSelection;
+  module?: BiMemberSelection;
+  function?: BiMemberSelection;
+}
+
+export type BiDownloadIdentity = BiChartDownloadContext & {
+  chartTemplateId: BiChartTemplateId;
+};
+
 /** 后端生成图表 Excel 数据表所需的授权身份与已提取表格内容。 */
 export interface BiExcelExportParams {
-  productVersionId: number;
+  scope: BiDownloadScope;
   pageKey: BiPageKey;
+  chartInstanceId: string;
   chartTemplateId: BiChartTemplateId;
   sourceVersion: string;
   title: string;
-  productVersionName: string;
   /** 图表业务口径与达标标准说明，后端写入标题下的说明行；无内容时传空串。 */
   explanation: string;
   headers: string[];
-  rows: Array<Array<string | number>>;
+  rows: Array<Array<string | number | null>>;
 }
 
 function pageQuery(productVersionId: number): URLSearchParams {
@@ -73,15 +88,20 @@ export const biDashboardApi = {
     return request(`/api/bi/system-test?${pageQuery(productVersionId)}`, pageProgress('system-test'));
   },
 
-  authorizeDownload(
-    productVersionId: number,
-    pageKey: BiPageKey,
-    chartTemplateId: BiChartTemplateId,
-    sourceVersion: string,
-  ): Promise<BiDownloadAuthorization> {
+  loadCustomerIssues(query: BiCustomerIssueQuery): Promise<BiPageResponse<BiCustomerIssuePageData>> {
+    const params = new URLSearchParams();
+    if (query.milestoneBusinessKey) params.set('milestoneBusinessKey', query.milestoneBusinessKey);
+    appendSelection(params, 'customer', query.customer);
+    appendSelection(params, 'module', query.module);
+    appendSelection(params, 'function', query.function);
+    const suffix = params.size ? `?${params}` : '';
+    return request(`/api/bi/customer-issues${suffix}`, pageProgress('customer-issues'));
+  },
+
+  authorizeDownload(identity: BiDownloadIdentity): Promise<BiDownloadAuthorization> {
     return request('/api/bi/download/authorize', {
       method: 'POST',
-      body: JSON.stringify({ productVersionId, pageKey, chartTemplateId, sourceVersion }),
+      body: JSON.stringify(identity),
       platformProgress: { label: '正在准备图表', profile: 'export', endpointKey: 'bi-png-authorize' },
     });
   },
@@ -96,6 +116,12 @@ export const biDashboardApi = {
     });
   },
 };
+
+function appendSelection(params: URLSearchParams, dimension: string, selection?: BiMemberSelection): void {
+  if (!selection || selection.kind === 'ALL') return;
+  params.set(`${dimension}Kind`, selection.kind);
+  if (selection.kind === 'VALUE') params.set(dimension, selection.value);
+}
 
 function pageProgress(pageKey: BiPageKey) {
   return {

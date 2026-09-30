@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 // 统一统计板组件负责把查询条件、摘要卡片、图表和明细下钻串成同一套交互。
 // 各业务看板只传入 boardKey 和配置，避免每个页面重复实现刷新、排序和规则说明。
 import { ArrowDown, ArrowUp, Download, Sort } from '@element-plus/icons-vue';
@@ -9,6 +9,8 @@ import BaseStatisticTable from './base/BaseStatisticTable.vue';
 import StatisticBoardDetailDialog from './StatisticBoardDetailDialog.vue';
 import StatisticBoardRuleExplanationDrawer from './StatisticBoardRuleExplanationDrawer.vue';
 import StatisticBoardToolbar from './StatisticBoardToolbar.vue';
+import StatisticBoardFreshnessBanner from './StatisticBoardFreshnessBanner.vue';
+import StatisticBoardControlBar from './StatisticBoardControlBar.vue';
 import DataScopeBar from './data-scope/DataScopeBar.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
@@ -37,6 +39,8 @@ import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshP
 import { useStatisticBoardTableAdapters } from '../composables/useStatisticBoardTableAdapters';
 import { useDataScope } from '../composables/useDataScope';
 import { useStatisticBoardDataScope } from '../composables/statistic-board-data-scopes';
+import { useStatisticBoardControlParams } from '../composables/useStatisticBoardControlParams';
+import type { PageKey } from '../feature-manifest/types';
 import PageSettingsDialog from './PageSettingsDialog.vue';
 import { usePageSavedViews } from '../composables/usePageSavedViews';
 import { downloadBlob } from '../utils/csv-download';
@@ -59,6 +63,7 @@ import {
 import type { LocationQuery } from 'vue-router';
 import { useStatisticBoardColumnDrag } from './useStatisticBoardColumnDrag';
 import { createFallbackRuleExplanation } from './statistic-board-rule-explanation';
+import { resolveStatisticBoardRouteScopeState } from './statistic-board-route-scope';
 import type { StatisticBoardViewPrefs } from './statistic-board-view-prefs';
 import type { RecordTableFilterField } from '../types/record-table';
 import {
@@ -118,17 +123,18 @@ const currentDataScopeSummary = computed(() =>
 );
 const currentDataScopeLoading = computed(() => dataScopeConfig.value?.loading.value ?? false);
 const toolbarBoardTitle = computed(() => '');
-const routeScopeReady = computed(() => {
-  const provider = dataScopeConfig.value?.provider;
-  if (!provider || provider.defaultStrategy !== 'first-available') {
-    return true;
-  }
-  const options = dataScopeConfig.value?.options.value ?? [];
-  if (!options.length) {
-    return Boolean(dataScopeConfig.value?.loaded.value);
-  }
-  return String(route.query[provider.queryKey] ?? '').trim() !== '';
-});
+const routeScopeState = computed(() =>
+  resolveStatisticBoardRouteScopeState(
+    dataScopeConfig.value?.provider,
+    dataScopeConfig.value?.options.value ?? [],
+    Boolean(dataScopeConfig.value?.loaded.value),
+    dataScopeConfig.value?.provider
+      ? route.query[dataScopeConfig.value.provider.queryKey]
+      : undefined,
+  ),
+);
+const routeScopeReady = computed(() => routeScopeState.value.ready);
+const scopeCatalogMissing = computed(() => routeScopeState.value.catalogMissing);
 
 const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup());
 const {
@@ -141,6 +147,30 @@ const {
   getRouteHash: () => route.hash,
   replaceRoute: (location) => router.replace(location),
   resetFilterDraft: () => resetFilterDraftGroup(filterDraft),
+});
+// 行维度与成员选择是控制参数，按页面配置启用；未配置的看板不渲染任何控件。
+const {
+  controlSpec,
+  activeDimension,
+  memberControls,
+  requestParams: controlRequestParams,
+  fixedColumnKeys,
+  controlOptionsStatus,
+  controlOptionsMessage,
+  memberSelectionError,
+  applyBoardSourceVersion,
+  applyResponse: applyControlResponse,
+  setDimension: setControlDimension,
+  setMember: setControlMember,
+} = useStatisticBoardControlParams({
+  pageKey: () => route.meta.pageKey as PageKey | undefined,
+  routeQuery: () => route.query,
+  replaceRouteQuery,
+  // 候选与主表消费同一份范围参数（生效范围 + 用户条件），但不带成员选择：
+  // 后端在完整基础范围上求解，选择成员后其它成员依然可选。
+  loadControlOptions: (request) => api.getStatisticBoardControlOptions(props.boardKey, request),
+  controlScopeParams: () => ({ filterGroup: buildFilterPayload() }),
+  scopeSignature: () => JSON.stringify(buildFilterPayload() ?? null),
 });
 const {
   boardViewPrefs,
@@ -164,10 +194,12 @@ const {
   board,
   errorMessage,
   loadBoard,
+  invalidateBoardRequest,
   exportBoard,
 } = useStatisticBoardData({
   boardKey: () => props.boardKey,
   getFilterGroup: buildFilterPayload,
+  getControlParams: () => controlRequestParams.value,
   loadBoardData: (boardKey, request) => api.getStatisticBoard(boardKey, request),
   exportBoardFile: (boardKey, request) => api.exportStatisticBoardFile(boardKey, request),
   onBoardLoaded: handleBoardLoaded,
@@ -345,6 +377,8 @@ const {
 } = useStatisticBoardColumnDrag(boardViewPrefs, persistViewPrefs);
 
 function handleBoardLoaded(response: StatisticBoardResponse) {
+  applyControlResponse(response);
+  applyBoardSourceVersion(boardSourceVersion(response));
   const routeFilterGroup = buildFilterGroupFromRouteQuery(route.query);
   const appliedFilterGroup = stripRouteScopeFilter(response.appliedFilterGroup ?? null);
   const nextDraft = normalizeFilterDraftGroup(
@@ -355,6 +389,19 @@ function handleBoardLoaded(response: StatisticBoardResponse) {
   applyStoredViewPrefs(response.definition);
   syncDraftFromVisible();
   syncDetailPaginationFromRoute(route.query, response.definition.defaultPageSize ?? 10);
+}
+
+/** 主表来源代际：下钻契约把它写进每个指标单元格，候选按同一代际判定是否需要重取。 */
+function boardSourceVersion(response: StatisticBoardResponse): string {
+  for (const row of response.rows ?? []) {
+    for (const cell of row.cells ?? []) {
+      const version = cell.detailParams?.sourceVersion;
+      if (version) {
+        return version;
+      }
+    }
+  }
+  return '';
 }
 
 function buildFilterPayload() {
@@ -408,6 +455,7 @@ const {
   load: () =>
     api.getStatisticBoardRuleExplanation(props.boardKey, {
       filterGroup: buildFilterPayload(),
+      filters: controlRequestParams.value,
     }),
   fallback: (reason) => createFallbackRuleExplanation(props.boardKey, reason),
   warn: (message) => ElMessage.warning(message),
@@ -433,9 +481,11 @@ const {
   syncStatus,
   lastSyncedText,
   loadRealtimeStatus,
+  invalidateRealtimeStatusRequest,
 } = useRealtimeWorkspaceStatus({
   loadStatus: () => api.getStatisticBoardRealtimeStatus(props.boardKey, {
     filterGroup: buildFilterPayload(),
+    filters: controlRequestParams.value,
   }),
   emptyText: '暂无同步记录',
 });
@@ -445,10 +495,12 @@ const {
   detailVisible,
   detail,
   detailPagination,
+  detailCollection,
   detailQuickFilterValues,
   detailQuickFilterInputDrafts,
   detailCellValue,
   loadDetail,
+  selectDetailCollection,
   openDetail: openStatisticDetail,
   handleDetailSortChange,
   handleDetailCurrentChange,
@@ -457,6 +509,7 @@ const {
   handleDetailQuickFilterChange,
   resetDetailQuickFilters,
   handleDetailVisibleChange,
+  invalidateForRouteChange: invalidateDetailForRouteChange,
   syncFromRoute: syncDetailFromRoute,
   syncPaginationFromRoute: syncDetailPaginationFromRoute,
 } = useStatisticBoardDetail({
@@ -537,6 +590,8 @@ const PRESENTATION_QUERY_KEYS = new Set([
   'detailVisible',
   'detailRowKey',
   'detailColumnKey',
+  // 集合切换只影响明细请求，不应触发整表重载。
+  'detailCollection',
 ]);
 
 function sortIconForDirection(direction: SortDirection) {
@@ -739,33 +794,97 @@ watch(
   { immediate: true },
 );
 
+let routeRefreshSequence = 0;
+let routeRefreshPending = false;
+let viewIsActive = true;
+
 watch(
   () => [route.query, routeScopeReady.value] as const,
   async (nextQuery, previousQuery) => {
-    if (!routeScopeReady.value) {
-      return;
-    }
     const nextRouteQuery = nextQuery[0];
     const previousRouteQuery = previousQuery?.[0];
-    if (previousRouteQuery && hasOnlyPresentationQueryChanges(nextRouteQuery, previousRouteQuery)) {
-      syncTablePaginationFromRoute();
-      syncDetailFromRoute(route.query, board.value?.rows ?? [], board.value?.definition.defaultPageSize ?? 10);
+    if (!routeScopeReady.value) {
+      invalidateRouteRefresh();
+      invalidateBoardRequest();
+      invalidateRealtimeStatusRequest();
+      invalidateDetailForRouteChange();
       return;
     }
+    if (previousRouteQuery && hasOnlyPresentationQueryChanges(nextRouteQuery, previousRouteQuery)) {
+      syncTablePaginationFromRoute();
+      const detailClosed = routeDetailWasClosed(nextRouteQuery, previousRouteQuery);
+      if (detailClosed) {
+        invalidateRouteRefresh();
+        invalidateRealtimeStatusRequest();
+      }
+      if (!routeRefreshPending || detailClosed) {
+        await syncDetailFromRoute(
+          route.query,
+          board.value?.rows ?? [],
+          board.value?.definition.defaultPageSize ?? 10,
+        );
+      }
+      return;
+    }
+    const requestId = beginRouteRefresh();
+    invalidateRealtimeStatusRequest();
+    invalidateDetailForRouteChange();
     resetRuleExplanation();
-    await refreshStatisticBoardRouteState({
-      setLoading: (nextLoading) => {
-        loading.value = nextLoading;
-      },
-      syncTablePaginationFromRoute,
-      loadBoard,
-      loadRealtimeStatus,
-      syncDetailFromRoute: () =>
-        syncDetailFromRoute(route.query, board.value?.rows ?? [], board.value?.definition.defaultPageSize ?? 10),
-    });
+    try {
+      await refreshStatisticBoardRouteState(
+        {
+          syncTablePaginationFromRoute,
+          loadBoard,
+          loadRealtimeStatus,
+          syncDetailFromRoute: () =>
+            syncDetailFromRoute(
+              route.query,
+              board.value?.rows ?? [],
+              board.value?.definition.defaultPageSize ?? 10,
+            ),
+        },
+        () => isCurrentRouteRefresh(requestId),
+      );
+    } finally {
+      finishRouteRefresh(requestId);
+    }
   },
   { immediate: true, deep: true },
 );
+
+function beginRouteRefresh() {
+  routeRefreshSequence += 1;
+  routeRefreshPending = true;
+  return routeRefreshSequence;
+}
+
+function invalidateRouteRefresh() {
+  routeRefreshSequence += 1;
+  routeRefreshPending = false;
+}
+
+function isCurrentRouteRefresh(requestId: number) {
+  return viewIsActive && requestId === routeRefreshSequence && routeScopeReady.value;
+}
+
+function finishRouteRefresh(requestId: number) {
+  if (requestId === routeRefreshSequence) {
+    routeRefreshPending = false;
+  }
+}
+
+function routeDetailWasClosed(nextQuery: LocationQuery, previousQuery: LocationQuery) {
+  return String(previousQuery.detailVisible ?? '') === '1'
+    && String(nextQuery.detailVisible ?? '') !== '1';
+}
+
+function onDetailVisibilityChange(visible: boolean) {
+  if (!visible) {
+    invalidateRouteRefresh();
+    invalidateRealtimeStatusRequest();
+  }
+  handleDetailVisibleChange(visible);
+}
 
 function hasOnlyPresentationQueryChanges(nextQuery: LocationQuery, previousQuery: LocationQuery) {
   const allKeys = new Set([...Object.keys(nextQuery), ...Object.keys(previousQuery)]);
@@ -788,6 +907,14 @@ function queryValueSignature(value: LocationQuery[string]) {
 
 onMounted(() => {
   void autoRefreshPageData();
+});
+
+onBeforeUnmount(() => {
+  viewIsActive = false;
+  invalidateRouteRefresh();
+  invalidateBoardRequest();
+  invalidateRealtimeStatusRequest();
+  invalidateDetailForRouteChange();
 });
 
 async function autoRefreshPageData() {
@@ -836,11 +963,17 @@ function autoRefreshMarkerKey() {
   <div class="stat-board" :class="props.uiHooks.rootClass">
       <el-card shadow="never" class="stat-board-card" :class="props.uiHooks.cardClass" v-loading="loading">
       <div class="stat-board-query-shell">
+        <StatisticBoardFreshnessBanner
+          :data-as-of="board?.dataAsOf ?? null"
+          :pending-updates="board?.pendingUpdates ?? 0"
+        />
         <StatisticBoardToolbar
           :filter-draft="filterDraft"
           :active-filter-fields="conditionFilterFields"
           :board-title="toolbarBoardTitle"
           :last-synced-text="lastSyncedText"
+          :data-as-of="board?.dataAsOf ?? null"
+          :pending-updates="board?.pendingUpdates ?? 0"
           :rule-explanation-loading="ruleExplanationLoading"
           :rule-explanation-summary="qaFriendlyRuleSummary"
           :realtime-status="syncStatus"
@@ -869,8 +1002,12 @@ function autoRefreshMarkerKey() {
           @settings-command="handleSettingsCommand"
           @toggle-auto-refresh="setAutoRefreshOnEnter"
         >
-          <template v-if="currentDataScopeProvider" #scope>
+          <template v-if="currentDataScopeProvider || controlSpec" #scope>
+            <span v-if="scopeCatalogMissing" class="stat-board-scope-catalog-state" data-testid="scope-catalog-state">
+              未找到已启用的{{ currentDataScopeProvider?.label }}目录，请先在议题范围目录中启用后再查看。
+            </span>
             <DataScopeBar
+              v-else-if="currentDataScopeProvider"
               :provider="currentDataScopeProvider"
               :options="currentDataScopeOptions"
               :model-value="currentDataScopeValue"
@@ -880,6 +1017,18 @@ function autoRefreshMarkerKey() {
               :show-summary="false"
               class="stat-board-scope-bar"
               @change="dataScope.setValue"
+            />
+            <StatisticBoardControlBar
+              v-if="controlSpec"
+              :spec="controlSpec"
+              :active-dimension="activeDimension"
+              :member-controls="memberControls"
+              :options-status="controlOptionsStatus"
+              :options-message="controlOptionsMessage"
+              :member-selection-error="memberSelectionError"
+              :disabled="loading || !routeScopeReady"
+              :on-dimension-change="setControlDimension"
+              :on-member-change="setControlMember"
             />
           </template>
         </StatisticBoardToolbar>
@@ -936,6 +1085,7 @@ function autoRefreshMarkerKey() {
         :on-column-drag-start="onColumnDragStart"
         :on-column-drop="onColumnDrop"
         :clear-drag-state="clearDragState"
+        :fixed-column-keys="fixedColumnKeys"
         :handle-table-current-change="handleTableCurrentChange"
         :handle-table-size-change="handleTableSizeChange"
         :on-settings-visible-change="(visible) => (visible ? openSettings() : closeSettings())"
@@ -971,6 +1121,8 @@ function autoRefreshMarkerKey() {
       :pagination="detailPagination"
       :quick-filter-values="detailQuickFilterValues"
       :quick-filter-input-drafts="detailQuickFilterInputDrafts"
+      :collection="detailCollection"
+      :on-collection-change="selectDetailCollection"
       :detail-table-class="props.uiHooks.detailTableClass"
       :detail-cell-value="detailCellValue"
       :on-sort-change="handleDetailSortChange"
@@ -979,7 +1131,7 @@ function autoRefreshMarkerKey() {
       :on-quick-filter-input-update="handleDetailQuickFilterInputUpdate"
       :on-quick-filter-change="handleDetailQuickFilterChange"
       :on-reset-quick-filters="resetDetailQuickFilters"
-      @update:model-value="handleDetailVisibleChange"
+      @update:model-value="onDetailVisibilityChange"
     />
 
     <PageSettingsDialog

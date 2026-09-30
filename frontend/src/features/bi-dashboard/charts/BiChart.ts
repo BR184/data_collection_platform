@@ -18,7 +18,7 @@ export interface BiChartSize {
 /** 图表导出为 Excel 数据表时的结构化表格：表头文本 + 数据行（单元格为文本或数值）。 */
 export interface BiExcelTableData {
   headers: string[];
-  rows: Array<Array<string | number>>;
+  rows: Array<Array<string | number | null>>;
 }
 
 /** BI 图表类型的公共契约；具体类型类只实现自己的图形语义。 */

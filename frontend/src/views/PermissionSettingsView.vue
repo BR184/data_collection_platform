@@ -9,7 +9,7 @@ import {
   type PermissionRole,
   type PermissionSettingsResponse,
 } from '../api-client/permission-settings-api';
-import { loadCurrentUser } from '../composables/auth-state';
+import { refreshCurrentUser } from '../composables/auth-state';
 import { getErrorMessage } from '../utils/user-message';
 
 const loading = ref(false);
@@ -93,13 +93,13 @@ async function savePermissions() {
     if (refreshedRole) {
       selectRole(refreshedRole);
     }
-    await loadCurrentUser();
-    ElMessage.success('角色权限已保存');
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '角色权限保存失败'));
+    return;
   } finally {
     saving.value = false;
   }
+  await refreshAfterPermissionWrite('角色权限已保存');
 }
 
 async function restoreDefaults() {
@@ -124,12 +124,24 @@ async function restoreDefaults() {
     if (role) {
       selectRole(role);
     }
-    await loadCurrentUser();
-    ElMessage.success('已恢复默认权限');
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '恢复默认权限失败'));
+    return;
   } finally {
     restoring.value = false;
+  }
+  await refreshAfterPermissionWrite('已恢复默认权限');
+}
+
+async function refreshAfterPermissionWrite(successMessage: string) {
+  try {
+    await refreshCurrentUser();
+    ElMessage.success(successMessage);
+  } catch (error) {
+    const detail = getErrorMessage(error, '当前登录用户权限刷新失败');
+    ElMessage.error(
+      `${successMessage}，但当前登录用户权限刷新失败：${detail}。请使用登录状态提示中的“重试”重新获取权限。`,
+    );
   }
 }
 

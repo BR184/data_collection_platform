@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { BiChartDownloadContext } from '../data/types';
 
 const mocks = vi.hoisted(() => {
   const authorizeDownload = vi.fn(async () => undefined);
@@ -39,9 +40,12 @@ describe('BI chart export', () => {
     const initialChildren = document.body.childElementCount;
 
     await exportBiChartPng({
-      productVersionId: 10,
-      pageKey: 'coding',
-      sourceVersion: 'source-1',
+      downloadContext: {
+        pageKey: 'coding',
+        chartInstanceId: 'coding-submission-trend',
+        sourceVersion: 'source-1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 10 },
+      },
       title: '提交趋势',
       chart: new SubmissionTrendComboChart(),
       data: {
@@ -51,7 +55,13 @@ describe('BI chart export', () => {
       },
     });
 
-    expect(mocks.authorizeDownload).toHaveBeenCalledWith(10, 'coding', 'submission-trend-combo', 'source-1');
+    expect(mocks.authorizeDownload).toHaveBeenCalledWith({
+      pageKey: 'coding',
+      chartInstanceId: 'coding-submission-trend',
+      sourceVersion: 'source-1',
+      scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 10 },
+      chartTemplateId: 'submission-trend-combo',
+    });
     const option = mocks.setOption.mock.calls[0]?.[0] as { animation?: boolean; dataZoom?: unknown[] };
     expect(option.animation).toBe(false);
     expect(option.dataZoom).toEqual([]);
@@ -73,10 +83,12 @@ describe('BI chart export', () => {
       });
 
     await exportBiChartExcel({
-      productVersionId: 10,
-      productVersionName: 'CC2026R4',
-      pageKey: 'system-test',
-      sourceVersion: 'source-1',
+      downloadContext: {
+        pageKey: 'system-test',
+        chartInstanceId: 'system-test-assignee-workload',
+        sourceVersion: 'source-1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 10 },
+      },
       title: '按指派人统计缺陷数',
       description: '统计各处理人员被指派的缺陷总数。',
       chart: new DeveloperWorkloadChart(),
@@ -91,12 +103,12 @@ describe('BI chart export', () => {
     // 前端只按图表语义提取表格，序列化交给后端；比率字段忠实呈现图表数值（不再 *100）。
     // 问号词条的业务口径随行下发，由后端写入标题下的说明行。
     expect(mocks.exportExcel).toHaveBeenCalledWith({
-      productVersionId: 10,
+      scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 10 },
       pageKey: 'system-test',
+      chartInstanceId: 'system-test-assignee-workload',
       chartTemplateId: 'developer-workload',
       sourceVersion: 'source-1',
       title: '按指派人统计缺陷数',
-      productVersionName: 'CC2026R4',
       explanation: '统计各处理人员被指派的缺陷总数。',
       headers: ['指派责任人', '缺陷总数', '已修复缺陷数', '待修复缺陷数', '修复率 (%)'],
       rows: [
@@ -120,10 +132,12 @@ describe('BI chart export', () => {
       });
 
     await exportBiChartExcel({
-      productVersionId: 10,
-      productVersionName: 'CC2026R4',
-      pageKey: 'coding',
-      sourceVersion: 'source-1',
+      downloadContext: {
+        pageKey: 'coding',
+        chartInstanceId: 'coding-review-scatter',
+        sourceVersion: 'source-1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 10 },
+      },
       title: '评审/质量:分析',
       chart: new DeveloperWorkloadChart(),
       data: [{ name: '张三', total: 4, fixed: 2, open: 2 }],
@@ -135,5 +149,89 @@ describe('BI chart export', () => {
     expect(downloads[0]).toMatch(/^评审-质量-分析_\d{14}\.xlsx$/);
 
     click.mockRestore();
+  });
+
+  it('freezes the clicked PNG data and scope while authorization is pending', async () => {
+    let authorize!: () => void;
+    mocks.authorizeDownload.mockImplementationOnce(
+      () => new Promise<undefined>((resolve) => { authorize = () => resolve(undefined); }),
+    );
+    const data = {
+      periods: ['2026-09-01', '2026-09-02'],
+      commits: [2, 3],
+      mergeRequests: [1, 2],
+    };
+    const downloadContext: BiChartDownloadContext = {
+      pageKey: 'coding' as const,
+      chartInstanceId: 'coding-submission-trend',
+      sourceVersion: 'source-before',
+      scope: { rangeType: 'PRODUCT_VERSION' as const, productVersionId: 10 },
+    };
+
+    const pending = exportBiChartPng({
+      downloadContext,
+      title: '提交趋势',
+      chart: new SubmissionTrendComboChart(),
+      data,
+    });
+    data.periods[0] = '2026-10-01';
+    downloadContext.scope = { rangeType: 'PRODUCT_VERSION', productVersionId: 99 };
+    downloadContext.sourceVersion = 'source-after';
+    authorize();
+    await pending;
+
+    expect(mocks.authorizeDownload).toHaveBeenCalledWith(expect.objectContaining({
+      chartInstanceId: 'coding-submission-trend',
+      sourceVersion: 'source-before',
+      scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 10 },
+    }));
+    const option = mocks.setOption.mock.calls[0]?.[0] as { xAxis: { data: string[] } };
+    expect(option.xAxis.data[0]).toBe('2026-09-01');
+  });
+
+  it('freezes customer filters, source version and Excel rows at click time', async () => {
+    let finishExport!: () => void;
+    mocks.exportExcel.mockImplementationOnce(() => new Promise((resolve) => {
+      finishExport = () => resolve({ blob: new Blob(['xlsx-bytes']), filename: 'customer.xlsx' });
+    }));
+    const rows = [{ name: '张三', total: 4, fixed: 2, open: 2 }];
+    const downloadContext: BiChartDownloadContext = {
+      pageKey: 'customer-issues' as const,
+      chartInstanceId: 'customer-issue-assignee-workload',
+      sourceVersion: 'customer-v1',
+      scope: {
+        rangeType: 'CUSTOMER_ISSUE' as const,
+        milestoneBusinessKey: 'mile-1',
+        businessDate: '2026-09-24',
+        customerKind: 'VALUE' as const,
+        customer: '客户甲',
+        moduleKind: 'ALL' as const,
+        functionKind: 'MISSING' as const,
+      },
+    };
+    const pending = exportBiChartExcel({
+      downloadContext,
+      title: '客户缺陷负荷',
+      chart: new DeveloperWorkloadChart(),
+      data: rows,
+    });
+    rows[0]!.name = '客户乙';
+    downloadContext.scope = {
+      rangeType: 'CUSTOMER_ISSUE', milestoneBusinessKey: 'mile-2', businessDate: '2026-09-25',
+      customerKind: 'ALL', moduleKind: 'ALL', functionKind: 'ALL',
+    };
+    downloadContext.sourceVersion = 'customer-v2';
+    finishExport();
+    await pending;
+
+    expect(mocks.exportExcel).toHaveBeenCalledWith(expect.objectContaining({
+      chartInstanceId: 'customer-issue-assignee-workload',
+      sourceVersion: 'customer-v1',
+      scope: expect.objectContaining({
+        rangeType: 'CUSTOMER_ISSUE', milestoneBusinessKey: 'mile-1', businessDate: '2026-09-24',
+        customerKind: 'VALUE', customer: '客户甲', moduleKind: 'ALL', functionKind: 'MISSING',
+      }),
+      rows: [['张三', 4, 2, 2, 50]],
+    }));
   });
 });

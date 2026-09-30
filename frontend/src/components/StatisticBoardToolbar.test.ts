@@ -164,9 +164,41 @@ describe('StatisticBoardToolbar', () => {
       },
     });
     const statusText = failed.get('[data-testid="realtime-refresh-status"]').text();
-    expect(statusText).toContain('已展示当前可用数据');
+    expect(statusText).toContain('本轮同步失败，建议在镜像设置页重新触发刷新');
     expect(statusText).toContain('事实待更新');
-    expect(statusText).not.toContain('失败');
+    expect(statusText).not.toContain('failed');
+  });
+
+  it('announces the last complete publication point while the source is still catching up', async () => {
+    const wrapper = mountToolbar();
+    await wrapper.setProps({
+      dataAsOf: '2026-09-30T10:00:00',
+      pendingUpdates: 34,
+      realtimeStatus: null,
+    });
+
+    const statusText = wrapper.get('[data-testid="realtime-refresh-status"]').text();
+    expect(statusText).toContain('数据截至 2026-09-30 10:00:00');
+    expect(statusText).toContain('仍有 34 项待更新');
+  });
+
+  it('keeps polling the active refresh status even while a pending count is shown', async () => {
+    const wrapper = mountToolbar();
+    await wrapper.setProps({
+      dataAsOf: '2026-09-30T10:00:00',
+      pendingUpdates: 5,
+      realtimeStatus: {
+        workspaceKey: 'system-test-defect-summary',
+        supported: true,
+        status: 'REFRESHING',
+        message: 'refreshing',
+        refreshing: true,
+        mirrorStatus: 'SUCCESS',
+        factStatus: 'DEGRADED',
+      },
+    });
+
+    expect(wrapper.get('[data-testid="realtime-refresh-status"]').text()).toContain('事实刷新中');
   });
 
   it('does not expose backend internal refresh messages or partial status names', async () => {

@@ -9,6 +9,8 @@ export interface ReviewScatterChartConfig {
   densityRange: readonly [number, number];
   densityUnit: string;
   rateUnit: string;
+  rateMetricName?: string;
+  densityMetricName?: string;
 }
 
 export class ReviewQualityScatterChart extends BiChart<ReviewScatterPoint[]> {
@@ -23,8 +25,10 @@ export class ReviewQualityScatterChart extends BiChart<ReviewScatterPoint[]> {
   }
 
   excelTable(data: ReviewScatterPoint[]): BiExcelTableData {
+    const rateName = this.config.rateMetricName ?? '评审速率';
+    const densityName = this.config.densityMetricName ?? '缺陷密度';
     return {
-      headers: ['模块名称', '评审日期', `评审速率 (${this.config.rateUnit})`, `缺陷密度 (${this.config.densityUnit})`, '达标状态'],
+      headers: ['模块名称', '评审日期', `${rateName} (${this.config.rateUnit})`, `${densityName} (${this.config.densityUnit})`, '达标状态'],
       rows: data.map((item) => [
         item.name,
         item.date ?? '--',
@@ -36,6 +40,8 @@ export class ReviewQualityScatterChart extends BiChart<ReviewScatterPoint[]> {
   }
 
   build(data: ReviewScatterPoint[], _context: BiChartRenderContext): EChartsOption {
+    const rateName = this.config.rateMetricName ?? '评审速率';
+    const densityName = this.config.densityMetricName ?? '缺陷密度';
     const points = data.filter((item) => item.rate != null && item.density != null);
     const rateAxis = buildAdaptiveValueAxis(points.map((item) => item.rate), { minimumMax: 24 });
     const densityAxis = buildAdaptiveValueAxis(points.map((item) => item.density), {
@@ -44,17 +50,17 @@ export class ReviewQualityScatterChart extends BiChart<ReviewScatterPoint[]> {
     return {
       ...this.baseOption(`单次评审速率与缺陷密度散点图，共 ${points.length} 次评审。`),
       legend: { data: ['达标', '未达标'], top: 0, right: 8, selectedMode: false },
-      graphic: [{ type: 'text', left: 8, bottom: 8, silent: true, style: { text: `目标：缺陷密度 ${this.config.densityRange[0].toFixed(2)}–${this.config.densityRange[1].toFixed(2)} ${this.config.densityUnit}；评审速率不设目标`, fill: '#7B8797', fontSize: 11 } }],
+      graphic: [{ type: 'text', left: 8, bottom: 8, silent: true, style: { text: `目标：${densityName} ${this.config.densityRange[0].toFixed(2)}–${this.config.densityRange[1].toFixed(2)} ${this.config.densityUnit}；${rateName}不设目标`, fill: '#7B8797', fontSize: 11 } }],
       grid: { top: 32, right: 28, bottom: 48, left: 62, containLabel: true },
       tooltip: {
         trigger: 'item',
         formatter: (params: unknown) => {
           const value = (params as { value?: unknown[] }).value;
-          return value ? `${String(value[2] ?? '')}<br/>日期：${String(value[3] ?? '')}<br/>速率：${String(value[0] ?? '--')} ${this.config.rateUnit}<br/>缺陷密度：${String(value[1] ?? '--')} ${this.config.densityUnit}` : '';
+          return value ? `${String(value[2] ?? '')}<br/>日期：${String(value[3] ?? '')}<br/>${rateName}：${String(value[0] ?? '--')} ${this.config.rateUnit}<br/>${densityName}：${String(value[1] ?? '--')} ${this.config.densityUnit}` : '';
         },
       },
-      xAxis: { ...rateAxis, type: 'value', name: this.config.rateUnit, nameLocation: 'middle', nameGap: 32 },
-      yAxis: { ...densityAxis, type: 'value', name: this.config.densityUnit, nameLocation: 'middle', nameGap: 42 },
+      xAxis: { ...rateAxis, type: 'value', name: `${rateName} (${this.config.rateUnit})`, nameLocation: 'middle', nameGap: 32 },
+      yAxis: { ...densityAxis, type: 'value', name: `${densityName} (${this.config.densityUnit})`, nameLocation: 'middle', nameGap: 42 },
       series: [
         scatterSeries('达标', points.filter((item) => item.achieved === true), this.config, true),
         scatterSeries('未达标', points.filter((item) => item.achieved === false), this.config, false),

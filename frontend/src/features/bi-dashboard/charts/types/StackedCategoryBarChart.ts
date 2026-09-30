@@ -3,8 +3,16 @@ import { BiChart, type BiChartRenderContext, type BiChartSize, type BiExcelTable
 import type { CategorySeriesData } from '../chart-data';
 import { BI_SERIES_COLORS } from '../palette';
 
+export interface StackedCategoryBarChartConfig {
+  yAxisName?: string;
+}
+
 export class StackedCategoryBarChart extends BiChart<CategorySeriesData> {
   readonly templateId = 'stacked-category-bar' as const;
+
+  constructor(private readonly config: StackedCategoryBarChartConfig = {}) {
+    super();
+  }
 
   hasData(data: CategorySeriesData): boolean {
     return data.categories.length > 0 && data.series.some((series) => series.values.some((value) => value > 0));
@@ -35,7 +43,7 @@ export class StackedCategoryBarChart extends BiChart<CategorySeriesData> {
         data: data.categories,
         axisLabel: { interval: 0, rotate: data.categories.length > 6 ? 25 : 0, hideOverlap: false },
       },
-      yAxis: { type: 'value', minInterval: 1 },
+      yAxis: { type: 'value', name: this.config.yAxisName, minInterval: 1 },
       dataZoom: this.categoryZoom(data.categories.length, context.mode),
       series: data.series.map((item, index) => {
         const color = item.color ?? BI_SERIES_COLORS[index % BI_SERIES_COLORS.length]!;

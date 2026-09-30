@@ -16,21 +16,15 @@ vi.mock('../components/StatisticBoardView.vue', () => ({
 }));
 
 import StatisticBoardPage from './StatisticBoardPage.vue';
+import type { PageKey } from '../feature-manifest/types';
 
 describe('StatisticBoardPage mount smoke', () => {
-  it('maps the route page key to the expected board key', async () => {
+  async function mountFor(pageKey: PageKey, path: string) {
     const router = createRouter({
       history: createWebHashHistory(),
-      routes: [
-        {
-          path: '/question-metrics/home',
-          component: StatisticBoardPage,
-          meta: { pageKey: 'question-metrics-home' },
-        },
-      ],
+      routes: [{ path, component: StatisticBoardPage, meta: { pageKey } }],
     });
-
-    await router.push('/question-metrics/home');
+    await router.push(path);
     await router.isReady();
 
     const wrapper = mount(StatisticBoardPage, {
@@ -38,8 +32,21 @@ describe('StatisticBoardPage mount smoke', () => {
     });
 
     await flushPromises();
+    return wrapper;
+  }
+
+  it('maps the route page key to the expected board key', async () => {
+    const wrapper = await mountFor('question-metrics-home', '/question-metrics/home');
 
     expect(wrapper.get('[data-testid="board-key"]').text()).toBe('system-test-defect-summary');
+
+    wrapper.unmount();
+  });
+
+  it('maps the customer statistics page key to its own board key', async () => {
+    const wrapper = await mountFor('customer-issues-customer-statistics', '/customer-issues/customer-statistics');
+
+    expect(wrapper.get('[data-testid="board-key"]').text()).toBe('customer-issue-customer-statistics');
 
     wrapper.unmount();
   });

@@ -25,7 +25,13 @@ const props = defineProps<{
   onColumnDragStart: (groupKey: string, columnKey: string) => void;
   onColumnDrop: (groupKey: string, columnKey: string) => void;
   clearDragState: () => void;
+  /** 需要固定在左侧的列键；行标签列的固定方式仍由基础表决定。 */
+  fixedColumnKeys?: string[];
 }>();
+
+function columnFixed(columnKey: string) {
+  return props.fixedColumnKeys?.includes(columnKey) ? ('left' as const) : undefined;
+}
 
 function normalizedHeaderText(value: string) {
   return String(value ?? '').replace(/\s+/g, '').trim();
@@ -41,8 +47,9 @@ function redundantSingleLeafColumn(group: StatisticColumnGroup) {
   return normalizedHeaderText(group.label) === normalizedHeaderText(column.label) ? column : null;
 }
 
+/** 下钻能力只由后端声明：旧看板的数值条件已在生产端写入该值。 */
 function canOpenDetail(cell: StatisticCellData | undefined) {
-  return Boolean(cell?.drilldown && Number(cell.numericValue) > 0);
+  return Boolean(cell?.drilldown);
 }
 
 const redundantLeafColumn = computed(() => redundantSingleLeafColumn(props.group));
@@ -53,6 +60,7 @@ const redundantLeafColumn = computed(() => redundantSingleLeafColumn(props.group
     v-if="redundantLeafColumn"
     :key="redundantLeafColumn.key"
     align="center"
+    :fixed="columnFixed(redundantLeafColumn.key)"
     :width="columnMinWidth(redundantLeafColumn)"
     :min-width="columnMinWidth(redundantLeafColumn)"
     :resizable="columnResizable(redundantLeafColumn)"
@@ -176,6 +184,7 @@ const redundantLeafColumn = computed(() => redundantSingleLeafColumn(props.group
       v-for="column in group.columns ?? []"
       :key="column.key"
       align="center"
+      :fixed="columnFixed(column.key)"
       :width="columnMinWidth(column)"
       :min-width="columnMinWidth(column)"
       :resizable="columnResizable(column)"

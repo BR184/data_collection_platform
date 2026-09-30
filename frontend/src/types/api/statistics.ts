@@ -179,11 +179,56 @@ export interface StatisticBoardResponse {
   appliedFilterGroup?: StatisticFilterGroup | null;
   rows: StatisticRowData[];
   meta: StatisticBoardMeta;
+  /** 降级产出的数据时刻；来源已收敛到最新变化版本时缺失。 */
+  dataAsOf?: string | null;
+  /** 尚未发布到最新变化版本的稳定根数量；来源已收敛时缺失。 */
+  pendingUpdates?: number | null;
+}
+
+export interface StatisticDetailCollection {
+  key: string;
+  label: string;
+  description: string;
+}
+
+/** 成员选择语义：ALL 不限、MISSING 成员缺失、VALUE 精确成员名。 */
+export type StatisticBoardMemberSelectionKind = 'ALL' | 'MISSING' | 'VALUE';
+
+/**
+ * 统计板成员候选项。
+ *
+ * <p>类型与取值分开：MISSING 候选项的 value 恒为空串，VALUE 候选项的 value 就是成员名本身。
+ * 成员名因此可以是任意文本（含 `__missing__` 或与缺失文案同形的名称），不需要哨兵也不会互相顶替。
+ */
+export interface StatisticBoardControlOption {
+  kind: StatisticBoardMemberSelectionKind;
+  value: string;
+  label: string;
+}
+
+/** 一个控制参数的候选组。 */
+export interface StatisticBoardControlOptionGroup {
+  key: string;
+  options: StatisticBoardControlOption[];
+}
+
+/** 统计板成员候选：由后端在同一窄事实的完整基础范围上求得。 */
+export interface StatisticBoardControlOptions {
+  scopeKey: string;
+  sourceVersion: string;
+  /** false 表示来源或范围不可判定，必须展示 reason 而不是空候选。 */
+  scopeReadable: boolean;
+  reason: string;
+  groups: StatisticBoardControlOptionGroup[];
 }
 
 export interface StatisticDetailResponse {
   title: string;
   description: string;
+  /** 当前指标允许的全部下钻集合；长度不大于 1 时前端不渲染切换控件。 */
+  collections?: StatisticDetailCollection[] | null;
+  /** 本次实际返回的集合键。 */
+  collection?: string | null;
   columns: StatisticDetailColumn[];
   records: Record<string, unknown>[];
   total: number;

@@ -8,6 +8,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    __scratch__: typeof import('./components/__scratch__.vue')['default']
     AnalyticsDashboardDetailCell: typeof import('./components/dashboard/AnalyticsDashboardDetailCell.vue')['default']
     BaseRecordTable: typeof import('./components/base/BaseRecordTable.vue')['default']
     BaseRecordTableCell: typeof import('./components/base/BaseRecordTableCell.vue')['default']
@@ -92,8 +93,10 @@ declare module 'vue' {
     SavedTableViewsPanel: typeof import('./components/SavedTableViewsPanel.vue')['default']
     SmartSelect: typeof import('./components/base/SmartSelect.vue')['default']
     SmartTableHeader: typeof import('./components/base/SmartTableHeader.vue')['default']
+    StatisticBoardControlBar: typeof import('./components/StatisticBoardControlBar.vue')['default']
     StatisticBoardDetailCell: typeof import('./components/StatisticBoardDetailCell.vue')['default']
     StatisticBoardDetailDialog: typeof import('./components/StatisticBoardDetailDialog.vue')['default']
+    StatisticBoardFreshnessBanner: typeof import('./components/StatisticBoardFreshnessBanner.vue')['default']
     StatisticBoardRuleExplanationDrawer: typeof import('./components/StatisticBoardRuleExplanationDrawer.vue')['default']
     StatisticBoardToolbar: typeof import('./components/StatisticBoardToolbar.vue')['default']
     StatisticBoardView: typeof import('./components/StatisticBoardView.vue')['default']

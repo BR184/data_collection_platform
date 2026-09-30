@@ -113,6 +113,68 @@ describe('request', () => {
     await expectation;
   });
 
+  it('should complete a JSON request even when requestAnimationFrame never fires', async () => {
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+    const fetchSpy = stubSuccessfulFetch();
+
+    await expect(request('/api/review-data/records')).resolves.toEqual({ ok: true });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should complete a blob download even when requestAnimationFrame never fires', async () => {
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+    const fetchSpy = vi.fn(async () => ({
+      ok: true,
+      headers: new Headers(),
+      blob: async () => new Blob(['x']),
+    } as unknown as Response));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await expect(requestBlob('/api/export.xlsx')).resolves.toBeInstanceOf(Blob);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should still enforce timeout when requestAnimationFrame never fires', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(new DOMException('The operation was aborted.', 'AbortError'));
+        });
+      })),
+    );
+
+    const pending = request('/api/review-data/records', { timeoutMs: 1000 });
+    const expectation = expect(pending).rejects.toMatchObject({ name: 'RequestTimeoutError' });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    await expectation;
+  });
+
+  it('should still honor mid-flight cancel when requestAnimationFrame never fires', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+    const controller = new AbortController();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(new DOMException('The operation was aborted.', 'AbortError'));
+        });
+      })),
+    );
+
+    const pending = request('/api/review-data/records', { signal: controller.signal, timeoutMs: 1000 });
+    const expectation = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    controller.abort();
+
+    await expectation;
+  });
+
   it('should identify request timeout errors', () => {
     const error = new Error('timeout');
     error.name = 'RequestTimeoutError';

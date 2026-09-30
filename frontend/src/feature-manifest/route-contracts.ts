@@ -1,6 +1,7 @@
 import { pageByKey, pageModuleKeyByPageKey } from './lookups';
 import type { PageKey, PageRouteContract, RouteMetaOverrides, SpecialRouteKey } from './types';
 import { CUSTOMER_ISSUE_RECORD_QUERY_KEYS } from './customer-issue-record-query-contract';
+import { STATISTIC_BOARD_CONTROL_QUERY_KEYS } from './statistic-board-controls';
 
 interface SpecialRouteContract {
   basePageKey: PageKey;
@@ -19,6 +20,8 @@ const statisticBoardQueryKeys = [
   'detailVisible',
   'detailRowKey',
   'detailColumnKey',
+  // 下钻集合属于明细深链的一部分，被剥离会导致刷新后集合选择丢失。
+  'detailCollection',
   'filterGroup',
   'filterLogic',
   'projectId',
@@ -29,6 +32,12 @@ const statisticBoardQueryKeys = [
 const customerIssueStatisticBoardQueryKeys = statisticBoardQueryKeys
   .filter((key) => !['projectId', 'projectName', 'testingPhase'].includes(key))
   .concat('milestoneTitle');
+
+// 行维度与成员选择是控制参数，必须随 URL 往返，否则刷新/深链会丢掉分组与成员范围。
+const customerIssueCustomerStatisticsQueryKeys = [
+  ...customerIssueStatisticBoardQueryKeys,
+  ...STATISTIC_BOARD_CONTROL_QUERY_KEYS,
+];
 
 export const analyticsDashboardDetailQueryKeys = [
   'projectId',
@@ -87,6 +96,16 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
     allowedQueryKeys: ['productVersionId'],
     persistedQueryKeys: [],
     inheritedQueryKeys: ['productVersionId'],
+  },
+  'bi-dashboard-customer-issues': {
+    allowedQueryKeys: [
+      'milestoneBusinessKey',
+      'customerKind', 'customer',
+      'moduleKind', 'module',
+      'functionKind', 'function',
+    ],
+    persistedQueryKeys: [],
+    inheritedQueryKeys: [],
   },
   'review-data-home': {
     allowedQueryKeys: [
@@ -291,6 +310,12 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
     allowedQueryPrefixes: ['filters.'],
     persistedQueryKeys: [],
     boardKey: 'customer-issue-by-function',
+  },
+  'customer-issues-customer-statistics': {
+    allowedQueryKeys: customerIssueCustomerStatisticsQueryKeys,
+    allowedQueryPrefixes: ['filters.'],
+    persistedQueryKeys: [],
+    boardKey: 'customer-issue-customer-statistics',
   },
   'mirror-settings': {
     persistedQueryKeys: ['projectId'],

@@ -44,7 +44,7 @@ export class OverlayCategoryBarChart extends BiChart<OverlayBarRow[]> {
       },
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       xAxis: { type: 'category', data: data.map((item) => item.name), axisLabel: { interval: 0, rotate: data.length > 6 ? 25 : 0 } },
-      yAxis: { type: 'value', minInterval: 1 },
+      yAxis: { type: 'value', name: '缺陷数 (个)', minInterval: 1 },
       dataZoom: this.categoryZoom(data.length, context.mode, OverlayCategoryBarChart.VIEW_WINDOW_SIZE),
       series: [
         {

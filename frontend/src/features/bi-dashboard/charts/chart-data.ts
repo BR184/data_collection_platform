@@ -98,6 +98,12 @@ export interface QualityTrendData {
   defectDensities: Array<number | null>;
 }
 
+export interface DailyDefectTrendData {
+  dates: string[];
+  createdCounts: Array<number | null>;
+  fixedCounts: Array<number | null>;
+}
+
 export interface DelayHeatmapData {
   reasons: string[];
   severities: string[];

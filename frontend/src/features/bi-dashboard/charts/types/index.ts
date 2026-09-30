@@ -1,4 +1,5 @@
 export { CodingTrendComboChart } from './CodingTrendComboChart';
+export { DailyDefectTrendChart } from './DailyDefectTrendChart';
 export { DefectCauseBreakdownChart } from './DefectCauseBreakdownChart';
 export { DelayHeatmapChart } from './DelayHeatmapChart';
 export { DeveloperWorkloadChart } from './DeveloperWorkloadChart';
@@ -12,4 +13,4 @@ export { ReviewQualityScatterChart } from './ReviewQualityScatterChart';
 export { StackedCategoryBarChart } from './StackedCategoryBarChart';
 export { SubmissionTrendComboChart } from './SubmissionTrendComboChart';
 export { TestQualityAttainmentChart } from './TestQualityAttainmentChart';
-export { VerticalCategoryBarChart } from './VerticalCategoryBarChart';
+export { VerticalCategoryBarChart, type VerticalCategoryBarChartExcelHeaders } from './VerticalCategoryBarChart';

@@ -48,7 +48,7 @@ export class QualityRoundTrackChart extends BiChart<RoundQualityRow[]> {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       xAxis: [
         { type: 'value', minInterval: 1, gridIndex: 0, name: '缺陷数', nameLocation: 'middle', nameGap: 28 },
-        { type: 'value', min: 0, max: 100, gridIndex: 1, name: '关闭状态', nameLocation: 'middle', nameGap: 28, axisLabel: { formatter: '{value}%' } },
+        { type: 'value', min: 0, max: 100, gridIndex: 1, name: '关闭进度占比 (%)', nameLocation: 'middle', nameGap: 28, axisLabel: { formatter: '{value}%' } },
       ],
       yAxis: [category, { ...category, gridIndex: 1, axisLabel: { show: false }, axisLine: { show: false } }],
       dataZoom: hasViewZoom

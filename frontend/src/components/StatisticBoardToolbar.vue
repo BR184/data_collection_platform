@@ -11,6 +11,7 @@ import type { RecordTableFilterField } from '../types/record-table';
 import type { StatisticFilterDraftGroup } from './statistic-board-filters';
 import type { StatisticBoardToolbarAction, StatisticBoardUiHooks } from './statistic-board-ui';
 import { toUserMessage } from '../utils/user-message';
+import { formatLocalDateTime } from '../utils/beijing-time';
 
 const props = withDefaults(
   defineProps<{
@@ -32,6 +33,9 @@ const props = withDefaults(
     highlightedQuickFilterKeys?: string[];
     quickFilterChangeGuard?: (key: string, value: string | string[] | null) => boolean;
     extraActions?: StatisticBoardToolbarAction[];
+    /** 降级产出的数据时刻；与 pendingUpdates 同时存在时才提示来源尚未收敛。 */
+    dataAsOf?: string | null;
+    pendingUpdates?: number;
     uiHooks?: StatisticBoardUiHooks;
   }>(),
   {
@@ -49,6 +53,8 @@ const props = withDefaults(
     highlightedQuickFilterKeys: () => [],
     quickFilterChangeGuard: () => true,
     extraActions: () => [],
+    dataAsOf: null,
+    pendingUpdates: 0,
     uiHooks: () => ({}),
   },
 );
@@ -110,7 +116,7 @@ watch(
   { immediate: true, deep: true },
 );
 
-const activeStatuses = new Set(['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING', 'REFRESHING']);
+const activeStatuses = new Set(['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING', 'REFRESHING', 'DEGRADED']);
 const failureStatuses = new Set(['FAILED', 'TIMEOUT', 'CANCELLED']);
 const partialStatuses = new Set(['PARTIAL_SUCCESS']);
 const internalStatusNames = new Set([
@@ -122,8 +128,15 @@ const internalStatusNames = new Set([
   'STALE',
 ]);
 
+/** 来源尚未收敛时的待更新数量；正数表示本次产出来自上一个完整发布点。 */
+const sourcePendingUpdates = computed(() => Math.max(0, Number(props.pendingUpdates ?? 0)));
+const sourceDegraded = computed(() => sourcePendingUpdates.value > 0);
+
 const workspaceStatusText = computed(() => {
   const status = props.realtimeStatus;
+  if (sourceDegraded.value && !status?.refreshing) {
+    return `数据截至 ${formatLocalDateTime(props.dataAsOf, '未知时刻')}，仍有 ${sourcePendingUpdates.value} 项待更新`;
+  }
   if (!status) {
     return '';
   }
@@ -131,7 +144,7 @@ const workspaceStatusText = computed(() => {
     return activeStatuses.has(status.factStatus || '') ? '事实刷新中' : '镜像同步中';
   }
   if (failureStatuses.has(status.mirrorStatus || '') || failureStatuses.has(status.factStatus || '')) {
-    return '已展示当前可用数据';
+    return '本轮同步失败，建议在镜像设置页重新触发刷新';
   }
   if (status.status === 'READY') {
     return '已是最新';
@@ -141,6 +154,9 @@ const workspaceStatusText = computed(() => {
 
 const workspaceStatusTagType = computed(() => {
   const status = props.realtimeStatus;
+  if (sourceDegraded.value) {
+    return 'warning';
+  }
   if (!status) {
     return 'info';
   }
@@ -333,7 +349,7 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
       <slot name="scope" />
       <span v-if="boardTitle" class="stat-board-meta-text">{{ boardTitle }}</span>
       <SyncMetaBadge :value="lastSyncedText" />
-      <div v-if="realtimeStatus" class="stat-board-refresh-status" data-testid="realtime-refresh-status">
+      <div v-if="realtimeStatus || sourceDegraded" class="stat-board-refresh-status" data-testid="realtime-refresh-status">
         <el-tag size="small" :type="workspaceStatusTagType">{{ workspaceStatusText }}</el-tag>
         <span v-if="showStageStatusDetails">{{ mirrorStatusText }}</span>
         <span v-if="showStageStatusDetails">{{ factStatusText }}</span>

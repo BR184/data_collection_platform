@@ -9,16 +9,21 @@ import BiMetricStrip, { type BiMetricItem } from '../components/BiMetricStrip.vu
 import { formatNumber, metricStatus, sectionPresentation } from '../data/presentation';
 import { BI_CHART_EXPLANATIONS } from '../data/chart-explanations';
 import { reviewDensityRange } from '../data/quality-targets';
+import { productVersionDownloadContext } from '../data/download-context';
 import { sortNamedValues, sortReviewQualityRows, sortReviewScatterPoints } from '../data/sorting';
 import type { BiPageKey, BiPageResponse, BiReviewPageData } from '../data/types';
 
 const props = defineProps({
   response: { type: Object as PropType<BiPageResponse<BiReviewPageData>>, required: true },
   productVersionId: { type: Number, required: true },
-  productVersionName: { type: String, required: true },
   stageLabel: { type: String, required: true },
   pageKey: { type: String as PropType<BiPageKey>, required: true },
 });
+
+function downloadContext(chartInstanceId: string) {
+  return productVersionDownloadContext(
+    props.pageKey, chartInstanceId, props.productVersionId, props.response.sourceVersion);
+}
 
 const donutChart = new DistributionDonutChart();
 const densityRange = reviewDensityRange(props.pageKey);
@@ -28,17 +33,17 @@ const qualityChart = new ReviewQualityDualPanelChart({ densityRange, densityUnit
 const scatterChart = new ReviewQualityScatterChart({ densityRange, densityUnit: '个/页', rateUnit: '页/小时' });
 
 const categoryDescription = computed(() => (
-  props.pageKey === 'requirement-review'
+  props.pageKey === 'requirements'
     ? BI_CHART_EXPLANATIONS.requirementReviewCategories
     : BI_CHART_EXPLANATIONS.designReviewCategories
 ));
 const qualityDescription = computed(() => (
-  props.pageKey === 'requirement-review'
+  props.pageKey === 'requirements'
     ? BI_CHART_EXPLANATIONS.requirementReviewQuality
     : BI_CHART_EXPLANATIONS.designReviewQuality
 ));
 const scatterDescription = computed(() => (
-  props.pageKey === 'requirement-review'
+  props.pageKey === 'requirements'
     ? BI_CHART_EXPLANATIONS.requirementReviewScatter
     : BI_CHART_EXPLANATIONS.designReviewScatter
 ));
@@ -130,10 +135,7 @@ const points = computed<ReviewScatterPoint[]>(() => {
         layout="compact"
         :status="sectionPresentation(response, 'problem-categories').status"
         :status-message="sectionPresentation(response, 'problem-categories').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        :page-key="pageKey"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext(`${pageKey}-categories`)"
         v-model:sort="categorySort"
         v-model:order="categorySortOrder"
         :sort-options="categorySortOptions"
@@ -149,10 +151,7 @@ const points = computed<ReviewScatterPoint[]>(() => {
         layout="wide"
         :status="sectionPresentation(response, 'module-quality').status"
         :status-message="sectionPresentation(response, 'module-quality').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        :page-key="pageKey"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext(`${pageKey}-module-quality`)"
         v-model:sort="moduleSort"
         v-model:order="moduleSortOrder"
         :sort-options="moduleSortOptions"
@@ -168,10 +167,7 @@ const points = computed<ReviewScatterPoint[]>(() => {
         layout="full"
         :status="sectionPresentation(response, 'review-scatter').status"
         :status-message="sectionPresentation(response, 'review-scatter').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        :page-key="pageKey"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext(`${pageKey}-review-scatter`)"
         v-model:sort="scatterSort"
         v-model:order="scatterSortOrder"
         :sort-options="scatterSortOptions"

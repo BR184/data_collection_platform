@@ -13,16 +13,6 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE']);
 export const AUTH_REQUIRED_EVENT = 'platform-auth-required';
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 export const EXPORT_REQUEST_TIMEOUT_MS = 180_000;
-const PROGRESS_FIRST_PAINT_PROFILES = new Set([
-  'route',
-  'table',
-  'statistic',
-  'filter',
-  'refresh',
-  'export',
-  'heavyExport',
-  'template',
-]);
 
 export interface RequestOptions extends RequestInit {
   timeoutMs?: number;
@@ -98,7 +88,7 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
   const progressId = beginPlatformProgress(url, platformProgress);
 
   try {
-    const response = await fetchWithCsrfReplay(url, fetchInit, signal, timeoutMs, platformProgress);
+    const response = await fetchWithCsrfReplay(url, fetchInit, signal, timeoutMs);
     const rawText = await response.text();
     const payload = parseJsonPayload(rawText);
 
@@ -205,7 +195,6 @@ async function withPlatformProgress<T>(url: string, init: RequestOptions | undef
   const platformProgress = resolveExportProgressOptions(url, init?.exportProgress ?? init?.platformProgress);
   const progressId = beginPlatformProgress(url, platformProgress);
   try {
-    await waitForProgressFirstPaint(platformProgress, init?.signal ?? null);
     const result = await action();
     finishPlatformProgress(progressId, url, platformProgress);
     return result;
@@ -220,9 +209,8 @@ async function fetchWithCsrfReplay(
   fetchInit: RequestInit,
   signal: AbortSignal | null | undefined,
   timeoutMs: number,
-  progress?: PlatformProgressOptions | false,
 ): Promise<Response> {
-  let response = await fetchWithTimeout(url, fetchInit, signal, timeoutMs, progress);
+  let response = await fetchWithTimeout(url, fetchInit, signal, timeoutMs);
   rememberCsrfToken(response);
   if (response.status === 403 && canReplayWithRefreshedCsrfToken(fetchInit)) {
     // CSRF token 在登录等会话轮换后可能失效：403 响应会携带最新 token（rememberCsrfToken 已存储），
@@ -234,7 +222,6 @@ async function fetchWithCsrfReplay(
       { ...fetchInit, headers: buildRequestHeaders({ ...fetchInit, headers: replayHeaders }) },
       signal,
       timeoutMs,
-      progress,
     );
     rememberCsrfToken(response);
   }
@@ -254,10 +241,9 @@ async function fetchWithTimeout(
   fetchInit: RequestInit,
   signal: AbortSignal | null | undefined,
   timeoutMs: number,
-  progress?: PlatformProgressOptions | false,
 ): Promise<Response> {
-  await waitForProgressFirstPaint(progress, signal);
-  // 首屏让渡期间可能已经收到取消信号；此时直接抛出取消错误，避免依赖 fetch 对已取消信号的实现差异。
+  // 请求入口即建立超时与取消生命周期，不再等待浏览器首绘；
+  // 已在进入前收到取消信号时直接抛取消错误，不依赖 fetch 对已取消信号的实现差异。
   if (signal?.aborted) {
     throw new DOMException('The operation was aborted.', 'AbortError');
   }
@@ -299,25 +285,6 @@ async function fetchWithTimeout(
       signal.removeEventListener('abort', abortListener);
     }
   }
-}
-
-async function waitForProgressFirstPaint(
-  options: PlatformProgressOptions | false | undefined,
-  signal?: AbortSignal | null,
-) {
-  if (
-    options === false
-    || typeof window === 'undefined'
-    || signal?.aborted
-    || !PROGRESS_FIRST_PAINT_PROFILES.has(options?.profile ?? 'background')
-  ) {
-    return;
-  }
-  await new Promise<void>((resolve) => {
-    window.requestAnimationFrame(() => {
-      window.setTimeout(resolve, 0);
-    });
-  });
 }
 
 function resolveExportProgressOptions(

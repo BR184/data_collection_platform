@@ -73,6 +73,17 @@ function mountDialog(overrides: Partial<InstanceType<typeof StatisticBoardDetail
           emits: ['currentChange', 'sizeChange'],
           template: '<button class="pagination">{{ total }}</button>',
         },
+        ElRadioGroup: {
+          name: 'ElRadioGroup',
+          props: ['modelValue'],
+          emits: ['update:modelValue'],
+          template: '<div class="collection-switch"><slot /></div>',
+        },
+        ElRadioButton: {
+          name: 'ElRadioButton',
+          props: ['value', 'title'],
+          template: '<button class="collection-option">{{ title }}: <slot /></button>',
+        },
       },
     },
   });
@@ -134,5 +145,44 @@ describe('StatisticBoardDetailDialog', () => {
 
     expect(wrapper.find('a.detail-cell-link').exists()).toBe(false);
     expect(wrapper.text()).toContain('-');
+  });
+
+  it('renders the collection switcher and reports the selected collection', async () => {
+    const onCollectionChange = vi.fn();
+    const wrapper = mountDialog({
+      collection: 'COUNTED',
+      onCollectionChange,
+      detail: {
+        ...detail,
+        collections: [
+          { key: 'COUNTED', label: '计数集合', description: '贡献该指标的议题。' },
+          { key: 'NUMERATOR', label: '分子集合', description: '达标议题。' },
+        ],
+        collection: 'COUNTED',
+      },
+    });
+
+    const group = wrapper.findComponent({ name: 'ElRadioGroup' });
+    expect(group.exists()).toBe(true);
+    expect(wrapper.text()).toContain('计数集合');
+    expect(wrapper.text()).toContain('分子集合');
+    expect(wrapper.text()).toContain('贡献该指标的议题。');
+
+    await group.vm.$emit('update:modelValue', 'NUMERATOR');
+
+    expect(onCollectionChange).toHaveBeenCalledWith('NUMERATOR');
+  });
+
+  it('hides the collection switcher for single-collection boards', () => {
+    const wrapper = mountDialog({
+      detail: {
+        ...detail,
+        collections: [{ key: 'DETAIL', label: '明细', description: '当前指标对应的明细记录。' }],
+        collection: 'DETAIL',
+      },
+    });
+
+    expect(wrapper.findComponent({ name: 'ElRadioGroup' }).exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('当前指标对应的明细记录。');
   });
 });

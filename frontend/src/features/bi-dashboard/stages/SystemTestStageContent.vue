@@ -20,17 +20,22 @@ import { BI_CHART_EXPLANATIONS } from '../data/chart-explanations';
 import { formatNumber, formatPercent, metricStatus, sectionPresentation, systemTestTargetLabel } from '../data/presentation';
 import { sortDeveloperWorkloadRows, sortModuleRepairRows, sortNamedValues, sortRoundQualityRows } from '../data/sorting';
 import { buildDefectCauseBreakdownData, buildDelayHeatmapData } from '../data/system-test-presentation';
+import { productVersionDownloadContext } from '../data/download-context';
 import type { BiPageResponse, BiSystemTestPageData } from '../data/types';
 
 const props = defineProps({
   response: { type: Object as PropType<BiPageResponse<BiSystemTestPageData>>, required: true },
   productVersionId: { type: Number, required: true },
-  productVersionName: { type: String, required: true },
 });
+
+function downloadContext(chartInstanceId: string) {
+  return productVersionDownloadContext(
+    'system-test', chartInstanceId, props.productVersionId, props.response.sourceVersion);
+}
 
 const roundChart = new QualityRoundTrackChart();
 const donutChart = new DistributionDonutChart();
-const stackedChart = new StackedCategoryBarChart();
+const stackedChart = new StackedCategoryBarChart({ yAxisName: '缺陷数 (个)' });
 const repairChart = new ModuleRepairMatrixChart();
 const overlayChart = new OverlayCategoryBarChart();
 const causeBreakdownChart = new DefectCauseBreakdownChart();
@@ -269,10 +274,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         layout="primary"
         :status="sectionPresentation(response, 'round-quality').status"
         :status-message="sectionPresentation(response, 'round-quality').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        page-key="system-test"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext('system-test-rounds')"
         v-model:sort="roundSort"
         v-model:order="roundSortOrder"
         :sort-options="roundSortOptions"
@@ -287,10 +289,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         layout="secondary"
         :status="sectionPresentation(response, 'severity-distribution').status"
         :status-message="sectionPresentation(response, 'severity-distribution').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        page-key="system-test"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext('system-test-severity-distribution')"
         v-model:sort="severitySort"
         v-model:order="severitySortOrder"
         :sort-options="countNameSortOptions"
@@ -306,10 +305,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         layout="primary"
         :status="sectionPresentation(response, 'module-repair-targets').status"
         :status-message="sectionPresentation(response, 'module-repair-targets').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        page-key="system-test"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext('system-test-module-repair')"
         v-model:sort="repairSort"
         v-model:order="repairSortOrder"
         :sort-options="repairSortOptions"
@@ -324,10 +320,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         layout="secondary"
         :status="sectionPresentation(response, 'delay-analysis').status"
         :status-message="sectionPresentation(response, 'delay-analysis').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        page-key="system-test"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext('system-test-delay-analysis')"
       />
 
       <BiChartPanel
@@ -340,10 +333,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         layout="wide-only"
         :status="sectionPresentation(response, 'module-quality').status"
         :status-message="sectionPresentation(response, 'module-quality').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        page-key="system-test"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext('system-test-module-severity')"
         v-model:sort="moduleSeveritySort"
         v-model:order="moduleSeveritySortOrder"
         :sort-options="moduleSeveritySortOptions"
@@ -358,10 +348,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         layout="wide-only"
         :status="sectionPresentation(response, 'module-quality').status"
         :status-message="sectionPresentation(response, 'module-quality').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        page-key="system-test"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext('system-test-module-overlay')"
         v-model:sort="overlaySort"
         v-model:order="overlaySortOrder"
         :sort-options="overlaySortOptions"
@@ -378,10 +365,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         layout="compact"
         :status="sectionPresentation(response, 'cause-distribution').status"
         :status-message="sectionPresentation(response, 'cause-distribution').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        page-key="system-test"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext('system-test-cause-categories')"
         v-model:sort="causeCategorySort"
         v-model:order="causeCategorySortOrder"
         :sort-options="countNameSortOptions"
@@ -397,10 +381,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         layout="wide"
         :status="sectionPresentation(response, 'cause-distribution').status"
         :status-message="sectionPresentation(response, 'cause-distribution').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        page-key="system-test"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext('system-test-cause-subcategories')"
       />
 
       <BiChartPanel
@@ -413,10 +394,7 @@ const developers = computed<DeveloperWorkloadRow[]>(() => {
         layout="full"
         :status="sectionPresentation(response, 'developer-workload').status"
         :status-message="sectionPresentation(response, 'developer-workload').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        page-key="system-test"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext('system-test-assignee-workload')"
         v-model:sort="developerSort"
         v-model:order="developerSortOrder"
         :sort-options="developerSortOptions"

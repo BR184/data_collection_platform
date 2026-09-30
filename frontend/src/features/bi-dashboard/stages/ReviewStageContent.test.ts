@@ -56,7 +56,6 @@ describe('ReviewStageContent height alignment', () => {
       props: {
         response,
         productVersionId: 11,
-        productVersionName: 'v1.0',
         stageLabel: '需求',
         pageKey: 'requirements',
       },
@@ -72,5 +71,31 @@ describe('ReviewStageContent height alignment', () => {
     // Both top row panels must have identical height of 430px
     expect(categoryPanel?.props('height')).toBe(430);
     expect(modulePanel?.props('height')).toBe(430);
+  });
+
+  it('uses the registered chart templates and range identity for both review pages', () => {
+    for (const pageKey of ['requirements', 'design'] as const) {
+      const wrapper = shallowMount(ReviewStageContent, {
+        props: {
+          response: { ...mockReviewResponse(), pageKey },
+          productVersionId: 11,
+          stageLabel: pageKey === 'requirements' ? '需求' : '设计',
+          pageKey,
+        },
+      });
+
+      expect(wrapper.findAllComponents({ name: 'BiChartPanel' }).map((panel) => [
+        panel.props('downloadContext'),
+        (panel.props('chart') as { templateId: string }).templateId,
+      ])).toEqual([
+        [{ pageKey, chartInstanceId: `${pageKey}-categories`, sourceVersion: 'review-v1',
+          scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'distribution-donut'],
+        [{ pageKey, chartInstanceId: `${pageKey}-module-quality`, sourceVersion: 'review-v1',
+          scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'review-quality-dual-panel'],
+        [{ pageKey, chartInstanceId: `${pageKey}-review-scatter`, sourceVersion: 'review-v1',
+          scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'review-quality-scatter'],
+      ]);
+      wrapper.unmount();
+    }
   });
 });

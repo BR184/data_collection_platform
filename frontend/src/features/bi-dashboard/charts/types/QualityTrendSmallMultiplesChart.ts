@@ -44,8 +44,8 @@ export class QualityTrendSmallMultiplesChart extends BiChart<QualityTrendData> {
         { type: 'category', data: data.periods, gridIndex: 1, axisLabel: { rotate: data.periods.length > 8 ? 25 : 0 } },
       ],
       yAxis: [
-        { ...commentRateAxis, type: 'value', name: '注释率', gridIndex: 0, axisLabel: { formatter: '{value}%' } },
-        { ...densityAxis, type: 'value', name: '个/KLOC', gridIndex: 1 },
+        { ...commentRateAxis, type: 'value', name: '代码注释率 (%)', gridIndex: 0, axisLabel: { formatter: '{value}%' } },
+        { ...densityAxis, type: 'value', name: '走查缺陷密度 (个/KLOC)', gridIndex: 1 },
       ],
       dataZoom: context.mode === 'view' && data.periods.length > 12
         ? [{ type: 'slider', xAxisIndex: [0, 1], startValue: 0, endValue: 11, height: 16, bottom: 4 }]

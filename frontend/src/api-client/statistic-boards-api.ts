@@ -1,5 +1,6 @@
 import type {
   RealtimeWorkspaceStatusResponse,
+  StatisticBoardControlOptions,
   StatisticBoardResponse,
   StatisticBoardRuleExplanationResponse,
   StatisticDetailResponse,
@@ -26,6 +27,17 @@ export const statisticBoardsApi = {
   getStatisticBoard(boardKey: string, params?: StatisticBoardQueryParams) {
     return request<StatisticBoardResponse>(
       `/api/statistic-boards/${boardKey}${buildStatisticBoardQuery(params)}`,
+    );
+  },
+  /**
+   * 成员控制条候选：由后端在同一窄事实的完整基础范围上求得，不随当前成员选择收缩。
+   *
+   * @param boardKey 统计板标识
+   * @param params 范围参数（生效范围、来源与用户条件）；成员选择参与主表读取但不参与候选求解
+   */
+  getStatisticBoardControlOptions(boardKey: string, params?: StatisticBoardQueryParams) {
+    return request<StatisticBoardControlOptions>(
+      `/api/statistic-boards/${boardKey}/control-options${buildStatisticBoardQuery(params)}`,
     );
   },
   getStatisticBoardDetails(

@@ -62,6 +62,8 @@ const props = withDefaults(
     onColumnDragStart: (groupKey: string, columnKey: string) => void;
     onColumnDrop: (groupKey: string, columnKey: string) => void;
     clearDragState: () => void;
+    /** 需要固定在左侧的列键；缺省时列不固定，旧看板行为不变。 */
+    fixedColumnKeys?: string[];
     handleTableCurrentChange: (nextPage: number) => void;
     handleTableSizeChange: (nextSize: number) => void;
     onSettingsVisibleChange: (visible: boolean) => void;
@@ -284,6 +286,7 @@ onBeforeUnmount(() => {
         :on-column-drag-start="onColumnDragStart"
         :on-column-drop="onColumnDrop"
         :clear-drag-state="clearDragState"
+        :fixed-column-keys="props.fixedColumnKeys"
       />
     </el-table>
     <Teleport to="body">

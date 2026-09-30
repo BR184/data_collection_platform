@@ -63,6 +63,10 @@ export function routeDetailSortOrder(query: LocationQuery) {
   return value === 'ascending' || value === 'descending' ? value : 'descending';
 }
 
+export function routeDetailCollection(query: LocationQuery) {
+  return String(query.detailCollection ?? '');
+}
+
 export function routeDetailVisible(query: LocationQuery) {
   return String(query.detailVisible ?? '') === '1';
 }

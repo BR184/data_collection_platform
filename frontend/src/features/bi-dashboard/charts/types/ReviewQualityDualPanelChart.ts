@@ -9,6 +9,8 @@ export interface ReviewQualityChartConfig {
   densityRange: readonly [number, number];
   densityUnit: string;
   rateUnit: string;
+  rateMetricName?: string;
+  densityMetricName?: string;
 }
 
 export class ReviewQualityDualPanelChart extends BiChart<ReviewQualityRow[]> {
@@ -27,8 +29,10 @@ export class ReviewQualityDualPanelChart extends BiChart<ReviewQualityRow[]> {
   }
 
   excelTable(data: ReviewQualityRow[]): BiExcelTableData {
+    const rateName = this.config.rateMetricName ?? '评审速率';
+    const densityName = this.config.densityMetricName ?? '缺陷密度';
     const hasAddedLines = data.some((item) => item.addedLines != null);
-    const headers = ['模块名称', `缺陷密度 (${this.config.densityUnit})`, `评审速率 (${this.config.rateUnit})`];
+    const headers = ['模块名称', `${densityName} (${this.config.densityUnit})`, `${rateName} (${this.config.rateUnit})`];
     if (hasAddedLines) {
       headers.push('新增代码量 (行)');
     }
@@ -51,6 +55,8 @@ export class ReviewQualityDualPanelChart extends BiChart<ReviewQualityRow[]> {
   }
 
   build(data: ReviewQualityRow[], context: BiChartRenderContext): EChartsOption {
+    const rateName = this.config.rateMetricName ?? '评审速率';
+    const densityName = this.config.densityMetricName ?? '缺陷密度';
     const categories = data.map((item) => item.name);
     const yAxis = { type: 'category' as const, inverse: true, data: categories, axisTick: { show: false } };
     const hasViewZoom = context.mode === 'view' && data.length > 10;
@@ -64,8 +70,8 @@ export class ReviewQualityDualPanelChart extends BiChart<ReviewQualityRow[]> {
       ...this.baseOption(`模块评审质量双面板，共 ${data.length} 个模块。`),
       legend: { show: false },
       graphic: [
-        { type: 'text', left: 20, top: 8, silent: true, style: { text: `缺陷密度（${this.config.densityUnit}） · 目标 ${this.config.densityRange[0].toFixed(2)}–${this.config.densityRange[1].toFixed(2)}`, fill: '#475467', fontSize: 12, fontWeight: 600 } },
-        { type: 'text', left: '56%', top: 8, silent: true, style: { text: `${this.config.rateUnit} · 无目标`, fill: '#667085', fontSize: 12, fontWeight: 600 } },
+        { type: 'text', left: 20, top: 8, silent: true, style: { text: `${densityName}（${this.config.densityUnit}） · 目标 ${this.config.densityRange[0].toFixed(2)}–${this.config.densityRange[1].toFixed(2)}`, fill: '#475467', fontSize: 12, fontWeight: 600 } },
+        { type: 'text', left: '56%', top: 8, silent: true, style: { text: `${rateName}（${this.config.rateUnit}） · 无目标`, fill: '#667085', fontSize: 12, fontWeight: 600 } },
       ],
       grid: [
         { left: 118, right: '54%', top: 48, bottom: gridBottom, containLabel: true },
@@ -77,12 +83,12 @@ export class ReviewQualityDualPanelChart extends BiChart<ReviewQualityRow[]> {
           const item = data[Number((params as { dataIndex?: number }).dataIndex ?? 0)];
           if (!item) return '';
           const addedLinesText = item.addedLines != null ? `<br/>新增代码：${item.addedLines.toLocaleString()} 行` : '';
-          return `${item.name}<br/>缺陷密度：${formatValue(item.density)} ${this.config.densityUnit}<br/>评审速率：${formatValue(item.rate)} ${this.config.rateUnit}${addedLinesText}`;
+          return `${item.name}<br/>${densityName}：${formatValue(item.density)} ${this.config.densityUnit}<br/>${rateName}：${formatValue(item.rate)} ${this.config.rateUnit}${addedLinesText}`;
         },
       },
       xAxis: [
-        { ...densityAxis, type: 'value', name: this.config.densityUnit, nameLocation: 'middle', nameGap: 28, gridIndex: 0, axisLabel: { formatter: (value: number) => value.toFixed(2) } },
-        { ...rateAxis, type: 'value', name: this.config.rateUnit, nameLocation: 'middle', nameGap: 28, gridIndex: 1, axisLabel: { formatter: (value: number) => value.toFixed(0) } },
+        { ...densityAxis, type: 'value', name: `${densityName} (${this.config.densityUnit})`, nameLocation: 'middle', nameGap: 28, gridIndex: 0, axisLabel: { formatter: (value: number) => value.toFixed(2) } },
+        { ...rateAxis, type: 'value', name: `${rateName} (${this.config.rateUnit})`, nameLocation: 'middle', nameGap: 28, gridIndex: 1, axisLabel: { formatter: (value: number) => value.toFixed(0) } },
       ],
       yAxis: [yAxis, { ...yAxis, gridIndex: 1, axisLabel: { show: false }, axisLine: { show: false } }],
       dataZoom: hasViewZoom

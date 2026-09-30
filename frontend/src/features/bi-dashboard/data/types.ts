@@ -6,7 +6,8 @@ export type BiPageKey =
   | 'coding'
   | 'unit-test'
   | 'integration-test'
-  | 'system-test';
+  | 'system-test'
+  | 'customer-issues';
 
 export type BiChartTemplateId =
   | 'distribution-donut'
@@ -22,7 +23,35 @@ export type BiChartTemplateId =
   | 'review-quality-dual-panel'
   | 'review-quality-scatter'
   | 'quality-trend-small-multiples'
-  | 'delay-heatmap';
+  | 'delay-heatmap'
+  | 'daily-defect-trend';
+
+export type BiMemberSelection =
+  | { kind: 'ALL' }
+  | { kind: 'MISSING' }
+  | { kind: 'VALUE'; value: string };
+
+/** 每张图在授权时冻结的完整范围身份。 */
+export type BiDownloadScope =
+  | { rangeType: 'PRODUCT_VERSION'; productVersionId: number }
+  | {
+    rangeType: 'CUSTOMER_ISSUE';
+    milestoneBusinessKey: string;
+    businessDate: string;
+    customerKind: BiMemberSelection['kind'];
+    customer?: string;
+    moduleKind: BiMemberSelection['kind'];
+    module?: string;
+    functionKind: BiMemberSelection['kind'];
+    function?: string;
+  };
+
+export interface BiChartDownloadContext {
+  pageKey: BiPageKey;
+  chartInstanceId: string;
+  sourceVersion: string;
+  scope: BiDownloadScope;
+}
 
 export interface BiProductVersionOption {
   id: number;
@@ -226,12 +255,46 @@ export interface BiSystemTestPageData {
   }>;
 }
 
-export interface BiDownloadAuthorization {
-  authorized: boolean;
-  productVersionId: number;
-  pageKey: BiPageKey;
-  chartTemplateId: BiChartTemplateId;
-  sourceVersion: string;
+export interface BiCustomerIssueMetric {
+  key: string;
+  label: string;
+  value: number | null;
+  numerator: number | null;
+  denominator: number | null;
+  percentage: number | null;
+  unit: string;
 }
 
-export type BiStageData = BiReviewPageData | BiCodingPageData | BiTestQualityPageData | BiSystemTestPageData;
+export interface BiCustomerIssuePageData {
+  milestones: Array<{ businessKey: string; displayName: string }>;
+  selectedMilestoneBusinessKey: string;
+  selectedMilestoneDisplayName: string;
+  businessDate: string;
+  customers: Array<{ kind: 'VALUE' | 'MISSING'; value: string | null; displayName: string }>;
+  modules: Array<{ kind: 'VALUE' | 'MISSING'; value: string | null; displayName: string }>;
+  functions: Array<{ kind: 'VALUE' | 'MISSING'; value: string | null; displayName: string }>;
+  defectMetrics: BiCustomerIssueMetric[];
+  requirementMetrics: BiCustomerIssueMetric[];
+  moduleDefects: Array<{ module: string; fixedCount: number; unfixedCount: number; totalCount: number }>;
+  severityDistribution: Array<{ severity: string; count: number }>;
+  moduleSeverity: Array<{ module: string; severity: string; count: number }>;
+  causeDistribution: Array<{ groupId: string; groupName: string; causeId: string; causeName: string; count: number }>;
+  unclassifiedCauseCount: number;
+  delayAnalysis: Array<{ reason: string; severity: string; count: number }>;
+  assigneeWorkload: Array<{ assignee: string; fixedCount: number; unfixedCount: number; totalCount: number }>;
+  moduleDemand: Array<{ module: string; resolvedCount: number; unresolvedCount: number; totalCount: number }>;
+  dailyTrend: Array<{ date: string; createdCount: number | null; fixedCount: number | null }>;
+  filteredFactCount: number;
+}
+
+export interface BiDownloadAuthorization {
+  authorized: boolean;
+  scope: BiDownloadScope;
+  pageKey: BiPageKey;
+  chartInstanceId: string;
+  chartTemplateId: BiChartTemplateId;
+  sourceVersion: string;
+  rangeDescription: string;
+}
+
+export type BiStageData = BiReviewPageData | BiCodingPageData | BiTestQualityPageData | BiSystemTestPageData | BiCustomerIssuePageData;

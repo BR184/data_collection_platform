@@ -50,6 +50,34 @@ function mockCodingResponse(): BiPageResponse<BiCodingPageData> {
 }
 
 describe('CodingStageContent', () => {
+  it('uses registered chart instances and templates for product-version downloads', () => {
+    const wrapper = shallowMount(CodingStageContent, {
+      props: { response: mockCodingResponse(), productVersionId: 11 },
+    });
+
+    expect(wrapper.findAllComponents({ name: 'BiChartPanel' }).map((panel) => [
+      panel.props('downloadContext'),
+      (panel.props('chart') as { templateId: string }).templateId,
+    ])).toEqual([
+      [{ pageKey: 'coding', chartInstanceId: 'coding-module-review-quality', sourceVersion: 'coding-v1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'review-quality-dual-panel'],
+      [{ pageKey: 'coding', chartInstanceId: 'coding-review-categories', sourceVersion: 'coding-v1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'distribution-donut'],
+      [{ pageKey: 'coding', chartInstanceId: 'coding-contributors', sourceVersion: 'coding-v1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'vertical-category-bar'],
+      [{ pageKey: 'coding', chartInstanceId: 'coding-module-increments', sourceVersion: 'coding-v1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'vertical-category-bar'],
+      [{ pageKey: 'coding', chartInstanceId: 'coding-quality-trend', sourceVersion: 'coding-v1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'quality-trend-small-multiples'],
+      [{ pageKey: 'coding', chartInstanceId: 'coding-code-trend', sourceVersion: 'coding-v1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'coding-trend-combo'],
+      [{ pageKey: 'coding', chartInstanceId: 'coding-submission-trend', sourceVersion: 'coding-v1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'submission-trend-combo'],
+      [{ pageKey: 'coding', chartInstanceId: 'coding-review-scatter', sourceVersion: 'coding-v1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'review-quality-scatter'],
+    ]);
+  });
+
   it('renders code trend and submission trend with default daily data and descriptions, without removed frequency chart', () => {
     const response = mockCodingResponse();
     response.data!.moduleIncrements = [
@@ -60,7 +88,7 @@ describe('CodingStageContent', () => {
     ];
 
     const wrapper = shallowMount(CodingStageContent, {
-      props: { response, productVersionId: 11, productVersionName: 'v1.0' },
+      props: { response, productVersionId: 11 },
     });
 
     const panels = wrapper.findAllComponents({ name: 'BiChartPanel' });
@@ -129,7 +157,7 @@ describe('CodingStageContent', () => {
     ];
 
     const wrapper = shallowMount(CodingStageContent, {
-      props: { response, productVersionId: 11, productVersionName: 'v1.0' },
+      props: { response, productVersionId: 11 },
     });
 
     const panel = wrapper
@@ -158,7 +186,7 @@ describe('CodingStageContent', () => {
     ];
 
     const wrapper = shallowMount(CodingStageContent, {
-      props: { response, productVersionId: 11, productVersionName: 'v1.0' },
+      props: { response, productVersionId: 11 },
     });
 
     const panel = wrapper

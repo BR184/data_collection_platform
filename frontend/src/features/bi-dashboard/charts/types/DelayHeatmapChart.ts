@@ -31,13 +31,13 @@ export class DelayHeatmapChart extends BiChart<DelayHeatmapData> {
     const maxValue = Math.max(1, ...data.values.map((item) => item[2]));
     return {
       ...this.baseOption(`延期原因与严重度热力矩阵，共 ${data.values.length} 个单元格。`),
-      grid: { top: 28, right: 72, bottom: 44, left: 20, containLabel: true },
+      grid: { top: 36, right: 72, bottom: 52, left: 20, containLabel: true },
       tooltip: { position: 'top', formatter: (params: unknown) => {
         const value = callbackTupleValue(params);
         return value ? `${data.reasons[value[1]] ?? ''}<br/>${data.severities[value[0]] ?? ''}：${value[2]}` : '';
       } },
-      xAxis: { type: 'category', data: data.severities, splitArea: { show: true } },
-      yAxis: { type: 'category', data: data.reasons, inverse: true, splitArea: { show: true } },
+      xAxis: { type: 'category', name: '缺陷级别', nameLocation: 'middle', nameGap: 26, data: data.severities, splitArea: { show: true } },
+      yAxis: { type: 'category', name: '延期原因', nameLocation: 'end', nameGap: 10, data: data.reasons, inverse: true, splitArea: { show: true } },
       visualMap: {
         min: 0,
         max: maxValue,

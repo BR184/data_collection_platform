@@ -21,12 +21,14 @@ import {
 
 // 编码页评审质量图使用 KLOC/行 口径，用于验证表头单位取自图表配置而非写死。
 const CODING_REVIEW_CONFIG = { densityRange: [2, 10] as const, densityUnit: '个/KLOC', rateUnit: '行/小时' };
+const CODE_VOLUME_HEADERS = { nameHeader: '名称/人员/模块', valueHeader: '代码量 (行)' };
+const CATEGORY_COUNT_HEADERS = { nameHeader: '分类名称', valueHeader: '数量' };
 
 describe('BI chart excelTable extraction', () => {
   it('provides a rectangular, headed table for every concrete chart', () => {
     const tables: BiExcelTableData[] = [
       new DistributionDonutChart().excelTable([{ name: '设计规范', value: 12 }, { name: '逻辑规范', value: 8 }]),
-      new VerticalCategoryBarChart().excelTable([{ name: '张三', value: 1200 }]),
+      new VerticalCategoryBarChart(CATEGORY_COUNT_HEADERS).excelTable([{ name: '缺陷类别', value: 12 }]),
       new StackedCategoryBarChart().excelTable({
         categories: ['模块A'],
         series: [{ name: '新增', values: [10] }, { name: '修改', values: [5] }],
@@ -81,6 +83,24 @@ describe('BI chart excelTable extraction', () => {
       ['设计问题', '设计方案不合理', 14, 24.21],
       ['未归类', '未归类', 3175, 99.28],
     ]);
+  });
+
+  it('uses customer defect labels and count units for the shared category-bar chart', () => {
+    const table = new VerticalCategoryBarChart({
+      nameHeader: '缺陷原因',
+      valueHeader: '缺陷数（个）',
+    }).excelTable([{ name: '设计问题 · 场景考虑不全', value: 9 }]);
+
+    expect(table.headers).toEqual(['缺陷原因', '缺陷数（个）']);
+    expect(table.rows).toEqual([['设计问题 · 场景考虑不全', 9]]);
+  });
+
+  it('keeps code-volume units explicit for the existing coding charts', () => {
+    const table = new VerticalCategoryBarChart(CODE_VOLUME_HEADERS).excelTable([
+      { name: '张三', value: 1200 },
+    ]);
+
+    expect(table.headers).toEqual(['名称/人员/模块', '代码量 (行)']);
   });
 
   it('omits the unclassified row when nothing is unclassified', () => {

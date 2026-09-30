@@ -21,6 +21,7 @@ import {
 import { BI_CHART_EXPLANATIONS } from '../data/chart-explanations';
 import { formatNumber, metricStatus, sectionPresentation } from '../data/presentation';
 import { codingDensityRange } from '../data/quality-targets';
+import { productVersionDownloadContext } from '../data/download-context';
 import {
   sortNamedValues,
   sortReviewQualityRows,
@@ -31,9 +32,13 @@ import type { BiCodingPageData, BiPageResponse } from '../data/types';
 const props = defineProps({
   response: { type: Object as PropType<BiPageResponse<BiCodingPageData>>, required: true },
   productVersionId: { type: Number, required: true },
-  productVersionName: { type: String, required: true },
   granularity: { type: String, default: 'day' },
 });
+
+function downloadContext(chartInstanceId: string) {
+  return productVersionDownloadContext(
+    'coding', chartInstanceId, props.productVersionId, props.response.sourceVersion);
+}
 
 // 代码增量趋势与提交趋势各自持有独立的粒度状态，互不干扰
 const codeTrendGranularity = ref<'day' | 'week'>(props.granularity === 'week' ? 'week' : 'day');
@@ -48,9 +53,24 @@ watch(() => props.granularity, (val) => {
 const submissionChart = new SubmissionTrendComboChart();
 const codingTrendChart = new CodingTrendComboChart();
 const categoryChart = new DistributionDonutChart();
-const verticalBarChart = new VerticalCategoryBarChart();
-const reviewQualityChart = new ReviewQualityDualPanelChart({ densityRange: codingDensityRange, densityUnit: '个/KLOC', rateUnit: '行/小时' });
-const reviewScatterChart = new ReviewQualityScatterChart({ densityRange: codingDensityRange, densityUnit: '个/KLOC', rateUnit: 'KLOC/小时' });
+const verticalBarChart = new VerticalCategoryBarChart({
+  nameHeader: '名称/人员/模块',
+  valueHeader: '代码量 (行)',
+});
+const reviewQualityChart = new ReviewQualityDualPanelChart({
+  densityRange: codingDensityRange,
+  densityUnit: '个/KLOC',
+  rateUnit: '行/小时',
+  rateMetricName: '走查速率',
+  densityMetricName: '走查缺陷密度',
+});
+const reviewScatterChart = new ReviewQualityScatterChart({
+  densityRange: codingDensityRange,
+  densityUnit: '个/KLOC',
+  rateUnit: 'KLOC/小时',
+  rateMetricName: '走查速率',
+  densityMetricName: '走查缺陷密度',
+});
 const qualityTrendChart = new QualityTrendSmallMultiplesChart();
 const data = computed(() => props.response.data);
 
@@ -201,10 +221,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         layout="full"
         :status="sectionPresentation(response, 'module-review-quality').status"
         :status-message="sectionPresentation(response, 'module-review-quality').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        page-key="coding"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext('coding-module-review-quality')"
         v-model:sort="moduleReviewSort"
         v-model:order="moduleReviewSortOrder"
         :sort-options="moduleReviewSortOptions"
@@ -221,10 +238,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         layout="compact"
         :status="sectionPresentation(response, 'review-categories').status"
         :status-message="sectionPresentation(response, 'review-categories').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        page-key="coding"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext('coding-review-categories')"
         v-model:sort="reviewCategorySort"
         v-model:order="reviewCategorySortOrder"
         :sort-options="countNameSortOptions"
@@ -242,10 +256,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         layout="compact"
         :status="sectionPresentation(response, 'contributors').status"
         :status-message="sectionPresentation(response, 'contributors').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        page-key="coding"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext('coding-contributors')"
         v-model:sort="contributorSort"
         v-model:order="contributorSortOrder"
         :sort-options="contributorSortOptions"
@@ -261,10 +272,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         layout="compact"
         :status="sectionPresentation(response, 'module-increments').status"
         :status-message="sectionPresentation(response, 'module-increments').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        page-key="coding"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext('coding-module-increments')"
         v-model:sort="moduleIncrementSort"
         v-model:order="moduleIncrementSortOrder"
         :sort-options="moduleIncrementSortOptions"
@@ -282,10 +290,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         layout="full"
         :status="sectionPresentation(response, 'quality-trend').status"
         :status-message="sectionPresentation(response, 'quality-trend').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        page-key="coding"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext('coding-quality-trend')"
       />
 
       <!-- 5. 代码增量趋势 (50%, 内部包含独立“按日/按周”控件) + 提交趋势 (50%, 内部包含独立“按日/按周”控件) -->
@@ -300,10 +305,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         layout="wide"
         :status="sectionPresentation(response, 'code-trend').status"
         :status-message="sectionPresentation(response, 'code-trend').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        page-key="coding"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext('coding-code-trend')"
       >
         <template #actions>
           <el-segmented
@@ -323,10 +325,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         layout="compact"
         :status="sectionPresentation(response, 'submission-trend').status"
         :status-message="sectionPresentation(response, 'submission-trend').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        page-key="coding"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext('coding-submission-trend')"
       >
         <template #actions>
           <el-segmented
@@ -349,10 +348,7 @@ const qualityTrend = computed<QualityTrendData>(() => {
         layout="full"
         :status="sectionPresentation(response, 'review-scatter').status"
         :status-message="sectionPresentation(response, 'review-scatter').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        page-key="coding"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext('coding-review-scatter')"
         v-model:sort="reviewScatterSort"
         v-model:order="reviewScatterSortOrder"
         :sort-options="reviewScatterSortOptions"

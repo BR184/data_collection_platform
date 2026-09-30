@@ -7,7 +7,8 @@ import { getErrorMessage } from '../../../utils/user-message';
 import { hasPermission } from '../../../feature-manifest';
 import type { BiChart } from '../charts/BiChart';
 import { exportBiChartExcel, exportBiChartPng } from '../charts/export-chart';
-import type { BiDataStatus, BiPageKey } from '../data/types';
+import { biPageDownloadPermission } from '../data/page-permissions';
+import type { BiChartDownloadContext, BiDataStatus } from '../data/types';
 import BiChartCanvas from './BiChartCanvas.vue';
 import BiChartSortControl, { type BiSortOption, type BiSortOrder } from './BiChartSortControl.vue';
 
@@ -20,10 +21,7 @@ const props = defineProps({
   height: { type: Number, default: 340 },
   status: { type: String as PropType<BiDataStatus>, default: 'READY' },
   statusMessage: { type: String, default: '' },
-  productVersionId: { type: Number, required: true },
-  productVersionName: { type: String, default: '' },
-  pageKey: { type: String as PropType<BiPageKey>, required: true },
-  sourceVersion: { type: String, default: '' },
+  downloadContext: { type: Object as PropType<BiChartDownloadContext>, required: true },
   layout: {
     type: String as PropType<'full' | 'compact' | 'wide' | 'primary' | 'secondary' | 'half' | 'wide-only'>,
     default: 'full',
@@ -44,8 +42,8 @@ const exporting = ref(false);
 const typedChart = computed(() => props.chart as unknown as BiChart<unknown>);
 const hasData = computed(() => typedChart.value.hasData(props.data));
 const canDownload = computed(() => hasData.value
-  && Boolean(props.sourceVersion)
-  && hasPermission(authState.currentUser, 'bi.dashboard.download'));
+  && Boolean(props.downloadContext.sourceVersion)
+  && hasPermission(authState.currentUser, biPageDownloadPermission(props.downloadContext.pageKey)));
 const stateTitle = computed(() => {
   if (props.status === 'ERROR') return '图表加载失败';
   if (props.status === 'INCOMPLETE') return '数据暂不完整';
@@ -58,9 +56,7 @@ async function downloadPng(): Promise<void> {
   exporting.value = true;
   try {
     await exportBiChartPng({
-      productVersionId: props.productVersionId,
-      pageKey: props.pageKey,
-      sourceVersion: props.sourceVersion,
+      downloadContext: props.downloadContext,
       title: props.title,
       chart: typedChart.value,
       data: props.data,
@@ -78,10 +74,7 @@ async function downloadExcel(): Promise<void> {
   exporting.value = true;
   try {
     await exportBiChartExcel({
-      productVersionId: props.productVersionId,
-      productVersionName: props.productVersionName,
-      pageKey: props.pageKey,
-      sourceVersion: props.sourceVersion,
+      downloadContext: props.downloadContext,
       title: props.title,
       description: props.description,
       chart: typedChart.value,

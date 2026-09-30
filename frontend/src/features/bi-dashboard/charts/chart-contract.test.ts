@@ -24,7 +24,7 @@ describe('BI chart type contract', () => {
   it('provides one concrete class for every registered template id', () => {
     const charts = [
       new DistributionDonutChart(),
-      new VerticalCategoryBarChart(),
+      new VerticalCategoryBarChart({ nameHeader: '分类名称', valueHeader: '数量' }),
       new StackedCategoryBarChart(),
       new CodingTrendComboChart(),
       new SubmissionTrendComboChart(),
@@ -119,8 +119,8 @@ describe('BI chart type contract', () => {
     const series = option.series as Array<{ data?: Array<number | { value?: number }> }>;
 
     expect(axes).toEqual([
-      expect.objectContaining({ name: '问题/页', nameLocation: 'middle', nameGap: 28 }),
-      expect.objectContaining({ name: '页/小时', nameLocation: 'middle', nameGap: 28 }),
+      expect.objectContaining({ name: '缺陷密度 (问题/页)', nameLocation: 'middle', nameGap: 28 }),
+      expect.objectContaining({ name: '评审速率 (页/小时)', nameLocation: 'middle', nameGap: 28 }),
     ]);
     expect(grids.every((grid) => grid.bottom === 44)).toBe(true);
     expect(series[0].data?.[0]).toMatchObject({ value: 0.4 });
@@ -132,6 +132,8 @@ describe('BI chart type contract', () => {
       densityRange: [2, 10],
       densityUnit: '个/KLOC',
       rateUnit: '行/小时',
+      rateMetricName: '走查速率',
+      densityMetricName: '走查缺陷密度',
     }).build([
       { name: '草图', density: 3.32, rate: 480, achieved: true },
       { name: '装配', density: 7.31, rate: 720, achieved: true },
@@ -140,8 +142,8 @@ describe('BI chart type contract', () => {
     const axes = option.xAxis as Array<{ name?: string; max?: number; interval?: number; breaks?: unknown[] }>;
     const series = option.series as Array<{ data?: Array<{ value?: number | unknown[] }> }>;
 
-    expect(axes[0]).toMatchObject({ name: '个/KLOC' });
-    expect(axes[1]).toMatchObject({ name: '行/小时' });
+    expect(axes[0]).toMatchObject({ name: '走查缺陷密度 (个/KLOC)' });
+    expect(axes[1]).toMatchObject({ name: '走查速率 (行/小时)' });
     expect(axes[0].max).toBeGreaterThanOrEqual(166.7);
     expect(axes[1].max).toBeGreaterThanOrEqual(37_600);
     expect(axes[0].breaks?.length).toBeGreaterThan(0);
@@ -168,7 +170,7 @@ describe('BI chart type contract', () => {
     const series = option.series as Array<{ data?: unknown[] }>;
 
     expect(xAxis.max).toBeGreaterThanOrEqual(180);
-    expect(yAxis).toMatchObject({ name: '个/KLOC' });
+    expect(yAxis).toMatchObject({ name: '缺陷密度 (个/KLOC)' });
     expect(yAxis.max).toBeGreaterThanOrEqual(1_000);
     expect(xAxis.breaks?.length).toBeGreaterThan(0);
     expect(yAxis.breaks?.length).toBeGreaterThan(0);
@@ -345,17 +347,29 @@ describe('BI chart type contract', () => {
 
     expect(axes).toEqual([
       expect.objectContaining({ name: '缺陷数', nameLocation: 'middle', nameGap: 28 }),
-      expect.objectContaining({ name: '关闭状态', nameLocation: 'middle', nameGap: 28 }),
+      expect.objectContaining({ name: '关闭进度占比 (%)', nameLocation: 'middle', nameGap: 28 }),
     ]);
     expect(grids.every((grid) => grid.bottom === 44)).toBe(true);
   });
 
   it('keeps dense category labels within the confirmed 25 degree limit', () => {
     const data = Array.from({ length: 14 }, (_, index) => ({ name: `模块 ${index}`, value: index }));
-    const option = new VerticalCategoryBarChart().build(data, { mode: 'view' });
+    const option = new VerticalCategoryBarChart({ nameHeader: '分类名称', valueHeader: '数量' }).build(data, { mode: 'view' });
     const xAxis = option.xAxis as { axisLabel?: { rotate?: number } };
 
     expect(xAxis.axisLabel?.rotate).toBe(25);
+  });
+
+  it('omits category legend entries when one quantity series colors individual bars by category', () => {
+    const option = new VerticalCategoryBarChart({ nameHeader: '缺陷原因', valueHeader: '缺陷数（个）' }).build([
+      { name: '设计问题 · 设计方案不合理', value: 14, category: '设计问题' },
+      { name: '编码规范 · 空指针检查', value: 7, category: '编码规范' },
+    ], { mode: 'view' });
+    const legend = option.legend as { show?: boolean; data?: string[] };
+    const series = option.series as Array<{ name?: string }>;
+
+    expect(legend.show).toBe(false);
+    expect(series.map((item) => item.name)).toEqual(['数量']);
   });
 
   it('uses grouped percentage bars while keeping unclassified defects outside the scale', () => {

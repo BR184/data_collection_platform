@@ -8,15 +8,20 @@ import BiMetricStrip, { type BiMetricItem } from '../components/BiMetricStrip.vu
 import { BI_CHART_EXPLANATIONS } from '../data/chart-explanations';
 import { formatNumber, formatPercent, metricStatus, sectionPresentation } from '../data/presentation';
 import { compareNumericNullsLast } from '../../../utils/missing-value-sorting';
+import { productVersionDownloadContext } from '../data/download-context';
 import type { BiPageKey, BiPageResponse, BiTestAttainment, BiTestQualityPageData } from '../data/types';
 
 const props = defineProps({
   response: { type: Object as PropType<BiPageResponse<BiTestQualityPageData>>, required: true },
   productVersionId: { type: Number, required: true },
-  productVersionName: { type: String, required: true },
   stageLabel: { type: String, required: true },
   pageKey: { type: String as PropType<BiPageKey>, required: true },
 });
+
+function downloadContext(chartInstanceId: string) {
+  return productVersionDownloadContext(
+    props.pageKey, chartInstanceId, props.productVersionId, props.response.sourceVersion);
+}
 
 const chart = new TestQualityAttainmentChart();
 const selectedModuleId = ref('');
@@ -147,10 +152,7 @@ function selectModuleFromChart(event: { dataIndex: number }): void {
         layout="full"
         :status="sectionPresentation(response, 'test-quality').status"
         :status-message="sectionPresentation(response, 'test-quality').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        :page-key="pageKey"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext(`${pageKey}-module-attainment`)"
         v-model:sort="moduleSort"
         v-model:order="moduleSortOrder"
         :sort-options="moduleSortOptions"
@@ -167,10 +169,7 @@ function selectModuleFromChart(event: { dataIndex: number }): void {
         layout="full"
         :status="sectionPresentation(response, 'test-quality').status"
         :status-message="sectionPresentation(response, 'test-quality').message"
-        :product-version-id="productVersionId"
-        :product-version-name="productVersionName"
-        :page-key="pageKey"
-        :source-version="response.sourceVersion"
+        :download-context="downloadContext(`${pageKey}-function-attainment`)"
         v-model:sort="featureSort"
         v-model:order="featureSortOrder"
         :sort-options="featureSortOptions"

@@ -4,6 +4,43 @@ import type { BiPageResponse, BiSystemTestPageData } from '../data/types';
 import SystemTestStageContent from './SystemTestStageContent.vue';
 
 describe('SystemTestStageContent', () => {
+  it('uses registered chart instances and templates for system-test downloads', () => {
+    const response: BiPageResponse<BiSystemTestPageData> = {
+      pageKey: 'system-test', status: 'READY', sourceVersion: 'issue-v1', snapshotId: 'issue-v1',
+      ruleVersion: 'bi-system-test-v3', generatedAt: '2026-08-05T00:00:00Z', sections: [], traces: [],
+      data: {
+        overview: { totalCount: 1, fixedCount: 1, openCount: 0, fixRate: 100 }, qualityTargets: [],
+        rounds: [], severity: { levelOneCount: 1, levelTwoCount: 0, levelThreeCount: 0 }, modules: [],
+        causeCategories: [], causeSubcategories: [], delays: [], developers: [],
+      },
+    };
+    const wrapper = shallowMount(SystemTestStageContent, { props: { response, productVersionId: 11 } });
+
+    expect(wrapper.findAllComponents({ name: 'BiChartPanel' }).map((panel) => [
+      panel.props('downloadContext'),
+      (panel.props('chart') as { templateId: string }).templateId,
+    ])).toEqual([
+      [{ pageKey: 'system-test', chartInstanceId: 'system-test-rounds', sourceVersion: 'issue-v1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'quality-round-track'],
+      [{ pageKey: 'system-test', chartInstanceId: 'system-test-severity-distribution', sourceVersion: 'issue-v1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'distribution-donut'],
+      [{ pageKey: 'system-test', chartInstanceId: 'system-test-module-repair', sourceVersion: 'issue-v1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'module-repair-matrix'],
+      [{ pageKey: 'system-test', chartInstanceId: 'system-test-delay-analysis', sourceVersion: 'issue-v1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'delay-heatmap'],
+      [{ pageKey: 'system-test', chartInstanceId: 'system-test-module-severity', sourceVersion: 'issue-v1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'stacked-category-bar'],
+      [{ pageKey: 'system-test', chartInstanceId: 'system-test-module-overlay', sourceVersion: 'issue-v1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'overlay-category-bar'],
+      [{ pageKey: 'system-test', chartInstanceId: 'system-test-cause-categories', sourceVersion: 'issue-v1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'distribution-donut'],
+      [{ pageKey: 'system-test', chartInstanceId: 'system-test-cause-subcategories', sourceVersion: 'issue-v1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'vertical-category-bar'],
+      [{ pageKey: 'system-test', chartInstanceId: 'system-test-assignee-workload', sourceVersion: 'issue-v1',
+        scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 11 } }, 'developer-workload'],
+    ]);
+  });
+
   it('renders the current assignee workload as total and pending defects', () => {
     const response: BiPageResponse<BiSystemTestPageData> = {
       pageKey: 'system-test',
@@ -35,7 +72,7 @@ describe('SystemTestStageContent', () => {
     };
 
     const wrapper = shallowMount(SystemTestStageContent, {
-      props: { response, productVersionId: 11, productVersionName: 'v1.0' },
+      props: { response, productVersionId: 11 },
     });
     const workloadPanel = wrapper.findAllComponents({ name: 'BiChartPanel' })
       .find((panel) => panel.props('title') === '按指派人统计缺陷数');
@@ -92,7 +129,7 @@ describe('SystemTestStageContent', () => {
     };
 
     const wrapper = shallowMount(SystemTestStageContent, {
-      props: { response, productVersionId: 11, productVersionName: 'v1.0' },
+      props: { response, productVersionId: 11 },
     });
     const labels = wrapper.findAll('.bi-cell-label').map((node) => node.text());
     expect(labels).toEqual([
@@ -138,7 +175,7 @@ describe('SystemTestStageContent', () => {
     };
 
     const wrapper = shallowMount(SystemTestStageContent, {
-      props: { response, productVersionId: 11, productVersionName: 'v1.0' },
+      props: { response, productVersionId: 11 },
     });
 
     const roundPanel = wrapper.findAllComponents({ name: 'BiChartPanel' })
