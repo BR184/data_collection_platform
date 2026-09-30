@@ -33,6 +33,34 @@ final class IssueResponseTemplateParser {
             sectionContent(latestTemplate, PLAN_MERGE_BRANCH_HEADERS)));
   }
 
+  /**
+   * 判断备注聚合中是否存在一份响应模板，其“计划解决时间”字段可按规则总表 5.4／11.4 解析出唯一且完整的日期。
+   *
+   * <p>备注按创建时间倒序聚合，从最新一份响应模板开始查；该份缺失或不可解析时继续查看更早的模板，
+   * 与老平台 {@code IssueServiceImpl.getPlanSolutionTime} 的取值方向一致。合法格式与
+   * {@link IssueResponsePlanFieldRules#parsePlannedResolutionAt(String)} 同源，不引入第二套格式口径。
+   *
+   * @param notesText GitLab issue 备注聚合文本（按创建时间倒序）
+   * @return 任一份响应模板提供合法计划解决时间时返回 {@code true}
+   */
+  static boolean hasParseablePlanSolutionTime(String notesText) {
+    String normalized = TextQuerySupport.trimToNull(notesText);
+    if (normalized == null) {
+      return false;
+    }
+    for (String note : normalized.split(NOTE_SEPARATOR)) {
+      if (!IssueRuleSupport.containsToken(note, TEMPLATE_HEADERS)) {
+        continue;
+      }
+      if (IssueResponsePlanFieldRules.parsePlannedResolutionAt(
+              sectionContent(note, PLAN_RESOLUTION_HEADERS))
+          != null) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private static String latestTemplate(String notesText) {
     String normalized = TextQuerySupport.trimToNull(notesText);
     if (normalized == null) {

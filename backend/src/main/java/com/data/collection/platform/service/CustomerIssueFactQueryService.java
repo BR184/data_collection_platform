@@ -78,6 +78,16 @@ public class CustomerIssueFactQueryService {
        where issue_fact.deleted = false
       """;
 
+  /**
+   * 事实读取的稳定行序。
+   *
+   * <p>查询本身不关心顺序，但下游有"取结果前 N 条"的消费（如客户问题统计板规则说明的
+   * {@code samples} 取前 5 条）。没有 ORDER BY 时 PostgreSQL 的返回顺序取决于物理行序，
+   * 从零重建的库会给出不同样本，使同一份代码产出不同的可见结果。按主键排序与
+   * {@code IssueFactRecordRepository.FACT_SQL_ORDER} 保持同一口径。
+   */
+  private static final String FACT_SQL_ORDER = " order by issue_fact.id";
+
   private static final RowMapper<CustomerIssueFact> ROW_MAPPER =
       CustomerIssueFactQueryService::mapRow;
 
@@ -218,6 +228,7 @@ public class CustomerIssueFactQueryService {
     appendCustomerSelection(sql, args, safeRequest.customer());
     appendModuleSelection(sql, args, safeRequest.module());
     appendFunctionSelection(sql, args, safeRequest.function());
+    sql.append(FACT_SQL_ORDER);
     return issueFactQueryService.query(sql.toString(), args, ROW_MAPPER);
   }
 

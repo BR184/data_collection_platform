@@ -12,8 +12,6 @@ import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -24,19 +22,8 @@ public class CustomerIssueDelayLabelWritebackService {
   static final String RESOLVE_DELAY_LABEL = "解决已延期";
   private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
 
-  private final HttpClient httpClient;
-  private final boolean apiWritebackEnabled;
-
-  @Autowired
-  public CustomerIssueDelayLabelWritebackService(
-      @Value("${platform.gitlab-mirror.delay-label-writeback-api-enabled:false}") boolean apiWritebackEnabled) {
-    this(HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build(), apiWritebackEnabled);
-  }
-
-  CustomerIssueDelayLabelWritebackService(HttpClient httpClient, boolean apiWritebackEnabled) {
-    this.httpClient = httpClient;
-    this.apiWritebackEnabled = apiWritebackEnabled;
-  }
+  private final HttpClient httpClient =
+      HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build();
 
   LabelChange delayLabelChange(List<String> currentLabels, boolean responseDelayed, boolean resolveDelayed) {
     LinkedHashSet<String> currentDelayLabels = new LinkedHashSet<>();
@@ -63,9 +50,18 @@ public class CustomerIssueDelayLabelWritebackService {
     return new LabelChange(List.copyOf(addLabels), List.copyOf(removeLabels));
   }
 
+  /**
+   * 该数据源当前是否允许写回延期标签。
+   *
+   * <p>唯一开关是镜像设置页的「延期标签写回」（{@code gitlab_sync_configs.delay_label_writeback_enabled}，
+   * 默认关闭）；此外必须配好写回地址与令牌，否则即使开关打开也无处可写。关闭时仍会监控延期事实，
+   * 但绝不调用 GitLab 写接口——worker 每个任务执行前都会重新判定本方法，关闭后已入队任务会被跳过。
+   *
+   * @param config 数据源配置，{@code null} 视为不可写
+   * @return 开关打开且地址、令牌齐备时为 {@code true}
+   */
   boolean isEnabled(GitlabSyncConfig config) {
-    return apiWritebackEnabled
-        && config != null
+    return config != null
         && Boolean.TRUE.equals(config.getDelayLabelWritebackEnabled())
         && StringUtils.hasText(config.getWebBaseUrl())
         && StringUtils.hasText(config.getApiToken());

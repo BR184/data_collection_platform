@@ -85,7 +85,7 @@ public class CodeReviewIllegalRecordSourceLoader {
     return mergeRequestFactQueryService.query(
         CodeReviewIllegalRecordSqlQueryBuilder.factSql()
             + parts.tailWhere()
-            + " order by merge_request_iid desc nulls last, merged_at_source desc nulls last",
+            + " order by merge_request_iid desc nulls last, merged_at_source desc nulls last, id desc",
         parts.args(),
         rowMapper::mapFactSource);
   }
@@ -126,16 +126,8 @@ public class CodeReviewIllegalRecordSourceLoader {
         mergeRequestFactQueryService.query(
             CodeReviewIllegalRecordSqlQueryBuilder.factSql()
                 + parts.tailWhere()
-                + " order by "
-                + CodeReviewIllegalRecordSqlQueryBuilder.sortColumn(query.sortField())
-                + " "
-                + CodeReviewIllegalRecordSqlQueryBuilder.sortOrder(query.sortOrder())
-                + CodeReviewIllegalRecordSqlQueryBuilder.nullsClause(query.sortOrder())
-                + ", merged_at_source "
-                + CodeReviewIllegalRecordSqlQueryBuilder.sortOrder(query.sortOrder())
-                + CodeReviewIllegalRecordSqlQueryBuilder.nullsClause(query.sortOrder())
-                + ", merge_request_iid "
-                + CodeReviewIllegalRecordSqlQueryBuilder.sortOrder(query.sortOrder())
+                + CodeReviewIllegalRecordSqlQueryBuilder.orderByClause(
+                    query.sortField(), query.sortOrder())
                 + " limit ? offset ?",
             pageArgs,
             rowMapper::mapFactSource);

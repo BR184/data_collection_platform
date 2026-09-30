@@ -7,7 +7,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.net.http.HttpClient;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,8 +21,7 @@ class CustomerIssueDelayLabelWritebackQueueServiceTest {
   void setUp() {
     jdbcTemplate = mock(JdbcTemplate.class);
     CustomerIssueDelayLabelWritebackPlanner planner =
-        new CustomerIssueDelayLabelWritebackPlanner(
-            new CustomerIssueDelayLabelWritebackService(HttpClient.newHttpClient(), true));
+        new CustomerIssueDelayLabelWritebackPlanner(new CustomerIssueDelayLabelWritebackService());
     queueService = new CustomerIssueDelayLabelWritebackQueueService(jdbcTemplate, planner);
   }
 

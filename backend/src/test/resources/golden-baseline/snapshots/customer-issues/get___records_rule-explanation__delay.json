@@ -6,7 +6,7 @@
     "boardKey" : "customer-issue-delay-records",
     "supported" : true,
     "title" : "延期问题规则说明",
-    "version" : "customer-issue-records@2026-07-22-v4",
+    "version" : "customer-issue-records@2026-09-28-v5",
     "scopeDescription" : "当前页面展示客户问题范围内的议题记录，并按当前专题继续收敛范围。",
     "summary" : "延期问题专题展示客户问题范围内已经申请延期、响应延期或解决延期的议题。",
     "flowSteps" : [ {
@@ -62,7 +62,7 @@
       "title" : "延期问题",
       "description" : "保留已申请延期、响应延期或解决延期的客户问题议题。",
       "inputCount" : 875,
-      "outputCount" : 813,
+      "outputCount" : 795,
       "samples" : [ {
         "label" : "#1543 CCProduct",
         "detail" : "【扫描凸台】特定场景下，扫面特征生成失败——大行"

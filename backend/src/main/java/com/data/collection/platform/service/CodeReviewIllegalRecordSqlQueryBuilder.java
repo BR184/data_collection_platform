@@ -158,6 +158,9 @@ final class CodeReviewIllegalRecordSqlQueryBuilder {
 
   static String orderByClause(String sortField, String sortOrder) {
     String order = sortOrder(sortOrder);
+    // 末位补唯一主键：同一 merged_at_source 与 merge_request_iid 会在不同项目下重复出现，
+    // 只按前三列排序时并列行的顺序由物理行序决定，同一份代码在两次运行间可能返回不同顺序
+    // （导出快照曾出现整行互换）。
     return " order by "
         + sortColumn(sortField)
         + " "
@@ -167,6 +170,8 @@ final class CodeReviewIllegalRecordSqlQueryBuilder {
         + order
         + nullsClause(sortOrder)
         + ", merge_request_iid "
+        + order
+        + ", id "
         + order;
   }
 

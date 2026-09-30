@@ -55,7 +55,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
       "platform.gitlab-mirror.customer-issue-delay-pre-writeback-sync-enabled=false",
       "platform.gitlab-mirror.customer-issue-delay-writeback-worker-enabled=false",
       "platform.gitlab-mirror.code-review-metric-enrichment-enabled=false",
-      "platform.gitlab-mirror.delay-label-writeback-api-enabled=false",
       "platform.review-data.search-index-backfill-enabled=false",
       "platform.auth.provider=local",
       "platform.auth.secure-config-required=false"
@@ -806,28 +805,24 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
   }
 
   private void assertTargetPublished(long mirrorRunId, long rootId) {
+    // 待发布权威是版本栅栏：日志行登记后，只有该根的 published_version 追平 latest_change_version
+    // 才算真正发布；日志本身的 publication_status 已不再被任何代码维护。
     Map<String, Object> target =
         jdbcTemplate.queryForMap(
             """
-            select publication_status, change_version, published_version
-              from sync_run_fact_targets
-             where mirror_run_id = ? and fact_type = 'ISSUE' and root_id = ?
+            select target.change_version, head.published_version, head.latest_change_version
+              from sync_run_fact_targets target
+              join fact_change_heads head
+                on head.source_instance = target.source_instance
+               and head.fact_type = target.fact_type
+               and head.root_id = target.root_id
+             where target.mirror_run_id = ? and target.fact_type = 'ISSUE' and target.root_id = ?
             """,
             mirrorRunId,
             rootId);
-    assertThat(target).containsEntry("publication_status", "PUBLISHED");
-    assertThat(target.get("change_version")).isEqualTo(target.get("published_version"));
-    assertThat(
-            jdbcTemplate.queryForObject(
-                """
-                select published_version = latest_change_version
-                  from fact_change_heads
-                 where source_instance = ? and fact_type = 'ISSUE' and root_id = ?
-                """,
-                Boolean.class,
-                SOURCE_INSTANCE,
-                rootId))
-        .isTrue();
+    assertThat(((Number) target.get("published_version")).longValue())
+        .isGreaterThanOrEqualTo(((Number) target.get("change_version")).longValue());
+    assertThat(target.get("published_version")).isEqualTo(target.get("latest_change_version"));
   }
 
   /** 自动链路只能出现定向构建任务；出现全量任务即说明改动退化成了手工重建。 */

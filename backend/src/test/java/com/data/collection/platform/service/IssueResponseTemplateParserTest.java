@@ -97,4 +97,44 @@ class IssueResponseTemplateParserTest {
     assertThat(template.plannedMergeVersionBranch())
         .isEqualTo("crownCAD-Client:dev release_2026R4、优云智能_release_2026R4");
   }
+
+  @Test
+  void shouldDetectPlanSolutionTimeOnlyWhenTheResponseTemplateProvidesIt() {
+    assertThat(IssueResponseTemplateParser.hasParseablePlanSolutionTime(
+        "# 问题调研情况说明\n## 计划解决时间：2026.03.31")).isTrue();
+    assertThat(IssueResponseTemplateParser.hasParseablePlanSolutionTime(
+        """
+        # 问题调研情况说明
+        ## 计划解决时间：
+        2026.03.31
+        """)).isTrue();
+    assertThat(IssueResponseTemplateParser.hasParseablePlanSolutionTime(
+        "# 问题调研情况说明\n## 问题原因：已定位")).isFalse();
+    assertThat(IssueResponseTemplateParser.hasParseablePlanSolutionTime(
+        "# 问题调研情况说明\n## 计划解决时间：待定")).isFalse();
+    assertThat(IssueResponseTemplateParser.hasParseablePlanSolutionTime("普通评论")).isFalse();
+  }
+
+  @Test
+  void shouldFallBackToEarlierResponseTemplateWhenLatestPlanSolutionTimeIsMissing() {
+    String withoutPlan = "# 问题调研情况说明\n## 计划解决时间：\n## 计划合并的版本分支：CC2026R3";
+    String withPlan = "# 问题调研情况说明\n## 计划解决时间：2026.06.01";
+
+    assertThat(IssueResponseTemplateParser.hasParseablePlanSolutionTime(
+        withoutPlan + "\n---\n" + withPlan)).isTrue();
+    assertThat(IssueResponseTemplateParser.hasParseablePlanSolutionTime(
+        withPlan + "\n---\n" + withoutPlan)).isTrue();
+  }
+
+  @Test
+  void shouldStayAlignedWithTheStrictPlanDateRuleUsedByIllegalTemplates() {
+    for (String value :
+        java.util.List.of(
+            "2026.03.31", "2026年3月31日", "2026年5", "20260615", "暂无", "2026年6月18号")) {
+      String notes = "# 问题调研情况说明\n## 计划解决时间：" + value;
+      assertThat(IssueResponseTemplateParser.hasParseablePlanSolutionTime(notes))
+          .as("计划解决时间 [%s]", value)
+          .isEqualTo(IssueResponsePlanFieldRules.parsePlannedResolutionAt(value) != null);
+    }
+  }
 }

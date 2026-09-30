@@ -3,13 +3,12 @@ package com.data.collection.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.data.collection.platform.entity.GitlabSyncConfig;
-import java.net.http.HttpClient;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class CustomerIssueDelayLabelWritebackServiceTest {
   private final CustomerIssueDelayLabelWritebackService service =
-      new CustomerIssueDelayLabelWritebackService(HttpClient.newHttpClient(), true);
+      new CustomerIssueDelayLabelWritebackService();
 
   @Test
   void shouldOnlyAddAndRemoveDelayLabels() {
@@ -57,16 +56,37 @@ class CustomerIssueDelayLabelWritebackServiceTest {
   }
 
   @Test
-  void shouldRequireGlobalApiSwitchBeforeWritebackCanRun() {
+  void shouldEnableWritebackOnlyWhenSourceSwitchAndCredentialsAreReady() {
+    assertThat(service.isEnabled(writebackConfig(true))).isTrue();
+  }
+
+  @Test
+  void shouldDisableWritebackWhenSourceSwitchIsOffOrMissing() {
+    assertThat(service.isEnabled(writebackConfig(false))).isFalse();
+    assertThat(service.isEnabled(writebackConfig(null))).isFalse();
+  }
+
+  @Test
+  void shouldDisableWritebackWhenWebBaseUrlOrTokenMissing() {
+    GitlabSyncConfig withoutUrl = writebackConfig(true);
+    withoutUrl.setWebBaseUrl("  ");
+    GitlabSyncConfig withoutToken = writebackConfig(true);
+    withoutToken.setApiToken("");
+
+    assertThat(service.isEnabled(withoutUrl)).isFalse();
+    assertThat(service.isEnabled(withoutToken)).isFalse();
+  }
+
+  @Test
+  void shouldDisableWritebackWhenSourceConfigMissing() {
+    assertThat(service.isEnabled(null)).isFalse();
+  }
+
+  private GitlabSyncConfig writebackConfig(Boolean switchEnabled) {
     GitlabSyncConfig config = new GitlabSyncConfig();
-    config.setDelayLabelWritebackEnabled(true);
+    config.setDelayLabelWritebackEnabled(switchEnabled);
     config.setWebBaseUrl("https://gitlab.example.com");
     config.setApiToken("token");
-
-    CustomerIssueDelayLabelWritebackService disabledService =
-        new CustomerIssueDelayLabelWritebackService(HttpClient.newHttpClient(), false);
-
-    assertThat(disabledService.isEnabled(config)).isFalse();
-    assertThat(service.isEnabled(config)).isTrue();
+    return config;
   }
 }

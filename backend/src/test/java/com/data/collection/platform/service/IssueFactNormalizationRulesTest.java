@@ -439,7 +439,12 @@ class IssueFactNormalizationRulesTest {
     String notes = "# 问题调研情况说明\n预计解决时间 7 天";
     assertThat(IssueFactNormalizationRules.hasResponse(notes)).isTrue();
     assertThat(IssueFactNormalizationRules.isResponseDelayed(List.of("响应已延期"), "")).isTrue();
-    assertThat(IssueFactNormalizationRules.isResponseDelayed(List.of("响应已延期"), notes)).isFalse();
+    assertThat(IssueFactNormalizationRules.isResponseDelayed(List.of("响应已延期"), notes)).isTrue();
+    assertThat(
+            IssueFactNormalizationRules.isResponseDelayed(
+                List.of("响应已延期"),
+                "# 问题调研情况说明\n## 计划解决时间：2026.04.08"))
+        .isFalse();
     assertThat(IssueFactNormalizationRules.resolveSlaDays(notes)).isEqualTo(7);
     assertThat(IssueFactNormalizationRules.resolveSlaDays("预计解决时间 28 天")).isEqualTo(18);
 
@@ -492,7 +497,7 @@ class IssueFactNormalizationRulesTest {
         LocalDateTime.of(2026, 4, 4, 11, 0))).isTrue();
     assertThat(IssueFactNormalizationRules.isResponseDelayed(
         List.of("响应已延期", "P1"),
-        "# 问题调研情况说明\n## 问题原因\n已完成调研",
+        "# 问题调研情况说明\n## 计划解决时间：2026.04.08",
         createdAt,
         "P1",
         LocalDateTime.of(2026, 4, 2, 11, 0))).isFalse();
@@ -522,5 +527,86 @@ class IssueFactNormalizationRulesTest {
         true,
         earlierDeadline,
         LocalDateTime.of(2026, 4, 9, 10, 0))).isFalse();
+  }
+
+  @Test
+  void shouldExemptResponseDelayByFixTemplateOrLegalPlanSolutionTime() {
+    LocalDateTime createdAt = LocalDateTime.of(2026, 4, 1, 10, 0);
+    LocalDateTime overdue = LocalDateTime.of(2026, 4, 3, 11, 0);
+    String fixTemplate = "### 1、修复状态\n[x] 已解决";
+    String researchWithoutPlan = "# 问题调研情况说明\n## 问题原因：已定位";
+    String legalResearch = "# 问题调研情况说明\n## 计划解决时间：2026.04.08";
+
+    assertThat(responseDelayedAt("P1", legalResearch, createdAt, overdue)).isFalse();
+    assertThat(responseDelayedAt("P1", researchWithoutPlan, createdAt, overdue)).isTrue();
+    assertThat(responseDelayedAt("P1", fixTemplate, createdAt, overdue)).isFalse();
+    assertThat(responseDelayedAt("P1", fixTemplate + "\n---\n" + researchWithoutPlan, createdAt, overdue))
+        .isFalse();
+    assertThat(responseDelayedAt("P1", "普通评论，没有任何模板", createdAt, overdue)).isTrue();
+  }
+
+  @Test
+  void shouldFallBackToEarlierResponseTemplateForPlanSolutionTime() {
+    LocalDateTime createdAt = LocalDateTime.of(2026, 4, 1, 10, 0);
+    LocalDateTime overdue = LocalDateTime.of(2026, 4, 3, 11, 0);
+    // 备注按创建时间倒序聚合：最新一份没有合法计划解决时间时回退到更早一份。
+    String notes =
+        "# 问题调研情况说明\n## 计划解决时间：待定\n---\n"
+            + "# 问题调研情况说明\n## 计划解决时间：2026.04.08";
+
+    assertThat(responseDelayedAt("P1", notes, createdAt, overdue)).isFalse();
+  }
+
+  @Test
+  void shouldTreatEveryNonWikiPlanSolutionFormatAsMissingTime() {
+    LocalDateTime createdAt = LocalDateTime.of(2026, 4, 1, 10, 0);
+    LocalDateTime overdue = LocalDateTime.of(2026, 4, 3, 11, 0);
+    for (String value :
+        List.of(
+            "",
+            "暂无",
+            "待定",
+            "未知",
+            "无",
+            "2026年5",
+            "20260615",
+            "202X年0X月XX日",
+            "2026年6月18号",
+            "预计 2026.03.31，最晚 2026.04.01",
+            "2026.13.45")) {
+      String notes = "# 问题调研情况说明\n## 计划解决时间：" + value;
+      assertThat(responseDelayedAt("P1", notes, createdAt, overdue))
+          .as("计划解决时间 [%s] 应视为没有写时间", value)
+          .isTrue();
+    }
+  }
+
+  @Test
+  void shouldAcceptEveryWikiPlanSolutionSeparator() {
+    LocalDateTime createdAt = LocalDateTime.of(2026, 4, 1, 10, 0);
+    LocalDateTime overdue = LocalDateTime.of(2026, 4, 3, 11, 0);
+    for (String value :
+        List.of(
+            "2026.03.31",
+            "2026,03,31",
+            "2026，03，31",
+            "2026、03、31",
+            "2026/03/31",
+            "2026·03·31",
+            "2026`03`31",
+            "2026年3月31日",
+            "2026年3月31")) {
+      String notes = "# 问题调研情况说明\n## 计划解决时间：" + value;
+      assertThat(responseDelayedAt("P1", notes, createdAt, overdue))
+          .as("计划解决时间 [%s] 应视为合法", value)
+          .isFalse();
+    }
+  }
+
+  /** 以“响应已延期”标签 + 指定优先级构造已超期输入，便于断言豁免判据本身。 */
+  private static boolean responseDelayedAt(
+      String priorityLevel, String notesText, LocalDateTime createdAt, LocalDateTime now) {
+    return IssueFactNormalizationRules.isResponseDelayed(
+        List.of("响应已延期", priorityLevel), notesText, createdAt, priorityLevel, now);
   }
 }

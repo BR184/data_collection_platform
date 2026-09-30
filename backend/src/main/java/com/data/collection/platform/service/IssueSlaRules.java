@@ -22,8 +22,24 @@ final class IssueSlaRules {
     return templateSnapshot(notesText).hasTemplateReply();
   }
 
+  /**
+   * 响应延期豁免：回复模板存在，或响应模板存在且其“计划解决时间”合法。
+   *
+   * <p>合法格式以规则总表 5.4／11.4 为唯一标准，凡不符合即视为“没有写时间”，与非法模板判定同源；
+   * 计划解决时间按最新一份响应模板取值，不可解析时回退更早模板。回复模板存在时优先豁免，
+   * 不再检查响应模板的计划解决时间。
+   *
+   * @param notesText GitLab issue 备注聚合文本（按创建时间倒序）
+   * @return 应豁免响应延期时返回 {@code true}
+   */
+  private static boolean isResponseExempt(String notesText) {
+    return hasFixCaseNote(notesText)
+        || IssueResponseTemplateParser.hasParseablePlanSolutionTime(notesText);
+  }
+
   static boolean isResponseDelayed(List<String> labels, String notesText) {
-    return !hasResponse(notesText) && IssueRuleSupport.containsAnyLabel(labels, RESPONSE_DELAY_LABELS);
+    return !isResponseExempt(notesText)
+        && IssueRuleSupport.containsAnyLabel(labels, RESPONSE_DELAY_LABELS);
   }
 
   static boolean isResponseDelayed(
@@ -32,7 +48,7 @@ final class IssueSlaRules {
       LocalDateTime createdAt,
       String priorityLevel,
       LocalDateTime now) {
-    if (hasResponse(notesText)) {
+    if (isResponseExempt(notesText)) {
       return false;
     }
     if (createdAt == null || now == null) {

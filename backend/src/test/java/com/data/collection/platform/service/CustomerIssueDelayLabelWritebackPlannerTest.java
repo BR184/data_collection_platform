@@ -3,13 +3,11 @@ package com.data.collection.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.data.collection.platform.entity.IssueFact;
-import java.net.http.HttpClient;
 import org.junit.jupiter.api.Test;
 
 class CustomerIssueDelayLabelWritebackPlannerTest {
   private final CustomerIssueDelayLabelWritebackPlanner planner =
-      new CustomerIssueDelayLabelWritebackPlanner(
-          new CustomerIssueDelayLabelWritebackService(HttpClient.newHttpClient(), true));
+      new CustomerIssueDelayLabelWritebackPlanner(new CustomerIssueDelayLabelWritebackService());
 
   @Test
   void shouldOnlyPlanChangesForTwoDelayLabels() {

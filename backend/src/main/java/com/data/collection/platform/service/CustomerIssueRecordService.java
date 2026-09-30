@@ -30,8 +30,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   private static final String TOPIC_CC_PRODUCT = "cc-product";
   private static final String TOPIC_DELAY = "delay";
   private static final String PAGE_KEY = "customer-issues-cc-product-issues";
-  private static final String CC_PRODUCT_RULE_VERSION = "customer-issue-records@2026-08-03-v8";
-  private static final String DELAY_RULE_VERSION = "customer-issue-records@2026-07-22-v4";
+  private static final String CC_PRODUCT_RULE_VERSION = "customer-issue-records@2026-09-28-v9";
+  private static final String DELAY_RULE_VERSION = "customer-issue-records@2026-09-28-v5";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = CustomerIssueScopeProfile.LEGACY_CC_PRODUCT_PROJECT_ID;
   private static final int EXPORT_PAGE_SIZE = 100;
