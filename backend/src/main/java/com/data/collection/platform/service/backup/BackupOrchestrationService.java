@@ -151,18 +151,25 @@ public class BackupOrchestrationService {
       runExecutor.execute(() -> executeRun(context, settings, now));
       return new BackupTriggerResponse(true, runId, "备份已开始执行");
     } catch (RejectedExecutionException rejected) {
-      try {
-        runRepository.finishFailure(runId, executionToken, "备份执行器不可用", now, clock.instant());
-      } catch (RuntimeException failure) {
-        log.warn("backup_submit_rejection_record_failed runId={} message={}", runId, describe(failure.getMessage()));
-      }
-      stateRepository.release(runId, executionToken, clock.instant());
+      settleQuietly(runId, executionToken, "备份执行器不可用");
       executions.remove(runId, context);
       throw new BizException("备份执行器不可用，请稍后重试");
     } catch (RuntimeException failure) {
-      stateRepository.release(runId, executionToken, clock.instant());
+      settleQuietly(runId, executionToken, describe(failure.getMessage()));
       executions.remove(runId, context);
       throw failure;
+    }
+  }
+
+  /** 提交阶段失败的尽力结算：数据库不可用时保留状态交恢复巡检，且不掩盖原始失败。 */
+  private void settleQuietly(long runId, String executionToken, String message) {
+    try {
+      stateRepository.settleOwnedRun(runId, executionToken, message, clock.instant());
+    } catch (RuntimeException settlementFailure) {
+      log.warn(
+          "backup_submit_settlement_failed runId={} message={}",
+          runId,
+          describe(settlementFailure.getMessage()));
     }
   }
 
@@ -173,6 +180,7 @@ public class BackupOrchestrationService {
     StageTracker stage = new StageTracker(STAGE_PRECHECK);
     Path tmpFile = null;
     boolean successCommitted = false;
+    String failureMessage = null;
     ScheduledFuture<?> heartbeat = startHeartbeat(context);
     try {
       String label = BackupFileSupport.sanitizeLabel(properties.getInstanceLabel());
@@ -294,7 +302,12 @@ public class BackupOrchestrationService {
           Duration.between(startedAt, clock.instant()).toMillis());
     } catch (IOException | RuntimeException failure) {
       if (!successCommitted) {
-        fail(context, stage.current(), describe(failure.getMessage()), startedAt);
+        failureMessage = describe(failure.getMessage());
+        log.warn(
+            "backup_run_failed runId={} stage={} message={}",
+            runId,
+            stage.current(),
+            failureMessage);
       }
     } finally {
       heartbeat.cancel(false);
@@ -307,17 +320,22 @@ public class BackupOrchestrationService {
           log.warn("backup_staging_cleanup_failed runId={} path={}", runId, tmpFile);
         }
       }
+      boolean settled = false;
       if (quiescent) {
         try {
-          stateRepository.release(runId, executionToken, clock.instant());
-        } catch (RuntimeException releaseFailure) {
-          log.warn("backup_run_release_failed runId={} message={}", runId, describe(releaseFailure.getMessage()));
+          settled = stateRepository.settleOwnedRun(runId, executionToken, failureMessage, clock.instant());
+        } catch (RuntimeException settlementFailure) {
+          // 结算未确认时保留执行上下文，让恢复巡检按 token 与进程身份继续收敛。
+          log.warn(
+              "backup_run_settlement_failed runId={} message={}",
+              runId,
+              describe(settlementFailure.getMessage()));
         }
       } else {
         log.error("backup_execution_stop_unconfirmed runId={} token={}", runId, executionToken);
       }
       context.endWorker();
-      if (quiescent) {
+      if (settled) {
         executions.remove(runId, context);
       }
     }
@@ -567,24 +585,6 @@ public class BackupOrchestrationService {
         intervalMillis,
         intervalMillis,
         TimeUnit.MILLISECONDS);
-  }
-
-  private void fail(
-      BackupExecutionContext context, String stage, String message, Instant startedAt) {
-    log.warn("backup_run_failed runId={} stage={} message={}", context.runId(), stage, message);
-    try {
-      runRepository.finishFailure(
-          context.runId(),
-          context.executionToken(),
-          message,
-          startedAt,
-          clock.instant());
-    } catch (RuntimeException failure) {
-      log.warn(
-          "backup_run_failure_commit_rejected runId={} message={}",
-          context.runId(),
-          describe(failure.getMessage()));
-    }
   }
 
   /** 让运行中的失租任务停止并等待 worker、进程与远端操作全部退出。 */

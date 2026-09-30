@@ -89,14 +89,14 @@ class BackupSchedulerTest {
     when(stateRepository.revokeExpiredExecution(any())).thenReturn(Optional.of(execution));
     when(orchestration.stopExpiredExecution(execution)).thenReturn(true);
     when(orchestration.cleanupExpiredStaging(execution)).thenReturn(true);
-    when(stateRepository.completeExpiredRecovery(eq(execution), any(), any())).thenReturn(true);
+    when(stateRepository.settleOwnedRun(eq(7L), eq(execution.executionToken()), any(), any()))
+        .thenReturn(true);
 
     scheduler.recoverOrphans();
 
     verify(orchestration).stopExpiredExecution(execution);
     verify(orchestration).cleanupExpiredStaging(execution);
-    verify(stateRepository).clearProcessIdentity(eq(7L), eq(execution.executionToken()), eq(12345L), any());
-    verify(stateRepository).completeExpiredRecovery(eq(execution), any(), any());
+    verify(stateRepository).settleOwnedRun(eq(7L), eq(execution.executionToken()), anyString(), any());
   }
 
   @Test
@@ -111,7 +111,7 @@ class BackupSchedulerTest {
 
     verify(stateRepository).recordRecoveryPending(eq(execution), anyString(), any());
     verify(orchestration, never()).cleanupExpiredStaging(any());
-    verify(stateRepository, never()).completeExpiredRecovery(any(), anyString(), any());
+    verify(stateRepository, never()).settleOwnedRun(anyLong(), anyString(), any(), any());
   }
 
   @Test
@@ -125,7 +125,7 @@ class BackupSchedulerTest {
 
     verify(stateRepository).recordRecoveryPending(eq(execution), anyString(), any());
     verify(orchestration, never()).cleanupExpiredStaging(any());
-    verify(stateRepository, never()).completeExpiredRecovery(any(), anyString(), any());
+    verify(stateRepository, never()).settleOwnedRun(anyLong(), anyString(), any(), any());
   }
 
   @Test
@@ -139,7 +139,7 @@ class BackupSchedulerTest {
     scheduler.recoverOrphans();
 
     verify(stateRepository).recordRecoveryPending(eq(execution), anyString(), any());
-    verify(stateRepository, never()).completeExpiredRecovery(any(), anyString(), any());
+    verify(stateRepository, never()).settleOwnedRun(anyLong(), anyString(), any(), any());
   }
 
   @Test
@@ -149,7 +149,7 @@ class BackupSchedulerTest {
     scheduler.recoverOrphans();
 
     verify(orchestration, never()).stopExpiredExecution(any());
-    verify(stateRepository, never()).release(anyLong(), anyString(), any());
+    verify(stateRepository, never()).settleOwnedRun(anyLong(), anyString(), any(), any());
   }
 
   private BackupSettings settings(boolean enabled, String scheduleTime) {

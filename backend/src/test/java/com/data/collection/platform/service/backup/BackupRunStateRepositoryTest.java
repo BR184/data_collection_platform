@@ -120,7 +120,8 @@ class BackupRunStateRepositoryTest {
     assertThat(runRepository.successfulArtifacts("LOCAL"))
         .containsExactly(new BackupRunRepository.SuccessfulArtifact(
             "/opt/qaflex-backups/testinst/x.dump", "x.dump"));
-    stateRepository.release(runId, executionToken, finished);
+    assertThat(stateRepository.settleOwnedRun(runId, executionToken, null, finished)).isTrue();
+    assertThat(stateRepository.activeRunId()).isEmpty();
   }
 
   @Test
@@ -131,16 +132,17 @@ class BackupRunStateRepositoryTest {
 
     runRepository.recordCandidateArtifact(
         runId, executionToken, candidatePath, "candidate.dump", NOW.plusSeconds(1));
-    runRepository.finishFailure(
-        runId, executionToken, "upload interrupted", NOW, NOW.plusSeconds(2));
+    assertThat(stateRepository.settleOwnedRun(
+            runId, executionToken, "upload interrupted", NOW.plusSeconds(2)))
+        .isTrue();
 
     assertThat(runRepository.get(runId)).hasValueSatisfying(run -> {
       assertThat(run.status()).isEqualTo("FAILED");
       assertThat(run.targetPath()).isEqualTo(candidatePath);
       assertThat(run.fileName()).isEqualTo("candidate.dump");
+      assertThat(run.errorMessage()).isEqualTo("upload interrupted");
     });
     assertThat(runRepository.successfulArtifacts("LOCAL")).isEmpty();
-    stateRepository.release(runId, executionToken, NOW.plusSeconds(3));
   }
 
   @Test
@@ -166,7 +168,9 @@ class BackupRunStateRepositoryTest {
 
     BackupStateRepository.ExpiredExecution expired =
         stateRepository.revokeExpiredExecution(NOW).orElseThrow();
-    assertThat(stateRepository.completeExpiredRecovery(expired, "recovered", NOW.plusSeconds(20)))
+    // 成功已登记：恢复结算只收敛运行权，不把 SUCCESS 反写成 FAILED。
+    assertThat(stateRepository.settleOwnedRun(
+            expired.runId(), expired.executionToken(), "recovered", NOW.plusSeconds(20)))
         .isTrue();
 
     assertThat(runRepository.get(runId)).hasValueSatisfying(run -> {
@@ -202,7 +206,7 @@ class BackupRunStateRepositoryTest {
     assertThat(runRepository.existsScheduleTriggeredOn(LocalDate.of(2026, 9, 10), ZONE)).isTrue();
     assertThat(runRepository.existsScheduleTriggeredOn(LocalDate.of(2026, 9, 9), ZONE)).isFalse();
     assertThat(runRepository.existsScheduleTriggeredOn(LocalDate.of(2026, 9, 11), ZONE)).isFalse();
-    stateRepository.release(runId, executionToken, NOW);
+    assertThat(stateRepository.settleOwnedRun(runId, executionToken, "cancelled", NOW)).isTrue();
   }
 
   @Test
@@ -216,11 +220,11 @@ class BackupRunStateRepositoryTest {
     stateRepository.heartbeat(101L, token, NOW.plusSeconds(600), NOW);
     assertThat(stateRepository.revokeExpiredExecution(NOW)).isEmpty();
 
-    stateRepository.release(101L, token, NOW);
+    assertThat(stateRepository.settleOwnedRun(101L, token, "cancelled", NOW)).isTrue();
     assertThat(stateRepository.activeRunId()).isEmpty();
     String nextToken = UUID.randomUUID().toString();
     assertThat(stateRepository.tryStartRun(102L, nextToken, leaseUntil, NOW)).isTrue();
-    stateRepository.release(102L, nextToken, NOW);
+    assertThat(stateRepository.settleOwnedRun(102L, nextToken, "cancelled", NOW)).isTrue();
   }
 
   @Test
@@ -233,15 +237,84 @@ class BackupRunStateRepositoryTest {
         stateRepository.revokeExpiredExecution(NOW).orElseThrow();
     assertThat(execution.runId()).isEqualTo(201L);
     assertThat(stateRepository.activeRunId()).isEqualTo(Optional.of(201L));
-    assertThat(stateRepository.completeExpiredRecovery(execution, "stopped", NOW)).isTrue();
+    // 撤销后仍由同一结算协议收敛：token 所有权是唯一前提，租约过期本身不再是阻塞理由。
+    assertThat(stateRepository.settleOwnedRun(
+            execution.runId(), execution.executionToken(), "stopped", NOW))
+        .isTrue();
     assertThat(stateRepository.activeRunId()).isEmpty();
+    assertThat(stateRepository.revokeExpiredExecution(NOW)).isEmpty();
+  }
+
+  @Test
+  void test_settleOwnedRun_whenLeaseExpiredButOwnerIntact_stillConvergesHistoryAndOwner() {
+    long runId = runRepository.nextRunId();
+    String executionToken = startRun(runId, "MANUAL", "LOCAL", NOW);
+    Instant afterLease = NOW.plusSeconds(301);
+
+    // 过期租约下 worker 自行结束：旧实现会因租约校验拒绝失败落库，再把运行权清空，
+    // 结果是历史永久停留 RUNNING 且恢复器再也找不到它。
+    assertThat(stateRepository.settleOwnedRun(runId, executionToken, "dump failed", afterLease))
+        .isTrue();
+
+    assertThat(runRepository.get(runId)).hasValueSatisfying(run -> {
+      assertThat(run.status()).isEqualTo("FAILED");
+      assertThat(run.errorMessage()).isEqualTo("dump failed");
+    });
+    assertThat(stateRepository.activeRunId()).isEmpty();
+    assertThat(stateRepository.revokeExpiredExecution(afterLease))
+        .as("已结算的运行不应再被恢复器视为孤儿")
+        .isEmpty();
+  }
+
+  @Test
+  void test_settleOwnedRun_afterRecoveryRevoked_convergesAndFreesTheRunSlot() {
+    long runId = runRepository.nextRunId();
+    String executionToken = startRun(runId, "MANUAL", "LOCAL", NOW);
+    jdbcTemplate.update(
+        "update backup_state set lease_expires_at = ? where id = 1 and active_run_id = ?",
+        java.sql.Timestamp.from(NOW.minusSeconds(1)),
+        runId);
+    BackupStateRepository.ExpiredExecution revoked =
+        stateRepository.revokeExpiredExecution(NOW).orElseThrow();
+
+    // 恢复器已撤销、worker 随后确认自身停止：结算必须仍然生效，否则运行权永久占用。
+    assertThat(stateRepository.settleOwnedRun(
+            revoked.runId(), revoked.executionToken(), "worker stopped after revocation", NOW))
+        .isTrue();
+
+    assertThat(runRepository.get(runId)).hasValueSatisfying(run -> assertThat(run.status()).isEqualTo("FAILED"));
+    assertThat(stateRepository.activeRunId()).isEmpty();
+    long nextRunId = runRepository.nextRunId();
+    assertThat(stateRepository.tryStartRun(nextRunId, UUID.randomUUID().toString(), NOW.plusSeconds(300), NOW))
+        .as("旧运行结算后必须允许新的备份运行")
+        .isTrue();
+  }
+
+  @Test
+  void test_settleOwnedRun_whenAnotherRunOwnsTheSlot_doesNotTouchIt() {
+    long staleRun = runRepository.nextRunId();
+    String staleToken = UUID.randomUUID().toString();
+    assertThat(stateRepository.tryStartRun(staleRun, staleToken, NOW.plusSeconds(300), NOW)).isTrue();
+    long currentRun = runRepository.nextRunId();
+    String currentToken = UUID.randomUUID().toString();
+    jdbcTemplate.update(
+        "update backup_state set active_run_id = ?, execution_token = ?, lease_expires_at = ? "
+            + "where id = 1",
+        currentRun,
+        currentToken,
+        java.sql.Timestamp.from(NOW.plusSeconds(300)));
+
+    assertThat(stateRepository.settleOwnedRun(staleRun, staleToken, "stale failure", NOW))
+        .as("迟到执行不得结算别人持有的运行权")
+        .isFalse();
+    assertThat(stateRepository.activeRunId()).isEqualTo(Optional.of(currentRun));
   }
 
   @Test
   void test_historyPagination_ordersByStartedAtDesc() {
     long first = runRepository.nextRunId();
     String firstToken = startRun(first, "MANUAL", "LOCAL", NOW);
-    stateRepository.release(first, firstToken, NOW);
+    assertThat(stateRepository.settleOwnedRun(first, firstToken, "cancelled", NOW)).isTrue();
     long second = runRepository.nextRunId();
     String secondToken = startRun(second, "MANUAL", "LOCAL", NOW.plusSeconds(10));
 
@@ -250,7 +323,8 @@ class BackupRunStateRepositoryTest {
     assertThat(runRepository.count()).isEqualTo(2);
     assertThat(runRepository.page(2, 1).stream().map(BackupRun::id).toList()).containsExactly(first);
     assertThat(runRepository.page(2, 2)).isEmpty();
-    stateRepository.release(second, secondToken, NOW.plusSeconds(10));
+    assertThat(stateRepository.settleOwnedRun(second, secondToken, "cancelled", NOW.plusSeconds(10)))
+        .isTrue();
   }
 
   @Test
@@ -299,9 +373,9 @@ class BackupRunStateRepositoryTest {
 
       assertThat(lateCommit.get(5, TimeUnit.SECONDS)).isFalse();
       assertThat(runRepository.get(runId)).hasValueSatisfying(run -> assertThat(run.status()).isEqualTo("RUNNING"));
-      BackupStateRepository.ExpiredExecution expired =
-          new BackupStateRepository.ExpiredExecution(runId, executionToken, null, null);
-      assertThat(stateRepository.completeExpiredRecovery(expired, "revoked", NOW.plusSeconds(30))).isTrue();
+      assertThat(stateRepository.settleOwnedRun(runId, executionToken, "revoked", NOW.plusSeconds(30)))
+          .isTrue();
+      assertThat(stateRepository.activeRunId()).isEmpty();
     } finally {
       releaseRevocation.countDown();
       pool.shutdownNow();

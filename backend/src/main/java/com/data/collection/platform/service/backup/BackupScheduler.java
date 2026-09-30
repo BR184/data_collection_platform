@@ -87,21 +87,14 @@ public class BackupScheduler {
       stateRepository
           .revokeExpiredExecution(now)
           .ifPresent(execution -> {
-            boolean stopped = orchestration.stopExpiredExecution(execution);
-            if (!stopped) {
+            if (!orchestration.stopExpiredExecution(execution)) {
               stateRepository.recordRecoveryPending(
                   execution,
-                  "备份租约已撤销，但无法确认外部执行已停止；保留运行权与暂存文件等待后续恢复巡检",
+                  "备份租约已撤销，但无法确认外部执行已停止；保留运行权与暂存文件等待后续恢复巡检，"
+                      + "长时间未收敛时按 runbook 的孤儿备份受控结算步骤处置",
                   now);
               log.error("backup_orphan_stop_unconfirmed runId={}", execution.runId());
               return;
-            }
-            if (execution.processId() != null) {
-              stateRepository.clearProcessIdentity(
-                  execution.runId(),
-                  execution.executionToken(),
-                  execution.processId(),
-                  now);
             }
             if (!orchestration.cleanupExpiredStaging(execution)) {
               stateRepository.recordRecoveryPending(
@@ -111,8 +104,9 @@ public class BackupScheduler {
               log.error("backup_orphan_cleanup_unconfirmed runId={}", execution.runId());
               return;
             }
-            if (stateRepository.completeExpiredRecovery(
-                execution,
+            if (stateRepository.settleOwnedRun(
+                execution.runId(),
+                execution.executionToken(),
                 "备份执行租约过期，恢复器已确认执行停止并完成本次暂存清理",
                 now)) {
               log.warn("backup_orphan_recovered runId={}", execution.runId());

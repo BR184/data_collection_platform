@@ -118,19 +118,67 @@ public class BackupStateRepository {
         processId);
   }
 
-  /** 释放当前未撤销运行权；失租 worker 不能释放恢复器或新运行持有的状态。 */
-  public void release(long runId, String executionToken, Instant now) {
-    jdbcTemplate.update(
-        """
-        update backup_state
-           set active_run_id = null, execution_token = null, execution_revoked = false,
-               lease_expires_at = null, process_id = null, process_started_at = null,
-               updated_at = ?
-         where id = 1 and active_run_id = ? and execution_token = ? and execution_revoked = false
-        """,
-        Timestamp.from(now),
-        runId,
-        executionToken);
+  /**
+   * 唯一结算入口：在同一个事务里确定本次运行的历史终态与运行权去向。
+   *
+   * <p>只作用于 (runId, executionToken) 自己持有的那一行，因此正常结束与恢复器回收走同一协议，
+   * 谁先到达谁完成结算；已被其他运行接管或已结算时返回 false 且不修改任何状态。租约是否过期、
+   * 是否已被撤销都不再是结算前提——两者都只说明"本次执行不再拥有提交资格"，而不是"这个运行
+   * 无法收敛"。真正的保护是 token 所有权：迟到的旧执行无法碰新运行或恢复器仍需要的状态。
+   *
+   * <p>失败无法落库（例如数据库不可用）时整个事务回滚，历史终态与运行权都保持原状，
+   * 调用方据此保留恢复所需的上下文。
+   *
+   * @param failureMessage 未提交成功时的失败原因；null 表示成功已登记，只收敛运行权
+   * @return true 表示本次调用完成了结算；false 表示该运行已不属于本次执行
+   */
+  public boolean settleOwnedRun(
+      long runId, String executionToken, String failureMessage, Instant now) {
+    Boolean settled =
+        transactionTemplate.execute(
+            status -> {
+              List<Long> ownerRows =
+                  jdbcTemplate.query(
+                      "select active_run_id from backup_state where id = 1 "
+                          + "and active_run_id = ? and execution_token = ? for update",
+                      (rs, rowNum) -> rs.getLong(1),
+                      runId,
+                      executionToken);
+              if (ownerRows.isEmpty()) {
+                return false;
+              }
+              if (failureMessage != null) {
+                jdbcTemplate.update(
+                    """
+                    update backup_runs
+                       set status = 'FAILED', finished_at = ?,
+                           duration_ms = (extract(epoch from (? - started_at)) * 1000)::bigint,
+                           error_message = ?
+                     where id = ? and status = 'RUNNING'
+                    """,
+                    Timestamp.from(now),
+                    Timestamp.from(now),
+                    failureMessage,
+                    runId);
+              }
+              int cleared =
+                  jdbcTemplate.update(
+                      """
+                      update backup_state
+                         set active_run_id = null, execution_token = null, execution_revoked = false,
+                             lease_expires_at = null, process_id = null, process_started_at = null,
+                             updated_at = ?
+                       where id = 1 and active_run_id = ? and execution_token = ?
+                      """,
+                      Timestamp.from(now),
+                      runId,
+                      executionToken);
+              if (cleared != 1) {
+                throw new IllegalStateException("备份运行结算发生竞争");
+              }
+              return true;
+            });
+    return Boolean.TRUE.equals(settled);
   }
 
   /** 当前运行权归属（状态展示用）。 */
@@ -200,69 +248,6 @@ public class BackupStateRepository {
         execution.runId(),
         execution.runId(),
         execution.executionToken());
-  }
-
-  /**
-   * 在恢复器确认执行已停止后，将孤儿运行记为失败并释放运行权。
-   *
-   * @return true 表示运行与状态均完成收敛
-   */
-  public boolean completeExpiredRecovery(
-      ExpiredExecution execution, String message, Instant now) {
-    Boolean completed =
-        transactionTemplate.execute(
-            status -> {
-              List<Integer> ownerRows =
-                  jdbcTemplate.query(
-                      "select id from backup_state where id = 1 and active_run_id = ? "
-                          + "and execution_token = ? and execution_revoked = true and process_id is null for update",
-                      (rs, rowNum) -> rs.getInt(1),
-                      execution.runId(),
-                      execution.executionToken());
-              if (ownerRows.isEmpty()) {
-                return false;
-              }
-              List<Long> startedAtRows =
-                  jdbcTemplate.query(
-                      "select (extract(epoch from started_at) * 1000)::bigint from backup_runs "
-                          + "where id = ? and status = 'RUNNING'",
-                      (rs, rowNum) -> rs.getLong(1),
-                      execution.runId());
-              if (!startedAtRows.isEmpty()) {
-                int failed =
-                    jdbcTemplate.update(
-                        """
-                        update backup_runs
-                           set status = 'FAILED', finished_at = ?, duration_ms = ?, error_message = ?
-                         where id = ? and status = 'RUNNING'
-                        """,
-                        Timestamp.from(now),
-                        Math.max(0L, now.toEpochMilli() - startedAtRows.getFirst()),
-                        message,
-                        execution.runId());
-                if (failed != 1) {
-                  throw new IllegalStateException("备份失租运行终态发生竞争");
-                }
-              }
-              int released =
-                  jdbcTemplate.update(
-                      """
-                      update backup_state
-                         set active_run_id = null, execution_token = null, execution_revoked = false,
-                             lease_expires_at = null, process_id = null, process_started_at = null,
-                             updated_at = ?
-                       where id = 1 and active_run_id = ? and execution_token = ?
-                         and execution_revoked = true and process_id is null
-                      """,
-                      Timestamp.from(now),
-                      execution.runId(),
-                      execution.executionToken());
-              if (released != 1) {
-                throw new IllegalStateException("备份失租恢复运行权发生竞争");
-              }
-              return true;
-            });
-    return Boolean.TRUE.equals(completed);
   }
 
   /** 已撤销执行的身份与可复核子进程信息。 */

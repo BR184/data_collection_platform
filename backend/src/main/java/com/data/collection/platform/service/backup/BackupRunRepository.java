@@ -160,36 +160,6 @@ public class BackupRunRepository {
     requireOwnedUpdate(updated, runId);
   }
 
-  /** 失败终态只接受仍持有未过期运行权的执行者。 */
-  @Transactional
-  public void finishFailure(
-      long runId,
-      String executionToken,
-      String errorMessage,
-      Instant startedAt,
-      Instant finishedAt) {
-    lockActiveOwner(runId, executionToken, finishedAt);
-    int updated = jdbcTemplate.update(
-        """
-        update backup_runs
-           set status = 'FAILED', finished_at = ?, duration_ms = ?, error_message = ?
-         where id = ? and status = 'RUNNING'
-           and exists (
-             select 1 from backup_state
-              where id = 1 and active_run_id = ? and execution_token = ?
-                and execution_revoked = false and lease_expires_at >= ?
-           )
-        """,
-        Timestamp.from(finishedAt),
-        startedAt == null ? null : finishedAt.toEpochMilli() - startedAt.toEpochMilli(),
-        errorMessage,
-        runId,
-        runId,
-        executionToken,
-        Timestamp.from(finishedAt));
-    requireOwnedUpdate(updated, runId);
-  }
-
   /** 数据库已登记成功产物后完成轮转阶段。 */
   @Transactional
   public void finishRetention(long runId, String executionToken, Instant now) {
