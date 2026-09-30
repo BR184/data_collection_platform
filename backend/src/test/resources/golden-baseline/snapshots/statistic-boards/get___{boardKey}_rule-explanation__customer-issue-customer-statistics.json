@@ -1,0 +1,448 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "boardKey" : "customer-issue-customer-statistics",
+    "supported" : true,
+    "title" : "客户问题统计规则说明",
+    "version" : "customer-issue-customer-statistics@2026-09-28-v2",
+    "scopeDescription" : "限定项目 325 已启用里程碑范围内的客户问题，按客户或客户×模块/功能展开；全部指标在去重议题身份上计算。",
+    "summary" : "多客户议题在各客户行各计一次，总计行按完整议题身份去重；缺陷与需求可能交叉，不展示“总问题数＋总需求数”。",
+    "flowSteps" : [ {
+      "key" : "source-load",
+      "title" : "加载范围内事实",
+      "description" : "读取项目 325 当前创建范围内的议题事实与规范客户成员。",
+      "inputCount" : 352,
+      "outputCount" : 352,
+      "samples" : [ {
+        "label" : "#1808 CCProduct",
+        "detail" : "【检入】模型检入后不保存规格信息——博诚 | 模块:  | 严重程度: LEVEL2 | 优先级: P1"
+      }, {
+        "label" : "#1809 CCProduct",
+        "detail" : "【检入】装配模型检入后可视化查看配合报错与CC中状态不一致——博诚 | 模块:  | 严重程度: LEVEL2 | 优先级: P1"
+      }, {
+        "label" : "#1811 CCProduct",
+        "detail" : "【文档列表】建议文档列表添加“图标模式”按钮，支持大图标显示——江苏沃能高压 | 模块: 项目文档 | 严重程度: SUGGESTION | 优先级: P3"
+      }, {
+        "label" : "#1812 CCProduct",
+        "detail" : "【搜索】建议项目搜索位置支持直接搜索零部件——恒隆汽车 | 模块: 项目文档 | 严重程度: SUGGESTION | 优先级: P3"
+      }, {
+        "label" : "#1813 CCProduct",
+        "detail" : "【添加约束】草图内支持“相等槽口”约束——恒翼能 | 模块: 草图 | 严重程度: SUGGESTION | 优先级: P2"
+      } ]
+    }, {
+      "key" : "regular-filter",
+      "title" : "常规缺陷范围",
+      "description" : "沿客户缺陷汇总排除建议类与关闭排除项，形成常规缺陷集合 D。",
+      "inputCount" : 352,
+      "outputCount" : 176,
+      "samples" : [ {
+        "label" : "#1809 CCProduct",
+        "detail" : "【检入】装配模型检入后可视化查看配合报错与CC中状态不一致——博诚 | 模块:  | 严重程度: LEVEL2 | 优先级: P1"
+      }, {
+        "label" : "#2143 CCProduct",
+        "detail" : "【干涉检查】大于100个实例的装配进行干涉检查效率较慢——优云智能 | 模块: 评估 | 严重程度: LEVEL2 | 优先级: P1"
+      }, {
+        "label" : "#1892 CCProduct",
+        "detail" : "【检入】总装检入PLM，PLM空间中已创建，但CC一直卡在检入界面——博诚电气 | 模块:  | 严重程度: LEVEL2 | 优先级: P1"
+      }, {
+        "label" : "#1893 CCProduct",
+        "detail" : "【零件属性】多次同时点击PDM-零件属性与ESC键，零件属性窗口弹出多个信息——博诚 | 模块:  | 严重程度: LEVEL2 | 优先级: P2"
+      }, {
+        "label" : "#1936 CCProduct",
+        "detail" : "【新建工程图】特定操作下，新建工程图中出现其它工程图视图。——博诚 | 模块: 工程图 | 严重程度: LEVEL2 | 优先级: P1"
+      } ]
+    }, {
+      "key" : "level-priority",
+      "title" : "级别与优先级",
+      "description" : "按归一化严重级别与优先级分桶；缺失值不归入三级或 P3。",
+      "inputCount" : 352,
+      "outputCount" : 176,
+      "samples" : [ {
+        "label" : "#1809 CCProduct",
+        "detail" : "【检入】装配模型检入后可视化查看配合报错与CC中状态不一致——博诚 | 模块:  | 严重程度: LEVEL2 | 优先级: P1"
+      }, {
+        "label" : "#2143 CCProduct",
+        "detail" : "【干涉检查】大于100个实例的装配进行干涉检查效率较慢——优云智能 | 模块: 评估 | 严重程度: LEVEL2 | 优先级: P1"
+      }, {
+        "label" : "#1892 CCProduct",
+        "detail" : "【检入】总装检入PLM，PLM空间中已创建，但CC一直卡在检入界面——博诚电气 | 模块:  | 严重程度: LEVEL2 | 优先级: P1"
+      }, {
+        "label" : "#1893 CCProduct",
+        "detail" : "【零件属性】多次同时点击PDM-零件属性与ESC键，零件属性窗口弹出多个信息——博诚 | 模块:  | 严重程度: LEVEL2 | 优先级: P2"
+      }, {
+        "label" : "#1936 CCProduct",
+        "detail" : "【新建工程图】特定操作下，新建工程图中出现其它工程图视图。——博诚 | 模块: 工程图 | 严重程度: LEVEL2 | 优先级: P1"
+      } ]
+    }, {
+      "key" : "fix-status",
+      "title" : "修复状态",
+      "description" : "整体修复与优先级修复使用各自现行判据；申请延期是独立状态计数。",
+      "inputCount" : 352,
+      "outputCount" : 176,
+      "samples" : [ {
+        "label" : "#1809 CCProduct",
+        "detail" : "【检入】装配模型检入后可视化查看配合报错与CC中状态不一致——博诚 | 模块:  | 严重程度: LEVEL2 | 优先级: P1"
+      }, {
+        "label" : "#2143 CCProduct",
+        "detail" : "【干涉检查】大于100个实例的装配进行干涉检查效率较慢——优云智能 | 模块: 评估 | 严重程度: LEVEL2 | 优先级: P1"
+      }, {
+        "label" : "#1892 CCProduct",
+        "detail" : "【检入】总装检入PLM，PLM空间中已创建，但CC一直卡在检入界面——博诚电气 | 模块:  | 严重程度: LEVEL2 | 优先级: P1"
+      }, {
+        "label" : "#1893 CCProduct",
+        "detail" : "【零件属性】多次同时点击PDM-零件属性与ESC键，零件属性窗口弹出多个信息——博诚 | 模块:  | 严重程度: LEVEL2 | 优先级: P2"
+      }, {
+        "label" : "#1936 CCProduct",
+        "detail" : "【新建工程图】特定操作下，新建工程图中出现其它工程图视图。——博诚 | 模块: 工程图 | 严重程度: LEVEL2 | 优先级: P1"
+      } ]
+    }, {
+      "key" : "delay-scope",
+      "title" : "延期范围",
+      "description" : "常规缺陷且无 GitLab 接口异常、open、命中响应或解决延期，形成集合 L。",
+      "inputCount" : 352,
+      "outputCount" : 142,
+      "samples" : [ {
+        "label" : "#1809 CCProduct",
+        "detail" : "【检入】装配模型检入后可视化查看配合报错与CC中状态不一致——博诚 | 模块:  | 严重程度: LEVEL2 | 优先级: P1"
+      }, {
+        "label" : "#1893 CCProduct",
+        "detail" : "【零件属性】多次同时点击PDM-零件属性与ESC键，零件属性窗口弹出多个信息——博诚 | 模块:  | 严重程度: LEVEL2 | 优先级: P2"
+      }, {
+        "label" : "#1936 CCProduct",
+        "detail" : "【新建工程图】特定操作下，新建工程图中出现其它工程图视图。——博诚 | 模块: 工程图 | 严重程度: LEVEL2 | 优先级: P1"
+      }, {
+        "label" : "#2072 CCProduct",
+        "detail" : "【退出编辑零部件】Topdown下编辑零部件尺寸，退出时加载超时，页面崩溃——新佰人（自测） | 模块: 工具、装配 | 严重程度: LEVEL1 | 优先级: P1"
+      }, {
+        "label" : "#1963 CCProduct",
+        "detail" : "【分割】创建分割3，装饰螺纹效果丢失——售前 | 模块: 特征 | 严重程度: LEVEL2 | 优先级: P1"
+      } ]
+    }, {
+      "key" : "requirement-scope",
+      "title" : "客户需求范围",
+      "description" : "在客户公共关闭排除之上按标签身份取“需求”或“类别：建议”，不应用建议类排除。",
+      "inputCount" : 352,
+      "outputCount" : 175,
+      "samples" : [ {
+        "label" : "#1811 CCProduct",
+        "detail" : "【文档列表】建议文档列表添加“图标模式”按钮，支持大图标显示——江苏沃能高压 | 模块: 项目文档 | 严重程度: SUGGESTION | 优先级: P3"
+      }, {
+        "label" : "#1812 CCProduct",
+        "detail" : "【搜索】建议项目搜索位置支持直接搜索零部件——恒隆汽车 | 模块: 项目文档 | 严重程度: SUGGESTION | 优先级: P3"
+      }, {
+        "label" : "#1813 CCProduct",
+        "detail" : "【添加约束】草图内支持“相等槽口”约束——恒翼能 | 模块: 草图 | 严重程度: SUGGESTION | 优先级: P2"
+      }, {
+        "label" : "#1822 CCProduct",
+        "detail" : "【文档列表】建议右侧文档栏可以查看其它项目文档——朗夫 | 模块: 项目文档 | 严重程度: SUGGESTION | 优先级: P3"
+      }, {
+        "label" : "#1825 CCProduct",
+        "detail" : "【尺寸约束】建议草图尺寸能拾取其他尺寸为变量绑定驱动——巨力索具/埃夫特机器人 | 模块: 草图 | 严重程度: SUGGESTION | 优先级: P3"
+      } ]
+    } ],
+    "metricDefinitions" : [ {
+      "key" : "defect_total",
+      "label" : "缺陷数",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "defect_fixed",
+      "label" : "已修复",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "defect_unfixed",
+      "label" : "未修复",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "defect_applied_delay",
+      "label" : "申请延期",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "defect_fix_rate",
+      "label" : "整体修复率",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
+      "note" : "D"
+    }, {
+      "key" : "defect_delay_ratio",
+      "label" : "延期缺陷占比",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
+      "note" : "D"
+    }, {
+      "key" : "level1_back",
+      "label" : "一级-回退",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level1_hang",
+      "label" : "一级-挂机",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level1_other",
+      "label" : "一级-其他",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level1_total",
+      "label" : "缺陷总数",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level1_fixed",
+      "label" : "已修复",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level1_unfixed",
+      "label" : "未修复",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level1_applied_delay",
+      "label" : "申请延期",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level1_fix_rate",
+      "label" : "缺陷修复率",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
+      "note" : "D"
+    }, {
+      "key" : "level2_total",
+      "label" : "缺陷数",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level2_fixed",
+      "label" : "已修复",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level2_unfixed",
+      "label" : "未修复",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level2_applied_delay",
+      "label" : "申请延期",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level2_fix_rate",
+      "label" : "缺陷修复率",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
+      "note" : "D"
+    }, {
+      "key" : "level3_total",
+      "label" : "缺陷数",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level3_fixed",
+      "label" : "已修复",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level3_unfixed",
+      "label" : "未修复",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level3_applied_delay",
+      "label" : "申请延期",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level3_fix_rate",
+      "label" : "缺陷修复率",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
+      "note" : "D"
+    }, {
+      "key" : "suggestion_total",
+      "label" : "建议类缺陷数",
+      "definition" : "现有建议类议题",
+      "formula" : "count(S 且命中该指标成员条件)",
+      "note" : "S"
+    }, {
+      "key" : "p1_total",
+      "label" : "缺陷数",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "p1_fixed",
+      "label" : "已修复",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "p1_unfixed",
+      "label" : "未修复",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "p1_applied_delay",
+      "label" : "申请延期",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "p1_fix_rate",
+      "label" : "缺陷修复率",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
+      "note" : "D"
+    }, {
+      "key" : "p2_total",
+      "label" : "缺陷数",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "p2_fixed",
+      "label" : "已修复",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "p2_unfixed",
+      "label" : "未修复",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "p2_applied_delay",
+      "label" : "申请延期",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "p2_fix_rate",
+      "label" : "缺陷修复率",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
+      "note" : "D"
+    }, {
+      "key" : "p3_total",
+      "label" : "缺陷数",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "p3_fixed",
+      "label" : "已修复",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "p3_unfixed",
+      "label" : "未修复",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "p3_applied_delay",
+      "label" : "申请延期",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "p3_fix_rate",
+      "label" : "缺陷修复率",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
+      "note" : "D"
+    }, {
+      "key" : "resp_delay_p1",
+      "label" : "P1",
+      "definition" : "延期范围（常规缺陷且无接口异常、open、命中延期）",
+      "formula" : "count(L 且命中该指标成员条件)",
+      "note" : "L"
+    }, {
+      "key" : "resp_delay_p2",
+      "label" : "P2",
+      "definition" : "延期范围（常规缺陷且无接口异常、open、命中延期）",
+      "formula" : "count(L 且命中该指标成员条件)",
+      "note" : "L"
+    }, {
+      "key" : "resp_delay_p3",
+      "label" : "P3",
+      "definition" : "延期范围（常规缺陷且无接口异常、open、命中延期）",
+      "formula" : "count(L 且命中该指标成员条件)",
+      "note" : "L"
+    }, {
+      "key" : "resp_delay_total",
+      "label" : "总计",
+      "definition" : "延期范围（常规缺陷且无接口异常、open、命中延期）",
+      "formula" : "count(L 且命中该指标成员条件)",
+      "note" : "L"
+    }, {
+      "key" : "fix_delay_p1",
+      "label" : "P1",
+      "definition" : "延期范围（常规缺陷且无接口异常、open、命中延期）",
+      "formula" : "count(L 且命中该指标成员条件)",
+      "note" : "L"
+    }, {
+      "key" : "fix_delay_p2",
+      "label" : "P2",
+      "definition" : "延期范围（常规缺陷且无接口异常、open、命中延期）",
+      "formula" : "count(L 且命中该指标成员条件)",
+      "note" : "L"
+    }, {
+      "key" : "fix_delay_p3",
+      "label" : "P3",
+      "definition" : "延期范围（常规缺陷且无接口异常、open、命中延期）",
+      "formula" : "count(L 且命中该指标成员条件)",
+      "note" : "L"
+    }, {
+      "key" : "fix_delay_total",
+      "label" : "总计",
+      "definition" : "延期范围（常规缺陷且无接口异常、open、命中延期）",
+      "formula" : "count(L 且命中该指标成员条件)",
+      "note" : "L"
+    }, {
+      "key" : "response_cycle_hours",
+      "label" : "响应周期(小时)",
+      "definition" : "效率样本范围（沿现有客户响应效率页）",
+      "formula" : "对全部有效响应样本求平均并取整为完整小时",
+      "note" : "E"
+    }, {
+      "key" : "resolution_cycle_days",
+      "label" : "解决周期(天)",
+      "definition" : "效率样本范围（沿现有客户响应效率页）",
+      "formula" : "对全部有效解决样本求平均并保留 1 位小数",
+      "note" : "E"
+    } ],
+    "unsupportedReason" : null
+  }
+}

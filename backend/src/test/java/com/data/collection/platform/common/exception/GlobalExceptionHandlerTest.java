@@ -63,6 +63,24 @@ class GlobalExceptionHandlerTest {
         .andExpect(jsonPath("$.code").value("A0404"));
   }
 
+  @Test
+  void shouldReturnForbiddenForAccessDeniedExceptions() throws Exception {
+    // 程序化鉴权用 AccessDeniedException 表达「已登录但无权」，必须映射为 403，不得落到 500 兜底。
+    mockMvc.perform(get("/failure/access-denied"))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("A0303"))
+        .andExpect(jsonPath("$.message").value("只能删除本人创建的评审问题"));
+  }
+
+  @Test
+  void shouldFallBackToDefaultMessageWhenAccessDeniedHasNoMessage() throws Exception {
+    mockMvc.perform(get("/failure/access-denied-blank"))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("A0303"))
+        .andExpect(jsonPath("$.message").value("当前账号无权执行该操作"));
+  }
+
   @RestController
   private static class FailingController {
     @GetMapping("/failure/biz")
@@ -83,6 +101,16 @@ class GlobalExceptionHandlerTest {
     @GetMapping("/failure/database")
     void database() {
       throw new org.springframework.dao.DataAccessResourceFailureException("connection lost");
+    }
+
+    @GetMapping("/failure/access-denied")
+    void accessDenied() {
+      throw new org.springframework.security.access.AccessDeniedException("只能删除本人创建的评审问题");
+    }
+
+    @GetMapping("/failure/access-denied-blank")
+    void accessDeniedBlank() {
+      throw new org.springframework.security.access.AccessDeniedException("   ");
     }
   }
 }

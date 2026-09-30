@@ -270,6 +270,12 @@
         "description" : "访问客户问题按功能统计及详情",
         "sortOrder" : 5070
       }, {
+        "permissionCode" : "customer_issue.customer.view",
+        "permissionName" : "查看客户问题统计",
+        "moduleName" : "客户问题",
+        "description" : "访问客户问题按客户、客户×模块、客户×功能统计及详情",
+        "sortOrder" : 5080
+      }, {
         "permissionCode" : "customer_issue.summary.export",
         "permissionName" : "导出客户问题缺陷汇总",
         "moduleName" : "客户问题",
@@ -311,6 +317,12 @@
         "moduleName" : "客户问题",
         "description" : "导出客户问题按功能统计",
         "sortOrder" : 5170
+      }, {
+        "permissionCode" : "customer_issue.customer.export",
+        "permissionName" : "导出客户问题统计",
+        "moduleName" : "客户问题",
+        "description" : "导出客户问题统计当前范围数据",
+        "sortOrder" : 5180
       }, {
         "permissionCode" : "system.label_group.view",
         "permissionName" : "查看标签组管理",
@@ -420,17 +432,89 @@
         "description" : "刷新统计、记录和非法数据页面的最新数据",
         "sortOrder" : 7010
       }, {
-        "permissionCode" : "bi.dashboard.view",
-        "permissionName" : "查看 BI 看板",
+        "permissionCode" : "bi.dashboard.requirements.view",
+        "permissionName" : "查看 BI 需求页",
         "moduleName" : "BI 看板",
-        "description" : "访问 BI 看板六个阶段页面",
+        "description" : "访问 BI 看板需求评审页面",
         "sortOrder" : 8010
       }, {
-        "permissionCode" : "bi.dashboard.download",
-        "permissionName" : "下载 BI 图表",
+        "permissionCode" : "bi.dashboard.design.view",
+        "permissionName" : "查看 BI 设计页",
         "moduleName" : "BI 看板",
-        "description" : "下载当前授权页面完整数据图表 PNG",
+        "description" : "访问 BI 看板设计评审页面",
+        "sortOrder" : 8011
+      }, {
+        "permissionCode" : "bi.dashboard.coding.view",
+        "permissionName" : "查看 BI 编码页",
+        "moduleName" : "BI 看板",
+        "description" : "访问 BI 看板代码走查与研发效能页面",
+        "sortOrder" : 8012
+      }, {
+        "permissionCode" : "bi.dashboard.unit_test.view",
+        "permissionName" : "查看 BI 单元测试页",
+        "moduleName" : "BI 看板",
+        "description" : "访问 BI 看板 CAT 单元测试质量达成页面",
+        "sortOrder" : 8013
+      }, {
+        "permissionCode" : "bi.dashboard.integration_test.view",
+        "permissionName" : "查看 BI 集成测试页",
+        "moduleName" : "BI 看板",
+        "description" : "访问 BI 看板 CAT 集成测试质量达成页面",
+        "sortOrder" : 8014
+      }, {
+        "permissionCode" : "bi.dashboard.system_test.view",
+        "permissionName" : "查看 BI 系统测试页",
+        "moduleName" : "BI 看板",
+        "description" : "访问 BI 看板系统测试质量页面",
+        "sortOrder" : 8015
+      }, {
+        "permissionCode" : "bi.dashboard.customer_issues.view",
+        "permissionName" : "查看 BI 客户问题页",
+        "moduleName" : "BI 看板",
+        "description" : "访问 BI 看板客户问题缺陷与需求页面",
+        "sortOrder" : 8016
+      }, {
+        "permissionCode" : "bi.dashboard.requirements.download",
+        "permissionName" : "下载 BI 需求页图表",
+        "moduleName" : "BI 看板",
+        "description" : "下载需求评审页面授权图表的 PNG 与 Excel 数据表",
         "sortOrder" : 8020
+      }, {
+        "permissionCode" : "bi.dashboard.design.download",
+        "permissionName" : "下载 BI 设计页图表",
+        "moduleName" : "BI 看板",
+        "description" : "下载设计评审页面授权图表的 PNG 与 Excel 数据表",
+        "sortOrder" : 8021
+      }, {
+        "permissionCode" : "bi.dashboard.coding.download",
+        "permissionName" : "下载 BI 编码页图表",
+        "moduleName" : "BI 看板",
+        "description" : "下载代码走查与研发效能页面授权图表的 PNG 与 Excel 数据表",
+        "sortOrder" : 8022
+      }, {
+        "permissionCode" : "bi.dashboard.unit_test.download",
+        "permissionName" : "下载 BI 单元测试页图表",
+        "moduleName" : "BI 看板",
+        "description" : "下载单元测试质量达成页面授权图表的 PNG 与 Excel 数据表",
+        "sortOrder" : 8023
+      }, {
+        "permissionCode" : "bi.dashboard.integration_test.download",
+        "permissionName" : "下载 BI 集成测试页图表",
+        "moduleName" : "BI 看板",
+        "description" : "下载集成测试质量达成页面授权图表的 PNG 与 Excel 数据表",
+        "sortOrder" : 8024
+      }, {
+        "permissionCode" : "bi.dashboard.system_test.download",
+        "permissionName" : "下载 BI 系统测试页图表",
+        "moduleName" : "BI 看板",
+        "description" : "下载系统测试质量页面授权图表的 PNG 与 Excel 数据表",
+        "sortOrder" : 8025
+      }, {
+        "permissionCode" : "bi.dashboard.customer_issues.download",
+        "permissionName" : "下载 BI 客户问题页图表",
+        "moduleName" : "BI 看板",
+        "description" : "下载客户问题页面授权图表的 PNG 与 Excel 数据表",
+        "sortOrder" : 8026
       }, {
         "permissionCode" : "system.dropdown_option.view",
         "permissionName" : "查看下拉框选项设置",
@@ -460,27 +544,27 @@
         "roleCode" : "SUPER_ADMIN",
         "roleName" : "超级管理员",
         "displayOrder" : 10,
-        "permissionCodes" : [ "bi.dashboard.download", "bi.dashboard.view", "business_data.refresh", "code_review.board.export", "code_review.board.view", "code_review.form.create", "code_review.form.delete", "code_review.form.edit", "code_review.illegal.export", "code_review.illegal.view", "customer_issue.cause.export", "customer_issue.cause.view", "customer_issue.delay.export", "customer_issue.delay.view", "customer_issue.efficiency.export", "customer_issue.efficiency.view", "customer_issue.function.export", "customer_issue.function.view", "customer_issue.illegal.export", "customer_issue.illegal.view", "customer_issue.record.export", "customer_issue.record.view", "customer_issue.summary.export", "customer_issue.summary.view", "quality.other.export", "quality.other.view", "quality.rd.export", "quality.rd.view", "review.data.view", "review.legacy_import", "review.problem.create", "review.problem.delete_any", "review.problem.delete_own", "review.problem.edit", "review.problem.export", "review.record.create", "review.record.delete_any", "review.record.delete_own", "review.record.edit", "review.record.export", "review.template.download", "system.backup.manage", "system.backup.view", "system.database.refresh", "system.database.view", "system.dropdown_option.manage", "system.dropdown_option.view", "system.fact.rebuild", "system.label_group.manage", "system.label_group.view", "system.match_mode.config", "system.match_mode.formal_import", "system.match_mode.sync", "system.match_mode.view", "system.mirror.config", "system.mirror.purge", "system.mirror.sync", "system.mirror.view", "system.permission.manage", "system.permission.view", "system.testing_phase.manage", "system.testing_phase.view", "system_test.board.export", "system_test.board.view", "system_test.cause.export", "system_test.cause.view", "system_test.delay.export", "system_test.delay.view", "system_test.illegal.export", "system_test.illegal.view", "system_test.issue.export", "system_test.issue.view", "system_test.phase.view", "system_test.summary.export", "system_test.summary.view" ]
+        "permissionCodes" : [ "bi.dashboard.coding.download", "bi.dashboard.coding.view", "bi.dashboard.customer_issues.download", "bi.dashboard.customer_issues.view", "bi.dashboard.design.download", "bi.dashboard.design.view", "bi.dashboard.integration_test.download", "bi.dashboard.integration_test.view", "bi.dashboard.requirements.download", "bi.dashboard.requirements.view", "bi.dashboard.system_test.download", "bi.dashboard.system_test.view", "bi.dashboard.unit_test.download", "bi.dashboard.unit_test.view", "business_data.refresh", "code_review.board.export", "code_review.board.view", "code_review.form.create", "code_review.form.delete", "code_review.form.edit", "code_review.illegal.export", "code_review.illegal.view", "customer_issue.cause.export", "customer_issue.cause.view", "customer_issue.customer.export", "customer_issue.customer.view", "customer_issue.delay.export", "customer_issue.delay.view", "customer_issue.efficiency.export", "customer_issue.efficiency.view", "customer_issue.function.export", "customer_issue.function.view", "customer_issue.illegal.export", "customer_issue.illegal.view", "customer_issue.record.export", "customer_issue.record.view", "customer_issue.summary.export", "customer_issue.summary.view", "quality.other.export", "quality.other.view", "quality.rd.export", "quality.rd.view", "review.data.view", "review.legacy_import", "review.problem.create", "review.problem.delete_any", "review.problem.delete_own", "review.problem.edit", "review.problem.export", "review.record.create", "review.record.delete_any", "review.record.delete_own", "review.record.edit", "review.record.export", "review.template.download", "system.backup.manage", "system.backup.view", "system.database.refresh", "system.database.view", "system.dropdown_option.manage", "system.dropdown_option.view", "system.fact.rebuild", "system.label_group.manage", "system.label_group.view", "system.match_mode.config", "system.match_mode.formal_import", "system.match_mode.sync", "system.match_mode.view", "system.mirror.config", "system.mirror.purge", "system.mirror.sync", "system.mirror.view", "system.permission.manage", "system.permission.view", "system.testing_phase.manage", "system.testing_phase.view", "system_test.board.export", "system_test.board.view", "system_test.cause.export", "system_test.cause.view", "system_test.delay.export", "system_test.delay.view", "system_test.illegal.export", "system_test.illegal.view", "system_test.issue.export", "system_test.issue.view", "system_test.phase.view", "system_test.summary.export", "system_test.summary.view" ]
       }, {
         "roleCode" : "ADMIN",
         "roleName" : "管理员",
         "displayOrder" : 20,
-        "permissionCodes" : [ "bi.dashboard.download", "bi.dashboard.view", "business_data.refresh", "code_review.board.export", "code_review.board.view", "code_review.form.create", "code_review.form.delete", "code_review.form.edit", "code_review.illegal.export", "code_review.illegal.view", "customer_issue.cause.export", "customer_issue.cause.view", "customer_issue.delay.export", "customer_issue.delay.view", "customer_issue.efficiency.export", "customer_issue.efficiency.view", "customer_issue.function.export", "customer_issue.function.view", "customer_issue.illegal.export", "customer_issue.illegal.view", "customer_issue.record.export", "customer_issue.record.view", "customer_issue.summary.export", "customer_issue.summary.view", "quality.other.export", "quality.other.view", "quality.rd.export", "quality.rd.view", "review.data.view", "review.legacy_import", "review.problem.create", "review.problem.delete_any", "review.problem.delete_own", "review.problem.edit", "review.problem.export", "review.record.create", "review.record.delete_any", "review.record.delete_own", "review.record.edit", "review.record.export", "review.template.download", "system.backup.manage", "system.backup.view", "system.database.refresh", "system.database.view", "system.dropdown_option.manage", "system.dropdown_option.view", "system.fact.rebuild", "system.label_group.manage", "system.label_group.view", "system.match_mode.config", "system.match_mode.formal_import", "system.match_mode.sync", "system.match_mode.view", "system.mirror.config", "system.mirror.purge", "system.mirror.sync", "system.mirror.view", "system.permission.manage", "system.permission.view", "system.testing_phase.manage", "system.testing_phase.view", "system_test.board.export", "system_test.board.view", "system_test.cause.export", "system_test.cause.view", "system_test.delay.export", "system_test.delay.view", "system_test.illegal.export", "system_test.illegal.view", "system_test.issue.export", "system_test.issue.view", "system_test.phase.view", "system_test.summary.export", "system_test.summary.view" ]
+        "permissionCodes" : [ "bi.dashboard.coding.download", "bi.dashboard.coding.view", "bi.dashboard.customer_issues.download", "bi.dashboard.customer_issues.view", "bi.dashboard.design.download", "bi.dashboard.design.view", "bi.dashboard.integration_test.download", "bi.dashboard.integration_test.view", "bi.dashboard.requirements.download", "bi.dashboard.requirements.view", "bi.dashboard.system_test.download", "bi.dashboard.system_test.view", "bi.dashboard.unit_test.download", "bi.dashboard.unit_test.view", "business_data.refresh", "code_review.board.export", "code_review.board.view", "code_review.form.create", "code_review.form.delete", "code_review.form.edit", "code_review.illegal.export", "code_review.illegal.view", "customer_issue.cause.export", "customer_issue.cause.view", "customer_issue.customer.export", "customer_issue.customer.view", "customer_issue.delay.export", "customer_issue.delay.view", "customer_issue.efficiency.export", "customer_issue.efficiency.view", "customer_issue.function.export", "customer_issue.function.view", "customer_issue.illegal.export", "customer_issue.illegal.view", "customer_issue.record.export", "customer_issue.record.view", "customer_issue.summary.export", "customer_issue.summary.view", "quality.other.export", "quality.other.view", "quality.rd.export", "quality.rd.view", "review.data.view", "review.legacy_import", "review.problem.create", "review.problem.delete_any", "review.problem.delete_own", "review.problem.edit", "review.problem.export", "review.record.create", "review.record.delete_any", "review.record.delete_own", "review.record.edit", "review.record.export", "review.template.download", "system.backup.manage", "system.backup.view", "system.database.refresh", "system.database.view", "system.dropdown_option.manage", "system.dropdown_option.view", "system.fact.rebuild", "system.label_group.manage", "system.label_group.view", "system.match_mode.config", "system.match_mode.formal_import", "system.match_mode.sync", "system.match_mode.view", "system.mirror.config", "system.mirror.purge", "system.mirror.sync", "system.mirror.view", "system.permission.manage", "system.permission.view", "system.testing_phase.manage", "system.testing_phase.view", "system_test.board.export", "system_test.board.view", "system_test.cause.export", "system_test.cause.view", "system_test.delay.export", "system_test.delay.view", "system_test.illegal.export", "system_test.illegal.view", "system_test.issue.export", "system_test.issue.view", "system_test.phase.view", "system_test.summary.export", "system_test.summary.view" ]
       }, {
         "roleCode" : "DIRECT_MANAGER",
         "roleName" : "直属上级",
         "displayOrder" : 30,
-        "permissionCodes" : [ "bi.dashboard.download", "bi.dashboard.view", "business_data.refresh", "code_review.board.export", "code_review.board.view", "code_review.form.create", "code_review.form.delete", "code_review.form.edit", "code_review.illegal.export", "code_review.illegal.view", "customer_issue.cause.export", "customer_issue.cause.view", "customer_issue.delay.export", "customer_issue.delay.view", "customer_issue.efficiency.export", "customer_issue.efficiency.view", "customer_issue.function.export", "customer_issue.function.view", "customer_issue.illegal.export", "customer_issue.illegal.view", "customer_issue.record.export", "customer_issue.record.view", "customer_issue.summary.export", "customer_issue.summary.view", "quality.other.export", "quality.other.view", "quality.rd.export", "quality.rd.view", "review.data.view", "review.legacy_import", "review.problem.create", "review.problem.delete_any", "review.problem.delete_own", "review.problem.edit", "review.problem.export", "review.record.create", "review.record.delete_any", "review.record.delete_own", "review.record.edit", "review.record.export", "review.template.download", "system.label_group.manage", "system.label_group.view", "system.testing_phase.manage", "system.testing_phase.view", "system_test.board.export", "system_test.board.view", "system_test.cause.export", "system_test.cause.view", "system_test.delay.export", "system_test.delay.view", "system_test.illegal.export", "system_test.illegal.view", "system_test.issue.export", "system_test.issue.view", "system_test.phase.view", "system_test.summary.export", "system_test.summary.view" ]
+        "permissionCodes" : [ "bi.dashboard.coding.download", "bi.dashboard.coding.view", "bi.dashboard.customer_issues.download", "bi.dashboard.customer_issues.view", "bi.dashboard.design.download", "bi.dashboard.design.view", "bi.dashboard.integration_test.download", "bi.dashboard.integration_test.view", "bi.dashboard.requirements.download", "bi.dashboard.requirements.view", "bi.dashboard.system_test.download", "bi.dashboard.system_test.view", "bi.dashboard.unit_test.download", "bi.dashboard.unit_test.view", "business_data.refresh", "code_review.board.export", "code_review.board.view", "code_review.form.create", "code_review.form.delete", "code_review.form.edit", "code_review.illegal.export", "code_review.illegal.view", "customer_issue.cause.export", "customer_issue.cause.view", "customer_issue.customer.export", "customer_issue.customer.view", "customer_issue.delay.export", "customer_issue.delay.view", "customer_issue.efficiency.export", "customer_issue.efficiency.view", "customer_issue.function.export", "customer_issue.function.view", "customer_issue.illegal.export", "customer_issue.illegal.view", "customer_issue.record.export", "customer_issue.record.view", "customer_issue.summary.export", "customer_issue.summary.view", "quality.other.export", "quality.other.view", "quality.rd.export", "quality.rd.view", "review.data.view", "review.legacy_import", "review.problem.create", "review.problem.delete_any", "review.problem.delete_own", "review.problem.edit", "review.problem.export", "review.record.create", "review.record.delete_any", "review.record.delete_own", "review.record.edit", "review.record.export", "review.template.download", "system.label_group.manage", "system.label_group.view", "system.testing_phase.manage", "system.testing_phase.view", "system_test.board.export", "system_test.board.view", "system_test.cause.export", "system_test.cause.view", "system_test.delay.export", "system_test.delay.view", "system_test.illegal.export", "system_test.illegal.view", "system_test.issue.export", "system_test.issue.view", "system_test.phase.view", "system_test.summary.export", "system_test.summary.view" ]
       }, {
         "roleCode" : "TREE_MANAGER",
         "roleName" : "部门经理",
         "displayOrder" : 40,
-        "permissionCodes" : [ "bi.dashboard.download", "bi.dashboard.view", "business_data.refresh", "code_review.board.export", "code_review.board.view", "code_review.form.create", "code_review.form.delete", "code_review.form.edit", "code_review.illegal.export", "code_review.illegal.view", "customer_issue.cause.export", "customer_issue.cause.view", "customer_issue.delay.export", "customer_issue.delay.view", "customer_issue.efficiency.export", "customer_issue.efficiency.view", "customer_issue.function.export", "customer_issue.function.view", "customer_issue.illegal.export", "customer_issue.illegal.view", "customer_issue.record.export", "customer_issue.record.view", "customer_issue.summary.export", "customer_issue.summary.view", "quality.other.export", "quality.other.view", "quality.rd.export", "quality.rd.view", "review.data.view", "review.legacy_import", "review.problem.create", "review.problem.delete_any", "review.problem.delete_own", "review.problem.edit", "review.problem.export", "review.record.create", "review.record.delete_any", "review.record.delete_own", "review.record.edit", "review.record.export", "review.template.download", "system.label_group.manage", "system.label_group.view", "system.testing_phase.manage", "system.testing_phase.view", "system_test.board.export", "system_test.board.view", "system_test.cause.export", "system_test.cause.view", "system_test.delay.export", "system_test.delay.view", "system_test.illegal.export", "system_test.illegal.view", "system_test.issue.export", "system_test.issue.view", "system_test.phase.view", "system_test.summary.export", "system_test.summary.view" ]
+        "permissionCodes" : [ "bi.dashboard.coding.download", "bi.dashboard.coding.view", "bi.dashboard.customer_issues.download", "bi.dashboard.customer_issues.view", "bi.dashboard.design.download", "bi.dashboard.design.view", "bi.dashboard.integration_test.download", "bi.dashboard.integration_test.view", "bi.dashboard.requirements.download", "bi.dashboard.requirements.view", "bi.dashboard.system_test.download", "bi.dashboard.system_test.view", "bi.dashboard.unit_test.download", "bi.dashboard.unit_test.view", "business_data.refresh", "code_review.board.export", "code_review.board.view", "code_review.form.create", "code_review.form.delete", "code_review.form.edit", "code_review.illegal.export", "code_review.illegal.view", "customer_issue.cause.export", "customer_issue.cause.view", "customer_issue.customer.export", "customer_issue.customer.view", "customer_issue.delay.export", "customer_issue.delay.view", "customer_issue.efficiency.export", "customer_issue.efficiency.view", "customer_issue.function.export", "customer_issue.function.view", "customer_issue.illegal.export", "customer_issue.illegal.view", "customer_issue.record.export", "customer_issue.record.view", "customer_issue.summary.export", "customer_issue.summary.view", "quality.other.export", "quality.other.view", "quality.rd.export", "quality.rd.view", "review.data.view", "review.legacy_import", "review.problem.create", "review.problem.delete_any", "review.problem.delete_own", "review.problem.edit", "review.problem.export", "review.record.create", "review.record.delete_any", "review.record.delete_own", "review.record.edit", "review.record.export", "review.template.download", "system.label_group.manage", "system.label_group.view", "system.testing_phase.manage", "system.testing_phase.view", "system_test.board.export", "system_test.board.view", "system_test.cause.export", "system_test.cause.view", "system_test.delay.export", "system_test.delay.view", "system_test.illegal.export", "system_test.illegal.view", "system_test.issue.export", "system_test.issue.view", "system_test.phase.view", "system_test.summary.export", "system_test.summary.view" ]
       }, {
         "roleCode" : "NORMAL_USER",
         "roleName" : "普通用户",
         "displayOrder" : 50,
-        "permissionCodes" : [ "bi.dashboard.download", "bi.dashboard.view", "business_data.refresh", "code_review.board.export", "code_review.board.view", "code_review.form.create", "code_review.form.edit", "code_review.illegal.export", "code_review.illegal.view", "customer_issue.cause.export", "customer_issue.cause.view", "customer_issue.delay.export", "customer_issue.delay.view", "customer_issue.efficiency.export", "customer_issue.efficiency.view", "customer_issue.function.export", "customer_issue.function.view", "customer_issue.illegal.export", "customer_issue.illegal.view", "customer_issue.record.export", "customer_issue.record.view", "customer_issue.summary.export", "customer_issue.summary.view", "quality.other.export", "quality.other.view", "quality.rd.export", "quality.rd.view", "review.data.view", "review.legacy_import", "review.problem.create", "review.problem.delete_own", "review.problem.edit", "review.problem.export", "review.record.create", "review.record.delete_own", "review.record.edit", "review.record.export", "review.template.download", "system_test.board.export", "system_test.board.view", "system_test.cause.export", "system_test.cause.view", "system_test.delay.export", "system_test.delay.view", "system_test.illegal.export", "system_test.illegal.view", "system_test.issue.export", "system_test.issue.view", "system_test.phase.view", "system_test.summary.export", "system_test.summary.view" ]
+        "permissionCodes" : [ "bi.dashboard.coding.download", "bi.dashboard.coding.view", "bi.dashboard.customer_issues.download", "bi.dashboard.customer_issues.view", "bi.dashboard.design.download", "bi.dashboard.design.view", "bi.dashboard.integration_test.download", "bi.dashboard.integration_test.view", "bi.dashboard.requirements.download", "bi.dashboard.requirements.view", "bi.dashboard.system_test.download", "bi.dashboard.system_test.view", "bi.dashboard.unit_test.download", "bi.dashboard.unit_test.view", "business_data.refresh", "code_review.board.export", "code_review.board.view", "code_review.form.create", "code_review.form.edit", "code_review.illegal.export", "code_review.illegal.view", "customer_issue.cause.export", "customer_issue.cause.view", "customer_issue.customer.export", "customer_issue.customer.view", "customer_issue.delay.export", "customer_issue.delay.view", "customer_issue.efficiency.export", "customer_issue.efficiency.view", "customer_issue.function.export", "customer_issue.function.view", "customer_issue.illegal.export", "customer_issue.illegal.view", "customer_issue.record.export", "customer_issue.record.view", "customer_issue.summary.export", "customer_issue.summary.view", "quality.other.export", "quality.other.view", "quality.rd.export", "quality.rd.view", "review.data.view", "review.legacy_import", "review.problem.create", "review.problem.delete_own", "review.problem.edit", "review.problem.export", "review.record.create", "review.record.delete_own", "review.record.edit", "review.record.export", "review.template.download", "system_test.board.export", "system_test.board.view", "system_test.cause.export", "system_test.cause.view", "system_test.delay.export", "system_test.delay.view", "system_test.illegal.export", "system_test.illegal.view", "system_test.issue.export", "system_test.issue.view", "system_test.phase.view", "system_test.summary.export", "system_test.summary.view" ]
       } ],
       "initialLdapSyncCompleted" : false
     }

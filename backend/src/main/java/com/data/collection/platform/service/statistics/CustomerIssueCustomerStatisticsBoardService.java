@@ -62,7 +62,7 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
         StatisticBoardSnapshotRefresher {
 
   static final String BOARD_KEY = "customer-issue-customer-statistics";
-  static final String RULE_VERSION = "customer-issue-customer-statistics@2026-09-22-v1";
+  static final String RULE_VERSION = "customer-issue-customer-statistics@2026-09-28-v2";
   static final String GROUP_BY_PARAM = "groupBy";
   static final String CUSTOMER_PARAM = "customer";
   static final String MODULE_PARAM = "module";
@@ -395,7 +395,9 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
             definition.columnGroups().stream()
                 .flatMap(group -> group.leafColumns().stream())
                 .mapToInt(column -> column.drilldown() ? 1 : 0)
-                .sum()));
+                .sum()),
+        null,
+        null);
   }
 
   /** 读取限定范围内的分支事实并编译为每议题一次的资格与状态。 */

@@ -1189,8 +1189,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "BOM"
         }
@@ -1198,8 +1198,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "BOM"
         }
@@ -1270,8 +1270,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "BOM"
         }
@@ -1279,8 +1279,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "BOM"
         }
@@ -1333,8 +1333,8 @@
         "columnKey" : "p2_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "BOM"
         }
@@ -1360,8 +1360,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "BOM"
         }
@@ -1459,8 +1459,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "BOM"
         }
@@ -1522,8 +1522,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "BOM"
         }
@@ -1544,8 +1544,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1553,8 +1553,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1562,8 +1562,8 @@
         "columnKey" : "level1_other",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1571,8 +1571,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1580,8 +1580,8 @@
         "columnKey" : "level1_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1598,8 +1598,8 @@
         "columnKey" : "level2_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1607,8 +1607,8 @@
         "columnKey" : "level2_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1625,8 +1625,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1634,8 +1634,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1652,8 +1652,8 @@
         "columnKey" : "suggestion_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1661,8 +1661,8 @@
         "columnKey" : "p1_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1688,8 +1688,8 @@
         "columnKey" : "p2_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1715,8 +1715,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1742,8 +1742,8 @@
         "columnKey" : "module_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1769,8 +1769,8 @@
         "columnKey" : "solved_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1796,8 +1796,8 @@
         "columnKey" : "open_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1805,8 +1805,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1814,8 +1814,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1823,8 +1823,8 @@
         "columnKey" : "new_issue_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1832,8 +1832,8 @@
         "columnKey" : "new_issue_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1868,8 +1868,8 @@
         "columnKey" : "level2_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1877,8 +1877,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "DWG"
         }
@@ -1899,8 +1899,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -1908,8 +1908,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -1917,8 +1917,8 @@
         "columnKey" : "level1_other",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -1926,8 +1926,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -1935,8 +1935,8 @@
         "columnKey" : "level1_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -1953,8 +1953,8 @@
         "columnKey" : "level2_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -1962,8 +1962,8 @@
         "columnKey" : "level2_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -1980,8 +1980,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -1989,8 +1989,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -2016,8 +2016,8 @@
         "columnKey" : "p1_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -2043,8 +2043,8 @@
         "columnKey" : "p2_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -2070,8 +2070,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -2097,8 +2097,8 @@
         "columnKey" : "module_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -2124,8 +2124,8 @@
         "columnKey" : "solved_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -2151,8 +2151,8 @@
         "columnKey" : "open_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -2160,8 +2160,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -2169,8 +2169,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -2178,8 +2178,8 @@
         "columnKey" : "new_issue_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -2187,8 +2187,8 @@
         "columnKey" : "new_issue_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -2223,8 +2223,8 @@
         "columnKey" : "level2_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -2232,8 +2232,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "MBD"
         }
@@ -2254,8 +2254,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "二次开发"
         }
@@ -2263,8 +2263,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "二次开发"
         }
@@ -2272,8 +2272,8 @@
         "columnKey" : "level1_other",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "二次开发"
         }
@@ -2281,8 +2281,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "二次开发"
         }
@@ -2290,8 +2290,8 @@
         "columnKey" : "level1_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "二次开发"
         }
@@ -2335,8 +2335,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "二次开发"
         }
@@ -2344,8 +2344,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "二次开发"
         }
@@ -2362,8 +2362,8 @@
         "columnKey" : "suggestion_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "二次开发"
         }
@@ -2398,8 +2398,8 @@
         "columnKey" : "p2_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "二次开发"
         }
@@ -2425,8 +2425,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "二次开发"
         }
@@ -2515,8 +2515,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "二次开发"
         }
@@ -2524,8 +2524,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "二次开发"
         }
@@ -2578,8 +2578,8 @@
         "columnKey" : "level2_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "二次开发"
         }
@@ -2587,8 +2587,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "二次开发"
         }
@@ -2609,8 +2609,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "企业版"
         }
@@ -2618,8 +2618,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "企业版"
         }
@@ -2636,8 +2636,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "企业版"
         }
@@ -2663,8 +2663,8 @@
         "columnKey" : "level2_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "企业版"
         }
@@ -2672,8 +2672,8 @@
         "columnKey" : "level2_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "企业版"
         }
@@ -2690,8 +2690,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "企业版"
         }
@@ -2699,8 +2699,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "企业版"
         }
@@ -2753,8 +2753,8 @@
         "columnKey" : "p2_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "企业版"
         }
@@ -2780,8 +2780,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "企业版"
         }
@@ -2834,8 +2834,8 @@
         "columnKey" : "solved_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "企业版"
         }
@@ -2870,8 +2870,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "企业版"
         }
@@ -2879,8 +2879,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "企业版"
         }
@@ -2888,8 +2888,8 @@
         "columnKey" : "new_issue_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "企业版"
         }
@@ -2933,8 +2933,8 @@
         "columnKey" : "level2_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "企业版"
         }
@@ -2942,8 +2942,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "企业版"
         }
@@ -2964,8 +2964,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "协同"
         }
@@ -2973,8 +2973,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "协同"
         }
@@ -2982,8 +2982,8 @@
         "columnKey" : "level1_other",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "协同"
         }
@@ -2991,8 +2991,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "协同"
         }
@@ -3000,8 +3000,8 @@
         "columnKey" : "level1_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "协同"
         }
@@ -3045,8 +3045,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "协同"
         }
@@ -3054,8 +3054,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "协同"
         }
@@ -3072,8 +3072,8 @@
         "columnKey" : "suggestion_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "协同"
         }
@@ -3135,8 +3135,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "协同"
         }
@@ -3225,8 +3225,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "协同"
         }
@@ -3234,8 +3234,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "协同"
         }
@@ -3297,8 +3297,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "协同"
         }
@@ -3319,8 +3319,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "实体算法"
         }
@@ -3328,8 +3328,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "实体算法"
         }
@@ -3346,8 +3346,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "实体算法"
         }
@@ -3373,8 +3373,8 @@
         "columnKey" : "level2_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "实体算法"
         }
@@ -3400,8 +3400,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "实体算法"
         }
@@ -3409,8 +3409,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "实体算法"
         }
@@ -3427,8 +3427,8 @@
         "columnKey" : "suggestion_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "实体算法"
         }
@@ -3463,8 +3463,8 @@
         "columnKey" : "p2_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "实体算法"
         }
@@ -3490,8 +3490,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "实体算法"
         }
@@ -3544,8 +3544,8 @@
         "columnKey" : "solved_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "实体算法"
         }
@@ -3580,8 +3580,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "实体算法"
         }
@@ -3589,8 +3589,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "实体算法"
         }
@@ -3598,8 +3598,8 @@
         "columnKey" : "new_issue_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "实体算法"
         }
@@ -3652,8 +3652,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "实体算法"
         }
@@ -3701,8 +3701,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "工具"
         }
@@ -3728,8 +3728,8 @@
         "columnKey" : "level2_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "工具"
         }
@@ -3755,8 +3755,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "工具"
         }
@@ -3845,8 +3845,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "工具"
         }
@@ -3899,8 +3899,8 @@
         "columnKey" : "solved_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "工具"
         }
@@ -3944,8 +3944,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "工具"
         }
@@ -3953,8 +3953,8 @@
         "columnKey" : "new_issue_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "工具"
         }
@@ -4200,8 +4200,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "工程图"
         }
@@ -4290,8 +4290,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "工程图"
         }
@@ -4299,8 +4299,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "工程图"
         }
@@ -4384,8 +4384,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "平台"
         }
@@ -4528,8 +4528,8 @@
         "columnKey" : "p2_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "平台"
         }
@@ -4555,8 +4555,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "平台"
         }
@@ -4654,8 +4654,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "平台"
         }
@@ -4739,8 +4739,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "库"
         }
@@ -4748,8 +4748,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "库"
         }
@@ -4757,8 +4757,8 @@
         "columnKey" : "level1_other",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "库"
         }
@@ -4766,8 +4766,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "库"
         }
@@ -4775,8 +4775,8 @@
         "columnKey" : "level1_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "库"
         }
@@ -4793,8 +4793,8 @@
         "columnKey" : "level2_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "库"
         }
@@ -4820,8 +4820,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "库"
         }
@@ -4829,8 +4829,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "库"
         }
@@ -4883,8 +4883,8 @@
         "columnKey" : "p2_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "库"
         }
@@ -4910,8 +4910,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "库"
         }
@@ -4964,8 +4964,8 @@
         "columnKey" : "solved_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "库"
         }
@@ -5000,8 +5000,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "库"
         }
@@ -5009,8 +5009,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "库"
         }
@@ -5018,8 +5018,8 @@
         "columnKey" : "new_issue_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "库"
         }
@@ -5072,8 +5072,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "库"
         }
@@ -5094,8 +5094,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5103,8 +5103,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5112,8 +5112,8 @@
         "columnKey" : "level1_other",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5121,8 +5121,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5130,8 +5130,8 @@
         "columnKey" : "level1_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5148,8 +5148,8 @@
         "columnKey" : "level2_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5157,8 +5157,8 @@
         "columnKey" : "level2_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5175,8 +5175,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5184,8 +5184,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5211,8 +5211,8 @@
         "columnKey" : "p1_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5238,8 +5238,8 @@
         "columnKey" : "p2_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5265,8 +5265,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5292,8 +5292,8 @@
         "columnKey" : "module_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5319,8 +5319,8 @@
         "columnKey" : "solved_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5346,8 +5346,8 @@
         "columnKey" : "open_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5355,8 +5355,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5364,8 +5364,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5373,8 +5373,8 @@
         "columnKey" : "new_issue_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5382,8 +5382,8 @@
         "columnKey" : "new_issue_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5418,8 +5418,8 @@
         "columnKey" : "level2_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5427,8 +5427,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "快速设计"
         }
@@ -5449,8 +5449,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "数据交换"
         }
@@ -5458,8 +5458,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "数据交换"
         }
@@ -5476,8 +5476,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "数据交换"
         }
@@ -5503,8 +5503,8 @@
         "columnKey" : "level2_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "数据交换"
         }
@@ -5530,8 +5530,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "数据交换"
         }
@@ -5539,8 +5539,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "数据交换"
         }
@@ -5620,8 +5620,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "数据交换"
         }
@@ -5674,8 +5674,8 @@
         "columnKey" : "solved_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "数据交换"
         }
@@ -5719,8 +5719,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "数据交换"
         }
@@ -5728,8 +5728,8 @@
         "columnKey" : "new_issue_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "数据交换"
         }
@@ -5782,8 +5782,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "数据交换"
         }
@@ -5804,8 +5804,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "曲线曲面"
         }
@@ -5813,8 +5813,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "曲线曲面"
         }
@@ -5822,8 +5822,8 @@
         "columnKey" : "level1_other",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "曲线曲面"
         }
@@ -5831,8 +5831,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "曲线曲面"
         }
@@ -5840,8 +5840,8 @@
         "columnKey" : "level1_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "曲线曲面"
         }
@@ -5858,8 +5858,8 @@
         "columnKey" : "level2_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "曲线曲面"
         }
@@ -5885,8 +5885,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "曲线曲面"
         }
@@ -5894,8 +5894,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "曲线曲面"
         }
@@ -5948,8 +5948,8 @@
         "columnKey" : "p2_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "曲线曲面"
         }
@@ -5975,8 +5975,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "曲线曲面"
         }
@@ -6029,8 +6029,8 @@
         "columnKey" : "solved_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "曲线曲面"
         }
@@ -6065,8 +6065,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "曲线曲面"
         }
@@ -6074,8 +6074,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "曲线曲面"
         }
@@ -6083,8 +6083,8 @@
         "columnKey" : "new_issue_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "曲线曲面"
         }
@@ -6137,8 +6137,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "曲线曲面"
         }
@@ -6159,8 +6159,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "渲染"
         }
@@ -6168,8 +6168,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "渲染"
         }
@@ -6177,8 +6177,8 @@
         "columnKey" : "level1_other",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "渲染"
         }
@@ -6186,8 +6186,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "渲染"
         }
@@ -6195,8 +6195,8 @@
         "columnKey" : "level1_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "渲染"
         }
@@ -6213,8 +6213,8 @@
         "columnKey" : "level2_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "渲染"
         }
@@ -6240,8 +6240,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "渲染"
         }
@@ -6249,8 +6249,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "渲染"
         }
@@ -6303,8 +6303,8 @@
         "columnKey" : "p2_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "渲染"
         }
@@ -6330,8 +6330,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "渲染"
         }
@@ -6384,8 +6384,8 @@
         "columnKey" : "solved_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "渲染"
         }
@@ -6420,8 +6420,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "渲染"
         }
@@ -6429,8 +6429,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "渲染"
         }
@@ -6438,8 +6438,8 @@
         "columnKey" : "new_issue_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "渲染"
         }
@@ -6492,8 +6492,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "渲染"
         }
@@ -6514,8 +6514,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "点云"
         }
@@ -6523,8 +6523,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "点云"
         }
@@ -6532,8 +6532,8 @@
         "columnKey" : "level1_other",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "点云"
         }
@@ -6541,8 +6541,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "点云"
         }
@@ -6550,8 +6550,8 @@
         "columnKey" : "level1_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "点云"
         }
@@ -6568,8 +6568,8 @@
         "columnKey" : "level2_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "点云"
         }
@@ -6595,8 +6595,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "点云"
         }
@@ -6604,8 +6604,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "点云"
         }
@@ -6622,8 +6622,8 @@
         "columnKey" : "suggestion_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "点云"
         }
@@ -6658,8 +6658,8 @@
         "columnKey" : "p2_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "点云"
         }
@@ -6685,8 +6685,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "点云"
         }
@@ -6739,8 +6739,8 @@
         "columnKey" : "solved_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "点云"
         }
@@ -6775,8 +6775,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "点云"
         }
@@ -6784,8 +6784,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "点云"
         }
@@ -6793,8 +6793,8 @@
         "columnKey" : "new_issue_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "点云"
         }
@@ -6847,8 +6847,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "点云"
         }
@@ -6869,8 +6869,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "焊件"
         }
@@ -6878,8 +6878,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "焊件"
         }
@@ -6887,8 +6887,8 @@
         "columnKey" : "level1_other",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "焊件"
         }
@@ -6896,8 +6896,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "焊件"
         }
@@ -6905,8 +6905,8 @@
         "columnKey" : "level1_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "焊件"
         }
@@ -6923,8 +6923,8 @@
         "columnKey" : "level2_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "焊件"
         }
@@ -6950,8 +6950,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "焊件"
         }
@@ -6959,8 +6959,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "焊件"
         }
@@ -7013,8 +7013,8 @@
         "columnKey" : "p2_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "焊件"
         }
@@ -7040,8 +7040,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "焊件"
         }
@@ -7094,8 +7094,8 @@
         "columnKey" : "solved_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "焊件"
         }
@@ -7130,8 +7130,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "焊件"
         }
@@ -7139,8 +7139,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "焊件"
         }
@@ -7148,8 +7148,8 @@
         "columnKey" : "new_issue_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "焊件"
         }
@@ -7202,8 +7202,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "焊件"
         }
@@ -7224,8 +7224,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "特征"
         }
@@ -7251,8 +7251,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "特征"
         }
@@ -7305,8 +7305,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "特征"
         }
@@ -7314,8 +7314,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "特征"
         }
@@ -7395,8 +7395,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "特征"
         }
@@ -7494,8 +7494,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "特征"
         }
@@ -7557,8 +7557,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "特征"
         }
@@ -7579,8 +7579,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "管路"
         }
@@ -7588,8 +7588,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "管路"
         }
@@ -7597,8 +7597,8 @@
         "columnKey" : "level1_other",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "管路"
         }
@@ -7606,8 +7606,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "管路"
         }
@@ -7615,8 +7615,8 @@
         "columnKey" : "level1_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "管路"
         }
@@ -7633,8 +7633,8 @@
         "columnKey" : "level2_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "管路"
         }
@@ -7660,8 +7660,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "管路"
         }
@@ -7669,8 +7669,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "管路"
         }
@@ -7687,8 +7687,8 @@
         "columnKey" : "suggestion_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "管路"
         }
@@ -7723,8 +7723,8 @@
         "columnKey" : "p2_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "管路"
         }
@@ -7750,8 +7750,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "管路"
         }
@@ -7804,8 +7804,8 @@
         "columnKey" : "solved_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "管路"
         }
@@ -7840,8 +7840,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "管路"
         }
@@ -7849,8 +7849,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "管路"
         }
@@ -7858,8 +7858,8 @@
         "columnKey" : "new_issue_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "管路"
         }
@@ -7912,8 +7912,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "管路"
         }
@@ -7934,8 +7934,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "草图"
         }
@@ -8015,8 +8015,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "草图"
         }
@@ -8024,8 +8024,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "草图"
         }
@@ -8105,8 +8105,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "草图"
         }
@@ -8204,8 +8204,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "草图"
         }
@@ -8267,8 +8267,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "草图"
         }
@@ -8289,8 +8289,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "装配"
         }
@@ -8343,8 +8343,8 @@
         "columnKey" : "level2_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "装配"
         }
@@ -8370,8 +8370,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "装配"
         }
@@ -8379,8 +8379,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "装配"
         }
@@ -8460,8 +8460,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "装配"
         }
@@ -8559,8 +8559,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "装配"
         }
@@ -8622,8 +8622,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "装配"
         }
@@ -8644,8 +8644,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "设置"
         }
@@ -8653,8 +8653,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "设置"
         }
@@ -8662,8 +8662,8 @@
         "columnKey" : "level1_other",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "设置"
         }
@@ -8671,8 +8671,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "设置"
         }
@@ -8680,8 +8680,8 @@
         "columnKey" : "level1_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "设置"
         }
@@ -8698,8 +8698,8 @@
         "columnKey" : "level2_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "设置"
         }
@@ -8725,8 +8725,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "设置"
         }
@@ -8734,8 +8734,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "设置"
         }
@@ -8815,8 +8815,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "设置"
         }
@@ -8869,8 +8869,8 @@
         "columnKey" : "solved_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "设置"
         }
@@ -8905,8 +8905,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "设置"
         }
@@ -8914,8 +8914,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "设置"
         }
@@ -8923,8 +8923,8 @@
         "columnKey" : "new_issue_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "设置"
         }
@@ -8977,8 +8977,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "设置"
         }
@@ -8999,8 +8999,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "评估"
         }
@@ -9008,8 +9008,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "评估"
         }
@@ -9017,8 +9017,8 @@
         "columnKey" : "level1_other",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "评估"
         }
@@ -9026,8 +9026,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "评估"
         }
@@ -9035,8 +9035,8 @@
         "columnKey" : "level1_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "评估"
         }
@@ -9080,8 +9080,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "评估"
         }
@@ -9089,8 +9089,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "评估"
         }
@@ -9170,8 +9170,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "评估"
         }
@@ -9269,8 +9269,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "评估"
         }
@@ -9278,8 +9278,8 @@
         "columnKey" : "new_issue_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "评估"
         }
@@ -9332,8 +9332,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "评估"
         }
@@ -9354,8 +9354,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "钣金"
         }
@@ -9363,8 +9363,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "钣金"
         }
@@ -9372,8 +9372,8 @@
         "columnKey" : "level1_other",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "钣金"
         }
@@ -9381,8 +9381,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "钣金"
         }
@@ -9390,8 +9390,8 @@
         "columnKey" : "level1_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "钣金"
         }
@@ -9408,8 +9408,8 @@
         "columnKey" : "level2_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "钣金"
         }
@@ -9435,8 +9435,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "钣金"
         }
@@ -9444,8 +9444,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "钣金"
         }
@@ -9498,8 +9498,8 @@
         "columnKey" : "p2_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "钣金"
         }
@@ -9525,8 +9525,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "钣金"
         }
@@ -9579,8 +9579,8 @@
         "columnKey" : "solved_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "钣金"
         }
@@ -9615,8 +9615,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "钣金"
         }
@@ -9624,8 +9624,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "钣金"
         }
@@ -9633,8 +9633,8 @@
         "columnKey" : "new_issue_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "钣金"
         }
@@ -9687,8 +9687,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "钣金"
         }
@@ -9709,8 +9709,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9718,8 +9718,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9727,8 +9727,8 @@
         "columnKey" : "level1_other",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9736,8 +9736,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9745,8 +9745,8 @@
         "columnKey" : "level1_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9763,8 +9763,8 @@
         "columnKey" : "level2_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9772,8 +9772,8 @@
         "columnKey" : "level2_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9790,8 +9790,8 @@
         "columnKey" : "level3_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9799,8 +9799,8 @@
         "columnKey" : "level3_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9817,8 +9817,8 @@
         "columnKey" : "suggestion_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9826,8 +9826,8 @@
         "columnKey" : "p1_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9853,8 +9853,8 @@
         "columnKey" : "p2_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9880,8 +9880,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9907,8 +9907,8 @@
         "columnKey" : "module_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9934,8 +9934,8 @@
         "columnKey" : "solved_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9961,8 +9961,8 @@
         "columnKey" : "open_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9970,8 +9970,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9979,8 +9979,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9988,8 +9988,8 @@
         "columnKey" : "new_issue_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -9997,8 +9997,8 @@
         "columnKey" : "new_issue_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -10033,8 +10033,8 @@
         "columnKey" : "level2_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -10042,8 +10042,8 @@
         "columnKey" : "level3_legacy_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "集成"
         }
@@ -10064,8 +10064,8 @@
         "columnKey" : "level1_back",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "项目文档"
         }
@@ -10073,8 +10073,8 @@
         "columnKey" : "level1_hang",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "项目文档"
         }
@@ -10082,8 +10082,8 @@
         "columnKey" : "level1_other",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "项目文档"
         }
@@ -10091,8 +10091,8 @@
         "columnKey" : "level1_fixed",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "项目文档"
         }
@@ -10100,8 +10100,8 @@
         "columnKey" : "level1_total",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "项目文档"
         }
@@ -10235,8 +10235,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "项目文档"
         }
@@ -10325,8 +10325,8 @@
         "columnKey" : "extension_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "项目文档"
         }
@@ -10334,8 +10334,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "项目文档"
         }
@@ -10590,8 +10590,8 @@
         "columnKey" : "p3_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "__total__"
         }
@@ -10689,8 +10689,8 @@
         "columnKey" : "retest_failed_count",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "__total__"
         }
@@ -10769,8 +10769,8 @@
       } ]
     } ],
     "meta" : {
-      "generatedAt" : "2026-09-16T16:49:12.7784781+08:00",
-      "queryDurationMs" : 448,
+      "generatedAt" : "2026-09-29T12:44:45.8978597+08:00",
+      "queryDurationMs" : 293,
       "rowCount" : 27,
       "columnCount" : 39,
       "drilldownColumnCount" : 22

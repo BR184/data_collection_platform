@@ -2,10 +2,46 @@
   "table" : "platform_role_permissions",
   "rows" : [ {
     "role_code" : "ADMIN",
-    "permission_code" : "bi.dashboard.download"
+    "permission_code" : "bi.dashboard.coding.download"
   }, {
     "role_code" : "ADMIN",
-    "permission_code" : "bi.dashboard.view"
+    "permission_code" : "bi.dashboard.coding.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "bi.dashboard.customer_issues.download"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "bi.dashboard.customer_issues.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "bi.dashboard.design.download"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "bi.dashboard.design.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "bi.dashboard.integration_test.download"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "bi.dashboard.integration_test.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "bi.dashboard.requirements.download"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "bi.dashboard.requirements.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "bi.dashboard.system_test.download"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "bi.dashboard.system_test.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "bi.dashboard.unit_test.download"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "bi.dashboard.unit_test.view"
   }, {
     "role_code" : "ADMIN",
     "permission_code" : "business_data.refresh"
@@ -36,6 +72,12 @@
   }, {
     "role_code" : "ADMIN",
     "permission_code" : "customer_issue.cause.view"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "customer_issue.customer.export"
+  }, {
+    "role_code" : "ADMIN",
+    "permission_code" : "customer_issue.customer.view"
   }, {
     "role_code" : "ADMIN",
     "permission_code" : "customer_issue.delay.export"
@@ -227,10 +269,46 @@
     "permission_code" : "system_test.summary.view"
   }, {
     "role_code" : "DIRECT_MANAGER",
-    "permission_code" : "bi.dashboard.download"
+    "permission_code" : "bi.dashboard.coding.download"
   }, {
     "role_code" : "DIRECT_MANAGER",
-    "permission_code" : "bi.dashboard.view"
+    "permission_code" : "bi.dashboard.coding.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "bi.dashboard.customer_issues.download"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "bi.dashboard.customer_issues.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "bi.dashboard.design.download"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "bi.dashboard.design.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "bi.dashboard.integration_test.download"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "bi.dashboard.integration_test.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "bi.dashboard.requirements.download"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "bi.dashboard.requirements.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "bi.dashboard.system_test.download"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "bi.dashboard.system_test.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "bi.dashboard.unit_test.download"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "bi.dashboard.unit_test.view"
   }, {
     "role_code" : "DIRECT_MANAGER",
     "permission_code" : "business_data.refresh"
@@ -261,6 +339,12 @@
   }, {
     "role_code" : "DIRECT_MANAGER",
     "permission_code" : "customer_issue.cause.view"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "customer_issue.customer.export"
+  }, {
+    "role_code" : "DIRECT_MANAGER",
+    "permission_code" : "customer_issue.customer.view"
   }, {
     "role_code" : "DIRECT_MANAGER",
     "permission_code" : "customer_issue.delay.export"
@@ -407,10 +491,46 @@
     "permission_code" : "quality.rd.view"
   }, {
     "role_code" : "SUPER_ADMIN",
-    "permission_code" : "bi.dashboard.download"
+    "permission_code" : "bi.dashboard.coding.download"
   }, {
     "role_code" : "SUPER_ADMIN",
-    "permission_code" : "bi.dashboard.view"
+    "permission_code" : "bi.dashboard.coding.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "bi.dashboard.customer_issues.download"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "bi.dashboard.customer_issues.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "bi.dashboard.design.download"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "bi.dashboard.design.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "bi.dashboard.integration_test.download"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "bi.dashboard.integration_test.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "bi.dashboard.requirements.download"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "bi.dashboard.requirements.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "bi.dashboard.system_test.download"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "bi.dashboard.system_test.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "bi.dashboard.unit_test.download"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "bi.dashboard.unit_test.view"
   }, {
     "role_code" : "SUPER_ADMIN",
     "permission_code" : "business_data.refresh"
@@ -441,6 +561,12 @@
   }, {
     "role_code" : "SUPER_ADMIN",
     "permission_code" : "customer_issue.cause.view"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "customer_issue.customer.export"
+  }, {
+    "role_code" : "SUPER_ADMIN",
+    "permission_code" : "customer_issue.customer.view"
   }, {
     "role_code" : "SUPER_ADMIN",
     "permission_code" : "customer_issue.delay.export"
@@ -632,10 +758,46 @@
     "permission_code" : "system_test.summary.view"
   }, {
     "role_code" : "TREE_MANAGER",
-    "permission_code" : "bi.dashboard.download"
+    "permission_code" : "bi.dashboard.coding.download"
   }, {
     "role_code" : "TREE_MANAGER",
-    "permission_code" : "bi.dashboard.view"
+    "permission_code" : "bi.dashboard.coding.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "bi.dashboard.customer_issues.download"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "bi.dashboard.customer_issues.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "bi.dashboard.design.download"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "bi.dashboard.design.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "bi.dashboard.integration_test.download"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "bi.dashboard.integration_test.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "bi.dashboard.requirements.download"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "bi.dashboard.requirements.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "bi.dashboard.system_test.download"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "bi.dashboard.system_test.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "bi.dashboard.unit_test.download"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "bi.dashboard.unit_test.view"
   }, {
     "role_code" : "TREE_MANAGER",
     "permission_code" : "business_data.refresh"
@@ -666,6 +828,12 @@
   }, {
     "role_code" : "TREE_MANAGER",
     "permission_code" : "customer_issue.cause.view"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "customer_issue.customer.export"
+  }, {
+    "role_code" : "TREE_MANAGER",
+    "permission_code" : "customer_issue.customer.view"
   }, {
     "role_code" : "TREE_MANAGER",
     "permission_code" : "customer_issue.delay.export"

@@ -92,6 +92,7 @@
     "planned_resolution_at" : null,
     "planned_resolution_text" : "",
     "planned_merge_version_branch" : "",
-    "handler_name" : ""
+    "handler_name" : "",
+    "is_customer_requirement" : "f"
   } ]
 }

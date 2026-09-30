@@ -237,7 +237,9 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
             rows.size(),
             columnCount,
             drilldownCount);
-    return new StatisticBoardResponse(definition, appliedFilters(filters, effectiveFilterGroup), effectiveFilterGroup, rows, meta);
+    return new StatisticBoardResponse(definition, appliedFilters(filters, effectiveFilterGroup), effectiveFilterGroup, rows, meta,
+        null,
+        null);
   }
 
   @Override

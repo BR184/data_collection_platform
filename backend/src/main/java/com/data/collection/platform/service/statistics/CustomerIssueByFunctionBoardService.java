@@ -212,7 +212,9 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
             System.currentTimeMillis() - startedAt,
             rows.size(),
             columnCount,
-            drilldownCount));
+            drilldownCount),
+        null,
+        null);
   }
 
   @Override

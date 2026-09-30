@@ -359,7 +359,9 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
             System.currentTimeMillis() - startedAt,
             rows.size(),
             columnCount,
-            drilldownCount));
+            drilldownCount),
+        null,
+        null);
   }
 
   @Override

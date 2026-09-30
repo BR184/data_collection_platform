@@ -241,7 +241,9 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
         appliedFilters(filters, effectiveFilterGroup),
         effectiveFilterGroup,
         rows,
-        meta);
+        meta,
+        null,
+        null);
   }
 
   @Override

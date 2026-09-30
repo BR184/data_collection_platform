@@ -1,0 +1,1161 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "scopeKey" : "CC2026R3",
+    "sourceVersion" : "fact-projection:v1:10e48c775d731d1001e598b7033308161d37e80a762d4bdc46af3c6aa4f0fbc2",
+    "scopeReadable" : true,
+    "reason" : "",
+    "groups" : [ {
+      "key" : "customer",
+      "options" : [ {
+        "kind" : "VALUE",
+        "value" : "702所",
+        "label" : "702所"
+      }, {
+        "kind" : "VALUE",
+        "value" : "三雄极光",
+        "label" : "三雄极光"
+      }, {
+        "kind" : "VALUE",
+        "value" : "上海索迪龙",
+        "label" : "上海索迪龙"
+      }, {
+        "kind" : "VALUE",
+        "value" : "世润重工",
+        "label" : "世润重工"
+      }, {
+        "kind" : "VALUE",
+        "value" : "东亚电子",
+        "label" : "东亚电子"
+      }, {
+        "kind" : "VALUE",
+        "value" : "中正金码",
+        "label" : "中正金码"
+      }, {
+        "kind" : "VALUE",
+        "value" : "久驰",
+        "label" : "久驰"
+      }, {
+        "kind" : "VALUE",
+        "value" : "二重石化",
+        "label" : "二重石化"
+      }, {
+        "kind" : "VALUE",
+        "value" : "优云智能",
+        "label" : "优云智能"
+      }, {
+        "kind" : "VALUE",
+        "value" : "优迈科",
+        "label" : "优迈科"
+      }, {
+        "kind" : "VALUE",
+        "value" : "公网",
+        "label" : "公网"
+      }, {
+        "kind" : "VALUE",
+        "value" : "公网用户",
+        "label" : "公网用户"
+      }, {
+        "kind" : "VALUE",
+        "value" : "公网自测",
+        "label" : "公网自测"
+      }, {
+        "kind" : "VALUE",
+        "value" : "北元电器",
+        "label" : "北元电器"
+      }, {
+        "kind" : "VALUE",
+        "value" : "北航杨教授",
+        "label" : "北航杨教授"
+      }, {
+        "kind" : "VALUE",
+        "value" : "南京威盾",
+        "label" : "南京威盾"
+      }, {
+        "kind" : "VALUE",
+        "value" : "博诚",
+        "label" : "博诚"
+      }, {
+        "kind" : "VALUE",
+        "value" : "售前",
+        "label" : "售前"
+      }, {
+        "kind" : "VALUE",
+        "value" : "售前自测",
+        "label" : "售前自测"
+      }, {
+        "kind" : "VALUE",
+        "value" : "售前（何彦田）",
+        "label" : "售前（何彦田）"
+      }, {
+        "kind" : "VALUE",
+        "value" : "埃夫特机器人",
+        "label" : "埃夫特机器人"
+      }, {
+        "kind" : "VALUE",
+        "value" : "复洁环保",
+        "label" : "复洁环保"
+      }, {
+        "kind" : "VALUE",
+        "value" : "大图数控",
+        "label" : "大图数控"
+      }, {
+        "kind" : "VALUE",
+        "value" : "奕隆机电",
+        "label" : "奕隆机电"
+      }, {
+        "kind" : "VALUE",
+        "value" : "宝仓机械",
+        "label" : "宝仓机械"
+      }, {
+        "kind" : "VALUE",
+        "value" : "宝利根",
+        "label" : "宝利根"
+      }, {
+        "kind" : "VALUE",
+        "value" : "宝钢轧辊",
+        "label" : "宝钢轧辊"
+      }, {
+        "kind" : "VALUE",
+        "value" : "山东重矿冶金",
+        "label" : "山东重矿冶金"
+      }, {
+        "kind" : "VALUE",
+        "value" : "巨力索具",
+        "label" : "巨力索具"
+      }, {
+        "kind" : "VALUE",
+        "value" : "巨力索具（苏健反馈）",
+        "label" : "巨力索具（苏健反馈）"
+      }, {
+        "kind" : "VALUE",
+        "value" : "巨明机械",
+        "label" : "巨明机械"
+      }, {
+        "kind" : "VALUE",
+        "value" : "康派斯",
+        "label" : "康派斯"
+      }, {
+        "kind" : "VALUE",
+        "value" : "思微传感（史思源反馈）",
+        "label" : "思微传感（史思源反馈）"
+      }, {
+        "kind" : "VALUE",
+        "value" : "思议",
+        "label" : "思议"
+      }, {
+        "kind" : "VALUE",
+        "value" : "恒翼能",
+        "label" : "恒翼能"
+      }, {
+        "kind" : "VALUE",
+        "value" : "恒隆汽车",
+        "label" : "恒隆汽车"
+      }, {
+        "kind" : "VALUE",
+        "value" : "新佰人",
+        "label" : "新佰人"
+      }, {
+        "kind" : "VALUE",
+        "value" : "普源精电",
+        "label" : "普源精电"
+      }, {
+        "kind" : "VALUE",
+        "value" : "普鲁特",
+        "label" : "普鲁特"
+      }, {
+        "kind" : "VALUE",
+        "value" : "朗夫（滕倩倩反馈）",
+        "label" : "朗夫（滕倩倩反馈）"
+      }, {
+        "kind" : "VALUE",
+        "value" : "极目数字",
+        "label" : "极目数字"
+      }, {
+        "kind" : "VALUE",
+        "value" : "毅阳环保（史思源反馈）",
+        "label" : "毅阳环保（史思源反馈）"
+      }, {
+        "kind" : "VALUE",
+        "value" : "江苏沃能",
+        "label" : "江苏沃能"
+      }, {
+        "kind" : "VALUE",
+        "value" : "江苏沃能高压",
+        "label" : "江苏沃能高压"
+      }, {
+        "kind" : "VALUE",
+        "value" : "沃达重工",
+        "label" : "沃达重工"
+      }, {
+        "kind" : "VALUE",
+        "value" : "沐程重工",
+        "label" : "沐程重工"
+      }, {
+        "kind" : "VALUE",
+        "value" : "派斯",
+        "label" : "派斯"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海外业务部",
+        "label" : "海外业务部"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海外伙伴-oncad",
+        "label" : "海外伙伴-oncad"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海外售前",
+        "label" : "海外售前"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海外版",
+        "label" : "海外版"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海外版售前",
+        "label" : "海外版售前"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海德馨",
+        "label" : "海德馨"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海景模具",
+        "label" : "海景模具"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海洋工程",
+        "label" : "海洋工程"
+      }, {
+        "kind" : "VALUE",
+        "value" : "湖南德信汽车",
+        "label" : "湖南德信汽车"
+      }, {
+        "kind" : "VALUE",
+        "value" : "激光微点",
+        "label" : "激光微点"
+      }, {
+        "kind" : "VALUE",
+        "value" : "爱沛可尔",
+        "label" : "爱沛可尔"
+      }, {
+        "kind" : "VALUE",
+        "value" : "立讯",
+        "label" : "立讯"
+      }, {
+        "kind" : "VALUE",
+        "value" : "章丘路桥（许明磊反馈）",
+        "label" : "章丘路桥（许明磊反馈）"
+      }, {
+        "kind" : "VALUE",
+        "value" : "美瑞安",
+        "label" : "美瑞安"
+      }, {
+        "kind" : "VALUE",
+        "value" : "自测",
+        "label" : "自测"
+      }, {
+        "kind" : "VALUE",
+        "value" : "航天世源",
+        "label" : "航天世源"
+      }, {
+        "kind" : "VALUE",
+        "value" : "航天精密",
+        "label" : "航天精密"
+      }, {
+        "kind" : "VALUE",
+        "value" : "艾奇诺",
+        "label" : "艾奇诺"
+      }, {
+        "kind" : "VALUE",
+        "value" : "艾奇诺（苏杰华反馈）",
+        "label" : "艾奇诺（苏杰华反馈）"
+      }, {
+        "kind" : "VALUE",
+        "value" : "若即见",
+        "label" : "若即见"
+      }, {
+        "kind" : "VALUE",
+        "value" : "蕴杰金属",
+        "label" : "蕴杰金属"
+      }, {
+        "kind" : "VALUE",
+        "value" : "设备工艺55所",
+        "label" : "设备工艺55所"
+      }, {
+        "kind" : "VALUE",
+        "value" : "贝尔教育",
+        "label" : "贝尔教育"
+      }, {
+        "kind" : "VALUE",
+        "value" : "辰致科技",
+        "label" : "辰致科技"
+      }, {
+        "kind" : "VALUE",
+        "value" : "迈次工业",
+        "label" : "迈次工业"
+      }, {
+        "kind" : "VALUE",
+        "value" : "郑州新世纪",
+        "label" : "郑州新世纪"
+      }, {
+        "kind" : "VALUE",
+        "value" : "金晖隆",
+        "label" : "金晖隆"
+      }, {
+        "kind" : "VALUE",
+        "value" : "锐智智能",
+        "label" : "锐智智能"
+      }, {
+        "kind" : "VALUE",
+        "value" : "闽之宇阀业",
+        "label" : "闽之宇阀业"
+      }, {
+        "kind" : "VALUE",
+        "value" : "震序车船",
+        "label" : "震序车船"
+      }, {
+        "kind" : "VALUE",
+        "value" : "马伟南个人用户",
+        "label" : "马伟南个人用户"
+      }, {
+        "kind" : "VALUE",
+        "value" : "高逸汽车",
+        "label" : "高逸汽车"
+      } ]
+    }, {
+      "key" : "module",
+      "options" : [ {
+        "kind" : "VALUE",
+        "value" : "BOM",
+        "label" : "BOM"
+      }, {
+        "kind" : "VALUE",
+        "value" : "MBD",
+        "label" : "MBD"
+      }, {
+        "kind" : "VALUE",
+        "value" : "二次开发",
+        "label" : "二次开发"
+      }, {
+        "kind" : "VALUE",
+        "value" : "企业版",
+        "label" : "企业版"
+      }, {
+        "kind" : "VALUE",
+        "value" : "协同",
+        "label" : "协同"
+      }, {
+        "kind" : "VALUE",
+        "value" : "实体算法",
+        "label" : "实体算法"
+      }, {
+        "kind" : "VALUE",
+        "value" : "工具",
+        "label" : "工具"
+      }, {
+        "kind" : "VALUE",
+        "value" : "工程图",
+        "label" : "工程图"
+      }, {
+        "kind" : "VALUE",
+        "value" : "平台",
+        "label" : "平台"
+      }, {
+        "kind" : "VALUE",
+        "value" : "库",
+        "label" : "库"
+      }, {
+        "kind" : "VALUE",
+        "value" : "快速设计",
+        "label" : "快速设计"
+      }, {
+        "kind" : "VALUE",
+        "value" : "数据交换",
+        "label" : "数据交换"
+      }, {
+        "kind" : "VALUE",
+        "value" : "曲线曲面",
+        "label" : "曲线曲面"
+      }, {
+        "kind" : "VALUE",
+        "value" : "渲染",
+        "label" : "渲染"
+      }, {
+        "kind" : "VALUE",
+        "value" : "点云",
+        "label" : "点云"
+      }, {
+        "kind" : "VALUE",
+        "value" : "焊件",
+        "label" : "焊件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "特征",
+        "label" : "特征"
+      }, {
+        "kind" : "VALUE",
+        "value" : "管路",
+        "label" : "管路"
+      }, {
+        "kind" : "VALUE",
+        "value" : "草图",
+        "label" : "草图"
+      }, {
+        "kind" : "VALUE",
+        "value" : "装配",
+        "label" : "装配"
+      }, {
+        "kind" : "VALUE",
+        "value" : "设置",
+        "label" : "设置"
+      }, {
+        "kind" : "VALUE",
+        "value" : "评估",
+        "label" : "评估"
+      }, {
+        "kind" : "VALUE",
+        "value" : "钣金",
+        "label" : "钣金"
+      }, {
+        "kind" : "VALUE",
+        "value" : "项目文档",
+        "label" : "项目文档"
+      }, {
+        "kind" : "MISSING",
+        "value" : "",
+        "label" : "未标注模块"
+      } ]
+    }, {
+      "key" : "function",
+      "options" : [ {
+        "kind" : "VALUE",
+        "value" : "BOM",
+        "label" : "BOM"
+      }, {
+        "kind" : "VALUE",
+        "value" : "BOM工具",
+        "label" : "BOM工具"
+      }, {
+        "kind" : "VALUE",
+        "value" : "MBD",
+        "label" : "MBD"
+      }, {
+        "kind" : "VALUE",
+        "value" : "二次开发",
+        "label" : "二次开发"
+      }, {
+        "kind" : "VALUE",
+        "value" : "以三重轴移动",
+        "label" : "以三重轴移动"
+      }, {
+        "kind" : "VALUE",
+        "value" : "任务",
+        "label" : "任务"
+      }, {
+        "kind" : "VALUE",
+        "value" : "企业库",
+        "label" : "企业库"
+      }, {
+        "kind" : "VALUE",
+        "value" : "保存",
+        "label" : "保存"
+      }, {
+        "kind" : "VALUE",
+        "value" : "修订表",
+        "label" : "修订表"
+      }, {
+        "kind" : "VALUE",
+        "value" : "倒角",
+        "label" : "倒角"
+      }, {
+        "kind" : "VALUE",
+        "value" : "公开模式",
+        "label" : "公开模式"
+      }, {
+        "kind" : "VALUE",
+        "value" : "分享",
+        "label" : "分享"
+      }, {
+        "kind" : "VALUE",
+        "value" : "分享链接",
+        "label" : "分享链接"
+      }, {
+        "kind" : "VALUE",
+        "value" : "分割",
+        "label" : "分割"
+      }, {
+        "kind" : "VALUE",
+        "value" : "分支与节点",
+        "label" : "分支与节点"
+      }, {
+        "kind" : "VALUE",
+        "value" : "切割清单",
+        "label" : "切割清单"
+      }, {
+        "kind" : "VALUE",
+        "value" : "切换视口",
+        "label" : "切换视口"
+      }, {
+        "kind" : "VALUE",
+        "value" : "创建新文件夹",
+        "label" : "创建新文件夹"
+      }, {
+        "kind" : "VALUE",
+        "value" : "删除",
+        "label" : "删除"
+      }, {
+        "kind" : "VALUE",
+        "value" : "删除面",
+        "label" : "删除面"
+      }, {
+        "kind" : "VALUE",
+        "value" : "前导工具栏",
+        "label" : "前导工具栏"
+      }, {
+        "kind" : "VALUE",
+        "value" : "包覆",
+        "label" : "包覆"
+      }, {
+        "kind" : "VALUE",
+        "value" : "取消回滚",
+        "label" : "取消回滚"
+      }, {
+        "kind" : "VALUE",
+        "value" : "变换",
+        "label" : "变换"
+      }, {
+        "kind" : "VALUE",
+        "value" : "变换零部件",
+        "label" : "变换零部件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "变量管理",
+        "label" : "变量管理"
+      }, {
+        "kind" : "VALUE",
+        "value" : "另存为模板",
+        "label" : "另存为模板"
+      }, {
+        "kind" : "VALUE",
+        "value" : "右键",
+        "label" : "右键"
+      }, {
+        "kind" : "VALUE",
+        "value" : "后台管理",
+        "label" : "后台管理"
+      }, {
+        "kind" : "VALUE",
+        "value" : "后台管理系统",
+        "label" : "后台管理系统"
+      }, {
+        "kind" : "VALUE",
+        "value" : "命令框",
+        "label" : "命令框"
+      }, {
+        "kind" : "VALUE",
+        "value" : "回收站",
+        "label" : "回收站"
+      }, {
+        "kind" : "VALUE",
+        "value" : "回滚线",
+        "label" : "回滚线"
+      }, {
+        "kind" : "VALUE",
+        "value" : "团队",
+        "label" : "团队"
+      }, {
+        "kind" : "VALUE",
+        "value" : "图像品质",
+        "label" : "图像品质"
+      }, {
+        "kind" : "VALUE",
+        "value" : "图层管理器",
+        "label" : "图层管理器"
+      }, {
+        "kind" : "VALUE",
+        "value" : "图标",
+        "label" : "图标"
+      }, {
+        "kind" : "VALUE",
+        "value" : "图纸属性",
+        "label" : "图纸属性"
+      }, {
+        "kind" : "VALUE",
+        "value" : "圆周阵列",
+        "label" : "圆周阵列"
+      }, {
+        "kind" : "VALUE",
+        "value" : "圆柱齿轮/圆锥齿轮",
+        "label" : "圆柱齿轮/圆锥齿轮"
+      }, {
+        "kind" : "VALUE",
+        "value" : "圆角",
+        "label" : "圆角"
+      }, {
+        "kind" : "VALUE",
+        "value" : "复制",
+        "label" : "复制"
+      }, {
+        "kind" : "VALUE",
+        "value" : "外部参考",
+        "label" : "外部参考"
+      }, {
+        "kind" : "VALUE",
+        "value" : "多标签页",
+        "label" : "多标签页"
+      }, {
+        "kind" : "VALUE",
+        "value" : "大装配打开",
+        "label" : "大装配打开"
+      }, {
+        "kind" : "VALUE",
+        "value" : "孔对齐",
+        "label" : "孔对齐"
+      }, {
+        "kind" : "VALUE",
+        "value" : "孔标注",
+        "label" : "孔标注"
+      }, {
+        "kind" : "VALUE",
+        "value" : "孔表",
+        "label" : "孔表"
+      }, {
+        "kind" : "VALUE",
+        "value" : "字体",
+        "label" : "字体"
+      }, {
+        "kind" : "VALUE",
+        "value" : "存档模式",
+        "label" : "存档模式"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导入",
+        "label" : "导入"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导入/导出",
+        "label" : "导入/导出"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导入CrownCAD文件",
+        "label" : "导入CrownCAD文件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导入文件",
+        "label" : "导入文件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导入文件夹",
+        "label" : "导入文件夹"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导入程序",
+        "label" : "导入程序"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导出",
+        "label" : "导出"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导出DWG/DXF",
+        "label" : "导出DWG/DXF"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导出pdf",
+        "label" : "导出pdf"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导出至本地",
+        "label" : "导出至本地"
+      }, {
+        "kind" : "VALUE",
+        "value" : "尺寸标注",
+        "label" : "尺寸标注"
+      }, {
+        "kind" : "VALUE",
+        "value" : "尺寸约束",
+        "label" : "尺寸约束"
+      }, {
+        "kind" : "VALUE",
+        "value" : "展平",
+        "label" : "展平"
+      }, {
+        "kind" : "VALUE",
+        "value" : "属性面板",
+        "label" : "属性面板"
+      }, {
+        "kind" : "VALUE",
+        "value" : "工具",
+        "label" : "工具"
+      }, {
+        "kind" : "VALUE",
+        "value" : "工程图",
+        "label" : "工程图"
+      }, {
+        "kind" : "VALUE",
+        "value" : "工程图模板",
+        "label" : "工程图模板"
+      }, {
+        "kind" : "VALUE",
+        "value" : "布尔运算",
+        "label" : "布尔运算"
+      }, {
+        "kind" : "VALUE",
+        "value" : "干涉检查",
+        "label" : "干涉检查"
+      }, {
+        "kind" : "VALUE",
+        "value" : "平台",
+        "label" : "平台"
+      }, {
+        "kind" : "VALUE",
+        "value" : "库",
+        "label" : "库"
+      }, {
+        "kind" : "VALUE",
+        "value" : "延伸",
+        "label" : "延伸"
+      }, {
+        "kind" : "VALUE",
+        "value" : "延展曲面",
+        "label" : "延展曲面"
+      }, {
+        "kind" : "VALUE",
+        "value" : "异型孔向导",
+        "label" : "异型孔向导"
+      }, {
+        "kind" : "VALUE",
+        "value" : "录制宏",
+        "label" : "录制宏"
+      }, {
+        "kind" : "VALUE",
+        "value" : "形位公差",
+        "label" : "形位公差"
+      }, {
+        "kind" : "VALUE",
+        "value" : "快捷键",
+        "label" : "快捷键"
+      }, {
+        "kind" : "VALUE",
+        "value" : "总表",
+        "label" : "总表"
+      }, {
+        "kind" : "VALUE",
+        "value" : "打包",
+        "label" : "打包"
+      }, {
+        "kind" : "VALUE",
+        "value" : "打印",
+        "label" : "打印"
+      }, {
+        "kind" : "VALUE",
+        "value" : "打印/导出",
+        "label" : "打印/导出"
+      }, {
+        "kind" : "VALUE",
+        "value" : "打开",
+        "label" : "打开"
+      }, {
+        "kind" : "VALUE",
+        "value" : "打开工程图",
+        "label" : "打开工程图"
+      }, {
+        "kind" : "VALUE",
+        "value" : "扫描切除",
+        "label" : "扫描切除"
+      }, {
+        "kind" : "VALUE",
+        "value" : "扫描曲面",
+        "label" : "扫描曲面"
+      }, {
+        "kind" : "VALUE",
+        "value" : "扫描法兰",
+        "label" : "扫描法兰"
+      }, {
+        "kind" : "VALUE",
+        "value" : "批量修改属性",
+        "label" : "批量修改属性"
+      }, {
+        "kind" : "VALUE",
+        "value" : "折弯系数表",
+        "label" : "折弯系数表"
+      }, {
+        "kind" : "VALUE",
+        "value" : "拉伸凸台",
+        "label" : "拉伸凸台"
+      }, {
+        "kind" : "VALUE",
+        "value" : "拉伸凸台/基体",
+        "label" : "拉伸凸台/基体"
+      }, {
+        "kind" : "VALUE",
+        "value" : "拉伸切除",
+        "label" : "拉伸切除"
+      }, {
+        "kind" : "VALUE",
+        "value" : "拔模",
+        "label" : "拔模"
+      }, {
+        "kind" : "VALUE",
+        "value" : "拖拽",
+        "label" : "拖拽"
+      }, {
+        "kind" : "VALUE",
+        "value" : "提示未适配",
+        "label" : "提示未适配"
+      }, {
+        "kind" : "VALUE",
+        "value" : "插入到新零件",
+        "label" : "插入到新零件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "插入图片",
+        "label" : "插入图片"
+      }, {
+        "kind" : "VALUE",
+        "value" : "插入零件或装配",
+        "label" : "插入零件或装配"
+      }, {
+        "kind" : "VALUE",
+        "value" : "搜索",
+        "label" : "搜索"
+      }, {
+        "kind" : "VALUE",
+        "value" : "放样曲面",
+        "label" : "放样曲面"
+      }, {
+        "kind" : "VALUE",
+        "value" : "效率",
+        "label" : "效率"
+      }, {
+        "kind" : "VALUE",
+        "value" : "数据",
+        "label" : "数据"
+      }, {
+        "kind" : "VALUE",
+        "value" : "数据交换",
+        "label" : "数据交换"
+      }, {
+        "kind" : "VALUE",
+        "value" : "文档列表",
+        "label" : "文档列表"
+      }, {
+        "kind" : "VALUE",
+        "value" : "文档加载",
+        "label" : "文档加载"
+      }, {
+        "kind" : "VALUE",
+        "value" : "文档属性",
+        "label" : "文档属性"
+      }, {
+        "kind" : "VALUE",
+        "value" : "文档管理",
+        "label" : "文档管理"
+      }, {
+        "kind" : "VALUE",
+        "value" : "文档页面",
+        "label" : "文档页面"
+      }, {
+        "kind" : "VALUE",
+        "value" : "新建工程图",
+        "label" : "新建工程图"
+      }, {
+        "kind" : "VALUE",
+        "value" : "智能尺寸",
+        "label" : "智能尺寸"
+      }, {
+        "kind" : "VALUE",
+        "value" : "智能扣件",
+        "label" : "智能扣件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "曲线阵列",
+        "label" : "曲线阵列"
+      }, {
+        "kind" : "VALUE",
+        "value" : "更改透明度",
+        "label" : "更改透明度"
+      }, {
+        "kind" : "VALUE",
+        "value" : "替换零部件",
+        "label" : "替换零部件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "材料明细表",
+        "label" : "材料明细表"
+      }, {
+        "kind" : "VALUE",
+        "value" : "材质库",
+        "label" : "材质库"
+      }, {
+        "kind" : "VALUE",
+        "value" : "柔性零件",
+        "label" : "柔性零件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "查重",
+        "label" : "查重"
+      }, {
+        "kind" : "VALUE",
+        "value" : "标准件",
+        "label" : "标准件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "标尺",
+        "label" : "标尺"
+      }, {
+        "kind" : "VALUE",
+        "value" : "标题栏",
+        "label" : "标题栏"
+      }, {
+        "kind" : "VALUE",
+        "value" : "检入",
+        "label" : "检入"
+      }, {
+        "kind" : "VALUE",
+        "value" : "模型视图",
+        "label" : "模型视图"
+      }, {
+        "kind" : "VALUE",
+        "value" : "模板",
+        "label" : "模板"
+      }, {
+        "kind" : "VALUE",
+        "value" : "模板管理",
+        "label" : "模板管理"
+      }, {
+        "kind" : "VALUE",
+        "value" : "正交切除",
+        "label" : "正交切除"
+      }, {
+        "kind" : "VALUE",
+        "value" : "注释",
+        "label" : "注释"
+      }, {
+        "kind" : "VALUE",
+        "value" : "测量",
+        "label" : "测量"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海外版",
+        "label" : "海外版"
+      }, {
+        "kind" : "VALUE",
+        "value" : "消除特征",
+        "label" : "消除特征"
+      }, {
+        "kind" : "VALUE",
+        "value" : "添加约束",
+        "label" : "添加约束"
+      }, {
+        "kind" : "VALUE",
+        "value" : "滚动条",
+        "label" : "滚动条"
+      }, {
+        "kind" : "VALUE",
+        "value" : "焊件切割清单模板",
+        "label" : "焊件切割清单模板"
+      }, {
+        "kind" : "VALUE",
+        "value" : "焊接边角",
+        "label" : "焊接边角"
+      }, {
+        "kind" : "VALUE",
+        "value" : "版本分支",
+        "label" : "版本分支"
+      }, {
+        "kind" : "VALUE",
+        "value" : "界面操作",
+        "label" : "界面操作"
+      }, {
+        "kind" : "VALUE",
+        "value" : "知识库",
+        "label" : "知识库"
+      }, {
+        "kind" : "VALUE",
+        "value" : "移动",
+        "label" : "移动"
+      }, {
+        "kind" : "VALUE",
+        "value" : "移动面",
+        "label" : "移动面"
+      }, {
+        "kind" : "VALUE",
+        "value" : "管路BOM",
+        "label" : "管路BOM"
+      }, {
+        "kind" : "VALUE",
+        "value" : "系统语言",
+        "label" : "系统语言"
+      }, {
+        "kind" : "VALUE",
+        "value" : "线型",
+        "label" : "线型"
+      }, {
+        "kind" : "VALUE",
+        "value" : "结构构件",
+        "label" : "结构构件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "统计折弯次数",
+        "label" : "统计折弯次数"
+      }, {
+        "kind" : "VALUE",
+        "value" : "编辑零部件",
+        "label" : "编辑零部件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "翻译",
+        "label" : "翻译"
+      }, {
+        "kind" : "VALUE",
+        "value" : "草图",
+        "label" : "草图"
+      }, {
+        "kind" : "VALUE",
+        "value" : "草绘折弯",
+        "label" : "草绘折弯"
+      }, {
+        "kind" : "VALUE",
+        "value" : "表格",
+        "label" : "表格"
+      }, {
+        "kind" : "VALUE",
+        "value" : "装配",
+        "label" : "装配"
+      }, {
+        "kind" : "VALUE",
+        "value" : "装配特征",
+        "label" : "装配特征"
+      }, {
+        "kind" : "VALUE",
+        "value" : "装饰螺纹线",
+        "label" : "装饰螺纹线"
+      }, {
+        "kind" : "VALUE",
+        "value" : "褶边",
+        "label" : "褶边"
+      }, {
+        "kind" : "VALUE",
+        "value" : "视图定向",
+        "label" : "视图定向"
+      }, {
+        "kind" : "VALUE",
+        "value" : "视图工具栏",
+        "label" : "视图工具栏"
+      }, {
+        "kind" : "VALUE",
+        "value" : "视图面板",
+        "label" : "视图面板"
+      }, {
+        "kind" : "VALUE",
+        "value" : "角撑板",
+        "label" : "角撑板"
+      }, {
+        "kind" : "VALUE",
+        "value" : "跳转",
+        "label" : "跳转"
+      }, {
+        "kind" : "VALUE",
+        "value" : "转换边界",
+        "label" : "转换边界"
+      }, {
+        "kind" : "VALUE",
+        "value" : "输入框",
+        "label" : "输入框"
+      }, {
+        "kind" : "VALUE",
+        "value" : "边界曲面",
+        "label" : "边界曲面"
+      }, {
+        "kind" : "VALUE",
+        "value" : "边线法兰",
+        "label" : "边线法兰"
+      }, {
+        "kind" : "VALUE",
+        "value" : "边角释放槽",
+        "label" : "边角释放槽"
+      }, {
+        "kind" : "VALUE",
+        "value" : "返回",
+        "label" : "返回"
+      }, {
+        "kind" : "VALUE",
+        "value" : "退出编辑零部件",
+        "label" : "退出编辑零部件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "退出草图",
+        "label" : "退出草图"
+      }, {
+        "kind" : "VALUE",
+        "value" : "适配",
+        "label" : "适配"
+      }, {
+        "kind" : "VALUE",
+        "value" : "适配测试",
+        "label" : "适配测试"
+      }, {
+        "kind" : "VALUE",
+        "value" : "配合",
+        "label" : "配合"
+      }, {
+        "kind" : "VALUE",
+        "value" : "重命名",
+        "label" : "重命名"
+      }, {
+        "kind" : "VALUE",
+        "value" : "重建",
+        "label" : "重建"
+      }, {
+        "kind" : "VALUE",
+        "value" : "重装",
+        "label" : "重装"
+      }, {
+        "kind" : "VALUE",
+        "value" : "链接分享",
+        "label" : "链接分享"
+      }, {
+        "kind" : "VALUE",
+        "value" : "镜像",
+        "label" : "镜像"
+      }, {
+        "kind" : "VALUE",
+        "value" : "阵列",
+        "label" : "阵列"
+      }, {
+        "kind" : "VALUE",
+        "value" : "限制距离",
+        "label" : "限制距离"
+      }, {
+        "kind" : "VALUE",
+        "value" : "随配合复制",
+        "label" : "随配合复制"
+      }, {
+        "kind" : "VALUE",
+        "value" : "零件属性",
+        "label" : "零件属性"
+      }, {
+        "kind" : "VALUE",
+        "value" : "项目列表",
+        "label" : "项目列表"
+      }, {
+        "kind" : "VALUE",
+        "value" : "项目折叠",
+        "label" : "项目折叠"
+      }, {
+        "kind" : "VALUE",
+        "value" : "项目文档",
+        "label" : "项目文档"
+      }, {
+        "kind" : "VALUE",
+        "value" : "项目管理",
+        "label" : "项目管理"
+      } ]
+    } ]
+  }
+}

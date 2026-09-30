@@ -2,8 +2,21 @@ package com.data.collection.platform.security;
 
 public final class PlatformPermissionCodes {
   public static final String BUSINESS_DATA_REFRESH = "business_data.refresh";
-  public static final String BI_DASHBOARD_VIEW = "bi.dashboard.view";
-  public static final String BI_DASHBOARD_DOWNLOAD = "bi.dashboard.download";
+  // BI 看板按页面拆分：每个页面各自持有查看与下载权限，与统计板 view/export 成对范式一致。
+  public static final String BI_DASHBOARD_REQUIREMENTS_VIEW = "bi.dashboard.requirements.view";
+  public static final String BI_DASHBOARD_REQUIREMENTS_DOWNLOAD = "bi.dashboard.requirements.download";
+  public static final String BI_DASHBOARD_DESIGN_VIEW = "bi.dashboard.design.view";
+  public static final String BI_DASHBOARD_DESIGN_DOWNLOAD = "bi.dashboard.design.download";
+  public static final String BI_DASHBOARD_CODING_VIEW = "bi.dashboard.coding.view";
+  public static final String BI_DASHBOARD_CODING_DOWNLOAD = "bi.dashboard.coding.download";
+  public static final String BI_DASHBOARD_UNIT_TEST_VIEW = "bi.dashboard.unit_test.view";
+  public static final String BI_DASHBOARD_UNIT_TEST_DOWNLOAD = "bi.dashboard.unit_test.download";
+  public static final String BI_DASHBOARD_INTEGRATION_TEST_VIEW = "bi.dashboard.integration_test.view";
+  public static final String BI_DASHBOARD_INTEGRATION_TEST_DOWNLOAD = "bi.dashboard.integration_test.download";
+  public static final String BI_DASHBOARD_SYSTEM_TEST_VIEW = "bi.dashboard.system_test.view";
+  public static final String BI_DASHBOARD_SYSTEM_TEST_DOWNLOAD = "bi.dashboard.system_test.download";
+  public static final String BI_DASHBOARD_CUSTOMER_ISSUES_VIEW = "bi.dashboard.customer_issues.view";
+  public static final String BI_DASHBOARD_CUSTOMER_ISSUES_DOWNLOAD = "bi.dashboard.customer_issues.download";
   public static final String REVIEW_DATA_VIEW = "review.data.view";
   public static final String REVIEW_RECORD_CREATE = "review.record.create";
   public static final String REVIEW_RECORD_EDIT = "review.record.edit";

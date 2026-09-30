@@ -23,7 +23,9 @@ class SystemTestLegacyWorkbookExportSupportTest {
                 cell("p2_close_rate", "50.00"),
                 cell("p3_close_rate", "25.00")));
     StatisticBoardResponse response =
-        new StatisticBoardResponse(null, Map.of(), null, List.of(row), null);
+        new StatisticBoardResponse(null, Map.of(), null, List.of(row), null,
+        null,
+        null);
 
     byte[] content = SystemTestLegacyWorkbookExportSupport.exportDefectSummary(response);
 

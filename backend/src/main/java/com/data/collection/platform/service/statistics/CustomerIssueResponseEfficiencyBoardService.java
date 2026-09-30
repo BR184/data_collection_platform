@@ -238,7 +238,9 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
             System.currentTimeMillis() - startedAt,
             rows.size(),
             columnCount,
-            drilldownCount));
+            drilldownCount),
+        null,
+        null);
   }
 
   @Override

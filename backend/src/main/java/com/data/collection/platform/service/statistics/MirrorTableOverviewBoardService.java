@@ -104,7 +104,9 @@ public class MirrorTableOverviewBoardService extends AbstractStatisticBoardServi
             boardRows.size(),
             columnCount,
             drilldownColumnCount);
-    return new StatisticBoardResponse(definition, appliedFilters, filterGroup, boardRows, meta);
+    return new StatisticBoardResponse(definition, appliedFilters, filterGroup, boardRows, meta,
+        null,
+        null);
   }
 
   @Override

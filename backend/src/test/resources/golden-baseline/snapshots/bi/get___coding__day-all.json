@@ -5,10 +5,10 @@
   "data" : {
     "pageKey" : "coding",
     "status" : "INCOMPLETE",
-    "sourceVersion" : "compatibility:fact-projection:v1:0f9e035c7c22fbb16e40d395cfabc033e89665e7e8686340effde7607aaa2421|match:30508:2026-08-20T16:23:45.999083|review:compatibility|commits:merge-request-commits:6995:2026-09-16T16:49:03.004744",
-    "snapshotId" : "compatibility:fact-projection:v1:0f9e035c7c22fbb16e40d395cfabc033e89665e7e8686340effde7607aaa2421|match:30508:2026-08-20T16:23:45.999083|review:compatibility|commits:merge-request-commits:6995:2026-09-16T16:49:03.004744",
+    "sourceVersion" : "compatibility:fact-projection:v1:0f9e035c7c22fbb16e40d395cfabc033e89665e7e8686340effde7607aaa2421|match:30508:2026-08-20T16:23:45.999083|review:compatibility|commits:merge-request-commits:6995:2026-09-29T12:44:37.090438",
+    "snapshotId" : "compatibility:fact-projection:v1:0f9e035c7c22fbb16e40d395cfabc033e89665e7e8686340effde7607aaa2421|match:30508:2026-08-20T16:23:45.999083|review:compatibility|commits:merge-request-commits:6995:2026-09-29T12:44:37.090438",
     "ruleVersion" : "bi-coding-v5",
-    "generatedAt" : "2026-09-16T16:52:10.9957513+08:00",
+    "generatedAt" : "2026-09-29T12:47:49.6568278+08:00",
     "sections" : [ {
       "key" : "source-consistency",
       "label" : "来源一致性",

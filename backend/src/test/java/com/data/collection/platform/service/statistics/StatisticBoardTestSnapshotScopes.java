@@ -19,7 +19,7 @@ final class StatisticBoardTestSnapshotScopes {
   /** 快照服务桩执行一致性边界动作时使用的读取上下文。 */
   static StatisticBoardSnapshotService.SourceRead testSourceRead() {
     return new StatisticBoardSnapshotService.SourceRead(
-        defaultProjectScopeSet(), "test-source-version");
+        defaultProjectScopeSet(), "test-source-version", 0L);
   }
 
   static Set<FactProjectionScope> defaultProjectScopeSet() {

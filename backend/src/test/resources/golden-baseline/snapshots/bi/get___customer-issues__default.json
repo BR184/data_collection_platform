@@ -1,0 +1,3364 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "pageKey" : "customer-issues",
+    "status" : "READY",
+    "sourceVersion" : "fact-projection:v1:10e48c775d731d1001e598b7033308161d37e80a762d4bdc46af3c6aa4f0fbc2",
+    "snapshotId" : "fact-projection:v1:10e48c775d731d1001e598b7033308161d37e80a762d4bdc46af3c6aa4f0fbc2",
+    "ruleVersion" : "customer-issue-bi@2026-09-24-v1",
+    "generatedAt" : "2026-09-29T12:47:50.5465371+08:00",
+    "sections" : [ {
+      "key" : "source-consistency",
+      "label" : "来源一致性",
+      "status" : "READY",
+      "message" : "来源资格、版本和事实在同一只读一致性事务内读取。"
+    }, {
+      "key" : "defect-overview",
+      "label" : "缺陷指标",
+      "status" : "READY",
+      "message" : "缺陷指标按完整议题身份去重。"
+    }, {
+      "key" : "today-activity",
+      "label" : "今日活动",
+      "status" : "READY",
+      "message" : "今日指标使用本次固定业务日和半开自然日边界。"
+    }, {
+      "key" : "module-defects",
+      "label" : "模块缺陷",
+      "status" : "READY",
+      "message" : "图表使用完整范围数据，显示缩放不裁剪导出数据。"
+    }, {
+      "key" : "severity-distribution",
+      "label" : "缺陷级别分布",
+      "status" : "READY",
+      "message" : "图表使用完整范围数据，显示缩放不裁剪导出数据。"
+    }, {
+      "key" : "module-severity",
+      "label" : "模块与缺陷级别",
+      "status" : "READY",
+      "message" : "图表使用完整范围数据，显示缩放不裁剪导出数据。"
+    }, {
+      "key" : "cause-distribution",
+      "label" : "缺陷原因分布",
+      "status" : "READY",
+      "message" : "图表使用完整范围数据，显示缩放不裁剪导出数据。"
+    }, {
+      "key" : "delay-analysis",
+      "label" : "申请延期分析",
+      "status" : "READY",
+      "message" : "图表使用完整范围数据，显示缩放不裁剪导出数据。"
+    }, {
+      "key" : "assignee-workload",
+      "label" : "指派人负荷",
+      "status" : "READY",
+      "message" : "图表使用完整范围数据，显示缩放不裁剪导出数据。"
+    }, {
+      "key" : "requirement-overview",
+      "label" : "需求指标",
+      "status" : "READY",
+      "message" : "需求状态沿客户问题范围内 F/A 规则计算。"
+    }, {
+      "key" : "module-requirements",
+      "label" : "模块需求分布",
+      "status" : "READY",
+      "message" : "多模块议题分别进入每个关联模块；全局需求数不累加模块柱。"
+    }, {
+      "key" : "daily-defect-trend",
+      "label" : "缺陷日增与日修复",
+      "status" : "READY",
+      "message" : "按当前事实回看自然日；撤销或重新修复可能改变历史日期结果。"
+    } ],
+    "traces" : [ {
+      "metricIds" : [ "CI-10", "CI-11", "CI-12", "CI-13", "CI-14", "CI-15", "CI-16", "CI-17" ],
+      "sourcePlatform" : "客户问题 ISSUE 事实",
+      "sourceFields" : [ {
+        "chineseName" : "议题身份",
+        "englishName" : "source_system/source_instance/project_id/issue_id"
+      }, {
+        "chineseName" : "严重级别",
+        "englishName" : "severity_level"
+      }, {
+        "chineseName" : "优先级",
+        "englishName" : "priority_level"
+      }, {
+        "chineseName" : "状态",
+        "englishName" : "bug_status"
+      } ],
+      "formula" : "D去重；F、P、A各自沿客户问题规则；比率分母为对应D范围",
+      "calculationOwner" : "BI CustomerIssueCalculator"
+    }, {
+      "metricIds" : [ "CI-18", "CI-19" ],
+      "sourcePlatform" : "客户问题 ISSUE 事实",
+      "sourceFields" : [ {
+        "chineseName" : "创建时间",
+        "englishName" : "created_at_source"
+      }, {
+        "chineseName" : "精确完成加标时间",
+        "englishName" : "fixed_label_time"
+      }, {
+        "chineseName" : "状态",
+        "englishName" : "bug_status"
+      } ],
+      "formula" : "固定业务日；日修复需当前精确成员已修复/完成及最近有效加标时间",
+      "calculationOwner" : "BI CustomerIssueCalculator"
+    }, {
+      "metricIds" : [ "CI-20", "CI-21", "CI-22", "CI-23" ],
+      "sourcePlatform" : "客户问题 ISSUE 事实",
+      "sourceFields" : [ {
+        "chineseName" : "需求派生身份",
+        "englishName" : "is_customer_requirement"
+      }, {
+        "chineseName" : "状态",
+        "englishName" : "bug_status"
+      } ],
+      "formula" : "N沿方案记录值；R1—R4仍待业务终审",
+      "calculationOwner" : "BI CustomerIssueCalculator"
+    }, {
+      "metricIds" : [ "CI-30", "CI-31", "CI-32", "CI-33", "CI-34", "CI-35", "CI-36", "CI-37", "CI-38", "CI-39", "CI-40", "CI-41", "CI-42", "CI-43", "CI-44" ],
+      "sourcePlatform" : "客户问题 ISSUE 事实",
+      "sourceFields" : [ {
+        "chineseName" : "模块",
+        "englishName" : "module_names"
+      }, {
+        "chineseName" : "原因",
+        "englishName" : "reason_category"
+      }, {
+        "chineseName" : "延期原因",
+        "englishName" : "delay_cause/delay_reason"
+      }, {
+        "chineseName" : "指派人",
+        "englishName" : "assignee_name"
+      } ],
+      "formula" : "缺陷图按CI-01身份去重；多模块图按各模块展开；申请延期图使用D且A",
+      "calculationOwner" : "BI CustomerIssueCalculator"
+    }, {
+      "metricIds" : [ "CI-50", "CI-51" ],
+      "sourcePlatform" : "客户问题 ISSUE 事实",
+      "sourceFields" : [ {
+        "chineseName" : "创建时间",
+        "englishName" : "created_at_source"
+      }, {
+        "chineseName" : "精确完成时间",
+        "englishName" : "fixed_label_time"
+      }, {
+        "chineseName" : "当前状态",
+        "englishName" : "bug_status"
+      } ],
+      "formula" : "自然日轴从2026-01-01到固定业务日；按当前事实回看最近完成日期，不是历史事件流水",
+      "calculationOwner" : "BI CustomerIssueCalculator"
+    } ],
+    "data" : {
+      "milestones" : [ {
+        "businessKey" : "CC2026R3",
+        "displayName" : "CC2026 R3"
+      }, {
+        "businessKey" : "CC2026R2",
+        "displayName" : "CC2026 R2"
+      }, {
+        "businessKey" : "CC2026R1",
+        "displayName" : "CC2026 R1"
+      }, {
+        "businessKey" : "CC2025R4",
+        "displayName" : "CC2025 R4"
+      }, {
+        "businessKey" : "CC2025R3",
+        "displayName" : "CC2025 R3"
+      }, {
+        "businessKey" : "CC2025R1",
+        "displayName" : "CC2025 R1"
+      }, {
+        "businessKey" : "CC2024R4",
+        "displayName" : "CC2024 R4"
+      } ],
+      "selectedMilestoneBusinessKey" : "CC2026R3",
+      "selectedMilestoneDisplayName" : "CC2026 R3",
+      "businessDate" : "2026-09-29",
+      "customers" : [ {
+        "kind" : "VALUE",
+        "value" : "702所",
+        "displayName" : "702所"
+      }, {
+        "kind" : "VALUE",
+        "value" : "三雄极光",
+        "displayName" : "三雄极光"
+      }, {
+        "kind" : "VALUE",
+        "value" : "上海索迪龙",
+        "displayName" : "上海索迪龙"
+      }, {
+        "kind" : "VALUE",
+        "value" : "世润重工",
+        "displayName" : "世润重工"
+      }, {
+        "kind" : "VALUE",
+        "value" : "东亚电子",
+        "displayName" : "东亚电子"
+      }, {
+        "kind" : "VALUE",
+        "value" : "中正金码",
+        "displayName" : "中正金码"
+      }, {
+        "kind" : "VALUE",
+        "value" : "久驰",
+        "displayName" : "久驰"
+      }, {
+        "kind" : "VALUE",
+        "value" : "二重石化",
+        "displayName" : "二重石化"
+      }, {
+        "kind" : "VALUE",
+        "value" : "优云智能",
+        "displayName" : "优云智能"
+      }, {
+        "kind" : "VALUE",
+        "value" : "优迈科",
+        "displayName" : "优迈科"
+      }, {
+        "kind" : "VALUE",
+        "value" : "公网",
+        "displayName" : "公网"
+      }, {
+        "kind" : "VALUE",
+        "value" : "公网用户",
+        "displayName" : "公网用户"
+      }, {
+        "kind" : "VALUE",
+        "value" : "公网自测",
+        "displayName" : "公网自测"
+      }, {
+        "kind" : "VALUE",
+        "value" : "北元电器",
+        "displayName" : "北元电器"
+      }, {
+        "kind" : "VALUE",
+        "value" : "北航杨教授",
+        "displayName" : "北航杨教授"
+      }, {
+        "kind" : "VALUE",
+        "value" : "南京威盾",
+        "displayName" : "南京威盾"
+      }, {
+        "kind" : "VALUE",
+        "value" : "博诚",
+        "displayName" : "博诚"
+      }, {
+        "kind" : "VALUE",
+        "value" : "售前",
+        "displayName" : "售前"
+      }, {
+        "kind" : "VALUE",
+        "value" : "售前自测",
+        "displayName" : "售前自测"
+      }, {
+        "kind" : "VALUE",
+        "value" : "售前（何彦田）",
+        "displayName" : "售前（何彦田）"
+      }, {
+        "kind" : "VALUE",
+        "value" : "埃夫特机器人",
+        "displayName" : "埃夫特机器人"
+      }, {
+        "kind" : "VALUE",
+        "value" : "复洁环保",
+        "displayName" : "复洁环保"
+      }, {
+        "kind" : "VALUE",
+        "value" : "大图数控",
+        "displayName" : "大图数控"
+      }, {
+        "kind" : "VALUE",
+        "value" : "奕隆机电",
+        "displayName" : "奕隆机电"
+      }, {
+        "kind" : "VALUE",
+        "value" : "宝仓机械",
+        "displayName" : "宝仓机械"
+      }, {
+        "kind" : "VALUE",
+        "value" : "宝利根",
+        "displayName" : "宝利根"
+      }, {
+        "kind" : "VALUE",
+        "value" : "宝钢轧辊",
+        "displayName" : "宝钢轧辊"
+      }, {
+        "kind" : "VALUE",
+        "value" : "山东重矿冶金",
+        "displayName" : "山东重矿冶金"
+      }, {
+        "kind" : "VALUE",
+        "value" : "巨力索具",
+        "displayName" : "巨力索具"
+      }, {
+        "kind" : "VALUE",
+        "value" : "巨力索具（苏健反馈）",
+        "displayName" : "巨力索具（苏健反馈）"
+      }, {
+        "kind" : "VALUE",
+        "value" : "巨明机械",
+        "displayName" : "巨明机械"
+      }, {
+        "kind" : "VALUE",
+        "value" : "康派斯",
+        "displayName" : "康派斯"
+      }, {
+        "kind" : "VALUE",
+        "value" : "思微传感（史思源反馈）",
+        "displayName" : "思微传感（史思源反馈）"
+      }, {
+        "kind" : "VALUE",
+        "value" : "思议",
+        "displayName" : "思议"
+      }, {
+        "kind" : "VALUE",
+        "value" : "恒翼能",
+        "displayName" : "恒翼能"
+      }, {
+        "kind" : "VALUE",
+        "value" : "恒隆汽车",
+        "displayName" : "恒隆汽车"
+      }, {
+        "kind" : "VALUE",
+        "value" : "新佰人",
+        "displayName" : "新佰人"
+      }, {
+        "kind" : "VALUE",
+        "value" : "普源精电",
+        "displayName" : "普源精电"
+      }, {
+        "kind" : "VALUE",
+        "value" : "普鲁特",
+        "displayName" : "普鲁特"
+      }, {
+        "kind" : "VALUE",
+        "value" : "朗夫（滕倩倩反馈）",
+        "displayName" : "朗夫（滕倩倩反馈）"
+      }, {
+        "kind" : "VALUE",
+        "value" : "极目数字",
+        "displayName" : "极目数字"
+      }, {
+        "kind" : "VALUE",
+        "value" : "毅阳环保（史思源反馈）",
+        "displayName" : "毅阳环保（史思源反馈）"
+      }, {
+        "kind" : "VALUE",
+        "value" : "江苏沃能",
+        "displayName" : "江苏沃能"
+      }, {
+        "kind" : "VALUE",
+        "value" : "江苏沃能高压",
+        "displayName" : "江苏沃能高压"
+      }, {
+        "kind" : "VALUE",
+        "value" : "沃达重工",
+        "displayName" : "沃达重工"
+      }, {
+        "kind" : "VALUE",
+        "value" : "沐程重工",
+        "displayName" : "沐程重工"
+      }, {
+        "kind" : "VALUE",
+        "value" : "派斯",
+        "displayName" : "派斯"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海外业务部",
+        "displayName" : "海外业务部"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海外伙伴-oncad",
+        "displayName" : "海外伙伴-oncad"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海外售前",
+        "displayName" : "海外售前"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海外版",
+        "displayName" : "海外版"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海外版售前",
+        "displayName" : "海外版售前"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海德馨",
+        "displayName" : "海德馨"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海景模具",
+        "displayName" : "海景模具"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海洋工程",
+        "displayName" : "海洋工程"
+      }, {
+        "kind" : "VALUE",
+        "value" : "湖南德信汽车",
+        "displayName" : "湖南德信汽车"
+      }, {
+        "kind" : "VALUE",
+        "value" : "激光微点",
+        "displayName" : "激光微点"
+      }, {
+        "kind" : "VALUE",
+        "value" : "爱沛可尔",
+        "displayName" : "爱沛可尔"
+      }, {
+        "kind" : "VALUE",
+        "value" : "立讯",
+        "displayName" : "立讯"
+      }, {
+        "kind" : "VALUE",
+        "value" : "章丘路桥（许明磊反馈）",
+        "displayName" : "章丘路桥（许明磊反馈）"
+      }, {
+        "kind" : "VALUE",
+        "value" : "美瑞安",
+        "displayName" : "美瑞安"
+      }, {
+        "kind" : "VALUE",
+        "value" : "自测",
+        "displayName" : "自测"
+      }, {
+        "kind" : "VALUE",
+        "value" : "航天世源",
+        "displayName" : "航天世源"
+      }, {
+        "kind" : "VALUE",
+        "value" : "航天精密",
+        "displayName" : "航天精密"
+      }, {
+        "kind" : "VALUE",
+        "value" : "艾奇诺",
+        "displayName" : "艾奇诺"
+      }, {
+        "kind" : "VALUE",
+        "value" : "艾奇诺（苏杰华反馈）",
+        "displayName" : "艾奇诺（苏杰华反馈）"
+      }, {
+        "kind" : "VALUE",
+        "value" : "若即见",
+        "displayName" : "若即见"
+      }, {
+        "kind" : "VALUE",
+        "value" : "蕴杰金属",
+        "displayName" : "蕴杰金属"
+      }, {
+        "kind" : "VALUE",
+        "value" : "设备工艺55所",
+        "displayName" : "设备工艺55所"
+      }, {
+        "kind" : "VALUE",
+        "value" : "贝尔教育",
+        "displayName" : "贝尔教育"
+      }, {
+        "kind" : "VALUE",
+        "value" : "辰致科技",
+        "displayName" : "辰致科技"
+      }, {
+        "kind" : "VALUE",
+        "value" : "迈次工业",
+        "displayName" : "迈次工业"
+      }, {
+        "kind" : "VALUE",
+        "value" : "郑州新世纪",
+        "displayName" : "郑州新世纪"
+      }, {
+        "kind" : "VALUE",
+        "value" : "金晖隆",
+        "displayName" : "金晖隆"
+      }, {
+        "kind" : "VALUE",
+        "value" : "锐智智能",
+        "displayName" : "锐智智能"
+      }, {
+        "kind" : "VALUE",
+        "value" : "闽之宇阀业",
+        "displayName" : "闽之宇阀业"
+      }, {
+        "kind" : "VALUE",
+        "value" : "震序车船",
+        "displayName" : "震序车船"
+      }, {
+        "kind" : "VALUE",
+        "value" : "马伟南个人用户",
+        "displayName" : "马伟南个人用户"
+      }, {
+        "kind" : "VALUE",
+        "value" : "高逸汽车",
+        "displayName" : "高逸汽车"
+      } ],
+      "modules" : [ {
+        "kind" : "VALUE",
+        "value" : "BOM",
+        "displayName" : "BOM"
+      }, {
+        "kind" : "VALUE",
+        "value" : "MBD",
+        "displayName" : "MBD"
+      }, {
+        "kind" : "VALUE",
+        "value" : "二次开发",
+        "displayName" : "二次开发"
+      }, {
+        "kind" : "VALUE",
+        "value" : "企业版",
+        "displayName" : "企业版"
+      }, {
+        "kind" : "VALUE",
+        "value" : "协同",
+        "displayName" : "协同"
+      }, {
+        "kind" : "VALUE",
+        "value" : "实体算法",
+        "displayName" : "实体算法"
+      }, {
+        "kind" : "VALUE",
+        "value" : "工具",
+        "displayName" : "工具"
+      }, {
+        "kind" : "VALUE",
+        "value" : "工程图",
+        "displayName" : "工程图"
+      }, {
+        "kind" : "VALUE",
+        "value" : "平台",
+        "displayName" : "平台"
+      }, {
+        "kind" : "VALUE",
+        "value" : "库",
+        "displayName" : "库"
+      }, {
+        "kind" : "VALUE",
+        "value" : "快速设计",
+        "displayName" : "快速设计"
+      }, {
+        "kind" : "VALUE",
+        "value" : "数据交换",
+        "displayName" : "数据交换"
+      }, {
+        "kind" : "VALUE",
+        "value" : "曲线曲面",
+        "displayName" : "曲线曲面"
+      }, {
+        "kind" : "VALUE",
+        "value" : "渲染",
+        "displayName" : "渲染"
+      }, {
+        "kind" : "VALUE",
+        "value" : "点云",
+        "displayName" : "点云"
+      }, {
+        "kind" : "VALUE",
+        "value" : "焊件",
+        "displayName" : "焊件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "特征",
+        "displayName" : "特征"
+      }, {
+        "kind" : "VALUE",
+        "value" : "管路",
+        "displayName" : "管路"
+      }, {
+        "kind" : "VALUE",
+        "value" : "草图",
+        "displayName" : "草图"
+      }, {
+        "kind" : "VALUE",
+        "value" : "装配",
+        "displayName" : "装配"
+      }, {
+        "kind" : "VALUE",
+        "value" : "设置",
+        "displayName" : "设置"
+      }, {
+        "kind" : "VALUE",
+        "value" : "评估",
+        "displayName" : "评估"
+      }, {
+        "kind" : "VALUE",
+        "value" : "钣金",
+        "displayName" : "钣金"
+      }, {
+        "kind" : "VALUE",
+        "value" : "项目文档",
+        "displayName" : "项目文档"
+      }, {
+        "kind" : "MISSING",
+        "value" : null,
+        "displayName" : "未标注模块"
+      } ],
+      "functions" : [ {
+        "kind" : "VALUE",
+        "value" : "BOM",
+        "displayName" : "BOM"
+      }, {
+        "kind" : "VALUE",
+        "value" : "BOM工具",
+        "displayName" : "BOM工具"
+      }, {
+        "kind" : "VALUE",
+        "value" : "MBD",
+        "displayName" : "MBD"
+      }, {
+        "kind" : "VALUE",
+        "value" : "二次开发",
+        "displayName" : "二次开发"
+      }, {
+        "kind" : "VALUE",
+        "value" : "以三重轴移动",
+        "displayName" : "以三重轴移动"
+      }, {
+        "kind" : "VALUE",
+        "value" : "任务",
+        "displayName" : "任务"
+      }, {
+        "kind" : "VALUE",
+        "value" : "企业库",
+        "displayName" : "企业库"
+      }, {
+        "kind" : "VALUE",
+        "value" : "保存",
+        "displayName" : "保存"
+      }, {
+        "kind" : "VALUE",
+        "value" : "修订表",
+        "displayName" : "修订表"
+      }, {
+        "kind" : "VALUE",
+        "value" : "倒角",
+        "displayName" : "倒角"
+      }, {
+        "kind" : "VALUE",
+        "value" : "公开模式",
+        "displayName" : "公开模式"
+      }, {
+        "kind" : "VALUE",
+        "value" : "分享",
+        "displayName" : "分享"
+      }, {
+        "kind" : "VALUE",
+        "value" : "分享链接",
+        "displayName" : "分享链接"
+      }, {
+        "kind" : "VALUE",
+        "value" : "分割",
+        "displayName" : "分割"
+      }, {
+        "kind" : "VALUE",
+        "value" : "分支与节点",
+        "displayName" : "分支与节点"
+      }, {
+        "kind" : "VALUE",
+        "value" : "切割清单",
+        "displayName" : "切割清单"
+      }, {
+        "kind" : "VALUE",
+        "value" : "切换视口",
+        "displayName" : "切换视口"
+      }, {
+        "kind" : "VALUE",
+        "value" : "创建新文件夹",
+        "displayName" : "创建新文件夹"
+      }, {
+        "kind" : "VALUE",
+        "value" : "删除",
+        "displayName" : "删除"
+      }, {
+        "kind" : "VALUE",
+        "value" : "删除面",
+        "displayName" : "删除面"
+      }, {
+        "kind" : "VALUE",
+        "value" : "前导工具栏",
+        "displayName" : "前导工具栏"
+      }, {
+        "kind" : "VALUE",
+        "value" : "包覆",
+        "displayName" : "包覆"
+      }, {
+        "kind" : "VALUE",
+        "value" : "取消回滚",
+        "displayName" : "取消回滚"
+      }, {
+        "kind" : "VALUE",
+        "value" : "变换",
+        "displayName" : "变换"
+      }, {
+        "kind" : "VALUE",
+        "value" : "变换零部件",
+        "displayName" : "变换零部件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "变量管理",
+        "displayName" : "变量管理"
+      }, {
+        "kind" : "VALUE",
+        "value" : "另存为模板",
+        "displayName" : "另存为模板"
+      }, {
+        "kind" : "VALUE",
+        "value" : "右键",
+        "displayName" : "右键"
+      }, {
+        "kind" : "VALUE",
+        "value" : "后台管理",
+        "displayName" : "后台管理"
+      }, {
+        "kind" : "VALUE",
+        "value" : "后台管理系统",
+        "displayName" : "后台管理系统"
+      }, {
+        "kind" : "VALUE",
+        "value" : "命令框",
+        "displayName" : "命令框"
+      }, {
+        "kind" : "VALUE",
+        "value" : "回收站",
+        "displayName" : "回收站"
+      }, {
+        "kind" : "VALUE",
+        "value" : "回滚线",
+        "displayName" : "回滚线"
+      }, {
+        "kind" : "VALUE",
+        "value" : "团队",
+        "displayName" : "团队"
+      }, {
+        "kind" : "VALUE",
+        "value" : "图像品质",
+        "displayName" : "图像品质"
+      }, {
+        "kind" : "VALUE",
+        "value" : "图层管理器",
+        "displayName" : "图层管理器"
+      }, {
+        "kind" : "VALUE",
+        "value" : "图标",
+        "displayName" : "图标"
+      }, {
+        "kind" : "VALUE",
+        "value" : "图纸属性",
+        "displayName" : "图纸属性"
+      }, {
+        "kind" : "VALUE",
+        "value" : "圆周阵列",
+        "displayName" : "圆周阵列"
+      }, {
+        "kind" : "VALUE",
+        "value" : "圆柱齿轮/圆锥齿轮",
+        "displayName" : "圆柱齿轮/圆锥齿轮"
+      }, {
+        "kind" : "VALUE",
+        "value" : "圆角",
+        "displayName" : "圆角"
+      }, {
+        "kind" : "VALUE",
+        "value" : "复制",
+        "displayName" : "复制"
+      }, {
+        "kind" : "VALUE",
+        "value" : "外部参考",
+        "displayName" : "外部参考"
+      }, {
+        "kind" : "VALUE",
+        "value" : "多标签页",
+        "displayName" : "多标签页"
+      }, {
+        "kind" : "VALUE",
+        "value" : "大装配打开",
+        "displayName" : "大装配打开"
+      }, {
+        "kind" : "VALUE",
+        "value" : "孔对齐",
+        "displayName" : "孔对齐"
+      }, {
+        "kind" : "VALUE",
+        "value" : "孔标注",
+        "displayName" : "孔标注"
+      }, {
+        "kind" : "VALUE",
+        "value" : "孔表",
+        "displayName" : "孔表"
+      }, {
+        "kind" : "VALUE",
+        "value" : "字体",
+        "displayName" : "字体"
+      }, {
+        "kind" : "VALUE",
+        "value" : "存档模式",
+        "displayName" : "存档模式"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导入",
+        "displayName" : "导入"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导入/导出",
+        "displayName" : "导入/导出"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导入CrownCAD文件",
+        "displayName" : "导入CrownCAD文件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导入文件",
+        "displayName" : "导入文件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导入文件夹",
+        "displayName" : "导入文件夹"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导入程序",
+        "displayName" : "导入程序"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导出",
+        "displayName" : "导出"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导出DWG/DXF",
+        "displayName" : "导出DWG/DXF"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导出pdf",
+        "displayName" : "导出pdf"
+      }, {
+        "kind" : "VALUE",
+        "value" : "导出至本地",
+        "displayName" : "导出至本地"
+      }, {
+        "kind" : "VALUE",
+        "value" : "尺寸标注",
+        "displayName" : "尺寸标注"
+      }, {
+        "kind" : "VALUE",
+        "value" : "尺寸约束",
+        "displayName" : "尺寸约束"
+      }, {
+        "kind" : "VALUE",
+        "value" : "展平",
+        "displayName" : "展平"
+      }, {
+        "kind" : "VALUE",
+        "value" : "属性面板",
+        "displayName" : "属性面板"
+      }, {
+        "kind" : "VALUE",
+        "value" : "工具",
+        "displayName" : "工具"
+      }, {
+        "kind" : "VALUE",
+        "value" : "工程图",
+        "displayName" : "工程图"
+      }, {
+        "kind" : "VALUE",
+        "value" : "工程图模板",
+        "displayName" : "工程图模板"
+      }, {
+        "kind" : "VALUE",
+        "value" : "布尔运算",
+        "displayName" : "布尔运算"
+      }, {
+        "kind" : "VALUE",
+        "value" : "干涉检查",
+        "displayName" : "干涉检查"
+      }, {
+        "kind" : "VALUE",
+        "value" : "平台",
+        "displayName" : "平台"
+      }, {
+        "kind" : "VALUE",
+        "value" : "库",
+        "displayName" : "库"
+      }, {
+        "kind" : "VALUE",
+        "value" : "延伸",
+        "displayName" : "延伸"
+      }, {
+        "kind" : "VALUE",
+        "value" : "延展曲面",
+        "displayName" : "延展曲面"
+      }, {
+        "kind" : "VALUE",
+        "value" : "异型孔向导",
+        "displayName" : "异型孔向导"
+      }, {
+        "kind" : "VALUE",
+        "value" : "录制宏",
+        "displayName" : "录制宏"
+      }, {
+        "kind" : "VALUE",
+        "value" : "形位公差",
+        "displayName" : "形位公差"
+      }, {
+        "kind" : "VALUE",
+        "value" : "快捷键",
+        "displayName" : "快捷键"
+      }, {
+        "kind" : "VALUE",
+        "value" : "总表",
+        "displayName" : "总表"
+      }, {
+        "kind" : "VALUE",
+        "value" : "打包",
+        "displayName" : "打包"
+      }, {
+        "kind" : "VALUE",
+        "value" : "打印",
+        "displayName" : "打印"
+      }, {
+        "kind" : "VALUE",
+        "value" : "打印/导出",
+        "displayName" : "打印/导出"
+      }, {
+        "kind" : "VALUE",
+        "value" : "打开",
+        "displayName" : "打开"
+      }, {
+        "kind" : "VALUE",
+        "value" : "打开工程图",
+        "displayName" : "打开工程图"
+      }, {
+        "kind" : "VALUE",
+        "value" : "扫描切除",
+        "displayName" : "扫描切除"
+      }, {
+        "kind" : "VALUE",
+        "value" : "扫描曲面",
+        "displayName" : "扫描曲面"
+      }, {
+        "kind" : "VALUE",
+        "value" : "扫描法兰",
+        "displayName" : "扫描法兰"
+      }, {
+        "kind" : "VALUE",
+        "value" : "批量修改属性",
+        "displayName" : "批量修改属性"
+      }, {
+        "kind" : "VALUE",
+        "value" : "折弯系数表",
+        "displayName" : "折弯系数表"
+      }, {
+        "kind" : "VALUE",
+        "value" : "拉伸凸台",
+        "displayName" : "拉伸凸台"
+      }, {
+        "kind" : "VALUE",
+        "value" : "拉伸凸台/基体",
+        "displayName" : "拉伸凸台/基体"
+      }, {
+        "kind" : "VALUE",
+        "value" : "拉伸切除",
+        "displayName" : "拉伸切除"
+      }, {
+        "kind" : "VALUE",
+        "value" : "拔模",
+        "displayName" : "拔模"
+      }, {
+        "kind" : "VALUE",
+        "value" : "拖拽",
+        "displayName" : "拖拽"
+      }, {
+        "kind" : "VALUE",
+        "value" : "提示未适配",
+        "displayName" : "提示未适配"
+      }, {
+        "kind" : "VALUE",
+        "value" : "插入到新零件",
+        "displayName" : "插入到新零件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "插入图片",
+        "displayName" : "插入图片"
+      }, {
+        "kind" : "VALUE",
+        "value" : "插入零件或装配",
+        "displayName" : "插入零件或装配"
+      }, {
+        "kind" : "VALUE",
+        "value" : "搜索",
+        "displayName" : "搜索"
+      }, {
+        "kind" : "VALUE",
+        "value" : "放样曲面",
+        "displayName" : "放样曲面"
+      }, {
+        "kind" : "VALUE",
+        "value" : "效率",
+        "displayName" : "效率"
+      }, {
+        "kind" : "VALUE",
+        "value" : "数据",
+        "displayName" : "数据"
+      }, {
+        "kind" : "VALUE",
+        "value" : "数据交换",
+        "displayName" : "数据交换"
+      }, {
+        "kind" : "VALUE",
+        "value" : "文档列表",
+        "displayName" : "文档列表"
+      }, {
+        "kind" : "VALUE",
+        "value" : "文档加载",
+        "displayName" : "文档加载"
+      }, {
+        "kind" : "VALUE",
+        "value" : "文档属性",
+        "displayName" : "文档属性"
+      }, {
+        "kind" : "VALUE",
+        "value" : "文档管理",
+        "displayName" : "文档管理"
+      }, {
+        "kind" : "VALUE",
+        "value" : "文档页面",
+        "displayName" : "文档页面"
+      }, {
+        "kind" : "VALUE",
+        "value" : "新建工程图",
+        "displayName" : "新建工程图"
+      }, {
+        "kind" : "VALUE",
+        "value" : "智能尺寸",
+        "displayName" : "智能尺寸"
+      }, {
+        "kind" : "VALUE",
+        "value" : "智能扣件",
+        "displayName" : "智能扣件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "曲线阵列",
+        "displayName" : "曲线阵列"
+      }, {
+        "kind" : "VALUE",
+        "value" : "更改透明度",
+        "displayName" : "更改透明度"
+      }, {
+        "kind" : "VALUE",
+        "value" : "替换零部件",
+        "displayName" : "替换零部件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "材料明细表",
+        "displayName" : "材料明细表"
+      }, {
+        "kind" : "VALUE",
+        "value" : "材质库",
+        "displayName" : "材质库"
+      }, {
+        "kind" : "VALUE",
+        "value" : "柔性零件",
+        "displayName" : "柔性零件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "查重",
+        "displayName" : "查重"
+      }, {
+        "kind" : "VALUE",
+        "value" : "标准件",
+        "displayName" : "标准件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "标尺",
+        "displayName" : "标尺"
+      }, {
+        "kind" : "VALUE",
+        "value" : "标题栏",
+        "displayName" : "标题栏"
+      }, {
+        "kind" : "VALUE",
+        "value" : "检入",
+        "displayName" : "检入"
+      }, {
+        "kind" : "VALUE",
+        "value" : "模型视图",
+        "displayName" : "模型视图"
+      }, {
+        "kind" : "VALUE",
+        "value" : "模板",
+        "displayName" : "模板"
+      }, {
+        "kind" : "VALUE",
+        "value" : "模板管理",
+        "displayName" : "模板管理"
+      }, {
+        "kind" : "VALUE",
+        "value" : "正交切除",
+        "displayName" : "正交切除"
+      }, {
+        "kind" : "VALUE",
+        "value" : "注释",
+        "displayName" : "注释"
+      }, {
+        "kind" : "VALUE",
+        "value" : "测量",
+        "displayName" : "测量"
+      }, {
+        "kind" : "VALUE",
+        "value" : "海外版",
+        "displayName" : "海外版"
+      }, {
+        "kind" : "VALUE",
+        "value" : "消除特征",
+        "displayName" : "消除特征"
+      }, {
+        "kind" : "VALUE",
+        "value" : "添加约束",
+        "displayName" : "添加约束"
+      }, {
+        "kind" : "VALUE",
+        "value" : "滚动条",
+        "displayName" : "滚动条"
+      }, {
+        "kind" : "VALUE",
+        "value" : "焊件切割清单模板",
+        "displayName" : "焊件切割清单模板"
+      }, {
+        "kind" : "VALUE",
+        "value" : "焊接边角",
+        "displayName" : "焊接边角"
+      }, {
+        "kind" : "VALUE",
+        "value" : "版本分支",
+        "displayName" : "版本分支"
+      }, {
+        "kind" : "VALUE",
+        "value" : "界面操作",
+        "displayName" : "界面操作"
+      }, {
+        "kind" : "VALUE",
+        "value" : "知识库",
+        "displayName" : "知识库"
+      }, {
+        "kind" : "VALUE",
+        "value" : "移动",
+        "displayName" : "移动"
+      }, {
+        "kind" : "VALUE",
+        "value" : "移动面",
+        "displayName" : "移动面"
+      }, {
+        "kind" : "VALUE",
+        "value" : "管路BOM",
+        "displayName" : "管路BOM"
+      }, {
+        "kind" : "VALUE",
+        "value" : "系统语言",
+        "displayName" : "系统语言"
+      }, {
+        "kind" : "VALUE",
+        "value" : "线型",
+        "displayName" : "线型"
+      }, {
+        "kind" : "VALUE",
+        "value" : "结构构件",
+        "displayName" : "结构构件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "统计折弯次数",
+        "displayName" : "统计折弯次数"
+      }, {
+        "kind" : "VALUE",
+        "value" : "编辑零部件",
+        "displayName" : "编辑零部件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "翻译",
+        "displayName" : "翻译"
+      }, {
+        "kind" : "VALUE",
+        "value" : "草图",
+        "displayName" : "草图"
+      }, {
+        "kind" : "VALUE",
+        "value" : "草绘折弯",
+        "displayName" : "草绘折弯"
+      }, {
+        "kind" : "VALUE",
+        "value" : "表格",
+        "displayName" : "表格"
+      }, {
+        "kind" : "VALUE",
+        "value" : "装配",
+        "displayName" : "装配"
+      }, {
+        "kind" : "VALUE",
+        "value" : "装配特征",
+        "displayName" : "装配特征"
+      }, {
+        "kind" : "VALUE",
+        "value" : "装饰螺纹线",
+        "displayName" : "装饰螺纹线"
+      }, {
+        "kind" : "VALUE",
+        "value" : "褶边",
+        "displayName" : "褶边"
+      }, {
+        "kind" : "VALUE",
+        "value" : "视图定向",
+        "displayName" : "视图定向"
+      }, {
+        "kind" : "VALUE",
+        "value" : "视图工具栏",
+        "displayName" : "视图工具栏"
+      }, {
+        "kind" : "VALUE",
+        "value" : "视图面板",
+        "displayName" : "视图面板"
+      }, {
+        "kind" : "VALUE",
+        "value" : "角撑板",
+        "displayName" : "角撑板"
+      }, {
+        "kind" : "VALUE",
+        "value" : "跳转",
+        "displayName" : "跳转"
+      }, {
+        "kind" : "VALUE",
+        "value" : "转换边界",
+        "displayName" : "转换边界"
+      }, {
+        "kind" : "VALUE",
+        "value" : "输入框",
+        "displayName" : "输入框"
+      }, {
+        "kind" : "VALUE",
+        "value" : "边界曲面",
+        "displayName" : "边界曲面"
+      }, {
+        "kind" : "VALUE",
+        "value" : "边线法兰",
+        "displayName" : "边线法兰"
+      }, {
+        "kind" : "VALUE",
+        "value" : "边角释放槽",
+        "displayName" : "边角释放槽"
+      }, {
+        "kind" : "VALUE",
+        "value" : "返回",
+        "displayName" : "返回"
+      }, {
+        "kind" : "VALUE",
+        "value" : "退出编辑零部件",
+        "displayName" : "退出编辑零部件"
+      }, {
+        "kind" : "VALUE",
+        "value" : "退出草图",
+        "displayName" : "退出草图"
+      }, {
+        "kind" : "VALUE",
+        "value" : "适配",
+        "displayName" : "适配"
+      }, {
+        "kind" : "VALUE",
+        "value" : "适配测试",
+        "displayName" : "适配测试"
+      }, {
+        "kind" : "VALUE",
+        "value" : "配合",
+        "displayName" : "配合"
+      }, {
+        "kind" : "VALUE",
+        "value" : "重命名",
+        "displayName" : "重命名"
+      }, {
+        "kind" : "VALUE",
+        "value" : "重建",
+        "displayName" : "重建"
+      }, {
+        "kind" : "VALUE",
+        "value" : "重装",
+        "displayName" : "重装"
+      }, {
+        "kind" : "VALUE",
+        "value" : "链接分享",
+        "displayName" : "链接分享"
+      }, {
+        "kind" : "VALUE",
+        "value" : "镜像",
+        "displayName" : "镜像"
+      }, {
+        "kind" : "VALUE",
+        "value" : "阵列",
+        "displayName" : "阵列"
+      }, {
+        "kind" : "VALUE",
+        "value" : "限制距离",
+        "displayName" : "限制距离"
+      }, {
+        "kind" : "VALUE",
+        "value" : "随配合复制",
+        "displayName" : "随配合复制"
+      }, {
+        "kind" : "VALUE",
+        "value" : "零件属性",
+        "displayName" : "零件属性"
+      }, {
+        "kind" : "VALUE",
+        "value" : "项目列表",
+        "displayName" : "项目列表"
+      }, {
+        "kind" : "VALUE",
+        "value" : "项目折叠",
+        "displayName" : "项目折叠"
+      }, {
+        "kind" : "VALUE",
+        "value" : "项目文档",
+        "displayName" : "项目文档"
+      }, {
+        "kind" : "VALUE",
+        "value" : "项目管理",
+        "displayName" : "项目管理"
+      } ],
+      "defectMetrics" : [ {
+        "key" : "defect_total",
+        "label" : "总问题数",
+        "value" : 176,
+        "numerator" : 176,
+        "denominator" : null,
+        "percentage" : null,
+        "unit" : "个"
+      }, {
+        "key" : "defect_fixed",
+        "label" : "已修复",
+        "value" : 33,
+        "numerator" : 33,
+        "denominator" : null,
+        "percentage" : null,
+        "unit" : "个"
+      }, {
+        "key" : "defect_unfixed",
+        "label" : "未修复",
+        "value" : 143,
+        "numerator" : 143,
+        "denominator" : null,
+        "percentage" : null,
+        "unit" : "个"
+      }, {
+        "key" : "defect_applied_delay",
+        "label" : "申请延期",
+        "value" : 25,
+        "numerator" : 25,
+        "denominator" : null,
+        "percentage" : null,
+        "unit" : "个"
+      }, {
+        "key" : "defect_fix_rate",
+        "label" : "整体缺陷修复率",
+        "value" : null,
+        "numerator" : 33,
+        "denominator" : 176,
+        "percentage" : 18.75,
+        "unit" : "%"
+      }, {
+        "key" : "level1_fix_rate",
+        "label" : "一级缺陷修复率",
+        "value" : null,
+        "numerator" : 11,
+        "denominator" : 45,
+        "percentage" : 24.44,
+        "unit" : "%"
+      }, {
+        "key" : "p1_fix_rate",
+        "label" : "P1修复率",
+        "value" : null,
+        "numerator" : 35,
+        "denominator" : 156,
+        "percentage" : 22.44,
+        "unit" : "%"
+      }, {
+        "key" : "p2_fix_rate",
+        "label" : "P2修复率",
+        "value" : null,
+        "numerator" : 5,
+        "denominator" : 20,
+        "percentage" : 25.0,
+        "unit" : "%"
+      }, {
+        "key" : "today_new",
+        "label" : "今日新增问题数",
+        "value" : 0,
+        "numerator" : 0,
+        "denominator" : null,
+        "percentage" : null,
+        "unit" : "个"
+      }, {
+        "key" : "today_resolved",
+        "label" : "今日解决问题数",
+        "value" : 0,
+        "numerator" : 0,
+        "denominator" : null,
+        "percentage" : null,
+        "unit" : "个"
+      } ],
+      "requirementMetrics" : [ {
+        "key" : "requirement_total",
+        "label" : "总需求数",
+        "value" : 175,
+        "numerator" : 175,
+        "denominator" : null,
+        "percentage" : null,
+        "unit" : "个"
+      }, {
+        "key" : "requirement_resolved",
+        "label" : "需求已解决",
+        "value" : 13,
+        "numerator" : 13,
+        "denominator" : null,
+        "percentage" : null,
+        "unit" : "个"
+      }, {
+        "key" : "requirement_unresolved",
+        "label" : "需求未解决",
+        "value" : 162,
+        "numerator" : 162,
+        "denominator" : null,
+        "percentage" : null,
+        "unit" : "个"
+      }, {
+        "key" : "requirement_applied_delay",
+        "label" : "需求申请延期",
+        "value" : 0,
+        "numerator" : 0,
+        "denominator" : null,
+        "percentage" : null,
+        "unit" : "个"
+      } ],
+      "moduleDefects" : [ {
+        "module" : "工程图",
+        "fixedCount" : 9,
+        "unfixedCount" : 33,
+        "totalCount" : 42
+      }, {
+        "module" : "装配",
+        "fixedCount" : 1,
+        "unfixedCount" : 26,
+        "totalCount" : 27
+      }, {
+        "module" : "平台",
+        "fixedCount" : 6,
+        "unfixedCount" : 12,
+        "totalCount" : 18
+      }, {
+        "module" : "特征",
+        "fixedCount" : 2,
+        "unfixedCount" : 15,
+        "totalCount" : 17
+      }, {
+        "module" : "工具",
+        "fixedCount" : 0,
+        "unfixedCount" : 13,
+        "totalCount" : 13
+      }, {
+        "module" : "草图",
+        "fixedCount" : 4,
+        "unfixedCount" : 9,
+        "totalCount" : 13
+      }, {
+        "module" : "实体算法",
+        "fixedCount" : 0,
+        "unfixedCount" : 9,
+        "totalCount" : 9
+      }, {
+        "module" : "数据交换",
+        "fixedCount" : 0,
+        "unfixedCount" : 8,
+        "totalCount" : 8
+      }, {
+        "module" : "项目文档",
+        "fixedCount" : 2,
+        "unfixedCount" : 4,
+        "totalCount" : 6
+      }, {
+        "module" : "BOM",
+        "fixedCount" : 3,
+        "unfixedCount" : 2,
+        "totalCount" : 5
+      }, {
+        "module" : "未标注模块",
+        "fixedCount" : 3,
+        "unfixedCount" : 2,
+        "totalCount" : 5
+      }, {
+        "module" : "二次开发",
+        "fixedCount" : 3,
+        "unfixedCount" : 0,
+        "totalCount" : 3
+      }, {
+        "module" : "曲线曲面",
+        "fixedCount" : 0,
+        "unfixedCount" : 3,
+        "totalCount" : 3
+      }, {
+        "module" : "评估",
+        "fixedCount" : 1,
+        "unfixedCount" : 2,
+        "totalCount" : 3
+      }, {
+        "module" : "企业版",
+        "fixedCount" : 0,
+        "unfixedCount" : 2,
+        "totalCount" : 2
+      }, {
+        "module" : "协同",
+        "fixedCount" : 1,
+        "unfixedCount" : 1,
+        "totalCount" : 2
+      }, {
+        "module" : "设置",
+        "fixedCount" : 0,
+        "unfixedCount" : 2,
+        "totalCount" : 2
+      }, {
+        "module" : "钣金",
+        "fixedCount" : 0,
+        "unfixedCount" : 2,
+        "totalCount" : 2
+      }, {
+        "module" : "库",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "module" : "渲染",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "module" : "点云",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "module" : "焊件",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "module" : "管路",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      } ],
+      "severityDistribution" : [ {
+        "severity" : "一级",
+        "count" : 45
+      }, {
+        "severity" : "二级",
+        "count" : 120
+      }, {
+        "severity" : "三级",
+        "count" : 8
+      }, {
+        "severity" : "未标注级别",
+        "count" : 3
+      } ],
+      "moduleSeverity" : [ {
+        "module" : "BOM",
+        "severity" : "一级",
+        "count" : 2
+      }, {
+        "module" : "BOM",
+        "severity" : "二级",
+        "count" : 3
+      }, {
+        "module" : "二次开发",
+        "severity" : "二级",
+        "count" : 3
+      }, {
+        "module" : "企业版",
+        "severity" : "一级",
+        "count" : 1
+      }, {
+        "module" : "企业版",
+        "severity" : "未标注级别",
+        "count" : 1
+      }, {
+        "module" : "协同",
+        "severity" : "二级",
+        "count" : 2
+      }, {
+        "module" : "实体算法",
+        "severity" : "一级",
+        "count" : 1
+      }, {
+        "module" : "实体算法",
+        "severity" : "二级",
+        "count" : 8
+      }, {
+        "module" : "工具",
+        "severity" : "一级",
+        "count" : 5
+      }, {
+        "module" : "工具",
+        "severity" : "二级",
+        "count" : 6
+      }, {
+        "module" : "工具",
+        "severity" : "三级",
+        "count" : 2
+      }, {
+        "module" : "工程图",
+        "severity" : "二级",
+        "count" : 23
+      }, {
+        "module" : "工程图",
+        "severity" : "一级",
+        "count" : 16
+      }, {
+        "module" : "工程图",
+        "severity" : "三级",
+        "count" : 3
+      }, {
+        "module" : "平台",
+        "severity" : "三级",
+        "count" : 2
+      }, {
+        "module" : "平台",
+        "severity" : "一级",
+        "count" : 6
+      }, {
+        "module" : "平台",
+        "severity" : "二级",
+        "count" : 10
+      }, {
+        "module" : "库",
+        "severity" : "二级",
+        "count" : 1
+      }, {
+        "module" : "数据交换",
+        "severity" : "一级",
+        "count" : 1
+      }, {
+        "module" : "数据交换",
+        "severity" : "二级",
+        "count" : 7
+      }, {
+        "module" : "曲线曲面",
+        "severity" : "二级",
+        "count" : 3
+      }, {
+        "module" : "未标注模块",
+        "severity" : "二级",
+        "count" : 5
+      }, {
+        "module" : "渲染",
+        "severity" : "二级",
+        "count" : 1
+      }, {
+        "module" : "点云",
+        "severity" : "二级",
+        "count" : 1
+      }, {
+        "module" : "焊件",
+        "severity" : "二级",
+        "count" : 1
+      }, {
+        "module" : "特征",
+        "severity" : "二级",
+        "count" : 15
+      }, {
+        "module" : "特征",
+        "severity" : "一级",
+        "count" : 2
+      }, {
+        "module" : "管路",
+        "severity" : "二级",
+        "count" : 1
+      }, {
+        "module" : "草图",
+        "severity" : "二级",
+        "count" : 7
+      }, {
+        "module" : "草图",
+        "severity" : "一级",
+        "count" : 6
+      }, {
+        "module" : "装配",
+        "severity" : "一级",
+        "count" : 12
+      }, {
+        "module" : "装配",
+        "severity" : "二级",
+        "count" : 13
+      }, {
+        "module" : "装配",
+        "severity" : "未标注级别",
+        "count" : 2
+      }, {
+        "module" : "设置",
+        "severity" : "二级",
+        "count" : 2
+      }, {
+        "module" : "评估",
+        "severity" : "二级",
+        "count" : 3
+      }, {
+        "module" : "钣金",
+        "severity" : "二级",
+        "count" : 2
+      }, {
+        "module" : "项目文档",
+        "severity" : "二级",
+        "count" : 4
+      }, {
+        "module" : "项目文档",
+        "severity" : "三级",
+        "count" : 2
+      } ],
+      "causeDistribution" : [ {
+        "groupId" : "依赖问题",
+        "groupName" : "依赖问题",
+        "causeId" : "mechanism_not_support",
+        "causeName" : "机制不支持",
+        "count" : 2
+      }, {
+        "groupId" : "依赖问题",
+        "groupName" : "依赖问题",
+        "causeId" : "precondition_data_exception",
+        "causeName" : "前置数据异常",
+        "count" : 2
+      }, {
+        "groupId" : "设计问题",
+        "groupName" : "设计问题",
+        "causeId" : "incomplete",
+        "causeName" : "场景考虑不全",
+        "count" : 5
+      }, {
+        "groupId" : "编码规范",
+        "groupName" : "编码规范",
+        "causeId" : "logic_data_state_process_error",
+        "causeName" : "编码逻辑：数据与状态处理错误",
+        "count" : 3
+      }, {
+        "groupId" : "编码规范",
+        "groupName" : "编码规范",
+        "causeId" : "function_forget",
+        "causeName" : "功能编码遗漏",
+        "count" : 3
+      }, {
+        "groupId" : "需求问题",
+        "groupName" : "需求问题",
+        "causeId" : "add_demand_2",
+        "causeName" : "新增需求",
+        "count" : 2
+      }, {
+        "groupId" : "编码规范",
+        "groupName" : "编码规范",
+        "causeId" : "logic_calculation_algorithm_error",
+        "causeName" : "编码逻辑：计算与算法错误",
+        "count" : 1
+      }, {
+        "groupId" : "设计问题",
+        "groupName" : "设计问题",
+        "causeId" : "design_forget",
+        "causeName" : "功能设计遗漏",
+        "count" : 1
+      }, {
+        "groupId" : "设计问题",
+        "groupName" : "设计问题",
+        "causeId" : "design_scheme",
+        "causeName" : "设计方案不合理",
+        "count" : 1
+      }, {
+        "groupId" : "需求问题",
+        "groupName" : "需求问题",
+        "causeId" : "demand_misunderstand",
+        "causeName" : "新增理解偏差",
+        "count" : 1
+      }, {
+        "groupId" : "依赖问题",
+        "groupName" : "依赖问题",
+        "causeId" : "algorithm_not_support",
+        "causeName" : "算法不支持",
+        "count" : 3
+      }, {
+        "groupId" : "依赖问题",
+        "groupName" : "依赖问题",
+        "causeId" : "other_thirdParty",
+        "causeName" : "第三方库问题",
+        "count" : 1
+      }, {
+        "groupId" : "依赖问题",
+        "groupName" : "依赖问题",
+        "causeId" : "other_unIdentifyTask",
+        "causeName" : "未识别的前后置任务",
+        "count" : 1
+      }, {
+        "groupId" : "编码规范",
+        "groupName" : "编码规范",
+        "causeId" : "standard_error",
+        "causeName" : "编码规范错误",
+        "count" : 1
+      }, {
+        "groupId" : "精度问题",
+        "groupName" : "精度问题",
+        "causeId" : "precision_algorithm_exception",
+        "causeName" : "精度导致算法执行异常",
+        "count" : 1
+      }, {
+        "groupId" : "需求问题",
+        "groupName" : "需求问题",
+        "causeId" : "demand_change_not_sync",
+        "causeName" : "需求变更未同步",
+        "count" : 1
+      } ],
+      "unclassifiedCauseCount" : 148,
+      "delayAnalysis" : [ {
+        "reason" : "未设定类别",
+        "severity" : "二级",
+        "count" : 13
+      }, {
+        "reason" : "未设定类别",
+        "severity" : "一级",
+        "count" : 3
+      }, {
+        "reason" : "资源卡点",
+        "severity" : "二级",
+        "count" : 3
+      }, {
+        "reason" : "技术卡点",
+        "severity" : "二级",
+        "count" : 3
+      }, {
+        "reason" : "技术卡点",
+        "severity" : "一级",
+        "count" : 2
+      }, {
+        "reason" : "资源卡点",
+        "severity" : "一级",
+        "count" : 1
+      } ],
+      "assigneeWorkload" : [ {
+        "assignee" : "高士亮",
+        "fixedCount" : 1,
+        "unfixedCount" : 10,
+        "totalCount" : 11
+      }, {
+        "assignee" : "吕志金",
+        "fixedCount" : 2,
+        "unfixedCount" : 7,
+        "totalCount" : 9
+      }, {
+        "assignee" : "陈魁",
+        "fixedCount" : 0,
+        "unfixedCount" : 9,
+        "totalCount" : 9
+      }, {
+        "assignee" : "马泽坤",
+        "fixedCount" : 0,
+        "unfixedCount" : 9,
+        "totalCount" : 9
+      }, {
+        "assignee" : "李焕坤",
+        "fixedCount" : 3,
+        "unfixedCount" : 5,
+        "totalCount" : 8
+      }, {
+        "assignee" : "高贯孟",
+        "fixedCount" : 0,
+        "unfixedCount" : 8,
+        "totalCount" : 8
+      }, {
+        "assignee" : "梁春阳",
+        "fixedCount" : 0,
+        "unfixedCount" : 6,
+        "totalCount" : 6
+      }, {
+        "assignee" : "陈明",
+        "fixedCount" : 0,
+        "unfixedCount" : 6,
+        "totalCount" : 6
+      }, {
+        "assignee" : "王馨宇",
+        "fixedCount" : 1,
+        "unfixedCount" : 4,
+        "totalCount" : 5
+      }, {
+        "assignee" : "韩潞钦",
+        "fixedCount" : 1,
+        "unfixedCount" : 4,
+        "totalCount" : 5
+      }, {
+        "assignee" : "姚辉彩",
+        "fixedCount" : 1,
+        "unfixedCount" : 3,
+        "totalCount" : 4
+      }, {
+        "assignee" : "王俏月",
+        "fixedCount" : 1,
+        "unfixedCount" : 3,
+        "totalCount" : 4
+      }, {
+        "assignee" : "麻荣雨",
+        "fixedCount" : 4,
+        "unfixedCount" : 0,
+        "totalCount" : 4
+      }, {
+        "assignee" : "付崇莱",
+        "fixedCount" : 0,
+        "unfixedCount" : 3,
+        "totalCount" : 3
+      }, {
+        "assignee" : "任国瑞",
+        "fixedCount" : 0,
+        "unfixedCount" : 3,
+        "totalCount" : 3
+      }, {
+        "assignee" : "孟秀平",
+        "fixedCount" : 1,
+        "unfixedCount" : 2,
+        "totalCount" : 3
+      }, {
+        "assignee" : "张宽",
+        "fixedCount" : 0,
+        "unfixedCount" : 3,
+        "totalCount" : 3
+      }, {
+        "assignee" : "李硕彦",
+        "fixedCount" : 0,
+        "unfixedCount" : 3,
+        "totalCount" : 3
+      }, {
+        "assignee" : "杨哲",
+        "fixedCount" : 0,
+        "unfixedCount" : 3,
+        "totalCount" : 3
+      }, {
+        "assignee" : "潘慧敏",
+        "fixedCount" : 0,
+        "unfixedCount" : 3,
+        "totalCount" : 3
+      }, {
+        "assignee" : "焦桦坤",
+        "fixedCount" : 0,
+        "unfixedCount" : 3,
+        "totalCount" : 3
+      }, {
+        "assignee" : "付守帅",
+        "fixedCount" : 0,
+        "unfixedCount" : 2,
+        "totalCount" : 2
+      }, {
+        "assignee" : "傅培钰",
+        "fixedCount" : 1,
+        "unfixedCount" : 1,
+        "totalCount" : 2
+      }, {
+        "assignee" : "张晓涵",
+        "fixedCount" : 1,
+        "unfixedCount" : 1,
+        "totalCount" : 2
+      }, {
+        "assignee" : "曹步勇",
+        "fixedCount" : 2,
+        "unfixedCount" : 0,
+        "totalCount" : 2
+      }, {
+        "assignee" : "李永正",
+        "fixedCount" : 0,
+        "unfixedCount" : 2,
+        "totalCount" : 2
+      }, {
+        "assignee" : "杨依景",
+        "fixedCount" : 0,
+        "unfixedCount" : 2,
+        "totalCount" : 2
+      }, {
+        "assignee" : "柳冰旸",
+        "fixedCount" : 0,
+        "unfixedCount" : 2,
+        "totalCount" : 2
+      }, {
+        "assignee" : "牟敬芳",
+        "fixedCount" : 0,
+        "unfixedCount" : 2,
+        "totalCount" : 2
+      }, {
+        "assignee" : "狄林林",
+        "fixedCount" : 0,
+        "unfixedCount" : 2,
+        "totalCount" : 2
+      }, {
+        "assignee" : "王志阳",
+        "fixedCount" : 1,
+        "unfixedCount" : 1,
+        "totalCount" : 2
+      }, {
+        "assignee" : "耿亚慧",
+        "fixedCount" : 0,
+        "unfixedCount" : 2,
+        "totalCount" : 2
+      }, {
+        "assignee" : "赵冬军",
+        "fixedCount" : 0,
+        "unfixedCount" : 2,
+        "totalCount" : 2
+      }, {
+        "assignee" : "郎琳琳",
+        "fixedCount" : 2,
+        "unfixedCount" : 0,
+        "totalCount" : 2
+      }, {
+        "assignee" : "郑振松",
+        "fixedCount" : 0,
+        "unfixedCount" : 2,
+        "totalCount" : 2
+      }, {
+        "assignee" : "郝晨凯",
+        "fixedCount" : 0,
+        "unfixedCount" : 2,
+        "totalCount" : 2
+      }, {
+        "assignee" : "郭英科",
+        "fixedCount" : 0,
+        "unfixedCount" : 2,
+        "totalCount" : 2
+      }, {
+        "assignee" : "陈荣昌",
+        "fixedCount" : 0,
+        "unfixedCount" : 2,
+        "totalCount" : 2
+      }, {
+        "assignee" : "隋天宝",
+        "fixedCount" : 2,
+        "unfixedCount" : 0,
+        "totalCount" : 2
+      }, {
+        "assignee" : "高扬",
+        "fixedCount" : 0,
+        "unfixedCount" : 2,
+        "totalCount" : 2
+      }, {
+        "assignee" : "侯燕申",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "assignee" : "冯钊",
+        "fixedCount" : 1,
+        "unfixedCount" : 0,
+        "totalCount" : 1
+      }, {
+        "assignee" : "刘悦",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "assignee" : "刘旭阳",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "assignee" : "刘露",
+        "fixedCount" : 1,
+        "unfixedCount" : 0,
+        "totalCount" : 1
+      }, {
+        "assignee" : "崔雪峰",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "assignee" : "庄晓",
+        "fixedCount" : 1,
+        "unfixedCount" : 0,
+        "totalCount" : 1
+      }, {
+        "assignee" : "张丽丽",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "assignee" : "张明霞",
+        "fixedCount" : 1,
+        "unfixedCount" : 0,
+        "totalCount" : 1
+      }, {
+        "assignee" : "张硕",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "assignee" : "彭环环",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "assignee" : "徐凯强",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "assignee" : "徐昊2",
+        "fixedCount" : 1,
+        "unfixedCount" : 0,
+        "totalCount" : 1
+      }, {
+        "assignee" : "杜丙瑜",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "assignee" : "武晓旭",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "assignee" : "潘广磊",
+        "fixedCount" : 1,
+        "unfixedCount" : 0,
+        "totalCount" : 1
+      }, {
+        "assignee" : "王念文",
+        "fixedCount" : 1,
+        "unfixedCount" : 0,
+        "totalCount" : 1
+      }, {
+        "assignee" : "王苏晓",
+        "fixedCount" : 1,
+        "unfixedCount" : 0,
+        "totalCount" : 1
+      }, {
+        "assignee" : "白云涛",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "assignee" : "秦龙飞",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "assignee" : "程振昌",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "assignee" : "訾义龙",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "assignee" : "谭海燕",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "assignee" : "郭良星",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "assignee" : "陈晖",
+        "fixedCount" : 0,
+        "unfixedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "assignee" : "马传超",
+        "fixedCount" : 1,
+        "unfixedCount" : 0,
+        "totalCount" : 1
+      } ],
+      "moduleDemand" : [ {
+        "module" : "工具",
+        "resolvedCount" : 2,
+        "unresolvedCount" : 22,
+        "totalCount" : 24
+      }, {
+        "module" : "装配",
+        "resolvedCount" : 1,
+        "unresolvedCount" : 18,
+        "totalCount" : 19
+      }, {
+        "module" : "工程图",
+        "resolvedCount" : 1,
+        "unresolvedCount" : 17,
+        "totalCount" : 18
+      }, {
+        "module" : "钣金",
+        "resolvedCount" : 0,
+        "unresolvedCount" : 17,
+        "totalCount" : 17
+      }, {
+        "module" : "特征",
+        "resolvedCount" : 0,
+        "unresolvedCount" : 13,
+        "totalCount" : 13
+      }, {
+        "module" : "项目文档",
+        "resolvedCount" : 3,
+        "unresolvedCount" : 10,
+        "totalCount" : 13
+      }, {
+        "module" : "草图",
+        "resolvedCount" : 1,
+        "unresolvedCount" : 11,
+        "totalCount" : 12
+      }, {
+        "module" : "数据交换",
+        "resolvedCount" : 0,
+        "unresolvedCount" : 11,
+        "totalCount" : 11
+      }, {
+        "module" : "库",
+        "resolvedCount" : 3,
+        "unresolvedCount" : 7,
+        "totalCount" : 10
+      }, {
+        "module" : "BOM",
+        "resolvedCount" : 2,
+        "unresolvedCount" : 7,
+        "totalCount" : 9
+      }, {
+        "module" : "未标注模块",
+        "resolvedCount" : 1,
+        "unresolvedCount" : 7,
+        "totalCount" : 8
+      }, {
+        "module" : "评估",
+        "resolvedCount" : 0,
+        "unresolvedCount" : 6,
+        "totalCount" : 6
+      }, {
+        "module" : "平台",
+        "resolvedCount" : 0,
+        "unresolvedCount" : 5,
+        "totalCount" : 5
+      }, {
+        "module" : "设置",
+        "resolvedCount" : 0,
+        "unresolvedCount" : 5,
+        "totalCount" : 5
+      }, {
+        "module" : "MBD",
+        "resolvedCount" : 0,
+        "unresolvedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "module" : "企业版",
+        "resolvedCount" : 0,
+        "unresolvedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "module" : "快速设计",
+        "resolvedCount" : 0,
+        "unresolvedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "module" : "曲线曲面",
+        "resolvedCount" : 0,
+        "unresolvedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "module" : "渲染",
+        "resolvedCount" : 0,
+        "unresolvedCount" : 1,
+        "totalCount" : 1
+      }, {
+        "module" : "焊件",
+        "resolvedCount" : 0,
+        "unresolvedCount" : 1,
+        "totalCount" : 1
+      } ],
+      "dailyTrend" : [ {
+        "date" : "2026-01-01",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-02",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-03",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-04",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-05",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-06",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-07",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-08",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-09",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-10",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-11",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-12",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-13",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-14",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-15",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-16",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-17",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-18",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-19",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-20",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-21",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-22",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-23",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-24",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-25",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-26",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-27",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-28",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-29",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-30",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-01-31",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-01",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-02",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-03",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-04",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-05",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-06",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-07",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-08",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-09",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-10",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-11",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-12",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-13",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-14",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-15",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-16",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-17",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-18",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-19",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-20",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-21",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-22",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-23",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-24",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-25",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-26",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-27",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-02-28",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-01",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-02",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-03",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-04",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-05",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-06",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-07",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-08",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-09",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-10",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-11",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-12",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-13",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-14",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-15",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-16",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-17",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-18",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-19",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-20",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-21",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-22",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-23",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-24",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-25",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-26",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-27",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-28",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-29",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-30",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-03-31",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-01",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-02",
+        "createdCount" : 1,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-03",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-04",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-05",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-06",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-07",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-08",
+        "createdCount" : 2,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-09",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-10",
+        "createdCount" : 0,
+        "fixedCount" : 2
+      }, {
+        "date" : "2026-04-11",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-12",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-13",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-14",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-15",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-16",
+        "createdCount" : 1,
+        "fixedCount" : 1
+      }, {
+        "date" : "2026-04-17",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-18",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-19",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-20",
+        "createdCount" : 2,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-21",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-22",
+        "createdCount" : 2,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-23",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-24",
+        "createdCount" : 2,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-25",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-26",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-27",
+        "createdCount" : 2,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-28",
+        "createdCount" : 3,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-04-29",
+        "createdCount" : 3,
+        "fixedCount" : 1
+      }, {
+        "date" : "2026-04-30",
+        "createdCount" : 4,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-01",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-02",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-03",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-04",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-05",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-06",
+        "createdCount" : 1,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-07",
+        "createdCount" : 2,
+        "fixedCount" : 1
+      }, {
+        "date" : "2026-05-08",
+        "createdCount" : 1,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-09",
+        "createdCount" : 12,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-10",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-11",
+        "createdCount" : 15,
+        "fixedCount" : 3
+      }, {
+        "date" : "2026-05-12",
+        "createdCount" : 3,
+        "fixedCount" : 1
+      }, {
+        "date" : "2026-05-13",
+        "createdCount" : 8,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-14",
+        "createdCount" : 7,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-15",
+        "createdCount" : 1,
+        "fixedCount" : 2
+      }, {
+        "date" : "2026-05-16",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-17",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-18",
+        "createdCount" : 5,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-19",
+        "createdCount" : 3,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-20",
+        "createdCount" : 3,
+        "fixedCount" : 1
+      }, {
+        "date" : "2026-05-21",
+        "createdCount" : 2,
+        "fixedCount" : 1
+      }, {
+        "date" : "2026-05-22",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-23",
+        "createdCount" : 1,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-24",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-25",
+        "createdCount" : 5,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-26",
+        "createdCount" : 3,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-27",
+        "createdCount" : 1,
+        "fixedCount" : 1
+      }, {
+        "date" : "2026-05-28",
+        "createdCount" : 5,
+        "fixedCount" : 2
+      }, {
+        "date" : "2026-05-29",
+        "createdCount" : 6,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-30",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-05-31",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-01",
+        "createdCount" : 2,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-02",
+        "createdCount" : 9,
+        "fixedCount" : 1
+      }, {
+        "date" : "2026-06-03",
+        "createdCount" : 3,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-04",
+        "createdCount" : 7,
+        "fixedCount" : 1
+      }, {
+        "date" : "2026-06-05",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-06",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-07",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-08",
+        "createdCount" : 4,
+        "fixedCount" : 1
+      }, {
+        "date" : "2026-06-09",
+        "createdCount" : 3,
+        "fixedCount" : 1
+      }, {
+        "date" : "2026-06-10",
+        "createdCount" : 3,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-11",
+        "createdCount" : 4,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-12",
+        "createdCount" : 2,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-13",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-14",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-15",
+        "createdCount" : 5,
+        "fixedCount" : 1
+      }, {
+        "date" : "2026-06-16",
+        "createdCount" : 2,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-17",
+        "createdCount" : 3,
+        "fixedCount" : 1
+      }, {
+        "date" : "2026-06-18",
+        "createdCount" : 5,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-19",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-20",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-21",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-22",
+        "createdCount" : 4,
+        "fixedCount" : 2
+      }, {
+        "date" : "2026-06-23",
+        "createdCount" : 2,
+        "fixedCount" : 2
+      }, {
+        "date" : "2026-06-24",
+        "createdCount" : 2,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-25",
+        "createdCount" : 4,
+        "fixedCount" : 4
+      }, {
+        "date" : "2026-06-26",
+        "createdCount" : 2,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-27",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-28",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-29",
+        "createdCount" : 2,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-06-30",
+        "createdCount" : 2,
+        "fixedCount" : 1
+      }, {
+        "date" : "2026-07-01",
+        "createdCount" : 0,
+        "fixedCount" : 2
+      }, {
+        "date" : "2026-07-02",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-03",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-04",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-05",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-06",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-07",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-08",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-09",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-10",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-11",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-12",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-13",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-14",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-15",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-16",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-17",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-18",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-19",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-20",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-21",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-22",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-23",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-24",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-25",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-26",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-27",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-28",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-29",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-30",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-07-31",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-01",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-02",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-03",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-04",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-05",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-06",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-07",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-08",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-09",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-10",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-11",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-12",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-13",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-14",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-15",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-16",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-17",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-18",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-19",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-20",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-21",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-22",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-23",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-24",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-25",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-26",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-27",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-28",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-29",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-30",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-08-31",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-01",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-02",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-03",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-04",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-05",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-06",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-07",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-08",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-09",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-10",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-11",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-12",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-13",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-14",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-15",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-16",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-17",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-18",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-19",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-20",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-21",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-22",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-23",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-24",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-25",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-26",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-27",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-28",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      }, {
+        "date" : "2026-09-29",
+        "createdCount" : 0,
+        "fixedCount" : 0
+      } ],
+      "filteredFactCount" : 352
+    }
+  }
+}

@@ -5,6 +5,12 @@
   "data" : {
     "title" : "系统测试缺陷明细",
     "description" : "展示当前模块与指标命中的议题明细。",
+    "collections" : [ {
+      "key" : "DETAIL",
+      "label" : "明细",
+      "description" : "当前指标对应的明细记录。"
+    } ],
+    "collection" : "DETAIL",
     "columns" : [ {
       "key" : "iid",
       "label" : "议题编号",

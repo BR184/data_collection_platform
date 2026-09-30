@@ -90,6 +90,36 @@ public class StatisticBoardSnapshotService {
   }
 
   /**
+   * 在来源尚未收敛到最新变化版本时读取该统计身份最近一次完整发布的产出。
+   *
+   * <p>降级可读的语义是"上游完整性可证、只是还没追上最新变化"，因此这里刻意不按来源版本匹配：
+   * 能满足"完整"的版本已经不存在，只能退回上一个完整发布点并显式披露待更新数量。若从未有过
+   * 完整发布点，则没有可退回的结果，调用方必须拒绝并说明，不得以进行中的混合视图冒充完整产出。
+   */
+  private Optional<Snapshot> findLatestReady(SnapshotRequest request) {
+    String filterHash = filterHash(request.cacheFilterPayload());
+    List<Snapshot> rows =
+        jdbcTemplate.query(
+            """
+            select *
+              from statistic_board_snapshots
+             where board_key = ?
+               and scope_key = ?
+               and rule_version = ?
+               and filter_hash = ?
+               and status = 'READY'
+             order by refreshed_at desc, id desc
+             limit 1
+            """,
+            this::mapSnapshot,
+            request.boardKey(),
+            request.scopeKey(),
+            request.ruleVersion(),
+            filterHash);
+    return rows.stream().findFirst();
+  }
+
+  /**
    * 命中快照或刷新统计结果。
    *
    * <p>范围解析、发布资格校验、来源版本读取、快照命中判定与事实读取在同一个只读 REPEATABLE READ
@@ -97,6 +127,11 @@ public class StatisticBoardSnapshotService {
    * 却写入旧缓存键”，也不会出现版本检查之后发生发布而明细读回另一代际的数据。
    * 命中缓存同样要经过发布资格校验，来源重建未结算或依赖未就绪时不返回新的 READY 结果。
    * 快照写入在只读事务之外执行，写入用的是事务内读到的版本，因此并发发布只会让它成为可被取代的旧版本条目。
+   *
+   * <p>来源完整性可证但尚未收敛到最新变化版本时（降级可读），按上一个完整发布点产出并附带
+   * {@code dataAsOf} 与 {@code pendingUpdates} 披露数据时刻与待更新数量；降级结果不写入快照，
+   * 否则它会被当成该版本的完整产出，让后续读取永远看不到真正的收敛。该视图若从未有过完整发布点，
+   * 则没有可退回的结果，按门控拒绝并说明原因。
    *
    * @param request 声明范围解析计划与缓存身份的快照请求
    * @param responseSupplier 未命中时重建统计结果的读取动作，入参为本次一致性边界解析出的范围与版本
@@ -109,20 +144,30 @@ public class StatisticBoardSnapshotService {
         withinConsistentSourceRead(
             request.readScopes(),
             sourceRead -> {
-              Optional<Snapshot> snapshot = findReady(request, sourceRead.sourceVersion());
+              Optional<Snapshot> snapshot =
+                  sourceRead.degraded()
+                      ? findLatestReady(request)
+                      : findReady(request, sourceRead.sourceVersion());
               if (snapshot.isPresent()) {
                 return new ConsistentRead(sourceRead, snapshot, null);
+              }
+              if (sourceRead.degraded()) {
+                throw new BizException(
+                    "来源 "
+                        + String.join("、", sourceInstancesOf(sourceRead.readScopes()))
+                        + " 尚未收敛到最新变化版本（仍有 "
+                        + sourceRead.pendingUpdates()
+                        + " 项待更新），该筛选组合暂无完整发布点的产出，请稍后重试");
               }
               return new ConsistentRead(
                   sourceRead, Optional.empty(), responseSupplier.apply(sourceRead));
             });
     if (read.snapshot().isPresent()) {
-      return request.toResponse(read.snapshot().get());
+      return read.sourceRead().attachFreshness(request.toResponse(read.snapshot().get()));
     }
     save(request, read.sourceRead().sourceVersion(), read.response());
-    return read.response();
+    return read.sourceRead().attachFreshness(read.response());
   }
-
   /**
    * 在与统计快照相同的只读一致性边界内执行读取动作。
    *
@@ -141,12 +186,13 @@ public class StatisticBoardSnapshotService {
         readConsistencyTemplate.execute(
             status -> {
               Set<FactProjectionScope> scopes = readScopes.resolve();
-              requireReadableSources(scopes);
+              long pendingUpdates = requireReadableSources(scopes);
               return action.apply(
                   new SourceRead(
                       scopes,
                       projectionVersionService.combinedSourceVersion(
-                          factTypeOf(scopes), scopes)));
+                          factTypeOf(scopes), scopes),
+                      pendingUpdates));
             });
     if (result == null) {
       throw new IllegalStateException("统计只读一致性事务未返回结果");
@@ -158,16 +204,27 @@ public class StatisticBoardSnapshotService {
     return scopes.iterator().next().factType();
   }
 
-  /** 校验请求实际读取的每个来源实例都允许对外输出。 */
-  private void requireReadableSources(Set<FactProjectionScope> scopes) {
+  /**
+   * 校验请求实际读取的每个来源实例都允许对外输出，并返回待更新的稳定根数量。
+   *
+   * <p>完整性无从证实的来源必须直接拒绝；完整性可证但尚未收敛到最新变化版本的来源允许输出，
+   * 由返回的正数披露待更新的稳定根数量。多个来源同时未收敛时取待更新数量之和，因为对外展示的
+   * 结果整份都由这些来源拼成，任何一个来源落后都会让整份结果不是最新。
+   */
+  private long requireReadableSources(Set<FactProjectionScope> scopes) {
     FactType factType = factTypeOf(scopes);
+    long pendingUpdates = 0L;
     for (String sourceInstance : sourceInstancesOf(scopes)) {
       SyncFactPublicationStateService.SourceQualification qualification =
           publicationStateService.qualification(sourceInstance, factType);
       if (!qualification.readable()) {
         throw new BizException(qualification.reason());
       }
+      if (qualification.degraded()) {
+        pendingUpdates += qualification.pendingUpdates();
+      }
     }
+    return pendingUpdates;
   }
 
   private static Set<String> sourceInstancesOf(Set<FactProjectionScope> scopes) {
@@ -269,8 +326,26 @@ public class StatisticBoardSnapshotService {
     }
   }
 
-  /** 一致性边界内解析出的实际读取范围与该视图对应的来源版本。 */
-  public record SourceRead(Set<FactProjectionScope> readScopes, String sourceVersion) {}
+  /**
+   * 一致性边界内解析出的实际读取范围与该视图对应的来源版本。
+   *
+   * @param readScopes 实际读取的来源与稳定范围
+   * @param sourceVersion 与该视图对应的来源版本
+   * @param pendingUpdates 尚未发布到最新变化版本的稳定根数量；{@code 0} 表示来源已收敛
+   */
+  public record SourceRead(
+      Set<FactProjectionScope> readScopes, String sourceVersion, long pendingUpdates) {
+
+    /** 是否处于"完整性可证但未收敛"的降级可读状态。 */
+    public boolean degraded() {
+      return pendingUpdates > 0L;
+    }
+
+    /** 把降级提示附着到本次读取产出的响应上；来源已收敛时原样返回。 */
+    StatisticBoardResponse attachFreshness(StatisticBoardResponse response) {
+      return response == null ? null : response.withPendingUpdates(pendingUpdates);
+    }
+  }
 
   public void invalidateBoard(String boardKey) {
     publicationGuardService.writeSnapshot(
@@ -396,7 +471,9 @@ public class StatisticBoardSnapshotService {
           appliedFilters,
           appliedFilterGroup,
           snapshot.rows(),
-          snapshot.meta());
+          snapshot.meta(),
+          null,
+        null);
     }
   }
 

@@ -233,8 +233,8 @@
         "columnKey" : "suggestion",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "CC2026R3第一轮系统测试"
         }
@@ -353,8 +353,8 @@
         "columnKey" : "level1",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "CC2026R3第四轮系统测试"
         }
@@ -371,8 +371,8 @@
         "columnKey" : "level3",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "CC2026R3第四轮系统测试"
         }
@@ -380,8 +380,8 @@
         "columnKey" : "suggestion",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "CC2026R3第四轮系统测试"
         }
@@ -420,8 +420,8 @@
         "columnKey" : "level3",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "CC2026R3第五轮系统测试"
         }
@@ -429,8 +429,8 @@
         "columnKey" : "suggestion",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "CC2026R3第五轮系统测试"
         }
@@ -469,8 +469,8 @@
         "columnKey" : "level3",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "CC2026R3第六轮系统测试"
         }
@@ -478,8 +478,8 @@
         "columnKey" : "suggestion",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "CC2026R3第六轮系统测试"
         }
@@ -518,8 +518,8 @@
         "columnKey" : "level3",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "CC2026R3回归测试"
         }
@@ -527,8 +527,8 @@
         "columnKey" : "suggestion",
         "numericValue" : 0,
         "displayValue" : "0",
-        "drilldown" : true,
-        "detailViewKey" : "issue-list",
+        "drilldown" : false,
+        "detailViewKey" : null,
         "detailParams" : {
           "rowKey" : "CC2026R3回归测试"
         }
@@ -544,8 +544,8 @@
       } ]
     } ],
     "meta" : {
-      "generatedAt" : "2026-09-16T16:49:40.742239+08:00",
-      "queryDurationMs" : 13,
+      "generatedAt" : "2026-09-29T12:45:13.5236383+08:00",
+      "queryDurationMs" : 20,
       "rowCount" : 7,
       "columnCount" : 5,
       "drilldownColumnCount" : 4

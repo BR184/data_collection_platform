@@ -10,10 +10,12 @@ import static org.mockito.Mockito.when;
 import com.data.collection.platform.bi.application.BiDashboardRuntime;
 import com.data.collection.platform.bi.application.BiDownloadAuthorizationService;
 import com.data.collection.platform.bi.application.BiExcelExportService;
+import com.data.collection.platform.bi.application.BiPagePermissionResolver;
 import com.data.collection.platform.bi.domain.model.BiDownloadScope;
 import com.data.collection.platform.bi.domain.model.BiDownloadScope.RangeType;
 import com.data.collection.platform.bi.infrastructure.BiDashboardRuntimeManager;
 import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.service.PlatformPermissionService;
 import java.io.ByteArrayInputStream;
 import java.util.List;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 class BiDashboardControllerExcelExportTest {
   @Test
@@ -35,7 +38,7 @@ class BiDashboardControllerExcelExportTest {
     when(downloads.authorize(any())).thenReturn(new BiDownloadAuthorizationService.Authorization(
         true, BiDownloadScope.productVersion(10L), "system-test", "system-test-assignee-workload",
         "developer-workload", "issue-version-3", "产品版本：CC2026R4"));
-    BiDashboardController controller = new BiDashboardController(manager);
+    BiDashboardController controller = controller(manager);
 
     ResponseEntity<byte[]> response = controller.exportExcel(new BiExcelExportRequest(
         new BiDownloadScopeRequest(RangeType.PRODUCT_VERSION, 10L, null, null,
@@ -43,7 +46,7 @@ class BiDashboardControllerExcelExportTest {
         "system-test", "system-test-assignee-workload", "developer-workload", "issue-version-3",
         "按指派人统计缺陷数", "统计各处理人员被指派的缺陷总数。",
         List.of("指派责任人", "缺陷总数"),
-        List.of(List.<Object>of("张三", 10))));
+        List.of(List.<Object>of("张三", 10))), new MockHttpServletRequest());
 
     // 授权必须先于生成执行，避免绕过下载权限直接取文件。
     verify(downloads).authorize(new BiDownloadAuthorizationService.Request(
@@ -74,7 +77,7 @@ class BiDashboardControllerExcelExportTest {
     when(runtime.downloads()).thenReturn(downloads);
     when(downloads.authorize(any()))
         .thenThrow(new BizException("页面已有新数据，请刷新整页后再下载"));
-    BiDashboardController controller = new BiDashboardController(manager);
+    BiDashboardController controller = controller(manager);
 
     BiExcelExportRequest request = new BiExcelExportRequest(
         new BiDownloadScopeRequest(RangeType.PRODUCT_VERSION, 10L, null, null,
@@ -82,14 +85,14 @@ class BiDashboardControllerExcelExportTest {
         "system-test", "system-test-assignee-workload", "developer-workload", "stale-version",
         "按指派人统计缺陷数", null, List.of("指派责任人"), List.of());
 
-    assertThatThrownBy(() -> controller.exportExcel(request))
+    assertThatThrownBy(() -> controller.exportExcel(request, new MockHttpServletRequest()))
         .isInstanceOf(BizException.class)
         .hasMessageContaining("刷新整页");
   }
 
   @Test
   void rejectsMalformedCustomerSelectorsBeforeLoadingRuntime() {
-    BiDashboardController controller = new BiDashboardController(mock(BiDashboardRuntimeManager.class));
+    BiDashboardController controller = controller(mock(BiDashboardRuntimeManager.class));
 
     assertThatThrownBy(() -> controller.customerIssues(
         null, "UNKNOWN", "x", null, null, null, null))
@@ -103,5 +106,14 @@ class BiDashboardControllerExcelExportTest {
         null, "ALL", "x", null, null, null, null))
         .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
         .hasMessageContaining("ALL 不接受");
+  }
+
+  /**
+   * 本测试只关注 Excel 生成与授权调用顺序，页面级权限判定由
+   * {@link BiDownloadPagePermissionTest} 覆盖，因此这里用放行替身。
+   */
+  private static BiDashboardController controller(BiDashboardRuntimeManager manager) {
+    return new BiDashboardController(
+        manager, new BiPagePermissionResolver(), mock(PlatformPermissionService.class));
   }
 }

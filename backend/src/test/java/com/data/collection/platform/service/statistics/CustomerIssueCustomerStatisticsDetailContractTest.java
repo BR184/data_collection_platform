@@ -99,7 +99,7 @@ class CustomerIssueCustomerStatisticsDetailContractTest {
         .query(anyString(), any(PreparedStatementSetter.class), any(ResultSetExtractor.class));
     StatisticBoardSnapshotService.SourceRead testRead =
         new StatisticBoardSnapshotService.SourceRead(
-            StatisticBoardTestSnapshotScopes.defaultProjectScopeSet(), SOURCE_VERSION);
+            StatisticBoardTestSnapshotScopes.defaultProjectScopeSet(), SOURCE_VERSION, 0L);
     doAnswer(
             invocation ->
                 ((Function<StatisticBoardSnapshotService.SourceRead, StatisticBoardResponse>)

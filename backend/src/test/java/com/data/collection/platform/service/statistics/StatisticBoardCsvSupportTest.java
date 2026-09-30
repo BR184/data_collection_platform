@@ -46,7 +46,9 @@ class StatisticBoardCsvSupportTest {
                     List.of(
                         new StatisticCellData("count", 2L, "2", true, null, Map.of()),
                         new StatisticCellData("owner", 0L, "张三", false, null, Map.of())))),
-            new StatisticBoardMeta(LocalDateTime.now(), 1L, 1, 2, 1));
+            new StatisticBoardMeta(LocalDateTime.now(), 1L, 1, 2, 1),
+        null,
+        null);
 
     String csv = StatisticBoardCsvSupport.export(response);
 

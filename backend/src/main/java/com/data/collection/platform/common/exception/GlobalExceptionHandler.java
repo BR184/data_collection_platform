@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.BindException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -94,6 +95,26 @@ public class GlobalExceptionHandler {
   public ApiResponse<Void> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
     log.warn("HTTP method not supported: {}", e.getMessage());
     return ApiResponse.fail(ResultCode.BAD_REQUEST, "请求方法不支持");
+  }
+
+  /**
+   * 程序化鉴权的拒绝出口。
+   *
+   * <p>{@link com.data.collection.platform.service.PlatformPermissionService#requirePermission} 与各业务授权服务
+   * 以 Spring {@link AccessDeniedException} 表达「已登录但无权」，其语义与拦截器写出的 403 一致；
+   * 若落入通用兜底会被误报成 500「服务处理异常」，因此在此显式映射为 403，与
+   * {@code PlatformSecurityConfiguration#platformAccessDeniedHandler} 同口径。
+   */
+  @ResponseBody
+  @ResponseStatus(HttpStatus.FORBIDDEN)
+  @ExceptionHandler(AccessDeniedException.class)
+  public ApiResponse<Void> handleAccessDenied(AccessDeniedException e) {
+    String message = e.getMessage();
+    if (message == null || message.isBlank()) {
+      message = "当前账号无权执行该操作";
+    }
+    log.warn("Access denied: {}", message);
+    return ApiResponse.fail(ResultCode.FORBIDDEN, message);
   }
 
   @ResponseBody

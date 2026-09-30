@@ -364,7 +364,9 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     int columnCount = definition.columnGroups().stream().mapToInt(StatisticColumnGroup::columnCount).sum();
     int drilldownCount = definition.columnGroups().stream().flatMap(group -> group.leafColumns().stream()).mapToInt(c -> c.drilldown() ? 1 : 0).sum();
     return new StatisticBoardResponse(definition, withoutReservedFilters(filters), effectiveFilterGroup.appliedGroup(), rows,
-        new StatisticBoardMeta(LocalDateTime.now(), System.currentTimeMillis() - startedAt, rows.size(), columnCount, drilldownCount));
+        new StatisticBoardMeta(LocalDateTime.now(), System.currentTimeMillis() - startedAt, rows.size(), columnCount, drilldownCount),
+        null,
+        null);
   }
 
   @Override

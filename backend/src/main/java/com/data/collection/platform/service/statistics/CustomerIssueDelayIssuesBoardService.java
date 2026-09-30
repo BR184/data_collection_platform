@@ -50,7 +50,7 @@ import org.springframework.util.StringUtils;
 public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoardService
     implements RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-delay-issues";
-  private static final String RULE_VERSION = "customer-issue-delay-issues@2026-09-08-v5";
+  private static final String RULE_VERSION = "customer-issue-delay-issues@2026-09-28-v6";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总数";
   private static final String EMPTY_MODULE_LABEL = "未设定模块";
@@ -244,7 +244,9 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
             System.currentTimeMillis() - startedAt,
             rows.size(),
             columnCount,
-            drilldownCount));
+            drilldownCount),
+        null,
+        null);
   }
 
   @Override
@@ -335,8 +337,8 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
             new StatisticRuleMetricDefinition(
                 "resp_delay",
                 "响应延期",
-                "统计响应超过期限且未按调研模板响应的议题。",
-                "响应延期 = 超过对应紧急程度的响应期限且未按调研模板响应",
+                "统计超过对应紧急程度响应期限、且未按任一模板回复的议题；已按缺陷调研模板回复但未填写合法计划解决时间的同样计入。",
+                "响应延期 = 超过对应紧急程度的响应期限 ∧ ¬(回复模板存在 ∨ (响应模板存在 ∧ 计划解决时间合法))",
                 null),
             new StatisticRuleMetricDefinition(
                 "fix_delay",

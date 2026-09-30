@@ -12,6 +12,70 @@
       "title" : "模块千行缺陷率",
       "subtitle" : "用于观察模块维度的平均代码走查缺陷密度。",
       "option" : {
+        "grid" : {
+          "left" : 24,
+          "top" : 24,
+          "containLabel" : true,
+          "right" : 64,
+          "bottom" : 52
+        },
+        "dataZoom" : [ {
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true,
+          "endValue" : 10,
+          "startValue" : 0,
+          "handleStyle" : {
+            "borderColor" : "#2563eb",
+            "borderWidth" : 1.5,
+            "shadowBlur" : 3,
+            "shadowColor" : "rgba(37, 99, 235, 0.18)",
+            "color" : "#ffffff"
+          },
+          "filterMode" : "filter",
+          "borderColor" : "#cbd5e1",
+          "moveHandleSize" : 12,
+          "showDetail" : false,
+          "handleSize" : "100%",
+          "type" : "slider",
+          "fillerColor" : "rgba(37, 99, 235, 0.18)",
+          "right" : 16,
+          "backgroundColor" : "#f8fafc",
+          "width" : 30,
+          "borderRadius" : 6,
+          "yAxisIndex" : 0,
+          "moveHandleStyle" : {
+            "color" : "rgba(37, 99, 235, 0.34)"
+          },
+          "selectedDataBackground" : {
+            "areaStyle" : {
+              "color" : "#bfdbfe",
+              "opacity" : 0.72
+            },
+            "lineStyle" : {
+              "color" : "#60a5fa",
+              "width" : 1
+            }
+          }
+        } ],
+        "animationDuration" : 450,
         "yAxis" : {
           "inverse" : true,
           "type" : "category",
@@ -28,6 +92,7 @@
           }
         },
         "series" : [ {
+          "name" : "缺陷密度(K/LOC)",
           "type" : "bar",
           "barMaxWidth" : 28,
           "itemStyle" : {
@@ -384,28 +449,66 @@
             "detailParams" : {
               "pointKey" : "轻量化"
             }
-          } ],
-          "name" : "缺陷密度(K/LOC)"
+          } ]
         } ],
         "xAxis" : {
-          "nameLocation" : "middle",
-          "nameGap" : 34,
-          "type" : "value",
           "splitLine" : {
             "lineStyle" : {
               "color" : "#eef2f7"
             }
           },
-          "name" : "缺陷密度(K/LOC)"
-        },
+          "name" : "缺陷密度(K/LOC)",
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value"
+        }
+      },
+      "ruleKey" : "module-defect-density",
+      "detail" : {
+        "viewKey" : "code-review-statistics",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "module-defect-density"
+        }
+      },
+      "export" : {
+        "exportKey" : "module-defect-density",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "reviewer-defect-density",
+      "title" : "走查人千行缺陷率",
+      "subtitle" : "用于观察实际走查人员发现代码缺陷的密度。",
+      "option" : {
         "grid" : {
+          "left" : 24,
           "top" : 24,
           "containLabel" : true,
           "right" : 64,
-          "bottom" : 52,
-          "left" : 24
+          "bottom" : 52
         },
         "dataZoom" : [ {
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true,
           "endValue" : 10,
           "startValue" : 0,
           "handleStyle" : {
@@ -439,48 +542,9 @@
               "color" : "#60a5fa",
               "width" : 1
             }
-          },
-          "dataBackground" : {
-            "areaStyle" : {
-              "color" : "#e2e8f0",
-              "opacity" : 0.58
-            },
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            }
-          },
-          "emphasis" : {
-            "handleStyle" : {
-              "borderColor" : "#1d4ed8",
-              "borderWidth" : 1.5,
-              "shadowBlur" : 3,
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "color" : "#ffffff"
-            }
-          },
-          "show" : true
+          }
         } ],
-        "animationDuration" : 450
-      },
-      "ruleKey" : "module-defect-density",
-      "detail" : {
-        "viewKey" : "code-review-statistics",
-        "params" : {
-          "source" : "cc",
-          "projectName" : "CC2026R3",
-          "topic" : "module-defect-density"
-        }
-      },
-      "export" : {
-        "exportKey" : "module-defect-density",
-        "label" : "导出"
-      }
-    }, {
-      "key" : "reviewer-defect-density",
-      "title" : "走查人千行缺陷率",
-      "subtitle" : "用于观察实际走查人员发现代码缺陷的密度。",
-      "option" : {
+        "animationDuration" : 450,
         "yAxis" : {
           "inverse" : true,
           "type" : "category",
@@ -497,6 +561,7 @@
           }
         },
         "series" : [ {
+          "name" : "缺陷密度(K/LOC)",
           "type" : "bar",
           "barMaxWidth" : 28,
           "itemStyle" : {
@@ -650,28 +715,66 @@
             "detailParams" : {
               "pointKey" : "高士亮"
             }
-          } ],
-          "name" : "缺陷密度(K/LOC)"
+          } ]
         } ],
         "xAxis" : {
-          "nameLocation" : "middle",
-          "nameGap" : 34,
-          "type" : "value",
           "splitLine" : {
             "lineStyle" : {
               "color" : "#eef2f7"
             }
           },
-          "name" : "缺陷密度(K/LOC)"
-        },
+          "name" : "缺陷密度(K/LOC)",
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value"
+        }
+      },
+      "ruleKey" : "reviewer-defect-density",
+      "detail" : {
+        "viewKey" : "code-review-statistics",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "reviewer-defect-density"
+        }
+      },
+      "export" : {
+        "exportKey" : "reviewer-defect-density",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "reviewer-fixed-defects",
+      "title" : "走查人修复缺陷数量",
+      "subtitle" : "用于观察走查人发现并计入的代码走查缺陷总量。",
+      "option" : {
         "grid" : {
+          "left" : 24,
           "top" : 24,
           "containLabel" : true,
           "right" : 64,
-          "bottom" : 52,
-          "left" : 24
+          "bottom" : 52
         },
         "dataZoom" : [ {
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true,
           "endValue" : 10,
           "startValue" : 0,
           "handleStyle" : {
@@ -705,48 +808,9 @@
               "color" : "#60a5fa",
               "width" : 1
             }
-          },
-          "dataBackground" : {
-            "areaStyle" : {
-              "color" : "#e2e8f0",
-              "opacity" : 0.58
-            },
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            }
-          },
-          "emphasis" : {
-            "handleStyle" : {
-              "borderColor" : "#1d4ed8",
-              "borderWidth" : 1.5,
-              "shadowBlur" : 3,
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "color" : "#ffffff"
-            }
-          },
-          "show" : true
+          }
         } ],
-        "animationDuration" : 450
-      },
-      "ruleKey" : "reviewer-defect-density",
-      "detail" : {
-        "viewKey" : "code-review-statistics",
-        "params" : {
-          "source" : "cc",
-          "projectName" : "CC2026R3",
-          "topic" : "reviewer-defect-density"
-        }
-      },
-      "export" : {
-        "exportKey" : "reviewer-defect-density",
-        "label" : "导出"
-      }
-    }, {
-      "key" : "reviewer-fixed-defects",
-      "title" : "走查人修复缺陷数量",
-      "subtitle" : "用于观察走查人发现并计入的代码走查缺陷总量。",
-      "option" : {
+        "animationDuration" : 450,
         "yAxis" : {
           "inverse" : true,
           "type" : "category",
@@ -763,6 +827,7 @@
           }
         },
         "series" : [ {
+          "name" : "修复缺陷数",
           "type" : "bar",
           "barMaxWidth" : 28,
           "itemStyle" : {
@@ -916,28 +981,66 @@
             "detailParams" : {
               "pointKey" : "高士亮"
             }
-          } ],
-          "name" : "修复缺陷数"
+          } ]
         } ],
         "xAxis" : {
-          "nameLocation" : "middle",
-          "nameGap" : 34,
-          "type" : "value",
           "splitLine" : {
             "lineStyle" : {
               "color" : "#eef2f7"
             }
           },
-          "name" : "修复缺陷数"
-        },
+          "name" : "修复缺陷数",
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value"
+        }
+      },
+      "ruleKey" : "reviewer-fixed-defects",
+      "detail" : {
+        "viewKey" : "code-review-statistics",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "reviewer-fixed-defects"
+        }
+      },
+      "export" : {
+        "exportKey" : "reviewer-fixed-defects",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "assignee-fixed-defects",
+      "title" : "指派人修复缺陷数量",
+      "subtitle" : "用于观察各指派人的代码走查缺陷承担分布。",
+      "option" : {
         "grid" : {
+          "left" : 24,
           "top" : 24,
           "containLabel" : true,
           "right" : 64,
-          "bottom" : 52,
-          "left" : 24
+          "bottom" : 52
         },
         "dataZoom" : [ {
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true,
           "endValue" : 10,
           "startValue" : 0,
           "handleStyle" : {
@@ -971,48 +1074,9 @@
               "color" : "#60a5fa",
               "width" : 1
             }
-          },
-          "dataBackground" : {
-            "areaStyle" : {
-              "color" : "#e2e8f0",
-              "opacity" : 0.58
-            },
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            }
-          },
-          "emphasis" : {
-            "handleStyle" : {
-              "borderColor" : "#1d4ed8",
-              "borderWidth" : 1.5,
-              "shadowBlur" : 3,
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "color" : "#ffffff"
-            }
-          },
-          "show" : true
+          }
         } ],
-        "animationDuration" : 450
-      },
-      "ruleKey" : "reviewer-fixed-defects",
-      "detail" : {
-        "viewKey" : "code-review-statistics",
-        "params" : {
-          "source" : "cc",
-          "projectName" : "CC2026R3",
-          "topic" : "reviewer-fixed-defects"
-        }
-      },
-      "export" : {
-        "exportKey" : "reviewer-fixed-defects",
-        "label" : "导出"
-      }
-    }, {
-      "key" : "assignee-fixed-defects",
-      "title" : "指派人修复缺陷数量",
-      "subtitle" : "用于观察各指派人的代码走查缺陷承担分布。",
-      "option" : {
+        "animationDuration" : 450,
         "yAxis" : {
           "inverse" : true,
           "type" : "category",
@@ -1029,6 +1093,7 @@
           }
         },
         "series" : [ {
+          "name" : "修复缺陷数",
           "type" : "bar",
           "barMaxWidth" : 28,
           "itemStyle" : {
@@ -1168,28 +1233,66 @@
             "detailParams" : {
               "pointKey" : "高士亮"
             }
-          } ],
-          "name" : "修复缺陷数"
+          } ]
         } ],
         "xAxis" : {
-          "nameLocation" : "middle",
-          "nameGap" : 34,
-          "type" : "value",
           "splitLine" : {
             "lineStyle" : {
               "color" : "#eef2f7"
             }
           },
-          "name" : "修复缺陷数"
-        },
+          "name" : "修复缺陷数",
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value"
+        }
+      },
+      "ruleKey" : "assignee-fixed-defects",
+      "detail" : {
+        "viewKey" : "code-review-statistics",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "assignee-fixed-defects"
+        }
+      },
+      "export" : {
+        "exportKey" : "assignee-fixed-defects",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "author-defect-density",
+      "title" : "被走查人千行缺陷率",
+      "subtitle" : "用于观察代码提交人在走查中暴露的缺陷密度。",
+      "option" : {
         "grid" : {
+          "left" : 24,
           "top" : 24,
           "containLabel" : true,
           "right" : 64,
-          "bottom" : 52,
-          "left" : 24
+          "bottom" : 52
         },
         "dataZoom" : [ {
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true,
           "endValue" : 10,
           "startValue" : 0,
           "handleStyle" : {
@@ -1223,48 +1326,9 @@
               "color" : "#60a5fa",
               "width" : 1
             }
-          },
-          "dataBackground" : {
-            "areaStyle" : {
-              "color" : "#e2e8f0",
-              "opacity" : 0.58
-            },
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            }
-          },
-          "emphasis" : {
-            "handleStyle" : {
-              "borderColor" : "#1d4ed8",
-              "borderWidth" : 1.5,
-              "shadowBlur" : 3,
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "color" : "#ffffff"
-            }
-          },
-          "show" : true
+          }
         } ],
-        "animationDuration" : 450
-      },
-      "ruleKey" : "assignee-fixed-defects",
-      "detail" : {
-        "viewKey" : "code-review-statistics",
-        "params" : {
-          "source" : "cc",
-          "projectName" : "CC2026R3",
-          "topic" : "assignee-fixed-defects"
-        }
-      },
-      "export" : {
-        "exportKey" : "assignee-fixed-defects",
-        "label" : "导出"
-      }
-    }, {
-      "key" : "author-defect-density",
-      "title" : "被走查人千行缺陷率",
-      "subtitle" : "用于观察代码提交人在走查中暴露的缺陷密度。",
-      "option" : {
+        "animationDuration" : 450,
         "yAxis" : {
           "inverse" : true,
           "type" : "category",
@@ -1281,6 +1345,7 @@
           }
         },
         "series" : [ {
+          "name" : "缺陷密度(K/LOC)",
           "type" : "bar",
           "barMaxWidth" : 28,
           "itemStyle" : {
@@ -1798,28 +1863,66 @@
             "detailParams" : {
               "pointKey" : "高健峰"
             }
-          } ],
-          "name" : "缺陷密度(K/LOC)"
+          } ]
         } ],
         "xAxis" : {
-          "nameLocation" : "middle",
-          "nameGap" : 34,
-          "type" : "value",
           "splitLine" : {
             "lineStyle" : {
               "color" : "#eef2f7"
             }
           },
-          "name" : "缺陷密度(K/LOC)"
-        },
+          "name" : "缺陷密度(K/LOC)",
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value"
+        }
+      },
+      "ruleKey" : "author-defect-density",
+      "detail" : {
+        "viewKey" : "code-review-statistics",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "author-defect-density"
+        }
+      },
+      "export" : {
+        "exportKey" : "author-defect-density",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "merge-request-count",
+      "title" : "人员合并代码次数",
+      "subtitle" : "同一合并请求的多条走查记录只计一次。",
+      "option" : {
         "grid" : {
+          "left" : 24,
           "top" : 24,
           "containLabel" : true,
           "right" : 64,
-          "bottom" : 52,
-          "left" : 24
+          "bottom" : 52
         },
         "dataZoom" : [ {
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true,
           "endValue" : 10,
           "startValue" : 0,
           "handleStyle" : {
@@ -1853,48 +1956,9 @@
               "color" : "#60a5fa",
               "width" : 1
             }
-          },
-          "dataBackground" : {
-            "areaStyle" : {
-              "color" : "#e2e8f0",
-              "opacity" : 0.58
-            },
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            }
-          },
-          "emphasis" : {
-            "handleStyle" : {
-              "borderColor" : "#1d4ed8",
-              "borderWidth" : 1.5,
-              "shadowBlur" : 3,
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "color" : "#ffffff"
-            }
-          },
-          "show" : true
+          }
         } ],
-        "animationDuration" : 450
-      },
-      "ruleKey" : "author-defect-density",
-      "detail" : {
-        "viewKey" : "code-review-statistics",
-        "params" : {
-          "source" : "cc",
-          "projectName" : "CC2026R3",
-          "topic" : "author-defect-density"
-        }
-      },
-      "export" : {
-        "exportKey" : "author-defect-density",
-        "label" : "导出"
-      }
-    }, {
-      "key" : "merge-request-count",
-      "title" : "人员合并代码次数",
-      "subtitle" : "同一合并请求的多条走查记录只计一次。",
-      "option" : {
+        "animationDuration" : 450,
         "yAxis" : {
           "inverse" : true,
           "type" : "category",
@@ -1911,6 +1975,7 @@
           }
         },
         "series" : [ {
+          "name" : "合并请求数",
           "type" : "bar",
           "barMaxWidth" : 28,
           "itemStyle" : {
@@ -2022,28 +2087,66 @@
             "detailParams" : {
               "pointKey" : "李钊"
             }
-          } ],
-          "name" : "合并请求数"
+          } ]
         } ],
         "xAxis" : {
-          "nameLocation" : "middle",
-          "nameGap" : 34,
-          "type" : "value",
           "splitLine" : {
             "lineStyle" : {
               "color" : "#eef2f7"
             }
           },
-          "name" : "合并请求数"
-        },
+          "name" : "合并请求数",
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value"
+        }
+      },
+      "ruleKey" : "merge-request-count",
+      "detail" : {
+        "viewKey" : "code-review-statistics",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "merge-request-count"
+        }
+      },
+      "export" : {
+        "exportKey" : "merge-request-count",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "code-submission-frequency",
+      "title" : "代码提交频次",
+      "subtitle" : "按提交人统计代码提交频次，不使用缺陷密度口径。",
+      "option" : {
         "grid" : {
+          "left" : 24,
           "top" : 24,
           "containLabel" : true,
           "right" : 64,
-          "bottom" : 52,
-          "left" : 24
+          "bottom" : 52
         },
         "dataZoom" : [ {
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true,
           "endValue" : 10,
           "startValue" : 0,
           "handleStyle" : {
@@ -2077,48 +2180,9 @@
               "color" : "#60a5fa",
               "width" : 1
             }
-          },
-          "dataBackground" : {
-            "areaStyle" : {
-              "color" : "#e2e8f0",
-              "opacity" : 0.58
-            },
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            }
-          },
-          "emphasis" : {
-            "handleStyle" : {
-              "borderColor" : "#1d4ed8",
-              "borderWidth" : 1.5,
-              "shadowBlur" : 3,
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "color" : "#ffffff"
-            }
-          },
-          "show" : true
+          }
         } ],
-        "animationDuration" : 450
-      },
-      "ruleKey" : "merge-request-count",
-      "detail" : {
-        "viewKey" : "code-review-statistics",
-        "params" : {
-          "source" : "cc",
-          "projectName" : "CC2026R3",
-          "topic" : "merge-request-count"
-        }
-      },
-      "export" : {
-        "exportKey" : "merge-request-count",
-        "label" : "导出"
-      }
-    }, {
-      "key" : "code-submission-frequency",
-      "title" : "代码提交频次",
-      "subtitle" : "按提交人统计代码提交频次，不使用缺陷密度口径。",
-      "option" : {
+        "animationDuration" : 450,
         "yAxis" : {
           "inverse" : true,
           "type" : "category",
@@ -2135,6 +2199,7 @@
           }
         },
         "series" : [ {
+          "name" : "代码提交次数",
           "type" : "bar",
           "barMaxWidth" : 28,
           "itemStyle" : {
@@ -2652,29 +2717,67 @@
             "detailParams" : {
               "pointKey" : "陈晖"
             }
-          } ],
-          "name" : "代码提交次数"
+          } ]
         } ],
         "xAxis" : {
-          "nameLocation" : "middle",
-          "nameGap" : 34,
-          "type" : "value",
           "splitLine" : {
             "lineStyle" : {
               "color" : "#eef2f7"
             }
           },
-          "name" : "代码提交次数"
-        },
+          "name" : "代码提交次数",
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value"
+        }
+      },
+      "ruleKey" : "code-submission-frequency",
+      "detail" : {
+        "viewKey" : "code-review-statistics",
+        "params" : {
+          "source" : "cc",
+          "projectName" : "CC2026R3",
+          "topic" : "code-submission-frequency"
+        }
+      },
+      "export" : {
+        "exportKey" : "code-submission-frequency",
+        "label" : "导出"
+      }
+    }, {
+      "key" : "code-submission-defect-density",
+      "title" : "代码提交缺陷密度统计",
+      "subtitle" : "使用缺陷数与新增代码行数重新计算，不复用行级平均密度。",
+      "option" : {
         "grid" : {
+          "left" : 24,
           "top" : 24,
           "containLabel" : true,
           "right" : 64,
-          "bottom" : 52,
-          "left" : 24
+          "bottom" : 52
         },
         "dataZoom" : [ {
-          "endValue" : 10,
+          "dataBackground" : {
+            "areaStyle" : {
+              "color" : "#e2e8f0",
+              "opacity" : 0.58
+            },
+            "lineStyle" : {
+              "color" : "#cbd5e1",
+              "width" : 1
+            }
+          },
+          "emphasis" : {
+            "handleStyle" : {
+              "borderColor" : "#1d4ed8",
+              "borderWidth" : 1.5,
+              "shadowBlur" : 3,
+              "shadowColor" : "rgba(37, 99, 235, 0.18)",
+              "color" : "#ffffff"
+            }
+          },
+          "show" : true,
+          "endValue" : 30,
           "startValue" : 0,
           "handleStyle" : {
             "borderColor" : "#2563eb",
@@ -2707,48 +2810,9 @@
               "color" : "#60a5fa",
               "width" : 1
             }
-          },
-          "dataBackground" : {
-            "areaStyle" : {
-              "color" : "#e2e8f0",
-              "opacity" : 0.58
-            },
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            }
-          },
-          "emphasis" : {
-            "handleStyle" : {
-              "borderColor" : "#1d4ed8",
-              "borderWidth" : 1.5,
-              "shadowBlur" : 3,
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "color" : "#ffffff"
-            }
-          },
-          "show" : true
+          }
         } ],
-        "animationDuration" : 450
-      },
-      "ruleKey" : "code-submission-frequency",
-      "detail" : {
-        "viewKey" : "code-review-statistics",
-        "params" : {
-          "source" : "cc",
-          "projectName" : "CC2026R3",
-          "topic" : "code-submission-frequency"
-        }
-      },
-      "export" : {
-        "exportKey" : "code-submission-frequency",
-        "label" : "导出"
-      }
-    }, {
-      "key" : "code-submission-defect-density",
-      "title" : "代码提交缺陷密度统计",
-      "subtitle" : "使用缺陷数与新增代码行数重新计算，不复用行级平均密度。",
-      "option" : {
+        "animationDuration" : 450,
         "yAxis" : {
           "inverse" : true,
           "type" : "category",
@@ -2765,6 +2829,7 @@
           }
         },
         "series" : [ {
+          "name" : "密度(K/LOC)",
           "type" : "bar",
           "barMaxWidth" : 28,
           "itemStyle" : {
@@ -3121,84 +3186,19 @@
             "detailParams" : {
               "pointKey" : "轻量化"
             }
-          } ],
-          "name" : "密度(K/LOC)"
+          } ]
         } ],
         "xAxis" : {
-          "nameLocation" : "middle",
-          "nameGap" : 34,
-          "type" : "value",
           "splitLine" : {
             "lineStyle" : {
               "color" : "#eef2f7"
             }
           },
-          "name" : "密度(K/LOC)"
-        },
-        "grid" : {
-          "top" : 24,
-          "containLabel" : true,
-          "right" : 64,
-          "bottom" : 52,
-          "left" : 24
-        },
-        "dataZoom" : [ {
-          "endValue" : 30,
-          "startValue" : 0,
-          "handleStyle" : {
-            "borderColor" : "#2563eb",
-            "borderWidth" : 1.5,
-            "shadowBlur" : 3,
-            "shadowColor" : "rgba(37, 99, 235, 0.18)",
-            "color" : "#ffffff"
-          },
-          "filterMode" : "filter",
-          "borderColor" : "#cbd5e1",
-          "moveHandleSize" : 12,
-          "showDetail" : false,
-          "handleSize" : "100%",
-          "type" : "slider",
-          "fillerColor" : "rgba(37, 99, 235, 0.18)",
-          "right" : 16,
-          "backgroundColor" : "#f8fafc",
-          "width" : 30,
-          "borderRadius" : 6,
-          "yAxisIndex" : 0,
-          "moveHandleStyle" : {
-            "color" : "rgba(37, 99, 235, 0.34)"
-          },
-          "selectedDataBackground" : {
-            "areaStyle" : {
-              "color" : "#bfdbfe",
-              "opacity" : 0.72
-            },
-            "lineStyle" : {
-              "color" : "#60a5fa",
-              "width" : 1
-            }
-          },
-          "dataBackground" : {
-            "areaStyle" : {
-              "color" : "#e2e8f0",
-              "opacity" : 0.58
-            },
-            "lineStyle" : {
-              "color" : "#cbd5e1",
-              "width" : 1
-            }
-          },
-          "emphasis" : {
-            "handleStyle" : {
-              "borderColor" : "#1d4ed8",
-              "borderWidth" : 1.5,
-              "shadowBlur" : 3,
-              "shadowColor" : "rgba(37, 99, 235, 0.18)",
-              "color" : "#ffffff"
-            }
-          },
-          "show" : true
-        } ],
-        "animationDuration" : 450
+          "name" : "密度(K/LOC)",
+          "nameLocation" : "middle",
+          "nameGap" : 34,
+          "type" : "value"
+        }
       },
       "ruleKey" : "code-submission-defect-density",
       "detail" : {

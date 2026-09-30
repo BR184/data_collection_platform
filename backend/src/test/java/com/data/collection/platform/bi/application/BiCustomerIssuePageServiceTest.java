@@ -74,7 +74,7 @@ class BiCustomerIssuePageServiceTest {
       plan.resolve();
       @SuppressWarnings("unchecked")
       Function<StatisticBoardSnapshotService.SourceRead, Object> action = invocation.getArgument(1);
-      return action.apply(new StatisticBoardSnapshotService.SourceRead(Set.of(), "issue-v17"));
+      return action.apply(new StatisticBoardSnapshotService.SourceRead(Set.of(), "issue-v17", 0L));
     });
   }
 
