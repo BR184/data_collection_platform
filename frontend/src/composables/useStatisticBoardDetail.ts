@@ -10,6 +10,7 @@ import type {
   StatisticRowData,
 } from '../types/api';
 import {
+  routeDetailCollection,
   routeDetailPage,
   routeDetailPageSize,
   routeDetailSortBy,
@@ -31,6 +32,9 @@ interface StatisticBoardDetailParams {
   filterGroup?: StatisticFilterGroup | null;
 }
 
+/** 明细集合切换参数名；与后端 Population 枚举同名，后端拒绝非法值。 */
+const DETAIL_COLLECTION_PARAM = 'population';
+
 interface StatisticBoardDetailDependencies {
   boardKey: () => string;
   getFilterGroup: () => StatisticFilterGroup | null;
@@ -45,6 +49,8 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
   const activeRow = ref<StatisticRowData | null>(null);
   const activeCell = ref<StatisticCellData | null>(null);
   const detail = ref<StatisticDetailResponse | null>(null);
+  // 用户显式选择的集合；空表示沿用指标定义的默认集合。
+  const detailCollection = ref('');
   const detailQuickFilterValues = reactive<Record<string, string>>({});
   const detailQuickFilterInputDrafts = reactive<Record<string, string>>({});
   const detailPagination = reactive({
@@ -53,6 +59,9 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     sortField: '',
     sortOrder: 'descending',
   });
+  // 明细请求序号：切换页码、集合、排序或关闭明细都会让在途请求失效。
+  // 迟到的成功会写回旧集合的内容、迟到的失败会弹出已经不相关的错误、迟到的结束会提前清掉 loading。
+  let detailRequestSequence = 0;
 
   function syncPaginationFromRoute(query: DetailRouteQuery, defaultPageSize: number) {
     detailPagination.page = routeDetailPage(query);
@@ -61,15 +70,33 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     detailPagination.sortOrder = routeDetailSortOrder(query);
   }
 
+  /** 关闭或无行可下钻时作废在途请求，避免其响应回填已经关闭的明细。 */
+  function invalidateDetailRequests() {
+    detailRequestSequence += 1;
+    detailLoading.value = false;
+  }
+
   function clearDetailState() {
+    invalidateDetailRequests();
     detail.value = null;
+    detailCollection.value = '';
     activeRow.value = null;
     activeCell.value = null;
     resetDetailQuickFilterState();
   }
 
+  /** 路由/范围失效时立即关闭旧明细并作废在途请求；URL 由有效的新路由决定是否重新打开。 */
+  function invalidateForRouteChange() {
+    detailVisible.value = false;
+    clearDetailState();
+  }
+
+  /**
+   * 单元格是否可下钻只取决于后端声明的能力：数量、比率与周期指标即便为 0 或空也可打开。
+   * 旧看板的历史数值条件已由生产端写入该能力，前端不再按数值猜测。
+   */
   function canOpenDetailCell(cell: StatisticCellData | null | undefined) {
-    return Boolean(cell?.drilldown && Number(cell.numericValue) > 0);
+    return Boolean(cell?.drilldown);
   }
 
   function clearDetailRouteQuery() {
@@ -81,6 +108,7 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
       detailPageSize: '',
       detailSortBy: '',
       detailSortOrder: '',
+      detailCollection: '',
     });
   }
 
@@ -130,10 +158,12 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     if (!activeRow.value || !activeCell.value) {
       return;
     }
+    detailRequestSequence += 1;
+    const requestId = detailRequestSequence;
     detailLoading.value = true;
     try {
       const detailFilters = buildDetailFilters();
-      detail.value = await deps.loadDetails(deps.boardKey(), {
+      const response = await deps.loadDetails(deps.boardKey(), {
         rowKey: activeRow.value.rowKey,
         columnKey: activeCell.value.columnKey,
         page: detailPagination.page,
@@ -143,10 +173,19 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
         ...(Object.keys(detailFilters).length ? { filters: detailFilters } : {}),
         filterGroup: deps.getFilterGroup(),
       });
+      if (requestId !== detailRequestSequence) {
+        return;
+      }
+      detail.value = response;
     } catch (error) {
+      if (requestId !== detailRequestSequence) {
+        return;
+      }
       deps.notifyError(getErrorMessage(error, '看板详情加载失败'));
     } finally {
-      detailLoading.value = false;
+      if (requestId === detailRequestSequence) {
+        detailLoading.value = false;
+      }
     }
   }
 
@@ -165,6 +204,7 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
       detailPageSize: defaultPageSize,
       detailSortBy: 'syncedAt',
       detailSortOrder: 'descending',
+      detailCollection: '',
     });
   }
 
@@ -222,6 +262,7 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
 
   async function syncFromRoute(query: DetailRouteQuery, rows: StatisticRowData[], defaultPageSize: number) {
     syncPaginationFromRoute(query, defaultPageSize);
+    detailCollection.value = routeDetailCollection(query);
     detailVisible.value = routeDetailVisible(query);
     if (!detailVisible.value) {
       clearDetailState();
@@ -240,7 +281,11 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
   }
 
   function buildDetailFilters() {
+    // 来源版本、业务日与来源选择来自单元格 detailParams，集合切换与快速筛选只在其上追加。
     const filters: Record<string, string> = { ...(activeCell.value?.detailParams ?? {}) };
+    if (detailCollection.value) {
+      filters[DETAIL_COLLECTION_PARAM] = detailCollection.value;
+    }
     for (const [key, value] of Object.entries(detailQuickFilterValues)) {
       const trimmed = value.trim();
       if (trimmed) {
@@ -248,6 +293,21 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
       }
     }
     return filters;
+  }
+
+  /**
+   * 切换下钻集合：换集合必须重取并回到第一页，避免沿用旧集合的页码。
+   *
+   * <p>这里只负责规范化选择与路由写入；明细重取由路由监听统一触发，避免同一集合切换发出两次请求。
+   */
+  async function selectDetailCollection(key: string) {
+    const next = String(key ?? '').trim();
+    if (next === detailCollection.value) {
+      return;
+    }
+    detailCollection.value = next;
+    detailPagination.page = 1;
+    await deps.replaceRouteQuery({ detailCollection: next, detailPage: 1 });
   }
 
   function setDetailQuickFilterValue(key: string, value: string) {
@@ -269,10 +329,20 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     }
   }
 
+  /**
+   * 快速筛选与重置回第一页。
+   *
+   * <p>筛选值只存在本地状态里，不在路由上：页码本来就在第一页时路由不会变化，路由监听不会触发，
+   * 因此这里必须自己发起一次请求；页码不在第一页时只改路由、由监听统一重取。两条路径互斥，
+   * 同一次筛选变更不会发出两次请求。
+   */
   function reloadDetailFromFirstPage() {
+    if (detailPagination.page === 1) {
+      void loadDetail();
+      return;
+    }
     detailPagination.page = 1;
     void deps.replaceRouteQuery({ detailPage: 1 });
-    void loadDetail();
   }
 
   return {
@@ -282,10 +352,12 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     activeCell,
     detail,
     detailPagination,
+    detailCollection,
     detailQuickFilterValues,
     detailQuickFilterInputDrafts,
     detailCellValue,
     loadDetail,
+    selectDetailCollection,
     openDetail,
     handleDetailSortChange,
     handleDetailCurrentChange,
@@ -294,6 +366,7 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     handleDetailQuickFilterChange,
     resetDetailQuickFilters,
     handleDetailVisibleChange,
+    invalidateForRouteChange,
     syncFromRoute,
     syncPaginationFromRoute,
   };

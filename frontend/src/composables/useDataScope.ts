@@ -12,6 +12,8 @@ export interface UseDataScopeOptions {
   extraPatchOnChange?: (nextValue: string) => Record<string, QueryValue>;
   mountToShell?: boolean;
   loading?: MaybeRefOrGetter<boolean>;
+  /** 路由表页面可注入统一查询入口，以便筛选意图立即失效旧列表请求。 */
+  patchRouteQuery?: (patch: Record<string, QueryValue>) => Promise<void>;
 }
 
 function flattenOptions(options: DataScopeOption[]): DataScopeOption[] {
@@ -73,13 +75,24 @@ export function useDataScope(options: UseDataScopeOptions) {
         nextQuery[key] = String(patchValue);
       }
     }
+    const patch: Record<string, QueryValue> = {};
+    const keys = new Set([...Object.keys(route.query), ...Object.keys(nextQuery)]);
+    for (const key of keys) {
+      const current = route.query[key];
+      const next = nextQuery[key];
+      if (JSON.stringify(current) !== JSON.stringify(next)) {
+        patch[key] = next ?? null;
+      }
+    }
     syncing.value = true;
     try {
-      currentPatchPromise = router.replace({
-        path: route.path,
-        query: nextQuery,
-        hash: route.hash,
-      }).then(() => undefined);
+      currentPatchPromise = options.patchRouteQuery
+        ? options.patchRouteQuery(patch)
+        : router.replace({
+          path: route.path,
+          query: nextQuery,
+          hash: route.hash,
+        }).then(() => undefined);
       await currentPatchPromise;
     } finally {
       currentPatchPromise = null;

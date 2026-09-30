@@ -51,6 +51,16 @@ function setup() {
   };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('useStatisticBoardData', () => {
   it('loads board data with the current filter group and runs the loaded callback', async () => {
     const { board, deps } = setup();
@@ -68,6 +78,81 @@ describe('useStatisticBoardData', () => {
     expect(state.loading.value).toBe(false);
     expect(state.errorMessage.value).toBe('');
     expect(deps.onBoardLoaded).toHaveBeenCalledWith(board);
+  });
+
+  it('drops a late success so it cannot overwrite the newest board', async () => {
+    const { deps } = setup();
+    const older = createBoard();
+    const newer = createBoard();
+    const first = deferred<StatisticBoardResponse>();
+    const second = deferred<StatisticBoardResponse>();
+    deps.loadBoardData = vi
+      .fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const state = useStatisticBoardData(deps);
+
+    const firstLoad = state.loadBoard();
+    const secondLoad = state.loadBoard();
+
+    // 后发的请求先返回，新数据生效。
+    second.resolve(newer);
+    await secondLoad;
+    expect(state.board.value).toBe(newer);
+
+    // 先发的请求晚到：既不得覆盖新数据，也不得再次触发加载完成回调。
+    first.resolve(older);
+    await firstLoad;
+
+    expect(state.board.value).toBe(newer);
+    expect(deps.onBoardLoaded).toHaveBeenCalledTimes(1);
+    expect(deps.onBoardLoaded).toHaveBeenCalledWith(newer);
+  });
+
+  it('drops a late failure so it cannot replace newer data with an error', async () => {
+    const { deps } = setup();
+    const newer = createBoard();
+    const first = deferred<StatisticBoardResponse>();
+    const second = deferred<StatisticBoardResponse>();
+    deps.loadBoardData = vi
+      .fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const state = useStatisticBoardData(deps);
+
+    const firstLoad = state.loadBoard();
+    const secondLoad = state.loadBoard();
+    second.resolve(newer);
+    await secondLoad;
+
+    first.reject(new Error('旧请求失败'));
+    await firstLoad;
+
+    expect(state.board.value).toBe(newer);
+    expect(state.errorMessage.value).toBe('');
+    expect(deps.notifyError).not.toHaveBeenCalled();
+  });
+
+  it('keeps loading until the newest request finishes', async () => {
+    const { deps } = setup();
+    const first = deferred<StatisticBoardResponse>();
+    const second = deferred<StatisticBoardResponse>();
+    deps.loadBoardData = vi
+      .fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const state = useStatisticBoardData(deps);
+
+    const firstLoad = state.loadBoard();
+    const secondLoad = state.loadBoard();
+
+    first.resolve(createBoard());
+    await firstLoad;
+    expect(state.loading.value).toBe(true);
+
+    second.resolve(createBoard());
+    await secondLoad;
+    expect(state.loading.value).toBe(false);
   });
 
   it('records load errors and only notifies when showError is enabled', async () => {

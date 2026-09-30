@@ -31,6 +31,8 @@ const DETAIL_ROUTE_CLEAR_PATCH: QueryPatch = {
   detailPageSize: '',
   detailSortBy: '',
   detailSortOrder: '',
+  // 集合属于旧单元格语义的一部分，筛选变化后必须一并清理。
+  detailCollection: '',
 };
 
 export function useStatisticBoardRouteController(deps: StatisticBoardRouteControllerDependencies) {
@@ -52,7 +54,10 @@ export function useStatisticBoardRouteController(deps: StatisticBoardRouteContro
 
   async function resetFilters() {
     deps.resetFilterDraft();
-    await replaceRouteQuery(buildResetFilterQueryPatch(deps.getRouteQuery()));
+    await replaceRouteQuery({
+      ...buildResetFilterQueryPatch(deps.getRouteQuery()),
+      ...DETAIL_ROUTE_CLEAR_PATCH,
+    });
   }
 
   return {

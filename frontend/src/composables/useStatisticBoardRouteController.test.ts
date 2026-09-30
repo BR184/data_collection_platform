@@ -45,6 +45,7 @@ describe('useStatisticBoardRouteController', () => {
       detailPageSize: '50',
       detailSortBy: 'syncedAt',
       detailSortOrder: 'ascending',
+      detailCollection: 'NUMERATOR',
     });
     const controller = useStatisticBoardRouteController(deps);
 
@@ -62,6 +63,7 @@ describe('useStatisticBoardRouteController', () => {
     expect(query.detailPageSize).toBeUndefined();
     expect(query.detailSortBy).toBeUndefined();
     expect(query.detailSortOrder).toBeUndefined();
+    expect(query.detailCollection).toBeUndefined();
     expect(deps.replaceRoute).toHaveBeenCalledWith({
       path: '/statistics/code-review',
       query,
@@ -76,6 +78,7 @@ describe('useStatisticBoardRouteController', () => {
       'filters.0.field': 'moduleName',
       'filters.0.operator': 'eq',
       'filters.0.value': 'module-a',
+      detailCollection: 'SAMPLE',
     });
     const controller = useStatisticBoardRouteController(deps);
 
@@ -88,5 +91,6 @@ describe('useStatisticBoardRouteController', () => {
     expect(query['filters.0.field']).toBeUndefined();
     expect(query['filters.0.operator']).toBeUndefined();
     expect(query['filters.0.value']).toBeUndefined();
+    expect(query.detailCollection).toBeUndefined();
   });
 });

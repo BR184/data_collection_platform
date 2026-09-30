@@ -34,6 +34,7 @@ const {
   patchQuery,
   debouncedPatchQuery,
   cancelDebouncedQuery,
+  reload,
   bindLoader,
 } = useRouteTableState({
   defaults: {
@@ -144,31 +145,6 @@ async function loadTables() {
   }
 }
 
-async function loadRows(showError = true) {
-  if (!selectedTable.value) {
-    rowsResponse.value = null;
-    return;
-  }
-  try {
-    rowsResponse.value = await api.getDatabaseTableRows({
-      tableName: selectedTable.value,
-      page: page.value,
-      size: pageSize.value,
-      keyword: keyword.value || undefined,
-      sortField: sortBy.value || undefined,
-      sortOrder: sortOrder.value || undefined,
-    });
-  } catch (error) {
-    if (showError) {
-      ElMessage.error(getErrorMessage(error, '数据库表数据加载失败'));
-    }
-  } finally {
-    if (selectedTable.value) {
-      firstRowsResolved.value = true;
-    }
-  }
-}
-
 async function handleSearch() {
   cancelDebouncedQuery();
   await patchQuery({
@@ -209,8 +185,9 @@ async function handleRefresh() {
       refreshResult = await api.refreshDatabaseTable(selectedTable.value);
     }
     await loadTables();
-    await loadRows();
-    ElMessage.success(refreshSubmissionMessage(refreshResult));
+    if ((await reload()).status === 'committed') {
+      ElMessage.success(refreshSubmissionMessage(refreshResult));
+    }
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '数据库表刷新失败'));
   } finally {
@@ -323,7 +300,7 @@ async function saveCollectFormEdit() {
     });
     ElMessage.success('collect_form_records 已更新');
     editDialogVisible.value = false;
-    await loadRows();
+    await reload();
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '表记录更新失败'));
   } finally {
@@ -378,9 +355,30 @@ watch(keywordDraft, (nextKeyword, previousKeyword) => {
   });
 });
 
-bindLoader(async () => {
-  await loadRows(false);
+bindLoader(async ({ query }) => {
+  const tableName = String(query.table ?? '');
+  if (!tableName) return null;
+  return api.getDatabaseTableRows({
+    tableName,
+    page: parseQueryPositiveInteger(query.page, 1),
+    size: parseQueryPositiveInteger(query.pageSize, 20),
+    keyword: String(query.keyword ?? '') || undefined,
+    sortField: String(query.sortBy ?? '') || undefined,
+    sortOrder: String(query.sortOrder ?? '') || undefined,
+  });
+}, (response, { query }) => {
+  rowsResponse.value = response;
+  if (String(query.table ?? '')) firstRowsResolved.value = true;
+}, (error, { query }) => {
+  rowsResponse.value = null;
+  if (String(query.table ?? '')) firstRowsResolved.value = true;
+  ElMessage.error(getErrorMessage(error, '数据库表数据加载失败'));
 });
+
+function parseQueryPositiveInteger(value: unknown, fallback: number) {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 onMounted(async () => {
   window.addEventListener('resize', handleResize);

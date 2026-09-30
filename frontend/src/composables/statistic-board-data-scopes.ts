@@ -27,6 +27,7 @@ const CUSTOMER_ISSUE_PHASE_BOARD_KEYS = new Set([
   'customer-issue-delay-issues',
   'customer-issue-response-efficiency',
   'customer-issue-by-function',
+  'customer-issue-customer-statistics',
 ]);
 
 const SYSTEM_TEST_DEFECT_SUMMARY_SCOPE_PROVIDER: DataScopeProvider = {

@@ -1,8 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import { refreshStatisticBoardRouteState } from './useStatisticBoardRouteRefresh';
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe('refreshStatisticBoardRouteState', () => {
-  it('runs the route refresh chain in order with silent board loading', async () => {
+  it('runs route synchronization in order without owning board loading', async () => {
     const calls: string[] = [];
     const deps = {
       setLoading: vi.fn((next: boolean) => calls.push(`loading:${next}`)),
@@ -18,19 +26,56 @@ describe('refreshStatisticBoardRouteState', () => {
       }),
     };
 
-    await refreshStatisticBoardRouteState(deps);
+    await refreshStatisticBoardRouteState(deps, () => true);
 
     expect(calls).toEqual([
-      'loading:true',
       'sync-table-pagination',
       'load-board:false',
       'load-realtime-status',
       'sync-detail',
-      'loading:false',
     ]);
+    expect(deps.setLoading).not.toHaveBeenCalled();
   });
 
-  it('clears loading when one route refresh step fails', async () => {
+  it('does not continue a route task after a newer route replaces it during board loading', async () => {
+    const boardResponse = deferred<void>();
+    let current = true;
+    const deps = {
+      syncTablePaginationFromRoute: vi.fn(),
+      loadBoard: vi.fn(() => boardResponse.promise),
+      loadRealtimeStatus: vi.fn(),
+      syncDetailFromRoute: vi.fn(),
+    };
+
+    const oldRouteTask = refreshStatisticBoardRouteState(deps, () => current);
+    current = false;
+    boardResponse.resolve();
+    await oldRouteTask;
+
+    expect(deps.loadRealtimeStatus).not.toHaveBeenCalled();
+    expect(deps.syncDetailFromRoute).not.toHaveBeenCalled();
+  });
+
+  it('does not synchronize detail after the route becomes stale during status loading', async () => {
+    const statusResponse = deferred<void>();
+    let current = true;
+    const deps = {
+      syncTablePaginationFromRoute: vi.fn(),
+      loadBoard: vi.fn(async () => undefined),
+      loadRealtimeStatus: vi.fn(() => statusResponse.promise),
+      syncDetailFromRoute: vi.fn(),
+    };
+
+    const routeTask = refreshStatisticBoardRouteState(deps, () => current);
+    await Promise.resolve();
+    current = false;
+    statusResponse.resolve();
+    await routeTask;
+
+    expect(deps.syncDetailFromRoute).not.toHaveBeenCalled();
+  });
+
+  it('keeps failures visible to the caller without taking ownership of loading', async () => {
     const deps = {
       setLoading: vi.fn(),
       syncTablePaginationFromRoute: vi.fn(),
@@ -41,10 +86,9 @@ describe('refreshStatisticBoardRouteState', () => {
       syncDetailFromRoute: vi.fn(),
     };
 
-    await expect(refreshStatisticBoardRouteState(deps)).rejects.toThrow('load failed');
+    await expect(refreshStatisticBoardRouteState(deps, () => true)).rejects.toThrow('load failed');
 
-    expect(deps.setLoading).toHaveBeenNthCalledWith(1, true);
-    expect(deps.setLoading).toHaveBeenLastCalledWith(false);
+    expect(deps.setLoading).not.toHaveBeenCalled();
     expect(deps.loadRealtimeStatus).not.toHaveBeenCalled();
   });
 });

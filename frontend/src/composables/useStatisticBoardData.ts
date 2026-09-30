@@ -5,11 +5,14 @@ import { getErrorMessage } from '../utils/user-message';
 
 interface StatisticBoardDataRequest {
   filterGroup: StatisticFilterGroup | null;
+  filters?: Record<string, string>;
 }
 
 export interface StatisticBoardDataDependencies {
   boardKey: () => string;
   getFilterGroup: () => StatisticFilterGroup | null;
+  /** 控制参数（行维度、成员选择等）；未配置的看板返回空对象。 */
+  getControlParams?: () => Record<string, string>;
   loadBoardData: (boardKey: string, request: StatisticBoardDataRequest) => Promise<StatisticBoardResponse>;
   exportBoardFile: (boardKey: string, request: StatisticBoardDataRequest) => Promise<BlobResponse>;
   onBoardLoaded: (response: StatisticBoardResponse) => void;
@@ -33,28 +36,50 @@ export function useStatisticBoardData(deps: StatisticBoardDataDependencies) {
   const loading = ref(false);
   const board = shallowRef<StatisticBoardResponse | null>(null);
   const errorMessage = ref('');
+  // 请求序号：主表加载可以被并发的范围/成员切换重复触发，只有最后一次请求能改写状态。
+  // 迟到的成功会覆盖新数据、迟到的失败会把新数据替换成错误、迟到的结束会提前清掉 loading，
+  // 三种都必须按序号丢弃。
+  let requestSequence = 0;
 
   function buildRequest(): StatisticBoardDataRequest {
+    const controlParams = deps.getControlParams?.() ?? {};
     return {
       filterGroup: deps.getFilterGroup(),
+      ...(Object.keys(controlParams).length ? { filters: controlParams } : {}),
     };
   }
 
   async function loadBoard(showError = true) {
+    requestSequence += 1;
+    const requestId = requestSequence;
     loading.value = true;
     errorMessage.value = '';
     try {
       const response = await deps.loadBoardData(deps.boardKey(), buildRequest());
+      if (requestId !== requestSequence) {
+        return;
+      }
       board.value = response;
       deps.onBoardLoaded(response);
     } catch (error) {
+      if (requestId !== requestSequence) {
+        return;
+      }
       errorMessage.value = getErrorMessage(error, '看板数据加载失败');
       if (showError) {
         deps.notifyError(errorMessage.value);
       }
     } finally {
-      loading.value = false;
+      if (requestId === requestSequence) {
+        loading.value = false;
+      }
     }
+  }
+
+  /** 使当前主表请求失效，并结束其 loading；只允许由本 composable 写入 loading。 */
+  function invalidateBoardRequest() {
+    requestSequence += 1;
+    loading.value = false;
   }
 
   async function exportBoard() {
@@ -73,6 +98,7 @@ export function useStatisticBoardData(deps: StatisticBoardDataDependencies) {
     board,
     errorMessage,
     loadBoard,
+    invalidateBoardRequest,
     exportBoard,
   };
 }
