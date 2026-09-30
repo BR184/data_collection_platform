@@ -9,7 +9,7 @@ import { api } from '../api';
 import type { GitlabSourceHealthResponse, GitlabSyncConfig, SyncRunDiagnosticsResponse } from '../types/api';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
-import { buildPurgeSummaryHtml } from './mirror-settings-helpers';
+import { buildPurgeSummaryHtml, delayWritebackSwitchPrompt } from './mirror-settings-helpers';
 import { getErrorMessage } from '../utils/user-message';
 import MirrorRunMonitorPanel from './MirrorRunMonitorPanel.vue';
 import MirrorRunTableTaskDrawer from './MirrorRunTableTaskDrawer.vue';
@@ -366,6 +366,21 @@ async function confirmDiscardUnsavedChanges(message = '存在未保存的同步�
   }
 }
 
+const delayWritebackWebBaseUrlReady = computed(() => Boolean(form.value.webBaseUrl?.trim()));
+
+async function handleDelayWritebackToggle(next: boolean) {
+  const prompt = delayWritebackSwitchPrompt(next, delayWritebackWebBaseUrlReady.value);
+  try {
+    await ElMessageBox.confirm(prompt.message, prompt.title, {
+      type: next ? 'warning' : 'info',
+      confirmButtonText: prompt.confirmButtonText,
+      cancelButtonText: '取消',
+    });
+  } catch {
+    form.value.delayLabelWritebackEnabled = !next;
+  }
+}
+
 async function refreshCurrentStatus() {
   await refreshStatus();
   await Promise.all([
@@ -496,8 +511,19 @@ onBeforeRouteLeave(async () => {
           <div class="form-help-text">建议使用 CC_Product 项目的 Project Access Token，scope 使用 api。</div>
         </el-form-item>
         <el-form-item label="延期标签写回">
-          <el-switch v-model="form.delayLabelWritebackEnabled" />
-          <div class="form-help-text">关闭时仍会监控延期事实，不会调用 GitLab API 写标签。</div>
+          <el-switch
+            v-model="form.delayLabelWritebackEnabled"
+            @change="handleDelayWritebackToggle"
+          />
+          <el-alert
+            v-if="form.delayLabelWritebackEnabled"
+            class="delay-writeback-warning"
+            type="warning"
+            :closable="false"
+            show-icon
+            title="已开启：保存配置后平台会真实调用 GitLab API 写入或摘除「响应已延期」「解决已延期」标签。"
+          />
+          <div v-else class="form-help-text">关闭时仍会监控延期事实，不会调用 GitLab API 写标签。</div>
         </el-form-item>
         <el-form-item label="启用数据源">
           <el-switch v-model="form.sourceEnabled" />

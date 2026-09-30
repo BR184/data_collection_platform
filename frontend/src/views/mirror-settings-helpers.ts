@@ -17,3 +17,5 @@ export { formatDateTime, formatDuration, formatLogTime } from './mirror-sync-run
 export { tableDiagnosticNote, tableRowStrategyText } from './sync-table-diagnostics-labels';
 export { syncLogMessage, translateSyncMessage } from './sync-run-message-translator';
 export { buildPurgeSummaryHtml } from './mirror-purge-summary';
+export { delayWritebackSwitchPrompt } from './delay-writeback-switch-prompt';
+export type { DelayWritebackSwitchPrompt } from './delay-writeback-switch-prompt';

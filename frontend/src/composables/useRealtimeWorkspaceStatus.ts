@@ -73,10 +73,17 @@ export function useRealtimeWorkspaceStatus(options: UseRealtimeWorkspaceStatusOp
     }
   }
 
+  /** 作废过期路由的状态响应，并清除上一范围的状态显示。 */
+  function invalidateRealtimeStatusRequest() {
+    loadRunId += 1;
+    syncStatus.value = null;
+  }
+
   return {
     syncStatus,
     lastSyncedText,
     loadRealtimeStatus,
+    invalidateRealtimeStatusRequest,
   };
 }
 
