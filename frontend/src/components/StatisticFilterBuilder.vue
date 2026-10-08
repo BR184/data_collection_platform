@@ -23,6 +23,11 @@ import {
 const summaryChipGap = 6;
 const numericFilterLimit = Number.MAX_SAFE_INTEGER;
 
+/**
+ * 高级筛选构建器契约：`fields` 决定可选字段、字面关系与默认关系。
+ * 后三个可选参数让调用方在不改动共享词表的前提下定制标签组关系、关系文案，
+ * 以及在条件很少时收起逻辑选择器；不传即保持看板既有行为。
+ */
 const props = withDefaults(
   defineProps<{
     modelValue: StatisticFilterDraftGroup;
@@ -31,12 +36,21 @@ const props = withDefaults(
     showApplyActions?: boolean;
     expanded?: boolean;
     extraSummaryChips?: Array<{ id: string; label: string }>;
+    /** 标签组条件下可选的关系清单，默认与看板一致的全部五个。 */
+    labelGroupOperatorOptions?: StatisticFilterOperator[];
+    /** 关系显示文案覆盖，未声明的关系统一沿用共享词表。 */
+    operatorLabels?: Partial<Record<StatisticFilterOperator, string>>;
+    /** 条件数不多于一条时隐藏「满足全部 / 满足任意」，默认不隐藏。 */
+    hideLogicSelectorWhenSingleCondition?: boolean;
   }>(),
   {
     addButtonText: '添加条件',
     showApplyActions: false,
     expanded: undefined,
     extraSummaryChips: () => [],
+    labelGroupOperatorOptions: () => ['intersects', 'notIntersects', 'containsAll', 'notContainsAll', 'partialContainsAny'],
+    operatorLabels: () => ({}),
+    hideLogicSelectorWhenSingleCondition: false,
   },
 );
 
@@ -63,13 +77,9 @@ const visibleConditions = computed(() => props.modelValue.conditions.filter((con
 const allConditionsSelected = computed(
   () => visibleConditions.value.length > 0 && selectedConditionIds.value.length === visibleConditions.value.length,
 );
-const labelGroupOperators: StatisticFilterOperator[] = [
-  'intersects',
-  'notIntersects',
-  'containsAll',
-  'notContainsAll',
-  'partialContainsAny',
-];
+const showLogicSelector = computed(
+  () => !props.hideLogicSelectorWhenSingleCondition || visibleConditions.value.length > 1,
+);
 
 watch(
   () => props.expanded,
@@ -272,7 +282,9 @@ function operatorOptionsForCondition(condition: StatisticFilterConditionDraft) {
   if (!supportsLabelGroupValue(condition)) {
     return literalOperators;
   }
-  const groupOperators = labelGroupOperators.filter((operator) => operator !== 'partialContainsAny' || labelGroupValueType(field) === 'STRING');
+  const groupOperators = props.labelGroupOperatorOptions.filter(
+    (operator) => operator !== 'partialContainsAny' || labelGroupValueType(field) === 'STRING',
+  );
   return [...literalOperators, ...groupOperators];
 }
 
@@ -336,9 +348,17 @@ function fieldSelectOptions(): RecordTableFilterOption[] {
   return props.fields.map((field) => ({ label: field.label, value: field.key }));
 }
 
+/** 关系显示文案：调用方覆盖优先，否则沿用共享词表。 */
+function resolveOperatorLabel(operator: StatisticFilterOperator | '') {
+  if (!operator) {
+    return operatorLabel(operator);
+  }
+  return props.operatorLabels[operator] ?? operatorLabel(operator);
+}
+
 function operatorSelectOptions(condition: StatisticFilterConditionDraft): RecordTableFilterOption[] {
   return operatorOptionsForCondition(condition).map((operator) => ({
-    label: operatorLabel(operator),
+    label: resolveOperatorLabel(operator),
     value: operator,
     variant: isLabelGroupOperator(operator) ? 'label-group' : 'normal',
   }));
@@ -393,7 +413,7 @@ function conditionRowClass(condition: StatisticFilterConditionDraft) {
 function conditionRowStyle(condition: StatisticFilterConditionDraft) {
   const field = fieldForCondition(condition.fieldKey);
   const normalizedFieldWidth = controlWidthForText(field?.label || '字段', 92, 220, 52);
-  const operatorWidth = controlWidthForText(condition.operator ? operatorLabel(condition.operator) : '关系', 82, 150, 46);
+  const operatorWidth = controlWidthForText(condition.operator ? resolveOperatorLabel(condition.operator) : '关系', 82, 150, 46);
   const valueWidth = conditionValueWidth(condition);
   return {
     '--condition-field-width': `${normalizedFieldWidth}px`,
@@ -560,7 +580,7 @@ function valueOptionsForCondition(condition: StatisticFilterConditionDraft): Rec
 function summarizeCondition(condition: StatisticFilterConditionDraft) {
   const field = fieldForCondition(condition.fieldKey);
   const fieldLabel = field?.label || condition.fieldKey || '字段';
-  const operatorText = condition.operator ? operatorLabel(condition.operator) : '关系';
+  const operatorText = condition.operator ? resolveOperatorLabel(condition.operator) : '关系';
   if (!needsValue(condition)) {
     return `${fieldLabel} ${operatorText}`;
   }
@@ -637,7 +657,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
       <div class="stat-filter-summary-main">
         <div class="stat-filter-summary-prefix">
           <span class="stat-filter-title">筛选条件</span>
-          <el-tag size="small" effect="plain" round>
+          <el-tag v-if="showLogicSelector" size="small" effect="plain" round>
             {{ modelValue.logic === 'OR' ? '满足任意' : '满足全部' }}
           </el-tag>
           <span class="stat-filter-count">已设置 {{ visibleConditions.length }} 个条件</span>
@@ -696,6 +716,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
     <div v-show="conditionsExpanded" class="stat-filter-editor">
       <div class="stat-filter-editor-header">
         <el-segmented
+          v-if="showLogicSelector"
           :model-value="modelValue.logic"
           :options="[{ label: '满足全部', value: 'AND' }, { label: '满足任意', value: 'OR' }]"
           class="stat-filter-logic"

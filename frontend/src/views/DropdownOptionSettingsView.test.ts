@@ -51,6 +51,35 @@ function config(fieldKey: string, configId: number, option: string): DropdownOpt
   };
 }
 
+/** 带双套规则的字段配置：用于断言页面下发给筛选组件的定制契约。 */
+function configWithRules(fieldKey: string): DropdownOptionFieldConfig {
+  return {
+    fieldKey,
+    displayName: fieldKey,
+    configId: 1,
+    configLabel: 'config-1',
+    rules: {
+      acquiredRules: [
+        {
+          listType: 'BLACKLIST',
+          name: '剔除测试',
+          filterGroup: { logic: 'AND', conditions: [{ fieldKey: 'optionValue', operator: 'eq', value: 'X' }] },
+        },
+      ],
+      manualRules: [
+        {
+          listType: 'WHITELIST',
+          name: '',
+          filterGroup: { logic: 'OR', conditions: [{ fieldKey: 'optionValue', operator: 'contains', value: '2026' }] },
+        },
+      ],
+    },
+    manualOptions: [],
+    version: 7,
+    consumerFields: [fieldKey],
+  };
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason?: unknown) => void;
@@ -106,6 +135,19 @@ const ElSegmentedStub = defineComponent({
   template: '<span />',
 });
 
+// 断言页面下发给筛选组件的定制契约：关系清单、文案覆盖与单条件隐藏开关。
+const StatisticFilterBuilderStub = defineComponent({
+  name: 'StatisticFilterBuilderStub',
+  props: {
+    modelValue: { type: Object, default: () => ({ logic: 'AND', conditions: [] }) },
+    fields: { type: Array, default: () => [] },
+    labelGroupOperatorOptions: { type: Array, default: () => [] },
+    operatorLabels: { type: Object, default: () => ({}) },
+    hideLogicSelectorWhenSingleCondition: Boolean,
+  },
+  template: '<div class="filter-builder-stub" />',
+});
+
 const stubs = {
   'el-card': ElCardStub,
   'el-button': ElButtonStub,
@@ -116,7 +158,7 @@ const stubs = {
   'el-segmented': ElSegmentedStub,
   'el-divider': true,
   'el-empty': true,
-  StatisticFilterBuilder: true,
+  StatisticFilterBuilder: StatisticFilterBuilderStub,
 };
 
 let wrapper: VueWrapper | null = null;
@@ -235,6 +277,27 @@ describe('DropdownOptionSettingsView config session', () => {
     await settle();
     expect(view.find('.preview-box').text()).toContain('latest preview');
     expect(view.find('.preview-box').text()).not.toContain('stale preview');
+  });
+
+  it('scopes rule relations to what a single option value can express', async () => {
+    mocks.getFieldConfig.mockResolvedValue(configWithRules(fieldA));
+    const view = mountView();
+    await settle();
+
+    const builders = view.findAllComponents(StatisticFilterBuilderStub);
+    expect(builders).toHaveLength(2);
+    for (const builder of builders) {
+      expect(builder.props('fields')).toEqual([
+        expect.objectContaining({ key: 'optionValue', operators: ['eq', 'ne', 'contains', 'notContains'] }),
+      ]);
+      expect(builder.props('labelGroupOperatorOptions')).toEqual(['intersects', 'notIntersects', 'partialContainsAny']);
+      expect(builder.props('operatorLabels')).toEqual({
+        intersects: '属于该组',
+        notIntersects: '不属于该组',
+        partialContainsAny: '包含组内任一成员',
+      });
+      expect(builder.props('hideLogicSelectorWhenSingleCondition')).toBe(true);
+    }
   });
 });
 

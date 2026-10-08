@@ -19,6 +19,7 @@ import type {
   DropdownOptionRulesPayload,
   StatisticFilterField,
   StatisticFilterGroup,
+  StatisticFilterOperator,
 } from '../types/api';
 
 /** 下拉规则条件专用伪字段：条件一律作用于"选项值"本身。 */
@@ -27,10 +28,26 @@ const OPTION_FIELDS: StatisticFilterField[] = [
     key: 'optionValue',
     label: '选项值',
     type: 'text',
-    operators: ['eq', 'ne', 'contains', 'notContains', 'isEmpty', 'isNotEmpty'],
+    operators: ['eq', 'ne', 'contains', 'notContains'],
     options: [],
   },
 ];
+
+/**
+ * 标签组条件下可选的关系：下拉规则每次只拿一个候选值参与判定，
+ * 「包含全部 / 不包含全部」在单值场景恒不成立或恒成立，故不提供。
+ */
+const LABEL_GROUP_OPERATOR_OPTIONS: StatisticFilterOperator[] = ['intersects', 'notIntersects', 'partialContainsAny'];
+
+/**
+ * 标签组关系的显示文案：与字面关系（等于 / 不等于 / 包含 / 不包含）分档，
+ * 避免同一个「包含」同时承担"文字片段"和"命中组成员"两种比较。
+ */
+const OPERATOR_LABELS: Partial<Record<StatisticFilterOperator, string>> = {
+  intersects: '属于该组',
+  notIntersects: '不属于该组',
+  partialContainsAny: '包含组内任一成员',
+};
 
 interface RuleDraft {
   key: number;
@@ -570,6 +587,10 @@ async function refreshPreview(sessionId: number, revision: number) {
             </el-button>
           </div>
 
+          <div class="rule-hint condition-hint">
+            关系说明：「包含 / 不包含」判断的是单个选项值里有没有这段文字（如填 2026 会命中 CC2026R1）；标签组关系（属于该组 / 不属于该组 / 包含组内任一成员）按标签组成员判断。
+          </div>
+
           <el-divider content-position="left">自动获取值规则（作用于 GitLab 等自动获取的候选值）</el-divider>
           <div class="rule-list">
             <div v-for="(rule, index) in acquiredRuleDrafts" :key="rule.key" class="rule-card">
@@ -594,6 +615,9 @@ async function refreshPreview(sessionId: number, revision: number) {
               <StatisticFilterBuilder
                 :model-value="rule.group"
                 :fields="OPTION_FIELDS"
+                :label-group-operator-options="LABEL_GROUP_OPERATOR_OPTIONS"
+                :operator-labels="OPERATOR_LABELS"
+                hide-logic-selector-when-single-condition
                 add-button-text="添加条件"
                 :show-apply-actions="false"
                 :expanded="true"
@@ -647,6 +671,9 @@ async function refreshPreview(sessionId: number, revision: number) {
               <StatisticFilterBuilder
                 :model-value="rule.group"
                 :fields="OPTION_FIELDS"
+                :label-group-operator-options="LABEL_GROUP_OPERATOR_OPTIONS"
+                :operator-labels="OPERATOR_LABELS"
+                hide-logic-selector-when-single-condition
                 add-button-text="添加条件"
                 :show-apply-actions="false"
                 :expanded="true"
@@ -822,6 +849,11 @@ async function refreshPreview(sessionId: number, revision: number) {
 .rule-hint {
   color: rgba(15, 23, 42, 0.5);
   font-size: 12px;
+}
+
+.condition-hint {
+  margin: 2px 0 10px;
+  line-height: 1.6;
 }
 
 .manual-editor {

@@ -42,6 +42,17 @@ class DropdownOptionRuleSupportTest {
     return condition;
   }
 
+  private static StatisticFilterCondition labelGroupCondition(String operator) {
+    return new StatisticFilterCondition(
+        DropdownOptionRuleSupport.OPTION_FIELD_KEY, operator, null, null, "LABEL_GROUP", 7L, "G", List.of());
+  }
+
+  private static DropdownOptionRulesPayload singleRulePayload(StatisticFilterCondition condition) {
+    return new DropdownOptionRulesPayload(
+        List.of(new DropdownOptionRule("BLACKLIST", null, new StatisticFilterGroup("AND", List.of(condition)))),
+        List.of());
+  }
+
   @Test
   void test_normalizesListTypeLogicAndValues() {
     DropdownOptionRulesPayload normalized = support.normalizeAndValidate(new DropdownOptionRulesPayload(
@@ -130,6 +141,31 @@ class DropdownOptionRuleSupportTest {
         List.of())))
         .isInstanceOf(BizException.class)
         .hasMessageContaining("标签组 ID");
+  }
+
+  @Test
+  void test_rejectsLabelGroupOperatorThatCannotHoldForSingleOptionValue() {
+    for (String operator : List.of("containsAll", "notContainsAll")) {
+      assertThatThrownBy(() -> support.normalizeAndValidate(singleRulePayload(labelGroupCondition(operator))))
+          .as("关系 %s 在单值判定下恒不成立或恒成立，必须拒绝", operator)
+          .isInstanceOf(BizException.class)
+          .hasMessageContaining("恒不成立或恒成立");
+    }
+  }
+
+  @Test
+  void test_acceptsLabelGroupOperatorsUsableForSingleOptionValue() {
+    when(labelGroupExpansionService.expand(
+            eq(7L), eq("STRING"), eq(DropdownOptionRuleSupport.OPTION_FIELD_KEY),
+            eq(DropdownOptionRuleSupport.OPTION_PAGE_KEY), isNull()))
+        .thenReturn(new LabelGroupExpansionResponse(7L, "G", "STRING", List.of("A"), List.of()));
+
+    for (String operator : List.of("intersects", "notIntersects", "partialContainsAny")) {
+      DropdownOptionRulesPayload normalized = support.normalizeAndValidate(singleRulePayload(labelGroupCondition(operator)));
+      assertThat(normalized.acquiredRules().get(0).filterGroup().conditions().get(0).operator())
+          .as("关系 %s 应正常保存", operator)
+          .isEqualTo(operator);
+    }
   }
 
   @Test

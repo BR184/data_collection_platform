@@ -37,6 +37,12 @@ public class DropdownOptionRuleSupport {
   private static final int MAX_RULE_NAME_LENGTH = 50;
   private static final Set<String> LITERAL_OPERATORS =
       Set.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty");
+  /**
+   * 在单值判定下恒不成立或恒成立的集合关系：判定时每个候选值单独参与比较，
+   * 「包含全部」要求一个值同时等于组内每个成员，「不包含全部」是其否定，两者都不可能表达出有意义的条件。
+   */
+  private static final Set<String> SINGLE_VALUE_UNSUPPORTED_LABEL_GROUP_OPERATORS =
+      Set.of("containsAll", "notContainsAll");
 
   private final LabelGroupExpansionService labelGroupExpansionService;
 
@@ -146,6 +152,11 @@ public class DropdownOptionRuleSupport {
     if (condition.usesLabelGroup()) {
       if (!LabelGroupFilterOperatorSupport.isSetOperator(operator)) {
         throw new BizException("标签组条件只支持集合关系操作符：" + operator);
+      }
+      if (SINGLE_VALUE_UNSUPPORTED_LABEL_GROUP_OPERATORS.contains(operator)) {
+        throw new BizException(
+            "下拉规则条件只作用于单个选项值，「" + operator + "」在该场景恒不成立或恒成立，"
+                + "请改用属于该组 / 不属于该组 / 包含组内任一成员");
       }
       Long groupId = condition.labelGroupId();
       if (groupId == null) {
