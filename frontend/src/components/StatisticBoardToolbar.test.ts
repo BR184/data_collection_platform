@@ -64,7 +64,7 @@ function mountToolbar() {
         ElButton: {
           props: ['icon', 'loading'],
           emits: ['click'],
-          template: '<button type="button" @click="$emit(\'click\')"><slot /></button>',
+          template: '<button type="button" :data-loading="loading ? \'true\' : \'false\'" @click="$emit(\'click\')"><slot /></button>',
         },
         ElTag: {
           props: ['type', 'size'],
@@ -134,6 +134,20 @@ describe('StatisticBoardToolbar', () => {
     expect(wrapper.get('[data-testid="auto-refresh-switch"]').text()).toBe('关');
     await wrapper.get('[data-testid="auto-refresh-switch"]').trigger('click');
     expect(wrapper.emitted('toggleAutoRefresh')).toEqual([[true]]);
+  });
+
+  it('occupies the refresh button only while the refresh lifecycle says so', async () => {
+    const wrapper = mountToolbar();
+    const refreshButton = () => wrapper.findAll('button')
+      .find((button) => button.text() === '刷新最新数据');
+
+    expect(refreshButton()?.attributes('data-loading')).toBe('false');
+
+    await wrapper.setProps({ refreshButtonBusy: true });
+    expect(refreshButton()?.attributes('data-loading')).toBe('true');
+
+    await wrapper.setProps({ refreshButtonBusy: false });
+    expect(refreshButton()?.attributes('data-loading')).toBe('false');
   });
 
   it('shows two-stage refresh progress without absolute failure copy', async () => {

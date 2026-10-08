@@ -33,7 +33,7 @@ import { refreshStatisticBoardRouteState } from '../composables/useStatisticBoar
 import { useStatisticBoardData } from '../composables/useStatisticBoardData';
 import { useStatisticBoardTableState } from '../composables/useStatisticBoardTableState';
 import { useStatisticBoardRuleExplanationState } from '../composables/useStatisticBoardRuleExplanationState';
-import { useStatisticBoardRefreshController } from '../composables/useStatisticBoardRefreshController';
+import { useRealtimeRefreshLifecycle } from '../composables/useRealtimeRefreshLifecycle';
 import { useStatisticBoardSettingsActions } from '../composables/useStatisticBoardSettingsActions';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import { useStatisticBoardTableAdapters } from '../composables/useStatisticBoardTableAdapters';
@@ -521,16 +521,22 @@ const {
 });
 
 const {
-  autoRefreshBoard,
-  refreshBoard,
-} = useStatisticBoardRefreshController({
-  loading,
-  detailVisible,
-  loadBoard,
-  loadDetail,
-  requestRealtimeRefresh: () => api.refreshStatisticBoardRealtime(props.boardKey),
-  loadRealtimeStatus,
+  refreshButtonBusy,
+  submitRefresh: refreshBoard,
+  autoRefresh: autoRefreshBoard,
+  invalidateRefreshTracking,
+} = useRealtimeRefreshLifecycle({
+  submitRefresh: () => api.refreshStatisticBoardRealtime(props.boardKey),
+  loadStatus: loadRealtimeStatus,
+  loadData: async () => {
+    await loadBoard();
+    if (detailVisible.value) {
+      await loadDetail();
+    }
+  },
   notifySuccess: (message) => ElMessage.success(message),
+  notifyWarning: (message) => ElMessage.warning(message),
+  notifyError: (message) => ElMessage.error(message),
 });
 
 const {
@@ -807,6 +813,7 @@ watch(
       invalidateRouteRefresh();
       invalidateBoardRequest();
       invalidateRealtimeStatusRequest();
+      invalidateRefreshTracking();
       invalidateDetailForRouteChange();
       return;
     }
@@ -816,6 +823,7 @@ watch(
       if (detailClosed) {
         invalidateRouteRefresh();
         invalidateRealtimeStatusRequest();
+        invalidateRefreshTracking();
       }
       if (!routeRefreshPending || detailClosed) {
         await syncDetailFromRoute(
@@ -828,6 +836,7 @@ watch(
     }
     const requestId = beginRouteRefresh();
     invalidateRealtimeStatusRequest();
+    invalidateRefreshTracking();
     invalidateDetailForRouteChange();
     resetRuleExplanation();
     try {
@@ -882,6 +891,7 @@ function onDetailVisibilityChange(visible: boolean) {
   if (!visible) {
     invalidateRouteRefresh();
     invalidateRealtimeStatusRequest();
+    invalidateRefreshTracking();
   }
   handleDetailVisibleChange(visible);
 }
@@ -914,6 +924,7 @@ onBeforeUnmount(() => {
   invalidateRouteRefresh();
   invalidateBoardRequest();
   invalidateRealtimeStatusRequest();
+  invalidateRefreshTracking();
   invalidateDetailForRouteChange();
 });
 
@@ -978,6 +989,7 @@ function autoRefreshMarkerKey() {
           :rule-explanation-summary="qaFriendlyRuleSummary"
           :realtime-status="syncStatus"
           :can-refresh-realtime="canRefreshRealtime"
+          :refresh-button-busy="refreshButtonBusy"
           :auto-refresh-on-enter="autoRefreshOnEnter"
           :export-label="primaryExportLabel"
           :show-export="showPrimaryExport"

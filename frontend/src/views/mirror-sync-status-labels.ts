@@ -89,6 +89,32 @@ const TABLE_TASK_STATUS_LABELS: Record<GitlabSyncStatus, string> = {
   CANCELLING: '取消中',
 };
 
+/** 任务状态中新增的人工/等待态；不属于运行状态枚举，单独维护。 */
+const TASK_LIFECYCLE_STATUS_LABELS: Record<string, string> = {
+  PAUSED: '已暂停，待人工处置',
+  RETRY_WAITING: '等待重试',
+  SKIPPED: '已跳过',
+};
+
+/** 人工处置标记：任务是被自动流程接管还是需要维护人员显式决定。 */
+const MANUAL_DISPOSITION_LABELS: Record<string, string> = {
+  NONE: '自动处理',
+  REQUIRES_DECISION: '需人工处置',
+};
+
+/** 故障定位项的来源分类。 */
+const DIAGNOSTIC_KIND_LABELS: Record<string, string> = {
+  TABLE_TASK: '镜像表任务',
+  AUTHORITATIVE_SCOPE: '权威范围',
+  FACT_BUILD: '事实构建',
+  PROJECTION: '投影发布',
+};
+
+/** 依赖等待原因码。 */
+const WAIT_REASON_LABELS: Record<string, string> = {
+  DEPENDENCY_SETTLING: '等待上游依赖收敛',
+};
+
 const TRIGGER_TYPE_LABELS: Record<string, string> = {
   MANUAL: '手动触发',
   SCHEDULE: '定时触发',
@@ -134,7 +160,35 @@ export function logStatusText(statusValue: GitlabSyncStatus) {
 }
 
 export function tableTaskStatusText(statusValue: GitlabSyncStatus | string) {
-  return TABLE_TASK_STATUS_LABELS[statusValue as GitlabSyncStatus] ?? '未知状态';
+  return (
+    TABLE_TASK_STATUS_LABELS[statusValue as GitlabSyncStatus]
+    ?? TASK_LIFECYCLE_STATUS_LABELS[statusValue]
+    ?? '未知状态'
+  );
+}
+
+export function manualDispositionText(disposition?: string | null) {
+  const normalized = disposition?.trim();
+  if (!normalized) {
+    return '-';
+  }
+  return MANUAL_DISPOSITION_LABELS[normalized] ?? normalized;
+}
+
+export function diagnosticKindText(kind?: string | null) {
+  const normalized = kind?.trim();
+  if (!normalized) {
+    return '未知分类';
+  }
+  return DIAGNOSTIC_KIND_LABELS[normalized] ?? normalized;
+}
+
+export function waitReasonText(reason?: string | null) {
+  const normalized = reason?.trim();
+  if (!normalized) {
+    return '-';
+  }
+  return WAIT_REASON_LABELS[normalized] ?? normalized;
 }
 
 export function syncTriggerTypeText(triggerType?: string | null) {

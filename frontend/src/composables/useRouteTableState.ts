@@ -79,6 +79,10 @@ export function useRouteTableState(options: RouteTableStateOptions = {}) {
   const sortBy = computed(() => String(route.query.sortBy ?? options.defaults?.sortBy ?? ''));
   const sortOrder = computed(() => parseSortOrder(route.query.sortOrder ?? options.defaults?.sortOrder ?? ''));
   const keyword = computed(() => String(route.query.keyword ?? options.defaults?.keyword ?? ''));
+  /** 参与加载判定的查询组合签名：筛选、分页与排序任一变化都会改变它。 */
+  const watchedQuerySignatureValue = computed(() =>
+    watchedQuerySignature(route.query, options.watchedQueryKeys),
+  );
 
   function invalidatePendingQuery() {
     loaderRunId += 1;
@@ -175,11 +179,7 @@ export function useRouteTableState(options: RouteTableStateOptions = {}) {
       }
       return outcome;
     };
-    watch(
-      () => watchedQuerySignature(route.query, options.watchedQueryKeys),
-      () => void reload(),
-      { immediate: options.immediate ?? true },
-    );
+    watch(watchedQuerySignatureValue, () => void reload(), { immediate: options.immediate ?? true });
   }
 
   /**
@@ -215,6 +215,7 @@ export function useRouteTableState(options: RouteTableStateOptions = {}) {
     sortOrder,
     keyword,
     isTableLoading,
+    watchedQuerySignature: watchedQuerySignatureValue,
     patchQuery,
     debouncedPatchQuery,
     cancelDebouncedQuery,

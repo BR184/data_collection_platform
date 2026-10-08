@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Refresh, RefreshRight } from '@element-plus/icons-vue';
 import ExportActionMenu from '../components/base/ExportActionMenu.vue';
@@ -14,7 +14,8 @@ import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
 import { hasPermission } from '../feature-manifest';
-import { useRealtimeWorkspaceStatus, waitForRealtimeWorkspaceRefresh } from '../composables/useRealtimeWorkspaceStatus';
+import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
+import { useRealtimeRefreshLifecycle } from '../composables/useRealtimeRefreshLifecycle';
 import { ElMessage } from '../element-plus-services';
 import type {
   AnalyticsDashboardRule,
@@ -32,7 +33,6 @@ const DASHBOARD_KEY = 'system-test-multi';
 
 const initialized = ref(false);
 const loading = ref(false);
-const realtimeRefreshLoading = ref(false);
 const exportLoadingKey = ref('');
 const board = ref<SystemTestIssueMultiBoardResponse | null>(null);
 const selectedRule = ref<AnalyticsDashboardRule | null>(null);
@@ -48,12 +48,24 @@ const ruleByKey = computed(() => new Map(
 ));
 
 const {
-  syncStatus,
   lastSyncedText,
   loadRealtimeStatus: loadSyncStatus,
 } = useRealtimeWorkspaceStatus({
   loadStatus: () => api.getStatisticBoardRealtimeStatus('system-test-defect-summary'),
   emptyText: '-',
+});
+
+const {
+  refreshButtonBusy,
+  submitRefresh: submitRefreshLatestData,
+  invalidateRefreshTracking,
+} = useRealtimeRefreshLifecycle({
+  submitRefresh: () => api.refreshStatisticBoardRealtime('system-test-defect-summary'),
+  loadStatus: loadSyncStatus,
+  loadData: loadBoard,
+  notifySuccess: (message) => ElMessage.success(message),
+  notifyWarning: (message) => ElMessage.warning(message),
+  notifyError: (message) => ElMessage.error(message),
 });
 
 async function replaceQuery(patch: Record<string, string | undefined>) {
@@ -93,11 +105,13 @@ async function loadBoard() {
 
 async function handleProjectChange(value: string | string[]) {
   await replaceQuery({ projectId: String(value || '9'), testingPhase: undefined });
+  invalidateRefreshTracking();
   await loadBoard();
 }
 
 async function handleTestingPhaseChange(value: string | string[]) {
   await replaceQuery({ testingPhase: String(value || '') || undefined });
+  invalidateRefreshTracking();
   await loadBoard();
 }
 
@@ -111,17 +125,7 @@ async function handleRefresh() {
 }
 
 async function handleRefreshLatestData() {
-  realtimeRefreshLoading.value = true;
-  try {
-    const status = await api.refreshStatisticBoardRealtime('system-test-defect-summary');
-    ElMessage.success(status.message || '已开始刷新最新数据');
-    await waitForRealtimeWorkspaceRefresh(status, loadSyncStatus);
-    await loadBoard();
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, '刷新最新数据失败'));
-  } finally {
-    realtimeRefreshLoading.value = false;
-  }
+  await submitRefreshLatestData();
 }
 
 async function handleExport(chart: SystemTestIssueMultiBoardChartResponse) {
@@ -213,6 +217,10 @@ function openRule(rule: AnalyticsDashboardRule | null) {
   ruleDrawerVisible.value = true;
 }
 
+onBeforeUnmount(() => {
+  invalidateRefreshTracking();
+});
+
 void Promise.all([loadBoard(), loadSyncStatus()]).catch((error) => {
   initialized.value = true;
   loading.value = false;
@@ -252,7 +260,7 @@ void Promise.all([loadBoard(), loadSyncStatus()]).catch((error) => {
             v-if="canRefreshLatestData"
             class="app-action-button app-action-button--refresh"
             :icon="RefreshRight"
-            :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
+            :loading="refreshButtonBusy"
             @click="handleRefreshLatestData"
           >
             刷新最新数据

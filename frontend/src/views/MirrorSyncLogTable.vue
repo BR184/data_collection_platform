@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue';
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useFloatingHorizontalScrollbar } from '../composables/useFloatingHorizontalScrollbar';
+import { ElMessage } from '../element-plus-services';
 import type { SyncRunLog } from '../types/api';
 import {
   deleteReconciliationStatusTagType,
   deleteReconciliationStatusText,
+  diagnosticKindText,
   formatDuration,
   formatLogTime,
   freshnessStatusTagType,
@@ -25,12 +27,44 @@ const props = defineProps<{
 
 defineEmits<{
   refresh: [];
+  /** 打开该运行的分页明细：全部定位项与相关事件。 */
+  openDetails: [run: SyncRunLog];
 }>();
+
+/** 展开区摘要最多展示的定位项数；完整清单走同运行明细。 */
+const DIAGNOSTIC_PREVIEW_LIMIT = 5;
+/** 展开区摘要最多展示的相关事件数。 */
+const EVENT_PREVIEW_LIMIT = 5;
+
+/** 桌面端表格最大高度：约可完整显示 12 条小尺寸日志行。 */
+const DESKTOP_TABLE_MAX_HEIGHT_PX = 420;
+/** 矮屏下仍保留的最小可滚动高度。 */
+const MIN_TABLE_MAX_HEIGHT_PX = 220;
+/** 视口高度取值比例，使矮屏下随可用高度缩小但整行仍可滚动。 */
+const TABLE_MAX_HEIGHT_VIEWPORT_RATIO = 0.55;
 
 const typeFilter = ref('');
 const statusFilter = ref('');
 const tableRef = ref<{ doLayout?: () => void }>();
 const tableShellRef = ref<HTMLElement>();
+const tableMaxHeight = ref(DESKTOP_TABLE_MAX_HEIGHT_PX);
+
+function updateTableMaxHeight() {
+  const viewportGuess = Math.round((window.innerHeight || 0) * TABLE_MAX_HEIGHT_VIEWPORT_RATIO);
+  tableMaxHeight.value = Math.max(
+    MIN_TABLE_MAX_HEIGHT_PX,
+    Math.min(DESKTOP_TABLE_MAX_HEIGHT_PX, viewportGuess),
+  );
+}
+
+onMounted(() => {
+  updateTableMaxHeight();
+  window.addEventListener('resize', updateTableMaxHeight, { passive: true });
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateTableMaxHeight);
+});
 
 const typeOptions = computed(() => {
   const optionMap = new Map<string, string>();
@@ -72,7 +106,8 @@ const {
   scheduleHorizontalScrollbarUpdate,
 } = useFloatingHorizontalScrollbar({
   tableShellRef,
-  watchedSources: [filteredLogs],
+  watchedSources: [filteredLogs, tableMaxHeight],
+  positioning: 'container',
 });
 
 function typeFilterKey(log: SyncRunLog) {
@@ -110,6 +145,19 @@ async function handleExpandChange() {
   tableRef.value?.doLayout?.();
   await scheduleHorizontalScrollbarUpdate();
   wakeHorizontalScrollbar();
+}
+
+async function copyRawError(text?: string | null) {
+  const value = (text ?? '').trim();
+  if (!value) {
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(value);
+    ElMessage.success('错误原文已复制');
+  } catch {
+    ElMessage.warning('当前浏览器不允许自动复制，请手动选择文本');
+  }
 }
 </script>
 
@@ -161,6 +209,7 @@ async function handleExpandChange() {
       <el-table
         ref="tableRef"
         :data="filteredLogs"
+        :max-height="tableMaxHeight"
         row-key="id"
         size="small"
         border
@@ -215,6 +264,40 @@ async function handleExpandChange() {
                 <strong>{{ syncLogMessage(row) }}</strong>
               </div>
             </div>
+            <div class="sync-log-attention">
+              <div class="sync-log-attention-counts">
+                <span>失败项 {{ row.failureCount ?? 0 }}</span>
+                <span>待人工处置 {{ row.manualAttentionCount ?? 0 }}</span>
+                <span>可查明细 {{ row.diagnosticCount ?? 0 }}</span>
+                <span>相关事件 {{ row.eventCount ?? 0 }}</span>
+              </div>
+              <el-button size="small" text type="primary" @click="$emit('openDetails', row)">
+                查看全部 {{ row.diagnosticCount ?? 0 }} 项明细
+              </el-button>
+            </div>
+            <ul v-if="(row.diagnostics ?? []).length" class="sync-log-diagnostic-preview">
+              <li v-for="(item, index) in (row.diagnostics ?? []).slice(0, DIAGNOSTIC_PREVIEW_LIMIT)" :key="`${item.kind}-${index}`">
+                <el-tag size="small" effect="plain" type="danger">{{ diagnosticKindText(item.kind) }}</el-tag>
+                <strong>{{ item.rawError || item.dispositionReason || item.status || '-' }}</strong>
+              </li>
+            </ul>
+            <ul v-if="(row.eventTrail ?? []).length" class="sync-log-event-preview">
+              <li v-for="(event, index) in (row.eventTrail ?? []).slice(0, EVENT_PREVIEW_LIMIT)" :key="`${event.eventId}-${index}`">
+                <span class="sync-log-event-time">{{ formatLogTime({ finishedAt: event.createdAt } as SyncRunLog) }}</span>
+                <span class="sync-log-event-type">{{ event.eventType || '-' }}</span>
+                <span class="sync-log-event-message">{{ event.message || '-' }}</span>
+              </li>
+            </ul>
+            <div v-if="row.latestProgressMessage" class="sync-log-progress-note">
+              最新进度：{{ row.latestProgressMessage }}
+            </div>
+            <div v-if="row.errorSummary" class="sync-log-raw-error">
+              <div class="sync-log-raw-error-header">
+                <span>运行级错误原文</span>
+                <el-button size="small" link @click="copyRawError(row.errorSummary)">复制全文</el-button>
+              </div>
+              <pre class="sync-log-raw-error-text">{{ row.errorSummary }}</pre>
+            </div>
           </template>
         </el-table-column>
         <el-table-column label="类型" width="126">
@@ -260,29 +343,27 @@ async function handleExpandChange() {
           <template #default="{ row }">{{ syncLogMessage(row) }}</template>
         </el-table-column>
       </el-table>
-      <Teleport to="body">
+      <div
+        v-show="isFloatingScrollbarVisible"
+        ref="floatingScrollbarRef"
+        class="sync-log-floating-horizontal"
+        :style="floatingScrollbarStyle"
+        aria-hidden="true"
+        @mouseenter="wakeHorizontalScrollbar"
+        @pointerup="handleFloatingScrollbarPointerUp"
+      >
         <div
-          v-show="isFloatingScrollbarVisible"
-          ref="floatingScrollbarRef"
-          class="sync-log-floating-horizontal"
-          :style="floatingScrollbarStyle"
-          aria-hidden="true"
-          @mouseenter="wakeHorizontalScrollbar"
-          @pointerup="handleFloatingScrollbarPointerUp"
+          ref="floatingTrackRef"
+          class="platform-floating-horizontal-track"
+          @pointerdown="handleFloatingTrackPointerDown"
         >
           <div
-            ref="floatingTrackRef"
-            class="platform-floating-horizontal-track"
-            @pointerdown="handleFloatingTrackPointerDown"
-          >
-            <div
-              class="platform-floating-horizontal-thumb"
-              :style="floatingThumbStyle"
-              @pointerdown="handleFloatingThumbPointerDown"
-            />
-          </div>
+            class="platform-floating-horizontal-thumb"
+            :style="floatingThumbStyle"
+            @pointerdown="handleFloatingThumbPointerDown"
+          />
         </div>
-      </Teleport>
+      </div>
     </div>
   </el-card>
 </template>
@@ -300,8 +381,11 @@ async function handleExpandChange() {
 
 .sync-log-table-shell {
   position: relative;
+  /* 让停靠横条的高 z-index 只在本模块内生效，不参与页面级层叠。 */
+  isolation: isolate;
   overflow-x: hidden;
-  overflow-y: hidden;
+  /* 底部为模块内停靠的横条预留空间，避免盖住最后一行。纵向滚动交给表格自带滚动条。 */
+  padding-bottom: 18px;
   outline: none;
   scrollbar-gutter: auto;
 }
@@ -323,8 +407,7 @@ async function handleExpandChange() {
 }
 
 .sync-log-floating-horizontal {
-  position: fixed;
-  z-index: 1900;
+  position: absolute;
   height: 16px;
   padding: 5px 0;
   overflow: visible;
@@ -363,5 +446,98 @@ async function handleExpandChange() {
 
 .sync-log-detail-item-wide {
   grid-column: 1 / -1;
+}
+
+.sync-log-attention {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px 6px;
+  background: #f8fafc;
+}
+
+.sync-log-attention-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.sync-log-diagnostic-preview,
+.sync-log-event-preview {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 16px 10px;
+  list-style: none;
+  background: #f8fafc;
+}
+
+.sync-log-diagnostic-preview li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  color: #1f2937;
+}
+
+.sync-log-diagnostic-preview strong,
+.sync-log-event-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+
+.sync-log-event-preview li {
+  display: grid;
+  grid-template-columns: 150px 150px minmax(0, 1fr);
+  gap: 10px;
+  font-size: 12px;
+}
+
+.sync-log-event-time {
+  color: #64748b;
+}
+
+.sync-log-event-type {
+  color: #334155;
+}
+
+.sync-log-progress-note {
+  padding: 4px 16px 10px;
+  font-size: 12px;
+  color: #64748b;
+  background: #f8fafc;
+}
+
+.sync-log-raw-error {
+  margin: 0 16px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+}
+
+.sync-log-raw-error-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #991b1b;
+  border-bottom: 1px solid #fecaca;
+}
+
+.sync-log-raw-error-text {
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 180px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #7f1d1d;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 </style>

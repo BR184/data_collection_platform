@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { Refresh, RefreshRight } from '@element-plus/icons-vue';
 import { useRoute, useRouter } from 'vue-router';
 import PageStateShell from '../components/base/PageStateShell.vue';
@@ -12,6 +12,7 @@ import { authState } from '../composables/auth-state';
 import { hasPermission } from '../feature-manifest';
 import { buildAnalyticsDetailRoute } from '../components/dashboard/detail-view-routes';
 import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
+import { useRealtimeRefreshLifecycle } from '../composables/useRealtimeRefreshLifecycle';
 import { ElMessage } from '../element-plus-services';
 import type { EChartPointClickEvent } from '../components/charts/echart-panel-events';
 import type {
@@ -29,7 +30,6 @@ const route = useRoute();
 const router = useRouter();
 const initialized = ref(false);
 const loading = ref(false);
-const realtimeRefreshLoading = ref(false);
 const exportingKey = ref('');
 const sourceOptions = ref<OptionItemResponse[]>([]);
 const projectOptions = ref<OptionItemResponse[]>([]);
@@ -49,12 +49,24 @@ const scopeParameters = computed<Record<string, string>>(() => ({
 }));
 
 const {
-  syncStatus,
   lastSyncedText,
   loadRealtimeStatus: loadSyncStatus,
 } = useRealtimeWorkspaceStatus({
   loadStatus: () => api.getCodeReviewMultiBoardRealtimeStatus(),
   emptyText: '-',
+});
+
+const {
+  refreshButtonBusy,
+  submitRefresh: submitRefreshLatestData,
+  invalidateRefreshTracking,
+} = useRealtimeRefreshLifecycle({
+  submitRefresh: () => api.refreshCodeReviewMultiBoardRealtime(),
+  loadStatus: loadSyncStatus,
+  loadData: loadDashboard,
+  notifySuccess: (message) => ElMessage.success(message),
+  notifyWarning: (message) => ElMessage.warning(message),
+  notifyError: (message) => ElMessage.error(message),
 });
 
 function queryParameters(): AnalyticsDashboardQuery {
@@ -98,6 +110,7 @@ async function loadDashboard() {
 }
 
 async function changeSource() {
+  invalidateRefreshTracking();
   await loadProjectOptions();
   await loadDashboard();
 }
@@ -106,6 +119,7 @@ async function refreshPage() {
   try {
     const selectedSource = source.value;
     const selectedProject = projectName.value;
+    invalidateRefreshTracking();
     await loadSourceOptions();
     if (sourceOptions.value.some((option) => option.value === selectedSource)) {
       source.value = selectedSource;
@@ -122,16 +136,7 @@ async function refreshPage() {
 }
 
 async function refreshLatestData() {
-  realtimeRefreshLoading.value = true;
-  try {
-    const status = await api.refreshCodeReviewMultiBoardRealtime();
-    ElMessage.success(status.message || '已开始刷新最新数据');
-    await Promise.all([loadDashboard(), loadSyncStatus()]);
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, '刷新最新数据失败'));
-  } finally {
-    realtimeRefreshLoading.value = false;
-  }
+  await submitRefreshLatestData();
 }
 
 function openDetail(chart: AnalyticsDashboardChart, point?: EChartPointClickEvent) {
@@ -187,6 +192,10 @@ async function initializePage() {
   }
 }
 
+onBeforeUnmount(() => {
+  invalidateRefreshTracking();
+});
+
 void initializePage();
 </script>
 
@@ -204,7 +213,7 @@ void initializePage();
           <el-button
             v-if="canRefreshLatestData"
             :icon="RefreshRight"
-            :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
+            :loading="refreshButtonBusy"
             @click="refreshLatestData"
           >
             刷新最新数据

@@ -1,10 +1,12 @@
 export {
   deleteReconciliationStatusTagType,
   deleteReconciliationStatusText,
+  diagnosticKindText,
   freshnessStatusTagType,
   freshnessStatusText,
   logStatusText,
   logStatusType,
+  manualDispositionText,
   syncLogTypeText,
   syncStatusTagType,
   syncStatusText,
@@ -12,6 +14,7 @@ export {
   syncTypeTagType,
   syncTypeText,
   tableTaskStatusText,
+  waitReasonText,
 } from './mirror-sync-status-labels';
 export { formatDateTime, formatDuration, formatLogTime } from './mirror-sync-run-formatters';
 export { tableDiagnosticNote, tableRowStrategyText } from './sync-table-diagnostics-labels';

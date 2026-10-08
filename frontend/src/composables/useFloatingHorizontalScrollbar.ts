@@ -3,6 +3,14 @@ import { nextTick, onBeforeUnmount, onMounted, ref, type Ref, watch, type WatchS
 interface FloatingHorizontalScrollbarOptions {
   tableShellRef: Ref<HTMLElement | undefined>;
   watchedSources?: WatchSource<unknown>[];
+  /**
+   * 横条定位模式。
+   *
+   * `viewport`（默认）：横条相对视口固定在页面底部，模块滚出视口即隐藏；记录表、统计矩阵与明细弹窗沿用该模式。
+   * `container`：横条停靠在表格模块自身的底部，按容器与表体 `clientWidth` 定位，随模块滚动且不会漂浮到页面其他区域；
+   * 日志表使用该模式，因为其外壳有固定高度、需要模块内双向滚动。
+   */
+  positioning?: 'viewport' | 'container';
 }
 
 const minimumThumbWidth = 48;
@@ -95,6 +103,11 @@ export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScroll
       return;
     }
 
+    if (options.positioning === 'container') {
+      updateContainerScrollbarPosition(tableShell, tableBody);
+      return;
+    }
+
     const rect = tableShell.getBoundingClientRect();
     const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
@@ -118,6 +131,27 @@ export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScroll
       left: `${left}px`,
       width: `${width}px`,
       bottom: `${bottomOffset}px`,
+    };
+    isFloatingScrollbarVisible.value = true;
+  }
+
+  // 模块内停靠：宽度取表体 clientWidth（已排除纵向条），水平位置取表体相对外壳的偏移，
+  // 底部对齐外壳 padding 盒下沿；外壳用 padding-bottom 预留横条空间，因此不会盖住最后一行。
+  function updateContainerScrollbarPosition(tableShell: HTMLElement, tableBody: HTMLElement) {
+    const shellRect = tableShell.getBoundingClientRect();
+    const bodyRect = tableBody.getBoundingClientRect();
+    const width = Math.max(0, Math.round(tableBody.clientWidth));
+    if (width < 80) {
+      isFloatingScrollbarVisible.value = false;
+      return;
+    }
+
+    const left = Math.max(0, Math.round(bodyRect.left - shellRect.left));
+    floatingScrollbarStyle.value = {
+      position: 'absolute',
+      left: `${left}px`,
+      width: `${width}px`,
+      bottom: '0px',
     };
     isFloatingScrollbarVisible.value = true;
   }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 // 非法记录通用页承接系统测试和客户问题两类场景，差异通过配置和接口适配传入。
 // 页面内部统一处理关键词、条件筛选、规则说明、分页和导出，避免两个业务域重复实现。
 import { ElMessage } from '../../element-plus-services';
@@ -19,7 +19,8 @@ import { useDataScope } from '../../composables/useDataScope';
 import { ISSUE_RECORD_QUERY_KEYS } from '../../composables/record-route-query-keys';
 import { useRouteTableState } from '../../composables/useRouteTableState';
 import { useRuleExplanationPanel } from '../../composables/useRuleExplanationPanel';
-import { useRealtimeWorkspaceStatus, waitForRealtimeWorkspaceRefresh } from '../../composables/useRealtimeWorkspaceStatus';
+import { useRealtimeWorkspaceStatus } from '../../composables/useRealtimeWorkspaceStatus';
+import { useRealtimeRefreshLifecycle } from '../../composables/useRealtimeRefreshLifecycle';
 import { usePageAutoRefreshPreference } from '../../composables/usePageAutoRefreshPreference';
 import { useRecordTableFilterPriority } from '../../composables/useRecordTableFilterPriority';
 import type { StatisticBoardRuleExplanationResponse, StatisticFilterField } from '../../types/api';
@@ -43,6 +44,7 @@ const {
   patchQuery,
   bindLoader,
   isTableLoading,
+  watchedQuerySignature,
 } = useRouteTableState({
   defaults: {
     page: 1,
@@ -61,7 +63,6 @@ const filterOptionsLoaded = ref(false);
 const detailVisible = ref(false);
 const selectedRow = ref<IssueIllegalRecordRow | null>(null);
 const exportLoading = ref(false);
-const realtimeRefreshLoading = ref(false);
 const primaryDefaultPatchInFlight = ref(false);
 const projectId = computed(() => String(route.query.projectId ?? props.defaultProjectId ?? ''));
 const filterOptions = ref({ ...props.initialFilterOptions });
@@ -109,6 +110,28 @@ const {
     props.loadRealtimeStatus?.(buildCurrentQueryParams(false))
       ?? Promise.reject(new Error('Realtime status is not configured')),
   emptyText: '-',
+});
+
+const {
+  refreshButtonBusy,
+  submitRefresh: submitRefreshLatestData,
+  invalidateRefreshTracking,
+} = useRealtimeRefreshLifecycle({
+  submitRefresh: () =>
+    props.requestRealtimeRefresh
+      ? props.requestRealtimeRefresh()
+      : Promise.reject(new Error('Realtime refresh is not configured')),
+  loadStatus: loadRealtimeStatus,
+  loadData: reloadRefreshedOptionsAndRecords,
+  notifySuccess: (message) => ElMessage.success(message),
+  notifyWarning: (message) => ElMessage.warning(message),
+  notifyError: (message) => ElMessage.error(message),
+});
+
+// 路由查询（项目、筛选、分页、排序）一旦切换，旧范围的刷新跟踪即失效。
+watch(watchedQuerySignature, () => invalidateRefreshTracking());
+onBeforeUnmount(() => {
+  invalidateRefreshTracking();
 });
 
 const {
@@ -341,25 +364,21 @@ async function handleExport() {
 }
 
 async function handleRefreshLatestData() {
-  if (!props.requestRealtimeRefresh) {
+  await submitRefreshLatestData();
+}
+
+/** 刷新收敛后按当前项目重取筛选项与主表。 */
+async function reloadRefreshedOptionsAndRecords() {
+  if (!props.loadFilterOptions) {
+    await reload();
     return;
   }
-  realtimeRefreshLoading.value = true;
-  try {
-    const status = await props.requestRealtimeRefresh();
-    ElMessage.success(status.message || '已开始刷新最新数据');
-    await waitForRealtimeWorkspaceRefresh(status, loadRealtimeStatus);
-    const requestedProjectId = projectId.value;
-    const optionsRunId = ++filterOptionsRunId;
-    const refreshedOptions = await props.loadFilterOptions(requestedProjectId || undefined);
-    if (optionsRunId !== filterOptionsRunId || requestedProjectId !== projectId.value) return;
-    filterOptions.value = refreshedOptions;
-    await reload();
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, '刷新最新数据失败'));
-  } finally {
-    realtimeRefreshLoading.value = false;
-  }
+  const requestedProjectId = projectId.value;
+  const optionsRunId = ++filterOptionsRunId;
+  const refreshedOptions = await props.loadFilterOptions(requestedProjectId || undefined);
+  if (optionsRunId !== filterOptionsRunId || requestedProjectId !== projectId.value) return;
+  filterOptions.value = refreshedOptions;
+  await reload();
 }
 
 bindLoader(async ({ query, isCurrent }) => {
@@ -402,8 +421,10 @@ watch(
       if (runId !== filterOptionsRunId || requestedProjectId !== projectId.value) return;
       filterOptions.value = loadedOptions;
       filterOptionsLoaded.value = true;
-      const patchedDefault = await applyPrimaryFilterDefaults();
-      if (!patchedDefault && primaryFilterDefaultsReady.value) await reload();
+      await applyPrimaryFilterDefaults();
+      // 默认值补丁本身会改动路由查询，触发签名观察者；但补丁在途期间加载器会拒绝，
+      // 因此这里必须在补丁落定后再显式取数一次，否则页面会停在骨架状态。
+      if (primaryFilterDefaultsReady.value) await reload();
     } catch (error) {
       if (runId !== filterOptionsRunId || requestedProjectId !== projectId.value) return;
       ElMessage.error(getErrorMessage(error, `${props.title}筛选项加载失败`));
@@ -591,7 +612,7 @@ async function handleQuery() {
               class="app-action-button app-action-button--refresh"
               plain
               :icon="RefreshRight"
-              :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
+              :loading="refreshButtonBusy"
               @click="handleRefreshLatestData"
             >
               刷新最新数据

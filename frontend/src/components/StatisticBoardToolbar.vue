@@ -23,6 +23,8 @@ const props = withDefaults(
     ruleExplanationSummary?: string;
     realtimeStatus?: RealtimeWorkspaceStatusResponse | null;
     canRefreshRealtime?: boolean;
+    /** 刷新按钮占用状态：提交在途或处于提交后的交互窗口。 */
+    refreshButtonBusy?: boolean;
     autoRefreshOnEnter?: boolean;
     showExport?: boolean;
     exportLabel?: string;
@@ -43,6 +45,7 @@ const props = withDefaults(
     ruleExplanationSummary: '',
     realtimeStatus: null,
     canRefreshRealtime: true,
+    refreshButtonBusy: false,
     autoRefreshOnEnter: true,
     showExport: true,
     exportLabel: '导出',
@@ -362,6 +365,7 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
           v-if="canRefreshRealtime"
           class="app-action-button app-action-button--refresh"
           :icon="RefreshRight"
+          :loading="refreshButtonBusy"
           @click="emit('refreshBoard')"
         >
           刷新最新数据

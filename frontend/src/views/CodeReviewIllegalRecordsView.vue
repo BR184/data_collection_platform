@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import type { LocationQuery } from 'vue-router';
 // 代码走查非法记录页承接固定老平台口径下的记录检索结果，重点是让违规数据可筛选、可导出。
 import { ElMessage } from '../element-plus-services';
@@ -17,7 +17,8 @@ import type {
   OptionItemResponse,
 } from '../types/api';
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
-import { useRealtimeWorkspaceStatus, waitForRealtimeWorkspaceRefresh } from '../composables/useRealtimeWorkspaceStatus';
+import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
+import { useRealtimeRefreshLifecycle } from '../composables/useRealtimeRefreshLifecycle';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { CODE_REVIEW_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useRouteTableState } from '../composables/useRouteTableState';
@@ -58,6 +59,7 @@ const {
   patchQuery,
   bindLoader,
   isTableLoading,
+  watchedQuerySignature,
 } = useRouteTableState({
   defaults: {
     page: 1,
@@ -74,7 +76,6 @@ const total = ref(0);
 const detailVisible = ref(false);
 const selectedRow = ref<CodeReviewIllegalRecordRowResponse | null>(null);
 const exportLoading = ref(false);
-const realtimeRefreshLoading = ref(false);
 const rowRefreshLoadingKey = ref('');
 const matchModeEnabled = ref(true);
 const sourceOptions = ref<OptionItemResponse[]>([]);
@@ -340,12 +341,32 @@ async function syncCodeReviewRouteDefaults(
 }
 
 const {
-  syncStatus,
   lastSyncedText,
   loadRealtimeStatus: loadSyncStatus,
 } = useRealtimeWorkspaceStatus({
   loadStatus: () => api.getCodeReviewIllegalRecordRealtimeStatus(effectiveSourceValue.value || undefined),
   emptyText: '-',
+});
+
+const {
+  refreshButtonBusy,
+  submitRefresh: submitRefreshLatestData,
+  invalidateRefreshTracking,
+} = useRealtimeRefreshLifecycle({
+  submitRefresh: () => api.refreshCodeReviewIllegalRecords(),
+  loadStatus: loadSyncStatus,
+  loadData: async () => {
+    await reload();
+  },
+  notifySuccess: (message) => ElMessage.success(message),
+  notifyWarning: (message) => ElMessage.warning(message),
+  notifyError: (message) => ElMessage.error(message),
+});
+
+// 路由查询（来源、筛选、分页、排序）一旦切换，旧范围的刷新跟踪即失效。
+watch(watchedQuerySignature, () => invalidateRefreshTracking());
+onBeforeUnmount(() => {
+  invalidateRefreshTracking();
 });
 
 async function loadTableData(
@@ -436,17 +457,7 @@ function mergedAtRangeFilenamePart() {
 }
 
 async function handleRefreshLatestData() {
-  realtimeRefreshLoading.value = true;
-  try {
-    const status = await api.refreshCodeReviewIllegalRecords();
-    ElMessage.success(status.message || '已开始刷新最新数据');
-    await waitForRealtimeWorkspaceRefresh(status, loadSyncStatus);
-    await reload();
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, '刷新最新数据失败'));
-  } finally {
-    realtimeRefreshLoading.value = false;
-  }
+  await submitRefreshLatestData();
 }
 
 bindLoader(async ({ query, isCurrent }) => {
@@ -694,7 +705,7 @@ async function handleSourceScopeChange(value: string | number | boolean | undefi
             class="app-action-button app-action-button--refresh"
             plain
             :icon="RefreshRight"
-            :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
+            :loading="refreshButtonBusy"
             @click="handleRefreshLatestData"
           >
             刷新最新数据

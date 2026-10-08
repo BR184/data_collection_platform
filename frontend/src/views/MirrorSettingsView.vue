@@ -6,7 +6,12 @@ import { onBeforeRouteLeave } from 'vue-router';
 import { RefreshRight, Tools } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
-import type { GitlabSourceHealthResponse, GitlabSyncConfig, SyncRunDiagnosticsResponse } from '../types/api';
+import type {
+  GitlabSourceHealthResponse,
+  GitlabSyncConfig,
+  SyncRunDiagnosticsResponse,
+  SyncRunLog,
+} from '../types/api';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import { buildPurgeSummaryHtml, delayWritebackSwitchPrompt } from './mirror-settings-helpers';
@@ -14,6 +19,7 @@ import { getErrorMessage } from '../utils/user-message';
 import MirrorRunMonitorPanel from './MirrorRunMonitorPanel.vue';
 import MirrorRunTableTaskDrawer from './MirrorRunTableTaskDrawer.vue';
 import MirrorSyncLogTable from './MirrorSyncLogTable.vue';
+import MirrorRunLogDetailDrawer from './MirrorRunLogDetailDrawer.vue';
 import MirrorSyncStatusCard from './MirrorSyncStatusCard.vue';
 import CatMirrorSettingsPanel from './CatMirrorSettingsPanel.vue';
 import { formSnapshot } from './mirror-config-fingerprint';
@@ -33,6 +39,8 @@ const configs = ref<GitlabSyncConfig[]>([]);
 const sourceHealth = ref<GitlabSourceHealthResponse[]>([]);
 const tableSyncDiagnostics = ref<SyncRunDiagnosticsResponse | null>(null);
 const tableTaskDrawerVisible = ref(false);
+const runLogDetailVisible = ref(false);
+const runLogDetailRun = ref<SyncRunLog | null>(null);
 const selectedConfigId = ref<number | undefined>(undefined);
 const savedFormSnapshot = ref('');
 const ACTIVE_SYNC_STATUSES = ['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING'];
@@ -387,6 +395,11 @@ async function refreshCurrentStatus() {
     loadMirrorSection('数据源健康状态', loadSourceHealth),
     loadMirrorSection('表级同步诊断', () => loadTableSyncDiagnostics(false)),
   ]);
+}
+
+function openRunLogDetail(run: SyncRunLog) {
+  runLogDetailRun.value = run;
+  runLogDetailVisible.value = true;
 }
 
 function openTableTaskDrawer() {
@@ -854,7 +867,18 @@ onBeforeRouteLeave(async () => {
         @open-table-tasks="openTableTaskDrawer"
       />
 
-      <MirrorSyncLogTable :logs="recentLogs" :refreshing="refreshing" @refresh="refreshCurrentStatus" />
+      <MirrorSyncLogTable
+        :logs="recentLogs"
+        :refreshing="refreshing"
+        @refresh="refreshCurrentStatus"
+        @open-details="openRunLogDetail"
+      />
+
+      <MirrorRunLogDetailDrawer
+        v-model="runLogDetailVisible"
+        :config-id="selectedConfigId"
+        :run="runLogDetailRun"
+      />
 
       <el-card shadow="never" class="panel-card source-health-card">
         <template #header>

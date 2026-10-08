@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import type { LocationQuery } from 'vue-router';
 // 系统测试议题查询页承担 issue_fact 的明细检索入口，路由参数就是可分享的查询状态。
 // 组件内部只处理页面交互，阶段、模块和非法规则的口径由共享条件字段提供。
@@ -25,7 +25,8 @@ import type {
   SystemTestIssueSearchRowResponse,
 } from '../types/api';
 import { useRouteTableState } from '../composables/useRouteTableState';
-import { useRealtimeWorkspaceStatus, waitForRealtimeWorkspaceRefresh } from '../composables/useRealtimeWorkspaceStatus';
+import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
+import { useRealtimeRefreshLifecycle } from '../composables/useRealtimeRefreshLifecycle';
 import { ISSUE_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import type {
@@ -39,7 +40,7 @@ import { useRecordTableFilterPriority } from '../composables/useRecordTableFilte
 
 const PAGE_SCOPE_KEY = 'record-page:system-test-issue-search';
 const { readAutoRefreshOnEnter } = usePageAutoRefreshPreference(PAGE_SCOPE_KEY);
-const { route, page, pageSize, sortBy, sortOrder, patchQuery, reload, bindLoader, isTableLoading } =
+const { route, page, pageSize, sortBy, sortOrder, patchQuery, reload, bindLoader, isTableLoading, watchedQuerySignature } =
   useRouteTableState({
     defaults: {
       page: 1,
@@ -54,7 +55,6 @@ const { route, page, pageSize, sortBy, sortOrder, patchQuery, reload, bindLoader
 const rows = ref<SystemTestIssueSearchRowResponse[]>([]);
 const total = ref(0);
 const exportLoading = ref(false);
-const realtimeRefreshLoading = ref(false);
 const canRefreshLatestData = computed(() => hasPermission(authState.currentUser, 'business_data.refresh'));
 const filterOptions = ref<SystemTestIssueSearchFilterOptionsResponse>({
   projectNames: [],
@@ -86,12 +86,32 @@ const {
 const conditionFiltersExpanded = ref(false);
 
 const {
-  syncStatus,
   lastSyncedText,
   loadRealtimeStatus: loadSyncStatus,
 } = useRealtimeWorkspaceStatus({
   loadStatus: () => api.getSystemTestIssueSearchRealtimeStatus(buildCurrentQueryParams(false)),
   emptyText: '-',
+});
+
+const {
+  refreshButtonBusy,
+  submitRefresh: submitRefreshLatestData,
+  invalidateRefreshTracking,
+} = useRealtimeRefreshLifecycle({
+  submitRefresh: () => api.refreshSystemTestIssueSearchRealtime(),
+  loadStatus: loadSyncStatus,
+  loadData: async () => {
+    await reload();
+  },
+  notifySuccess: (message) => ElMessage.success(message),
+  notifyWarning: (message) => ElMessage.warning(message),
+  notifyError: (message) => ElMessage.error(message),
+});
+
+// 路由查询（筛选、分页、排序）一旦切换，旧范围的刷新跟踪即失效。
+watch(watchedQuerySignature, () => invalidateRefreshTracking());
+onBeforeUnmount(() => {
+  invalidateRefreshTracking();
 });
 
 const filterValues = computed<Record<string, unknown>>(() => {
@@ -334,17 +354,7 @@ async function loadFilterOptions(query: Readonly<Record<string, unknown>>) {
 }
 
 async function handleRefreshLatestData() {
-  realtimeRefreshLoading.value = true;
-  try {
-    const status = await api.refreshSystemTestIssueSearchRealtime();
-    ElMessage.success(status.message || '已开始刷新最新数据');
-    await waitForRealtimeWorkspaceRefresh(status, loadSyncStatus);
-    await reload();
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, '刷新最新数据失败'));
-  } finally {
-    realtimeRefreshLoading.value = false;
-  }
+  await submitRefreshLatestData();
 }
 
 async function loadTableData(query: Readonly<Record<string, unknown>>) {
@@ -608,7 +618,7 @@ async function handleRefresh() {
           class="app-action-button app-action-button--refresh"
           plain
           :icon="RefreshRight"
-          :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
+          :loading="refreshButtonBusy"
           @click="handleRefreshLatestData"
         >
           刷新最新数据

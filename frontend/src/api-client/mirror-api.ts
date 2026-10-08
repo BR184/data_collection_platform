@@ -7,6 +7,7 @@ import type {
   MirrorPurgeResult,
   MirrorPurgeScope,
   MirrorStatusResponse,
+  SyncRunLogDetailSection,
   SyncSubmissionResponse,
   TableWhitelistOption,
 } from '../types/api';
@@ -21,6 +22,30 @@ export const mirrorApi = {
   },
   getStatus(configId?: number) {
     return request<MirrorStatusResponse>(withConfigId('/api/gitlab-sync/status', configId));
+  },
+  /**
+   * 按运行编号分页读取可在界面展开的全部定位项或相关事件。
+   *
+   * 服务端用与状态查询相同的配置/来源归属校验；旧运行只要记录仍在即可按其 runId 查询，
+   * 不受最近日志条数限制。`section` 取 `DIAGNOSTICS` 或 `EVENTS`。
+   */
+  getRunLogDetails(
+    configId: number | undefined,
+    runId: number | string,
+    section: SyncRunLogDetailSection,
+    offset = 0,
+    limit = 20,
+  ) {
+    const query = new URLSearchParams({
+      detailsRunId: String(runId),
+      detailsSection: section,
+      detailsOffset: String(offset),
+      detailsLimit: String(limit),
+    });
+    if (configId != null) {
+      query.set('configId', String(configId));
+    }
+    return request<MirrorStatusResponse>(`/api/gitlab-sync/status?${query.toString()}`);
   },
   getSystemHookRegistrationStatus(configId?: number) {
     return request<GitlabSystemHookRegistrationStatus>(withConfigId('/api/gitlab-sync/system-hook-registration-status', configId));

@@ -108,6 +108,70 @@ export type DeleteReconciliationStatus =
   | 'COMPLETED'
   | 'INCOMPLETE';
 
+/** 故障定位项的四类来源；同表同关系的不同范围由 `scopeSignature`/`scopeKey` 区分。 */
+export type SyncRunDiagnosticKind = 'TABLE_TASK' | 'AUTHORITATIVE_SCOPE' | 'FACT_BUILD' | 'PROJECTION';
+
+/** 运行明细的可分页区段：定位项与相关事件。 */
+export type SyncRunLogDetailSection = 'DIAGNOSTICS' | 'EVENTS';
+
+/**
+ * 单个可定位的故障/待处理项。
+ *
+ * <p>字段按 kind 取用，未取得的项服务端保持空值，界面不得用相关状态推断补齐。
+ * `rawError` 是任务自身的错误原文，优先于运行级概括与事件文案展示。
+ */
+export interface SyncRunDiagnosticItem {
+  kind: SyncRunDiagnosticKind | string;
+  kindRank?: number | null;
+  taskId?: number | string | null;
+  status?: string | null;
+  manualDisposition?: string | null;
+  sourceInstance?: string | null;
+  originalRunId?: number | string | null;
+  currentRunId?: number | string | null;
+  expectedRunId?: number | string | null;
+  newRunId?: number | string | null;
+  retryCount?: number | null;
+  maxRetryCount?: number | null;
+  rawError?: string | null;
+  dispositionReason?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  errorObservedAt?: string | null;
+  elapsedMs?: number | null;
+  scope?: string | null;
+  scopeType?: string | null;
+  scopeKey?: string | null;
+  targetGeneration?: number | string | null;
+  factType?: string | null;
+  fullBuild?: boolean | null;
+  heartbeatAt?: string | null;
+  leaseUntil?: string | null;
+  recordUpdatedAt?: string | null;
+  runKey?: string | null;
+  message?: string | null;
+  details?: unknown;
+}
+
+/** 与一次运行相关的生命周期/失败/人工处置事件（不含高频进度事件）。 */
+export interface SyncRunEventTrailItem {
+  eventId?: number | string | null;
+  eventType?: string | null;
+  message?: string | null;
+  createdAt?: string | null;
+}
+
+/** 运行明细的分页区块；`total` 是完整总数，`items` 只含当前页。 */
+export interface SyncRunDetailBlock<TItem> {
+  runId?: number | null;
+  section?: SyncRunLogDetailSection | string;
+  offset: number;
+  limit: number;
+  total: number;
+  items: TItem[];
+  hasMore: boolean;
+}
+
 export interface SyncRunLog {
   id: number;
   runId?: string | null;
@@ -134,6 +198,20 @@ export interface SyncRunLog {
   startedAt: string;
   finishedAt?: string | null;
   errorSummary?: string | null;
+  /** 可查明细的异常总数（去重后）。 */
+  diagnosticCount?: number | null;
+  /** 失败项计数；与人工待处理可重叠，不相加当作任务总数。 */
+  failureCount?: number | null;
+  /** 需人工处置的项计数；与失败项可重叠。 */
+  manualAttentionCount?: number | null;
+  /** 摘要区展示的定位项（每类最多 5 条）。 */
+  diagnostics?: SyncRunDiagnosticItem[] | null;
+  /** 相关事件总数（不含高频进度事件）。 */
+  eventCount?: number | null;
+  /** 最近 5 条相关事件，正序展示。 */
+  eventTrail?: SyncRunEventTrailItem[] | null;
+  latestProgressMessage?: string | null;
+  latestProgressAt?: string | null;
 }
 
 export interface SyncProgress {
@@ -220,6 +298,10 @@ export interface MirrorStatusResponse {
   systemHookRegistration?: GitlabSystemHookRegistrationStatus | null;
   availableProcessors?: number | null;
   resolvedSyncThreads?: number | null;
+  /** 仅在显式传入 `detailsRunId` 时返回：指定运行的分页定位项或相关事件。 */
+  details?: SyncRunDetailBlock<SyncRunDiagnosticItem | SyncRunEventTrailItem> | null;
+  /** 仅在显式传入 `pendingOffset`/`pendingLimit` 时返回：按配置与来源分页的人工待处理列表。 */
+  pending?: SyncRunDetailBlock<SyncRunDiagnosticItem> | null;
 }
 
 export interface GitlabRegisteredSystemHook {

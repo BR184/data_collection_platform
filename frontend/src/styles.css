@@ -1762,10 +1762,6 @@ button {
   line-height: 1.5;
 }
 
-.sync-log-table-shell {
-  max-height: 240px;
-}
-
 .sync-log-table-shell .el-table {
   width: 100%;
 }

@@ -16,6 +16,10 @@ const tableStubs = {
         type: Array,
         default: () => [],
       },
+      maxHeight: {
+        type: [Number, String],
+        default: undefined,
+      },
     },
     setup(props, { slots }) {
       provide(tableRowsKey, props.data);
@@ -173,5 +177,70 @@ describe('MirrorSyncLogTable', () => {
     expect(mirrorSyncLogTableSource).not.toContain('max-height="280"');
     expect(mirrorSyncLogTableSource).toContain('@expand-change="handleExpandChange"');
     expect(mirrorSyncLogTableSource).toContain('tableRef.value?.doLayout?.()');
+  });
+
+  it('summarizes anomalies per run and opens the full same-run detail', async () => {
+    const wrapper = mount(MirrorSyncLogTable, {
+      global: {
+        plugins: [ElementPlus],
+        stubs: tableStubs,
+      },
+      props: {
+        logs: [
+          createLog({
+            failureCount: 2,
+            manualAttentionCount: 1,
+            diagnosticCount: 3,
+            eventCount: 7,
+            diagnostics: [
+              { kind: 'FACT_BUILD', taskId: 5, status: 'PAUSED', rawError: '事实构建失败' },
+              { kind: 'PROJECTION', taskId: 6, status: 'FAILED', dispositionReason: '需人工决定' },
+            ],
+            eventTrail: [{ eventId: 9, eventType: 'FACT_TASK_FAILED', message: '任务失败', createdAt: '2026-09-30T10:00:00' }],
+            latestProgressMessage: '正在构建事实',
+          }),
+        ],
+        refreshing: false,
+      },
+    });
+
+    const text = wrapper.text();
+    expect(text).toContain('失败项 2');
+    expect(text).toContain('待人工处置 1');
+    expect(text).toContain('可查明细 3');
+    expect(text).toContain('相关事件 7');
+    expect(text).toContain('事实构建');
+    expect(text).toContain('事实构建失败');
+    expect(text).toContain('正在构建事实');
+
+    const detailButton = wrapper.findAll('button').find((button) => button.text().includes('查看全部'));
+    expect(detailButton).toBeTruthy();
+    await detailButton?.trigger('click');
+    expect(wrapper.emitted('openDetails')).toHaveLength(1);
+    expect(wrapper.emitted('openDetails')?.[0]?.[0]).toMatchObject({ id: 1, diagnosticCount: 3 });
+  });
+
+  it('docks the horizontal bar inside the module and gives the table a vertical max-height', () => {
+    // 模块内停靠：不再 Teleport 到 body、不再用视口 fixed 定位，横条作为外壳子节点随模块滚动。
+    expect(mirrorSyncLogTableSource).not.toContain('<Teleport');
+    expect(mirrorSyncLogTableSource).not.toContain('position: fixed');
+    expect(mirrorSyncLogTableSource).toContain("positioning: 'container'");
+    expect(mirrorSyncLogTableSource).toContain('padding-bottom: 18px');
+    expect(mirrorSyncLogTableSource).toContain(':max-height="tableMaxHeight"');
+
+    const wrapper = mount(MirrorSyncLogTable, {
+      global: {
+        plugins: [ElementPlus],
+        stubs: tableStubs,
+      },
+      props: {
+        logs: [createLog()],
+        refreshing: false,
+      },
+    });
+
+    expect(wrapper.find('.sync-log-table-shell .sync-log-floating-horizontal').exists()).toBe(true);
+    const maxHeight = wrapper.getComponent(tableStubs.ElTable).props('maxHeight');
+    expect(Number(maxHeight)).toBeGreaterThanOrEqual(220);
   });
 });

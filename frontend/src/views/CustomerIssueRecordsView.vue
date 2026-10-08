@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 // 客户问题正式记录页复用共享记录页底座，只在这里定义客户问题自己的范围和列展示。
 // 查询条件统一落到 issue_fact 口径，避免页面层再重复实现筛选规则。
 import { ElMessage } from '../element-plus-services';
@@ -40,7 +40,8 @@ import {
   type CustomerIssueRecordRangeFilterKey,
 } from '../feature-manifest/customer-issue-record-query-contract';
 import { useRouteTableState } from '../composables/useRouteTableState';
-import { useRealtimeWorkspaceStatus, waitForRealtimeWorkspaceRefresh } from '../composables/useRealtimeWorkspaceStatus';
+import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
+import { useRealtimeRefreshLifecycle } from '../composables/useRealtimeRefreshLifecycle';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { useRecordPageController } from '../composables/useRecordPageController';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
@@ -75,6 +76,7 @@ const {
   bindLoader,
   reload,
   isTableLoading,
+  watchedQuerySignature,
 } = useRouteTableState({
   defaults: {
     page: 1,
@@ -97,7 +99,6 @@ const tableLoadError = ref('');
 const detailVisible = ref(false);
 const selectedRow = ref<CustomerIssueRecordRowResponse | null>(null);
 const exportLoading = ref(false);
-const realtimeRefreshLoading = ref(false);
 const milestoneDefaultPatchInFlight = ref(false);
 
 const filterOptions = ref<CustomerIssueRecordFilterOptionsResponse>(createEmptyFilterOptions());
@@ -124,12 +125,30 @@ const emptyDescription = computed(() =>
 );
 
 const {
-  syncStatus,
   lastSyncedText,
   loadRealtimeStatus: loadSyncStatus,
 } = useRealtimeWorkspaceStatus({
   loadStatus: () => api.getCustomerIssueRecordRealtimeStatus(topic.value, buildCurrentQueryParams(false)),
   emptyText: '-',
+});
+
+const {
+  refreshButtonBusy,
+  submitRefresh: submitRefreshLatestData,
+  invalidateRefreshTracking,
+} = useRealtimeRefreshLifecycle({
+  submitRefresh: () => api.refreshCustomerIssueRecordRealtime(topic.value),
+  loadStatus: loadSyncStatus,
+  loadData: reloadRefreshedRecords,
+  notifySuccess: (message) => ElMessage.success(message),
+  notifyWarning: (message) => ElMessage.warning(message),
+  notifyError: (message) => ElMessage.error(message),
+});
+
+// 路由查询（筛选、分页、排序）一旦切换，旧范围的刷新跟踪即失效。
+watch(watchedQuerySignature, () => invalidateRefreshTracking());
+onBeforeUnmount(() => {
+  invalidateRefreshTracking();
 });
 
 const {
@@ -701,22 +720,15 @@ function customerIssueExportFilename() {
 }
 
 async function handleRefreshLatestData() {
-  realtimeRefreshLoading.value = true;
-  const requestedTopic = topic.value;
-  try {
-    const status = await api.refreshCustomerIssueRecordRealtime(requestedTopic);
-    ElMessage.success(status.message || '已开始刷新最新数据');
-    await waitForRealtimeWorkspaceRefresh(status, loadSyncStatus);
-    if (requestedTopic !== topic.value) return;
-    const optionsLoaded = await loadFilterOptions(requestedTopic);
-    if (!optionsLoaded || requestedTopic !== topic.value) return;
-    if (requestedTopic === 'delay' && !milestoneDefaultReady.value) return;
-    await reload();
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, '刷新最新数据失败'));
-  } finally {
-    realtimeRefreshLoading.value = false;
-  }
+  await submitRefreshLatestData();
+}
+
+/** 刷新收敛后按当前范围重取筛选项与主表。 */
+async function reloadRefreshedRecords() {
+  const optionsLoaded = await loadFilterOptions(topic.value);
+  if (!optionsLoaded) return;
+  if (topic.value === 'delay' && !milestoneDefaultReady.value) return;
+  await reload();
 }
 
 bindLoader(async ({ query, isCurrent }) => {
@@ -963,7 +975,7 @@ async function handleQuery() {
               class="app-action-button app-action-button--refresh"
               plain
               :icon="RefreshRight"
-              :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
+              :loading="refreshButtonBusy"
               @click="handleRefreshLatestData"
             >
               刷新最新数据
