@@ -8,10 +8,126 @@
 - 测试通过/失败状态：审查基线现有前端 5 文件 / 31 项、后端 9 类 / 61 项通过；4 个隔离 PostgreSQL 临时表探针证实旧方案风险。它们验证现状，不能证明修订方案已实现。工作树产物、运行产物位置、文本空白与 `git diff --check` 四项文档门禁通过；浏览器修复验收、固定负载基准与发布 compare 尚未执行。
 - 当前交付：修订与文档校验已完成，按本轮授权提交并推送 `origin/main`。业务实施、迁移、部署与黄金快照重建均不属于本轮文档任务。
 
+### 实施进度（F7 第 1 阶段 a：状态与数据协议与旧任务识别，已完成）
+
+- 已完成：新增前向迁移 `V20260930_02__fact_task_manual_disposition.sql`（`fact_build_tasks.manual_disposition/wait_reason/resumed_from_task_id`、`fact_projection_refresh_tasks.manual_disposition`、两条枚举 CHECK、两条人工待处理部分索引），校验和已登记（138 项，既有迁移零改动）；新增 `FactManualDisposition` 词表枚举（`wait_reason` 的 Java 词表随 F1 加入）；`RunTaskSummary`（事实与投影各一份）扩展出 `dependencyWaiting/manualAttention/cancelled` 并新增 `awaitsManualDecision()`，`hasActiveTasks()` 不再把人工停放算作活动；全部领取、回收、汇总 SQL 增加 `manual_disposition = 'NONE'` 谓词。
+- 已完成（旧任务识别 + 停止不可见执行，兼修 P2/P6）：`parkOrphanedTasksForManualDecision()`（事实与投影各一份，单轮 200 条、`FOR UPDATE SKIP LOCKED`）把父运行已终态或缺失的排队/等待重试任务转为人工待处理——事实 `PAUSED + REQUIRES_DECISION` 并保留持有根与原始错误；投影 `FAILED + REQUIRES_DECISION`、`coalesce` 保留原始错误、推进发布栅栏。兜底 worker 删除 `claimNextQueuedTask` 认领路径，只保留「回收 + 巡检」；事实自动执行自此只存在于持有活动 `FACT_REFRESH` 运行的执行器中。运行执行器终态判定改为：失败→`FAILED`、等待重试→`RETRYING`、有活动任务→`PAUSED`（延迟取最早任务 `run_after`）、仅剩人工待处理→`PARTIAL_SUCCESS`（不再因未发布根每 5 秒永久重派）。
+- 实现期裁定（需用户确认）：①新增 `wait_reason` 列而不是用「`QUEUED` 且 `run_after` 在未来」隐式推断依赖等待，理由是运行汇总需要稳定的等待原因码，且界面文案不得成为判定依据；该列当前只由 DDL 的枚举 CHECK 与 SQL 字面量表达，Java 词表随 F1 的 `deferOwnedTask` 一起加入；②停放不写运行事件——父运行可能已被清理，向它追加事件会触发 `sync_run_events.run_id` 外键失败并连带中止整个停放事务，处置结论只落在任务行上（F9 从任务行读取）。
+- 本节之后仍未完成（已由后续小节补齐）：父子执行权/提交屏障（第 1 阶段 b）、F1 等待分离（第 2 阶段 a）、F5 精确回收、F2/F10 的继续与取消命令、F9 四类诊断与 `/status` 扩展、F3/F6/F8/F4。本轮未跑黄金基线门禁（非发布时机）。
+- 验证状态：定向测试 41 项通过（`FactBuildTaskServiceTest`、`FactRefreshTaskWorkerServiceTest`、`SyncFactRefreshRunExecutorTest`、`FactProjectionTaskLeaseIntegrationTest`，含新增的停放/人工待处理/依赖等待用例）；新迁移经测试库 Flyway 真实应用。全套件回归结果见本轮收尾记录。
+
+### 实施进度（F7 第 1 阶段 b：父子执行权与提交屏障，已完成）
+
+- 任务两侧都携带父运行执行令牌：`QueuedFactBuildTask`/`QueuedFactProjectionTask` 新增 `factRunLeaseToken`。事实任务认领（`claimNextQueuedTaskForFactRun`）改为要求父运行仍由该令牌持有、处于 `RUNNING/RETRYING`、`cancel_requested = false`、租约未过期；投影认领原本已要求父运行令牌。
+- 新增 `FactTaskExecutionContext`（线程内任务身份）与 `FactTaskExecutionGuard`：在事务内对父运行行与任务行取 `for key share` 并校验两层执行权；心跳等非键列更新与之兼容，撤销执行权必须取 `for update`，因此撤销等待在途批次、在途批次的下一次校验看到撤销结果。
+- 屏障落点：`FactPublicationTransaction.execute`（事实批次提交的唯一收口，5 个调用点全部覆盖）、`FactTargetPublicationService.publish`/`publishFull` 的入口与批间进度回调；`FactRefreshTaskWorkerService.execute` 打开任务上下文，并在执行权失效时以 `FactTaskLeaseLostException` 停止且不消耗任务重试预算。手工同步构建没有任务上下文，按计划保持不受限。
+- 投影侧按方案统一锁序为「父运行 → generation → 任务」：`FactProjectionPublicationGuardService.writeSnapshot` 增加父运行 `for key share` 校验；`finishOwned`/`renewOwned`/`failOwned` 的谓词增加父运行授权，取消申请后不再续租、不再提交终态。
+- 证据：新增 `FactTaskExecutionGuardIntegrationTest` 六项（含真实 PostgreSQL 并发：撤销取 `for update` 时出现在 `pg_stat_activity` 锁等待队列、批次释放后才获锁；以及父运行取消/租约过期/任务租约被接管三种情形的整批回滚、无上下文手工路径不受限）；`FactProjectionTaskLeaseIntegrationTest` 增加父运行取消、令牌变更、终态与续租拒绝三项；定向集合 63 项通过。
+- 尚未完成（归入第 2 阶段）：撤销/继续命令本身（`for update` 撤销协议、`RESUME/CANCEL` 接口与端点登记）、fence 服务与回收路径的锁图逐一调整与实测、投影回收路径的父运行锁、F1/F5/F9。
+
+### 实施进度（F7 第 2 阶段 a：F1 等待与失败分离，已完成）
+
+- `wait_reason` 的 Java 词表 `FactTaskWaitReason`（当前只有 `DEPENDENCY_SETTLING`）已加入，`deferOwnedTask` 与运行汇总共用同一枚举，界面不再靠文案或 `run_after` 位置推断等待原因。
+- 新增 `FactBuildTaskService.deferOwnedTask(task, deferSeconds)`：在任务租约与父运行授权同时有效的谓词下，把已领取任务退回 `QUEUED + wait_reason = DEPENDENCY_SETTLING`，清空 `lock_owner/heartbeat/lease_until`，按等待步长设置 `run_after`，并返回该时刻供界面展示；谓词不成立时抛 `FactTaskLeaseLostException`，由巡检收敛为人工待处理。
+- 依赖未就绪不再消耗重试预算：`FactRefreshTaskWorkerService.execute` 用 `DEPENDENCY_DEFER_SECONDS = 5`（复用既有派发节奏，不新增运维配置）调用 `deferOwnedTask` 并返回 `null`，不再抛错、不再调用 `failOwnedTask`，因此既不会累计失败次数，也不会触发运行级 FAILED/RETRYING 判定。
+- `FactTaskLeaseLostException` 在 `execute` 中被单独捕获：只记录日志并返回 `null`，与业务异常路径分离，撤销/转移执行权不占用失败配额。
+- 证据：`FactBuildTaskServiceTest` 新增依赖等待用例（真实 PostgreSQL：等待后状态/原因/重试计数/租约/文案、汇总 `dependencyWaiting=1` 且 `queued=0`、`nextRunAfter` 等于返回时刻、未到 `run_after` 不可重新认领；父运行取消后再次 `deferOwnedTask` 抛 `FactTaskLeaseLostException`）与等待/就绪队列分离用例；`FactRefreshTaskWorkerServiceTest` 新增依赖未就绪用例（断言调用 `deferOwnedTask(task, 5)`、不调用 `failOwnedTask`、不触碰构建与发布服务、返回 `null`）。
+
+### 实施进度（F7 第 2 阶段 b：F5 镜像互斥域租约感知，已完成）
+
+- `SyncRunLeaseService` 注入 `GitlabMirrorProperties`，用既有租约窗口（`heartbeat-timeout-seconds`，默认 180 秒）作为空租约异常的判定窗口，不新增配置项。
+- 空租约兜底只处理异常行：`RUNNING`/`CANCELLING` 且 `lease_until is null`、且 `coalesce(heartbeat_at, updated_at)` 已超过一个租约窗口，才判 `TIMEOUT`（原因 `Sync run held no lease while active`）。合法释放租约的 `RETRYING`/`PAUSED`（`deferOwnedRun`、yield 的产物）与 `QUEUED` 排队不再可能被误记超时，等待时间再长也不回收；`RETRYING` 也不再因空租约被误判——它早先就不在互斥阻塞集合里。
+- `recoverTimedOutRuns()` 改为 `@Transactional`：运行终态写入与在途表任务执行权撤销在同一事务提交。因此同域新运行的放行只可能发生在旧 owner、旧状态与受其授权的子任务全部撤销之后；任一步失败整体回滚，旧行继续保持互斥占用，不存在"先忽略旧阻塞行、旧执行者稍后再收拾"的中间态。
+- 续租与终态写入增加"租约仍有效"前提（`lease_until is not null and lease_until >= current_timestamp`）：过期令牌不能通过心跳复活执行权，也不能在运行被回收后改写终态。运行处于 `CANCELLING` 时只接受 `CANCELLED` 收尾，取消中的运行不能被改写成成功；`FAILED`/`TIMEOUT` 等真实结果仍可写入，取消收尾不再被阻塞。
+- 证据：新增 `SyncRunLeaseRecoveryIntegrationTest` 10 项真实 PostgreSQL 用例（合法 RETRYING/PAUSED 不被回收、异常空租约按窗口判定、新鲜心跳不被误伤、有效租约不受影响、过期租约同时撤销运行与活动表任务而成功任务保持、撤销失败整体回滚、过期 owner 不能续租/不能终态、CANCELLING 拒绝成功终态但接受取消终态）；`SyncRunLeaseServiceTest` 扩到 9 项覆盖谓词与两条回收语句；定向集合 19 项通过。
+
+### 实施进度（F7 第 2 阶段 c：F10 继续/取消命令与 F2 投影处置，已完成）
+
+- 新增 `FactTaskResolutionService.resolvePendingTask(configId, kind, taskId, expectedTaskRunId, action, resumeMode)`，并落到新端点 `POST /api/gitlab-sync/fact-tasks/resolve`（沿用运维权限与 CSRF；已在 `endpoint-catalog.yml` 登记 EXCLUDED 及原因，覆盖护栏通过）。命令在单事务内完成：来源与配置归属校验、任务行 `for update` 锁定、原运行身份（`expectedTaskRunId`）校验、执行权已撤销校验、意图移交与严格诊断写入。
+- **取消**只取消本次执行意图：事实任务 `SKIPPED + CANCELLED` 并释放持有根、不删版本头、不推进 `published_version`；投影任务 `FAILED + CANCELLED`，原 `error_message` 原文保留（`coalesce`），随后推进发布栅栏。台账口径由 `manual_disposition` 区分人为取消与真实故障。
+- **继续**建立可见的新 `FACT_REFRESH` 运行并只执行被移交的意图：`submitRun` 携带 `resumedTask` 意图（kind/taskId/originalRunId/mode），执行器识别该意图后不重新入队整个来源的全量任务、不分配其他待发布根；同来源互斥命中他人活动运行时返回明确冲突，不启动重叠执行。
+- 事实继续：ORIGINAL 只恢复原任务实际持有的根，根集合为空（已释放且未保存）时明确拒绝并提示改用当前待发布根或全量；`CURRENT_PENDING` 登记该事实族当前待发布的根（同事务内先释放原任务归属再登记，避免根永久被 SKIPPED 任务占用）；`FULL` 保留全量标志。新任务写 `resumed_from_task_id`，旧任务转 `SKIPPED + RESUMED` 并保留原错误。根只在 `fact_build_task_roots` 内移动、同事务提交，外部看不到"无人持有"的中间态。
+- 投影继续复用原行（保持唯一键与 `fact_build_task_id`/scope/target generation），`fact_run_id` 原子移交新运行、状态回 `QUEUED`、清执行权与旧错误、重开一轮自动预算；移交前在旧运行严格写入结构化诊断事件（原错误/预算/范围/generation/起止），并在新运行记录接管。重复命令按运行 payload 的接管意图返回既有新运行，不产生第二次接管。
+- 新增 `SyncRunEventRecorder.recordStrict`（不吞异常，与移交同事务），区别于既有的 best-effort `record`；手工 `runGuarded` 的 UUID 运行没有事件挂载行时如实跳过，不伪造运行级历史。
+- 证据：新增 `FactTaskResolutionServiceIntegrationTest` 9 项真实 PostgreSQL 用例（持根继续/取消释放根且版本头不变/原意图缺根被拒/当前待发布根恢复/全量意图保持/他人活动运行冲突/原运行身份不符拒绝/投影取消/投影移交与重复命令幂等并保留原诊断）；`SyncFactRefreshRunExecutorTest` 新增"人工继续运行只执行被移交意图"用例（断言不调用全量入队与待发布根分配）；三者与 `GitlabSyncControllerTest` 共 28 项通过。
+
+### 实施进度（F7 第 2 阶段 d：F9 四类诊断与状态查询扩展，后端已完成并在隔离库复验）
+
+- 新增 `SyncRunFailureDiagnosticsService`：四类定位项用**单条 UNION 查询**构造（TABLE_TASK/AUTHORITATIVE_SCOPE 取 `FAILED/TIMEOUT/带错误 RETRY_WAITING`；FACT_BUILD 另含 `PAUSED`、人工处置与 `SKIPPED + RESUMED/CANCELLED` 的历史错误；PROJECTION 另含人工待处理），公共列显式对齐、类型专属字段由各分支用 `jsonb_build_object` 显式构造，不用通用字段袋承载专属语义。运行归属统一用文本键比较，因此手工 `runGuarded` 路径的 UUID 事实任务不会被强转数字。
+- 摘要按运行分区在库内限量与计数：每类最多 5 项、相关事件最近 5 条、同时给出各自总数；`failureCount/manualAttentionCount/diagnosticCount` 语义分离（前两者可重叠，不相加当作任务总数）。日志列表一次批量取回全部运行的四类摘要，不逐运行查询。
+- 运行结论与进度分离：相关事件排除高频 `FACT_BUILD_PROGRESS`，进度另以 `latestProgressMessage/latestProgressAt` 提供；未保存的原始失败时刻保持空值（`errorObservedAt` 只取 `finished_at`，`updated_at` 仅作记录更新时间）。
+- 历史证据不被移交抹掉：投影/事实继续时写入旧运行的结构化快照事件（类型 `*_SNAPSHOT`，与运行内接管记录分开），明细与计数按 `kind + taskId` 去重后与实时行合并展示。
+- 状态查询扩展：`GET /api/gitlab-sync/status` 支持可选 `detailsRunId/detailsSection/detailsOffset/detailsLimit`（section 为 `DIAGNOSTICS`/`EVENTS`，limit 默认 20、上限 100，offset 非负，非法值拒绝）与 `pendingOffset/pendingLimit`；响应新增 `details`（runId/section/offset/limit/total/items/hasMore）与 `pending`（offset/limit/total/items/hasMore）区块，不传参时两者均为空、默认响应形状不变。明细按运行归属校验，跨配置/来源拒绝；人工待处理列表包含没有父运行行的事实任务并给出 `expectedRunId`（即继续/取消命令所需的 `expectedTaskRunId`）。
+- 证据：`SyncRunStatusServiceTest` 扩到 5 项（跨数据源明细拒绝、分页参数规范化与非法值拒绝），`SyncRunLogServiceTest` 4 项、`GitlabSyncControllerTest` 11 项、黄金端点覆盖护栏 2 项通过；新增 `SyncRunFailureDiagnosticsServiceIntegrationTest` 5 项真实 PostgreSQL 用例（分区限量与计数、稳定分页与类型专属字段、移交快照去重合并、事件倒序选择正序展示、含无父运行事实任务的待处理列表）已在隔离库复验通过。复验同时修掉 5 个真实缺陷：①`details` 是 jsonb 列，`queryForList` 返回 `PGobject` 而非字符串，详情恒为空——改为在 SQL 内 `jsonb_build_object(...)::text`；②事件分页先按 `event_id` 升序取 limit，取到的是最旧而非最新——改为按 `row_number` 窗口 `row_order > offset and row_order <= offset+limit` 选择、`order by run_key, row_order desc` 正序展示；③`latestProgressAt` 读 `createdAt` 而查询列名是 `created_at`，恒为空；④移交快照的 `taskId/retryCount` 直取 JSON 解析值（`Integer`），与实时行的 `Long` 不一致——配置点统一为 `asLong/asInt`，`details` 内整数统一 `Long`；⑤`pendingTasks` 原样返回下划线列名，与日志行驼峰契约不一致——改为 RowMapper 映射。`FactTaskResolutionServiceIntegrationTest` 的两处断言仍停用事件类型拆分前的旧口径（旧运行应断言 `*_SNAPSHOT`），已同步修正。全部通过：隔离库 52 项 + 全套件 1663 项（0 失败 0 错误 1 跳过，6:33）。
+
+### 实施进度（F7 第 3 阶段 a：F3 读侧资格拆分与快照回退，已完成并验证）
+
+- `SyncFactPublicationStateService.SourceQualification` 由单一 `readable/degraded` 拆成两种能力：`currentFactReadable`（可从当前事实读取完整产出）与 `savedSnapshotReadable`（完整性证据允许返回已保存的完整产出）。`qualification` 把"有未发布根、全量重建未结算、标签事件历史未完成全量核验"归为**已知未完整窗口**（前者假、后者真，并聚合全部原因，不再按最早的单一原因短路）；依赖未就绪（`readiness_status <> 'READY'`）与"有事实投影却没有发布记录"仍为两者皆假、必须拒绝。用户裁定：回退范围限定为方案列出的三类，不扩大到镜像失败。
+- `StatisticBoardSnapshotService` 按能力分开入口：`withinConsistentSourceRead` 降为只保证已保存产出可返回（供快照回退链路），新增 `withinConsistentCurrentFactRead` 供必须读取当前事实者使用（来源未完整时以聚合的维护原因拒绝）。`evaluateSources` 保留多来源的全部原因与待更新数量之和。`readOrRefresh` 的回退判定改为独立于待更新计数的 `snapshotFallbackRequired()`（即使计数为 0，未完整窗口仍回退上一完整发布点）；无可用完整发布点时给出维护原因而非通用提示。
+- 逐一覆盖读当前事实的调用者：`BiCustomerIssuePageService`（BI 客户问题页读取与下载校验）、`CustomerIssueCustomerStatisticsBoardService`（客户统计筛选候选、下钻明细）改用严格入口；看板与记录页经由 `readOrRefresh` 自动分流。此处明确记录：无历史完整产出的实时页面在本单元仍不可用（方案未授权擅自重建整套 BI 缓存），只是从"静默读中间态"改为"明确拒绝并给原因"。
+- `SourceRead` 新增 `currentFactReadable` 与 `unsettledReason`，以 `snapshotFallbackRequired()` 取代原来的 `degraded()`；`dataAsOf/pendingUpdates` 的"同时存在或同时缺失、计数为正"契约保持不变，因此计数为 0 的未完整窗口回退只返回快照、不带新鲜度提示。
+- 补齐 F3 第 7 条：新增 `SyncFactPublicationStateService.requestFullPublication`，手工全量重建入口 `SyncRunSubmissionService.submitManualFullFactRebuild` 在提交事实运行前登记 `full_publication_requested`。已有发布记录的事实族只置标记、保留 `readiness_status`（避免凭空断言就绪）；尚无发布记录的事实族按依赖未就绪登记。自动全量此前已由镜像终态路径（`SyncRunFactPublicationCoordinator.onMirrorCompleted`）登记，手工入口是本条唯一缺口。
+- 证据：`StatisticBoardSourceQualificationTest` 6、`SyncFactPublicationStateServiceIntegrationTest` 15（含新增的"登记保留就绪状态并阻断当前事实读取"与"重复登记幂等"两项真实 PostgreSQL 用例）、`StatisticBoardConsistencyBoundaryTest` 4（原"全量重建必须拒绝下一次读取"改为"按能力区分：仍可返回已保存产出，但不得再读当前事实"）、`SyncRunSubmissionServiceTest` 28、`BiCustomerIssuePageServiceTest` 4、`CustomerIssueCustomerStatisticsDetailContractTest` 13、`SourceFreshnessJsonContractTest` 4 通过；全量快速套件 **1665 项通过、0 失败 0 错误**（1 跳过，5 分 35 秒）。黄金基线门禁未跑（非发布时机）。
+
+### 实施进度（F7 第 3 阶段 b：F4 全量清理分批删除 + 固定负载基准，已完成并验证）
+
+- 四类清理全部改为**单个清理事务内的分批语句**：`IssueFactPersistenceService.deleteFactsNotInSnapshot`（ISSUE 父事实 + 客户成员）与 `MergeRequestFactPersistenceService.deleteFactsNotInSnapshot`（MR 父事实 + 提交关系）各自先把快照身份与待删除身份物化到会话级临时表，`row_number() over ()` 给出稳定批序，再按 `CLEANUP_BATCH_SIZE = 2000` 个父/关系键一批推进：先删从属（客户成员 / 提交关系）再删父事实。原「单条 `is not distinct from` 反连接整表删除」与空快照分支的直接 `delete ... where source_system = ?` 已删除，空快照同样走该有界路径。
+- 匹配一律使用普通等值：`issue_fact.project_id/issue_id`、`merge_request_fact.project_id/merge_request_id`、`merge_request_commit_fact` 的 `(project_id, merge_request_id, commit_sha)` 在协议上均为非空身份列。临时表沿用与身份列相同的类型；快照输入身份在写入前预检，事实/关系表中若存在空身份行则**显式失败**（不静默跳过、不保留 NULL-safe 双轨），失败时整个清理事务回滚。
+- 执行权屏障：每个删除批次开始前调用 `FactTaskExecutionGuard.requireCurrentTaskAuthorization()`，取消后不再开始新的清理批次；FULL_EPOCH 结算此前已在同一屏障内（`FactTargetPublicationService` 在结算前后各校验一次），本单元不改其语义。分批只降低单条 DELETE 的候选量，**不缩小整个清理事务的持锁与回滚范围，也不减少索引维护总量**；既有搜索索引全部保留。
+- 证据：`IssueFactPersistenceServiceTest` 5、`MergeRequestFactPersistenceServiceTest` 4（空快照仍走有界批次、提交身份先物化、空身份显式失败且回滚）；`IssueFactSnapshotCleanupIntegrationTest` 2 与 `MergeRequestFactSnapshotCleanupIntegrationTest` 1 的真实 PostgreSQL 回归把夹具从 1200 提升到 2500 个父键以跨过 2000 的批边界，验证多批次循环不互相清除、快照内行全保留、外部事实与关系删尽、空身份失败整体回滚；全量快速套件 **1667 项通过、0 失败 0 错误**（1 跳过，6 分 24 秒）。
+- **固定负载基准（方案第 5 条，2026-10-08 实测）**：新增 `backend/src/test/java/com/data/collection/platform/benchmark/FactCleanupLoadBenchmarkTest.java`（`@Tag("benchmark")`），用 Flyway 在本机隔离 `postgres:16-alpine` 上跑完全部 138 个迁移，因此表结构、唯一约束与全部既有索引（含 GIN trgm）都是生产形状。`pom.xml` 默认套件 `excludedGroups` 增加 `benchmark` 并新增 `benchmark` profile：默认快速套件与 golden 门禁都不运行它，只有 `mvn test -Pbenchmark` 会跑（本次 `Tests run: 2, Failures: 0, Errors: 0`，473s）。固定负载：`issue_fact` 50 万 + `issue_fact_customer_members` 2 万（1000 议题 × 20）+ `merge_request_fact` 10 万 + `merge_request_commit_fact` 30 万，另加同表对照来源 1000 行；用 `InstrumentedJdbcTemplate` 按 SQL 语义分解耗时，并按批次统计从属行数。
+- 实测数字（ms，单次采样，本机 Testcontainers + 上述分布，**非目标容量**；锁窗口 = 包裹清理的单个事务从开始到提交/回滚返回，即持锁上界）：
+  - **ISSUE 删除 40%（保留 60%，候选 20 万）**：物化 536 / 批次键装载 1247 / 批次删除 1689 / 最大单批 39.8 / 总耗时 5839 / 锁窗口 5853（100 批）。
+  - **ISSUE 删除 5%（候选 2.5 万）**：物化 379 / 批次键装载 34.6 / 批次删除 3126 / 最大单批 377.7 / 总耗时 7583 / 锁窗口 7601（13 批）。
+  - **ISSUE 空快照（删尽 50 万父行 + 2 万从属行）**：物化 762 / 批次键装载 6773 / 批次删除 33780 / 最大单批 1747.6 / 总耗时 41808 / 锁窗口 41824（250 批）。
+  - **MR 删除 60%（父保留 40%，删 6 万父 + 18 万提交关系）**：物化 534 / 批次键装载 1444 / 批次删除 14529 / 最大单批 453.8 / 总耗时 18247 / 锁窗口 18275（120 批）。
+  - **MR 空提交快照（父全保留、提交关系删尽 30 万）**：物化 579 / 批次键装载 4946 / 批次删除 2088 / 最大单批 83.6 / 总耗时 9342 / 锁窗口 9371（150 批）。
+  - **中途失去执行权回滚（放行 125/250 批后抛 `FactTaskLeaseLostException`）**：回滚 27142；断言 50 万父行 + 2 万从属行原样保留、对照来源未受影响。
+- 回归复验（第 4 阶段）：默认快速套件 **1671 项通过、0 失败 0 错误**（1 跳过，6 分 53 秒），与 F6 单元基线一致；日志中无 `Benchmark` 字样，证实 `benchmark` 标签被默认套件排除（`-Pbenchmark` 才会运行）。13 项仓库守卫脚本与 `git diff --check` 全绿。
+- 由这组数字得到的结论（作为方案 R12 的实测佐证，但**不等于**缺陷已解决）：①锁窗口恒等于总耗时，证实分批只降低单条 DELETE 的候选量，**没有**缩小整个清理事务的持锁与回滚范围——50 万规模的空快照清理在本机连续持锁约 42 秒，回滚同样约 27 秒。②"2000 父键 ≠ 最多 2000 行"成立：空快照场景有一个批次一次删除 2 万个客户成员行（1000 个父键 × 20），即 R12 要求基准按实际子行数测量的原因。③50 万规模的最坏单批 1.75 秒，远高于 2000 键的名义规模。④**内网 300 万级容量与高文本填充分布仍未实测**（本夹具的 `search_*`/`*_search_*` 等 trgm 列留空，GIN trgm 维护成本未纳入），故不得据本机结果预先认定任何查询超时设置在目标容量下都成功；该实测须在目标环境补齐后才能宣告超时缺陷解决。
+
+### 实施进度（F7 第 3 阶段 c：F6 前端刷新生命周期，已完成并验证）
+
+- 新增共享 composable `useRealtimeRefreshLifecycle`，取代原 `useStatisticBoardRefreshController` 与无界等待函数 `waitForRealtimeWorkspaceRefresh`（两者连同旧测试一并删除，不留第二套机制）：状态拆为 `submitBusy`（提交在途）、`fetchLoading`（收敛后取数）、`refreshPending`（后台跟踪）与仅由前两者决定的 `refreshButtonBusy`；提交请求、数据取数与后台轮询不再共用同一 loading 去重。
+- 生命周期：提交（或复用）后按钮只占用 `REFRESH_BUTTON_WINDOW_MS = 10 秒`；未收敛即释放按钮，由唯一跟踪者按 `REFRESH_STATUS_POLL_INTERVAL_MS = 1 秒` 继续轮询。同一刷新自首次接受起最多跟踪 `REFRESH_TRACKING_LIMIT_MS = 15 分钟`；以服务端 `trackingId` 判定“同一刷新”，重复提交既不叠加请求也不重置起算时点。收敛后加载最新数据；终态失败保留当前数据并说明原因；到期只停止跟踪并提示查看同步日志，不改变服务端业务状态、不伪装 READY；状态读取失败不终止跟踪，仍受 15 分钟上限约束。三个常量都是交互常量，不新增运维配置。
+- 提交结论落到响应：`RealtimeWorkspaceStatusResponse` 新增 `submissionOutcome`（ACCEPTED/ALREADY_REFRESHING/COOLDOWN）与 `trackingId`，两者带 `@JsonInclude(NON_NULL)`，因此 GET /status 的响应逐字不变。ALREADY_REFRESHING/COOLDOWN 时提交方复用现有跟踪或给出冷却提示，绝不再提示“已开始刷新”；`supported=false` 视为 UNSUPPORTED。
+- 失效与归属：路由查询（项目/来源/筛选/分页/排序）变化、明细关闭与组件卸载都使旧跟踪失效（清定时器、释放按钮窗口、丢弃跟踪身份、按代次丢弃迟到回调）；收敛回调只更新当前范围的筛选项、主表与当前已打开明细。`useRouteTableState` 暴露 `watchedQuerySignature`，供记录页在查询组合变化时失效旧跟踪。
+- 覆盖入口：`StatisticBoardView`（工具栏刷新按钮新增 `refresh-button-busy`，并把刷新链路从整页 `v-loading` 上摘除）、`SystemTestMultiBoardView`、`SystemTestIssueSearchView`、`CustomerIssueRecordsView`、`CodeReviewIllegalRecordsView`、`CodeReviewMultiBoardView`、`IssueIllegalRecordsPage`。方案正文列举六个入口，实际同模式入口为七个——`CodeReviewMultiBoardView` 同样存在“按钮跟随服务端 `refreshing` 长期占用”的缺陷，故一并统一，避免残留第二套刷新实现。`StatisticBoardView` 的进入页面自动刷新改走同一生命周期（不弹提示）。
+- 证据：前端 `useRealtimeRefreshLifecycle.test.ts` 11 项（10 秒窗口与释放、收敛取数、重复点击不重置 15 分钟起点、冷却不报“已开始”、复用后端在跟踪的刷新、终态失败保留数据、状态读取失败继续但受上限约束、失效停止、自动刷新不打扰、提交传输失败、不支持工作区）+ `useRealtimeWorkspaceStatus.test.ts` 3 项 + `StatisticBoardToolbar.test.ts` 新增 1 项（按钮占用随 `refreshButtonBusy` 变化）；后端 `RealtimeWorkspaceServiceTest` 5 项与新增 `RealtimeWorkspaceStatusJsonContractTest` 3 项；**全量快速套件 1671 项通过、0 失败 0 错误（1 跳过，6 分 01 秒）**。前端 `tsc`、ESLint 通过，九个改动入口模块经开发服务器（18181）转换返回 200，守卫脚本与 `git diff --check` 全绿。测试环境说明：本机测试库容器 `qaflex-test-postgres-15433` 因 Docker 重启处于 `Exited`，首次全量运行出现 117 个 `ApplicationContext` 加载错误（全部为 `localhost:15433` 连接被拒、0 个断言失败），`docker start` 该容器后复跑全绿；这不是本单元引入的回归。
+- **浏览器交互验收（2026-10-08 完成）**：以本地认证实例（`PLATFORM_AUTH_PROVIDER=local`，`admin/admin123`）跑开发栈前端 18181 + 后端 18080 实测。①非法记录页不带 `milestoneTitle` 直接打开：地址被默认值补丁改写为 `?page=1&milestoneTitle=CC2026R3`，主表渲染 788 行、`共 788 条`——证明刷新期间不再整页 `v-loading`，表格始终可用；②点击“刷新最新数据”：按钮进入 `is-loading` 且同步徽标变“同步中”，主表行数保持不变（无整页遮罩）；③`REFRESH_BUTTON_WINDOW_MS` 到期后按钮释放（`disabled=false`、无 `is-loading`），徽标仍“同步中”，跟踪继续按 1 秒轮询；④收敛后自动重取 `filter-options` 与主表并刷新数据；⑤在页面内劫持 `fetch` 取得 POST `/refresh` 的真实响应体：`submissionOutcome=ACCEPTED`、`trackingId=customer-issue-illegal-records#4`；⑥同会话内两次连续 POST `/refresh`：首次 `ACCEPTED` + `trackingId=…#5`，紧接的第二次 `ALREADY_REFRESHING` 且 `trackingId` 相同、文案“刷新仍在进行中，继续跟踪本次刷新”——重复提交复用同一刷新身份、不叠加执行；⑦`GET /status` 实测响应不含 `submissionOutcome`/`trackingId`，NON_NULL 契约在运行实例上成立。本机该工作区刷新收敛均在 11 秒内，故“按钮已释放但仍在跟踪时再点”的边界未能在实机复现（由 `useRealtimeRefreshLifecycle.test.ts` 单元级覆盖）。
+- **修复：`customer-issue-illegal-records.mount-smoke.test.ts` 首个用例的真实页面缺陷（2026-10-08）**：此前的失败并非与环境无关的既有问题，而是 `IssueIllegalRecordsPage.vue` 的真缺陷——首屏默认值补丁 `applyPrimaryFilterDefaults()` 会用 `patchQuery` 改写路由查询，触发 `useRouteTableState` 的签名观察者 `reload()`；但补丁在途期间加载器的 `primaryDefaultPatchInFlight` 守卫会拒绝该次取数，而补丁完成后原代码 `if (!patchedDefault && primaryFilterDefaultsReady.value) await reload()` 在“确实打过补丁”时跳过显式取数，导致 `pageInitialized` 永为 false、页面停在骨架。修复为补丁落定后无条件按就绪状态取数一次；上述 ① 即在真实浏览器中对同一路径的复验。
+
+### 实施进度（F7 第 3 阶段 d-1：F8 日志表模块自身双向滚动，代码与单测已完成，浏览器验收待与 F9 一并进行）
+
+- 共享 composable `useFloatingHorizontalScrollbar` 新增内部定位模式 `positioning: 'viewport' | 'container'`（默认 `viewport`）：`viewport` 保持原有「跟随视口固定在页面底部、滚出视口即隐藏」行为，`record-table`/`stat-matrix`/`stat-detail`/`review-problem` 四处共享表一字未改；`container` 定位改由本地容器与表体 `clientWidth` 计算——`position: absolute`、`left` 取表体相对外壳的偏移、`width` 取表体 `clientWidth`（已排除纵向条）、`bottom: 0` 对齐外壳 padding 盒下沿。这是落实两种既有布局的内部参数，不是新的用户或运维开关。
+- `MirrorSyncLogTable.vue`：移除 `<Teleport to="body">`，横条改为外壳内的绝对定位子节点，随模块滚动、不再漂浮到页面其他区域；外壳加 `isolation: isolate`，使横条原有的高 `z-index` 只在本模块内生效；外壳加 `padding-bottom: 18px` 为横条预留空间，不盖住最后一行；`el-table` 绑定响应式 `:max-height`（桌面 420px、矮屏按 55vh 收缩、下限 220px，随 `resize` 重算），高度与筛选一并进入 `watchedSources`，展开/收起仍走 `doLayout + scheduleHorizontalScrollbarUpdate`。
+- `styles.css`：删除 `.sync-log-table-shell { max-height: 240px; }`（P5a 的裁剪根因）；纵向改用 Element Plus 内置滚动条（全局规则只隐藏 `.is-horizontal`），横向继续沿用平台自绘轨道/滑块并停靠模块底部。
+- 证据：新增 `src/composables/useFloatingHorizontalScrollbar.test.ts` 3 项（container 定位数值、viewport 行为回归、无横向溢出时隐藏）；`MirrorSyncLogTable.test.ts` 增至 5 项，新增用例断言不再 Teleport、不再 `position: fixed`、`positioning: 'container'`、`padding-bottom: 18px`、`:max-height="tableMaxHeight"`，并在 DOM 上断言横条是外壳子节点、表格收到 ≥220 的 max-height。**全量前端套件 152 文件 720 项全部通过**；`npm run typecheck` 与 ESLint 通过。
+- 浏览器验收（2026-10-08，与 F9 一起做）：`/system-settings/mirror-settings` 实机实测——外壳 `padding-bottom: 18px`、`isolation: isolate`，表格 `max-height` 随视口收缩（553px 高视口下为 304px，桌面上限 420px）；日志表 100 行全部渲染，`body-wrapper` `scrollHeight 4000 / clientHeight 283` 可纵向滚动（改造前是 240px 裁剪 + 双向 hidden，只剩约 5 行且滚不到）；横条 `position: absolute`、父节点即外壳（无 Teleport），`barRect.bottom == 外壳 bottom == 4484`，而当时视口底部仅 553 —— 证明横条停靠模块而非漂浮在视口；把外壳滚入视口后横条位于外壳底部内（423–439 ⊆ 115–439）；横向拉到最右后滑块 `translateX` 由 0 变为 288.9px（拖动/同步有效）；表体宽度 447 / 滚动宽度 1264（确有横向溢出）。展开一行后外壳高度不变、横条仍在外壳内。
+
+### 实施进度（F7 第 3 阶段 d-2：F9 明细入口前端，已完成并验证）
+
+- 契约与类型：`types/api/sync.ts` 新增 `SyncRunDiagnosticKind`、`SyncRunLogDetailSection`、`SyncRunDiagnosticItem`（含 `rawError`/`dispositionReason`/`scopeSignature`/`targetGeneration`/`heartbeatAt`/`leaseUntil`/`recordUpdatedAt`/`details` 等按 kind 取用的字段）、`SyncRunEventTrailItem`、`SyncRunDetailBlock`；`SyncRunLog` 补齐 `failureCount`/`manualAttentionCount`/`diagnosticCount`/`diagnostics`/`eventCount`/`eventTrail`/`latestProgressMessage`/`latestProgressAt`；`MirrorStatusResponse` 新增仅在显式传参时出现的 `details`/`pending`。`mirror-api.ts` 新增 `getRunLogDetails(configId, runId, section, offset, limit)`，发往既有 `GET /api/gitlab-sync/status` 的 `detailsRunId/detailsSection/detailsOffset/detailsLimit`（同一配置/来源归属校验，旧运行可按 runId 查）。
+- 新组件 `MirrorRunLogDetailDrawer.vue`：标题带运行编号；运行结论卡显示实际状态、同步内容、触发、起止、写入记录、失败/待处理；运行已结束且仍有待人工处置时给出「该运行已结束，尚有 N 项人工待处理」；运行级错误原文与每条任务 `rawError` 均可折行查看并「复制全文」；定位项与相关事件各自分页（每页 20，`el-pagination` 用 `total` 显示完整总数），无保留时明确写「没有保留」；进行中耗时按响应时刻减 `startedAt`，缺起点/失败时间时保持空值。分类专属上下文按服务端实际键名（`sourceTable`/`taskStage`/`rowsScanned`/`rowsApplied`/`affectedRows`/`rootCount`/`scope` 等）落位，未认识的键原样列出，不吞线索、不伪造。
+- 入口与摘要：日志表展开区新增「失败项/待人工处置/可查明细/相关事件」计数与「查看全部 N 项明细」按钮（emit `openDetails`），并展示最多 5 条定位项、最多 5 条相关事件与最新进度；`MirrorSettingsView` 承载抽屉并把 `configId` 与选中的运行传入。新增任务状态文案（`PAUSED`/`RETRY_WAITING`/`SKIPPED`）与人工处置、诊断分类、等待原因文案映射。
+- 证据：新增 `MirrorRunLogDetailDrawer.test.ts` 4 项（两区段请求参数、运行结论与四类分类渲染、任务错误原文可复制、分页续查同一运行、无保留空态）与 `MirrorSyncLogTable.test.ts` 新增 1 项（摘要计数 + 按钮 emit）；**全量前端套件 153 文件 725 项全部通过**，`npm run typecheck`、ESLint 与四项守卫脚本、`git diff --check` 全绿。
+- 浏览器验收（2026-10-08，与 F8 同时做，临时 `PLATFORM_AUTH_PROVIDER=local` 实例）：展开日志行出现计数与「查看全部 0 项明细」；点击后抽屉打开，实测网络请求为 `GET /api/gitlab-sync/status?detailsRunId=4059&detailsSection=DIAGNOSTICS|EVENTS&detailsOffset=0&detailsLimit=20&configId=1`（与后端契约一致）；抽屉渲染运行编号/运行结果/同步内容/触发来源/起止/写入记录/失败·待处理，两区段分别显示「共 0 项/条」与「没有保留」提示。四类定位项的**数据契约**在运行实例上按旧运行直查验证：`detailsRunId=3477` 返回 15 条 `TABLE_TASK`（含 `sourceTable`/`taskStage`/`rowsScanned`/`rowsApplied`/`retryCount`/`maxRetryCount`/`rawError="Parent sync run lease timed out"`），`detailsRunId=3830` 返回 1 条 `FACT_BUILD`（含 `factType`/`fullBuild`/`scope`/`rootCount`/`affectedRows`、完整 SQL `rawError` 与处置原因）。**未做**：因开发库最近 100 条运行全部是成功的增量同步（无定位项、无相关事件，失败项集中在排名 551 之后的历史运行），四类定位项与事件列表的**渲染**只能在单测中看到，未在浏览器中看到有内容的抽屉；这是数据可得性限制，不是功能缺口。验收环境已按用户裁定回退 LDAP。
+
+### 实施进度（F7 评审整改：F9 表任务重试分支与投影可处置判据，已完成并验证）
+
+> 来源：2026-10-08 独立评审报告的 2 项"建议修正"（无阻断项）。
+
+- **F9 表任务定位项补"带错误的重试中"分支**：`DIAGNOSTIC_UNION` 的 TABLE_TASK 分支由 `status in ('FAILED','TIMEOUT')` 扩为 `status in ('FAILED','TIMEOUT') or (status = 'RETRYING' and last_error is not null)`。表任务的退避重试状态是 `RETRYING`（`SyncRunTableTaskLeaseService.deferOwnedTask` 与租约超时路径都会写入 `last_error`），此前重试窗口内的真实错误在明细里完全不可见，与 F9 第 2 条"FAILED/TIMEOUT，以及有错误的 RETRYING"不符（FACT_BUILD/PROJECTION 两分支早已覆盖该形态，TABLE_TASK 独缺）。
+- **计数与明细同口径**：`countDiagnostics` 的 `kind_failures` 由 `status = 'RETRY_WAITING' and raw_error is not null` 扩为 `status in ('RETRYING','RETRY_WAITING') and raw_error is not null`，使新增的 `RETRYING` 失败项同样计入 `failureCount`，四类不再出现"列表有、计数无"。
+- **投影可处置判据收回单一权威**：`FactTaskResolutionService` 的投影分支改用与事实侧同一个 `resolvableTask(status, manualDisposition)`（`REQUIRES_DECISION`，或 `NONE` + 终态 `FAILED`），删除投影快照上过宽的 `resolvable()`（原判据"非 `QUEUED`/`RETRY_WAITING` 即可处置"会把 `SUCCESS` 与无租约 `RUNNING` 一并放行）与事实快照上已无调用方的同名方法；全仓自此只有一处判据。终态 `FAILED + NONE` 仍可处置，回收路径的操作意图不受影响。
+- 证据：`SyncRunFailureDiagnosticsServiceIntegrationTest` 新增 `table_task_diagnostics_show_retrying_with_error_and_skip_clean_retrying`（`RETRYING` 带错误进明细并计入 `failureCount`、`RETRYING` 无错误不进明细），`FactTaskResolutionServiceIntegrationTest` 新增 `projection_resolution_rejects_tasks_that_are_not_failed_or_awaiting_decision`（`SUCCESS` 与无租约 `RUNNING` 投影被拒且状态不被改写），两文件合计 16 项通过；随后全量默认快速套件 **1675 项通过、0 失败 0 错误**（1 跳过，= 本轮前 1673 + 新增 2），守卫脚本（worktree 产物、运行产物位置、文本空白、后端测试卫生）与 `git diff --check` 全绿。前端无需改动：`RETRYING` 已有状态文案（`mirror-sync-status-labels.ts` 的 `TABLE_TASK_STATUS_LABELS`）。
+- 评审的 3 项提示未改代码：`deferOwnedTask` 谓词未显式校验任务租约未过期（唯一调用点紧跟认领，且现有 `lock_owner` + 父运行授权已覆盖执行权；补租约判据会让已过期租约的等待反而失败、留给回收判定超时，未采纳）；失租 `RUNNING` 投影回收为 `FAILED + NONE` 的文案差异（`FAILED + NONE` 经本次判据仍可处置，操作意图保留）；继续/取消仅有 API 入口，是否补前端按钮待用户裁定。
+
 ### 恢复线索
 
-- 当前阶段：设计已修订，下一业务单元按 F7 的依赖顺序实施；本轮只交付文档。
-- 恢复后建议执行的首条命令：`git status --short --branch`，确认最新代码后从 F7 第 1 阶段开始，不直接按旧顺序实施 F1/F2。
+- 当前阶段：实施中，F7 第 1 阶段、第 2 阶段 a/b/c/d、第 3 阶段 a/b（F3、F4，F4 含 50 万固定负载基准）与第 3 阶段 c/d（F6 刷新生命周期、F8 日志表双向滚动、F9 明细入口前端，三者均已浏览器验收）已落地；第 4 阶段完整快速套件复验已完成（**1671 项通过、0 失败 0 错误、1 跳过**，6:53）；2026-10-08 独立评审的 2 项"建议修正"（F9 表任务带错误重试分支、投影可处置判据统一）已修复并复验（**1675 项通过、0 失败 0 错误、1 跳过**）。**第 1–4 阶段全部完成**；剩余只有第 5 阶段发布门禁（实际打包/部署前跑黄金基线 compare）；F4 的内网 300 万级容量实测须在目标环境补做后才能宣告超时缺陷解决。声明式留待项：DEC-B（遗留投影任务收割 vs 终态化）仍无独立用户批准；评审提示项"继续/取消是否需要前端操作入口"待用户裁定。
+- 提交状态（2026-10-08）：本设计的后端整体提交为 `982b62fe`（含 `V20260930_02` 迁移与 `scripts/flyway-migration-checksums.json` 登记、`benchmark` profile、`resolve` 端点目录登记），前端提交为 `75ab9eb7`；两单元合并态复验为后端默认快速套件 1675/0/0（1 跳过）、前端 154 文件 729 项全绿、typecheck 干净、六项守卫脚本与 `git diff --check` 全绿。
+- 恢复后建议执行的首条命令：`git status --short --branch`，然后按本文「F7 实施与交付顺序」第 2 阶段继续；撤销/继续命令必须沿用已建立的锁序「父运行 → 任务 → 版本头/generation」。
 - 相关计划：`docs/plans/fact-publication-authoritative-rework-20260930.md`（已完成的前一单元）。
 - 审查基线 commit：`73a6869a`（本轮开始时工作树干净）；证据定位以类名与方法名为准，下文旧行号只辅助阅读，不能代替按该基线重新定位。
 
@@ -362,7 +478,8 @@
 ### 陈旧读取与刷新跟踪
 
 - 来源资格携带 `currentFactReadable/savedSnapshotReadable`、`staleReasons[]`、pendingUpdates；统计响应使用真实快照 `dataAsOf/sourceVersion`、`staleReasons[]`。原因码为 DEPENDENCY_SETTLING/FULL_PUBLICATION_IN_FLIGHT/LABEL_HISTORY_VERIFYING/PENDING_TARGETS/MANUAL_ATTENTION_REQUIRED/REFRESH_CANCELLED；多来源去重保存原因，不能依赖 pendingUpdates>0 触发陈旧。
-- 页面刷新提交响应增加明确 `submissionOutcome`（ACCEPTED/ALREADY_REFRESHING/COOLDOWN）、跟踪所需 workspace/config/source/运行身份。跟踪结果区分 CONVERGED、PENDING、FAILED、CANCELLED、CLIENT_TIMEOUT、DISPOSED；CLIENT_TIMEOUT 仅客户端，服务端不被改 READY。
+- 页面刷新提交响应增加明确 `submissionOutcome`（ACCEPTED/ALREADY_REFRESHING/COOLDOWN）与 `trackingId`；`workspaceKey` 与 `jobId` 继续作为跟踪所需的 workspace 与运行身份，config/source 由调用方按其请求范围自行持有。两个新字段带 `@JsonInclude(NON_NULL)`，读状态响应不出现它们。
+- 跟踪结果区分 CONVERGED、PENDING、FAILED、CANCELLED、CLIENT_TIMEOUT、DISPOSED；CLIENT_TIMEOUT 仅客户端，服务端不被改 READY。实现对应：CONVERGED＝状态不再 refreshing 且非失败终态（随后加载最新数据）；PENDING＝仍 refreshing（继续按 1 秒轮询）；FAILED＝终态 FAILED/UNSUPPORTED（保留当前数据并给出原因）；CLIENT_TIMEOUT＝达到 15 分钟跟踪上限或状态读取在期限内始终失败（只停客户端跟踪）；DISPOSED＝路由/来源/筛选切换或组件卸载（静默停止）；CANCELLED＝服务端报告取消后不再 refreshing，按非失败终态重新取数（当前服务端 `RealtimeWorkspaceService` 不产出该状态）。
 - 同步更新所有 API 类型、六个页面入口和状态文案；有意响应变化在实际实施的发布门禁中展示并处理，不能由本轮文档提交改黄金快照。
 
 ## 验证证据与风险
@@ -377,6 +494,6 @@
 - **并发实施风险**：新增父运行 fencing 必须同时调整取消、心跳、回收、事实分批事务、投影 guard 与 finish 的锁顺序；只改续租或只在事务外检查无法阻止陈旧提交。必须实际 PostgreSQL 并发验证，不能只用 Mockito 的调用次数证明安全。
 - **人工停放边界**：只停原范围；重试预算耗尽的正常 FAILED 保留真实结果，不因历史存在失败记录就冻结整来源。对遗留根集合已经丢失的 FAILED 不承诺精确重放，需明确用户选择当前待发布或全量意图。
 - **维护期实时页面边界**：本单元保证保存快照的视图持续显示完整旧数据；实时 BI/筛选/明细/导出若没有同版历史产出，仍明确不可用。产品要求的所有路径无缝服务上一版尚需额外产出能力，不能以门控放宽掩盖差距。
-- **性能证据边界**：F4 的临时物化与分批删除都可能超时；现有索引和单事务锁成本不消失。内网查询超时值与真实负载未知，不能预先承诺保持任意配置必成功。浏览器滚动验收与 F4 基准尚未执行。
+- **性能证据边界**：F4 的临时物化与分批删除都可能超时；现有索引和单事务锁成本不消失。本机 50 万固定负载已实测（见第 3 阶段 b 小节：分批不缩小锁窗口，空快照清理连续持锁约 42 秒），但**内网 300 万级容量与高文本填充分布仍未实测**，内网查询超时值未知，不能预先承诺保持任意配置必成功。F8 浏览器滚动验收已执行（第 3 阶段 d-1）；F4 基准已执行，但内网容量实测仍待补。
 - **升级可控性**：首次巡检可能出现待处理项，README 需说明数量、范围、继续/取消含义及回滚限制。先建立停止/撤销屏障，再运行遗留收敛；不能在旧 worker 仍能续租时直接批量改 PAUSED。不清理任务/栅栏表、不手工结算版本。
 - **发布验证**：本轮是文档修订，未改变应用、数据库或黄金快照。实际业务实施后必须覆盖上述验收并按 F7 发布门禁验证；文档获审阅不等于实现与部署已经安全。
