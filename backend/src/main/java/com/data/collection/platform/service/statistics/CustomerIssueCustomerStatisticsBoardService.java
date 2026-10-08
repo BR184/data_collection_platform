@@ -456,7 +456,7 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
           "", "当前没有启用的里程碑范围，成员候选暂不可用");
     }
     try {
-      return snapshotService.withinConsistentSourceRead(
+      return snapshotService.withinConsistentCurrentFactRead(
           readScopePlan(safeFilters, effectiveFilterGroup),
           sourceRead ->
               baseScopeControlOptions(
@@ -814,7 +814,7 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
         parsePopulation(request.filters(), spec);
     // 范围解析、发布资格、来源版本与事实读取共用同一个一致性边界：边界外先查版本再单独读事实，
     // 一旦检查之后发生发布，就会把两代数据混进同一份明细。
-    return snapshotService.withinConsistentSourceRead(
+    return snapshotService.withinConsistentCurrentFactRead(
         readScopePlan(request.filters(), effectiveFilterGroup),
         sourceRead -> {
           requireSameSourceGeneration(declaredSourceVersion, sourceRead.sourceVersion());

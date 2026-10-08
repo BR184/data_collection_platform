@@ -107,17 +107,26 @@ class FactBuildTaskServiceTest {
   @Test
   void test_full_refresh_tasks_are_deduplicated_and_claimed_with_owner() {
     GitlabSyncConfig config = config("corp-main");
+    Long factRunId =
+        insertFactRun(
+            config,
+            GitlabSourceInstanceSupport.sourceInstanceOf(config),
+            "test_dedup_" + UUID.randomUUID().toString().replace("-", ""),
+            "token-dedup");
 
-    int created = factBuildTaskService.enqueueFullFactRefreshTasks(config, 900L);
-    int duplicate = factBuildTaskService.enqueueFullFactRefreshTasks(config, 900L);
+    int created = factBuildTaskService.enqueueFullFactRefreshTasks(config, factRunId);
+    int duplicate = factBuildTaskService.enqueueFullFactRefreshTasks(config, factRunId);
 
     assertThat(created).isEqualTo(3);
     assertThat(duplicate).isZero();
 
-    QueuedFactBuildTask task = factBuildTaskService.claimNextQueuedTask("test-worker", 30);
+    QueuedFactBuildTask task =
+        factBuildTaskService.claimNextQueuedTaskForFactRun(
+            factRunId, "token-dedup", "test-worker", 30);
 
     assertThat(task).isNotNull();
-    assertThat(task.factRunId()).isEqualTo(900L);
+    assertThat(task.factRunId()).isEqualTo(factRunId);
+    assertThat(task.factRunLeaseToken()).isEqualTo("token-dedup");
     assertThat(task.configId()).isEqualTo(config.getId());
     assertThat(task.sourceInstance())
         .isEqualTo(GitlabSourceInstanceSupport.sourceInstanceOf(config));
@@ -131,14 +140,21 @@ class FactBuildTaskServiceTest {
   @Test
   void test_full_refresh_tasks_are_bound_to_fact_run() {
     GitlabSyncConfig config = config("corp-sync-run");
+    Long factRunId =
+        insertFactRun(
+            config,
+            GitlabSourceInstanceSupport.sourceInstanceOf(config),
+            "test_binding_" + UUID.randomUUID().toString().replace("-", ""),
+            "token-binding");
 
-    int created = factBuildTaskService.enqueueFullFactRefreshTasks(config, 901L);
+    int created = factBuildTaskService.enqueueFullFactRefreshTasks(config, factRunId);
 
     assertThat(created).isEqualTo(3);
     QueuedFactBuildTask task =
-        factBuildTaskService.claimNextQueuedTaskForFactRun(901L, "test-worker", 30);
+        factBuildTaskService.claimNextQueuedTaskForFactRun(
+            factRunId, "token-binding", "test-worker", 30);
     assertThat(task).isNotNull();
-    assertThat(task.factRunId()).isEqualTo(901L);
+    assertThat(task.factRunId()).isEqualTo(factRunId);
     assertThat(task.configId()).isEqualTo(config.getId());
     assertThat(task.factType()).isEqualTo("ISSUE");
     String runId =
@@ -146,7 +162,7 @@ class FactBuildTaskServiceTest {
             "select run_id from fact_build_tasks where id = ?",
             String.class,
             task.id());
-    assertThat(runId).isEqualTo("901");
+    assertThat(runId).isEqualTo(String.valueOf(factRunId));
   }
 
   @Test
@@ -182,20 +198,7 @@ class FactBuildTaskServiceTest {
             config.getId(),
             sourceInstance,
             "test:mirror-second:" + suffix);
-    Long factRunId =
-        jdbcTemplate.queryForObject(
-            """
-            insert into sync_runs(
-              run_id, config_id, source_instance, run_type, trigger_type, status, priority,
-              exclusive_scope
-            ) values (?, ?, ?, 'FACT_REFRESH', 'SCHEDULE', 'RUNNING', 10, ?)
-            returning id
-            """,
-            Long.class,
-            "test_fact_" + suffix,
-            config.getId(),
-            sourceInstance,
-            "test:fact:" + suffix);
+    Long factRunId = insertFactRun(config, sourceInstance, "test_fact_" + suffix, "token-assign");
     jdbcTemplate.update(
         """
         insert into source_fact_publication_states(
@@ -233,7 +236,7 @@ class FactBuildTaskServiceTest {
               config, factRunId, 100);
       QueuedFactBuildTask task =
           factBuildTaskService.claimNextQueuedTaskForFactRun(
-              factRunId, "target-worker", 30);
+              factRunId, "token-assign", "target-worker", 30);
 
       // 来源默认共享同一事实控制面，因此本断言只锁定"本事实运行确实认领了这两个根"，
       // 不对同源其他待发布根的归属数量做假设。
@@ -266,8 +269,10 @@ class FactBuildTaskServiceTest {
     GitlabSyncConfig config = config("fact-target-takeover");
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     String suffix = UUID.randomUUID().toString().replace("-", "");
-    Long firstFactRunId = insertFactRun(config, sourceInstance, "test_first_" + suffix);
-    Long secondFactRunId = insertFactRun(config, sourceInstance, "test_second_" + suffix);
+    Long firstFactRunId =
+        insertFactRun(config, sourceInstance, "test_first_" + suffix, "token-first");
+    Long secondFactRunId =
+        insertFactRun(config, sourceInstance, "test_second_" + suffix, "token-second");
     jdbcTemplate.update(
         """
         insert into source_fact_publication_states(
@@ -297,7 +302,8 @@ class FactBuildTaskServiceTest {
       assertThat(firstAssigned).isOne();
       assertThat(assignedRootsOfFactRun(firstFactRunId, sourceInstance)).containsExactly(issueId);
       QueuedFactBuildTask firstTask =
-          factBuildTaskService.claimNextQueuedTaskForFactRun(firstFactRunId, "first-worker", 30);
+          factBuildTaskService.claimNextQueuedTaskForFactRun(
+              firstFactRunId, "token-first", "first-worker", 30);
       assertThat(firstTask).isNotNull();
 
       // 在途任务持有领取记录：同一根不会被再次派发给别的运行。
@@ -343,20 +349,22 @@ class FactBuildTaskServiceTest {
   }
 
   private Long insertFactRun(
-      GitlabSyncConfig config, String sourceInstance, String runId) {
+      GitlabSyncConfig config, String sourceInstance, String runId, String leaseToken) {
     return jdbcTemplate.queryForObject(
         """
         insert into sync_runs(
           run_id, config_id, source_instance, run_type, trigger_type, status, priority,
-          exclusive_scope
-        ) values (?, ?, ?, 'FACT_REFRESH', 'SCHEDULE', 'RUNNING', 10, ?)
+          exclusive_scope, lease_owner, lease_until
+        ) values (?, ?, ?, 'FACT_REFRESH', 'SCHEDULE', 'RUNNING', 10, ?, ?,
+                  current_timestamp + interval '10 minutes')
         returning id
         """,
         Long.class,
         runId,
         config.getId(),
         sourceInstance,
-        "test:fact:" + runId);
+        "test:fact-run:" + runId,
+        leaseToken);
   }
 
   private java.util.List<Long> assignedRootsOfFactRun(
@@ -378,8 +386,16 @@ class FactBuildTaskServiceTest {
   @Test
   void renewTaskLeaseShouldExtendOnlyOwnerHeldRunningTask() {
     GitlabSyncConfig config = config("corp-renew");
-    factBuildTaskService.enqueueFullFactRefreshTasks(config, 904L);
-    QueuedFactBuildTask task = factBuildTaskService.claimNextQueuedTask("renew-worker", 30);
+    Long factRunId =
+        insertFactRun(
+            config,
+            GitlabSourceInstanceSupport.sourceInstanceOf(config),
+            "test_renew_" + UUID.randomUUID().toString().replace("-", ""),
+            "token-renew");
+    factBuildTaskService.enqueueFullFactRefreshTasks(config, factRunId);
+    QueuedFactBuildTask task =
+        factBuildTaskService.claimNextQueuedTaskForFactRun(
+            factRunId, "token-renew", "renew-worker", 30);
 
     assertThat(factBuildTaskService.renewTaskLease(task, 30)).isTrue();
     assertThat(
@@ -387,6 +403,7 @@ class FactBuildTaskServiceTest {
                 new QueuedFactBuildTask(
                     task.id(),
                     task.factRunId(),
+                    task.factRunLeaseToken(),
                     task.configId(),
                     task.sourceInstance(),
                     task.factType(),
@@ -407,8 +424,16 @@ class FactBuildTaskServiceTest {
   @Test
   void shouldRecoverExpiredQueuedTaskLease() {
     GitlabSyncConfig config = config("corp-timeout");
-    factBuildTaskService.enqueueFullFactRefreshTasks(config, 902L);
-    QueuedFactBuildTask task = factBuildTaskService.claimNextQueuedTask("test-worker", 30);
+    Long factRunId =
+        insertFactRun(
+            config,
+            GitlabSourceInstanceSupport.sourceInstanceOf(config),
+            "test_recover_" + UUID.randomUUID().toString().replace("-", ""),
+            "token-recover");
+    factBuildTaskService.enqueueFullFactRefreshTasks(config, factRunId);
+    QueuedFactBuildTask task =
+        factBuildTaskService.claimNextQueuedTaskForFactRun(
+            factRunId, "token-recover", "test-worker", 30);
     jdbcTemplate.update(
         """
         update fact_build_tasks
@@ -416,13 +441,30 @@ class FactBuildTaskServiceTest {
          where id = ?
         """,
         task.id());
+    // 租约超时回收只针对不再活动、且已失去执行权的父运行：把运行置为终态并释放租约。
+    jdbcTemplate.update(
+        "update sync_runs set status = 'FAILED', lease_owner = null, lease_until = null where id = ?",
+        factRunId);
 
     int recovered = factBuildTaskService.recoverTimedOutQueuedTasks();
-    QueuedFactBuildTask reclaimed = factBuildTaskService.claimNextQueuedTask("next-worker", 30);
+
+    // 父运行被重新领取（新执行令牌）后，超时任务才由该运行的执行器重新认领。
+    jdbcTemplate.update(
+        """
+        update sync_runs
+           set status = 'RUNNING',
+               lease_owner = 'token-recover-2',
+               lease_until = current_timestamp + interval '10 minutes'
+         where id = ?
+        """,
+        factRunId);
+    QueuedFactBuildTask reclaimed =
+        factBuildTaskService.claimNextQueuedTaskForFactRun(
+            factRunId, "token-recover-2", "next-worker", 30);
 
     assertThat(recovered).isEqualTo(1);
     assertThat(reclaimed.id()).isEqualTo(task.id());
-    assertThat(reclaimed.factRunId()).isEqualTo(902L);
+    assertThat(reclaimed.factRunId()).isEqualTo(factRunId);
     assertThat(reclaimed.retryCount()).isEqualTo(1);
     assertThat(reclaimed.full()).isTrue();
   }
@@ -430,14 +472,24 @@ class FactBuildTaskServiceTest {
   @Test
   void failOwnedTaskShouldEnterRetryWaitingBeforeMaxRetryAndFailedAfter() {
     GitlabSyncConfig config = config("corp-failure");
-    factBuildTaskService.enqueueFullFactRefreshTasks(config, 903L);
+    Long factRunId =
+        insertFactRun(
+            config,
+            GitlabSourceInstanceSupport.sourceInstanceOf(config),
+            "test_failure_" + UUID.randomUUID().toString().replace("-", ""),
+            "token-failure");
+    factBuildTaskService.enqueueFullFactRefreshTasks(config, factRunId);
+    String runIdText = String.valueOf(factRunId);
     // 入队会产生 issue/MR/integration-test 三个任务；本测试只验证单任务的失败-重试链，
     // 先清掉后两个避免按 created_at 认领到不同任务。
     jdbcTemplate.update(
         "delete from fact_build_tasks where id in ("
-            + "select id from fact_build_tasks where run_id = '903' order by created_at desc, id desc limit 2)");
+            + "select id from fact_build_tasks where run_id = ? order by created_at desc, id desc limit 2)",
+        runIdText);
 
-    QueuedFactBuildTask firstAttempt = factBuildTaskService.claimNextQueuedTask("worker-a", 30);
+    QueuedFactBuildTask firstAttempt =
+        factBuildTaskService.claimNextQueuedTaskForFactRun(
+            factRunId, "token-failure", "worker-a", 30);
 
     FactBuildTaskService.FailureDisposition retryDisposition =
         factBuildTaskService.failOwnedTask(firstAttempt, "第一次瞬时失败");
@@ -448,22 +500,28 @@ class FactBuildTaskServiceTest {
 
     // 退避把 run_after 推到未来；把时间拨回以便立即可再认领。
     jdbcTemplate.update(
-        "update fact_build_tasks set run_after = current_timestamp - interval '1 minute' where run_id = '903'");
-    QueuedFactBuildTask secondAttempt = factBuildTaskService.claimNextQueuedTask("worker-b", 30);
+        "update fact_build_tasks set run_after = current_timestamp - interval '1 minute' where run_id = ?",
+        runIdText);
+    QueuedFactBuildTask secondAttempt =
+        factBuildTaskService.claimNextQueuedTaskForFactRun(
+            factRunId, "token-failure", "worker-b", 30);
     assertThat(secondAttempt.id()).isEqualTo(firstAttempt.id());
     assertThat(secondAttempt.retryCount()).isEqualTo(1);
 
     factBuildTaskService.failOwnedTask(secondAttempt, "第二次失败");
     jdbcTemplate.update(
-        "update fact_build_tasks set run_after = current_timestamp - interval '1 minute' where run_id = '903'");
-    QueuedFactBuildTask thirdAttempt = factBuildTaskService.claimNextQueuedTask("worker-c", 30);
+        "update fact_build_tasks set run_after = current_timestamp - interval '1 minute' where run_id = ?",
+        runIdText);
+    QueuedFactBuildTask thirdAttempt =
+        factBuildTaskService.claimNextQueuedTaskForFactRun(
+            factRunId, "token-failure", "worker-c", 30);
     FactBuildTaskService.FailureDisposition finalDisposition =
         factBuildTaskService.failOwnedTask(thirdAttempt, "第三次失败");
 
     // max_retry_count 默认 3：第 3 次失败时 retry_count+1=3 不小于 max_retry_count，进入终态。
     // 终态分支保留原 run_after 值（不再参与调度），契约只保证 failed 判定。
     assertThat(finalDisposition.failed()).isTrue();
-    var summary = factBuildTaskService.summarizeFactRun(903L);
+    var summary = factBuildTaskService.summarizeFactRun(factRunId);
     assertThat(summary.totalTasks()).isEqualTo(1);
     assertThat(summary.failedTasks()).isEqualTo(1);
     assertThat(summary.hasActiveTasks()).isFalse();
@@ -532,6 +590,204 @@ class FactBuildTaskServiceTest {
     var scopedFallback = factBuildTaskService.latest("corp_x:all");
     assertThat(scopedFallback).isNotNull();
     assertThat(scopedFallback.scope()).isEqualTo("corp_x:all");
+  }
+
+  @Test
+  void test_orphaned_tasks_are_parked_for_manual_decision_and_not_claimed() {
+    GitlabSyncConfig config = config("corp-orphan");
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    Long factRunId =
+        insertFactRun(
+            config,
+            sourceInstance,
+            "test_park_" + UUID.randomUUID().toString().replace("-", ""),
+            "token-park");
+    jdbcTemplate.update(
+        "update sync_runs set status = 'FAILED', lease_owner = null, lease_until = null where id = ?",
+        factRunId);
+    assertThat(factBuildTaskService.enqueueFullFactRefreshTasks(config, factRunId)).isEqualTo(3);
+    String runIdText = String.valueOf(factRunId);
+    Long taskId =
+        jdbcTemplate.queryForObject(
+            "select id from fact_build_tasks where run_id = ? order by id limit 1",
+            Long.class,
+            runIdText);
+    jdbcTemplate.update(
+        """
+        insert into fact_build_task_roots(task_id, source_instance, fact_type, root_id)
+        values (?, ?, 'ISSUE', 4242)
+        """,
+        taskId,
+        sourceInstance);
+
+    int parked = factBuildTaskService.parkOrphanedTasksForManualDecision();
+
+    assertThat(parked).isEqualTo(3);
+    Integer parkedRows =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+              from fact_build_tasks
+             where run_id = ?
+               and status = ?
+               and manual_disposition = 'REQUIRES_DECISION'
+               and lock_owner is null
+               and lease_until is null
+            """,
+            Integer.class,
+            runIdText,
+            FactBuildTaskService.STATUS_PAUSED);
+    assertThat(parkedRows).isEqualTo(3);
+    // 停放后即使父运行重新被领取（重新获得授权），任务也不再回到自动派发。
+    jdbcTemplate.update(
+        """
+        update sync_runs
+           set status = 'RUNNING',
+               lease_owner = 'token-park-2',
+               lease_until = current_timestamp + interval '10 minutes'
+         where id = ?
+        """,
+        factRunId);
+    assertThat(
+            factBuildTaskService.claimNextQueuedTaskForFactRun(
+                factRunId, "token-park-2", "worker-park", 30))
+        .isNull();
+    // 停放保留持有根：维护人员选择"继续"时仍需按原意图恢复同一批根。
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select count(*) from fact_build_task_roots where task_id = ?", Integer.class, taskId))
+        .isEqualTo(1);
+
+    FactBuildTaskService.RunTaskSummary summary = factBuildTaskService.summarizeFactRun(factRunId);
+    assertThat(summary.totalTasks()).isEqualTo(3);
+    assertThat(summary.successTasks()).isZero();
+    assertThat(summary.manualAttentionTasks()).isEqualTo(3);
+    assertThat(summary.hasActiveTasks()).isFalse();
+    assertThat(summary.awaitsManualDecision()).isTrue();
+
+    jdbcTemplate.update("delete from fact_build_task_roots where task_id = ?", taskId);
+    jdbcTemplate.update("delete from gitlab_sync_configs where id = ?", config.getId());
+  }
+
+  @Test
+  void test_tasks_owned_by_active_fact_run_are_not_parked() {
+    GitlabSyncConfig config = config("corp-active-parent");
+    Long factRunId =
+        insertFactRun(
+            config,
+            GitlabSourceInstanceSupport.sourceInstanceOf(config),
+            "test_active_fact_" + UUID.randomUUID().toString().replace("-", ""),
+            "token-active");
+    assertThat(factBuildTaskService.enqueueFullFactRefreshTasks(config, factRunId)).isEqualTo(3);
+
+    assertThat(factBuildTaskService.parkOrphanedTasksForManualDecision()).isZero();
+
+    QueuedFactBuildTask claimed =
+        factBuildTaskService.claimNextQueuedTaskForFactRun(
+            factRunId, "token-active", "worker-active", 30);
+    assertThat(claimed).isNotNull();
+    assertThat(claimed.factRunId()).isEqualTo(factRunId);
+
+    jdbcTemplate.update("delete from sync_runs where id = ?", factRunId);
+    jdbcTemplate.update("delete from gitlab_sync_configs where id = ?", config.getId());
+  }
+
+  @Test
+  void test_summary_separates_dependency_wait_from_ready_queue() {
+    GitlabSyncConfig config = config("corp-wait-summary");
+    Long factRunId =
+        insertFactRun(
+            config,
+            GitlabSourceInstanceSupport.sourceInstanceOf(config),
+            "test_wait_" + UUID.randomUUID().toString().replace("-", ""),
+            "token-wait");
+    assertThat(factBuildTaskService.enqueueFullFactRefreshTasks(config, factRunId)).isEqualTo(3);
+    String runIdText = String.valueOf(factRunId);
+    var taskIds =
+        jdbcTemplate.queryForList(
+            "select id from fact_build_tasks where run_id = ? order by id", Long.class, runIdText);
+    jdbcTemplate.update(
+        """
+        update fact_build_tasks
+           set wait_reason = 'DEPENDENCY_SETTLING',
+               run_after = current_timestamp + interval '4 minutes'
+         where id = ?
+        """,
+        taskIds.get(0));
+    jdbcTemplate.update(
+        "update fact_build_tasks set run_after = current_timestamp where id = ?", taskIds.get(1));
+
+    FactBuildTaskService.RunTaskSummary summary = factBuildTaskService.summarizeFactRun(factRunId);
+
+    assertThat(summary.totalTasks()).isEqualTo(3);
+    assertThat(summary.dependencyWaitingTasks()).isEqualTo(1);
+    assertThat(summary.queuedTasks()).isEqualTo(2);
+    assertThat(summary.hasActiveTasks()).isTrue();
+    assertThat(summary.awaitsManualDecision()).isFalse();
+    assertThat(summary.nextRunAfter()).isAfter(LocalDateTime.now().plusMinutes(3));
+
+    QueuedFactBuildTask claimed =
+        factBuildTaskService.claimNextQueuedTaskForFactRun(
+            factRunId, "token-wait", "worker-wait", 30);
+    assertThat(claimed).isNotNull();
+    assertThat(claimed.id()).isNotEqualTo(taskIds.get(0));
+  }
+
+  @Test
+  void test_dependency_wait_defers_owned_task_without_consuming_retry_budget() {
+    GitlabSyncConfig config = config("corp-defer");
+    Long factRunId =
+        insertFactRun(
+            config,
+            GitlabSourceInstanceSupport.sourceInstanceOf(config),
+            "test_defer_" + UUID.randomUUID().toString().replace("-", ""),
+            "token-defer");
+    factBuildTaskService.enqueueFullFactRefreshTasks(config, factRunId);
+    jdbcTemplate.update(
+        "delete from fact_build_tasks where id in ("
+            + "select id from fact_build_tasks where run_id = ? order by created_at desc, id desc limit 2)",
+        String.valueOf(factRunId));
+    QueuedFactBuildTask task =
+        factBuildTaskService.claimNextQueuedTaskForFactRun(
+            factRunId, "token-defer", "worker-defer", 30);
+
+    LocalDateTime runAfter = factBuildTaskService.deferOwnedTask(task, 5);
+
+    assertThat(runAfter).isAfter(LocalDateTime.now().plusSeconds(3));
+    var row =
+        jdbcTemplate.queryForMap(
+            "select status, wait_reason, retry_count, lock_owner, lease_until, message "
+                + "from fact_build_tasks where id = ?",
+            task.id());
+    assertThat(row.get("status")).isEqualTo("QUEUED");
+    assertThat(row.get("wait_reason")).isEqualTo("DEPENDENCY_SETTLING");
+    assertThat(((Number) row.get("retry_count")).intValue()).isZero();
+    assertThat(row.get("lock_owner")).isNull();
+    assertThat(row.get("lease_until")).isNull();
+    assertThat((String) row.get("message")).contains("依赖");
+
+    FactBuildTaskService.RunTaskSummary summary = factBuildTaskService.summarizeFactRun(factRunId);
+    assertThat(summary.dependencyWaitingTasks()).isEqualTo(1);
+    assertThat(summary.queuedTasks()).isZero();
+    assertThat(summary.hasActiveTasks()).isTrue();
+    assertThat(summary.awaitsManualDecision()).isFalse();
+    assertThat(summary.nextRunAfter()).isEqualTo(runAfter);
+    // 未到 run_after 不会被重新认领。
+    assertThat(
+            factBuildTaskService.claimNextQueuedTaskForFactRun(
+                factRunId, "token-defer", "worker-defer", 30))
+        .isNull();
+
+    // 认领之后再取消父运行：等待必须被拒绝（执行权已失效），由巡检收敛为人工待处理。
+    jdbcTemplate.update(
+        "update fact_build_tasks set run_after = current_timestamp where id = ?", task.id());
+    QueuedFactBuildTask secondAttempt =
+        factBuildTaskService.claimNextQueuedTaskForFactRun(
+            factRunId, "token-defer", "worker-defer-2", 30);
+    assertThat(secondAttempt).isNotNull();
+    jdbcTemplate.update("update sync_runs set cancel_requested = true where id = ?", factRunId);
+    assertThatThrownBy(() -> factBuildTaskService.deferOwnedTask(secondAttempt, 5))
+        .isInstanceOf(FactTaskLeaseLostException.class);
   }
 
   private GitlabSyncConfig config(String sourcePrefix) {

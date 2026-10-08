@@ -84,8 +84,9 @@ class FactProjectionTaskLeaseIntegrationTest {
     jdbcTemplate.execute("drop table if exists fact_build_tasks");
     jdbcTemplate.execute("drop table if exists sync_runs");
     jdbcTemplate.execute(
-        "create table sync_runs (id bigint primary key, status varchar(32) not null, "
-            + "lease_owner varchar(128), lease_until timestamp)");
+        "create table sync_runs (id bigint primary key, run_type varchar(32) not null, "
+            + "status varchar(32) not null, lease_owner varchar(128), lease_until timestamp, "
+            + "cancel_requested boolean not null default false)");
     jdbcTemplate.execute("create table fact_build_tasks (id bigint primary key)");
     jdbcTemplate.execute(
         "create table fact_projection_generations (source_instance varchar(128) not null, "
@@ -100,7 +101,8 @@ class FactProjectionTaskLeaseIntegrationTest {
             + "status varchar(32) not null, lease_owner varchar(128), lease_until timestamp, "
             + "heartbeat_at timestamp, retry_count integer not null, max_retry_count integer not null, "
             + "recovery_count integer not null default 0, run_after timestamp not null, "
-            + "error_message text, started_at timestamp, finished_at timestamp, updated_at timestamp)");
+            + "error_message text, started_at timestamp, finished_at timestamp, updated_at timestamp, "
+            + "manual_disposition varchar(32) not null default 'NONE')");
     // 与 V20260703_05、V20260803_01 保持一致的真实页面快照存储。
     jdbcTemplate.execute(
         "create table page_record_snapshots ("
@@ -379,6 +381,115 @@ class FactProjectionTaskLeaseIntegrationTest {
     }
   }
 
+  @Test
+  void queued_task_of_terminal_parent_is_parked_as_manual_decision() {
+    insertParentRun("CANCELLED", "parent-token");
+    insertGeneration(1L);
+    insertTask("QUEUED", null, "clock_timestamp() - interval '1 second'", 0, 3);
+
+    assertThat(inTransaction(() -> taskService.parkOrphanedTasksForManualDecision())).isOne();
+
+    assertThat(taskStatus()).isEqualTo("FAILED");
+    assertThat(taskManualDisposition()).isEqualTo("REQUIRES_DECISION");
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select error_message from fact_projection_refresh_tasks where id = 1", String.class))
+        .contains("等待维护人员决定");
+    FactProjectionTaskService.RunTaskSummary summary = taskService.summarize(1L);
+    assertThat(summary.manualAttentionTasks()).isOne();
+    assertThat(summary.failedTasks()).isZero();
+    assertThat(summary.hasActiveTasks()).isFalse();
+    assertThat(summary.awaitsManualDecision()).isTrue();
+  }
+
+  @Test
+  void parked_projection_task_is_not_reclaimable_when_parent_run_becomes_active_again() {
+    insertParentRun("CANCELLED", "parent-token");
+    insertGeneration(1L);
+    insertTask("QUEUED", null, "clock_timestamp() - interval '1 second'", 0, 3);
+    assertThat(inTransaction(() -> taskService.parkOrphanedTasksForManualDecision())).isOne();
+    jdbcTemplate.update("update sync_runs set status = 'RUNNING' where id = 1");
+
+    assertThat(inTransaction(() -> taskService.claimNext(1L, "parent-token", 60))).isNull();
+
+    assertThat(taskStatus()).isEqualTo("FAILED");
+    assertThat(taskManualDisposition()).isEqualTo("REQUIRES_DECISION");
+  }
+
+  @Test
+  void queued_task_of_running_parent_is_not_parked() {
+    insertParentRun("RUNNING", "parent-token");
+    insertGeneration(1L);
+    insertTask("QUEUED", null, "clock_timestamp() - interval '1 second'", 0, 3);
+
+    assertThat(inTransaction(() -> taskService.parkOrphanedTasksForManualDecision())).isZero();
+
+    assertThat(taskStatus()).isEqualTo("QUEUED");
+    assertThat(taskManualDisposition()).isEqualTo("NONE");
+  }
+
+  @Test
+  void snapshot_write_is_rejected_when_parent_run_requests_cancellation() {
+    insertParentRun("RUNNING", "parent-token");
+    insertGeneration(1L);
+    insertTask("RUNNING", "current-token", "clock_timestamp() + interval '1 hour'", 0, 3);
+    jdbcTemplate.update("update sync_runs set cancel_requested = true where id = 1");
+
+    try (FactProjectionExecutionContext.Scope ignored =
+        executionContext.open(runningTask("current-token", 1L))) {
+      assertThatThrownBy(
+              () ->
+                  publicationGuardService.writeSnapshot(
+                      () ->
+                          statisticBoardSnapshotService.save(
+                              boardRequest("board-1"), "source-v1", boardResponse())))
+          .isInstanceOf(ProjectionTaskLeaseLostException.class);
+    }
+
+    assertThat(boardSnapshotCount()).isZero();
+  }
+
+  @Test
+  void snapshot_write_is_rejected_when_parent_run_token_changed() {
+    insertParentRun("RUNNING", "parent-token");
+    insertGeneration(1L);
+    insertTask("RUNNING", "current-token", "clock_timestamp() + interval '1 hour'", 0, 3);
+    jdbcTemplate.update("update sync_runs set lease_owner = 'other-token' where id = 1");
+
+    try (FactProjectionExecutionContext.Scope ignored =
+        executionContext.open(runningTask("current-token", 1L))) {
+      assertThatThrownBy(
+              () ->
+                  publicationGuardService.writeSnapshot(
+                      () ->
+                          statisticBoardSnapshotService.save(
+                              boardRequest("board-1"), "source-v1", boardResponse())))
+          .isInstanceOf(ProjectionTaskLeaseLostException.class);
+    }
+
+    assertThat(boardSnapshotCount()).isZero();
+  }
+
+  @Test
+  void projection_task_cannot_finish_or_renew_after_parent_run_cancellation() {
+    insertParentRun("RUNNING", "parent-token");
+    insertGeneration(1L);
+    insertTask("RUNNING", "current-token", "clock_timestamp() + interval '1 hour'", 0, 3);
+    jdbcTemplate.update("update sync_runs set cancel_requested = true where id = 1");
+
+    assertThat(taskService.renewOwned(runningTask("current-token", 1L), 60)).isFalse();
+    assertThatThrownBy(
+            () ->
+                inTransaction(
+                    () -> {
+                      taskService.finishOwned(runningTask("current-token", 1L), "投影范围刷新成功");
+                      return null;
+                    }))
+        .isInstanceOf(ProjectionTaskLeaseLostException.class);
+
+    assertThat(taskStatus()).isEqualTo("RUNNING");
+  }
+
   private <T> T inTransaction(Supplier<T> action) {
     return transactionTemplate.execute(status -> action.get());
   }
@@ -423,7 +534,7 @@ class FactProjectionTaskLeaseIntegrationTest {
 
   private QueuedFactProjectionTask runningTask(String leaseToken, long targetGeneration) {
     return new QueuedFactProjectionTask(
-        1L, 1L, 2L, scope(), targetGeneration, 0, 3, leaseToken, null);
+        1L, 1L, "parent-token", 2L, scope(), targetGeneration, 0, 3, leaseToken, null);
   }
 
   private PageRecordSnapshotService.SnapshotRequest recordRequest(String pageKey) {
@@ -465,7 +576,8 @@ class FactProjectionTaskLeaseIntegrationTest {
 
   private void insertParentRun(String status, String leaseToken) {
     jdbcTemplate.update(
-        "insert into sync_runs values (1, ?, ?, clock_timestamp() + interval '1 hour')",
+        "insert into sync_runs(id, run_type, status, lease_owner, lease_until, cancel_requested) "
+            + "values (1, 'FACT_REFRESH', ?, ?, clock_timestamp() + interval '1 hour', false)",
         status,
         leaseToken);
     jdbcTemplate.update("insert into fact_build_tasks values (2)");
@@ -498,6 +610,11 @@ class FactProjectionTaskLeaseIntegrationTest {
   private String taskStatus() {
     return jdbcTemplate.queryForObject(
         "select status from fact_projection_refresh_tasks where id = 1", String.class);
+  }
+
+  private String taskManualDisposition() {
+    return jdbcTemplate.queryForObject(
+        "select manual_disposition from fact_projection_refresh_tasks where id = 1", String.class);
   }
 
   private int taskRetryCount() {

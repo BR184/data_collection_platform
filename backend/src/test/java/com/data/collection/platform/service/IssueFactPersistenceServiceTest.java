@@ -22,7 +22,8 @@ class IssueFactPersistenceServiceTest {
         mock(IssueFactCustomerMembershipRepository.class);
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     IssueFactPersistenceService service =
-        new IssueFactPersistenceService(factMapper, membershipRepository, jdbcTemplate);
+        new IssueFactPersistenceService(
+            factMapper, membershipRepository, jdbcTemplate, cleanupGuard(jdbcTemplate));
     IssueFact currentFact = mock(IssueFact.class);
     List<IssueFact> currentFacts = List.of(currentFact);
 
@@ -54,7 +55,8 @@ class IssueFactPersistenceServiceTest {
         mock(IssueFactCustomerMembershipRepository.class);
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     IssueFactPersistenceService service =
-        new IssueFactPersistenceService(factMapper, membershipRepository, jdbcTemplate);
+        new IssueFactPersistenceService(
+            factMapper, membershipRepository, jdbcTemplate, cleanupGuard(jdbcTemplate));
 
     service.replaceRootFacts(
         "GITLAB",
@@ -68,42 +70,51 @@ class IssueFactPersistenceServiceTest {
   }
 
   @Test
-  void test_empty_full_snapshot_clears_issue_facts_and_customer_members() {
+  void test_cleanup_stages_identities_and_deletes_through_bounded_batches() {
     IssueFactMapper factMapper = mock(IssueFactMapper.class);
     IssueFactCustomerMembershipRepository membershipRepository =
         mock(IssueFactCustomerMembershipRepository.class);
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     IssueFactPersistenceService service =
-        new IssueFactPersistenceService(factMapper, membershipRepository, jdbcTemplate);
+        new IssueFactPersistenceService(
+            factMapper, membershipRepository, jdbcTemplate, cleanupGuard(jdbcTemplate));
+    org.mockito.Mockito.when(
+            jdbcTemplate.queryForObject(
+                org.mockito.ArgumentMatchers.contains("from issue_fact_delete_ids"),
+                org.mockito.ArgumentMatchers.eq(Long.class)))
+        .thenReturn(2L);
 
     service.deleteFactsNotInSnapshot("GITLAB", "default", List.of());
 
-    ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-    verify(jdbcTemplate, org.mockito.Mockito.times(2))
-        .update(sqlCaptor.capture(), org.mockito.ArgumentMatchers.eq("GITLAB"),
-            org.mockito.ArgumentMatchers.eq("default"));
-    assertThat(sqlCaptor.getAllValues().get(0)).contains("issue_fact_customer_members");
-    assertThat(sqlCaptor.getAllValues().get(1)).contains("issue_fact");
+    verify(jdbcTemplate)
+        .execute(org.mockito.ArgumentMatchers.contains("create temp table issue_fact_snapshot_ids"));
+    List<String> statements = capturedUpdateSql(jdbcTemplate);
+    assertThat(statements)
+        .anyMatch(sql -> sql.contains("create temp table issue_fact_delete_ids"))
+        .anyMatch(sql -> sql.contains("insert into issue_fact_cleanup_batch"))
+        .anyMatch(sql -> sql.contains("delete from issue_fact_customer_members")
+            && sql.contains("using issue_fact_cleanup_batch"))
+        .anyMatch(sql -> sql.contains("delete from issue_fact fact")
+            && sql.contains("using issue_fact_cleanup_batch"))
+        .noneMatch(sql -> sql.contains("not exists"));
     org.mockito.Mockito.verifyNoInteractions(factMapper, membershipRepository);
   }
 
   @Test
-  void test_full_snapshot_cleanup_stages_identities_then_deletes_outside_rows() {
+  void test_cleanup_stages_snapshot_identities_before_materializing_candidates() {
     IssueFactMapper factMapper = mock(IssueFactMapper.class);
     IssueFactCustomerMembershipRepository membershipRepository =
         mock(IssueFactCustomerMembershipRepository.class);
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     IssueFactPersistenceService service =
-        new IssueFactPersistenceService(factMapper, membershipRepository, jdbcTemplate);
+        new IssueFactPersistenceService(
+            factMapper, membershipRepository, jdbcTemplate, cleanupGuard(jdbcTemplate));
     IssueFact keptFact = mock(IssueFact.class);
     org.mockito.Mockito.when(keptFact.getProjectId()).thenReturn(9L);
     org.mockito.Mockito.when(keptFact.getIssueId()).thenReturn(101L);
 
     service.deleteFactsNotInSnapshot("GITLAB", "default", List.of(keptFact));
 
-    verify(jdbcTemplate)
-        .execute(org.mockito.ArgumentMatchers.contains("create temp table issue_fact_snapshot_ids"));
-    org.mockito.Mockito.verifyNoInteractions(factMapper, membershipRepository);
     @SuppressWarnings({"unchecked", "rawtypes"})
     ArgumentCaptor<List<Object[]>> batchCaptor = ArgumentCaptor.forClass((Class) List.class);
     verify(jdbcTemplate)
@@ -112,18 +123,42 @@ class IssueFactPersistenceServiceTest {
             batchCaptor.capture());
     assertThat(batchCaptor.getValue()).hasSize(1);
     assertThat(batchCaptor.getValue().get(0)).containsExactly(9L, 101L);
-    ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-    ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
-    verify(jdbcTemplate, org.mockito.Mockito.times(2))
-        .update(sqlCaptor.capture(), argsCaptor.capture());
-    assertThat(sqlCaptor.getAllValues().get(0))
-        .contains("delete from issue_fact_customer_members")
-        .contains("using issue_fact")
-        .contains("not exists");
-    assertThat(sqlCaptor.getAllValues().get(1))
-        .contains("delete from issue_fact")
-        .contains("not exists");
-    assertThat(argsCaptor.getAllValues())
-        .allSatisfy(args -> assertThat(args).containsExactly("GITLAB", "default"));
+    org.mockito.Mockito.verifyNoInteractions(factMapper, membershipRepository);
+  }
+
+  @Test
+  void test_cleanup_rejects_null_identities_instead_of_silently_skipping_them() {
+    IssueFactMapper factMapper = mock(IssueFactMapper.class);
+    IssueFactCustomerMembershipRepository membershipRepository =
+        mock(IssueFactCustomerMembershipRepository.class);
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    IssueFactPersistenceService service =
+        new IssueFactPersistenceService(
+            factMapper, membershipRepository, jdbcTemplate, cleanupGuard(jdbcTemplate));
+    org.mockito.Mockito.when(
+            jdbcTemplate.queryForObject(
+                org.mockito.ArgumentMatchers.contains("(project_id is null or issue_id is null)"),
+                org.mockito.ArgumentMatchers.eq(Long.class),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()))
+        .thenReturn(1L);
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> service.deleteFactsNotInSnapshot("GITLAB", "default", List.of()))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("空身份");
+  }
+
+  private static FactTaskExecutionGuard cleanupGuard(JdbcTemplate jdbcTemplate) {
+    return new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext());
+  }
+
+  private static List<String> capturedUpdateSql(JdbcTemplate jdbcTemplate) {
+    return org.mockito.Mockito.mockingDetails(jdbcTemplate).getInvocations().stream()
+        .filter(invocation -> "update".equals(invocation.getMethod().getName()))
+        .map(invocation -> String.valueOf((Object) invocation.getArgument(0)))
+        .toList();
   }
 }

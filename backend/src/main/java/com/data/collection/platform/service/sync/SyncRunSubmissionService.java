@@ -36,6 +36,7 @@ public class SyncRunSubmissionService {
   private final SyncRunPublicationFenceService publicationFenceService;
   private final SyncIncrementalRerunService incrementalRerunService;
   private final SyncSourceSubmissionLockService sourceSubmissionLockService;
+  private final SyncFactPublicationStateService publicationStateService;
 
   public SyncRunSubmissionService(
       SyncRunMapper syncRunMapper,
@@ -45,7 +46,8 @@ public class SyncRunSubmissionService {
       SyncThreadBudgetResolver threadBudgetResolver,
       SyncRunPublicationFenceService publicationFenceService,
       SyncIncrementalRerunService incrementalRerunService,
-      SyncSourceSubmissionLockService sourceSubmissionLockService) {
+      SyncSourceSubmissionLockService sourceSubmissionLockService,
+      SyncFactPublicationStateService publicationStateService) {
     this.syncRunMapper = syncRunMapper;
     this.policyService = policyService;
     this.jdbcTemplate = jdbcTemplate;
@@ -54,6 +56,7 @@ public class SyncRunSubmissionService {
     this.publicationFenceService = publicationFenceService;
     this.incrementalRerunService = incrementalRerunService;
     this.sourceSubmissionLockService = sourceSubmissionLockService;
+    this.publicationStateService = publicationStateService;
   }
 
   @Transactional
@@ -221,6 +224,7 @@ public class SyncRunSubmissionService {
    */
   @Transactional
   public SyncRunSubmissionResult submitManualFullFactRebuild(GitlabSyncConfig config) {
+    publicationStateService.requestFullPublication(config);
     return submitRun(
         config,
         SyncType.COMPENSATION,

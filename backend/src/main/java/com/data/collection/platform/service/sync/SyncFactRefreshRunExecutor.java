@@ -2,6 +2,7 @@ package com.data.collection.platform.service.sync;
 
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.config.GitlabMirrorProperties;
+import com.data.collection.platform.entity.FactResumeMode;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
 import com.data.collection.platform.entity.QueuedFactProjectionTask;
@@ -51,12 +52,16 @@ public class SyncFactRefreshRunExecutor {
     projectionTaskService.recoverExpiredTasks();
     GitlabSyncConfig config = configService.getConfigById(run.getConfigId());
     SyncRunPayload payload = payload(run);
-    boolean full = payload.fullBuildEnabled() || payload.manualFullRebuildEnabled();
-    if (full) {
-      sourceSchemaGuard.verifyAllFactSources(run.getSourceInstance());
-      if (GitlabMergeRequestCommitFactCapability.isEnabled(config)) {
-        sourceSchemaGuard.verifyMergeRequestCommitFactSource(run.getSourceInstance());
+    SyncRunPayload.ResumedTaskIntent resumedTask = payload.resumedTask();
+    boolean full =
+        payload.fullBuildEnabled() || payload.manualFullRebuildEnabled() || resumedTask != null;
+    if (resumedTask != null) {
+      // 人工继续只执行被移交的意图：既不重新入队整个来源的全量任务，也不分配其他待发布根。
+      if (resumedTask.mode() == FactResumeMode.FULL) {
+        verifyFullBuildSources(run, config);
       }
+    } else if (full) {
+      verifyFullBuildSources(run, config);
       factBuildTaskService.enqueueFullFactRefreshTasks(config, run.getId());
     }
 
@@ -78,8 +83,8 @@ public class SyncFactRefreshRunExecutor {
           null,
           "事实或投影任务达到自动重试上限");
     }
-    LocalDateTime retryAt = earlier(
-        factSummary.nextRunAfter(), projectionSummary.nextRunAfter());
+    LocalDateTime retryAt =
+        earlier(factSummary.nextRunAfter(), projectionSummary.nextRunAfter());
     if (factSummary.retryWaitingTasks() > 0 || projectionSummary.retryWaitingTasks() > 0) {
       return new Result(
           planned,
@@ -89,9 +94,29 @@ public class SyncFactRefreshRunExecutor {
           retryAt,
           "事实或投影任务等待重试");
     }
+    if (factSummary.hasActiveTasks() || projectionSummary.hasActiveTasks()) {
+      return new Result(
+          planned,
+          completed,
+          factSummary.affectedRows(),
+          SyncRunStatus.PAUSED,
+          retryAt == null ? LocalDateTime.now().plusSeconds(5) : retryAt,
+          factSummary.dependencyWaitingTasks() > 0
+              ? "等待来源事实依赖收敛"
+              : "等待持久事实目标继续收敛");
+    }
+    if (factSummary.awaitsManualDecision() || projectionSummary.awaitsManualDecision()) {
+      return new Result(
+          planned,
+          completed,
+          factSummary.affectedRows(),
+          SyncRunStatus.PARTIAL_SUCCESS,
+          null,
+          "存在已停止自动派发的人工待处理任务，等待维护人员决定继续或取消");
+    }
     boolean unpublished = !full
         && factBuildTaskService.hasUnpublishedTargets(run.getConfigId(), run.getSourceInstance());
-    if (unpublished || factSummary.hasActiveTasks() || projectionSummary.hasActiveTasks()) {
+    if (unpublished) {
       return new Result(
           planned,
           completed,
@@ -109,6 +134,18 @@ public class SyncFactRefreshRunExecutor {
         null);
   }
 
+  /**
+   * 全量构建前的来源预检：所有 ODS 源必须在任一事实表写入前可用。
+   *
+   * <p>人工继续选择全量模式时同样先做这项预检，避免半次全量写入后才发现来源不可用。
+   */
+  private void verifyFullBuildSources(SyncRun run, GitlabSyncConfig config) {
+    sourceSchemaGuard.verifyAllFactSources(run.getSourceInstance());
+    if (GitlabMergeRequestCommitFactCapability.isEnabled(config)) {
+      sourceSchemaGuard.verifyMergeRequestCommitFactSource(run.getSourceInstance());
+    }
+  }
+
   private void drainFactTasks(
       SyncRun run, GitlabSyncConfig config, boolean full) {
     int batchSize = Math.max(1, Math.min(1000, properties.getFactTargetBatchSize()));
@@ -121,7 +158,9 @@ public class SyncFactRefreshRunExecutor {
       QueuedFactBuildTask task;
       while ((task =
               factBuildTaskService.claimNextQueuedTaskForFactRun(
-                  run.getId(), "fact-run-" + run.getId(),
+                  run.getId(),
+                  run.getLeaseOwner(),
+                  "fact-run-" + run.getId(),
                   Math.max(1, properties.getHeartbeatTimeoutSeconds())))
           != null) {
         factRefreshTaskWorkerService.execute(task);

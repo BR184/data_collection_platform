@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
+import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -67,11 +68,19 @@ class RealtimeWorkspaceServiceTest {
     assertThat(workspaceService.getStatus("other-board").message()).isEqualTo("已展示当前可用数据");
     assertThat(second.jobId()).isEqualTo(10L);
     assertThat(second.sourceTables()).containsExactly("issues");
+    // 冷却期内的再次提交未被接受：显式给出 COOLDOWN，且不得提示“已开始刷新”。
+    assertThat(first.submissionOutcome())
+        .isEqualTo(RealtimeWorkspaceStatusResponse.SUBMISSION_ACCEPTED);
+    assertThat(second.submissionOutcome())
+        .isEqualTo(RealtimeWorkspaceStatusResponse.SUBMISSION_COOLDOWN);
+    assertThat(second.message()).isEqualTo("刷新请求过于频繁，请稍后再试");
+    assertThat(first.trackingId()).isNotBlank();
   }
 
   @Test
   void shouldTrackRefreshInProgressForConcurrentCall() {
     AtomicInteger refreshCount = new AtomicInteger();
+    var concurrentResponse = new RealtimeWorkspaceStatusResponse[1];
 
     var response =
         workspaceService.requestRefreshWithResult(
@@ -85,8 +94,7 @@ class RealtimeWorkspaceServiceTest {
                         refreshCount.incrementAndGet();
                         return null;
                       });
-              assertThat(concurrent.refreshing()).isTrue();
-              assertThat(concurrent.message()).isEqualTo("已开始刷新最新数据");
+              concurrentResponse[0] = concurrent;
               return new RealtimeWorkspaceRefreshResult(
                   12L,
                   List.of("issues"),
@@ -100,6 +108,20 @@ class RealtimeWorkspaceServiceTest {
 
     assertThat(refreshCount).hasValue(1);
     assertThat(response.status()).isEqualTo("READY");
+    assertThat(concurrentResponse[0].refreshing()).isTrue();
+    assertThat(concurrentResponse[0].submissionOutcome())
+        .isEqualTo(RealtimeWorkspaceStatusResponse.SUBMISSION_ALREADY_REFRESHING);
+    assertThat(concurrentResponse[0].message()).isEqualTo("刷新仍在进行中，继续跟踪本次刷新");
+    // 复用同一条跟踪：在途提交与首次接受返回同一跟踪身份。
+    assertThat(concurrentResponse[0].trackingId()).isEqualTo(response.trackingId());
+  }
+
+  @Test
+  void shouldNotExposeSubmitResultOnReadStatus() {
+    var status = workspaceService.getStatus("system-test-defect-summary");
+
+    assertThat(status.submissionOutcome()).isNull();
+    assertThat(status.trackingId()).isNull();
   }
 
   @Test

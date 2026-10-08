@@ -19,6 +19,7 @@ import java.security.NoSuchAlgorithmException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -145,19 +146,18 @@ public class StatisticBoardSnapshotService {
             request.readScopes(),
             sourceRead -> {
               Optional<Snapshot> snapshot =
-                  sourceRead.degraded()
+                  sourceRead.snapshotFallbackRequired()
                       ? findLatestReady(request)
                       : findReady(request, sourceRead.sourceVersion());
               if (snapshot.isPresent()) {
                 return new ConsistentRead(sourceRead, snapshot, null);
               }
-              if (sourceRead.degraded()) {
+              if (sourceRead.snapshotFallbackRequired()) {
                 throw new BizException(
                     "来源 "
                         + String.join("、", sourceInstancesOf(sourceRead.readScopes()))
-                        + " 尚未收敛到最新变化版本（仍有 "
-                        + sourceRead.pendingUpdates()
-                        + " 项待更新），该筛选组合暂无完整发布点的产出，请稍后重试");
+                        + " 尚未形成完整产出，该筛选组合暂无完整发布点的产出，请稍后重试："
+                        + sourceRead.unsettledReason());
               }
               return new ConsistentRead(
                   sourceRead, Optional.empty(), responseSupplier.apply(sourceRead));
@@ -171,9 +171,13 @@ public class StatisticBoardSnapshotService {
   /**
    * 在与统计快照相同的只读一致性边界内执行读取动作。
    *
-   * <p>供不走缓存的链路（下钻明细、分子分母与样本集合）复用同一边界：范围解析、发布资格、来源版本与
-   * 消费方的事实读取都在同一个 REPEATABLE READ 事务内，因此并发发布要么整体落在本次视图之前，
-   * 要么整体落在之后，不会把两代数据混进同一份结果。
+   * <p>供能够返回已保存完整产出的链路复用同一边界：范围解析、发布资格、来源版本与消费方读取都在同一个
+   * REPEATABLE READ 事务内，因此并发发布要么整体落在本次视图之前，要么整体落在之后，不会把两代数据混进
+   * 同一份结果。
+   *
+   * <p>只要求来源的 {@code savedSnapshotReadable}：已知未完整窗口下当前事实不可信，但更早保存的完整产出
+   * 仍允许返回。需要读取当前事实的调用者必须改用
+   * {@link #withinConsistentCurrentFactRead(SourceReadPlan, Function)}。
    *
    * @param readScopes 实际读取范围的解析计划
    * @param action 读取动作，入参为边界内解析出的范围与来源版本
@@ -182,17 +186,42 @@ public class StatisticBoardSnapshotService {
    */
   public <T> T withinConsistentSourceRead(
       SourceReadPlan readScopes, Function<SourceRead, T> action) {
+    return withinConsistentRead(readScopes, false, action);
+  }
+
+  /**
+   * 在只读一致性边界内执行"必须读取当前事实"的动作。
+   *
+   * <p>比 {@link #withinConsistentSourceRead(SourceReadPlan, Function)} 更严：额外要求每个来源都能从当前
+   * 事实读取完整产出。已知未完整窗口（有未发布根、全量重建未结算、标签事件历史未完成核验）下当前事实只是
+   * 中间态，这类调用者必须明确拒绝并给出维护原因，不得把中间态当作完整来源输出；已有同版完整保存产出的
+   * 调用者应改走快照回退入口。
+   *
+   * @param readScopes 实际读取范围的解析计划
+   * @param action 读取动作，入参为边界内解析出的范围与来源版本
+   * @param <T> 读取结果类型
+   * @return 读取动作的结果
+   */
+  public <T> T withinConsistentCurrentFactRead(
+      SourceReadPlan readScopes, Function<SourceRead, T> action) {
+    return withinConsistentRead(readScopes, true, action);
+  }
+
+  private <T> T withinConsistentRead(
+      SourceReadPlan readScopes, boolean requireCurrentFact, Function<SourceRead, T> action) {
     T result =
         readConsistencyTemplate.execute(
             status -> {
               Set<FactProjectionScope> scopes = readScopes.resolve();
-              long pendingUpdates = requireReadableSources(scopes);
+              SourceAvailability availability = evaluateSources(scopes, requireCurrentFact);
               return action.apply(
                   new SourceRead(
                       scopes,
                       projectionVersionService.combinedSourceVersion(
                           factTypeOf(scopes), scopes),
-                      pendingUpdates));
+                      availability.pendingUpdates(),
+                      availability.currentFactReadable(),
+                      availability.unsettledReason()));
             });
     if (result == null) {
       throw new IllegalStateException("统计只读一致性事务未返回结果");
@@ -205,27 +234,47 @@ public class StatisticBoardSnapshotService {
   }
 
   /**
-   * 校验请求实际读取的每个来源实例都允许对外输出，并返回待更新的稳定根数量。
+   * 校验请求实际读取的每个来源实例，并返回本次读取可用的能力。
    *
-   * <p>完整性无从证实的来源必须直接拒绝；完整性可证但尚未收敛到最新变化版本的来源允许输出，
-   * 由返回的正数披露待更新的稳定根数量。多个来源同时未收敛时取待更新数量之和，因为对外展示的
-   * 结果整份都由这些来源拼成，任何一个来源落后都会让整份结果不是最新。
+   * <p>完整性无从证实的来源必须直接拒绝（两种能力都不可用）。已知未完整窗口的来源不拒绝：整体标记为
+   * 当前事实不可读、累积待更新数量，并在需要读当前事实时给出维护原因。多个来源同时未完整时取待更新数量
+   * 之和并保留全部原因，因为对外展示的结果整份都由这些来源拼成，任何一个来源落后都会让整份结果不是最新，
+   * 也不能被另一个来源的“可读”掩盖。
+   *
+   * @param scopes 本次实际读取的来源与稳定范围
+   * @param requireCurrentFact 调用者是否必须读取当前事实
+   * @return 本次读取的可用能力与待更新数量
    */
-  private long requireReadableSources(Set<FactProjectionScope> scopes) {
+  private SourceAvailability evaluateSources(
+      Set<FactProjectionScope> scopes, boolean requireCurrentFact) {
     FactType factType = factTypeOf(scopes);
     long pendingUpdates = 0L;
+    boolean currentFactReadable = true;
+    List<String> unsettledReasons = new ArrayList<>();
     for (String sourceInstance : sourceInstancesOf(scopes)) {
       SyncFactPublicationStateService.SourceQualification qualification =
           publicationStateService.qualification(sourceInstance, factType);
-      if (!qualification.readable()) {
+      if (!qualification.savedSnapshotReadable()) {
         throw new BizException(qualification.reason());
       }
-      if (qualification.degraded()) {
+      if (!qualification.currentFactReadable()) {
+        currentFactReadable = false;
         pendingUpdates += qualification.pendingUpdates();
+        unsettledReasons.add(qualification.reason());
       }
     }
-    return pendingUpdates;
+    if (requireCurrentFact && !currentFactReadable) {
+      throw new BizException(
+          "当前来源尚未形成完整产出，暂不能读取实时数据：" + String.join("；", unsettledReasons));
+    }
+    return new SourceAvailability(
+        pendingUpdates,
+        currentFactReadable,
+        unsettledReasons.isEmpty() ? null : String.join("；", unsettledReasons));
   }
+
+  private record SourceAvailability(
+      long pendingUpdates, boolean currentFactReadable, String unsettledReason) {}
 
   private static Set<String> sourceInstancesOf(Set<FactProjectionScope> scopes) {
     TreeSet<String> sources = new TreeSet<>();
@@ -332,13 +381,19 @@ public class StatisticBoardSnapshotService {
    * @param readScopes 实际读取的来源与稳定范围
    * @param sourceVersion 与该视图对应的来源版本
    * @param pendingUpdates 尚未发布到最新变化版本的稳定根数量；{@code 0} 表示来源已收敛
+   * @param currentFactReadable 本次视图下当前事实是否可完整读取
+   * @param unsettledReason 当前事实不可读的维护原因；可读时为 {@code null}
    */
   public record SourceRead(
-      Set<FactProjectionScope> readScopes, String sourceVersion, long pendingUpdates) {
+      Set<FactProjectionScope> readScopes,
+      String sourceVersion,
+      long pendingUpdates,
+      boolean currentFactReadable,
+      String unsettledReason) {
 
-    /** 是否处于"完整性可证但未收敛"的降级可读状态。 */
-    public boolean degraded() {
-      return pendingUpdates > 0L;
+    /** 是否只能返回已保存的完整产出：当前事实不可完整读取，必须回退上一完整发布点。 */
+    public boolean snapshotFallbackRequired() {
+      return !currentFactReadable;
     }
 
     /** 把降级提示附着到本次读取产出的响应上；来源已收敛时原样返回。 */

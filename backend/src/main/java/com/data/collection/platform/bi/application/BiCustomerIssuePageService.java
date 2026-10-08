@@ -132,7 +132,7 @@ public final class BiCustomerIssuePageService {
     Map<String, String> sourceFilter = Map.of(
         StatisticBoardReadScopeResolver.SOURCE_INSTANCE_PARAM,
         GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
-    return snapshotService.withinConsistentSourceRead(
+    return snapshotService.withinConsistentCurrentFactRead(
         StatisticBoardSnapshotService.SourceReadPlan.of(
             () -> scopeResolver.resolve(
                 sourceFilter, PROJECT_ID, IssueScopeDimension.MILESTONE, milestoneBusinessKey)),

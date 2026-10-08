@@ -107,7 +107,15 @@ class StatisticBoardSourceQualificationTest {
   }
 
   @Test
-  void unsettledPublicationIsRejectedEvenWhenReadySnapshotAlreadyExists() {
+  void unsettledPublicationFallsBackToLastCompleteSnapshotAndRefusesWithoutOne() {
+    upsertPublicationState("READY", true, null);
+    assertThatThrownBy(() -> read(new AtomicInteger()))
+        .as("全量重建未结算且没有可退回的完整发布点时必须拒绝")
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("全量事实重建尚未结算");
+    assertThat(readySnapshotCount()).isZero();
+
+    upsertPublicationState("READY", false, null);
     read(new AtomicInteger());
     assertThat(readySnapshotCount()).isOne();
 
@@ -119,11 +127,14 @@ class StatisticBoardSourceQualificationTest {
     assertThat(readySnapshotCount()).as("拒绝时不得写入新的 READY").isOne();
 
     upsertPublicationState("READY", true, null);
-    assertThatThrownBy(() -> read(new AtomicInteger()))
-        .as("全量重建未结算时必须拒绝")
-        .isInstanceOf(BizException.class)
-        .hasMessageContaining("尚未结算");
-    assertThat(readySnapshotCount()).isOne();
+    AtomicInteger fallbackBuilds = new AtomicInteger();
+    read(
+        fallbackBuilds,
+        () -> {
+          throw new AssertionError("全量重建未结算时必须退回上一完整发布点，不得重新构建");
+        });
+    assertThat(fallbackBuilds).as("全量未结算时不得按当前事实重新计算").hasValue(0);
+    assertThat(readySnapshotCount()).as("回退不得改写既有完整快照").isOne();
   }
 
   @Test

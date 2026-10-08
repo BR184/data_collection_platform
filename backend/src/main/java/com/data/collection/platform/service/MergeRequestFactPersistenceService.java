@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MergeRequestFactPersistenceService {
   private static final int BATCH_SIZE = 200;
+  /** 单个清理批次处理的父/关系身份数量；分批只降低单条 DELETE 的候选量。 */
+  private static final int CLEANUP_BATCH_SIZE = 2000;
   private static final String COMMIT_UPSERT_SQL = """
       insert into merge_request_commit_fact(
         source_system, source_instance, project_id,
@@ -29,11 +31,15 @@ public class MergeRequestFactPersistenceService {
 
   private final MergeRequestFactMapper factMapper;
   private final JdbcTemplate jdbcTemplate;
+  private final FactTaskExecutionGuard executionGuard;
 
   public MergeRequestFactPersistenceService(
-      MergeRequestFactMapper factMapper, JdbcTemplate jdbcTemplate) {
+      MergeRequestFactMapper factMapper,
+      JdbcTemplate jdbcTemplate,
+      FactTaskExecutionGuard executionGuard) {
     this.factMapper = factMapper;
     this.jdbcTemplate = jdbcTemplate;
+    this.executionGuard = executionGuard;
   }
 
   /**
@@ -125,6 +131,14 @@ public class MergeRequestFactPersistenceService {
    * <p>与分批 upsert 配合替代旧的「删全部再重插」全量替换：快照内的行经 upsert 保留行身份，
    * 快照外的行（上游已删除的 MR 或已从 Diff 消失的提交）在此清除，最终状态与全量替换一致。
    *
+   * <p>清理在单个事务内分批执行：先物化提交关系与父事实的待删除身份，再按固定批次先删提交关系、
+   * 后删父事实。空快照同样走这条有界路径，空提交快照会删除相应旧提交关系。分批只降低单条 DELETE 的
+   * 候选量，不缩小整个清理事务的持锁与回滚范围，也不减少索引维护总量。每一批开始前校验当前事实任务
+   * 仍持有执行权，取消后不再开始新的清理批次。
+   *
+   * <p>身份列在协议上非空，因此匹配一律使用普通等值；出现空身份行说明数据损坏，直接失败而不是
+   * 静默跳过或保留一条并发删除路径。
+   *
    * @param sourceSystem 事实来源系统
    * @param sourceInstance 事实来源实例
    * @param snapshotFacts 完整来源 MR 事实快照；空集合表示清空该实例全部 MR 事实
@@ -136,68 +150,170 @@ public class MergeRequestFactPersistenceService {
       String sourceInstance,
       List<MergeRequestFact> snapshotFacts,
       List<MergeRequestCommitFact> snapshotCommits) {
-    if (snapshotFacts == null || snapshotFacts.isEmpty()) {
-      jdbcTemplate.update(
-          "delete from merge_request_commit_fact where source_system = ? and source_instance = ?",
-          sourceSystem,
-          sourceInstance);
-      jdbcTemplate.update(
-          "delete from merge_request_fact where source_system = ? and source_instance = ?",
-          sourceSystem,
-          sourceInstance);
-      return;
-    }
+    List<MergeRequestFact> safeFacts = snapshotFacts == null ? List.of() : snapshotFacts;
+    List<MergeRequestCommitFact> safeCommits =
+        snapshotCommits == null ? List.of() : snapshotCommits;
+    requireNoNullIdentities(sourceSystem, sourceInstance);
     jdbcTemplate.execute(
         "create temp table merge_request_snapshot_ids (project_id bigint, merge_request_id bigint) on commit drop");
     jdbcTemplate.execute(
         "create temp table merge_request_snapshot_commit_ids (project_id bigint, merge_request_id bigint, commit_sha varchar) on commit drop");
-    List<Object[]> mrIdentities = new ArrayList<>(snapshotFacts.size());
-    for (MergeRequestFact fact : snapshotFacts) {
-      mrIdentities.add(new Object[] {fact.getProjectId(), fact.getMergeRequestId()});
+    if (!safeFacts.isEmpty()) {
+      List<Object[]> identities = new ArrayList<>(safeFacts.size());
+      for (MergeRequestFact fact : safeFacts) {
+        if (fact.getProjectId() == null || fact.getMergeRequestId() == null) {
+          throw new IllegalArgumentException("合并请求快照身份不得为空：projectId/mergeRequestId");
+        }
+        identities.add(new Object[] {fact.getProjectId(), fact.getMergeRequestId()});
+      }
+      jdbcTemplate.batchUpdate(
+          "insert into merge_request_snapshot_ids(project_id, merge_request_id) values (?, ?)",
+          identities);
     }
-    jdbcTemplate.batchUpdate(
-        "insert into merge_request_snapshot_ids(project_id, merge_request_id) values (?, ?)",
-        mrIdentities);
-    List<Object[]> commitIdentities =
-        new ArrayList<>(snapshotCommits == null ? 0 : snapshotCommits.size());
-    if (snapshotCommits != null) {
-      for (MergeRequestCommitFact commit : snapshotCommits) {
-        commitIdentities.add(
+    if (!safeCommits.isEmpty()) {
+      List<Object[]> identities = new ArrayList<>(safeCommits.size());
+      for (MergeRequestCommitFact commit : safeCommits) {
+        if (commit.commitSha() == null) {
+          throw new IllegalArgumentException(
+              "合并请求提交关系快照身份不得为空：projectId/mergeRequestId/commitSha");
+        }
+        identities.add(
             new Object[] {commit.projectId(), commit.mergeRequestId(), commit.commitSha()});
       }
       jdbcTemplate.batchUpdate(
           "insert into merge_request_snapshot_commit_ids(project_id, merge_request_id, commit_sha) values (?, ?, ?)",
-          commitIdentities);
+          identities);
     }
     jdbcTemplate.update(
         """
-        delete from merge_request_commit_fact commit_fact
-         where commit_fact.source_system = ?
-           and commit_fact.source_instance = ?
-           and not exists (
-             select 1
-               from merge_request_snapshot_commit_ids snapshot
-              where snapshot.project_id is not distinct from commit_fact.project_id
-                and snapshot.merge_request_id is not distinct from commit_fact.merge_request_id
-                and snapshot.commit_sha is not distinct from commit_fact.commit_sha
-           )
+        create temp table merge_request_commit_delete_ids on commit drop as
+        select row_number() over () as batch_order, candidate.project_id,
+               candidate.merge_request_id, candidate.commit_sha
+          from (
+            select distinct commit_fact.project_id, commit_fact.merge_request_id,
+                   commit_fact.commit_sha
+              from merge_request_commit_fact commit_fact
+              left join merge_request_snapshot_commit_ids snapshot
+                on snapshot.project_id = commit_fact.project_id
+               and snapshot.merge_request_id = commit_fact.merge_request_id
+               and snapshot.commit_sha = commit_fact.commit_sha
+             where commit_fact.source_system = ?
+               and commit_fact.source_instance = ?
+               and snapshot.project_id is null
+          ) candidate
         """,
         sourceSystem,
         sourceInstance);
+    jdbcTemplate.execute(
+        "create temp table merge_request_commit_cleanup_batch (project_id bigint, merge_request_id bigint, commit_sha varchar) on commit drop");
+    Long commitCount =
+        jdbcTemplate.queryForObject(
+            "select count(*) from merge_request_commit_delete_ids", Long.class);
+    long commitCandidates = commitCount == null ? 0L : commitCount;
+    for (long offset = 0L; offset < commitCandidates; offset += CLEANUP_BATCH_SIZE) {
+      executionGuard.requireCurrentTaskAuthorization();
+      jdbcTemplate.execute("truncate table merge_request_commit_cleanup_batch");
+      jdbcTemplate.update(
+          """
+          insert into merge_request_commit_cleanup_batch(project_id, merge_request_id, commit_sha)
+          select project_id, merge_request_id, commit_sha
+            from merge_request_commit_delete_ids
+           where batch_order > ? and batch_order <= ?
+          """,
+          offset,
+          offset + CLEANUP_BATCH_SIZE);
+      jdbcTemplate.update(
+          """
+          delete from merge_request_commit_fact commit_fact
+           using merge_request_commit_cleanup_batch batch
+           where commit_fact.source_system = ?
+             and commit_fact.source_instance = ?
+             and commit_fact.project_id = batch.project_id
+             and commit_fact.merge_request_id = batch.merge_request_id
+             and commit_fact.commit_sha = batch.commit_sha
+          """,
+          sourceSystem,
+          sourceInstance);
+    }
     jdbcTemplate.update(
         """
-        delete from merge_request_fact fact
-         where fact.source_system = ?
-           and fact.source_instance = ?
-           and not exists (
-             select 1
-               from merge_request_snapshot_ids snapshot
-              where snapshot.project_id is not distinct from fact.project_id
-                and snapshot.merge_request_id is not distinct from fact.merge_request_id
-           )
+        create temp table merge_request_delete_ids on commit drop as
+        select row_number() over () as batch_order, candidate.project_id, candidate.merge_request_id
+          from (
+            select distinct fact.project_id, fact.merge_request_id
+              from merge_request_fact fact
+              left join merge_request_snapshot_ids snapshot
+                on snapshot.project_id = fact.project_id
+               and snapshot.merge_request_id = fact.merge_request_id
+             where fact.source_system = ?
+               and fact.source_instance = ?
+               and snapshot.project_id is null
+          ) candidate
         """,
         sourceSystem,
         sourceInstance);
+    jdbcTemplate.execute(
+        "create temp table merge_request_cleanup_batch (project_id bigint, merge_request_id bigint) on commit drop");
+    Long mrCount =
+        jdbcTemplate.queryForObject("select count(*) from merge_request_delete_ids", Long.class);
+    long mrCandidates = mrCount == null ? 0L : mrCount;
+    for (long offset = 0L; offset < mrCandidates; offset += CLEANUP_BATCH_SIZE) {
+      executionGuard.requireCurrentTaskAuthorization();
+      jdbcTemplate.execute("truncate table merge_request_cleanup_batch");
+      jdbcTemplate.update(
+          """
+          insert into merge_request_cleanup_batch(project_id, merge_request_id)
+          select project_id, merge_request_id
+            from merge_request_delete_ids
+           where batch_order > ? and batch_order <= ?
+          """,
+          offset,
+          offset + CLEANUP_BATCH_SIZE);
+      jdbcTemplate.update(
+          """
+          delete from merge_request_commit_fact commit_fact
+           using merge_request_cleanup_batch batch
+           where commit_fact.source_system = ?
+             and commit_fact.source_instance = ?
+             and commit_fact.project_id = batch.project_id
+             and commit_fact.merge_request_id = batch.merge_request_id
+          """,
+          sourceSystem,
+          sourceInstance);
+      jdbcTemplate.update(
+          """
+          delete from merge_request_fact fact
+           using merge_request_cleanup_batch batch
+           where fact.source_system = ?
+             and fact.source_instance = ?
+             and fact.project_id = batch.project_id
+             and fact.merge_request_id = batch.merge_request_id
+          """,
+          sourceSystem,
+          sourceInstance);
+    }
+  }
+
+  private void requireNoNullIdentities(String sourceSystem, String sourceInstance) {
+    Long nullIdentities =
+        jdbcTemplate.queryForObject(
+            """
+            select (select count(*) from merge_request_fact
+                     where source_system = ? and source_instance = ?
+                       and (project_id is null or merge_request_id is null))
+                 + (select count(*) from merge_request_commit_fact
+                     where source_system = ? and source_instance = ?
+                       and (project_id is null or merge_request_id is null or commit_sha is null))
+            """,
+            Long.class,
+            sourceSystem,
+            sourceInstance,
+            sourceSystem,
+            sourceInstance);
+    if (nullIdentities != null && nullIdentities > 0L) {
+      throw new IllegalStateException(
+          "合并请求事实存在空身份行，无法按非空身份列清理：count=" + nullIdentities);
+    }
   }
 
   private List<Long> sanitizeRootIds(List<Long> rootIds) {

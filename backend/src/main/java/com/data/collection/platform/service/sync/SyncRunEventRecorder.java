@@ -46,4 +46,34 @@ public class SyncRunEventRecorder {
       log.warn("Failed to record sync run event, runId={}, eventType={}", runId, eventType, error);
     }
   }
+
+  /**
+   * 严格写入一条带结构化载荷的运行事件。
+   *
+   * <p>与 {@link #record} 不同，本方法不吞异常：人工继续的接管诊断必须与任务移交同事务提交，
+   * 事件写入失败即整体回滚，避免历史诊断与实际归属不一致。
+   *
+   * @param runId 所属同步运行数据库主键；调用方必须确认存在对应运行行
+   * @param payloadJson 结构化诊断快照，用于事后按稳定 ID 定位原错误、预算与范围
+   */
+  public void recordStrict(
+      Long runId,
+      Long configId,
+      String sourceInstance,
+      String eventType,
+      String message,
+      String payloadJson) {
+    jdbcTemplate.update(
+        """
+        insert into sync_run_events (
+          run_id, config_id, source_instance, event_type, message, payload_json, created_at)
+        values (?, ?, ?, ?, ?, ?, current_timestamp)
+        """,
+        runId,
+        configId,
+        sourceInstance,
+        eventType,
+        message,
+        payloadJson);
+  }
 }

@@ -5,6 +5,8 @@ import static org.mockito.Mockito.mock;
 
 import com.data.collection.platform.entity.IssueFact;
 import com.data.collection.platform.mapper.IssueFactMapper;
+import com.data.collection.platform.service.FactTaskExecutionContext;
+import com.data.collection.platform.service.FactTaskExecutionGuard;
 import com.data.collection.platform.service.IssueFactPersistenceService;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +26,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 黄金基线 1200 行夹具曾被整体清空。
  */
 class IssueFactSnapshotCleanupIntegrationTest {
-  private static final int SNAPSHOT_SIZE = 1200;
+  /** 跨过单个清理批次（2000 个父/关系键），验证多批次循环不会互相清除。 */
+  private static final int SNAPSHOT_SIZE = 2500;
   private static PostgresIntegrationTestDatabase database;
 
   private JdbcTemplate jdbcTemplate;
@@ -72,7 +75,11 @@ class IssueFactSnapshotCleanupIntegrationTest {
         new TransactionTemplate(new DataSourceTransactionManager(dataSource));
     // 快照外清理只依赖 jdbcTemplate；客户成员仓储为包私有类型，此处无需替身。
     service =
-        new IssueFactPersistenceService(mock(IssueFactMapper.class), null, jdbcTemplate);
+        new IssueFactPersistenceService(
+            mock(IssueFactMapper.class),
+            null,
+            jdbcTemplate,
+            new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext()));
   }
 
   @Test
@@ -86,9 +93,6 @@ class IssueFactSnapshotCleanupIntegrationTest {
     jdbcTemplate.update(
         "insert into issue_fact(source_system, source_instance, project_id, issue_id)"
             + " values ('GITLAB', 'default', 8, 777)");
-    jdbcTemplate.update(
-        "insert into issue_fact(source_system, source_instance, project_id, issue_id)"
-            + " values ('GITLAB', 'default', null, 888)");
     jdbcTemplate.update(
         "insert into issue_fact_customer_members(source_system, source_instance, project_id, issue_id)"
             + " values ('GITLAB', 'default', 8, 777)");
@@ -109,13 +113,30 @@ class IssueFactSnapshotCleanupIntegrationTest {
     assertThat(keptRows).isEqualTo((long) SNAPSHOT_SIZE);
     Long outsideGone =
         jdbcTemplate.queryForObject(
-            "select count(*) from issue_fact where project_id = 8"
-                + " or (project_id is null and issue_id = 888)",
-            Long.class);
+            "select count(*) from issue_fact where project_id = 8", Long.class);
     assertThat(outsideGone).isZero();
     Long membersGone =
         jdbcTemplate.queryForObject(
             "select count(*) from issue_fact_customer_members where project_id = 8", Long.class);
     assertThat(membersGone).isZero();
+  }
+
+  @Test
+  void test_cleanup_fails_loudly_on_null_identity_rows() {
+    jdbcTemplate.update(
+        "insert into issue_fact(source_system, source_instance, project_id, issue_id)"
+            + " values ('GITLAB', 'default', null, 888)");
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () ->
+                transactionTemplate.executeWithoutResult(
+                    status -> service.deleteFactsNotInSnapshot("GITLAB", "default", List.of())))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("空身份");
+
+    Long kept =
+        jdbcTemplate.queryForObject(
+            "select count(*) from issue_fact where issue_id = 888", Long.class);
+    assertThat(kept).as("失败必须整体回滚，不得留下半次清理").isEqualTo(1L);
   }
 }

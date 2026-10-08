@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.WorkspaceRefreshRequest;
 import com.data.collection.platform.entity.WorkspaceScopeSelection;
@@ -31,6 +32,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 class SyncRunPublicationFenceServiceIntegrationTest {
   private static PostgresIntegrationTestDatabase database;
+
+  private static GitlabMirrorProperties mirrorProperties() {
+    GitlabMirrorProperties properties = new GitlabMirrorProperties();
+    properties.setHeartbeatTimeoutSeconds(180);
+    return properties;
+  }
 
   private DataSource dataSource;
   private JdbcTemplate jdbcTemplate;
@@ -62,7 +69,7 @@ class SyncRunPublicationFenceServiceIntegrationTest {
     completionCommitService =
         new SyncRunCompletionCommitService(
             service,
-            new SyncRunLeaseService(jdbcTemplate),
+            new SyncRunLeaseService(jdbcTemplate, mirrorProperties()),
             mock(GitlabConfigService.class),
             mock(SyncIncrementalRerunService.class),
             mock(SyncSourceSubmissionLockService.class));

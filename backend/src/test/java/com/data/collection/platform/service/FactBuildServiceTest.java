@@ -95,7 +95,8 @@ class FactBuildServiceTest {
             new IssueFactSourceRowMapper(),
             new MergeRequestFactSourceRowMapper(),
             newSearchIndexRepairService(jdbcTemplate),
-            new FactPublicationTransaction(),
+            new FactPublicationTransaction(
+                new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
             new com.data.collection.platform.config.GitlabMirrorProperties(),
             new FactProjectionScopeResolver(jdbcTemplate),
             new FactProjectionGenerationService(jdbcTemplate));
@@ -163,7 +164,8 @@ class FactBuildServiceTest {
             new IssueFactSourceRowMapper(),
             new MergeRequestFactSourceRowMapper(),
             newSearchIndexRepairService(jdbcTemplate),
-            new FactPublicationTransaction(),
+            new FactPublicationTransaction(
+                new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
             new com.data.collection.platform.config.GitlabMirrorProperties(),
             new FactProjectionScopeResolver(jdbcTemplate),
             new FactProjectionGenerationService(jdbcTemplate));
@@ -226,7 +228,8 @@ class FactBuildServiceTest {
             new IssueFactSourceRowMapper(),
             new MergeRequestFactSourceRowMapper(),
             newSearchIndexRepairService(jdbcTemplate),
-            new FactPublicationTransaction(),
+            new FactPublicationTransaction(
+                new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
             new com.data.collection.platform.config.GitlabMirrorProperties(),
             new FactProjectionScopeResolver(jdbcTemplate),
             new FactProjectionGenerationService(jdbcTemplate));
@@ -294,7 +297,8 @@ class FactBuildServiceTest {
             new IssueFactSourceRowMapper(),
             new MergeRequestFactSourceRowMapper(),
             searchIndexRepairService,
-            new FactPublicationTransaction(),
+            new FactPublicationTransaction(
+                new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
             new com.data.collection.platform.config.GitlabMirrorProperties(),
             new FactProjectionScopeResolver(jdbcTemplate),
             new FactProjectionGenerationService(jdbcTemplate));

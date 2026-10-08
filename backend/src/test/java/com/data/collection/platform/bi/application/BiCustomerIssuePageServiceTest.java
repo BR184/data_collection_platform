@@ -69,12 +69,12 @@ class BiCustomerIssuePageServiceTest {
         .thenReturn(Set.of(new FactProjectionScope("default", FactType.ISSUE,
             ProjectionScopeType.ISSUE_SCOPE_GROUP, "customer-issue-milestone")));
     when(jdbcTemplate.queryForObject("select current_date", LocalDate.class)).thenReturn(BUSINESS_DATE);
-    when(snapshotService.withinConsistentSourceRead(any(), any())).thenAnswer(invocation -> {
+    when(snapshotService.withinConsistentCurrentFactRead(any(), any())).thenAnswer(invocation -> {
       StatisticBoardSnapshotService.SourceReadPlan plan = invocation.getArgument(0);
       plan.resolve();
       @SuppressWarnings("unchecked")
       Function<StatisticBoardSnapshotService.SourceRead, Object> action = invocation.getArgument(1);
-      return action.apply(new StatisticBoardSnapshotService.SourceRead(Set.of(), "issue-v17", 0L));
+      return action.apply(new StatisticBoardSnapshotService.SourceRead(Set.of(), "issue-v17", 0L, true, null));
     });
   }
 
@@ -119,7 +119,7 @@ class BiCustomerIssuePageServiceTest {
   void unqualifiedSourceReturnsAnIncompletePageInsteadOfAnEmptyPage() {
     doAnswer(invocation -> {
       throw new BizException("ISSUE事实来源尚未完成全量核验");
-    }).when(snapshotService).withinConsistentSourceRead(any(), any());
+    }).when(snapshotService).withinConsistentCurrentFactRead(any(), any());
 
     var response = service.load(BiCustomerIssuePageService.Query.all());
 

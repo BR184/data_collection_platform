@@ -19,6 +19,8 @@ import com.data.collection.platform.service.FactProjectionGenerationService;
 import com.data.collection.platform.service.FactProjectionScopeResolver;
 import com.data.collection.platform.service.FactPublicationTransaction;
 import com.data.collection.platform.service.FactTargetPublicationService;
+import com.data.collection.platform.service.FactTaskExecutionContext;
+import com.data.collection.platform.service.FactTaskExecutionGuard;
 import java.time.LocalDateTime;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -68,6 +70,8 @@ class FactTargetPublicationServiceIntegrationTest {
     taskService = mock(FactBuildTaskService.class);
     eventRecorder = mock(SyncRunEventRecorder.class);
     publicationStateService = mock(SyncFactPublicationStateService.class);
+    FactTaskExecutionGuard executionGuard =
+        new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext());
     service =
         new FactTargetPublicationService(
             jdbcTemplate,
@@ -75,7 +79,8 @@ class FactTargetPublicationServiceIntegrationTest {
             new FactProjectionGenerationService(jdbcTemplate),
             mock(SyncRunPublicationFenceService.class),
             publicationStateService,
-            new FactPublicationTransaction(),
+            new FactPublicationTransaction(executionGuard),
+            executionGuard,
             taskService,
             eventRecorder,
             new GitlabMirrorProperties());
@@ -379,6 +384,7 @@ class FactTargetPublicationServiceIntegrationTest {
     return new QueuedFactBuildTask(
         100L,
         200L,
+        "run-lease-token",
         300L,
         "alpha",
         "ISSUE",
@@ -426,6 +432,7 @@ class FactTargetPublicationServiceIntegrationTest {
     return new QueuedFactBuildTask(
         taskId,
         200L,
+        "run-lease-token",
         300L,
         "alpha",
         "ISSUE",

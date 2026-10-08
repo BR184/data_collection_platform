@@ -1,5 +1,6 @@
 package com.data.collection.platform.service.sync;
 
+import com.data.collection.platform.entity.FactResumeMode;
 import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.SyncTriggerType;
 import com.data.collection.platform.entity.SyncType;
@@ -21,7 +22,8 @@ public record SyncRunPayload(
     Boolean fullBuild,
     Boolean manualFullRebuild,
     List<PreciseTarget> preciseTargets,
-    WorkspaceRefreshSpec workspaceRefresh) {
+    WorkspaceRefreshSpec workspaceRefresh,
+    ResumedTaskIntent resumedTask) {
   private static final TypeReference<SyncRunPayload> TYPE_REFERENCE = new TypeReference<>() {};
 
   public SyncRunPayload {
@@ -34,7 +36,8 @@ public record SyncRunPayload(
   }
 
   public static SyncRunPayload empty() {
-    return new SyncRunPayload(null, null, null, List.of(), null, null, null, null, List.of(), null);
+    return new SyncRunPayload(
+        null, null, null, List.of(), null, null, null, null, List.of(), null, null);
   }
 
   public static SyncRunPayload create(
@@ -55,6 +58,7 @@ public record SyncRunPayload(
         fullBuild,
         null,
         List.of(),
+        null,
         null);
   }
 
@@ -88,10 +92,18 @@ public record SyncRunPayload(
     if (workspaceRefresh != null) {
       payload.put("workspaceRefresh", workspaceRefresh);
     }
+    if (resumedTask != null) {
+      payload.put("resumedTask", resumedTask);
+    }
     if (extraPayload != null && !extraPayload.isEmpty()) {
       payload.putAll(extraPayload);
     }
     return payload;
+  }
+
+  /** 该运行是否由人工继续命令创建；此类运行只执行被移交的意图。 */
+  public boolean resumeIntentEnabled() {
+    return resumedTask != null;
   }
 
   public boolean fullBuildEnabled() {
@@ -178,9 +190,21 @@ public record SyncRunPayload(
     return trimmed.isEmpty() ? null : trimmed;
   }
 
+  /**
+   * 人工继续命令移交的任务意图。
+   *
+   * <p>该记录只用于让新运行执行被选中的任务；是否待发布仍由版本头与根归属决定，不构成第二套控制面。
+   *
+   * @param kind 任务类型：FACT_BUILD 或 PROJECTION
+   * @param taskId 被处置任务的主键
+   * @param originalRunId 任务原运行编号（字符串形式，允许 UUID 手工路径）
+   * @param mode 事实继续时的意图恢复模式；投影继续为 {@code null}
+   */
+  public record ResumedTaskIntent(
+      String kind, Long taskId, String originalRunId, FactResumeMode mode) {}
+
   /** 一项按完整范围读取来源的精确同步目标。 */
-  public record PreciseTarget(String tableName, Map<String, String> lookupScope) {
-    public PreciseTarget {
+  public record PreciseTarget(String tableName, Map<String, String> lookupScope) {    public PreciseTarget {
       lookupScope = lookupScope == null ? Map.of() : Map.copyOf(lookupScope);
     }
 

@@ -35,7 +35,9 @@ public class GitlabSyncControllerResponseMapper {
         Runtime.getRuntime().availableProcessors(),
         status.resolvedSyncThreads() == null
             ? threadBudgetResolver.resolve(config)
-            : status.resolvedSyncThreads());
+            : status.resolvedSyncThreads(),
+        status.details(),
+        status.pending());
   }
 
   public GitlabSyncConfig sanitizeConfigForResponse(GitlabSyncConfig source) {

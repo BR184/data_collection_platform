@@ -1,6 +1,9 @@
 package com.data.collection.platform.service.sync;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -67,7 +70,7 @@ class SyncFactRefreshRunExecutorTest {
     QueuedFactBuildTask task = fullTask(101L, 14L);
     when(configService.getConfigById(1L)).thenReturn(config);
     when(factBuildTaskService.enqueueFullFactRefreshTasks(config, 14L)).thenReturn(1);
-    when(factBuildTaskService.claimNextQueuedTaskForFactRun(14L, "fact-run-14", 30))
+    when(factBuildTaskService.claimNextQueuedTaskForFactRun(14L, runLease(14L), "fact-run-14", 30))
         .thenReturn(task)
         .thenReturn(null);
     when(factRefreshTaskWorkerService.execute(task))
@@ -135,7 +138,7 @@ class SyncFactRefreshRunExecutorTest {
     LocalDateTime retryAt = LocalDateTime.of(2026, 7, 31, 16, 0);
     when(configService.getConfigById(1L)).thenReturn(config());
     when(factBuildTaskService.assignPendingSourceTargetBatches(config(), 16L, 200)).thenReturn(0);
-    when(factBuildTaskService.claimNextQueuedTaskForFactRun(16L, "fact-run-16", 30))
+    when(factBuildTaskService.claimNextQueuedTaskForFactRun(16L, runLease(16L), "fact-run-16", 30))
         .thenReturn(null);
     when(projectionTaskService.claimNext(16L, "projection-run-16", 30)).thenReturn(null);
     when(factBuildTaskService.summarizeFactRun(16L))
@@ -155,7 +158,7 @@ class SyncFactRefreshRunExecutorTest {
     SyncRun run = run(17L, null);
     when(configService.getConfigById(1L)).thenReturn(config());
     when(factBuildTaskService.assignPendingSourceTargetBatches(config(), 17L, 200)).thenReturn(0);
-    when(factBuildTaskService.claimNextQueuedTaskForFactRun(17L, "fact-run-17", 30))
+    when(factBuildTaskService.claimNextQueuedTaskForFactRun(17L, runLease(17L), "fact-run-17", 30))
         .thenReturn(null);
     when(projectionTaskService.claimNext(17L, "projection-run-17", 30)).thenReturn(null);
     when(factBuildTaskService.summarizeFactRun(17L)).thenReturn(factSummary(0, 0, 0, 0, 0, 0, null, 0));
@@ -168,9 +171,84 @@ class SyncFactRefreshRunExecutorTest {
     assertThat(result.errorMessage()).contains("重试上限");
   }
 
+  @Test
+  void test_manual_attention_tasks_keep_run_terminal_without_spinning() {
+    SyncRun run = run(18L, null);
+    when(configService.getConfigById(1L)).thenReturn(config());
+    when(factBuildTaskService.assignPendingSourceTargetBatches(config(), 18L, 200)).thenReturn(0);
+    when(factBuildTaskService.claimNextQueuedTaskForFactRun(18L, runLease(18L), "fact-run-18", 30))
+        .thenReturn(null);
+    when(projectionTaskService.claimNext(18L, "projection-run-18", 30)).thenReturn(null);
+    when(factBuildTaskService.summarizeFactRun(18L))
+        .thenReturn(
+            new FactBuildTaskService.RunTaskSummary(3, 0, 0, 0, 0, 0, 0, 3, 0, null, 0L));
+    when(projectionTaskService.summarize(18L))
+        .thenReturn(new FactProjectionTaskService.RunTaskSummary(0, 0, 0, 0, 0, 0, 0, 0, null));
+    // 人工停放的根仍处于未发布状态；运行不得因此每 5 秒永久重派。
+    when(factBuildTaskService.hasUnpublishedTargets(1L, "alpha")).thenReturn(true);
+
+    SyncFactRefreshRunExecutor.Result result = executor.execute(run);
+
+    assertThat(result.status()).isEqualTo(SyncRunStatus.PARTIAL_SUCCESS);
+    assertThat(result.runAfter()).isNull();
+    assertThat(result.errorMessage()).contains("人工待处理");
+    assertThat(result.plannedTasks()).isEqualTo(3);
+    assertThat(result.completedTasks()).isZero();
+  }
+
+  @Test
+  void test_dependency_waiting_task_defers_run_to_reported_run_after() {
+    SyncRun run = run(20L, null);
+    LocalDateTime waitUntil = LocalDateTime.of(2026, 7, 31, 18, 0);
+    when(configService.getConfigById(1L)).thenReturn(config());
+    when(factBuildTaskService.assignPendingSourceTargetBatches(config(), 20L, 200)).thenReturn(0);
+    when(factBuildTaskService.claimNextQueuedTaskForFactRun(20L, runLease(20L), "fact-run-20", 30))
+        .thenReturn(null);
+    when(projectionTaskService.claimNext(20L, "projection-run-20", 30)).thenReturn(null);
+    when(factBuildTaskService.summarizeFactRun(20L))
+        .thenReturn(
+            new FactBuildTaskService.RunTaskSummary(
+                1, 0, 0, 0, 0, 0, 1, 0, 0, waitUntil, 0L));
+    when(projectionTaskService.summarize(20L))
+        .thenReturn(new FactProjectionTaskService.RunTaskSummary(0, 0, 0, 0, 0, 0, 0, 0, null));
+
+    SyncFactRefreshRunExecutor.Result result = executor.execute(run);
+
+    assertThat(result.status()).isEqualTo(SyncRunStatus.PAUSED);
+    assertThat(result.runAfter()).isEqualTo(waitUntil);
+    assertThat(result.errorMessage()).contains("依赖");
+  }
+
+  @Test
+  void test_resume_run_executes_only_the_handed_over_intent() {
+    SyncRun run = run(21L, null);
+    run.setPayloadJson(
+        "{\"resumedTask\":{\"kind\":\"FACT_BUILD\",\"taskId\":77,\"originalRunId\":\"14\",\"mode\":\"FULL\"}}");
+    QueuedFactBuildTask task = fullTask(311L, 21L);
+    when(configService.getConfigById(1L)).thenReturn(config());
+    when(factBuildTaskService.claimNextQueuedTaskForFactRun(21L, runLease(21L), "fact-run-21", 30))
+        .thenReturn(task)
+        .thenReturn(null);
+    when(factRefreshTaskWorkerService.execute(task))
+        .thenReturn(new FactBuildResponse("alpha:issue", true, 4, "resumed issue facts"));
+    when(projectionTaskService.claimNext(21L, "projection-run-21", 30)).thenReturn(null);
+    when(factBuildTaskService.summarizeFactRun(21L)).thenReturn(factSummary(1, 1, 0, 0, 0, 0, null, 4));
+    when(projectionTaskService.summarize(21L))
+        .thenReturn(projectionSummary(0, 0, 0, 0, 0, 0, null));
+
+    SyncFactRefreshRunExecutor.Result result = executor.execute(run);
+
+    assertThat(result.status()).isEqualTo(SyncRunStatus.SUCCESS);
+    verify(factBuildTaskService, never()).enqueueFullFactRefreshTasks(any(), anyLong());
+    verify(factBuildTaskService, never())
+        .assignPendingSourceTargetBatches(any(), anyLong(), anyInt());
+    verify(sourceSchemaGuard).verifyAllFactSources("alpha");
+    verify(factRefreshTaskWorkerService).execute(task);
+  }
+
   private void stubEmptyDrainsAndSummaries(long runId) {
     when(factBuildTaskService.claimNextQueuedTaskForFactRun(
-            runId, "fact-run-" + runId, 30))
+            runId, runLease(runId), "fact-run-" + runId, 30))
         .thenReturn(null);
     when(projectionTaskService.claimNext(runId, "projection-run-" + runId, 30))
         .thenReturn(null);
@@ -191,7 +269,7 @@ class SyncFactRefreshRunExecutorTest {
       LocalDateTime nextRunAfter,
       long affectedRows) {
     return new FactBuildTaskService.RunTaskSummary(
-        total, success, failed, queued, running, retryWaiting, nextRunAfter, affectedRows);
+        total, success, failed, queued, running, retryWaiting, 0, 0, 0, nextRunAfter, affectedRows);
   }
 
   private FactProjectionTaskService.RunTaskSummary projectionSummary(
@@ -203,13 +281,14 @@ class SyncFactRefreshRunExecutorTest {
       int retryWaiting,
       LocalDateTime nextRunAfter) {
     return new FactProjectionTaskService.RunTaskSummary(
-        total, success, failed, queued, running, retryWaiting, nextRunAfter);
+        total, success, failed, queued, running, retryWaiting, 0, 0, nextRunAfter);
   }
 
   private QueuedFactBuildTask fullTask(long taskId, long runId) {
     return new QueuedFactBuildTask(
         taskId,
         runId,
+        runLease(runId),
         1L,
         "alpha",
         "ISSUE",
@@ -219,6 +298,11 @@ class SyncFactRefreshRunExecutorTest {
         3,
         "fact-run-" + runId,
         LocalDateTime.now().plusSeconds(30));
+  }
+
+  /** 父事实运行的执行令牌；批次提交边界据此校验父子两层执行权。 */
+  private String runLease(long runId) {
+    return "run-lease-" + runId;
   }
 
   private GitlabSyncConfig config() {
@@ -235,6 +319,7 @@ class SyncFactRefreshRunExecutorTest {
     run.setSourceInstance("alpha");
     run.setRunType(SyncRunType.FACT_REFRESH);
     run.setParentRunId(parentRunId);
+    run.setLeaseOwner(runLease(id));
     run.setPayloadJson("{}");
     return run;
   }

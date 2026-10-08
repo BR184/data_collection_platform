@@ -26,6 +26,7 @@ public class FactTargetPublicationService {
       publicationFenceService;
   private final SyncFactPublicationStateService publicationStateService;
   private final FactPublicationTransaction publicationTransaction;
+  private final FactTaskExecutionGuard executionGuard;
   private final FactBuildTaskService taskService;
   private final SyncRunEventRecorder eventRecorder;
   private final GitlabMirrorProperties mirrorProperties;
@@ -38,6 +39,7 @@ public class FactTargetPublicationService {
           publicationFenceService,
       SyncFactPublicationStateService publicationStateService,
       FactPublicationTransaction publicationTransaction,
+      FactTaskExecutionGuard executionGuard,
       FactBuildTaskService taskService,
       SyncRunEventRecorder eventRecorder,
       GitlabMirrorProperties mirrorProperties) {
@@ -47,6 +49,7 @@ public class FactTargetPublicationService {
     this.publicationFenceService = publicationFenceService;
     this.publicationStateService = publicationStateService;
     this.publicationTransaction = publicationTransaction;
+    this.executionGuard = executionGuard;
     this.taskService = taskService;
     this.eventRecorder = eventRecorder;
     this.mirrorProperties = mirrorProperties;
@@ -70,6 +73,7 @@ public class FactTargetPublicationService {
     if (task == null || task.id() == null || task.leaseOwner() == null) {
       throw new IllegalArgumentException("事实发布需要已领取且带 owner 的任务");
     }
+    executionGuard.requireCurrentTaskAuthorization();
     List<LockedHead> lockedHeads = lockTaskHeads(task);
     List<Long> rootIds =
         lockedHeads.stream()
@@ -110,6 +114,7 @@ public class FactTargetPublicationService {
     if (task == null || task.id() == null || task.leaseOwner() == null || !task.full()) {
       throw new IllegalArgumentException("全量事实发布需要已领取的全量任务");
     }
+    executionGuard.requireCurrentTaskAuthorization();
     FactType factType = FactType.valueOf(task.factType());
     long coveredVersion =
         publicationStateService.publicationUpperBound(task.sourceInstance(), factType);
@@ -139,6 +144,7 @@ public class FactTargetPublicationService {
   private FactBuildProgress progressReporter(QueuedFactBuildTask task) {
     int leaseSeconds = Math.max(1, mirrorProperties.getHeartbeatTimeoutSeconds());
     return (completedChunks, totalChunks, processedRows) -> {
+      executionGuard.requireCurrentTaskAuthorization();
       if (!taskService.renewTaskLease(task, leaseSeconds)) {
         throw new IllegalStateException("事实任务租约已失效：" + task.id());
       }

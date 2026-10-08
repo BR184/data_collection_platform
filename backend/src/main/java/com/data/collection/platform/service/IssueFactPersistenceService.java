@@ -12,18 +12,23 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class IssueFactPersistenceService {
   private static final int BATCH_SIZE = 200;
+  /** 单个清理批次处理的父/关系身份数量；分批只降低单条 DELETE 的候选量。 */
+  private static final int CLEANUP_BATCH_SIZE = 2000;
 
   private final IssueFactMapper issueFactMapper;
   private final IssueFactCustomerMembershipRepository customerMembershipRepository;
   private final JdbcTemplate jdbcTemplate;
+  private final FactTaskExecutionGuard executionGuard;
 
   public IssueFactPersistenceService(
       IssueFactMapper issueFactMapper,
       IssueFactCustomerMembershipRepository customerMembershipRepository,
-      JdbcTemplate jdbcTemplate) {
+      JdbcTemplate jdbcTemplate,
+      FactTaskExecutionGuard executionGuard) {
     this.issueFactMapper = issueFactMapper;
     this.customerMembershipRepository = customerMembershipRepository;
     this.jdbcTemplate = jdbcTemplate;
+    this.executionGuard = executionGuard;
   }
 
   /**
@@ -88,9 +93,15 @@ public class IssueFactPersistenceService {
    * 删除完整来源快照之外的同源事实与客户成员。
    *
    * <p>与分批 upsert 配合替代旧的「删全部再重插」全量替换：快照内的行经 upsert 保留行身份，
-   * 快照外的行（上游已删除的议题）在此清除，最终状态与全量替换一致。快照身份先写入会话级临时表
-   * 再以单条 NOT EXISTS 反连接删除，保证任意快照规模（含内网数万行）下只清除全集之外的行，
-   * 且空值身份按 IS NOT DISTINCT FROM 精确匹配。
+   * 快照外的行（上游已删除的议题）在此清除，最终状态与全量替换一致。
+   *
+   * <p>清理在单个事务内分批执行：先把快照身份与待删除身份各自物化到会话级临时表，再按固定批次
+   * 先删客户成员、后删父事实。空快照同样走这条有界路径，不保留直接删除全来源的大语句。分批只降低
+   * 单条 DELETE 的候选量，不缩小整个清理事务的持锁与回滚范围，也不减少索引维护总量。每一批开始前
+   * 校验当前事实任务仍持有执行权，取消后不再开始新的清理批次。
+   *
+   * <p>身份列在协议上非空，因此匹配一律使用普通等值；出现空身份行说明数据损坏，直接失败而不是
+   * 静默跳过或保留一条并发删除路径。
    *
    * @param sourceSystem 事实来源系统
    * @param sourceInstance 事实来源实例
@@ -99,57 +110,100 @@ public class IssueFactPersistenceService {
   @Transactional
   public void deleteFactsNotInSnapshot(
       String sourceSystem, String sourceInstance, List<IssueFact> snapshotFacts) {
-    if (snapshotFacts == null || snapshotFacts.isEmpty()) {
-      jdbcTemplate.update(
-          "delete from issue_fact_customer_members where source_system = ? and source_instance = ?",
-          sourceSystem,
-          sourceInstance);
-      jdbcTemplate.update(
-          "delete from issue_fact where source_system = ? and source_instance = ?",
-          sourceSystem,
-          sourceInstance);
-      return;
-    }
+    List<IssueFact> safeSnapshot = snapshotFacts == null ? List.of() : snapshotFacts;
+    requireNoNullIdentities(sourceSystem, sourceInstance);
     jdbcTemplate.execute(
         "create temp table issue_fact_snapshot_ids (project_id bigint, issue_id bigint) on commit drop");
-    List<Object[]> identities = new ArrayList<>(snapshotFacts.size());
-    for (IssueFact fact : snapshotFacts) {
-      identities.add(new Object[] {fact.getProjectId(), fact.getIssueId()});
+    if (!safeSnapshot.isEmpty()) {
+      List<Object[]> identities = new ArrayList<>(safeSnapshot.size());
+      for (IssueFact fact : safeSnapshot) {
+        if (fact.getProjectId() == null || fact.getIssueId() == null) {
+          throw new IllegalArgumentException("议题事实快照身份不得为空：projectId/issueId");
+        }
+        identities.add(new Object[] {fact.getProjectId(), fact.getIssueId()});
+      }
+      jdbcTemplate.batchUpdate(
+          "insert into issue_fact_snapshot_ids(project_id, issue_id) values (?, ?)", identities);
     }
-    jdbcTemplate.batchUpdate(
-        "insert into issue_fact_snapshot_ids(project_id, issue_id) values (?, ?)", identities);
-    String outsideSnapshot =
-        """
-        and not exists (
-          select 1
-            from issue_fact_snapshot_ids snapshot
-           where snapshot.project_id is not distinct from fact.project_id
-             and snapshot.issue_id is not distinct from fact.issue_id
-        )
-        """;
     jdbcTemplate.update(
         """
-        delete from issue_fact_customer_members member
-         using issue_fact fact
-         where member.source_system = fact.source_system
-           and member.source_instance = fact.source_instance
-           and member.project_id = fact.project_id
-           and member.issue_id = fact.issue_id
-           and fact.source_system = ?
-           and fact.source_instance = ?
-        """
-            + outsideSnapshot,
+        create temp table issue_fact_delete_ids on commit drop as
+        select row_number() over () as batch_order, candidate.project_id, candidate.issue_id
+          from (
+            select distinct fact.project_id, fact.issue_id
+              from issue_fact fact
+              left join issue_fact_snapshot_ids snapshot
+                on snapshot.project_id = fact.project_id
+               and snapshot.issue_id = fact.issue_id
+             where fact.source_system = ?
+               and fact.source_instance = ?
+               and snapshot.project_id is null
+          ) candidate
+        """,
         sourceSystem,
         sourceInstance);
-    jdbcTemplate.update(
-        """
-        delete from issue_fact fact
-         where fact.source_system = ?
-           and fact.source_instance = ?
-        """
-            + outsideSnapshot,
-        sourceSystem,
-        sourceInstance);
+    Long candidateCount =
+        jdbcTemplate.queryForObject("select count(*) from issue_fact_delete_ids", Long.class);
+    long candidates = candidateCount == null ? 0L : candidateCount;
+    jdbcTemplate.execute(
+        "create temp table issue_fact_cleanup_batch (project_id bigint, issue_id bigint) on commit drop");
+    for (long offset = 0L; offset < candidates; offset += CLEANUP_BATCH_SIZE) {
+      executionGuard.requireCurrentTaskAuthorization();
+      jdbcTemplate.execute("truncate table issue_fact_cleanup_batch");
+      jdbcTemplate.update(
+          """
+          insert into issue_fact_cleanup_batch(project_id, issue_id)
+          select project_id, issue_id
+            from issue_fact_delete_ids
+           where batch_order > ? and batch_order <= ?
+          """,
+          offset,
+          offset + CLEANUP_BATCH_SIZE);
+      jdbcTemplate.update(
+          """
+          delete from issue_fact_customer_members member
+           using issue_fact_cleanup_batch batch
+           where member.source_system = ?
+             and member.source_instance = ?
+             and member.project_id = batch.project_id
+             and member.issue_id = batch.issue_id
+          """,
+          sourceSystem,
+          sourceInstance);
+      jdbcTemplate.update(
+          """
+          delete from issue_fact fact
+           using issue_fact_cleanup_batch batch
+           where fact.source_system = ?
+             and fact.source_instance = ?
+             and fact.project_id = batch.project_id
+             and fact.issue_id = batch.issue_id
+          """,
+          sourceSystem,
+          sourceInstance);
+    }
+  }
+
+  private void requireNoNullIdentities(String sourceSystem, String sourceInstance) {
+    Long nullIdentities =
+        jdbcTemplate.queryForObject(
+            """
+            select (select count(*) from issue_fact
+                     where source_system = ? and source_instance = ?
+                       and (project_id is null or issue_id is null))
+                 + (select count(*) from issue_fact_customer_members
+                     where source_system = ? and source_instance = ?
+                       and (project_id is null or issue_id is null))
+            """,
+            Long.class,
+            sourceSystem,
+            sourceInstance,
+            sourceSystem,
+            sourceInstance);
+    if (nullIdentities != null && nullIdentities > 0L) {
+      throw new IllegalStateException(
+          "议题事实存在空身份行，无法按非空身份列清理：count=" + nullIdentities);
+    }
   }
 
   private List<Long> sanitizeRootIds(List<Long> rootIds) {

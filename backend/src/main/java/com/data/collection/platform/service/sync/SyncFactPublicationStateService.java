@@ -24,6 +24,46 @@ public class SyncFactPublicationStateService {
   }
 
   /**
+   * 在首个事实写入批次之前登记各事实族"全量重建未结算"意图。
+   *
+   * <p>完整性不能只靠"有未发布根"判断：半次全量的根可能恰好都已发布到最新变化版本，此时
+   * {@code countUnpublishedTargets} 为 0，来源看起来已经收敛。{@code full_publication_requested} 记录的是
+   * "有一次全量重建尚未结算"，只在完整重建成功结算后清除；取消或失败都不清除，因此半次全量永远不会被当作
+   * 完整产出对外发布。
+   *
+   * <p>已有发布记录的事实族只置标记、保留原有 {@code readiness_status}；尚无发布记录的事实族按依赖未就绪
+   * 登记，因为该来源还没有任何可证明完整的产出，其当前事实本来就不许作为完整来源输出。
+   *
+   * @param config 当前数据源配置
+   * @return 登记的事实族数量
+   */
+  @Transactional
+  public int requestFullPublication(GitlabSyncConfig config) {
+    if (config == null || config.getId() == null) {
+      return 0;
+    }
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    int registered = 0;
+    for (FactType factType : GitlabFactDependencyCatalog.supportedFactTypes(config)) {
+      registered +=
+          jdbcTemplate.update(
+              """
+              insert into source_fact_publication_states(
+                  config_id, source_instance, fact_type, readiness_status,
+                  full_publication_requested, error_message, updated_at)
+              values (?, ?, ?, 'BLOCKED', true, '全量事实重建已请求但尚未结算', current_timestamp)
+              on conflict (config_id, source_instance, fact_type) do update
+                set full_publication_requested = true,
+                    updated_at = current_timestamp
+              """,
+              config.getId(),
+              sourceInstance,
+              factType.name());
+    }
+    return registered;
+  }
+
+  /**
    * 在镜像运行终态后提交该运行对事实依赖的就绪结果。
    *
    * @param config 当前数据源配置
@@ -101,8 +141,9 @@ public class SyncFactPublicationStateService {
    * 读取来源的对外可读资格。
    *
    * <p>与 {@link #isReady} 的“有没有待提交工作”含义不同：这里回答“当前能否把已提交事实当作完整来源对外输出”。
-   * 依赖未就绪（镜像失败或依赖表未形成代际）、全量重建已请求但尚未结算、以及仍有未发布到最新变化版本的目标，
-   * 都属于不完整发布窗口，此时不得对外产出新的 READY 结果。
+   * 依赖未就绪（镜像失败或依赖表未形成代际）属于完整性无从证实，两种能力都不可用。存在未发布根、全量重建
+   * 已请求但尚未结算、标签事件历史未完成全量核验，都属于"已知未完整窗口"：当前事实不可作为完整来源输出，
+   * 但更早保存的完整产出仍允许返回。
    *
    * <p>来源尚无任何发布记录时，只有“该来源从未产生事实投影”才算可证明的完整（它不贡献任何数据）；
    * 已经有事实投影却没有发布记录，属于完整性无从证实的未知状态，一律拒绝，不得把未知当作可读，
@@ -110,7 +151,7 @@ public class SyncFactPublicationStateService {
    *
    * @param sourceInstance 来源实例
    * @param factType 事实族
-   * @return 资格结果；不可读时 {@code reason} 为可直接展示的原因
+   * @return 资格结果；当前事实不可读时 {@code reason} 为可直接展示的原因
    */
   public SourceQualification qualification(String sourceInstance, FactType factType) {
     SourceQualificationRow row =
@@ -144,19 +185,27 @@ public class SyncFactPublicationStateService {
       String detail = row.errorMessage() == null ? "事实来源依赖未就绪" : row.errorMessage();
       return SourceQualification.refused("来源 " + sourceInstance + " 当前不可读：" + detail);
     }
-    if (row.fullPublicationPending()) {
-      return SourceQualification.refused(
-          "来源 " + sourceInstance + " 的全量事实重建尚未结算，暂不产出统计结果");
-    }
     long unpublished = countUnpublishedTargets(sourceInstance, factType);
+    java.util.List<String> unsettledReasons = new java.util.ArrayList<>();
+    if (row.fullPublicationPending()) {
+      unsettledReasons.add("全量事实重建尚未结算");
+    }
     if (unpublished > 0L) {
-      return SourceQualification.degraded(unpublished);
+      unsettledReasons.add("尚未收敛到最新变化版本（仍有 " + unpublished + " 项待更新）");
     }
     if (!labelEventHistoryVerified(sourceInstance, factType)) {
-      return SourceQualification.refused(
+      unsettledReasons.add(
+          GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance)
+              + " 的 resource_label_events 尚未完成完整全量核验");
+    }
+    if (!unsettledReasons.isEmpty()) {
+      return SourceQualification.settling(
+          unpublished,
           "来源 "
               + GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance)
-              + " 的 resource_label_events 尚未完成完整全量核验，暂不产出统计结果");
+              + " "
+              + String.join("；", unsettledReasons)
+              + "，当前事实不可作为完整来源对外输出");
     }
     return SourceQualification.healthy();
   }
@@ -405,32 +454,40 @@ public class SyncFactPublicationStateService {
   /**
    * 来源对外可读资格。
    *
-   * <p>三种取值：可读（可产出当前结果）、降级可读（完整性可证，但尚未收敛到最新变化版本——允许输出
-   * 上一个完整发布点并显式披露待更新数量）、不可读（完整性无从证实，必须拒绝）。区分"未知完整性"
-   * 与"已知暂未收敛"，使持续积压不再表现为长时间全空，同时不放宽真正的完整性拒绝。
+   * <p>拆成两种能力，调用者按自身是否需要读当前事实来要求：{@code currentFactReadable} 表示可以从当前事实
+   * 读取完整产出；{@code savedSnapshotReadable} 表示完整性证据允许返回已经保存的完整产出。已知的未完整窗口
+   * （有未发布根、全量重建未结算、标签事件历史未完成核验）属于"前者为假、后者为真"：当前事实不可信，但更早
+   * 保存的完整产出仍然可用。完整性无从证实（依赖未就绪、有事实投影却没有发布记录）则两者皆假，必须拒绝，
+   * 不能把未知当作可读。
    */
   public record SourceQualification(
-      boolean readable, boolean degraded, long pendingUpdates, String reason) {
+      boolean currentFactReadable,
+      boolean savedSnapshotReadable,
+      long pendingUpdates,
+      String reason) {
     public SourceQualification {
-      if (!readable && !degraded && (reason == null || reason.isBlank())) {
-        throw new IllegalArgumentException("不可读来源必须给出原因");
+      if (currentFactReadable && !savedSnapshotReadable) {
+        throw new IllegalArgumentException("可读当前事实的来源必须同时可读已保存产出");
       }
-      if (degraded && pendingUpdates <= 0L) {
-        throw new IllegalArgumentException("降级可读必须给出待更新数量");
+      if (!currentFactReadable && (reason == null || reason.isBlank())) {
+        throw new IllegalArgumentException("当前事实不可读的来源必须给出原因");
+      }
+      if (pendingUpdates < 0L) {
+        throw new IllegalArgumentException("待更新数量不得为负");
       }
     }
 
-    /** 可产出当前结果。 */
+    /** 可从当前事实读取完整产出。 */
     public static SourceQualification healthy() {
-      return new SourceQualification(true, false, 0L, null);
+      return new SourceQualification(true, true, 0L, null);
     }
 
-    /** 完整性可证但尚未收敛：可输出上一完整发布点，并披露待更新数量。 */
-    public static SourceQualification degraded(long pendingUpdates) {
-      return new SourceQualification(true, true, pendingUpdates, null);
+    /** 已知未完整窗口：当前事实不可完整读取，但已保存的完整产出仍可返回。 */
+    public static SourceQualification settling(long pendingUpdates, String reason) {
+      return new SourceQualification(false, true, pendingUpdates, reason);
     }
 
-    /** 完整性无从证实：拒绝输出。 */
+    /** 完整性无从证实：当前事实与已保存产出都不可用。 */
     public static SourceQualification refused(String reason) {
       return new SourceQualification(false, false, 0L, reason);
     }

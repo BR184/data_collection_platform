@@ -6,6 +6,8 @@ import static org.mockito.Mockito.mock;
 import com.data.collection.platform.entity.MergeRequestCommitFact;
 import com.data.collection.platform.entity.MergeRequestFact;
 import com.data.collection.platform.mapper.MergeRequestFactMapper;
+import com.data.collection.platform.service.FactTaskExecutionContext;
+import com.data.collection.platform.service.FactTaskExecutionGuard;
 import com.data.collection.platform.service.MergeRequestFactPersistenceService;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -23,7 +25,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * MR 与提交关系快照外清理的真实数据库回归：快照规模跨过任意内部分片边界时，快照内行必须全部保留。
  */
 class MergeRequestFactSnapshotCleanupIntegrationTest {
-  private static final int SNAPSHOT_SIZE = 1200;
+  /** 跨过单个清理批次（2000 个父/关系键），验证多批次循环不会互相清除。 */
+  private static final int SNAPSHOT_SIZE = 2500;
   private static PostgresIntegrationTestDatabase database;
 
   private JdbcTemplate jdbcTemplate;
@@ -72,7 +75,9 @@ class MergeRequestFactSnapshotCleanupIntegrationTest {
         new TransactionTemplate(new DataSourceTransactionManager(dataSource));
     service =
         new MergeRequestFactPersistenceService(
-            mock(MergeRequestFactMapper.class), jdbcTemplate);
+            mock(MergeRequestFactMapper.class),
+            jdbcTemplate,
+            new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext()));
   }
 
   @Test

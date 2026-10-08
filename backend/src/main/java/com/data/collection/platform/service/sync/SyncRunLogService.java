@@ -23,18 +23,21 @@ public class SyncRunLogService {
   private final SyncRunPolicyService policyService;
   private final JsonUtils jsonUtils;
   private final SyncIncrementalCoverageService incrementalCoverageService;
+  private final SyncRunFailureDiagnosticsService failureDiagnosticsService;
 
   public SyncRunLogService(
       SyncRunMapper syncRunMapper,
       JdbcTemplate jdbcTemplate,
       SyncRunPolicyService policyService,
       JsonUtils jsonUtils,
-      SyncIncrementalCoverageService incrementalCoverageService) {
+      SyncIncrementalCoverageService incrementalCoverageService,
+      SyncRunFailureDiagnosticsService failureDiagnosticsService) {
     this.syncRunMapper = syncRunMapper;
     this.jdbcTemplate = jdbcTemplate;
     this.policyService = policyService;
     this.jsonUtils = jsonUtils;
     this.incrementalCoverageService = incrementalCoverageService;
+    this.failureDiagnosticsService = failureDiagnosticsService;
   }
 
   private record TaskLogSummary(int totalTasks, int completedTasks) {}
@@ -52,10 +55,31 @@ public class SyncRunLogService {
     if (runs == null || runs.isEmpty()) {
       return List.of();
     }
-    return runs.stream().map(this::toLogRow).toList();
+    Map<Long, SyncRunFailureDiagnosticsService.RunDiagnostics> diagnostics =
+        diagnosticsOf(runs);
+    return runs.stream()
+        .map(
+            run ->
+                toLogRow(
+                    run,
+                    diagnostics.getOrDefault(
+                        run.getId(),
+                        SyncRunFailureDiagnosticsService.RunDiagnostics.empty())))
+        .toList();
   }
 
-  private Map<String, Object> toLogRow(SyncRun run) {
+  /** 一次批量取回列表中全部运行的四类摘要，避免逐运行查询。 */
+  private Map<Long, SyncRunFailureDiagnosticsService.RunDiagnostics> diagnosticsOf(
+      List<SyncRun> runs) {
+    if (failureDiagnosticsService == null) {
+      return Map.of();
+    }
+    return failureDiagnosticsService.summarizeRuns(
+        runs.stream().map(SyncRun::getId).filter(java.util.Objects::nonNull).toList());
+  }
+
+  private Map<String, Object> toLogRow(
+      SyncRun run, SyncRunFailureDiagnosticsService.RunDiagnostics diagnostics) {
     TaskLogSummary taskSummary = taskLogSummary(run);
     int tableCount =
         taskSummary.totalTasks() > 0
@@ -94,6 +118,14 @@ public class SyncRunLogService {
     row.put("finishedAt", run.getFinishedAt());
     row.put("queuedAt", run.getCreatedAt());
     row.put("errorSummary", run.getErrorMessage());
+    row.put("failureCount", diagnostics.failureCount());
+    row.put("manualAttentionCount", diagnostics.manualAttentionCount());
+    row.put("diagnosticCount", diagnostics.diagnosticCount());
+    row.put("diagnostics", diagnostics.diagnostics());
+    row.put("eventCount", diagnostics.eventCount());
+    row.put("eventTrail", diagnostics.eventTrail());
+    row.put("latestProgressMessage", diagnostics.latestProgressMessage());
+    row.put("latestProgressAt", diagnostics.latestProgressAt());
     return row;
   }
 

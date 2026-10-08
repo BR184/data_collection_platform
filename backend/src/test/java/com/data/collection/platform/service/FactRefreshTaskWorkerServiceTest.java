@@ -2,7 +2,6 @@ package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -57,7 +56,17 @@ class FactRefreshTaskWorkerServiceTest {
             properties,
             targetPublicationService,
             publicationStateService,
-            eventRecorder);
+            eventRecorder,
+            new FactTaskExecutionContext());
+  }
+
+  @Test
+  void test_run_once_recovers_and_parks_without_executing_fact_work() {
+    workerService.runOnce();
+
+    verify(taskService).recoverTimedOutQueuedTasks();
+    verify(taskService).parkOrphanedTasksForManualDecision();
+    verifyNoInteractions(factBuildService, integrationTestFactBuildService, targetPublicationService);
   }
 
   @Test
@@ -66,15 +75,14 @@ class FactRefreshTaskWorkerServiceTest {
     QueuedFactBuildTask task = targetedTask(10L, "ISSUE");
     FactBuildResponse expected =
         new FactBuildResponse("corp-main:issue", false, 2, "issues built");
-    when(taskService.claimNextQueuedTask(anyString(), eq(9))).thenReturn(task);
     when(configService.getConfigById(1L)).thenReturn(config);
     invokeTargetedPublication(task, List.of(101L, 102L));
     when(factBuildService.rebuildIssueFactsByRootIds("corp-main", List.of(101L, 102L)))
         .thenReturn(expected);
 
-    workerService.runOnce();
+    FactBuildResponse response = workerService.execute(task);
 
-    verify(taskService).recoverTimedOutQueuedTasks();
+    assertThat(response).isSameAs(expected);
     verify(factBuildService)
         .rebuildIssueFactsByRootIds("corp-main", List.of(101L, 102L));
     verify(targetPublicationService).publish(eq(task), any());
@@ -112,13 +120,28 @@ class FactRefreshTaskWorkerServiceTest {
   }
 
   @Test
-  void test_disabled_scheduler_does_not_recover_or_claim_tasks() {
+  void test_dependency_not_ready_defers_owned_task_instead_of_failing_it() {
+    GitlabSyncConfig config = config();
+    QueuedFactBuildTask task = targetedTask(13L, "ISSUE");
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(publicationStateService.isReady("corp-main", FactType.ISSUE)).thenReturn(false);
+
+    FactBuildResponse response = workerService.execute(task);
+
+    assertThat(response).isNull();
+    verify(taskService).deferOwnedTask(task, 5);
+    verify(taskService, never()).failOwnedTask(any(QueuedFactBuildTask.class), anyString());
+    verifyNoInteractions(factBuildService, integrationTestFactBuildService, targetPublicationService);
+  }
+
+  @Test
+  void test_disabled_scheduler_does_not_recover_or_park_tasks() {
     properties.setSchedulerEnabled(false);
 
     workerService.runOnce();
 
     verify(taskService, never()).recoverTimedOutQueuedTasks();
-    verify(taskService, never()).claimNextQueuedTask(anyString(), anyInt());
+    verify(taskService, never()).parkOrphanedTasksForManualDecision();
   }
 
   @SuppressWarnings("unchecked")
@@ -152,6 +175,7 @@ class FactRefreshTaskWorkerServiceTest {
     return new QueuedFactBuildTask(
         id,
         20L,
+        "run-lease-token",
         1L,
         "corp-main",
         factType,

@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.sync;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.MirrorStatusResponse;
@@ -26,21 +27,38 @@ public class SyncRunStatusService {
   private final SyncRunPolicyService policyService;
   private final SyncRunLogService logService;
   private final GitlabMirrorProperties properties;
+  private final SyncRunFailureDiagnosticsService failureDiagnosticsService;
 
   public SyncRunStatusService(
       SyncRunMapper syncRunMapper,
       JdbcTemplate jdbcTemplate,
       SyncRunPolicyService policyService,
       SyncRunLogService logService,
-      GitlabMirrorProperties properties) {
+      GitlabMirrorProperties properties,
+      SyncRunFailureDiagnosticsService failureDiagnosticsService) {
     this.syncRunMapper = syncRunMapper;
     this.jdbcTemplate = jdbcTemplate;
     this.policyService = policyService;
     this.logService = logService;
     this.properties = properties;
+    this.failureDiagnosticsService = failureDiagnosticsService;
   }
 
+  /** 无详情查询的默认入口。 */
   public MirrorStatusResponse getStatus(GitlabSyncConfig config) {
+    return getStatus(config, null, null);
+  }
+
+  /**
+   * 状态查询；可选地附加指定运行的分页明细与人工待处理列表。
+   *
+   * @param details 指定运行的分页明细查询；为空时响应不含该区块
+   * @param pending 人工待处理列表查询；为空时响应不含该区块
+   */
+  public MirrorStatusResponse getStatus(
+      GitlabSyncConfig config, DetailsQuery details, PendingQuery pending) {
+    Map<String, Object> detailsBlock = details == null ? null : buildDetails(config, details);
+    Map<String, Object> pendingBlock = pending == null ? null : buildPending(config, pending);
     SyncRun currentRun = findCurrentRun(config);
     if (currentRun == null) {
       return new MirrorStatusResponse(
@@ -54,7 +72,9 @@ public class SyncRunStatusService {
           null,
           null,
           null,
-          null);
+          null,
+          detailsBlock,
+          pendingBlock);
     }
     SyncProgress progress = buildProgress(currentRun);
     return new MirrorStatusResponse(
@@ -68,7 +88,88 @@ public class SyncRunStatusService {
         null,
         null,
         null,
-        currentRun.getResolvedWorkerCount());
+        currentRun.getResolvedWorkerCount(),
+        detailsBlock,
+        pendingBlock);
+  }
+
+  /**
+   * 按运行编号分页读取可在界面展开的全部定位项或相关事件。
+   *
+   * <p>运行必须属于当前配置与来源；旧运行即使已不在最近日志列表内，只要记录仍在即可查询。
+   */
+  private Map<String, Object> buildDetails(GitlabSyncConfig config, DetailsQuery query) {
+    SyncRun run = syncRunMapper.selectById(query.runId());
+    if (run == null
+        || config == null
+        || !config.getId().equals(run.getConfigId())
+        || !GitlabSourceInstanceSupport.sourceInstanceOf(config).equals(run.getSourceInstance())) {
+      throw new BizException("该运行不属于当前数据源，无法查看明细");
+    }
+    boolean events = DetailsQuery.SECTION_EVENTS.equals(query.section());
+    List<Map<String, Object>> items =
+        events
+            ? failureDiagnosticsService.events(query.runId(), query.offset(), query.limit())
+            : failureDiagnosticsService.diagnostics(query.runId(), query.offset(), query.limit());
+    long total =
+        events
+            ? failureDiagnosticsService.eventCount(query.runId())
+            : failureDiagnosticsService.diagnosticCount(query.runId());
+    Map<String, Object> details = new LinkedHashMap<>();
+    details.put("runId", query.runId());
+    details.put("section", query.section());
+    details.put("offset", query.offset());
+    details.put("limit", query.limit());
+    details.put("total", total);
+    details.put("items", items);
+    details.put("hasMore", query.offset() + items.size() < total);
+    return details;
+  }
+
+  private Map<String, Object> buildPending(GitlabSyncConfig config, PendingQuery query) {
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    List<Map<String, Object>> items =
+        failureDiagnosticsService.pendingTasks(
+            config.getId(), sourceInstance, query.offset(), query.limit());
+    long total = failureDiagnosticsService.pendingTaskCount(config.getId(), sourceInstance);
+    Map<String, Object> pending = new LinkedHashMap<>();
+    pending.put("offset", query.offset());
+    pending.put("limit", query.limit());
+    pending.put("total", total);
+    pending.put("items", items);
+    pending.put("hasMore", query.offset() + items.size() < total);
+    return pending;
+  }
+
+  /** 运行详情查询参数；{@code runId} 是 sync_runs 数据库主键。 */
+  public record DetailsQuery(Long runId, String section, int offset, int limit) {
+    public static final String SECTION_DIAGNOSTICS = "DIAGNOSTICS";
+    public static final String SECTION_EVENTS = "EVENTS";
+
+    /** 解析查询参数；runId 为空表示不查询明细。 */
+    public static DetailsQuery of(Long runId, String section, Integer offset, Integer limit) {
+      if (runId == null) {
+        return null;
+      }
+      return new DetailsQuery(
+          runId,
+          SyncRunFailureDiagnosticsService.normalizeSection(section),
+          SyncRunFailureDiagnosticsService.normalizeOffset(offset),
+          SyncRunFailureDiagnosticsService.normalizeLimit(limit));
+    }
+  }
+
+  /** 人工待处理列表查询参数。 */
+  public record PendingQuery(int offset, int limit) {
+    /** 解析查询参数；两个参数都为空表示不查询列表。 */
+    public static PendingQuery of(Integer offset, Integer limit) {
+      if (offset == null && limit == null) {
+        return null;
+      }
+      return new PendingQuery(
+          SyncRunFailureDiagnosticsService.normalizeOffset(offset),
+          SyncRunFailureDiagnosticsService.normalizeLimit(limit));
+    }
   }
 
   private List<Map<String, Object>> recentLogs(GitlabSyncConfig config) {

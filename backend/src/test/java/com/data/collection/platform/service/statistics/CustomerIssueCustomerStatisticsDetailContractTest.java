@@ -99,7 +99,7 @@ class CustomerIssueCustomerStatisticsDetailContractTest {
         .query(anyString(), any(PreparedStatementSetter.class), any(ResultSetExtractor.class));
     StatisticBoardSnapshotService.SourceRead testRead =
         new StatisticBoardSnapshotService.SourceRead(
-            StatisticBoardTestSnapshotScopes.defaultProjectScopeSet(), SOURCE_VERSION, 0L);
+            StatisticBoardTestSnapshotScopes.defaultProjectScopeSet(), SOURCE_VERSION, 0L, true, null);
     doAnswer(
             invocation ->
                 ((Function<StatisticBoardSnapshotService.SourceRead, StatisticBoardResponse>)
@@ -114,7 +114,7 @@ class CustomerIssueCustomerStatisticsDetailContractTest {
                 ((Function<StatisticBoardSnapshotService.SourceRead, ?>) invocation.getArgument(1))
                     .apply(testRead))
         .when(snapshotService)
-        .withinConsistentSourceRead(any(), any());
+        .withinConsistentCurrentFactRead(any(), any());
     service =
         new CustomerIssueCustomerStatisticsBoardService(
             new JsonUtils(new ObjectMapper()),

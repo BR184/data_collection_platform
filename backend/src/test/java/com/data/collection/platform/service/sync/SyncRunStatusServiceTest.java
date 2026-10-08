@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.sync;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -36,7 +37,51 @@ class SyncRunStatusServiceTest {
     logService = org.mockito.Mockito.mock(SyncRunLogService.class);
     properties = new GitlabMirrorProperties();
     statusService = new SyncRunStatusService(
-        syncRunMapper, jdbcTemplate, new SyncRunPolicyService(), logService, properties);
+        syncRunMapper, jdbcTemplate, new SyncRunPolicyService(), logService, properties, null);
+  }
+
+  @Test
+  void shouldRejectDetailsQueryForRunOutsideCurrentConfig() {
+    GitlabSyncConfig config = config();
+    SyncRun foreignRun =
+        run(
+            9L,
+            "sr_foreign",
+            SyncRunType.FACT_REFRESH,
+            SyncRunStatus.SUCCESS,
+            LocalDateTime.of(2026, 6, 1, 8, 0));
+    foreignRun.setConfigId(2L);
+    when(syncRunMapper.selectById(9L)).thenReturn(foreignRun);
+
+    assertThatThrownBy(
+            () ->
+                statusService.getStatus(
+                    config,
+                    new SyncRunStatusService.DetailsQuery(9L, "DIAGNOSTICS", 0, 20),
+                    null))
+        .isInstanceOf(com.data.collection.platform.common.exception.BizException.class)
+        .hasMessageContaining("不属于当前数据源");
+  }
+
+  @Test
+  void shouldNormalizeDetailsAndPendingQueriesOnlyWhenRequested() {
+    assertThat(SyncRunStatusService.DetailsQuery.of(null, "EVENTS", 5, 10)).isNull();
+    assertThat(SyncRunStatusService.PendingQuery.of(null, null)).isNull();
+
+    assertThatThrownBy(() -> SyncRunStatusService.DetailsQuery.of(3L, "events", -1, 10))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> SyncRunStatusService.DetailsQuery.of(3L, "unknown", 0, 10))
+        .isInstanceOf(IllegalArgumentException.class);
+
+    SyncRunStatusService.DetailsQuery details =
+        SyncRunStatusService.DetailsQuery.of(3L, "events", 0, 500);
+    assertThat(details.section()).isEqualTo("EVENTS");
+    assertThat(details.offset()).isZero();
+    assertThat(details.limit()).isEqualTo(SyncRunFailureDiagnosticsService.MAX_PAGE_LIMIT);
+
+    SyncRunStatusService.PendingQuery pending = SyncRunStatusService.PendingQuery.of(0, null);
+    assertThat(pending.offset()).isZero();
+    assertThat(pending.limit()).isEqualTo(SyncRunFailureDiagnosticsService.DEFAULT_PAGE_LIMIT);
   }
 
   @Test

@@ -1346,6 +1346,10 @@ endpoints:
     category: EXCLUDED
     exclude-reason: "async-trigger: 运行取消端点；golden 环境无运行中任务可取消，非数据产出"
   - method: POST
+    path: /api/gitlab-sync/fact-tasks/resolve
+    category: EXCLUDED
+    exclude-reason: "manual-command: 人工处置待处理事实/投影任务；仅在存在人工待处理项时可用，非数据产出，行为由 FactTaskResolutionService 定向测试锁定"
+  - method: POST
     path: /api/gitlab-sync/cancel/by-config
     category: EXCLUDED
     exclude-reason: "async-trigger: 运行取消端点；golden 环境无运行中任务可取消，非数据产出"

@@ -106,7 +106,8 @@ class FactBuildServiceOrchestrationTest {
             jdbcTemplate,
             new IssueFactSourceRowMapper(),
             new MergeRequestFactSourceRowMapper()),
-        new FactPublicationTransaction(),
+        new FactPublicationTransaction(
+            new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
         new com.data.collection.platform.config.GitlabMirrorProperties(),
             new FactProjectionScopeResolver(jdbcTemplate),
             new FactProjectionGenerationService(jdbcTemplate));

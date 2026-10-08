@@ -135,5 +135,6 @@
   "V20260924_01__backup_execution_fencing.sql": "e78097e89bb8594bd76a7ab6db8dfe222433984b7821ad5448a9c92224bf94fe",
   "V20260928_01__bi_dashboard_page_permissions.sql": "10e710e8b24af76703da438d80d21d29c74e49633927e60aeae51164c98d2f5f",
   "V20260929_01__bi_dashboard_default_permissions.sql": "89e6a704906f0332a69aac9308ab2c32cb4c0110299204739debd5ff34b522a3",
-  "V20260930_01__fact_publication_authoritative_heads.sql": "0eca090aef2982619c41855bf0d2b96a9332f2c0e6a794078c5e8dcd1e3f8658"
+  "V20260930_01__fact_publication_authoritative_heads.sql": "0eca090aef2982619c41855bf0d2b96a9332f2c0e6a794078c5e8dcd1e3f8658",
+  "V20260930_02__fact_task_manual_disposition.sql": "36c3105a1ec70719509eb71b5d9aabe85e1b71caa3931adbae08f663ac012824"
 }

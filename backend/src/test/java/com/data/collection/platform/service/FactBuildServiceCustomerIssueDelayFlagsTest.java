@@ -104,7 +104,8 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
             new IssueFactSourceRowMapper(),
             new MergeRequestFactSourceRowMapper(),
             searchIndexRepairService,
-            new FactPublicationTransaction(),
+            new FactPublicationTransaction(
+                new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
             new GitlabMirrorProperties(),
             new FactProjectionScopeResolver(jdbcTemplate),
             new FactProjectionGenerationService(jdbcTemplate));

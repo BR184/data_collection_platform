@@ -4,6 +4,9 @@ import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.security.PlatformPermissionCodes;
 import com.data.collection.platform.security.RequirePermission;
+import com.data.collection.platform.entity.FactTaskKind;
+import com.data.collection.platform.entity.FactTaskResolutionAction;
+import com.data.collection.platform.entity.FactTaskResolutionResult;
 import com.data.collection.platform.entity.GitlabSourceHealthResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSyncDiagnosticsResponse;
@@ -12,6 +15,7 @@ import com.data.collection.platform.entity.MirrorPurgeResult;
 import com.data.collection.platform.entity.MirrorPurgeScope;
 import com.data.collection.platform.entity.MirrorStatusResponse;
 import com.data.collection.platform.entity.TableWhitelistOption;
+import com.data.collection.platform.service.FactTaskResolutionService;
 import com.data.collection.platform.service.GitlabMirrorPurgeService;
 import com.data.collection.platform.service.GitlabSourceHealthService;
 import com.data.collection.platform.service.GitlabSystemHookRegistrationService;
@@ -45,6 +49,7 @@ public class GitlabSyncController {
   private final GitlabSyncDiagnosticsFacade diagnosticsFacade;
   private final GitlabSyncCommandFacade commandFacade;
   private final GitlabSyncConfigFacade configFacade;
+  private final FactTaskResolutionService factTaskResolutionService;
 
   public GitlabSyncController(
       GitlabMirrorProperties properties,
@@ -57,7 +62,8 @@ public class GitlabSyncController {
       GitlabSyncControllerResponseMapper responseMapper,
       GitlabSyncDiagnosticsFacade diagnosticsFacade,
       GitlabSyncCommandFacade commandFacade,
-      GitlabSyncConfigFacade configFacade) {
+      GitlabSyncConfigFacade configFacade,
+      FactTaskResolutionService factTaskResolutionService) {
     this.properties = properties;
     this.systemHookService = systemHookService;
     this.systemHookRegistrationService = systemHookRegistrationService;
@@ -69,13 +75,32 @@ public class GitlabSyncController {
     this.diagnosticsFacade = diagnosticsFacade;
     this.commandFacade = commandFacade;
     this.configFacade = configFacade;
+    this.factTaskResolutionService = factTaskResolutionService;
   }
 
+  /**
+   * 当前同步状态与最近同步日志。
+   *
+   * <p>可选详情参数按选中运行分页读取全部定位项或相关事件；可选待处理参数分页读取人工待处理列表。
+   * 两者都不改变默认响应，只有显式传参时才返回对应区块。
+   */
   @GetMapping("/status")
   @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_VIEW)
-  public ApiResponse<MirrorStatusResponse> status(@RequestParam(value = "configId", required = false) Long configId) {
+  public ApiResponse<MirrorStatusResponse> status(
+      @RequestParam(value = "configId", required = false) Long configId,
+      @RequestParam(value = "detailsRunId", required = false) Long detailsRunId,
+      @RequestParam(value = "detailsSection", required = false) String detailsSection,
+      @RequestParam(value = "detailsOffset", required = false) Integer detailsOffset,
+      @RequestParam(value = "detailsLimit", required = false) Integer detailsLimit,
+      @RequestParam(value = "pendingOffset", required = false) Integer pendingOffset,
+      @RequestParam(value = "pendingLimit", required = false) Integer pendingLimit) {
     GitlabSyncConfig config = resolveConfig(configId);
-    MirrorStatusResponse status = statusService.getStatus(config);
+    MirrorStatusResponse status =
+        statusService.getStatus(
+            config,
+            SyncRunStatusService.DetailsQuery.of(
+                detailsRunId, detailsSection, detailsOffset, detailsLimit),
+            SyncRunStatusService.PendingQuery.of(pendingOffset, pendingLimit));
     return ApiResponse.success(responseMapper.statusResponse(config, status));
   }
 
@@ -231,6 +256,28 @@ public class GitlabSyncController {
     return ApiResponse.success("镜像数据已清理", result);
   }
 
+  /**
+   * 处置一个待人工决定的事实或投影任务。
+   *
+   * <p>命令必须携带界面所见任务的原运行编号；归属已变化时拒绝执行，避免旧点击触发第二次接管。
+   */
+  @PostMapping("/fact-tasks/resolve")
+  @RequirePermission(PlatformPermissionCodes.SYSTEM_MIRROR_SYNC)
+  public ApiResponse<FactTaskResolutionResult> resolveFactTask(
+      @RequestBody FactTaskResolveRequest request) {
+    FactTaskResolutionResult result =
+        factTaskResolutionService.resolvePendingTask(
+            request.configId(),
+            request.kind(),
+            request.taskId(),
+            request.expectedTaskRunId(),
+            request.action(),
+            request.resumeMode());
+    return ApiResponse.success(
+        request.action() == FactTaskResolutionAction.RESUME ? "已移交人工继续" : "已取消本次执行意图",
+        result);
+  }
+
   @PostMapping("/system-hook")
   public ApiResponse<Map<String, Object>> systemHook(
       @RequestHeader(value = "X-Gitlab-Event", required = false) String eventType,
@@ -241,6 +288,20 @@ public class GitlabSyncController {
   }
 
   public record PurgeRequest(@NotNull MirrorPurgeScope scope, Long configId) {}
+
+  /**
+   * 人工处置请求。
+   *
+   * @param expectedTaskRunId 界面所见任务的原运行编号；服务端据此校验原归属未被接管
+   * @param resumeMode 继续时的意图恢复模式，默认 {@code ORIGINAL}
+   */
+  public record FactTaskResolveRequest(
+      @NotNull Long configId,
+      @NotNull FactTaskKind kind,
+      @NotNull Long taskId,
+      @NotNull String expectedTaskRunId,
+      @NotNull FactTaskResolutionAction action,
+      String resumeMode) {}
 
   private GitlabSyncConfig resolveConfig(Long configId) {
     return configFacade.resolveConfig(configId);

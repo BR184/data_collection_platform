@@ -41,7 +41,8 @@ class SyncRunLogServiceTest {
             jdbcTemplate,
             new SyncRunPolicyService(),
             new JsonUtils(new ObjectMapper()),
-            incrementalCoverageService);
+            incrementalCoverageService,
+            null);
   }
 
   @Test

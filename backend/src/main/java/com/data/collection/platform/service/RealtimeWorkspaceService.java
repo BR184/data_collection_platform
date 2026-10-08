@@ -23,6 +23,8 @@ public class RealtimeWorkspaceService {
       java.util.Set.of("SUBMITTED", "QUEUED", "RUNNING", "RETRYING", "PAUSED", "CANCELLING");
   private static final java.util.Set<String> SUCCESS_SYNC_STATUSES =
       java.util.Set.of("SUCCESS");
+  private static final java.util.concurrent.atomic.AtomicLong TRACKING_SEQUENCE =
+      new java.util.concurrent.atomic.AtomicLong();
 
   private final RealtimeWorkspaceSyncMetadataService syncMetadataService;
   private final RealtimeWorkspaceRefreshProgressService refreshProgressService;
@@ -91,12 +93,24 @@ public class RealtimeWorkspaceService {
       Supplier<RealtimeWorkspaceRefreshResult> refreshAction) {
     WorkspaceRefreshState state = states.computeIfAbsent(workspaceKey, key -> new WorkspaceRefreshState());
     LocalDateTime now = LocalDateTime.now();
-    if (state.refreshing || isCoolingDown(state, now)) {
-      return toResponse(workspaceKey, state, syncMetadataService.resolve(workspaceKey, Map.of()));
+    if (state.refreshing) {
+      return toResponse(workspaceKey, state, syncMetadataService.resolve(workspaceKey, Map.of()))
+          .withRefreshSubmit(
+              RealtimeWorkspaceStatusResponse.SUBMISSION_ALREADY_REFRESHING,
+              state.trackingId,
+              "刷新仍在进行中，继续跟踪本次刷新");
+    }
+    if (isCoolingDown(state, now)) {
+      return toResponse(workspaceKey, state, syncMetadataService.resolve(workspaceKey, Map.of()))
+          .withRefreshSubmit(
+              RealtimeWorkspaceStatusResponse.SUBMISSION_COOLDOWN,
+              state.trackingId,
+              "刷新请求过于频繁，请稍后再试");
     }
     state.refreshing = true;
     state.status = "REFRESHING";
     state.message = "已开始刷新最新数据";
+    state.trackingId = workspaceKey + "#" + TRACKING_SEQUENCE.incrementAndGet();
     state.lastRefreshAcceptedAt = now;
     state.lastRefreshStartedAt = now;
     state.lastRefreshFinishedAt = null;
@@ -108,7 +122,11 @@ public class RealtimeWorkspaceService {
     state.mirrorStatus = "REFRESHING";
     state.factStatus = null;
     self.executeRefreshWithResultAsync(workspaceKey, refreshAction);
-    return toResponse(workspaceKey, state, syncMetadataService.resolve(workspaceKey, Map.of()));
+    return toResponse(workspaceKey, state, syncMetadataService.resolve(workspaceKey, Map.of()))
+        .withRefreshSubmit(
+            RealtimeWorkspaceStatusResponse.SUBMISSION_ACCEPTED,
+            state.trackingId,
+            "已开始刷新最新数据");
   }
 
   @Async(PlatformAsyncConfiguration.PLATFORM_ASYNC_EXECUTOR)
@@ -207,7 +225,9 @@ public class RealtimeWorkspaceService {
         state.unsupportedTables,
         state.factRefreshPlanned,
         state.mirrorStatus,
-        state.factStatus);
+        state.factStatus,
+        null,
+        null);
   }
 
   private RealtimeWorkspaceStatusResponse responseForProgress(
@@ -248,7 +268,9 @@ public class RealtimeWorkspaceService {
         unsupportedTables,
         factRefreshPlanned,
         progress.mirrorStatus(),
-        progress.factStatus());
+        progress.factStatus(),
+        null,
+        null);
   }
 
   private ProgressState progressState(RealtimeWorkspaceRefreshProgress progress) {
@@ -290,6 +312,7 @@ public class RealtimeWorkspaceService {
     private boolean refreshing;
     private String status = "IDLE";
     private String message = "尚未请求刷新";
+    private String trackingId;
     private LocalDateTime lastRefreshAcceptedAt;
     private LocalDateTime lastRefreshStartedAt;
     private LocalDateTime lastRefreshFinishedAt;

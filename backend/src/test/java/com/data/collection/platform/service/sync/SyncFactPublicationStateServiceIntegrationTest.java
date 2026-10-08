@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import com.data.collection.platform.entity.FactType;
+import com.data.collection.platform.entity.GitlabSyncConfig;
 import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -78,7 +79,8 @@ class SyncFactPublicationStateServiceIntegrationTest {
     assertThat(service.qualification("alpha", FactType.ISSUE))
         .satisfies(
             qualification -> {
-              assertThat(qualification.readable()).isFalse();
+              assertThat(qualification.currentFactReadable()).isFalse();
+              assertThat(qualification.savedSnapshotReadable()).isTrue();
               assertThat(qualification.reason()).contains("resource_label_events");
             });
 
@@ -87,7 +89,11 @@ class SyncFactPublicationStateServiceIntegrationTest {
             + "where source_instance = 'alpha' and source_table = 'resource_label_events'");
 
     assertThat(service.qualification("alpha", FactType.ISSUE))
-        .satisfies(qualification -> assertThat(qualification.readable()).isTrue());
+        .satisfies(
+            qualification -> {
+              assertThat(qualification.currentFactReadable()).isTrue();
+              assertThat(qualification.savedSnapshotReadable()).isTrue();
+            });
   }
 
   @Test
@@ -104,8 +110,8 @@ class SyncFactPublicationStateServiceIntegrationTest {
     assertThat(service.qualification("alpha", FactType.ISSUE))
         .satisfies(
             qualification -> {
-              assertThat(qualification.readable()).isTrue();
-              assertThat(qualification.degraded()).isTrue();
+              assertThat(qualification.currentFactReadable()).isFalse();
+              assertThat(qualification.savedSnapshotReadable()).isTrue();
               assertThat(qualification.pendingUpdates()).isEqualTo(1L);
             });
   }
@@ -124,8 +130,8 @@ class SyncFactPublicationStateServiceIntegrationTest {
     assertThat(service.qualification("alpha", FactType.ISSUE))
         .satisfies(
             qualification -> {
-              assertThat(qualification.readable()).isFalse();
-              assertThat(qualification.degraded()).isFalse();
+              assertThat(qualification.currentFactReadable()).isFalse();
+              assertThat(qualification.savedSnapshotReadable()).isTrue();
               assertThat(qualification.reason()).contains("全量事实重建尚未结算");
             });
   }
@@ -301,13 +307,14 @@ class SyncFactPublicationStateServiceIntegrationTest {
     jdbcTemplate.execute(
         """
         create table source_fact_publication_states (
+          config_id bigint not null default 1,
           source_instance varchar(128) not null,
           fact_type varchar(64) not null,
           readiness_status varchar(16) not null,
           error_message text,
           full_publication_requested boolean not null default false,
           updated_at timestamp not null default current_timestamp,
-          primary key (source_instance, fact_type)
+          primary key (config_id, source_instance, fact_type)
         )
         """);
     jdbcTemplate.execute(
@@ -335,5 +342,61 @@ class SyncFactPublicationStateServiceIntegrationTest {
 
   private void verifiedLabelEventSource() {
     insertTableState("resource_label_events", java.time.LocalDateTime.now());
+  }
+
+  @Test
+  void requestFullPublication_keepsReadinessAndBlocksCurrentFactReads() {
+    jdbcTemplate.update(
+        """
+        insert into source_fact_publication_states(
+            config_id, source_instance, fact_type, readiness_status, full_publication_requested)
+        values (1, 'default', 'ISSUE', 'READY', false)
+        """);
+    jdbcTemplate.update(
+        """
+        insert into sync_run_table_states(
+            source_instance, source_table, sync_enabled, dirty_flag, last_full_verified_at)
+        values ('default', 'resource_label_events', true, false, current_timestamp)
+        """);
+
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(1L);
+    int registered = service.requestFullPublication(config);
+
+    assertThat(registered).isEqualTo(FactType.values().length);
+    Map<String, Object> issue =
+        jdbcTemplate.queryForMap(
+            "select readiness_status, full_publication_requested from source_fact_publication_states "
+                + "where config_id = 1 and source_instance = 'default' and fact_type = 'ISSUE'");
+    assertThat(issue.get("readiness_status")).as("已有发布记录的事实族保留原就绪状态").isEqualTo("READY");
+    assertThat(issue.get("full_publication_requested")).isEqualTo(Boolean.TRUE);
+    assertThat(service.qualification("default", FactType.ISSUE).currentFactReadable())
+        .as("全量重建未结算时当前事实不可作为完整来源输出")
+        .isFalse();
+    assertThat(service.qualification("default", FactType.ISSUE).savedSnapshotReadable()).isTrue();
+
+    Map<String, Object> mergeRequest =
+        jdbcTemplate.queryForMap(
+            "select readiness_status, full_publication_requested from source_fact_publication_states "
+                + "where config_id = 1 and source_instance = 'default' and fact_type = 'MERGE_REQUEST'");
+    assertThat(mergeRequest.get("readiness_status"))
+        .as("尚无发布记录的事实族不得凭空获得就绪状态")
+        .isEqualTo("BLOCKED");
+    assertThat(mergeRequest.get("full_publication_requested")).isEqualTo(Boolean.TRUE);
+  }
+
+  @Test
+  void requestFullPublication_isIdempotent() {
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(1L);
+
+    service.requestFullPublication(config);
+    service.requestFullPublication(config);
+
+    Integer count =
+        jdbcTemplate.queryForObject(
+            "select count(*) from source_fact_publication_states where config_id = 1",
+            Integer.class);
+    assertThat(count).isEqualTo(FactType.values().length);
   }
 }

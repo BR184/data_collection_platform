@@ -1,7 +1,9 @@
 package com.data.collection.platform.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -95,7 +97,8 @@ class GitlabSyncControllerTest {
             responseMapper,
             diagnosticsFacade,
             commandFacade,
-            configFacade);
+            configFacade,
+            mock(com.data.collection.platform.service.FactTaskResolutionService.class));
   }
 
   @Test
@@ -115,12 +118,14 @@ class GitlabSyncControllerTest {
             "http://localhost/system-hook",
             null,
             8,
-            4);
-    when(statusService.getStatus(config)).thenReturn(unifiedStatus);
+            4,
+            null,
+            null);
+    when(statusService.getStatus(eq(config), any(), any())).thenReturn(unifiedStatus);
 
-    var response = controller.status(1L);
+    var response = controller.status(1L, null, null, null, null, null, null);
 
-    verify(statusService).getStatus(config);
+    verify(statusService).getStatus(eq(config), any(), any());
     assertThat(response.getData().currentTask()).isEqualTo(Map.of("runId", "sr_1"));
     assertThat(response.getData().currentStatus()).isEqualTo(SyncStatus.RUNNING);
     assertThat(response.getData().currentMessage()).isEqualTo("Sync run sr_1 is RUNNING");

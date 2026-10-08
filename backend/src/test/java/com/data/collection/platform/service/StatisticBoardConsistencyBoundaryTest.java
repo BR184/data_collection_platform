@@ -100,9 +100,12 @@ class StatisticBoardConsistencyBoundaryTest {
     assertThat(countProbeFacts()).isEqualTo(3L);
   }
 
-  /** 边界内落地的重建请求不追溯推翻本次读取，但下一次读取必须在读取动作之前拒绝。 */
+  /**
+   * 边界内落地的重建请求不追溯推翻本次读取；之后按能力区分：仍可返回已保存的完整产出，
+   * 但不得再按当前事实读取。
+   */
   @Test
-  void fullRebuildRequestedInsideTheBoundaryRejectsTheNextReadButNotTheOngoingOne() {
+  void fullRebuildRequestedInsideTheBoundaryOnlyBlocksReadsOfCurrentFacts() {
     insertFacts(2);
     String versionBefore = currentVersion();
 
@@ -118,8 +121,12 @@ class StatisticBoardConsistencyBoundaryTest {
         .as("边界自视图开始时的资格是可证实的，不得被之后的提交追溯性推翻")
         .isEqualTo(versionBefore);
 
-    assertThatThrownBy(() -> snapshotService.withinConsistentSourceRead(readPlan(), identityAction()))
-        .as("下一次读取必须在事实读取之前就拒绝，且不得复用旧 READY 冒充完整")
+    snapshotService.withinConsistentSourceRead(readPlan(), identityAction());
+
+    assertThatThrownBy(
+            () ->
+                snapshotService.withinConsistentCurrentFactRead(readPlan(), identityAction()))
+        .as("下一次读取当前事实必须在事实读取之前就拒绝，且不得复用旧 READY 冒充完整")
         .isInstanceOf(BizException.class)
         .hasMessageContaining("尚未结算");
   }

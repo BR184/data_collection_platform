@@ -42,6 +42,7 @@ class SyncRunSubmissionServiceTest {
   private SyncRunMapper syncRunMapper;
   private JdbcTemplate jdbcTemplate;
   private SyncRunPublicationFenceService publicationFenceService;
+  private SyncFactPublicationStateService publicationStateService;
   private SyncRunSubmissionService submissionService;
 
   @BeforeEach
@@ -51,6 +52,7 @@ class SyncRunSubmissionServiceTest {
     publicationFenceService =
         org.mockito.Mockito.mock(SyncRunPublicationFenceService.class);
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
+    publicationStateService = org.mockito.Mockito.mock(SyncFactPublicationStateService.class);
     submissionService =
         new SyncRunSubmissionService(
             syncRunMapper,
@@ -60,7 +62,8 @@ class SyncRunSubmissionServiceTest {
             new SyncThreadBudgetResolver(properties),
             publicationFenceService,
             new SyncIncrementalRerunService(jdbcTemplate, syncRunMapper),
-            new SyncSourceSubmissionLockService(jdbcTemplate));
+            new SyncSourceSubmissionLockService(jdbcTemplate),
+            publicationStateService);
   }
 
   @Test
@@ -111,6 +114,8 @@ class SyncRunSubmissionServiceTest {
         .contains("\"manualFullRebuild\":true");
     assertThat(result.type()).isEqualTo(SyncType.COMPENSATION);
     assertThat(result.status()).isEqualTo(SyncStatus.QUEUED);
+    verify(publicationStateService)
+        .requestFullPublication(config);
     verify(jdbcTemplate).queryForObject(
         contains("pg_advisory_xact_lock"),
         eq(Object.class),
