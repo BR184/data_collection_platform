@@ -11,6 +11,7 @@ import com.data.collection.platform.bi.domain.model.BiCustomerIssuePageData;
 import com.data.collection.platform.bi.domain.model.BiCustomerIssuePageData.MemberOption;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.OptionItemResponse;
+import com.data.collection.platform.service.BusinessDateProvider;
 import com.data.collection.platform.service.CustomerIssueFactQueryService;
 import com.data.collection.platform.service.CustomerIssueFactQueryService.CustomerIssueFact;
 import com.data.collection.platform.service.CustomerIssueFactQueryService.FactScopeRequest;
@@ -27,7 +28,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 /** 独立客户问题 BI 页应用服务；一请求只读一次一致来源快照并生成完整页面数据。 */
 public final class BiCustomerIssuePageService {
@@ -39,7 +39,7 @@ public final class BiCustomerIssuePageService {
   private final CustomerIssueMilestoneCatalogService milestoneCatalog;
   private final StatisticBoardSnapshotService snapshotService;
   private final StatisticBoardReadScopeResolver scopeResolver;
-  private final JdbcTemplate jdbcTemplate;
+  private final BusinessDateProvider businessDateProvider;
   private final BiCustomerIssueCalculator calculator;
 
   public BiCustomerIssuePageService(
@@ -47,13 +47,13 @@ public final class BiCustomerIssuePageService {
       CustomerIssueMilestoneCatalogService milestoneCatalog,
       StatisticBoardSnapshotService snapshotService,
       StatisticBoardReadScopeResolver scopeResolver,
-      JdbcTemplate jdbcTemplate,
+      BusinessDateProvider businessDateProvider,
       BiCustomerIssueCalculator calculator) {
     this.factQueryService = factQueryService;
     this.milestoneCatalog = milestoneCatalog;
     this.snapshotService = snapshotService;
     this.scopeResolver = scopeResolver;
-    this.jdbcTemplate = jdbcTemplate;
+    this.businessDateProvider = businessDateProvider;
     this.calculator = calculator;
   }
 
@@ -149,9 +149,9 @@ public final class BiCustomerIssuePageService {
               MemberSelection.all(),
               MemberSelection.all(),
               MemberSelection.all()));
-          LocalDate businessDate = jdbcTemplate.queryForObject("select current_date", LocalDate.class);
+          LocalDate businessDate = businessDateProvider.businessDate();
           if (businessDate == null) {
-            throw new IllegalStateException("数据库没有返回客户问题 BI 业务日");
+            throw new IllegalStateException("业务日来源没有返回客户问题 BI 业务日");
           }
           List<BiCustomerIssuePageData.RangeOption> ranges = currentRanges.stream()
               .map(item -> new BiCustomerIssuePageData.RangeOption(item.value(), item.label()))

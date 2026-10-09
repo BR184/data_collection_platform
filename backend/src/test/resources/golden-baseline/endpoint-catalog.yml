@@ -1241,6 +1241,7 @@ endpoints:
   - method: GET
     path: /api/gitlab-sync/status
     category: READ
+    # 运行日志的逐事件时间与进度时间随每次链路运行刷新，与同组 runId/queuedAt/startedAt/finishedAt 同属运行态易变字段
     ignore-paths:
       - "$.data.config.createdAt"
       - "$.data.config.updatedAt"
@@ -1250,6 +1251,8 @@ endpoints:
       - "$.data.logs[*].queuedAt"
       - "$.data.logs[*].startedAt"
       - "$.data.logs[*].finishedAt"
+      - "$.data.logs[*].latestProgressAt"
+      - "$.data.logs[*].eventTrail[*].createdAt"
     cases:
       - id: by-config
         query: configId={{configId}}

@@ -18,7 +18,7 @@
       "whitelistMode" : "RECOMMENDED",
       "whitelistTables" : null,
       "dbHost" : "localhost",
-      "dbPort" : 49828,
+      "dbPort" : 64983,
       "dbName" : "gitlabhq_full_import_test",
       "dbUsername" : "gitlab",
       "dbPassword" : "",
@@ -37,12 +37,12 @@
       "syncThreadMode" : "FIXED",
       "syncThreadValue" : 2.0,
       "maxSyncThreads" : 16,
-      "lastFullSyncAt" : "2026-09-29T12:44:29.674178+08:00",
+      "lastFullSyncAt" : "2026-10-09T09:25:31.051043+08:00",
       "lastIncrementalSyncAt" : null,
       "incrementalRerunRequestedAt" : null,
       "incrementalRerunTriggerCount" : null,
-      "createdAt" : "2026-09-29T12:44:14.346763+08:00",
-      "updatedAt" : "2026-09-29T12:44:29.674178+08:00"
+      "createdAt" : "2026-10-09T09:25:15.830137+08:00",
+      "updatedAt" : "2026-10-09T09:25:31.051043+08:00"
     },
     "currentTask" : null,
     "currentStatus" : "IDLE",
@@ -51,7 +51,7 @@
     "progress" : null,
     "logs" : [ {
       "id" : 2,
-      "runId" : "sr_fr_default_2dcce1e191d1468190b618e2d0ae9a0f",
+      "runId" : "sr_fr_default_e93a4a4bbefa4a71ad05f327eeecbd2a",
       "syncType" : "COMPENSATION",
       "runType" : "FACT_REFRESH",
       "runStatus" : "SUCCESS",
@@ -71,13 +71,36 @@
       "tableCount" : 6,
       "completedTableCount" : 6,
       "recordCount" : 2700,
-      "startedAt" : "2026-09-29T12:44:30.956609+08:00",
-      "finishedAt" : "2026-09-29T12:44:49.388064+08:00",
-      "queuedAt" : "2026-09-29T12:44:29.787256+08:00",
-      "errorSummary" : null
+      "startedAt" : "2026-10-09T09:25:31.788996+08:00",
+      "finishedAt" : "2026-10-09T09:25:49.134668+08:00",
+      "queuedAt" : "2026-10-09T09:25:31.196762+08:00",
+      "errorSummary" : null,
+      "failureCount" : 0,
+      "manualAttentionCount" : 0,
+      "diagnosticCount" : 0,
+      "diagnostics" : [ ],
+      "eventCount" : 3,
+      "eventTrail" : [ {
+        "eventId" : 2,
+        "eventType" : "FACT_BUILD_COMPLETED",
+        "message" : "全量事实构建完成（1200 行）",
+        "createdAt" : "2026-10-09T09:25:37.516+08:00"
+      }, {
+        "eventId" : 4,
+        "eventType" : "FACT_BUILD_COMPLETED",
+        "message" : "全量事实构建完成（1500 行）",
+        "createdAt" : "2026-10-09T09:25:42.145809+08:00"
+      }, {
+        "eventId" : 6,
+        "eventType" : "FACT_BUILD_COMPLETED",
+        "message" : "全量事实构建完成（0 行）",
+        "createdAt" : "2026-10-09T09:25:42.212757+08:00"
+      } ],
+      "latestProgressMessage" : "全量事实构建进度 1/1 批次（0 行）",
+      "latestProgressAt" : "2026-10-09T09:25:42.201197+08:00"
     }, {
       "id" : 1,
-      "runId" : "sr_fs_default_01c21927b42049ac86d0163e88cb269d",
+      "runId" : "sr_fs_default_b7b37484087544309206574193532964",
       "syncType" : "FULL",
       "runType" : "FULL_SYNC",
       "runStatus" : "SUCCESS",
@@ -97,14 +120,24 @@
       "tableCount" : 156,
       "completedTableCount" : 156,
       "recordCount" : 56586,
-      "startedAt" : "2026-09-29T12:44:16.838058+08:00",
-      "finishedAt" : "2026-09-29T12:44:29.67118+08:00",
-      "queuedAt" : "2026-09-29T12:44:14.794192+08:00",
-      "errorSummary" : null
+      "startedAt" : "2026-10-09T09:25:17.718026+08:00",
+      "finishedAt" : "2026-10-09T09:25:31.047044+08:00",
+      "queuedAt" : "2026-10-09T09:25:16.376936+08:00",
+      "errorSummary" : null,
+      "failureCount" : 0,
+      "manualAttentionCount" : 0,
+      "diagnosticCount" : 0,
+      "diagnostics" : [ ],
+      "eventCount" : 0,
+      "eventTrail" : [ ],
+      "latestProgressMessage" : null,
+      "latestProgressAt" : null
     } ],
     "systemHookUrl" : "http://localhost:18080/api/gitlab-sync/system-hook",
     "systemHookRegistration" : null,
     "availableProcessors" : 12,
-    "resolvedSyncThreads" : 2
+    "resolvedSyncThreads" : 2,
+    "details" : null,
+    "pending" : null
   }
 }

@@ -17,6 +17,7 @@ import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.FactProjectionScope;
 import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.ProjectionScopeType;
+import com.data.collection.platform.service.BusinessDateProvider;
 import com.data.collection.platform.service.CustomerIssueFactQueryService;
 import com.data.collection.platform.service.CustomerIssueFactQueryService.CustomerIssueFact;
 import com.data.collection.platform.service.CustomerIssueFactQueryService.FactScopeRequest;
@@ -33,7 +34,6 @@ import java.util.Set;
 import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 class BiCustomerIssuePageServiceTest {
   private static final String MILESTONE = "customer-2026";
@@ -43,7 +43,7 @@ class BiCustomerIssuePageServiceTest {
   private CustomerIssueMilestoneCatalogService milestoneCatalog;
   private StatisticBoardSnapshotService snapshotService;
   private StatisticBoardReadScopeResolver scopeResolver;
-  private JdbcTemplate jdbcTemplate;
+  private BusinessDateProvider businessDateProvider;
   private BiCustomerIssuePageService service;
   private List<CustomerIssueFact> facts;
 
@@ -53,9 +53,9 @@ class BiCustomerIssuePageServiceTest {
     milestoneCatalog = mock(CustomerIssueMilestoneCatalogService.class);
     snapshotService = mock(StatisticBoardSnapshotService.class);
     scopeResolver = mock(StatisticBoardReadScopeResolver.class);
-    jdbcTemplate = mock(JdbcTemplate.class);
+    businessDateProvider = mock(BusinessDateProvider.class);
     service = new BiCustomerIssuePageService(
-        factQueryService, milestoneCatalog, snapshotService, scopeResolver, jdbcTemplate,
+        factQueryService, milestoneCatalog, snapshotService, scopeResolver, businessDateProvider,
         new BiCustomerIssueCalculator());
     facts = List.of(
         fact(1L, List.of("missing", "客户乙"), List.of("模块A", "模块B"), "功能甲"),
@@ -68,7 +68,7 @@ class BiCustomerIssuePageServiceTest {
     when(scopeResolver.resolve(any(), eq(325L), eq(IssueScopeDimension.MILESTONE), eq(MILESTONE)))
         .thenReturn(Set.of(new FactProjectionScope("default", FactType.ISSUE,
             ProjectionScopeType.ISSUE_SCOPE_GROUP, "customer-issue-milestone")));
-    when(jdbcTemplate.queryForObject("select current_date", LocalDate.class)).thenReturn(BUSINESS_DATE);
+    when(businessDateProvider.businessDate()).thenReturn(BUSINESS_DATE);
     when(snapshotService.withinConsistentCurrentFactRead(any(), any())).thenAnswer(invocation -> {
       StatisticBoardSnapshotService.SourceReadPlan plan = invocation.getArgument(0);
       plan.resolve();

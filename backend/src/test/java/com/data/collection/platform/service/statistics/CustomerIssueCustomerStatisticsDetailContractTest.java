@@ -26,6 +26,7 @@ import com.data.collection.platform.service.FactProjectionVersionService;
 import com.data.collection.platform.service.GitlabResourceLinkService;
 import com.data.collection.platform.service.IssueProjectionScopeResolver;
 import com.data.collection.platform.service.SortSupport;
+import com.data.collection.platform.service.SystemBusinessDateProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.PreparedStatement;
 import java.time.LocalDateTime;
@@ -125,7 +126,8 @@ class CustomerIssueCustomerStatisticsDetailContractTest {
                 new StatisticBoardReadScopeResolver(projectionVersionService, scopeResolver)),
             new StatisticBoardReadScopeResolver(projectionVersionService, scopeResolver),
             runtimeSupport,
-            new StatisticIssueLinkSupport(issueLinkService, jdbcTemplate));
+            new StatisticIssueLinkSupport(issueLinkService, jdbcTemplate),
+            new SystemBusinessDateProvider());
   }
 
   @Test

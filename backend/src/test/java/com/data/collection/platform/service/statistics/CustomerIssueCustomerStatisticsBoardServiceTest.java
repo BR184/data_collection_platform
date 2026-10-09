@@ -20,6 +20,7 @@ import com.data.collection.platform.service.FactProjectionVersionService;
 import com.data.collection.platform.service.IssueProjectionScopeResolver;
 import com.data.collection.platform.service.IssueScopeDimension;
 import com.data.collection.platform.service.SortSupport;
+import com.data.collection.platform.service.SystemBusinessDateProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDate;
 import java.util.List;
@@ -85,7 +86,8 @@ class CustomerIssueCustomerStatisticsBoardServiceTest {
                 new StatisticBoardReadScopeResolver(projectionVersionService, scopeResolver)),
             new StatisticBoardReadScopeResolver(projectionVersionService, scopeResolver),
             runtimeSupport,
-            issueLinkSupport);
+            issueLinkSupport,
+            new SystemBusinessDateProvider());
   }
 
   @Test

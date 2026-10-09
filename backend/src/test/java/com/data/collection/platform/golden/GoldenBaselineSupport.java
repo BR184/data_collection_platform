@@ -22,6 +22,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -142,6 +143,31 @@ public final class GoldenBaselineSupport {
         throw new IllegalStateException("标量查询无结果：" + sql);
       }
       return rs.getString(1);
+    }
+  }
+
+  /**
+   * 冻结夹具的生成日期，取自基线清单 {@code frozen_at} 的本地日期部分。
+   *
+   * <p>黄金链路以它作为固定业务日注入，使 compare 结果与运行当日无关；夹具刷新时随新
+   * {@code frozen_at} 自更新。该值只用于黄金 harness，生产环境业务日仍为当日。
+   *
+   * @return 基线清单 {@code frozen_at} 的本地日期
+   */
+  public static LocalDate frozenBusinessDate() {
+    try (InputStream in = GoldenBaselineSupport.class.getClassLoader()
+        .getResourceAsStream("golden-baseline/baseline-manifest.json")) {
+      if (in == null) {
+        throw new IllegalStateException("缺少基线清单 golden-baseline/baseline-manifest.json");
+      }
+      JsonNode root = JSON.readTree(in);
+      String frozenAt = root.path("frozen_at").asText("");
+      if (frozenAt.isBlank()) {
+        throw new IllegalStateException("基线清单缺少 frozen_at");
+      }
+      return LocalDate.parse(frozenAt.split("T", 2)[0]);
+    } catch (IOException e) {
+      throw new UncheckedIOException("读取基线清单失败", e);
     }
   }
 

@@ -3,9 +3,11 @@ package com.data.collection.platform.golden;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.data.collection.platform.golden.GoldenBaselineSupport.GoldenHttpSession;
+import com.data.collection.platform.service.BusinessDateProvider;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,7 +23,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
@@ -45,6 +50,22 @@ class GoldenBaselineChainTest {
 
   private GoldenHttpSession session;
   private long configId;
+
+  /**
+   * 固定黄金链路的业务日为基线清单 {@code frozen_at} 的日期，使快照不随运行日历漂移。
+   *
+   * <p>生成与比较两阶段共用同一固定值；生产环境仍由 {@code SystemBusinessDateProvider}
+   * 提供当日业务日。
+   */
+  @TestConfiguration
+  static class FrozenBusinessDateConfiguration {
+    @Bean
+    @Primary
+    BusinessDateProvider frozenBusinessDateProvider() {
+      LocalDate frozen = GoldenBaselineSupport.frozenBusinessDate();
+      return () -> frozen;
+    }
+  }
 
   @DynamicPropertySource
   static void containers(DynamicPropertyRegistry registry) {

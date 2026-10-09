@@ -8,7 +8,7 @@
     "sourceVersion" : "fact-projection:v1:10e48c775d731d1001e598b7033308161d37e80a762d4bdc46af3c6aa4f0fbc2",
     "snapshotId" : "fact-projection:v1:10e48c775d731d1001e598b7033308161d37e80a762d4bdc46af3c6aa4f0fbc2",
     "ruleVersion" : "customer-issue-bi@2026-09-24-v1",
-    "generatedAt" : "2026-09-29T12:47:50.5465371+08:00",
+    "generatedAt" : "2026-10-09T09:28:23.0049936+08:00",
     "sections" : [ {
       "key" : "source-consistency",
       "label" : "来源一致性",
@@ -174,7 +174,7 @@
       } ],
       "selectedMilestoneBusinessKey" : "CC2026R3",
       "selectedMilestoneDisplayName" : "CC2026 R3",
-      "businessDate" : "2026-09-29",
+      "businessDate" : "2026-09-01",
       "customers" : [ {
         "kind" : "VALUE",
         "value" : "702所",
@@ -3243,118 +3243,6 @@
         "fixedCount" : 0
       }, {
         "date" : "2026-09-01",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-02",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-03",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-04",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-05",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-06",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-07",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-08",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-09",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-10",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-11",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-12",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-13",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-14",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-15",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-16",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-17",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-18",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-19",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-20",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-21",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-22",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-23",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-24",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-25",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-26",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-27",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-28",
-        "createdCount" : 0,
-        "fixedCount" : 0
-      }, {
-        "date" : "2026-09-29",
         "createdCount" : 0,
         "fixedCount" : 0
       } ],

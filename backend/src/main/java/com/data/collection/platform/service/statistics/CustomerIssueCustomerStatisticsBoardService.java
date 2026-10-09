@@ -21,6 +21,7 @@ import com.data.collection.platform.entity.statistics.StatisticFilterOption;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
+import com.data.collection.platform.service.BusinessDateProvider;
 import com.data.collection.platform.service.CustomerIssueFactQueryService;
 import com.data.collection.platform.service.CustomerIssueFactQueryService.CustomerIssueFact;
 import com.data.collection.platform.service.CustomerIssueFactQueryService.FactScopeRequest;
@@ -92,6 +93,7 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
   private final StatisticBoardReadScopeResolver readScopeResolver;
   private final IssueFactBoardRuntimeSupport runtimeSupport;
   private final StatisticIssueLinkSupport issueLinkSupport;
+  private final BusinessDateProvider businessDateProvider;
 
   public CustomerIssueCustomerStatisticsBoardService(
       JsonUtils jsonUtils,
@@ -101,7 +103,8 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
       StatisticBoardSnapshotRequestFactory snapshotRequestFactory,
       StatisticBoardReadScopeResolver readScopeResolver,
       IssueFactBoardRuntimeSupport runtimeSupport,
-      StatisticIssueLinkSupport issueLinkSupport) {
+      StatisticIssueLinkSupport issueLinkSupport,
+      BusinessDateProvider businessDateProvider) {
     super(jsonUtils);
     this.jsonUtils = jsonUtils;
     this.factQueryService = factQueryService;
@@ -111,6 +114,7 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
     this.readScopeResolver = readScopeResolver;
     this.runtimeSupport = runtimeSupport;
     this.issueLinkSupport = issueLinkSupport;
+    this.businessDateProvider = businessDateProvider;
   }
 
   /** 行维度。 */
@@ -1362,7 +1366,12 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
 
   private ControlParams defaultControlParams() {
     return new ControlParams(
-        GroupBy.CUSTOMER, MemberSelection.all(), MemberSelection.all(), MemberSelection.all(), LocalDate.now(), null);
+        GroupBy.CUSTOMER,
+        MemberSelection.all(),
+        MemberSelection.all(),
+        MemberSelection.all(),
+        businessDateProvider.businessDate(),
+        null);
   }
 
   /**
@@ -1410,10 +1419,10 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
     return MemberSelection.of(normalized);
   }
 
-  private static LocalDate parseBusinessDate(String raw) {
+  private LocalDate parseBusinessDate(String raw) {
     String normalized = trimOrNull(raw);
     if (normalized == null) {
-      return LocalDate.now();
+      return businessDateProvider.businessDate();
     }
     try {
       return LocalDate.parse(normalized);

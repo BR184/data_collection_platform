@@ -607,7 +607,7 @@ public class FactBuildService {
             (rs, rowNum) ->
                 mergeRequestRowMapper.mapSource(rs, normalizedSource, moduleDictionary));
     List<MergeRequestCommitFact> commitFacts = commitFactsEnabled
-        ? loadMergeRequestCommitFacts(normalizedSource, safeRootIds)
+        ? loadMergeRequestCommitFactsByRootIds(normalizedSource, safeRootIds)
         : List.of();
     mergeRequestFactPersistenceService.replaceRootFacts(
         DEFAULT_SOURCE_SYSTEM, normalizedSource, safeRootIds, facts, commitFacts);
@@ -656,7 +656,7 @@ public class FactBuildService {
               mergeRequestRowMapper.mapSource(rs, sourceInstance, moduleDictionary));
       if (full) {
         List<MergeRequestCommitFact> commitFacts = commitFactsEnabled
-            ? loadMergeRequestCommitFacts(sourceInstance, List.of())
+            ? loadMergeRequestCommitFacts(sourceInstance)
             : List.of();
         publishFullMergeRequestSnapshot(sourceInstance, facts, commitFacts, progress);
       } else {
@@ -675,7 +675,7 @@ public class FactBuildService {
                 rootIds,
                 facts,
                 commitFactsEnabled
-                    ? loadMergeRequestCommitFacts(sourceInstance, rootIds)
+                    ? loadMergeRequestCommitFactsByRootIds(sourceInstance, rootIds)
                     : List.of());
             searchIndexRepairService.refreshMergeRequestFactSearchIndexesInBatches(facts);
             return null;
@@ -892,11 +892,40 @@ public class FactBuildService {
         .toList();
   }
 
-  private List<MergeRequestCommitFact> loadMergeRequestCommitFacts(
+  /**
+   * 装载全部合并请求提交关系，供全量构建发布完整快照。
+   *
+   * <p>"全部"是独立入口而不是"根集合为空"：空集合在按根口径里表示空结果（本类 {@code
+   * loadMergeRequestCommitFactsByRootIds} 直接拒绝空集合），两者共用入参会让全量构建静默拿到零条并
+   * 让随后的快照清理删掉既有提交关系。
+   *
+   * @param sourceInstance GitLab 数据源实例
+   * @return 该实例全部提交关系
+   */
+  private List<MergeRequestCommitFact> loadMergeRequestCommitFacts(String sourceInstance) {
+    return factSourceQueryExecutor.query(
+        "merge-request-commit-fact-source-query",
+        sourceInstance,
+        factSourceSqlProvider.mergeRequestCommitSourceSql(),
+        "",
+        null,
+        (resultSet, rowNumber) ->
+            mergeRequestRowMapper.mapCommit(resultSet, sourceInstance));
+  }
+
+  /**
+   * 只装载指定稳定根的提交关系，用于按根定向发布。
+   *
+   * @param sourceInstance GitLab 数据源实例
+   * @param rootIds 稳定根集合，不能为空
+   * @return 指定根的提交关系
+   * @throws IllegalArgumentException 根集合为空或全为非法值
+   */
+  private List<MergeRequestCommitFact> loadMergeRequestCommitFactsByRootIds(
       String sourceInstance, List<Long> rootIds) {
     List<Long> safeRootIds = distinctRootIds(rootIds);
     if (safeRootIds.isEmpty()) {
-      return List.of();
+      throw new IllegalArgumentException("按根装载合并请求提交关系必须给出稳定根集合");
     }
     return factSourceQueryExecutor.query(
         "merge-request-commit-fact-source-query",

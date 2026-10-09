@@ -18,6 +18,7 @@ import com.data.collection.platform.bi.domain.BiSystemTestCauseClassifier;
 import com.data.collection.platform.bi.domain.BiSystemTestDelayCauseClassifier;
 import com.data.collection.platform.bi.domain.port.BiCatTestSourcePort;
 import com.data.collection.platform.bi.domain.port.BiReviewSourcePort;
+import com.data.collection.platform.service.BusinessDateProvider;
 import com.data.collection.platform.service.CodeReviewMatchModeSwitchService;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabMergeRequestCommitFactCapability;
@@ -43,6 +44,7 @@ public class BiDashboardRuntimeFactory {
   private final CustomerIssueMilestoneCatalogService customerIssueMilestoneCatalogService;
   private final StatisticBoardSnapshotService statisticBoardSnapshotService;
   private final StatisticBoardReadScopeResolver statisticBoardReadScopeResolver;
+  private final BusinessDateProvider businessDateProvider;
 
   public BiDashboardRuntimeFactory(
       JdbcTemplate jdbcTemplate,
@@ -54,7 +56,8 @@ public class BiDashboardRuntimeFactory {
       CustomerIssueFactQueryService customerIssueFactQueryService,
       CustomerIssueMilestoneCatalogService customerIssueMilestoneCatalogService,
       StatisticBoardSnapshotService statisticBoardSnapshotService,
-      StatisticBoardReadScopeResolver statisticBoardReadScopeResolver) {
+      StatisticBoardReadScopeResolver statisticBoardReadScopeResolver,
+      BusinessDateProvider businessDateProvider) {
     this.jdbcTemplate = jdbcTemplate;
     this.catalogService = catalogService;
     this.snapshotService = snapshotService;
@@ -65,6 +68,7 @@ public class BiDashboardRuntimeFactory {
     this.customerIssueMilestoneCatalogService = customerIssueMilestoneCatalogService;
     this.statisticBoardSnapshotService = statisticBoardSnapshotService;
     this.statisticBoardReadScopeResolver = statisticBoardReadScopeResolver;
+    this.businessDateProvider = businessDateProvider;
   }
 
   /** 创建一个没有启动期副作用、没有后台线程和没有网络调用的 BI Runtime。 */
@@ -102,7 +106,7 @@ public class BiDashboardRuntimeFactory {
         customerIssueMilestoneCatalogService,
         statisticBoardSnapshotService,
         statisticBoardReadScopeResolver,
-        jdbcTemplate,
+        businessDateProvider,
         new BiCustomerIssueCalculator());
     // 最后把“版本范围 -> 数据源 -> 计算器 -> 页面服务”逐页绑定，Controller 不感知具体实现。
     return new BiDashboardRuntime(
