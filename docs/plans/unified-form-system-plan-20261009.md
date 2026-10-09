@@ -1,0 +1,831 @@
+# 统一表单系统建设方案（需求、设计与实施一体稿）
+
+> **文档版本**：v3.0（2026-10-09 合并定稿）
+> **文档性质**：本工作单元的唯一权威方案，需求基线、实现设计与审批事项合为一体；取代此前的评审稿（`unified-form-system-review-20260929.md`）与底稿（`unified-form-system-requirements-20260929.md`）两份文件，两份旧文件已随本版删除，历史内容可从 Git 记录追溯。
+> **权威依据**：2026-09-29 会议纪要《智能纪要：表单模板及相关项目工作讨论》（用户提供）+ 本仓源码与文档实证 + `AGENTS.md` + GitLab 官方文档（第六节）。
+> **审批要求**：本方案须经群内人工评审通过后方可启动任何开发（FR-E1）；需要评审决策的事项集中在摘要的决策清单。
+> **审查对象**：研发主管、测试负责人、群内评审。
+
+## 摘要（评审先读这一段）
+
+把现有「单一硬编码模板 + 固定列 + 同一表单上下文仅一行、存在则更新」的 `collect_form_records`，改造为**模板可登记、物理表按版本分离、按记录逐条提交**的表单框架。本期只交付基础框架、只落地**代码走查表**一个模板；其余模板、webhook 回写 GitLab 评论、可视化配置界面与「表单取代评论」的链路留第二期（§9）。
+
+三条根因（§5.3）：①单表固定列、无版本机制，字段一变就冲突既有统计规则；②表中无创建人标识，「仅创建人可编辑」无处判定；③唯一键是「一个上下文一行」，无法承载多走查人记录。
+
+**两个必须先知道的边界**：①表单数据当前**只有写入、没有任何面向用户的读取方**——写进事实表但没有任何代码走查统计页面读它（§5.5），故「表单取代评论/老平台」的链路与非法类型重定义**不在本期范围**（§5.6）；②走查记录的事实源头是 **GitLab 评论**，不是老平台（§5.4-F）。
+
+**需评审决策的事项清单**（完整决策记录见 §10，共 16 项，其中 13 项已由用户裁定；以下为需评审确认或知会的事项）：
+
+| # | 事项 | 位置 | 说明 |
+| --- | --- | --- | --- |
+| 1 | 与会议字面的 6 处差异（并发／镜像库／测试相关／编辑权限／编辑历史／版本号语义） | §5.2.1 | 前 5 项均有用户裁定依据；第 4 项经用户澄清后**已属非分歧**（本意一致、只是适用范围不同） |
+| 2 | 一个 MR 多条走查记录时页面与统计的计算方式（**第二期接入时生效，本期不改动该页面**） | D14② | 建议：**以 MR 为单位汇总为一行**；数值＝**全部记录相加**。附带两小点见 D14③④ |
+| 3 | 走查人下拉选项的来源 | D15 | 建议：候选取自**平台人员表**；下拉**保存人员标识、界面显示姓名**。三个待确认小点（同名按人员标识判定、统计按姓名合并同名人员、人员表之外走查人的登记途径）见 D15 |
+| 4 | 记录作废与账号停用后的可维护性 | D16 | 建议：**保留作废功能但收到本人**；账号停用后的记录由**带审计、需负责人批准的一次性运维流程**处理，批准人角色与审计留存位置已在 §8.5 写定 |
+| 5 | 本期页面是否按字段定义自动生成 | §8.7 | 建议**本期不做**（页面结构写在代码中），但服务端必填与类型校验一律按元数据字段定义执行 |
+| 6 | GitLab 跳转链接身份识别的调查结论（会议待办项 1） | §6 | **结论：官方有完整支持（GitLab 作为 OAuth 2.0/OIDC 身份提供者），技术可行；本期不实施**，建议并入账号体系打通工作单元。评审知会即可 |
+
+## 〇、术语表
+
+| 术语 | 含义 |
+| --- | --- |
+| 合并请求（MR） | GitLab 的 Merge Request。 |
+| 表单实例 | 某个合并请求下的一张表单。本期一个合并请求只有一个模板（代码走查表），即一张表单实例。 |
+| 记录 | 表单实例下的一次填写，独立编号。会议确定的「多人接力填写、每人一条」即一条记录对应一次填写。 |
+| 填写人 | 在表单页面提交该条记录的登录账号。编辑权限归属按此账号判定。 |
+| 走查人 | 记录中的一个字段，表示本次走查由谁执行。**正常流程下与填写人相同**；允许填写非本人（代填），因此模型上可能与填写人不是同一人。 |
+| 模板版本（表单结构版本） | 字段集合的版本。字段变更即新建独立物理表，版本体现在物理表名上。 |
+| 数据产生版本 | 记录上保存的模板版本号，表示「这条数据是用哪一版表单填写的」，与它当前所在的表无关。 |
+| 记录版本号 | 记录每次被更新时递增的序号，**仅**用于编辑冲突检测。与上述两种版本无关。 |
+| 历史版本查询 | 第二期的页面功能，用于查看旧版本物理表中的历史数据。 |
+
+**关于「填写人」与「走查人」是否需要区分**：现状下两者实际上是同一个人。对本地 GitLab 镜像中 463 条代码走查评论的实测显示，449 条（97.0%）的「走查人」就是发评论的人，其余 14 条也是同一个人、只是 GitLab 显示名不同（`徐昊2`↔`徐昊`、`lixinran2`↔`李欣然`），**没有任何一条是代填**（§5.4-F 实测八）。方案仍然把两者分开记录，原因有三：①代填是会议明确要求保留的能力（「不限制用户填写非自身的走查人信息」），保留后两者就不再必然相同；②编辑权限必须按登录账号判定——走查人是姓名而非登录身份，历史姓名不可靠、无账号的人无法判定，只有创建账号能唯一确定「谁能改这条记录」；③审计可读，审计记录同时留下操作账号与该次填写的走查人，两者不同即可识别出代填。因此**正常流程下填写人就是走查人**，填写者不需要任何额外操作。
+
+## 一、进度与中间物
+
+- 状态：**合并稿已定、待评审、未实现**。本版（v3.0）将原评审稿与底稿合并为单一方案，并补入具体实现设计（§8）与 GitLab 身份识别调查结论（§6）；原 D2「需求文档与执行方案分离」的裁定随之作废（§10-D2）。
+- 已完成：会议议题拆分与事实（§5.2）、会议一致性核查与差异清单（§5.2.1）、现状代码核实（§5.1）、模板清单与走查记录实证（§5.4）、消费面核实（§5.5）、表单取代评论对统计的影响（§5.6）、版本化与跨版本迁移机制（§5.7）、目标态路线（§5.8）、GitLab 链接身份识别调查（§6）、需求规格 FR 清单（§7）、实现设计（§8）、并发与长时停留场景清单（§8.8）、分期（§9）、决策记录（§10）。
+- 未做：**未改动任何代码、迁移、配置、权限种子与黄金快照；未运行任何测试与门禁**。所有查询均为只读，脚本落在 `.tmp/`（运行产物目录，不入版本控制）。
+- 当前进行点：等待群内人工评审 → 通过后按 §8 实施。
+- 交付物：本文件。
+
+**修订历史（压缩，仅保留影响后续判断的结论）**
+
+- v1.1–v2.5：三轮评审意见逐条修订完成（并发必须处理、模板盘点、消费面核实、版本迁移机制、编辑权限辨析、作废权限收口、历史记录无归属规则、重复提交幂等、请求标识列、走查日期改用创建时间等）；三版实测结论因用错列/用错键作废后按正确口径定稿（多记录 MR 中 99.3% 是多个走查人各一条）。详见 Git 历史中的底稿修订记录。
+- v2.5：补充实测八（现状下填写人＝走查人，97.0% 完全相同、无代填案例）。
+- **v3.0（2026-10-09，按用户指示）**：评审稿与底稿合并为单一方案；新增 §8 实现设计（数据模型、迁移、端点、权限、事实层、前端、登记、测试）使方案可直接审批后实施；新增 §6 GitLab 跳转链接身份识别调查（会议待办项 1，依据 GitLab 官方文档）；D2 相应作废。
+
+## 二、恢复线索
+
+- 当前阶段：方案待评审、未实现。
+- 恢复后首条命令：`git status --short`；随后读 `AGENTS.md`、`docs/progress.md`、本文件。
+- 关联权威（按需读，不批量载入）：
+  - `docs/plans/response-delay-dual-template-rule-20260920.md`：议题回复/响应模板的现状（GitLab 评论正文解析，非平台表单）。
+  - `docs/plans/review-person-identity-ldap-governance-20260910.md`：LDAP 稳定人员标识（`user_id`/工号/`real_name`），创建人身份与走查人候选的权威源。
+  - `backend/src/test/resources/golden-baseline/endpoint-catalog.yml:727-769`：collect-forms 门禁条目（实施时按 §8.9 改写）。
+  - `docs/platform-page-business-rules.md`、`docs/architecture.md`：代码走查与评审统计规则。
+- 上一份相关提交：`3e3291fc`（main，含两份旧方案文件）。
+- 下一步：群内评审 → 按 §8 实施。
+
+## 三、目标与边界
+
+- 用户原始需求：见 §5.2（会议要点）。
+- 成功标准（可验证）：
+  1. 代码走查表按新规范上线：竖版单列、除「补充说明」外全部必填、提交后只读且仅创建人可编辑。
+  2. 多走查人以独立块级记录承载、支持接力填写；统计规则明确且不重复计数。
+  3. 只保留创建时间与最新更新时间；不提供任何用户可见的编辑历史（审计日志保留，见 D1）。
+  4. 表单挂平台域下共享登录态，访问与保存均无需二次登录。
+  5. 存量数据在改造后仍可被代码走查/评审统计消费（不会被漏读、也不会重复计数）。
+  6. `code_review` 相关黄金基线差异全部可解释；有意变更先展示差异再重建快照，复跑全绿。
+  7. 两人同时打开同一表单、各自填写并保存，任一方的已保存记录都不被他人保存抹掉；并发修改同一记录时给出显式冲突提示，无静默覆盖。
+  8. 打开页面后长期不操作或离开，不占用任何服务端资源、不影响他人填写与保存；未保存输入在重开页面或会话过期重登后不丢失。
+- 明确不做：
+  - 不做实时协同编辑（不推送他人编辑、不做 OT/CRDT/光标共享、不做后台自动草稿合并）。
+  - **不引入占用/锁定/预约机制**——这是「页面长时间停留不影响他人」的前提；并发问题由「按记录逐条提交 + 冲突显式提示」解决，而非加锁。
+  - 不强制绑定 GitLab 账号身份；不限制填写非本人的走查人（GitLab 账号识别仅为可选增强，见 §6）。
+  - 不承担「下线老数据采集平台」：老平台仍提供代码走查非法数据、评审数据与标签写回，且其写回无法在运行期关闭，属另一工作单元（见 §5.8）。
+  - 不为尚未确认的模板（「测试相关」「CC 及 RS」）预留空实现或占位字段。
+
+## 四、约束与背景
+
+- 技术栈与环境：Java 21 + Spring Boot + MyBatis-Plus + Flyway + PostgreSQL；Vue 3 + TypeScript + Element Plus；开发端口后端 18080、前端 18181（`AGENTS.md` 项目实际配置）。
+- 平台已有能力（应复用而非另造）：平台 session + CSRF 登录态、RBAC 权限目录与角色授予、按创建人判权限的先例（`review.record.delete_own` / `review.problem.delete_own`）、LDAP 人员权威源、数据库查看模块、黄金基线门禁。
+- 关键业务约束：`collect_form_records` 建表注释已声明其数据「后续事实构建会把它合并到代码走查和评审分析口径中」（`V20260506_02:93`）→ 字段语义或结构变化必须显式评估统计侧影响；会议亦要求字段变更前置风险提示。
+- 会议约束：方案须群内评审通过才可开发；可配置表单仅对内部开发人员开放；字段增删直接新起表。
+- 仓库级连带义务：新增端点须登记黄金基线端点目录；新增权限须评估权限目录与角色授予迁移；其余统计板四件套项按表单页实际形态逐项确认（§8.9）。
+
+## 五、证据与根因
+
+### 5.1 现状（代码实证）
+
+| 现状项 | 事实 | 证据 |
+| --- | --- | --- |
+| 表单种类 | 平台仅一种表单，硬编码模板 `code_review`；无模板表、无字段配置表、无多版本表 | `CollectFormService.java:207-209` |
+| 数据表 | `collect_form_records` 固定列；唯一键 `(gitlab_base_url, project_id, resource_type, resource_id, template_code)` | `V20260506_02:94-115` |
+| 字段 | 走查人、走查时长(min)、规范/逻辑/性能/设计/其他评分、备注、deleted、created_at、updated_at | `CollectFormRecord.java:39-59` |
+| 用途声明 | 建表注释：数据「后续事实构建会合并到代码走查和评审分析口径中」 | `V20260506_02:93` |
+| 端点 | `GET /detail`、`POST /save`、`POST /delete`、`POST /update-record`、`GET /notification-payload` | `CollectFormController.java:33-118` |
+| 权限 | `code_review.form.create/edit/delete`；delete 默认不授予普通角色 | `V20260720_01:167-169`、`:209-215` |
+| 前端入口 | 平台同源路由 `/external/code-review-form`，query 白名单仅 `gitlabBaseUrl/projectId/mrIid` | `router.ts:105-109`、`route-contracts.ts:352-360` |
+| 前端硬编码 | `resourceType=merge_request`、`resourceId=mrIid`、`templateCode=code_review` | `CollectFormView.vue:80-82,105-108` |
+| 布局 | 横向 grid（走查人+走查时长一行、5 个评分一行） | `CollectFormView.vue:245-275` |
+| 保存语义 | 存在则更新、不存在则新增：同一上下文重复提交覆盖同一行 → 天然「一上下文一条」 | `CollectFormRecordMapper.java:70-84` |
+| 校验 | 仅长度/非负约束，无必填；前端无 `required` → 实际全字段可选 | `CollectFormController.java:120-137` |
+| 编辑权限 | 任何持 `code_review.form.edit` 者可改任意记录；表中**无 created_by 列** | `CollectFormController.java:98-99`、`V20260506_02:94-115` |
+| 时间字段 | `created_at`、`updated_at` 已具备 | `V20260506_02:112-113` |
+| 审计 | `collect_form_record_audit_logs`：SAVE/UPDATE/DELETE + 全量 `snapshot_json` + 操作人/IP/UA | `V20260507_02` |
+| 登录态 | 表单页即平台前端路由，同源共享 session + CSRF；`/api/**` 要求已认证 | `PlatformSecurityConfiguration.java:89-101` |
+| 服务端身份 | 可取当前用户，但现有保存只信任前端原样传上来的 `editorUsername`（取自「走查人」文本） | `AuthSessionSupport.java:14-25`、`CollectFormView.vue:118` |
+| 创建人权限先例 | 评审域按 `createdBy === currentUser.username` 判断记录是否本人创建 | `ReviewDataManagementView.vue:206-224` |
+| GitLab 联动 | 仅「通知负载」端点且前端未调用；无 webhook→comment 生成 | `collect-forms-api.ts:79-94` |
+| 数据可查 | `collect_form_records` 已登记数据库查看模块 | `DatabaseBrowserCollectionTableDefinitions.java:16-20` |
+| 门禁 | 5 个 collect-forms 端点已在端点目录登记 | `endpoint-catalog.yml:727-769` |
+| 其他模板 | 议题回复＝GitLab 评论正文解析（非表单）；测试相关＝评审数据 Excel 类型；「CC / RS」仓库内未找到对应命名 | `IssueResponseTemplateParser`、`IssueSlaRules`、`docs/platform-page-business-rules.md:460-462` |
+
+### 5.2 会议事实（纪要）
+
+- 布局采用竖版单列、参考飞书问卷，不为省空间做横版；上下文信息不必展示，改为保留跳转 MR 链接。
+- 字段：除「补充说明」选填外全部必填；「备注」统一更名「补充说明」。
+- 提交保存后转仅展示的不可编辑文本，仅创建人可发起编辑。
+- 时间：只保留创建时间与最新更新时间，不存完整编辑历史，编辑后仅灰色小字提示。时间字段的**用途**：「仅记录创建和最新编辑时间**用于校验响应是否延期**」（08:41 章节）。
+- 覆盖范围：代码走查、议题回复、测试相关、CC 及 RS 等所有需标准化的模板。
+- 多角色场景用顶部加号新增独立条目，块级独立展示，接力填写；并发冲突不做处理。
+- 可配置表单仅对内部开发开放；字段增删直接新起表；历史版本入镜像库永久留存可查；发布带版本号。「表修改**按阶段在发版间隙推进，不会随意改动**」；「字段修改后直接新起数据表，**相关风险提前与需求方说明**」。
+- 表单挂质量点域名下、与平台共享登录态、「**登录态永久有效**」（02:31 章节）；暂不强制绑定 GitLab 账号，不限制填写非本人走查人。
+- **编辑权限原话（三处，供辨析逐字引用）**：总结「表单提交保存后默认转为仅展示的不可编辑文本，**仅表单创建人可发起编辑，无特殊权限用户无法修改他人提交的内容**」；02:31「最终确定表单保存后仅展示为不可编辑信息，**由走查人填写对应内容**」；39:43「**当前阶段不限制用户填写非自身的走查人信息**」。**用户澄清本意（2026-09-29）**：「表单创建人」即**默认＝走查人自己**，故「走查人能编辑走查人为自己的表」在正常流程下成立。
+- 流程：方案先群内评审通过再开发；代码走查表落地后逐步下线老平台。
+- **AI 自动填充的既有风险**：「AI 存在识别**挂在后台的评论页面自动填充信息时容易出 bug** 的问题，明确需**和袁寄杰核对**相关开发细节」（22:45 章节）——属既有实践带来的风险，须单独核对（§12 风险）。
+- **版本号 URL 是会议建议项**：24:28 章节为「参会人员**提出**可带版本号 URL 等优化方案」，本方案已采纳并落进 §5.7 的机制（记录列带数据产生版本号）。
+
+**5.2.1 会议说法与本方案的差异清单（逐条核查，供评审确认）**
+
+以下 6 条是本方案与会议**字面**不一致或**超出**会议的地方。前 5 条均有用户此前的明确裁定作为依据，列在此处只为一次性确认；第 6 条是会议未区分的细节。**第 4 条经用户 2026-09-29 澄清后已不属意图分歧**（本意一致、只是适用范围不同），保留在表内仅为可追溯。
+
+| # | 会议字面 | 本方案 | 依据 |
+| --- | --- | --- | --- |
+| 1 | 「并发冲突**不做处理**」 | 必须处理并发（按记录逐条提交 + 乐观锁 A0409 + 不加锁） | 用户 2026-09-29 当次否决（§8.8、D9） |
+| 2 | 「历史版本入**镜像库**永久留存」 | 「镜像库」＝采集平台自有库；永久留存由整库备份天然覆盖，不新建镜像机制 | 用户裁定 D7 |
+| 3 | 「覆盖范围含**测试相关**」 | **跳过、不再理会**（核实在老平台无独立表单，只有按测试阶段的回复模板合规检查） | 用户指示 + 核实（D5） |
+| 4 | 「仅**表单**创建人可发起编辑」（**用户澄清本意**：默认表单创建人＝走查人自己） | 维持「**记录**创建人可编辑」；主用例（走查人填自己的表）下二者等价，仅在代填这一例外情形下分叉 | 用户 2026-09-29 澄清 + 裁定 D8/D10 |
+| 5 | 「无需存储**完整编辑历史**」 | 保留审计日志表（操作人/IP/UA）但不提供任何用户可见历史 | 用户裁定 D1 |
+| 6 | 「表单发布时附带**版本号**标识」 | 区分两种版本：物理表名表达表单结构版本、记录列 `template_version` 表达**数据产生时**的版本 | 会议未区分；本方案细化（§5.7） |
+
+另有两项**本方案新增、会议未涉及**：同模板跨版本一次性迁移历史数据（D13/§5.7）；新增记录时对同名走查人给出**软提示**（FR-B12）。二者均不与会议冲突。
+
+**第 4 条辨析（编辑权限）**：会议字面「仅表单创建人可发起编辑」；用户澄清本意是默认创建人＝走查人自己；本方案把判定依据落在**每条记录的创建账号**（填写该记录的平台登录用户）。主用例下与会议等价；「加号多记录」是唯一实质分叉点——一个实例里多个人各加一条，若按整张表单判定，则后加记录者改不了自己写的那条，故必须落到每条记录上；会议当时隐含「一个表单 ≈ 一条记录 ≈ 一个走查人」，故两句话自洽。不按「走查人姓名」判定的原因：姓名不是登录身份（无账号的走查人无法判定、历史脏名不可靠），且代填时会让填写者无法修改自己录入的内容。
+
+### 5.3 根因
+
+现有实现无法承载新规范，根因三条：①单表固定列且无版本机制 → 任何字段变更都会破坏既有统计规则；②表中无创建人稳定标识 → 「仅创建人可编辑」无处判定；③唯一键是「一个上下文一行」→ 无法承载多走查人记录。三条都指向「需要一个带版本与记录的表单模型」，而不是在现表上加列。
+
+### 5.4 模板清单（本地 GitLab 实测 + 代码对照，2026-09-29）
+
+统计办法：本地开发库 `ods_gitlab_notes` 非系统评论 59,727 条，按评论首行 token 归类；代码侧对照平台 `IssueClassificationRules`/`IssueResponseTemplateParser`/`GitlabFactSourceSqlProvider` 与老平台 `CodeWalkNote`。复现脚本在 `.tmp/`（不入版本控制）。
+
+**A. 人工填写类模板（需要表单化的对象）**
+
+| # | 模板 | 首行 token | 实测条数 | 主要项目 | 平台现状 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 代码走查数据 | `## 代码走查数据` | 463 | CrownCAD、CrownStyling、crowncad-drawing、CrownCAD-Admin、CrownStyling-Help | 已消费；平台已有表单 `collect_form_records` |
+| 2 | **代码自查数据** | `## 代码自查数据` | **182（167 个 MR）** | CrownCAD 177、CrownCAD-Admin 2、crowncad-drawing 2、CrownCAD-Extension-Helper 1 | **未建模**：平台与老平台源码均无匹配 |
+| 3 | 响应模板 | `# 问题调研情况说明` | 154 | CCProduct 150、CrownCAD 4 | 已消费（`IssueResponseTemplateParser`、`IssueSlaRules`） |
+| 4 | 回复模板 | `### 1、修复状态`（含 `### **1、修复状态**` 变体 5 条） | 158 | CrownCAD 74、CCProduct 84 | 已消费（同族解析） |
+
+走查与自查两模板**结构同构**：`### 走查人：`、`### 走查时间（分钟）：`、`### 规范：`、`### 逻辑：`、`### 性能：`、`### 设计：`、`### 其他：`，与老平台 `CodeWalkNote` 字段、与现有表单字段一一对应。
+
+**B. 机器产出类（不是人工表单，不得混入表单范围）**：`### 注释率统计报告` → `code_review_external_metrics.comment_rate`；`### AI 代码质量审查报告`（391 条）当前未建模。
+
+**C. 平台自身的通知评论（是表单入口，不是表单）**：`### 代码走查表` + 「请点击以下链接填写本次合并请求对应的代码走查表：」+ `…/#/external/code-review-form?gitlabBaseUrl=…&projectId=…&mrIid=…&resourceType=merge_request&resourceId=…&templateCode=code_review`，即 `GET /api/collect-forms/notification-payload` 的用途。
+
+**D. 三处必须处理的事实**
+
+1. **`## 代码自查数据` 尚未被任何链路消费**：事实层只匹配 `%代码走查数据%`（`GitlabFactSourceSqlProvider.java:279`）；老平台走查解析同样以 `nonEmptyLines[0].contains("代码走查数据")` 为准（老平台 `MergeRequestDetailServiceImpl.java:354`），同样不消费自查。**用户 2026-09-29 裁定：保持现状、以老平台为标准（D12）**——表单系统按可登记模板实现，后续如需纳入只需注册，不改框架。
+2. **表单走查人是回退源而非唯一权威**：事实层取值顺序为「评论 `### 走查人：X` → 表单 `reviewer` → MR reviewers → assignees」（`:295-317`），故 FR-A8 的名称正确性直接影响 `owner_name`/`reviewer_names` 与代码走查统计。
+3. **表单已并入事实构建**：`form_records` CTE 以 `max(nullif(btrim(reviewer),''))`、`max(review_duration_minutes)`、`max(updated_at)` 按 `(project_id, request_iid)` 聚合成一行（`:242-253`）；多记录模型会改变这个约定，必须同步事实层 SQL（见 §8.6）。
+
+**E. 会议说法对照（2026-09-29 补充核实）**
+
+- 「议题回复」＝上表 3+4（响应模板/回复模板）。
+- 「测试相关」＝**不是填写类模板，跳过**（用户 2026-09-29 指示）。老平台核实结论：它对「测试相关」唯一的处理是 `checkIssueNoteModelLegal(projectId, 测试阶段)`——按测试阶段取出已修复但没有缺陷原因评论的议题，检查评论是否匹配回复模板且含最新检查点，不合规则发一条提示评论；入口为定时任务 `CCScheduledTask:143` 与手动接口 `GitLabToolController:102`。即它只是「回复模板的版本合规检查（按测试阶段圈范围）」，**没有独立的测试相关表单**。
+- 「CC 及 RS」：用户已确认 **CC = CrownCAD 数据源**；「RS」在本地 GitLab 项目清单（264 个）、老平台源码与平台代码中均无依据。若它指数据源，则它体现为**模板的适用范围（数据源/项目/阶段）差异，而不是新模板类型**——模板登记需支持该维度，不新增表单。
+- 老平台的「被走查人」取 MR `author` 字段，不是表单字段，本表单不新增该列。
+
+**F. 一个 MR 可以有多条走查记录（用户 2026-09-29 订正 + 实测）**
+
+- **事实源头是 GitLab 评论，不是老平台**：内网开发人员登录各自账号，按模板往 MR 评论区发帖；同一 MR 允许多条走查评论。老平台非法数据页直查 `spider_crowncad_data`，无 `group by`/`distinct` → **一条走查记录一行、同一 MR 会出现多行**。
+- 实测一（本地 GitLab `ods_gitlab_notes`，token=`代码走查数据`，467 条 / 440 MR）：1 条 410 MR、2 条 25 MR、3 条 1 MR；样本仅 25 个多记录 MR，**不具代表性**，仅确认「同一 MR 允许多条评论」这一事实。
+- 实测二（内网规模，兼容表 `code_review_match_mode_records`）：CC **30,308 行 / 28,069 个去重 (所属项目, MR 编号)**；**MR 身份键必须带「所属项目」**——`merge_request_iid` 在不同仓库间会重复，只用 iid 统计会把不同 MR 混成一个（本轮踩过的坑）。
+- 实测三（**列映射 + 多记录成因构成**，定稿）：兼容表列映射为 **`owner_name` ← 老平台 `author`（被走查人）**、**`reviewer_names` ← 老平台 `assignee`（走查人）**（依据 `CodeReviewMatchModeSyncService:415-450` 与 `:304-320` 一一对应）。**⚠️ 两个必须避开的坑：①不得把 `owner_name` 当走查人；②不得只用 `merge_request_iid` 当 MR 键。** 按正确列与键统计：多记录 MR 共 **1,702 个**，其中**多个走查人 1,690 个（99.3%，3,449 条记录）**、**同一走查人多条 12 个（0.7%，24 条）** → **一个 MR 有多条记录几乎全是「不同走查人各一条」**，与会议「多走查人」设定一致。
+- 实测四（页面现状）：非法数据页当前数据来源为 `compatibility` → 直读兼容表（`CodeReviewMatchModeRecordLoader.java:130`，`select count(*)` 无去重）。以该页完整过滤条件复刻：**8,545 行**，与页面快照 `total` **完全一致（8,545）**；同一条件下去重 MR 为 **7,303** → **页面当前就是一条走查记录一行、总数＝非法走查记录数**（1,242 个 MR 被重复计入）。
+- 实测五（老平台写入模型与自身去重）：模型上「一条合法走查评论 = 一条记录」。老平台**自己知道同人会重复**：`StaticDataDAOImpl.cleanDumPlicateData()` 注释原文「在一个议题中，同一个人，只能保留一个代码走查记录，其余的都删除」，按 (MR 编号, 走查人, 所属项目) 只留一条，每日 00:00 与 12:00 执行。现存数据仍有 12 组违反该去重键 → 清理**基本生效**，残留极少。
+- 字段全集（467 条覆盖率）：走查人 467、走查时间（分钟）467、规范/逻辑/性能/设计 各 467、其他 191（可选）；**评论里没有「缺陷数」「新增代码行数」**——缺陷数由五类求和派生（老平台 `defectCount = 规范+逻辑+性能+设计+其他`），新增行数由 diff 派生。
+- 实测七（**同一走查人多条的形态**，按正确键）：仅 **12 组**；间隔分布：<1h 6 组、1h–24h 5 组、1–7d 1 组（**没有任何 ≥30 天**）→ 形态是「**短时间内重发/重复提交**」的少量遗留。（v1.17 所称「93% 间隔 ≥30 天」是用错键造成的假象，已作废。）
+- 实测八（**现状下填写人与走查人的关系**，2026-09-29）：本地 GitLab 镜像 463 条走查评论中 **449 条（97.0%）走查人＝评论作者姓名**，其余 14 条为同一人但 GitLab 显示名不同（`徐昊2`↔`徐昊` 13 条、`lixinran2`↔`李欣然` 1 条），**无任何代填案例** → 现状下二者恒等；模型区分二者是为「代填例外、权限判定须依据账号、审计可读」三个需要而保留（见 §〇 术语表）。
+- 推论（对表单模型）：
+  1. **一条记录 ≡ 一条代码走查记录**：与 BI CD-16「代码走查记录 ID」、兼容表 `legacy_source_id`（一条走查记录一行）一致；v1 的「一 MR 一行 + 单 `reviewer`」等于把 N 条记录压成 1 条，**会丢走查人**。
+  2. **一个 MR 有多条记录几乎全是「多个走查人各一条」（99.3%）**；同一走查人多条仅 12 个 MR（0.7%）→ 合并时核心是**跨走查人汇总（求和）**，「同人多条取最新还是求和」对结果影响可忽略。
+  3. **记录身份是「记录」本身，不是「人」**（用户 2026-09-29 订正，会议原文支撑）：同一个登录用户可以在一个表单实例里新增**多条**记录，同一个走查人名字也可以出现多次 → 表单**功能上允许**同人（同创建人／同走查人）多条，「同一人只留一条」若需要只是产品层软提示（FR-B12），**不是记录的机制身份**。表单用两个语义不同的动作消歧——**编辑**（改了同一次走查的数据）与**加号新增**（真的又走查了一次）。
+  4. **下游数据来源随读模式切换，两种模式下行的含义不同**：`MatchMode` 直读兼容表（一条走查记录一行），`Formal` 走 `code_review_formal_records`（GITLAB 行一个 MR 一行；LEGACY 转正式行一条走查记录一行）。当前设置为 `compatibility`。见 D14。
+  5. 存量：`collect_form_records` 在本地开发库 **0 行**（`deleted=false`）→ v1 表单从未被真实使用；v1→v2 迁移在本地是空集，**内网存量须在实施前用只读查询确认**（`select count(*) from collect_form_records where deleted = false`）。
+
+### 5.5 表单数据的消费面（2026-09-29 代码核实）
+
+链路：`collect_form_records` → 事实构建 `GitlabFactSourceSqlProvider` 的 `form_records` CTE（按 `project_id + request_iid` 聚合）→ `merge_request_fact`（GitLab 源行）。
+
+表单影响 `merge_request_fact` 的 4 列，贡献度差别很大：
+
+| 事实列 | SQL 取值 | 表单贡献度 |
+| --- | --- | --- |
+| `review_duration_minutes`（走查工作量·分钟） | `forms.review_duration_minutes`（无 coalesce） | **唯一来源** |
+| `code_walkthrough_date`（走查时间） | `coalesce(评论走查时间, forms.form_updated_at, mr.updated_at)` | 后备取值 |
+| `owner_name` | `coalesce(case-when, 评论解析走查人, forms.reviewer_name, MR reviewers, assignees)` | 后备取值，且被前置 case-when 压住 |
+| `reviewer_names` | 同上 | 同上 |
+
+⚠️ 对主战场（`target_project_id in (9,79)` 且 `target_branch='dev'`），`owner_name` 的 coalesce 第一项是 `walkthrough_notes.review_exception_reason`——只要走查评论异常或缺失就直接返回异常原因文本，**表单 reviewer 轮不到**。故当前表单对「走查人」的实际贡献接近零。
+
+**关键结论：表单数据目前只有写入、没有面向用户的读取方**：
+
+| 面向用户的统计面 | 实际数据来源 | 读表单？ |
+| --- | --- | --- |
+| 代码走查非法数据页（列表/详情/筛选/导出） | `code_review_formal_records`（`CodeReviewIllegalRecordSqlQueryBuilder.java:66`） | 否 |
+| 代码走查多元看板 | `code_review_formal_records` / `code_review_match_mode_records` | 否 |
+| 质量看板 RD / 系统测试横向对比 | 同上（`SystemTestHorizontalComparisonExportService:466,478`） | 否 |
+| **BI 编码阶段图表**（走查速率、缺陷密度、注释率） | 同上（`BiPlatformCodingSourceAdapter:55,79`） | 否 |
+
+原因：代码走查的数据来源只有 `CodeReviewDataReadMode{FORMAL, MATCH_MODE}` 两种，**不存在读 `merge_request_fact` 的第三种模式**；这两张表的内容由老平台 MySQL 代码走查表同步写入。
+
+表单数据的真实下游（均非时间累计型统计）：事实检索索引（可重建）、标签组跨表动态规则（作用于当前快照）、数据库查看（即时查询）、事实构建自身。
+
+因此「是否有模块需要表单的历史数据参与计算」的答案是：**没有**。表单要真正进入代码走查统计，必须新建「表单 → 代码走查统计」的链路，见 §5.6。
+
+### 5.6 表单取代评论后的统计影响（本单元只记录，不实施）
+
+现状的「代码走查异常」判定完全建立在**评论格式**上：`CodeReviewIllegalRuleRegistry.LEGACY_REVIEW_EXCEPTION_REASONS` 的 4 个原因——`没有合法评论`、`代码走查标题异常`、`代码走查记录行数异常`、`代码走查时间或缺陷数异常`，由 `GitlabFactSourceSqlProvider.java:226-269` 的评论正则判定产生。
+
+一旦表单取代「按模板发评论」的做法，这些非法类型会**结构性消失**，随之必须处理：
+
+1. **非法类型目录重定义**：`missing-review` 不再适用；需新增表单侧校验项（必填、走查人正名、数值范围、走查时间合理性等），并同步规则说明分组、页面非法类型筛选候选与导出。
+2. **`review_status`（走查状态）的计算规则要重定**：目前来自老平台链路，表单成为主流程后必须改由表单派生。
+3. **必须新建这条链路**：目前没有任何链路把表单数据送进 `code_review_formal_records`。「表单取代」不是改造表单，而是**新建这条链路并逐步替代老平台同步**——范围大于表单框架本身，须单独立项、单独评审。
+4. **属有意修改产出**：上述任何一项都会改变非法数据页 / 看板 / 导出的产出，黄金基线必须按纪律走「展示差异 → 用户确认 → 更新重建 → 复跑全绿」。
+5. 阶段一**不得触碰**以上任何一项。
+
+### 5.7 模板版本化与同模板跨版本迁移（D13 的机制设计）
+
+**用户的版本语义（2026-09-29 确认）**：表单类型几乎是固定的，但每个模板会随版本演进增删改字段；**字段一变，底层就是一张新表**，但业务身份仍是同一个模板 → **必须把该模板的历史数据一次性迁移到新版**。不同模板之间不迁移。
+
+**机制（六件套）**
+
+1. **模板身份与版本分离**：模板有稳定 `template_key`（如 `code_review`、`issue_response`），版本是它下面的序列（v1、v2…）。物理表名含版本：`form_<template_key>_v<n>`（实例表与记录表两张）。业务的「同一张表单」= 同一个 `template_key`，与物理表无关。
+2. **元数据表**：`form_template_definitions`（模板标识、显示名、当前版本、状态）与 `form_template_versions`（版本号、物理表名、`field_spec` 字段定义、`migration_spec` 迁移规格、发布时间）。应用与事实层**只从元数据读当前版本表名**，不在代码中硬编码表名。
+3. **迁移规格显式化（`migration_spec`）**：每个新版本必须随发布声明「上一版本 → 本版本」的映射：字段映射（等价改名、类型转换、新增列给常量/默认值、删除列）与结构变化（如 v1「一行表单」→ v2「实例 + N 记录」的行→主+子拆分）。
+4. **迁移执行**：以 Flyway 迁移脚本形式随版本发布，单事务内 `INSERT … SELECT` 完成后写入一条迁移审计行（模板、from/to、迁移行数、执行时间）。以实例键去重，重复执行不会写重复。
+5. **迁移校验（同一工作单元内自动化）**：行数守恒（v1 行数 = v2 实例数 = v2 记录数，当结构为行→主+子时）；关键字段逐一比对（改名/转换后值相等）；若该模板已接入事实构建，重算后相关产出与迁移前一致。
+6. **读取规则与历史可见**：读取只针对当前版本表——迁移保证数据都在当前版本里，因此**不做跨版本 union/视图**。老版本表保留只读，注册进数据库查看作为历史版本；数据产生版本号落在记录列（`template_version`，自描述，便于导出与按版本号 URL 查看）。
+
+**「历史数据在新表里」的确切含义（防止误读）**：①同模板的历史数据**在新版本表里**——成立，迁移完成后新表覆盖该模板的全部历史数据；②表单系统**不读老版本表**、不做跨版本 union——成立；③历史数据**不在新表里**（留在老表）——**不成立**，这是常见误读，若如此则表单页与统计会看不到历史。
+
+**两个版本相关字段的语义**：`template_key` 是模板身份，跨版本不变；`template_version` 记录该行数据**产生时**的模板版本（v1 迁移过来的行仍标 1），而不是「它当前所在表的版本」。**MR 不是版本载体**——迁移是版本发布期的一次性整表动作，此后任何时刻的访问都只读当前表，**不存在「访问老 MR 触发迁移」**。
+
+**由此推出的行为**（已落实到 §8）：查询只查当前版本表；页面按当前版本 `field_spec` 渲染，历史行缺失的后加字段显示为空占位；历史行被编辑时按**当前版本**的必填规则要求补填；保存与乐观锁统一走当前版本表；导出按当前版本结构输出全量行；迁移脚本是**唯一**读老表的地方。
+
+**为什么不用「数据留在各自版本表 + 读时 union」**：每个消费方都要自写跨版本映射，SQL 随版本数线性膨胀、字段语义漂移无法集中治理，且老表永久不能被清理——与会议「避免新旧数据统计冲突」「历史版本可查」两条目标都相悖。
+
+**两个必须一并定的细节**
+
+- **必填约束不追溯历史行**：新增的必填字段在迁移时允许为空（历史行豁免），服务端必填校验只对新建/编辑提交生效；页面在编辑历史行时提示需补填。
+- **删除字段**：老表保留该列只读，新表不再有；不做按字段单独归档的表。
+- **历史记录没有归属人**：v1 表没有创建账号列，迁移记录的创建账号为空 → 本期**只读**（不可编辑、不可作废），确需处理走 D16 的一次性运维流程。
+
+**跨版本消费的两条补充规则（用户 2026-09-29 确认）**
+
+- **同名不同义必须在 `migration_spec` 里显式换算**：例如「规范」由 0–100 改为 0–5，若不声明换算，历史与新数据不可比；消费侧需能按 `template_version` 识别算法变更点。
+- **「迁移不是消费」**：迁移脚本读老表是搬迁动作、**不形成业务依赖**。
+
+**已考虑并否决的方案**：把表单内容存为 `payload jsonb`、字段定义只放元数据。否决理由：与会议「字段变更直接新起独立表」的明确要求冲突；平台现有链路（事实层 SQL 按列读取、数据库查看列定义与中文标签、导出列序、黄金快照）都假设**真实列**，JSON 化会让这些链路全部重写。
+
+**维护方式与变更代价（评审意见补充）**
+
+- **本期元数据如何维护**：本期不提供运行期编辑入口（配置界面在第二期）。模板元数据随版本发布的数据库迁移脚本写入，与代码一同评审（会议亦要求「变更在发版间隙推进、风险提前告知需求方」）。
+- **每次字段变更都要走一遍黄金基线回归**：字段一变即新建物理表，事实层合并逻辑所读取的表名与列随之变化，相关黄金基线对照数据必须同步更新并复跑通过。故字段变更的成本为**物理表 + 事实层合并逻辑 + 黄金基线**三处。
+- **「登记」与「不再改代码」的准确边界**：登记消除的是平台代码中的模板判断与模板专有权限码；页面结构本期仍写在代码中（§8.7），事实层合并逻辑仍随字段变更调整。
+
+**对本计划的直接结论**：阶段一 v1（`collect_form_records`）→ v2（`form_code_review_v2` 实例表 + 记录表）属于**同一模板的版本跃迁**，按上述机制**必须迁移**，且阶段一恰好是最难的一类（结构从「一行」变「主+子」）；把它做对，后续纯字段增删的迁移就是同一机制的低难度复用。
+
+### 5.8 目标态与兼容模式退出路线（用户 2026-09-29 提供的上位背景）
+
+**当前过渡状态**
+
+- **评审数据**：老平台前端已停止，新增评审等操作已直接在新平台进行 → 评审数据模块对老平台的依赖已基本消除。
+- **代码走查**：非法数据页面的数据**完全依赖老平台数据库**（数据来自兼容模式）。
+
+**目标态（用户已定路线；本计划只记录，不实施）**
+
+1. 表单系统（本计划）接入，提供「代码走查记录」侧数据；
+2. **统一报告平台**接入，提供判断 MR 是否非法所需的其余数据；
+3. 由这两个来源自行判断 MR 是否非法，**不再依赖老平台**；
+4. 将当时最新的老平台数据一次性**转为平台正式数据**；
+5. **删除兼容模式**；
+6. 代码走查、评审数据与标签写回**由新平台全权接管，走自己的链路**。
+
+**对本计划的约束与影响**
+
+1. 阶段一必须保持「模板可登记 + 数据驱动」，不得硬编码 `code_review`——将来判定输入要按模板扩展。
+2. 走查人正名（FR-A8）、走查时间与各类问题数量等字段直接服务于将来的非法判定，字段语义须一次定对。
+3. 表单数据当前只有写入、没有读取方（§5.5），属过渡状态下的正常现象；接入判定的链路属上述第 3 步，不在阶段一。
+4. D13 的迁移（保连续性）在此目标下更有必要：表单将成为判定输入，历史断裂会影响后续判定与统计。
+5. 老平台停用还会解除一个既有阻塞：「老平台标签写回无法在运行期关闭」目前是启用新平台写回的前置障碍，老平台停用后该冲突自然消解。
+
+## 六、GitLab 跳转链接身份识别调查（会议待办项 1）
+
+> 会议待办原文：「探讨链接身份识别方案：回去探讨从 GitLab 跳转过来的链接，识别点击用户对应 GitLab 账号的实现方案」。本节依据 GitLab 官方文档给出调查结论。本节为调查结论与设计预留，**本期不实施**（见 6.5）。
+
+### 6.1 问题界定
+
+表单入口链接由平台通知评论发布在 MR 评论区，形态为 `https://<平台地址>/#/external/code-review-form?gitlabBaseUrl=…&projectId=…&mrIid=…`，同一 MR 下所有项目成员看到的是**同一条静态链接**。要回答的问题是：用户点击该链接进入表单页时，平台能否识别出点击者对应哪个 GitLab 账号。
+
+### 6.2 不可行的路径（先行排除）
+
+| 路径 | 为什么不可行 |
+| --- | --- |
+| 读 `Referer` 请求头 | 从 GitLab 页面点击跳转时浏览器会带 Referer，但其中只有来源页面地址，**不含任何用户身份**；且受浏览器与代理策略影响可能被裁减或抹除。只能证明「来自 GitLab」，不能证明「是谁」。 |
+| 读 GitLab 的会话 Cookie | Cookie 按域隔离且 GitLab 会话 Cookie 为 HttpOnly，平台域的页面与接口**无法读取** GitLab 域的 Cookie。跨域共享会话在浏览器安全模型下不成立。 |
+| 在链接中嵌入个人身份 | 通知评论是一条对所有项目成员可见的静态评论，同一链接被所有人点击，无法嵌入个人身份；为每个人单独发一条评论会制造评论噪音，且 GitLab 评论不支持「仅特定人可见」。 |
+
+结论：**任何「被动」手段都无法识别点击者**。唯一可行的是让用户浏览器与 GitLab 完成一次标准的身份认证往返——即 GitLab 官方支持的 OAuth 2.0 / OpenID Connect 流程。
+
+### 6.3 官方支持的方案：GitLab 作为 OAuth 2.0 / OpenID Connect 身份提供者
+
+以下事实均出自 GitLab 官方文档：
+
+**① 配置入口（GitLab 文档《Configure GitLab as an OAuth 2.0 authentication identity provider》，`docs.gitlab.com/integration/oauth_provider/`）**
+
+- GitLab 支持创建三类 OAuth 应用：用户级、群组级、**实例级**。实例级应用由管理员创建，适用于「整个 GitLab 实例的用户都要登录的第三方应用」。
+- 实例级应用可设为受信（trusted），官方原文：*"The user authorization step is automatically skipped for this application."* —— 即用户已登录 GitLab 时，授权确认页自动跳过，整个识别过程对用户**无感**。
+- 文档要求回调地址使用 HTTPS（*"You can use a non-SSL URL instead, but you should use an SSL URL."*）。
+- 应用密钥只在创建时显示一次；access token 默认 2 小时过期（*"By default, access tokens expire after two hours (7200 seconds)."*）——本方案只做一次性识别，不持有长期访问，无需刷新令牌。
+
+**② 授权码流程（GitLab 文档《OAuth 2.0 identity provider API》，`docs.gitlab.com/api/oauth2/`）**
+
+标准四步：
+
+1. 浏览器重定向到 `<gitlab>/oauth/authorize?client_id=…&redirect_uri=…&response_type=code&state=…&scope=read_user`；
+2. GitLab 完成认证后回调平台地址并携带一次性授权码 `code`；
+3. 平台后端 POST `<gitlab>/oauth/token`（`grant_type=authorization_code`，凭 `client_secret` 或 PKCE 的 `code_verifier`）换取 `access_token`；
+4. 后端持 token 调 `GET /api/v4/user`（`Authorization: Bearer <token>` 头），返回当前用户身份（`id`、`username`、`name`、`email` 等字段）。也可用 `GET /oauth/userinfo` 获取同类信息。
+
+`read_user` 范围即可满足识别需求，无需申请更宽权限。
+
+**③ 等价备选：OpenID Connect（GitLab 文档《GitLab as OpenID Connect identity provider》，`docs.gitlab.com/integration/openid_connect_provider/`）**
+
+- 应用勾选 `openid` 范围（可加 `profile`、`email`），发现端点为 `<gitlab>/.well-known/openid-configuration`；
+- 流程与 ② 相同，区别是换取 token 时同时返回 **ID token**，其中直接携带用户身份声明（`sub` 稳定主体标识、`name`、`preferred_username`、`email` 等），省去第 4 步的身份查询。
+
+②与③二选一即可。建议采用 ②（`read_user` + `/api/v4/user`）：语义直观、返回字段完整、文档示例充分。
+
+### 6.4 建议的落地形态与账号映射
+
+**形态：「可选识别」而非门槛。** 会议已确定「暂不强制绑定 GitLab 账号身份」（FR-D2、D4），该决定不因本调查改变。建议的交互：表单页加载后若当前用户尚未识别过 GitLab 账号，提供一个「识别 GitLab 账号」动作（或自动发起一次静默重定向）——用户通常刚从一个已登录的 GitLab 页面点过来，配合实例级受信应用，整个过程是一次无感往返；未登录 GitLab 的用户会看到 GitLab 登录页，**必须允许放弃并返回表单**，不阻断填写。
+
+**识别结果落库为映射表**：后端用授权码换取 token、调用 `/api/v4/user` 得到 GitLab 用户（`id`、`username`、`email`），落库 `平台登录账号 ↔ (gitlab_base_url, gitlab_user_id, username)` 的映射。该映射同时是会议「账号体系打通」议题（首次登录双校验绑定）的天然沉淀：每个点击者自助完成了一次可验证的账号绑定。
+
+**映射到走查人候选**：按 GitLab 用户 `email` 匹配 `platform_ldap_users.email`/`intranet_email`（或按 username 与工号的命名规则匹配），命中则把走查人下拉**默认值**预填为该人员，仍可改选他人（不限制代填）；匹配不到则只记录映射、不做预填。
+
+**安全要求**：`state` 参数由服务端签发并在回调时校验（防跨站请求伪造）；生产环境回调地址必须 HTTPS（GitLab 文档要求）；范围最小化（仅 `read_user`）；`client_secret` 只存服务端，或改用 PKCE；识别用 token 用完即弃、不入库。
+
+**内网前置条件**：①GitLab 实例管理员创建一个实例级 OAuth 应用并设为受信；②实施前在内网 GitLab 实例实测一次 `/oauth/authorize` 与 `/.well-known/openid-configuration` 的可用性（该能力由 GitLab 内置组件提供，属长期既有功能，但具体版本行为需以内网实例实测为准）。
+
+### 6.5 结论与本期处置
+
+**结论：GitLab 官方对该场景有完整支持，技术可行，无不可逾越的障碍。** 唯一可行的识别路径是 OAuth 2.0 授权码流程（或等价的 OpenID Connect），配合实例级受信应用可以做到对已登录 GitLab 的用户无感识别。
+
+**本期处置：不实施。** 理由：①本期表单框架不依赖 GitLab 身份——走查人候选来自平台人员表（FR-A8/D15）、编辑权限按平台登录账号判定（D4/D10），主流程不需要它；②它的最大价值（账号映射沉淀）属于会议「账号体系打通」议题的范畴，与 LDAP 绑定逻辑一起实施才能闭环，单独立项更合理。**本期已做的兼容预留**：模型上「创建账号（平台登录用户）」与「走查人（人员标识）」分离（§8.1），未来加入 GitLab 映射时不需要改表结构；届时按本节方案实施即可。
+
+**官方资料出处**：
+
+- GitLab 文档《Configure GitLab as an OAuth 2.0 authentication identity provider》：https://docs.gitlab.com/integration/oauth_provider/
+- GitLab 文档《OAuth 2.0 identity provider API》：https://docs.gitlab.com/api/oauth2/
+- GitLab 文档《GitLab as OpenID Connect identity provider》：https://docs.gitlab.com/integration/openid_connect_provider/
+
+## 七、需求规格（FR 清单）
+
+**A. 基础设计规则**
+
+| 编号 | 需求 | 验收标准 |
+| --- | --- | --- |
+| FR-A1 | 所有模板统一竖版单列布局（飞书问卷式） | 表单字段自上而下单列排列，同行不并列多字段 |
+| FR-A2 | 除「补充说明」外全部字段必填 | 缺任一必填字段提交被拒且不写库；补充说明可留空保存。**字段语义（由老平台代码核实）**：走查人＝填写本次走查的人员；走查时间（分钟）＝本次走查的**时长**；规范／逻辑／性能／设计／其他＝**各类问题的数量**（老平台字段为 `codeSpecificationCount` 等，缺陷总数＝五项相加），故五项保留为数量，不是评分。**表单本身不含「走查日期」字段**；统计所用的走查日期由记录产生时间派生，见 D14② |
+| FR-A3 | 原「备注」统一更名「补充说明」 | 表单、数据库查看列名、导出文案一致（物理列名处理见 D3：新表列名 `supplement_note`，v1 表保持 `remark` 原样只读） |
+| FR-A4 | 记录保存后默认转不可编辑文本展示 | 已保存记录默认只读，编辑需显式发起；未保存的新增记录可自由编辑 |
+| FR-A5 | 仅**记录创建人**（填写该记录的登录用户）可编辑该记录 | 非创建人（含持通用编辑权限者）无法修改他人记录；判定范围＝每条记录各自判定（D10），创建人身份＝平台登录用户、不引入 GitLab 绑定（D4）；**归属依据是该记录的创建账号，与走查人字段无关**——允许代填时两者可能不是同一人，编辑权限只认创建账号 |
+| FR-A6 | 只保留创建时间、最新更新时间；无用户可见编辑历史 | 记录仅两时间字段；编辑后展示灰色小字提示；审计日志按 D1 保留。**用途（会议 08:41）**：这两个时间字段服务**响应延期校验**，不是普通审计时间；**不承担冲突检测**（冲突检测由记录版本号负责） |
+| FR-A7 | 规范覆盖代码走查、议题回复、测试相关、CC 及 RS 等模板 | 本期落地范围见 D5 |
+| FR-A8 | 走查人字段**必须是下拉选择、禁止手动输入**，名称须为**权威中文正名**（LDAP `real_name`），不允许自由文本脏名 | **控件＝可搜索下拉，不接受自由文本**；提交值必须命中候选集合，**服务端必须同样校验值域**；写入数据库与事实层的不出现错字、同音、离职脏名；仍允许选他人（会议明确不限制填非本人），但必须是正名。候选值域见 D15。**当前实现恰是脏数据来源**：走查人控件是自由文本 `el-input`（`CollectFormView.vue:246-247`），且被原样当作 `editorUsername` 写入数据库（`:118`、`:159`） |
+
+**B. 多场景适配**
+
+| 编号 | 需求 | 验收标准 |
+| --- | --- | --- |
+| FR-B1 | 多走查人/多回复人通过顶部加号新增独立记录，块级独立展示，支持接力填写 | 新增记录独立成块；后填者可见前者已填内容；**记录身份＝记录自身（不是「人」）**——同一登录用户可在同一实例新增多条记录，走查人字段允许填非本人，不设「同一实例同一走查人唯一」约束（§5.4-F 推论 3） |
+| FR-B2 | 并发与长时停留按 §8.8 场景清单处理；**原「不做并发冲突处理」的说法已作废** | §8.8 每个场景都有对应实现与测试，且不存在静默覆盖路径 |
+| FR-B3 | 默认保留跳转对应 merge request 的链接 | 页面可直达对应 MR |
+| FR-B4 | 需在 GitLab comment 内查看时通过 webhook 同步生成内容 | 本期不做（D6），第二期实现 |
+| FR-B5 | 保存按**记录增量提交**，禁止表单级整体覆盖 | 甲已保存的记录在乙保存后仍完整存在；交叉保存用例覆盖。**保存请求只携带当前这一条记录**，服务端不得因请求中缺少其他记录而删除它们 |
+| FR-B6 | 同一记录并发修改用**乐观锁**显式冲突提示 | 冲突按平台既有 `A0409` 语义返回；前端提示并保留用户输入，不静默覆盖 |
+| FR-B7 | 新增记录**不重复** | 双击/网络重试不产生重复记录。**新增请求携带客户端生成的请求标识**，服务端按该标识去重；**记录编号由服务端在写入时分配全局唯一主键**（数据库序列），不使用表单内序号。**请求标识须作为记录表的一列并建立唯一约束**（空值不参与唯一性，覆盖迁移来的历史记录）。**重复提交的返回**：同一请求标识的重复提交返回首次写入的那条记录并视为成功，**不返回冲突提示** |
+| FR-B8 | 不引入占用/锁定/预约，页面长时间停留不影响他人 | 打开页面不产生服务端占位；无锁相关字段与逻辑，并用自动化测试锁定该边界 |
+| FR-B9 | 保存失败（含 401 会话过期）必须**保留已填内容**并可重试 | 失败后输入不丢失；重新登录后可继续提交 |
+| FR-B10 | 未保存内容**本地草稿自动留存**，重开页面自动恢复 | 误关/浏览器崩溃/会话过期重登后草稿恢复；保存成功后清除；退出登录时清空 |
+| FR-B11 | 未保存时离开页面需确认 | 路由离开与关闭/刷新均提示（复用平台既有 `beforeunload`/`onRouteLeave` 先例） |
+| FR-B12 | 新增记录时若同一实例已存在**同名走查人**记录，给出**软提示**（不拦截） | 提示「该走查人已有记录，是否确定添加」；用户确认后仍可新增成功（**不做唯一约束**）。**提示必须在服务端提交时判定**（前端已加载列表可能已过期）；**判定按人员标识**（D15）。**接口需支持二次提交**：首次提交命中同名且未带确认标记时，返回「需确认」结果且**不写入**；用户确认后带确认标记重新提交才写入 |
+| FR-B13 | **两人先后新增记录时互不覆盖** | ①甲、乙先后新增的两条记录在保存后同时存在；②**保存成功后重新加载该表单的全部记录**（不做实时推送）；③同名走查人的提示按 FR-B12 在服务端判定；④以上均以自动测试覆盖 |
+| FR-B14 | **记录作废的开放范围** | 本期**提供作废**：**仅填写人本人**可作废自己填写的记录，页面二次确认，不设代作废。权限按「本人删除」授予填写人角色（平台既有先例 `review.record.delete_own`），**不使用**「有权限即可删除任意记录」的语义。**历史记录例外**：迁移来的历史记录没有创建账号，本期只读、不可编辑也不可作废。**作废口径**：逻辑删除，作废记录**不参与**事实层合并与统计 |
+
+**C. 可配置表单管理**
+
+| 编号 | 需求 | 验收标准 |
+| --- | --- | --- |
+| FR-C1 | 可配置表单仅对内部开发人员开放，不对业务侧普通用户开放 | 本期无运行期配置入口（元数据随迁移脚本维护）；第二期配置界面仅对内部开发人员开放，普通角色不可见且后端拒绝 |
+| FR-C2 | 字段新增/删除直接新起独立表结构，不在原表迭代 | 新旧版本数据物理分离，不混表 |
+| FR-C3 | 历史版本数据入库永久留存可查询；发布带版本号标识 | 任一历史版本可查（老版本表注册进数据库查看）；记录列带数据产生版本号 |
+| FR-C4 | 字段变更须前置风险提示（避免统计适配失败） | 变更流程包含影响面说明与消费侧确认；每次字段变更走一遍黄金基线回归（§5.7） |
+
+**D. 登录与跨域**
+
+| 编号 | 需求 | 验收标准 |
+| --- | --- | --- |
+| FR-D1 | 表单挂质量点域名下，与平台共享登录态，无二次登录、无额外跨域校验 | 未登录访问跳平台登录；登录后直达表单 |
+| FR-D2 | 暂不强制绑定 GitLab 账号；不限制填写非本人走查人 | 走查人可从候选中选择任意人员；无身份绑定校验。GitLab 账号识别为可选增强，见 §6 |
+
+**E. 流程**
+
+| 编号 | 需求 | 验收标准 |
+| --- | --- | --- |
+| FR-E1 | 方案群内评审通过后才启动开发 | 评审通过记录先于任何代码提交 |
+| FR-E2 | 代码走查表落地后逐步下线老平台 | 属后续独立工作单元（依赖见 §5.8） |
+| FR-E3 | 前置调研：GitLab 跳转链接识别点击用户账号的方案（会议待办项 1）；开源可配置表单方案（会议待办项 2） | 待办项 1 已完成，结论见 §6；开源表单方案调研不在本工作单元，按会议分工另行跟进 |
+
+## 八、实现设计
+
+> 本节为评审通过后的实施蓝本。实施时如对表结构、端点签名有调整，必须回本节同步修订并说明原因。
+
+### 8.1 数据模型
+
+新增一个 Flyway 迁移（文件名按发布期日期命名，占位：`V<发布日期>_01__unified_form_framework.sql`），包含以下全部表与种子数据。新增迁移必须按仓库规则把校验和登记到 `scripts/flyway-migration-checksums.json`。
+
+**① 模板元数据表（两张）**
+
+```sql
+create table form_template_definitions (
+    template_key       varchar(64) primary key,
+    display_name       varchar(128) not null,
+    current_version_no integer not null,
+    status             varchar(32) not null default 'ACTIVE',
+    created_at         timestamp not null default current_timestamp,
+    updated_at         timestamp not null default current_timestamp
+);
+
+create table form_template_versions (
+    id              bigserial primary key,
+    template_key    varchar(64) not null references form_template_definitions(template_key),
+    version_no      integer not null,
+    instance_table  varchar(128) not null,
+    record_table    varchar(128),
+    field_spec      jsonb not null,
+    migration_spec  jsonb,
+    published_at    timestamp not null default current_timestamp,
+    created_at      timestamp not null default current_timestamp,
+    unique (template_key, version_no)
+);
+```
+
+**② 代码走查表 v2 物理表（实例表 + 记录表）**
+
+```sql
+create table form_code_review_v2_instances (
+    id              bigserial primary key,
+    gitlab_base_url varchar(255) not null,
+    project_id      bigint not null,
+    resource_type   varchar(64)  not null,          -- merge_request
+    resource_id     varchar(255) not null,          -- MR iid
+    template_key    varchar(64)  not null,
+    created_at      timestamp not null default current_timestamp,
+    updated_at      timestamp not null default current_timestamp,
+    unique (gitlab_base_url, project_id, resource_type, resource_id, template_key)
+);
+
+create table form_code_review_v2_records (
+    id                      bigserial primary key,
+    instance_id             bigint not null references form_code_review_v2_instances(id),
+    template_version        integer not null,            -- 数据产生时的模板版本
+    created_by              varchar(128),                -- 平台登录账号 user_id；迁移历史行为空
+    reviewer_user_id        varchar(128),                -- 走查人人员标识；迁移历史行为空
+    reviewer_name           varchar(128) not null,       -- 走查人正名（统计按姓名使用）
+    review_duration_minutes integer not null,
+    specification_count     integer not null,
+    logic_count             integer not null,
+    performance_count       integer not null,
+    design_count            integer not null,
+    other_count             integer not null,
+    supplement_note         text,
+    request_key             varchar(64),                 -- 新增请求标识（FR-B7）
+    record_version          integer not null default 1,  -- 乐观锁版本号
+    deleted                 boolean not null default false,
+    created_at              timestamp not null default current_timestamp,
+    updated_at              timestamp not null default current_timestamp
+);
+
+-- 请求标识唯一约束：空值不参与唯一性（迁移历史记录无该标识）
+create unique index form_code_review_v2_records_request_key_uk
+    on form_code_review_v2_records (request_key) where request_key is not null;
+
+create index form_code_review_v2_records_instance_idx
+    on form_code_review_v2_records (instance_id) where deleted = false;
+```
+
+字段命名说明（按 D3，新表直接采用规范命名，v1 表保持原样只读）：
+
+| v1 列（`collect_form_records`） | v2 列 | 变更原因 |
+| --- | --- | --- |
+| `reviewer` | `reviewer_name` + `reviewer_user_id` | 走查人改为「人员标识 + 正名」双列（FR-A8/D15） |
+| `specification_score` 等 5 列 | `specification_count` 等 5 列 | 字段语义是各类问题的**数量**而非评分（FR-A2 字段语义核实） |
+| `remark` | `supplement_note` | 会议更名「补充说明」（FR-A3） |
+| （无） | `created_by` | 编辑权限归属依据（FR-A5） |
+| （无） | `record_version` | 乐观锁（FR-B6） |
+| （无） | `request_key` | 新增去重（FR-B7） |
+| （无） | `template_version` | 数据产生版本（§5.7） |
+
+`created_by` 存平台登录账号 `user_id`，不设外键——账号停用不得级联删除记录；`reviewer_user_id` 同理（对应 `platform_ldap_users.user_id`，逻辑关联、不设外键约束，历史记录与人员表外人员允许为空）。
+
+**③ 记录层审计表**（替代 v1 的 `collect_form_record_audit_logs`，审计快照落到记录层，D1）
+
+```sql
+create table form_record_audit_logs (
+    id            bigserial primary key,
+    record_id     bigint not null,
+    template_key  varchar(64) not null,
+    operation     varchar(32) not null,        -- CREATE / UPDATE / VOID
+    snapshot_json jsonb not null,              -- 操作后的记录全量快照
+    operator_id   varchar(128),
+    operator_name varchar(128),
+    client_ip     varchar(64),
+    user_agent    varchar(512),
+    created_at    timestamp not null default current_timestamp
+);
+```
+
+**④ 迁移审计表**（§5.7 第 4 条）
+
+```sql
+create table form_template_migration_logs (
+    id              bigserial primary key,
+    template_key    varchar(64) not null,
+    from_version_no integer not null,
+    to_version_no   integer not null,
+    migrated_rows   integer not null,
+    executed_at     timestamp not null default current_timestamp
+);
+```
+
+**⑤ 元数据种子**（随同一迁移写入）：
+
+- `form_template_definitions`：`('code_review', '代码走查表', 2, 'ACTIVE')`
+- `form_template_versions` 两行：
+  - v1：`instance_table='collect_form_records'`、`record_table=null`、`field_spec` 描述 v1 列（历史登记用途）、`migration_spec=null`
+  - v2：`instance_table='form_code_review_v2_instances'`、`record_table='form_code_review_v2_records'`、`field_spec` 见 §8.2、`migration_spec` 描述 v1→v2 映射（见 §8.3）
+
+### 8.2 模板元数据与字段定义
+
+v2 的 `field_spec`（服务端必填与类型校验的唯一来源，评审意见）：
+
+```json
+{
+  "fields": [
+    {"name": "reviewer_name",           "label": "走查人",         "type": "person",  "required": true,  "control": "person-select", "optionsSource": "platform_ldap_users"},
+    {"name": "review_duration_minutes", "label": "走查时间（分钟）", "type": "integer", "required": true,  "control": "number", "min": 0},
+    {"name": "specification_count",     "label": "规范",           "type": "integer", "required": true,  "control": "number", "min": 0},
+    {"name": "logic_count",             "label": "逻辑",           "type": "integer", "required": true,  "control": "number", "min": 0},
+    {"name": "performance_count",       "label": "性能",           "type": "integer", "required": true,  "control": "number", "min": 0},
+    {"name": "design_count",            "label": "设计",           "type": "integer", "required": true,  "control": "number", "min": 0},
+    {"name": "other_count",             "label": "其他",           "type": "integer", "required": true,  "control": "number", "min": 0},
+    {"name": "supplement_note",         "label": "补充说明",       "type": "text",    "required": false, "control": "textarea"}
+  ]
+}
+```
+
+**元数据与物理表一致性自动校验**（评审意见「保证字段定义与物理表结构一致」）：应用启动时校验当前版本 `field_spec` 声明的每个字段在物理记录表中存在对应列、类型匹配，不一致时启动失败并指明差异字段；另以单元测试锁定该校验逻辑。
+
+**应用代码不硬编码表名**：服务层从 `form_template_versions` 读当前版本的物理表名组装数据访问（本期只有 `code_review` 一个模板，但表名、字段校验规则一律取自元数据）。动态表名仅限来自元数据表的值，禁止拼接任何请求输入，从机制上杜绝 SQL 注入面。
+
+### 8.3 v1→v2 存量迁移
+
+与建表同一个迁移脚本、单事务执行：
+
+```sql
+-- ① 实例：v1 的唯一键即实例键（一上下文一行 → 一实例）
+insert into form_code_review_v2_instances
+    (gitlab_base_url, project_id, resource_type, resource_id, template_key, created_at, updated_at)
+select gitlab_base_url, project_id, resource_type, resource_id, 'code_review',
+       min(created_at), max(updated_at)
+from collect_form_records
+group by gitlab_base_url, project_id, resource_type, resource_id;
+
+-- ② 记录：v1 每行 → v2 一条记录；历史行 created_by / reviewer_user_id / request_key 为空，template_version = 1
+insert into form_code_review_v2_records
+    (instance_id, template_version, created_by, reviewer_user_id, reviewer_name,
+     review_duration_minutes, specification_count, logic_count, performance_count,
+     design_count, other_count, supplement_note, request_key, record_version,
+     deleted, created_at, updated_at)
+select i.id, 1, null, null, f.reviewer,
+       f.review_duration_minutes, f.specification_score, f.logic_score, f.performance_score,
+       f.design_score, f.other_score, f.remark, null, 1,
+       f.deleted, f.created_at, f.updated_at
+from collect_form_records f
+join form_code_review_v2_instances i
+  on i.gitlab_base_url = f.gitlab_base_url
+ and i.project_id = f.project_id
+ and i.resource_type = f.resource_type
+ and i.resource_id = f.resource_id;
+
+-- ③ 迁移审计行
+insert into form_template_migration_logs (template_key, from_version_no, to_version_no, migrated_rows)
+select 'code_review', 1, 2, count(*) from collect_form_records;
+```
+
+**迁移校验（同一工作单元自动化）**：行数守恒（`count(collect_form_records)` = 实例数 = 记录数，v1 唯一键保证一上下文一行）；逐字段比对（改名后值相等：`remark`→`supplement_note`、`specification_score`→`specification_count` 等）；作废标记、两个时间字段原样保留。校验以单元测试 + 实施时只读核对双重执行。本地开发库 v1 为 0 行（空集迁移）；**内网存量须在实施前用只读查询确认**（§5.4-F 推论 5）。
+
+**迁移后 v1 表的处置**：`collect_form_records` 不再被任何应用代码读写，作为 v1 历史版本表保留只读，在数据库查看模块以「代码走查表单 v1（历史版本）」登记中文标签（「备注」）；v2 表登记「补充说明」。两者差异是版本差异而非不一致（D3）。`collect_form_record_audit_logs` 同样保留只读。
+
+### 8.4 服务端端点
+
+控制器沿用 `/api/collect-forms` 前缀（内部接口按开发红线直接改成目标版本，被取代端点删除，不留兼容层）。身份一律取自服务端会话（`AuthSessionSupport`），**不再接收前端传入的 `editorId`/`editorUsername`**——现状把「走查人」文本当操作人写库是缺陷，一并消除。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/api/collect-forms/detail` | `form.record.create` | 参数 `gitlabBaseUrl/projectId/resourceType/resourceId/templateKey`。返回：模板元数据（显示名、版本号、`field_spec`）、实例 id（不存在则空）、全部未作废记录（含创建账号、走查人标识与姓名、记录版本号、两个时间字段）、MR 跳转链接、当前登录账号 id |
+| POST | `/api/collect-forms/records` | `form.record.create` | 新增一条记录。请求体：上下文四元组 + `templateKey` + `requestKey` + 字段值 + `confirmSameReviewer`（布尔，默认 false）。行为：①`requestKey` 命中已有记录 → 返回首次写入的记录，视为成功（FR-B7 幂等）；②同一实例已存在同 `reviewer_user_id` 的未作废记录且未带确认标记 → 返回「需确认」结果、**不写入**（FR-B12）；③按 `field_spec` 执行必填/类型/值域校验；④写入记录 + 审计行，返回完整记录 |
+| PUT | `/api/collect-forms/records/{id}` | `form.record.edit_own` | 编辑一条记录。请求体：`recordVersion` + 字段值。行为：①记录不存在或已作废 → 明确错误（不复活）；②`created_by` ≠ 当前账号（含为空的历史记录）→ 403；③`record_version` 不符 → `A0409` 冲突（FR-B6）；④按 `field_spec` 校验；⑤更新 + `record_version` 递增 + 审计行 |
+| POST | `/api/collect-forms/records/{id}/void` | `form.record.delete_own` | 作废一条记录（逻辑删除）。仅 `created_by` = 当前账号可作废；历史记录（`created_by` 为空）拒绝；写审计行 |
+| GET | `/api/collect-forms/reviewer-candidates` | `form.record.create` | 走查人候选搜索。参数 `keyword`，返回 `platform_ldap_users` 中匹配的人员（`user_id` + `real_name` + 部门），供可搜索下拉使用；候选含已离职但表中仍有记录者（D15） |
+| GET | `/api/collect-forms/notification-payload` | `form.record.create` | 保留现状（GitLab 通知评论的链接负载生成） |
+| ~~POST `/save`~~、~~POST `/delete`~~、~~POST `/update-record`~~ | — | — | **删除**，由 records 系列端点取代 |
+
+错误语义：参数/必填/值域校验失败 → 400（沿用平台统一错误结构）；无权限或归属不符 → 403；编辑冲突 → `A0409`；会话过期 → 401（平台全局处理，`request.ts:428-435` 已有提示）。
+
+### 8.5 权限模型
+
+**权限码改为模板通用码**，消除 `code_review` 专有权限码（§5.7「登记消除模板专有权限码」）：
+
+| 权限码 | 名称 | 说明 | 授予角色 |
+| --- | --- | --- | --- |
+| `form.record.create` | 新增表单记录 | 打开表单页并新增记录 | 全部角色（含 NORMAL_USER） |
+| `form.record.edit_own` | 编辑本人表单记录 | 仅对 `created_by` = 本人的记录生效，服务端双重判定 | 全部角色 |
+| `form.record.delete_own` | 作废本人表单记录 | 仅对 `created_by` = 本人的记录生效（FR-B14/D16） | 全部角色 |
+
+- 旧码 `code_review.form.create/edit/delete` 从权限目录停用并删除角色授予（按开发红线删除被替代实现；权限目录迁移同步处理）。
+- **归属判定在服务端执行**：权限码只决定「能否进入对应操作」，记录级归属（`created_by` = 当前账号）在服务端逐条判定——与评审域 `review.record.delete_own` 同一先例。
+- **不设代改通道**（D8）：管理员/运维本期无代他人修改或作废的能力。
+- **账号停用后的运维流程**（D16 第三轮复核要求写定）：确需处理历史记录或离职人员记录时，走**一次性运维流程**——由**该模板所属团队的负责人**批准后，由内部开发人员用数据库查看模块外的受控脚本逐条调整，操作写入平台操作审计表（`operation_audit_logs` 既有机制）；该流程不改变归属判定，不新立工作项，具体操作步骤写入运维手册（`deploy/runbooks/`）时另附。
+
+### 8.6 事实层适配
+
+`GitlabFactSourceSqlProvider` 的 `form_records` CTE 改为读 v2 表（表名从元数据当前版本解析，不硬编码）：
+
+```sql
+form_records as (
+  select i.project_id,
+         cast(i.resource_id as bigint) as request_iid,
+         string_agg(distinct nullif(btrim(r.reviewer_name), ''), '、'
+                    order by nullif(btrim(r.reviewer_name), '')) as reviewer_name,
+         sum(r.review_duration_minutes) as review_duration_minutes,
+         min(r.created_at) as form_created_at
+  from form_code_review_v2_records r
+  join form_code_review_v2_instances i on i.id = r.instance_id
+  where r.deleted = false
+    and i.resource_type = 'merge_request'
+  group by i.project_id, cast(i.resource_id as bigint)
+)
+```
+
+三处语义变化及依据：
+
+| 取值 | 现状（v1） | 改后（v2） | 依据 |
+| --- | --- | --- | --- |
+| 走查人 | `max(reviewer)`（多行时随机丢名） | `string_agg(distinct …, '、')`（姓名去重拼接） | D14②「走查人＝姓名去重后拼接」 |
+| 走查工作量 | `max(review_duration_minutes)` | `sum(review_duration_minutes)`（多条记录相加） | D14②「时长相加」 |
+| 表单后备时间 | `max(updated_at)`（随编辑后移） | `min(created_at)`（创建时间不随编辑后移） | D14② 第三轮复核意见；`code_walkthrough_date` 的 coalesce 后备值同步改为 `forms.form_created_at` |
+
+下游取值链（`owner_name`/`reviewer_names` 的 coalesce 顺序）**不变**——表单仍是评论之后的后备取值。**黄金基线影响预期为零**：黄金夹具中 `collect_form_records` 为空，改后新表同样为空，事实层输出无差异；实施时仍按门禁纪律复跑确认，若出现差异逐项解释。
+
+### 8.7 前端页面
+
+路由保持 `/external/code-review-form`（GitLab 存量评论里的链接不变），query 白名单保持 `gitlabBaseUrl/projectId/mrIid`。`CollectFormView.vue` 整体重写：
+
+**页面结构（竖版单列，FR-A1）**
+
+- 顶部：表单标题（取自元数据显示名）、跳转对应 MR 的链接（FR-B3）、「+ 新增一条走查记录」按钮（FR-B1）。
+- 已保存记录块（只读态，FR-A4）：纯文本展示各字段；本人记录显示「编辑」「作废」按钮，他人记录不显示任何操作；作废需二次确认（FR-B14）；内容被修改过的块在下方以灰色小字显示最后修改时间（FR-A6）。
+- 编辑态块（新增未保存或点击「编辑」后）：字段自上而下单列——走查人（可搜索下拉，远程搜索 `reviewer-candidates`，保存人员标识、显示姓名）、走查时间（分钟）（数字输入，最小 0）、规范／逻辑／性能／设计／其他（数字输入，最小 0）、补充说明（多行文本，选填）。必填校验在提交前前端执行一次（服务端兜底）。
+- 走查人下拉**默认值**为当前登录账号对应的人员（按登录账号 `user_id` 命中候选时预填），可改选他人。
+
+**交互规则**
+
+- 同名走查人软提示（FR-B12）：提交返回「需确认」结果时弹出确认框（「该走查人在本表单已有记录，是否确定添加？」），确认后带 `confirmSameReviewer=true` 重新提交。
+- 编辑冲突（FR-B6）：收到 `A0409` 时提示「该记录已被修改，请重新加载」，**保留用户当前输入**，提供「重新加载」动作；先例 `DropdownOptionSettingsView.vue:353-357`、`BackupSettingsView.vue:259-263`。
+- 保存成功后重新加载该表单的全部记录（FR-B13②），不做实时推送。
+- 本地草稿（FR-B10/D11）：编辑态内容变动即写入 `localStorage`，键含模板、上下文四元组与当前账号；重开页面自动恢复未保存的编辑态块；保存成功后清除对应草稿；退出登录时清空全部表单草稿。草稿恢复后提交仍须过乐观锁。
+- 未保存离开确认（FR-B11）：存在未保存编辑态块时，`beforeunload` 与路由离开守卫均提示；先例 `CodeReviewIllegalRuleConfigView.vue:215-258`、`MirrorSettingsView.vue:353-433`。
+- 保存失败（含 401）保留已填内容并可重试（FR-B9）。
+- **本期页面结构写在代码中**（评审事项 5 的建议）：不做「按字段定义自动生成」；服务端的必填与类型校验仍按 `field_spec` 执行，字段定义是校验的唯一来源。
+
+### 8.8 并发与长时停留场景清单
+
+平台现状对并发**没有任何保护**：`collect_form_records` 无版本列，`save` 是整行覆盖式写入，且任何持 `code_review.form.edit` 者都可改任意记录。以下场景必须逐条落实并测试：
+
+| 场景 | 风险 | 处理要求 |
+| --- | --- | --- |
+| S1 两人先后打开同一表单页、各自新增记录（含前后脚提交） | ①若保存是整表单覆盖，后保存者会静默抹掉先保存者的记录；②若同名走查人的提示只依据前端已加载的列表，可能重复添加同一走查人 | 按记录增量提交（FR-B5）；保存成功后重新加载全部记录；同名提示在服务端判定（FR-B12、FR-B13） |
+| S2 两人并发修改同一记录 | 静默覆盖 | 记录级乐观锁，冲突返回 `A0409` 并提示重新加载，前端保留输入（FR-B6）。因编辑权限按记录归属判定（D10），该场景只剩同一账号多端/多标签页 |
+| S3 同一人双击/网络重试 | 产生重复记录 | 新增请求携带请求标识，服务端按标识幂等返回首次写入的记录；按钮 loading 禁用（FR-B7） |
+| S4 打开后离开/忘记、长时间挂着 | 对他人**无影响**（前提是无锁设计）；本人会因会话过期导致保存失败，误关页面则直接丢失 | ①不引入占用/预约/锁定并写成自动化测试（FR-B8）；②保存失败（含 401）保留已填内容并可重试（FR-B9）；③本地草稿自动留存与恢复（FR-B10）；④未保存离开需确认（FR-B11） |
+| S5 一人作废时另一人在编辑 | 保存可能静默复活或覆盖已作废数据 | 作废为逻辑删除且逐条处理；目标记录已作废时保存返回明确提示，不复活 |
+| S6 服务端或网络异常导致保存失败 | 界面可能「看起来成功」 | 保留输入 + 可重试；失败必须如实报告，不得用乐观界面掩盖 |
+
+边界：不做实时协同、不做占用/锁定/预约、不做后台自动草稿合并。草稿恢复后提交仍必须通过乐观锁校验，草稿不得成为绕过只读态或他人记录的路径。
+
+### 8.9 登记义务（实施时逐项完成，缺一不可）
+
+1. **黄金基线端点目录**（`endpoint-catalog.yml`）：删除 `save`/`delete`/`update-record` 三条旧条目及其快照文件；改写 `detail` 条目；新增 `records`（新增/编辑/作废）、`reviewer-candidates` 条目并声明受影响表（`form_code_review_v2_records`、`form_code_review_v2_instances`、`form_record_audit_logs`）与易变字段掩码。随后按门禁纪律以更新模式重建受影响快照 → 用户审阅 → 复跑全绿。
+2. **权限目录与角色授予迁移**：新增 `form.record.create/edit_own/delete_own` 三码并授予全部角色；停用并清理 `code_review.form.*` 三码的授予。
+3. **数据库查看模块**：登记新表（两张元数据表、v2 实例表、v2 记录表、记录审计表、迁移审计表）的列定义与中文标签；`collect_form_records` 改登记为「代码走查表单 v1（历史版本）」保留只读可查（FR-C3）。
+4. **统计板四件套评估**：表单页不是统计板页面，预期不涉及 `PagePermissionKeyResolver` 的 view/export 映射、实时工作区同步元数据与工作区事实依赖三项；实施时仍按清单逐项确认并在对应回归测试中锁定结论。
+5. **Flyway 校验和登记**：新迁移写入 `scripts/flyway-migration-checksums.json`（只允许新增条目）。
+6. **运维手册**：D16 一次性运维流程的批准人（模板所属团队负责人）与操作步骤写入 `deploy/runbooks/`。
+
+### 8.10 测试与验收
+
+- **后端**（`backend/src/test/`，JUnit 5）：
+  - 记录新增：必填/类型/值域校验按 `field_spec` 执行；`requestKey` 重复提交返回首次记录且不重复写入；同名走查人首次提交返回「需确认」不写入、带确认标记二次提交写入；实例不存在时自动创建实例。
+  - 记录编辑：本人可改、他人 403、历史记录（`created_by` 为空）403、已作废记录拒绝、`record_version` 不符返回 `A0409`、更新后版本号递增且审计行落记录层。
+  - 记录作废：本人可作废、他人 403、历史记录拒绝、作废后不再出现在 detail 且不参与事实层 CTE。
+  - 候选接口：关键字搜索命中人员表、离职但表中有记录者可命中。
+  - 迁移守恒：v1 夹具行 → v2 实例数/记录数守恒 + 逐字段比对 + 作废标记与时间字段原样。
+  - 元数据一致性：`field_spec` 与物理表列不一致时校验报错。
+  - 「无锁/无占位」边界以自动化测试锁定（FR-B8）。
+  - 并发场景 S1–S6 对应测试：两人交叉新增互不覆盖、同一人两个标签页新增、同一账号两处编辑同一记录冲突、作废与编辑交叉。
+- **前端**（`frontend/src/**/*.test.ts`，Vitest）：草稿写入/恢复/保存成功清除/登出清空；离开确认触发与豁免；同名确认二次提交流程；`A0409` 提示且保留输入；只读态不显示他人记录的操作按钮。另跑 `tsc --noEmit`、`vite build`、`eslint`。
+- **UI 真机验收**（后端 18080 / 前端 18181，`pwsh` 启动）：新增、编辑、只读态、多条目接力、必填拦截、作废二次确认、MR 链接跳转、草稿恢复。
+- **门禁**：按 §8.9-1 走完黄金基线流程；默认快速套件全绿（含端点目录覆盖护栏）。
+
+## 九、本期范围与分期
+
+**阶段一（本期，基础框架）**
+
+1. 模板数据驱动模型：模板元数据两表 + 字段定义 + 物理表版本化（§8.1、§8.2），模板集合可登记、不硬编码；本期只落地代码走查表一个模板。
+2. 按记录的数据模型与写入语义：记录独立 id、增量提交、乐观锁、新增去重（§8.1、§8.4）。
+3. 页面：竖版单列、加号新增块级记录、必填校验、保存后只读与显式编辑、灰色小字时间提示、本人记录作废（二次确认）（§8.7）。
+4. 权限与名称：按记录归属判定（§8.5）、走查人 LDAP 正名候选（FR-A8/D15）。
+5. 长时停留防护：本地草稿、离开确认、失败与会话过期保留输入（§8.7）。
+6. 存量数据迁移与事实层适配（§8.3、§8.6）。
+7. 测试、登记与门禁（§8.9、§8.10）。
+
+**阶段二（框架落地后逐项实现，优先级待用户排定）**
+
+- webhook→GitLab comment 回写（D6，本期明确不做）。
+- 「代码自查数据」是否纳入及其它会议模板（D12/D5）。
+- 可配置表单的**可视化配置界面**（FR-C1 的界面层；模型层已在阶段一）。
+- 历史版本查询入口与版本号标识展示（FR-C3 的界面层）。
+- 服务端草稿（若本地草稿不满足需求时）。
+- **GitLab 账号识别与映射**（§6，建议并入账号体系打通工作单元）。
+- 老平台下线（FR-E2，独立工作单元）。
+- **「表单取代评论/老平台」的链路与非法类型重定义**（§5.6）：新建「表单 → 代码走查统计」链路、`review_status` 计算规则重定、注释类非法类型不再适用、表单类校验项新增。范围大于表单框架本身，须单独立项、单独评审，阶段一不触碰。
+
+## 十、决策记录
+
+| 编号 | 事项 | 状态与依据 |
+| --- | --- | --- |
+| D1 | 「不存完整编辑历史」与审计表的取舍 | **已裁定（用户 2026-09-29）**：保留审计表（操作人/IP/UA，用于安全追溯），**但不提供任何用户可见的编辑历史**；页面仅在编辑后展示灰色小字提示。条目化后审计快照落到**记录层**（§8.1-③）。**事实**：现有审计每次操作写入**操作后的记录全量快照**，不单独记录字段级前后值；字段级追溯需按时间比对相邻快照 |
+| D2 | 需求文档与执行方案的关系 | **已作废（用户 2026-10-09）**：原裁定为「需求基线与执行方案分两份文档」；用户指示「分两版且没有具体实现的方案意义不大」，故合并为本一体稿，需求、设计与实施设计由本文件唯一承载 |
+| D3 | `remark` 物理列名 | **已裁定（用户 2026-09-29）**：不变更老表列名；新表直接用规范命名（`supplement_note`），`collect_form_records.remark` 随 v1 保持原样、迁移后作为 v1 历史版本只读；数据库查看对 v1/v2 分别登记中文标签（「备注」/「补充说明」）。同原则适用于 `specification_score`→`specification_count` 等 5 列（语义为数量） |
+| D4 | 创建人身份来源与走查人名称 | **已裁定（用户 2026-09-29）**：只需保证填写时看到的走查人名称是正确的中文名（LDAP 权威正名，FR-A8）；编辑权用平台登录用户判定，不引入 GitLab 绑定。GitLab 账号识别仅为可选增强（§6） |
+| D5 | 本期落地范围与会议模板指代 | **已裁定（用户 2026-09-29）**：本期只做**表单基础框架**，只落地代码走查表一个模板。「议题回复」＝响应/回复模板；「测试相关」经核实**无独立表单**，跳过；「CC 及 RS」中 CC = CrownCAD 数据源，「RS」无依据，若指数据源则体现为模板适用范围维度。框架按可登记实现，不硬编码模板集合 |
+| D6 | webhook→GitLab comment 回写 | **已裁定（用户 2026-09-29）**：**本期不做**，框架落地后再实现（阶段二）。后续实现须遵守上线前凭据核对清单（老平台 token 曾过期导致写回 401） |
+| D7 | 「镜像库」的含义 | **已裁定（用户 2026-09-29）**：指**采集平台自己的库**。历史版本表单数据作为 LOCAL 表注册进数据库查看即可；「永久留存」由整库备份天然覆盖（`deploy/runbooks/database-backup-restore.md`），不新建镜像或归档机制；备份是整库回滚手段、不能当查询入口 |
+| D8 | 是否保留「管理员/运维代改他人表单」能力 | **已裁定（用户 2026-09-29）**：不设代改通道。「A 帮 B 填的记录，只有 A 能改、B 改不了」被明确接受；代填只是功能上支持，实际流程中一般不会发生。上线后若出现真实代改诉求须另立单元，不得临时放宽归属判定 |
+| D9 | 并发与长时停留的处理方式 | **已裁定（用户 2026-09-29）**：会议原「不做并发冲突处理」作废。改为按记录逐条提交 + 记录级乐观锁冲突显式提示 + 不引入占用/锁定/预约；新增记录不重复；保存失败与会话过期必须保留输入。编辑冲突面很窄（只有创建人可编辑），乐观锁主要覆盖「同一账号多端/多标签页」与「重复提交」；重点是**两人先后新增**互不覆盖（FR-B13）。场景清单见 §8.8 |
+| D10 | 「创建人」的判定范围 | **已裁定（用户 2026-09-29）**：**按记录归属判定**——每条记录只有填写它的登录用户可编辑。不按整张表单判定（加号多记录下后加者改不了自己那条）、不按走查人姓名判定（姓名不是登录身份）。会议「仅表单创建人可发起编辑」的本意是默认创建人＝走查人自己，正常流程下与本条一致；辨析见 §5.2.1 第 4 条 |
+| D11 | 未保存输入的保护力度 | **已裁定（用户 2026-09-29）**：**本地草稿自动留存**（按表单上下文 + 记录写入本地存储，重开自动恢复；保存成功后清除、退出登录清空），配合未保存离开确认。服务端草稿未被采纳 |
+| D12 | 「代码自查数据」是否纳入 | **已裁定（用户 2026-09-29）**：不纳入、保持现状、以老平台为标准。框架按可登记实现，后续要加只需注册 |
+| D13 | 同模板跨版本的存量数据处置 | **已裁定（用户 2026-09-29）**：**同一模板跨版本一次性迁移历史数据**（不同模板之间不迁移）。机制见 §5.7。阶段一 v1→v2 属同模板版本跃迁，**必须迁移**（§8.3） |
+| D14 | **一张 MR 的多条走查记录在统计/页面上如何合并** | **①现状已实证（2026-09-29）**：非法数据页当前是**一条走查记录一行**，同一 MR 会出现多行；页面「总数」的实际语义是**非法走查记录数**（CC／CrownCAD 范围 8,545 行 vs 去重 7,303 MR）。**②方案（待评审确认）——「页面一行的含义」与「数值的计算方式」拆分为两个独立决定**：页面一行＝一个 MR（总数＝非法 MR 数，8,545 → 7,303）；数值＝**全部相加**（「发几次算几次」）：走查人＝姓名去重后拼接（按最早一次走查日期排序）、走查工作量（时长）＝相加、缺陷数＝五项问题数量相加、**走查日期（时间点）＝取最早**、新增代码走查行数＝不合并（本来就是 MR 一个值）、速率／密度／效率用合并后的分子分母**重算**。**需与统计使用方确认**：全部相加意味着两位走查人报告**同一缺陷**时会被计为两次，缺陷数偏大，接入前须确认是否接受。**「走查日期」的来源差异**：表单没有「走查日期」字段，统计所用的走查日期由**记录产生时间**派生，表单场景**建议取创建时间**（不随编辑后移）；现有事实层用表单 `updated_at` 作后备值且取**最晚**（`max(coalesce(n.updated_at, n.created_at))`），本方案§8.6 已按「取最早 + 创建时间」改写 CTE，接入时需确认；另「填表时间≠走查发生时间」须告知统计使用方。**生效时点**：**不在本期生效**——本期不改动非法数据页面；该规则在「由表单提供数据、平台自建非法判定」接入时才生效，属第二期，接入属有意变更须走黄金基线纪律。实测参考（按全部相加）：8,545 条记录 → 7,303 个 MR；工作量合计 30,644 分钟、缺陷数合计 2,552。**③待确认小点**：整行完全一致的记录（页面范围内 0 条、全表 200 条）是否在「老平台数据转正式」时按重复入库剔除（一次性迁移细节）。**④待确认小点**：单条记录的非法判据「代码走查时间或缺陷数异常」，在「一个 MR 一行」前提下按「任一条记录异常即判定该 MR 命中」，还是只看合并后保留的那条记录 |
+| D15 | **走查人下拉的候选值域与回退** | **已定方向（用户 2026-09-29）：属实现细节，不阻塞评审**。**按评审意见修订后的口径**：①候选取自**平台人员表**（`platform_ldap_users`，含已离职但表中仍有记录者），覆盖新入职、改名、离职三类缺口；②下拉**保存人员标识、界面显示姓名**，落库同时保存人员标识与该次填写的权威姓名（统计按姓名使用，标识用于区分同名人员）；③不采用「并集历史自由文本姓名」（会把错别字带入候选），如确需补充人员表之外的候选，只纳入**能在人员表中匹配到的姓名**。**待确认的三点**：①**同名提示按人员标识判定**（按姓名会把两个同名的不同人误判为同一人）——本方案 §8.4 已按此实现；②**统计按姓名会把同名的两个人合并**为一人，与现状一致，但需统计使用方确认可接受；③**人员表之外的走查人**（外包、非本公司人员等）按上述口径没有登记途径——需确认内网是否存在这类走查人，若存在则必须补一条人员补录流程。**自由文本回退已否决**（FR-A8） |
+| D16 | 记录作废与账号停用后的可维护性 | **待评审确认**：①**保留作废功能、权限收到本人**——仅填写人可作废本人填写的记录（逻辑删除并保留审计），页面二次确认，不设代作废；权限按「本人删除」授予（先例 `review.record.delete_own`），不使用「有权限即可删任意记录」的语义。历史记录例外：迁移记录无创建账号，只读且不可作废。②**填写人离职或账号停用后记录无人可改**——按 D8/D10 不设代改通道，记录保持只读；**过渡做法**：带审计、需负责人批准的一次性运维流程，**批准人＝该模板所属团队的负责人，审计写入平台操作审计表**（§8.5 已写定）。后续若出现稳定、反复的诉求，再评估是否设立受控代改权限 |
+
+明确否决：不做实时协同编辑与占用/锁定/预约；不强制绑定 GitLab 账号；不为未确认模板预留占位实现；不新建与评审域重复的身份或权限机制；草稿不得成为绕过只读态或他人记录的路径；走查人不允许自由文本输入。
+
+## 十一、接口契约
+
+本期为内部接口的破坏性调整（开发红线允许；外部契约仅是 GitLab 评论中的表单页链接，URL 形态不变）。端点签名、请求/响应与错误码见 §8.4；表结构与迁移见 §8.1、§8.3；权限码见 §8.5。现有端点与权限清单见 §5.1。
+
+关键常量：
+
+- 乐观锁冲突码：`A0409`（平台既有语义）。
+- 新增请求标识：客户端生成（建议 UUID），服务端列 `request_key` 唯一约束（空值不参与），重复提交返回首次写入的记录。
+- 记录版本号：`record_version`，新增为 1，每次更新递增，仅用于编辑冲突检测。
+- 数据产生版本：v1 迁移行标 `1`，v2 新增行标 `2`。
+
+## 十二、风险与假设
+
+- **存量数据迁移**：内网 `collect_form_records` 可能有真实数据（黄金库与本地库为空），迁移必须给出守恒校验；缺陷回归须同时验证总量守恒与唯一所有者，不能只看界面数值。内网行数实施前用只读查询核对。
+- **统计侧没有消费方**：表单数据要进代码走查/评审统计（建表注释与事实层 CTE），字段或表结构变化须与统计消费侧同步评估；`form_records` CTE 改造（§8.6）是有意变更，黄金基线差异必须逐项解释（预期为零差异）。
+- **模板集合硬编码的风险**：现有实现只认 `code_review`，若框架沿用硬编码，则后续模板每次都要改代码。本期做成数据驱动登记（§8.2）。
+- **AI 自动填充的既有风险（会议 22:45 点名）**：「AI 存在识别挂在后台的评论页面自动填充信息时容易出 bug 的问题，明确需和袁寄杰核对相关开发细节」。这是既有实践带来的风险，与 S3/S4 相邻但不相同；须在实施前与该实践相关的开发细节核对一次，确认表单页是否会被同类自动化操纵、以及是否需要防护。
+- **正名候选的数据新鲜度**：`platform_ldap_users` 仅首次登录全量同步 + 各人登录时更新自己那条（见 LDAP 治理方案），新入职/改名人员可能短期缺失；离职人员已不在目录但历史 MR 仍需补填。候选口径见 D15；「人员表之外的走查人」须评审确认是否存在及补录流程。
+- **顺带发现（不属本单元，属兼容模式退出工作单元；结论为读码 + 只读推演，未在真实转正式运行中复现）**：`LegacyPlatformFormalImportService` 转正式时把 `merge_request_id` 写成 `legacy_source_id`（老平台走查表行主键），而 GITLAB 源写的是 `mr.id` → **同一列在两种来源下含义不同**：GITLAB 行 = GitLab MR id，LEGACY 行 = 走查记录 id。该路径的冲突键按记录去重（`reconcileRemovedCodeReviewData` 用同一表达式，故重复转正式不会写重复、不是缺陷），后果是 `code_review_formal_records` 混合两种含义的行——任何按 MR 去重或 join `merge_request_id` 的消费方在 LEGACY 数据下会失配或重复计数。与 D14 同源，本单元不修代码。
+- **权限收口副作用（已裁定，实现后须观察）**：A5 收紧为按记录归属判定且不设代改通道，原「有权限即可改」的用户将失去代改能力；若上线后出现真实代改诉求，须另立单元补通道。
+- **本地草稿的副作用**：草稿落在浏览器本地存储，共用电脑场景须在退出登录时清空（FR-B10）；恢复草稿后提交必须仍过乐观锁，否则会把陈旧内容写回。
+- **版本跃迁的存量处置（已澄清，风险低）**：阶段一后 `collect_form_records`（v1）成为只读历史。因表单数据当前**没有面向用户的统计消费者**（§5.5），迁移与否都不改变任何现有产出；按 D13 迁移以保留将来接链路的连续性。
+- **「可查」入口的期望错位**：数据库查看是运维排查导向的白名单表浏览器，不是任意 SQL 控制台；若业务期望「按 MR 查看该表单的全部历史版本」，属阶段二的页面级需求。整库备份是回滚手段，不能替代「可查」。
+- **老平台并行期**：改造期间老平台仍在产出代码走查非法数据等，两侧不得互相污染；FR-E2 的下线不在本单元范围。
+- **GitLab 身份识别的实施前提（§6）**：依赖实例管理员创建受信 OAuth 应用与内网实例实测；识别为可选增强，不得演化为强制门槛（D4/FR-D2）。
+- **假设**：会议所述「表单挂载于质量点域名下」与现网部署形态（平台同源前端路由）一致，因此 FR-D1 基本已满足，仅需确认内网访问入口；若实际为独立域名部署，则跨域与登录态共享需重新评估。
