@@ -93,7 +93,7 @@
 - **决策**：
   1. 平台产出接口的行为由黄金基线锁定：冻结源数据夹具（GitLab 切片 + 平台种子，`backend/src/test/resources/golden-baseline/fixtures/`，manifest 记录行数与 SHA-256）走真实链路（同步 → 事实 → 统计），全部产出端点的响应/Excel/受影响表状态快照落盘，比对为严格模式（缺失即失败）。
   2. 覆盖清单机器强制：全部 Controller 端点必须在 `endpoint-catalog.yml` 登记（用例或 EXCLUDED+原因），护栏测试在默认套件运行，未登记端点门禁失败；不允许静默遗漏。
-  3. 无意差异一律视为回归，修复实现而非更新快照；有意行为变更经 `-Dgolden.update=true` 重建受影响快照并 git diff 人工审阅，与变更同单元提交。
+  3. 无意差异一律视为回归，修复实现而非更新快照；有意行为变更经 `-Dgolden.update=true` 重建受影响快照并 git diff 人工审阅，与变更同单元提交。**提交范围以 compare 失败清单为准**：update 模式会整批重写全部快照的易变字段（`generatedAt`/`queryDurationMs`/各类运行时间戳/JSON 键序），故只提交语义变更的快照文件，比对期已掩码字段的差异还原，使提交差异可逐行审阅（2026-10-08 实证：update 重写 71 份但语义变更仅 3 份）。运行态易变字段（如每次链路运行刷新的进度/事件时间）应补入目录 `ignore-paths`，与同组已掩码字段同口径。
   4. 夹具改动即新基线版本：重新抽取、更新 manifest、在决策记录留痕；golden 运行档禁止触碰外部活体（GitLab Web API、老平台 MySQL/Mongo），依赖活体的路径显式 EXCLUDED 并注明替代覆盖层。
   5. 基线版本状态（2026-09-02）：当前输出快照基线对应本地开发树 = 内网验证版（2026-08-06 全量包 `qaflex-full-20260806T111653Z-8269d2b61253`）+ 解耦前修复 + 解耦重构，**整体未进内网测试**，属开发期基线——可捕获解耦收尾期间的产出漂移，不能证明当前产出等于内网验证版产出。解耦版通过内网测试后必须 `-Dgolden.update=true` 重冻结快照（夹具不动）升级为可信基线。
 - **理由**：平台体积已大到改动引起的产出漂移无法人工察觉；快照严格模式+覆盖护栏+冻结夹具把"改一处别处悄悄变"转化为机器可检测的确定性问题。
@@ -269,3 +269,16 @@
 - **不变量**（测试锁定）：heads 版本单调不回退（`greatest`）；每根发布原子；乱序 fencing；空来源删除；来源级 READY 门禁；写回收敛判据（D-14）口径不变。
 - **验证证据**：`FactBuildTaskServiceTest`（单根只派发一个批次、在途领取不被重复派发、失败运行收敛后接管）、`FactChangeTargetServiceIntegrationTest`、`FactTargetPublicationServiceIntegrationTest`（含全量结算与租约丢失回滚）、`SyncRunPublicationFenceServiceIntegrationTest`（含"已发布但版本脱节仍计待发布"）、`SyncFactPublicationStateServiceIntegrationTest`、`StatisticBoardSourceQualificationTest`（降级退回上一完整发布点；无完整发布点则拒绝）、`SourceFreshnessJsonContractTest`、`GitlabFactIssueSourceRootScopeEquivalenceTest`（全量 vs 根集合逐列一致）、`GitlabFactChangeResolverRelevantColumnsTest`、`FactTargetJournalArchiveServiceIntegrationTest`，以及链级 `CustomerIssueRequirementLabelAutoChainIntegrationTest` 与 `IncrementalDeleteTargetedPublicationIntegrationTest`；五项仓库门禁与全量快速套件结果见 `docs/progress.md`。黄金基线 compare 与内网 S0 基准复测待授权。
 - **关联文档**：`docs/architecture.md`"事实与统计"；`docs/plans/fact-publication-authoritative-rework-20260930.md`；诊断脚本 `scripts/diagnose-fact-refresh-backlog.sql`；前置决策 D-13（版本归因与边界）、D-14（写回就绪判据）、D-18（快照读一致性）。
+
+## D-25 业务日收敛为单一可注入来源，事实来源"全部/按根"双入口
+
+- **状态**：已接受 / 已实施（2026-10-08，黄金门禁三项差分收口单元）。
+- **背景**：2026-10-08 黄金基线 compare 出现两条"墙钟日期漂移"差异（客户统计板与客户问题页的 `businessDate` 及按日趋势窗口末端随运行当日变化），用户裁定"因日期不同而红肯定是不对的"。同批还暴露一条真实回归：全量合并请求事实构建把空根集合传给"按根收窄"装载器而被当成空结果，静默发布零条提交关系并清空 `merge_request_commit_fact`。
+- **选择**：
+  ① **业务日单一来源**：业务日（统计范围末端与快照业务日标记）统一由 `BusinessDateProvider` 提供，生产实现 `SystemBusinessDateProvider` 取系统当日；禁止各处分别 `select current_date` 或 `LocalDate.now()` 取日（原三处已收敛：客户问题 BI 页、客户统计板默认控制参数、业务日参数缺省分支）。
+  ② **可重复链路可注入固定业务日**：黄金基线链路以测试配置注入固定业务日，取值 = `backend/src/test/resources/golden-baseline/baseline-manifest.json` 的 `frozen_at` 本地日期（随夹具版本自更新，不散落常量）；生产语义不变。
+  ③ **"全部"与"按根收窄"必须是两个显式入口**：事实来源 SQL 以 `xxxSourceSql()`（全量）与 `xxxSourceSqlForRoots(rootIds)`（按根）区分，按根入口空集合抛异常；禁止用空集合同时表达两种语义（对齐 ISSUE 侧既有双入口形态）。
+- **理由**：同一"当日"分散取自库时钟与 Java 时钟会让口径漂移并使产出快照随日历变红；把业务日收敛到单一可注入来源，既保持生产语义又让回归基线稳定。"空集合=全部"是隐式通配，一旦被改为"空集合=空结果"就静默断供且难以察觉，故"全部"必须是一等入口。
+- **影响**：无对外 API 与表结构变化。生产业务日语义不变（仍为当日）；黄金链路快照的业务日与按日窗口固定为夹具冻结日。
+- **验证证据**：`BiCustomerIssuePageServiceTest`、`CustomerIssueCustomerStatisticsBoardServiceTest`、`CustomerIssueCustomerStatisticsDetailContractTest`、`FactBuildServiceTest`（全量路径发未收窄查询、按根路径含 `target_roots`）、`GitlabFactMergeRequestCommitSourceRootScopeEquivalenceTest`（真实 PG 全量 vs 按根逐行一致、空根抛异常）；黄金门禁 compare 收口至 196/0/0，全量默认快速套件 1681/0/0。
+- **关联文档**：`docs/decisions.md` D-08（黄金基线变更规则）、`docs/decisions.md` D-24（事实发布控制面）；`docs/architecture.md`"黄金基线回归测试"。
