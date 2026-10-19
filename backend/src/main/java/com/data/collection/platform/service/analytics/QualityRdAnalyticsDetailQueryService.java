@@ -3,6 +3,7 @@ package com.data.collection.platform.service.analytics;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.QualityBoardCodeReviewRecordExportRow;
+import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.QualityBoardCodeReviewReadSupport;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
@@ -19,7 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import org.springframework.dao.DataAccessException;
+import java.util.function.Function;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -41,6 +42,12 @@ public class QualityRdAnalyticsDetailQueryService {
       "代码走查时间或缺陷数异常",
       "代码走查标题异常",
       "代码走查记录行数异常");
+  /** 议题类明细的中文展示词表：严重程度复用平台权威映射，议题状态复用“未关闭/已关闭”。 */
+  private static final Map<String, Function<String, String>> ISSUE_DETAIL_LABELS = Map.of(
+      "issueState", QualityRdAnalyticsDetailQueryService::displayIssueState,
+      "severityLevel", IssueDisplayValueSupport::displaySeverityLevelOrBlank);
+  private static final Map<String, Function<String, String>> CODE_REVIEW_DETAIL_LABELS = Map.of(
+      "mergeRequestState", QualityRdAnalyticsDetailQueryService::displayMergeRequestState);
 
   private final JdbcTemplate jdbcTemplate;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
@@ -235,7 +242,7 @@ public class QualityRdAnalyticsDetailQueryService {
         row -> row.put(
             "leakageState",
             isOpen(String.valueOf(row.getOrDefault("issueState", ""))) ? "未关闭" : "已关闭"));
-    return page(rows, context, "updatedAt", true, "issueIid");
+    return detailPage(rows, context, "updatedAt", true, "issueIid", ISSUE_DETAIL_LABELS);
   }
 
   private DetailPage developmentLeakageDefects(AnalyticsDashboardQueryContext context) {
@@ -294,7 +301,7 @@ public class QualityRdAnalyticsDetailQueryService {
             + " and btrim(fix_user) not like '未设定%'",
         filters,
         ignored -> {});
-    return page(rows, context, "updatedAt", true, "issueIid");
+    return detailPage(rows, context, "updatedAt", true, "issueIid", ISSUE_DETAIL_LABELS);
   }
 
   private DetailPage assigneeRemainingSummary(AnalyticsDashboardQueryContext context) {
@@ -327,7 +334,7 @@ public class QualityRdAnalyticsDetailQueryService {
         .filter(row -> matchesCodeReviewTopic(row, topic, reviewerName, authorName))
         .map(this::codeReviewRecord)
         .toList();
-    return page(rows, context, "mergeRequestIid", true, "title");
+    return detailPage(rows, context, "mergeRequestIid", true, "title", CODE_REVIEW_DETAIL_LABELS);
   }
 
   private boolean matchesCodeReviewTopic(
@@ -504,6 +511,55 @@ public class QualityRdAnalyticsDetailQueryService {
     return new DetailPage(List.copyOf(rows.subList(fromIndex, toIndex)), rows.size());
   }
 
+  /**
+   * 把分页结果的枚举代码值替换为中文展示值。
+   *
+   * <p>只在排序与分页完成后执行：排序、遗留状态判定和图表点击筛选都继续以原始代码值为语义来源，
+   * 避免中文标签的码位顺序（一级/三级/二级）或标签文本本身改变指标口径。空白值保持原样。
+   */
+  private DetailPage detailPage(
+      List<Map<String, Object>> source,
+      AnalyticsDashboardQueryContext context,
+      String defaultSortField,
+      boolean defaultDescending,
+      String tieBreakField,
+      Map<String, Function<String, String>> displayLabels) {
+    DetailPage pageResult = page(source, context, defaultSortField, defaultDescending, tieBreakField);
+    List<Map<String, Object>> records = pageResult.records().stream()
+        .map(row -> withDisplayValues(row, displayLabels))
+        .toList();
+    return new DetailPage(records, pageResult.total());
+  }
+
+  private Map<String, Object> withDisplayValues(
+      Map<String, Object> source, Map<String, Function<String, String>> displayLabels) {
+    Map<String, Object> row = new LinkedHashMap<>(source);
+    displayLabels.forEach((field, label) -> {
+      if (row.get(field) instanceof String value && !value.isBlank()) {
+        row.put(field, label.apply(value));
+      }
+    });
+    return row;
+  }
+
+  private static String displayIssueState(String state) {
+    String normalized = state.trim();
+    return switch (normalized.toLowerCase(Locale.ROOT)) {
+      case "open", "opened" -> "未关闭";
+      case "closed" -> "已关闭";
+      default -> normalized;
+    };
+  }
+
+  private static String displayMergeRequestState(String state) {
+    return switch (state.trim().toUpperCase(Locale.ROOT)) {
+      case "MERGED" -> "已合并";
+      case "OPEN", "OPENED" -> "开放中";
+      case "CLOSED" -> "已关闭";
+      default -> state.trim();
+    };
+  }
+
   private int compareValues(Object left, Object right, boolean descending) {
     if (left == right) {
       return 0;
@@ -585,13 +641,10 @@ public class QualityRdAnalyticsDetailQueryService {
   }
 
   private boolean tableExists(String tableName) {
-    try {
-      Boolean exists = jdbcTemplate.queryForObject(
-          "select to_regclass(?) is not null", Boolean.class, "public." + tableName);
-      return Boolean.TRUE.equals(exists);
-    } catch (DataAccessException error) {
-      return false;
-    }
+    Boolean exists =
+        jdbcTemplate.queryForObject(
+            "select to_regclass(?) is not null", Boolean.class, "public." + tableName);
+    return Boolean.TRUE.equals(exists);
   }
 
   private List<String> moduleNames(String moduleNames, String moduleName) {
@@ -634,7 +687,7 @@ public class QualityRdAnalyticsDetailQueryService {
     return round(numerator * 100D / denominator);
   }
 
-  private boolean isOpen(String state) {
+  private static boolean isOpen(String state) {
     String normalized = state == null ? "" : state.trim().toLowerCase(Locale.ROOT);
     return "open".equals(normalized) || "opened".equals(normalized);
   }
