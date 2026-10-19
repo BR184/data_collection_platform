@@ -7,6 +7,8 @@ public enum ResultCode {
   BAD_REQUEST("A0400", "请求参数错误"),
   NOT_FOUND("A0404", "资源不存在"),
   CONFLICT("A0409", "数据已被他人修改"),
+  READ_VIEW_UNAVAILABLE("READ_VIEW_UNAVAILABLE", "尚无完整产出"),
+  READ_VIEW_REBIND_REQUIRED("READ_VIEW_REBIND_REQUIRED", "页面读取身份需要更新"),
   BIZ_ERROR("B0001", "业务处理失败"),
   SYSTEM_ERROR("C0001", "系统异常");
 

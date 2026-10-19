@@ -4,7 +4,6 @@ import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.AuthUserResponse;
 import com.data.collection.platform.entity.backup.BackupConnectionTestRequest;
 import com.data.collection.platform.entity.backup.BackupConnectionTestResponse;
-import com.data.collection.platform.entity.backup.BackupRunResponse;
 import com.data.collection.platform.entity.backup.BackupRunsPageResponse;
 import com.data.collection.platform.entity.backup.BackupSettingsResponse;
 import com.data.collection.platform.entity.backup.BackupSettingsSaveRequest;

@@ -19,7 +19,6 @@ import com.data.collection.platform.service.sync.SyncRunFactPublicationCoordinat
 import com.data.collection.platform.service.sync.SyncRunTableWorkerService;
 import com.data.collection.platform.service.sync.SyncRunWorkerService;
 import java.net.URI;
-import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
