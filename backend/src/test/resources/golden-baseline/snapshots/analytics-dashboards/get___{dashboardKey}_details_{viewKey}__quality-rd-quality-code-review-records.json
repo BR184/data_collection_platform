@@ -77,7 +77,7 @@
       "authorName" : "李令博",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "release_2026R3",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 1,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -90,7 +90,7 @@
       "authorName" : "曹步勇",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "release_2026R3",
-      "mergeRequestState" : "OPEN",
+      "mergeRequestState" : "开放中",
       "addedLines" : 11,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -103,7 +103,7 @@
       "authorName" : "麻荣雨",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "release_2026R3",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 2,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -116,7 +116,7 @@
       "authorName" : "曹步勇",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "release_2026R3",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 2,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -129,7 +129,7 @@
       "authorName" : "曹步勇",
       "reviewerName" : "张硕",
       "targetBranch" : "dev",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 2,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -142,7 +142,7 @@
       "authorName" : "牛闯",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "立讯_release_2026R3",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 37,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -155,7 +155,7 @@
       "authorName" : "李令博",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "release_2026R3",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 33,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -168,7 +168,7 @@
       "authorName" : "李令博",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "release_2026R3",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 10,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -181,7 +181,7 @@
       "authorName" : "冯钊",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "PLMV9.6.01_release_2026R3(第二阶段)",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 3656,
       "defectCount" : 2,
       "defectDensity" : 0.55
@@ -194,7 +194,7 @@
       "authorName" : "张宽",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "信创版_release_2026R3",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 3,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -207,7 +207,7 @@
       "authorName" : "傅培钰",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "博诚电气_release_2026R3",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 3,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -220,7 +220,7 @@
       "authorName" : "牛闯",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "立讯_release_2026R3",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 34,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -233,7 +233,7 @@
       "authorName" : "隋天宝",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "立讯_release_2026R3",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 9,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -246,7 +246,7 @@
       "authorName" : "张晓涵",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "release_2026R3",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 2,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -259,7 +259,7 @@
       "authorName" : "庄晓",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "立讯_release_2026R3",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 49,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -272,7 +272,7 @@
       "authorName" : "牛闯",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "立讯_release_2026R3",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 3,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -285,7 +285,7 @@
       "authorName" : "牛闯",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "立讯_release_2026R3",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 46,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -298,7 +298,7 @@
       "authorName" : "韩潞钦",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "release_2026R3",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 9,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -311,7 +311,7 @@
       "authorName" : "樊雯昊",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "信创版_release_2026R3",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 13,
       "defectCount" : 0,
       "defectDensity" : 0.0
@@ -324,7 +324,7 @@
       "authorName" : "樊雯昊",
       "reviewerName" : "无需走查扫描",
       "targetBranch" : "信创版_release_2026R3",
-      "mergeRequestState" : "MERGED",
+      "mergeRequestState" : "已合并",
       "addedLines" : 3,
       "defectCount" : 0,
       "defectDensity" : 0.0

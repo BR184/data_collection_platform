@@ -7,8 +7,8 @@
     "status" : "READY",
     "sourceVersion" : "fact-projection:v1:10e48c775d731d1001e598b7033308161d37e80a762d4bdc46af3c6aa4f0fbc2",
     "snapshotId" : "fact-projection:v1:10e48c775d731d1001e598b7033308161d37e80a762d4bdc46af3c6aa4f0fbc2",
-    "ruleVersion" : "customer-issue-bi@2026-09-24-v1",
-    "generatedAt" : "2026-10-09T09:28:23.0049936+08:00",
+    "ruleVersion" : "customer-issue-bi@2026-10-15-v4",
+    "generatedAt" : "2026-10-19T11:29:54.5984077+08:00",
     "sections" : [ {
       "key" : "source-consistency",
       "label" : "来源一致性",
@@ -18,12 +18,12 @@
       "key" : "defect-overview",
       "label" : "缺陷指标",
       "status" : "READY",
-      "message" : "缺陷指标按完整议题身份去重。"
+      "message" : "十七项缺陷指标按完整议题身份去重；数据异常与未复现可与其他状态同时命中，校准后修复率的分子与分母同时剔除两者的并集（重叠议题只剔除一次），申请延期不额外剔除。"
     }, {
       "key" : "today-activity",
-      "label" : "今日活动",
+      "label" : "今日与本周活动",
       "status" : "READY",
-      "message" : "今日指标使用本次固定业务日和半开自然日边界。"
+      "message" : "今日与本自然周指标都由本次固定业务日推导半开自然日窗口，周起点为该业务日所在周的周一，不随调用时刻滚动。"
     }, {
       "key" : "module-defects",
       "label" : "模块缺陷",
@@ -66,9 +66,9 @@
       "message" : "多模块议题分别进入每个关联模块；全局需求数不累加模块柱。"
     }, {
       "key" : "daily-defect-trend",
-      "label" : "缺陷日增与日修复",
+      "label" : "缺陷累计新增与累计修复",
       "status" : "READY",
-      "message" : "按当前事实回看自然日；撤销或重新修复可能改变历史日期结果。"
+      "message" : "对同一来源版本的日期贡献作前缀累加，序列非下降；按当前事实回看，撤销或重新修复可能改变历史累计值。"
     } ],
     "traces" : [ {
       "metricIds" : [ "CI-10", "CI-11", "CI-12", "CI-13", "CI-14", "CI-15", "CI-16", "CI-17" ],
@@ -89,7 +89,7 @@
       "formula" : "D去重；F、P、A各自沿客户问题规则；比率分母为对应D范围",
       "calculationOwner" : "BI CustomerIssueCalculator"
     }, {
-      "metricIds" : [ "CI-18", "CI-19" ],
+      "metricIds" : [ "CI-18", "CI-19", "CI-27", "CI-28" ],
       "sourcePlatform" : "客户问题 ISSUE 事实",
       "sourceFields" : [ {
         "chineseName" : "创建时间",
@@ -101,7 +101,22 @@
         "chineseName" : "状态",
         "englishName" : "bug_status"
       } ],
-      "formula" : "固定业务日；日修复需当前精确成员已修复/完成及最近有效加标时间",
+      "formula" : "固定业务日推导今日半开自然日窗口与本周半开窗口[所在周周一,业务日次日)；解决需当前精确成员已修复/完成及最近有效加标时间，不用关闭或更新时间替代",
+      "calculationOwner" : "BI CustomerIssueCalculator"
+    }, {
+      "metricIds" : [ "CI-24", "CI-25", "CI-26", "CI-47", "CI-48" ],
+      "sourcePlatform" : "客户问题 ISSUE 事实",
+      "sourceFields" : [ {
+        "chineseName" : "状态成员",
+        "englishName" : "bug_status"
+      }, {
+        "chineseName" : "严重级别",
+        "englishName" : "severity_level"
+      }, {
+        "chineseName" : "优先级",
+        "englishName" : "priority_level"
+      } ],
+      "formula" : "E为状态成员精确命中数据异常或未复现的并集，V=D去除E（重叠只剔除一次）；校准率分子与分母同用V，整体沿F、优先级沿P，申请延期不额外剔除",
       "calculationOwner" : "BI CustomerIssueCalculator"
     }, {
       "metricIds" : [ "CI-20", "CI-21", "CI-22", "CI-23" ],
@@ -146,7 +161,7 @@
         "chineseName" : "当前状态",
         "englishName" : "bug_status"
       } ],
-      "formula" : "自然日轴从2026-01-01到固定业务日；按当前事实回看最近完成日期，不是历史事件流水",
+      "formula" : "自然日轴从2026-01-01到固定业务日；按当前事实回看最近完成日期，再对同一来源版本的日期贡献作前缀累计，不是历史事件流水",
       "calculationOwner" : "BI CustomerIssueCalculator"
     } ],
     "data" : {
@@ -1351,12 +1366,36 @@
         "percentage" : null,
         "unit" : "个"
       }, {
+        "key" : "defect_data_exception",
+        "label" : "数据异常",
+        "value" : 0,
+        "numerator" : 0,
+        "denominator" : null,
+        "percentage" : null,
+        "unit" : "个"
+      }, {
+        "key" : "defect_not_reproduced",
+        "label" : "未复现",
+        "value" : 7,
+        "numerator" : 7,
+        "denominator" : null,
+        "percentage" : null,
+        "unit" : "个"
+      }, {
         "key" : "defect_fix_rate",
         "label" : "整体缺陷修复率",
         "value" : null,
         "numerator" : 33,
         "denominator" : 176,
         "percentage" : 18.75,
+        "unit" : "%"
+      }, {
+        "key" : "defect_calibrated_fix_rate",
+        "label" : "校准后整体缺陷修复率",
+        "value" : null,
+        "numerator" : 33,
+        "denominator" : 169,
+        "percentage" : 19.53,
         "unit" : "%"
       }, {
         "key" : "level1_fix_rate",
@@ -1375,12 +1414,28 @@
         "percentage" : 22.44,
         "unit" : "%"
       }, {
+        "key" : "p1_calibrated_fix_rate",
+        "label" : "P1校准后修复率",
+        "value" : null,
+        "numerator" : 29,
+        "denominator" : 150,
+        "percentage" : 19.33,
+        "unit" : "%"
+      }, {
         "key" : "p2_fix_rate",
         "label" : "P2修复率",
         "value" : null,
         "numerator" : 5,
         "denominator" : 20,
         "percentage" : 25.0,
+        "unit" : "%"
+      }, {
+        "key" : "p2_calibrated_fix_rate",
+        "label" : "P2校准后修复率",
+        "value" : null,
+        "numerator" : 4,
+        "denominator" : 19,
+        "percentage" : 21.05,
         "unit" : "%"
       }, {
         "key" : "today_new",
@@ -1393,6 +1448,22 @@
       }, {
         "key" : "today_resolved",
         "label" : "今日解决问题数",
+        "value" : 0,
+        "numerator" : 0,
+        "denominator" : null,
+        "percentage" : null,
+        "unit" : "个"
+      }, {
+        "key" : "week_new",
+        "label" : "本周新增问题数",
+        "value" : 0,
+        "numerator" : 0,
+        "denominator" : null,
+        "percentage" : null,
+        "unit" : "个"
+      }, {
+        "key" : "week_resolved",
+        "label" : "本周解决问题数",
         "value" : 0,
         "numerator" : 0,
         "denominator" : null,
@@ -1562,6 +1633,94 @@
         "count" : 3
       } ],
       "moduleSeverity" : [ {
+        "module" : "工程图",
+        "severity" : "一级",
+        "count" : 16
+      }, {
+        "module" : "工程图",
+        "severity" : "二级",
+        "count" : 23
+      }, {
+        "module" : "工程图",
+        "severity" : "三级",
+        "count" : 3
+      }, {
+        "module" : "装配",
+        "severity" : "一级",
+        "count" : 12
+      }, {
+        "module" : "装配",
+        "severity" : "二级",
+        "count" : 13
+      }, {
+        "module" : "装配",
+        "severity" : "未标注级别",
+        "count" : 2
+      }, {
+        "module" : "平台",
+        "severity" : "一级",
+        "count" : 6
+      }, {
+        "module" : "平台",
+        "severity" : "二级",
+        "count" : 10
+      }, {
+        "module" : "平台",
+        "severity" : "三级",
+        "count" : 2
+      }, {
+        "module" : "特征",
+        "severity" : "一级",
+        "count" : 2
+      }, {
+        "module" : "特征",
+        "severity" : "二级",
+        "count" : 15
+      }, {
+        "module" : "工具",
+        "severity" : "一级",
+        "count" : 5
+      }, {
+        "module" : "工具",
+        "severity" : "二级",
+        "count" : 6
+      }, {
+        "module" : "工具",
+        "severity" : "三级",
+        "count" : 2
+      }, {
+        "module" : "草图",
+        "severity" : "一级",
+        "count" : 6
+      }, {
+        "module" : "草图",
+        "severity" : "二级",
+        "count" : 7
+      }, {
+        "module" : "实体算法",
+        "severity" : "一级",
+        "count" : 1
+      }, {
+        "module" : "实体算法",
+        "severity" : "二级",
+        "count" : 8
+      }, {
+        "module" : "数据交换",
+        "severity" : "一级",
+        "count" : 1
+      }, {
+        "module" : "数据交换",
+        "severity" : "二级",
+        "count" : 7
+      }, {
+        "module" : "项目文档",
+        "severity" : "二级",
+        "count" : 4
+      }, {
+        "module" : "项目文档",
+        "severity" : "三级",
+        "count" : 2
+      }, {
         "module" : "BOM",
         "severity" : "一级",
         "count" : 2
@@ -1570,7 +1729,19 @@
         "severity" : "二级",
         "count" : 3
       }, {
+        "module" : "未标注模块",
+        "severity" : "二级",
+        "count" : 5
+      }, {
         "module" : "二次开发",
+        "severity" : "二级",
+        "count" : 3
+      }, {
+        "module" : "曲线曲面",
+        "severity" : "二级",
+        "count" : 3
+      }, {
+        "module" : "评估",
         "severity" : "二级",
         "count" : 3
       }, {
@@ -1586,69 +1757,17 @@
         "severity" : "二级",
         "count" : 2
       }, {
-        "module" : "实体算法",
-        "severity" : "一级",
-        "count" : 1
-      }, {
-        "module" : "实体算法",
+        "module" : "设置",
         "severity" : "二级",
-        "count" : 8
-      }, {
-        "module" : "工具",
-        "severity" : "一级",
-        "count" : 5
-      }, {
-        "module" : "工具",
-        "severity" : "二级",
-        "count" : 6
-      }, {
-        "module" : "工具",
-        "severity" : "三级",
         "count" : 2
       }, {
-        "module" : "工程图",
+        "module" : "钣金",
         "severity" : "二级",
-        "count" : 23
-      }, {
-        "module" : "工程图",
-        "severity" : "一级",
-        "count" : 16
-      }, {
-        "module" : "工程图",
-        "severity" : "三级",
-        "count" : 3
-      }, {
-        "module" : "平台",
-        "severity" : "三级",
         "count" : 2
-      }, {
-        "module" : "平台",
-        "severity" : "一级",
-        "count" : 6
-      }, {
-        "module" : "平台",
-        "severity" : "二级",
-        "count" : 10
       }, {
         "module" : "库",
         "severity" : "二级",
         "count" : 1
-      }, {
-        "module" : "数据交换",
-        "severity" : "一级",
-        "count" : 1
-      }, {
-        "module" : "数据交换",
-        "severity" : "二级",
-        "count" : 7
-      }, {
-        "module" : "曲线曲面",
-        "severity" : "二级",
-        "count" : 3
-      }, {
-        "module" : "未标注模块",
-        "severity" : "二级",
-        "count" : 5
       }, {
         "module" : "渲染",
         "severity" : "二级",
@@ -1662,57 +1781,9 @@
         "severity" : "二级",
         "count" : 1
       }, {
-        "module" : "特征",
-        "severity" : "二级",
-        "count" : 15
-      }, {
-        "module" : "特征",
-        "severity" : "一级",
-        "count" : 2
-      }, {
         "module" : "管路",
         "severity" : "二级",
         "count" : 1
-      }, {
-        "module" : "草图",
-        "severity" : "二级",
-        "count" : 7
-      }, {
-        "module" : "草图",
-        "severity" : "一级",
-        "count" : 6
-      }, {
-        "module" : "装配",
-        "severity" : "一级",
-        "count" : 12
-      }, {
-        "module" : "装配",
-        "severity" : "二级",
-        "count" : 13
-      }, {
-        "module" : "装配",
-        "severity" : "未标注级别",
-        "count" : 2
-      }, {
-        "module" : "设置",
-        "severity" : "二级",
-        "count" : 2
-      }, {
-        "module" : "评估",
-        "severity" : "二级",
-        "count" : 3
-      }, {
-        "module" : "钣金",
-        "severity" : "二级",
-        "count" : 2
-      }, {
-        "module" : "项目文档",
-        "severity" : "二级",
-        "count" : 4
-      }, {
-        "module" : "项目文档",
-        "severity" : "三级",
-        "count" : 2
       } ],
       "causeDistribution" : [ {
         "groupId" : "依赖问题",
@@ -2271,980 +2342,980 @@
       } ],
       "dailyTrend" : [ {
         "date" : "2026-01-01",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-02",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-03",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-04",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-05",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-06",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-07",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-08",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-09",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-10",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-11",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-12",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-13",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-14",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-15",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-16",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-17",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-18",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-19",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-20",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-21",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-22",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-23",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-24",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-25",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-26",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-27",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-28",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-29",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-30",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-01-31",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-01",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-02",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-03",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-04",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-05",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-06",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-07",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-08",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-09",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-10",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-11",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-12",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-13",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-14",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-15",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-16",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-17",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-18",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-19",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-20",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-21",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-22",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-23",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-24",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-25",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-26",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-27",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-02-28",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-01",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-02",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-03",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-04",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-05",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-06",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-07",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-08",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-09",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-10",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-11",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-12",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-13",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-14",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-15",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-16",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-17",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-18",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-19",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-20",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-21",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-22",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-23",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-24",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-25",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-26",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-27",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-28",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-29",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-30",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-03-31",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-04-01",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 0,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-04-02",
-        "createdCount" : 1,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 1,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-04-03",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 1,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-04-04",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 1,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-04-05",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 1,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-04-06",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 1,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-04-07",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 1,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-04-08",
-        "createdCount" : 2,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 3,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-04-09",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 3,
+        "cumulativeFixedCount" : 0
       }, {
         "date" : "2026-04-10",
-        "createdCount" : 0,
-        "fixedCount" : 2
+        "cumulativeCreatedCount" : 3,
+        "cumulativeFixedCount" : 2
       }, {
         "date" : "2026-04-11",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 3,
+        "cumulativeFixedCount" : 2
       }, {
         "date" : "2026-04-12",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 3,
+        "cumulativeFixedCount" : 2
       }, {
         "date" : "2026-04-13",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 3,
+        "cumulativeFixedCount" : 2
       }, {
         "date" : "2026-04-14",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 3,
+        "cumulativeFixedCount" : 2
       }, {
         "date" : "2026-04-15",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 3,
+        "cumulativeFixedCount" : 2
       }, {
         "date" : "2026-04-16",
-        "createdCount" : 1,
-        "fixedCount" : 1
+        "cumulativeCreatedCount" : 4,
+        "cumulativeFixedCount" : 3
       }, {
         "date" : "2026-04-17",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 4,
+        "cumulativeFixedCount" : 3
       }, {
         "date" : "2026-04-18",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 4,
+        "cumulativeFixedCount" : 3
       }, {
         "date" : "2026-04-19",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 4,
+        "cumulativeFixedCount" : 3
       }, {
         "date" : "2026-04-20",
-        "createdCount" : 2,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 6,
+        "cumulativeFixedCount" : 3
       }, {
         "date" : "2026-04-21",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 6,
+        "cumulativeFixedCount" : 3
       }, {
         "date" : "2026-04-22",
-        "createdCount" : 2,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 8,
+        "cumulativeFixedCount" : 3
       }, {
         "date" : "2026-04-23",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 8,
+        "cumulativeFixedCount" : 3
       }, {
         "date" : "2026-04-24",
-        "createdCount" : 2,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 10,
+        "cumulativeFixedCount" : 3
       }, {
         "date" : "2026-04-25",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 10,
+        "cumulativeFixedCount" : 3
       }, {
         "date" : "2026-04-26",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 10,
+        "cumulativeFixedCount" : 3
       }, {
         "date" : "2026-04-27",
-        "createdCount" : 2,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 12,
+        "cumulativeFixedCount" : 3
       }, {
         "date" : "2026-04-28",
-        "createdCount" : 3,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 15,
+        "cumulativeFixedCount" : 3
       }, {
         "date" : "2026-04-29",
-        "createdCount" : 3,
-        "fixedCount" : 1
+        "cumulativeCreatedCount" : 18,
+        "cumulativeFixedCount" : 4
       }, {
         "date" : "2026-04-30",
-        "createdCount" : 4,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 22,
+        "cumulativeFixedCount" : 4
       }, {
         "date" : "2026-05-01",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 22,
+        "cumulativeFixedCount" : 4
       }, {
         "date" : "2026-05-02",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 22,
+        "cumulativeFixedCount" : 4
       }, {
         "date" : "2026-05-03",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 22,
+        "cumulativeFixedCount" : 4
       }, {
         "date" : "2026-05-04",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 22,
+        "cumulativeFixedCount" : 4
       }, {
         "date" : "2026-05-05",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 22,
+        "cumulativeFixedCount" : 4
       }, {
         "date" : "2026-05-06",
-        "createdCount" : 1,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 23,
+        "cumulativeFixedCount" : 4
       }, {
         "date" : "2026-05-07",
-        "createdCount" : 2,
-        "fixedCount" : 1
+        "cumulativeCreatedCount" : 25,
+        "cumulativeFixedCount" : 5
       }, {
         "date" : "2026-05-08",
-        "createdCount" : 1,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 26,
+        "cumulativeFixedCount" : 5
       }, {
         "date" : "2026-05-09",
-        "createdCount" : 12,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 38,
+        "cumulativeFixedCount" : 5
       }, {
         "date" : "2026-05-10",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 38,
+        "cumulativeFixedCount" : 5
       }, {
         "date" : "2026-05-11",
-        "createdCount" : 15,
-        "fixedCount" : 3
+        "cumulativeCreatedCount" : 53,
+        "cumulativeFixedCount" : 8
       }, {
         "date" : "2026-05-12",
-        "createdCount" : 3,
-        "fixedCount" : 1
+        "cumulativeCreatedCount" : 56,
+        "cumulativeFixedCount" : 9
       }, {
         "date" : "2026-05-13",
-        "createdCount" : 8,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 64,
+        "cumulativeFixedCount" : 9
       }, {
         "date" : "2026-05-14",
-        "createdCount" : 7,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 71,
+        "cumulativeFixedCount" : 9
       }, {
         "date" : "2026-05-15",
-        "createdCount" : 1,
-        "fixedCount" : 2
+        "cumulativeCreatedCount" : 72,
+        "cumulativeFixedCount" : 11
       }, {
         "date" : "2026-05-16",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 72,
+        "cumulativeFixedCount" : 11
       }, {
         "date" : "2026-05-17",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 72,
+        "cumulativeFixedCount" : 11
       }, {
         "date" : "2026-05-18",
-        "createdCount" : 5,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 77,
+        "cumulativeFixedCount" : 11
       }, {
         "date" : "2026-05-19",
-        "createdCount" : 3,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 80,
+        "cumulativeFixedCount" : 11
       }, {
         "date" : "2026-05-20",
-        "createdCount" : 3,
-        "fixedCount" : 1
+        "cumulativeCreatedCount" : 83,
+        "cumulativeFixedCount" : 12
       }, {
         "date" : "2026-05-21",
-        "createdCount" : 2,
-        "fixedCount" : 1
+        "cumulativeCreatedCount" : 85,
+        "cumulativeFixedCount" : 13
       }, {
         "date" : "2026-05-22",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 85,
+        "cumulativeFixedCount" : 13
       }, {
         "date" : "2026-05-23",
-        "createdCount" : 1,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 86,
+        "cumulativeFixedCount" : 13
       }, {
         "date" : "2026-05-24",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 86,
+        "cumulativeFixedCount" : 13
       }, {
         "date" : "2026-05-25",
-        "createdCount" : 5,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 91,
+        "cumulativeFixedCount" : 13
       }, {
         "date" : "2026-05-26",
-        "createdCount" : 3,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 94,
+        "cumulativeFixedCount" : 13
       }, {
         "date" : "2026-05-27",
-        "createdCount" : 1,
-        "fixedCount" : 1
+        "cumulativeCreatedCount" : 95,
+        "cumulativeFixedCount" : 14
       }, {
         "date" : "2026-05-28",
-        "createdCount" : 5,
-        "fixedCount" : 2
+        "cumulativeCreatedCount" : 100,
+        "cumulativeFixedCount" : 16
       }, {
         "date" : "2026-05-29",
-        "createdCount" : 6,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 106,
+        "cumulativeFixedCount" : 16
       }, {
         "date" : "2026-05-30",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 106,
+        "cumulativeFixedCount" : 16
       }, {
         "date" : "2026-05-31",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 106,
+        "cumulativeFixedCount" : 16
       }, {
         "date" : "2026-06-01",
-        "createdCount" : 2,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 108,
+        "cumulativeFixedCount" : 16
       }, {
         "date" : "2026-06-02",
-        "createdCount" : 9,
-        "fixedCount" : 1
+        "cumulativeCreatedCount" : 117,
+        "cumulativeFixedCount" : 17
       }, {
         "date" : "2026-06-03",
-        "createdCount" : 3,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 120,
+        "cumulativeFixedCount" : 17
       }, {
         "date" : "2026-06-04",
-        "createdCount" : 7,
-        "fixedCount" : 1
+        "cumulativeCreatedCount" : 127,
+        "cumulativeFixedCount" : 18
       }, {
         "date" : "2026-06-05",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 127,
+        "cumulativeFixedCount" : 18
       }, {
         "date" : "2026-06-06",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 127,
+        "cumulativeFixedCount" : 18
       }, {
         "date" : "2026-06-07",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 127,
+        "cumulativeFixedCount" : 18
       }, {
         "date" : "2026-06-08",
-        "createdCount" : 4,
-        "fixedCount" : 1
+        "cumulativeCreatedCount" : 131,
+        "cumulativeFixedCount" : 19
       }, {
         "date" : "2026-06-09",
-        "createdCount" : 3,
-        "fixedCount" : 1
+        "cumulativeCreatedCount" : 134,
+        "cumulativeFixedCount" : 20
       }, {
         "date" : "2026-06-10",
-        "createdCount" : 3,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 137,
+        "cumulativeFixedCount" : 20
       }, {
         "date" : "2026-06-11",
-        "createdCount" : 4,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 141,
+        "cumulativeFixedCount" : 20
       }, {
         "date" : "2026-06-12",
-        "createdCount" : 2,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 143,
+        "cumulativeFixedCount" : 20
       }, {
         "date" : "2026-06-13",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 143,
+        "cumulativeFixedCount" : 20
       }, {
         "date" : "2026-06-14",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 143,
+        "cumulativeFixedCount" : 20
       }, {
         "date" : "2026-06-15",
-        "createdCount" : 5,
-        "fixedCount" : 1
+        "cumulativeCreatedCount" : 148,
+        "cumulativeFixedCount" : 21
       }, {
         "date" : "2026-06-16",
-        "createdCount" : 2,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 150,
+        "cumulativeFixedCount" : 21
       }, {
         "date" : "2026-06-17",
-        "createdCount" : 3,
-        "fixedCount" : 1
+        "cumulativeCreatedCount" : 153,
+        "cumulativeFixedCount" : 22
       }, {
         "date" : "2026-06-18",
-        "createdCount" : 5,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 158,
+        "cumulativeFixedCount" : 22
       }, {
         "date" : "2026-06-19",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 158,
+        "cumulativeFixedCount" : 22
       }, {
         "date" : "2026-06-20",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 158,
+        "cumulativeFixedCount" : 22
       }, {
         "date" : "2026-06-21",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 158,
+        "cumulativeFixedCount" : 22
       }, {
         "date" : "2026-06-22",
-        "createdCount" : 4,
-        "fixedCount" : 2
+        "cumulativeCreatedCount" : 162,
+        "cumulativeFixedCount" : 24
       }, {
         "date" : "2026-06-23",
-        "createdCount" : 2,
-        "fixedCount" : 2
+        "cumulativeCreatedCount" : 164,
+        "cumulativeFixedCount" : 26
       }, {
         "date" : "2026-06-24",
-        "createdCount" : 2,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 166,
+        "cumulativeFixedCount" : 26
       }, {
         "date" : "2026-06-25",
-        "createdCount" : 4,
-        "fixedCount" : 4
+        "cumulativeCreatedCount" : 170,
+        "cumulativeFixedCount" : 30
       }, {
         "date" : "2026-06-26",
-        "createdCount" : 2,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 172,
+        "cumulativeFixedCount" : 30
       }, {
         "date" : "2026-06-27",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 172,
+        "cumulativeFixedCount" : 30
       }, {
         "date" : "2026-06-28",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 172,
+        "cumulativeFixedCount" : 30
       }, {
         "date" : "2026-06-29",
-        "createdCount" : 2,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 174,
+        "cumulativeFixedCount" : 30
       }, {
         "date" : "2026-06-30",
-        "createdCount" : 2,
-        "fixedCount" : 1
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 31
       }, {
         "date" : "2026-07-01",
-        "createdCount" : 0,
-        "fixedCount" : 2
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-02",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-03",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-04",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-05",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-06",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-07",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-08",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-09",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-10",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-11",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-12",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-13",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-14",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-15",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-16",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-17",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-18",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-19",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-20",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-21",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-22",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-23",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-24",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-25",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-26",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-27",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-28",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-29",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-30",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-07-31",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-01",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-02",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-03",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-04",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-05",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-06",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-07",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-08",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-09",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-10",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-11",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-12",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-13",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-14",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-15",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-16",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-17",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-18",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-19",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-20",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-21",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-22",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-23",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-24",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-25",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-26",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-27",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-28",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-29",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-30",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-08-31",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       }, {
         "date" : "2026-09-01",
-        "createdCount" : 0,
-        "fixedCount" : 0
+        "cumulativeCreatedCount" : 176,
+        "cumulativeFixedCount" : 33
       } ],
       "filteredFactCount" : 352
     }

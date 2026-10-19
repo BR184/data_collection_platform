@@ -181,6 +181,10 @@ endpoints:
         query: dashboardKey=quality-rd&viewKey=integration-test-results
       - id: quality-rd-quality-code-review-records
         query: dashboardKey=quality-rd&viewKey=quality-code-review-records&topic=reviewer-density
+      - id: quality-rd-release-leakage-defects
+        query: dashboardKey=quality-rd&viewKey=release-leakage-defects
+      - id: quality-rd-fix-user-defects
+        query: dashboardKey=quality-rd&viewKey=fix-user-defects
       - id: quality-board-other-function-defect-count
         query: dashboardKey=quality-board-other&viewKey=other-function-defect-count
       - id: code-review-multi-statistics
@@ -216,6 +220,11 @@ endpoints:
         query: projectName=CC2026R4
       - id: dgm-default
         query: codeReviewSource=dgm
+  - method: GET
+    path: /api/quality-board/other/project-options
+    category: OPTIONS
+    cases:
+      - id: default
   - method: GET
     path: /api/quality-board/other/overview
     category: READ
@@ -326,6 +335,12 @@ endpoints:
     cases:
       - id: default
   - method: GET
+    path: /api/question-metrics/illegal-records/{sourceInstance}/{projectId}/{issueId}
+    category: READ
+    cases:
+      - id: absent-record-in-complete-view
+        query: sourceInstance=default&projectId=9&issueId=9223372036854775807
+  - method: GET
     path: /api/question-metrics/illegal-records/status
     category: READ
     ignore-paths:
@@ -362,6 +377,19 @@ endpoints:
             ignore-columns: [created_at, updated_at]
 
   # =====CustomerIssueController（客户问题）=====
+  - method: GET
+    path: /api/customer-issues/records/{sourceInstance}/{projectId}/{issueId}
+    category: READ
+    # 用不存在的根身份锁定“记录不存在”这一确定性契约；命中真实记录的分支由控制器/服务定向测试覆盖
+    cases:
+      - id: absent-record-in-complete-view
+        query: sourceInstance=default&projectId=325&issueId=9223372036854775807
+  - method: GET
+    path: /api/customer-issues/illegal-records/{sourceInstance}/{projectId}/{issueId}
+    category: READ
+    cases:
+      - id: absent-record-in-complete-view
+        query: sourceInstance=default&projectId=325&issueId=9223372036854775807
   - method: GET
     path: /api/customer-issues/records
     category: READ
@@ -500,6 +528,12 @@ endpoints:
     category: READ
     cases:
       - id: default
+  - method: GET
+    path: /api/code-review/illegal-records/{sourceInstance}/{projectId}/{mergeRequestId}
+    category: READ
+    cases:
+      - id: absent
+        query: sourceInstance=default&projectId=1&mergeRequestId=1&legacySourceId=golden-absent-record
   - method: GET
     path: /api/code-review/illegal-records/status
     category: READ

@@ -536,12 +536,12 @@
         "type" : "tag",
         "expandOnly" : false
       }, {
-        "key" : "state",
-        "label" : "状态",
-        "width" : 120,
-        "minWidth" : 120,
+        "key" : "bugStatus",
+        "label" : "测试状态",
+        "width" : 160,
+        "minWidth" : 160,
         "sortable" : true,
-        "type" : "tag",
+        "type" : "tags",
         "expandOnly" : false
       }, {
         "key" : "updatedAt",
@@ -13561,8 +13561,8 @@
       } ]
     } ],
     "meta" : {
-      "generatedAt" : "2026-09-29T12:44:43.3640089+08:00",
-      "queryDurationMs" : 29,
+      "generatedAt" : "2026-10-19T11:26:30.0091182+08:00",
+      "queryDurationMs" : 65,
       "rowCount" : 36,
       "columnCount" : 48,
       "drilldownColumnCount" : 24

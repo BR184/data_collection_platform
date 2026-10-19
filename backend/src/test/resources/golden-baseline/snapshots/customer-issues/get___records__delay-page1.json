@@ -33,13 +33,14 @@
       "illegal" : true,
       "illegalReason" : "未设定严重程度",
       "createdAt" : "2026-08-06T08:11:48.060769+08:00",
-      "retentionHours" : 1292,
+      "retentionHours" : 1771,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-08-06T08:53:36.376953+08:00",
       "closedAt" : null,
-      "labels" : [ ]
+      "labels" : [ ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 42418,
       "issueIid" : 2548,
@@ -70,13 +71,14 @@
       "illegal" : true,
       "illegalReason" : "未设定严重程度",
       "createdAt" : "2026-08-06T03:20:22.840104+08:00",
-      "retentionHours" : 1297,
+      "retentionHours" : 1776,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-08-06T03:20:22.840104+08:00",
       "closedAt" : null,
-      "labels" : [ ]
+      "labels" : [ ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 42417,
       "issueIid" : 2547,
@@ -107,13 +109,14 @@
       "illegal" : true,
       "illegalReason" : "未设定严重程度",
       "createdAt" : "2026-08-06T03:17:28.352673+08:00",
-      "retentionHours" : 1297,
+      "retentionHours" : 1776,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-08-06T03:17:28.352673+08:00",
       "closedAt" : null,
-      "labels" : [ ]
+      "labels" : [ ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 42274,
       "issueIid" : 2476,
@@ -144,13 +147,14 @@
       "illegal" : true,
       "illegalReason" : "未设定严重程度",
       "createdAt" : "2026-06-18T08:00:52.843828+08:00",
-      "retentionHours" : 2468,
+      "retentionHours" : 2947,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-07-06T07:10:00.145174+08:00",
       "closedAt" : null,
-      "labels" : [ "P1", "响应已延期", "模块：BOM", "需求" ]
+      "labels" : [ "P1", "响应已延期", "模块：BOM", "需求" ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 42273,
       "issueIid" : 2475,
@@ -181,13 +185,14 @@
       "illegal" : true,
       "illegalReason" : "未设定严重程度",
       "createdAt" : "2026-06-18T07:56:20.466895+08:00",
-      "retentionHours" : 2468,
+      "retentionHours" : 2947,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-07-06T07:09:59.427425+08:00",
       "closedAt" : null,
-      "labels" : [ "P2", "响应已延期", "模块：评估", "需求" ]
+      "labels" : [ "P2", "响应已延期", "模块：评估", "需求" ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 42282,
       "issueIid" : 2480,
@@ -218,13 +223,14 @@
       "illegal" : true,
       "illegalReason" : "未设定严重程度",
       "createdAt" : "2026-06-18T10:57:18.988444+08:00",
-      "retentionHours" : 2465,
+      "retentionHours" : 2944,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-07-06T07:09:58.633512+08:00",
       "closedAt" : null,
-      "labels" : [ "P1", "响应已延期", "模块：特征", "需求" ]
+      "labels" : [ "P1", "响应已延期", "模块：特征", "需求" ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 42283,
       "issueIid" : 2481,
@@ -255,13 +261,14 @@
       "illegal" : true,
       "illegalReason" : "未设定严重程度",
       "createdAt" : "2026-06-18T10:58:39.568856+08:00",
-      "retentionHours" : 2465,
+      "retentionHours" : 2944,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-07-06T07:09:57.89465+08:00",
       "closedAt" : null,
-      "labels" : [ "P1", "响应已延期", "模块：特征", "需求" ]
+      "labels" : [ "P1", "响应已延期", "模块：特征", "需求" ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 42281,
       "issueIid" : 2479,
@@ -292,13 +299,14 @@
       "illegal" : true,
       "illegalReason" : "未设定严重程度",
       "createdAt" : "2026-06-18T10:35:27.988526+08:00",
-      "retentionHours" : 2466,
+      "retentionHours" : 2944,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-07-06T07:09:56.885976+08:00",
       "closedAt" : null,
-      "labels" : [ "P1", "响应已延期", "模块：特征", "需求" ]
+      "labels" : [ "P1", "响应已延期", "模块：特征", "需求" ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 42416,
       "issueIid" : 2546,
@@ -329,13 +337,14 @@
       "illegal" : true,
       "illegalReason" : "未设定严重程度",
       "createdAt" : "2026-07-05T07:08:47.331838+08:00",
-      "retentionHours" : 2061,
+      "retentionHours" : 2540,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-07-06T07:09:56.514286+08:00",
       "closedAt" : null,
-      "labels" : [ "P1" ]
+      "labels" : [ "P1" ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 42399,
       "issueIid" : 2537,
@@ -366,13 +375,14 @@
       "illegal" : false,
       "illegalReason" : "",
       "createdAt" : "2026-06-30T11:39:16.728462+08:00",
-      "retentionHours" : 2177,
+      "retentionHours" : 2655,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-07-06T06:50:42.615576+08:00",
       "closedAt" : null,
-      "labels" : [ "P1", "严重程度：一级缺陷", "响应已延期", "模块：工程图" ]
+      "labels" : [ "P1", "严重程度：一级缺陷", "响应已延期", "模块：工程图" ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 41553,
       "issueIid" : 2127,
@@ -403,13 +413,14 @@
       "illegal" : true,
       "illegalReason" : "未设定严重程度",
       "createdAt" : "2026-05-09T11:54:58.126197+08:00",
-      "retentionHours" : 3424,
+      "retentionHours" : 3903,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-07-06T06:50:42.139734+08:00",
       "closedAt" : null,
-      "labels" : [ "P1", "响应已延期", "模块：装配", "解决已延期", "需求" ]
+      "labels" : [ "P1", "响应已延期", "模块：装配", "解决已延期", "需求" ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 41617,
       "issueIid" : 2172,
@@ -440,13 +451,14 @@
       "illegal" : true,
       "illegalReason" : "未设定严重程度",
       "createdAt" : "2026-05-11T09:06:48.243567+08:00",
-      "retentionHours" : 3379,
+      "retentionHours" : 3858,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-07-06T06:50:41.718307+08:00",
       "closedAt" : null,
-      "labels" : [ "P1", "响应已延期", "模块：BOM", "解决已延期", "需求" ]
+      "labels" : [ "P1", "响应已延期", "模块：BOM", "解决已延期", "需求" ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 40359,
       "issueIid" : 1897,
@@ -477,13 +489,14 @@
       "illegal" : true,
       "illegalReason" : "未设定严重程度",
       "createdAt" : "2026-04-09T12:34:56.70944+08:00",
-      "retentionHours" : 4144,
+      "retentionHours" : 4622,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-07-06T06:50:40.983258+08:00",
       "closedAt" : null,
-      "labels" : [ "P2", "响应已延期", "模块：草图", "类别：建议", "解决已延期" ]
+      "labels" : [ "P2", "响应已延期", "模块：草图", "类别：建议", "解决已延期" ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 41863,
       "issueIid" : 2288,
@@ -514,13 +527,14 @@
       "illegal" : true,
       "illegalReason" : "未设定严重程度",
       "createdAt" : "2026-05-22T11:07:00.810319+08:00",
-      "retentionHours" : 3113,
+      "retentionHours" : 3592,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-07-06T06:50:40.557385+08:00",
       "closedAt" : null,
-      "labels" : [ "P2", "响应已延期", "模块：钣金", "解决已延期", "需求" ]
+      "labels" : [ "P2", "响应已延期", "模块：钣金", "解决已延期", "需求" ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 37973,
       "issueIid" : 1662,
@@ -551,13 +565,14 @@
       "illegal" : false,
       "illegalReason" : "",
       "createdAt" : "2026-03-12T10:55:03.468599+08:00",
-      "retentionHours" : 4817,
+      "retentionHours" : 5296,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-07-06T06:50:40.165985+08:00",
       "closedAt" : null,
-      "labels" : [ "P1", "严重程度：二级缺陷", "响应已延期", "模块：实体算法", "状态：申请否决", "自测", "解决已延期" ]
+      "labels" : [ "P1", "严重程度：二级缺陷", "响应已延期", "模块：实体算法", "状态：申请否决", "自测", "解决已延期" ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 41584,
       "issueIid" : 2153,
@@ -594,7 +609,8 @@
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-07-06T06:50:39.755522+08:00",
       "closedAt" : null,
-      "labels" : [ "2027R1发布", "P1", "响应已延期", "模块：工具", "状态：已修复/完成", "状态：未更新247", "类别：建议", "解决已延期", "需求" ]
+      "labels" : [ "2027R1发布", "P1", "响应已延期", "模块：工具", "状态：已修复/完成", "状态：未更新247", "类别：建议", "解决已延期", "需求" ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 41605,
       "issueIid" : 2163,
@@ -625,13 +641,14 @@
       "illegal" : false,
       "illegalReason" : "",
       "createdAt" : "2026-05-11T06:37:25.8922+08:00",
-      "retentionHours" : 3382,
+      "retentionHours" : 3860,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-07-06T06:50:39.239099+08:00",
       "closedAt" : null,
-      "labels" : [ "P1", "严重程度：二级缺陷", "响应已延期", "模块：工程图", "解决已延期" ]
+      "labels" : [ "P1", "严重程度：二级缺陷", "响应已延期", "模块：工程图", "解决已延期" ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 41608,
       "issueIid" : 2165,
@@ -668,7 +685,8 @@
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-07-06T06:50:38.883589+08:00",
       "closedAt" : null,
-      "labels" : [ "P1", "严重程度：二级缺陷", "响应已延期", "模块：特征", "状态：历史遗留", "状态：申请延期", "相同原因" ]
+      "labels" : [ "P1", "严重程度：二级缺陷", "响应已延期", "模块：特征", "状态：历史遗留", "状态：申请延期", "相同原因" ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 40069,
       "issueIid" : 1859,
@@ -699,13 +717,14 @@
       "illegal" : false,
       "illegalReason" : "",
       "createdAt" : "2026-04-03T10:17:58.524008+08:00",
-      "retentionHours" : 4290,
+      "retentionHours" : 4769,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-07-06T06:50:38.45902+08:00",
       "closedAt" : null,
-      "labels" : [ "P1", "严重程度：二级缺陷", "响应已延期", "模块：实体算法", "状态：进行中", "自测", "解决已延期" ]
+      "labels" : [ "P1", "严重程度：二级缺陷", "响应已延期", "模块：实体算法", "状态：进行中", "自测", "解决已延期" ],
+      "sourceInstance" : "default"
     }, {
       "issueId" : 42048,
       "issueIid" : 2371,
@@ -736,13 +755,14 @@
       "illegal" : true,
       "illegalReason" : "未设定模块",
       "createdAt" : "2026-06-02T05:44:49.344622+08:00",
-      "retentionHours" : 2855,
+      "retentionHours" : 3333,
       "plannedResolutionAt" : null,
       "plannedResolutionText" : "",
       "plannedMergeVersionBranch" : "",
       "updatedAt" : "2026-07-06T06:50:37.911945+08:00",
       "closedAt" : null,
-      "labels" : [ "P2", "严重程度：二级缺陷", "后台管理系统", "响应已延期", "解决已延期" ]
+      "labels" : [ "P2", "严重程度：二级缺陷", "后台管理系统", "响应已延期", "解决已延期" ],
+      "sourceInstance" : "default"
     } ],
     "total" : 795,
     "page" : 1,

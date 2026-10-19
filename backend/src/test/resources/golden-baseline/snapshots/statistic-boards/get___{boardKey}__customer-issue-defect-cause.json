@@ -156,7 +156,64 @@
         "defaultValue" : "",
         "width" : 180,
         "operators" : [ "eq", "ne", "contains", "isEmpty", "isNotEmpty" ],
-        "options" : [ ],
+        "options" : [ {
+          "label" : "杨依景",
+          "value" : "杨依景"
+        }, {
+          "label" : "焦方昭",
+          "value" : "焦方昭"
+        }, {
+          "label" : "曹巧元",
+          "value" : "曹巧元"
+        }, {
+          "label" : "李尚玉",
+          "value" : "李尚玉"
+        }, {
+          "label" : "田松",
+          "value" : "田松"
+        }, {
+          "label" : "董鹏宇",
+          "value" : "董鹏宇"
+        }, {
+          "label" : "陈嘉乐",
+          "value" : "陈嘉乐"
+        }, {
+          "label" : "张金花",
+          "value" : "张金花"
+        }, {
+          "label" : "孔帆",
+          "value" : "孔帆"
+        }, {
+          "label" : "陈艺珲",
+          "value" : "陈艺珲"
+        }, {
+          "label" : "刘威麟",
+          "value" : "刘威麟"
+        }, {
+          "label" : "刘汝宁",
+          "value" : "刘汝宁"
+        }, {
+          "label" : "王丽娟",
+          "value" : "王丽娟"
+        }, {
+          "label" : "张月",
+          "value" : "张月"
+        }, {
+          "label" : "杨晓雨",
+          "value" : "杨晓雨"
+        }, {
+          "label" : "赵成名",
+          "value" : "赵成名"
+        }, {
+          "label" : "曹晋伟",
+          "value" : "曹晋伟"
+        }, {
+          "label" : "王旭",
+          "value" : "王旭"
+        }, {
+          "label" : "白欣慧",
+          "value" : "白欣慧"
+        } ],
         "labelGroupEnabled" : false,
         "labelGroupValueType" : null
       }, {
@@ -167,7 +224,229 @@
         "defaultValue" : "",
         "width" : 180,
         "operators" : [ "eq", "ne", "contains", "isEmpty", "isNotEmpty" ],
-        "options" : [ ],
+        "options" : [ {
+          "label" : "牟敬芳",
+          "value" : "牟敬芳"
+        }, {
+          "label" : "杨晓雨",
+          "value" : "杨晓雨"
+        }, {
+          "label" : "潘广磊",
+          "value" : "潘广磊"
+        }, {
+          "label" : "庄晓",
+          "value" : "庄晓"
+        }, {
+          "label" : "梁春阳",
+          "value" : "梁春阳"
+        }, {
+          "label" : "李焕坤",
+          "value" : "李焕坤"
+        }, {
+          "label" : "王俏月",
+          "value" : "王俏月"
+        }, {
+          "label" : "杨哲",
+          "value" : "杨哲"
+        }, {
+          "label" : "焦桦坤",
+          "value" : "焦桦坤"
+        }, {
+          "label" : "崔雪峰",
+          "value" : "崔雪峰"
+        }, {
+          "label" : "李令博",
+          "value" : "李令博"
+        }, {
+          "label" : "李硕彦",
+          "value" : "李硕彦"
+        }, {
+          "label" : "狄林林",
+          "value" : "狄林林"
+        }, {
+          "label" : "吕志金",
+          "value" : "吕志金"
+        }, {
+          "label" : "马泽坤",
+          "value" : "马泽坤"
+        }, {
+          "label" : "冯钊",
+          "value" : "冯钊"
+        }, {
+          "label" : "孟秀平",
+          "value" : "孟秀平"
+        }, {
+          "label" : "韩潞钦",
+          "value" : "韩潞钦"
+        }, {
+          "label" : "陈魁",
+          "value" : "陈魁"
+        }, {
+          "label" : "刘悦",
+          "value" : "刘悦"
+        }, {
+          "label" : "彭环环",
+          "value" : "彭环环"
+        }, {
+          "label" : "王馨宇",
+          "value" : "王馨宇"
+        }, {
+          "label" : "麻荣雨",
+          "value" : "麻荣雨"
+        }, {
+          "label" : "王苏晓",
+          "value" : "王苏晓"
+        }, {
+          "label" : "高士亮",
+          "value" : "高士亮"
+        }, {
+          "label" : "秦龙飞",
+          "value" : "秦龙飞"
+        }, {
+          "label" : "王楠",
+          "value" : "王楠"
+        }, {
+          "label" : "高贯孟",
+          "value" : "高贯孟"
+        }, {
+          "label" : "隋天宝",
+          "value" : "隋天宝"
+        }, {
+          "label" : "傅培钰",
+          "value" : "傅培钰"
+        }, {
+          "label" : "白云涛",
+          "value" : "白云涛"
+        }, {
+          "label" : "侯燕申",
+          "value" : "侯燕申"
+        }, {
+          "label" : "郭英科",
+          "value" : "郭英科"
+        }, {
+          "label" : "郎琳琳",
+          "value" : "郎琳琳"
+        }, {
+          "label" : "付守帅",
+          "value" : "付守帅"
+        }, {
+          "label" : "徐凯强",
+          "value" : "徐凯强"
+        }, {
+          "label" : "姚辉彩",
+          "value" : "姚辉彩"
+        }, {
+          "label" : "潘慧敏",
+          "value" : "潘慧敏"
+        }, {
+          "label" : "陈明",
+          "value" : "陈明"
+        }, {
+          "label" : "付崇莱",
+          "value" : "付崇莱"
+        }, {
+          "label" : "赵冬军",
+          "value" : "赵冬军"
+        }, {
+          "label" : "常根",
+          "value" : "常根"
+        }, {
+          "label" : "陈荣昌",
+          "value" : "陈荣昌"
+        }, {
+          "label" : "张宽",
+          "value" : "张宽"
+        }, {
+          "label" : "谭海燕",
+          "value" : "谭海燕"
+        }, {
+          "label" : "訾义龙",
+          "value" : "訾义龙"
+        }, {
+          "label" : "柳冰旸",
+          "value" : "柳冰旸"
+        }, {
+          "label" : "张明霞",
+          "value" : "张明霞"
+        }, {
+          "label" : "艾文涛",
+          "value" : "艾文涛"
+        }, {
+          "label" : "杜丙瑜",
+          "value" : "杜丙瑜"
+        }, {
+          "label" : "马传超",
+          "value" : "马传超"
+        }, {
+          "label" : "潘影丽",
+          "value" : "潘影丽"
+        }, {
+          "label" : "郑振松",
+          "value" : "郑振松"
+        }, {
+          "label" : "王志阳",
+          "value" : "王志阳"
+        }, {
+          "label" : "杨依景",
+          "value" : "杨依景"
+        }, {
+          "label" : "席莎",
+          "value" : "席莎"
+        }, {
+          "label" : "张硕",
+          "value" : "张硕"
+        }, {
+          "label" : "刘旭阳",
+          "value" : "刘旭阳"
+        }, {
+          "label" : "耿亚慧",
+          "value" : "耿亚慧"
+        }, {
+          "label" : "高扬",
+          "value" : "高扬"
+        }, {
+          "label" : "陈晖",
+          "value" : "陈晖"
+        }, {
+          "label" : "郭良星",
+          "value" : "郭良星"
+        }, {
+          "label" : "张丽丽",
+          "value" : "张丽丽"
+        }, {
+          "label" : "任国瑞",
+          "value" : "任国瑞"
+        }, {
+          "label" : "李永正",
+          "value" : "李永正"
+        }, {
+          "label" : "武晓旭",
+          "value" : "武晓旭"
+        }, {
+          "label" : "郝晨凯",
+          "value" : "郝晨凯"
+        }, {
+          "label" : "刘露",
+          "value" : "刘露"
+        }, {
+          "label" : "张晓涵",
+          "value" : "张晓涵"
+        }, {
+          "label" : "李东尧",
+          "value" : "李东尧"
+        }, {
+          "label" : "徐昊2",
+          "value" : "徐昊2"
+        }, {
+          "label" : "程振昌",
+          "value" : "程振昌"
+        }, {
+          "label" : "王念文",
+          "value" : "王念文"
+        }, {
+          "label" : "曹步勇",
+          "value" : "曹步勇"
+        } ],
         "labelGroupEnabled" : false,
         "labelGroupValueType" : null
       } ],
@@ -6255,8 +6534,8 @@
       } ]
     } ],
     "meta" : {
-      "generatedAt" : "2026-09-29T12:44:45.1343527+08:00",
-      "queryDurationMs" : 297,
+      "generatedAt" : "2026-10-19T11:26:33.054057+08:00",
+      "queryDurationMs" : 437,
       "rowCount" : 26,
       "columnCount" : 24,
       "drilldownColumnCount" : 24

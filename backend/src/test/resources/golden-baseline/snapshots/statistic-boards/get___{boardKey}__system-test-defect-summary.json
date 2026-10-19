@@ -570,11 +570,11 @@
         "width" : 140,
         "operators" : [ "eq", "ne" ],
         "options" : [ {
-          "label" : "open",
-          "value" : "未关闭"
+          "label" : "未关闭",
+          "value" : "open"
         }, {
-          "label" : "closed",
-          "value" : "已关闭"
+          "label" : "已关闭",
+          "value" : "closed"
         } ],
         "labelGroupEnabled" : false,
         "labelGroupValueType" : null
@@ -1081,7 +1081,7 @@
     },
     "rows" : [ ],
     "meta" : {
-      "generatedAt" : "2026-09-29T12:45:12.9047843+08:00",
+      "generatedAt" : "2026-10-19T11:27:10.6283072+08:00",
       "queryDurationMs" : 0,
       "rowCount" : 0,
       "columnCount" : 39,
