@@ -23,5 +23,5 @@ const uiHooks = computed(() =>
 </script>
 
 <template>
-  <StatisticBoardView :board-key="boardKey" :ui-hooks="uiHooks" />
+  <StatisticBoardView :key="boardKey" :board-key="boardKey" :ui-hooks="uiHooks" />
 </template>

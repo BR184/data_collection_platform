@@ -14,6 +14,7 @@ import {
   type StatisticBoardMemberControlSpec,
 } from '../feature-manifest/statistic-board-controls';
 import type { PageKey } from '../feature-manifest/types';
+import type { RecordTableFilterField } from '../types/record-table';
 import { getErrorMessage } from '../utils/user-message';
 
 /** 一个成员选择：类型决定语义，取值只对 VALUE 有意义。 */
@@ -127,6 +128,10 @@ type MemberKey = StatisticBoardMemberControlSpec['key'];
  *
  * <p>行维度只是展示维度，与客户/模块/功能筛选相互独立：切换维度保留仍然有效的成员选择，
  * 只清理明细下钻键并回到第一页。
+ *
+ * <p>成员选择是控制参数而非业务条件：它与 `filterGroup` 分属两个命名空间，因此同一维度只有一份
+ * 生效状态。界面把这些成员项并入共用"常用筛选"区（见 `StatisticBoardMemberFilters`），只是归属调整，
+ * 请求语义与统计口径不变。
  */
 export function useStatisticBoardControlParams(deps: StatisticBoardControlParamsDependencies) {
   const spec = computed<StatisticBoardControlSpec | null>(() =>
@@ -221,6 +226,73 @@ export function useStatisticBoardControlParams(deps: StatisticBoardControlParams
       .join('；');
   });
 
+  /** 同一批成员控制项在"常用筛选"行内的字段形态；取值仍是令牌，变更走控制参数通道。 */
+  const memberQuickFilters = computed<RecordTableFilterField[]>(() => {
+    const current = spec.value;
+    if (!current) {
+      return [];
+    }
+    const controls = memberControls.value;
+    return current.members.map((member) => ({
+      key: member.key,
+      label: member.label,
+      type: 'select',
+      placeholder: `全部${member.label}`,
+      width: 150,
+      clearable: true,
+      options: controls.find((control) => control.key === member.key)?.options ?? [],
+    }));
+  });
+
+  const memberQuickValues = computed<Record<string, unknown>>(() =>
+    Object.fromEntries(memberControls.value.map((control) => [control.key, control.value])));
+
+  /** 候选就绪但后端未返回任何成员：这是"确实没有成员"，不是加载失败。 */
+  const memberCandidatesEmpty = computed(() => {
+    const current = spec.value;
+    if (!current || controlOptionsStatus.value !== 'ready') {
+      return false;
+    }
+    return current.members.every((member) =>
+      memberOptions(findOptionGroup(acceptedControlOptions.value?.groups, member.key), member).length === 0);
+  });
+
+  /** 已生效成员选择的摘要，与服务端文案区分开：缺失用页面缺失文案，精确成员用候选原始名。 */
+  const memberSummaryChips = computed<Array<{ id: string; label: string }>>(() => {
+    const current = spec.value;
+    if (!current) {
+      return [];
+    }
+    return current.members.flatMap((member) => {
+      const selection = routeMemberSelection(member.key);
+      if (!selection.valid || selection.kind === 'ALL') {
+        return [];
+      }
+      const display = selection.kind === 'MISSING'
+        ? member.missingLabel
+        : rawMemberLabel(member.key, selection.value) || selection.value;
+      return [{ id: `member:${member.key}`, label: `${member.label}：${display}` }];
+    });
+  });
+
+  /** 重置一次性清除全部成员控制参数；行维度与范围不参与筛选重置。 */
+  const clearMemberPatch = computed<Record<string, string>>(() => {
+    const current = spec.value;
+    if (!current) {
+      return {};
+    }
+    return Object.fromEntries(
+      current.members.flatMap((member) => [[member.key, ''], [memberKindParam(member.key), '']]),
+    );
+  });
+
+  /** 候选原始展示名；未在候选中时退回空串，由调用方决定回退展示。 */
+  function rawMemberLabel(key: MemberKey, value: string): string {
+    const option = findOptionGroup(acceptedControlOptions.value?.groups, key)?.options
+      .find((item) => item.kind !== 'MISSING' && item.value === value);
+    return option?.label || '';
+  }
+
   /** 路由成员选择必须使用完整类型契约；不把非法组合降级为“不限”。 */
   function routeMemberSelection(key: MemberKey): RouteMemberSelection {
     const query = deps.routeQuery();
@@ -302,7 +374,7 @@ export function useStatisticBoardControlParams(deps: StatisticBoardControlParams
         value: memberSelectionToken(option.kind === 'MISSING' ? 'MISSING' : 'VALUE', option.value),
         label: option.kind === 'MISSING'
           ? `${member.missingLabel}（成员缺失）`
-          : disambiguatedMemberLabel(option.label || option.value, member),
+          : (option.label || option.value),
       }))
       .sort((left, right) => left.label.localeCompare(right.label, 'zh-Hans-CN'));
   }
@@ -323,7 +395,7 @@ export function useStatisticBoardControlParams(deps: StatisticBoardControlParams
     }
     return {
       value: memberSelectionToken('VALUE', selection.value),
-      label: disambiguatedMemberLabel(selection.value, member),
+      label: rawMemberLabel(member.key, selection.value) || selection.value,
     };
   }
 
@@ -544,9 +616,16 @@ export function useStatisticBoardControlParams(deps: StatisticBoardControlParams
     dimensionColumnKeyFromResponse.value = group?.columns?.[0]?.key ?? null;
   }
 
+  // 已求解候选对应的范围签名；筛选草稿被等值重建时不代表范围变化，不能让已就绪候选失效。
+  let observedScopeSignature: string | null = null;
+
   watch(
     () => [spec.value !== null, deps.scopeSignature()] as const,
-    ([enabled]) => {
+    ([enabled, scopeSignature]) => {
+      if (enabled && observedScopeSignature === scopeSignature) {
+        return;
+      }
+      observedScopeSignature = scopeSignature;
       // 范围变化后上一代际不再是参照物，必须等新的主表响应重新报告。
       boardSourceVersion.value = '';
       candidateRetriedVersion = '';
@@ -606,6 +685,11 @@ export function useStatisticBoardControlParams(deps: StatisticBoardControlParams
     controlSpec: spec as ComputedRef<StatisticBoardControlSpec | null>,
     activeDimension,
     memberControls,
+    memberQuickFilters,
+    memberQuickValues,
+    memberCandidatesEmpty,
+    memberSummaryChips,
+    clearMemberPatch,
     requestParams,
     fixedColumnKeys,
     controlOptionsStatus,
@@ -630,11 +714,4 @@ function queryValueText(raw: LocationQuery[string] | undefined) {
   return Array.isArray(raw)
     ? raw.map((value) => String(value ?? '')).join(',')
     : String(raw ?? '');
-}
-
-function disambiguatedMemberLabel(
-  label: string,
-  member: StatisticBoardMemberControlSpec,
-) {
-  return `真实${member.label}：${label}`;
 }

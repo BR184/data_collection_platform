@@ -259,14 +259,14 @@ describe('useStatisticBoardControlParams', () => {
       expect.arrayContaining(['MISSING', 'VALUE:__missing__', 'VALUE:未标注客户']),
     );
     expect(optionsOf(state, 'customer').map((option) => option.label)).toEqual(
-      expect.arrayContaining(['未标注客户（成员缺失）', '真实客户：未标注客户']),
+      expect.arrayContaining(['未标注客户（成员缺失）', '未标注客户']),
     );
     expect(state.memberControls.value.find((control) => control.key === 'customer')?.value).toBe(
       'MISSING',
     );
   });
 
-  it('shows the member type for same-name values and missing members across all dimensions', async () => {
+  it('distinguishes missing members with missing labels while keeping real member values clean across all dimensions', async () => {
     const memberLabels = { customer: '客户', module: '模块', function: '功能' } as const;
     const defaultGroups = controlOptions().groups;
     const optionsByKey = {
@@ -298,7 +298,7 @@ describe('useStatisticBoardControlParams', () => {
       expect(options).toEqual(
         expect.arrayContaining([
           { value: 'MISSING', label: `未标注${memberLabels[key]}（成员缺失）` },
-          { value: 'VALUE:missing', label: `真实${memberLabels[key]}：missing` },
+          { value: 'VALUE:missing', label: 'missing' },
         ]),
       );
     }
@@ -332,7 +332,7 @@ describe('useStatisticBoardControlParams', () => {
     expect(state.memberControls.value.find((control) => control.key === 'customer')?.value)
       .toBe('VALUE:客户甲');
     expect(optionsOf(state, 'customer')).toEqual([
-      { value: 'VALUE:客户甲', label: '真实客户：客户甲' },
+      { value: 'VALUE:客户甲', label: '客户甲' },
     ]);
 
     (resolveSecond as CandidateResolver | null)?.(controlOptions({ scopeKey: 'scope-2' }));
@@ -387,7 +387,7 @@ describe('useStatisticBoardControlParams', () => {
 
     expect(state.controlOptionsStatus.value).toBe('ready');
     expect(optionsOf(state, 'customer')).toEqual([
-      { value: 'VALUE:客户丁', label: '真实客户：客户丁' },
+      { value: 'VALUE:客户丁', label: '客户丁' },
     ]);
   });
 
@@ -672,5 +672,119 @@ describe('useStatisticBoardControlParams', () => {
     state.applyResponse(response([row('{}', '客户甲')], 'moduleNames'));
 
     expect(state.fixedColumnKeys.value).toEqual(['moduleNames']);
+  });
+});
+
+describe('useStatisticBoardControlParams member quick filters', () => {
+  it('exposes every member control as a shared quick-filter entry backed by the same tokens', async () => {
+    const { state } = setup({ query: { customer: '客户甲', customerKind: 'VALUE' } });
+    await nextTick();
+    await flushMicrotasks();
+
+    expect(state.memberQuickFilters.value.map((field) => field.key)).toEqual(['customer', 'module', 'function']);
+    const customer = state.memberQuickFilters.value[0];
+    expect(customer.label).toBe('客户');
+    expect(customer.type).toBe('select');
+    expect(customer.placeholder).toBe('全部客户');
+    expect(customer.clearable).toBe(true);
+    expect(customer.options?.map((option) => option.value)).toEqual(
+      expect.arrayContaining(['VALUE:客户甲', 'VALUE:客户乙', 'VALUE:客户丙']),
+    );
+    expect(state.memberQuickValues.value).toEqual({ customer: 'VALUE:客户甲', module: '', function: '' });
+  });
+
+  it('keeps the member entries and the selected value visible while the next scope is not solved yet', async () => {
+    const { state, scopeSignature } = setup({ query: { customer: '客户甲', customerKind: 'VALUE' } });
+    await nextTick();
+    await flushMicrotasks();
+    expect(state.memberCandidatesEmpty.value).toBe(false);
+
+    scopeSignature.value = 'scope-2';
+    await nextTick();
+
+    expect(state.memberQuickFilters.value.map((field) => field.key)).toEqual(['customer', 'module', 'function']);
+    expect(state.memberQuickValues.value).toEqual({ customer: 'VALUE:客户甲', module: '', function: '' });
+    expect(state.controlOptionsStatus.value).toBe('loading');
+    expect(state.memberCandidatesEmpty.value).toBe(false);
+  });
+
+  it('reports a genuinely empty candidate set only when candidates are ready', async () => {
+    const emptyGroups = controlOptions({
+      groups: [
+        { key: 'customer', options: [] },
+        { key: 'module', options: [] },
+        { key: 'function', options: [] },
+      ],
+    });
+    const ready = setup({ candidates: emptyGroups });
+    await nextTick();
+    await flushMicrotasks();
+    expect(ready.state.controlOptionsStatus.value).toBe('ready');
+    expect(ready.state.memberCandidatesEmpty.value).toBe(true);
+
+    const unavailable = setup({
+      candidates: controlOptions({ scopeReadable: false, reason: '来源尚未结算', groups: [] }),
+    });
+    await nextTick();
+    await flushMicrotasks();
+    expect(unavailable.state.memberCandidatesEmpty.value).toBe(false);
+  });
+
+  it('summarizes only the members that are actually in effect', async () => {
+    const { state } = setup({
+      query: { customer: '客户甲', customerKind: 'VALUE', moduleKind: 'MISSING' },
+    });
+    await nextTick();
+    await flushMicrotasks();
+
+    expect(state.memberSummaryChips.value).toEqual([
+      { id: 'member:customer', label: '客户：客户甲' },
+      { id: 'member:module', label: '模块：未标注模块' },
+    ]);
+  });
+
+  it('omits the summary chip for members that are not restricted', async () => {
+    const { state } = setup({ query: { customer: '客户甲', customerKind: 'VALUE' } });
+    await nextTick();
+    await flushMicrotasks();
+
+    expect(state.memberSummaryChips.value.map((chip) => chip.id)).toEqual(['member:customer']);
+  });
+
+  it('clears every member control parameter in one patch', () => {
+    const { state } = setup();
+
+    expect(state.clearMemberPatch.value).toEqual({
+      customer: '',
+      customerKind: '',
+      module: '',
+      moduleKind: '',
+      function: '',
+      functionKind: '',
+    });
+  });
+
+  it('clears nothing for pages without a control spec', () => {
+    const { state } = setup({ pageKey: 'customer-issues-home' });
+
+    expect(state.memberQuickFilters.value).toEqual([]);
+    expect(state.memberQuickValues.value).toEqual({});
+    expect(state.memberSummaryChips.value).toEqual([]);
+    expect(state.clearMemberPatch.value).toEqual({});
+  });
+
+  it('keeps the solved candidates when the same scope is reported again', async () => {
+    const { state, loadControlOptions } = setup();
+    await nextTick();
+    await flushMicrotasks();
+    expect(loadControlOptions).toHaveBeenCalledTimes(1);
+    expect(state.controlOptionsStatus.value).toBe('ready');
+
+    // 等值重建草稿会让范围签名的取值重新计算，但范围本身没有变化。
+    await nextTick();
+    await flushMicrotasks();
+
+    expect(loadControlOptions).toHaveBeenCalledTimes(1);
+    expect(state.controlOptionsStatus.value).toBe('ready');
   });
 });

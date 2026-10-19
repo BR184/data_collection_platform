@@ -55,6 +55,28 @@ function createLifecycle(overrides: Partial<RealtimeRefreshLifecycleOptions> = {
 }
 
 describe('useRealtimeRefreshLifecycle', () => {
+  it('releases the foreground button after five seconds even while submission is still pending without submitting twice', async () => {
+    vi.useFakeTimers();
+    let finish!: (value: RealtimeWorkspaceStatusResponse) => void;
+    const submit = vi.fn(() => new Promise<RealtimeWorkspaceStatusResponse>(resolve => { finish = resolve; }));
+    const lifecycle = useRealtimeRefreshLifecycle({
+      submitRefresh: submit,
+      loadStatus: async () => status(),
+      loadData: async () => undefined,
+    });
+    const pending = lifecycle.submitRefresh();
+    expect(lifecycle.refreshButtonBusy.value).toBe(true);
+    await vi.advanceTimersByTimeAsync(REFRESH_BUTTON_WINDOW_MS);
+    expect(lifecycle.refreshButtonBusy.value).toBe(false);
+    expect(lifecycle.submitBusy.value).toBe(true);
+    expect(await lifecycle.submitRefresh()).toBe('ALREADY_REFRESHING');
+    expect(submit).toHaveBeenCalledTimes(1);
+    finish(accepted());
+    await pending;
+    expect(lifecycle.refreshButtonBusy.value).toBe(false);
+    lifecycle.invalidateRefreshTracking();
+  });
+
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-08T10:00:00Z'));

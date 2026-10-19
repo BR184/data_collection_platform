@@ -40,9 +40,9 @@ const usernameInputRef = ref<InputFocusTarget>();
 const passwordInputRef = ref<InputFocusTarget>();
 
 const currentUser = computed(() => authState.currentUser);
-// 登录态切换时重新挂载当前页面，让仅在首次挂载时加载数据的业务页重新请求数据。
+// 登录主体或分析看板切换时重新挂载当前页面，让仅在首次挂载时加载数据的业务页重新请求数据。
 const pageRenderKey = computed(
-  () => `${currentUser.value.authenticated ? 'authenticated' : 'guest'}:${currentUser.value.username}`,
+  () => `${currentUser.value.authenticated ? 'authenticated' : 'guest'}:${currentUser.value.username}:${String(route.meta.analyticsDashboardKey ?? '')}`,
 );
 const matchModeEnabled = ref(true);
 const matchModeStatusLoaded = ref(false);

@@ -31,6 +31,10 @@ const props = withDefaults(
     quickFilterFields?: RecordTableFilterField[];
     quickFilterValues?: Record<string, unknown>;
     quickFilterInputDrafts?: Record<string, string>;
+    /** 快速筛选行的展开初值；只有把成员控制等常驻内容并入该行的页面才需要改为 true。 */
+    quickFiltersDefaultExpanded?: boolean;
+    /** 页面补充的筛选摘要（例如成员控制参数），与字段类快速筛选共用同一摘要区。 */
+    extraSummaryChips?: Array<{ id: string; label: string }>;
     disabledQuickFilterKeys?: string[];
     highlightedQuickFilterKeys?: string[];
     quickFilterChangeGuard?: (key: string, value: string | string[] | null) => boolean;
@@ -52,6 +56,8 @@ const props = withDefaults(
     quickFilterFields: () => [],
     quickFilterValues: () => ({}),
     quickFilterInputDrafts: () => ({}),
+    quickFiltersDefaultExpanded: false,
+    extraSummaryChips: () => [],
     disabledQuickFilterKeys: () => [],
     highlightedQuickFilterKeys: () => [],
     quickFilterChangeGuard: () => true,
@@ -79,7 +85,7 @@ const emit = defineEmits<{
 
 const PRIMARY_EXPORT_COMMAND = '__primary_export__';
 
-const quickFiltersExpanded = ref(false);
+const quickFiltersExpanded = ref(props.quickFiltersDefaultExpanded);
 const conditionFiltersExpanded = ref(false);
 const localQuickFilterInputDrafts = ref<Record<string, string>>({});
 const localQuickFilterValues = ref<Record<string, unknown>>({});
@@ -101,7 +107,7 @@ const quickFilterToggleText = computed(() =>
   quickFiltersExpanded.value ? '收起快速筛选' : `快速筛选（${props.quickFilterFields.length}）`,
 );
 const quickFilterToggleIcon = computed(() => (quickFiltersExpanded.value ? ArrowUp : ArrowDown));
-const quickFilterSummaryChips = computed(() => buildQuickFilterSummaryChips());
+const quickFilterSummaryChips = computed(() => [...buildQuickFilterSummaryChips(), ...props.extraSummaryChips]);
 
 watch(
   () => props.quickFilterInputDrafts,
@@ -343,6 +349,7 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
         @input-clear="(key) => commitQuickFilterInput(key, '')"
         @filter-change="commitQuickFilterValue"
       />
+      <slot name="quick-extra" />
       <div v-if="!conditionFiltersExpanded" class="stat-board-toolbar-quick-actions">
         <el-button class="app-action-button app-action-button--reset" @click="emit('resetFilters')">重置</el-button>
       </div>

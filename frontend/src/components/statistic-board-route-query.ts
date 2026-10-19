@@ -11,12 +11,10 @@ import {
   normalizeLabelGroupOperator,
   stringifyStatisticFilterGroup,
 } from '../utils/statistic-filter-group';
+import { createUuid } from '../utils/uuid';
 
 function nextConditionId() {
-  if (typeof globalThis.crypto?.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID();
-  }
-  return `condition-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return createUuid();
 }
 
 const FILTER_GROUP_QUERY_KEY = 'filterGroup';

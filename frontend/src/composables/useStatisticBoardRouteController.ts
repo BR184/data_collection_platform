@@ -52,11 +52,18 @@ export function useStatisticBoardRouteController(deps: StatisticBoardRouteContro
     });
   }
 
-  async function resetFilters() {
+  /**
+   * 清空业务条件并写回路由。
+   *
+   * @param extraPatch 与业务条件一并清除的控制参数（如成员选择）；空值在合并时会删除对应参数。
+   *   合并顺序保证 extraPatch 覆盖默认清理结果，从而只需一次路由写入。
+   */
+  async function resetFilters(extraPatch: QueryPatch = {}) {
     deps.resetFilterDraft();
     await replaceRouteQuery({
       ...buildResetFilterQueryPatch(deps.getRouteQuery()),
       ...DETAIL_ROUTE_CLEAR_PATCH,
+      ...extraPatch,
     });
   }
 

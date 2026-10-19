@@ -97,6 +97,7 @@ declare module 'vue' {
     StatisticBoardDetailCell: typeof import('./components/StatisticBoardDetailCell.vue')['default']
     StatisticBoardDetailDialog: typeof import('./components/StatisticBoardDetailDialog.vue')['default']
     StatisticBoardFreshnessBanner: typeof import('./components/StatisticBoardFreshnessBanner.vue')['default']
+    StatisticBoardMemberFilters: typeof import('./components/StatisticBoardMemberFilters.vue')['default']
     StatisticBoardRuleExplanationDrawer: typeof import('./components/StatisticBoardRuleExplanationDrawer.vue')['default']
     StatisticBoardToolbar: typeof import('./components/StatisticBoardToolbar.vue')['default']
     StatisticBoardView: typeof import('./components/StatisticBoardView.vue')['default']

@@ -11,6 +11,7 @@ import StatisticBoardRuleExplanationDrawer from './StatisticBoardRuleExplanation
 import StatisticBoardToolbar from './StatisticBoardToolbar.vue';
 import StatisticBoardFreshnessBanner from './StatisticBoardFreshnessBanner.vue';
 import StatisticBoardControlBar from './StatisticBoardControlBar.vue';
+import StatisticBoardMemberFilters from './StatisticBoardMemberFilters.vue';
 import DataScopeBar from './data-scope/DataScopeBar.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
@@ -65,7 +66,8 @@ import { useStatisticBoardColumnDrag } from './useStatisticBoardColumnDrag';
 import { createFallbackRuleExplanation } from './statistic-board-rule-explanation';
 import { resolveStatisticBoardRouteScopeState } from './statistic-board-route-scope';
 import type { StatisticBoardViewPrefs } from './statistic-board-view-prefs';
-import type { RecordTableFilterField } from '../types/record-table';
+import type { RecordTableFilterField, RecordTableFilterValue } from '../types/record-table';
+import type { StatisticBoardMemberControlSpec } from '../feature-manifest/statistic-board-controls';
 import {
   filterFieldsByBlockedDimensions,
   stripLowerPriorityQuickConditions,
@@ -152,7 +154,11 @@ const {
 const {
   controlSpec,
   activeDimension,
-  memberControls,
+  memberQuickFilters,
+  memberQuickValues,
+  memberCandidatesEmpty,
+  memberSummaryChips,
+  clearMemberPatch,
   requestParams: controlRequestParams,
   fixedColumnKeys,
   controlOptionsStatus,
@@ -160,6 +166,7 @@ const {
   memberSelectionError,
   applyBoardSourceVersion,
   applyResponse: applyControlResponse,
+  refreshControlOptions,
   setDimension: setControlDimension,
   setMember: setControlMember,
 } = useStatisticBoardControlParams({
@@ -344,6 +351,36 @@ const quickFilterConflict = useQuickFilterConflictState({
 const quickFilterFields = computed(() => quickFilterConflict.visibleQuickFilters.value);
 const disabledQuickFilterKeys = computed(() => quickFilterConflict.disabledQuickFilterKeys.value);
 const highlightedQuickFilterKeys = computed(() => quickFilterConflict.highlightedQuickFilterKeys.value);
+
+// 成员控制项并入共用"常用筛选"行（仅配置了控制参数的页面）。它们仍是控制参数而非业务条件，
+// 因此不进 quickFilterConflict（条件接管只作用于 filterGroup 字段），也不进工具栏的字段快速筛选集合，
+// 只在该行内与字段类快速筛选相邻渲染，并共用同一摘要与清除。
+const memberControlKeys = computed(() => (controlSpec.value?.members ?? []).map((member) => member.key));
+// 主表加载失败且没有可继续服务的画面时，成员候选无法完成求解，才算"候选加载失败"，与"加载中"必须分开。
+const memberCandidatesFailed = computed(() =>
+  Boolean(controlSpec.value) && !board.value && Boolean(errorMessage.value));
+const memberCandidateMessage = computed(() =>
+  memberCandidatesFailed.value ? errorMessage.value : controlOptionsMessage.value);
+const memberCandidatesEmptyNotice = computed(() =>
+  memberCandidatesEmpty.value ? '当前范围没有可选的成员' : '');
+
+function isMemberControlKey(key: string): key is StatisticBoardMemberControlSpec['key'] {
+  return memberControlKeys.value.includes(key as StatisticBoardMemberControlSpec['key']);
+}
+
+/** 成员变更直接写控制参数并即时生效，不经过条件草稿，也不触发"查询"提交。 */
+async function handleMemberQuickFilterChange(payload: { key: string; value: RecordTableFilterValue }) {
+  if (!isMemberControlKey(payload.key)) {
+    return;
+  }
+  const raw = Array.isArray(payload.value) ? payload.value[0] ?? '' : payload.value;
+  await setControlMember(payload.key, String(raw ?? ''));
+}
+
+function retryMemberCandidates() {
+  void loadBoard();
+  void refreshControlOptions();
+}
 const {
   settingsVisible,
   draftVisibleColumnKeys,
@@ -730,7 +767,8 @@ async function applyFiltersToRoute() {
 
 async function resetFilters() {
   quickFilterConflict.resetConflictResolution();
-  await resetRouteFilters();
+  // 成员选择已并入该行，重置必须一起清除；行维度与范围属"分析设置"，不参与筛选重置。
+  await resetRouteFilters(clearMemberPatch.value);
 }
 
 async function handleExtraAction(actionKey: string) {
@@ -996,6 +1034,7 @@ function autoRefreshMarkerKey() {
           :quick-filter-fields="quickFilterFields"
           :quick-filter-values="quickFilterValues"
           :quick-filter-input-drafts="quickFilterInputDrafts"
+          :extra-summary-chips="memberSummaryChips"
           :disabled-quick-filter-keys="disabledQuickFilterKeys"
           :highlighted-quick-filter-keys="highlightedQuickFilterKeys"
           :quick-filter-change-guard="quickFilterConflict.guardQuickFilterChange"
@@ -1034,13 +1073,22 @@ function autoRefreshMarkerKey() {
               v-if="controlSpec"
               :spec="controlSpec"
               :active-dimension="activeDimension"
-              :member-controls="memberControls"
-              :options-status="controlOptionsStatus"
-              :options-message="controlOptionsMessage"
-              :member-selection-error="memberSelectionError"
               :disabled="loading || !routeScopeReady"
               :on-dimension-change="setControlDimension"
-              :on-member-change="setControlMember"
+            />
+          </template>
+          <template v-if="controlSpec" #quick-extra>
+            <StatisticBoardMemberFilters
+              :filters="memberQuickFilters"
+              :values="memberQuickValues"
+              :status="controlOptionsStatus"
+              :failed="memberCandidatesFailed"
+              :candidate-message="memberCandidateMessage"
+              :empty-notice="memberCandidatesEmptyNotice"
+              :selection-error="memberSelectionError"
+              :retrying="loading"
+              @filter-change="handleMemberQuickFilterChange"
+              @retry="retryMemberCandidates"
             />
           </template>
         </StatisticBoardToolbar>
