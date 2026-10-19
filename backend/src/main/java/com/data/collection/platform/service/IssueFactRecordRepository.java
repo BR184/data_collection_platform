@@ -4,12 +4,11 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
 /**
  * issue_fact 记录页统一查询入口：组合条件构建器、排序白名单、候选值查询与行映射。
- * 本类只负责查询编排与 DataAccessException 兜底，SQL 语义分布在各协作者中。
+ * 本类只负责查询编排；查询失败必须传播，不能把异常伪装成空产出。SQL 语义分布在各协作者中。
  */
 @Service
 public class IssueFactRecordRepository {
@@ -90,13 +89,26 @@ public class IssueFactRecordRepository {
     return findByFilters(filters);
   }
 
+  /** 查询失败必须传播，不能降级成空列表冒充成功的“没有数据”。 */
   public List<IssueFactRecord> findByFilters(Map<String, String> filters) {
-    try {
-      return issueFactQueryService.query(
-          FACT_SQL, filters == null ? Map.of() : filters, null, List.of(), FACT_SQL_ORDER, rowMapper);
-    } catch (DataAccessException error) {
-      return List.of();
+    return issueFactQueryService.query(
+        FACT_SQL, filters == null ? Map.of() : filters, null, List.of(), FACT_SQL_ORDER, rowMapper);
+  }
+
+  /** 按完整业务身份读取一条议题事实；身份非法直接拒绝，命中多行视为数据缺陷。 */
+  public java.util.Optional<IssueFactRecord> findByIdentity(String sourceInstance, long projectId, long issueId) {
+    if (sourceInstance == null || sourceInstance.isBlank() || projectId <= 0 || issueId <= 0) {
+      throw new IllegalArgumentException("记录身份必须指定来源、项目和议题");
     }
+    List<IssueFactRecord> rows =
+        issueFactQueryService.query(
+            FACT_SQL + " and source_system = 'GITLAB' and source_instance = ? and project_id = ? and issue_id = ?",
+            List.of(sourceInstance, projectId, issueId),
+            rowMapper);
+    if (rows.size() > 1) {
+      throw new IllegalStateException("同一记录身份命中多行事实");
+    }
+    return rows.stream().findFirst();
   }
 
   public List<IssueFactRecord> findForFilterOptions(IssueFactRecordListRequest request) {
@@ -157,27 +169,19 @@ public class IssueFactRecordRepository {
                 "desc",
                 CustomerIssueRecordFilters.CcProductFilters.empty(),
                 null));
-    try {
-      // 候选值选项按事实行序取首次出现顺序，必须与全量路径同样 order by id 固定行序，
-      // 否则 assigneeNames 等候选顺序随查询计划漂移（黄金基线复跑实测漂移）。
-      return issueFactQueryService.query(
-          FACT_SELECT_SQL + parts.where() + " " + FACT_SQL_ORDER, parts.args(), rowMapper);
-    } catch (DataAccessException error) {
-      return List.of();
-    }
+    // 候选值选项按事实行序取首次出现顺序，必须与全量路径同样 order by id 固定行序，
+    // 否则 assigneeNames 等候选顺序随查询计划漂移（黄金基线复跑实测漂移）。
+    return issueFactQueryService.query(
+        FACT_SELECT_SQL + parts.where() + " " + FACT_SQL_ORDER, parts.args(), rowMapper);
   }
 
   public SystemTestIllegalFilterValues findSystemTestIllegalFilterValues(Long projectId) {
     IssueFactRecordConditionBuilder.QueryParts predicateParts =
         conditionBuilder.systemTestIllegalValuesPredicate(projectId);
     String sql = filterValuesQuerySupport.systemTestIllegalValuesSql(predicateParts.where());
-    try {
-      List<SystemTestIllegalFilterValues> rows =
-          issueFactQueryService.query(sql, predicateParts.args(), this::mapSystemTestIllegalFilterValues);
-      return rows.isEmpty() ? SystemTestIllegalFilterValues.empty() : rows.get(0);
-    } catch (DataAccessException error) {
-      return SystemTestIllegalFilterValues.empty();
-    }
+    List<SystemTestIllegalFilterValues> rows =
+        issueFactQueryService.query(sql, predicateParts.args(), this::mapSystemTestIllegalFilterValues);
+    return rows.isEmpty() ? SystemTestIllegalFilterValues.empty() : rows.get(0);
   }
 
   public CustomerIssueFilterValues findCustomerIssueRecordFilterValues(
@@ -201,43 +205,36 @@ public class IssueFactRecordRepository {
   private CustomerIssueFilterValues findCustomerIssueFilterValues(
       IssueFactRecordConditionBuilder.QueryParts predicateParts) {
     String sql = filterValuesQuerySupport.customerIssueValuesSql(predicateParts.where());
-    try {
-      List<CustomerIssueFilterValues> rows =
-          issueFactQueryService.query(sql, predicateParts.args(), this::mapCustomerIssueFilterValues);
-      return rows.isEmpty() ? CustomerIssueFilterValues.empty() : rows.get(0);
-    } catch (DataAccessException error) {
-      return CustomerIssueFilterValues.empty();
-    }
+    List<CustomerIssueFilterValues> rows =
+        issueFactQueryService.query(sql, predicateParts.args(), this::mapCustomerIssueFilterValues);
+    return rows.isEmpty() ? CustomerIssueFilterValues.empty() : rows.get(0);
   }
 
+  /** 计数或取页失败必须传播；只有查询成功且确为零行才返回空页。 */
   public PageSlice<IssueFactRecord> findPage(IssueFactRecordPageQuery query) {
     IssueFactRecordConditionBuilder.QueryParts parts = conditionBuilder.build(query);
-    try {
-      long total = issueFactQueryService.count("select count(*) from issue_fact" + parts.where(), parts.args());
-      if (total == 0) {
-        return new PageSlice<>(List.of(), 0, query.page(), query.size());
-      }
-      List<Object> pageArgs = new ArrayList<>(parts.args());
-      pageArgs.add(query.size());
-      pageArgs.add((long) (query.page() - 1) * query.size());
-      List<IssueFactRecord> records =
-          issueFactQueryService.query(
-              FACT_SELECT_SQL
-                  + parts.where()
-                  + " order by "
-                  + IssueFactRecordSortSupport.sortColumn(query.sortField())
-                  + " "
-                  + IssueFactRecordSortSupport.sortOrder(query.sortOrder())
-                  + IssueFactRecordSortSupport.nullsClause(query.sortOrder())
-                  + ", issue_iid "
-                  + IssueFactRecordSortSupport.sortOrder(query.sortOrder())
-                  + " limit ? offset ?",
-              pageArgs,
-              rowMapper);
-      return new PageSlice<>(records, total, query.page(), query.size());
-    } catch (DataAccessException error) {
+    long total = issueFactQueryService.count("select count(*) from issue_fact" + parts.where(), parts.args());
+    if (total == 0) {
       return new PageSlice<>(List.of(), 0, query.page(), query.size());
     }
+    List<Object> pageArgs = new ArrayList<>(parts.args());
+    pageArgs.add(query.size());
+    pageArgs.add((long) (query.page() - 1) * query.size());
+    List<IssueFactRecord> records =
+        issueFactQueryService.query(
+            FACT_SELECT_SQL
+                + parts.where()
+                + " order by "
+                + IssueFactRecordSortSupport.sortColumn(query.sortField())
+                + " "
+                + IssueFactRecordSortSupport.sortOrder(query.sortOrder())
+                + IssueFactRecordSortSupport.nullsClause(query.sortOrder())
+                + ", issue_iid "
+                + IssueFactRecordSortSupport.sortOrder(query.sortOrder())
+                + " limit ? offset ?",
+            pageArgs,
+            rowMapper);
+    return new PageSlice<>(records, total, query.page(), query.size());
   }
 
   private SystemTestIllegalFilterValues mapSystemTestIllegalFilterValues(

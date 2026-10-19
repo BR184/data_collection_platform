@@ -52,7 +52,7 @@ class CodeReviewIllegalRuleRegistryTest {
             null,
             null,
             null,
-            null);
+            null, null);
 
     assertThat(CodeReviewIllegalRuleRegistry.evaluateIllegalTypes(source))
         .containsExactly(
@@ -107,7 +107,7 @@ class CodeReviewIllegalRuleRegistryTest {
             null,
             null,
             null,
-            null);
+            null, null);
 
     assertThat(CodeReviewIllegalRuleRegistry.evaluateIllegalTypes(source))
         .doesNotContain(CodeReviewIllegalRuleRegistry.NOT_SCANNED_LABEL);
@@ -161,7 +161,7 @@ class CodeReviewIllegalRuleRegistryTest {
             2,
             50,
             "DemoFunction",
-            100);
+            100, null);
 
     CodeReviewIllegalRuleGroup scanGroup =
         CodeReviewIllegalRuleRegistry.explanationGroups().stream()

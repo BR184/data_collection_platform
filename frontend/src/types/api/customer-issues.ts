@@ -55,6 +55,8 @@ export interface CustomerIssueIllegalRecordFilterOptionsResponse {
 export type CustomerIssueRecordTopic = 'cc-product' | 'delay';
 
 export interface CustomerIssueRecordRowResponse {
+  /** 与项目/议题共同构成稳定业务身份，不能按事实修订自增 ID 或链接猜测来源。 */
+  sourceInstance: string;
   issueId: number;
   issueIid: number;
   issueLink?: string | null;

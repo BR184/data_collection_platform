@@ -36,6 +36,9 @@ describe('CustomerIssueIllegalRecordsView mount smoke', () => {
           return jsonResponse({
             records: [
               {
+                sourceInstance: 'default',
+                projectId: 325,
+                issueId: 301,
                 issueIid: 301,
                 title: 'Illegal sample',
                 illegalReason: 'Module mismatch',
@@ -178,6 +181,119 @@ describe('CustomerIssueIllegalRecordsView mount smoke', () => {
 
     wrapper.unmount();
     clickSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  it('re-reads the opened record by complete identity when the page reloads', async () => {
+    const fetchSpy = vi.fn((url: string) => {
+      if (url.includes('/api/customer-issues/illegal-records/default/325/301')) {
+        return jsonResponse({
+          sourceInstance: 'default',
+          projectId: 325,
+          issueId: 301,
+          issueIid: 301,
+          title: '刷新后的非法记录',
+          illegalReason: 'Module mismatch',
+          projectName: 'CC_PRODUCT',
+          moduleNames: 'Sketch',
+          severityLevel: 'S1',
+          priorityLevel: 'P0',
+          issueState: 'opened',
+          milestoneTitle: 'R1',
+          authorName: 'Alice',
+          createdAt: '2026-04-24T08:00:00',
+          updatedAt: '2026-04-24T09:00:00',
+          labels: ['illegal'],
+          closedAt: null,
+        });
+      }
+      if (url.includes('/api/customer-issues/illegal-records/filter-options')) {
+        return jsonResponse({
+          projectNames: [],
+          moduleNames: [],
+          functionNames: [],
+          illegalReasons: [],
+          severityLevels: [],
+          priorityLevels: [],
+          issueStates: [],
+          bugStatuses: [],
+          categories: [],
+          authorNames: [],
+          assigneeNames: [],
+          milestoneTitles: [],
+        });
+      }
+      if (url.includes('/api/customer-issues/illegal-records?')) {
+        return jsonResponse({
+          records: [
+            {
+              sourceInstance: 'default',
+              projectId: 325,
+              issueId: 301,
+              issueIid: 301,
+              title: 'Illegal sample',
+              illegalReason: 'Module mismatch',
+              projectName: 'CC_PRODUCT',
+              moduleNames: 'Sketch',
+              severityLevel: 'S1',
+              priorityLevel: 'P0',
+              issueState: 'opened',
+              milestoneTitle: 'R1',
+              authorName: 'Alice',
+              createdAt: '2026-04-24T08:00:00',
+              updatedAt: '2026-04-24T09:00:00',
+              labels: ['illegal'],
+              closedAt: null,
+            },
+          ],
+          total: 1,
+          page: 1,
+          size: 20,
+          sortField: 'updatedAt',
+          sortOrder: 'desc',
+        });
+      }
+      return jsonResponse({});
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const router = createRouter({
+      history: createWebHashHistory(),
+      routes: [
+        {
+          path: '/customer-issues/illegal-records',
+          component: CustomerIssueIllegalRecordsView,
+          meta: { pageKey: 'customer-issues-illegal-records' },
+        },
+      ],
+    });
+
+    await router.push('/customer-issues/illegal-records?projectId=9');
+    await router.isReady();
+
+    const wrapper = mount(CustomerIssueIllegalRecordsView, {
+      attachTo: document.body,
+      global: { plugins: [router, ElementPlus] },
+    });
+
+    await vi.waitFor(() => {
+      expect(wrapper.text()).toContain('Illegal sample');
+    });
+    await wrapper.findAll('button.customer-illegal-row-action-button').at(-1)!.trigger('click');
+    await flushPromises();
+    expect(document.body.textContent).toContain('Illegal sample');
+
+    await wrapper.findAll('button').find((button) => button.text().trim() === '刷新')!.trigger('click');
+    await flushPromises();
+
+    expect(
+      fetchSpy.mock.calls.some(([url]) => String(url).includes('/api/customer-issues/illegal-records/default/325/301')),
+    ).toBe(true);
+    await vi.waitFor(() => {
+      expect(document.body.textContent).toContain('刷新后的非法记录');
+    });
+
+    wrapper.unmount();
     vi.unstubAllGlobals();
   });
 });

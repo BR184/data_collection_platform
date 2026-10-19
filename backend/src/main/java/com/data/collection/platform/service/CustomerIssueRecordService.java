@@ -30,8 +30,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   private static final String TOPIC_CC_PRODUCT = "cc-product";
   private static final String TOPIC_DELAY = "delay";
   private static final String PAGE_KEY = "customer-issues-cc-product-issues";
-  private static final String CC_PRODUCT_RULE_VERSION = "customer-issue-records@2026-09-28-v9";
-  private static final String DELAY_RULE_VERSION = "customer-issue-records@2026-09-28-v5";
+  private static final String CC_PRODUCT_RULE_VERSION = "customer-issue-records@2026-10-13-v10";
+  private static final String DELAY_RULE_VERSION = "customer-issue-records@2026-10-13-v6";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = CustomerIssueScopeProfile.LEGACY_CC_PRODUCT_PROJECT_ID;
   private static final int EXPORT_PAGE_SIZE = 100;
@@ -57,27 +57,14 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   private final PageRecordSnapshotService pageRecordSnapshotService;
   private final Clock clock;
 
+  /**
+   * 注入客户问题记录读取所需依赖。
+   *
+   * @param clock 滞留时长等“当前时刻”派生口径的时钟来源；生产为系统 UTC 时钟，
+   *     黄金基线套件与单元测试注入固定时钟以保证可复现。
+   */
   @Autowired
   public CustomerIssueRecordService(
-      IssueFactRecordRepository issueFactRecordRepository,
-      CustomerIssueScopeProfile customerIssueScopeProfile,
-      ObjectMapper objectMapper,
-      GitlabResourceLinkService issueLinkService,
-      LabelGroupExpansionService labelGroupExpansionService,
-      CustomerIssueMilestoneCatalogService milestoneCatalogService,
-      PageRecordSnapshotService pageRecordSnapshotService) {
-    this(
-        issueFactRecordRepository,
-        customerIssueScopeProfile,
-        objectMapper,
-        issueLinkService,
-        labelGroupExpansionService,
-        milestoneCatalogService,
-        pageRecordSnapshotService,
-        Clock.systemUTC());
-  }
-
-  CustomerIssueRecordService(
       IssueFactRecordRepository issueFactRecordRepository,
       CustomerIssueScopeProfile customerIssueScopeProfile,
       ObjectMapper objectMapper,
@@ -92,7 +79,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     this.labelGroupExpansionService = labelGroupExpansionService;
     this.milestoneCatalogService = milestoneCatalogService;
     this.pageRecordSnapshotService = pageRecordSnapshotService;
-    this.clock = clock == null ? Clock.systemUTC() : clock;
+    this.clock = clock;
   }
 
   public CustomerIssueRecordListResponse listRecords(CustomerIssueRecordQueryRequest request) {
@@ -639,7 +626,15 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         view.plannedMergeVersionBranch(),
         view.updatedAt(),
         view.closedAt(),
-        view.labels());
+        view.labels(),
+        view.sourceInstance());
+  }
+
+  /** 固定版本下的已打开记录；真实撤回/离开客户范围返回 null，查询异常必须传播。 */
+  public CustomerIssueRecordRowResponse findRecord(String sourceInstance, long projectId, long issueId) {
+    return issueFactRecordRepository.findByIdentity(sourceInstance, projectId, issueId)
+        .filter(view -> customerIssueScopeProfile.matches(view.scopeContext()))
+        .map(view -> toResponse(view, currentTime())).orElse(null);
   }
 
   private void validateRetentionRange(

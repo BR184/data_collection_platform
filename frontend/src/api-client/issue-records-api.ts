@@ -3,6 +3,7 @@ import type {
   CustomerIssueIllegalRecordListResponse,
   CustomerIssueRecordFilterOptionsResponse,
   CustomerIssueRecordListResponse,
+  CustomerIssueRecordRowResponse,
   CustomerIssueRecordTopic,
   RealtimeWorkspaceStatusResponse,
   StatisticFilterGroup,
@@ -155,6 +156,7 @@ function buildIllegalRecordQuery(params: IllegalRecordQueryParams, includePagina
 
 function buildCustomerIssueRecordQuery(params: {
   topic: CustomerIssueRecordTopic;
+  sourceInstance?: string | null;
   projectId?: string | number | null;
   keyword?: string;
   issueIid?: string;
@@ -193,6 +195,7 @@ function buildCustomerIssueRecordQuery(params: {
 }, includePagination = true) {
   return new URLSearchParams({
     topic: params.topic,
+    ...(params.sourceInstance ? { sourceInstance: params.sourceInstance } : {}),
     ...(includePagination ? { page: String(params.page ?? 1), size: String(params.size ?? 20) } : {}),
     ...(params.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
     ...(params.keyword ? { keyword: params.keyword } : {}),
@@ -302,6 +305,10 @@ export const issueRecordsApi = {
     const query = buildSystemTestIllegalRecordQuery(params);
     return request<SystemTestIllegalRecordListResponse>(`/api/question-metrics/illegal-records?${query.toString()}`);
   },
+  getSystemTestIllegalRecord(source: string, projectId: number, issueId: number) {
+    return request<SystemTestIllegalRecordListResponse['records'][number] | null>(
+      `/api/question-metrics/illegal-records/${encodeURIComponent(source)}/${projectId}/${issueId}`);
+  },
   exportSystemTestIllegalRecords(params: SystemTestIllegalRecordQueryParams) {
     const query = buildSystemTestIllegalRecordQuery(params, false);
     return requestWorkbook(`/api/question-metrics/illegal-records/export${query.toString() ? `?${query.toString()}` : ''}`);
@@ -350,6 +357,10 @@ export const issueRecordsApi = {
     const query = buildCustomerIssueIllegalRecordQuery(params);
     return request<CustomerIssueIllegalRecordListResponse>(`/api/customer-issues/illegal-records?${query.toString()}`);
   },
+  getCustomerIssueIllegalRecord(source: string, projectId: number, issueId: number) {
+    return request<CustomerIssueIllegalRecordListResponse['records'][number] | null>(
+      `/api/customer-issues/illegal-records/${encodeURIComponent(source)}/${projectId}/${issueId}`);
+  },
   exportCustomerIssueIllegalRecords(params: Parameters<typeof buildCustomerIssueIllegalRecordQuery>[0]) {
     const query = buildCustomerIssueIllegalRecordQuery(params, false);
     return requestWorkbook(`/api/customer-issues/illegal-records/export${query.toString() ? `?${query.toString()}` : ''}`);
@@ -397,6 +408,11 @@ export const issueRecordsApi = {
   getCustomerIssueRecords(params: Parameters<typeof buildCustomerIssueRecordQuery>[0]) {
     const query = buildCustomerIssueRecordQuery(params);
     return request<CustomerIssueRecordListResponse>(`/api/customer-issues/records?${query.toString()}`);
+  },
+  getCustomerIssueRecord(sourceInstance: string, projectId: number, issueId: number) {
+    return request<CustomerIssueRecordRowResponse | null>(
+      `/api/customer-issues/records/${encodeURIComponent(sourceInstance)}/${projectId}/${issueId}`,
+    );
   },
   exportCustomerIssueRecords(params: Parameters<typeof buildCustomerIssueRecordQuery>[0]) {
     const query = buildCustomerIssueRecordQuery(params, false);

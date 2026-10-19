@@ -29,6 +29,7 @@ public class CodeReviewMatchModeRecordLoader {
   private static final String SELECT_SQL = """
       select
         source_instance,
+        legacy_source_id,
         merge_request_id,
         merge_request_iid,
         project_id,
@@ -73,6 +74,14 @@ public class CodeReviewMatchModeRecordLoader {
       """ + BASE_WHERE;
   private static final Map<String, String> SORT_COLUMNS = createSortColumns();
 
+  /**
+   * 并列行的稳定收尾：同一合并请求号可能与老平台多条走查记录对应，
+   * 只按走查时间/合并请求号排序时并列行的顺序由物理行序决定，同一份数据在两次运行间可能返回不同顺序。
+   * 来源关系的业务身份是 (source_instance, legacy_source_id)，用后者按主排序方向稳定收尾，不依赖物理行序。
+   */
+  private static final String LEGACY_IDENTITY_TIE_BREAK =
+      ", nullif(btrim(legacy_source_id), '') desc nulls last";
+
   private final JdbcTemplate jdbcTemplate;
 
   public CodeReviewMatchModeRecordLoader(JdbcTemplate jdbcTemplate) {
@@ -82,7 +91,8 @@ public class CodeReviewMatchModeRecordLoader {
   //兼容模式-MatchMode
   public List<CodeReviewIllegalRecordSource> loadSources(Map<String, String> filters) {
     QueryParts parts = buildSourceQuery(filters == null ? Map.of() : filters);
-    return jdbcTemplate.query(SELECT_SQL + parts.tailWhere() + " order by merged_at_source desc nulls last", this::mapSource, parts.args().toArray());
+    return jdbcTemplate.query(SELECT_SQL + parts.tailWhere() + " order by merged_at_source desc nulls last"
+        + LEGACY_IDENTITY_TIE_BREAK, this::mapSource, parts.args().toArray());
   }
 
   //兼容模式-MatchMode
@@ -148,6 +158,7 @@ public class CodeReviewMatchModeRecordLoader {
                 + nullsClause(query.sortOrder())
                 + ", merge_request_iid "
                 + sortOrder(query.sortOrder())
+                + LEGACY_IDENTITY_TIE_BREAK
                 + " limit ? offset ?",
             this::mapSource,
             args.toArray());
@@ -160,7 +171,8 @@ public class CodeReviewMatchModeRecordLoader {
       StatisticFilterGroup filterGroup) {
     QueryParts parts = buildPageQuery(request, filterGroup, false);
     return jdbcTemplate.query(
-        SELECT_SQL + parts.tailWhere() + " order by merge_request_iid desc nulls last, merged_at_source desc nulls last",
+        SELECT_SQL + parts.tailWhere() + " order by merge_request_iid desc nulls last, merged_at_source desc nulls last"
+            + LEGACY_IDENTITY_TIE_BREAK,
         this::mapSource,
         parts.args().toArray());
   }
@@ -528,7 +540,8 @@ public class CodeReviewMatchModeRecordLoader {
         + order
         + nullsClause(order)
         + ", merge_request_iid "
-        + order;
+        + order
+        + LEGACY_IDENTITY_TIE_BREAK;
   }
 
   private String sortOrder(String sortOrder) {
@@ -581,7 +594,8 @@ public class CodeReviewMatchModeRecordLoader {
         (Integer) rs.getObject("commit_count"),
         (Integer) rs.getObject("commit_rate"),
         rs.getString("function_name"),
-        (Integer) rs.getObject("clang_added_line_count"));
+        (Integer) rs.getObject("clang_added_line_count"),
+        rs.getString("legacy_source_id"));
   }
 
   private Double toDouble(Object value) {

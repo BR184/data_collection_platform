@@ -61,6 +61,12 @@ function buildIllegalRecordQuery(params: CodeReviewIllegalRecordQueryParams, inc
 }
 
 export const codeReviewApi = {
+  /** 兼容拆分记录按 legacySourceId 区分，同号 MR 不会串行。 */
+  getCodeReviewIllegalRecord(row: CodeReviewIllegalRecordListResponse['records'][number]) {
+    const query = row.legacySourceId == null ? '' : `?legacySourceId=${encodeURIComponent(row.legacySourceId)}`;
+    return request<CodeReviewIllegalRecordListResponse['records'][number] | null>(
+      `/api/code-review/illegal-records/${encodeURIComponent(row.sourceInstance)}/${row.projectId}/${row.mergeRequestId}${query}`);
+  },
   getCodeReviewMatchModeStatus() {
     return request<CodeReviewMatchModeStatusResponse>('/api/code-review/match-mode/status');
   },

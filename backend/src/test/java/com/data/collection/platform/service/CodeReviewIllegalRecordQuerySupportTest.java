@@ -54,7 +54,7 @@ class CodeReviewIllegalRecordQuerySupportTest {
             0,
             0,
             "",
-            0);
+            0, null);
 
     assertThat(CodeReviewIllegalRecordQuerySupport.matchesKeyword(row, "ct")).isTrue();
     assertThat(CodeReviewIllegalRecordQuerySupport.matchesKeyword(row, "wq")).isTrue();

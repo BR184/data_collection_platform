@@ -23,6 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -180,9 +181,24 @@ public class QuestionMetricsController {
   @RequirePermission(PlatformPermissionCodes.BUSINESS_DATA_REFRESH)
   public ApiResponse<SystemTestIllegalRecordRowResponse> refreshOneIllegalRecord(
       @RequestBody SystemTestIllegalRecordSingleRefreshWebRequest request) {
+    systemTestIllegalRecordService.refreshSingleRecord(
+        request.getSource(), request.getProjectId(), request.getIssueIid());
     return ApiResponse.success(
         "已刷新本条议题事实数据",
-        systemTestIllegalRecordService.refreshSingleRecord(
+        systemTestIllegalRecordService.findRefreshedRecord(
             request.getSource(), request.getProjectId(), request.getIssueIid()));
+  }
+
+  /** 按完整根身份读取一条系统测试非法记录；撤回或离开本域返回 null。 */
+  @GetMapping("/illegal-records/{sourceInstance}/{projectId}/{issueId}")
+  @RequirePermission("system_test.illegal.view")
+  public ApiResponse<SystemTestIllegalRecordRowResponse> getIllegalRecord(
+      @PathVariable String sourceInstance, @PathVariable long projectId, @PathVariable long issueId) {
+    return ApiResponse.success(
+        systemTestIllegalRecordService.findRecord(
+            com.data.collection.platform.service.GitlabSourceInstanceSupport.normalizeSourceInstance(
+                sourceInstance),
+            projectId,
+            issueId));
   }
 }

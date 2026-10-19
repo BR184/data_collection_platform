@@ -5,7 +5,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -22,13 +21,8 @@ public class CodeReviewIllegalRecordSourceLoader {
   }
 
   public List<CodeReviewIllegalRecordSource> loadSources(Map<String, String> filters) {
-    try {
-      return mergeRequestFactQueryService.query(
-          CodeReviewIllegalRecordSqlQueryBuilder.factSql(), filters, rowMapper::mapFactSource);
-    } catch (DataAccessException exception) {
-      log.warn("Failed to load merge request facts", exception);
-      return List.of();
-    }
+    return mergeRequestFactQueryService.query(
+        CodeReviewIllegalRecordSqlQueryBuilder.factSql(), filters, rowMapper::mapFactSource);
   }
 
   public CodeReviewIllegalRecordFilterOptionValues loadFilterOptions(
@@ -69,12 +63,7 @@ public class CodeReviewIllegalRecordSourceLoader {
         query.request().requestType())) {
       return new PageSlice<>(List.of(), 0, query.page(), query.size());
     }
-    try {
-      return loadDefaultIllegalPageOnce(query);
-    } catch (DataAccessException exception) {
-      log.warn("Failed to load paged merge request illegal facts", exception);
-      return new PageSlice<>(List.of(), 0, query.page(), query.size());
-    }
+    return loadDefaultIllegalPageOnce(query);
   }
 
   public List<CodeReviewIllegalRecordSource> loadLegacyAllExportSources(

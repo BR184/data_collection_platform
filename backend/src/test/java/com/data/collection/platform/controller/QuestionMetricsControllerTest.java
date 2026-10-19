@@ -62,6 +62,58 @@ class QuestionMetricsControllerTest {
   }
 
   @Test
+  void refresh_one_rebuilds_then_reads_back_the_same_record() throws Exception {
+    var refreshed =
+        new com.data.collection.platform.entity.SystemTestIllegalRecordRowResponse(
+            9001L, 1, "http://link", "default", 9L, "项目甲", "刷新后的议题标题",
+            "opened", "阶段甲", "非法原因甲", "严重", "处理中", "类别", "里程碑", "高", "延期原因",
+            "作者", "处理人", "模块A", "功能甲", "修复人", "已修复",
+            "主要原因", "次要原因", "具体原因", "修改内容", "由他因引起", "影响功能", "已测试", "潜在影响", "关系表已更新",
+            null, null, null, java.util.List.of("标签甲"));
+    when(systemTestIllegalRecordService.findRefreshedRecord("default", 9L, 1L)).thenReturn(refreshed);
+
+    mockMvc.perform(post("/api/question-metrics/illegal-records/refresh-one")
+            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+            .content("{\"source\":\"default\",\"projectId\":9,\"issueIid\":1}"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.message").value("已刷新本条议题事实数据"))
+        .andExpect(jsonPath("$.data.issueId").value(9001))
+        .andExpect(jsonPath("$.data.sourceInstance").value("default"))
+        .andExpect(jsonPath("$.data.title").value("刷新后的议题标题"));
+    // 顺序即契约：必须先重建事实，再回读；先读后刷新同样会返回旧值，这里用 InOrder 排除
+    var inOrder = org.mockito.Mockito.inOrder(systemTestIllegalRecordService);
+    inOrder.verify(systemTestIllegalRecordService).refreshSingleRecord("default", 9L, 1L);
+    inOrder.verify(systemTestIllegalRecordService).findRefreshedRecord("default", 9L, 1L);
+  }
+
+  @Test
+  void refresh_one_does_not_report_success_when_the_rebuild_fails() {
+    org.mockito.Mockito.doThrow(new IllegalStateException("事实重建失败"))
+        .when(systemTestIllegalRecordService)
+        .refreshSingleRecord("default", 9L, 1L);
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () ->
+                mockMvc.perform(post("/api/question-metrics/illegal-records/refresh-one")
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .content("{\"source\":\"default\",\"projectId\":9,\"issueIid\":1}")))
+        .hasRootCauseMessage("事实重建失败");
+    org.mockito.Mockito.verify(systemTestIllegalRecordService, org.mockito.Mockito.never())
+        .findRefreshedRecord(
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void test_illegal_detail_lookup_keeps_complete_natural_identity() throws Exception {
+    when(systemTestIllegalRecordService.findRecord("second", 9L, 9001L)).thenReturn(null);
+    mockMvc.perform(get("/api/question-metrics/illegal-records/second/9/9001"))
+        .andExpect(status().isOk());
+    org.mockito.Mockito.verify(systemTestIllegalRecordService).findRecord("second", 9L, 9001L);
+  }
+
+  @Test
   void shouldReturnIssueSearchList() throws Exception {
     when(systemTestIssueSearchService.listRecords(
             new SystemTestIssueSearchQueryRequest(

@@ -25,6 +25,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class CodeReviewIllegalRecordServiceTest {
+  private void bindReadDependencyFixtures() {
+    // 公式单测复用同一数据替身；实际修订隔离由真库读取测试覆盖。
+  }
+
 
   @Mock private RealtimeWorkspaceService realtimeWorkspaceService;
   @Mock private RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;
@@ -42,6 +46,7 @@ class CodeReviewIllegalRecordServiceTest {
 
   @BeforeEach
   void setUp() {
+    bindReadDependencyFixtures();
     org.mockito.Mockito.lenient()
         .when(pageRecordSnapshotService.codeReviewSourceVersion())
         .thenReturn("test-code-review-version");
@@ -65,6 +70,33 @@ class CodeReviewIllegalRecordServiceTest {
             new CodeReviewIllegalRecordFilterOptionAssembler(),
             new CodeReviewIllegalRecordResponseMapper(
                 gitlabResourceLinkService, matchModeSwitchService));
+  }
+
+  @Test
+  void shouldReloadExactLegacySplitRowAndKeepOtherSameMrRowSeparate() throws Exception {
+    when(matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()).thenReturn(true);
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var original = source(101L, 12, "CrownCAD", "Merger", "Owner", "module",
+        LocalDateTime.of(2026, 10, 13, 10, 0));
+    var firstTree = mapper.valueToTree(original);
+    ((com.fasterxml.jackson.databind.node.ObjectNode) firstTree).put("legacySourceId", 701L);
+    var first = mapper.treeToValue(firstTree, CodeReviewIllegalRecordSource.class);
+    var secondTree = mapper.valueToTree(original);
+    ((com.fasterxml.jackson.databind.node.ObjectNode) secondTree).put("legacySourceId", 702L);
+    ((com.fasterxml.jackson.databind.node.ObjectNode) secondTree).put("mergeRequestContent", "other split row");
+    var second = mapper.treeToValue(secondTree, CodeReviewIllegalRecordSource.class);
+    when(matchModeRecordLoader.loadSources(any())).thenReturn(List.of(first, second));
+    var selected = service.findRecord("cc", 2001L, 101L, "702");
+    assertThat(selected.legacySourceId()).isEqualTo("702");
+    assertThat(selected.mergeRequestContent()).isEqualTo("other split row");
+    assertThat(service.findRecord("cc", 2001L, 101L, "703")).isNull();
+  }
+
+  @Test
+  void shouldRejectLegacyDetailWithoutStableSplitIdentity() {
+    when(matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()).thenReturn(true);
+    assertThatThrownBy(() -> service.findRecord("cc", 2001L, 101L, null))
+        .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("来源记录身份");
   }
 
   @Test
@@ -467,6 +499,6 @@ class CodeReviewIllegalRecordServiceTest {
         2,
         60,
         "DemoFunction",
-        120);
+        120, null);
   }
 }

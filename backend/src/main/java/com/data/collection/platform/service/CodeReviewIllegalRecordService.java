@@ -79,6 +79,26 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
     this.responseMapper = responseMapper;
   }
 
+  /** 按完整来源身份重载已打开记录；兼容拆分行必须提供原来源记录号，撤回返回 null。 */
+  public CodeReviewIllegalRecordRowResponse findRecord(
+      String sourceInstance, Long projectId, Long mergeRequestId, String legacySourceId) {
+    if (codeReviewCompatibilityReadEnabled() && legacySourceId == null) {
+      throw new IllegalArgumentException("兼容记录缺少来源记录身份");
+    }
+    Map<String, String> filters = new java.util.LinkedHashMap<>();
+    filters.put("sourceInstance", sourceInstance);
+    filters.put("projectId", Long.toString(projectId));
+    List<CodeReviewIllegalRecordSource> matches = activeLoader().loadSources(filters).stream()
+        .filter(row -> java.util.Objects.equals(sourceInstance, row.sourceInstance()))
+        .filter(row -> java.util.Objects.equals(projectId, row.projectId()))
+        .filter(row -> java.util.Objects.equals(mergeRequestId, row.mergeRequestId()))
+        .filter(row -> !codeReviewCompatibilityReadEnabled()
+            || java.util.Objects.equals(legacySourceId, row.legacySourceId()))
+        .toList();
+    if (matches.size() > 1) { throw new IllegalStateException("完整来源记录身份不唯一"); }
+    return matches.isEmpty() ? null : responseMapper.toResponse(responseMapper.toView(matches.getFirst()));
+  }
+
   public CodeReviewIllegalRecordListResponse listRecords(CodeReviewIllegalRecordQueryRequest request) {
     CodeReviewIllegalRecordQueryRequest safeRequest = withLegacyDefaultScope(request);
     return pageRecordSnapshotService.readOrRefresh(
@@ -573,7 +593,8 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   }
 
   //兼容模式-MatchMode
-  private boolean codeReviewCompatibilityReadEnabled() {
+  /** 当前生效的代码走查来源模式；正式与兼容读取共用同一控制面开关。 */
+  public boolean codeReviewCompatibilityReadEnabled() {
     return matchModeSwitchService.isCodeReviewCompatibilityReadEnabled();
   }
 

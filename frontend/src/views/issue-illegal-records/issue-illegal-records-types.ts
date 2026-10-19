@@ -97,6 +97,8 @@ export interface IssueIllegalRecordsPageConfig<Row extends IssueIllegalRecordRow
   emptyDescription: string;
   totalTagText: (total: number) => string;
   loadRecords: (params: IssueIllegalRecordQueryParams) => Promise<IssueIllegalRecordListResponse<Row>>;
+  /** 按来源、项目与议题的完整业务身份重读单条记录；记录已不存在时返回 null。 */
+  loadRecord: (source: string, projectId: number, issueId: number) => Promise<Row | null>;
   exportRecords?: (params: IssueIllegalRecordQueryParams) => Promise<Blob>;
   exportFilenamePrefix?: string;
   loadFilterOptions: (projectId?: string | number | null) => Promise<IssueIllegalRecordFilterOptions>;
@@ -114,6 +116,8 @@ export interface IssueIllegalRecordsPageConfig<Row extends IssueIllegalRecordRow
   defaultSortBy?: string;
   defaultSortOrder?: 'asc' | 'desc';
   defaultProjectId?: string | number;
+  /** 页面业务契约固定项目时，路由不能改变真实读取范围。 */
+  fixedProjectId?: string | number;
   scopeProvider?: DataScopeProvider;
   buildScopeOptions?: (options: IssueIllegalRecordFilterOptions) => DataScopeOption[];
   createdAtDetailLabel?: string;

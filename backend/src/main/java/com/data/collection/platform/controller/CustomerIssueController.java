@@ -20,6 +20,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -71,6 +72,17 @@ public class CustomerIssueController {
         .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
         .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment(recordExportFilename(request.getTopic())))
         .body(workbook);
+  }
+
+  /** 记录自然身份在路径中，与页面范围分开；按完整业务身份读取单条记录。 */
+  @GetMapping("/records/{sourceInstance}/{projectId}/{issueId}")
+  @RequirePermission("customer_issue.record.view")
+  public ApiResponse<com.data.collection.platform.entity.CustomerIssueRecordRowResponse> getRecord(
+      @PathVariable String sourceInstance, @PathVariable long projectId, @PathVariable long issueId) {
+    return ApiResponse.success(
+        customerIssueRecordService.findRecord(
+            com.data.collection.platform.service.GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance),
+            projectId, issueId));
   }
 
   @GetMapping("/records/filter-options")
@@ -127,6 +139,17 @@ public class CustomerIssueController {
         .body(workbook);
   }
 
+  /** 下钻自然身份与页面范围分离；按完整业务身份读取单条非法记录。 */
+  @GetMapping("/illegal-records/{sourceInstance}/{projectId}/{issueId}")
+  @RequirePermission("customer_issue.illegal.view")
+  public ApiResponse<CustomerIssueIllegalRecordRowResponse> getIllegalRecord(
+      @PathVariable String sourceInstance, @PathVariable long projectId, @PathVariable long issueId) {
+    return ApiResponse.success(
+        customerIssueIllegalRecordService.findRecord(
+            com.data.collection.platform.service.GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance),
+            projectId, issueId));
+  }
+
   @GetMapping("/illegal-records/filter-options")
   @RequirePermission("customer_issue.illegal.view")
   public ApiResponse<CustomerIssueIllegalRecordFilterOptionsResponse> getIllegalRecordFilterOptions(
@@ -159,9 +182,11 @@ public class CustomerIssueController {
   @RequirePermission(PlatformPermissionCodes.BUSINESS_DATA_REFRESH)
   public ApiResponse<CustomerIssueIllegalRecordRowResponse> refreshOneIllegalRecord(
       @RequestBody CustomerIssueIllegalRecordSingleRefreshWebRequest request) {
+    customerIssueIllegalRecordService.refreshSingleRecord(
+        request.getSource(), request.getProjectId(), request.getIssueIid());
     return ApiResponse.success(
         "已刷新本条客户问题事实数据",
-        customerIssueIllegalRecordService.refreshSingleRecord(
+        customerIssueIllegalRecordService.findRefreshedRecord(
             request.getSource(), request.getProjectId(), request.getIssueIid()));
   }
 

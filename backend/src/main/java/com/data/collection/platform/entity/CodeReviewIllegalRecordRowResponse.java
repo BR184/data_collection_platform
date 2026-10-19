@@ -46,5 +46,6 @@ public record CodeReviewIllegalRecordRowResponse(
     Integer commitCount,
     Integer commitRate,
     String functionName,
-    Integer clangAddedLineCount) {
+    Integer clangAddedLineCount,
+    String legacySourceId) {
 }

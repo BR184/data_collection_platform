@@ -51,6 +51,8 @@ export interface CodeReviewIllegalRecordRowResponse {
   commitRate?: number | null;
   functionName: string;
   clangAddedLineCount?: number | null;
+  /** 兼容来源拆分记录的稳定记录号；正式事实为 null。 */
+  legacySourceId?: string | null;
 }
 
 export interface CodeReviewIllegalRecordListResponse {

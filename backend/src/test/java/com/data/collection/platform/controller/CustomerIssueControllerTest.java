@@ -38,11 +38,54 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 @ExtendWith(MockitoExtension.class)
 class CustomerIssueControllerTest {
 
-  @Mock private CustomerIssueIllegalRecordService customerIssueIllegalRecordService;
-  @Mock private CustomerIssueRecordService customerIssueRecordService;
+  @Mock(answer = org.mockito.Answers.RETURNS_SELF) private CustomerIssueIllegalRecordService customerIssueIllegalRecordService;
+  @Mock(answer = org.mockito.Answers.RETURNS_SELF) private CustomerIssueRecordService customerIssueRecordService;
   @Mock private IssueFactRealtimeRefreshService realtimeRefreshService;
 
   private MockMvc mockMvc;
+
+  @Test
+  void refresh_one_returns_the_refreshed_record_and_refreshes_before_reading_it_back() throws Exception {
+    var refreshed =
+        new com.data.collection.platform.entity.CustomerIssueIllegalRecordRowResponse(
+            9001L, 1, "http://link", "default", 325L, "客户项目", "刷新后的议题标题",
+            "opened", "阶段甲", "非法原因甲", "严重", "高", "bug", "类别", "里程碑",
+            "作者", "处理人", "模块A", "功能甲", "延期原因", "延期原因分类",
+            null, null, null, java.util.List.of("标签甲"));
+    when(customerIssueIllegalRecordService.findRefreshedRecord("default", 325L, 1L)).thenReturn(refreshed);
+
+    mockMvc.perform(post("/api/customer-issues/illegal-records/refresh-one")
+            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+            .content("{\"source\":\"default\",\"projectId\":325,\"issueIid\":1}"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.message").value("已刷新本条客户问题事实数据"))
+        .andExpect(jsonPath("$.data.issueId").value(9001))
+        .andExpect(jsonPath("$.data.sourceInstance").value("default"))
+        .andExpect(jsonPath("$.data.title").value("刷新后的议题标题"));
+    // 顺序即契约：必须先重建事实，再回读；先读后刷新同样会返回旧值，这里用 InOrder 排除
+    var inOrder = org.mockito.Mockito.inOrder(customerIssueIllegalRecordService);
+    inOrder.verify(customerIssueIllegalRecordService).refreshSingleRecord("default", 325L, 1L);
+    inOrder.verify(customerIssueIllegalRecordService).findRefreshedRecord("default", 325L, 1L);
+  }
+
+  @Test
+  void refresh_one_does_not_report_success_when_the_rebuild_fails() {
+    org.mockito.Mockito.doThrow(new IllegalStateException("事实重建失败"))
+        .when(customerIssueIllegalRecordService)
+        .refreshSingleRecord("default", 325L, 1L);
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () ->
+                mockMvc.perform(post("/api/customer-issues/illegal-records/refresh-one")
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .content("{\"source\":\"default\",\"projectId\":325,\"issueIid\":1}")))
+        .hasRootCauseMessage("事实重建失败");
+    org.mockito.Mockito.verify(customerIssueIllegalRecordService, org.mockito.Mockito.never())
+        .findRefreshedRecord(
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any());
+  }
 
   @BeforeEach
   void setUp() {
@@ -54,6 +97,22 @@ class CustomerIssueControllerTest {
                     new CustomerIssueRequestAssembler(new IssueFactRecordListRequestAssembler()),
                     realtimeRefreshService))
             .build();
+  }
+
+  @Test
+  void test_opened_record_lookup_keeps_source_project_and_root_identity() throws Exception {
+    when(customerIssueRecordService.findRecord("second", 325L, 9001L)).thenReturn(null);
+    mockMvc.perform(get("/api/customer-issues/records/second/325/9001").param("topic", "delay"))
+        .andExpect(status().isOk());
+    org.mockito.Mockito.verify(customerIssueRecordService).findRecord("second", 325L, 9001L);
+  }
+
+  @Test
+  void test_illegal_detail_lookup_keeps_complete_natural_identity() throws Exception {
+    when(customerIssueIllegalRecordService.findRecord("second", 325L, 9001L)).thenReturn(null);
+    mockMvc.perform(get("/api/customer-issues/illegal-records/second/325/9001"))
+        .andExpect(status().isOk());
+    org.mockito.Mockito.verify(customerIssueIllegalRecordService).findRecord("second", 325L, 9001L);
   }
 
   @Test
@@ -133,7 +192,7 @@ class CustomerIssueControllerTest {
                         "release/2026R3",
                         LocalDateTime.of(2026, 4, 20, 16, 30),
                         null,
-                        List.of("delay"))),
+                        List.of("delay"), "default")),
                 1,
                 2,
                 10,

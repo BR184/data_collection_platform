@@ -68,6 +68,13 @@ class CodeReviewControllerTest {
   }
 
   @Test
+  void shouldKeepZeroProjectAndLegacySplitIdentityForOpenedRecord() throws Exception {
+    mockMvc.perform(get("/api/code-review/illegal-records/dgm/0/22273").param("legacySourceId", "702"))
+        .andExpect(status().isOk());
+    org.mockito.Mockito.verify(codeReviewIllegalRecordService).findRecord("dgm", 0L, 22273L, "702");
+  }
+
+  @Test
   void shouldReturnIllegalRecords() throws Exception {
     when(codeReviewIllegalRecordService.listRecords(
             new CodeReviewIllegalRecordQueryRequest(

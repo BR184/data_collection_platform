@@ -43,6 +43,7 @@ const availableStatus: RealtimeWorkspaceStatusResponse = {
 function recordsResponse(title: string): CustomerIssueRecordListResponse {
   return {
     records: [{
+      sourceInstance: 'default',
       issueId: 1,
       issueIid: 101,
       projectId: 325,
@@ -336,5 +337,27 @@ describe('CustomerIssueRecordsView loading lifecycle', () => {
       topic: 'delay',
       milestoneTitle: 'CC2026R4',
     }));
+  });
+
+  it('re-reads the opened record by complete identity when the page reloads', async () => {
+    vi.spyOn(api, 'getCustomerIssueRecordFilterOptions').mockResolvedValue(emptyFilterOptions);
+    vi.spyOn(api, 'getCustomerIssueRecords').mockResolvedValue(recordsResponse('列表中的议题'));
+    vi.spyOn(api, 'getCustomerIssueRecordRealtimeStatus').mockResolvedValue(availableStatus);
+    const detailSpy = vi.spyOn(api, 'getCustomerIssueRecord')
+      .mockResolvedValue({ ...recordsResponse('刷新后的议题').records[0] });
+
+    ({ router: mountedRouter, wrapper: mountedWrapper } = await mountView());
+    await flushPromises();
+    await mountedWrapper.findAll('.customer-record-detail-trigger').at(-1)!.trigger('click');
+    await flushPromises();
+    expect(document.body.textContent).toContain('列表中的议题');
+
+    await mountedWrapper.findAll('button').find((button) => button.text() === '刷新')!.trigger('click');
+    await flushPromises();
+
+    expect(detailSpy).toHaveBeenCalledWith('default', 325, 1);
+    await vi.waitFor(() => {
+      expect(document.body.textContent).toContain('刷新后的议题');
+    });
   });
 });

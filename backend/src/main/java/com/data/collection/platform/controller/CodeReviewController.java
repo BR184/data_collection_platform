@@ -23,6 +23,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -140,6 +141,18 @@ public class CodeReviewController {
         "已刷新本条合并请求数据",
         codeReviewIllegalRecordService.refreshSingleRecord(
             request.getSource(), request.getProjectId(), request.getMergeRequestIid()));
+  }
+
+  @GetMapping("/illegal-records/{sourceInstance}/{projectId}/{mergeRequestId}")
+  @RequirePermission("code_review.illegal.view")
+  public ApiResponse<CodeReviewIllegalRecordRowResponse> illegalRecord(
+      @PathVariable String sourceInstance,
+      @PathVariable Long projectId,
+      @PathVariable Long mergeRequestId,
+      @RequestParam(required = false) String legacySourceId) {
+    return ApiResponse.success(
+        codeReviewIllegalRecordService.findRecord(
+            sourceInstance, projectId, mergeRequestId, legacySourceId));
   }
 
   @GetMapping("/multi-board/source-options")

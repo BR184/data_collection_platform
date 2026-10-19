@@ -349,13 +349,19 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     listRecords(defaultRequest());
   }
 
-  public CustomerIssueIllegalRecordRowResponse refreshSingleRecord(
+  /** 按根提交完整候选；命令结束后由控制器另行绑定完整读点，不在工厂对象回读。 */
+  public void refreshSingleRecord(
       String sourceInstance, Long projectId, Long issueIid) {
     Long safeProjectId = defaultProjectId(projectId);
     factBuildService.rebuildIssueFactByIid(sourceInstance, safeProjectId, issueIid);
     if (pageRecordSnapshotService != null) {
       pageRecordSnapshotService.invalidatePage(WORKSPACE_KEY);
     }
+  }
+
+  /** 在调用者已绑定的完整点中恢复刷新响应；不读取原地事实或候选。 */
+  public CustomerIssueIllegalRecordRowResponse findRefreshedRecord(String sourceInstance, Long projectId, Long issueIid) {
+    Long safeProjectId = defaultProjectId(projectId);
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
     return loadScopedViews(safeProjectId).stream()
         .filter(IssueFactRecord::illegal)
@@ -526,6 +532,13 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
 
   private List<IssueFactRecord> scopeVisibleCustomerIssues(List<IssueFactRecord> rows) {
     return scopeCustomerIssues(rows).stream().filter(view -> !view.excluded()).toList();
+  }
+
+  /** 固定版本下按完整根身份恢复已打开详情，真实撤回或离开客户域返回 null。 */
+  public CustomerIssueIllegalRecordRowResponse findRecord(String sourceInstance, long projectId, long issueId) {
+    return issueFactRecordRepository.findByIdentity(sourceInstance, projectId, issueId)
+        .filter(view -> customerIssueScopeProfile.matches(view.scopeContext()) && !view.excluded())
+        .map(this::toResponse).orElse(null);
   }
 
   private CustomerIssueIllegalRecordRowResponse toResponse(IssueFactRecord view) {

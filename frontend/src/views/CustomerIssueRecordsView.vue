@@ -662,6 +662,8 @@ function buildCurrentQueryParams(
   const delayTopic = requestedTopic === 'delay';
   return {
     topic: requestedTopic,
+    sourceInstance: String(query.sourceInstance ?? '') || undefined,
+    projectId: String(query.projectId ?? '') || undefined,
     keyword: String(query.keyword ?? ''),
     issueIid: String(query.issueIid ?? ''),
     title: String(query.title ?? ''),
@@ -738,15 +740,20 @@ bindLoader(async ({ query, isCurrent }) => {
   if (!isCurrent()) return null;
   const requestedTopic = topic.value;
   initializeFromQuery(query as LocationQuery);
-  const response = await api.getCustomerIssueRecords(
-    buildCurrentQueryParams(true, query, requestedTopic),
-  );
-  return { response, requestedTopic };
+  const detailRoot = detailVisible.value ? selectedRow.value : null;
+  const [response, openedDetail] = await Promise.all([
+    api.getCustomerIssueRecords(buildCurrentQueryParams(true, query, requestedTopic)),
+    loadOpenedDetail(detailRoot),
+  ]);
+  return { response, requestedTopic, detail: openedDetail.detail, detailKey: openedDetail.detailKey };
 }, (result) => {
   if (!result || result.requestedTopic !== topic.value) return;
   rows.value = result.response.records;
   total.value = result.response.total;
   tableLoadError.value = '';
+  if (result.detailKey && result.detailKey === detailIdentity(selectedRow.value)) {
+    selectedRow.value = result.detail;
+  }
   void loadSyncStatus();
 }, (error) => {
   rows.value = [];
@@ -822,6 +829,25 @@ async function applyMilestoneDefault() {
 function openDetailDrawer(row: Record<string, unknown>) {
   selectedRow.value = (row.__raw as CustomerIssueRecordRowResponse) ?? null;
   detailVisible.value = true;
+}
+
+/** 单条重读所需的完整业务身份；身份不完整时返回空串，表示不重读。 */
+function detailIdentity(row: CustomerIssueRecordRowResponse | null) {
+  if (!row?.projectId || !row.issueId) {
+    return '';
+  }
+  return `${row.sourceInstance}:${row.projectId}:${row.issueId}`;
+}
+
+/** 重新加载时按完整业务身份重读已打开的详情；记录已不存在时返回空详情。 */
+async function loadOpenedDetail(row: CustomerIssueRecordRowResponse | null) {
+  if (!row?.projectId || !row.issueId) {
+    return { detailKey: '', detail: null };
+  }
+  return {
+    detailKey: detailIdentity(row),
+    detail: await api.getCustomerIssueRecord(row.sourceInstance, row.projectId, row.issueId),
+  };
 }
 
 async function handleClearFilter(key: string) {
@@ -1020,6 +1046,8 @@ async function handleQuery() {
           </div>
         </div>
       </template>
+
+      <el-empty v-if="!selectedRow" description="该记录已不在当前筛选范围内" />
 
       <template v-if="selectedRow">
         <section class="customer-record-detail-section">

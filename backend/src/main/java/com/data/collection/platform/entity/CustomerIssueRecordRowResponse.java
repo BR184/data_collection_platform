@@ -39,4 +39,5 @@ public record CustomerIssueRecordRowResponse(
     String plannedMergeVersionBranch,
     LocalDateTime updatedAt,
     LocalDateTime closedAt,
-    List<String> labels) {}
+    List<String> labels,
+    String sourceInstance) {}

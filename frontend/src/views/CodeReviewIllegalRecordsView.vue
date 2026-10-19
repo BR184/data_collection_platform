@@ -258,6 +258,25 @@ function openDetailDrawer(row: Record<string, unknown>) {
   detailVisible.value = true;
 }
 
+/** 单条重读所需的完整业务身份；兼容拆分记录按 legacySourceId 区分。 */
+function detailIdentity(row: CodeReviewIllegalRecordRowResponse | null) {
+  if (!row?.sourceInstance || !row.projectId || !row.mergeRequestId) {
+    return '';
+  }
+  return `${row.sourceInstance}:${row.projectId}:${row.mergeRequestId}:${row.legacySourceId ?? ''}`;
+}
+
+/** 重新加载时重读已打开的详情；记录已不存在时返回空详情。 */
+async function loadOpenedDetail(row: CodeReviewIllegalRecordRowResponse | null) {
+  if (!row?.sourceInstance || !row.projectId || !row.mergeRequestId) {
+    return { detailKey: '', detail: null };
+  }
+  return {
+    detailKey: detailIdentity(row),
+    detail: await api.getCodeReviewIllegalRecord(row),
+  };
+}
+
 function rowActionKey(row: Record<string, unknown>) {
   return String(row.id ?? '');
 }
@@ -483,8 +502,13 @@ bindLoader(async ({ query, isCurrent }) => {
   );
   if (!isCurrent()) return null;
   initializeFromQuery(query as LocationQuery);
-  const response = await loadTableData(query, effectiveSource, repositoryName);
-  return { loadedSources, loadedMatchMode, loadedFilterOptions, response };
+  const detailRoot = detailVisible.value ? selectedRow.value : null;
+  const [response, openedDetail] = await Promise.all([
+    loadTableData(query, effectiveSource, repositoryName),
+    loadOpenedDetail(detailRoot),
+  ]);
+  return { loadedSources, loadedMatchMode, loadedFilterOptions, response,
+    detail: openedDetail.detail, detailKey: openedDetail.detailKey };
 }, (result) => {
   if (!result) return;
   sourceOptions.value = result.loadedSources;
@@ -492,6 +516,9 @@ bindLoader(async ({ query, isCurrent }) => {
   filterOptions.value = result.loadedFilterOptions;
   rows.value = result.response.records;
   total.value = result.response.total;
+  if (result.detailKey && result.detailKey === detailIdentity(selectedRow.value)) {
+    selectedRow.value = result.detail;
+  }
   void loadSyncStatus();
 }, (error) => {
   rows.value = [];
@@ -792,6 +819,8 @@ async function handleSourceScopeChange(value: string | number | boolean | undefi
           </div>
         </div>
       </template>
+
+      <el-empty v-if="!selectedRow" description="该记录已不在当前筛选范围内" />
 
       <template v-if="selectedRow">
         <section class="record-detail-section">

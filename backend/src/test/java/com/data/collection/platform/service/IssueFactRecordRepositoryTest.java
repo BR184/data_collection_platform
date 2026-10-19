@@ -19,6 +19,56 @@ class IssueFactRecordRepositoryTest {
   @Mock private IssueFactQueryService issueFactQueryService;
 
   @Test
+  void test_root_lookup_is_restricted_by_complete_identity() {
+    var repository = new IssueFactRecordRepository(issueFactQueryService, new IssueFactRecordConditionBuilder(),
+        new IssueFactRecordRowMapper(), new IssueFactFilterValuesQuerySupport());
+    when(issueFactQueryService.query(anyString(), anyList(), any()))
+        .thenReturn(java.util.List.of());
+    assertThat(repository.findByIdentity("second", 325, 9001)).isEmpty();
+    verify(issueFactQueryService).query(
+        org.mockito.ArgumentMatchers.contains("source_system = 'GITLAB' and source_instance = ? and project_id = ? and issue_id = ?"),
+        org.mockito.ArgumentMatchers.eq(java.util.List.of("second", 325L, 9001L)), any());
+  }
+
+  @Test
+  void test_database_failure_is_not_certified_as_empty_records() {
+    var failure = new org.springframework.dao.DataAccessResourceFailureException("受保护版本查询超时");
+    org.mockito.Mockito.doThrow(failure).when(issueFactQueryService).query(
+        anyString(),
+        org.mockito.ArgumentMatchers.anyMap(), any(), anyList(), anyString(), any());
+    var repository = new IssueFactRecordRepository(issueFactQueryService, new IssueFactRecordConditionBuilder(),
+        new IssueFactRecordRowMapper(), new IssueFactFilterValuesQuerySupport());
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> repository.findByFilters(java.util.Map.of()))
+        .isSameAs(failure);
+  }
+
+  @Test
+  void test_count_failure_is_not_certified_as_a_zero_row_page() {
+    var failure = new org.springframework.dao.DataAccessResourceFailureException("计数查询失败");
+    when(issueFactQueryService.count(anyString(), anyList()))
+        .thenThrow(failure);
+    var repository = new IssueFactRecordRepository(issueFactQueryService, new IssueFactRecordConditionBuilder(),
+        new IssueFactRecordRowMapper(), new IssueFactFilterValuesQuerySupport());
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> repository.findPage(
+        new IssueFactRecordPageQuery(IssueFactRecordPageQuery.Scope.ALL, request(null, null, null), null, null, null,
+            null, java.util.List.of(), null, null, null, null, null, null, false, false, false, false,
+            false, false, false, false, 1, 20, "updatedAt", "desc", null, null))).isSameAs(failure);
+  }
+
+  @Test
+  void test_successful_query_with_no_rows_is_reported_as_empty_not_as_failure() {
+    when(issueFactQueryService.count(anyString(), anyList())).thenReturn(0L);
+    var repository = new IssueFactRecordRepository(issueFactQueryService, new IssueFactRecordConditionBuilder(),
+        new IssueFactRecordRowMapper(), new IssueFactFilterValuesQuerySupport());
+    var page = repository.findPage(
+        new IssueFactRecordPageQuery(IssueFactRecordPageQuery.Scope.ALL, request(null, null, null), null, null, null,
+            null, java.util.List.of(), null, null, null, null, null, null, false, false, false, false,
+            false, false, false, false, 1, 20, "updatedAt", "desc", null, null));
+    assertThat(page.total()).isZero();
+    assertThat(page.records()).isEmpty();
+  }
+
+  @Test
   void keywordSearchShouldFallbackToRawIssueFieldsWhenSearchIndexesAreEmpty() {
     IssueFactRecordRepository repository =
         new IssueFactRecordRepository(

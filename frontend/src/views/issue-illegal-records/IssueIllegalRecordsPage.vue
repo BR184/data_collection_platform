@@ -311,8 +311,9 @@ function buildCurrentQueryParams(
   query: Readonly<Record<string, unknown>> = route.query,
 ) {
   return {
-    projectId: (query.projectId as string | undefined)
-      ?? (props.defaultProjectId == null ? undefined : String(props.defaultProjectId)),
+    projectId: props.fixedProjectId != null ? String(props.fixedProjectId)
+      : (query.projectId as string | undefined)
+        ?? (props.defaultProjectId == null ? undefined : String(props.defaultProjectId)),
     keyword: String(query.keyword ?? ''),
     issueIid: String(query.issueIid ?? ''),
     title: String(query.title ?? ''),
@@ -393,12 +394,20 @@ bindLoader(async ({ query, isCurrent }) => {
   }
   if (!isCurrent()) return null;
   initializeFromQuery(query);
-  return props.loadRecords(buildCurrentQueryParams(true, query));
-}, (response) => {
-  if (!response) return;
-  rows.value = response.records;
-  total.value = response.total;
+  const detailRoot = detailVisible.value ? selectedRow.value : null;
+  const [response, openedDetail] = await Promise.all([
+    props.loadRecords(buildCurrentQueryParams(true, query)),
+    loadOpenedDetail(detailRoot),
+  ]);
+  return { response, detail: openedDetail.detail, detailKey: openedDetail.detailKey };
+}, (result) => {
+  if (!result) return;
+  rows.value = result.response.records;
+  total.value = result.response.total;
   pageInitialized.value = true;
+  if (result.detailKey && result.detailKey === detailIdentity(selectedRow.value)) {
+    selectedRow.value = result.detail;
+  }
   void loadRealtimeStatus();
 }, (error) => {
   ElMessage.error(getErrorMessage(error, `${props.title}加载失败`));
@@ -438,6 +447,25 @@ watch(
 function openDetailDrawer(row: Record<string, unknown>) {
   selectedRow.value = (row.__raw as IssueIllegalRecordRow) ?? null;
   detailVisible.value = true;
+}
+
+/** 单条重读所需的完整业务身份；身份不完整时返回空串，表示不重读。 */
+function detailIdentity(row: IssueIllegalRecordRow | null) {
+  if (!row?.projectId || !row.issueId) {
+    return '';
+  }
+  return `${row.sourceInstance || 'default'}:${row.projectId}:${row.issueId}`;
+}
+
+/** 重新加载时按完整业务身份重读已打开的详情；记录已不存在时返回空详情。 */
+async function loadOpenedDetail(row: IssueIllegalRecordRow | null) {
+  if (!row?.projectId || !row.issueId) {
+    return { detailKey: '', detail: null };
+  }
+  return {
+    detailKey: detailIdentity(row),
+    detail: await props.loadRecord(row.sourceInstance || 'default', row.projectId, row.issueId),
+  };
 }
 
 async function handleClearFilter(key: string) {
@@ -670,6 +698,8 @@ async function handleQuery() {
             </div>
           </div>
         </template>
+
+        <el-empty v-if="!selectedRow" description="该记录已不在当前筛选范围内" />
 
         <template v-if="selectedRow">
           <section class="issue-illegal-detail-section customer-illegal-detail-section">

@@ -52,7 +52,7 @@ class CodeReviewIllegalRecordRowMapper {
         (Integer) resultSet.getObject("commit_count"),
         (Integer) resultSet.getObject("commit_rate"),
         resultSet.getString("function_name"),
-        (Integer) resultSet.getObject("clang_added_line_count"));
+        (Integer) resultSet.getObject("clang_added_line_count"), null);
   }
 
   private java.time.LocalDateTime toLocalDateTime(ResultSet resultSet, String columnName)

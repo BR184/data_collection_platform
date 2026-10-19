@@ -30,6 +30,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class CustomerIssueRecordServiceTest {
+  @org.junit.jupiter.api.BeforeEach
+  void bindReadDependencyFixtures() {
+    // 公式单测复用同一数据替身；实际修订隔离由真库读取测试覆盖。
+  }
+
 
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private CustomerIssueScopeProfile customerIssueScopeProfile;
@@ -46,7 +51,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService, milestoneCatalogService, null);
+            labelGroupExpansionService, milestoneCatalogService, null, Clock.systemUTC());
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
@@ -195,7 +200,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService, milestoneCatalogService, null);
+            labelGroupExpansionService, milestoneCatalogService, null, Clock.systemUTC());
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(new PageSlice<>(List.of(), 0, 1, 20));
 
@@ -241,7 +246,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService, milestoneCatalogService, null);
+            labelGroupExpansionService, milestoneCatalogService, null, Clock.systemUTC());
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(new PageSlice<>(List.of(recordWithExportFields(1415, "客户议题", "", "", List.of())), 1, 1, 20));
 
@@ -277,7 +282,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService, milestoneCatalogService, null);
+            labelGroupExpansionService, milestoneCatalogService, null, Clock.systemUTC());
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
@@ -316,7 +321,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService, milestoneCatalogService, null);
+            labelGroupExpansionService, milestoneCatalogService, null, Clock.systemUTC());
     when(issueLinkService.issueUrl("default", 325L, 101))
         .thenReturn("http://gitlab.example.com/group/project/-/issues/101");
     when(issueFactRecordRepository.findPage(any()))
@@ -394,7 +399,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService, milestoneCatalogService, null);
+            labelGroupExpansionService, milestoneCatalogService, null, Clock.systemUTC());
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(
@@ -525,7 +530,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService, milestoneCatalogService, null);
+            labelGroupExpansionService, milestoneCatalogService, null, Clock.systemUTC());
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(
@@ -587,7 +592,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService, milestoneCatalogService, null);
+            labelGroupExpansionService, milestoneCatalogService, null, Clock.systemUTC());
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
@@ -754,7 +759,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService, milestoneCatalogService, null);
+            labelGroupExpansionService, milestoneCatalogService, null, Clock.systemUTC());
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
@@ -824,7 +829,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService, milestoneCatalogService, null);
+            labelGroupExpansionService, milestoneCatalogService, null, Clock.systemUTC());
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(List.of(record(103, "CC_PRODUCT", List.of("草图"), false, false, "", "Alice", "Bob")));
@@ -882,7 +887,7 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService, milestoneCatalogService, null);
+            labelGroupExpansionService, milestoneCatalogService, null, Clock.systemUTC());
     when(issueFactRecordRepository.findCustomerIssueRecordFilterValues(
             true, false, false, true, "cc"))
         .thenReturn(
