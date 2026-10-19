@@ -136,5 +136,6 @@
   "V20260928_01__bi_dashboard_page_permissions.sql": "10e710e8b24af76703da438d80d21d29c74e49633927e60aeae51164c98d2f5f",
   "V20260929_01__bi_dashboard_default_permissions.sql": "89e6a704906f0332a69aac9308ab2c32cb4c0110299204739debd5ff34b522a3",
   "V20260930_01__fact_publication_authoritative_heads.sql": "0eca090aef2982619c41855bf0d2b96a9332f2c0e6a794078c5e8dcd1e3f8658",
-  "V20260930_02__fact_task_manual_disposition.sql": "36c3105a1ec70719509eb71b5d9aabe85e1b71caa3931adbae08f663ac012824"
+  "V20260930_02__fact_task_manual_disposition.sql": "36c3105a1ec70719509eb71b5d9aabe85e1b71caa3931adbae08f663ac012824",
+  "V20261019_01__source_fact_publication_pending_intent.sql": "29d324c2f08e4f1c77beb46d1a36b32a426fe841e54bdf75d68dadcfa45f6697"
 }

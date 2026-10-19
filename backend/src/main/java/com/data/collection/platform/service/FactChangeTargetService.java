@@ -97,7 +97,8 @@ public class FactChangeTargetService {
   private Map<FactChangeKey, Long> registerBatch(
       long mirrorRunId, Long tableTaskId, List<FactChangeIdentity> identities) {
     String values =
-        String.join(", ", java.util.Collections.nCopies(identities.size(), "(?, ?, ?, ?, ?, ?)"));
+        String.join(", ", java.util.Collections.nCopies(identities.size(),
+            "(?::integer, ?::text, ?::text, ?::bigint, ?::bigint, ?::bigint)"));
     String sql =
         """
         with input(ordinal, source_instance, fact_type, root_id, project_id, iid) as (
