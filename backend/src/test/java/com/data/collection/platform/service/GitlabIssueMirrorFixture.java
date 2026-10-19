@@ -75,6 +75,8 @@ final class GitlabIssueMirrorFixture {
           id bigint primary key,
           title varchar(255),
           color varchar(32),
+          created_at timestamp,
+          updated_at timestamp,
           mirror_deleted boolean not null default false
         )
         """);

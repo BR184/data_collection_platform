@@ -281,6 +281,56 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
   }
 
   @Test
+  void completionTimeDoesNotBackfillAcrossLabelRenamesWithoutANewAdd() {
+    insertSourceLabel(413L, "普通标签");
+    insertSourceLabelLink(513L, 413L, ISSUE_A);
+    LocalDateTime oldAdd = nextStepTime();
+    insertSourceLabelEvent(910L, ISSUE_A, 413L, LABEL_ACTION_ADD, oldAdd);
+    syncLabelTables();
+    syncTables(List.of(LABEL_EVENTS_TABLE));
+    assertThat(bugStatus(ISSUE_A)).isEqualTo("未设定议题状态");
+    assertThat(fixedLabelTime(ISSUE_A)).isNull();
+
+    renameSourceLabel(413L, "已修复/完成");
+    syncLabelTables();
+    assertThat(IssueStatusMembers.parse(bugStatus(ISSUE_A))).contains("已修复/完成");
+    assertThat(fixedLabelTime(ISSUE_A))
+        .as("普通标签改名为完成前的 add 不能证明事件时完成语义")
+        .isNull();
+
+    LocalDateTime ordinaryToCompletionAdd = nextStepTime();
+    insertSourceLabelEvent(911L, ISSUE_A, 413L, LABEL_ACTION_ADD, ordinaryToCompletionAdd);
+    syncTables(List.of(LABEL_EVENTS_TABLE));
+    assertThat(fixedLabelTime(ISSUE_A)).isEqualTo(ordinaryToCompletionAdd);
+
+    renameSourceLabel(413L, "状态:已修复/完成");
+    syncLabelTables();
+    assertThat(fixedLabelTime(ISSUE_A))
+        .as("等价完成词之间改名后，旧 add 不能代表新标题下的完成事件")
+        .isNull();
+
+    LocalDateTime equivalentRenameAdd = nextStepTime();
+    insertSourceLabelEvent(912L, ISSUE_A, 413L, LABEL_ACTION_ADD, equivalentRenameAdd);
+    syncTables(List.of(LABEL_EVENTS_TABLE));
+    assertThat(fixedLabelTime(ISSUE_A)).isEqualTo(equivalentRenameAdd);
+
+    renameSourceLabel(413L, "普通标签");
+    syncLabelTables();
+    assertThat(fixedLabelTime(ISSUE_A)).isNull();
+    renameSourceLabel(413L, "已修复/完成");
+    syncLabelTables();
+    assertThat(fixedLabelTime(ISSUE_A))
+        .as("完成→普通→完成且无新 add 时保持未知")
+        .isNull();
+
+    LocalDateTime roundTripAdd = nextStepTime();
+    insertSourceLabelEvent(913L, ISSUE_A, 413L, LABEL_ACTION_ADD, roundTripAdd);
+    syncTables(List.of(LABEL_EVENTS_TABLE));
+    assertThat(fixedLabelTime(ISSUE_A)).isEqualTo(roundTripAdd);
+    assertNoFullBuildTaskRequested();
+  }
+
+  @Test
   void fixedLabelEventsPublishAddRemoveAndReaddThroughTheAutomaticChain() {
     insertSourceLabel(FIXED_LABEL_ID, "状态：已修复/完成");
     insertSourceLabelLink(FIXED_LINK_ID, FIXED_LABEL_ID, ISSUE_A);

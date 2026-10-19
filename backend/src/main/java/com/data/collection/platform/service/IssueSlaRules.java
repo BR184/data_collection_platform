@@ -14,7 +14,7 @@ final class IssueSlaRules {
   private static final List<String> FIXED_CLOSURE_MEMBERS =
       List.of("已修复", CustomerIssueActivityTimeRules.EXACT_COMPLETION_MEMBER, "待合并", "未更新");
   private static final List<String> RESPONSE_HEADER_TOKENS =
-      List.of(IssueResponseTemplateTitleRules.HEADING_TITLE, IssueResponseTemplateTitleRules.TEMPLATE_TITLE);
+      List.of("# 问题调研情况说明", "问题调研情况说明");
   private static final List<String> FIX_CASE_NOTE_TOKENS = List.of("### 1、修复状态");
   private static final int RESPONSE_SLA_P1_HOURS = 24;
   private static final int RESPONSE_SLA_P2_HOURS = 48;
@@ -24,7 +24,7 @@ final class IssueSlaRules {
   private IssueSlaRules() {}
 
   static boolean hasResponse(String notesText) {
-    return IssueResponseTemplateTitleRules.containsTemplateNote(notesText);
+    return templateSnapshot(notesText).hasTemplateReply();
   }
 
   /**

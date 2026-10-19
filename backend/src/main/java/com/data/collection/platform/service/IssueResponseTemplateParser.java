@@ -6,6 +6,7 @@ import java.util.List;
 /** 从 GitLab 聚合备注中读取最新“问题调研情况说明”响应模板。 */
 final class IssueResponseTemplateParser {
   private static final String NOTE_SEPARATOR = "\\R---\\R";
+  private static final List<String> TEMPLATE_HEADERS = List.of("# 问题调研情况说明", "问题调研情况说明");
   private static final List<String> PLAN_RESOLUTION_HEADERS = List.of("计划解决时间");
   private static final List<String> PLAN_MERGE_BRANCH_HEADERS = List.of("计划合并的版本分支", "计划合并版本分支");
 
@@ -48,7 +49,7 @@ final class IssueResponseTemplateParser {
       return false;
     }
     for (String note : normalized.split(NOTE_SEPARATOR)) {
-      if (!IssueResponseTemplateTitleRules.isTemplateNote(note)) {
+      if (!IssueRuleSupport.containsToken(note, TEMPLATE_HEADERS)) {
         continue;
       }
       if (IssueResponsePlanFieldRules.parsePlannedResolutionAt(
@@ -66,7 +67,7 @@ final class IssueResponseTemplateParser {
       return null;
     }
     for (String note : normalized.split(NOTE_SEPARATOR)) {
-      if (IssueResponseTemplateTitleRules.isTemplateNote(note)) {
+      if (IssueRuleSupport.containsToken(note, TEMPLATE_HEADERS)) {
         return note;
       }
     }

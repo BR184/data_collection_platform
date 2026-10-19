@@ -82,19 +82,42 @@ class GitlabFactIssueSourceRootScopeEquivalenceTest {
 
     assertThat(bare)
         .contains("\"fixed_label_time\":\"2026-02-01T10:00:00\"")
-        .contains("\"research_template_time\":\"2026-02-02T09:00:00\"");
+        .as("tab 空白行后的规范表头也必须被首次响应时间 SQL 识别")
+        .contains("\"research_template_time\":\"2026-02-02T08:30:00\"");
     assertThat(mixed)
-        .as("已撤标标签的后续 add 事件不能伪造当前完成时间")
+        .as("已撤标标签的后续 add 事件不能伪造当前完成时间；既有SQL按含#表头匹配，##标题也命中")
         .contains("\"fixed_label_time\":\"2026-02-03T11:00:00\"")
-        .contains("\"research_template_time\":\"2026-02-03T09:00:00\"");
+        .contains("\"research_template_time\":\"2026-02-03T08:00:00\"");
     assertThat(missingEvent)
         .as("无有效 add 事件保持未知，不退化为关联时间或更新时间")
         .contains("\"fixed_label_time\":null");
     assertThat(fullWidth).contains("\"fixed_label_time\":\"2026-02-01T11:00:00\"");
 
-    List<String> scoped = rows(provider.issueSourceSqlForRoots(List.of(5L, 6L, 7L, 8L)),
-        List.of(5L, 6L, 7L, 8L));
-    assertThat(scoped).containsExactly(bare, mixed, missingEvent, fullWidth);
+    assertThat(row(rows, 9L))
+        .as("普通标签改名为完成后，改名前的 add 不能证明事件时语义")
+        .contains("\"fixed_label_time\":null");
+    assertThat(row(rows, 10L))
+        .as("改名后出现新的 add 才可证明完成语义")
+        .contains("\"fixed_label_time\":\"2026-02-11T10:00:00\"");
+    assertThat(row(rows, 11L))
+        .as("等价完成词之间改名且无新 add 时保持未知")
+        .contains("\"fixed_label_time\":null");
+    assertThat(row(rows, 12L))
+        .as("等价完成词改名后的新 add 可证明完成语义")
+        .contains("\"fixed_label_time\":\"2026-02-12T10:00:00\"");
+    assertThat(row(rows, 13L))
+        .as("完成→普通→完成且无新 add 时保持未知")
+        .contains("\"fixed_label_time\":null");
+    assertThat(row(rows, 14L))
+        .as("完成→普通→完成后的新 add 可证明完成语义")
+        .contains("\"fixed_label_time\":\"2026-02-13T10:00:00\"");
+
+    List<Long> roots = List.of(5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L);
+    List<String> scoped = rows(provider.issueSourceSqlForRoots(roots), roots);
+    assertThat(scoped)
+        .containsExactly(bare, mixed, missingEvent, fullWidth,
+            row(rows, 9L), row(rows, 10L), row(rows, 11L), row(rows, 12L),
+            row(rows, 13L), row(rows, 14L));
   }
 
   private String row(List<String> rows, long issueId) {
@@ -109,11 +132,14 @@ class GitlabFactIssueSourceRootScopeEquivalenceTest {
         "insert into ods_gitlab_projects(id, name, mirror_deleted) values (325, 'CC_Product', false)");
     jdbcTemplate.update(
         """
-        insert into ods_gitlab_labels(id, title, mirror_deleted) values
-          (210, '已修复/完成', false),
-          (211, '状态:已修复/完成', false),
-          (212, '状态：已修复/完成', false),
-          (213, '其他客户标签', false)
+        insert into ods_gitlab_labels(id, title, updated_at, mirror_deleted) values
+          (210, '已修复/完成', timestamp '2026-02-01 00:00:00', false),
+          (211, '状态:已修复/完成', timestamp '2026-02-01 00:00:00', false),
+          (212, '状态：已修复/完成', timestamp '2026-02-01 00:00:00', false),
+          (213, '其他客户标签', timestamp '2026-02-01 00:00:00', false),
+          (214, '已修复/完成', timestamp '2026-02-10 00:00:00', false),
+          (215, '状态:已修复/完成', timestamp '2026-02-10 00:00:00', false),
+          (216, '已修复/完成', timestamp '2026-02-10 00:00:00', false)
         """);
     jdbcTemplate.update(
         """
@@ -127,7 +153,19 @@ class GitlabFactIssueSourceRootScopeEquivalenceTest {
           (7, 17, 325, null, '只有关联无事件', null, 100,
            timestamp '2026-02-01 08:00:00', timestamp '2026-02-04 08:00:00', null, 1, false),
           (8, 18, 325, null, '全角完成标签', null, 100,
-           timestamp '2026-02-01 08:00:00', timestamp '2026-02-04 08:00:00', null, 1, false)
+           timestamp '2026-02-01 08:00:00', timestamp '2026-02-04 08:00:00', null, 1, false),
+          (9, 19, 325, null, '普通改完成且无新add', null, 100,
+           timestamp '2026-02-01 08:00:00', timestamp '2026-02-10 00:00:00', null, 1, false),
+          (10, 20, 325, null, '普通改完成且有新add', null, 100,
+           timestamp '2026-02-01 08:00:00', timestamp '2026-02-11 10:00:00', null, 1, false),
+          (11, 21, 325, null, '等价完成词改名且无新add', null, 100,
+           timestamp '2026-02-01 08:00:00', timestamp '2026-02-10 00:00:00', null, 1, false),
+          (12, 22, 325, null, '等价完成词改名且有新add', null, 100,
+           timestamp '2026-02-01 08:00:00', timestamp '2026-02-12 10:00:00', null, 1, false),
+          (13, 23, 325, null, '完成改普通再改完成且无新add', null, 100,
+           timestamp '2026-02-01 08:00:00', timestamp '2026-02-10 00:00:00', null, 1, false),
+          (14, 24, 325, null, '完成改普通再改完成且有新add', null, 100,
+           timestamp '2026-02-01 08:00:00', timestamp '2026-02-13 10:00:00', null, 1, false)
         """);
     jdbcTemplate.update(
         """
@@ -135,7 +173,13 @@ class GitlabFactIssueSourceRootScopeEquivalenceTest {
           (5, 'Issue', 210, false),
           (6, 'Issue', 210, false),
           (7, 'Issue', 210, false),
-          (8, 'Issue', 212, false)
+          (8, 'Issue', 212, false),
+          (9, 'Issue', 214, false),
+          (10, 'Issue', 214, false),
+          (11, 'Issue', 215, false),
+          (12, 'Issue', 215, false),
+          (13, 'Issue', 216, false),
+          (14, 'Issue', 216, false)
         """);
     jdbcTemplate.update(
         """
@@ -149,7 +193,9 @@ class GitlabFactIssueSourceRootScopeEquivalenceTest {
            100, timestamp '2026-02-03 08:00:00', false),
           (503, 6, 'Issue', '# 问题调研情况说明' || chr(10) || '## 计划解决时间：2026.02.03',
            100, timestamp '2026-02-03 09:00:00', false),
-          (504, 7, 'Issue', '普通评论', 100, timestamp '2026-02-03 10:00:00', false)
+          (504, 7, 'Issue', '普通评论', 100, timestamp '2026-02-03 10:00:00', false),
+          (505, 5, 'Issue', E'\\t\\n# 问题调研情况说明\\n## 计划解决时间：2026.02.10', 100,
+           timestamp '2026-02-02 08:30:00', false)
         """);
     jdbcTemplate.update(
         """
@@ -159,7 +205,16 @@ class GitlabFactIssueSourceRootScopeEquivalenceTest {
           (6, 212, 1, timestamp '2026-02-02 10:00:00', false),
           (6, 210, 1, timestamp '2026-02-03 11:00:00', false),
           (6, 212, 1, timestamp '2026-02-04 12:00:00', false),
-          (8, 212, 1, timestamp '2026-02-01 11:00:00', false)
+          (8, 212, 1, timestamp '2026-02-01 11:00:00', false),
+          (9, 214, 1, timestamp '2026-02-01 10:00:00', false),
+          (10, 214, 1, timestamp '2026-02-01 10:00:00', false),
+          (10, 214, 1, timestamp '2026-02-11 10:00:00', false),
+          (11, 215, 1, timestamp '2026-02-01 10:00:00', false),
+          (12, 215, 1, timestamp '2026-02-01 10:00:00', false),
+          (12, 215, 1, timestamp '2026-02-12 10:00:00', false),
+          (13, 216, 1, timestamp '2026-02-01 10:00:00', false),
+          (14, 216, 1, timestamp '2026-02-01 10:00:00', false),
+          (14, 216, 1, timestamp '2026-02-13 10:00:00', false)
         """);
   }
 
@@ -176,7 +231,7 @@ class GitlabFactIssueSourceRootScopeEquivalenceTest {
     assertThat(provider.issueSourceSqlForRoots(List.of(1L))).doesNotContain("__");
   }
 
-  private List<String> rows(String sql, List<Object> arguments) {
+  private List<String> rows(String sql, List<?> arguments) {
     return jdbcTemplate.queryForList(
         "select row_to_json(source_row)::text as row_json from (" + sql + ") source_row"
             + " order by source_row.issue_id",
@@ -197,11 +252,11 @@ class GitlabFactIssueSourceRootScopeEquivalenceTest {
         """);
     jdbcTemplate.update(
         """
-        insert into ods_gitlab_labels(id, title, mirror_deleted) values
-          (200, '状态：已修复/完成', false),
-          (201, '缺陷', false),
-          (202, '严重', false),
-          (203, '其他', false)
+        insert into ods_gitlab_labels(id, title, updated_at, mirror_deleted) values
+          (200, '状态：已修复/完成', timestamp '2026-01-01 00:00:00', false),
+          (201, '缺陷', timestamp '2026-01-01 00:00:00', false),
+          (202, '严重', timestamp '2026-01-01 00:00:00', false),
+          (203, '其他', timestamp '2026-01-01 00:00:00', false)
         """);
     jdbcTemplate.update(
         """
@@ -290,6 +345,7 @@ class GitlabFactIssueSourceRootScopeEquivalenceTest {
         create table ods_gitlab_labels (
           id bigint primary key,
           title varchar(255),
+          updated_at timestamp,
           mirror_deleted boolean
         )
         """);

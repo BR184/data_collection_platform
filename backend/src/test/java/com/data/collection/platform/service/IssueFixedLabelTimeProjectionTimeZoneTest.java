@@ -201,7 +201,8 @@ class IssueFixedLabelTimeProjectionTimeZoneTest {
         "insert into ods_gitlab_projects(id, name, mirror_deleted) values (?, 'cc-product', false)",
         PROJECT_ID);
     jdbcTemplate.update(
-        "insert into ods_gitlab_labels(id, title, mirror_deleted) values (?, '状态：已修复/完成', false)",
+        "insert into ods_gitlab_labels(id, title, updated_at, mirror_deleted)"
+            + " values (?, '状态：已修复/完成', timestamp '2026-10-01 00:00:00', false)",
         FIX_LABEL_ID);
     jdbcTemplate.update(
         """
@@ -260,7 +261,7 @@ class IssueFixedLabelTimeProjectionTimeZoneTest {
             + " mirror_deleted boolean not null default false)");
     jdbcTemplate.execute(
         "create table ods_gitlab_labels (id bigint primary key, title varchar(255),"
-            + " mirror_deleted boolean not null default false)");
+            + " updated_at timestamp, mirror_deleted boolean not null default false)");
     jdbcTemplate.execute(
         "create table ods_gitlab_milestones (id bigint primary key, project_id bigint,"
             + " title varchar(255), mirror_deleted boolean not null default false)");
