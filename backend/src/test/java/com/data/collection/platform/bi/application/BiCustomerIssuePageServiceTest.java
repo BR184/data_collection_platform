@@ -29,7 +29,6 @@ import com.data.collection.platform.service.statistics.StatisticBoardSnapshotSer
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
@@ -143,7 +142,7 @@ class BiCustomerIssuePageServiceTest {
     assertTrue(trend.message().contains("缺少"));
     assertEquals(BiDataStatus.INCOMPLETE, response.status());
     // 未知创建时间不得伪装为零：整条序列保持 null，而不是补点成 0。
-    assertTrue(response.data().dailyTrend().stream().allMatch(day -> day.createdCount() == null));
+    assertTrue(response.data().dailyTrend().stream().allMatch(day -> day.cumulativeCreatedCount() == null));
   }
 
   private static CustomerIssueFact factWithoutCreatedTime(

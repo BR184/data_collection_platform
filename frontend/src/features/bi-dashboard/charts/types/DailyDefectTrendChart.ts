@@ -3,13 +3,14 @@ import { BiChart, type BiChartRenderContext, type BiChartSize, type BiExcelTable
 import type { DailyDefectTrendData } from '../chart-data';
 import { BI_PALETTE } from '../palette';
 
-/** 当前事实的客户缺陷日增与日修复回看趋势，不代表历史事件流水。 */
+/** 客户缺陷累计新增与累计修复趋势；对同一来源版本的日期贡献作前缀累加，不代表历史事件流水。 */
 export class DailyDefectTrendChart extends BiChart<DailyDefectTrendData> {
   readonly templateId = 'daily-defect-trend' as const;
 
   hasData(data: DailyDefectTrendData): boolean {
     return data.dates.length > 0
-      && [...data.createdCounts, ...data.fixedCounts].some((value) => value != null && value > 0);
+      && [...data.cumulativeCreatedCounts, ...data.cumulativeFixedCounts]
+        .some((value) => value != null && value > 0);
   }
 
   exportSize(data: DailyDefectTrendData): BiChartSize {
@@ -18,19 +19,19 @@ export class DailyDefectTrendChart extends BiChart<DailyDefectTrendData> {
 
   excelTable(data: DailyDefectTrendData): BiExcelTableData {
     return {
-      headers: ['日期', '缺陷日增（个）', '缺陷日修复（个）'],
+      headers: ['日期', '缺陷累计新增（个）', '缺陷累计修复（个）'],
       rows: data.dates.map((date, index) => [
         date,
-        data.createdCounts[index] ?? null,
-        data.fixedCounts[index] ?? null,
+        data.cumulativeCreatedCounts[index] ?? null,
+        data.cumulativeFixedCounts[index] ?? null,
       ]),
     };
   }
 
   build(data: DailyDefectTrendData, context: BiChartRenderContext): EChartsOption {
     return {
-      ...this.baseOption('客户缺陷按自然日统计日增和日修复；按当前事实回看，撤销或重新修复可能改变历史日期结果。'),
-      legend: { top: 0 },
+      ...this.baseOption('客户缺陷按自然日累计新增和累计修复；对同一来源版本的日期贡献作前缀累加，撤销或重新修复可能改变历史累计值。'),
+      legend: { top: 0, data: ['缺陷累计新增', '缺陷累计修复'] },
       grid: { top: 48, right: 24, bottom: context.mode === 'view' && data.dates.length > 30 ? 76 : 48, left: 66, containLabel: true },
       tooltip: {
         trigger: 'axis',
@@ -41,13 +42,13 @@ export class DailyDefectTrendChart extends BiChart<DailyDefectTrendData> {
         data: data.dates,
         axisLabel: { rotate: data.dates.length > 20 ? 35 : 0, hideOverlap: true },
       },
-      yAxis: { type: 'value', name: '缺陷数（个）', min: 0, minInterval: 1 },
+      yAxis: { type: 'value', name: '累计缺陷数（个）', min: 0, minInterval: 1 },
       dataZoom: this.categoryZoom(data.dates.length, context.mode, 30),
       series: [
         {
-          name: '缺陷日增',
+          name: '缺陷累计新增',
           type: 'line',
-          data: data.createdCounts,
+          data: data.cumulativeCreatedCounts,
           smooth: false,
           connectNulls: false,
           showSymbol: false,
@@ -55,9 +56,9 @@ export class DailyDefectTrendChart extends BiChart<DailyDefectTrendData> {
           itemStyle: { color: BI_PALETTE.blue },
         },
         {
-          name: '缺陷日修复',
+          name: '缺陷累计修复',
           type: 'line',
-          data: data.fixedCounts,
+          data: data.cumulativeFixedCounts,
           smooth: false,
           connectNulls: false,
           showSymbol: false,

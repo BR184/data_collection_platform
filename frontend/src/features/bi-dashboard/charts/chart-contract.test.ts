@@ -109,6 +109,67 @@ describe('BI chart type contract', () => {
     expect(series[2]).toMatchObject({ name: '总数标顶', type: 'custom', data: [[0, 12]], tooltip: { show: false } });
   });
 
+  it('browses customer categories vertically without changing the exported data set', () => {
+    const rows = [
+      { name: '张三', total: 12, fixed: 8, open: 4 },
+      { name: '李四', total: 9, fixed: 9, open: 0 },
+      { name: '王五', total: 5, fixed: 2, open: 3 },
+    ];
+    const chart = new DeveloperWorkloadChart({ orientation: 'horizontal-bars', visibleCategories: 2 });
+
+    const view = chart.build(rows, { mode: 'view' }) as Record<string, unknown>;
+    const exported = chart.build(rows, { mode: 'export' }) as Record<string, unknown>;
+
+    expect(view.xAxis).toMatchObject({ type: 'value', name: '缺陷数 (个)', min: 0, max: 15 });
+    // 分类沿纵轴且最大值在上：倒序后第一个类别出现在顶部。
+    expect(view.yAxis).toMatchObject({ type: 'category', inverse: true, data: ['张三', '李四', '王五'] });
+    expect(view.dataZoom).toEqual([expect.objectContaining({ yAxisIndex: 0, startValue: 0, endValue: 1 })]);
+    expect(exported.dataZoom).toEqual([]);
+    expect((exported.yAxis as { data: string[] }).data).toHaveLength(3);
+    const custom = (exported.series as Array<{ name?: string; data?: unknown[] }>)[2];
+    expect(custom).toMatchObject({ name: '总数标顶', data: [[12, 0], [9, 1], [5, 2]] });
+    expect(chart.exportSize(rows).height).toBeGreaterThanOrEqual(620);
+    // Excel 与朝向无关，仍是同一份完整数据。
+    expect(chart.excelTable(rows).rows).toEqual([['张三', 12, 8, 4, 66.7], ['李四', 9, 9, 0, 100], ['王五', 5, 2, 3, 40]]);
+  });
+
+  it('stacks customer categories on the value axis and drops the horizontal slider', () => {
+    const data = {
+      categories: ['模块A', '模块B', '模块C'],
+      series: [
+        { name: '已修复', values: [5, 3, 1] },
+        { name: '未修复', values: [2, 1, 0] },
+      ],
+    };
+    const chart = new StackedCategoryBarChart({
+      yAxisName: '缺陷数 (个)',
+      orientation: 'horizontal-bars',
+      visibleCategories: 2,
+    });
+
+    const view = chart.build(data, { mode: 'view' }) as Record<string, unknown>;
+    const exported = chart.build(data, { mode: 'export' }) as Record<string, unknown>;
+
+    expect(view.xAxis).toMatchObject({ type: 'value', name: '缺陷数 (个)', minInterval: 1 });
+    expect(view.yAxis).toMatchObject({ type: 'category', inverse: true, data: data.categories });
+    expect(view.dataZoom).toEqual([expect.objectContaining({ yAxisIndex: 0, startValue: 0, endValue: 1 })]);
+    expect(exported.dataZoom).toEqual([]);
+    const series = exported.series as Array<{ label?: { show?: boolean; position?: string } }>;
+    expect(series[series.length - 1]?.label).toMatchObject({ show: true, position: 'right' });
+    expect(series.slice(0, series.length - 1).every((item) => item.label?.show === false)).toBe(true);
+    expect(chart.exportSize(data)).toEqual({ width: 1440, height: 620 });
+  });
+
+  it('keeps the default vertical orientation for existing consumers', () => {
+    const view = new StackedCategoryBarChart({ yAxisName: '缺陷数 (个)' })
+      .build({ categories: Array.from({ length: 20 }, (_, index) => `模块${index}`), series: [{ name: '已修复', values: Array.from({ length: 20 }, () => 1) }] }, { mode: 'view' }) as Record<string, unknown>;
+
+    expect(view.xAxis).toMatchObject({ type: 'category' });
+    expect(view.yAxis).toMatchObject({ type: 'value', name: '缺陷数 (个)' });
+    expect(view.dataZoom).toEqual([expect.objectContaining({ startValue: 0, endValue: 11 })]);
+    expect((view.dataZoom as Array<{ xAxisIndex?: number; yAxisIndex?: number }>)[0]).not.toHaveProperty('yAxisIndex');
+  });
+
   it('centers review quality axis units so paired panels do not clip them', () => {
     const option = new ReviewQualityDualPanelChart({ densityRange: [0.2, 0.6], densityUnit: '问题/页', rateUnit: '页/小时' }).build(
       [{ name: '草图', density: 0.4, rate: 5.6, achieved: true }],

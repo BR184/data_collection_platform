@@ -18,5 +18,8 @@ describe('BiMetricStrip', () => {
     expect(many.classes()).toContain('bi-metric-strip--many');
     expect(many.findAll('.bi-metric__label').map((item) => item.text()))
       .toEqual(['指标 1', '指标 2', '指标 3', '指标 4', '指标 5', '指标 6']);
+
+    const seven = mount(BiMetricStrip, { props: { items: items(7) } });
+    expect(seven.attributes('style')).toContain('--metric-count: 7');
   });
 });

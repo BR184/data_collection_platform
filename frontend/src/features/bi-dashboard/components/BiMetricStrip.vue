@@ -11,6 +11,7 @@ export interface BiMetricItem {
 defineProps({
   items: { type: Array as PropType<BiMetricItem[]>, required: true },
   variant: { type: String as PropType<'default' | 'supporting' | 'review' | 'quality'>, default: 'default' },
+  columns: { type: Number, default: undefined },
 });
 </script>
 
@@ -22,7 +23,7 @@ defineProps({
       'bi-metric-strip--many': items.length > 4,
       [`bi-metric-strip--${variant}`]: true,
     }"
-    :style="{ '--metric-count': Math.min(items.length, 6) }"
+    :style="{ '--metric-count': columns ?? Math.min(items.length, 7) }"
   >
     <article v-for="item in items" :key="item.label" class="bi-metric" :class="`is-${item.status ?? 'neutral'}`">
       <span class="bi-metric__label">{{ item.label }}</span>

@@ -32,7 +32,7 @@ import java.util.TreeMap;
 /** 独立客户问题 BI 页应用服务；一请求只读一次一致来源快照并生成完整页面数据。 */
 public final class BiCustomerIssuePageService {
   public static final String PAGE_KEY = "customer-issues";
-  public static final String RULE_VERSION = "customer-issue-bi@2026-09-24-v1";
+  public static final String RULE_VERSION = "customer-issue-bi@2026-10-15-v4";
   private static final long PROJECT_ID = 325L;
 
   private final CustomerIssueFactQueryService factQueryService;
@@ -237,14 +237,16 @@ public final class BiCustomerIssuePageService {
     List<BiPageSection> result = new ArrayList<>();
     result.add(section("source-consistency", "来源一致性", BiDataStatus.READY, "来源资格、版本和事实在同一只读一致性事务内读取。"));
     result.add(section("defect-overview", "缺陷指标", noFacts ? BiDataStatus.EMPTY : BiDataStatus.READY,
-        noFacts ? "当前筛选范围没有议题。" : "缺陷指标按完整议题身份去重。"));
-    result.add(section("today-activity", "今日活动",
+        noFacts ? "当前筛选范围没有议题。"
+            : "十七项缺陷指标按完整议题身份去重；数据异常与未复现可与其他状态同时命中，"
+                + "校准后修复率的分子与分母同时剔除两者的并集（重叠议题只剔除一次），申请延期不额外剔除。"));
+    result.add(section("today-activity", "今日与本周活动",
         calculation.unknownCreatedTimeCount() > 0 || calculation.unknownFixedTimeCount() > 0
         ? BiDataStatus.INCOMPLETE : noDefects ? BiDataStatus.EMPTY : BiDataStatus.READY,
         calculation.unknownCreatedTimeCount() > 0 || calculation.unknownFixedTimeCount() > 0
-            ? "存在缺少创建时间或精确完成事件时间的缺陷；今日新增/解决分区有未知贡献。缺失创建时间："
+            ? "存在缺少创建时间或精确完成事件时间的缺陷；今日与本周的新增/解决分区有未知贡献。缺失创建时间："
                 + calculation.unknownCreatedTimeCount() + "，缺失完成时间：" + calculation.unknownFixedTimeCount()
-            : "今日指标使用本次固定业务日和半开自然日边界。"));
+            : "今日与本自然周指标都由本次固定业务日推导半开自然日窗口，周起点为该业务日所在周的周一，不随调用时刻滚动。"));
     result.add(chartSection("module-defects", "模块缺陷", noDefects));
     result.add(chartSection("severity-distribution", "缺陷级别分布", noDefects));
     result.add(chartSection("module-severity", "模块与缺陷级别", noDefects));
@@ -262,11 +264,11 @@ public final class BiCustomerIssuePageService {
             ? BiDataStatus.EMPTY : BiDataStatus.READY,
         requirementUnknown ? "需求身份来源未完整回填，当前不绘制部分需求分布。" : "多模块议题分别进入每个关联模块；全局需求数不累加模块柱。"));
     boolean timeUnknown = calculation.unknownCreatedTimeCount() > 0 || calculation.unknownFixedTimeCount() > 0;
-    result.add(section("daily-defect-trend", "缺陷日增与日修复",
+    result.add(section("daily-defect-trend", "缺陷累计新增与累计修复",
         noDefects ? BiDataStatus.EMPTY : timeUnknown ? BiDataStatus.INCOMPLETE : BiDataStatus.READY,
         noDefects ? "当前筛选范围没有常规缺陷，不生成全零日期曲线。"
-            : timeUnknown ? "存在缺少创建时间或精确完成事件时间的缺陷；受影响的序列整条留空，不按已知日期补点或补零，未知数量见顶部说明。"
-            : "按当前事实回看自然日；撤销或重新修复可能改变历史日期结果。"));
+            : timeUnknown ? "存在缺少创建时间或精确完成事件时间的缺陷；受影响的累计序列整条留空，不按已知日期补点或按零累计，未知数量见顶部说明。"
+            : "对同一来源版本的日期贡献作前缀累加，序列非下降；按当前事实回看，撤销或重新修复可能改变历史累计值。"));
     return List.copyOf(result);
   }
 
@@ -300,9 +302,12 @@ public final class BiCustomerIssuePageService {
             List.of(field("议题身份", "source_system/source_instance/project_id/issue_id"),
                 field("严重级别", "severity_level"), field("优先级", "priority_level"), field("状态", "bug_status")),
             "D去重；F、P、A各自沿客户问题规则；比率分母为对应D范围"),
-        trace(List.of("CI-18", "CI-19"),
+        trace(List.of("CI-18", "CI-19", "CI-27", "CI-28"),
             List.of(field("创建时间", "created_at_source"), field("精确完成加标时间", "fixed_label_time"), field("状态", "bug_status")),
-            "固定业务日；日修复需当前精确成员已修复/完成及最近有效加标时间"),
+            "固定业务日推导今日半开自然日窗口与本周半开窗口[所在周周一,业务日次日)；解决需当前精确成员已修复/完成及最近有效加标时间，不用关闭或更新时间替代"),
+        trace(List.of("CI-24", "CI-25", "CI-26", "CI-47", "CI-48"),
+            List.of(field("状态成员", "bug_status"), field("严重级别", "severity_level"), field("优先级", "priority_level")),
+            "E为状态成员精确命中数据异常或未复现的并集，V=D去除E（重叠只剔除一次）；校准率分子与分母同用V，整体沿F、优先级沿P，申请延期不额外剔除"),
         trace(List.of("CI-20", "CI-21", "CI-22", "CI-23"),
             List.of(field("需求派生身份", "is_customer_requirement"), field("状态", "bug_status")),
             "N沿方案记录值；R1—R4仍待业务终审"),
@@ -312,7 +317,7 @@ public final class BiCustomerIssuePageService {
             "缺陷图按CI-01身份去重；多模块图按各模块展开；申请延期图使用D且A"),
         trace(List.of("CI-50", "CI-51"),
             List.of(field("创建时间", "created_at_source"), field("精确完成时间", "fixed_label_time"), field("当前状态", "bug_status")),
-            "自然日轴从2026-01-01到固定业务日；按当前事实回看最近完成日期，不是历史事件流水"));
+            "自然日轴从2026-01-01到固定业务日；按当前事实回看最近完成日期，再对同一来源版本的日期贡献作前缀累计，不是历史事件流水"));
   }
 
   private static BiMetricTrace trace(List<String> ids, List<SourceField> fields, String formula) {

@@ -12,9 +12,15 @@ vi.mock('../../api-client/bi-dashboard-api', () => ({
 
 const BiChartPanelStub = defineComponent({
   name: 'BiChartPanel',
-  props: ['title', 'downloadContext'],
+  props: ['title', 'downloadContext', 'sort', 'order', 'sortOptions', 'data'],
+  emits: ['update:sort', 'update:order'],
   setup(props) {
-    return () => h('article', { 'data-chart-title': props.title }, [h('h3', String(props.title))]);
+    return () => h('article', {
+      'data-chart-title': props.title,
+      'data-chart-sort': props.sort,
+      'data-chart-order': props.order,
+      'data-sort-options-count': props.sortOptions?.length ?? 0,
+    }, [h('h3', String(props.title))]);
   },
 });
 const BiMetricStripStub = defineComponent({
@@ -39,26 +45,62 @@ const ButtonStub = defineComponent({ name: 'ElButton', emits: ['click'], templat
 const AlertStub = defineComponent({ props: ['title'], template: '<div role="alert">{{ title }}<slot /></div>' });
 const ResultStub = defineComponent({ props: ['title', 'subTitle'], template: '<section><h2>{{ title }}</h2><p>{{ subTitle }}</p><slot name="extra" /></section>' });
 
+/** 与后端 BiCustomerIssueCalculator 的十七项缺陷指标 label 一致，用于按 key 断言分组展示。 */
+const DEFECT_METRIC_LABELS: Record<string, string> = {
+  defect_total: '总问题数',
+  defect_fixed: '已修复',
+  defect_unfixed: '未修复',
+  defect_applied_delay: '申请延期',
+  defect_data_exception: '数据异常',
+  defect_not_reproduced: '未复现',
+  defect_fix_rate: '整体缺陷修复率',
+  defect_calibrated_fix_rate: '校准后整体缺陷修复率',
+  level1_fix_rate: '一级缺陷修复率',
+  p1_fix_rate: 'P1修复率',
+  p1_calibrated_fix_rate: 'P1校准后修复率',
+  p2_fix_rate: 'P2修复率',
+  p2_calibrated_fix_rate: 'P2校准后修复率',
+  today_new: '今日新增问题数',
+  today_resolved: '今日解决问题数',
+  week_new: '本周新增问题数',
+  week_resolved: '本周解决问题数',
+};
+
 describe('CustomerIssueDashboardView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(biDashboardApi.loadCustomerIssues).mockResolvedValue(readyResponse());
   });
 
-  it('renders ten defect metrics, four demand metrics and eight independently registered charts', async () => {
+  it('renders seventeen defect metrics in key-based groups, four demand metrics and eight independently registered charts', async () => {
     const { wrapper } = await mountAt('/bi-dashboard/customer-issues');
 
     expect(wrapper.findAll('[data-chart-title]')).toHaveLength(8);
     expect(wrapper.findAll('[data-chart-title]').map((item) => item.attributes('data-chart-title'))).toEqual([
       '模块缺陷数', '缺陷严重级别分布', '模块与缺陷严重级别', '缺陷原因分布',
-      '申请延期分析', '按指派人统计缺陷数', '缺陷日增与日修复', '模块需求分布',
+      '申请延期分析', '按指派人统计缺陷数', '缺陷累计新增与累计修复', '模块需求分布',
     ]);
     expect(wrapper.text()).toContain('缺陷指标');
     expect(wrapper.text()).toContain('需求指标');
     expect(wrapper.text()).not.toContain('业务日');
     expect(wrapper.text()).not.toContain('来源版本');
     expect(wrapper.text()).not.toContain('统计范围');
-    expect(wrapper.findAll('.metric-label')).toHaveLength(14);
+    // 夹具故意打乱后端数组顺序：分组与组内次序只由稳定 key 决定。
+    const groupLabels = (key: string) =>
+      wrapper.find(`[data-metric-group="${key}"]`).findAll('.metric-label').map((label) => label.text());
+    expect(wrapper.findAll('.metric-label')).toHaveLength(21);
+    expect(wrapper.findAll('[data-metric-group]').map((group) => group.attributes('data-metric-group')))
+      .toEqual(['defect-overview', 'defect-fix-rates', 'defect-activity']);
+    expect(groupLabels('defect-overview')).toEqual([
+      '总问题数', '已修复', '未修复', '申请延期', '数据异常', '未复现',
+    ]);
+    expect(groupLabels('defect-fix-rates')).toEqual([
+      '整体缺陷修复率', '校准后整体缺陷修复率', '一级缺陷修复率',
+      'P1修复率', 'P1校准后修复率', 'P2修复率', 'P2校准后修复率',
+    ]);
+    expect(groupLabels('defect-activity')).toEqual([
+      '今日新增问题数', '今日解决问题数', '本周新增问题数', '本周解决问题数',
+    ]);
     expect(wrapper.findAllComponents(BiChartPanelStub).map((panel) => panel.props('downloadContext').chartInstanceId))
       .toEqual([
         'customer-issue-module-defects', 'customer-issue-severity-distribution', 'customer-issue-module-severity',
@@ -68,6 +110,61 @@ describe('CustomerIssueDashboardView', () => {
     expect(wrapper.findAllComponents(BiChartPanelStub)[0]?.props('downloadContext').scope).toMatchObject({
       rangeType: 'CUSTOMER_ISSUE', businessDate: '2026-09-24', customerKind: 'ALL',
     });
+    wrapper.unmount();
+  });
+
+  it('binds sort controls to the 6 sortable chart panels and sorts data reactively', async () => {
+    const { wrapper } = await mountAt('/bi-dashboard/customer-issues');
+    const panels = wrapper.findAllComponents(BiChartPanelStub);
+    const panelByTitle = (title: string) => panels.find((p) => p.props('title') === title);
+
+    const moduleDefectsPanel = panelByTitle('模块缺陷数');
+    expect(moduleDefectsPanel?.props('sort')).toBe('total');
+    expect(moduleDefectsPanel?.props('order')).toBe('desc');
+    expect(moduleDefectsPanel?.props('sortOptions')).toEqual([
+      { label: '缺陷总数', value: 'total' },
+      { label: '未修复数', value: 'unfixed' },
+      { label: '已修复数', value: 'fixed' },
+      { label: '模块名称', value: 'name' },
+    ]);
+
+    const severityPanel = panelByTitle('缺陷严重级别分布');
+    expect(severityPanel?.props('sort')).toBe('count');
+    expect(severityPanel?.props('order')).toBe('desc');
+    expect(severityPanel?.props('sortOptions')).toHaveLength(2);
+
+    const moduleSeverityPanel = panelByTitle('模块与缺陷严重级别');
+    expect(moduleSeverityPanel?.props('sort')).toBe('total');
+    expect(moduleSeverityPanel?.props('order')).toBe('desc');
+    expect(moduleSeverityPanel?.props('sortOptions')).toHaveLength(2);
+
+    const causePanel = panelByTitle('缺陷原因分布');
+    expect(causePanel?.props('sort')).toBe('count');
+    expect(causePanel?.props('order')).toBe('desc');
+    expect(causePanel?.props('sortOptions')).toHaveLength(2);
+
+    const assigneePanel = panelByTitle('按指派人统计缺陷数');
+    expect(assigneePanel?.props('sort')).toBe('open');
+    expect(assigneePanel?.props('order')).toBe('desc');
+    expect(assigneePanel?.props('sortOptions')).toHaveLength(5);
+
+    const moduleDemandPanel = panelByTitle('模块需求分布');
+    expect(moduleDemandPanel?.props('sort')).toBe('total');
+    expect(moduleDemandPanel?.props('order')).toBe('desc');
+    expect(moduleDemandPanel?.props('sortOptions')).toHaveLength(4);
+
+    const delayPanel = panelByTitle('申请延期分析');
+    expect(delayPanel?.props('sortOptions')).toBeUndefined();
+    const trendPanel = panelByTitle('缺陷累计新增与累计修复');
+    expect(trendPanel?.props('sortOptions')).toBeUndefined();
+
+    await moduleDefectsPanel?.vm.$emit('update:sort', 'name');
+    await moduleDefectsPanel?.vm.$emit('update:order', 'asc');
+    await flushPromises();
+
+    expect(moduleDefectsPanel?.props('sort')).toBe('name');
+    expect(moduleDefectsPanel?.props('order')).toBe('asc');
+
     wrapper.unmount();
   });
 
@@ -210,7 +307,13 @@ function readyResponse(
     customers,
     modules: [{ kind: 'VALUE', value: '模块A', displayName: '模块A' }],
     functions: [{ kind: 'VALUE', value: '功能A', displayName: '功能A' }],
-    defectMetrics: Array.from({ length: 10 }, (_, index) => metric(`d-${index}`, `缺陷指标${index + 1}`)),
+    // 顺序故意与后端契约不同：验证前端按 key 分组，而不是按数组位置切片。
+    defectMetrics: [
+      'defect_fix_rate', 'defect_unfixed', 'week_resolved', 'p1_calibrated_fix_rate', 'defect_total',
+      'today_new', 'defect_data_exception', 'level1_fix_rate', 'defect_calibrated_fix_rate', 'week_new',
+      'defect_applied_delay', 'p2_fix_rate', 'defect_not_reproduced', 'today_resolved', 'defect_fixed',
+      'p1_fix_rate', 'p2_calibrated_fix_rate',
+    ].map((key) => metric(key, DEFECT_METRIC_LABELS[key] ?? key)),
     requirementMetrics: Array.from({ length: 4 }, (_, index) => metric(`r-${index}`, `需求指标${index + 1}`)),
     moduleDefects: [{ module: '模块A', fixedCount: 1, unfixedCount: 0, totalCount: 1 }],
     severityDistribution: [{ severity: '一级', count: 1 }],
@@ -220,7 +323,7 @@ function readyResponse(
     delayAnalysis: [{ reason: '未标注延期原因', severity: 'LEVEL1', count: 1 }],
     assigneeWorkload: [{ assignee: '张三', fixedCount: 1, unfixedCount: 0, totalCount: 1 }],
     moduleDemand: [{ module: '模块A', resolvedCount: 1, unresolvedCount: 0, totalCount: 1 }],
-    dailyTrend: [{ date: '2026-09-24', createdCount: 1, fixedCount: 1 }],
+    dailyTrend: [{ date: '2026-09-24', cumulativeCreatedCount: 1, cumulativeFixedCount: 1 }],
     filteredFactCount: 1,
   };
   return {
@@ -228,7 +331,7 @@ function readyResponse(
     status: 'READY',
     sourceVersion: `source-${milestone}`,
     snapshotId: `source-${milestone}`,
-    ruleVersion: 'customer-issue-bi@2026-09-24-v1',
+    ruleVersion: 'customer-issue-bi@2026-10-15-v4',
     generatedAt: '2026-09-24T00:00:00Z',
     sections: statuses.map((key) => ({ key, label: key, status: 'READY', message: '' })),
     traces: [],

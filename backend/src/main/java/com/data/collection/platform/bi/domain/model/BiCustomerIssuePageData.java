@@ -72,5 +72,12 @@ public record BiCustomerIssuePageData(
   public record ModuleDemand(String module, long resolvedCount, long unresolvedCount, long totalCount) {}
 
   /** 系列存在未知时间贡献时，该整列用 null 表示不可精确统计，不能把未知日期填成零。 */
-  public record DailyTrend(LocalDate date, Long createdCount, Long fixedCount) {}
+  /**
+   * 客户缺陷累计趋势点：对同一来源版本的日期贡献作前缀累加。
+   *
+   * @param date 自然日轴上的日期
+   * @param cumulativeCreatedCount 截至该日的累计新增；存在未知创建贡献时整条序列为 {@code null}
+   * @param cumulativeFixedCount 截至该日的累计修复；存在未知完成贡献时整条序列为 {@code null}
+   */
+  public record DailyTrend(LocalDate date, Long cumulativeCreatedCount, Long cumulativeFixedCount) {}
 }
