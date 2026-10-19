@@ -5,6 +5,7 @@ import static com.data.collection.platform.service.FactSourceRowValueSupport.isC
 import static com.data.collection.platform.service.FactSourceRowValueSupport.nullableLong;
 import static com.data.collection.platform.service.FactSourceRowValueSupport.readTextArray;
 import static com.data.collection.platform.service.FactSourceRowValueSupport.toLocalDateTime;
+import static com.data.collection.platform.service.FactSourceRowValueSupport.toShanghaiWallClock;
 
 import com.data.collection.platform.domain.customerissue.CustomerRequirementRules;
 import com.data.collection.platform.entity.IssueFact;
@@ -154,7 +155,8 @@ class IssueFactSourceRowMapper {
     fact.setPlannedMergeVersionBranch(responseTemplate.plannedMergeVersionBranch());
     fact.setFixedLabelTime(
         IssueStatusMembers.parse(fact.getBugStatus()).contains("已修复/完成")
-            ? toLocalDateTime(resultSet.getTimestamp("fixed_label_time"))
+            // 来源事件列是带时区类型：投影显式落上海墙上值，写入进程或会话时区不参与结果（D-27）。
+            ? toShanghaiWallClock(resultSet.getTimestamp("fixed_label_time"))
             : null);
     fact.setResolveDelayed(
         openCustomerIssue

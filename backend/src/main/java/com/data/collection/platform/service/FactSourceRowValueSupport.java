@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.domain.customerissue.CustomerIssueActivityTimeRules;
 import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -34,6 +35,25 @@ final class FactSourceRowValueSupport {
 
   static LocalDateTime toLocalDateTime(Timestamp timestamp) {
     return timestamp == null ? null : timestamp.toLocalDateTime();
+  }
+
+  /**
+   * 把带时区的来源时刻显式落成上海墙上值，供完成加标事件→事实投影使用（D-27）。
+   *
+   * <p>与 {@link #toLocalDateTime} 的区别是结果不依赖 JVM、连接会话或数据库的默认时区：只取时刻本身，
+   * 再按平台业务时区解释。因此同一事件在任何写入进程上都得到同一个业务日历值。
+   * 仅适用于来源确为带时区类型的列；无时区列仍按其真实语义走 {@link #toLocalDateTime}，不得借用本方法猜测偏移。
+   *
+   * @param timestamp 来源带时区时刻，缺失时为 {@code null}
+   * @return 上海墙上时间；入参缺失时为 {@code null}
+   */
+  static LocalDateTime toShanghaiWallClock(Timestamp timestamp) {
+    return timestamp == null
+        ? null
+        : timestamp
+            .toInstant()
+            .atZone(CustomerIssueActivityTimeRules.BUSINESS_TIME_ZONE)
+            .toLocalDateTime();
   }
 
   static Long nullableLong(ResultSet resultSet, String columnName) throws SQLException {
