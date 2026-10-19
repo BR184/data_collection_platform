@@ -71,6 +71,99 @@ class GitlabFactIssueSourceRootScopeEquivalenceTest {
   }
 
   @Test
+  void test_customer_project_completion_events_require_currently_linked_equivalent_labels() {
+    insertCustomerProjectFixture();
+
+    List<String> rows = rows(provider.issueSourceSql(), List.of());
+    String bare = row(rows, 5L);
+    String mixed = row(rows, 6L);
+    String missingEvent = row(rows, 7L);
+    String fullWidth = row(rows, 8L);
+
+    assertThat(bare)
+        .contains("\"fixed_label_time\":\"2026-02-01T10:00:00\"")
+        .contains("\"research_template_time\":\"2026-02-02T09:00:00\"");
+    assertThat(mixed)
+        .as("已撤标标签的后续 add 事件不能伪造当前完成时间")
+        .contains("\"fixed_label_time\":\"2026-02-03T11:00:00\"")
+        .contains("\"research_template_time\":\"2026-02-03T09:00:00\"");
+    assertThat(missingEvent)
+        .as("无有效 add 事件保持未知，不退化为关联时间或更新时间")
+        .contains("\"fixed_label_time\":null");
+    assertThat(fullWidth).contains("\"fixed_label_time\":\"2026-02-01T11:00:00\"");
+
+    List<String> scoped = rows(provider.issueSourceSqlForRoots(List.of(5L, 6L, 7L, 8L)),
+        List.of(5L, 6L, 7L, 8L));
+    assertThat(scoped).containsExactly(bare, mixed, missingEvent, fullWidth);
+  }
+
+  private String row(List<String> rows, long issueId) {
+    return rows.stream()
+        .filter(row -> row.contains("\"issue_id\":" + issueId))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private void insertCustomerProjectFixture() {
+    jdbcTemplate.update(
+        "insert into ods_gitlab_projects(id, name, mirror_deleted) values (325, 'CC_Product', false)");
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_labels(id, title, mirror_deleted) values
+          (210, '已修复/完成', false),
+          (211, '状态:已修复/完成', false),
+          (212, '状态：已修复/完成', false),
+          (213, '其他客户标签', false)
+        """);
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_issues(
+            id, iid, project_id, milestone_id, title, description, author_id,
+            created_at, updated_at, closed_at, state_id, mirror_deleted) values
+          (5, 15, 325, null, '裸完成标签', null, 100,
+           timestamp '2026-02-01 08:00:00', timestamp '2026-02-04 08:00:00', null, 1, false),
+          (6, 16, 325, null, '撤标后重加', null, 100,
+           timestamp '2026-02-01 08:00:00', timestamp '2026-02-04 08:00:00', null, 1, false),
+          (7, 17, 325, null, '只有关联无事件', null, 100,
+           timestamp '2026-02-01 08:00:00', timestamp '2026-02-04 08:00:00', null, 1, false),
+          (8, 18, 325, null, '全角完成标签', null, 100,
+           timestamp '2026-02-01 08:00:00', timestamp '2026-02-04 08:00:00', null, 1, false)
+        """);
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_label_links(target_id, target_type, label_id, mirror_deleted) values
+          (5, 'Issue', 210, false),
+          (6, 'Issue', 210, false),
+          (7, 'Issue', 210, false),
+          (8, 'Issue', 212, false)
+        """);
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_notes(
+            id, noteable_id, noteable_type, note, author_id, created_at, mirror_deleted) values
+          (500, 5, 'Issue', '正文提及问题调研情况说明，但不是标题' || chr(10)
+             || '## 计划解决时间：2026.01.01', 100, timestamp '2026-02-02 08:00:00', false),
+          (501, 5, 'Issue', '问题调研情况说明' || chr(10) || '## 计划解决时间：2026.02.02',
+           100, timestamp '2026-02-02 09:00:00', false),
+          (502, 6, 'Issue', '## 问题调研情况说明' || chr(10) || '## 计划解决时间：2026.02.01',
+           100, timestamp '2026-02-03 08:00:00', false),
+          (503, 6, 'Issue', '# 问题调研情况说明' || chr(10) || '## 计划解决时间：2026.02.03',
+           100, timestamp '2026-02-03 09:00:00', false),
+          (504, 7, 'Issue', '普通评论', 100, timestamp '2026-02-03 10:00:00', false)
+        """);
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_resource_label_events(
+            issue_id, label_id, action, created_at, mirror_deleted) values
+          (5, 210, 1, timestamp '2026-02-01 10:00:00', false),
+          (6, 212, 1, timestamp '2026-02-02 10:00:00', false),
+          (6, 210, 1, timestamp '2026-02-03 11:00:00', false),
+          (6, 212, 1, timestamp '2026-02-04 12:00:00', false),
+          (8, 212, 1, timestamp '2026-02-01 11:00:00', false)
+        """);
+  }
+
+  @Test
   void test_root_scoped_issue_sql_rejects_an_empty_root_set() {
     assertThatThrownBy(() -> provider.issueSourceSqlForRoots(List.of()))
         .isInstanceOf(IllegalArgumentException.class)

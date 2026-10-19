@@ -282,3 +282,18 @@
 - **影响**：无对外 API 与表结构变化。生产业务日语义不变（仍为当日）；黄金链路快照的业务日与按日窗口固定为夹具冻结日。
 - **验证证据**：`BiCustomerIssuePageServiceTest`、`CustomerIssueCustomerStatisticsBoardServiceTest`、`CustomerIssueCustomerStatisticsDetailContractTest`、`FactBuildServiceTest`（全量路径发未收窄查询、按根路径含 `target_roots`）、`GitlabFactMergeRequestCommitSourceRootScopeEquivalenceTest`（真实 PG 全量 vs 按根逐行一致、空根抛异常）；黄金门禁 compare 收口至 196/0/0，全量默认快速套件 1681/0/0。
 - **关联文档**：`docs/decisions.md` D-08（黄金基线变更规则）、`docs/decisions.md` D-24（事实发布控制面）；`docs/architecture.md`"黄金基线回归测试"。
+
+## D-28 客户问题状态输入、完成事件与时间轴的统一契约
+
+- **状态**：2026-10-19 在候选源码线实施，待经理评审与历史事实重建；规则由用户确认（九词、前缀边界、保留 F/P 差异），S01—S05 为同表全量审计补充修复。
+- **背景**：项目 325 的真实 GitLab 使用九个裸状态词，但事实来源只解析全角 `状态：X`，导致数据异常、未复现、申请延期、已修复/完成等 49 项指标及相关页面/BI 缺少输入；完成事件 SQL 只匹配全角完成标题；解决周期直接相减 UTC 创建与上海完成墙上值；解决延期用原始标签子串判闭环；接受裸标题的响应模板却无法提取首次响应时间。
+- **选择**：
+  ① 状态输入：所有项目保留老平台全角 `状态：X`；仅客户项目 325 增加九个已确认裸词、半角 `状态:X`（限九词）和标签/前缀边界空白，同名等价成员稳定去重。`延期原因：X`/`缺陷原因：X`、否定词、扩展文本、评论/模板提词不得成为状态。原始标签文本继续完整保留。
+  ② 消费：整体修复 F、优先级修复 P、申请延期 A、两类状态计数、校准集合、闭环/滞留继续使用各自既有判据，不合并为一个布尔值；裸 `数据异常` 同时保留延期原因成员，`状态：数据异常` 不制造原因。
+  ③ 完成事件：项目 325 的等价完成标签为裸/全角/半角 `已修复/完成`，仅取当前仍有效关联标签的有效 add 事件最大值；撤标标签的后续事件不得伪造当前完成时间；非客户项目保留原全角事件契约。无事件保持未知，不用关闭/更新时间或关联时间补值。
+  ④ 时间轴：创建时间为来源 UTC naive；响应模板时间来源 timestamptz 显式投影 UTC；完成时间为 timestamptz 显式投影上海墙上值。解决周期先把创建映射到上海业务时间轴再求差，24 小时恒为 1.0 天；响应周期在 UTC 同一轴直接求差；物理无时区列保持墙上值。
+  ⑤ 响应模板：备注首个非空行为 `# 问题调研情况说明` 或旧裸标题 `问题调研情况说明` 才构成模板，正文提及不算；响应存在性、模板字段解析与首次模板时间 SQL 共用同一标题口径。
+- **否决选项**：①对所有前缀统一剥值或对所有裸文本猜状态——会把延期原因、原因前缀和否定词误当状态；②把九词扩展到所有项目——改变非客户项目既有产出；③用 `is_fixed`、`delay_cause` 或关闭状态替代 F/P/A/闭环——混淆独立维度；④给所有时间统一加减 8 小时或只改统计页——继续掩盖列语义并造成其它消费者分叉；⑤对完成标签使用任意后缀 LIKE 或保留撤标事件——允许无效事件伪造完成时间；⑥继续用正文包含判断模板——无标题正文会被误判为已响应。
+- **影响**：项目 325 的 `issue_fact.bug_status`、`fixed_label_time`、`research_template_time` 及依赖的统计/记录/延期/BI 输出会变化；上线需按新规则重建受影响客户 ISSUE 事实与投影，未完成前保留上一完整发布点且不混代际。无表结构与对外 API 变化。
+- **验证证据**：`IssueFactNormalizationRulesTest`（九词/前缀/空白/去重/负例）、`CustomerIssueStatisticsCalculatorTest`（确认示例 1—3、七组与校准）、`IssueResponseTemplateParserTest`（标题行/裸标题/正文提及）、`CustomerIssueTimeAxisIntegrationTest`（真实 PG 多会话时区）、`GitlabFactIssueSourceRootScopeEquivalenceTest`（完成事件等价标签、撤标、无事件、模板时间、全量/按根）、`CustomerIssueRequirementLabelAutoChainIntegrationTest`（真实自动链加标/撤标/完成事件）与既有客户统计/BI/延期回归。
+- **关联文档**：`docs/platform-page-business-rules.md` 5.3、5.6；`docs/architecture.md`“事实与统计”；`docs/bi-dashboard/BI看板数据来源与计算口径核对表.md` CI-01、CI-10—CI-26、CI-47—CI-48。

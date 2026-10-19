@@ -248,6 +248,39 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
   }
 
   @Test
+  void customerBareStatusAndCompletionLabelsFlowThroughTheAutomaticChain() {
+    insertSourceLabel(410L, "数据异常");
+    insertSourceLabel(411L, "状态:数据异常");
+    insertSourceLabel(412L, "延期原因：数据异常");
+    insertSourceLabelLink(510L, 410L, ISSUE_A);
+    insertSourceLabelLink(511L, 411L, ISSUE_A);
+    insertSourceLabelLink(512L, 412L, ISSUE_A);
+    syncLabelTables();
+
+    assertThat(bugStatus(ISSUE_A))
+        .as("裸与半角同名状态只计一次；延期原因前缀不进入状态")
+        .isEqualTo("数据异常");
+
+    insertSourceLabel(413L, "已修复/完成");
+    insertSourceLabelLink(513L, 413L, ISSUE_A);
+    syncLabelTables();
+    assertThat(IssueStatusMembers.parse(bugStatus(ISSUE_A)))
+        .containsExactlyInAnyOrder("数据异常", "已修复/完成");
+
+    LocalDateTime fixedAt = nextStepTime();
+    insertSourceLabelEvent(910L, ISSUE_A, 413L, LABEL_ACTION_ADD, fixedAt);
+    syncTables(List.of(LABEL_EVENTS_TABLE));
+    assertThat(fixedLabelTime(ISSUE_A)).isEqualTo(fixedAt);
+
+    for (long linkId : List.of(510L, 511L, 512L, 513L)) {
+      jdbcTemplate.update("delete from public.label_links where id = ?", linkId);
+    }
+    reconcileLabelLinks();
+    assertThat(bugStatus(ISSUE_A)).isEqualTo("未设定议题状态");
+    assertThat(fixedLabelTime(ISSUE_A)).isNull();
+  }
+
+  @Test
   void fixedLabelEventsPublishAddRemoveAndReaddThroughTheAutomaticChain() {
     insertSourceLabel(FIXED_LABEL_ID, "状态：已修复/完成");
     insertSourceLabelLink(FIXED_LINK_ID, FIXED_LABEL_ID, ISSUE_A);
@@ -269,6 +302,7 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
         FIXED_EVENT_ID + 1, ISSUE_A, FIXED_LABEL_ID, LABEL_ACTION_ADD, duplicateFixTime);
     long repeatedEventRunId = syncTables(List.of(LABEL_EVENTS_TABLE));
 
+    assertThat(mirroredLabelEventTime(FIXED_EVENT_ID + 1)).isEqualTo(duplicateFixTime);
     assertThat(fixedLabelTime(ISSUE_A)).isEqualTo(duplicateFixTime);
     assertTargetPublished(repeatedEventRunId, ISSUE_A);
     assertIssueFactNotDuplicated(ISSUE_A);
@@ -586,6 +620,18 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
         labelId,
         action,
         createdAt);
+  }
+
+  private String bugStatus(long issueId) {
+    return jdbcTemplate.queryForObject(
+        """
+        select bug_status from issue_fact
+         where source_instance = ? and project_id = ? and issue_id = ?
+        """,
+        String.class,
+        SOURCE_INSTANCE,
+        CUSTOMER_PROJECT_ID,
+        issueId);
   }
 
   private LocalDateTime fixedLabelTime(long issueId) {

@@ -1,13 +1,16 @@
 package com.data.collection.platform.service;
 
-import com.data.collection.platform.domain.customerissue.CustomerIssueActivityTimeRules;
 import java.sql.Array;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.util.StringUtils;
 
 final class FactSourceRowValueSupport {
@@ -38,22 +41,40 @@ final class FactSourceRowValueSupport {
   }
 
   /**
-   * 把带时区的来源时刻显式落成上海墙上值，供完成加标事件→事实投影使用（D-27）。
+   * 按 ResultSet 返回的物理列类型解释来源时间。
    *
-   * <p>与 {@link #toLocalDateTime} 的区别是结果不依赖 JVM、连接会话或数据库的默认时区：只取时刻本身，
-   * 再按平台业务时区解释。因此同一事件在任何写入进程上都得到同一个业务日历值。
-   * 仅适用于来源确为带时区类型的列；无时区列仍按其真实语义走 {@link #toLocalDateTime}，不得借用本方法猜测偏移。
+   * <p>带时区类型（{@code timestamptz}/{@code timestamp with time zone}）先取时刻再显式投影到目标时区；
+   * 无时区类型原样保留来源墙上值，不做任何偏移猜测。元数据不可用时沿既有投影语义处理带时区来源。
    *
-   * @param timestamp 来源带时区时刻，缺失时为 {@code null}
-   * @return 上海墙上时间；入参缺失时为 {@code null}
+   * @param resultSet 来源结果集
+   * @param column 时间列名
+   * @param projectionZone 带时区列的目标投影时区
+   * @return 投影后的墙上时间；列为空时返回 {@code null}
    */
-  static LocalDateTime toShanghaiWallClock(Timestamp timestamp) {
-    return timestamp == null
-        ? null
-        : timestamp
-            .toInstant()
-            .atZone(CustomerIssueActivityTimeRules.BUSINESS_TIME_ZONE)
-            .toLocalDateTime();
+  static LocalDateTime readTemporalProjection(
+      ResultSet resultSet, String column, ZoneId projectionZone) throws SQLException {
+    Timestamp timestamp = resultSet.getTimestamp(column);
+    if (timestamp == null) {
+      return null;
+    }
+    ResultSetMetaData metadata = resultSet.getMetaData();
+    if (metadata != null && !isTimestampWithTimeZone(metadata, resultSet.findColumn(column))) {
+      return timestamp.toLocalDateTime();
+    }
+    return timestamp.toInstant().atZone(projectionZone).toLocalDateTime();
+  }
+
+  private static boolean isTimestampWithTimeZone(ResultSetMetaData metadata, int columnIndex)
+      throws SQLException {
+    if (metadata.getColumnType(columnIndex) == Types.TIMESTAMP_WITH_TIMEZONE) {
+      return true;
+    }
+    String typeName = metadata.getColumnTypeName(columnIndex);
+    if (typeName == null || typeName.isBlank()) {
+      return false;
+    }
+    String normalized = typeName.trim().toLowerCase(Locale.ROOT);
+    return "timestamptz".equals(normalized) || normalized.contains("timestamp with time zone");
   }
 
   static Long nullableLong(ResultSet resultSet, String columnName) throws SQLException {

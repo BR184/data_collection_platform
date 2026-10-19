@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.domain.customerissue.CustomerIssueActivityTimeRules;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -7,9 +8,13 @@ import org.springframework.util.StringUtils;
 
 final class IssueSlaRules {
   private static final List<String> RESPONSE_DELAY_LABELS = List.of("响应已延期");
-  private static final List<String> FIXED_LABELS = List.of("已修复", "已修复/完成");
+  // 闭环资格只比较规范状态成员：显式原因前缀、否定词和扩展文本不会进入成员集合。
+  private static final List<String> NON_FIXED_CLOSURE_MEMBERS =
+      List.of("申请延期", "数据异常", "需求如此", "设计如此", "未复现");
+  private static final List<String> FIXED_CLOSURE_MEMBERS =
+      List.of("已修复", CustomerIssueActivityTimeRules.EXACT_COMPLETION_MEMBER, "待合并", "未更新");
   private static final List<String> RESPONSE_HEADER_TOKENS =
-      List.of("# 问题调研情况说明", "问题调研情况说明");
+      List.of(IssueResponseTemplateTitleRules.HEADING_TITLE, IssueResponseTemplateTitleRules.TEMPLATE_TITLE);
   private static final List<String> FIX_CASE_NOTE_TOKENS = List.of("### 1、修复状态");
   private static final int RESPONSE_SLA_P1_HOURS = 24;
   private static final int RESPONSE_SLA_P2_HOURS = 48;
@@ -19,7 +24,7 @@ final class IssueSlaRules {
   private IssueSlaRules() {}
 
   static boolean hasResponse(String notesText) {
-    return templateSnapshot(notesText).hasTemplateReply();
+    return IssueResponseTemplateTitleRules.containsTemplateNote(notesText);
   }
 
   /**
@@ -89,33 +94,36 @@ final class IssueSlaRules {
   }
 
   static boolean isResolveDelayed(
-      List<String> labels, boolean fixed, LocalDateTime resolveDeadlineAt, LocalDateTime now) {
-    if (fixed || resolveDeadlineAt == null || now == null) {
+      List<String> statusMembers, LocalDateTime resolveDeadlineAt, LocalDateTime now) {
+    if (resolveDeadlineAt == null || now == null) {
       return false;
     }
-    if (CustomerIssueClosureRules.hasNonFixedClosureLabel(labels)
-        || IssueRuleSupport.containsAnyLabel(labels, FIXED_LABELS)) {
+    if (hasAnyStatusMember(statusMembers, NON_FIXED_CLOSURE_MEMBERS)
+        || hasAnyStatusMember(statusMembers, FIXED_CLOSURE_MEMBERS)) {
       return false;
     }
     return now.isAfter(resolveDeadlineAt);
   }
 
   static boolean isResolveDelayed(
-      List<String> labels,
-      boolean fixed,
+      List<String> statusMembers,
       boolean hasFixCaseNote,
       LocalDateTime resolveDeadlineAt,
       LocalDateTime now) {
     if (resolveDeadlineAt == null || now == null) {
       return false;
     }
-    if (CustomerIssueClosureRules.hasNonFixedClosureLabel(labels)) {
+    if (hasAnyStatusMember(statusMembers, NON_FIXED_CLOSURE_MEMBERS)) {
       return false;
     }
-    if ((fixed || IssueRuleSupport.containsAnyLabel(labels, FIXED_LABELS)) && hasFixCaseNote) {
+    if (hasFixCaseNote && hasAnyStatusMember(statusMembers, FIXED_CLOSURE_MEMBERS)) {
       return false;
     }
     return now.isAfter(resolveDeadlineAt);
+  }
+
+  private static boolean hasAnyStatusMember(List<String> statusMembers, List<String> expectedMembers) {
+    return statusMembers != null && statusMembers.stream().anyMatch(expectedMembers::contains);
   }
 
   private static int responseSlaHours(List<String> labels, String priorityLevel) {

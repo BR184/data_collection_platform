@@ -152,8 +152,9 @@ class CustomerIssueResponseEfficiencyBoardServiceTest {
     when(rs.getString("label_names")).thenReturn("状态：已修复/完成");
     when(rs.getBoolean("is_excluded")).thenReturn(false);
     when(rs.getTimestamp("research_template_time")).thenReturn(null);
+    // 创建按 UTC naive、完成按上海墙上值保存；真实周期为 resolutionDays。
     when(rs.getTimestamp("fixed_label_time"))
-        .thenReturn(Timestamp.valueOf(createdAt.plusDays(resolutionDays)));
+        .thenReturn(Timestamp.valueOf(createdAt.plusDays(resolutionDays).plusHours(8)));
     when(rs.getTimestamp("created_at_source")).thenReturn(Timestamp.valueOf(createdAt));
     when(rs.getTimestamp("updated_at_source")).thenReturn(Timestamp.valueOf(createdAt.plusDays(resolutionDays)));
     when(rs.getTimestamp("closed_at_source")).thenReturn(null);

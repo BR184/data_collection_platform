@@ -55,29 +55,76 @@ class IssueFactNormalizationRulesTest {
   }
 
   @Test
-  void test_prefixed_test_statuses_preserve_old_platform_members_result() {
+  void test_prefixed_test_statuses_preserve_old_platform_members_result_for_non_customer_project() {
     assertThat(IssueFactNormalizationRules.normalizeBugStatus(
         List.of(
             "状态：已修复/完成",
             "状态：已测试通过",
-            "申请延期")))
+            "申请延期"),
+        9L))
         .isEqualTo("已修复/完成 & 已测试通过");
   }
 
   @Test
   void test_missing_test_status_returns_missing_placeholder() {
     assertThat(IssueFactNormalizationRules.normalizeBugStatus(
-        List.of("P1", "响应已延期", "模块：草图")))
+        List.of("P1", "响应已延期", "模块：草图"), 9L))
         .isEqualTo("未设定议题状态");
-    assertThat(IssueFactNormalizationRules.normalizeBugStatus(List.of()))
+    assertThat(IssueFactNormalizationRules.normalizeBugStatus(List.of(), 9L))
+        .isEqualTo("未设定议题状态");
+    assertThat(IssueFactNormalizationRules.normalizeBugStatus(List.of(), 325L))
         .isEqualTo("未设定议题状态");
   }
 
   @Test
-  void test_non_legacy_status_labels_do_not_become_test_status_result() {
+  void test_non_legacy_status_labels_do_not_become_test_status_result_for_non_customer_project() {
     assertThat(IssueFactNormalizationRules.normalizeBugStatus(
-        List.of("已修复/完成", "申请延期", "状态:进行中", "状态-未复现")))
+        List.of("已修复/完成", "申请延期", "状态:进行中", "状态-未复现"), 9L))
         .isEqualTo("未设定议题状态");
+  }
+
+  @Test
+  void test_customer_bare_status_words_are_recognized_exactly_and_deduplicated() {
+    assertThat(IssueFactNormalizationRules.normalizeBugStatus(
+        List.of("数据异常", "未复现", "申请延期", "已修复", "已修复/完成",
+            "待合并", "未更新", "需求如此", "设计如此"),
+        325L))
+        .isEqualTo("数据异常 & 未复现 & 申请延期 & 已修复 & 已修复/完成 & 待合并 & 未更新 & 需求如此 & 设计如此");
+    assertThat(IssueFactNormalizationRules.normalizeBugStatus(
+        List.of("状态：数据异常", "数据异常", "状态:数据异常", "状态 ： 数据异常", " 数据异常 "),
+        325L))
+        .isEqualTo("数据异常");
+    assertThat(IssueFactNormalizationRules.normalizeBugStatus(
+        List.of("状态:已修复/完成", "已修复/完成"), 325L))
+        .isEqualTo("已修复/完成");
+    assertThat(IssueFactNormalizationRules.normalizeBugStatus(
+        List.of("状态：数据异常 & 未复现", "未复现", "数据异常"), 325L))
+        .isEqualTo("数据异常 & 未复现");
+  }
+
+  @Test
+  void test_customer_half_width_prefix_is_limited_to_confirmed_status_words() {
+    assertThat(IssueFactNormalizationRules.normalizeBugStatus(
+        List.of("状态:进行中", "状态:处理中"), 325L))
+        .isEqualTo("未设定议题状态");
+    assertThat(IssueFactNormalizationRules.normalizeBugStatus(
+        List.of("状态：处理中", "状态 ： 处理中"), 325L))
+        .isEqualTo("处理中");
+  }
+
+  @Test
+  void test_customer_status_parsing_rejects_reason_prefix_negation_and_extended_text() {
+    assertThat(IssueFactNormalizationRules.normalizeBugStatus(
+        List.of("延期原因：数据异常", "延期原因:数据异常", "缺陷原因：数据异常"),
+        325L))
+        .isEqualTo("未设定议题状态");
+    assertThat(IssueFactNormalizationRules.normalizeBugStatus(
+        List.of("数据异常待确认", "非数据异常", "已排除数据异常", "未复现待确认"),
+        325L))
+        .isEqualTo("未设定议题状态");
+    assertThat(IssueFactNormalizationRules.normalizeBugStatus(
+        List.of("技术卡点", "资源卡点", "申请延期"), 325L))
+        .isEqualTo("申请延期");
   }
 
   @Test
@@ -453,12 +500,10 @@ class IssueFactNormalizationRulesTest {
     assertThat(deadline).isEqualTo(LocalDateTime.of(2026, 4, 8, 10, 0));
     assertThat(IssueFactNormalizationRules.isResolveDelayed(
         List.of("一级缺陷"),
-        false,
         deadline,
         LocalDateTime.of(2026, 4, 9, 10, 0))).isTrue();
     assertThat(IssueFactNormalizationRules.isResolveDelayed(
         List.of("一级缺陷", "已修复"),
-        false,
         deadline,
         LocalDateTime.of(2026, 4, 9, 10, 0))).isFalse();
     assertThat(IssueFactNormalizationRules.isLegacy(
@@ -466,6 +511,25 @@ class IssueFactNormalizationRulesTest {
         false,
         LocalDateTime.of(2026, 3, 1, 9, 0),
         LocalDateTime.of(2026, 4, 1, 9, 0))).isTrue();
+  }
+
+  @Test
+  void test_resolve_delay_closure_uses_exact_status_members_not_raw_reason_or_negated_text() {
+    LocalDateTime createdAt = LocalDateTime.of(2026, 4, 1, 10, 0);
+    LocalDateTime deadline = IssueFactNormalizationRules.resolveDeadline(createdAt, 7);
+    LocalDateTime overdue = LocalDateTime.of(2026, 4, 9, 10, 0);
+    assertThat(IssueFactNormalizationRules.isResolveDelayed(
+        List.of("一级缺陷", "延期原因：数据异常"), true, deadline, overdue)).isTrue();
+    assertThat(IssueFactNormalizationRules.isResolveDelayed(
+        List.of("一级缺陷", "非数据异常"), true, deadline, overdue)).isTrue();
+    assertThat(IssueFactNormalizationRules.isResolveDelayed(
+        List.of("一级缺陷", "数据异常待确认"), true, deadline, overdue)).isTrue();
+    assertThat(IssueFactNormalizationRules.isResolveDelayed(
+        List.of("一级缺陷", "数据异常"), true, deadline, overdue)).isFalse();
+    assertThat(IssueFactNormalizationRules.isResolveDelayed(
+        List.of("一级缺陷", "未复现"), true, deadline, overdue)).isFalse();
+    assertThat(IssueFactNormalizationRules.isResolveDelayed(
+        List.of("一级缺陷", "申请延期"), true, deadline, overdue)).isFalse();
   }
 
   @Test
@@ -518,12 +582,10 @@ class IssueFactNormalizationRulesTest {
     assertThat(IssueFactNormalizationRules.isResolveDelayed(
         List.of("一级缺陷"),
         false,
-        false,
         earlierDeadline,
         LocalDateTime.of(2026, 4, 9, 10, 0))).isTrue();
     assertThat(IssueFactNormalizationRules.isResolveDelayed(
         List.of("一级缺陷", "已修复/完成"),
-        true,
         true,
         earlierDeadline,
         LocalDateTime.of(2026, 4, 9, 10, 0))).isFalse();

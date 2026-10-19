@@ -63,7 +63,8 @@ class CustomerIssueMetricRulesTest {
     assertEquals(27L, CustomerIssueEfficiencyRules.responseCycleHours(created, researched));
     assertEquals(0L, CustomerIssueEfficiencyRules.responseCycleHours(created, null));
 
-    LocalDateTime fixed = created.plusHours(36);
+    // 创建是 UTC naive，完成是上海墙上值：真实 36 小时对应完成墙上时间 +44 小时。
+    LocalDateTime fixed = created.plusHours(44);
     assertTrue(CustomerIssueEfficiencyRules.hasResolutionCycle(created, fixed, true));
     assertFalse(CustomerIssueEfficiencyRules.hasResolutionCycle(created, fixed, false));
     assertFalse(CustomerIssueEfficiencyRules.hasResolutionCycle(created, null, true));
@@ -71,6 +72,17 @@ class CustomerIssueMetricRulesTest {
         0,
         new BigDecimal("1.500000").compareTo(
             CustomerIssueEfficiencyRules.resolutionCycleDays(created, fixed)));
+    assertEquals(
+        0,
+        new BigDecimal("1.000000").compareTo(
+            CustomerIssueEfficiencyRules.resolutionCycleDays(
+                created, created.plusHours(32))));
+    assertEquals(
+        0,
+        new BigDecimal("1.000000").compareTo(
+            CustomerIssueEfficiencyRules.resolutionCycleDays(
+                LocalDateTime.of(2026, 1, 1, 16, 0),
+                LocalDateTime.of(2026, 1, 3, 0, 0))));
 
     assertEquals(0L, CustomerIssueEfficiencyRules.averageResponseHours(List.of()));
     assertEquals(2L, CustomerIssueEfficiencyRules.averageResponseHours(List.of(1L, 2L)));
