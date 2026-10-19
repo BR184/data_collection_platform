@@ -5,7 +5,7 @@ import com.data.collection.platform.config.GitlabMirrorProperties;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import org.springframework.dao.DataAccessException;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -88,8 +88,12 @@ public class GitlabResourceLinkService {
   }
 
   private Optional<String> projectPath(String sourceInstance, Long projectId) {
-    return projectPathCache.computeIfAbsent(
-        new ProjectPathCacheKey(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE, projectId), this::loadProjectPath);
+    ProjectPathCacheKey key = new ProjectPathCacheKey(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE, projectId);
+    Optional<String> cached = projectPathCache.get(key);
+    if (cached != null) { return cached; }
+    Optional<String> found = loadProjectPath(key);
+    if (found.isPresent()) { projectPathCache.putIfAbsent(key, found); }
+    return found;
   }
 
   private String baseUrl(String sourceInstance) {
@@ -113,7 +117,7 @@ public class GitlabResourceLinkService {
               """,
               String.class);
       return Optional.ofNullable(normalizeBaseUrl(configured));
-    } catch (DataAccessException ignored) {
+    } catch (EmptyResultDataAccessException ignored) {
       return Optional.empty();
     }
   }
@@ -123,6 +127,14 @@ public class GitlabResourceLinkService {
   }
 
   private Optional<String> loadProjectPath(Long projectId, String projectTable, String namespaceTable) {
+    // 可选目录未装载时不执行会使 PostgreSQL 读事务进入 aborted 状态的 SQL。
+    Boolean readable = jdbcTemplate.queryForObject("""
+        select count(*) = 7 from pg_attribute
+         where not attisdropped and attnum > 0 and (
+           (attrelid = to_regclass(?) and attname in ('id', 'path', 'namespace_id', 'mirror_deleted'))
+           or (attrelid = to_regclass(?) and attname in ('id', 'path', 'mirror_deleted')))
+        """, Boolean.class, projectTable, namespaceTable);
+    if (!Boolean.TRUE.equals(readable)) { return Optional.empty(); }
     try {
       String path =
           jdbcTemplate.queryForObject(
@@ -130,7 +142,7 @@ public class GitlabResourceLinkService {
               String.class,
               projectId);
       return Optional.ofNullable(TextQuerySupport.trimToNull(path));
-    } catch (DataAccessException ignored) {
+    } catch (EmptyResultDataAccessException ignored) {
       return Optional.empty();
     }
   }
@@ -161,7 +173,7 @@ public class GitlabResourceLinkService {
               repositoryName,
               preferredTable);
       return Optional.ofNullable(normalizeBaseUrl(webUrl));
-    } catch (DataAccessException ignored) {
+    } catch (EmptyResultDataAccessException ignored) {
       return Optional.empty();
     }
   }
