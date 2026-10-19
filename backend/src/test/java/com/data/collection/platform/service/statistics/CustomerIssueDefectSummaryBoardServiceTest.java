@@ -57,6 +57,12 @@ class CustomerIssueDefectSummaryBoardServiceTest {
         .thenReturn(List.of("CC2026 R3"));
     when(milestoneCatalogService.matches("CC2026R3", "CC2026 R3")).thenReturn(true);
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
+    org.mockito.Mockito.lenient()
+        .when(issueFactRecordRepository.findCustomerIssueRecordFilterValues(true, false, true, false, null))
+        .thenReturn(new IssueFactRecordRepository.CustomerIssueFilterValues(
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of()));
   }
 
   @SuppressWarnings("unchecked")

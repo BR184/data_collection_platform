@@ -1,5 +1,6 @@
 package com.data.collection.platform.service.statistics;
 
+import com.data.collection.platform.domain.customerissue.CustomerIssueActivityTimeRules;
 import com.data.collection.platform.domain.customerissue.CustomerIssueDelayRules;
 import com.data.collection.platform.domain.customerissue.CustomerIssueEfficiencyRules;
 import com.data.collection.platform.domain.customerissue.CustomerIssueMetricRules;
@@ -9,7 +10,6 @@ import com.data.collection.platform.service.CustomerIssueFactQueryService.Custom
 import com.data.collection.platform.service.IssueStatusMembers;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,8 +23,6 @@ import org.springframework.util.StringUtils;
  * 总计在未展开的去重集合上计算，不累加分组行，也不平均分组均值。
  */
 final class CustomerIssueStatisticsCalculator {
-  /** 效率精确完成成员（与现有客户响应效率页一致）。 */
-  private static final String FIXED_STATUS_MEMBER = "已修复/完成";
   static final String DETAIL_PARAM_METRIC = "metric";
   static final String DETAIL_PARAM_POPULATION = "population";
   static final String DETAIL_PARAM_BASE_SET = "baseSet";
@@ -46,9 +44,7 @@ final class CustomerIssueStatisticsCalculator {
     static CycleSample ofResolution(CustomerIssueFact fact) {
       boolean eligible =
           CustomerIssueEfficiencyRules.hasResolutionCycle(
-              fact.createdAtSource(),
-              fact.fixedLabelTime(),
-              IssueStatusMembers.matchesSelection(fact.bugStatus(), FIXED_STATUS_MEMBER));
+              fact.createdAtSource(), fact.fixedLabelTime(), hasExactCompletionMember(fact));
       return new CycleSample(
           eligible,
           0L,
@@ -63,6 +59,11 @@ final class CustomerIssueStatisticsCalculator {
    * 每议题只计算一次的资格与状态快照。
    *
    * <p>各谓词分别消费领域纯规则的唯一实现，不在此处复制第二套判断。
+   *
+   * @param dataException 状态成员精确命中“数据异常”（CI-47）
+   * @param notReproduced 状态成员精确命中“未复现”（CI-48）
+   * @param calibratable 是否留在校准集合 V 内，即两类剔除状态并集之外（CI-24—CI-26）
+   * @param createdToday 创建时间落入本次固定业务日的半开自然日窗口
    */
   record FactFlags(
       CustomerIssueFact fact,
@@ -80,6 +81,9 @@ final class CustomerIssueStatisticsCalculator {
       boolean fixed,
       boolean priorityFixed,
       boolean appliedDelay,
+      boolean dataException,
+      boolean notReproduced,
+      boolean calibratable,
       boolean delayIssue,
       boolean responseDelayed,
       boolean resolveDelayed,
@@ -130,6 +134,11 @@ final class CustomerIssueStatisticsCalculator {
     boolean level1 = "LEVEL1".equalsIgnoreCase(severity);
     boolean level2 = "LEVEL2".equalsIgnoreCase(severity);
     boolean level3 = "LEVEL3".equalsIgnoreCase(severity);
+    // 状态成员只在现有解析器上解析一次，供两类剔除、校准资格与精确完成贡献共同消费。
+    List<String> statusMembers = IssueStatusMembers.parse(fact.bugStatus());
+    boolean dataException = CustomerIssueMetricRules.hasDataException(statusMembers);
+    boolean notReproduced = CustomerIssueMetricRules.hasNotReproduced(statusMembers);
+    boolean exactCompletion = CustomerIssueActivityTimeRules.hasExactCompletionMember(statusMembers);
     return new FactFlags(
         fact,
         regular,
@@ -146,14 +155,24 @@ final class CustomerIssueStatisticsCalculator {
         CustomerIssueMetricRules.isFixedBySummary(fact.bugStatus()),
         CustomerIssueMetricRules.isPriorityFixed(fact.bugStatus(), fact.closed()),
         CustomerIssueMetricRules.hasAppliedDelay(fact.bugStatus()),
+        dataException,
+        notReproduced,
+        CustomerIssueMetricRules.keepsCalibrationPopulation(statusMembers),
         fact.delayIssue(),
         fact.responseDelayed(),
         fact.resolveDelayed(),
         CustomerIssueDelayRules.priorityBucket(fact.priorityLevel()),
-        isWithinBusinessDay(fact.createdAtSource(), businessDate),
-        isResolvedToday(fact, businessDate),
+        CustomerIssueActivityTimeRules.withinBusinessDayFromSourceUtc(fact.createdAtSource(), businessDate),
+        exactCompletion
+            && CustomerIssueActivityTimeRules.withinBusinessDayFromBusinessClock(
+                fact.fixedLabelTime(), businessDate),
         CycleSample.ofResponse(fact),
         CycleSample.ofResolution(fact));
+  }
+
+  /** 精确完成成员：沿两页共用的活动时间纯规则，不在本页复制状态名。 */
+  private static boolean hasExactCompletionMember(CustomerIssueFact fact) {
+    return CustomerIssueActivityTimeRules.hasExactCompletionMember(IssueStatusMembers.parse(fact.bugStatus()));
   }
 
   private static List<String> splitIllegalReasons(String rawValue) {
@@ -167,24 +186,6 @@ final class CustomerIssueStatisticsCalculator {
       }
     }
     return List.copyOf(values);
-  }
-
-  private static boolean isWithinBusinessDay(LocalDateTime time, LocalDate businessDate) {
-    if (time == null || businessDate == null) {
-      // 缺失创建时间沿用现行范围保留，但不进入“今日新增”。
-      return false;
-    }
-    return !time.isBefore(businessDate.atStartOfDay())
-        && time.isBefore(businessDate.plusDays(1).atStartOfDay());
-  }
-
-  private static boolean isResolvedToday(CustomerIssueFact fact, LocalDate businessDate) {
-    if (businessDate == null || !StringUtils.hasText(fact.bugStatus())) {
-      return false;
-    }
-    boolean exactlyCompleted =
-        IssueStatusMembers.matchesSelection(fact.bugStatus(), FIXED_STATUS_MEMBER);
-    return exactlyCompleted && isWithinBusinessDay(fact.fixedLabelTime(), businessDate);
   }
 
   /** 计算一个分组范围的全部指标单元格。 */

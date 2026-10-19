@@ -44,7 +44,6 @@ import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -120,6 +119,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final StatisticBoardSnapshotService snapshotService;
   private final StatisticBoardReadScopeResolver readScopeResolver;
+
 
   public SystemTestPhaseStatisticsBoardService(
       JsonUtils jsonUtils,
@@ -605,13 +605,8 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
             filterGroup,
             phaseScopeResolver,
             SystemTestPhaseMembershipPolicy.MatchMode.EXACT_MEMBER);
-    try {
-      List<IssueSource> facts = ensureFactsReady(projectId, queryFilters, phasePredicate);
-      return facts.isEmpty() ? List.of() : facts;
-    } catch (DataAccessException e) {
-      log.warn("Failed to load issue facts", e);
-      return List.of();
-    }
+    List<IssueSource> facts = ensureFactsReady(projectId, queryFilters, phasePredicate);
+    return facts.isEmpty() ? List.of() : facts;
   }
 
   private com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult refreshMirrorForRealtimeView() {
@@ -658,33 +653,28 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
             filterGroup,
             phaseScopeResolver,
             SystemTestPhaseMembershipPolicy.MatchMode.EXACT_MEMBER);
-    try {
-      return issueFactQueryService.query(
-              BOARD_AGGREGATE_SQL,
-              queryFilters,
-              phasePredicate.sql(),
-              phasePredicate.args(),
-              "group by testing_phase",
-              (rs, rowNum) ->
-                  Map.entry(
-                      StatisticSourceValueSupport.text(rs.getString("row_key"), ""),
-                      new AggregateCounts(
-                          rs.getLong("level1"),
-                          rs.getLong("level2"),
-                          rs.getLong("level3"),
-                          rs.getLong("suggestion"))))
-          .stream()
-          .filter(entry -> StringUtils.hasText(entry.getKey()))
-          .collect(
-              java.util.stream.Collectors.toMap(
-                  Map.Entry::getKey,
-                  Map.Entry::getValue,
-                  AggregateCounts::plus,
-                  LinkedHashMap::new));
-    } catch (DataAccessException e) {
-      log.warn("Failed to load system test phase statistics aggregate counts", e);
-      return Map.of();
-    }
+    return issueFactQueryService.query(
+            BOARD_AGGREGATE_SQL,
+            queryFilters,
+            phasePredicate.sql(),
+            phasePredicate.args(),
+            "group by testing_phase",
+            (rs, rowNum) ->
+                Map.entry(
+                    StatisticSourceValueSupport.text(rs.getString("row_key"), ""),
+                    new AggregateCounts(
+                        rs.getLong("level1"),
+                        rs.getLong("level2"),
+                        rs.getLong("level3"),
+                        rs.getLong("suggestion"))))
+        .stream()
+        .filter(entry -> StringUtils.hasText(entry.getKey()))
+        .collect(
+            java.util.stream.Collectors.toMap(
+                Map.Entry::getKey,
+                Map.Entry::getValue,
+                AggregateCounts::plus,
+                LinkedHashMap::new));
   }
 
   private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {

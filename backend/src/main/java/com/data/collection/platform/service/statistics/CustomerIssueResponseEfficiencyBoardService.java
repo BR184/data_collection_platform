@@ -44,7 +44,6 @@ import com.data.collection.platform.service.statistics.engine.StatisticFieldDesc
 import com.data.collection.platform.service.statistics.engine.StatisticFilterEngine;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -116,6 +115,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
   private final CustomerIssueMilestoneCatalogService milestoneCatalogService;
   private final StatisticBoardSnapshotService snapshotService;
   private final StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
+
 
   public CustomerIssueResponseEfficiencyBoardService(
       JsonUtils jsonUtils,
@@ -427,17 +427,12 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
             responseEfficiencyScope(withoutReservedFilters(filters), filterGroup),
             "(research_template_time is not null or (fixed_label_time is not null and coalesce(bug_status, '') like ?))",
             List.of("%" + FIXED_STATUS + "%"));
-    try {
-      return issueFactQueryService.query(
-          FACT_SQL,
-          scope.filters(),
-          scope.predicate(),
-          scope.args(),
-          this::mapIssueFact);
-    } catch (DataAccessException error) {
-      log.warn("Failed to load customer issue response efficiency facts", error);
-      return List.of();
-    }
+    return issueFactQueryService.query(
+        FACT_SQL,
+        scope.filters(),
+        scope.predicate(),
+        scope.args(),
+        this::mapIssueFact);
   }
 
   private CustomerIssueSqlScopeSupport.SqlScope responseEfficiencyScope(
@@ -480,31 +475,27 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
 
   private List<String> loadModuleCatalog(StatisticFilterGroup effectiveFilterGroup) {
     LinkedHashSet<String> modules = new LinkedHashSet<>();
-    try {
-      List<String> rows =
-          issueFactQueryService.query(
-              """
-              select coalesce(module_names, '') as module_names
-                from issue_fact
-               where deleted = false
-                 and project_id = ?
-                 and coalesce(module_names, '') <> ''
-               order by coalesce(created_at_source, updated_at_source) asc nulls last,
-                        issue_iid asc nulls last,
-                        issue_id asc
-              """,
-              java.util.List.<Object>of(LEGACY_CC_PRODUCT_PROJECT_ID),
-              (rs, rowNum) -> rs.getString("module_names"));
-      for (String row : rows) {
-        for (String moduleName : splitLegacyModuleNames(row)) {
-          if (isCatalogModule(moduleName)
-              && StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, effectiveFilterGroup)) {
-            modules.add(moduleName);
-          }
+    List<String> rows =
+        issueFactQueryService.query(
+            """
+            select coalesce(module_names, '') as module_names
+              from issue_fact
+             where deleted = false
+               and project_id = ?
+               and coalesce(module_names, '') <> ''
+             order by coalesce(created_at_source, updated_at_source) asc nulls last,
+                      issue_iid asc nulls last,
+                      issue_id asc
+            """,
+            java.util.List.<Object>of(LEGACY_CC_PRODUCT_PROJECT_ID),
+            (rs, rowNum) -> rs.getString("module_names"));
+    for (String row : rows) {
+      for (String moduleName : splitLegacyModuleNames(row)) {
+        if (isCatalogModule(moduleName)
+            && StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, effectiveFilterGroup)) {
+          modules.add(moduleName);
         }
       }
-    } catch (DataAccessException error) {
-      log.warn("Failed to load customer issue response efficiency module catalog", error);
     }
     return List.copyOf(modules);
   }
@@ -516,32 +507,27 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
   }
 
   private PersonFilterOptions loadPersonOptions() {
-    try {
-      List<PersonFilterOptions> rows =
-          issueFactQueryService.query(
-              """
-              select
-                (select string_agg(value, E'\n') from (
-                   select distinct nullif(btrim(author_name), '') as value
-                     from issue_fact
-                    where deleted = false and project_id = ?
-                 ) t where value is not null) as author_names,
-                (select string_agg(value, E'\n') from (
-                   select distinct nullif(btrim(assignee_name), '') as value
-                     from issue_fact
-                    where deleted = false and project_id = ?
-                 ) t where value is not null) as assignee_names
-              """,
-              java.util.List.<Object>of(LEGACY_CC_PRODUCT_PROJECT_ID, LEGACY_CC_PRODUCT_PROJECT_ID),
-              (rs, rowNum) ->
-                  new PersonFilterOptions(
-                      personOptions(rs.getString("author_names")),
-                      personOptions(rs.getString("assignee_names"))));
-      return rows.isEmpty() ? PersonFilterOptions.empty() : rows.get(0);
-    } catch (DataAccessException error) {
-      log.debug("Failed to load customer issue person filter options for {}", BOARD_KEY, error);
-      return PersonFilterOptions.empty();
-    }
+    List<PersonFilterOptions> rows =
+        issueFactQueryService.query(
+            """
+            select
+              (select string_agg(value, E'\n') from (
+                 select distinct nullif(btrim(author_name), '') as value
+                   from issue_fact
+                  where deleted = false and project_id = ?
+               ) t where value is not null) as author_names,
+              (select string_agg(value, E'\n') from (
+                 select distinct nullif(btrim(assignee_name), '') as value
+                   from issue_fact
+                  where deleted = false and project_id = ?
+               ) t where value is not null) as assignee_names
+            """,
+            java.util.List.<Object>of(LEGACY_CC_PRODUCT_PROJECT_ID, LEGACY_CC_PRODUCT_PROJECT_ID),
+            (rs, rowNum) ->
+                new PersonFilterOptions(
+                    personOptions(rs.getString("author_names")),
+                    personOptions(rs.getString("assignee_names"))));
+    return rows.isEmpty() ? PersonFilterOptions.empty() : rows.get(0);
   }
 
   private List<StatisticFilterOption> personOptions(String rawValue) {

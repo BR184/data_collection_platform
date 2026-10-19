@@ -54,7 +54,6 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -67,7 +66,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         StatisticBoardWorkbookExportSupport,
         StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-defect-cause";
-  private static final String RULE_VERSION = "customer-issue-defect-cause@2026-07-28-v9";
+  private static final String RULE_VERSION = "customer-issue-defect-cause@2026-10-14-v10";
   private static final String MILESTONE_FIELD = CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD;
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "共计";
@@ -94,6 +93,14 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         from issue_fact
        where deleted = false
       """;
+  /**
+   * 事实行的稳定次序。
+   *
+   * <p>人员候选按「数据源首次出现顺序」生成，因此候选数组的顺序完全由本子句决定；缺少稳定次序会让同一
+   * 业务输入产生不同内容，进而使候选预热产物校验和不可复现。物理主键在事实层内唯一且不随查询计划变化，
+   * 因此以它收尾；口径与 {@code IssueFactRecordRepository}、{@code CustomerIssueFactQueryService} 一致。
+   */
+  private static final String FACT_SQL_ORDER = "order by id";
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
       StatisticIssueDetailColumns.customerIssue(
           "标题",
@@ -112,6 +119,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   private final CustomerIssueMilestoneCatalogService milestoneCatalogService;
   private final StatisticBoardSnapshotService snapshotService;
   private final StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
+
 
   public CustomerIssueDefectCauseBoardService(
       JsonUtils jsonUtils,
@@ -145,6 +153,11 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   }
 
   private StatisticBoardDefinition buildDefinition(List<StatisticFilterOption> milestoneOptions) {
+    return buildDefinition(milestoneOptions, StatisticPersonCandidates.empty());
+  }
+
+  private StatisticBoardDefinition buildDefinition(
+      List<StatisticFilterOption> milestoneOptions, StatisticPersonCandidates personCandidates) {
     return new StatisticBoardDefinition(
         BOARD_KEY,
         "客户问题缺陷原因分析",
@@ -172,8 +185,10 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
                 List.of(
                     new StatisticFilterOption("未关闭", "open"),
                     new StatisticFilterOption("已关闭", "closed"))),
-            StatisticFilterFieldFactory.text("authorName", "议题提交人", 180),
-            StatisticFilterFieldFactory.text("assigneeName", "议题处理人", 180)),
+            StatisticFilterFieldFactory.textWithCandidates(
+                "authorName", "议题提交人", 180, personCandidates.authorNames()),
+            StatisticFilterFieldFactory.textWithCandidates(
+                "assigneeName", "议题处理人", 180, personCandidates.assigneeNames())),
         List.of(
             StatisticColumnGroup.withChildren(
                 "requirement-problem",
@@ -227,15 +242,23 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     Map<String, String> snapshotFilters = customerSnapshotFilters(filters, effectiveFilterGroup);
     return snapshotService.readOrRefresh(
         snapshotRequest(snapshotFilters, effectiveFilterGroup, definition),
-        ignored -> buildBoardResponse(filters, effectiveFilterGroup, definition));
+        ignored -> buildBoardResponse(filters, effectiveFilterGroup, milestoneOptions));
   }
 
   private StatisticBoardResponse buildBoardResponse(
       Map<String, String> filters,
       StatisticFilterGroup effectiveFilterGroup,
-      StatisticBoardDefinition definition) {
+      List<StatisticFilterOption> milestoneOptions) {
     long startedAt = System.currentTimeMillis();
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
+    List<IssueSource> loadedSources = loadSources(filters, effectiveFilterGroup);
+    // 人员候选取范围内全部事实，不随用户条件收缩：否则已选某人时下拉只剩该人，清空后无候选可选。
+    StatisticBoardDefinition definition =
+        buildDefinition(
+            milestoneOptions,
+            StatisticPersonCandidates.of(
+                loadedSources.stream().map(IssueSource::authorName).toList(),
+                loadedSources.stream().map(IssueSource::assigneeName).toList()));
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadedSources, effectiveFilterGroup);
 
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (IssueSource issue : snapshot.scopedSources()) {
@@ -303,7 +326,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       Map<String, String> filters = customerSnapshotFilters(Map.of(), effectiveFilterGroup);
       snapshotService.save(
           snapshotRequest(filters, effectiveFilterGroup, definition),
-          buildBoardResponse(filters, effectiveFilterGroup, definition));
+          buildBoardResponse(filters, effectiveFilterGroup, milestoneOptions));
     }
   }
 
@@ -640,13 +663,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   }
 
   private List<IssueSource> loadSources(Map<String, String> filters, StatisticFilterGroup filterGroup) {
-    try {
-      List<IssueSource> facts = ensureFactsReady(withoutReservedFilters(filters), filterGroup);
-      return facts.isEmpty() ? List.of() : facts;
-    } catch (DataAccessException e) {
-      log.warn("Failed to load issue facts", e);
-      return List.of();
-    }
+    List<IssueSource> facts = ensureFactsReady(withoutReservedFilters(filters), filterGroup);
+    return facts.isEmpty() ? List.of() : facts;
   }
 
   private com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult refreshMirrorForRealtimeView() {
@@ -672,6 +690,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         scope.filters(),
         predicate,
         scope.args(),
+        FACT_SQL_ORDER,
         this::mapIssueFact);
   }
 

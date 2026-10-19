@@ -59,12 +59,16 @@ public class MirrorTableOverviewBoardService extends AbstractStatisticBoardServi
           "syncedAt", "synced_at");
 
   private final MirrorTableOverviewMapper overviewMapper;
+  private final boolean boundRead;
+
+
 
   public MirrorTableOverviewBoardService(
       MirrorTableOverviewMapper overviewMapper,
       JsonUtils jsonUtils) {
     super(jsonUtils);
     this.overviewMapper = overviewMapper;
+    this.boundRead = false;
   }
 
   @Override
@@ -74,7 +78,7 @@ public class MirrorTableOverviewBoardService extends AbstractStatisticBoardServi
 
   @Override
   protected StatisticBoardDefinition buildDefinition() {
-    return buildDefinition(queryTableOptions());
+    return buildDefinition(boundRead ? queryTableOptions() : List.of());
   }
 
   @Override

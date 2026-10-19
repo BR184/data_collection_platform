@@ -43,7 +43,6 @@ import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -105,6 +104,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final StatisticBoardSnapshotService snapshotService;
   private final StatisticBoardReadScopeResolver readScopeResolver;
+
 
   public SystemTestDefectCauseBoardService(
       JsonUtils jsonUtils,
@@ -510,13 +510,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     Long projectId = effectiveProjectId(queryFilters);
     SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
         defectCausePhasePredicate(filterGroup);
-    try {
-      List<IssueSource> facts = ensureFactsReady(projectId, queryFilters, phasePredicate);
-      return facts.isEmpty() ? List.of() : facts;
-    } catch (DataAccessException e) {
-      log.warn("Failed to load issue facts", e);
-      return List.of();
-    }
+    List<IssueSource> facts = ensureFactsReady(projectId, queryFilters, phasePredicate);
+    return facts.isEmpty() ? List.of() : facts;
   }
 
   private com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult refreshMirrorForRealtimeView() {
@@ -571,27 +566,22 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
          where deleted = false
            and coalesce(module_names,'') <> ''
         """;
-    try {
-      return issueFactQueryService.query(
-              sql,
-              queryFilters,
-              phasePredicate.sql(),
-              phasePredicate.args(),
-              """
-              group by btrim(modules.module_name)
-              having btrim(modules.module_name) <> ''
-                 and btrim(modules.module_name) not like '未设定%'
-              """,
-              (rs, rowNum) -> StatisticSourceValueSupport.text(rs.getString("module_name"), ""))
-          .stream()
-          .filter(StringUtils::hasText)
-          .distinct()
-          .sorted(String.CASE_INSENSITIVE_ORDER)
-          .toList();
-    } catch (DataAccessException e) {
-      log.warn("Failed to load system test defect cause module rows", e);
-      return List.of();
-    }
+    return issueFactQueryService.query(
+            sql,
+            queryFilters,
+            phasePredicate.sql(),
+            phasePredicate.args(),
+            """
+            group by btrim(modules.module_name)
+            having btrim(modules.module_name) <> ''
+               and btrim(modules.module_name) not like '未设定%'
+            """,
+            (rs, rowNum) -> StatisticSourceValueSupport.text(rs.getString("module_name"), ""))
+        .stream()
+        .filter(StringUtils::hasText)
+        .distinct()
+        .sorted(String.CASE_INSENSITIVE_ORDER)
+        .toList();
   }
 
   private Map<String, AggregateCounts> loadBoardAggregateCounts(
@@ -603,25 +593,20 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
         defectCausePhasePredicate(filterGroup);
     String sql = buildBoardAggregateSql();
-    try {
-      return issueFactQueryService.query(
-              sql,
-              queryFilters,
-              phasePredicate.sql(),
-              phasePredicate.args(),
-              "group by btrim(modules.module_name) having btrim(modules.module_name) <> ''",
-              this::mapAggregateCounts)
-          .stream()
-          .collect(
-              java.util.stream.Collectors.toMap(
-                  Map.Entry::getKey,
-                  Map.Entry::getValue,
-                  AggregateCounts::plus,
-                  LinkedHashMap::new));
-    } catch (DataAccessException e) {
-      log.warn("Failed to load system test defect cause aggregate counts", e);
-      return Map.of();
-    }
+    return issueFactQueryService.query(
+            sql,
+            queryFilters,
+            phasePredicate.sql(),
+            phasePredicate.args(),
+            "group by btrim(modules.module_name) having btrim(modules.module_name) <> ''",
+            this::mapAggregateCounts)
+        .stream()
+        .collect(
+            java.util.stream.Collectors.toMap(
+                Map.Entry::getKey,
+                Map.Entry::getValue,
+                AggregateCounts::plus,
+                LinkedHashMap::new));
   }
 
   private AggregateCounts loadBoardTotalAggregateCounts(
@@ -632,20 +617,15 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     queryFilters.put("projectId", String.valueOf(projectId));
     SystemTestPhaseMembershipPolicy.SqlPredicate phasePredicate =
         defectCausePhasePredicate(filterGroup);
-    try {
-      List<AggregateCounts> results =
-          issueFactQueryService.query(
-              buildBoardTotalAggregateSql(),
-              queryFilters,
-              phasePredicate.sql(),
-              phasePredicate.args(),
-              "",
-              (rs, rowNum) -> mapAggregateCountsWithoutModule(rs));
-      return results.isEmpty() ? AggregateCounts.empty() : results.get(0);
-    } catch (DataAccessException e) {
-      log.warn("Failed to load system test defect cause total aggregate counts", e);
-      return AggregateCounts.empty();
-    }
+    List<AggregateCounts> results =
+        issueFactQueryService.query(
+            buildBoardTotalAggregateSql(),
+            queryFilters,
+            phasePredicate.sql(),
+            phasePredicate.args(),
+            "",
+            (rs, rowNum) -> mapAggregateCountsWithoutModule(rs));
+    return results.isEmpty() ? AggregateCounts.empty() : results.get(0);
   }
 
   private String buildBoardAggregateSql() {
@@ -778,14 +758,9 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   }
 
   private List<StatisticFilterOption> loadPhaseOptions() {
-    try {
-      return phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID).stream()
-          .map(value -> new StatisticFilterOption(value, value))
-          .toList();
-    } catch (DataAccessException e) {
-      log.debug("Failed to load phase options for {}", BOARD_KEY, e);
-      return List.of();
-    }
+    return phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID).stream()
+        .map(value -> new StatisticFilterOption(value, value))
+        .toList();
   }
 
   private StatisticFilterGroup applyDefaultTestingPhase(

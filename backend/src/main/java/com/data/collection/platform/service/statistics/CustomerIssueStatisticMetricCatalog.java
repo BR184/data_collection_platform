@@ -5,10 +5,13 @@ import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * 客户问题统计板的固定指标目录与列分组（51 列：1 个行维度 + 50 个指标）。
+ * 客户问题统计板的固定指标目录与列分组（71 项指标；按客户 72 列，客户×模块/功能 73 列）。
  *
  * <p>每个指标登记稳定 columnKey、显示名称、指标类型、基础集合、分子/分母选择、下钻默认集合与说明。
  * 表头文案不作为指标 ID，也不做动态公式语言；附加的模块/功能维度列由指标目录之外的维度列提供。
+ *
+ * <p>七组（整体、一级、二级、三级、P1、P2、P3）各含数据异常、未复现两项状态计数与一项校准后修复率；
+ * 状态计数允许与其他状态同时命中，校准率的分子与分母都限定在 V 内。
  */
 final class CustomerIssueStatisticMetricCatalog {
   /** 指标基础集合，用于表头与规则说明披露样本范围。 */
@@ -69,6 +72,13 @@ final class CustomerIssueStatisticMetricCatalog {
       CustomerIssueStatisticsCalculator.FactFlags::priorityFixed;
   static final Predicate<CustomerIssueStatisticsCalculator.FactFlags> HAS_APPLIED_DELAY =
       CustomerIssueStatisticsCalculator.FactFlags::appliedDelay;
+  static final Predicate<CustomerIssueStatisticsCalculator.FactFlags> HAS_DATA_EXCEPTION =
+      CustomerIssueStatisticsCalculator.FactFlags::dataException;
+  static final Predicate<CustomerIssueStatisticsCalculator.FactFlags> HAS_NOT_REPRODUCED =
+      CustomerIssueStatisticsCalculator.FactFlags::notReproduced;
+  /** 校准分母资格：留在 V = D 去除“数据异常/未复现”并集之内；分子在 V 内再按 F 或 P 限定。 */
+  static final Predicate<CustomerIssueStatisticsCalculator.FactFlags> IN_CALIBRATION_POPULATION =
+      CustomerIssueStatisticsCalculator.FactFlags::calibratable;
   static final Predicate<CustomerIssueStatisticsCalculator.FactFlags> HAS_DELAY_ISSUE =
       CustomerIssueStatisticsCalculator.FactFlags::delayIssue;
   static final Predicate<CustomerIssueStatisticsCalculator.FactFlags> IS_RESPONSE_DELAYED =
@@ -105,7 +115,10 @@ final class CustomerIssueStatisticMetricCatalog {
           new MetricSpec("defect_fixed", "已修复", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_FIXED, null),
           new MetricSpec("defect_unfixed", "未修复", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_FIXED.negate(), null),
           new MetricSpec("defect_applied_delay", "申请延期", MetricType.COUNT, BaseSet.D, Population.COUNTED, HAS_APPLIED_DELAY, null),
+          new MetricSpec("defect_data_exception", "数据异常", MetricType.COUNT, BaseSet.D, Population.COUNTED, HAS_DATA_EXCEPTION, null),
+          new MetricSpec("defect_not_reproduced", "未复现", MetricType.COUNT, BaseSet.D, Population.COUNTED, HAS_NOT_REPRODUCED, null),
           new MetricSpec("defect_fix_rate", "整体修复率", MetricType.RATIO, BaseSet.D, Population.NUMERATOR, ALWAYS, IS_FIXED),
+          new MetricSpec("defect_calibrated_fix_rate", "校准后修复率", MetricType.RATIO, BaseSet.D, Population.NUMERATOR, IN_CALIBRATION_POPULATION, IS_FIXED),
           new MetricSpec("defect_delay_ratio", "延期缺陷占比", MetricType.RATIO, BaseSet.D, Population.NUMERATOR, ALWAYS, HAS_DELAY_ISSUE),
           new MetricSpec("level1_back", "一级-回退", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL1_BACK, null),
           new MetricSpec("level1_hang", "一级-挂机", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL1_HANG, null),
@@ -114,33 +127,51 @@ final class CustomerIssueStatisticMetricCatalog {
           new MetricSpec("level1_fixed", "已修复", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL1.and(IS_FIXED), null),
           new MetricSpec("level1_unfixed", "未修复", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL1.and(IS_FIXED.negate()), null),
           new MetricSpec("level1_applied_delay", "申请延期", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL1.and(HAS_APPLIED_DELAY), null),
+          new MetricSpec("level1_data_exception", "数据异常", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL1.and(HAS_DATA_EXCEPTION), null),
+          new MetricSpec("level1_not_reproduced", "未复现", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL1.and(HAS_NOT_REPRODUCED), null),
           new MetricSpec("level1_fix_rate", "缺陷修复率", MetricType.RATIO, BaseSet.D, Population.NUMERATOR, IS_LEVEL1, IS_FIXED),
+          new MetricSpec("level1_calibrated_fix_rate", "校准后修复率", MetricType.RATIO, BaseSet.D, Population.NUMERATOR, IS_LEVEL1.and(IN_CALIBRATION_POPULATION), IS_FIXED),
           new MetricSpec("level2_total", "缺陷数", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL2, null),
           new MetricSpec("level2_fixed", "已修复", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL2.and(IS_FIXED), null),
           new MetricSpec("level2_unfixed", "未修复", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL2.and(IS_FIXED.negate()), null),
           new MetricSpec("level2_applied_delay", "申请延期", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL2.and(HAS_APPLIED_DELAY), null),
+          new MetricSpec("level2_data_exception", "数据异常", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL2.and(HAS_DATA_EXCEPTION), null),
+          new MetricSpec("level2_not_reproduced", "未复现", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL2.and(HAS_NOT_REPRODUCED), null),
           new MetricSpec("level2_fix_rate", "缺陷修复率", MetricType.RATIO, BaseSet.D, Population.NUMERATOR, IS_LEVEL2, IS_FIXED),
+          new MetricSpec("level2_calibrated_fix_rate", "校准后修复率", MetricType.RATIO, BaseSet.D, Population.NUMERATOR, IS_LEVEL2.and(IN_CALIBRATION_POPULATION), IS_FIXED),
           new MetricSpec("level3_total", "缺陷数", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL3, null),
           new MetricSpec("level3_fixed", "已修复", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL3.and(IS_FIXED), null),
           new MetricSpec("level3_unfixed", "未修复", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL3.and(IS_FIXED.negate()), null),
           new MetricSpec("level3_applied_delay", "申请延期", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL3.and(HAS_APPLIED_DELAY), null),
+          new MetricSpec("level3_data_exception", "数据异常", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL3.and(HAS_DATA_EXCEPTION), null),
+          new MetricSpec("level3_not_reproduced", "未复现", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_LEVEL3.and(HAS_NOT_REPRODUCED), null),
           new MetricSpec("level3_fix_rate", "缺陷修复率", MetricType.RATIO, BaseSet.D, Population.NUMERATOR, IS_LEVEL3, IS_FIXED),
+          new MetricSpec("level3_calibrated_fix_rate", "校准后修复率", MetricType.RATIO, BaseSet.D, Population.NUMERATOR, IS_LEVEL3.and(IN_CALIBRATION_POPULATION), IS_FIXED),
           new MetricSpec("suggestion_total", "建议类缺陷数", MetricType.COUNT, BaseSet.S, Population.COUNTED, ALWAYS, null),
           new MetricSpec("p1_total", "缺陷数", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P1, null),
           new MetricSpec("p1_fixed", "已修复", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P1.and(IS_PRIORITY_FIXED), null),
           new MetricSpec("p1_unfixed", "未修复", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P1.and(IS_PRIORITY_FIXED.negate()), null),
           new MetricSpec("p1_applied_delay", "申请延期", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P1.and(HAS_APPLIED_DELAY), null),
+          new MetricSpec("p1_data_exception", "数据异常", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P1.and(HAS_DATA_EXCEPTION), null),
+          new MetricSpec("p1_not_reproduced", "未复现", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P1.and(HAS_NOT_REPRODUCED), null),
           new MetricSpec("p1_fix_rate", "缺陷修复率", MetricType.RATIO, BaseSet.D, Population.NUMERATOR, IS_P1, IS_PRIORITY_FIXED),
+          new MetricSpec("p1_calibrated_fix_rate", "校准后修复率", MetricType.RATIO, BaseSet.D, Population.NUMERATOR, IS_P1.and(IN_CALIBRATION_POPULATION), IS_PRIORITY_FIXED),
           new MetricSpec("p2_total", "缺陷数", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P2, null),
           new MetricSpec("p2_fixed", "已修复", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P2.and(IS_PRIORITY_FIXED), null),
           new MetricSpec("p2_unfixed", "未修复", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P2.and(IS_PRIORITY_FIXED.negate()), null),
           new MetricSpec("p2_applied_delay", "申请延期", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P2.and(HAS_APPLIED_DELAY), null),
+          new MetricSpec("p2_data_exception", "数据异常", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P2.and(HAS_DATA_EXCEPTION), null),
+          new MetricSpec("p2_not_reproduced", "未复现", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P2.and(HAS_NOT_REPRODUCED), null),
           new MetricSpec("p2_fix_rate", "缺陷修复率", MetricType.RATIO, BaseSet.D, Population.NUMERATOR, IS_P2, IS_PRIORITY_FIXED),
+          new MetricSpec("p2_calibrated_fix_rate", "校准后修复率", MetricType.RATIO, BaseSet.D, Population.NUMERATOR, IS_P2.and(IN_CALIBRATION_POPULATION), IS_PRIORITY_FIXED),
           new MetricSpec("p3_total", "缺陷数", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P3, null),
           new MetricSpec("p3_fixed", "已修复", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P3.and(IS_PRIORITY_FIXED), null),
           new MetricSpec("p3_unfixed", "未修复", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P3.and(IS_PRIORITY_FIXED.negate()), null),
           new MetricSpec("p3_applied_delay", "申请延期", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P3.and(HAS_APPLIED_DELAY), null),
+          new MetricSpec("p3_data_exception", "数据异常", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P3.and(HAS_DATA_EXCEPTION), null),
+          new MetricSpec("p3_not_reproduced", "未复现", MetricType.COUNT, BaseSet.D, Population.COUNTED, IS_P3.and(HAS_NOT_REPRODUCED), null),
           new MetricSpec("p3_fix_rate", "缺陷修复率", MetricType.RATIO, BaseSet.D, Population.NUMERATOR, IS_P3, IS_PRIORITY_FIXED),
+          new MetricSpec("p3_calibrated_fix_rate", "校准后修复率", MetricType.RATIO, BaseSet.D, Population.NUMERATOR, IS_P3.and(IN_CALIBRATION_POPULATION), IS_PRIORITY_FIXED),
           new MetricSpec("resp_delay_p1", "P1", MetricType.COUNT, BaseSet.L, Population.COUNTED, IS_RESPONSE_DELAYED.and(IS_P1), null),
           new MetricSpec("resp_delay_p2", "P2", MetricType.COUNT, BaseSet.L, Population.COUNTED, IS_RESPONSE_DELAYED.and(IS_P2), null),
           new MetricSpec("resp_delay_p3", "P3", MetricType.COUNT, BaseSet.L, Population.COUNTED, IS_RESPONSE_DELAYED.and(IS_P3), null),
@@ -158,6 +189,11 @@ final class CustomerIssueStatisticMetricCatalog {
   static final String DELAY_RATIO_TOOLTIP =
       "延期缺陷占比 = 缺陷数中 delay_issue 命中的议题数 ÷ 缺陷数，不是申请延期状态数 ÷ 缺陷数。";
   static final String RATIO_TOOLTIP = "零分母不可计算时显示“/”，排序置底，与真实 0% 区分。";
+  static final String STATUS_COUNT_TOOLTIP =
+      "按测试状态成员精确命中，可与已修复、未修复、申请延期等同时计数；状态计数不互斥，各项相加不等于缺陷总数。";
+  static final String CALIBRATED_RATIO_TOOLTIP =
+      "校准后修复率：分子与分母同时去掉“数据异常”和“未复现”（两类取并集，重叠议题只剔除一次）；"
+          + "申请延期不额外剔除，整体沿既有整体判据、优先级沿既有优先级判据，零分母不可计算。";
   static final String EFFICIENCY_TOOLTIP =
       "有效样本为 0 时显示 0 并同时展示有效样本数 0；跨客户总计按去重原始样本计算，不平均客户均值。";
   static final String DELAY_TOOLTIP =

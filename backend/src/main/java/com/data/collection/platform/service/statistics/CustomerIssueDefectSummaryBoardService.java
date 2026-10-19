@@ -47,7 +47,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -122,6 +121,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   private final StatisticBoardSnapshotService snapshotService;
   private final StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
   private final IssueFactRecordRepository issueFactRecordRepository;
+
 
   public CustomerIssueDefectSummaryBoardService(
       JsonUtils jsonUtils,
@@ -596,26 +596,22 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   }
 
   private CustomerIssueSummaryQuickFilterOptions loadQuickFilterOptions() {
-    try {
-      IssueFactRecordRepository.CustomerIssueFilterValues values =
-          issueFactRecordRepository.findCustomerIssueRecordFilterValues(
-              true,
-              false,
-              true,
-              false,
-              null);
-      return new CustomerIssueSummaryQuickFilterOptions(
-          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.moduleNames())),
-          toStatisticOptions(
-              OptionItemResponseFactory.fromIssueStatusMembersPreservingOrder(
-                  values.bugStatuses())),
-          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.categories())),
-          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.authorNames())),
-          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.assigneeNames())));
-    } catch (Exception error) {
-      log.debug("Failed to load quick filter options for {}", BOARD_KEY, error);
-      return CustomerIssueSummaryQuickFilterOptions.empty();
-    }
+    IssueFactRecordRepository.CustomerIssueFilterValues values =
+        issueFactRecordRepository.findCustomerIssueRecordFilterValues(
+            true,
+            false,
+            true,
+            false,
+            null);
+    return new CustomerIssueSummaryQuickFilterOptions(
+        toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.moduleNames())),
+        toStatisticOptions(
+            OptionItemResponseFactory.fromIssueStatusMembersPreservingOrder(
+                values.bugStatuses())),
+        toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.categories())),
+        toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.authorNames())),
+        toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.assigneeNames())));
+
   }
 
   private List<StatisticFilterOption> toStatisticOptions(List<OptionItemResponse> options) {
@@ -660,35 +656,25 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     CustomerIssueSqlScopeSupport.SqlScope scope =
         CustomerIssueSqlScopeSupport.boardScope(
             withoutReservedFilters(filters), filterGroup, milestoneCatalogService);
-    try {
-      return issueFactQueryService.query(
-          FACT_SQL,
-          scope.filters(),
-          scope.predicate(),
-          scope.args(),
-          this::mapIssueFact);
-    } catch (DataAccessException e) {
-      log.warn("Failed to load issue facts", e);
-      return List.of();
-    }
+    return issueFactQueryService.query(
+        FACT_SQL,
+        scope.filters(),
+        scope.predicate(),
+        scope.args(),
+        this::mapIssueFact);
   }
 
   private List<String> loadLegacyModuleCatalog(StatisticFilterGroup filterGroup) {
-    try {
-      Set<String> modules = new LinkedHashSet<>();
-      issueFactQueryService
-          .query(
-              MODULE_CATALOG_SQL,
-              List.of(LEGACY_CC_PRODUCT_PROJECT_ID),
-              (rs, rowNum) -> splitLegacyModuleNames(rs.getString("module_names")))
-          .forEach(values -> values.stream()
-              .filter(moduleName -> StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, filterGroup))
-              .forEach(modules::add));
-      return List.copyOf(modules);
-    } catch (DataAccessException e) {
-      log.warn("Failed to load customer issue module catalog", e);
-      return List.of();
-    }
+    Set<String> modules = new LinkedHashSet<>();
+    issueFactQueryService
+        .query(
+            MODULE_CATALOG_SQL,
+            List.of(LEGACY_CC_PRODUCT_PROJECT_ID),
+            (rs, rowNum) -> splitLegacyModuleNames(rs.getString("module_names")))
+        .forEach(values -> values.stream()
+            .filter(moduleName -> StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, filterGroup))
+            .forEach(modules::add));
+    return List.copyOf(modules);
   }
 
   private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {

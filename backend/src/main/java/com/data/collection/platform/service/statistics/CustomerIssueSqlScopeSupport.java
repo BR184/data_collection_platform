@@ -68,6 +68,17 @@ final class CustomerIssueSqlScopeSupport {
             null)));
   }
 
+  /**
+   * 把一段附加谓词接到已收口的范围之后。
+   *
+   * <p>附加谓词整体加括号：条件表达式的 OR 分支若裸接在 {@code and} 后面，会被 SQL 的
+   * {@code and}/{@code or} 优先级拆出范围（项目、里程碑、排除规则只约束左半边），统计结果随之越界。
+   *
+   * @param scope 已解析的公共范围
+   * @param predicate 附加谓词，内部允许出现顶层 OR
+   * @param args 与 {@code predicate} 中占位符同序的参数
+   * @return 追加后的范围；{@code predicate} 为空或 scope 为空时原样返回
+   */
   static SqlScope withExtraPredicate(
       SqlScope scope,
       String predicate,
@@ -81,7 +92,7 @@ final class CustomerIssueSqlScopeSupport {
     }
     return new SqlScope(
         scope.filters(),
-        scope.predicate() + " and " + predicate,
+        scope.predicate() + " and (" + predicate + ")",
         mergedArgs);
   }
 

@@ -85,7 +85,7 @@ class CustomerIssueDefectCauseBoardGoldenMasterTest {
         .readOrRefresh(any(), any());
     doAnswer(
             invocation -> {
-              RowMapper<Object> mapper = invocation.getArgument(4);
+              RowMapper<Object> mapper = invocation.getArgument(5);
               return List.of(
                   mapper.mapRow(row(2077, "工程图, 平台", "前置数据异常（如缺少模板文件、前置输入文件本身错误等）"), 0),
                   mapper.mapRow(row(2114, "工程图, 草图", "新增需求"), 1),
@@ -95,7 +95,7 @@ class CustomerIssueDefectCauseBoardGoldenMasterTest {
                   mapper.mapRow(row(3003, "平台", "前置数据异常"), 5));
             })
         .when(issueFactQueryService)
-        .query(anyString(), anyMap(), anyString(), anyList(), any(RowMapper.class));
+        .query(anyString(), anyMap(), anyString(), anyList(), anyString(), any(RowMapper.class));
   }
 
   @Test

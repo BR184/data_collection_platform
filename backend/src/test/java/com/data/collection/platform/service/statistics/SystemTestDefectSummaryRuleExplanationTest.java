@@ -11,6 +11,8 @@ import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
+import com.data.collection.platform.entity.statistics.StatisticFilterField;
+import com.data.collection.platform.entity.statistics.StatisticFilterOption;
 import com.data.collection.platform.service.IssueFactRecord;
 import com.data.collection.platform.service.IssueFactRecordRepository;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
@@ -22,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -47,7 +50,7 @@ class SystemTestDefectSummaryRuleExplanationTest {
     StatisticBoardRuleExplanationResponse response = service.getRuleExplanation(Map.of());
 
     assertThat(response.supported()).isTrue();
-    assertThat(response.version()).isEqualTo("system-test-defect-summary@2026-09-10-v14");
+    assertThat(response.version()).isEqualTo("system-test-defect-summary@2026-10-14-v15");
     assertThat(response.flowSteps()).extracting("key")
         .containsExactly("source-load", "scope-filter", "exclude-invalid-issues", "apply-filter-group", "module-expand");
     assertThat(response.flowSteps()).allSatisfy(step -> {
@@ -58,6 +61,25 @@ class SystemTestDefectSummaryRuleExplanationTest {
     });
     assertThat(response.metricDefinitions()).extracting("key")
         .contains("level1", "priority-summary", "summary", "new-issue", "legacy");
+  }
+
+  @Test
+  void test_stateFilterOptions_labelsAreChineseAndValuesMatchOpenCloseEvaluator() {
+    when(phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID))
+        .thenReturn(List.of());
+    when(issueFactRecordRepository.findForFilterOptions(any())).thenReturn(List.of());
+
+    StatisticFilterField stateField = service().getDefinition().filters().stream()
+        .filter(field -> "state".equals(field.key()))
+        .findFirst()
+        .orElseThrow();
+
+    // 求值描述符按 open/closed 比对议题开闭，选项 value 必须与之同源；label 只承担中文展示。
+    assertThat(stateField.options())
+        .extracting(StatisticFilterOption::label, StatisticFilterOption::value)
+        .containsExactly(
+            Tuple.tuple("未关闭", "open"),
+            Tuple.tuple("已关闭", "closed"));
   }
 
   @Test

@@ -18,7 +18,6 @@ import com.data.collection.platform.service.CustomerIssueFactQueryService;
 import com.data.collection.platform.service.CustomerIssueFactQueryService.CustomerIssueFact;
 import com.data.collection.platform.service.IssueFactPersistenceService;
 import com.data.collection.platform.service.LabelEventHistoryTestSupport;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;

@@ -67,7 +67,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private static final String BOARD_KEY = "system-test-defect-summary";
   private static final String MODULE_FIELD = "moduleName";
   // 2026-09-10 v14：无数据比率单元格的 numericValue 由 0 改为 null，同时作废旧快照，避免修复后仍命中旧排序键。
-  private static final String RULE_VERSION = "system-test-defect-summary@2026-09-10-v14";
+  private static final String RULE_VERSION = "system-test-defect-summary@2026-10-14-v15";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -82,6 +82,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private final StatisticBoardSnapshotService snapshotService;
   private final StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
   private final IssueFactRecordRepository issueFactRecordRepository;
+
 
   public SystemTestDefectSummaryBoardService(
       JsonUtils jsonUtils,
@@ -148,8 +149,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
                 "状态",
                 140,
                 List.of(
-                    new StatisticFilterOption("open", "未关闭"),
-                    new StatisticFilterOption("closed", "已关闭"))),
+                    new StatisticFilterOption("未关闭", "open"),
+                    new StatisticFilterOption("已关闭", "closed"))),
             StatisticFilterFieldFactory.datetime("createdAt", "议题提交时间", 180),
             StatisticFilterFieldFactory.datetime("updatedAt", "更新时间", 180),
             StatisticFilterFieldFactory.textLabelGroup("labels", "标签", 220)),
@@ -687,12 +688,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   }
 
   private List<String> loadEnabledPhaseParents() {
-    try {
-      return phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID);
-    } catch (Exception e) {
-      log.debug("Failed to load enabled phase parents for {}", BOARD_KEY, e);
-      return List.of();
-    }
+    return phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID);
+
   }
 
   private boolean hasTestingPhaseCondition(StatisticFilterGroup filterGroup) {
@@ -720,16 +717,12 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
     queryFilters.put("projectId", String.valueOf(effectiveProjectId(queryFilters)));
     alignTestingPhaseSqlFilter(queryFilters, effectiveFilterGroup.userGroup());
-    try {
-      return runtimeSupport
-          .loadFacts(queryFilters, null)
-          .stream()
-          .map(this::toIssueSource)
-          .toList();
-    } catch (Exception e) {
-      log.warn("Failed to load issue facts", e);
-      return List.of();
-    }
+    return runtimeSupport
+        .loadFacts(queryFilters, null)
+        .stream()
+        .map(this::toIssueSource)
+        .toList();
+
   }
 
   private long effectiveProjectId(Map<String, String> filters) {
@@ -755,62 +748,54 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   }
 
   private List<StatisticFilterOption> loadPhaseOptions() {
-    try {
-      return phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID).stream()
-          .map(value -> new StatisticFilterOption(value, value))
-          .toList();
-    } catch (Exception e) {
-      log.debug("Failed to load phase options for {}", BOARD_KEY, e);
-      return List.of();
-    }
+    return phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID).stream()
+        .map(value -> new StatisticFilterOption(value, value))
+        .toList();
+
   }
 
   private SystemTestSummaryQuickFilterOptions loadQuickFilterOptions() {
-    try {
-      List<IssueFactRecord> records =
-          issueFactRecordRepository.findForFilterOptions(
-              new IssueFactRecordListRequest(
-                  SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  1,
-                  20,
-                  "updatedAt",
-                  "desc"));
-      return new SystemTestSummaryQuickFilterOptions(
-          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
-              records.stream().flatMap(record -> record.moduleNames().stream()).toList())),
-          toStatisticOptions(OptionItemResponseFactory.fromIssueStatusMembersPreservingOrder(
-              records.stream().map(IssueFactRecord::bugStatus).toList())),
-          toStatisticOptions(OptionItemResponseFactory.fromDelayCauseMembers(
-              records.stream()
-                  .flatMap(record -> SystemTestIssueMetricDimensionSupport.delayCauses(
-                      record.delayCause(), record.delayReason(), String.join(" ", record.labels())).stream())
-                  .toList())),
-          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
-              records.stream().map(IssueFactRecord::authorName).toList())),
-          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
-              records.stream().map(IssueFactRecord::assigneeName).toList())));
-    } catch (Exception error) {
-      log.debug("Failed to load quick filter options for {}", BOARD_KEY, error);
-      return SystemTestSummaryQuickFilterOptions.empty();
-    }
+    List<IssueFactRecord> records =
+        issueFactRecordRepository.findForFilterOptions(
+            new IssueFactRecordListRequest(
+                SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                20,
+                "updatedAt",
+                "desc"));
+    return new SystemTestSummaryQuickFilterOptions(
+        toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
+            records.stream().flatMap(record -> record.moduleNames().stream()).toList())),
+        toStatisticOptions(OptionItemResponseFactory.fromIssueStatusMembersPreservingOrder(
+            records.stream().map(IssueFactRecord::bugStatus).toList())),
+        toStatisticOptions(OptionItemResponseFactory.fromDelayCauseMembers(
+            records.stream()
+                .flatMap(record -> SystemTestIssueMetricDimensionSupport.delayCauses(
+                    record.delayCause(), record.delayReason(), String.join(" ", record.labels())).stream())
+                .toList())),
+        toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
+            records.stream().map(IssueFactRecord::authorName).toList())),
+        toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
+            records.stream().map(IssueFactRecord::assigneeName).toList())));
+
   }
 
   private List<StatisticFilterOption> toStatisticOptions(List<OptionItemResponse> options) {
@@ -911,8 +896,6 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       return resolved.isEmpty() ? List.of(key) : resolved;
     });
   }
-
-
 
   private boolean containsIgnoreCase(String candidate, String value) {
     return candidate != null && candidate.toLowerCase(Locale.ROOT).contains(value.toLowerCase(Locale.ROOT));
