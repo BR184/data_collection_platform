@@ -8,6 +8,10 @@ import type {
 import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlob } from './request';
 
 export const qualityBoardApi = {
+  /** 其它质量页的候选与图表共享本页身份及权限。 */
+  getQualityBoardOtherProjectOptions() {
+    return request<QualityBoardProjectOptionsResponse>('/api/quality-board/other/project-options');
+  },
   getQualityBoardRdProjectOptions() {
     return request<QualityBoardProjectOptionsResponse>('/api/quality-board/rd/project-options');
   },

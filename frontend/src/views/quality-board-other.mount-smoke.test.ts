@@ -49,7 +49,7 @@ describe('QualityBoardOtherView mount smoke', () => {
     authState.loading = false;
     authState.error = '';
     const fetchSpy = vi.fn((url: string) => {
-      if (url.includes('/api/quality-board/rd/project-options')) {
+      if (url.includes('/api/quality-board/other/project-options')) {
         return jsonResponse({
           defaultProjectName: 'CC2026R4',
           options: [{ label: 'CC2026R4', value: 'CC2026R4' }],

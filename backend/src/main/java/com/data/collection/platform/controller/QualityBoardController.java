@@ -82,6 +82,13 @@ public class QualityBoardController {
         workbook, workbookExportService.codeReviewRecordsFilename(projectName, codeReviewSource));
   }
 
+  /** 其它质量页候选使用该页自身的权限，不能借用研发质量页身份。 */
+  @GetMapping("/other/project-options")
+  @RequirePermission("quality.other.view")
+  public ApiResponse<QualityBoardProjectOptionsResponse> listOtherProjectOptions() {
+    return ApiResponse.success(qualityBoardRdService.listProjectOptions());
+  }
+
   @GetMapping("/other/overview")
   @RequirePermission("quality.other.view")
   public ApiResponse<QualityBoardOtherOverviewResponse> getOtherOverview(

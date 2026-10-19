@@ -104,7 +104,7 @@ async function loadProjectOptions() {
   if (projectOptions.value.length) {
     return;
   }
-  const response = await qualityBoardApi.getQualityBoardRdProjectOptions();
+  const response = await qualityBoardApi.getQualityBoardOtherProjectOptions();
   projectOptions.value = response.options;
   const defaultProjectName = response.defaultProjectName || response.options[0]?.value || '';
   functionCountProjectName.value = defaultProjectName;
