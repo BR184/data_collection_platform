@@ -573,6 +573,11 @@
 - [验证] 2026-09-10：本地隔离栈（project `qaflex-pkgtest-20001-20260910`，端口 20301/20302/15601，基线镜像 8/3）完成 backup→upgrade→rollback→backup→upgrade；两次 upgrade 均达目标镜像且健康（后端 `UP`、前端 200）、Flyway 到 `20260909.01`、`counts.diff` 空、PostgreSQL 容器 ID 全程 `cb4ac7fd…` 不变、database/critical dump 非空且可 `pg_restore --list`；rollback 恢复 8/3 基线镜像且健康、不重写数据库。
 - [限制] 本地验收经 Linux 工具容器（ubuntu+curl+docker+compose v2，`--network host`，挂载 docker socket 与隔离目录）执行包内脚本；真实内网 20001 现场升级、LDAP/GitLab 真实连通与 issue 事实重建终态未在本机验证，现场以包内 README-INCREMENTAL-DEPLOY.md 为准。
 
+- [验证] 2026-10-20：ODS timestamptz 镜像写入根因修复完成（提交 `eb9b2f8b`）：DIRECT 的 UTC 墙上值按来源物理类型在镜像写入前转为带显式偏移时刻文本，`source_updated_at` 对 timestamptz 固定 UTC 轴，DOCKER 增量游标统一解析，`closed_at_source` 显式 UTC 投影。新增真实双 PostgreSQL DIRECT/DOCKER 时区矩阵与幂等重放测试、`closed_at` 多会话时区回归；后端默认套件 1762/0/0/1（跳过项依赖真实 GitLab schema），前端全量 3×765 通过，重载挂载用例 3.0—3.6s（预算 15s）。
+- [验证] 2026-10-20：黄金基线收口。修复后干净严格比对 203 项仅 11 项已批准 A 类差异（数据异常计数、校准分母与修复率）；授权更新模式重建 11 份快照、从 HEAD 还原 239 份无关抖动并逐路径复核时间列无变化后，非 update 严格复跑 `Tests run: 203, Failures: 0, Errors: 0`。架构文档与 D-29 已更新。
+- [验证] 2026-10-20：696c 直接基线隔离演练通过：旧包真实全量造错（16612 标签事件整体 -8h、38 条负周期）→ 受控升级 → 全量补偿纠正（哈希等于来源、负周期 0、第二次补偿逐字节幂等）→ 真实调度自动增量新增/无变化 → 回滚期写入后被验证会再次错位、再升级补偿后不丢且纠正 → 取消全量补偿后重跑收敛 → `database.dump` 恢复新空库行数逐项一致 → 全新包空库首次全量即正确并完成自动增量。新包：更新包 `qaflex-update-20261020T025958Z-5eb92e542eff`、全新包 `qaflex-full-20261020T031801Z-3baeb871f774`；详细证据见候选线 `.tmp/ods-timefix-20261020/DRILL-REPORT.md` 与 `DELIVERY-REPORT.md`。
+- [限制] 2026-10-20：约 280 万行容量、内网真实 LDAP/GitLab 连通与 20001/20101 部署未授权执行，仍待目标环境窗口；两个旧包 ab36/25575 继续冻结。
+
 ## 有效历史
 
 - [历史/仍有效] 老平台是统计、字段、导出和模块展示口径的基准；新平台只改进架构和体验，不擅自改写业务结果。
