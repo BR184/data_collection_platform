@@ -579,7 +579,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertIn("PLATFORM_BACKGROUND_JOBS_ENABLED=false", content)
         self.assertIn("one-shot Flyway migration", content)
         self.assertIn("recreating backend with normal background scheduling", content)
-        self.assertIn("PLATFORM_BACKGROUND_JOBS_ENABLED=true compose up", content)
+        self.assertIn("export PLATFORM_BACKGROUND_JOBS_ENABLED=true", content)
         self.assertIn("normal background scheduling mode was not restored", content)
         self.assertLess(content.index("run --rm --no-deps -T"), content.index("counts-after-migration.txt"))
         self.assertNotIn("background scheduling disabled mode was not applied", content)
@@ -617,6 +617,28 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         ):
             with self.subTest(script=name):
                 self.assertIn('sh "$sql" </dev/null', content)
+
+    def test_rollback_pauses_sync_with_existing_switches_without_new_database_objects(self):
+        context = self.build_context()
+        rollback = MODULE.rollback_helper(context)
+
+        # The rollback protection uses the existing sync switches and scheduling flag.
+        # No temporary table, function, trigger or packaged sync-hold script may be added.
+        self.assertNotIn("platform_sync_hold", rollback)
+        self.assertNotIn("sync-hold.sh", rollback)
+        self.assertNotIn("sync-hold", rollback)
+        self.assertIn('source_enabled or auto_sync_enabled', rollback)
+        self.assertIn('one or more sync configs are still enabled', rollback)
+        self.assertIn('active sync runs remain', rollback)
+        self.assertIn('active fact build tasks remain', rollback)
+        self.assertIn('PLATFORM_BACKGROUND_JOBS_ENABLED', rollback)
+        self.assertIn('export PLATFORM_BACKGROUND_JOBS_ENABLED=false', rollback)
+        self.assertIn('[[ "$backend_flag" == "PLATFORM_BACKGROUND_JOBS_ENABLED=false" ]]', rollback)
+        self.assertIn('baseline backend did not start with PLATFORM_BACKGROUND_JOBS_ENABLED=false', rollback)
+        self.assertIn('old backend started with background scheduling disabled', rollback)
+        self.assertIn('sync run baseline recorded', rollback)
+        self.assertIn('no new sync run was created after rollback', rollback)
+        self.assertIn('closing the maintenance window: stopping current backend/frontend', rollback)
 
     def test_rollback_allows_an_advanced_schema(self):
         context = self.build_context()
@@ -697,7 +719,20 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertIn("PLATFORM_BACKGROUND_JOBS_ENABLED=true", content)
         self.assertIn("select version from flyway_schema_history", content)
         self.assertIn("打包基线交付物（用于识别现场升级前镜像，不是现场部署目录）", content)
-        self.assertIn("## 6. 事实层重建", content)
+        self.assertIn("## 6. 历史 ODS 时刻纠正、事实层重建与完成判据", content)
+        self.assertIn("全量补偿对账", content)
+        self.assertNotIn("全量补偿同步", content)
+        self.assertIn("应用回滚，不是业务/数据完整回滚", content)
+        self.assertIn("正常升级并继续运行修复版本不需要本节流程", content)
+        self.assertIn("维护窗口", content)
+        self.assertIn("source_enabled = false", content)
+        self.assertIn("auto_sync_enabled = false", content)
+        self.assertIn("PLATFORM_BACKGROUND_JOBS_ENABLED=false", content)
+        self.assertIn("rollback.sh", content)
+        self.assertIn("完整源/ODS 时刻核对", content)
+        self.assertIn("mirror_deleted = true", content)
+        self.assertNotIn("sync-hold.sh", content)
+        self.assertNotIn("platform_sync_hold", content)
         self.assertNotIn(f"cd {context.baseline_name}", content)
 
     def test_incremental_readme_does_not_claim_application_outputs_are_unchanged(self):

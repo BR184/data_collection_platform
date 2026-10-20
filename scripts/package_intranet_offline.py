@@ -1062,16 +1062,128 @@ sudo docker compose --env-file .env config
 def incremental_readme(ctx: BuildContext) -> str:
     if ctx.require_fact_rebuild:
         fact_section = f"""\
-## 6. 历史 ODS 时刻纠正与事实层重建
+## 6. 历史 ODS 时刻纠正、事实层重建与完成判据
 
-本更新包标记为需要事实层重建，并且包含 ODS 时刻写入修复。升级前由旧版本同步的 GitLab `timestamp with time zone` 镜像列可能整体偏移（典型为 -8 小时），必须在升级后执行一次全量补偿，不能只重建事实层，也不能用普通全量同步替代。
+本更新包标记为需要事实层重建，并且包含 ODS 时刻写入修复。升级前由旧版本同步的 GitLab `timestamp with time zone` 镜像列可能整体偏移（典型为 -8 小时），必须在升级后执行一次“全量补偿对账”，不能只重建事实层，也不能用普通全量同步替代。
+
+全量补偿对账的正常副作用：扫描阶段按主键重读全部白名单来源行并强制覆盖 ODS；随后的删除对账阶段会把“来源已不存在”的活跃镜像行标记为 `mirror_deleted = true`（tombstone，不物理删除）。这是既有删除契约，不是清库；但要求 GitLab 来源连接指向完整、权威的当前来源库，不能是缺表、缺行或部分复制的来源。来源不完整时，对账可能把仍然存在的行误判为已删除；不要通过关闭对账、修改删除契约或手工删除 tombstone 绕过。
 
 执行顺序：
 
-1. 确认当前没有运行中的镜像同步或事实任务，且 `sync_runs`、`fact_build_tasks` 无 `QUEUED/RUNNING`。
-2. 使用具备数据同步权限的 LDAP 账号登录平台，在“系统设置/数据镜像设置”中对目标数据源触发一次“全量补偿同步”。该操作按主键重新读取全部白名单来源行并强制覆盖 ODS，不清库、不重置水位、不截断表；完成后自动触发全量事实刷新。
-3. 等待全量补偿运行成功，并等待其自动全量事实刷新完成。完成标志：同步状态不再显示运行中，`sync_runs` 最近一条 `FULL_COMPENSATION_SCAN` 为 `SUCCESS`，`fact_build_tasks` 无待处理/运行中任务，事实发布版本已追平（`fact_change_heads.published_version >= latest_change_version`）。浏览器中客户问题页的解决周期不得出现负值。
-4. 只有在全量补偿成功且自动事实刷新完成后，才进行页面验收。`{ctx.fact_rebuild_scope}` 范围的手动事实层重建仅作为自动刷新失败后的恢复手段，不要与补偿并行执行。
+1. 排除仍活跃的旧任务：确认 `sync_runs` 没有 `SUBMITTED/QUEUED/RUNNING/RETRYING/PAUSED/CANCELLING`，且 `fact_build_tasks` 没有 `QUEUED/RUNNING/RETRY_WAITING`。若从回滚恢复，先按第 7 节返回修复版本并保持自动同步关闭，不要把旧版本遗留任务与本次纠正并行。
+2. 使用具备数据同步权限的 LDAP 账号登录，在“系统设置/数据镜像设置”中对目标数据源点击“全量补偿对账”。确认来源指向完整权威库；补偿期间不要再触发普通全量同步、自动增量、手动全量事实重建或第二次补偿。
+3. 等待补偿运行和它自动提交的事实刷新显式成功。完成判据必须同时满足：
+   - 最近一条 `FULL_COMPENSATION_SCAN` 为 `SUCCESS`，且其结束后为同一配置提交的 `FACT_REFRESH` 运行为 `SUCCESS`；该事实运行关联的 `fact_build_tasks` 全部为 `SUCCESS`，没有 `QUEUED/RUNNING/RETRY_WAITING/FAILED`；
+   - `source_fact_publication_states` 中本来源没有 `full_publication_requested` 或非 `READY` 的待发布状态；本次补偿的 `source_fact_dependency_states` 没有非 `READY` 依赖；
+   - `fact_change_heads` 中本来源 `published_version >= latest_change_version`；
+   - 完整源/ODS 时刻核对完成：在 GitLab 来源库和目标 ODS 分别按主键对全部白名单表的 timestamptz 列做同一规范化哈希（或等价逐行核对），来源与 ODS 活跃行一致；来源已删除的行在 ODS 应为 tombstone 且不计入活跃比对；
+   - ODS 内部不变量：所有启用表的 timestamptz `updated_at` 必须等于 `source_updated_at at time zone 'UTC'`；
+   - `sync_runs`、`fact_build_tasks` 无活动任务，页面客户问题解决周期无负值（页面无负值只是补充信号，不能单独作为完成依据）。
+4. 只有上述判据全部满足后，才进行页面/Excel 验收。`{ctx.fact_rebuild_scope}` 范围的手动事实层重建只是自动事实刷新失败后的恢复手段；执行前必须再次确认没有活动任务，且不得与补偿或自动刷新并行。
+
+可直接执行的检查（在目标平台库）：
+
+```sql
+-- 最近补偿与它之后提交的事实刷新
+with comp as (
+  select id, config_id, source_instance, finished_at
+    from sync_runs
+   where run_type = 'FULL_COMPENSATION_SCAN'
+   order by id desc limit 1
+)
+select comp.id as compensation_id, comp.finished_at,
+       fact.id as fact_run_id, fact.status as fact_status
+  from comp
+  left join sync_runs fact
+    on fact.run_type = 'FACT_REFRESH'
+   and fact.config_id = comp.config_id
+   and fact.id > comp.id
+ order by fact.id;
+
+-- 关联事实构建任务（要求全部 SUCCESS）
+select task.run_id, task.status, count(*)
+  from fact_build_tasks task
+ where task.run_id in (
+   select id::text
+     from sync_runs
+    where run_type = 'FACT_REFRESH'
+      and config_id = (select config_id from sync_runs where run_type = 'FULL_COMPENSATION_SCAN' order by id desc limit 1)
+      and id > (select id from sync_runs where run_type = 'FULL_COMPENSATION_SCAN' order by id desc limit 1)
+ )
+ group by task.run_id, task.status
+ order by task.run_id, task.status;
+
+-- 未发布事实头与待发布状态，两个计数都必须为 0
+select count(*) as unpublished_heads
+  from fact_change_heads
+ where source_instance = (select source_instance from sync_runs where run_type = 'FULL_COMPENSATION_SCAN' order by id desc limit 1)
+   and published_version < latest_change_version;
+select count(*) as pending_publication
+  from source_fact_publication_states
+ where source_instance = (select source_instance from sync_runs where run_type = 'FULL_COMPENSATION_SCAN' order by id desc limit 1)
+   and (full_publication_requested or readiness_status <> 'READY');
+
+-- ODS 时刻不变量：timestamptz updated_at 必须等于 source_updated_at 的 UTC 投影
+do $$
+declare item record; mismatched bigint;
+begin
+  for item in
+    select state.mirror_table, state.updated_at_column
+      from sync_run_table_states state
+      join information_schema.columns column_info
+        on column_info.table_schema = current_schema()
+       and column_info.table_name = state.mirror_table
+       and column_info.column_name = state.updated_at_column
+       and column_info.data_type = 'timestamp with time zone'
+     where state.sync_enabled
+       and state.updated_at_column is not null
+       and state.updated_at_column <> ''
+  loop
+    execute format(
+      'select count(*) from %I where mirror_deleted = false and source_updated_at is not null and %I <> (source_updated_at at time zone ''UTC'')',
+      item.mirror_table, item.updated_at_column) into mismatched;
+    if mismatched > 0 then
+      raise exception 'ODS time invariant failed: %.% rows=%', item.mirror_table, item.updated_at_column, mismatched;
+    end if;
+  end loop;
+end $$;
+```
+
+完整源/ODS 时刻核对示例（每个白名单表/列重复；哈希必须一致）：
+
+```sql
+-- 在 GitLab 来源库执行
+select md5(string_agg(row_to_json(t)::text, '|' order by t.id))
+  from (
+    select id,
+           extract(epoch from updated_at) as updated_at_epoch,
+           extract(epoch from created_at) as created_at_epoch,
+           extract(epoch from closed_at) as closed_at_epoch
+      from public.issues
+  ) t;
+
+-- 在平台 ODS 库执行（活跃行；来源已删除的 tombstone 不参与）
+select md5(string_agg(row_to_json(t)::text, '|' order by t.id))
+  from (
+    select id,
+           extract(epoch from updated_at) as updated_at_epoch,
+           extract(epoch from created_at) as created_at_epoch,
+           extract(epoch from closed_at) as closed_at_epoch
+      from public.ods_gitlab_issues
+     where mirror_deleted = false
+  ) t;
+```
+
+列出需要核对的 ODS timestamptz 列：
+
+```sql
+select table_name, column_name
+  from information_schema.columns
+ where table_schema = 'public'
+   and table_name like 'ods_gitlab_%'
+   and data_type = 'timestamp with time zone'
+ order by table_name, column_name;
+```
 
 失败边界：补偿中断时，已重读的行已按来源纠正，未处理行保持旧值；重新执行全量补偿会继续收敛，重复执行不产生额外数据漂移。补偿运行失败或未完成前，不得宣称历史数据已纠正，也不得用 `UPDATE` 加减小时、clamp 负值或删除样本绕过。普通全量同步不会强制覆盖未变化行，不能替代本步骤。
 """
@@ -1337,25 +1449,98 @@ sudo docker compose --env-file .env exec -T postgres sh -c 'psql -U "$POSTGRES_U
 
 {fact_section}
 
-## 7. 仅在升级失败时回滚应用
+## 7. 升级失败或必须回滚：应用回滚与数据恢复边界
 
-应用回滚命令会原子恢复升级前完整 `docker-compose.yml` 并重新创建旧后端/前端容器；现场 `.env` 在升级和回滚中均不修改。它不会自动执行 `pg_restore`，避免误覆盖现场数据：
+### 7.1 先判断回滚发生在 ODS 纠正的哪个阶段
 
-先读取上一步保存的备份目录，并检查其中确实存在配置和数据库备份：
+- 纠正前：ODS 仍是旧写入器结果；应用回滚不撤销任何数据（也还没有纠正可撤销）。但旧版本继续运行仍会以旧写入语义写新事件，因此回滚前同样必须暂停同步。
+- 纠正中或之后：ODS 已部分/全部纠正，事实层可能已重建。应用回滚只恢复旧应用配置和镜像，不回退 ODS、事实、统计或 Flyway 迁移；旧版本公式读取已纠正的时刻，输出可能不同于升级前。它是应用回滚，不是业务/数据完整回滚，不能只凭页面看起来正常判定恢复正确。
+
+正常升级并继续运行修复版本不需要本节流程；只有回滚到旧应用时才需要。本节只使用平台已有的后台调度开关、同步配置开关、活跃任务处理和现场维护窗口，不新增数据库表、函数或触发器。
+
+### 7.2 回滚前：在旧应用启动前暂停同步
+
+1. 进入维护窗口：通知用户停止操作并关闭外部访问；恢复验证完成前不要重新开放。以下步骤只允许运维执行。
+2. 处理活跃任务。先在当前修复版本的同步页面等待或取消正在运行的同步、补偿和事实任务，然后在平台库确认两个计数都为 0：
+
+```sql
+select count(*) as active_sync_runs
+  from sync_runs
+ where status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','PAUSED','CANCELLING');
+select count(*) as active_fact_tasks
+  from fact_build_tasks
+ where status in ('QUEUED','RUNNING','RETRY_WAITING');
+```
+
+3. 关闭现有同步开关。在“系统设置/数据镜像设置”中关闭所有数据源的“数据源启用”和“自动同步”；也可在平台库执行：
+
+```sql
+update gitlab_sync_configs
+   set source_enabled = false,
+       auto_sync_enabled = false,
+       updated_at = current_timestamp;
+select count(*) as enabled_configs
+  from gitlab_sync_configs
+ where source_enabled or auto_sync_enabled;
+```
+
+确认 `enabled_configs = 0`。
+
+4. 执行应用回滚：
 
 ```bash
 BACKUP_DIR="$(cat upgrade-backups/latest-backup.txt)"
-echo "$BACKUP_DIR"
-ls -lh "$BACKUP_DIR"
-```
-
-确认路径无误后执行应用回滚：
-
-```bash
 bash ../{ctx.package_name}/rollback.sh "$PWD" "$BACKUP_DIR"
 ```
 
-Flyway 迁移是前向迁移。只有应用回滚仍不能恢复服务时，才在停机并确认备份无误后，将 `database.dump` 恢复到隔离数据库或经审批重建的平台库。
+`rollback.sh` 在替换 Compose 前会停止 backend/frontend，再次确认没有活动任务且所有同步开关为关闭，然后用 `PLATFORM_BACKGROUND_JOBS_ENABLED=false` 启动旧 backend；它不修改 `.env`。
+
+5. 验证旧应用处于暂停态：
+
+```bash
+sudo docker inspect "$(sudo docker compose --env-file .env ps -q backend)" --format '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}' | grep '^PLATFORM_BACKGROUND_JOBS_ENABLED=false$'
+sudo docker compose --env-file .env exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select count(*) from gitlab_sync_configs where source_enabled or auto_sync_enabled;"'
+sudo docker compose --env-file .env exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select count(*) from sync_runs where status in (''SUBMITTED'',''QUEUED'',''RUNNING'',''RETRYING'',''PAUSED'',''CANCELLING'');"'
+```
+
+三条检查必须分别输出 `PLATFORM_BACKGROUND_JOBS_ENABLED=false`、`0`、`0`。
+
+6. 维护窗口保持关闭。旧应用页面仍可能显示同步按钮；不要点击，也不要直接调用同步、全量补偿或事实重建 API。暂停保护来自上述既有开关、活动任务清空和维护窗口，本包没有数据库级守卫；若绕过这些控制使用旧应用写入，会按旧语义重新写错时刻。
+
+### 7.3 回滚期数据与再次升级后的恢复顺序
+
+应用回滚不会删除回滚期新增数据，也不会撤销已纠正数据。若旧应用在回滚期写入了错误时刻（例如暂停前已经运行，或维护窗口内被手工触发），必须按下面的顺序用修复版本重新读取权威来源纠正；整库 restore 是另一项需要单独审批的数据恢复，可能覆盖回滚期新增，不得作为应用回滚的默认步骤。
+
+1. 再次备份。旧应用保持暂停态时，用本包 `backup.sh "$PWD"` 生成回滚期备份，保留新增数据与证据。
+2. 再升级到修复版本。使用新备份目录执行 `upgrade.sh "$PWD" "$BACKUP_DIR"`。升级后新 backend 默认启用后台调度，但同步开关仍为关闭，不会自动同步。
+3. 只恢复来源访问，保持自动同步关闭：
+
+```sql
+update gitlab_sync_configs
+   set source_enabled = true,
+       updated_at = current_timestamp;
+select id, source_enabled, auto_sync_enabled from gitlab_sync_configs order by id;
+```
+
+确认 `source_enabled = true` 且 `auto_sync_enabled = false`。
+
+4. 使用具备数据同步权限的 LDAP 账号，在“系统设置/数据镜像设置”中点击“全量补偿对账”。它会完整重读权威来源，纠正 ODS（包括回滚期错误时刻），并触发事实刷新；不要用 restore 旧 dump 代替。
+5. 按第 6 节完成判据验收：本次补偿关联的 `FACT_REFRESH`/构建任务显式成功、无失败/待处理依赖、完整源/ODS 时刻核对、事实版本收敛、无活动任务。页面无负值不能单独作为完成依据。
+6. 验收全部通过后，通过现有开关恢复自动同步，观察一轮自动增量、事实刷新和页面/Excel，最后重新开放维护窗口：
+
+```sql
+update gitlab_sync_configs
+   set auto_sync_enabled = true,
+       updated_at = current_timestamp
+ where source_enabled;
+select id, source_enabled, auto_sync_enabled from gitlab_sync_configs order by id;
+```
+
+7. 若第 4 步失败或中断，不要恢复自动同步；按第 6 节失败边界重新执行全量补偿。整库恢复必须单独审批。
+
+### 7.4 手动全量事实重建的边界
+
+`all` 范围的手动事实重建只用于自动事实刷新失败后的恢复；执行前必须确认没有活动同步、补偿或事实任务，且不得与补偿或自动刷新并行。它不能替代 ODS 时刻纠正，也不能把页面无负值当作完成。
 """
 
 
@@ -1642,7 +1827,13 @@ diff -u "$BACKUP_DIR/counts-migration-start.txt" "$BACKUP_DIR/counts-after-migra
 [[ "$(compose ps -q postgres)" == "$POSTGRES_ID" ]] || fail "postgres container changed unexpectedly"
 
 log "recreating backend with normal background scheduling"
-PLATFORM_RUN_MODE=service PLATFORM_BACKGROUND_JOBS_ENABLED=true compose up -d --no-deps --force-recreate backend
+(
+  # `compose` is a shell function: a VAR=value prefix is not exported to its
+  # docker child process, so the flags must be exported by a subshell.
+  export PLATFORM_RUN_MODE=service
+  export PLATFORM_BACKGROUND_JOBS_ENABLED=true
+  compose up -d --no-deps --force-recreate backend
+)
 wait_healthy backend 900
 BACKEND_ID="$(compose ps -q backend)"
 [[ "$("${{DOCKER[@]}}" inspect -f '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}' "$BACKEND_ID" | grep '^PLATFORM_BACKGROUND_JOBS_ENABLED=' | tail -n 1)" == "PLATFORM_BACKGROUND_JOBS_ENABLED=true" ]] || fail "normal background scheduling mode was not restored"
@@ -1694,6 +1885,8 @@ read_backup_manifest "$BACKUP_DIR/backup-manifest.env"
 [[ "$BACKUP_MANIFEST_PACKAGE_NAME" == "$PACKAGE_NAME" ]] || fail "pre-deployment backup belongs to another release package"
 [[ "$BACKUP_MANIFEST_BACKEND" == "$EXPECTED_BACKEND" ]] || fail "pre-deployment backup backend baseline mismatch"
 [[ "$BACKUP_MANIFEST_FRONTEND" == "$EXPECTED_FRONTEND" ]] || fail "pre-deployment backup frontend baseline mismatch"
+grep -q 'PLATFORM_BACKGROUND_JOBS_ENABLED' "$BACKUP_DIR/docker-compose.yml" \
+  || fail "baseline Compose does not pass PLATFORM_BACKGROUND_JOBS_ENABLED; the old application cannot be started paused"
 cmp -s "$BACKUP_DIR/.env" .env || fail "live .env differs from the verified pre-deployment backup"
 [[ "$(<"$BACKUP_DIR/postgres.container-id")" == "$BACKUP_MANIFEST_POSTGRES_ID" ]] || fail "backup PostgreSQL container identity is inconsistent"
 
@@ -1711,6 +1904,24 @@ POSTGRES_ID="$(resolve_service_container postgres "$CURRENT_PROJECT")"
 [[ -n "$POSTGRES_ID" ]] || fail "no postgres container claims the current Compose project identity"
 verify_container_compose_identity "$POSTGRES_ID" postgres "$CURRENT_PROJECT"
 [[ "$("${{DOCKER[@]}}" inspect -f '{{{{.State.Health.Status}}}}' "$POSTGRES_ID")" == "healthy" ]] || fail "postgres is not healthy"
+
+assert_paused_prerequisites() {{
+  local enabled_configs active_runs active_fact_tasks
+  enabled_configs="$(db_query "select count(*) from gitlab_sync_configs where source_enabled or auto_sync_enabled;")" \
+    || fail "cannot verify sync configuration switches"
+  [[ "$enabled_configs" == "0" ]] \
+    || fail "one or more sync configs are still enabled (count=$enabled_configs); disable source and automatic sync, wait for active tasks, then rerun rollback"
+  active_runs="$(db_query "select coalesce(string_agg(id::text || ':' || run_type || ':' || status, ','), '') from sync_runs where status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','PAUSED','CANCELLING');")" \
+    || fail "cannot verify active sync runs"
+  [[ -z "$active_runs" ]] \
+    || fail "active sync runs remain ($active_runs); wait or cancel them in the current application before rollback"
+  active_fact_tasks="$(db_query "select coalesce(string_agg(id::text || ':' || status, ','), '') from fact_build_tasks where status in ('QUEUED','RUNNING','RETRY_WAITING');")" \
+    || fail "cannot verify active fact build tasks"
+  [[ -z "$active_fact_tasks" ]] \
+    || fail "active fact build tasks remain ($active_fact_tasks); wait or cancel them in the current application before rollback"
+}}
+
+assert_paused_prerequisites
 # A stopped or exited backend is the situation rollback exists for; only its verifiable
 # Compose identity and mounts are required, never that it is currently running.
 BACKEND_ID="$(resolve_service_container backend "$CURRENT_PROJECT")"
@@ -1767,21 +1978,48 @@ wait_healthy() {{
 }}
 
 start_application() {{
-  compose up -d --no-deps --force-recreate backend || return 1
+  (
+    export PLATFORM_BACKGROUND_JOBS_ENABLED=false
+    compose up -d --no-deps --force-recreate backend
+  ) || return 1
   wait_healthy backend 900 || return 1
+  local backend_flag
+  backend_flag="$("${{DOCKER[@]}}" inspect -f '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}' "$(compose ps -q backend)" | grep '^PLATFORM_BACKGROUND_JOBS_ENABLED=' | tail -n 1 || true)"
+  [[ "$backend_flag" == "PLATFORM_BACKGROUND_JOBS_ENABLED=false" ]] || {{ log "baseline backend did not start with PLATFORM_BACKGROUND_JOBS_ENABLED=false"; return 1; }}
   [[ "$(compose ps -q postgres)" == "$POSTGRES_ID" ]] || return 1
   compose up -d --no-deps --force-recreate frontend || return 1
   wait_healthy frontend 300 || return 1
   [[ "$(compose ps -q postgres)" == "$POSTGRES_ID" ]] || return 1
 }}
 
+verify_rollback_paused_state() {{
+  local enabled_configs active_runs active_fact_tasks new_runs
+  enabled_configs="$(db_query "select count(*) from gitlab_sync_configs where source_enabled or auto_sync_enabled;")" || return 1
+  [[ "$enabled_configs" == "0" ]] || {{ log "sync configs are still enabled after rollback"; return 1; }}
+  active_runs="$(db_query "select coalesce(string_agg(id::text || ':' || run_type || ':' || status, ','), '') from sync_runs where status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','PAUSED','CANCELLING');")" || return 1
+  [[ -z "$active_runs" ]] || {{ log "active sync runs appeared after rollback: $active_runs"; return 1; }}
+  active_fact_tasks="$(db_query "select coalesce(string_agg(id::text || ':' || status, ','), '') from fact_build_tasks where status in ('QUEUED','RUNNING','RETRY_WAITING');")" || return 1
+  [[ -z "$active_fact_tasks" ]] || {{ log "active fact build tasks appeared after rollback: $active_fact_tasks"; return 1; }}
+  new_runs="$(db_query "select count(*) from sync_runs where id > $MAX_RUN_ID_BEFORE;")" || return 1
+  [[ "$new_runs" == "0" ]] || {{ log "old application created $new_runs new sync run(s) during rollback"; return 1; }}
+  log "paused state verified: sync configs are off and no new sync run was created after rollback"
+}}
+
+log "closing the maintenance window: stopping current backend/frontend"
+compose stop backend frontend >/dev/null 2>&1 || true
+assert_paused_prerequisites
+MAX_RUN_ID_BEFORE="$(db_query "select coalesce(max(id), 0) from sync_runs;")" || fail "cannot record the sync run baseline"
+printf 'max_sync_run_id=%s\n' "$MAX_RUN_ID_BEFORE" > "$RECOVERY_DIR/sync-run-baseline.txt"
+log "sync run baseline recorded: max_sync_run_id=$MAX_RUN_ID_BEFORE"
+
 mv -f "$TEMP_COMPOSE" "$TARGET_DIR/docker-compose.yml" || fail "cannot atomically install rollback Compose configuration"
 trap - EXIT
 printf '%s\n' "ROLLBACK_CONFIG_INSTALLED" > "$RECOVERY_DIR/state.txt"
-if start_application; then
+if start_application && verify_rollback_paused_state; then
   printf '%s\n' "ROLLBACK_SUCCEEDED" > "$RECOVERY_DIR/state.txt"
   log "application configuration and images restored; both services are healthy"
-  log "database was not rewritten; the PostgreSQL schema and data are unchanged by rollback"
+  log "old backend started with background scheduling disabled; database was not rewritten"
+  log "the PostgreSQL schema and data are unchanged by rollback; keep the maintenance window closed and follow README section 7.3 only after returning to the fixed version"
   exit 0
 fi
 
