@@ -285,7 +285,7 @@
 
 ## D-28 客户问题状态输入、完成事件与时间轴的统一契约
 
-- **状态**：2026-10-19 在候选源码线实施；经理评审退回 R1—R3 后返修，S05 未批准格式已撤回，待复审与历史事实重建。规则由用户确认（九词、前缀边界、保留 F/P 差异），S01—S04 为同表全量审计补充修复；S05 仅保留原行为，新格式待业务裁定。
+- **状态**：2026-10-19 在候选源码线实施；经理评审退回 R1—R3 后返修，S05 未批准格式已撤回。2026-10-20 经理批准 S01 有意产出变化与 ODS timestamptz 根因修复（见 D-29），待黄金严格收口、历史事实重建和 696c 直接升级演练后最终交审。规则由用户确认（九词、前缀边界、保留 F/P 差异），S01—S04 为同表全量审计补充修复；S05 仅保留原行为，新格式待业务裁定。
 - **背景**：项目 325 的真实 GitLab 使用九个裸状态词，但事实来源只解析全角 `状态：X`，导致数据异常、未复现、申请延期、已修复/完成等 49 项指标及相关页面/BI 缺少输入；完成事件 SQL 只匹配全角完成标题，且未区分标签改名前后的事件语义；解决周期直接相减 UTC 创建与上海完成墙上值；解决延期用原始标签子串判闭环。响应模板格式的裸标题/首行口径尚未获用户裁定，本轮不作为发布变更。
 - **选择**：
   ① 状态输入：所有项目保留老平台全角 `状态：X`；仅客户项目 325 增加九个已确认裸词、半角 `状态:X`（限九词）和标签/前缀边界空白，同名等价成员稳定去重。`延期原因：X`/`缺陷原因：X`、否定词、扩展文本、评论/模板提词不得成为状态。原始标签文本继续完整保留。
@@ -297,3 +297,18 @@
 - **影响**：项目 325 的 `issue_fact.bug_status`、`fixed_label_time` 及依赖的统计/记录/延期/BI 输出会变化；`research_template_time` 仅因显式 UTC 投影变化。标签改名后没有新 add 的议题完成时间会保持未知，历史重建需按该边界披露。上线需重建受影响客户 ISSUE 事实与投影，未完成前保留上一完整发布点且不混代际。无表结构与对外 API 变化，响应模板格式不变。
 - **验证证据**：`IssueFactNormalizationRulesTest`（九词/前缀/空白/去重/负例）、`CustomerIssueStatisticsCalculatorTest`（确认示例 1—3、七组与校准）、`IssueResponseTemplateParserTest`（tab 空白行与规范表头一致性、既有格式回归）、`CustomerIssueTimeAxisIntegrationTest`（真实 PG 多会话时区）、`GitlabFactIssueSourceRootScopeEquivalenceTest`（等价完成标签、撤标、改名版本栅栏、无事件、模板时间、全量/按根）、`CustomerIssueRequirementLabelAutoChainIntegrationTest`（真实自动链加标/撤标/完成事件/改名不反推）与既有客户统计/BI/延期回归。
 - **关联文档**：`docs/platform-page-business-rules.md` 5.3、5.6；`docs/architecture.md`“事实与统计”；`docs/bi-dashboard/BI看板数据来源与计算口径核对表.md` CI-01、CI-10—CI-26、CI-47—CI-48。
+
+## D-29 ODS 镜像时刻以显式偏移写入，历史错位用全量补偿修复
+
+- **状态**：2026-10-20 经理批准并实施；黄金严格比对已收口 203/203，历史事实重建与 696c 直接升级演练同工作单元完成。
+- **背景**：S03 将创建时间映射到上海业务轴后，黄金严格比对暴露 11 条负解决周期（最小 -0.325 天）。只读探针核对来源与 ODS：`resource_label_events.created_at` 等 timestamptz 在 ODS 中整体比来源早 8 小时。DIRECT 读取把 timestamptz 归一为 UTC `LocalDateTime`，镜像 JSON 序列化按 JVM `Asia/Shanghai` 附加 `+08:00`（或无偏移文本被目标会话按上海解释），目标 timestamptz 因而落成错误时刻；DOCKER 的 `row_to_json` 自带来源偏移，不受影响。修复前旧公式直接相减恰好抵消该位移，S03 统一轴后位移暴露为负周期。
+- **选择**：
+  ① 写入边界以镜像 schema 物理类型为准：timestamptz 列的 `LocalDateTime`/`Timestamp`/`OffsetDateTime`/`Instant`/`Date` 值在 `jsonb_populate_recordset` 前统一序列化为带 `Z` 的 ISO 时刻文本；DOCKER 来源字符串保持既有偏移；timestamp without time zone 列不转换。
+  ② `source_updated_at` 元数据列按来源更新时间列类型生成：timestamptz 用 `(p."col" at time zone 'UTC')` 保持 UTC 水位轴，timestamp 保持墙上值。
+  ③ DOCKER 增量续传游标复用 `GitlabSourceTimestampNormalizer.normalizeSourceValue`，让带偏移文本与 DIRECT 的 UTC 墙上值进入同一水位轴。
+  ④ 事实读取 `closed_at` 等 timestamptz 投影显式指定 UTC 或上海轴，不再依赖 JDBC 会话时区。
+  ⑤ 历史修复复用既有 `POST /api/gitlab-sync/full-compensation-sync/by-config`（`FULL_COMPENSATION_SCAN`）：全量按主键重读来源、`forceUpdate=true` 覆盖 ODS、完成后自动全量事实刷新；不清库、不重置水位、不截断，可中断重跑，重复执行不产生额外变化。
+- **否决选项**：①按整库或单表加减 8 小时；②只修统计页/事实层，保留错误 ODS；③改 JVM/容器全局时区掩盖；④新增纠正专用表或一次性迁移补丁；⑤接受负周期、clamp 到 0 或剔除样本；⑥保留旧写入双轨。
+- **影响**：所有 timestamptz 镜像列的 ODS 时刻恢复为来源真实瞬间，依赖事实（`fixed_label_time`、`closed_at_source` 等）与时间产出随源正确；timestamp 列轴不变。存量部署首次升级需执行一次全量补偿并等待事实重建完成，未完成前不宣称数据已纠正；应用回滚不会自动回退已纠正数据，旧写入器可能再次引入错位，演练需验证停同步/恢复边界。
+- **验证证据**：`GitlabMirrorTimestampTransportIntegrationTest`（双 PostgreSQL、DIRECT/DOCKER、三组 JVM/源/目标会话时区、Z/正负偏移/微秒/NULL/跨日、timestamp 墙上值、`source_updated_at` UTC 轴、旧错强制重放幂等）、`GitlabMirrorTableStorageServiceTest`、`SyncRunTableWorkerServiceTest`（DOCKER 带偏移游标）、`CustomerIssueTimeAxisIntegrationTest`（`closed_at` 多会话时区）、真实黄金链路。修复后严格比对 203 项仅 11 项已批准 A 类差异，负周期 0；授权更新 11 份快照并恢复 239 份无关抖动后，非 update 严格复跑 `Tests run: 203, Failures: 0, Errors: 0`。
+- **关联文档**：D-28；`docs/architecture.md`“镜像与同步”；`docs/plans/customer-issue-status-statistics-confirmation-20261019.md`。

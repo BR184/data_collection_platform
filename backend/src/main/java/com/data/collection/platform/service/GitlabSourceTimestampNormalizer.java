@@ -9,7 +9,7 @@ import java.time.format.DateTimeParseException;
 import java.util.Locale;
 
 /** 统一 GitLab 来源两种读取模式的时间语义，并将有时区时间规范为 UTC 墙上值。 */
-final class GitlabSourceTimestampNormalizer {
+public final class GitlabSourceTimestampNormalizer {
   private static final String POSTGRES_TIMESTAMPTZ = "timestamptz";
 
   private GitlabSourceTimestampNormalizer() {}
@@ -26,7 +26,16 @@ final class GitlabSourceTimestampNormalizer {
     return value.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
   }
 
-  static LocalDateTime normalizeSourceValue(Object value) {
+  /**
+   * 将 DIRECT 驱动值或 DOCKER 文本解析为同一水位轴。
+   *
+   * <p>带偏移文本按同一瞬时归一到 UTC 墙上值；无偏移文本保持来源墙上值；
+   * 无法解析时返回 {@code null}，由调用方按缺失水位处理。
+   *
+   * @param value JDBC 时间对象或来源文本
+   * @return UTC 墙上值或来源无时区墙上值；无法解析时为 {@code null}
+   */
+  public static LocalDateTime normalizeSourceValue(Object value) {
     if (value instanceof LocalDateTime localDateTime) {
       return localDateTime;
     }

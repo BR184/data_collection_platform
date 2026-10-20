@@ -9,11 +9,15 @@ import com.data.collection.platform.entity.MirrorRowChange;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -56,7 +60,7 @@ public class GitlabMirrorTableStorageService {
             sql,
             (resultSet, rowNum) -> jsonUtils.toMap(resultSet.getString("row_data")),
             taskId,
-            jsonUtils.toJson(rows));
+            jsonUtils.toJson(rowsWithExplicitInstants(mirrorSchema, rows)));
     List<MirrorRowChange> changes =
         changedRows.stream()
             .map(
@@ -307,7 +311,7 @@ public class GitlabMirrorTableStorageService {
         .collect(Collectors.joining(", "));
     String sourceUpdatedExpression = schema.updatedAtColumn() == null || schema.updatedAtColumn().isBlank()
         ? "null"
-        : "p." + SqlIdentifierSupport.quoteIdentifier(schema.updatedAtColumn());
+        : sourceUpdatedExpression(schema, schema.updatedAtColumn());
     String conflictGuard = buildConflictGuard(schema, sourceColumns, forceUpdate);
     return """
         insert into %s as target
@@ -355,6 +359,78 @@ public class GitlabMirrorTableStorageService {
         .formatted(recencyGuard)
         + "and (target.mirror_deleted = true or row(%s) is distinct from row(%s))"
             .formatted(currentValues, incomingValues);
+  }
+
+  private String sourceUpdatedExpression(SourceTableSchema schema, String updatedAtColumn) {
+    String value = "p." + SqlIdentifierSupport.quoteIdentifier(updatedAtColumn);
+    return isTimestampWithTimeZone(columnType(schema, updatedAtColumn))
+        ? "(" + value + " at time zone 'UTC')"
+        : value;
+  }
+
+  private List<Map<String, Object>> rowsWithExplicitInstants(
+      SourceTableSchema schema, List<Map<String, Object>> rows) {
+    List<SourceTableColumn> instantColumns = schema.columns().stream()
+        .filter(column -> isTimestampWithTimeZone(column.formattedType()))
+        .toList();
+    if (instantColumns.isEmpty()) {
+      return rows;
+    }
+    List<Map<String, Object>> storageRows = new ArrayList<>(rows.size());
+    for (Map<String, Object> row : rows) {
+      Map<String, Object> normalizedRow = null;
+      for (SourceTableColumn column : instantColumns) {
+        if (!row.containsKey(column.columnName())) {
+          continue;
+        }
+        Object original = row.get(column.columnName());
+        Object explicit = toExplicitInstantText(original);
+        if (explicit == original) {
+          continue;
+        }
+        if (normalizedRow == null) {
+          normalizedRow = new java.util.LinkedHashMap<>(row);
+        }
+        normalizedRow.put(column.columnName(), explicit);
+      }
+      storageRows.add(normalizedRow == null ? row : normalizedRow);
+    }
+    return storageRows;
+  }
+
+  /**
+   * timestamptz 来源值在 DIRECT 路径上是 UTC 墙上 {@link LocalDateTime}；序列化为 JSON 时必须
+   * 附带显式偏移，否则目标会话时区会把它重新解释成另一个瞬时。无时区列不经过此转换。
+   */
+  private Object toExplicitInstantText(Object value) {
+    if (value == null || value instanceof String) {
+      return value;
+    }
+    Instant instant;
+    if (value instanceof LocalDateTime localDateTime) {
+      instant = localDateTime.toInstant(ZoneOffset.UTC);
+    } else if (value instanceof Timestamp timestamp) {
+      instant = timestamp.toInstant();
+    } else if (value instanceof OffsetDateTime offsetDateTime) {
+      instant = offsetDateTime.toInstant();
+    } else if (value instanceof Instant directInstant) {
+      instant = directInstant;
+    } else if (value instanceof java.util.Date date) {
+      instant = date.toInstant();
+    } else {
+      return value;
+    }
+    return DateTimeFormatter.ISO_INSTANT.format(instant);
+  }
+
+  private boolean isTimestampWithTimeZone(String formattedType) {
+    if (formattedType == null || formattedType.isBlank()) {
+      return false;
+    }
+    String normalized =
+        formattedType.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+    return normalized.startsWith("timestamptz")
+        || (normalized.startsWith("timestamp") && normalized.contains("with time zone"));
   }
 
   private void validateSourceRows(

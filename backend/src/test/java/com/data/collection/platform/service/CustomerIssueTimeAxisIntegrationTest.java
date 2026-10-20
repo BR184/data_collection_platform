@@ -63,6 +63,27 @@ class CustomerIssueTimeAxisIntegrationTest {
   }
 
   @Test
+  void test_closed_at_fact_projection_is_utc_wall_independent_of_session_time_zone()
+      throws Exception {
+    Instant instant = Instant.parse("2026-04-01T10:00:00Z");
+    for (String sessionTimeZone : List.of("UTC", "Asia/Shanghai", "America/New_York")) {
+      try (Connection connection = database.dataSource().getConnection();
+          Statement statement = connection.createStatement()) {
+        statement.execute("set time zone '" + sessionTimeZone + "'");
+        try (ResultSet resultSet =
+            statement.executeQuery(
+                "select timestamptz '" + instant + "' as closed_at")) {
+          assertThat(resultSet.next()).isTrue();
+          assertThat(FactSourceRowValueSupport.readTemporalProjection(
+                  resultSet, "closed_at", ZoneOffset.UTC))
+              .as("会话时区 %s 的 closed_at UTC 墙上值", sessionTimeZone)
+              .isEqualTo(LocalDateTime.of(2026, 4, 1, 10, 0));
+        }
+      }
+    }
+  }
+
+  @Test
   void test_real_twenty_four_hours_is_one_day_on_the_business_time_axis() {
     LocalDateTime createdUtc = LocalDateTime.of(2026, 4, 1, 10, 0);
     LocalDateTime completedShanghai = LocalDateTime.of(2026, 4, 2, 18, 0);

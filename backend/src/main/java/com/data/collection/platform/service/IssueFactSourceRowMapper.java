@@ -87,7 +87,9 @@ class IssueFactSourceRowMapper {
     fact.setCreatedAtSource(createdAt);
     fact.setUpdatedAtSource(toLocalDateTime(resultSet.getTimestamp("updated_at")));
     fact.setOdsUpdatedAt(toLocalDateTime(resultSet.getTimestamp("ods_updated_at")));
-    fact.setClosedAtSource(toLocalDateTime(resultSet.getTimestamp("closed_at")));
+    fact.setClosedAtSource(
+        FactSourceRowValueSupport.readTemporalProjection(
+            resultSet, "closed_at", ZoneOffset.UTC));
     fact.setModuleName(moduleNames.isEmpty() ? null : moduleNames.getFirst());
     fact.setPrimaryModuleName(moduleNames.isEmpty() ? null : moduleNames.getFirst());
     fact.setModuleNames(String.join(", ", moduleNames));

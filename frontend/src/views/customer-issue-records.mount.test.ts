@@ -145,6 +145,7 @@ afterEach(() => {
 });
 
 describe('CustomerIssueRecordsView loading lifecycle', () => {
+  // 完整 ElementPlus 挂载在全量 suite 的并行 jsdom 负载下实测约 5s，固定 15s 预算避免默认 5s 抖动。
   it('sends every CC_PRODUCT range filter and renders distinguishable time controls', async () => {
     vi.spyOn(api, 'getCustomerIssueRecordFilterOptions').mockResolvedValue({
       ...emptyFilterOptions,
@@ -198,7 +199,7 @@ describe('CustomerIssueRecordsView loading lifecycle', () => {
         `缺少快速筛选占位符：${placeholder}`,
       ).toBe(true);
     }
-  });
+  }, 15000);
 
   it('does not send CC_PRODUCT-only filters to the delay topic', async () => {
     vi.spyOn(api, 'getCustomerIssueRecordFilterOptions').mockResolvedValue(emptyFilterOptions);
