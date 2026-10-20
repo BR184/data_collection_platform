@@ -1472,19 +1472,34 @@ select count(*) as active_fact_tasks
  where status in ('QUEUED','RUNNING','RETRY_WAITING');
 ```
 
-3. 关闭现有同步开关。在“系统设置/数据镜像设置”中关闭所有数据源的“数据源启用”和“自动同步”；也可在平台库执行：
+3. 先保存各来源的原开关值，再统一关闭。快照文件必须保留到恢复验收结束；后续恢复按 `config_id` 逐项还原，不能用“全部启用”覆盖原停用或手工模式：
 
-```sql
+```bash
+sudo docker compose --env-file .env exec -T postgres sh -c \\
+  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<'SQL' > sync-config-flags.before.tsv
+select id || chr(9) ||
+       case when source_enabled then 'true' else 'false' end || chr(9) ||
+       case when auto_sync_enabled then 'true' else 'false' end
+  from gitlab_sync_configs
+ order by id;
+SQL
+cat sync-config-flags.before.tsv
+```
+
+`sync-config-flags.before.tsv` 每行是 `config_id<TAB>source_enabled<TAB>auto_sync_enabled`；确认行数等于数据源数量后，关闭所有来源：
+
+```bash
+sudo docker compose --env-file .env exec -T postgres sh -c \\
+  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<'SQL'
 update gitlab_sync_configs
    set source_enabled = false,
        auto_sync_enabled = false,
        updated_at = current_timestamp;
-select count(*) as enabled_configs
-  from gitlab_sync_configs
- where source_enabled or auto_sync_enabled;
+select count(*) from gitlab_sync_configs where source_enabled or auto_sync_enabled;
+SQL
 ```
 
-确认 `enabled_configs = 0`。
+最后一行必须输出 `0`。
 
 4. 执行应用回滚：
 
@@ -1499,11 +1514,14 @@ bash ../{ctx.package_name}/rollback.sh "$PWD" "$BACKUP_DIR"
 
 ```bash
 sudo docker inspect "$(sudo docker compose --env-file .env ps -q backend)" --format '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}' | grep '^PLATFORM_BACKGROUND_JOBS_ENABLED=false$'
-sudo docker compose --env-file .env exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select count(*) from gitlab_sync_configs where source_enabled or auto_sync_enabled;"'
-sudo docker compose --env-file .env exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select count(*) from sync_runs where status in (''SUBMITTED'',''QUEUED'',''RUNNING'',''RETRYING'',''PAUSED'',''CANCELLING'');"'
+sudo docker compose --env-file .env exec -T postgres sh -c \\
+  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<'SQL'
+select count(*) from gitlab_sync_configs where source_enabled or auto_sync_enabled;
+select count(*) from sync_runs where status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','PAUSED','CANCELLING');
+SQL
 ```
 
-三条检查必须分别输出 `PLATFORM_BACKGROUND_JOBS_ENABLED=false`、`0`、`0`。
+第一条必须输出 `PLATFORM_BACKGROUND_JOBS_ENABLED=false`，后两行必须依次输出 `0`、`0`。
 
 6. 维护窗口保持关闭。旧应用页面仍可能显示同步按钮；不要点击，也不要直接调用同步、全量补偿或事实重建 API。暂停保护来自上述既有开关、活动任务清空和维护窗口，本包没有数据库级守卫；若绕过这些控制使用旧应用写入，会按旧语义重新写错时刻。
 
@@ -1513,30 +1531,58 @@ sudo docker compose --env-file .env exec -T postgres sh -c 'psql -U "$POSTGRES_U
 
 1. 再次备份。旧应用保持暂停态时，用本包 `backup.sh "$PWD"` 生成回滚期备份，保留新增数据与证据。
 2. 再升级到修复版本。使用新备份目录执行 `upgrade.sh "$PWD" "$BACKUP_DIR"`。升级后新 backend 默认启用后台调度，但同步开关仍为关闭，不会自动同步。
-3. 只恢复来源访问，保持自动同步关闭：
+3. 只临时启用本次补偿的目标来源，不要启用其它来源，所有自动同步仍保持关闭。`<target_config_id>` 换成“系统设置/数据镜像设置”中本次补偿的数据源 id；若该来源原快照为停用，验收结束后由第 6 步按快照还原：
 
-```sql
+```bash
+sudo docker compose --env-file .env exec -T postgres sh -c \\
+  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<'SQL'
 update gitlab_sync_configs
    set source_enabled = true,
-       updated_at = current_timestamp;
+       updated_at = current_timestamp
+ where id = <target_config_id>;
 select id, source_enabled, auto_sync_enabled from gitlab_sync_configs order by id;
+SQL
 ```
 
-确认 `source_enabled = true` 且 `auto_sync_enabled = false`。
+确认目标来源 `source_enabled = true`，其余来源保持原状且所有 `auto_sync_enabled = false`。
 
 4. 使用具备数据同步权限的 LDAP 账号，在“系统设置/数据镜像设置”中点击“全量补偿对账”。它会完整重读权威来源，纠正 ODS（包括回滚期错误时刻），并触发事实刷新；不要用 restore 旧 dump 代替。
 5. 按第 6 节完成判据验收：本次补偿关联的 `FACT_REFRESH`/构建任务显式成功、无失败/待处理依赖、完整源/ODS 时刻核对、事实版本收敛、无活动任务。页面无负值不能单独作为完成依据。
-6. 验收全部通过后，通过现有开关恢复自动同步，观察一轮自动增量、事实刷新和页面/Excel，最后重新开放维护窗口：
+6. 验收全部通过后，按 `sync-config-flags.before.tsv` 逐项恢复每个来源的原值。该快照包含原停用（`false/false`）和手工模式（`true/false`），恢复时必须逐行写回，不能用全局“全部启用/自动同步”语句：
 
-```sql
+```bash
+while IFS=$'\\t' read -r config_id source_enabled auto_sync_enabled; do
+  [[ "$config_id" =~ ^[0-9]+$ ]] || {{ echo "invalid config id: $config_id" >&2; exit 1; }}
+  [[ "$source_enabled" =~ ^(true|false)$ ]] || {{ echo "invalid source_enabled: $source_enabled" >&2; exit 1; }}
+  [[ "$auto_sync_enabled" =~ ^(true|false)$ ]] || {{ echo "invalid auto_sync_enabled: $auto_sync_enabled" >&2; exit 1; }}
+  sudo docker compose --env-file .env exec -T postgres sh -c \\
+    'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<SQL
 update gitlab_sync_configs
-   set auto_sync_enabled = true,
+   set source_enabled = $source_enabled,
+       auto_sync_enabled = $auto_sync_enabled,
        updated_at = current_timestamp
- where source_enabled;
-select id, source_enabled, auto_sync_enabled from gitlab_sync_configs order by id;
+ where id = $config_id;
+SQL
+done < sync-config-flags.before.tsv
 ```
 
-7. 若第 4 步失败或中断，不要恢复自动同步；按第 6 节失败边界重新执行全量补偿。整库恢复必须单独审批。
+恢复后重新导出当前值并与原快照逐字节比较，差异必须为空：
+
+```bash
+sudo docker compose --env-file .env exec -T postgres sh -c \\
+  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<'SQL' > sync-config-flags.after.tsv
+select id || chr(9) ||
+       case when source_enabled then 'true' else 'false' end || chr(9) ||
+       case when auto_sync_enabled then 'true' else 'false' end
+  from gitlab_sync_configs
+ order by id;
+SQL
+diff -u sync-config-flags.before.tsv sync-config-flags.after.tsv
+```
+
+`diff` 必须无输出，才能确认原停用和手工模式均已保留。随后观察一轮原 `auto_sync_enabled=true` 来源的自动增量、事实刷新和页面/Excel，最后重新开放维护窗口。
+
+7. 若第 4 步失败或中断，不要恢复开关；按第 6 节失败边界重新执行全量补偿。整库恢复必须单独审批。
 
 ### 7.4 手动全量事实重建的边界
 

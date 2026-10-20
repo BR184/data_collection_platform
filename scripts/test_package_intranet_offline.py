@@ -733,6 +733,19 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertIn("mirror_deleted = true", content)
         self.assertNotIn("sync-hold.sh", content)
         self.assertNotIn("platform_sync_hold", content)
+        # 暂停前保存每个 config 的原值，验收后逐项还原，禁止全局启用。
+        self.assertIn("sync-config-flags.before.tsv", content)
+        self.assertIn("sync-config-flags.after.tsv", content)
+        self.assertIn("while IFS=$'\\t' read -r config_id source_enabled auto_sync_enabled", content)
+        self.assertIn("done < sync-config-flags.before.tsv", content)
+        self.assertIn("diff -u sync-config-flags.before.tsv sync-config-flags.after.tsv", content)
+        self.assertIn("where id = <target_config_id>;", content)
+        self.assertNotIn("set auto_sync_enabled = true", content)
+        self.assertNotIn("set source_enabled = true,\n       updated_at = current_timestamp;\nselect id", content)
+        # psql 必须用 heredoc 提供 SQL，避免 sh -c 单引号剥离状态字符串引号。
+        self.assertNotIn("''SUBMITTED''", content)
+        self.assertIn("<<'SQL'", content)
+        self.assertIn("status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','PAUSED','CANCELLING')", content)
         self.assertNotIn(f"cd {context.baseline_name}", content)
 
     def test_incremental_readme_does_not_claim_application_outputs_are_unchanged(self):
