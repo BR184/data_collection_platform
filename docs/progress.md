@@ -6,6 +6,315 @@
 > 更新触发：当前阶段变更、任一已完成项或下一步发生实质变化、新增或解除阻塞项、验证结果推翻先前结论、或有效历史条目失效时。临时任务、中间调试、重复性工作或已失去现实影响的流水账不得写入。
 > 保持行文紧凑，以最小 token 传达当前状态的完整约束。禁止叙述性解释、重复架构或产品文档的内容，以及纯粹展示性的列表格式。所有陈述必须直接指导下一项工作决策，否则不得保留。
 
+## 2026-10-21 d52直接基线包复审（隔离部署通过）
+
+- [制品与路径] d52归档206151231字节、SHA256 `4cbba73f…0272967`；包内8/8，JAR全部1862条目与f45e内容一致，142前端文件一致；三脚本归一发布/基线后相同，Compose/README继承0930固定命名。仅适用0930/e275直接基线，不能用于已运行f45e的实例；用户确认20001命名未变，截图Flyway `20260930.01`。未修改包、业务或黄金。
+- [验证与边界] Ubuntu24.04控制端+独立Docker daemon，原0930镜像/.01/117表验收数据执行backup→upgrade→rollback→backup→upgrade全部通过，目标.19.01/139迁移；33表内容摘要守恒、PG ID/卷不变、平台整库dump恢复空库成功、自定义PG运行名字仍保留身份、错误基线前置拒绝、SQL回滚期哨兵保留。克隆源真实自动增量473→事实474及后续增量475全SUCCESS、来源/ODS时刻相等；已有候选203/0/0/0 XML已复核，本轮未重复运行。现场仍须按包内README全量补偿对账→all重建→验收；真实认证UI/容量未重验。既有卷名外层引号会安全拒绝，外部样本源恢复有孤儿FK限制，详见`.tmp/d52-package-review-20261021/REVIEW.md`。原18181/18581健康、主15432未变，隔离18860/18861保留且自动同步关闭；不部署内网、不提交推送混合主树。
+- [仓库收尾] 三项检查脚本及本轮文档diff检查通过；全树diff检查被非本轮`frontend/src/features/bi-dashboard/charts/types/DailyDefectTrendChart.ts:109`末尾空行阻断，未改他人文件，不声称全树门禁通过。
+
+## 2026-10-20 0930事实根登记SQL类型缺陷复核（原制品验证完成）
+
+- [确定结论] 用户20001/0930报告所述registerBatch可空VALUES类型缺陷在f45e/a937已修，fdce登记class与f45e逐字节一致。原0930 JAR64e281b…真实PG16全空/仅iid空均42804，已知/混合成功；本包JAR b3c06e6b…四场景4/4、5根齐全且null保留。显式integer/text/bigint参数消除批次组成依赖，不靠填0/丢根/强制READY。证据`.tmp/fact-target-nulltype-20261020/README.md`及原始结果；独立探针DB已销毁，未改包/业务/现场或用户服务。
+- [范围与边界] f45e未合入独立首轮水位/取消修复不意味着此旧SQL修复缺失。20001若仍0930则运行实例尚未修，实际JAR仍须现场核对；f45e直接基线696c，不能越过守卫直套0930。修复此登记错误不承诺所有失败/阻塞都消失，不确认截图每次运行唯一原因/15分钟延迟。候选登记正式测试缺可空专例，本轮为制品边界调查，非全链路/容量或新增默认全套通过。
+
+## 2026-10-20 f45e内网修复未生效复核（制品已核实，现场凭证待回填）
+
+- [制品结论] 用户明确内网部署，不能套用此前本机18181旧后端根因。重算f45e归档SHA1ccdcc68…24904037、包内8/8，镜像直接提取JAR b3c06e6b…与正式a937一致、142前端文件逐项一致；本包原JAR裸/全角/半角异常纯方法均输出数据异常。客户统计/ODS时刻修复确实在包内，不能认定包内仍为未修复696c。
+- [范围与未证实项] f45e不是并行修复全集：独立fdce/0b397同步改动、主树维度列UI未纳入；“最新版”只能指该发布线。upgrade不自动补偿/事实重建，末日志只提示all弱于README全量补偿顺序；不据此断言现场未执行。现场镜像/JAR、代理、schema、真实标签与任务尚未回填。只读脚本`.tmp/f45e-deployed-fixes-recheck-20261020/collect-runtime.sh`已语法检查，[活动计划](plans/f45e-deployed-fixes-recheck-20261020.md)，无包/业务/快照修改或内网操作。
+
+## 2026-10-20 18181正式最新版运行（已完成）
+
+- [当前入口] 按用户选择以配套验收数据启动正式a937前后端，18181→同栈backend（宿主18581）→独立PG15581/20261019.01；三服务healthy、页面HTTP200、后端UP、API current经前端返回00000。旧Vite30984已停，主树18080、真实15432与原验收栈保留，不参与18181。运行/恢复说明`.tmp/local-latest-18181-20261020/README.md`，不再用主树run-frontend覆盖。
+- [版本与数据] JAR SHA b3c06e6b…与正式制品一致；15452验收库一致快照复制到独立卷，1205议题，真实ODS裸异常40个根→事实异常40个，非原15432业务数据。Chrome已刷新至正式权限登录页，需重新登录；登录后统计/导出本轮未验。用户标签查实/实样测试要求已归AGENTS，恢复规则同步保护正式运行入口，文件32KiB以内；无业务代码/黄金变化，不推送混合主树。
+
+## 2026-10-20 18681裸异常标签复核（只读调查完成）
+
+- [18181后端根因已证实] 18080进程22956加载主树target/classes（标签class10/16编译、早于本次启动），旧入口及来源mapper字节码仍不接受裸异常。纯方法对照当前class裸标签→未设定状态、正式修复JAR→数据异常；统计calculator只读bug_status成员。run4761/ISSUE1077全量8009行SUCCESS，旧规则重建仍遗漏裸标签；18681兼容后端此前17:12:25已停。不是未执行重建，也不是正式修复缺失，是当前开发后端未包含修复。证据`.tmp/18681-customer-status-20261020/backend-conclusion.md`；未改业务/数据或启停服务。
+- [计数口径更正] 下文早期128“根”应为含多修订的关联事实行，不能当唯一议题；本次同事务去重60议题/128事实行、R3去重10议题、异常状态0。并发写入和修订使跨查询计数变化，均不替代页面完整D/已发布视图总数。
+
+- [18181运行态更正] 最新只读核对18181现为主树`frontend/node_modules/.../vite.js --force --host 0.0.0.0 --port 18181`（PID30984），HTTP200加载`/@vite/client`和`/src/main.ts`；已非历史90bbb容器入口，也不能称正式f45e/a937制品。主树裸异常归一化仍为单参数旧实现。未切换、重启或改数据；旧入口说明`.tmp/local-runtime-90bbb-20261019/README.md`已标过时，当前主树开发态与已审批候选必须区分。
+
+- [结论] 正式f45e/a937及18681实际JAR均支持项目325裸`数据异常`；实际JAR纯方法对裸/全角前缀/半角前缀均输出异常，原因前缀及非325裸标签维持既有边界。18681实际为正式前端+另制db15432compat后端+15432/D-26库，非已审批完整部署。ODS128个异常标签根均有事实但异常状态0，当前显示0来自现有事实输入缺失；不能判为裸标签规则不支持。
+- [边界与下一步] run4758全量事实刷新已成功，实际执行者及旧语义产生链未闭环，不声称未重建或已证实旧worker覆盖。按匹配schema隔离复验正式制品，或另行评估D-26适配；本轮未改数据/开关/业务代码、未启停服务或触发任务。证据`.tmp/18681-customer-status-20261020/`，[调查计划](plans/18681-customer-status-investigation-20261020.md)。
+
+## 2026-10-20 延期标签写回完成度复核（只读调查完成）
+
+- [结论] D-21 新响应判据、D-23 唯一开关及基础双向写回已有实现；10/14 [接替修复方案](plans/delay-writeback-takeover-fix-20261014.md)尚未实施。七个核心类经 1010/696c 原 JAR 逐字节核对相同，eb9b2f8b 候选编排/队列/worker 源码也未补接替修复；整轮等待仍为内存，worker 未补执行前来源收敛复核，作业结算未按租约归属限定。证据 `.tmp/delay-writeback-completion-audit-20261020/`；本次无测试、业务/配置/数据库/HTTP/服务操作。
+- [版本边界与下一步] F1/F2 多修订与候选发布问题仍适用 D-26 主树，不原样套到已恢复 1010 模型的制品；历史本地真实写回不替代当前接替验收。若后续获准补齐，先固定目标源码/制品并裁剪方案的 D-26 专属步骤，再处理仍适用的编排、资格、租约及真实链路验证；当前不启用写回或推断生产开关状态。
+
+## 2026-10-20 客户统计状态与ODS时刻修复（本地双包交付审批通过，待现场交接）
+
+- [最终交付审批] b10772a2/treea0589572干净，R1/R2与两处README返修全部关闭，正式批准f45e更新包（206156121字节，SHA1ccdcc68b90595ff3dad0a6c6e2da74fe72598caf81c0a1575a39f5324904037）和a937全新包（206135115字节，SHA8ef4e58a6072cc38175d4b4da3b5d884c00e8ce7c530ff314520d41c84b0c51a）本地交付。经理重算归档和包内清单8/8、6/6，696c基线/manifest一致，无sync-hold；三态逐来源恢复及heredoc状态检查记录通过，归一发布ID后脚本/Compose与已演练c8d一致，生产/前端/黄金无新变化。沿用已核实默认1762/0/0/1、前端3×765、严格黄金203/203，R1六项定向已通过；本轮不重复跑。完整审批`.tmp/ods-timefix-manager-review-20261020/APPROVAL.md`。下一步仅现场基线/连接/容量及按包内README备份→升级→全量补偿对账→关联全量事实成功→验收；本轮未部署20001/20101或推送。独立增量修复包及主树并行UI不自动包含，若现场已换其它更新链不得叠加或绕守卫。旧轮次问题以下均按历史追溯，不再是当前阻断。
+- [R2范围澄清] 用户追问员工sync-hold草稿；经理确认回滚暂停要求不等于批准新增数据库守卫。约14:23—14:25出现的临时表/函数/插入触发器与恢复流程仅为员工草稿及未提交模板改动，不作为本轮必需交付；5eb原包SHA复核未变。按[活动计划](plans/customer-issue-status-statistics-confirmation-20261019.md)末澄清优先验证既有开关/任务处理/维护窗口方案，数据库对象方案先退回，经理未覆盖并发脚本或安装对象；R1与原R2安全回滚说明仍需收口。
+- [维度列修复] 用户授权直接修复后，主树已用隐藏意图模型替代可见列快照，旧浏览器/收藏同一入口迁入，设置、过滤及表格派生已接线；不清空配置或按客户页补特例。旧实现3项新增回归失败→修复后23项定向及真实Element Plus集成通过；完整前端166文件810项、lint/typecheck/build通过，隔离浏览器验证模块/功能表头与值、往返及隐藏指标保留，证据.tmp/customer-statistics-dimension-columns-20261020/。发布候选/90bbb归档未变，下一步发布线纳入同一冻结并验证最终制品，详见[独立计划](plans/statistic-board-visibility-model-20261020.md)。未改后端、数据库、同步或用户18181服务；无后端黄金。主树混有其它单元改动且无指定远端，未提交推送。
+- [经理最终包复审] 认可eb9b2f8b/仅文档165f69a1时刻修复及黄金11份授权差异；原始日志核对默认1762/0/0/1、黄金203/0/0/0、前端3×765。两新包5eb/3bae归档、包内清单、696c基线及运行JAR均复核通过，生产class与target一致。但最终放行退回两项：R1只读查演练run5，106扫描任务取消前已完成、44751扫描且0写入，仅取消剩余2任务，未证明纠正DML取消/故障/租约提交边界；R2实际包内README未写旧版回滚会再次错位及启动前停同步办法，本次事实刷新成功判据也需明确关联。下一步按[活动计划](plans/customer-issue-status-statistics-confirmation-20261019.md)末“eb9最终交包复审”连续补测、修订打包模板及新编号包统一交审，文档/测试证据变化不机械重跑已核实黄金。完整裁定`.tmp/ods-timefix-manager-review-20261020/REVIEW.md`；内网仍未授权。经理仅静态/哈希/指定演练库只读核对，未改候选、业务数据、包或启停服务。
+- [结论与边界] CC2026 R4/海外OnCAD截图中的延期原因与数据异常汇总使用不同事实字段。原696c JAR独立调用37条断言通过：裸数据异常→delay_cause、bug_status未设定→异常不计数且不从校准集合剔除；全角状态前缀可正常计数。合成6缺陷/5裸异常复现6/0/6，不能当成现场全量复算。根因在来源标签到状态的映射衔接，当前实现符合既有字段契约，但裸标签接入能力未完成；评论表单不是该计数条件。技术边界归architecture，共享指标边界归BI口径表CI-47，证据.tmp/customer-data-exception-investigation-20261019/README.md。
+- [规则与交接] 用户确认九词/前缀、项目325范围、保留F/P与校准公式；本地实现、测试、历史纠正及双包已获审批，不再等待员工继续开发。[活动计划](plans/customer-issue-status-statistics-confirmation-20261019.md)仅为未执行的现场交接保留；长期时刻修复与回滚/原开关恢复边界按候选D-28/D-29及部署标准维护，不能将本地通过写成现场已部署。S05/S06未批准格式/公式继续保持既有边界。
+- [全表审计] 原696c实际71项逐项归类，49项直接受状态输入影响；新发现完成事件只认全角标题、解决周期UTC创建与上海完成直接相减、原始标签把纯原因/否定词当闭环、接受响应标题与首次响应时间匹配不一致。44条原包方法断言及6条真实PG只读VALUES断言通过，证据.tmp/customer-statistics-table-audit-20261019/README.md和metric-audit.tsv；未修改业务/包/配置/快照、未启停服务、未跑修复/默认/黄金。未查内网或客户业务行；模块半角格式仅是待核查来源边界，不擅自扩改；现场数字仍需最终对账。
+- [跨表复核] 25项路径、27个原包class与17条方法断言记录保留；按用户要求追加核对原Wiki及本地老平台源码后，撤回S06“新增独立缺陷、必须改成员计数”的裁定：老CC/HTGC详细Excel也用整串equals，现版沿袭，Wiki未规定该导出多状态算法。S06改为待用户确认的口径调整，T13默认验证原公式不变。S01/S02是旧输入限制与已批准九词目标的差距，S03混时间轴仍属确定缺陷，S04原始标签子串误豁免亦继承旧实现；S05识别与时间不一致成立，但裸标题不是已批准格式，不得据此扩大SQL匹配。证据及精确行号见同一计划“Wiki与老平台复核”；未改业务、包、数据库或运行环境，未验证生产命中量。
+
+## 2026-10-20 696c首轮增量修复（双包交付审批通过）
+
+- [最终裁定修订] 用户质疑返工必要性后经理按实际影响重判：T1进度文字错误不影响同步状态/数据，T2是回滚写入/再升级回读未验证、未发现正常升级/同步故障；此前均列为整包阻断过严，撤销强制返修。批准fdce53a8f408更新包（SHA b4c835eddf16218163b8f7b86fd4adbd92620a4f2763709c307b7905ce4ef057）及0b397919df87新装包（SHA 23b5ff77001be98dd0c0443a67948da26c3b3523613d7ac341103be8f082af35）原样交付，不重出包/补跑既有套件；当前权威裁定`.tmp/sync-package-final-review-20261020/REVIEW.md`。T1列后续UI改进，T2及D07浏览器权限/内网容量保留未测边界，不能改写成通过；本轮未推送或部署。
+
+- [经理最终包复审] fdce53a8f408更新包/0b397919df87新装包的归档与内外SHA、镜像JAR/清单/受测target、代码冻结以及默认1801/0/0/1和黄金204/0/0/0均独立核对通过。G1—G4及已确认恢复/异常证据认可，最终放行仅退回T1/T2：进行中ElProgress仍显示100%（员工浏览器记录与经理实际组件SSR复现一致）；E04只有旧版健康可读，缺旧版真实写入/同步→再升级回读及包内回滚旧缺陷/暂停边界说明。下一步按[活动计划](plans/sync-bootstrap-cancellation-repair-20261019.md)T1/T2修前端、补证据/README后新编号双包一次性交审，后端不变不机械重复已核实默认/黄金。完整裁定`.tmp/sync-package-final-review-20261020/REVIEW.md`；两原包身份保留但未最终批准，未授权推送/内网部署。经理未改候选或业务数据，仅对指定演练库只读复核控制状态，未启停服务或重跑默认/黄金。
+
+- [经理二次复审] 候选bd231b80/仅进度07c2aad7保持clean；344份XML分账核对默认1793/0/0/1、黄金203/2/0/0，冻结摘要匹配。认可水位单调、终态速率修复；批准五处真实易变字段的窄范围处理与两份快照工具重建，须先补非掩码字段与水位覆盖断言。正式打包不能立即恢复：真实自动调度到自动事实链、取消竞争确定性、备份测试非确定性及矩阵口径仍需G1—G4收口；满足门禁后可直接恢复本地双包及最终镜像演练，最后一次性交包审批。具体路径/前置断言/执行授权见`.tmp/sync-manager-review-20261020/REVIEW.md`和活动计划。经理未改候选源码/快照/数据或启停服务，未重复默认/黄金；现场21分钟唯一根因和容量仍未证实。
+
+- [当前入口] 用户要求交AI员工连续实现、仔细测试并交实际包，经理统一审批。唯一实施入口为[同步初始化、取消与进度修复方案](plans/sync-bootstrap-cancellation-repair-20261019.md)：从完整旧模型冻结隔离实施，交696c直接基线更新包及修复全新包；覆盖安全水位交接、取消/接管、阶段进度和中文，保留既有业务。全部必测义务、命令、黄金差异审批、最终镜像演练与交付证据均已列明；未授权内网部署。
+
+- [制品结论] 重新校验696c归档SHA及原JAR；与原1010的service/sync下108个class逐字节一致，未新增/删除/改写。存储、血缘解析、主要事实构建/发布类亦相同，外围FactChangeTargetService保留适配不能扩大为整包完全相同。证据入口：.tmp/fresh-package-incremental-20261019/README.md。
+- [已复现] 0930/1010/696c原class分别隔离验证：全量不建时间增量水位→空水位首轮增量从1970重扫→末页成功才推进→后续按新水位减5分钟。未变源行仍产生分页和关系核对、真实写入可很少；日志表项实为分页任务数，父运行写入快照与实时任务计数不同步，关系范围尚未收敛会延后事实刷新。三个实际前端译码函数对照均漏译Scheduled incremental sync，新明细入口另有直接显示原文路径。
+- [现场补充与取消缺口] 用户确认首轮21分钟仍进行中，中止后再手工刷新成功。取消保留已提交ODS及已完成表水位，后一次可能已非冷起点，但没有现场记录不能判死锁或确认唯一卡点。原1010/696c的隔离控制路径又确认：无普通表任务时取消可直接终结父运行，却不检查/废止独立范围租约，范围提交未检查父取消状态；后续只接管FAILED范围，原活动范围不自动满足接管条件。没有实际SQL写入、真实并发或现场数据损坏结论。扩展只读查询已提供，需对照两轮runId、范围租约/接管与最终事实发布；不可把中止重试成功写成缺陷已修复。
+- [边界与下一步] 直接交付当前两包及既有证据，T1/T2不再阻断。更新基线限定696c、schema20261019.02、不要求事实重建；不混同其它并发客户统计/ODS时刻修复包。现场部署与容量另行执行，未授权本轮自动推送/操作内网；未知项保持未知，不手工填水位或清任务。
+
+## 2026-10-19 0930同步入口与新增阶段调查（代码结论已确认）
+
+- [已证实] 原0930包JAR摘要核对、23个关键class及冻结源码映射、原字节码7项检查与纯函数样例完成：镜像设置“刷新最新数据”和普通自动补偿共用INCREMENTAL_SYNC，手工无额外全量或更高优先级；日志同名属运行类型映射。全量补偿是独立入口。技术协议已归入architecture.md“镜像与同步”。
+- [阶段与事件边界] 原JAR识别CC2027R1第一轮/第二轮/回归标签；单独CC2027R1不是测试阶段，候选来自已发布议题事实而非标签字典。没有现场当时运行号/表任务/事实发布记录，不能把手工后出现归因为某个已查明的自动同步缺陷；下一步如继续追现场事件，先比较同一来源自动/手工终态、标签关系、水位及事实发布。证据与逐层核验入口：.tmp/mirror-sync-0930-investigation/README.md。未改业务、配置或数据，未触发同步/重建、未启停服务，未运行黄金。
+
+## 2026-10-19 同步及事实刷新回退包（交付审批通过，现场前置核对待执行）
+
+- [审批结论与下一步] **批准交付90bbb3955120包**；现场实际基线/备份/任务/连接等前置检查满足包内README后，可直接部署20001，不使用20101。经理未访问生产，不称内网已部署或容量已验收。员工本地实现、五点返修及最后两项补证已收口，不再逐批返修；[活动计划](plans/sync-1010-current-ui-feasibility-20261016.md)仅为剩余现场交接保留。
+- [精确制品] D:/projects/data_collection_platform_deploy/qaflex-update-20261019T015547Z-90bbb3955120.tar.gz，206140524字节，SHA-256 2a6362d57ab926f8c5df73d2389af92b5237347e552466a1e371f0768adc5b36；包外校验、包内8项摘要、三脚本语法、运行镜像/JAR及全部141前端构建文件已独立核对。目标Flyway20261019.01，需all事实重建。旧202037Z-38482b754e90包已取代，不再交付。
+- [源码冻结与复用同包裁定] 最终冻结5ce737238c4d20d23e8de485d087556b101b161f/tree a17c93795f75961ac9de503883a5a5aeeae1646d，2321文件tar逐blob匹配，SHA-256 44aa9d5f64966083244e9997f928a3c97c08f0450ff49dd27556cabe9a178aab。相对16ca8ef8恰23份黄金快照（16修改/7新增），生产/前端/构建部署资产零差异，JAR仍11ae8feaded6e74ac747b8aeebc04bf2d57fa4117cbf478cb31b95f92d425d32；本轮批准保留同一release-id，不为测试资源单独重包，替代先前一律重包的计划要求。旧06a7404b冻结已废弃。
+- [门禁与独立复核] 默认套件336类/1738项/0失败/0错误/1跳过；用户确认23项后更新模式203全绿，最终严格非update203/0/0/0，经理核对日志及Surefire属性，未重复跑套件。夹具/目录/掩码不变；139条迁移不可变性通过，旧迁移零修改。本轮只读复核增量12/13/16、刷新14/17/23、删除对账22及幂等24—27均SUCCESS，增量时间非空，新增/更新事实正确、删除ODS墓碑和事实移除一致，统计负对照与浏览器/XLSX证据成立。BI业务验收见本域入口。
+- [all重建与回滚] 最终镜像在隔离栈按正常LDAP/Session/CSRF完成0930→升级→all重建→业务读写/故障恢复→应用回滚→回滚期写入→再升级/回读删除；PG容器/卷不变，前向schema保留。手工重建非空约束500由V20261019_01最小迁移修复，原15项发布语义测试与HEAD一致、新增2项真实schema回归通过。宿主OS适配不冒充Ubuntu现场验收。
+- [现场限制] 实际前后端0930镜像、唯一有效Compose/端口、PG身份/卷和Flyway须现场留存，真实LDAP/源库连接及约280万规模容量仍待现场实测；基线不符即停，不绕过守卫。删除对账演练1分钟仅属测试，生产不随本包自动启用或变更周期；物理删除需独立对账，现有ODS上的all事实重建不能发现源库物理删除。
+- [恢复与材料] 阶段F入口.tmp/sync-1010-current-20261016/restore-migration/DELIVERY.md，含源码冻结、黄金、最终镜像演练、增量/浏览器材料；独立审批.tmp/sync-1010-current-20261016/manager-package-review-20261019/final-approval-90bbb3955120.json。经理修正交接SQL为容器内变量展开，归档未改。源码落点3a105ddf的1448class/141资源匹配1010证据仍有效；只适用于旧基础迁入业务，不允许将此包直接部署未恢复D-26的新库。
+- [当前本地入口] 用户明确要求后，18181已切为90bbb3955120包内前端镜像，独立容器qaflex-local-90bbb-frontend-18181连接既有验收后端（宿主20304）与PG15438/20261019.01；20303继续可用。镜像/JAR/index摘要、UP/HTTP200、API未登录401及PG容器/卷不变已核对。浏览器已打开正常登录页；重启会话失效，登录后质量看板尚未复验。主树18080由并发写入者恢复，与18181当前API链路无关。启动约定和核对记录见.tmp/local-runtime-90bbb-20261019/README.md及after.json；后续不可用主树run-frontend.ps1覆盖此入口。
+- [切换前超时证据] 原18181/18080曾运行主树D-26及15432/20261015.03，研发质量页5秒prepare总预算超时已复现，同会话单独候选/主表/规则读取成功；该诊断不证明回退包同步失败。此次只切入口与应用容器，未改业务或超时、未运行黄金、未恢复或迁移15432库。细节见[活动计划](plans/sync-1010-current-ui-feasibility-20261016.md)，不影响精确制品已有审批。
+- [全新部署包] 2026-10-19 按用户要求新增 `fresh-empty` 包 `qaflex-full-20261019T070440Z-696c47955805`（前端 20201 / 后端 20202 / PG 15436，project `qaflex-20261019t070440z-696c47955805`；容器名由 project 派生、无固定 `container_name`；归档 206,126,107 字节，SHA-256 `a3ba7fa7…`）。包内 6/6 校验通过、不含 PostgreSQL 镜像；与已验收 90bbb 更新包相比，后端 JAR 1792 条目逐项内容一致、前端 dist 哈希一致。本地独立空库栈验证：3 容器 healthy、139 条迁移至 `20261019.01`、93 表、业务表 0 行、权限 89/387、LDAP 登录 200；验证栈已删除、20201/20202/15436 已释放。证据 `.tmp/sync-1010-current-20261016/restore-migration/fresh-full-20261019T070440Z/README.md`。生产 20001 未操作；115 端口/LDAP/源库/容量待现场核对。
+
+## 2026-10-15 读发布启动/迁移隔离及稳定键写放大（本地修复完成，待内网验收）
+
+- [员工执行与经理审批] 已按用户要求生成[容量治理执行指令](plans/read-publication-capacity-remediation-20261015.md)，覆盖源头减量、回收/存量、刷新失败、两份备份与恢复及验证/审批材料。下一步由 AI 员工按原契约推进到可审查结果；涉及业务/历史/完整性取舍交经理裁定，完成后经理审批。指令已出具不代表第二轮实现或容量验收完成；共享工作树/服务、内网及黄金边界保持。
+- [整体容量方案] 用户要求把数据量导致的备份/事实刷新耗时翻倍及经常失败纳入整体处理，已形成[下一轮方案](plans/read-dataset-storage-amplification-investigation-20261015.md)：减少重复产生/全源工作、回收收敛与空扫治理、存量安全清理、完整备份/恢复及真实规模联合验收。代码还发现维护用完整 COUNT 只作存在性判定；下一步优先在原契约内收敛这些成本，再审全量/冻结输入协议。第二轮尚未实施；D-26 已明确验收义务，本轮仅文档/只读审查，不把第一轮基本修复称为容量问题完成。
+- [现场事实与调查方向] 用户确认旧版含备份完整升级 10–12 分钟，且当前所有流程耗时与文件大小至少翻倍；接受为现场事实，不再反复要求证明、以计时口径不同或单纯硬件慢解释。新旧备份脚本相同；逻辑产物增长须查内容/存储放大，不能直接等同业务行数翻倍。关键表 dump 不含 read_dataset_rows/sync_run_fact_targets，包含事实、ODS 和统计快照，因此不能只归因两张大表。事实修订与完整数据集额外副本已有明确代码路径，下一步按表/版本归属治理并保留完整读契约；各表实际贡献尚未量化，凭证与边界归活动计划。
+- [备份补充截图] 28–54 MB/s/util 高是 IO 受限线索，不证明物理极限；buff/cache 58 GB 不证明内存不足。若“20 秒十万块”是默认 PG 块，速率应约 39 MiB/s，非 5 MB/s，须核对计数来源。备份后全量常驻 shared_buffers/升级必更快的推论不成立。下一步用 COPY 增量、排除开机均值的 iostat 区间、MemAvailable/si/so 和实际 block_size/shared_buffers 判读；来源和边界归活动计划，无代码/运行环境操作。
+- [新增备份调查] 141807Z 截图仍在升级前整库 COPY sync_run_fact_targets，并非本次迁移；最初截图只有中间 476 MB，后续文件增长已由用户明确确认。0930/141807 原包 backup.sh 只差部署身份三行，导出行为相同；0930 原始镜像/JAR 校验通过，两包日志归档 Service/Scheduler class 逐字节相同。该按轮日志表早于读发布模型，默认超 30 天且版本已发布才分批删除；26 GB 的活日志/heap 膨胀/索引构成和清理执行情况未获实测。只读原包/代码审查与文档更新，无测试、业务代码、现有库或备份操作；详见[活动计划](plans/read-dataset-storage-amplification-investigation-20261015.md)。
+- [制品与结论] 用户确认运行 110609Z-f2dd70d0dfb6，与 112440Z-cccce87b68b5 两包实际 JAR 的 1913 个文件内容全部一致。旧版 FULL_RECONCILE 有变化会强制新代际整表复制，已解除该绑定；稳定模式/键时只写变化修订，首次/真实模式变化/无键仍需新代际。零/少变化的全源判等和扫描成本仍在，不把本地小规模一致性回归外推为内网吞吐。
+- [机制] 捕获单条 INSERT SELECT、发布时批量更新新旧可见区间；历史回收默认宽限 15 分钟、每轮一个域/全局最多 500 行、延迟 5 秒，并受在用引用保护。复用旧创建者行的版本可保留 RETIRING，存在重复零删除回收检查风险；V20261015_02 未修改这些数据集成本。69 GB/150 万行及两表停 vacuum 后提速是截图转述，不能据此分摊有效载荷、历史、死元组、空闲页或单独归因于一张表。
+- [已实施] 独立无 Web/业务组件的 migrate 进程取代正常后端静默迁移；升级按退出状态→Flyway/守恒→正常服务健康验收，失败只清理本次令牌所属迁移容器。删除启动 Runner/ReadyEvent 生产，后台分域接管；新 V20261015_03 为镜像/接管持久记录一分钟退避及首错，恢复候选失败不再升级为启动失败。本地失败清理不覆盖首错。读生产/维护用独立单线程 fixedDelay 周期，显式保留默认调度器，避免大表占用同步派发线程；不新增并行读生产。
+- [验证] 旧实现反例失败已确认；最终隔离目录定向 123/0/0/0（10 类，含真实 PG 向前迁移/零业务安装、启用来源、实际调度隔离及既有事实/CAT），完整 954 个生产/370 个测试源码编译通过。打包器 62 项全绿，迁移失败清理 shell 真执行覆盖自有/异属容器；生成三脚本 bash -n 通过。156 条迁移锁及仓库检查通过，旧 155 条不变。日志与文件归属见[活动计划](plans/read-dataset-storage-amplification-investigation-20261015.md)。
+- [下一步与边界] 内网按 runbook 验收新包的迁移/接管/失败恢复，并按目录尺寸/TOAST/等待证据验收首次扫描、发布更新及回收预算；不提高默认 30 秒、不关闭 vacuum、不清表。无全量/黄金/容量测试、无打包部署、无共享 target/服务/已有库操作，混合工作树不提交推送。普通 health 不证明各域业务接管完成，V20261015_02 也无迁移大表删除。
+
+## 2026-10-15 20001 更新包重打（含读数据集存储放大／启动与迁移隔离单元）与黄金门禁
+
+- [交付包] `qaflex-update-20261015T141807Z-6a30859c9abf`（归档 208,858,839 字节，SHA-256 `c8c0fdc710529ebf44623b009e5d4a32f6cda63d47d9a82aa8526b645a722ac3`），直接基线 `qaflex-update-20260930T044004Z-e275334105bb`（**不变**），目标 Flyway **`20261015.03`**，`facts.rebuildRequired=true, scope=all`，逐服务继承三条固定容器名 `qaflex-{postgres,backend,frontend}`。取代 `…112440Z-cccce87b68b5`（归档保留、不得交付）。
+- [包内容] 本轮并入工作树第三批改动：独立 `MigrationApplication` 与主入口、`BackgroundSchedulingConfiguration`、`ReadProducerRetryService` 与 `V20261015_03__read_producer_retry.sql`、`DatasetRefreshWorker`／`MirrorDatasetPublicationWorker`、`ReadMaintenanceScheduler`／`ReadModelInstallationScheduler`、`DatasetPublicationRequest/Service`，叠加前两轮修复与前端 UUID 回落；包内 156 条迁移（到 `V20261015_03`）。
+- [构建与一致性] 按标准无 `--skip-*`；清单 `backendJarSha256` 与 `backend/target` jar 逐字节相同（jar 于 22:20:40 编译），构建全程工作树静止；归档只含单一包目录与 8 个标准条目，无 `backend/`、`frontend/`、`.env`、postgres 镜像、dump、日志；`bash -n` 三脚本、包内 `sha256sum -c`、打包器回归 **62 项 OK（11 项跳过）** 通过；README 第 2 节仍为固定名变体。
+- [黄金门禁] 同一停服窗口内先跑非 update 严格 compare（本轮 `GoldenBaselineChainTest` 被增强 100 行，新增固定 `Clock` 与调度隔离断言）→ **204 项 / 0 失败 / 0 错误 / 0 跳过，BUILD SUCCESS（9 分 48 秒）**；跑前跑后 `golden-baseline` 与 `golden` 共 331 份 SHA-256 指纹逐字节一致（`4ec0cb57…`），严格 compare 未写盘。
+- [本地演练] 20001 隔离栈重置回 09-30 基线（`drop database … with (force)` + `create database` + 基线期 dump `pg_restore`；基线态 Flyway `20260930.01`、读模型表 0 张、容器名为固定名）后 `backup → upgrade → rollback → backup → upgrade` **62 项断言全绿、0 失败**。本轮升级按新契约走**一次性 `PLATFORM_RUN_MODE=migrate` 进程**（`compose run --rm --no-deps -T`，日志 `running one-shot Flyway migration with business components excluded`），成功退出后再以 `PLATFORM_RUN_MODE=service` 重建后端；新增断言：升级后后端 `PLATFORM_RUN_MODE=service`、无残留 `qaflex-migrate-*` 容器。两次 `counts.diff` 0 字节、Flyway `20260930.01 → 20261015.03`、PostgreSQL 容器 ID `0cde61e0…` 全程不变、**后端仍为固定名 `/qaflex-backend`**、备份 dump 非空且 `pg_restore --list` 可读；目标库 17 张读模型表与 `read_publications.abort_cleanup_pending` 列均存在。
+- [环境与边界] 黄金与打包共用同一停服窗口（`mvn clean package` 清 `backend/target`、`npm run build` 与开发前端争写 `src/components.d.ts`）；窗口结束后已复起后端 18080 `health=UP` 与前端 18181=200，复起时开发库前向迁移到 `20261015.03`。演练栈旧 `upgrade-backups` 已移到 `.tmp/20001-drill-archive-20261015/run2/` 留证；未删容器、未动 PG 卷。未提交、未推送、未触及内网；20001 现场仍待升级，升级后需用 LDAP 登录触发 `all` 范围事实层重建，**不需要** GitLab 全量同步。
+
+## 2026-10-15 20001 更新包重出与本地升级演练（待内网部署）
+
+- [交付包] `qaflex-update-20261015T112440Z-cccce87b68b5`（归档 208,852,553 字节，SHA-256 `61c429176731c0a3a3c2515b8dc568034254fb76babc483de2c0fa383d678477`），直接基线 `qaflex-update-20260930T044004Z-e275334105bb`（20001 现场当前版本），目标 Flyway `20261015.02`，`facts.rebuildRequired=true, scope=all`。包内 compose **逐服务继承该基线的三条固定容器名** `qaflex-{postgres,backend,frontend}`（`--plan-only` 打印 `backend=qaflex-backend, frontend=qaflex-frontend, postgres=qaflex-postgres`）；README 第 2 节为固定名变体：逐个打印名字/状态/镜像与 `com.docker.compose.project` 标签，要求占用者等于本实例 `COMPOSE_PROJECT_NAME`，并明确禁止删除其它实例或任何 `postgres` 容器。
+- [构建与一致性] 按标准无 `--skip-*`：前端发布测试/typecheck/生产构建 → 后端 `-DskipTests clean package` → JAR 迁移集合校验 → 无缓存镜像构建 → 归档。清单 `backendJarSha256` 与 `backend/target` jar 逐字节相同，该 jar 于 19:26:22 编译、含 155 条迁移（到 `V20261015_02`），构建全程工作树无源码改动。归档仅含单一包目录与 8 个标准条目，无 `backend/`、`frontend/`、`.env`、postgres 镜像、dump 或日志；`bash -n` 三脚本、包内 `sha256sum -c`、打包器回归 60 项（10 项跳过）全部通过。
+- [本地演练] 先把 20001 隔离栈 `qaflex-upgrade-sim-20001-20261015`（端口 20303/20304/15438、固定容器名）重置回直接基线：归档上一轮 `upgrade-backups` → 停前后端 → `drop database … with (force)` + `create database` + `pg_restore` 恢复基线期 dump（**不是**把 `pg_restore --clean` 打到非空库）→ 换回 09-30 基线 compose 并拉起。基线态断言通过：Flyway `20260930.01`、读模型表 0 张、前后端为 `20260930T044004Z` 镜像、容器名为固定名。随后 `backup → upgrade → rollback → backup → upgrade` **58 项断言全绿、0 失败**：两次 `counts.diff` 0 字节、Flyway `20260930.01 → 20261015.02`、PostgreSQL 容器 ID `0cde61e0…` 全程不变、**升级后后端仍为固定名 `/qaflex-backend`**（固定名在本次升级中原地重建，未与其它栈冲突）、迁移后端关闭调度后正常后端恢复 `PLATFORM_BACKGROUND_JOBS_ENABLED=true`、备份 dump 非空且 `pg_restore --list` 可读；目标库 `read_publications.abort_cleanup_pending` 列与 17 张读模型表均存在。
+- [副作用与环境] 同 20101 轮：打包需停本机开发后端 18080/前端 18181（`mvn clean package` 清 `backend/target`、`npm run build` 与开发前端争写 `src/components.d.ts`），构建后已复起并验证后端 `health=UP`、前端 18181=200。演练在 `qaflex-pkgtool:py3` 工具容器内执行，包内脚本的 `127.0.0.1:20303/20304` 探活经容器内同端口转发到 `host.docker.internal`。旧 `upgrade-backups` 已移到 `.tmp/20001-drill-archive-20261015/` 留证；未删任何容器、未动 PG 卷。
+- [黄金门禁] 两包对应的同一工作树已跑完**非 update 严格 compare**：`mvn test -Pgolden-baseline -Dtest=GoldenBaselineChainTest` → **204 项 / 0 失败 / 0 错误 / 0 跳过，BUILD SUCCESS**（7 分 34 秒）。跑前跑后 `backend/src/test/resources/golden-baseline` 与 `golden` 全量 SHA-256 指纹逐字节一致（`4ec0cb57…`，331 份），证明严格 compare 未写盘、快照区仍为 HEAD 之上的 153 份待审阅改动。运行前后按纪律停/复起本机开发服务并验证后端 `health=UP`、前端 18181=200。
+- [未执行与边界] 未提交、未推送、未触及内网。两包同为 `scope=all`：升级后需用 LDAP 账号登录并触发 `all` 范围事实层重建，**不需要** GitLab 全量同步；20101 的基线清单、备份与演练凭证不得复用为 20001 的凭证。
+
+## 2026-10-15 20101 更新包重出与本地升级演练（含现场 `crypto.randomUUID` 修复；待内网部署）
+
+- [已修复] 现场 20101 开页报 `crypto.randomUUID is not a function`：读模型把读视图租约 acquire/fork 的 UUID 生成放大进“每次开页”路径，而 `crypto.randomUUID` 只在 https/localhost 安全上下文可用，内网纯 HTTP 不满足。新增 `frontend/src/utils/uuid.ts` 的 `createUuid()`（原生 → `getRandomValues` → `Math.random`，**保持 UUID v4 形状**，因后端 `ViewCreate`/`ForkView` 的 `clientViewId` 是 `@NotNull UUID`），替换 5 个生产调用点（`analytics-read-navigation.ts`、`read-view-handoff.ts`、`useAcceptedPageView.ts`×3、`useSavedTableViews.ts`、`statistic-board-route-query.ts`）；新增非安全源回归并做突变自证（退回原生调用即复现同一报错）。前端 `typecheck`/`build` 通过；受影响前端 95 项 + 发布面 20 项全绿。
+- [交付包] `qaflex-update-20261015T110609Z-f2dd70d0dfb6`（归档 208,852,031 字节，SHA-256 `1e726a5d3f349ce0362c6ba3e9d30861e50cd33406cf355289795cde7db6ffe4`），直接基线 `qaflex-update-20261015T090845Z-f767474ac463`（现场已部署），目标 Flyway `20261015.02`，`facts.rebuildRequired=true, scope=all`，容器命名 project 作用域（与基线逐服务一致，包内与基线均无 `container_name`）。按标准无 `--skip-*` 构建：前端发布测试/typecheck/生产构建 → 后端 `-DskipTests clean package` → JAR 迁移集合校验 → 无缓存镜像构建 → Composer/归档；包内 155 条迁移（含 V20261015_01/02）。
+- [包内容与一致性] 本包同轮携带工作树中三个单元的改动（读发布模型、手工事实重建修复 V20261015_01、事实刷新异常覆盖与候选清理 V20261015_02）。构建期间工作树仍在被改动（V20261015_02 落于 18:54:24），已用产物自证：清单 `backendJarSha256` 与 `backend/target` jar 逐字节相同，该 jar 的 class 编译时间为 19:07:48、晚于全部主源码最后一次改动（18:54:24），且此后无任何源码改动。
+- [审计] 归档 SHA-256 与包外 `.sha256` 一致；归档只含单一包目录与 8 个标准条目，无 `backend/`、`frontend/`、`.env`、postgres 镜像、dump 或日志；`bash -n` 三个脚本 OK；包内 `sha256sum -c SHA256SUMS.txt` OK；打包器回归 60 项 OK（10 项因本机无 Docker 跳过）；`README-INCREMENTAL-DEPLOY.md` 自带完整现场指令（实例身份核对、上次失败包镜像处置、备份、升级、结果核对、事实重建、回滚）。
+- [本地演练] 隔离栈 `qaflex-upgrade-sim-20101`（端口 20301/20302/15437）先重指向基线镜像 `090845Z`（PG 容器 ID 未变），再以本包执行 `backup → upgrade → rollback → backup → upgrade`：**55 项断言全绿、0 失败**。两次 `counts.diff` 0 字节、Flyway `20261013.12 → 20261015.02`、PostgreSQL 容器 ID `e233cffa…` 全程不变、迁移后端关闭调度后正常后端恢复 `PLATFORM_BACKGROUND_JOBS_ENABLED=true`、备份 dump 非空且 `pg_restore --list` 可读、前后端 HTTP 200；目标库抽查 `read_publications.abort_cleanup_pending` 与两个 check 约束均存在。
+- [副作用与环境] 打包要 `mvn clean package`（清 `backend/target`）与 `npm run build`（与开发前端争写 `src/components.d.ts`），故先停本机开发后端 18080/前端 18181，演练后已复起并验证后端 `health=UP`、前端 18181=200；复起时 Flyway 把这台开发库从 `20261013.12` 前向迁移到 `20261015.02`（V20261015_01/02 均为纯追加：控制表加列/约束/部分索引，不动事实表与已公开版本）。演练在 Docker Desktop 的 Linux 工具容器 `qaflex-pkgtool:py3` 内执行，包内脚本的 `127.0.0.1:20301/20302` 探活经容器内同端口转发到 `host.docker.internal`。
+- [未执行与边界] 未提交、未推送、未触及内网；黄金基线当时未跑，随后在两包同源的同一工作树上补跑并通过（见 20001 条目「黄金门禁」）。真实内网 20101 现场、LDAP 连通与 `scope=all` 事实重建终态未在本机验证。20001 包（基线 `20260930T044004Z`）已另行出包并演练通过，20101 的备份与演练凭证不得复用。
+
+## 2026-10-15 事实刷新异常覆盖与候选清理（本地修复完成，待内网验收）
+
+- [制品与结论] 090845Z 归档及镜像中实际 JAR 摘要均匹配；与 100047Z 后端相同。批次完成不能证明完整发布；相同数组 DELETE 分属候选中止清理（无分批）和独立历史回收（默认每轮 500 行），不能仅凭 SQL 断言“成功后 GC 超时”。
+- [已修复] 三条构建/发布失败路径保留首错及发布身份，逻辑中止二次失败作为 suppressed。事实候选 ABORTED/投影及执行归属释放先提交，V20261015_02 持久标识交由既有维护调度独立清理，每事务最多 500 个父修订及精确关系，可中断续清；旧完整点及新候选受保护。长期契约归 D-26，现场检查归升级 runbook，不改超时或镜像策略。
+- [验证] 隔离旧实现反例 5 项/4 失败，修复后定向 134/0/0/0；再用既有手工重建迁移回归 9/0/0/0 验证两修复联合向前升级，合计 143 项通过。真实 PG 执行完整 155 迁移，旧 154 条零改动、迁移锁及仓库门禁通过；9 个实现/测试/迁移文件与受测副本摘要一致。见[活动计划与日志](plans/fact-refresh-cleanup-timeout-investigation-20261015.md)。
+- [下一步与边界] 用户内网验收需使用包含 V20261015_01/02 的新包；原 517 首个发布错误、实际 timeout 与 vacuum/IO 归因仍待现场证据，不能声称已修复所有现场失败或保证恢复时长。无全量/黄金/容量测试、无打包部署、未操作共享 target/服务/已有库；混合工作树未提交推送。前一提交 23502 修复与本次恢复边界分别验收。
+
+## 2026-10-15 手工事实重建提交失败（本地已修复，待用户内网验收）
+
+- [已证根因] 指定 `20261015T100047Z-c691de911db4` 包原始 JAR 与清单一致；PG16 下无状态行/已有三族 READY 均在 requestFullPublication 报 23502：INSERT 缺非空 latest_mirror_run_id，ON CONFLICT 不能绕过插入行约束。“同步补状态行后可重试自愈”被反例否决；提交尚未走到 FACT_REFRESH 入队。
+- [已修复] 新增 V20261015_01 及单条迁移锁，仅允许 BLOCKED 未结算重建意图暂缺镜像身份；READY/真实外键/依赖表约束保留，旧迁移不变。原包类只应用新迁移也已验证两条路径成功，长期契约归 D-26，现场入口见升级 runbook。
+- [验证与下一步] 隔离定向 53/0/0/0（新真实迁移 9、原资格 16、提交入口 28）及 flyway-test/smoke 39/0/0/0通过；完整 154 迁移向前升级和原状态保持已验证。按用户最新要求到此停止扩测，内网实际重建由用户验收；见[活动计划与日志](plans/manual-fact-rebuild-publication-intent-fix-20261015.md)。未改其它触发入口，未操作内网、现有栈或共享 target，未跑全量/黄金、未打包部署；混合工作树未提交推送。旧运行包不含修复，重试不能代替发布新迁移。
+
+## 2026-10-15 部署顺序与打包器容器命名阻断（先 20101，后 20001）
+
+- [用户确认] 先升级测试实例 20101（基线 `qaflex-full-20261010T013316Z-24fbf3eb6925.tar.gz`），通过后再升级 20001（基线 `qaflex-update-20260930T044004Z-e275334105bb.tar.gz`）；两者继续按独立实例维护，当前仍聚焦兼容模式。基线包名不替代现场镜像/数据库/卷检查，也不是重装旧包指令。
+- [当前阻断] 员工报告新包 `qaflex-update-20261015T084319Z-40291abbadfb` 在演练 upgrade #1 因全局 `qaflex-backend` 被其它旧栈占用而失败，未发生迁移。经理独立核实：incremental 的外部卷开关确实同时强加三个全局容器名；复用卷与命名应解耦，选择 B 方向，不改错基线、不删其它栈容器解冲突。
+- [阻断已解除/已验证] 员工按 B 方向实施：容器名改为逐服务继承直接基线 Compose，`external_postgres_volume` 回归为只决定卷外部性；增量 `--plan-only` 与正式构建都打印解析出的命名模型。两类基线零写盘实证：20101 基线（10-10 全量包）打印 `project-scoped`，20001 基线（09-30 包）打印三条固定名。打包器回归 58 项 OK（10 项因本机无 Docker 跳过），变异自检证明旧硬编码必然触发失败。新包 `qaflex-update-20261015T090845Z-f767474ac463`（归档 208,844,959 字节，SHA-256 `8f94ac63b6e644cf78cdcb76c6ab839471fadc8526bfe7ddd3c5e31f4075caf7`；归档保留旧的 084319Z 但不得部署）独立审计通过：清单基线/目标/Flyway/事实标记一致、归档无 `.env`/postgres 镜像/dump/backend/frontend、`bash -n` 与包内 `sha256sum -c` 全 OK。20101 隔离栈（project `qaflex-upgrade-sim-20101`，端口 20301/20302/15437）`backup → upgrade → rollback → backup → upgrade` 逐项断言 **0 失败**：目标与基线镜像各自健康且后端 HTTP 200、Flyway `20260930.02 → 20261013.12`、两次 `counts.diff` 0 字节、PostgreSQL 容器 ID `e233cffa…` 全程不变、升级前后备份 dump 非空且 `pg_restore --list` 可读、迁移后端关闭调度后正常后端恢复 `PLATFORM_BACKGROUND_JOBS_ENABLED=true`；其它项目的同名容器（含已退出）未被改动。
+- [两包已就绪并各自演练通过] 20101 适配包 `qaflex-update-20261015T100047Z-c691de911db4`（归档 208,847,679 字节，SHA-256 `72443746ed4fe18b3115bf71c8d782f869a6fef48470784e547d7cf2a66f39ed`；直接基线 `qaflex-full-20261010T013316Z-24fbf3eb6925`，project 作用域命名）与 20001 适配包 `qaflex-update-20261015T095058Z-55d27f35bafd`（归档 208,846,165 字节，SHA-256 `3d13a3de7047b003c6cec809d70d93313ed110f906907dfc4853204e001a2a72`；直接基线 `qaflex-update-20260930T044004Z-e275334105bb`，继承现场固定容器名 `qaflex-{postgres,backend,frontend}`）。两包独立审计（清单字段、归档结构、`bash -n`、包内 `sha256sum -c`、无 `.env`/postgres 镜像/dump）通过，并各自在对应模型的隔离栈完成 `backup → upgrade → rollback → backup → upgrade` **0 断言失败**：20101 栈 PG-ID `e233cffa…`、20001 栈 PG-ID `0cde61e0…` 全程不变，两栈 Flyway 均到 `20261013.12`、两次 `counts.diff` 均 0 字节、升级后后端 HTTP 200 且后台调度恢复。两包均 `facts.rebuildRequired=true, scope=all`：升级后需用 LDAP 账号登录并触发 `all` 范围事实层重建，**不需要** GitLab 全量同步。旧包 `…T090845Z-f767474ac463` 与已作废的 `…T084319Z-40291abbadfb` 保留在归档目录，不得作为交付物。
+- [现场指令自带] 应"包中必须包含完整部署指令"，打包器生成的 `README-INCREMENTAL-DEPLOY.md` 第 2 节新增实例身份核对：基线声明固定名时逐个打印容器名、状态、镜像与 `com.docker.compose.project` 标签并要求占用者等于本实例 `COMPOSE_PROJECT_NAME`（明确不得删除其它实例或任何 `postgres` 容器）；无固定名时核对 `COMPOSE_PROJECT_NAME` 与三个 project 作用域容器；并说明升级先替换 compose 再创建容器。打包器回归 60 项 OK（10 项因本机无 Docker 跳过）。
+- [下一步] 先按包内 README 部署 20101（现场唯一入口是包内 README，不依赖本对话或临时记录），验收通过后再部署 20001；两者按独立实例维护，20101 的基线清单、备份与演练凭证不得复用为 20001 的凭证。
+- [取证更正] 演练中 `V20261012_01` 一度报 `relation "read_definition_snapshots" already exists`（42P07）并被判为发布阻塞，该结论已撤回：根因是夹具用 `pg_restore --clean` 恢复到非空库，`--clean` 只删除它将要创建的对象，上次失败升级建出的读模型表成为孤儿而 Flyway 历史随 dump 回到 `20260930.02`；此做法违反 `deploy/runbooks/database-backup-restore.md:90,131`（必须先 drop/create）。基线镜像 JAR 共 138 条迁移、最高 `V20260930_02` 且无任何条目引用这些表，目标 JAR 153 条由 `V20261012_01` 创建；干净基线库上迁移链实测两次均成功到达 `20261013.12`。
+- [证据范围] 严格 compare 204/0/0、隔离默认套件 1903/0/0、打包器回归与两次演练结果均为员工本轮执行；经理本轮未重跑。演练在 Docker Desktop 的 Linux 工具容器内执行，包内脚本的 `127.0.0.1:<发布端口>` 探活经 `host.docker.internal` 同端口转发（转发目标即同一发布端口，未发布或未就绪时同样失败）；Windows Git Bash 因 MSYS `env` 使 `env -u … docker compose` 输出为空而不能执行包脚本。20001 演练栈需要实例级固定容器名，演练前仅对 2 周前已退出的旧栈 `qaflex-pkgtest-20260918-72ab3b365acb` 的三个同名容器执行 `docker rename`（`retired-0918-qaflex-*`）腾出名字，未删除容器、未触碰任何 volume、未停任何在跑的栈。真实内网 20101/20001 现场、LDAP 实际连通与 `scope=all` 重建终态未在本机验证。
+
+## 2026-10-15 兼容模式现场问题与候选产物修复复核（历史审查点，后续员工报告见上）
+
+- [范围] 用户明确当前仅聚焦兼容模式，继续依赖老平台数据库。非兼容模式被走查人空下拉移出本轮及更新包，不据其解释兼容模式现场问题；不删除或跳过其它模式既有回归。BI 现场问题按本域文档与实际响应取证，不在本轮另改其公式。
+- [审批与下一步] 允许先补读发布定向回归，但当前写入只登记 kind/id、complete 才重读最新内容，尚不能防止 A 写 a → B 覆盖 b → A 把 b 认证为自身产物。按经理 R1 裁定（冻结写入时内容证据或落实等效归属控制，取证的决策与不变量见 [decisions.md D-26](decisions.md)）完成补正后，再隔离默认套件。编译通过为员工报告，本轮经理未运行新回归或黄金；严格 compare 仍须在出包前通过，未批准后置或预设再次 update。该工作单元已完成并退役活动计划，落地证据见下条。
+- [R1 已完成并收口] 员工按 R1 实施最小补正：候选预热产物在**同一写入事务内、对同一次写入并读回的内容**冻结证据（载荷、行主键、消费方、来源版本、证明范围与代际），`complete` 只落盘本任务冻结的证据；发布前对当前全部 `PREPARED` 行双向核验（每份证据与当前内容一致、且每条行都有证据），异义覆盖在发布门禁被拒；`CacheArtifact` 与按载荷列拆分的摘要撤销，沿用既有单列摘要口径；缺陷原因板事实查询补稳定次序 `order by business_order_id, id` 以固定人员候选首次出现顺序。隔离源码副本默认套件 **1903/0/0**；非 update 严格 compare **204/0/0**，且跑前跑后 `backend/src/test/resources/golden-baseline/` 271 份资源 SHA-256 逐字节一致（未写盘、未重建快照，对 HEAD 仍为 132 改 + 9 新待审阅）。新增 `CandidateArtifactWriteOwnershipIntegrationTest` 7 项交错回归（真实 PostgreSQL + Flyway）与人员候选次序定向用例；把归属改回“完成后重读当前行”后该组反例失败（突变自证）。决策与不变量归 `docs/decisions.md` D-26“候选产物归属证明”。
+
+## 2026-10-15 研发质量下钻枚举中文化（本机验收已报通过，黄金引导受阻）
+
+- [审批] R1 复审通过：仅已知议题状态显示中文，未知码不再被发明为“已关闭”；排序/分页后的出口映射与原始遗留率判据保持分离。MR 用词经本地 GitLab 官方语料独立核实采用“开放中”，取代首轮“已打开”。代码与单元层批准不代表整体或发布验收通过，证据见[活动计划](plans/quality-rd-drilldown-enum-i18n-20261015.md)。
+- [验证] 经理隔离复验 analytics **34/34 通过**仍有效；员工已报告三表实机 API/界面验收，并登记两个 case。五次黄金日志核对：首次 compare 跑完 202 项/7 差异，一次 update 跑完 204/0 并写盘，另三次在 FACT_REFRESH 的候选缓存校验失败，重建后严格 compare 尚未完成。update 只生成不比对，不能据其全绿认定快照与代码或可复现性已获认证。
+- [调查] 实际抛错为 `CandidateProjectionArtifactService.verifyForPublication`，成功本来无日志；日志只含预期 checksum，不能据此判定跳过检查或已定位竞态。每任务全候选取证 + 同键 UPSERT 可覆盖 + 人员首次顺序无 SQL ORDER BY 的机制风险已确认；独立编译当前校验器/JDBC 替身 5 场景符合预期，但未复现三次现场实际写入者。六份重点快照 JSON 抽核纠正四看板 projectName/topic“新增”的文本误判，除新增 readView 外语义一致；客户统计原 4000 格数值/显示保持，21 新列与版本参数变化分开审阅，详见[活动计划经理调查](plans/quality-rd-drilldown-enum-i18n-20261015.md)。
+- [下一步与范围] 读发布模型单元主责补字段/任务级诊断、确定性候选及产物写入归属，统计筛选单元协助，不回退研发质量词表。先隔离最小回归，固定版本并审阅累计快照后再非 update 严格 compare；不反复重试或放宽校验，未具备打包条件。两列保留，Excel/null 判据另案；经理仅维护审查文档与隔离证据，未改业务/来源或快照、未启停服务、未运行黄金、未提交推送。
+
+## 2026-10-15 客户问题统计指标升级（经理审批通过，本地开发验收收口）
+
+- [审批] R1/R2 与 D-27 补正通过，批准本工作单元的实现和本地验收收口。平台七组新增数据异常、未复现、校准后修复率共 21 项，主表、规则、排序、下钻和 Excel 已贯通；BI 专属成果见[本域进度](bi-dashboard/progress.md)。活动计划退役，稳定时间契约归 D-25/D-27 与架构文档。
+- [验证] 经理最终在隔离副本运行活动时间、来源规范化、业务日及真实 PostgreSQL/JDBC→实际 mapper 四类 22 项测试，0 失败/错误/跳过，九种写入进程×连接会话时区组合通过；报告在 `.tmp/d27-manager-review-20261015-121614/target/surefire-reports/`，未重编译共享 target。此前经理 45/33 项、二次 65 项及员工最终 72 项定向证据保留，本轮未重复全量、黄金或不变前端。
+- [证据] 三份统计 Excel 已真实补齐，经理只读核对 72/73/73 列及新增三种表头各 7 列；三种维度总计均为缺陷 250、修复 80、延期 40、异常 0、未复现 11、普通 32.00%、校准 33.47%。本地 GitLab 临时改源与恢复证据已审查，经理只读核实运行 4503/4504、4509—4511 SUCCESS 和临时来源/有效镜像/开放事实无残留。
+- [后续与边界] 目标环境存量核查及必要重建按 D-27、原子发布按 D-26；生产来源校准、目标容量、黄金及部署仍属发布准入，不以开发审批代替。裸标签“数据异常”与状态成员差距保留业务核对；原因百分比、状态统一、R4 缺数据及并行界面工作不扩入本单元。监控关闭，混合工作树未提交推送，经理未改业务/来源或启停共享服务。
+
+## 2026-10-14 统计表筛选与下钻显示修正（2026-10-15 代码/接口审查通过，待界面验收）
+
+- [审批] 经理批准 R4 剩余样本补正，R1—R4 代码及接口审查均通过，无新增代码返工项；完整界面交互/截图仍待完成，不等同整体交付或发布验收。结论与交付归属见 [活动计划最终代码复审](plans/statistic-board-filter-semantics-review-20261014.md)，F05/F06、BI、指标公式与相邻默认里程碑 OR 继续保持原边界。
+- [验证] 当前源显式隔离 javac 编译，正式 7 项及上轮经理独立样本反例 1 项共 8 项全绿、无失败/跳过，不依赖 mtime、不改共享 target/classes。v9 同一完整身份下主表/末步：430/430、LEVEL1 76/76、OR 172/172、装配 55/55、钣金 21/21；不存在模块时 0 行/输出 0/样本空。fork 同一发布身份反查装配与钣金各 3 个样本均含有效模块，具体证据与版本见计划。未造数或改来源/事实，未启停服务，18080 UP、18181=200。
+- [交付归属] 未跟踪的 CustomerIssueByFunctionBoardServiceTest.java 是正式新增回归文件，应与对应实现一并集成，保留前序测试状态及本轮筛选/样本用例，不能当作临时文件清理。混合工作树未暂存、未提交、未推送；正式提交仅纳入已核定文件，不打包其他会话改动。
+- [下一步] 只补客户统计/缺陷原因人员筛选、按功能条件、客户延期与系统测试状态等既定浏览器验收，完成后按生命周期收口计划；不为补截图继续变更已通过逻辑、不重跑 395 项。黄金链路按发布前门禁另行执行，本轮未运行；SpotBugs 未运行。长期末步数量与样本约束已归业务规则第 5.5 条第 8 项。
+
+
+## 2026-10-14 黄金最终经理收口审批（A/B 与时钟隔离通过）
+
+- [审批] R1/R2 补正已独立核验，批准黄金 A/B 与时钟隔离工作单元收口；已确认的非 update 严格 compare 202 项全绿仍有效，纯掩码/格式还原无需重跑。经理未修改实现或快照；批准范围不含目标库接管、真实容量或生产部署。
+- [验证] 42 份还原资源与 HEAD 一致，最终 88 份修改、6 份新增与审查清单逐文件相等；四份夹具摘要正确。六项门禁及 diff 检查通过，153 条迁移锁定，18080 health=UP、18181=200，无黄金测试 JVM。此前时钟/上下文/覆盖定向独立 17/0/0；未以旧完整默认套件数字替代当前证据。
+- [完成与边界] D-08 当前状态已归一，A/B 子计划删除且无残留链接；允许 `.tmp/golden-ab-fix-archive/` 备份作本地恢复资料，不进入版本控制或权威文档。父持续可读计划因外部验收仍保留。混合工作树未提交推送，经理后续仅审批独立工作单元交付。
+
+## 2026-10-14 0930 发布包响应延期新规则核验（计算已发布，写回独立控制）
+
+- [结论] 用户指定 `qaflex-update-20260930T044004Z-e275334105bb.tar.gz` 的后端已实现完整 D-21 响应判据；关闭延期写回只阻止新平台登记/执行 GitLab 标签写入，不关闭镜像事实构建、延期周期重算和页面按延期事实筛选。与用户观察一致，不代表已连接生产核对单条现场数据；老平台仍可能按旧规则写同一 GitLab 标签。
+- [制品证据] 原始归档 SHA-256 `9979e5e60eb3c15e76ecbbd225b52e18125d249a7e5669fb4ce9a5b1ad6204c7`；实际 JAR `64e281b78ee5465be168a70c8540ff1f1318af69e46bdf28c4b2347284757611`，均与发布记录/清单匹配。包为 `main@de7bff4b` 的 dirty 工作树产物，不能只看提交号；清单 `rebuildRequired=false` 不代表新规则未装入。本轮从已验证 JAR 重新解出类，不用当前工作树代替。
+- [验证] 发布类直接执行 27 项全通过（不启动 Spring、无 DB/HTTP），覆盖响应模板缺失/留空/非法日期仍延期、合法日期豁免、回复模板单独/同时存在优先豁免、旧模板合法日期回退、wiki 格式与无效日历、has_response 独立、写回开关关而规则仍生效及 D8 尚未修复。字节码同时核实 mapper 写 `is_response_delayed/response_overdue`、写回关仍执行重算但不入队、worker 关时跳过、延期看板/列表按事实列筛选。证据 `.tmp/delay-package-audit-20261014/{rule-checks.log,*.javap.txt}`。
+- [范围与下一步] 用户补充的完整新需求只涉及“响应已延期”，按规则总表 5.3 与 D-21 维护，不把 D8“解决延期”问题混入；[写回修复方案](plans/delay-writeback-takeover-fix-20261014.md) 已收窄为 A～C 机制修复，D8 独立后续项。当前多修订 F1/F2 缺口属于在途读发布模型，不反推为 0930 包的同类缺陷；未编码、未重启、未改开关或真实标签。
+
+## 2026-10-14 老平台延期写回停用与新平台接替审查
+
+- [当前阶段] 调查完成、修复方案待确认，未改新旧业务实现、生产配置或真实标签；当前工作树版本不能直接验收接替。用户选择局部停旧延期写回，先出方案修新平台，不采用新旧交替写回。[活动方案](plans/delay-writeback-takeover-fix-20261014.md) 覆盖当前修订读取、完整发布后的持久交接和执行前复核；用户补充完整需求仅涉及响应延期，D8 独立留待后续裁定。旧采集产出不是新平台系统测试/客户问题来源；旧入口读写与停启影响见 `deploy/runbooks/gitlab-sync-orchestrator-runbook.md`“老平台延期标签写回接替边界”。
+- [已确认缺口] 当前写回队列未接入事实修订可见性，worker 可读历史行而漏加标、已关闭议题仍被历史 open 行选中；重算已改为准备旁路候选，但编排仍立即登记差异、未等待该候选完整发布。机制与修复边界见 `architecture.md`“事实与统计”。D8 解决期限最旧/最新模板方向差异仍存在，未擅自改口径。
+- [验证] 隔离复制当前后端（独立构建目录、不启动 Spring 服务）执行写回/规则 9 类既有测试共 76 项全绿；另两项审查用例用同连接 PostgreSQL 临时表与回滚执行生产队列查询、调用真实 SLA 判据，稳定复现上述修订缺口及 D8 示例，2/0/0。首轮审查夹具误用 `audit` 来源（当前配置来源固定 `default`），修正夹具后只复验审查类；未改生产查询。证据：`.tmp/delay-takeover-audit-20261014/{targeted-tests.log,audit-repro-tests.log}` 与隔离副本的 surefire 报告。本地只读盘点：开关关、队列 55 条 SUCCEEDED，875 个在辖议题对应 1750 行物理修订，非生产盘点。
+- [历史证据复核] 重跑保存的 2026-09-28 写前/写后快照比对：875 条中响应延期加标 70、摘标 30、不变 775、其他标签零变化、RESULT=PASS；原始生产链日志另含次轮 `enqueued=0`。这证明当时版本真实双向链路通过，不能覆盖当前多修订模型；70/30 不代表生产待变更量。
+- [部署边界] 用户提出短暂停旧进程、启动停写版本；源码复核支持局部功能替换，但需避开正在写库的任务与 `00:00/12:00` cron，固定间隔任务可能随启动立即触发，不能按“多数数据 12 小时更新”视作安全空窗。旧代码走查 HTTP 刷新在重启期间短暂不可用；详情归入上述 runbook，未执行生产停启。
+- [下一步] 用户确认活动方案 A～C 后，先补原实现必红回归，再按方案实施与隔离验证；方案阶段静态发现同配置无关终态事件也可能在本轮镜像未成功时推进，须先补正式反例，与持久阶段门禁一起修。D8 不在该实施范围。生产盘点/旧平台停写/发布门禁与生产开关另走切换验收，不在本轮方案阶段执行。保留其他任务改动；未运行黄金门禁、未提交推送（混合工作树且未指定远端）。
+
+## 2026-10-14 读路径 40001 与 BI 需求无完整产出（两页面加载失败，已修复）
+
+- [当前阶段] 用户报告 BI 看板“需求”页与客户问题统计页加载失败，实为两个互不相关的根因，均已确证并修复；未提交，未生成/未修改黄金快照。
+- [已完成] **缺陷一 客户问题统计 500（读路径 40001）**：统计页一次准备后并发发起多个读取，每次读取先 `renewView`（对 `read_view_contexts` 取 `FOR UPDATE` 并写 `expires_at`）再在 REPEATABLE READ 读取事务内对同一行取 `FOR KEY SHARE`；并发下 PostgreSQL 报 40001（could not serialize access due to concurrent update），`CannotAcquireLockException` 无处理，页面得 `C0001 数据库操作失败`。修复两处：①新增 `ReadSerializationRetry`，仅对 SQLState 40001 有界重建独立读事务（最多三次，其它异常原样抛出），`PublishedReadService.withinPublishedRead`/`forkView` 与既有先例 `ReadViewPreparationService.prepare` 共用；②`renewView` 按既有 `platform.read-fallback.heartbeat-seconds`（默认 60s）节流，租约剩余大于心跳时不再写库，从根上消除“每次读取都写视图行”的争用。前端不消费 `leaseExpiresAt`，节流不改页面行为。
+- [已完成] **缺陷二 BI 需求 `READ_VIEW_UNAVAILABLE`**：`bi:requirements` 需要 FORMAL_RECORD 已发布，而 FORMAL_RECORD 首发受 `requireModeTargets` 约束必须先有 COMPAT_REVIEW 完整点；COMPAT_REVIEW 正证据 `CompatibilityInventory(MONGO_REVIEW)` 要求三个已配置 Mongo 集合都有装载清单行，本地开发库 `legacy_mongo_imported_collections` 缺 `description`，故捕获被拒（日志 `last_error=兼容来源缺少完整装载证据：description`，累计 700 次 FORMAL_RECORD 中止、2146 次刷新请求未完成），BI 需求长期无完整点。本地 172.22.10.72:27017 TCP 可连但 Mongo 握手无回包（`Prematurely reached end of stream`），无法靠真实同步补齐。
+- [已完成] **处置**：按用户在 `decisions.md` 已批准的夹具完整装载证据同款（`compatibility-completeness.sql.gz` 的 `description` 清单 record_count=0），向本地开发库补一行 `legacy_mongo_imported_collections(description,0,now,now)`（可回退：按 `collection_name='description'` 删除）；`review_data_match_mode_descriptions` 本地 20 行、原始文档证据为 0，record_count=0 与该证据一致，本次只补证据行、不改写业务数据。重启后 COMPAT_REVIEW、FORMAL_RECORD 均已 PUBLISHED，BI 需求返回 200。
+- [验证] 16 并发同视图读取 ×3 轮全部 200（修复前 15/16 为 500，日志命中 `lockViewForShare` 40001）；`/api/statistic-boards/customer-issue-customer-statistics`、`/api/bi/requirements` 均 200；`service.read` 包 93/0/0（`DatasetPublicationIntegrationTest` 27、`ReadPublicationModelIntegrationTest` 44、`PublishedReadServiceTest` 4、`ReadSerializationRetryTest` 3、`ReadViewPreparationServiceTest` 2、`ReadViewApplicationAcquireTest` 4 及其余），BUILD SUCCESS；后端 18080 health=UP、前端 18181=200。
+- [阻塞与风险] 同类 40001 仍在镜像发布路径：`MirrorDatasetPublicationWorker` 每轮对 `read_publication_domains` 取 `FOR UPDATE` 的 RR 事务并发发布下同样报 40001（本轮 2 次，worker 捕获后下轮重试，未影响页面读取）；无变化镜像表经 `prepareCompleteDataset` 返回基线后再调 `publishPreparedDataset` 以“数据集生产归属已变化”重复告警，属既有噪声，均不在本次用户报告范围，未修改。本地老平台 MySQL/Mongo 均不可达，兼容数据仍冻结于 2026-07-06 导入快照。
+- [下一步] 在持续可读活动计划登记本次读路径修复；同一 40001 类缺陷是否扩展到镜像发布路径由后续工作单元决定。
+
+## 2026-10-14 黄金 A/B 修正经理审批（历史：当时整体门禁未通过，已被本轮全绿替代）
+
+- [审批] 接受员工调度包装解开/硬断言与确定性排序方向，可按既有用户授权继续生成、审查及严格复比，无需重复请求测试/更新许可。**（历史状态）**该轮黄金为 202 项、86 failures/6 errors，六项为缺新快照，未进入 update；不批准发布或宣称黄金完成。经理只审查，实施仍由员工执行。当前状态见下一节。
+- [验证] 独立定向 17/0/0，日志 `golden-20261014-manager-review-targeted.log`；六项门禁及 diff 检查通过，153 条迁移锁定。依据最新 XML 对四份 Excel、非法默认列表、负责人/专家候选作完整集合及重复次数核验，差异仅行序、零业务记录/数值变化；不能替代全部 86 项的分类审查。后端 health=UP、前端 18181=200。
+- [下一步] 员工补齐逐项差异依据与当前测试证据，显式 update 后审查文件，再严格 compare 全绿、恢复开发服务并更新 D-08/进度，交经理复审。详细审批和证据边界见持续可读活动计划最上方；保护客户统计前端及混合工作树，生产/目标容量未验收。
+
+## 2026-10-14 黄金基线 A/B 与时钟隔离修复（当前状态：严格复比 202 项全绿，经理技术验收通过，交付范围已按复审补正）
+
+- [当前阶段] 接手经理未完成的黄金基线工作已收口：阻塞 A（业务顺序）、阻塞 B（测试隔离）与本轮新发现的墙钟日历漂移根因均已确证并修复；在用户/经理显式授权下生成快照并逐类审查，**非更新模式严格复比 202 项全绿（0 failures / 0 errors / 0 skipped）**。经理复审通过后要求补正交付范围：42 份仅含比对期掩码字段（或纯格式/键序）变化的快照已按 D-08 第 3 条从版本库原冻结资源逐文件还原，交付范围收敛为 **88 份语义变化 + 6 份新增**；按同一纪律未为纯掩码还原重跑全链路。工作树混有其它工作单元改动，本单元未提交、未推送，待经理最终收口审批。长期结论已归入 `docs/decisions.md` D-08 第 7 条与 `docs/architecture.md` 黄金基线段（A/B 子计划已按生命周期归档删除）。
+- [已完成] **A 根因更正**：黄金链路处于兼容读取模式，评审非法列表/导出实际由 `CodeReviewMatchModeRecordLoader`（读 `code_review_match_mode_records` 数据集）服务，四处排序只按 `merged_at_source`/`merge_request_iid`，并列行由物理行序决定；正式事实路径另有 `CodeReviewIllegalRecordSqlQueryBuilder` 用物理修订 `id` 收尾。`QualityBoardCodeReviewReadSupport` 导出同样缺收尾，且两处 `row_number()` 用物理修订 `id` 取“首修订”，会连带改变缺陷密度/新增行分母。
+- [已完成] **A 修复**：兼容加载器四处排序以来源关系声明的业务身份 `legacy_source_id` 收尾；正式事实路径改 `business_order_id, visible_from`（不再用物理 `id`）；质量看板导出与两处 `row_number` 按 scope 切换收尾键；评审候选各来源补确定性收尾（含 `loadReviewExperts` 改 `count(*) desc, expert_name`）。
+- [已完成] **A 冻结序不可复现的证明**：三条同号 MR（27137/27045/28505）各自两行在合并时间与合并请求号上并列，冻结序分别为 legacy_source_id 升/降/降，走查时间、源行 id、原始 MySQL id 均无法同时解释三对，即冻结并列序本身是物理行序。因此修复目标为“确定性 + 声明业务身份”，少量并列行会确定性重排。
+- [已完成] **B 根因确证（原为待验证假设）**：Spring 6.2 把 `@Scheduled` 方法包进 `Task$OutcomeTrackingRunnable`，`getRunnable() instanceof ScheduledMethodRunnable` 恒为假，`pauseScheduledProducer` 实际未取消任何周期任务，定义刷新工作器在写用例编辑定义后登记额外 FACT_REFRESH（requestReason“读取定义已变更，构建完整事实版本”）并改变运行序号。已改为沿包装链解出真实目标，并将取消数为零从静默失效转为硬失败。
+- [验证] 定向单测：A/B 轮 17/17（`CodeReviewMatchModeRecordLoaderTest` 3、`CodeReviewIllegalRecordSqlQueryBuilderTest` 2、`QualityBoardCodeReviewReadSupportTest` 10、`ScheduledProducerPauseTest` 2）；时钟隔离轮 34/34（追加 `CustomerIssueRecordServiceTest` 13、`CustomerIssueDelayRefreshScopeVersionTest` 2（Spring 上下文启动，证明 `Clock` Bean 装配）、`GoldenBaselineCoverageGuardTest` 2），日志 `.tmp-logs/golden-20261014-clock-fix-unit-tests.log`。生成快照前的**历史**一轮复比为 202 项、86 failures/6 errors（`.tmp-logs/golden-20261014-employee-compare.log`，已被下方两轮全绿替代）：总数与经理轮相同但构成改变——额外 FACT_REFRESH 与其运行序号漂移已消除（`gitlab-sync/status` logs 不再多出 FULL_SYNC，`facts/build-tasks_latest` 的 id/runId 不再变化）；评审非法列表上一轮互换的 `records[1]/[2]`（同号 MR 28505）已对齐冻结序，仅剩 `records[15]/[16]`（MR 27045）这类“冻结序本身是物理行序”的不可约并列重排。**生成快照后严格复比 202/0/0/0 全绿**（`.tmp-logs/golden-20261014-employee-strict-compare.log`）；时钟冻结后重生成（202/0/0，`.tmp-logs/golden-20261014-employee-clock-update.log`）并再次严格复比 **202/0/0/0 全绿**（`.tmp-logs/golden-20261014-employee-final-compare.log`）。
+- [已完成] **墙钟日历漂移修复（未放宽掩码）**：`retentionHours` 与导出列 `U` 由真实时钟派生，目录早已声明为“非可复现契约”并在比对期掩码，故从不产生失败，但每次重生成都带入日历抖动。改为把“当前时刻”做成可注入依赖：`PlatformConfiguration.platformClock()` 提供系统 UTC 时钟、`CustomerIssueRecordService` 构造注入并删除自建系统时钟的便捷构造器；黄金 `FrozenTimeConfiguration` 以 `@Primary` 固定到清单 `frozen_at`，`GoldenBaselineSupport.frozenClock()` 随夹具自更新。效果：仅 3 份客户问题记录快照与 CC 导出的该列变化（`4817/4290/4144 → 4146/3619/3472`，差值 671–672 小时 ≈ 28 天，等于旧生成日回到 `frozen_at` 的时距）；导出行去掉该列后与基线逐字节等价（881 行多重集一致）。掩码、目录分类、覆盖范围与业务夹具零改动。
+- [已完成] **R1 交付范围补正（经理复审意见）**：以端点目录自身的 `ignore-paths` 同时施加到 HEAD 与工作树两份再做逐键比较，41 份 `masked_only` 快照全部证明确为“仅比对期掩码字段变化”，另发现经理审计清单未列的 `home/get____default.json` 与基线语义完全相同（只差格式/键序），按 D-08 第 3 条同口径一并处理；42 份文件用 `git checkout -- <路径>` 从版本库原冻结资源逐文件还原，未手工编辑任何 JSON、未整体覆盖快照目录。还原后交付范围为 88 份语义变化 + 6 份新增，证据清单 `.tmp-logs/golden-20261014-employee-masked-only-audit.json`。按第 3 条纪律，纯掩码字段还原不需要重跑全链路（本轮曾启动复跑，确认后即中止，未产生任何文件写入）。
+- [证据边界] 86 项差异已全部归类：①有意协议/模型差异（55 份快照在剔除 `readView`/`sourceVersion` 后与基线一致）；②读路径工作单元的文案与口径差异（message 前缀、`tableCount 6→16`）；③不可约并列重排（四份 Excel 导出去掉 `legacySourceId` 与列 `U` 后行多重集与基线完全一致：8546/201/3232/514 行）；④6 项新端点缺快照已随生成补齐。仓库存在的 11 项门禁脚本全部 PASS（`.gitlab-ci.yml` 引用的 `scripts/check_schema_flyway_drift.py` 在本仓库不存在，未执行）、`git diff --check` 干净；开发服务已恢复（后端 `/actuator/health`=UP、前端 18181=200）。后端/前端完整默认套件本轮未重跑，不引用旧数字。未提交、未推送、未生产迁移、未内网/20001 操作；目标库接管与容量验收仍需实例授权，黄金绿灯不等于目标部署/容量通过。
+
+## 2026-10-14 客户问题统计页筛选职责落地（前端已实施，待验收）
+
+- [当前阶段] 用户裁定后完成实施，仅改前端、仅本页生效：客户/模块/功能从“分析设置”行并入共用快速筛选行（同组件/同摘要/同清除），本页该行默认展开；里程碑与行维度留在“分析设置”。成员仍是控制参数（VALUE/MISSING + 成员行展开），未新增后端筛选字段，`definition.filters` 与黄金基线零差异。长期行为约束归 `platform-page-business-rules.md` 第 5.8 节第 11 条，方案、决策与验收标准见 [筛选调查与实施](plans/customer-statistics-filter-review-20261013.md)。
+- [已完成] 候选三态分离并可重试（加载中/加载失败/确实无成员），失败不再长期表现为“加载中”；重置筛选一并清除成员选择（行维度与范围不变）；成员变更即时写控制参数，不经条件草稿或“查询”提交，避免与字段类快速筛选的 apply 路径竞态。
+- [验证] 前端完整套件 164 文件 779/0 通过，`npm run typecheck` 与变更文件 ESLint 通过。首访反例回归在 `StatisticBoardViewMemberCandidates.test.ts`：候选就绪后等价草稿重建（`filterLogic` 变更触发同版本重载）、带成员重载、以及失败准备保留旧画面三种情形下，成员下拉均不退回不可用。未运行黄金全链路（预期零快照差异），未做浏览器截图验收。
+- [边界] 成员选项标签沿用既有去歧义文案，摘要 chip 改用“成员标签：显示值”；本轮不含聚合结果过滤（“统计结果”分组），BI 客户问题页本轮不改。
+
+## 2026-10-13 生产客户统计筛选与两版刷新故障调查（未改业务代码）
+
+- [调查] 20261010历史前端已复现首访候选禁用：等价筛选草稿重建使返回新数组的scope监听清空主表版本，候选返回后仍loading；下一次主表响应恢复ready。客户/模块/功能的入口整合已由用户裁定并实施（见 2026-10-14 条目）；源条件/统计结果职责裁定为不新增同维度条件字段、本轮不做聚合结果过滤。证据与官方参考见 [筛选调查](plans/customer-statistics-filter-review-20261013.md)，不改写产品既定设计。
+- [验证] 两发布包实际JAR摘要与清单一致；隔离PG16执行原类复现全空project/iid及单独全空iid的42804类型错误，已知根正例通过。两版BLOCKED资格均拒绝旧结果读取；失败依赖阻断受影响事实族派发已核实。细节与逐版本边界见 [刷新调查](plans/release-refresh-failure-investigation-20261013.md)。
+- [交接后核对，2026-10-14] 用户授权交接已被实施方纳入：原VALUES显式类型、持久任务SQLState/驱动码诊断均已修改；正式根登记3项、诊断策略7项及故障诊断6项在最终后端1812项全绿日志中通过，前端760项日志通过（重叠不累计）。持续可读本地交付已收口，生产发布/目标验收仍待执行；首访旧监听机制已移除，特定首访回归已由客户统计筛选工作单元纳入、实施中。覆盖边界归刷新调查，不修改其它工作单元。
+- [待证实] 20261010现场issue_metrics/SCAN语句与已复现缺陷吻合，但任务只保存外层message，缺底层SQLState；20260930现场具体失败表/底层错误仍未取得，不能直接判两次同因。用户确认成功自动链约15秒，间隔不足不作根因。下一步获取旧运行失败任务的只读诊断，保持与持续可读工作单元及已有两份筛选/状态方案独立；未实施修复、未生产操作或运行黄金基线。
+
+## 2026-10-13 客户问题统计原示例字段补齐（已被 2026-10-14 指标升级条目替代）
+
+- [历史] 本轮只完成需求登记与只读核对，确认原始示例字段就是对应页面目标要求；实施、验证与遗留项见本页 2026-10-14“客户问题统计与 BI 指标升级”条目及本页当前指标升级审批条目。
+
+## 2026-10-13 平台快速筛选成员修正（独立方案，待实施）
+
+- [当前阶段] 用户确认形成独立方案，调查已完成，业务实现未开始；恢复入口为 [平台快速筛选成员方案](plans/platform-quick-filter-members-20261013.md)。范围清单、根因、接口与验收唯一维护在该活动计划，长期行为约束归 `platform-page-business-rules.md` 第 6、6.1、6.2 条。
+- [下一步] 按方案先登记字段语义并增加失败回归，再同时修正共用下钻候选/匹配及主记录页类别、CC_PRODUCT 事实阶段遗漏；保护在途持续可读读取身份。不得把共用选择控件复用等同于所有候选链路相同。
+- [验证边界] 合成数据已复现组合候选，状态现有 8 项前端回归通过只证明调查时行为；尚无修复测试、浏览器或现场验收，未运行黄金全链路、未更新快照。
+
+## 2026-10-14 客户问题功能缺陷明细测试状态（已实施并本地验收）
+
+- [已完成] `CustomerIssueByFunctionBoardService` 原主表列替换为 `bugStatus` 多标签“测试状态”，补齐文本升降序及编号收尾，保留展开区独立开闭事实；规则版本提升至 `customer-issue-by-function@2026-10-14-v4`，避免旧快照的列声明继续复用。未改统计计数、范围、事实解析、同步或前端组件。长期契约归 `platform-page-business-rules.md` 第 5.5 节；独立状态列计划已收口删除。
+- [验证] 旧列回归修改前失败，修改后后端基础 4/0/0（`CustomerIssueByFunctionBoardServiceTest`，日志 `.tmp-logs/customer-function-status-basic.log`）；前端状态解析和通用下钻组件基础 8/0。18181 从“实体算法/抽壳”计数真实下钻，1299 的两个状态、1731 的四个状态独立显示，`已修复/完成` 未被拆分；升序编号 1731/1299/1302、降序 1302/1299/1731，展开区 1299 仍为“未关闭”。截图 `.tmp/customer-function-status-expanded.png`。
+- [真实链路] 当前 DOCKER 来源 `gitlab-data-web-1/gitlabhq_full_import_test` 临时更新 1299 标题，经镜像 4441→自动事实 4442→完整发布视图→下钻验证新输入及状态；恢复标题后镜像 4443→自动事实 4444→下钻再次通过。1297（已关闭）与 1299（未关闭）均逐成员核对 GitLab 来源标签。标题、标签和开闭状态已恢复，来源更新时间随测试自然推进；报告 `.tmp/customer-function-status-e2e-updated.json` 与 `.tmp/customer-function-status-e2e.json`。GitLab API token 已过期，未修改凭据，测试输入直接在本地实际采集业务库生成，未直接改 ODS 或事实。
+- [交付边界] 后端 18080 health=UP、前端 18181=200；产物位置、跟踪产物、文本空白及 `git diff --check` 全绿，AGENTS.md 27,110 bytes。按用户要求未运行完整套件或黄金全链路，未修改黄金快照，发布前仍须履行有意列定义/规则版本差异的基线门禁。此工作不包含独立快速筛选成员修正；混合工作树未提交推送，未访问内网。
+
+## 2026-10-12 DGM 代码走查单条刷新切源修复（已验证，待发布）
+
+- [已完成] `CodeReviewMatchModeLegacyRefreshService` 的共享请求构造为 DGM 补 `Data_Source: DGM`，覆盖兼容刷新和老数据转正式刷新入口；公共方法契约与架构兼容边界同步更新。CC 保持既有默认源协议；不改变非法判定、API、迁移或黄金快照。
+- [验证] 修复前 HTTP 请求回归及 MySQL 8 + PG16 链路均在 DGM 两入口复现失败；最终七类定向回归 29/0/0、0 skipped，刷新服务行覆盖 81.25%。CC/DGM 真 MySQL 查询、PG 替换与兼容非法列表确认：目标多拆分行更新并退出扫描非法列表，同号另一来源与其它 MR 保持原值。其它单元在途事实模型修改曾使整库编译失败，最终在 `3a105ddf` 独立检出叠加本单元三份源码验证，文件摘要与主工作树一致。日志 `.tmp-logs/dgm-refresh-isolated-final.log`；失败反例日志 `dgm-refresh-red.log`、`dgm-refresh-mysql-red.log`。
+- [CC 老源码验证] 对 `D:/projects/spidergitdata-dev` 的 Controller、Service、实体、拦截器及 DAO 隔离编译，用实际 MyBatis + 临时 MySQL 跑 MockMvc；仅 GitLab 采集接口使用替身。确认 CC 默认项目 9 与目标 MR 搜索、两条修正记录在 HTTP 成功返回前落库、其它 MR 保持原值；采集异常发生在删除前时旧记录保留且不报成功。两项场景通过，日志 `.tmp-logs/legacy-cc-probe.log`；临时探针源及专属 MySQL 已清理。
+- [下一步与边界] 尚未生成生产更新包、部署或访问真实老平台/GitLab；需后续发布后复验现场 DGM MR `!22273`。日常修复未运行黄金全链路；当前工作树含其它工作单元改动且未指定本单元推送远端，未提交/推送。
+- [跨单元恢复] P2 实施方误撤本单元的请求头与两份测试。经理已核对用户直接授权与独立证据，按 `.tmp/p2-agent-drift-20261012/` 原件恢复三份文件，逐字节一致；相关测试也已进入当前后端默认套件。29 项是本单元独立验证证据，该修复不属于 P2 成果，不得再自动还原。
+
+## 2026-10-12 持续可读 P1 基础层（经理直接收口，可进入 P2）
+
+- [已完成阶段] P1 基础层已由经理修正 RR1–RR4 并转正式测试，93 项定向回归全部通过，已批准进入 P2。P2 当前状态见下一工作单元；基础层通过不代表全页面持续可读交付，生产迁移与回填未执行。
+- [历史排序] P1 加法式保留自然键与旧读写；约束与全部生产者同步切换由 P2 完成。当前修订身份、可见性、回收与初始接管契约见 D-26，历史实施审计保留在活动计划。
+- [实施方首轮修正（历史）] R1 回收删持锁版本数据 → 保留序号集合改为“除本轮实际回收对象外的全部版本”，回收前显式 `FOR UPDATE SKIP LOCKED` 逐版本加排他锁，锁不到的版本排除出回收集合（不先检查后锁）；R2 关系 FK 使回收/中止失败 → 新增 `deleteChildRelations`，先删成员/MR 提交关系再删父修订，且父修订选择与子关系删除在同一批次内派生；R3 全量候选混入旧 epoch → `FactReadVisibility.visibleFacts` 单点合成，`opensNewEpoch` 时基线恒不可见、只读本候选，判断不下发到各业务查询者；R4 bootstrap 认证无完整性证据数据 → 默认适配器改为 `hasCompleteInitialVersionEvidence` 正证据判据（单一 SQL：READY 非全量发布点、依赖就绪、变更头无未发布、构建任务无非终态），正式集成测试走默认适配器而非 `accepted()` 替身；R5 不同来源/项目同号根互相覆盖 → `read_publication_fact_roots` 增加 `project_id not null > 0`，唯一键与幂等 upsert 目标改为完整业务身份（发布 + 来源系统 + 来源实例 + 事实类型 + 项目 + 根），水位仅取较大值不回退，基线排除按完整业务身份匹配。
+- [实施方交付验证（经理修正前）] 真 PostgreSQL（Testcontainers PG16，全量迁移链 `clean+migrate`）：`ReadPublicationModelIntegrationTest` 26/0/0（含经理六反例对应场景：同 epoch 多版本 GC 保留持锁版本、GC/中止先删子关系、全量候选只含本 epoch、默认 bootstrap 拒绝无证据数据、不同来源/项目同号根各自独立、候选读取排除触及根并并入新修订，以及旧版本稳定、发布前不切指针、stale base 拒绝、区间 CHECK 与开放修订守卫、成员父修订绑定与外键、活跃视图零回收、读取持锁时回收跳过、bootstrap 幂等）、`ReadPublicationModelMigrationTest` 6/0/0（含根清单完整业务身份唯一键）、`PublishedReadServiceTest` 2/0/0（视图获取在锁后复查当前指针并被替代时拒绝）、`FlywayMigrationSmokeTest` 20/0/0、`FactBuildTaskServiceTest` 19/0/0、`SyncFactPublicationStateServiceIntegrationTest` 15/0/0，合计 88/0/0；六项仓库门禁与 `git diff --check` 全绿；`scripts/flyway-migration-checksums.json` 已登记新迁移（139 条锁定，既有迁移零改动）。未运行黄金基线、未触发真实同步、未做浏览器或目标负载验收；未提交、未推送。
+- [审查结果] 首轮审查暂不批准进入 P2。经理在隔离 PG16 复验原集成 11 项通过，新增 6 个反例均失败：同 epoch 多版本 GC 删除持锁版本数据、关系 FK 使 GC/中止失败、全量候选混入旧 epoch、默认 bootstrap 将无完整性证据事实认证为 V1、根清单不同来源/项目同号覆盖。R1–R5 及复现证据唯一维护在活动计划“P1 经理审查”；自然键切换与 P2 写入同做的排序可保留。
+- [经理收口] RR1 续约先锁版本、GC 排他锁后重查活跃引用；RR2 初始安装/回填在 NOWAIT 稳定输入栅栏内核验与采纳，忙时保存点回滚并不写入；RR3 复用完整依赖目录逐配置核验，缺项拒绝；RR4 兼容项目号 0 保持合法。变更与权威机制见 D-26；反例与修正证据唯一维护在活动计划“P1 经理复审与直接修正”。
+- [经理验证] 六类定向测试 93/0/0、0 skipped（31 读发布集成 + 6 迁移 + 2 公开读 + 20 Flyway + 19 构建任务 + 15 来源发布状态）；日志 `.tmp-logs/read-path-p1-manager-fix-20261012.log`。六项仓库门禁及 `git diff --check`；既有 138 条已提交迁移及校验和零变化，只精确修正本单元未发布迁移的一条登记。未运行黄金基线、真实同步或生产操作，未提交推送。
+- [P2 首轮审查历史] test-compile 曾有 16 文件报错；PG16 六反例确认旁路更新/删除、无基线局部认证、全量失败遗留候选、跨项目裸根删除与正式导入约束失效。日志 `read-path-p2-manager-test-compile-20261012.log`、`read-path-p2-manager-probes-20261012.log`；现由经理直接修正并转正式回归，当前状态见下一工作单元，不据此旧记录回退实现。
+
+## 2026-10-12 同步期间持续可读（经理已完成 P2，可进入 P3）
+
+- [当前阶段] 用户授权的整个 P2 已由经理完成，允许进入 P3。统一固定输入候选、跨批次共享、全部生产者修订写入、投影证明门禁与失败清理已验证；恢复依据活动计划“P2 经理接管收口清单”，首轮实施/审查记录为历史。
+- [已完成] 三条未发布迁移已登记，完整链 141 条；P2 切换自然键/父修订关系，新增固定输入暂存与投影完成证明。旁路稳定输入、兼容独立域/首次完整数据集、冻结定义、逐根水位、全量意图 CAS、父子租约分离及被完整版本覆盖的旧任务收口已实现。DGM 与 BI/表单独立改动保留。
+- [验证] 后端默认 1747/0/0、1 skipped（既有真实 GitLab 本地测试未配置 `local.gitlab.it`），日志 `.tmp-logs/read-path-p2-takeover-verified-default-tests.log`。最后清理 SKIP LOCKED 修正后定向 35/0/0，按事实族补齐定义比较后定向 62/0/0，均 0 skipped；日志 `read-path-p2-takeover-final-concurrency-tests.log`、`read-path-p2-takeover-definition-final-tests.log`。含真实 PG16 全迁移链、删除反熵、同根旧版稳定、失败/取消/令牌转移、投影证明失效与兼容导入；定向与默认重叠，不累计为独立总数。最终六项仓库门禁与 `git diff --check` 全部通过；AGENTS.md 27,110 bytes。
+- [本轮接管，2026-10-13] 用户授权经理完成 P3–P6。候选真实任务/产物与缓存原子提升已进入真库验证：读模型 35、租约 14、SQL 3 通过；发布编排/兼容导入修正后 23/0/0；真实业务看板预热 1/0/0，证明候选未公开、发布后提升且旧看板身份稳定。各定向范围有重叠，不累计。P4 数据集修订基础已真库验证 7/0/0；固定业务日与会话身份后五类回归 78/0/0（146 条迁移，范围重叠不累计），日志 `read-path-p4-read-identity-regression-tests.log`；最新控制器接入/业务行序迁移尚未复验，生产者/全查询/端点仍在接入；全部端点、兼容/镜像/CAT、前端及 P6 仍未完成，当前不可部署。恢复依据活动计划“P3/P4 经理实施恢复点”。未运行黄金基线/生产迁移/内网操作、未提交推送。
+- [当前交付，2026-10-14] P1–P5 实现与 P6 本地验证收口，发布验收仍待执行。最后冻结实现完整后端默认 1812/0/0、1 条既有真源条件 skip（`read-path-p3-p6-final-default-backend-tests.log`）；完整前端 162 文件 760/0，最后 typecheck/build/lint 通过。同步中/失败保留及成功整批换版的列表/下钻原 Vue 浏览器路径已实测（受控接口），正式回归覆盖历史修订、闭包、来源/模式改变、权限/回收和下载迟到。六项仓库门禁、API 对照、测试卫生、diff 检查通过。基准工具/升级 runbook 与权威文档已同步；黄金、目标库接管/恢复及真实规模容量未执行，不能宣称已部署或容量通过。混合工作树未提交推送；未动生产/内网/20001。当前唯一恢复及外部验收边界见活动计划上方交付点。
+
+- [当前阶段] 用户提出硬要求：同步的成功、失败、中止都不得影响用户使用；稳定运行、多次成功同步之后不得再出现"数据正在处理"等无数据展示。口径已确认：**可读性判据从"来源完整性可证"改为"该读结果是否存在完整发布点"**；"从未有过完整发布点"保持阻断。
+- [证据与根因] 内网现象根因已确证：**手动中止镜像运行**把表任务置 `CANCELLED`（`SyncRunCancellationService.java:102/138`）→ 终态事件（`SyncRunWorkerService.java:277-290`）→ 依赖判据含 `CANCELLED`（`SyncFactPublicationStateService.java:318-324`）→ 来源被写 `readiness_status='BLOCKED'` → 读侧 `qualification` 直接 `refused` 且读路径抛错、**跳过回退**（`StatisticBoardSnapshotService.java:257-259`）。本人此前"最可能是无完整发布点"的判断已撤回更正。
+- [历史验收，2026-10-14（已被“黄金基线 A/B 与时钟隔离修复”一节替代）] 用户要求完成当前小步后暂停，由 AI 员工继续实施、经理只审批。当时的完整黄金 compare 为 202 项、86 failures/6 errors/0 skipped：6 errors 全为新用例缺少快照，意外 HTTP 错误已消除，业务排序与测试调度/写用例还原副作用当时仍未解决；未进入 update，原快照零改动；授权补证据的夹具/manifest 已落地，原三份业务夹具不变。当前状态、日志与恢复入口见本文“2026-10-14 黄金基线 A/B 与时钟隔离修复”一节及 `docs/decisions.md` D-08 第 7 条；该轮证据仍为 `golden-read-publication-20261014-controlled-compare.log`。
+- [下一步，2026-10-14 更新] 该节的三项前置工作（未解释排序差异、黄金任务隔离、生成/审查/严格复比）均已完成并全绿，见本文“黄金基线 A/B 与时钟隔离修复”一节。本单元剩余项是读路径自身的目标环境验收：开发后端 health=UP、前端 18181=200；本单元未改客户统计前端。保护混合工作树，不提交推送、不自动访问目标实例；目标库接管/真实容量仍未验收，计划保留。
+- [最新进行，2026-10-13] 数据集按发布时字段模式恢复，真实字段删除/改类型后旧版仍可读，模式变化开新 epoch；151 条迁移已登记。新增镜像完整表发布工作器及数据库内容身份接入，P5 共用两阶段整页接受与传输校验开始落地，实际页面尚未全接通。最近真库数据集 17 项中 16 通过，剩余镜像测试身份夹具修正后复验中；此前 59 项中 57 通过、2 租约夹具修正已在后续数据集回归通过。细节与恢复命令唯一维护在活动计划“P4 全页面接入推进”；当前仍不可部署，不把基础/编译/定向测试等同于全页面验收。
+- [最新验证，2026-10-13] 152 条迁移的读模型/数据集 55/0/0；CAT 超十份保留、映射变化与旧下载指纹/权限 10/0/0；前端读取协议/整页接受/横幅/五秒刷新预算共 47/0。安装入口已落代码但启动验收未完成；BI 实际状态唯一见其进度域。实际前端页面尚未完整绑定，默认回归、浏览器、容量与六项最终门禁未执行，不能部署或关单。活动计划记录最新日志、未验证差异及剩余查询路径；生产迁移/内网/黄金全链路/提交推送均未执行。
+- [调查结论] 客户维度统计的下钻/候选存在同源 ISSUE 发布窗口拒读，主表旧版本还会在同步结束后持续造成下钻失配；旧客户五板/系统测试四板下钻不走该门控，不能声称全部下钻每十分钟停一次。兼容模式历史修复 `6707b433` 仍有效，事务合并/暂存换表未因 RUNNING 清空旧数据；相关残余体验风险、前端失败处理及全量补偿会请求全量事实发布的证据已归活动方案。
+- [完整版本判据，2026-10-12] 用户明确生产成功包括增量同步及对应事实层刷新成功；成熟数据在切换前核验并建立 V1，不因新登记表缺失要求从零采集。完整基线可与增量组成完整版本，零变化不必生成新版本；精确判据见计划。当前未访问生产数据库，不以日志描述代替迁移核验。
+- [前期调查证据] 实施前后端记录快照/BI 源适配器/下载授权定向 26 项、前端明细/候选/BI 错误页三文件 55 项通过，仅为原行为调查，不能作为新版本全页面验收。当前实现验证以上方 P2 状态为准。
+- [范围外] 手动"重建当前数据事实层"失败（`requestFullPublication` INSERT 缺 `latest_mirror_run_id`，列 `NOT NULL`）已确认根因、按用户要求暂不修复；D-24 ⑥ 文本与实现（②④已纳入降级）存在表述偏差，待本方案实施时一并修正。
+
+## 2026-10-21 表单系统使用设计确认（v5.1，技术方案待群内评审）
+
+- [当前阶段] 用户已审核并发使用场景并确认危险操作提示及草稿反馈，归纳进入[统一表单方案v5.1](plans/unified-form-system-plan-20261009.md)§2.4及§3.6，不逐项粘贴讨论清单。
+- [已完成] 明确MR/Issue逐记录保存、旧页面无覆盖权、非实时按需加载、编辑会话/请求隔离、危险操作确认、本机草稿状态及未提交离开保护；同步产品/架构入口和验收边界。协作规则补充场景须提炼为设计与验收。既有版本、字段、归属及D-30保持。
+- [下一步] 群内评审技术方案，补第五章E1至E6外部证据，再按S0至S6实施。未知RS在接入该范围时补证；当前Demo不约束目标行为。
+- [验证] 53项文档契约检查及12个本地链接检查通过，原7个SQL/JSON块、FR/D/B索引、字段/端点/选择器保持，57个讨论场景按设计章节覆盖；三项仓库护栏及定向diff通过，全树仅既有DailyDefectTrendChart.ts末尾空行。核对材料`.tmp/form-usage-design-20261021/`，功能验证留实施阶段。
+- [范围] 仅修改文档与协作规则；功能和浏览器验收按第四章实施时执行。混合工作树且未指定推送远端，保留本地交付。
+
+## 2026-10-10 内网 115 全新空平台发布包（测试实例，已交付待现场部署）
+
+- [已完成] 用户要求在内网 115 用与正式生产 20001 完全不同的端口拉起全新空平台（用途：BI 看板 / 系统测试 / 客户问题验证，数据由用户人工同步）。产出 `qaflex-full-20261010T013316Z-24fbf3eb6925`（fresh-empty，归档 208,491,236 bytes，SHA-256 `658b12fde54fada48b02f2d1d3751de23d9736f319d1e70a73da90480fe8080d`）；端口前端 20101 / 后端 20102 / PostgreSQL 15435，`COMPOSE_PROJECT_NAME=qaflex-20261010t013316z-24fbf3eb6925`（独立容器、网络、数据库卷，与 20001 的 `qaflex-20260803t122027z-ad35f6c0e8c3` 隔离）；LDAP 沿用 `http://172.22.10.116:80`；`source.commit=3a105ddf`（清单标记工作区非干净，实测唯一未提交内容为本单元计划文档，无代码差异）。
+- [验证-打包门禁] 打包器全默认门禁通过：前端发布测试与生产构建、后端 `clean package`、Flyway 源码/JAR 集合比对、无缓存双镜像构建、镜像内 app.jar 与前端 index.html 摘要核对、镜像内 `pg_dump 16.15` 断言；包外 `.sha256` 与包内 `SHA256SUMS.txt`（6 文件）全部校验 OK；归档结构仅含 `.env`/`docker-compose.yml`/两个镜像 tar/README/清单/校验和，无 PostgreSQL 镜像与任何数据文件；`scripts.test_package_intranet_offline` 55 项 OK（10 跳过）；四项仓库门禁与 `git diff --check` 全绿。
+- [验证-黄金基线等价性] 不重跑后端黄金基线的依据：`GoldenBaselineChainTest` 2026-10-09 09:42 实测 `tests=196 errors=0 failures=0`（342.5s），对应提交 `5af9673e`；`5af9673e..HEAD` 六个提交全部为 `docs(...)`，`backend/src`、`frontend/src`、`scripts`、`backend/pom.xml`、`frontend/package.json` 零改动，即本次打包与已通过门禁的代码状态同一（规则禁止同一代码状态无端重复运行同类测试）。前端侧本机实测 `npm run typecheck` 干净、发布门禁 2 文件 20 项、全量 154 文件 729 项全绿。
+- [验证-本地部署实测] 用独立栈（仓库 `.tmp/local-deploy-verify-empty-20261010/`，原样使用包内 `docker-compose.yml`，镜像从包内 tar 自行 `docker load`，仅站点级覆盖 LDAP→本机 corp-IDM 模拟 28081 与公开地址）实跑：三容器 healthy、后端 `/actuator/health`=UP、前端 200、Flyway 空库从零迁到清单声明的 `20260930.02`（138 迁移 / 99 表）、业务表全 0 行而权限目录 89/387 由迁移播种、CSRF Cookie 为实例专属名 `QAFLEX_XSRF_<实例摘要>`（无共享 `JSESSIONID`/`XSRF-TOKEN`）；浏览器用 corp-IDM 账号登录成功，BI 看板（含产品版本选择器）、系统测试缺陷汇总、客户问题（含 8 个副模块）三页均正常渲染并给出正确的空数据文案。
+- [限制] 本机无法验证内网真实 LDAP（172.22.10.116）、GitLab/老平台源库连通与 20101/20102/15435 在 115 上的宿主机占用；这些留待现场按包内 `README-INTRANET-DEPLOY.md` 执行。`docker ps` 只能证明 115 上 Docker 容器占用为 20001/20002/15433。
+- [历史-环境] 本机 Docker Desktop 默认子网池曾被 33 个网络耗尽（含 26 个未挂容器的历史验证栈残留）；已按用户"有用的保留、无用的删除"批准删除 19 个本项目历史验证栈的 `*_default` 网络（33→14），保留 corp-idm、GitLab/DGM、手工创建的 `qaflex-matchmode-mr-net` 及其它项目网络。`docker compose up` 会在下次启动对应栈时自动重建被删网络。
+
 ## 2026-10-08 下拉框设置关系选项分档重命名与保存期拒绝（已实施、验证并提交）
 
 - [已完成] 系统设置「下拉框选项设置」的关系选项按右侧取值形态分档：文字档保留「等于 / 不等于 / 包含 / 不包含」，标签组档（绿色）由「包含任意一个 / 不包含任意一个 / 局部包含任意」改为「属于该组 / 不属于该组 / 包含组内任一成员」；移除在单值判定下恒不成立或恒为常量的「包含全部 / 不包含全部 / 为空 / 不为空」（11 项降为最多 7 项）；规则区新增静态提示，说明「包含 / 不包含」是对单个选项值的文字片段判断。后端 `DropdownOptionRuleSupport` 保存期拒绝 `containsAll` / `notContainsAll` 并给出可读原因（`eq` / `ne` 别名经既有归一化放行）。

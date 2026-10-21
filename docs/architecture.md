@@ -26,6 +26,9 @@
 
 - 负责 GitLab 连接、表白名单、增量/补偿同步、任务状态、日志和 Webhook 事件。
 - 镜像层拥有 ODS 原始数据和同步水位；同步成功不代表事实层已重建成功，事实刷新状态必须独立记录。
+- 已核验0930发布协议：数据镜像设置页“刷新最新数据”与普通自动补偿均提交`INCREMENTAL_SYNC`，共享白名单、增量水位、优先级及事实发布链；`MANUAL/SCHEDULE`表达触发来源，自动入口另受开关与计划到期约束。活动增量可复用并登记补跑，触发不等于完成；日志将该运行类型统一显示为“刷新最新数据”，排查须比较config/source、运行终态、表任务与后续事实发布。“全量补偿对账”是独立`FULL_COMPENSATION_SCAN`，不能与普通自动补偿混称。制品锚点为20260930T044004Z-e275334105bb，原JAR SHA-256为64e281b78ee5465be168a70c8540ff1f1318af69e46bdf28c4b2347284757611；调查材料见.tmp/mirror-sync-0930-investigation/。
+- 已确认的发布实现缺口（0930/1010/696c原制品核验）：`FULL_RECONCILE`不建立时间增量`last_watermark_at`，未成功完成过增量的表下次`INCREMENTAL_SYNC`从1970起扫，完整增量末页后才推进水位；新空库因此可能重读历史并为相同行登记关系核对，不能由“升级保留水位的实例稳定”推断“新空库首轮增量已验收”。现有日志“表项”是分页任务行数，完成计入失败等终态；写入量来自父运行快照，独立权威范围不在表项计数内。需要分别核对任务水位、扫描/写入与关系范围状态，不能按小写入量判断工作量或事实刷新就绪。安全基线交接与进度修复尚未实施，不能人工填当前时间水位掩盖。证据：.tmp/fresh-package-incremental-20261019/。
+- 1010/696c取消边界缺口已用原class和数据库替身确认：取消的快速终态判定仅检查普通表任务，未覆盖独立权威范围租约；范围提交也未检查父运行取消状态。取消不会回滚已提交ODS/水位，但未完成范围只有正常收尾为FAILED后才满足后续接管条件，不能由重试日志SUCCESS推断旧工作已完整移交。真实并发与现场是否触发尚未验证；取消确认、范围提交与恢复闭包需一并修复，证据沿用上述目录。
 - 同一镜像运行的表 worker 数与 DIRECT JDBC 池容量由 `SyncExecutionBudget` 一次解析；`sync_runs.resolved_worker_count` 是该运行不可变并发快照，DIRECT 池容量等于 worker 数加控制面保留连接。连接池按稳定 `configId` 唯一管理，连接或线程配置只能在无活动镜像运行时修改，配置事务提交后旧池退休且不打断已借出连接。
 - 调度器每次领取运行必须生成唯一 `lease_owner`；首次心跳、周期续租、暂停和终态提交均以 `(run_id, lease_owner)` fencing，租约转移后的旧执行器不能覆盖新 owner。执行器拒绝入队时仅释放自己拥有的运行并归还本地容量；截止时间和人工取消使用字段级状态 CAS，禁止用陈旧全实体更新覆盖租约。
 - 表任务是唯一分页恢复边界：源端读取不持有平台库事务，本地镜像写入、变化目标登记、任务 owner 条件完成、状态水位和下一阶段任务创建在同一事务提交。`SCAN` 续页使用独立任务行；每张表的 `RECONCILE` 只使用一个任务行原子累计计数并推进 keyset cursor，不按页增长任务数。任务执行期间按租约心跳续期，租约转移后的旧 worker 不得提交状态或镜像副作用。
@@ -33,9 +36,10 @@
 - 表任务的连接、超时、锁/死锁、事务回滚和临时资源异常在原任务内按上限退避重试，父运行复用 `RETRYING/run_after` 等待该任务；租约超时使用同一状态路径。未定义表/列、非法配置和业务契约错误直接失败；任何失败重试都不得推进 cursor、水位或事实发布门禁。
 - 源端扫描只使用真实类型复合主键 keyset：全量与删除对账按主键 tuple 分页；增量仅在更新时间列存在有效非部分 B-tree 前导索引时使用 `TIMESTAMP_KEYSET`，否则在固定 `(watermark, scan_upper_bound_at]` 窗口内使用 `PRIMARY_KEY_KEYSET`，保证每次运行最多按主键线性扫描一次。复合游标统一为 JSON 数组并持久化 `page_number`；状态水位只在末页推进。禁止按文本化主键排序、哈希分片重复扫表、`OFFSET` 分页和逐页 `count(*)`。
 - GitLab 来源时间必须按物理列类型解释：DIRECT JDBC 读取结果同时保留 `ResultSetMetaData.getColumnTypeName()`，`timestamp without time zone` 保留来源墙上值，`timestamp with time zone`/`timestamptz` 按同一瞬间归一为 UTC `LocalDateTime`；DOCKER JSON 的无偏移文本保留墙上值、带偏移文本归一为 UTC。时间窗口 SQL 必须按来源 schema 生成匹配的 `timestamp`/`timestamptz` 字面量，不能只按 JDBC 通用类型或 JVM 默认时区转换。
+- 客户问题活动时间按列固定语义（D-27，已实施）：已核实的 `issue_fact.created_at_source` 为 UTC naive，活动规则通过 `*FromSourceUtc` 映射到上海日历；`fixed_label_time` 的来源事件列是 `timestamptz`，事实投影在 `IssueFactSourceRowMapper` 边界用 `FactSourceRowValueSupport.toShanghaiWallClock` 只取瞬间并按 `CustomerIssueActivityTimeRules.BUSINESS_TIME_ZONE` 落成上海墙上值，写入进程与连接会话默认时区不参与结果，消费者经 `*FromBusinessClock` 直接按业务日解释、不二次转换。事实复制与读取既有修订的分支保持原值，不做第二次换算；空值仍是未知。分列入口对应不同列，不依据主机动态回退，也不归一为单一入口。本机存量事实本就由上海主机投影得到，与新语义同值，无需批量重建；跨环境部署由该边界统一。业务日由 `SystemBusinessDateProvider` 消费可注入 Clock 并显式按上海日历解释；页面、候选、下钻与下载沿用同一固定日期身份。验证为真实 JDBC（`timestamptz` 事件列）→实际 mapper→今日/本周/累计完成，在上海、UTC、洛杉矶写入进程与 UTC/上海/纽约连接会话时区组合下同一瞬间得到同一业务日历值，手工构造上海 naive 值不能代替该投影验证。
 - 同一数据源保持单一镜像写入所有权。用户 `TABLE_REFRESH`、`INCREMENTAL_SYNC` 和 System Hook 属于前台运行，独立低优先级 `DELETE_RECONCILIATION` 与全量/补偿运行只在已提交分页边界让行；自动增量仍只为等待中的单表刷新让行。让行以 owner CAS 转为 `PAUSED` 并释放互斥范围，前台运行结束后从持久 cursor 恢复；已经开始的源查询和平台事务不中断。
 - 页面同步命令只引用已持久化的 `configId`，不得隐式保存配置；表单存在未保存变更时必须先显式保存。活动镜像运行期间后端继续拒绝连接与容量配置变更，不能为提交前台任务绕过该保护。
-- 同步诊断只把当前活动运行的任务计入当前失败/超时，历史累计使用独立字段；当前表任务必须暴露 `taskId/stage/cursor/retry/heartbeat/lease`。DIRECT 模式同时暴露 Hikari 活动、空闲、等待和容量指标；源总量未知时前端使用不确定进度，不根据动态分页任务数伪造百分比。同步 JSON 日志统一携带 `runId`、`runDbId`、`taskId`、`sourceTable`、`configId`、`sourceInstance`、`runType` 和 `action`。详细决策见 `docs/decisions.md`（D-04）。
+- 同步诊断只把当前活动运行的任务计入当前失败/超时，历史累计使用独立字段；当前表任务必须暴露 `taskId/stage/cursor/retry/heartbeat/lease`。表同步诊断按 `dirty_flag desc, source_table asc` 稳定排序，同组顺序不得依赖随运行变化的 `updated_at`。DIRECT 模式同时暴露 Hikari 活动、空闲、等待和容量指标；源总量未知时前端使用不确定进度，不根据动态分页任务数伪造百分比。同步 JSON 日志统一携带 `runId`、`runDbId`、`taskId`、`sourceTable`、`configId`、`sourceInstance`、`runType` 和 `action`。详细决策见 `docs/decisions.md`（D-04）。
 - `GitlabSourceLineageCatalog` 是 25 张推荐来源表的主键、删除探测资格、权威父子范围和派生归属唯一目录；评论和标签分别用 `(noteable_type,noteable_id)`、`(target_type,target_id)` 隔离多态对象。`GitlabFactDependencyCatalog` 统一维护平台通用事实读取表与变化信号表，`RealtimeWorkspaceDependencyCatalog` 再把工作区映射到事实类型和扫描依赖；新增推荐表或事实依赖必须显式登记，无派生消费者也必须显式声明。`merge_request_diffs` 与 `merge_request_diff_commits` 是可选的 MR 提交增强来源：两表仍登记为 MR 变化血缘，但不属于通用 `MERGE_REQUEST` 事实硬依赖；自定义白名单未同时选择两表时，原有 MR 事实和代码走查工作区必须继续可用。
 - 日常正确性采用三层模型：普通 `INCREMENTAL_SYNC` 仅按目录声明的 `UPDATED_AT` 或 `MONOTONIC_PRIMARY_KEY` 固定上界快速扫描，并处理事件生成的批量权威范围，不创建全表 `RECONCILE`；`resource_label_events` 等变化信号定位父对象后，批量读取当前完整关系集合并原子替换 ODS；无事件的物理删除由独立低优先级 `DELETE_RECONCILIATION` 为到期表创建 `RECONCILE` 任务最终收敛。权威范围按规范 identity 去重，`QUEUED/RUNNING/RETRY_WAITING` 阻断完成，`FAILED` 使运行失败，禁止把未完成范围解释为空集合。
 - 普通增量的每张快速表必须持久化来源固定上界，并由 checkpoint 覆盖该上界；必需表缺失、零表规划、上界未固化或权威范围未完成均不得记为成功。只有完整覆盖的 `INCREMENTAL_SYNC + SUCCESS` 推进 `last_incremental_sync_at`；活动增量吸收后续到期触发时持久登记一次尾部补跑，并在原运行结束后立即创建新的固定上界运行。执行结果、快速增量新鲜度和删除对账新鲜度分别记录和展示。
@@ -55,22 +59,34 @@
 - 页面手动刷新只扫描工作区依赖表，但扫描发现的全部跨项目变化均进入统一 outbox。请求先持久化 `sync_run_publication_fences`，镜像运行在释放同源 writer 前捕获要求的 change version；页面完成状态等待该版本内事实目标和自身消费的投影 generation 成功，不能因本次 ODS DML 为零或仅镜像运行成功就宣称最新。
 - 延期标签写回在比对差异前必须先增量刷新镜像并等待 ISSUE 事实族发布收敛，判据是该来源实例已无未发布根（`fact_change_heads.published_version < latest_change_version` 的版本栅栏，唯一读法见 `SyncFactPublicationStateService.countUnpublishedTargets`），而不是某一次事实运行的终态。事实消费者是来源级、无父运行的，因此任何依赖父子运行关联判断事实就绪的写法都无效；未收敛时跳过写回，禁止基于落后于镜像的事实写标签。该来源是否具备写回资格由数据源在镜像设置页的「延期标签写回」开关（默认关闭）与 `web_base_url`／`api_token` 是否齐备共同决定，见 `docs/platform-page-business-rules.md`。
 - 上述等待由运行终态事件驱动，由 `CustomerIssueDelayClosureOrchestrator` 按「提交前置刷新 → 等发布收敛 → 重算事实并登记写回候选」三段推进，不轮询、不设固定超时：调度触发只把周期提交到应用异步执行器，收敛评估在运行终态事件监听中完成，阶段 3 直接在该执行器上执行。运行终态事件对全部运行类型发布，订阅方各自按 `mirrorRun()` 或运行类型过滤；事实发布登记方必须先于收敛消费方执行（顺序契约见 `SyncRunCompletionListenerOrder`），否则目标尚未登记时会把"未发布目标为 0"误判为已收敛。在飞状态按数据源配置粒度保存在内存，只拥有一个调度周期，跨周期重启（重启复用同互斥域的活跃运行，且候选登记幂等）。
-- 客户问题延期重算的写入面固定为 `issue_fact(is_response_delayed, response_overdue, is_resolve_delayed, updated_at)` 并按主键 `id` 定位，不写其它列、不写客户成员关系、不刷新搜索列（决策见 `docs/decisions.md` D-15）。原因是该重算从库中读入记忆快照后与当前时间比较，快照必然落后于并发事实发布；沿用共用整行 upsert 会把已发布的其它列、成员关系与搜索列一并回退，且发布状态已推进、不会重发。按主键定位使事实目标替换后的陈旧快照自然落空（影响 0 行），残留偏差由下一轮重算自愈。该重算不经过事实发布链路，因此在同一事务内对真正写入的行按 `FactProjectionScopeResolver` 推进范围 generation，使以来源版本为键的统计快照失效；写入 0 行不推进，无关范围不被波及。
+- 客户问题延期重算只改变 `is_response_delayed`、`response_overdue`、`is_resolve_delayed` 三项业务判定，不重新解释其他业务列、成员关系或搜索列（D-15 的窄写不变量）。当前读发布模型下，`FactBuildService` 通过 `FactReadVisibility.liveRevisionPredicate` 读取当前活动事实，在旁路候选中由数据库复制原修订与成员、只替换三项判定；不再原地改写旧事实。`publishWithinCandidate` 返回只表示候选准备到 PROJECTING，必需投影完成并统一发布后才推进公开指针与范围 generation（D-26），不能据其返回认定新延期值已公开。
+- **延期写回接替缺口（2026-10-14 已复现、未修复）**：`CustomerIssueDelayLabelWritebackQueueService.candidateSql` 尚未接入修订可见性，登记与 worker 重读都会混入历史/旧代际及未发布候选；`loadCandidate` 无排序取首条，不能保证是当前事实。临时表执行生产查询已复现当前需加标却取历史“不延期”而跳过，以及当前已关闭仍命中历史 open 行。`CustomerIssueDelayClosureOrchestrator.executeDelayClosure` 又在重算候选准备返回后立即入队，未交接该候选的完整发布结果。修复应共同保证候选完整发布后登记差异、worker 只消费当前有效修订；只加去重、排序或过滤后仍立即入队均不足以闭环。完成当前版本集成验证前，不依据旧版真实写回结果认定可接替；运维边界见 `deploy/runbooks/gitlab-sync-orchestrator-runbook.md`“老平台延期标签写回接替边界”。
 - 响应延期的豁免判据由 `IssueSlaRules` 单点派生，事实构建与周期重算共用：**存在回复模板（正文含 `### 1、修复状态`），或存在响应模板（表头 `# 问题调研情况说明`）且其"计划解决时间"合法**即豁免。合法格式与非法模板判定**同源**（`IssueResponsePlanFieldRules.parsePlannedResolutionAt`：唯一且完整的日期 + 规则总表 11.4 的分隔符白名单），凡不符合即视为"没有写时间"；取值按最新一份响应模板，不可解析时回退更早的响应模板，与老平台 `IssueServiceImpl.getPlanSolutionTime` 方向一致。回复模板存在时优先豁免，不再检查响应模板的计划解决时间。`issue_fact.has_response` 只表达响应模板存在性，与豁免判据不是同一事实，二者不得互相回退或合并。规则口径见 `docs/platform-page-business-rules.md` 5.3，决策见 `docs/decisions.md` D-21。
 - 统计板快照的来源身份由请求声明的实际读取范围推导，不使用隐式默认来源：范围集合显式携带每个 `source_instance`，来源版本由 `FactProjectionVersionService.combinedSourceVersion` 按来源分组生成（单源只锁该源，多源覆盖每个来源）。命中判定、来源版本读取、发布资格校验和事实读取位于同一只读 REPEATABLE READ 事务，快照写入在该事务之外并绑定事务内读到的版本；来源完整性无从证实（依赖未就绪、全量重建未结算、标签事件历史未全量核验）时读取明确报错，命中已有 READY 同样拒绝；完整性可证但尚未收敛到最新变化版本时改取该视图上一个完整发布点并附带数据时刻与待更新数量，该降级产出不写入快照，且该视图从未有过完整发布点时拒绝并说明。不产出新 READY、不以零值或进行中的混合视图冒充完整结果（决策见 `docs/decisions.md` D-18、D-24）。
 - 统计下钻契约以单元格声明的能力与集合为准：`StatisticCellData.drilldown` 是唯一的最终下钻能力（新板所有指标即便 0/null 也可打开；旧看板在原生产端用历史有效条件显式写入该值），前端不得再按数值推断。`StatisticDetailResponse` 携带可选集合列表与当前集合：数量提供 `COUNTED`、比率提供 `NUMERATOR`/`DENOMINATOR`、周期提供 `SAMPLE`；空集合仍返回列定义、集合说明与 `total=0`，由明细解释而非报错。主表下钻参数携带行身份、业务日、来源选择与来源版本，明细请求重新解析当前范围与版本并匹配，来源已变或缺少版本时明确拒绝，不混读两个来源代际（决策见 `docs/decisions.md` D-19）。
 - 统计板的行维度与精确成员选择是控制参数而非业务筛选条件：在 `StatisticFilterGroupSupport` 中与业务 `filterGroup` 分离，由页面配置声明并按 URL 往返，切换时失效明细键并回到第一页。成员候选由后端 `GET /api/statistic-boards/{boardKey}/control-options` 在同一窄事实的**完整基础范围**（公共范围 + 用户条件，不施加成员选择）上求解后下发，因此选择某个成员后其余成员仍可选；它不是第二套成员权威源，只是同一事实源的一次查询结果。缺失成员与真实成员用"类型 + 值"表达：候选项为 `{kind, value, label}`（`MISSING` 的 `value` 恒为空串，`VALUE` 的 `value` 即成员名），请求参数上"成员名"与"成员类型"分成 `customer/module/function` 与 `customerKind/moduleKind/functionKind` 两组并同时写入主表 `detailParams` 与快照键。成员名因此可以是任意文本，真实名等于 `__missing__` 或等于"未标注…"文案的成员与缺失是两个可分辨的选择，禁止用哨兵值或"歧义计数"表达缺失（决策见 `docs/decisions.md` D-19）。候选与主表必须属于同一来源代际，无论哪一方先返回都要核对（候选响应到达时比对主表最近报告的代际，不一致则丢弃并重取一次）；主表、明细、候选三条加载路径都按请求序号丢弃迟到响应，明细关闭与失效时作废在途请求，快速筛选变更只产生一次请求。模块成员的空白语义在 Java 与 SQL 两侧使用同一 `\s` 定义（Java 正则去空白，SQL `regexp_replace(..., '^\s+|\s+$', '', 'g')`），不得一侧 `trim()`、另一侧只去空格的 `btrim`。范围目录已加载但没有启用项时，页面显示目录状态并阻止按“全部里程碑/阶段”取数，不把默认范围放大为全范围。
 - 同一议题的总量去重、模块多归属、空值展示、默认范围和导出口径遵循 `docs/platform-page-business-rules.md`，禁止在页面 SQL 中复制隐藏规则。
+- 统计表视图配置以`hiddenColumnKeys`记录主动隐藏意图，当前定义减隐藏集合派生实际可见列，设置草稿与渲染共用该派生结果；不把某次响应的可见全集作为未来列白名单。浏览器偏好和已发布收藏的旧`visibleColumnKeys`只在统一解析边界迁入：以旧列顺序中已知全集减旧可见集合得到隐藏集合，迁入后只写新模型；缺乏证据的新增列默认可见，暂离当前维度的隐藏意图保留。该转换不改统计范围/指标或后端协议，也不清空其它布局设置。
 - 事实字段或统计口径变化必须明确是否重建事实层和预热快照；重建不等于重新全量镜像同步。
-- 手工全量重建复用 `/api/facts/rebuild?configId=`，但接口只提交 `FACT_REFRESH` 后台运行并立即返回运行编号；运行以 `manualFullRebuild=true` 标识，在调度器中调用唯一的 `rebuildAllFactsForConfig` 入口重建 `issue_fact`、`merge_request_fact`、`integration_test_fact`。任何事实表写入前必须聚合预检三类事实的全部 ODS 表/字段；手工全量重建的三类事实和自动任务的单类事实以分批事务发布：每个批次在独立事务内原子完成事实与客户成员/提交关系 upsert 及搜索列刷新，批间续期任务租约并写入 `sync_run_events` 进度事件；全部批次提交后反连接清理快照之外的同源事实，并在单一短事务内完成 FULL_EPOCH 推进、任务终态与发布状态结算（决策见 `docs/decisions.md` D-10）。构建中页面可读到已提交批次的最新事实；任一批失败由任务按幂等重做收敛。提交后按新的事实源版本刷新统计板与记录页快照；快照未命中时只能实时查询完整的新事实代际。手工运行与构建任务使用同一运行编号，状态面板和最近同步日志以 `sync_runs` 为唯一追踪来源；提交服务对同数据源所有活跃镜像或事实运行互斥。后端权限、源表校验和事实构建锁是权威保护，数据镜像页只提供受确认保护的运维入口。
+- 手工全量重建复用 `/api/facts/rebuild?configId=` 提交 `FACT_REFRESH` 后台运行，立即返回运行编号；执行器按 `manualFullRebuild=true` 聚合预检三类事实的全部 ODS 表/字段，再分别派发三类全量任务。分批事务只写新 epoch 的候选事实、父修订关系与搜索列，批间续期租约并写 `sync_run_events`；不删除或改写上一完整版本。全部捕获输入完成后进入 PROJECTING，必需投影针对冻结身份成功后，唯一发布事务切换域指针并结算 heads、全量意图、generation 和栅栏。失败/中止释放候选，旧版本保持；不再使用原地快照外删除。构建任务 SUCCESS 表示批次构建完成，父运行必须等待完整发布；父、子租约分别校验。分批与租约背景见 D-10，当前发布契约见 D-26。提交服务的同来源互斥、后端权限、源表校验与事实构建锁继续有效。该中间阶段不可单独部署，P3–P6 尚需完成业务投影、全查询版本限定与页面接入。
+- 首次手工重建意图与镜像证据的边界以 D-26“手工重建意图与镜像证据”为准；未知镜像不伪造、未就绪不认证。提交成功只代表意图登记及后台运行入队，不代表全量构建/完整发布已完成。
+- 事实候选失败的逻辑中止与物理清理分离：ABORTED/执行归属释放先提交，遗留未公开修订通过持久标识交给维护调度单批事务清理；旧完整点保持，首个构建/发布异常不得被二次清理失败覆盖。批次与恢复契约统一见 D-26“失败恢复与锁边界”。
+- 启动、仅迁移与读生产分离：`PLATFORM_RUN_MODE=migrate` 是不扫描平台业务组件的无 Web 一次性 Flyway 进程；正常启动不内联接管大表。后台按域接管/重试，镜像失败持久退避；稳定键完整对账复用未变修订，不因 FULL_RECONCILE 单独新建代际。完整控制与物理复用边界归 D-26，现场完成判据见升级 runbook。
 - D-10 只治理显式全量事实构建的分批发布、租约和互锁；它不等于定向增量目标洪峰已解决。增量长跑的当前诊断与版本边界以 D-13 为准，具体源表/列和 SQL 执行计划仍需内网固定负载探针确认。
 - 事实表的搜索影子字段和业务分类字段是持久化查询契约：Java 生成归一化值，SQL 只过滤、排序、聚合，前端字段必须可追溯至请求对象和事实字段，不能在查询层临时重算复杂索引。`issue_fact.reason_category` 只由老平台固定修复模板的勾选原因段生成，非法模板写空并复用非法判定，禁止标签、普通评论或完整 `raw_payload` 回退。
-- `issue_fact.bug_status` 与 `issue_state/closed_at_source` 是相互独立的事实维度：前者只保存老平台全角 `状态：X` 标签合并值，缺失时保存“未设定议题状态”；后者独立表达 GitLab 议题开闭状态。事实构建、查询、快照、导出和前端不得在两个维度之间回退或互相推断。
+- `issue_fact.bug_status` 与 `issue_state/closed_at_source` 是相互独立的事实维度，后者表达GitLab开闭状态，不得互相回退推断。696c部署实现的前者仍只保存老全角 `状态：X` 合并值，缺失为“未设定议题状态”。2026-10-19用户已确认客户项目325九个明确状态词支持裸/全角/限定半角状态前缀并稳定去重，其它项目不扩；目标规范及实施状态见[活动计划](plans/customer-issue-status-statistics-confirmation-20261019.md)，尚未落地，不能据确认声称部署代码已支持。
+- 延期原因与测试状态同名不表示字段等价，问题调研评论不自动生成状态；已确认目标将裸数据异常纳入状态并保留其独立延期原因，但显式“延期原因：数据异常”不生成状态。共享闭环/延期/事件资格消费同一规范词汇，不能统计页补值而来源与其它消费者仍扫描raw标签子串。原696c已复现这种衔接缺口；修复需历史重建和全消费者验证。
+- 持续时间比较必须明确两端时间轴：`created_at_source`为UTC naive、`fixed_label_time`为上海墙上值，先解释为相同轴再求差，不得直接相减、篡改D-27存储或对所有列统一偏移。2026-10-19原696c客户解决周期已复现真实24小时显示1.3天的混轴问题，目标修复及回归归同一活动计划；活动日历分桶仍按D-27。
+- 多状态字段的成员解析不自动改变各输出的聚合公式。2026-10-19复核本地老平台`SpiderIssueDataService`确认：CC/HTGC指派人详细Excel的未复现、CC需求如此本就按整串equals计数，696c沿袭该实现；改为成员计数属于待确认口径调整，活动计划S06不再作为必修回归。F/P、is_fixed、关闭及非客户项目输入范围分别保留自己的契约。
 - `scripts/contracts/fact-field-contract.md` 是事实字段静态契约；新增或修改字段必须同步 Flyway、生成规则测试、查询/前端/导出影响，并明确是否重建历史事实。`scripts/check_fact_field_contract.py` 校验其与 Flyway 最终结构的一致性。
 - `CC_PRODUCT` 客户归属以 `ods_gitlab_issues.description` 的“客户名称”为主、标题双破折号后缀为缺失兜底；`issue_fact_customer_members` 是多对多筛选权威，`issue_fact.customer_names` 仅为展示投影。客户别名必须精确规范化，筛选使用成员关系 `exists`，不得拆分或重复议题事实。
 - `CC_PRODUCT` 的计划解决时间和计划合并版本分支只来自最新“问题调研情况说明”响应模板，不能复用 SLA 截止时间。事实构建对计划解决时间只保留唯一完整日期；对计划合并版本分支只折叠空白并保留来源文本，不得用非法模板校验过滤事实。计划合并分支的读取成员语义统一接受 `&`、半角逗号、全角逗号和顿号，去空、去重后供候选、SQL/内存精确筛选、表格和详情共用；API 与 Excel 仍输出完整事实原文。客户问题非法模板规则独立要求计划合并分支为一个或多个以 `&` 分隔的 `CCyyyyRn` 成员，校验失败仍保留事实原值。缺陷滞留时长只表达当前未闭环年龄：GitLab 已关闭或命中客户问题最终闭环状态时为 `0`，否则按一次请求固定的 `asOf` 与 `created_at_source` 动态计算；它不能写入事实或页面快照，也不能承载历史解决周期。上述字段、候选和导出只属于 CC_PRODUCT，延期专题不消费它们。详见 `docs/decisions.md`（D-03）。
 - `issue_fact.handler_name` 与 `issue_fact.assignee_name` 是独立人员事实；当前 GitLab ODS 只暴露一份规范指派身份时，事实构建可以写入相同值，但查询、筛选、排序和导出不得把两个字段重新合并。`testing_phase` 原始空值保持为空，CC_PRODUCT 仅在响应投影中显示“未设定测试阶段”。
 - `code_review_external_metrics` 是 GitLab diff 派生行数和 MR 标题功能名的权威补齐模型。既有或手工导入指标默认视为 `SUCCESS`，只有历史/已完成运行扫描明确发现的 CC MR 才进入补齐队列；后台以持久化 keyset 游标分别扫描历史 MR 和已完成镜像运行，队列按 `source_instance` 隔离并经历 `PENDING/RUNNING/RETRY/ENRICHED/SUCCESS/FAILED`。网络、限流和服务端错误使用封顶指数退避持续重试，认证、资源不存在、非法地址和截断响应进入确定性失败。补齐只通过 API Token 访问 GitLab v4 changes 接口，页面请求不得实时访问 GitLab；成功指标在事实构建互斥内定向发布到 `merge_request_fact`，构建忙时保持 `ENRICHED` 等待下一批次。全局调度关闭时补齐任务必须停止。
+
+- 完整读发布模型采用行修订、半开可见区间与原子域指针。整轮候选固定根集合/水位，真实投影持久产物匹配封印/定义后才统一发布事实、范围、heads、意图 CAS 与缓存；候选预热产物必须在写入事务内冻结同一次写入并读回的内容证据，完成只落盘本任务证据，发布前对全部 `PREPARED` 行双向核验（D-26「候选产物归属证明」）；失败/中止保持旧完整点。页面显式传递 FactReadSelection/DatasetReadSelection，冻结定义与业务日，租约和短事务共享锁保护历史；兼容/原生/镜像数据集恢复真实类型，CAT 引用既有不可变快照。整批页面及下钻/规则/下载只使用已接受身份，准备失败保留旧画面，跨页身份单独核验目标权限与闭包。定义独立变化复用完整重建或数据集持久发布请求。详细不变量见 D-26，BI 专属行为见其文档域；当前实现、完整复验、安装及发布门禁状态唯一见进度文档，不能由局部测试推断可部署。
+
+- 写回版本适用边界：本节多修订/候选交接缺口描述 D-26 主工作树，不原样适用于已恢复 1010 模型的 90bbb/696c 制品。两条线路仍使用内存编排加持久标签作业队列；整轮持久恢复、worker 执行前来源收敛复核及按租约归属结算尚未接入，不能将基础写回已实现等同接替修复全部完成。完成度、制品证据与后续状态见 `docs/progress.md`；目标模型改变时先裁剪专属发布步骤，不恢复双轨。
 
 ### 页面与前端底座
 
@@ -108,6 +124,12 @@
 
 当前一级模块包括：质量看板、评审数据、代码走查、系统测试、客户问题、BI 看板和系统设置。老平台独立“集成测试”模块不恢复。BI 的全部专属事实从 `docs/bi-dashboard/README.md` 统一路由；其余模块的字段、导出、非法数据和下钻规则归 `docs/platform-page-business-rules.md`。
 
+表单采集的目标边界（用户2026-10-19澄清定位、10-20明确纳入Issue，未实现）：表单是独立结构化业务输入，MR走查、Issue响应和Issue回复分别由对应消费方结合GitLab上下文形成派生结果；MR聚合不能替代记录身份，Issue两模板不能复用走查字段或先渲染Markdown再重新解析。现有走查表单仍经`GitlabFactSourceSqlProvider`合入MR后备列；Issue当前仍从评论派生计划、原因、作者及SLA，旧消费须盘点后迁移，不能直接删改。不同指标的多记录/时间选择保持独立；固定输入、完整发布与变更交接约束适用于实际消费方。受控字段发布、持久变更及来源切换的评审方案统一见[表单方案v5.1第三章](plans/unified-form-system-plan-20261009.md#三系统实现设计)，实施状态见项目进度。
+
+表单写入仅处理目标记录，页面快照的缺失或空值无删除含义；记录级版本与结构版本分别校验。客户端将已保存列表、编辑草稿、请求归属及本地持久化修订分开维护，按账号/资源/编辑会话隔离并拒绝迟到结果倒退。草稿写入不生成业务记录或消费变更。详细状态、危险操作确认和按需刷新契约归主方案§3.3及§3.6。
+
+缺陷原因的目标数据边界已于2026-10-20确认、尚未实施：表单按稳定原因ID集合保留真实多选，字段格式/必填验证与Wiki唯一性合规分开；消费者不能复用旧空格/`&`计数缺陷，非法标志也不能反向删改采集值。原因统计保持独立口径，详见[决策D-30](decisions.md#d-30-缺陷原因采集与合规判定分层)。该决策不改变既有原始记录或授权真实重算。
+
 ## 认证与授权
 
 - LDAP 与平台独立。LDAP 提供账号、姓名、状态和角色基础信息；平台创建自己的 HTTP Session，不使用 LDAP JWT 访问业务接口。
@@ -125,6 +147,7 @@
 ## 兼容模式边界
 
 - CC/DGM、老平台评审数据等临时兼容源必须通过明确的 Match mode 服务、表、任务和 API 访问，并在代码中标注 `兼容模式` / `Match mode`。
+- 代码走查老平台单条刷新在 HTTP 请求完成后立即按同源 MySQL 读取该 MR 的全部拆分行。DGM 请求必须同时携带 `Data_Source: DGM` 头与原有 `dataSource=DGM` 查询参数：老平台拦截器只按请求头切换 GitLab 与数据库，查询参数仅用于业务项目选择；兼容读取与老数据转正式刷新共用这一协议。回归测试使用隔离 MySQL/PG 和按头选源的模拟老接口，验证同号跨源隔离及通过记录退出兼容非法列表。
 - 正式数据源与兼容数据源不可互相覆盖。`review_data_read_mode=compatibility` 时，`review_visible_*` 暴露正式评审与未被 `PLATFORM_OWNED` 映射遮蔽的 Mongo 快照；`formal` 时仅暴露正式评审。负 ID 快照第一次编辑在单一事务内完整物化主记录、专家、描述、内容和问题项，并建立 `PLATFORM_OWNED` 映射；Mongo 同步只替换快照，不得回写正式评审。代码走查交接成功后由 `code_review_formal_records` 选择正式事实，旧兼容快照不再直接进入正式消费者。所有兼容路径必须标注 `兼容模式` / `Match mode`。
 - 老平台评审禁止批量转正式或建立 `LEGACY_MANAGED` 副本；`V20260730_07` 清理错误副本并恢复评审读源设置。代码走查仍是可审计、幂等的正式交接，执行前校验已保存设置版本和源范围，使用 PostgreSQL advisory lock 防并发，并在 `REPEATABLE_READ` 事务内提交；失败写入审计任务，不报告为成功。历史无创建人保持 `created_by = null`。
 - 兼容模式 MR 专用测试环境资源固定为 `qaflex-matchmode-mr-*` 容器和 `qaflex_matchmode_mr_pgdata` volume；未经授权不得删除或改名。
@@ -137,7 +160,7 @@
 ## 性能、迁移与发布不变量
 
 - 规模敏感路径先测量再优化；统计查询、事实构建、同步任务和前端渲染不得无限积压或无界等待。
-- 调度线程池只承载短触发性任务：`@Scheduled` 方法不得阻塞、等待或执行长任务；`@Async` 与后台编排一律落在具名应用异步执行器 `platformAsyncExecutor`（`@Async` 必须显式指定它，且它同时是 `@Primary`，使未限定的 `@Async` 也不会回落到调度池）。原因是 Spring Boot 默认调度池只有 1 个线程且承载全应用 `@Scheduled` 触发，长任务落在其上会挤占全部调度，"等待一个由同一线程池派发的运行"更会形成永久自锁。跨子系统的收敛一律由运行终态事件推进，不得用「轮询 + 固定超时」表达：超时阈值与规模无关，超时即整轮跳过。
+- 默认 `taskScheduler` 只承载短触发任务；`@Async` 与后台编排落在具名应用异步执行器 `platformAsyncExecutor`（显式指定且为 `@Primary`，防止回落调度池）。读版本生产/接管及回收另用单线程 `readPublicationScheduler`，固定数量的 fixedDelay 周期完成后再调度，不提交无界工作队列；不得把大表查询放回默认派发线程。默认调度池只有 1 个线程，长任务会挤占全部调度，等待同池派发的运行还会形成自锁。跨子系统收敛由运行终态事件推进，不得用轮询和任意固定超时表达。
 - 后台事实构建通过带版本的结果提交，页面读取已完成版本，不让主请求同步等待非关键后台任务。
 - 内网 Ubuntu 24.04 无公网发布必须携带已构建业务镜像；增量包只替换后端和前端，不加载 PostgreSQL、不删 volume、不执行 `docker compose down -v`。
 - 保数据更新包是默认发布形态，只包含前后端镜像、发布 Compose、升级/回滚入口、结构化发布清单、校验和及离线说明；镜像构建上下文、裸 JAR/`dist`、现场 `.env`、PostgreSQL 镜像和 Docker deb 不得进入更新归档。完整结构以 `deploy/intranet-offline-packaging-standard.md` 为准。
@@ -161,4 +184,5 @@
 - 有意的行为变更：显式 `-Dgolden.update=true` 重建受影响快照 → git diff 逐项人工审阅 → 与本次变更同单元提交。无意的快照差异视为回归，必须修复实现，禁止更新快照掩盖。
 - 基线夹具（`golden-baseline/fixtures/`）冻结：改动夹具 = 新基线版本，须同步更新 `baseline-manifest.json`（行数与 SHA-256）并在决策记录留痕；夹具与快照由版本库管理。
 - 基线版本状态：快照基线跟随生成它的工作树代码。解耦重构通过内网测试前，基线为开发期状态（见 `docs/decisions.md` D-08）；内网测试通过后必须 `-Dgolden.update=true` 重冻结升级为可信基线。
-- golden 运行档禁用外部活体与调度（GitLab Web API、MySQL/Mongo 老平台、后台调度、富化与回写 worker）；此类路径在目录中 EXCLUDED 并注明由其他测试层覆盖。
+- golden 运行档禁用外部活体（GitLab Web API、MySQL/Mongo 老平台）、自动周期同步、富化与回写；保留受控真实镜像、事实、投影及完整数据集工作器，以完成冻结输入的正常生产链。外部路径在目录中 EXCLUDED 并注明由其它测试层覆盖。
+- 完整读发布链须等待镜像/事实以及真实数据集完整产物，再捕获快照。新增 readView 随机身份与运行时刻先核验真实持久租约、范围、固定业务日、完整版本和最小数据时刻，再作规范化；业务状态、数量与范围保持严格比对。修订表随机 UUID 映射到真实域/代际起点/发布序号，保留父关系及可见区间。兼容完整性扩展夹具只补冻结输入的装载元数据，原始业务夹具摘要不变（D-08）。黄金 harness 同时冻结“业务日”和“当前时刻”：生产以 `PlatformConfiguration.platformClock()` 提供系统 UTC 时钟并由需要墙钟口径的服务构造注入，harness 以 `@Primary` 固定到基线清单 `frozen_at`，使滞留时长一类派生字段不再随运行日历抖动快照文件；目录中既有的比对期掩码保持不变，不因该修复放宽或收紧（D-08 第 7 条）。产出行序的稳定排序必须由声明业务身份收尾（兼容数据集用 `legacy_source_id`，正式事实用 `business_order_id + visible_from`），禁止以物理修订 `id` 或行序充当顺序；harness 暂停周期生产者须沿 Spring 调度包装链解出真实目标并断言取消数为正，否则暂停会静默失效并把测试输入登记成额外事实重建（D-08）。

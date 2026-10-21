@@ -3,6 +3,7 @@
 ## 计算权威与责任
 
 - `BI看板数据来源与计算口径核对表.md` 是所有 BI 业务字段语义、公式、筛选、去重、聚合、精度、质量目标和不可计算语义的唯一权威。实现、测试和页面 DTO 必须引用对应编号；表中的早期英文候选名不自动构成物理字段契约。
+- 会议纪要只提供需求调查线索，可能遗漏条件；新增指标必须从权威文档核实基础集合、排除规则、修复判据及分子/分母，缺项显式待确认。代码只能验证实现，不能单独批准业务口径；解决闭环状态不能自动等同于有效缺陷集合或修复贡献。
 - BI 不直接复用平台现有页面 Service 或页面 DTO。平台已发布事实和稳定基础查询可以作为输入；BI 在自身应用服务中按核对表实现页面计算并建立独立测试，不能复制粘贴平台页面代码。
 - 上游已经提供且与核对表一致的聚合值可以直接消费；上游只提供基础数据时由 BI 服务端计算。浏览器只做格式化、图例显隐和已加载有限数据的展示派生，不承担全量聚合。
 - 物理字段必须从来源表结构、实体和实际查询核实并以 `table.column` 写回核对表。名称不同但业务语义相同的字段标记为“等价映射”后直接使用；只有业务语义、公式或来源范围冲突时才停止该指标接入并报告。不得因候选字段名不一致拒绝已有数据，也不得增加字段别名、回退、拼接旧结果或用 `0` 补齐。
@@ -170,9 +171,12 @@ platform:
 | 系统测试 | `/api/bi/system-test` |
 | 独立客户问题 | `/api/bi/customer-issues` |
 
-独立客户问题 GET 接受可选的`milestoneBusinessKey`及`customerKind/customer`、`moduleKind/module`、`functionKind/function`。成员组合只允许`ALL`且无值、`MISSING`且无值、或`VALUE`且携带非空原始成员值。单次读取返回默认/所选里程碑、完整范围候选、业务日、来源版本、10项缺陷指标、4项需求指标和8张图数据。候选来自未按成员筛选的完整基础范围；成员值不参与里程碑或其他类型范围解析。非法或不完整参数返回400。
+独立客户问题 GET 接受可选的`milestoneBusinessKey`及`customerKind/customer`、`moduleKind/module`、`functionKind/function`。成员组合只允许`ALL`且无值、`MISSING`且无值、或`VALUE`且携带非空原始成员值。单次读取返回默认/所选里程碑、完整范围候选、业务日、来源版本、17项缺陷指标、4项需求指标和8张图数据。候选来自未按成员筛选的完整基础范围；成员值不参与里程碑或其他类型范围解析。非法或不完整参数返回400。
+
+客户指标升级（2026-10-13 确认口径，2026-10-14 已实施）：同一 GET 与 `defectMetrics` 列表扩展至 17 项缺陷指标，新增稳定 key（`defect_data_exception`、`defect_not_reproduced`、`defect_calibrated_fix_rate`、`p1_calibrated_fix_rate`、`p2_calibrated_fix_rate`、`week_new`、`week_resolved`）；日趋势字段改为累计口径（`cumulativeCreatedCount`、`cumulativeFixedCount`），仍不做当日增量。规则版本随之提升为 `customer-issue-bi@2026-10-14-v2`，该版本参与快照与读取身份，不只改展示文案；2026-10-15 的创建时间业务轴映射、业务日时区隔离与 D-27 完成时间投影归一依次提升到当前值 `customer-issue-bi@2026-10-15-v4`（以 `BiCustomerIssuePageService.RULE_VERSION` 为准）。本周窗口绑定页面业务日和读取身份，不新增滚动时间请求参数、独立周统计端点或独立导出链；不完整贡献继续使用既有状态契约，零分母与未知分别表达为 `null`。
 
 - 同一请求先冻结产品版本、页面筛选和来源版本，再生成该页全部指标、图表和表格 DTO；不能逐图读取不同发布版本。
+- 客户问题页前端的指标分组按稳定 `key` 归类（缺陷概览/修复率/今日与本周活动），后端新增或调整指标顺序都不改变分组；禁止按数组下标或 `slice` 位置推断分组。
 - 页面 API 只返回页面需要的聚合结果、有限明细和下钻标识，不默认导出上游一条一条的完整原始数据。
 - 客户问题页固定按完整议题四列身份去重，返回`pageKey=customer-issues`；不从客户统计板DTO拼页面数据。来源资格、来源版本、业务日和事实读取位于同一真实只读一致性事务。
 - 页面 DTO 是 BI 内部契约，不是跨系统公共 API；事实关联和跨系统映射使用稳定业务 ID，单一冻结来源快照内的图表分组使用 `BiSourceDimension`，两者不得混用。
@@ -211,9 +215,9 @@ platform:
 - 文件名至少能辨识产品版本、页面/图表和生成时间；没有下载权限时前端不展示入口，后端或受保护资源仍必须拒绝访问。
 - 每张图表支持导出 `.xlsx` 数据表：前端按图表语义提取表格（表头 + 数据行），后端 `BiExcelExportService` 用 Apache POI 生成标准 OOXML 工作簿（`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`），不再产出扩展名与 MIME 不符的 XML Spreadsheet 2003。
 - Excel 数据表必须忠实呈现图表所展示的数值口径：比率类字段（修复率、通过率、关闭率、注释率、占比等）在页面数据中已是百分数（0-100），原样输出、不再二次乘 100；表头单位取自图表自身配置（如评审质量图的 `个/KLOC`、`行/小时`）。
-- Excel 端点 `POST /api/bi/download/excel` 内部复用与 PNG 完全相同的下载授权门（校验查看 + 下载权限、页面/模板合法、来源版本为当前发布版）；附件文件名由服务端消毒标题与时间戳生成。
+- Excel 端点 `POST /api/bi/download/excel` 内部复用与 PNG 完全相同的下载授权门（校验查看 + 下载权限、页面/模板合法、来源版本属于当前页面绑定且仍受保留保护的完整发布组合）；附件文件名由服务端消毒标题与时间戳生成。
 - Excel 数据表在元信息行下携带一行“口径说明：…”（取自该图表卡片的问号词条，请求字段 `explanation`，可空）：与看板呈现的达标门槛与计算口径保持单一事实源；空白说明不写入，因此表头/数据行索引与冻结行数随是否携带说明动态推导（无说明时冻结 4 行、有说明时 5 行）。
 - 下载范围为显式封闭联合类型：六阶段使用`rangeType=PRODUCT_VERSION`及正数`productVersionId`；客户页使用`rangeType=CUSTOMER_ISSUE`，携带`milestoneBusinessKey`、`businessDate`及客户/模块/功能的`ALL|MISSING|VALUE`选择。两种范围字段互斥，kind/value不匹配时拒绝请求。
 - 客户问题页八个稳定图实例为`customer-issue-module-defects`、`customer-issue-severity-distribution`、`customer-issue-module-severity`、`customer-issue-cause-distribution`、`customer-issue-delay-analysis`、`customer-issue-assignee-workload`、`customer-issue-module-demand`、`customer-issue-daily-trend`。后端逐项校验范围类型、`pageKey`、图实例和模板；PNG授权与Excel共用同一下载入口和服务。
-- 客户页点击下载时复制图表数据与完整上下文；授权阶段重新读取一致来源，核对来源版本、固定业务日和成员候选。Excel日趋势包含完整自然日轴、日期、日新增、日修复、未知空值、范围和口径说明；PNG覆盖完整日期范围，不受当前缩放窗口裁剪。
+- 客户页点击下载时复制图表数据与完整上下文；授权阶段重新读取一致来源，核对来源版本、固定业务日和成员候选。Excel日趋势包含完整自然日轴、日期、缺陷累计新增、缺陷累计修复、未知空值、范围和口径说明（表头与图例、页面曲线同名）；PNG覆盖完整日期范围，不受当前缩放窗口裁剪。
 - 首期仍不输出 CSV、原始明细包或整页长截图。BI Excel 数据表与平台其它 Excel 导出只共享无状态样式工具（`ExcelExportStyles`），数据提取与授权等业务实现各自独立，不互相复用。
