@@ -584,6 +584,8 @@
 - [验证] 2026-10-21：本地隔离栈（project `qaflex-e275sim-20261021`，端口 20401/20402/15618，复用既有 e275 演练库卷，Flyway 起点 `20260930.01`，PG 容器 ID `8e15caea…`）完成 `backup → upgrade → rollback → backup → upgrade`：首次升级真实执行 `V20260930_02`、`V20261019_01` 到 `20261019.01`，目标双镜像 healthy、后端 UP、前端 200；因 Windows Git Bash 的 `env -u` 与 `sha256sum` 二进制标记不兼容，首次 upgrade 在最终 host 回环检查处退出 7（部署本身已完成），改用 Linux 工具容器（host network + docker socket）后 rollback、backup、upgrade 均 EXIT=0。最终：双镜像 healthy、后端 UP、前端 200、Flyway `20261019.01`（139 条）、`counts.diff` 0 字节、21 张守恒表行数与基线逐项相同、PG 容器 ID 全程不变、后台调度恢复 `true`、`sync_runs=0`；两份 dump 非空且可 `pg_restore --list`；rollback 后旧后端以 `PLATFORM_BACKGROUND_JOBS_ENABLED=false` 启动且无新同步；经前端 20401 代理完成 CSRF + LDAP 登录（`package-tester`，SUPER_ADMIN）。演练栈已清理，临时改名的 20001 模拟容器已恢复原名并 healthy，18080/18181/15432 未受影响。
 - [限制] 2026-10-21：演练库无 ODS/事实业务数据，未执行 `all` 事实重建；内网真实数据上的重建、LDAP/GitLab 连通与 20001 现场升级仍待现场按包内 README 执行。e275 基线清单 `workspaceState` 非干净，迁移兼容性以镜像内 137 条迁移与目标 139 条逐字节比对及真实升级结果证明；事实重建范围按目标线同时触及议题/MR 契约取 `all`，未借 commit diff 缩小。
 
+- [验证] 2026-10-21：黄金基线严格门禁在候选发布线 `release/20261019-90bbb` 通过：`mvn test -Pgolden-baseline -Dtest=GoldenBaselineChainTest`（未使用 `-Dgolden.update=true`）`Tests run: 203, Failures: 0, Errors: 0, Skipped: 0`，BUILD SUCCESS，6 分 12 秒；双 Testcontainers PostgreSQL 从零建库、真实全量同步→事实→统计链路后全端点严格比对，快照、夹具与端点目录零改动（`git status` 干净）。运行前记录 18080/18181 入口均为 200，套件使用随机端口、未停止开发服务；运行后 18080/18181 仍为 200，18181 a937 栈 healthy，Testcontainers 已清理。该结果与 f45e 的 10/20 203/203 一致，证明本次 e275 基线包的代码产出相对冻结基线零漂移。
+
 ## 有效历史
 
 - [历史/仍有效] 老平台是统计、字段、导出和模块展示口径的基准；新平台只改进架构和体验，不擅自改写业务结果。
