@@ -20,7 +20,7 @@ const fields: StatisticFilterField[] = [
   },
 ];
 
-function mountToolbar() {
+function mountToolbar(overrides: Record<string, unknown> = {}, slots: Record<string, string> = {}) {
   return mount(StatisticBoardToolbar, {
     props: {
       filterDraft,
@@ -44,13 +44,22 @@ function mountToolbar() {
         toolbarMainClass: 'main-hook',
         toolbarActionsClass: 'actions-hook',
       },
+      ...overrides,
     },
+    slots,
     global: {
       stubs: {
         StatisticFilterBuilder: {
-          props: ['modelValue', 'fields'],
+          props: ['modelValue', 'fields', 'extraSummaryChips'],
           emits: ['apply', 'reset'],
-          template: '<div data-testid="filter-builder"><span data-testid="filter-builder-count">{{ fields.length }}</span><button type="button" @click="$emit(\'apply\')">查询</button><button type="button" @click="$emit(\'reset\')">重置</button></div>',
+          template: '<div data-testid="filter-builder"><span data-testid="filter-builder-count">{{ fields.length }}</span><span data-testid="filter-builder-chips">{{ (extraSummaryChips || []).map((chip) => chip.label).join(",") }}</span><slot name="summary-actions-extra" /><button type="button" @click="$emit(\'apply\')">查询</button><button type="button" @click="$emit(\'reset\')">重置</button></div>',
+        },
+        RecordTableFilterFields: {
+          props: ['filters', 'filterValues'],
+          template: '<div data-testid="quick-fields"><span data-testid="quick-field-labels">{{ (filters || []).map((field) => field.label).join(",") }}</span></div>',
+        },
+        ElCollapseTransition: {
+          template: '<div><slot /></div>',
         },
         SyncMetaBadge: {
           props: ['value'],
@@ -255,5 +264,43 @@ describe('StatisticBoardToolbar', () => {
     const statusText = wrapper.get('[data-testid="realtime-refresh-status"]').text();
     expect(statusText).toContain('标签关系尚未完成全量对账');
     expect(statusText).not.toContain('已是最新');
+  });
+});
+
+describe('StatisticBoardToolbar quick-filter row extensions', () => {
+  const quickFilterFields = [
+    { key: 'severityLevel', label: '严重程度', type: 'select' as const, options: [] },
+  ];
+
+  it('keeps the quick-filter row collapsed by default for pages that do not ask otherwise', () => {
+    const wrapper = mountToolbar({ quickFilterFields });
+
+    expect(wrapper.classes()).not.toContain('table-function-bar--quick-visible');
+  });
+
+  it('opens the quick-filter row when the page makes its contents permanent', () => {
+    const wrapper = mountToolbar({ quickFilterFields, quickFiltersDefaultExpanded: true });
+
+    expect(wrapper.classes()).toContain('table-function-bar--quick-visible');
+    expect(wrapper.get('[data-testid="quick-field-labels"]').text()).toBe('严重程度');
+  });
+
+  it('renders page-supplied member controls inside the shared quick-filter row', () => {
+    const wrapper = mountToolbar(
+      { quickFilterFields, quickFiltersDefaultExpanded: true },
+      { 'quick-extra': '<div data-testid="member-slot">客户</div>' },
+    );
+
+    expect(wrapper.get('.table-function-bar__quick [data-testid="member-slot"]').text()).toBe('客户');
+  });
+
+  it('merges page-supplied summary chips into the shared filter summary', () => {
+    const wrapper = mountToolbar({
+      quickFilterFields,
+      quickFiltersDefaultExpanded: true,
+      extraSummaryChips: [{ id: 'member:customer', label: '客户：客户甲' }],
+    });
+
+    expect(wrapper.get('[data-testid="filter-builder-chips"]').text()).toBe('客户：客户甲');
   });
 });

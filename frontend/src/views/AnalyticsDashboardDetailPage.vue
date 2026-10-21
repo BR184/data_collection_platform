@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { ArrowLeft } from '@element-plus/icons-vue';
 import { useRoute, useRouter } from 'vue-router';
 import { analyticsDashboardApi } from '../api-client/analytics-dashboard-api';
+import { useAcceptedPageView } from '../composables/useAcceptedPageView';
+import { analyticsReadScope } from '../components/dashboard/analytics-read-navigation';
+import StatisticBoardFreshnessBanner from '../components/StatisticBoardFreshnessBanner.vue';
 import type {
   AnalyticsDashboardDetailResponse,
   AnalyticsDashboardExportAction,
@@ -21,11 +24,20 @@ const detail = ref<AnalyticsDashboardDetailResponse | null>(null);
 const loading = ref(false);
 const exportingKey = ref('');
 const errorMessage = ref('');
-let loadSequence = 0;
 const DEFAULT_DETAIL_PAGE_SIZE = 10;
 
 const dashboardKey = computed(() => String(route.meta.analyticsDashboardKey ?? '').trim());
 const detailViewKey = computed(() => String(route.params.detailViewKey ?? '').trim());
+interface DetailFrame { detail: AnalyticsDashboardDetailResponse; query: AnalyticsDashboardQuery; viewKey: string }
+const acceptedPage = useAcceptedPageView<DetailFrame>({ pageKey: dashboardKey.value,
+  load: () => { throw new Error('详情页必须捕获完整查询'); },
+});
+acceptedPage.start();
+watch(acceptedPage.accepted, (frame, previous) => {
+  if (frame && frame.data === previous?.data) return;
+  detail.value = frame?.data.detail ?? null;
+}, { flush: 'sync' });
+onBeforeUnmount(() => acceptedPage.dispose());
 const testingPhaseFilter = computed(() => {
   if (detailViewKey.value !== 'assignee-remaining-defects') {
     return null;
@@ -56,32 +68,26 @@ function routeQuery(): AnalyticsDashboardQuery {
   return query;
 }
 
+let loadSequence = 0;
 async function loadDetail() {
-  const sequence = ++loadSequence;
-  errorMessage.value = '';
+  const ticket = ++loadSequence;
   if (!dashboardKey.value || !detailViewKey.value) {
-    detail.value = null;
-    errorMessage.value = '详情地址缺少看板或视图标识。';
-    return;
+    errorMessage.value = '详情地址缺少看板或视图标识。'; return;
   }
+  const query = routeQuery();
+  const viewKey = detailViewKey.value;
+  const scope = analyticsReadScope(query);
   loading.value = true;
   try {
-    const response = await analyticsDashboardApi.getDetails(
-      dashboardKey.value,
-      detailViewKey.value,
-      routeQuery(),
-    );
-    if (sequence === loadSequence) {
-      detail.value = response;
-    }
-  } catch (error) {
-    if (sequence === loadSequence) {
-      detail.value = null;
-      errorMessage.value = getErrorMessage(error, '详情数据加载失败');
-    }
+    const loaded = await acceptedPage.prepare(scope, async (_scope, read) => ({ query, viewKey,
+      detail: await analyticsDashboardApi.getDetails(dashboardKey.value, viewKey, query, read) }));
+    if (ticket !== loadSequence) return;
+    if (!loaded) throw acceptedPage.lastError.value ?? new Error('详情准备已取消');
+    errorMessage.value = '';
+  } catch (error) { if (ticket !== loadSequence) return;
+    errorMessage.value = getErrorMessage(error, '详情更新失败，已保留当前完整数据');
   } finally {
-    if (sequence === loadSequence) {
-      loading.value = false;
+    if (ticket === loadSequence) { loading.value = false;
     }
   }
 }
@@ -115,12 +121,9 @@ async function exportDetail(action: AnalyticsDashboardExportAction) {
   }
   exportingKey.value = action.exportKey;
   try {
-    const file = await analyticsDashboardApi.export(
-      dashboardKey.value,
-      action.exportKey,
-      routeQuery(),
-    );
-    downloadBlob(file.blob, file.filename || `${detail.value?.title || action.label}.xlsx`);
+    await acceptedPage.readAccepted((frame, read) => analyticsDashboardApi.export(
+      dashboardKey.value, action.exportKey, frame.query, read),
+      (file, frame) => downloadBlob(file.blob, file.filename || `${frame.detail.title || action.label}.xlsx`));
   } catch (error) {
     errorMessage.value = getErrorMessage(error, '导出失败');
   } finally {
@@ -140,6 +143,7 @@ watch(() => route.fullPath, () => void loadDetail(), { immediate: true });
 
 <template>
   <section class="analytics-detail-page">
+    <StatisticBoardFreshnessBanner v-bind="acceptedPage.accepted.value?.metadata" />
     <header class="analytics-detail-page__header">
       <div class="analytics-detail-page__title-group">
         <el-button text :icon="ArrowLeft" @click="router.back()">返回看板</el-button>
@@ -179,8 +183,8 @@ watch(() => route.fullPath, () => void loadDetail(), { immediate: true });
 
     <el-alert v-if="errorMessage" type="error" :closable="false" :title="errorMessage" />
     <el-skeleton v-if="loading && !detail" :rows="8" animated />
-    <el-empty v-else-if="!detail" description="当前范围暂无详情数据" />
-    <template v-else>
+    <el-empty v-else-if="!detail && !errorMessage" description="当前范围暂无详情数据" />
+    <template v-else-if="detail">
       <section v-if="detail.chart" class="analytics-detail-page__chart">
         <header>
           <h3>{{ detail.chart.title }}</h3>
@@ -188,7 +192,7 @@ watch(() => route.fullPath, () => void loadDetail(), { immediate: true });
         </header>
         <EChartPanel
           :option="detail.chart.option"
-          :loading="loading"
+          :loading="loading && !acceptedPage.accepted.value"
           :height="detail.chart.height || 420"
         />
       </section>

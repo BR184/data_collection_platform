@@ -29,7 +29,7 @@ const columnGroups: StatisticColumnGroup[] = [
 ];
 
 const prefs: StatisticBoardViewPrefs = {
-  visibleColumnKeys: ['owner'],
+  hiddenColumnKeys: ['count'],
   groupOrder: ['summary'],
   childGroupOrderByParent: {
     summary: ['classification', 'status'],

@@ -4,6 +4,8 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { createRouter, createWebHashHistory } from 'vue-router';
 import { authState } from '../composables/auth-state';
 import QualityBoardRdView from './QualityBoardRdView.vue';
+import { readViewsApi } from '../api-client/read-views-api';
+import type { ReadViewMetadata } from '../types/api/read-view';
 
 vi.mock('../components/base/PageStateShell.vue', () => ({
   default: defineComponent({
@@ -37,10 +39,16 @@ const passthroughStub = defineComponent({
 describe('QualityBoardRdView mount smoke', () => {
   afterEach(() => {
     vi.clearAllMocks();
+    vi.restoreAllMocks();
     document.body.innerHTML = '';
   });
 
   it('renders the eight metrics and five legacy chart categories', async () => {
+    const metadata: ReadViewMetadata = { readContextId: crypto.randomUUID(), pageKey: 'quality-rd',
+      scopeKey: 'all', sourceVersion: 'complete-v1', businessDate: '2026-10-13', dataAsOf: '2026-10-13T00:00:00Z',
+      leaseExpiresAt: '2099-01-01T00:00:00Z', sourceState: 'CURRENT', pendingUpdates: 0, escalated: false };
+    vi.spyOn(readViewsApi, 'acquire').mockResolvedValue(metadata);
+    vi.spyOn(readViewsApi, 'release').mockResolvedValue(undefined);
     authState.currentUser = {
       username: 'admin',
       displayName: '管理员',
@@ -99,7 +107,10 @@ describe('QualityBoardRdView mount smoke', () => {
         export: { exportKey: `chart-${index}`, label: '导出' },
       })),
     });
-    apiMock.getRules.mockResolvedValue({ dashboardKey: 'quality-rd', rules: [] });
+    apiMock.getRules.mockImplementation(async (_key, _query, read) => {
+      read.onReadView(metadata);
+      return { dashboardKey: 'quality-rd', rules: [] };
+    });
 
     const router = createRouter({
       history: createWebHashHistory(),
@@ -113,7 +124,7 @@ describe('QualityBoardRdView mount smoke', () => {
       global: {
         plugins: [router],
         stubs: {
-          'el-button': passthroughStub,
+          'el-button': defineComponent({ template: '<button><slot /></button>' }),
           'el-link': passthroughStub,
           'el-option': passthroughStub,
           'el-radio-button': passthroughStub,
@@ -127,7 +138,7 @@ describe('QualityBoardRdView mount smoke', () => {
     expect(apiMock.getDashboard).toHaveBeenCalledWith('quality-rd', {
       projectName: 'CC2026R4',
       codeReviewSource: 'cc',
-    });
+    }, expect.objectContaining({ readContextId: metadata.readContextId }));
     expect(wrapper.findAll('.dashboard-metric-card')).toHaveLength(8);
     expect(wrapper.text()).toContain('DGM代码走查缺陷密度');
     expect(wrapper.text()).toContain('按走查人统计代码走查缺陷密度');
@@ -137,6 +148,23 @@ describe('QualityBoardRdView mount smoke', () => {
     expect(wrapper.text()).toContain('指派人剩余缺陷数量');
     expect(wrapper.findAll('.dashboard-chart-card')).toHaveLength(5);
     expect(wrapper.findAll('[data-testid="echart-panel"]')).toHaveLength(5);
+
+    const oldDashboard = await apiMock.getDashboard.mock.results[0].value;
+    apiMock.getDashboard.mockResolvedValue({ ...oldDashboard, title: '新完整研发看板' });
+    let failRules!: (error: Error) => void;
+    apiMock.getRules.mockImplementation(() => new Promise((_resolve, reject) => { failRules = reject; }));
+    const refresh = wrapper.findAll('button').find(button => button.text().includes('刷新'))!;
+    await refresh.trigger('click'); await flushPromises();
+    expect(wrapper.findAll('.dashboard-metric-card')).toHaveLength(8);
+    expect(wrapper.text()).not.toContain('新完整研发看板');
+    failRules(new Error('新版本规则准备失败')); await flushPromises();
+    expect(wrapper.findAll('.dashboard-metric-card')).toHaveLength(8);
+    expect(wrapper.text()).not.toContain('新完整研发看板');
+    apiMock.getRules.mockImplementation(async (_key, _query, read) => {
+      read.onReadView(metadata); return { dashboardKey: 'quality-rd', rules: [] };
+    });
+    await refresh.trigger('click'); await flushPromises();
+    expect(wrapper.text()).toContain('新完整研发看板');
 
     wrapper.unmount();
   });

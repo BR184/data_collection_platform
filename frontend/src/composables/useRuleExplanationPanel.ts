@@ -13,15 +13,18 @@ export function useRuleExplanationPanel(options: UseRuleExplanationPanelOptions)
   const ruleExplanationVisible = ref(false);
   const ruleExplanationLoading = ref(false);
   const ruleExplanation = ref<StatisticBoardRuleExplanationResponse | null>(null);
+  let requestGeneration = 0;
 
   async function loadRuleExplanation() {
+    const generation = ++requestGeneration;
     ruleExplanationLoading.value = true;
     try {
-      ruleExplanation.value = await options.load();
+      const response = await options.load();
+      if (generation === requestGeneration) ruleExplanation.value = response;
     } catch {
-      ruleExplanation.value = options.fallback('规则说明加载失败，请稍后重试。');
+      if (generation === requestGeneration) ruleExplanation.value = options.fallback('规则说明加载失败，请稍后重试。');
     } finally {
-      ruleExplanationLoading.value = false;
+      if (generation === requestGeneration) ruleExplanationLoading.value = false;
     }
   }
 
@@ -44,6 +47,8 @@ export function useRuleExplanationPanel(options: UseRuleExplanationPanelOptions)
   }
 
   function resetRuleExplanation() {
+    requestGeneration += 1;
+    ruleExplanationLoading.value = false;
     ruleExplanation.value = null;
   }
 

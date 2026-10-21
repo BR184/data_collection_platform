@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useAcceptedPageView } from '../composables/useAcceptedPageView';
+import { authState } from '../composables/auth-state';
+import StatisticBoardFreshnessBanner from '../components/StatisticBoardFreshnessBanner.vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from '../element-plus-services';
@@ -9,7 +12,7 @@ import PageStateShell from '../components/base/PageStateShell.vue';
 import DashboardChartCard from '../components/dashboard/DashboardChartCard.vue';
 import DashboardMetricCard from '../components/dashboard/DashboardMetricCard.vue';
 import DashboardRuleDrawer from '../components/dashboard/DashboardRuleDrawer.vue';
-import { buildAnalyticsDetailRoute } from '../components/dashboard/detail-view-routes';
+import { navigateAnalyticsDetail } from '../components/dashboard/analytics-read-navigation';
 import type { EChartPointClickEvent } from '../components/charts/echart-panel-events';
 import type {
   AnalyticsDashboardChart,
@@ -19,6 +22,7 @@ import type {
   AnalyticsDashboardRule,
   AnalyticsDashboardRulesResponse,
   OptionItemResponse,
+  QualityBoardRdFilterOptionsResponse,
 } from '../types/api';
 import { downloadBlob } from '../utils/csv-download';
 import { getErrorMessage } from '../utils/user-message';
@@ -27,6 +31,7 @@ const DASHBOARD_KEY = 'quality-rd';
 const router = useRouter();
 const initialized = ref(false);
 const loading = ref(false);
+const pageLoadError = ref('');
 const exportLoadingKey = ref('');
 const projectOptions = ref<OptionItemResponse[]>([]);
 const codeReviewSourceOptions = ref<OptionItemResponse[]>([]);
@@ -36,8 +41,34 @@ const dashboard = ref<AnalyticsDashboardResponse | null>(null);
 const rulesResponse = ref<AnalyticsDashboardRulesResponse | null>(null);
 const selectedRule = ref<AnalyticsDashboardRule | null>(null);
 const ruleDrawerVisible = ref(false);
+interface QualityRdFrame {
+  dashboard: AnalyticsDashboardResponse;
+  rules: AnalyticsDashboardRulesResponse;
+  options: QualityBoardRdFilterOptionsResponse;
+  query: ReturnType<typeof dashboardQuery>;
+}
+const acceptedPage = useAcceptedPageView<QualityRdFrame>({ pageKey: DASHBOARD_KEY,
+  load: () => { throw new Error('需要捕获质量看板查询后准备'); } });
+const readMetadata = computed(() => acceptedPage.accepted.value?.metadata);
+acceptedPage.start();
+onBeforeUnmount(acceptedPage.dispose);
+watch(() => authState.currentUser?.username, acceptedPage.clearPrivateData);
+watch(acceptedPage.accepted, (frame, previous) => {
+  if (frame && frame.data === previous?.data) return;
+  dashboard.value = frame?.data.dashboard ?? null;
+  rulesResponse.value = frame?.data.rules ?? null;
+  projectOptions.value = frame?.data.options.projectOptions ?? [];
+  codeReviewSourceOptions.value = frame?.data.options.codeReviewSourceOptions ?? [];
+  if (frame) {
+    selectedProjectName.value = frame.data.query.projectName;
+    codeReviewSource.value = frame.data.query.codeReviewSource;
+    if (ruleDrawerVisible.value && selectedRule.value) {
+      selectedRule.value = frame.data.rules.rules.find(rule => rule.key === selectedRule.value?.key) ?? null;
+    }
+  } else { selectedRule.value = null; ruleDrawerVisible.value = false; }
+}, { flush: 'sync' });
 
-type PageLoadResult = 'success' | 'unauthorized' | 'failed';
+type PageLoadResult = 'success' | 'unauthorized' | 'failed' | 'superseded';
 
 const pageReady = computed(() => initialized.value);
 const rulesByKey = computed(() => new Map(
@@ -51,47 +82,35 @@ function dashboardQuery() {
   };
 }
 
-function inheritedRouteParameters() {
-  return {
-    projectName: selectedProjectName.value,
-    codeReviewSource: codeReviewSource.value,
-  };
-}
-
-async function loadFilterOptions() {
-  const options = await api.getQualityBoardRdFilterOptions();
-  projectOptions.value = options.projectOptions;
-  codeReviewSourceOptions.value = options.codeReviewSourceOptions;
-  selectedProjectName.value = selectedProjectName.value
-    || options.defaultProjectName
-    || options.projectOptions[0]?.value
-    || '';
-  if (!codeReviewSourceOptions.value.some((option) => option.value === codeReviewSource.value)) {
-    codeReviewSource.value = codeReviewSourceOptions.value[0]?.value || 'cc';
-  }
-}
-
-async function loadDashboardData() {
-  const [nextDashboard, nextRules] = await Promise.all([
-    api.getDashboard(DASHBOARD_KEY, dashboardQuery()),
-    api.getRules(DASHBOARD_KEY, dashboardQuery()),
-  ]);
-  dashboard.value = nextDashboard;
-  rulesResponse.value = nextRules;
-}
-
+let loadSequence = 0;
 async function loadPage(): Promise<PageLoadResult> {
+  const ticket = ++loadSequence;
   loading.value = true;
+  const requested = Object.freeze({ ...dashboardQuery() });
+  pageLoadError.value = '';
   try {
-    await loadFilterOptions();
-    await loadDashboardData();
+    const loaded = await acceptedPage.prepare({}, async (_scope, read) => {
+      const options = await api.getQualityBoardRdFilterOptions(read);
+      const query = {
+        projectName: requested.projectName || options.defaultProjectName || options.projectOptions[0]?.value || '',
+        codeReviewSource: options.codeReviewSourceOptions.some(option => option.value === requested.codeReviewSource)
+          ? requested.codeReviewSource : options.codeReviewSourceOptions[0]?.value || 'cc',
+      };
+      const [dashboard, rules] = await Promise.all([
+        api.getDashboard(DASHBOARD_KEY, query, read), api.getRules(DASHBOARD_KEY, query, read),
+      ]);
+      return { options, query, dashboard, rules };
+    });
+    if (ticket !== loadSequence) return 'superseded';
+    if (!loaded) throw acceptedPage.lastError.value ?? new Error('页面准备已取消');
     return 'success';
-  } catch (error) {
-    console.warn('研发质量看板加载失败', error);
+  } catch (error) { if (ticket !== loadSequence) return 'superseded';
+    pageLoadError.value = getErrorMessage(error, acceptedPage.accepted.value
+      ? '看板加载失败，已保留当前完整数据' : '尚无完整产出，请检查数据更新状态');
     return isUnauthorizedError(error) ? 'unauthorized' : 'failed';
   } finally {
-    loading.value = false;
-    initialized.value = true;
+    if (ticket === loadSequence) { loading.value = false; initialized.value = true;
+    }
   }
 }
 
@@ -107,29 +126,17 @@ async function handleRefresh() {
 }
 
 async function handleFilterChange() {
-  loading.value = true;
-  try {
-    await loadDashboardData();
-  } catch (error) {
-    console.warn('研发质量看板筛选失败', error);
-    if (!isUnauthorizedError(error)) {
-      ElMessage.error('研发质量看板加载失败');
-    }
-  } finally {
-    loading.value = false;
-  }
+  const result = await loadPage();
+  if (result === 'failed') ElMessage.error('研发质量看板加载失败，已保留当前完整数据');
 }
 
-function openDetail(action: AnalyticsDashboardDetailAction | null | undefined) {
+async function openDetail(action: AnalyticsDashboardDetailAction | null | undefined) {
   if (!action) {
     return;
   }
   try {
-    void router.push(buildAnalyticsDetailRoute(
-      DASHBOARD_KEY,
-      action,
-      inheritedRouteParameters(),
-    ));
+    await navigateAnalyticsDetail(acceptedPage, router, DASHBOARD_KEY, action,
+      frame => Object.fromEntries(Object.entries(frame.query).map(([key, value]) => [key, String(value)])));
   } catch (error) {
     console.warn('看板详情入口不可用', error);
     ElMessage.warning(getErrorMessage(error, '看板详情入口不可用'));
@@ -174,8 +181,8 @@ async function handleExport(
   }
   exportLoadingKey.value = exportKey;
   try {
-    const response = await api.export(DASHBOARD_KEY, exportKey, dashboardQuery());
-    downloadBlob(response.blob, response.filename || fallbackFilename);
+    await acceptedPage.readAccepted((frame, read) => api.export(DASHBOARD_KEY, exportKey, frame.query, read),
+      response => downloadBlob(response.blob, response.filename || fallbackFilename));
     ElMessage.success('数据已导出');
   } catch (error) {
     console.warn('研发质量看板导出失败', error);
@@ -203,6 +210,10 @@ void loadPage().then((result) => {
 <template>
   <PageStateShell :ready="pageReady" min-height="calc(100vh - 160px)">
     <section class="quality-board-rd">
+      <el-alert v-if="pageLoadError" :title="pageLoadError" type="error" :closable="false" show-icon />
+      <StatisticBoardFreshnessBanner v-if="readMetadata" :data-as-of="readMetadata.dataAsOf"
+        :pending-updates="readMetadata.pendingUpdates" :source-state="readMetadata.sourceState"
+        :source-state-detail="readMetadata.sourceStateDetail" :escalated="readMetadata.escalated" />
       <header class="quality-board-rd__hero">
         <div class="quality-board-rd__heading">
           <div class="quality-board-rd__eyebrow">QUALITY SIGNALS · 研发质量</div>

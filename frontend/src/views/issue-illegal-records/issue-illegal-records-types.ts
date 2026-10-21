@@ -7,6 +7,7 @@ import type {
 } from '../../types/api';
 import type { RecordTableColumn, RecordTableFilterField } from '../../types/record-table';
 import type { DataScopeOption, DataScopeProvider } from '../../types/data-scope';
+import type { ReadViewTransport } from '../../types/api/read-view';
 
 export interface IssueIllegalRecordRow {
   issueId?: number;
@@ -61,6 +62,7 @@ export interface IssueIllegalRecordFilterOptions {
 }
 
 export interface IssueIllegalRecordQueryParams {
+  read?: ReadViewTransport;
   projectId?: string | number | null;
   keyword?: string;
   issueIid?: string;
@@ -89,6 +91,8 @@ export interface IssueIllegalRecordQueryParams {
 }
 
 export interface IssueIllegalRecordsPageConfig<Row extends IssueIllegalRecordRow = IssueIllegalRecordRow> {
+  pageKey: string;
+  loadRecord: (source: string, projectId: number, issueId: number, read: ReadViewTransport) => Promise<Row | null>;
   workspaceKey: string;
   title: string;
   description: string;
@@ -99,8 +103,8 @@ export interface IssueIllegalRecordsPageConfig<Row extends IssueIllegalRecordRow
   loadRecords: (params: IssueIllegalRecordQueryParams) => Promise<IssueIllegalRecordListResponse<Row>>;
   exportRecords?: (params: IssueIllegalRecordQueryParams) => Promise<Blob>;
   exportFilenamePrefix?: string;
-  loadFilterOptions: (projectId?: string | number | null) => Promise<IssueIllegalRecordFilterOptions>;
-  loadRuleExplanation: (projectId?: string | number | null) => Promise<StatisticBoardRuleExplanationResponse>;
+  loadFilterOptions: (projectId?: string | number | null, read?: ReadViewTransport) => Promise<IssueIllegalRecordFilterOptions>;
+  loadRuleExplanation: (projectId?: string | number | null, read?: ReadViewTransport) => Promise<StatisticBoardRuleExplanationResponse>;
   loadRealtimeStatus?: (params?: IssueIllegalRecordQueryParams) => Promise<RealtimeWorkspaceStatusResponse>;
   requestRealtimeRefresh?: () => Promise<RealtimeWorkspaceStatusResponse>;
   initialFilterOptions: IssueIllegalRecordFilterOptions;
@@ -114,6 +118,8 @@ export interface IssueIllegalRecordsPageConfig<Row extends IssueIllegalRecordRow
   defaultSortBy?: string;
   defaultSortOrder?: 'asc' | 'desc';
   defaultProjectId?: string | number;
+  /** 页面业务契约固定项目时，路由不能改变真实读取范围。 */
+  fixedProjectId?: string | number;
   scopeProvider?: DataScopeProvider;
   buildScopeOptions?: (options: IssueIllegalRecordFilterOptions) => DataScopeOption[];
   createdAtDetailLabel?: string;

@@ -35,6 +35,7 @@ export function useStatisticBoardTableState(options: StatisticBoardTableStateOpt
   });
 
   const normalRows = computed(() => sortedRows.value.filter((row) => !isStatisticSummaryRow(row)));
+  const visibleColumnKeys = computed(() => flattenStatisticColumnLeaves(orderedColumnGroups.value).map(column => column.key));
   const summaryRows = computed(() => sortedRows.value.filter(isStatisticSummaryRow));
 
   const totalTableRows = computed(() => normalRows.value.length);
@@ -58,7 +59,7 @@ export function useStatisticBoardTableState(options: StatisticBoardTableStateOpt
       Object.entries(options.boardViewPrefs.value.columnOrderByGroup)
         .map(([groupKey, columnKeys]) => `${groupKey}:${columnKeys.join(',')}`)
         .join('|'),
-      options.boardViewPrefs.value.visibleColumnKeys.join('|'),
+      visibleColumnKeys.value.join('|'),
     ].join('::'),
   );
 
@@ -75,6 +76,7 @@ export function useStatisticBoardTableState(options: StatisticBoardTableStateOpt
   return {
     activeFilterFields,
     orderedColumnGroups,
+    visibleColumnKeys,
     sortedRows,
     totalTableRows,
     paginatedRows,

@@ -2,7 +2,7 @@ import { ref } from 'vue';
 import type { LocationQuery } from 'vue-router';
 import type { StatisticFilterGroup } from '../../types/api';
 import { mergeRouteQuery } from '../../components/statistic-board-route-query';
-import type { ReviewDataRecordQueryParams } from './useReviewDataRecords';
+import type { ReviewDataRecordQueryParams } from '../../api-client/review-data-api';
 
 type QueryValue = string | number | null | undefined;
 type QueryPatch = Record<string, QueryValue>;

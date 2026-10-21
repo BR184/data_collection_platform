@@ -23,6 +23,7 @@ describe('reviewDataApi source instance query contract', () => {
 
     expect(request).toHaveBeenCalledWith(
       expect.stringContaining('/api/review-data/records?page=2&size=50&sourceInstance=cc'),
+      undefined,
     );
 
     reviewDataApi.exportReviewDataRecordsWorkbook({
@@ -36,7 +37,7 @@ describe('reviewDataApi source instance query contract', () => {
 
     reviewDataApi.getReviewDataFilterOptions();
 
-    expect(request).toHaveBeenLastCalledWith('/api/review-data/records/filter-options');
+    expect(request).toHaveBeenLastCalledWith('/api/review-data/records/filter-options', undefined);
 
     reviewDataApi.downloadReviewDataTemplateWorkbook();
 

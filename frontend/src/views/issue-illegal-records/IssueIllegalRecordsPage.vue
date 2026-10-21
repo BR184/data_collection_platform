@@ -1,5 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import type { LocationQuery } from 'vue-router';
+import { useAcceptedPageView } from '../../composables/useAcceptedPageView';
+import StatisticBoardFreshnessBanner from '../../components/StatisticBoardFreshnessBanner.vue';
+import { buildFilterGroupFromRouteQuery } from '../../components/statistic-board-route-query';
+import { sanitizeFilterDraftGroup } from '../../components/statistic-board-filters';
 // 非法记录通用页承接系统测试和客户问题两类场景，差异通过配置和接口适配传入。
 // 页面内部统一处理关键词、条件筛选、规则说明、分页和导出，避免两个业务域重复实现。
 import { ElMessage } from '../../element-plus-services';
@@ -36,10 +41,6 @@ const { readAutoRefreshOnEnter } = usePageAutoRefreshPreference(() => pageScopeK
 
 const {
   route,
-  page,
-  pageSize,
-  sortBy,
-  sortOrder,
   reload,
   patchQuery,
   bindLoader,
@@ -64,9 +65,36 @@ const detailVisible = ref(false);
 const selectedRow = ref<IssueIllegalRecordRow | null>(null);
 const exportLoading = ref(false);
 const primaryDefaultPatchInFlight = ref(false);
-const projectId = computed(() => String(route.query.projectId ?? props.defaultProjectId ?? ''));
 const filterOptions = ref({ ...props.initialFilterOptions });
-let filterOptionsRunId = 0;
+interface IllegalFrame {
+  response: Awaited<ReturnType<typeof props.loadRecords>>;
+  options: Awaited<ReturnType<typeof props.loadFilterOptions>>;
+  query: Readonly<Record<string, unknown>>;
+  request: ReturnType<typeof buildCurrentQueryParams>;
+  detail: IssueIllegalRecordRow | null;
+  rule: StatisticBoardRuleExplanationResponse | null;
+}
+const acceptedPage = useAcceptedPageView<IllegalFrame>({ pageKey: props.pageKey,
+  load: () => { throw new Error('非法记录页需要捕获完整查询后准备'); } });
+const pageLoadError = ref('');
+const readMetadata = computed(() => acceptedPage.accepted.value?.metadata);
+const acceptedQuery = computed(() => acceptedPage.accepted.value?.data.query ?? route.query);
+acceptedPage.start();
+onBeforeUnmount(acceptedPage.dispose);
+watch(() => authState.currentUser?.username, acceptedPage.clearPrivateData);
+watch(acceptedPage.accepted, (frame, previous) => {
+  if (frame && frame.data === previous?.data) return;
+  rows.value = frame?.data.response.records ?? [];
+  total.value = frame?.data.response.total ?? 0;
+  filterOptions.value = frame?.data.options ?? { ...props.initialFilterOptions };
+  filterOptionsLoaded.value = Boolean(frame);
+  resetRuleExplanation();
+  ruleExplanation.value = frame?.data.rule ?? null;
+  if (frame) {
+    initializeFromQuery(frame.data.query as LocationQuery);
+    if (detailVisible.value) selectedRow.value = frame.data.detail;
+  } else { selectedRow.value = null; detailVisible.value = false; }
+}, { flush: 'sync' });
 const canRefreshLatestData = computed(
   () => hasPermission(authState.currentUser, 'business_data.refresh') && Boolean(props.requestRealtimeRefresh),
 );
@@ -82,18 +110,7 @@ const nativePrimaryFilters = computed(() =>
 const tablePrimaryFilters = computed(() =>
   primaryFilters.value.filter((field) => !nativePrimarySelectKeys.value.has(field.key)),
 );
-const primaryFilterDefaultsReady = computed(() =>
-  primaryFilters.value.every((field) => {
-    if (field.defaultStrategy !== 'first-available') {
-      return true;
-    }
-    if (String(route.query[field.key] ?? '').trim()) {
-      return true;
-    }
-    return !field.options?.some((option) => option.value) && filterOptionsLoaded.value;
-  }),
-);
-const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value && primaryFilterDefaultsReady.value);
+const pageReady = computed(() => Boolean(acceptedPage.accepted.value) || pageInitialized.value);
 const primaryFilterValues = computed<Record<string, unknown>>(() =>
   primaryFilters.value.reduce<Record<string, unknown>>((values, field) => {
     values[field.key] = route.query[field.key] ?? '';
@@ -141,7 +158,7 @@ const {
   resetRuleExplanation,
   openRuleExplanation,
 } = useRuleExplanationPanel({
-  load: () => props.loadRuleExplanation(projectId.value || undefined),
+  load: () => acceptedPage.readAccepted((frame, read) => props.loadRuleExplanation(frame.request.projectId, read)),
   fallback: (reason) => createFallbackRuleExplanation(reason),
 });
 
@@ -172,7 +189,6 @@ const {
   filterDraft,
   activeFilterTags: conditionActiveFilterTags,
   initializeFromQuery,
-  buildFilterPayload,
   resetDraft,
   buildApplyQueryPatch,
   buildResetQueryPatch,
@@ -311,8 +327,8 @@ function buildCurrentQueryParams(
   query: Readonly<Record<string, unknown>> = route.query,
 ) {
   return {
-    projectId: (query.projectId as string | undefined)
-      ?? (props.defaultProjectId == null ? undefined : String(props.defaultProjectId)),
+    projectId: props.fixedProjectId != null ? String(props.fixedProjectId)
+      : (query.projectId as string | undefined) ?? (props.defaultProjectId == null ? undefined : String(props.defaultProjectId)),
     keyword: String(query.keyword ?? ''),
     issueIid: String(query.issueIid ?? ''),
     title: String(query.title ?? ''),
@@ -332,7 +348,7 @@ function buildCurrentQueryParams(
     createdAtEnd: String(query.createdAtEnd ?? ''),
     updatedAtStart: String(query.updatedAtStart ?? ''),
     updatedAtEnd: String(query.updatedAtEnd ?? ''),
-    filterGroup: buildFilterPayload(),
+    filterGroup: sanitizeFilterDraftGroup(buildFilterGroupFromRouteQuery(query as LocationQuery)),
     ...(includePagination ? {
       page: parseQueryPositiveInteger(query.page, 1),
       size: parseQueryPositiveInteger(query.pageSize, 20),
@@ -353,9 +369,8 @@ async function handleExport() {
   }
   exportLoading.value = true;
   try {
-    const exported = await props.exportRecords(buildCurrentQueryParams(false));
-    const filenamePrefix = props.exportFilenamePrefix || props.title;
-    downloadBlob(exported, `${filenamePrefix}.xlsx`);
+    await acceptedPage.readAccepted((frame, read) => props.exportRecords!({ ...frame.request, read }),
+      exported => downloadBlob(exported, `${props.exportFilenamePrefix || props.title}.xlsx`));
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '导出失败'));
   } finally {
@@ -367,78 +382,43 @@ async function handleRefreshLatestData() {
   await submitRefreshLatestData();
 }
 
-/** 刷新收敛后按当前项目重取筛选项与主表。 */
-async function reloadRefreshedOptionsAndRecords() {
-  if (!props.loadFilterOptions) {
-    await reload();
-    return;
-  }
-  const requestedProjectId = projectId.value;
-  const optionsRunId = ++filterOptionsRunId;
-  const refreshedOptions = await props.loadFilterOptions(requestedProjectId || undefined);
-  if (optionsRunId !== filterOptionsRunId || requestedProjectId !== projectId.value) return;
-  filterOptions.value = refreshedOptions;
-  await reload();
-}
+/** 刷新完成后准备列表、候选与打开详情，失败保留当前完整画面。 */
+async function reloadRefreshedOptionsAndRecords() { await reload(); }
 
 bindLoader(async ({ query, isCurrent }) => {
-  if (!filterOptionsLoaded.value) {
-    return null;
+  if (!isCurrent()) return;
+  const request = buildCurrentQueryParams(true, query);
+  const scope: Record<string, string> = {};
+  for (const key of ['projectId', 'milestoneTitle', 'testingPhase'] as const) {
+    if (request[key]) scope[key] = String(request[key]);
   }
-  if (primaryDefaultPatchInFlight.value) {
-    return null;
-  }
-  if (!primaryFilterDefaultsReady.value) {
-    return null;
-  }
-  if (!isCurrent()) return null;
-  initializeFromQuery(query);
-  return props.loadRecords(buildCurrentQueryParams(true, query));
-}, (response) => {
-  if (!response) return;
-  rows.value = response.records;
-  total.value = response.total;
+  const loaded = await acceptedPage.prepare(scope, async (_scope, read) => {
+    const root = detailVisible.value ? selectedRow.value : null;
+    const includeRule = ruleExplanationVisible.value;
+    const [response, options, detail, rule] = await Promise.all([
+      props.loadRecords({ ...request, read }), props.loadFilterOptions(request.projectId, read),
+      root?.projectId && root.issueId ? props.loadRecord(root.sourceInstance || 'default', root.projectId, root.issueId, read) : Promise.resolve(null),
+      includeRule ? props.loadRuleExplanation(request.projectId, read) : Promise.resolve(null),
+    ]);
+    return { response, options, detail, rule, request, query };
+  });
+  if (!loaded && isCurrent()) throw acceptedPage.lastError.value ?? new Error('页面准备已取消');
+}, () => {
+  pageInitialized.value = true; pageLoadError.value = ''; void loadRealtimeStatus();
+}, error => {
   pageInitialized.value = true;
-  void loadRealtimeStatus();
-}, (error) => {
-  ElMessage.error(getErrorMessage(error, `${props.title}加载失败`));
-  rows.value = [];
-  total.value = 0;
-  pageInitialized.value = true;
+  pageLoadError.value = getErrorMessage(error, acceptedPage.accepted.value
+    ? `${props.title}加载失败，已保留当前完整数据` : '尚无完整产出，请检查数据更新状态');
+  ElMessage.error(pageLoadError.value);
 });
-
-watch(
-  projectId,
-  async (requestedProjectId) => {
-    const runId = ++filterOptionsRunId;
-    filterOptionsLoaded.value = false;
-    pageInitialized.value = false;
-    rows.value = [];
-    total.value = 0;
-    resetRuleExplanation();
-    try {
-      const loadedOptions = await props.loadFilterOptions(requestedProjectId || undefined);
-      if (runId !== filterOptionsRunId || requestedProjectId !== projectId.value) return;
-      filterOptions.value = loadedOptions;
-      filterOptionsLoaded.value = true;
-      await applyPrimaryFilterDefaults();
-      // 默认值补丁本身会改动路由查询，触发签名观察者；但补丁在途期间加载器会拒绝，
-      // 因此这里必须在补丁落定后再显式取数一次，否则页面会停在骨架状态。
-      if (primaryFilterDefaultsReady.value) await reload();
-    } catch (error) {
-      if (runId !== filterOptionsRunId || requestedProjectId !== projectId.value) return;
-      ElMessage.error(getErrorMessage(error, `${props.title}筛选项加载失败`));
-      filterOptionsLoaded.value = true;
-      pageInitialized.value = true;
-    }
-  },
-  { immediate: true },
-);
 
 function openDetailDrawer(row: Record<string, unknown>) {
   selectedRow.value = (row.__raw as IssueIllegalRecordRow) ?? null;
   detailVisible.value = true;
 }
+
+watch(() => `${detailVisible.value ? `${selectedRow.value?.sourceInstance}:${selectedRow.value?.projectId}:${selectedRow.value?.issueId}` : ''}:${ruleExplanationVisible.value}`,
+  () => { if (acceptedPage.preparing.value) { acceptedPage.cancelPreparation(); void reload(); } });
 
 async function handleClearFilter(key: string) {
   if (key === 'filterGroup') {
@@ -494,13 +474,17 @@ async function handleQuery() {
     </template>
 
     <section class="issue-illegal-page">
-      <BaseRecordTable
+      <el-alert v-if="pageLoadError" :title="pageLoadError" type="error" :closable="false" show-icon />
+      <StatisticBoardFreshnessBanner v-if="readMetadata" :data-as-of="readMetadata.dataAsOf"
+        :pending-updates="readMetadata.pendingUpdates" :source-state="readMetadata.sourceState"
+        :source-state-detail="readMetadata.sourceStateDetail" :escalated="readMetadata.escalated" />
+      <BaseRecordTable v-if="acceptedPage.accepted.value || isTableLoading"
         :columns="columns"
         :rows="tableRows"
-        :loading="isTableLoading"
+        :loading="isTableLoading && !acceptedPage.accepted.value"
         :keyword-auto-search="true"
-        :page="page"
-        :page-size="pageSize"
+        :page="parseQueryPositiveInteger(acceptedQuery.page, 1)"
+        :page-size="parseQueryPositiveInteger(acceptedQuery.pageSize, 20)"
         :total="total"
         :primary-filters="tablePrimaryFilters"
         :filter-values="primaryFilterValues"
@@ -514,8 +498,8 @@ async function handleQuery() {
         :show-search="true"
         :show-refresh="false"
         :settings-scope-key="pageScopeKey"
-        :sort-by="sortBy"
-        :sort-order="sortOrder"
+        :sort-by="String(acceptedQuery.sortBy ?? props.defaultSortBy ?? 'updatedAt')"
+        :sort-order="String(acceptedQuery.sortOrder ?? props.defaultSortOrder ?? 'desc')"
         :default-sort-by="props.defaultSortBy ?? 'updatedAt'"
         :default-sort-order="props.defaultSortOrder ?? 'desc'"
         :empty-description="emptyDescription"

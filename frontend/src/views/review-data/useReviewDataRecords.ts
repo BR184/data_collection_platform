@@ -3,34 +3,11 @@ import type {
   ReviewDataFilterOptionsResponse,
   ReviewDataRecordListResponse,
   ReviewDataRecordRowResponse,
-  StatisticFilterGroup,
 } from '../../types/api';
 import {
   buildReviewDataSummaryCards,
   buildReviewDataTableRows,
 } from '../review-data-management';
-
-export interface ReviewDataRecordQueryParams {
-  keyword?: string;
-  title?: string;
-  projectName?: string;
-  moduleName?: string;
-  reviewOwner?: string;
-  reviewType?: string;
-  problemStatus?: string;
-  reviewExpert?: string;
-  filterGroup?: StatisticFilterGroup | null;
-  sourceInstance?: string | null;
-  page?: number;
-  size?: number;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-}
-
-export interface ReviewDataRecordsDependencies {
-  fetchFilterOptions: () => Promise<ReviewDataFilterOptionsResponse>;
-  fetchRecords: (params: ReviewDataRecordQueryParams) => Promise<ReviewDataRecordListResponse>;
-}
 
 export function createEmptyReviewDataFilterOptions(): ReviewDataFilterOptionsResponse {
   return {
@@ -48,7 +25,7 @@ export function createEmptyReviewDataFilterOptions(): ReviewDataFilterOptionsRes
   };
 }
 
-export function useReviewDataRecords(deps: ReviewDataRecordsDependencies) {
+export function useReviewDataRecords() {
   const rows = ref<ReviewDataRecordRowResponse[]>([]);
   const total = ref(0);
   const summary = ref<ReviewDataRecordListResponse['summary'] | null>(null);
@@ -56,14 +33,6 @@ export function useReviewDataRecords(deps: ReviewDataRecordsDependencies) {
 
   const summaryCards = computed(() => buildReviewDataSummaryCards(summary.value));
   const tableRows = computed(() => buildReviewDataTableRows(rows.value));
-
-  async function fetchFilterOptions() {
-    return deps.fetchFilterOptions();
-  }
-
-  async function fetchRows(params: ReviewDataRecordQueryParams) {
-    return deps.fetchRecords(params);
-  }
 
   function commitFilterOptions(options: ReviewDataFilterOptionsResponse) {
     filterOptions.value = options;
@@ -88,8 +57,6 @@ export function useReviewDataRecords(deps: ReviewDataRecordsDependencies) {
     filterOptions,
     summaryCards,
     tableRows,
-    fetchFilterOptions,
-    fetchRows,
     commitFilterOptions,
     commitRows,
     clearRows,

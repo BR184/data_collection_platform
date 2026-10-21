@@ -1,4 +1,6 @@
 export interface DatabaseTableOption {
+  /** 服务端注册目录指定的业务内容读取类型。 */
+  publishedReadRequired: boolean;
   tableName: string;
   label: string;
   syncStatus: string;

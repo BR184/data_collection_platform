@@ -6,13 +6,18 @@ import type {
   QualityBoardRdOverviewResponse,
 } from '../types/api';
 import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlob } from './request';
+import type { ReadViewTransport } from '../types/api/read-view';
 
 export const qualityBoardApi = {
-  getQualityBoardRdProjectOptions() {
-    return request<QualityBoardProjectOptionsResponse>('/api/quality-board/rd/project-options');
+  /** 其它质量页的候选与图表共享本页身份及权限。 */
+  getQualityBoardOtherProjectOptions(read?: ReadViewTransport) {
+    return request<QualityBoardProjectOptionsResponse>('/api/quality-board/other/project-options', read);
   },
-  getQualityBoardRdFilterOptions() {
-    return request<QualityBoardRdFilterOptionsResponse>('/api/quality-board/rd/filter-options');
+  getQualityBoardRdProjectOptions(read?: ReadViewTransport) {
+    return request<QualityBoardProjectOptionsResponse>('/api/quality-board/rd/project-options', read);
+  },
+  getQualityBoardRdFilterOptions(read?: ReadViewTransport) {
+    return request<QualityBoardRdFilterOptionsResponse>('/api/quality-board/rd/filter-options', read);
   },
   getQualityBoardRdOverview(projectName: string) {
     const query = new URLSearchParams();

@@ -42,7 +42,7 @@ function createBoard(): StatisticBoardResponse {
 
 function createPrefs(): StatisticBoardViewPrefs {
   return {
-    visibleColumnKeys: ['blocked', 'resolved'],
+    hiddenColumnKeys: [],
     groupOrder: ['quality'],
     childGroupOrderByParent: {},
     columnOrderByGroup: { quality: ['blocked', 'resolved'] },

@@ -1,3 +1,4 @@
+import type { ReadViewTransport } from '../types/api/read-view';
 import type {
   CodeReviewIllegalRecordFilterOptionsResponse,
   CodeReviewIllegalRecordListResponse,
@@ -61,16 +62,28 @@ function buildIllegalRecordQuery(params: CodeReviewIllegalRecordQueryParams, inc
 }
 
 export const codeReviewApi = {
+  /** 本页固定版本的来源候选及读取模式。 */
+  getCodeReviewIllegalRecordContext(read?: ReadViewTransport) {
+    return request<{ compatibilityRead: boolean; sources: OptionItemResponse[] }>(
+      '/api/code-review/illegal-records/context', read);
+  },
+  /** 兼容拆分记录按 legacySourceId 区分，同号 MR 不会串行。 */
+  getCodeReviewIllegalRecord(row: CodeReviewIllegalRecordListResponse['records'][number], read?: ReadViewTransport) {
+    const query = row.legacySourceId == null ? '' : `?legacySourceId=${encodeURIComponent(row.legacySourceId)}`;
+    return request<CodeReviewIllegalRecordListResponse['records'][number] | null>(
+      `/api/code-review/illegal-records/${encodeURIComponent(row.sourceInstance)}/${row.projectId}/${row.mergeRequestId}${query}`, read);
+  },
   getCodeReviewMatchModeStatus() {
     return request<CodeReviewMatchModeStatusResponse>('/api/code-review/match-mode/status');
   },
-  getCodeReviewIllegalRecords(params: CodeReviewIllegalRecordQueryParams) {
+  getCodeReviewIllegalRecords(params: CodeReviewIllegalRecordQueryParams, read?: ReadViewTransport) {
     const query = buildIllegalRecordQuery(params);
-    return request<CodeReviewIllegalRecordListResponse>(`/api/code-review/illegal-records?${query.toString()}`);
+    return request<CodeReviewIllegalRecordListResponse>(`/api/code-review/illegal-records?${query.toString()}`, read);
   },
-  async exportCodeReviewIllegalRecords(params: CodeReviewIllegalRecordQueryParams) {
+  async exportCodeReviewIllegalRecords(params: CodeReviewIllegalRecordQueryParams, read?: ReadViewTransport) {
     const query = buildIllegalRecordQuery(params, false);
     return requestBlob(`/api/code-review/illegal-records/export?${query.toString()}`, {
+      ...read,
       errorPrefix: 'Excel 导出失败',
       timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
     });
@@ -80,6 +93,7 @@ export const codeReviewApi = {
     source?: string | null,
     projectName?: string | null,
     repositoryName?: string | null,
+    read?: ReadViewTransport,
   ) {
     const query = new URLSearchParams(
       {
@@ -90,11 +104,11 @@ export const codeReviewApi = {
       },
     );
     return request<CodeReviewIllegalRecordFilterOptionsResponse>(
-      `/api/code-review/illegal-records/filter-options${query.toString() ? `?${query.toString()}` : ''}`,
+      `/api/code-review/illegal-records/filter-options${query.toString() ? `?${query.toString()}` : ''}`, read,
     );
   },
-  getCodeReviewIllegalRecordRuleExplanation() {
-    return request<StatisticBoardRuleExplanationResponse>('/api/code-review/illegal-records/rule-explanation');
+  getCodeReviewIllegalRecordRuleExplanation(read?: ReadViewTransport) {
+    return request<StatisticBoardRuleExplanationResponse>('/api/code-review/illegal-records/rule-explanation', read);
   },
   previewCodeReviewIllegalRecordRuleConfig(payload: CodeReviewRulePreviewRequest) {
     return request<CodeReviewRulePreviewResponse>('/api/code-review/illegal-records/rule-config/preview', {
@@ -127,13 +141,13 @@ export const codeReviewApi = {
       method: 'POST',
     });
   },
-  getCodeReviewMultiBoardSourceOptions() {
-    return request<OptionItemResponse[]>('/api/code-review/multi-board/source-options');
+  getCodeReviewMultiBoardSourceOptions(read?: ReadViewTransport) {
+    return request<OptionItemResponse[]>('/api/code-review/multi-board/source-options', read);
   },
-  getCodeReviewMultiBoardProjectOptions(source?: string) {
+  getCodeReviewMultiBoardProjectOptions(source?: string, read?: ReadViewTransport) {
     const query = new URLSearchParams(source ? { source } : {});
     return request<OptionItemResponse[]>(
-      `/api/code-review/multi-board/project-options${query.toString() ? `?${query.toString()}` : ''}`,
+      `/api/code-review/multi-board/project-options${query.toString() ? `?${query.toString()}` : ''}`, read,
     );
   },
   getCodeReviewMultiBoardOverview(source?: string) {

@@ -251,17 +251,8 @@ export function buildCodeReviewRuleExplanationOverview(
 export function mapCodeReviewIllegalTableRows(
   rows: CodeReviewIllegalRecordRowResponse[],
 ): Record<string, unknown>[] {
-  return rows.map((row, index) => ({
-    id: [
-      row.sourceInstance || 'default',
-      row.repositoryName || '-',
-      row.mergeRequestIid ?? '-',
-      row.author || '-',
-      row.reviewerNames || '-',
-      row.codeWalkthroughDate || '-',
-      row.mergedAt || '-',
-      index,
-    ].join('|'),
+  return rows.map((row) => ({
+    id: [row.sourceInstance, row.projectId, row.mergeRequestId, row.legacySourceId ?? 'fact'].join('|'),
     __raw: row,
     mergeRequestIid: buildGitlabResourceLinkCell(row.mergeRequestIid, row.mergeRequestLink),
     mergeRequestContent: row.mergeRequestContent,

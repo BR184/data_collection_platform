@@ -3,6 +3,7 @@ import type { CustomerIssueRecordRowResponse } from '../../types/api';
 import { mapCustomerIssueRecordTableRows } from './customer-issue-record-table-rows';
 
 const record: CustomerIssueRecordRowResponse = {
+  sourceInstance: 'default',
   issueId: 35679,
   issueIid: 1415,
   issueLink: 'http://gitlab/issues/1415',

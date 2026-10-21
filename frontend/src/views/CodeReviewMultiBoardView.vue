@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Refresh, RefreshRight } from '@element-plus/icons-vue';
 import { useRoute, useRouter } from 'vue-router';
 import PageStateShell from '../components/base/PageStateShell.vue';
@@ -8,16 +8,17 @@ import DashboardRuleDrawer from '../components/dashboard/DashboardRuleDrawer.vue
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { analyticsDashboardApi } from '../api-client/analytics-dashboard-api';
 import { api } from '../api';
+import { useAcceptedPageView } from '../composables/useAcceptedPageView';
+import StatisticBoardFreshnessBanner from '../components/StatisticBoardFreshnessBanner.vue';
 import { authState } from '../composables/auth-state';
 import { hasPermission } from '../feature-manifest';
-import { buildAnalyticsDetailRoute } from '../components/dashboard/detail-view-routes';
+import { navigateAnalyticsDetail } from '../components/dashboard/analytics-read-navigation';
 import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
 import { useRealtimeRefreshLifecycle } from '../composables/useRealtimeRefreshLifecycle';
 import { ElMessage } from '../element-plus-services';
 import type { EChartPointClickEvent } from '../components/charts/echart-panel-events';
 import type {
   AnalyticsDashboardChart,
-  AnalyticsDashboardQuery,
   AnalyticsDashboardResponse,
   AnalyticsDashboardRule,
   OptionItemResponse,
@@ -33,20 +34,40 @@ const loading = ref(false);
 const exportingKey = ref('');
 const sourceOptions = ref<OptionItemResponse[]>([]);
 const projectOptions = ref<OptionItemResponse[]>([]);
-const source = ref('');
-const projectName = ref('');
+const source = ref(String(route.query.source ?? '').trim().toLowerCase() || 'cc');
+const projectName = ref(String(route.query.projectName ?? '').trim());
 const dashboard = ref<AnalyticsDashboardResponse | null>(null);
 const rules = ref<AnalyticsDashboardRule[]>([]);
 const selectedRule = ref<AnalyticsDashboardRule | null>(null);
 const ruleDrawerVisible = ref(false);
 
-const pageReady = computed(() => initialized.value);
+interface MultiFrame {
+  dashboard: AnalyticsDashboardResponse;
+  rules: AnalyticsDashboardRule[];
+  sources: OptionItemResponse[];
+  projects: OptionItemResponse[];
+  query: Record<string, string>;
+}
+const acceptedPage = useAcceptedPageView<MultiFrame>({ pageKey: DASHBOARD_KEY,
+  load: () => { throw new Error('多元看板需要整批查询'); } });
+const loadError = ref('');
+acceptedPage.start();
+watch(acceptedPage.accepted, (frame, previous) => {
+  if (frame && frame.data === previous?.data) return;
+  dashboard.value = frame?.data.dashboard ?? null;
+  rules.value = frame?.data.rules ?? [];
+  sourceOptions.value = frame?.data.sources ?? [];
+  projectOptions.value = frame?.data.projects ?? [];
+  if (frame) {
+    source.value = frame.data.query.source;
+    projectName.value = frame.data.query.projectName;
+    if (selectedRule.value) selectedRule.value = frame.data.rules.find(rule => rule.key === selectedRule.value?.key) ?? null;
+  } else { selectedRule.value = null; ruleDrawerVisible.value = false; }
+}, { flush: 'sync' });
+const pageReady = computed(() => Boolean(acceptedPage.accepted.value) || initialized.value);
 const canRefreshLatestData = computed(() => hasPermission(authState.currentUser, 'business_data.refresh'));
 const ruleByKey = computed(() => new Map(rules.value.map((rule) => [rule.key, rule])));
-const scopeParameters = computed<Record<string, string>>(() => ({
-  ...(source.value ? { source: source.value } : {}),
-  ...(projectName.value ? { projectName: projectName.value } : {}),
-}));
+
 
 const {
   lastSyncedText,
@@ -69,77 +90,48 @@ const {
   notifyError: (message) => ElMessage.error(message),
 });
 
-function queryParameters(): AnalyticsDashboardQuery {
-  return scopeParameters.value;
-}
-
-async function loadSourceOptions() {
-  sourceOptions.value = await api.getCodeReviewMultiBoardSourceOptions();
-  const requested = String(route.query.source ?? '').trim().toLowerCase();
-  source.value = sourceOptions.value.some((option) => option.value === requested)
-    ? requested
-    : sourceOptions.value[0]?.value ?? '';
-}
-
-async function loadProjectOptions(preserveRouteValue = false) {
-  projectOptions.value = await api.getCodeReviewMultiBoardProjectOptions(source.value || undefined);
-  const requested = preserveRouteValue ? String(route.query.projectName ?? '').trim() : '';
-  projectName.value = projectOptions.value.some((option) => option.value === requested)
-    ? requested
-    : projectOptions.value[0]?.value ?? '';
-}
-
+let loadSequence = 0;
 async function loadDashboard() {
-  if (!source.value) {
-    dashboard.value = null;
-    rules.value = [];
-    return;
-  }
+  const ticket = ++loadSequence;
+  const requested = { source: source.value || 'cc', projectName: projectName.value };
   loading.value = true;
   try {
-    const [dashboardResponse, rulesResponse] = await Promise.all([
-      analyticsDashboardApi.getDashboard(DASHBOARD_KEY, queryParameters()),
-      analyticsDashboardApi.getRules(DASHBOARD_KEY, queryParameters()),
-    ]);
-    dashboard.value = dashboardResponse;
-    rules.value = rulesResponse.rules;
-    await router.replace({ query: scopeParameters.value });
-  } finally {
-    loading.value = false;
+    const loaded = await acceptedPage.prepare({ source: requested.source }, async (_scope, read) => {
+      const [sources, projects] = await Promise.all([
+        api.getCodeReviewMultiBoardSourceOptions(read),
+        api.getCodeReviewMultiBoardProjectOptions(requested.source, read),
+      ]);
+      const query = { source: requested.source, projectName: requested.projectName || projects[0]?.value || '' };
+      const [dashboard, rules] = await Promise.all([
+        analyticsDashboardApi.getDashboard(DASHBOARD_KEY, query, read),
+        analyticsDashboardApi.getRules(DASHBOARD_KEY, query, read),
+      ]);
+      return { sources, projects, query, dashboard, rules: rules.rules };
+    });
+    if (ticket !== loadSequence) return;
+    if (!loaded) throw acceptedPage.lastError.value ?? new Error('看板准备已取消');
+    loadError.value = '';
+    await router.replace({ query: acceptedPage.accepted.value!.data.query });
+  } catch (error) { if (ticket !== loadSequence) return; loadError.value = getErrorMessage(error, '看板更新失败，已保留当前完整数据'); }
+  finally {
+    if (ticket === loadSequence) { loading.value = false; initialized.value = true;
+    }
   }
 }
 
 async function changeSource() {
-  invalidateRefreshTracking();
-  await loadProjectOptions();
-  await loadDashboard();
+  invalidateRefreshTracking(); projectName.value = ''; await loadDashboard();
 }
 
 async function refreshPage() {
-  try {
-    const selectedSource = source.value;
-    const selectedProject = projectName.value;
-    invalidateRefreshTracking();
-    await loadSourceOptions();
-    if (sourceOptions.value.some((option) => option.value === selectedSource)) {
-      source.value = selectedSource;
-    }
-    await loadProjectOptions();
-    if (projectOptions.value.some((option) => option.value === selectedProject)) {
-      projectName.value = selectedProject;
-    }
-    await Promise.all([loadDashboard(), loadSyncStatus()]);
-    ElMessage.success('代码走查多元看板已刷新');
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, '代码走查多元看板刷新失败'));
-  }
+  invalidateRefreshTracking(); await Promise.all([loadDashboard(), loadSyncStatus()]);
 }
 
 async function refreshLatestData() {
   await submitRefreshLatestData();
 }
 
-function openDetail(chart: AnalyticsDashboardChart, point?: EChartPointClickEvent) {
+async function openDetail(chart: AnalyticsDashboardChart, point?: EChartPointClickEvent) {
   if (!chart.detail) {
     return;
   }
@@ -150,7 +142,8 @@ function openDetail(chart: AnalyticsDashboardChart, point?: EChartPointClickEven
     ...chart.detail,
     params: { ...chart.detail.params, ...(point?.detailParams ?? {}) },
   };
-  void router.push(buildAnalyticsDetailRoute(DASHBOARD_KEY, action, scopeParameters.value));
+  try { await navigateAnalyticsDetail(acceptedPage, router, DASHBOARD_KEY, action, frame => frame.query); }
+  catch (error) { ElMessage.error(getErrorMessage(error, '详情打开失败')); }
 }
 
 async function exportChart(chart: AnalyticsDashboardChart) {
@@ -159,12 +152,9 @@ async function exportChart(chart: AnalyticsDashboardChart) {
   }
   exportingKey.value = chart.export.exportKey;
   try {
-    const file = await analyticsDashboardApi.export(
-      DASHBOARD_KEY,
-      chart.export.exportKey,
-      queryParameters(),
-    );
-    downloadBlob(file.blob, file.filename || `${chart.title}.xlsx`);
+    await acceptedPage.readAccepted((frame, read) => analyticsDashboardApi.export(
+      DASHBOARD_KEY, chart.export!.exportKey, frame.query, read),
+      file => downloadBlob(file.blob, file.filename || `${chart.title}.xlsx`));
   } catch (error) {
     ElMessage.error(getErrorMessage(error, 'Excel 导出失败'));
   } finally {
@@ -181,19 +171,12 @@ function openRule(rule: AnalyticsDashboardRule | null) {
 }
 
 async function initializePage() {
-  try {
-    await loadSourceOptions();
-    await loadProjectOptions(true);
-    await Promise.all([loadDashboard(), loadSyncStatus()]);
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, '代码走查多元看板加载失败'));
-  } finally {
-    initialized.value = true;
-  }
+  await Promise.all([loadDashboard(), loadSyncStatus()]);
 }
 
 onBeforeUnmount(() => {
   invalidateRefreshTracking();
+  acceptedPage.dispose();
 });
 
 void initializePage();
@@ -202,6 +185,8 @@ void initializePage();
 <template>
   <PageStateShell :ready="pageReady" min-height="calc(100vh - 160px)">
     <section class="code-review-multi-board">
+      <StatisticBoardFreshnessBanner v-bind="acceptedPage.accepted.value?.metadata" />
+      <el-alert v-if="loadError" :title="loadError" type="warning" :closable="false" />
       <header class="code-review-multi-board__hero">
         <div>
           <div class="code-review-multi-board__eyebrow">代码走查 / 多元看板</div>
@@ -263,7 +248,7 @@ void initializePage();
           :key="chart.key"
           :chart="chart"
           :rule="chart.ruleKey ? ruleByKey.get(chart.ruleKey) : null"
-          :loading="loading"
+          :loading="loading && !acceptedPage.accepted.value"
           :height="360"
           @title-click="openDetail"
           @point-click="(point, selectedChart) => openDetail(selectedChart, point)"

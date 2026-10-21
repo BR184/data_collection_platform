@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue';
 import { ElMessage } from '../element-plus-services';
 import { Edit, Refresh, WarningFilled } from '@element-plus/icons-vue';
 import { api } from '../api';
+import { useAcceptedPageView } from '../composables/useAcceptedPageView';
+import { authState } from '../composables/auth-state';
+import StatisticBoardFreshnessBanner from './StatisticBoardFreshnessBanner.vue';
 import type { DatabaseTableOption, DatabaseTableRowsResponse } from '../types/api';
 import type { DatabaseTableRefreshResponse } from '../api-client/database-browser-api';
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
@@ -21,14 +24,35 @@ const firstRowsResolved = ref(false);
 const tableOptions = ref<DatabaseTableOption[]>([]);
 const keywordDraft = ref('');
 const rowsResponse = ref<DatabaseTableRowsResponse | null>(null);
+interface BrowserFrame { response: DatabaseTableRowsResponse; query: Readonly<Record<string, unknown>>; published: boolean }
+const displayedFrame = shallowRef<BrowserFrame | null>(null);
+const loadError = ref('');
+let identityRevision = 0;
+let pendingTablesLoad: Promise<void> | null = null;
+const acceptedPage = useAcceptedPageView<BrowserFrame>({ pageKey: 'database-browser',
+  load: () => { throw new Error('数据库内容需要捕获表和完整查询'); } });
+acceptedPage.start();
+watch(acceptedPage.accepted, (frame, previous) => {
+  if (frame && frame.data === previous?.data) return;
+  displayedFrame.value = frame?.data ?? null;
+  rowsResponse.value = frame?.data.response ?? null;
+}, { flush: 'sync' });
+watch(() => JSON.stringify({ username: authState.currentUser.username, authenticated: authState.currentUser.authenticated,
+  permissions: [...authState.currentUser.permissions].sort(), roles: [...authState.currentUser.roleCodes].sort() }), (next, previous) => {
+  const oldFrame = displayedFrame.value;
+  identityRevision += 1; displayedFrame.value = null; rowsResponse.value = null; tableOptions.value = [];
+  editDialogVisible.value = false;
+  if (oldFrame && authState.currentUser.authenticated && JSON.parse(next).username === JSON.parse(previous).username) {
+    void loadTables(); if (!oldFrame.published) void reload();
+  }
+}, { flush: 'sync' });
+const displayedQuery = computed(() => displayedFrame.value?.query ?? route.query);
+const displayedSortBy = computed(() => String(displayedQuery.value.sortBy ?? ''));
+const displayedSortOrder = computed(() => String(displayedQuery.value.sortOrder ?? ''));
 const viewportHeight = ref(typeof window !== 'undefined' ? window.innerHeight : 1080);
 
 const {
   route,
-  page,
-  pageSize,
-  sortBy,
-  sortOrder,
   keyword,
   isTableLoading,
   patchQuery,
@@ -54,11 +78,11 @@ const columns = computed(() => rowsResponse.value?.columns ?? []);
 const rows = computed(() => rowsResponse.value?.rows ?? []);
 const total = computed(() => rowsResponse.value?.total ?? 0);
 const currentSortSummary = computed(() => {
-  if (!sortBy.value || !sortOrder.value) {
+  if (!displayedSortBy.value || !displayedSortOrder.value) {
     return '';
   }
-  const fieldLabel = columns.value.find((column) => column.key === sortBy.value)?.label ?? '当前字段';
-  return `${fieldLabel} / ${sortOrder.value === 'asc' ? '升序' : '降序'}`;
+  const fieldLabel = columns.value.find((column) => column.key === displayedSortBy.value)?.label ?? '当前字段';
+  return `${fieldLabel} / ${displayedSortOrder.value === 'asc' ? '升序' : '降序'}`;
 });
 const selectedOption = computed(() => tableOptions.value.find((option) => option.tableName === selectedTable.value) ?? null);
 const tableKind = computed(() => rowsResponse.value?.tableKind ?? selectedOption.value?.tableKind ?? 'LOCAL');
@@ -78,7 +102,7 @@ const pageReady = computed(() => {
 const showInitialTableSkeleton = computed(
   () => tableOptions.value.length > 0 && (!selectedTable.value || !firstRowsResolved.value),
 );
-const isCollectFormTable = computed(() => selectedTable.value === 'collect_form_records');
+const isCollectFormTable = computed(() => rowsResponse.value?.tableName === 'collect_form_records');
 const syncStatusTagType = computed(() => {
   const status = rowsResponse.value?.syncStatus ?? selectedOption.value?.syncStatus;
   switch (status) {
@@ -129,20 +153,18 @@ const editForm = reactive({
   deleted: false,
 });
 
-async function loadTables() {
+function loadTables(): Promise<void> {
+  if (pendingTablesLoad) return pendingTablesLoad;
+  const capturedIdentity = identityRevision;
   tablesLoading.value = true;
-  try {
-    const tables = await api.getDatabaseTables();
+  pendingTablesLoad = api.getDatabaseTables().then(async tables => {
+    if (capturedIdentity !== identityRevision) return;
     tableOptions.value = tables;
-    if (!selectedTable.value && tables.length > 0) {
-      await patchQuery({ table: tables[0].tableName }, 'replace');
-    }
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, '数据库表列表加载失败'));
-  } finally {
-    tablesLoading.value = false;
-    tablesResolved.value = true;
-  }
+    if (!selectedTable.value && tables.length) await patchQuery({ table: tables[0].tableName }, 'replace');
+  }).catch(error => {
+    if (capturedIdentity === identityRevision) loadError.value = getErrorMessage(error, '数据库表目录加载失败');
+  }).finally(() => { tablesLoading.value = false; tablesResolved.value = true; pendingTablesLoad = null; });
+  return pendingTablesLoad;
 }
 
 async function handleSearch() {
@@ -181,8 +203,9 @@ async function handleRefresh() {
   refreshingTable.value = true;
   try {
     let refreshResult: DatabaseTableRefreshResponse | null = null;
-    if (selectedTable.value) {
-      refreshResult = await api.refreshDatabaseTable(selectedTable.value);
+    const visibleTable = rowsResponse.value?.tableName ?? selectedTable.value;
+    if (visibleTable) {
+      refreshResult = await api.refreshDatabaseTable(visibleTable);
     }
     await loadTables();
     if ((await reload()).status === 'committed') {
@@ -202,7 +225,9 @@ function refreshSubmissionMessage(result: DatabaseTableRefreshResponse | null) {
   const runSuffix = result?.runId ? `，同步任务 #${result.runId}` : '';
   switch (result?.status) {
     case 'SUCCESS':
-      return `当前表数据已刷新${runSuffix}`;
+      return acceptedPage.accepted.value?.metadata.sourceState === 'CURRENT'
+        ? `当前表数据已刷新${runSuffix}`
+        : `镜像抓取已完成，完整数据版本正在更新${runSuffix}`;
     case 'RUNNING':
       return `刷新请求已提交，正在同步执行${runSuffix}`;
     case 'DEDUPED':
@@ -355,24 +380,35 @@ watch(keywordDraft, (nextKeyword, previousKeyword) => {
   });
 });
 
-bindLoader(async ({ query }) => {
+bindLoader(async ({ query, isCurrent }) => {
+  const capturedIdentity = identityRevision;
   const tableName = String(query.table ?? '');
   if (!tableName) return null;
-  return api.getDatabaseTableRows({
-    tableName,
-    page: parseQueryPositiveInteger(query.page, 1),
-    size: parseQueryPositiveInteger(query.pageSize, 20),
-    keyword: String(query.keyword ?? '') || undefined,
-    sortField: String(query.sortBy ?? '') || undefined,
-    sortOrder: String(query.sortOrder ?? '') || undefined,
-  });
-}, (response, { query }) => {
-  rowsResponse.value = response;
-  if (String(query.table ?? '')) firstRowsResolved.value = true;
+  if (!tableOptions.value.some(option => option.tableName === tableName)) await loadTables();
+  if (!isCurrent() || capturedIdentity !== identityRevision) return null;
+  const option = tableOptions.value.find(option => option.tableName === tableName);
+  if (!option || typeof option.publishedReadRequired !== 'boolean') throw new Error('表目录缺少有效的内容读取类型');
+  const request = { tableName, page: parseQueryPositiveInteger(query.page, 1), size: parseQueryPositiveInteger(query.pageSize, 20),
+    keyword: String(query.keyword ?? '') || undefined, sortField: String(query.sortBy ?? '') || undefined,
+    sortOrder: (String(query.sortOrder ?? '') || undefined) as 'asc' | 'desc' | undefined };
+  if (option.publishedReadRequired) {
+    const loaded = await acceptedPage.prepare({ tableName }, async (_scope, read) => ({ query, published: true,
+      response: await api.getDatabaseTableRows(request, read) }));
+    if (!loaded && isCurrent()) throw acceptedPage.lastError.value ?? new Error('表内容准备已取消');
+    return { published: true, frame: acceptedPage.accepted.value?.data ?? null, capturedIdentity };
+  }
+  // 当前管理/源库预览不受同步资格门控；不能伪造完整发布身份或把失败当空表。
+  const response = await api.getDatabaseTableRows(request);
+  return { published: false, frame: { response, query, published: false } as BrowserFrame, capturedIdentity };
+}, result => {
+  if (!result || result.capturedIdentity !== identityRevision) return;
+  if (!result.published) {
+    acceptedPage.clearPrivateData(); displayedFrame.value = result.frame; rowsResponse.value = result.frame?.response ?? null;
+  }
+  firstRowsResolved.value = true; loadError.value = '';
 }, (error, { query }) => {
-  rowsResponse.value = null;
   if (String(query.table ?? '')) firstRowsResolved.value = true;
-  ElMessage.error(getErrorMessage(error, '数据库表数据加载失败'));
+  loadError.value = getErrorMessage(error, '表数据更新失败，已保留当前完整数据');
 });
 
 function parseQueryPositiveInteger(value: unknown, fallback: number) {
@@ -387,6 +423,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
+  acceptedPage.dispose();
 });
 </script>
 
@@ -411,6 +448,8 @@ onBeforeUnmount(() => {
     </template>
 
     <div class="db-browser-card">
+      <StatisticBoardFreshnessBanner v-if="displayedFrame?.published" v-bind="acceptedPage.accepted.value?.metadata" />
+      <el-alert v-if="loadError" :title="loadError" type="warning" :closable="false" />
       <TableFunctionBar>
         <template #status>
           <div class="db-toolbar-filters">
@@ -491,7 +530,7 @@ onBeforeUnmount(() => {
 
         <el-empty v-else-if="!selectedTable" description="当前没有可查看的本地表" />
 
-        <template v-else>
+        <template v-else-if="rowsResponse">
           <el-alert
             v-if="rowsResponse?.statusMessage"
             class="db-status-alert"
@@ -502,7 +541,7 @@ onBeforeUnmount(() => {
           />
 
           <el-table
-            v-loading="isTableLoading"
+            v-loading="isTableLoading && !rowsResponse"
             :data="rows"
             border
             stripe
@@ -538,8 +577,8 @@ onBeforeUnmount(() => {
             <el-pagination
               background
               layout="total, sizes, prev, pager, next"
-              :current-page="page"
-              :page-size="pageSize"
+              :current-page="rowsResponse?.page ?? parseQueryPositiveInteger(displayedQuery.page, 1)"
+              :page-size="rowsResponse?.size ?? parseQueryPositiveInteger(displayedQuery.pageSize, 20)"
               :page-sizes="[10, 20, 50, 100]"
               :total="total"
               @size-change="handleSizeChange"

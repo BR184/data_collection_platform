@@ -1,3 +1,4 @@
+import type { ReadViewTransport } from '../types/api/read-view';
 import type { DatabaseTableOption, DatabaseTableRowsResponse } from '../types/api';
 import { request } from './request';
 
@@ -26,7 +27,7 @@ export const databaseBrowserApi = {
     keyword?: string;
     sortField?: string;
     sortOrder?: 'asc' | 'desc';
-  }) {
+  }, read?: ReadViewTransport) {
     const query = new URLSearchParams({
       tableName: params.tableName,
       page: String(params.page ?? 1),
@@ -35,7 +36,7 @@ export const databaseBrowserApi = {
       ...(params.sortField ? { sortField: params.sortField } : {}),
       ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
     });
-    return request<DatabaseTableRowsResponse>(`/api/database-browser/rows?${query.toString()}`);
+    return request<DatabaseTableRowsResponse>(`/api/database-browser/rows?${query.toString()}`, read);
   },
   refreshDatabaseTable(tableName: string) {
     const query = new URLSearchParams({ tableName });

@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 // 统一统计板组件负责把查询条件、摘要卡片、图表和明细下钻串成同一套交互。
 // 各业务看板只传入 boardKey 和配置，避免每个页面重复实现刷新、排序和规则说明。
@@ -11,6 +11,7 @@ import StatisticBoardRuleExplanationDrawer from './StatisticBoardRuleExplanation
 import StatisticBoardToolbar from './StatisticBoardToolbar.vue';
 import StatisticBoardFreshnessBanner from './StatisticBoardFreshnessBanner.vue';
 import StatisticBoardControlBar from './StatisticBoardControlBar.vue';
+import StatisticBoardMemberFilters from './StatisticBoardMemberFilters.vue';
 import DataScopeBar from './data-scope/DataScopeBar.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
@@ -64,8 +65,8 @@ import type { LocationQuery } from 'vue-router';
 import { useStatisticBoardColumnDrag } from './useStatisticBoardColumnDrag';
 import { createFallbackRuleExplanation } from './statistic-board-rule-explanation';
 import { resolveStatisticBoardRouteScopeState } from './statistic-board-route-scope';
-import type { StatisticBoardViewPrefs } from './statistic-board-view-prefs';
-import type { RecordTableFilterField } from '../types/record-table';
+import type { RecordTableFilterField, RecordTableFilterValue } from '../types/record-table';
+import type { StatisticBoardMemberControlSpec } from '../feature-manifest/statistic-board-controls';
 import {
   filterFieldsByBlockedDimensions,
   stripLowerPriorityQuickConditions,
@@ -152,29 +153,29 @@ const {
 const {
   controlSpec,
   activeDimension,
-  memberControls,
+  memberQuickFilters,
+  memberQuickValues,
+  memberCandidatesEmpty,
+  memberSummaryChips,
+  clearMemberPatch,
   requestParams: controlRequestParams,
   fixedColumnKeys,
   controlOptionsStatus,
   controlOptionsMessage,
   memberSelectionError,
-  applyBoardSourceVersion,
-  applyResponse: applyControlResponse,
   setDimension: setControlDimension,
   setMember: setControlMember,
 } = useStatisticBoardControlParams({
   pageKey: () => route.meta.pageKey as PageKey | undefined,
   routeQuery: () => route.query,
   replaceRouteQuery,
-  // 候选与主表消费同一份范围参数（生效范围 + 用户条件），但不带成员选择：
-  // 后端在完整基础范围上求解，选择成员后其它成员依然可选。
-  loadControlOptions: (request) => api.getStatisticBoardControlOptions(props.boardKey, request),
-  controlScopeParams: () => ({ filterGroup: buildFilterPayload() }),
-  scopeSignature: () => JSON.stringify(buildFilterPayload() ?? null),
+  acceptedFrame: () => acceptedFrame.value,
+
 });
 const {
   boardViewPrefs,
   applyStoredViewPrefs,
+  applySavedViewPrefs,
   persistViewPrefs,
   saveVisibleColumnPrefs,
   restoreDefaultViewPrefs,
@@ -196,12 +197,36 @@ const {
   loadBoard,
   invalidateBoardRequest,
   exportBoard,
+  acceptedFrame, readMetadata, readAccepted, clearPrivateData,
 } = useStatisticBoardData({
   boardKey: () => props.boardKey,
   getFilterGroup: buildFilterPayload,
   getControlParams: () => controlRequestParams.value,
-  loadBoardData: (boardKey, request) => api.getStatisticBoard(boardKey, request),
-  exportBoardFile: (boardKey, request) => api.exportStatisticBoardFile(boardKey, request),
+  getRouteQuery: () => route.query,
+  getReadScope: () => Object.fromEntries(
+    ['sourceInstance', 'source', 'projectId', 'testingPhase', 'milestoneTitle', 'milestoneBusinessKey', 'repositoryName']
+      .flatMap(key => typeof route.query[key] === 'string' && route.query[key] ? [[key, String(route.query[key])]] : [])),
+  loadBoardData: (boardKey, request, read) => api.getStatisticBoard(boardKey, { ...request, read }),
+  loadControlOptions: (boardKey, request, read) => controlSpec.value
+    ? api.getStatisticBoardControlOptions(boardKey, { ...request, read }) : Promise.resolve(null),
+  loadOpenedDetail: async (nextBoard, query, request, read) => {
+    if (String(query.detailVisible ?? '') !== '1') { return null; }
+    const row = nextBoard.rows.find(item => item.rowKey === String(query.detailRowKey ?? ''));
+    const cell = row?.cells.find(item => item.columnKey === String(query.detailColumnKey ?? ''));
+    if (!row || !cell?.drilldown) { return null; }
+    const filters = { ...cell.detailParams, ...detailQuickFilterValues };
+    if (query.detailCollection) { filters.population = String(query.detailCollection); }
+    const response = await api.getStatisticBoardDetails(nextBoard.definition.boardKey, {
+      rowKey: row.rowKey, columnKey: cell.columnKey,
+      page: Number(query.detailPage ?? 1), size: Number(query.detailPageSize ?? nextBoard.definition.defaultPageSize ?? 10),
+      sortField: String(query.detailSortBy ?? ''), sortOrder: String(query.detailSortOrder ?? 'descending'),
+      filters, filterGroup: request.filterGroup, read,
+    });
+    return { rowKey: row.rowKey, columnKey: cell.columnKey, response };
+  },
+  exportBoardFile: (boardKey, request, read) => api.exportStatisticBoardFile(boardKey, { ...request, read }),
+  loadOpenedRule: (boardKey, request, read) => ruleExplanationVisible.value
+    ? api.getStatisticBoardRuleExplanation(boardKey, { ...request, read }) : Promise.resolve(null),
   onBoardLoaded: handleBoardLoaded,
   notifySuccess: (message) => ElMessage.success(message),
   notifyError: (message) => ElMessage.error(message),
@@ -282,6 +307,7 @@ const {
 const {
   activeFilterFields,
   orderedColumnGroups,
+  visibleColumnKeys,
   sortedRows,
   totalTableRows,
   paginatedRows,
@@ -344,6 +370,35 @@ const quickFilterConflict = useQuickFilterConflictState({
 const quickFilterFields = computed(() => quickFilterConflict.visibleQuickFilters.value);
 const disabledQuickFilterKeys = computed(() => quickFilterConflict.disabledQuickFilterKeys.value);
 const highlightedQuickFilterKeys = computed(() => quickFilterConflict.highlightedQuickFilterKeys.value);
+
+// 成员控制项并入共用"常用筛选"行（仅配置了控制参数的页面）。它们仍是控制参数而非业务条件，
+// 因此不进 quickFilterConflict（条件接管只作用于 filterGroup 字段），也不进工具栏的字段快速筛选集合，
+// 只在该行内与字段类快速筛选相邻渲染，并共用同一摘要与清除。
+const memberControlKeys = computed(() => (controlSpec.value?.members ?? []).map((member) => member.key));
+// 整批画面准备失败且没有可继续服务的已接受画面时，才是"候选加载失败"，与"加载中"必须分开。
+const memberCandidatesFailed = computed(() =>
+  Boolean(controlSpec.value) && !acceptedFrame.value && Boolean(errorMessage.value));
+const memberCandidateMessage = computed(() =>
+  memberCandidatesFailed.value ? errorMessage.value : controlOptionsMessage.value);
+const memberCandidatesEmptyNotice = computed(() =>
+  memberCandidatesEmpty.value ? '当前范围没有可选的成员' : '');
+
+function isMemberControlKey(key: string): key is StatisticBoardMemberControlSpec['key'] {
+  return memberControlKeys.value.includes(key as StatisticBoardMemberControlSpec['key']);
+}
+
+/** 成员变更直接写控制参数并即时生效，不经过条件草稿，也不触发"查询"提交。 */
+async function handleMemberQuickFilterChange(payload: { key: string; value: RecordTableFilterValue }) {
+  if (!isMemberControlKey(payload.key)) {
+    return;
+  }
+  const raw = Array.isArray(payload.value) ? payload.value[0] ?? '' : payload.value;
+  await setControlMember(payload.key, String(raw ?? ''));
+}
+
+function retryMemberCandidates() {
+  void loadBoard();
+}
 const {
   settingsVisible,
   draftVisibleColumnKeys,
@@ -364,7 +419,7 @@ const {
   handleExpandedViewSettingGroupsChange,
 } = useStatisticViewSettings(
   computed(() => board.value?.definition.columnGroups ?? []),
-  computed(() => boardViewPrefs.value.visibleColumnKeys),
+  visibleColumnKeys,
 );
 const {
   onGroupDragStart,
@@ -377,9 +432,7 @@ const {
 } = useStatisticBoardColumnDrag(boardViewPrefs, persistViewPrefs);
 
 function handleBoardLoaded(response: StatisticBoardResponse) {
-  applyControlResponse(response);
-  applyBoardSourceVersion(boardSourceVersion(response));
-  const routeFilterGroup = buildFilterGroupFromRouteQuery(route.query);
+  const routeFilterGroup = buildFilterGroupFromRouteQuery(acceptedFrame.value?.query ?? route.query);
   const appliedFilterGroup = stripRouteScopeFilter(response.appliedFilterGroup ?? null);
   const nextDraft = normalizeFilterDraftGroup(
     routeFilterGroup.conditions.length ? routeFilterGroup : appliedFilterGroup,
@@ -388,20 +441,13 @@ function handleBoardLoaded(response: StatisticBoardResponse) {
   replaceFilterDraftGroup(filterDraft, nextDraft);
   applyStoredViewPrefs(response.definition);
   syncDraftFromVisible();
-  syncDetailPaginationFromRoute(route.query, response.definition.defaultPageSize ?? 10);
-}
+  const frame = acceptedFrame.value;
+  syncDetailPaginationFromRoute(frame?.query ?? route.query, response.definition.defaultPageSize ?? 10);
+  if (frame?.openedDetail) { acceptPreparedDetail(response, frame.openedDetail, frame.query); }
+  else if (detailVisible.value) { invalidateDetailForRouteChange(); }
+  resetRuleExplanation();
+  ruleExplanation.value = frame?.openedRule ?? null;
 
-/** 主表来源代际：下钻契约把它写进每个指标单元格，候选按同一代际判定是否需要重取。 */
-function boardSourceVersion(response: StatisticBoardResponse): string {
-  for (const row of response.rows ?? []) {
-    for (const cell of row.cells ?? []) {
-      const version = cell.detailParams?.sourceVersion;
-      if (version) {
-        return version;
-      }
-    }
-  }
-  return '';
 }
 
 function buildFilterPayload() {
@@ -452,11 +498,9 @@ const {
   handleRuleExplanationVisibleChange,
   resetRuleExplanation,
 } = useRuleExplanationPanel({
-  load: () =>
-    api.getStatisticBoardRuleExplanation(props.boardKey, {
-      filterGroup: buildFilterPayload(),
-      filters: controlRequestParams.value,
-    }),
+  load: () => readAccepted((frame, read) => api.getStatisticBoardRuleExplanation(props.boardKey, {
+    ...frame.request, read,
+  })),
   fallback: (reason) => createFallbackRuleExplanation(props.boardKey, reason),
   warn: (message) => ElMessage.warning(message),
   unsupportedWarning: '当前统计表暂不支持规则说明',
@@ -499,7 +543,6 @@ const {
   detailQuickFilterValues,
   detailQuickFilterInputDrafts,
   detailCellValue,
-  loadDetail,
   selectDetailCollection,
   openDetail: openStatisticDetail,
   handleDetailSortChange,
@@ -512,10 +555,20 @@ const {
   invalidateForRouteChange: invalidateDetailForRouteChange,
   syncFromRoute: syncDetailFromRoute,
   syncPaginationFromRoute: syncDetailPaginationFromRoute,
+  acceptPrepared: acceptPreparedDetail,
 } = useStatisticBoardDetail({
   boardKey: () => props.boardKey,
-  getFilterGroup: buildFilterPayload,
-  loadDetails: (boardKey, params) => api.getStatisticBoardDetails(boardKey, params),
+  getFilterGroup: () => acceptedFrame.value?.request.filterGroup ?? null,
+  loadDetails: async (boardKey, params, commit) => {
+    const wasPreparing = loading.value;
+    if (wasPreparing) { invalidateBoardRequest(); }
+    try {
+      await readAccepted((_frame, read) => api.getStatisticBoardDetails(boardKey, { ...params, read }), commit);
+    } finally {
+      // 用户在旧完整画面上操作明细时先完成该操作，随后按最新操作重新准备整批画面。
+      if (wasPreparing) { void loadBoard(false); }
+    }
+  },
   notifyError: (message) => ElMessage.error(message),
   replaceRouteQuery,
 });
@@ -530,9 +583,6 @@ const {
   loadStatus: loadRealtimeStatus,
   loadData: async () => {
     await loadBoard();
-    if (detailVisible.value) {
-      await loadDetail();
-    }
   },
   notifySuccess: (message) => ElMessage.success(message),
   notifyWarning: (message) => ElMessage.warning(message),
@@ -620,11 +670,7 @@ async function applyStatisticBoardViewPrefs(viewPrefs: unknown) {
   if (!viewPrefs || typeof viewPrefs !== 'object') {
     return;
   }
-  boardViewPrefs.value = {
-    ...boardViewPrefs.value,
-    ...(viewPrefs as Partial<StatisticBoardViewPrefs>),
-  };
-  persistViewPrefs();
+  applySavedViewPrefs(viewPrefs);
   syncDraftFromVisible();
 }
 
@@ -730,7 +776,8 @@ async function applyFiltersToRoute() {
 
 async function resetFilters() {
   quickFilterConflict.resetConflictResolution();
-  await resetRouteFilters();
+  // 成员选择已并入该行，重置必须一起清除；行维度与范围属"分析设置"，不参与筛选重置。
+  await resetRouteFilters(clearMemberPatch.value);
 }
 
 async function handleExtraAction(actionKey: string) {
@@ -750,10 +797,8 @@ async function handleExtraAction(actionKey: string) {
 async function exportCustomerIssues() {
   customerIssueExportLoading.value = true;
   try {
-    const file = await api.exportCustomerIssueDefectSummaryIssues({
-      filterGroup: buildFilterPayload(),
-    });
-    downloadBlob(file.blob, file.filename || '客户问题全量议题数据.xlsx');
+    await readAccepted((frame, read) => api.exportCustomerIssueDefectSummaryIssues({ ...frame.request, read }),
+      file => downloadBlob(file.blob, file.filename || '客户问题全量议题数据.xlsx'));
     ElMessage.success('议题数据导出成功');
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '导出失败'));
@@ -765,10 +810,8 @@ async function exportCustomerIssues() {
 async function exportSystemTestIssues() {
   issueExportLoading.value = true;
   try {
-    const file = await api.exportSystemTestDefectSummaryIssues({
-      filterGroup: buildFilterPayload(),
-    });
-    downloadBlob(file.blob, file.filename || '议题数据.xlsx');
+    await readAccepted((frame, read) => api.exportSystemTestDefectSummaryIssues({ ...frame.request, read }),
+      file => downloadBlob(file.blob, file.filename || '议题数据.xlsx'));
     ElMessage.success('议题数据导出成功');
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '导出失败'));
@@ -780,10 +823,8 @@ async function exportSystemTestIssues() {
 async function exportSystemTestHorizontalComparison() {
   horizontalComparisonExportLoading.value = true;
   try {
-    const file = await api.exportSystemTestHorizontalComparison({
-      filterGroup: buildFilterPayload(),
-    });
-    downloadBlob(file.blob, file.filename || '系统测试数据分析表.xlsx');
+    await readAccepted((frame, read) => api.exportSystemTestHorizontalComparison({ ...frame.request, read }),
+      file => downloadBlob(file.blob, file.filename || '系统测试数据分析表.xlsx'));
     ElMessage.success('横向对比导出成功');
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '导出失败'));
@@ -791,6 +832,13 @@ async function exportSystemTestHorizontalComparison() {
     horizontalComparisonExportLoading.value = false;
   }
 }
+
+watch(() => authState.currentUser?.username, (next, previous) => {
+  if (next !== previous) { clearPrivateData(); invalidateDetailForRouteChange(); resetRuleExplanation(); }
+});
+watch(() => acceptedFrame.value, (frame, previous) => {
+  if (!frame && previous) { invalidateDetailForRouteChange(); resetRuleExplanation(); }
+});
 
 watch(
   [sortedRows, tablePageSize],
@@ -821,24 +869,23 @@ watch(
       syncTablePaginationFromRoute();
       const detailClosed = routeDetailWasClosed(nextRouteQuery, previousRouteQuery);
       if (detailClosed) {
+        const wasPreparing = loading.value;
+        invalidateBoardRequest();
         invalidateRouteRefresh();
         invalidateRealtimeStatusRequest();
         invalidateRefreshTracking();
+        if (wasPreparing) { void loadBoard(false); }
       }
-      if (!routeRefreshPending || detailClosed) {
-        await syncDetailFromRoute(
-          route.query,
-          board.value?.rows ?? [],
-          board.value?.definition.defaultPageSize ?? 10,
-        );
-      }
+      await syncDetailFromRoute(
+        route.query,
+        board.value?.rows ?? [],
+        board.value?.definition.defaultPageSize ?? 10,
+      );
       return;
     }
     const requestId = beginRouteRefresh();
     invalidateRealtimeStatusRequest();
     invalidateRefreshTracking();
-    invalidateDetailForRouteChange();
-    resetRuleExplanation();
     try {
       await refreshStatisticBoardRouteState(
         {
@@ -873,7 +920,7 @@ function invalidateRouteRefresh() {
 }
 
 function isCurrentRouteRefresh(requestId: number) {
-  return viewIsActive && requestId === routeRefreshSequence && routeScopeReady.value;
+  return viewIsActive && routeRefreshPending && requestId === routeRefreshSequence && routeScopeReady.value;
 }
 
 function finishRouteRefresh(requestId: number) {
@@ -972,19 +1019,22 @@ function autoRefreshMarkerKey() {
 
 <template>
   <div class="stat-board" :class="props.uiHooks.rootClass">
-      <el-card shadow="never" class="stat-board-card" :class="props.uiHooks.cardClass" v-loading="loading">
+      <el-card shadow="never" class="stat-board-card" :class="props.uiHooks.cardClass" v-loading="loading && !board">
       <div class="stat-board-query-shell">
         <StatisticBoardFreshnessBanner
-          :data-as-of="board?.dataAsOf ?? null"
-          :pending-updates="board?.pendingUpdates ?? 0"
+          :data-as-of="readMetadata?.dataAsOf ?? board?.dataAsOf ?? null"
+          :pending-updates="readMetadata?.pendingUpdates ?? board?.pendingUpdates ?? 0"
+          :source-state="readMetadata?.sourceState"
+          :source-state-detail="readMetadata?.sourceStateDetail"
+          :escalated="readMetadata?.escalated"
         />
         <StatisticBoardToolbar
           :filter-draft="filterDraft"
           :active-filter-fields="conditionFilterFields"
           :board-title="toolbarBoardTitle"
           :last-synced-text="lastSyncedText"
-          :data-as-of="board?.dataAsOf ?? null"
-          :pending-updates="board?.pendingUpdates ?? 0"
+          :data-as-of="readMetadata?.dataAsOf ?? board?.dataAsOf ?? null"
+          :pending-updates="readMetadata?.pendingUpdates ?? board?.pendingUpdates ?? 0"
           :rule-explanation-loading="ruleExplanationLoading"
           :rule-explanation-summary="qaFriendlyRuleSummary"
           :realtime-status="syncStatus"
@@ -996,6 +1046,7 @@ function autoRefreshMarkerKey() {
           :quick-filter-fields="quickFilterFields"
           :quick-filter-values="quickFilterValues"
           :quick-filter-input-drafts="quickFilterInputDrafts"
+          :extra-summary-chips="memberSummaryChips"
           :disabled-quick-filter-keys="disabledQuickFilterKeys"
           :highlighted-quick-filter-keys="highlightedQuickFilterKeys"
           :quick-filter-change-guard="quickFilterConflict.guardQuickFilterChange"
@@ -1034,13 +1085,22 @@ function autoRefreshMarkerKey() {
               v-if="controlSpec"
               :spec="controlSpec"
               :active-dimension="activeDimension"
-              :member-controls="memberControls"
-              :options-status="controlOptionsStatus"
-              :options-message="controlOptionsMessage"
-              :member-selection-error="memberSelectionError"
               :disabled="loading || !routeScopeReady"
               :on-dimension-change="setControlDimension"
-              :on-member-change="setControlMember"
+            />
+          </template>
+          <template v-if="controlSpec" #quick-extra>
+            <StatisticBoardMemberFilters
+              :filters="memberQuickFilters"
+              :values="memberQuickValues"
+              :status="controlOptionsStatus"
+              :failed="memberCandidatesFailed"
+              :candidate-message="memberCandidateMessage"
+              :empty-notice="memberCandidatesEmptyNotice"
+              :selection-error="memberSelectionError"
+              :retrying="loading"
+              @filter-change="handleMemberQuickFilterChange"
+              @retry="retryMemberCandidates"
             />
           </template>
         </StatisticBoardToolbar>

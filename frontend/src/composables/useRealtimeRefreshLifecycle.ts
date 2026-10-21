@@ -3,7 +3,7 @@ import type { RealtimeRefreshSubmissionOutcome, RealtimeWorkspaceStatusResponse 
 import { getErrorMessage, toUserMessage } from '../utils/user-message';
 
 /** 提交后刷新按钮保持占用的交互窗口；到期即释放按钮并由后台跟踪接管。 */
-export const REFRESH_BUTTON_WINDOW_MS = 10_000;
+export const REFRESH_BUTTON_WINDOW_MS = 5_000;
 /** 同一刷新自首次接受/开始跟踪起的最长后台跟踪时长。 */
 export const REFRESH_TRACKING_LIMIT_MS = 15 * 60_000;
 /** 后台轮询刷新状态的固定间隔。 */
@@ -47,7 +47,7 @@ export interface RealtimeRefreshLifecycle {
 /**
  * 统一实时刷新生命周期：拆开提交、取数与后台跟踪，按跟踪身份只保留一条轮询链。
  *
- * 提交被接受或复用后，按钮仅占用 `buttonWindowMs`（默认 10 秒）；未收敛时释放按钮，由唯一跟踪者
+ * 从提交开始，按钮仅占用 `buttonWindowMs`（默认 5 秒，包含提交耗时）；未收敛时释放按钮，由唯一跟踪者
  * 继续轮询到收敛或达到 `trackingLimitMs`（默认 15 分钟）。重复提交不叠加请求，也不重置同一刷新的
  * 跟踪起算时点。收敛后加载最新数据；终态失败保留当前数据并说明原因；到期只停止跟踪，不伪装 READY。
  */
@@ -70,7 +70,7 @@ export function useRealtimeRefreshLifecycle(
   let trackingId: string | null = null;
   let trackingStartedAt: number | null = null;
 
-  const refreshButtonBusy = computed(() => submitBusy.value || buttonWindowActive.value);
+  const refreshButtonBusy = computed(() => buttonWindowActive.value);
 
   function clearPollTimer() {
     if (pollTimer != null) {
@@ -163,18 +163,22 @@ export function useRealtimeRefreshLifecycle(
     if (refreshPending.value || submitBusy.value) {
       return 'ALREADY_REFRESHING';
     }
+    openButtonWindow();
     const response = await submitWithFeedback(notify);
     if (response == null) {
+      releaseButtonWindow();
       return 'FAILED';
     }
     const outcome = resolveSubmitOutcome(response);
     if (outcome === 'COOLDOWN') {
+      releaseButtonWindow();
       if (notify) {
         options.notifyWarning?.(toUserMessage(response.message, '刷新请求过于频繁，请稍后再试'));
       }
       return outcome;
     }
     if (outcome === 'UNSUPPORTED') {
+      releaseButtonWindow();
       if (notify) {
         options.notifyWarning?.(toUserMessage(response.message, '当前页面暂不支持刷新最新数据'));
       }
@@ -188,7 +192,6 @@ export function useRealtimeRefreshLifecycle(
       options.notifyWarning?.(toUserMessage(response.message, '刷新仍在进行中，继续跟踪本次刷新'));
     }
     adoptTrackingIdentity(response.trackingId ?? null);
-    openButtonWindow();
     startTracking(response);
     return outcome;
   }

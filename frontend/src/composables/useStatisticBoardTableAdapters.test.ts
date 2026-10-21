@@ -50,7 +50,7 @@ function createBoard(defaultPageSize: number | null = 25): StatisticBoardRespons
 
 function createPrefs(): StatisticBoardViewPrefs {
   return {
-    visibleColumnKeys: [],
+    hiddenColumnKeys: [],
     groupOrder: [],
     childGroupOrderByParent: {},
     columnOrderByGroup: {},

@@ -3,6 +3,7 @@ import type {
   CustomerIssueIllegalRecordListResponse,
   CustomerIssueRecordFilterOptionsResponse,
   CustomerIssueRecordListResponse,
+  CustomerIssueRecordRowResponse,
   CustomerIssueRecordTopic,
   RealtimeWorkspaceStatusResponse,
   StatisticFilterGroup,
@@ -14,9 +15,11 @@ import type {
   SystemTestIssueMultiBoardResponse,
 } from '../types/api';
 import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlob, requestBlobResponse } from './request';
+import type { ReadViewTransport } from '../types/api/read-view';
 import { stringifyStatisticFilterGroup } from '../utils/statistic-filter-group';
 
 type SystemTestIssueSearchQueryParams = {
+  read?: ReadViewTransport;
   projectId?: string | number | null;
   keyword?: string;
   searchType?: string;
@@ -51,6 +54,7 @@ type SystemTestIllegalRecordQueryParams = SystemTestIssueSearchQueryParams & {
 };
 
 type IllegalRecordQueryParams = {
+  read?: ReadViewTransport;
   projectId?: string | number | null;
   keyword?: string;
   issueIid?: string;
@@ -79,6 +83,7 @@ type IllegalRecordQueryParams = {
 };
 
 type SystemTestIssueMultiBoardQueryParams = {
+  read?: ReadViewTransport;
   projectId?: string | number | null;
   testingPhase?: string | null;
 };
@@ -154,6 +159,8 @@ function buildIllegalRecordQuery(params: IllegalRecordQueryParams, includePagina
 }
 
 function buildCustomerIssueRecordQuery(params: {
+  read?: ReadViewTransport;
+  sourceInstance?: string | null;
   topic: CustomerIssueRecordTopic;
   projectId?: string | number | null;
   keyword?: string;
@@ -193,6 +200,7 @@ function buildCustomerIssueRecordQuery(params: {
 }, includePagination = true) {
   return new URLSearchParams({
     topic: params.topic,
+    ...(params.sourceInstance ? { sourceInstance: params.sourceInstance } : {}),
     ...(includePagination ? { page: String(params.page ?? 1), size: String(params.size ?? 20) } : {}),
     ...(params.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
     ...(params.keyword ? { keyword: params.keyword } : {}),
@@ -230,8 +238,9 @@ function buildCustomerIssueRecordQuery(params: {
   });
 }
 
-async function requestWorkbook(url: string) {
+async function requestWorkbook(url: string, read?: ReadViewTransport) {
   return requestBlob(url, {
+    ...read,
     errorPrefix: '导出失败',
     timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
   });
@@ -245,16 +254,17 @@ function buildSystemTestIssueMultiBoardQuery(params?: SystemTestIssueMultiBoardQ
 }
 
 export const issueRecordsApi = {
-  getSystemTestIssueMultiBoard(params?: SystemTestIssueMultiBoardQueryParams) {
+  getSystemTestIssueMultiBoard(params?: SystemTestIssueMultiBoardQueryParams, read?: ReadViewTransport) {
     const query = buildSystemTestIssueMultiBoardQuery(params);
     return request<SystemTestIssueMultiBoardResponse>(
-      `/api/question-metrics/multi-board${query.toString() ? `?${query.toString()}` : ''}`,
+      `/api/question-metrics/multi-board${query.toString() ? `?${query.toString()}` : ''}`, read,
     );
   },
-  exportSystemTestIssueMultiBoardChart(params: SystemTestIssueMultiBoardQueryParams & { chartKey: string }) {
+  exportSystemTestIssueMultiBoardChart(params: SystemTestIssueMultiBoardQueryParams & { chartKey: string }, read?: ReadViewTransport) {
     const query = buildSystemTestIssueMultiBoardQuery(params);
     query.set('chartKey', params.chartKey);
     return requestBlobResponse(`/api/question-metrics/multi-board/export?${query.toString()}`, {
+      ...read,
       errorPrefix: '议题多元看板导出失败',
       timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
       exportProgress: {
@@ -267,15 +277,16 @@ export const issueRecordsApi = {
   },
   getSystemTestIssueSearchRecords(params: SystemTestIssueSearchQueryParams) {
     const query = buildSystemTestIssueSearchQuery(params);
-    return request<SystemTestIssueSearchListResponse>(`/api/question-metrics/issues?${query.toString()}`);
+    return request<SystemTestIssueSearchListResponse>(`/api/question-metrics/issues?${query.toString()}`, params.read);
   },
   exportSystemTestIssueSearchRecords(params: SystemTestIssueSearchQueryParams) {
     const query = buildSystemTestIssueSearchQuery(params, false);
-    return requestWorkbook(`/api/question-metrics/issues/export${query.toString() ? `?${query.toString()}` : ''}`);
+    return requestWorkbook(`/api/question-metrics/issues/export${query.toString() ? `?${query.toString()}` : ''}`, params.read);
   },
   getSystemTestIssueSearchFilterOptions(
     projectId?: string | number | null,
     sourceInstance?: string | null,
+    read?: ReadViewTransport,
   ) {
     const query = new URLSearchParams(
       {
@@ -285,6 +296,7 @@ export const issueRecordsApi = {
     );
     return request<SystemTestIssueSearchFilterOptionsResponse>(
       `/api/question-metrics/issues/filter-options${query.toString() ? `?${query.toString()}` : ''}`,
+      read,
     );
   },
   getSystemTestIssueSearchRealtimeStatus(params?: SystemTestIssueSearchQueryParams) {
@@ -300,26 +312,32 @@ export const issueRecordsApi = {
   },
   getSystemTestIllegalRecords(params: SystemTestIllegalRecordQueryParams) {
     const query = buildSystemTestIllegalRecordQuery(params);
-    return request<SystemTestIllegalRecordListResponse>(`/api/question-metrics/illegal-records?${query.toString()}`);
+    return request<SystemTestIllegalRecordListResponse>(`/api/question-metrics/illegal-records?${query.toString()}`, params.read);
+  },
+  getSystemTestIllegalRecord(source: string, projectId: number, issueId: number, read: ReadViewTransport) {
+    return request<SystemTestIllegalRecordListResponse['records'][number] | null>(
+      `/api/question-metrics/illegal-records/${encodeURIComponent(source)}/${projectId}/${issueId}`, read);
   },
   exportSystemTestIllegalRecords(params: SystemTestIllegalRecordQueryParams) {
     const query = buildSystemTestIllegalRecordQuery(params, false);
-    return requestWorkbook(`/api/question-metrics/illegal-records/export${query.toString() ? `?${query.toString()}` : ''}`);
+    return requestWorkbook(`/api/question-metrics/illegal-records/export${query.toString() ? `?${query.toString()}` : ''}`, params.read);
   },
-  getSystemTestIllegalRecordFilterOptions(projectId?: string | number | null) {
+  getSystemTestIllegalRecordFilterOptions(projectId?: string | number | null, read?: ReadViewTransport) {
     const query = new URLSearchParams(
       projectId != null && projectId !== '' ? { projectId: String(projectId) } : {},
     );
     return request<SystemTestIllegalRecordFilterOptionsResponse>(
       `/api/question-metrics/illegal-records/filter-options${query.toString() ? `?${query.toString()}` : ''}`,
+      read,
     );
   },
-  getSystemTestIllegalRecordRuleExplanation(projectId?: string | number | null) {
+  getSystemTestIllegalRecordRuleExplanation(projectId?: string | number | null, read?: ReadViewTransport) {
     const query = new URLSearchParams(
       projectId != null && projectId !== '' ? { projectId: String(projectId) } : {},
     );
     return request<StatisticBoardRuleExplanationResponse>(
       `/api/question-metrics/illegal-records/rule-explanation${query.toString() ? `?${query.toString()}` : ''}`,
+      read,
     );
   },
   getSystemTestIllegalRecordRealtimeStatus(params?: SystemTestIllegalRecordQueryParams) {
@@ -348,26 +366,32 @@ export const issueRecordsApi = {
   },
   getCustomerIssueIllegalRecords(params: Parameters<typeof buildCustomerIssueIllegalRecordQuery>[0]) {
     const query = buildCustomerIssueIllegalRecordQuery(params);
-    return request<CustomerIssueIllegalRecordListResponse>(`/api/customer-issues/illegal-records?${query.toString()}`);
+    return request<CustomerIssueIllegalRecordListResponse>(`/api/customer-issues/illegal-records?${query.toString()}`, params.read);
+  },
+  getCustomerIssueIllegalRecord(source: string, projectId: number, issueId: number, read: ReadViewTransport) {
+    return request<CustomerIssueIllegalRecordListResponse['records'][number] | null>(
+      `/api/customer-issues/illegal-records/${encodeURIComponent(source)}/${projectId}/${issueId}`, read);
   },
   exportCustomerIssueIllegalRecords(params: Parameters<typeof buildCustomerIssueIllegalRecordQuery>[0]) {
     const query = buildCustomerIssueIllegalRecordQuery(params, false);
-    return requestWorkbook(`/api/customer-issues/illegal-records/export${query.toString() ? `?${query.toString()}` : ''}`);
+    return requestWorkbook(`/api/customer-issues/illegal-records/export${query.toString() ? `?${query.toString()}` : ''}`, params.read);
   },
-  getCustomerIssueIllegalRecordFilterOptions(projectId?: string | number | null) {
+  getCustomerIssueIllegalRecordFilterOptions(projectId?: string | number | null, read?: ReadViewTransport) {
     const query = new URLSearchParams(
       projectId != null && projectId !== '' ? { projectId: String(projectId) } : {},
     );
     return request<CustomerIssueIllegalRecordFilterOptionsResponse>(
       `/api/customer-issues/illegal-records/filter-options${query.toString() ? `?${query.toString()}` : ''}`,
+      read,
     );
   },
-  getCustomerIssueIllegalRecordRuleExplanation(projectId?: string | number | null) {
+  getCustomerIssueIllegalRecordRuleExplanation(projectId?: string | number | null, read?: ReadViewTransport) {
     const query = new URLSearchParams(
       projectId != null && projectId !== '' ? { projectId: String(projectId) } : {},
     );
     return request<StatisticBoardRuleExplanationResponse>(
       `/api/customer-issues/illegal-records/rule-explanation${query.toString() ? `?${query.toString()}` : ''}`,
+      read,
     );
   },
   getCustomerIssueIllegalRecordRealtimeStatus(params?: Parameters<typeof buildCustomerIssueIllegalRecordQuery>[0]) {
@@ -396,28 +420,33 @@ export const issueRecordsApi = {
   },
   getCustomerIssueRecords(params: Parameters<typeof buildCustomerIssueRecordQuery>[0]) {
     const query = buildCustomerIssueRecordQuery(params);
-    return request<CustomerIssueRecordListResponse>(`/api/customer-issues/records?${query.toString()}`);
+    return request<CustomerIssueRecordListResponse>(`/api/customer-issues/records?${query.toString()}`, params.read);
+  },
+  getCustomerIssueRecord(sourceInstance: string, projectId: number, issueId: number, read: ReadViewTransport) {
+    return request<CustomerIssueRecordRowResponse | null>(
+      `/api/customer-issues/records/${encodeURIComponent(sourceInstance)}/${projectId}/${issueId}`, read,
+    );
   },
   exportCustomerIssueRecords(params: Parameters<typeof buildCustomerIssueRecordQuery>[0]) {
     const query = buildCustomerIssueRecordQuery(params, false);
-    return requestWorkbook(`/api/customer-issues/records/export${query.toString() ? `?${query.toString()}` : ''}`);
+    return requestWorkbook(`/api/customer-issues/records/export${query.toString() ? `?${query.toString()}` : ''}`, params.read);
   },
-  getCustomerIssueRecordFilterOptions(topic: CustomerIssueRecordTopic, projectId?: string | number | null) {
+  getCustomerIssueRecordFilterOptions(topic: CustomerIssueRecordTopic, projectId?: string | number | null, read?: ReadViewTransport) {
     const query = new URLSearchParams({
       topic,
       ...(projectId != null && projectId !== '' ? { projectId: String(projectId) } : {}),
     });
     return request<CustomerIssueRecordFilterOptionsResponse>(
-      `/api/customer-issues/records/filter-options?${query.toString()}`,
+      `/api/customer-issues/records/filter-options?${query.toString()}`, read,
     );
   },
-  getCustomerIssueRecordRuleExplanation(topic: CustomerIssueRecordTopic, projectId?: string | number | null) {
+  getCustomerIssueRecordRuleExplanation(topic: CustomerIssueRecordTopic, projectId?: string | number | null, read?: ReadViewTransport) {
     const query = new URLSearchParams({
       topic,
       ...(projectId != null && projectId !== '' ? { projectId: String(projectId) } : {}),
     });
     return request<StatisticBoardRuleExplanationResponse>(
-      `/api/customer-issues/records/rule-explanation?${query.toString()}`,
+      `/api/customer-issues/records/rule-explanation?${query.toString()}`, read,
     );
   },
   getCustomerIssueRecordRealtimeStatus(

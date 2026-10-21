@@ -283,7 +283,7 @@ export interface BiCustomerIssuePageData {
   delayAnalysis: Array<{ reason: string; severity: string; count: number }>;
   assigneeWorkload: Array<{ assignee: string; fixedCount: number; unfixedCount: number; totalCount: number }>;
   moduleDemand: Array<{ module: string; resolvedCount: number; unresolvedCount: number; totalCount: number }>;
-  dailyTrend: Array<{ date: string; createdCount: number | null; fixedCount: number | null }>;
+  dailyTrend: Array<{ date: string; cumulativeCreatedCount: number | null; cumulativeFixedCount: number | null }>;
   filteredFactCount: number;
 }
 

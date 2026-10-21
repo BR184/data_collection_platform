@@ -26,6 +26,7 @@ describe('issueRecordsApi source instance query contract', () => {
 
     expect(request).toHaveBeenCalledWith(
       expect.stringContaining('/api/question-metrics/issues?page=2&size=50&keyword=22637&searchType=issueIid&issueIid=22637&sourceInstance=cc'),
+      undefined,
     );
 
     issueRecordsApi.exportSystemTestIssueSearchRecords({
@@ -42,7 +43,19 @@ describe('issueRecordsApi source instance query contract', () => {
 
     issueRecordsApi.getSystemTestIssueSearchFilterOptions(null, 'cc');
 
-    expect(request).toHaveBeenCalledWith('/api/question-metrics/issues/filter-options?sourceInstance=cc');
+    expect(request).toHaveBeenCalledWith('/api/question-metrics/issues/filter-options?sourceInstance=cc', undefined);
+  });
+
+  it('passes one explicit read identity to record data, candidates, details and export', () => {
+    const read = { readContextId: 'complete-view', readScope: { topic: 'cc-product' }, onReadView: vi.fn() };
+    issueRecordsApi.getCustomerIssueRecords({ topic: 'cc-product', read });
+    expect(request).toHaveBeenLastCalledWith(expect.stringContaining('/api/customer-issues/records?'), read);
+    issueRecordsApi.getCustomerIssueRecordFilterOptions('cc-product', 325, read);
+    expect(request).toHaveBeenLastCalledWith(expect.stringContaining('/records/filter-options?'), read);
+    issueRecordsApi.getCustomerIssueRecord('second', 325, 9001, read);
+    expect(request).toHaveBeenLastCalledWith('/api/customer-issues/records/second/325/9001', read);
+    issueRecordsApi.exportCustomerIssueRecords({ topic: 'cc-product', read });
+    expect(requestBlob).toHaveBeenLastCalledWith(expect.stringContaining('/records/export?'), expect.objectContaining(read));
   });
 
   it('serializes label group conditions through filterGroup for issue search list and export endpoints', () => {

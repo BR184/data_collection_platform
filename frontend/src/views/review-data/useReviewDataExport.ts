@@ -3,8 +3,8 @@ import { formatExportFileDate } from '../../utils/csv-download';
 import { getErrorMessage } from '../../utils/user-message';
 
 export interface ReviewDataExportDependencies {
-  exportReviewRecords: () => Promise<Blob>;
-  exportProblemDetails: () => Promise<Blob>;
+  exportReviewRecords: (commit: (blob: Blob) => void) => Promise<void>;
+  exportProblemDetails: (commit: (blob: Blob) => void) => Promise<void>;
   downloadTemplate: () => Promise<Blob>;
   downloadWorkbook: (blob: Blob, filename: string) => void;
   now?: () => Date;
@@ -20,8 +20,7 @@ export function useReviewDataExport(deps: ReviewDataExportDependencies) {
   async function exportReviewRecords() {
     recordExportLoading.value = true;
     try {
-      const blob = await deps.exportReviewRecords();
-      deps.downloadWorkbook(blob, `评审数据${formatExportFileDate(deps.now?.() ?? new Date())}.xlsx`);
+      await deps.exportReviewRecords(blob => deps.downloadWorkbook(blob, `评审数据${formatExportFileDate(deps.now?.() ?? new Date())}.xlsx`));
       deps.notifySuccess('已导出评审列表');
     } catch (error) {
       deps.notifyError(getErrorMessage(error, '评审列表导出失败'));
@@ -33,8 +32,7 @@ export function useReviewDataExport(deps: ReviewDataExportDependencies) {
   async function exportProblemDetails() {
     problemExportLoading.value = true;
     try {
-      const blob = await deps.exportProblemDetails();
-      deps.downloadWorkbook(blob, '评审问题详情.xlsx');
+      await deps.exportProblemDetails(blob => deps.downloadWorkbook(blob, '评审问题详情.xlsx'));
       deps.notifySuccess('已导出问题列表');
     } catch (error) {
       deps.notifyError(getErrorMessage(error, '评审问题详情导出失败'));

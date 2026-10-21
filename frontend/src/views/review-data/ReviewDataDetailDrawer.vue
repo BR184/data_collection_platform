@@ -88,6 +88,7 @@ function formatNumber(value?: number | null, digits = 2) {
         </el-descriptions>
       </section>
     </template>
+    <el-empty v-if="!detailData" description="该记录已在当前完整版本中撤回或移出此范围" />
   </el-drawer>
 </template>
 

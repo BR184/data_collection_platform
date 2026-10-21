@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useAcceptedPageView } from '../composables/useAcceptedPageView';
+import StatisticBoardFreshnessBanner from '../components/StatisticBoardFreshnessBanner.vue';
+import { buildFilterGroupFromRouteQuery } from '../components/statistic-board-route-query';
+import { sanitizeFilterDraftGroup } from '../components/statistic-board-filters';
 import type { LocationQuery } from 'vue-router';
 // 系统测试议题查询页承担 issue_fact 的明细检索入口，路由参数就是可分享的查询状态。
 // 组件内部只处理页面交互，阶段、模块和非法规则的口径由共享条件字段提供。
@@ -23,6 +27,7 @@ import type {
   StatisticFilterField,
   SystemTestIssueSearchFilterOptionsResponse,
   SystemTestIssueSearchRowResponse,
+  SystemTestIssueSearchListResponse,
 } from '../types/api';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
@@ -40,7 +45,7 @@ import { useRecordTableFilterPriority } from '../composables/useRecordTableFilte
 
 const PAGE_SCOPE_KEY = 'record-page:system-test-issue-search';
 const { readAutoRefreshOnEnter } = usePageAutoRefreshPreference(PAGE_SCOPE_KEY);
-const { route, page, pageSize, sortBy, sortOrder, patchQuery, reload, bindLoader, isTableLoading, watchedQuerySignature } =
+const { route, patchQuery, reload, bindLoader, isTableLoading, watchedQuerySignature } =
   useRouteTableState({
     defaults: {
       page: 1,
@@ -55,6 +60,7 @@ const { route, page, pageSize, sortBy, sortOrder, patchQuery, reload, bindLoader
 const rows = ref<SystemTestIssueSearchRowResponse[]>([]);
 const total = ref(0);
 const exportLoading = ref(false);
+const tableLoadError = ref('');
 const canRefreshLatestData = computed(() => hasPermission(authState.currentUser, 'business_data.refresh'));
 const filterOptions = ref<SystemTestIssueSearchFilterOptionsResponse>({
   projectNames: [],
@@ -76,7 +82,6 @@ const {
   filterDraft,
   activeFilterTags: conditionActiveFilterTags,
   initializeFromQuery,
-  buildFilterPayload,
   resetDraft,
   buildApplyQueryPatch,
   buildResetQueryPatch,
@@ -328,38 +333,49 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
   })),
 );
 
+interface SystemIssueFrame {
+  response: SystemTestIssueSearchListResponse;
+  options: SystemTestIssueSearchFilterOptionsResponse;
+  request: ReturnType<typeof buildCurrentQueryParams>;
+  query: Readonly<Record<string, unknown>>;
+}
+const acceptedPage = useAcceptedPageView<SystemIssueFrame>({ pageKey: 'system-test-issues',
+  load: () => { throw new Error('议题页需要捕获完整查询后准备'); } });
+const readMetadata = computed(() => acceptedPage.accepted.value?.metadata);
+const acceptedQuery = computed(() => acceptedPage.accepted.value?.data.query ?? route.query);
+acceptedPage.start();
+onBeforeUnmount(acceptedPage.dispose);
+watch(() => authState.currentUser?.username, acceptedPage.clearPrivateData);
+watch(acceptedPage.accepted, (frame, previous) => {
+  if (frame && frame.data === previous?.data) return;
+  rows.value = frame?.data.response.records ?? [];
+  total.value = frame?.data.response.total ?? 0;
+  if (frame) { filterOptions.value = frame.data.options; initializeFromQuery(frame.data.query as LocationQuery); }
+  else filterOptions.value = { projectNames: [], moduleNames: [], functionNames: [], testingPhases: [],
+    authorNames: [], assigneeNames: [], issueStates: [], severityLevels: [], bugStatuses: [], categories: [], milestoneTitles: [] };
+}, { flush: 'sync' });
 bindLoader(async ({ query, isCurrent }) => {
-  const options = await loadFilterOptions(query);
-  if (!isCurrent()) return null;
-  initializeFromQuery(query as LocationQuery);
-  const response = await loadTableData(query);
-  return { options, response };
-}, (result) => {
-  if (!result) return;
-  filterOptions.value = result.options;
-  rows.value = result.response.records;
-  total.value = result.response.total;
-  void loadSyncStatus();
-}, (error) => {
-  ElMessage.error(getErrorMessage(error, '议题查询数据加载失败'));
-  rows.value = [];
-  total.value = 0;
+  if (!isCurrent()) return;
+  const request = buildCurrentQueryParams(true, query);
+  const scope: Record<string, string> = {};
+  for (const key of ['sourceInstance', 'testingPhase', 'milestoneTitle'] as const) {
+    if (request[key]) scope[key] = request[key];
+  }
+  const loaded = await acceptedPage.prepare(scope, async (_scope, read) => {
+    const [response, options] = await Promise.all([
+      api.getSystemTestIssueSearchRecords({ ...request, read }),
+      api.getSystemTestIssueSearchFilterOptions(undefined, request.sourceInstance || undefined, read),
+    ]);
+    return { response, options, request, query };
+  });
+  if (!loaded && isCurrent()) throw acceptedPage.lastError.value ?? new Error('页面准备已取消');
+}, () => { tableLoadError.value = ''; void loadSyncStatus(); }, error => {
+  tableLoadError.value = getErrorMessage(error, acceptedPage.accepted.value
+    ? '议题查询数据加载失败，已保留当前完整数据' : '尚无完整产出，请检查数据更新状态');
+  ElMessage.error(tableLoadError.value);
 });
 
-async function loadFilterOptions(query: Readonly<Record<string, unknown>>) {
-  return api.getSystemTestIssueSearchFilterOptions(
-    undefined,
-    String(query.sourceInstance ?? '') || undefined,
-  );
-}
-
-async function handleRefreshLatestData() {
-  await submitRefreshLatestData();
-}
-
-async function loadTableData(query: Readonly<Record<string, unknown>>) {
-  return api.getSystemTestIssueSearchRecords(buildCurrentQueryParams(true, query));
-}
+async function handleRefreshLatestData() { await submitRefreshLatestData(); }
 
 function buildCurrentQueryParams(
   includePagination: boolean,
@@ -386,7 +402,7 @@ function buildCurrentQueryParams(
     createdAtEnd: String(query.createdAtEnd ?? ''),
     updatedAtStart: String(query.updatedAtStart ?? ''),
     updatedAtEnd: String(query.updatedAtEnd ?? ''),
-    filterGroup: buildFilterPayload(),
+    filterGroup: sanitizeFilterDraftGroup(buildFilterGroupFromRouteQuery(query as LocationQuery)),
     ...(includePagination ? {
       page: parseQueryPositiveInteger(query.page, 1),
       size: parseQueryPositiveInteger(query.pageSize, 20),
@@ -404,8 +420,8 @@ function parseQueryPositiveInteger(value: unknown, fallback: number) {
 async function handleExport() {
   exportLoading.value = true;
   try {
-    const workbook = await api.exportSystemTestIssueSearchRecords(buildCurrentQueryParams(false));
-    downloadBlob(workbook, '多元议题查询结果.xlsx');
+    await acceptedPage.readAccepted((frame, read) => api.exportSystemTestIssueSearchRecords({ ...frame.request, read }),
+      workbook => downloadBlob(workbook, '多元议题查询结果.xlsx'));
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '导出失败'));
   } finally {
@@ -538,12 +554,17 @@ async function handleRefresh() {
 
 <template>
   <section class="system-test-issue-search-page">
+    <el-alert v-if="tableLoadError" :title="tableLoadError" type="error" :closable="false" show-icon />
+    <StatisticBoardFreshnessBanner v-if="readMetadata" :data-as-of="readMetadata.dataAsOf"
+      :pending-updates="readMetadata.pendingUpdates" :source-state="readMetadata.sourceState"
+      :source-state-detail="readMetadata.sourceStateDetail" :escalated="readMetadata.escalated" />
     <BaseRecordTable
+      v-if="acceptedPage.accepted.value || isTableLoading"
       :columns="columns"
       :rows="tableRows"
-      :loading="isTableLoading"
-      :page="page"
-      :page-size="pageSize"
+      :loading="isTableLoading && !acceptedPage.accepted.value"
+      :page="parseQueryPositiveInteger(acceptedQuery.page, 1)"
+      :page-size="parseQueryPositiveInteger(acceptedQuery.pageSize, 20)"
       :total="total"
       row-key="identityKey"
       expand-column-fixed-left
@@ -559,8 +580,8 @@ async function handleRefresh() {
       search-placeholder="输入任意关键字搜索"
       :show-search="true"
       :settings-scope-key="PAGE_SCOPE_KEY"
-      :sort-by="sortBy"
-      :sort-order="sortOrder"
+      :sort-by="String(acceptedQuery.sortBy ?? 'updatedAt')"
+      :sort-order="String(acceptedQuery.sortOrder ?? 'desc')"
       default-sort-by="updatedAt"
       default-sort-order="desc"
       quick-filter-mode

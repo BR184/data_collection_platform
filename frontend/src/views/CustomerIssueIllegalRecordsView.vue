@@ -3,6 +3,7 @@ import IssueIllegalRecordsPage from './issue-illegal-records/IssueIllegalRecords
 // 客户问题非法数据页沿用同一个非法记录页面骨架，差异只体现在规则说明和接口域。
 // 这种薄封装让系统测试与客户问题两类页面保持一致的筛选、分页和导出体验。
 import { api } from '../api';
+import type { ReadViewTransport } from '../types/api/read-view';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import { buildIssueSeverityTag } from '../utils/issue-severity-display';
 import type {
@@ -71,6 +72,7 @@ function withLegacyProject(params: IssueIllegalRecordQueryParams): IssueIllegalR
 
 function loadRecords(params: IssueIllegalRecordQueryParams) {
   return api.getCustomerIssueIllegalRecords(withLegacyProject({
+    read: params.read,
     keyword: params.keyword,
     issueIid: params.issueIid,
     title: params.title,
@@ -102,12 +104,12 @@ function exportRecords(params: IssueIllegalRecordQueryParams) {
   return api.exportCustomerIssueIllegalRecords(withLegacyProject(params));
 }
 
-async function loadFilterOptions() {
-  return api.getCustomerIssueIllegalRecordFilterOptions(LEGACY_CC_PRODUCT_PROJECT_ID);
+async function loadFilterOptions(_projectId?: string | number | null, read?: ReadViewTransport) {
+  return api.getCustomerIssueIllegalRecordFilterOptions(LEGACY_CC_PRODUCT_PROJECT_ID, read);
 }
 
-function loadRuleExplanation() {
-  return api.getCustomerIssueIllegalRecordRuleExplanation(LEGACY_CC_PRODUCT_PROJECT_ID);
+function loadRuleExplanation(_projectId?: string | number | null, read?: ReadViewTransport) {
+  return api.getCustomerIssueIllegalRecordRuleExplanation(LEGACY_CC_PRODUCT_PROJECT_ID, read);
 }
 
 function loadRealtimeStatus(params: IssueIllegalRecordQueryParams) {
@@ -138,6 +140,8 @@ function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions) {
 
 <template>
   <IssueIllegalRecordsPage
+    page-key="customer-issues-illegal-records"
+    :load-record="api.getCustomerIssueIllegalRecord"
     workspace-key="customer-issue-illegal-records"
     title="客户问题非法数据"
     description="客户问题范围内的非法缺陷记录筛选、规则说明与详情查看"
@@ -158,6 +162,7 @@ function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions) {
     :native-primary-select-keys="['milestoneTitle']"
     :columns="columns"
     :map-row="mapRow"
+    :fixed-project-id="LEGACY_CC_PRODUCT_PROJECT_ID"
     created-at-detail-label="议题提交时间"
     updated-at-detail-label="议题更新时间"
     issue-state-detail-label="议题状态"

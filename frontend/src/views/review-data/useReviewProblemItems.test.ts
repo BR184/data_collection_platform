@@ -44,7 +44,7 @@ function record(id: number): ReviewDataRecordRowResponse {
 describe('useReviewProblemItems', () => {
   it('opens the problem dialog and reuses cached rows when reopened', async () => {
     const loader = vi.fn(async (recordId: number) => [problemItem(recordId * 10, recordId)]);
-    const state = useReviewProblemItems(loader);
+    const state = useReviewProblemItems(async (id, commit) => { commit(await loader(id)); });
 
     await state.openProblemList(record(3));
 
@@ -68,7 +68,7 @@ describe('useReviewProblemItems', () => {
       .fn<(recordId: number) => Promise<ReviewDataProblemItemResponse[]>>()
       .mockResolvedValueOnce([problemItem(1)])
       .mockResolvedValueOnce([problemItem(2)]);
-    const state = useReviewProblemItems(loader);
+    const state = useReviewProblemItems(async (id, commit) => { commit(await loader(id)); });
 
     await state.loadProblemItems(1);
     await state.loadProblemItems(1);
@@ -79,7 +79,7 @@ describe('useReviewProblemItems', () => {
 
   it('keeps the selected record stable while the dialog is open', async () => {
     const loader = vi.fn(async (recordId: number) => [problemItem(recordId, recordId)]);
-    const state = useReviewProblemItems(loader);
+    const state = useReviewProblemItems(async (id, commit) => { commit(await loader(id)); });
 
     await state.openProblemList(record(2));
 

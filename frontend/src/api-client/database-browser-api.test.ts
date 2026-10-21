@@ -12,6 +12,11 @@ describe('databaseBrowserApi', () => {
     vi.clearAllMocks();
   });
 
+  it('reads published table rows with an explicit context and scope', () => {
+    const read = { readContextId: 'held-view', readScope: { tableName: 'issue_fact' }, onReadView: vi.fn() };
+    databaseBrowserApi.getDatabaseTableRows({ tableName: 'issue_fact', page: 2 }, read);
+    expect(request).toHaveBeenCalledWith('/api/database-browser/rows?tableName=issue_fact&page=2&size=20', read);
+  });
   it('loads the lightweight table list by default', () => {
     databaseBrowserApi.getDatabaseTables();
 

@@ -46,7 +46,7 @@ function applyOrderedColumnsToGroupWithPrefs(
 }
 
 export function resolveOrderedColumnGroups(columnGroups: StatisticColumnGroup[], prefs: StatisticBoardViewPrefs): StatisticColumnGroup[] {
-  const visibleColumnKeySet = new Set(prefs.visibleColumnKeys);
+  const hiddenColumnKeySet = new Set(prefs.hiddenColumnKeys);
   const groupMap = new Map(columnGroups.map((group) => [group.key, group]));
   return prefs.groupOrder
     .map((groupKey) => groupMap.get(groupKey))
@@ -58,7 +58,7 @@ export function resolveOrderedColumnGroups(columnGroups: StatisticColumnGroup[],
       const orderedLeafColumns = columnOrder
         .map((columnKey) => columnMap.get(columnKey))
         .filter((column): column is StatisticColumnLeaf => Boolean(column))
-        .filter((column) => visibleColumnKeySet.has(column.key));
+        .filter((column) => !hiddenColumnKeySet.has(column.key));
       return applyOrderedColumnsToGroupWithPrefs(group, orderedLeafColumns, prefs.childGroupOrderByParent);
     })
     .filter((group): group is StatisticColumnGroup => Boolean(group));

@@ -1,3 +1,4 @@
+import type { ReadViewTransport } from '../types/api/read-view';
 import { request, requestBlobResponse, EXPORT_REQUEST_TIMEOUT_MS, type BlobResponse } from './request';
 import type {
   BiChartTemplateId,
@@ -58,48 +59,49 @@ export const biDashboardApi = {
     });
   },
 
-  loadRequirements(productVersionId: number): Promise<BiPageResponse<BiReviewPageData>> {
-    return request(`/api/bi/requirements?${pageQuery(productVersionId)}`, pageProgress('requirements'));
+  loadRequirements(productVersionId: number, read?: ReadViewTransport): Promise<BiPageResponse<BiReviewPageData>> {
+    return request(`/api/bi/requirements?${pageQuery(productVersionId)}`, { ...pageProgress('requirements'), ...read });
   },
 
-  loadDesign(productVersionId: number): Promise<BiPageResponse<BiReviewPageData>> {
-    return request(`/api/bi/design?${pageQuery(productVersionId)}`, pageProgress('design'));
+  loadDesign(productVersionId: number, read?: ReadViewTransport): Promise<BiPageResponse<BiReviewPageData>> {
+    return request(`/api/bi/design?${pageQuery(productVersionId)}`, { ...pageProgress('design'), ...read });
   },
 
-  loadCoding(productVersionId: number, filters: BiCodingQuery): Promise<BiPageResponse<BiCodingPageData>> {
+  loadCoding(productVersionId: number, filters: BiCodingQuery, read?: ReadViewTransport): Promise<BiPageResponse<BiCodingPageData>> {
     const query = pageQuery(productVersionId);
     query.set('granularity', filters.granularity);
     query.set('source', filters.source);
     if (filters.repositoryId) {
       query.set('repositoryId', filters.repositoryId);
     }
-    return request(`/api/bi/coding?${query}`, pageProgress('coding'));
+    return request(`/api/bi/coding?${query}`, { ...pageProgress('coding'), ...read });
   },
 
-  loadUnitTest(productVersionId: number): Promise<BiPageResponse<BiTestQualityPageData>> {
-    return request(`/api/bi/unit-test?${pageQuery(productVersionId)}`, pageProgress('unit-test'));
+  loadUnitTest(productVersionId: number, read?: ReadViewTransport): Promise<BiPageResponse<BiTestQualityPageData>> {
+    return request(`/api/bi/unit-test?${pageQuery(productVersionId)}`, { ...pageProgress('unit-test'), ...read });
   },
 
-  loadIntegrationTest(productVersionId: number): Promise<BiPageResponse<BiTestQualityPageData>> {
-    return request(`/api/bi/integration-test?${pageQuery(productVersionId)}`, pageProgress('integration-test'));
+  loadIntegrationTest(productVersionId: number, read?: ReadViewTransport): Promise<BiPageResponse<BiTestQualityPageData>> {
+    return request(`/api/bi/integration-test?${pageQuery(productVersionId)}`, { ...pageProgress('integration-test'), ...read });
   },
 
-  loadSystemTest(productVersionId: number): Promise<BiPageResponse<BiSystemTestPageData>> {
-    return request(`/api/bi/system-test?${pageQuery(productVersionId)}`, pageProgress('system-test'));
+  loadSystemTest(productVersionId: number, read?: ReadViewTransport): Promise<BiPageResponse<BiSystemTestPageData>> {
+    return request(`/api/bi/system-test?${pageQuery(productVersionId)}`, { ...pageProgress('system-test'), ...read });
   },
 
-  loadCustomerIssues(query: BiCustomerIssueQuery): Promise<BiPageResponse<BiCustomerIssuePageData>> {
+  loadCustomerIssues(query: BiCustomerIssueQuery, read?: ReadViewTransport): Promise<BiPageResponse<BiCustomerIssuePageData>> {
     const params = new URLSearchParams();
     if (query.milestoneBusinessKey) params.set('milestoneBusinessKey', query.milestoneBusinessKey);
     appendSelection(params, 'customer', query.customer);
     appendSelection(params, 'module', query.module);
     appendSelection(params, 'function', query.function);
     const suffix = params.size ? `?${params}` : '';
-    return request(`/api/bi/customer-issues${suffix}`, pageProgress('customer-issues'));
+    return request(`/api/bi/customer-issues${suffix}`, { ...pageProgress('customer-issues'), ...read });
   },
 
-  authorizeDownload(identity: BiDownloadIdentity): Promise<BiDownloadAuthorization> {
+  authorizeDownload(identity: BiDownloadIdentity, read?: ReadViewTransport): Promise<BiDownloadAuthorization> {
     return request('/api/bi/download/authorize', {
+      ...read,
       method: 'POST',
       body: JSON.stringify(identity),
       platformProgress: { label: '正在准备图表', profile: 'export', endpointKey: 'bi-png-authorize' },
@@ -107,8 +109,9 @@ export const biDashboardApi = {
   },
 
   /** 提交授权身份与已提取的表格内容，由后端序列化为标准 .xlsx 并回传二进制下载。 */
-  exportExcel(params: BiExcelExportParams): Promise<BlobResponse> {
+  exportExcel(params: BiExcelExportParams, read?: ReadViewTransport): Promise<BlobResponse> {
     return requestBlobResponse('/api/bi/download/excel', {
+      ...read,
       method: 'POST',
       body: JSON.stringify(params),
       timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Document, Download, Loading, Picture, QuestionFilled } from '@element-plus/icons-vue';
-import { computed, ref, type PropType } from 'vue';
+import { computed, inject, ref, type PropType } from 'vue';
+import { biPageDownloadKey } from '../data/page-download';
+import { downloadBlob } from '../../../utils/csv-download';
 import { ElMessage } from '../../../element-plus-services';
 import { authState } from '../../../composables/auth-state';
 import { getErrorMessage } from '../../../utils/user-message';
@@ -39,9 +41,10 @@ const emit = defineEmits<{
 }>();
 
 const exporting = ref(false);
+const pageDownload = inject(biPageDownloadKey, null);
 const typedChart = computed(() => props.chart as unknown as BiChart<unknown>);
 const hasData = computed(() => typedChart.value.hasData(props.data));
-const canDownload = computed(() => hasData.value
+const canDownload = computed(() => Boolean(pageDownload) && hasData.value
   && Boolean(props.downloadContext.sourceVersion)
   && hasPermission(authState.currentUser, biPageDownloadPermission(props.downloadContext.pageKey)));
 const stateTitle = computed(() => {
@@ -55,11 +58,13 @@ async function downloadPng(): Promise<void> {
   if (!canDownload.value || exporting.value) return;
   exporting.value = true;
   try {
-    await exportBiChartPng({
+    await pageDownload!.run(read => exportBiChartPng({
       downloadContext: props.downloadContext,
       title: props.title,
       chart: typedChart.value,
       data: props.data,
+    }, read), file => {
+      const anchor = document.createElement('a'); anchor.href = file.url; anchor.download = file.filename; anchor.click();
     });
     ElMessage.success('图表 PNG 已生成');
   } catch (error) {
@@ -73,13 +78,13 @@ async function downloadExcel(): Promise<void> {
   if (!canDownload.value || exporting.value) return;
   exporting.value = true;
   try {
-    await exportBiChartExcel({
+    await pageDownload!.run(read => exportBiChartExcel({
       downloadContext: props.downloadContext,
       title: props.title,
       description: props.description,
       chart: typedChart.value,
       data: props.data,
-    });
+    }, read), file => downloadBlob(file.blob, file.filename || `${props.title}.xlsx`));
     ElMessage.success('Excel 数据表已导出');
   } catch (error) {
     ElMessage.error(getErrorMessage(error, 'Excel 导出失败'));

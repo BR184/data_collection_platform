@@ -9,6 +9,8 @@ import type {
   RealtimeWorkspaceStatusResponse,
 } from '../types/api';
 import CustomerIssueRecordsView from './CustomerIssueRecordsView.vue';
+import { readViewsApi } from '../api-client/read-views-api';
+import type { ReadViewMetadata } from '../types/api/read-view';
 
 const emptyFilterOptions: CustomerIssueRecordFilterOptionsResponse = {
   projectNames: [],
@@ -43,6 +45,7 @@ const availableStatus: RealtimeWorkspaceStatusResponse = {
 function recordsResponse(title: string): CustomerIssueRecordListResponse {
   return {
     records: [{
+      sourceInstance: 'default',
       issueId: 1,
       issueIid: 101,
       projectId: 325,
@@ -125,8 +128,39 @@ async function mountView(
 
 let mountedWrapper: VueWrapper | null = null;
 let mountedRouter: Router | null = null;
+const identities = new Map<string, ReadViewMetadata>();
+
+function recordsReadSpy() {
+  const implementation = vi.fn<typeof api.getCustomerIssueRecords>();
+  vi.spyOn(api, 'getCustomerIssueRecords').mockImplementation(async params => {
+    const result = await implementation(params);
+    if (params.read) params.read.onReadView(identities.get(params.read.readContextId)!);
+    return result;
+  });
+  return implementation;
+}
+
+function optionsReadSpy() {
+  const implementation = vi.fn<typeof api.getCustomerIssueRecordFilterOptions>();
+  vi.spyOn(api, 'getCustomerIssueRecordFilterOptions').mockImplementation(async (topic, project, read) => {
+    const result = await implementation(topic, project, read);
+    if (read) read.onReadView(identities.get(read.readContextId)!);
+    return result;
+  });
+  return implementation;
+}
 
 beforeEach(() => {
+  identities.clear();
+  vi.spyOn(readViewsApi, 'acquire').mockImplementation(async (pageKey) => {
+    const id = crypto.randomUUID();
+    const metadata: ReadViewMetadata = { readContextId: id, pageKey, scopeKey: id, sourceVersion: id,
+      businessDate: '2026-10-13', dataAsOf: '2026-10-13T00:00:00Z', pendingUpdates: 0,
+      leaseExpiresAt: '2099-01-01T00:00:00Z', sourceState: 'CURRENT', escalated: false };
+    identities.set(id, metadata);
+    return metadata;
+  });
+  vi.spyOn(readViewsApi, 'release').mockResolvedValue(undefined);
   vi.stubGlobal('ResizeObserver', class {
     observe() {}
     unobserve() {}
@@ -140,16 +174,77 @@ afterEach(() => {
   mountedRouter = null;
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
   document.body.innerHTML = '';
 });
 
 describe('CustomerIssueRecordsView loading lifecycle', () => {
+  it('lease metadata renewal keeps an opened detail intact', async () => {
+    vi.useFakeTimers();
+    optionsReadSpy().mockResolvedValue(emptyFilterOptions);
+    recordsReadSpy().mockResolvedValue(recordsResponse('续约后仍可用的议题'));
+    vi.spyOn(api, 'getCustomerIssueRecordRealtimeStatus').mockResolvedValue(availableStatus);
+    vi.spyOn(readViewsApi, 'renew').mockImplementation(async id => identities.get(id)!);
+    ({ router: mountedRouter, wrapper: mountedWrapper } = await mountView());
+    await flushPromises();
+    await mountedWrapper.findAll('.customer-record-detail-trigger').at(-1)!.trigger('click');
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(60_000);
+    await flushPromises();
+    expect(readViewsApi.renew).toHaveBeenCalled();
+    expect(document.body.querySelector('.customer-record-drawer')?.textContent).toContain('续约后仍可用的议题');
+  });
+  it('retains the old list and opened detail until the complete new detail is prepared', async () => {
+    optionsReadSpy().mockResolvedValue(emptyFilterOptions);
+    const records = recordsReadSpy().mockResolvedValue(recordsResponse('旧完整议题'));
+    vi.spyOn(api, 'getCustomerIssueRecordRealtimeStatus').mockResolvedValue(availableStatus);
+    const pending = deferred<ReturnType<typeof recordsResponse>['records'][number] | null>();
+    const detail = vi.spyOn(api, 'getCustomerIssueRecord').mockImplementation(async (_source, _project, _root, read) => {
+      const result = await pending.promise;
+      read.onReadView(identities.get(read.readContextId)!);
+      return result;
+    });
+    ({ router: mountedRouter, wrapper: mountedWrapper } = await mountView());
+    await flushPromises();
+    await mountedWrapper.findAll('.customer-record-detail-trigger').at(-1)!.trigger('click');
+    await flushPromises();
+    records.mockResolvedValue(recordsResponse('新完整议题'));
+    const refresh = mountedWrapper.findAll('button').find(button => button.text() === '刷新');
+    await refresh!.trigger('click');
+    await flushPromises();
+    expect(mountedWrapper.text()).toContain('旧完整议题');
+    expect(mountedWrapper.text()).not.toContain('新完整议题');
+    expect(document.body.textContent).toContain('旧完整议题');
+    expect(detail).toHaveBeenCalledWith('default', 325, 1, expect.objectContaining({ readContextId: expect.any(String) }));
+    pending.resolve(recordsResponse('新完整议题').records[0]);
+    await flushPromises();
+    expect(mountedWrapper.text()).toContain('新完整议题');
+    expect(document.body.textContent).not.toContain('旧完整议题');
+  });
+
+  it('a failed new preparation keeps old records and candidates usable', async () => {
+    const options = optionsReadSpy().mockResolvedValue({ ...emptyFilterOptions,
+      projectNames: [{ label: '旧候选项目', value: '旧候选项目' }] });
+    const records = recordsReadSpy().mockResolvedValue(recordsResponse('可继续使用的完整议题'));
+    vi.spyOn(api, 'getCustomerIssueRecordRealtimeStatus').mockResolvedValue(availableStatus);
+    ({ router: mountedRouter, wrapper: mountedWrapper } = await mountView());
+    await flushPromises();
+    records.mockRejectedValue(new Error('后台事实发布未完成'));
+    options.mockResolvedValue({ ...emptyFilterOptions, projectNames: [{ label: '未接受候选', value: '未接受候选' }] });
+    const refresh = mountedWrapper.findAll('button').find(button => button.text() === '刷新');
+    await refresh!.trigger('click');
+    await flushPromises();
+    expect(mountedWrapper.text()).toContain('可继续使用的完整议题');
+    expect(mountedWrapper.text()).toContain('后台事实发布未完成');
+    expect(mountedWrapper.findAll('.customer-record-detail-trigger').at(-1)!.exists()).toBe(true);
+    expect(mountedWrapper.text()).not.toContain('未接受候选');
+  });
   it('sends every CC_PRODUCT range filter and renders distinguishable time controls', async () => {
-    vi.spyOn(api, 'getCustomerIssueRecordFilterOptions').mockResolvedValue({
+    optionsReadSpy().mockResolvedValue({
       ...emptyFilterOptions,
       plannedMergeVersionBranches: [{ label: 'CC2026R4', value: 'CC2026R4' }],
     });
-    const recordsSpy = vi.spyOn(api, 'getCustomerIssueRecords')
+    const recordsSpy = recordsReadSpy()
       .mockResolvedValue(recordsResponse('筛选结果'));
     vi.spyOn(api, 'getCustomerIssueRecordRealtimeStatus').mockResolvedValue(availableStatus);
 
@@ -200,8 +295,8 @@ describe('CustomerIssueRecordsView loading lifecycle', () => {
   });
 
   it('does not send CC_PRODUCT-only filters to the delay topic', async () => {
-    vi.spyOn(api, 'getCustomerIssueRecordFilterOptions').mockResolvedValue(emptyFilterOptions);
-    const recordsSpy = vi.spyOn(api, 'getCustomerIssueRecords')
+    optionsReadSpy().mockResolvedValue(emptyFilterOptions);
+    const recordsSpy = recordsReadSpy()
       .mockResolvedValue(recordsResponse('延期筛选结果'));
     vi.spyOn(api, 'getCustomerIssueRecordRealtimeStatus').mockResolvedValue(availableStatus);
 
@@ -223,51 +318,52 @@ describe('CustomerIssueRecordsView loading lifecycle', () => {
     expect(params).not.toHaveProperty('retentionHoursMax');
   });
 
-  it('shows records without waiting for filter options or realtime status', async () => {
+  it('accepts records and candidates together without waiting for operational status', async () => {
     const filters = deferred<CustomerIssueRecordFilterOptionsResponse>();
     const status = deferred<RealtimeWorkspaceStatusResponse>();
-    vi.spyOn(api, 'getCustomerIssueRecordFilterOptions').mockReturnValue(filters.promise);
-    vi.spyOn(api, 'getCustomerIssueRecords').mockResolvedValue(recordsResponse('列表先返回'));
+    optionsReadSpy().mockReturnValue(filters.promise);
+    recordsReadSpy().mockResolvedValue(recordsResponse('列表先返回'));
     vi.spyOn(api, 'getCustomerIssueRecordRealtimeStatus').mockReturnValue(status.promise);
 
     ({ router: mountedRouter, wrapper: mountedWrapper } = await mountView());
     await flushPromises();
 
     expect(api.getCustomerIssueRecords).toHaveBeenCalledTimes(1);
-    expect(mountedWrapper.text()).toContain('列表先返回');
-    expect(mountedWrapper.find('.page-state-shell__skeleton').exists()).toBe(false);
+    expect(mountedWrapper.text()).not.toContain('列表先返回');
 
     filters.resolve(emptyFilterOptions);
+    await flushPromises();
+    expect(mountedWrapper.text()).toContain('列表先返回');
     status.resolve(availableStatus);
     await flushPromises();
   });
 
-  it('keeps a filter error visible and retries only the failed resource', async () => {
-    const filterSpy = vi.spyOn(api, 'getCustomerIssueRecordFilterOptions')
+  it('keeps preparation failure visible and retries the complete batch', async () => {
+    const filterSpy = optionsReadSpy()
       .mockRejectedValueOnce(new Error('筛选服务不可用'))
       .mockResolvedValueOnce(emptyFilterOptions);
-    const recordsSpy = vi.spyOn(api, 'getCustomerIssueRecords').mockResolvedValue(recordsResponse('列表仍可使用'));
+    const recordsSpy = recordsReadSpy().mockResolvedValue(recordsResponse('列表仍可使用'));
     vi.spyOn(api, 'getCustomerIssueRecordRealtimeStatus').mockResolvedValue(availableStatus);
 
     ({ router: mountedRouter, wrapper: mountedWrapper } = await mountView());
     await flushPromises();
 
     expect(mountedWrapper.text()).toContain('筛选服务不可用');
-    expect(mountedWrapper.text()).toContain('重试筛选项');
-    expect(mountedWrapper.text()).toContain('列表仍可使用');
+    expect(mountedWrapper.text()).toContain('重试列表');
+    expect(mountedWrapper.text()).not.toContain('列表仍可使用');
 
-    const retryButton = mountedWrapper.findAll('button').find((button) => button.text().includes('重试筛选项'));
+    const retryButton = mountedWrapper.findAll('button').find((button) => button.text().includes('重试列表'));
     await retryButton?.trigger('click');
     await flushPromises();
 
     expect(filterSpy).toHaveBeenCalledTimes(2);
-    expect(recordsSpy).toHaveBeenCalledTimes(1);
+    expect(recordsSpy).toHaveBeenCalledTimes(2);
     expect(mountedWrapper.text()).not.toContain('筛选服务不可用');
   });
 
   it('keeps a table error visible and replaces it after an explicit retry', async () => {
-    vi.spyOn(api, 'getCustomerIssueRecordFilterOptions').mockResolvedValue(emptyFilterOptions);
-    const recordsSpy = vi.spyOn(api, 'getCustomerIssueRecords')
+    optionsReadSpy().mockResolvedValue(emptyFilterOptions);
+    const recordsSpy = recordsReadSpy()
       .mockRejectedValueOnce(new Error('列表服务不可用'))
       .mockResolvedValueOnce(recordsResponse('重试成功'));
     vi.spyOn(api, 'getCustomerIssueRecordRealtimeStatus').mockResolvedValue(availableStatus);
@@ -290,8 +386,8 @@ describe('CustomerIssueRecordsView loading lifecycle', () => {
   it('keeps the newest query result when an older request finishes later', async () => {
     const firstRequest = deferred<CustomerIssueRecordListResponse>();
     const secondRequest = deferred<CustomerIssueRecordListResponse>();
-    vi.spyOn(api, 'getCustomerIssueRecordFilterOptions').mockResolvedValue(emptyFilterOptions);
-    const recordsSpy = vi.spyOn(api, 'getCustomerIssueRecords')
+    optionsReadSpy().mockResolvedValue(emptyFilterOptions);
+    const recordsSpy = recordsReadSpy()
       .mockReturnValueOnce(firstRequest.promise)
       .mockReturnValueOnce(secondRequest.promise);
     vi.spyOn(api, 'getCustomerIssueRecordRealtimeStatus').mockResolvedValue(availableStatus);
@@ -313,16 +409,17 @@ describe('CustomerIssueRecordsView loading lifecycle', () => {
     expect(mountedWrapper.text()).not.toContain('过期结果');
   });
 
-  it('keeps the delay topic default milestone as an explicit loading dependency', async () => {
+  it('prepares the frozen default before making the selected milestone explicit', async () => {
     const filters = deferred<CustomerIssueRecordFilterOptionsResponse>();
-    vi.spyOn(api, 'getCustomerIssueRecordFilterOptions').mockReturnValue(filters.promise);
-    const recordsSpy = vi.spyOn(api, 'getCustomerIssueRecords').mockResolvedValue(recordsResponse('延期结果'));
+    optionsReadSpy().mockReturnValue(filters.promise);
+    const recordsSpy = recordsReadSpy().mockResolvedValue(recordsResponse('延期结果'));
     vi.spyOn(api, 'getCustomerIssueRecordRealtimeStatus').mockResolvedValue(availableStatus);
 
     ({ router: mountedRouter, wrapper: mountedWrapper } = await mountView('delay'));
     await flushPromises();
 
-    expect(recordsSpy).not.toHaveBeenCalled();
+    expect(recordsSpy).toHaveBeenCalledTimes(1);
+    expect(mountedWrapper.text()).not.toContain('延期结果');
 
     filters.resolve({
       ...emptyFilterOptions,
@@ -331,7 +428,7 @@ describe('CustomerIssueRecordsView loading lifecycle', () => {
     await flushPromises();
 
     expect(mountedRouter.currentRoute.value.query.milestoneTitle).toBe('CC2026R4');
-    expect(recordsSpy).toHaveBeenCalledTimes(1);
+    expect(recordsSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(recordsSpy).toHaveBeenCalledWith(expect.objectContaining({
       topic: 'delay',
       milestoneTitle: 'CC2026R4',

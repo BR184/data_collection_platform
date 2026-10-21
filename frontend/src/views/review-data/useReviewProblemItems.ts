@@ -3,19 +3,24 @@ import type { ReviewDataProblemItemResponse, ReviewDataRecordRowResponse } from 
 import { buildProblemItemTableRows } from '../review-data-management';
 
 export function useReviewProblemItems(
-  loadProblemItemsApi: (recordId: number) => Promise<ReviewDataProblemItemResponse[]>,
+  loadProblemItemsApi: (recordId: number, commit: (items: ReviewDataProblemItemResponse[]) => void) => Promise<void>,
 ) {
   const problemDialogVisible = ref(false);
   const activeProblemRecord = ref<ReviewDataRecordRowResponse | null>(null);
   const problemItemsMap = ref<Record<number, ReviewDataProblemItemResponse[]>>({});
   const problemLoadingMap = ref<Record<number, boolean>>({});
+  const requests = new Map<number, number>();
+  let sequence = 0;
 
   async function loadProblemItems(recordId: number) {
+    const ticket = ++sequence; requests.set(recordId, ticket);
     problemLoadingMap.value[recordId] = true;
     try {
-      problemItemsMap.value[recordId] = await loadProblemItemsApi(recordId);
+      await loadProblemItemsApi(recordId, items => {
+        if (requests.get(recordId) === ticket) problemItemsMap.value[recordId] = items;
+      });
     } finally {
-      problemLoadingMap.value[recordId] = false;
+      if (requests.get(recordId) === ticket) problemLoadingMap.value[recordId] = false;
     }
   }
 

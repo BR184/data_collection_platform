@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue';
-import { computed, nextTick, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { PageKey } from '../../feature-manifest';
 import { biDashboardApi, type BiCodingQuery } from '../../api-client/bi-dashboard-api';
+import { useAcceptedPageView } from '../../composables/useAcceptedPageView';
+import StatisticBoardFreshnessBanner from '../../components/StatisticBoardFreshnessBanner.vue';
+import type { ReadViewTransport } from '../../types/api/read-view';
+import { biPageDownloadKey } from './data/page-download';
 import { getErrorMessage } from '../../utils/user-message';
 import type {
   BiCodingPageData,
@@ -48,12 +52,21 @@ const response = shallowRef<AnyBiPageResponse | null>(null);
 const loadingVersions = ref(false);
 const loadingPage = ref(false);
 const loadError = ref('');
-let pageRequestId = 0;
 
-const stage = computed<StageConfig>(() => STAGE_BY_ROUTE[route.meta.pageKey as PageKey] ?? STAGE_BY_ROUTE['bi-dashboard-requirements']!);
-// 路由只决定当前一级阶段，数据响应仍需通过 pageKey 校验，避免切换页面时短暂显示上一页数据。
-// 本层流程：从路由确定阶段，从查询参数确定版本和代码筛选条件，
-// 再由请求签名触发对应 API；响应校验通过后才交给阶段内容组件渲染。
+const requestedStage = computed<StageConfig>(() => STAGE_BY_ROUTE[route.meta.pageKey as PageKey] ?? STAGE_BY_ROUTE['bi-dashboard-requirements']!);
+interface StageFrame { response: AnyBiPageResponse; stage: StageConfig; productVersionId: number; filters: BiCodingQuery }
+const acceptedPage = useAcceptedPageView<StageFrame>({ pageKey: () => `bi:${requestedStage.value.pageKey}`,
+  load: () => { throw new Error('BI 需要捕获阶段和完整查询'); } });
+const stage = computed(() => acceptedPage.accepted.value?.data.stage ?? requestedStage.value);
+const displayedVersionId = computed(() => acceptedPage.accepted.value?.data.productVersionId ?? selectedVersionId.value);
+const displayedFilters = computed(() => acceptedPage.accepted.value?.data.filters ?? codingFilters.value);
+acceptedPage.start();
+watch(acceptedPage.accepted, (frame, previous) => {
+  if (frame && frame.data === previous?.data) return;
+  response.value = frame?.data.response ?? null;
+}, { flush: 'sync' });
+provide(biPageDownloadKey, { run: (reader, commit) => acceptedPage.readAccepted((_frame, read) => reader(read), result => commit(result)) });
+onBeforeUnmount(() => acceptedPage.dispose());
 const selectedVersionId = computed<number | null>(() => {
   const value = Number(route.query.productVersionId);
   return Number.isSafeInteger(value) && value > 0 ? value : null;
@@ -64,11 +77,11 @@ const codingFilters = computed<BiCodingQuery>(() => ({
   repositoryId: typeof route.query.repositoryId === 'string' && route.query.repositoryId ? route.query.repositoryId : undefined,
 }));
 const requestSignature = computed(() => [
-  stage.value.pageKey,
+  requestedStage.value.pageKey,
   selectedVersionId.value,
-  stage.value.pageKey === 'coding' ? codingFilters.value.granularity : '',
-  stage.value.pageKey === 'coding' ? codingFilters.value.source : '',
-  stage.value.pageKey === 'coding' ? codingFilters.value.repositoryId ?? '' : '',
+  requestedStage.value.pageKey === 'coding' ? codingFilters.value.granularity : '',
+  requestedStage.value.pageKey === 'coding' ? codingFilters.value.source : '',
+  requestedStage.value.pageKey === 'coding' ? codingFilters.value.repositoryId ?? '' : '',
 ].join(':'));
 const activeResponse = computed<AnyBiPageResponse | null>(() => responseMatchesPage(
   response.value as BiPageResponse<unknown> | null,
@@ -109,44 +122,50 @@ async function loadVersions(): Promise<void> {
 
 let preservedScrollY: number | null = null;
 
+let loadSequence = 0;
 async function loadPage(): Promise<void> {
+  const ticket = ++loadSequence;
   const versionId = selectedVersionId.value;
   if (versionId == null || !catalog.value) return;
-  const requestId = ++pageRequestId;
-  // 请求序号保证较早返回的响应不能覆盖用户随后选择的版本或阶段。
+  const target = requestedStage.value;
+  const filters = Object.freeze({ ...codingFilters.value });
+  const scope = { productVersionId: String(versionId), ...(target.pageKey === 'coding' ? { source: filters.source } : {}) };
   loadingPage.value = true;
-  loadError.value = '';
   try {
-    const nextResponse = await loadStagePage(stage.value.pageKey, versionId);
-    if (requestId === pageRequestId) response.value = nextResponse;
-  } catch (error) {
-    if (requestId === pageRequestId) {
-      response.value = null;
-      loadError.value = getErrorMessage(error, 'BI 看板加载失败');
+    const loaded = await acceptedPage.prepare(scope, async (_scope, read) => {
+      const nextResponse = await loadStagePage(target.pageKey, versionId, filters, read);
+      const error = pageErrorMessage(nextResponse as BiPageResponse<unknown>);
+      if (error) throw new Error(error);
+      if (!responseMatchesPage(nextResponse as BiPageResponse<unknown>, target.pageKey)) throw new Error('BI 响应页面不匹配');
+      return { response: nextResponse, stage: target, productVersionId: versionId, filters };
+    });
+    if (ticket !== loadSequence) return;
+    if (!loaded) throw acceptedPage.lastError.value ?? new Error('BI 页面准备已取消');
+    loadError.value = '';
+  } catch (error) { if (ticket !== loadSequence) return; loadError.value = getErrorMessage(error, 'BI 更新失败，已保留当前完整数据'); }
+  finally {
+    if (ticket === loadSequence) {
+    loadingPage.value = false;
+    if (preservedScrollY != null) {
+      const y = preservedScrollY; preservedScrollY = null;
+      void nextTick(() => { window.scrollTo({ top: y, behavior: 'instant' }); });
     }
-  } finally {
-    if (requestId === pageRequestId) {
-      loadingPage.value = false;
-      if (preservedScrollY != null) {
-        const y = preservedScrollY;
-        preservedScrollY = null;
-        void nextTick(() => {
-          window.scrollTo({ top: y, behavior: 'instant' });
-        });
-      }
+
     }
   }
 }
 
-async function loadStagePage(pageKey: BiPageKey, productVersionId: number): Promise<AnyBiPageResponse> {
-  // 页面调度只做阶段到 API 的映射；公式和聚合全部在后端完成，前端只负责呈现。
+async function loadStagePage(pageKey: BiPageKey, productVersionId: number, filters: BiCodingQuery,
+  read: ReadViewTransport): Promise<AnyBiPageResponse> {
+  // 只映射已有阶段 API，不改变指标公式。
   switch (pageKey) {
-    case 'requirements': return biDashboardApi.loadRequirements(productVersionId);
-    case 'design': return biDashboardApi.loadDesign(productVersionId);
-    case 'coding': return biDashboardApi.loadCoding(productVersionId, codingFilters.value);
-    case 'unit-test': return biDashboardApi.loadUnitTest(productVersionId);
-    case 'integration-test': return biDashboardApi.loadIntegrationTest(productVersionId);
-    case 'system-test': return biDashboardApi.loadSystemTest(productVersionId);
+    case 'requirements': return biDashboardApi.loadRequirements(productVersionId, read);
+    case 'design': return biDashboardApi.loadDesign(productVersionId, read);
+    case 'coding': return biDashboardApi.loadCoding(productVersionId, filters, read);
+    case 'unit-test': return biDashboardApi.loadUnitTest(productVersionId, read);
+    case 'integration-test': return biDashboardApi.loadIntegrationTest(productVersionId, read);
+    case 'system-test': return biDashboardApi.loadSystemTest(productVersionId, read);
+    case 'customer-issues': throw new Error('客户问题使用独立 BI 页面');
   }
 }
 
@@ -186,6 +205,7 @@ onMounted(() => {
 
 <template>
   <main class="bi-dashboard" data-bottom-scroll-safe="true">
+    <StatisticBoardFreshnessBanner v-bind="acceptedPage.accepted.value?.metadata" />
     <header class="bi-page-head">
       <div class="bi-page-heading">
         <h1>{{ stage.label }}</h1>
@@ -219,7 +239,7 @@ onMounted(() => {
       <template #default><el-button size="small" @click="loadPage">重试</el-button></template>
     </el-alert>
 
-    <div v-else-if="loadingPage && !activeResponse" class="bi-page-loading" v-loading="true" aria-label="正在加载 BI 看板" />
+    <div v-if="loadingPage && !activeResponse" class="bi-page-loading" v-loading="true" aria-label="正在加载 BI 看板" />
 
     <el-result
       v-else-if="pageFailure"
@@ -236,26 +256,26 @@ onMounted(() => {
     <ReviewStageContent
       v-else-if="reviewResponse"
       :response="reviewResponse"
-      :product-version-id="selectedVersionId!"
+      :product-version-id="displayedVersionId!"
       :page-key="stage.pageKey"
       :stage-label="stage.stageName"
     />
     <CodingStageContent
       v-else-if="codingResponse"
       :response="codingResponse"
-      :product-version-id="selectedVersionId!"
-      :granularity="codingFilters.granularity"
+      :product-version-id="displayedVersionId!"
+      :granularity="displayedFilters.granularity"
     />
     <TestQualityStageContent
       v-else-if="testResponse"
       :response="testResponse"
-      :product-version-id="selectedVersionId!"
+      :product-version-id="displayedVersionId!"
       :page-key="stage.pageKey"
       :stage-label="stage.stageName"
     />
-    <SystemTestStageContent v-else-if="systemResponse" :response="systemResponse" :product-version-id="selectedVersionId!" />
+    <SystemTestStageContent v-else-if="systemResponse" :response="systemResponse" :product-version-id="displayedVersionId!" />
 
-    <el-empty v-else-if="!loadingVersions" description="当前没有可展示的 BI 数据" />
+    <el-empty v-else-if="!loadingVersions && !loadError" description="当前没有可展示的 BI 数据" />
   </main>
 </template>
 

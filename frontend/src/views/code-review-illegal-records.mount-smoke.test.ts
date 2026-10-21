@@ -4,13 +4,19 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 import ElementPlus from 'element-plus';
 import CodeReviewIllegalRecordsView from './CodeReviewIllegalRecordsView.vue';
 
+const metadata = { readContextId: '11111111-1111-4111-8111-111111111111', pageKey: 'code-review-illegal-records',
+  scopeKey: 'fixed', sourceVersion: 'complete-source', businessDate: '2026-10-13', dataAsOf: '2026-10-13T00:00:00Z',
+  leaseExpiresAt: '2099-01-01T00:00:00Z', pendingUpdates: 0, sourceState: 'CURRENT', escalated: false };
+
 function jsonResponse(data: unknown) {
-  return Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({ success: true, data })) } as Response);
+  return Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({ success: true, data, readView: metadata })) } as Response);
 }
 
 describe('CodeReviewIllegalRecordsView mount smoke', () => {
   it('mounts without route errors', async () => {
     const fetchMock = vi.fn((url: string) => {
+        if (url.startsWith('/api/read-views')) return jsonResponse(metadata);
+        if (url.includes('/api/code-review/illegal-records/context')) return jsonResponse({ compatibilityRead: true, sources: [{ label: 'CC', value: 'cc' }] });
       if (url.includes('/api/code-review/illegal-records/filter-options')) {
         return jsonResponse({
           requestTypes: [],
@@ -78,6 +84,8 @@ describe('CodeReviewIllegalRecordsView mount smoke', () => {
 
   it('exports current filtered illegal records as csv', async () => {
     const fetchMock = vi.fn((url: string) => {
+        if (url.startsWith('/api/read-views')) return jsonResponse(metadata);
+        if (url.includes('/api/code-review/illegal-records/context')) return jsonResponse({ compatibilityRead: true, sources: [{ label: 'CC', value: 'cc' }] });
       if (url.includes('/api/code-review/illegal-records/export')) {
         return Promise.resolve({ ok: true, text: () => Promise.resolve('项目,模块\nProject X,支付模块\n') } as Response);
       }

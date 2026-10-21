@@ -64,6 +64,7 @@ function mapRow(row: SystemTestIllegalRecordRowResponse): Record<string, unknown
 
 function loadRecords(params: IssueIllegalRecordQueryParams) {
   return api.getSystemTestIllegalRecords({
+    read: params.read,
     projectId: undefined,
     keyword: params.keyword,
     issueIid: params.issueIid,
@@ -113,6 +114,8 @@ function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions) {
 
 <template>
   <IssueIllegalRecordsPage
+    page-key="system-test-illegal-records"
+    :load-record="api.getSystemTestIllegalRecord"
     workspace-key="system-test-illegal-records"
     title="系统测试非法数据"
     description="系统测试范围内的非法议题记录筛选、规则说明与详情查看"

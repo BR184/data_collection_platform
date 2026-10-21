@@ -46,6 +46,7 @@ const emit = defineEmits<{
     </template>
 
     <div class="review-problem-dialog-body">
+      <el-empty v-if="!record" description="该记录已在当前完整版本中撤回或移出此范围" />
       <ReviewProblemPanel
         v-if="record"
         :record="record"

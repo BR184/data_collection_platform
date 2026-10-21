@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Refresh, RefreshRight } from '@element-plus/icons-vue';
 import ExportActionMenu from '../components/base/ExportActionMenu.vue';
@@ -12,6 +12,8 @@ import DashboardRuleDrawer from '../components/dashboard/DashboardRuleDrawer.vue
 import RuleHintIcon from '../components/dashboard/RuleHintIcon.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { api } from '../api';
+import { useAcceptedPageView } from '../composables/useAcceptedPageView';
+import StatisticBoardFreshnessBanner from '../components/StatisticBoardFreshnessBanner.vue';
 import { authState } from '../composables/auth-state';
 import { hasPermission } from '../feature-manifest';
 import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
@@ -38,6 +40,17 @@ const board = ref<SystemTestIssueMultiBoardResponse | null>(null);
 const selectedRule = ref<AnalyticsDashboardRule | null>(null);
 const ruleDrawerVisible = ref(false);
 
+interface MultiFrame { board: SystemTestIssueMultiBoardResponse; query: { projectId: string; testingPhase: string } }
+const acceptedPage = useAcceptedPageView<MultiFrame>({ pageKey: DASHBOARD_KEY,
+  load: () => { throw new Error('议题多元看板必须捕获完整查询'); } });
+const loadError = ref('');
+acceptedPage.start();
+watch(acceptedPage.accepted, (frame, previous) => {
+  if (frame && frame.data === previous?.data) return;
+  board.value = frame?.data.board ?? null;
+  if (frame && selectedRule.value) selectedRule.value = frame.data.board.rules.find(rule => rule.key === selectedRule.value?.key) ?? null;
+  if (!frame) { selectedRule.value = null; ruleDrawerVisible.value = false; }
+}, { flush: 'sync' });
 const selectedProjectId = computed(() => String(route.query.projectId ?? '9'));
 const selectedTestingPhase = computed(() => String(route.query.testingPhase ?? ''));
 const pageReady = computed(() => initialized.value);
@@ -79,27 +92,26 @@ async function replaceQuery(patch: Record<string, string | undefined>) {
   await router.replace({ path: route.path, query: nextQuery, hash: route.hash });
 }
 
+let loadSequence = 0;
 async function loadBoard() {
+  const ticket = ++loadSequence;
+  const query = { projectId: selectedProjectId.value, testingPhase: selectedTestingPhase.value };
+  const scope = { projectId: query.projectId, ...(query.testingPhase ? { testingPhase: query.testingPhase } : {}) };
   loading.value = true;
   try {
-    const nextBoard = await api.getSystemTestIssueMultiBoard({
-      projectId: selectedProjectId.value,
-      testingPhase: selectedTestingPhase.value,
-    });
-    board.value = nextBoard;
-    if (
-      (!route.query.projectId || !route.query.testingPhase)
-      && nextBoard.scope.projectId
-      && nextBoard.scope.testingPhase
-    ) {
-      await replaceQuery({
-        projectId: String(nextBoard.scope.projectId),
-        testingPhase: nextBoard.scope.testingPhase,
-      });
+    const loaded = await acceptedPage.prepare(scope, async (_scope, read) => ({ query,
+      board: await api.getSystemTestIssueMultiBoard(query, read) }));
+    if (ticket !== loadSequence) return;
+    if (!loaded) throw acceptedPage.lastError.value ?? new Error('看板准备已取消');
+    loadError.value = '';
+    const nextBoard = acceptedPage.accepted.value!.data.board;
+    if ((!route.query.projectId || !route.query.testingPhase) && nextBoard.scope.projectId && nextBoard.scope.testingPhase) {
+      await replaceQuery({ projectId: String(nextBoard.scope.projectId), testingPhase: nextBoard.scope.testingPhase });
     }
-  } finally {
-    loading.value = false;
-    initialized.value = true;
+  } catch (error) { if (ticket !== loadSequence) return; loadError.value = getErrorMessage(error, '议题看板更新失败，已保留当前完整数据'); }
+  finally {
+    if (ticket === loadSequence) { loading.value = false; initialized.value = true;
+    }
   }
 }
 
@@ -131,12 +143,9 @@ async function handleRefreshLatestData() {
 async function handleExport(chart: SystemTestIssueMultiBoardChartResponse) {
   exportLoadingKey.value = chart.key;
   try {
-    const file = await api.exportSystemTestIssueMultiBoardChart({
-      chartKey: chart.key,
-      projectId: selectedProjectId.value,
-      testingPhase: selectedTestingPhase.value,
-    });
-    downloadBlob(file.blob, file.filename || `${chart.exportName}.xlsx`);
+    await acceptedPage.readAccepted((frame, read) => api.exportSystemTestIssueMultiBoardChart({
+      chartKey: chart.key, ...frame.query }, read),
+      file => downloadBlob(file.blob, file.filename || `${chart.exportName}.xlsx`));
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '图表数据导出失败'));
   } finally {
@@ -219,6 +228,7 @@ function openRule(rule: AnalyticsDashboardRule | null) {
 
 onBeforeUnmount(() => {
   invalidateRefreshTracking();
+  acceptedPage.dispose();
 });
 
 void Promise.all([loadBoard(), loadSyncStatus()]).catch((error) => {
@@ -231,6 +241,8 @@ void Promise.all([loadBoard(), loadSyncStatus()]).catch((error) => {
 <template>
   <PageStateShell :ready="pageReady" min-height="calc(100vh - 160px)">
     <section class="system-test-multi-board">
+      <StatisticBoardFreshnessBanner v-bind="acceptedPage.accepted.value?.metadata" />
+      <el-alert v-if="loadError" :title="loadError" type="warning" :closable="false" />
       <section class="system-test-multi-board__toolbar">
         <div class="system-test-multi-board__title">
           <span>系统测试 / 多元看板</span>
@@ -268,7 +280,7 @@ void Promise.all([loadBoard(), loadSyncStatus()]).catch((error) => {
           <el-button
             class="app-action-button app-action-button--refresh"
             :icon="Refresh"
-            :loading="loading"
+            :loading="loading && !acceptedPage.accepted.value"
             @click="handleRefresh"
           >
             刷新
@@ -320,7 +332,7 @@ void Promise.all([loadBoard(), loadSyncStatus()]).catch((error) => {
           </div>
           <EChartPanel
             :option="chartOption(chart)"
-            :loading="loading"
+            :loading="loading && !acceptedPage.accepted.value"
             :height="340"
             @point-click="(point) => handleChartPointClick(point, chart)"
           />

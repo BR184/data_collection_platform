@@ -12,16 +12,22 @@ vi.mock('../components/charts/EChartPanel.vue', () => ({
   }),
 }));
 
+const metadata = { readContextId: '11111111-1111-4111-8111-111111111111', pageKey: 'code-review-multi',
+  scopeKey: 'fixed', sourceVersion: 'published', businessDate: '2026-10-13',
+  dataAsOf: '2026-10-13T00:00:00Z', leaseExpiresAt: '2099-01-01T00:00:00Z',
+  pendingUpdates: 0, sourceState: 'CURRENT', escalated: false };
+
 function jsonResponse(data: unknown) {
   return Promise.resolve({
     ok: true,
-    text: () => Promise.resolve(JSON.stringify({ success: true, data })),
+    text: () => Promise.resolve(JSON.stringify({ success: true, data, readView: metadata })),
   } as Response);
 }
 
 describe('CodeReviewMultiBoardView mount smoke', () => {
   it('loads isolated source/project scopes and renders all eight legacy topics', async () => {
     const fetchSpy = vi.fn((url: string) => {
+      if (url.startsWith('/api/read-views')) return jsonResponse(metadata);
       if (url.includes('/api/code-review/multi-board/source-options')) {
         return jsonResponse([
           { label: 'CC', value: 'cc' },

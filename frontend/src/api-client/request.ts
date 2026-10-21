@@ -5,6 +5,7 @@ import {
   type PlatformProgressOptions,
 } from './platform-progress-events';
 import { rememberAuthRequiredMessage } from './auth-required-message';
+import type { ReadViewMetadata } from '../types/api/read-view';
 
 const CSRF_HEADER_NAME = 'X-XSRF-TOKEN';
 const CSRF_TOKEN_STORAGE_KEY = 'platform.security.csrf-token';
@@ -19,6 +20,9 @@ export interface RequestOptions extends RequestInit {
   errorPrefix?: string;
   platformProgress?: PlatformProgressOptions | false;
   exportProgress?: PlatformProgressOptions | false;
+  readContextId?: string;
+  onReadView?: (metadata: ReadViewMetadata) => void;
+  readScope?: Readonly<Record<string, string>>;
 }
 
 export class RequestTimeoutError extends Error {
@@ -31,11 +35,13 @@ export class RequestTimeoutError extends Error {
 /** HTTP 请求失败时保留状态码，供页面区分鉴权失败与业务加载失败。 */
 export class HttpRequestError extends Error {
   readonly status: number;
+  readonly code: string;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code = '') {
     super(message);
     this.name = 'HttpRequestError';
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -79,6 +85,9 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
     platformProgress: configuredPlatformProgress,
     exportProgress: configuredExportProgress,
     signal,
+    readContextId,
+    onReadView,
+    readScope,
     ...fetchInit
   } = init ?? {};
   const platformProgress = resolveRequestProgressOptions(
@@ -88,7 +97,7 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
   const progressId = beginPlatformProgress(url, platformProgress);
 
   try {
-    const response = await fetchWithCsrfReplay(url, fetchInit, signal, timeoutMs);
+    const response = await fetchWithCsrfReplay(withReadScope(url, readScope), withReadIdentity(fetchInit, readContextId), signal, timeoutMs);
     const rawText = await response.text();
     const payload = parseJsonPayload(rawText);
 
@@ -98,6 +107,7 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
       throw new HttpRequestError(
         message || `请求失败，状态码：${response.status}`,
         response.status,
+        isJsonObject(payload) && typeof payload.code === 'string' ? payload.code : '',
       );
     }
 
@@ -108,10 +118,18 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
           typeof payload.code === 'string' ? payload.code : '',
         );
       }
+      if (onReadView) {
+        const metadata = requireReadMetadata(payload.readView);
+        if (readContextId && metadata.readContextId !== readContextId) {
+          throw new Error('页面响应与读取版本不一致，已保留原数据');
+        }
+        onReadView(metadata);
+      }
       finishPlatformProgress(progressId, url, platformProgress);
       return payload.data as T;
     }
 
+    if (onReadView) { throw new Error('页面未收到完整读取身份，已保留原数据'); }
     finishPlatformProgress(progressId, url, platformProgress);
     return payload as T;
   } catch (error) {
@@ -159,6 +177,7 @@ export async function requestBlob(url: string, init?: RequestOptions): Promise<B
 export interface BlobResponse {
   blob: Blob;
   filename?: string;
+  readContextId?: string;
 }
 
 /** 下载二进制响应，同时返回服务端提供的文件名。 */
@@ -168,6 +187,7 @@ export async function requestBlobResponse(url: string, init?: RequestOptions): P
     return {
       blob: await response.blob(),
       filename: parseContentDispositionFilename(response.headers?.get('Content-Disposition')),
+      readContextId: response.headers?.get('X-Read-Context-Id') ?? undefined,
     };
   });
 }
@@ -179,16 +199,62 @@ async function requestRaw(url: string, init?: RequestOptions): Promise<Response>
     platformProgress: _platformProgress,
     exportProgress: _exportProgress,
     signal,
+    readContextId,
+    onReadView: _onReadView,
+    readScope,
     ...fetchInit
   } = init ?? {};
-  const response = await fetchWithCsrfReplay(url, fetchInit, signal, timeoutMs);
+  const response = await fetchWithCsrfReplay(withReadScope(url, readScope), withReadIdentity(fetchInit, readContextId), signal, timeoutMs);
 
   if (!response.ok) {
-    const message = await parseErrorMessage(response, errorPrefix);
+    const rawText = await response.text();
+    const payload = parseJsonPayload(rawText);
+    const message = parseErrorMessage(response, rawText, errorPrefix);
     notifyAuthRequired(response.status, message);
-    throw new HttpRequestError(message, response.status);
+    throw new HttpRequestError(message, response.status,
+      isJsonObject(payload) && typeof payload.code === 'string' ? payload.code : '');
+  }
+  if (readContextId && response.headers.get('X-Read-Context-Id') !== readContextId) {
+    throw new Error('下载与页面读取版本不一致，请重试');
   }
   return response;
+}
+
+function withReadIdentity(init: RequestInit, readContextId?: string): RequestInit {
+  if (!readContextId) { return init; }
+  const headers = new Headers(init.headers);
+  headers.set('X-Read-Context-Id', readContextId);
+  return { ...init, headers };
+}
+
+function withReadScope(url: string, scope?: Readonly<Record<string, string>>): string {
+  if (!scope || !Object.keys(scope).length) { return url; }
+  const split = url.indexOf('?');
+  const path = split < 0 ? url : url.slice(0, split);
+  const parameters = new URLSearchParams(split < 0 ? '' : url.slice(split + 1));
+  for (const [key, value] of Object.entries(scope)) {
+    const existing = parameters.get(key);
+    if (existing !== null && existing !== value) { throw new Error('请求范围与当前页面不一致，已保留原数据'); }
+    parameters.set(key, value);
+  }
+  return `${path}?${parameters.toString()}`;
+}
+
+/** 数据读取不得把缺少协议的响应当作完整版本接受。 */
+export function requireReadMetadata(value: unknown): ReadViewMetadata {
+  if (!isJsonObject(value)
+      || ['readContextId', 'pageKey', 'scopeKey', 'sourceVersion', 'businessDate', 'leaseExpiresAt', 'dataAsOf']
+        .some(key => typeof value[key] !== 'string' || !value[key])
+      || !['CURRENT', 'UPDATING', 'NEWER_AVAILABLE', 'ATTENTION'].includes(String(value.sourceState))
+      || typeof value.pendingUpdates !== 'number' || !Number.isFinite(value.pendingUpdates) || value.pendingUpdates < 0
+      || typeof value.escalated !== 'boolean') {
+    throw new Error('页面未收到完整读取身份，已保留原数据');
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value.businessDate))
+      || !Number.isFinite(Date.parse(String(value.leaseExpiresAt))) || !Number.isFinite(Date.parse(String(value.dataAsOf)))) {
+    throw new Error('页面读取身份时间无效，已保留原数据');
+  }
+  return value as unknown as ReadViewMetadata;
 }
 
 async function withPlatformProgress<T>(url: string, init: RequestOptions | undefined, action: () => Promise<T>) {
@@ -458,8 +524,7 @@ function parseContentDispositionFilename(contentDisposition: string | null): str
   return plainMatch?.[1]?.trim();
 }
 
-async function parseErrorMessage(response: Response, errorPrefix = '请求失败'): Promise<string> {
-  const rawText = await response.text();
+function parseErrorMessage(response: Response, rawText: string, errorPrefix = '请求失败'): string {
   const contentType = response.headers?.get('Content-Type') ?? '';
   if (contentType.includes('application/json') && rawText) {
     try {

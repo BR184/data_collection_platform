@@ -336,6 +336,27 @@ describe('request', () => {
       .rejects
       .toThrow('Excel 导出失败，状态码：503');
   });
+
+  it('preserves structured rebind code for JSON and downloads', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ success: false,
+      code: 'READ_VIEW_REBIND_REQUIRED', message: 'rebind' }), { status: 409,
+      headers: { 'Content-Type': 'application/json' } })));
+    await expect(request('/api/page')).rejects.toMatchObject({ status: 409, code: 'READ_VIEW_REBIND_REQUIRED' });
+    await expect(requestBlob('/api/export')).rejects.toMatchObject({ status: 409, code: 'READ_VIEW_REBIND_REQUIRED' });
+  });
+
+  it('sends accepted scope on body-based download and rejects conflicting request scope', async () => {
+    const fetchSpy = stubSuccessfulFetch();
+    await request('/api/page?member=alice', { readContextId: 'accepted', readScope: { productVersionId: '9' } });
+    expect(fetchSpy.mock.calls[0][0]).toBe('/api/page?member=alice&productVersionId=9');
+    expect(getFetchHeaders(fetchSpy).get('X-Read-Context-Id')).toBe('accepted');
+    await expect(request('/api/page?productVersionId=10', { readScope: { productVersionId: '9' } })).rejects.toThrow('请求范围');
+  });
+
+  it('rejects a download from another version before exposing its bytes', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('wrong bytes', { headers: { 'X-Read-Context-Id': 'other' } })));
+    await expect(requestBlob('/api/export', { readContextId: 'accepted' })).rejects.toThrow('下载与页面读取版本不一致');
+  });
 });
 
 function stubSuccessfulFetch() {

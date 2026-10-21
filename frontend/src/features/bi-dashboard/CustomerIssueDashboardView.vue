@@ -1,24 +1,35 @@
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue';
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
+import { computed, onBeforeUnmount, provide, ref, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { biDashboardApi, type BiCustomerIssueQuery } from '../../api-client/bi-dashboard-api';
+import { HttpRequestError } from '../../api-client/request';
+import { useAcceptedPageView } from '../../composables/useAcceptedPageView';
+import StatisticBoardFreshnessBanner from '../../components/StatisticBoardFreshnessBanner.vue';
+import { biPageDownloadKey } from './data/page-download';
 import { getErrorMessage } from '../../utils/user-message';
 import BiChartPanel from './components/BiChartPanel.vue';
 import BiMetricStrip from './components/BiMetricStrip.vue';
-import { DailyDefectTrendChart, DelayHeatmapChart, DeveloperWorkloadChart, DistributionDonutChart, StackedCategoryBarChart, VerticalCategoryBarChart } from './charts/types';
+import {
+  DailyDefectTrendChart,
+  DelayHeatmapChart,
+  DeveloperWorkloadChart,
+  DistributionDonutChart,
+  StackedCategoryBarChart,
+  VerticalCategoryBarChart,
+  buildCustomerIssueDailyTrend,
+} from './charts/types';
 import type { CategorySeriesData, DailyDefectTrendData, DelayHeatmapData, DeveloperWorkloadRow, NamedValue } from './charts/chart-data';
 import { formatNumber, sectionPresentation } from './data/presentation';
 import { buildDelayHeatmapData } from './data/system-test-presentation';
+import { sortDeveloperWorkloadRows, sortNamedValues, type BiSortOption, type BiSortOrder } from './data/sorting';
 import type { BiChartDownloadContext, BiCustomerIssueMetric, BiCustomerIssuePageData, BiDataStatus, BiMemberSelection, BiPageResponse } from './data/types';
 
 const route = useRoute();
 const router = useRouter();
 const response = shallowRef<BiPageResponse<BiCustomerIssuePageData> | null>(null);
-const acceptedSignature = ref<string | null>(null);
 const loading = ref(false);
 const loadError = ref('');
-let requestSequence = 0;
 
 const dimensions = ['customer', 'module', 'function'] as const;
 type Dimension = typeof dimensions[number];
@@ -27,39 +38,173 @@ const queryKeys = [
   'milestoneBusinessKey', 'customerKind', 'customer', 'moduleKind', 'module', 'functionKind', 'function',
 ] as const;
 
+type CustomerQuery = BiCustomerIssueQuery & Record<Dimension, BiMemberSelection>;
+interface CustomerFrame { response: BiPageResponse<BiCustomerIssuePageData>; query: CustomerQuery }
+const acceptedPage = useAcceptedPageView<CustomerFrame>({ pageKey: 'bi:customer-issues',
+  load: () => { throw new Error('客户 BI 需要捕获完整查询'); },
+  resolveScope: (frame, scope) => frame.response.data?.selectedMilestoneBusinessKey && !scope.milestoneBusinessKey
+    ? { ...scope, milestoneBusinessKey: frame.response.data.selectedMilestoneBusinessKey } : scope,
+});
+acceptedPage.start();
+watch(acceptedPage.accepted, (frame, previous) => {
+  if (frame && frame.data === previous?.data) return;
+  response.value = frame?.data.response ?? null;
+}, { flush: 'sync' });
+provide(biPageDownloadKey, { run: (reader, commit) => acceptedPage.readAccepted((_frame, read) => reader(read), result => commit(result)) });
+const acceptedQuery = computed(() => acceptedPage.accepted.value?.data.query ?? parsedQuery.value.query);
 const routeSignature = computed(() => JSON.stringify(queryKeys.map((key) => route.query[key])));
 const parsedQuery = computed(() => parseRouteQuery(route.query));
-const responseForRoute = computed(() => acceptedSignature.value === routeSignature.value ? response.value : null);
+const responseForRoute = computed(() => response.value);
 const currentData = computed(() => responseForRoute.value?.data ?? null);
 const pageFailure = computed(() => {
   const current = responseForRoute.value;
   if (current?.status !== 'ERROR') return '';
   return current.sections.find((section) => section.key === 'page')?.message || '客户问题 BI 加载失败，请稍后重试';
 });
-const candidatesReady = computed(() => Boolean(currentData.value) && !loading.value && !parsedQuery.value.error);
+const candidatesReady = computed(() => Boolean(currentData.value));
 const milestoneSelection = computed(() => currentData.value?.selectedMilestoneBusinessKey
   ?? parsedQuery.value.query?.milestoneBusinessKey
   ?? '');
 
 const defectMetrics = computed(() => currentData.value?.defectMetrics ?? []);
 const requirementMetrics = computed(() => currentData.value?.requirementMetrics ?? []);
-const defectMetricItems = computed(() => defectMetrics.value.map(metricItem));
 const requirementMetricItems = computed(() => requirementMetrics.value.map(metricItem));
 
-const moduleDefectChart = new StackedCategoryBarChart({ yAxisName: '缺陷数 (个)' });
+/**
+ * 缺陷指标按稳定 key 归组展示。
+ *
+ * 分组只依据 key，不依据数组位置；后端增删或重排指标都不会让卡片跨组错位。
+ * key 集合与后端 BiCustomerIssueCalculator 的十七项契约由 CustomerIssueDashboardView.test.ts 锁定。
+ */
+const DEFECT_METRIC_GROUPS: Array<{ key: string; label: string; metricKeys: string[] }> = [
+  {
+    key: 'defect-overview',
+    label: '缺陷概览',
+    metricKeys: [
+      'defect_total', 'defect_fixed', 'defect_unfixed', 'defect_applied_delay',
+      'defect_data_exception', 'defect_not_reproduced',
+    ],
+  },
+  {
+    key: 'defect-fix-rates',
+    label: '修复率（普通与校准后并列）',
+    metricKeys: [
+      'defect_fix_rate', 'defect_calibrated_fix_rate', 'level1_fix_rate',
+      'p1_fix_rate', 'p1_calibrated_fix_rate', 'p2_fix_rate', 'p2_calibrated_fix_rate',
+    ],
+  },
+  {
+    key: 'defect-activity',
+    label: '今日与本周活动',
+    metricKeys: ['today_new', 'today_resolved', 'week_new', 'week_resolved'],
+  },
+];
+
+const defectMetricGroups = computed(() => DEFECT_METRIC_GROUPS.map((group) => ({
+  key: group.key,
+  label: group.label,
+  items: group.metricKeys
+    .map((key) => defectMetrics.value.find((metric) => metric.key === key))
+    .filter((metric): metric is BiCustomerIssueMetric => metric !== undefined)
+    .map(metricItem),
+})).filter((group) => group.items.length > 0));
+
+// 客户页高基数分类图统一横向条形：分类沿纵轴、最大值在上，视图纵向浏览；导出仍为完整数据。
+const moduleDefectChart = new StackedCategoryBarChart({
+  yAxisName: '缺陷数 (个)',
+  orientation: 'horizontal-bars',
+  visibleCategories: 10,
+});
 const distributionChart = new DistributionDonutChart();
-const moduleSeverityChart = new StackedCategoryBarChart({ yAxisName: '缺陷数 (个)' });
+const moduleSeverityChart = new StackedCategoryBarChart({
+  yAxisName: '缺陷数 (个)',
+  orientation: 'horizontal-bars',
+  visibleCategories: 8,
+});
 const causeChart = new VerticalCategoryBarChart({
   nameHeader: '缺陷原因',
   valueHeader: '缺陷数 (个)',
 });
 const delayChart = new DelayHeatmapChart();
-const workloadChart = new DeveloperWorkloadChart();
-const demandChart = new StackedCategoryBarChart({ yAxisName: '需求数 (个)' });
+const workloadChart = new DeveloperWorkloadChart({
+  orientation: 'horizontal-bars',
+  visibleCategories: 10,
+});
+const demandChart = new StackedCategoryBarChart({
+  yAxisName: '需求数 (个)',
+  orientation: 'horizontal-bars',
+  visibleCategories: 10,
+});
 const dailyChart = new DailyDefectTrendChart();
 
+// 各图表排序状态
+const moduleDefectSort = ref('total');
+const moduleDefectSortOrder = ref<BiSortOrder>('desc');
+const moduleDefectSortOptions: BiSortOption[] = [
+  { label: '缺陷总数', value: 'total' },
+  { label: '未修复数', value: 'unfixed' },
+  { label: '已修复数', value: 'fixed' },
+  { label: '模块名称', value: 'name' },
+];
+
+const severitySort = ref('count');
+const severitySortOrder = ref<BiSortOrder>('desc');
+const severitySortOptions: BiSortOption[] = [
+  { label: '数量排序', value: 'count' },
+  { label: '名称排序', value: 'name' },
+];
+
+const moduleSeveritySort = ref('total');
+const moduleSeveritySortOrder = ref<BiSortOrder>('desc');
+const moduleSeveritySortOptions: BiSortOption[] = [
+  { label: '缺陷总数', value: 'total' },
+  { label: '模块名称', value: 'name' },
+];
+
+const causeSort = ref('count');
+const causeSortOrder = ref<BiSortOrder>('desc');
+const causeSortOptions: BiSortOption[] = [
+  { label: '数量排序', value: 'count' },
+  { label: '名称排序', value: 'name' },
+];
+
+const assigneeSort = ref('open');
+const assigneeSortOrder = ref<BiSortOrder>('desc');
+const assigneeSortOptions: BiSortOption[] = [
+  { label: '待修复数', value: 'open' },
+  { label: '缺陷总数', value: 'total' },
+  { label: '已修复数', value: 'fixed' },
+  { label: '修复率', value: 'rate' },
+  { label: '人员姓名', value: 'name' },
+];
+
+const moduleDemandSort = ref('total');
+const moduleDemandSortOrder = ref<BiSortOrder>('desc');
+const moduleDemandSortOptions: BiSortOption[] = [
+  { label: '需求总数', value: 'total' },
+  { label: '未解决数', value: 'unresolved' },
+  { label: '已解决数', value: 'resolved' },
+  { label: '模块名称', value: 'name' },
+];
+
 const moduleDefects = computed<CategorySeriesData>(() => {
-  const rows = currentData.value?.moduleDefects ?? [];
+  const rows = (currentData.value?.moduleDefects ?? []).slice();
+  rows.sort((a, b) => {
+    if (moduleDefectSort.value === 'name') {
+      const cmp = a.module.localeCompare(b.module, 'zh-CN');
+      return moduleDefectSortOrder.value === 'asc' ? cmp : -cmp;
+    }
+    if (moduleDefectSort.value === 'unfixed') {
+      const cmp = a.unfixedCount - b.unfixedCount;
+      return moduleDefectSortOrder.value === 'asc' ? cmp : -cmp;
+    }
+    if (moduleDefectSort.value === 'fixed') {
+      const cmp = a.fixedCount - b.fixedCount;
+      return moduleDefectSortOrder.value === 'asc' ? cmp : -cmp;
+    }
+    const cmp = a.totalCount - b.totalCount;
+    return moduleDefectSortOrder.value === 'asc' ? cmp : -cmp;
+  });
   return {
     categories: rows.map((row) => row.module),
     series: [
@@ -68,11 +213,25 @@ const moduleDefects = computed<CategorySeriesData>(() => {
     ],
   };
 });
-const severityDistribution = computed<NamedValue[]>(() => (currentData.value?.severityDistribution ?? [])
-  .map((row) => ({ name: row.severity, value: row.count })));
+const severityDistribution = computed<NamedValue[]>(() => {
+  const rows = (currentData.value?.severityDistribution ?? []).map((row) => ({ name: row.severity, value: row.count }));
+  return sortNamedValues(rows, severitySort.value, severitySortOrder.value);
+});
 const moduleSeverity = computed<CategorySeriesData>(() => {
   const rows = currentData.value?.moduleSeverity ?? [];
+  const moduleTotals = new Map<string, number>();
+  for (const row of rows) {
+    moduleTotals.set(row.module, (moduleTotals.get(row.module) ?? 0) + row.count);
+  }
   const categories = [...new Set(rows.map((row) => row.module))];
+  categories.sort((a, b) => {
+    if (moduleSeveritySort.value === 'name') {
+      const cmp = a.localeCompare(b, 'zh-CN');
+      return moduleSeveritySortOrder.value === 'asc' ? cmp : -cmp;
+    }
+    const cmp = (moduleTotals.get(a) ?? 0) - (moduleTotals.get(b) ?? 0);
+    return moduleSeveritySortOrder.value === 'asc' ? cmp : -cmp;
+  });
   const severities = [...new Set(rows.map((row) => row.severity))];
   return {
     categories,
@@ -84,7 +243,7 @@ const moduleSeverity = computed<CategorySeriesData>(() => {
 });
 const causeDistribution = computed<NamedValue[]>(() => {
   const data = currentData.value;
-  const values = (data?.causeDistribution ?? []).map((row) => ({
+  const values: NamedValue[] = (data?.causeDistribution ?? []).map((row) => ({
     name: `${row.groupName} · ${row.causeName}`,
     value: row.count,
     category: row.groupName,
@@ -92,17 +251,36 @@ const causeDistribution = computed<NamedValue[]>(() => {
   if (data && data.unclassifiedCauseCount > 0) {
     values.push({ name: '未归类', value: data.unclassifiedCauseCount, category: '未归类' });
   }
-  return values;
+  return sortNamedValues(values, causeSort.value, causeSortOrder.value);
 });
 const delayAnalysis = computed<DelayHeatmapData>(() => buildDelayHeatmapData(currentData.value?.delayAnalysis ?? []));
-const assigneeWorkload = computed<DeveloperWorkloadRow[]>(() => (currentData.value?.assigneeWorkload ?? []).map((row) => ({
-  name: row.assignee,
-  total: row.totalCount,
-  open: row.unfixedCount,
-  fixed: row.fixedCount,
-})));
+const assigneeWorkload = computed<DeveloperWorkloadRow[]>(() => {
+  const rows = (currentData.value?.assigneeWorkload ?? []).map((row) => ({
+    name: row.assignee,
+    total: row.totalCount,
+    open: row.unfixedCount,
+    fixed: row.fixedCount,
+  }));
+  return sortDeveloperWorkloadRows(rows, assigneeSort.value, assigneeSortOrder.value);
+});
 const moduleDemand = computed<CategorySeriesData>(() => {
-  const rows = currentData.value?.moduleDemand ?? [];
+  const rows = (currentData.value?.moduleDemand ?? []).slice();
+  rows.sort((a, b) => {
+    if (moduleDemandSort.value === 'name') {
+      const cmp = a.module.localeCompare(b.module, 'zh-CN');
+      return moduleDemandSortOrder.value === 'asc' ? cmp : -cmp;
+    }
+    if (moduleDemandSort.value === 'unresolved') {
+      const cmp = a.unresolvedCount - b.unresolvedCount;
+      return moduleDemandSortOrder.value === 'asc' ? cmp : -cmp;
+    }
+    if (moduleDemandSort.value === 'resolved') {
+      const cmp = a.resolvedCount - b.resolvedCount;
+      return moduleDemandSortOrder.value === 'asc' ? cmp : -cmp;
+    }
+    const cmp = a.totalCount - b.totalCount;
+    return moduleDemandSortOrder.value === 'asc' ? cmp : -cmp;
+  });
   return {
     categories: rows.map((row) => row.module),
     series: [
@@ -112,49 +290,52 @@ const moduleDemand = computed<CategorySeriesData>(() => {
   };
 });
 const dailyTrend = computed<DailyDefectTrendData>(() => {
-  const rows = currentData.value?.dailyTrend ?? [];
-  return {
-    dates: rows.map((row) => row.date),
-    createdCounts: rows.map((row) => row.createdCount),
-    fixedCounts: rows.map((row) => row.fixedCount),
-  };
+  return buildCustomerIssueDailyTrend(currentData.value?.dailyTrend ?? []);
 });
 
-function loadCurrentRoute(): void {
-  const sequence = ++requestSequence;
-  const signature = routeSignature.value;
-  acceptedSignature.value = null;
-  loadError.value = '';
+let loadSequence = 0;
+async function loadCurrentRoute(): Promise<void> {
+  const ticket = ++loadSequence;
   const parsed = parsedQuery.value;
-  if (parsed.error || !parsed.query) {
-    loading.value = false;
-    response.value = null;
-    return;
-  }
+  if (parsed.error || !parsed.query) { acceptedPage.cancelPreparation(); loadError.value = parsed.error; return; }
+  const requested = Object.freeze({ ...parsed.query });
   loading.value = true;
-  void biDashboardApi.loadCustomerIssues(parsed.query)
-    .then((nextResponse) => {
-      if (sequence !== requestSequence) return;
-      response.value = nextResponse;
-      acceptedSignature.value = signature;
-    })
-    .catch((error: unknown) => {
-      if (sequence !== requestSequence) return;
-      loadError.value = getErrorMessage(error, '客户问题 BI 加载失败');
-    })
-    .finally(() => {
-      if (sequence === requestSequence) loading.value = false;
+  try {
+    const scope = requested.milestoneBusinessKey ? { milestoneBusinessKey: requested.milestoneBusinessKey } : {};
+    const loaded = await acceptedPage.prepare(scope, async (fixedScope, read) => {
+      const query = { ...requested, ...(fixedScope.milestoneBusinessKey ? { milestoneBusinessKey: fixedScope.milestoneBusinessKey } : {}) };
+      const nextResponse = await biDashboardApi.loadCustomerIssues(query, read);
+      if (nextResponse.status === 'ERROR') throw new Error(nextResponse.sections.find(section => section.key === 'page')?.message || '客户问题 BI 加载失败');
+      return { response: nextResponse, query };
     });
+    if (ticket !== loadSequence) return;
+    if (!loaded) {
+      const lastErr = acceptedPage.lastError.value;
+      if (lastErr instanceof HttpRequestError && lastErr.status === 404) {
+        const directResponse = await biDashboardApi.loadCustomerIssues(requested);
+        if (ticket !== loadSequence) return;
+        if (directResponse.status === 'ERROR') {
+          throw new Error(directResponse.sections.find(section => section.key === 'page')?.message || '客户问题 BI 加载失败');
+        }
+        response.value = directResponse;
+        loadError.value = '';
+        return;
+      }
+      throw acceptedPage.lastError.value ?? new Error('客户 BI 页面准备已取消');
+    }
+    loadError.value = '';
+  } catch (error) { if (ticket !== loadSequence) return; loadError.value = getErrorMessage(error, '客户 BI 更新失败，已保留当前完整数据'); }
+  finally {
+    if (ticket === loadSequence) { loading.value = false;
+    }
+  }
 }
 
-watch(routeSignature, loadCurrentRoute, { immediate: true });
-onBeforeUnmount(() => {
-  requestSequence++;
-  loading.value = false;
-});
+watch(routeSignature, () => void loadCurrentRoute(), { immediate: true });
+onBeforeUnmount(() => acceptedPage.dispose());
 
 function optionsFor(dimension: Dimension): Array<{ token: string; label: string }> {
-  const currentSelection = parsedQuery.value.query?.[dimension] ?? { kind: 'ALL' as const };
+  const currentSelection = acceptedQuery.value?.[dimension] ?? { kind: 'ALL' as const };
   const allLabel = `全部${labels[dimension]}`;
   if (candidatesReady.value && currentData.value) {
     return [
@@ -177,7 +358,7 @@ function optionsFor(dimension: Dimension): Array<{ token: string; label: string 
 }
 
 function selectedToken(dimension: Dimension): string {
-  const selection = parsedQuery.value.query?.[dimension] ?? { kind: 'ALL' as const };
+  const selection = acceptedQuery.value?.[dimension] ?? { kind: 'ALL' as const };
   return memberToken(selection.kind, selection.kind === 'VALUE' ? selection.value : null);
 }
 
@@ -217,13 +398,13 @@ async function resetInvalidRoute(): Promise<void> {
 }
 
 function refresh(): void {
-  loadCurrentRoute();
+  void loadCurrentRoute();
 }
 
 function chartContext(chartInstanceId: string): BiChartDownloadContext {
   const page = responseForRoute.value;
   const data = currentData.value;
-  const filters = parsedQuery.value.query;
+  const filters = acceptedQuery.value;
   if (!page || !data || !filters) {
     throw new Error('客户问题下载上下文尚未就绪');
   }
@@ -336,6 +517,7 @@ function sectionStatus(key: string) {
 
 <template>
   <main class="bi-dashboard bi-customer-issues" data-bottom-scroll-safe="true">
+    <StatisticBoardFreshnessBanner v-bind="acceptedPage.accepted.value?.metadata" />
     <header class="bi-page-head">
       <div class="bi-page-heading">
         <h1>客户问题</h1>
@@ -344,8 +526,8 @@ function sectionStatus(key: string) {
         <el-select
           class="bi-milestone-select"
           :model-value="milestoneSelection"
-          :loading="loading"
-          :disabled="!candidatesReady"
+          :loading="loading && !responseForRoute"
+          :disabled="!candidatesReady || loading"
           filterable
           placeholder="客户里程碑"
           aria-label="客户里程碑范围"
@@ -363,8 +545,8 @@ function sectionStatus(key: string) {
           :key="dimension"
           class="bi-dimension-select"
           :model-value="selectedToken(dimension)"
-          :loading="loading"
-          :disabled="!candidatesReady"
+          :loading="loading && !responseForRoute"
+          :disabled="!candidatesReady || loading"
           filterable
           :placeholder="labels[dimension]"
           :aria-label="`${labels[dimension]}筛选`"
@@ -396,10 +578,10 @@ function sectionStatus(key: string) {
       </template>
     </el-alert>
 
-    <div v-else-if="loading && !responseForRoute" class="bi-page-loading" v-loading="true" aria-label="正在加载客户问题数据" />
+    <div v-if="loading && !responseForRoute" class="bi-page-loading" v-loading="true" aria-label="正在加载客户问题数据" />
 
     <el-result
-      v-else-if="!responseForRoute || !currentData"
+      v-else-if="(!responseForRoute || !currentData) && !failureMessage"
       class="bi-page-failure"
       :icon="pageStatus === 'ERROR' ? 'error' : 'warning'"
       :title="pageStatusLabel"
@@ -410,15 +592,17 @@ function sectionStatus(key: string) {
       </template>
     </el-result>
 
-    <template v-else>
+    <template v-else-if="responseForRoute && currentData">
       <section class="bi-stage-stack">
         <div class="bi-section-header">
           <span class="bi-section-indicator bi-section-indicator--defect"></span>
           <h2 class="bi-section-title">缺陷指标</h2>
           <span class="bi-section-badge">常规缺陷及修复质量</span>
         </div>
-        <BiMetricStrip v-if="defectMetricItems.length" variant="quality" :items="defectMetricItems.slice(0, 5)" />
-        <BiMetricStrip v-if="defectMetricItems.length > 5" variant="quality" :items="defectMetricItems.slice(5)" />
+        <div v-for="group in defectMetricGroups" :key="group.key" class="bi-metric-group" :data-metric-group="group.key">
+          <h3 class="bi-metric-group__title">{{ group.label }}</h3>
+          <BiMetricStrip variant="quality" :items="group.items" />
+        </div>
 
         <div class="bi-charts-grid">
           <BiChartPanel
@@ -431,6 +615,9 @@ function sectionStatus(key: string) {
             :status="sectionStatus('module-defects').status"
             :status-message="sectionStatus('module-defects').message"
             :download-context="chartContext('customer-issue-module-defects')"
+            v-model:sort="moduleDefectSort"
+            v-model:order="moduleDefectSortOrder"
+            :sort-options="moduleDefectSortOptions"
           />
           <BiChartPanel
             title="缺陷严重级别分布"
@@ -443,6 +630,9 @@ function sectionStatus(key: string) {
             :status="sectionStatus('severity-distribution').status"
             :status-message="sectionStatus('severity-distribution').message"
             :download-context="chartContext('customer-issue-severity-distribution')"
+            v-model:sort="severitySort"
+            v-model:order="severitySortOrder"
+            :sort-options="severitySortOptions"
           />
           <BiChartPanel
             title="模块与缺陷严重级别"
@@ -455,6 +645,9 @@ function sectionStatus(key: string) {
             :status="sectionStatus('module-severity').status"
             :status-message="sectionStatus('module-severity').message"
             :download-context="chartContext('customer-issue-module-severity')"
+            v-model:sort="moduleSeveritySort"
+            v-model:order="moduleSeveritySortOrder"
+            :sort-options="moduleSeveritySortOptions"
           />
           <BiChartPanel
             title="缺陷原因分布"
@@ -466,6 +659,9 @@ function sectionStatus(key: string) {
             :status="sectionStatus('cause-distribution').status"
             :status-message="sectionStatus('cause-distribution').message"
             :download-context="chartContext('customer-issue-cause-distribution')"
+            v-model:sort="causeSort"
+            v-model:order="causeSortOrder"
+            :sort-options="causeSortOptions"
           />
           <BiChartPanel
             title="申请延期分析"
@@ -490,11 +686,14 @@ function sectionStatus(key: string) {
             :status="sectionStatus('assignee-workload').status"
             :status-message="sectionStatus('assignee-workload').message"
             :download-context="chartContext('customer-issue-assignee-workload')"
+            v-model:sort="assigneeSort"
+            v-model:order="assigneeSortOrder"
+            :sort-options="assigneeSortOptions"
           />
           <BiChartPanel
-            title="缺陷日增与日修复"
-            subtitle="按当前筛选范围回看自然日，单位：个"
-            description="按自然日回看客户缺陷趋势：日新增按议题创建日统计，日修复按完成修复加标日统计。可直观对比缺陷解决速度与新增速度。"
+            title="缺陷累计新增与累计修复"
+            subtitle="按当前筛选范围回看自然日并逐日累加，单位：个"
+            description="累计新增按议题创建日累加，累计修复按完成修复加标日累加；同一来源版本内序列非下降。按当前事实回看，撤销或重新修复会改变历史累计值，本图不代表历史事件流水。"
             :chart="dailyChart"
             :data="dailyTrend"
             :height="430"
@@ -532,6 +731,9 @@ function sectionStatus(key: string) {
             :status="sectionStatus('module-requirements').status"
             :status-message="sectionStatus('module-requirements').message"
             :download-context="chartContext('customer-issue-module-demand')"
+            v-model:sort="moduleDemandSort"
+            v-model:order="moduleDemandSortOrder"
+            :sort-options="moduleDemandSortOptions"
           />
         </div>
       </section>
@@ -635,6 +837,19 @@ function sectionStatus(key: string) {
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 12px;
   align-items: stretch;
+}
+
+.bi-metric-group {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.bi-metric-group__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475467;
 }
 
 @media (max-width: 1280px) {

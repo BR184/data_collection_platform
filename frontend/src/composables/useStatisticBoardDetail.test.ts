@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { useStatisticBoardDetail } from './useStatisticBoardDetail';
+import { useStatisticBoardDetail, type StatisticBoardDetailParams } from './useStatisticBoardDetail';
 import type { StatisticCellData, StatisticDetailResponse, StatisticFilterGroup, StatisticRowData } from '../types/api';
 
 function row(): StatisticRowData {
@@ -44,7 +44,10 @@ function setup() {
   return {
     boardKey: vi.fn(() => 'system-test-defect-summary'),
     getFilterGroup: vi.fn(() => filterGroup),
-    loadDetails: vi.fn(() => Promise.resolve(detail())),
+    loadResponse: vi.fn<(key: string, params: StatisticBoardDetailParams) => Promise<StatisticDetailResponse>>(() => Promise.resolve(detail())),
+    async loadDetails(key: string, params: StatisticBoardDetailParams, commit: (value: StatisticDetailResponse) => void) {
+      commit(await this.loadResponse(key, params));
+    },
     notifyError: vi.fn(),
     replaceRouteQuery: vi.fn(() => Promise.resolve()),
   };
@@ -142,11 +145,11 @@ describe('useStatisticBoardDetail', () => {
     expect(state.detailPagination.page).toBe(1);
     expect(deps.replaceRouteQuery).toHaveBeenCalledWith({ detailCollection: 'NUMERATOR', detailPage: 1 });
     // 明细重取由路由监听触发（与分页/排序同一路径），集合切换不自行发第二次请求。
-    expect(deps.loadDetails).not.toHaveBeenCalled();
+    expect(deps.loadResponse).not.toHaveBeenCalled();
 
     await state.loadDetail();
 
-    expect(deps.loadDetails).toHaveBeenCalledWith('system-test-defect-summary', {
+    expect(deps.loadResponse).toHaveBeenCalledWith('system-test-defect-summary', {
       rowKey: 'module-a',
       columnKey: 'defects',
       page: 1,
@@ -174,7 +177,7 @@ describe('useStatisticBoardDetail', () => {
     );
 
     expect(state.detailCollection.value).toBe('DENOMINATOR');
-    expect(deps.loadDetails).toHaveBeenCalledWith(
+    expect(deps.loadResponse).toHaveBeenCalledWith(
       'system-test-defect-summary',
       expect.objectContaining({ filters: expect.objectContaining({ population: 'DENOMINATOR' }) }),
     );
@@ -182,7 +185,7 @@ describe('useStatisticBoardDetail', () => {
 
   it('surfaces the collection list returned by the backend', async () => {
     const deps = setup();
-    deps.loadDetails = vi.fn(() =>
+    deps.loadResponse = vi.fn(() =>
       Promise.resolve(
         detail({
           collections: [
@@ -226,7 +229,7 @@ describe('useStatisticBoardDetail', () => {
 
     await state.loadDetail();
 
-    expect(deps.loadDetails).toHaveBeenCalledWith('system-test-defect-summary', {
+    expect(deps.loadResponse).toHaveBeenCalledWith('system-test-defect-summary', {
       rowKey: 'module-a',
       columnKey: 'defects',
       page: 3,
@@ -283,7 +286,7 @@ describe('useStatisticBoardDetail', () => {
     expect(state.activeCell.value?.columnKey).toBe('defects');
     expect(state.detailPagination.page).toBe(2);
     expect(state.detailPagination.size).toBe(20);
-    expect(deps.loadDetails).toHaveBeenCalledTimes(1);
+    expect(deps.loadResponse).toHaveBeenCalledTimes(1);
 
     await state.syncFromRoute({}, [currentRow], 10);
 
@@ -297,7 +300,7 @@ describe('useStatisticBoardDetail', () => {
     const { deps, state } = openDetailState();
     const older = deferred<StatisticDetailResponse>();
     const newer = deferred<StatisticDetailResponse>();
-    deps.loadDetails = vi
+    deps.loadResponse = vi
       .fn()
       .mockReturnValueOnce(older.promise)
       .mockReturnValueOnce(newer.promise);
@@ -323,7 +326,7 @@ describe('useStatisticBoardDetail', () => {
     const { deps, state } = openDetailState();
     const older = deferred<StatisticDetailResponse>();
     const newer = deferred<StatisticDetailResponse>();
-    deps.loadDetails = vi
+    deps.loadResponse = vi
       .fn()
       .mockReturnValueOnce(older.promise)
       .mockReturnValueOnce(newer.promise);
@@ -347,7 +350,7 @@ describe('useStatisticBoardDetail', () => {
     const { deps, state } = openDetailState();
     const first = deferred<StatisticDetailResponse>();
     const second = deferred<StatisticDetailResponse>();
-    deps.loadDetails = vi
+    deps.loadResponse = vi
       .fn()
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise);
@@ -367,7 +370,7 @@ describe('useStatisticBoardDetail', () => {
   it('drops responses that arrive after the detail was closed', async () => {
     const { deps, state } = openDetailState();
     const pending = deferred<StatisticDetailResponse>();
-    deps.loadDetails = vi.fn(() => pending.promise);
+    deps.loadResponse = vi.fn(() => pending.promise);
 
     const load = state.loadDetail();
     state.handleDetailVisibleChange(false);
@@ -382,7 +385,7 @@ describe('useStatisticBoardDetail', () => {
   it('drops a failure that arrives after the detail was closed', async () => {
     const { deps, state } = openDetailState();
     const pending = deferred<StatisticDetailResponse>();
-    deps.loadDetails = vi.fn(() => pending.promise);
+    deps.loadResponse = vi.fn(() => pending.promise);
 
     const load = state.loadDetail();
     state.handleDetailVisibleChange(false);
@@ -398,14 +401,14 @@ describe('useStatisticBoardDetail', () => {
 
     // 已在第一页时路由不会变化，必须由自己发起请求，且只发一次。
     state.handleDetailQuickFilterChange('bugStatus', '处理中');
-    expect(deps.loadDetails).toHaveBeenCalledTimes(1);
+    expect(deps.loadResponse).toHaveBeenCalledTimes(1);
     expect(deps.replaceRouteQuery).not.toHaveBeenCalled();
 
     // 不在第一页时只改路由、由路由监听统一重取，不得在此再发一次请求。
     state.detailPagination.page = 3;
     state.handleDetailQuickFilterChange('bugStatus', '已修复');
 
-    expect(deps.loadDetails).toHaveBeenCalledTimes(1);
+    expect(deps.loadResponse).toHaveBeenCalledTimes(1);
     expect(deps.replaceRouteQuery).toHaveBeenCalledWith({ detailPage: 1 });
   });
 
@@ -413,12 +416,12 @@ describe('useStatisticBoardDetail', () => {
     const { deps, state } = openDetailState();
     state.detailPagination.page = 1;
     state.handleDetailQuickFilterChange('bugStatus', '处理中');
-    expect(deps.loadDetails).toHaveBeenCalledTimes(1);
+    expect(deps.loadResponse).toHaveBeenCalledTimes(1);
 
     await state.resetDetailQuickFilters();
 
     expect(state.detailQuickFilterValues).toEqual({});
-    expect(deps.loadDetails).toHaveBeenCalledTimes(2);
+    expect(deps.loadResponse).toHaveBeenCalledTimes(2);
   });
 
   it('sends the quick filter value with the detail request', async () => {
@@ -427,7 +430,7 @@ describe('useStatisticBoardDetail', () => {
 
     state.handleDetailQuickFilterChange('bugStatus', '处理中');
 
-    expect(deps.loadDetails).toHaveBeenLastCalledWith(
+    expect(deps.loadResponse).toHaveBeenLastCalledWith(
       'system-test-defect-summary',
       expect.objectContaining({ filters: expect.objectContaining({ bugStatus: '处理中' }) }),
     );

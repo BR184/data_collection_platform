@@ -14,10 +14,15 @@ vi.mock('../components/charts/EChartPanel.vue', () => ({
   }),
 }));
 
+const metadata = { readContextId: '11111111-1111-4111-8111-111111111111', pageKey: 'system-test-multi',
+  scopeKey: 'fixed', sourceVersion: 'published', businessDate: '2026-10-13',
+  dataAsOf: '2026-10-13T00:00:00Z', leaseExpiresAt: '2099-01-01T00:00:00Z',
+  pendingUpdates: 0, sourceState: 'CURRENT', escalated: false };
+
 function jsonResponse(data: unknown) {
   return Promise.resolve({
     ok: true,
-    text: () => Promise.resolve(JSON.stringify({ success: true, data })),
+    text: () => Promise.resolve(JSON.stringify({ success: true, data, readView: metadata })),
   } as Response);
 }
 
@@ -156,6 +161,7 @@ describe('SystemTestMultiBoardView mount smoke', () => {
 
   it('loads project options and renders the dashboard shell', async () => {
     const fetchSpy = vi.fn((url: string) => {
+      if (url.startsWith('/api/read-views')) return jsonResponse(metadata);
       if (url.includes('/api/question-metrics/multi-board')) {
         return jsonResponse(createMultiBoard());
       }

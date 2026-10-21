@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useAcceptedPageView } from '../composables/useAcceptedPageView';
+import StatisticBoardFreshnessBanner from '../components/StatisticBoardFreshnessBanner.vue';
+import { buildFilterGroupFromRouteQuery } from '../components/statistic-board-route-query';
+import { sanitizeFilterDraftGroup } from '../components/statistic-board-filters';
+import { ApiBizError, HttpRequestError } from '../api-client/request';
 import type { LocationQuery } from 'vue-router';
 // 评审数据页是记录、问题项、详情抽屉和导出的组合入口。
 // 复杂状态拆到 review-data composable 中，本页只编排跨区块刷新和用户动作。
@@ -19,7 +24,7 @@ import { reviewDataRuleExplanationContent } from './review-data/review-data-rule
 import { useReviewDataExport } from './review-data/useReviewDataExport';
 import { useReviewDataDetail } from './review-data/useReviewDataDetail';
 import { useReviewDataPageActions } from './review-data/useReviewDataPageActions';
-import { useReviewDataRecords } from './review-data/useReviewDataRecords';
+import { useReviewDataRecords, createEmptyReviewDataFilterOptions } from './review-data/useReviewDataRecords';
 import { useReviewDataRouteController } from './review-data/useReviewDataRouteController';
 import { useReviewProblemItemDialog } from './review-data/useReviewProblemItemDialog';
 import { useReviewProblemItems } from './review-data/useReviewProblemItems';
@@ -29,7 +34,7 @@ import { authState } from '../composables/auth-state';
 import { hasPermission } from '../feature-manifest';
 import { downloadBlob } from '../utils/csv-download';
 import { getErrorMessage } from '../utils/user-message';
-import type { ReviewDataRecordRowResponse } from '../types/api';
+import type { ReviewDataRecordRowResponse, ReviewDataRecordDetailResponse, ReviewDataRecordListResponse, ReviewDataFilterOptionsResponse, ReviewDataProblemItemResponse } from '../types/api';
 import type {
   RecordTableActiveFilterTag,
   RecordTableFilterField,
@@ -64,16 +69,26 @@ const {
   filterOptions,
   summaryCards,
   tableRows,
-  fetchFilterOptions,
-  fetchRows: fetchReviewRows,
   commitFilterOptions,
   commitRows,
   clearRows,
-} = useReviewDataRecords({
-  fetchFilterOptions: () => api.getReviewDataFilterOptions(),
-  fetchRecords: (params) => api.getReviewDataRecords(params),
-});
-let filterOptionsRequestId = 0;
+} = useReviewDataRecords();
+interface ReviewFrame {
+  response: ReviewDataRecordListResponse;
+  options: ReviewDataFilterOptionsResponse;
+  query: LocationQuery;
+  request: ReturnType<typeof buildReviewDataRecordQueryParams>;
+  detail: ReviewDataRecordDetailResponse | null;
+  problemRecord: ReviewDataRecordRowResponse | null;
+  problemItems: ReviewDataProblemItemResponse[];
+}
+const acceptedPage = useAcceptedPageView<ReviewFrame>({ pageKey: 'review-data-records',
+  load: () => { throw new Error('评审页需要捕获完整查询后准备'); } });
+const pageLoadError = ref('');
+const readMetadata = computed(() => acceptedPage.accepted.value?.metadata);
+const acceptedQuery = computed(() => acceptedPage.accepted.value?.data.query ?? route.query);
+acceptedPage.start();
+onBeforeUnmount(acceptedPage.dispose);
 
 const {
   problemDialogVisible: problemListDialogVisible,
@@ -85,7 +100,9 @@ const {
   closeProblemList,
   problemItemsFor,
   isProblemListOpenFor,
-} = useReviewProblemItems((recordId) => api.getReviewDataProblemItems(recordId));
+} = useReviewProblemItems(async (recordId, commit) => {
+  await acceptedPage.readAccepted((_frame, read) => api.getReviewDataProblemItems(recordId, read), commit);
+});
 
 const {
   detailVisible,
@@ -93,7 +110,9 @@ const {
   openDetail,
   refreshDetailIfOpen,
 } = useReviewDataDetail({
-  loadRecordDetail: (recordId) => api.getReviewDataRecordDetail(recordId),
+  loadRecordDetail: async (recordId, commit) => {
+    await acceptedPage.readAccepted((_frame, read) => api.getReviewDataRecordDetail(recordId, read), commit);
+  },
   notifyError: (message) => ElMessage.error(message),
 });
 
@@ -121,7 +140,7 @@ const {
   openEditRecord,
   submitRecord,
 } = useReviewRecordDialog({
-  loadRecordDetail: (recordId) => api.getReviewDataRecordDetail(recordId),
+  loadRecordDetail: (recordId) => acceptedPage.readAccepted((_frame, read) => api.getReviewDataRecordDetail(recordId, read)),
   createRecord: (payload) => api.createReviewDataRecord(payload),
   updateRecord: (recordId, payload) => api.updateReviewDataRecord(recordId, payload),
   refreshRecords: () => refreshReviewRecords(),
@@ -152,7 +171,7 @@ const {
   openEditProblemItem: handleEditProblemItem,
   submitProblemItem,
 } = useReviewProblemItemDialog({
-  loadRecordDetail: (recordId) => api.getReviewDataRecordDetail(recordId),
+  loadRecordDetail: (recordId) => acceptedPage.readAccepted((_frame, read) => api.getReviewDataRecordDetail(recordId, read)),
   createProblemItem: (recordId, payload) => api.createReviewDataProblemItem(recordId, payload),
   updateProblemItem: (recordId, itemId, payload) => api.updateReviewDataProblemItem(recordId, itemId, payload),
   refreshAfterMutation: (recordId) => refreshAfterProblemItemMutation(recordId),
@@ -168,8 +187,10 @@ const {
   exportProblemDetails: handleExportProblemDetails,
   downloadTemplate: handleDownloadTemplate,
 } = useReviewDataExport({
-  exportReviewRecords: () => api.exportReviewDataRecordsWorkbook(buildReviewDataRecordQueryParams()),
-  exportProblemDetails: () => api.exportReviewDataProblemDetailsWorkbook(buildReviewDataRecordQueryParams()),
+  exportReviewRecords: async commit => { await acceptedPage.readAccepted((frame, read) =>
+    api.exportReviewDataRecordsWorkbook({ ...frame.request, read }), commit); },
+  exportProblemDetails: async commit => { await acceptedPage.readAccepted((frame, read) =>
+    api.exportReviewDataProblemDetailsWorkbook({ ...frame.request, read }), commit); },
   downloadTemplate: () => api.downloadReviewDataTemplateWorkbook(),
   downloadWorkbook: downloadBlob,
   notifySuccess: (message) => ElMessage.success(message),
@@ -349,29 +370,60 @@ const {
   loadRows: () => loadRows(),
 });
 
+watch(acceptedPage.accepted, (frame, previous) => {
+  if (frame && frame.data === previous?.data) return;
+  problemItemsMap.value = {};
+  if (frame) {
+    commitFilterOptions(frame.data.options); commitRows(frame.data.response);
+    syncFilterDraftFromRoute(frame.data.query);
+    if (detailVisible.value) detailData.value = frame.data.detail;
+    if (problemListDialogVisible.value) {
+      activeProblemRecord.value = frame.data.problemRecord;
+      if (frame.data.problemRecord) problemItemsMap.value[frame.data.problemRecord.id] = frame.data.problemItems;
+    }
+  } else {
+    clearRows(); commitFilterOptions(createEmptyReviewDataFilterOptions());
+    detailData.value = null; detailVisible.value = false; closeProblemList();
+  }
+}, { flush: 'sync' });
+
+async function optionalDetail(recordId: number, read: import('../types/api/read-view').ReadViewTransport) {
+  try { return await api.getReviewDataRecordDetail(recordId, read); }
+  catch (error) {
+    if ((error instanceof ApiBizError || error instanceof HttpRequestError) && error.code === 'A0404') return null;
+    throw error;
+  }
+}
+
 bindLoader(async ({ query, isCurrent }) => {
-  const options = await fetchFilterOptions();
-  if (!isCurrent()) return null;
-  syncFilterDraftFromRoute(query as LocationQuery);
-  const response = await fetchReviewRows(buildReviewDataRecordQueryParams({}, query as LocationQuery));
-  return { options, response };
-}, (result) => {
-  if (!result) return;
-  commitFilterOptions(result.options);
-  commitRows(result.response);
-}, (error) => {
-  clearRows();
-  ElMessage.error(getErrorMessage(error, '评审数据加载失败'));
+  if (!isCurrent()) return;
+  const request = { ...buildReviewDataRecordQueryParams({}, query as LocationQuery),
+    sourceInstance: String(query.sourceInstance ?? '') || undefined,
+    filterGroup: sanitizeFilterDraftGroup(buildFilterGroupFromRouteQuery(query as LocationQuery)) };
+  const scope = request.sourceInstance ? { sourceInstance: request.sourceInstance } : {};
+  const loaded = await acceptedPage.prepare(scope, async (_scope, read) => {
+    const openedDetail = detailVisible.value ? detailData.value?.record.id : undefined;
+    const openedProblems = problemListDialogVisible.value ? activeProblemRecord.value?.id : undefined;
+    const [response, options, detail, problemDetail] = await Promise.all([
+      api.getReviewDataRecords({ ...request, read }), api.getReviewDataFilterOptions(read),
+      openedDetail != null ? optionalDetail(openedDetail, read) : Promise.resolve(null),
+      openedProblems != null ? optionalDetail(openedProblems, read) : Promise.resolve(null),
+    ]);
+    return { response, options, request, query: query as LocationQuery, detail,
+      problemRecord: problemDetail?.record ?? null, problemItems: problemDetail?.problemItems ?? [] };
+  });
+  if (!loaded && isCurrent()) throw acceptedPage.lastError.value ?? new Error('页面准备已取消');
+}, () => { pageLoadError.value = ''; }, error => {
+  pageLoadError.value = getErrorMessage(error, acceptedPage.accepted.value
+    ? '评审数据加载失败，已保留当前完整数据' : '尚无完整产出，请检查数据更新状态');
+  ElMessage.error(pageLoadError.value);
 });
 
-async function loadRows() {
-  await reload();
-}
-async function loadFilterOptions() {
-  const requestId = ++filterOptionsRequestId;
-  const options = await fetchFilterOptions();
-  if (requestId === filterOptionsRequestId) commitFilterOptions(options);
-}
+watch(() => `${detailVisible.value ? detailData.value?.record.id : ''}:${problemListDialogVisible.value ? activeProblemRecord.value?.id : ''}`,
+  () => { if (acceptedPage.preparing.value) { acceptedPage.cancelPreparation(); void reload(); } });
+
+async function loadRows() { await reload(); }
+async function loadFilterOptions() { await reload(); }
 
 async function handleClearFilter(key: string) {
   if (key === 'filterGroup') {
@@ -428,8 +480,8 @@ async function handleExportRecordProblemDetails(row: Record<string, unknown>) {
     return;
   }
   try {
-    const blob = await api.exportReviewDataRecordProblemDetailsWorkbook(raw.id);
-    downloadBlob(blob, '问题详情.xlsx');
+    await acceptedPage.readAccepted((_frame, read) => api.exportReviewDataRecordProblemDetailsWorkbook(raw.id, read),
+      blob => downloadBlob(blob, '问题详情.xlsx'));
     ElMessage.success('已导出当前评审的问题详情');
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '评审问题详情导出失败'));
@@ -480,21 +532,25 @@ const {
 
 <template>
   <section class="review-data-page">
-    <section class="review-data-summary">
+    <el-alert v-if="pageLoadError" :title="pageLoadError" type="error" :closable="false" show-icon />
+    <StatisticBoardFreshnessBanner v-if="readMetadata" :data-as-of="readMetadata.dataAsOf"
+      :pending-updates="readMetadata.pendingUpdates" :source-state="readMetadata.sourceState"
+      :source-state-detail="readMetadata.sourceStateDetail" :escalated="readMetadata.escalated" />
+    <section v-if="acceptedPage.accepted.value" class="review-data-summary">
       <article v-for="card in summaryCards" :key="card.key" class="summary-card">
         <span class="summary-card-label">{{ card.label }}</span>
         <strong class="summary-card-value">{{ card.value }}</strong>
       </article>
     </section>
 
-    <BaseRecordTable
+    <BaseRecordTable v-if="acceptedPage.accepted.value || isTableLoading"
       :columns="columns"
       :rows="tableRows"
-      :loading="isTableLoading"
+      :loading="isTableLoading && !acceptedPage.accepted.value"
       :keyword="keyword"
       :keyword-auto-search="true"
-      :page="page"
-      :page-size="pageSize"
+      :page="Number(acceptedQuery.page ?? 1)"
+      :page-size="Number(acceptedQuery.pageSize ?? 20)"
       :total="total"
       :primary-filters="primaryFilters"
       :filter-values="filterValues"
@@ -506,8 +562,8 @@ const {
       :row-actions-width="188"
       :show-refresh="false"
       :settings-scope-key="PAGE_SCOPE_KEY"
-      :sort-by="sortBy"
-      :sort-order="sortOrder"
+      :sort-by="String(acceptedQuery.sortBy ?? 'updatedAt')"
+      :sort-order="String(acceptedQuery.sortOrder ?? 'desc')"
       default-sort-by="updatedAt"
       default-sort-order="desc"
       quick-filter-mode

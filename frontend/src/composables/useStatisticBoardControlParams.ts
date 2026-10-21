@@ -1,4 +1,4 @@
-import { computed, shallowRef, watch, type ComputedRef } from 'vue';
+import { computed, type ComputedRef } from 'vue';
 import type { LocationQuery } from 'vue-router';
 import type {
   StatisticBoardControlOptionGroup,
@@ -14,7 +14,7 @@ import {
   type StatisticBoardMemberControlSpec,
 } from '../feature-manifest/statistic-board-controls';
 import type { PageKey } from '../feature-manifest/types';
-import { getErrorMessage } from '../utils/user-message';
+import type { RecordTableFilterField } from '../types/record-table';
 
 /** 一个成员选择：类型决定语义，取值只对 VALUE 有意义。 */
 export interface MemberSelection {
@@ -96,12 +96,13 @@ export interface StatisticBoardControlParamsDependencies {
   pageKey: () => PageKey | undefined;
   routeQuery: () => LocationQuery;
   replaceRouteQuery: (patch: Record<string, string | number | null | undefined>) => Promise<void>;
-  /** 候选求解入口：由后端在同一窄事实的完整基础范围上计算，请求不携带成员选择。 */
-  loadControlOptions: (request: StatisticBoardControlOptionsRequest) => Promise<StatisticBoardControlOptions>;
-  /** 范围签名：生效范围、来源选择与用户条件；只有它变化才需要重新求解候选。 */
-  scopeSignature: () => string;
-  /** 随候选请求下传的范围参数（生效范围、来源与用户条件；不含成员选择与行维度）。 */
-  controlScopeParams: () => StatisticBoardControlOptionsRequest;
+  /** 主表和候选已由页面准备器同时核验并接受；控制条不自行查询当前来源。 */
+  acceptedFrame: () => {
+    board: StatisticBoardResponse;
+    options: StatisticBoardControlOptions | null;
+    query: LocationQuery;
+  } | null;
+
 }
 
 /** 明细下钻键：切换行维度或成员后旧单元格语义失效，必须一并清理。 */
@@ -127,65 +128,36 @@ type MemberKey = StatisticBoardMemberControlSpec['key'];
  *
  * <p>行维度只是展示维度，与客户/模块/功能筛选相互独立：切换维度保留仍然有效的成员选择，
  * 只清理明细下钻键并回到第一页。
+ *
+ * <p>成员选择是控制参数而非业务条件：它与 `filterGroup` 分属两个命名空间，因此同一维度只有一份
+ * 生效状态。界面把这些成员项并入共用"常用筛选"区（见 `StatisticBoardMemberFilters`），只是归属调整，
+ * 请求语义与统计口径不变。
  */
 export function useStatisticBoardControlParams(deps: StatisticBoardControlParamsDependencies) {
   const spec = computed<StatisticBoardControlSpec | null>(() =>
     getStatisticBoardControlSpec(deps.pageKey()),
   );
-  const controlOptions = shallowRef<StatisticBoardControlOptions | null>(null);
-  const candidateStatus = shallowRef<StatisticBoardControlOptionsStatus | null>(null);
-  const transportFailureReason = shallowRef('');
-  const candidateScopeSignature = shallowRef('');
-  // 行维度列键只能由主表定义定位，与候选无关；这里缓存的是列键而不是成员集合。
-  const dimensionColumnKeyFromResponse = shallowRef<string | null>(null);
-  // 请求序号：快速切换范围时，迟到的候选响应不得覆盖当前状态。
-  let optionsRequestSequence = 0;
-  let activeOptionsRequestId = 0;
-  // 主表最近一次报告的来源代际；候选必须与它同代际，无论两者谁先返回都要核对。
-  const boardSourceVersion = shallowRef('');
-  const pendingCandidate = shallowRef<{
-    options: StatisticBoardControlOptions;
-    scopeSignature: string;
-  } | null>(null);
-  // 已为某个代际重取过一次候选：同一代际不再重复重取，避免来源长期不一致时反复请求。
-  let candidateRetriedVersion = '';
-
+  const controlOptions = computed(() => deps.acceptedFrame()?.options ?? null);
   const activeDimension = computed(() => {
     const current = spec.value;
-    if (!current) {
-      return '';
-    }
-    return String(deps.routeQuery()[current.dimensionParam] ?? '').trim() || current.defaultDimension;
+    return current ? String(deps.acceptedFrame()?.query[current.dimensionParam] ?? '').trim() || current.defaultDimension : '';
   });
-
-  /** 固定列键：维度列固定在左侧，由主表定义的维度列组定位。 */
-  const fixedColumnKeys = computed<string[]>(() =>
-    dimensionColumnKeyFromResponse.value ? [dimensionColumnKeyFromResponse.value] : [],
-  );
-
+  const fixedColumnKeys = computed<string[]>(() => {
+    const groupKey = spec.value?.dimensionGroupKey;
+    const key = deps.acceptedFrame()?.board.definition.columnGroups.find(group => group.key === groupKey)?.columns?.[0]?.key;
+    return key ? [key] : [];
+  });
   const controlOptionsStatus = computed<StatisticBoardControlOptionsStatus | null>(() => {
-    if (!spec.value) {
-      return null;
-    }
-    if (candidateScopeSignature.value !== deps.scopeSignature()) {
-      return 'loading';
-    }
-    if (candidateStatus.value === 'unavailable') {
-      return 'unavailable';
-    }
-    if (
-      candidateStatus.value === 'ready'
-      && boardSourceVersion.value
-      && controlOptions.value?.sourceVersion === boardSourceVersion.value
-    ) {
-      return 'ready';
-    }
-    return 'loading';
+    if (!spec.value) { return null; }
+    if (!controlOptions.value) { return 'loading'; }
+    return controlOptions.value.scopeReadable ? 'ready' : 'unavailable';
   });
+  const acceptedControlOptions = computed(() => controlOptionsStatus.value === 'ready' ? controlOptions.value : null);
 
-  const acceptedControlOptions = computed(() =>
-    controlOptionsStatus.value === 'ready' ? controlOptions.value : null,
-  );
+  /** 界面与请求必须读取同一份选择来源：已接受画面的 query，否则退回当前路由。 */
+  function selectionFor(key: MemberKey): RouteMemberSelection {
+    return routeMemberSelection(key, deps.acceptedFrame()?.query ?? deps.routeQuery());
+  }
 
   const memberControls = computed<StatisticBoardMemberControl[]>(() => {
     const current = spec.value;
@@ -193,7 +165,7 @@ export function useStatisticBoardControlParams(deps: StatisticBoardControlParams
       return [];
     }
     return current.members.map((member) => {
-      const selection = routeMemberSelection(member.key);
+      const selection = selectionFor(member.key);
       return {
         key: member.key,
         label: member.label,
@@ -205,6 +177,73 @@ export function useStatisticBoardControlParams(deps: StatisticBoardControlParams
       };
     });
   });
+
+  /** 同一批成员控制项在"常用筛选"行内的字段形态；取值仍是令牌，变更走控制参数通道。 */
+  const memberQuickFilters = computed<RecordTableFilterField[]>(() => {
+    const current = spec.value;
+    if (!current) {
+      return [];
+    }
+    const controls = memberControls.value;
+    return current.members.map((member) => ({
+      key: member.key,
+      label: member.label,
+      type: 'select',
+      placeholder: `全部${member.label}`,
+      width: 150,
+      clearable: true,
+      options: controls.find((control) => control.key === member.key)?.options ?? [],
+    }));
+  });
+
+  const memberQuickValues = computed<Record<string, unknown>>(() =>
+    Object.fromEntries(memberControls.value.map((control) => [control.key, control.value])));
+
+  /** 候选就绪但后端未返回任何成员：这是"确实没有成员"，不是加载失败。 */
+  const memberCandidatesEmpty = computed(() => {
+    const current = spec.value;
+    if (!current || controlOptionsStatus.value !== 'ready') {
+      return false;
+    }
+    return current.members.every((member) =>
+      memberOptions(findOptionGroup(acceptedControlOptions.value?.groups, member.key), member).length === 0);
+  });
+
+  /** 已生效成员选择的摘要，与服务端文案区分开：缺失用页面缺失文案，精确成员用候选原始名。 */
+  const memberSummaryChips = computed<Array<{ id: string; label: string }>>(() => {
+    const current = spec.value;
+    if (!current) {
+      return [];
+    }
+    return current.members.flatMap((member) => {
+      const selection = selectionFor(member.key);
+      if (!selection.valid || selection.kind === 'ALL') {
+        return [];
+      }
+      const display = selection.kind === 'MISSING'
+        ? member.missingLabel
+        : rawMemberLabel(member.key, selection.value) || selection.value;
+      return [{ id: `member:${member.key}`, label: `${member.label}：${display}` }];
+    });
+  });
+
+  /** 重置一次性清除全部成员控制参数；行维度与范围不参与筛选重置。 */
+  const clearMemberPatch = computed<Record<string, string>>(() => {
+    const current = spec.value;
+    if (!current) {
+      return {};
+    }
+    return Object.fromEntries(
+      current.members.flatMap((member) => [[member.key, ''], [memberKindParam(member.key), '']]),
+    );
+  });
+
+  /** 候选原始展示名；未在候选中时退回成员取值本身。 */
+  function rawMemberLabel(key: MemberKey, value: string): string {
+    const option = findOptionGroup(acceptedControlOptions.value?.groups, key)?.options
+      .find((item) => item.kind !== 'MISSING' && item.value === value);
+    return option?.label || '';
+  }
 
   const memberSelectionError = computed(() => {
     const current = spec.value;
@@ -222,8 +261,7 @@ export function useStatisticBoardControlParams(deps: StatisticBoardControlParams
   });
 
   /** 路由成员选择必须使用完整类型契约；不把非法组合降级为“不限”。 */
-  function routeMemberSelection(key: MemberKey): RouteMemberSelection {
-    const query = deps.routeQuery();
+  function routeMemberSelection(key: MemberKey, query = deps.routeQuery()): RouteMemberSelection {
     const kindParam = memberKindParam(key);
     const rawKindPresent = Object.prototype.hasOwnProperty.call(query, kindParam);
     const rawValuePresent = Object.prototype.hasOwnProperty.call(query, key);
@@ -302,7 +340,7 @@ export function useStatisticBoardControlParams(deps: StatisticBoardControlParams
         value: memberSelectionToken(option.kind === 'MISSING' ? 'MISSING' : 'VALUE', option.value),
         label: option.kind === 'MISSING'
           ? `${member.missingLabel}（成员缺失）`
-          : disambiguatedMemberLabel(option.label || option.value, member),
+          : (option.label || option.value),
       }))
       .sort((left, right) => left.label.localeCompare(right.label, 'zh-Hans-CN'));
   }
@@ -323,7 +361,7 @@ export function useStatisticBoardControlParams(deps: StatisticBoardControlParams
     }
     return {
       value: memberSelectionToken('VALUE', selection.value),
-      label: disambiguatedMemberLabel(selection.value, member),
+      label: rawMemberLabel(member.key, selection.value) || selection.value,
     };
   }
 
@@ -343,7 +381,7 @@ export function useStatisticBoardControlParams(deps: StatisticBoardControlParams
     if (!current) {
       return {};
     }
-    const params: Record<string, string> = { [current.dimensionParam]: activeDimension.value };
+    const params: Record<string, string> = { [current.dimensionParam]: String(deps.routeQuery()[current.dimensionParam] ?? '').trim() || current.defaultDimension };
     for (const member of current.members) {
       const selection = routeMemberSelection(member.key);
       if (!selection.valid) {
@@ -366,205 +404,9 @@ export function useStatisticBoardControlParams(deps: StatisticBoardControlParams
     return params;
   });
 
-  /** 候选不可用时的可读原因：请求失败或后端明确报告范围不可判定。 */
-  const controlOptionsMessage = computed(() => {
-    if (transportFailureReason.value) {
-      return transportFailureReason.value;
-    }
-    if (controlOptionsStatus.value === 'unavailable') {
-      return candidateStatus.value === 'unavailable'
-        ? controlOptions.value?.reason || '当前范围的成员候选暂不可用'
-        : '当前范围尚未获得匹配的成员候选';
-    }
-    return '';
-  });
-
-  /**
-   * 重新求解成员候选。
-   *
-   * <p>只在范围签名变化或手动刷新时调用；成员选择与行维度不参与候选求解，切换它们不触发请求。
-   * 请求失败或来源不可判定时保留原因并维持现有选择，不得把失败渲染成"该范围没有成员"。
-   */
-  async function refreshControlOptions() {
-    const current = spec.value;
-    if (!current) {
-      controlOptions.value = null;
-      candidateStatus.value = null;
-      return;
-    }
-    optionsRequestSequence += 1;
-    const requestId = optionsRequestSequence;
-    const requestScopeSignature = deps.scopeSignature();
-    activeOptionsRequestId = requestId;
-    transportFailureReason.value = '';
-    controlOptions.value = null;
-    pendingCandidate.value = null;
-    candidateScopeSignature.value = requestScopeSignature;
-    candidateStatus.value = 'loading';
-    let next: StatisticBoardControlOptions;
-    try {
-      const scope = deps.controlScopeParams();
-      next = await deps.loadControlOptions({
-        ...scope,
-        filters: { ...(scope.filters ?? {}), [current.dimensionParam]: current.defaultDimension },
-      });
-    } catch (error) {
-      if (requestId !== optionsRequestSequence) {
-        return;
-      }
-      activeOptionsRequestId = 0;
-      if (requestScopeSignature !== deps.scopeSignature()) {
-        return;
-      }
-      controlOptions.value = null;
-      pendingCandidate.value = null;
-      candidateScopeSignature.value = requestScopeSignature;
-      candidateStatus.value = 'unavailable';
-      transportFailureReason.value = getErrorMessage(error, '成员候选加载失败');
-      return;
-    }
-    if (requestId !== optionsRequestSequence) {
-      return;
-    }
-    activeOptionsRequestId = 0;
-    if (requestScopeSignature !== deps.scopeSignature()) {
-      return;
-    }
-    settleCandidate(next, requestScopeSignature);
-  }
-
-  /**
-   * 接受候选响应前核对来源代际。
-   *
-   * <p>主表先返回时，仍在飞行的旧代际候选会晚到：必须丢弃并按当前代际重取一次，不得把过期候选
-   * 当成当前候选（用户会按过期成员集合发起新选择）。同一代际只重取一次；来源长期不一致时明确
-   * 报"不可用"，既不展示过期候选也不无限重试。
-   */
-  function settleCandidate(next: StatisticBoardControlOptions, scopeSignature: string) {
-    candidateScopeSignature.value = scopeSignature;
-    if (!next.scopeReadable) {
-      controlOptions.value = next;
-      pendingCandidate.value = null;
-      candidateStatus.value = 'unavailable';
-      return;
-    }
-    const reported = boardSourceVersion.value;
-    if (!reported) {
-      controlOptions.value = null;
-      pendingCandidate.value = { options: next, scopeSignature };
-      candidateStatus.value = 'loading';
-      return;
-    }
-    resolveCandidateVersion(next, scopeSignature, reported);
-  }
-
-  function resolveCandidateVersion(
-    next: StatisticBoardControlOptions,
-    scopeSignature: string,
-    reportedVersion: string,
-  ) {
-    if (scopeSignature !== deps.scopeSignature()) {
-      return;
-    }
-    if (next.sourceVersion && next.sourceVersion === reportedVersion) {
-      pendingCandidate.value = null;
-      controlOptions.value = next;
-      candidateScopeSignature.value = scopeSignature;
-      candidateStatus.value = 'ready';
-      transportFailureReason.value = '';
-      candidateRetriedVersion = '';
-      return;
-    }
-    controlOptions.value = null;
-    pendingCandidate.value = null;
-    candidateScopeSignature.value = scopeSignature;
-    candidateStatus.value = 'loading';
-    if (candidateRetriedVersion === reportedVersion) {
-      candidateStatus.value = 'unavailable';
-      transportFailureReason.value = '成员候选与当前来源代际不一致，请稍后刷新';
-      return;
-    }
-    candidateRetriedVersion = reportedVersion;
-    void refreshControlOptions();
-  }
-
-  /**
-   * 主表来源代际变化后按同一范围重新求解候选。
-   *
-   * <p>候选缓存与主表必须属于同一代际，否则用户会按过期成员集合发起新的选择；版本一致时不重发请求，
-   * 翻页与切换维度因此不产生额外候选查询。主表先返回而没有已接受候选时不必补发：在途响应到达时
-   * 会按新代际核对并自行重取。
-   */
-  function applyBoardSourceVersion(sourceVersion: string) {
-    const next = String(sourceVersion ?? '').trim();
-    if (!next) {
-      optionsRequestSequence += 1;
-      activeOptionsRequestId = 0;
-      boardSourceVersion.value = '';
-      controlOptions.value = null;
-      pendingCandidate.value = null;
-      candidateScopeSignature.value = deps.scopeSignature();
-      candidateStatus.value = 'unavailable';
-      transportFailureReason.value = '当前主表未提供来源版本，无法验证成员候选';
-      return;
-    }
-    if (next === boardSourceVersion.value) {
-      return;
-    }
-    boardSourceVersion.value = next;
-    const pending = pendingCandidate.value;
-    if (pending) {
-      resolveCandidateVersion(pending.options, pending.scopeSignature, next);
-      return;
-    }
-    if (
-      candidateStatus.value === 'ready'
-      && candidateScopeSignature.value === deps.scopeSignature()
-      && controlOptions.value?.sourceVersion === next
-    ) {
-      return;
-    }
-    if (candidateStatus.value === 'ready') {
-      controlOptions.value = null;
-      candidateStatus.value = 'loading';
-    }
-    if (!activeOptionsRequestId) {
-      void refreshControlOptions();
-    }
-  }
-
-  /** 主表响应只用于定位维度列与来源代际；成员候选一律由 `control-options` 提供。 */
-  function applyResponse(response: StatisticBoardResponse | null) {
-    const groupKey = spec.value?.dimensionGroupKey;
-    if (!response || !groupKey) {
-      dimensionColumnKeyFromResponse.value = null;
-      return;
-    }
-    const group = response.definition.columnGroups.find((item) => item.key === groupKey);
-    dimensionColumnKeyFromResponse.value = group?.columns?.[0]?.key ?? null;
-  }
-
-  watch(
-    () => [spec.value !== null, deps.scopeSignature()] as const,
-    ([enabled]) => {
-      // 范围变化后上一代际不再是参照物，必须等新的主表响应重新报告。
-      boardSourceVersion.value = '';
-      candidateRetriedVersion = '';
-      optionsRequestSequence += 1;
-      activeOptionsRequestId = 0;
-      controlOptions.value = null;
-      pendingCandidate.value = null;
-      candidateScopeSignature.value = '';
-      transportFailureReason.value = '';
-      if (!enabled) {
-        candidateStatus.value = null;
-        return;
-      }
-      candidateStatus.value = 'loading';
-      void refreshControlOptions();
-    },
-    { immediate: true, flush: 'sync' },
-  );
+  /** 无完整候选时披露原因，不能把失败表示为无成员。 */
+  const controlOptionsMessage = computed(() => controlOptionsStatus.value === 'unavailable'
+    ? controlOptions.value?.reason || '当前范围的成员候选暂不可用' : '');
 
   async function setDimension(value: string) {
     const current = spec.value;
@@ -606,14 +448,16 @@ export function useStatisticBoardControlParams(deps: StatisticBoardControlParams
     controlSpec: spec as ComputedRef<StatisticBoardControlSpec | null>,
     activeDimension,
     memberControls,
+    memberQuickFilters,
+    memberQuickValues,
+    memberCandidatesEmpty,
+    memberSummaryChips,
+    clearMemberPatch,
     requestParams,
     fixedColumnKeys,
     controlOptionsStatus,
     controlOptionsMessage,
     memberSelectionError,
-    applyBoardSourceVersion,
-    applyResponse,
-    refreshControlOptions,
     setDimension,
     setMember,
   };
@@ -630,11 +474,4 @@ function queryValueText(raw: LocationQuery[string] | undefined) {
   return Array.isArray(raw)
     ? raw.map((value) => String(value ?? '')).join(',')
     : String(raw ?? '');
-}
-
-function disambiguatedMemberLabel(
-  label: string,
-  member: StatisticBoardMemberControlSpec,
-) {
-  return `真实${member.label}：${label}`;
 }

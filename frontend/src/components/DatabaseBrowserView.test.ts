@@ -1,7 +1,9 @@
+import { readViewsApi } from '../api-client/read-views-api';
+import type { ReadViewMetadata, ReadViewTransport } from '../types/api/read-view';
 import { flushPromises, mount } from '@vue/test-utils';
 import ElementPlus from 'element-plus';
 import { createRouter, createWebHashHistory } from 'vue-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import DatabaseBrowserView from './DatabaseBrowserView.vue';
 
 const mocks = vi.hoisted(() => ({
@@ -30,6 +32,7 @@ function tableOption() {
     lastSyncTime: null,
     tableKind: 'MIRROR',
     refreshable: true,
+    publishedReadRequired: true,
   };
 }
 
@@ -75,12 +78,21 @@ async function mountView() {
   return wrapper;
 }
 
+const metadata = (id: string): ReadViewMetadata => ({ readContextId: id, pageKey: 'database-browser', scopeKey: 'scope',
+  sourceVersion: 'complete-source', businessDate: '2026-10-13', dataAsOf: '2026-10-13T00:00:00Z',
+  leaseExpiresAt: '2099-01-01T00:00:00Z', pendingUpdates: 0, sourceState: 'CURRENT', escalated: false });
+afterEach(() => vi.restoreAllMocks());
+
 describe('DatabaseBrowserView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     document.body.innerHTML = '';
     mocks.api.getDatabaseTables.mockResolvedValue([tableOption()]);
-    mocks.api.getDatabaseTableRows.mockResolvedValue(rowsResponse());
+    vi.spyOn(readViewsApi, 'acquire').mockImplementation(async () => metadata(crypto.randomUUID()));
+    vi.spyOn(readViewsApi, 'release').mockResolvedValue(undefined);
+    mocks.api.getDatabaseTableRows.mockImplementation(async (_params, read?: ReadViewTransport) => {
+      read?.onReadView(metadata(read.readContextId)); return rowsResponse();
+    });
   });
 
   it.each([
@@ -240,6 +252,8 @@ function collectFormRow(overrides: Record<string, unknown>) {
 }
 
 async function mountCollectForm(rowOverrides: Record<string, unknown>) {
+  mocks.api.getDatabaseTables.mockResolvedValue([{ ...tableOption(), tableName: 'collect_form_records',
+    tableKind: 'LOCAL', refreshable: false, publishedReadRequired: false }]);
   mocks.api.getDatabaseTableRows.mockResolvedValue({
     tableName: 'collect_form_records',
     label: '采集表单记录',

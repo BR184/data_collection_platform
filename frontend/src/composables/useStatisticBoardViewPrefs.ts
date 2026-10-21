@@ -1,11 +1,13 @@
-import { ref } from 'vue';
+import { ref, shallowRef } from 'vue';
 import type { LocationQuery } from 'vue-router';
 import type { StatisticBoardDefinition } from '../types/api';
 import {
   createDefaultStatisticBoardViewPrefs,
   loadStatisticBoardViewPrefs,
   resetStatisticBoardViewPrefs,
+  resolveStatisticBoardViewPrefs,
   saveStatisticBoardViewPrefs,
+  statisticColumnKeys,
   type StatisticBoardViewPrefs,
 } from '../components/statistic-board-view-prefs';
 import { clearSortState } from '../components/statistic-board-sorting';
@@ -23,7 +25,7 @@ interface UseStatisticBoardViewPrefsOptions {
 
 function createEmptyViewPrefs(): StatisticBoardViewPrefs {
   return {
-    visibleColumnKeys: [],
+    hiddenColumnKeys: [],
     groupOrder: [],
     childGroupOrderByParent: {},
     columnOrderByGroup: {},
@@ -36,8 +38,10 @@ function createEmptyViewPrefs(): StatisticBoardViewPrefs {
 
 export function useStatisticBoardViewPrefs(options: UseStatisticBoardViewPrefsOptions) {
   const boardViewPrefs = ref<StatisticBoardViewPrefs>(createEmptyViewPrefs());
+  const activeDefinition = shallowRef<StatisticBoardDefinition | null>(null);
 
   function applyStoredViewPrefs(definition: StatisticBoardDefinition) {
+    activeDefinition.value = definition;
     const storedPrefs = loadStatisticBoardViewPrefs(options.boardKey(), definition);
     boardViewPrefs.value = {
       ...storedPrefs,
@@ -50,14 +54,26 @@ export function useStatisticBoardViewPrefs(options: UseStatisticBoardViewPrefsOp
     saveStatisticBoardViewPrefs(options.boardKey(), boardViewPrefs.value);
   }
 
+  /** 收藏与浏览器配置使用同一解析边界，旧收藏迁入后仅保存隐藏意图。 */
+  function applySavedViewPrefs(value: unknown) {
+    if (!activeDefinition.value) { return; }
+    boardViewPrefs.value = resolveStatisticBoardViewPrefs(value, activeDefinition.value);
+    persistViewPrefs();
+  }
+
   function saveVisibleColumnPrefs(draftVisibleColumnKeys: string[], closeSettings: () => void) {
-    if (!draftVisibleColumnKeys.length) {
+    const activeKeys = activeDefinition.value ? statisticColumnKeys(activeDefinition.value) : [];
+    const selected = new Set(draftVisibleColumnKeys.filter(key => activeKeys.includes(key)));
+    if (!selected.size) {
       options.notifyWarning('至少保留一列用于展示');
       return false;
     }
     boardViewPrefs.value = {
       ...boardViewPrefs.value,
-      visibleColumnKeys: [...draftVisibleColumnKeys],
+      hiddenColumnKeys: [
+        ...boardViewPrefs.value.hiddenColumnKeys.filter(key => !activeKeys.includes(key)),
+        ...activeKeys.filter(key => !selected.has(key)),
+      ],
     };
     persistViewPrefs();
     closeSettings();
@@ -70,6 +86,7 @@ export function useStatisticBoardViewPrefs(options: UseStatisticBoardViewPrefsOp
     syncDraftFromVisible: () => void,
     closeSettings: () => void,
   ) {
+    activeDefinition.value = definition;
     boardViewPrefs.value = createDefaultStatisticBoardViewPrefs(definition);
     syncDraftFromVisible();
     resetStatisticBoardViewPrefs(options.boardKey());
@@ -107,6 +124,7 @@ export function useStatisticBoardViewPrefs(options: UseStatisticBoardViewPrefsOp
   return {
     boardViewPrefs,
     applyStoredViewPrefs,
+    applySavedViewPrefs,
     persistViewPrefs,
     saveVisibleColumnPrefs,
     restoreDefaultViewPrefs,

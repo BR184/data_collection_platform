@@ -16,6 +16,18 @@ function createRuleExplanation(title = '规则说明') {
 }
 
 describe('useRuleExplanationPanel', () => {
+  it('discarded old rules cannot replace the rules accepted with a new complete page', async () => {
+    let finish!: (value: ReturnType<typeof createRuleExplanation>) => void;
+    const load = vi.fn(() => new Promise<ReturnType<typeof createRuleExplanation>>(resolve => { finish = resolve; }));
+    const panel = useRuleExplanationPanel({ load, fallback: () => createRuleExplanation('fallback') });
+    const pending = panel.loadRuleExplanation();
+    panel.resetRuleExplanation();
+    panel.ruleExplanation.value = createRuleExplanation('新完整页规则');
+    finish(createRuleExplanation('迟到旧规则'));
+    await pending;
+    expect(panel.ruleExplanation.value?.title).toBe('新完整页规则');
+    expect(panel.ruleExplanationLoading.value).toBe(false);
+  });
   it('loads rule explanation on first open and only loads once while cached', async () => {
     const load = vi.fn(async () => createRuleExplanation('首次加载'));
     const fallback = vi.fn((reason: string) => ({

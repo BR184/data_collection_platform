@@ -93,4 +93,35 @@ describe('useStatisticBoardRouteController', () => {
     expect(query['filters.0.value']).toBeUndefined();
     expect(query.detailCollection).toBeUndefined();
   });
+
+  it('clears page-supplied control parameters in the same reset write', async () => {
+    const deps = setup({
+      filterGroup: '{"logic":"AND","conditions":[]}',
+      milestoneTitle: 'CC2026R1',
+      customer: '客户甲',
+      customerKind: 'VALUE',
+      moduleKind: 'MISSING',
+      groupBy: 'CUSTOMER_MODULE',
+    });
+    const controller = useStatisticBoardRouteController(deps);
+
+    await controller.resetFilters({
+      customer: '',
+      customerKind: '',
+      module: '',
+      moduleKind: '',
+      function: '',
+      functionKind: '',
+    });
+
+    expect(deps.replaceRoute).toHaveBeenCalledOnce();
+    const query = deps.replaceRoute.mock.calls[0][0].query;
+    expect(query.filterGroup).toBeUndefined();
+    expect(query.customer).toBeUndefined();
+    expect(query.customerKind).toBeUndefined();
+    expect(query.moduleKind).toBeUndefined();
+    // 范围与行维度属于"分析设置"，不随筛选重置改变。
+    expect(query.milestoneTitle).toBe('CC2026R1');
+    expect(query.groupBy).toBe('CUSTOMER_MODULE');
+  });
 });

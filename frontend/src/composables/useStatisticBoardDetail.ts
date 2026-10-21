@@ -1,6 +1,7 @@
 import { reactive, ref } from 'vue';
 import type { LocationQuery } from 'vue-router';
 import type {
+  StatisticBoardResponse,
   StatisticCellData,
   StatisticDetailCellValue,
   StatisticDetailColumn,
@@ -21,7 +22,7 @@ import { getErrorMessage } from '../utils/user-message';
 
 type DetailRouteQuery = LocationQuery;
 
-interface StatisticBoardDetailParams {
+export interface StatisticBoardDetailParams {
   rowKey: string;
   columnKey: string;
   page: number;
@@ -38,7 +39,7 @@ const DETAIL_COLLECTION_PARAM = 'population';
 interface StatisticBoardDetailDependencies {
   boardKey: () => string;
   getFilterGroup: () => StatisticFilterGroup | null;
-  loadDetails: (boardKey: string, params: StatisticBoardDetailParams) => Promise<StatisticDetailResponse>;
+  loadDetails: (boardKey: string, params: StatisticBoardDetailParams, commit: (response: StatisticDetailResponse) => void) => Promise<void>;
   notifyError: (message: string) => void;
   replaceRouteQuery: (patch: Record<string, string | number | null | undefined>) => Promise<void>;
 }
@@ -62,6 +63,7 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
   // 明细请求序号：切换页码、集合、排序或关闭明细都会让在途请求失效。
   // 迟到的成功会写回旧集合的内容、迟到的失败会弹出已经不相关的错误、迟到的结束会提前清掉 loading。
   let detailRequestSequence = 0;
+  let preparedQuerySignature = '';
 
   function syncPaginationFromRoute(query: DetailRouteQuery, defaultPageSize: number) {
     detailPagination.page = routeDetailPage(query);
@@ -159,11 +161,12 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
       return;
     }
     detailRequestSequence += 1;
+    preparedQuerySignature = '';
     const requestId = detailRequestSequence;
     detailLoading.value = true;
     try {
       const detailFilters = buildDetailFilters();
-      const response = await deps.loadDetails(deps.boardKey(), {
+      await deps.loadDetails(deps.boardKey(), {
         rowKey: activeRow.value.rowKey,
         columnKey: activeCell.value.columnKey,
         page: detailPagination.page,
@@ -172,11 +175,9 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
         sortOrder: detailPagination.sortOrder || undefined,
         ...(Object.keys(detailFilters).length ? { filters: detailFilters } : {}),
         filterGroup: deps.getFilterGroup(),
+      }, response => {
+        if (requestId === detailRequestSequence) { detail.value = response; }
       });
-      if (requestId !== detailRequestSequence) {
-        return;
-      }
-      detail.value = response;
     } catch (error) {
       if (requestId !== detailRequestSequence) {
         return;
@@ -187,6 +188,19 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
         detailLoading.value = false;
       }
     }
+  }
+
+  /** 新主表和已打开的明细一起完成准备后，同步接受整批结果并作废旧请求。 */
+  function acceptPrepared(board: StatisticBoardResponse,
+    prepared: { rowKey: string; columnKey: string; response: StatisticDetailResponse }, query: DetailRouteQuery) {
+    invalidateDetailRequests();
+    activeRow.value = board.rows.find(row => row.rowKey === prepared.rowKey) ?? null;
+    activeCell.value = activeRow.value?.cells.find(cell => cell.columnKey === prepared.columnKey) ?? null;
+    detail.value = prepared.response;
+    detailVisible.value = true;
+    detailCollection.value = routeDetailCollection(query);
+    syncPaginationFromRoute(query, board.definition.defaultPageSize ?? 10);
+    preparedQuerySignature = detailQuerySignature(query);
   }
 
   async function openDetail(row: StatisticRowData, cell: StatisticCellData, defaultPageSize: number) {
@@ -272,12 +286,18 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     activeCell.value =
       activeRow.value?.cells.find((cell) => cell.columnKey === String(query.detailColumnKey ?? '')) ?? null;
     if (activeRow.value && canOpenDetailCell(activeCell.value)) {
+      if (detail.value && preparedQuerySignature === detailQuerySignature(query)) { return; }
       await loadDetail();
       return;
     }
     detailVisible.value = false;
     clearDetailState();
     await clearDetailRouteQuery();
+  }
+
+  function detailQuerySignature(query: DetailRouteQuery): string {
+    return JSON.stringify(['detailVisible', 'detailRowKey', 'detailColumnKey', 'detailPage', 'detailPageSize',
+      'detailSortBy', 'detailSortOrder', 'detailCollection'].map(key => query[key] ?? ''));
   }
 
   function buildDetailFilters() {
@@ -357,6 +377,7 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     detailQuickFilterInputDrafts,
     detailCellValue,
     loadDetail,
+    acceptPrepared,
     selectDetailCollection,
     openDetail,
     handleDetailSortChange,

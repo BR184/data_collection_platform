@@ -4,10 +4,14 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 import ElementPlus from 'element-plus';
 import CustomerIssueIllegalRecordsView from './CustomerIssueIllegalRecordsView.vue';
 
+const metadata = { readContextId: '11111111-1111-4111-8111-111111111111', pageKey: 'customer-issues-illegal-records',
+  scopeKey: 'fixed', sourceVersion: 'complete-source', businessDate: '2026-10-13', dataAsOf: '2026-10-13T00:00:00Z',
+  leaseExpiresAt: '2099-01-01T00:00:00Z', pendingUpdates: 0, sourceState: 'CURRENT', escalated: false };
+
 function jsonResponse(data: unknown) {
   return Promise.resolve({
     ok: true,
-    text: () => Promise.resolve(JSON.stringify({ success: true, data })),
+    text: () => Promise.resolve(JSON.stringify({ success: true, data, readView: metadata })),
   } as Response);
 }
 
@@ -16,6 +20,8 @@ describe('CustomerIssueIllegalRecordsView mount smoke', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((url: string) => {
+        if (url.startsWith('/api/read-views')) return jsonResponse(metadata);
+        if (url.includes('/api/code-review/illegal-records/context')) return jsonResponse({ compatibilityRead: true, sources: [{ label: 'CC', value: 'cc' }] });
         if (url.includes('/api/customer-issues/illegal-records/filter-options')) {
           return jsonResponse({
             projectNames: [{ label: 'CC_PRODUCT', value: 'CC_PRODUCT' }],
@@ -36,6 +42,7 @@ describe('CustomerIssueIllegalRecordsView mount smoke', () => {
           return jsonResponse({
             records: [
               {
+                sourceInstance: 'default', projectId: 325, issueId: 301,
                 issueIid: 301,
                 title: 'Illegal sample',
                 illegalReason: 'Module mismatch',
@@ -106,8 +113,10 @@ describe('CustomerIssueIllegalRecordsView mount smoke', () => {
 
   it('exports current filtered customer issue illegal records as csv', async () => {
     const fetchSpy = vi.fn((url: string) => {
+        if (url.startsWith('/api/read-views')) return jsonResponse(metadata);
+        if (url.includes('/api/code-review/illegal-records/context')) return jsonResponse({ compatibilityRead: true, sources: [{ label: 'CC', value: 'cc' }] });
       if (url.includes('/api/customer-issues/illegal-records/export')) {
-        return Promise.resolve({ ok: true, text: () => Promise.resolve('issue_iid,illegal_reason\n301,Module mismatch\n') } as Response);
+        return Promise.resolve(new Response(new Blob(['excel fixture']), { headers: { 'X-Read-Context-Id': metadata.readContextId } }));
       }
       if (url.includes('/api/customer-issues/illegal-records/filter-options')) {
         return jsonResponse({

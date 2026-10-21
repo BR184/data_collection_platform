@@ -98,10 +98,15 @@ export interface QualityTrendData {
   defectDensities: Array<number | null>;
 }
 
+/**
+ * 客户缺陷累计趋势：由服务端对同一来源版本的日期贡献作前缀累加后下发。
+ *
+ * 任一必要时间贡献未知时整条序列不可计算（全部为 null），不按已知日期补点或按零累计。
+ */
 export interface DailyDefectTrendData {
   dates: string[];
-  createdCounts: Array<number | null>;
-  fixedCounts: Array<number | null>;
+  cumulativeCreatedCounts: Array<number | null>;
+  cumulativeFixedCounts: Array<number | null>;
 }
 
 export interface DelayHeatmapData {

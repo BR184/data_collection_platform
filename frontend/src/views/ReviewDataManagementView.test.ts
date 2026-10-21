@@ -3,6 +3,14 @@ import { defineComponent } from 'vue';
 import { createRouter, createMemoryHistory } from 'vue-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createEmptyReviewDataFilterOptions } from './review-data/useReviewDataRecords';
+import { readViewsApi } from '../api-client/read-views-api';
+import type { ReadViewMetadata, ReadViewTransport } from '../types/api/read-view';
+
+function metadata(id: string): ReadViewMetadata {
+  return { readContextId: id, pageKey: 'review-data-records', scopeKey: 'fixed', sourceVersion: id,
+    businessDate: '2026-10-13', dataAsOf: '2026-10-13T00:00:00Z', leaseExpiresAt: '2099-01-01T00:00:00Z',
+    pendingUpdates: 0, sourceState: 'CURRENT', escalated: false };
+}
 
 const mocks = vi.hoisted(() => ({
   options: vi.fn(),
@@ -16,11 +24,19 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../api', () => ({
   api: {
-    getReviewDataFilterOptions: mocks.options,
-    getReviewDataRecords: mocks.rows,
+    getReviewDataFilterOptions: async (read?: ReadViewTransport) => {
+      const result = await mocks.options(); read?.onReadView(metadata(read.readContextId)); return result;
+    },
+    getReviewDataRecords: async (params: { read?: ReadViewTransport }) => {
+      const result = await mocks.rows(params); params.read?.onReadView(metadata(params.read.readContextId)); return result;
+    },
     createReviewDataRecord: mocks.create,
-    getReviewDataProblemItems: mocks.items,
-    getReviewDataRecordDetail: mocks.detail,
+    getReviewDataProblemItems: async (id: number, read?: ReadViewTransport) => {
+      const result = await mocks.items(id); read?.onReadView(metadata(read.readContextId)); return result;
+    },
+    getReviewDataRecordDetail: async (id: number, read?: ReadViewTransport) => {
+      const result = await mocks.detail(id); read?.onReadView(metadata(read.readContextId)); return result;
+    },
   },
 }));
 vi.mock('../element-plus-services', () => ({
@@ -42,6 +58,8 @@ import ReviewDataManagementView from './ReviewDataManagementView.vue';
 import ReviewRecordFormDialog from './review-data/ReviewRecordFormDialog.vue';
 import ReviewProblemItemFormDialog from './review-data/ReviewProblemItemFormDialog.vue';
 import ReviewProblemItemsDialog from './review-data/ReviewProblemItemsDialog.vue';
+import ReviewDataRowActions from './review-data/ReviewDataRowActions.vue';
+import ReviewDataDetailDrawer from './review-data/ReviewDataDetailDrawer.vue';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -66,7 +84,8 @@ const createdDetail = {
 };
 
 const TableStub = defineComponent({
-  template: '<div><slot name="toolbar-prefix"/><slot name="primary-actions"/></div>',
+  props: ['rows', 'loading'],
+  template: '<div><slot name="toolbar-prefix"/><slot name="primary-actions"/><section v-for="row in rows" :key="row.id"><p>{{ row.title }}</p><slot name="row-actions" :row="row"/></section><i>{{ loading }}</i></div>',
 });
 const ButtonStub = defineComponent({
   emits: ['click'],
@@ -78,6 +97,8 @@ let wrapper: ReturnType<typeof shallowMount> | undefined;
 beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
+  vi.spyOn(readViewsApi, 'acquire').mockImplementation(async () => metadata(crypto.randomUUID()));
+  vi.spyOn(readViewsApi, 'release').mockResolvedValue(undefined);
   mocks.options.mockResolvedValue(createEmptyReviewDataFilterOptions());
   mocks.rows.mockResolvedValue({ records: [], total: 0, summary: null });
   mocks.create.mockResolvedValue(createdDetail);
@@ -89,6 +110,7 @@ afterEach(() => {
   wrapper?.unmount();
   wrapper = undefined;
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 async function startPage() {
@@ -124,6 +146,33 @@ async function createRecordWithPendingProblemList() {
 }
 
 describe('ReviewDataManagementView 刷新契约', () => {
+  it('新详情准备完成前保留旧列表和打开的详情，失败后也不清空', async () => {
+    const oldRecord = { ...createdDetail.record, title: '完整旧评审' };
+    mocks.rows.mockResolvedValue({ records: [oldRecord], total: 1, summary: null });
+    mocks.detail.mockResolvedValue({ ...createdDetail, record: oldRecord });
+    const view = await startPage();
+    const actions = view.findComponent(ReviewDataRowActions);
+    await actions.props('onOpenDetail')({ __raw: oldRecord }); await flushPromises();
+    expect(view.findComponent(ReviewDataDetailDrawer).props('detailData').record.title).toBe('完整旧评审');
+    const pending = deferred<typeof createdDetail>();
+    mocks.detail.mockReturnValue(pending.promise);
+    mocks.rows.mockResolvedValue({ records: [{ ...oldRecord, title: '未接受的新评审' }], total: 1, summary: null });
+    await view.findAll('button').find(button => button.text().trim() === '刷新')!.trigger('click');
+    await flushPromises();
+    expect(view.text()).toContain('完整旧评审');
+    expect(view.text()).not.toContain('未接受的新评审');
+    expect(view.findComponent(ReviewDataDetailDrawer).props('detailData').record.title).toBe('完整旧评审');
+    pending.resolve({ ...createdDetail, record: { ...oldRecord, title: '完整新评审' } });
+    await flushPromises(); await vi.advanceTimersByTimeAsync(250);
+    expect(view.text()).toContain('未接受的新评审');
+    expect(view.findComponent(ReviewDataDetailDrawer).props('detailData').record.title).toBe('完整新评审');
+    mocks.rows.mockRejectedValue(new Error('后台完整发布尚未完成'));
+    await view.findAll('button').find(button => button.text().trim() === '刷新')!.trigger('click');
+    await flushPromises();
+    expect(view.text()).toContain('未接受的新评审');
+    expect(view.findComponent(ReviewDataDetailDrawer).props('detailData').record.title).toBe('完整新评审');
+  });
+
   it('列表加载失败时不报告刷新成功', async () => {
     const view = await startPage();
     mocks.rows.mockRejectedValue({ status: 500 });
@@ -133,7 +182,7 @@ describe('ReviewDataManagementView 刷新契约', () => {
     await vi.advanceTimersByTimeAsync(250);
     await flushPromises();
 
-    expect(mocks.error).toHaveBeenCalledWith('评审数据加载失败');
+    expect(mocks.error).toHaveBeenCalledWith('评审数据加载失败，已保留当前完整数据');
     expect(mocks.success).not.toHaveBeenCalledWith('评审数据列表已刷新');
   });
 });

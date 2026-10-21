@@ -4,6 +4,8 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import ElementPlus from 'element-plus';
 import { createMemoryHistory, createRouter, type Router } from 'vue-router';
 import { api } from '../api';
+import { readViewsApi } from '../api-client/read-views-api';
+import type { ReadViewMetadata } from '../types/api/read-view';
 import StatisticBoardView from './StatisticBoardView.vue';
 import type {
   IssueScopeCatalogResponse,
@@ -160,6 +162,11 @@ const TableStub = defineComponent({
   template: '<div data-testid="statistic-board-rows">{{ paginatedRows.map((row) => row.rowLabel).join(",") }}</div>',
 });
 
+const DetailStub = defineComponent({
+  props: ['detail'],
+  template: '<div data-testid="accepted-detail-total">{{ detail?.total ?? "" }}</div>',
+});
+
 let wrappers: VueWrapper[] = [];
 let apiMocks: {
   getStatisticBoard: MockInstance<typeof api.getStatisticBoard>;
@@ -168,6 +175,14 @@ let apiMocks: {
 };
 
 beforeEach(() => {
+  let identity = 0;
+  const metadata = (id: string): ReadViewMetadata => ({ readContextId: id, pageKey: BOARD_KEY,
+    scopeKey: 'scope', sourceVersion: 'generation-1', businessDate: '2026-09-23',
+    leaseExpiresAt: '2099-09-23T12:30:00Z', dataAsOf: '2026-09-23T00:00:00Z',
+    pendingUpdates: 0, sourceState: 'CURRENT', escalated: false });
+  vi.spyOn(readViewsApi, 'acquire').mockImplementation(async () => metadata(`view-${++identity}`));
+  vi.spyOn(readViewsApi, 'renew').mockImplementation(async id => metadata(id));
+  vi.spyOn(readViewsApi, 'release').mockResolvedValue();
   vi.stubGlobal('ResizeObserver', class {
     observe() {}
     unobserve() {}
@@ -177,7 +192,10 @@ beforeEach(() => {
   window.sessionStorage.clear();
   vi.spyOn(api, 'getIssueScopeCatalogs').mockResolvedValue([catalog]);
   vi.spyOn(api, 'getIssueScopeGroups').mockResolvedValue([milestoneGroup]);
-  vi.spyOn(api, 'getStatisticBoardControlOptions').mockResolvedValue(createControlOptions());
+  vi.spyOn(api, 'getStatisticBoardControlOptions').mockImplementation(async (_key, params) => {
+    params?.read?.onReadView(metadata(params.read.readContextId));
+    return createControlOptions();
+  });
   apiMocks = {
     getStatisticBoard: vi.spyOn(api, 'getStatisticBoard').mockImplementation(
       async (_boardKey: string, _params?: StatisticBoardQueryParams) => createBoard(),
@@ -211,7 +229,7 @@ async function mountView(query: Record<string, string> = {}) {
         PageSettingsDialog: Stub,
         StatisticBoardRuleExplanationDrawer: Stub,
         StatisticBoardToolbar: Stub,
-        StatisticBoardDetailDialog: Stub,
+        StatisticBoardDetailDialog: DetailStub,
       },
     },
   });
@@ -328,7 +346,7 @@ describe('StatisticBoardView route refresh chain', () => {
     });
   });
 
-  it('does not synchronize detail after a stale route status request resolves', async () => {
+  it('accepts complete detail without waiting for status and ignores late status results', async () => {
     const oldStatus = deferred<RealtimeWorkspaceStatusResponse>();
     apiMocks.getStatisticBoard.mockImplementation((_boardKey, params) =>
       Promise.resolve(createBoard(params?.filters ?? {})),
@@ -350,13 +368,75 @@ describe('StatisticBoardView route refresh chain', () => {
       .toMatchObject({ customer: '客户甲', customerKind: 'VALUE' });
 
     await navigate(router, { ...detailQuery, customer: '客户乙', customerKind: 'VALUE' });
-    expect(apiMocks.getStatisticBoardDetails).toHaveBeenCalledTimes(1);
-    expect(apiMocks.getStatisticBoardDetails.mock.calls[0]?.[1].filters)
+    expect(apiMocks.getStatisticBoardDetails).toHaveBeenCalledTimes(2);
+    expect(apiMocks.getStatisticBoardDetails.mock.calls.at(-1)?.[1].filters)
       .toMatchObject({ customer: '客户乙', customerKind: 'VALUE' });
 
     oldStatus.resolve(createStatus());
     await flushPromises();
-    expect(apiMocks.getStatisticBoardDetails).toHaveBeenCalledTimes(1);
+    expect(apiMocks.getStatisticBoardDetails).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps old main and opened detail until the entire new version is prepared', async () => {
+    apiMocks.getStatisticBoard.mockResolvedValue(createBoard({}, '旧完整主表'));
+    apiMocks.getStatisticBoardDetails.mockResolvedValue({ ...createDetail(), total: 11 });
+    const detailQuery = { detailVisible: '1', detailRowKey: TOTAL_ROW_KEY, detailColumnKey: 'defect_total' };
+    const { router, wrapper } = await mountView(detailQuery);
+    expect(wrapper.get('[data-testid="statistic-board-rows"]').text()).toBe('旧完整主表');
+    expect(wrapper.get('[data-testid="accepted-detail-total"]').text()).toBe('11');
+    apiMocks.getStatisticBoard.mockResolvedValueOnce(createBoard({ customer: '客户乙' }, '新完整主表'));
+    const preparing = deferred<StatisticDetailResponse>();
+    apiMocks.getStatisticBoardDetails.mockReturnValueOnce(preparing.promise);
+    await navigate(router, { ...detailQuery, customer: '客户乙', customerKind: 'VALUE' });
+    expect(wrapper.get('[data-testid="statistic-board-rows"]').text()).toBe('旧完整主表');
+    expect(wrapper.get('[data-testid="accepted-detail-total"]').text()).toBe('11');
+    preparing.resolve({ ...createDetail(), total: 22 });
+    await flushPromises();
+    expect(wrapper.get('[data-testid="statistic-board-rows"]').text()).toBe('新完整主表');
+    expect(wrapper.get('[data-testid="accepted-detail-total"]').text()).toBe('22');
+  });
+
+  it('preserves both old main and old drilldown after new detail preparation fails', async () => {
+    apiMocks.getStatisticBoard.mockResolvedValue(createBoard({}, '旧完整主表'));
+    apiMocks.getStatisticBoardDetails.mockResolvedValue({ ...createDetail(), total: 11 });
+    const detailQuery = { detailVisible: '1', detailRowKey: TOTAL_ROW_KEY, detailColumnKey: 'defect_total' };
+    const { router, wrapper } = await mountView(detailQuery);
+    apiMocks.getStatisticBoard.mockResolvedValueOnce(createBoard({ customer: '客户乙' }, '未完整的新主表'));
+    apiMocks.getStatisticBoardDetails.mockRejectedValueOnce(new Error('明细准备失败'));
+    await navigate(router, { ...detailQuery, customer: '客户乙', customerKind: 'VALUE' });
+    expect(wrapper.get('[data-testid="statistic-board-rows"]').text()).toBe('旧完整主表');
+    expect(wrapper.get('[data-testid="accepted-detail-total"]').text()).toBe('11');
+    expect(wrapper.text()).toContain('明细准备失败');
+  });
+
+  it('allows collection changes on the old view throughout new-version preparation', async () => {
+    apiMocks.getStatisticBoard.mockResolvedValue(createBoard({}, '旧完整主表'));
+    apiMocks.getStatisticBoardDetails.mockResolvedValue({ ...createDetail(), total: 11 });
+    const detailQuery = { detailVisible: '1', detailRowKey: TOTAL_ROW_KEY, detailColumnKey: 'defect_total', detailCollection: 'COUNTED' };
+    const { router, wrapper } = await mountView(detailQuery);
+    const oldMainRequest = deferred<StatisticBoardResponse>();
+    const newDetail = deferred<StatisticDetailResponse>();
+    apiMocks.getStatisticBoard.mockReturnValueOnce(oldMainRequest.promise)
+      .mockResolvedValue(createBoard({ customer: '客户乙' }, '新完整主表'));
+    apiMocks.getStatisticBoardDetails.mockImplementation(async (_key, params) => {
+      if (params.read?.readContextId === 'view-1') { return { ...createDetail(), collection: 'NUMERATOR', total: 7 }; }
+      return newDetail.promise;
+    });
+    await navigate(router, { ...detailQuery, customer: '客户乙', customerKind: 'VALUE' });
+    await navigate(router, { ...detailQuery, customer: '客户乙', customerKind: 'VALUE', detailCollection: 'NUMERATOR' });
+    expect(apiMocks.getStatisticBoardDetails.mock.calls).toEqual(expect.arrayContaining([
+      [BOARD_KEY, expect.objectContaining({ filters: expect.objectContaining({ population: 'NUMERATOR' }),
+        read: expect.objectContaining({ readContextId: 'view-1' }) })],
+    ]));
+    expect(wrapper.get('[data-testid="statistic-board-rows"]').text()).toBe('旧完整主表');
+    expect(wrapper.get('[data-testid="accepted-detail-total"]').text()).toBe('7');
+    newDetail.resolve({ ...createDetail(), collection: 'NUMERATOR', total: 8 });
+    await flushPromises();
+    expect(wrapper.get('[data-testid="statistic-board-rows"]').text()).toBe('新完整主表');
+    expect(wrapper.get('[data-testid="accepted-detail-total"]').text()).toBe('8');
+    oldMainRequest.resolve(createBoard({}, '迟到旧请求'));
+    await flushPromises();
+    expect(wrapper.get('[data-testid="statistic-board-rows"]').text()).toBe('新完整主表');
   });
 
   it('does not run an old route refresh after the detail dialog closes', async () => {

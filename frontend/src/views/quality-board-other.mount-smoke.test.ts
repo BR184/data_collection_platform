@@ -4,6 +4,12 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { createRouter, createWebHashHistory } from 'vue-router';
 import { authState } from '../composables/auth-state';
 import QualityBoardOtherView from './QualityBoardOtherView.vue';
+import { readViewsApi } from '../api-client/read-views-api';
+import type { ReadViewMetadata } from '../types/api/read-view';
+
+const metadata: ReadViewMetadata = { readContextId: '00000000-0000-0000-0000-000000000013', pageKey: 'quality-board-other',
+  scopeKey: 'all', sourceVersion: 'complete-v1', businessDate: '2026-10-13', dataAsOf: '2026-10-13T00:00:00Z',
+  leaseExpiresAt: '2099-01-01T00:00:00Z', sourceState: 'CURRENT', pendingUpdates: 0, escalated: false };
 
 vi.mock('../components/base/PageStateShell.vue', () => ({
   default: defineComponent({
@@ -26,17 +32,21 @@ const passthroughStub = defineComponent({
 function jsonResponse(data: unknown) {
   return Promise.resolve({
     ok: true,
-    text: () => Promise.resolve(JSON.stringify({ success: true, data })),
+    text: () => Promise.resolve(JSON.stringify({ success: true, data, readView: metadata })),
   } as Response);
 }
 
 describe('QualityBoardOtherView mount smoke', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     document.body.innerHTML = '';
   });
 
   it('renders the six legacy Other Board data categories without DGM switching', async () => {
+    vi.spyOn(readViewsApi, 'acquire').mockResolvedValue(metadata);
+    vi.spyOn(readViewsApi, 'release').mockResolvedValue(undefined);
+    let failPreparation = false;
     authState.currentUser = {
       username: 'admin',
       displayName: '管理员',
@@ -49,13 +59,15 @@ describe('QualityBoardOtherView mount smoke', () => {
     authState.loading = false;
     authState.error = '';
     const fetchSpy = vi.fn((url: string) => {
-      if (url.includes('/api/quality-board/rd/project-options')) {
+      if (url.includes('/api/quality-board/other/project-options')) {
         return jsonResponse({
           defaultProjectName: 'CC2026R4',
           options: [{ label: 'CC2026R4', value: 'CC2026R4' }],
         });
       }
       if (url.includes('/api/analytics-dashboards/quality-board-other/rules')) {
+        if (failPreparation) return Promise.resolve({ ok: true,
+          text: async () => JSON.stringify({ success: false, message: '新版本准备失败' }) } as Response);
         return jsonResponse({
           dashboardKey: 'quality-board-other',
           rules: [],
@@ -73,7 +85,7 @@ describe('QualityBoardOtherView mount smoke', () => {
         });
         return jsonResponse({
           dashboardKey: 'quality-board-other',
-          title: '质量专题分析',
+          title: failPreparation ? '未接受的新质量看板' : '质量专题分析',
           subtitle: '六类专题',
           metrics: [],
           charts: [
@@ -102,7 +114,7 @@ describe('QualityBoardOtherView mount smoke', () => {
       global: {
         plugins: [router],
         stubs: {
-          'el-button': passthroughStub,
+          'el-button': defineComponent({ template: '<button><slot /></button>' }),
           'el-option': passthroughStub,
           'el-select': passthroughStub,
         },
@@ -127,6 +139,12 @@ describe('QualityBoardOtherView mount smoke', () => {
     expect(dashboardRequest).toContain('memberUnresolvedProjectName=CC2026R4');
     expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('/quality-board/other/overview'))).toBe(false);
 
+    failPreparation = true;
+    const refresh = wrapper.findAll('button').find(button => button.text().includes('刷新'))!;
+    await refresh.trigger('click'); await flushPromises();
+    expect(wrapper.findAll('.dashboard-chart-card')).toHaveLength(6);
+    expect(wrapper.text()).not.toContain('未接受的新质量看板');
+    expect(wrapper.text()).toContain('新版本准备失败');
     wrapper.unmount();
   });
 });

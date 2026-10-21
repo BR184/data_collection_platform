@@ -12,8 +12,10 @@ import type {
 } from '../types/api';
 import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlob } from './request';
 import { stringifyStatisticFilterGroup } from '../utils/statistic-filter-group';
+import type { ReadViewTransport } from '../types/api/read-view';
 
 export interface ReviewDataRecordQueryParams {
+  read?: ReadViewTransport;
   keyword?: string;
   title?: string;
   projectName?: string;
@@ -33,18 +35,18 @@ export interface ReviewDataRecordQueryParams {
 export const reviewDataApi = {
   getReviewDataRecords(params: ReviewDataRecordQueryParams) {
     const query = buildReviewDataRecordQuery(params);
-    return request<ReviewDataRecordListResponse>(`/api/review-data/records?${query.toString()}`);
+    return request<ReviewDataRecordListResponse>(`/api/review-data/records?${query.toString()}`, params.read);
   },
   exportReviewDataRecordsWorkbook(params: ReviewDataRecordQueryParams) {
     const query = buildReviewDataRecordQuery(params, false);
-    return fetchWorkbook(`/api/review-data/records/export${query.toString() ? `?${query.toString()}` : ''}`);
+    return fetchWorkbook(`/api/review-data/records/export${query.toString() ? `?${query.toString()}` : ''}`, params.read);
   },
   exportReviewDataProblemDetailsWorkbook(params: ReviewDataRecordQueryParams) {
     const query = buildReviewDataRecordQuery(params, false);
-    return fetchWorkbook(`/api/review-data/problem-items/export${query.toString() ? `?${query.toString()}` : ''}`);
+    return fetchWorkbook(`/api/review-data/problem-items/export${query.toString() ? `?${query.toString()}` : ''}`, params.read);
   },
-  exportReviewDataRecordProblemDetailsWorkbook(recordId: string | number) {
-    return fetchWorkbook(`/api/review-data/records/${recordId}/problem-items/export`);
+  exportReviewDataRecordProblemDetailsWorkbook(recordId: string | number, read?: ReadViewTransport) {
+    return fetchWorkbook(`/api/review-data/records/${recordId}/problem-items/export`, read);
   },
   downloadReviewDataTemplateWorkbook() {
     return requestBlob('/api/review-data/template', {
@@ -52,11 +54,11 @@ export const reviewDataApi = {
       timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
     });
   },
-  getReviewDataFilterOptions() {
-    return request<ReviewDataFilterOptionsResponse>('/api/review-data/records/filter-options');
+  getReviewDataFilterOptions(read?: ReadViewTransport) {
+    return request<ReviewDataFilterOptionsResponse>('/api/review-data/records/filter-options', read);
   },
-  getReviewDataRecordDetail(recordId: string | number) {
-    return request<ReviewDataRecordDetailResponse>(`/api/review-data/records/${recordId}`);
+  getReviewDataRecordDetail(recordId: string | number, read?: ReadViewTransport) {
+    return request<ReviewDataRecordDetailResponse>(`/api/review-data/records/${recordId}`, read);
   },
   createReviewDataRecord(payload: ReviewDataRecordSaveRequest) {
     return request<ReviewDataRecordDetailResponse>('/api/review-data/records', {
@@ -75,8 +77,8 @@ export const reviewDataApi = {
       method: 'DELETE',
     });
   },
-  getReviewDataProblemItems(recordId: string | number) {
-    return request<ReviewDataProblemItemResponse[]>(`/api/review-data/records/${recordId}/problem-items`);
+  getReviewDataProblemItems(recordId: string | number, read?: ReadViewTransport) {
+    return request<ReviewDataProblemItemResponse[]>(`/api/review-data/records/${recordId}/problem-items`, read);
   },
   createReviewDataProblemItem(recordId: string | number, payload: ReviewDataProblemItemSaveRequest) {
     return request<ReviewDataProblemItemResponse>(`/api/review-data/records/${recordId}/problem-items`, {
@@ -163,8 +165,9 @@ function buildReviewDataRecordQuery(params: ReviewDataRecordQueryParams, include
   });
 }
 
-function fetchWorkbook(url: string) {
+function fetchWorkbook(url: string, read?: ReadViewTransport) {
   return requestBlob(url, {
+    ...read,
     errorPrefix: 'Excel 导出失败',
     timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
   });

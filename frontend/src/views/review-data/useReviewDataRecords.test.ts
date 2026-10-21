@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type {
   ReviewDataFilterOptionsResponse,
   ReviewDataRecordListResponse,
@@ -61,41 +61,25 @@ function filterOptions(): ReviewDataFilterOptionsResponse {
 }
 
 describe('useReviewDataRecords', () => {
-  it('loads filter options and records into derived table state', async () => {
+  it('accepts complete record data and derives the table and summary', () => {
+    const state = useReviewDataRecords();
     const options = filterOptions();
-    const fetchFilterOptions = vi.fn(async () => options);
-    const fetchRecords = vi.fn(async () => listResponse([record(1)]));
-    const state = useReviewDataRecords({ fetchFilterOptions, fetchRecords });
-
-    const loadedOptions = await state.fetchFilterOptions();
-    const loadedRows = await state.fetchRows({ keyword: 'review', page: 1, size: 20, sortBy: 'updatedAt', sortOrder: 'desc' });
-    state.commitFilterOptions(loadedOptions);
-    state.commitRows(loadedRows);
-
+    state.commitFilterOptions(options);
+    state.commitRows(listResponse([record(1)]));
     expect(state.filterOptions.value).toStrictEqual(options);
-    expect(fetchRecords).toHaveBeenCalledWith({
-      keyword: 'review',
-      page: 1,
-      size: 20,
-      sortBy: 'updatedAt',
-      sortOrder: 'desc',
-    });
     expect(state.rows.value).toEqual([record(1)]);
     expect(state.total.value).toBe(1);
     expect(state.tableRows.value[0].title).toBe('review-1');
     expect(state.summaryCards.value[0].value).toBe('1');
   });
 
-  it('returns a query result without mutating rows before the current request commits', async () => {
-    const fetchRecords = vi.fn(async () => listResponse([record(1), record(2)]));
-    const state = useReviewDataRecords({ fetchFilterOptions: vi.fn(async () => filterOptions()), fetchRecords });
-    const params = { keyword: '', page: 2, size: 10, sortBy: 'title', sortOrder: 'asc' as const };
-
-    const result = await state.fetchRows(params);
-
-    expect(fetchRecords).toHaveBeenCalledWith(params);
-    expect(state.total.value).toBe(0);
-    state.commitRows(result);
+  it('clears private rows and summary together', () => {
+    const state = useReviewDataRecords();
+    state.commitRows(listResponse([record(1), record(2)]));
     expect(state.total.value).toBe(2);
+    state.clearRows();
+    expect(state.total.value).toBe(0);
+    expect(state.rows.value).toEqual([]);
+    expect(state.summary.value).toBeNull();
   });
 });

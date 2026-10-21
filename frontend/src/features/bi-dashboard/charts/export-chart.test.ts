@@ -1,3 +1,4 @@
+import type { ReadViewTransport } from '../../../types/api/read-view';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BiChartDownloadContext } from '../data/types';
 
@@ -30,6 +31,8 @@ vi.mock('../../../api-client/bi-dashboard-api', () => ({
 import { DeveloperWorkloadChart, SubmissionTrendComboChart } from './types';
 import { exportBiChartExcel, exportBiChartPng } from './export-chart';
 
+const read: ReadViewTransport = { readContextId: 'accepted-view', readScope: { productVersionId: '10' }, onReadView: vi.fn() };
+
 describe('BI chart export', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -39,7 +42,7 @@ describe('BI chart export', () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
     const initialChildren = document.body.childElementCount;
 
-    await exportBiChartPng({
+    const file = await exportBiChartPng({
       downloadContext: {
         pageKey: 'coding',
         chartInstanceId: 'coding-submission-trend',
@@ -53,7 +56,7 @@ describe('BI chart export', () => {
         commits: Array.from({ length: 16 }, (_, index) => index + 1),
         mergeRequests: Array.from({ length: 16 }, (_, index) => index),
       },
-    });
+    }, read);
 
     expect(mocks.authorizeDownload).toHaveBeenCalledWith({
       pageKey: 'coding',
@@ -61,13 +64,15 @@ describe('BI chart export', () => {
       sourceVersion: 'source-1',
       scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 10 },
       chartTemplateId: 'submission-trend-combo',
-    });
+    }, read);
     const option = mocks.setOption.mock.calls[0]?.[0] as { animation?: boolean; dataZoom?: unknown[] };
     expect(option.animation).toBe(false);
     expect(option.dataZoom).toEqual([]);
     expect(mocks.flush).toHaveBeenCalledOnce();
     expect(mocks.flush.mock.invocationCallOrder[0]).toBeLessThan(mocks.getDataURL.mock.invocationCallOrder[0]!);
-    expect(click).toHaveBeenCalledOnce();
+    expect(click).not.toHaveBeenCalled();
+    expect(file.url).toMatch(/^data:image\/png/);
+    expect(file.filename).toMatch(/\.png$/);
     expect(mocks.dispose).toHaveBeenCalledOnce();
     expect(document.body.childElementCount).toBe(initialChildren);
 
@@ -82,7 +87,7 @@ describe('BI chart export', () => {
         downloads.push(this.download);
       });
 
-    await exportBiChartExcel({
+    const file = await exportBiChartExcel({
       downloadContext: {
         pageKey: 'system-test',
         chartInstanceId: 'system-test-assignee-workload',
@@ -96,7 +101,7 @@ describe('BI chart export', () => {
         { name: '张三', total: 10, fixed: 8, open: 2 },
         { name: '李四', total: 5, fixed: 5, open: 0 },
       ],
-    });
+    }, read);
 
     // Excel 端点内部复用同一道下载授权门，前端不再单独调用授权端点。
     expect(mocks.authorizeDownload).not.toHaveBeenCalled();
@@ -115,9 +120,10 @@ describe('BI chart export', () => {
         ['张三', 10, 8, 2, 80],
         ['李四', 5, 5, 0, 100],
       ],
-    });
+    }, read);
     // 优先采用服务端 Content-Disposition 提供的文件名。
-    expect(downloads).toEqual(['按指派人统计缺陷数_20260910083015.xlsx']);
+    expect(file.filename).toBe('按指派人统计缺陷数_20260910083015.xlsx');
+    expect(downloads).toEqual([]);
 
     click.mockRestore();
   });
@@ -131,7 +137,7 @@ describe('BI chart export', () => {
         downloads.push(this.download);
       });
 
-    await exportBiChartExcel({
+    const file = await exportBiChartExcel({
       downloadContext: {
         pageKey: 'coding',
         chartInstanceId: 'coding-review-scatter',
@@ -141,12 +147,12 @@ describe('BI chart export', () => {
       title: '评审/质量:分析',
       chart: new DeveloperWorkloadChart(),
       data: [{ name: '张三', total: 4, fixed: 2, open: 2 }],
-    });
+    }, read);
 
     // 无词条时仍传空串，后端不因此占行，不产生空行漂移。
-    expect(mocks.exportExcel).toHaveBeenCalledWith(expect.objectContaining({ explanation: '' }));
-    expect(downloads).toHaveLength(1);
-    expect(downloads[0]).toMatch(/^评审-质量-分析_\d{14}\.xlsx$/);
+    expect(mocks.exportExcel).toHaveBeenCalledWith(expect.objectContaining({ explanation: '' }), read);
+    expect(downloads).toHaveLength(0);
+    expect(file.filename).toMatch(/^评审-质量-分析_\d{14}\.xlsx$/);
 
     click.mockRestore();
   });
@@ -173,7 +179,7 @@ describe('BI chart export', () => {
       title: '提交趋势',
       chart: new SubmissionTrendComboChart(),
       data,
-    });
+    }, read);
     data.periods[0] = '2026-10-01';
     downloadContext.scope = { rangeType: 'PRODUCT_VERSION', productVersionId: 99 };
     downloadContext.sourceVersion = 'source-after';
@@ -184,7 +190,7 @@ describe('BI chart export', () => {
       chartInstanceId: 'coding-submission-trend',
       sourceVersion: 'source-before',
       scope: { rangeType: 'PRODUCT_VERSION', productVersionId: 10 },
-    }));
+    }), read);
     const option = mocks.setOption.mock.calls[0]?.[0] as { xAxis: { data: string[] } };
     expect(option.xAxis.data[0]).toBe('2026-09-01');
   });
@@ -214,7 +220,7 @@ describe('BI chart export', () => {
       title: '客户缺陷负荷',
       chart: new DeveloperWorkloadChart(),
       data: rows,
-    });
+    }, read);
     rows[0]!.name = '客户乙';
     downloadContext.scope = {
       rangeType: 'CUSTOMER_ISSUE', milestoneBusinessKey: 'mile-2', businessDate: '2026-09-25',
@@ -232,6 +238,6 @@ describe('BI chart export', () => {
         customerKind: 'VALUE', customer: '客户甲', moduleKind: 'ALL', functionKind: 'MISSING',
       }),
       rows: [['张三', 4, 2, 2, 50]],
-    }));
+    }), read);
   });
 });

@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue';
+import { createUuid } from '../utils/uuid';
 import type { LocationQueryRaw } from 'vue-router';
 
 export interface SavedTableViewSnapshot {
@@ -183,8 +184,5 @@ function normalizeSnapshot(snapshot: SavedTableViewSnapshot): SavedTableViewSnap
 }
 
 function createViewId() {
-  if (typeof globalThis.crypto?.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID();
-  }
-  return `view-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return createUuid();
 }

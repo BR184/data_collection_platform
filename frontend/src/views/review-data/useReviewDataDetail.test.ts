@@ -44,7 +44,10 @@ describe('useReviewDataDetail', () => {
   it('loads detail before opening the drawer', async () => {
     const deps = setup();
     deps.loadRecordDetail.mockResolvedValue(detail(5));
-    const detailState = useReviewDataDetail(deps);
+    const detailState = useReviewDataDetail({
+      loadRecordDetail: async (id, commit) => { commit(await deps.loadRecordDetail(id)); },
+      notifyError: deps.notifyError,
+    });
 
     await detailState.openDetail(5);
 
@@ -56,7 +59,10 @@ describe('useReviewDataDetail', () => {
   it('reports detail loading failures without opening the drawer', async () => {
     const deps = setup();
     deps.loadRecordDetail.mockRejectedValue(new Error('detail failed'));
-    const detailState = useReviewDataDetail(deps);
+    const detailState = useReviewDataDetail({
+      loadRecordDetail: async (id, commit) => { commit(await deps.loadRecordDetail(id)); },
+      notifyError: deps.notifyError,
+    });
 
     await detailState.openDetail(5);
 
@@ -68,7 +74,10 @@ describe('useReviewDataDetail', () => {
   it('refreshes the drawer detail only when the same record is open', async () => {
     const deps = setup();
     deps.loadRecordDetail.mockResolvedValueOnce(detail(5)).mockResolvedValueOnce(detail(5));
-    const detailState = useReviewDataDetail(deps);
+    const detailState = useReviewDataDetail({
+      loadRecordDetail: async (id, commit) => { commit(await deps.loadRecordDetail(id)); },
+      notifyError: deps.notifyError,
+    });
 
     await detailState.openDetail(5);
     await detailState.refreshDetailIfOpen(6);

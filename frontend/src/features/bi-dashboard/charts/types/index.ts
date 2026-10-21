@@ -1,5 +1,5 @@
 export { CodingTrendComboChart } from './CodingTrendComboChart';
-export { DailyDefectTrendChart } from './DailyDefectTrendChart';
+export { DailyDefectTrendChart, buildCustomerIssueDailyTrend } from './DailyDefectTrendChart';
 export { DefectCauseBreakdownChart } from './DefectCauseBreakdownChart';
 export { DelayHeatmapChart } from './DelayHeatmapChart';
 export { DeveloperWorkloadChart } from './DeveloperWorkloadChart';

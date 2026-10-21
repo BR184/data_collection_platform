@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
-import { useStatisticBoardData } from './useStatisticBoardData';
-import type { StatisticBoardResponse } from '../types/api';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useStatisticBoardData, type PreparedStatisticDetail } from './useStatisticBoardData';
+import type { StatisticBoardControlOptions, StatisticBoardResponse, ReadViewMetadata, ReadViewTransport } from '../types/api';
 
 function createBoard(): StatisticBoardResponse {
   return {
@@ -28,12 +28,29 @@ function createBoard(): StatisticBoardResponse {
   };
 }
 
+const activeStates: ReturnType<typeof useStatisticBoardData>[] = [];
+afterEach(() => { for (const state of activeStates.splice(0)) { state.dispose(); } vi.useRealTimers(); });
+function metadata(id: string): ReadViewMetadata {
+  return { readContextId: id, pageKey: 'code-review', scopeKey: 'scope', sourceVersion: 'publication:fixture',
+    businessDate: '2026-10-13', dataAsOf: '2026-10-13T12:00:00Z', leaseExpiresAt: '2099-10-13T12:30:00Z',
+    pendingUpdates: 0, sourceState: 'CURRENT', escalated: false };
+}
+
 function setup() {
   const board = createBoard();
+  let sequence = 0;
   return {
     board,
     deps: {
       boardKey: vi.fn(() => 'code-review'),
+      getControlParams: () => ({}), getRouteQuery: () => ({}), getReadScope: () => ({}),
+      views: { acquire: vi.fn(async () => metadata(`view-${++sequence}`)), renew: vi.fn(async (id: string) => metadata(id)), release: vi.fn(async () => {}) },
+      loadControlOptions: vi.fn(async (_key: string, _request: unknown, read: ReadViewTransport) => {
+        read.onReadView(metadata(read.readContextId));
+        return { scopeReadable: true, sourceVersion: 'publication:fixture', reason: '', scopeKey: '', groups: [] } as StatisticBoardControlOptions;
+      }),
+      loadOpenedDetail: vi.fn<(...args: unknown[]) => Promise<PreparedStatisticDetail | null>>(async () => null),
+      loadOpenedRule: vi.fn(async () => null),
       getFilterGroup: vi.fn(() => ({
         logic: 'AND' as const,
         conditions: [{ fieldKey: 'moduleName', operator: 'eq' as const, value: 'module-a' }],
@@ -62,18 +79,87 @@ function deferred<T>() {
 }
 
 describe('useStatisticBoardData', () => {
+  it('automatic renewal includes the currently opened detail without adopting unapplied main filters', async () => {
+    vi.useFakeTimers();
+    const { deps } = setup();
+    const query: Record<string, string> = { keyword: 'accepted-main' };
+    deps.getRouteQuery = () => ({ ...query });
+    const state = useStatisticBoardData(deps);
+    activeStates.push(state);
+    await state.loadBoard();
+    query.keyword = 'unapplied-draft';
+    query.detailVisible = '1'; query.detailRowKey = 'customer-a'; query.detailColumnKey = 'defect_total';
+    deps.views.renew.mockResolvedValueOnce({ ...metadata('view-1'), sourceState: 'NEWER_AVAILABLE' });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(state.acceptedFrame.value?.query).toMatchObject({ keyword: 'accepted-main', detailVisible: '1',
+      detailRowKey: 'customer-a', detailColumnKey: 'defect_total' });
+    expect(deps.loadOpenedDetail).toHaveBeenLastCalledWith(expect.any(Object), expect.objectContaining({ detailVisible: '1' }),
+      expect.any(Object), expect.objectContaining({ readContextId: 'view-2' }));
+  });
+  it('keeps old main and candidates until the opened detail is also ready', async () => {
+    const { board, deps } = setup();
+    const state = useStatisticBoardData(deps);
+    activeStates.push(state);
+    await state.loadBoard();
+    const next = createBoard();
+    next.definition.title = '新版本';
+    deps.loadBoardData.mockResolvedValueOnce(next);
+    const pendingDetail = deferred<PreparedStatisticDetail | null>();
+    deps.loadOpenedDetail.mockReturnValueOnce(pendingDetail.promise);
+    const updating = state.loadBoard();
+    await vi.waitFor(() => expect(deps.loadOpenedDetail).toHaveBeenCalledTimes(2));
+    expect(state.board.value).toBe(board);
+    expect(state.readMetadata.value?.readContextId).toBe('view-1');
+    pendingDetail.resolve(null);
+    await updating;
+    expect(state.board.value).toBe(next);
+    expect(state.readMetadata.value?.readContextId).toBe('view-2');
+  });
+
+  it('keeps the accepted frame and its export identity when detail preparation fails', async () => {
+    const { board, deps } = setup();
+    const state = useStatisticBoardData(deps);
+    activeStates.push(state);
+    await state.loadBoard();
+    deps.loadOpenedDetail.mockRejectedValueOnce(new Error('明细准备失败'));
+    await state.loadBoard(false);
+    expect(state.board.value).toBe(board);
+    expect(state.errorMessage.value).toBe('明细准备失败');
+    await state.exportBoard();
+    expect(deps.exportBoardFile).toHaveBeenCalledWith('code-review', expect.anything(),
+      expect.objectContaining({ readContextId: 'view-1' }));
+    expect(deps.views.release).toHaveBeenCalledWith('view-2');
+  });
+
+  it('canceling a pending scope preserves the accepted page and discards its late result', async () => {
+    const { board, deps } = setup();
+    const state = useStatisticBoardData(deps);
+    activeStates.push(state);
+    await state.loadBoard();
+    const next = deferred<StatisticBoardResponse>();
+    deps.loadBoardData.mockReturnValueOnce(next.promise);
+    const updating = state.loadBoard();
+    await vi.waitFor(() => expect(deps.loadBoardData).toHaveBeenCalledTimes(2));
+    state.invalidateBoardRequest();
+    expect(state.loading.value).toBe(false);
+    next.resolve(createBoard());
+    await updating;
+    expect(state.board.value).toBe(board);
+    expect(state.readMetadata.value?.readContextId).toBe('view-1');
+  });
   it('loads board data with the current filter group and runs the loaded callback', async () => {
     const { board, deps } = setup();
     const state = useStatisticBoardData(deps);
+    activeStates.push(state);
 
     await state.loadBoard();
 
-    expect(deps.loadBoardData).toHaveBeenCalledWith('code-review', {
+    expect(deps.loadBoardData).toHaveBeenCalledWith('code-review', { ...{
       filterGroup: {
         logic: 'AND',
         conditions: [{ fieldKey: 'moduleName', operator: 'eq', value: 'module-a' }],
       },
-    });
+    }, filters: {} }, expect.objectContaining({ readContextId: 'view-1' }));
     expect(state.board.value).toBe(board);
     expect(state.loading.value).toBe(false);
     expect(state.errorMessage.value).toBe('');
@@ -91,6 +177,7 @@ describe('useStatisticBoardData', () => {
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise);
     const state = useStatisticBoardData(deps);
+    activeStates.push(state);
 
     const firstLoad = state.loadBoard();
     const secondLoad = state.loadBoard();
@@ -119,6 +206,7 @@ describe('useStatisticBoardData', () => {
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise);
     const state = useStatisticBoardData(deps);
+    activeStates.push(state);
 
     const firstLoad = state.loadBoard();
     const secondLoad = state.loadBoard();
@@ -142,6 +230,7 @@ describe('useStatisticBoardData', () => {
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise);
     const state = useStatisticBoardData(deps);
+    activeStates.push(state);
 
     const firstLoad = state.loadBoard();
     const secondLoad = state.loadBoard();
@@ -159,6 +248,7 @@ describe('useStatisticBoardData', () => {
     const { deps } = setup();
     deps.loadBoardData.mockRejectedValueOnce(new Error('加载失败'));
     const state = useStatisticBoardData(deps);
+    activeStates.push(state);
 
     await state.loadBoard(false);
 
@@ -176,15 +266,17 @@ describe('useStatisticBoardData', () => {
   it('exports the current board as a file', async () => {
     const { deps } = setup();
     const state = useStatisticBoardData(deps);
+    activeStates.push(state);
 
+    await state.loadBoard();
     await state.exportBoard();
 
-    expect(deps.exportBoardFile).toHaveBeenCalledWith('code-review', {
+    expect(deps.exportBoardFile).toHaveBeenCalledWith('code-review', { ...{
       filterGroup: {
         logic: 'AND',
         conditions: [{ fieldKey: 'moduleName', operator: 'eq', value: 'module-a' }],
       },
-    });
+    }, filters: {} }, expect.objectContaining({ readContextId: 'view-1' }));
     expect(deps.downloadFile).toHaveBeenCalledWith(expect.any(Blob), '当前里程碑-客户问题缺陷原因统计表.xlsx');
     expect(deps.notifySuccess).toHaveBeenCalledWith('导出成功');
   });

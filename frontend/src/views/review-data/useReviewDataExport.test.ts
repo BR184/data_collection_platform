@@ -3,8 +3,8 @@ import { useReviewDataExport } from './useReviewDataExport';
 
 function setup() {
   return {
-    exportReviewRecords: vi.fn<() => Promise<Blob>>(() => Promise.resolve(new Blob(['records']))),
-    exportProblemDetails: vi.fn<() => Promise<Blob>>(() => Promise.resolve(new Blob(['problems']))),
+    exportReviewRecords: vi.fn(async (commit: (blob: Blob) => void) => { commit(new Blob(['records'])); }),
+    exportProblemDetails: vi.fn(async (commit: (blob: Blob) => void) => { commit(new Blob(['problems'])); }),
     downloadTemplate: vi.fn<() => Promise<Blob>>(() => Promise.resolve(new Blob(['template']))),
     downloadWorkbook: vi.fn<(blob: Blob, filename: string) => void>(),
     now: vi.fn<() => Date>(() => new Date('2026-04-27T08:09:10')),

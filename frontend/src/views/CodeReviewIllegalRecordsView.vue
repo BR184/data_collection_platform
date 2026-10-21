@@ -11,9 +11,16 @@ import SmartSelect from '../components/base/SmartSelect.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { api } from '../api';
+import { useAcceptedPageView } from '../composables/useAcceptedPageView';
+import StatisticBoardFreshnessBanner from '../components/StatisticBoardFreshnessBanner.vue';
+import { buildFilterGroupFromRouteQuery } from '../components/statistic-board-route-query';
+import { sanitizeFilterDraftGroup } from '../components/statistic-board-filters';
+import type { ReadViewTransport } from '../types/api/read-view';
 import type {
   CodeReviewIllegalRecordFilterOptionsResponse,
   CodeReviewIllegalRecordRowResponse,
+  CodeReviewIllegalRecordListResponse,
+  StatisticBoardRuleExplanationResponse,
   OptionItemResponse,
 } from '../types/api';
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
@@ -51,10 +58,6 @@ const PAGE_SCOPE_KEY = 'record-page:code-review-illegal-records';
 const { readAutoRefreshOnEnter } = usePageAutoRefreshPreference(PAGE_SCOPE_KEY);
 const {
   route,
-  page,
-  pageSize,
-  sortBy,
-  sortOrder,
   reload,
   patchQuery,
   bindLoader,
@@ -79,6 +82,39 @@ const exportLoading = ref(false);
 const rowRefreshLoadingKey = ref('');
 const matchModeEnabled = ref(true);
 const sourceOptions = ref<OptionItemResponse[]>([]);
+interface IllegalFrame {
+  response: CodeReviewIllegalRecordListResponse;
+  options: CodeReviewIllegalRecordFilterOptionsResponse;
+  sources: OptionItemResponse[];
+  compatibilityRead: boolean;
+  query: Readonly<Record<string, unknown>>;
+  request: ReturnType<typeof buildCurrentQueryParams>;
+  detail: CodeReviewIllegalRecordRowResponse | null;
+  rule: StatisticBoardRuleExplanationResponse | null;
+}
+const acceptedPage = useAcceptedPageView<IllegalFrame>({
+  pageKey: 'code-review-illegal-records',
+  load: () => { throw new Error('非法记录页必须捕获整批查询'); },
+});
+const tableLoadError = ref('');
+const acceptedQuery = computed(() => acceptedPage.accepted.value?.data.query ?? route.query);
+const displayedSortOrder = computed(() => String(acceptedQuery.value.sortOrder ?? 'desc') as 'asc' | 'desc');
+acceptedPage.start();
+watch(acceptedPage.accepted, (frame, previous) => {
+  if (frame && frame.data === previous?.data) return;
+  rows.value = frame?.data.response.records ?? [];
+  total.value = frame?.data.response.total ?? 0;
+  filterOptions.value = frame?.data.options ?? createDefaultCodeReviewFilterOptions();
+  sourceOptions.value = frame?.data.sources ?? [];
+  if (frame) {
+    matchModeEnabled.value = frame.data.compatibilityRead;
+    initializeFromQuery(frame.data.query as LocationQuery);
+    if (detailVisible.value) selectedRow.value = frame.data.detail;
+    resetRuleExplanation(); ruleExplanation.value = frame.data.rule;
+  } else {
+    selectedRow.value = null; detailVisible.value = false; resetRuleExplanation();
+  }
+}, { flush: 'sync' });
 const showRefreshLatestData = computed(() => !matchModeEnabled.value);
 
 const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>(
@@ -100,8 +136,9 @@ const {
   ruleExplanationLoading,
   ruleExplanationVisible,
   openRuleExplanation: openRuleExplanationPanel,
+  resetRuleExplanation,
 } = useRuleExplanationPanel({
-  load: () => api.getCodeReviewIllegalRecordRuleExplanation(),
+  load: () => acceptedPage.readAccepted((_frame, read) => api.getCodeReviewIllegalRecordRuleExplanation(read)),
   fallback: (reason) => createCodeReviewRuleExplanationFallback(reason),
 });
 
@@ -109,7 +146,6 @@ const {
   filterDraft,
   activeFilterTags: conditionFilterGroupTags,
   initializeFromQuery,
-  buildFilterPayload,
   resetDraft,
   buildApplyQueryPatch,
   buildResetQueryPatch,
@@ -290,54 +326,15 @@ async function loadFilterOptions(
   effectiveSource: string,
   matchMode: boolean,
   repositoryName: string,
+  read: ReadViewTransport,
 ) {
   return api.getCodeReviewIllegalRecordFilterOptions(
     undefined,
     effectiveSource || undefined,
     String(query.projectName ?? ''),
     matchMode ? repositoryName : undefined,
+    read,
   );
-}
-
-async function loadSourceOptions() {
-  const options = await api.getCodeReviewMultiBoardSourceOptions();
-  return Array.isArray(options) ? options : [];
-}
-
-async function loadMatchModeStatus() {
-  //兼容模式-MatchMode：代码走查页是否读取兼容表由 codeReviewCompatibilityRead 决定，不能只看全局开关。
-  const status = await api.getCodeReviewMatchModeStatus();
-  return status.codeReviewCompatibilityRead;
-}
-
-async function syncCodeReviewRouteDefaults(
-  query: Readonly<Record<string, unknown>>,
-  effectiveSource: string,
-  isDgm: boolean,
-) {
-  const patch: Record<string, string | number | null> = {};
-  if (!String(query.source ?? '').trim() && effectiveSource) {
-    patch.source = effectiveSource;
-  }
-  if (
-    !isDgm &&
-    !String(query.repositoryName ?? '').trim()
-  ) {
-    //兼容模式-MatchMode：对齐老平台代码走查非法数据页，进入 CC 库默认选择 CrownCAD 所属项目；
-    //非兼容读源也复用这一默认范围，避免交接前后同一页面候选口径漂移。
-    patch.repositoryName = 'CrownCAD';
-  }
-  if (isDgm && String(query.repositoryName ?? '').trim()) {
-    patch.repositoryName = null;
-  }
-  if (!Object.keys(patch).length) {
-    return false;
-  }
-  await patchQuery({
-    ...patch,
-    page: 1,
-  });
-  return true;
 }
 
 const {
@@ -367,17 +364,8 @@ const {
 watch(watchedQuerySignature, () => invalidateRefreshTracking());
 onBeforeUnmount(() => {
   invalidateRefreshTracking();
+  acceptedPage.dispose();
 });
-
-async function loadTableData(
-  query: Readonly<Record<string, unknown>> = route.query,
-  effectiveSource: string = effectiveSourceValue.value,
-  repositoryName: string = effectiveRepositoryName.value,
-) {
-  return api.getCodeReviewIllegalRecords(
-    buildCurrentQueryParams(true, query, effectiveSource, repositoryName),
-  );
-}
 
 function buildCurrentQueryParams(
   includePagination: boolean,
@@ -400,7 +388,7 @@ function buildCurrentQueryParams(
     mergeRequestIid: String(query.mergeRequestIid ?? ''),
     owner: String(query.owner ?? ''),
     source: effectiveSource || undefined,
-    filterGroup: buildFilterPayload(),
+    filterGroup: sanitizeFilterDraftGroup(buildFilterGroupFromRouteQuery(query as LocationQuery)),
     ...(includePagination ? {
       page: parseQueryPositiveInteger(query.page, 1),
       size: parseQueryPositiveInteger(query.pageSize, 40),
@@ -422,8 +410,8 @@ function defaultRepositoryNameForSource(source: string) {
 async function handleExport() {
   exportLoading.value = true;
   try {
-    const workbook = await api.exportCodeReviewIllegalRecords(buildCurrentQueryParams(false));
-    downloadBlob(workbook, codeReviewIllegalExportFilename());
+    await acceptedPage.readAccepted((frame, read) => api.exportCodeReviewIllegalRecords(frame.request, read),
+      (workbook, frame) => downloadBlob(workbook, codeReviewIllegalExportFilename(frame.query)));
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '导出失败'));
   } finally {
@@ -431,17 +419,17 @@ async function handleExport() {
   }
 }
 
-function codeReviewIllegalExportFilename() {
-  const isDgm = effectiveSourceValue.value === 'dgm';
+function codeReviewIllegalExportFilename(query = acceptedQuery.value) {
+  const isDgm = String(query.source ?? '') === 'dgm';
   const params = [
-    String(route.query.projectName ?? ''),
-    String(route.query.illegalType ?? ''),
-    String(route.query.moduleName ?? ''),
-    String(route.query.targetBranch ?? ''),
-    String(route.query.owner ?? ''),
-    String(route.query.mergeRequestIid ?? ''),
-    ...(isDgm ? [] : [effectiveRepositoryName.value]),
-    mergedAtRangeFilenamePart(),
+    String(query.projectName ?? ''),
+    String(query.illegalType ?? ''),
+    String(query.moduleName ?? ''),
+    String(query.targetBranch ?? ''),
+    String(query.owner ?? ''),
+    String(query.mergeRequestIid ?? ''),
+    ...(isDgm ? [] : [String(query.repositoryName ?? '')]),
+    mergedAtRangeFilenamePart(query),
   ].map((value) => value.trim()).filter(Boolean);
   const prefix = params.length > 0 ? params.join('_') : '';
   if (isDgm) {
@@ -450,9 +438,9 @@ function codeReviewIllegalExportFilename() {
   return `${prefix}代码走查非法数据.xlsx`;
 }
 
-function mergedAtRangeFilenamePart() {
-  const start = String(route.query.mergedAtStart ?? '').trim();
-  const end = String(route.query.mergedAtEnd ?? '').trim();
+function mergedAtRangeFilenamePart(query = acceptedQuery.value) {
+  const start = String(query.mergedAtStart ?? '').trim();
+  const end = String(query.mergedAtEnd ?? '').trim();
   return start && end ? `${start}-${end}` : '';
 }
 
@@ -461,44 +449,37 @@ async function handleRefreshLatestData() {
 }
 
 bindLoader(async ({ query, isCurrent }) => {
-  const [loadedSources, loadedMatchMode] = await Promise.all([
-    loadSourceOptions(),
-    loadMatchModeStatus(),
-  ]);
-  if (!isCurrent()) return null;
-  const selectedSource = String(query.source ?? '').trim();
-  const effectiveSource = selectedSource
-    || (loadedMatchMode ? 'cc' : loadedSources[0]?.value || '');
-  const isDgm = effectiveSource === 'dgm';
-  const repositoryName = String(query.repositoryName ?? '')
-    || (!isDgm ? defaultRepositoryNameForSource(effectiveSource) : '');
-  const patchedDefaults = await syncCodeReviewRouteDefaults(query, effectiveSource, isDgm);
-  if (patchedDefaults || !isCurrent()) return null;
-
-  const loadedFilterOptions = await loadFilterOptions(
-    query,
-    effectiveSource,
-    loadedMatchMode,
-    repositoryName,
-  );
-  if (!isCurrent()) return null;
-  initializeFromQuery(query as LocationQuery);
-  const response = await loadTableData(query, effectiveSource, repositoryName);
-  return { loadedSources, loadedMatchMode, loadedFilterOptions, response };
-}, (result) => {
-  if (!result) return;
-  sourceOptions.value = result.loadedSources;
-  matchModeEnabled.value = result.loadedMatchMode;
-  filterOptions.value = result.loadedFilterOptions;
-  rows.value = result.response.records;
-  total.value = result.response.total;
-  void loadSyncStatus();
-}, (error) => {
-  rows.value = [];
-  total.value = 0;
-  filterOptions.value = createDefaultCodeReviewFilterOptions();
-  ElMessage.error(getErrorMessage(error, '非法记录数据加载失败'));
+  if (!isCurrent()) return;
+  // 既有 CC/CrownCAD 默认范围先规范化；不能在取得租约后改变来源范围。
+  const requestedSource = String(query.source ?? '').trim().toLowerCase() || 'cc';
+  const requestedRepository = requestedSource === 'dgm' ? ''
+    : String(query.repositoryName ?? '').trim() || defaultRepositoryNameForSource(requestedSource);
+  const scope: Record<string, string> = { source: requestedSource };
+  if (requestedRepository) scope.repositoryName = requestedRepository;
+  const loaded = await acceptedPage.prepare(scope, async (_scope, read) => {
+    const root = detailVisible.value ? selectedRow.value : null;
+    const includeRule = ruleExplanationVisible.value;
+    const context = await api.getCodeReviewIllegalRecordContext(read);
+    const source = requestedSource;
+    const repositoryName = requestedRepository;
+    const acceptedQuery = { ...query, source, repositoryName };
+    const request = buildCurrentQueryParams(true, acceptedQuery, source, repositoryName);
+    const [response, options, detail, rule] = await Promise.all([
+      api.getCodeReviewIllegalRecords(request, read),
+      loadFilterOptions(acceptedQuery, source, context.compatibilityRead, repositoryName, read),
+      root ? api.getCodeReviewIllegalRecord(root, read) : Promise.resolve(null),
+      includeRule ? api.getCodeReviewIllegalRecordRuleExplanation(read) : Promise.resolve(null),
+    ]);
+    return { response, options, detail, rule, request, query: acceptedQuery,
+      sources: context.sources, compatibilityRead: context.compatibilityRead };
+  });
+  if (!loaded && isCurrent()) throw acceptedPage.lastError.value ?? new Error('页面准备已取消');
+}, () => { tableLoadError.value = ''; void loadSyncStatus(); }, (error) => {
+  tableLoadError.value = getErrorMessage(error, '非法记录数据加载失败，已保留当前完整数据');
 });
+watch(() => [detailVisible.value, selectedRow.value?.legacySourceId, selectedRow.value?.sourceInstance,
+  selectedRow.value?.mergeRequestId, ruleExplanationVisible.value],
+  () => { if (acceptedPage.preparing.value) { acceptedPage.cancelPreparation(); void reload(); } });
 
 async function handleClearFilter(key: string) {
   if (key === 'filterGroup') {
@@ -593,12 +574,15 @@ async function handleSourceScopeChange(value: string | number | boolean | undefi
 
 <template>
   <section class="record-page-shell">
+    <StatisticBoardFreshnessBanner v-bind="acceptedPage.accepted.value?.metadata" />
+    <el-alert v-if="tableLoadError" :title="tableLoadError" type="warning" :closable="false" />
     <BaseRecordTable
+      v-if="acceptedPage.accepted.value || isTableLoading"
       :columns="columns"
       :rows="tableRows"
-      :loading="isTableLoading"
-      :page="page"
-      :page-size="pageSize"
+      :loading="isTableLoading && !acceptedPage.accepted.value"
+      :page="parseQueryPositiveInteger(acceptedQuery.page, 1)"
+      :page-size="parseQueryPositiveInteger(acceptedQuery.pageSize, 40)"
       :page-size-options="[40, 60, 100]"
       :total="total"
       :row-actions-width="132"
@@ -616,8 +600,8 @@ async function handleSourceScopeChange(value: string | number | boolean | undefi
       quick-filter-toggle-placement="filter-builder"
       :filter-builder-expanded="conditionFiltersExpanded"
       :empty-description="tableEmptyDescription"
-      :sort-by="sortBy"
-      :sort-order="sortOrder"
+      :sort-by="String(acceptedQuery.sortBy ?? 'mergedAt')"
+      :sort-order="displayedSortOrder"
       default-sort-by="mergedAt"
       default-sort-order="desc"
       @reset="handleReset"
@@ -793,6 +777,7 @@ async function handleSourceScopeChange(value: string | number | boolean | undefi
         </div>
       </template>
 
+      <el-empty v-if="!selectedRow" description="该记录已从最新完整数据中撤回" />
       <template v-if="selectedRow">
         <section class="record-detail-section">
           <div class="record-detail-section-title">详细内容</div>

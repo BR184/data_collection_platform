@@ -5,6 +5,7 @@ import type {
   StatisticBoardRuleExplanationResponse,
   StatisticDetailResponse,
   StatisticFilterGroup,
+  ReadViewTransport,
 } from '../types/api';
 import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlobResponse } from './request';
 import { stringifyStatisticFilterGroup } from '../utils/statistic-filter-group';
@@ -12,6 +13,7 @@ import { stringifyStatisticFilterGroup } from '../utils/statistic-filter-group';
 export interface StatisticBoardQueryParams {
   filters?: Record<string, string>;
   filterGroup?: StatisticFilterGroup | null;
+  read?: ReadViewTransport;
 }
 
 function buildStatisticBoardQuery(params?: StatisticBoardQueryParams) {
@@ -27,6 +29,7 @@ export const statisticBoardsApi = {
   getStatisticBoard(boardKey: string, params?: StatisticBoardQueryParams) {
     return request<StatisticBoardResponse>(
       `/api/statistic-boards/${boardKey}${buildStatisticBoardQuery(params)}`,
+      params?.read,
     );
   },
   /**
@@ -38,6 +41,7 @@ export const statisticBoardsApi = {
   getStatisticBoardControlOptions(boardKey: string, params?: StatisticBoardQueryParams) {
     return request<StatisticBoardControlOptions>(
       `/api/statistic-boards/${boardKey}/control-options${buildStatisticBoardQuery(params)}`,
+      params?.read,
     );
   },
   getStatisticBoardDetails(
@@ -51,6 +55,7 @@ export const statisticBoardsApi = {
       sortOrder?: string;
       filters?: Record<string, string>;
       filterGroup?: StatisticFilterGroup | null;
+      read?: ReadViewTransport;
     },
   ) {
     const query = new URLSearchParams({
@@ -65,21 +70,24 @@ export const statisticBoardsApi = {
     if (params.filterGroup && params.filterGroup.conditions.length) {
       query.set('filterGroup', stringifyStatisticFilterGroup(params.filterGroup));
     }
-    return request<StatisticDetailResponse>(`/api/statistic-boards/${boardKey}/details?${query.toString()}`);
+    return request<StatisticDetailResponse>(`/api/statistic-boards/${boardKey}/details?${query.toString()}`, params.read);
   },
   getStatisticBoardRuleExplanation(boardKey: string, params?: StatisticBoardQueryParams) {
     return request<StatisticBoardRuleExplanationResponse>(
       `/api/statistic-boards/${boardKey}/rule-explanation${buildStatisticBoardQuery(params)}`,
+      params?.read,
     );
   },
   async exportStatisticBoard(boardKey: string, params?: StatisticBoardQueryParams) {
     return requestBlobResponse(`/api/statistic-boards/${boardKey}/export${buildStatisticBoardQuery(params)}`, {
+      ...params?.read,
       errorPrefix: '导出失败',
       timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
     });
   },
   async exportStatisticBoardFile(boardKey: string, params?: StatisticBoardQueryParams) {
     return requestBlobResponse(`/api/statistic-boards/${boardKey}/export${buildStatisticBoardQuery(params)}`, {
+      ...params?.read,
       errorPrefix: '导出失败',
       timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
     });
@@ -89,6 +97,7 @@ export const statisticBoardsApi = {
       `/api/statistic-boards/system-test-defect-summary/horizontal-comparison/export${buildStatisticBoardQuery(params)}`,
       {
         errorPrefix: '横向对比导出失败',
+        ...params?.read,
         timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
       },
     );
@@ -98,6 +107,7 @@ export const statisticBoardsApi = {
       `/api/statistic-boards/system-test-defect-summary/issues/export${buildStatisticBoardQuery(params)}`,
       {
         errorPrefix: '议题数据导出失败',
+        ...params?.read,
         timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
       },
     );
@@ -107,6 +117,7 @@ export const statisticBoardsApi = {
       `/api/statistic-boards/customer-issue-defect-summary/issues/export${buildStatisticBoardQuery(params)}`,
       {
         errorPrefix: '客户问题议题数据导出失败',
+        ...params?.read,
         timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
       },
     );
