@@ -23,6 +23,42 @@ SPEC.loader.exec_module(MODULE)
 
 
 class IntranetLdapPackagingTest(unittest.TestCase):
+    def test_upgrade_uses_one_shot_migration_before_starting_service(self):
+        content = MODULE.upgrade_helper(self.build_context())
+        self.assertIn("PLATFORM_RUN_MODE=migrate", content)
+        self.assertIn("run --rm --no-deps -T", content)
+        self.assertNotIn("recreating migration backend", content)
+
+    def test_failed_migration_cleans_its_container_and_preserves_foreign_container(self):
+        git = shutil.which("git")
+        bash = Path(git).resolve().parent.parent / "bin/bash.exe" if os.name == "nt" and git else shutil.which("bash")
+        if not bash or not Path(bash).exists():
+            self.skipTest("bash is required for migration process execution")
+        content = MODULE.upgrade_helper(self.build_context())
+        fragment = content[content.index('command -v timeout'):content.index('log "verifying Flyway result')]
+        fragment = fragment.replace('MIGRATION_TOKEN="$(cat /proc/sys/kernel/random/uuid)"', 'MIGRATION_TOKEN="owned-token"')
+        for owner, expected_remove in (("owned-token", True), ("foreign-token", False)):
+            with self.subTest(owner=owner), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                fake = root / "docker.sh"
+                fake.write_text("#!/usr/bin/env bash\n"
+                    'printf "%s\\n" "$*" >> "$COMMAND_LOG"\n'
+                    'if [[ "$1" == "compose" ]]; then exit 7; fi\n'
+                    'if [[ "$1" == "inspect" ]]; then printf "%s\\n" "$OWNER_TOKEN"; fi\n', encoding="utf-8", newline="\n")
+                script = root / "run.sh"
+                script.write_text('set -euo pipefail\n'
+                    'TARGET_DIR="$PWD"\nBACKUP_DIR="$PWD"\nDOCKER=("$PWD/docker.sh")\n'
+                    'chmod +x "$PWD/docker.sh"\nfail() { echo "$*" >&2; exit 1; }\n' + fragment,
+                    encoding="utf-8", newline="\n")
+                result = subprocess.run([str(bash), "run.sh"], cwd=root, capture_output=True, text=True,
+                    env={**os.environ, "COMMAND_LOG": (root / "commands.log").as_posix(), "OWNER_TOKEN": owner,
+                         "COMPOSE_PROJECT_NAME": "foreign-project"}, timeout=15)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                commands = (root / "commands.log").read_text(encoding="utf-8")
+                self.assertIn("PLATFORM_RUN_MODE=migrate", commands)
+                self.assertEqual("rm -f qaflex-migrate-owned-token" in commands, expected_remove)
+                self.assertIn("one-shot migration failed", result.stderr)
+
     def build_context(self):
         return MODULE.BuildContext(
             mode="fresh-empty",
@@ -273,6 +309,11 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             postgres_port=15432,
             ldap_base_url="http://172.22.10.116:80",
             include_offline_docker_debs=False,
+            container_names={
+                "postgres": "qaflex-postgres",
+                "backend": "qaflex-backend",
+                "frontend": "qaflex-frontend",
+            },
         )
 
     def test_incremental_mode_requires_explicit_baseline(self):
@@ -439,6 +480,78 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertIn('PLATFORM_BACKGROUND_JOBS_ENABLED: "${PLATFORM_BACKGROUND_JOBS_ENABLED:-true}"', content)
         self.assertNotIn("PLATFORM_ADMIN_PASSWORD", content)
 
+    def test_incremental_compose_follows_a_project_scoped_baseline(self):
+        context = MODULE.BuildContext(
+            **{**self.build_context().__dict__, "container_names": {}}
+        )
+
+        content = MODULE.compose_content(context, external_postgres_volume=True)
+
+        self.assertNotIn("container_name:", content)
+        self.assertIn('name: "${POSTGRES_VOLUME_NAME:?POSTGRES_VOLUME_NAME is required}"', content)
+
+    def test_baseline_container_names_are_inherited_service_by_service(self):
+        with tempfile.TemporaryDirectory() as root:
+            baseline = Path(root)
+            (baseline / "docker-compose.yml").write_text(
+                'name: "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}"\n'
+                "\n"
+                "services:\n"
+                "  postgres:\n"
+                "#    container_name: commented-out\n"
+                "    container_name: qaflex-postgres\n"
+                "    ports:\n"
+                "      - \"15432:5432\"\n"
+                "  backend:\n"
+                "    image: qa-flex-platform-backend:20260714-466478a4-working\n"
+                "    environment:\n"
+                "      POSTGRES_PASSWORD: $${POSTGRES_PASSWORD}\n"
+                "volumes:\n"
+                "  qaflex_pgdata:\n"
+                "    external: true\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                {"postgres": "qaflex-postgres"},
+                MODULE.read_baseline_container_names(baseline),
+            )
+
+    def test_resolve_context_inherits_naming_from_the_baseline_dir(self):
+        with tempfile.TemporaryDirectory() as root:
+            baseline = Path(root) / "qaflex-full-20261010T013316Z-24fbf3eb6925"
+            baseline.mkdir()
+            (baseline / "docker-compose.yml").write_text(
+                "services:\n"
+                "  postgres:\n"
+                "    image: postgres:16-alpine\n"
+                "  backend:\n"
+                "    image: qa-flex-platform-backend:20261010T013316Z-24fbf3eb6925\n"
+                "  frontend:\n"
+                "    image: qa-flex-platform-frontend:20261010T013316Z-24fbf3eb6925\n",
+                encoding="utf-8",
+            )
+            args = MODULE.parse_args(
+                [
+                    "--mode",
+                    "incremental-update",
+                    "--baseline-dir",
+                    str(baseline),
+                    "--deploy-root",
+                    str(Path(root) / "deploy"),
+                    "--frontend-port",
+                    "20102",
+                    "--backend-port",
+                    "20101",
+                    "--postgres-port",
+                    "15435",
+                ]
+            )
+
+            context = MODULE.resolve_context(args)
+
+            self.assertEqual({}, context.container_names)
+
     def test_backup_and_upgrade_are_separate_verified_stages(self):
         backup = MODULE.backup_helper(self.build_context())
         content = MODULE.upgrade_helper(self.build_context())
@@ -464,10 +577,12 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertIn('mv -f "$TEMP_COMPOSE" docker-compose.yml', content)
         self.assertNotIn("docker-compose.override.yml", content)
         self.assertIn("PLATFORM_BACKGROUND_JOBS_ENABLED=false", content)
-        self.assertIn("background scheduling disabled", content)
+        self.assertIn("one-shot Flyway migration", content)
         self.assertIn("recreating backend with normal background scheduling", content)
         self.assertIn("PLATFORM_BACKGROUND_JOBS_ENABLED=true compose up", content)
         self.assertIn("normal background scheduling mode was not restored", content)
+        self.assertLess(content.index("run --rm --no-deps -T"), content.index("counts-after-migration.txt"))
+        self.assertNotIn("background scheduling disabled mode was not applied", content)
         self.assertIn("compose stop backend", content)
         self.assertIn("counts-migration-start.txt", content)
         backend_position = content.index("--force-recreate backend")
@@ -588,6 +703,24 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
 
         self.assertIn("未声明事实重建不等于所有 API、图表或统计展示数值必须不变", content)
         self.assertNotIn("不改变事实表、统计口径或历史聚合结果", content)
+
+    def test_incremental_readme_requires_checking_fixed_container_name_ownership(self):
+        content = MODULE.incremental_readme(self.build_context())
+
+        self.assertIn("升级前确认固定容器名属于本实例", content)
+        self.assertIn("backend=qaflex-backend", content)
+        self.assertIn('--filter "name=^/$name$"', content)
+        self.assertIn("com.docker.compose.project", content)
+        self.assertIn("不要删除或停止其它实例的容器", content)
+
+    def test_incremental_readme_scopes_identity_check_to_the_compose_project_without_fixed_names(self):
+        context = MODULE.BuildContext(**{**self.build_context().__dict__, "container_names": {}})
+
+        content = MODULE.incremental_readme(context)
+
+        self.assertIn("升级前确认 Compose project 是目标实例", content)
+        self.assertNotIn("升级前确认固定容器名属于本实例", content)
+        self.assertIn("COMPOSE_PROJECT_NAME", content)
 
     def test_upgrade_script_does_not_request_fact_rebuild_when_release_does_not_require_it(self):
         context = MODULE.BuildContext(**{**self.build_context().__dict__, "require_fact_rebuild": False})

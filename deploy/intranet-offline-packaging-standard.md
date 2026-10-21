@@ -13,7 +13,7 @@
 - `backend`：Spring Boot 后端，通过 Compose 内部网络访问平台库。
 - `frontend`：Nginx 前端，将 `/api/` 代理到后端。
 
-全新包必须通过必填 `COMPOSE_PROJECT_NAME` 隔离容器、默认网络和 named volume，不写固定 `container_name`；同一主机部署多套实例时，project 名称及前端、后端、PostgreSQL 三个主机端口必须同时唯一。保数据更新包为兼容既有现场资源身份可继续使用其原容器名和 external volume，但不得把该约束复制到新实例。
+全新包必须通过必填 `COMPOSE_PROJECT_NAME` 隔离容器、默认网络和 named volume，不写固定 `container_name`；同一主机部署多套实例时，project 名称及前端、后端、PostgreSQL 三个主机端口必须同时唯一。保数据更新包的容器名逐服务继承自该实例直接基线的 `docker-compose.yml`：基线声明了固定名就沿用固定名（改名会重建容器并破坏「升级前后 PostgreSQL 容器 ID 一致」），基线未声明就不写固定名（写死会让同主机另一套栈撞名而无法升级）。打包器禁止按模式统一硬编码容器名；增量出包前必须核对 `--plan-only` 输出的 `container naming` 与目标实例实际运行的命名模型一致。
 
 GitLab Web、GitLab PostgreSQL、LDAP、老平台 MySQL/MongoDB 均是其他服务器上的外部系统，不进入本包。GitLab 等源数据库只通过平台 UI 配置为只读数据源，不能写入平台库的 `DATASOURCE_URL`。
 
@@ -249,6 +249,7 @@ cd <package-dir> && sha256sum -c SHA256SUMS.txt
 
 - `source.commit`/工作区状态对应本次代码；
 - `baseline` 对应该实例直接基线；
+- 包内 `docker-compose.yml` 的容器名模型与该 `baseline` 目录逐服务一致：基线无 `container_name` 时包内也不得出现固定名；
 - `target.images` 使用同一个新 release ID；
 - `flywayVersion` 等于 JAR 内最新迁移；
 - `facts` 与第 3 步结论一致。
@@ -283,7 +284,7 @@ bash <package-dir>/upgrade.sh <simulation-deployment-dir> "$BACKUP_DIR"
 - 后端健康返回 `UP`，前端 HTTP 返回 200；
 - Flyway 到达清单目标版本；
 - `database.dump`、`critical-tables.dump` 均非空且可由 `pg_restore --list` 读取，备份级 SHA-256 校验通过；
-- 迁移后端明确关闭后台调度，守恒检查完成后正常后端明确恢复调度；
+- 迁移使用 `PLATFORM_RUN_MODE=migrate` 的一次性无 Web/无业务组件进程，并明确关闭后台调度；成功退出后核验 Flyway/守恒，再启动 `service` 模式并恢复调度。不得以正常后端关闭调度来代替仅迁移进程；
 - `counts.diff` 为空；
 - PostgreSQL 容器 ID 与升级前完全一致。
 
@@ -361,7 +362,7 @@ bash ../<update-package>/upgrade.sh "$PWD" "$BACKUP_DIR"
 2. 确认 PostgreSQL 健康、无运行中同步/事实任务且磁盘足够。
 3. 由独立 `backup.sh` 保存 Compose、容器/镜像、Flyway、关键表行数、完整数据库 dump 和关键表 dump，并验证可恢复性和校验和。
 4. `upgrade.sh` 校验备份绑定当前包、直接基线与同一 PostgreSQL 容器；停止旧后端后记录迁移起点行数。
-5. 以全部后台调度关闭的模式重建后端并完成 Flyway、健康和行数守恒，再恢复正常调度后端，最后重建前端。
+5. 以 `compose run --rm --no-deps -T` 运行 `PLATFORM_RUN_MODE=migrate`（900 秒进程边界，失败清理仅本次令牌所属迁移容器）；迁移成功退出并完成 Flyway/行数核验后，再启动正常调度的 `service` 后端并等待健康，最后重建前端。迁移退出、HTTP 健康及业务完整接管是三个独立判据。
 6. 确认 PostgreSQL 容器 ID 未变化，迁移静默窗口内受保护业务表行数守恒。守恒对象是业务数据表（事实、ODS、评审、用户、范围与快照等）；权限目录三表 `platform_permissions`、`platform_role_permissions`、`platform_default_role_permissions` 是迁移自有的版本化资源，权限类迁移按设计重写它们，因此只随 `critical-tables.dump` 备份、不参与守恒比对。
 
 需要事实重建时，容器升级完成后由具备权限的用户在“数据镜像设置”提交发布清单指定范围的事实重建，并观察 `FACT_REFRESH` 终态和快照预热。升级脚本不得保存账号密码、绕过 Session/CSRF 或触发 GitLab 全量同步。
@@ -373,6 +374,13 @@ bash ../<update-package>/rollback.sh "$PWD" "$PWD/upgrade-backups/<backup-dir>"
 ```
 
 应用回滚只有在基线镜像匹配、后端和前端均健康且 PostgreSQL 容器 ID 未变化后才报告成功，不得把 `health: starting` 当作完成。它不自动执行 `pg_restore`。Flyway 是前向迁移；数据库恢复只能在应用回滚无法恢复服务、已停机且明确审批后执行，优先先恢复到隔离数据库验证。
+
+涉及 ODS 写入语义纠正时，包内说明还须覆盖以下边界：
+
+- 先从完整权威来源纠正存量 ODS，再重建依赖事实并核对本次关联任务与发布完成；不能以仅重建事实或页面没有负值代替存量纠正验收。复用全量补偿时明确其来源删除对账及 tombstone 副作用。
+- 回滚到旧写入器可能重新引入错误，应用回滚不撤销已纠正数据。旧应用启动前按既有机制暂停同步、处理活跃任务并维持维护窗口，恢复路径必须保留回滚期新增；不默认增加数据库级拦截机制。
+- 暂停前按配置 ID 保存各来源启用/自动同步原值，纠正阶段只按需开启目标来源，完成后逐项恢复并对账。验收覆盖自动、手工、停用三种原态，不得恢复成全部启用。
+- 包内跨 Bash、容器 shell 与 SQL 的命令须原样实测；优先通过带引号 heredoc 向 `psql -v ON_ERROR_STOP=1` 传 SQL。`bash -n` 不能代替 SQL 引号语义和返回值验证。
 
 ## 禁止操作
 
@@ -393,6 +401,7 @@ bash ../<update-package>/rollback.sh "$PWD" "$PWD/upgrade-backups/<backup-dir>"
 - `SHA256SUMS.txt` 覆盖包内全部其他文件，包外 `.sha256` 与最终 tar.gz 一致。
 - 更新包包含独立 `backup.sh`；无有效预部署备份时 `upgrade.sh` 必须拒绝执行。
 - 更新包归档不存在 `backend/`、`frontend/`、真实 `.env`、离线 deb、数据库数据或运行日志；任何包归档都不存在 PostgreSQL 镜像。
+- 包内 `README-INCREMENTAL-DEPLOY.md` 必须自带完整现场步骤：校验归档与包内清单、识别并核对目标实例身份（`COMPOSE_PROJECT_NAME` 与三个服务；基线声明固定容器名时逐个核对名字占用者属于本实例，并写明不得删除其它实例或任何 PostgreSQL 容器）、预部署备份、升级、升级后判读、事实重建、失败回滚，且不得要求现场查阅本对话或临时记录。
 - 使用隔离的 20260714/当前更新链副本完成升级、再次升级和应用回滚验证；验证期间 PostgreSQL 容器 ID 与受保护数据保持不变。
 
 ## GitLab 源库访问边界

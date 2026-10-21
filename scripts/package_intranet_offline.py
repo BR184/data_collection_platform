@@ -22,7 +22,7 @@ import subprocess
 import sys
 import tempfile
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -75,6 +75,7 @@ class BuildContext:
     postgres_port: int
     ldap_base_url: str
     include_offline_docker_debs: bool
+    container_names: dict[str, str] = field(default_factory=dict)
 
 
 def log(message: str) -> None:
@@ -232,6 +233,37 @@ def read_deployment_image_tag(deployment_dir: Path, image: str) -> str:
     fail(f"cannot find image tag for {image} in deployment Compose files under {deployment_dir}")
 
 
+def read_baseline_container_names(deployment_dir: Path) -> dict[str, str]:
+    """读取直接基线 Compose 模型为每个服务声明的容器名。
+
+    容器名必须跟随实例自身的基线：写死名称会让同一主机上的其它 Compose 栈撞名而无法部署；
+    丢弃名称则会重建应用与数据库容器，使 PostgreSQL 容器 ID 无法保持升级前后一致。
+    """
+    compose_path = deployment_dir / "docker-compose.yml"
+    require_path(compose_path, "baseline docker-compose.yml")
+    names: dict[str, str] = {}
+    service: str | None = None
+    inside_services = False
+    for line in compose_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if not line.startswith((" ", "\t")):
+            inside_services = line.rstrip() == "services:"
+            service = None
+            continue
+        if not inside_services:
+            continue
+        stripped = line.strip()
+        indent = len(line) - len(line.lstrip())
+        if indent == 2 and stripped.endswith(":") and stripped.count(":") == 1:
+            service = stripped[:-1]
+        elif indent == 4 and service and stripped.startswith("container_name:"):
+            value = stripped.split(":", 1)[1].strip().strip("\"'")
+            if value:
+                names[service] = value
+    return names
+
+
 def latest_flyway_version() -> str:
     migration_dir = REPO_ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration"
     require_path(migration_dir, "Flyway migration directory")
@@ -318,6 +350,7 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
 
     baseline_backend_tag = ""
     baseline_frontend_tag = ""
+    container_names: dict[str, str] = {}
     if args.mode == "fresh-empty":
         package_name = f"{PACKAGE_PREFIX}-full-{release_id}"
         backend_tag = image_tag
@@ -332,6 +365,7 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         require_path(baseline_dir, "baseline deployment directory")
         baseline_backend_tag = read_deployment_image_tag(baseline_dir, BACKEND_IMAGE)
         baseline_frontend_tag = read_deployment_image_tag(baseline_dir, FRONTEND_IMAGE)
+        container_names = read_baseline_container_names(baseline_dir)
         backend_tag = image_tag
         frontend_tag = image_tag
         baseline_name = baseline_dir.name
@@ -357,6 +391,7 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         baseline_backend_tag=baseline_backend_tag,
         baseline_frontend_tag=baseline_frontend_tag,
         baseline_name=baseline_name,
+        container_names=container_names,
         expected_flyway_version=latest_flyway_version(),
         template_dir=template_dir,
         require_fact_rebuild=args.require_fact_rebuild,
@@ -778,9 +813,11 @@ require_preflight_runtime() {
 def compose_content(ctx: BuildContext, *, external_postgres_volume: bool = False) -> str:
     """Generate the complete authoritative Compose model for a release."""
     project_name = 'name: "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}"\n\n'
-    postgres_container_name = "    container_name: qaflex-postgres\n" if external_postgres_volume else ""
-    backend_container_name = "    container_name: qaflex-backend\n" if external_postgres_volume else ""
-    frontend_container_name = "    container_name: qaflex-frontend\n" if external_postgres_volume else ""
+
+    def container_name(service: str) -> str:
+        declared = ctx.container_names.get(service)
+        return f"    container_name: {declared}\n" if declared else ""
+
     postgres_volume = (
         """  qaflex_pgdata:
     external: true
@@ -798,7 +835,7 @@ def compose_content(ctx: BuildContext, *, external_postgres_volume: bool = False
 services:
   postgres:
     image: {POSTGRES_IMAGE}
-{postgres_container_name}\
+{container_name('postgres')}\
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${{POSTGRES_USER}}
@@ -817,7 +854,7 @@ services:
 
   backend:
     image: {BACKEND_IMAGE}:{ctx.backend_tag}
-{backend_container_name}\
+{container_name('backend')}\
     restart: unless-stopped
     depends_on:
       postgres:
@@ -840,6 +877,7 @@ services:
       PLATFORM_SECURE_CONFIG_REQUIRED: "true"
       PLATFORM_AUTH_CSRF_ENABLED: "true"
       PLATFORM_BACKGROUND_JOBS_ENABLED: "${{PLATFORM_BACKGROUND_JOBS_ENABLED:-true}}"
+      PLATFORM_RUN_MODE: "${{PLATFORM_RUN_MODE:-service}}"
       GITLAB_WEB_BASE_URL: ${{GITLAB_WEB_BASE_URL}}
       GITLAB_SYSTEM_HOOK_BASE_URL: ${{PLATFORM_PUBLIC_BASE_URL}}/api/gitlab-sync/system-hook
       GITLAB_SYSTEM_HOOK_MAX_QUEUE_SIZE: ${{GITLAB_SYSTEM_HOOK_MAX_QUEUE_SIZE:-1000}}
@@ -862,7 +900,7 @@ services:
 
   frontend:
     image: {FRONTEND_IMAGE}:{ctx.frontend_tag}
-{frontend_container_name}\
+{container_name('frontend')}\
     restart: unless-stopped
     depends_on:
       backend:
@@ -1035,6 +1073,45 @@ def incremental_readme(ctx: BuildContext) -> str:
 本更新包只替换后端和前端业务镜像，不执行事实层重建或 GitLab 全量同步。未声明事实重建不等于所有 API、图表或统计展示数值必须不变；本包仍可能包含已审阅的应用层页面、接口或统计展示修复，部署后应以发布清单和本版本验收结果为准。不要主动触发事实重建、全量同步或清空快照。
 """
 
+    if ctx.container_names:
+        declared_names = ", ".join(f"{service}={name}" for service, name in sorted(ctx.container_names.items()))
+        name_list = " ".join(sorted(ctx.container_names.values()))
+        naming_section = f"""\
+### 升级前确认固定容器名属于本实例
+
+本包沿用现场基线的固定容器名：`{declared_names}`。升级会**先原子替换现场 `docker-compose.yml`，再创建容器**；若这些名字被同机其它实例占用，替换后的创建会以 `Conflict. The container name ... is already in use` 失败，此时只能先回退再处理。所以升级前必须逐个确认占用者属于本实例：
+
+```bash
+for name in {name_list}; do
+  echo "== $name"
+  sudo docker ps -a --filter "name=^/$name$" \\
+    --format '{{{{.ID}}}} {{{{.Status}}}} {{{{.Image}}}} project={{{{.Label "com.docker.compose.project"}}}}'
+done
+```
+
+每行的 `project=` 必须等于本实例现场 `.env` 里的 `COMPOSE_PROJECT_NAME`：
+
+```bash
+grep '^COMPOSE_PROJECT_NAME=' .env
+```
+
+若某个名字没有输出（名字空闲）或指向另一套实例，先停止部署并确认目标实例：**不要删除或停止其它实例的容器，也不要删除任何包含 `postgres` 的容器**。本实例的容器被判为 running 时才继续。
+"""
+    else:
+        naming_section = f"""\
+### 升级前确认 Compose project 是目标实例
+
+本包与现场基线都不声明固定容器名，容器名由 Compose project 派生（`${{COMPOSE_PROJECT_NAME}}-<service>-1`），同机多实例不会撞名。仍须确认现场 `.env` 的 `COMPOSE_PROJECT_NAME` 就是你要升级的那一套，避免误升另一实例：
+
+```bash
+grep '^COMPOSE_PROJECT_NAME=' .env
+sudo docker ps --format '{{{{.Names}}}} project={{{{.Label "com.docker.compose.project"}}}}' \\
+  | grep -F "$(grep '^COMPOSE_PROJECT_NAME=' .env | cut -d= -f2)"
+```
+
+列出的容器必须正好是本实例的 postgres、backend、frontend 三个服务。
+"""
+
     return f"""\
 # QA Flex Platform 保数据更新包
 
@@ -1124,6 +1201,7 @@ sudo docker compose --env-file .env ps
 sudo docker compose --env-file .env config --images
 ```
 
+{naming_section}\
 ### 如果这里显示上一次失败包的镜像
 
 若上一轮升级在行数检查处中止，现场可能已经原子替换为失败包的完整 `docker-compose.yml` 并重建后端，再次执行升级就会报 `backend baseline image does not match`。这不表示失败包已经成为成功基线，也不要修改本包脚本绕过检查。
@@ -1495,8 +1573,14 @@ wait_healthy() {{
     container="$(compose ps -q "$service")"
     status="$("${{DOCKER[@]}}" inspect -f '{{{{if .State.Health}}}}{{{{.State.Health.Status}}}}{{{{else}}}}{{{{.State.Status}}}}{{{{end}}}}' "$container" 2>/dev/null || true)"
     [[ "$status" == "healthy" ]] && return 0
-    [[ "$status" == "unhealthy" || "$status" == "exited" || "$status" == "dead" ]] && fail "$service entered state $status"
-    (( $(date +%s) - started < timeout_seconds )) || fail "$service health timeout"
+    if [[ "$status" == "unhealthy" || "$status" == "exited" || "$status" == "dead" ]]; then
+      compose logs --no-color --tail 80 "$service" >&2 || true
+      fail "$service entered state $status (service health is separate from migration completion)"
+    fi
+    if (( $(date +%s) - started >= timeout_seconds )); then
+      compose logs --no-color --tail 80 "$service" >&2 || true
+      fail "$service health timeout"
+    fi
     sleep 5
   done
 }}
@@ -1504,11 +1588,30 @@ wait_healthy() {{
 log "stopping baseline backend to establish a quiet migration boundary"
 compose stop backend
 capture_counts "$BACKUP_DIR/counts-migration-start.txt"
-log "recreating migration backend with background scheduling disabled"
-PLATFORM_BACKGROUND_JOBS_ENABLED=false compose up -d --no-deps --force-recreate backend
-wait_healthy backend 900
-BACKEND_ID="$(compose ps -q backend)"
-[[ "$("${{DOCKER[@]}}" inspect -f '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}' "$BACKEND_ID" | grep '^PLATFORM_BACKGROUND_JOBS_ENABLED=' | tail -n 1)" == "PLATFORM_BACKGROUND_JOBS_ENABLED=false" ]] || fail "background scheduling disabled mode was not applied"
+log "running one-shot Flyway migration with business components excluded"
+command -v timeout >/dev/null 2>&1 || fail "timeout is required for the migration process"
+MIGRATION_TOKEN="$(cat /proc/sys/kernel/random/uuid)"
+MIGRATION_CONTAINER="qaflex-migrate-$MIGRATION_TOKEN"
+cleanup_migration() {{
+  local token
+  token="$("${{DOCKER[@]}}" inspect -f '{{{{index .Config.Labels "com.qaflex.migration-token"}}}}' "$MIGRATION_CONTAINER" 2>/dev/null || true)"
+  if [[ "$token" == "$MIGRATION_TOKEN" ]]; then
+    "${{DOCKER[@]}}" rm -f "$MIGRATION_CONTAINER" >/dev/null || true
+  fi
+}}
+trap cleanup_migration EXIT
+if ! timeout --signal=TERM --kill-after=30s 900 env -u COMPOSE_PROJECT_NAME -u POSTGRES_VOLUME_NAME \
+    -u BACKEND_LOG_VOLUME_NAME -u COMPOSE_FILE -u COMPOSE_PROFILES "${{DOCKER[@]}}" compose \
+    --project-directory "$TARGET_DIR" --env-file "$TARGET_DIR/.env" run --rm --no-deps -T \
+    --name "$MIGRATION_CONTAINER" --label "com.qaflex.migration-token=$MIGRATION_TOKEN" \
+    -e PLATFORM_RUN_MODE=migrate -e PLATFORM_BACKGROUND_JOBS_ENABLED=false backend \
+    > "$BACKUP_DIR/backend-migration.log" 2>&1; then
+  cat "$BACKUP_DIR/backend-migration.log" >&2
+  fail "one-shot migration failed or exceeded its process deadline; service was not started"
+fi
+cleanup_migration
+trap - EXIT
+log "verifying Flyway result after migration process completed"
 CURRENT_FLYWAY="$(db_query "select version from flyway_schema_history where success order by installed_rank desc limit 1;")"
 [[ "$CURRENT_FLYWAY" == "$TARGET_FLYWAY" ]] || fail "Flyway version $CURRENT_FLYWAY does not match target $TARGET_FLYWAY"
 
@@ -1517,10 +1620,11 @@ diff -u "$BACKUP_DIR/counts-migration-start.txt" "$BACKUP_DIR/counts-after-migra
 [[ "$(compose ps -q postgres)" == "$POSTGRES_ID" ]] || fail "postgres container changed unexpectedly"
 
 log "recreating backend with normal background scheduling"
-PLATFORM_BACKGROUND_JOBS_ENABLED=true compose up -d --no-deps --force-recreate backend
+PLATFORM_RUN_MODE=service PLATFORM_BACKGROUND_JOBS_ENABLED=true compose up -d --no-deps --force-recreate backend
 wait_healthy backend 900
 BACKEND_ID="$(compose ps -q backend)"
 [[ "$("${{DOCKER[@]}}" inspect -f '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}' "$BACKEND_ID" | grep '^PLATFORM_BACKGROUND_JOBS_ENABLED=' | tail -n 1)" == "PLATFORM_BACKGROUND_JOBS_ENABLED=true" ]] || fail "normal background scheduling mode was not restored"
+[[ "$("${{DOCKER[@]}}" inspect -f '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}' "$BACKEND_ID" | grep '^PLATFORM_RUN_MODE=' | tail -n 1)" == "PLATFORM_RUN_MODE=service" ]] || fail "normal service mode was not restored"
 
 log "recreating frontend after backend migration and health verification"
 compose up -d --no-deps --force-recreate frontend
@@ -2029,6 +2133,15 @@ def main(argv: Sequence[str]) -> int:
         log(f"package: {ctx.package_name}")
         log(f"backend tag: {ctx.backend_tag}")
         log(f"frontend tag: {ctx.frontend_tag}")
+        if ctx.mode == "incremental-update":
+            log(
+                "container naming: "
+                + (
+                    ", ".join(f"{service}={name}" for service, name in sorted(ctx.container_names.items()))
+                    if ctx.container_names
+                    else "project-scoped (the baseline declares no fixed container names)"
+                )
+            )
         if args.plan_only:
             log(f"deploy root: {ctx.deploy_root}")
             log(f"package dir: {ctx.package_dir}")
