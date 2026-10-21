@@ -6,7 +6,7 @@
     "boardKey" : "customer-issue-delay-records",
     "supported" : true,
     "title" : "延期问题规则说明",
-    "version" : "customer-issue-records@2026-09-28-v5",
+    "version" : "customer-issue-records@2026-10-13-v6",
     "scopeDescription" : "当前页面展示客户问题范围内的议题记录，并按当前专题继续收敛范围。",
     "summary" : "延期问题专题展示客户问题范围内已经申请延期、响应延期或解决延期的议题。",
     "flowSteps" : [ {
@@ -88,5 +88,18 @@
       "note" : null
     } ],
     "unsupportedReason" : null
+  },
+  "readView" : {
+    "readContextId" : "<verified-runtime-readContextId>",
+    "pageKey" : "customer-issues-cc-product-issues",
+    "scopeKey" : "669c09eabeb30d3985d8f6028e79a4d5fa4737719ef6385f1b31cdc84c502adc",
+    "sourceVersion" : "<verified-runtime-sourceVersion>",
+    "businessDate" : "2026-09-01",
+    "leaseExpiresAt" : "<verified-runtime-leaseExpiresAt>",
+    "dataAsOf" : "<verified-runtime-dataAsOf>",
+    "pendingUpdates" : 0,
+    "sourceState" : "ATTENTION",
+    "sourceStateDetail" : "独立投影失败或停止，保留上一完整版本",
+    "escalated" : false
   }
 }

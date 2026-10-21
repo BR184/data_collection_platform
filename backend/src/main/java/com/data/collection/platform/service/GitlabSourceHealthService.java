@@ -280,7 +280,8 @@ public class GitlabSourceHealthService {
       Long total = jdbcTemplate.queryForObject(
           "select count(*) from "
               + SqlIdentifierSupport.quoteIdentifier(tableName)
-              + " where lower(coalesce(source_instance, 'default')) = ? and deleted = false",
+              + " f where lower(coalesce(f.source_instance, 'default')) = ? and f.deleted = false and "
+              + com.data.collection.platform.service.read.FactReadVisibility.liveRevisionPredicate("f"),
           Long.class,
           sourceInstance);
       return total == null ? 0L : total;
@@ -298,7 +299,8 @@ public class GitlabSourceHealthService {
       return jdbcTemplate.queryForObject(
           "select max(updated_at) from "
               + SqlIdentifierSupport.quoteIdentifier(tableName)
-              + " where lower(coalesce(source_instance, 'default')) = ? and deleted = false",
+              + " f where lower(coalesce(f.source_instance, 'default')) = ? and f.deleted = false and "
+              + com.data.collection.platform.service.read.FactReadVisibility.liveRevisionPredicate("f"),
           LocalDateTime.class,
           sourceInstance);
     } catch (DataAccessException error) {

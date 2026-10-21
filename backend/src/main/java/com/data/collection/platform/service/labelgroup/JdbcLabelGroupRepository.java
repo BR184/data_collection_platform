@@ -17,9 +17,32 @@ import org.springframework.stereotype.Repository;
 @Repository
 class JdbcLabelGroupRepository implements LabelGroupRepository {
   private final NamedParameterJdbcTemplate jdbcTemplate;
+  private final com.data.collection.platform.entity.read.ReadSelection fixedRead;
 
+  @org.springframework.beans.factory.annotation.Autowired
   JdbcLabelGroupRepository(NamedParameterJdbcTemplate jdbcTemplate) {
     this.jdbcTemplate = jdbcTemplate;
+    this.fixedRead = null;
+  }
+
+  private JdbcLabelGroupRepository(NamedParameterJdbcTemplate jdbcTemplate,
+      com.data.collection.platform.entity.read.ReadSelection selection) {
+    this.jdbcTemplate = jdbcTemplate;
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  /** 冻结读取只替换 SELECT 的定义输入，命令仍由未绑定的管理仓储执行。 */
+  @Override
+  public LabelGroupRepository forRead(com.data.collection.platform.entity.read.ReadSelection selection) {
+    return new JdbcLabelGroupRepository(jdbcTemplate, selection);
+  }
+
+  private String readSql(String sql) {
+    return fixedRead == null ? sql : com.data.collection.platform.service.read.VersionedDefinitionSql.bind(fixedRead, sql);
+  }
+
+  private void requireCurrentWriter() {
+    if (fixedRead != null) { throw new IllegalStateException("冻结标签定义不能执行目录写入"); }
   }
 
   @Override
@@ -31,6 +54,7 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
       String sourceFieldKey,
       String description,
       String username) {
+    requireCurrentWriter();
     GeneratedKeyHolder keyHolder = new GeneratedKeyHolder();
     MapSqlParameterSource params =
         new MapSqlParameterSource()
@@ -57,6 +81,7 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
 
   @Override
   public void replaceMembers(Long groupId, List<LabelGroupMemberRecord> members) {
+    requireCurrentWriter();
     jdbcTemplate.update(
         "delete from label_group_members where group_id = :groupId",
         new MapSqlParameterSource("groupId", groupId));
@@ -77,6 +102,7 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
 
   @Override
   public void replaceReferences(Long groupId, List<Long> childGroupIds) {
+    requireCurrentWriter();
     jdbcTemplate.update(
         "delete from label_group_references where parent_group_id = :groupId",
         new MapSqlParameterSource("groupId", groupId));
@@ -96,6 +122,7 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
 
   @Override
   public void replaceDynamicRule(Long groupId, LabelGroupDynamicRuleRecord rule) {
+    requireCurrentWriter();
     jdbcTemplate.update(
         "delete from label_group_dynamic_rules where group_id = :groupId",
         new MapSqlParameterSource("groupId", groupId));
@@ -181,7 +208,7 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
     }
     Integer count =
         jdbcTemplate.queryForObject(
-            sql.toString(),
+            readSql(sql.toString()),
             params,
             Integer.class);
     return count != null && count > 0;
@@ -198,6 +225,7 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
       String description,
       boolean enabled,
       String username) {
+    requireCurrentWriter();
     jdbcTemplate.update(
         """
         update label_groups
@@ -226,6 +254,7 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
 
   @Override
   public void deleteById(Long groupId) {
+    requireCurrentWriter();
     jdbcTemplate.update(
         "delete from label_groups where id = :groupId",
         new MapSqlParameterSource("groupId", groupId));
@@ -233,7 +262,7 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
 
   private List<LabelGroupRecord> loadGroups(String sql, MapSqlParameterSource params) {
     Map<Long, LabelGroupRecord> groups = new LinkedHashMap<>();
-    jdbcTemplate.query(sql, params, rs -> {
+    jdbcTemplate.query(readSql(sql), params, rs -> {
       LabelGroupRecord group = mapGroup(rs, List.of(), List.of(), null);
       groups.put(group.id(), group);
     });
@@ -242,17 +271,17 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
     }
     List<LabelGroupMemberRecord> members =
         jdbcTemplate.query(
-            """
+            readSql("""
             select id, group_id, member_value, display_name, sort_order
             from label_group_members
             where group_id in (:groupIds)
             order by group_id asc, sort_order asc, id asc
-            """,
+            """),
             new MapSqlParameterSource("groupIds", groups.keySet()),
             this::mapMember);
     List<LabelGroupChildRecord> children =
         jdbcTemplate.query(
-            """
+            readSql("""
             select r.id, r.parent_group_id, r.child_group_id, r.sort_order,
                    g.name as child_name, g.group_type as child_group_type,
                    g.value_type as child_value_type, g.enabled as child_enabled
@@ -260,17 +289,17 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
               join label_groups g on g.id = r.child_group_id
              where r.parent_group_id in (:groupIds)
              order by r.parent_group_id asc, r.sort_order asc, r.id asc
-            """,
+            """),
             new MapSqlParameterSource("groupIds", groups.keySet()),
             this::mapChild);
     List<LabelGroupDynamicRuleRecord> dynamicRules =
         jdbcTemplate.query(
-            """
+            readSql("""
             select id, group_id, rule_config_json, output_value_type,
                    last_status, last_error, last_computed_at
             from label_group_dynamic_rules
             where group_id in (:groupIds)
-            """,
+            """),
             new MapSqlParameterSource("groupIds", groups.keySet()),
             this::mapDynamicRule);
     Map<Long, List<LabelGroupMemberRecord>> byGroup =

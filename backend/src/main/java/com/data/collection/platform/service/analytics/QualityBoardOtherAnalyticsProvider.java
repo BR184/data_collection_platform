@@ -25,10 +25,27 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
   private final QualityBoardOtherWorkbookService workbookService;
   private final PageRecordSnapshotService snapshotService;
 
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 绑定同一页面组合，工厂不保存页面状态。 */
+  @Override
+  public QualityBoardOtherAnalyticsProvider forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new QualityBoardOtherAnalyticsProvider(this, selection);
+  }
+
+  private QualityBoardOtherAnalyticsProvider(QualityBoardOtherAnalyticsProvider factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.queryService = factory.queryService.forRead(selection);
+    this.workbookService = factory.workbookService;
+    this.snapshotService = factory.snapshotService;
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public QualityBoardOtherAnalyticsProvider(
       QualityBoardOtherQueryService queryService,
       QualityBoardOtherWorkbookService workbookService,
       PageRecordSnapshotService snapshotService) {
+    this.fixedRead = null;
     this.queryService = queryService;
     this.workbookService = workbookService;
     this.snapshotService = snapshotService;
@@ -46,11 +63,7 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
 
   @Override
   public String sourceVersion(AnalyticsDashboardQueryContext context) {
-    return snapshotService.issueFactSourceVersion()
-        + "|"
-        + snapshotService.codeReviewSourceVersion()
-        + "|members:"
-        + queryService.memberScopeSourceVersion();
+    return java.util.Objects.requireNonNull(fixedRead, "分析看板读取必须持有固定页面身份").sourceVersion();
   }
 
   @Override

@@ -16,11 +16,26 @@ abstract class AbstractIssueFactRecordListService extends AbstractFactQueryServi
   // 这里保留公共分页、排序、日期、模块和规则说明逻辑，减少两个业务域的重复实现。
   protected final IssueFactRecordRepository issueFactRecordRepository;
   private final GitlabResourceLinkService issueLinkService;
+  private final com.data.collection.platform.entity.read.FactReadSelection factReadSelection;
 
   protected AbstractIssueFactRecordListService(
       IssueFactRecordRepository issueFactRecordRepository, GitlabResourceLinkService issueLinkService) {
     this.issueFactRecordRepository = issueFactRecordRepository;
     this.issueLinkService = issueLinkService;
+    this.factReadSelection = null;
+  }
+
+  /** 创建一次读取的不可变记录编排，父类查询协作者也绑定相同身份。 */
+  protected AbstractIssueFactRecordListService(AbstractIssueFactRecordListService factory,
+      com.data.collection.platform.entity.read.FactReadSelection selection) {
+    this.factReadSelection = java.util.Objects.requireNonNull(selection);
+    this.issueFactRecordRepository = factory.issueFactRecordRepository.forRead(selection);
+    this.issueLinkService = factory.issueLinkService;
+  }
+
+  /** 读取对象的固定身份；服务工厂不得直接执行产出数据查询。 */
+  protected final com.data.collection.platform.entity.read.FactReadSelection readSelection() {
+    return java.util.Objects.requireNonNull(factReadSelection, "记录读取对象必须持有固定版本身份");
   }
 
   protected List<IssueFactRecord> loadFacts(Long projectId) {

@@ -21,12 +21,21 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class CustomerIssueIllegalRecordServiceTest {
+  @org.junit.jupiter.api.BeforeEach
+  void bindReadDependencyFixtures() {
+    org.mockito.Mockito.lenient().when(labelGroupExpansionService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.ReadSelection.class))).thenReturn(labelGroupExpansionService);
+    // 公式单测复用同一数据替身；实际修订隔离由真库读取测试覆盖。
+    org.mockito.Mockito.lenient().when(milestoneCatalogService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(milestoneCatalogService);
+    org.mockito.Mockito.lenient().when(issueFactRecordRepository.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(issueFactRecordRepository);
+  }
+
 
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private CustomerIssueScopeProfile customerIssueScopeProfile;
   @Mock private GitlabResourceLinkService issueLinkService;
   @Mock private LabelGroupExpansionService labelGroupExpansionService;
   @Mock private FactBuildService factBuildService;
+  @Mock private com.data.collection.platform.service.statistics.CustomerIssueMilestoneCatalogService milestoneCatalogService;
 
   @Test
   void shouldForceLegacyCcProductProjectForPlainIllegalListRequests() {
@@ -37,7 +46,7 @@ class CustomerIssueIllegalRecordServiceTest {
             new ObjectMapper(),
             issueLinkService,
             labelGroupExpansionService,
-            factBuildService);
+            factBuildService, milestoneCatalogService, null).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(new PageSlice<>(
             List.of(record(200, "illegal", "draft", true, CustomerIssueIllegalReasonSupport.MISSING_MODULE)),
@@ -94,7 +103,7 @@ class CustomerIssueIllegalRecordServiceTest {
             new ObjectMapper(),
             issueLinkService,
             labelGroupExpansionService,
-            factBuildService);
+            factBuildService, milestoneCatalogService, null).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
     when(issueLinkService.issueUrl("default", 325L, 201))
         .thenReturn("http://gitlab.example.com/group/project/-/issues/201");
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
@@ -149,7 +158,7 @@ class CustomerIssueIllegalRecordServiceTest {
             new ObjectMapper(),
             issueLinkService,
             labelGroupExpansionService,
-            factBuildService);
+            factBuildService, milestoneCatalogService, null).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(
@@ -185,7 +194,7 @@ class CustomerIssueIllegalRecordServiceTest {
             new ObjectMapper(),
             issueLinkService,
             labelGroupExpansionService,
-            factBuildService);
+            factBuildService, milestoneCatalogService, null).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(List.of(record(
@@ -234,7 +243,7 @@ class CustomerIssueIllegalRecordServiceTest {
             new ObjectMapper(),
             issueLinkService,
             labelGroupExpansionService,
-            factBuildService);
+            factBuildService, milestoneCatalogService, null).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(List.of(record(

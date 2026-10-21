@@ -8,6 +8,11 @@ import org.springframework.stereotype.Service;
 public class LabelGroupDefaultFilterService {
   private final LabelGroupService labelGroupService;
 
+  /** 系统默认筛选也固定到发布时定义，目录编辑不改写旧页面的查询语义。 */
+  public LabelGroupDefaultFilterService forRead(com.data.collection.platform.entity.read.ReadSelection selection) {
+    return new LabelGroupDefaultFilterService(labelGroupService.forRead(selection));
+  }
+
   public LabelGroupDefaultFilterService(LabelGroupService labelGroupService) {
     this.labelGroupService = labelGroupService;
   }

@@ -16,15 +16,34 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 @SpringBootTest
 class ReviewDataSearchIndexIntegrationTest {
+  @Autowired private com.data.collection.platform.service.read.DatasetPublicationService datasetPublications;
+  @Autowired private DatasetProducerCatalog datasetCatalog;
 
   @Autowired private JdbcTemplate jdbcTemplate;
   @Autowired private ReviewDataRecordService reviewDataRecordService;
 
   @BeforeEach
   void setUp() {
+    jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
+    jdbcTemplate.update("update code_review_match_mode_db_settings set enabled = false,"
+        + " code_review_read_mode = 'formal', review_data_read_mode = 'formal' where id = 1");
     jdbcTemplate.update("delete from review_problem_items");
     jdbcTemplate.update("delete from review_record_experts");
     jdbcTemplate.update("delete from review_records");
+  }
+
+  /** 原生写操作完成后用真实数据集捕获/发布，再测试固定版本的搜索公式。 */
+  private ReviewDataRecordService publishedRecords() {
+    String producerRunId = java.util.UUID.randomUUID().toString();
+    var publication = datasetPublications.prepareCompleteDataset(datasetCatalog.request(
+        com.data.collection.platform.entity.read.ReadPublicationProducerKind.FORMAL_RECORD, producerRunId));
+    if (publication.state() != com.data.collection.platform.entity.read.ReadPublicationState.PUBLISHED) {
+      publication = datasetPublications.publishPreparedDataset(publication.id(), producerRunId);
+    }
+    var context = new com.data.collection.platform.entity.read.PublishedDatasetReadContext("default", "formal-records",
+        publication.epochId(), publication.sequenceNo(), publication.id(), publication.dataAsOf());
+    return reviewDataRecordService.forRead(new com.data.collection.platform.entity.read.DatasetReadSelection(
+        java.util.List.of(context), null, java.time.LocalDate.of(2026, 10, 13)));
   }
 
   @Test
@@ -60,7 +79,7 @@ class ReviewDataSearchIndexIntegrationTest {
     reviewDataRecordService.createProblemItem(ignored.record().id(), problemRequest("\u5df2\u5173\u95ed"));
 
     ReviewDataRecordListResponse response =
-        reviewDataRecordService.listRecords(
+        publishedRecords().listRecords(
             new ReviewDataRecordQueryRequest(
                 null,
                 null,
@@ -104,7 +123,7 @@ class ReviewDataSearchIndexIntegrationTest {
     assertThat(titleSpellIndexes).anySatisfy(value -> assertThat(value).contains("shejipingshendan"));
 
     ReviewDataRecordListResponse containsResponse =
-        reviewDataRecordService.listRecords(
+        publishedRecords().listRecords(
             new ReviewDataRecordQueryRequest(
                 null, null, null, null, null, null, null, null,
                 """
@@ -121,7 +140,7 @@ class ReviewDataSearchIndexIntegrationTest {
         .containsExactly("\u8bbe\u8ba1\u8bc4\u5ba1\u5355");
 
     ReviewDataRecordListResponse notContainsResponse =
-        reviewDataRecordService.listRecords(
+        publishedRecords().listRecords(
             new ReviewDataRecordQueryRequest(
                 null, null, null, null, null, null, null, null,
                 """
@@ -171,7 +190,7 @@ class ReviewDataSearchIndexIntegrationTest {
             });
 
     ReviewDataRecordListResponse response =
-        reviewDataRecordService.listRecords(
+        publishedRecords().listRecords(
             new ReviewDataRecordQueryRequest(
                 null, null, null, null, null, null, null, null, null, 1, 20, "title", "asc"));
     assertThat(response.records()).hasSize(1);
@@ -181,7 +200,7 @@ class ReviewDataSearchIndexIntegrationTest {
 
   private List<String> titlesForKeyword(String keyword) {
     ReviewDataRecordListResponse response =
-        reviewDataRecordService.listRecords(
+        publishedRecords().listRecords(
             new ReviewDataRecordQueryRequest(
                 keyword, null, null, null, null, null, null, null, null, 1, 20, "title", "asc"));
     return response.records().stream().map(row -> row.title()).toList();

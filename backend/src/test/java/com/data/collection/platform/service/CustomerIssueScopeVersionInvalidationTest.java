@@ -29,7 +29,6 @@ class CustomerIssueScopeVersionInvalidationTest {
   private static final long FOREIGN_GROUP_ID = 987_650L;
 
   @Autowired private JdbcTemplate jdbcTemplate;
-  @Autowired private FactProjectionGenerationService generationService;
   @Autowired private StatisticBoardSnapshotService snapshotService;
 
   @AfterEach
@@ -47,7 +46,7 @@ class CustomerIssueScopeVersionInvalidationTest {
     String customBefore = versionOf(customOnly);
     String combinedBefore = versionOf(union(defaultOnly, customOnly));
 
-    int advanced = generationService.advanceIssueScopeGenerations("cc", customOnly);
+    int advanced = FactRevisionFixture.advanceScopeVersion(jdbcTemplate, "cc", customOnly);
 
     assertThat(advanced).as("非默认来源范围必须被推进").isOne();
     assertThat(versionOf(customOnly)).as("读取 cc 的版本必须失效").isNotEqualTo(customBefore);
@@ -65,7 +64,7 @@ class CustomerIssueScopeVersionInvalidationTest {
     String before = versionOf(current);
 
     int advanced =
-        generationService.advanceIssueScopeGenerations(
+        FactRevisionFixture.advanceScopeVersion(jdbcTemplate,
             "default",
             Set.of(
                 new FactProjectionScope(

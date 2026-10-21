@@ -61,6 +61,23 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
   private final SystemTestPhaseCatalogService phaseCatalogService;
   private final PageRecordSnapshotService pageRecordSnapshotService;
 
+  /** 创建持有固定版本的独立读取对象；共享服务仅作为工厂。 */
+  @Override
+  public SystemTestIssueSearchService forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new SystemTestIssueSearchService(this, selection);
+  }
+
+  private SystemTestIssueSearchService(SystemTestIssueSearchService factory,
+      com.data.collection.platform.entity.read.FactReadSelection selection) {
+    super(factory, selection);
+    this.objectMapper = factory.objectMapper;
+    this.labelGroupExpansionService = factory.labelGroupExpansionService.forRead(selection);
+    this.phaseScopeResolver = factory.phaseScopeResolver.forRead(selection);
+    this.phaseCatalogService = factory.phaseCatalogService.forRead(selection);
+    this.pageRecordSnapshotService = factory.pageRecordSnapshotService;
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public SystemTestIssueSearchService(
       IssueFactRecordRepository issueFactRecordRepository,
       GitlabResourceLinkService issueLinkService,
@@ -79,7 +96,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
 
   public SystemTestIssueSearchListResponse listRecords(SystemTestIssueSearchQueryRequest request) {
     SystemTestIssueSearchQueryRequest safeRequest = withSnapshotDefaults(request);
-    return pageRecordSnapshotService.readOrRefresh(
+    return pageRecordSnapshotService.readOrRefresh(readSelection(),
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_LIST,
             "project:" + safeRequest.listRequest().projectId(),
@@ -216,7 +233,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
     if (normalizedSource != null) {
       requestPayload.put("sourceInstance", normalizedSource);
     }
-    return pageRecordSnapshotService.readOrRefresh(
+    return pageRecordSnapshotService.readOrRefresh(readSelection(),
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
             "project:" + requestPayload.get("projectId"),

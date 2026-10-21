@@ -132,6 +132,14 @@ public class CodeReviewMatchModeConfigService {
     return loadSettings().enabled();
   }
 
+  /** 从固定正式数据集读取模式；旧页面不能因当前模式编辑而切换来源，连接凭据不参与此查询。 */
+  public boolean compatibilityReadEnabled(com.data.collection.platform.entity.read.DatasetReadSelection selection, boolean reviewData) {
+    String column = reviewData ? "review_data_read_mode" : "code_review_read_mode";
+    return Boolean.TRUE.equals(new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate)
+        .queryForObject(selection, "select enabled and " + column + " = 'compatibility' from code_review_match_mode_db_settings where id = 1",
+            Boolean.class));
+  }
+
   //兼容模式-MatchMode
   public boolean isReviewDataCompatibilityReadEnabled() {
     CodeReviewMatchModeDbSettings settings = loadSettings();

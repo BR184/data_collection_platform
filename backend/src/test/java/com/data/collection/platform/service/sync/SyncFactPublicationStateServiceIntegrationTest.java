@@ -196,32 +196,49 @@ class SyncFactPublicationStateServiceIntegrationTest {
   }
 
   @Test
-  void test_full_publication_settles_heads_only_up_to_frozen_covered_version() {
+  void test_full_intent_settlement_does_not_authenticate_unpublished_heads() {
     insertHead(1101L, 10L, 0L);
     insertHead(1102L, 20L, 5L);
     jdbcTemplate.update(
         """
         insert into source_fact_publication_states(
-            source_instance, fact_type, readiness_status, full_publication_requested)
-        values ('alpha', 'ISSUE', 'READY', true)
+            source_instance, fact_type, readiness_status, full_publication_requested,
+            full_request_revision)
+        values ('alpha', 'ISSUE', 'READY', true, 7)
         """);
 
-    int updated = service.settleAfterFullPublication("alpha", FactType.ISSUE, 77L, 12L);
+    int updated = service.settleFullPublicationIntent("alpha", FactType.ISSUE, 7L);
 
-    assertThat(updated).isEqualTo(2);
-    assertThat(headState(1101L))
-        .containsEntry("published_version", 10L)
-        .containsEntry("published_by_fact_build_task_id", 77L);
-    assertThat(headState(1102L)).containsEntry("published_version", 12L);
+    assertThat(updated).isEqualTo(1);
+    assertThat(headState(1101L)).containsEntry("published_version", 0L);
+    assertThat(headState(1102L)).containsEntry("published_version", 5L);
     assertThat(fullPublicationRequested()).isFalse();
-    assertThat(service.countUnpublishedTargets("alpha", FactType.ISSUE)).isEqualTo(1L);
+    assertThat(service.countUnpublishedTargets("alpha", FactType.ISSUE)).isEqualTo(2L);
+  }
+
+  /** 较旧的全量结算不得清掉较新的全量意图，否则新一次全量请求会被误当作已完成。 */
+  @Test
+  void test_full_publication_settlement_keeps_newer_full_request_revision() {
+    insertHead(1101L, 10L, 0L);
+    jdbcTemplate.update(
+        """
+        insert into source_fact_publication_states(
+            source_instance, fact_type, readiness_status, full_publication_requested,
+            full_request_revision)
+        values ('alpha', 'ISSUE', 'READY', true, 9)
+        """);
+    assertThat(service.currentFullRequestRevision("alpha", FactType.ISSUE)).isEqualTo(9L);
+
+    service.settleFullPublicationIntent("alpha", FactType.ISSUE, 7L);
+
+    assertThat(fullPublicationRequested()).isTrue();
   }
 
   @Test
   void test_full_publication_never_regresses_an_already_newer_published_version() {
     insertHead(1201L, 30L, 30L);
 
-    int updated = service.settleAfterFullPublication("alpha", FactType.ISSUE, 88L, 20L);
+    int updated = service.settleFullPublicationIntent("alpha", FactType.ISSUE, 1L);
 
     assertThat(updated).isZero();
     assertThat(headState(1201L)).containsEntry("published_version", 30L);
@@ -310,9 +327,11 @@ class SyncFactPublicationStateServiceIntegrationTest {
           config_id bigint not null default 1,
           source_instance varchar(128) not null,
           fact_type varchar(64) not null,
+          latest_mirror_run_id bigint,
           readiness_status varchar(16) not null,
           error_message text,
           full_publication_requested boolean not null default false,
+          full_request_revision bigint not null default 0,
           updated_at timestamp not null default current_timestamp,
           primary key (config_id, source_instance, fact_type)
         )

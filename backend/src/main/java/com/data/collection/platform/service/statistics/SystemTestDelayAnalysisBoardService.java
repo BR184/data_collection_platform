@@ -45,7 +45,6 @@ import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -130,6 +129,26 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   private final StatisticBoardSnapshotService snapshotService;
   private final StatisticBoardReadScopeResolver readScopeResolver;
 
+  /** 创建持有显式版本的不可变读取对象；工厂及其它请求不保存或共享该身份。 */
+  @Override
+  public SystemTestDelayAnalysisBoardService forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new SystemTestDelayAnalysisBoardService(this, selection);
+  }
+
+  private SystemTestDelayAnalysisBoardService(SystemTestDelayAnalysisBoardService factory,
+      com.data.collection.platform.entity.read.FactReadSelection selection) {
+    super(factory, selection);
+    this.realtimeWorkspaceService = factory.realtimeWorkspaceService;
+    this.realtimeIncrementalRefreshService = factory.realtimeIncrementalRefreshService;
+    this.issueFactQueryService = factory.issueFactQueryService;
+    this.issueLinkSupport = factory.issueLinkSupport;
+    this.phaseCatalogService = factory.phaseCatalogService.forRead(selection);
+    this.phaseScopeResolver = factory.phaseScopeResolver.forRead(selection);
+    this.snapshotService = factory.snapshotService;
+    this.readScopeResolver = factory.readScopeResolver.forRead(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public SystemTestDelayAnalysisBoardService(
       JsonUtils jsonUtils,
       RealtimeWorkspaceService realtimeWorkspaceService,
@@ -195,7 +214,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     String selectedTestingPhase =
         SystemTestPhaseMembershipPolicy.selectedTestingPhase(effectiveFilterGroup);
     StatisticFilterGroup appliedGroup = effectiveFilterGroup;
-    return snapshotService.readOrRefresh(
+    return snapshotService.readOrRefresh(readSelection(),
         snapshotRequest(filters, appliedGroup, definition, selectedTestingPhase),
         ignored -> buildBoardResponse(filters, appliedGroup, definition));
   }
@@ -267,7 +286,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
                   "AND",
                   List.of(new StatisticFilterCondition(TESTING_PHASE_FIELD, "eq", option.value(), null))),
               phaseScopeResolver);
-      snapshotService.save(
+      snapshotService.save(readSelection(),
           snapshotRequest(filters, filterGroup, definition, option.value()),
           buildBoardResponse(filters, filterGroup, definition));
     }
@@ -575,13 +594,8 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             filterGroup,
             phaseScopeResolver,
             SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER);
-    try {
-      List<IssueSource> facts = ensureFactsReady(projectId, queryFilters, phasePredicate);
-      return facts.isEmpty() ? List.of() : facts;
-    } catch (DataAccessException e) {
-      log.warn("Failed to load issue facts", e);
-      return List.of();
-    }
+    List<IssueSource> facts = ensureFactsReady(projectId, queryFilters, phasePredicate);
+    return facts.isEmpty() ? List.of() : facts;
   }
 
   private com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult refreshMirrorForRealtimeView() {
@@ -612,7 +626,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     if (projectId != null) {
       mergedFilters.put("projectId", String.valueOf(projectId));
     }
-    return issueFactQueryService.query(FACT_SQL, mergedFilters, phasePredicate.sql(), phasePredicate.args(), this::mapIssueFact);
+    return issueFactQueryService.query(readSelection(), FACT_SQL, mergedFilters, phasePredicate.sql(), phasePredicate.args(), this::mapIssueFact);
   }
 
   private long effectiveProjectId(Map<String, String> filters) {
@@ -632,33 +646,28 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             filterGroup,
             phaseScopeResolver,
             SystemTestPhaseMembershipPolicy.MatchMode.CONTAINS_MEMBER);
-    try {
-      return issueFactQueryService.query(
-              BOARD_AGGREGATE_SQL,
-              queryFilters,
-              phasePredicate.sql(),
-              phasePredicate.args(),
-              "group by cause.row_key",
-              (rs, rowNum) ->
-                  Map.entry(
-                      StatisticSourceValueSupport.text(rs.getString("row_key"), ""),
-                      new AggregateCounts(
-                          rs.getLong("level1"),
-                          rs.getLong("level2"),
-                          rs.getLong("level3"),
-                          rs.getLong("suggestion"))))
-          .stream()
-          .filter(entry -> LEGACY_DELAY_CAUSES.contains(entry.getKey()))
-          .collect(
-              java.util.stream.Collectors.toMap(
-                  Map.Entry::getKey,
-                  Map.Entry::getValue,
-                  AggregateCounts::plus,
-                  LinkedHashMap::new));
-    } catch (DataAccessException e) {
-      log.warn("Failed to load system test delay analysis aggregate counts", e);
-      return Map.of();
-    }
+    return issueFactQueryService.query(readSelection(),
+            BOARD_AGGREGATE_SQL,
+            queryFilters,
+            phasePredicate.sql(),
+            phasePredicate.args(),
+            "group by cause.row_key",
+            (rs, rowNum) ->
+                Map.entry(
+                    StatisticSourceValueSupport.text(rs.getString("row_key"), ""),
+                    new AggregateCounts(
+                        rs.getLong("level1"),
+                        rs.getLong("level2"),
+                        rs.getLong("level3"),
+                        rs.getLong("suggestion"))))
+        .stream()
+        .filter(entry -> LEGACY_DELAY_CAUSES.contains(entry.getKey()))
+        .collect(
+            java.util.stream.Collectors.toMap(
+                Map.Entry::getKey,
+                Map.Entry::getValue,
+                AggregateCounts::plus,
+                LinkedHashMap::new));
   }
 
   private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {
@@ -688,14 +697,9 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   }
 
   private List<StatisticFilterOption> loadPhaseOptions() {
-    try {
-      return phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID).stream()
-          .map(value -> new StatisticFilterOption(value, value))
-          .toList();
-    } catch (DataAccessException e) {
-      log.debug("Failed to load phase options for {}", BOARD_KEY, e);
-      return List.of();
-    }
+    return phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID).stream()
+        .map(value -> new StatisticFilterOption(value, value))
+        .toList();
   }
 
   private String displayPhaseLabel(String phaseKey, String selectedTestingPhase) {

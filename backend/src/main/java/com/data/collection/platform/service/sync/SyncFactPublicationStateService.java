@@ -2,9 +2,11 @@ package com.data.collection.platform.service.sync;
 
 import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.service.GitlabFactDependencyCatalog;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -33,6 +35,8 @@ public class SyncFactPublicationStateService {
    *
    * <p>已有发布记录的事实族只置标记、保留原有 {@code readiness_status}；尚无发布记录的事实族按依赖未就绪
    * 登记，因为该来源还没有任何可证明完整的产出，其当前事实本来就不许作为完整来源输出。
+   * 未知镜像运行号显式保留为 {@code null}，数据库只允许 BLOCKED 且有未结算全量意图的记录暂缺此身份；
+   * 后续镜像终态沿正常入口补齐真实运行号，不能拿事实重建运行号冒充镜像证据。
    *
    * @param config 当前数据源配置
    * @return 登记的事实族数量
@@ -49,11 +53,12 @@ public class SyncFactPublicationStateService {
           jdbcTemplate.update(
               """
               insert into source_fact_publication_states(
-                  config_id, source_instance, fact_type, readiness_status,
-                  full_publication_requested, error_message, updated_at)
-              values (?, ?, ?, 'BLOCKED', true, '全量事实重建已请求但尚未结算', current_timestamp)
+                  config_id, source_instance, fact_type, latest_mirror_run_id, readiness_status,
+                  full_publication_requested, full_request_revision, error_message, updated_at)
+              values (?, ?, ?, null, 'BLOCKED', true, 1, '全量事实重建已请求但尚未结算', current_timestamp)
               on conflict (config_id, source_instance, fact_type) do update
                 set full_publication_requested = true,
+                    full_request_revision = source_fact_publication_states.full_request_revision + 1,
                     updated_at = current_timestamp
               """,
               config.getId(),
@@ -61,6 +66,15 @@ public class SyncFactPublicationStateService {
               factType.name());
     }
     return registered;
+  }
+
+  /** 来源已有未结算的完整重建意图时，后续成功镜像必须恢复全量事实任务，不能降成无根增量。 */
+  public boolean hasFullPublicationIntent(GitlabSyncConfig config) {
+    if (config == null || config.getId() == null) return false;
+    return Boolean.TRUE.equals(jdbcTemplate.queryForObject("""
+        select exists(select 1 from source_fact_publication_states
+          where config_id = ? and source_instance = ? and full_publication_requested)
+        """, Boolean.class, config.getId(), GitlabSourceInstanceSupport.sourceInstanceOf(config)));
   }
 
   /**
@@ -210,6 +224,97 @@ public class SyncFactPublicationStateService {
     return SourceQualification.healthy();
   }
 
+  /**
+   * 判断该来源是否具备建立初始完整版本的正向证据。
+   *
+   * <p>与 {@link #qualification} 不同：这里要求**存在**可证明的完整基线证据，而不是“未发现拒绝条件”。必须同时满足：
+   * 事实族已有 READY 且无未结算全量意图的发布状态、依赖清单已登记且全部就绪、变化头已收敛（无未发布根）、
+   * 没有在飞事实构建任务。按每个配置的完整依赖目录逐项核验，缺项也拒绝；本查询本身不锁定输入，
+   * 接管方必须在稳定输入栅栏内调用。仅库中存在事实行、却没有任何依赖或发布证据时一律不成立，
+   * 因此不能把“未知基线”当作完整来源采纳；该来源是否属于“首次无完整产出”由调用方按业务边界判定。
+   *
+   * @param sourceInstance 来源实例
+   * @param factType 事实族
+   * @return 是否具备建立初始完整版本的正向证据
+   */
+  public boolean hasCompleteInitialVersionEvidence(String sourceInstance, FactType factType) {
+    String instance = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    String type = factType.name();
+    Boolean evidenced =
+        jdbcTemplate.queryForObject(
+            """
+            select
+              exists(select 1 from source_fact_publication_states state
+                      where state.source_instance = ? and state.fact_type = ?
+                        and state.readiness_status = 'READY'
+                        and not state.full_publication_requested)
+              and exists(select 1 from source_fact_dependency_states dep
+                          where dep.source_instance = ? and dep.fact_type = ?
+                            and dep.readiness_status = 'READY')
+              and not exists(select 1 from source_fact_dependency_states dep
+                              where dep.source_instance = ? and dep.fact_type = ?
+                                and dep.readiness_status <> 'READY')
+              and not exists(select 1 from fact_change_heads head
+                              where head.source_instance = ? and head.fact_type = ?
+                                and head.published_version < head.latest_change_version)
+              and not exists(select 1 from fact_build_tasks task
+                              where task.source_instance = ? and task.fact_type = ?
+                                and task.status not in ('SUCCESS', 'FAILED', 'CANCELLED', 'SKIPPED'))
+            """,
+            Boolean.class,
+            instance,
+            type,
+            instance,
+            type,
+            instance,
+            type,
+            instance,
+            type,
+            instance,
+            type);
+    if (!Boolean.TRUE.equals(evidenced)) {
+      return false;
+    }
+    return canBuildReadCandidate(instance, factType);
+  }
+
+  /**
+   * 候选输入资格：当前来源状态与全部配置必需依赖都有完整证据，并通过附加标签核验。
+   * 与 isReady 的区别是无需存在待发布头或全量意图，旁路重算也必须使用本来源自己的完整基线。
+   */
+  public boolean canBuildReadCandidate(String sourceInstance, FactType factType) {
+    String instance = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    String type = factType.name();
+    Boolean ready = jdbcTemplate.queryForObject("""
+        select exists(select 1 from source_fact_publication_states where source_instance = ? and fact_type = ?)
+          and not exists(select 1 from source_fact_publication_states
+            where source_instance = ? and fact_type = ? and readiness_status <> 'READY')
+        """, Boolean.class, instance, type, instance, type);
+    if (!Boolean.TRUE.equals(ready) || !labelEventHistoryVerified(instance, factType)) {
+      return false;
+    }
+    List<GitlabSyncConfig> configs = jdbcTemplate.query(
+        """
+        select distinct config.id, config.whitelist_mode,
+               array(select jsonb_array_elements_text(
+                   coalesce(nullif(config.whitelist_tables, ''), '[]')::jsonb)) as configured_tables
+          from source_fact_publication_states state
+          join gitlab_sync_configs config on config.id = state.config_id
+         where state.source_instance = ? and state.fact_type = ?
+        """,
+        (rs, rowNumber) -> {
+          GitlabSyncConfig config = new GitlabSyncConfig();
+          config.setId(rs.getLong("id"));
+          config.setWhitelistMode(WhitelistMode.valueOf(rs.getString("whitelist_mode")));
+          config.setWhitelistTables(Arrays.asList((String[]) rs.getArray("configured_tables").getArray()));
+          return config;
+        }, instance, type);
+    return !configs.isEmpty() && configs.stream().allMatch(config ->
+        GitlabFactDependencyCatalog.supportedFactTypes(config).contains(factType)
+            && familyReady(config.getId(), instance, factType,
+                GitlabFactDependencyCatalog.require(factType).requiredTables(config)));
+  }
+
   /** 判断来源是否已经产生过事实投影代际；有代际却没有发布记录时，完整性无从证实。 */
   private boolean hasPublishedProjections(String sourceInstance, FactType factType) {
     Boolean exists =
@@ -271,40 +376,99 @@ public class SyncFactPublicationStateService {
   }
 
   /**
-   * 在成功全量事实发布后把该事实族的版本头结算到构建覆盖的版本上界。
+   * 在完整读版本发布事务内清除所捕获的全量意图；heads 由固定输入清单逐根结算。
    *
-   * @param coveredVersion 构建开始前冻结的版本上界；只有不高于它的变化才可标记为已发布
+   * <p>全量意图按修订号 CAS 清除：只有当前意图修订仍等于候选捕获的修订时才清除，较新的全量请求不会被
+   * 较旧的全量结算误清。
+   *
+   * @param capturedFullRequestRevision 候选开启时捕获的全量意图修订号
+   * @return CAS 匹配的来源状态行数；较新意图存在时为 0，且较新意图保持在位
    */
   @Transactional
-  public int settleAfterFullPublication(
-      String sourceInstance, FactType factType, Long taskId, long coveredVersion) {
-    int updated =
-        jdbcTemplate.update(
-            """
-            update fact_change_heads head
-               set published_version = greatest(
-                       head.published_version, least(head.latest_change_version, ?)),
-                   published_by_fact_build_task_id = ?,
-                   updated_at = current_timestamp
-             where head.source_instance = ?
-               and head.fact_type = ?
-               and head.published_version < least(head.latest_change_version, ?)
-            """,
-            coveredVersion,
-            taskId,
-            sourceInstance,
-            factType.name(),
-            coveredVersion);
-    jdbcTemplate.update(
+  public int settleFullPublicationIntent(
+      String sourceInstance, FactType factType, long capturedFullRequestRevision) {
+    return jdbcTemplate.update(
         """
         update source_fact_publication_states
            set full_publication_requested = false,
                updated_at = current_timestamp
          where source_instance = ? and fact_type = ?
-        """,
-        sourceInstance,
-        factType.name());
-    return updated;
+           and full_request_revision = ?
+        """, sourceInstance, factType.name(), capturedFullRequestRevision);
+  }
+
+  /**
+   * 冻结本次候选的来源完整代际证明。
+   *
+   * <p>证据必须来自真实生产边界，而不是墙上时钟或请求时刻：包含该事实族的必需依赖表及其最近完整镜像运行、
+   * 来源发布状态与全量意图修订、变化头水位与覆盖上界。候选据此判定输入是否仍是当时的完整来源，重启或重试
+   * 不得拼接不同来源输入。
+   *
+   * @param sourceInstance 来源实例
+   * @param factType 事实类型
+   * @param coveredChangeVersion 本候选覆盖的变化水位上界
+   * @return 可直接写入 {@code read_publications.source_seal} 的 JSON 文本
+   */
+  public String sourceSeal(String sourceInstance, FactType factType, long coveredChangeVersion) {
+    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    String factTypeName = factType.name();
+    String seal =
+        jdbcTemplate.queryForObject(
+            """
+            select jsonb_build_object(
+                'sourceInstance', ?,
+                'factType', ?,
+                'coveredChangeVersion', ?,
+                'configId', (select coalesce(max(state.config_id), 0)
+                               from source_fact_publication_states state
+                              where state.source_instance = ? and state.fact_type = ?),
+                'publicationState', (select jsonb_build_object(
+                                        'readiness', state.readiness_status,
+                                        'fullRequested', state.full_publication_requested,
+                                        'fullRequestRevision', state.full_request_revision,
+                                        'latestMirrorRunId', state.latest_mirror_run_id)
+                                      from source_fact_publication_states state
+                                     where state.source_instance = ? and state.fact_type = ?),
+                'dependencies', (select coalesce(jsonb_agg(jsonb_build_object(
+                                    'sourceTable', dep.source_table,
+                                    'readiness', dep.readiness_status,
+                                    'latestMirrorRunId', dep.latest_mirror_run_id)
+                                  order by dep.source_table), '[]'::jsonb)
+                                  from source_fact_dependency_states dep
+                                 where dep.source_instance = ? and dep.fact_type = ?),
+                'headWatermark', (select coalesce(max(head.latest_change_version), 0)
+                                    from fact_change_heads head
+                                   where head.source_instance = ? and head.fact_type = ?)
+            )::text
+            """,
+            String.class,
+            normalizedSource,
+            factTypeName,
+            coveredChangeVersion,
+            normalizedSource,
+            factTypeName,
+            normalizedSource,
+            factTypeName,
+            normalizedSource,
+            factTypeName,
+            normalizedSource,
+            factTypeName);
+    return seal == null ? "{}" : seal;
+  }
+
+  /** 当前来源全量意图修订号；无请求时为 0。 */
+  public long currentFullRequestRevision(String sourceInstance, FactType factType) {
+    Long revision =
+        jdbcTemplate.queryForObject(
+            """
+            select coalesce(max(full_request_revision), 0)
+              from source_fact_publication_states
+             where source_instance = ? and fact_type = ?
+            """,
+            Long.class,
+            sourceInstance,
+            factType.name());
+    return revision == null ? 0L : revision;
   }
 
   /** 返回一个事实族所有来源表（含条件 MR 提交增强来源）。 */

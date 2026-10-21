@@ -1,5 +1,7 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.entity.read.FactReadSelection;
+import com.data.collection.platform.service.read.VersionedFactSql;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -17,21 +19,22 @@ public class MergeRequestFactQueryService extends AbstractFactQueryService {
     this.sqlQueryMonitor = sqlQueryMonitor;
   }
 
-  public <T> List<T> query(String selectSql, Map<String, String> filters, RowMapper<T> rowMapper) {
+  public <T> List<T> query(FactReadSelection selection, String selectSql, Map<String, String> filters, RowMapper<T> rowMapper) {
     StringBuilder sql = new StringBuilder(selectSql);
     List<Object> args = new ArrayList<>();
     applyCommonFilters(sql, args, filters == null ? Map.of() : filters);
-    return queryWithMonitoring("merge-request-fact-filter-query", sql.toString(), args, rowMapper);
+    return queryWithMonitoring(selection, "merge-request-fact-filter-query", sql.toString(), args, rowMapper);
   }
 
-  public <T> List<T> query(String sql, List<Object> args, RowMapper<T> rowMapper) {
-    return queryWithMonitoring("merge-request-fact-query", sql, args, rowMapper);
+  public <T> List<T> query(FactReadSelection selection, String sql, List<Object> args, RowMapper<T> rowMapper) {
+    return queryWithMonitoring(selection, "merge-request-fact-query", sql, args, rowMapper);
   }
 
-  public long count(String sql, List<Object> args) {
+  public long count(FactReadSelection selection, String sql, List<Object> args) {
+    VersionedFactSql.Query query = VersionedFactSql.bind(selection, sql, args);
     long startedAt = sqlQueryMonitor.start();
     try {
-      Long total = jdbcTemplate.queryForObject(sql, Long.class, args.toArray());
+      Long total = jdbcTemplate.queryForObject(query.sql(), Long.class, query.arguments().toArray());
       return total == null ? 0L : total;
     } finally {
       sqlQueryMonitor.logIfSlow("merge-request-fact-count", sql, args, startedAt);
@@ -39,10 +42,11 @@ public class MergeRequestFactQueryService extends AbstractFactQueryService {
   }
 
   private <T> List<T> queryWithMonitoring(
-      String operation, String sql, List<Object> args, RowMapper<T> rowMapper) {
+      FactReadSelection selection, String operation, String sql, List<Object> args, RowMapper<T> rowMapper) {
+    VersionedFactSql.Query query = VersionedFactSql.bind(selection, sql, args);
     long startedAt = sqlQueryMonitor.start();
     try {
-      return jdbcTemplate.query(sql, rowMapper, args.toArray());
+      return jdbcTemplate.query(query.sql(), rowMapper, query.arguments().toArray());
     } finally {
       sqlQueryMonitor.logIfSlow(operation, sql, args, startedAt);
     }

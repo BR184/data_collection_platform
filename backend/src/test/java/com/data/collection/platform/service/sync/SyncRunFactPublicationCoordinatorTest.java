@@ -64,6 +64,17 @@ class SyncRunFactPublicationCoordinatorTest {
         org.mockito.ArgumentMatchers.eq(false), anyString());
   }
 
+  @Test
+  void test_successful_incremental_mirror_resumes_existing_full_definition_intent() {
+    when(publicationStateService.recordMirrorCompletion(org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.eq(41L), org.mockito.ArgumentMatchers.eq(SyncRunStatus.SUCCESS),
+        org.mockito.ArgumentMatchers.eq(false))).thenReturn(true);
+    when(publicationStateService.hasFullPublicationIntent(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+    coordinator.onMirrorCompleted(event(SyncRunStatus.SUCCESS));
+    verify(submissionService).submitFactRefresh(org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.eq(true), anyString());
+  }
+
   private SyncRunCompletionEvent event(SyncRunStatus status) {
     return new SyncRunCompletionEvent(
         41L, 1L, "alpha", SyncRunType.INCREMENTAL_SYNC, status, 1L);

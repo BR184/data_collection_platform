@@ -4,7 +4,7 @@
   "message" : "成功",
   "data" : {
     "scopeKey" : "CC2026R3",
-    "sourceVersion" : "fact-projection:v1:10e48c775d731d1001e598b7033308161d37e80a762d4bdc46af3c6aa4f0fbc2",
+    "sourceVersion" : "<verified-runtime-sourceVersion>",
     "scopeReadable" : true,
     "reason" : "",
     "groups" : [ {
@@ -1157,5 +1157,18 @@
         "label" : "项目管理"
       } ]
     } ]
+  },
+  "readView" : {
+    "readContextId" : "<verified-runtime-readContextId>",
+    "pageKey" : "customer-issue-customer-statistics",
+    "scopeKey" : "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "sourceVersion" : "<verified-runtime-sourceVersion>",
+    "businessDate" : "2026-09-01",
+    "leaseExpiresAt" : "<verified-runtime-leaseExpiresAt>",
+    "dataAsOf" : "<verified-runtime-dataAsOf>",
+    "pendingUpdates" : 0,
+    "sourceState" : "ATTENTION",
+    "sourceStateDetail" : "独立投影失败或停止，保留上一完整版本",
+    "escalated" : false
   }
 }

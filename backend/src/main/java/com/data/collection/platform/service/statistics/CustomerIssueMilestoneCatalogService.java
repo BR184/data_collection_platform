@@ -15,6 +15,11 @@ import org.springframework.stereotype.Service;
 public class CustomerIssueMilestoneCatalogService {
   private final IssueScopeCatalogService issueScopeCatalogService;
 
+  /** 读取历史版本时使用同一发布身份中的冻结定义；工厂的控制面行为保持当前权威。 */
+  public CustomerIssueMilestoneCatalogService forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new CustomerIssueMilestoneCatalogService(issueScopeCatalogService.forRead(selection));
+  }
+
   public CustomerIssueMilestoneCatalogService(IssueScopeCatalogService issueScopeCatalogService) {
     this.issueScopeCatalogService = issueScopeCatalogService;
   }

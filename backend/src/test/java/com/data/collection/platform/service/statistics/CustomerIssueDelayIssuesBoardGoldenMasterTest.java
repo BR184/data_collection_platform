@@ -30,6 +30,14 @@ import org.springframework.jdbc.core.RowMapper;
 @ExtendWith(MockitoExtension.class)
 class CustomerIssueDelayIssuesBoardGoldenMasterTest
     extends AbstractStatisticBoardGoldenMasterTest {
+  @org.junit.jupiter.api.BeforeEach
+  void bindReadDependencyFixtures() {
+    // 公式单测复用同一数据替身；实际修订隔离由真库读取测试覆盖。
+    org.mockito.Mockito.lenient().when(milestoneCatalogService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(milestoneCatalogService);
+    org.mockito.Mockito.lenient().when(snapshotRequestFactory.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(snapshotRequestFactory);
+  }
+
+
 
   @Mock private IssueFactQueryService issueFactQueryService;
   @Mock private StatisticIssueLinkSupport issueLinkSupport;
@@ -50,31 +58,31 @@ class CustomerIssueDelayIssuesBoardGoldenMasterTest
             anyString(), anyString(), anyString(), anyLong(), any(), anyString(), anyMap(), any(), any()))
         .thenReturn(snapshotRequest);
     doAnswer(invocation -> ((Function<StatisticBoardSnapshotService.SourceRead, StatisticBoardResponse>)
-                invocation.getArgument(1))
+                invocation.getArgument(2))
             .apply(StatisticBoardTestSnapshotScopes.testSourceRead()))
         .when(snapshotService)
-        .readOrRefresh(any(), any());
+        .readOrRefresh(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), any(), any());
     doAnswer(
             invocation -> {
-              RowMapper<Object> mapper = invocation.getArgument(4);
+              RowMapper<Object> mapper = invocation.getArgument(5);
               return List.of(
                   mapper.mapRow(issue(1101, "P1", true, true), 0),
                   mapper.mapRow(issue(1102, "P3", true, true), 1),
                   mapper.mapRow(issue(1103, "", true, true), 2));
             })
         .when(issueFactQueryService)
-        .query(anyString(), anyMap(), anyString(), anyList(), any(RowMapper.class));
+        .query(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(), anyMap(), anyString(), anyList(), any(RowMapper.class));
     doAnswer(
             invocation -> {
-              String sql = invocation.getArgument(0);
+              String sql = invocation.getArgument(1);
               if (sql.contains("coalesce(module_names")) {
-                RowMapper<Object> mapper = invocation.getArgument(2);
+                RowMapper<Object> mapper = invocation.getArgument(3);
                 return List.of(mapper.mapRow(moduleCatalogRow("装配"), 0));
               }
               return List.of();
             })
         .when(issueFactQueryService)
-        .query(anyString(), anyList(), any(RowMapper.class));
+        .query(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(), anyList(), any(RowMapper.class));
   }
 
   @Test
@@ -118,7 +126,7 @@ class CustomerIssueDelayIssuesBoardGoldenMasterTest
         issueLinkSupport,
         milestoneCatalogService,
         snapshotService,
-        snapshotRequestFactory);
+        snapshotRequestFactory).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
   }
 
   @Override

@@ -46,9 +46,9 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 @ExtendWith(MockitoExtension.class)
 class ReviewDataControllerTest {
 
-  @Mock private ReviewDataRecordService reviewDataRecordService;
+  @Mock(answer = org.mockito.Answers.RETURNS_SELF) private ReviewDataRecordService reviewDataRecordService;
   @Mock private ReviewDataLegacyExcelImportService legacyExcelImportService;
-  @Mock private ReviewDataExcelExportService excelExportService;
+  @Mock(answer = org.mockito.Answers.RETURNS_SELF) private ReviewDataExcelExportService excelExportService;
   @Mock private ReviewDataTemplateWorkbookService templateWorkbookService;
 
   private MockMvc mockMvc;
@@ -65,7 +65,7 @@ class ReviewDataControllerTest {
                     legacyExcelImportService,
                     excelExportService,
                     templateWorkbookService,
-                    reviewDataProperties))
+                    reviewDataProperties, null, TestReadViews.boundary()))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
   }

@@ -470,7 +470,9 @@ public class IssueScopeDefinitionService {
            )
          group by btrim(f.%s)
          order by issue_count desc, source_value asc
-        """.formatted(field, field, field, field);
+        """.formatted(field, field, field, field)
+            .replace("and f.deleted = false", "and f.deleted = false and "
+                + com.data.collection.platform.service.read.FactReadVisibility.liveRevisionPredicate("f"));
     return jdbcTemplate.query(
         sql,
         (rs, rowNumber) ->
@@ -513,7 +515,9 @@ public class IssueScopeDefinitionService {
           from issue_scope_members m
          where m.group_id in (%s)
          order by m.sort_order asc, m.id asc
-        """.formatted(field, placeholders);
+        """.formatted(field, placeholders)
+            .replace("and f.deleted = false", "and f.deleted = false and "
+                + com.data.collection.platform.service.read.FactReadVisibility.liveRevisionPredicate("f"));
     List<Object> args = new ArrayList<>();
     args.add(catalog.projectId());
     args.addAll(groupIds);
@@ -833,7 +837,9 @@ public class IssueScopeDefinitionService {
                 where m.catalog_id = ?
                   and lower(m.source_value) = lower(values_in_fact.source_value)
              )
-            """.formatted(field, field),
+            """.formatted(field, field)
+                .replace("and f.deleted = false", "and f.deleted = false and "
+                    + com.data.collection.platform.service.read.FactReadVisibility.liveRevisionPredicate("f")),
             Long.class,
             projectId,
             catalogId);

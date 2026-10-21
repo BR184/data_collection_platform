@@ -1,5 +1,7 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.entity.read.FactReadSelection;
+import com.data.collection.platform.service.read.VersionedFactSql;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -20,20 +22,23 @@ public class IssueFactQueryService extends AbstractFactQueryService {
     this.sqlQueryMonitor = sqlQueryMonitor;
   }
 
-  public <T> List<T> query(String selectSql, Map<String, String> filters, RowMapper<T> rowMapper) {
-    return query(selectSql, filters, null, List.of(), rowMapper);
+  /** 在显式固定版本中读取事实，所有筛选继续使用原业务谓词。 */
+  public <T> List<T> query(FactReadSelection selection, String selectSql, Map<String, String> filters, RowMapper<T> rowMapper) {
+    return query(selection, selectSql, filters, null, List.of(), rowMapper);
   }
 
   public <T> List<T> query(
+      FactReadSelection selection,
       String selectSql,
       Map<String, String> filters,
       String extraPredicateSql,
       List<?> extraArgs,
       RowMapper<T> rowMapper) {
-    return query(selectSql, filters, extraPredicateSql, extraArgs, "", rowMapper);
+    return query(selection, selectSql, filters, extraPredicateSql, extraArgs, "", rowMapper);
   }
 
   public <T> List<T> query(
+      FactReadSelection selection,
       String selectSql,
       Map<String, String> filters,
       String extraPredicateSql,
@@ -52,17 +57,20 @@ public class IssueFactQueryService extends AbstractFactQueryService {
     if (trimToNull(suffixSql) != null) {
       sql.append(' ').append(suffixSql);
     }
-    return queryWithMonitoring("issue-fact-filter-query", sql.toString(), args, rowMapper);
+    return queryWithMonitoring(selection, "issue-fact-filter-query", sql.toString(), args, rowMapper);
   }
 
-  public <T> List<T> query(String sql, List<Object> args, RowMapper<T> rowMapper) {
-    return queryWithMonitoring("issue-fact-query", sql, args, rowMapper);
+  /** 执行已构造的业务查询；事实与成员关系仍由显式版本限定。 */
+  public <T> List<T> query(FactReadSelection selection, String sql, List<Object> args, RowMapper<T> rowMapper) {
+    return queryWithMonitoring(selection, "issue-fact-query", sql, args, rowMapper);
   }
 
-  public long count(String sql, List<Object> args) {
+  /** 在同一固定版本中计数，不能用当前事实的总数搭配旧版本列表。 */
+  public long count(FactReadSelection selection, String sql, List<Object> args) {
+    VersionedFactSql.Query query = VersionedFactSql.bind(selection, sql, args);
     long startedAt = sqlQueryMonitor.start();
     try {
-      Long total = jdbcTemplate.queryForObject(sql, Long.class, args.toArray());
+      Long total = jdbcTemplate.queryForObject(query.sql(), Long.class, query.arguments().toArray());
       return total == null ? 0L : total;
     } finally {
       sqlQueryMonitor.logIfSlow("issue-fact-count", sql, args, startedAt);
@@ -70,10 +78,11 @@ public class IssueFactQueryService extends AbstractFactQueryService {
   }
 
   private <T> List<T> queryWithMonitoring(
-      String operation, String sql, List<Object> args, RowMapper<T> rowMapper) {
+      FactReadSelection selection, String operation, String sql, List<Object> args, RowMapper<T> rowMapper) {
+    VersionedFactSql.Query query = VersionedFactSql.bind(selection, sql, args);
     long startedAt = sqlQueryMonitor.start();
     try {
-      return jdbcTemplate.query(sql, rowMapper, args.toArray());
+      return jdbcTemplate.query(query.sql(), rowMapper, query.arguments().toArray());
     } finally {
       sqlQueryMonitor.logIfSlow(operation, sql, args, startedAt);
     }

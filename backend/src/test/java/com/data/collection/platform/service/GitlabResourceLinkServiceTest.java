@@ -14,10 +14,26 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 class GitlabResourceLinkServiceTest {
+  private JdbcTemplate jdbcFixture() {
+    JdbcTemplate jdbc = mock(JdbcTemplate.class);
+    when(jdbc.queryForObject(any(String.class), eq(Boolean.class), any(String.class), any(String.class))).thenReturn(true);
+    return jdbc;
+  }
+
+  @Test
+  void test_optional_missing_project_metadata_does_not_poison_reads_or_cache_a_permanent_miss() {
+    JdbcTemplate jdbc = jdbcFixture();
+    when(jdbc.queryForObject(any(String.class), eq(Boolean.class), any(String.class), any(String.class)))
+        .thenReturn(false, true);
+    when(jdbc.queryForObject(any(String.class), eq(String.class), eq(1001L))).thenReturn("group/project");
+    GitlabResourceLinkService service = new GitlabResourceLinkService(jdbc, properties());
+    assertThat(service.issueUrl(1001L, 21)).isNull();
+    assertThat(service.issueUrl(1001L, 21)).isEqualTo("http://gitlab.example.com/group/project/-/issues/21");
+  }
 
   @Test
   void shouldBuildIssueUrlWithProjectPath() {
-    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    JdbcTemplate jdbcTemplate = jdbcFixture();
     when(jdbcTemplate.queryForObject(any(String.class), eq(String.class), eq(1001L)))
         .thenReturn("group/project");
     GitlabResourceLinkService service = new GitlabResourceLinkService(jdbcTemplate, properties());
@@ -30,7 +46,7 @@ class GitlabResourceLinkServiceTest {
 
   @Test
   void shouldUseRecursiveNamespacePathLookupForNestedProjects() {
-    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    JdbcTemplate jdbcTemplate = jdbcFixture();
     when(jdbcTemplate.queryForObject(any(String.class), eq(String.class), eq(1001L)))
         .thenReturn("parent/subgroup/project");
     GitlabResourceLinkService service = new GitlabResourceLinkService(jdbcTemplate, propertiesWithoutScheme());
@@ -48,7 +64,7 @@ class GitlabResourceLinkServiceTest {
 
   @Test
   void shouldAvoidBrokenGlobalIssueUrlWhenProjectPathIsMissing() {
-    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    JdbcTemplate jdbcTemplate = jdbcFixture();
     when(jdbcTemplate.queryForObject(any(String.class), eq(String.class), eq(1001L)))
         .thenThrow(new EmptyResultDataAccessException(1));
     GitlabResourceLinkService service = new GitlabResourceLinkService(jdbcTemplate, properties());
@@ -58,7 +74,7 @@ class GitlabResourceLinkServiceTest {
 
   @Test
   void shouldUseSingleMirrorTablesForRequestedSourceInstance() {
-    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    JdbcTemplate jdbcTemplate = jdbcFixture();
     when(jdbcTemplate.queryForObject(any(String.class), eq(String.class), eq(1001L)))
         .thenReturn("group/project");
     GitlabResourceLinkService service = new GitlabResourceLinkService(jdbcTemplate, properties());

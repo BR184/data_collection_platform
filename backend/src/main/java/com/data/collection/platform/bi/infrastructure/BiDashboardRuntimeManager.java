@@ -20,6 +20,11 @@ public class BiDashboardRuntimeManager {
     this.factory = factory;
   }
 
+  /** 固定页面身份只活在本次读取对象，不修改共享 Runtime 或用户其它页面。 */
+  public BiDashboardRuntime forRead(com.data.collection.platform.entity.read.ReadSelection selection) {
+    return factory.forRead(selection).create();
+  }
+
   /** 返回延迟创建的 Runtime；初始化失败不会缓存半成品，下次请求可以重新尝试。 */
   public BiDashboardRuntime runtime() {
     BiDashboardRuntime current = runtime;

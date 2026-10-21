@@ -13,6 +13,26 @@ class SyncTableTaskFailurePolicyTest {
   private final SyncTableTaskFailurePolicy policy = new SyncTableTaskFailurePolicy();
 
   @Test
+  void shouldPersistNestedSqlStateAndDriverDiagnosticsWithoutLosingOuterContext() {
+    var sql = new java.sql.SQLException("project_id expects bigint", "42804", 17);
+    sql.setNextException(new java.sql.SQLException("driver detail", "22003", 21));
+    var failure = new IllegalStateException("page commit failed", sql);
+    String description = new SyncTableTaskFailurePolicy().describeFailure(failure);
+    org.assertj.core.api.Assertions.assertThat(description)
+        .contains("page commit failed", "project_id expects bigint", "SQLState=42804", "vendorCode=17",
+            "SQLState=22003", "vendorCode=21");
+  }
+
+  @Test
+  void shouldTerminateDiagnosticTraversalForCyclicCauseAndMissingMessage() {
+    var outer = new RuntimeException();
+    var inner = new RuntimeException("inner", outer);
+    outer.initCause(inner);
+    org.assertj.core.api.Assertions.assertThat(new SyncTableTaskFailurePolicy().describeFailure(outer))
+        .isEqualTo("RuntimeException: 无异常消息 <- RuntimeException: inner");
+  }
+
+  @Test
   void test_transient_database_failure_receives_bounded_retry_time() {
     LocalDateTime now = LocalDateTime.of(2026, 8, 10, 12, 0);
 

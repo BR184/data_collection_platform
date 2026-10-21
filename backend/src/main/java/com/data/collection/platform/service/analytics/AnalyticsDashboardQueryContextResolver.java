@@ -17,10 +17,24 @@ public class AnalyticsDashboardQueryContextResolver {
   private static final Set<String> SORT_CONTROL_KEYS = Set.of(SORT_FIELD, SORT_ORDER);
 
   private final CodeReviewMatchModeConfigService matchModeConfigService;
+  private final Boolean fixedCompatibility;
 
+  @org.springframework.beans.factory.annotation.Autowired
   public AnalyticsDashboardQueryContextResolver(
       CodeReviewMatchModeConfigService matchModeConfigService) {
     this.matchModeConfigService = matchModeConfigService;
+    this.fixedCompatibility = null;
+  }
+
+  private AnalyticsDashboardQueryContextResolver(CodeReviewMatchModeConfigService config, boolean compatibility) {
+    this.matchModeConfigService = config;
+    this.fixedCompatibility = compatibility;
+  }
+
+  /** 参数校验保持既有契约，来源模式只取固定设置版本，不能取当前可变模式。 */
+  public AnalyticsDashboardQueryContextResolver forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new AnalyticsDashboardQueryContextResolver(matchModeConfigService,
+        matchModeConfigService.compatibilityReadEnabled(selection, false));
   }
 
   public AnalyticsDashboardQueryContext resolveDashboard(
@@ -131,7 +145,7 @@ public class AnalyticsDashboardQueryContextResolver {
       return AnalyticsDashboardQueryContext.ReadMode.FORMAL;
     }
     //兼容模式-MatchMode：读模式只允许由服务端系统设置决定，客户端参数不得参与。
-    return matchModeConfigService.isCodeReviewCompatibilityReadEnabled()
+    return (fixedCompatibility == null ? matchModeConfigService.isCodeReviewCompatibilityReadEnabled() : fixedCompatibility)
         ? AnalyticsDashboardQueryContext.ReadMode.MATCH_MODE
         : AnalyticsDashboardQueryContext.ReadMode.FORMAL;
   }

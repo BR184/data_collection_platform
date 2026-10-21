@@ -17,6 +17,11 @@ public class SystemTestPhaseCatalogService {
 
   private final IssueScopeCatalogService issueScopeCatalogService;
 
+  /** 读取历史版本时使用同一发布身份中的冻结定义；工厂的控制面行为保持当前权威。 */
+  public SystemTestPhaseCatalogService forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new SystemTestPhaseCatalogService(issueScopeCatalogService.forRead(selection));
+  }
+
   public SystemTestPhaseCatalogService(IssueScopeCatalogService issueScopeCatalogService) {
     this.issueScopeCatalogService = issueScopeCatalogService;
   }

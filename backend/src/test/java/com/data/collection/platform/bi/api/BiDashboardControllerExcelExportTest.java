@@ -32,7 +32,7 @@ class BiDashboardControllerExcelExportTest {
     BiDashboardRuntimeManager manager = mock(BiDashboardRuntimeManager.class);
     BiDashboardRuntime runtime = mock(BiDashboardRuntime.class);
     BiDownloadAuthorizationService downloads = mock(BiDownloadAuthorizationService.class);
-    when(manager.runtime()).thenReturn(runtime);
+    when(manager.forRead(any())).thenReturn(runtime);
     when(runtime.downloads()).thenReturn(downloads);
     when(runtime.excel()).thenReturn(new BiExcelExportService());
     when(downloads.authorize(any())).thenReturn(new BiDownloadAuthorizationService.Authorization(
@@ -73,7 +73,7 @@ class BiDashboardControllerExcelExportTest {
     BiDashboardRuntimeManager manager = mock(BiDashboardRuntimeManager.class);
     BiDashboardRuntime runtime = mock(BiDashboardRuntime.class);
     BiDownloadAuthorizationService downloads = mock(BiDownloadAuthorizationService.class);
-    when(manager.runtime()).thenReturn(runtime);
+    when(manager.forRead(any())).thenReturn(runtime);
     when(runtime.downloads()).thenReturn(downloads);
     when(downloads.authorize(any()))
         .thenThrow(new BizException("页面已有新数据，请刷新整页后再下载"));
@@ -95,15 +95,15 @@ class BiDashboardControllerExcelExportTest {
     BiDashboardController controller = controller(mock(BiDashboardRuntimeManager.class));
 
     assertThatThrownBy(() -> controller.customerIssues(
-        null, "UNKNOWN", "x", null, null, null, null))
+        null, "UNKNOWN", "x", null, null, null, null, new MockHttpServletRequest()))
         .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
         .hasMessageContaining("kind 仅支持");
     assertThatThrownBy(() -> controller.customerIssues(
-        null, "VALUE", null, null, null, null, null))
+        null, "VALUE", null, null, null, null, null, new MockHttpServletRequest()))
         .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
         .hasMessageContaining("VALUE 必须携带");
     assertThatThrownBy(() -> controller.customerIssues(
-        null, "ALL", "x", null, null, null, null))
+        null, "ALL", "x", null, null, null, null, new MockHttpServletRequest()))
         .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
         .hasMessageContaining("ALL 不接受");
   }
@@ -114,6 +114,7 @@ class BiDashboardControllerExcelExportTest {
    */
   private static BiDashboardController controller(BiDashboardRuntimeManager manager) {
     return new BiDashboardController(
-        manager, new BiPagePermissionResolver(), mock(PlatformPermissionService.class));
+        manager, new BiPagePermissionResolver(), mock(PlatformPermissionService.class),
+        com.data.collection.platform.controller.TestReadViews.boundary());
   }
 }

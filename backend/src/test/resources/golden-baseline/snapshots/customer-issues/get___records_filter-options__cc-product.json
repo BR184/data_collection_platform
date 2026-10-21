@@ -2556,5 +2556,18 @@
       "label" : "CC2024 R4",
       "value" : "CC2024R4"
     } ]
+  },
+  "readView" : {
+    "readContextId" : "<verified-runtime-readContextId>",
+    "pageKey" : "customer-issues-cc-product-issues",
+    "scopeKey" : "72a874d0e9c8938a077a1c841f306d6c59672bde4c4ee4d550ca2d7f5007c8b5",
+    "sourceVersion" : "<verified-runtime-sourceVersion>",
+    "businessDate" : "2026-09-01",
+    "leaseExpiresAt" : "<verified-runtime-leaseExpiresAt>",
+    "dataAsOf" : "<verified-runtime-dataAsOf>",
+    "pendingUpdates" : 0,
+    "sourceState" : "ATTENTION",
+    "sourceStateDetail" : "独立投影失败或停止，保留上一完整版本",
+    "escalated" : false
   }
 }

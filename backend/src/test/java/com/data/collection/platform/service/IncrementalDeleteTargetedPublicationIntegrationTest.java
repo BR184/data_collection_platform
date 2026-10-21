@@ -79,7 +79,10 @@ class IncrementalDeleteTargetedPublicationIntegrationTest {
   @Autowired private GitlabConfigService configService;
   @Autowired private GitlabMirrorSchemaService mirrorSchemaService;
   @Autowired private GitlabMirrorTableStorageService mirrorStorageService;
+  @Autowired private com.data.collection.platform.service.read.ReadPublicationService readPublicationService;
   @Autowired private FactBuildService factBuildService;
+  @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+  private FactTargetPublicationService factTargetPublicationService;
   @Autowired private SyncRunTableWorkerService tableWorkerService;
   @Autowired private SyncRunWorkerService runWorkerService;
   @Autowired private SyncRunMapper syncRunMapper;
@@ -89,6 +92,23 @@ class IncrementalDeleteTargetedPublicationIntegrationTest {
 
   @BeforeEach
   void setUp() {
+    // 此类验证 ODS→事实链路；P3 在本边界由显式成功证明替身承担，生产代码不自动生成该证明。
+    org.mockito.Mockito.doAnswer(invocation -> {
+      com.data.collection.platform.entity.QueuedFactBuildTask task = invocation.getArgument(0);
+      Object result = invocation.callRealMethod();
+      FactRevisionFixture.completeRequiredProjections(jdbcTemplate, factTargetPublicationService,
+          com.data.collection.platform.entity.read.ReadPublicationDomainKey.gitlabFact(task.sourceInstance(),
+              com.data.collection.platform.entity.FactType.valueOf(task.factType())), task.factRunLeaseToken());
+      return result;
+    }).when(factTargetPublicationService).publish(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    org.mockito.Mockito.doAnswer(invocation -> {
+      com.data.collection.platform.entity.QueuedFactBuildTask task = invocation.getArgument(0);
+      Object result = invocation.callRealMethod();
+      FactRevisionFixture.completeRequiredProjections(jdbcTemplate, factTargetPublicationService,
+          com.data.collection.platform.entity.read.ReadPublicationDomainKey.gitlabFact(task.sourceInstance(),
+              com.data.collection.platform.entity.FactType.valueOf(task.factType())), task.factRunLeaseToken());
+      return result;
+    }).when(factTargetPublicationService).publishFull(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     GitlabIssueMirrorFixture.ensureSchema(jdbcTemplate);
     cleanPlatformState();
     jdbcTemplate.execute("drop table if exists public.label_links");
@@ -185,11 +205,16 @@ class IncrementalDeleteTargetedPublicationIntegrationTest {
     startFactRun(factRunId);
     runWorkerService.executeRun(syncRunMapper.selectById(factRunId));
 
+    assertThat(jdbcTemplate.queryForObject("select status from sync_runs where id = ?", String.class, factRunId))
+        .withFailMessage("事实运行未完成：%s；任务：%s", syncRunMapper.selectById(factRunId).getErrorMessage(),
+            jdbcTemplate.queryForList("select fact_type, status, error_message from fact_build_tasks where run_id = ?", String.valueOf(factRunId)))
+        .isEqualTo("SUCCESS");
     assertThat(issueSeverity()).isNull();
     assertThat(levelOneIssueCount()).isZero();
     assertThat(
             jdbcTemplate.queryForObject(
-                "select count(*) from issue_fact where source_instance = 'default' and issue_id = ?",
+                "select count(*) from issue_fact where source_instance = 'default' and issue_id = ? and "
+                    + com.data.collection.platform.service.read.FactReadVisibility.liveRevisionPredicate(""),
                 Integer.class,
                 ISSUE_ID))
         .isOne();
@@ -383,7 +408,13 @@ class IncrementalDeleteTargetedPublicationIntegrationTest {
         "insert into ods_gitlab_labels(id, title, mirror_deleted) values (?, ?, false)",
         STATUS_LABEL_ID,
         "状态：未修复");
-    factBuildService.rebuildIssueFactsByRootIds("default", List.of(ISSUE_ID));
+    FactRevisionFixture.publishFacts(jdbcTemplate,
+        com.data.collection.platform.entity.read.PublicationFactTable.ISSUE, "default", true,
+        target -> factBuildService.rebuildIssueFactsByRootIds(target, List.of(ISSUE_ID)));
+    readPublicationService.bootstrapInitialVersion(
+        com.data.collection.platform.entity.read.ReadPublicationDomainKey.gitlabFact("default", com.data.collection.platform.entity.FactType.INTEGRATION_TEST),
+        "GITLAB", java.time.Instant.now(), "{\"fixture\":true}", 0L,
+        key -> com.data.collection.platform.service.read.InitialVersionVerification.VerificationResult.accepted());
   }
 
   private GitlabSyncConfig sourceConfig() {
@@ -593,13 +624,15 @@ class IncrementalDeleteTargetedPublicationIntegrationTest {
     assertThat(
             jdbcTemplate.queryForList(
                 """
-                select scope_type || ':' || scope_key || ':' || status
-                  from fact_projection_refresh_tasks
-                 where fact_run_id = ? and fact_type = 'ISSUE'
-                 order by scope_type, scope_key
+                select g.scope_type || ':' || g.scope_key || ':' ||
+                       case when g.prepared_at is not null then 'SUCCESS' else 'PENDING' end
+                  from read_publication_scope_generations g join read_publications p on p.id = g.publication_id
+                  join read_publication_domains d on d.id = p.domain_id
+                 where p.producer_run_id = ? and d.fact_type = 'ISSUE' and p.state = 'PUBLISHED'
+                 order by g.scope_type, g.scope_key
                 """,
                 String.class,
-                factRunId))
+                String.valueOf(factRunId)))
         .containsExactly("GLOBAL_VIEW:*:SUCCESS", "PROJECT:9:SUCCESS");
     assertThat(
         jdbcTemplate.queryForObject(
@@ -611,7 +644,8 @@ class IncrementalDeleteTargetedPublicationIntegrationTest {
 
   private String issueSeverity() {
     return jdbcTemplate.queryForObject(
-        "select severity_level from issue_fact where source_instance = 'default' and issue_id = ?",
+        "select severity_level from issue_fact where source_instance = 'default' and issue_id = ? and "
+            + com.data.collection.platform.service.read.FactReadVisibility.liveRevisionPredicate(""),
         String.class,
         ISSUE_ID);
   }
@@ -621,8 +655,8 @@ class IncrementalDeleteTargetedPublicationIntegrationTest {
         jdbcTemplate.queryForObject(
             """
             select count(*) from issue_fact
-             where source_instance = 'default' and severity_level = 'LEVEL1'
-            """,
+             where source_instance = 'default' and severity_level = 'LEVEL1' and %s
+            """.formatted(com.data.collection.platform.service.read.FactReadVisibility.liveRevisionPredicate("")),
             Integer.class);
     return count == null ? 0 : count;
   }
@@ -654,6 +688,7 @@ class IncrementalDeleteTargetedPublicationIntegrationTest {
     jdbcTemplate.update("delete from fact_projection_generations");
     jdbcTemplate.update("delete from sync_run_fact_targets");
     jdbcTemplate.update("delete from fact_change_heads");
+    jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
     jdbcTemplate.update("delete from fact_build_tasks");
     jdbcTemplate.update("delete from sync_run_authoritative_scopes");
     jdbcTemplate.update("delete from source_fact_publication_states");

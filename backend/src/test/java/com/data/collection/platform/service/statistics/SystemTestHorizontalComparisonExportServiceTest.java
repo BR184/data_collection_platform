@@ -30,17 +30,40 @@ import org.springframework.jdbc.core.RowMapper;
 class SystemTestHorizontalComparisonExportServiceTest {
   private final RecordingJdbcTemplate jdbcTemplate = new RecordingJdbcTemplate();
   private final ReviewDataMirrorOptionRepository mirrorOptionRepository =
-      mock(ReviewDataMirrorOptionRepository.class);
+      mock(ReviewDataMirrorOptionRepository.class, org.mockito.Answers.RETURNS_SELF);
   private final SystemTestPhaseScopeResolver phaseScopeResolver =
-      mock(SystemTestPhaseScopeResolver.class);
+      mock(SystemTestPhaseScopeResolver.class, org.mockito.Answers.RETURNS_SELF);
   private final SystemTestHorizontalComparisonExportService exportService =
       new SystemTestHorizontalComparisonExportService(
           jdbcTemplate,
           mock(JsonUtils.class),
           phaseScopeResolver,
-          mock(CodeReviewMatchModeSwitchService.class),
-          mock(ReviewDataMatchModeRecordRepository.class),
-          mirrorOptionRepository);
+          mock(CodeReviewMatchModeSwitchService.class, org.mockito.Answers.RETURNS_SELF),
+          mock(ReviewDataMatchModeRecordRepository.class, org.mockito.Answers.RETURNS_SELF),
+          mirrorOptionRepository).forRead(com.data.collection.platform.service.read.TestReadSelections.datasets());
+
+  private org.mockito.MockedConstruction<com.data.collection.platform.service.read.VersionedDatasetSql> sqlFixture;
+
+  @org.junit.jupiter.api.BeforeEach
+  void bindFormulaSqlPort() {
+    // 本类验证工作簿公式/筛选；真实发布点隔离在 PostgreSQL 集成测试验证。
+    sqlFixture = org.mockito.Mockito.mockConstruction(com.data.collection.platform.service.read.VersionedDatasetSql.class,
+        (query, context) -> {
+          JdbcTemplate jdbc = (JdbcTemplate) context.arguments().getFirst();
+          org.mockito.Mockito.when(query.query(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class),
+              org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.<RowMapper<Object>>any(),
+              org.mockito.ArgumentMatchers.any(Object[].class))).thenAnswer(call ->
+                  jdbc.query(call.getArgument(1, String.class), call.getArgument(2, RowMapper.class),
+                      (Object[]) call.getRawArguments()[3]));
+          org.mockito.Mockito.when(query.queryForList(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class),
+              org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(String.class),
+              org.mockito.ArgumentMatchers.any(Object[].class))).thenAnswer(call ->
+                  jdbc.queryForList(call.getArgument(1, String.class), String.class, (Object[]) call.getRawArguments()[3]));
+        });
+  }
+
+  @org.junit.jupiter.api.AfterEach
+  void closeFormulaSqlPort() { sqlFixture.close(); }
 
   @Test
   void horizontalExportLoadsAtomicModuleCatalogFromMirroredGitlabLabels() {
@@ -65,7 +88,7 @@ class SystemTestHorizontalComparisonExportServiceTest {
   @Test
   void horizontalExportIncludesHistoricalReviewSnapshotsWhenCompatibilityReadEnabled() {
     ReviewDataMatchModeRecordRepository reviewRepository =
-        mock(ReviewDataMatchModeRecordRepository.class);
+        mock(ReviewDataMatchModeRecordRepository.class, org.mockito.Answers.RETURNS_SELF);
     when(reviewRepository.loadRecords())
         .thenReturn(
             List.of(
@@ -86,17 +109,17 @@ class SystemTestHorizontalComparisonExportServiceTest {
                     0.3D,
                     LocalDateTime.of(2026, 6, 1, 10, 0),
                     false)));
-    CodeReviewMatchModeSwitchService switchService = mock(CodeReviewMatchModeSwitchService.class);
+    CodeReviewMatchModeSwitchService switchService = mock(CodeReviewMatchModeSwitchService.class, org.mockito.Answers.RETURNS_SELF);
     when(switchService.isCodeReviewCompatibilityReadEnabled()).thenReturn(false);
     when(switchService.isReviewDataCompatibilityReadEnabled()).thenReturn(true);
     SystemTestHorizontalComparisonExportService service =
         new SystemTestHorizontalComparisonExportService(
             jdbcTemplate,
             mock(JsonUtils.class),
-            mock(SystemTestPhaseScopeResolver.class),
+            mock(SystemTestPhaseScopeResolver.class, org.mockito.Answers.RETURNS_SELF),
             switchService,
             reviewRepository,
-            mirrorOptionRepository);
+            mirrorOptionRepository).forRead(com.data.collection.platform.service.read.TestReadSelections.datasets());
 
     String csv = service.exportCsv(Map.of("projectName", "CC2026R4"));
 
@@ -106,27 +129,27 @@ class SystemTestHorizontalComparisonExportServiceTest {
   @Test
   void horizontalExportExcludesHistoricalReviewSnapshotsWhenCompatibilityReadDisabled() {
     ReviewDataMatchModeRecordRepository reviewRepository =
-        mock(ReviewDataMatchModeRecordRepository.class);
-    CodeReviewMatchModeSwitchService switchService = mock(CodeReviewMatchModeSwitchService.class);
+        mock(ReviewDataMatchModeRecordRepository.class, org.mockito.Answers.RETURNS_SELF);
+    CodeReviewMatchModeSwitchService switchService = mock(CodeReviewMatchModeSwitchService.class, org.mockito.Answers.RETURNS_SELF);
     when(switchService.isCodeReviewCompatibilityReadEnabled()).thenReturn(false);
     when(switchService.isReviewDataCompatibilityReadEnabled()).thenReturn(false);
     SystemTestHorizontalComparisonExportService service =
         new SystemTestHorizontalComparisonExportService(
             jdbcTemplate,
             mock(JsonUtils.class),
-            mock(SystemTestPhaseScopeResolver.class),
+            mock(SystemTestPhaseScopeResolver.class, org.mockito.Answers.RETURNS_SELF),
             switchService,
             reviewRepository,
-            mirrorOptionRepository);
+            mirrorOptionRepository).forRead(com.data.collection.platform.service.read.TestReadSelections.datasets());
 
     service.exportCsv(Map.of("projectName", "CC2026R4"));
 
-    verifyNoInteractions(reviewRepository);
+    org.mockito.Mockito.verify(reviewRepository, org.mockito.Mockito.never()).loadRecords();
   }
 
   @Test
   void issueSummaryUsesContainsMembershipForCompoundPhaseFacts() {
-    SystemTestPhaseScopeResolver phaseResolver = mock(SystemTestPhaseScopeResolver.class);
+    SystemTestPhaseScopeResolver phaseResolver = mock(SystemTestPhaseScopeResolver.class, org.mockito.Answers.RETURNS_SELF);
     when(phaseResolver.resolvePhases(9L, "CC2026R4"))
         .thenReturn(List.of("CC2026R4第一轮系统测试", "CC2026R4第二轮系统测试"));
     SystemTestHorizontalComparisonExportService service =
@@ -134,9 +157,9 @@ class SystemTestHorizontalComparisonExportServiceTest {
             jdbcTemplate,
             mock(JsonUtils.class),
             phaseResolver,
-            mock(CodeReviewMatchModeSwitchService.class),
-            mock(ReviewDataMatchModeRecordRepository.class),
-            mirrorOptionRepository);
+            mock(CodeReviewMatchModeSwitchService.class, org.mockito.Answers.RETURNS_SELF),
+            mock(ReviewDataMatchModeRecordRepository.class, org.mockito.Answers.RETURNS_SELF),
+            mirrorOptionRepository).forRead(com.data.collection.platform.service.read.TestReadSelections.datasets());
 
     service.exportCsv(Map.of("testingPhase", "CC2026R4"));
 

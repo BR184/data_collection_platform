@@ -38,11 +38,25 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 @ExtendWith(MockitoExtension.class)
 class CustomerIssueControllerTest {
 
-  @Mock private CustomerIssueIllegalRecordService customerIssueIllegalRecordService;
-  @Mock private CustomerIssueRecordService customerIssueRecordService;
+  @Mock(answer = org.mockito.Answers.RETURNS_SELF) private CustomerIssueIllegalRecordService customerIssueIllegalRecordService;
+  @Mock(answer = org.mockito.Answers.RETURNS_SELF) private CustomerIssueRecordService customerIssueRecordService;
   @Mock private IssueFactRealtimeRefreshService realtimeRefreshService;
 
   private MockMvc mockMvc;
+
+  @Test
+  void refresh_one_reads_the_response_from_the_bound_complete_view() throws Exception {
+    var bound = org.mockito.Mockito.mock(CustomerIssueIllegalRecordService.class);
+    when(customerIssueIllegalRecordService.forRead(org.mockito.ArgumentMatchers.any())).thenReturn(bound);
+    mockMvc.perform(post("/api/customer-issues/illegal-records/refresh-one")
+            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+            .content("{\"source\":\"default\",\"projectId\":325,\"issueIid\":1}"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.readView.pageKey").value("customer-issues-illegal-records"));
+    org.mockito.Mockito.verify(bound).findRefreshedRecord("default", 325L, 1L);
+    org.mockito.Mockito.verify(customerIssueIllegalRecordService, org.mockito.Mockito.never())
+        .findRefreshedRecord(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+  }
 
   @BeforeEach
   void setUp() {
@@ -52,8 +66,24 @@ class CustomerIssueControllerTest {
                     customerIssueIllegalRecordService,
                     customerIssueRecordService,
                     new CustomerIssueRequestAssembler(new IssueFactRecordListRequestAssembler()),
-                    realtimeRefreshService))
+                    realtimeRefreshService, TestReadViews.boundary()))
             .build();
+  }
+
+  @Test
+  void test_opened_record_lookup_keeps_source_project_and_root_identity() throws Exception {
+    when(customerIssueRecordService.findRecord("second", 325L, 9001L)).thenReturn(null);
+    mockMvc.perform(get("/api/customer-issues/records/second/325/9001").param("topic", "delay"))
+        .andExpect(status().isOk());
+    org.mockito.Mockito.verify(customerIssueRecordService).findRecord("second", 325L, 9001L);
+  }
+
+  @Test
+  void test_illegal_detail_lookup_keeps_complete_natural_identity() throws Exception {
+    when(customerIssueIllegalRecordService.findRecord("second", 325L, 9001L)).thenReturn(null);
+    mockMvc.perform(get("/api/customer-issues/illegal-records/second/325/9001"))
+        .andExpect(status().isOk());
+    org.mockito.Mockito.verify(customerIssueIllegalRecordService).findRecord("second", 325L, 9001L);
   }
 
   @Test
@@ -133,7 +163,7 @@ class CustomerIssueControllerTest {
                         "release/2026R3",
                         LocalDateTime.of(2026, 4, 20, 16, 30),
                         null,
-                        List.of("delay"))),
+                        List.of("delay"), "default")),
                 1,
                 2,
                 10,

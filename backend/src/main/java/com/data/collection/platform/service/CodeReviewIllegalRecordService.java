@@ -48,6 +48,47 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   private final CodeReviewIllegalRecordFilterOptionAssembler filterOptionAssembler;
   private final CodeReviewIllegalRecordResponseMapper responseMapper;
 
+  private final com.data.collection.platform.entity.read.ReadSelection factReadSelection;
+
+  /** 创建显式事实版本读取对象，工厂不持有页面或候选身份。 */
+  public CodeReviewIllegalRecordService forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new CodeReviewIllegalRecordService(this, selection);
+  }
+
+  /** 兼容/正式读取都持有完整页面闭包，模式与来源身份一起冻结。 */
+  public CodeReviewIllegalRecordService forRead(com.data.collection.platform.entity.read.ReadSelection selection) {
+    return new CodeReviewIllegalRecordService(this, selection);
+  }
+
+  private CodeReviewIllegalRecordService(CodeReviewIllegalRecordService factory,
+      com.data.collection.platform.entity.read.ReadSelection selection) {
+    this.realtimeWorkspaceService = factory.realtimeWorkspaceService;
+    this.realtimeIncrementalRefreshService = factory.realtimeIncrementalRefreshService;
+    this.factBuildService = factory.factBuildService;
+    this.sourceLoader = selection instanceof com.data.collection.platform.entity.read.FactReadSelection facts
+        ? factory.sourceLoader.forRead(facts)
+        : ((com.data.collection.platform.entity.read.DatasetReadSelection) selection).facts() == null ? factory.sourceLoader
+        : factory.sourceLoader.forRead(((com.data.collection.platform.entity.read.DatasetReadSelection) selection).facts());
+    this.matchModeRecordLoader = selection instanceof com.data.collection.platform.entity.read.DatasetReadSelection datasets
+        ? factory.matchModeRecordLoader.forRead(datasets) : factory.matchModeRecordLoader;
+    this.matchModeSwitchService = selection instanceof com.data.collection.platform.entity.read.DatasetReadSelection datasets
+        ? factory.matchModeSwitchService.forRead(datasets) : factory.matchModeSwitchService;
+    this.matchModeLegacyRefreshService = factory.matchModeLegacyRefreshService;
+    this.legacyPlatformFormalImportService = factory.legacyPlatformFormalImportService;
+    this.dgmProjectOptionService = factory.dgmProjectOptionService;
+    this.objectMapper = factory.objectMapper;
+    this.pageRecordSnapshotService = factory.pageRecordSnapshotService;
+    this.excelExporter = factory.excelExporter;
+    this.filterOptionAssembler = factory.filterOptionAssembler;
+    this.responseMapper = factory.responseMapper;
+    this.factReadSelection = java.util.Objects.requireNonNull(selection);
+  }
+
+  private com.data.collection.platform.entity.read.ReadSelection readSelection() {
+    return java.util.Objects.requireNonNull(factReadSelection, "走查读取必须持有固定版本身份");
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public CodeReviewIllegalRecordService(
       RealtimeWorkspaceService realtimeWorkspaceService,
       RealtimeIncrementalRefreshService realtimeIncrementalRefreshService,
@@ -63,6 +104,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
       CodeReviewIllegalRecordExcelExporter excelExporter,
       CodeReviewIllegalRecordFilterOptionAssembler filterOptionAssembler,
       CodeReviewIllegalRecordResponseMapper responseMapper) {
+    this.factReadSelection = null;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.realtimeIncrementalRefreshService = realtimeIncrementalRefreshService;
     this.factBuildService = factBuildService;
@@ -79,9 +121,29 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
     this.responseMapper = responseMapper;
   }
 
+  /** 按完整来源身份重载已打开记录；兼容拆分行必须提供原来源记录号，撤回返回 null。 */
+  public CodeReviewIllegalRecordRowResponse findRecord(
+      String sourceInstance, Long projectId, Long mergeRequestId, String legacySourceId) {
+    if (codeReviewCompatibilityReadEnabled() && legacySourceId == null) {
+      throw new IllegalArgumentException("兼容记录缺少来源记录身份");
+    }
+    Map<String, String> filters = new java.util.LinkedHashMap<>();
+    filters.put("sourceInstance", sourceInstance);
+    filters.put("projectId", Long.toString(projectId));
+    List<CodeReviewIllegalRecordSource> matches = activeLoader().loadSources(filters).stream()
+        .filter(row -> java.util.Objects.equals(sourceInstance, row.sourceInstance()))
+        .filter(row -> java.util.Objects.equals(projectId, row.projectId()))
+        .filter(row -> java.util.Objects.equals(mergeRequestId, row.mergeRequestId()))
+        .filter(row -> !codeReviewCompatibilityReadEnabled()
+            || java.util.Objects.equals(legacySourceId, row.legacySourceId()))
+        .toList();
+    if (matches.size() > 1) { throw new IllegalStateException("完整来源记录身份不唯一"); }
+    return matches.isEmpty() ? null : responseMapper.toResponse(responseMapper.toView(matches.getFirst()));
+  }
+
   public CodeReviewIllegalRecordListResponse listRecords(CodeReviewIllegalRecordQueryRequest request) {
     CodeReviewIllegalRecordQueryRequest safeRequest = withLegacyDefaultScope(request);
-    return pageRecordSnapshotService.readOrRefresh(
+    return pageRecordSnapshotService.readOrRefresh(readSelection(),
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_LIST,
             codeReviewScopeKey(safeRequest),
@@ -299,7 +361,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
       CodeReviewIllegalRecordFilterOptionsRequest request) {
     CodeReviewIllegalRecordFilterOptionsRequest safeRequest =
         request == null ? new CodeReviewIllegalRecordFilterOptionsRequest(null, null, null, null) : request;
-    return pageRecordSnapshotService.readOrRefresh(
+    return pageRecordSnapshotService.readOrRefresh(readSelection(),
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
             codeReviewScopeKey(safeRequest),
@@ -573,8 +635,11 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   }
 
   //兼容模式-MatchMode
-  private boolean codeReviewCompatibilityReadEnabled() {
-    return matchModeSwitchService.isCodeReviewCompatibilityReadEnabled();
+  /** 返回本读取对象冻结的来源模式；事实身份恒为正式模式。 */
+  public boolean codeReviewCompatibilityReadEnabled() {
+    // 事实读取对象属于正式读模型；兼容数据集由其固定数据集身份接入，控制面仍读取当前模式。
+    return !(factReadSelection instanceof com.data.collection.platform.entity.read.FactReadSelection)
+        && matchModeSwitchService.isCodeReviewCompatibilityReadEnabled();
   }
 
   private sealed interface CodeReviewIllegalRecordSourceAccess {

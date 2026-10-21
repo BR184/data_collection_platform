@@ -49,12 +49,16 @@ public final class GoldenEndpointCatalog {
    * @param id 用例稳定标识，出现在快照文件名中，重命名会导致旧快照失效
    * @param query 追加到端点路径后的查询串，不含前导问号；可为空
    * @param body POST 只读预览类用例的 JSON 请求体文本；GET 用例为空
+   * @param expectedHttpStatus 精确 HTTP 状态，默认 200；无完整产出的确定性拒绝须显式声明，5xx 禁止
    */
-  public record ReadCase(String id, String query, String body) {
+  public record ReadCase(String id, String query, String body, int expectedHttpStatus) {
     /** 紧凑构造：空 body 归一为 null。 */
     public ReadCase {
       if (body != null && body.isBlank()) {
         body = null;
+      }
+      if (expectedHttpStatus < 200 || expectedHttpStatus >= 500) {
+        throw new IllegalArgumentException("黄金读取必须声明成功或确定性业务拒绝状态，不能接受 5xx");
       }
     }
   }
@@ -342,7 +346,8 @@ public final class GoldenEndpointCatalog {
       cases.add(new ReadCase(
           id,
           query == null ? "" : String.valueOf(query),
-          body == null ? null : String.valueOf(body)));
+          body == null ? null : String.valueOf(body),
+          map.get("expected-http-status") == null ? 200 : Integer.parseInt(String.valueOf(map.get("expected-http-status")))));
     }
     return List.copyOf(cases);
   }

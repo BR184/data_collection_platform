@@ -20,6 +20,7 @@ import com.data.collection.platform.service.MergeRequestFactRealtimeRefreshServi
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -41,12 +42,16 @@ public class CodeReviewController {
   private final CodeReviewRequestAssembler codeReviewRequestAssembler;
   private final MergeRequestFactRealtimeRefreshService multiBoardRealtimeRefreshService;
 
+  private final com.data.collection.platform.service.read.ReadViewApplicationService pageReads;
+
   public CodeReviewController(
       CodeReviewIllegalRecordService codeReviewIllegalRecordService,
       CodeReviewMatchModeConfigService codeReviewMatchModeConfigService,
       CodeReviewMultiBoardService codeReviewMultiBoardService,
       CodeReviewRequestAssembler codeReviewRequestAssembler,
-      MergeRequestFactRealtimeRefreshService multiBoardRealtimeRefreshService) {
+      MergeRequestFactRealtimeRefreshService multiBoardRealtimeRefreshService,
+      com.data.collection.platform.service.read.ReadViewApplicationService pageReads) {
+    this.pageReads = pageReads;
     this.codeReviewIllegalRecordService = codeReviewIllegalRecordService;
     this.codeReviewMatchModeConfigService = codeReviewMatchModeConfigService;
     this.codeReviewMultiBoardService = codeReviewMultiBoardService;
@@ -67,25 +72,53 @@ public class CodeReviewController {
   @GetMapping("/illegal-records")
   @RequirePermission("code_review.illegal.view")
   public ApiResponse<CodeReviewIllegalRecordListResponse> listIllegalRecords(
-      @ModelAttribute CodeReviewIllegalRecordListWebRequest request) {
-    return ApiResponse.success(
-        codeReviewIllegalRecordService.listRecords(
-            codeReviewRequestAssembler.toIllegalRecordQueryRequest(request)));
+      @ModelAttribute CodeReviewIllegalRecordListWebRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, "code-review-illegal-records", pageReads.parameters(httpRequest),
+        selection -> codeReviewIllegalRecordService.forRead(selection).listRecords(
+            codeReviewRequestAssembler.toIllegalRecordQueryRequest(request))).response();
   }
+
+  /** 页面候选和来源模式由本页完整版本提供，不借用多源看板权限或当前设置。 */
+  @GetMapping("/illegal-records/context")
+  @RequirePermission("code_review.illegal.view")
+  public ApiResponse<IllegalRecordContext> illegalRecordContext(jakarta.servlet.http.HttpServletRequest request) {
+    return pageReads.read(request, "code-review-illegal-records", pageReads.parameters(request),
+        selection -> {
+          boolean compatibility = codeReviewIllegalRecordService.forRead(selection).codeReviewCompatibilityReadEnabled();
+          return new IllegalRecordContext(compatibility,
+              java.util.List.of(new OptionItemResponse("CC", "cc"), new OptionItemResponse("DGM", "dgm")));
+        }).response();
+  }
+
+  /** 固定版本下读取已打开记录，来源撤回时返回空值。 */
+  @GetMapping("/illegal-records/{sourceInstance}/{projectId}/{mergeRequestId}")
+  @RequirePermission("code_review.illegal.view")
+  public ApiResponse<CodeReviewIllegalRecordRowResponse> illegalRecord(
+      @PathVariable String sourceInstance, @PathVariable Long projectId,
+      @PathVariable Long mergeRequestId, @RequestParam(required = false) String legacySourceId,
+      jakarta.servlet.http.HttpServletRequest request) {
+    return pageReads.read(request, "code-review-illegal-records", pageReads.parameters(request),
+        selection -> codeReviewIllegalRecordService.forRead(selection)
+            .findRecord(sourceInstance, projectId, mergeRequestId, legacySourceId)).response();
+  }
+
+  /** 已发布页面的来源选择信息。 */
+  public record IllegalRecordContext(boolean compatibilityRead, java.util.List<OptionItemResponse> sources) {}
 
   @GetMapping("/illegal-records/export")
   @RequirePermission("code_review.illegal.export")
   public ResponseEntity<byte[]> exportIllegalRecords(
-      @ModelAttribute CodeReviewIllegalRecordListWebRequest request) {
-    byte[] workbook =
-        codeReviewIllegalRecordService.exportRecordsWorkbook(
-            codeReviewRequestAssembler.toIllegalRecordQueryRequest(request));
-    return ResponseEntity.ok()
+      @ModelAttribute CodeReviewIllegalRecordListWebRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    var exported = pageReads.read(httpRequest, "code-review-illegal-records", pageReads.parameters(httpRequest),
+        selection -> codeReviewIllegalRecordService.forRead(selection).exportRecordsWorkbook(
+            codeReviewRequestAssembler.toIllegalRecordQueryRequest(request)));
+    byte[] workbook = exported.data();
+    return exported.download(ResponseEntity.ok()
         .contentType(
             MediaType.parseMediaType(
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
         .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment(codeReviewIllegalExportFilename(request)))
-        .body(workbook);
+        .body(workbook));
   }
 
   private String codeReviewIllegalExportFilename(CodeReviewIllegalRecordListWebRequest request) {
@@ -98,25 +131,31 @@ public class CodeReviewController {
   @GetMapping("/illegal-records/filter-options")
   @RequirePermission("code_review.illegal.view")
   public ApiResponse<CodeReviewIllegalRecordFilterOptionsResponse> getIllegalRecordFilterOptions(
-      @ModelAttribute CodeReviewIllegalRecordFilterOptionsWebRequest request) {
-    return ApiResponse.success(
-        codeReviewIllegalRecordService.getFilterOptions(
-            codeReviewRequestAssembler.toIllegalRecordFilterOptionsRequest(request)));
+      @ModelAttribute CodeReviewIllegalRecordFilterOptionsWebRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, "code-review-illegal-records", pageReads.parameters(httpRequest),
+        selection -> codeReviewIllegalRecordService.forRead(selection).getFilterOptions(
+            codeReviewRequestAssembler.toIllegalRecordFilterOptionsRequest(request))).response();
   }
 
   @GetMapping("/illegal-records/rule-explanation")
   @RequirePermission("code_review.illegal.view")
-  public ApiResponse<StatisticBoardRuleExplanationResponse> getIllegalRecordRuleExplanation() {
-    return ApiResponse.success(codeReviewIllegalRecordService.getRuleExplanation());
+  public ApiResponse<StatisticBoardRuleExplanationResponse> getIllegalRecordRuleExplanation(jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, "code-review-illegal-records", pageReads.parameters(httpRequest),
+        selection -> codeReviewIllegalRecordService.forRead(selection).getRuleExplanation()).response();
   }
 
   @PostMapping("/illegal-records/rule-config/preview")
   @RequirePermission("code_review.illegal.view")
   public ApiResponse<CodeReviewRulePreviewResponse> previewIllegalRecordRuleConfig(
-      @RequestBody CodeReviewRulePreviewWebRequest request) {
-    return ApiResponse.success(
-        codeReviewIllegalRecordService.previewRuleConfig(
-            codeReviewRequestAssembler.toRulePreviewRequest(request)));
+      @RequestBody CodeReviewRulePreviewWebRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    java.util.Map<String, String> scope = new java.util.LinkedHashMap<>(pageReads.parameters(httpRequest));
+    for (String key : java.util.List.of("source", "projectId", "repositoryName")) { scope.remove(key); }
+    if (request.getSource() != null) { scope.put("source", request.getSource()); }
+    if (request.getProjectId() != null) { scope.put("projectId", Long.toString(request.getProjectId())); }
+    if (request.getRepositoryName() != null) { scope.put("repositoryName", request.getRepositoryName()); }
+    return pageReads.read(httpRequest, "code-review-illegal-records", scope,
+        selection -> codeReviewIllegalRecordService.forRead(selection).previewRuleConfig(
+            codeReviewRequestAssembler.toRulePreviewRequest(request))).response();
   }
 
   @GetMapping("/illegal-records/status")
@@ -144,24 +183,26 @@ public class CodeReviewController {
 
   @GetMapping("/multi-board/source-options")
   @RequirePermission("code_review.board.view")
-  public ApiResponse<java.util.List<OptionItemResponse>> getMultiBoardSourceOptions() {
-    return ApiResponse.success(codeReviewMultiBoardService.listSourceOptions());
+  public ApiResponse<java.util.List<OptionItemResponse>> getMultiBoardSourceOptions(jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, "code-review-multi", pageReads.parameters(httpRequest),
+        selection -> codeReviewMultiBoardService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection).listSourceOptions()).response();
   }
 
   @GetMapping("/multi-board/overview")
   @RequirePermission("code_review.board.view")
   public ApiResponse<CodeReviewMultiBoardOverviewResponse> getMultiBoardOverview(
-      @ModelAttribute CodeReviewMultiBoardOverviewWebRequest request) {
-    return ApiResponse.success(
-        codeReviewMultiBoardService.getOverview(
-            codeReviewRequestAssembler.toMultiBoardOverviewRequest(request)));
+      @ModelAttribute CodeReviewMultiBoardOverviewWebRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, "code-review-multi", pageReads.parameters(httpRequest),
+        selection -> codeReviewMultiBoardService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection).getOverview(
+            codeReviewRequestAssembler.toMultiBoardOverviewRequest(request))).response();
   }
 
   @GetMapping("/multi-board/project-options")
   @RequirePermission("code_review.board.view")
   public ApiResponse<java.util.List<OptionItemResponse>> getMultiBoardProjectOptions(
-      @RequestParam(required = false) String source) {
-    return ApiResponse.success(codeReviewMultiBoardService.listProjectOptions(source));
+      @RequestParam(required = false) String source, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, "code-review-multi", pageReads.parameters(httpRequest),
+        selection -> codeReviewMultiBoardService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection).listProjectOptions(source)).response();
   }
 
   @GetMapping("/multi-board/status")

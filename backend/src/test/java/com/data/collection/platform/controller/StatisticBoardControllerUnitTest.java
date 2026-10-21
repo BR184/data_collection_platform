@@ -15,7 +15,7 @@ class StatisticBoardControllerUnitTest {
   @Test
   void routesIssueWorkbookExportThroughBoardCapability() {
     StatisticBoardRegistry registry = mock(StatisticBoardRegistry.class);
-    CustomerIssueDefectSummaryBoardService service = mock(CustomerIssueDefectSummaryBoardService.class);
+    CustomerIssueDefectSummaryBoardService service = mock(CustomerIssueDefectSummaryBoardService.class, org.mockito.Answers.RETURNS_SELF);
     when(registry.getRequired("customer-issue-defect-summary")).thenReturn(service);
     when(service.exportIssueRecordsWorkbook(Map.of())).thenReturn(new byte[] {1, 2, 3});
     when(service.exportIssueRecordsFilename(Map.of())).thenReturn("客户问题全量议题数据.xlsx");
@@ -23,9 +23,9 @@ class StatisticBoardControllerUnitTest {
         new StatisticBoardController(
             registry,
             mock(RealtimeWorkspaceService.class),
-            mock(SystemTestHorizontalComparisonExportService.class));
+            mock(SystemTestHorizontalComparisonExportService.class), TestReadViews.boundary());
 
-    var response = controller.exportBoardIssues("customer-issue-defect-summary", Map.of());
+    var response = controller.exportBoardIssues("customer-issue-defect-summary", Map.of(), TestReadViews.authenticatedRequest());
 
     assertThat(response.getBody()).containsExactly(1, 2, 3);
     assertThat(response.getHeaders().getFirst("Content-Disposition"))

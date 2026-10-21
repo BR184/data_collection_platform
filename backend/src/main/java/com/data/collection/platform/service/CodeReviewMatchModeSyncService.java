@@ -238,7 +238,14 @@ public class CodeReviewMatchModeSyncService {
           source.sourceInstance(),
           mergeRequestIid);
       try {
-        return insertCodeReviewRows(CODE_REVIEW_TARGET_TABLE, source, rs);
+        int inserted = insertCodeReviewRows(CODE_REVIEW_TARGET_TABLE, source, rs);
+        jdbcTemplate.update("""
+            insert into read_dataset_refresh_requests(producer_kind) values ('COMPAT_WALKTHROUGH')
+            on conflict (producer_kind, source_instance, table_key) do update
+              set requested_revision = read_dataset_refresh_requests.requested_revision + 1,
+                  retry_after = current_timestamp, updated_at = current_timestamp
+            """);
+        return inserted;
       } catch (SQLException error) {
         throw new IllegalStateException("兼容模式单条代码走查快照替换失败", error);
       }

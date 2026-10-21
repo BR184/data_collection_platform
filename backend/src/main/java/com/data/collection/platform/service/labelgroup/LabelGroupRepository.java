@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface LabelGroupRepository {
+  /** 读取发布时的冻结定义；返回对象禁止写入当前标签目录。 */
+  LabelGroupRepository forRead(com.data.collection.platform.entity.read.ReadSelection selection);
   LabelGroupRecord createGroup(
       String name,
       String valueType,

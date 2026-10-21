@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import com.data.collection.platform.service.read.VersionedNamedReadSql;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -38,17 +38,19 @@ public class LabelGroupDynamicRuleEvaluationService {
   private static final Set<String> AGGREGATE_FUNCTIONS =
       Set.of("count", "countDistinct", "sum", "avg", "min", "max");
 
-  private final NamedParameterJdbcTemplate jdbcTemplate;
+  private final VersionedNamedReadSql queries;
+  private final LabelValuePublishedReader publishedReader;
   private final ObjectMapper objectMapper;
   private final LabelGroupDynamicRuleCatalogService catalogService;
 
   public LabelGroupDynamicRuleEvaluationService(
-      NamedParameterJdbcTemplate jdbcTemplate,
+      VersionedNamedReadSql queries,
       ObjectMapper objectMapper,
-      LabelGroupDynamicRuleCatalogService catalogService) {
-    this.jdbcTemplate = jdbcTemplate;
+      LabelGroupDynamicRuleCatalogService catalogService, LabelValuePublishedReader publishedReader) {
+    this.queries = queries;
     this.objectMapper = objectMapper;
     this.catalogService = catalogService;
+    this.publishedReader = publishedReader;
   }
 
   public LabelGroupDynamicRulePreviewResponse preview(LabelGroupRuleConfigRequest ruleConfig) {
@@ -99,8 +101,14 @@ public class LabelGroupDynamicRuleEvaluationService {
 
   private EvaluationResult evaluate(LabelGroupRuleConfigRequest ruleConfig, boolean preview) {
     RulePlan plan = buildPlan(ruleConfig, preview);
+    Set<String> sources = new LinkedHashSet<>();
+    sources.add(ruleConfig.outputSourceKey());
+    for (var relation : safeList(ruleConfig.relations())) {
+      sources.add(relation.leftSourceKey()); sources.add(relation.rightSourceKey());
+    }
     List<String> values =
-        jdbcTemplate.query(plan.sql(), plan.params(), (rs, rowNum) -> TextQuerySupport.trimToNull(rs.getString("member_value")));
+        publishedReader.readDynamic(sources, selection -> queries.query(selection, plan.sql(), plan.params(),
+            (rs, rowNum) -> TextQuerySupport.trimToNull(rs.getString("member_value"))));
     LinkedHashSet<String> deduped = new LinkedHashSet<>();
     for (String value : values) {
       if (value != null) {

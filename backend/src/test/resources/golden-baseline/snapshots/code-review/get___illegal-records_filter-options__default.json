@@ -801,5 +801,18 @@
       "label" : "CC 2025 R4&2026 R1",
       "value" : "CC 2025 R4&2026 R1"
     } ]
+  },
+  "readView" : {
+    "readContextId" : "<verified-runtime-readContextId>",
+    "pageKey" : "code-review-illegal-records",
+    "scopeKey" : "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "sourceVersion" : "<verified-runtime-sourceVersion>",
+    "businessDate" : "2026-09-01",
+    "leaseExpiresAt" : "<verified-runtime-leaseExpiresAt>",
+    "dataAsOf" : "<verified-runtime-dataAsOf>",
+    "pendingUpdates" : 0,
+    "sourceState" : "CURRENT",
+    "sourceStateDetail" : null,
+    "escalated" : false
   }
 }

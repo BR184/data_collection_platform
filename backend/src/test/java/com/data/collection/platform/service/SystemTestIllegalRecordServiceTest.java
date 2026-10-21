@@ -23,6 +23,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class SystemTestIllegalRecordServiceTest {
+  @org.junit.jupiter.api.BeforeEach
+  void bindReadDependencyFixtures() {
+    // 公式单测复用同一数据替身；实际修订隔离由真库读取测试覆盖。
+    org.mockito.Mockito.lenient().when(issueFactRecordRepository.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(issueFactRecordRepository);
+    org.mockito.Mockito.lenient().when(phaseScopeResolver.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(phaseScopeResolver);
+    org.mockito.Mockito.lenient().when(phaseCatalogService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(phaseCatalogService);
+  }
+
 
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private SystemTestScopeProfile systemTestScopeProfile;
@@ -304,8 +312,8 @@ class SystemTestIllegalRecordServiceTest {
         .thenReturn("http://gitlab.example.com/group/project/-/issues/301");
     lenient().when(pageRecordSnapshotService.issueFactSourceVersion()).thenReturn("test-issue-version");
     lenient()
-        .when(pageRecordSnapshotService.readOrRefresh(any(), any(), any()))
-        .thenAnswer(invocation -> ((java.util.function.Supplier<?>) invocation.getArgument(2)).get());
+        .when(pageRecordSnapshotService.readOrRefresh(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), any(), any(), any()))
+        .thenAnswer(invocation -> ((java.util.function.Supplier<?>) invocation.getArgument(3)).get());
     return new SystemTestIllegalRecordService(
         issueFactRecordRepository,
         systemTestScopeProfile,
@@ -314,7 +322,7 @@ class SystemTestIllegalRecordServiceTest {
         factBuildService,
         phaseScopeResolver,
         phaseCatalogService,
-        pageRecordSnapshotService);
+        pageRecordSnapshotService).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
   }
 
   private IssueFactRecord record(

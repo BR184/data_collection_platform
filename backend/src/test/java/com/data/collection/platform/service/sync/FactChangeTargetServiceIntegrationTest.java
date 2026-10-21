@@ -57,6 +57,31 @@ class FactChangeTargetServiceIntegrationTest {
   }
 
   @Test
+  void test_nullable_parent_metadata_is_registered_without_batch_dependent_sql_types() {
+    List<MirrorRowChange> changes = List.of(new MirrorRowChange(Map.of("id", 501L), Map.of()));
+    List<List<FactChangeIdentity>> batches = List.of(
+        List.of(new FactChangeIdentity("alpha", FactType.ISSUE, 501L, null, null)),
+        List.of(new FactChangeIdentity("alpha", FactType.ISSUE, 502L, 42L, null)),
+        List.of(new FactChangeIdentity("alpha", FactType.ISSUE, 503L, 42L, 9L)),
+        List.of(new FactChangeIdentity("alpha", FactType.ISSUE, 504L, null, null),
+            new FactChangeIdentity("alpha", FactType.ISSUE, 505L, 42L, 11L)));
+    for (List<FactChangeIdentity> batch : batches) {
+      when(changeResolver.resolve("alpha", "issues", changes)).thenReturn(batch);
+      List<VersionedFactChangeTarget> registered = transactionTemplate.execute(
+          status -> service.registerChanges(10L, 20L, "alpha", "issues", changes));
+      assertThat(registered).extracting(VersionedFactChangeTarget::identity).containsExactlyElementsOf(batch);
+      for (FactChangeIdentity root : batch) {
+        Map<String, Object> saved = jdbcTemplate.queryForMap(
+            "select project_id, iid from sync_run_fact_targets where mirror_run_id = 10 and root_id = ?", root.rootId());
+        assertThat(saved.get("project_id")).isEqualTo(root.projectId());
+        assertThat(saved.get("iid")).isEqualTo(root.iid());
+      }
+    }
+    Integer count = jdbcTemplate.queryForObject("select count(*) from fact_change_heads", Integer.class);
+    assertThat(count).isEqualTo(5);
+  }
+
+  @Test
   void test_multiple_targets_are_batched_without_losing_stable_order_or_versions() {
     List<FactChangeIdentity> identities =
         List.of(

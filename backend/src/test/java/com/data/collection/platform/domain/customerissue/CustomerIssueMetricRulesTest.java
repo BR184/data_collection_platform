@@ -43,6 +43,40 @@ class CustomerIssueMetricRulesTest {
   }
 
   @Test
+  void calibrationStates_areExactMembersNotSubstrings() {
+    assertTrue(CustomerIssueMetricRules.hasDataException(List.of("数据异常")));
+    assertTrue(CustomerIssueMetricRules.hasDataException(List.of("已修复/完成", "数据异常")));
+    assertTrue(CustomerIssueMetricRules.hasNotReproduced(List.of("未复现")));
+    // 精确成员匹配：包含同名字样的其它状态不得误命中。
+    assertFalse(CustomerIssueMetricRules.hasDataException(List.of("疑似数据异常问题")));
+    assertFalse(CustomerIssueMetricRules.hasNotReproduced(List.of("已修复/完成", "待合并")));
+    assertFalse(CustomerIssueMetricRules.hasDataException(List.of()));
+    assertFalse(CustomerIssueMetricRules.hasDataException(null));
+  }
+
+  @Test
+  void calibrationPopulation_removesUnionOnceAndKeepsAppliedDelay() {
+    assertTrue(CustomerIssueMetricRules.keepsCalibrationPopulation(List.of("处理中")));
+    // 申请延期不额外剔除，是否留在 V 只由两类剔除状态决定。
+    assertTrue(CustomerIssueMetricRules.keepsCalibrationPopulation(List.of("申请延期")));
+    assertTrue(CustomerIssueMetricRules.keepsCalibrationPopulation(List.of("已修复/完成", "待合并")));
+    assertFalse(CustomerIssueMetricRules.keepsCalibrationPopulation(List.of("数据异常")));
+    assertFalse(CustomerIssueMetricRules.keepsCalibrationPopulation(List.of("未复现")));
+    // 两类同时命中只剔除一次：资格是单一布尔，不存在第二次扣除。
+    assertFalse(CustomerIssueMetricRules.keepsCalibrationPopulation(List.of("数据异常", "未复现")));
+    // 无状态成员不构成剔除资格，议题仍留在 V 内。
+    assertTrue(CustomerIssueMetricRules.keepsCalibrationPopulation(List.of()));
+  }
+
+  @Test
+  void calibration_doesNotRewriteLegacyFixPredicates() {
+    // 普通判据保持原语义：P 仍认“未复现”，校准只在其之前移除议题。
+    assertTrue(CustomerIssueMetricRules.isPriorityFixed("未复现", false));
+    assertFalse(CustomerIssueMetricRules.isFixedBySummary("数据异常"));
+    assertFalse(CustomerIssueMetricRules.isFixedBySummary("未复现"));
+  }
+
+  @Test
   void customerRequirement_exactLabelOr() {
     assertTrue(CustomerRequirementRules.isCustomerRequirement(List.of("需求")));
     assertTrue(CustomerRequirementRules.isCustomerRequirement(List.of("类别：建议")));

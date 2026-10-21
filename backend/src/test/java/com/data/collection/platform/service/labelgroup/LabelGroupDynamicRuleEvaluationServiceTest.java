@@ -19,15 +19,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import com.data.collection.platform.service.read.VersionedNamedReadSql;
 
 @ExtendWith(MockitoExtension.class)
 class LabelGroupDynamicRuleEvaluationServiceTest {
-  @Mock private NamedParameterJdbcTemplate jdbcTemplate;
+  @Mock private VersionedNamedReadSql queries;
 
   @Test
   void shouldPreviewDistinctIssueAssigneesFromCurrentDsl() {
-    when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+    when(queries.query(any(), anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
         .thenReturn(java.util.Arrays.asList("张三", "李四", "张三", null));
 
     assertThat(service().preview(issueAssigneeRule()).members())
@@ -37,7 +37,7 @@ class LabelGroupDynamicRuleEvaluationServiceTest {
 
   @Test
   void shouldMaterializeMembersFromCurrentDsl() {
-    when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+    when(queries.query(any(), anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
         .thenReturn(List.of("张三"));
 
     assertThat(service().materializeMembers(issueAssigneeRule()))
@@ -47,14 +47,14 @@ class LabelGroupDynamicRuleEvaluationServiceTest {
 
   @Test
   void shouldEvaluateReviewRulesAgainstUnifiedVisibleRecords() {
-    when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+    when(queries.query(any(), anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
         .thenReturn(List.of("负责人A"));
 
     service().preview(reviewOwnerRule());
 
     ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-    verify(jdbcTemplate)
-        .query(sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+    verify(queries)
+        .query(any(), sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
     assertThat(sqlCaptor.getValue())
         .contains("from review_visible_records")
         .doesNotContain("from review_records ");
@@ -66,7 +66,7 @@ class LabelGroupDynamicRuleEvaluationServiceTest {
     for (int index = 0; index < 201; index++) {
       rows.add("用户" + index);
     }
-    when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+    when(queries.query(any(), anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
         .thenReturn(rows);
 
     assertThatThrownBy(() -> service().preview(issueAssigneeRule()))
@@ -75,10 +75,16 @@ class LabelGroupDynamicRuleEvaluationServiceTest {
   }
 
   private LabelGroupDynamicRuleEvaluationService service() {
+    // 此套件锁定 DSL 和成员语义；真实历史版本过滤另由读发布集成回归验证。
+    LabelValuePublishedReader reader = org.mockito.Mockito.mock(LabelValuePublishedReader.class, invocation -> {
+      @SuppressWarnings("unchecked")
+      var callback = (java.util.function.Function<com.data.collection.platform.entity.read.ReadSelection,Object>) invocation.getArgument(1);
+      return callback.apply(com.data.collection.platform.service.read.TestReadSelections.all());
+    });
     return new LabelGroupDynamicRuleEvaluationService(
-        jdbcTemplate,
+        queries,
         new ObjectMapper(),
-        new LabelGroupDynamicRuleCatalogService());
+        new LabelGroupDynamicRuleCatalogService(), reader);
   }
 
   private LabelGroupRuleConfigRequest issueAssigneeRule() {

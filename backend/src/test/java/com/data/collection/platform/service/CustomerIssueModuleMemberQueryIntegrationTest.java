@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +31,9 @@ class CustomerIssueModuleMemberQueryIntegrationTest {
   private static final String MILESTONE = "CC2026R9模块成员用例";
   private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 5, 6, 9, 0);
   private static final long FIRST_ISSUE_ID = 94001L;
+  /** 播种用的候选修订身份：所有夹具行属于同一候选，业务根不同因此互不覆盖。 */
+  private UUID publicationId;
+  private UUID epochId;
 
   /** 覆盖空值、纯空白、占位、单一与多分隔符、混合分隔符、重复成员与通配符字面量。 */
   private static final List<String> MODULE_FIXTURES = Arrays.asList(
@@ -64,13 +68,25 @@ class CustomerIssueModuleMemberQueryIntegrationTest {
   @Autowired private JdbcTemplate jdbcTemplate;
   @Autowired private IssueFactMapper issueFactMapper;
   @Autowired private CustomerIssueFactQueryService customerIssueFactQueryService;
+  @Autowired private com.data.collection.platform.service.read.ReadPublicationService publicationService;
 
   @BeforeEach
   void setUp() {
     cleanUp();
+    jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
+    var publication = publicationService.openCandidate(new com.data.collection.platform.service.read.CandidateOpenRequest(
+        com.data.collection.platform.entity.read.ReadPublicationDomainKey.gitlabFact("default", com.data.collection.platform.entity.FactType.ISSUE),
+        UUID.randomUUID(), null, "{\"fixture\":true}", 0L, null, null, null, null, java.time.Instant.now()));
+    publicationId = publication.id();
+    epochId = publication.epochId();
     for (int index = 0; index < MODULE_FIXTURES.size(); index++) {
       insertFact(FIRST_ISSUE_ID + index, "议题" + index, MODULE_FIXTURES.get(index));
     }
+    var repository = new com.data.collection.platform.service.read.ReadPublicationRepository(jdbcTemplate);
+    repository.registerUpsertManifest(com.data.collection.platform.entity.read.PublicationFactTable.ISSUE, publicationId, 0L);
+    publicationService.markProjecting(publicationId, null);
+    publicationService.markReadyToPublish(publicationId, null);
+    publicationService.publish(publicationId, null);
   }
 
   @Test
@@ -164,7 +180,8 @@ class CustomerIssueModuleMemberQueryIntegrationTest {
 
   @Test
   void narrowReadModelReturnsTheSameMembersAsTheSqlRule() {
-    List<CustomerIssueFact> facts = customerIssueFactQueryService.load(
+    List<CustomerIssueFact> facts = customerIssueFactQueryService.forRead(FactRevisionFixture.currentPublishedSelection(
+        jdbcTemplate, com.data.collection.platform.entity.read.PublicationFactTable.ISSUE)).load(
         new FactScopeRequest(null, List.of(MILESTONE), MemberSelection.all(), MemberSelection.all(), MemberSelection.all()));
 
     assertThat(facts).hasSize(MODULE_FIXTURES.size());
@@ -180,6 +197,8 @@ class CustomerIssueModuleMemberQueryIntegrationTest {
 
   private List<String> loadTitles(MemberSelection moduleSelection) {
     return customerIssueFactQueryService
+        .forRead(FactRevisionFixture.currentPublishedSelection(jdbcTemplate,
+            com.data.collection.platform.entity.read.PublicationFactTable.ISSUE))
         .load(
             new FactScopeRequest(
                 null,
@@ -226,7 +245,7 @@ class CustomerIssueModuleMemberQueryIntegrationTest {
     fact.setResponseOverdue(false);
     fact.setResolveSlaDays(0);
     fact.setLegacy(false);
-    issueFactMapper.upsert(fact);
+    issueFactMapper.batchUpsert(List.of(fact), epochId, publicationId);
   }
 
   private void cleanUp() {

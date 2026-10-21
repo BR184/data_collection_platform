@@ -67,6 +67,13 @@ final class CodeReviewIllegalRecordSqlQueryBuilder {
       """;
   private static final Map<String, String> SORT_COLUMNS = createSortColumns();
 
+  /**
+   * 并列行的稳定收尾：物理修订 id 会随重建重新分配，不能作为业务顺序。
+   * 业务根首次出现顺序由 {@code business_order_id} 给出（同根多修订共享），
+   * 同根再按可见区间起点区分修订先后，二者都不依赖本次构建的物理行序。
+   */
+  static final String STABLE_ORDER_TIE_BREAK = ", business_order_id desc, visible_from desc nulls last";
+
   private CodeReviewIllegalRecordSqlQueryBuilder() {}
 
   static String factSql() {
@@ -158,7 +165,7 @@ final class CodeReviewIllegalRecordSqlQueryBuilder {
 
   static String orderByClause(String sortField, String sortOrder) {
     String order = sortOrder(sortOrder);
-    // 末位补唯一主键：同一 merged_at_source 与 merge_request_iid 会在不同项目下重复出现，
+    // 末位补稳定业务身份：同一 merged_at_source 与 merge_request_iid 会在不同项目下重复出现，
     // 只按前三列排序时并列行的顺序由物理行序决定，同一份代码在两次运行间可能返回不同顺序
     // （导出快照曾出现整行互换）。
     return " order by "
@@ -171,8 +178,7 @@ final class CodeReviewIllegalRecordSqlQueryBuilder {
         + nullsClause(sortOrder)
         + ", merge_request_iid "
         + order
-        + ", id "
-        + order;
+        + STABLE_ORDER_TIE_BREAK;
   }
 
   static String sortColumn(String sortField) {

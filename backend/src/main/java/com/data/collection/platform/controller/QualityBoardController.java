@@ -25,39 +25,56 @@ public class QualityBoardController {
   private final QualityBoardRdService qualityBoardRdService;
   private final QualityBoardWorkbookExportService workbookExportService;
 
+  private final com.data.collection.platform.service.read.ReadViewApplicationService pageReads;
+
   public QualityBoardController(
       QualityBoardRdService qualityBoardRdService,
-      QualityBoardWorkbookExportService workbookExportService) {
+      QualityBoardWorkbookExportService workbookExportService,
+      com.data.collection.platform.service.read.ReadViewApplicationService pageReads) {
+    this.pageReads = pageReads;
     this.qualityBoardRdService = qualityBoardRdService;
     this.workbookExportService = workbookExportService;
   }
 
   @GetMapping("/rd/project-options")
   @RequirePermission("quality.rd.view")
-  public ApiResponse<QualityBoardProjectOptionsResponse> listRdProjectOptions() {
-    return ApiResponse.success(qualityBoardRdService.listProjectOptions());
+  public ApiResponse<QualityBoardProjectOptionsResponse> listRdProjectOptions(jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, "quality-rd", pageReads.parameters(httpRequest),
+        selection -> qualityBoardRdService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection).listProjectOptions()).response();
+  }
+
+  /** 其它质量页候选使用该页的完整读取身份及权限，不能借用研发质量页身份。 */
+  @GetMapping("/other/project-options")
+  @RequirePermission("quality.other.view")
+  public ApiResponse<QualityBoardProjectOptionsResponse> listOtherProjectOptions(
+      jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, "quality-board-other", pageReads.parameters(httpRequest),
+        selection -> qualityBoardRdService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection)
+            .listProjectOptions()).response();
   }
 
   @GetMapping("/rd/filter-options")
   @RequirePermission("quality.rd.view")
-  public ApiResponse<QualityBoardRdFilterOptionsResponse> listRdFilterOptions() {
-    return ApiResponse.success(qualityBoardRdService.listFilterOptions());
+  public ApiResponse<QualityBoardRdFilterOptionsResponse> listRdFilterOptions(jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, "quality-rd", pageReads.parameters(httpRequest),
+        selection -> qualityBoardRdService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection).listFilterOptions()).response();
   }
 
   @GetMapping("/rd/overview")
   @RequirePermission("quality.rd.view")
   public ApiResponse<QualityBoardRdOverviewResponse> getRdOverview(
-      @RequestParam(required = false) String projectName) {
-    return ApiResponse.success(qualityBoardRdService.getOverview(projectName));
+      @RequestParam(required = false) String projectName, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, "quality-rd", pageReads.parameters(httpRequest),
+        selection -> qualityBoardRdService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection).getOverview(projectName)).response();
   }
 
   @GetMapping("/rd/dashboard")
   @RequirePermission("quality.rd.view")
   public ApiResponse<QualityBoardRdDashboardResponse> getRdDashboard(
       @RequestParam(required = false) String projectName,
-      @RequestParam(required = false) String codeReviewSource) {
-    return ApiResponse.success(
-        qualityBoardRdService.getRdDashboard(projectName, codeReviewSource));
+      @RequestParam(required = false) String codeReviewSource, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, "quality-rd", pageReads.parameters(httpRequest),
+        selection -> qualityBoardRdService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection).getRdDashboard(projectName, codeReviewSource)).response();
   }
 
   @GetMapping("/rd/charts/{chartKey}/export")
@@ -65,28 +82,31 @@ public class QualityBoardController {
   public ResponseEntity<byte[]> exportRdChart(
       @PathVariable String chartKey,
       @RequestParam(required = false) String projectName,
-      @RequestParam(required = false) String codeReviewSource) {
-    byte[] workbook =
-        workbookExportService.exportRdChartWorkbook(projectName, codeReviewSource, chartKey);
-    return excelResponse(workbook, workbookExportService.rdChartFilename(projectName, chartKey));
+      @RequestParam(required = false) String codeReviewSource, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    var exported = pageReads.read(httpRequest, "quality-rd", pageReads.parameters(httpRequest),
+        selection -> workbookExportService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection).exportRdChartWorkbook(projectName, codeReviewSource, chartKey));
+    byte[] workbook = exported.data();
+    return exported.download(excelResponse(workbook, workbookExportService.rdChartFilename(projectName, chartKey)));
   }
 
   @GetMapping("/rd/code-review-records/export")
   @RequirePermission("quality.rd.export")
   public ResponseEntity<byte[]> exportRdCodeReviewRecords(
       @RequestParam(required = false) String projectName,
-      @RequestParam(required = false) String codeReviewSource) {
-    byte[] workbook =
-        workbookExportService.exportCodeReviewRecordsWorkbook(projectName, codeReviewSource);
-    return excelResponse(
-        workbook, workbookExportService.codeReviewRecordsFilename(projectName, codeReviewSource));
+      @RequestParam(required = false) String codeReviewSource, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    var exported = pageReads.read(httpRequest, "quality-rd", pageReads.parameters(httpRequest),
+        selection -> workbookExportService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection).exportCodeReviewRecordsWorkbook(projectName, codeReviewSource));
+    byte[] workbook = exported.data();
+    return exported.download(excelResponse(
+        workbook, workbookExportService.codeReviewRecordsFilename(projectName, codeReviewSource)));
   }
 
   @GetMapping("/other/overview")
   @RequirePermission("quality.other.view")
   public ApiResponse<QualityBoardOtherOverviewResponse> getOtherOverview(
-      @RequestParam(required = false) String projectName) {
-    return ApiResponse.success(qualityBoardRdService.getOtherOverview(projectName));
+      @RequestParam(required = false) String projectName, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, "quality-board-other", pageReads.parameters(httpRequest),
+        selection -> qualityBoardRdService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection).getOtherOverview(projectName)).response();
   }
 
   private ResponseEntity<byte[]> excelResponse(byte[] workbook, String filename) {

@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PathVariable;
 
 @RestController
 @RequestMapping("/api/question-metrics")
@@ -45,12 +46,16 @@ public class QuestionMetricsController {
   private final QuestionMetricsRequestAssembler questionMetricsRequestAssembler;
   private final IssueFactRealtimeRefreshService realtimeRefreshService;
 
+  private final com.data.collection.platform.service.read.ReadViewApplicationService pageReads;
+
   public QuestionMetricsController(
       SystemTestIssueSearchService systemTestIssueSearchService,
       SystemTestIllegalRecordService systemTestIllegalRecordService,
       SystemTestIssueMultiBoardService systemTestIssueMultiBoardService,
       QuestionMetricsRequestAssembler questionMetricsRequestAssembler,
-      IssueFactRealtimeRefreshService realtimeRefreshService) {
+      IssueFactRealtimeRefreshService realtimeRefreshService,
+      com.data.collection.platform.service.read.ReadViewApplicationService pageReads) {
+    this.pageReads = pageReads;
     this.systemTestIssueSearchService = systemTestIssueSearchService;
     this.systemTestIllegalRecordService = systemTestIllegalRecordService;
     this.systemTestIssueMultiBoardService = systemTestIssueMultiBoardService;
@@ -62,8 +67,9 @@ public class QuestionMetricsController {
   @RequirePermission("system_test.board.view")
   public ApiResponse<SystemTestIssueMultiBoardResponse> getMultiBoard(
       @RequestParam(required = false) Long projectId,
-      @RequestParam(required = false) String testingPhase) {
-    return ApiResponse.success(systemTestIssueMultiBoardService.getBoard(projectId, testingPhase));
+      @RequestParam(required = false) String testingPhase, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.readFacts(httpRequest, "system-test-multi-board", pageReads.parameters(httpRequest),
+        selection -> systemTestIssueMultiBoardService.forRead(selection).getBoard(projectId, testingPhase)).response();
   }
 
   @GetMapping("/multi-board/export")
@@ -71,32 +77,43 @@ public class QuestionMetricsController {
   public ResponseEntity<byte[]> exportMultiBoardChart(
       @RequestParam String chartKey,
       @RequestParam(required = false) Long projectId,
-      @RequestParam(required = false) String testingPhase) {
-    byte[] workbook = systemTestIssueMultiBoardService.exportChart(projectId, testingPhase, chartKey);
-    String filename = systemTestIssueMultiBoardService.exportFilename(projectId, testingPhase, chartKey);
+      @RequestParam(required = false) String testingPhase, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    var exported = pageReads.readFacts(httpRequest, "system-test-multi-board", pageReads.parameters(httpRequest),
+        selection -> {
+          var bound = systemTestIssueMultiBoardService.forRead(selection);
+          return new WorkbookExport(bound.exportChart(projectId, testingPhase, chartKey),
+              bound.exportFilename(projectId, testingPhase, chartKey));
+        });
+    byte[] workbook = exported.data().content();
+    String filename = exported.data().filename();
     return ResponseEntity.ok()
+        .header("X-Read-Context-Id", exported.metadata().readContextId().toString())
         .contentType(EXCEL_MEDIA_TYPE)
         .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment(filename))
         .body(workbook);
   }
 
+  private record WorkbookExport(byte[] content, String filename) {}
+
   @GetMapping("/issues")
   @RequirePermission("system_test.issue.view")
   public ApiResponse<SystemTestIssueSearchListResponse> listIssues(
-      @ModelAttribute SystemTestIssueSearchListWebRequest request) {
-    return ApiResponse.success(
-        systemTestIssueSearchService.listRecords(
-            questionMetricsRequestAssembler.toIssueSearchQueryRequest(request)));
+      @ModelAttribute SystemTestIssueSearchListWebRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.readFacts(httpRequest, "system-test-issues", pageReads.parameters(httpRequest),
+        selection -> systemTestIssueSearchService.forRead(selection).listRecords(
+            questionMetricsRequestAssembler.toIssueSearchQueryRequest(request))).response();
   }
 
   @GetMapping("/issues/export")
   @RequirePermission("system_test.issue.export")
   public ResponseEntity<byte[]> exportIssues(
-      @ModelAttribute SystemTestIssueSearchListWebRequest request) {
-    byte[] workbook =
-        systemTestIssueSearchService.exportRecordsWorkbook(
-            questionMetricsRequestAssembler.toIssueSearchQueryRequest(request));
+      @ModelAttribute SystemTestIssueSearchListWebRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    var exported = pageReads.readFacts(httpRequest, "system-test-issues", pageReads.parameters(httpRequest),
+        selection -> systemTestIssueSearchService.forRead(selection).exportRecordsWorkbook(
+            questionMetricsRequestAssembler.toIssueSearchQueryRequest(request)));
+    byte[] workbook = exported.data();
     return ResponseEntity.ok()
+        .header("X-Read-Context-Id", exported.metadata().readContextId().toString())
         .contentType(EXCEL_MEDIA_TYPE)
         .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment("多元议题查询结果.xlsx"))
         .body(workbook);
@@ -105,11 +122,11 @@ public class QuestionMetricsController {
   @GetMapping("/issues/filter-options")
   @RequirePermission("system_test.issue.view")
   public ApiResponse<SystemTestIssueSearchFilterOptionsResponse> getIssueFilterOptions(
-      @ModelAttribute SystemTestIssueSearchListWebRequest request) {
+      @ModelAttribute SystemTestIssueSearchListWebRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
     IssueFactRecordListRequest listRequest =
         questionMetricsRequestAssembler.toIssueSearchQueryRequest(request).listRequest();
-    return ApiResponse.success(
-        systemTestIssueSearchService.getFilterOptions(listRequest.projectId(), listRequest.sourceInstance()));
+    return pageReads.readFacts(httpRequest, "system-test-issues", pageReads.parameters(httpRequest),
+        selection -> systemTestIssueSearchService.forRead(selection).getFilterOptions(listRequest.projectId(), listRequest.sourceInstance())).response();
   }
 
   @GetMapping("/issues/status")
@@ -129,37 +146,52 @@ public class QuestionMetricsController {
   @GetMapping("/illegal-records")
   @RequirePermission("system_test.illegal.view")
   public ApiResponse<SystemTestIllegalRecordListResponse> listIllegalRecords(
-      @ModelAttribute SystemTestIllegalRecordListWebRequest request) {
-    return ApiResponse.success(
-        systemTestIllegalRecordService.listRecords(
-            questionMetricsRequestAssembler.toIllegalRecordQueryRequest(request)));
+      @ModelAttribute SystemTestIllegalRecordListWebRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.readFacts(httpRequest, "system-test-illegal-records", pageReads.parameters(httpRequest),
+        selection -> systemTestIllegalRecordService.forRead(selection).listRecords(
+            questionMetricsRequestAssembler.toIllegalRecordQueryRequest(request))).response();
   }
 
   @GetMapping("/illegal-records/export")
   @RequirePermission("system_test.illegal.export")
   public ResponseEntity<byte[]> exportIllegalRecords(
-      @ModelAttribute SystemTestIllegalRecordListWebRequest request) {
-    byte[] workbook =
-        systemTestIllegalRecordService.exportRecordsWorkbook(
-            questionMetricsRequestAssembler.toIllegalRecordQueryRequest(request));
+      @ModelAttribute SystemTestIllegalRecordListWebRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    var exported = pageReads.readFacts(httpRequest, "system-test-illegal-records", pageReads.parameters(httpRequest),
+        selection -> systemTestIllegalRecordService.forRead(selection).exportRecordsWorkbook(
+            questionMetricsRequestAssembler.toIllegalRecordQueryRequest(request)));
+    byte[] workbook = exported.data();
     return ResponseEntity.ok()
+        .header("X-Read-Context-Id", exported.metadata().readContextId().toString())
         .contentType(EXCEL_MEDIA_TYPE)
         .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment("多元议题查询结果.xlsx"))
         .body(workbook);
   }
 
+  /** 固定完整版本下的自然根查找，正常修复后的议题仍可继续查看详情。 */
+  @GetMapping("/illegal-records/{sourceInstance}/{projectId}/{issueId}")
+  @RequirePermission("system_test.illegal.view")
+  public ApiResponse<SystemTestIllegalRecordRowResponse> getIllegalRecord(
+      @PathVariable String sourceInstance, @PathVariable long projectId, @PathVariable long issueId,
+      jakarta.servlet.http.HttpServletRequest request) {
+    return pageReads.readFacts(request, "system-test-illegal-records", pageReads.parameters(request),
+        selection -> systemTestIllegalRecordService.forRead(selection).findRecord(
+            com.data.collection.platform.service.GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance), projectId, issueId)).response();
+  }
+
   @GetMapping("/illegal-records/filter-options")
   @RequirePermission("system_test.illegal.view")
   public ApiResponse<SystemTestIllegalRecordFilterOptionsResponse> getIllegalRecordFilterOptions(
-      @RequestParam(required = false) Long projectId) {
-    return ApiResponse.success(systemTestIllegalRecordService.getFilterOptions(projectId));
+      @RequestParam(required = false) Long projectId, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.readFacts(httpRequest, "system-test-illegal-records", pageReads.parameters(httpRequest),
+        selection -> systemTestIllegalRecordService.forRead(selection).getFilterOptions(projectId)).response();
   }
 
   @GetMapping("/illegal-records/rule-explanation")
   @RequirePermission("system_test.illegal.view")
   public ApiResponse<StatisticBoardRuleExplanationResponse> getIllegalRecordRuleExplanation(
-      @RequestParam(required = false) Long projectId) {
-    return ApiResponse.success(systemTestIllegalRecordService.getRuleExplanation(projectId));
+      @RequestParam(required = false) Long projectId, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.readFacts(httpRequest, "system-test-illegal-records", pageReads.parameters(httpRequest),
+        selection -> systemTestIllegalRecordService.forRead(selection).getRuleExplanation(projectId)).response();
   }
 
   @GetMapping("/illegal-records/status")
@@ -179,10 +211,12 @@ public class QuestionMetricsController {
   @PostMapping("/illegal-records/refresh-one")
   @RequirePermission(PlatformPermissionCodes.BUSINESS_DATA_REFRESH)
   public ApiResponse<SystemTestIllegalRecordRowResponse> refreshOneIllegalRecord(
-      @RequestBody SystemTestIllegalRecordSingleRefreshWebRequest request) {
-    return ApiResponse.success(
-        "已刷新本条议题事实数据",
-        systemTestIllegalRecordService.refreshSingleRecord(
+      @RequestBody SystemTestIllegalRecordSingleRefreshWebRequest request,
+      jakarta.servlet.http.HttpServletRequest httpRequest) {
+    systemTestIllegalRecordService.refreshSingleRecord(request.getSource(), request.getProjectId(), request.getIssueIid());
+    var outcome = pageReads.readFacts(httpRequest, "system-test-illegal-records", pageReads.parameters(httpRequest),
+        selection -> systemTestIllegalRecordService.forRead(selection).findRefreshedRecord(
             request.getSource(), request.getProjectId(), request.getIssueIid()));
+    return ApiResponse.success("已刷新本条议题事实数据", outcome.data()).withReadView(outcome.metadata());
   }
 }

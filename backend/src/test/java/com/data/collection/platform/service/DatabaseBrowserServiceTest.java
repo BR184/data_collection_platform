@@ -46,6 +46,21 @@ class DatabaseBrowserServiceTest {
   }
 
   @Test
+  void shouldClassifyArchiveAndCompatibilityContentAsPublishedAndKeepControlsCurrent() {
+    org.assertj.core.api.Assertions.assertThat(databaseBrowserService.requiresPublishedRead("gitlab_mirror_records")).isTrue();
+    org.assertj.core.api.Assertions.assertThat(databaseBrowserService.requiresPublishedRead("review_data_match_mode_reports")).isTrue();
+    org.assertj.core.api.Assertions.assertThat(databaseBrowserService.requiresPublishedRead("review_data_match_mode_problem_details")).isTrue();
+    org.assertj.core.api.Assertions.assertThat(databaseBrowserService.requiresPublishedRead("collect_form_records")).isFalse();
+    org.assertj.core.api.Assertions.assertThat(databaseBrowserService.requiresPublishedRead("source:1:issues")).isFalse();
+  }
+
+  @Test
+  void shouldRequireCompletePointForRegisteredMirrorEvenBeforeFirstInitialization() {
+    when(registryMapper.selectCount(any())).thenReturn(1L);
+    org.assertj.core.api.Assertions.assertThat(databaseBrowserService.requiresPublishedRead("ods_gitlab_issues")).isTrue();
+  }
+
+  @Test
   void shouldReturnRunDetailsForMirrorTableRefresh() {
     GitlabMirrorTableRegistry registry = registry();
     registry.setLastSyncTime(java.time.LocalDateTime.of(2026, 5, 21, 14, 0));

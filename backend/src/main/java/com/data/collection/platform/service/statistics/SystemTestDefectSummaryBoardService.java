@@ -67,7 +67,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private static final String BOARD_KEY = "system-test-defect-summary";
   private static final String MODULE_FIELD = "moduleName";
   // 2026-09-10 v14：无数据比率单元格的 numericValue 由 0 改为 null，同时作废旧快照，避免修复后仍命中旧排序键。
-  private static final String RULE_VERSION = "system-test-defect-summary@2026-09-10-v14";
+  private static final String RULE_VERSION = "system-test-defect-summary@2026-10-14-v15";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -83,6 +83,27 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private final StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
   private final IssueFactRecordRepository issueFactRecordRepository;
 
+  /** 创建持有显式版本的不可变读取对象；工厂及其它请求不保存或共享该身份。 */
+  @Override
+  public SystemTestDefectSummaryBoardService forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new SystemTestDefectSummaryBoardService(this, selection);
+  }
+
+  private SystemTestDefectSummaryBoardService(SystemTestDefectSummaryBoardService factory,
+      com.data.collection.platform.entity.read.FactReadSelection selection) {
+    super(factory, selection);
+    this.runtimeSupport = factory.runtimeSupport;
+    this.issueLinkSupport = factory.issueLinkSupport;
+    this.phaseCatalogService = factory.phaseCatalogService.forRead(selection);
+    this.phaseScopeResolver = factory.phaseScopeResolver.forRead(selection);
+    this.labelGroupDefaultFilterService = factory.labelGroupDefaultFilterService.forRead(selection);
+    this.labelGroupExpansionService = factory.labelGroupExpansionService.forRead(selection);
+    this.snapshotService = factory.snapshotService;
+    this.snapshotRequestFactory = factory.snapshotRequestFactory.forRead(selection);
+    this.issueFactRecordRepository = factory.issueFactRecordRepository;
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public SystemTestDefectSummaryBoardService(
       JsonUtils jsonUtils,
       IssueFactBoardRuntimeSupport runtimeSupport,
@@ -148,8 +169,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
                 "状态",
                 140,
                 List.of(
-                    new StatisticFilterOption("open", "未关闭"),
-                    new StatisticFilterOption("closed", "已关闭"))),
+                    new StatisticFilterOption("未关闭", "open"),
+                    new StatisticFilterOption("已关闭", "closed"))),
             StatisticFilterFieldFactory.datetime("createdAt", "议题提交时间", 180),
             StatisticFilterFieldFactory.datetime("updatedAt", "更新时间", 180),
             StatisticFilterFieldFactory.textLabelGroup("labels", "标签", 220)),
@@ -292,7 +313,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     sourceFilters.put(
         "projectId", String.valueOf(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID));
     alignTestingPhaseSqlFilter(sourceFilters, filterGroup);
-    List<IssueSource> loadedSources = runtimeSupport.loadFacts(sourceFilters, null).stream()
+    List<IssueSource> loadedSources = runtimeSupport.forRead(readSelection()).loadFacts(sourceFilters, null).stream()
         .map(this::toIssueSource)
         .toList();
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(
@@ -339,7 +360,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   protected StatisticBoardResponse doLoadBoard(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     EffectiveFilterGroup effectiveFilterGroup = buildEffectiveFilterGroup(filterGroup);
     StatisticBoardDefinition definition = buildDefinition();
-    return snapshotService.readOrRefresh(
+    return snapshotService.readOrRefresh(readSelection(),
         snapshotRequest(filters, effectiveFilterGroup, definition),
         ignored -> buildBoardResponse(filters, effectiveFilterGroup, definition));
   }
@@ -388,7 +409,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
               List.of(new StatisticFilterCondition("testingPhase", "eq", option.value(), null)));
       EffectiveFilterGroup effectiveFilterGroup = buildEffectiveFilterGroup(filterGroup);
       Map<String, String> filters = Map.of("testingPhase", option.value());
-      snapshotService.save(
+      snapshotService.save(readSelection(),
           snapshotRequest(filters, effectiveFilterGroup, definition),
           buildBoardResponse(filters, effectiveFilterGroup, definition));
     }
@@ -687,12 +708,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   }
 
   private List<String> loadEnabledPhaseParents() {
-    try {
-      return phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID);
-    } catch (Exception e) {
-      log.debug("Failed to load enabled phase parents for {}", BOARD_KEY, e);
-      return List.of();
-    }
+    return phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID);
+
   }
 
   private boolean hasTestingPhaseCondition(StatisticFilterGroup filterGroup) {
@@ -720,16 +737,12 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
     queryFilters.put("projectId", String.valueOf(effectiveProjectId(queryFilters)));
     alignTestingPhaseSqlFilter(queryFilters, effectiveFilterGroup.userGroup());
-    try {
-      return runtimeSupport
-          .loadFacts(queryFilters, null)
-          .stream()
-          .map(this::toIssueSource)
-          .toList();
-    } catch (Exception e) {
-      log.warn("Failed to load issue facts", e);
-      return List.of();
-    }
+    return runtimeSupport.forRead(readSelection())
+        .loadFacts(queryFilters, null)
+        .stream()
+        .map(this::toIssueSource)
+        .toList();
+
   }
 
   private long effectiveProjectId(Map<String, String> filters) {
@@ -755,62 +768,54 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   }
 
   private List<StatisticFilterOption> loadPhaseOptions() {
-    try {
-      return phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID).stream()
-          .map(value -> new StatisticFilterOption(value, value))
-          .toList();
-    } catch (Exception e) {
-      log.debug("Failed to load phase options for {}", BOARD_KEY, e);
-      return List.of();
-    }
+    return phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID).stream()
+        .map(value -> new StatisticFilterOption(value, value))
+        .toList();
+
   }
 
   private SystemTestSummaryQuickFilterOptions loadQuickFilterOptions() {
-    try {
-      List<IssueFactRecord> records =
-          issueFactRecordRepository.findForFilterOptions(
-              new IssueFactRecordListRequest(
-                  SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  1,
-                  20,
-                  "updatedAt",
-                  "desc"));
-      return new SystemTestSummaryQuickFilterOptions(
-          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
-              records.stream().flatMap(record -> record.moduleNames().stream()).toList())),
-          toStatisticOptions(OptionItemResponseFactory.fromIssueStatusMembersPreservingOrder(
-              records.stream().map(IssueFactRecord::bugStatus).toList())),
-          toStatisticOptions(OptionItemResponseFactory.fromDelayCauseMembers(
-              records.stream()
-                  .flatMap(record -> SystemTestIssueMetricDimensionSupport.delayCauses(
-                      record.delayCause(), record.delayReason(), String.join(" ", record.labels())).stream())
-                  .toList())),
-          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
-              records.stream().map(IssueFactRecord::authorName).toList())),
-          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
-              records.stream().map(IssueFactRecord::assigneeName).toList())));
-    } catch (Exception error) {
-      log.debug("Failed to load quick filter options for {}", BOARD_KEY, error);
-      return SystemTestSummaryQuickFilterOptions.empty();
-    }
+    List<IssueFactRecord> records =
+        issueFactRecordRepository.forRead(readSelection()).findForFilterOptions(
+            new IssueFactRecordListRequest(
+                SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                20,
+                "updatedAt",
+                "desc"));
+    return new SystemTestSummaryQuickFilterOptions(
+        toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
+            records.stream().flatMap(record -> record.moduleNames().stream()).toList())),
+        toStatisticOptions(OptionItemResponseFactory.fromIssueStatusMembersPreservingOrder(
+            records.stream().map(IssueFactRecord::bugStatus).toList())),
+        toStatisticOptions(OptionItemResponseFactory.fromDelayCauseMembers(
+            records.stream()
+                .flatMap(record -> SystemTestIssueMetricDimensionSupport.delayCauses(
+                    record.delayCause(), record.delayReason(), String.join(" ", record.labels())).stream())
+                .toList())),
+        toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
+            records.stream().map(IssueFactRecord::authorName).toList())),
+        toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
+            records.stream().map(IssueFactRecord::assigneeName).toList())));
+
   }
 
   private List<StatisticFilterOption> toStatisticOptions(List<OptionItemResponse> options) {

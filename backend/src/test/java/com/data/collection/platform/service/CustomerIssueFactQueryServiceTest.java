@@ -29,17 +29,17 @@ class CustomerIssueFactQueryServiceTest {
 
   @Test
   void loadPlacesStableOrderAfterEveryFilterCondition() {
-    when(issueFactQueryService.query(anyString(), anyList(), any())).thenReturn(List.of());
-    CustomerIssueFactQueryService service = new CustomerIssueFactQueryService(issueFactQueryService);
+    when(issueFactQueryService.query(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(), anyList(), any())).thenReturn(List.of());
+    CustomerIssueFactQueryService service = new CustomerIssueFactQueryService(issueFactQueryService).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
 
     service.load(
         new FactScopeRequest(
             "cc", List.of("CC2026 R3"), MemberSelection.all(), MemberSelection.all(), MemberSelection.all()));
 
     ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-    verify(issueFactQueryService).query(sql.capture(), anyList(), any(RowMapper.class));
+    verify(issueFactQueryService).query(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), sql.capture(), anyList(), any(RowMapper.class));
     assertThat(sql.getValue())
         .contains(" and issue_fact.project_id = ?")
-        .endsWith(" order by issue_fact.id");
+        .endsWith(" order by issue_fact.business_order_id");
   }
 }

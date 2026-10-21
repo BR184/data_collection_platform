@@ -38,6 +38,9 @@ public final class PostgresIntegrationTestDatabase implements AutoCloseable {
     }
     PostgreSQLContainer<?> postgres =
         new PostgreSQLContainer<>("postgres:16-alpine")
+            // 一致性夹具不依赖后台维护时序；NOWAIT 接管遇到维护锁的行为另有显式锁回归。
+            // 目标容量/WAL/清理验收仍必须使用正常维护配置的实际负载，不能从此夹具外推。
+            .withCommand("postgres", "-c", "autovacuum=off")
             .withDatabaseName(databaseName)
             .withUsername("test")
             .withPassword("test");

@@ -55,6 +55,29 @@ public class SystemTestHorizontalComparisonExportService {
   private final ReviewDataMatchModeRecordRepository matchModeReviewRepository;
   private final ReviewDataMirrorOptionRepository mirrorOptionRepository;
 
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 横向工作簿和主表共享完整闭包；禁止在导出期间读取当前事实、当前模式或原始兼容表。 */
+  public SystemTestHorizontalComparisonExportService forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new SystemTestHorizontalComparisonExportService(this, selection);
+  }
+
+  private SystemTestHorizontalComparisonExportService(SystemTestHorizontalComparisonExportService factory,
+      com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.jsonUtils = factory.jsonUtils;
+    this.phaseScopeResolver = factory.phaseScopeResolver.forRead(java.util.Objects.requireNonNull(selection.facts()));
+    this.matchModeSwitchService = factory.matchModeSwitchService.forRead(selection);
+    this.matchModeReviewRepository = factory.matchModeReviewRepository.forRead(selection);
+    this.mirrorOptionRepository = factory.mirrorOptionRepository.forRead(selection);
+  }
+
+  private com.data.collection.platform.entity.read.DatasetReadSelection readSelection() {
+    return java.util.Objects.requireNonNull(fixedRead, "横向导出必须持有完整页面来源组合");
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public SystemTestHorizontalComparisonExportService(
       JdbcTemplate jdbcTemplate,
       JsonUtils jsonUtils,
@@ -62,6 +85,7 @@ public class SystemTestHorizontalComparisonExportService {
       CodeReviewMatchModeSwitchService matchModeSwitchService,
       ReviewDataMatchModeRecordRepository matchModeReviewRepository,
       ReviewDataMirrorOptionRepository mirrorOptionRepository) {
+    this.fixedRead = null;
     this.jdbcTemplate = jdbcTemplate;
     this.jsonUtils = jsonUtils;
     this.phaseScopeResolver = phaseScopeResolver;
@@ -251,7 +275,7 @@ public class SystemTestHorizontalComparisonExportService {
       reviewArgs.add(like(scope.reviewProjectName()));
     }
     modules.addAll(
-        jdbcTemplate.queryForList(
+        new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForList(readSelection(),
             reviewSql.append("\n group by module_name order by min(id)").toString(),
             String.class,
             reviewArgs.toArray()));
@@ -325,7 +349,7 @@ public class SystemTestHorizontalComparisonExportService {
       args.add(like(reviewProjectName));
     }
     sql.append("\n    group by r.module_name");
-    List<ReviewMetric> metrics = new ArrayList<>(jdbcTemplate.query(
+    List<ReviewMetric> metrics = new ArrayList<>(new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(readSelection(),
         sql.toString(),
         (rs, rowNum) ->
             new ReviewMetric(
@@ -393,7 +417,7 @@ public class SystemTestHorizontalComparisonExportService {
     sql.append("\n    ) scoped")
         .append(queryScope.scopedModulePredicate())
         .append("\n    group by module_name");
-    return jdbcTemplate.query(
+    return new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(readSelection(),
         sql.toString(),
         (rs, rowNum) ->
             new CodeReviewMetric(
@@ -531,7 +555,7 @@ public class SystemTestHorizontalComparisonExportService {
       predicates.add("lower(',' || replace(coalesce(module_names, ''), ', ', ',') || ',') like ?");
       args.add("%," + scope.moduleName().toLowerCase(Locale.ROOT) + ",%");
     }
-    return jdbcTemplate.query(
+    return new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(readSelection(),
         """
         select
           issue_iid,

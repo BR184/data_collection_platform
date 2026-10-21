@@ -25,9 +25,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AnalyticsDashboardController {
   private final AnalyticsDashboardRegistry registry;
   private final AnalyticsDashboardQueryContextResolver contextResolver;
+  private final com.data.collection.platform.service.read.ReadViewApplicationService pageReads;
+
   public AnalyticsDashboardController(
       AnalyticsDashboardRegistry registry,
-      AnalyticsDashboardQueryContextResolver contextResolver) {
+      AnalyticsDashboardQueryContextResolver contextResolver,
+      com.data.collection.platform.service.read.ReadViewApplicationService pageReads) {
+    this.pageReads = pageReads;
     this.registry = registry;
     this.contextResolver = contextResolver;
   }
@@ -36,20 +40,26 @@ public class AnalyticsDashboardController {
   @RequirePagePermission(resource = RequirePagePermission.Resource.ANALYTICS_DASHBOARD, action = RequirePagePermission.Action.VIEW)
   public ApiResponse<AnalyticsDashboardResponse> getDashboard(
       @PathVariable @NotBlank String dashboardKey,
-      @RequestParam Map<String, String> parameters) {
-    var provider = registry.getRequired(dashboardKey);
-    return ApiResponse.success(
-        registry.loadDashboard(dashboardKey, contextResolver.resolveDashboard(provider, parameters)));
+      @RequestParam Map<String, String> parameters, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, dashboardKey, parameters, selection -> {
+    var scopedRegistry = registry.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection);
+    var scopedResolver = contextResolver.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection);
+    var provider = scopedRegistry.getRequired(dashboardKey);
+    return scopedRegistry.loadDashboard(dashboardKey, scopedResolver.resolveDashboard(provider, pageReads.businessParameters(parameters)));
+      }).response();
   }
 
   @GetMapping("/{dashboardKey}/rules")
   @RequirePagePermission(resource = RequirePagePermission.Resource.ANALYTICS_DASHBOARD, action = RequirePagePermission.Action.VIEW)
   public ApiResponse<AnalyticsDashboardRulesResponse> getRules(
       @PathVariable @NotBlank String dashboardKey,
-      @RequestParam Map<String, String> parameters) {
-    var provider = registry.getRequired(dashboardKey);
-    return ApiResponse.success(
-        registry.loadRules(dashboardKey, contextResolver.resolveDashboard(provider, parameters)));
+      @RequestParam Map<String, String> parameters, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, dashboardKey, parameters, selection -> {
+    var scopedRegistry = registry.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection);
+    var scopedResolver = contextResolver.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection);
+    var provider = scopedRegistry.getRequired(dashboardKey);
+    return scopedRegistry.loadRules(dashboardKey, scopedResolver.resolveDashboard(provider, pageReads.businessParameters(parameters)));
+      }).response();
   }
 
   @GetMapping("/{dashboardKey}/details/{viewKey}")
@@ -57,12 +67,16 @@ public class AnalyticsDashboardController {
   public ApiResponse<AnalyticsDashboardDetailResponse> getDetails(
       @PathVariable @NotBlank String dashboardKey,
       @PathVariable @NotBlank String viewKey,
-      @RequestParam Map<String, String> parameters) {
-    var provider = registry.getRequired(dashboardKey);
-    return ApiResponse.success(registry.loadDetail(
+      @RequestParam Map<String, String> parameters, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, dashboardKey, parameters, selection -> {
+    var scopedRegistry = registry.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection);
+    var scopedResolver = contextResolver.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection);
+    var provider = scopedRegistry.getRequired(dashboardKey);
+    return scopedRegistry.loadDetail(
         dashboardKey,
         viewKey,
-        contextResolver.resolveDetails(provider, viewKey, parameters)));
+        scopedResolver.resolveDetails(provider, viewKey, pageReads.businessParameters(parameters)));
+      }).response();
   }
 
   @GetMapping("/{dashboardKey}/exports/{exportKey}")
@@ -70,15 +84,20 @@ public class AnalyticsDashboardController {
   public ResponseEntity<byte[]> export(
       @PathVariable @NotBlank String dashboardKey,
       @PathVariable @NotBlank String exportKey,
-      @RequestParam Map<String, String> parameters) {
-    var provider = registry.getRequired(dashboardKey);
-    var export = registry.export(
+      @RequestParam Map<String, String> parameters, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    var prepared = pageReads.read(httpRequest, dashboardKey, parameters, selection -> {
+    var scopedRegistry = registry.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection);
+    var scopedResolver = contextResolver.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection);
+    var provider = scopedRegistry.getRequired(dashboardKey);
+    var export = scopedRegistry.export(
         dashboardKey,
         exportKey,
-        contextResolver.resolveExport(provider, exportKey, parameters));
-    return ResponseEntity.ok()
-        .contentType(export.mediaType())
-        .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment(export.filename()))
-        .body(export.content());
+        scopedResolver.resolveExport(provider, exportKey, pageReads.businessParameters(parameters)));
+    return export;
+    });
+    return prepared.download(ResponseEntity.ok()
+        .contentType(prepared.data().mediaType())
+        .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment(prepared.data().filename()))
+        .body(prepared.data().content()));
   }
 }

@@ -26,7 +26,7 @@ class IntegrationTestFactBuildServiceTest {
     IllegalStateException schemaFailure = new IllegalStateException("stop after source resolution");
     org.mockito.Mockito.doThrow(schemaFailure)
         .when(sourceSchemaGuard)
-        .verifyIntegrationTestSource(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
+        .verifyIntegrationTestSource("secondary");
     var service =
         new IntegrationTestFactBuildService(
             jdbcTemplate,
@@ -35,12 +35,13 @@ class IntegrationTestFactBuildServiceTest {
             sourceSchemaGuard,
             sqlQueryMonitor,
             configService,
-            new IssuePhaseCalendarLoader(jdbcTemplate));
+            new IssuePhaseCalendarLoader(jdbcTemplate),
+            mock(com.data.collection.platform.service.read.ReadPublicationRepository.class));
 
-    assertThatThrownBy(() -> service.rebuildFacts(true, 42L)).isSameAs(schemaFailure);
+    assertThatThrownBy(() -> service.rebuildFactsForConfig(config, FactRevisionFixture.target(com.data.collection.platform.entity.read.PublicationFactTable.INTEGRATION_TEST, "secondary"), true)).isSameAs(schemaFailure);
 
-    verify(configService).getConfigById(42L);
+
     verify(sourceSchemaGuard)
-        .verifyIntegrationTestSource(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
+        .verifyIntegrationTestSource("secondary");
   }
 }

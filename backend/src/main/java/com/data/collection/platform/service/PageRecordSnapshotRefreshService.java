@@ -13,14 +13,15 @@ public class PageRecordSnapshotRefreshService {
   }
 
   /** 刷新与稳定发布范围匹配的记录投影；在每个刷新器边界确认并续租执行身份。 */
-  public void refreshAfterFactBuild(FactPublicationContext context, Runnable requireLease) {
+  public List<String> refreshAfterFactBuild(FactPublicationContext context, Runnable requireLease) {
     if (refreshers.isEmpty()) {
-      return;
+      return List.of();
     }
     for (PageRecordSnapshotRefresher refresher : refreshers) {
       requireLease.run();
-      refresher.refreshRecordSnapshots(context);
+      refresher.forRead(context.readSelection()).refreshRecordSnapshots(context);
       requireLease.run();
     }
+    return refreshers.stream().map(refresher -> org.springframework.util.ClassUtils.getUserClass(refresher).getName()).toList();
   }
 }

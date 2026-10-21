@@ -34,6 +34,23 @@ public class ReviewDataRecordQueryService {
   private final ReviewDataMatchModeRecordRepository matchModeRecordRepository;
   private final ReviewDataMatchModeMaterializeService matchModeMaterializeService;
 
+
+  /** 创建显式固定数据集读取对象，命令和权限仍使用当前权威。 */
+  public ReviewDataRecordQueryService forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new ReviewDataRecordQueryService(this, selection);
+  }
+
+  private ReviewDataRecordQueryService(ReviewDataRecordQueryService factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.persistenceSupport = factory.persistenceSupport.forRead(selection);
+    this.summaryService = factory.summaryService;
+    this.jsonUtils = factory.jsonUtils;
+    this.labelGroupExpansionService = factory.labelGroupExpansionService.forRead(selection);
+    this.matchModeSwitchService = factory.matchModeSwitchService.forRead(selection);
+    this.matchModeRecordRepository = factory.matchModeRecordRepository.forRead(selection);
+    this.matchModeMaterializeService = factory.matchModeMaterializeService.forRead(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public ReviewDataRecordQueryService(
       ReviewDataRecordPersistenceSupport persistenceSupport,
       ReviewDataSummaryService summaryService,

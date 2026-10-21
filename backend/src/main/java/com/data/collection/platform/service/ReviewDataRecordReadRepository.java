@@ -18,10 +18,27 @@ public class ReviewDataRecordReadRepository {
   private final ReviewDataRecordRowMapper rowMapper;
   private final ReviewDataRecordQueryBuilder queryBuilder;
 
+
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 固定页面关系读取对象；原仓储工厂仅供当前业务命令与安装控制面。 */
+  public ReviewDataRecordReadRepository forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new ReviewDataRecordReadRepository(this, selection);
+  }
+
+  private ReviewDataRecordReadRepository(ReviewDataRecordReadRepository factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.rowMapper = factory.rowMapper;
+    this.queryBuilder = factory.queryBuilder;
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public ReviewDataRecordReadRepository(
       JdbcTemplate jdbcTemplate,
       ReviewDataRecordRowMapper rowMapper,
       ReviewDataRecordQueryBuilder queryBuilder) {
+    this.fixedRead = null;
     this.jdbcTemplate = jdbcTemplate;
     this.rowMapper = rowMapper;
     this.queryBuilder = queryBuilder;
@@ -46,11 +63,11 @@ public class ReviewDataRecordReadRepository {
             problemStatus,
             reviewExpert,
             keyword);
-    return jdbcTemplate.query(query.sql(), rowMapper::mapRecordRow, query.args().toArray());
+    return query(query.sql(), rowMapper::mapRecordRow, query.args().toArray());
   }
 
   public List<ReviewDataRecordRowResponse> loadRecordsForFilterOptions() {
-    return jdbcTemplate.query(queryBuilder.baseListSql(), rowMapper::mapRecordRow);
+    return query(queryBuilder.baseListSql(), rowMapper::mapRecordRow);
   }
 
   public RecordPageResult loadRecordPage(
@@ -86,7 +103,7 @@ public class ReviewDataRecordReadRepository {
     List<Object> args = new ArrayList<>(from.args());
     args.add(offset);
     args.add(offset + safeSize);
-    return jdbcTemplate.query(
+    return query(
         """
         with filtered_records as (
           select
@@ -110,6 +127,7 @@ public class ReviewDataRecordReadRepository {
             r.gitlab_project_id,
             r.gitlab_resource_iid,
             r.gitlab_resource_type,
+            r.created_by,
             r.created_at,
             r.updated_at,
             r.deleted,
@@ -179,6 +197,7 @@ public class ReviewDataRecordReadRepository {
           page_records.gitlab_project_id,
           page_records.gitlab_resource_iid,
           page_records.gitlab_resource_type,
+          page_records.created_by,
           page_records.created_at,
           page_records.updated_at,
           page_records.deleted,
@@ -235,7 +254,7 @@ public class ReviewDataRecordReadRepository {
       return Map.of();
     }
     String placeholders = recordIds.stream().map(id -> "?").collect(Collectors.joining(","));
-    return jdbcTemplate.query(
+    return query(
         """
         select review_record_id, problem_status
         from review_problem_items
@@ -254,7 +273,7 @@ public class ReviewDataRecordReadRepository {
 
   public boolean hasMissingSearchIndexes() {
     Boolean exists =
-        jdbcTemplate.queryForObject(
+        queryForObject(
             """
             select exists(
               select 1
@@ -269,7 +288,7 @@ public class ReviewDataRecordReadRepository {
 
   public boolean hasMissingTitleSearchIndexes() {
     Boolean exists =
-        jdbcTemplate.queryForObject(
+        queryForObject(
             """
             select exists(
               select 1
@@ -289,7 +308,7 @@ public class ReviewDataRecordReadRepository {
       java.time.LocalDate reviewDate,
       String reviewVersion) {
     Boolean exists =
-        jdbcTemplate.queryForObject(
+        queryForObject(
             """
             select exists(
               select 1
@@ -314,10 +333,11 @@ public class ReviewDataRecordReadRepository {
 
   public ReviewDataRecordRowResponse getRecordOrThrow(Long recordId) {
     try {
-      return jdbcTemplate.queryForObject(
+      return queryForObject(
           queryBuilder.baseListSql() + " and r.id = ?", rowMapper::mapRecordRow, recordId);
     } catch (EmptyResultDataAccessException exception) {
-      throw new IllegalArgumentException("评审记录不存在: " + recordId);
+      throw new com.data.collection.platform.common.exception.BizException(
+          com.data.collection.platform.common.response.ResultCode.NOT_FOUND, "评审记录不存在: " + recordId);
     }
   }
 
@@ -326,4 +346,21 @@ public class ReviewDataRecordReadRepository {
       long total,
       ReviewDataSummaryResponse summary) {}
 
+
+  private <T> java.util.List<T> query(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, mapper, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, mapper, args);
+  }
+  private <T> T query(String sql, org.springframework.jdbc.core.ResultSetExtractor<T> extractor, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, extractor, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, extractor, args);
+  }
+  private <T> T queryForObject(String sql, Class<T> type, Object... args) {
+    return fixedRead == null ? jdbcTemplate.queryForObject(sql, type, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForObject(fixedRead, sql, type, args);
+  }
+  private <T> T queryForObject(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    return fixedRead == null ? jdbcTemplate.queryForObject(sql, mapper, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForObject(fixedRead, sql, mapper, args);
+  }
 }

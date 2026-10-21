@@ -109,6 +109,51 @@ class QualityBoardCodeReviewReadSupportTest {
         .doesNotContain("coalesce(scan_status, '') <> '无需代码走查'");
   }
 
+  @Test
+  void matchModeScopeTieBreaksOnLegacyBusinessIdentity() {
+    QualityBoardCodeReviewReadScope scope =
+        support.resolveAllProjectsScope("cc", CodeReviewDataReadMode.MATCH_MODE);
+
+    assertThat(scope.stableTieBreak()).isEqualTo("nullif(btrim(legacy_source_id), ''), id");
+    assertThat(scope.stableRowRank()).isEqualTo("id asc");
+  }
+
+  @Test
+  void formalScopeTieBreaksOnBusinessRootAndRevisionVisibility() {
+    QualityBoardCodeReviewReadScope scope =
+        support.resolveScope("cc", "CC2026R4", CodeReviewDataReadMode.FORMAL);
+
+    assertThat(scope.stableTieBreak()).isEqualTo("business_order_id, visible_from");
+    assertThat(scope.stableRowRank()).isEqualTo("business_order_id asc, visible_from asc");
+  }
+
+  @Test
+  void codeReviewRecordRowsTieBreakOnStableBusinessIdentity() {
+    RecordingJdbcTemplate jdbc = new RecordingJdbcTemplate();
+    QualityBoardCodeReviewReadSupport readSupport =
+        new QualityBoardCodeReviewReadSupport(jdbc, matchModeSwitchService);
+
+    readSupport.codeReviewRecordRows("cc", "CC2026R4", CodeReviewDataReadMode.MATCH_MODE);
+
+    assertThat(jdbc.lastSql())
+        .contains("order by merged_at_source desc nulls last, merge_request_iid desc, "
+            + "nullif(btrim(legacy_source_id), ''), id desc");
+  }
+
+  @Test
+  void densityRowRankNeverUsesPhysicalRevisionId() {
+    RecordingJdbcTemplate jdbc = new RecordingJdbcTemplate();
+    QualityBoardCodeReviewReadSupport readSupport =
+        new QualityBoardCodeReviewReadSupport(jdbc, matchModeSwitchService);
+
+    readSupport.addedLinesByAuthorAcrossAllProjects();
+
+    assertThat(jdbc.lastSql())
+        .contains("row_number() over(partition by project_id, merge_request_id "
+            + "order by business_order_id asc, visible_from asc)")
+        .doesNotContain("order by id asc");
+  }
+
   private static final class RecordingJdbcTemplate extends JdbcTemplate {
     private String lastSql;
 
@@ -116,6 +161,13 @@ class QualityBoardCodeReviewReadSupportTest {
     public <T> T query(String sql, ResultSetExtractor<T> resultSetExtractor, Object... args) {
       lastSql = sql;
       return null;
+    }
+
+    @Override
+    public <T> List<T> query(String sql, org.springframework.jdbc.core.RowMapper<T> rowMapper,
+        Object... args) {
+      lastSql = sql;
+      return List.of();
     }
 
     private String lastSql() {

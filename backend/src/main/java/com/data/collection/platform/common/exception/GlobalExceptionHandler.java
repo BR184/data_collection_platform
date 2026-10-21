@@ -31,6 +31,24 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @Slf4j
 public class GlobalExceptionHandler {
 
+  /** 读取身份到期保持结构化 409，普通用户不收到来源故障、内部域键或数据库信息。 */
+  @ResponseBody
+  @ResponseStatus(HttpStatus.CONFLICT)
+  @ExceptionHandler(com.data.collection.platform.service.read.ReadViewException.class)
+  public ApiResponse<Void> handleReadView(com.data.collection.platform.service.read.ReadViewException error) {
+    boolean initial = error.code() == com.data.collection.platform.service.read.ReadViewException.Code.READ_VIEW_UNAVAILABLE;
+    return ApiResponse.fail(initial ? ResultCode.READ_VIEW_UNAVAILABLE : ResultCode.READ_VIEW_REBIND_REQUIRED,
+        initial ? "该页面尚无完整产出，请联系管理员完成首次数据更新" : "页面数据版本需要更新，请重新获取页面读取身份");
+  }
+
+  /** 程序化页面身份接口与已有登录过滤器使用同一 401 语义。 */
+  @ResponseBody
+  @ResponseStatus(HttpStatus.UNAUTHORIZED)
+  @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
+  public ApiResponse<Void> handleAuthentication(org.springframework.security.core.AuthenticationException error) {
+    return ApiResponse.fail(ResultCode.UNAUTHORIZED, "请先登录");
+  }
+
   @ResponseBody
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   @ExceptionHandler(BizException.class)

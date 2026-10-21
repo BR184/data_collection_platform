@@ -11,7 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 在事实发布事务内维护客户里程碑目录的精确成员集合。 */
+/** 在候选准备事务内按显式读取身份维护客户里程碑目录，并由候选冻结最终定义。 */
 @Service
 public class CustomerIssueMilestoneCatalogReconciliationService {
   private static final int BUSINESS_KEY_MAX_LENGTH = 128;
@@ -24,21 +24,22 @@ public class CustomerIssueMilestoneCatalogReconciliationService {
   }
 
   /**
-   * 将当前客户事实值同步到客户里程碑目录。
+   * 将指定完整读取身份的客户事实值同步到客户里程碑目录；不会读入其它候选或历史代际。
    *
    * <p>目录完全没有范围组时，视为首次初始化并从已发布事实建立初始组和成员；目录已有
    * 任意范围组后，只向业务键相同的启用组补充缺失成员，保留管理员配置边界。
    *
+   * @param context 完整发布身份或全部事实已经完成的候选身份
    * @return 新增的精确成员数量；目录没有事实或被停用时返回 0
    */
   @Transactional
-  public int reconcilePublishedFactValues() {
+  public int reconcileFactValues(com.data.collection.platform.entity.read.FactReadQueryContext context) {
     Optional<CatalogRef> catalog = lockEnabledCatalog();
     if (catalog.isEmpty()) {
       return 0;
     }
 
-    List<String> factValues = loadFactValues();
+    List<String> factValues = loadFactValues(context);
     if (factValues.isEmpty()) {
       return 0;
     }
@@ -227,18 +228,24 @@ public class CustomerIssueMilestoneCatalogReconciliationService {
         groupId);
   }
 
-  private List<String> loadFactValues() {
+  private List<String> loadFactValues(com.data.collection.platform.entity.read.FactReadQueryContext context) {
+    com.data.collection.platform.service.read.SqlFilter visibility = com.data.collection.platform.service.read.FactReadVisibility.visibleFacts("fact", context);
+    java.util.ArrayList<Object> args = new java.util.ArrayList<>();
+    args.add(IssueScopeCatalogService.CC_PRODUCT_PROJECT_ID);
+    args.add(context.sourceInstance());
+    args.addAll(visibility.args());
     return jdbcTemplate.queryForList(
         """
         select distinct btrim(milestone_title)
-          from issue_fact
+          from issue_fact fact
          where project_id = ?
            and deleted = false
            and nullif(btrim(milestone_title), '') is not null
+           and source_instance = ? and (%s)
          order by btrim(milestone_title)
-        """,
+        """.formatted(visibility.sql()),
         String.class,
-        IssueScopeCatalogService.CC_PRODUCT_PROJECT_ID);
+        args.toArray());
   }
 
   private String normalizedKey(String value) {

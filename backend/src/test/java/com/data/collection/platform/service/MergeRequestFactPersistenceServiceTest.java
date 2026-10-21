@@ -1,155 +1,156 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.inOrder;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.MergeRequestCommitFact;
 import com.data.collection.platform.entity.MergeRequestFact;
+import com.data.collection.platform.entity.read.FactRevisionTarget;
+import com.data.collection.platform.entity.read.PublicationFactTable;
 import com.data.collection.platform.mapper.MergeRequestFactMapper;
+import com.data.collection.platform.service.read.ReadPublicationRepository;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.mockito.Mockito;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+/**
+ * 合并请求事实持久化协作者的候选修订契约。
+ *
+ * <p>替换目标范围时先写 MR 候选修订，再只清理并重新绑定本候选修订上的提交关系，来源消失的根登记删除证明；
+ * 已发布修订与其提交关系不被原地删除，因此旧版本仍可完整读取。
+ */
 class MergeRequestFactPersistenceServiceTest {
+  private static final UUID PUBLICATION_ID = UUID.randomUUID();
+  private static final UUID EPOCH_ID = UUID.randomUUID();
+
+  private final MergeRequestFactMapper factMapper = mock(MergeRequestFactMapper.class);
+  private final ReadPublicationRepository publicationRepository =
+      mock(ReadPublicationRepository.class);
+  private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+  private final MergeRequestFactPersistenceService service =
+      new MergeRequestFactPersistenceService(factMapper, publicationRepository, jdbcTemplate);
 
   @Test
-  void test_empty_merge_request_source_deletes_stale_target_fact() {
-    MergeRequestFactMapper factMapper = mock(MergeRequestFactMapper.class);
-    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-    MergeRequestFactPersistenceService service =
-        new MergeRequestFactPersistenceService(factMapper, jdbcTemplate, cleanupGuard(jdbcTemplate));
+  void test_replacement_orders_revision_write_before_commit_relation_rebind() {
+    FactRevisionTarget target = target();
+    MergeRequestFact fact = fact(201L);
+    MergeRequestCommitFact commit = commit(201L, "abc123");
 
-    service.replaceRootFacts(
+    service.replaceRootFacts(target, List.of(201L), List.of(fact), List.of(commit));
+
+    InOrder ordered = Mockito.inOrder(factMapper, jdbcTemplate);
+    ordered.verify(factMapper).batchUpsert(List.of(fact), EPOCH_ID, PUBLICATION_ID);
+    ordered
+        .verify(jdbcTemplate)
+        .update(
+            org.mockito.ArgumentMatchers.contains("delete from merge_request_commit_fact"),
+            eq(PUBLICATION_ID),
+            eq("GITLAB"),
+            eq("default"),
+            org.mockito.ArgumentMatchers.any());
+    ordered.verify(jdbcTemplate)
+        .batchUpdate(
+            org.mockito.ArgumentMatchers.contains("merge_request_revision_id"),
+            eq(List.of(commit)),
+            org.mockito.ArgumentMatchers.anyInt(),
+            org.mockito.ArgumentMatchers.any());
+    verify(publicationRepository).recordDeletionsForRoots(PublicationFactTable.MERGE_REQUEST,
+        PUBLICATION_ID, "GITLAB", "default", List.of(201L), 7L);
+  }
+
+  @Test
+  void test_vanished_merge_request_records_delete_proof_without_deleting_published_rows() {
+    FactRevisionTarget target = target();
+
+    service.replaceRootFacts(target, List.of(201L, 202L), List.of(fact(201L)), List.of());
+
+    verify(publicationRepository)
+        .recordDeletionsForRoots(
+            PublicationFactTable.MERGE_REQUEST,
+            PUBLICATION_ID,
+            "GITLAB",
+            "default",
+            List.of(201L, 202L),
+            7L);
+  }
+
+  @Test
+  void test_commit_relation_cleanup_is_scoped_to_this_candidate_revision() {
+    service.replaceRootFacts(target(), List.of(201L), List.of(fact(201L)), List.of());
+
+    ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+    verify(jdbcTemplate)
+        .update(
+            sql.capture(),
+            eq(PUBLICATION_ID),
+            eq("GITLAB"),
+            eq("default"),
+            org.mockito.ArgumentMatchers.any());
+    assertThat(sql.getValue())
+        .contains("delete from merge_request_commit_fact")
+        .contains("fact.created_by_publication_id = ?")
+        .doesNotContain("delete from merge_request_fact");
+  }
+
+  @Test
+  void test_commit_upsert_writes_bounded_batches_bound_to_the_candidate_revision() {
+    List<MergeRequestCommitFact> commits = new java.util.ArrayList<>();
+    for (int index = 0; index < 201; index++) {
+      commits.add(commit(201L, "sha" + index));
+    }
+
+    service.upsertCommitFacts(target(), commits);
+
+    ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+    verify(jdbcTemplate)
+        .batchUpdate(
+            sql.capture(),
+            eq(commits),
+            eq(200),
+            org.mockito.ArgumentMatchers.any());
+    assertThat(sql.getAllValues()).allSatisfy(statement ->
+        assertThat(statement)
+            .contains("insert into merge_request_commit_fact")
+            .contains("fact.created_by_publication_id = ?")
+            .contains("on conflict (merge_request_revision_id, commit_sha)"));
+  }
+
+  @Test
+  void test_empty_target_range_is_rejected_because_replacement_needs_scope() {
+    assertThatThrownBy(() -> service.replaceRootFacts(target(), List.of(), List.of(), List.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("非空目标范围");
+    verifyNoInteractions(factMapper);
+  }
+
+  private static FactRevisionTarget target() {
+    return new FactRevisionTarget(
+        PUBLICATION_ID,
+        EPOCH_ID,
+        PublicationFactTable.MERGE_REQUEST,
         "GITLAB",
         "default",
-        List.of(202L),
-        List.of(),
-        List.of());
-
-    ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-    ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
-    verify(jdbcTemplate, org.mockito.Mockito.times(2))
-        .update(sqlCaptor.capture(), argsCaptor.capture());
-    assertThat(sqlCaptor.getAllValues())
-        .anyMatch(sql -> sql.contains("delete from merge_request_fact"))
-        .anyMatch(sql -> sql.contains("delete from merge_request_commit_fact"))
-        .allMatch(sql -> sql.contains("merge_request_id in (?)"));
-    assertThat(argsCaptor.getAllValues())
-        .allSatisfy(args -> assertThat(args).containsExactly("GITLAB", "default", 202L));
-    org.mockito.Mockito.verifyNoInteractions(factMapper);
+        7L);
   }
 
-  @Test
-  void test_target_replacement_writes_current_merge_request_after_delete() {
-    MergeRequestFactMapper factMapper = mock(MergeRequestFactMapper.class);
-    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-    MergeRequestFactPersistenceService service =
-        new MergeRequestFactPersistenceService(factMapper, jdbcTemplate, cleanupGuard(jdbcTemplate));
-    MergeRequestFact currentFact = mock(MergeRequestFact.class);
-
-    service.replaceRootFacts(
-        "GITLAB",
-        "default",
-        List.of(202L),
-        List.of(currentFact),
-        List.of());
-
-    InOrder ordered = inOrder(jdbcTemplate, factMapper);
-    ordered.verify(jdbcTemplate, org.mockito.Mockito.times(2))
-        .update(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(Object[].class));
-    ordered.verify(factMapper).batchUpsert(List.of(currentFact));
+  private static MergeRequestFact fact(long mergeRequestId) {
+    MergeRequestFact fact = mock(MergeRequestFact.class);
+    when(fact.getMergeRequestId()).thenReturn(mergeRequestId);
+    return fact;
   }
 
-  @Test
-  void test_cleanup_stages_identities_and_deletes_through_bounded_batches() {
-    MergeRequestFactMapper factMapper = mock(MergeRequestFactMapper.class);
-    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-    MergeRequestFactPersistenceService service =
-        new MergeRequestFactPersistenceService(
-            factMapper, jdbcTemplate, cleanupGuard(jdbcTemplate));
-    MergeRequestFact keptFact = mock(MergeRequestFact.class);
-    org.mockito.Mockito.when(keptFact.getProjectId()).thenReturn(9L);
-    org.mockito.Mockito.when(keptFact.getMergeRequestId()).thenReturn(202L);
-    MergeRequestCommitFact keptCommit =
-        new MergeRequestCommitFact(
-            "GITLAB", "default", 9L, 202L, 5L, "abc123", java.time.LocalDateTime.now());
-    org.mockito.Mockito.when(
-            jdbcTemplate.queryForObject(
-                org.mockito.ArgumentMatchers.contains("from merge_request_commit_delete_ids"),
-                org.mockito.ArgumentMatchers.eq(Long.class)))
-        .thenReturn(2L);
-    org.mockito.Mockito.when(
-            jdbcTemplate.queryForObject(
-                org.mockito.ArgumentMatchers.contains("from merge_request_delete_ids"),
-                org.mockito.ArgumentMatchers.eq(Long.class)))
-        .thenReturn(2L);
-
-    service.deleteFactsNotInSnapshot("GITLAB", "default", List.of(keptFact), List.of(keptCommit));
-
-    verify(jdbcTemplate)
-        .execute(org.mockito.ArgumentMatchers.contains("create temp table merge_request_snapshot_ids"));
-    verify(jdbcTemplate)
-        .execute(
-            org.mockito.ArgumentMatchers.contains(
-                "create temp table merge_request_snapshot_commit_ids"));
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    ArgumentCaptor<List<Object[]>> batchCaptor = ArgumentCaptor.forClass((Class) List.class);
-    verify(jdbcTemplate, org.mockito.Mockito.times(2))
-        .batchUpdate(org.mockito.ArgumentMatchers.anyString(), batchCaptor.capture());
-    assertThat(batchCaptor.getAllValues().get(0)).hasSize(1);
-    assertThat(batchCaptor.getAllValues().get(0).get(0)).containsExactly(9L, 202L);
-    assertThat(batchCaptor.getAllValues().get(1)).hasSize(1);
-    assertThat(batchCaptor.getAllValues().get(1).get(0)).containsExactly(9L, 202L, "abc123");
-
-    List<String> statements = capturedUpdateSql(jdbcTemplate);
-    assertThat(statements)
-        .anyMatch(sql -> sql.contains("create temp table merge_request_commit_delete_ids"))
-        .anyMatch(sql -> sql.contains("create temp table merge_request_delete_ids"))
-        .anyMatch(sql -> sql.contains("delete from merge_request_commit_fact commit_fact")
-            && sql.contains("using merge_request_commit_cleanup_batch"))
-        .anyMatch(sql -> sql.contains("delete from merge_request_commit_fact commit_fact")
-            && sql.contains("using merge_request_cleanup_batch"))
-        .anyMatch(sql -> sql.contains("delete from merge_request_fact fact")
-            && sql.contains("using merge_request_cleanup_batch"))
-        .noneMatch(sql -> sql.contains("not exists"));
-    org.mockito.Mockito.verifyNoInteractions(factMapper);
-  }
-
-  @Test
-  void test_cleanup_rejects_null_identities_instead_of_silently_skipping_them() {
-    MergeRequestFactMapper factMapper = mock(MergeRequestFactMapper.class);
-    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-    MergeRequestFactPersistenceService service =
-        new MergeRequestFactPersistenceService(
-            factMapper, jdbcTemplate, cleanupGuard(jdbcTemplate));
-    org.mockito.Mockito.when(
-            jdbcTemplate.queryForObject(
-                org.mockito.ArgumentMatchers.contains("(project_id is null or merge_request_id is null)"),
-                org.mockito.ArgumentMatchers.eq(Long.class),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any()))
-        .thenReturn(1L);
-
-    org.assertj.core.api.Assertions.assertThatThrownBy(
-            () -> service.deleteFactsNotInSnapshot("GITLAB", "default", List.of(), List.of()))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("空身份");
-  }
-
-  private static FactTaskExecutionGuard cleanupGuard(JdbcTemplate jdbcTemplate) {
-    return new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext());
-  }
-
-  private static List<String> capturedUpdateSql(JdbcTemplate jdbcTemplate) {
-    return org.mockito.Mockito.mockingDetails(jdbcTemplate).getInvocations().stream()
-        .filter(invocation -> "update".equals(invocation.getMethod().getName()))
-        .map(invocation -> String.valueOf((Object) invocation.getArgument(0)))
-        .toList();
+  private static MergeRequestCommitFact commit(long mergeRequestId, String commitSha) {
+    return new MergeRequestCommitFact(
+        "GITLAB", "default", 9L, mergeRequestId, 3L, commitSha, LocalDateTime.of(2026, 10, 1, 0, 0));
   }
 }

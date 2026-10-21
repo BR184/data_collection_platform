@@ -59,12 +59,33 @@ public class MirrorTableOverviewBoardService extends AbstractStatisticBoardServi
           "syncedAt", "synced_at");
 
   private final MirrorTableOverviewMapper overviewMapper;
+  private final boolean boundRead;
 
+  /** 创建持有显式版本的不可变读取对象；工厂及其它请求不保存或共享该身份。 */
+  @Override
+  public MirrorTableOverviewBoardService forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    throw new IllegalArgumentException("镜像概要必须绑定已发布的原通用镜像关系");
+  }
+
+  /** 遗留通用镜像关系属于本地完整数据集；不把其它事实族身份当成该关系的发布证明。 */
+  public MirrorTableOverviewBoardService forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new MirrorTableOverviewBoardService(this, selection);
+  }
+
+  private MirrorTableOverviewBoardService(MirrorTableOverviewBoardService factory,
+      com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    super(factory, selection);
+    this.overviewMapper = factory.overviewMapper.forRead(selection);
+    this.boundRead = true;
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public MirrorTableOverviewBoardService(
       MirrorTableOverviewMapper overviewMapper,
       JsonUtils jsonUtils) {
     super(jsonUtils);
     this.overviewMapper = overviewMapper;
+    this.boundRead = false;
   }
 
   @Override
@@ -74,7 +95,7 @@ public class MirrorTableOverviewBoardService extends AbstractStatisticBoardServi
 
   @Override
   protected StatisticBoardDefinition buildDefinition() {
-    return buildDefinition(queryTableOptions());
+    return buildDefinition(boundRead ? queryTableOptions() : List.of());
   }
 
   @Override

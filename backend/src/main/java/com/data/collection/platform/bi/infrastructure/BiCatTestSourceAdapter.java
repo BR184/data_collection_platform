@@ -20,6 +20,11 @@ public final class BiCatTestSourceAdapter implements BiCatTestSourcePort {
     this.repository = repository;
   }
 
+  /** 页面和下载共用保留快照引用，后续 CAT 发布或映射编辑不使旧页失效。 */
+  public BiCatTestSourceAdapter forRead(com.data.collection.platform.entity.read.ReadSelection selection) {
+    return new BiCatTestSourceAdapter(repository.forRead(selection));
+  }
+
   /** 按稳定产品版本和测试阶段读取一份已原子发布的本地镜像快照。 */
   @Override
   public BiCatTestSource load(BiProductVersionScope scope, TestStage stage) {

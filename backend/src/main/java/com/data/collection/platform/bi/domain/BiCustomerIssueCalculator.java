@@ -10,6 +10,7 @@ import com.data.collection.platform.bi.domain.model.BiCustomerIssuePageData.Modu
 import com.data.collection.platform.bi.domain.model.BiCustomerIssuePageData.ModuleDemand;
 import com.data.collection.platform.bi.domain.model.BiCustomerIssuePageData.ModuleSeverityCount;
 import com.data.collection.platform.bi.domain.model.BiCustomerIssuePageData.SeverityCount;
+import com.data.collection.platform.domain.customerissue.CustomerIssueActivityTimeRules;
 import com.data.collection.platform.domain.customerissue.CustomerIssueCauseRules;
 import com.data.collection.platform.domain.customerissue.CustomerIssueDelayRules;
 import com.data.collection.platform.domain.customerissue.CustomerIssueMetricRules;
@@ -28,13 +29,12 @@ import java.util.TreeMap;
 
 /** BI 客户问题页纯计算器；只消费同一来源读取中的窄事实快照。 */
 public final class BiCustomerIssueCalculator {
-  private static final String EXACT_FIXED_MEMBER = "已修复/完成";
 
   /**
    * 按完整议题身份去重后计算指标和八张图的完整数据集。
    *
    * @param sourceFacts 同一只读来源读取内的窄事实快照
-   * @param businessDate 请求固定的业务日，不能为空
+   * @param businessDate 请求固定的业务日，不能为空；今日与本自然周窗口都由它推导，不取当前墙钟
    * @param scopeStartDate 客户问题范围的创建下限，作为趋势日轴起点；不能为空
    */
   public Calculation calculate(
@@ -46,31 +46,34 @@ public final class BiCustomerIssueCalculator {
       throw new IllegalArgumentException("客户问题 BI 必须固定范围创建下限");
     }
     List<CustomerIssueFact> facts = deduplicate(sourceFacts);
-    List<CustomerIssueFact> defects = facts.stream().filter(BiCustomerIssueCalculator::isRegularDefect).toList();
+    List<CustomerIssueFact> defectFacts = facts.stream().filter(BiCustomerIssueCalculator::isRegularDefect).toList();
+    // D 内每议题一次解析状态成员并派生 F/P/A、两类剔除状态与校准资格，供指标与周窗口共用。
+    List<Defect> defects = defectFacts.stream().map(fact -> toDefect(fact, businessDate)).toList();
     List<CustomerIssueFact> requirements = facts.stream()
         .filter(fact -> !fact.excluded() && Boolean.TRUE.equals(fact.customerRequirement()))
         .toList();
     int unknownRequirements = (int) facts.stream()
         .filter(fact -> !fact.excluded() && fact.customerRequirement() == null)
         .count();
-    int unknownCreated = (int) defects.stream().filter(fact -> fact.createdAtSource() == null).count();
+    int unknownCreated = (int) defects.stream().filter(defect -> defect.fact().createdAtSource() == null).count();
     int unknownFixed = (int) defects.stream()
-        .filter(BiCustomerIssueCalculator::hasExactFixedMember)
-        .filter(fact -> fact.fixedLabelTime() == null)
+        .filter(Defect::exactCompletion)
+        .filter(defect -> defect.fact().fixedLabelTime() == null)
         .count();
 
-    List<Metric> defectMetrics = defectMetrics(defects, businessDate, unknownCreated, unknownFixed);
+    List<Metric> defectMetrics = defectMetrics(defects, unknownCreated, unknownFixed);
     List<Metric> requirementMetrics = unknownRequirements == 0
         ? requirementMetrics(requirements)
         : unknownRequirementMetrics();
-    List<ModuleDefect> moduleDefects = moduleDefects(defects);
-    List<SeverityCount> severity = severityDistribution(defects);
-    List<ModuleSeverityCount> moduleSeverity = moduleSeverity(defects);
-    CauseResult cause = causeDistribution(defects);
-    List<DelayCount> delay = delayAnalysis(defects);
-    List<AssigneeWorkload> assignees = assigneeWorkload(defects);
+    List<CustomerIssueFact> defectScope = defectFacts;
+    List<ModuleDefect> moduleDefects = moduleDefects(defectScope);
+    List<SeverityCount> severity = severityDistribution(defectScope);
+    List<ModuleSeverityCount> moduleSeverity = moduleSeverity(defectScope);
+    CauseResult cause = causeDistribution(defectScope);
+    List<DelayCount> delay = delayAnalysis(defectScope);
+    List<AssigneeWorkload> assignees = assigneeWorkload(defectScope);
     List<ModuleDemand> moduleDemand = unknownRequirements == 0 ? moduleDemand(requirements) : List.of();
-    List<DailyTrend> trend = dailyTrend(defects, businessDate, scopeStartDate, unknownCreated, unknownFixed);
+    List<DailyTrend> trend = dailyTrend(defectScope, businessDate, scopeStartDate, unknownCreated, unknownFixed);
 
     var data = new BiCustomerIssuePageData(
         List.of(), "", "", businessDate,
@@ -78,6 +81,62 @@ public final class BiCustomerIssueCalculator {
         defectMetrics, requirementMetrics, moduleDefects, severity, moduleSeverity,
         cause.rows(), cause.unclassifiedCount(), delay, assignees, moduleDemand, trend, facts.size());
     return new Calculation(data, facts.size(), unknownRequirements, unknownCreated, unknownFixed);
+  }
+
+  /**
+   * 单条常规缺陷在本页的去重视图：一次解析的状态成员与其派生资格。
+   *
+   * @param fact 来源事实
+   * @param fixed 整体修复谓词 F
+   * @param priorityFixed 优先级修复谓词 P
+   * @param appliedDelay 申请延期状态谓词 A
+   * @param dataException 命中“数据异常”精确成员（CI-47）
+   * @param notReproduced 命中“未复现”精确成员（CI-48）
+   * @param calibratable 是否留在校准集合 V 内（两类剔除状态的并集之外）
+   * @param exactCompletion 当前状态是否含精确完成成员（今日/本周解决资格）
+   * @param severityBucket 归一化严重级别名
+   * @param priorityBucket 归一化优先级桶
+   * @param createdToday 创建时间落入固定业务日的半开自然日窗口
+   * @param resolvedToday 精确完成且最近有效完成时间落入该业务日
+   * @param createdThisWeek 创建时间落入本自然周半开窗口
+   * @param resolvedThisWeek 精确完成且最近有效完成时间落入本周窗口
+   */
+  private record Defect(
+      CustomerIssueFact fact,
+      boolean fixed,
+      boolean priorityFixed,
+      boolean appliedDelay,
+      boolean dataException,
+      boolean notReproduced,
+      boolean calibratable,
+      boolean exactCompletion,
+      String severityBucket,
+      String priorityBucket,
+      boolean createdToday,
+      boolean resolvedToday,
+      boolean createdThisWeek,
+      boolean resolvedThisWeek) {}
+
+  private static Defect toDefect(CustomerIssueFact fact, LocalDate businessDate) {
+    List<String> members = IssueStatusMembers.parse(fact.bugStatus());
+    boolean exactCompletion = CustomerIssueActivityTimeRules.hasExactCompletionMember(members);
+    return new Defect(
+        fact,
+        CustomerIssueMetricRules.isFixedBySummary(fact.bugStatus()),
+        CustomerIssueMetricRules.isPriorityFixed(fact.bugStatus(), fact.closed()),
+        CustomerIssueMetricRules.hasAppliedDelay(fact.bugStatus()),
+        CustomerIssueMetricRules.hasDataException(members),
+        CustomerIssueMetricRules.hasNotReproduced(members),
+        CustomerIssueMetricRules.keepsCalibrationPopulation(members),
+        exactCompletion,
+        severity(fact),
+        priorityBucket(fact),
+        CustomerIssueActivityTimeRules.withinBusinessDayFromSourceUtc(fact.createdAtSource(), businessDate),
+        exactCompletion && CustomerIssueActivityTimeRules.withinBusinessDayFromBusinessClock(
+            fact.fixedLabelTime(), businessDate),
+        CustomerIssueActivityTimeRules.withinBusinessWeekFromSourceUtc(fact.createdAtSource(), businessDate),
+        exactCompletion && CustomerIssueActivityTimeRules.withinBusinessWeekFromBusinessClock(
+            fact.fixedLabelTime(), businessDate));
   }
 
   private static List<CustomerIssueFact> deduplicate(List<CustomerIssueFact> sourceFacts) {
@@ -91,37 +150,57 @@ public final class BiCustomerIssueCalculator {
     return List.copyOf(byIdentity.values());
   }
 
-  private static List<Metric> defectMetrics(
-      List<CustomerIssueFact> defects, LocalDate businessDate, int unknownCreated, int unknownFixed) {
+  /**
+   * 十七项缺陷指标：概览 6 项、修复率 7 项、今日/本周 4 项，按稳定 key 供前端分组。
+   *
+   * <p>校准率的分子与分母同时使用 V（D 去除“数据异常/未复现”并集）；整体沿 F、优先级沿 P，
+   * 两套判据不统一。分母为零时比率不可计算。
+   */
+  private static List<Metric> defectMetrics(List<Defect> defects, int unknownCreated, int unknownFixed) {
     long total = defects.size();
-    long fixed = defects.stream().filter(BiCustomerIssueCalculator::isFixed).count();
-    long appliedDelay = defects.stream().filter(fact -> CustomerIssueMetricRules.hasAppliedDelay(fact.bugStatus())).count();
-    List<CustomerIssueFact> levelOne = defects.stream().filter(fact -> severity(fact).equals("一级")).toList();
-    List<CustomerIssueFact> p1 = defects.stream().filter(fact -> priorityBucket(fact).equals("P1")).toList();
-    List<CustomerIssueFact> p2 = defects.stream().filter(fact -> priorityBucket(fact).equals("P2")).toList();
-    long todayNew = defects.stream().filter(fact -> sameDay(fact.createdAtSource(), businessDate)).count();
-    long todayFixed = defects.stream()
-        .filter(BiCustomerIssueCalculator::hasExactFixedMember)
-        .filter(fact -> sameDay(fact.fixedLabelTime(), businessDate))
-        .count();
+    long fixed = defects.stream().filter(Defect::fixed).count();
+    List<Defect> calibrated = defects.stream().filter(Defect::calibratable).toList();
+    List<Defect> levelOne = defects.stream().filter(defect -> "一级".equals(defect.severityBucket())).toList();
+    List<Defect> p1 = defects.stream().filter(defect -> "P1".equals(defect.priorityBucket())).toList();
+    List<Defect> p2 = defects.stream().filter(defect -> "P2".equals(defect.priorityBucket())).toList();
+    List<Defect> calibratedP1 = calibrated.stream()
+        .filter(defect -> "P1".equals(defect.priorityBucket())).toList();
+    List<Defect> calibratedP2 = calibrated.stream()
+        .filter(defect -> "P2".equals(defect.priorityBucket())).toList();
+    long todayNew = defects.stream().filter(Defect::createdToday).count();
+    long todayResolved = defects.stream().filter(Defect::resolvedToday).count();
     return List.of(
         count("defect_total", "总问题数", total),
         count("defect_fixed", "已修复", fixed),
         count("defect_unfixed", "未修复", total - fixed),
-        count("defect_applied_delay", "申请延期", appliedDelay),
+        count("defect_applied_delay", "申请延期", defects.stream().filter(Defect::appliedDelay).count()),
+        count("defect_data_exception", "数据异常", defects.stream().filter(Defect::dataException).count()),
+        count("defect_not_reproduced", "未复现", defects.stream().filter(Defect::notReproduced).count()),
         ratio("defect_fix_rate", "整体缺陷修复率", fixed, total),
+        ratio("defect_calibrated_fix_rate", "校准后整体缺陷修复率",
+            calibrated.stream().filter(Defect::fixed).count(), calibrated.size()),
         ratio("level1_fix_rate", "一级缺陷修复率",
-            levelOne.stream().filter(BiCustomerIssueCalculator::isFixed).count(), levelOne.size()),
-        ratio("p1_fix_rate", "P1修复率",
-            p1.stream().filter(BiCustomerIssueCalculator::isPriorityFixed).count(), p1.size()),
-        ratio("p2_fix_rate", "P2修复率",
-            p2.stream().filter(BiCustomerIssueCalculator::isPriorityFixed).count(), p2.size()),
+            levelOne.stream().filter(Defect::fixed).count(), levelOne.size()),
+        ratio("p1_fix_rate", "P1修复率", p1.stream().filter(Defect::priorityFixed).count(), p1.size()),
+        ratio("p1_calibrated_fix_rate", "P1校准后修复率",
+            calibratedP1.stream().filter(Defect::priorityFixed).count(), calibratedP1.size()),
+        ratio("p2_fix_rate", "P2修复率", p2.stream().filter(Defect::priorityFixed).count(), p2.size()),
+        ratio("p2_calibrated_fix_rate", "P2校准后修复率",
+            calibratedP2.stream().filter(Defect::priorityFixed).count(), calibratedP2.size()),
         unknownCreated > 0
             ? new Metric("today_new", "今日新增问题数", null, todayNew, null, null, "个")
             : count("today_new", "今日新增问题数", todayNew),
         unknownFixed > 0
-            ? new Metric("today_resolved", "今日解决问题数", null, todayFixed, null, null, "个")
-            : count("today_resolved", "今日解决问题数", todayFixed));
+            ? new Metric("today_resolved", "今日解决问题数", null, todayResolved, null, null, "个")
+            : count("today_resolved", "今日解决问题数", todayResolved),
+        unknownCreated > 0
+            ? new Metric("week_new", "本周新增问题数", null,
+                defects.stream().filter(Defect::createdThisWeek).count(), null, null, "个")
+            : count("week_new", "本周新增问题数", defects.stream().filter(Defect::createdThisWeek).count()),
+        unknownFixed > 0
+            ? new Metric("week_resolved", "本周解决问题数", null,
+                defects.stream().filter(Defect::resolvedThisWeek).count(), null, null, "个")
+            : count("week_resolved", "本周解决问题数", defects.stream().filter(Defect::resolvedThisWeek).count()));
   }
 
   private static List<Metric> requirementMetrics(List<CustomerIssueFact> requirements) {
@@ -182,6 +261,7 @@ public final class BiCustomerIssueCalculator {
         .toList();
   }
 
+  /** 模块×严重级别：模块先按级别总数倒序，同总数用稳定模块名；模块内维持严重级别业务顺序。 */
   private static List<ModuleSeverityCount> moduleSeverity(List<CustomerIssueFact> defects) {
     Map<String, Map<String, Long>> counts = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     for (CustomerIssueFact fact : defects) {
@@ -189,7 +269,13 @@ public final class BiCustomerIssueCalculator {
           .merge(severity(fact), 1L, Long::sum);
     }
     return counts.entrySet().stream()
+        .sorted(Comparator
+            .comparingLong((Map.Entry<String, Map<String, Long>> entry) ->
+                entry.getValue().values().stream().mapToLong(Long::longValue).sum()).reversed()
+            .thenComparing(Map.Entry::getKey, String.CASE_INSENSITIVE_ORDER))
         .flatMap(module -> module.getValue().entrySet().stream()
+            .sorted(Comparator.comparingInt((Map.Entry<String, Long> severity) -> severityOrder(severity.getKey()))
+                .thenComparing(Map.Entry::getKey))
             .map(severity -> new ModuleSeverityCount(module.getKey(), severity.getKey(), severity.getValue())))
         .toList();
   }
@@ -261,6 +347,12 @@ public final class BiCustomerIssueCalculator {
         .toList();
   }
 
+  /**
+   * 累计新增与累计修复：对同一来源版本内的日期贡献作前缀累加，序列非下降。
+   *
+   * <p>任一必要时间贡献未知时整条累计序列不可计算，不按已知日期补点或按零累计；
+   * 最后一点的累计修复等于日轴内精确完成事件贡献总数，不要求等于顶部广义 F 的已修复数。
+   */
   private static List<DailyTrend> dailyTrend(
       List<CustomerIssueFact> defects,
       LocalDate businessDate,
@@ -273,19 +365,25 @@ public final class BiCustomerIssueCalculator {
       counts.put(day, new Counts());
     }
     for (CustomerIssueFact fact : defects) {
-      LocalDate created = date(fact.createdAtSource());
+      LocalDate created = CustomerIssueActivityTimeRules.businessDateFromSourceUtc(fact.createdAtSource());
       if (created != null && counts.containsKey(created)) counts.get(created).created++;
-      if (hasExactFixedMember(fact)) {
-        LocalDate fixed = date(fact.fixedLabelTime());
+      if (hasExactCompletionMember(fact)) {
+        LocalDate fixed = CustomerIssueActivityTimeRules.businessDateFromBusinessClock(fact.fixedLabelTime());
         if (fixed != null && counts.containsKey(fixed)) counts.get(fixed).fixed++;
       }
     }
-    return counts.entrySet().stream()
-        .map(entry -> new DailyTrend(
-            entry.getKey(),
-            unknownCreated > 0 ? null : entry.getValue().created,
-            unknownFixed > 0 ? null : entry.getValue().fixed))
-        .toList();
+    List<DailyTrend> trend = new ArrayList<>(counts.size());
+    long cumulativeCreated = 0L;
+    long cumulativeFixed = 0L;
+    for (Map.Entry<LocalDate, Counts> entry : counts.entrySet()) {
+      cumulativeCreated += entry.getValue().created;
+      cumulativeFixed += entry.getValue().fixed;
+      trend.add(new DailyTrend(
+          entry.getKey(),
+          unknownCreated > 0 ? null : cumulativeCreated,
+          unknownFixed > 0 ? null : cumulativeFixed));
+    }
+    return List.copyOf(trend);
   }
 
   private static List<String> modules(CustomerIssueFact fact) {
@@ -326,20 +424,9 @@ public final class BiCustomerIssueCalculator {
     return CustomerIssueMetricRules.isFixedBySummary(fact.bugStatus());
   }
 
-  private static boolean isPriorityFixed(CustomerIssueFact fact) {
-    return CustomerIssueMetricRules.isPriorityFixed(fact.bugStatus(), fact.closed());
-  }
-
-  private static boolean hasExactFixedMember(CustomerIssueFact fact) {
-    return IssueStatusMembers.matchesSelection(fact.bugStatus(), EXACT_FIXED_MEMBER);
-  }
-
-  private static boolean sameDay(LocalDateTime time, LocalDate date) {
-    return time != null && time.toLocalDate().equals(date);
-  }
-
-  private static LocalDate date(LocalDateTime time) {
-    return time == null ? null : time.toLocalDate();
+  /** 精确完成成员：沿两页共用的活动时间纯规则，不在本页复制状态名。 */
+  private static boolean hasExactCompletionMember(CustomerIssueFact fact) {
+    return CustomerIssueActivityTimeRules.hasExactCompletionMember(IssueStatusMembers.parse(fact.bugStatus()));
   }
 
   private static String firstText(String first, String second) {

@@ -26,9 +26,23 @@ public class IssueScopeCatalogService {
   public static final long CC_PRODUCT_PROJECT_ID = 325L;
 
   private final JdbcTemplate jdbcTemplate;
+  private final com.data.collection.platform.entity.read.ReadSelection readSelection;
 
+  @org.springframework.beans.factory.annotation.Autowired
   public IssueScopeCatalogService(JdbcTemplate jdbcTemplate) {
     this.jdbcTemplate = jdbcTemplate;
+    this.readSelection = null;
+  }
+
+  /** 创建只读冻结目录；配置管理和事实生产仍使用当前目录，不把历史成员反写当前表。 */
+  public IssueScopeCatalogService forRead(com.data.collection.platform.entity.read.ReadSelection selection) {
+    return new IssueScopeCatalogService(jdbcTemplate, selection);
+  }
+
+  private IssueScopeCatalogService(JdbcTemplate jdbcTemplate,
+      com.data.collection.platform.entity.read.ReadSelection selection) {
+    this.jdbcTemplate = jdbcTemplate;
+    this.readSelection = java.util.Objects.requireNonNull(selection);
   }
 
   /**
@@ -102,7 +116,7 @@ public class IssueScopeCatalogService {
 
   private List<ScopeGroup> loadEnabledGroups(CatalogKey key) {
     List<ScopeRow> rows =
-        jdbcTemplate.query(
+        queryDirectory(
             """
             select c.id as catalog_id,
                    c.project_id,
@@ -161,6 +175,12 @@ public class IssueScopeCatalogService {
       }
     }
     return groups.values().stream().map(MutableScopeGroup::toImmutable).toList();
+  }
+
+  private <T> List<T> queryDirectory(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    String bounded = readSelection == null ? sql
+        : com.data.collection.platform.service.read.VersionedDefinitionSql.bind(readSelection, sql);
+    return jdbcTemplate.query(bounded, mapper, args);
   }
 
   private ScopeRow mapRow(ResultSet rs, int rowNumber) throws SQLException {

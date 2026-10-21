@@ -8,300 +8,343 @@
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "collect_form_records",
     "label" : "采集表单记录",
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : false
   }, {
     "tableName" : "gitlab_mirror_records",
     "label" : "旧版镜像记录",
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "gitlab_sync_configs",
     "label" : "同步配置",
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : false
   }, {
     "tableName" : "gitlab_system_hook_events",
     "label" : "System Hook 事件",
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : false
   }, {
     "tableName" : "issue_fact",
     "label" : "议题事实表",
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "legacy_mongo_imported_collections",
     "label" : "老平台 Mongo 导入集合",
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : false
   }, {
     "tableName" : "legacy_mongo_imported_documents",
     "label" : "老平台 Mongo 导入原始文档",
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : false
   }, {
     "tableName" : "legacy_mysql_imported_rows",
     "label" : "老平台 MySQL 导入原始行",
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : false
   }, {
     "tableName" : "legacy_mysql_imported_tables",
     "label" : "老平台 MySQL 导入表",
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : false
   }, {
     "tableName" : "merge_request_fact",
     "label" : "合并请求事实表",
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_ci_builds",
     "label" : "镜像表 / ci_builds",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:26.554043+08:00",
+    "lastSyncTime" : "2026-10-15T13:21:57.484083+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_ci_pipelines",
     "label" : "镜像表 / ci_pipelines",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:26.575044+08:00",
+    "lastSyncTime" : "2026-10-15T13:21:57.507114+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_deployments",
     "label" : "镜像表 / deployments",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:26.595046+08:00",
+    "lastSyncTime" : "2026-10-15T13:21:57.528144+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_environments",
     "label" : "镜像表 / environments",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:26.616043+08:00",
+    "lastSyncTime" : "2026-10-15T13:21:57.549152+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_events",
     "label" : "镜像表 / events",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:28.207328+08:00",
+    "lastSyncTime" : "2026-10-15T13:22:01.027662+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_issue_assignees",
     "label" : "镜像表 / issue_assignees",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:27.56285+08:00",
+    "lastSyncTime" : "2026-10-15T13:21:59.592915+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_issue_metrics",
     "label" : "镜像表 / issue_metrics",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:27.594313+08:00",
+    "lastSyncTime" : "2026-10-15T13:21:59.615914+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_issues",
     "label" : "镜像表 / issues",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:27.622099+08:00",
+    "lastSyncTime" : "2026-10-15T13:21:59.638913+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_label_links",
     "label" : "镜像表 / label_links",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:29.317838+08:00",
+    "lastSyncTime" : "2026-10-15T13:22:02.481888+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_labels",
     "label" : "镜像表 / labels",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:26.815371+08:00",
+    "lastSyncTime" : "2026-10-15T13:21:57.945107+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_members",
     "label" : "镜像表 / members",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:26.841371+08:00",
+    "lastSyncTime" : "2026-10-15T13:21:57.969758+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_merge_request_assignees",
     "label" : "镜像表 / merge_request_assignees",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:27.68932+08:00",
+    "lastSyncTime" : "2026-10-15T13:21:59.766859+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_merge_request_diff_commits",
     "label" : "镜像表 / merge_request_diff_commits",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:28.952838+08:00",
+    "lastSyncTime" : "2026-10-15T13:22:02.235196+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_merge_request_diffs",
     "label" : "镜像表 / merge_request_diffs",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:27.954658+08:00",
+    "lastSyncTime" : "2026-10-15T13:22:00.409418+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_merge_request_metrics",
     "label" : "镜像表 / merge_request_metrics",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:27.970658+08:00",
+    "lastSyncTime" : "2026-10-15T13:22:00.423416+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_merge_request_reviewers",
     "label" : "镜像表 / merge_request_reviewers",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:26.956372+08:00",
+    "lastSyncTime" : "2026-10-15T13:21:58.245126+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_merge_requests",
     "label" : "镜像表 / merge_requests",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:27.988658+08:00",
+    "lastSyncTime" : "2026-10-15T13:22:00.439681+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_milestones",
     "label" : "镜像表 / milestones",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:26.998372+08:00",
+    "lastSyncTime" : "2026-10-15T13:21:58.328572+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_namespaces",
     "label" : "镜像表 / namespaces",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:27.025372+08:00",
+    "lastSyncTime" : "2026-10-15T13:21:58.356753+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_notes",
     "label" : "镜像表 / notes",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:28.373839+08:00",
+    "lastSyncTime" : "2026-10-15T13:22:01.368531+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_projects",
     "label" : "镜像表 / projects",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:27.073371+08:00",
+    "lastSyncTime" : "2026-10-15T13:21:58.440674+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_resource_label_events",
     "label" : "镜像表 / resource_label_events",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:29.636433+08:00",
+    "lastSyncTime" : "2026-10-15T13:22:02.683897+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_todos",
     "label" : "镜像表 / todos",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:28.845837+08:00",
+    "lastSyncTime" : "2026-10-15T13:22:02.052632+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_user_details",
     "label" : "镜像表 / user_details",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:27.138371+08:00",
+    "lastSyncTime" : "2026-10-15T13:21:58.579337+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "ods_gitlab_users",
     "label" : "镜像表 / users",
     "syncStatus" : "IDLE",
-    "lastSyncTime" : "2026-09-29T12:44:27.16037+08:00",
+    "lastSyncTime" : "2026-10-15T13:21:58.640977+08:00",
     "tableKind" : "MIRROR",
-    "refreshable" : true
+    "refreshable" : true,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "platform_ldap_user_directory",
     "label" : "LDAP 用户信息",
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : false
   }, {
     "tableName" : "review_data_match_mode_descriptions",
     "label" : "评审兼容模式评审规模",
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "review_data_match_mode_problem_details",
     "label" : "评审兼容模式问题清单",
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "review_data_match_mode_reports",
     "label" : "评审兼容模式报告",
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : true
   }, {
     "tableName" : "sync_run_events",
     "label" : "同步运行事件",
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : false
   }, {
     "tableName" : "sync_run_table_tasks",
     "label" : "同步表任务",
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : false
   }, {
     "tableName" : "sync_runs",
     "label" : "同步运行",
     "syncStatus" : "IDLE",
     "lastSyncTime" : null,
     "tableKind" : "LOCAL",
-    "refreshable" : false
+    "refreshable" : false,
+    "publishedReadRequired" : false
   } ]
 }

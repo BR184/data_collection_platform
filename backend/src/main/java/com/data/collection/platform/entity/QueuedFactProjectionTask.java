@@ -10,12 +10,13 @@ import java.time.LocalDateTime;
  */
 public record QueuedFactProjectionTask(
     long id,
-    long factRunId,
+    Long factRunId,
     String factRunLeaseToken,
-    long factBuildTaskId,
+    Long factBuildTaskId,
     FactProjectionScope scope,
     long targetGeneration,
     int retryCount,
     int maxRetryCount,
     String leaseToken,
-    LocalDateTime leaseUntil) {}
+    LocalDateTime leaseUntil,
+    java.util.UUID publicationId) {}

@@ -174,6 +174,7 @@ class ReviewDataFilterOptionServiceTest {
   }
 
   private ReviewDataFilterOptionService service() {
+    org.mockito.Mockito.lenient().when(mirrorOptionRepository.forRead(org.mockito.ArgumentMatchers.any())).thenReturn(mirrorOptionRepository);
     return new ReviewDataFilterOptionService(
         mirrorOptionRepository,
         historicalOptionRepository,

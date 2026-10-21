@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.FactType;
+import com.data.collection.platform.service.read.CandidateCacheArtifactStore;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -65,23 +66,14 @@ public class PageRecordSnapshotService {
     return fingerprintTemplate;
   }
 
-  public <T> T readOrRefresh(
-      SnapshotRequest request,
-      Class<T> responseType,
-      Supplier<T> responseSupplier) {
-    // 进入读取时解析一次版本用于查缓存；重建完成后再解析一次，用于识别检查与读取之间发生的发布。
-    String sourceVersion = request.resolveSourceVersion();
-    if (isDegradedVersion(sourceVersion)) {
-      Optional<T> degraded = findLatestSnapshot(request, responseType);
-      if (degraded.isPresent()) {
-        return degraded.get();
-      }
-    }
-    Optional<T> snapshot = findReadyOrInvalidate(request, responseType, sourceVersion);
-    if (snapshot.isPresent()) {
-      return snapshot.get();
-    }
-    return rebuildWithSingleFlight(request, responseType, sourceVersion, responseSupplier);
+  /** 固定完整身份缓存读取；未命中仍从同一完整数据计算，不检查最新来源指纹。 */
+  public <T> T readOrRefresh(com.data.collection.platform.entity.read.ReadSelection selection,
+      SnapshotRequest request, Class<T> responseType, Supplier<T> responseSupplier) {
+    return publicationGuardService.withinRead(selection, () -> {
+      String sourceVersion = selection.sourceVersion();
+      Optional<T> snapshot = findReadyOrInvalidate(request, responseType, sourceVersion);
+      return snapshot.orElseGet(() -> rebuildWithSingleFlight(selection, request, responseType, sourceVersion, responseSupplier));
+    });
   }
 
   /**
@@ -90,12 +82,12 @@ public class PageRecordSnapshotService {
    */
   @SuppressWarnings("unchecked")
   private <T> T rebuildWithSingleFlight(
-      SnapshotRequest request,
+      com.data.collection.platform.entity.read.ReadSelection selection, SnapshotRequest request,
       Class<T> responseType,
       String sourceVersion,
       Supplier<T> responseSupplier) {
     String rebuildKey = request.pageKey() + "|" + request.snapshotType() + "|" + request.scopeKey()
-        + "|" + request.ruleVersion() + "|" + requestHash(request.requestPayload());
+        + "|" + sourceVersion + "|" + request.ruleVersion() + "|" + requestHash(request.requestPayload());
     CompletableFuture<Object> future = new CompletableFuture<>();
     CompletableFuture<Object> winner = inFlightRebuilds.computeIfAbsent(rebuildKey, key -> future);
     if (winner != future) {
@@ -107,7 +99,7 @@ public class PageRecordSnapshotService {
     }
     try {
       T response = responseSupplier.get();
-      saveUnlessSourceMoved(request, sourceVersion, response);
+      save(selection, request, response);
       future.complete(response);
       return response;
     } catch (RuntimeException error) {
@@ -116,28 +108,6 @@ public class PageRecordSnapshotService {
     } finally {
       inFlightRebuilds.remove(rebuildKey, future);
     }
-  }
-
-  /**
-   * 只在来源版本没有推进时缓存重建结果。
-   *
-   * <p>缓存查找用的是进入读取时解析的版本，事实读取发生在其后。期间一旦发生发布，本次结果就跨了两代
-   * 数据，写进旧版本键会让后续按该版本命中的请求长期读到混合代际的内容。此处放弃缓存，只返回本次结果，
-   * 由下一次请求按新版本重建；不靠重试或延时掩盖这个窗口。
-   */
-  private void saveUnlessSourceMoved(
-      SnapshotRequest request, String sourceVersion, Object response) {
-    String versionAfterRebuild = request.resolveSourceVersion();
-    if (sourceVersion.equals(versionAfterRebuild)) {
-      save(request, sourceVersion, response);
-      return;
-    }
-    log.warn(
-        "Skip page snapshot cache for {} ({}): source version moved from {} to {} during rebuild",
-        request.pageKey(),
-        request.snapshotType(),
-        sourceVersion,
-        versionAfterRebuild);
   }
 
   private static RuntimeException asRuntimeException(CompletionException error) {
@@ -251,46 +221,54 @@ public class PageRecordSnapshotService {
     return Optional.ofNullable(jsonUtils.fromJson(rows.getFirst(), responseType));
   }
 
-  /**
-   * 按请求当前解析出的来源版本写入快照。
-   *
-   * <p>读取入口使用 {@link #save(SnapshotRequest, String, Object)} 显式传入本次一致性判定所用的版本。
-   */
-  public void save(SnapshotRequest request, Object response) {
-    save(request, request.resolveSourceVersion(), response);
+  /** 缓存绑定完整版本组合；候选内容仅 PREPARED，不能被公开读取。 */
+  public void save(com.data.collection.platform.entity.read.ReadSelection selection,
+      SnapshotRequest request, Object response) {
+    String sourceVersion = selection.sourceVersion();
+    boolean candidate = selection.candidate();
+    Object[] args = new Object[] {
+        request.pageKey(),
+        request.snapshotType(),
+        request.scopeKey(),
+        request.ruleVersion(),
+        sourceVersion,
+        requestHash(request.requestPayload()),
+        payloadJson(request.requestPayload()),
+        jsonUtils.toJson(response),
+        selection.primaryPublicationId(),
+        java.sql.Date.valueOf(selection.businessDate()),
+        candidate ? "PREPARED" : "READY"};
+    if (candidate) {
+      publicationGuardService.writePreparedArtifact(CandidateCacheArtifactStore.KIND_RECORD,
+          () -> java.util.Objects.requireNonNull(
+              jdbcTemplate.queryForObject(SNAPSHOT_UPSERT_SQL + " returning id", Long.class, args),
+              "候选记录缓存写入未返回行主键"));
+    } else {
+      publicationGuardService.writeSnapshot(() -> jdbcTemplate.update(SNAPSHOT_UPSERT_SQL, args));
+    }
   }
 
-  private void save(SnapshotRequest request, String sourceVersion, Object response) {
-    publicationGuardService.writeSnapshot(
-        () ->
-            jdbcTemplate.update(
-                """
-                insert into page_record_snapshots(
-                  page_key, snapshot_type, scope_key, rule_version, source_version, request_hash,
-                  request_payload, response_payload, status, error_message,
-                  generated_at, refreshed_at, created_at, updated_at
-                ) values (?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, 'READY', null,
-                          current_timestamp, current_timestamp, current_timestamp, current_timestamp)
-                on conflict (page_key, snapshot_type, scope_key, rule_version, request_hash)
-                do update set
-                  source_version = excluded.source_version,
-                  request_payload = excluded.request_payload,
-                  response_payload = excluded.response_payload,
-                  status = 'READY',
-                  error_message = null,
-                  generated_at = current_timestamp,
-                  refreshed_at = current_timestamp,
-                  updated_at = current_timestamp
-                """,
-                request.pageKey(),
-                request.snapshotType(),
-                request.scopeKey(),
-                request.ruleVersion(),
-                sourceVersion,
-                requestHash(request.requestPayload()),
-                payloadJson(request.requestPayload()),
-                jsonUtils.toJson(response)));
-  }
+  /** 记录页缓存行的唯一写入语句；候选分支追加 returning id 以登记产物身份。 */
+  private static final String SNAPSHOT_UPSERT_SQL = """
+      insert into page_record_snapshots(
+        page_key, snapshot_type, scope_key, rule_version, source_version, request_hash,
+        request_payload, response_payload, publication_id, business_date, status, error_message,
+        generated_at, refreshed_at, created_at, updated_at
+      ) values (?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?, null,
+                current_timestamp, current_timestamp, current_timestamp, current_timestamp)
+      on conflict (page_key, snapshot_type, scope_key, rule_version, request_hash, source_version)
+      do update set
+        source_version = excluded.source_version,
+        request_payload = excluded.request_payload,
+        response_payload = excluded.response_payload,
+        status = excluded.status,
+        publication_id = excluded.publication_id,
+        business_date = excluded.business_date,
+        error_message = null,
+        generated_at = current_timestamp,
+        refreshed_at = current_timestamp,
+        updated_at = current_timestamp
+      """;
 
   public void invalidatePage(String pageKey) {
     publicationGuardService.writeSnapshot(

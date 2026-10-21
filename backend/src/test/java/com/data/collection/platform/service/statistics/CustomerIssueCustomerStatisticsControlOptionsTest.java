@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.IssueFact;
+import com.data.collection.platform.entity.read.FactRevisionTarget;
+import com.data.collection.platform.entity.read.PublicationFactTable;
 import com.data.collection.platform.entity.statistics.StatisticBoardControlOption;
 import com.data.collection.platform.entity.statistics.StatisticBoardControlOptionGroup;
 import com.data.collection.platform.entity.statistics.StatisticBoardControlOptions;
@@ -17,6 +19,7 @@ import com.data.collection.platform.service.IssueFactPersistenceService;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,7 +45,6 @@ class CustomerIssueCustomerStatisticsControlOptionsTest {
   private static final String MILESTONE = "CC2026R9成员候选";
   private static final String OTHER_MILESTONE = "CC2026R9范围外里程碑";
   private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 5, 6, 9, 0);
-
   @Autowired private JdbcTemplate jdbcTemplate;
   @Autowired private IssueFactMapper issueFactMapper;
   @Autowired private IssueFactPersistenceService issueFactPersistenceService;
@@ -54,6 +56,7 @@ class CustomerIssueCustomerStatisticsControlOptionsTest {
   @BeforeEach
   void setUp() {
     cleanUp();
+    jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
     insertProbeGroup();
     upsertPublicationState();
     LabelEventHistoryTestSupport.markComplete(jdbcTemplate, PROBE_SOURCE);
@@ -165,7 +168,7 @@ class CustomerIssueCustomerStatisticsControlOptionsTest {
   }
 
   @Test
-  void sourceWithoutPublicationRecordIsReportedAsUnavailableNotEmptyCandidates() {
+  void currentSourceControlRecordRemovalKeepsCompletePublishedCandidatesReadable() {
     insertIssue(1L, "客户甲", "模块甲", "功能甲");
     jdbcTemplate.update(
         "delete from source_fact_publication_states where source_instance = ?", PROBE_SOURCE);
@@ -179,11 +182,9 @@ class CustomerIssueCustomerStatisticsControlOptionsTest {
 
     StatisticBoardControlOptions options = controlOptions(Map.of());
 
-    assertThat(options.scopeReadable())
-        .as("来源资格失败必须显式可见，不得渲染成“该范围没有成员”")
-        .isFalse();
-    assertThat(options.reason()).contains("无法确认完整性");
-    assertThat(options.groups()).isEmpty();
+    assertThat(options.scopeReadable()).isTrue();
+    assertThat(values(options, "customer")).containsExactly("客户甲");
+    assertThat(values(options, "module")).containsExactly("模块甲");
   }
 
   @Test
@@ -191,7 +192,11 @@ class CustomerIssueCustomerStatisticsControlOptionsTest {
     insertIssue(1L, "客户甲", "模块甲", "功能甲");
     IssueFact outside = baseFact(9L, "客户丁", "模块丁", "功能丁");
     outside.setMilestoneTitle(OTHER_MILESTONE);
-    issueFactMapper.upsert(outside);
+    com.data.collection.platform.service.FactRevisionFixture.publishFacts(jdbcTemplate,
+        PublicationFactTable.ISSUE, PROBE_SOURCE, false, target -> {
+          issueFactPersistenceService.upsertIssueFacts(target, List.of(outside));
+          return new com.data.collection.platform.entity.FactBuildResponse("fixture", false, 1, "fixture");
+        });
 
     StatisticBoardControlOptions options = controlOptions(Map.of());
 
@@ -211,7 +216,14 @@ class CustomerIssueCustomerStatisticsControlOptionsTest {
     filters.put("moduleKind", "ALL");
     filters.put("functionKind", "ALL");
     filters.putAll(control);
-    return service.controlOptions(filters);
+    var repository = new com.data.collection.platform.service.read.ReadPublicationRepository(jdbcTemplate);
+    var key = com.data.collection.platform.entity.read.ReadPublicationDomainKey.gitlabFact(PROBE_SOURCE,
+        com.data.collection.platform.entity.FactType.ISSUE);
+    var point = repository.findCurrentPublication(repository.findDomain(key).orElseThrow().id()).orElseThrow();
+    var selection = new com.data.collection.platform.entity.read.FactReadSelection(List.of(
+        new com.data.collection.platform.entity.read.PublishedReadContext(PROBE_SOURCE, PublicationFactTable.ISSUE,
+            point.epochId(), point.sequenceNo(), point.id(), point.dataAsOf())), java.time.LocalDate.of(2026, 9, 22));
+    return service.forRead(selection).controlOptions(filters);
   }
 
   private String milestoneFilterGroupJson() {
@@ -253,12 +265,21 @@ class CustomerIssueCustomerStatisticsControlOptionsTest {
 
   private void insertIssue(long sequence, String customers, String modules, String function) {
     IssueFact fact = baseFact(sequence, customers, modules, function);
-    issueFactMapper.upsert(fact);
-    if (customers == null) {
-      return;
-    }
     fact.setCustomerNames(customers);
-    issueFactPersistenceService.upsertIssueFacts(List.of(fact));
+    var key = com.data.collection.platform.entity.read.ReadPublicationDomainKey.gitlabFact(PROBE_SOURCE,
+        com.data.collection.platform.entity.FactType.ISSUE);
+    boolean full = new com.data.collection.platform.service.read.ReadPublicationRepository(jdbcTemplate)
+        .findDomain(key).map(domain -> domain.currentPublicationId()).isEmpty();
+    com.data.collection.platform.service.FactRevisionFixture.publishFacts(jdbcTemplate,
+        PublicationFactTable.ISSUE, PROBE_SOURCE, full, target -> {
+          issueFactPersistenceService.upsertIssueFacts(target, List.of(fact));
+          return new com.data.collection.platform.entity.FactBuildResponse("fixture", full, 1, "fixture");
+        });
+    com.data.collection.platform.service.FactRevisionFixture.advanceScopeVersion(jdbcTemplate, PROBE_SOURCE,
+        java.util.Set.of(new com.data.collection.platform.entity.FactProjectionScope(PROBE_SOURCE,
+            com.data.collection.platform.entity.FactType.ISSUE,
+            com.data.collection.platform.entity.ProjectionScopeType.FULL_EPOCH,
+            com.data.collection.platform.service.FactProjectionScopeKeyCodec.SINGLETON_SCOPE_KEY)));
   }
 
   private IssueFact baseFact(long sequence, String customers, String modules, String function) {
@@ -403,9 +424,10 @@ class CustomerIssueCustomerStatisticsControlOptionsTest {
   private void cleanUp() {
     jdbcTemplate.update(
         "delete from fact_projection_generations where source_instance = ?", PROBE_SOURCE);
-    jdbcTemplate.update("delete from issue_fact where source_instance = ?", PROBE_SOURCE);
+    // 客户成员关系按外键挂在事实修订上，必须先删关系再删事实。
     jdbcTemplate.update(
         "delete from issue_fact_customer_members where source_instance = ?", PROBE_SOURCE);
+    jdbcTemplate.update("delete from issue_fact where source_instance = ?", PROBE_SOURCE);
     jdbcTemplate.update("delete from issue_scope_members where group_id = ?", PROBE_CONFIG_ID);
     jdbcTemplate.update("delete from issue_scope_groups where id = ?", PROBE_CONFIG_ID);
     jdbcTemplate.update("delete from issue_scope_catalogs where project_name = '成员候选目录'");

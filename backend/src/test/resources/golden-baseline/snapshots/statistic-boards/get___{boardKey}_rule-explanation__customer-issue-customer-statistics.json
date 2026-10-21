@@ -6,7 +6,7 @@
     "boardKey" : "customer-issue-customer-statistics",
     "supported" : true,
     "title" : "客户问题统计规则说明",
-    "version" : "customer-issue-customer-statistics@2026-09-28-v2",
+    "version" : "customer-issue-customer-statistics@2026-10-15-v6",
     "scopeDescription" : "限定项目 325 已启用里程碑范围内的客户问题，按客户或客户×模块/功能展开；全部指标在去重议题身份上计算。",
     "summary" : "多客户议题在各客户行各计一次，总计行按完整议题身份去重；缺陷与需求可能交叉，不展示“总问题数＋总需求数”。",
     "flowSteps" : [ {
@@ -98,6 +98,28 @@
         "detail" : "【新建工程图】特定操作下，新建工程图中出现其它工程图视图。——博诚 | 模块: 工程图 | 严重程度: LEVEL2 | 优先级: P1"
       } ]
     }, {
+      "key" : "calibration-scope",
+      "title" : "校准集合",
+      "description" : "在常规缺陷 D 内剔除状态成员精确命中“数据异常”或“未复现”的议题并集，重叠议题只剔除一次；校准后修复率的分子与分母同时使用该集合，申请延期不额外剔除。",
+      "inputCount" : 352,
+      "outputCount" : 169,
+      "samples" : [ {
+        "label" : "#1809 CCProduct",
+        "detail" : "【检入】装配模型检入后可视化查看配合报错与CC中状态不一致——博诚 | 模块:  | 严重程度: LEVEL2 | 优先级: P1"
+      }, {
+        "label" : "#2143 CCProduct",
+        "detail" : "【干涉检查】大于100个实例的装配进行干涉检查效率较慢——优云智能 | 模块: 评估 | 严重程度: LEVEL2 | 优先级: P1"
+      }, {
+        "label" : "#1892 CCProduct",
+        "detail" : "【检入】总装检入PLM，PLM空间中已创建，但CC一直卡在检入界面——博诚电气 | 模块:  | 严重程度: LEVEL2 | 优先级: P1"
+      }, {
+        "label" : "#1893 CCProduct",
+        "detail" : "【零件属性】多次同时点击PDM-零件属性与ESC键，零件属性窗口弹出多个信息——博诚 | 模块:  | 严重程度: LEVEL2 | 优先级: P2"
+      }, {
+        "label" : "#1936 CCProduct",
+        "detail" : "【新建工程图】特定操作下，新建工程图中出现其它工程图视图。——博诚 | 模块: 工程图 | 严重程度: LEVEL2 | 优先级: P1"
+      } ]
+    }, {
       "key" : "delay-scope",
       "title" : "延期范围",
       "description" : "常规缺陷且无 GitLab 接口异常、open、命中响应或解决延期，形成集合 L。",
@@ -167,8 +189,26 @@
       "formula" : "count(D 且命中该指标成员条件)",
       "note" : "D"
     }, {
+      "key" : "defect_data_exception",
+      "label" : "数据异常",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "defect_not_reproduced",
+      "label" : "未复现",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
       "key" : "defect_fix_rate",
       "label" : "整体修复率",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
+      "note" : "D"
+    }, {
+      "key" : "defect_calibrated_fix_rate",
+      "label" : "校准后修复率",
       "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
       "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
       "note" : "D"
@@ -221,8 +261,26 @@
       "formula" : "count(D 且命中该指标成员条件)",
       "note" : "D"
     }, {
+      "key" : "level1_data_exception",
+      "label" : "数据异常",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level1_not_reproduced",
+      "label" : "未复现",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
       "key" : "level1_fix_rate",
       "label" : "缺陷修复率",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
+      "note" : "D"
+    }, {
+      "key" : "level1_calibrated_fix_rate",
+      "label" : "校准后修复率",
       "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
       "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
       "note" : "D"
@@ -251,8 +309,26 @@
       "formula" : "count(D 且命中该指标成员条件)",
       "note" : "D"
     }, {
+      "key" : "level2_data_exception",
+      "label" : "数据异常",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level2_not_reproduced",
+      "label" : "未复现",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
       "key" : "level2_fix_rate",
       "label" : "缺陷修复率",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
+      "note" : "D"
+    }, {
+      "key" : "level2_calibrated_fix_rate",
+      "label" : "校准后修复率",
       "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
       "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
       "note" : "D"
@@ -281,8 +357,26 @@
       "formula" : "count(D 且命中该指标成员条件)",
       "note" : "D"
     }, {
+      "key" : "level3_data_exception",
+      "label" : "数据异常",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "level3_not_reproduced",
+      "label" : "未复现",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
       "key" : "level3_fix_rate",
       "label" : "缺陷修复率",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
+      "note" : "D"
+    }, {
+      "key" : "level3_calibrated_fix_rate",
+      "label" : "校准后修复率",
       "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
       "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
       "note" : "D"
@@ -317,8 +411,26 @@
       "formula" : "count(D 且命中该指标成员条件)",
       "note" : "D"
     }, {
+      "key" : "p1_data_exception",
+      "label" : "数据异常",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "p1_not_reproduced",
+      "label" : "未复现",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
       "key" : "p1_fix_rate",
       "label" : "缺陷修复率",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
+      "note" : "D"
+    }, {
+      "key" : "p1_calibrated_fix_rate",
+      "label" : "校准后修复率",
       "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
       "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
       "note" : "D"
@@ -347,8 +459,26 @@
       "formula" : "count(D 且命中该指标成员条件)",
       "note" : "D"
     }, {
+      "key" : "p2_data_exception",
+      "label" : "数据异常",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "p2_not_reproduced",
+      "label" : "未复现",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
       "key" : "p2_fix_rate",
       "label" : "缺陷修复率",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
+      "note" : "D"
+    }, {
+      "key" : "p2_calibrated_fix_rate",
+      "label" : "校准后修复率",
       "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
       "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
       "note" : "D"
@@ -377,8 +507,26 @@
       "formula" : "count(D 且命中该指标成员条件)",
       "note" : "D"
     }, {
+      "key" : "p3_data_exception",
+      "label" : "数据异常",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
+      "key" : "p3_not_reproduced",
+      "label" : "未复现",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "count(D 且命中该指标成员条件)",
+      "note" : "D"
+    }, {
       "key" : "p3_fix_rate",
       "label" : "缺陷修复率",
+      "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
+      "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
+      "note" : "D"
+    }, {
+      "key" : "p3_calibrated_fix_rate",
+      "label" : "校准后修复率",
       "definition" : "常规缺陷（沿客户缺陷汇总排除后的非建议类议题）",
       "formula" : "分子 ÷ 分母 × 100，零分母不可计算",
       "note" : "D"
@@ -444,5 +592,18 @@
       "note" : "E"
     } ],
     "unsupportedReason" : null
+  },
+  "readView" : {
+    "readContextId" : "<verified-runtime-readContextId>",
+    "pageKey" : "customer-issue-customer-statistics",
+    "scopeKey" : "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "sourceVersion" : "<verified-runtime-sourceVersion>",
+    "businessDate" : "2026-09-01",
+    "leaseExpiresAt" : "<verified-runtime-leaseExpiresAt>",
+    "dataAsOf" : "<verified-runtime-dataAsOf>",
+    "pendingUpdates" : 0,
+    "sourceState" : "ATTENTION",
+    "sourceStateDetail" : "独立投影失败或停止，保留上一完整版本",
+    "escalated" : false
   }
 }

@@ -34,12 +34,31 @@ public class QualityBoardRdService {
   private final ReviewDataMatchModeRecordRepository reviewDataMatchModeRecordRepository;
   private final QualityBoardCodeReviewReadSupport codeReviewReadSupport;
 
+
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 完整页面组合下的只读计算对象，保留原公式与排序。 */
+  public QualityBoardRdService forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new QualityBoardRdService(this, selection);
+  }
+
+  private QualityBoardRdService(QualityBoardRdService factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.phaseScopeResolver = factory.phaseScopeResolver.forRead(java.util.Objects.requireNonNull(selection.facts()));
+    this.reviewDataRecordReadRepository = factory.reviewDataRecordReadRepository.forRead(selection);
+    this.reviewDataMatchModeRecordRepository = factory.reviewDataMatchModeRecordRepository.forRead(selection);
+    this.codeReviewReadSupport = factory.codeReviewReadSupport.forRead(selection);
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public QualityBoardRdService(
       JdbcTemplate jdbcTemplate,
       SystemTestPhaseScopeResolver phaseScopeResolver,
       ReviewDataRecordReadRepository reviewDataRecordReadRepository,
       ReviewDataMatchModeRecordRepository reviewDataMatchModeRecordRepository,
       QualityBoardCodeReviewReadSupport codeReviewReadSupport) {
+    this.fixedRead = null;
     this.jdbcTemplate = jdbcTemplate;
     this.phaseScopeResolver = phaseScopeResolver;
     this.reviewDataRecordReadRepository = reviewDataRecordReadRepository;
@@ -210,7 +229,7 @@ public class QualityBoardRdService {
         limit 20
         """
             .formatted(placeholders);
-    return jdbcTemplate.query(
+    return query(
         sql,
         (rs, rowNum) -> new QualityBoardChartRowResponse(
             rs.getString("person_name"),
@@ -273,7 +292,7 @@ public class QualityBoardRdService {
     queryArgs.add(emptyLabel);
     queryArgs.addAll(args);
     Map<String, Long> result = new java.util.LinkedHashMap<>();
-    jdbcTemplate.query(
+    query(
         sql,
         rs -> {
           while (rs.next()) {
@@ -336,7 +355,7 @@ public class QualityBoardRdService {
         order by total desc, person_name
         """
             .formatted(placeholders);
-    return jdbcTemplate.query(
+    return query(
         sql,
         (rs, rowNum) -> new QualityBoardFixUserSeverityRowResponse(
             rs.getString("person_name"),
@@ -372,7 +391,7 @@ public class QualityBoardRdService {
         order by value desc, person_name
         """
             .formatted(placeholders, openIssueStatePredicate());
-    return jdbcTemplate.query(
+    return query(
         sql,
         (rs, rowNum) -> new QualityBoardChartRowResponse(
             rs.getString("person_name"),
@@ -385,7 +404,7 @@ public class QualityBoardRdService {
       return 0D;
     }
     String testingPhase = projectName + "集成测试";
-    return jdbcTemplate.query(
+    return query(
         """
         select pass_case, execute_case
           from integration_test_fact
@@ -461,7 +480,7 @@ public class QualityBoardRdService {
       return 0L;
     }
     Long count =
-        jdbcTemplate.queryForObject(
+        queryForObject(
             """
             select coalesce(sum(not_pass_case), 0)
               from integration_test_fact
@@ -486,7 +505,7 @@ public class QualityBoardRdService {
     args.add(CROWN_CAD_PROJECT_ID);
     args.addAll(phases);
     Long count =
-        jdbcTemplate.queryForObject(
+        queryForObject(
             """
             select count(*)
               from issue_fact
@@ -520,9 +539,15 @@ public class QualityBoardRdService {
   }
 
   private boolean tableExists(String tableName) {
+    if (fixedRead != null) {
+      boolean bound = fixedRead.facts() != null && fixedRead.facts().contexts().stream()
+          .anyMatch(context -> context.table().tableName().equals(tableName));
+      if (!bound) { throw new IllegalStateException("完整质量看板缺少必需事实身份：" + tableName); }
+      return true;
+    }
     try {
       Boolean exists =
-          jdbcTemplate.queryForObject(
+          queryForObject(
               "select to_regclass(?) is not null",
               Boolean.class,
               "public." + tableName);
@@ -613,5 +638,18 @@ public class QualityBoardRdService {
     private long reviewScalePages() {
       return reviewScalePages;
     }
+  }
+
+  private <T> T queryForObject(String sql, Class<T> type, Object... args) {
+    return fixedRead == null ? jdbcTemplate.queryForObject(sql, type, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForObject(fixedRead, sql, type, args);
+  }
+  private <T> java.util.List<T> query(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, mapper, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, mapper, args);
+  }
+  private <T> T query(String sql, org.springframework.jdbc.core.ResultSetExtractor<T> extractor, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, extractor, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, extractor, args);
   }
 }

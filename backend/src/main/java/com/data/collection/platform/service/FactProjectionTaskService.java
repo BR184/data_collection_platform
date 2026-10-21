@@ -31,6 +31,52 @@ public class FactProjectionTaskService {
     this.publicationFenceService = publicationFenceService;
   }
 
+  /** 为已完成候选登记必需范围任务；不推进公开 generation，也不重派人工已停止的任务。 */
+  @Transactional
+  public int enqueuePreparedCandidates(Long factRunId) {
+    return jdbcTemplate.update("""
+        insert into fact_projection_refresh_tasks(fact_run_id, fact_build_task_id, publication_id,
+            source_instance, fact_type, scope_type, scope_key, target_generation)
+        select case when p.producer_task_id is null then null else p.producer_run_id::bigint end,
+            p.producer_task_id, p.id, d.source_instance, d.fact_type, g.scope_type, g.scope_key, g.candidate_generation
+          from read_publications p join read_publication_domains d on d.id = p.domain_id
+          join read_publication_scope_generations g on g.publication_id = p.id
+         where p.state = 'PROJECTING'
+           and ((?::bigint is null and p.producer_task_id is null) or p.producer_run_id = ?::text)
+        on conflict (publication_id, scope_type, scope_key) do update
+          set target_generation = excluded.target_generation, status = 'QUEUED', retry_count = 0,
+              run_after = current_timestamp, lease_owner = null, lease_until = null,
+              error_message = null, finished_at = null, updated_at = current_timestamp
+          where fact_projection_refresh_tasks.target_generation <> excluded.target_generation
+            and fact_projection_refresh_tasks.manual_disposition = 'NONE'
+            and fact_projection_refresh_tasks.status <> 'RUNNING'
+        """, factRunId, factRunId);
+  }
+
+  /** 领取无父 FACT_REFRESH 的旁路候选任务；仍使用同一持久租约、重试及候选证明门禁。 */
+  @Transactional
+  public QueuedFactProjectionTask claimNextStandalone(int leaseSeconds) {
+    String token = "projection-" + UUID.randomUUID();
+    List<QueuedFactProjectionTask> rows = jdbcTemplate.query("""
+        update fact_projection_refresh_tasks task
+           set status = 'RUNNING', lease_owner = ?, heartbeat_at = current_timestamp,
+               lease_until = current_timestamp + (? * interval '1 second'),
+               started_at = coalesce(started_at, current_timestamp), updated_at = current_timestamp
+         where task.id = (
+           select t.id from fact_projection_refresh_tasks t join read_publications p on p.id = t.publication_id
+            where t.fact_run_id is null and p.producer_task_id is null and p.state = 'PROJECTING'
+              and t.status in ('QUEUED', 'RETRY_WAITING') and t.manual_disposition = 'NONE'
+              and t.run_after <= current_timestamp order by t.id limit 1 for update of t skip locked)
+         returning task.*
+        """, (rs, row) -> new QueuedFactProjectionTask(rs.getLong("id"), null, null, null,
+            new FactProjectionScope(rs.getString("source_instance"), FactType.valueOf(rs.getString("fact_type")),
+                ProjectionScopeType.valueOf(rs.getString("scope_type")), rs.getString("scope_key")),
+            rs.getLong("target_generation"), rs.getInt("retry_count"), rs.getInt("max_retry_count"),
+            rs.getString("lease_owner"), toLocalDateTime(rs.getTimestamp("lease_until")),
+            rs.getObject("publication_id", UUID.class)), token, Math.max(1, leaseSeconds));
+    return rows.isEmpty() ? null : rows.getFirst();
+  }
+
   /** 仅在父运行仍由当前执行者持有时，领取一个到期投影任务。 */
   @Transactional
   public QueuedFactProjectionTask claimNext(
@@ -55,11 +101,14 @@ public class FactProjectionTaskService {
                  from fact_projection_refresh_tasks task
                  join sync_runs parent_run on parent_run.id = task.fact_run_id
                 where task.fact_run_id = ?
+                  and task.publication_id is not null
+                  and exists(select 1 from read_publications p where p.id = task.publication_id and p.state = 'PROJECTING')
                   and task.status in ('QUEUED', 'RETRY_WAITING')
                   and task.manual_disposition = 'NONE'
                   and task.run_after <= current_timestamp
                   and parent_run.status = 'RUNNING'
                   and parent_run.lease_owner = ?
+                  and not parent_run.cancel_requested
                   and parent_run.lease_until >= clock_timestamp()
                 order by task.id
                 for update of task skip locked
@@ -70,9 +119,9 @@ public class FactProjectionTaskService {
             (resultSet, rowNum) ->
                 new QueuedFactProjectionTask(
                     resultSet.getLong("id"),
-                    resultSet.getLong("fact_run_id"),
+                    resultSet.getObject("fact_run_id", Long.class),
                     parentLeaseToken,
-                    resultSet.getLong("fact_build_task_id"),
+                    resultSet.getObject("fact_build_task_id", Long.class),
                     new FactProjectionScope(
                         resultSet.getString("source_instance"),
                         FactType.valueOf(resultSet.getString("fact_type")),
@@ -82,7 +131,8 @@ public class FactProjectionTaskService {
                     resultSet.getInt("retry_count"),
                     resultSet.getInt("max_retry_count"),
                     resultSet.getString("lease_owner"),
-                    toLocalDateTime(resultSet.getTimestamp("lease_until"))),
+                    toLocalDateTime(resultSet.getTimestamp("lease_until")),
+                    resultSet.getObject("publication_id", UUID.class)),
             leaseToken,
             Math.max(1, leaseSeconds),
             factRunId,
@@ -108,7 +158,7 @@ public class FactProjectionTaskService {
             with expired as (
               select task.id, parent_run.status as parent_status
                 from fact_projection_refresh_tasks task
-                join sync_runs parent_run on parent_run.id = task.fact_run_id
+                left join sync_runs parent_run on parent_run.id = task.fact_run_id
                where task.status = 'RUNNING'
                  and task.manual_disposition = 'NONE'
                  and (task.lease_until is null or task.lease_until < clock_timestamp())
@@ -200,7 +250,15 @@ public class FactProjectionTaskService {
                    updated_at = current_timestamp
              where id = ? and status = 'RUNNING' and lease_owner = ?
                and target_generation = ? and lease_until >= clock_timestamp()
-               and exists (
+               and publication_id = ?
+               and exists(select 1 from read_projection_artifacts artifact join read_publications p
+                 on p.id = artifact.publication_id where artifact.publication_id = fact_projection_refresh_tasks.publication_id
+                   and artifact.scope_type = fact_projection_refresh_tasks.scope_type
+                   and artifact.scope_key = fact_projection_refresh_tasks.scope_key
+                   and artifact.generation = fact_projection_refresh_tasks.target_generation
+                   and artifact.definition_snapshot_id = p.definition_snapshot_id
+                   and artifact.source_seal = p.source_seal and p.state = 'PROJECTING')
+               and (fact_projection_refresh_tasks.fact_run_id is null or exists (
                  select 1
                    from sync_runs parent_run
                   where parent_run.id = fact_projection_refresh_tasks.fact_run_id
@@ -208,11 +266,12 @@ public class FactProjectionTaskService {
                     and parent_run.status in ('RUNNING', 'RETRYING')
                     and parent_run.lease_owner = ?
                     and parent_run.cancel_requested = false
-                    and parent_run.lease_until >= clock_timestamp())
+                    and parent_run.lease_until >= clock_timestamp()))
             """,
             task.id(),
             task.leaseToken(),
             task.targetGeneration(),
+            task.publicationId(),
             task.factRunLeaseToken());
     if (updated != 1) {
       throw new ProjectionTaskLeaseLostException(task.id());
@@ -233,7 +292,7 @@ public class FactProjectionTaskService {
                    updated_at = clock_timestamp()
              where id = ? and status = 'RUNNING' and lease_owner = ?
                and target_generation = ? and lease_until >= clock_timestamp()
-               and exists (
+               and (fact_projection_refresh_tasks.fact_run_id is null or exists (
                  select 1
                    from sync_runs parent_run
                   where parent_run.id = fact_projection_refresh_tasks.fact_run_id
@@ -241,7 +300,7 @@ public class FactProjectionTaskService {
                     and parent_run.status in ('RUNNING', 'RETRYING')
                     and parent_run.lease_owner = ?
                     and parent_run.cancel_requested = false
-                    and parent_run.lease_until >= clock_timestamp())
+                    and parent_run.lease_until >= clock_timestamp()))
             """,
             Math.max(1, leaseSeconds),
             task.id(),
@@ -281,7 +340,7 @@ public class FactProjectionTaskService {
                    updated_at = current_timestamp
              where id = ? and status = 'RUNNING' and lease_owner = ?
                and target_generation = ? and lease_until >= clock_timestamp()
-               and exists (
+               and (fact_projection_refresh_tasks.fact_run_id is null or exists (
                  select 1
                    from sync_runs parent_run
                   where parent_run.id = fact_projection_refresh_tasks.fact_run_id
@@ -289,7 +348,7 @@ public class FactProjectionTaskService {
                     and parent_run.status in ('RUNNING', 'RETRYING')
                     and parent_run.lease_owner = ?
                     and parent_run.cancel_requested = false
-                    and parent_run.lease_until >= clock_timestamp())
+                    and parent_run.lease_until >= clock_timestamp()))
              returning status, run_after
             """,
             (resultSet, rowNum) ->

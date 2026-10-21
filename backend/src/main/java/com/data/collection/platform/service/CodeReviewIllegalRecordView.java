@@ -46,5 +46,6 @@ record CodeReviewIllegalRecordView(
     Integer commitCount,
     Integer commitRate,
     String functionName,
-    Integer clangAddedLineCount) {
+    Integer clangAddedLineCount,
+    String legacySourceId) {
 }

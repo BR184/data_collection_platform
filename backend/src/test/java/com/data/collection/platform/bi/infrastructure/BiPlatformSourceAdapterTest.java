@@ -30,6 +30,34 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 
 class BiPlatformSourceAdapterTest {
+  private org.mockito.MockedConstruction<com.data.collection.platform.service.read.VersionedDatasetSql> sqlBoundary;
+
+  /** 字段映射单测只替身 SQL 边界；真实版本区间/冻结关系由 PG 集成测试保护。 */
+  @org.junit.jupiter.api.BeforeEach
+  void bindQueryBoundary() {
+    when(commitRepository.forRead(any())).thenReturn(commitRepository);
+    sqlBoundary = org.mockito.Mockito.mockConstruction(
+        com.data.collection.platform.service.read.VersionedDatasetSql.class, (sql, context) ->
+            when(sql.query(any(com.data.collection.platform.entity.read.DatasetReadSelection.class), anyString(), any(RowMapper.class), any(Object[].class)))
+                .thenAnswer(invocation -> {
+                  String query = invocation.getArgument(1);
+                  RowMapper<?> rowMapper = invocation.getArgument(2);
+                  if (query.contains("review_visible_records")) {
+                    return jdbcTemplate.query(query, rowMapper, (Object[]) invocation.getRawArguments()[3]);
+                  }
+                  return jdbcTemplate.query(query, rowMapper);
+                }));
+  }
+
+  @org.junit.jupiter.api.AfterEach
+  void releaseQueryBoundary() { sqlBoundary.close(); }
+
+  private BiPlatformCodingSourceAdapter boundCoding(BiPlatformCodingSourceAdapter adapter, boolean commitsAvailable) {
+    var selection = com.data.collection.platform.service.read.TestReadSelections.datasets();
+    var context = new BiPlatformCodeReviewSourceContextFactory(compatibilityModeEnabled, snapshotService,
+        () -> "fixture", () -> commitsAvailable, () -> "fixture");
+    return adapter.forRead(selection, context.forRead(selection, compatibilityModeEnabled.getAsBoolean(), commitsAvailable));
+  }
   private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
   private final PageRecordSnapshotService snapshotService = mock(PageRecordSnapshotService.class);
   private final BooleanSupplier compatibilityModeEnabled = mock(BooleanSupplier.class);
@@ -55,7 +83,7 @@ class BiPlatformSourceAdapterTest {
         new BiProductVersionMatcher(),
         commitRepository);
 
-    var source = adapter.load(scope(), new BiCodingSourcePort.Query(
+    var source = boundCoding(adapter, true).load(scope(), new BiCodingSourcePort.Query(
         com.data.collection.platform.bi.domain.source.BiCodingSource.Granularity.DAY,
         BiCodingSourcePort.Source.ALL,
         null));
@@ -69,7 +97,7 @@ class BiPlatformSourceAdapterTest {
     assertThat(source.codeReviews()).singleElement().satisfies(record ->
         assertThat(record.module().displayName()).isEqualTo("草图"));
     assertThat(source.sourceVersion())
-        .isEqualTo("formal:coding-v1|review:formal|commits:commits-v1");
+        .isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion());
     ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
     verify(jdbcTemplate).query(sql.capture(), any(RowMapper.class));
     assertThat(sql.getValue())
@@ -96,13 +124,13 @@ class BiPlatformSourceAdapterTest {
         new BiProductVersionMatcher(),
         commitRepository);
 
-    var source = adapter.load(scope(), new BiCodingSourcePort.Query(
+    var source = boundCoding(adapter, true).load(scope(), new BiCodingSourcePort.Query(
         com.data.collection.platform.bi.domain.source.BiCodingSource.Granularity.DAY,
         BiCodingSourcePort.Source.ALL,
         null));
 
     assertThat(source.sourceVersion())
-        .isEqualTo("compatibility:coding-v1|review:review-v1|commits:commits-v1");
+        .isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion());
     assertThat(source.mergeRequests()).singleElement().satisfies(record ->
         assertThat(record.mergeRequestIdentity()).isEqualTo(
             new BiCodingSource.CompatibilityMergeRequestIdentity("cc", 101L)));
@@ -128,7 +156,7 @@ class BiPlatformSourceAdapterTest {
     when(compatibilityModeEnabled.getAsBoolean()).thenReturn(true);
     var adapter = codingAdapter();
 
-    BiCodingSource source = adapter.load(scope(), codingQuery());
+    BiCodingSource source = boundCoding(adapter, true).load(scope(), codingQuery());
 
     assertThat(source.codeReviews()).hasSize(1);
     assertThat(source.reviewMetricsAvailable()).isTrue();
@@ -145,7 +173,7 @@ class BiPlatformSourceAdapterTest {
     when(snapshotService.codeReviewSourceVersion()).thenReturn("coding-v1");
     when(compatibilityModeEnabled.getAsBoolean()).thenReturn(false);
 
-    BiCodingSource source = codingAdapter().load(scope(), codingQuery());
+    BiCodingSource source = boundCoding(codingAdapter(), true).load(scope(), codingQuery());
 
     assertThat(source.reviewMetricsAvailable()).isFalse();
     assertThat(source.reviewDensityDataAvailable()).isTrue();
@@ -162,7 +190,7 @@ class BiPlatformSourceAdapterTest {
     when(snapshotService.codeReviewSourceVersion()).thenReturn("coding-v1");
     when(compatibilityModeEnabled.getAsBoolean()).thenReturn(true);
 
-    BiCodingSource source = codingAdapter().load(scope(), codingQuery());
+    BiCodingSource source = boundCoding(codingAdapter(), true).load(scope(), codingQuery());
 
     assertThat(source.mergeRequests()).hasSize(1);
     assertThat(source.codeReviews()).isEmpty();
@@ -189,7 +217,7 @@ class BiPlatformSourceAdapterTest {
     when(compatibilityModeEnabled.getAsBoolean()).thenReturn(true);
 
     var response = new BiCodingCalculator().calculate(
-        codingAdapter().load(scope(), codingQuery()));
+        boundCoding(codingAdapter(), true).load(scope(), codingQuery()));
 
     assertThat(response.data().summary().mergeRequestCount()).isEqualTo(2L);
     assertThat(response.data().summary().addedLines()).isEqualTo(1100L);
@@ -216,14 +244,14 @@ class BiPlatformSourceAdapterTest {
     when(compatibilityModeEnabled.getAsBoolean()).thenReturn(false);
 
     var response = new BiCodingCalculator().calculate(
-        codingAdapter().load(scope(), codingQuery()));
+        boundCoding(codingAdapter(), true).load(scope(), codingQuery()));
 
     assertThat(response.data().summary().mergeRequestCount()).isEqualTo(2L);
     assertThat(response.data().summary().addedLines()).isEqualTo(1100L);
   }
 
   @Test
-  void currentCodingSourceVersionIncludesThePlatformReadMode() {
+  void currentCodingSourceVersionKeepsTheAcceptedPublicationWhenLiveModeChanges() {
     when(snapshotService.codeReviewSourceVersion()).thenReturn("coding-v1");
     when(compatibilityModeEnabled.getAsBoolean()).thenReturn(true, false);
     var sourceContextFactory = new BiPlatformCodeReviewSourceContextFactory(
@@ -233,12 +261,13 @@ class BiPlatformSourceAdapterTest {
         () -> true,
         () -> "commits-v1");
     var adapter = new BiPlatformCurrentSourceVersionAdapter(
-        snapshotService, sourceContextFactory, mock(BiCatMirrorRepository.class));
+        snapshotService, sourceContextFactory, mock(BiCatMirrorRepository.class))
+        .forRead(com.data.collection.platform.service.read.TestReadSelections.datasets());
 
     assertThat(adapter.current("coding", scope()))
-        .isEqualTo("compatibility:coding-v1|review:review-v1|commits:commits-v1");
+        .isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion());
     assertThat(adapter.current("coding", scope()))
-        .isEqualTo("formal:coding-v1|review:formal|commits:commits-v1");
+        .isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion());
   }
 
   @Test
@@ -260,12 +289,12 @@ class BiPlatformSourceAdapterTest {
         new BiProductVersionMatcher(),
         commitRepository);
 
-    BiCodingSource source = adapter.load(scope(), codingQuery());
+    BiCodingSource source = boundCoding(adapter, false).load(scope(), codingQuery());
 
     assertThat(source.commitDetailsAvailable()).isFalse();
     assertThat(source.commits()).isEmpty();
-    assertThat(source.sourceVersion()).endsWith("|commits:unavailable");
-    verifyNoInteractions(commitRepository);
+    assertThat(source.sourceVersion()).isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion());
+    org.mockito.Mockito.verify(commitRepository, org.mockito.Mockito.never()).load();
   }
 
   @Test
@@ -277,7 +306,8 @@ class BiPlatformSourceAdapterTest {
     var adapter = new BiPlatformReviewSourceAdapter(
         jdbcTemplate, snapshotService, new BiProductVersionMatcher());
 
-    var source = adapter.load(scope(), BiReviewSourcePort.ReviewStage.REQUIREMENTS);
+    var source = adapter.forRead(com.data.collection.platform.service.read.TestReadSelections.datasets())
+        .load(scope(), BiReviewSourcePort.ReviewStage.REQUIREMENTS);
 
     assertThat(source.records()).singleElement().satisfies(record -> {
       assertThat(record.module().sourceValue()).isEqualTo("装配");
@@ -298,7 +328,7 @@ class BiPlatformSourceAdapterTest {
         new BiSystemTestCauseClassifier(),
         new BiSystemTestDelayCauseClassifier());
 
-    var source = adapter.load(scope());
+    var source = adapter.forRead(com.data.collection.platform.service.read.TestReadSelections.all()).load(scope());
 
     assertThat(source.issues()).singleElement().satisfies(issue -> {
       assertThat(issue.modules()).extracting("displayName").containsExactly("草图", "装配");

@@ -544,11 +544,24 @@
       } ]
     } ],
     "meta" : {
-      "generatedAt" : "2026-09-29T12:45:13.5236383+08:00",
-      "queryDurationMs" : 20,
+      "generatedAt" : "2026-10-15T13:22:41.5992083+08:00",
+      "queryDurationMs" : 9,
       "rowCount" : 7,
       "columnCount" : 5,
       "drilldownColumnCount" : 4
     }
+  },
+  "readView" : {
+    "readContextId" : "<verified-runtime-readContextId>",
+    "pageKey" : "system-test-phase-statistics",
+    "scopeKey" : "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "sourceVersion" : "<verified-runtime-sourceVersion>",
+    "businessDate" : "2026-09-01",
+    "leaseExpiresAt" : "<verified-runtime-leaseExpiresAt>",
+    "dataAsOf" : "<verified-runtime-dataAsOf>",
+    "pendingUpdates" : 0,
+    "sourceState" : "ATTENTION",
+    "sourceStateDetail" : "独立投影失败或停止，保留上一完整版本",
+    "escalated" : false
   }
 }

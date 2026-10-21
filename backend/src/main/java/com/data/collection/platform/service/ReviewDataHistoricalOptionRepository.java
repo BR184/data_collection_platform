@@ -15,7 +15,22 @@ import org.springframework.stereotype.Repository;
 public class ReviewDataHistoricalOptionRepository {
   private final JdbcTemplate jdbcTemplate;
 
+
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 固定页面关系读取对象；原仓储工厂仅供当前业务命令与安装控制面。 */
+  public ReviewDataHistoricalOptionRepository forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new ReviewDataHistoricalOptionRepository(this, selection);
+  }
+
+  private ReviewDataHistoricalOptionRepository(ReviewDataHistoricalOptionRepository factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public ReviewDataHistoricalOptionRepository(JdbcTemplate jdbcTemplate) {
+    this.fixedRead = null;
     this.jdbcTemplate = jdbcTemplate;
   }
 
@@ -32,7 +47,7 @@ public class ReviewDataHistoricalOptionRepository {
          where deleted = false
            and nullif(btrim(review_version), '') is not null
          group by review_version
-         order by max(created_at) desc nulls last
+         order by max(created_at) desc nulls last, review_version
          limit 200
         """,
         "review_records.review_version");
@@ -51,7 +66,7 @@ public class ReviewDataHistoricalOptionRepository {
          where deleted = false
            and nullif(btrim(module_name), '') is not null
          group by module_name
-         order by max(created_at) desc nulls last
+         order by max(created_at) desc nulls last, module_name
          limit 200
         """,
         "review_records.module_name");
@@ -70,7 +85,7 @@ public class ReviewDataHistoricalOptionRepository {
          where deleted = false
            and nullif(btrim(project_name), '') is not null
          group by project_name
-         order by max(created_at) desc nulls last
+         order by max(created_at) desc nulls last, project_name
          limit 200
         """,
         "review_records.project_name");
@@ -88,7 +103,7 @@ public class ReviewDataHistoricalOptionRepository {
          where deleted = false
            and nullif(btrim(review_owner), '') is not null
          group by review_owner
-         order by max(created_at) desc nulls last
+         order by max(created_at) desc nulls last, review_owner
          limit 200
         """,
         "review_records.review_owner");
@@ -107,7 +122,7 @@ public class ReviewDataHistoricalOptionRepository {
          where deleted = false
            and nullif(btrim(expert_name), '') is not null
          group by expert_name
-         order by count(*) desc
+         order by count(*) desc, expert_name
          limit 200
         """,
         "review_record_experts.expert_name");
@@ -133,7 +148,7 @@ public class ReviewDataHistoricalOptionRepository {
                and nullif(btrim(owner_name), '') is not null
           ) users
          group by user_name
-         order by max(created_at) desc nulls last
+         order by max(created_at) desc nulls last, user_name
          limit 200
         """,
         "review_records.author_name/review_problem_items.owner_name");
@@ -141,10 +156,24 @@ public class ReviewDataHistoricalOptionRepository {
 
   private List<String> queryDistinct(String sql, String sourceName) {
     try {
-      return jdbcTemplate.queryForList(sql, String.class);
+      return queryForList(sql, String.class);
     } catch (DataAccessException error) {
+      if (fixedRead != null) { throw error; }
       log.debug("Review data historical option source {} is unavailable", sourceName, error);
       return List.of();
     }
+  }
+
+  private <T> T query(String sql, org.springframework.jdbc.core.ResultSetExtractor<T> extractor, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, extractor, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, extractor, args);
+  }
+  private <T> T queryForObject(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    return fixedRead == null ? jdbcTemplate.queryForObject(sql, mapper, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForObject(fixedRead, sql, mapper, args);
+  }
+  private <T> java.util.List<T> queryForList(String sql, Class<T> type, Object... args) {
+    return fixedRead == null ? jdbcTemplate.queryForList(sql, type, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForList(fixedRead, sql, type, args);
   }
 }

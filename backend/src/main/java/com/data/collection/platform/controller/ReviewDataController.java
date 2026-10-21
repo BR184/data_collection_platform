@@ -57,6 +57,8 @@ public class ReviewDataController {
   private final ReviewDataProperties reviewDataProperties;
   private final ReviewDataAuthorizationService authorizationService;
 
+  private final com.data.collection.platform.service.read.ReadViewApplicationService pageReads;
+
   @Autowired
   public ReviewDataController(
       ReviewDataRecordService reviewDataRecordService,
@@ -65,7 +67,9 @@ public class ReviewDataController {
       ReviewDataExcelExportService excelExportService,
       ReviewDataTemplateWorkbookService templateWorkbookService,
       ReviewDataProperties reviewDataProperties,
-      ReviewDataAuthorizationService authorizationService) {
+      ReviewDataAuthorizationService authorizationService,
+      com.data.collection.platform.service.read.ReadViewApplicationService pageReads) {
+    this.pageReads = pageReads;
     this.reviewDataRecordService = reviewDataRecordService;
     this.reviewDataRequestAssembler = reviewDataRequestAssembler;
     this.legacyExcelImportService = legacyExcelImportService;
@@ -75,63 +79,53 @@ public class ReviewDataController {
     this.authorizationService = authorizationService;
   }
 
-  public ReviewDataController(
-      ReviewDataRecordService reviewDataRecordService,
-      ReviewDataRequestAssembler reviewDataRequestAssembler,
-      ReviewDataLegacyExcelImportService legacyExcelImportService,
-      ReviewDataExcelExportService excelExportService,
-      ReviewDataTemplateWorkbookService templateWorkbookService,
-      ReviewDataProperties reviewDataProperties) {
-    this(
-        reviewDataRecordService,
-        reviewDataRequestAssembler,
-        legacyExcelImportService,
-        excelExportService,
-        templateWorkbookService,
-        reviewDataProperties,
-        null);
-  }
+
 
   @GetMapping("/records")
   public ApiResponse<ReviewDataRecordListResponse> listRecords(
-      @ModelAttribute ReviewDataRecordListRequest request) {
-    return ApiResponse.success(
-        reviewDataRecordService.listRecords(reviewDataRequestAssembler.toQueryRequest(request)));
+      @ModelAttribute ReviewDataRecordListRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, "review-data-records", pageReads.parameters(httpRequest),
+        selection -> reviewDataRecordService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection).listRecords(reviewDataRequestAssembler.toQueryRequest(request))).response();
   }
 
   @GetMapping("/records/filter-options")
   public ApiResponse<ReviewDataFilterOptionsResponse> getFilterOptions(
-      @ModelAttribute ReviewDataRecordListRequest request) {
-    return ApiResponse.success(reviewDataRecordService.getFilterOptions());
+      @ModelAttribute ReviewDataRecordListRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, "review-data-records", pageReads.parameters(httpRequest),
+        selection -> reviewDataRecordService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection).getFilterOptions()).response();
   }
 
   @GetMapping("/records/{recordId}")
-  public ApiResponse<ReviewDataRecordDetailResponse> getRecordDetail(@PathVariable Long recordId) {
-    return ApiResponse.success(reviewDataRecordService.getRecordDetail(recordId));
+  public ApiResponse<ReviewDataRecordDetailResponse> getRecordDetail(@PathVariable Long recordId, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, "review-data-records", pageReads.parameters(httpRequest),
+        selection -> reviewDataRecordService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection).getRecordDetail(recordId)).response();
   }
 
   @GetMapping("/records/export")
   @RequirePermission("review.record.export")
-  public ResponseEntity<byte[]> exportRecords(@ModelAttribute ReviewDataRecordListRequest request) {
-    return excelResponse(
-        excelExportService.exportReviewRecordsWorkbook(reviewDataRequestAssembler.toQueryRequest(request)),
-        "评审数据" + java.time.LocalDateTime.now() + ".xlsx");
+  public ResponseEntity<byte[]> exportRecords(@ModelAttribute ReviewDataRecordListRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    var exported = pageReads.read(httpRequest, "review-data-records", pageReads.parameters(httpRequest),
+        selection -> excelExportService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection).exportReviewRecordsWorkbook(reviewDataRequestAssembler.toQueryRequest(request)));
+    return exported.download(excelResponse(exported.data(),
+        "评审数据" + java.time.LocalDateTime.now() + ".xlsx"));
   }
 
   @GetMapping("/problem-items/export")
   @RequirePermission("review.problem.export")
-  public ResponseEntity<byte[]> exportProblemDetails(@ModelAttribute ReviewDataRecordListRequest request) {
-    return excelResponse(
-        excelExportService.exportProblemDetailsWorkbook(reviewDataRequestAssembler.toQueryRequest(request)),
-        "评审问题详情.xlsx");
+  public ResponseEntity<byte[]> exportProblemDetails(@ModelAttribute ReviewDataRecordListRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    var exported = pageReads.read(httpRequest, "review-data-records", pageReads.parameters(httpRequest),
+        selection -> excelExportService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection).exportProblemDetailsWorkbook(reviewDataRequestAssembler.toQueryRequest(request)));
+    return exported.download(excelResponse(exported.data(),
+        "评审问题详情.xlsx"));
   }
 
   @GetMapping("/records/{recordId}/problem-items/export")
   @RequirePermission("review.problem.export")
-  public ResponseEntity<byte[]> exportRecordProblemDetails(@PathVariable Long recordId) {
-    return excelResponse(
-        excelExportService.exportProblemDetailsWorkbook(recordId),
-        "问题详情.xlsx");
+  public ResponseEntity<byte[]> exportRecordProblemDetails(@PathVariable Long recordId, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    var exported = pageReads.read(httpRequest, "review-data-records", pageReads.parameters(httpRequest),
+        selection -> excelExportService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection).exportProblemDetailsWorkbook(recordId));
+    return exported.download(excelResponse(exported.data(),
+        "问题详情.xlsx"));
   }
 
   @GetMapping("/template")
@@ -175,8 +169,9 @@ public class ReviewDataController {
   }
 
   @GetMapping("/records/{recordId}/problem-items")
-  public ApiResponse<List<ReviewDataProblemItemResponse>> listProblemItems(@PathVariable Long recordId) {
-    return ApiResponse.success(reviewDataRecordService.listProblemItems(recordId));
+  public ApiResponse<List<ReviewDataProblemItemResponse>> listProblemItems(@PathVariable Long recordId, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    return pageReads.read(httpRequest, "review-data-records", pageReads.parameters(httpRequest),
+        selection -> reviewDataRecordService.forRead((com.data.collection.platform.entity.read.DatasetReadSelection) selection).listProblemItems(recordId)).response();
   }
 
   @PostMapping("/records/search-index/backfill")

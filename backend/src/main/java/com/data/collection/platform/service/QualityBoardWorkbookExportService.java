@@ -27,6 +27,11 @@ public class QualityBoardWorkbookExportService {
     this.codeReviewReadSupport = codeReviewReadSupport;
   }
 
+  /** 工作簿与页面复用完整读取身份，导出期间仍核验当前权限。 */
+  public QualityBoardWorkbookExportService forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new QualityBoardWorkbookExportService(rdService.forRead(selection), codeReviewReadSupport.forRead(selection));
+  }
+
   public byte[] exportRdChartWorkbook(
       String projectName,
       String codeReviewSource,

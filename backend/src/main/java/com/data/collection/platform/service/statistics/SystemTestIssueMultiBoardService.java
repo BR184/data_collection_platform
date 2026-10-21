@@ -47,7 +47,9 @@ public class SystemTestIssueMultiBoardService {
   private final SystemTestPhaseCatalogService phaseCatalogService;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final ObjectMapper objectMapper;
+  private final com.data.collection.platform.entity.read.FactReadSelection readSelection;
 
+  @org.springframework.beans.factory.annotation.Autowired
   public SystemTestIssueMultiBoardService(
       JdbcTemplate jdbcTemplate,
       SystemTestPhaseCatalogService phaseCatalogService,
@@ -57,6 +59,21 @@ public class SystemTestIssueMultiBoardService {
     this.phaseCatalogService = phaseCatalogService;
     this.phaseScopeResolver = phaseScopeResolver;
     this.objectMapper = objectMapper;
+    this.readSelection = null;
+  }
+
+  /** 数据及下载使用同一明确事实组合；工厂只提供配置依赖，不保存请求版本。 */
+  public SystemTestIssueMultiBoardService forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new SystemTestIssueMultiBoardService(this, selection);
+  }
+
+  private SystemTestIssueMultiBoardService(SystemTestIssueMultiBoardService factory,
+      com.data.collection.platform.entity.read.FactReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.phaseCatalogService = factory.phaseCatalogService.forRead(selection);
+    this.phaseScopeResolver = factory.phaseScopeResolver.forRead(selection);
+    this.objectMapper = factory.objectMapper;
+    this.readSelection = java.util.Objects.requireNonNull(selection);
   }
 
   public SystemTestIssueMultiBoardResponse getBoard(Long projectId, String testingPhase) {
@@ -549,7 +566,10 @@ public class SystemTestIssueMultiBoardService {
       args.addAll(phasePredicate.args());
     }
     sql.append(" order by issue_iid asc");
-    return jdbcTemplate.query(sql.toString(), this::mapIssueRow, args.toArray());
+    com.data.collection.platform.service.read.VersionedFactSql.Query bounded =
+        com.data.collection.platform.service.read.VersionedFactSql.bind(
+            java.util.Objects.requireNonNull(readSelection, "数据读取必须持有版本"), sql.toString(), args);
+    return jdbcTemplate.query(bounded.sql(), this::mapIssueRow, bounded.arguments().toArray());
   }
 
   private IssueRow mapIssueRow(ResultSet rs, int rowNum) throws SQLException {
@@ -588,8 +608,22 @@ public class SystemTestIssueMultiBoardService {
         rs.getBoolean("is_regression"));
   }
 
+  private <T> List<T> queryRows(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    com.data.collection.platform.service.read.VersionedFactSql.Query bounded =
+        com.data.collection.platform.service.read.VersionedFactSql.bind(
+            java.util.Objects.requireNonNull(readSelection, "数据读取必须持有版本"), sql, java.util.Arrays.asList(args));
+    return jdbcTemplate.query(bounded.sql(), mapper, bounded.arguments().toArray());
+  }
+
+  private <T> List<T> queryValues(String sql, Class<T> valueType, Object... args) {
+    com.data.collection.platform.service.read.VersionedFactSql.Query bounded =
+        com.data.collection.platform.service.read.VersionedFactSql.bind(
+            java.util.Objects.requireNonNull(readSelection, "数据读取必须持有版本"), sql, java.util.Arrays.asList(args));
+    return jdbcTemplate.queryForList(bounded.sql(), valueType, bounded.arguments().toArray());
+  }
+
   private List<OptionItemResponse> loadProjectOptions() {
-    return jdbcTemplate.query(
+    return queryRows(
         """
         select project_id, max(coalesce(project_name, '')) as project_name
           from issue_fact
@@ -608,7 +642,7 @@ public class SystemTestIssueMultiBoardService {
     if (!parents.isEmpty()) {
       return OptionItemResponseFactory.fromValuesPreservingOrder(parents, TextQuerySupport::trimToNull);
     }
-    List<String> phases = jdbcTemplate.queryForList(
+    List<String> phases = queryValues(
         """
         select distinct testing_phase
           from issue_fact
@@ -623,7 +657,7 @@ public class SystemTestIssueMultiBoardService {
   }
 
   private String loadProjectName(long projectId) {
-    List<String> names = jdbcTemplate.queryForList(
+    List<String> names = queryValues(
         """
         select coalesce(project_name, '')
           from issue_fact

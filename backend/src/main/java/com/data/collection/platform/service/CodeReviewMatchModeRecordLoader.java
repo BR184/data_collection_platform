@@ -29,6 +29,7 @@ public class CodeReviewMatchModeRecordLoader {
   private static final String SELECT_SQL = """
       select
         source_instance,
+        legacy_source_id,
         merge_request_id,
         merge_request_iid,
         project_id,
@@ -73,16 +74,40 @@ public class CodeReviewMatchModeRecordLoader {
       """ + BASE_WHERE;
   private static final Map<String, String> SORT_COLUMNS = createSortColumns();
 
+  /**
+   * 并列行的稳定收尾：同一合并请求号可能与老平台多条走查记录对应，
+   * 只按走查时间/合并请求号排序时并列行的顺序由物理行序决定，同一份数据在两次运行间可能返回不同顺序。
+   * 来源关系的业务身份是 (source_instance, legacy_source_id)，用后者按主排序方向稳定收尾，不依赖物理行序。
+   */
+  private static final String LEGACY_IDENTITY_TIE_BREAK =
+      ", nullif(btrim(legacy_source_id), '') desc nulls last";
+
   private final JdbcTemplate jdbcTemplate;
 
+
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 固定页面关系读取对象；原仓储工厂仅供当前业务命令与安装控制面。 */
+  public CodeReviewMatchModeRecordLoader forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new CodeReviewMatchModeRecordLoader(this, selection);
+  }
+
+  private CodeReviewMatchModeRecordLoader(CodeReviewMatchModeRecordLoader factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public CodeReviewMatchModeRecordLoader(JdbcTemplate jdbcTemplate) {
+    this.fixedRead = null;
     this.jdbcTemplate = jdbcTemplate;
   }
 
   //兼容模式-MatchMode
   public List<CodeReviewIllegalRecordSource> loadSources(Map<String, String> filters) {
     QueryParts parts = buildSourceQuery(filters == null ? Map.of() : filters);
-    return jdbcTemplate.query(SELECT_SQL + parts.tailWhere() + " order by merged_at_source desc nulls last", this::mapSource, parts.args().toArray());
+    return query(SELECT_SQL + parts.tailWhere() + " order by merged_at_source desc nulls last"
+        + LEGACY_IDENTITY_TIE_BREAK, this::mapSource, parts.args().toArray());
   }
 
   //兼容模式-MatchMode
@@ -127,7 +152,7 @@ public class CodeReviewMatchModeRecordLoader {
       return new PageSlice<>(List.of(), 0, query.page(), query.size());
     }
     QueryParts parts = buildPageQuery(query.request(), query.filterGroup(), true);
-    Long total = jdbcTemplate.queryForObject("select count(*) from code_review_match_mode_records" + parts.where(), Long.class, parts.args().toArray());
+    Long total = queryForObject("select count(*) from code_review_match_mode_records" + parts.where(), Long.class, parts.args().toArray());
     if (total == null || total == 0) {
       return new PageSlice<>(List.of(), 0, query.page(), query.size());
     }
@@ -135,7 +160,7 @@ public class CodeReviewMatchModeRecordLoader {
     args.add(query.size());
     args.add((long) (query.page() - 1) * query.size());
     List<CodeReviewIllegalRecordSource> records =
-        jdbcTemplate.query(
+        query(
             SELECT_SQL
                 + parts.tailWhere()
                 + " order by "
@@ -148,6 +173,7 @@ public class CodeReviewMatchModeRecordLoader {
                 + nullsClause(query.sortOrder())
                 + ", merge_request_iid "
                 + sortOrder(query.sortOrder())
+                + LEGACY_IDENTITY_TIE_BREAK
                 + " limit ? offset ?",
             this::mapSource,
             args.toArray());
@@ -159,8 +185,9 @@ public class CodeReviewMatchModeRecordLoader {
       CodeReviewIllegalRecordQueryRequest request,
       StatisticFilterGroup filterGroup) {
     QueryParts parts = buildPageQuery(request, filterGroup, false);
-    return jdbcTemplate.query(
-        SELECT_SQL + parts.tailWhere() + " order by merge_request_iid desc nulls last, merged_at_source desc nulls last",
+    return query(
+        SELECT_SQL + parts.tailWhere() + " order by merge_request_iid desc nulls last, merged_at_source desc nulls last"
+            + LEGACY_IDENTITY_TIE_BREAK,
         this::mapSource,
         parts.args().toArray());
   }
@@ -173,7 +200,7 @@ public class CodeReviewMatchModeRecordLoader {
       return List.of();
     }
     QueryParts parts = buildPageQuery(request, filterGroup, true);
-    return jdbcTemplate.query(
+    return query(
         SELECT_SQL + parts.tailWhere() + orderByClause(request.sortField(), request.sortOrder()),
         this::mapSource,
         parts.args().toArray());
@@ -245,7 +272,7 @@ public class CodeReviewMatchModeRecordLoader {
   }
 
   private List<CodeReviewIllegalRecordFilterProjectOption> queryProjectOptions(QueryParts parts) {
-    return jdbcTemplate.query(
+    return query(
         "select project_id, project_name from code_review_match_mode_records "
             + parts.where()
             + """
@@ -272,7 +299,7 @@ public class CodeReviewMatchModeRecordLoader {
             .reduce((left, right) -> left + "\nunion all\n" + right)
             .orElse("");
     List<OptionGroupValue> rows =
-        jdbcTemplate.query(
+        query(
             "with scoped as (select "
                 + selectColumns
                 + " from code_review_match_mode_records "
@@ -528,7 +555,8 @@ public class CodeReviewMatchModeRecordLoader {
         + order
         + nullsClause(order)
         + ", merge_request_iid "
-        + order;
+        + order
+        + LEGACY_IDENTITY_TIE_BREAK;
   }
 
   private String sortOrder(String sortOrder) {
@@ -581,7 +609,8 @@ public class CodeReviewMatchModeRecordLoader {
         (Integer) rs.getObject("commit_count"),
         (Integer) rs.getObject("commit_rate"),
         rs.getString("function_name"),
-        (Integer) rs.getObject("clang_added_line_count"));
+        (Integer) rs.getObject("clang_added_line_count"),
+        rs.getString("legacy_source_id"));
   }
 
   private Double toDouble(Object value) {
@@ -633,4 +662,21 @@ public class CodeReviewMatchModeRecordLoader {
   }
 
   private record OptionGroupValue(String group, String value) {}
+
+  private <T> java.util.List<T> query(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, mapper, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, mapper, args);
+  }
+  private <T> T query(String sql, org.springframework.jdbc.core.ResultSetExtractor<T> extractor, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, extractor, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, extractor, args);
+  }
+  private <T> T queryForObject(String sql, Class<T> type, Object... args) {
+    return fixedRead == null ? jdbcTemplate.queryForObject(sql, type, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForObject(fixedRead, sql, type, args);
+  }
+  private <T> T queryForObject(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    return fixedRead == null ? jdbcTemplate.queryForObject(sql, mapper, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForObject(fixedRead, sql, mapper, args);
+  }
 }

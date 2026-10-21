@@ -20,9 +20,25 @@ public class QualityBoardCodeReviewReadSupport {
   private final JdbcTemplate jdbcTemplate;
   private final CodeReviewMatchModeSwitchService matchModeSwitchService;
 
+
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 完整页面组合下的只读计算对象，保留原公式与排序。 */
+  public QualityBoardCodeReviewReadSupport forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new QualityBoardCodeReviewReadSupport(this, selection);
+  }
+
+  private QualityBoardCodeReviewReadSupport(QualityBoardCodeReviewReadSupport factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.matchModeSwitchService = factory.matchModeSwitchService.forRead(selection);
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public QualityBoardCodeReviewReadSupport(
       JdbcTemplate jdbcTemplate,
       CodeReviewMatchModeSwitchService matchModeSwitchService) {
+    this.fixedRead = null;
     this.jdbcTemplate = jdbcTemplate;
     this.matchModeSwitchService = matchModeSwitchService;
   }
@@ -72,7 +88,7 @@ public class QualityBoardCodeReviewReadSupport {
             id,
             coalesce(defect_count, 0) as defect_count,
             coalesce(added_lines, 0) as added_lines,
-            row_number() over(partition by %s order by id asc) as row_number_in_mr
+            row_number() over(partition by %s order by %s) as row_number_in_mr
           from %s
           where %s
             and lower(coalesce(target_branch, '')) = 'dev'
@@ -95,12 +111,13 @@ public class QualityBoardCodeReviewReadSupport {
             .formatted(
                 identity,
                 identity,
+                scope.stableRowRank(),
                 scope.tableName(),
                 queryScope.predicate(),
                 scope.deletedPredicate(),
                 identity,
                 identity);
-    return jdbcTemplate.query(
+    return query(
         sql,
         rs -> {
           if (!rs.next()) {
@@ -182,7 +199,7 @@ public class QualityBoardCodeReviewReadSupport {
             queryScope.predicate(),
             scope.deletedPredicate(),
                 illegalRecordPredicate);
-    return jdbcTemplate.query(
+    return query(
         sql,
         (rs, rowNum) ->
             new QualityBoardChartRowResponse(
@@ -215,7 +232,7 @@ public class QualityBoardCodeReviewReadSupport {
         order by value desc, person_name
         """
             .formatted(scope.tableName(), queryScope.predicate(), scope.deletedPredicate());
-    return jdbcTemplate.query(
+    return query(
         sql,
         (rs, rowNum) ->
             new QualityBoardChartRowResponse(
@@ -282,10 +299,11 @@ public class QualityBoardCodeReviewReadSupport {
         from %s
         where %s
           %s
-        order by merged_at_source desc nulls last, merge_request_iid desc
+        order by merged_at_source desc nulls last, merge_request_iid desc, %s desc
         """
-            .formatted(scope.tableName(), queryScope.predicate(), scope.deletedPredicate());
-    return jdbcTemplate.query(
+            .formatted(scope.tableName(), queryScope.predicate(), scope.deletedPredicate(),
+                scope.stableTieBreak());
+    return query(
         sql,
         (rs, rowNum) ->
             new QualityBoardCodeReviewRecordExportRow(
@@ -444,7 +462,7 @@ public class QualityBoardCodeReviewReadSupport {
           select
             nullif(btrim(%s), '') as group_name,
             coalesce(added_lines, 0) as added_lines,
-            row_number() over(partition by %s order by id asc) as row_number_in_mr
+            row_number() over(partition by %s order by %s) as row_number_in_mr
           from %s
           where %s
             %s
@@ -460,12 +478,13 @@ public class QualityBoardCodeReviewReadSupport {
             .formatted(
                 safeGroupField,
                 identity,
+                scope.stableRowRank(),
                 scope.tableName(),
                 queryScope.predicate(),
                 scope.deletedPredicate(),
                 population.predicate());
     Map<String, Long> result = new LinkedHashMap<>();
-    jdbcTemplate.query(
+    query(
         sql,
         rs -> {
           while (rs.next()) {
@@ -555,7 +574,7 @@ public class QualityBoardCodeReviewReadSupport {
             + "and btrim(project_name) <> '未标注项目名' "
             + "and btrim(project_name) not like '未设定%' "
             + "group by btrim(project_name) order by lower(btrim(project_name))";
-    List<String> projectNames = jdbcTemplate.query(
+    List<String> projectNames = query(
         sql,
         (rs, rowNum) -> rs.getString("project_name"),
         queryScope.args().toArray());
@@ -616,6 +635,14 @@ public class QualityBoardCodeReviewReadSupport {
     return null;
   }
 
+  private <T> java.util.List<T> query(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, mapper, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, mapper, args);
+  }
+  private <T> T query(String sql, org.springframework.jdbc.core.ResultSetExtractor<T> extractor, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, extractor, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, extractor, args);
+  }
 }
 
 record QualityBoardCodeReviewReadScope(
@@ -631,10 +658,34 @@ record QualityBoardCodeReviewReadScope(
     projectNames = projectNames == null ? List.of() : List.copyOf(projectNames);
     additionalArgs = additionalArgs == null ? List.of() : List.copyOf(additionalArgs);
   }
+
+  /**
+   * 并列行的稳定收尾表达式（不含排序方向）。
+   *
+   * <p>只按合并时间与合并请求号排序时，并列行顺序由物理行序决定，同一份数据在两次运行间可能返回不同顺序
+   * （导出曾出现整行互换）。正式事实按业务根先后（同根多修订共享）与修订可见起点收尾；兼容走查快照按
+   * 来源关系的业务身份 {@code (source_instance, legacy_source_id)} 收尾，末位保留其自有主键作为同身份兜底
+   * （该主键属于冻结数据集内容，非本次构建产物）。
+   */
+  String stableTieBreak() {
+    return isMatchMode()
+        ? "nullif(btrim(legacy_source_id), ''), id"
+        : "business_order_id, visible_from";
+  }
+
+  /** 同一业务根取首条修订的稳定判定顺序：不依赖物理修订 id，兼容快照按其自有主键。 */
+  String stableRowRank() {
+    return isMatchMode() ? "id asc" : "business_order_id asc, visible_from asc";
+  }
+
+  private boolean isMatchMode() {
+    return "code_review_match_mode_records".equals(tableName);
+  }
 }
 
 record QualityBoardCodeReviewQueryScope(String predicate, List<Object> args) {
   QualityBoardCodeReviewQueryScope {
     args = args == null ? List.of() : List.copyOf(args);
   }
+
 }

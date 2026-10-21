@@ -21,15 +21,15 @@ import org.springframework.jdbc.core.RowMapper;
 @ExtendWith(MockitoExtension.class)
 class IssueFactDiagnosticsServiceTest {
 
-  @Mock private IssueFactQueryService issueFactQueryService;
+  @Mock private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
   @Test
   @SuppressWarnings("unchecked")
   void shouldSummarizeIssueFactCoverageByScope() throws Exception {
-    when(issueFactQueryService.query(anyString(), anyMap(), any(RowMapper.class)))
+    when(jdbcTemplate.query(anyString(), any(RowMapper.class)))
         .thenAnswer(
             invocation -> {
-              RowMapper<Object> mapper = invocation.getArgument(2);
+              RowMapper<Object> mapper = invocation.getArgument(1);
               return List.of(
                   mapper.mapRow(
                       row(
@@ -77,7 +77,7 @@ class IssueFactDiagnosticsServiceTest {
 
     IssueFactDiagnosticsService service =
         new IssueFactDiagnosticsService(
-            issueFactQueryService,
+            jdbcTemplate,
             new SystemTestScopeProfile(),
             new CustomerIssueScopeProfile());
 

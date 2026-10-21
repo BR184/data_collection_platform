@@ -18,9 +18,13 @@ import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
+import com.data.collection.platform.entity.statistics.StatisticFilterField;
+import com.data.collection.platform.entity.statistics.StatisticFilterOption;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
 import com.data.collection.platform.service.CustomerIssueFactQueryService;
 import com.data.collection.platform.service.CustomerIssueFactQueryService.CustomerIssueFact;
+import com.data.collection.platform.service.CustomerIssueFactQueryService.FactScopeRequest;
+import com.data.collection.platform.service.CustomerIssueFactQueryService.SelectionKind;
 import com.data.collection.platform.service.FactProjectionScopeKeyCodec;
 import com.data.collection.platform.service.FactProjectionVersionService;
 import com.data.collection.platform.service.GitlabResourceLinkService;
@@ -37,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -58,6 +63,14 @@ import org.springframework.jdbc.core.ResultSetExtractor;
  */
 @ExtendWith(MockitoExtension.class)
 class CustomerIssueCustomerStatisticsDetailContractTest {
+  private void bindReadDependencyFixtures() {
+    // 公式单测复用同一数据替身；实际修订隔离由真库读取测试覆盖。
+    org.mockito.Mockito.lenient().when(factQueryService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(factQueryService);
+    org.mockito.Mockito.lenient().when(milestoneCatalogService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(milestoneCatalogService);
+    org.mockito.Mockito.lenient().when(scopeResolver.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(scopeResolver);
+    org.mockito.Mockito.lenient().when(runtimeSupport.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(runtimeSupport);
+  }
+
   private static final long CUSTOMER_PROJECT_ID = 325L;
   private static final String SOURCE_VERSION = "fact-projection:v1:abc123";
   private static final String BUSINESS_DATE = "2026-09-22";
@@ -75,6 +88,7 @@ class CustomerIssueCustomerStatisticsDetailContractTest {
 
   @BeforeEach
   void setUp() {
+    bindReadDependencyFixtures();
     lenient().when(milestoneCatalogService.defaultMilestone()).thenReturn("CC2026R3");
     lenient().when(milestoneCatalogService.resolveMilestoneValues(anyString())).thenReturn(List.of("CC2026 R3"));
     lenient().when(milestoneCatalogService.matches(anyString(), any())).thenReturn(true);
@@ -100,22 +114,22 @@ class CustomerIssueCustomerStatisticsDetailContractTest {
         .query(anyString(), any(PreparedStatementSetter.class), any(ResultSetExtractor.class));
     StatisticBoardSnapshotService.SourceRead testRead =
         new StatisticBoardSnapshotService.SourceRead(
-            StatisticBoardTestSnapshotScopes.defaultProjectScopeSet(), SOURCE_VERSION, 0L, true, null);
+            StatisticBoardTestSnapshotScopes.defaultProjectScopeSet(), SOURCE_VERSION, 0L, com.data.collection.platform.service.read.TestReadSelections.all());
     doAnswer(
             invocation ->
                 ((Function<StatisticBoardSnapshotService.SourceRead, StatisticBoardResponse>)
-                        invocation.getArgument(1))
+                        invocation.getArgument(2))
                     .apply(testRead))
         .when(snapshotService)
-        .readOrRefresh(any(), any());
+        .readOrRefresh(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), any(), any());
     // 明细链路走一致性边界：桩以同一测试版本执行边界内动作，生产端的版本判定仍然生效。
     lenient()
         .doAnswer(
             invocation ->
-                ((Function<StatisticBoardSnapshotService.SourceRead, ?>) invocation.getArgument(1))
+                ((Function<StatisticBoardSnapshotService.SourceRead, ?>) invocation.getArgument(2))
                     .apply(testRead))
         .when(snapshotService)
-        .withinConsistentCurrentFactRead(any(), any());
+        .withinVersionedRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), any(), any());
     service =
         new CustomerIssueCustomerStatisticsBoardService(
             new JsonUtils(new ObjectMapper()),
@@ -127,7 +141,7 @@ class CustomerIssueCustomerStatisticsDetailContractTest {
             new StatisticBoardReadScopeResolver(projectionVersionService, scopeResolver),
             runtimeSupport,
             new StatisticIssueLinkSupport(issueLinkService, jdbcTemplate),
-            new SystemBusinessDateProvider());
+            new SystemBusinessDateProvider()).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
   }
 
   @Test
@@ -401,6 +415,121 @@ class CustomerIssueCustomerStatisticsDetailContractTest {
         .hasMessageContaining("未知的客户问题统计指标列");
   }
 
+  @Test
+  void test_detailDrilldown_severityAndOpenStateValues_useSharedChineseDisplay() {
+    stubFacts(
+        fact("客户甲", 1L, "已修复", "LEVEL1", "P1").build(),
+        fact("客户甲", 2L, "已修复", "LEVEL2", "P2").issueState("closed").build(),
+        fact("客户甲", 3L, "已修复", "LEVEL3", "P3").build(),
+        fact("客户甲", 4L, "已修复", "", "P3").build(),
+        fact("客户甲", 5L, "已修复", "SUGGESTION", "P3").build());
+
+    StatisticBoardResponse board = loadBoard(BUSINESS_DATE);
+    // 中文只发生在展示投影：主表口径与事实枚举保持不变。
+    assertThat(cellOf(board, "客户甲", "defect_total").numericValue()).isEqualTo(4L);
+    assertThat(cellOf(board, "客户甲", "suggestion_total").numericValue()).isEqualTo(1L);
+
+    StatisticDetailResponse defects = loadDetail(board, "客户甲", "defect_total", "COUNTED", 1, 10);
+    assertThat(defects.records())
+        .extracting(record ->
+            record.get("title") + "/" + record.get("severityLevel") + "/" + record.get("state"))
+        .containsExactlyInAnyOrder(
+            "标题1/一级缺陷/未关闭",
+            "标题2/二级缺陷/已关闭",
+            "标题3/三级缺陷/未关闭",
+            "标题4//未关闭");
+    assertThat(defects.quickFilterOptions().get("severityLevel"))
+        .as("下钻候选必须与记录展示值同语义，不再暴露 LEVEL 原值；空严重程度按既有候选规则不成为候选")
+        .containsExactlyInAnyOrder("一级缺陷", "二级缺陷", "三级缺陷");
+    assertThat(defects.quickFilterOptions().get("state"))
+        .containsExactlyInAnyOrder("未关闭", "已关闭");
+
+    StatisticDetailResponse openFirst =
+        loadDetail(board, "客户甲", "defect_total", "COUNTED", "state", "ascending");
+    assertThat(openFirst.records()).extracting(record -> record.get("state"))
+        .containsExactly("未关闭", "未关闭", "未关闭", "已关闭");
+
+    StatisticBoardResponse levelOneOnly = service.loadBoard(
+        Map.of(
+            "businessDate", BUSINESS_DATE,
+            "groupBy", "CUSTOMER",
+            "filterGroup",
+                "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"severityLevel\","
+                    + "\"operator\":\"eq\",\"value\":\"LEVEL1\"}]}"));
+    assertThat(cellOf(levelOneOnly, "客户甲", "defect_total").numericValue())
+        .as("条件求值仍使用事实原值 LEVEL1，不受中文展示影响")
+        .isEqualTo(1L);
+  }
+
+  private StatisticDetailResponse loadDetail(
+      StatisticBoardResponse board,
+      String rowLabel,
+      String columnKey,
+      String population,
+      String sortField,
+      String sortOrder) {
+    return service.loadDetail(
+        new StatisticDetailRequest(
+            CustomerIssueCustomerStatisticsBoardService.BOARD_KEY,
+            cellOf(board, rowLabel, columnKey).detailParams().get("rowKey"),
+            columnKey,
+            1,
+            10,
+            sortField,
+            sortOrder,
+            detailFilters(board, rowLabel, columnKey, population)));
+  }
+
+  @Test
+  void test_personQuickCandidates_useBaseScopeFactsAndDoNotShrinkWithMemberSelection() {
+    CustomerIssueFact selected =
+        fact("客户甲", 91L, "已修复", "LEVEL2", "P2").author("张三").assignee("李四").build();
+    CustomerIssueFact otherCustomer =
+        fact("客户乙", 92L, "已修复", "LEVEL2", "P2").author("赵六").assignee("  ").build();
+    CustomerIssueFact duplicatedAuthor =
+        fact("客户乙", 93L, "已修复", "LEVEL2", "P2").author("张三").assignee("李四").build();
+    lenient()
+        .when(factQueryService.load(any()))
+        .thenAnswer(
+            invocation -> {
+              FactScopeRequest request = invocation.getArgument(0);
+              boolean baseScope = request.customer().kind() == SelectionKind.ALL;
+              return baseScope
+                  ? List.of(selected, otherCustomer, duplicatedAuthor)
+                  : List.of(selected);
+            });
+
+    StatisticBoardResponse board =
+        service.loadBoard(
+            Map.of(
+                "businessDate", BUSINESS_DATE,
+                "groupBy", "CUSTOMER",
+                "customer", "客户甲",
+                "customerKind", "VALUE"));
+
+    assertThat(board.rows()).extracting(StatisticRowData::rowLabel).containsExactly("客户甲", "总计");
+    StatisticFilterField author = definitionField(board, "authorName");
+    assertThat(author.type()).isEqualTo("text");
+    assertThat(author.operators())
+        .as("补候选不得缩小文本字段原有的关系清单")
+        .containsExactly("eq", "ne", "contains", "isEmpty", "isNotEmpty");
+    assertThat(author.options())
+        .extracting(StatisticFilterOption::label, StatisticFilterOption::value)
+        .as("人员候选取基础范围事实，不随当前客户成员收缩，也不重复列出同名人员")
+        .containsExactly(Tuple.tuple("张三", "张三"), Tuple.tuple("赵六", "赵六"));
+    assertThat(definitionField(board, "assigneeName").options())
+        .extracting(StatisticFilterOption::value)
+        .as("空人员取值不成为候选")
+        .containsExactly("李四");
+  }
+
+  private static StatisticFilterField definitionField(StatisticBoardResponse response, String key) {
+    return response.definition().filters().stream()
+        .filter(field -> key.equals(field.key()))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("缺少条件字段: " + key));
+  }
+
   private void stubFacts(CustomerIssueFact... facts) {
     lenient().when(factQueryService.load(any())).thenReturn(List.of(facts));
   }
@@ -522,6 +651,9 @@ class CustomerIssueCustomerStatisticsDetailContractTest {
     private final String priority;
     private String module = "模块A";
     private String function = "功能A";
+    private String issueState = "opened";
+    private String authorName = "作者";
+    private String assigneeName = "处理人";
     private LocalDateTime createdAt;
     private LocalDateTime researchTemplateTime;
     private LocalDateTime fixedLabelTime;
@@ -542,6 +674,21 @@ class CustomerIssueCustomerStatisticsDetailContractTest {
 
     FactBuilder function(String value) {
       this.function = value;
+      return this;
+    }
+
+    FactBuilder issueState(String value) {
+      this.issueState = value;
+      return this;
+    }
+
+    FactBuilder author(String value) {
+      this.authorName = value;
+      return this;
+    }
+
+    FactBuilder assignee(String value) {
+      this.assigneeName = value;
       return this;
     }
 
@@ -569,10 +716,10 @@ class CustomerIssueCustomerStatisticsDetailContractTest {
           issueIid,
           "项目",
           "标题" + issueIid,
-          "opened",
+          issueState,
           "CC2026 R3",
-          "作者",
-          "处理人",
+          authorName,
+          assigneeName,
           severity,
           priority,
           bugStatus,

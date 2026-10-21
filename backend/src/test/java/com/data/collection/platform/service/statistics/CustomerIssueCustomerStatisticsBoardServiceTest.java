@@ -42,6 +42,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 class CustomerIssueCustomerStatisticsBoardServiceTest {
+  private void bindReadDependencyFixtures() {
+    // 公式单测复用同一数据替身；实际修订隔离由真库读取测试覆盖。
+    org.mockito.Mockito.lenient().when(factQueryService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(factQueryService);
+    org.mockito.Mockito.lenient().when(milestoneCatalogService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(milestoneCatalogService);
+    org.mockito.Mockito.lenient().when(scopeResolver.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(scopeResolver);
+    org.mockito.Mockito.lenient().when(runtimeSupport.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(runtimeSupport);
+  }
+
   private static final long CUSTOMER_PROJECT_ID = 325L;
 
   @Mock private CustomerIssueFactQueryService factQueryService;
@@ -56,6 +64,7 @@ class CustomerIssueCustomerStatisticsBoardServiceTest {
 
   @BeforeEach
   void setUp() {
+    bindReadDependencyFixtures();
     org.mockito.Mockito.lenient()
         .when(milestoneCatalogService.defaultMilestone())
         .thenReturn("CC2026R3");
@@ -87,48 +96,46 @@ class CustomerIssueCustomerStatisticsBoardServiceTest {
             new StatisticBoardReadScopeResolver(projectionVersionService, scopeResolver),
             runtimeSupport,
             issueLinkSupport,
-            new SystemBusinessDateProvider());
+            new SystemBusinessDateProvider()).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
   }
 
   @Test
   void snapshotRequestCarriesBusinessDateAndActuallyReadSources() {
-    when(projectionVersionService.knownSourceInstances(FactType.ISSUE))
-        .thenReturn(Set.of("cc", "default"));
 
     StatisticBoardSnapshotService.SnapshotRequest withoutSource =
         captureRequest(Map.of("businessDate", "2026-09-22"));
     StatisticBoardSnapshotService.SnapshotRequest nextDay =
         captureRequest(Map.of("businessDate", "2026-09-23"));
     StatisticBoardSnapshotService.SnapshotRequest selectedSource =
-        captureRequest(Map.of("businessDate", "2026-09-22", "sourceInstance", "cc"));
+        captureRequest(Map.of("businessDate", "2026-09-22", "sourceInstance", "default"));
 
     assertThat(withoutSource.cacheFilterPayload().get("businessDate")).isEqualTo("2026-09-22");
     assertThat(sourceInstancesOf(withoutSource.readScopes().resolve()))
-        .as("未选择来源时查询读取全部来源，版本必须覆盖每个已存在代际的来源")
-        .containsExactly("cc", "default");
+        .as("来源限于已接受版本，控制面启用的其它来源不扩大旧视图")
+        .containsExactly("default");
     assertThat(nextDay.cacheFilterPayload())
         .as("业务日进入快照键，跨日不得复用同一条 READY 结果")
         .isNotEqualTo(withoutSource.cacheFilterPayload());
     assertThat(selectedSource.readScopes().resolve())
         .as("显式选择来源时只声明该来源")
-        .allSatisfy(scope -> assertThat(scope.sourceInstance()).isEqualTo("cc"));
+        .allSatisfy(scope -> assertThat(scope.sourceInstance()).isEqualTo("default"));
     assertThat(selectedSource.cacheFilterPayload()).isNotEqualTo(withoutSource.cacheFilterPayload());
   }
 
   @Test
   void boardLoadReadsThroughOwnSnapshotRequestAndReturnsTotalRowForEmptyScope() {
     doAnswer(invocation -> ((Function<StatisticBoardSnapshotService.SourceRead, StatisticBoardResponse>)
-                invocation.getArgument(1))
+                invocation.getArgument(2))
             .apply(StatisticBoardTestSnapshotScopes.testSourceRead()))
         .when(snapshotService)
-        .readOrRefresh(any(), any());
+        .readOrRefresh(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), any(), any());
 
     StatisticBoardResponse response =
         service.loadBoard(Map.of("businessDate", "2026-09-22", "groupBy", "CUSTOMER"));
 
     ArgumentCaptor<StatisticBoardSnapshotService.SnapshotRequest> captor =
         ArgumentCaptor.forClass(StatisticBoardSnapshotService.SnapshotRequest.class);
-    org.mockito.Mockito.verify(snapshotService).readOrRefresh(captor.capture(), any());
+    org.mockito.Mockito.verify(snapshotService).readOrRefresh(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), captor.capture(), any());
     assertThat(captor.getValue().cacheFilterPayload().get("groupBy")).isEqualTo("CUSTOMER");
     assertThat(captor.getValue().cacheFilterPayload().get("businessDate")).isEqualTo("2026-09-22");
     assertThat(response.rows()).hasSize(1);
@@ -172,7 +179,7 @@ class CustomerIssueCustomerStatisticsBoardServiceTest {
   private StatisticBoardSnapshotService.SnapshotRequest captureRequest(Map<String, String> filters) {
     ArgumentCaptor<StatisticBoardSnapshotService.SnapshotRequest> captor =
         ArgumentCaptor.forClass(StatisticBoardSnapshotService.SnapshotRequest.class);
-    doAnswer(invocation -> null).when(snapshotService).readOrRefresh(captor.capture(), any());
+    doAnswer(invocation -> null).when(snapshotService).readOrRefresh(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), captor.capture(), any());
     service.loadBoard(filters);
     return captor.getValue();
   }

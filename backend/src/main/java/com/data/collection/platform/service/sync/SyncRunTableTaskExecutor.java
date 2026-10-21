@@ -320,7 +320,7 @@ public class SyncRunTableTaskExecutor {
   }
 
   private void markFailure(SyncRunTableTask task, SyncRunTableState state, Exception e) {
-    String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+    String message = failurePolicy.describeFailure(e);
     SyncTableTaskFailurePolicy.Decision decision =
         failurePolicy.evaluate(
             e,

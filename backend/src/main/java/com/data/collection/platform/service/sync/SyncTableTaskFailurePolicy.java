@@ -47,6 +47,28 @@ public class SyncTableTaskFailurePolicy {
     return new Decision(true, now.plusSeconds(delaySeconds));
   }
 
+  /** 保存外层错误、底层异常及全部 SQLState/驱动码；不额外读取 SQL 或绑定参数。 */
+  public String describeFailure(Throwable error) {
+    java.util.Set<Throwable> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+    java.util.ArrayDeque<Throwable> pending = new java.util.ArrayDeque<>();
+    pending.add(java.util.Objects.requireNonNull(error));
+    java.util.List<String> diagnostics = new java.util.ArrayList<>();
+    while (!pending.isEmpty()) {
+      Throwable current = pending.removeFirst();
+      if (!seen.add(current)) { continue; }
+      String message = current.getMessage();
+      String entry = current.getClass().getSimpleName() + ": "
+          + (message == null ? "无异常消息" : message);
+      if (current instanceof SQLException sql) {
+        entry += " [SQLState=" + sql.getSQLState() + ", vendorCode=" + sql.getErrorCode() + "]";
+        if (sql.getNextException() != null) { pending.addLast(sql.getNextException()); }
+      }
+      diagnostics.add(entry);
+      if (current.getCause() != null) { pending.addLast(current.getCause()); }
+    }
+    return String.join(" <- ", diagnostics);
+  }
+
   private boolean isTransient(Throwable error) {
     Throwable current = error;
     while (current != null) {

@@ -1,0 +1,225 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "dashboardKey" : "quality-rd",
+    "viewKey" : "fix-user-defects",
+    "title" : "按修复人统计缺陷明细",
+    "description" : "展示按修复人及缺陷级别聚合图所使用的系统测试缺陷原始记录。",
+    "columns" : [ {
+      "key" : "issueIid",
+      "label" : "议题编号",
+      "format" : "number",
+      "width" : 110
+    }, {
+      "key" : "title",
+      "label" : "标题",
+      "format" : "text",
+      "width" : 300
+    }, {
+      "key" : "issueState",
+      "label" : "议题状态",
+      "format" : "text",
+      "width" : 110
+    }, {
+      "key" : "testingPhase",
+      "label" : "测试阶段",
+      "format" : "text",
+      "width" : 180
+    }, {
+      "key" : "moduleName",
+      "label" : "模块",
+      "format" : "text",
+      "width" : 170
+    }, {
+      "key" : "assigneeName",
+      "label" : "指派人",
+      "format" : "text",
+      "width" : 140
+    }, {
+      "key" : "fixUser",
+      "label" : "修复人",
+      "format" : "text",
+      "width" : 140
+    }, {
+      "key" : "severityLevel",
+      "label" : "严重程度",
+      "format" : "text",
+      "width" : 120
+    }, {
+      "key" : "priorityLevel",
+      "label" : "紧急程度",
+      "format" : "text",
+      "width" : 120
+    }, {
+      "key" : "bugStatus",
+      "label" : "处理状态",
+      "format" : "text",
+      "width" : 160
+    }, {
+      "key" : "category",
+      "label" : "类别",
+      "format" : "text",
+      "width" : 150
+    }, {
+      "key" : "updatedAt",
+      "label" : "更新时间",
+      "format" : "datetime",
+      "width" : 180
+    } ],
+    "records" : [ {
+      "sourceInstance" : "default",
+      "projectName" : "CrownCAD",
+      "issueIid" : 30708,
+      "title" : "【标注弧长】特定标注弧长尺寸，将尺寸移动到尺寸线外时，引线丢失",
+      "issueState" : "未关闭",
+      "testingPhase" : "CC2026R3第六轮系统测试",
+      "moduleName" : "工程图",
+      "functionName" : "标注弧长",
+      "authorName" : "陈艺珲",
+      "assigneeName" : "牛闯",
+      "fixUser" : "牛闯",
+      "severityLevel" : "二级缺陷",
+      "priorityLevel" : "P2",
+      "bugStatus" : "已修复/完成 & 未更新 & 申请延期",
+      "category" : "未设定类别",
+      "delayCause" : "资源卡点",
+      "createdAt" : "2026-04-16T07:02:40.098+08:00",
+      "updatedAt" : "2026-06-29T16:23:48.443+08:00"
+    }, {
+      "sourceInstance" : "default",
+      "projectName" : "CrownCAD",
+      "issueIid" : 30193,
+      "title" : "【智能尺寸】特定工程图，更改模型中拉伸特征的合并结果后，所有尺寸都变为无关联",
+      "issueState" : "未关闭",
+      "testingPhase" : "CC2026R3第五轮系统测试",
+      "moduleName" : "工程图",
+      "functionName" : "智能尺寸",
+      "authorName" : "陈艺珲",
+      "assigneeName" : "狄林林",
+      "fixUser" : "狄林林",
+      "severityLevel" : "二级缺陷",
+      "priorityLevel" : "P1",
+      "bugStatus" : "历史遗留 & 已修复/完成 & 未更新 & 申请延期",
+      "category" : "未设定类别",
+      "delayCause" : "机制问题",
+      "createdAt" : "2026-04-07T11:26:45.199+08:00",
+      "updatedAt" : "2026-06-29T16:23:19.093+08:00"
+    }, {
+      "sourceInstance" : "default",
+      "projectName" : "CrownCAD",
+      "issueIid" : 30319,
+      "title" : "【智能尺寸】复制文档后，特定尺寸变为无关联状态",
+      "issueState" : "未关闭",
+      "testingPhase" : "CC2026R3第五轮系统测试",
+      "moduleName" : "工程图",
+      "functionName" : "智能尺寸",
+      "authorName" : "陈艺珲",
+      "assigneeName" : "狄林林",
+      "fixUser" : "狄林林",
+      "severityLevel" : "二级缺陷",
+      "priorityLevel" : "P1",
+      "bugStatus" : "已修复/完成 & 未更新",
+      "category" : "未设定类别",
+      "delayCause" : null,
+      "createdAt" : "2026-04-09T07:04:45.849+08:00",
+      "updatedAt" : "2026-06-29T16:22:55.910+08:00"
+    }, {
+      "sourceInstance" : "default",
+      "projectName" : "CrownCAD",
+      "issueIid" : 30088,
+      "title" : "【孔标注】编辑装配中零件的孔类型后，装配视图中的孔标注关联元素更改",
+      "issueState" : "未关闭",
+      "testingPhase" : "CC2026R3第四轮系统测试",
+      "moduleName" : "工程图",
+      "functionName" : "孔标注",
+      "authorName" : "陈艺珲",
+      "assigneeName" : "狄林林",
+      "fixUser" : "狄林林",
+      "severityLevel" : "二级缺陷",
+      "priorityLevel" : "P1",
+      "bugStatus" : "历史遗留 & 已修复/完成 & 未更新",
+      "category" : "未设定类别",
+      "delayCause" : null,
+      "createdAt" : "2026-04-03T07:22:47.475+08:00",
+      "updatedAt" : "2026-06-29T16:21:02.683+08:00"
+    }, {
+      "sourceInstance" : "default",
+      "projectName" : "CrownCAD",
+      "issueIid" : 30111,
+      "title" : "【智能尺寸】特定螺纹线尺寸，切换孔类型后，参数重建，位置未重建",
+      "issueState" : "未关闭",
+      "testingPhase" : "CC2026R3第四轮系统测试",
+      "moduleName" : "工程图",
+      "functionName" : "智能尺寸",
+      "authorName" : "陈艺珲",
+      "assigneeName" : "狄林林",
+      "fixUser" : "狄林林",
+      "severityLevel" : "二级缺陷",
+      "priorityLevel" : "P1",
+      "bugStatus" : "已修复/完成 & 未更新",
+      "category" : "未设定类别",
+      "delayCause" : null,
+      "createdAt" : "2026-04-03T09:35:09.440+08:00",
+      "updatedAt" : "2026-06-29T16:20:57.983+08:00"
+    }, {
+      "sourceInstance" : "default",
+      "projectName" : "CrownCAD",
+      "issueIid" : 30701,
+      "title" : "【尺寸链】勾选显示尺寸线后，设置圆弧条件，预览状态部分尺寸线不显示，点击确定后未成功显示尺寸线",
+      "issueState" : "未关闭",
+      "testingPhase" : "CC2026R3第六轮系统测试",
+      "moduleName" : "工程图",
+      "functionName" : "尺寸链",
+      "authorName" : "陈艺珲",
+      "assigneeName" : "王青",
+      "fixUser" : "王青",
+      "severityLevel" : "二级缺陷",
+      "priorityLevel" : "P1",
+      "bugStatus" : "历史遗留 & 已修复/完成 & 未更新",
+      "category" : "未设定类别",
+      "delayCause" : null,
+      "createdAt" : "2026-04-16T05:53:43.612+08:00",
+      "updatedAt" : "2026-06-26T16:23:59.604+08:00"
+    }, {
+      "sourceInstance" : "default",
+      "projectName" : "CrownCAD",
+      "issueIid" : 30949,
+      "title" : "【拉伸切除】草图轮廓为椭圆时创建的拉伸切除效果不正确",
+      "issueState" : "未关闭",
+      "testingPhase" : "CC2026R3回归测试",
+      "moduleName" : "实体算法",
+      "functionName" : "拉伸切除",
+      "authorName" : "王丽娟",
+      "assigneeName" : "马传超",
+      "fixUser" : "马传超",
+      "severityLevel" : "二级缺陷",
+      "priorityLevel" : "P1",
+      "bugStatus" : "历史遗留 & 已修复/完成 & 未更新",
+      "category" : "未设定类别",
+      "delayCause" : null,
+      "createdAt" : "2026-04-22T05:53:34.701+08:00",
+      "updatedAt" : "2026-06-26T08:53:18.906+08:00"
+    } ],
+    "total" : 7,
+    "page" : 1,
+    "size" : 20,
+    "exports" : [ ],
+    "filters" : [ ],
+    "chart" : null
+  },
+  "readView" : {
+    "readContextId" : "<verified-runtime-readContextId>",
+    "pageKey" : "quality-rd",
+    "scopeKey" : "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "sourceVersion" : "<verified-runtime-sourceVersion>",
+    "businessDate" : "2026-09-01",
+    "leaseExpiresAt" : "<verified-runtime-leaseExpiresAt>",
+    "dataAsOf" : "<verified-runtime-dataAsOf>",
+    "pendingUpdates" : 0,
+    "sourceState" : "ATTENTION",
+    "sourceStateDetail" : "独立投影失败或停止，保留上一完整版本",
+    "escalated" : false
+  }
+}

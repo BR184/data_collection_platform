@@ -19,14 +19,54 @@ class IssueFactRecordRepositoryTest {
   @Mock private IssueFactQueryService issueFactQueryService;
 
   @Test
+  void test_root_lookup_is_restricted_by_complete_identity_and_fixed_version() {
+    var selection = com.data.collection.platform.service.read.TestReadSelections.all();
+    var repository = new IssueFactRecordRepository(issueFactQueryService, new IssueFactRecordConditionBuilder(),
+        new IssueFactRecordRowMapper(), new IssueFactFilterValuesQuerySupport()).forRead(selection);
+    when(issueFactQueryService.query(org.mockito.ArgumentMatchers.eq(selection), anyString(), anyList(), any()))
+        .thenReturn(java.util.List.of());
+    assertThat(repository.findByIdentity("second", 325, 9001)).isEmpty();
+    verify(issueFactQueryService).query(org.mockito.ArgumentMatchers.eq(selection),
+        org.mockito.ArgumentMatchers.contains("source_system = 'GITLAB' and source_instance = ? and project_id = ? and issue_id = ?"),
+        org.mockito.ArgumentMatchers.eq(java.util.List.of("second", 325L, 9001L)), any());
+  }
+
+  @Test
+  void test_database_failure_is_not_certified_as_empty_records() {
+    var failure = new org.springframework.dao.DataAccessResourceFailureException("受保护版本查询超时");
+    org.mockito.Mockito.doThrow(failure).when(issueFactQueryService).query(
+        any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(),
+        org.mockito.ArgumentMatchers.anyMap(), any(), anyList(), anyString(), any());
+    var repository = new IssueFactRecordRepository(issueFactQueryService, new IssueFactRecordConditionBuilder(),
+        new IssueFactRecordRowMapper(), new IssueFactFilterValuesQuerySupport())
+        .forRead(com.data.collection.platform.service.read.TestReadSelections.all());
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> repository.findByFilters(java.util.Map.of()))
+        .isSameAs(failure);
+  }
+
+  @Test
+  void test_count_failure_is_not_certified_as_a_zero_row_page() {
+    var failure = new org.springframework.dao.DataAccessResourceFailureException("计数查询失败");
+    when(issueFactQueryService.count(any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(), anyList()))
+        .thenThrow(failure);
+    var repository = new IssueFactRecordRepository(issueFactQueryService, new IssueFactRecordConditionBuilder(),
+        new IssueFactRecordRowMapper(), new IssueFactFilterValuesQuerySupport())
+        .forRead(com.data.collection.platform.service.read.TestReadSelections.all());
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> repository.findPage(
+        new IssueFactRecordPageQuery(IssueFactRecordPageQuery.Scope.ALL, request(null, null, null), null, null, null,
+            null, java.util.List.of(), null, null, null, null, null, null, false, false, false, false,
+            false, false, false, false, 1, 20, "updatedAt", "desc", null, null))).isSameAs(failure);
+  }
+
+  @Test
   void keywordSearchShouldFallbackToRawIssueFieldsWhenSearchIndexesAreEmpty() {
     IssueFactRecordRepository repository =
         new IssueFactRecordRepository(
             issueFactQueryService,
             new IssueFactRecordConditionBuilder(),
             new IssueFactRecordRowMapper(),
-            new IssueFactFilterValuesQuerySupport());
-    when(issueFactQueryService.count(anyString(), anyList())).thenReturn(0L);
+            new IssueFactFilterValuesQuerySupport()).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
+    when(issueFactQueryService.count(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(), anyList())).thenReturn(0L);
 
     repository.findPage(
         new IssueFactRecordPageQuery(
@@ -59,7 +99,7 @@ class IssueFactRecordRepositoryTest {
              null));
 
     ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-    verify(issueFactQueryService).count(sqlCaptor.capture(), anyList());
+    verify(issueFactQueryService).count(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), sqlCaptor.capture(), anyList());
 
     String sql = sqlCaptor.getValue();
     assertThat(sql).contains("search_text like ?");
@@ -79,8 +119,8 @@ class IssueFactRecordRepositoryTest {
             issueFactQueryService,
             new IssueFactRecordConditionBuilder(),
             new IssueFactRecordRowMapper(),
-            new IssueFactFilterValuesQuerySupport());
-    when(issueFactQueryService.count(anyString(), anyList())).thenReturn(0L);
+            new IssueFactFilterValuesQuerySupport()).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
+    when(issueFactQueryService.count(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(), anyList())).thenReturn(0L);
 
     repository.findPage(
         new IssueFactRecordPageQuery(
@@ -113,7 +153,7 @@ class IssueFactRecordRepositoryTest {
              null));
 
     ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-    verify(issueFactQueryService).count(sqlCaptor.capture(), anyList());
+    verify(issueFactQueryService).count(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), sqlCaptor.capture(), anyList());
 
     String sql = sqlCaptor.getValue();
     assertThat(sql).contains("cast(issue_iid as varchar) like ?");
@@ -128,8 +168,8 @@ class IssueFactRecordRepositoryTest {
             issueFactQueryService,
             new IssueFactRecordConditionBuilder(),
             new IssueFactRecordRowMapper(),
-            new IssueFactFilterValuesQuerySupport());
-    when(issueFactQueryService.count(anyString(), anyList())).thenReturn(0L);
+            new IssueFactFilterValuesQuerySupport()).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
+    when(issueFactQueryService.count(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(), anyList())).thenReturn(0L);
 
     repository.findPage(
         new IssueFactRecordPageQuery(
@@ -164,7 +204,7 @@ class IssueFactRecordRepositoryTest {
 
     ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
     ArgumentCaptor<java.util.List<Object>> argsCaptor = ArgumentCaptor.forClass(java.util.List.class);
-    verify(issueFactQueryService).count(sqlCaptor.capture(), argsCaptor.capture());
+    verify(issueFactQueryService).count(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), sqlCaptor.capture(), argsCaptor.capture());
 
     assertThat(sqlCaptor.getValue())
         .contains("exists (select 1 from issue_fact_customer_members customer_member")
@@ -179,8 +219,8 @@ class IssueFactRecordRepositoryTest {
             issueFactQueryService,
             new IssueFactRecordConditionBuilder(),
             new IssueFactRecordRowMapper(),
-            new IssueFactFilterValuesQuerySupport());
-    when(issueFactQueryService.count(anyString(), anyList())).thenReturn(0L);
+            new IssueFactFilterValuesQuerySupport()).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
+    when(issueFactQueryService.count(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(), anyList())).thenReturn(0L);
     java.time.LocalDateTime asOf = java.time.LocalDateTime.of(2026, 8, 3, 10, 0);
 
     repository.findPage(
@@ -221,7 +261,7 @@ class IssueFactRecordRepositoryTest {
 
     ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
     ArgumentCaptor<java.util.List<Object>> argsCaptor = ArgumentCaptor.forClass(java.util.List.class);
-    verify(issueFactQueryService).count(sqlCaptor.capture(), argsCaptor.capture());
+    verify(issueFactQueryService).count(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), sqlCaptor.capture(), argsCaptor.capture());
 
     assertThat(sqlCaptor.getValue())
         .contains("planned_resolution_at >= ?")
@@ -247,13 +287,13 @@ class IssueFactRecordRepositoryTest {
             issueFactQueryService,
             new IssueFactRecordConditionBuilder(),
             new IssueFactRecordRowMapper(),
-            new IssueFactFilterValuesQuerySupport());
-    when(issueFactQueryService.query(anyString(), anyList(), any())).thenReturn(java.util.List.of());
+            new IssueFactFilterValuesQuerySupport()).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
+    when(issueFactQueryService.query(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(), anyList(), any())).thenReturn(java.util.List.of());
 
     repository.findCustomerIssueRecordFilterValues(true, false, false, true, "default");
 
     ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-    verify(issueFactQueryService).query(sqlCaptor.capture(), anyList(), any());
+    verify(issueFactQueryService).query(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), sqlCaptor.capture(), anyList(), any());
 
     assertThat(sqlCaptor.getValue())
         .contains("coalesce(planned_merge_version_branch, ''), '[&,，、]'");

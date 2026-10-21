@@ -30,7 +30,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 
 /**
- * FactBuildService 三类重建编排的行为锁定测试（R1 保护网，拆分后须一字不改通过）。
+ * 修订模型下的事实构建编排测试；整轮全量预检归 SyncFactRefreshRunExecutorTest 维护。
  *
  * <p>覆盖：全量重建的校验顺序与三分支聚合、commit 能力门控、根 ID 去重排序短路、
  * busy 跳过上报。行映射口径由 FactBuildMappingRulesTest 与既有规则测试保护。
@@ -52,10 +52,18 @@ class FactBuildServiceOrchestrationTest {
   @Mock private IntegrationTestFactBuildService integrationTestFactBuildService;
   @Mock private CustomerIssueMilestoneCatalogReconciliationService reconciliationService;
 
+  @Mock private FactTargetPublicationService targetPublicationService;
+  private com.data.collection.platform.entity.read.FactRevisionTarget issueTarget;
   private FactBuildService service;
 
   @BeforeEach
   void setUp() {
+    issueTarget = FactRevisionFixture.target(com.data.collection.platform.entity.read.PublicationFactTable.ISSUE, "default");
+    when(targetPublicationService.publishWithinCandidate(any(), any())).thenAnswer(invocation -> {
+      com.data.collection.platform.service.read.BypassPublicationRequest request = invocation.getArgument(0);
+      java.util.function.Function<com.data.collection.platform.entity.read.FactRevisionTarget, FactBuildResponse> body = invocation.getArgument(1);
+      return body.apply(FactRevisionFixture.target(com.data.collection.platform.entity.read.PublicationFactTable.ofFactType(request.domainKey().factType()), request.domainKey().sourceInstance()));
+    });
     service = newService();
     // 放行 runGuarded 三参与四参两个重载，直接执行内部编排（syncRunId 分支透传）。
     when(factBuildTaskService.runGuarded(anyString(), anyBoolean(), any()))
@@ -76,9 +84,9 @@ class FactBuildServiceOrchestrationTest {
         .thenReturn(0);
     when(moduleDictionaryService.loadDictionary()).thenReturn(newModuleDictionary());
     when(issueCustomerNameAliasService.loadAliases()).thenReturn(java.util.Map.of());
-    when(integrationTestFactBuildService.rebuildFactsForSource(anyString(), anyBoolean()))
-        .thenReturn(new FactBuildResponse("integration-test", true, 0, "集成测试完成"));
+
     when(publicationStateService.isIssueSourceHistoryComplete(anyString())).thenReturn(true);
+    when(publicationStateService.sourceSeal(anyString(), any(com.data.collection.platform.entity.FactType.class), org.mockito.ArgumentMatchers.anyLong())).thenReturn("{\"fixture\":true}");
     // 所有 jdbcTemplate.query 返回空集合（阶段日历/事实来源查询）。
     when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
         .thenReturn(List.of());
@@ -95,8 +103,7 @@ class FactBuildServiceOrchestrationTest {
         publicationStateService,
         sourceSchemaGuard,
         configService,
-        integrationTestFactBuildService,
-        reconciliationService,
+        targetPublicationService,
         new GitlabFactSourceSqlProvider(),
         new GitlabFactSourceQueryExecutor(jdbcTemplate, sqlQueryMonitor),
         new IssuePhaseCalendarLoader(jdbcTemplate),
@@ -108,14 +115,12 @@ class FactBuildServiceOrchestrationTest {
             new MergeRequestFactSourceRowMapper()),
         new FactPublicationTransaction(
             new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
-        new com.data.collection.platform.config.GitlabMirrorProperties(),
-            new FactProjectionScopeResolver(jdbcTemplate),
-            new FactProjectionGenerationService(jdbcTemplate));
+        new com.data.collection.platform.config.GitlabMirrorProperties());
   }
 
   @Test
   void rebuildIssueFactsByRootIdsShouldShortCircuitOnEmptyRootIds() {
-    FactBuildResponse response = service.rebuildIssueFactsByRootIds("default", List.of());
+    FactBuildResponse response = service.rebuildIssueFactsByRootIds(issueTarget, List.of());
 
     assertThat(response.affectedRows()).isZero();
     verifyNoInteractions(sourceSchemaGuard, issueFactPersistenceService, jdbcTemplate);
@@ -125,7 +130,7 @@ class FactBuildServiceOrchestrationTest {
   void issueFactBuildIsBlockedUntilLabelEventHistoryIsFullyVerified() {
     when(publicationStateService.isIssueSourceHistoryComplete("default")).thenReturn(false);
 
-    assertThatThrownBy(() -> service.rebuildIssueFactsByRootIds("default", List.of(101L)))
+    assertThatThrownBy(() -> service.rebuildIssueFactsByRootIds(issueTarget, List.of(101L)))
         .hasMessageContaining("resource_label_events")
         .hasMessageContaining("全量核验");
     verifyNoInteractions(sourceSchemaGuard, issueFactPersistenceService);
@@ -135,49 +140,19 @@ class FactBuildServiceOrchestrationTest {
   void rebuildIssueFactsByRootIdsShouldDeduplicateSortAndNormalizeRootIdsBeforeWrite() {
     // 生产 distinctRootIds 契约：过滤 null 与非正数、去重、排序。
     service.rebuildIssueFactsByRootIds(
-        " Default ", java.util.Arrays.asList(30L, null, 10L, 10L, -5L));
+        issueTarget, java.util.Arrays.asList(30L, null, 10L, 10L, -5L));
 
     verify(sourceSchemaGuard).verifyIssueFactSource("default");
     @SuppressWarnings({"unchecked", "rawtypes"})
     ArgumentCaptor<List<Long>> rootsCaptor = ArgumentCaptor.forClass((Class) List.class);
     verify(issueFactPersistenceService)
-        .replaceRootFacts(eq("GITLAB"), eq("default"), rootsCaptor.capture(), anyList());
+        .replaceRootFacts(eq(issueTarget), rootsCaptor.capture(), anyList());
     org.assertj.core.api.Assertions.assertThat(rootsCaptor.getValue()).containsExactly(10L, 30L);
   }
 
-  @Test
-  void rebuildAllFactsShouldAggregateThreeBranchResultsIntoSingleResponse() {
-    when(integrationTestFactBuildService.rebuildFactsForSource("default", true))
-        .thenReturn(new FactBuildResponse("default:integration-test", true, 7, "集成测试完成"));
 
-    FactBuildResponse response = service.rebuildAllFacts(true);
 
-    assertThat(response.affectedRows()).isEqualTo(7);
-    assertThat(response.full()).isTrue();
-    assertThat(response.scope()).isEqualTo("all");
-    assertThat(response.message()).contains("议题").contains("合并请求").contains("集成测试");
-    verify(sourceSchemaGuard).verifyAllFactSources("default");
-    verify(sourceSchemaGuard).verifyIssueFactSource("default");
-    verify(sourceSchemaGuard).verifyMergeRequestFactSource("default");
-    verify(sourceSchemaGuard, org.mockito.Mockito.times(2))
-        .verifyMergeRequestCommitFactSource("default");
-    verify(reconciliationService).reconcilePublishedFactValues();
-  }
 
-  @Test
-  void rebuildAllFactsShouldSkipCommitVerificationWhenCapabilityDisabled() {
-    GitlabSyncConfig customWithoutCommitTables = new GitlabSyncConfig();
-    customWithoutCommitTables.setWhitelistMode(WhitelistMode.CUSTOM);
-    customWithoutCommitTables.setWhitelistTables(List.of("merge_requests", "projects"));
-    when(configService.getConfig()).thenReturn(customWithoutCommitTables);
-
-    service.rebuildAllFactsForConfig(customWithoutCommitTables, true, null);
-
-    verify(sourceSchemaGuard).verifyAllFactSources("default");
-    verify(sourceSchemaGuard, never()).verifyMergeRequestCommitFactSource("default");
-    verify(mergeRequestFactPersistenceService)
-        .deleteFactsNotInSnapshot(eq("GITLAB"), eq("default"), anyList(), eq(List.of()));
-  }
 
   @Test
   void publishEnrichedMergeRequestFactsShouldReportBusySkipAsFalse() {
@@ -205,7 +180,7 @@ class FactBuildServiceOrchestrationTest {
     ArgumentCaptor<List<Long>> rootsCaptor = ArgumentCaptor.forClass((Class) List.class);
     verify(mergeRequestFactPersistenceService)
         .replaceRootFacts(
-            eq("GITLAB"), eq("default"), rootsCaptor.capture(), anyList(), anyList());
+            any(com.data.collection.platform.entity.read.FactRevisionTarget.class), rootsCaptor.capture(), anyList(), anyList());
     org.assertj.core.api.Assertions.assertThat(rootsCaptor.getValue()).containsExactly(11L);
   }
 

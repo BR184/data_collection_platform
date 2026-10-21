@@ -41,21 +41,37 @@ public class StatisticBoardController {
   private final StatisticBoardRegistry registry;
   private final RealtimeWorkspaceService realtimeWorkspaceService;
   private final SystemTestHorizontalComparisonExportService systemTestHorizontalComparisonExportService;
+  private final com.data.collection.platform.service.read.ReadViewApplicationService pageReads;
   public StatisticBoardController(
       StatisticBoardRegistry registry,
       RealtimeWorkspaceService realtimeWorkspaceService,
-      SystemTestHorizontalComparisonExportService systemTestHorizontalComparisonExportService) {
+      SystemTestHorizontalComparisonExportService systemTestHorizontalComparisonExportService,
+      com.data.collection.platform.service.read.ReadViewApplicationService pageReads) {
     this.registry = registry;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.systemTestHorizontalComparisonExportService = systemTestHorizontalComparisonExportService;
+    this.pageReads = pageReads;
+  }
+
+  /** 每个统计页只接受其拥有者的完整身份；通用镜像归档与三类事实不能混用证明。 */
+  private <T> com.data.collection.platform.service.read.ReadViewApplicationService.ReadOutcome<T> readBoard(
+      jakarta.servlet.http.HttpServletRequest request, String boardKey, Map<String, String> filters,
+      java.util.function.Function<com.data.collection.platform.service.statistics.AbstractStatisticBoardService, T> reader) {
+    var factory = registry.getRequired(boardKey);
+    if (factory instanceof com.data.collection.platform.service.statistics.MirrorTableOverviewBoardService mirror) {
+      return pageReads.read(request, boardKey, filters, selection -> reader.apply(mirror.forRead(
+          (com.data.collection.platform.entity.read.DatasetReadSelection) selection)));
+    }
+    return pageReads.readFacts(request, boardKey, filters, selection -> reader.apply(factory.forRead(selection)));
   }
 
   @GetMapping("/{boardKey}")
   @RequirePagePermission(resource = RequirePagePermission.Resource.STATISTIC_BOARD, action = RequirePagePermission.Action.VIEW)
   public ApiResponse<StatisticBoardResponse> getBoard(
       @PathVariable @NotBlank String boardKey,
-      @RequestParam Map<String, String> filters) {
-    return ApiResponse.success(registry.getRequired(boardKey).loadBoard(filters));
+      @RequestParam Map<String, String> filters, jakarta.servlet.http.HttpServletRequest request) {
+    return readBoard(request, boardKey, filters,
+        service -> service.loadBoard(pageReads.businessParameters(filters))).response();
   }
 
   /**
@@ -68,8 +84,9 @@ public class StatisticBoardController {
   @RequirePagePermission(resource = RequirePagePermission.Resource.STATISTIC_BOARD, action = RequirePagePermission.Action.VIEW)
   public ApiResponse<StatisticBoardControlOptions> getControlOptions(
       @PathVariable @NotBlank String boardKey,
-      @RequestParam Map<String, String> filters) {
-    return ApiResponse.success(registry.getRequired(boardKey).controlOptions(filters));
+      @RequestParam Map<String, String> filters, jakarta.servlet.http.HttpServletRequest request) {
+    return readBoard(request, boardKey, filters,
+        service -> service.controlOptions(pageReads.businessParameters(filters))).response();
   }
 
   @GetMapping("/{boardKey}/details")  @RequirePagePermission(resource = RequirePagePermission.Resource.STATISTIC_BOARD, action = RequirePagePermission.Action.VIEW)
@@ -81,23 +98,23 @@ public class StatisticBoardController {
       @RequestParam(defaultValue = "10") @Positive int size,
       @RequestParam(required = false) String sortField,
       @RequestParam(required = false) String sortOrder,
-      @RequestParam Map<String, String> filters) {
-    return ApiResponse.success(
-        registry.getRequired(boardKey).loadDetail(
-            new StatisticDetailRequest(boardKey, rowKey, columnKey, page, size, sortField, sortOrder, filters)));
+      @RequestParam Map<String, String> filters, jakarta.servlet.http.HttpServletRequest request) {
+    return readBoard(request, boardKey, filters,
+        service -> service.loadDetail(
+            new StatisticDetailRequest(boardKey, rowKey, columnKey, page, size, sortField, sortOrder,
+                pageReads.businessParameters(filters)))).response();
   }
 
   @GetMapping("/{boardKey}/rule-explanation")
   @RequirePagePermission(resource = RequirePagePermission.Resource.STATISTIC_BOARD, action = RequirePagePermission.Action.VIEW)
   public ApiResponse<StatisticBoardRuleExplanationResponse> getRuleExplanation(
       @PathVariable @NotBlank String boardKey,
-      @RequestParam Map<String, String> filters) {
-    var service = registry.getRequired(boardKey);
+      @RequestParam Map<String, String> filters, jakarta.servlet.http.HttpServletRequest request) {
+    return readBoard(request, boardKey, filters, service -> {
     if (service instanceof RuleExplainableStatisticBoardSupport ruleExplainable) {
-      return ApiResponse.success(ruleExplainable.getRuleExplanation(filters));
+      return ruleExplainable.getRuleExplanation(pageReads.businessParameters(filters));
     }
-    return ApiResponse.success(
-        new StatisticBoardRuleExplanationResponse(
+    return new StatisticBoardRuleExplanationResponse(
             boardKey,
             false,
             null,
@@ -106,67 +123,81 @@ public class StatisticBoardController {
             null,
             java.util.List.of(),
             java.util.List.of(),
-            "当前统计表暂不支持规则说明"));
+            "当前统计表暂不支持规则说明");
+    }).response();
   }
 
   @GetMapping("/{boardKey}/export")
   @RequirePagePermission(resource = RequirePagePermission.Resource.STATISTIC_BOARD, action = RequirePagePermission.Action.EXPORT)
   public ResponseEntity<?> exportBoard(
       @PathVariable @NotBlank String boardKey,
-      @RequestParam Map<String, String> filters) {
-    var service = registry.getRequired(boardKey);
+      @RequestParam Map<String, String> filters, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    var exported = readBoard(httpRequest, boardKey, filters, service -> {
     if (SYSTEM_TEST_PHASE_STATISTICS_BOARD_KEY.equals(boardKey)) {
       throw new IllegalArgumentException("当前统计表不支持导出: " + boardKey);
     }
     if (service instanceof StatisticBoardWorkbookExportSupport workbookExportSupport) {
-      byte[] workbook = workbookExportSupport.exportBoardWorkbook(filters);
-      String filename = workbookExportSupport.exportFilename(filters);
+      byte[] workbook = workbookExportSupport.exportBoardWorkbook(pageReads.businessParameters(filters));
+      String filename = workbookExportSupport.exportFilename(pageReads.businessParameters(filters));
       return ResponseEntity.ok()
           .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
           .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment(filename))
           .body(workbook);
     }
-    String csv = service.exportBoardCsv(filters);
+    String csv = service.exportBoardCsv(pageReads.businessParameters(filters));
     return ResponseEntity.ok()
         .contentType(new MediaType("text", "csv"))
         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + boardKey + ".csv\"")
         .body(csv);
+      });
+    return exported.download(exported.data());
   }
 
   @GetMapping("/{boardKey}/horizontal-comparison/export")
   @RequirePagePermission(resource = RequirePagePermission.Resource.STATISTIC_BOARD, action = RequirePagePermission.Action.EXPORT)
   public ResponseEntity<byte[]> exportHorizontalComparison(
       @PathVariable @NotBlank String boardKey,
-      @RequestParam Map<String, String> filters) {
+      @RequestParam Map<String, String> filters, jakarta.servlet.http.HttpServletRequest request) {
     registry.getRequired(boardKey);
     if (!SYSTEM_TEST_DEFECT_SUMMARY_BOARD_KEY.equals(boardKey)) {
       throw new IllegalArgumentException("当前统计表不支持横向对比导出: " + boardKey);
     }
-    byte[] workbook = systemTestHorizontalComparisonExportService.exportWorkbook(filters);
-    return ResponseEntity.ok()
+    var outcome = pageReads.read(request, boardKey, pageReads.parameters(request), selected ->
+        {
+          if (!(selected instanceof com.data.collection.platform.entity.read.DatasetReadSelection dataset)) {
+            throw com.data.collection.platform.service.read.ReadViewException.unavailable("横向对比的扩展来源尚无完整产出，请完成对应来源初始化");
+          }
+          return systemTestHorizontalComparisonExportService.forRead(dataset)
+              .exportWorkbook(pageReads.businessParameters(filters));
+        });
+    byte[] workbook = outcome.data();
+    return outcome.download(ResponseEntity.ok()
         .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
         .header(
             HttpHeaders.CONTENT_DISPOSITION,
             DownloadResponseHeaders.attachment(systemTestHorizontalComparisonExportService.exportFilename(filters)))
-        .body(workbook);
+        .body(workbook));
   }
 
   @GetMapping("/{boardKey}/issues/export")
   @RequirePagePermission(resource = RequirePagePermission.Resource.STATISTIC_BOARD, action = RequirePagePermission.Action.ISSUE_EXPORT)
   public ResponseEntity<byte[]> exportBoardIssues(
       @PathVariable @NotBlank String boardKey,
-      @RequestParam Map<String, String> filters) {
-    var service = registry.getRequired(boardKey);
+      @RequestParam Map<String, String> filters, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    var exported = pageReads.readFacts(httpRequest, boardKey, filters, selection -> {
+    var service = registry.getRequired(boardKey).forRead(selection);
     if (!(service instanceof StatisticBoardIssueWorkbookExportSupport issueWorkbookExportSupport)) {
       throw new IllegalArgumentException("当前统计表不支持议题数据导出: " + boardKey);
     }
-    byte[] workbook = issueWorkbookExportSupport.exportIssueRecordsWorkbook(filters);
+    byte[] workbook = issueWorkbookExportSupport.exportIssueRecordsWorkbook(pageReads.businessParameters(filters));
     return ResponseEntity.ok()
         .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
         .header(
             HttpHeaders.CONTENT_DISPOSITION,
-            DownloadResponseHeaders.attachment(issueWorkbookExportSupport.exportIssueRecordsFilename(filters)))
+            DownloadResponseHeaders.attachment(issueWorkbookExportSupport.exportIssueRecordsFilename(pageReads.businessParameters(filters))))
         .body(workbook);
+      });
+    return exported.download(exported.data());
   }
 
   @GetMapping("/{boardKey}/status")

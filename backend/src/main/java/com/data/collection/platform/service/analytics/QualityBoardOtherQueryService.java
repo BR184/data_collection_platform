@@ -25,10 +25,27 @@ public class QualityBoardOtherQueryService {
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final QualityBoardCodeReviewReadSupport codeReviewReadSupport;
 
+
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 明细、候选与导出使用完整页面固定组合，保留既有指标口径。 */
+  public QualityBoardOtherQueryService forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new QualityBoardOtherQueryService(this, selection);
+  }
+
+  private QualityBoardOtherQueryService(QualityBoardOtherQueryService factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.phaseScopeResolver = factory.phaseScopeResolver.forRead(java.util.Objects.requireNonNull(selection.facts()));
+    this.codeReviewReadSupport = factory.codeReviewReadSupport.forRead(selection);
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public QualityBoardOtherQueryService(
       JdbcTemplate jdbcTemplate,
       SystemTestPhaseScopeResolver phaseScopeResolver,
       QualityBoardCodeReviewReadSupport codeReviewReadSupport) {
+    this.fixedRead = null;
     this.jdbcTemplate = jdbcTemplate;
     this.phaseScopeResolver = phaseScopeResolver;
     this.codeReviewReadSupport = codeReviewReadSupport;
@@ -64,7 +81,7 @@ public class QualityBoardOtherQueryService {
   }
 
   String memberScopeSourceVersion() {
-    return jdbcTemplate.queryForObject(
+    return queryForObject(
         """
         select concat(
                  count(*), ':',
@@ -101,7 +118,7 @@ public class QualityBoardOtherQueryService {
          having count(*) > 0
          order by numerator desc, item_name
         """.formatted(phasePredicate.sql());
-    return jdbcTemplate.query(
+    return query(
         sql,
         (rs, rowNum) -> Row.count(projectName, rs.getString("item_name"), rs.getLong("numerator")),
         args.toArray());
@@ -199,7 +216,7 @@ public class QualityBoardOtherQueryService {
         having count(*) filter (where coalesce(bug_status, '') like '%%未修复%%') > 0
          order by value desc, item_name
         """.formatted(phasePredicate.sql(), rejectedIssuePredicate());
-    return jdbcTemplate.query(sql, this::mapRatioRow, args.toArray());
+    return query(sql, this::mapRatioRow, args.toArray());
   }
 
   private List<Row> releaseLeakageRateRows() {
@@ -256,7 +273,7 @@ public class QualityBoardOtherQueryService {
            %s
          group by scope.project_name
         """.formatted(scope.placeholders(), rejectedIssuePredicate("issue."));
-    List<IssueCounts> results = jdbcTemplate.query(
+    List<IssueCounts> results = query(
         sql,
         (rs, rowNum) -> new IssueCounts(
             rs.getString("project_name"),
@@ -359,7 +376,7 @@ public class QualityBoardOtherQueryService {
     args.add(CROWN_CAD_PROJECT_ID);
     args.addAll(phasePredicate.args());
     Map<String, Long> counts = new LinkedHashMap<>();
-    jdbcTemplate.query(
+    query(
             """
             select btrim(function_name) as item_name,
                    count(*)::bigint as numerator
@@ -378,7 +395,7 @@ public class QualityBoardOtherQueryService {
   }
 
   private List<QualityMember> qualityRankingMembers() {
-    return jdbcTemplate.query(
+    return query(
         """
         select member_name, display_order
           from quality_board_member_scopes
@@ -402,7 +419,7 @@ public class QualityBoardOtherQueryService {
     String memberPlaceholders =
         String.join(",", members.stream().map(ignored -> "?").toList());
     Map<MemberPhase, Long> counts = new LinkedHashMap<>();
-    jdbcTemplate.query(
+    query(
             """
             select btrim(fix_user) as member_name,
                    testing_phase,
@@ -438,4 +455,17 @@ public class QualityBoardOtherQueryService {
   private record QualityMember(String name, int displayOrder) {}
 
   private record MemberPhase(String memberName, String testingPhase) {}
+
+  private <T> java.util.List<T> query(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, mapper, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, mapper, args);
+  }
+  private <T> T query(String sql, org.springframework.jdbc.core.ResultSetExtractor<T> extractor, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, extractor, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, extractor, args);
+  }
+  private <T> T queryForObject(String sql, Class<T> type, Object... args) {
+    return fixedRead == null ? jdbcTemplate.queryForObject(sql, type, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForObject(fixedRead, sql, type, args);
+  }
 }

@@ -9,7 +9,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
-final class IssueFactFilterGroupSqlSupport {
+/**
+ * issue_fact 的条件表达式 SQL 编译器：把 {@link StatisticFilterGroup} 编译为一段绑定参数的 WHERE 谓词。
+ *
+ * <p>操作符语义以 {@code StatisticFilterEngine} 为唯一权威，本类只做同语义的 SQL 表达；两者平价由
+ * {@code IssueFactFilterGroupSqlSupportTest} 与看板筛选契约测试锁定。字段绑定与 {@code StatisticFieldDescriptor}
+ * 的物理列同源，新增已声明字段必须在此补齐，不允许调用方另写私有操作符实现。
+ *
+ * <p>只有全部条件都能编译时才返回谓词：任一条件无法下推则返回空，调用方必须显式决定失败或改走内存求值，
+ * 不得静默丢弃条件。
+ */
+public final class IssueFactFilterGroupSqlSupport {
   private IssueFactFilterGroupSqlSupport() {}
 
   static Optional<SqlPredicate> toSql(StatisticFilterGroup filterGroup) {
@@ -20,7 +30,16 @@ final class IssueFactFilterGroupSqlSupport {
     return buildSql(filterGroup, useFullTestingPhase, false);
   }
 
-  static Optional<SqlPredicate> toCustomerIssueSql(StatisticFilterGroup filterGroup) {
+  /**
+   * 客户问题范围的条件下推。
+   *
+   * <p>测试状态与延期原因按客户问题的完整事实列（{@code testing_phase}、事实侧 {@code delay_cause}）
+   * 求值；里程碑别名与项目/排除等公共范围不属于本方法职责，调用方应继续用公共范围谓词与之 AND 收口。
+   *
+   * @param filterGroup 已展开的用户条件组；空组返回空谓词
+   * @return 可下推的谓词与按序绑定参数；存在无法编译的条件时返回空
+   */
+  public static Optional<SqlPredicate> toCustomerIssueSql(StatisticFilterGroup filterGroup) {
     return buildSql(filterGroup, true, true);
   }
 
@@ -56,7 +75,7 @@ final class IssueFactFilterGroupSqlSupport {
       case "issueIid" -> issueIidCondition(condition);
       case "title" -> titleCondition(condition);
       case "customerName" -> IssueCustomerMembershipSqlSupport.condition(condition);
-      case "projectName" -> textCondition("project_name", condition);
+      case "projectName" -> searchableTextCondition("project_name", condition);
       case "moduleName" -> moduleCondition(condition);
       case "functionName" -> searchableTextCondition("function_name", condition);
       case "testingPhase" -> phaseCondition(condition, useFullTestingPhase);
@@ -114,14 +133,17 @@ final class IssueFactFilterGroupSqlSupport {
     return textCondition("title", condition);
   }
 
+  /**
+   * 模块条件的 SQL 表达。
+   *
+   * <p>等值/不等是“完整成员比较”，不是子串匹配：模块多值列按看板聚合与明细同源的 {@code [,&]} 拆分并 trim
+   * 后逐成员比较，因此 {@code 工具&装配}、{@code 工具 , 装配} 都命中成员“工具”；空白条件值与引擎一致
+   * 恒不命中（等值为假、不等为真）。包含/不包含仍走模块搜索索引列，保持拼音与首字母检索语义。
+   */
   private static Optional<SqlPredicate> moduleCondition(StatisticFilterCondition condition) {
     return switch (condition.operator()) {
-      case "eq" -> Optional.of(
-          new SqlPredicate("lower(',' || replace(coalesce(module_names, ''), ', ', ',') || ',') like ?",
-              List.of("%," + lower(condition.value()) + ",%")));
-      case "ne" -> Optional.of(
-          new SqlPredicate("lower(',' || replace(coalesce(module_names, ''), ', ', ',') || ',') not like ?",
-              List.of("%," + lower(condition.value()) + ",%")));
+      case "eq" -> Optional.of(moduleMemberCondition(condition.value(), false));
+      case "ne" -> Optional.of(moduleMemberCondition(condition.value(), true));
       case "contains", "notContains" ->
           indexedSearchCondition(
               List.of(
@@ -136,6 +158,20 @@ final class IssueFactFilterGroupSqlSupport {
           new SqlPredicate("nullif(btrim(coalesce(module_names, '')), '') is not null", List.of()));
       default -> Optional.empty();
     };
+  }
+
+  private static SqlPredicate moduleMemberCondition(String value, boolean negate) {
+    String expected = lower(value);
+    if (expected.isEmpty()) {
+      return negate ? truePredicate() : falsePredicate();
+    }
+    String predicate =
+        "exists (select 1 from regexp_split_to_table(coalesce(module_names, ''), '\\s*[,&]\\s*')"
+            + " as filter_modules(module_name)"
+            + " where nullif(btrim(filter_modules.module_name), '') is not null"
+            + " and lower(btrim(filter_modules.module_name)) = ?)";
+    return new SqlPredicate(
+        negate ? "not (" + predicate + ")" : predicate, List.of(expected));
   }
 
   private static Optional<SqlPredicate> phaseCondition(
@@ -260,9 +296,9 @@ final class IssueFactFilterGroupSqlSupport {
     List<String> predicates = new ArrayList<>();
     List<Object> args = new ArrayList<>();
     for (String candidate : candidates) {
-      String pattern = "%" + candidate + "%";
+      String pattern = "%" + LabelGroupFilterOperatorSupport.escapeLikePattern(candidate) + "%";
       for (String column : columns) {
-        predicates.add(column + " like ?");
+        predicates.add(column + " like ? escape '\\'");
         args.add(pattern);
       }
     }
@@ -363,19 +399,40 @@ final class IssueFactFilterGroupSqlSupport {
         .toList();
   }
 
+  /**
+   * 字面子串匹配的 SQL 表达：条件值先转义 {@code %}、{@code _} 与转义符本身，再声明 {@code escape '\'}。
+   *
+   * <p>与 {@code StatisticFilterEngine.contains} 一致：空白条件值不命中任何行（“包含空值”在引擎里恒假），
+   * 因此不能退化成 {@code like '%%'} 这类全表匹配。
+   */
   private static Optional<SqlPredicate> containsTextCondition(
       String column, StatisticFilterCondition condition) {
-    String predicate = "lower(coalesce(" + column + ", '')) like ?";
-    if ("notContains".equals(condition.operator())) {
-      predicate = "not (" + predicate + ")";
+    String pattern = LabelGroupFilterOperatorSupport.likeContainsPattern(condition.value());
+    if (pattern == null) {
+      return Optional.of(
+          "notContains".equals(condition.operator()) ? truePredicate() : falsePredicate());
     }
-    return Optional.of(new SqlPredicate(predicate, List.of("%" + lower(condition.value()) + "%")));
+    return likeCondition(column, pattern, "notContains".equals(condition.operator()));
+  }
+
+  private static Optional<SqlPredicate> likeCondition(
+      String column, String pattern, boolean negate) {
+    String predicate = "lower(coalesce(" + column + ", '')) like ? escape '\\'";
+    return Optional.of(
+        new SqlPredicate(
+            negate ? "not (" + predicate + ")" : predicate, List.of(pattern)));
   }
 
   private static Optional<SqlPredicate> issueIidCondition(StatisticFilterCondition condition) {
     return switch (condition.operator()) {
-      case "contains" -> Optional.of(
-          new SqlPredicate("cast(issue_iid as varchar) like ?", List.of("%" + condition.value() + "%")));
+      case "contains" -> {
+        String literal = LabelGroupFilterOperatorSupport.escapeLikePattern(condition.value());
+        yield literal == null
+            ? Optional.of(falsePredicate())
+            : Optional.of(
+                new SqlPredicate(
+                    "cast(issue_iid as varchar) like ? escape '\\'", List.of("%" + literal + "%")));
+      }
       case "eq" -> Optional.of(new SqlPredicate("issue_iid = ?", List.of(parseLong(condition.value()))));
       case "ne" -> Optional.of(new SqlPredicate("issue_iid <> ?", List.of(parseLong(condition.value()))));
       case "isEmpty" -> Optional.of(falsePredicate());

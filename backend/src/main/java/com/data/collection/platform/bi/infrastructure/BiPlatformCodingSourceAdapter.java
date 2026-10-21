@@ -94,6 +94,23 @@ public final class BiPlatformCodingSourceAdapter implements BiCodingSourcePort {
   private final BiPlatformCodeReviewSourceContextFactory sourceContextFactory;
   private final BiProductVersionMatcher versionMatcher;
   private final BiCodingCommitFactRepository commitRepository;
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 将走查、MR 和提交关系的全部查询绑定到相同完整来源组合。 */
+  public BiPlatformCodingSourceAdapter forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection,
+      BiPlatformCodeReviewSourceContextFactory contextFactory) {
+    return new BiPlatformCodingSourceAdapter(this, selection, contextFactory);
+  }
+
+  private BiPlatformCodingSourceAdapter(BiPlatformCodingSourceAdapter factory,
+      com.data.collection.platform.entity.read.DatasetReadSelection selection,
+      BiPlatformCodeReviewSourceContextFactory contextFactory) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.sourceContextFactory = contextFactory;
+    this.versionMatcher = factory.versionMatcher;
+    this.commitRepository = selection.facts() == null ? factory.commitRepository : factory.commitRepository.forRead(selection.facts());
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
 
   public BiPlatformCodingSourceAdapter(
       JdbcTemplate jdbcTemplate,
@@ -104,6 +121,7 @@ public final class BiPlatformCodingSourceAdapter implements BiCodingSourcePort {
     this.sourceContextFactory = sourceContextFactory;
     this.versionMatcher = versionMatcher;
     this.commitRepository = commitRepository;
+    this.fixedRead = null;
   }
 
   @Override
@@ -115,7 +133,8 @@ public final class BiPlatformCodingSourceAdapter implements BiCodingSourcePort {
     BiPlatformCodeReviewSourceContextFactory.Context sourceContext =
         sourceContextFactory.capture();
     List<CodingRow> codeRows =
-        jdbcTemplate.query(queryFor(sourceContext.readMode()), this::mapRow);
+        new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(
+            java.util.Objects.requireNonNull(fixedRead, "BI 编码读取必须绑定完整页面身份"), queryFor(sourceContext.readMode()), this::mapRow);
     // 阶段二：按产品版本和来源筛选平台事实，并将原始行转换成领域层可识别的稳定身份。
     List<CodingRow> scopedRows = codeRows.stream()
         .filter(row -> versionMatcher.matches(row.projectName(), scope.businessKey()))
@@ -155,8 +174,7 @@ public final class BiPlatformCodingSourceAdapter implements BiCodingSourcePort {
             .map(this::commit)
             .toList()
         : List.of();
-    // 阶段四：提交前复核事实版本，确保返回给计算器的是同一版本的合成数据集。
-    sourceContextFactory.verifyDataVersion(sourceContext);
+    // 固定输入已由页面事务保护，不以最新指针变化拒绝仍有效的旧数据。
     return new BiCodingSource(
         sourceContext.sourceVersion(),
         sourceContext.sourceVersion(),

@@ -46,7 +46,8 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "--",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36208618"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -90,7 +91,8 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "ass",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36208651"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -134,7 +136,8 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "ass",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36208650"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -178,7 +181,8 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "--",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36208728"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -222,7 +226,8 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "企业版",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36208740"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -266,7 +271,8 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "--",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36208475"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -310,7 +316,8 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "项目文档",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36208754"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -354,7 +361,8 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "BOM",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36209704"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -398,7 +406,8 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "数据转换",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36209846"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -442,7 +451,8 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "超大装配",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36208937"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -486,7 +496,8 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "--",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36209223"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -530,7 +541,8 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "后台管理",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36211186"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -574,7 +586,8 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "特征",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36211221"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -618,7 +631,8 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "特征",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36211220"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -662,51 +676,8 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "渲染",
-      "clangAddedLineCount" : null
-    }, {
-      "requestType" : "merge_request",
-      "sourceInstance" : "cc",
-      "mergeRequestId" : 27045,
-      "mergeRequestIid" : 27045,
-      "projectId" : 0,
-      "mergeRequestContent" : "feat: 放样凸台/基体新增“方向向量”，“垂直于草图”和“与面相切”选项",
-      "mergeRequestLink" : "http://gitlab.test.local:18080/cloudcad/crowncad/merge_requests/27045",
-      "owner" : "朱梦莹",
-      "projectName" : "未标注项目名",
-      "repositoryName" : "CrownCAD",
-      "mergedAt" : "2026-01-27T17:27:18+08:00",
-      "author" : "朱梦莹",
-      "mergedBy" : "柳冰旸",
-      "moduleName" : "特征",
-      "targetBranch" : "dev",
-      "illegalTypes" : [ "未标注项目名" ],
-      "reviewerNames" : "柳冰旸",
-      "assigneeNames" : "柳冰旸",
-      "reviewStatus" : "MERGED",
-      "reviewDurationMinutes" : 20,
-      "reviewExceptionReason" : "",
-      "codeWalkthroughDate" : "2026-01-26T18:42:14+08:00",
-      "scanStatus" : "已进行代码扫描",
-      "scanBugCount" : 0,
-      "annotationRateResult" : "编码规范已达标",
-      "bugCountResult" : "静态扫描问题已关闭",
-      "commentRate" : 25.39,
-      "defectCount" : 2,
-      "addedLines" : 677,
-      "deletedLines" : 146,
-      "codeSpecificationCount" : 1,
-      "codeLogicSpecificationCount" : 1,
-      "performanceSpecificationCount" : 0,
-      "designSpecificationCount" : 0,
-      "otherSpecificationCount" : 0,
-      "reviewSpeedLocPerHour" : 2031,
-      "reviewSpeedKlocPerHour" : 2.03,
-      "defectDensityPerKloc" : 2.95,
-      "reviewEfficiencyPerHour" : 6.0,
-      "commitCount" : null,
-      "commitRate" : 0,
-      "functionName" : "--",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36211243"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -750,7 +721,53 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "--",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36211306"
+    }, {
+      "requestType" : "merge_request",
+      "sourceInstance" : "cc",
+      "mergeRequestId" : 27045,
+      "mergeRequestIid" : 27045,
+      "projectId" : 0,
+      "mergeRequestContent" : "feat: 放样凸台/基体新增“方向向量”，“垂直于草图”和“与面相切”选项",
+      "mergeRequestLink" : "http://gitlab.test.local:18080/cloudcad/crowncad/merge_requests/27045",
+      "owner" : "朱梦莹",
+      "projectName" : "未标注项目名",
+      "repositoryName" : "CrownCAD",
+      "mergedAt" : "2026-01-27T17:27:18+08:00",
+      "author" : "朱梦莹",
+      "mergedBy" : "柳冰旸",
+      "moduleName" : "特征",
+      "targetBranch" : "dev",
+      "illegalTypes" : [ "未标注项目名" ],
+      "reviewerNames" : "柳冰旸",
+      "assigneeNames" : "柳冰旸",
+      "reviewStatus" : "MERGED",
+      "reviewDurationMinutes" : 20,
+      "reviewExceptionReason" : "",
+      "codeWalkthroughDate" : "2026-01-26T18:42:14+08:00",
+      "scanStatus" : "已进行代码扫描",
+      "scanBugCount" : 0,
+      "annotationRateResult" : "编码规范已达标",
+      "bugCountResult" : "静态扫描问题已关闭",
+      "commentRate" : 25.39,
+      "defectCount" : 2,
+      "addedLines" : 677,
+      "deletedLines" : 146,
+      "codeSpecificationCount" : 1,
+      "codeLogicSpecificationCount" : 1,
+      "performanceSpecificationCount" : 0,
+      "designSpecificationCount" : 0,
+      "otherSpecificationCount" : 0,
+      "reviewSpeedLocPerHour" : 2031,
+      "reviewSpeedKlocPerHour" : 2.03,
+      "defectDensityPerKloc" : 2.95,
+      "reviewEfficiencyPerHour" : 6.0,
+      "commitCount" : null,
+      "commitRate" : 0,
+      "functionName" : "--",
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36211305"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -794,7 +811,8 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "AI",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36211349"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -838,7 +856,8 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "--",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36211381"
     }, {
       "requestType" : "merge_request",
       "sourceInstance" : "cc",
@@ -882,12 +901,26 @@
       "commitCount" : null,
       "commitRate" : 0,
       "functionName" : "二次开发",
-      "clangAddedLineCount" : null
+      "clangAddedLineCount" : null,
+      "legacySourceId" : "36211361"
     } ],
     "total" : 8545,
     "page" : 1,
     "size" : 20,
     "sortField" : "mergedAt",
     "sortOrder" : "desc"
+  },
+  "readView" : {
+    "readContextId" : "<verified-runtime-readContextId>",
+    "pageKey" : "code-review-illegal-records",
+    "scopeKey" : "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "sourceVersion" : "<verified-runtime-sourceVersion>",
+    "businessDate" : "2026-09-01",
+    "leaseExpiresAt" : "<verified-runtime-leaseExpiresAt>",
+    "dataAsOf" : "<verified-runtime-dataAsOf>",
+    "pendingUpdates" : 0,
+    "sourceState" : "CURRENT",
+    "sourceStateDetail" : null,
+    "escalated" : false
   }
 }

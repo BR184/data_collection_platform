@@ -1,5 +1,7 @@
 package com.data.collection.platform.service.analytics;
 
+import com.data.collection.platform.controller.TestReadViews;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -21,6 +23,20 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 
 class AnalyticsDashboardFoundationTest {
+
+  @Test
+  void scoped_registry_binds_only_the_requested_dashboard_dependencies() {
+    var requested = mock(AnalyticsDashboardProvider.class);
+    var unrelated = mock(AnalyticsDashboardProvider.class);
+    when(requested.dashboardKey()).thenReturn("code-review-multi");
+    when(unrelated.dashboardKey()).thenReturn("quality-board-other");
+    var selection = mock(com.data.collection.platform.entity.read.DatasetReadSelection.class);
+    var bound = mock(AnalyticsDashboardProvider.class);
+    when(requested.forRead(selection)).thenReturn(bound);
+    var scoped = new AnalyticsDashboardRegistry(List.of(requested, unrelated)).forRead(selection);
+    assertThat(scoped.getRequired("code-review-multi")).isSameAs(bound);
+    org.mockito.Mockito.verify(unrelated, org.mockito.Mockito.never()).forRead(org.mockito.ArgumentMatchers.any());
+  }
   @Test
   void registryRoutesEveryCapabilityToTheRegisteredProvider() {
     var provider = new TestProvider("quality-rd", "quality-rules@1", "facts@10");
@@ -148,21 +164,26 @@ class AnalyticsDashboardFoundationTest {
     var controller = new AnalyticsDashboardController(
         new AnalyticsDashboardRegistry(
             List.of(new TestProvider("quality-rd", "rules@1", "facts@1"))),
-        new AnalyticsDashboardQueryContextResolver(configService));
+        new AnalyticsDashboardQueryContextResolver(configService), TestReadViews.boundary());
 
-    assertThat(controller.getDashboard("quality-rd", Map.of()).getData().dashboardKey())
+    assertThat(controller.getDashboard("quality-rd", Map.of(), TestReadViews.authenticatedRequest()).getData().dashboardKey())
         .isEqualTo("quality-rd");
-    assertThat(controller.getRules("quality-rd", Map.of()).getData().rules()).hasSize(1);
-    assertThat(controller.getDetails("quality-rd", "assignee-defects", Map.of()).getData().viewKey())
+    assertThat(controller.getRules("quality-rd", Map.of(), TestReadViews.authenticatedRequest()).getData().rules()).hasSize(1);
+    assertThat(controller.getDetails("quality-rd", "assignee-defects", Map.of(), TestReadViews.authenticatedRequest()).getData().viewKey())
         .isEqualTo("assignee-defects");
 
-    var export = controller.export("quality-rd", "assignee-defects", Map.of());
+    var export = controller.export("quality-rd", "assignee-defects", Map.of(), TestReadViews.authenticatedRequest());
     assertThat(export.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
         .contains("filename*=UTF-8''");
     assertThat(export.getBody()).containsExactly(1, 2, 3);
   }
 
   private static final class TestProvider implements AnalyticsDashboardProvider {
+    @Override
+    public AnalyticsDashboardProvider forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+      return this; // 仅测试静态能力登记，此替身不读取数据。
+    }
+
     private final String dashboardKey;
     private final String ruleVersion;
     private final String sourceVersion;

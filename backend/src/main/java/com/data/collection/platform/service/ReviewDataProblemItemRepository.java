@@ -21,12 +21,27 @@ import org.springframework.stereotype.Repository;
 public class ReviewDataProblemItemRepository {
   private final JdbcTemplate jdbcTemplate;
 
+
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 固定页面关系读取对象；原仓储工厂仅供当前业务命令与安装控制面。 */
+  public ReviewDataProblemItemRepository forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new ReviewDataProblemItemRepository(this, selection);
+  }
+
+  private ReviewDataProblemItemRepository(ReviewDataProblemItemRepository factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public ReviewDataProblemItemRepository(JdbcTemplate jdbcTemplate) {
+    this.fixedRead = null;
     this.jdbcTemplate = jdbcTemplate;
   }
 
   public java.util.List<ReviewDataProblemItemResponse> listProblemItems(Long recordId) {
-    return jdbcTemplate.query(
+    return query(
         """
         select
           id,
@@ -57,7 +72,7 @@ public class ReviewDataProblemItemRepository {
       return Map.of();
     }
     String placeholders = safeRecordIds.stream().map(ignored -> "?").collect(Collectors.joining(","));
-    return jdbcTemplate.query(
+    return query(
         """
         select
           id,
@@ -93,7 +108,7 @@ public class ReviewDataProblemItemRepository {
 
   public ReviewDataProblemItemResponse getProblemItemOrThrow(Long recordId, Long itemId) {
     try {
-      return jdbcTemplate.queryForObject(
+      return queryForObject(
           """
           select
             id,
@@ -123,7 +138,7 @@ public class ReviewDataProblemItemRepository {
 
   public void assertProblemItemExists(Long recordId, Long itemId) {
     Integer exists =
-        jdbcTemplate.queryForObject(
+        queryForObject(
             """
             select count(*)
             from review_problem_items
@@ -302,4 +317,21 @@ public class ReviewDataProblemItemRepository {
     return TextQuerySupport.trimToNull(value);
   }
 
+
+  private <T> java.util.List<T> query(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, mapper, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, mapper, args);
+  }
+  private <T> T query(String sql, org.springframework.jdbc.core.ResultSetExtractor<T> extractor, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, extractor, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, extractor, args);
+  }
+  private <T> T queryForObject(String sql, Class<T> type, Object... args) {
+    return fixedRead == null ? jdbcTemplate.queryForObject(sql, type, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForObject(fixedRead, sql, type, args);
+  }
+  private <T> T queryForObject(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    return fixedRead == null ? jdbcTemplate.queryForObject(sql, mapper, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForObject(fixedRead, sql, mapper, args);
+  }
 }

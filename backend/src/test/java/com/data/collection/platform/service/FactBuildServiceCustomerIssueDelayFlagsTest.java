@@ -26,14 +26,16 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 /**
  * 客户问题延期事实重算的写入面边界。
  *
- * <p>该任务只拥有三个延期布尔列，因此必须只写这三列：其它列、客户成员关系与搜索列都不得被它改写，
- * 否则读入内存的快照会把并发发布的事实回退（且发布状态已推进，不会重发）。
+ * <p>延期重算生成新修订：三个延期布尔列改变，其余业务列与客户集合保持；旧修订完全不改。
+ * 派生搜索列按相同业务输入重建，关系绑定到新父修订。本类只验事实组件，平台投影门禁由发布集成测试保护。
  */
 @Testcontainers(disabledWithoutDocker = true)
 class FactBuildServiceCustomerIssueDelayFlagsTest {
   private static final long CC_PROJECT_ID = 325L;
   private static final Set<String> DELAY_FLAG_COLUMNS =
-      Set.of("is_response_delayed", "response_overdue", "is_resolve_delayed", "updated_at");
+      Set.of("is_response_delayed", "response_overdue", "is_resolve_delayed", "updated_at",
+          "id", "publication_epoch_id", "created_by_publication_id", "visible_from", "visible_to",
+          "created_at", "fact_refreshed_at");
 
   @Container
   private static final PostgreSQLContainer<?> POSTGRES =
@@ -77,14 +79,28 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
   void setUp() {
     jdbcTemplate.update("delete from issue_fact_customer_members");
     jdbcTemplate.update("delete from issue_fact");
+    jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
     jdbcTemplate.update("delete from ods_gitlab_label_links");
     jdbcTemplate.update("delete from ods_gitlab_labels");
     jdbcTemplate.update("delete from ods_gitlab_issues");
-    issueFactPersistenceService = mock(IssueFactPersistenceService.class);
-    searchIndexRepairService = mock(FactSearchIndexRepairService.class);
+    try {
+      var configuration = new org.apache.ibatis.session.Configuration();
+      configuration.addMapper(com.data.collection.platform.mapper.IssueFactMapper.class);
+      var factory = new org.mybatis.spring.SqlSessionFactoryBean();
+      factory.setDataSource(jdbcTemplate.getDataSource());
+      factory.setConfiguration(configuration);
+      var mapper = new org.mybatis.spring.SqlSessionTemplate(factory.getObject())
+          .getMapper(com.data.collection.platform.mapper.IssueFactMapper.class);
+      issueFactPersistenceService = new IssueFactPersistenceService(mapper,
+          new IssueFactCustomerMembershipRepository(jdbcTemplate),
+          new com.data.collection.platform.service.read.ReadPublicationRepository(jdbcTemplate));
+    } catch (Exception error) { throw new IllegalStateException(error); }
+    searchIndexRepairService = new FactSearchIndexRepairService(jdbcTemplate,
+        new IssueFactSourceRowMapper(), new MergeRequestFactSourceRowMapper());
     SyncFactPublicationStateService publicationStateService =
         mock(SyncFactPublicationStateService.class);
     when(publicationStateService.isIssueSourceHistoryComplete("default")).thenReturn(true);
+    when(publicationStateService.sourceSeal(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.FactType.class), org.mockito.ArgumentMatchers.anyLong())).thenReturn("{\"fixture\":true}");
     service =
         new FactBuildService(
             jdbcTemplate,
@@ -96,8 +112,7 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
             publicationStateService,
             mock(GitlabSourceSchemaGuard.class),
             mock(GitlabConfigService.class),
-            mock(IntegrationTestFactBuildService.class),
-            mock(CustomerIssueMilestoneCatalogReconciliationService.class),
+            publicationService(),
             new GitlabFactSourceSqlProvider(),
             mock(GitlabFactSourceQueryExecutor.class),
             mock(IssuePhaseCalendarLoader.class),
@@ -106,9 +121,7 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
             searchIndexRepairService,
             new FactPublicationTransaction(
                 new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
-            new GitlabMirrorProperties(),
-            new FactProjectionScopeResolver(jdbcTemplate),
-            new FactProjectionGenerationService(jdbcTemplate));
+            new GitlabMirrorProperties());
   }
 
   @Test
@@ -136,13 +149,14 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
 
     service.refreshCustomerIssueDelayFactsForConfig(config());
 
-    Map<String, Object> after = rowSnapshot(targetFactId);
+    Map<String, Object> after = currentRowSnapshot(targetFactId);
     assertThat(after.get("is_response_delayed")).isEqualTo(true);
     assertThat(after.get("response_overdue")).isEqualTo(true);
     assertThat(after.get("updated_at")).isNotEqualTo(before.get("updated_at"));
     assertThat(changedColumns(before, after)).isEmpty();
     assertThat(memberRows()).isEqualTo(membersBefore);
-    verifyNoInteractions(issueFactPersistenceService, searchIndexRepairService);
+    assertThat(rowSnapshot(targetFactId).get("is_response_delayed"))
+        .as("旧完整修订的业务内容不能被延期重算修改").isEqualTo(false);
   }
 
   @Test
@@ -202,7 +216,7 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
 
     service.refreshCustomerIssueDelayFactsForConfig(config());
 
-    Map<String, Object> after = rowSnapshot(factId);
+    Map<String, Object> after = currentRowSnapshot(factId);
     assertThat(after.get("is_response_delayed")).isEqualTo(true);
     assertThat(after.get("response_overdue")).isEqualTo(true);
     assertThat(after.get("is_resolve_delayed")).isEqualTo(false);
@@ -225,9 +239,42 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
 
     service.refreshCustomerIssueDelayFactsForConfig(config());
 
-    Map<String, Object> after = rowSnapshot(factId);
+    Map<String, Object> after = currentRowSnapshot(factId);
     assertThat(after.get("is_response_delayed")).isEqualTo(false);
     assertThat(after.get("response_overdue")).isEqualTo(false);
+  }
+
+  private FactTargetPublicationService publicationService() {
+    FactTargetPublicationService publication = mock(FactTargetPublicationService.class);
+    when(publication.publishWithinCandidate(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> {
+          java.util.function.Function<com.data.collection.platform.entity.read.FactRevisionTarget,
+              com.data.collection.platform.entity.FactBuildResponse> body = invocation.getArgument(1);
+          bootstrap();
+          return FactRevisionFixture.publishFacts(jdbcTemplate,
+              com.data.collection.platform.entity.read.PublicationFactTable.ISSUE, "default", false, body);
+        });
+    return publication;
+  }
+
+  private void bootstrap() {
+    var repository = new com.data.collection.platform.service.read.ReadPublicationRepository(jdbcTemplate);
+    var publication = new com.data.collection.platform.service.read.ReadPublicationService(repository,
+        new com.data.collection.platform.config.ReadFallbackProperties());
+    new org.springframework.transaction.support.TransactionTemplate(
+        new org.springframework.jdbc.datasource.DataSourceTransactionManager(jdbcTemplate.getDataSource()))
+        .executeWithoutResult(status -> publication.bootstrapInitialVersion(
+            com.data.collection.platform.entity.read.ReadPublicationDomainKey.gitlabFact("default",
+                com.data.collection.platform.entity.FactType.ISSUE), "GITLAB", java.time.Instant.now(),
+            "{\"fixture\":true}", 0,
+            key -> com.data.collection.platform.service.read.InitialVersionVerification.VerificationResult.accepted()));
+  }
+
+  private Map<String, Object> currentRowSnapshot(long oldId) {
+    return jdbcTemplate.queryForMap("select current.* from issue_fact current join issue_fact old"
+        + " on current.source_system = old.source_system and current.source_instance = old.source_instance"
+        + " and current.project_id = old.project_id and current.issue_id = old.issue_id"
+        + " where old.id = ? and current.visible_from is not null and current.visible_to is null", oldId);
   }
 
   private GitlabSyncConfig config() {
@@ -238,12 +285,15 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
   }
 
   private Map<String, Object> rowSnapshot(long factId) {
+    bootstrap();
     return jdbcTemplate.queryForMap("select * from issue_fact where id = ?", factId);
   }
 
   private List<Map<String, Object>> memberRows() {
     return jdbcTemplate.queryForList(
-        "select * from issue_fact_customer_members order by project_id, issue_id, customer_name");
+        "select m.source_system, m.source_instance, m.project_id, m.issue_id, m.customer_name"
+          + " from issue_fact_customer_members m join issue_fact f on f.id = m.issue_fact_revision_id"
+          + " where f.visible_to is null order by m.project_id, m.issue_id, m.customer_name");
   }
 
   private Map<String, Object> changedColumns(

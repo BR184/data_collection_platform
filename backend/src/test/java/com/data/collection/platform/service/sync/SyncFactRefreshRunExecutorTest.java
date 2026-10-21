@@ -38,6 +38,7 @@ class SyncFactRefreshRunExecutorTest {
   private FactProjectionTaskWorkerService projectionTaskWorkerService;
   private GitlabSourceSchemaGuard sourceSchemaGuard;
   private SyncFactRefreshRunExecutor executor;
+  private com.data.collection.platform.service.FactTargetPublicationService candidateService;
 
   @BeforeEach
   void setUp() {
@@ -50,6 +51,7 @@ class SyncFactRefreshRunExecutorTest {
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
     properties.setHeartbeatTimeoutSeconds(30);
     properties.setFactTargetBatchSize(200);
+    candidateService = mock(com.data.collection.platform.service.FactTargetPublicationService.class);
     executor =
         new SyncFactRefreshRunExecutor(
             configService,
@@ -59,7 +61,8 @@ class SyncFactRefreshRunExecutorTest {
             projectionTaskWorkerService,
             sourceSchemaGuard,
             properties,
-            new JsonUtils(new ObjectMapper()));
+            new JsonUtils(new ObjectMapper()),
+            candidateService);
   }
 
   @Test
@@ -257,6 +260,32 @@ class SyncFactRefreshRunExecutorTest {
     when(projectionTaskService.summarize(runId))
         .thenReturn(projectionSummary(0, 0, 0, 0, 0, 0, null));
     when(factBuildTaskService.hasUnpublishedTargets(1L, "alpha")).thenReturn(false);
+  }
+
+  @Test
+  void test_projecting_candidate_does_not_report_run_success() {
+    SyncRun run = run(24L, null);
+    when(configService.getConfigById(1L)).thenReturn(config());
+    stubEmptyDrainsAndSummaries(24L);
+    when(candidateService.pendingCandidateReason(24L)).thenReturn("等待必需投影");
+    SyncFactRefreshRunExecutor.Result result = executor.execute(run);
+    assertThat(result.status()).isEqualTo(SyncRunStatus.PAUSED);
+    assertThat(result.errorMessage()).contains("必需投影");
+  }
+
+  @Test
+  void test_unclosed_manual_intent_releases_candidate_and_reports_partial_without_expanding_scope() {
+    SyncRun run = run(25L, null);
+    run.setPayloadJson("{\"resumedTask\":{\"kind\":\"FACT_BUILD\",\"taskId\":77,\"originalRunId\":\"14\",\"mode\":\"CURRENT_PENDING\"}}");
+    when(configService.getConfigById(1L)).thenReturn(config());
+    stubEmptyDrainsAndSummaries(25L);
+    when(candidateService.pendingCandidateReason(25L)).thenReturn("未完成根 2");
+    when(candidateService.abortIncompleteIntentCandidates(25L, runLease(25L))).thenReturn(2L);
+    SyncFactRefreshRunExecutor.Result result = executor.execute(run);
+    assertThat(result.status()).isEqualTo(SyncRunStatus.PARTIAL_SUCCESS);
+    assertThat(result.runAfter()).isNull();
+    assertThat(result.errorMessage()).contains("2", "候选未发布且已释放");
+    verify(factBuildTaskService, never()).assignPendingSourceTargetBatches(any(), anyLong(), anyInt());
   }
 
   private FactBuildTaskService.RunTaskSummary factSummary(

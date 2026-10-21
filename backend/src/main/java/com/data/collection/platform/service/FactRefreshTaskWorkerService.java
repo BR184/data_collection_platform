@@ -5,6 +5,7 @@ import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
 import com.data.collection.platform.entity.FactType;
+import com.data.collection.platform.entity.read.FactRevisionTarget;
 import com.data.collection.platform.service.sync.SyncFactPublicationStateService;
 import com.data.collection.platform.service.sync.SyncRunEventRecorder;
 import java.util.Locale;
@@ -63,6 +64,7 @@ public class FactRefreshTaskWorkerService {
     }
     taskService.recoverTimedOutQueuedTasks();
     taskService.parkOrphanedTasksForManualDecision();
+    targetPublicationService.recoverAbandonedCandidates();
   }
 
   /**
@@ -79,16 +81,23 @@ public class FactRefreshTaskWorkerService {
       GitlabSyncConfig config = configService.getConfigById(task.configId());
       FactType factType = parseFactType(task.factType());
       if (!publicationStateService.isReady(task.sourceInstance(), factType)) {
+        if (!task.full() && !taskService.hasUnpublishedOwnedRoots(task)) {
+          return targetPublicationService.completeCoveredTask(task);
+        }
         taskService.deferOwnedTask(task, DEPENDENCY_DEFER_SECONDS);
         return null;
       }
       FactBuildResponse response = task.full()
           ? targetPublicationService.publishFull(
-              task, progress -> rebuildFullFacts(config, factType, progress))
+              task, (target, progress) -> rebuildFullFacts(config, target, factType, progress))
           : targetPublicationService.publish(
-              task, rootIds -> rebuildTargetedFacts(task, factType, rootIds));
+              task, (target, rootIds) -> rebuildTargetedFacts(target, task, factType, rootIds));
       return response;
+    } catch (FactCandidateBusyException error) {
+      taskService.deferOwnedTask(task, DEPENDENCY_DEFER_SECONDS);
+      return null;
     } catch (FactTaskLeaseLostException error) {
+      targetPublicationService.abortTaskCandidate(task, error.getMessage());
       log.info(
           "Fact refresh task stopped after losing execution rights, taskId={}, reason={}",
           task.id(),
@@ -96,6 +105,7 @@ public class FactRefreshTaskWorkerService {
       return null;
     } catch (Exception e) {
       try {
+        targetPublicationService.abortTaskCandidate(task, e.getMessage());
         FactBuildTaskService.FailureDisposition disposition =
             taskService.failOwnedTask(task, e.getMessage());
         if (disposition.retryWaiting()) {
@@ -132,13 +142,14 @@ public class FactRefreshTaskWorkerService {
   }
 
   private FactBuildResponse rebuildFullFacts(
-      GitlabSyncConfig config, FactType factType, FactBuildProgress progress) {
+      GitlabSyncConfig config, FactRevisionTarget target, FactType factType, FactBuildProgress progress) {
     return switch (factType) {
-      case ISSUE -> factBuildService.rebuildIssueFactsForQueuedTask(config, true, progress);
+      case ISSUE -> factBuildService.rebuildIssueFactsForQueuedTask(config, target, true, progress);
       case MERGE_REQUEST ->
-          factBuildService.rebuildMergeRequestFactsForQueuedTask(config, true, progress);
+          factBuildService.rebuildMergeRequestFactsForQueuedTask(config, target, true, progress);
       case INTEGRATION_TEST -> {
-        FactBuildResponse response = integrationTestFactBuildService.rebuildFactsForConfig(config, true);
+        FactBuildResponse response =
+            integrationTestFactBuildService.rebuildFactsForConfig(config, target, true);
         progress.chunkCommitted(1, 1, response.affectedRows());
         yield response;
       }
@@ -146,13 +157,11 @@ public class FactRefreshTaskWorkerService {
   }
 
   private FactBuildResponse rebuildTargetedFacts(
-      QueuedFactBuildTask task, FactType factType, java.util.List<Long> rootIds) {
+      FactRevisionTarget target, QueuedFactBuildTask task, FactType factType, java.util.List<Long> rootIds) {
     return switch (factType) {
-      case ISSUE -> factBuildService.rebuildIssueFactsByRootIds(task.sourceInstance(), rootIds);
-      case MERGE_REQUEST ->
-          factBuildService.rebuildMergeRequestFactsByRootIds(task.sourceInstance(), rootIds);
-      case INTEGRATION_TEST ->
-          integrationTestFactBuildService.rebuildFactsByRootIds(task.sourceInstance(), rootIds);
+      case ISSUE -> factBuildService.rebuildIssueFactsByRootIds(target, rootIds);
+      case MERGE_REQUEST -> factBuildService.rebuildMergeRequestFactsByRootIds(target, rootIds);
+      case INTEGRATION_TEST -> integrationTestFactBuildService.rebuildFactsByRootIds(target, rootIds);
     };
   }
 }

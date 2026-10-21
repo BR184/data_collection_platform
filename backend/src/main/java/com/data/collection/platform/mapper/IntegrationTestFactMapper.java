@@ -17,7 +17,7 @@ public interface IntegrationTestFactMapper extends BaseMapper<IntegrationTestFac
         module_name, function_name, executor, testing_phase, execute_case, pass_case,
         not_pass_case, not_pass_case_now, problem_case, exception_count, pass_rate,
         legal, parse_status, validation_reason, label_names, function_labels, deleted,
-        fact_refreshed_at, created_at, updated_at
+        fact_refreshed_at, created_at, updated_at, publication_epoch_id, created_by_publication_id
       ) values (
         #{fact.sourceSystem}, #{fact.sourceInstance}, #{fact.ingestChannel},
         #{fact.sourceSummary}, #{fact.rawPayload}, #{fact.projectId}, #{fact.projectName},
@@ -30,9 +30,9 @@ public interface IntegrationTestFactMapper extends BaseMapper<IntegrationTestFac
         #{fact.notPassCaseNow}, #{fact.problemCase}, #{fact.exceptionCount},
         #{fact.passRate}, #{fact.legal}, #{fact.parseStatus}, #{fact.validationReason},
         #{fact.labelNames}, #{fact.functionLabels}, #{fact.deleted},
-        current_timestamp, current_timestamp, current_timestamp
+        current_timestamp, current_timestamp, current_timestamp, #{epochId}, #{publicationId}
       )
-      on conflict (source_system, source_instance, project_id, issue_id)
+      on conflict (created_by_publication_id, source_system, source_instance, project_id, issue_id)
       do update set
         ingest_channel = excluded.ingest_channel,
         source_summary = excluded.source_summary,
@@ -70,5 +70,8 @@ public interface IntegrationTestFactMapper extends BaseMapper<IntegrationTestFac
         fact_refreshed_at = current_timestamp,
         updated_at = current_timestamp
       """)
-  void upsert(@Param("fact") IntegrationTestFact fact);
+  void upsert(
+      @Param("fact") IntegrationTestFact fact,
+      @Param("epochId") java.util.UUID epochId,
+      @Param("publicationId") java.util.UUID publicationId);
 }

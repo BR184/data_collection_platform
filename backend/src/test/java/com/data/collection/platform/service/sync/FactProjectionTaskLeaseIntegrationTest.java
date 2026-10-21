@@ -60,11 +60,18 @@ class FactProjectionTaskLeaseIntegrationTest {
   private PageRecordSnapshotService pageRecordSnapshotService;
   private StatisticBoardSnapshotService statisticBoardSnapshotService;
   private FactProjectionTaskService taskService;
+  private com.data.collection.platform.service.read.ReadPublicationRepository publications;
+  private com.data.collection.platform.service.read.ReadPublicationService publisher;
+  private java.util.UUID candidateId;
 
   @BeforeAll
   static void openDatabase() {
     database = PostgresIntegrationTestDatabase.open("fact_projection_task_lease_test");
     dataSource = database.dataSource();
+    org.flywaydb.core.Flyway flyway = org.flywaydb.core.Flyway.configure().dataSource(dataSource)
+        .locations("classpath:db/migration").cleanDisabled(false).load();
+    flyway.clean();
+    flyway.migrate();
   }
 
   @AfterAll
@@ -77,67 +84,16 @@ class FactProjectionTaskLeaseIntegrationTest {
   @BeforeEach
   void resetSchema() {
     jdbcTemplate = new JdbcTemplate(dataSource);
-    jdbcTemplate.execute("drop table if exists page_record_snapshots");
-    jdbcTemplate.execute("drop table if exists statistic_board_snapshots");
-    jdbcTemplate.execute("drop table if exists fact_projection_refresh_tasks");
-    jdbcTemplate.execute("drop table if exists fact_projection_generations");
-    jdbcTemplate.execute("drop table if exists fact_build_tasks");
-    jdbcTemplate.execute("drop table if exists sync_runs");
-    jdbcTemplate.execute(
-        "create table sync_runs (id bigint primary key, run_type varchar(32) not null, "
-            + "status varchar(32) not null, lease_owner varchar(128), lease_until timestamp, "
-            + "cancel_requested boolean not null default false)");
-    jdbcTemplate.execute("create table fact_build_tasks (id bigint primary key)");
-    jdbcTemplate.execute(
-        "create table fact_projection_generations (source_instance varchar(128) not null, "
-            + "fact_type varchar(64) not null, scope_type varchar(64) not null, "
-            + "scope_key varchar(512) not null, generation bigint not null, "
-            + "primary key (source_instance, fact_type, scope_type, scope_key))");
-    jdbcTemplate.execute(
-        "create table fact_projection_refresh_tasks (id bigint primary key, fact_run_id bigint not null, "
-            + "fact_build_task_id bigint not null, source_instance varchar(128) not null, "
-            + "fact_type varchar(64) not null, scope_type varchar(64) not null, "
-            + "scope_key varchar(512) not null, target_generation bigint not null, "
-            + "status varchar(32) not null, lease_owner varchar(128), lease_until timestamp, "
-            + "heartbeat_at timestamp, retry_count integer not null, max_retry_count integer not null, "
-            + "recovery_count integer not null default 0, run_after timestamp not null, "
-            + "error_message text, started_at timestamp, finished_at timestamp, updated_at timestamp, "
-            + "manual_disposition varchar(32) not null default 'NONE')");
-    // 与 V20260703_05、V20260803_01 保持一致的真实页面快照存储。
-    jdbcTemplate.execute(
-        "create table page_record_snapshots ("
-            + "id bigserial primary key, page_key varchar(128) not null, snapshot_type varchar(64) not null, "
-            + "scope_key varchar(512) not null, rule_version varchar(128) not null, source_version text, "
-            + "request_hash varchar(64) not null, request_payload jsonb not null default '{}'::jsonb, "
-            + "response_payload jsonb not null default '{}'::jsonb, status varchar(32) not null default 'READY', "
-            + "error_message text, generated_at timestamp not null default current_timestamp, "
-            + "refreshed_at timestamp not null default current_timestamp, "
-            + "created_at timestamp not null default current_timestamp, "
-            + "updated_at timestamp not null default current_timestamp, "
-            + "constraint uk_page_record_snapshots_scope "
-            + "unique (page_key, snapshot_type, scope_key, rule_version, request_hash))");
-    // 与 V20260629_02、V20260629_04 保持一致的真实统计看板快照存储。
-    jdbcTemplate.execute(
-        "create table statistic_board_snapshots ("
-            + "id bigserial primary key, board_key varchar(128) not null, scope_key varchar(512) not null, "
-            + "rule_version varchar(128) not null, source_version varchar(128), filter_hash varchar(64) not null, "
-            + "filter_payload jsonb not null default '{}'::jsonb, "
-            + "applied_filter_payload jsonb not null default '{}'::jsonb, "
-            + "row_payload jsonb not null default '[]'::jsonb, "
-            + "meta_payload jsonb not null default '{}'::jsonb, definition_payload jsonb, "
-            + "status varchar(32) not null default 'READY', error_message text, "
-            + "generated_at timestamp not null default current_timestamp, "
-            + "refreshed_at timestamp not null default current_timestamp, "
-            + "created_at timestamp not null default current_timestamp, "
-            + "updated_at timestamp not null default current_timestamp, "
-            + "constraint uk_statistic_board_snapshots_scope "
-            + "unique (board_key, scope_key, rule_version, filter_hash))");
-
+    jdbcTemplate.execute("truncate table read_publication_domains, read_publications, read_definition_snapshots, "
+        + "fact_projection_refresh_tasks, fact_projection_generations, fact_build_tasks, sync_runs, "
+        + "gitlab_sync_configs, statistic_board_snapshots, page_record_snapshots restart identity cascade");
     DataSourceTransactionManager transactionManager = new DataSourceTransactionManager(dataSource);
     transactionTemplate = new TransactionTemplate(transactionManager);
     executionContext = new FactProjectionExecutionContext();
     publicationGuardService =
-        new FactProjectionPublicationGuardService(jdbcTemplate, executionContext, transactionManager);
+        new FactProjectionPublicationGuardService(jdbcTemplate, executionContext,
+            new com.data.collection.platform.service.read.CandidateCacheArtifactStore(jdbcTemplate),
+            transactionManager);
     JsonUtils jsonUtils = new JsonUtils(new ObjectMapper());
     pageRecordSnapshotService =
         new PageRecordSnapshotService(
@@ -155,6 +111,9 @@ class FactProjectionTaskLeaseIntegrationTest {
             publicationGuardService,
             transactionManager);
     taskService = new FactProjectionTaskService(jdbcTemplate, mock(SyncRunPublicationFenceService.class));
+    publications = new com.data.collection.platform.service.read.ReadPublicationRepository(jdbcTemplate);
+    publisher = new com.data.collection.platform.service.read.ReadPublicationService(publications,
+        new com.data.collection.platform.config.ReadFallbackProperties());
   }
 
   @Test
@@ -234,14 +193,14 @@ class FactProjectionTaskLeaseIntegrationTest {
     try (FactProjectionExecutionContext.Scope ignored =
         executionContext.open(runningTask("current-token", 1L))) {
       publicationGuardService.writeSnapshot(
-          () -> pageRecordSnapshotService.save(recordRequest("prewarm-page"), Map.of("ok", true)));
+          () -> pageRecordSnapshotService.save(selection(), recordRequest("prewarm-page"), Map.of("ok", true)));
       publicationGuardService.writeSnapshot(
           () ->
-              statisticBoardSnapshotService.save(
-                  boardRequest("board-1"), "source-v1", boardResponse()));
+              statisticBoardSnapshotService.save(selection(),
+                  boardRequest("board-1"), boardResponse()));
     }
 
-    assertThat(pageSnapshotStatus("prewarm-page")).isEqualTo("READY");
+    assertThat(pageSnapshotStatus("prewarm-page")).isEqualTo("PREPARED");
     assertThat(boardSnapshotCount()).isOne();
   }
 
@@ -258,9 +217,9 @@ class FactProjectionTaskLeaseIntegrationTest {
               () ->
                   publicationGuardService.writeSnapshot(
                       () -> {
-                        pageRecordSnapshotService.save(recordRequest("prewarm-page"), Map.of("ok", true));
-                        statisticBoardSnapshotService.save(
-                            boardRequest("x".repeat(200)), "source-v1", boardResponse());
+                        pageRecordSnapshotService.save(selection(), recordRequest("prewarm-page"), Map.of("ok", true));
+                        statisticBoardSnapshotService.save(selection(),
+                            boardRequest("x".repeat(200)), boardResponse());
                       }))
           .isInstanceOf(DataAccessException.class);
     }
@@ -279,8 +238,8 @@ class FactProjectionTaskLeaseIntegrationTest {
         executionContext.open(runningTask("current-token", 1L))) {
       publicationGuardService.writeSnapshot(
           () ->
-              statisticBoardSnapshotService.save(
-                  boardRequest("board-1"), "source-v1", boardResponse()));
+              statisticBoardSnapshotService.save(selection(),
+                  boardRequest("board-1"), boardResponse()));
     }
     assertThat(boardSnapshotCount()).isOne();
 
@@ -292,21 +251,21 @@ class FactProjectionTaskLeaseIntegrationTest {
               () ->
                   publicationGuardService.writeSnapshot(
                       () ->
-                          statisticBoardSnapshotService.save(
-                              boardRequest("board-late"), "source-v1", boardResponse())))
+                          statisticBoardSnapshotService.save(selection(),
+                              boardRequest("board-late"), boardResponse())))
           .isInstanceOf(ProjectionTaskLeaseLostException.class);
     }
     assertThat(boardSnapshotCount()).isOne();
 
-    jdbcTemplate.update("update fact_projection_generations set generation = 2 where scope_key = 'scope-1'");
+    inTransaction(() -> publisher.recordScopeGeneration(candidateId, ProjectionScopeType.PROJECT, "scope-1", 2));
     try (FactProjectionExecutionContext.Scope ignored =
         executionContext.open(runningTask("replacement-token", 1L))) {
       assertThatThrownBy(
               () ->
                   publicationGuardService.writeSnapshot(
                       () ->
-                          statisticBoardSnapshotService.save(
-                              boardRequest("board-late"), "source-v1", boardResponse())))
+                          statisticBoardSnapshotService.save(selection(),
+                              boardRequest("board-late"), boardResponse())))
           .isInstanceOf(ProjectionTaskSupersededException.class);
     }
     assertThat(boardSnapshotCount()).isOne();
@@ -330,8 +289,8 @@ class FactProjectionTaskLeaseIntegrationTest {
                 try (FactProjectionExecutionContext.Scope ignored = executionContext.open(owner)) {
                   publicationGuardService.writeSnapshot(
                       () -> {
-                        statisticBoardSnapshotService.save(
-                            boardRequest("board-1"), "source-v1", boardResponse());
+                        statisticBoardSnapshotService.save(selection(),
+                            boardRequest("board-1"), boardResponse());
                         ownerInsideWrite.countDown();
                         awaitLatch(releaseOwner);
                       });
@@ -342,8 +301,7 @@ class FactProjectionTaskLeaseIntegrationTest {
       Future<Integer> higherGenerationPublication =
           pool.submit(
               () ->
-                  jdbcTemplate.update(
-                      "update fact_projection_generations set generation = 2 where scope_key = 'scope-1'"));
+                  inTransaction(() -> publisher.recordScopeGeneration(candidateId, ProjectionScopeType.PROJECT, "scope-1", 2)));
       awaitBlockedRegistration();
 
       assertThat(higherGenerationPublication.isDone()).isFalse();
@@ -351,7 +309,9 @@ class FactProjectionTaskLeaseIntegrationTest {
       ownerPublication.get(10, TimeUnit.SECONDS);
       assertThat(higherGenerationPublication.get(10, TimeUnit.SECONDS)).isOne();
 
-      assertThat(currentGeneration()).isEqualTo(2);
+      assertThat(currentGeneration()).as("候选目标变化不得提前推进公开 generation").isEqualTo(1);
+      assertThat(jdbcTemplate.queryForObject("select candidate_generation from read_publication_scope_generations where publication_id = ?",
+          Long.class, candidateId)).isEqualTo(2);
       assertThat(boardSnapshotCount()).isOne();
 
       // 调度器回收过期租约并重新领取：同一任务获得新执行身份。
@@ -370,8 +330,8 @@ class FactProjectionTaskLeaseIntegrationTest {
                 () ->
                     publicationGuardService.writeSnapshot(
                         () ->
-                            statisticBoardSnapshotService.save(
-                                boardRequest("board-late"), "source-v1", boardResponse())))
+                            statisticBoardSnapshotService.save(selection(),
+                                boardRequest("board-late"), boardResponse())))
             .isInstanceOf(ProjectionTaskSupersededException.class);
       }
       assertThat(boardSnapshotCount()).isOne();
@@ -441,8 +401,8 @@ class FactProjectionTaskLeaseIntegrationTest {
               () ->
                   publicationGuardService.writeSnapshot(
                       () ->
-                          statisticBoardSnapshotService.save(
-                              boardRequest("board-1"), "source-v1", boardResponse())))
+                          statisticBoardSnapshotService.save(selection(),
+                              boardRequest("board-1"), boardResponse())))
           .isInstanceOf(ProjectionTaskLeaseLostException.class);
     }
 
@@ -462,8 +422,8 @@ class FactProjectionTaskLeaseIntegrationTest {
               () ->
                   publicationGuardService.writeSnapshot(
                       () ->
-                          statisticBoardSnapshotService.save(
-                              boardRequest("board-1"), "source-v1", boardResponse())))
+                          statisticBoardSnapshotService.save(selection(),
+                              boardRequest("board-1"), boardResponse())))
           .isInstanceOf(ProjectionTaskLeaseLostException.class);
     }
 
@@ -534,7 +494,7 @@ class FactProjectionTaskLeaseIntegrationTest {
 
   private QueuedFactProjectionTask runningTask(String leaseToken, long targetGeneration) {
     return new QueuedFactProjectionTask(
-        1L, 1L, "parent-token", 2L, scope(), targetGeneration, 0, 3, leaseToken, null);
+        1L, 1L, "parent-token", 2L, scope(), targetGeneration, 0, 3, leaseToken, null, candidateId);
   }
 
   private PageRecordSnapshotService.SnapshotRequest recordRequest(String pageKey) {
@@ -575,28 +535,44 @@ class FactProjectionTaskLeaseIntegrationTest {
   }
 
   private void insertParentRun(String status, String leaseToken) {
-    jdbcTemplate.update(
-        "insert into sync_runs(id, run_type, status, lease_owner, lease_until, cancel_requested) "
-            + "values (1, 'FACT_REFRESH', ?, ?, clock_timestamp() + interval '1 hour', false)",
-        status,
-        leaseToken);
-    jdbcTemplate.update("insert into fact_build_tasks values (2)");
+    jdbcTemplate.update("insert into gitlab_sync_configs(id, db_name, db_username, db_password) values (1, 'fixture', 'fixture', 'fixture')");
+    jdbcTemplate.update("""
+        insert into sync_runs(id, run_id, config_id, source_instance, run_type, trigger_type, status,
+            exclusive_scope, lease_owner, lease_until, cancel_requested)
+        values (1, 'projection-fixture', 1, 'alpha', 'FACT_REFRESH', 'SCHEDULE', ?, 'projection-fixture', ?,
+            clock_timestamp() + interval '1 hour', false)
+        """, status, leaseToken);
+    jdbcTemplate.update("insert into fact_build_tasks(id, run_id, scope, status, source_instance, fact_type)"
+        + " values (2, '1', 'issue', 'SUCCESS', 'alpha', 'ISSUE')");
   }
 
   private void insertGeneration(long generation) {
-    jdbcTemplate.update(
-        "insert into fact_projection_generations values ('alpha', 'ISSUE', 'PROJECT', 'scope-1', ?)",
-        generation);
+    jdbcTemplate.update("insert into fact_projection_generations(source_instance, fact_type, scope_type, scope_key, generation)"
+        + " values ('alpha', 'ISSUE', 'PROJECT', 'scope-1', ?)", generation);
+    candidateId = inTransaction(() -> {
+      java.util.UUID definition = publications.freezeCurrentFactDefinitions("alpha");
+      var candidate = publisher.openCandidate(new com.data.collection.platform.service.read.CandidateOpenRequest(
+          com.data.collection.platform.entity.read.ReadPublicationDomainKey.gitlabFact("alpha", FactType.ISSUE),
+          java.util.UUID.randomUUID(), null, "{\"fixture\":true}", 0, definition, "1", 2L, "parent-token", java.time.Instant.now()));
+      publisher.recordScopeGeneration(candidate.id(), ProjectionScopeType.PROJECT, "scope-1", generation);
+      publisher.markProjecting(candidate.id(), "parent-token");
+      return candidate.id();
+    });
+  }
+
+  private com.data.collection.platform.entity.read.FactReadSelection selection() {
+    return new com.data.collection.platform.entity.read.FactReadSelection(List.of(publisher.candidateContext(candidateId)), java.time.LocalDate.of(2026, 10, 13));
   }
 
   private void insertTask(
       String status, String leaseToken, String leaseUntilSql, int retryCount, int maxRetryCount) {
     jdbcTemplate.update(
-        "insert into fact_projection_refresh_tasks(id, fact_run_id, fact_build_task_id, "
+        "insert into fact_projection_refresh_tasks(id, fact_run_id, fact_build_task_id, publication_id, "
             + "source_instance, fact_type, scope_type, scope_key, target_generation, status, "
             + "lease_owner, lease_until, heartbeat_at, retry_count, max_retry_count, recovery_count, "
-            + "run_after, updated_at) values (1, 1, 2, 'alpha', 'ISSUE', 'PROJECT', 'scope-1', "
+            + "run_after, updated_at) values (1, 1, 2, ?, 'alpha', 'ISSUE', 'PROJECT', 'scope-1', "
             + "1, ?, ?, " + leaseUntilSql + ", current_timestamp, ?, ?, 0, current_timestamp, current_timestamp)",
+        candidateId,
         status,
         leaseToken,
         retryCount,

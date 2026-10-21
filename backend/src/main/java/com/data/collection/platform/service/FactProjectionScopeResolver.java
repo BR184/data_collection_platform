@@ -15,8 +15,12 @@ import org.springframework.stereotype.Service;
 public class FactProjectionScopeResolver {
   private final JdbcTemplate jdbcTemplate;
 
-  public FactProjectionScopeResolver(JdbcTemplate jdbcTemplate) {
+  private final com.data.collection.platform.service.read.ReadPublicationService publicationService;
+
+  public FactProjectionScopeResolver(JdbcTemplate jdbcTemplate,
+      com.data.collection.platform.service.read.ReadPublicationService publicationService) {
     this.jdbcTemplate = jdbcTemplate;
+    this.publicationService = publicationService;
   }
 
   /**
@@ -29,13 +33,28 @@ public class FactProjectionScopeResolver {
    */
   public Set<FactProjectionScope> resolveCurrentScopes(
       String sourceInstance, FactType factType, List<Long> rootIds) {
+    return resolveCandidateScopes(sourceInstance, factType, rootIds, null);
+  }
+
+  /** 解析当前完整事实与本候选触及根的前后范围，排除其它候选和被取代的历史修订。 */
+  public Set<FactProjectionScope> resolveCandidateScopes(String sourceInstance, FactType factType,
+      List<Long> rootIds, java.util.UUID candidateId) {
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
     List<Long> targets = normalizeRootIds(rootIds);
     if (targets.isEmpty()) {
       return Set.of();
     }
+    com.data.collection.platform.service.read.SqlFilter visibility;
+    if (candidateId == null) {
+      visibility = new com.data.collection.platform.service.read.SqlFilter(
+          "fact.source_system = 'GITLAB' and "
+              + com.data.collection.platform.service.read.FactReadVisibility.liveRevisionPredicate("fact"), List.of());
+    } else {
+      visibility = com.data.collection.platform.service.read.FactReadVisibility.visibleFacts(
+          "fact", publicationService.candidateContext(candidateId));
+    }
     LinkedHashSet<FactProjectionScope> scopes = new LinkedHashSet<>();
-    for (Long projectId : loadProjectIds(normalizedSource, factType, targets)) {
+    for (Long projectId : loadProjectIds(normalizedSource, factType, targets, visibility)) {
       scopes.add(
           new FactProjectionScope(
               normalizedSource,
@@ -52,33 +71,36 @@ public class FactProjectionScopeResolver {
               FactProjectionScopeKeyCodec.SINGLETON_SCOPE_KEY));
     }
     if (factType == FactType.ISSUE || factType == FactType.INTEGRATION_TEST) {
-      scopes.addAll(loadIssueScopeGroups(normalizedSource, factType, targets));
+      scopes.addAll(loadIssueScopeGroups(normalizedSource, factType, targets, visibility));
     }
     return java.util.Collections.unmodifiableSet(new java.util.TreeSet<>(scopes));
   }
 
   private List<Long> loadProjectIds(
-      String sourceInstance, FactType factType, List<Long> rootIds) {
+      String sourceInstance, FactType factType, List<Long> rootIds, com.data.collection.platform.service.read.SqlFilter visibility) {
     FactTable table = FactTable.forType(factType);
     String placeholders = placeholders(rootIds.size());
     ArrayList<Object> args = new ArrayList<>(1 + rootIds.size());
     args.add(sourceInstance);
     args.addAll(rootIds);
+    args.addAll(visibility.args());
     return jdbcTemplate.queryForList(
-        "select distinct project_id from " + table.tableName()
+        "select distinct project_id from " + table.tableName() + " fact"
             + " where source_instance = ? and " + table.rootColumn()
-            + " in (" + placeholders + ") and project_id is not null order by project_id",
+            + " in (" + placeholders + ") and project_id > 0 and ("
+            + visibility.sql() + ") order by project_id",
         Long.class,
         args.toArray());
   }
 
   private Set<FactProjectionScope> loadIssueScopeGroups(
-      String sourceInstance, FactType factType, List<Long> rootIds) {
+      String sourceInstance, FactType factType, List<Long> rootIds, com.data.collection.platform.service.read.SqlFilter visibility) {
     FactTable table = FactTable.forType(factType);
     String placeholders = placeholders(rootIds.size());
     ArrayList<Object> args = new ArrayList<>(1 + rootIds.size());
     args.add(sourceInstance);
     args.addAll(rootIds);
+    args.addAll(visibility.args());
     String scopeMatch = factType == FactType.INTEGRATION_TEST
         ? "catalog.dimension = 'TESTING_PHASE' and member.source_value = fact.testing_phase"
         : """
@@ -101,8 +123,10 @@ public class FactProjectionScopeResolver {
            and scope_group.enabled = true
          where fact.source_instance = ?
            and fact.%s in (%s)
+           and (%s)
          order by fact.project_id, catalog.dimension, scope_group.id
-        """.formatted(table.tableName(), scopeMatch, table.rootColumn(), placeholders);
+        """.formatted(table.tableName(), scopeMatch, table.rootColumn(), placeholders,
+            visibility.sql());
     return Set.copyOf(
         jdbcTemplate.query(
             sql,

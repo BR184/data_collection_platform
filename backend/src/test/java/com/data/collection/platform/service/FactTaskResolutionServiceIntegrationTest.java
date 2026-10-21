@@ -514,6 +514,7 @@ class FactTaskResolutionServiceIntegrationTest {
   }
 
   private void createSchema() {
+    jdbcTemplate.execute("drop table if exists read_publication_root_inputs, read_publications, read_publication_domains cascade");
     jdbcTemplate.execute("drop table if exists sync_run_events");
     jdbcTemplate.execute("drop table if exists fact_projection_refresh_tasks");
     jdbcTemplate.execute("drop table if exists fact_build_task_roots");
@@ -642,5 +643,9 @@ class FactTaskResolutionServiceIntegrationTest {
           payload_json text,
           created_at timestamp not null default current_timestamp)
         """);
+    jdbcTemplate.execute("create table read_publication_domains(id uuid primary key, producer_kind text, source_instance text, fact_type text)");
+    jdbcTemplate.execute("create table read_publications(id uuid primary key, domain_id uuid, state text, producer_run_id text)");
+    jdbcTemplate.execute("create table read_publication_root_inputs(publication_id uuid, source_instance text, fact_type text, root_id bigint, built_at timestamp)");
+
   }
 }

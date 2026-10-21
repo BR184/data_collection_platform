@@ -19,12 +19,27 @@ import org.springframework.stereotype.Repository;
 public class ReviewDataLegacyParityRepository {
   private final JdbcTemplate jdbcTemplate;
 
+
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 固定页面关系读取对象；原仓储工厂仅供当前业务命令与安装控制面。 */
+  public ReviewDataLegacyParityRepository forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new ReviewDataLegacyParityRepository(this, selection);
+  }
+
+  private ReviewDataLegacyParityRepository(ReviewDataLegacyParityRepository factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public ReviewDataLegacyParityRepository(JdbcTemplate jdbcTemplate) {
+    this.fixedRead = null;
     this.jdbcTemplate = jdbcTemplate;
   }
 
   public List<ReviewDataDescriptionResponse> listDescriptions(Long recordId) {
-    return jdbcTemplate.query(
+    return query(
         """
         select id, review_record_id, review_product, review_version, author_name,
                review_scale_pages, unit, sort_order, updated_at
@@ -37,7 +52,7 @@ public class ReviewDataLegacyParityRepository {
   }
 
   public List<ReviewDataContentResponse> listContents(Long recordId) {
-    return jdbcTemplate.query(
+    return query(
         """
         select id, review_record_id, reviewer_name, assignment_content,
                independent_workload_hours, independent_problem_count,
@@ -231,5 +246,18 @@ public class ReviewDataLegacyParityRepository {
 
   private int safeSortOrder(Integer value) {
     return value == null ? 0 : Math.max(0, value);
+  }
+
+  private <T> java.util.List<T> query(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, mapper, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, mapper, args);
+  }
+  private <T> T query(String sql, org.springframework.jdbc.core.ResultSetExtractor<T> extractor, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, extractor, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, extractor, args);
+  }
+  private <T> T queryForObject(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    return fixedRead == null ? jdbcTemplate.queryForObject(sql, mapper, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForObject(fixedRead, sql, mapper, args);
   }
 }

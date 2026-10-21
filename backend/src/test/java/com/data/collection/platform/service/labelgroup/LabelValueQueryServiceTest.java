@@ -25,10 +25,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class LabelValueQueryServiceTest {
 
-  @Mock private ReviewDataMirrorOptionRepository mirrorOptionRepository;
-  @Mock private ReviewDataRecordService reviewDataRecordService;
-  @Mock private SystemTestIssueSearchService systemTestIssueSearchService;
-  @Mock private CustomerIssueRecordService customerIssueRecordService;
+  @Mock(answer = org.mockito.Answers.RETURNS_SELF) private ReviewDataMirrorOptionRepository mirrorOptionRepository;
+  @Mock(answer = org.mockito.Answers.RETURNS_SELF) private ReviewDataRecordService reviewDataRecordService;
+  @Mock(answer = org.mockito.Answers.RETURNS_SELF) private SystemTestIssueSearchService systemTestIssueSearchService;
+  @Mock(answer = org.mockito.Answers.RETURNS_SELF) private CustomerIssueRecordService customerIssueRecordService;
 
   @Test
   void mirrorDimensionsLoadFullCandidatesFromMirrorRepository() {
@@ -174,12 +174,22 @@ class LabelValueQueryServiceTest {
   }
 
   private LabelValueQueryService service() {
+    // 此套件只锁定候选值业务映射；真实版本与镜像分页失败隔离在数据集集成测试中验证。
+    LabelValuePublishedReader reader = org.mockito.Mockito.mock(LabelValuePublishedReader.class, invocation -> {
+      var facts = com.data.collection.platform.service.read.TestReadSelections.all();
+      var selection = new com.data.collection.platform.entity.read.DatasetReadSelection(java.util.List.of(
+          new com.data.collection.platform.entity.read.PublishedDatasetReadContext("default", "fixture",
+              java.util.UUID.randomUUID(), 1, java.util.UUID.randomUUID(), java.time.Instant.now())), facts, facts.businessDate());
+      @SuppressWarnings("unchecked")
+      var callback = (java.util.function.Function<com.data.collection.platform.entity.read.ReadSelection,Object>) invocation.getArgument(3);
+      return callback.apply(selection);
+    });
     return new LabelValueQueryService(
         new LabelDimensionCatalogService(),
         mirrorOptionRepository,
         reviewDataRecordService,
         systemTestIssueSearchService,
-        customerIssueRecordService);
+        customerIssueRecordService, reader);
   }
 
   private static OptionItemResponse option(String value) {

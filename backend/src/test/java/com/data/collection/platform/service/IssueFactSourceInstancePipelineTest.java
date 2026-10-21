@@ -3,9 +3,16 @@ package com.data.collection.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.data.collection.platform.entity.FactBuildResponse;
+import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.WhitelistMode;
+import com.data.collection.platform.entity.read.ReadPublicationDomainKey;
+import com.data.collection.platform.service.read.BypassPublicationRequest;
+import com.data.collection.platform.service.read.FactReadVisibility;
+import com.data.collection.platform.service.read.InitialVersionVerification;
+import com.data.collection.platform.service.read.ReadPublicationService;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,14 +24,29 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @SpringBootTest
 class IssueFactSourceInstancePipelineTest {
 
+  private static final String SOURCE_INSTANCE = "default";
+  private static final String SEAL = "{\"seal\":\"source-instance-pipeline-test\"}";
+  /** 事实读取只比较当前生效修订：历史修订仍留在表内，按旧自然键口径的“一条事实”即活动修订。 */
+  private static final String LIVE_REVISION =
+      " and " + FactReadVisibility.liveRevisionPredicate("");
+
   @Autowired private JdbcTemplate jdbcTemplate;
   @Autowired private GitlabConfigService configService;
   @Autowired private FactBuildService factBuildService;
+  @Autowired private FactTargetPublicationService factTargetPublicationService;
+  @Autowired private ReadPublicationService readPublicationService;
+
+  @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+  private com.data.collection.platform.service.sync.SyncFactPublicationStateService sourceInputQualification;
 
   @BeforeEach
   void setUp() {
+    // 事实组件测试用明确的完整输入替身；默认接管/完整依赖证明另有真库反例保护。
+    org.mockito.Mockito.doReturn(true).when(sourceInputQualification).canBuildReadCandidate(
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(FactType.class));
     createMinimalOdsTables();
     cleanTables();
+    jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
     GitlabSyncConfig config = baseConfig();
     config.setSourceInstance("default");
     configService.saveConfig(config);
@@ -65,14 +87,16 @@ class IssueFactSourceInstancePipelineTest {
         9001L,
         601L);
 
-    FactBuildResponse response = factBuildService.rebuildIssueFacts(true);
+    FactBuildResponse response = rebuildAllIssueFacts();
 
     assertThat(response.affectedRows()).isEqualTo(1);
     assertThat(jdbcTemplate.queryForObject(
-        "select count(*) from issue_fact where source_instance = 'default' and issue_id = 9001",
+        "select count(*) from issue_fact where source_instance = 'default' and issue_id = 9001"
+            + LIVE_REVISION,
         Integer.class)).isEqualTo(1);
     assertThat(jdbcTemplate.queryForObject(
-        "select assignee_name from issue_fact where source_instance = 'default' and issue_id = 9001",
+        "select assignee_name from issue_fact where source_instance = 'default' and issue_id = 9001"
+            + LIVE_REVISION,
         String.class)).isEqualTo("assignee-a");
   }
 
@@ -102,15 +126,14 @@ class IssueFactSourceInstancePipelineTest {
         now,
         1);
 
-    FactBuildResponse firstResponse =
-        factBuildService.rebuildIssueFactsByRootIds("default", List.of(9684L));
-    FactBuildResponse secondResponse =
-        factBuildService.rebuildIssueFactsByRootIds("default", List.of(9684L));
+    FactBuildResponse firstResponse = rebuildIssueFactsFromSource(List.of(9684L));
+    FactBuildResponse secondResponse = rebuildIssueFactsFromSource(List.of(9684L));
 
     assertThat(firstResponse.affectedRows()).isEqualTo(1);
     assertThat(secondResponse.affectedRows()).isEqualTo(1);
     assertThat(jdbcTemplate.queryForObject(
-        "select count(*) from issue_fact where source_instance = 'default' and project_id = 325 and issue_id = 9684",
+        "select count(*) from issue_fact where source_instance = 'default' and project_id = 325"
+            + " and issue_id = 9684" + LIVE_REVISION,
         Integer.class)).isEqualTo(1);
   }
 
@@ -141,10 +164,11 @@ class IssueFactSourceInstancePipelineTest {
         1);
     insertLabel(31L, "状态：未修复");
     linkLabel(31L, 9031L);
-    factBuildService.rebuildIssueFacts(true);
+    rebuildAllIssueFacts();
     assertThat(
             jdbcTemplate.queryForMap(
-                "select bug_status, is_fixed from issue_fact where source_instance = 'default' and issue_id = 9031"))
+                "select bug_status, is_fixed from issue_fact where source_instance = 'default'"
+                    + " and issue_id = 9031" + LIVE_REVISION))
         .containsEntry("bug_status", "未修复")
         .containsEntry("is_fixed", false);
 
@@ -152,13 +176,13 @@ class IssueFactSourceInstancePipelineTest {
     insertLabel(32L, "状态：已修复/完成");
     linkLabel(32L, 9031L);
 
-    FactBuildResponse response =
-        factBuildService.rebuildIssueFactsByRootIds("default", List.of(9031L));
+    FactBuildResponse response = rebuildIssueFactsFromSource(List.of(9031L));
 
     assertThat(response.affectedRows()).isEqualTo(1);
     assertThat(
             jdbcTemplate.queryForMap(
-                "select bug_status, is_fixed from issue_fact where source_instance = 'default' and issue_id = 9031"))
+                "select bug_status, is_fixed from issue_fact where source_instance = 'default'"
+                    + " and issue_id = 9031" + LIVE_REVISION))
         .containsEntry("bug_status", "已修复/完成")
         .containsEntry("is_fixed", true);
   }
@@ -208,12 +232,13 @@ class IssueFactSourceInstancePipelineTest {
         now,
         now);
 
-    FactBuildResponse response = factBuildService.rebuildIssueFacts(true);
+    FactBuildResponse response = rebuildAllIssueFacts();
 
     assertThat(response.affectedRows()).isEqualTo(1);
     assertThat(
             jdbcTemplate.queryForObject(
-                "select customer_names from issue_fact where source_instance = 'default' and issue_id = 91415",
+                "select customer_names from issue_fact where source_instance = 'default'"
+                    + " and issue_id = 91415" + LIVE_REVISION,
                 String.class))
         .isEqualTo("高晶电器, 郑州新世纪");
     assertThat(
@@ -223,12 +248,13 @@ class IssueFactSourceInstancePipelineTest {
         .containsExactly("郑州新世纪", "高晶电器");
     assertThat(
             jdbcTemplate.queryForObject(
-                "select planned_resolution_at from issue_fact where issue_id = 91415",
+                "select planned_resolution_at from issue_fact where issue_id = 91415" + LIVE_REVISION,
                 LocalDateTime.class))
         .isEqualTo(LocalDateTime.of(2026, 7, 1, 0, 0));
     assertThat(
             jdbcTemplate.queryForObject(
-                "select planned_merge_version_branch from issue_fact where issue_id = 91415",
+                "select planned_merge_version_branch from issue_fact where issue_id = 91415"
+                    + LIVE_REVISION,
                 String.class))
         .isEqualTo("CC2026R3");
   }
@@ -273,11 +299,12 @@ class IssueFactSourceInstancePipelineTest {
     linkLabel(6L, 9002L);
     linkLabel(7L, 9002L);
 
-    FactBuildResponse response = factBuildService.rebuildIssueFacts(true);
+    FactBuildResponse response = rebuildAllIssueFacts();
 
     assertThat(response.affectedRows()).isEqualTo(1);
     assertThat(jdbcTemplate.queryForObject(
-        "select module_names from issue_fact where source_instance = 'default' and issue_id = 9002",
+        "select module_names from issue_fact where source_instance = 'default' and issue_id = 9002"
+            + LIVE_REVISION,
         String.class)).isEqualTo("草图");
   }
 
@@ -339,15 +366,57 @@ class IssueFactSourceInstancePipelineTest {
         now,
         now);
 
-    FactBuildResponse response = factBuildService.rebuildIssueFacts(true);
+    FactBuildResponse response = rebuildAllIssueFacts();
 
     assertThat(response.affectedRows()).isEqualTo(2);
     assertThat(jdbcTemplate.queryForObject(
-        "select reason_category from issue_fact where source_instance = 'default' and issue_id = 9003",
+        "select reason_category from issue_fact where source_instance = 'default' and issue_id = 9003"
+            + LIVE_REVISION,
         String.class)).isNull();
     assertThat(jdbcTemplate.queryForObject(
-        "select reason_category from issue_fact where source_instance = 'default' and issue_id = 9004",
+        "select reason_category from issue_fact where source_instance = 'default' and issue_id = 9004"
+            + LIVE_REVISION,
         String.class)).isNull();
+  }
+
+  /**
+   * 以旁路生产者的真实链路重建当前 ODS 的全部议题：开启候选→在候选内按根构建修订→原子发布。
+   *
+   * <p>旧的全量重建入口已随修订模型删除；按当前 ODS 全量根集合的定向发布覆盖同样的构建口径，
+   * 并且走的是生产代码仍在用的发布链路。
+   */
+  private FactBuildResponse rebuildAllIssueFacts() {
+    return rebuildIssueFactsFromSource(
+        jdbcTemplate.queryForList("select id from ods_gitlab_issues order by id", Long.class));
+  }
+
+  /** 在候选修订内按根重建并发布，返回构建响应（affectedRows 即当前仍存在的事实数）。 */
+  private FactBuildResponse rebuildIssueFactsFromSource(List<Long> rootIds) {
+    ensureCertifiedIssueBaseline();
+    FactBuildResponse response = factTargetPublicationService.publishWithinCandidate(
+        new BypassPublicationRequest(
+            ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
+            "GITLAB",
+            SEAL,
+            0L,
+            "source-instance-pipeline-test",
+            null,
+            Instant.now(), rootIds.equals(jdbcTemplate.queryForList("select id from ods_gitlab_issues order by id", Long.class))),
+        target -> factBuildService.rebuildIssueFactsByRootIds(target, rootIds));
+    FactRevisionFixture.completeRequiredProjections(jdbcTemplate, factTargetPublicationService,
+        ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE), null);
+    return response;
+  }
+
+  /** 域尚无已认证完整基线时增量候选会被拒绝，先用初始接管把成熟行收为首个完整版本。 */
+  private void ensureCertifiedIssueBaseline() {
+    readPublicationService.bootstrapInitialVersion(
+        ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
+        "GITLAB",
+        Instant.now(),
+        SEAL,
+        0L,
+        key -> InitialVersionVerification.VerificationResult.accepted());
   }
 
   private void createMinimalOdsTables() {

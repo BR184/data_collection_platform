@@ -18,6 +18,20 @@ public final class BiPlatformReviewSourceAdapter implements BiReviewSourcePort {
   private final JdbcTemplate jdbcTemplate;
   private final PageRecordSnapshotService snapshotService;
   private final BiProductVersionMatcher versionMatcher;
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 固定评审记录、问题项与定义，不因下一轮同步使旧完整数据失效。 */
+  public BiPlatformReviewSourceAdapter forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new BiPlatformReviewSourceAdapter(this, selection);
+  }
+
+  private BiPlatformReviewSourceAdapter(BiPlatformReviewSourceAdapter factory,
+      com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.snapshotService = factory.snapshotService;
+    this.versionMatcher = factory.versionMatcher;
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
 
   public BiPlatformReviewSourceAdapter(
       JdbcTemplate jdbcTemplate,
@@ -26,13 +40,14 @@ public final class BiPlatformReviewSourceAdapter implements BiReviewSourcePort {
     this.jdbcTemplate = jdbcTemplate;
     this.snapshotService = snapshotService;
     this.versionMatcher = versionMatcher;
+    this.fixedRead = null;
   }
 
   @Override
   public BiReviewSource load(BiProductVersionScope scope, ReviewStage stage) {
     // 阶段一：在查询前记录事实层版本，保证本次读取可以检测并发发布。
-    String sourceVersion = snapshotService.reviewDataSourceVersion();
-    List<ReviewRow> rows = jdbcTemplate.query(
+    String sourceVersion = java.util.Objects.requireNonNull(fixedRead, "BI 读取必须绑定完整页面身份").sourceVersion();
+    List<ReviewRow> rows = new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead,
         """
         select r.id,
                r.project_name,
@@ -79,7 +94,6 @@ public final class BiPlatformReviewSourceAdapter implements BiReviewSourcePort {
         .map(this::toSourceRecord)
         .toList();
     // 阶段三：读取结束后复核版本，阻止一半旧数据和一半新数据进入同一页面。
-    verifyStableVersion(stage.pageKey(), sourceVersion, snapshotService.reviewDataSourceVersion());
     return new BiReviewSource(sourceVersion, sourceVersion, records);
   }
 
@@ -110,12 +124,6 @@ public final class BiPlatformReviewSourceAdapter implements BiReviewSourcePort {
         row.integrityCount(),
         row.functionalityCount(),
         row.feasibilityCount());
-  }
-
-  private void verifyStableVersion(String pageKey, String before, String after) {
-    if (!before.equals(after)) {
-      throw new BiSourceVersionChangedException(pageKey);
-    }
   }
 
   private record ReviewRow(

@@ -110,6 +110,7 @@ public class IntegrationTestFactBuildService {
   private final SqlQueryMonitor sqlQueryMonitor;
   private final GitlabConfigService configService;
   private final IssuePhaseCalendarLoader phaseCalendarLoader;
+  private final com.data.collection.platform.service.read.ReadPublicationRepository publicationRepository;
 
   public IntegrationTestFactBuildService(
       JdbcTemplate jdbcTemplate,
@@ -118,7 +119,8 @@ public class IntegrationTestFactBuildService {
       GitlabSourceSchemaGuard sourceSchemaGuard,
       SqlQueryMonitor sqlQueryMonitor,
       GitlabConfigService configService,
-      IssuePhaseCalendarLoader phaseCalendarLoader) {
+      IssuePhaseCalendarLoader phaseCalendarLoader,
+      com.data.collection.platform.service.read.ReadPublicationRepository publicationRepository) {
     this.jdbcTemplate = jdbcTemplate;
     this.factMapper = factMapper;
     this.moduleDictionaryService = moduleDictionaryService;
@@ -126,41 +128,28 @@ public class IntegrationTestFactBuildService {
     this.sqlQueryMonitor = sqlQueryMonitor;
     this.configService = configService;
     this.phaseCalendarLoader = phaseCalendarLoader;
+    this.publicationRepository = publicationRepository;
   }
 
   @Transactional
-  public FactBuildResponse rebuildFacts(boolean full) {
-    return rebuildFactsForSource(DEFAULT_SOURCE_INSTANCE, full);
+  public FactBuildResponse rebuildFactsForConfig(
+      GitlabSyncConfig config, com.data.collection.platform.entity.read.FactRevisionTarget target, boolean full) {
+    publicationRepository.requireWritableTarget(target);
+    return rebuildFactsForSource(target, full);
   }
 
-  @Transactional
-  public FactBuildResponse rebuildFacts(boolean full, Long configId) {
-    GitlabSyncConfig config =
-        configId == null ? configService.getConfig() : configService.getConfigById(configId);
-    return rebuildFactsForConfig(config, full);
-  }
-
-  @Transactional
-  public FactBuildResponse rebuildFactsForConfig(GitlabSyncConfig config, boolean full) {
-    return rebuildFactsForSource(GitlabSourceInstanceSupport.sourceInstanceOf(config), full);
-  }
-
-  @Transactional
-  public FactBuildResponse rebuildFactsForSource(String sourceInstance, boolean full) {
-    String normalizedSource =
-        GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+  /**
+   * 在候选内以完整来源数据集重建集成测试事实（全量语义：调用方为新代际）。
+   *
+   * <p>不再删除已发布行：所有事实写成候选代际内的修订，来源已消失的议题在新代际里自然不存在。
+   */
+  private FactBuildResponse rebuildFactsForSource(
+      com.data.collection.platform.entity.read.FactRevisionTarget target, boolean full) {
+    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(target.sourceInstance());
     sourceSchemaGuard.verifyIntegrationTestSource(normalizedSource);
     try {
       List<IntegrationTestFact> facts = loadFacts(normalizedSource, List.of());
-      jdbcTemplate.update(
-          """
-          delete from integration_test_fact
-           where source_system = ?
-             and source_instance = ?
-          """,
-          DEFAULT_SOURCE_SYSTEM,
-          normalizedSource);
-      facts.forEach(factMapper::upsert);
+      facts.forEach(fact -> factMapper.upsert(fact, target.epochId(), target.publicationId()));
       return new FactBuildResponse(
           factScope(normalizedSource),
           full,
@@ -172,20 +161,29 @@ public class IntegrationTestFactBuildService {
     }
   }
 
+  /** 用当前来源结果在候选内替换指定根：写入修订，来源已消失的根登记删除证明。 */
   @Transactional
   public FactBuildResponse rebuildFactsByRootIds(
-      String sourceInstance, List<Long> rootIds) {
-    String normalizedSource =
-        GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+      com.data.collection.platform.entity.read.FactRevisionTarget target, List<Long> rootIds) {
+    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(target.sourceInstance());
     List<Long> safeRootIds = sanitizeRootIds(rootIds);
     if (safeRootIds.isEmpty()) {
       return new FactBuildResponse(
           factScope(normalizedSource), false, 0, "没有需要刷新的集成测试事实");
     }
+    publicationRepository.requireWritableTarget(target);
     sourceSchemaGuard.verifyIntegrationTestSource(normalizedSource);
     List<IntegrationTestFact> facts = loadFacts(normalizedSource, safeRootIds);
-    deleteRootFacts(normalizedSource, safeRootIds);
-    facts.forEach(factMapper::upsert);
+    for (IntegrationTestFact fact : facts) {
+      factMapper.upsert(fact, target.epochId(), target.publicationId());
+    }
+    publicationRepository.recordDeletionsForRoots(
+        target.table(),
+        target.publicationId(),
+        target.sourceSystem(),
+        target.sourceInstance(),
+        safeRootIds,
+        target.coveredChangeVersion());
     return new FactBuildResponse(
         factScope(normalizedSource), false, facts.size(), "集成测试事实已按受影响议题刷新");
   }
@@ -275,18 +273,6 @@ public class IntegrationTestFactBuildService {
     fact.setFunctionLabels(String.join(", ", functionLabels));
     fact.setDeleted(false);
     return fact;
-  }
-
-  private void deleteRootFacts(String sourceInstance, List<Long> rootIds) {
-    List<Object> args = new ArrayList<>();
-    args.add(DEFAULT_SOURCE_SYSTEM);
-    args.add(sourceInstance);
-    args.addAll(rootIds);
-    String predicate = rootPredicate("issue_id", rootIds);
-    jdbcTemplate.update(
-        "delete from integration_test_fact where source_system = ? and source_instance = ?"
-            + predicate,
-        args.toArray());
   }
 
   private String rootPredicate(String rootColumn, List<Long> rootIds) {

@@ -14,21 +14,36 @@ public class CodeReviewIllegalRecordSourceLoader {
   private final MergeRequestFactQueryService mergeRequestFactQueryService;
   private final CodeReviewIllegalRecordRowMapper rowMapper;
 
+  private final com.data.collection.platform.entity.read.FactReadSelection factReadSelection;
+
+  /** 创建显式事实版本读取对象，工厂不持有页面或候选身份。 */
+  public CodeReviewIllegalRecordSourceLoader forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new CodeReviewIllegalRecordSourceLoader(this, selection);
+  }
+
+  private CodeReviewIllegalRecordSourceLoader(CodeReviewIllegalRecordSourceLoader factory,
+      com.data.collection.platform.entity.read.FactReadSelection selection) {
+    this.mergeRequestFactQueryService = factory.mergeRequestFactQueryService;
+    this.rowMapper = factory.rowMapper;
+    this.factReadSelection = java.util.Objects.requireNonNull(selection);
+  }
+
+  private com.data.collection.platform.entity.read.FactReadSelection readSelection() {
+    return java.util.Objects.requireNonNull(factReadSelection, "走查读取必须持有固定版本身份");
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public CodeReviewIllegalRecordSourceLoader(
       MergeRequestFactQueryService mergeRequestFactQueryService,
       CodeReviewIllegalRecordRowMapper rowMapper) {
+    this.factReadSelection = null;
     this.mergeRequestFactQueryService = mergeRequestFactQueryService;
     this.rowMapper = rowMapper;
   }
 
   public List<CodeReviewIllegalRecordSource> loadSources(Map<String, String> filters) {
-    try {
-      return mergeRequestFactQueryService.query(
-          CodeReviewIllegalRecordSqlQueryBuilder.factSql(), filters, rowMapper::mapFactSource);
-    } catch (DataAccessException exception) {
-      log.warn("Failed to load merge request facts", exception);
-      return List.of();
-    }
+    return mergeRequestFactQueryService.query(readSelection(),
+        CodeReviewIllegalRecordSqlQueryBuilder.factSql(), filters, rowMapper::mapFactSource);
   }
 
   public CodeReviewIllegalRecordFilterOptionValues loadFilterOptions(
@@ -69,12 +84,7 @@ public class CodeReviewIllegalRecordSourceLoader {
         query.request().requestType())) {
       return new PageSlice<>(List.of(), 0, query.page(), query.size());
     }
-    try {
-      return loadDefaultIllegalPageOnce(query);
-    } catch (DataAccessException exception) {
-      log.warn("Failed to load paged merge request illegal facts", exception);
-      return new PageSlice<>(List.of(), 0, query.page(), query.size());
-    }
+    return loadDefaultIllegalPageOnce(query);
   }
 
   public List<CodeReviewIllegalRecordSource> loadLegacyAllExportSources(
@@ -82,10 +92,11 @@ public class CodeReviewIllegalRecordSourceLoader {
       com.data.collection.platform.entity.statistics.StatisticFilterGroup filterGroup) {
     CodeReviewIllegalRecordSqlQueryBuilder.QueryParts parts =
         CodeReviewIllegalRecordSqlQueryBuilder.buildAllExportQuery(request, filterGroup);
-    return mergeRequestFactQueryService.query(
+    return mergeRequestFactQueryService.query(readSelection(),
         CodeReviewIllegalRecordSqlQueryBuilder.factSql()
             + parts.tailWhere()
-            + " order by merge_request_iid desc nulls last, merged_at_source desc nulls last, id desc",
+            + " order by merge_request_iid desc nulls last, merged_at_source desc nulls last"
+            + CodeReviewIllegalRecordSqlQueryBuilder.STABLE_ORDER_TIE_BREAK,
         parts.args(),
         rowMapper::mapFactSource);
   }
@@ -100,7 +111,7 @@ public class CodeReviewIllegalRecordSourceLoader {
         CodeReviewIllegalRecordSqlQueryBuilder.buildPageQuery(
             new CodeReviewIllegalRecordSourcePageQuery(
                 request, filterGroup, 1, 1, request.sortField(), request.sortOrder()));
-    return mergeRequestFactQueryService.query(
+    return mergeRequestFactQueryService.query(readSelection(),
         CodeReviewIllegalRecordSqlQueryBuilder.factSql()
             + parts.tailWhere()
             + CodeReviewIllegalRecordSqlQueryBuilder.orderByClause(
@@ -114,7 +125,7 @@ public class CodeReviewIllegalRecordSourceLoader {
     CodeReviewIllegalRecordSqlQueryBuilder.QueryParts parts =
         CodeReviewIllegalRecordSqlQueryBuilder.buildPageQuery(query);
     long total =
-        mergeRequestFactQueryService.count(
+        mergeRequestFactQueryService.count(readSelection(),
             "select count(*) from code_review_formal_records" + parts.where(), parts.args());
     if (total == 0) {
       return new PageSlice<>(List.of(), 0, query.page(), query.size());
@@ -123,7 +134,7 @@ public class CodeReviewIllegalRecordSourceLoader {
     pageArgs.add(query.size());
     pageArgs.add((long) (query.page() - 1) * query.size());
     List<CodeReviewIllegalRecordSource> records =
-        mergeRequestFactQueryService.query(
+        mergeRequestFactQueryService.query(readSelection(),
             CodeReviewIllegalRecordSqlQueryBuilder.factSql()
                 + parts.tailWhere()
                 + CodeReviewIllegalRecordSqlQueryBuilder.orderByClause(
@@ -136,7 +147,7 @@ public class CodeReviewIllegalRecordSourceLoader {
 
   private List<CodeReviewIllegalRecordFilterProjectOption> queryProjectOptions(
       CodeReviewIllegalRecordSqlQueryBuilder.QueryParts parts) {
-    return mergeRequestFactQueryService.query(
+    return mergeRequestFactQueryService.query(readSelection(),
         "select project_id, project_name from code_review_formal_records "
             + parts.where()
             + """
@@ -173,7 +184,7 @@ public class CodeReviewIllegalRecordSourceLoader {
             .reduce((left, right) -> left + "\nunion all\n" + right)
             .orElse("");
     List<OptionGroupValue> rows =
-        mergeRequestFactQueryService.query(
+        mergeRequestFactQueryService.query(readSelection(),
             "with scoped as (select "
                 + selectColumns
                 + " from code_review_formal_records "

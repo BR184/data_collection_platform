@@ -11,6 +11,10 @@
     "platform-seed.sql.gz": {
       "bytes": 10651513,
       "sha256": "e858ab617046194d3febf1b29b16c87d3dde027cfde08c0674d8a5bb59fdf413"
+    },
+    "compatibility-completeness.sql.gz": {
+      "bytes": 380,
+      "sha256": "9ada5cd14b782c7a244a0e1033fd093a0005a252f1577ce6318bec983062a061"
     }
   },
   "frozen_at": "2026-09-01T13:22:08+0800",
@@ -124,5 +128,15 @@
       "review_records": 6
     }
   },
-  "repo_commit": "c58ff5acd9e8ccb3fbf978d70a4682afa3545bec"
+  "repo_commit": "c58ff5acd9e8ccb3fbf978d70a4682afa3545bec",
+  "completeness_extension": {
+    "version": "20261014-read-publication",
+    "approved_by": "user",
+    "business_fixture_unchanged": true,
+    "table_counts": {
+      "legacy_mysql_imported_tables": 1,
+      "legacy_mongo_imported_collections_added": 1
+    },
+    "scope": "Frozen inventory only; 30508 MySQL rows, 4986 Mongo documents and empty description remain unchanged."
+  }
 }

@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
  * 精确成员选择使用绑定参数，{@code %} 与 {@code _} 不参与通配。
  */
 @Service
-public class CustomerIssueFactQueryService {
+public class CustomerIssueFactQueryService implements com.data.collection.platform.service.read.FactReadScoped<CustomerIssueFactQueryService> {
   public static final long CC_PRODUCT_PROJECT_ID = 325L;
   public static final LocalDate CUSTOMER_ISSUE_START_DATE = LocalDate.of(2026, 1, 1);
 
@@ -73,10 +73,12 @@ public class CustomerIssueFactQueryService {
                where member.source_system = issue_fact.source_system
                  and member.source_instance = issue_fact.source_instance
                  and member.project_id = issue_fact.project_id
-                 and member.issue_id = issue_fact.issue_id) as customer_names
+                 and member.issue_id = issue_fact.issue_id
+                 and %s) as customer_names
         from issue_fact
        where issue_fact.deleted = false
-      """;
+      """.formatted(
+          com.data.collection.platform.service.read.FactReadVisibility.issueMemberParentPredicate("issue_fact", "member"));
 
   /**
    * 事实读取的稳定行序。
@@ -86,15 +88,30 @@ public class CustomerIssueFactQueryService {
    * 从零重建的库会给出不同样本，使同一份代码产出不同的可见结果。按主键排序与
    * {@code IssueFactRecordRepository.FACT_SQL_ORDER} 保持同一口径。
    */
-  private static final String FACT_SQL_ORDER = " order by issue_fact.id";
+  private static final String FACT_SQL_ORDER = " order by issue_fact.business_order_id";
 
   private static final RowMapper<CustomerIssueFact> ROW_MAPPER =
       CustomerIssueFactQueryService::mapRow;
 
   private final IssueFactQueryService issueFactQueryService;
+  private final com.data.collection.platform.entity.read.FactReadSelection factReadSelection;
 
+  @org.springframework.beans.factory.annotation.Autowired
   public CustomerIssueFactQueryService(IssueFactQueryService issueFactQueryService) {
     this.issueFactQueryService = issueFactQueryService;
+    this.factReadSelection = null;
+  }
+
+  /** 按显式公开/候选版本建立窄事实读取对象，不改变共享服务。 */
+  @Override
+  public CustomerIssueFactQueryService forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new CustomerIssueFactQueryService(issueFactQueryService, java.util.Objects.requireNonNull(selection));
+  }
+
+  private CustomerIssueFactQueryService(IssueFactQueryService service,
+      com.data.collection.platform.entity.read.FactReadSelection selection) {
+    this.issueFactQueryService = service;
+    this.factReadSelection = selection;
   }
 
   /** 成员选择类型：全部、缺失、精确值。 */
@@ -229,7 +246,8 @@ public class CustomerIssueFactQueryService {
     appendModuleSelection(sql, args, safeRequest.module());
     appendFunctionSelection(sql, args, safeRequest.function());
     sql.append(FACT_SQL_ORDER);
-    return issueFactQueryService.query(sql.toString(), args, ROW_MAPPER);
+    return issueFactQueryService.query(java.util.Objects.requireNonNull(factReadSelection,
+        "窄事实查询必须持有固定版本身份"), sql.toString(), args, ROW_MAPPER);
   }
 
   private static void appendSourceInstance(StringBuilder sql, List<Object> args, String sourceInstance) {

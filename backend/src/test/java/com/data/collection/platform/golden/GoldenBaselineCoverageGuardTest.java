@@ -107,8 +107,10 @@ class GoldenBaselineCoverageGuardTest {
         if (query.startsWith("?") || query.startsWith("&") || query.endsWith("&")) {
           violations.add(key + ": case " + readCase.id() + " 查询串格式非法: " + query);
         }
+        requirePathVariables(entry.path(), query, key + "#" + readCase.id(), violations);
       }
       for (GoldenEndpointCatalog.WriteCase writeCase : entry.writeCases()) {
+        requirePathVariables(entry.path(), writeCase.query(), key + "#" + writeCase.id(), violations);
         if (writeCase.id() == null || writeCase.id().isBlank()) {
           violations.add(key + ": write-case id 不能为空");
         } else if (!caseIdsSeen.add(key + "#" + writeCase.id())) {
@@ -127,6 +129,17 @@ class GoldenBaselineCoverageGuardTest {
       }
     }
     assertThat(violations).as("目录结构违规").isEmpty();
+  }
+
+  private static void requirePathVariables(String path, String query, String caseKey, List<String> violations) {
+    var variables = java.util.regex.Pattern.compile("\\{([^/}]+)\\}").matcher(path);
+    Set<String> keys = java.util.Arrays.stream((query == null ? "" : query).split("&"))
+        .map(part -> part.split("=", 2)[0]).collect(java.util.stream.Collectors.toSet());
+    while (variables.find()) {
+      if (!keys.contains(variables.group(1))) {
+        violations.add(caseKey + ": query 必须提供路径变量 " + variables.group());
+      }
+    }
   }
 
   /**

@@ -40,13 +40,13 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 @ExtendWith(MockitoExtension.class)
 class CodeReviewControllerTest {
 
-  @Mock
+  @Mock(answer = org.mockito.Answers.RETURNS_SELF)
   private CodeReviewIllegalRecordService codeReviewIllegalRecordService;
 
   @Mock
   private CodeReviewMatchModeConfigService codeReviewMatchModeConfigService;
 
-  @Mock
+  @Mock(answer = org.mockito.Answers.RETURNS_SELF)
   private CodeReviewMultiBoardService codeReviewMultiBoardService;
 
   @Mock
@@ -63,8 +63,24 @@ class CodeReviewControllerTest {
                     codeReviewMatchModeConfigService,
                     codeReviewMultiBoardService,
                     new CodeReviewRequestAssembler(),
-                    multiBoardRealtimeRefreshService))
+                    multiBoardRealtimeRefreshService, TestReadViews.boundary()))
             .build();
+  }
+
+  @Test
+  void shouldUseIllegalPageContextWithoutBorrowingMultiBoardSourceOptions() throws Exception {
+    when(codeReviewIllegalRecordService.codeReviewCompatibilityReadEnabled()).thenReturn(true);
+    mockMvc.perform(get("/api/code-review/illegal-records/context"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.compatibilityRead").value(true))
+        .andExpect(jsonPath("$.data.sources[0].value").value("cc"));
+    org.mockito.Mockito.verifyNoInteractions(codeReviewMultiBoardService);
+  }
+
+  @Test
+  void shouldKeepZeroProjectAndLegacySplitIdentityForOpenedRecord() throws Exception {
+    mockMvc.perform(get("/api/code-review/illegal-records/dgm/0/22273").param("legacySourceId", "702"))
+        .andExpect(status().isOk());
+    org.mockito.Mockito.verify(codeReviewIllegalRecordService).findRecord("dgm", 0L, 22273L, "702");
   }
 
   @Test

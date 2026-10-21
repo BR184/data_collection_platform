@@ -45,7 +45,32 @@ public class BiDashboardRuntimeFactory {
   private final StatisticBoardSnapshotService statisticBoardSnapshotService;
   private final StatisticBoardReadScopeResolver statisticBoardReadScopeResolver;
   private final BusinessDateProvider businessDateProvider;
+  private final com.data.collection.platform.entity.read.ReadSelection fixedRead;
 
+  /** 每个页面请求创建持有固定组合的 Runtime，不把请求身份存入延迟共享 Runtime。 */
+  public BiDashboardRuntimeFactory forRead(com.data.collection.platform.entity.read.ReadSelection selection) {
+    return new BiDashboardRuntimeFactory(this, selection);
+  }
+
+  private BiDashboardRuntimeFactory(BiDashboardRuntimeFactory factory,
+      com.data.collection.platform.entity.read.ReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.catalogService = factory.catalogService.forRead(selection);
+    this.snapshotService = factory.snapshotService;
+    this.matchModeSwitchService = selection instanceof com.data.collection.platform.entity.read.DatasetReadSelection dataset
+        && dataset.datasets().stream().anyMatch(input -> input.datasetKey().equals("formal-records"))
+        ? factory.matchModeSwitchService.forRead(dataset) : factory.matchModeSwitchService;
+    this.gitlabConfigService = factory.gitlabConfigService;
+    this.catMirrorManager = factory.catMirrorManager;
+    this.customerIssueFactQueryService = factory.customerIssueFactQueryService;
+    this.customerIssueMilestoneCatalogService = factory.customerIssueMilestoneCatalogService;
+    this.statisticBoardSnapshotService = factory.statisticBoardSnapshotService;
+    this.statisticBoardReadScopeResolver = factory.statisticBoardReadScopeResolver;
+    this.businessDateProvider = selection::businessDate;
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public BiDashboardRuntimeFactory(
       JdbcTemplate jdbcTemplate,
       IssueScopeCatalogService catalogService,
@@ -69,6 +94,7 @@ public class BiDashboardRuntimeFactory {
     this.statisticBoardSnapshotService = statisticBoardSnapshotService;
     this.statisticBoardReadScopeResolver = statisticBoardReadScopeResolver;
     this.businessDateProvider = businessDateProvider;
+    this.fixedRead = null;
   }
 
   /** 创建一个没有启动期副作用、没有后台线程和没有网络调用的 BI Runtime。 */
@@ -90,17 +116,29 @@ public class BiDashboardRuntimeFactory {
         commits::sourceVersion);
     var coding = new BiPlatformCodingSourceAdapter(
         jdbcTemplate, codeReviewSourceContextFactory, matcher, commits);
+    if (fixedRead instanceof com.data.collection.platform.entity.read.DatasetReadSelection dataset
+        && dataset.datasets().stream().anyMatch(input -> input.datasetKey().equals("formal-records"))) {
+      reviews = reviews.forRead(dataset);
+      codeReviewSourceContextFactory = codeReviewSourceContextFactory.forRead(dataset,
+          matchModeSwitchService.isCodeReviewCompatibilityReadEnabled(), frozenCommitCapability(dataset));
+      coding = coding.forRead(dataset, codeReviewSourceContextFactory);
+    }
     // 系统测试的原因分类器属于 BI 规则，不把显示分类反向写入平台事实表。
     var systemTest = new BiPlatformSystemTestSourceAdapter(
         jdbcTemplate,
         snapshotService,
         new BiSystemTestCauseClassifier(),
         new BiSystemTestDelayCauseClassifier());
+    com.data.collection.platform.entity.read.FactReadSelection facts = fixedRead instanceof com.data.collection.platform.entity.read.FactReadSelection fact
+        ? fact : fixedRead instanceof com.data.collection.platform.entity.read.DatasetReadSelection dataset ? dataset.facts() : null;
+    if (facts != null) { systemTest = systemTest.forRead(facts); }
     var catRepository = catMirrorManager.repository();
     // CAT 页面只读取已发布镜像，避免请求链路直接依赖 CAT 网络状态或半成品响应。
     var cat = new BiCatTestSourceAdapter(catRepository);
+    if (fixedRead != null) { cat = cat.forRead(fixedRead); }
     var currentVersions = new BiPlatformCurrentSourceVersionAdapter(
         snapshotService, codeReviewSourceContextFactory, catRepository);
+    if (fixedRead != null) { currentVersions = currentVersions.forRead(fixedRead); }
     var customerIssues = new BiCustomerIssuePageService(
         customerIssueFactQueryService,
         customerIssueMilestoneCatalogService,
@@ -108,6 +146,7 @@ public class BiDashboardRuntimeFactory {
         statisticBoardReadScopeResolver,
         businessDateProvider,
         new BiCustomerIssueCalculator());
+    if (facts != null) { customerIssues = customerIssues.forRead(facts); }
     // 最后把“版本范围 -> 数据源 -> 计算器 -> 页面服务”逐页绑定，Controller 不感知具体实现。
     return new BiDashboardRuntime(
         new BiVersionService(versions),
@@ -122,5 +161,30 @@ public class BiDashboardRuntimeFactory {
         customerIssues,
         new BiDownloadAuthorizationService(versions, currentVersions, customerIssues),
         new BiExcelExportService());
+  }
+
+  private boolean frozenCommitCapability(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    if (selection.facts() == null) { return false; }
+    for (var context : selection.facts().contexts()) {
+      if (context.table() != com.data.collection.platform.entity.read.PublicationFactTable.MERGE_REQUEST) { continue; }
+      String configs = jdbcTemplate.queryForObject("select d.payload->'configs' from read_publications p"
+          + " join read_definition_snapshots d on d.id = p.definition_snapshot_id where p.id = ?", String.class, context.publicationId());
+      try {
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var entries = mapper.readTree(configs);
+        if (!entries.isArray() || entries.isEmpty()) { return false; }
+        for (var config : entries) {
+          if (!"CUSTOM".equals(config.path("whitelistMode").asText())) { continue; }
+          var tables = config.path("whitelistTables");
+          if (tables.isTextual()) { tables = mapper.readTree(tables.asText()); }
+          java.util.Set<String> names = new java.util.HashSet<>();
+          tables.forEach(table -> names.add(com.data.collection.platform.service.GitlabSourceInstanceSupport.normalizeSourceTableName(table.asText())));
+          if (!names.containsAll(java.util.Set.of("merge_request_diffs", "merge_request_diff_commits"))) { return false; }
+        }
+      } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
+        throw new IllegalStateException("已发布的提交来源能力定义无法解析", error);
+      }
+    }
+    return true;
   }
 }

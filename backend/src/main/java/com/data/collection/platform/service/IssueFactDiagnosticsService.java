@@ -32,22 +32,23 @@ public class IssueFactDiagnosticsService {
        where deleted = false
       """;
 
-  private final IssueFactQueryService issueFactQueryService;
+  private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
   private final SystemTestScopeProfile systemTestScopeProfile;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
 
   public IssueFactDiagnosticsService(
-      IssueFactQueryService issueFactQueryService,
+      org.springframework.jdbc.core.JdbcTemplate jdbcTemplate,
       SystemTestScopeProfile systemTestScopeProfile,
       CustomerIssueScopeProfile customerIssueScopeProfile) {
-    this.issueFactQueryService = issueFactQueryService;
+    this.jdbcTemplate = jdbcTemplate;
     this.systemTestScopeProfile = systemTestScopeProfile;
     this.customerIssueScopeProfile = customerIssueScopeProfile;
   }
 
   public IssueFactDiagnosticsResponse getDiagnostics() {
     List<IssueFactDiagnosticView> views =
-        issueFactQueryService.query(FACT_SQL, Map.of(), this::mapIssueFact);
+        jdbcTemplate.query(FACT_SQL + " and "
+            + com.data.collection.platform.service.read.FactReadVisibility.liveRevisionPredicate(""), this::mapIssueFact);
     List<IssueFactDiagnosticView> systemTest =
         views.stream()
             .filter(view -> systemTestScopeProfile.matches(view.scopeContext()))

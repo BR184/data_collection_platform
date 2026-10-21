@@ -136,6 +136,6 @@ class CodeReviewRuleConfigSupportTest {
         2,
         60,
         "DemoFunction",
-        120);
+        120, null);
   }
 }

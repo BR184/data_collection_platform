@@ -19,6 +19,21 @@ public class ReviewDataRecordPersistenceSupport {
   private final ReviewDataProblemItemRepository problemItemRepository;
   private final ReviewDataLegacyParityRepository legacyParityRepository;
 
+
+  /** 创建显式固定数据集读取对象，命令和权限仍使用当前权威。 */
+  public ReviewDataRecordPersistenceSupport forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new ReviewDataRecordPersistenceSupport(this, selection);
+  }
+
+  private ReviewDataRecordPersistenceSupport(ReviewDataRecordPersistenceSupport factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.recordReadRepository = factory.recordReadRepository.forRead(selection);
+    this.recordWriteRepository = factory.recordWriteRepository;
+    this.expertRepository = factory.expertRepository.forRead(selection);
+    this.problemItemRepository = factory.problemItemRepository.forRead(selection);
+    this.legacyParityRepository = factory.legacyParityRepository.forRead(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public ReviewDataRecordPersistenceSupport(
       ReviewDataRecordReadRepository recordReadRepository,
       ReviewDataRecordWriteRepository recordWriteRepository,

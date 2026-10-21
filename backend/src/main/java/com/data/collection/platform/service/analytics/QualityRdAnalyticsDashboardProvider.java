@@ -45,12 +45,29 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
   private final QualityRdAnalyticsDetailQueryService detailQueryService;
   private final QualityRdAnalyticsWorkbookService analyticsWorkbookService;
 
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 绑定同一页面组合，工厂不保存页面状态。 */
+  @Override
+  public QualityRdAnalyticsDashboardProvider forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new QualityRdAnalyticsDashboardProvider(this, selection);
+  }
+
+  private QualityRdAnalyticsDashboardProvider(QualityRdAnalyticsDashboardProvider factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.rdService = factory.rdService.forRead(selection);
+    this.workbookExportService = factory.workbookExportService.forRead(selection);
+    this.detailQueryService = factory.detailQueryService.forRead(selection);
+    this.analyticsWorkbookService = factory.analyticsWorkbookService;
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
   @Autowired
   public QualityRdAnalyticsDashboardProvider(
       QualityBoardRdService rdService,
       QualityBoardWorkbookExportService workbookExportService,
       QualityRdAnalyticsDetailQueryService detailQueryService,
       QualityRdAnalyticsWorkbookService analyticsWorkbookService) {
+    this.fixedRead = null;
     this.rdService = rdService;
     this.workbookExportService = workbookExportService;
     this.detailQueryService = detailQueryService;
@@ -76,7 +93,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
 
   @Override
   public String sourceVersion(AnalyticsDashboardQueryContext context) {
-    return "quality-rd-facts@1:" + context.readMode().key();
+    return java.util.Objects.requireNonNull(fixedRead, "分析看板读取必须持有固定页面身份").sourceVersion();
   }
 
   @Override

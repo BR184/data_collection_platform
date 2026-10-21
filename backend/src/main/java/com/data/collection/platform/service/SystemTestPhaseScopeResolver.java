@@ -10,6 +10,11 @@ import org.springframework.util.StringUtils;
 public class SystemTestPhaseScopeResolver {
   private final SystemTestPhaseCatalogService phaseCatalogService;
 
+  /** 读取历史版本时使用同一发布身份中的冻结定义；工厂的控制面行为保持当前权威。 */
+  public SystemTestPhaseScopeResolver forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new SystemTestPhaseScopeResolver(phaseCatalogService.forRead(selection));
+  }
+
   public SystemTestPhaseScopeResolver(SystemTestPhaseCatalogService phaseCatalogService) {
     this.phaseCatalogService = phaseCatalogService;
   }

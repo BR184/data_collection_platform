@@ -570,11 +570,11 @@
         "width" : 140,
         "operators" : [ "eq", "ne" ],
         "options" : [ {
-          "label" : "open",
-          "value" : "未关闭"
+          "label" : "未关闭",
+          "value" : "open"
         }, {
-          "label" : "closed",
-          "value" : "已关闭"
+          "label" : "已关闭",
+          "value" : "closed"
         } ],
         "labelGroupEnabled" : false,
         "labelGroupValueType" : null
@@ -1081,11 +1081,24 @@
     },
     "rows" : [ ],
     "meta" : {
-      "generatedAt" : "2026-09-29T12:45:12.9047843+08:00",
-      "queryDurationMs" : 0,
+      "generatedAt" : "2026-10-15T13:24:07.3516918+08:00",
+      "queryDurationMs" : 1,
       "rowCount" : 0,
       "columnCount" : 39,
       "drilldownColumnCount" : 22
     }
+  },
+  "readView" : {
+    "readContextId" : "<verified-runtime-readContextId>",
+    "pageKey" : "system-test-defect-summary",
+    "scopeKey" : "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "sourceVersion" : "<verified-runtime-sourceVersion>",
+    "businessDate" : "2026-09-01",
+    "leaseExpiresAt" : "<verified-runtime-leaseExpiresAt>",
+    "dataAsOf" : "<verified-runtime-dataAsOf>",
+    "pendingUpdates" : 0,
+    "sourceState" : "ATTENTION",
+    "sourceStateDetail" : "独立投影失败或停止，保留上一完整版本",
+    "escalated" : false
   }
 }

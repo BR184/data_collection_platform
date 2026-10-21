@@ -12,6 +12,8 @@ import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
+import com.data.collection.platform.entity.statistics.StatisticFilterField;
+import com.data.collection.platform.entity.statistics.StatisticFilterOption;
 import com.data.collection.platform.service.CustomerIssueScopeProfile;
 import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.RealtimeIncrementalRefreshService;
@@ -23,6 +25,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -31,6 +34,13 @@ import org.springframework.jdbc.core.RowMapper;
 
 @ExtendWith(MockitoExtension.class)
 class CustomerIssueDefectCauseFilterContractTest {
+  @org.junit.jupiter.api.BeforeEach
+  void bindReadDependencyFixtures() {
+    // 公式单测复用同一数据替身；实际修订隔离由真库读取测试覆盖。
+    org.mockito.Mockito.lenient().when(milestoneCatalogService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(milestoneCatalogService);
+    org.mockito.Mockito.lenient().when(snapshotRequestFactory.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(snapshotRequestFactory);
+  }
+
 
   @Mock private RealtimeWorkspaceService realtimeWorkspaceService;
   @Mock private RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;
@@ -72,19 +82,19 @@ class CustomerIssueDefectCauseFilterContractTest {
             anyString(), anyString(), anyString(), anyLong(), any(), anyString(), anyMap(), any(), any()))
         .thenReturn(snapshotRequest);
     doAnswer(invocation -> ((Function<StatisticBoardSnapshotService.SourceRead, StatisticBoardResponse>)
-                invocation.getArgument(1))
+                invocation.getArgument(2))
             .apply(StatisticBoardTestSnapshotScopes.testSourceRead()))
         .when(snapshotService)
-        .readOrRefresh(any(), any());
+        .readOrRefresh(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), any(), any());
     doAnswer(
             invocation -> {
-              RowMapper<Object> mapper = invocation.getArgument(4);
+              RowMapper<Object> mapper = invocation.getArgument(6);
               return List.of(
                   mapper.mapRow(row(2101, "工程图", "新增需求"), 0),
                   mapper.mapRow(row(2102, "草图", "新增需求"), 1));
             })
         .when(issueFactQueryService)
-        .query(anyString(), anyMap(), anyString(), anyList(), any(RowMapper.class));
+        .query(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(), anyMap(), anyString(), anyList(), anyString(), any(RowMapper.class));
 
     StatisticBoardResponse response =
         service()
@@ -112,19 +122,19 @@ class CustomerIssueDefectCauseFilterContractTest {
             anyString(), anyString(), anyString(), anyLong(), any(), anyString(), anyMap(), any(), any()))
         .thenReturn(snapshotRequest);
     doAnswer(invocation -> ((Function<StatisticBoardSnapshotService.SourceRead, StatisticBoardResponse>)
-                invocation.getArgument(1))
+                invocation.getArgument(2))
             .apply(StatisticBoardTestSnapshotScopes.testSourceRead()))
         .when(snapshotService)
-        .readOrRefresh(any(), any());
+        .readOrRefresh(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), any(), any());
     doAnswer(
             invocation -> {
-              RowMapper<Object> mapper = invocation.getArgument(4);
+              RowMapper<Object> mapper = invocation.getArgument(6);
               return List.of(
                   mapper.mapRow(row(2201, "工程图", "新增需求", "历史遗留、申请延期"), 0),
                   mapper.mapRow(row(2202, "草图", "新增需求", "已修复/完成"), 1));
             })
         .when(issueFactQueryService)
-        .query(anyString(), anyMap(), anyString(), anyList(), any(RowMapper.class));
+        .query(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(), anyMap(), anyString(), anyList(), anyString(), any(RowMapper.class));
 
     StatisticBoardResponse response =
         service()
@@ -141,6 +151,74 @@ class CustomerIssueDefectCauseFilterContractTest {
         .containsExactly("工程图");
   }
 
+  @Test
+  @SuppressWarnings("unchecked")
+  void test_personQuickFields_loadBoardOffersFactCandidatesAndKeepsTextOperators() throws Exception {
+    when(milestoneCatalogService.listMilestones()).thenReturn(List.of("CC2026 R3"));
+    StatisticBoardSnapshotService.SnapshotRequest snapshotRequest =
+        new StatisticBoardSnapshotService.SnapshotRequest(
+            "customer-issue-defect-cause", "test", "test", StatisticBoardTestSnapshotScopes.defaultProjectScopes(), Map.of(), null, null);
+    when(snapshotRequestFactory.issueRequest(
+            anyString(), anyString(), anyString(), anyLong(), any(), anyString(), anyMap(), any(), any()))
+        .thenReturn(snapshotRequest);
+    doAnswer(invocation -> ((Function<StatisticBoardSnapshotService.SourceRead, StatisticBoardResponse>)
+                invocation.getArgument(2))
+            .apply(StatisticBoardTestSnapshotScopes.testSourceRead()))
+        .when(snapshotService)
+        .readOrRefresh(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), any(), any());
+    ResultSet first = row(2301, "工程图", "新增需求");
+    ResultSet second = row(2302, "草图", "新增需求");
+    when(first.getString("author_name")).thenReturn("张三");
+    when(second.getString("author_name")).thenReturn("张三");
+    when(first.getString("assignee_name")).thenReturn("李四");
+    when(second.getString("assignee_name")).thenReturn("  ");
+    doAnswer(
+            invocation -> {
+              RowMapper<Object> mapper = invocation.getArgument(6);
+              return List.of(mapper.mapRow(first, 0), mapper.mapRow(second, 1));
+            })
+        .when(issueFactQueryService)
+        .query(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(), anyMap(), anyString(), anyList(), anyString(), any(RowMapper.class));
+
+    CustomerIssueDefectCauseBoardService service = service();
+    StatisticFilterField author = quickPersonField(service.loadBoard(Map.of()), "authorName");
+    StatisticFilterField assignee = quickPersonField(service.loadBoard(Map.of()), "assigneeName");
+
+    // 人员字段保持 text 与其关系清单，候选只补同范围事实取值：去空、按来源顺序去重。
+    assertThat(author.type()).isEqualTo("text");
+    assertThat(author.operators()).containsExactly("eq", "ne", "contains", "isEmpty", "isNotEmpty");
+    assertThat(author.options())
+        .extracting(StatisticFilterOption::label, StatisticFilterOption::value)
+        .containsExactly(Tuple.tuple("张三", "张三"));
+    assertThat(assignee.options())
+        .extracting(StatisticFilterOption::label, StatisticFilterOption::value)
+        .containsExactly(Tuple.tuple("李四", "李四"));
+
+    // 选中候选后仍走原条件求值路径。
+    assertThat(moduleRows(service.loadBoard(Map.of(
+            "filterGroup",
+            "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"authorName\",\"operator\":\"eq\",\"value\":\"张三\"}]}"))))
+        .containsExactlyInAnyOrder("工程图", "草图");
+    assertThat(moduleRows(service.loadBoard(Map.of(
+            "filterGroup",
+            "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"assigneeName\",\"operator\":\"eq\",\"value\":\"王五\"}]}"))))
+        .isEmpty();
+  }
+
+  private static StatisticFilterField quickPersonField(StatisticBoardResponse response, String key) {
+    return response.definition().filters().stream()
+        .filter(field -> key.equals(field.key()))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("缺少人员快速字段: " + key));
+  }
+
+  private static List<String> moduleRows(StatisticBoardResponse response) {
+    return response.rows().stream()
+        .filter(row -> !row.rowKey().startsWith("__"))
+        .map(row -> row.rowLabel())
+        .toList();
+  }
+
   private CustomerIssueDefectCauseBoardService service() {
     return new CustomerIssueDefectCauseBoardService(
         new JsonUtils(new ObjectMapper()),
@@ -151,7 +229,7 @@ class CustomerIssueDefectCauseFilterContractTest {
         issueLinkSupport,
         milestoneCatalogService,
         snapshotService,
-        snapshotRequestFactory);
+        snapshotRequestFactory).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
   }
 
   private ResultSet row(int iid, String modules, String reason) throws Exception {

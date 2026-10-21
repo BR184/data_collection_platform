@@ -9,12 +9,27 @@ import org.springframework.stereotype.Repository;
 public class ReviewDataExpertRepository {
   private final JdbcTemplate jdbcTemplate;
 
+
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 固定页面关系读取对象；原仓储工厂仅供当前业务命令与安装控制面。 */
+  public ReviewDataExpertRepository forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new ReviewDataExpertRepository(this, selection);
+  }
+
+  private ReviewDataExpertRepository(ReviewDataExpertRepository factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public ReviewDataExpertRepository(JdbcTemplate jdbcTemplate) {
+    this.fixedRead = null;
     this.jdbcTemplate = jdbcTemplate;
   }
 
   public List<String> listRecordExperts(Long recordId) {
-    return jdbcTemplate.query(
+    return query(
         """
         select expert_name
         from review_record_experts
@@ -54,7 +69,7 @@ public class ReviewDataExpertRepository {
   }
 
   public List<String> loadExpertOptions() {
-    return jdbcTemplate.query(
+    return query(
         """
         select distinct expert_name
         from review_record_experts
@@ -62,5 +77,18 @@ public class ReviewDataExpertRepository {
         order by expert_name asc
         """,
         (rs, rowNum) -> rs.getString("expert_name"));
+  }
+
+  private <T> java.util.List<T> query(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, mapper, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, mapper, args);
+  }
+  private <T> T query(String sql, org.springframework.jdbc.core.ResultSetExtractor<T> extractor, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, extractor, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, extractor, args);
+  }
+  private <T> T queryForObject(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    return fixedRead == null ? jdbcTemplate.queryForObject(sql, mapper, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForObject(fixedRead, sql, mapper, args);
   }
 }

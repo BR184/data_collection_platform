@@ -3,7 +3,6 @@ package com.data.collection.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.FactProjectionScope;
 import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.IssueFact;
@@ -43,10 +42,10 @@ class StatisticBoardConsistencyBoundaryTest {
   private static final String PROBE_BUSINESS_KEY = "s04-boundary-group";
   private static final String PROBE_CATALOG_NAME = "边界一致性目录";
   private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 5, 6, 9, 0);
+  /** 完整读版本夹具：同一发布身份内重复写入命中 do update，只留下一条修订行。 */
 
   @Autowired private JdbcTemplate jdbcTemplate;
   @Autowired private IssueFactMapper issueFactMapper;
-  @Autowired private FactProjectionGenerationService generationService;
   @Autowired private StatisticBoardSnapshotService snapshotService;
   @Autowired private PlatformTransactionManager transactionManager;
 
@@ -56,6 +55,7 @@ class StatisticBoardConsistencyBoundaryTest {
   @BeforeEach
   void setUp() {
     cleanUp();
+    jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
     probeCatalogId = null;
     TransactionTemplate template = new TransactionTemplate(transactionManager);
     template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -69,117 +69,89 @@ class StatisticBoardConsistencyBoundaryTest {
     cleanUp();
   }
 
-  /** 版本检查期间发生发布：边界内的版本与事实视图都不得前进，边界外的下一次读取整体更新。 */
+  /** 并发真正发布后，旧身份在本次及后续事务仍读旧内容；新身份才前进。 */
   @Test
   void publicationInsideTheBoundaryKeepsVersionAndFactViewOnTheOldGeneration() {
     insertFacts(2);
-    String versionBefore = currentVersion();
-
-    BoundaryView observed =
-        snapshotService.withinConsistentSourceRead(
-            readPlan(),
-            sourceRead -> {
-              // 确定时点：边界已解析范围、校验资格并算出版本，此刻由独立事务完成一次发布。
-              publishInNewTransaction(
-                  () -> {
-                    insertFact(3);
-                    generationService.advanceIssueScopeGenerations(PROBE_SOURCE, probeScopes());
-                  });
-              return new BoundaryView(sourceRead.sourceVersion(), countProbeFacts());
-            });
-
-    assertThat(observed.sourceVersion())
-        .as("边界内解析出的来源版本必须停留在读取开始的那一代")
-        .isEqualTo(versionBefore);
-    assertThat(observed.observedRows())
-        .as("同一边界内的事实读取必须与版本同视图：并发发布新增的行不得出现")
-        .isEqualTo(2L);
-    assertThat(currentVersion())
-        .as("边界外的下一次读取整体前进到发布后的版本")
-        .isNotEqualTo(versionBefore);
-    assertThat(countProbeFacts()).isEqualTo(3L);
+    var oldSelection = selection();
+    String versionBefore = oldSelection.sourceVersion();
+    BoundaryView observed = snapshotService.withinVersionedRead(oldSelection, readPlan(), sourceRead -> {
+      publishInNewTransaction(() -> insertFact(3));
+      return new BoundaryView(sourceRead.sourceVersion(), countFacts(oldSelection));
+    });
+    assertThat(observed.sourceVersion()).isEqualTo(versionBefore);
+    assertThat(observed.observedRows()).isEqualTo(2L);
+    assertThat(currentVersion()).isNotEqualTo(versionBefore);
+    Long retainedRows = snapshotService.withinVersionedRead(oldSelection, readPlan(), read -> countFacts(oldSelection));
+    assertThat(retainedRows).isEqualTo(2L);
+    assertThat(countFacts(selection())).isEqualTo(3L);
   }
 
-  /**
-   * 边界内落地的重建请求不追溯推翻本次读取；之后按能力区分：仍可返回已保存的完整产出，
-   * 但不得再按当前事实读取。
-   */
+  /** 全量栅栏与失败只披露更新状态，不能拒绝已经完整发布的事实及明细。 */
   @Test
-  void fullRebuildRequestedInsideTheBoundaryOnlyBlocksReadsOfCurrentFacts() {
+  void fullRebuildAndBlockedSourceKeepTheCompletePublishedVersionReadable() {
     insertFacts(2);
-    String versionBefore = currentVersion();
-
-    String ongoingVersion =
-        snapshotService.withinConsistentSourceRead(
-            readPlan(),
-            sourceRead -> {
-              publishInNewTransaction(() -> upsertPublicationState("READY", true, null));
-              return sourceRead.sourceVersion();
-            });
-
-    assertThat(ongoingVersion)
-        .as("边界自视图开始时的资格是可证实的，不得被之后的提交追溯性推翻")
-        .isEqualTo(versionBefore);
-
-    snapshotService.withinConsistentSourceRead(readPlan(), identityAction());
-
-    assertThatThrownBy(
-            () ->
-                snapshotService.withinConsistentCurrentFactRead(readPlan(), identityAction()))
-        .as("下一次读取当前事实必须在事实读取之前就拒绝，且不得复用旧 READY 冒充完整")
-        .isInstanceOf(BizException.class)
-        .hasMessageContaining("尚未结算");
+    var oldSelection = selection();
+    String observed = snapshotService.withinVersionedRead(oldSelection, readPlan(), sourceRead -> {
+      publishInNewTransaction(() -> upsertPublicationState("BLOCKED", true, "fixture failure"));
+      return sourceRead.sourceVersion();
+    });
+    assertThat(observed).isEqualTo(oldSelection.sourceVersion());
+    assertThat(snapshotService.withinVersionedRead(selection(), readPlan(), identityAction())).isEqualTo(observed);
+    Long retainedRows = snapshotService.withinVersionedRead(oldSelection, readPlan(), read -> countFacts(oldSelection));
+    assertThat(retainedRows).isEqualTo(2L);
   }
 
-  /** 目录变化必须与版本、事实落在同一视图：边界内看不到新启用成员，边界外才整体生效。 */
+  /** 目录编辑不能重解释旧身份；下一完整发布才让新目录进入新身份。 */
   @Test
-  void catalogMemberInsertInsideTheBoundaryIsInvisibleToTheOngoingRead() {
-    insertProbeGroup();
-    String versionBefore = snapshotService.issueFactSourceVersion(groupScopes());
-    long membersBefore = countProbeMembers();
-
-    BoundaryView observed =
-        snapshotService.withinConsistentSourceRead(
-            StatisticBoardSnapshotService.SourceReadPlan.of(this::groupScopes),
-            sourceRead -> {
-              publishInNewTransaction(
-                  () -> {
-                    insertProbeMember(PROBE_MILESTONE + "-追加成员");
-                    jdbcTemplate.update(
-                        "update issue_scope_groups set definition_generation = definition_generation + 1"
-                            + " where business_key = ?",
-                        PROBE_BUSINESS_KEY);
-                  });
-              return new BoundaryView(sourceRead.sourceVersion(), countProbeMembers());
-            });
-
-    assertThat(observed.sourceVersion())
-        .as("范围组定义代际在边界内不得变化，否则缓存键与事实视图会分属两代")
-        .isEqualTo(versionBefore);
-    assertThat(observed.observedRows())
-        .as("边界内的目录读取必须停留在同一视图：新启用成员不得出现")
-        .isEqualTo(membersBefore);
-    assertThat(snapshotService.issueFactSourceVersion(groupScopes()))
-        .as("范围组定义变化必须让下一次读取整体失效")
-        .isNotEqualTo(versionBefore);
-    assertThat(countProbeMembers()).isEqualTo(membersBefore + 1);
-  }
-
-  /** 无发布记录且已有事实投影：完整性无从证实，边界必须在读取动作之前就拒绝。 */
-  @Test
-  void unknownSourceWithoutPublicationRecordIsRejectedBeforeAnyRead() {
-    insertFacts(2);
-    publishInNewTransaction(
-        () -> {
-          jdbcTemplate.update(
-              "delete from source_fact_publication_states where source_instance = ?", PROBE_SOURCE);
-          generationService.advanceIssueScopeGenerations(PROBE_SOURCE, probeScopes());
+  void catalogMemberChangeStaysInvisibleUntilANewCompletePublication() {
+    insertProbeGroup(); insertFacts(2);
+    var oldSelection = selection();
+    long before = countMembers(oldSelection);
+    BoundaryView observed = snapshotService.withinVersionedRead(oldSelection,
+        StatisticBoardSnapshotService.SourceReadPlan.of(this::groupScopes), sourceRead -> {
+          publishInNewTransaction(() -> insertProbeMember(PROBE_MILESTONE + "第二成员"));
+          return new BoundaryView(sourceRead.sourceVersion(), countMembers(oldSelection));
         });
+    assertThat(observed.sourceVersion()).isEqualTo(oldSelection.sourceVersion());
+    assertThat(observed.observedRows()).isEqualTo(before);
+    assertThat(countMembers(oldSelection)).isEqualTo(before);
+    assertThat(currentVersion()).isEqualTo(oldSelection.sourceVersion());
+    insertFact(2);
+    assertThat(currentVersion()).isNotEqualTo(oldSelection.sourceVersion());
+    assertThat(countMembers(selection())).isEqualTo(before + 1);
+    assertThat(countMembers(oldSelection)).isEqualTo(before);
+  }
 
-    assertThatThrownBy(() -> snapshotService.withinConsistentSourceRead(readPlan(), identityAction()))
-        .isInstanceOf(BizException.class)
-        .hasMessageContaining("无法确认完整性");
-    assertThat(countProbeFacts()).as("拒绝发生在读取之后才有意义，这里不得产生任何副作用").isEqualTo(2L);
+  /** 伪造/不存在的发布身份在执行读取前拒绝，不能凭当前控制面 READY 制造产出。 */
+  @Test
+  void nonexistentPublicationIdentityIsRejectedBeforeAnyRead() {
+    var executed = new java.util.concurrent.atomic.AtomicBoolean();
+    assertThatThrownBy(() -> snapshotService.withinVersionedRead(
+        com.data.collection.platform.service.read.TestReadSelections.all(), readPlan(), read -> {
+          executed.set(true); return "unreachable";
+        })).isInstanceOf(com.data.collection.platform.service.read.ReadViewException.class);
+    assertThat(executed).isFalse();
+    assertThat(countProbeFacts()).isZero();
+  }
+
+  private com.data.collection.platform.entity.read.FactReadSelection selection() {
+    var published = FactRevisionFixture.currentPublishedSelection(jdbcTemplate,
+        com.data.collection.platform.entity.read.PublicationFactTable.ISSUE);
+    return new com.data.collection.platform.entity.read.FactReadSelection(published.contexts().stream()
+        .filter(context -> PROBE_SOURCE.equals(context.sourceInstance())).toList(), published.businessDate());
+  }
+
+  private long countFacts(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    var query = com.data.collection.platform.service.read.VersionedFactSql.bind(selection,
+        "select count(*) from issue_fact where source_instance = ?", List.of(PROBE_SOURCE));
+    return jdbcTemplate.queryForObject(query.sql(), Long.class, query.arguments().toArray());
+  }
+
+  private long countMembers(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    String query = com.data.collection.platform.service.read.VersionedDefinitionSql.bind(selection,
+        "select count(*) from issue_scope_members where group_id = ? and enabled = true");
+    return jdbcTemplate.queryForObject(query, Long.class, PROBE_CONFIG_ID);
   }
 
   private static Function<StatisticBoardSnapshotService.SourceRead, String> identityAction() {
@@ -195,7 +167,7 @@ class StatisticBoardConsistencyBoundaryTest {
   }
 
   private String currentVersion() {
-    return snapshotService.issueFactSourceVersion(probeScopes());
+    return selection().sourceVersion();
   }
 
   private StatisticBoardSnapshotService.SourceReadPlan readPlan() {
@@ -264,7 +236,14 @@ class StatisticBoardConsistencyBoundaryTest {
     fact.setResponseOverdue(false);
     fact.setResolveSlaDays(0);
     fact.setLegacy(false);
-    issueFactMapper.upsert(fact);
+    var key = com.data.collection.platform.entity.read.ReadPublicationDomainKey.gitlabFact(PROBE_SOURCE, FactType.ISSUE);
+    boolean full = new com.data.collection.platform.service.read.ReadPublicationRepository(jdbcTemplate)
+        .findDomain(key).map(domain -> domain.currentPublicationId()).isEmpty();
+    FactRevisionFixture.publishFacts(jdbcTemplate, com.data.collection.platform.entity.read.PublicationFactTable.ISSUE,
+        PROBE_SOURCE, full, target -> {
+          issueFactMapper.batchUpsert(List.of(fact), target.epochId(), target.publicationId());
+          return new com.data.collection.platform.entity.FactBuildResponse("fixture", full, 1, "fixture");
+        });
   }
 
   private long countProbeFacts() {
@@ -395,8 +374,9 @@ class StatisticBoardConsistencyBoundaryTest {
   }
 
   private void cleanUp() {
-    jdbcTemplate.update("delete from issue_fact where source_instance = ?", PROBE_SOURCE);
+    // 客户成员关系按外键挂在事实修订上，必须先删关系再删事实。
     jdbcTemplate.update("delete from issue_fact_customer_members where project_id = ?", CUSTOMER_PROJECT_ID);
+    jdbcTemplate.update("delete from issue_fact where source_instance = ?", PROBE_SOURCE);
     jdbcTemplate.update("delete from issue_scope_members where group_id = ?", PROBE_CONFIG_ID);
     jdbcTemplate.update("delete from issue_scope_groups where id = ?", PROBE_CONFIG_ID);
     jdbcTemplate.update("delete from issue_scope_catalogs where project_name = ?", PROBE_CATALOG_NAME);

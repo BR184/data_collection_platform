@@ -44,6 +44,7 @@ class IssueScopeCatalogServiceTest {
     jdbcTemplate.update("delete from issue_scope_groups");
     jdbcTemplate.update("delete from issue_scope_catalogs");
     jdbcTemplate.update("delete from issue_fact");
+    jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
     catalogService = new IssueScopeCatalogService(jdbcTemplate);
     definitionService = new IssueScopeDefinitionService(jdbcTemplate);
     reconciliationService = new CustomerIssueMilestoneCatalogReconciliationService(jdbcTemplate);
@@ -120,7 +121,7 @@ class IssueScopeCatalogServiceTest {
     insertFact(2L, 2, "CC2026 R4");
     insertFact(3L, 3, "CC2026 R5");
 
-    assertThat(reconciliationService.reconcilePublishedFactValues()).isEqualTo(1);
+    assertThat(reconciliationService.reconcileFactValues(FactRevisionFixture.adoptIssueContext(jdbcTemplate))).isEqualTo(1);
     assertThat(
             catalogService.requireMemberValues(
                 325L, IssueScopeDimension.MILESTONE, "CC2026R3"))

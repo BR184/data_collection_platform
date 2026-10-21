@@ -55,6 +55,13 @@ public class FactTaskExecutionGuard {
     }
   }
 
+  /** 统一候选发布只验证父运行当前租约；构建任务已成功退出，不能再要求它保有构建租约。 */
+  public void requireParentRunAuthorization(long factRunId, String runLeaseToken) {
+    if (!parentRunAuthorizes(factRunId, runLeaseToken)) {
+      throw new FactTaskLeaseLostException(factRunId, "父事实运行已失去执行权或正在取消");
+    }
+  }
+
   private boolean parentRunAuthorizes(Long factRunId, String runLeaseToken) {
     if (factRunId == null || runLeaseToken == null || runLeaseToken.isBlank()) {
       return false;

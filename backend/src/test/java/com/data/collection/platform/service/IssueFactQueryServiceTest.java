@@ -30,7 +30,7 @@ class IssueFactQueryServiceTest {
     IssueFactQueryService service = new IssueFactQueryService(jdbcTemplate, sqlQueryMonitor);
 
     List<String> rows =
-        service.query(
+        service.query(com.data.collection.platform.service.read.TestReadSelections.all(),
             "select module_names from issue_fact where deleted = false",
             Map.of("moduleName", "\u5de5\u5177"),
             (ResultSet rs, int rowNum) -> rs.getString("module_names"));
@@ -41,6 +41,7 @@ class IssueFactQueryServiceTest {
     verify(jdbcTemplate).query(sqlCaptor.capture(), any(RowMapper.class), argsCaptor.capture());
     assertThat(sqlCaptor.getValue())
         .contains("lower(',' || replace(coalesce(module_names, ''), ', ', ',') || ',') like ?");
-    assertThat(argsCaptor.getValue()).containsExactly("%,\u5de5\u5177,%");
+    assertThat(argsCaptor.getValue()).endsWith("%,\u5de5\u5177,%");
+    assertThat(sqlCaptor.getValue()).contains("visible_from", "visible_to", "publication_epoch_id");
   }
 }

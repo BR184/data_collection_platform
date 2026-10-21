@@ -17,7 +17,7 @@
       "remoteDirectory" : null,
       "remoteHostKeyFingerprint" : null,
       "version" : 1,
-      "updatedAt" : "2026-09-29 12:45:11",
+      "updatedAt" : "2026-10-15 13:24:03",
       "localRootEffective" : "./.tmp/qaflex-backups/default",
       "secretKeyConfigured" : false,
       "instanceLabel" : "default"

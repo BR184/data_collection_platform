@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -18,8 +17,23 @@ public class ReviewDataMirrorOptionRepository {
 
   private final JdbcTemplate jdbcTemplate;
 
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 读取候选只使用页面已绑定的完整镜像目录；写入表单候选由原控制面仓储处理。 */
+  public ReviewDataMirrorOptionRepository forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new ReviewDataMirrorOptionRepository(this, selection);
+  }
+
+  private ReviewDataMirrorOptionRepository(ReviewDataMirrorOptionRepository factory,
+      com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public ReviewDataMirrorOptionRepository(JdbcTemplate jdbcTemplate) {
     this.jdbcTemplate = jdbcTemplate;
+    this.fixedRead = null;
   }
 
   public List<String> loadLabelProjectNames() {
@@ -37,7 +51,7 @@ public class ReviewDataMirrorOptionRepository {
               from %s
              where coalesce(mirror_deleted, false) = false
                and nullif(trim(name), '') is not null
-             order by coalesce(last_activity_on, created_at, updated_at) desc nulls last
+             order by coalesce(last_activity_on, created_at, updated_at) desc nulls last, name
             """
                 .formatted(tableName));
   }
@@ -79,29 +93,25 @@ public class ReviewDataMirrorOptionRepository {
       String sourceTableName, Function<String, String> sqlFactory) {
     String mirrorTableName =
         GitlabSourceInstanceSupport.buildMirrorTableName(sourceTableName);
+    if (fixedRead != null) {
+      // 准备闭包对已配置目录强制取得完整点；没有绑定代表准备时此可选目录未配置。
+      // 后来创建的当前原表不能补进这个历史视图。
+      if (fixedRead.datasets().stream().noneMatch(input -> input.datasetKey().equals(mirrorTableName))) return List.of();
+      return new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate)
+          .queryForList(fixedRead, sqlFactory.apply(SqlIdentifierSupport.quoteIdentifier(mirrorTableName)), String.class);
+    }
     if (!mirrorTableExists(mirrorTableName)) {
       return List.of();
     }
-    return queryDistinct(sqlFactory.apply(SqlIdentifierSupport.quoteIdentifier(mirrorTableName)), mirrorTableName);
+    return queryDistinct(sqlFactory.apply(SqlIdentifierSupport.quoteIdentifier(mirrorTableName)));
   }
 
   private boolean mirrorTableExists(String tableName) {
-    try {
-      Boolean exists = jdbcTemplate.queryForObject("select to_regclass(?) is not null", Boolean.class, tableName);
-      return Boolean.TRUE.equals(exists);
-    } catch (DataAccessException error) {
-      log.debug("Review data mirror option table {} is unavailable", tableName, error);
-      return false;
-    }
+    return Boolean.TRUE.equals(jdbcTemplate.queryForObject("select to_regclass(?) is not null", Boolean.class, tableName));
   }
 
-  private List<String> queryDistinct(String sql, String sourceName) {
-    try {
-      return jdbcTemplate.queryForList(sql, String.class);
-    } catch (DataAccessException error) {
-      log.debug("Review data mirror option source {} is unavailable", sourceName, error);
-      return List.of();
-    }
+  private List<String> queryDistinct(String sql) {
+    return jdbcTemplate.queryForList(sql, String.class);
   }
 
   private List<String> loadProjectLabelValues() {

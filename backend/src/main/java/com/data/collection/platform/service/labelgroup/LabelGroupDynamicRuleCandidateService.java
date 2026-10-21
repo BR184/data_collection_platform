@@ -8,7 +8,7 @@ import com.data.collection.platform.service.TextQuerySupport;
 import java.util.Comparator;
 import java.util.List;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import com.data.collection.platform.service.read.VersionedNamedReadSql;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -16,13 +16,15 @@ public class LabelGroupDynamicRuleCandidateService {
   private static final String SOURCE_DYNAMIC_RULE = "DYNAMIC_RULE";
 
   private final LabelGroupDynamicRuleCatalogService catalogService;
-  private final NamedParameterJdbcTemplate jdbcTemplate;
+  private final VersionedNamedReadSql queries;
+  private final LabelValuePublishedReader publishedReader;
 
   public LabelGroupDynamicRuleCandidateService(
       LabelGroupDynamicRuleCatalogService catalogService,
-      NamedParameterJdbcTemplate jdbcTemplate) {
+      VersionedNamedReadSql queries, LabelValuePublishedReader publishedReader) {
     this.catalogService = catalogService;
-    this.jdbcTemplate = jdbcTemplate;
+    this.queries = queries;
+    this.publishedReader = publishedReader;
   }
 
   public LabelValuePageResponse listCandidates(
@@ -86,17 +88,16 @@ public class LabelGroupDynamicRuleCandidateService {
     String valueExpression = "btrim(cast(" + field.columnName() + " as text))";
     String countSql = "select count(*) from (select distinct " + valueExpression
         + " as value from " + source.tableName() + " " + where + ") candidate_values";
-    long total = jdbcTemplate.queryForObject(countSql, params, Long.class);
     String dataSql = "select distinct " + valueExpression + " as value from "
         + source.tableName() + " " + where + " order by value asc limit :limit offset :offset";
-    List<LabelValueResponse> values = jdbcTemplate.query(
-        dataSql,
-        params,
-        (rs, rowNum) -> {
-          String value = rs.getString("value");
-          return new LabelValueResponse(value, value, valueKind(field), SOURCE_DYNAMIC_RULE, 0L);
-        });
-    return new LabelValuePageResponse(values, total, page, size);
+    return publishedReader.readDynamic(java.util.Set.of(source.key()), selection -> {
+      long total = queries.query(selection, countSql, params, (rs,row) -> rs.getLong(1)).getFirst();
+      List<LabelValueResponse> values = queries.query(selection, dataSql, params, (rs, rowNum) -> {
+        String value = rs.getString("value");
+        return new LabelValueResponse(value, value, valueKind(field), SOURCE_DYNAMIC_RULE, 0L);
+      });
+      return new LabelValuePageResponse(values, total, page, size);
+    });
   }
 
   private LabelValuePageResponse page(List<LabelValueResponse> values, int page, int size) {

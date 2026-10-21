@@ -38,6 +38,8 @@ class FilterEngineSqlParityTest {
       long iid,
       String projectName,
       List<String> moduleNames,
+      String functionName,
+      List<String> customerNames,
       String severityLevel,
       String priorityLevel,
       String bugStatus,
@@ -49,63 +51,103 @@ class FilterEngineSqlParityTest {
 
   @BeforeEach
   void cleanAndInsert() {
-    jdbcTemplate.update("delete from issue_fact where issue_iid between ? and ?", IID_FLOOR, IID_CEIL);
-    insertRow(99101, "CC_Product", "装配 & 钣金", "一级缺陷", "P1", "已修复/完成", "opened",
+    clearFixtures();
+    insertRow(99101, "CC_Product", "装配 & 钣金", "草图约束", "一级缺陷", "P1", "已修复/完成", "opened",
         "状态：已修复/完成,优先级：P1", LocalDateTime.of(2026, 6, 10, 9, 0));
-    insertRow(99102, "CC_Product", "喷涂", "二级缺陷", "P3", "处理中", "opened",
+    insertRow(99102, "CC_Product", "喷涂", "表面处理", "二级缺陷", "P3", "处理中", "opened",
         "状态：处理中", LocalDateTime.of(2026, 7, 20, 14, 30));
-    insertRow(99103, "Other", "装配", "一级缺陷", "P2", "已修复/完成", "closed",
+    insertRow(99103, "Other", "装配", "装配工艺", "一级缺陷", "P2", "已修复/完成", "closed",
         "状态：已修复/完成", LocalDateTime.of(2026, 8, 5, 16, 0));
+    // 条件值里的 %、_、反斜线必须按字面文本求值；模块多值分隔必须与看板聚合/明细同源。
+    insertRow(99104, "CC_Product", "装配, 钣金", "钣金%合格率", "一级缺陷", "P1", "处理中", "opened",
+        "状态：处理中", LocalDateTime.of(2026, 8, 6, 9, 0));
+    insertRow(99105, "CC_Product", "工具 , 装配", "路径_备份", "二级缺陷", "P2", "处理中", "opened",
+        "状态：处理中", LocalDateTime.of(2026, 8, 7, 9, 0));
+    insertRow(99106, "Other", "钣金&喷涂", "备份\\恢复", "三级缺陷", "P3", "处理中", "closed",
+        "状态：处理中", LocalDateTime.of(2026, 8, 8, 9, 0));
+    // 客户名大小写混排并含字面通配符：包含/不包含都必须大小写归一且按字面匹配。
+    insertCustomer(99101, "Acme World");
+    insertCustomer(99103, "A_B 客户");
+    insertCustomer(99104, "ACME%机械");
+    insertCustomer(99105, "宝仓机械");
     rows = loadRows();
   }
 
   @AfterEach
   void cleanUp() {
+    clearFixtures();
+  }
+
+  private void clearFixtures() {
+    jdbcTemplate.update(
+        "delete from issue_fact_customer_members where issue_id between ? and ?", IID_FLOOR, IID_CEIL);
     jdbcTemplate.update("delete from issue_fact where issue_iid between ? and ?", IID_FLOOR, IID_CEIL);
   }
 
+  private void insertCustomer(long issueId, String customerName) {
+    jdbcTemplate.update(
+        """
+        insert into issue_fact_customer_members(
+          source_system, source_instance, project_id, issue_id, customer_name
+        ) values ('GITLAB', 'default', 325, ?, ?)
+        """,
+        issueId, customerName);
+  }
+
   private void insertRow(
-      long iid, String project, String modules, String severity, String priority,
+      long iid, String project, String modules, String function, String severity, String priority,
       String bugStatus, String state, String labels, LocalDateTime createdAt) {
     jdbcTemplate.update(
         """
         insert into issue_fact(
           source_system, source_instance, project_id, project_name, issue_id, issue_iid, title,
           issue_state, milestone_title, author_name, assignee_name, created_at_source, updated_at_source,
-          module_names, testing_phase, severity_level, priority_level, bug_status, category,
+          module_names, function_name, testing_phase, severity_level, priority_level, bug_status, category,
           label_names, deleted
-        ) values ('GITLAB', 'default', 325, ?, ?, ?, ?, ?, 'CC2026R3', 'author', 'assignee', ?, ?, ?, ?, ?, ?, ?, ?, ?, false)
+        ) values ('GITLAB', 'default', 325, ?, ?, ?, ?, ?, 'CC2026R3', 'author', 'assignee', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, false)
         """,
         project, iid, iid, "issue " + iid, state,
-        createdAt, createdAt.plusHours(1), modules, "", severity, priority, bugStatus,
+        createdAt, createdAt.plusHours(1), modules, function, "", severity, priority, bugStatus,
         "缺陷", labels);
   }
 
   private List<ParityRow> loadRows() {
     return jdbcTemplate.query(
-        "select issue_iid, project_name, module_names, severity_level, priority_level, bug_status,"
-            + " issue_state, label_names, created_at_source from issue_fact"
+        "select issue_iid, project_name, module_names, function_name, severity_level, priority_level,"
+            + " bug_status, issue_state, label_names, created_at_source from issue_fact"
             + " where issue_iid between ? and ? order by issue_iid",
         (rs, rowNum) -> new ParityRow(
             rs.getLong("issue_iid"),
             rs.getString("project_name"),
-            splitTrim(rs.getString("module_names"), "&"),
+            splitMembers(rs.getString("module_names"), "[,&]"),
+            rs.getString("function_name"),
+            customerNames(rs.getLong("issue_iid")),
             rs.getString("severity_level"),
             rs.getString("priority_level"),
             rs.getString("bug_status"),
             rs.getString("issue_state"),
-            splitTrim(rs.getString("label_names"), ","),
+            splitMembers(rs.getString("label_names"), ","),
             rs.getTimestamp("created_at_source").toLocalDateTime()),
         IID_FLOOR, IID_CEIL);
   }
 
-  private static List<String> splitTrim(String raw, String separator) {
+  private List<String> customerNames(long issueId) {
+    return jdbcTemplate.queryForList(
+        "select customer_name from issue_fact_customer_members"
+            + " where source_system = 'GITLAB' and source_instance = 'default' and project_id = 325"
+            + " and issue_id = ?",
+        String.class,
+        issueId);
+  }
+
+  /** 与看板一致的成员拆分：分隔符两侧空白一并吃掉，空成员丢弃。 */
+  private static List<String> splitMembers(String raw, String separatorRegex) {
     if (raw == null || raw.isBlank()) {
       return List.of();
     }
-    return List.of(raw.split("\\s*" + java.util.regex.Pattern.quote(separator) + "\\s*")).stream()
-        .map(v -> v.isBlank() ? null : v)
-        .filter(Objects::nonNull)
+    return java.util.Arrays.stream(raw.split("\\s*" + separatorRegex + "\\s*"))
+        .map(String::trim)
+        .filter(value -> !value.isEmpty())
         .toList();
   }
 
@@ -115,6 +157,10 @@ class FilterEngineSqlParityTest {
             "projectName", row -> List.of(Objects.toString(row.projectName(), "")))),
         Map.entry("moduleName", StatisticFieldDescriptor.<ParityRow>multiValue(
             "moduleName", ParityRow::moduleNames)),
+        Map.entry("functionName", StatisticFieldDescriptor.<ParityRow>multiValue(
+            "functionName", row -> List.of(Objects.toString(row.functionName(), "")))),
+        Map.entry("customerName", StatisticFieldDescriptor.<ParityRow>multiValue(
+            "customerName", ParityRow::customerNames)),
         Map.entry("severityLevel", StatisticFieldDescriptor.<ParityRow>multiValue(
             "severityLevel", row -> List.of(Objects.toString(row.severityLevel(), "")))),
         Map.entry("priorityLevel", StatisticFieldDescriptor.<ParityRow>multiValue(
@@ -169,6 +215,18 @@ class FilterEngineSqlParityTest {
     assertThat(engine).as("平价失败 @%s", caseId).containsExactlyElementsOf(sql);
   }
 
+  /** 平价之外还锁定绝对命中集合，避免两侧同时漏判把空结果当成一致。 */
+  private void assertParity(String caseId, StatisticFilterGroup group, List<Long> expectedIds) {
+    List<Long> sql = sqlIds(group);
+    List<Long> engine = engineIds(group);
+    assertThat(engine).as("引擎命中失败 @%s", caseId).containsExactlyElementsOf(expectedIds);
+    assertThat(sql).as("SQL 命中失败 @%s", caseId).containsExactlyElementsOf(expectedIds);
+  }
+
+  private static StatisticFilterGroup and(StatisticFilterCondition... conditions) {
+    return new StatisticFilterGroup("AND", List.of(conditions));
+  }
+
   private static StatisticFilterCondition literal(String fieldKey, String operator, String value) {
     return new StatisticFilterCondition(fieldKey, operator, value, null);
   }
@@ -209,5 +267,60 @@ class FilterEngineSqlParityTest {
         new StatisticFilterGroup("OR", List.of(
             literal("severityLevel", "eq", "一级缺陷"),
             literal("priorityLevel", "eq", "P3"))));
+  }
+
+  @Test
+  void test_literal_wildcard_values_match_as_plain_text() {
+    // 经理反例：条件值里的 SQL 通配符必须按字面文本求值，不能把整表捞回来。
+    assertParity("function-contains-percent", and(literal("functionName", "contains", "%")), List.of(99104L));
+    assertParity("function-contains-underscore", and(literal("functionName", "contains", "_")), List.of(99105L));
+    assertParity("function-contains-backslash", and(literal("functionName", "contains", "\\")), List.of(99106L));
+    assertParity("function-contains-literal-run", and(literal("functionName", "contains", "钣金%")), List.of(99104L));
+    assertParity("function-contains-no-match", and(literal("functionName", "contains", "%_")), List.of());
+    assertParity("function-contains-blank", and(literal("functionName", "contains", "  ")), List.of());
+    assertParity(
+        "function-notcontains-percent",
+        and(literal("functionName", "notContains", "%")),
+        List.of(99101L, 99102L, 99103L, 99105L, 99106L));
+    assertParity("project-contains-percent", and(literal("projectName", "contains", "%")), List.of());
+  }
+
+  @Test
+  void test_customer_membership_ignores_case_and_keeps_literal_wildcards() {
+    // 客户成员关系在 SQL 侧按 lower 后比较：大写条件值必须同样命中；通配符仍是字面文本。
+    assertParity("customer-contains-upper", and(literal("customerName", "contains", "ACME")),
+        List.of(99101L, 99104L));
+    assertParity("customer-contains-lower", and(literal("customerName", "contains", "acme")),
+        List.of(99101L, 99104L));
+    assertParity("customer-contains-mixed", and(literal("customerName", "contains", "Acme World")),
+        List.of(99101L));
+    assertParity("customer-contains-chinese", and(literal("customerName", "contains", "机械")),
+        List.of(99104L, 99105L));
+    assertParity("customer-contains-percent", and(literal("customerName", "contains", "%")),
+        List.of(99104L));
+    assertParity("customer-contains-underscore", and(literal("customerName", "contains", "_")),
+        List.of(99103L));
+    assertParity("customer-notcontains-upper", and(literal("customerName", "notContains", "ACME")),
+        List.of(99102L, 99103L, 99105L, 99106L));
+    assertParity("customer-eq-different-case", and(literal("customerName", "eq", "ACME WORLD")),
+        List.of(99101L));
+    assertParity("customer-ne-different-case", and(literal("customerName", "ne", "ACME WORLD")),
+        List.of(99102L, 99103L, 99104L, 99105L, 99106L));
+  }
+
+  @Test
+  void test_module_members_match_after_board_identical_split_and_trim() {
+    // 等值是完整成员比较：& 与 “ , ” 两种分隔都必须命中，且条件值里的通配符不生效。
+    assertParity("module-eq-after-ampersand", and(literal("moduleName", "eq", "钣金")),
+        List.of(99101L, 99104L, 99106L));
+    assertParity("module-eq-after-comma-space", and(literal("moduleName", "eq", "工具")), List.of(99105L));
+    assertParity("module-eq-percent", and(literal("moduleName", "eq", "%")), List.of());
+    assertParity("module-eq-blank", and(literal("moduleName", "eq", " ")), List.of());
+    assertParity("module-ne", and(literal("moduleName", "ne", "装配")), List.of(99102L, 99106L));
+    assertParity("or-module-or-function",
+        new StatisticFilterGroup("OR", List.of(
+            literal("moduleName", "eq", "工具"),
+            literal("functionName", "contains", "%"))),
+        List.of(99104L, 99105L));
   }
 }

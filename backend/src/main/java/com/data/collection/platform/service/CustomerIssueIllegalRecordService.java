@@ -51,6 +51,23 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
   private final CustomerIssueMilestoneCatalogService milestoneCatalogService;
   private final PageRecordSnapshotService pageRecordSnapshotService;
 
+  /** 创建持有固定版本的独立读取对象；共享服务仅作为工厂。 */
+  @Override
+  public CustomerIssueIllegalRecordService forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new CustomerIssueIllegalRecordService(this, selection);
+  }
+
+  private CustomerIssueIllegalRecordService(CustomerIssueIllegalRecordService factory,
+      com.data.collection.platform.entity.read.FactReadSelection selection) {
+    super(factory, selection);
+    this.customerIssueScopeProfile = factory.customerIssueScopeProfile;
+    this.objectMapper = factory.objectMapper;
+    this.labelGroupExpansionService = factory.labelGroupExpansionService.forRead(selection);
+    this.factBuildService = factory.factBuildService;
+    this.milestoneCatalogService = factory.milestoneCatalogService.forRead(selection);
+    this.pageRecordSnapshotService = factory.pageRecordSnapshotService;
+  }
+
   @Autowired
   public CustomerIssueIllegalRecordService(
       IssueFactRecordRepository issueFactRecordRepository,
@@ -94,7 +111,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     if (pageRecordSnapshotService == null) {
       return loadRecords(safeRequest);
     }
-    return pageRecordSnapshotService.readOrRefresh(
+    return pageRecordSnapshotService.readOrRefresh(readSelection(),
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_LIST,
             "project:" + LEGACY_CC_PRODUCT_PROJECT_ID,
@@ -297,7 +314,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     if (pageRecordSnapshotService == null) {
       return loadFilterOptions();
     }
-    return pageRecordSnapshotService.readOrRefresh(
+    return pageRecordSnapshotService.readOrRefresh(readSelection(),
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
             "project:" + LEGACY_CC_PRODUCT_PROJECT_ID,
@@ -349,13 +366,19 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     listRecords(defaultRequest());
   }
 
-  public CustomerIssueIllegalRecordRowResponse refreshSingleRecord(
+  /** 按根提交完整候选；命令结束后由控制器另行绑定完整读点，不在工厂对象回读。 */
+  public void refreshSingleRecord(
       String sourceInstance, Long projectId, Long issueIid) {
     Long safeProjectId = defaultProjectId(projectId);
     factBuildService.rebuildIssueFactByIid(sourceInstance, safeProjectId, issueIid);
     if (pageRecordSnapshotService != null) {
       pageRecordSnapshotService.invalidatePage(WORKSPACE_KEY);
     }
+  }
+
+  /** 在调用者已绑定的完整点中恢复刷新响应；不读取原地事实或候选。 */
+  public CustomerIssueIllegalRecordRowResponse findRefreshedRecord(String sourceInstance, Long projectId, Long issueIid) {
+    Long safeProjectId = defaultProjectId(projectId);
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
     return loadScopedViews(safeProjectId).stream()
         .filter(IssueFactRecord::illegal)
@@ -526,6 +549,13 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
 
   private List<IssueFactRecord> scopeVisibleCustomerIssues(List<IssueFactRecord> rows) {
     return scopeCustomerIssues(rows).stream().filter(view -> !view.excluded()).toList();
+  }
+
+  /** 固定版本下按完整根身份恢复已打开详情，真实撤回或离开客户域返回 null。 */
+  public CustomerIssueIllegalRecordRowResponse findRecord(String sourceInstance, long projectId, long issueId) {
+    return issueFactRecordRepository.findByIdentity(sourceInstance, projectId, issueId)
+        .filter(view -> customerIssueScopeProfile.matches(view.scopeContext()) && !view.excluded())
+        .map(this::toResponse).orElse(null);
   }
 
   private CustomerIssueIllegalRecordRowResponse toResponse(IssueFactRecord view) {

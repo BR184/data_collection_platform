@@ -4,6 +4,19 @@
     "success" : true,
     "code" : "00000",
     "message" : "已刷新本条议题事实数据",
-    "data" : null
+    "data" : null,
+    "readView" : {
+      "readContextId" : "<verified-runtime-readContextId>",
+      "pageKey" : "system-test-illegal-records",
+      "scopeKey" : "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "sourceVersion" : "<verified-runtime-sourceVersion>",
+      "businessDate" : "2026-09-01",
+      "leaseExpiresAt" : "<verified-runtime-leaseExpiresAt>",
+      "dataAsOf" : "<verified-runtime-dataAsOf>",
+      "pendingUpdates" : 0,
+      "sourceState" : "UPDATING",
+      "sourceStateDetail" : null,
+      "escalated" : false
+    }
   }
 }

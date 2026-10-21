@@ -6,7 +6,7 @@ import com.data.collection.platform.entity.CodeReviewRulePreviewSample;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
-/** 代码走查非法记录的来源行 → 视图 → 响应映射；42 字段顺序即 API 契约，不得调整。 */
+/** 代码走查非法记录的来源行 → 视图 → 响应映射；既有字段保持原顺序，legacySourceId 标识兼容来源拆分记录。 */
 @Component
 class CodeReviewIllegalRecordResponseMapper {
   private final GitlabResourceLinkService issueLinkService;
@@ -72,7 +72,7 @@ class CodeReviewIllegalRecordResponseMapper {
         source.commitCount(),
         displayCommitRate(source),
         TextQuerySupport.normalizeDisplay(source.functionName()),
-        source.clangAddedLineCount());
+        source.clangAddedLineCount(), source.legacySourceId());
   }
 
   CodeReviewIllegalRecordRowResponse toResponse(CodeReviewIllegalRecordView row) {
@@ -131,7 +131,7 @@ class CodeReviewIllegalRecordResponseMapper {
         row.commitCount(),
         row.commitRate(),
         row.functionName(),
-        row.clangAddedLineCount());
+        row.clangAddedLineCount(), row.legacySourceId());
   }
 
   CodeReviewRulePreviewSample toRulePreviewSample(

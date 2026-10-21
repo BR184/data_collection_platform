@@ -63,7 +63,7 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
         StatisticBoardSnapshotRefresher {
 
   static final String BOARD_KEY = "customer-issue-customer-statistics";
-  static final String RULE_VERSION = "customer-issue-customer-statistics@2026-09-28-v2";
+  static final String RULE_VERSION = "customer-issue-customer-statistics@2026-10-15-v6";
   static final String GROUP_BY_PARAM = "groupBy";
   static final String CUSTOMER_PARAM = "customer";
   static final String MODULE_PARAM = "module";
@@ -95,6 +95,27 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
   private final StatisticIssueLinkSupport issueLinkSupport;
   private final BusinessDateProvider businessDateProvider;
 
+  /** 创建持有显式版本的不可变读取对象；工厂及其它请求不保存或共享该身份。 */
+  @Override
+  public CustomerIssueCustomerStatisticsBoardService forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new CustomerIssueCustomerStatisticsBoardService(this, selection);
+  }
+
+  private CustomerIssueCustomerStatisticsBoardService(CustomerIssueCustomerStatisticsBoardService factory,
+      com.data.collection.platform.entity.read.FactReadSelection selection) {
+    super(factory, selection);
+    this.jsonUtils = factory.jsonUtils;
+    this.factQueryService = factory.factQueryService;
+    this.milestoneCatalogService = factory.milestoneCatalogService.forRead(selection);
+    this.snapshotService = factory.snapshotService;
+    this.snapshotRequestFactory = factory.snapshotRequestFactory.forRead(selection);
+    this.readScopeResolver = factory.readScopeResolver.forRead(selection);
+    this.runtimeSupport = factory.runtimeSupport;
+    this.issueLinkSupport = factory.issueLinkSupport;
+    this.businessDateProvider = selection::businessDate;
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public CustomerIssueCustomerStatisticsBoardService(
       JsonUtils jsonUtils,
       CustomerIssueFactQueryService factQueryService,
@@ -198,6 +219,11 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
   }
 
   private StatisticBoardDefinition buildDefinition(GroupBy groupBy) {
+    return buildDefinition(groupBy, StatisticPersonCandidates.empty());
+  }
+
+  private StatisticBoardDefinition buildDefinition(
+      GroupBy groupBy, StatisticPersonCandidates personCandidates) {
     return new StatisticBoardDefinition(
         BOARD_KEY,
         "客户问题统计",
@@ -205,7 +231,7 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
         "",
         "",
         "客户名称",
-        filterFields(),
+        filterFields(personCandidates),
         columnGroups(groupBy),
         detailColumns(),
         20,
@@ -229,7 +255,11 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
             leaf("defect_unfixed", "未修复", "未修复 = 缺陷数 − 已修复，不等于 GitLab 未关闭数。"),
             leaf("defect_applied_delay", "申请延期",
                 "申请延期是独立状态计数，不是与已修复、未修复互斥的第三桶。"),
+            leaf("defect_data_exception", "数据异常", CustomerIssueStatisticMetricCatalog.STATUS_COUNT_TOOLTIP),
+            leaf("defect_not_reproduced", "未复现", CustomerIssueStatisticMetricCatalog.STATUS_COUNT_TOOLTIP),
             leaf("defect_fix_rate", "整体修复率", CustomerIssueStatisticMetricCatalog.RATIO_TOOLTIP),
+            leaf("defect_calibrated_fix_rate", "校准后修复率",
+                CustomerIssueStatisticMetricCatalog.CALIBRATED_RATIO_TOOLTIP),
             leaf("defect_delay_ratio", "延期缺陷占比", CustomerIssueStatisticMetricCatalog.DELAY_RATIO_TOOLTIP))),
         new StatisticColumnGroup("level1", "一级缺陷", List.of(
             leaf("level1_back", "回退", null),
@@ -239,19 +269,31 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
             leaf("level1_fixed", "已修复", null),
             leaf("level1_unfixed", "未修复", null),
             leaf("level1_applied_delay", "申请延期", null),
-            leaf("level1_fix_rate", "缺陷修复率", CustomerIssueStatisticMetricCatalog.RATIO_TOOLTIP))),
+            leaf("level1_data_exception", "数据异常", CustomerIssueStatisticMetricCatalog.STATUS_COUNT_TOOLTIP),
+            leaf("level1_not_reproduced", "未复现", CustomerIssueStatisticMetricCatalog.STATUS_COUNT_TOOLTIP),
+            leaf("level1_fix_rate", "缺陷修复率", CustomerIssueStatisticMetricCatalog.RATIO_TOOLTIP),
+            leaf("level1_calibrated_fix_rate", "校准后修复率",
+                CustomerIssueStatisticMetricCatalog.CALIBRATED_RATIO_TOOLTIP))),
         new StatisticColumnGroup("level2", "二级缺陷", List.of(
             leaf("level2_total", "缺陷数", null),
             leaf("level2_fixed", "已修复", null),
             leaf("level2_unfixed", "未修复", null),
             leaf("level2_applied_delay", "申请延期", null),
-            leaf("level2_fix_rate", "缺陷修复率", CustomerIssueStatisticMetricCatalog.RATIO_TOOLTIP))),
+            leaf("level2_data_exception", "数据异常", CustomerIssueStatisticMetricCatalog.STATUS_COUNT_TOOLTIP),
+            leaf("level2_not_reproduced", "未复现", CustomerIssueStatisticMetricCatalog.STATUS_COUNT_TOOLTIP),
+            leaf("level2_fix_rate", "缺陷修复率", CustomerIssueStatisticMetricCatalog.RATIO_TOOLTIP),
+            leaf("level2_calibrated_fix_rate", "校准后修复率",
+                CustomerIssueStatisticMetricCatalog.CALIBRATED_RATIO_TOOLTIP))),
         new StatisticColumnGroup("level3", "三级缺陷", List.of(
             leaf("level3_total", "缺陷数", null),
             leaf("level3_fixed", "已修复", null),
             leaf("level3_unfixed", "未修复", null),
             leaf("level3_applied_delay", "申请延期", null),
-            leaf("level3_fix_rate", "缺陷修复率", CustomerIssueStatisticMetricCatalog.RATIO_TOOLTIP))),
+            leaf("level3_data_exception", "数据异常", CustomerIssueStatisticMetricCatalog.STATUS_COUNT_TOOLTIP),
+            leaf("level3_not_reproduced", "未复现", CustomerIssueStatisticMetricCatalog.STATUS_COUNT_TOOLTIP),
+            leaf("level3_fix_rate", "缺陷修复率", CustomerIssueStatisticMetricCatalog.RATIO_TOOLTIP),
+            leaf("level3_calibrated_fix_rate", "校准后修复率",
+                CustomerIssueStatisticMetricCatalog.CALIBRATED_RATIO_TOOLTIP))),
         new StatisticColumnGroup("suggestion", "建议类", List.of(
             leaf("suggestion_total", "建议类数量", CustomerIssueStatisticMetricCatalog.SUGGESTION_TOOLTIP))),
         new StatisticColumnGroup("p1", "P1", List.of(
@@ -259,19 +301,31 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
             leaf("p1_fixed", "已修复", null),
             leaf("p1_unfixed", "未修复", null),
             leaf("p1_applied_delay", "申请延期", null),
-            leaf("p1_fix_rate", "缺陷修复率", CustomerIssueStatisticMetricCatalog.RATIO_TOOLTIP))),
+            leaf("p1_data_exception", "数据异常", CustomerIssueStatisticMetricCatalog.STATUS_COUNT_TOOLTIP),
+            leaf("p1_not_reproduced", "未复现", CustomerIssueStatisticMetricCatalog.STATUS_COUNT_TOOLTIP),
+            leaf("p1_fix_rate", "缺陷修复率", CustomerIssueStatisticMetricCatalog.RATIO_TOOLTIP),
+            leaf("p1_calibrated_fix_rate", "校准后修复率",
+                CustomerIssueStatisticMetricCatalog.CALIBRATED_RATIO_TOOLTIP))),
         new StatisticColumnGroup("p2", "P2", List.of(
             leaf("p2_total", "缺陷数", null),
             leaf("p2_fixed", "已修复", null),
             leaf("p2_unfixed", "未修复", null),
             leaf("p2_applied_delay", "申请延期", null),
-            leaf("p2_fix_rate", "缺陷修复率", CustomerIssueStatisticMetricCatalog.RATIO_TOOLTIP))),
+            leaf("p2_data_exception", "数据异常", CustomerIssueStatisticMetricCatalog.STATUS_COUNT_TOOLTIP),
+            leaf("p2_not_reproduced", "未复现", CustomerIssueStatisticMetricCatalog.STATUS_COUNT_TOOLTIP),
+            leaf("p2_fix_rate", "缺陷修复率", CustomerIssueStatisticMetricCatalog.RATIO_TOOLTIP),
+            leaf("p2_calibrated_fix_rate", "校准后修复率",
+                CustomerIssueStatisticMetricCatalog.CALIBRATED_RATIO_TOOLTIP))),
         new StatisticColumnGroup("p3", "P3", List.of(
             leaf("p3_total", "缺陷数", null),
             leaf("p3_fixed", "已修复", null),
             leaf("p3_unfixed", "未修复", null),
             leaf("p3_applied_delay", "申请延期", null),
-            leaf("p3_fix_rate", "缺陷修复率", CustomerIssueStatisticMetricCatalog.RATIO_TOOLTIP))),
+            leaf("p3_data_exception", "数据异常", CustomerIssueStatisticMetricCatalog.STATUS_COUNT_TOOLTIP),
+            leaf("p3_not_reproduced", "未复现", CustomerIssueStatisticMetricCatalog.STATUS_COUNT_TOOLTIP),
+            leaf("p3_fix_rate", "缺陷修复率", CustomerIssueStatisticMetricCatalog.RATIO_TOOLTIP),
+            leaf("p3_calibrated_fix_rate", "校准后修复率",
+                CustomerIssueStatisticMetricCatalog.CALIBRATED_RATIO_TOOLTIP))),
         new StatisticColumnGroup("resp_delay", "延期响应缺陷数", List.of(
             leaf("resp_delay_p1", "P1", CustomerIssueStatisticMetricCatalog.DELAY_TOOLTIP),
             leaf("resp_delay_p2", "P2", null),
@@ -330,7 +384,8 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
     return StringUtils.hasText(value) ? value.trim() : null;
   }
 
-  private List<com.data.collection.platform.entity.statistics.StatisticFilterField> filterFields() {
+  private List<com.data.collection.platform.entity.statistics.StatisticFilterField> filterFields(
+      StatisticPersonCandidates personCandidates) {
     return List.of(
         StatisticFilterFieldFactory.text(
             CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD, "里程碑", 180),
@@ -349,8 +404,11 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
                 new StatisticFilterOption("P3", "P3"))),
         StatisticFilterFieldFactory.text("bugStatus", "测试状态", 180),
         StatisticFilterFieldFactory.text("category", "议题类别", 160),
-        StatisticFilterFieldFactory.text("authorName", "议题提交人", 160),
-        StatisticFilterFieldFactory.text("assigneeName", "议题处理人", 160),
+        // 人员保持 text 字段与其关系清单；候选只补同范围事实取值，让已有下拉入口可点选。
+        StatisticFilterFieldFactory.textWithCandidates(
+            "authorName", "议题提交人", 160, personCandidates.authorNames()),
+        StatisticFilterFieldFactory.textWithCandidates(
+            "assigneeName", "议题处理人", 160, personCandidates.assigneeNames()),
         StatisticFilterFieldFactory.select(
             "issueState",
             "议题状态",
@@ -369,21 +427,23 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
     Map<String, String> snapshotPayload = snapshotPayload(filters, effectiveFilterGroup, control);
     StatisticBoardSnapshotService.SnapshotRequest request =
         snapshotRequest(snapshotPayload, effectiveFilterGroup, definition);
-    return snapshotService.readOrRefresh(
+    return snapshotService.readOrRefresh(readSelection(),
         request,
         sourceRead ->
-            buildBoardResponse(
-                filters, effectiveFilterGroup, control, definition, sourceRead.sourceVersion()));
+            buildBoardResponse(filters, effectiveFilterGroup, control, sourceRead.sourceVersion()));
   }
 
   private StatisticBoardResponse buildBoardResponse(
       Map<String, String> filters,
       StatisticFilterGroup effectiveFilterGroup,
       ControlParams control,
-      StatisticBoardDefinition definition,
       String sourceVersion) {
     long startedAt = System.currentTimeMillis();
     List<FactFlags> flags = loadFlags(effectiveFilterGroup, control);
+    // 人员候选取基础范围事实，必须在成员选择与用户条件之外求解，否则下拉会随当前筛选自证清空。
+    StatisticBoardDefinition definition =
+        buildDefinition(
+            control.groupBy(), loadPersonCandidates(effectiveFilterGroup, control.sourceInstance()));
     // 下钻必须携带主表构建时的来源版本：明细请求据此校验主表与下钻看到的是同一来源代际。
     List<StatisticRowData> rows = buildRows(flags, control.groupBy(), control, sourceVersion);
     return new StatisticBoardResponse(
@@ -423,22 +483,42 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
       StatisticFilterGroup effectiveFilterGroup,
       String sourceInstance,
       ControlParams selection) {
-    String milestoneKey = CustomerIssueMilestoneFilterSupport.selectedMilestone(effectiveFilterGroup);
-    List<String> milestoneValues =
-        StringUtils.hasText(milestoneKey)
-            ? milestoneCatalogService.resolveMilestoneValues(milestoneKey)
-            : List.of();
     List<CustomerIssueFact> facts =
-        factQueryService.load(
+        factQueryService.forRead(readSelection()).load(
             new FactScopeRequest(
                 sourceInstance,
-                milestoneValues,
+                selectedMilestoneValues(effectiveFilterGroup),
                 selection.customer(),
                 selection.module(),
                 selection.function()));
     Predicate<CustomerIssueFact> filterPredicate =
         StatisticFilterEngine.compile(effectiveFilterGroup, factFilterFields());
     return facts.stream().filter(filterPredicate).toList();
+  }
+
+  /** 当前生效里程碑在事实层的全部取值别名；未选择里程碑时返回空集合，由事实查询按公共范围收口。 */
+  private List<String> selectedMilestoneValues(StatisticFilterGroup effectiveFilterGroup) {
+    String milestoneKey = CustomerIssueMilestoneFilterSupport.selectedMilestone(effectiveFilterGroup);
+    return StringUtils.hasText(milestoneKey)
+        ? milestoneCatalogService.resolveMilestoneValues(milestoneKey)
+        : List.of();
+  }
+
+  /**
+   * 人员快捷入口的候选基础集合。
+   *
+   * <p>候选只按来源与里程碑求解，不带客户/模块/功能成员，也不应用用户条件：否则提交人已选中某人时
+   * 下拉会塌成该人一项，条件清空后也无候选可选。空范围返回空候选，不制造占位人员。
+   */
+  private StatisticPersonCandidates loadPersonCandidates(
+      StatisticFilterGroup effectiveFilterGroup, String sourceInstance) {
+    List<CustomerIssueFact> facts =
+        factQueryService.forRead(readSelection()).load(
+            new FactScopeRequest(
+                sourceInstance, selectedMilestoneValues(effectiveFilterGroup), null, null, null));
+    return StatisticPersonCandidates.of(
+        facts.stream().map(CustomerIssueFact::authorName).toList(),
+        facts.stream().map(CustomerIssueFact::assigneeName).toList());
   }
 
   /**
@@ -460,7 +540,7 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
           "", "当前没有启用的里程碑范围，成员候选暂不可用");
     }
     try {
-      return snapshotService.withinConsistentCurrentFactRead(
+      return snapshotService.withinVersionedRead(readSelection(),
           readScopePlan(safeFilters, effectiveFilterGroup),
           sourceRead ->
               baseScopeControlOptions(
@@ -818,7 +898,7 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
         parsePopulation(request.filters(), spec);
     // 范围解析、发布资格、来源版本与事实读取共用同一个一致性边界：边界外先查版本再单独读事实，
     // 一旦检查之后发生发布，就会把两代数据混进同一份明细。
-    return snapshotService.withinConsistentCurrentFactRead(
+    return snapshotService.withinVersionedRead(readSelection(),
         readScopePlan(request.filters(), effectiveFilterGroup),
         sourceRead -> {
           requireSameSourceGeneration(declaredSourceVersion, sourceRead.sourceVersion());
@@ -1088,8 +1168,9 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
         switch (trimOrNull(sortField) == null ? "updatedAt" : sortField.trim()) {
           case "iid" -> SortSupport.nullableComparable(flags -> flags.fact().issueIid());
           case "title" -> SortSupport.nullableString(flags -> flags.fact().title());
-          case "state" -> SortSupport.nullableString(flags -> flags.fact().issueState());
-          case "severityLevel" -> SortSupport.nullableString(flags -> flags.fact().severityLevel());
+          case "state" -> SortSupport.nullableComparable(flags -> flags.fact().closed() ? 1 : 0);
+          case "severityLevel" -> SortSupport.nullableString(
+              flags -> IssueDisplayValueSupport.displaySeverityLevelOrBlank(flags.fact().severityLevel()));
           case "priorityLevel" -> SortSupport.nullableString(flags -> flags.fact().priorityLevel());
           case "bugStatus" -> SortSupport.nullableString(flags -> flags.fact().bugStatus());
           case "milestoneTitle" -> SortSupport.nullableString(flags -> flags.fact().milestoneTitle());
@@ -1114,8 +1195,8 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
         splitLabels(fact.labelNames()));
     record.put("moduleNames", String.join("、", fact.moduleNames()));
     record.put("title", fact.title());
-    record.put("state", fact.issueState());
-    record.put("severityLevel", fact.severityLevel());
+    record.put("state", fact.closed() ? "已关闭" : "未关闭");
+    record.put("severityLevel", IssueDisplayValueSupport.displaySeverityLevelOrBlank(fact.severityLevel()));
     record.put("priorityLevel", fact.priorityLevel());
     record.put("bugStatus", fact.bugStatus());
     record.put("milestoneTitle", fact.milestoneTitle());
@@ -1166,11 +1247,10 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
           snapshotRequest(payload, effectiveFilterGroup, definition);
       // 预热写入解析一次范围即可：单元格携带的版本与快照键必须来自同一份解析结果。
       String sourceVersion =
-          snapshotService.issueFactSourceVersion(request.readScopes().resolve());
-      snapshotService.save(
+          readSelection().sourceVersion();
+      snapshotService.save(readSelection(),
           request,
-          sourceVersion,
-          buildBoardResponse(Map.of(), effectiveFilterGroup, control, definition, sourceVersion));
+          buildBoardResponse(Map.of(), effectiveFilterGroup, control, sourceVersion));
     }
   }
 
@@ -1221,6 +1301,13 @@ public class CustomerIssueCustomerStatisticsBoardService extends AbstractStatist
                 "整体修复与优先级修复使用各自现行判据；申请延期是独立状态计数。",
                 flags,
                 flags.stream().filter(FactFlags::regular).toList()),
+            step(
+                "calibration-scope",
+                "校准集合",
+                "在常规缺陷 D 内剔除状态成员精确命中“数据异常”或“未复现”的议题并集，重叠议题只剔除一次；"
+                    + "校准后修复率的分子与分母同时使用该集合，申请延期不额外剔除。",
+                flags,
+                flags.stream().filter(FactFlags::regular).filter(FactFlags::calibratable).toList()),
             step(
                 "delay-scope",
                 "延期范围",

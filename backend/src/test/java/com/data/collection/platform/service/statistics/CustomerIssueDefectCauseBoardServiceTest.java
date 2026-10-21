@@ -35,6 +35,13 @@ import org.springframework.jdbc.core.RowMapper;
 
 @ExtendWith(MockitoExtension.class)
 class CustomerIssueDefectCauseBoardServiceTest {
+  @org.junit.jupiter.api.BeforeEach
+  void bindReadDependencyFixtures() {
+    // 公式单测复用同一数据替身；实际修订隔离由真库读取测试覆盖。
+    org.mockito.Mockito.lenient().when(milestoneCatalogService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(milestoneCatalogService);
+    org.mockito.Mockito.lenient().when(snapshotRequestFactory.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(snapshotRequestFactory);
+  }
+
 
   @Mock private RealtimeWorkspaceService realtimeWorkspaceService;
   @Mock private RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;
@@ -61,13 +68,13 @@ class CustomerIssueDefectCauseBoardServiceTest {
     doAnswer(
             invocation ->
                 ((Function<StatisticBoardSnapshotService.SourceRead, StatisticBoardResponse>)
-                invocation.getArgument(1))
+                invocation.getArgument(2))
             .apply(StatisticBoardTestSnapshotScopes.testSourceRead()))
         .when(snapshotService)
-        .readOrRefresh(any(), any());
+        .readOrRefresh(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), any(), any());
     doAnswer(
             invocation -> {
-              RowMapper<Object> mapper = invocation.getArgument(4);
+              RowMapper<Object> mapper = invocation.getArgument(6);
               return List.of(
                   mapper.mapRow(row(2077, "工程图, 平台", "前置数据异常（如缺少模板文件、前置输入文件本身错误等）"), 0),
                   mapper.mapRow(row(2114, "工程图, 草图", "新增需求"), 1),
@@ -77,7 +84,7 @@ class CustomerIssueDefectCauseBoardServiceTest {
                   mapper.mapRow(row(3003, "平台", "前置数据异常"), 5));
             })
         .when(issueFactQueryService)
-        .query(anyString(), anyMap(), anyString(), anyList(), any(RowMapper.class));
+        .query(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(), anyMap(), anyString(), anyList(), anyString(), any(RowMapper.class));
 
     CustomerIssueDefectCauseBoardService service =
         new CustomerIssueDefectCauseBoardService(
@@ -89,7 +96,7 @@ class CustomerIssueDefectCauseBoardServiceTest {
             issueLinkSupport,
             milestoneCatalogService,
             snapshotService,
-            snapshotRequestFactory);
+            snapshotRequestFactory).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
 
     StatisticBoardResponse response = service.loadBoard(Map.of());
 
@@ -110,7 +117,7 @@ class CustomerIssueDefectCauseBoardServiceTest {
     verify(snapshotRequestFactory)
         .issueRequest(
             eq("customer-issue-defect-cause"),
-            eq("customer-issue-defect-cause@2026-07-28-v9"),
+            eq("customer-issue-defect-cause@2026-10-14-v10"),
             anyString(),
             anyLong(),
             any(),

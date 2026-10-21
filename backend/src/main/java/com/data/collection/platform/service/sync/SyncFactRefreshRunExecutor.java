@@ -28,6 +28,7 @@ public class SyncFactRefreshRunExecutor {
   private final GitlabSourceSchemaGuard sourceSchemaGuard;
   private final GitlabMirrorProperties properties;
   private final JsonUtils jsonUtils;
+  private final com.data.collection.platform.service.FactTargetPublicationService candidateService;
 
   public SyncFactRefreshRunExecutor(
       GitlabConfigService configService,
@@ -37,7 +38,8 @@ public class SyncFactRefreshRunExecutor {
       FactProjectionTaskWorkerService projectionTaskWorkerService,
       GitlabSourceSchemaGuard sourceSchemaGuard,
       GitlabMirrorProperties properties,
-      JsonUtils jsonUtils) {
+      JsonUtils jsonUtils,
+      com.data.collection.platform.service.FactTargetPublicationService candidateService) {
     this.configService = configService;
     this.factBuildTaskService = factBuildTaskService;
     this.factRefreshTaskWorkerService = factRefreshTaskWorkerService;
@@ -46,6 +48,7 @@ public class SyncFactRefreshRunExecutor {
     this.sourceSchemaGuard = sourceSchemaGuard;
     this.properties = properties;
     this.jsonUtils = jsonUtils;
+    this.candidateService = candidateService;
   }
 
   public Result execute(SyncRun run) {
@@ -67,6 +70,7 @@ public class SyncFactRefreshRunExecutor {
 
     drainFactTasks(run, config, full);
     drainProjectionTasks(run);
+    candidateService.publishPreparedCandidates(run.getId(), run.getLeaseOwner());
 
     FactBuildTaskService.RunTaskSummary factSummary =
         factBuildTaskService.summarizeFactRun(run.getId());
@@ -113,6 +117,19 @@ public class SyncFactRefreshRunExecutor {
           SyncRunStatus.PARTIAL_SUCCESS,
           null,
           "存在已停止自动派发的人工待处理任务，等待维护人员决定继续或取消");
+    }
+    String candidateReason = candidateService.pendingCandidateReason(run.getId());
+    if (candidateReason != null && resumedTask != null) {
+      long remaining = candidateService.abortIncompleteIntentCandidates(run.getId(), run.getLeaseOwner());
+      if (remaining > 0) {
+        return new Result(planned, completed, factSummary.affectedRows(), SyncRunStatus.PARTIAL_SUCCESS,
+            null, "定向意图已构建，但固定来源集合还有 " + remaining
+                + " 个未完成根；候选未发布且已释放，后续普通来源刷新完成整体版本");
+      }
+    }
+    if (candidateReason != null) {
+      return new Result(planned, completed, factSummary.affectedRows(), SyncRunStatus.PAUSED,
+          LocalDateTime.now().plusSeconds(5), candidateReason);
     }
     boolean unpublished = !full
         && factBuildTaskService.hasUnpublishedTargets(run.getConfigId(), run.getSourceInstance());
@@ -169,6 +186,7 @@ public class SyncFactRefreshRunExecutor {
   }
 
   private void drainProjectionTasks(SyncRun run) {
+    projectionTaskService.enqueuePreparedCandidates(run.getId());
     QueuedFactProjectionTask task;
     while ((task =
             projectionTaskService.claimNext(

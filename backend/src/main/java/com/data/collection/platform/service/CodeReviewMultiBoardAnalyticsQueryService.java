@@ -24,9 +24,25 @@ public class CodeReviewMultiBoardAnalyticsQueryService {
   private final JdbcTemplate jdbcTemplate;
   private final QualityBoardCodeReviewReadSupport codeReviewReadSupport;
 
+
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 完整页面组合下的只读计算对象，保留原公式与排序。 */
+  public CodeReviewMultiBoardAnalyticsQueryService forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new CodeReviewMultiBoardAnalyticsQueryService(this, selection);
+  }
+
+  private CodeReviewMultiBoardAnalyticsQueryService(CodeReviewMultiBoardAnalyticsQueryService factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.codeReviewReadSupport = factory.codeReviewReadSupport.forRead(selection);
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public CodeReviewMultiBoardAnalyticsQueryService(
       JdbcTemplate jdbcTemplate,
       QualityBoardCodeReviewReadSupport codeReviewReadSupport) {
+    this.fixedRead = null;
     this.jdbcTemplate = jdbcTemplate;
     this.codeReviewReadSupport = codeReviewReadSupport;
   }
@@ -109,7 +125,7 @@ public class CodeReviewMultiBoardAnalyticsQueryService {
       return List.of();
     }
     ScopedSql scopedSql = scopedSql(scope, topic);
-    return jdbcTemplate.query(
+    return query(
         aggregateSql(topic, scopedSql),
         (rs, rowNumber) ->
             new CodeReviewMultiBoardAnalyticsRow(
@@ -143,7 +159,7 @@ public class CodeReviewMultiBoardAnalyticsQueryService {
     String versionColumn = "code_review_match_mode_records".equals(scope.tableName())
         ? "synced_at"
         : "fact_refreshed_at";
-    String value = jdbcTemplate.queryForObject(
+    String value = queryForObject(
         "select coalesce(max(" + versionColumn + ")::text, 'empty') from "
             + scope.tableName()
             + scopedSql.whereClause(),
@@ -243,10 +259,23 @@ public class CodeReviewMultiBoardAnalyticsQueryService {
       String whereClause,
       List<Object> args,
       String distinctMergeRequestIdentity) {}
+  private <T> T queryForObject(String sql, Class<T> type, Object... args) {
+    return fixedRead == null ? jdbcTemplate.queryForObject(sql, type, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForObject(fixedRead, sql, type, args);
+  }
+  private <T> java.util.List<T> query(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, mapper, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, mapper, args);
+  }
+  private <T> T query(String sql, org.springframework.jdbc.core.ResultSetExtractor<T> extractor, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, extractor, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, extractor, args);
+  }
 }
 
 record CodeReviewMultiBoardProjectScope(
     String source,
     String projectName,
     CodeReviewDataReadMode readMode,
-    QualityBoardCodeReviewReadScope readScope) {}
+    QualityBoardCodeReviewReadScope readScope) {
+}

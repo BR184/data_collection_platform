@@ -22,7 +22,13 @@ class CodeReviewIllegalRecordSourceLoaderTest {
 
   @BeforeEach
   void setUp() {
+    jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
     jdbcTemplate.update("delete from merge_request_fact");
+  }
+
+  private CodeReviewIllegalRecordSourceLoader publishedLoader() {
+    return sourceLoader.forRead(FactRevisionFixture.adoptSeededFacts(jdbcTemplate,
+        com.data.collection.platform.entity.read.PublicationFactTable.MERGE_REQUEST));
   }
 
   @Test
@@ -75,7 +81,7 @@ class CodeReviewIllegalRecordSourceLoaderTest {
         false);
 
     List<CodeReviewIllegalRecordSource> sources =
-        sourceLoader.loadSources(Map.of("sourceInstance", "DGM"));
+        publishedLoader().loadSources(Map.of("sourceInstance", "DGM"));
 
     assertThat(sources).hasSize(1);
     assertThat(sources.getFirst().mergeRequestId()).isEqualTo(9202L);
@@ -151,7 +157,7 @@ class CodeReviewIllegalRecordSourceLoaderTest {
         true);
 
     List<CodeReviewIllegalRecordSource> sources =
-        sourceLoader.loadSources(
+        publishedLoader().loadSources(
             Map.of(
                 "projectId", "9",
                 "projectName", "Product",
@@ -234,7 +240,7 @@ class CodeReviewIllegalRecordSourceLoaderTest {
         false);
 
     PageSlice<CodeReviewIllegalRecordSource> page =
-        sourceLoader.loadDefaultIllegalPage(
+        publishedLoader().loadDefaultIllegalPage(
             new CodeReviewIllegalRecordSourcePageQuery(
                 new CodeReviewIllegalRecordQueryRequest(
                     9L,
@@ -269,9 +275,9 @@ class CodeReviewIllegalRecordSourceLoaderTest {
 
   @Test
   void shouldNotRebuildMergeRequestFactsWhenReadPathIsEmpty() {
-    List<CodeReviewIllegalRecordSource> sources = sourceLoader.loadSources(Map.of());
+    List<CodeReviewIllegalRecordSource> sources = publishedLoader().loadSources(Map.of());
     PageSlice<CodeReviewIllegalRecordSource> page =
-        sourceLoader.loadDefaultIllegalPage(
+        publishedLoader().loadDefaultIllegalPage(
             new CodeReviewIllegalRecordSourcePageQuery(
                 new CodeReviewIllegalRecordQueryRequest(
                     null,

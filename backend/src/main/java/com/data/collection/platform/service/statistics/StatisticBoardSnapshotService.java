@@ -4,6 +4,7 @@ import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.FactProjectionScope;
 import com.data.collection.platform.entity.FactType;
+import com.data.collection.platform.service.read.CandidateCacheArtifactStore;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
 import com.data.collection.platform.entity.statistics.StatisticBoardMeta;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
@@ -61,7 +62,7 @@ public class StatisticBoardSnapshotService {
     this.readConsistencyTemplate = new TransactionTemplate(transactionManager);
     this.readConsistencyTemplate.setIsolationLevel(
         TransactionDefinition.ISOLATION_REPEATABLE_READ);
-    this.readConsistencyTemplate.setReadOnly(true);
+    this.readConsistencyTemplate.setReadOnly(false);
     this.readConsistencyTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRED);
   }
 
@@ -90,191 +91,36 @@ public class StatisticBoardSnapshotService {
     return rows.stream().findFirst();
   }
 
-  /**
-   * 在来源尚未收敛到最新变化版本时读取该统计身份最近一次完整发布的产出。
-   *
-   * <p>降级可读的语义是"上游完整性可证、只是还没追上最新变化"，因此这里刻意不按来源版本匹配：
-   * 能满足"完整"的版本已经不存在，只能退回上一个完整发布点并显式披露待更新数量。若从未有过
-   * 完整发布点，则没有可退回的结果，调用方必须拒绝并说明，不得以进行中的混合视图冒充完整产出。
-   */
-  private Optional<Snapshot> findLatestReady(SnapshotRequest request) {
-    String filterHash = filterHash(request.cacheFilterPayload());
-    List<Snapshot> rows =
-        jdbcTemplate.query(
-            """
-            select *
-              from statistic_board_snapshots
-             where board_key = ?
-               and scope_key = ?
-               and rule_version = ?
-               and filter_hash = ?
-               and status = 'READY'
-             order by refreshed_at desc, id desc
-             limit 1
-            """,
-            this::mapSnapshot,
-            request.boardKey(),
-            request.scopeKey(),
-            request.ruleVersion(),
-            filterHash);
-    return rows.stream().findFirst();
-  }
-
-  /**
-   * 命中快照或刷新统计结果。
-   *
-   * <p>范围解析、发布资格校验、来源版本读取、快照命中判定与事实读取在同一个只读 REPEATABLE READ
-   * 事务内完成：目录与来源集合、版本与事实看到同一数据库视图，不会出现“事务前取旧版本、事务内读到新事实
-   * 却写入旧缓存键”，也不会出现版本检查之后发生发布而明细读回另一代际的数据。
-   * 命中缓存同样要经过发布资格校验，来源重建未结算或依赖未就绪时不返回新的 READY 结果。
-   * 快照写入在只读事务之外执行，写入用的是事务内读到的版本，因此并发发布只会让它成为可被取代的旧版本条目。
-   *
-   * <p>来源完整性可证但尚未收敛到最新变化版本时（降级可读），按上一个完整发布点产出并附带
-   * {@code dataAsOf} 与 {@code pendingUpdates} 披露数据时刻与待更新数量；降级结果不写入快照，
-   * 否则它会被当成该版本的完整产出，让后续读取永远看不到真正的收敛。该视图若从未有过完整发布点，
-   * 则没有可退回的结果，按门控拒绝并说明原因。
-   *
-   * @param request 声明范围解析计划与缓存身份的快照请求
-   * @param responseSupplier 未命中时重建统计结果的读取动作，入参为本次一致性边界解析出的范围与版本
-   * @return 命中快照或新读取的结果
-   */
+  /** 在固定完整版本中命中或计算统计；缓存缺失不改变完整事实的可读性。 */
   public StatisticBoardResponse readOrRefresh(
-      SnapshotRequest request,
-      Function<SourceRead, StatisticBoardResponse> responseSupplier) {
-    ConsistentRead read =
-        withinConsistentSourceRead(
-            request.readScopes(),
-            sourceRead -> {
-              Optional<Snapshot> snapshot =
-                  sourceRead.snapshotFallbackRequired()
-                      ? findLatestReady(request)
-                      : findReady(request, sourceRead.sourceVersion());
-              if (snapshot.isPresent()) {
-                return new ConsistentRead(sourceRead, snapshot, null);
-              }
-              if (sourceRead.snapshotFallbackRequired()) {
-                throw new BizException(
-                    "来源 "
-                        + String.join("、", sourceInstancesOf(sourceRead.readScopes()))
-                        + " 尚未形成完整产出，该筛选组合暂无完整发布点的产出，请稍后重试："
-                        + sourceRead.unsettledReason());
-              }
-              return new ConsistentRead(
-                  sourceRead, Optional.empty(), responseSupplier.apply(sourceRead));
-            });
-    if (read.snapshot().isPresent()) {
-      return read.sourceRead().attachFreshness(request.toResponse(read.snapshot().get()));
-    }
-    save(request, read.sourceRead().sourceVersion(), read.response());
-    return read.sourceRead().attachFreshness(read.response());
-  }
-  /**
-   * 在与统计快照相同的只读一致性边界内执行读取动作。
-   *
-   * <p>供能够返回已保存完整产出的链路复用同一边界：范围解析、发布资格、来源版本与消费方读取都在同一个
-   * REPEATABLE READ 事务内，因此并发发布要么整体落在本次视图之前，要么整体落在之后，不会把两代数据混进
-   * 同一份结果。
-   *
-   * <p>只要求来源的 {@code savedSnapshotReadable}：已知未完整窗口下当前事实不可信，但更早保存的完整产出
-   * 仍允许返回。需要读取当前事实的调用者必须改用
-   * {@link #withinConsistentCurrentFactRead(SourceReadPlan, Function)}。
-   *
-   * @param readScopes 实际读取范围的解析计划
-   * @param action 读取动作，入参为边界内解析出的范围与来源版本
-   * @param <T> 读取结果类型
-   * @return 读取动作的结果
-   */
-  public <T> T withinConsistentSourceRead(
-      SourceReadPlan readScopes, Function<SourceRead, T> action) {
-    return withinConsistentRead(readScopes, false, action);
+      com.data.collection.platform.entity.read.FactReadSelection selection,
+      SnapshotRequest request, Function<SourceRead, StatisticBoardResponse> responseSupplier) {
+    return withinVersionedRead(selection, request.readScopes(), sourceRead -> {
+      Optional<Snapshot> cached = findReady(request, selection.sourceVersion());
+      StatisticBoardResponse response = cached.isPresent()
+          ? request.toResponse(cached.get()) : responseSupplier.apply(sourceRead);
+      if (cached.isEmpty()) { save(selection, request, response); }
+      return sourceRead.attachFreshness(response);
+    });
   }
 
-  /**
-   * 在只读一致性边界内执行"必须读取当前事实"的动作。
-   *
-   * <p>比 {@link #withinConsistentSourceRead(SourceReadPlan, Function)} 更严：额外要求每个来源都能从当前
-   * 事实读取完整产出。已知未完整窗口（有未发布根、全量重建未结算、标签事件历史未完成核验）下当前事实只是
-   * 中间态，这类调用者必须明确拒绝并给出维护原因，不得把中间态当作完整来源输出；已有同版完整保存产出的
-   * 调用者应改走快照回退入口。
-   *
-   * @param readScopes 实际读取范围的解析计划
-   * @param action 读取动作，入参为边界内解析出的范围与来源版本
-   * @param <T> 读取结果类型
-   * @return 读取动作的结果
-   */
-  public <T> T withinConsistentCurrentFactRead(
+  /** 短事务保护显式版本；生产未结算不拒绝公开身份，候选只由内部生产边界提供。 */
+  public <T> T withinVersionedRead(
+      com.data.collection.platform.entity.read.FactReadSelection selection,
       SourceReadPlan readScopes, Function<SourceRead, T> action) {
-    return withinConsistentRead(readScopes, true, action);
-  }
-
-  private <T> T withinConsistentRead(
-      SourceReadPlan readScopes, boolean requireCurrentFact, Function<SourceRead, T> action) {
-    T result =
-        readConsistencyTemplate.execute(
-            status -> {
-              Set<FactProjectionScope> scopes = readScopes.resolve();
-              SourceAvailability availability = evaluateSources(scopes, requireCurrentFact);
-              return action.apply(
-                  new SourceRead(
-                      scopes,
-                      projectionVersionService.combinedSourceVersion(
-                          factTypeOf(scopes), scopes),
-                      availability.pendingUpdates(),
-                      availability.currentFactReadable(),
-                      availability.unsettledReason()));
-            });
-    if (result == null) {
-      throw new IllegalStateException("统计只读一致性事务未返回结果");
-    }
-    return result;
+    T result = readConsistencyTemplate.execute(status -> {
+      publicationGuardService.protectRead(selection);
+      Set<FactProjectionScope> scopes = readScopes.resolve();
+      long pending = sourceInstancesOf(scopes).stream()
+          .mapToLong(source -> publicationStateService.countUnpublishedTargets(source, factTypeOf(scopes))).sum();
+      return action.apply(new SourceRead(scopes, selection.sourceVersion(), pending, selection));
+    });
+    return java.util.Objects.requireNonNull(result, "版本读取事务未返回结果");
   }
 
   private static FactType factTypeOf(Set<FactProjectionScope> scopes) {
     return scopes.iterator().next().factType();
   }
-
-  /**
-   * 校验请求实际读取的每个来源实例，并返回本次读取可用的能力。
-   *
-   * <p>完整性无从证实的来源必须直接拒绝（两种能力都不可用）。已知未完整窗口的来源不拒绝：整体标记为
-   * 当前事实不可读、累积待更新数量，并在需要读当前事实时给出维护原因。多个来源同时未完整时取待更新数量
-   * 之和并保留全部原因，因为对外展示的结果整份都由这些来源拼成，任何一个来源落后都会让整份结果不是最新，
-   * 也不能被另一个来源的“可读”掩盖。
-   *
-   * @param scopes 本次实际读取的来源与稳定范围
-   * @param requireCurrentFact 调用者是否必须读取当前事实
-   * @return 本次读取的可用能力与待更新数量
-   */
-  private SourceAvailability evaluateSources(
-      Set<FactProjectionScope> scopes, boolean requireCurrentFact) {
-    FactType factType = factTypeOf(scopes);
-    long pendingUpdates = 0L;
-    boolean currentFactReadable = true;
-    List<String> unsettledReasons = new ArrayList<>();
-    for (String sourceInstance : sourceInstancesOf(scopes)) {
-      SyncFactPublicationStateService.SourceQualification qualification =
-          publicationStateService.qualification(sourceInstance, factType);
-      if (!qualification.savedSnapshotReadable()) {
-        throw new BizException(qualification.reason());
-      }
-      if (!qualification.currentFactReadable()) {
-        currentFactReadable = false;
-        pendingUpdates += qualification.pendingUpdates();
-        unsettledReasons.add(qualification.reason());
-      }
-    }
-    if (requireCurrentFact && !currentFactReadable) {
-      throw new BizException(
-          "当前来源尚未形成完整产出，暂不能读取实时数据：" + String.join("；", unsettledReasons));
-    }
-    return new SourceAvailability(
-        pendingUpdates,
-        currentFactReadable,
-        unsettledReasons.isEmpty() ? null : String.join("；", unsettledReasons));
-  }
-
-  private record SourceAvailability(
-      long pendingUpdates, boolean currentFactReadable, String unsettledReason) {}
 
   private static Set<String> sourceInstancesOf(Set<FactProjectionScope> scopes) {
     TreeSet<String> sources = new TreeSet<>();
@@ -284,23 +130,11 @@ public class StatisticBoardSnapshotService {
     return sources;
   }
 
-  public void save(SnapshotRequest request, StatisticBoardResponse response) {
-    Set<FactProjectionScope> scopes = request.readScopes().resolve();
-    save(
-        request,
-        projectionVersionService.combinedSourceVersion(factTypeOf(scopes), scopes),
-        response);
-  }
-
-  /**
-   * 以一致性边界内解析出的来源版本写入快照。
-   *
-   * @param request 缓存身份与载荷
-   * @param sourceVersion 与本次读取同一边界解析出的来源版本
-   * @param response 待缓存的统计结果
-   */
-  public void save(
-      SnapshotRequest request, String sourceVersion, StatisticBoardResponse response) {
+  /** 固定发布组合缓存；候选仅写 PREPARED，统一发布后才能公开。 */
+  public void save(com.data.collection.platform.entity.read.FactReadSelection selection,
+      SnapshotRequest request, StatisticBoardResponse response) {
+    String sourceVersion = selection.sourceVersion();
+    boolean candidate = selection.contexts().stream().anyMatch(context -> context.candidate());
     Map<String, Object> metaPayload =
         Map.of(
             "generatedAt", response.meta().generatedAt().toString(),
@@ -308,46 +142,54 @@ public class StatisticBoardSnapshotService {
             "rowCount", response.meta().rowCount(),
             "columnCount", response.meta().columnCount(),
             "drilldownColumnCount", response.meta().drilldownColumnCount());
-    publicationGuardService.writeSnapshot(
-        () ->
-            jdbcTemplate.update(
-                """
-                insert into statistic_board_snapshots(
-                  board_key, scope_key, rule_version, source_version, filter_hash, filter_payload,
-                  applied_filter_payload, definition_payload, row_payload, meta_payload, status, error_message,
-                  generated_at, refreshed_at, created_at, updated_at
-                ) values (?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?::jsonb, ?::jsonb, 'READY', null,
-                          current_timestamp, current_timestamp, current_timestamp, current_timestamp)
-                on conflict (board_key, scope_key, rule_version, filter_hash)
-                do update set
-                  source_version = excluded.source_version,
-                  filter_payload = excluded.filter_payload,
-                  applied_filter_payload = excluded.applied_filter_payload,
-                  definition_payload = excluded.definition_payload,
-                  row_payload = excluded.row_payload,
-                  meta_payload = excluded.meta_payload,
-                  status = 'READY',
-                  error_message = null,
-                  generated_at = current_timestamp,
-                  refreshed_at = current_timestamp,
-                  updated_at = current_timestamp
-                """,
-                request.boardKey(),
-                request.scopeKey(),
-                request.ruleVersion(),
-                sourceVersion,
-                filterHash(request.cacheFilterPayload()),
-                jsonUtils.toJson(request.cacheFilterPayload()),
-                jsonUtils.toJson(response.appliedFilters()),
-                jsonUtils.toJson(response.definition()),
-                jsonUtils.toJson(response.rows()),
-                jsonUtils.toJson(metaPayload)));
+    Object[] args = new Object[] {
+        request.boardKey(),
+        request.scopeKey(),
+        request.ruleVersion(),
+        sourceVersion,
+        filterHash(request.cacheFilterPayload()),
+        jsonUtils.toJson(request.cacheFilterPayload()),
+        selection.primaryPublicationId(),
+        java.sql.Date.valueOf(selection.businessDate()),
+        jsonUtils.toJson(response.appliedFilters()),
+        jsonUtils.toJson(response.definition()),
+        jsonUtils.toJson(response.rows()),
+        jsonUtils.toJson(metaPayload),
+        candidate ? "PREPARED" : "READY"};
+    if (candidate) {
+      publicationGuardService.writePreparedArtifact(CandidateCacheArtifactStore.KIND_STATISTIC,
+          () -> java.util.Objects.requireNonNull(
+              jdbcTemplate.queryForObject(SNAPSHOT_UPSERT_SQL + " returning id", Long.class, args),
+              "候选统计缓存写入未返回行主键"));
+    } else {
+      publicationGuardService.writeSnapshot(() -> jdbcTemplate.update(SNAPSHOT_UPSERT_SQL, args));
+    }
   }
 
-  /** 只读一致性事务内的结果：命中快照时为快照，否则为本次读取结果。 */
-  private record ConsistentRead(
-      SourceRead sourceRead, Optional<Snapshot> snapshot, StatisticBoardResponse response) {
-  }
+  /** 统计缓存行的唯一写入语句；候选分支追加 returning id 以登记产物身份。 */
+  private static final String SNAPSHOT_UPSERT_SQL = """
+      insert into statistic_board_snapshots(
+        board_key, scope_key, rule_version, source_version, filter_hash, filter_payload, publication_id, business_date,
+        applied_filter_payload, definition_payload, row_payload, meta_payload, status, error_message,
+        generated_at, refreshed_at, created_at, updated_at
+      ) values (?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?::jsonb, ?, null,
+                current_timestamp, current_timestamp, current_timestamp, current_timestamp)
+      on conflict (board_key, scope_key, rule_version, filter_hash, source_version)
+      do update set
+        source_version = excluded.source_version,
+        filter_payload = excluded.filter_payload,
+        applied_filter_payload = excluded.applied_filter_payload,
+        definition_payload = excluded.definition_payload,
+        row_payload = excluded.row_payload,
+        meta_payload = excluded.meta_payload,
+        status = excluded.status,
+        publication_id = excluded.publication_id,
+        business_date = excluded.business_date,
+        error_message = null,
+        generated_at = current_timestamp,
+        refreshed_at = current_timestamp,
+        updated_at = current_timestamp
+      """;
 
   /**
    * 实际读取范围的解析计划。
@@ -375,28 +217,9 @@ public class StatisticBoardSnapshotService {
     }
   }
 
-  /**
-   * 一致性边界内解析出的实际读取范围与该视图对应的来源版本。
-   *
-   * @param readScopes 实际读取的来源与稳定范围
-   * @param sourceVersion 与该视图对应的来源版本
-   * @param pendingUpdates 尚未发布到最新变化版本的稳定根数量；{@code 0} 表示来源已收敛
-   * @param currentFactReadable 本次视图下当前事实是否可完整读取
-   * @param unsettledReason 当前事实不可读的维护原因；可读时为 {@code null}
-   */
-  public record SourceRead(
-      Set<FactProjectionScope> readScopes,
-      String sourceVersion,
-      long pendingUpdates,
-      boolean currentFactReadable,
-      String unsettledReason) {
-
-    /** 是否只能返回已保存的完整产出：当前事实不可完整读取，必须回退上一完整发布点。 */
-    public boolean snapshotFallbackRequired() {
-      return !currentFactReadable;
-    }
-
-    /** 把降级提示附着到本次读取产出的响应上；来源已收敛时原样返回。 */
+  /** 固定版本读取结果及实时待更新数；新鲜度不改变事实可读性。 */
+  public record SourceRead(Set<FactProjectionScope> readScopes, String sourceVersion,
+      long pendingUpdates, com.data.collection.platform.entity.read.FactReadSelection selection) {
     StatisticBoardResponse attachFreshness(StatisticBoardResponse response) {
       return response == null ? null : response.withPendingUpdates(pendingUpdates);
     }

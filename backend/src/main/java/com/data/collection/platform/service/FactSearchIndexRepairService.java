@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.IssueFact;
 import com.data.collection.platform.entity.MergeRequestFact;
+import com.data.collection.platform.entity.read.FactRevisionTarget;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -11,9 +12,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 class FactSearchIndexRepairService {
-  private static final String DEFAULT_SOURCE_SYSTEM = "GITLAB";
   private static final int FACT_BATCH_SIZE = 200;
-  private static final int SEARCH_INDEX_REPAIR_LIMIT = 1000;
 
   private final JdbcTemplate jdbcTemplate;
   private final IssueFactSourceRowMapper issueRowMapper;
@@ -28,54 +27,21 @@ class FactSearchIndexRepairService {
     this.mergeRequestRowMapper = mergeRequestRowMapper;
   }
 
-  int repairIssueFactSearchIndexes(String sourceInstance) {
-    int repaired = 0;
-    while (repaired < SEARCH_INDEX_REPAIR_LIMIT) {
-      int batchLimit = Math.min(FACT_BATCH_SIZE, SEARCH_INDEX_REPAIR_LIMIT - repaired);
-      List<IssueFact> batch = loadIssueFactsMissingSearchIndexes(sourceInstance, batchLimit);
-      if (batch.isEmpty()) {
-        return repaired;
-      }
-      refreshIssueFactSearchIndexes(batch);
-      repaired += batch.size();
-      if (batch.size() < batchLimit) {
-        return repaired;
-      }
-    }
-    return repaired;
-  }
-
-  int repairMergeRequestFactSearchIndexes(String sourceInstance) {
-    int repaired = 0;
-    while (repaired < SEARCH_INDEX_REPAIR_LIMIT) {
-      int batchLimit = Math.min(FACT_BATCH_SIZE, SEARCH_INDEX_REPAIR_LIMIT - repaired);
-      List<MergeRequestFact> batch =
-          loadMergeRequestFactsMissingSearchIndexes(sourceInstance, batchLimit);
-      if (batch.isEmpty()) {
-        return repaired;
-      }
-      refreshMergeRequestFactSearchIndexes(batch);
-      repaired += batch.size();
-      if (batch.size() < batchLimit) {
-        return repaired;
-      }
-    }
-    return repaired;
-  }
-
-  void refreshIssueFactSearchIndexesInBatches(List<IssueFact> facts) {
+  void refreshIssueFactSearchIndexesInBatches(
+      FactRevisionTarget target, List<IssueFact> facts) {
     for (List<IssueFact> batch : partition(facts, FACT_BATCH_SIZE)) {
-      refreshIssueFactSearchIndexes(batch);
+      refreshIssueFactSearchIndexes(target, batch);
     }
   }
 
-  void refreshMergeRequestFactSearchIndexesInBatches(List<MergeRequestFact> facts) {
+  void refreshMergeRequestFactSearchIndexesInBatches(
+      FactRevisionTarget target, List<MergeRequestFact> facts) {
     for (List<MergeRequestFact> batch : partition(facts, FACT_BATCH_SIZE)) {
-      refreshMergeRequestFactSearchIndexes(batch);
+      refreshMergeRequestFactSearchIndexes(target, batch);
     }
   }
 
-  void refreshIssueFactSearchIndexes(List<IssueFact> facts) {
+  void refreshIssueFactSearchIndexes(FactRevisionTarget target, List<IssueFact> facts) {
     jdbcTemplate.batchUpdate(
         """
         update issue_fact
@@ -109,17 +75,19 @@ class FactSearchIndexRepairService {
                phase_search_compact = ?,
                phase_search_spell = ?,
                phase_search_initials = ?
-         where source_system = ?
+         where created_by_publication_id = ?
+           and source_system = ?
            and source_instance = ?
            and project_id = ?
            and issue_id = ?
         """,
         facts,
         FACT_BATCH_SIZE,
-        this::bindIssueSearchIndex);
+        (statement, fact) -> bindIssueSearchIndex(target, statement, fact));
   }
 
-  void refreshMergeRequestFactSearchIndexes(List<MergeRequestFact> facts) {
+  void refreshMergeRequestFactSearchIndexes(
+      FactRevisionTarget target, List<MergeRequestFact> facts) {
     jdbcTemplate.batchUpdate(
         """
         update merge_request_fact
@@ -131,103 +99,19 @@ class FactSearchIndexRepairService {
                owner_search_compact = ?,
                owner_search_spell = ?,
                owner_search_initials = ?
-         where source_system = ?
+         where created_by_publication_id = ?
+           and source_system = ?
            and source_instance = ?
            and project_id = ?
            and merge_request_id = ?
         """,
         facts,
         FACT_BATCH_SIZE,
-        this::bindMergeRequestSearchIndex);
+        (statement, fact) -> bindMergeRequestSearchIndex(target, statement, fact));
   }
 
-  private List<IssueFact> loadIssueFactsMissingSearchIndexes(
-      String sourceInstance, int limit) {
-    return jdbcTemplate.query(
-        """
-        select source_system,
-               source_instance,
-               project_id,
-               issue_id,
-               issue_iid,
-               title,
-               project_name,
-               module_names,
-               customer_names,
-               testing_phase,
-               system_test_label,
-               label_names,
-               reason_category,
-               illegal_reason,
-               author_name,
-               handler_name,
-               assignee_name,
-               bug_status,
-               category,
-               milestone_title
-          from issue_fact
-         where source_system = ?
-           and source_instance = ?
-           and deleted = false
-           and (
-                search_text is null
-             or search_compact is null
-             or search_spell is null
-             or search_initials is null
-             or primary_phase_label is null
-             or phase_filter_value is null
-           )
-         order by updated_at_source desc nulls last, issue_id desc
-         limit ?
-        """,
-        (resultSet, rowNumber) ->
-            issueRowMapper.mapSearchIndexFact(resultSet, sourceInstance),
-        DEFAULT_SOURCE_SYSTEM,
-        sourceInstance,
-        limit);
-  }
-
-  private List<MergeRequestFact> loadMergeRequestFactsMissingSearchIndexes(
-      String sourceInstance, int limit) {
-    return jdbcTemplate.query(
-        """
-        select source_system,
-               source_instance,
-               project_id,
-               merge_request_id,
-               title,
-               author_name,
-               owner_name,
-               project_name,
-               repository_name,
-               module_name,
-               target_branch,
-               merge_user_name
-          from merge_request_fact
-         where source_system = ?
-           and source_instance = ?
-           and deleted = false
-           and (
-                search_text is null
-             or search_compact is null
-             or search_spell is null
-             or search_initials is null
-             or owner_search_text is null
-             or owner_search_compact is null
-             or owner_search_spell is null
-             or owner_search_initials is null
-           )
-         order by merged_at_source desc nulls last, merge_request_id desc
-         limit ?
-        """,
-        (resultSet, rowNumber) ->
-            mergeRequestRowMapper.mapSearchIndexFact(resultSet, sourceInstance),
-        DEFAULT_SOURCE_SYSTEM,
-        sourceInstance,
-        limit);
-  }
-
-  private void bindIssueSearchIndex(PreparedStatement statement, IssueFact fact)
+  private void bindIssueSearchIndex(
+      FactRevisionTarget target, PreparedStatement statement, IssueFact fact)
       throws SQLException {
     FactSearchIndexSupport.IssueSearchIndexes indexes =
         FactSearchIndexSupport.buildIssueIndexes(fact);
@@ -241,6 +125,7 @@ class FactSearchIndexRepairService {
     statement.setString(index++, indexes.primaryPhaseLabel());
     statement.setString(index++, indexes.phaseFilterValue());
     index = bindSearchIndex(statement, index, indexes.phase());
+    statement.setObject(index++, target.publicationId());
     statement.setString(index++, fact.getSourceSystem());
     statement.setString(index++, fact.getSourceInstance());
     statement.setLong(index++, fact.getProjectId());
@@ -248,12 +133,14 @@ class FactSearchIndexRepairService {
   }
 
   private void bindMergeRequestSearchIndex(
-      PreparedStatement statement, MergeRequestFact fact) throws SQLException {
+      FactRevisionTarget target, PreparedStatement statement, MergeRequestFact fact)
+      throws SQLException {
     FactSearchIndexSupport.MergeRequestSearchIndexes indexes =
         FactSearchIndexSupport.buildMergeRequestIndexes(fact);
     int index = 1;
     index = bindSearchIndex(statement, index, indexes.keyword());
     index = bindSearchIndex(statement, index, indexes.owner());
+    statement.setObject(index++, target.publicationId());
     statement.setString(index++, fact.getSourceSystem());
     statement.setString(index++, fact.getSourceInstance());
     statement.setLong(index++, fact.getProjectId());

@@ -11,6 +11,11 @@ import org.springframework.stereotype.Service;
 public class LabelGroupExpansionService {
   private final LabelGroupService labelGroupService;
 
+  /** 标签筛选与该页面主数据解释同一份冻结定义。 */
+  public LabelGroupExpansionService forRead(com.data.collection.platform.entity.read.ReadSelection selection) {
+    return new LabelGroupExpansionService(labelGroupService.forRead(selection));
+  }
+
   public LabelGroupExpansionService(LabelGroupService labelGroupService) {
     this.labelGroupService = labelGroupService;
   }

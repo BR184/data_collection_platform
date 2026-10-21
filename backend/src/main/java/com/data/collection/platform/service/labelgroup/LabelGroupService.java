@@ -42,6 +42,12 @@ public class LabelGroupService {
   private final LabelGroupDynamicRuleEvaluationService dynamicRuleEvaluationService;
   private final ObjectProvider<LabelValueQueryService> labelValueQueryServiceProvider;
 
+  /** 页面展开仅消费发布时冻结的成员与引用，不执行当前动态规则或目录写入。 */
+  public LabelGroupService forRead(com.data.collection.platform.entity.read.ReadSelection selection) {
+    return new LabelGroupService(repository.forRead(selection), dynamicRuleEvaluationService,
+        labelValueQueryServiceProvider);
+  }
+
   @Autowired
   public LabelGroupService(
       LabelGroupRepository repository,

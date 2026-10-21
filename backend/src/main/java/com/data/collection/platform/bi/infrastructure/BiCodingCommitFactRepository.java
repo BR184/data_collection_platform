@@ -13,7 +13,8 @@ public final class BiCodingCommitFactRepository {
              commit.commit_sha, commit.committed_at_source
         from merge_request_commit_fact commit
         join merge_request_fact mr
-          on mr.source_system = commit.source_system
+          on mr.id = commit.merge_request_revision_id
+         and mr.source_system = commit.source_system
          and mr.source_instance = commit.source_instance
          and mr.project_id = commit.project_id
          and mr.merge_request_id = commit.merge_request_id
@@ -22,14 +23,29 @@ public final class BiCodingCommitFactRepository {
       """;
 
   private final JdbcTemplate jdbcTemplate;
+  private final com.data.collection.platform.entity.read.FactReadSelection fixedRead;
+
+  /** 提交关系必须与本页的 MR 父修订一致，不按业务根连接到所有历史修订。 */
+  public BiCodingCommitFactRepository forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new BiCodingCommitFactRepository(jdbcTemplate, selection);
+  }
+
+  private BiCodingCommitFactRepository(JdbcTemplate jdbcTemplate,
+      com.data.collection.platform.entity.read.FactReadSelection selection) {
+    this.jdbcTemplate = jdbcTemplate;
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
 
   public BiCodingCommitFactRepository(JdbcTemplate jdbcTemplate) {
     this.jdbcTemplate = jdbcTemplate;
+    this.fixedRead = null;
   }
 
   /** 返回当前已发布提交关系；调用方按稳定提交身份去重。 */
   public List<CommitFactRow> load() {
-    return jdbcTemplate.query(QUERY, this::mapRow);
+    var bounded = com.data.collection.platform.service.read.VersionedFactSql.bind(
+        java.util.Objects.requireNonNull(fixedRead, "提交读取必须绑定完整页面身份"), QUERY, List.of());
+    return jdbcTemplate.query(bounded.sql(), this::mapRow, bounded.arguments().toArray());
   }
 
   /** 返回能检测同请求内提交事实替换的轻量版本。 */

@@ -67,9 +67,27 @@ class StatisticBoardControllerTest {
 
   @Autowired
   private JdbcTemplate jdbcTemplate;
+  @Autowired private com.data.collection.platform.service.read.DatasetPublicationService datasetPublications;
+  @Autowired private com.data.collection.platform.service.DatasetProducerCatalog datasetCatalog;
+
+  /** HTTP 外壳用完整组件夹具发布输入；生产首次接管正证据由安装集成测试单独锁定。 */
+  private StatisticBoardController publishedController() {
+    com.data.collection.platform.service.FactRevisionFixture.adoptSeededFacts(jdbcTemplate,
+        com.data.collection.platform.entity.read.PublicationFactTable.ISSUE);
+    String producerRunId = java.util.UUID.randomUUID().toString();
+    var captured = datasetPublications.prepareCompleteDataset(datasetCatalog.request(
+        com.data.collection.platform.entity.read.ReadPublicationProducerKind.FORMAL_RECORD, producerRunId));
+    if (captured.state() != com.data.collection.platform.entity.read.ReadPublicationState.PUBLISHED) {
+      datasetPublications.publishPreparedDataset(captured.id(), producerRunId);
+    }
+    return controller;
+  }
 
   @BeforeEach
   void resetStatisticLinkFixtures() {
+    jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
+    jdbcTemplate.update("update code_review_match_mode_db_settings set enabled = false,"
+        + " code_review_read_mode = 'formal', review_data_read_mode = 'formal' where id = 1");
     ensureStatisticLinkProjectTables();
     cleanStatisticLinkFixtures();
     LabelEventHistoryTestSupport.markComplete(jdbcTemplate, "default");
@@ -89,7 +107,7 @@ class StatisticBoardControllerTest {
 
   @Test
   void shouldLoadMirrorTableOverviewBoard() {
-    StatisticBoardResponse response = controller.getBoard("mirror-table-overview", Map.of()).getData();
+    StatisticBoardResponse response = publishedController().getBoard("mirror-table-overview", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.definition().boardKey()).isEqualTo("mirror-table-overview");
@@ -102,7 +120,7 @@ class StatisticBoardControllerTest {
 
   @Test
   void shouldLoadSystemTestDefectSummaryBoard() {
-    StatisticBoardResponse response = controller.getBoard("system-test-defect-summary", Map.of()).getData();
+    StatisticBoardResponse response = publishedController().getBoard("system-test-defect-summary", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.definition().boardKey()).isEqualTo("system-test-defect-summary");
@@ -167,7 +185,7 @@ class StatisticBoardControllerTest {
   @Test
   void shouldLoadSystemTestDefectSummaryRuleExplanation() {
     StatisticBoardRuleExplanationResponse response =
-        controller.getRuleExplanation("system-test-defect-summary", Map.of()).getData();
+        publishedController().getRuleExplanation("system-test-defect-summary", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.boardKey()).isEqualTo("system-test-defect-summary");
@@ -180,7 +198,7 @@ class StatisticBoardControllerTest {
 
   @Test
   void shouldLoadSystemTestPhaseStatisticsBoard() {
-    StatisticBoardResponse response = controller.getBoard("system-test-phase-statistics", Map.of()).getData();
+    StatisticBoardResponse response = publishedController().getBoard("system-test-phase-statistics", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.definition().boardKey()).isEqualTo("system-test-phase-statistics");
@@ -197,7 +215,7 @@ class StatisticBoardControllerTest {
   @Test
   void shouldLoadSystemTestPhaseStatisticsRuleExplanation() {
     StatisticBoardRuleExplanationResponse response =
-        controller.getRuleExplanation("system-test-phase-statistics", Map.of()).getData();
+        publishedController().getRuleExplanation("system-test-phase-statistics", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.boardKey()).isEqualTo("system-test-phase-statistics");
@@ -210,7 +228,7 @@ class StatisticBoardControllerTest {
 
   @Test
   void shouldLoadSystemTestDelayAnalysisBoard() {
-    StatisticBoardResponse response = controller.getBoard("system-test-delay-analysis", Map.of()).getData();
+    StatisticBoardResponse response = publishedController().getBoard("system-test-delay-analysis", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.definition().boardKey()).isEqualTo("system-test-delay-analysis");
@@ -227,7 +245,7 @@ class StatisticBoardControllerTest {
   @Test
   void shouldLoadSystemTestDelayAnalysisRuleExplanation() {
     StatisticBoardRuleExplanationResponse response =
-        controller.getRuleExplanation("system-test-delay-analysis", Map.of()).getData();
+        publishedController().getRuleExplanation("system-test-delay-analysis", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.boardKey()).isEqualTo("system-test-delay-analysis");
@@ -240,7 +258,7 @@ class StatisticBoardControllerTest {
 
   @Test
   void shouldLoadSystemTestDefectCauseBoard() {
-    StatisticBoardResponse response = controller.getBoard("system-test-defect-cause", Map.of()).getData();
+    StatisticBoardResponse response = publishedController().getBoard("system-test-defect-cause", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.definition().boardKey()).isEqualTo("system-test-defect-cause");
@@ -281,7 +299,7 @@ class StatisticBoardControllerTest {
   @Test
   void shouldLoadSystemTestDefectCauseRuleExplanation() {
     StatisticBoardRuleExplanationResponse response =
-        controller.getRuleExplanation("system-test-defect-cause", Map.of()).getData();
+        publishedController().getRuleExplanation("system-test-defect-cause", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.boardKey()).isEqualTo("system-test-defect-cause");
@@ -293,7 +311,7 @@ class StatisticBoardControllerTest {
 
   @Test
   void shouldLoadCustomerIssueDefectSummaryBoard() {
-    StatisticBoardResponse response = controller.getBoard("customer-issue-defect-summary", Map.of()).getData();
+    StatisticBoardResponse response = publishedController().getBoard("customer-issue-defect-summary", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.definition().boardKey()).isEqualTo("customer-issue-defect-summary");
@@ -320,7 +338,7 @@ class StatisticBoardControllerTest {
   @Test
   void shouldExportCustomerIssueSummaryWithLegacyIssueWorkbookContract() throws Exception {
     ResponseEntity<byte[]> response =
-        controller.exportBoardIssues("customer-issue-defect-summary", Map.of());
+        publishedController().exportBoardIssues("customer-issue-defect-summary", Map.of(), TestReadViews.authenticatedRequest());
 
     assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
     assertThat(response.getHeaders().getFirst("Content-Disposition"))
@@ -351,7 +369,7 @@ class StatisticBoardControllerTest {
   @Test
   void shouldLoadCustomerIssueDefectSummaryRuleExplanation() {
     StatisticBoardRuleExplanationResponse response =
-        controller.getRuleExplanation("customer-issue-defect-summary", Map.of()).getData();
+        publishedController().getRuleExplanation("customer-issue-defect-summary", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.boardKey()).isEqualTo("customer-issue-defect-summary");
@@ -364,7 +382,7 @@ class StatisticBoardControllerTest {
 
   @Test
   void shouldLoadCustomerIssueDefectCauseBoard() {
-    StatisticBoardResponse response = controller.getBoard("customer-issue-defect-cause", Map.of()).getData();
+    StatisticBoardResponse response = publishedController().getBoard("customer-issue-defect-cause", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.definition().boardKey()).isEqualTo("customer-issue-defect-cause");
@@ -389,7 +407,7 @@ class StatisticBoardControllerTest {
   @Test
   void shouldLoadCustomerIssueDefectCauseRuleExplanation() {
     StatisticBoardRuleExplanationResponse response =
-        controller.getRuleExplanation("customer-issue-defect-cause", Map.of()).getData();
+        publishedController().getRuleExplanation("customer-issue-defect-cause", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.boardKey()).isEqualTo("customer-issue-defect-cause");
@@ -402,7 +420,7 @@ class StatisticBoardControllerTest {
   @Test
   void shouldLoadCustomerIssueResponseEfficiencyBoard() {
     StatisticBoardResponse response =
-        controller.getBoard("customer-issue-response-efficiency", Map.of()).getData();
+        publishedController().getBoard("customer-issue-response-efficiency", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.definition().boardKey()).isEqualTo("customer-issue-response-efficiency");
@@ -430,7 +448,7 @@ class StatisticBoardControllerTest {
   @Test
   void shouldLoadCustomerIssueResponseEfficiencyRuleExplanation() {
     StatisticBoardRuleExplanationResponse response =
-        controller.getRuleExplanation("customer-issue-response-efficiency", Map.of()).getData();
+        publishedController().getRuleExplanation("customer-issue-response-efficiency", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.boardKey()).isEqualTo("customer-issue-response-efficiency");
@@ -444,7 +462,7 @@ class StatisticBoardControllerTest {
   @Test
   void shouldLoadCustomerIssueByFunctionBoard() {
     StatisticBoardResponse response =
-        controller.getBoard("customer-issue-by-function", Map.of()).getData();
+        publishedController().getBoard("customer-issue-by-function", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.definition().boardKey()).isEqualTo("customer-issue-by-function");
@@ -463,7 +481,7 @@ class StatisticBoardControllerTest {
   @Test
   void shouldLoadCustomerIssueByFunctionRuleExplanation() {
     StatisticBoardRuleExplanationResponse response =
-        controller.getRuleExplanation("customer-issue-by-function", Map.of()).getData();
+        publishedController().getRuleExplanation("customer-issue-by-function", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.boardKey()).isEqualTo("customer-issue-by-function");
@@ -477,7 +495,7 @@ class StatisticBoardControllerTest {
   @Test
   void shouldLoadMirrorTableOverviewRuleExplanation() {
     StatisticBoardRuleExplanationResponse response =
-        controller.getRuleExplanation("mirror-table-overview", Map.of()).getData();
+        publishedController().getRuleExplanation("mirror-table-overview", Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(response).isNotNull();
     assertThat(response.boardKey()).isEqualTo("mirror-table-overview");
@@ -490,7 +508,7 @@ class StatisticBoardControllerTest {
 
   @Test
   void shouldFilterBoardBySelectedTableName() {
-    StatisticBoardResponse initial = controller.getBoard("mirror-table-overview", Map.of()).getData();
+    StatisticBoardResponse initial = publishedController().getBoard("mirror-table-overview", Map.of(), TestReadViews.authenticatedRequest()).getData();
     var tableField =
         initial.definition().filters().stream().filter(field -> field.key().equals("tableName")).findFirst().orElseThrow();
     if (tableField.options().isEmpty()) {
@@ -499,7 +517,7 @@ class StatisticBoardControllerTest {
     }
     String selectedTable = tableField.options().get(0).value();
     StatisticBoardResponse filtered =
-        controller.getBoard("mirror-table-overview", Map.of("filterGroup", textFilter("tableName", "eq", selectedTable))).getData();
+        publishedController().getBoard("mirror-table-overview", Map.of("filterGroup", textFilter("tableName", "eq", selectedTable)), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(filtered.rows()).hasSize(1);
     assertThat(filtered.rows().get(0).rowKey()).isEqualTo(selectedTable);
@@ -509,32 +527,32 @@ class StatisticBoardControllerTest {
 
   @Test
   void shouldFilterBoardByNumericCondition() {
-    StatisticBoardResponse initial = controller.getBoard("mirror-table-overview", Map.of()).getData();
+    StatisticBoardResponse initial = publishedController().getBoard("mirror-table-overview", Map.of(), TestReadViews.authenticatedRequest()).getData();
     if (initial.rows().isEmpty()) {
       assertThat(initial.meta().rowCount()).isZero();
       return;
     }
 
     StatisticBoardResponse filtered =
-        controller.getBoard("mirror-table-overview", Map.of("filterGroup", numberFilter("totalRecords", "gt", 0))).getData();
+        publishedController().getBoard("mirror-table-overview", Map.of("filterGroup", numberFilter("totalRecords", "gt", 0)), TestReadViews.authenticatedRequest()).getData();
     assertThat(filtered.rows()).allSatisfy(row -> assertThat(row.cells()).isNotEmpty());
   }
 
   @Test
   void shouldRejectUnsupportedBoardKey() {
-    assertThatThrownBy(() -> controller.getBoard("missing-board", Map.of()))
+    assertThatThrownBy(() -> publishedController().getBoard("missing-board", Map.of(), TestReadViews.authenticatedRequest()))
         .isInstanceOf(com.data.collection.platform.common.exception.BizException.class);
   }
 
   @Test
   void shouldLoadBoardDetail() {
-    StatisticBoardResponse response = controller.getBoard("mirror-table-overview", Map.of()).getData();
+    StatisticBoardResponse response = publishedController().getBoard("mirror-table-overview", Map.of(), TestReadViews.authenticatedRequest()).getData();
     if (response.rows().isEmpty()) {
       return;
     }
     String rowKey = response.rows().get(0).rowKey();
     StatisticDetailResponse detail =
-        controller.getDetails("mirror-table-overview", rowKey, "totalRecords", 1, 10, null, null, Map.of()).getData();
+        publishedController().getDetails("mirror-table-overview", rowKey, "totalRecords", 1, 10, null, null, Map.of(), TestReadViews.authenticatedRequest()).getData();
 
     assertThat(detail).isNotNull();
     assertThat(detail.columns()).isNotEmpty();
@@ -566,7 +584,7 @@ class StatisticBoardControllerTest {
         "stat-links/system-test-project");
 
     assertIssueDetailLink(
-        controller.getDetails(
+        publishedController().getDetails(
                 "customer-issue-defect-summary",
                 "Module A",
                 "level1_total",
@@ -574,14 +592,14 @@ class StatisticBoardControllerTest {
                 10,
                 null,
                 null,
-                Map.of("sourceInstance", "stat-link-test", "milestoneTitle", "stat-link-milestone"))
+                Map.of("sourceInstance", "stat-link-test", "milestoneTitle", "stat-link-milestone"), TestReadViews.authenticatedRequest())
             .getData(),
         11001,
         325L,
         "CC_Product",
         "stat-links/cc-product");
     assertIssueDetailLink(
-        controller.getDetails(
+        publishedController().getDetails(
                 "customer-issue-by-function",
                 "Module A||Function A",
                 "total",
@@ -589,14 +607,14 @@ class StatisticBoardControllerTest {
                 10,
                 null,
                 null,
-                Map.of("sourceInstance", "stat-link-test", "milestoneTitle", "stat-link-milestone"))
+                Map.of("sourceInstance", "stat-link-test", "milestoneTitle", "stat-link-milestone"), TestReadViews.authenticatedRequest())
             .getData(),
         11001,
         325L,
         "CC_Product",
         "stat-links/cc-product");
     assertIssueDetailLink(
-        controller.getDetails(
+        publishedController().getDetails(
                 "system-test-defect-summary",
                 "Module S",
                 "level1_total",
@@ -604,7 +622,7 @@ class StatisticBoardControllerTest {
                 10,
                 null,
                 null,
-                Map.of("sourceInstance", "stat-link-test", "testingPhase", "stat-link-phase"))
+                Map.of("sourceInstance", "stat-link-test", "testingPhase", "stat-link-phase"), TestReadViews.authenticatedRequest())
             .getData(),
         12001,
         9L,
@@ -614,7 +632,7 @@ class StatisticBoardControllerTest {
 
   @Test
   void shouldExportBoardWorkbook() throws Exception {
-    ResponseEntity<?> response = controller.exportBoard("mirror-table-overview", Map.of());
+    ResponseEntity<?> response = publishedController().exportBoard("mirror-table-overview", Map.of(), TestReadViews.authenticatedRequest());
     assertThat(response.getBody()).isNotNull();
     try (XSSFWorkbook workbook =
         new XSSFWorkbook(new ByteArrayInputStream((byte[]) response.getBody()))) {

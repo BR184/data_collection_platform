@@ -25,12 +25,27 @@ public class StatisticBoardReadScopeResolver {
 
   private final FactProjectionVersionService projectionVersionService;
   private final IssueProjectionScopeResolver scopeResolver;
+  private final com.data.collection.platform.entity.read.FactReadSelection readSelection;
 
+  /** 只解析本次已冻结来源与目录；不会因新来源启用扩大旧页面的读取范围。 */
+  public StatisticBoardReadScopeResolver forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new StatisticBoardReadScopeResolver(projectionVersionService, scopeResolver.forRead(selection), selection);
+  }
+
+  private StatisticBoardReadScopeResolver(FactProjectionVersionService versions,
+      IssueProjectionScopeResolver scopes, com.data.collection.platform.entity.read.FactReadSelection selection) {
+    this.projectionVersionService = versions;
+    this.scopeResolver = scopes;
+    this.readSelection = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public StatisticBoardReadScopeResolver(
       FactProjectionVersionService projectionVersionService,
       IssueProjectionScopeResolver scopeResolver) {
     this.projectionVersionService = projectionVersionService;
     this.scopeResolver = scopeResolver;
+    this.readSelection = null;
   }
 
   /**
@@ -52,9 +67,18 @@ public class StatisticBoardReadScopeResolver {
     String selectedSource =
         TextQuerySupport.trimToNull(filters == null ? null : filters.get(SOURCE_INSTANCE_PARAM));
     if (selectedSource == null) {
-      sourceInstances.addAll(projectionVersionService.knownSourceInstances(FactType.ISSUE));
+      if (readSelection == null) {
+        sourceInstances.addAll(projectionVersionService.knownSourceInstances(FactType.ISSUE));
+      } else {
+        readSelection.contexts().stream().filter(context -> context.table().factType() == FactType.ISSUE)
+            .map(com.data.collection.platform.entity.read.FactReadQueryContext::sourceInstance).forEach(sourceInstances::add);
+      }
     } else {
-      sourceInstances.add(GitlabSourceInstanceSupport.normalizeSourceInstance(selectedSource));
+      String normalized = GitlabSourceInstanceSupport.normalizeSourceInstance(selectedSource);
+      if (readSelection != null && readSelection.contexts().stream().noneMatch(context -> context.sourceInstance().equals(normalized))) {
+        throw new IllegalArgumentException("来源不属于当前页面完整版本");
+      }
+      sourceInstances.add(normalized);
     }
     Set<FactProjectionScope> scopes = new LinkedHashSet<>();
     for (String sourceInstance : sourceInstances) {

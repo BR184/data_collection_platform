@@ -320,6 +320,11 @@ class LabelGroupServiceTest {
   }
 
   private static final class InMemoryLabelGroupRepository implements LabelGroupRepository {
+    @Override
+    public LabelGroupRepository forRead(com.data.collection.platform.entity.read.ReadSelection selection) {
+      throw new UnsupportedOperationException("管理命令单测不模拟冻结读取，冻结读取由真库回归覆盖");
+    }
+
     private final Map<Long, LabelGroupRecord> groups = new LinkedHashMap<>();
     private long nextId = 1L;
     private long nextMemberId = 1L;

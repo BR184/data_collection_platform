@@ -49,7 +49,22 @@ public class ReviewDataMatchModeRecordRepository {
 
   private final JdbcTemplate jdbcTemplate;
 
+
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 固定页面关系读取对象；原仓储工厂仅供当前业务命令与安装控制面。 */
+  public ReviewDataMatchModeRecordRepository forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new ReviewDataMatchModeRecordRepository(this, selection);
+  }
+
+  private ReviewDataMatchModeRecordRepository(ReviewDataMatchModeRecordRepository factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public ReviewDataMatchModeRecordRepository(JdbcTemplate jdbcTemplate) {
+    this.fixedRead = null;
     this.jdbcTemplate = jdbcTemplate;
   }
 
@@ -96,7 +111,7 @@ public class ReviewDataMatchModeRecordRepository {
 
   //兼容模式-MatchMode
   public Long findMaterializedRecordId(Long matchModeRecordId) {
-    Long recordId = jdbcTemplate.query(
+    Long recordId = query(
         """
         select review_record_id
           from review_data_match_mode_edit_links
@@ -111,7 +126,7 @@ public class ReviewDataMatchModeRecordRepository {
     if (legacyId == null) {
       return null;
     }
-    return jdbcTemplate.query(
+    return query(
         """
         select review_record_id
           from review_data_match_mode_edit_links
@@ -223,7 +238,7 @@ public class ReviewDataMatchModeRecordRepository {
 
   //兼容模式-MatchMode
   public Long findMaterializedProblemItemId(Long matchModeProblemItemId) {
-    return jdbcTemplate.query(
+    return query(
         """
         select review_problem_item_id
           from review_data_match_mode_problem_edit_links
@@ -461,7 +476,7 @@ public class ReviewDataMatchModeRecordRepository {
     if (storageReportIds.isEmpty()) {
       return List.of();
     }
-    return jdbcTemplate.query(
+    return query(
         "select " + REPORT_COLUMNS + " from review_data_match_mode_reports where id in "
             + placeholders(storageReportIds.size()),
         this::mapReportRow,
@@ -472,7 +487,7 @@ public class ReviewDataMatchModeRecordRepository {
     if (legacyIds.isEmpty()) {
       return List.of();
     }
-    return jdbcTemplate.query(
+    return query(
         "select " + PROBLEM_COLUMNS + " from review_data_match_mode_problem_details where legacy_id in "
             + placeholders(legacyIds.size()),
         this::mapProblemRow,
@@ -483,7 +498,7 @@ public class ReviewDataMatchModeRecordRepository {
     if (legacyIds.isEmpty()) {
       return List.of();
     }
-    return jdbcTemplate.query(
+    return query(
         "select " + DESCRIPTION_COLUMNS + " from review_data_match_mode_descriptions where legacy_id in "
             + placeholders(legacyIds.size()),
         this::mapDescriptionRow,
@@ -491,7 +506,7 @@ public class ReviewDataMatchModeRecordRepository {
   }
 
   private List<ContentRow> loadContentRowsByReportLegacyId(String reportLegacyId) {
-    return jdbcTemplate.query(
+    return query(
         "select " + CONTENT_COLUMNS + " from review_data_match_mode_contents "
             + "where match_mode_report_legacy_id = ? order by content_order, id",
         this::mapContentRow,
@@ -629,26 +644,26 @@ public class ReviewDataMatchModeRecordRepository {
   }
 
   private List<ReportRow> loadReportRows() {
-    return jdbcTemplate.query(
+    return query(
         "select " + REPORT_COLUMNS + " from review_data_match_mode_reports"
             + " order by review_time desc nulls last, id desc",
         this::mapReportRow);
   }
 
   private List<ProblemRow> loadProblemRows() {
-    return jdbcTemplate.query(
+    return query(
         "select " + PROBLEM_COLUMNS + " from review_data_match_mode_problem_details order by id asc",
         this::mapProblemRow);
   }
 
   private List<DescriptionRow> loadDescriptionRows() {
-    return jdbcTemplate.query(
+    return query(
         "select " + DESCRIPTION_COLUMNS + " from review_data_match_mode_descriptions order by id asc",
         this::mapDescriptionRow);
   }
 
   private List<ContentRow> loadContentRows() {
-    return jdbcTemplate.query(
+    return query(
         "select " + CONTENT_COLUMNS + " from review_data_match_mode_contents"
             + " order by match_mode_report_legacy_id, content_order, id",
         this::mapContentRow);
@@ -801,7 +816,7 @@ public class ReviewDataMatchModeRecordRepository {
 
   private Set<String> loadPlatformOwnedLegacyIds() {
     return new LinkedHashSet<>(
-        jdbcTemplate.query(
+        query(
             """
             select match_mode_report_legacy_id
               from review_data_match_mode_edit_links
@@ -811,7 +826,7 @@ public class ReviewDataMatchModeRecordRepository {
   }
 
   private String findReportLegacyId(Long matchModeRecordId) {
-    return jdbcTemplate.query(
+    return query(
         """
         select legacy_id
           from review_data_match_mode_reports
@@ -933,4 +948,17 @@ public class ReviewDataMatchModeRecordRepository {
       Double meetingReviewWorkload,
       Integer meetingReviewProblemCount,
       Double weightedDefectDensity) {}
+
+  private <T> java.util.List<T> query(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, mapper, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, mapper, args);
+  }
+  private <T> T query(String sql, org.springframework.jdbc.core.ResultSetExtractor<T> extractor, Object... args) {
+    return fixedRead == null ? jdbcTemplate.query(sql, extractor, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).query(fixedRead, sql, extractor, args);
+  }
+  private <T> T queryForObject(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+    return fixedRead == null ? jdbcTemplate.queryForObject(sql, mapper, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForObject(fixedRead, sql, mapper, args);
+  }
 }

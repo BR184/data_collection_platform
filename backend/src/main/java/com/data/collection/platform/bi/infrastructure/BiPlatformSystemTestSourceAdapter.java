@@ -24,6 +24,21 @@ public final class BiPlatformSystemTestSourceAdapter implements BiSystemTestSour
   private final PageRecordSnapshotService snapshotService;
   private final BiSystemTestCauseClassifier causeClassifier;
   private final BiSystemTestDelayCauseClassifier delayCauseClassifier;
+  private final com.data.collection.platform.entity.read.FactReadSelection fixedRead;
+
+  /** 绑定议题及阶段目录的完整页面身份；新版本发布不影响本次旧版本查询。 */
+  public BiPlatformSystemTestSourceAdapter forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new BiPlatformSystemTestSourceAdapter(this, selection);
+  }
+
+  private BiPlatformSystemTestSourceAdapter(BiPlatformSystemTestSourceAdapter factory,
+      com.data.collection.platform.entity.read.FactReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.snapshotService = factory.snapshotService;
+    this.causeClassifier = factory.causeClassifier;
+    this.delayCauseClassifier = factory.delayCauseClassifier;
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
 
   public BiPlatformSystemTestSourceAdapter(
       JdbcTemplate jdbcTemplate,
@@ -34,6 +49,7 @@ public final class BiPlatformSystemTestSourceAdapter implements BiSystemTestSour
     this.snapshotService = snapshotService;
     this.causeClassifier = causeClassifier;
     this.delayCauseClassifier = delayCauseClassifier;
+    this.fixedRead = null;
   }
 
   @Override
@@ -65,7 +81,6 @@ public final class BiPlatformSystemTestSourceAdapter implements BiSystemTestSour
                 : List.of()))
         .toList();
     // 阶段四：复核读取期间的事实版本，避免页面混用不同发布批次的数据。
-    verifyStableVersion(sourceVersion, sourceVersion(scope));
     return new BiSystemTestSource(
         sourceVersion,
         sourceVersion,
@@ -106,7 +121,9 @@ public final class BiPlatformSystemTestSourceAdapter implements BiSystemTestSour
     args.add(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
     args.add(projectId);
     args.addAll(testingPhases);
-    return jdbcTemplate.query(sql, this::mapRow, args.toArray());
+    var bounded = com.data.collection.platform.service.read.VersionedFactSql.bind(
+        java.util.Objects.requireNonNull(fixedRead, "BI 读取必须绑定完整页面身份"), sql, args);
+    return jdbcTemplate.query(bounded.sql(), this::mapRow, bounded.arguments().toArray());
   }
 
   private IssueRow mapRow(ResultSet rs, int rowNumber) throws SQLException {
@@ -141,17 +158,7 @@ public final class BiPlatformSystemTestSourceAdapter implements BiSystemTestSour
   }
 
   private String sourceVersion(BiProductVersionScope scope) {
-    return snapshotService.issueFactSourceVersion(
-        GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE,
-        scope.projectId(),
-        IssueScopeDimension.TESTING_PHASE,
-        scope.businessKey());
-  }
-
-  private void verifyStableVersion(String before, String after) {
-    if (!before.equals(after)) {
-      throw new BiSourceVersionChangedException("system-test");
-    }
+    return java.util.Objects.requireNonNull(fixedRead, "BI 读取必须绑定完整页面身份").sourceVersion();
   }
 
   private record IssueRow(

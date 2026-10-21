@@ -8,8 +8,6 @@ import com.data.collection.platform.entity.ReviewDataRecordListResponse;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
 import com.data.collection.platform.entity.ReviewDataSearchIndexBackfillResponse;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -21,26 +19,41 @@ public class ReviewDataRecordService {
   private static final String RULE_VERSION = "review-data-records@2026-09-18-v7";
   private static final String FILTER_OPTIONS_SCOPE_KEY = "all";
 
-  private final ExecutorService snapshotPrewarmExecutor =
-      Executors.newSingleThreadExecutor(
-          runnable -> {
-            Thread thread = new Thread(runnable, "review-snapshot-prewarm");
-            thread.setDaemon(true);
-            return thread;
-          });
-
   private final ReviewDataRecordQueryService queryService;
   private final ReviewDataRecordCommandService commandService;
   private final ReviewDataFilterOptionService filterOptionService;
   private final ReviewDataRecordPersistenceSupport persistenceSupport;
   private final PageRecordSnapshotService pageRecordSnapshotService;
 
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedReadSelection;
+
+  /** 创建一次读取持有的固定版本对象；工厂不保存页面身份。 */
+  public ReviewDataRecordService forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new ReviewDataRecordService(this, selection);
+  }
+
+  private ReviewDataRecordService(ReviewDataRecordService factory,
+      com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.queryService = factory.queryService.forRead(selection);
+    this.commandService = factory.commandService;
+    this.filterOptionService = factory.filterOptionService.forRead(selection);
+    this.persistenceSupport = factory.persistenceSupport;
+    this.pageRecordSnapshotService = factory.pageRecordSnapshotService;
+    this.fixedReadSelection = java.util.Objects.requireNonNull(selection);
+  }
+
+  private com.data.collection.platform.entity.read.DatasetReadSelection readSelection() {
+    return java.util.Objects.requireNonNull(fixedReadSelection, "页面数据读取必须持有固定版本身份");
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public ReviewDataRecordService(
       ReviewDataRecordQueryService queryService,
       ReviewDataRecordCommandService commandService,
       ReviewDataFilterOptionService filterOptionService,
       ReviewDataRecordPersistenceSupport persistenceSupport,
       PageRecordSnapshotService pageRecordSnapshotService) {
+    this.fixedReadSelection = null;
     this.queryService = queryService;
     this.commandService = commandService;
     this.filterOptionService = filterOptionService;
@@ -49,14 +62,14 @@ public class ReviewDataRecordService {
   }
 
   public ReviewDataRecordListResponse listRecords(ReviewDataRecordQueryRequest request) {
-    return pageRecordSnapshotService.readOrRefresh(
+    return pageRecordSnapshotService.readOrRefresh(readSelection(),
         snapshotRequest(PageRecordSnapshotService.SNAPSHOT_TYPE_LIST, "all", request),
         ReviewDataRecordListResponse.class,
         () -> queryService.listRecords(request));
   }
 
   public ReviewDataFilterOptionsResponse getFilterOptions() {
-    return pageRecordSnapshotService.readOrRefresh(
+    return pageRecordSnapshotService.readOrRefresh(readSelection(),
         snapshotRequest(PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS, FILTER_OPTIONS_SCOPE_KEY, java.util.Map.of()),
         ReviewDataFilterOptionsResponse.class,
         filterOptionService::getFilterOptions);
@@ -137,25 +150,7 @@ public class ReviewDataRecordService {
   }
 
   private void invalidateSnapshots() {
-    pageRecordSnapshotService.invalidatePage(PAGE_KEY);
-    prewarmFilterOptionsSnapshot();
+    // 完整业务提交由持久合并请求生成新版本；旧页面缓存继续属于旧读取身份。
   }
 
-  // 写后异步预热筛选候选快照：用户的下一次打开/刷新大概率直接命中缓存，而不是撞上冷重建。
-  // 列表快照与筛选参数组合相关，写入侧无法预知下一个请求参数，交给快照层的 single-flight 合并并发重建。
-  private void prewarmFilterOptionsSnapshot() {
-    snapshotPrewarmExecutor.execute(() -> {
-      try {
-        pageRecordSnapshotService.readOrRefresh(
-            snapshotRequest(
-                PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
-                FILTER_OPTIONS_SCOPE_KEY,
-                java.util.Map.of()),
-            ReviewDataFilterOptionsResponse.class,
-            filterOptionService::getFilterOptions);
-      } catch (RuntimeException error) {
-        log.debug("Review filter options snapshot prewarm failed; next read will rebuild", error);
-      }
-    });
-  }
 }

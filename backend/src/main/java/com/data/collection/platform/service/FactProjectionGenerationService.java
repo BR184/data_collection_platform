@@ -1,17 +1,16 @@
 package com.data.collection.platform.service;
 
-import com.data.collection.platform.entity.FactProjectionScope;
-import com.data.collection.platform.entity.FactType;
-import com.data.collection.platform.entity.QueuedFactBuildTask;
-import java.util.Set;
+import com.data.collection.platform.entity.read.ReadPublication;
+import com.data.collection.platform.entity.read.ReadPublicationDomainKey;
+import com.data.collection.platform.entity.read.ReadPublicationProducerKind;
+import com.data.collection.platform.entity.read.ReadPublicationState;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-/** 在事实事务内推进稳定范围 generation 并创建唯一投影任务。 */
+/** 完整候选发布事务内提交公开范围 generation；构建或预热阶段不能调用。 */
 @Service
 public class FactProjectionGenerationService {
-  private static final int DEFAULT_MAX_RETRY_COUNT = 3;
-
   private final JdbcTemplate jdbcTemplate;
 
   public FactProjectionGenerationService(JdbcTemplate jdbcTemplate) {
@@ -19,138 +18,35 @@ public class FactProjectionGenerationService {
   }
 
   /**
-   * 推进全部受影响范围，并把目标 generation 绑定到当前事实批次。
+   * 提交本候选已证明的范围 generation，与事实指针/heads/栅栏共同回滚。
+   * GitLab 兼容既有当前范围版本查询；其它生产者只使用本域发布记录上的范围代际，不能改写 GitLab 命名空间。
    *
-   * <p>调用者必须位于事实 DML 的同一事务；任一范围任务创建失败会使事实替换一起回滚。
+   * @param publication 刚在同一事务置为 PUBLISHED 的候选
+   * @param key 其一致性域
+   * @return 已提交 GitLab 范围数量；独立兼容域为 0
    */
-  public void advanceAndQueue(
-      QueuedFactBuildTask task, Set<FactProjectionScope> affectedScopes) {
-    if (task == null || task.id() == null || task.factRunId() == null) {
-      throw new IllegalArgumentException("投影发布必须关联事实运行和事实任务");
+  @Transactional
+  public int commitPreparedGenerations(ReadPublication publication, ReadPublicationDomainKey key) {
+    if (publication.state() != ReadPublicationState.PUBLISHED) {
+      throw new IllegalStateException("只有完整发布事务可以提交公开 generation");
     }
-    if (affectedScopes == null || affectedScopes.isEmpty()) {
-      return;
-    }
-    for (FactProjectionScope scope : new java.util.TreeSet<>(affectedScopes)) {
-      if (!scope.sourceInstance().equals(task.sourceInstance())
-          || !scope.factType().name().equals(task.factType())) {
-        throw new IllegalArgumentException("投影范围与事实任务身份不一致：" + scope);
-      }
-      long generation = advanceGeneration(scope);
-      queueProjectionTask(task, scope, generation);
-    }
-  }
-
-  /**
-   * 只推进给定 Issue 范围的 generation，不创建投影任务。
-   *
-   * <p>用于"只定向更新事实列、没有行级重建"的写路径：这类写入不经过发布链路，但会改变
-   * {@link FactProjectionVersionService} 生成的来源版本，因此必须让以该版本为键的统计快照失效，
-   * 否则统计页会继续命中旧 READY 快照。必须在与列更新同一事务内调用。
-   *
-   * @param sourceInstance 来源实例
-   * @param scopes 受影响范围；空集合不产生任何写入
-   * @return 实际推进的范围数
-   */
-  public int advanceIssueScopeGenerations(
-      String sourceInstance, Set<FactProjectionScope> scopes) {
-    if (scopes == null || scopes.isEmpty()) {
+    if (key.producerKind() != ReadPublicationProducerKind.GITLAB_FACT) {
       return 0;
     }
-    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
-    int advanced = 0;
-    for (FactProjectionScope scope : new java.util.TreeSet<>(scopes)) {
-      if (!scope.sourceInstance().equals(normalizedSource)
-          || scope.factType() != FactType.ISSUE) {
-        throw new IllegalArgumentException("定向列更新的失效范围与来源或事实类型不一致：" + scope);
-      }
-      advanceGeneration(scope);
-      advanced++;
+    int advanced = jdbcTemplate.update("""
+        insert into fact_projection_generations(source_instance, fact_type, scope_type, scope_key, generation, updated_at)
+        select ?, ?, scope_type, scope_key, candidate_generation, current_timestamp
+          from read_publication_scope_generations where publication_id = ?
+        on conflict (source_instance, fact_type, scope_type, scope_key) do update
+          set generation = excluded.generation, updated_at = current_timestamp
+          where fact_projection_generations.generation = excluded.generation - 1
+        """, key.sourceInstance(), key.factType(), publication.id());
+    Integer required = jdbcTemplate.queryForObject(
+        "select count(*) from read_publication_scope_generations where publication_id = ?",
+        Integer.class, publication.id());
+    if (required == null || advanced != required) {
+      throw new IllegalStateException("投影范围基线已变化，候选需要重新预热：" + publication.id());
     }
     return advanced;
-  }
-
-  private long advanceGeneration(FactProjectionScope scope) {
-    Long generation =
-        jdbcTemplate.queryForObject(
-            """
-            insert into fact_projection_generations(
-                source_instance, fact_type, scope_type, scope_key, generation, updated_at)
-            values (?, ?, ?, ?, 1, current_timestamp)
-            on conflict (source_instance, fact_type, scope_type, scope_key) do update
-               set generation = fact_projection_generations.generation + 1,
-                   updated_at = current_timestamp
-            returning generation
-            """,
-            Long.class,
-            scope.sourceInstance(),
-            scope.factType().name(),
-            scope.scopeType().name(),
-            scope.scopeKey());
-    if (generation == null || generation <= 0L) {
-      throw new IllegalStateException("无法推进事实投影 generation：" + scope);
-    }
-    return generation;
-  }
-
-  private void queueProjectionTask(
-      QueuedFactBuildTask task, FactProjectionScope scope, long generation) {
-    jdbcTemplate.update(
-        """
-        insert into fact_projection_refresh_tasks(
-            fact_run_id, fact_build_task_id, source_instance, fact_type,
-            scope_type, scope_key, target_generation, status,
-            retry_count, max_retry_count, run_after, created_at, updated_at)
-        values (?, ?, ?, ?, ?, ?, ?, 'QUEUED', 0, ?, current_timestamp,
-                current_timestamp, current_timestamp)
-        on conflict (fact_build_task_id, scope_type, scope_key) do update
-           set target_generation = greatest(
-                   fact_projection_refresh_tasks.target_generation,
-                   excluded.target_generation),
-               status = case
-                   when fact_projection_refresh_tasks.target_generation < excluded.target_generation
-                     then 'QUEUED'
-                   else fact_projection_refresh_tasks.status
-                 end,
-               lease_owner = case
-                   when fact_projection_refresh_tasks.target_generation < excluded.target_generation
-                     then null
-                   else fact_projection_refresh_tasks.lease_owner
-                 end,
-               lease_until = case
-                   when fact_projection_refresh_tasks.target_generation < excluded.target_generation
-                     then null
-                   else fact_projection_refresh_tasks.lease_until
-                 end,
-               heartbeat_at = case
-                   when fact_projection_refresh_tasks.target_generation < excluded.target_generation
-                     then null
-                   else fact_projection_refresh_tasks.heartbeat_at
-                 end,
-               run_after = case
-                   when fact_projection_refresh_tasks.target_generation < excluded.target_generation
-                     then current_timestamp
-                   else fact_projection_refresh_tasks.run_after
-                 end,
-               finished_at = case
-                   when fact_projection_refresh_tasks.target_generation < excluded.target_generation
-                     then null
-                   else fact_projection_refresh_tasks.finished_at
-                 end,
-               error_message = case
-                   when fact_projection_refresh_tasks.target_generation < excluded.target_generation
-                     then null
-                   else fact_projection_refresh_tasks.error_message
-                 end,
-               updated_at = current_timestamp
-        """,
-        task.factRunId(),
-        task.id(),
-        scope.sourceInstance(),
-        scope.factType().name(),
-        scope.scopeType().name(),
-        scope.scopeKey(),
-        generation,
-        DEFAULT_MAX_RETRY_COUNT);
   }
 }

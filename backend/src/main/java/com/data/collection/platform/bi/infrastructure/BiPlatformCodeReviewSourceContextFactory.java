@@ -12,6 +12,23 @@ public final class BiPlatformCodeReviewSourceContextFactory {
   private final Supplier<String> compatibilityReviewVersion;
   private final BooleanSupplier commitDetailsAvailable;
   private final Supplier<String> commitVersion;
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 模式、提交能力与来源指纹由同一个完整页面组合冻结，捕获后不再检查最新指针。 */
+  public BiPlatformCodeReviewSourceContextFactory forRead(
+      com.data.collection.platform.entity.read.DatasetReadSelection selection, boolean compatibility, boolean commitsAvailable) {
+    return new BiPlatformCodeReviewSourceContextFactory(this, selection, compatibility, commitsAvailable);
+  }
+
+  private BiPlatformCodeReviewSourceContextFactory(BiPlatformCodeReviewSourceContextFactory factory,
+      com.data.collection.platform.entity.read.DatasetReadSelection selection, boolean compatibility, boolean commitsAvailable) {
+    this.compatibilityModeEnabled = () -> compatibility;
+    this.snapshotService = factory.snapshotService;
+    this.compatibilityReviewVersion = factory.compatibilityReviewVersion;
+    this.commitDetailsAvailable = () -> commitsAvailable;
+    this.commitVersion = factory.commitVersion;
+    this.fixedRead = Objects.requireNonNull(selection);
+  }
 
   /**
    * 创建请求级读源上下文工厂。
@@ -33,6 +50,7 @@ public final class BiPlatformCodeReviewSourceContextFactory {
     this.commitDetailsAvailable =
         Objects.requireNonNull(commitDetailsAvailable, "commitDetailsAvailable");
     this.commitVersion = Objects.requireNonNull(commitVersion, "commitVersion");
+    this.fixedRead = null;
   }
 
   /**
@@ -45,35 +63,12 @@ public final class BiPlatformCodeReviewSourceContextFactory {
         ? ReadMode.COMPATIBILITY
         : ReadMode.FORMAL;
     boolean commitsAvailable = commitDetailsAvailable.getAsBoolean();
-    String dataVersion = dataVersion(readMode, commitsAvailable);
+    String dataVersion = Objects.requireNonNull(fixedRead, "BI 编码读取必须绑定完整页面身份").sourceVersion();
     return new Context(
         readMode,
         dataVersion,
-        readMode.versionPrefix() + ":" + dataVersion,
+        dataVersion,
         commitsAvailable);
-  }
-
-  /**
-   * 查询结束时确认冻结读源的数据版本未变化；平台模式变化不改变本次请求已选读源。
-   *
-   * @param context 请求开始时冻结的上下文
-   * @throws BiSourceVersionChangedException 查询期间底层数据版本发生变化时抛出
-   */
-  public void verifyDataVersion(Context context) {
-    Objects.requireNonNull(context, "context");
-    if (!context.dataVersion().equals(
-        dataVersion(context.readMode(), commitDetailsAvailable.getAsBoolean()))) {
-      throw new BiSourceVersionChangedException("coding");
-    }
-  }
-
-  private String dataVersion(ReadMode readMode, boolean commitsAvailable) {
-    String reviewVersion = readMode == ReadMode.COMPATIBILITY
-        ? compatibilityReviewVersion.get()
-        : "formal";
-    return snapshotService.codeReviewSourceVersion()
-        + "|review:" + reviewVersion
-        + "|commits:" + (commitsAvailable ? commitVersion.get() : "unavailable");
   }
 
   /** BI 编码页允许选择的两个互斥平台读源。 */

@@ -45,14 +45,17 @@ public class BiDashboardController {
   private final BiDashboardRuntimeManager runtimeManager;
   private final BiPagePermissionResolver pagePermissionResolver;
   private final PlatformPermissionService permissionService;
+  private final com.data.collection.platform.service.read.ReadViewApplicationService readViews;
 
   public BiDashboardController(
       BiDashboardRuntimeManager runtimeManager,
       BiPagePermissionResolver pagePermissionResolver,
-      PlatformPermissionService permissionService) {
+      PlatformPermissionService permissionService,
+      com.data.collection.platform.service.read.ReadViewApplicationService readViews) {
     this.runtimeManager = runtimeManager;
     this.pagePermissionResolver = pagePermissionResolver;
     this.permissionService = permissionService;
+    this.readViews = readViews;
   }
 
   // 本层流程：先由端点级权限拦截器校验当前页面的查看权限，再在接口中完成参数转换，
@@ -78,19 +81,19 @@ public class BiDashboardController {
   @GetMapping("/requirements")
   @RequirePermission(PlatformPermissionCodes.BI_DASHBOARD_REQUIREMENTS_VIEW)
   public ApiResponse<BiPageResponse<BiReviewPageData>> requirements(
-      @RequestParam long productVersionId) {
+      @RequestParam long productVersionId, HttpServletRequest request) {
     // Controller 只负责协议和路由；评审数据的读取、计算和状态判断留给 BI 应用服务。
-    return ApiResponse.success(runtimeManager.page(
-        "requirements", runtime -> runtime.requirements().load(productVersionId)));
+    return readViews.read(request, "bi:requirements", readViews.parameters(request), selected ->
+        runtimeManager.forRead(selected).requirements().load(productVersionId)).response();
   }
 
   /** 返回设计评审页面。 */
   @GetMapping("/design")
   @RequirePermission(PlatformPermissionCodes.BI_DASHBOARD_DESIGN_VIEW)
   public ApiResponse<BiPageResponse<BiReviewPageData>> design(
-      @RequestParam long productVersionId) {
-    return ApiResponse.success(runtimeManager.page(
-        "design", runtime -> runtime.design().load(productVersionId)));
+      @RequestParam long productVersionId, HttpServletRequest request) {
+    return readViews.read(request, "bi:design", readViews.parameters(request), selected ->
+        runtimeManager.forRead(selected).design().load(productVersionId)).response();
   }
 
   /** 返回带日/周、来源和稳定仓库 ID 筛选的编码页面。 */
@@ -100,39 +103,39 @@ public class BiDashboardController {
       @RequestParam long productVersionId,
       @RequestParam(defaultValue = "day") String granularity,
       @RequestParam(defaultValue = "all") String source,
-      @RequestParam(required = false) String repositoryId) {
+      @RequestParam(required = false) String repositoryId, HttpServletRequest request) {
     // 筛选值在进入领域层前转换为受限枚举，避免页面字符串直接参与业务计算。
     BiCodingSourcePort.Query query = new BiCodingSourcePort.Query(
         parseGranularity(granularity), parseSource(source), repositoryId);
-    return ApiResponse.success(runtimeManager.page(
-        "coding", runtime -> runtime.coding().load(productVersionId, query)));
+    return readViews.read(request, "bi:coding", readViews.parameters(request), selected ->
+        runtimeManager.forRead(selected).coding().load(productVersionId, query)).response();
   }
 
   /** 返回 CAT 单元测试页面或明确的未接入状态。 */
   @GetMapping("/unit-test")
   @RequirePermission(PlatformPermissionCodes.BI_DASHBOARD_UNIT_TEST_VIEW)
   public ApiResponse<BiPageResponse<BiTestQualityPageData>> unitTest(
-      @RequestParam long productVersionId) {
-    return ApiResponse.success(runtimeManager.page(
-        "unit-test", runtime -> runtime.unitTest().load(productVersionId)));
+      @RequestParam long productVersionId, HttpServletRequest request) {
+    return readViews.read(request, "bi:unit-test", readViews.parameters(request), selected ->
+        runtimeManager.forRead(selected).unitTest().load(productVersionId)).response();
   }
 
   /** 返回 CAT 集成测试页面或明确的未接入状态。 */
   @GetMapping("/integration-test")
   @RequirePermission(PlatformPermissionCodes.BI_DASHBOARD_INTEGRATION_TEST_VIEW)
   public ApiResponse<BiPageResponse<BiTestQualityPageData>> integrationTest(
-      @RequestParam long productVersionId) {
-    return ApiResponse.success(runtimeManager.page(
-        "integration-test", runtime -> runtime.integrationTest().load(productVersionId)));
+      @RequestParam long productVersionId, HttpServletRequest request) {
+    return readViews.read(request, "bi:integration-test", readViews.parameters(request), selected ->
+        runtimeManager.forRead(selected).integrationTest().load(productVersionId)).response();
   }
 
   /** 返回系统测试页面。 */
   @GetMapping("/system-test")
   @RequirePermission(PlatformPermissionCodes.BI_DASHBOARD_SYSTEM_TEST_VIEW)
   public ApiResponse<BiPageResponse<BiSystemTestPageData>> systemTest(
-      @RequestParam long productVersionId) {
-    return ApiResponse.success(runtimeManager.page(
-        "system-test", runtime -> runtime.systemTest().load(productVersionId)));
+      @RequestParam long productVersionId, HttpServletRequest request) {
+    return readViews.readFacts(request, "bi:system-test", readViews.parameters(request), selected ->
+        runtimeManager.forRead(selected).systemTest().load(productVersionId)).response();
   }
 
   /** 返回不使用产品版本范围的独立客户问题 BI 页面。 */
@@ -145,15 +148,14 @@ public class BiDashboardController {
       @RequestParam(required = false) String moduleKind,
       @RequestParam(required = false) String module,
       @RequestParam(required = false) String functionKind,
-      @RequestParam(required = false) String function) {
+      @RequestParam(required = false) String function, HttpServletRequest request) {
     var query = new BiCustomerIssuePageService.Query(
         milestoneBusinessKey,
         parseMemberSelection(customerKind, customer, "customer"),
         parseMemberSelection(moduleKind, module, "module"),
         parseMemberSelection(functionKind, function, "function"));
-    return ApiResponse.success(runtimeManager.page(
-        BiCustomerIssuePageService.PAGE_KEY,
-        runtime -> runtime.customerIssues().load(query)));
+    return readViews.readFacts(request, "bi:customer-issues", readViews.parameters(request), selected ->
+        runtimeManager.forRead(selected).customerIssues().load(query)).response();
   }
 
   /** 校验查看、下载、图表模板和来源版本后授权浏览器本地生成 PNG。 */
@@ -172,13 +174,14 @@ public class BiDashboardController {
       HttpServletRequest servletRequest) {
     requirePageDownloadPermission(servletRequest, request.pageKey());
     // 浏览器只申请当前图表的下载资格，不上传像素；服务端再次校验页面、模板和来源版本。
-    return ApiResponse.success(runtimeManager.runtime().downloads().authorize(
+    return readViews.read(servletRequest, "bi:" + request.pageKey(), downloadParameters(servletRequest, request.scope()), selected ->
+        runtimeManager.forRead(selected).downloads().authorize(
         new BiDownloadAuthorizationService.Request(
             request.scope().toScope(),
             request.pageKey(),
             request.chartInstanceId(),
             request.chartTemplateId(),
-            request.sourceVersion())));
+            request.sourceVersion()))).response();
   }
 
   /** 校验下载授权后，把前端按图表语义提取的表格序列化为标准 .xlsx 并回传下载。 */
@@ -197,7 +200,9 @@ public class BiDashboardController {
       HttpServletRequest servletRequest) {
     requirePageDownloadPermission(servletRequest, request.pageKey());
     // 与 PNG 走同一道授权门：先校验页面/图表模板/来源版本，避免绕过下载权限直接取文件。
-    BiDownloadAuthorizationService.Authorization authorization = runtimeManager.runtime().downloads().authorize(
+    var outcome = readViews.read(servletRequest, "bi:" + request.pageKey(), downloadParameters(servletRequest, request.scope()), selected -> {
+    var runtime = runtimeManager.forRead(selected);
+    BiDownloadAuthorizationService.Authorization authorization = runtime.downloads().authorize(
         new BiDownloadAuthorizationService.Request(
             request.scope().toScope(),
             request.pageKey(),
@@ -205,7 +210,7 @@ public class BiDashboardController {
             request.chartTemplateId(),
             request.sourceVersion()));
     List<List<Object>> rows = request.rows() == null ? List.of() : request.rows();
-    BiExcelExportService.Export export = runtimeManager.runtime().excel().export(
+    BiExcelExportService.Export export = runtime.excel().export(
         request.title(),
         authorization.rangeDescription(),
         request.explanation(),
@@ -217,6 +222,15 @@ public class BiDashboardController {
         .header(HttpHeaders.CONTENT_DISPOSITION,
             DownloadResponseHeaders.attachment(export.filename()))
         .body(export.content());
+    });
+    return outcome.download(outcome.data());
+  }
+
+  private java.util.Map<String, String> downloadParameters(HttpServletRequest request, BiDownloadScopeRequest scope) {
+    java.util.Map<String, String> parameters = new java.util.LinkedHashMap<>(readViews.parameters(request));
+    if (scope.productVersionId() != null) { parameters.put("productVersionId", Long.toString(scope.productVersionId())); }
+    if (scope.milestoneBusinessKey() != null) { parameters.put("milestoneBusinessKey", scope.milestoneBusinessKey()); }
+    return parameters;
   }
 
   /**

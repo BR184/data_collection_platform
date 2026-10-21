@@ -66,6 +66,11 @@ public class ReviewDataExcelExportService {
     this.queryService = queryService;
   }
 
+  /** 列表导出与问题明细导出复用页面完整身份，包括兼容接管关系。 */
+  public ReviewDataExcelExportService forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new ReviewDataExcelExportService(queryService.forRead(selection));
+  }
+
   public byte[] exportReviewRecordsWorkbook(ReviewDataRecordQueryRequest request) {
     List<ReviewDataRecordRowResponse> records = loadAllRecords(request);
     try (Workbook workbook = new XSSFWorkbook();

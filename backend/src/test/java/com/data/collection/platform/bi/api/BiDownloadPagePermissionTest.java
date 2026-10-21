@@ -61,11 +61,12 @@ class BiDownloadPagePermissionTest {
     var runtime = mock(com.data.collection.platform.bi.application.BiDashboardRuntime.class);
     when(runtime.downloads()).thenReturn(downloads);
     BiDashboardRuntimeManager manager = mock(BiDashboardRuntimeManager.class);
-    when(manager.runtime()).thenReturn(runtime);
+    when(manager.forRead(any())).thenReturn(runtime);
 
     mockMvc = MockMvcBuilders
         .standaloneSetup(new BiDashboardController(
-            manager, new BiPagePermissionResolver(), permissionService))
+            manager, new BiPagePermissionResolver(), permissionService,
+            com.data.collection.platform.controller.TestReadViews.boundary()))
         .addInterceptors(new PlatformAuthorizationInterceptor(
             new ObjectMapper(), permissionService, mock(PagePermissionKeyResolver.class)))
         .setControllerAdvice(new GlobalExceptionHandler())

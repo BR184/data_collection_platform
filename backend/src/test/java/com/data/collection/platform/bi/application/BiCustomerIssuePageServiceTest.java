@@ -50,13 +50,16 @@ class BiCustomerIssuePageServiceTest {
   @BeforeEach
   void setUp() {
     factQueryService = mock(CustomerIssueFactQueryService.class);
+    org.mockito.Mockito.lenient().when(factQueryService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(factQueryService);
     milestoneCatalog = mock(CustomerIssueMilestoneCatalogService.class);
+    org.mockito.Mockito.lenient().when(milestoneCatalog.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(milestoneCatalog);
     snapshotService = mock(StatisticBoardSnapshotService.class);
     scopeResolver = mock(StatisticBoardReadScopeResolver.class);
+    org.mockito.Mockito.lenient().when(scopeResolver.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(scopeResolver);
     businessDateProvider = mock(BusinessDateProvider.class);
     service = new BiCustomerIssuePageService(
         factQueryService, milestoneCatalog, snapshotService, scopeResolver, businessDateProvider,
-        new BiCustomerIssueCalculator());
+        new BiCustomerIssueCalculator()).forRead(new com.data.collection.platform.entity.read.FactReadSelection(com.data.collection.platform.service.read.TestReadSelections.all().contexts(), BUSINESS_DATE));
     facts = List.of(
         fact(1L, List.of("missing", "客户乙"), List.of("模块A", "模块B"), "功能甲"),
         fact(2L, List.of(), List.of("模块A"), null));
@@ -69,12 +72,12 @@ class BiCustomerIssuePageServiceTest {
         .thenReturn(Set.of(new FactProjectionScope("default", FactType.ISSUE,
             ProjectionScopeType.ISSUE_SCOPE_GROUP, "customer-issue-milestone")));
     when(businessDateProvider.businessDate()).thenReturn(BUSINESS_DATE);
-    when(snapshotService.withinConsistentCurrentFactRead(any(), any())).thenAnswer(invocation -> {
-      StatisticBoardSnapshotService.SourceReadPlan plan = invocation.getArgument(0);
+    when(snapshotService.withinVersionedRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), any(), any())).thenAnswer(invocation -> {
+      StatisticBoardSnapshotService.SourceReadPlan plan = invocation.getArgument(1);
       plan.resolve();
       @SuppressWarnings("unchecked")
-      Function<StatisticBoardSnapshotService.SourceRead, Object> action = invocation.getArgument(1);
-      return action.apply(new StatisticBoardSnapshotService.SourceRead(Set.of(), "issue-v17", 0L, true, null));
+      Function<StatisticBoardSnapshotService.SourceRead, Object> action = invocation.getArgument(2);
+      return action.apply(new StatisticBoardSnapshotService.SourceRead(Set.of(), "issue-v17", 0L, com.data.collection.platform.service.read.TestReadSelections.all()));
     });
   }
 
@@ -119,7 +122,7 @@ class BiCustomerIssuePageServiceTest {
   void unqualifiedSourceReturnsAnIncompletePageInsteadOfAnEmptyPage() {
     doAnswer(invocation -> {
       throw new BizException("ISSUE事实来源尚未完成全量核验");
-    }).when(snapshotService).withinConsistentCurrentFactRead(any(), any());
+    }).when(snapshotService).withinVersionedRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), any(), any());
 
     var response = service.load(BiCustomerIssuePageService.Query.all());
 
@@ -143,7 +146,7 @@ class BiCustomerIssuePageServiceTest {
     assertTrue(trend.message().contains("缺少"));
     assertEquals(BiDataStatus.INCOMPLETE, response.status());
     // 未知创建时间不得伪装为零：整条序列保持 null，而不是补点成 0。
-    assertTrue(response.data().dailyTrend().stream().allMatch(day -> day.createdCount() == null));
+    assertTrue(response.data().dailyTrend().stream().allMatch(day -> day.cumulativeCreatedCount() == null));
   }
 
   private static CustomerIssueFact factWithoutCreatedTime(

@@ -33,18 +33,32 @@ public class LabelValueQueryService {
   private final SystemTestIssueSearchService systemTestIssueSearchService;
   private final CustomerIssueRecordService customerIssueRecordService;
   private final Map<String, Supplier<List<String>>> mirrorValueLoaders;
+  private final LabelValuePublishedReader publishedReader;
+  private final boolean bound;
 
+  @org.springframework.beans.factory.annotation.Autowired
   public LabelValueQueryService(
       LabelDimensionCatalogService dimensionCatalogService,
       ReviewDataMirrorOptionRepository mirrorOptionRepository,
       ReviewDataRecordService reviewDataRecordService,
       SystemTestIssueSearchService systemTestIssueSearchService,
-      CustomerIssueRecordService customerIssueRecordService) {
+      CustomerIssueRecordService customerIssueRecordService,
+      LabelValuePublishedReader publishedReader) {
+    this(dimensionCatalogService, mirrorOptionRepository, reviewDataRecordService,
+        systemTestIssueSearchService, customerIssueRecordService, publishedReader, false);
+  }
+
+  private LabelValueQueryService(LabelDimensionCatalogService dimensionCatalogService,
+      ReviewDataMirrorOptionRepository mirrorOptionRepository, ReviewDataRecordService reviewDataRecordService,
+      SystemTestIssueSearchService systemTestIssueSearchService, CustomerIssueRecordService customerIssueRecordService,
+      LabelValuePublishedReader publishedReader, boolean bound) {
     this.dimensionCatalogService = dimensionCatalogService;
     this.mirrorOptionRepository = mirrorOptionRepository;
     this.reviewDataRecordService = reviewDataRecordService;
     this.systemTestIssueSearchService = systemTestIssueSearchService;
     this.customerIssueRecordService = customerIssueRecordService;
+    this.publishedReader = publishedReader;
+    this.bound = bound;
     this.mirrorValueLoaders =
         Map.of(
             "project", mirrorOptionRepository::loadLabelProjectNames,
@@ -63,6 +77,10 @@ public class LabelValueQueryService {
     if (!dimensionCatalogService.pageSupportsDimension(dimensionKey, pageKey)) {
       throw new BizException("当前页面不支持该标签维度：" + dimension.name());
     }
+    if (!bound && !"closure_status".equals(dimensionKey)) {
+      return publishedReader.read(dimensionKey, TextQuerySupport.trimToNull(pageKey), sourceInstanceId,
+          selection -> forSelection(selection, dimensionKey, pageKey).listValues(dimensionKey, pageKey, sourceInstanceId, keyword, page, size));
+    }
 
     List<OptionItemResponse> options = loadOptions(dimensionKey, TextQuerySupport.trimToNull(pageKey), sourceInstanceId);
     List<LabelValueResponse> values =
@@ -79,6 +97,17 @@ public class LabelValueQueryService {
     int from = Math.min((safePage - 1) * safeSize, values.size());
     int to = Math.min(from + safeSize, values.size());
     return new LabelValuePageResponse(values.subList(from, to), values.size(), safePage, safeSize);
+  }
+
+  private LabelValueQueryService forSelection(com.data.collection.platform.entity.read.ReadSelection selection, String dimension, String page) {
+    var dataset = selection instanceof com.data.collection.platform.entity.read.DatasetReadSelection value ? value : null;
+    var facts = dataset == null ? (com.data.collection.platform.entity.read.FactReadSelection) selection : dataset.facts();
+    boolean mirror = mirrorValueLoaders.containsKey(dimension);
+    return new LabelValueQueryService(dimensionCatalogService,
+        dataset == null ? mirrorOptionRepository : mirrorOptionRepository.forRead(dataset),
+        dataset == null || mirror || page != null && !REVIEW_PAGE.equals(page) ? reviewDataRecordService : reviewDataRecordService.forRead(dataset),
+        facts == null || mirror || page != null && !ISSUE_PAGE.equals(page) ? systemTestIssueSearchService : systemTestIssueSearchService.forRead(facts),
+        facts == null || mirror || page != null && !CUSTOMER_PAGE.equals(page) ? customerIssueRecordService : customerIssueRecordService.forRead(facts), publishedReader, true);
   }
 
   private List<OptionItemResponse> loadOptions(String dimensionKey, String pageKey, String sourceInstanceId) {

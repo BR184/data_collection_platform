@@ -15,9 +15,25 @@ public class CodeReviewMultiBoardService {
   private final JdbcTemplate jdbcTemplate;
   private final QualityBoardCodeReviewReadSupport codeReviewReadSupport;
 
+
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 完整页面组合下的只读计算对象，保留原公式与排序。 */
+  public CodeReviewMultiBoardService forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new CodeReviewMultiBoardService(this, selection);
+  }
+
+  private CodeReviewMultiBoardService(CodeReviewMultiBoardService factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.codeReviewReadSupport = factory.codeReviewReadSupport.forRead(selection);
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public CodeReviewMultiBoardService(
       JdbcTemplate jdbcTemplate,
       QualityBoardCodeReviewReadSupport codeReviewReadSupport) {
+    this.fixedRead = null;
     this.jdbcTemplate = jdbcTemplate;
     this.codeReviewReadSupport = codeReviewReadSupport;
   }
@@ -49,7 +65,7 @@ public class CodeReviewMultiBoardService {
     LegacyScopeSql scopeSql = legacyScopeSql(readScope);
 
     Map<String, Object> summary =
-        jdbcTemplate.queryForMap(
+        queryForMap(
             """
             select
               count(*) as merge_request_count,
@@ -95,7 +111,7 @@ public class CodeReviewMultiBoardService {
     queryArgs.add(emptyLabel);
     queryArgs.addAll(scopeSql.args());
     List<Map<String, Object>> rows =
-        jdbcTemplate.queryForList(
+        queryForList(
             """
             with scoped as (
               select
@@ -190,4 +206,17 @@ public class CodeReviewMultiBoardService {
   }
 
   private record LegacyScopeSql(String whereClause, List<Object> args) {}
+
+  private <T> java.util.List<T> queryForList(String sql, Class<T> type, Object... args) {
+    return fixedRead == null ? jdbcTemplate.queryForList(sql, type, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForList(fixedRead, sql, type, args);
+  }
+  private java.util.List<java.util.Map<String, Object>> queryForList(String sql, Object... args) {
+    return fixedRead == null ? jdbcTemplate.queryForList(sql, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForList(fixedRead, sql, args);
+  }
+  private java.util.Map<String, Object> queryForMap(String sql, Object... args) {
+    return fixedRead == null ? jdbcTemplate.queryForMap(sql, args)
+        : new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).queryForMap(fixedRead, sql, args);
+  }
 }

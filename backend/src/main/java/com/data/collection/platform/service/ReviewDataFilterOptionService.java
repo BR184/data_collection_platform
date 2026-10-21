@@ -51,6 +51,21 @@ public class ReviewDataFilterOptionService {
   private final ReviewDataMatchModeRecordRepository matchModeRecordRepository;
   private final DropdownOptionFilterService dropdownOptionFilterService;
 
+
+  /** 创建显式固定数据集读取对象，命令和权限仍使用当前权威。 */
+  public ReviewDataFilterOptionService forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new ReviewDataFilterOptionService(this, selection);
+  }
+
+  private ReviewDataFilterOptionService(ReviewDataFilterOptionService factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.mirrorOptionRepository = factory.mirrorOptionRepository.forRead(selection);
+    this.historicalOptionRepository = factory.historicalOptionRepository.forRead(selection);
+    this.matchModeSwitchService = factory.matchModeSwitchService.forRead(selection);
+    this.matchModeRecordRepository = factory.matchModeRecordRepository.forRead(selection);
+    this.dropdownOptionFilterService = factory.dropdownOptionFilterService;
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public ReviewDataFilterOptionService(
       ReviewDataMirrorOptionRepository mirrorOptionRepository,
       ReviewDataHistoricalOptionRepository historicalOptionRepository,

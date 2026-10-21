@@ -33,6 +33,7 @@ class FactRefreshTaskWorkerServiceTest {
   private SyncRunEventRecorder eventRecorder;
   private GitlabMirrorProperties properties;
   private FactRefreshTaskWorkerService workerService;
+  private com.data.collection.platform.entity.read.FactRevisionTarget target;
 
   @BeforeEach
   void setUp() {
@@ -44,6 +45,7 @@ class FactRefreshTaskWorkerServiceTest {
     publicationStateService = mock(SyncFactPublicationStateService.class);
     eventRecorder = mock(SyncRunEventRecorder.class);
     when(publicationStateService.isReady(anyString(), any(FactType.class))).thenReturn(true);
+    target = FactRevisionFixture.target(com.data.collection.platform.entity.read.PublicationFactTable.ISSUE, "corp-main");
     properties = new GitlabMirrorProperties();
     properties.setSchedulerEnabled(true);
     properties.setHeartbeatTimeoutSeconds(9);
@@ -66,7 +68,8 @@ class FactRefreshTaskWorkerServiceTest {
 
     verify(taskService).recoverTimedOutQueuedTasks();
     verify(taskService).parkOrphanedTasksForManualDecision();
-    verifyNoInteractions(factBuildService, integrationTestFactBuildService, targetPublicationService);
+    verify(targetPublicationService).recoverAbandonedCandidates();
+    verifyNoInteractions(factBuildService, integrationTestFactBuildService);
   }
 
   @Test
@@ -77,14 +80,14 @@ class FactRefreshTaskWorkerServiceTest {
         new FactBuildResponse("corp-main:issue", false, 2, "issues built");
     when(configService.getConfigById(1L)).thenReturn(config);
     invokeTargetedPublication(task, List.of(101L, 102L));
-    when(factBuildService.rebuildIssueFactsByRootIds("corp-main", List.of(101L, 102L)))
+    when(factBuildService.rebuildIssueFactsByRootIds(eq(target), eq(List.of(101L, 102L))))
         .thenReturn(expected);
 
     FactBuildResponse response = workerService.execute(task);
 
     assertThat(response).isSameAs(expected);
     verify(factBuildService)
-        .rebuildIssueFactsByRootIds("corp-main", List.of(101L, 102L));
+        .rebuildIssueFactsByRootIds(eq(target), eq(List.of(101L, 102L)));
     verify(targetPublicationService).publish(eq(task), any());
   }
 
@@ -96,13 +99,13 @@ class FactRefreshTaskWorkerServiceTest {
         new FactBuildResponse("corp-main:integration-test", true, 8, "integration built");
     when(configService.getConfigById(1L)).thenReturn(config);
     invokeFullPublication(task);
-    when(integrationTestFactBuildService.rebuildFactsForConfig(config, true))
+    when(integrationTestFactBuildService.rebuildFactsForConfig(config, target, true))
         .thenReturn(expected);
 
     FactBuildResponse response = workerService.execute(task);
 
     assertThat(response).isSameAs(expected);
-    verify(integrationTestFactBuildService).rebuildFactsForConfig(config, true);
+    verify(integrationTestFactBuildService).rebuildFactsForConfig(config, target, true);
     verify(targetPublicationService).publishFull(eq(task), any());
   }
 
@@ -125,6 +128,7 @@ class FactRefreshTaskWorkerServiceTest {
     QueuedFactBuildTask task = targetedTask(13L, "ISSUE");
     when(configService.getConfigById(1L)).thenReturn(config);
     when(publicationStateService.isReady("corp-main", FactType.ISSUE)).thenReturn(false);
+    when(taskService.hasUnpublishedOwnedRoots(task)).thenReturn(true);
 
     FactBuildResponse response = workerService.execute(task);
 
@@ -144,13 +148,26 @@ class FactRefreshTaskWorkerServiceTest {
     verify(taskService, never()).parkOrphanedTasksForManualDecision();
   }
 
+  @Test
+  void test_already_covered_incremental_task_finishes_without_reading_source() {
+    QueuedFactBuildTask task = targetedTask(14L, "ISSUE");
+    when(configService.getConfigById(1L)).thenReturn(config());
+    when(publicationStateService.isReady("corp-main", FactType.ISSUE)).thenReturn(false);
+    when(taskService.hasUnpublishedOwnedRoots(task)).thenReturn(false);
+    FactBuildResponse covered = new FactBuildResponse("corp-main:issue", false, 0, "covered");
+    when(targetPublicationService.completeCoveredTask(task)).thenReturn(covered);
+    assertThat(workerService.execute(task)).isSameAs(covered);
+    verify(taskService, never()).deferOwnedTask(any(), org.mockito.ArgumentMatchers.anyInt());
+    verifyNoInteractions(factBuildService, integrationTestFactBuildService);
+  }
+
   @SuppressWarnings("unchecked")
   private void invokeTargetedPublication(QueuedFactBuildTask task, List<Long> rootIds) {
     when(targetPublicationService.publish(eq(task), any()))
         .thenAnswer(
             invocation -> {
-              Function<List<Long>, FactBuildResponse> action = invocation.getArgument(1);
-              return action.apply(rootIds);
+              FactTargetPublicationService.FactRevisionAction action = invocation.getArgument(1);
+              return action.apply(target, rootIds);
             });
   }
 
@@ -158,8 +175,8 @@ class FactRefreshTaskWorkerServiceTest {
     when(targetPublicationService.publishFull(eq(task), any()))
         .thenAnswer(
             invocation -> {
-              FactTargetPublicationService.FullFactBuildAction action = invocation.getArgument(1);
-              return action.build(FactBuildProgress.NO_OP);
+              FactTargetPublicationService.FullFactRevisionAction action = invocation.getArgument(1);
+              return action.build(target, FactBuildProgress.NO_OP);
             });
   }
 

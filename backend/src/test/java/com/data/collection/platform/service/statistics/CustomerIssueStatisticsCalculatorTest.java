@@ -17,30 +17,80 @@ import org.junit.jupiter.api.Test;
 /**
  * 客户问题统计计算与指标目录特征测试（S01/S05）。
  *
- * <p>锁定 D/S/N/L/E 资格、F/P/A 差异、比率零分母、周期有效样本与 50 个指标顺序与分组，
+ * <p>锁定 D/S/N/L/E 资格、F/P/A 差异、比率零分母、周期有效样本与 71 个指标顺序与分组，
  * 供实现演进时对照。
  */
 class CustomerIssueStatisticsCalculatorTest {
   private static final LocalDate BUSINESS_DATE = LocalDate.of(2026, 9, 22);
 
   @Test
-  void catalog_hasFiftyMetricsInAttachmentOrder() {
+  void catalog_hasSeventyOneMetricsInAttachmentOrder() {
     List<String> keys = CustomerIssueStatisticMetricCatalog.metricKeys();
-    assertEquals(50, keys.size());
-    assertEquals("defect_total", keys.get(0));
-    assertEquals("defect_delay_ratio", keys.get(5));
-    assertEquals("level1_back", keys.get(6));
-    assertEquals("suggestion_total", keys.get(24));
-    assertEquals("p1_total", keys.get(25));
-    assertEquals("p3_fix_rate", keys.get(39));
-    assertEquals("resp_delay_total", keys.get(43));
-    assertEquals("fix_delay_total", keys.get(47));
-    assertEquals("response_cycle_hours", keys.get(48));
-    assertEquals("resolution_cycle_days", keys.get(49));
+    assertEquals(71, keys.size());
+    assertEquals(List.of(
+        "defect_total", "defect_fixed", "defect_unfixed", "defect_applied_delay",
+        "defect_data_exception", "defect_not_reproduced", "defect_fix_rate",
+        "defect_calibrated_fix_rate", "defect_delay_ratio"), keys.subList(0, 9));
+    // 七组共同的示例排列：申请延期之后为数据异常、未复现；常规修复率之后紧跟校准后修复率。
+    for (String group : List.of("defect", "level1", "level2", "level3", "p1", "p2", "p3")) {
+      int appliedDelay = keys.indexOf(group + "_applied_delay");
+      assertEquals(
+          List.of(group + "_data_exception", group + "_not_reproduced"),
+          keys.subList(appliedDelay + 1, appliedDelay + 3),
+          group + " 组的两类状态计数必须紧随申请延期");
+      int fixRate = keys.indexOf(group + "_fix_rate");
+      assertEquals(
+          group + "_calibrated_fix_rate", keys.get(fixRate + 1),
+          group + " 组的校准率必须紧跟常规修复率");
+    }
+    assertEquals("suggestion_total", keys.get(36));
+    assertEquals("resp_delay_total", keys.get(64));
+    assertEquals("fix_delay_total", keys.get(68));
+    assertEquals("resolution_cycle_days", keys.get(70));
     assertEquals(
         "延期缺陷占比", CustomerIssueStatisticMetricCatalog.require("defect_delay_ratio").label());
-    assertTrue(CustomerIssueStatisticMetricCatalog.isKnown("defect_delay_ratio"));
-    assertFalse(CustomerIssueStatisticMetricCatalog.isKnown("defect_delay_ratio_v2"));
+    assertTrue(CustomerIssueStatisticMetricCatalog.isKnown("p3_calibrated_fix_rate"));
+    assertFalse(CustomerIssueStatisticMetricCatalog.isKnown("p3_calibrated_fix_rate_v2"));
+  }
+
+  @Test
+  void calibratedMetrics_removeBothExclusionStatesFromBothSides() {
+    Map<String, StatisticCellData> cells = compute(
+        base("已修复/完成、数据异常", "LEVEL1", "P1").build(),
+        base("未复现", "LEVEL1", "P1").build(),
+        base("申请延期", "LEVEL1", "P1").build(),
+        base("已修复/完成", "LEVEL1", "P1").build());
+
+    assertEquals("4", cells.get("defect_total").displayValue());
+    // 普通判据不被校准改写：整体 F 命中 2 条，优先级 P 命中 3 条（未复现本身就是 P 成员）。
+    assertEquals("2", cells.get("defect_fixed").displayValue());
+    assertEquals("3", cells.get("p1_fixed").displayValue());
+    // 两类状态各自命中，不互斥。
+    assertEquals("1", cells.get("defect_data_exception").displayValue());
+    assertEquals("1", cells.get("defect_not_reproduced").displayValue());
+    // 校准分子与分母同时使用 V = {申请延期, 普通已修复}；申请延期不额外剔除。
+    assertEquals("50.00%", cells.get("defect_calibrated_fix_rate").displayValue());
+    assertEquals("50.00%", cells.get("level1_calibrated_fix_rate").displayValue());
+    assertEquals("50.00%", cells.get("p1_calibrated_fix_rate").displayValue());
+    assertEquals(5000L, cells.get("defect_calibrated_fix_rate").numericValue());
+
+    assertTrue(flags(base("申请延期", "LEVEL1", "P1").build()).calibratable());
+    assertFalse(flags(base("数据异常", "LEVEL1", "P1").build()).calibratable());
+    assertFalse(flags(base("未复现", "LEVEL1", "P1").build()).calibratable());
+  }
+
+  @Test
+  void calibratedRate_isUncomputableWhenGroupIsFullyExcluded() {
+    Map<String, StatisticCellData> cells = compute(
+        base("数据异常、未复现", "LEVEL2", "P2").build());
+
+    assertEquals("1", cells.get("defect_total").displayValue());
+    assertEquals("1", cells.get("defect_data_exception").displayValue());
+    assertEquals("1", cells.get("defect_not_reproduced").displayValue());
+    // 同议题命中两类只剔除一次：分母归零而不是负数，零分母为不可计算而非 0%。
+    assertEquals("/", cells.get("defect_calibrated_fix_rate").displayValue());
+    assertNull(cells.get("defect_calibrated_fix_rate").numericValue());
+    assertEquals("100.00%", cells.get("p2_fix_rate").displayValue());
   }
 
   @Test

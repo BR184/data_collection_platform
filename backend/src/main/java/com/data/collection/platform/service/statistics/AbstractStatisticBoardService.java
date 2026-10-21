@@ -16,16 +16,39 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public abstract class AbstractStatisticBoardService implements StatisticBoardWorkbookExportSupport {
+public abstract class AbstractStatisticBoardService implements StatisticBoardWorkbookExportSupport,
+    com.data.collection.platform.service.read.FactReadScoped<AbstractStatisticBoardService> {
   protected static final String DETAIL_KEYWORD_FILTER = "detailKeyword";
   private static final String DETAIL_COLUMN_FILTER_PREFIX = "detailFilter.";
 
   // 统计板基类统一处理定义、筛选解析、明细查询和 CSV 导出。
   // 具体看板只实现领域数据聚合，避免每个看板重复解析高级筛选 JSON。
   private final JsonUtils jsonUtils;
+  private final com.data.collection.platform.entity.read.FactReadSelection factReadSelection;
 
   protected AbstractStatisticBoardService(JsonUtils jsonUtils) {
     this.jsonUtils = jsonUtils;
+    this.factReadSelection = null;
+  }
+
+  /** 创建请求持有的不可变读取对象，共享依赖与业务公式，不改变服务工厂。 */
+  protected AbstractStatisticBoardService(AbstractStatisticBoardService factory,
+      com.data.collection.platform.entity.read.FactReadSelection selection) {
+    this.jsonUtils = factory.jsonUtils;
+    this.factReadSelection = Objects.requireNonNull(selection);
+  }
+
+  /** 数据读取必须由 forRead 创建；无身份的工厂不能执行事实查询。 */
+  protected AbstractStatisticBoardService(AbstractStatisticBoardService factory,
+      com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.jsonUtils = factory.jsonUtils;
+    Objects.requireNonNull(selection, "关系页面必须声明完整读取身份");
+    this.factReadSelection = null;
+  }
+
+  /** 数据读取必须由 forRead 创建；无身份的工厂不能执行事实查询。 */
+  protected final com.data.collection.platform.entity.read.FactReadSelection readSelection() {
+    return Objects.requireNonNull(factReadSelection, "事实读取对象必须持有固定版本身份");
   }
 
   public abstract String boardKey();

@@ -29,8 +29,21 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SystemTestDefectSummaryBoardGoldenMasterTest
     extends AbstractStatisticBoardGoldenMasterTest {
+  private void bindReadDependencyFixtures() {
+    org.mockito.Mockito.lenient().when(labelGroupDefaultFilterService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.ReadSelection.class))).thenReturn(labelGroupDefaultFilterService);
+    org.mockito.Mockito.lenient().when(labelGroupExpansionService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.ReadSelection.class))).thenReturn(labelGroupExpansionService);
+    // 公式单测复用同一数据替身；实际修订隔离由真库读取测试覆盖。
+    org.mockito.Mockito.lenient().when(snapshotRequestFactory.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(snapshotRequestFactory);
+    org.mockito.Mockito.lenient().when(runtimeSupport.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(runtimeSupport);
+    org.mockito.Mockito.lenient().when(phaseCatalogService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(phaseCatalogService);
+    org.mockito.Mockito.lenient().when(phaseScopeResolver.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(phaseScopeResolver);
+    org.mockito.Mockito.lenient().when(issueFactRecordRepository.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(issueFactRecordRepository);
+  }
+
+
 
   @Mock private IssueFactBoardRuntimeSupport runtimeSupport;
+  @Mock private StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
   @Mock private SystemTestPhaseCatalogService phaseCatalogService;
   @Mock private SystemTestPhaseScopeResolver phaseScopeResolver;
   @Mock private LabelGroupDefaultFilterService labelGroupDefaultFilterService;
@@ -39,6 +52,7 @@ class SystemTestDefectSummaryBoardGoldenMasterTest
 
   @BeforeEach
   void setUp() {
+    bindReadDependencyFixtures();
     lenient().when(phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID))
         .thenReturn(List.of("R1"));
     lenient().when(phaseScopeResolver.resolvePhases(
@@ -110,8 +124,8 @@ class SystemTestDefectSummaryBoardGoldenMasterTest
         labelGroupDefaultFilterService,
         labelGroupExpansionService,
         mock(StatisticBoardSnapshotService.class),
-        mock(StatisticBoardSnapshotRequestFactory.class),
-        issueFactRecordRepository);
+        snapshotRequestFactory,
+        issueFactRecordRepository).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
   }
 
   private IssueFactRecord issue(

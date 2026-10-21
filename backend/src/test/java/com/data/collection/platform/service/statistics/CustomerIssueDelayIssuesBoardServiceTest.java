@@ -35,6 +35,13 @@ import org.springframework.jdbc.core.RowMapper;
 
 @ExtendWith(MockitoExtension.class)
 class CustomerIssueDelayIssuesBoardServiceTest {
+  @org.junit.jupiter.api.BeforeEach
+  void bindReadDependencyFixtures() {
+    // 公式单测复用同一数据替身；实际修订隔离由真库读取测试覆盖。
+    org.mockito.Mockito.lenient().when(milestoneCatalogService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(milestoneCatalogService);
+    org.mockito.Mockito.lenient().when(snapshotRequestFactory.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(snapshotRequestFactory);
+  }
+
 
   @Mock private IssueFactQueryService issueFactQueryService;
   @Mock private StatisticIssueLinkSupport issueLinkSupport;
@@ -52,32 +59,35 @@ class CustomerIssueDelayIssuesBoardServiceTest {
     StatisticBoardSnapshotService.SnapshotRequest snapshotRequest =
         new StatisticBoardSnapshotService.SnapshotRequest(
             "customer-issue-delay-issues", "test", "test", StatisticBoardTestSnapshotScopes.defaultProjectScopes(), Map.of(), null, null);
-    when(snapshotRequestFactory.issueRequest(
+    // 下钻可独立于主表缓存发生，因此装配主表链路用的快照替身保持宽松。
+    org.mockito.Mockito.lenient()
+        .when(snapshotRequestFactory.issueRequest(
             anyString(), anyString(), anyString(), anyLong(), any(), anyString(), anyMap(), any(), any()))
         .thenReturn(snapshotRequest);
-    doAnswer(invocation -> ((Function<StatisticBoardSnapshotService.SourceRead, StatisticBoardResponse>)
-                invocation.getArgument(1))
+    org.mockito.Mockito.lenient()
+        .doAnswer(invocation -> ((Function<StatisticBoardSnapshotService.SourceRead, StatisticBoardResponse>)
+                invocation.getArgument(2))
             .apply(StatisticBoardTestSnapshotScopes.testSourceRead()))
         .when(snapshotService)
-        .readOrRefresh(any(), any());
+        .readOrRefresh(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), any(), any());
     doAnswer(
             invocation -> {
-              String sql = invocation.getArgument(0);
+              String sql = invocation.getArgument(1);
               if (sql.contains("coalesce(module_names")) {
-                RowMapper<Object> mapper = invocation.getArgument(2);
+                RowMapper<Object> mapper = invocation.getArgument(3);
                 return List.of(mapper.mapRow(moduleCatalogRow("装配"), 0));
               }
               return List.of();
             })
         .when(issueFactQueryService)
-        .query(anyString(), anyList(), any(RowMapper.class));
+        .query(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(), anyList(), any(RowMapper.class));
   }
 
   @SuppressWarnings("unchecked")
   private void stubFactRows(ResultSet... rows) {
     doAnswer(
             invocation -> {
-              RowMapper<Object> mapper = invocation.getArgument(4);
+              RowMapper<Object> mapper = invocation.getArgument(5);
               List<Object> mapped = new ArrayList<>();
               for (int i = 0; i < rows.length; i++) {
                 mapped.add(mapper.mapRow(rows[i], i));
@@ -85,7 +95,7 @@ class CustomerIssueDelayIssuesBoardServiceTest {
               return mapped;
             })
         .when(issueFactQueryService)
-        .query(anyString(), anyMap(), anyString(), anyList(), any(RowMapper.class));
+        .query(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(), anyMap(), anyString(), anyList(), any(RowMapper.class));
   }
 
   @Test
@@ -161,6 +171,32 @@ class CustomerIssueDelayIssuesBoardServiceTest {
         .containsExactly("P1");
   }
 
+  @Test
+  void test_delayDrilldownState_projectsChineseOpenCloseLabels() throws Exception {
+    ResultSet closedRow = issueRow(1301, "P1", "LEVEL3", "", "功能", true, false);
+    when(closedRow.getString("issue_state")).thenReturn("closed");
+    stubFactRows(issueRow(1300, "P1", "LEVEL3", "", "功能", true, false), closedRow);
+    CustomerIssueDelayIssuesBoardService service = service();
+
+    StatisticDetailResponse detail =
+        service.loadDetail(
+            new StatisticDetailRequest(
+                "customer-issue-delay-issues",
+                "__total__",
+                "resp_delay_sum",
+                1,
+                10,
+                "",
+                "ascending",
+                Map.of()));
+
+    assertThat(detail.total()).as("延期页的关闭判据不变：已关闭议题不进入延期明细").isEqualTo(1);
+    assertThat(detail.records()).extracting(record -> record.get("state"))
+        .as("下钻展示走平台公共中文判据，不再泄漏 GitLab 原始状态")
+        .containsExactly("未关闭");
+    assertThat(detail.quickFilterOptions().get("state")).containsExactly("未关闭");
+  }
+
   private CustomerIssueDelayIssuesBoardService service() {
     return new CustomerIssueDelayIssuesBoardService(
         new JsonUtils(new ObjectMapper()),
@@ -169,7 +205,7 @@ class CustomerIssueDelayIssuesBoardServiceTest {
         issueLinkSupport,
         milestoneCatalogService,
         snapshotService,
-        snapshotRequestFactory);
+        snapshotRequestFactory).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
   }
 
   private ResultSet issue(int iid, String priorityLevel, boolean responseDelayed, boolean resolveDelayed)

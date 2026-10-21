@@ -24,9 +24,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class DatabaseBrowserController {
 
   private final DatabaseBrowserService databaseBrowserService;
+  private final com.data.collection.platform.service.read.ReadViewApplicationService readViews;
 
-  public DatabaseBrowserController(DatabaseBrowserService databaseBrowserService) {
+  public DatabaseBrowserController(DatabaseBrowserService databaseBrowserService,
+      com.data.collection.platform.service.read.ReadViewApplicationService readViews) {
     this.databaseBrowserService = databaseBrowserService;
+    this.readViews = readViews;
   }
 
   @GetMapping("/tables")
@@ -42,7 +45,11 @@ public class DatabaseBrowserController {
       @RequestParam(defaultValue = "20") @Positive int size,
       @RequestParam(required = false) String keyword,
       @RequestParam(required = false) String sortField,
-      @RequestParam(required = false) String sortOrder) {
+      @RequestParam(required = false) String sortOrder, jakarta.servlet.http.HttpServletRequest request) {
+    if (databaseBrowserService.requiresPublishedRead(tableName)) {
+      return readViews.read(request, "database-browser", readViews.parameters(request), selected ->
+          databaseBrowserService.forRead(selected).getTableRows(tableName, page, size, keyword, sortField, sortOrder)).response();
+    }
     return ApiResponse.success(
         databaseBrowserService.getTableRows(tableName, page, size, keyword, sortField, sortOrder));
   }

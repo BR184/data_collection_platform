@@ -41,12 +41,26 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 @ExtendWith(MockitoExtension.class)
 class QuestionMetricsControllerTest {
 
-  @Mock private SystemTestIssueSearchService systemTestIssueSearchService;
-  @Mock private SystemTestIllegalRecordService systemTestIllegalRecordService;
-  @Mock private SystemTestIssueMultiBoardService systemTestIssueMultiBoardService;
+  @Mock(answer = org.mockito.Answers.RETURNS_SELF) private SystemTestIssueSearchService systemTestIssueSearchService;
+  @Mock(answer = org.mockito.Answers.RETURNS_SELF) private SystemTestIllegalRecordService systemTestIllegalRecordService;
+  @Mock(answer = org.mockito.Answers.RETURNS_SELF) private SystemTestIssueMultiBoardService systemTestIssueMultiBoardService;
   @Mock private IssueFactRealtimeRefreshService realtimeRefreshService;
 
   private MockMvc mockMvc;
+
+  @Test
+  void refresh_one_reads_the_response_from_the_bound_complete_view() throws Exception {
+    var bound = org.mockito.Mockito.mock(SystemTestIllegalRecordService.class);
+    when(systemTestIllegalRecordService.forRead(org.mockito.ArgumentMatchers.any())).thenReturn(bound);
+    mockMvc.perform(post("/api/question-metrics/illegal-records/refresh-one")
+            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+            .content("{\"source\":\"default\",\"projectId\":9,\"issueIid\":1}"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.readView.pageKey").value("system-test-illegal-records"));
+    org.mockito.Mockito.verify(bound).findRefreshedRecord("default", 9L, 1L);
+    org.mockito.Mockito.verify(systemTestIllegalRecordService, org.mockito.Mockito.never())
+        .findRefreshedRecord(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+  }
 
   @BeforeEach
   void setUp() {
@@ -57,8 +71,16 @@ class QuestionMetricsControllerTest {
                     systemTestIllegalRecordService,
                     systemTestIssueMultiBoardService,
                     new QuestionMetricsRequestAssembler(new IssueFactRecordListRequestAssembler()),
-                    realtimeRefreshService))
+                    realtimeRefreshService, TestReadViews.boundary()))
             .build();
+  }
+
+  @Test
+  void test_illegal_detail_lookup_keeps_complete_natural_identity() throws Exception {
+    when(systemTestIllegalRecordService.findRecord("second", 9L, 9001L)).thenReturn(null);
+    mockMvc.perform(get("/api/question-metrics/illegal-records/second/9/9001"))
+        .andExpect(status().isOk());
+    org.mockito.Mockito.verify(systemTestIllegalRecordService).findRecord("second", 9L, 9001L);
   }
 
   @Test

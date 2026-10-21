@@ -41,7 +41,6 @@ import com.data.collection.platform.service.statistics.engine.StatisticFieldDesc
 import com.data.collection.platform.service.statistics.engine.StatisticFilterEngine;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -121,6 +120,24 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   private final StatisticBoardSnapshotService snapshotService;
   private final StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
 
+  /** 创建持有显式版本的不可变读取对象；工厂及其它请求不保存或共享该身份。 */
+  @Override
+  public CustomerIssueDelayIssuesBoardService forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new CustomerIssueDelayIssuesBoardService(this, selection);
+  }
+
+  private CustomerIssueDelayIssuesBoardService(CustomerIssueDelayIssuesBoardService factory,
+      com.data.collection.platform.entity.read.FactReadSelection selection) {
+    super(factory, selection);
+    this.issueFactQueryService = factory.issueFactQueryService;
+    this.customerIssueScopeProfile = factory.customerIssueScopeProfile;
+    this.issueLinkSupport = factory.issueLinkSupport;
+    this.milestoneCatalogService = factory.milestoneCatalogService.forRead(selection);
+    this.snapshotService = factory.snapshotService;
+    this.snapshotRequestFactory = factory.snapshotRequestFactory.forRead(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public CustomerIssueDelayIssuesBoardService(
       JsonUtils jsonUtils,
       IssueFactQueryService issueFactQueryService,
@@ -195,7 +212,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       Map<String, String> filters, StatisticFilterGroup filterGroup) {
     StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
     Map<String, String> snapshotFilters = customerSnapshotFilters(filters, effectiveFilterGroup);
-    return snapshotService.readOrRefresh(
+    return snapshotService.readOrRefresh(readSelection(),
         snapshotRequest(snapshotFilters, effectiveFilterGroup, buildDefinition()),
         ignored -> buildBoardResponse(filters, effectiveFilterGroup));
   }
@@ -263,7 +280,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         CustomerIssueSqlScopeSupport.milestoneFilterGroups(milestoneOptions, 3)) {
       StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
       Map<String, String> filters = customerSnapshotFilters(Map.of(), effectiveFilterGroup);
-      snapshotService.save(
+      snapshotService.save(readSelection(),
           snapshotRequest(filters, effectiveFilterGroup, buildDefinition()),
           buildBoardResponse(filters, effectiveFilterGroup));
     }
@@ -475,17 +492,12 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
             and replace(coalesce(illegal_reason, '') || ',' || coalesce(illegal_reasons, ''), ' ', '') not like ?
             """,
             List.of("%" + CustomerIssueDelayRules.GITLAB_API_ERROR + "%"));
-    try {
-      return issueFactQueryService.query(
-          FACT_SQL,
-          scope.filters(),
-          scope.predicate(),
-          scope.args(),
-          this::mapIssueFact);
-    } catch (DataAccessException error) {
-      log.warn("Failed to load customer issue delay facts", error);
-      return List.of();
-    }
+    return issueFactQueryService.query(readSelection(),
+        FACT_SQL,
+        scope.filters(),
+        scope.predicate(),
+        scope.args(),
+        this::mapIssueFact);
   }
 
   private List<StatisticFilterOption> loadMilestoneOptions() {
@@ -495,50 +507,40 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   }
 
   private List<String> loadLegacyModuleCatalog(StatisticFilterGroup filterGroup) {
-    try {
-      Set<String> modules = new LinkedHashSet<>();
-      issueFactQueryService
-          .query(
-              MODULE_CATALOG_SQL,
-              List.of(LEGACY_CC_PRODUCT_PROJECT_ID),
-              (rs, rowNum) -> splitLegacyModuleNames(rs.getString("module_names")))
-          .forEach(values -> values.stream()
-              .filter(moduleName -> StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, filterGroup))
-              .forEach(modules::add));
-      return List.copyOf(modules);
-    } catch (DataAccessException error) {
-      log.warn("Failed to load customer issue delay module catalog", error);
-      return List.of();
-    }
+    Set<String> modules = new LinkedHashSet<>();
+    issueFactQueryService
+        .query(readSelection(),
+            MODULE_CATALOG_SQL,
+            List.of(LEGACY_CC_PRODUCT_PROJECT_ID),
+            (rs, rowNum) -> splitLegacyModuleNames(rs.getString("module_names")))
+        .forEach(values -> values.stream()
+            .filter(moduleName -> StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, filterGroup))
+            .forEach(modules::add));
+    return List.copyOf(modules);
   }
 
   private PersonFilterOptions loadPersonOptions() {
-    try {
-      List<PersonFilterOptions> rows =
-          issueFactQueryService.query(
-              """
-              select
-                (select string_agg(value, E'\n') from (
-                   select distinct nullif(btrim(author_name), '') as value
-                     from issue_fact
-                    where deleted = false and project_id = ?
-                 ) t where value is not null) as author_names,
-                (select string_agg(value, E'\n') from (
-                   select distinct nullif(btrim(assignee_name), '') as value
-                     from issue_fact
-                    where deleted = false and project_id = ?
-                 ) t where value is not null) as assignee_names
-              """,
-              java.util.List.<Object>of(LEGACY_CC_PRODUCT_PROJECT_ID, LEGACY_CC_PRODUCT_PROJECT_ID),
-              (rs, rowNum) ->
-                  new PersonFilterOptions(
-                      personOptions(rs.getString("author_names")),
-                      personOptions(rs.getString("assignee_names"))));
-      return rows.isEmpty() ? PersonFilterOptions.empty() : rows.get(0);
-    } catch (DataAccessException error) {
-      log.debug("Failed to load customer issue person filter options for {}", BOARD_KEY, error);
-      return PersonFilterOptions.empty();
-    }
+    List<PersonFilterOptions> rows =
+        issueFactQueryService.query(readSelection(),
+            """
+            select
+              (select string_agg(value, E'\n') from (
+                 select distinct nullif(btrim(author_name), '') as value
+                   from issue_fact
+                  where deleted = false and project_id = ?
+               ) t where value is not null) as author_names,
+              (select string_agg(value, E'\n') from (
+                 select distinct nullif(btrim(assignee_name), '') as value
+                   from issue_fact
+                  where deleted = false and project_id = ?
+               ) t where value is not null) as assignee_names
+            """,
+            java.util.List.<Object>of(LEGACY_CC_PRODUCT_PROJECT_ID, LEGACY_CC_PRODUCT_PROJECT_ID),
+            (rs, rowNum) ->
+                new PersonFilterOptions(
+                    personOptions(rs.getString("author_names")),
+                    personOptions(rs.getString("assignee_names"))));
+    return rows.isEmpty() ? PersonFilterOptions.empty() : rows.get(0);
   }
 
   private List<StatisticFilterOption> personOptions(String rawValue) {
@@ -618,7 +620,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
           case "iid" -> SortSupport.nullableComparable(IssueSource::iid);
           case "moduleNames" -> SortSupport.nullableString(issue -> String.join("、", issue.displayModuleNames()));
           case "title" -> SortSupport.nullableString(IssueSource::title);
-          case "state" -> SortSupport.nullableString(IssueSource::issueState);
+          case "state" -> SortSupport.nullableComparable(issue -> issue.open() ? 0 : 1);
           case "priorityLevel" -> SortSupport.nullableString(IssueSource::displayPriorityLevel);
           case "delayType" -> SortSupport.nullableString(IssueSource::delayType);
           case "bugStatus" -> SortSupport.nullableString(IssueSource::bugStatus);
@@ -638,7 +640,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         record, issue.sourceInstance(), issue.iid(), issue.projectId(), issue.projectName(), issue.id(), issue.labels());
     record.put("moduleNames", String.join("、", issue.displayModuleNames()));
     record.put("title", issue.title());
-    record.put("state", issue.issueState());
+    record.put("state", issue.open() ? "未关闭" : "已关闭");
     record.put("priorityLevel", issue.displayPriorityLevel());
     record.put("delayType", issue.delayType());
     record.put("bugStatus", issue.bugStatus());

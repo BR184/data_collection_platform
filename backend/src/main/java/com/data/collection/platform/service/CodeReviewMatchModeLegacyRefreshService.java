@@ -33,6 +33,14 @@ public class CodeReviewMatchModeLegacyRefreshService {
         .build();
   }
 
+  /**
+   * 兼容模式下调用老平台重新采集目标 MR，返回后立即替换本地兼容拆分行。
+   *
+   * @param source 来源实例；null 使用 CC，DGM 请求携带老平台要求的切源头
+   * @param mergeRequestIid 来源项目内的正整数 MR 编号
+   * @return 本次导入的兼容记录数，同一 MR 可有多条走查记录
+   * @throws BizException 兼容模式关闭、编号无效或老接口请求失败
+   */
   //兼容模式-MatchMode：短期复用老平台单条 MR 刷新接口，后续独立实现后整体删除。
   public int refreshOne(String source, Long mergeRequestIid) {
     if (!switchService.isEnabled()) {
@@ -41,6 +49,14 @@ public class CodeReviewMatchModeLegacyRefreshService {
     return refreshOneInternal(source, mergeRequestIid, false);
   }
 
+  /**
+   * 为已转正式的老平台数据刷新兼容中间记录，供调用方继续提升为正式事实。
+   *
+   * @param source 来源实例；null 使用 CC，DGM 与兼容入口共用切源协议
+   * @param mergeRequestIid 来源项目内的正整数 MR 编号
+   * @return 本次导入的兼容记录数；本方法不执行正式事实提升
+   * @throws BizException 编号无效或老接口请求失败；不要求兼容模式开启
+   */
   //兼容模式-MatchMode：老平台数据转正式后，正式事实行仍可复用老平台单条刷新。
   public int refreshOneForFormalImport(String source, Long mergeRequestIid) {
     return refreshOneInternal(source, mergeRequestIid, true);
@@ -54,10 +70,14 @@ public class CodeReviewMatchModeLegacyRefreshService {
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(source == null ? "cc" : source);
     URI uri = legacyRefreshUri(config, normalizedSource, mergeRequestIid);
     try {
-      HttpRequest request = HttpRequest.newBuilder(uri)
+      HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(uri)
           .timeout(REQUEST_TIMEOUT)
-          .GET()
-          .build();
+          .GET();
+      //兼容模式-MatchMode：老平台拦截器只按请求头切 GitLab 和数据库，查询参数不负责切源。
+      if ("dgm".equalsIgnoreCase(normalizedSource)) {
+        requestBuilder.header("Data_Source", "DGM");
+      }
+      HttpRequest request = requestBuilder.build();
       HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
       if (response.statusCode() < 200 || response.statusCode() >= 300) {
         throw new BizException("老平台单条刷新失败，HTTP 状态码：" + response.statusCode());

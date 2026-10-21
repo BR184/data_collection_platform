@@ -10769,11 +10769,24 @@
       } ]
     } ],
     "meta" : {
-      "generatedAt" : "2026-09-29T12:44:45.8978597+08:00",
-      "queryDurationMs" : 293,
+      "generatedAt" : "2026-10-15T13:22:45.4638602+08:00",
+      "queryDurationMs" : 757,
       "rowCount" : 27,
       "columnCount" : 39,
       "drilldownColumnCount" : 22
     }
+  },
+  "readView" : {
+    "readContextId" : "<verified-runtime-readContextId>",
+    "pageKey" : "customer-issue-defect-summary",
+    "scopeKey" : "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "sourceVersion" : "<verified-runtime-sourceVersion>",
+    "businessDate" : "2026-09-01",
+    "leaseExpiresAt" : "<verified-runtime-leaseExpiresAt>",
+    "dataAsOf" : "<verified-runtime-dataAsOf>",
+    "pendingUpdates" : 0,
+    "sourceState" : "ATTENTION",
+    "sourceStateDetail" : "独立投影失败或停止，保留上一完整版本",
+    "escalated" : false
   }
 }

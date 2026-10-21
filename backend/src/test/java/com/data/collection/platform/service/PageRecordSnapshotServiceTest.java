@@ -92,12 +92,12 @@ class PageRecordSnapshotServiceTest {
   }
 
   @Test
-  void readOrRefreshServesTheLatestSnapshotWithoutRebuildWhenVersionIsDegraded() {
+  void readOrRefreshUsesOnlyAcceptedVersionEvenWhenLegacyFingerprintIsDegraded() {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     JsonUtils jsonUtils = mock(JsonUtils.class);
-    when(jdbcTemplate.queryForList(anyString(), eq(String.class), any(), any(), any(), any(), any()))
+    when(jdbcTemplate.queryForList(anyString(), eq(String.class), any(), any(), any(), any(), any(), any()))
         .thenReturn(List.of("{\"records\":[]}"));
-    when(jsonUtils.fromJson(anyString(), eq(String.class))).thenReturn("stale-payload");
+    when(jsonUtils.fromJson(anyString(), eq(String.class))).thenReturn("accepted-payload");
     when(jsonUtils.toJson(any())).thenReturn("{}");
     PageRecordSnapshotService service =
         new PageRecordSnapshotService(
@@ -112,12 +112,12 @@ class PageRecordSnapshotServiceTest {
             "review-data-records", "LIST", "all", "review-v6", () -> "degraded-48215", Map.of());
 
     String payload =
-        service.readOrRefresh(request, String.class, () -> {
+        service.readOrRefresh(com.data.collection.platform.service.read.TestReadSelections.all(), request, String.class, () -> {
           supplierInvocations.incrementAndGet();
           return "rebuilt";
         });
 
-    assertThat(payload).isEqualTo("stale-payload");
+    assertThat(payload).isEqualTo("accepted-payload");
     assertThat(supplierInvocations.get()).isZero();
   }
 
@@ -147,7 +147,7 @@ class PageRecordSnapshotServiceTest {
       Future<String> first =
           pool.submit(
               () ->
-                  service.readOrRefresh(
+                  service.readOrRefresh(com.data.collection.platform.service.read.TestReadSelections.all(),
                       request,
                       String.class,
                       () -> {
@@ -172,7 +172,7 @@ class PageRecordSnapshotServiceTest {
               () -> {
                 try {
                   secondResult.set(
-                      service.readOrRefresh(request, String.class, () -> "late-rebuild"));
+                      service.readOrRefresh(com.data.collection.platform.service.read.TestReadSelections.all(), request, String.class, () -> "late-rebuild"));
                 } catch (Throwable error) {
                   secondError.set(error);
                 }
@@ -194,7 +194,7 @@ class PageRecordSnapshotServiceTest {
     }
   }
 
-  /** 来源版本在重建期间保持不动时，重建结果必须按同一版本写入缓存。 */
+  /** 缓存键只取已接受的完整身份，不调用可变来源版本解析器。 */
   @Test
   void rebuildIsCachedWhenSourceVersionStaysTheSame() {
     JdbcTemplate jdbcTemplate = snapshotMissJdbcTemplate();
@@ -204,7 +204,7 @@ class PageRecordSnapshotServiceTest {
     AtomicInteger versionResolutions = new AtomicInteger();
 
     String payload =
-        service.readOrRefresh(
+        service.readOrRefresh(com.data.collection.platform.service.read.TestReadSelections.all(),
             snapshotRequest(
                 () -> versionResolutions.getAndIncrement() == 0 ? "source-v1" : "source-v1"),
             String.class,
@@ -212,19 +212,14 @@ class PageRecordSnapshotServiceTest {
 
     assertThat(payload).isEqualTo("rebuilt");
     assertThat(versionResolutions.get())
-        .as("查缓存前与重建后各解析一次版本，才可能发现检查期间的发布")
-        .isEqualTo(2);
+        .as("完整身份固定，缓存不能再查询当前来源指纹")
+        .isZero();
     verify(jdbcTemplate, times(1)).update(anyString(), any(Object[].class));
   }
 
-  /**
-   * “检查后发布”窄化防护：重建期间来源版本已经推进时，不得把跨代际的结果写进旧版本键。
-   *
-   * <p>本次读取的结果仍然返回（记录页宁可展示更新后的数据），但缓存必须放弃写入，
-   * 由下一次请求按新版本重建；不靠重试或延时掩盖窗口。
-   */
+  /** 当前来源推进不会改写本次固定完整版本的结果或缓存键。 */
   @Test
-  void rebuildResultIsNotCachedWhenSourceVersionMovesDuringRebuild() {
+  void rebuildKeepsAcceptedVersionWhenLatestSourceMovesDuringRebuild() {
     JdbcTemplate jdbcTemplate = snapshotMissJdbcTemplate();
     JsonUtils jsonUtils = mock(JsonUtils.class);
     when(jsonUtils.toJson(any())).thenReturn("{}");
@@ -232,14 +227,15 @@ class PageRecordSnapshotServiceTest {
     AtomicInteger versionResolutions = new AtomicInteger();
 
     String payload =
-        service.readOrRefresh(
+        service.readOrRefresh(com.data.collection.platform.service.read.TestReadSelections.all(),
             snapshotRequest(
                 () -> versionResolutions.getAndIncrement() == 0 ? "source-v1" : "source-v2"),
             String.class,
             () -> "rebuilt");
 
     assertThat(payload).isEqualTo("rebuilt");
-    verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
+    assertThat(versionResolutions.get()).isZero();
+    verify(jdbcTemplate).update(anyString(), any(Object[].class));
   }
 
   /** 未命中缓存的记录快照查询桩：来源版本永远没有可复用的 READY 行。 */
@@ -262,9 +258,12 @@ class PageRecordSnapshotServiceTest {
 
   private static FactProjectionPublicationGuardService publicationGuard(
       JdbcTemplate jdbcTemplate) {
+    when(jdbcTemplate.queryForList(anyString(), eq(java.util.UUID.class), any(), any(), any(), any(), any()))
+        .thenReturn(List.of(new java.util.UUID(0, 1)));
     return new FactProjectionPublicationGuardService(
         jdbcTemplate,
         new FactProjectionExecutionContext(),
+        new com.data.collection.platform.service.read.CandidateCacheArtifactStore(jdbcTemplate),
         mock(org.springframework.transaction.PlatformTransactionManager.class));
   }
 
@@ -347,12 +346,13 @@ class PageRecordSnapshotServiceTest {
         new PageRecordSnapshotService.SnapshotRequest(
             "review-data", "LIST", "all", "review-v1", () -> sourceVersion, java.util.Map.of());
 
-    service.save(request, java.util.Map.of());
+    service.save(com.data.collection.platform.service.read.TestReadSelections.all(), request, java.util.Map.of());
 
     ArgumentCaptor<Object[]> argumentsCaptor = ArgumentCaptor.forClass(Object[].class);
     verify(jdbcTemplate).update(anyString(), argumentsCaptor.capture());
     Object[] arguments = argumentsCaptor.getValue();
-    assertThat(arguments).hasSize(8);
-    assertThat(arguments[4]).isEqualTo(sourceVersion);
+    assertThat(arguments).hasSize(11);
+    assertThat(arguments[4]).isEqualTo(com.data.collection.platform.service.read.TestReadSelections.all().sourceVersion());
+    assertThat(arguments[8]).isEqualTo(com.data.collection.platform.service.read.TestReadSelections.all().primaryPublicationId());
   }
 }

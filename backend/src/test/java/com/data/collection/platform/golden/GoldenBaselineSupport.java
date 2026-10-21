@@ -21,8 +21,12 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -53,6 +57,8 @@ public final class GoldenBaselineSupport {
   private static final Set<String> SYNC_RUN_TERMINAL_STATUSES =
       Set.of("SUCCESS", "PARTIAL_SUCCESS", "FAILED", "CANCELLED", "TIMEOUT", "MERGED");
   private static final ObjectMapper JSON = new ObjectMapper();
+  private static final DateTimeFormatter FROZEN_AT_FORMATTER =
+      DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ssxx");
 
   /** GitLab 源库容器：承载冻结的 schema 与数据切片，平台以 DIRECT 模式只读同步。 */
   public static final PostgreSQLContainer<?> GITLAB_SOURCE =
@@ -87,6 +93,7 @@ public final class GoldenBaselineSupport {
   /** 在平台库导入冻结种子数据；必须在 Flyway 迁移完成后调用。 */
   public static void importPlatformSeed() {
     importFixture(PLATFORM_DB, "platform-seed.sql.gz", List.of("SET search_path = qaflex_test"));
+    importFixture(PLATFORM_DB, "compatibility-completeness.sql.gz", List.of("SET search_path = qaflex_test"));
   }
 
   /**
@@ -155,6 +162,24 @@ public final class GoldenBaselineSupport {
    * @return 基线清单 {@code frozen_at} 的本地日期
    */
   public static LocalDate frozenBusinessDate() {
+    return LocalDate.parse(frozenAtText().split("T", 2)[0]);
+  }
+
+  /**
+   * 冻结夹具时刻的时钟，取自基线清单 {@code frozen_at} 的完整时刻。
+   *
+   * <p>链路口径中存在以“当前时刻”为基准的派生字段（如客户问题滞留小时），沿用系统时钟会让
+   * 快照随运行日历漂移；黄金链路因此用本时钟覆盖生产时钟 Bean。夹具刷新时随新
+   * {@code frozen_at} 自更新，生产环境仍为系统 UTC 时钟。
+   *
+   * @return 固定在基线清单 {@code frozen_at} 时刻的 UTC 时钟
+   */
+  public static Clock frozenClock() {
+    return Clock.fixed(
+        OffsetDateTime.parse(frozenAtText(), FROZEN_AT_FORMATTER).toInstant(), ZoneOffset.UTC);
+  }
+
+  private static String frozenAtText() {
     try (InputStream in = GoldenBaselineSupport.class.getClassLoader()
         .getResourceAsStream("golden-baseline/baseline-manifest.json")) {
       if (in == null) {
@@ -165,7 +190,7 @@ public final class GoldenBaselineSupport {
       if (frozenAt.isBlank()) {
         throw new IllegalStateException("基线清单缺少 frozen_at");
       }
-      return LocalDate.parse(frozenAt.split("T", 2)[0]);
+      return frozenAt;
     } catch (IOException e) {
       throw new UncheckedIOException("读取基线清单失败", e);
     }
@@ -174,6 +199,66 @@ public final class GoldenBaselineSupport {
   private static Connection platformConnection() throws SQLException {
     return DriverManager.getConnection(
         platformJdbcUrl(), PLATFORM_DB.getUsername(), PLATFORM_DB.getPassword());
+  }
+
+  /**
+   * 取消指定生产者类型已注册的周期任务，返回取消个数。
+   *
+   * <p>冻结链路必须在不改变生产调度设置的前提下停止周期生产者：写用例会编辑后再还原定义，
+   * 未暂停的定义刷新工作器会把这种临时测试输入登记成一次额外全量事实重建，改变运行序号并污染读快照。
+   *
+   * <p>Spring 会把 {@code @Scheduled} 方法包进调度包装类（Spring 6.2 为
+   * {@code Task$OutcomeTrackingRunnable}），注册 runnable 并不总是 {@code ScheduledMethodRunnable}，
+   * 因此必须沿包装链解出真实目标再按类型匹配，不能只做一层 {@code instanceof}。
+   *
+   * @param schedules 已注册周期任务的处理器
+   * @param producer 目标生产者类型
+   * @return 实际取消的任务数
+   */
+  public static int pauseScheduledProducer(
+      org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor schedules,
+      Class<?> producer) {
+    java.util.concurrent.atomic.AtomicInteger cancelled = new java.util.concurrent.atomic.AtomicInteger();
+    for (org.springframework.scheduling.config.ScheduledTask task : schedules.getScheduledTasks()) {
+      Object target = scheduledMethodTarget(task.getTask().getRunnable());
+      if (target != null && producer.isInstance(target)) {
+        task.cancel(false);
+        cancelled.incrementAndGet();
+      }
+    }
+    return cancelled.get();
+  }
+
+  /** 沿调度包装链解出 {@code @Scheduled} 方法的真实目标；非方法任务返回 null。 */
+  private static Object scheduledMethodTarget(Runnable runnable) {
+    Object current = runnable;
+    for (int depth = 0; depth < 5 && current != null; depth++) {
+      if (current instanceof org.springframework.scheduling.support.ScheduledMethodRunnable method) {
+        return method.getTarget();
+      }
+      current = firstRunnableDelegate(current);
+    }
+    return null;
+  }
+
+  /** 取包装器持有的第一个非静态 Runnable 字段；用于穿透不暴露访问器的 Spring 调度包装类。 */
+  private static Object firstRunnableDelegate(Object wrapper) {
+    for (Class<?> type = wrapper.getClass(); type != null && type != Object.class;
+        type = type.getSuperclass()) {
+      for (java.lang.reflect.Field field : type.getDeclaredFields()) {
+        if (java.lang.reflect.Modifier.isStatic(field.getModifiers())
+            || !Runnable.class.isAssignableFrom(field.getType())) {
+          continue;
+        }
+        try {
+          field.setAccessible(true);
+          return field.get(wrapper);
+        } catch (ReflectiveOperationException error) {
+          throw new IllegalStateException("无法解开调度包装 runnable: " + type.getName(), error);
+        }
+      }
+    }
+    return null;
   }
 
   private static void importFixture(
@@ -361,14 +446,14 @@ public final class GoldenBaselineSupport {
       return parseSuccess(exchange("POST", path, body));
     }
 
-    /** GET 并返回完整响应体文本（仅校验 HTTP 200；快照器负责比对完整 ApiResponse 结构）。 */
-    public String getRawJson(String path) throws IOException, InterruptedException {
-      return requireBodyOk(exchange("GET", path, null));
+    /** GET 核验目录声明的精确 HTTP 状态，返回完整 ApiResponse；首次无完整点的业务拒绝也须锁定。 */
+    public String getRawJson(String path, int expectedStatus) throws IOException, InterruptedException {
+      return requireBodyStatus(exchange("GET", path, null), expectedStatus);
     }
 
-    /** POST 并返回完整响应体文本（仅校验 HTTP 200）。 */
-    public String postRawJson(String path, String body) throws IOException, InterruptedException {
-      return requireBodyOk(exchange("POST", path, body));
+    /** POST 核验目录声明的精确 HTTP 状态并返回完整响应体；不会接受未声明的拒绝或 5xx。 */
+    public String postRawJson(String path, String body, int expectedStatus) throws IOException, InterruptedException {
+      return requireBodyStatus(exchange("POST", path, body), expectedStatus);
     }
 
     /**
@@ -422,8 +507,10 @@ public final class GoldenBaselineSupport {
       return data.isMissingNode() || data.isNull() ? null : data;
     }
 
-    private static String requireBodyOk(HttpResponse<String> response) {
-      requireOk(response.statusCode(), response.body());
+    private static String requireBodyStatus(HttpResponse<String> response, int expectedStatus) {
+      if (response.statusCode() != expectedStatus) {
+        throw new IllegalStateException("HTTP " + response.statusCode() + "，expected=" + expectedStatus + " " + truncate(response.body()));
+      }
       return response.body();
     }
 

@@ -5,10 +5,10 @@
   "data" : {
     "pageKey" : "system-test",
     "status" : "READY",
-    "sourceVersion" : "fact-projection:v1:298f14a6ba81ce31f479978433f182084ebb0b73d82e9f8176f52e705498def9|label-group:2026-09-29T12:43:44.541446",
-    "snapshotId" : "fact-projection:v1:298f14a6ba81ce31f479978433f182084ebb0b73d82e9f8176f52e705498def9|label-group:2026-09-29T12:43:44.541446",
+    "sourceVersion" : "<verified-runtime-sourceVersion>",
+    "snapshotId" : "publication:70fe7508d14328b1f195eaca5a459249e7f3e514747d58ae61b832087c9c0f38",
     "ruleVersion" : "bi-system-test-v3",
-    "generatedAt" : "2026-09-29T12:47:50.1159128+08:00",
+    "generatedAt" : "2026-10-15T13:28:32.7883917+08:00",
     "sections" : [ {
       "key" : "source-consistency",
       "label" : "来源一致性",
@@ -727,5 +727,18 @@
         "openCount" : 0
       } ]
     }
+  },
+  "readView" : {
+    "readContextId" : "<verified-runtime-readContextId>",
+    "pageKey" : "bi:system-test",
+    "scopeKey" : "2e207cd085864aa3b5d8e4b880623461a0b7e4b8c0f6329a97111a555f46c339",
+    "sourceVersion" : "<verified-runtime-sourceVersion>",
+    "businessDate" : "2026-09-01",
+    "leaseExpiresAt" : "<verified-runtime-leaseExpiresAt>",
+    "dataAsOf" : "<verified-runtime-dataAsOf>",
+    "pendingUpdates" : 0,
+    "sourceState" : "ATTENTION",
+    "sourceStateDetail" : "独立投影失败或停止，保留上一完整版本",
+    "escalated" : false
   }
 }

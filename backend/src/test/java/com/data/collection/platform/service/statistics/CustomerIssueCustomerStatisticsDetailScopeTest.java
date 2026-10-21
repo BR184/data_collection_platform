@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.IssueFact;
+import com.data.collection.platform.entity.read.FactRevisionTarget;
+import com.data.collection.platform.entity.read.PublicationFactTable;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
@@ -24,6 +26,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,7 +63,6 @@ class CustomerIssueCustomerStatisticsDetailScopeTest {
   private static final String MISSING_CUSTOMER_LABEL = "未标注客户";
   private static final String BUSINESS_DATE = "2026-09-22";
   private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 5, 6, 9, 0);
-
   @Autowired private JdbcTemplate jdbcTemplate;
   @Autowired private IssueFactMapper issueFactMapper;
   @Autowired private IssueFactPersistenceService issueFactPersistenceService;
@@ -70,9 +72,15 @@ class CustomerIssueCustomerStatisticsDetailScopeTest {
 
   private Long probeCatalogId;
 
+  private CustomerIssueCustomerStatisticsBoardService publishedService() {
+    return service.forRead(com.data.collection.platform.service.FactRevisionFixture.currentPublishedSelection(
+        jdbcTemplate, PublicationFactTable.ISSUE));
+  }
+
   @BeforeEach
   void setUp() {
     cleanUp();
+    jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
     insertProbeGroup();
     upsertPublicationState();
     LabelEventHistoryTestSupport.markComplete(jdbcTemplate, PROBE_SOURCE);
@@ -153,7 +161,7 @@ class CustomerIssueCustomerStatisticsDetailScopeTest {
   void rejectsInvalidKindsOnBoardAndOnTotalDrilldownForEveryMemberDimension() {
     for (String member : List.of("customer", "module", "function")) {
       String kind = member + "Kind";
-      assertThatThrownBy(() -> service.loadBoard(Map.of(kind, "FUTURE")))
+      assertThatThrownBy(() -> publishedService().loadBoard(Map.of(kind, "FUTURE")))
           .as("主表拒绝 %s 的未知 kind", member)
           .isInstanceOf(IllegalArgumentException.class);
     }
@@ -174,7 +182,7 @@ class CustomerIssueCustomerStatisticsDetailScopeTest {
               "descending",
               filters);
 
-      assertThatThrownBy(() -> service.loadDetail(request))
+      assertThatThrownBy(() -> publishedService().loadDetail(request))
           .as("總計下鑽拒絕 %s 的未知 kind", member)
           .isInstanceOf(IllegalArgumentException.class);
     }
@@ -290,7 +298,7 @@ class CustomerIssueCustomerStatisticsDetailScopeTest {
             "descending",
             detailFilters(cell, "COUNTED", false));
 
-    assertThatThrownBy(() -> service.loadDetail(request))
+    assertThatThrownBy(() -> publishedService().loadDetail(request))
         .isInstanceOf(BizException.class)
         .hasMessageContaining("缺少主表来源版本");
   }
@@ -310,7 +318,7 @@ class CustomerIssueCustomerStatisticsDetailScopeTest {
 
     assertThatThrownBy(
             () ->
-                service.loadDetail(
+                publishedService().loadDetail(
                     new StatisticDetailRequest(
                         CustomerIssueCustomerStatisticsBoardService.BOARD_KEY,
                         filters.get("rowKey"),
@@ -327,19 +335,19 @@ class CustomerIssueCustomerStatisticsDetailScopeTest {
   /** 同一批事实的窄事实读取必须与页面口径一致：这是"候选来自同一事实源"的地基。 */
   @Test
   void narrowFactReadAgreesWithBoardScope() {
-    List<CustomerIssueFact> all = factQueryService.load(baseRequest("ALL", null, "ALL", null, "ALL", null));
+    List<CustomerIssueFact> all = factQueryService.forRead(com.data.collection.platform.service.FactRevisionFixture.currentPublishedSelection(jdbcTemplate, PublicationFactTable.ISSUE)).load(baseRequest("ALL", null, "ALL", null, "ALL", null));
     assertThat(all).hasSize(5);
 
     List<CustomerIssueFact> onlyA =
-        factQueryService.load(baseRequest("VALUE", CUSTOMER_A, "ALL", null, "ALL", null));
+        factQueryService.forRead(com.data.collection.platform.service.FactRevisionFixture.currentPublishedSelection(jdbcTemplate, PublicationFactTable.ISSUE)).load(baseRequest("VALUE", CUSTOMER_A, "ALL", null, "ALL", null));
     assertThat(onlyA).extracting(CustomerIssueFact::issueIid).containsExactlyInAnyOrder(1L, 2L, 3L);
 
     List<CustomerIssueFact> missingCustomer =
-        factQueryService.load(baseRequest("MISSING", null, "ALL", null, "ALL", null));
+        factQueryService.forRead(com.data.collection.platform.service.FactRevisionFixture.currentPublishedSelection(jdbcTemplate, PublicationFactTable.ISSUE)).load(baseRequest("MISSING", null, "ALL", null, "ALL", null));
     assertThat(missingCustomer).as("本夹具每条议题都有客户成员").isEmpty();
 
     List<CustomerIssueFact> moduleB =
-        factQueryService.load(baseRequest("ALL", null, "VALUE", MODULE_B, "ALL", null));
+        factQueryService.forRead(com.data.collection.platform.service.FactRevisionFixture.currentPublishedSelection(jdbcTemplate, PublicationFactTable.ISSUE)).load(baseRequest("ALL", null, "VALUE", MODULE_B, "ALL", null));
     assertThat(moduleB).extracting(CustomerIssueFact::issueIid).containsExactlyInAnyOrder(2L, 3L, 4L);
   }
 
@@ -403,13 +411,13 @@ class CustomerIssueCustomerStatisticsDetailScopeTest {
     filters.put("sourceInstance", PROBE_SOURCE);
     filters.put("filterGroup", milestoneFilterGroupJson());
     filters.putAll(control);
-    return service.loadBoard(filters);
+    return publishedService().loadBoard(filters);
   }
 
   private StatisticDetailResponse loadDetail(
       StatisticBoardResponse board, StatisticRowData row, String columnKey, String population) {
     StatisticCellData cell = metricCell(row, columnKey);
-    return service.loadDetail(
+    return publishedService().loadDetail(
         new StatisticDetailRequest(
             CustomerIssueCustomerStatisticsBoardService.BOARD_KEY,
             cell.detailParams().get("rowKey"),
@@ -525,19 +533,28 @@ class CustomerIssueCustomerStatisticsDetailScopeTest {
     return probeCatalogId;
   }
 
-  /** 走 {@code IssueFactMapper.upsert} 写入事实与批量入口写入客户成员，两条生产写路径都被覆盖。 */
+  /** 走 {@code IssueFactMapper.batchUpsert} 写入候选修订，再由持久化协作者把客户成员绑定到同一修订。 */
   private void insertIssue(long sequence, String customers, String modules, String function, String bugStatus) {
     IssueFact fact = baseFact(sequence, modules, function, bugStatus);
     fact.setResearchTemplateTime(CREATED_AT.plusHours(2));
     if ("已修复".equals(bugStatus)) {
       fact.setFixedLabelTime(CREATED_AT.plusDays(sequence));
     }
-    issueFactMapper.upsert(fact);
-    if (customers == null) {
-      return;
-    }
     fact.setCustomerNames(customers);
-    issueFactPersistenceService.upsertIssueFacts(List.of(fact));
+    var key = com.data.collection.platform.entity.read.ReadPublicationDomainKey.gitlabFact(PROBE_SOURCE,
+        com.data.collection.platform.entity.FactType.ISSUE);
+    boolean full = new com.data.collection.platform.service.read.ReadPublicationRepository(jdbcTemplate)
+        .findDomain(key).map(domain -> domain.currentPublicationId()).isEmpty();
+    com.data.collection.platform.service.FactRevisionFixture.publishFacts(jdbcTemplate,
+        PublicationFactTable.ISSUE, PROBE_SOURCE, full, target -> {
+          issueFactPersistenceService.upsertIssueFacts(target, List.of(fact));
+          return new com.data.collection.platform.entity.FactBuildResponse("fixture", full, 1, "fixture");
+        });
+    com.data.collection.platform.service.FactRevisionFixture.advanceScopeVersion(jdbcTemplate, PROBE_SOURCE,
+        java.util.Set.of(new com.data.collection.platform.entity.FactProjectionScope(PROBE_SOURCE,
+            com.data.collection.platform.entity.FactType.ISSUE,
+            com.data.collection.platform.entity.ProjectionScopeType.FULL_EPOCH,
+            com.data.collection.platform.service.FactProjectionScopeKeyCodec.SINGLETON_SCOPE_KEY)));
   }
 
   private IssueFact baseFact(long sequence, String modules, String function, String bugStatus) {
@@ -632,9 +649,10 @@ class CustomerIssueCustomerStatisticsDetailScopeTest {
   private void cleanUp() {
     jdbcTemplate.update(
         "delete from fact_projection_generations where source_instance = ?", PROBE_SOURCE);
-    jdbcTemplate.update("delete from issue_fact where source_instance = ?", PROBE_SOURCE);
+    // 客户成员关系按外键挂在事实修订上，必须先删关系再删事实。
     jdbcTemplate.update(
         "delete from issue_fact_customer_members where source_instance = ?", PROBE_SOURCE);
+    jdbcTemplate.update("delete from issue_fact where source_instance = ?", PROBE_SOURCE);
     jdbcTemplate.update("delete from issue_scope_members where group_id = ?", PROBE_CONFIG_ID);
     jdbcTemplate.update("delete from issue_scope_groups where id = ?", PROBE_CONFIG_ID);
     if (probeCatalogId != null && probeCatalogCreated()) {

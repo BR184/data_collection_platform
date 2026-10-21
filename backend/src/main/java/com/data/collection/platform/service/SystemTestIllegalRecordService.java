@@ -36,6 +36,24 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   private final SystemTestPhaseCatalogService phaseCatalogService;
   private final PageRecordSnapshotService pageRecordSnapshotService;
 
+  /** 创建持有固定版本的独立读取对象；共享服务仅作为工厂。 */
+  @Override
+  public SystemTestIllegalRecordService forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new SystemTestIllegalRecordService(this, selection);
+  }
+
+  private SystemTestIllegalRecordService(SystemTestIllegalRecordService factory,
+      com.data.collection.platform.entity.read.FactReadSelection selection) {
+    super(factory, selection);
+    this.systemTestScopeProfile = factory.systemTestScopeProfile;
+    this.objectMapper = factory.objectMapper;
+    this.factBuildService = factory.factBuildService;
+    this.phaseScopeResolver = factory.phaseScopeResolver.forRead(selection);
+    this.phaseCatalogService = factory.phaseCatalogService.forRead(selection);
+    this.pageRecordSnapshotService = factory.pageRecordSnapshotService;
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public SystemTestIllegalRecordService(
       IssueFactRecordRepository issueFactRecordRepository,
       SystemTestScopeProfile systemTestScopeProfile,
@@ -56,7 +74,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
 
   public SystemTestIllegalRecordListResponse listRecords(SystemTestIllegalRecordQueryRequest request) {
     SystemTestIllegalRecordQueryRequest safeRequest = withSnapshotDefaults(request);
-    return pageRecordSnapshotService.readOrRefresh(
+    return pageRecordSnapshotService.readOrRefresh(readSelection(),
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_LIST,
             "project:" + defaultProjectId(safeRequest.listRequest().projectId()),
@@ -196,7 +214,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   public SystemTestIllegalRecordFilterOptionsResponse getFilterOptions(Long projectId) {
     Long safeProjectId = defaultProjectId(projectId);
     Map<String, Object> requestPayload = Map.of("projectId", safeProjectId);
-    return pageRecordSnapshotService.readOrRefresh(
+    return pageRecordSnapshotService.readOrRefresh(readSelection(),
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
             "project:" + safeProjectId,
@@ -283,11 +301,17 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
             null));
   }
 
-  public SystemTestIllegalRecordRowResponse refreshSingleRecord(
+  /** 按根提交完整候选；命令与完整点回读由控制器分阶段执行。 */
+  public void refreshSingleRecord(
       String sourceInstance, Long projectId, Long issueIid) {
     Long safeProjectId = defaultProjectId(projectId);
     factBuildService.rebuildIssueFactByIid(sourceInstance, safeProjectId, issueIid);
     pageRecordSnapshotService.invalidatePage(WORKSPACE_KEY);
+  }
+
+  /** 在固定完整点中返回刷新后的非法记录；根已合法或撤回时返回 null。 */
+  public SystemTestIllegalRecordRowResponse findRefreshedRecord(String sourceInstance, Long projectId, Long issueIid) {
+    Long safeProjectId = defaultProjectId(projectId);
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
     return loadScopedIllegalViews(safeProjectId).stream()
         .filter(row -> row.issueIid() != null && row.issueIid().longValue() == issueIid)
@@ -295,6 +319,13 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         .findFirst()
         .map(this::toResponse)
         .orElse(null);
+  }
+
+  /** 按完整根身份恢复已打开详情；已修复非法规则的议题仍可查看，撤回/离开本域返回 null。 */
+  public SystemTestIllegalRecordRowResponse findRecord(String sourceInstance, long projectId, long issueId) {
+    return issueFactRecordRepository.findByIdentity(sourceInstance, projectId, issueId)
+        .filter(view -> systemTestScopeProfile.matches(view.scopeContext()) && !view.excluded())
+        .map(this::toResponse).orElse(null);
   }
 
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Long projectId) {

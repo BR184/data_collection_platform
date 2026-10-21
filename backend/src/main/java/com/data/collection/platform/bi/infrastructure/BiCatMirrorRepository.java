@@ -31,10 +31,28 @@ import org.springframework.transaction.support.TransactionTemplate;
 final class BiCatMirrorRepository {
   private final JdbcTemplate jdbcTemplate;
   private final TransactionTemplate transactionTemplate;
+  private final BiCatReadPublicationService readPublications;
+  private final com.data.collection.platform.entity.read.ReadSelection fixedRead;
 
-  BiCatMirrorRepository(JdbcTemplate jdbcTemplate, TransactionTemplate transactionTemplate) {
+  BiCatMirrorRepository(JdbcTemplate jdbcTemplate, TransactionTemplate transactionTemplate,
+      BiCatReadPublicationService readPublications) {
     this.jdbcTemplate = jdbcTemplate;
     this.transactionTemplate = transactionTemplate;
+    this.readPublications = java.util.Objects.requireNonNull(readPublications);
+    this.fixedRead = null;
+  }
+
+  /** CAT 读取只按已授权的保留快照，当前指针/映射变化不改变这个对象的来源。 */
+  BiCatMirrorRepository forRead(com.data.collection.platform.entity.read.ReadSelection selection) {
+    return new BiCatMirrorRepository(this, selection);
+  }
+
+  private BiCatMirrorRepository(BiCatMirrorRepository factory,
+      com.data.collection.platform.entity.read.ReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.transactionTemplate = factory.transactionTemplate;
+    this.readPublications = factory.readPublications;
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
   }
 
   Config loadConfig() {
@@ -364,27 +382,35 @@ final class BiCatMirrorRepository {
           snapshot.testStage(),
           snapshot.snapshotId(),
           Timestamp.from(publishedAt));
+      long publishedVersion = jdbcTemplate.queryForObject("select published_version from bi_cat_test_publications"
+          + " where product_version_id = ? and test_stage = ?", Long.class, mapping.productVersionId(), snapshot.testStage());
+      readPublications.publishSnapshot(snapshot.snapshotId(), publishedVersion);
     });
   }
 
   Optional<PublishedTestSnapshot> loadPublishedTestSnapshot(
       BiProductVersionScope scope,
       String testStage) {
+    if (!(java.util.Objects.requireNonNull(fixedRead, "CAT 页面必须绑定完整读取身份")
+        instanceof com.data.collection.platform.entity.read.DatasetReadSelection selected)) {
+      throw new IllegalArgumentException("CAT 页面必须绑定本地快照来源");
+    }
+    var contexts = selected.datasets().stream().filter(input -> input.datasetKey().equals("cat:" + scope.id() + ":" + testStage)).toList();
+    if (contexts.size() != 1) { throw new IllegalArgumentException("CAT 读取身份不属于请求产品版本和测试阶段"); }
     List<PublishedHeader> headers = jdbcTemplate.query(
         """
         select snapshot.snapshot_id, publication.published_version, snapshot.data_status,
                snapshot.overall_pass_rate, snapshot.attained_function_count,
                snapshot.total_function_count
-          from bi_cat_scope_mappings mapping
-          join bi_cat_test_publications publication
-            on publication.product_version_id = mapping.product_version_id
-           and publication.test_stage = ?
+          from read_publication_cat_snapshots publication
           join bi_cat_test_snapshots snapshot
             on snapshot.snapshot_id = publication.snapshot_id
-         where mapping.product_version_id = ?
-           and upper(mapping.product_version_key) = upper(?)
+         where publication.publication_id = ? and publication.test_stage = ?
+           and publication.product_version_id = ?
+           and upper(publication.product_version_key) = upper(?)
         """,
         this::mapPublishedHeader,
+        contexts.getFirst().publicationId(),
         testStage,
         scope.id(),
         scope.businessKey());
@@ -536,6 +562,8 @@ final class BiCatMirrorRepository {
                 from bi_cat_test_snapshots
             ) ranked
            where position > ?
+             and not exists(select 1 from read_publication_cat_snapshots ref where ref.snapshot_id = ranked.snapshot_id)
+             and not exists(select 1 from bi_cat_test_publications current where current.snapshot_id = ranked.snapshot_id)
           """,
           UUID.class,
           retainedSnapshotCount);
@@ -544,6 +572,8 @@ final class BiCatMirrorRepository {
           """
           select snapshot_id
             from bi_cat_catalog_snapshots
+           where not exists(select 1 from bi_cat_catalog_publication current
+             where current.snapshot_id = bi_cat_catalog_snapshots.snapshot_id)
            order by published_at desc, snapshot_id desc
           offset ?
           """,

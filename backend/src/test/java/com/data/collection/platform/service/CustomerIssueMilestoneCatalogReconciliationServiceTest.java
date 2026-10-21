@@ -40,6 +40,7 @@ class CustomerIssueMilestoneCatalogReconciliationServiceTest {
     jdbcTemplate.update("delete from issue_scope_groups");
     jdbcTemplate.update("delete from issue_scope_catalogs");
     jdbcTemplate.update("delete from issue_fact");
+    jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
     reconciliationService = new CustomerIssueMilestoneCatalogReconciliationService(jdbcTemplate);
     catalogService = new IssueScopeCatalogService(jdbcTemplate);
   }
@@ -58,7 +59,7 @@ class CustomerIssueMilestoneCatalogReconciliationServiceTest {
     insertFact(3L, 3, "CC2026 R4");
     insertFact(4L, 4, "CC2026 R5");
 
-    assertThat(reconciliationService.reconcilePublishedFactValues()).isOne();
+    assertThat(reconciliationService.reconcileFactValues(FactRevisionFixture.adoptIssueContext(jdbcTemplate))).isOne();
     assertThat(catalogService.requireMemberValues(
             325L, IssueScopeDimension.MILESTONE, "CC2026R3"))
         .containsExactly("CC2026R3", "CC2026 R3");
@@ -86,7 +87,7 @@ class CustomerIssueMilestoneCatalogReconciliationServiceTest {
     insertFact(3L, 3, "cc2026r3");
     insertFact(4L, 4, "客户专项版本");
 
-    assertThat(reconciliationService.reconcilePublishedFactValues()).isEqualTo(3);
+    assertThat(reconciliationService.reconcileFactValues(FactRevisionFixture.adoptIssueContext(jdbcTemplate))).isEqualTo(3);
     assertThat(jdbcTemplate.queryForObject(
             "select count(*) from issue_scope_groups where catalog_id = ?",
             Integer.class,
@@ -113,7 +114,7 @@ class CustomerIssueMilestoneCatalogReconciliationServiceTest {
     insertGroup(catalogId, "CC2026R3", false, 1);
     insertFact(1L, 1, "CC2026 R3");
 
-    assertThat(reconciliationService.reconcilePublishedFactValues()).isZero();
+    assertThat(reconciliationService.reconcileFactValues(FactRevisionFixture.adoptIssueContext(jdbcTemplate))).isZero();
     assertThat(jdbcTemplate.queryForObject(
             "select count(*) from issue_scope_members where catalog_id = ?",
             Integer.class,

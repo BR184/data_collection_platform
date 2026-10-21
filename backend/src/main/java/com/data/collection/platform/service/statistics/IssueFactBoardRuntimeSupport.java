@@ -27,6 +27,12 @@ public class IssueFactBoardRuntimeSupport {
     this.realtimeIncrementalRefreshService = realtimeIncrementalRefreshService;
   }
 
+  /** 版本化读取只绑定事实仓储，实时运行状态及刷新提交继续使用当前控制面。 */
+  public IssueFactBoardRuntimeSupport forRead(com.data.collection.platform.entity.read.FactReadSelection selection) {
+    return new IssueFactBoardRuntimeSupport(issueFactRecordRepository.forRead(selection),
+        realtimeWorkspaceService, realtimeIncrementalRefreshService);
+  }
+
   public List<StatisticIssueFactSource> loadFacts(
       Map<String, String> filters,
       Predicate<StatisticIssueFactSource> predicate) {

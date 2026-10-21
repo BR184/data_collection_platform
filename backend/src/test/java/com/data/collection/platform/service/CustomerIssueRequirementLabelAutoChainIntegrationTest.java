@@ -8,10 +8,15 @@ import com.data.collection.platform.entity.SourceCursorStrategy;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.WhitelistMode;
+import com.data.collection.platform.entity.read.ReadPublicationDomainKey;
 import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunType;
 import com.data.collection.platform.mapper.SyncRunMapper;
+import com.data.collection.platform.service.read.BypassPublicationRequest;
+import com.data.collection.platform.service.read.FactReadVisibility;
+import com.data.collection.platform.service.read.InitialVersionVerification;
+import com.data.collection.platform.service.read.ReadPublicationService;
 import com.data.collection.platform.service.sync.SyncFactPublicationStateService;
 import com.data.collection.platform.service.sync.SyncRunAuthoritativeScopeRepository;
 import com.data.collection.platform.service.sync.SyncRunCompletionEvent;
@@ -20,6 +25,7 @@ import com.data.collection.platform.service.sync.SyncRunTableWorkerService;
 import com.data.collection.platform.service.sync.SyncRunWorkerService;
 import java.net.URI;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -43,8 +49,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * 定向事实发布与投影代际推进，全部由同步执行器驱动；测试全程不调用 {@code rebuildIssueFacts(true)}，
  * 也不手工改写 {@code issue_fact} 的派生列。覆盖标签新增、删除、改名与归属变化四类。
  *
- * <p>唯一的非自动步骤是基线播种：项目/议题 ODS 行与首轮事实由 {@code rebuildIssueFactsByRootIds}
- * 建立，等价于“上一次同步已完成”的既有状态；被验证的变化一律不走该入口。
+ * <p>唯一的非自动步骤是基线播种：项目/议题 ODS 行直接落库，首轮事实由旁路发布链路
+ * （{@code rebuildIssueFactsByRootIds} 在候选修订内构建后发布）建立，等价于“上一次同步已完成”的既有状态；
+ * 被验证的变化一律不走该入口。
  */
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(
@@ -78,6 +85,10 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
   private static final int LABEL_ACTION_REMOVE = 2;
   private static final LocalDateTime BASE_TIME = LocalDateTime.of(2026, 9, 1, 9, 0);
   private static final int STEP_MINUTES = 10;
+  private static final String SEED_SEAL = "{\"seal\":\"auto-chain-seed\"}";
+  /** 事实读取只比较当前生效修订：历史修订仍留在表内，“一条事实”指此刻可见的那条修订。 */
+  private static final String LIVE_REVISION =
+      " and " + FactReadVisibility.liveRevisionPredicate("");
 
   @Container
   private static final PostgreSQLContainer<?> POSTGRES =
@@ -102,6 +113,9 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
   @Autowired private GitlabConfigService configService;
   @Autowired private GitlabMirrorSchemaService mirrorSchemaService;
   @Autowired private FactBuildService factBuildService;
+  @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+  private FactTargetPublicationService factTargetPublicationService;
+  @Autowired private ReadPublicationService readPublicationService;
   @Autowired private SyncRunTableWorkerService tableWorkerService;
   @Autowired private SyncRunWorkerService runWorkerService;
   @Autowired private SyncRunMapper syncRunMapper;
@@ -119,6 +133,23 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
 
   @BeforeEach
   void setUp() {
+    // 此类验证 ODS→事实链路；P3 在本边界由显式成功证明替身承担，生产代码不自动生成该证明。
+    org.mockito.Mockito.doAnswer(invocation -> {
+      com.data.collection.platform.entity.QueuedFactBuildTask task = invocation.getArgument(0);
+      Object result = invocation.callRealMethod();
+      FactRevisionFixture.completeRequiredProjections(jdbcTemplate, factTargetPublicationService,
+          com.data.collection.platform.entity.read.ReadPublicationDomainKey.gitlabFact(task.sourceInstance(),
+              com.data.collection.platform.entity.FactType.valueOf(task.factType())), task.factRunLeaseToken());
+      return result;
+    }).when(factTargetPublicationService).publish(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    org.mockito.Mockito.doAnswer(invocation -> {
+      com.data.collection.platform.entity.QueuedFactBuildTask task = invocation.getArgument(0);
+      Object result = invocation.callRealMethod();
+      FactRevisionFixture.completeRequiredProjections(jdbcTemplate, factTargetPublicationService,
+          com.data.collection.platform.entity.read.ReadPublicationDomainKey.gitlabFact(task.sourceInstance(),
+              com.data.collection.platform.entity.FactType.valueOf(task.factType())), task.factRunLeaseToken());
+      return result;
+    }).when(factTargetPublicationService).publishFull(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     GitlabIssueMirrorFixture.ensureSchema(jdbcTemplate);
     cleanPlatformState();
     step = 0;
@@ -129,10 +160,13 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
     insertCustomerIssueRows();
     establishVerifiedLabelEventHistory();
     establishReadyIssueGeneration();
-    factBuildService.rebuildIssueFactsByRootIds(
-        SOURCE_INSTANCE, List.of(ISSUE_A, ISSUE_B));
+    seedIssueFactsThroughPublication(List.of(ISSUE_A, ISSUE_B));
     assertThat(requirementFlag(ISSUE_A)).isFalse();
     assertThat(requirementFlag(ISSUE_B)).isFalse();
+    readPublicationService.bootstrapInitialVersion(
+        ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.INTEGRATION_TEST),
+        "GITLAB", Instant.now(), SEED_SEAL, 0L,
+        key -> InitialVersionVerification.VerificationResult.accepted());
   }
 
   @AfterEach
@@ -399,13 +433,14 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
   private List<String> issueProjectionRefreshScopes() {
     return jdbcTemplate.queryForList(
         """
-        select scope_type || ':' || scope_key || ':' || status
-          from fact_projection_refresh_tasks
-         where fact_run_id = ? and fact_type = 'ISSUE'
+        select scope_type || ':' || scope_key || ':' || case when prepared_at is not null then 'SUCCESS' else 'PENDING' end
+          from read_publication_scope_generations g join read_publications p on p.id = g.publication_id
+          join read_publication_domains d on d.id = p.domain_id
+         where p.producer_run_id = ? and d.fact_type = 'ISSUE' and p.state = 'PUBLISHED'
          order by scope_type, scope_key
         """,
         String.class,
-        lastFactRunId);
+        String.valueOf(lastFactRunId));
   }
 
   private long changedRowCount(long mirrorRunId) {
@@ -459,6 +494,33 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
             monotonicPrimaryKey ? "MONOTONIC_PRIMARY_KEY" : "INCREMENTAL",
             cursorStrategy.name());
     return requireId(stateId, "同步表状态 " + sourceTable);
+  }
+
+  /**
+   * 基线播种：把当前 ODS 议题经真实发布链路写成首轮已发布修订，等价于“上一次同步已完成”的既有状态。
+   *
+   * <p>域尚无已认证完整基线时增量候选会被拒绝，因此先做初始接管，再在候选内按根构建并发布。
+   */
+  private void seedIssueFactsThroughPublication(List<Long> rootIds) {
+    readPublicationService.bootstrapInitialVersion(
+        ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
+        "GITLAB",
+        Instant.now(),
+        SEED_SEAL,
+        0L,
+        key -> InitialVersionVerification.VerificationResult.accepted());
+    factTargetPublicationService.publishWithinCandidate(
+        new BypassPublicationRequest(
+            ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
+            "GITLAB",
+            SEED_SEAL,
+            0L,
+            "requirement-auto-chain-seed",
+            null,
+            Instant.now(), false),
+        target -> factBuildService.rebuildIssueFactsByRootIds(target, rootIds));
+    FactRevisionFixture.completeRequiredProjections(jdbcTemplate, factTargetPublicationService,
+        ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE), null);
   }
 
   private void establishReadyIssueGeneration() {
@@ -594,7 +656,8 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
         """
         select fixed_label_time from issue_fact
          where source_instance = ? and project_id = ? and issue_id = ?
-        """,
+        """
+            + LIVE_REVISION,
         LocalDateTime.class,
         SOURCE_INSTANCE,
         CUSTOMER_PROJECT_ID,
@@ -783,7 +846,8 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
         """
         select is_customer_requirement from issue_fact
          where source_instance = ? and project_id = ? and issue_id = ?
-        """,
+        """
+            + LIVE_REVISION,
         Boolean.class,
         SOURCE_INSTANCE,
         CUSTOMER_PROJECT_ID,
@@ -796,7 +860,8 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
                 """
                 select count(*) from issue_fact
                  where source_instance = ? and project_id = ? and issue_id = ?
-                """,
+                """
+                    + LIVE_REVISION,
                 Integer.class,
                 SOURCE_INSTANCE,
                 CUSTOMER_PROJECT_ID,
@@ -926,6 +991,7 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
     jdbcTemplate.update("delete from fact_projection_generations");
     jdbcTemplate.update("delete from sync_run_fact_targets");
     jdbcTemplate.update("delete from fact_change_heads");
+    jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
     jdbcTemplate.update("delete from fact_build_tasks");
     jdbcTemplate.update("delete from sync_run_authoritative_scopes");
     jdbcTemplate.update("delete from source_fact_publication_states");

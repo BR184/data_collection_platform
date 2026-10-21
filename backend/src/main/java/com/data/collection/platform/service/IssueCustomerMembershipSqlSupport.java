@@ -43,15 +43,16 @@ final class IssueCustomerMembershipSqlSupport {
               ? Optional.empty()
               : Optional.of(
                   new SqlPredicate(
-                      memberExists("lower(customer_member.customer_name) like ?"),
-                      List.of("%" + normalized.toLowerCase(Locale.ROOT) + "%")));
+                      memberExists("lower(customer_member.customer_name) like ? escape '\\'"),
+                      List.of(LabelGroupFilterOperatorSupport.likeContainsPattern(normalized))));
       case "notContains" ->
           normalized == null
               ? Optional.empty()
               : Optional.of(
                   new SqlPredicate(
-                      "not " + memberExists("lower(customer_member.customer_name) like ?"),
-                      List.of("%" + normalized.toLowerCase(Locale.ROOT) + "%")));
+                      "not "
+                          + memberExists("lower(customer_member.customer_name) like ? escape '\\'"),
+                      List.of(LabelGroupFilterOperatorSupport.likeContainsPattern(normalized))));
       case "isEmpty" -> Optional.of(new SqlPredicate("not " + memberExists("1 = 1"), List.of()));
       case "isNotEmpty" -> Optional.of(new SqlPredicate(memberExists("1 = 1"), List.of()));
       default -> Optional.empty();
@@ -64,6 +65,7 @@ final class IssueCustomerMembershipSqlSupport {
         + " and customer_member.source_instance = issue_fact.source_instance"
         + " and customer_member.project_id = issue_fact.project_id"
         + " and customer_member.issue_id = issue_fact.issue_id"
+        + " and " + com.data.collection.platform.service.read.FactReadVisibility.issueMemberParentPredicate("issue_fact", "customer_member")
         + " and "
         + memberPredicate
         + ")";

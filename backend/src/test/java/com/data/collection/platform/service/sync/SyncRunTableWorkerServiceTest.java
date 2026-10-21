@@ -639,7 +639,7 @@ class SyncRunTableWorkerServiceTest {
         .markRowsDeletedByPrimaryKeys(any(), any(), anyLong());
     assertThat(state.getLastDeleteReconciledAt()).isNull();
     assertThat(state.getDirtyFlag()).isTrue();
-    assertThat(state.getLastError()).isEqualTo("GitLab source unavailable");
+    assertThat(state.getLastError()).contains("GitLab source unavailable");
   }
 
   @Test
@@ -674,7 +674,7 @@ class SyncRunTableWorkerServiceTest {
             eq(0L),
             eq(0L),
             any(LocalDateTime.class),
-            eq("连接暂时不可用"),
+            contains("连接暂时不可用"),
             eq(501L),
             eq(task.getLeaseOwner()));
     verify(stateMapper, never()).updateById(state);

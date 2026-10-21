@@ -25,6 +25,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class CodeReviewIllegalRecordServiceTest {
+  private void bindReadDependencyFixtures() {
+    // 公式单测复用同一数据替身；实际修订隔离由真库读取测试覆盖。
+    org.mockito.Mockito.lenient().when(sourceLoader.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(sourceLoader);
+    org.mockito.Mockito.lenient().when(matchModeRecordLoader.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class))).thenReturn(matchModeRecordLoader);
+    org.mockito.Mockito.lenient().when(matchModeSwitchService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class))).thenReturn(matchModeSwitchService);
+  }
+
 
   @Mock private RealtimeWorkspaceService realtimeWorkspaceService;
   @Mock private RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;
@@ -42,12 +49,13 @@ class CodeReviewIllegalRecordServiceTest {
 
   @BeforeEach
   void setUp() {
+    bindReadDependencyFixtures();
     org.mockito.Mockito.lenient()
         .when(pageRecordSnapshotService.codeReviewSourceVersion())
         .thenReturn("test-code-review-version");
     org.mockito.Mockito.lenient()
-        .when(pageRecordSnapshotService.readOrRefresh(any(), any(), any()))
-        .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(2)).get());
+        .when(pageRecordSnapshotService.readOrRefresh(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class), any(), any(), any()))
+        .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(3)).get());
     service =
         new CodeReviewIllegalRecordService(
             realtimeWorkspaceService,
@@ -64,7 +72,34 @@ class CodeReviewIllegalRecordServiceTest {
             new CodeReviewIllegalRecordExcelExporter(),
             new CodeReviewIllegalRecordFilterOptionAssembler(),
             new CodeReviewIllegalRecordResponseMapper(
-                gitlabResourceLinkService, matchModeSwitchService));
+                gitlabResourceLinkService, matchModeSwitchService)).forRead(com.data.collection.platform.service.read.TestReadSelections.datasets());
+  }
+
+  @Test
+  void shouldReloadExactLegacySplitRowAndKeepOtherSameMrRowSeparate() throws Exception {
+    when(matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()).thenReturn(true);
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var original = source(101L, 12, "CrownCAD", "Merger", "Owner", "module",
+        LocalDateTime.of(2026, 10, 13, 10, 0));
+    var firstTree = mapper.valueToTree(original);
+    ((com.fasterxml.jackson.databind.node.ObjectNode) firstTree).put("legacySourceId", 701L);
+    var first = mapper.treeToValue(firstTree, CodeReviewIllegalRecordSource.class);
+    var secondTree = mapper.valueToTree(original);
+    ((com.fasterxml.jackson.databind.node.ObjectNode) secondTree).put("legacySourceId", 702L);
+    ((com.fasterxml.jackson.databind.node.ObjectNode) secondTree).put("mergeRequestContent", "other split row");
+    var second = mapper.treeToValue(secondTree, CodeReviewIllegalRecordSource.class);
+    when(matchModeRecordLoader.loadSources(any())).thenReturn(List.of(first, second));
+    var selected = service.findRecord("cc", 2001L, 101L, "702");
+    assertThat(selected.legacySourceId()).isEqualTo("702");
+    assertThat(selected.mergeRequestContent()).isEqualTo("other split row");
+    assertThat(service.findRecord("cc", 2001L, 101L, "703")).isNull();
+  }
+
+  @Test
+  void shouldRejectLegacyDetailWithoutStableSplitIdentity() {
+    when(matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()).thenReturn(true);
+    assertThatThrownBy(() -> service.findRecord("cc", 2001L, 101L, null))
+        .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("来源记录身份");
   }
 
   @Test
@@ -467,6 +502,6 @@ class CodeReviewIllegalRecordServiceTest {
         2,
         60,
         "DemoFunction",
-        120);
+        120, null);
   }
 }

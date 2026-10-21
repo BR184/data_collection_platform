@@ -106,12 +106,37 @@ public final class GoldenWriteCaseSupport {
       throws SQLException {
     try (Connection connection = platformConnection()) {
       ArrayNode rows = readRows(connection, table, scope, ignoreColumns.toArray(String[]::new));
+      for (JsonNode row : rows) {
+        canonicalPublicationIdentity(connection, (ObjectNode) row, "created_by_publication_id", false);
+        canonicalPublicationIdentity(connection, (ObjectNode) row, "publication_epoch_id", true);
+      }
       ObjectNode root = JSON.createObjectNode();
       root.put("table", table);
       root.set("rows", rows);
       return JSON.writerWithDefaultPrettyPrinter().writeValueAsString(root);
     } catch (IOException e) {
       throw new UncheckedIOException("序列化表状态快照失败: " + table, e);
+    }
+  }
+
+  /** 修订随机 UUID 转成真实域与代际/序号；保留来源、归属及区间，不丢弃修订谱系断言。 */
+  private static void canonicalPublicationIdentity(Connection connection, ObjectNode row, String field, boolean epoch)
+      throws SQLException {
+    JsonNode value = row.get(field);
+    if (value == null || value.isNull()) { return; }
+    String sql = "select d.producer_kind, d.source_instance, d.fact_type, d.table_key, min(p.sequence_no)"
+        + " from read_publications p join read_publication_domains d on d.id = p.domain_id"
+        + " where p." + (epoch ? "epoch_id" : "id") + " = ?"
+        + " group by d.producer_kind, d.source_instance, d.fact_type, d.table_key";
+    try (var statement = connection.prepareStatement(sql)) {
+      statement.setObject(1, java.util.UUID.fromString(value.asText()));
+      try (var result = statement.executeQuery()) {
+        if (!result.next()) { throw new SQLException("事实修订缺少真实发布谱系：" + field); }
+        String identity = result.getString(1) + "/" + result.getString(2) + "/" + result.getString(3)
+            + "/" + result.getString(4) + (epoch ? "/epoch-start:" : "/sequence:") + result.getLong(5);
+        if (result.next()) { throw new SQLException("事实修订随机身份跨域复用：" + field); }
+        row.put(field, identity);
+      }
     }
   }
 

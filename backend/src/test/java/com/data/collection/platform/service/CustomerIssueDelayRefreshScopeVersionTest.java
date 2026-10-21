@@ -20,8 +20,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * S04 / T25：延期三列定向更新必须推进本范围有效版本，且不伪造更新。
  *
- * <p>延期重算只写 {@code is_response_delayed / response_overdue / is_resolve_delayed} 三列，
- * 不经过发布链路；若不同时推进范围 generation，以来源版本为键的统计快照会继续命中旧 READY 结果。
+ * <p>延期重算复制修订并只替换三列判定；候选构建期间不改变公开 generation，投影完成后统一发布。
+ * 本类使用显式 P3 成功边界替身，发布门禁由 FactTargetPublicationServiceIntegrationTest 保护。
  *
  * <p>断言只用项目范围（无里程碑组时的解析结果），避免依赖目录夹具；写入 0 行时必须零推进。
  */
@@ -35,11 +35,19 @@ class CustomerIssueDelayRefreshScopeVersionTest {
   @Autowired private JdbcTemplate jdbcTemplate;
   @Autowired private FactBuildService factBuildService;
   @Autowired private StatisticBoardSnapshotService snapshotService;
+  @Autowired private FactTargetPublicationService candidatePublisher;
+
+  @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+  private com.data.collection.platform.service.sync.SyncFactPublicationStateService sourceInputQualification;
 
   @BeforeEach
   void setUp() {
+    // 事实组件测试用明确的完整输入替身；默认接管/完整依赖证明另有真库反例保护。
+    org.mockito.Mockito.doReturn(true).when(sourceInputQualification).canBuildReadCandidate(
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(FactType.class));
     GitlabIssueMirrorFixture.ensureSchema(jdbcTemplate);
     cleanUp();
+    jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
   }
 
   @AfterEach
@@ -50,11 +58,15 @@ class CustomerIssueDelayRefreshScopeVersionTest {
   @Test
   void delayRefreshAdvancesScopeVersionOnlyWhenColumnsActuallyChange() {
     insertOpenCustomerIssueWithStaleDelayFlags();
+    FactRevisionFixture.adoptIssueContext(jdbcTemplate);
     String versionBefore = projectScopeVersion();
 
     FactBuildResponse first =
         factBuildService.refreshCustomerIssueDelayFactsForConfig(new GitlabSyncConfig());
 
+    assertThat(projectScopeVersion()).as("候选构建不能提前改变公开范围版本").isEqualTo(versionBefore);
+    FactRevisionFixture.completeRequiredProjections(jdbcTemplate, candidatePublisher,
+        com.data.collection.platform.entity.read.ReadPublicationDomainKey.gitlabFact("default", FactType.ISSUE), null);
     assertThat(first.affectedRows()).as("夹具必须制造出真实的三列变化").isPositive();
     assertThat(projectScopeVersion())
         .as("三列确实变化时必须推进范围版本，否则统计快照继续命中旧结果")
@@ -65,6 +77,8 @@ class CustomerIssueDelayRefreshScopeVersionTest {
     FactBuildResponse second =
         factBuildService.refreshCustomerIssueDelayFactsForConfig(new GitlabSyncConfig());
     assertThat(second.affectedRows()).isZero();
+    FactRevisionFixture.completeRequiredProjections(jdbcTemplate, candidatePublisher,
+        com.data.collection.platform.entity.read.ReadPublicationDomainKey.gitlabFact("default", FactType.ISSUE), null);
     assertThat(projectScopeVersion())
         .as("写入 0 行不得推进范围版本")
         .isEqualTo(versionAfterFirstRefresh);
@@ -72,6 +86,7 @@ class CustomerIssueDelayRefreshScopeVersionTest {
 
   @Test
   void delayRefreshWithoutAnyCustomerIssueDoesNotAdvanceVersion() {
+    FactRevisionFixture.adoptIssueContext(jdbcTemplate);
     String versionBefore = projectScopeVersion();
 
     factBuildService.refreshCustomerIssueDelayFactsForConfig(new GitlabSyncConfig());

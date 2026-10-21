@@ -37,8 +37,23 @@ public class CodeReviewMultiBoardAnalyticsProvider implements AnalyticsDashboard
 
   private final CodeReviewMultiBoardAnalyticsQueryService queryService;
 
+  private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
+
+  /** 绑定同一页面组合，工厂不保存页面状态。 */
+  @Override
+  public CodeReviewMultiBoardAnalyticsProvider forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    return new CodeReviewMultiBoardAnalyticsProvider(this, selection);
+  }
+
+  private CodeReviewMultiBoardAnalyticsProvider(CodeReviewMultiBoardAnalyticsProvider factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
+    this.queryService = factory.queryService.forRead(selection);
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public CodeReviewMultiBoardAnalyticsProvider(
       CodeReviewMultiBoardAnalyticsQueryService queryService) {
+    this.fixedRead = null;
     this.queryService = queryService;
   }
 
@@ -54,7 +69,7 @@ public class CodeReviewMultiBoardAnalyticsProvider implements AnalyticsDashboard
 
   @Override
   public String sourceVersion(AnalyticsDashboardQueryContext context) {
-    return queryService.sourceVersion(projectScope(context));
+    return java.util.Objects.requireNonNull(fixedRead, "分析看板读取必须持有固定页面身份").sourceVersion();
   }
 
   @Override

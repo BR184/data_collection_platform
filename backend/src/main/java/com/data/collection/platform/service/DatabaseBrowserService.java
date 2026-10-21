@@ -28,6 +28,7 @@ public class DatabaseBrowserService {
   private static final String TABLE_KIND_LOCAL = "LOCAL";
   private static final String TABLE_KIND_MIRROR = "MIRROR";
   private static final String TABLE_KIND_SOURCE = "SOURCE";
+  private static final Set<String> FACT_READ_TABLES = Set.of("issue_fact", "merge_request_fact", "integration_test_fact");
   private static final String SOURCE_PREFIX = "source:";
 
   private final JdbcTemplate jdbcTemplate;
@@ -37,7 +38,25 @@ public class DatabaseBrowserService {
   private final GitlabConfigService configService;
   private final SourceMetadataInspector sourceMetadataInspector;
   private final GitlabExternalDbService externalDbService;
+  private final com.data.collection.platform.entity.read.ReadSelection fixedRead;
 
+  /** 创建一次页面读取的固定版本对象；刷新、连接检查和运行状态仍由当前权威处理。 */
+  public DatabaseBrowserService forRead(com.data.collection.platform.entity.read.ReadSelection selection) {
+    return new DatabaseBrowserService(this, selection);
+  }
+
+  private DatabaseBrowserService(DatabaseBrowserService factory, com.data.collection.platform.entity.read.ReadSelection selection) {
+    this.jdbcTemplate = factory.jdbcTemplate;
+    this.registryMapper = factory.registryMapper;
+    this.mirrorTableDefinitionFactory = factory.mirrorTableDefinitionFactory;
+    this.gitlabMirrorSyncService = factory.gitlabMirrorSyncService;
+    this.configService = factory.configService;
+    this.sourceMetadataInspector = factory.sourceMetadataInspector;
+    this.externalDbService = factory.externalDbService;
+    this.fixedRead = java.util.Objects.requireNonNull(selection);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
   public DatabaseBrowserService(
       JdbcTemplate jdbcTemplate,
       GitlabMirrorTableRegistryMapper registryMapper,
@@ -53,6 +72,7 @@ public class DatabaseBrowserService {
     this.configService = configService;
     this.sourceMetadataInspector = sourceMetadataInspector;
     this.externalDbService = externalDbService;
+    this.fixedRead = null;
   }
 
   public List<DatabaseTableOption> listTables() {
@@ -66,7 +86,7 @@ public class DatabaseBrowserService {
             (tableName, definition) ->
                 allTables.put(
                     tableName,
-                    new DatabaseTableOption(tableName, definition.label(), "IDLE", null, TABLE_KIND_LOCAL, false)));
+                    new DatabaseTableOption(tableName, definition.label(), "IDLE", null, TABLE_KIND_LOCAL, false, isVersionedLocal(tableName))));
     listMirrorRegistries()
         .forEach(
             registry -> {
@@ -79,7 +99,7 @@ public class DatabaseBrowserService {
                       syncStatus.status(),
                       syncStatus.lastSyncTime(),
                       TABLE_KIND_MIRROR,
-                      hasMirrorBaseline(registry)));
+                      hasMirrorBaseline(registry), true));
               if (includeSourceTables) {
                 allTables.put(
                     sourceTableKey(registry),
@@ -89,7 +109,7 @@ public class DatabaseBrowserService {
                         syncStatus.status(),
                         syncStatus.lastSyncTime(),
                         TABLE_KIND_SOURCE,
-                        false));
+                        false, false));
               }
             });
     return allTables.values().stream()
@@ -107,7 +127,7 @@ public class DatabaseBrowserService {
     if (isSourceTableKey(tableName)) {
       return getSourceTableRows(tableName, page, size, keyword, sortField, sortOrder);
     }
-    DatabaseBrowserTableContext context = resolveTableContext(tableName);
+    DatabaseBrowserTableContext context = fixedRead == null ? resolveTableContext(tableName) : publishedTableContext(tableName);
     int safePage = DatabaseBrowserQuerySupport.normalizePage(page);
     int safeSize = DatabaseBrowserQuerySupport.normalizeSize(size);
     String validatedSortField =
@@ -124,16 +144,11 @@ public class DatabaseBrowserService {
             validatedSortOrder,
             safePage,
             safeSize);
-    long total =
-        jdbcTemplate.queryForObject(
-            sqlBundle.countSql(),
-            Long.class,
-            sqlBundle.arguments().toArray());
-    List<Map<String, Object>> rows =
-        jdbcTemplate.query(
-            sqlBundle.rowsSql(),
-            DatabaseBrowserRowMapperFactory.createTableRowMapper(context.definition().columns()),
-            sqlBundle.arguments().toArray());
+    com.data.collection.platform.service.read.VersionedFactSql.Query count = bindRead(sqlBundle.countSql(), sqlBundle.arguments());
+    com.data.collection.platform.service.read.VersionedFactSql.Query query = bindRead(sqlBundle.rowsSql(), sqlBundle.arguments());
+    long total = jdbcTemplate.queryForObject(count.sql(), Long.class, count.arguments().toArray());
+    List<Map<String, Object>> rows = jdbcTemplate.query(query.sql(),
+        DatabaseBrowserRowMapperFactory.createTableRowMapper(context.definition().columns()), query.arguments().toArray());
 
     TableSyncStatus syncStatus = resolveTableSyncStatus(context.registry());
     return new DatabaseTableRowsResponse(
@@ -156,6 +171,69 @@ public class DatabaseBrowserService {
 
   public int refreshTable(String tableName) {
     return refreshTableDetailed(tableName).plannedTasks();
+  }
+
+  /** 区分版本化业务内容与当前管理/源库预览；分类由注册目录决定，不能由客户端规避。 */
+  public boolean requiresPublishedRead(String tableName) {
+    if (tableName == null || isSourceTableKey(tableName)) { return false; }
+    if (isVersionedLocal(tableName)) {
+      return true;
+    }
+    return registryMapper.selectCount(new LambdaQueryWrapper<GitlabMirrorTableRegistry>()
+        .eq(GitlabMirrorTableRegistry::getMirrorTableName, tableName)) > 0;
+  }
+
+  private static boolean isVersionedLocal(String tableName) {
+    return FACT_READ_TABLES.contains(tableName) || DatasetProducerCatalog.domainForRelation(tableName).isPresent();
+  }
+
+  private com.data.collection.platform.service.read.VersionedFactSql.Query bindRead(String sql, List<Object> arguments) {
+    if (fixedRead == null) { return new com.data.collection.platform.service.read.VersionedFactSql.Query(sql, arguments); }
+    if (fixedRead instanceof com.data.collection.platform.entity.read.DatasetReadSelection dataset) {
+      return new com.data.collection.platform.service.read.VersionedDatasetSql(jdbcTemplate).bind(dataset, sql, arguments);
+    }
+    return com.data.collection.platform.service.read.VersionedFactSql.bind(
+        (com.data.collection.platform.entity.read.FactReadSelection) fixedRead, sql, arguments);
+  }
+
+  private DatabaseBrowserTableContext publishedTableContext(String tableName) {
+    DatabaseBrowserTableDefinition staticDefinition = DatabaseBrowserTableCatalog.findDefinition(tableName);
+    if (staticDefinition != null) { return new DatabaseBrowserTableContext(staticDefinition, null); }
+    if (!(fixedRead instanceof com.data.collection.platform.entity.read.DatasetReadSelection dataset)) {
+      throw new IllegalArgumentException("镜像浏览必须绑定完整数据集");
+    }
+    List<String> schemas = new ArrayList<>();
+    for (var input : dataset.datasets()) {
+      schemas.addAll(jdbcTemplate.queryForList("select schema_payload::text from read_dataset_tables"
+          + " where publication_id = ? and relation_name = ?", String.class, input.publicationId(), tableName));
+    }
+    if (schemas.size() != 1) { throw new IllegalArgumentException("页面未绑定该镜像表的字段模式"); }
+    List<Map<String, Object>> fields = new com.data.collection.platform.common.JsonUtils(
+        new com.fasterxml.jackson.databind.ObjectMapper()).fromJson(schemas.getFirst(),
+            new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+    List<com.data.collection.platform.entity.database.DatabaseTableColumn> columns = fields.stream()
+        .map(field -> new com.data.collection.platform.entity.database.DatabaseTableColumn(field.get("name").toString(),
+            mirrorColumnLabel(field.get("name").toString()), true)).toList();
+    String sort = columns.stream().anyMatch(column -> column.getKey().equals("mirror_synced_at"))
+        ? "mirror_synced_at" : columns.getFirst().getKey();
+    var registry = registryMapper.selectOne(new LambdaQueryWrapper<GitlabMirrorTableRegistry>()
+        .eq(GitlabMirrorTableRegistry::getMirrorTableName, tableName).last("limit 1"));
+    return new DatabaseBrowserTableContext(new DatabaseBrowserTableDefinition("镜像表 / "
+        + (registry == null ? tableName : registry.getSourceTableName()),
+        columns.stream().map(com.data.collection.platform.entity.database.DatabaseTableColumn::getKey)
+            .filter(name -> !List.of("metadata", "payload", "description_html").contains(name)).limit(6).toList(), columns, sort), registry);
+  }
+
+  private static String mirrorColumnLabel(String name) {
+    return switch (name) {
+      case "mirror_task_id" -> "同步任务 ID";
+      case "source_updated_at" -> "源更新时间";
+      case "mirror_synced_at" -> "镜像时间";
+      case "mirror_deleted" -> "是否删除";
+      default -> java.util.Arrays.stream(name.split("_"))
+          .map(part -> part.substring(0, 1).toUpperCase(java.util.Locale.ROOT) + part.substring(1))
+          .collect(java.util.stream.Collectors.joining(" "));
+    };
   }
 
   public GitlabMirrorSyncService.OnDemandRefreshResult refreshTableDetailed(String tableName) {

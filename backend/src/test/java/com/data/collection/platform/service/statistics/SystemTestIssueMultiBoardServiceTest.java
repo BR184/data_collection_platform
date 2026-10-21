@@ -22,12 +22,14 @@ class SystemTestIssueMultiBoardServiceTest {
   @Test
   void everyChartCarriesRegisteredRulesAndBackendOwnedDrillDownParameters() {
     SystemTestPhaseCatalogService phaseCatalog = mock(SystemTestPhaseCatalogService.class);
+    org.mockito.Mockito.lenient().when(phaseCatalog.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(phaseCatalog);
     SystemTestPhaseScopeResolver phaseResolver = mock(SystemTestPhaseScopeResolver.class);
+    org.mockito.Mockito.lenient().when(phaseResolver.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(phaseResolver);
     when(phaseCatalog.listParentNames(9L)).thenReturn(List.of("CC2026R3"));
     when(phaseResolver.resolvePhases(9L, "CC2026R3"))
         .thenReturn(List.of("CC2026R3系统测试"));
     SystemTestIssueMultiBoardService service = new SystemTestIssueMultiBoardService(
-        new BoardJdbcTemplate(), phaseCatalog, phaseResolver, new ObjectMapper());
+        new BoardJdbcTemplate(), phaseCatalog, phaseResolver, new ObjectMapper()).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
 
     var board = service.getBoard(9L, "CC2026R3");
 
@@ -68,13 +70,15 @@ class SystemTestIssueMultiBoardServiceTest {
   void appliesChartSpecificPhaseMembershipToBoardAndWorkbookRows() throws Exception {
     BoardJdbcTemplate jdbcTemplate = new BoardJdbcTemplate();
     SystemTestPhaseCatalogService phaseCatalog = mock(SystemTestPhaseCatalogService.class);
+    org.mockito.Mockito.lenient().when(phaseCatalog.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(phaseCatalog);
     SystemTestPhaseScopeResolver phaseResolver = mock(SystemTestPhaseScopeResolver.class);
+    org.mockito.Mockito.lenient().when(phaseResolver.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(phaseResolver);
     when(phaseCatalog.listParentNames(9L)).thenReturn(List.of("CC2026R3"));
     when(phaseResolver.resolvePhases(9L, "CC2026R3"))
         .thenReturn(List.of("CC2026R3系统测试"));
     SystemTestIssueMultiBoardService service =
         new SystemTestIssueMultiBoardService(
-            jdbcTemplate, phaseCatalog, phaseResolver, new ObjectMapper());
+            jdbcTemplate, phaseCatalog, phaseResolver, new ObjectMapper()).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
 
     var board = service.getBoard(9L, "CC2026R3");
 
@@ -136,12 +140,14 @@ class SystemTestIssueMultiBoardServiceTest {
 
   private SystemTestIssueMultiBoardService service() {
     SystemTestPhaseCatalogService phaseCatalog = mock(SystemTestPhaseCatalogService.class);
+    org.mockito.Mockito.lenient().when(phaseCatalog.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(phaseCatalog);
     SystemTestPhaseScopeResolver phaseResolver = mock(SystemTestPhaseScopeResolver.class);
+    org.mockito.Mockito.lenient().when(phaseResolver.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(phaseResolver);
     when(phaseCatalog.listParentNames(9L)).thenReturn(List.of("CC2026R3"));
     when(phaseResolver.resolvePhases(9L, "CC2026R3"))
         .thenReturn(List.of("CC2026R3系统测试"));
     return new SystemTestIssueMultiBoardService(
-        new BoardJdbcTemplate(), phaseCatalog, phaseResolver, new ObjectMapper());
+        new BoardJdbcTemplate(), phaseCatalog, phaseResolver, new ObjectMapper()).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
   }
 
   private void assertWorkbook(byte[] content, List<String> sheetNames, List<String>... expectedHeaders)

@@ -544,11 +544,24 @@
       } ]
     } ],
     "meta" : {
-      "generatedAt" : "2026-09-29T12:45:13.3894377+08:00",
-      "queryDurationMs" : 12,
+      "generatedAt" : "2026-10-15T13:22:40.9554956+08:00",
+      "queryDurationMs" : 7,
       "rowCount" : 7,
       "columnCount" : 5,
       "drilldownColumnCount" : 5
     }
+  },
+  "readView" : {
+    "readContextId" : "<verified-runtime-readContextId>",
+    "pageKey" : "system-test-delay-analysis",
+    "scopeKey" : "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "sourceVersion" : "<verified-runtime-sourceVersion>",
+    "businessDate" : "2026-09-01",
+    "leaseExpiresAt" : "<verified-runtime-leaseExpiresAt>",
+    "dataAsOf" : "<verified-runtime-dataAsOf>",
+    "pendingUpdates" : 0,
+    "sourceState" : "ATTENTION",
+    "sourceStateDetail" : "独立投影失败或停止，保留上一完整版本",
+    "escalated" : false
   }
 }

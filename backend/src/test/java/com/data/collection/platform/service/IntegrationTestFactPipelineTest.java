@@ -27,7 +27,7 @@ class IntegrationTestFactPipelineTest {
   void fullBuildParsesLatestLegacyIntegrationNoteIntoFormalFact() {
     insertIntegrationIssue();
 
-    FactBuildResponse response = factBuildService.rebuildFacts(true);
+    FactBuildResponse response = buildFull();
 
     assertThat(response.affectedRows()).isEqualTo(1);
     assertThat(
@@ -38,7 +38,7 @@ class IntegrationTestFactPipelineTest {
                        not_pass_case_now, problem_case, exception_count, pass_rate,
                        legal, parse_status
                   from integration_test_fact
-                 where project_id = 9 and issue_iid = 101
+                 where project_id = 9 and issue_iid = 101 and visible_to is null and visible_from is not null
                 """))
         .containsEntry("source_instance", "default")
         .containsEntry("project_id", 9L)
@@ -60,18 +60,20 @@ class IntegrationTestFactPipelineTest {
   @Test
   void targetedRefreshRemovesStaleFactWhenIntegrationMarkerDisappears() {
     insertIntegrationIssue();
-    factBuildService.rebuildFacts(true);
+    buildFull();
     jdbcTemplate.update(
         "update ods_gitlab_notes set note = '## 普通评论', updated_at = current_timestamp "
             + "where noteable_id = 9001");
 
     FactBuildResponse response =
-        factBuildService.rebuildFactsByRootIds("default", List.of(9001L));
+        FactRevisionFixture.publishFacts(jdbcTemplate,
+            com.data.collection.platform.entity.read.PublicationFactTable.INTEGRATION_TEST, "default", false,
+            target -> factBuildService.rebuildFactsByRootIds(target, List.of(9001L)));
 
     assertThat(response.affectedRows()).isZero();
     assertThat(
             jdbcTemplate.queryForObject(
-                "select count(*) from integration_test_fact where project_id = 9 and issue_iid = 101",
+                "select count(*) from integration_test_fact where project_id = 9 and issue_iid = 101 and visible_to is null and visible_from is not null",
                 Integer.class))
         .isZero();
   }
@@ -79,13 +81,19 @@ class IntegrationTestFactPipelineTest {
   @Test
   void fullBuildReconcilesFactsRemovedFromFormalOdsScope() {
     insertIntegrationIssue();
-    factBuildService.rebuildFacts(true);
+    buildFull();
     jdbcTemplate.update("update ods_gitlab_issues set mirror_deleted = true where id = 9001");
 
-    factBuildService.rebuildFacts(false);
+    buildFull();
 
-    assertThat(jdbcTemplate.queryForObject("select count(*) from integration_test_fact", Integer.class))
+    assertThat(jdbcTemplate.queryForObject("select count(*) from integration_test_fact where visible_to is null and visible_from is not null", Integer.class))
         .isZero();
+  }
+
+  private FactBuildResponse buildFull() {
+    return FactRevisionFixture.publishFacts(jdbcTemplate,
+        com.data.collection.platform.entity.read.PublicationFactTable.INTEGRATION_TEST, "default", true,
+        target -> factBuildService.rebuildFactsForConfig(null, target, true));
   }
 
   private void insertIntegrationIssue() {

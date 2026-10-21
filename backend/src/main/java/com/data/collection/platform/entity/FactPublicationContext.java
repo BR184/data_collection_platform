@@ -9,13 +9,15 @@ public record FactPublicationContext(
     String sourceInstance,
     FactType factType,
     FactPublicationMode mode,
-    Set<FactProjectionScope> affectedScopes) {
+    Set<FactProjectionScope> affectedScopes,
+    com.data.collection.platform.entity.read.FactReadSelection readSelection) {
 
   public FactPublicationContext {
     sourceInstance = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
     if (factType == null || mode == null) {
       throw new IllegalArgumentException("事实发布上下文必须声明事实类型和模式");
     }
+    java.util.Objects.requireNonNull(readSelection, "投影必须声明固定候选/基线读取身份");
     affectedScopes = affectedScopes == null
         ? Set.of()
         : java.util.Collections.unmodifiableSet(new TreeSet<>(affectedScopes));
@@ -27,7 +29,8 @@ public record FactPublicationContext(
     if (consumerFactType == null || factType != consumerFactType) {
       return false;
     }
-    if (mode == FactPublicationMode.FULL) {
+    if (mode == FactPublicationMode.FULL || affectedScopes.stream()
+        .anyMatch(scope -> scope.scopeType() == ProjectionScopeType.GLOBAL_VIEW)) {
       return true;
     }
     return affectedScopes.contains(

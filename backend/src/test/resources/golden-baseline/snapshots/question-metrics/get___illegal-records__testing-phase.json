@@ -9,5 +9,18 @@
     "size" : 20,
     "sortField" : "updatedAt",
     "sortOrder" : "desc"
+  },
+  "readView" : {
+    "readContextId" : "<verified-runtime-readContextId>",
+    "pageKey" : "system-test-illegal-records",
+    "scopeKey" : "bc460c9791d45732eeac12c71bec80b9259b919f4e99b888e2ad795bb0db6a3e",
+    "sourceVersion" : "<verified-runtime-sourceVersion>",
+    "businessDate" : "2026-09-01",
+    "leaseExpiresAt" : "<verified-runtime-leaseExpiresAt>",
+    "dataAsOf" : "<verified-runtime-dataAsOf>",
+    "pendingUpdates" : 0,
+    "sourceState" : "ATTENTION",
+    "sourceStateDetail" : "独立投影失败或停止，保留上一完整版本",
+    "escalated" : false
   }
 }

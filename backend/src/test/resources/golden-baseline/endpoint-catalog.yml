@@ -23,6 +23,41 @@
 # WRITE 的响应快照为 {"httpStatus":N,"body":{...ApiResponse}} 包装（400 校验拒绝同为契约），
 # ignore-paths 一律用 $.body.*。
 endpoints:
+  - method: GET
+    path: /api/customer-issues/records/{sourceInstance}/{projectId}/{issueId}
+    category: READ
+    cases:
+      - id: absent-record-in-complete-view
+        query: sourceInstance=default&projectId=325&issueId=9223372036854775807
+  - method: GET
+    path: /api/customer-issues/illegal-records/{sourceInstance}/{projectId}/{issueId}
+    category: READ
+    cases:
+      - id: absent-record-in-complete-view
+        query: sourceInstance=default&projectId=325&issueId=9223372036854775807
+  - method: GET
+    path: /api/question-metrics/illegal-records/{sourceInstance}/{projectId}/{issueId}
+    category: READ
+    cases:
+      - id: absent-record-in-complete-view
+        query: sourceInstance=default&projectId=9&issueId=9223372036854775807
+  # 页面租约资源依赖当前会话及先前建立的随机读取身份，由真实 PG 租约/HTTP 权限测试覆盖。
+  - method: POST
+    path: /api/read-views
+    category: EXCLUDED
+    exclude-reason: "session: 建立会话所有的页面租约，返回随机身份；业务产出由对应页面端点锁定，租约生命周期由真库测试覆盖"
+  - method: POST
+    path: /api/read-views/{id}/renew
+    category: EXCLUDED
+    exclude-reason: "session: 续约依赖本会话前序建立的随机读取身份，租约和权限边界由真库与 HTTP 测试覆盖"
+  - method: POST
+    path: /api/read-views/{id}/fork
+    category: EXCLUDED
+    exclude-reason: "session: 下钻复制本人完整来源到独立目标页身份，目标权限与来源包含关系重新核验；业务数据由对应读端点锁定，租约与保留期由真库测试覆盖"
+  - method: DELETE
+    path: /api/read-views/{id}
+    category: EXCLUDED
+    exclude-reason: "session: 释放本人会话的页面租约，依赖前序建立的随机身份，不产生业务数据"
   # =====HomeController=====
   - method: GET
     path: /
@@ -181,6 +216,10 @@ endpoints:
         query: dashboardKey=quality-rd&viewKey=integration-test-results
       - id: quality-rd-quality-code-review-records
         query: dashboardKey=quality-rd&viewKey=quality-code-review-records&topic=reviewer-density
+      - id: quality-rd-release-leakage-defects
+        query: dashboardKey=quality-rd&viewKey=release-leakage-defects
+      - id: quality-rd-fix-user-defects
+        query: dashboardKey=quality-rd&viewKey=fix-user-defects
       - id: quality-board-other-function-defect-count
         query: dashboardKey=quality-board-other&viewKey=other-function-defect-count
       - id: code-review-multi-statistics
@@ -219,6 +258,11 @@ endpoints:
   - method: GET
     path: /api/quality-board/other/overview
     category: READ
+    cases:
+      - id: default
+  - method: GET
+    path: /api/quality-board/other/project-options
+    category: OPTIONS
     cases:
       - id: default
   - method: GET
@@ -490,6 +534,17 @@ endpoints:
         query: source=cc
       - id: dgm
         query: source=dgm
+  - method: GET
+    path: /api/code-review/illegal-records/context
+    category: OPTIONS
+    cases:
+      - id: default
+  - method: GET
+    path: /api/code-review/illegal-records/{sourceInstance}/{projectId}/{mergeRequestId}
+    category: READ
+    cases:
+      - id: absent
+        query: sourceInstance=default&projectId=1&mergeRequestId=1&legacySourceId=golden-absent-record
   - method: GET
     path: /api/code-review/illegal-records/filter-options
     category: OPTIONS
@@ -1544,17 +1599,21 @@ endpoints:
         query: productVersionId={{biProductVersionId}}
   - method: GET
     path: /api/bi/unit-test
+    # CAT 未接入且从未有完整点，锁定首次缺产出的真实拒绝；不得造空数据版本。
     category: READ
     ignore-paths: ["$.data.generatedAt", "$.data.sourceVersion", "$.data.snapshotId"]
     cases:
       - id: default
+        expected-http-status: 409
         query: productVersionId={{biProductVersionId}}
   - method: GET
     path: /api/bi/integration-test
+    # 同上，夹具没有 CAT 完整点，不放宽认证或把端点移出覆盖。
     category: READ
     ignore-paths: ["$.data.generatedAt", "$.data.sourceVersion", "$.data.snapshotId"]
     cases:
       - id: default
+        expected-http-status: 409
         query: productVersionId={{biProductVersionId}}
   - method: GET
     path: /api/bi/customer-issues

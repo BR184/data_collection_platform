@@ -9,6 +9,8 @@ import java.util.Set;
 import java.util.Optional;
 
 public interface AnalyticsDashboardProvider {
+  /** 所有业务计算必须持有固定页面闭包；工厂只用于能力登记与当前请求校验。 */
+  AnalyticsDashboardProvider forRead(com.data.collection.platform.entity.read.DatasetReadSelection selection);
   String dashboardKey();
 
   String ruleVersion(AnalyticsDashboardQueryContext context);

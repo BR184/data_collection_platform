@@ -13,4 +13,6 @@ public class DatabaseTableOption {
   private LocalDateTime lastSyncTime;
   private String tableKind;
   private boolean refreshable;
+  /** 业务内容由完整发布点读取；管理/源库预览仍服从当前控制面。 */
+  private boolean publishedReadRequired;
 }

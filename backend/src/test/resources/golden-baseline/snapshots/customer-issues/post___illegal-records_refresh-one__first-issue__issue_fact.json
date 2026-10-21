@@ -93,6 +93,11 @@
     "planned_resolution_text" : "",
     "planned_merge_version_branch" : "",
     "handler_name" : "",
-    "is_customer_requirement" : "f"
+    "is_customer_requirement" : "f",
+    "publication_epoch_id" : "GITLAB_FACT/default/ISSUE//epoch-start:0",
+    "created_by_publication_id" : "GITLAB_FACT/default/ISSUE//sequence:1",
+    "visible_from" : "1",
+    "visible_to" : null,
+    "business_order_id" : "1"
   } ]
 }

@@ -9,6 +9,8 @@ import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.CodeReviewMatchModeDbSettingsResponse;
 import com.data.collection.platform.entity.LegacyPlatformFormalImportRequest;
+import com.data.collection.platform.service.read.ReadPublicationRepository;
+import com.data.collection.platform.service.read.ReadPublicationService;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -22,6 +24,11 @@ import org.springframework.transaction.PlatformTransactionManager;
 class LegacyPlatformFormalImportServiceTest {
   private final CodeReviewMatchModeSyncService mysqlSyncService = mock(CodeReviewMatchModeSyncService.class);
   private final CodeReviewMatchModeConfigService configService = mock(CodeReviewMatchModeConfigService.class);
+  private final FactTargetPublicationService factTargetPublicationService =
+      mock(FactTargetPublicationService.class);
+  private final ReadPublicationService readPublicationService = mock(ReadPublicationService.class);
+  private final ReadPublicationRepository readPublicationRepository =
+      mock(ReadPublicationRepository.class);
   private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
 
   @Test
@@ -39,7 +46,12 @@ class LegacyPlatformFormalImportServiceTest {
         .isInstanceOf(BizException.class)
         .hasMessageContaining("设置已变化");
 
-    verifyNoInteractions(mysqlSyncService, jdbcTemplate);
+    verifyNoInteractions(
+        mysqlSyncService,
+        jdbcTemplate,
+        factTargetPublicationService,
+        readPublicationService,
+        readPublicationRepository);
   }
 
   @Test
@@ -68,6 +80,8 @@ class LegacyPlatformFormalImportServiceTest {
         .hasMessageContaining("正在执行");
 
     verifyNoInteractions(mysqlSyncService);
+    verifyNoInteractions(
+        factTargetPublicationService, readPublicationService, readPublicationRepository);
   }
 
   private LegacyPlatformFormalImportService service() {
@@ -76,6 +90,9 @@ class LegacyPlatformFormalImportServiceTest {
         mock(CodeReviewMatchModeLegacyRefreshService.class),
         configService,
         mock(PageRecordSnapshotService.class),
+        factTargetPublicationService,
+        readPublicationService,
+        readPublicationRepository,
         jdbcTemplate,
         mock(JsonUtils.class),
         mock(PlatformTransactionManager.class));

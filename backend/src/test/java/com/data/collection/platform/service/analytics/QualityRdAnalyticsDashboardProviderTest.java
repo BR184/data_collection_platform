@@ -35,8 +35,18 @@ class QualityRdAnalyticsDashboardProviderTest {
   private final QualityBoardRdService rdService = mock(QualityBoardRdService.class);
   private final QualityBoardWorkbookExportService workbookExportService =
       mock(QualityBoardWorkbookExportService.class);
-  private final QualityRdAnalyticsDashboardProvider provider =
-      new QualityRdAnalyticsDashboardProvider(rdService, workbookExportService);
+  private QualityRdAnalyticsDashboardProvider provider;
+
+  @org.junit.jupiter.api.BeforeEach
+  void bindProviderFixture() {
+    var selection = com.data.collection.platform.service.read.TestReadSelections.datasets();
+    org.mockito.Mockito.lenient().when(rdService.forRead(selection)).thenReturn(rdService);
+    org.mockito.Mockito.lenient().when(workbookExportService.forRead(selection)).thenReturn(workbookExportService);
+    var details = mock(QualityRdAnalyticsDetailQueryService.class);
+    org.mockito.Mockito.lenient().when(details.forRead(selection)).thenReturn(details);
+    provider = new QualityRdAnalyticsDashboardProvider(rdService, workbookExportService, details,
+        mock(QualityRdAnalyticsWorkbookService.class)).forRead(selection);
+  }
 
   @Test
   void exposesEightMetricsFiveChartsRulesActionsAndPointFilters() {
@@ -60,7 +70,7 @@ class QualityRdAnalyticsDashboardProviderTest {
     assertThat(provider.readModeSource())
         .isEqualTo(AnalyticsDashboardProvider.ReadModeSource.CODE_REVIEW_SETTING);
     assertThat(provider.ruleVersion(context)).isEqualTo("quality-rd-rules@1");
-    assertThat(provider.sourceVersion(context)).contains("match-mode");
+    assertThat(provider.sourceVersion(context)).isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion());
     assertThat(dashboard.metrics()).hasSize(8);
     assertThat(dashboard.charts()).hasSize(5);
     assertThat(rules.rules()).hasSize(13);
@@ -206,6 +216,7 @@ class QualityRdAnalyticsDashboardProviderTest {
   @Test
   void refusesToGenerateAnEmptyHtgcWorkbookWhenTheFormalSourceIsNotReady() {
     var detailQuery = mock(QualityRdAnalyticsDetailQueryService.class);
+    org.mockito.Mockito.lenient().when(detailQuery.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class))).thenReturn(detailQuery);
     var detailWorkbook = mock(QualityRdAnalyticsWorkbookService.class);
     when(detailQuery.htgcDataReady()).thenReturn(false);
     var fullProvider = new QualityRdAnalyticsDashboardProvider(
@@ -222,9 +233,13 @@ class QualityRdAnalyticsDashboardProviderTest {
   void serviceExcludesRejectedIssuesFromRemainingAssigneeChartAndDropsBlankAssignees() {
     var jdbc = new CapturingJdbcTemplate();
     var phaseScopeResolver = mock(SystemTestPhaseScopeResolver.class);
+    org.mockito.Mockito.lenient().when(phaseScopeResolver.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(phaseScopeResolver);
     var formalReviews = mock(ReviewDataRecordReadRepository.class);
+    org.mockito.Mockito.lenient().when(formalReviews.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class))).thenReturn(formalReviews);
     var matchReviews = mock(ReviewDataMatchModeRecordRepository.class);
+    org.mockito.Mockito.lenient().when(matchReviews.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class))).thenReturn(matchReviews);
     var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
+    org.mockito.Mockito.lenient().when(codeReview.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class))).thenReturn(codeReview);
     when(phaseScopeResolver.resolvePhases(9L, "CC2026R4"))
         .thenReturn(List.of("CC2026R4系统测试"));
     when(phaseScopeResolver.listEnabledParentNames(9L)).thenReturn(List.of("CC2026R4"));
@@ -270,9 +285,13 @@ class QualityRdAnalyticsDashboardProviderTest {
   void reviewDensityAlwaysCombinesFormalAndHistoricalSnapshotRecords() {
     var jdbc = new CapturingJdbcTemplate();
     var phaseScopeResolver = mock(SystemTestPhaseScopeResolver.class);
+    org.mockito.Mockito.lenient().when(phaseScopeResolver.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(phaseScopeResolver);
     var formalReviews = mock(ReviewDataRecordReadRepository.class);
+    org.mockito.Mockito.lenient().when(formalReviews.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class))).thenReturn(formalReviews);
     var matchReviews = mock(ReviewDataMatchModeRecordRepository.class);
+    org.mockito.Mockito.lenient().when(matchReviews.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class))).thenReturn(matchReviews);
     var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
+    org.mockito.Mockito.lenient().when(codeReview.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class))).thenReturn(codeReview);
     when(phaseScopeResolver.listEnabledParentNames(9L)).thenReturn(List.of("CC2026R4"));
     when(formalReviews.loadRecords(null, "CC2026R4", null, null, null, null, null, null))
         .thenReturn(
@@ -298,7 +317,9 @@ class QualityRdAnalyticsDashboardProviderTest {
   void assigneeRemainingSummaryExcludesRejectedIssuesLikeTheOldPlatform() {
     var jdbc = new CapturingJdbcTemplate();
     var phaseScopeResolver = mock(SystemTestPhaseScopeResolver.class);
+    org.mockito.Mockito.lenient().when(phaseScopeResolver.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(phaseScopeResolver);
     var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
+    org.mockito.Mockito.lenient().when(codeReview.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class))).thenReturn(codeReview);
     when(phaseScopeResolver.resolvePhases(9L, "CC2026R4"))
         .thenReturn(List.of("CC2026R4系统测试"));
     var service = new QualityRdAnalyticsDetailQueryService(jdbc, phaseScopeResolver, codeReview);
@@ -313,6 +334,7 @@ class QualityRdAnalyticsDashboardProviderTest {
   @Test
   void assigneeRemainingExportsIgnoreDrilldownAssigneeFilter() {
     var detailQuery = mock(QualityRdAnalyticsDetailQueryService.class);
+    org.mockito.Mockito.lenient().when(detailQuery.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class))).thenReturn(detailQuery);
     var detailWorkbook = mock(QualityRdAnalyticsWorkbookService.class);
     when(detailQuery.canonicalProjectName("CC2026R4")).thenReturn("CC2026R4");
     when(detailQuery.assigneeSummaryRows("CC2026R4", null)).thenReturn(List.of());
@@ -339,7 +361,9 @@ class QualityRdAnalyticsDashboardProviderTest {
         issue("模块A", "处理人3"),
         issue("模块B", "处理人4")));
     var phaseScopeResolver = mock(SystemTestPhaseScopeResolver.class);
+    org.mockito.Mockito.lenient().when(phaseScopeResolver.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(phaseScopeResolver);
     var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
+    org.mockito.Mockito.lenient().when(codeReview.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class))).thenReturn(codeReview);
     when(phaseScopeResolver.resolvePhases(9L, "CC2026R4"))
         .thenReturn(List.of("CC2026R4系统测试"));
     var service = new QualityRdAnalyticsDetailQueryService(jdbc, phaseScopeResolver, codeReview);

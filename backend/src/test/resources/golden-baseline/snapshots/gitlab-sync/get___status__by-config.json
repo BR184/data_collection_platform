@@ -18,7 +18,7 @@
       "whitelistMode" : "RECOMMENDED",
       "whitelistTables" : null,
       "dbHost" : "localhost",
-      "dbPort" : 64983,
+      "dbPort" : 52094,
       "dbName" : "gitlabhq_full_import_test",
       "dbUsername" : "gitlab",
       "dbPassword" : "",
@@ -37,12 +37,12 @@
       "syncThreadMode" : "FIXED",
       "syncThreadValue" : 2.0,
       "maxSyncThreads" : 16,
-      "lastFullSyncAt" : "2026-10-09T09:25:31.051043+08:00",
+      "lastFullSyncAt" : "2026-10-15T13:22:02.710997+08:00",
       "lastIncrementalSyncAt" : null,
       "incrementalRerunRequestedAt" : null,
       "incrementalRerunTriggerCount" : null,
-      "createdAt" : "2026-10-09T09:25:15.830137+08:00",
-      "updatedAt" : "2026-10-09T09:25:31.051043+08:00"
+      "createdAt" : "2026-10-15T13:21:33.679813+08:00",
+      "updatedAt" : "2026-10-15T13:22:02.710997+08:00"
     },
     "currentTask" : null,
     "currentStatus" : "IDLE",
@@ -51,7 +51,7 @@
     "progress" : null,
     "logs" : [ {
       "id" : 2,
-      "runId" : "sr_fr_default_e93a4a4bbefa4a71ad05f327eeecbd2a",
+      "runId" : "sr_fr_default_5a72cca3834f4fb58ede2f2857e66d0f",
       "syncType" : "COMPENSATION",
       "runType" : "FACT_REFRESH",
       "runStatus" : "SUCCESS",
@@ -67,13 +67,13 @@
       "status" : "SUCCESS",
       "freshnessStatus" : "NOT_APPLICABLE",
       "deleteReconciliationStatus" : "NOT_APPLICABLE",
-      "message" : "全量事实构建完成（0 行）",
-      "tableCount" : 6,
-      "completedTableCount" : 6,
+      "message" : "全量候选事实构建完成，等待必需投影（0 行）",
+      "tableCount" : 16,
+      "completedTableCount" : 16,
       "recordCount" : 2700,
-      "startedAt" : "2026-10-09T09:25:31.788996+08:00",
-      "finishedAt" : "2026-10-09T09:25:49.134668+08:00",
-      "queuedAt" : "2026-10-09T09:25:31.196762+08:00",
+      "startedAt" : "2026-10-15T13:22:03.270375+08:00",
+      "finishedAt" : "2026-10-15T13:22:56.884265+08:00",
+      "queuedAt" : "2026-10-15T13:22:02.785994+08:00",
       "errorSummary" : null,
       "failureCount" : 0,
       "manualAttentionCount" : 0,
@@ -83,24 +83,24 @@
       "eventTrail" : [ {
         "eventId" : 2,
         "eventType" : "FACT_BUILD_COMPLETED",
-        "message" : "全量事实构建完成（1200 行）",
-        "createdAt" : "2026-10-09T09:25:37.516+08:00"
+        "message" : "全量候选事实构建完成，等待必需投影（1200 行）",
+        "createdAt" : "2026-10-15T13:22:11.15847+08:00"
       }, {
         "eventId" : 4,
         "eventType" : "FACT_BUILD_COMPLETED",
-        "message" : "全量事实构建完成（1500 行）",
-        "createdAt" : "2026-10-09T09:25:42.145809+08:00"
+        "message" : "全量候选事实构建完成，等待必需投影（1500 行）",
+        "createdAt" : "2026-10-15T13:22:17.877334+08:00"
       }, {
         "eventId" : 6,
         "eventType" : "FACT_BUILD_COMPLETED",
-        "message" : "全量事实构建完成（0 行）",
-        "createdAt" : "2026-10-09T09:25:42.212757+08:00"
+        "message" : "全量候选事实构建完成，等待必需投影（0 行）",
+        "createdAt" : "2026-10-15T13:22:18.117157+08:00"
       } ],
       "latestProgressMessage" : "全量事实构建进度 1/1 批次（0 行）",
-      "latestProgressAt" : "2026-10-09T09:25:42.201197+08:00"
+      "latestProgressAt" : "2026-10-15T13:22:17.995794+08:00"
     }, {
       "id" : 1,
-      "runId" : "sr_fs_default_b7b37484087544309206574193532964",
+      "runId" : "sr_fs_default_057e26be01d34527a4d650b6132ed6ac",
       "syncType" : "FULL",
       "runType" : "FULL_SYNC",
       "runStatus" : "SUCCESS",
@@ -120,9 +120,9 @@
       "tableCount" : 156,
       "completedTableCount" : 156,
       "recordCount" : 56586,
-      "startedAt" : "2026-10-09T09:25:17.718026+08:00",
-      "finishedAt" : "2026-10-09T09:25:31.047044+08:00",
-      "queuedAt" : "2026-10-09T09:25:16.376936+08:00",
+      "startedAt" : "2026-10-15T13:21:45.837591+08:00",
+      "finishedAt" : "2026-10-15T13:22:02.707994+08:00",
+      "queuedAt" : "2026-10-15T13:21:34.687736+08:00",
       "errorSummary" : null,
       "failureCount" : 0,
       "manualAttentionCount" : 0,

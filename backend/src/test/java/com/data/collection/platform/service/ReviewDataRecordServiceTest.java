@@ -16,6 +16,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ReviewDataRecordServiceTest {
+  @org.junit.jupiter.api.BeforeEach
+  void bindReadDependencyFixtures() {
+    // 公式单测复用同一数据替身；实际修订隔离由真库读取测试覆盖。
+    org.mockito.Mockito.lenient().when(queryService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class))).thenReturn(queryService);
+    org.mockito.Mockito.lenient().when(filterOptionService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class))).thenReturn(filterOptionService);
+    org.mockito.Mockito.lenient().when(persistenceSupport.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class))).thenReturn(persistenceSupport);
+  }
+
   @Mock private ReviewDataRecordQueryService queryService;
   @Mock private ReviewDataRecordCommandService commandService;
   @Mock private ReviewDataFilterOptionService filterOptionService;
@@ -25,8 +33,8 @@ class ReviewDataRecordServiceTest {
   @Test
   void shouldInvalidateSnapshotsCreatedBeforeUnifiedReviewReadSource() {
     ReviewDataRecordListResponse response = mock(ReviewDataRecordListResponse.class);
-    when(pageRecordSnapshotService.reviewDataSourceVersion()).thenReturn("review-source");
-    when(pageRecordSnapshotService.readOrRefresh(
+
+    when(pageRecordSnapshotService.readOrRefresh(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class),
             any(), eq(ReviewDataRecordListResponse.class), any()))
         .thenReturn(response);
     ReviewDataRecordService service =
@@ -35,7 +43,7 @@ class ReviewDataRecordServiceTest {
             commandService,
             filterOptionService,
             persistenceSupport,
-            pageRecordSnapshotService);
+            pageRecordSnapshotService).forRead(com.data.collection.platform.service.read.TestReadSelections.datasets());
 
     service.listRecords(
         new ReviewDataRecordQueryRequest(
@@ -44,12 +52,11 @@ class ReviewDataRecordServiceTest {
 
     ArgumentCaptor<PageRecordSnapshotService.SnapshotRequest> requestCaptor =
         ArgumentCaptor.forClass(PageRecordSnapshotService.SnapshotRequest.class);
-    verify(pageRecordSnapshotService)        .readOrRefresh(
+    verify(pageRecordSnapshotService)        .readOrRefresh(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.DatasetReadSelection.class),
             requestCaptor.capture(), eq(ReviewDataRecordListResponse.class), any());
     assertThat(requestCaptor.getValue().ruleVersion())
         .isEqualTo("review-data-records@2026-09-18-v7");
-    assertThat(requestCaptor.getValue().resolveSourceVersion())
-        .as("来源版本以解析动作交给快照服务，才能在重建完成后再解析一次识别检查后发布")
-        .isEqualTo("review-source");
+    verify(pageRecordSnapshotService).readOrRefresh(eq(com.data.collection.platform.service.read.TestReadSelections.datasets()),
+        any(), eq(ReviewDataRecordListResponse.class), any());
   }
 }

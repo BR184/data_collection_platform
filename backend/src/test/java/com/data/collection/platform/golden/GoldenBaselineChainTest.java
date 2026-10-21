@@ -7,6 +7,7 @@ import com.data.collection.platform.service.BusinessDateProvider;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -51,19 +52,39 @@ class GoldenBaselineChainTest {
   private GoldenHttpSession session;
   private long configId;
 
+  @org.springframework.beans.factory.annotation.Autowired
+  private org.springframework.jdbc.core.JdbcTemplate jdbc;
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.data.collection.platform.service.read.PublishedReadService publishedReads;
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.data.collection.platform.service.read.ReadViewFreshnessService freshness;
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.data.collection.platform.service.read.MirrorDatasetPublicationWorker mirrors;
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.data.collection.platform.service.read.DatasetRefreshWorker datasets;
+  @org.springframework.beans.factory.annotation.Autowired
+  private org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor schedules;
+
   /**
-   * 固定黄金链路的业务日为基线清单 {@code frozen_at} 的日期，使快照不随运行日历漂移。
+   * 固定黄金链路的时间口径：业务日与时钟都取基线清单 {@code frozen_at}。
    *
-   * <p>生成与比较两阶段共用同一固定值；生产环境仍由 {@code SystemBusinessDateProvider}
-   * 提供当日业务日。
+   * <p>生成与比较两阶段共用同一固定值，使快照既不随运行当日漂移，也不随“滞留小时”一类
+   * 以当前时刻为基准的派生口径漂移；生产环境仍由 {@code SystemBusinessDateProvider} 提供
+   * 当日业务日、由 {@code PlatformConfiguration#platformClock()} 提供系统 UTC 时钟。
    */
   @TestConfiguration
-  static class FrozenBusinessDateConfiguration {
+  static class FrozenTimeConfiguration {
     @Bean
     @Primary
     BusinessDateProvider frozenBusinessDateProvider() {
       LocalDate frozen = GoldenBaselineSupport.frozenBusinessDate();
       return () -> frozen;
+    }
+
+    @Bean
+    @Primary
+    Clock frozenClock() {
+      return GoldenBaselineSupport.frozenClock();
     }
   }
 
@@ -91,12 +112,35 @@ class GoldenBaselineChainTest {
 
   @BeforeAll
   void bootstrapChain() throws Exception {
+    // 写用例会编辑后再还原定义；不能让周期工作器把这种临时测试输入作为新全量运行。
+    pauseScheduledProducer(com.data.collection.platform.service.read.ReadDefinitionRefreshWorker.class);
     GoldenBaselineSupport.importPlatformSeed();
     configId = GoldenBaselineSupport.seedSyncConfig();
     session = GoldenHttpSession.login(
         "http://localhost:" + port, "admin", "admin-test-2026");
     GoldenBaselineSupport.triggerFullSyncAndAwait(session, configId);
+    // 黄金链必须等待正式生产者的完整读产物，而不仅是镜像/事实运行终态。
+    for (int table = 0; table < jdbc.queryForObject("select count(*) from sync_run_table_states", Integer.class); table++) {
+      mirrors.publishOneCompleteTable();
+    }
+    for (var ignored : com.data.collection.platform.service.DatasetProducerCatalog.localDatasetOwners()) {
+      datasets.publishOneRequestedDataset();
+    }
+    pauseScheduledProducer(com.data.collection.platform.service.read.DatasetRefreshWorker.class);
+    pauseScheduledProducer(com.data.collection.platform.service.read.MirrorDatasetPublicationWorker.class);
     captureWriteReplayBaselines();
+  }
+
+  /**
+   * 固定已完成链路的测试负载，不中断已经运行的任务，不改变生产调度设置或数据认证。
+   *
+   * <p>取消数必须为正：Spring 会把 {@code @Scheduled} 方法包进调度包装类，匹配失效时暂停会静默失效，
+   * 随后写用例编辑定义会被未暂停的工作器登记成额外全量事实重建。这里把静默失效转为硬失败。
+   */
+  private void pauseScheduledProducer(Class<?> producer) {
+    assertThat(GoldenBaselineSupport.pauseScheduledProducer(schedules, producer))
+        .as("周期生产者 %s 必须被真实暂停，否则会污染黄金快照", producer.getSimpleName())
+        .isPositive();
   }
 
   /** 写用例执行前捕获不在种子文件中的 REPLAY 表基线（迁移播种/协调器重建/同步产物）。 */
@@ -165,7 +209,7 @@ class GoldenBaselineChainTest {
           session.exchangeAnyJson(entry.method(), request.path(), request.body());
       String caseSnapshot = GoldenSnapshotSupport.snapshotName(entry, writeCase.id());
       GoldenSnapshotSupport.assertJsonSnapshot(
-          caseSnapshot, responseBody, entry.ignorePaths(), entry.ignoreArrayOrder());
+          caseSnapshot, canonicalReadView(responseBody), entry.ignorePaths(), entry.ignoreArrayOrder());
       for (GoldenEndpointCatalog.AffectedTable table : writeCase.affectedTables()) {
         String tableSnapshot = caseSnapshot.substring(0, caseSnapshot.length() - ".json".length())
             + "__" + table.table() + ".json";
@@ -175,6 +219,10 @@ class GoldenBaselineChainTest {
     } finally {
       for (GoldenEndpointCatalog.AffectedTable table : writeCase.affectedTables()) {
         GoldenWriteCaseSupport.restore(table);
+      }
+      // 控制面还原也是一次真实提交；同步结算完整基线，避免之后的读用例取到随机过渡状态。
+      for (var ignored : com.data.collection.platform.service.DatasetProducerCatalog.localDatasetOwners()) {
+        datasets.publishOneRequestedDataset();
       }
     }
   }
@@ -198,10 +246,54 @@ class GoldenBaselineChainTest {
       return;
     }
     String responseBody = "POST".equals(entry.method())
-        ? session.postRawJson(request.path(), request.body())
-        : session.getRawJson(request.path());
+        ? session.postRawJson(request.path(), request.body(), readCase.expectedHttpStatus())
+        : session.getRawJson(request.path(), readCase.expectedHttpStatus());
     GoldenSnapshotSupport.assertJsonSnapshot(
-        snapshotName, responseBody, entry.ignorePaths(), entry.ignoreArrayOrder());
+        snapshotName, canonicalReadView(responseBody), entry.ignorePaths(), entry.ignoreArrayOrder());
+  }
+
+  /**
+   * 新读取信封的运行身份先与真库租约及冻结域逐项核验，再规范化四个运行期值。
+   * 页面、范围、业务日、待更新数和状态仍严格进入快照；既有业务掩码不变。
+   */
+  private String canonicalReadView(String response) throws Exception {
+    var json = new com.fasterxml.jackson.databind.ObjectMapper();
+    var root = json.readTree(response);
+    var envelope = root.has("httpStatus") ? root.path("body") : root;
+    var value = envelope.path("readView");
+    if (value.isMissingNode() || value.isNull()) { return response; }
+    java.util.UUID id = java.util.UUID.fromString(value.path("readContextId").asText());
+    var owner = jdbc.queryForMap("select subject, session_id from read_view_contexts where id = ?", id);
+    var view = publishedReads.loadOwnedView(id, (String) owner.get("subject"), (String) owner.get("session_id"));
+    var selection = freshness.selection(view);
+    assertThat(value.path("pageKey").asText()).isEqualTo(view.pageKey());
+    assertThat(value.path("scopeKey").asText()).isEqualTo(view.scopeKey());
+    assertThat(value.path("businessDate").asText()).isEqualTo(GoldenBaselineSupport.frozenBusinessDate().toString());
+    assertThat(value.path("sourceVersion").asText()).isEqualTo(selection.sourceVersion());
+    assertThat(java.time.Instant.parse(value.path("leaseExpiresAt").asText())).isEqualTo(view.expiresAt());
+    assertThat(java.time.Instant.parse(value.path("dataAsOf").asText())).isEqualTo(
+        view.domains().values().stream().map(com.data.collection.platform.entity.read.PublishedSourceContext::dataAsOf)
+            .min(java.time.Instant::compareTo).orElseThrow());
+    var metadata = (com.fasterxml.jackson.databind.node.ObjectNode) value;
+    for (String field : List.of("readContextId", "sourceVersion", "leaseExpiresAt", "dataAsOf")) {
+      metadata.put(field, "<verified-runtime-" + field + ">");
+    }
+    var facts = selection instanceof com.data.collection.platform.entity.read.FactReadSelection fact ? fact
+        : ((com.data.collection.platform.entity.read.DatasetReadSelection) selection).facts();
+    canonicalSourceVersions(envelope.path("data"), selection.sourceVersion(), facts == null ? null : facts.sourceVersion());
+    return json.writeValueAsString(root);
+  }
+
+  /** 下钻和候选回显的来源身份也须与本响应的真实组合一致，不能盲目掩掉失配。 */
+  private static void canonicalSourceVersions(com.fasterxml.jackson.databind.JsonNode node, String version, String factVersion) {
+    if (node.isObject()) {
+      var source = node.path("sourceVersion");
+      if (source.isTextual() && source.asText().startsWith("publication:")) {
+        assertThat(source.asText()).isIn(version, factVersion);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) node).put("sourceVersion", "<verified-runtime-sourceVersion>");
+      }
+    }
+    node.elements().forEachRemaining(child -> canonicalSourceVersions(child, version, factVersion));
   }
 
   /** 解析用例的运行期变量、路径变量与查询串，生成实际请求。 */

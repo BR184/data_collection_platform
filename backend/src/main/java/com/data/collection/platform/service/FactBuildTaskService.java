@@ -92,6 +92,12 @@ public class FactBuildTaskService {
         FactBuildResponse response = action.get();
         finishTask(taskId, STATUS_SUCCESS, response.affectedRows(), response.message(), null);
         return response;
+      } catch (FactCandidateBusyException error) {
+        finishTask(taskId, STATUS_SKIPPED, 0, BUSY_MESSAGE, error.getMessage());
+        if (syncRunId != null) {
+          throw new BizException(BUSY_MESSAGE);
+        }
+        return new FactBuildResponse(safeScope, full, 0, BUSY_MESSAGE);
       } catch (RuntimeException error) {
         finishTask(taskId, STATUS_FAILED, 0, "事实构建失败", error.getMessage());
         throw error;
@@ -160,7 +166,7 @@ public class FactBuildTaskService {
       List<Long> rootIds;
       while (assignedTasks < MAX_ASSIGNMENT_TASKS_PER_PASS
           && !(rootIds = lockPendingRootIds(
-                  config.getId(), sourceInstance, factType, batchSize))
+                  config.getId(), sourceInstance, factType, factRunId, batchSize))
               .isEmpty()) {
         Long taskId =
             insertTargetBatchTask(config.getId(), sourceInstance, factType, factRunId);
@@ -192,14 +198,24 @@ public class FactBuildTaskService {
         taskId);
   }
 
+  /** 已领取的增量批次是否仍拥有待发布根；已由完整版本覆盖的旧批次可直接收敛，不再读取来源。 */
+  public boolean hasUnpublishedOwnedRoots(QueuedFactBuildTask task) {
+    return Boolean.TRUE.equals(jdbcTemplate.queryForObject("""
+        select exists(select 1 from fact_build_task_roots assigned
+          join fact_change_heads head on head.source_instance = assigned.source_instance
+            and head.fact_type = assigned.fact_type and head.root_id = assigned.root_id
+         where assigned.task_id = ? and head.published_version < head.latest_change_version)
+        """, Boolean.class, task.id()));
+  }
+
   /**
    * 取该事实族尚未发布到最新变化版本、且尚未被在途任务领取的根；同事务内锁行，保证与根批次写入原子。
    *
-   * <p>{@code fact_build_task_roots} 就是领取记录（任务进入终态即删除行），因此排除它即可保证
-   * 同一批根不会在同一轮或后续轮次被重复派发。
+   * <p>{@code fact_build_task_roots} 是领取记录；构建成功批次保留归属直到整个候选发布或中止，
+   * 无需构建的批次立即释放。排除领取记录，保证同一候选中已构建而尚未公开的根不被重复派发。
    */
   private List<Long> lockPendingRootIds(
-      Long configId, String sourceInstance, FactType factType, int batchSize) {
+      Long configId, String sourceInstance, FactType factType, Long factRunId, int batchSize) {
     return jdbcTemplate.queryForList(
         """
         select head.root_id
@@ -207,6 +223,16 @@ public class FactBuildTaskService {
          where head.source_instance = ?
            and head.fact_type = ?
            and head.published_version < head.latest_change_version
+           and (not exists (
+             select 1 from read_publications p join read_publication_domains d on d.id = p.domain_id
+              where d.producer_kind = 'GITLAB_FACT' and d.source_instance = head.source_instance
+                and d.fact_type = head.fact_type and p.state in ('BUILDING', 'PROJECTING', 'READY_TO_PUBLISH'))
+             or exists (
+               select 1 from read_publication_root_inputs input
+                 join read_publications p on p.id = input.publication_id
+                where input.source_instance = head.source_instance and input.fact_type = head.fact_type
+                  and input.root_id = head.root_id and input.built_at is null
+                  and p.state = 'BUILDING' and p.producer_run_id = ?))
            and exists (
              select 1
                from source_fact_publication_states state
@@ -227,6 +253,7 @@ public class FactBuildTaskService {
         Long.class,
         sourceInstance,
         factType.name(),
+        String.valueOf(factRunId),
         configId,
         batchSize);
   }
@@ -832,7 +859,7 @@ public class FactBuildTaskService {
       Long configId, String sourceInstance, FactType factType, long taskId, int batchSize) {
     List<Long> rootIds =
         lockPendingRootIds(
-            configId, sourceInstance, factType, Math.max(1, Math.min(1000, batchSize)));
+            configId, sourceInstance, factType, null, Math.max(1, Math.min(1000, batchSize)));
     if (rootIds.isEmpty()) {
       return 0;
     }

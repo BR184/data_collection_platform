@@ -48,6 +48,14 @@ import org.springframework.jdbc.core.RowMapper;
  */
 @ExtendWith(MockitoExtension.class)
 class CustomerIssueDefectSummaryBoardGoldenMasterTest {
+  private void bindReadDependencyFixtures() {
+    // 公式单测复用同一数据替身；实际修订隔离由真库读取测试覆盖。
+    org.mockito.Mockito.lenient().when(runtimeSupport.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(runtimeSupport);
+    org.mockito.Mockito.lenient().when(milestoneCatalogService.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(milestoneCatalogService);
+    org.mockito.Mockito.lenient().when(snapshotRequestFactory.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(snapshotRequestFactory);
+    org.mockito.Mockito.lenient().when(issueFactRecordRepository.forRead(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class))).thenReturn(issueFactRecordRepository);
+  }
+
 
   private static final Path GOLDEN_DIR =
       Path.of("src", "test", "resources", "golden", "customer-issue-defect-summary");
@@ -68,6 +76,12 @@ class CustomerIssueDefectSummaryBoardGoldenMasterTest {
 
   @BeforeEach
   void setUp() throws Exception {
+    bindReadDependencyFixtures();
+    when(issueFactRecordRepository.findCustomerIssueRecordFilterValues(true, false, true, false, null))
+        .thenReturn(new IssueFactRecordRepository.CustomerIssueFilterValues(
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of()));
     when(milestoneCatalogService.defaultMilestone()).thenReturn("CC2026R3");
     when(milestoneCatalogService.resolveMilestoneValues("CC2026R3"))
         .thenReturn(List.of("CC2026 R3"));
@@ -76,13 +90,13 @@ class CustomerIssueDefectSummaryBoardGoldenMasterTest {
 
     doAnswer(
             invocation -> {
-              RowMapper<Object> mapper = invocation.getArgument(4);
+              RowMapper<Object> mapper = invocation.getArgument(5);
               return List.of(
                   mapper.mapRow(issue(1001, "P2", true, "已知的受影响功能"), 0),
                   mapper.mapRow(issue(1002, "P3", false, "新识别的受影响功能"), 1));
             })
         .when(issueFactQueryService)
-        .query(anyString(), anyMap(), anyString(), anyList(), any(RowMapper.class));
+        .query(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(), anyMap(), anyString(), anyList(), any(RowMapper.class));
 
     StatisticBoardSnapshotService.SnapshotRequest snapshotRequest =
         new StatisticBoardSnapshotService.SnapshotRequest(
@@ -91,17 +105,17 @@ class CustomerIssueDefectSummaryBoardGoldenMasterTest {
             anyString(), anyString(), anyString(), anyLong(), any(), anyString(), anyMap(), any(), any()))
         .thenReturn(snapshotRequest);
     doAnswer(invocation -> ((Function<StatisticBoardSnapshotService.SourceRead, StatisticBoardResponse>)
-                invocation.getArgument(1))
+                invocation.getArgument(2))
             .apply(StatisticBoardTestSnapshotScopes.testSourceRead()))
         .when(snapshotService)
-        .readOrRefresh(any(), any());
+        .readOrRefresh(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), any(), any());
     doAnswer(
             invocation -> {
-              RowMapper<Object> mapper = invocation.getArgument(2);
+              RowMapper<Object> mapper = invocation.getArgument(3);
               return List.of(mapper.mapRow(moduleCatalogRow(), 0));
             })
         .when(issueFactQueryService)
-        .query(anyString(), anyList(), any(RowMapper.class));
+        .query(org.mockito.ArgumentMatchers.any(com.data.collection.platform.entity.read.FactReadSelection.class), anyString(), anyList(), any(RowMapper.class));
   }
 
   @Test
@@ -251,7 +265,7 @@ class CustomerIssueDefectSummaryBoardGoldenMasterTest {
         milestoneCatalogService,
         snapshotService,
         snapshotRequestFactory,
-        issueFactRecordRepository);
+        issueFactRecordRepository).forRead(com.data.collection.platform.service.read.TestReadSelections.all());
   }
 
   private ResultSet issue(

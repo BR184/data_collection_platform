@@ -32,23 +32,30 @@ class SqlPushdownRealChainTest {
   @Autowired private JdbcTemplate jdbcTemplate;
   @Autowired private TestRestTemplate restTemplate;
   @Autowired private ObjectMapper objectMapper;
+  @Autowired private com.data.collection.platform.service.read.DatasetPublicationService datasetPublications;
+  @Autowired private DatasetProducerCatalog datasetCatalog;
   private HttpHeaders authHeaders;
+  private Map<String, Object> originalMode;
 
   @BeforeEach
   void setUp() throws Exception {
+    originalMode = jdbcTemplate.queryForMap("select enabled, code_review_read_mode, review_data_read_mode"
+        + " from code_review_match_mode_db_settings where id = 1");
+    jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
     jdbcTemplate.update("delete from page_record_snapshots");
     jdbcTemplate.update("delete from statistic_board_snapshots");
     jdbcTemplate.update("delete from merge_request_fact");
     jdbcTemplate.update("delete from issue_fact");
     jdbcTemplate.update(
-        "update code_review_match_mode_db_settings set code_review_read_mode = 'formal' where id = 1");
+        "update code_review_match_mode_db_settings set enabled = false, code_review_read_mode = 'formal', review_data_read_mode = 'formal' where id = 1");
     authHeaders = loginHeaders();
   }
 
   @AfterEach
   void restoreCompatibilityReadMode() {
     jdbcTemplate.update(
-        "update code_review_match_mode_db_settings set code_review_read_mode = 'compatibility' where id = 1");
+        "update code_review_match_mode_db_settings set enabled = ?, code_review_read_mode = ?, review_data_read_mode = ? where id = 1",
+        originalMode.get("enabled"), originalMode.get("code_review_read_mode"), originalMode.get("review_data_read_mode"));
   }
 
   @Test
@@ -255,11 +262,24 @@ class SqlPushdownRealChainTest {
     assertThat(response.at("/data/records/0/illegalTypes").toString()).contains("未标注模块名");
   }
 
+  /** SQL 搜索的真实 HTTP 夹具先发布完整输入，未版本化行不能被当成当前产出。 */
+  private void publishFixtureInputs() {
+    FactRevisionFixture.adoptSeededFacts(jdbcTemplate, com.data.collection.platform.entity.read.PublicationFactTable.ISSUE);
+    FactRevisionFixture.adoptSeededFacts(jdbcTemplate, com.data.collection.platform.entity.read.PublicationFactTable.MERGE_REQUEST);
+    String producerRunId = java.util.UUID.randomUUID().toString();
+    var captured = datasetPublications.prepareCompleteDataset(datasetCatalog.request(
+        com.data.collection.platform.entity.read.ReadPublicationProducerKind.FORMAL_RECORD, producerRunId));
+    if (captured.state() != com.data.collection.platform.entity.read.ReadPublicationState.PUBLISHED) {
+      datasetPublications.publishPreparedDataset(captured.id(), producerRunId);
+    }
+  }
+
   private JsonNode getJson(String path, String query) throws Exception {
     return getJson(path + "?" + query);
   }
 
   private JsonNode getJson(String url) throws Exception {
+    publishFixtureInputs();
     ResponseEntity<String> response =
         restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(authHeaders), String.class);
     assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
@@ -269,6 +289,7 @@ class SqlPushdownRealChainTest {
   }
 
   private JsonNode getJson(URI url) throws Exception {
+    publishFixtureInputs();
     ResponseEntity<String> response =
         restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(authHeaders), String.class);
     assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();

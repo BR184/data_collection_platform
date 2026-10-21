@@ -21,13 +21,14 @@ class BiCatMirrorRepositoryTest {
 
   @Autowired private JdbcTemplate jdbcTemplate;
   @Autowired private PlatformTransactionManager transactionManager;
+  @Autowired private BiCatReadPublicationService readPublications;
 
   private BiCatMirrorRepository repository;
 
   @BeforeEach
   void setUp() {
     repository = new BiCatMirrorRepository(
-        jdbcTemplate, new TransactionTemplate(transactionManager));
+        jdbcTemplate, new TransactionTemplate(transactionManager), readPublications);
     dropTestConstraint();
     jdbcTemplate.update(
         """

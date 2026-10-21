@@ -52,9 +52,10 @@ public class BiCatMirrorManager {
       TransactionTemplate transactionTemplate,
       IssueScopeCatalogService catalogService,
       BiCatProperties properties,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      BiCatReadPublicationService readPublications) {
     this(
-        new BiCatMirrorRepository(jdbcTemplate, transactionTemplate),
+        new BiCatMirrorRepository(jdbcTemplate, transactionTemplate, readPublications),
         new BiPlatformProductVersionAdapter(catalogService),
         properties,
         objectMapper,
