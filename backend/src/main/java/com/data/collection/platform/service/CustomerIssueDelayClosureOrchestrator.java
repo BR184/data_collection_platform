@@ -1,17 +1,16 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.config.PlatformAsyncConfiguration;
-import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.GitlabSyncConfig;
-import com.data.collection.platform.entity.sync.SyncRunType;
-import com.data.collection.platform.service.sync.SyncFactPublicationStateService;
 import com.data.collection.platform.service.sync.SyncRunCompletionEvent;
 import com.data.collection.platform.service.sync.SyncRunCompletionListenerOrder;
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.event.EventListener;
@@ -19,90 +18,79 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 
 /**
- * 客户问题延期标签写回的编排：由运行终态事件推进的三段流程。
+ * 客户问题延期标签写回的编排。
  *
- * <ol>
- *   <li>阶段 1：提交 {@code TABLE_REFRESH}（issues/notes/label_links/labels）刷新镜像；
- *   <li>阶段 2：镜像终态后由来源级事实消费者自动发布增量，本类不介入，只等收敛；
- *   <li>阶段 3：收到运行终态事件、且该来源实例已无未发布 ISSUE 事实目标时，重算延期事实并登记写回候选。
- * </ol>
+ * <p>本轮状态全部持久化在 {@code customer_issue_delay_closure_requests}：运行号、阶段、请求/处理/完成修订、
+ * 入队游标、授权事实版本和租约。运行终态事件只负责唤醒检查，是否推进由权威进度、绑定镜像和来源资格决定；
+ * 短周期恢复检查在进程重启后继续同一工作，不依赖内存中的在飞状态。
  *
- * <p>设计要点：
- *
- * <ul>
- *   <li><b>不轮询、不设超时</b>：等待由运行终态事件驱动，因此镜像耗时超过任何固定阈值也不会整轮跳过；
- *       收敛判据是 {@link SyncFactPublicationStateService#countUnpublishedTargets} 的版本栅栏，
- *       与"来源级、无父运行"的事实消费者语义一致。
- *   <li><b>不占用调度线程</b>：阶段 3 一律提交到应用异步执行器，调用方（调度触发与终态事件监听）
- *       都只做常量时间的工作。
- *   <li><b>按数据源单飞 + 周期重启</b>：在飞状态以数据源配置为粒度（阶段 1 提交与阶段 3 副作用都是
- *       逐配置的），因此同一配置同一时刻至多一个编排在飞、不同配置互不影响；编排只拥有一个调度周期，
- *       跨周期仍在飞则重启（重启不会产生并行镜像——同互斥域的活跃运行会被复用——也不会重复写回，
- *       候选登记是幂等 upsert）。
- *   <li><b>登记先于评估</b>：终态事件监听顺序由 {@link SyncRunCompletionListenerOrder} 约束，
- *       保证读取收敛判据时事实发布登记已提交。
- * </ul>
+ * <p>每次推进都是有界的：提交一次前置刷新后只等待，不在调度线程上阻塞，也不在每个 tick 重复提交刷新。
+ * 领取、推进和释放都校验 owner、令牌与处理修订，旧处理者不能覆盖新处理者。
  */
 @Service
 @Slf4j
 public class CustomerIssueDelayClosureOrchestrator {
-  /**
-   * 延期标签写回依赖 {@code issue_fact} 的延期事实，因此只等待 ISSUE 事实族的发布收敛；
-   * 变更合并请求事实族与本次写回判定无关。
-   */
-  private static final FactType DELAY_FACT_TYPE = FactType.ISSUE;
+  private static final int MAX_ADVANCES_PER_RUN = 20;
+  private static final int MAX_ADVANCES_PER_SOURCE = 4;
+  private static final int MAX_STAGE_STEPS = 4;
+  private static final List<Integer> BACKOFF_MINUTES = List.of(1, 5, 15, 30, 60);
 
   private final GitlabConfigService configService;
-  private final FactBuildService factBuildService;
   private final CustomerIssueDelayLabelWritebackService delayLabelWritebackService;
   private final CustomerIssueDelayPreWritebackSyncService preWritebackSyncService;
-  private final CustomerIssueDelayLabelWritebackQueueService queueService;
-  private final SyncFactPublicationStateService publicationStateService;
+  private final CustomerIssueDelayClosureProgressRepository progressRepository;
+  private final CustomerIssueDelayClosureRoundService roundService;
+  private final CustomerIssueDelaySourceReadinessService readinessService;
+  private final GitlabMirrorProperties properties;
   private final Executor platformAsyncExecutor;
-  /** 在飞编排，按数据源配置编号索引：阶段 1 与阶段 3 都是逐配置的副作用。 */
-  private final Map<Long, InFlightCycle> inFlightCycles = new ConcurrentHashMap<>();
-  private final AtomicInteger schedulingPeriod = new AtomicInteger();
+  private final String owner = "customer-delay-closure-" + UUID.randomUUID();
+  private final AtomicBoolean advancingAll = new AtomicBoolean(false);
 
   public CustomerIssueDelayClosureOrchestrator(
       GitlabConfigService configService,
-      FactBuildService factBuildService,
       CustomerIssueDelayLabelWritebackService delayLabelWritebackService,
       CustomerIssueDelayPreWritebackSyncService preWritebackSyncService,
-      CustomerIssueDelayLabelWritebackQueueService queueService,
-      SyncFactPublicationStateService publicationStateService,
+      CustomerIssueDelayClosureProgressRepository progressRepository,
+      CustomerIssueDelayClosureRoundService roundService,
+      CustomerIssueDelaySourceReadinessService readinessService,
+      GitlabMirrorProperties properties,
       @Qualifier(PlatformAsyncConfiguration.PLATFORM_ASYNC_EXECUTOR) Executor platformAsyncExecutor) {
     this.configService = configService;
-    this.factBuildService = factBuildService;
     this.delayLabelWritebackService = delayLabelWritebackService;
     this.preWritebackSyncService = preWritebackSyncService;
-    this.queueService = queueService;
-    this.publicationStateService = publicationStateService;
+    this.progressRepository = progressRepository;
+    this.roundService = roundService;
+    this.readinessService = readinessService;
+    this.properties = properties;
     this.platformAsyncExecutor = platformAsyncExecutor;
   }
 
-  /**
-   * 推进一个调度周期：为每个已启用数据源发起或重启编排。
-   *
-   * <p>本方法只在应用异步执行器上运行，绝不阻塞调度线程。
-   */
+  /** 周期触发：为每个启用来源登记请求，然后有界推进。 */
   public void runCycleForAllSources() {
-    int period = schedulingPeriod.incrementAndGet();
     for (GitlabSyncConfig config : enabledConfigs()) {
       try {
-        startCycle(config, period);
+        progressRepository.requestRound(config, "periodic");
       } catch (RuntimeException error) {
         log.warn(
-            "Customer issue delay closure cycle failed to start, sourceInstance={}",
+            "Failed to request customer issue delay closure round, configId={}, sourceInstance={}",
+            config.getId(),
             GitlabSourceInstanceSupport.sourceInstanceOf(config),
             error);
       }
     }
+    advanceAll();
+  }
+
+  /** 短周期恢复检查：不登记新请求，只从持久进度继续被中断的等待或分页。 */
+  public void checkProgressForAllSources() {
+    advanceAll();
   }
 
   /**
-   * 运行终态事件的收敛评估方。
+   * 运行终态事件的唤醒方。
    *
-   * <p>只在"本来源实例存在在飞编排"时做事，因此自动增量同步等无关运行不会触发写回。
+   * <p>只按配置找到进度并唤醒；是否推进由 {@link CustomerIssueDelaySourceReadinessService} 重新核验
+   * 绑定运行和事实收敛决定，因此无关运行先结束不会误推进本轮。
    *
    * @param event 已提交的运行终态事件
    */
@@ -112,155 +100,330 @@ public class CustomerIssueDelayClosureOrchestrator {
     if (event == null || event.configId() == null) {
       return;
     }
-    InFlightCycle cycle = inFlightCycles.get(event.configId());
-    if (cycle == null) {
+    Optional<CustomerIssueDelayClosureProgress> progress =
+        progressRepository.findByConfigId(event.configId());
+    if (progress.isEmpty()) {
       return;
     }
-    if (isStageOneFailure(event, cycle)) {
-      if (inFlightCycles.remove(event.configId(), cycle)) {
-        log.warn(
-            "Customer issue delay closure cycle aborted because the pre-writeback sync run did not succeed,"
-                + " configId={}, sourceInstance={}, mirrorRunId={}, status={}",
-            event.configId(),
-            GitlabSourceInstanceSupport.sourceInstanceOf(cycle.config()),
-            cycle.mirrorRunId(),
-            event.status());
+    String sourceInstance = progress.get().sourceInstance();
+    progressRepository.wake(sourceInstance);
+    submitAdvance(sourceInstance);
+  }
+
+  private void advanceAll() {
+    if (!advancingAll.compareAndSet(false, true)) {
+      return;
+    }
+    try {
+      for (int index = 0; index < MAX_ADVANCES_PER_RUN; index++) {
+        Optional<CustomerIssueDelayClosureProgressClaim> claimed =
+            progressRepository.claimNext(
+                owner,
+                UUID.randomUUID().toString(),
+                properties.getCustomerIssueDelayProgressLeaseSeconds());
+        if (claimed.isEmpty()) {
+          return;
+        }
+        advanceAndRelease(claimed.get());
       }
-      return;
+    } finally {
+      advancingAll.set(false);
     }
-    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(cycle.config());
-    long unpublishedTargets =
-        publicationStateService.countUnpublishedTargets(sourceInstance, DELAY_FACT_TYPE);
-    if (unpublishedTargets > 0L) {
+  }
+
+  private void submitAdvance(String sourceInstance) {
+    platformAsyncExecutor.execute(
+        () -> {
+          for (int index = 0; index < MAX_ADVANCES_PER_SOURCE; index++) {
+            Optional<CustomerIssueDelayClosureProgressClaim> claimed =
+                progressRepository.claimBySource(
+                    sourceInstance,
+                    owner,
+                    UUID.randomUUID().toString(),
+                    properties.getCustomerIssueDelayProgressLeaseSeconds());
+            if (claimed.isEmpty()) {
+              return;
+            }
+            advanceAndRelease(claimed.get());
+          }
+        });
+  }
+
+  private void advanceAndRelease(CustomerIssueDelayClosureProgressClaim claim) {
+    CustomerIssueDelayClosureProgressClaim current = claim;
+    try {
+      current = advance(claim);
+    } catch (RuntimeException error) {
+      log.warn(
+          "Customer issue delay closure advance failed, sourceInstance={}, stage={}",
+          claim.progress().sourceInstance(),
+          claim.progress().stage(),
+          error);
+      current = recordFailure(claim, error.getMessage());
+    } finally {
+      progressRepository.release(current);
+    }
+  }
+
+  private CustomerIssueDelayClosureProgressClaim advance(
+      CustomerIssueDelayClosureProgressClaim claim) {
+    CustomerIssueDelayClosureProgressClaim current = claim;
+    for (int step = 0; step < MAX_STAGE_STEPS; step++) {
+      CustomerIssueDelayClosureProgress progress = current.progress();
+      switch (progress.stage()) {
+        case IDLE -> {
+          if (!progress.hasPendingRequest()) {
+            return current;
+          }
+          Optional<CustomerIssueDelayClosureProgress> requested =
+              progressRepository.requestNewRound(current);
+          if (requested.isEmpty()) {
+            return current;
+          }
+          current = current.withProgress(requested.get());
+        }
+        case REQUESTED -> {
+          return advanceRequested(current);
+        }
+        case WAIT_MIRROR -> {
+          CustomerIssueDelayClosureStage before = progress.stage();
+          Optional<CustomerIssueDelayClosureProgressClaim> next = advanceWaitMirror(current);
+          if (next.isEmpty()) {
+            return current;
+          }
+          current = next.get();
+          if (current.progress().stage() == before) {
+            return current;
+          }
+        }
+        case WAIT_FACT -> {
+          CustomerIssueDelayClosureStage before = progress.stage();
+          Optional<CustomerIssueDelayClosureProgressClaim> next = advanceWaitFact(current);
+          if (next.isEmpty()) {
+            return current;
+          }
+          current = next.get();
+          if (current.progress().stage() == before) {
+            return current;
+          }
+        }
+        case ENQUEUE -> {
+          return advanceEnqueue(current);
+        }
+        default -> throw new IllegalStateException("未知的延期写回阶段：" + progress.stage());
+      }
+    }
+    return current;
+  }
+
+  private CustomerIssueDelayClosureProgressClaim advanceRequested(
+      CustomerIssueDelayClosureProgressClaim claim) {
+    CustomerIssueDelayClosureProgress progress = claim.progress();
+    GitlabSyncConfig config = configFor(progress);
+    if (config == null || !configService.isSourceEnabled(config)) {
+      return revokeToIdle(claim, "数据源配置不存在或来源已停用");
+    }
+    if (!delayLabelWritebackService.isEnabled(config)) {
+      CustomerIssueDelayClosureRoundService.StartResult result =
+          roundService.refreshFactsOnly(claim, config, "延期标签写回开关关闭，仅重算延期事实");
+      return result.claim();
+    }
+    CustomerIssueDelayClosureRoundService.StartResult result =
+        roundService.startMirrorRound(claim, config);
+    log.info(
+        "Customer issue delay closure round started, sourceInstance={}, status={}, mirrorRunId={}, reason={}",
+        progress.sourceInstance(),
+        result.status(),
+        result.claim() == null ? null : result.claim().progress().mirrorRunId(),
+        result.reason());
+    return result.claim() == null ? claim : result.claim();
+  }
+
+  private Optional<CustomerIssueDelayClosureProgressClaim> advanceWaitMirror(
+      CustomerIssueDelayClosureProgressClaim claim) {
+    CustomerIssueDelayClosureProgress progress = claim.progress();
+    GitlabSyncConfig config = configFor(progress);
+    if (config == null || !configService.isSourceEnabled(config)) {
+      return Optional.of(revokeToIdle(claim, "数据源配置不存在或来源已停用"));
+    }
+    CustomerIssueDelaySourceReadinessService.MirrorCheck mirror =
+        readinessService.checkMirrorRun(
+            config,
+            progress.mirrorRunId(),
+            preWritebackSyncService.preWritebackTables());
+    if (mirror.complete()) {
+      return progressRepository
+          .moveToFactWait(claim, "前置镜像已完整成功，等待来源事实收敛")
+          .map(claim::withProgress);
+    }
+    if (mirror.terminal()) {
+      int failures = progress.failureCount() + 1;
+      LocalDateTime next = LocalDateTime.now().plusMinutes(retryDelayMinutes(failures));
+      log.warn(
+          "Customer issue delay closure pre-writeback mirror did not complete, sourceInstance={}, mirrorRunId={}, reason={}",
+          progress.sourceInstance(),
+          progress.mirrorRunId(),
+          mirror.reason());
+      return progressRepository
+          .restartRound(claim, mirror.reason(), failures, next)
+          .map(claim::withProgress);
+    }
+    LocalDateTime next = LocalDateTime.now().plusNanos(checkDelayMillis() * 1_000_000L);
+    return progressRepository
+        .waitFor(claim, mirror.reason(), next)
+        .map(claim::withProgress);
+  }
+
+  private Optional<CustomerIssueDelayClosureProgressClaim> advanceWaitFact(
+      CustomerIssueDelayClosureProgressClaim claim) {
+    CustomerIssueDelayClosureProgress progress = claim.progress();
+    GitlabSyncConfig config = configFor(progress);
+    if (config == null || !configService.isSourceEnabled(config)) {
+      return Optional.of(revokeToIdle(claim, "数据源配置不存在或来源已停用"));
+    }
+    if (!delayLabelWritebackService.isEnabled(config)) {
+      return Optional.of(revokeToIdle(claim, "延期标签写回开关已关闭"));
+    }
+    CustomerIssueDelaySourceReadinessService.MirrorCheck mirror =
+        readinessService.checkMirrorRun(
+            config,
+            progress.mirrorRunId(),
+            preWritebackSyncService.preWritebackTables());
+    if (mirror.terminal() && !mirror.complete()) {
+      int failures = progress.failureCount() + 1;
+      return progressRepository
+          .restartRound(
+              claim,
+              mirror.reason(),
+              failures,
+              LocalDateTime.now().plusMinutes(retryDelayMinutes(failures)))
+          .map(claim::withProgress);
+    }
+    CustomerIssueDelaySourceReadinessService.Readiness readiness =
+        readinessService.assess(
+            config,
+            progress.mirrorRunId(),
+            preWritebackSyncService.preWritebackTables());
+    if (!readiness.ready()) {
+      return progressRepository
+          .waitFor(
+              claim,
+              readiness.reason(),
+              LocalDateTime.now().plusNanos(checkDelayMillis() * 1_000_000L))
+          .map(claim::withProgress);
+    }
+    CustomerIssueDelayClosureRoundService.AuthorizationResult authorization =
+        roundService.authorizeEnqueue(claim, config, readiness.factVersion());
+    if (authorization.authorized()) {
       log.info(
-          "Customer issue delay closure is waiting for fact publication, configId={}, sourceInstance={},"
-              + " factType={}, unpublishedTargets={}, terminalRunId={}, terminalRunType={},"
-              + " terminalRunStatus={}",
-          event.configId(),
-          sourceInstance,
-          DELAY_FACT_TYPE,
-          unpublishedTargets,
-          event.runId(),
-          event.runType(),
-          event.status());
-      return;
-    }
-    if (!inFlightCycles.remove(event.configId(), cycle)) {
-      return;
+          "Customer issue delay closure authorized, sourceInstance={}, mirrorRunId={}, factVersion={}",
+          progress.sourceInstance(),
+          progress.mirrorRunId(),
+          authorization.factVersion());
+      return Optional.of(authorization.claim());
     }
     log.info(
-        "Customer issue delay closure publication converged, configId={}, sourceInstance={},"
-            + " mirrorRunId={}, factType={}, terminalRunId={}, terminalRunType={}, terminalRunStatus={}",
-        event.configId(),
-        sourceInstance,
-        cycle.mirrorRunId(),
-        DELAY_FACT_TYPE,
-        event.runId(),
-        event.runType(),
-        event.status());
-    submitDelayClosure(cycle);
+        "Customer issue delay closure delayed before authorization, sourceInstance={}, reason={}",
+        progress.sourceInstance(),
+        authorization.reason());
+    return progressRepository
+        .waitFor(
+            claim,
+            authorization.reason(),
+            LocalDateTime.now().plusNanos(checkDelayMillis() * 1_000_000L))
+        .map(claim::withProgress);
   }
 
-  private void startCycle(GitlabSyncConfig config, int period) {
-    Long configId = config.getId();
-    boolean writebackEnabled = delayLabelWritebackService.isEnabled(config);
-    if (!writebackEnabled) {
-      // 写回关闭时只刷新延期事实：没有标签写回，就不需要镜像前置刷新与发布收敛等待。
-      inFlightCycles.remove(configId);
-      submitDelayClosure(new InFlightCycle(config, null, period, false));
-      return;
+  private CustomerIssueDelayClosureProgressClaim advanceEnqueue(
+      CustomerIssueDelayClosureProgressClaim claim) {
+    CustomerIssueDelayClosureProgress progress = claim.progress();
+    if (progress.configId() == null || progress.authorizedFactVersion() == null) {
+      return revokeToFactWait(claim, "本轮写回授权不完整");
     }
-    InFlightCycle existing = inFlightCycles.get(configId);
-    if (existing != null && existing.period() >= period) {
-      log.info(
-          "Customer issue delay closure cycle is already in flight, configId={}, sourceInstance={},"
-              + " mirrorRunId={}",
-          configId,
-          GitlabSourceInstanceSupport.sourceInstanceOf(config),
-          existing.mirrorRunId());
-      return;
-    }
-    if (existing != null) {
-      log.warn(
-          "Customer issue delay closure cycle outlived one scheduling period and is restarted,"
-              + " configId={}, sourceInstance={}, mirrorRunId={}, startedInPeriod={}, currentPeriod={}",
-          configId,
-          GitlabSourceInstanceSupport.sourceInstanceOf(config),
-          existing.mirrorRunId(),
-          existing.period(),
-          period);
-    }
-    switch (preWritebackSyncService.submitPreWritebackSync(config)) {
-      case CustomerIssueDelayPreWritebackSyncService.Outcome.NotRequired ignored -> {
-        inFlightCycles.remove(configId);
-        submitDelayClosure(new InFlightCycle(config, null, period, true));
-      }
-      case CustomerIssueDelayPreWritebackSyncService.Outcome.Submitted submitted ->
-          inFlightCycles.put(
-              configId, new InFlightCycle(config, submitted.runId(), period, true));
-      case CustomerIssueDelayPreWritebackSyncService.Outcome.Rejected rejected ->
-          log.warn(
-              "Customer issue delay closure cycle skipped because the pre-writeback sync run was rejected,"
-                  + " configId={}, sourceInstance={}, reason={}",
-              configId,
-              GitlabSourceInstanceSupport.sourceInstanceOf(config),
-              rejected.reason());
-    }
-  }
-
-  /**
-   * 判断终态事件是否属于本次编排的阶段 1 运行且未成功。
-   *
-   * <p>阶段 1 只承认 {@code SUCCESS}：部分成功的镜像不足以作为写回依据，与其基于残缺镜像发出标签，
-   * 不如放弃本轮并由下一个调度周期重新发起。
-   */
-  private boolean isStageOneFailure(SyncRunCompletionEvent event, InFlightCycle cycle) {
-    return event.runType() == SyncRunType.TABLE_REFRESH
-        && cycle.mirrorRunId() != null
-        && event.runId() != null
-        && event.runId().equals(cycle.mirrorRunId())
-        && !event.successful();
-  }
-
-  private void submitDelayClosure(InFlightCycle cycle) {
-    platformAsyncExecutor.execute(() -> executeDelayClosure(cycle));
-  }
-
-  private void executeDelayClosure(InFlightCycle cycle) {
-    GitlabSyncConfig config = cycle.config();
-    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
-    try {
-      factBuildService.refreshCustomerIssueDelayFactsForConfig(config);
-      if (cycle.writebackEnabled()) {
-        int enqueued = queueService.enqueueCandidates(config);
+    CustomerIssueDelayClosureRoundService.EnqueueResult result =
+        roundService.enqueuePage(
+            claim,
+            progress.configId(),
+            progress.authorizedFactVersion(),
+            Math.max(1, properties.getCustomerIssueDelayEnqueueBatchSize()));
+    return switch (result.status()) {
+      case ADVANCED, COMPLETED -> {
         log.info(
-            "Customer issue delay closure advanced, sourceInstance={}, enqueued={}",
-            sourceInstance,
-            enqueued);
+            "Customer issue delay closure enqueued a page, sourceInstance={}, enqueued={}, status={}, cursor={}",
+            progress.sourceInstance(),
+            result.enqueued(),
+            result.status(),
+            result.claim() == null ? null : result.claim().progress().enqueueCursorIssueId());
+        yield result.claim() == null ? claim : result.claim();
       }
-    } catch (RuntimeException error) {
-      log.warn("Customer issue delay closure failed, sourceInstance={}", sourceInstance, error);
+      case CHANGED -> revokeToFactWait(claim, result.reason());
+      case REVOKED -> revokeToFactWait(claim, result.reason());
+    };
+  }
+
+  private CustomerIssueDelayClosureProgressClaim revokeToFactWait(
+      CustomerIssueDelayClosureProgressClaim claim, String reason) {
+    GitlabSyncConfig config = configFor(claim.progress());
+    if (config == null
+        || !configService.isSourceEnabled(config)
+        || !delayLabelWritebackService.isEnabled(config)) {
+      return revokeToIdle(claim, reason);
     }
+    return progressRepository
+        .revokeToFactWait(
+            claim,
+            reason,
+            claim.progress().failureCount(),
+            LocalDateTime.now().plusNanos(checkDelayMillis() * 1_000_000L))
+        .map(claim::withProgress)
+        .orElse(claim);
+  }
+
+  private CustomerIssueDelayClosureProgressClaim revokeToIdle(
+      CustomerIssueDelayClosureProgressClaim claim, String reason) {
+    return progressRepository
+        .revokeToIdle(claim, reason)
+        .map(claim::withProgress)
+        .orElse(claim);
+  }
+
+  private CustomerIssueDelayClosureProgressClaim recordFailure(
+      CustomerIssueDelayClosureProgressClaim claim, String message) {
+    int failures = claim.progress().failureCount() + 1;
+    return progressRepository
+        .recordFailure(
+            claim,
+            message == null ? "延期写回推进失败" : message,
+            failures,
+            LocalDateTime.now().plusMinutes(retryDelayMinutes(failures)))
+        .map(claim::withProgress)
+        .orElse(claim);
+  }
+
+  private GitlabSyncConfig configFor(CustomerIssueDelayClosureProgress progress) {
+    if (progress.configId() == null) {
+      return null;
+    }
+    GitlabSyncConfig config = configService.getConfigById(progress.configId());
+    if (config == null) {
+      return null;
+    }
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    return sourceInstance.equals(progress.sourceInstance()) ? config : null;
   }
 
   private List<GitlabSyncConfig> enabledConfigs() {
     return configService.listConfigs().stream()
         .filter(config -> config.getId() != null)
-        .filter(
-            config ->
-                Boolean.TRUE.equals(
-                    config.getSourceEnabled() == null ? config.isEnabled() : config.getSourceEnabled()))
+        .filter(configService::isSourceEnabled)
         .toList();
   }
 
-  /**
-   * 一次编排的在飞状态。
-   *
-   * @param config 数据源配置，终态事件命中后据此推进阶段 3，避免再次查询配置
-   * @param mirrorRunId 阶段 1 运行编号；{@code null} 表示本轮无需前置刷新
-   * @param period 发起本次编排的调度周期序号，用于判断是否已跨周期需要重启
-   * @param writebackEnabled 发起时的写回开关，决定阶段 3 是否登记写回候选
-   */
-  private record InFlightCycle(
-      GitlabSyncConfig config, Long mirrorRunId, int period, boolean writebackEnabled) {}
+  private int checkDelayMillis() {
+    return Math.max(1_000, properties.getCustomerIssueDelayProgressCheckDelayMs());
+  }
+
+  private int retryDelayMinutes(int failures) {
+    return BACKOFF_MINUTES.get(Math.min(Math.max(0, failures - 1), BACKOFF_MINUTES.size() - 1));
+  }
 }

@@ -38,18 +38,21 @@ public class GitlabConfigService {
   private final GitlabResourceLinkService resourceLinkService;
   private final SyncRuntimeConfigGuard runtimeConfigGuard;
   private final ApplicationEventPublisher eventPublisher;
+  private final CustomerIssueDelayClosureProgressRepository delayClosureProgressRepository;
 
   public GitlabConfigService(
       GitlabSyncConfigMapper configMapper,
       GitlabMirrorProperties properties,
       GitlabResourceLinkService resourceLinkService,
       SyncRuntimeConfigGuard runtimeConfigGuard,
-      ApplicationEventPublisher eventPublisher) {
+      ApplicationEventPublisher eventPublisher,
+      CustomerIssueDelayClosureProgressRepository delayClosureProgressRepository) {
     this.configMapper = configMapper;
     this.properties = properties;
     this.resourceLinkService = resourceLinkService;
     this.runtimeConfigGuard = runtimeConfigGuard;
     this.eventPublisher = eventPublisher;
+    this.delayClosureProgressRepository = delayClosureProgressRepository;
   }
 
   public GitlabSyncConfig getConfig() {
@@ -139,6 +142,8 @@ public class GitlabConfigService {
       configMapper.updateById(normalized);
     }
     resourceLinkService.clearCache();
+    // 与配置保存同事务撤销写回授权：关闭立即阻断后续发送，重新开启必须经过新的前置刷新周期。
+    delayClosureProgressRepository.onConfigSaved(normalized);
     eventPublisher.publishEvent(new GitlabSyncConfigChangedEvent(normalized.getId()));
     return getConfigById(normalized.getId());
   }
@@ -331,7 +336,7 @@ public class GitlabConfigService {
         "GitLab 数据源连接配置不完整；请关闭自动同步或补全连接配置");
   }
 
-  private boolean isSourceEnabled(GitlabSyncConfig config) {
+  public boolean isSourceEnabled(GitlabSyncConfig config) {
     return Boolean.TRUE.equals(config.getSourceEnabled() == null ? config.isEnabled() : config.getSourceEnabled());
   }
 

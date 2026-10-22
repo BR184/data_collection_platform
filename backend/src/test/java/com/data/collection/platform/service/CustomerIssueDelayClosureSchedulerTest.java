@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -18,13 +19,15 @@ import org.junit.jupiter.api.Test;
 class CustomerIssueDelayClosureSchedulerTest {
   private CustomerIssueDelayClosureOrchestrator orchestrator;
   private RecordingExecutor executor;
+  private GitlabMirrorProperties properties;
   private CustomerIssueDelayClosureScheduler scheduler;
 
   @BeforeEach
   void setUp() {
     orchestrator = mock(CustomerIssueDelayClosureOrchestrator.class);
     executor = new RecordingExecutor();
-    scheduler = new CustomerIssueDelayClosureScheduler(orchestrator, executor);
+    properties = new GitlabMirrorProperties();
+    scheduler = new CustomerIssueDelayClosureScheduler(orchestrator, properties, executor);
   }
 
   @Test
@@ -45,6 +48,28 @@ class CustomerIssueDelayClosureSchedulerTest {
     scheduler.triggerCustomerIssueDelayClosure();
 
     assertThat(executor.tasks()).hasSize(2);
+  }
+
+  @Test
+  void recoveryCheckHandsOffProgressAdvance() {
+    scheduler.recoverCustomerIssueDelayClosureProgress();
+
+    verify(orchestrator, never()).checkProgressForAllSources();
+    assertThat(executor.tasks()).hasSize(1);
+
+    executor.drain();
+
+    verify(orchestrator).checkProgressForAllSources();
+  }
+
+  @Test
+  void schedulerDisabledStopsBothTriggers() {
+    properties.setSchedulerEnabled(false);
+
+    scheduler.triggerCustomerIssueDelayClosure();
+    scheduler.recoverCustomerIssueDelayClosureProgress();
+
+    assertThat(executor.tasks()).isEmpty();
   }
 
   private static final class RecordingExecutor implements Executor {
