@@ -448,6 +448,9 @@ select id, issue_iid, status, attempt_count, authorization_revision, task_revisi
 4. 回退到老平台写回前必须先确认新平台已完全停写，并评估两边判据差异（尤其 D8 解决期限
    取值差异），避免双写互相覆盖。不要用批量改库直接复活 `DEAD` 作业；先核对失败原因和令牌，
    再由运维显式处理。
+5. 进度租约在重算事务内到期时，本轮事实与 generation 会整体回滚并按失败退避，不会提交半轮
+   结果；现场先看 `last_error`，确属耗时长再调整 `CUSTOMER_ISSUE_DELAY_PROGRESS_LEASE_SECONDS`，
+   不要手工改阶段或延长租约绕过授权。
 
 ### 5. 已知差异与未承诺项
 

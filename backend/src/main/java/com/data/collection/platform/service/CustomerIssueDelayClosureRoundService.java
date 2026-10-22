@@ -123,14 +123,15 @@ public class CustomerIssueDelayClosureRoundService {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     long factVersion = readinessService.currentFactVersion(sourceInstance);
     if (factVersion != expectedFactVersion) {
-      return AuthorizationResult.rejected(
-          "重算期间相关事实版本发生变化：" + expectedFactVersion + " -> " + factVersion);
+      throw new IllegalStateException(
+          "重算期间相关事实版本发生变化，回滚本轮重算：" + expectedFactVersion + " -> " + factVersion);
     }
     Optional<CustomerIssueDelayClosureProgress> authorized =
         progressRepository.authorizeEnqueue(claim, expectedFactVersion);
     return authorized
         .map(progress -> AuthorizationResult.authorized(claim.withProgress(progress), factVersion))
-        .orElseGet(() -> AuthorizationResult.rejected("本轮进度所有权已丢失"));
+        .orElseThrow(
+            () -> new IllegalStateException("本轮进度所有权或租约已失效，回滚本轮重算与 generation"));
   }
 
   /**

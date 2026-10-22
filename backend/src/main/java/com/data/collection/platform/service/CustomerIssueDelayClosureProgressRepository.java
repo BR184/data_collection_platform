@@ -14,14 +14,17 @@ import org.springframework.stereotype.Service;
 /**
  * 延期标签写回的来源级持久进度。
  *
- * <p>该仓库只做有界状态变更：所有推进、等待与结算都要求 owner、领取令牌和处理修订同时匹配，
- * 因此重启后的新处理者可以接管过期租约，旧处理者无法回写已经失效的阶段。
+ * <p>该仓库只做有界状态变更：所有推进、等待与结算都要求 owner、领取令牌、处理修订同时匹配，
+ * 且租约在语句执行时仍然有效；因此重启后的新处理者可以接管过期租约，旧处理者无法回写已经
+ * 失效的阶段，长事务内到期的租约也不能靠事务开始时间蒙混通过。恢复旧轮时保留本轮开始时的
+ * 处理修订，等待期间到达的更高请求只留给下一轮结算。
  */
 @Service
 @Slf4j
 public class CustomerIssueDelayClosureProgressRepository {
   private static final String FENCE =
-      " id = ? and lease_owner = ? and lease_token = ? and processed_revision = ? ";
+      " id = ? and lease_owner = ? and lease_token = ? and processed_revision = ? "
+          + " and lease_until > clock_timestamp() ";
 
   private final JdbcTemplate jdbcTemplate;
 
@@ -196,15 +199,19 @@ public class CustomerIssueDelayClosureProgressRepository {
         update customer_issue_delay_closure_requests
            set lease_owner = ?,
                lease_token = ?,
-               lease_until = current_timestamp + (? * interval '1 second'),
-               processed_revision = request_revision,
-               updated_at = current_timestamp
+               lease_until = clock_timestamp() + (? * interval '1 second'),
+               processed_revision = case
+                 when stage in ('WAIT_MIRROR', 'WAIT_FACT', 'ENQUEUE')
+                   then processed_revision
+                 else request_revision
+               end,
+               updated_at = clock_timestamp()
          where id = (
            select id
              from customer_issue_delay_closure_requests
             where (stage <> 'IDLE' or request_revision > completed_revision)
-              and (next_check_at is null or next_check_at <= current_timestamp)
-              and (lease_until is null or lease_until < current_timestamp)
+              and (next_check_at is null or next_check_at <= clock_timestamp())
+              and (lease_until is null or lease_until < clock_timestamp())
         """
             + sourceFilter
             + """
