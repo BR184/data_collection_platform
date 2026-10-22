@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -26,24 +27,31 @@ class CustomerIssueDelayLabelWritebackQueueServiceTest {
   }
 
   @Test
-  void shouldExcludeGitlabApiErrorFromCandidateSql() {
+  void shouldExcludeGitlabApiErrorAndUnconfirmedLabelsFromCandidateSql() {
     String sql = queueService.candidateSql();
 
     assertThat(sql)
         .contains("f.project_id = ?")
         .contains("lower(coalesce(f.issue_state, 'opened')) <> 'closed'")
         .contains("f.created_at_source >= ?")
+        .contains("f.issue_id is not null")
         .contains("coalesce(f.illegal_reason, '') not like '%GitLab接口报错%'")
-        .contains("coalesce(f.illegal_reasons, '') not like '%GitLab接口报错%'");
+        .contains("coalesce(f.illegal_reasons, '') not like '%GitLab接口报错%'")
+        .as("必须从当前 ODS 标签读取，不能用事实里的旧标签补齐")
+        .contains("coalesce(current_labels.label_names, '')")
+        .doesNotContain("f.label_names, ''")
+        .as("ODS 议题缺失时不能把未知标签当作空集合")
+        .contains("join ods_gitlab_issues source_issue");
   }
 
   @Test
-  void shouldClaimPendingRetryOrExpiredRunningJobsWithSkipLocked() {
+  void shouldClaimPendingRetryOrExpiredRunningJobsWithNewTokenAndRevision() {
     when(jdbcTemplate.query(
             org.mockito.ArgumentMatchers.contains("for update skip locked"),
             any(RowMapper.class),
             eq("RUNNING"),
             eq("worker-1"),
+            anyString(),
             eq(1),
             eq("PENDING"),
             eq("RETRY_WAIT"),
@@ -55,10 +63,11 @@ class CustomerIssueDelayLabelWritebackQueueServiceTest {
     assertThat(claimed).isNull();
     verify(jdbcTemplate)
         .query(
-            org.mockito.ArgumentMatchers.contains("lease_until < current_timestamp"),
+            org.mockito.ArgumentMatchers.contains("claim_revision = claim_revision + 1"),
             any(RowMapper.class),
             eq("RUNNING"),
             eq("worker-1"),
+            anyString(),
             eq(1),
             eq("PENDING"),
             eq("RETRY_WAIT"),

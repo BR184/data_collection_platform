@@ -709,6 +709,13 @@
 - [验证-本地部署实测] 用独立栈（仓库 `.tmp/local-deploy-verify-empty-20261010/`，原样使用包内 `docker-compose.yml`，镜像从包内 tar 自行 `docker load`，仅站点级覆盖 LDAP→本机 corp-IDM 模拟 28081 与公开地址）实跑：三容器 healthy、后端 `/actuator/health`=UP、前端 200、Flyway 空库从零迁到清单声明的 `20260930.02`（138 迁移 / 99 表）、业务表全 0 行而权限目录 89/387 由迁移播种、CSRF Cookie 为实例专属名 `QAFLEX_XSRF_<实例摘要>`（无共享 `JSESSIONID`/`XSRF-TOKEN`）；浏览器用 corp-IDM 账号登录成功，BI 看板（含产品版本选择器）、系统测试缺陷汇总、客户问题（含 8 个副模块）三页均正常渲染并给出正确的空数据文案。
 - [限制] 本机无法验证内网真实 LDAP（172.22.10.116）、GitLab/老平台源库连通与 20101/20102/15435 在 115 上的宿主机占用；这些留待现场按包内 `README-INTRANET-DEPLOY.md` 执行。`docker ps` 只能证明 115 上 Docker 容器占用为 20001/20002/15433。
 - [历史-环境] 本机 Docker Desktop 默认子网池曾被 33 个网络耗尽（含 26 个未挂容器的历史验证栈残留）；已按用户"有用的保留、无用的删除"批准删除 19 个本项目历史验证栈的 `*_default` 网络（33→14），保留 corp-idm、GitLab/DGM、手工创建的 `qaflex-matchmode-mr-net` 及其它项目网络。`docker compose up` 会在下次启动对应栈时自动重建被删网络。
+## 2026-10-22 延期标签写回接替修复（已实现、隔离验证，待经理验收）
+
+- [基线] 分支 `codex/delay-writeback-takeover-20261022`，基于 `release/20261019-90bbb` 的 `d5383a17`（1010 同步机制 + 已审批 f45e/a937 业务），追加 Flyway `V20261022_03`（校验和 `0c9d8bb9…37b9`，140 条迁移锁文件只追加）。主树 `main/84e7c023` 的 D-26 与他人未提交改动未带入。
+- [已完成] 新增按来源复用的持久进度表与 `REQUESTED → WAIT_MIRROR → WAIT_FACT → ENQUEUE → IDLE` 编排，运行终态只唤醒、短周期检查负责重启恢复；前置镜像须所需表全 SUCCESS，事实须 READY/依赖完整/无全量意图/无未发布根/事件历史完整/无在途改写；worker 发送前复核唯一配置、开关、来源资格、事实版本与本轮授权；领取/续租/结算按 owner、令牌、领取修订、任务修订限定。D-15 三列窄写、D-21 响应规则、唯一开关和 `add_labels`/`remove_labels` 协议未改。
+- [验证] 修复前 5 个失败反例（无关终态误推进、重启丢等待、旧租约结算、新差异被旧完成清除、配置缺失回退默认）与 2 个 worker 反例；定向套件 84/84、真实 PostgreSQL 并发/重启/租约套件 18/18；后端默认套件 1795 项中 1793 通过、0 失败、1 错误、1 跳过，唯一错误为 `BackupOrchestrationSettlementIntegrationTest` 的 Testcontainers 启动 SSL 读超时，单测重跑通过（非本单元代码）。隔离接替链路：克隆源库单议题首轮按 `add=响应已延期&remove=解决已延期` 写回成功，第二轮无新作业、ODS 有效标签仅剩响应标签、进度回 IDLE。
+- [未验证/边界] 真实业务 GitLab 写回、内网部署、出包、生产停写与开关切换、黄金严格 compare 未执行；D8「15 个工作日 vs 18 天」解决期限取值差异未改，需上线预期单列。
+- [下一步] 经理审阅代码与 `.tmp/delay-writeback-takeover-20261022/DELIVERY.md` 材料；验收后再安排停写、内网部署与开启写回。执行方案见 [延期标签写回接替修复](plans/delay-writeback-takeover-fix-20261014.md)，设计见 `docs/decisions.md` D-31。
 
 ## 2026-10-08 下拉框设置关系选项分档重命名与保存期拒绝（已实施、验证并提交）
 

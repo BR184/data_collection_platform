@@ -365,3 +365,25 @@
 - **管理页边界**：2026-10-27用户已批准UI；视觉冻结及后续功能改动审批归[产品文档](product.md#form-admin-approved-ui)。v6技术改造不授权重做页面。
 - **N3整改边界（2026-10-29）**：首次审核确认失败任务恢复会重新启用已退役范围、旧任务会以冻结绑定覆盖期间有效的绑定。现约定：发布类型决定允许的范围状态，`INITIAL_EMPTY` 只接受 `DRAFT` + 无指针、`MIGRATION` 只接受 `ACTIVE` + 冻结旧指针，领取后执行/切换/恢复共用同一规则，`RETIRED` 拒绝恢复与切换，重新启用须另行审批（S1；Why: 恢复本应是同一意图的续做，不能成为绕过退役的状态写入口。How to apply: 新增任何发布或恢复入口都必须复用该守卫，不能只隐藏前端按钮）。任务创建时持久冻结原范围绑定证据并与拟发布绑定分离，切换/恢复在范围锁内复核修订/哈希与规范绑定，失配拒绝且不重冻结（Why: 旧任务不得用过期绑定覆盖管理员已确认的新绑定。How to apply: 新增持久列只允许前向迁移，已执行迁移与 checksum 不得修改）。
 - **依据与入口**：用户2026-10-26确认，不是从会议或第三方推断；[方案v6.0](plans/unified-form-system-plan-20261009.md) §2.2、§3.1、§3.3—§3.8，[执行单](plans/unified-form-system-implementation-plan-20261021.md#v60待下发工作单元与交接清单)记录生效和下发时点。v5.1历史论证与验证由Git历史及同一执行单追溯。
+- **状态**：2026-10-20 经理批准并实施；黄金严格比对已收口 203/203，历史事实重建与 696c 直接升级演练同工作单元完成。
+- **背景**：S03 将创建时间映射到上海业务轴后，黄金严格比对暴露 11 条负解决周期（最小 -0.325 天）。只读探针核对来源与 ODS：`resource_label_events.created_at` 等 timestamptz 在 ODS 中整体比来源早 8 小时。DIRECT 读取把 timestamptz 归一为 UTC `LocalDateTime`，镜像 JSON 序列化按 JVM `Asia/Shanghai` 附加 `+08:00`（或无偏移文本被目标会话按上海解释），目标 timestamptz 因而落成错误时刻；DOCKER 的 `row_to_json` 自带来源偏移，不受影响。修复前旧公式直接相减恰好抵消该位移，S03 统一轴后位移暴露为负周期。
+- **选择**：
+  ① 写入边界以镜像 schema 物理类型为准：timestamptz 列的 `LocalDateTime`/`Timestamp`/`OffsetDateTime`/`Instant`/`Date` 值在 `jsonb_populate_recordset` 前统一序列化为带 `Z` 的 ISO 时刻文本；DOCKER 来源字符串保持既有偏移；timestamp without time zone 列不转换。
+  ② `source_updated_at` 元数据列按来源更新时间列类型生成：timestamptz 用 `(p."col" at time zone 'UTC')` 保持 UTC 水位轴，timestamp 保持墙上值。
+  ③ DOCKER 增量续传游标复用 `GitlabSourceTimestampNormalizer.normalizeSourceValue`，让带偏移文本与 DIRECT 的 UTC 墙上值进入同一水位轴。
+  ④ 事实读取 `closed_at` 等 timestamptz 投影显式指定 UTC 或上海轴，不再依赖 JDBC 会话时区。
+  ⑤ 历史修复复用既有 `POST /api/gitlab-sync/full-compensation-sync/by-config`（`FULL_COMPENSATION_SCAN`）：全量按主键重读来源、`forceUpdate=true` 覆盖 ODS、完成后自动全量事实刷新；不清库、不重置水位、不截断，可中断重跑，重复执行不产生额外变化。
+- **否决选项**：①按整库或单表加减 8 小时；②只修统计页/事实层，保留错误 ODS；③改 JVM/容器全局时区掩盖；④新增纠正专用表或一次性迁移补丁；⑤接受负周期、clamp 到 0 或剔除样本；⑥保留旧写入双轨。
+- **影响**：所有 timestamptz 镜像列的 ODS 时刻恢复为来源真实瞬间，依赖事实（`fixed_label_time`、`closed_at_source` 等）与时间产出随源正确；timestamp 列轴不变。存量部署首次升级需执行一次全量补偿并等待事实重建完成，未完成前不宣称数据已纠正；应用回滚不会自动回退已纠正数据，旧写入器可能再次引入错位，演练需验证停同步/恢复边界。
+- **验证证据**：`GitlabMirrorTimestampTransportIntegrationTest`（双 PostgreSQL、DIRECT/DOCKER、三组 JVM/源/目标会话时区、Z/正负偏移/微秒/NULL/跨日、timestamp 墙上值、`source_updated_at` UTC 轴、旧错强制重放幂等）、`GitlabMirrorTableStorageServiceTest`、`SyncRunTableWorkerServiceTest`（DOCKER 带偏移游标）、`CustomerIssueTimeAxisIntegrationTest`（`closed_at` 多会话时区）、真实黄金链路。修复后严格比对 203 项仅 11 项已批准 A 类差异，负周期 0；授权更新 11 份快照并恢复 239 份无关抖动后，非 update 严格复跑 `Tests run: 203, Failures: 0, Errors: 0`。默认后端套件 1762/0/0/1，前端全量 3×765 通过。696c 直接基线隔离演练：旧包真实全量造错（标签事件整体 -8h、38 条负周期）→ 升级 → 一次全量补偿后哈希等于来源、负周期 0；第二次补偿逐字节幂等；调度自动增量真实新增/无变化；回滚期写入在旧版本再次错位、再升级补偿后保留并纠正；取消补偿后重跑收敛；`database.dump` 恢复新空库行数一致；全新包空库首次全量即正确并完成自动增量。证据见 `D:/projects/dcp-restore-20261016/.tmp/ods-timefix-20261020/DRILL-REPORT.md`。
+- **关联文档**：D-28；`docs/architecture.md`“镜像与同步”；`docs/plans/customer-issue-status-statistics-confirmation-20261019.md`。
+
+## D-31 延期标签写回按 1010 数据生产机制接替
+
+- **状态**：2026-10-22 在隔离工作树实现，并通过定向回归、真实 PostgreSQL 并发/恢复、后端默认套件与隔离接替链路；经理验收待完成。本轮未部署内网、未开启生产写回、未对真实业务议题执行写回。
+- **背景**：基础写回和 D-21 响应规则已经存在，但接替草案曾依赖 D-26 候选发布、历史修订和 GC，与恢复 1010 机制的交付线路不符。现有编排还缺少本轮镜像成功的正向确认，等待只在内存，worker 缺执行前来源复核，作业结算未校验领取归属。
+- **选择**：使用已恢复 1010 同步机制并保留已审批业务的最新源码（`release/20261019-90bbb`，实施基线 `d5383a17`，对应 f45e/a937 业务），保留现有页面、指标和 D-15 三列窄写。新增按来源复用的持久进度表 `customer_issue_delay_closure_requests`，只保存配置、运行号、阶段、修订、游标、授权事实版本与租约；绑定前置镜像必须完整 SUCCESS（所需表均有成功任务），来源事实取得 READY/依赖完整/无全量意图/无未发布根/事件历史完整/无在途改写的正证据后才重算并入队。worker 发送前复核配置唯一性、来源资格、当前事实版本和本轮授权；所有领取、续租与结算按 owner、令牌、领取修订和任务修订限定，处理中到达的新差异保留为更高修订。配置保存与授权撤销同事务提交。
+- **实现**：迁移 `V20261022_03__customer_issue_delay_closure_progress.sql` 新建进度表，并为队列追加 `config_id`、`round_mirror_run_id`、`authorization_revision`、`required_fact_version`、`claim_token`、`claim_revision`、`task_revision`；旧迁移零修改，校验和锁文件只追加新条目。编排阶段为 `REQUESTED → WAIT_MIRROR → WAIT_FACT → ENQUEUE → IDLE`，运行终态事件只唤醒检查，短周期恢复检查从持久行继续。差异仍只通过 `add_labels`／`remove_labels` 维护两个延期标签，事实重算仍只写三列并推进 generation。
+- **取舍**：不使用 D-26 候选、页面租约、GC 或快照副本，不建立双轨；不使用内存等待，不回退默认配置。数据库与 GitLab 无法组成同一事务，发送结果未知时重读并最终收敛，不承诺绝对只发送一次。D8 解决期限差异留在独立范围，本单元不改延期公式。
+- **验证证据**：原实现失败反例（无关终态误推进、重启丢失等待、旧租约结算、新差异被旧完成清除、配置缺失/歧义回退默认）；真实 PostgreSQL 覆盖两推进者唯一领取、过期租约接管、重启恢复、处理中更高请求保留、配置关闭/重开、RUNNING 期间新差异、真实 ODS 标签与 keyset 分页；worker 覆盖开关关闭、配置缺失/歧义、授权修订/事实版本变化、标签读取异常、HTTP 200/4xx/429/5xx/超时；同步链路回归覆盖自动增量、手工刷新、全量交接。隔离接替链路以单议题克隆源库与本机写回替身验证：首轮四表前置刷新成功、事实收敛后按 `add=响应已延期`／`remove=解决已延期` 写回，第二轮无新作业且 ODS 有效标签收敛。具体日志与未测项见交付材料。
+- **关联文档**：[执行方案](plans/delay-writeback-takeover-fix-20261014.md)；[接替运维入口](../deploy/runbooks/gitlab-sync-orchestrator-runbook.md#老平台延期标签写回接替边界)；D-14、D-15、D-16、D-21、D-23。

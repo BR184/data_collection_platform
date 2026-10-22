@@ -50,6 +50,9 @@ public class GitlabMirrorProperties {
   private boolean customerIssueDelayWritebackWorkerEnabled = true;
   private int customerIssueDelayWritebackWorkerDelayMs = 5000;
   private int customerIssueDelayWritebackLeaseSeconds = 120;
+  private int customerIssueDelayProgressCheckDelayMs = 60000;
+  private int customerIssueDelayProgressLeaseSeconds = 120;
+  private int customerIssueDelayEnqueueBatchSize = 200;
   private boolean codeReviewMetricEnrichmentEnabled = true;
   private int codeReviewMetricEnrichmentDelayMs = 2000;
   private int codeReviewMetricEnrichmentInitialDelayMs = 30000;
@@ -412,6 +415,30 @@ public class GitlabMirrorProperties {
 
   public void setCustomerIssueDelayWritebackLeaseSeconds(int customerIssueDelayWritebackLeaseSeconds) {
     this.customerIssueDelayWritebackLeaseSeconds = customerIssueDelayWritebackLeaseSeconds;
+  }
+
+  public int getCustomerIssueDelayProgressCheckDelayMs() {
+    return customerIssueDelayProgressCheckDelayMs;
+  }
+
+  public void setCustomerIssueDelayProgressCheckDelayMs(int customerIssueDelayProgressCheckDelayMs) {
+    this.customerIssueDelayProgressCheckDelayMs = customerIssueDelayProgressCheckDelayMs;
+  }
+
+  public int getCustomerIssueDelayProgressLeaseSeconds() {
+    return customerIssueDelayProgressLeaseSeconds;
+  }
+
+  public void setCustomerIssueDelayProgressLeaseSeconds(int customerIssueDelayProgressLeaseSeconds) {
+    this.customerIssueDelayProgressLeaseSeconds = customerIssueDelayProgressLeaseSeconds;
+  }
+
+  public int getCustomerIssueDelayEnqueueBatchSize() {
+    return customerIssueDelayEnqueueBatchSize;
+  }
+
+  public void setCustomerIssueDelayEnqueueBatchSize(int customerIssueDelayEnqueueBatchSize) {
+    this.customerIssueDelayEnqueueBatchSize = customerIssueDelayEnqueueBatchSize;
   }
 
   public boolean isCodeReviewMetricEnrichmentEnabled() {

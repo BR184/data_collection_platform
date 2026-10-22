@@ -37,15 +37,14 @@ public class CustomerIssueDelayPreWritebackSyncService {
    * 提交写回前的镜像增量刷新运行。
    *
    * @param config 当前数据源配置
-   * @return 提交结果：{@link Outcome.NotRequired} 表示开关关闭、无需前置刷新，调用方可以直接推进；
-   *     {@link Outcome.Submitted} 携带已入队运行的编号，调用方据此等待该运行的终态事件；
-   *     {@link Outcome.Rejected} 表示配置不具备刷新条件，本轮必须放弃写回
+   * @return 提交结果：{@link Outcome.Submitted} 携带已入队运行的编号，调用方据此等待该运行的终态事件；
+   *     {@link Outcome.Rejected} 表示前置刷新关闭或配置不具备刷新条件，本轮不得写标签
    */
   public Outcome submitPreWritebackSync(GitlabSyncConfig config) {
     if (!properties.isCustomerIssueDelayPreWritebackSyncEnabled()) {
-      return new Outcome.NotRequired();
+      return new Outcome.Rejected("写回前增量刷新已关闭，本轮不写标签");
     }
-    List<String> sourceTables = preWritebackSyncTables();
+    List<String> sourceTables = preWritebackTables();
     if (sourceTables.isEmpty()) {
       log.warn("Customer issue delay pre-writeback sync skipped because no source tables were configured");
       return new Outcome.Rejected("未配置写回前增量刷新的来源表");
@@ -55,7 +54,8 @@ public class CustomerIssueDelayPreWritebackSyncService {
     return new Outcome.Submitted(submission.runId());
   }
 
-  private List<String> preWritebackSyncTables() {
+  /** 返回本轮前置刷新必须覆盖的来源表（小写、去重）。 */
+  public List<String> preWritebackTables() {
     String configuredTables = properties.getCustomerIssueDelayPreWritebackSyncTables();
     if (!StringUtils.hasText(configuredTables)) {
       return List.of();
@@ -70,9 +70,6 @@ public class CustomerIssueDelayPreWritebackSyncService {
 
   /** 写回前增量刷新的提交结果。 */
   public sealed interface Outcome {
-    /** 前置刷新开关关闭，无需提交运行。 */
-    record NotRequired() implements Outcome {}
-
     /** 已提交镜像刷新运行。 */
     record Submitted(long runId) implements Outcome {}
 
