@@ -248,8 +248,9 @@ Preflight checks before enabling writeback:
 4. Endpoint consistency: `web_base_url` must point at the same GitLab instance the
    mirror reads from, and be reachable from the platform host. In DOCKER source mode a
    mismatch is not caught by the sync diagnostics.
-5. Switch state: global flag on plus per-source switch on. A writeback job only adds or
-   removes `响应已延期`/`解决已延期`; it never rewrites unrelated labels.
+5. Switch state: the per-source `delay_label_writeback_enabled` switch is on (since D-23
+   there is no deployment-level global switch). A writeback job only adds or removes
+   `响应已延期`/`解决已延期`; it never rewrites unrelated labels.
 6. Queue drain: after rotating the credential, requeue the failed rows and confirm the
    next attempts return HTTP 200:
 
@@ -306,3 +307,81 @@ Do not use or recreate legacy sync task/log/job tables or services to recover a
 run. The runtime model is `sync_runs` plus its table tasks, states, events, and
 worker leases. If a legacy symbol appears in runtime Java code, the architecture
 guard test must fail before release.
+
+
+## 老平台延期标签写回接替边界
+
+本节用于把 `响应已延期`/`解决已延期` 的维护权从老平台切到新平台。切换前必须确认老平台所有
+写标签入口都已停写；新平台只管这两个标签，老平台其它采集与代码走查功能保留。
+
+### 1. 老平台停写
+
+1. 停掉老平台定时入口 `CCProductScheduleTask -> IssueServiceImpl.updateIssueDelayLabels`
+   （约每小时无条件覆盖式写回），并确认没有部署级补偿、手工任务或外部脚本仍调用
+   `setIssueLabels` 写这两个标签。
+2. 停写后至少观察两个完整周期，确认目标议题的两个延期标签不再变化；只停 UI 或只关闭页面
+   开关不算停写，老平台该写回没有运行期开关。
+3. 保留老平台其它采集、代码走查和页面功能；本轮不修改老平台仓库或生产环境。
+
+### 2. 新平台接管前置
+
+1. 目标实例已升级到包含 `V20261022_03__customer_issue_delay_closure_progress.sql` 的版本，
+   Flyway 成功；旧迁移未被修改。
+2. 数据源已启用、`web_base_url` 与 `api_token` 齐备、页面「延期标签写回」开关为开；
+   地址与令牌齐备不代表可以跳过来源资格检查。
+3. 确认没有未结算的全量事实意图、没有长时间未收敛的根；否则新平台会停在 `WAIT_FACT`，
+   这是预期等待，不要手工改阶段或直接塞队列。
+4. `CUSTOMER_ISSUE_DELAY_PRE_WRITEBACK_SYNC_ENABLED` 必须为 true；关闭时本轮只重算延期事实，
+   不会写标签。
+
+### 3. 开启与验收
+
+开启开关后，编排按 `REQUESTED -> WAIT_MIRROR -> WAIT_FACT -> ENQUEUE -> IDLE` 推进。检查：
+
+```sql
+-- 平台库：来源级进度（每个 source_instance 至多一行）
+select source_instance, config_id, stage, request_revision, processed_revision,
+       completed_revision, mirror_run_id, authorized_fact_version,
+       authorization_revision, enqueue_cursor_issue_id, failure_count,
+       next_check_at, lease_owner, last_error
+  from customer_issue_delay_closure_requests;
+
+-- 平台库：队列状态
+select status, count(*) from customer_issue_delay_label_writeback_jobs group by status;
+
+-- 平台库：最近作业与 HTTP 结果
+select id, issue_iid, status, attempt_count, authorization_revision, task_revision,
+       round_mirror_run_id, last_http_status, last_error, updated_at
+  from customer_issue_delay_label_writeback_jobs
+ order by updated_at desc
+ limit 20;
+```
+
+首轮验收必须同时满足：
+
+- `mirror_run_id` 对应的运行是 `SUCCESS`，且 `sync_run_table_tasks` 中 `issues`、`notes`、
+  `label_links`、`labels` 均为 `SUCCESS`；
+- 进度先经过 `WAIT_FACT` 再进入 `ENQUEUE/IDLE`，不能在镜像未终态或事实未收敛时直接入队；
+- 作业的 `authorization_revision` 与进度一致，`required_fact_version` 与当前
+  `fact_change_heads` 的 ISSUE 版本上界一致；
+- 只出现 `add_labels`/`remove_labels` 对两个延期标签的增删，非延期标签和范围外议题不变；
+- 下一轮镜像与事实收敛后，已收敛议题不再产生新的写回差异（`enqueued` 为 0 或仅剩真实差异）。
+
+### 4. 失败与回退
+
+1. 关闭页面开关：配置保存与授权撤销同事务提交，worker 发送前复核会停止后续发送；已入队
+   未发送的作业会跳过或等待下一轮重新评估。
+2. 清空 `api_token` 或 `web_base_url`；或设置
+   `CUSTOMER_ISSUE_DELAY_WRITEBACK_WORKER_ENABLED=false` /
+   `platform.gitlab-mirror.scheduler-enabled=false` 后重启。
+3. 在 GitLab 侧撤销令牌：写回 401 转 `DEAD`，不改标签。
+4. 回退到老平台写回前必须先确认新平台已完全停写，并评估两边判据差异（尤其 D8 解决期限
+   取值差异），避免双写互相覆盖。不要用批量改库直接复活 `DEAD` 作业；先核对失败原因和令牌，
+   再由运维显式处理。
+
+### 5. 已知差异与未承诺项
+
+- D8 解决期限取值差异仍为独立风险，本单元未修改延期公式，不能声称新平台与老平台逐条完全一致。
+- GitHub/GitLab 网络请求发出后无法与本地数据库撤销组成原子事务；超时按“发送结果未知”重试，
+  由下一轮重读标签收敛，不承诺绝对只发送一次。
+- 真实内网容量、标签基线和令牌有效期必须在现场核对，本 runbook 不替代现场验收。

@@ -81,12 +81,14 @@ class CustomerIssueDelayPreWritebackSyncServiceTest {
   }
 
   @Test
-  void test_preWritebackSyncDisabled_returnsNotRequiredWithoutSubmittingSync() {
+  void test_preWritebackSyncDisabled_rejectsWritebackWithoutSubmittingSync() {
     properties.setCustomerIssueDelayPreWritebackSyncEnabled(false);
 
     Outcome outcome = service.submitPreWritebackSync(config);
 
-    assertThat(outcome).isInstanceOf(Outcome.NotRequired.class);
+    assertThat(outcome)
+        .as("前置刷新关闭时本轮不得写标签")
+        .isInstanceOf(Outcome.Rejected.class);
     verify(submissionService, never()).submitTableRefresh(any(), any(), any());
   }
 }

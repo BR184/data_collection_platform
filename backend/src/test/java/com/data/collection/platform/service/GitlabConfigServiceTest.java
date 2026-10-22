@@ -29,6 +29,7 @@ class GitlabConfigServiceTest {
   private GitlabResourceLinkService resourceLinkService;
   private SyncRuntimeConfigGuard runtimeConfigGuard;
   private ApplicationEventPublisher eventPublisher;
+  private CustomerIssueDelayClosureProgressRepository delayClosureProgressRepository;
   private GitlabConfigService configService;
 
   @BeforeEach
@@ -37,6 +38,7 @@ class GitlabConfigServiceTest {
     resourceLinkService = mock(GitlabResourceLinkService.class);
     runtimeConfigGuard = mock(SyncRuntimeConfigGuard.class);
     eventPublisher = mock(ApplicationEventPublisher.class);
+    delayClosureProgressRepository = mock(CustomerIssueDelayClosureProgressRepository.class);
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
     properties.setMaxSyncThreads(16);
     configService =
@@ -45,7 +47,8 @@ class GitlabConfigServiceTest {
             properties,
             resourceLinkService,
             runtimeConfigGuard,
-            eventPublisher);
+            eventPublisher,
+            delayClosureProgressRepository);
   }
 
   @Test
