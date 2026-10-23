@@ -2,6 +2,7 @@ package com.data.collection.platform.service.sync;
 
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import java.math.BigDecimal;
 import java.util.Objects;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ public class SyncRuntimeConfigGuard {
 
   /**
    * 校验运行时敏感配置是否可修改。
+   * 线程预算按数值比较，数据库存储精度变化不视为并发预算变更。
    *
    * @param current 当前已持久化配置
    * @param replacement 待保存的新配置
@@ -62,7 +64,13 @@ public class SyncRuntimeConfigGuard {
         || !Objects.equals(current.getDbPassword(), replacement.getDbPassword())
         || !Objects.equals(current.getDockerContainerName(), replacement.getDockerContainerName())
         || !Objects.equals(current.getSyncThreadMode(), replacement.getSyncThreadMode())
-        || !Objects.equals(current.getSyncThreadValue(), replacement.getSyncThreadValue())
+        || !sameThreadValue(current.getSyncThreadValue(), replacement.getSyncThreadValue())
         || !Objects.equals(current.getMaxSyncThreads(), replacement.getMaxSyncThreads());
+  }
+
+  private static boolean sameThreadValue(BigDecimal current, BigDecimal replacement) {
+    return current == null
+        ? replacement == null
+        : replacement != null && current.compareTo(replacement) == 0;
   }
 }
