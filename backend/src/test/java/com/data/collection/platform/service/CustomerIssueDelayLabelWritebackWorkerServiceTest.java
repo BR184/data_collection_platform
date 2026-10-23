@@ -212,6 +212,15 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
   }
 
   @Test
+  void shouldSkipWhenSourceDisabled() throws Exception {
+    CustomerIssueDelayLabelWritebackJob job = job(7, 0, 10);
+    when(configService.isSourceEnabled(config)).thenReturn(false);
+    workerService.process(job);
+    verify(queueService).markSkipped(job, "数据源已停用，任务未调用 GitLab");
+    verify(writebackService, never()).sendLabelUpdate(any(GitlabSyncConfig.class), any(), any(), any());
+  }
+
+  @Test
   void shouldSkipJobFromEarlierAuthorizationRevision() throws Exception {
     CustomerIssueDelayLabelWritebackJob job = job(8, 0, 10);
     when(progressRepository.findBySource("default"))

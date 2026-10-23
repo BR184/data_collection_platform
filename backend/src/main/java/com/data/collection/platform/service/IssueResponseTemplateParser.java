@@ -96,21 +96,23 @@ final class IssueResponseTemplateParser {
       if (headerIndex < 0) {
         continue;
       }
-      String prefix = line.substring(0, headerIndex).trim().replace("**", "").replace("`", "");
+      String rawPrefix = line.substring(0, headerIndex).trim();
+      String prefix = rawPrefix.replace("**", "").replace("`", "").trim();
       if (!prefix.isEmpty() && !prefix.matches("#+")) {
         continue;
       }
       String content = line.substring(headerIndex + sectionHeader.length()).trim();
-      if (content.startsWith("**")) {
-        content = content.substring(2).trim();
+      String headingMarker = rawPrefix.contains("**") ? "**" : rawPrefix.contains("`") ? "`" : "";
+      // 标题的闭合标记可以在冒号前或后，只消费一次，保留日期/分支内容中的字符。
+      if (!headingMarker.isEmpty() && content.startsWith(headingMarker)) {
+        content = content.substring(headingMarker.length()).trim();
+        headingMarker = "";
       }
-      if (content.startsWith("`")
-          && content.length() > 1
-          && (content.charAt(1) == ':' || content.charAt(1) == '：')) {
+      if (content.startsWith(":") || content.startsWith("：")) {
         content = content.substring(1).trim();
       }
-      if (content.startsWith(":" ) || content.startsWith("：")) {
-        content = content.substring(1).trim();
+      if (!headingMarker.isEmpty() && content.startsWith(headingMarker)) {
+        content = content.substring(headingMarker.length()).trim();
       }
       return content;
     }
@@ -121,7 +123,9 @@ final class IssueResponseTemplateParser {
     StringBuilder content = new StringBuilder();
     for (int index = startIndex; index < lines.length; index++) {
       String line = lines[index].trim();
-      if (line.startsWith("#")) {
+      if (line.startsWith("#")
+          || inlineContent(line, PLAN_RESOLUTION_HEADERS) != null
+          || inlineContent(line, PLAN_MERGE_BRANCH_HEADERS) != null) {
         break;
       }
       if (line.isEmpty()) {

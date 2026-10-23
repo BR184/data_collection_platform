@@ -149,4 +149,41 @@ class IssueResponseTemplateParserTest {
           .isEqualTo(IssueResponsePlanFieldRules.parsePlannedResolutionAt(value) != null);
     }
   }
+  @Test
+  void shouldParsePlanDateWhenBoldHeadingIncludesColon() {
+    String notes = "# 问题调研情况说明\n**计划解决时间：**\n2026年11月1日\n## 计划合并版本分支：CC2026R4";
+    assertThat(IssueResponseTemplateParser.hasParseablePlanSolutionTime(notes)).isTrue();
+    assertThat(IssueResponseTemplateParser.parse(notes).plannedResolutionAt())
+        .isEqualTo(LocalDateTime.of(2026, 11, 1, 0, 0));
+  }
+
+  @Test
+  void shouldReadDateAndBranchAcrossHeadingDecorationAndContentPositions() {
+    for (String heading : java.util.List.of(
+        "**计划解决时间：**", "**计划解决时间**：", "**计划解决时间:**",
+        "## **计划解决时间：**", "`计划解决时间：`", "`计划解决时间`:", "## 计划解决时间：")) {
+      for (String separator : java.util.List.of("", "\n")) {
+        String notes = "# 问题调研情况说明\n" + heading + separator
+            + "2026`11`01\n**计划合并版本分支：**\nrelease/CC2026R4";
+        assertThat(IssueResponseTemplateParser.hasParseablePlanSolutionTime(notes)).as(notes).isTrue();
+        IssueResponseTemplate template = IssueResponseTemplateParser.parse(notes);
+        assertThat(template.plannedResolutionAt()).as(notes)
+            .isEqualTo(LocalDateTime.of(2026, 11, 1, 0, 0));
+        assertThat(template.plannedResolutionText()).isEqualTo("2026`11`01");
+        assertThat(template.plannedMergeVersionBranch()).isEqualTo("release/CC2026R4");
+      }
+    }
+  }
+
+  @Test
+  void shouldKeepBlankAndInvalidDatesInvalidWhenHeadingIsDecorated() {
+    for (String value : java.util.List.of("", "待定", "2026.02.30", "2026-11-01",
+        "预计2026.11.01，最晚2026.11.02")) {
+      String notes = "# 问题调研情况说明\n**计划解决时间：**\n" + value
+          + "\n**计划合并版本分支：**CC2026R4";
+      assertThat(IssueResponseTemplateParser.hasParseablePlanSolutionTime(notes)).as(value).isFalse();
+      assertThat(IssueResponseTemplateParser.parse(notes).plannedResolutionAt()).isNull();
+      assertThat(IssueResponseTemplateParser.parse(notes).plannedMergeVersionBranch()).isEqualTo("CC2026R4");
+    }
+  }
 }
