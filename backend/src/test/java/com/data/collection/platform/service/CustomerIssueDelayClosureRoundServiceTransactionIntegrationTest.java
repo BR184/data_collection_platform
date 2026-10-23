@@ -152,7 +152,7 @@ class CustomerIssueDelayClosureRoundServiceTransactionIntegrationTest {
     jdbcTemplate.update(
         """
         update issue_fact
-           set label_names = 'changed', is_response_delayed = true,
+           set label_names = 'changed', is_response_delayed = true, is_resolve_delayed = true,
                response_overdue = true
          where issue_id = ?
         """,
@@ -192,7 +192,7 @@ class CustomerIssueDelayClosureRoundServiceTransactionIntegrationTest {
     var fact =
         jdbcTemplate.queryForMap(
             """
-            select label_names, is_response_delayed, response_overdue
+            select label_names, is_response_delayed, is_resolve_delayed, response_overdue
               from issue_fact where issue_id = ?
             """,
             ISSUE_ID);
@@ -201,6 +201,7 @@ class CustomerIssueDelayClosureRoundServiceTransactionIntegrationTest {
         .isEqualTo("before");
     assertThat(fact.get("is_response_delayed")).isEqualTo(false);
     assertThat(fact.get("response_overdue")).isEqualTo(false);
+    assertThat(fact.get("is_resolve_delayed")).isEqualTo(false);
     assertThat(
             jdbcTemplate.queryForObject(
                 """

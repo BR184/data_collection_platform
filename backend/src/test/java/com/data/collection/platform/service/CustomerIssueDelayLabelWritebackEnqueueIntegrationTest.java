@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import java.util.List;
@@ -95,6 +96,34 @@ class CustomerIssueDelayLabelWritebackEnqueueIntegrationTest {
 
     assertThat(second.lastIssueId()).isEqualTo(981003L);
     assertThat(second.hasMore()).isFalse();
+  }
+
+  @Test
+  void actualOdsLabelQueryFailureMustNotReturnEmptyLabels() {
+    jdbcTemplate.execute("alter table ods_gitlab_labels rename to delay_labels_unavailable");
+    try {
+      assertThatThrownBy(() -> queueService.loadCandidate(SOURCE, PROJECT_ID, FIRST_IID))
+          .isInstanceOf(org.springframework.dao.DataAccessException.class);
+    } finally {
+      jdbcTemplate.execute("alter table delay_labels_unavailable rename to ods_gitlab_labels");
+    }
+  }
+
+  @Test
+  void simultaneousJobClaimsMustHaveOnlyOneOwner() throws Exception {
+    insertIssue(FIRST_IID, 981001L, "stale-label", true, false);
+    queueService.enqueuePage(config, AUTH_REVISION, FACT_VERSION, MIRROR_RUN_ID, null, 10);
+    var start = new java.util.concurrent.CyclicBarrier(2);
+    try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+      var first = executor.submit(() -> { start.await(); return queueService.claimNext("worker-a", 120); });
+      var second = executor.submit(() -> { start.await(); return queueService.claimNext("worker-b", 120); });
+      var a = first.get(10, java.util.concurrent.TimeUnit.SECONDS);
+      var b = second.get(10, java.util.concurrent.TimeUnit.SECONDS);
+      assertThat((a == null ? 0 : 1) + (b == null ? 0 : 1)).isEqualTo(1);
+      var owner = a != null ? a : b;
+      assertThat(queueService.markSucceeded(owner)).isTrue();
+      assertThat(job(981001L).get("status")).isEqualTo("SUCCEEDED");
+    }
   }
 
   @Test

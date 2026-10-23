@@ -75,4 +75,62 @@ class SyncRuntimeConfigGuardTest {
     config.setMaxSyncThreads(8);
     return config;
   }
+  @Test
+  void shouldAllowWritebackSwitchChangeWhenThreadCountsDifferOnlyInScale() {
+    GitlabSyncConfig current = config();
+    GitlabSyncConfig replacement = config();
+    current.setSyncThreadValue(new BigDecimal("2.0"));
+    replacement.setSyncThreadValue(new BigDecimal("2"));
+    current.setDelayLabelWritebackEnabled(true);
+    replacement.setDelayLabelWritebackEnabled(false);
+    when(jdbcTemplate.queryForObject(anyString(), eq(Boolean.class), eq(7L), eq("default")))
+        .thenReturn(true);
+    org.assertj.core.api.Assertions.assertThatCode(() -> guard.verifyChangeAllowed(current, replacement))
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  void shouldCompareEquivalentThreadBudgetsByValueIncludingNulls() {
+    for (String[] pair : java.util.List.of(
+        new String[]{"2.000", "2"}, new String[]{"2", "2.000"},
+        new String[]{"0.50", "0.500"}, new String[]{"2E+0", "2.000"}, new String[]{null, null})) {
+      GitlabSyncConfig current = config();
+      GitlabSyncConfig replacement = config();
+      current.setSyncThreadValue(pair[0] == null ? null : new BigDecimal(pair[0]));
+      replacement.setSyncThreadValue(pair[1] == null ? null : new BigDecimal(pair[1]));
+      replacement.setDelayLabelWritebackEnabled(false);
+      org.assertj.core.api.Assertions.assertThatCode(() -> guard.verifyChangeAllowed(current, replacement))
+          .doesNotThrowAnyException();
+    }
+  }
+
+  @Test
+  void shouldKeepRejectingRealBudgetOrConnectionChangesWhileActive() {
+    when(jdbcTemplate.queryForObject(anyString(), eq(Boolean.class), eq(7L), eq("default")))
+        .thenReturn(true);
+    for (String[] pair : java.util.List.of(
+        new String[]{"2.000", "3"}, new String[]{"2.000", "2.01"},
+        new String[]{null, "2"}, new String[]{"2", null})) {
+      GitlabSyncConfig current = config();
+      GitlabSyncConfig replacement = config();
+      current.setSyncThreadValue(pair[0] == null ? null : new BigDecimal(pair[0]));
+      replacement.setSyncThreadValue(pair[1] == null ? null : new BigDecimal(pair[1]));
+      assertThatThrownBy(() -> guard.verifyChangeAllowed(current, replacement)).isInstanceOf(BizException.class);
+    }
+    GitlabSyncConfig current = config();
+    GitlabSyncConfig replacement = config();
+    current.setSyncThreadValue(new BigDecimal("2.000"));
+    replacement.setDbHost("10.0.0.9");
+    assertThatThrownBy(() -> guard.verifyChangeAllowed(current, replacement)).isInstanceOf(BizException.class);
+  }
+
+  @Test
+  void shouldAllowRealBudgetChangeWhenNoMirrorRunIsActive() {
+    when(jdbcTemplate.queryForObject(anyString(), eq(Boolean.class), eq(7L), eq("default")))
+        .thenReturn(false);
+    GitlabSyncConfig replacement = config();
+    replacement.setSyncThreadValue(new BigDecimal("3"));
+    org.assertj.core.api.Assertions.assertThatCode(() -> guard.verifyChangeAllowed(config(), replacement))
+        .doesNotThrowAnyException();
+  }
 }

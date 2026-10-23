@@ -127,6 +127,24 @@ class CustomerIssueDelaySourceReadinessIntegrationTest {
   }
 
   @Test
+  void missingPublicationStateBlocksWriteback() {
+    ReadyFixture fixture = readyFixture();
+    jdbcTemplate.update("delete from source_fact_publication_states where config_id = ?", configId);
+    var readiness = readinessService.assess(config, fixture.runId(), PRE_TABLES);
+    assertThat(readiness.ready()).isFalse();
+    assertThat(readiness.reason()).contains("来源尚无 READY 发布状态");
+  }
+
+  @Test
+  void nonReadyPublicationStateBlocksWriteback() {
+    ReadyFixture fixture = readyFixture();
+    jdbcTemplate.update("update source_fact_publication_states set readiness_status = 'BLOCKED' where config_id = ?", configId);
+    var readiness = readinessService.assess(config, fixture.runId(), PRE_TABLES);
+    assertThat(readiness.ready()).isFalse();
+    assertThat(readiness.reason()).contains("事实来源依赖未就绪");
+  }
+
+  @Test
   void unpublishedChangeHeadBlocksWriteback() {
     ReadyFixture fixture = readyFixture();
     jdbcTemplate.update(
