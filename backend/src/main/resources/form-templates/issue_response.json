@@ -1,0 +1,31 @@
+{
+  "spec_version": 1,
+  "template_key": "issue_response",
+  "fields": [
+    {"name":"problem_type","apiKey":"problemType","label":"问题类型","type":"enum","control":"radio","required":true,
+     "options":[{"value":"DEFECT","label":"缺陷"},{"value":"REQUIREMENT","label":"需求"}],
+     "storage":{"column":"problem_type","columnType":"varchar(32)"}},
+    {"name":"problem_cause","apiKey":"problemCause","label":"问题原因","type":"string","control":"textarea","required":true,"maxLength":8192,
+     "storage":{"column":"problem_cause","columnType":"text"}},
+    {"name":"modification_plan","apiKey":"modificationPlan","label":"修改方案","type":"string","control":"textarea","required":true,"maxLength":8192,
+     "storage":{"column":"modification_plan","columnType":"text"}},
+    {"name":"owner_confirmation","apiKey":"ownerConfirmation","label":"模块负责人确认","type":"string","control":"textarea","required":false,"maxLength":8192,
+     "requiredWhen":{"resourceSeverityLevel":"一级缺陷"},
+     "storage":{"column":"owner_confirmation","columnType":"text"}},
+    {"name":"planned_resolution_date","apiKey":"plannedResolutionDate","label":"计划解决时间","type":"date","control":"date","required":true,
+     "minYear":2020,"maxYear":2040,
+     "storage":{"column":"planned_resolution_date","columnType":"date"}},
+    {"name":"planned_merge_version_branch","apiKey":"plannedMergeVersionBranch","label":"计划合并的版本分支","type":"string","control":"version-members","required":true,"maxLength":255,
+     "format":"CCyyyyRn，多个以 & 分隔；严格解析，历史原值保留",
+     "storage":{"column":"planned_merge_version_branch","columnType":"varchar(255)"}},
+    {"name":"supplement_note","apiKey":"supplementNote","label":"补充说明","type":"string","control":"textarea","required":false,"maxLength":8192,
+     "storage":{"column":"supplement_note","columnType":"text"}}
+  ],
+  "conditions": [
+    {"type":"conditionalRequired","target":"owner_confirmation",
+     "requiredWhen":{"resourceSeverityLevel":"一级缺陷"},
+     "clearWhen":{"resourceSeverityLevel":["二级缺陷","三级缺陷","建议类","未设定"]},
+     "snapshotColumn":"owner_confirmation_applicable"}
+  ],
+  "dictionaries": []
+}

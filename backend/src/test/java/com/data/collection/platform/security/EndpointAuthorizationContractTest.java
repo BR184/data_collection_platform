@@ -3,6 +3,7 @@ package com.data.collection.platform.security;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.data.collection.platform.controller.CodeReviewController;
+import com.data.collection.platform.controller.CollectFormAdminController;
 import com.data.collection.platform.controller.CollectFormController;
 import com.data.collection.platform.controller.CustomerIssueController;
 import com.data.collection.platform.controller.DatabaseBrowserController;
@@ -48,7 +49,24 @@ class EndpointAuthorizationContractTest {
     assertPermissionRequired(QuestionMetricsController.class, "refreshIllegalRecords", PlatformPermissionCodes.BUSINESS_DATA_REFRESH);
     assertPermissionRequired(CustomerIssueController.class, "refreshRecords", PlatformPermissionCodes.BUSINESS_DATA_REFRESH);
     assertPermissionRequired(CustomerIssueController.class, "refreshIllegalRecords", PlatformPermissionCodes.BUSINESS_DATA_REFRESH);
-    assertPermissionRequired(CollectFormController.class, "updateRecord", "code_review.form.edit");
+    assertPermissionRequired(
+        CollectFormController.class, "detail", PlatformPermissionCodes.FORM_RECORD_CREATE);
+    assertPermissionRequired(
+        CollectFormController.class, "create", PlatformPermissionCodes.FORM_RECORD_CREATE);
+    assertPermissionRequired(
+        CollectFormController.class, "update", PlatformPermissionCodes.FORM_RECORD_EDIT_OWN);
+    assertPermissionRequired(
+        CollectFormController.class, "voidRecord", PlatformPermissionCodes.FORM_RECORD_DELETE_OWN);
+    assertPermissionRequired(
+        CollectFormController.class,
+        "reviewerCandidates",
+        PlatformPermissionCodes.FORM_RECORD_CREATE);
+    assertPermissionRequired(
+        CollectFormController.class,
+        "notificationPayload",
+        PlatformPermissionCodes.FORM_RECORD_CREATE);
+    assertPermissionRequired(
+        CollectFormAdminController.class, PlatformPermissionCodes.FORM_TEMPLATE_MANAGE);
   }
 
   private void assertPermissionRequired(Class<?> controllerType, String permissionCode) {

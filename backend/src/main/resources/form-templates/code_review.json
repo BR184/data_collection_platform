@@ -1,0 +1,16 @@
+{
+  "spec_version": 1,
+  "template_key": "code_review",
+  "fields": [
+    {"name":"reviewer_user_id","apiKey":"reviewerUserId","label":"走查人","type":"string","required":true,"maxLength":128,"control":"person-select","optionsSource":"platform_ldap_users","storage":{"idColumn":"reviewer_user_id","nameColumn":"reviewer_name","columnType":"varchar(128)"}},
+    {"name":"review_duration_minutes","apiKey":"reviewDurationMinutes","label":"走查时间（分钟）","type":"integer","required":true,"min":0,"max":2147483647,"control":"number","storage":{"column":"review_duration_minutes","columnType":"integer"}},
+    {"name":"specification_count","apiKey":"specificationCount","label":"规范","type":"integer","required":true,"min":0,"max":2147483647,"control":"number","storage":{"column":"specification_count","columnType":"integer"}},
+    {"name":"logic_count","apiKey":"logicCount","label":"逻辑","type":"integer","required":true,"min":0,"max":2147483647,"control":"number","storage":{"column":"logic_count","columnType":"integer"}},
+    {"name":"performance_count","apiKey":"performanceCount","label":"性能","type":"integer","required":true,"min":0,"max":2147483647,"control":"number","storage":{"column":"performance_count","columnType":"integer"}},
+    {"name":"design_count","apiKey":"designCount","label":"设计","type":"integer","required":true,"min":0,"max":2147483647,"control":"number","storage":{"column":"design_count","columnType":"integer"}},
+    {"name":"other_count","apiKey":"otherCount","label":"其他","type":"integer","required":true,"min":0,"max":2147483647,"control":"number","storage":{"column":"other_count","columnType":"integer"}},
+    {"name":"supplement_note","apiKey":"supplementNote","label":"补充说明","type":"string","required":false,"maxLength":8192,"control":"textarea","storage":{"column":"supplement_note","columnType":"text"}}
+  ],
+  "conditions": [],
+  "dictionaries": []
+}

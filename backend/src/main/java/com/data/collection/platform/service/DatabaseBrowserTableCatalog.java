@@ -25,6 +25,7 @@ final class DatabaseBrowserTableCatalog {
     Map<String, DatabaseBrowserTableDefinition> definitions = new LinkedHashMap<>();
     definitions.putAll(DatabaseBrowserSyncTableDefinitions.definitions());
     definitions.putAll(DatabaseBrowserCollectionTableDefinitions.definitions());
+    definitions.putAll(DatabaseBrowserFormTableDefinitions.definitions());
     definitions.putAll(DatabaseBrowserFactTableDefinitions.definitions());
     definitions.put(
         "platform_ldap_user_directory",

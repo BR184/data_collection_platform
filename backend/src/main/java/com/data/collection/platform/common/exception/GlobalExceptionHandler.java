@@ -49,6 +49,23 @@ public class GlobalExceptionHandler {
     return ApiResponse.fail(ResultCode.UNAUTHORIZED, "请先登录");
   }
 
+  /** 表单记录版本/请求标识冲突与存储版本冲突使用 409，避免被通用业务异常压成 400。 */
+  @ResponseBody
+  @ResponseStatus(HttpStatus.CONFLICT)
+  @ExceptionHandler(FormConflictException.class)
+  public ApiResponse<Void> handleFormConflict(FormConflictException e) {
+    log.warn("Form conflict: {}", e.getMessage());
+    return ApiResponse.fail(e.getResultCode(), e.getMessage());
+  }
+
+  @ResponseBody
+  @ResponseStatus(HttpStatus.PAYLOAD_TOO_LARGE)
+  @ExceptionHandler(FormPayloadTooLargeException.class)
+  public ApiResponse<Void> handleFormPayloadTooLarge(FormPayloadTooLargeException e) {
+    log.warn("Form payload too large: {}", e.getMessage());
+    return ApiResponse.fail(ResultCode.BAD_REQUEST, e.getMessage());
+  }
+
   @ResponseBody
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   @ExceptionHandler(BizException.class)

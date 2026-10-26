@@ -6,7 +6,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** CC_PRODUCT 问题调研模板中计划字段的格式规则。 */
-final class IssueResponsePlanFieldRules {
+public final class IssueResponsePlanFieldRules {
   private static final int MIN_PLAN_YEAR = 2020;
   private static final int MAX_PLAN_YEAR = 2040;
   private static final Pattern PLAN_DATE_PATTERN =
@@ -51,7 +51,7 @@ final class IssueResponsePlanFieldRules {
    * @param value 最新调研模板中的字段内容
    * @return 仅合并连续空白后的来源文本；空输入返回空字符串
    */
-  static String normalizePlannedMergeBranchText(String value) {
+  public static String normalizePlannedMergeBranchText(String value) {
     if (value == null) {
       return "";
     }
@@ -66,7 +66,7 @@ final class IssueResponsePlanFieldRules {
    * @param value 模板字段内容
    * @return 一个或多个 {@code CCyyyyRn} 成员以 {@code &} 分隔时返回 {@code true}
    */
-  static boolean hasOnlyCanonicalVersionBranches(String value) {
+  public static boolean hasOnlyCanonicalVersionBranches(String value) {
     String normalized = normalizePlannedMergeBranchText(value);
     if (normalized.isEmpty()) {
       return false;

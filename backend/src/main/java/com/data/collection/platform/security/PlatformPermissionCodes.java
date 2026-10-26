@@ -2,6 +2,10 @@ package com.data.collection.platform.security;
 
 public final class PlatformPermissionCodes {
   public static final String BUSINESS_DATA_REFRESH = "business_data.refresh";
+  public static final String FORM_RECORD_CREATE = "form.record.create";
+  public static final String FORM_RECORD_EDIT_OWN = "form.record.edit_own";
+  public static final String FORM_RECORD_DELETE_OWN = "form.record.delete_own";
+  public static final String FORM_TEMPLATE_MANAGE = "form.template.manage";
   // BI 看板按页面拆分：每个页面各自持有查看与下载权限，与统计板 view/export 成对范式一致。
   public static final String BI_DASHBOARD_REQUIREMENTS_VIEW = "bi.dashboard.requirements.view";
   public static final String BI_DASHBOARD_REQUIREMENTS_DOWNLOAD = "bi.dashboard.requirements.download";

@@ -777,51 +777,150 @@ endpoints:
     category: EXCLUDED
     exclude-reason: "external-dependency: 依赖 preview 端点的内存 PreviewSession 令牌，无法在隔离快照流程中构造稳定输入；写入路径由 records CRUD 用例代表"
 
-  # =====CollectFormController（采集表单）=====
+  # =====CollectFormController（统一表单记录）=====
   - method: GET
     path: /api/collect-forms/detail
     category: READ
     cases:
-      - id: missing-record
-        query: gitlabBaseUrl=https://gitlab.example.com&projectId=9&resourceType=issue&resourceId=1&templateCode=default
+      - id: missing-scope
+        query: gitlabBaseUrl=https://gitlab.example.com&projectId=9&resourceType=merge_request&resourceId=1&templateKey=code_review
   - method: GET
     path: /api/collect-forms/notification-payload
     category: READ
+    # 外部四字段契约保留；来源未登记时确定性 400。
     cases:
-      - id: missing-record
+      - id: unregistered-source
         query: gitlabBaseUrl=https://gitlab.example.com&projectId=9&requestIid=1&resourceType=issue
+  - method: GET
+    path: /api/collect-forms/reviewer-candidates
+    category: READ
+    cases:
+      - id: default
+        query: limit=20
   - method: POST
-    path: /api/collect-forms/save
+    path: /api/collect-forms/records
     category: WRITE
-    ignore-paths:
-      - "$.body.data.createdAt"
-      - "$.body.data.updatedAt"
+    # 空平台无已发布范围：新增在参数/范围校验处确定性 400，不产生实例或记录。
     write-cases:
-      - id: golden-save
-        body: '{"gitlabBaseUrl":"http://gitlab.example.com","projectId":9,"requestIid":900001,"resourceType":"issue","resourceId":"900001","templateCode":"default","formTitle":"golden 表单","reviewer":"golden-评审员","reviewDurationMinutes":30,"specificationScore":5,"logicScore":4,"performanceScore":5,"designScore":4,"otherScore":5,"remark":"golden 写用例","editorId":"golden","editorUsername":"admin"}'
+      - id: missing-scope
+        body: '{"gitlabBaseUrl":"https://gitlab.example.com","projectId":9,"resourceType":"merge_request","resourceId":"1","templateKey":"code_review","scopeId":"1","storageVersionId":"2","requestKey":"550e8400-e29b-41d4-a716-446655440000","confirmSameReviewer":false,"fields":{"reviewerUserId":"golden-reviewer","reviewDurationMinutes":30,"specificationCount":1,"logicCount":0,"performanceCount":0,"designCount":0,"otherCount":0,"supplementNote":null}}'
         affected-tables:
-          - table: collect_form_records
-            ignore-columns: [created_at, updated_at]
+          - table: form_record_audit_logs
+          - table: form_change_heads
+  - method: PUT
+    path: /api/collect-forms/records/{id}
+    category: WRITE
+    write-cases:
+      - id: missing-scope
+        query: id=999999999
+        body: '{"gitlabBaseUrl":"https://gitlab.example.com","projectId":9,"resourceType":"merge_request","resourceId":"1","templateKey":"code_review","scopeId":"1","storageVersionId":"2","recordVersion":1,"fields":{"reviewerUserId":"golden-reviewer","reviewDurationMinutes":30,"specificationCount":1,"logicCount":0,"performanceCount":0,"designCount":0,"otherCount":0,"supplementNote":null}}'
+        affected-tables:
+          - table: form_record_audit_logs
+          - table: form_change_heads
   - method: POST
-    path: /api/collect-forms/delete
+    path: /api/collect-forms/records/{id}/void
     category: WRITE
-    # golden 库 collect_form_records 为空（种子无该表）：删除不存在的上下文确定性返回 data=false
     write-cases:
-      - id: missing-record
-        body: '{"gitlabBaseUrl":"http://gitlab.example.com","projectId":9,"resourceType":"issue","resourceId":"900002","templateCode":"default","editorId":"golden","editorUsername":"admin"}'
+      - id: missing-scope
+        query: id=999999999
+        body: '{"gitlabBaseUrl":"https://gitlab.example.com","projectId":9,"resourceType":"merge_request","resourceId":"1","templateKey":"code_review","scopeId":"1","storageVersionId":"2","recordVersion":1,"confirmVoid":true,"confirmationText":"作废"}'
         affected-tables:
-          - table: collect_form_records
-            ignore-columns: [created_at, updated_at]
+          - table: form_record_audit_logs
+          - table: form_change_heads
+
+  # =====CollectFormAdminController（表单字段管理与发布）=====
+  - method: GET
+    path: /api/collect-forms/templates
+    category: READ
+    cases:
+      - id: default
+  - method: GET
+    path: /api/collect-forms/template-scopes/{scopeId}
+    category: READ
+    cases:
+      - id: missing-scope
+        query: scopeId=999999999
   - method: POST
-    path: /api/collect-forms/update-record
+    path: /api/collect-forms/template-scopes
     category: WRITE
-    # 更新不存在的记录 id：校验前置，确定性 400 契约
+    # 未知模板在写入前确定性 400，不产生范围或草稿。
     write-cases:
-      - id: missing-record
-        body: '{"id":999999999,"formTitle":"golden 更新","reviewer":"golden-评审员","reviewDurationMinutes":10,"specificationScore":1,"logicScore":1,"performanceScore":1,"designScore":1,"otherScore":1,"remark":"golden","deleted":false,"editorId":"golden","editorUsername":"admin"}'
+      - id: unknown-template
+        body: '{"templateKey":"unknown_template","scopeKey":"golden-scope"}'
         affected-tables:
-          - table: collect_form_records
-            ignore-columns: [created_at, updated_at]
+          - table: form_template_scopes
+          - table: form_template_scope_drafts
+  - method: PUT
+    path: /api/collect-forms/template-scopes/{scopeId}/draft
+    category: WRITE
+    write-cases:
+      - id: missing-scope
+        query: scopeId=999999999
+        body: '{"expectedDraftRevision":1,"fieldSpec":{"spec_version":1,"template_key":"issue_reply","fields":[],"conditions":[],"dictionaries":[]}}'
+        affected-tables:
+          - table: form_template_scope_drafts
+  - method: POST
+    path: /api/collect-forms/template-scopes/{scopeId}/preview
+    category: WRITE
+    write-cases:
+      - id: missing-scope
+        query: scopeId=999999999
+        body: '{"draftRevision":1}'
+        affected-tables:
+          - table: form_template_preview_evidence
+  - method: POST
+    path: /api/collect-forms/template-scopes/{scopeId}/publications
+    category: WRITE
+    write-cases:
+      - id: missing-scope
+        query: scopeId=999999999
+        body: '{"draftRevision":1,"previewId":1,"expectedCurrentVersionId":null,"requestKey":"550e8400-e29b-41d4-a716-446655440001"}'
+        affected-tables:
+          - table: form_template_publications
+          - table: form_template_versions
+  - method: POST
+    path: /api/collect-forms/template-scopes/{scopeId}/retire
+    category: WRITE
+    write-cases:
+      - id: missing-scope
+        query: scopeId=999999999
+        body: '{"expectedCurrentVersionId":1}'
+        affected-tables:
+          - table: form_template_scopes
+  - method: DELETE
+    path: /api/collect-forms/template-scopes/{scopeId}
+    category: WRITE
+    write-cases:
+      - id: missing-scope
+        query: scopeId=999999999
+        affected-tables:
+          - table: form_template_scopes
+          - table: form_template_scope_drafts
+  - method: GET
+    path: /api/collect-forms/publications/{publicationId}
+    category: READ
+    cases:
+      - id: missing-publication
+        query: publicationId=999999999
+  - method: POST
+    path: /api/collect-forms/publications/{publicationId}/recover
+    category: WRITE
+    write-cases:
+      - id: missing-publication
+        query: publicationId=999999999
+        affected-tables:
+          - table: form_template_publications
+  - method: GET
+    path: /api/collect-forms/binding-options
+    category: READ
+    cases:
+      - id: default
+  - method: GET
+    path: /api/collect-forms/version-milestones
+    category: READ
+    cases:
+      - id: unknown-source
+        query: sourceConfigId=999999999&projectId=1
 
   # =====IssueScopeDefinitionController（议题范围定义）=====
   - method: GET
