@@ -13,7 +13,8 @@
 | 导出源 PostgreSQL | 16.13（同 GitLab 16.11.10 schema 的本地只读副本） |
 | 选样 | 单项目 325；默认 60 天窗口；148 议题、387 评论、759 label_links |
 | 显式选样 | 单议题 ID / iid；时间窗上限与空选样失败路径 |
-| 导入 | 空 GitLab 数据库、标记令牌、单事务、外键/多态校验、重复与替换导入 |
+| 导出 | 单连接只读事务、keyset 分页、总行数/总字节预算、总时限覆盖读取与写包 |
+| 导入 | 空 GitLab 数据库、目标结构/空库/身份前置校验、标记绑定身份与 schema、单事务、外键/多态校验、事务安全序列调整、重复与替换导入 |
 
 未验证：其他 GitLab 版本或 schema 指纹、GitLab.com/SaaS、多项目同时导出、超大议题量真实容量、实例级邮件/SMTP 配置的实际关闭、平台前端页面交互截图。上述场景必须先取证结构并补充验证，不能因为数据库名或显示版本相似而放行。
 
@@ -50,7 +51,7 @@
 - `manifest.json` 包含：`format=dcp-gitlab-sample/v1`、工具版本、创建时刻、源数据库/服务器/角色指纹、GitLab 版本与 schema 指纹、固定起止与时区、选样模式、项目/议题 ID 与 iid、每表行数与文件 SHA-256、完整性检查、`status=COMPLETE`、`package_id` 和结构化脱敏清单。
 - `CHECKSUMS.sha256` 覆盖 `manifest.json` 与全部 `data/*.jsonl`。
 - 导入器只读取清单登记的列，自行构造参数化 `INSERT`；**不会执行包内任何 SQL**。
-- `package_id` 由选样信息与各数据文件哈希重算；即使同时改写清单和 `CHECKSUMS.sha256`，身份不一致仍会被拒绝。
+- `package_id` 由选样信息、各数据文件哈希、格式/工具版本、来源身份指纹和 schema 指纹共同重算；即使同时改写清单和 `CHECKSUMS.sha256`，来源、结构、选样或数据任一不一致仍会被拒绝。该机制用于一致性与篡改校验，不是身份认证或数字签名。
 - 包内保留议题标题、描述、评论正文等业务文本，不做内容级脱敏；传输前必须人工确认样本内容允许离开源环境。
 
 ## 4. 选样与导出
@@ -85,6 +86,8 @@ python scripts/gitlab_bounded_sql_export.py \
   --until '2026-10-26T23:59:59+08:00' \
   --timezone Asia/Shanghai \
   --max-issues 200 \
+  --max-total-rows 200000 \
+  --max-total-bytes 67108864 \
   --batch-size 200 \
   --batch-sleep-ms 100 \
   --statement-timeout-ms 30000 \
@@ -104,10 +107,11 @@ python scripts/gitlab_bounded_sql_export.py \
   --output '<package-dir>'
 ```
 
-- 单连接、单 worker、`REPEATABLE READ READ ONLY` 事务；选样与分页读取在同一事务内完成，形成一致的跨表视图。
-- 批间 sleep 默认 100ms；总时限是协作式预算，临近上限会收紧单条查询的 `statement_timeout`，超时或断开即失败，不续跑拼接。
+- 单连接、单 worker、`REPEATABLE READ READ ONLY` 事务；选样、关联闭包与分页读取全部使用 keyset 分页并共享 `--max-total-rows` / `--max-total-bytes` 预算，形成一致的跨表视图。
+- 批间 sleep 默认 100ms；总时限是协作式预算，每次来源查询和闭包扩展前复核剩余行/字节/时间，临近上限会收紧单条查询的 `statement_timeout`；超时或断开即失败，不续跑拼接。
+- 读取结束后先回滚只读快照，再进行清单序列化、数据/校验和写入、原子改名；写包与改名前后仍复核总时限，任一步超时都会删除半成品且不产出 `COMPLETE` 包。
 - 输出目录必须不存在；工具先在临时目录写完全部文件，再原子改名为最终目录。失败不会留下半成品包。
-- 成功后记录 `package_id`、议题数、评论数和耗时。
+- 成功后记录 `package_id`、议题数、评论数、总行数、总字节和耗时。
 
 ## 5. 传输与校验
 
@@ -134,9 +138,10 @@ python scripts/gitlab_bounded_sql_import.py \
   --report '<target-init-report.json>'
 ```
 
+- `--init-target` 在创建任何控制表或标记前，先校验目标具备完整 GitLab 16.11 结构、空库资格（仅允许初始化管理员/根命名空间/根路由）和实际连接身份；非 GitLab 库、非空目标或错误连接都会拒绝，且不新增持久对象。
 - `--init-target` 只在目标没有标记时成功；已有标记会拒绝覆盖。
 - `DCP_TARGET_TOKEN` 至少 16 字符；标记表只保存 SHA-256，不保存明文。令牌不要写入报告或 Git。
-- `--target-label` 是操作者给目标起的唯一名称，导入时必须完全一致。
+- `--target-label` 是操作者给目标起的唯一名称；标记同时保存服务器指纹、数据库身份指纹、schema 指纹和迁移版本。导入时必须同时匹配标签、令牌和这些身份字段，有效格式的标签/令牌不能放行错误目标。
 
 ## 7. 导入
 
@@ -149,14 +154,14 @@ python scripts/gitlab_bounded_sql_import.py \
 
 导入器会依次完成：
 
-1. 读取并校验包完成状态、清单、`package_id`、逐文件 SHA-256、表顺序、列白名单和行数。
-2. 校验源/目标不是同一数据库（服务器地址 + 端口 + 数据库指纹）；校验目标标记标签与令牌。
-3. 校验目标 GitLab schema 版本与 schema 指纹等于包记录；拒绝其他版本/结构。
+1. 读取并校验包完成状态、清单、`package_id`（含来源身份与 schema 元数据）、逐文件 SHA-256、表顺序、列白名单和行数。
+2. 校验源/目标不是同一数据库（服务器地址 + 端口 + 数据库指纹）；校验目标标记标签、令牌、服务器指纹、数据库身份指纹、schema 指纹和迁移版本。
+3. 校验目标 GitLab schema 版本与 schema 指纹等于包记录；拒绝其他版本/结构。旧版标记表结构会要求重建目标，不自动迁移。
 4. 检查目标为空（仅允许初始化管理员/根命名空间/根路由）；检查敏感/外部表为空；非空目标默认拒绝。
 5. 在单事务内按依赖顺序参数化插入；对 `organizations` 按主键、`work_item_types`/`member_roles` 按业务键复用目标种子行，必要时分配新 ID 并改写议题引用；bootstrap 用户/命名空间/路由只允许使用目标初始化行。
 6. 补齐 GitLab 直接导入不会自动创建的关联行（用户详情、偏好、命名空间详情/设置、项目设置、项目 CI 设置）。
-7. 校正序列（尊重 `pg_sequence.seqmin`），关闭共享 Runner/builds/项目与命名空间邮件/注册，检查全部外键与多态关联、敏感表为空。
-8. 任一失败整体回滚；成功才提交并写报告。
+7. 用 `ALTER SEQUENCE ... RESTART WITH` 校正序列（尊重 `pg_sequence.seqmin`）；该语句随事务回滚，不使用 `setval`。随后关闭共享 Runner/builds/项目与命名空间邮件/注册，检查全部外键与多态关联、敏感表为空。
+8. 任一失败整体回滚；成功才提交并写报告。序列调整后、后置检查或提交失败时，旧行、标记、导入日志和序列都必须保持可用。
 
 成功后检查报告：`status=IMPORTED`、`foreign_key_checks` 全部 `orphans=0`、`polymorphic_checks` 全部 `violations=0`、`external_table_counts` 全部为 0、`reference_maps` 符合预期。**未通过时不得交给平台验收。**
 
@@ -200,10 +205,13 @@ python scripts/gitlab_bounded_sql_import.py \
 | `Unsupported GitLab schema` | 源/目标版本或 schema 指纹不在已验证范围 | 停止；先取证结构与迁移版本，不能强行导入 |
 | `Current role lacks access to required GitLab tables` | 源账号缺少 SELECT 或表不可见 | 由数据库管理员授予最小 SELECT；不要用更高权限绕过 |
 | `canceling statement due to statement timeout` / lock timeout / `runtime limit exceeded` | 查询、锁等待或总预算超限 | 缩小窗口/项目/议题数，或显式调整对应上限后重跑；检查源库负载 |
+| `Total row budget exceeded` / `Total byte budget exceeded` | 选样、关联闭包或数据量超过总预算 | 缩小窗口/项目/议题数；不要提高预算后把不完整结果当成功；工具不会截断评论或关联行 |
+| `Export runtime limit exceeded while writing package` / `after package write` | 序列化、校验或改名阶段超过总时限 | 输出已被删除；缩小范围或调整预算/时限后重跑，禁止手工拼接半成品 |
 | `No root issues` | 窗口内无根议题 | 调整 `--since/--until` 或项目；确认时区 |
 | `above --max-issues` | 候选议题超过上限 | 缩小窗口或显式提高 `--max-issues`；不得接受截断结果 |
 | `Target is not an empty test GitLab` | 目标已有数据 | 使用全新目标；仅在上次导入且无操作者行时使用 `--replace-existing` |
-| `Target marker ...` / token/label 不匹配 | 目标归属不明或令牌错误 | 停止；核对目标实例、标记标签和令牌环境变量 |
+| `Target marker ...` / token/label/identity/schema 不匹配 | 目标归属不明、令牌错误或连接到了错误实例 | 停止；核对目标实例、标记标签、令牌和连接地址/端口/库名 |
+| `Target marker schema is outdated` | 目标由旧版工具初始化，缺少身份/schema 绑定列 | 按第 11 节重建目标并重新初始化，不要手工补列绕过 |
 | `Source and target are the same database` | 源目标连接指向同一库 | 停止；修正环境变量，禁止继续 |
 | `Foreign key ... orphan` / `Polymorphic ...` | 包关联不完整或导入破坏完整性 | 不得交给平台；回滚目标，检查导出闭包和包报告 |
 | 写回作业 `RETRY_WAIT` / 标签未知 | 平台无法访问目标 GitLab API 或发送结果未知 | 检查 `webBaseUrl` 是否从平台后端可达、PAT 权限/有效期、目标 GitLab 状态；不要把失败当成功 |
@@ -213,6 +221,7 @@ python scripts/gitlab_bounded_sql_import.py \
 
 - **默认重复导入**：拒绝；不会静默跳过或覆盖。
 - **`--replace-existing`**：读取上次包 ID 的导入日志，按逆依赖顺序只删除上次包登记的行（引用种子行保留），重新导入新包；必须重新通过全部校验。上一包与当前包不同也可以替换，前提是目标仍只含本工具管理的数据。
+- **失败恢复**：序列校正、后置检查或提交任一失败都会整体回滚，旧行、标记、导入日志和序列保持可用；不得用 `setval` 手工修序列，也不得只移动检查顺序掩盖回滚缺口。
 - **目标重建**：停止目标 GitLab，删除/重建目标数据库（或删除并重建测试实例），重新执行第 6 节初始化与第 7 节导入。不要手工删除标记表或导入日志来“绕过”重复检查。
 - 重建后必须重新创建测试 PAT，并重新执行空 GitLab 验收和平台验收。
 

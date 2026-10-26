@@ -139,9 +139,9 @@
 ## GitLab 小样本传输
 
 - 入口固定为 `scripts/gitlab_bounded_sql_export.py` 与 `scripts/gitlab_bounded_sql_import.py`；包格式、列白名单、脱敏和 schema 指纹共用 `scripts/gitlab_sample_contract.py`，不设第二套入口或 v2 包格式。
-- 只支持已核实 schema 指纹的 GitLab 16.11.10；导出在单个 `REPEATABLE READ READ ONLY` 事务内完成选样与分页，窗口只筛根议题，选中议题的全部评论和关联闭包完整导出，超限/关联缺失/超时明确失败，不截断后报成功。
-- 包由 `manifest.json`、`CHECKSUMS.sha256`、`data/*.jsonl` 组成；`package_id` 由选样信息和数据文件哈希重算，导入器只接受清单登记的列并自行构造参数化 INSERT，不执行包内 SQL。
-- 导入目标必须由本工具标记、与源库身份不同且为空测试 GitLab；单事务写入，引用种子行按业务键复用，bootstrap 行显式核对，失败整体回滚；导入后显式校验外键、多态关联和敏感表，不依赖重新开启外键触发器。
+- 只支持已核实 schema 指纹的 GitLab 16.11.10；导出在单个 `REPEATABLE READ READ ONLY` 事务内完成选样与分页，窗口只筛根议题，选中议题的全部评论和关联闭包完整导出。选样、关联闭包和数据读取全部使用 keyset 分页并受总行数、总字节和总运行时限约束；每次来源查询与闭包扩展前复核剩余预算，耗尽即整批失败、不截断评论。读取完成后先回滚只读快照再序列化包，写包、校验、改名和事务释放各阶段都复核时限，超时不得产出成功包；连接始终在 `finally` 中回滚并关闭。
+- 包由 `manifest.json`、`CHECKSUMS.sha256`、`data/*.jsonl` 组成；`package_id` 由选样信息、数据文件哈希、格式/工具版本、来源身份指纹和 schema 指纹共同重算。该机制用于一致性与篡改校验，不是身份认证或签名。导入器只接受清单登记的列并自行构造参数化 INSERT，不执行包内 SQL。
+- 导入目标必须由本工具标记、与源库身份不同且为空测试 GitLab。初始化前先核验目标结构、空库资格和实际连接身份，再持久化标记；标记同时绑定服务器指纹、数据库身份指纹、schema 指纹和迁移版本，标签/令牌不能单独放行错误目标。导入在单事务内写入，引用种子行按业务键复用，bootstrap 行显式核对，失败整体回滚；序列使用可回滚的 `ALTER SEQUENCE ... RESTART WITH` 调整，不使用不随事务回滚的 `setval`。导入后显式校验外键、多态关联和敏感表，不依赖重新开启外键触发器。
 - 操作、版本范围、失败处理和停止条件见 `deploy/runbooks/gitlab-sample-transfer-runbook.md`；决策见 `docs/decisions.md` D-32。
 
 ## 性能、迁移与发布不变量

@@ -2,10 +2,10 @@
 
 ## 进度与中间物
 
-- 阶段：本地实现与验证已完成，等待经理审批。独立工作树 `D:/projects/dcp-gitlab-transfer-20261026`、分支 `codex/gitlab-sample-transfer-20261026`，基线 `bdb9326726cc508e1ad595843603ef62a7b362c5`。
-- 已完成：开工门禁；契约/导出/导入重构；正式单元与真实 PostgreSQL 集成测试；148 议题全量包导出与空 GitLab 16.11.10 导入；GitLab 页面/API 读与新建议题、评论、加摘标签；冻结延期候选镜像的独立平台全量同步、自动增量、延期判定、真实写回与第二轮收敛；操作手册和交付说明。
-- 进行点：已完成工具代码提交 `e159668b` 与后续文档提交，双远端已推送（回读以 `git ls-remote` 为准）；交付说明与证据已归档，等待经理审批。
-- 测试状态：契约/导出/导入单元测试 32 项通过；真实 PostgreSQL 集成测试 8 项通过；最终 148 议题包 `status=COMPLETE`、`package_id=0c81561d7cb53ce017c33680aad40655edb8fc9b8bcf566b55208379abf8108b`；平台全量事实 150 条（导入 148 + 新建 2），响应延期 114、解决延期 103；写回作业 3/3 SUCCEEDED，第二轮无新增/变更作业。
+- 阶段：经理复审 R1—R4 返修与复测完成，重新提交审批。独立工作树 `D:/projects/dcp-gitlab-transfer-20261026`、分支 `codex/gitlab-sample-transfer-20261026`，基线 `bdb9326726cc508e1ad595843603ef62a7b362c5`。
+- 已完成：开工门禁；契约/导出/导入重构；首轮正式测试、148 议题全量包导出与空 GitLab 16.11.10 导入、页面/API 验证、冻结延期候选平台全量/自动增量/延期判定/真实写回/第二轮收敛；经理复审后按 R1—R4 补红测并修复：初始化前置校验与目标身份绑定、关联闭包全分页与总行/字节预算、写包/末页/事务释放时限覆盖、事务安全的 `ALTER SEQUENCE ... RESTART`、`package_id` 绑定来源与 schema 元数据；最终 148 包重新导出并在空 GitLab schema 库完成正常导入、同包替换和提交失败恢复。
+- 进行点：返修代码与测试已完成，待提交并推送双远端；交付说明、手册和证据需同步最终 `package_id` 与测试计数。
+- 测试状态：契约/导出/导入单元测试 41 项通过；真实 PostgreSQL 集成测试 14 项通过；最终 148 议题包 `status=COMPLETE`、`package_id=5ee2895f01b863ca660d3dfbb37b41bce18dd8cfc7daac1325e28e13e948c614`、12,150 行/2,635,096 字节，数据文件与首轮 148 包逐字节一致；空 GitLab schema 库导入 148 议题/387 评论/759 label_links，外键孤儿 0、多态违规 0、敏感表为空；平台全量事实 150 条（导入 148 + 新建 2），响应延期 114、解决延期 103；写回作业 3/3 SUCCEEDED，第二轮无新增/变更作业（首轮证据继续有效）。
 - 阻塞：无技术阻塞；未经经理审批与发布授权，不连接生产、不取生产样本、不合入 main、不制造正式发布包。
 
 ## 恢复线索
@@ -73,7 +73,8 @@
 - `manifest.json`：`format=dcp-gitlab-sample/v1`、工具版本、创建时刻、源版本与 schema 指纹、源数据库标识（脱敏）、固定时间窗口与时区、选样模式、项目/议题 ID 与 iid、表行数、每文件 SHA-256、完整性检查结果、`status=COMPLETE`、脱敏清单。
 - `data/*.jsonl`：每行一个 JSON 对象，键为真实列名，值为类型化编码；导入器只接受清单登记的列，自己构造参数化 INSERT，不执行包内 SQL。
 - `CHECKSUMS.sha256`：覆盖 `manifest.json` 与全部 data 文件；导入时逐文件校验。
-- 写入临时目录，全部完成并校验后改名为最终目录；缺少 `status=COMPLETE` 或校验失败即拒绝。
+- `package_id` 由选样信息、数据文件 SHA-256、格式/工具版本、来源身份指纹与 schema 指纹共同重算；它用于一致性和篡改校验，不是身份认证或数字签名。导入器拒绝来源身份、schema 指纹、表校验和或选样任一不一致的包，即使清单文件校验和已重算。
+- 写入临时目录，全部完成并校验后改名为最终目录；缺少 `status=COMPLETE` 或校验失败即拒绝；任一时限/预算失败都删除半成品。
 
 ### 选样
 
@@ -85,17 +86,21 @@
 
 ### 导出
 
-- 单连接、单 worker；会话只读；`statement_timeout`、`lock_timeout`、总运行时限；keyset 分页；批间 sleep。
-- 快照边界：在单个只读事务内读取选样根议题与计数；分页读取同一事务，保证包内跨表一致视图。超时/断开即失败，不续跑拼接。
+- 单连接、单 worker；会话只读；`statement_timeout`、`lock_timeout`、总运行时限；选样、关联闭包和数据读取全部 keyset 分页；批间 sleep。
+- 总行数 `--max-total-rows`（默认 200,000）与总字节 `--max-total-bytes`（默认 64 MiB）预算覆盖选样、闭包与数据读取；每次来源查询和闭包扩展前复核剩余行/字节/时限，超限整批失败，不截断评论或关联行。
+- 快照边界：在单个只读事务内读取选样根议题与计数；分页读取同一事务，保证包内跨表一致视图。读取结束后立即回滚只读快照，再进行清单序列化、写入、校验和改名；连接在失败或成功路径都回滚并关闭。
+- 写包、清单/校验和写入、改名前后均复核总时限；超时删除半成品且不得产出 `COMPLETE` 包。
 - 凭据只从环境变量或交互式密码文件读取；命令行、日志、清单均不出现密码。
 - 写包前检查必需关联完整性；缺失即失败并列出表与原因。
 
 ### 导入
 
-- 目标必须为空 GitLab（仅允许初始化管理员/根命名空间）；先校验目标数据库非源库，且目标实例归属为显式测试标识（数据库 + 服务器地址 + 端口 + 实例 UUID/标记），不以库名含 test 判断。
-- 校验包完成状态、版本/schema 指纹、文件校验和、表清单与行数。
+- 目标必须为空 GitLab（仅允许初始化管理员/根命名空间）；先校验目标数据库非源库，且目标实例归属为显式测试标识（数据库 + 服务器地址 + 端口 + 实例标记），不以库名含 test 判断。
+- `--init-target` 在写入任何控制表或标记前，先校验目标具有所需 GitLab 结构与迁移版本、空库资格和实际连接身份；非 GitLab、非空目标、错误连接均拒绝且不新增持久对象。
+- 持久标记同时绑定服务器指纹、数据库身份指纹、schema 指纹和迁移版本；导入时必须同时匹配标签、令牌和这些身份字段，不能仅凭可任意填写的标签/令牌放行错误目标。
+- 校验包完成状态、`package_id`、来源身份、schema 指纹、文件校验和、表清单与行数。
 - bootstrap 冲突：对源包中 id=1 的用户/命名空间，若目标仅存在初始化管理员/根命名空间，则显式改用目标行并记录；其他任何冲突立即失败，禁止静默跳过。
-- 在单事务内按依赖顺序插入；任何失败整体回滚。序列校正；导入后显式检查外键与多态关联，重新开启外键触发器不作为验证替代。
+- 在单事务内按依赖顺序插入；任何失败整体回滚。序列使用 `ALTER SEQUENCE ... RESTART WITH` 校正（可随事务回滚），不使用不随事务回滚的 `setval`；导入后显式检查外键与多态关联，重新开启外键触发器不作为验证替代。序列调整后、后置检查及提交任一步失败，都必须恢复旧行、标记、导入日志和序列可用性。
 - 重复导入：默认拒绝；仅在目标仍为本工具上次导入且 `--replace-existing` 时，先完整删除上次导入数据再导入（仍需通过校验）。
 - 导入后重建测试账号/令牌，关闭邮件、Webhook、CI 与生产外发配置；输出导入报告。
 
@@ -109,9 +114,9 @@
 ## 接口契约
 
 - 入口保持 `scripts/gitlab_bounded_sql_export.py` 与 `scripts/gitlab_bounded_sql_import.py`；包格式、脱敏规则和 schema 指纹共用 `scripts/gitlab_sample_contract.py`，连接与结构检查共用 `scripts/gitlab_sample_db.py`。
-- 导出关键参数：`PG*`/libpq 环境变量（不接受命令行密码）、`--project-ids`、`--since`、`--until`、`--timezone`、`--issue-ids`、`--issue-iids`、`--max-issues`、`--output`、`--batch-size`、`--batch-sleep-ms`、`--statement-timeout-ms`、`--lock-timeout-ms`、`--max-runtime-seconds`、`--connect-timeout`、`--source-instance`。
+- 导出关键参数：`PG*`/libpq 环境变量（不接受命令行密码）、`--project-ids`、`--since`、`--until`、`--timezone`、`--issue-ids`、`--issue-iids`、`--max-issues`、`--max-total-rows`、`--max-total-bytes`、`--output`、`--batch-size`、`--batch-sleep-ms`、`--statement-timeout-ms`、`--lock-timeout-ms`、`--max-runtime-seconds`、`--connect-timeout`、`--source-instance`。
 - 导入关键参数：`PG*`/libpq 环境变量、`--package`、`--target-label`、`--target-token-env`（默认 `DCP_TARGET_TOKEN`）、`--init-target`、`--replace-existing`、`--report`、`--batch-size`、`--statement-timeout-ms`、`--lock-timeout-ms`、`--max-runtime-seconds`、`--connect-timeout`。
-- 清单字段与表清单在阶段 1 固化；新增表必须同时更新完整性检查、导入顺序与测试。`package_id` 由选样信息与各数据文件 SHA-256 重算校验，清单篡改即使重写 `CHECKSUMS.sha256` 也会被拒绝。
+- 清单字段与表清单在阶段 1 固化；新增表必须同时更新完整性检查、导入顺序与测试。`package_id` 覆盖选样、数据文件哈希、格式/工具版本、来源身份与 schema 元数据；重算清单文件校验和不能绕过，但它不是身份认证或签名。
 - 黄金基线夹具专用导出器为 `scripts/golden_baseline_slice_export.py`，只服务于 `scripts/extract_golden_baseline_fixtures.py`，不是小样本传输入口，也不改变小样本包契约。
 
 ## 风险与假设
@@ -124,9 +129,9 @@
 
 ## 验收证据与未验证项
 
-- 真实 GitLab：本地空 GitLab CE 16.11.10（schema_migrations 最大值 `20240702181131`，PostgreSQL 14.11）导入 148 议题/387 评论/759 label_links；议题 2251 页面与 API 均返回全部 7 条评论、标签、里程碑和脱敏作者；新建议题、评论、加摘标签成功。
-- 完整导入报告：`reference_maps` 组织 1→1、work_item_type 2→1；外键孤儿 0、多态违规 0；外部/敏感表（个人令牌、Webhook、集成、密钥、会话、CI 凭据）均为 0；`status=IMPORTED`。
-- 平台链路：使用冻结延期候选镜像新建独立平台库/后端/前端与网络端口，首次全量 SUCCESS，事实 150 条；自动增量 SUCCESS；3 个样本议题分别验证“事实延期但标签缺失→补标签”“事实不延期但标签存在→摘标签”“同一议题双向调整”，3 个作业均 SUCCEEDED，保护标签未受影响；第二轮无新增/变更作业。
-- 正式测试：`python -m unittest` 契约/导出/导入 32 项通过；真实 PostgreSQL 集成 8 项通过（含时间窗上限/空选样、显式 ID、全部评论、源只读、重复/替换导入、损坏包、版本不符、错误目标、同库、语句超时、表权限不足）。
-- 未验证或仅有限验证：除 16.11.10 外的 GitLab 版本；生产 GitLab 实际版本与结构；多项目、多实例、超大议题量真实容量；GitLab 邮件/外部集成在实例级 `gitlab.rb` 的实际禁用在本次仅由导入报告要求操作者确认，工具本身不修改实例配置文件；真实浏览器中的平台页面仅通过 API 与 GitLab 页面验收，平台前端未做交互截图。
+- 真实 GitLab 运行时（首轮 148 包，数据文件与最终包逐字节一致）：本地空 GitLab CE 16.11.10（schema_migrations 最大值 `20240702181131`，PostgreSQL 14.11）导入 148 议题/387 评论/759 label_links；议题 2251 页面与 API 均返回全部 7 条评论、标签、里程碑和脱敏作者；新建议题、评论、加摘标签成功。
+- 返修后最终包：`package_id=5ee2895f01b863ca660d3dfbb37b41bce18dd8cfc7daac1325e28e13e948c614`，12,150 行、2,635,096 字节；24 张表行数与 SHA-256 与首轮包完全一致。在真实 PostgreSQL 16.13 的空 GitLab 16.11 schema 库（`gl_sample_it_target`，bootstrap 仅保留管理员/根命名空间）完成：`--init-target` 成功；全量导入 `status=IMPORTED`，148 议题/387 评论/759 label_links，`reference_maps` 组织 1→1、work_item_type 2→1；外键孤儿 0、多态违规 0；个人令牌、Webhook、集成、密钥、会话、CI 凭据均为 0；序列 `nextval > max(id)`；同包 `--replace-existing` 再次导入后行数与标记一致；在 `notes` 上挂延迟约束触发器使替换导入在提交时失败，事务回滚后 148 议题/387 评论/759 label_links、标记、导入日志和序列均恢复，目标仍可继续新增。
+- 平台链路（首轮证据，继续有效）：使用冻结延期候选镜像新建独立平台库/后端/前端与网络端口，首次全量 SUCCESS，事实 150 条；自动增量 SUCCESS；3 个样本议题分别验证“事实延期但标签缺失→补标签”“事实不延期但标签存在→摘标签”“同一议题双向调整”，3 个作业均 SUCCEEDED，保护标签未受影响；第二轮无新增/变更作业。
+- 正式测试：`python -m unittest` 契约/导出/导入 41 项通过；真实 PostgreSQL 集成 14 项通过，覆盖首轮全部场景并新增：初始化拒绝非 GitLab/非空/错误目标且不新增持久对象、正确空目标初始化、大关联集合预算耗尽不截断、末页读取后超时、写包期间超时、超时后连接/事务释放、序列调整事务回滚、提交失败恢复行/标记/日志/序列、来源与 schema 元数据篡改拒绝。
+- 未验证或仅有限验证：除 16.11.10 外的 GitLab 版本；生产 GitLab 实际版本与结构；多项目、多实例、超大议题量真实容量；GitLab 邮件/外部集成在实例级 `gitlab.rb` 的实际禁用在本次仅由导入报告要求操作者确认，工具本身不修改实例配置文件；返修后的运行态页面/API 未重新执行，沿用首轮证据（最终包数据文件与首轮逐字节一致，导入映射未改变；新增序列调整已在真实 PG 验证）。
 - 交付材料：工具源码与 4 个正式测试文件；操作手册 `deploy/runbooks/gitlab-sample-transfer-runbook.md`；本计划；证据目录 `.tmp-logs/gitlab-sample-transfer-20261026/`；交付说明 `.tmp/gitlab-sample-transfer-20261026/DELIVERY.md`。
