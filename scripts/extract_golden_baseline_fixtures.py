@@ -12,7 +12,7 @@ docs/decisions.md 决策记录）：
 
 数据来源（全部只读）：
   GitLab 源库：容器 gitlab-data-web-1 的 gitlabhq_full_import_test。结构经 docker exec pg_dump；
-    数据切片经 socket proxy 15434（用户 gitlab-psql）复用 scripts/gitlab_bounded_sql_export.py。
+    数据切片经 socket proxy 15434（用户 gitlab-psql）复用 scripts/golden_baseline_slice_export.py（黄金夹具专用全量闭包导出，不是小样本传输入口）。
   平台库：本地开发栈 qaflex-dev-postgres-15432（凭据读 backend/.env.local）。
 
 平台种子只包含运行期产生且被读路径消费的业务数据；迁移种子（权限、标签组、目录等）
@@ -36,7 +36,7 @@ import psycopg2
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from gitlab_bounded_sql_export import adapt_row, quote_ident  # noqa: E402
+from golden_baseline_slice_export import adapt_row, quote_ident  # noqa: E402
 
 GITLAB_CONTAINER = "gitlab-data-web-1"
 GITLAB_DATABASE = "gitlabhq_full_import_test"
@@ -209,7 +209,7 @@ def export_gitlab_slice(output: Path) -> dict[str, int]:
     started = time.time()
     command = [
         sys.executable,
-        str(ROOT / "scripts" / "gitlab_bounded_sql_export.py"),
+        str(ROOT / "scripts" / "golden_baseline_slice_export.py"),
         "--host",
         GITLAB_PROXY_HOST,
         "--port",
@@ -218,8 +218,6 @@ def export_gitlab_slice(output: Path) -> dict[str, int]:
         GITLAB_DATABASE,
         "--username",
         GITLAB_PROXY_USER,
-        "--password",
-        "",
         "--output",
         str(output),
     ]

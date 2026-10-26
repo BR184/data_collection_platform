@@ -1,0 +1,89 @@
+name: ${COMPOSE_PROJECT_NAME:?请先生成本测试实例.env}
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: qaflex
+      POSTGRES_USER: qaflex
+      POSTGRES_PASSWORD: ${PLATFORM_DB_PASSWORD:?}
+    volumes:
+      - platform_db:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${PLATFORM_DB_PORT:?}:5432"
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U qaflex -d qaflex"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+  backend:
+    image: ${BACKEND_IMAGE:?}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATASOURCE_URL: jdbc:postgresql://postgres:5432/qaflex
+      DATASOURCE_USERNAME: qaflex
+      DATASOURCE_PASSWORD: ${PLATFORM_DB_PASSWORD:?}
+      PLATFORM_INSTANCE_ID: ${COMPOSE_PROJECT_NAME:?}
+      PLATFORM_AUTH_PROVIDER: local
+      PLATFORM_ADMIN_USERNAME: admin
+      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:?}
+      PLATFORM_APPROVAL_PASSWORD: ${PLATFORM_APPROVAL_PASSWORD:?}
+      PLATFORM_SECURE_CONFIG_REQUIRED: "false"
+      PLATFORM_BACKGROUND_JOBS_ENABLED: ${BACKGROUND_JOBS_ENABLED:-false}
+      GITLAB_WEB_BASE_URL: http://gitlab
+      GITLAB_DELETE_RECONCILIATION_ENABLED: ${DELETE_RECONCILIATION_ENABLED:-false}
+      GITLAB_MAX_SYNC_THREADS: "2"
+      JAVA_OPTS: -XX:MaxRAMPercentage=65.0 -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Shanghai
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:?}:18080"
+    volumes:
+      - platform_logs:/app/logs
+  frontend:
+    image: qa-flex-platform-frontend:20261021T011723Z-d52affe66b4f
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${WEB_BIND:-127.0.0.1}:${FRONTEND_PORT:?}:80"
+  gitlab:
+    image: gitlab/gitlab-ce:16.11.10-ce.0
+    restart: unless-stopped
+    shm_size: 256m
+    environment:
+      GITLAB_ROOT_PASSWORD: ${GITLAB_ROOT_PASSWORD:?}
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url '${GITLAB_PUBLIC_URL:?}'
+        nginx['listen_port'] = 80
+        nginx['listen_https'] = false
+        letsencrypt['enable'] = false
+        postgresql['listen_address'] = '0.0.0.0'
+        postgresql['md5_auth_cidr_addresses'] = ['0.0.0.0/0']
+        postgresql['sql_user_password'] = '${GITLAB_DB_PASSWORD:?}'
+        gitlab_rails['db_password'] = '${GITLAB_DB_PASSWORD:?}'
+        gitlab_rails['gitlab_email_enabled'] = false
+        gitlab_rails['smtp_enable'] = false
+        gitlab_rails['gitlab_signup_enabled'] = false
+        gitlab_rails['usage_ping_enabled'] = false
+        gitlab_rails['gravatar_enabled'] = false
+        gitlab_rails['initial_shared_runners_enabled'] = false
+        registry['enable'] = false
+        prometheus_monitoring['enable'] = false
+        puma['worker_processes'] = 2
+        sidekiq['concurrency'] = 5
+    ports:
+      - "${WEB_BIND:-127.0.0.1}:${GITLAB_WEB_PORT:?}:80"
+      - "127.0.0.1:${GITLAB_DB_PORT:?}:5432"
+    volumes:
+      - gitlab_config:/etc/gitlab
+      - gitlab_logs:/var/log/gitlab
+      - gitlab_data:/var/opt/gitlab
+volumes:
+  platform_db:
+  platform_logs:
+  gitlab_config:
+  gitlab_logs:
+  gitlab_data:
