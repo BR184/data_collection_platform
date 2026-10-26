@@ -1,7 +1,8 @@
 # 统一表单系统建设方案（v5.1 评审定稿）
 
-> 版本：v5.1，2026-10-21。业务基线包含用户确认的并发、危险操作及草稿体验；技术方案提交群内评审，评审通过后进入开发。读者：研发主管、测试负责人及实施人员。
+> 版本：v5.1，2026-10-22；2026-10-26补充用户确认的业务字段管理界面要求（§3.4）。业务基线包含用户确认的并发、危险操作及草稿体验；W0技术准入及W1存储与迁移基础已通过审核，W2三模板记录服务已于2026-10-23通过验收，W3填写页与草稿已于2026-10-23通过验收，W4字段管理与发布首次审核于2026-10-26退回，整改复验关闭R02/R03/R04/R06、R01/R05/R07未关闭；员工已在隔离worktree完成二次整改与验证并提交复审，W5未准入。读者：研发主管、测试负责人及实施人员。
 > 依据：2026-09-29会议纪要、用户后续裁定、新老平台源码与Wiki规则。当前阶段见[项目进度](../progress.md)，调查依据见附录A。
+> 实施交接：[AI员工实施与审核清单](unified-form-system-implementation-plan-20261021.md)组织阶段任务、证据和审批记录，设计契约仍以本文件为准。
 
 ## 一、执行摘要与架构评审拍板清单
 
@@ -9,7 +10,7 @@
 
 表单服务负责记录与版本。消费方结合GitLab资源、标签和事件生成事实、规则结果、统计与导出。CI_ROBOT在新建MR/Issue时自动投放入口链接，用户在采集平台填写，管理员在独立页面管理字段和适用范围。
 
-本稿提交以下唯一推荐方案，评审确认后按第四章实施。
+本稿为获准实施的唯一设计源，按第四章路线实施。
 
 | 评审事项 | 本稿采用的方案 | 定义位置 |
 | --- | --- | --- |
@@ -72,7 +73,7 @@
 
 新建和编辑按发布规格校验有效业务字段，补充说明选填。条件不适用时保存明确结构值或NULL，条件说明随控制项启用；历史缺值在迁移时保留，用户编辑时提示补齐当前必填字段。完整字段、条件和取值见§3.2。
 
-缺陷原因执行[D-30](../decisions.md#d-30-缺陷原因采集与合规判定分层)：采集保存真实原因集合，合规按Wiki的适用范围和状态检查唯一性，统计使用既有原因个数口径。实现分别承担字段校验、唯一性判定和统计投影，使用稳定具体原因ID。产出影响与验收见§4.1。
+缺陷原因执行[D-30](../decisions.md#d-30-缺陷原因采集与合规判定分层)：采集保存真实原因集合，合规按Wiki的适用范围和状态检查唯一性，统计使用既有原因个数口径。实现分别承担字段校验、唯一性判定和统计投影，使用稳定具体原因ID。合规计数器按具体原因ID去重计数：同一具体原因的历史别名归并为同一ID，一级大类只作分类不参与计数；去重后具体原因数为0或大于1判为非法，尚未判定保持待检查，不把多条采集值截断或猜测主因。产出影响与验收见§4.1。
 
 多条响应或回复的“最新”按`(createdAt, recordId)`降序确定，使用被选记录的当前内容；修改旧记录不改变排序。首次响应、延期豁免、完成时间等分别使用§3.5的指标选择器。
 
@@ -194,11 +195,20 @@ create table form_template_scopes (
     resource_type varchar(64) not null,
     current_version_id bigint,
     status varchar(16) not null check (status in ('DRAFT', 'ACTIVE', 'RETIRED')),
+    updated_at timestamp not null default current_timestamp,
+    write_fenced boolean not null default false,
+    write_fence_reason varchar(64),
+    write_fence_publication_id bigint,
+    write_fence_token varchar(64),
+    write_fence_at timestamp,
+    binding_revision bigint not null default 0 check (binding_revision >= 0),
+    binding_hash char(64),
     unique (template_key, scope_key),
     check (status <> 'ACTIVE' or
         (source_config_id is not null and source_instance is not null
          and canonical_gitlab_base_url is not null and version_project_id is not null
-         and jsonb_array_length(project_ids) > 0 and current_version_id is not null))
+         and jsonb_array_length(project_ids) > 0 and current_version_id is not null
+         and binding_hash is not null))
 );
 
 create table form_template_versions (
@@ -223,6 +233,38 @@ alter table form_template_scopes add constraint form_scope_current_version_fk
 
 -- 所有新版记录表共用；版本迁移保留记录 ID，不各自创建 bigserial。
 create sequence form_record_id_seq as bigint;
+
+create table form_template_scope_drafts (
+    scope_id bigint primary key references form_template_scopes(id) on delete cascade,
+    draft_revision bigint not null default 1 check (draft_revision > 0),
+    field_spec jsonb not null,
+    source_config_id bigint,
+    source_instance varchar(128),
+    canonical_gitlab_base_url varchar(255),
+    project_ids jsonb not null default '[]'::jsonb
+        check (jsonb_typeof(project_ids) = 'array'),
+    version_project_id bigint,
+    version_label varchar(64),
+    version_evidence jsonb,
+    binding_hash char(64) not null,
+    migration_spec jsonb,
+    updated_by varchar(128) not null,
+    updated_at timestamp not null
+);
+
+create table form_template_preview_evidence (
+    id bigserial primary key,
+    scope_id bigint not null references form_template_scopes(id) on delete cascade,
+    draft_revision bigint not null,
+    field_spec_hash char(64) not null,
+    binding_hash char(64) not null,
+    preview_hash char(64) not null,
+    preview_json jsonb not null,
+    blocking_errors jsonb not null default '[]'::jsonb,
+    created_by varchar(128) not null,
+    created_at timestamp not null,
+    unique (scope_id, draft_revision)
+);
 ```
 
 范围验证器同时用于启用事务、启动和来源配置变更：
@@ -256,39 +298,46 @@ create table <instances> (
     unique (scope_id, source_config_id, project_id, resource_type, resource_id)
 );
 
--- 以下记录业务列仅为code_review示例；Issue两表同系统列，业务列按§3.2分别建真实列。
+-- 三模板共用系统列；业务列按§3.2生成，以下code_review列为示例。
 create table <records> (
     id bigint primary key default nextval('form_record_id_seq'),
     instance_id bigint not null references <instances>(id),
     origin_version_id bigint not null references form_template_versions(id),
     template_version varchar(64),               -- 原始发布标签；未登记历史可为空
     created_by varchar(128),                    -- 会话 username，即 LDAP user_id
-    reviewer_user_id varchar(128),
-    reviewer_name varchar(128),                 -- 历史原值允许 NULL，不伪造正名
-    review_duration_minutes integer not null check (review_duration_minutes >= 0),
-    specification_count integer not null check (specification_count >= 0),
-    logic_count integer not null check (logic_count >= 0),
-    performance_count integer not null check (performance_count >= 0),
-    design_count integer not null check (design_count >= 0),
-    other_count integer not null check (other_count >= 0),
-    supplement_note text,
     request_key varchar(64),
     create_payload_hash char(64),               -- 首次规范化提交的 SHA-256，不随编辑变化
     record_version integer not null default 1 check (record_version > 0),
     deleted boolean not null default false,
+    legacy_incomplete boolean not null default false,
+    legacy_missing_fields text[] not null default '{}',
     created_at timestamp not null,
     updated_at timestamp not null,
+    reviewer_user_id varchar(128),
+    reviewer_name varchar(128),                 -- 历史原值允许 NULL，不伪造正名
+    review_duration_minutes integer check (review_duration_minutes >= 0),
+    specification_count integer check (specification_count >= 0),
+    logic_count integer check (logic_count >= 0),
+    performance_count integer check (performance_count >= 0),
+    design_count integer check (design_count >= 0),
+    other_count integer check (other_count >= 0),
+    supplement_note text,
+    unique (request_key),
     check (created_by is null or
         (reviewer_user_id is not null and reviewer_name is not null
          and btrim(reviewer_name) <> '' and request_key is not null
          and create_payload_hash is not null and template_version is not null)),
-    unique (request_key)
+    check (deleted or legacy_incomplete or
+        (review_duration_minutes is not null and specification_count is not null
+         and logic_count is not null and performance_count is not null
+         and design_count is not null and other_count is not null)),
+    check (not legacy_incomplete or cardinality(legacy_missing_fields) > 0)
 );
 -- PostgreSQL 普通唯一约束允许多个 NULL，覆盖无请求标识的历史行。
 create index <已校验的实例索引名> on <records>(instance_id) where deleted = false;
 ```
 
-三模板共用系统列，业务列分别按§3.2建真实列。上例的reviewer约束仅适用于code_review；Issue使用各自字段条件，不补造走查字段。以后新增字段的历史可空约束由发布规格生成。
+三模板共用系统列，业务列分别按§3.2建真实列。上例的reviewer约束仅适用于code_review；Issue使用各自字段条件，不补造走查字段。`legacy_incomplete/legacy_missing_fields`是内部登记列，不进入field_spec/API写入白名单，只由迁移复制写入、由业务编辑补齐后清除。版本表业务约束由发布规格的约束生成器统一输出：无历史行时使用即时`NOT NULL/CHECK`；迁移目标把每条必填/条件约束改写为`deleted or legacy_incomplete or <原约束>`，两种情形都不使用`NOT VALID`。以后新增字段的历史可空约束同理由发布规格生成。
 
 全局记录ID由`form_record_id_seq`分配，迁移显式保留旧ID；序列推进至旧表全量及新版最大ID之上，空库从1开始。实例ID可重建。origin、产生标签、requestKey、首次指纹和recordVersion迁移保持原值。
 
@@ -330,6 +379,185 @@ create table form_template_migration_logs (
 
 迁移日志记录前后版本及守恒核验。空模板首次发布没有from_version，使用§3.4发布任务记录；已有结构之间迁移才写form_template_migration_logs。审计失败向外传播并回滚业务事务。
 
+#### 发布、变更与权威基础表
+
+```sql
+create table form_template_publications (
+    id bigserial primary key,
+    scope_id bigint not null references form_template_scopes(id),
+    request_key varchar(64) not null,
+    request_hash char(64) not null,
+    draft_revision bigint not null,
+    preview_id bigint not null references form_template_preview_evidence(id),
+    publication_kind varchar(24) not null
+        check (publication_kind in ('INITIAL_EMPTY', 'INITIAL_MIGRATION', 'MIGRATION')),
+    expected_current_version_id bigint,
+    from_version_id bigint,
+    to_version_id bigint not null,
+    frozen_field_spec jsonb not null,
+    frozen_migration_spec jsonb,
+    frozen_binding jsonb not null,
+    binding_hash char(64) not null,
+    version_evidence jsonb not null,
+    ddl_summary jsonb not null,
+    ddl_hash char(64) not null,
+    selection_counts jsonb not null,
+    selection_captured_at timestamp,
+    copy_checksum jsonb,
+    verification_summary jsonb,
+    stage varchar(16) not null
+        check (stage in ('PREPARED', 'COPYING', 'VERIFIED', 'PUBLISHED', 'FAILED')),
+    attempt_no integer not null default 0 check (attempt_no >= 0),
+    recovery_cycle integer not null default 0 check (recovery_cycle >= 0),
+    task_version bigint not null default 0 check (task_version >= 0),
+    lease_owner varchar(128),
+    lease_until timestamp,
+    fencing_version bigint not null default 0 check (fencing_version >= 0),
+    fence_token varchar(64),
+    next_attempt_at timestamp,
+    recovery_verified_at timestamp,
+    recovery_evidence jsonb,
+    last_error text,
+    operator_id varchar(128) not null,
+    operator_name varchar(128),
+    created_at timestamp not null,
+    updated_at timestamp not null,
+    published_at timestamp,
+    unique (scope_id, request_key),
+    unique (to_version_id),
+    foreign key (scope_id, expected_current_version_id)
+        references form_template_versions(scope_id, id),
+    foreign key (scope_id, from_version_id)
+        references form_template_versions(scope_id, id),
+    foreign key (scope_id, to_version_id)
+        references form_template_versions(scope_id, id),
+    check (
+        (publication_kind = 'INITIAL_EMPTY'
+         and from_version_id is null and expected_current_version_id is null)
+        or (publication_kind = 'INITIAL_MIGRATION'
+            and from_version_id is not null and expected_current_version_id is null)
+        or (publication_kind = 'MIGRATION'
+            and from_version_id is not null
+            and expected_current_version_id = from_version_id)
+    ),
+    check (stage <> 'PUBLISHED' or published_at is not null),
+    check (stage <> 'COPYING' or fence_token is not null)
+);
+
+create unique index uq_form_publications_active
+    on form_template_publications(scope_id)
+    where stage in ('PREPARED', 'COPYING', 'VERIFIED');
+
+create index idx_form_publications_claim
+    on form_template_publications(stage, next_attempt_at, lease_until)
+    where stage in ('PREPARED', 'COPYING', 'VERIFIED');
+
+create table form_template_publication_attempts (
+    id bigserial primary key,
+    publication_id bigint not null references form_template_publications(id) on delete cascade,
+    attempt_no integer not null check (attempt_no > 0),
+    phase varchar(16) not null
+        check (phase in ('COPY', 'VERIFY', 'PUBLISH', 'FAILED')),
+    selection_captured_at timestamp not null,
+    selection_counts jsonb not null,
+    copy_checksum jsonb,
+    verification_summary jsonb,
+    error text,
+    started_at timestamp not null,
+    finished_at timestamp,
+    unique (publication_id, attempt_no)
+);
+
+create table form_authority_cutover_manifests (
+    id bigserial primary key,
+    manifest_key varchar(64) not null unique,
+    source_config_id bigint not null,
+    source_instance varchar(128) not null,
+    canonical_gitlab_base_url varchar(255) not null,
+    template_key varchar(64) not null references form_template_definitions(template_key),
+    scope_id bigint not null references form_template_scopes(id),
+    effective_at timestamp not null,
+    project_ids jsonb not null
+        check (jsonb_typeof(project_ids) = 'array' and jsonb_array_length(project_ids) > 0),
+    resource_rule jsonb not null,
+    rule_version varchar(64) not null,
+    status varchar(16) not null check (status in ('DRAFT', 'APPLIED', 'RETIRED')),
+    operator_id varchar(128) not null,
+    operator_name varchar(128),
+    created_at timestamp not null,
+    applied_at timestamp
+);
+
+create table form_authority_cutover_items (
+    id bigserial primary key,
+    manifest_id bigint not null references form_authority_cutover_manifests(id) on delete cascade,
+    project_id bigint not null check (project_id > 0),
+    resource_type varchar(64) not null check (resource_type in ('merge_request', 'issue')),
+    resource_id bigint check (resource_id > 0),
+    authority varchar(16) not null check (authority in ('COMMENT', 'FORM')),
+    created_at timestamp not null,
+    unique nulls not distinct (manifest_id, project_id, resource_type, resource_id)
+);
+
+create table form_resource_authorities (
+    id bigserial primary key,
+    source_config_id bigint not null,
+    source_instance varchar(128) not null,
+    canonical_gitlab_base_url varchar(255) not null,
+    project_id bigint not null check (project_id > 0),
+    resource_type varchar(64) not null check (resource_type in ('merge_request', 'issue')),
+    resource_id bigint not null check (resource_id > 0),
+    template_key varchar(64) not null references form_template_definitions(template_key),
+    scope_id bigint not null references form_template_scopes(id),
+    authority varchar(16) not null check (authority in ('COMMENT', 'FORM')),
+    authority_revision bigint not null default 1 check (authority_revision > 0),
+    cutover_manifest_id bigint references form_authority_cutover_manifests(id),
+    effective_at timestamp not null,
+    created_at timestamp not null,
+    updated_at timestamp not null,
+    unique (source_config_id, project_id, resource_type, resource_id, template_key)
+);
+
+create table form_change_heads (
+    id bigserial primary key,
+    source_config_id bigint not null,
+    source_instance varchar(128) not null,
+    canonical_gitlab_base_url varchar(255) not null,
+    project_id bigint not null check (project_id > 0),
+    resource_type varchar(64) not null,
+    resource_id bigint not null check (resource_id > 0),
+    template_key varchar(64) not null references form_template_definitions(template_key),
+    scope_id bigint not null references form_template_scopes(id),
+    latest_change_version bigint not null default 0 check (latest_change_version >= 0),
+    consumed_change_version bigint not null default 0 check (consumed_change_version >= 0),
+    latest_audit_id bigint references form_record_audit_logs(id),
+    pending_record_id bigint,
+    pending_record_version integer,
+    pending_storage_version_id bigint references form_template_versions(id),
+    pending_authority_revision bigint,
+    status varchar(16) not null
+        check (status in ('PENDING', 'LEASED', 'RETRY_WAIT', 'CONSUMED', 'FAILED')),
+    lease_owner varchar(128),
+    lease_until timestamp,
+    fencing_version bigint not null default 0 check (fencing_version >= 0),
+    next_attempt_at timestamp,
+    last_error text,
+    created_at timestamp not null,
+    updated_at timestamp not null,
+    unique (source_config_id, project_id, resource_type, resource_id, template_key),
+    check (consumed_change_version <= latest_change_version),
+    check (resource_type in ('merge_request', 'issue'))
+);
+
+create index idx_form_change_heads_claim
+    on form_change_heads(status, next_attempt_at, lease_until)
+    where status in ('PENDING', 'RETRY_WAIT', 'LEASED');
+create index idx_form_change_heads_scope
+    on form_change_heads(scope_id, status);
+```
+
+统一锁顺序为 scope → publication → 版本/目标元数据 → head（id 升序）。任何持久副作用在取得锁后用 `clock_timestamp()` 复核 owner/fencing/stage/lease 并续租；`statement_timeout` 只限制单条语句，累计超预算由提交前实际时刻校验拦截。结构切换在事务内更新指针、版本、绑定、迁移日志和受影响 head；受影响集合为 FORM 权威 ∪ 目标实例，缺 head 先补建，缺失行或覆盖核验失败即回滚。权威登记与 head 同事务，`pending_authority_revision` 指向本次修订；FORM 初始化存储证据，COMMENT 保持为空。
+
 #### 启动与结构校验
 
 启动只检查本地元数据：spec版本、范围及指针、迁移链、public schema表存在、真实列类型/长度、系统列、标识符、人员双列及数值边界。错误定位到模板、范围、结构版本及字段；拒绝带漂移结构启动。里程碑外部证据在发布期核验并存档，空ODS不阻断已验证元数据启动。
@@ -343,16 +571,18 @@ field_spec是校验和渲染的唯一字段定义，`spec_version=1`冻结编码
 ```json
 {
   "spec_version": 1,
+  "template_key": "code_review",
   "fields": [
-    {"name":"reviewer_user_id","label":"走查人","type":"string","required":true,"maxLength":128,"control":"person-select","optionsSource":"platform_ldap_users","storage":{"idColumn":"reviewer_user_id","nameColumn":"reviewer_name","columnType":"varchar"}},
-    {"name":"review_duration_minutes","label":"走查时间（分钟）","type":"integer","required":true,"min":0,"max":2147483647,"control":"number"},
-    {"name":"specification_count","label":"规范","type":"integer","required":true,"min":0,"max":2147483647,"control":"number"},
-    {"name":"logic_count","label":"逻辑","type":"integer","required":true,"min":0,"max":2147483647,"control":"number"},
-    {"name":"performance_count","label":"性能","type":"integer","required":true,"min":0,"max":2147483647,"control":"number"},
-    {"name":"design_count","label":"设计","type":"integer","required":true,"min":0,"max":2147483647,"control":"number"},
-    {"name":"other_count","label":"其他","type":"integer","required":true,"min":0,"max":2147483647,"control":"number"},
-    {"name":"supplement_note","label":"补充说明","type":"string","required":false,"maxLength":8192,"control":"textarea"}
-  ]
+    {"name":"reviewer_user_id","apiKey":"reviewerUserId","label":"走查人","type":"string","required":true,"maxLength":128,"control":"person-select","optionsSource":"platform_ldap_users","storage":{"idColumn":"reviewer_user_id","nameColumn":"reviewer_name","columnType":"varchar(128)"}},
+    {"name":"review_duration_minutes","apiKey":"reviewDurationMinutes","label":"走查时间（分钟）","type":"integer","required":true,"min":0,"max":2147483647,"control":"number","storage":{"column":"review_duration_minutes","columnType":"integer"}},
+    {"name":"specification_count","apiKey":"specificationCount","label":"规范","type":"integer","required":true,"min":0,"max":2147483647,"control":"number","storage":{"column":"specification_count","columnType":"integer"}},
+    {"name":"logic_count","apiKey":"logicCount","label":"逻辑","type":"integer","required":true,"min":0,"max":2147483647,"control":"number","storage":{"column":"logic_count","columnType":"integer"}},
+    {"name":"performance_count","apiKey":"performanceCount","label":"性能","type":"integer","required":true,"min":0,"max":2147483647,"control":"number","storage":{"column":"performance_count","columnType":"integer"}},
+    {"name":"design_count","apiKey":"designCount","label":"设计","type":"integer","required":true,"min":0,"max":2147483647,"control":"number","storage":{"column":"design_count","columnType":"integer"}},
+    {"name":"other_count","apiKey":"otherCount","label":"其他","type":"integer","required":true,"min":0,"max":2147483647,"control":"number","storage":{"column":"other_count","columnType":"integer"}},
+    {"name":"supplement_note","apiKey":"supplementNote","label":"补充说明","type":"string","required":false,"maxLength":8192,"control":"textarea","storage":{"column":"supplement_note","columnType":"text"}}
+  ],
+  "conditions": []
 }
 ```
 
@@ -362,39 +592,128 @@ API输入为`reviewerUserId/reviewDurationMinutes/specificationCount/logicCount/
 
 #### issue_response
 
-| API键（物理列） | 类型/控件 | 必填/边界 | 消费 |
-| --- | --- | --- | --- |
-| problemType（problem_type） | enum: DEFECT/REQUIREMENT，单选 | 必填且仅一项；与GitLab议题类别及需求身份标签独立 | 模板完整性 |
-| problemCause（problem_cause） | 多行文本 | 必填、去空白后非空 | 展示/追溯，修复原因分类独立保存 |
-| modificationPlan（modification_plan） | 多行文本 | 必填 | 调研修改方案 |
-| ownerConfirmation（owner_confirmation） | 确认内容文本 | 当前资源一级缺陷时必填；其它级别可保存NULL表示不适用 | 原Wiki/现行一级确认规则；按普通可编辑确认内容保存 |
-| plannedResolutionDate（planned_resolution_date） | SQL date/日期控件 | 新提交必填、唯一完整合法日期；JSON YYYY-MM-DD，现行解析年份2020—2040，扩大值域须另确认；历史文本走原格式解析 | 最新计划/延期，完成时间取GitLab标签事件 |
-| plannedMergeVersionBranch（planned_merge_version_branch） | 版本成员输入/受控选择 | 必填；沿现行IssueResponsePlanFieldRules严格规则，一个或多个CCyyyyRn以&表示；历史原值保留，合法性使用严格解析。此为计划分支业务值，不是表单结构的发布标签 | 最新计划分支/筛选/导出 |
-| supplementNote（supplement_note） | 多行文本 | 选填 | 补充说明 |
+```json
+{
+  "spec_version": 1,
+  "template_key": "issue_response",
+  "fields": [
+    {"name":"problem_type","apiKey":"problemType","label":"问题类型","type":"enum","control":"radio","required":true,
+     "options":[{"value":"DEFECT","label":"缺陷"},{"value":"REQUIREMENT","label":"需求"}],
+     "storage":{"column":"problem_type","columnType":"varchar(32)"}},
+    {"name":"problem_cause","apiKey":"problemCause","label":"问题原因","type":"string","control":"textarea","required":true,"maxLength":8192,
+     "storage":{"column":"problem_cause","columnType":"text"}},
+    {"name":"modification_plan","apiKey":"modificationPlan","label":"修改方案","type":"string","control":"textarea","required":true,"maxLength":8192,
+     "storage":{"column":"modification_plan","columnType":"text"}},
+    {"name":"owner_confirmation","apiKey":"ownerConfirmation","label":"模块负责人确认","type":"string","control":"textarea","required":false,"maxLength":8192,
+     "requiredWhen":{"resourceSeverityLevel":"一级缺陷"},
+     "storage":{"column":"owner_confirmation","columnType":"text"}},
+    {"name":"planned_resolution_date","apiKey":"plannedResolutionDate","label":"计划解决时间","type":"date","control":"date","required":true,
+     "minYear":2020,"maxYear":2040,
+     "storage":{"column":"planned_resolution_date","columnType":"date"}},
+    {"name":"planned_merge_version_branch","apiKey":"plannedMergeVersionBranch","label":"计划合并的版本分支","type":"string","control":"version-members","required":true,"maxLength":255,
+     "format":"CCyyyyRn，多个以 & 分隔；严格解析，历史原值保留",
+     "storage":{"column":"planned_merge_version_branch","columnType":"varchar(255)"}},
+    {"name":"supplement_note","apiKey":"supplementNote","label":"补充说明","type":"string","control":"textarea","required":false,"maxLength":8192,
+     "storage":{"column":"supplement_note","columnType":"text"}}
+  ],
+  "conditions": [
+    {"type":"conditionalRequired","target":"owner_confirmation",
+     "requiredWhen":{"resourceSeverityLevel":"一级缺陷"},
+     "clearWhen":{"resourceSeverityLevel":["二级缺陷","三级缺陷","建议类","未设定"]},
+     "snapshotColumn":"owner_confirmation_applicable"}
+  ],
+  "dictionaries": []
+}
+```
 
-负责人确认保存填写内容及会话创建账号，适用条件使用提交时核验的资源快照。实际流程由本人填写和编辑；本期保持普通确认内容，不增加另一账号电子签字流程。资源后变一级而确认缺失时报告缺失。
+`problem_type`与GitLab议题类别及需求身份标签独立。负责人确认保存填写内容及会话创建账号，适用条件使用提交时核验的资源快照，并写入`owner_confirmation_applicable`使条件可审计；一级缺陷必填确认内容，其他级别存NULL表示不适用。资源后变一级而确认缺失时由合规规则报告缺失，不改写历史记录。计划解决日期为业务日，JSON为`YYYY-MM-DD`，现行年份2020—2040，扩大值域须另行确认。计划合并版本分支是计划分支业务值，不是结构发布标签；沿`IssueResponsePlanFieldRules`严格解析，一个或多个`CCyyyyRn`以`&`分隔，历史原值保留。
 
 #### issue_reply
 
-| API键（物理列） | 类型/控件 | 必填/条件 |
-| --- | --- | --- |
-| fixStatus（fix_status） | 单选 RESOLVED/PARTIAL/DEFERRED/UNREPRODUCIBLE | 对应已解决/部分解决/申请延期/无法复现，必选；GitLab状态沿来源标签读取 |
-| causeKeys（cause_keys） | text[]，稳定原因词典ID，多选控件 | 新提交非空、去重且命中冻结词典；历史空值保留。采集、合规、统计分层见§2.3。 |
-| specificReason（specific_reason） | 多行文本 | 回复具体原因，必填 |
-| modificationPlan（modification_plan） | 多行文本 | 必填 |
-| causedByOtherDefect（caused_by_other_defect） | boolean单选 | true/false必须显式填写；关联缺陷号/链接在说明中选填 |
-| affectedKinds（affected_kinds） | text[]：KNOWN/NEW/NONE | 必选；NONE与其它互斥，KNOWN/NEW可同时选 |
-| knownAffectedFunctions（known_affected_functions） | 多行文本 | KNOWN选中时必填；未选时清空该字段 |
-| newAffectedFunctions（new_affected_functions） | 多行文本 | NEW选中时必填 |
-| impactTestStatus（impact_test_status） | YES/NO/NOT_APPLICABLE | 必选，以选择值保存答案 |
-| hasResidualImpact（has_residual_impact） | boolean单选 | 必选 |
-| residualImpactDetail（residual_impact_detail） | 多行文本 | hasResidualImpact=true必填 |
-| relationTableUpdated（relation_table_updated） | YES/NO/NOT_APPLICABLE | 第9项必选；历史8项模板缺此项为未知 |
-| supplementNote（supplement_note） | 多行文本 | 选填 |
+```json
+{
+  "spec_version": 1,
+  "template_key": "issue_reply",
+  "fields": [
+    {"name":"fix_status","apiKey":"fixStatus","label":"修复状态","type":"enum","control":"radio","required":true,
+     "options":[{"value":"RESOLVED","label":"已解决"},{"value":"PARTIAL","label":"部分解决"},{"value":"DEFERRED","label":"申请延期"},{"value":"UNREPRODUCIBLE","label":"无法复现"}],
+     "storage":{"column":"fix_status","columnType":"varchar(32)"}},
+    {"name":"cause_keys","apiKey":"causeKeys","label":"缺陷原因","type":"enum-array","control":"multi-select","required":true,
+     "dictionary":"DEFECT_CAUSE","maxItems":24,
+     "storage":{"column":"cause_keys","columnType":"text[]"}},
+    {"name":"specific_reason","apiKey":"specificReason","label":"具体原因","type":"string","control":"textarea","required":true,"maxLength":8192,
+     "storage":{"column":"specific_reason","columnType":"text"}},
+    {"name":"modification_plan","apiKey":"modificationPlan","label":"修改方案","type":"string","control":"textarea","required":true,"maxLength":8192,
+     "storage":{"column":"modification_plan","columnType":"text"}},
+    {"name":"caused_by_other_defect","apiKey":"causedByOtherDefect","label":"由修改其他缺陷造成","type":"boolean","control":"radio","required":true,
+     "storage":{"column":"caused_by_other_defect","columnType":"boolean"}},
+    {"name":"affected_kinds","apiKey":"affectedKinds","label":"修改该缺陷可能影响的功能","type":"enum-array","control":"checkbox","required":true,
+     "options":[{"value":"KNOWN","label":"已知的受影响功能"},{"value":"NEW","label":"新识别的受影响功能"},{"value":"NONE","label":"无"}],
+     "storage":{"column":"affected_kinds","columnType":"text[]"}},
+    {"name":"known_affected_functions","apiKey":"knownAffectedFunctions","label":"已知的受影响功能说明","type":"string","control":"textarea","required":false,"maxLength":8192,
+     "requiredWhen":{"field":"affected_kinds","contains":"KNOWN"},
+     "clearWhen":{"field":"affected_kinds","notContains":"KNOWN"},
+     "storage":{"column":"known_affected_functions","columnType":"text"}},
+    {"name":"new_affected_functions","apiKey":"newAffectedFunctions","label":"新识别的受影响功能说明","type":"string","control":"textarea","required":false,"maxLength":8192,
+     "requiredWhen":{"field":"affected_kinds","contains":"NEW"},
+     "clearWhen":{"field":"affected_kinds","notContains":"NEW"},
+     "storage":{"column":"new_affected_functions","columnType":"text"}},
+    {"name":"impact_test_status","apiKey":"impactTestStatus","label":"是否对可能影响的功能进行了测试","type":"enum","control":"radio","required":true,
+     "options":[{"value":"YES","label":"是"},{"value":"NO","label":"否"},{"value":"NOT_APPLICABLE","label":"不涉及"}],
+     "storage":{"column":"impact_test_status","columnType":"varchar(16)"}},
+    {"name":"has_residual_impact","apiKey":"hasResidualImpact","label":"有无遗留问题或潜在影响","type":"boolean","control":"radio","required":true,
+     "storage":{"column":"has_residual_impact","columnType":"boolean"}},
+    {"name":"residual_impact_detail","apiKey":"residualImpactDetail","label":"遗留问题或潜在影响说明","type":"string","control":"textarea","required":false,"maxLength":8192,
+     "requiredWhen":{"field":"has_residual_impact","equals":true},
+     "clearWhen":{"field":"has_residual_impact","equals":false},
+     "storage":{"column":"residual_impact_detail","columnType":"text"}},
+    {"name":"relation_table_updated","apiKey":"relationTableUpdated","label":"是否更新了关联关系表","type":"enum","control":"radio","required":true,
+     "options":[{"value":"YES","label":"是"},{"value":"NO","label":"否"},{"value":"NOT_APPLICABLE","label":"不涉及"}],
+     "storage":{"column":"relation_table_updated","columnType":"varchar(16)"}},
+    {"name":"supplement_note","apiKey":"supplementNote","label":"补充说明","type":"string","control":"textarea","required":false,"maxLength":8192,
+     "storage":{"column":"supplement_note","columnType":"text"}}
+  ],
+  "conditions": [
+    {"type":"mutuallyExclusive","field":"affected_kinds","whenContains":"NONE","withAnyOf":["KNOWN","NEW"]},
+    {"type":"conditionalRequired","target":"known_affected_functions","requiredWhen":{"field":"affected_kinds","contains":"KNOWN"},"clearWhen":{"field":"affected_kinds","notContains":"KNOWN"}},
+    {"type":"conditionalRequired","target":"new_affected_functions","requiredWhen":{"field":"affected_kinds","contains":"NEW"},"clearWhen":{"field":"affected_kinds","notContains":"NEW"}},
+    {"type":"conditionalRequired","target":"residual_impact_detail","requiredWhen":{"field":"has_residual_impact","equals":true},"clearWhen":{"field":"has_residual_impact","equals":false}}
+  ],
+  "dictionaries": [
+    {"name":"DEFECT_CAUSE","version":"defect-cause-v20261020",
+     "source":"DefectCauseMetricCatalog.METRICS",
+     "canonicalSha256":"efbc6c2ef07c5e7e229c1a2e0fffd7411b6c01097e16a70d2abeb8103535ce6c",
+     "items":[
+       {"key":"demand_misunderstand","label":"新增理解偏差","group":"需求问题"},
+       {"key":"missing_requirement","label":"需求遗漏","group":"需求问题"},
+       {"key":"add_demand_2","label":"新增需求","group":"需求问题"},
+       {"key":"demand_change_not_sync","label":"需求变更未同步","group":"需求问题"},
+       {"key":"design_forget","label":"功能设计遗漏","group":"设计问题"},
+       {"key":"design_scheme","label":"设计方案不合理","group":"设计问题"},
+       {"key":"incomplete","label":"场景考虑不全","group":"设计问题"},
+       {"key":"prompt_message","label":"术语、提示信息不合适","group":"设计问题"},
+       {"key":"standard_error","label":"编码规范错误","group":"编码规范"},
+       {"key":"function_forget","label":"功能编码遗漏","group":"编码规范"},
+       {"key":"logic_calculation_algorithm_error","label":"编码逻辑：计算与算法错误","group":"编码规范"},
+       {"key":"logic_flow_control_error","label":"编码逻辑：流程控制错误","group":"编码规范"},
+       {"key":"logic_data_state_process_error","label":"编码逻辑：数据与状态处理错误","group":"编码规范"},
+       {"key":"logic_business_logic_error","label":"编码逻辑：业务逻辑错误","group":"编码规范"},
+       {"key":"logic_integration_interface_error","label":"编码逻辑：集成与接口错误","group":"编码规范"},
+       {"key":"environment_config_issue","label":"环境配置问题","group":"打包问题"},
+       {"key":"compilation_package_deployment_issue","label":"编译/打包/部署问题","group":"打包问题"},
+       {"key":"other_thirdParty","label":"第三方库问题","group":"依赖问题"},
+       {"key":"algorithm_not_support","label":"算法不支持","group":"依赖问题"},
+       {"key":"mechanism_not_support","label":"机制不支持","group":"依赖问题"},
+       {"key":"precondition_data_exception","label":"前置数据异常","group":"依赖问题"},
+       {"key":"other_unIdentifyTask","label":"未识别的前后置任务","group":"依赖问题"},
+       {"key":"precision_constraint_exception","label":"精度导致约束求解异常","group":"精度问题"},
+       {"key":"precision_algorithm_exception","label":"精度导致算法执行异常","group":"精度问题"}
+     ]}
+  ]
+}
+```
 
-原因词典复用中立DefectCauseMetricCatalog的稳定key及历史等价映射，结构版本冻结词典内容和版本。一级大类由具体原因派生。模板969“需求理解偏差”等历史显示文字与正名的映射逐项留证，“编译打包问题”等跨大类差异保留原始映射证据。
-
-原因集合上限取安装词典项数；枚举集合去重并验证边界。KNOWN和NEW可同时选择，NONE与二者互斥。控制项关闭时前端清理不再适用的草稿值，服务端拒绝矛盾载荷。历史8项回复缺第9项为未知。
+`fix_status`对应已解决/部分解决/申请延期/无法复现，GitLab状态沿来源标签读取。`cause_keys`非空、去重、命中冻结词典，保存真实多选，不截断、不猜主因；合规“缺陷原因不唯一”在适用门槛下单独计算，不反向修改采集值（D-30）。原因词典复用中立`DefectCauseMetricCatalog`的稳定key及历史等价映射，结构版本冻结词典内容和版本；`canonicalSha256`按`name/version/items`的紧凑JSON计算，来源字段只作追溯元数据、不参与哈希。一级大类由具体原因派生，模板969“需求理解偏差”等历史显示文字与正名的映射逐项留证，“编译打包问题”等跨大类差异保留原始映射证据。`affected_kinds`可同时选KNOWN/NEW，NONE与二者互斥；控制项关闭时前端清理不再适用的草稿值，服务端拒绝矛盾载荷。`relation_table_updated`为第9项，必填；历史8项回复属于COMMENT来源，不导入历史评论，这与“已有平台Issue表单记录必须随结构版本迁移”是两件事。历史值不伪造；新表单记录从首次发布后产生，后续结构升级按§3.2末节迁移既有平台表单记录。
 
 #### 共用输入边界和JSON示例
 
@@ -409,6 +728,70 @@ API输入为`reviewerUserId/reviewDurationMinutes/specificationCount/logicCount/
 ```
 
 示例ownerConfirmation为NULL仅在当前资源非一级时有效。三模板分别安装完整field_spec，字段表中的SQL date、text[]、boolean和枚举映射直接落实到真实列。原始记录内容存真实列，JSON用于规格、映射及审计。
+
+#### 物理列、历史缺值约束与跨版本迁移
+
+两Issue表共用§3.1系统列，并追加以下业务列与约束：
+
+```sql
+-- issue_response
+problem_type varchar(32) not null check (problem_type in ('DEFECT', 'REQUIREMENT')),
+problem_cause text not null check (btrim(problem_cause) <> ''),
+modification_plan text not null check (btrim(modification_plan) <> ''),
+owner_confirmation text,
+owner_confirmation_applicable boolean not null,
+planned_resolution_date date not null,
+planned_merge_version_branch varchar(255) not null
+    check (btrim(planned_merge_version_branch) <> ''),
+supplement_note text,
+check (
+    (owner_confirmation_applicable and owner_confirmation is not null
+     and btrim(owner_confirmation) <> '')
+    or (not owner_confirmation_applicable and owner_confirmation is null)
+)
+
+-- issue_reply
+fix_status varchar(32) not null
+    check (fix_status in ('RESOLVED', 'PARTIAL', 'DEFERRED', 'UNREPRODUCIBLE')),
+cause_keys text[] not null
+    check (cardinality(cause_keys) between 1 and 24),
+specific_reason text not null check (btrim(specific_reason) <> ''),
+modification_plan text not null check (btrim(modification_plan) <> ''),
+caused_by_other_defect boolean not null,
+affected_kinds text[] not null
+    check (cardinality(affected_kinds) > 0
+           and affected_kinds <@ array['KNOWN', 'NEW', 'NONE']::text[]
+           and not ('NONE' = any(affected_kinds) and cardinality(affected_kinds) > 1)),
+known_affected_functions text,
+new_affected_functions text,
+impact_test_status varchar(16) not null
+    check (impact_test_status in ('YES', 'NO', 'NOT_APPLICABLE')),
+has_residual_impact boolean not null,
+residual_impact_detail text,
+relation_table_updated varchar(16) not null
+    check (relation_table_updated in ('YES', 'NO', 'NOT_APPLICABLE')),
+supplement_note text,
+check (not ('KNOWN' = any(affected_kinds))
+       or (known_affected_functions is not null and btrim(known_affected_functions) <> '')),
+check (('KNOWN' = any(affected_kinds)) or known_affected_functions is null),
+check (not ('NEW' = any(affected_kinds))
+       or (new_affected_functions is not null and btrim(new_affected_functions) <> '')),
+check (('NEW' = any(affected_kinds)) or new_affected_functions is null),
+check ((has_residual_impact and residual_impact_detail is not null
+        and btrim(residual_impact_detail) <> '')
+       or (not has_residual_impact and residual_impact_detail is null))
+```
+
+`cause_keys`去重与词典命中由服务端校验，数据库只保证非空、上限和类型；`affected_kinds`的存储顺序由服务端规范化，数据库只校验集合语义。以上`NOT NULL/CHECK`是字段规则的基准表达式，任何目标版本表都由约束生成器输出：无历史行的首次建表使用即时约束；迁移历史记录时把每条必填约束改写为`CHECK (deleted OR legacy_incomplete OR <col> IS NOT NULL)`，条件与跨字段约束改写为`CHECK (deleted OR legacy_incomplete OR (<原条件>))`。两种情形都不使用`NOT VALID`，不得把即时`NOT NULL`直接套到历史行。
+
+同一`template_key`的结构升级必须迁移当前范围全部既有记录（含作废行），Issue两模板同样适用：
+
+1. **保留身份与时间**：记录ID、`created_by`、`created_at`、`origin_version_id`、`template_version`、`request_key`、`create_payload_hash`、`record_version`、`deleted`原值迁移；`storageVersionId`由新范围当前指针解析。实例按完整键归并，不重建记录身份。
+2. **历史缺值保留与直接作废**：新增字段在历史行中为NULL，不伪造默认值；新增必填字段只约束新提交/编辑，不回填历史。作废只更新`deleted/record_version/updated_at`，不执行字段完整性校验，历史缺值行可直接作废。用户业务编辑历史记录时，服务端按当前field_spec校验并提示补齐必填/条件字段，补齐成功后才允许保存；编辑与作废都以记录级CAS和审计/head同事务完成。
+3. **物理约束生成**：约束生成器按目标版本field_spec统一输出，`legacy_incomplete`是记录级豁免标记。迁移目标业务列按可空创建，约束在建表时添加；复制写入历史缺值行时同时写`legacy_incomplete=true`与`legacy_missing_fields`，因此复制插入和后续作废都不会被拒绝。业务编辑保存事务在同一UPDATE内把`legacy_incomplete`置false、`legacy_missing_fields`清空，条件/跨字段规则由服务端与约束同时保证。重试复用目标结构时先确认约束集合/指纹等于冻结`ddl_hash`；一致则`truncate`后按同一标记重复制，既有约束对legacy行仍放行。结构不一致或存在非生成器添加的约束时终止，另开新发布重建目标表；不得为通过重试删除/禁用约束或补写伪造值。不按字段名猜测豁免，`legacy_incomplete`只能由迁移复制或“补齐后清除”两条路径变更。
+4. **origin/标签**：迁移不改变`origin_version_id`与原始`template_version`；新版本标签只写入新产生记录。历史标签无证据保持NULL（记录级例外，不用于新发布）。
+5. **弃用字段**：删除字段从目标结构移除，值不复制；改名按显式映射保值；类型变化必须声明可验证转换，失败值进入报告并阻塞切换（或按已批准策略保留NULL，但不得静默截断）。
+6. **验证**：构造含新必填字段缺值、作废行、改名/类型转换、空值与条件不满足的历史样本；升级后断言ID/归属/创建时间/origin/template_version/deleted/record_version守恒，新增字段为NULL，`legacy_incomplete/legacy_missing_fields`准确，集合外零混入；缺值历史行直接作废成功；新建缺必填字段被拒绝；编辑历史行补齐前被拒绝、补齐后成功且标记清除；复制并加约束后失败→新attempt重复制，历史缺值行仍能插入且原值不变；旧链接仍按原记录ID访问。
 
 ### 3.3 服务端接口、幂等与并发控制
 
@@ -502,11 +885,15 @@ update <records>
 
 独立“表单管理”页面按模板列表、字段草稿、范围绑定、预览、发布结果及退役组织。管理员编辑字段名称、说明、白名单类型/控件、顺序、必填/条件、枚举选项；从真实来源及项目范围选择产品发布标签。领导提出字段需求，由管理员操作，本期无需额外在线审批流。
 
+页面以表单中实际显示的业务字段为操作对象，例如走查人、修复状态、具体原因、备注和规范。填写方式使用人员选择、单行文字、多行文字、数字、日期、单选和多选等业务名称；条件配置通过字段名称与选项表达。内部字段键、接口键、物理列和存储类型不出现在字段编辑控件中，管理员无需编辑JSON、SQL或DDL。新增字段由系统生成稳定标识并建立受控存储映射，编辑显示名称沿用原标识；同名字段仍按内部身份区分，不要求管理员维护技术键。现有JSON规格及DDL继续作为后台执行、漂移校验和工程审核证据，不作为管理页操作入口。
+
+变更预览按业务字段列出“新增、名称调整、删除、填写方式调整、必填条件调整、选项调整”等中文变化，显示适用的修改前后内容及历史记录影响。例如“补充说明：删除，发布后从当前表单移除”；名称调整显示旧名称和新名称，不能只列`fix_status / LABEL`。删除确认、发布确认、校验错误及结果提示均沿用业务名称；已删除字段使用变更前名称定位。受支持的字段和条件必须能通过页面完成编辑，不以高级JSON入口代替；超出支持范围的操作说明业务限制并阻止发布。以上界面要求经用户2026-10-26确认，适用于三模板完整管理流程。
+
 稳定字段键在创建后不变，名称和说明可修改。发布预览展示字段差异、历史映射、转换错误及消费影响。受支持字段的增删改和排序由规格发布完成；消费者按稳定语义键映射真实列，删除后按缺失语义返回未知或业务缺项。类型变化必须声明可验证转换，失败值列入报告；同名不同义例如0至100改为0至5必须显式换算，消费方保留产生版本的语义边界。
 
 未发布的模板草稿不影响填写页；删除配置、发布、变更范围及退役遵循§3.6确认规则。用户保存与发布/退役竞争时，以事务核验顺序给出明确结果：已提交记录保留，失效提交保留输入供核对或复制，不能部分写入；管理员草稿和发布版本冲突各自提示，不覆盖他人已提交配置。
 
-migration_spec固定spec版本，包含前后结构版本ID、完整选集S上下文、字段映射、等价改名/类型转换/新增空值/删除列、身份缺失策略和校验清单。普通字段新增在历史行中为NULL；原始版本标签缺证据时保持NULL。记录内容按§2.2迁移。
+migration_spec固定spec版本，包含前后结构版本ID、完整选集S上下文、字段映射、等价改名/类型转换/新增空值/删除列、身份缺失策略和校验清单。普通字段新增在历史行中为NULL并写入`legacy_incomplete/legacy_missing_fields`；原始版本标签缺证据时保持NULL。记录内容按§3.2末节迁移契约执行。
 
 #### 管理端接口
 
@@ -526,26 +913,57 @@ migration_spec固定spec版本，包含前后结构版本ID、完整选集S上�
 
 模板新建复用已登记语义类型及白名单控件，新增业务模板的专用条件与消费映射按开发单元登记。两个管理员编辑草稿或重复发布均有显式版本冲突。
 
-#### 首次启用与发布状态机
+#### Flyway职责、首次启用与三条初装路径
 
-Flyway安装元数据、审计、发布任务、变更交接、来源权威及初始三模板能力。空平台保留DRAFT/INSTALLED状态。管理员从种子模板建草稿、绑定来源及项目、预览并发布后，范围才进入ACTIVE。环境配置ID和产品标签由该环境登记，实例在首次成功提交时建立。
+Flyway安装元数据、审计、发布任务、变更交接、来源权威、权限及三模板种子定义；环境来源配置ID、项目集合、真实版本标签及范围绑定由该环境登记。空平台保留DRAFT/INSTALLED，管理员从种子模板建草稿、绑定、预览并发布后范围才进入ACTIVE，实例在首次成功提交时建立。环境相关的范围绑定与旧表S迁移不放入通用Flyway，而由管理员绑定后的一次性受控发布执行，仍在停写窗口和同一守恒核验下完成。
 
-后续字段发布使用平台受控DDL执行器。基础表结构及执行器能力由Flyway升级；管理员生成的版本表记录在发布目录，不写flyway_schema_history，不修改已有迁移及checksum。应用以已验证元数据和实际列进行漂移核验。
+| 路径 | 触发 | LEGACY | 迁移日志 | 指针/状态 |
+| --- | --- | --- | --- | --- |
+| A 空平台 | 无旧表或S为空；管理员绑定后首次发布 | 不创建 | 不写 | 目标表为空；scope DRAFT→ACTIVE，current=目标RECORDS |
+| B 已有旧表S | 旧后端停写窗口内执行一次性INITIAL_MIGRATION | 先插入LEGACY，再建目标version | 写LEGACY→目标RECORDS，含逐字段守恒 | scope current迁移前NULL；切换后ACTIVE/目标 |
+| C 已有RECORDS | 后续字段结构升级 | 不创建 | 写当前RECORDS→新RECORDS | 指针CAS切换 |
 
-持久任务表`form_template_publications`承担恢复和防重：保存publicationId、scopeId、requestKey、首次指纹、draftRevision、expected/from/toVersionId、冻结field_spec/migration_spec、版本证据、DDL摘要及哈希、S计数、逐字段核验、操作者、租约/fencing版本、阶段、错误及时间。唯一键为(scope_id, request_key)，相同key载荷冲突返回A0409；每范围最多一个未结束任务。阶段固定为PREPARED、COPYING、VERIFIED、PUBLISHED、FAILED，阶段推进以任务版本及租约CAS控制。
+后续字段发布使用平台受控DDL执行器。基础表结构及执行器能力由Flyway升级；管理员生成的版本表记录在发布目录，不写`flyway_schema_history`，不修改已有迁移及checksum。应用以已验证元数据和实际列进行漂移核验。
 
-1. 锁定范围并核验预期当前版本，冻结草稿、来源证据、迁移映射及影响清单，分配目标版本ID和服务端物理名称，登记PREPARED任务。请求仅含字段定义和稳定ID。
-2. 为受影响范围关闭记录写入，排空在途事务；所有写事务在锁内复核范围/发布状态。读取继续使用此前完整版本。发布任务持有短期可接管租约，执行DDL的数据库身份仅获所需schema权限。
-3. 校验标识符、白名单类型及约束后创建新版本实例表和记录表，按冻结选集复制数据。先验证目标为空；恢复时核对任务ID、已生成结构/哈希及复制结果，确认一致后推进，漂移进入FAILED。
-4. 逐项完成下述S守恒及消费等价核验，写verification_summary，任务进入VERIFIED。初始历史接入使用Flyway事务；本期后续版本采用受影响范围停写后的事务迁移，目标容量不足时先评审分批方案。
-5. 在同一事务中CAS切换current_version_id，设置PUBLISHED/ACTIVE、写迁移日志及消费变更，任务进入PUBLISHED，再恢复写入。存在待处理旧head时保持同一资源的变更证据，禁止旧任务结算新版本。
-6. 失败保持旧指针和旧完整读取，保留目标结构及诊断供核对后恢复；已发布任务重复调用只返回结果。未切指针的失败任务须经结构核验后重试或终止，不能覆盖未知目标数据。
+#### 持久发布任务、阶段与租约
 
-启用和退役使用同一范围验证器。已产生实例的来源/资源归属保持稳定，跨来源或项目转移按独立迁移守恒验收。草稿可删除，使用过的模板/范围退役后拒绝新增/编辑，保留历史查询和有效记录消费。
+`form_template_publications`承担恢复和防重：保存publicationId、scopeId、requestKey、首次指纹、draftRevision/previewId、publicationKind、expected/from/toVersionId、冻结field_spec/migration_spec/binding、binding_hash、版本证据、DDL摘要及哈希、S计数、复制校验和、逐字段核验、attempt/recovery计数、task_version、租约/fencing、栅栏token、阶段、错误及时间。唯一键为`(scope_id, request_key)`和`(to_version_id)`；同key异哈希返回409/A0409，同key同哈希返回原任务；每范围最多一个未结束任务，由部分唯一索引保证。`form_template_publication_attempts`按attemptNo保存当前冻结选集的capturedAt/counts、copy_checksum、verification_summary、阶段、错误和时间；历史attempt只作重审与恢复证据。
+
+`publication_kind`固定三种：`INITIAL_EMPTY`无from_version、无LEGACY、无迁移日志且selection_counts全零；`INITIAL_MIGRATION`的from_version指向LEGACY、expected_current_version_id为空，必须写LEGACY→新RECORDS迁移日志；`MIGRATION`的from_version为当前PUBLISHED RECORDS、expected_current_version_id=from_version，写当前→新迁移日志。
+
+阶段固定为PREPARED、COPYING、VERIFIED、PUBLISHED、FAILED：
+
+| 当前 | 事件 | 下一状态 |
+| --- | --- | --- |
+| — | POST publications校验通过，锁范围/草稿行并CAS预期指针，插入任务 | PREPARED |
+| PREPARED | 取得租约、设置带归属栅栏、清空目标，新attempt | COPYING |
+| COPYING | DDL与新冻结S全量复制完成，行数/键守恒通过 | VERIFIED |
+| VERIFIED | 完整核验通过，切换指针 | PUBLISHED |
+| PREPARED/COPYING/VERIFIED | 不可恢复失败 | FAILED |
+| FAILED | 显式恢复，结构/哈希核验通过，递增recovery_cycle | COPYING，重新停写、重新捕获完整S、清空目标、新attempt |
+| FAILED | 终止 | FAILED终态，目标结构只作诊断 |
+
+恢复规则：FAILED后旧版本继续可写；旧目标副本与失败前冻结的selection_counts不得作为切换依据。恢复必须重新取得栅栏、重新捕获捕获时刻的完整S（含失败期间新增、修改、作废的全部行）、清空目标表后全量复制并重新守恒核验。目标结构、ddl_hash或列指纹与冻结值不一致，或目标被非本任务写入时不得恢复，该任务终止并另开新发布分配新目标版本。恢复前必须确认该范围没有其它未结束任务；已有新任务时旧FAILED任务只能终止，不能切指针或撤销新任务的栅栏。PUBLISHED为终态，同一to_version_id不得再次切换。
+
+**统一锁顺序**：`form_template_scopes`行→`form_template_publications`行→目标表/版本元数据→`form_change_heads`（按id升序）。记录写入为scope→instance→record→audit→head；权威登记为scope→authority→head；消费者只锁head。任何路径不得反向取锁。
+
+**租约与fencing**：任何持久副作用（阶段推进、DDL、复制、设置/清除栅栏、写迁移日志、切指针、登记head、清理目标）都必须在同一事务内按上述顺序取得必要锁，再锁定任务行并用`clock_timestamp()`验证owner/fencing/stage/lease并立即续租。`current_timestamp`固定为事务开始时间，等待锁后可能已过期，不得用于租约判断；`statement_timeout`只限制单条语句，累计超预算由提交前实际时刻校验拦截。影响0行即失效，任务不得执行该副作用；设置/清除栅栏必须按`write_fence_publication_id + write_fence_token`条件命中，不得按范围无条件清除。复制等长操作不得放进切换事务；切换事务只包含指针/版本/绑定/迁移日志/head登记/撤栅栏等短操作，提交前再次校验租约。持锁长事务在等待锁期间到期时整个事务回滚，不写阶段、结构、栅栏、指针或head；任务自身仍持有效租约时，可在回滚后另开短事务写FAILED诊断，但不得触碰指针、版本、绑定、迁移日志、head或栅栏。租约已过期时旧工作者无权写FAILED，由维护调度在确认无更高fencing_version的活动任务后回收为LEASE_EXPIRED并按token清除本任务栅栏。
+
+**范围绑定锁定（R07）**：绑定由`(template_key, source_config_id, source_instance, canonical_gitlab_base_url, project_ids, version_project_id, resource_type)`组成，`binding_hash`为规范化JSON的SHA-256，`binding_revision`每次首次绑定/获批变更递增。首次发布（INITIAL_EMPTY/INITIAL_MIGRATION）可以把草稿绑定写入范围；INITIAL_MIGRATION还要求旧S每行都命中该绑定。后续MIGRATION不得改变绑定，草稿binding_hash必须与范围当前值完全相同，任何来源、规范化URL、项目集合或版本项目差异返回409/A0409“绑定变更需独立迁移”。发布前范围验证器检查：ACTIVE范围在`(template_key, source_config_id, resource_type, project_id)`上不重叠且project_id去重、正整数；当前指针指向本范围PUBLISHED RECORDS版本且来源配置存在；目标版本全部实例/记录被绑定覆盖，移除仍有历史记录的项目即拒绝。跨来源或项目转移按独立迁移单元重新验收守恒、唯一归属、历史链接和消费，不得用字段发布实现。
+
+启用/迁移与启动共用同一范围验证器：候选绑定在写入前校验，ACTIVE范围在每次启动时复核来源配置存在、来源实例与规范URL一致、project_id去重/正整数、version_project_id属于项目集合、current指针指向本范围PUBLISHED RECORDS版本，并按上述键拒绝重叠；binding_hash须能由持久绑定字段重算一致。非法候选在写入前拒绝；切换后复核失败整个事务回滚，不留下可用ACTIVE范围。首次迁移与后续激活在同一事务内取得范围绑定咨询锁，串行化重叠判断。
+
+**冻结结构契约（W1-R03）**：版本实例/记录表使用确定性命名的主键、唯一键、外键、CHECK与实例索引；记录表id默认`nextval('form_record_id_seq')`。启动校验按冻结field_spec重新生成契约，逐项核对真实约束名称/列/引用/定义、外键删除/更新动作、匹配模式、可延迟与已验证属性、索引定义与ID默认序列；CHECK定义由PostgreSQL解析并反解析后比较，保留逻辑分组与字面量语义，不得用删除全部括号、统一大小写或改写运算符等有损归一化；反解析所需的临时对象必须在同一物理连接内完成创建、解析与清理，不得依赖连接池在多次调用间复用会话，启动入口直接调用校验时同样成立；不得以约束数量相同代替定义一致，额外或缺失均视为漂移。管理员后续修改字段时以该版本冻结规格核验，不硬比种子模板。
+
+**共享记录序列（W1-R01）**：记录ID共享序列只允许向前。迁移取得序列咨询锁后，以旧表全量（所有模板/范围）、所有已登记记录表最大ID及当前序列`last_value/is_called`计算高水位，仅当下一值不大于高水位时`setval(..., true)`，禁止回退；后续记录创建在同一事务内先取得同一咨询锁再使用序列，迁移与并发分配互斥。失败回滚允许留下空洞，不得回收已分配身份。
+
+**切换事务**：锁范围行→锁任务行并按上式校验并续租→校验当前指针仍为预期→CAS更新current_version_id、版本PUBLISHED/RETIRED、首次发布写回绑定并递增binding_revision、范围ACTIVE、写迁移日志→登记受影响资源head（集合与核验见§3.5）→任务PUBLISHED→最后一条写语句前再次按`clock_timestamp()`校验租约→按token撤栅栏→提交。任一步失败全部回滚，指针、版本、绑定、head与栅栏保持切换前状态。
+
+启用和退役使用同一范围验证器。已产生实例的来源/资源归属保持稳定。草稿可删除；使用过的模板/范围退役后拒绝新增/编辑，保留历史查询和有效记录消费。
 
 #### 产品发布标签校验
 
-发布时从version_project_id的GitLab里程碑人工选定，规范为项目惯用缩写，保存来源配置、项目、里程碑ID/原文、映射及核验时间。单版本须命中该项目；SP须有基础版本及实际SP发布依据；组合标签省略前缀时继承第一成分，例如`CC2027R1 & 2027R2`分解为`CC2027R1`、`CC2027R2`分别核验。里程碑均active时仍由维护者选择实际承载本次发布的版本。
+发布时从version_project_id的GitLab里程碑人工选定，规范为项目惯用缩写，保存来源配置、项目、里程碑ID/原文、映射及核验时间。单版本须命中该项目；SP须有基础版本及实际SP发布依据；组合标签省略前缀时继承第一成分，例如`CC2027R1 & 2027R2`分解为`CC2027R1`、`CC2027R2`分别核验。里程碑均active时仍由维护者选择实际承载本次发布的版本。版本标签非空白且version_evidence齐全才允许准备发布；历史迁移行的产生标签为NULL仅是记录级例外。
 
 ODS未就绪或无里程碑时补同步或提供人工可核查的发布依据，预览核验通过后发布。首次启动只按§3.1检查本地结构，已验证范围的启动与ODS到达解耦。
 
@@ -553,14 +971,17 @@ ODS未就绪或无里程碑时补同步或提供人工可核查的发布依据�
 
 发布前只读盘点collect_form_records全表，含deleted=true。检查模板/来源/项目/类型、NULL及空姓名、数值、完整键、两个时间、request_iid/resource_id。resource_id必须为正整数MR IID，非空request_iid与它相同；不一致、溢出或负数先报告并取得处置裁定。
 
-S定义为`template_code='code_review'`，且命中已核验来源、已登记项目集合、`resource_type='merge_request'`的全部行，包含作废行。规范URL对应表随发布规格冻结，旧表保留原地址。所有走查历史必须被已登记范围覆盖，发现未覆盖行则停止上线核对。其他模板原样保留；若仍有活跃旧模板，先解决其写入口退役影响。GitLab历史评论的来源切换见§3.5。
+S定义为`template_code='code_review'`，且命中已核验来源、已登记项目集合、`resource_type='merge_request'`的全部行，包含作废行。规范URL对应表随发布规格冻结，旧表保留原地址。所有走查历史必须被已登记范围覆盖；预检按已核验的迁移范围清单判定唯一归属：ACTIVE范围与完整绑定（来源配置/实例、规范URL、项目集合、版本项目、`binding_hash`可由持久字段重算）的DRAFT范围都表示待迁移归属，空白或绑定不完整的DRAFT不计为覆盖且不获得写入资格；当前候选与已存在同绑定DRAFT视为同一归属，不重复计数。每行必须且只能命中一个归属，属于其他范围的行不进入本范围S，未命中或重复归属均停止上线核对。其他模板原样保留；若仍有活跃旧模板，先解决其写入口退役影响。GitLab历史评论的来源切换见§3.5。
+
+路径B的执行顺序：
 
 1. 按发布runbook备份，停止旧后端写入并排空请求，确认无旧实例续写。新写尚未开放，旧前端进入维护态。
-2. Flyway建立初始结构并在同一事务搬迁S。实例及记录使用完全相同的选集；实例join包含范围、来源、项目、类型、资源ID及模板。
-3. 每个S行保留f.id并建立一条记录，实例按完整键归并。映射`reviewer→reviewer_name`、五项`*_score→*_count`、`remark→supplement_note`；保留原姓名（含NULL/空串）、数值、说明、deleted和两个时间。created_by/reviewer_user_id/request_key/create_payload_hash为NULL，origin指向初始LEGACY；form_title留在旧表。
-4. NULL安全逐字段核验ID、归属、值及时间，验证`|S|=新记录数`、`distinct(S完整实例键)=新实例数`，S无遗漏，集合外无混入。实例时间取同键最早创建和最新更新。后续结构迁移另保留origin、key、指纹和记录版本，删除及转换按映射执行。
-5. 守恒成功才写迁移日志并切当前指针；失败回滚。目标表非空或迁移链已成功时拒绝重复搬迁。共享序列按§3.1推进，允许空洞。
-6. 验证后端健康、报告和新端点后切前端、开放写入，进行事实重建和预热。旧表及旧审计登记只读，旧写入口随之删除。
+2. 管理员创建DRAFT范围、绑定来源/项目、选择真实版本标签及证据、预览；范围验证器核对S全覆盖。
+3. 发布任务以`INITIAL_MIGRATION`准备：准备事务插入LEGACY版本行（`storage_kind='LEGACY'`、`version_status='RETIRED'`、`instance_table='collect_form_records'`、`record_table=null`、field_spec为旧列到稳定键的只读映射），再分配目标RECORDS版本；LEGACY只用于origin和历史证据，不参与路由、当前指针、写入或漂移检查。
+4. 停写事务设置带token栅栏；复制attempt创建目标实例/记录表，从`REPEATABLE READ`快照读取S（含deleted=true），逐行映射：`reviewer→reviewer_name`、五项`*_score→*_count`、`remark→supplement_note`；保留原ID、值、时间、`deleted`；`created_by/reviewer_user_id/request_key/create_payload_hash`为NULL，`record_version=1`，`origin_version_id=LEGACY`，`template_version`无证据为NULL；目标字段规范中必填而历史值缺失时写`legacy_incomplete=true`与`legacy_missing_fields`，不补写默认值。
+5. 实例按完整键归并；时间取同键最早创建/最新更新；验证`|S|=记录数`、`distinct(S完整实例键)=实例数`、逐字段NULL安全守恒（ID、归属、值及时间）、S无遗漏、集合外零混入；写attempt证据。
+6. 切换事务：设置scope current、RECORDS PUBLISHED、ACTIVE；写LEGACY→目标RECORDS迁移日志；为全部迁移实例及无实例的FORM权威资源登记head；按token撤栅栏。守恒成功才切换；失败回滚，指针不切换。目标表非空或迁移链已成功时拒绝重复搬迁；共享序列推进至旧表全量及新版最大ID之上，允许空洞。
+7. S为空时改走路径A，不创建LEGACY、不写迁移日志；旧表存在但S外有活跃旧模板/未覆盖行时停止并报告，不切换。验证后端健康、报告和新端点后切前端、开放写入，进行事实重建和预热。旧表及旧审计登记只读，旧写入口随之删除。
 
 历史必填不回填假值，旧列保留原名和标签。数据库查看按版本区分“备注/补充说明”。既有重复行逐条迁移，去重属于单独数据治理。
 
@@ -581,9 +1002,34 @@ form_change_heads按完整来源/项目/资源类型/IID/模板唯一登记，�
 
 记录、审计和head原子提交。消费者每批有界领取，按根合并过期待处理输入，IID通过ODS解析为全局根ID。资源未就绪保留待处理。进程重启按持久状态恢复，失败持久退避；证据保留覆盖全部未消费变更。
 
-候选构建捕获GitLab输入、表单head版本、结构/范围定义及权威修订，所有批次使用同一冻结输入，或在检测到输入漂移时终止该候选。变化前后根的并集全部重建。租约/fencing校验成功后，仅结算本次捕获的change_version，更新期间到达的较新变更保持待处理。
+候选构建捕获GitLab输入、表单head版本、结构/范围定义及权威修订，所有批次使用同一冻结输入，或在检测到输入漂移时终止该候选。变化前后根的并集全部重建。领取时写owner/lease/fencing；结算必须在结果公开的同一事务内、取得head行锁之后满足`status='LEASED' and lease_owner=:owner and fencing_version=:fencingVersion and lease_until > clock_timestamp()`，影响0行时连同已写入的派生结果整批回滚，工作者不得重试同一捕获结果，必须重新领取并重建。仅结算本次捕获的change_version，更新期间到达的较新变更保持待处理。
 
 detail返回保存结果，派生端点展示完整结果及更新状态。失败保留此前完整产出并标明待更新；作废涉及的旧结果标明失效并重算，当前业务有效集遵循§2.3。发布须有完整输入证明，旧任务不能结算新版本。
+
+#### 结构切换与head版本保护（R03）
+
+结构变化后即使没有后续用户保存，也必须让下游感知受影响资源。受影响集合不能只取目标版本实例，定义为：
+
+- A = 本范围本模板`form_resource_authorities.authority='FORM'`的全部资源，无论是否已有实例或记录；
+- B = 目标版本`<instances>`的全部资源，覆盖初始迁移与防御性集合；
+- 受影响集合 = A ∪ B。COMMENT权威不进入该集合，其head的`pending_storage_version_id`必须为NULL。
+
+FORM权威登记（镜像资源到达时）在同一事务创建/更新head：范围已有`current_version_id`时`pending_storage_version_id=current_version_id`并递增`latest_change_version`；尚未激活/无版本时保持NULL，由首次`INITIAL_EMPTY`切换写入。无实例不创建空实例或记录。不变量I-R03：ACTIVE范围内每个FORM权威资源都有head且`head.pending_storage_version_id=scope.current_version_id`；每个COMMENT权威资源对应head的`pending_storage_version_id is null`。切换事务提交前核验，违反即回滚。
+
+切换事务内先为A/B中尚缺head的资源补建（只建head，不建实例/记录），再求affectedIds。最终锁定查询必须直接读取`form_change_heads`基表，按id升序取得实际行锁并保持到更新、最终核验和提交：
+
+```sql
+select id from form_change_heads
+ where id = any(:affectedIds)
+ order by id
+ for update;
+```
+
+返回行数必须等于`cardinality(affectedIds)`，否则立即回滚。`WITH affected`只作ID筛选，不承担行锁；求集合到最终锁定之间不得提交或重开事务。head只能由持有同一scope锁的权威登记/切换事务创建，切换持有scope锁期间affectedIds稳定。随后更新同一集合的`pending_storage_version_id=:toVersionId`、`latest_change_version+1`，保留既有`latest_audit_id`、pending记录证据与`consumed_change_version`；纯结构变化不伪造审计。
+
+提交前三项计数均须为0，否则整个切换事务回滚：3.1每个FORM权威资源都有head且存储证据等于目标版本；3.2每个目标实例都有head、pending等于目标版本且权威为FORM；3.3本范围本模板不存在未被A∪B覆盖的FORM存储证据head。首次空范围启用时A/B均为空，三项计数为0，切换正常完成；之后登记FORM权威时按I-R03初始化并触发必要重建。INITIAL_MIGRATION前必须为每个迁移资源登记FORM权威与head；B中有实例但缺少FORM权威时3.2计数非0，切换失败，不生成空记录。
+
+消费者结果提交必须与head结算同一事务，并直接锁定head基表行；同一事务比较捕获与当前的权威类型、实际`authority_revision`、`pending_authority_revision`。FORM分支还要求存储证据非空且等于捕获的storageVersionId，COMMENT分支要求存储证据为NULL。任一不符则不写结果、不结算并整批回滚，工作重新领取重建。旧候选若在切换前完整提交，其公开结果发生在切换前，切换随后递增版本并以新版本待消费；若切换先提交，旧候选在结果提交时发现存储证据或权威修订不匹配，零结算且不得公开旧结构结果。W4/W5须以真实PostgreSQL双会话验证：锁定查询执行后另一会话修改同一head会等待；两行物理顺序与id顺序不同时仍按id升序；已有实例与无实例资源、消费与切换交错均按统一顺序。
 
 Issue全量、定向、周期SLA重算、诊断及写回前复核调用同一权威读取器。标签写回只消费完整公开结果，执行前核验GitLab及表单输入已收敛、当前开关、租约和写所有权。保存事务结束后由消费链调度，网络写入保持在独立工作任务。
 
@@ -601,7 +1047,7 @@ SQL聚合与Mapper按真实类型对齐，integer/Integer契约使用checked cas
 | research_template_time/响应周期 | 第一条调研响应创建时间 | min有效响应createdAt，保留来源时间；编辑不后移；回复独有时不制造响应效率样本 |
 | has_response | 表达响应模板存在 | 与回复存在、延期豁免分开 |
 | 响应延期豁免 | D-21：有效回复存在 OR 响应有合法计划时间；响应从新往旧查 | 回复存在即豁免；仅响应存在时检查合法计划，缺签等完整性问题由合规规则单独判断 |
-| 原因、非法唯一判定、原因统计/导出 | 最新有效回复按创建时间选，编辑不重排；多选采集与唯一性合规独立 | 按稳定具体原因ID集合投影；字段、合规与统计按§2.3及D-30分别执行。 |
+| 原因、非法唯一判定、原因统计/导出 | 最新有效回复按创建时间选，编辑不重排；多选采集与唯一性合规独立 | 按稳定具体原因ID集合投影；合规计数器按具体原因ID去重（别名归并同一ID，一级大类只作分类），0或大于1判为非法，尚未判定保持待检查；字段、合规与统计按§2.3及D-30分别执行。 |
 | fix_user | 现有SQL取最新匹配回复作者；B3不另造代填流程 | 取被选有效回复创建账号姓名快照，来源见§3.1；记录归属沿§2.1 |
 | known/new affected与回复详情导出 | 从被选回复的独立字段投影 | 新结构直接读类型字段；历史未知为“--”、未选为“否”，两者不同；不再回解析新表Markdown |
 | resolve_deadline/解决延期 | B2确定响应选择按创建时间最新；D-21合法计划查找及18天公式分别保留 | 按§2.3的记录顺序选择；旧反向循环取最早的差异列入产出影响及I2回归 |
@@ -728,7 +1174,7 @@ localStorage不可用、损坏或配额不足时按草稿失败状态展示，�
 
 1. 端点目录删除旧save/delete/update-record及对应快照，更新detail参数/响应，登记记录、候选、管理/发布端点及所有结果分支。写用例声明实例、记录、审计、head及相关任务/权限表影响。
 2. notification-payload来源验证可能使原任意Issue样例转为参数拒绝，登记用例目标语义及真实调用迁移。
-3. 数据库查看登记三张元数据表、各版本实例/记录、记录审计、迁移日志、发布任务、head、权威及历史旧表；按实际结构维护中文列标签。
+3. 数据库查看登记模板定义/范围/版本三张元数据表、草稿与预览、各版本实例/记录、记录审计、迁移日志、发布任务与attempt、head、权威、切换清单及历史旧表（只读）；按实际结构维护中文列标签。
 4. 登记实际MR/Issue消费、事实/投影、工作区及缓存依赖。若新增统计板页面/端点，同单元完成页面view/export映射、权限目录及角色迁移、实时工作区元数据、事实依赖四类登记。
 5. 新Flyway迁移只追加，既有文件零改动/零删除，checksum锁文件只新增条目；验证漂移、不可变性、Flyway smoke和代表性非空迁移。
 
@@ -745,7 +1191,7 @@ localStorage不可用、损坏或配额不足时按草稿失败状态展示，�
 | 范围 | 必须覆盖的确定性行为 | 最小有效层 |
 | --- | --- | --- |
 | R1 SQL 类型 | 10+20=30 且生产 Mapper/实体类型一致；无表单 NULL、零、整数上限、上限+1 不发布；根/全量同源 | 真实 PostgreSQL 集成测试，覆盖生产Mapper及真实返回类型 |
-| R2 迁移 | 混合模板/范围/来源、NULL姓名、作废行、时间戳、错配/非法资源键；S字段守恒、归属唯一、集合外不混入；失败不切指针 | 隔离库完整 Flyway/代表性非空迁移与只读核验 |
+| R2 迁移 | 混合模板/范围/来源、NULL姓名、作废行、时间戳、错配/非法资源键；S字段守恒、归属唯一、集合外不混入；失败不切指针 | 隔离库完整 Flyway 安装、INITIAL_MIGRATION 代表性非空迁移与只读核验 |
 | R3/R4 身份/路由 | 同数字局部ID不能选错记录；同模板两范围同标签/不同当前版本；来源相同数字项目、范围重叠拒绝；跨版本ID与审计保留、旧请求拒绝 | 元数据单元测试 + 跨版本集成测试 |
 | R5 来源隔离 | A/B URL同project+iid时不混算，未登记URL拒绝，其他模板不参与、根/全量一致 | CTE与上下文解析集成测试 |
 | R6 幂等 | 同key并发1记录/1CREATE；重放已编辑返回当前、不复活作废；异人/异上下文/改载荷不泄露；401/重开同key | 后端集成 + 前端可控响应/草稿测试 |
@@ -763,6 +1209,8 @@ localStorage不可用、损坏或配额不足时按草稿失败状态展示，�
 
 管理员字段发布另须验证：字段改名保值、新增历史空、删除不再引用旧列、纯规格变更无需改页面代码；重复发布、任务恢复、租约过期、当前指针CAS冲突、迁移守恒与漂移拒绝；旧链接继续访问、退役仍消费历史有效数据。覆盖受控DDL的初装/后续发布分工和首次无from_version路径。
 
+管理页另须真实页面验收：管理员仅通过业务字段名称和填写方式完成新增、改名、选项/条件调整、排序、删除及预览发布，确认和错误提示可按业务字段定位；全程无需输入内部键、列名、存储类型或JSON/SQL。验证新增自动生成独立稳定标识、改名保持原标识和历史值，预览使用中文变化及修改前后内容；不能仅翻译预览表而保留原始技术编辑器。
+
 B1回归覆盖零/一/多原因、同大类/跨大类、别名等价、未到检查状态、历史值留存，以及多选保存后在适用门槛被标异常。展示非法标志、相关筛选/导出和异常计数变化；统计原因个数分母保持既有定义。
 
 C5文档与顺序检查覆盖本稿引用、登记清单、目标代码/制品和实际验收证据一致。技术预算与容量验收使用目标内网负载，记录条数/文本分布、保存到派生可见延迟、积压及恢复；测量后约定参数和时效预算。
@@ -773,7 +1221,7 @@ C5文档与顺序检查覆盖本稿引用、登记清单、目标代码/制品�
 
 | 阶段 | 工作 | 准入及完成条件 |
 | --- | --- | --- |
-| S0 发布准备 | 群内评审；核实来源、范围、存量、人员、标签、机器人及目标制品；冻结切换清单 | 明确旧写停机、恢复点、重建入口，审阅权限升级语义、输入预算及消费影响 |
+| S0 实施准备 | 评审主方案和技术补全，固定开发基线、隔离验证入口及影响清单，登记外部材料状态 | 按执行清单W0记录启动与技术准入依据；外部材料按依赖环节收口，现场发布条件在S6核验 |
 | S1 元数据/迁移 | 先补非空迁移、身份、路由测试，再实现结构、初始迁移、共享序列及checksum登记 | S守恒、只读历史、唯一业务归属和空平台启动通过 |
 | S2 服务端 | 三模板校验、上下文、六步幂等、CAS、原子审计/head及管理员发布任务 | 原子失败、任务恢复、本人授权和旧入口退役通过 |
 | S3 消费适配 | 三模板读取器、指标选择器、冻结输入、根/全量/周期同源、转权及写回资格 | 非空真实SQL、输入漂移、重启/取消/接管及全量到自动增量交接通过 |
@@ -782,6 +1230,8 @@ C5文档与顺序检查覆盖本稿引用、登记清单、目标代码/制品�
 | S6 发布门禁 | 规定黄金；停旧写、迁移验收、前端切换、事实重建/预热和现场三模板验收 | 黄金全绿、存量覆盖完整、重建入口可用、切换及写所有权已核验 |
 
 实现依赖为共用基础、三模板采集、消费切换、授权发布。老平台整体退出另满足E6。恢复执行§3.4，发布前固定代码/制品，按风险一次运行最小充分验证；修改或新失败再补相关复验。
+
+员工按[实施与审核清单](unified-form-system-implementation-plan-20261021.md)W0至W8交付，每阶段提供实际版本及验证证据，由审核方批准后继续。该清单只组织实施，技术补全经审核后归入本方案第三章。
 
 ## 五、外部环境联调与待补证事项
 
