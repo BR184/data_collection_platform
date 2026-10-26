@@ -136,6 +136,14 @@
 - `/api/external/v1/datasets` 仅面向经过确认的进程外消费者。通用边界见 `docs/decisions.md`（D-02）；新增 Provider 前必须有真实消费者、schema、权限和移除条件。
 - 外部 API 默认关闭，使用独立无状态 Bearer token 和数据集白名单；浏览器业务接口继续使用 LDAP Session 与 CSRF，两条认证链不得混用。
 
+## GitLab 小样本传输
+
+- 入口固定为 `scripts/gitlab_bounded_sql_export.py` 与 `scripts/gitlab_bounded_sql_import.py`；包格式、列白名单、脱敏和 schema 指纹共用 `scripts/gitlab_sample_contract.py`，不设第二套入口或 v2 包格式。
+- 只支持已核实 schema 指纹的 GitLab 16.11.10；导出在单个 `REPEATABLE READ READ ONLY` 事务内完成选样与分页，窗口只筛根议题，选中议题的全部评论和关联闭包完整导出，超限/关联缺失/超时明确失败，不截断后报成功。
+- 包由 `manifest.json`、`CHECKSUMS.sha256`、`data/*.jsonl` 组成；`package_id` 由选样信息和数据文件哈希重算，导入器只接受清单登记的列并自行构造参数化 INSERT，不执行包内 SQL。
+- 导入目标必须由本工具标记、与源库身份不同且为空测试 GitLab；单事务写入，引用种子行按业务键复用，bootstrap 行显式核对，失败整体回滚；导入后显式校验外键、多态关联和敏感表，不依赖重新开启外键触发器。
+- 操作、版本范围、失败处理和停止条件见 `deploy/runbooks/gitlab-sample-transfer-runbook.md`；决策见 `docs/decisions.md` D-32。
+
 ## 性能、迁移与发布不变量
 
 - 规模敏感路径先测量再优化；统计查询、事实构建、同步任务和前端渲染不得无限积压或无界等待。
