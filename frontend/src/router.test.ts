@@ -170,6 +170,39 @@ describe('router query normalization', () => {
     });
   });
 
+  it('keeps unified form context keys and drops unknown params', () => {
+    const to = router.resolve({
+      path: '/external/forms',
+      query: {
+        gitlabBaseUrl: 'https://gitlab.example.com',
+        projectId: '2002',
+        resourceType: 'issue',
+        resourceId: '31',
+        templateKey: 'issue_reply',
+        keyword: 'should-drop',
+      },
+    });
+
+    expect(normalizeQuery(to)).toEqual({
+      gitlabBaseUrl: 'https://gitlab.example.com',
+      projectId: '2002',
+      resourceType: 'issue',
+      resourceId: '31',
+      templateKey: 'issue_reply',
+    });
+
+    const entries = router.resolve({
+      path: '/external/forms',
+      query: {
+        gitlabBaseUrl: 'https://gitlab.example.com',
+        projectId: '2002',
+        resourceType: 'issue',
+        resourceId: '31',
+      },
+    });
+    expect(normalizeQuery(entries)).toBeNull();
+  });
+
   it('preserves whitelisted system-test issue search query keys', () => {
     const to = router.resolve({
       path: '/question-metrics/issue-search',

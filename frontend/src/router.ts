@@ -35,6 +35,7 @@ const SystemTestMultiBoardView = () => import('./views/SystemTestMultiBoardView.
 const TestingPhaseDefinitionView = () => import('./views/TestingPhaseDefinitionView.vue');
 const PermissionSettingsView = () => import('./views/PermissionSettingsView.vue');
 const DropdownOptionSettingsView = () => import('./views/DropdownOptionSettingsView.vue');
+const FormTemplateAdminView = () => import('./views/FormTemplateAdminView.vue');
 const BackupSettingsView = () => import('./views/BackupSettingsView.vue');
 const AnalyticsDashboardDetailPage = () => import('./views/AnalyticsDashboardDetailPage.vue');
 const BiDashboardView = () => import('./features/bi-dashboard/BiDashboardView.vue');
@@ -106,6 +107,11 @@ const routes: RouteRecordRaw[] = [
     path: '/external/code-review-form',
     component: CollectFormView,
     meta: buildSpecialRouteMeta('external-code-review-form'),
+  },
+  {
+    path: '/external/forms',
+    component: CollectFormView,
+    meta: buildSpecialRouteMeta('external-forms'),
   },
   {
     ...buildShellRoute('quality-board-rd-quality-board', QualityBoardRdView),
@@ -213,6 +219,9 @@ const routes: RouteRecordRaw[] = [
   },
   {
     ...buildShellRoute('dropdown-option-settings', DropdownOptionSettingsView),
+  },
+  {
+    ...buildShellRoute('form-template-settings', FormTemplateAdminView),
   },
   {
     ...buildShellRoute('backup-settings', BackupSettingsView),

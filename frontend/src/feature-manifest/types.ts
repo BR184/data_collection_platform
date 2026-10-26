@@ -43,6 +43,7 @@ export type PageKey =
   | 'database-browser'
   | 'permission-settings'
   | 'dropdown-option-settings'
+  | 'form-template-settings'
   | 'backup-settings';
 
 export interface ShellPage {
@@ -83,6 +84,7 @@ export interface PageRouteContract {
 
 export type SpecialRouteKey =
   | 'external-code-review-form'
+  | 'external-forms'
   | 'code-review-illegal-rule-config'
   | 'not-found';
 

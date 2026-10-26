@@ -12,8 +12,7 @@ describe('UX interaction regressions', () => {
   it('keeps edit forms submittable with Enter', () => {
     expect(reviewRecordDialogSource).toContain('@submit.prevent="handleSubmit"');
     expect(reviewProblemDialogSource).toContain('@submit.prevent="handleSubmit"');
-    expect(databaseBrowserSource).toContain('@submit.prevent="saveCollectFormEdit"');
-    expect(collectFormSource).toContain('@submit.prevent="saveForm"');
+    expect(collectFormSource).toContain('@submit.prevent="submitBlock(block)"');
   });
 
   it('focuses the first invalid field instead of only showing a toast', () => {
@@ -24,6 +23,11 @@ describe('UX interaction regressions', () => {
   it('guards destructive and unsaved-change flows', () => {
     expect(collectFormSource).toContain('ElMessageBox.confirm');
     expect(collectFormSource).toContain('作废表单记录');
+    expect(collectFormSource).toContain('beforeunload');
+    expect(collectFormSource).toContain('onBeforeRouteLeave');
+    expect(collectFormSource).toContain('草稿已自动保存至本机');
+    expect(collectFormSource).toContain('已恢复本机草稿，尚未提交');
+    expect(collectFormSource).toContain('尚未正式提交');
     expect(ruleConfigSource).toContain('beforeunload');
     expect(ruleConfigSource).toContain('handleBeforeUnload');
     expect(mirrorSettingsSource).toContain('onBeforeRouteLeave');

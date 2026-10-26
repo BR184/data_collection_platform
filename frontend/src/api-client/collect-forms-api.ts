@@ -1,80 +1,102 @@
-import type { CollectFormDetailResponse, CollectFormNotificationPayloadResponse } from '../types/api';
+import type {
+  CollectFormNotificationPayloadResponse,
+  FormAdminBindingOption,
+  FormAdminMilestoneAvailability,
+  FormAdminPreviewView,
+  FormAdminPublicationView,
+  FormAdminScopeDetail,
+  FormAdminTemplateSummary,
+  FormCreateResponse,
+  FormDetailResponse,
+  FormDraftUpdatePayload,
+  FormPublicationCreatePayload,
+  FormRecordView,
+  FormReviewerCandidatesResponse,
+} from '../types/api';
 import { request } from './request';
 
+export interface FormContextPayload {
+  gitlabBaseUrl: string;
+  projectId: number;
+  resourceType: string;
+  resourceId: string;
+  templateKey: string;
+}
+
+export interface FormCreatePayload extends FormContextPayload {
+  scopeId: string;
+  storageVersionId: string;
+  requestKey: string;
+  confirmSameReviewer: boolean;
+  fields: Record<string, unknown>;
+}
+
+export interface FormUpdatePayload extends FormContextPayload {
+  scopeId: string;
+  storageVersionId: string;
+  recordVersion: number;
+  fields: Record<string, unknown>;
+}
+
+export interface FormVoidPayload extends FormContextPayload {
+  scopeId: string;
+  storageVersionId: string;
+  recordVersion: number;
+  confirmVoid: boolean;
+  confirmationText: string;
+}
+
 export const collectFormsApi = {
-  getCollectFormDetail(params: {
-    gitlabBaseUrl: string;
-    projectId: number;
-    resourceType: string;
-    resourceId: string;
-    templateCode: string;
-  }) {
+  getFormDetail(params: FormContextPayload) {
     const query = new URLSearchParams({
       gitlabBaseUrl: params.gitlabBaseUrl,
       projectId: String(params.projectId),
       resourceType: params.resourceType,
       resourceId: params.resourceId,
-      templateCode: params.templateCode,
+      templateKey: params.templateKey,
     });
-    return request<CollectFormDetailResponse | null>(`/api/collect-forms/detail?${query.toString()}`);
+    return request<FormDetailResponse>(`/api/collect-forms/detail?${query.toString()}`);
   },
-  saveCollectForm(payload: {
-    gitlabBaseUrl: string;
-    projectId: number;
-    requestIid?: number | null;
-    resourceType: string;
-    resourceId: string;
-    templateCode: string;
-    formTitle: string;
-    reviewer: string;
-    reviewDurationMinutes: number;
-    specificationScore: number;
-    logicScore: number;
-    performanceScore: number;
-    designScore: number;
-    otherScore: number;
-    remark: string;
-    editorId?: string;
-    editorUsername?: string;
-  }) {
-    return request<CollectFormDetailResponse>('/api/collect-forms/save', {
+  createFormRecord(payload: FormCreatePayload) {
+    return request<FormCreateResponse>('/api/collect-forms/records', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
   },
-  updateCollectFormRecord(payload: {
-    id: number;
-    formTitle: string;
-    reviewer: string;
-    reviewDurationMinutes: number;
-    specificationScore: number;
-    logicScore: number;
-    performanceScore: number;
-    designScore: number;
-    otherScore: number;
-    remark: string;
-    deleted: boolean;
-    editorId?: string;
-    editorUsername?: string;
-  }) {
-    return request<CollectFormDetailResponse>('/api/collect-forms/update-record', {
-      method: 'POST',
+  updateFormRecord(id: string, payload: FormUpdatePayload) {
+    return request<FormRecordView>(`/api/collect-forms/records/${encodeURIComponent(id)}`, {
+      method: 'PUT',
       body: JSON.stringify(payload),
     });
   },
-  deleteCollectForm(payload: {
-    gitlabBaseUrl: string;
-    projectId: number;
-    resourceType: string;
-    resourceId: string;
-    templateCode: string;
-    editorId?: string;
-    editorUsername?: string;
+  voidFormRecord(id: string, payload: FormVoidPayload) {
+    return request<FormRecordView>(
+      `/api/collect-forms/records/${encodeURIComponent(id)}/void`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+  getFormReviewerCandidates(params: {
+    keyword?: string;
+    limit?: number;
+    cursor?: string;
   }) {
-    return request<boolean>('/api/collect-forms/delete', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
+    const query = new URLSearchParams();
+    if (params.keyword) {
+      query.set('keyword', params.keyword);
+    }
+    if (params.limit) {
+      query.set('limit', String(params.limit));
+    }
+    if (params.cursor) {
+      query.set('cursor', params.cursor);
+    }
+    const suffix = query.toString();
+    return request<FormReviewerCandidatesResponse>(
+      `/api/collect-forms/reviewer-candidates${suffix ? `?${suffix}` : ''}`,
+    );
   },
   getCollectFormNotificationPayload(params: {
     gitlabBaseUrl: string;
@@ -90,6 +112,70 @@ export const collectFormsApi = {
     });
     return request<CollectFormNotificationPayloadResponse>(
       `/api/collect-forms/notification-payload?${query.toString()}`,
+    );
+  },
+  getFormTemplates() {
+    return request<FormAdminTemplateSummary[]>('/api/collect-forms/templates');
+  },
+  getFormScope(scopeId: number) {
+    return request<FormAdminScopeDetail>(`/api/collect-forms/template-scopes/${scopeId}`);
+  },
+  createFormScope(payload: { templateKey: string; scopeKey: string }) {
+    return request<FormAdminScopeDetail>('/api/collect-forms/template-scopes', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+  saveFormDraft(scopeId: number, payload: FormDraftUpdatePayload) {
+    return request<FormAdminScopeDetail['draft']>(
+      `/api/collect-forms/template-scopes/${scopeId}/draft`,
+      { method: 'PUT', body: JSON.stringify(payload) },
+    );
+  },
+  previewFormScope(scopeId: number, draftRevision: number) {
+    return request<FormAdminPreviewView>(
+      `/api/collect-forms/template-scopes/${scopeId}/preview`,
+      { method: 'POST', body: JSON.stringify({ draftRevision }) },
+    );
+  },
+  createFormPublication(scopeId: number, payload: FormPublicationCreatePayload) {
+    return request<FormAdminPublicationView>(
+      `/api/collect-forms/template-scopes/${scopeId}/publications`,
+      { method: 'POST', body: JSON.stringify(payload) },
+    );
+  },
+  getFormPublication(publicationId: number) {
+    return request<FormAdminPublicationView>(
+      `/api/collect-forms/publications/${publicationId}`,
+    );
+  },
+  recoverFormPublication(publicationId: number) {
+    return request<FormAdminPublicationView>(
+      `/api/collect-forms/publications/${publicationId}/recover`,
+      { method: 'POST', body: '{}' },
+    );
+  },
+  retireFormScope(scopeId: number, expectedCurrentVersionId: number) {
+    return request<FormAdminScopeDetail>(
+      `/api/collect-forms/template-scopes/${scopeId}/retire`,
+      { method: 'POST', body: JSON.stringify({ expectedCurrentVersionId }) },
+    );
+  },
+  deleteFormScope(scopeId: number) {
+    return request<void>(`/api/collect-forms/template-scopes/${scopeId}`, {
+      method: 'DELETE',
+    });
+  },
+  getFormBindingOptions() {
+    return request<FormAdminBindingOption[]>('/api/collect-forms/binding-options');
+  },
+  getFormMilestones(sourceConfigId: number, projectId: number) {
+    const query = new URLSearchParams({
+      sourceConfigId: String(sourceConfigId),
+      projectId: String(projectId),
+    });
+    return request<FormAdminMilestoneAvailability>(
+      `/api/collect-forms/version-milestones?${query.toString()}`,
     );
   },
 };

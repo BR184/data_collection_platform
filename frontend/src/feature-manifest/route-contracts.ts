@@ -343,6 +343,10 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
     allowedQueryKeys: ['field'],
     persistedQueryKeys: [],
   },
+  'form-template-settings': {
+    allowedQueryKeys: ['scopeId'],
+    persistedQueryKeys: ['scopeId'],
+  },
   'backup-settings': {
     persistedQueryKeys: [],
   },
@@ -356,6 +360,22 @@ const specialRouteContractByKey: Record<SpecialRouteKey, SpecialRouteContract> =
       description: '通过独立链接打开的代码走查表单页面。',
       standalone: true,
       allowedQueryKeys: ['gitlabBaseUrl', 'projectId', 'mrIid'],
+      persistedQueryKeys: [],
+    },
+  },
+  'external-forms': {
+    basePageKey: 'code-review-illegal-records',
+    overrides: {
+      title: '统一表单填写',
+      description: '通过稳定链接打开的统一表单填写页面，支持问题响应与问题回复模板。',
+      standalone: true,
+      allowedQueryKeys: [
+        'gitlabBaseUrl',
+        'projectId',
+        'resourceType',
+        'resourceId',
+        'templateKey',
+      ],
       persistedQueryKeys: [],
     },
   },
