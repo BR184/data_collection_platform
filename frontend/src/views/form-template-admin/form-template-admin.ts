@@ -16,13 +16,22 @@ export const CONTROL_OPTIONS = [
   { value: 'date', label: '日期', type: 'date' },
   { value: 'radio', label: '单选', type: 'enum' },
   { value: 'select', label: '下拉选择', type: 'enum' },
+  { value: 'multi-select', label: '多选', type: 'enum-array' },
+  { value: 'checkbox', label: '复选', type: 'enum-array' },
   { value: 'checkbox-group', label: '多选', type: 'enum-array' },
   { value: 'person-select', label: '人员选择', type: 'string' },
+  { value: 'version-members', label: '版本成员', type: 'string' },
 ] as const;
 
 export type ControlValue = (typeof CONTROL_OPTIONS)[number]['value'];
 
 const CONTROL_BY_VALUE = new Map(CONTROL_OPTIONS.map((option) => [option.value, option]));
+
+const CONTROL_LABELS: Record<string, string> = {
+  ...Object.fromEntries(CONTROL_OPTIONS.map((option) => [option.value, option.label])),
+  // 布尔字段沿用既有 radio 控件值，按业务显示为单选。
+  radio: '单选',
+};
 
 /** 管理页字段表格的一行；内部键与存储列由系统维护，不直接展示。 */
 export interface FieldRow {
@@ -51,16 +60,23 @@ const TYPE_COLUMN: Record<FormFieldSpecView['type'], string> = {
   'enum-array': 'text[]',
 };
 
-/** 业务填写方式名称。 */
+/** 业务填写方式名称；未知值不回显内部控件字符串。 */
 export function controlLabel(control: string | undefined): string {
-  return CONTROL_BY_VALUE.get(control as ControlValue)?.label ?? control ?? '未设置';
+  if (!control) {
+    return '未设置';
+  }
+  return CONTROL_LABELS[control] ?? '未设置';
 }
 
-/** 当前数据类型可选的填写方式；既有字段不通过控件改变存储类型。 */
+/** 当前数据类型可选的填写方式；布尔同时接受既有 radio 与 switch。 */
 export function controlsForType(type: FormFieldSpecView['type']): ControlValue[] {
-  return CONTROL_OPTIONS.filter((option) => option.type === type).map(
+  const options = CONTROL_OPTIONS.filter((option) => option.type === type).map(
     (option) => option.value,
   );
+  if (type === 'boolean') {
+    return [...new Set<ControlValue>(['switch', 'radio', ...options])];
+  }
+  return options;
 }
 
 /** 把冻结规格转换为业务编辑行；内部身份保持原值。 */

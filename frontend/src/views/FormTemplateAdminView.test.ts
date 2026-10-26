@@ -279,6 +279,66 @@ describe('FormTemplateAdminView', () => {
     expect(view.text()).not.toContain('API 键');
   });
 
+  it('shows business labels for real template control values', async () => {
+    const realSpec: FormTemplateSpecView = {
+      ...spec,
+      fields: [
+        spec.fields[0],
+        {
+          name: 'cause_keys',
+          apiKey: 'causeKeys',
+          label: '缺陷原因',
+          type: 'enum-array',
+          control: 'multi-select',
+          required: true,
+          dictionary: 'DEFECT_CAUSE',
+          storage: { column: 'cause_keys', columnType: 'text[]' },
+        },
+        {
+          name: 'affected_kinds',
+          apiKey: 'affectedKinds',
+          label: '修改该缺陷可能影响的功能',
+          type: 'enum-array',
+          control: 'checkbox',
+          required: true,
+          options: [{ value: 'KNOWN', label: '已知的受影响功能' }],
+          storage: { column: 'affected_kinds', columnType: 'text[]' },
+        },
+        {
+          name: 'caused_by_other_defect',
+          apiKey: 'causedByOtherDefect',
+          label: '由修改其他缺陷造成',
+          type: 'boolean',
+          control: 'radio',
+          required: true,
+          storage: { column: 'caused_by_other_defect', columnType: 'boolean' },
+        },
+        {
+          name: 'planned_merge_version_branch',
+          apiKey: 'plannedMergeVersionBranch',
+          label: '计划合并的版本分支',
+          type: 'string',
+          control: 'version-members',
+          required: true,
+          storage: { column: 'planned_merge_version_branch', columnType: 'varchar(128)' },
+        },
+      ],
+      dictionaries: [
+        { name: 'DEFECT_CAUSE', items: [{ key: 'missing_requirement', label: '需求遗漏' }] },
+      ],
+    };
+    mocks.api.getFormScope.mockResolvedValue(detail({ ...draft(), fieldSpec: realSpec }));
+    const view = await mountView();
+    const text = view.text();
+    expect(text).toContain('多选');
+    expect(text).toContain('复选');
+    expect(text).toContain('单选');
+    expect(text).toContain('版本成员');
+    expect(text).not.toContain('multi-select');
+    expect(text).not.toContain('checkbox');
+    expect(text).not.toContain('version-members');
+  });
+
   it('saves the draft preserving stable identity after a label rename', async () => {
     mocks.api.saveFormDraft.mockResolvedValue(draft(3, '修复结果'));
     const view = await mountView();
@@ -398,6 +458,46 @@ describe('FormTemplateAdminView', () => {
     expect((fieldLabelInputs(view)[0].element as HTMLInputElement).value).toBe('范围八字段');
     expect(view.text()).not.toContain('范围七已发送');
   });
+  it('drops a late conflict response after switching scope', async () => {
+    const second = { ...scopeSummary(), id: 8, scopeKey: 'second-scope' };
+    mocks.api.getFormTemplates.mockResolvedValue([
+      {
+        templateKey: 'issue_reply',
+        displayName: 'Issue 回复',
+        status: 'ACTIVE',
+        scopes: [scopeSummary(), second],
+      },
+    ]);
+    mocks.api.getFormScope
+      .mockResolvedValueOnce(detail())
+      .mockResolvedValueOnce(detailFor(8, 'second-scope', '范围八字段'))
+      .mockResolvedValueOnce(detailFor(7, 'w4-scope', '范围七服务器字段'));
+    let rejectSave: (error: Error) => void = () => {};
+    mocks.api.saveFormDraft.mockReturnValue(
+      new Promise<FormAdminDraftView>((_, reject) => {
+        rejectSave = reject;
+      }),
+    );
+    const view = await mountView();
+    await fieldLabelInputs(view)[0].setValue('范围七在途输入');
+    await button(view, '保存草稿').trigger('click');
+    await view.findAll('.scope-item')[1].trigger('click');
+    await flushPromises();
+    expect(view.text()).toContain('second-scope');
+
+    rejectSave(new HttpRequestError('草稿已被他人修改', 409, 'A0409'));
+    await flushPromises();
+    expect(mocks.api.getFormScope).toHaveBeenCalledTimes(2);
+    expect(view.text()).not.toContain('草稿已被他人修改');
+    expect((fieldLabelInputs(view)[0].element as HTMLInputElement).value).toBe('范围八字段');
+
+    await view.findAll('.scope-item')[0].trigger('click');
+    await flushPromises();
+    expect((fieldLabelInputs(view)[0].element as HTMLInputElement).value).toBe(
+      '范围七服务器字段',
+    );
+  });
+
   it('confirms before switching scope or refreshing with unsaved edits', async () => {
     const second = { ...scopeSummary(), id: 8, scopeKey: 'second-scope' };
     mocks.api.getFormTemplates.mockResolvedValue([
@@ -448,6 +548,64 @@ describe('FormTemplateAdminView', () => {
     );
     expect(view.text()).toContain('有未保存修改');
   });
+  it('keeps typing while the post-publication detail refresh is in flight', async () => {
+    vi.useFakeTimers();
+    mocks.api.previewFormScope.mockResolvedValue(preview());
+    mocks.api.createFormPublication.mockResolvedValue(publication('COPYING'));
+    mocks.api.getFormPublication
+      .mockResolvedValueOnce(publication('COPYING'))
+      .mockResolvedValueOnce(publication('PUBLISHED'));
+    let resolveRefresh: (value: FormAdminScopeDetail) => void = () => {};
+    mocks.api.getFormScope
+      .mockResolvedValueOnce(detail())
+      .mockReturnValueOnce(
+        new Promise<FormAdminScopeDetail>((resolve) => {
+          resolveRefresh = resolve;
+        }),
+      );
+    const view = await mountView();
+    await button(view, '发布结构').trigger('click');
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(1100);
+    await flushPromises();
+
+    await fieldLabelInputs(view)[0].setValue('最终刷新期间输入');
+    resolveRefresh(detail(draft(2, '服务器最终字段')));
+    await flushPromises();
+
+    expect((fieldLabelInputs(view)[0].element as HTMLInputElement).value).toBe(
+      '最终刷新期间输入',
+    );
+    expect(mocks.message.warning).toHaveBeenCalledWith(
+      '版本已发布；本地未保存修改仍保留，请再次保存',
+    );
+    expect(view.text()).toContain('有未保存修改');
+  });
+
+  it('keeps typing while a manual refresh is in flight', async () => {
+    let resolveRefresh: (value: FormAdminScopeDetail) => void = () => {};
+    mocks.api.getFormScope
+      .mockResolvedValueOnce(detail())
+      .mockReturnValueOnce(
+        new Promise<FormAdminScopeDetail>((resolve) => {
+          resolveRefresh = resolve;
+        }),
+      );
+    const view = await mountView();
+    await button(view, '刷新').trigger('click');
+    await flushPromises();
+
+    await fieldLabelInputs(view)[0].setValue('刷新期间输入');
+    resolveRefresh(detail(draft(2, '服务器刷新字段')));
+    await flushPromises();
+
+    expect((fieldLabelInputs(view)[0].element as HTMLInputElement).value).toBe('刷新期间输入');
+    expect(mocks.message.warning).toHaveBeenCalledWith(
+      '刷新期间的新输入已保留，未覆盖本地修改',
+    );
+    expect(view.text()).toContain('有未保存修改');
+  });
+
   it('confirms before deleting an existing field and keeps it when cancelled', async () => {
     mocks.messageBox.confirm.mockResolvedValueOnce(false);
     const view = await mountView();

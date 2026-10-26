@@ -8,6 +8,8 @@ import {
   applyConditionRows,
   conditionRowsFromSpec,
   conditionSummaries,
+  controlLabel,
+  controlsForType,
   createFieldRow,
   describeConditionRow,
   fieldRowsFromSpec,
@@ -88,6 +90,18 @@ describe('form template admin helpers', () => {
     expect(updated.fields[2].name).toBe(added.name);
     expect(updated.fields[2].apiKey).toBe(added.apiKey);
     expect(updated.fields[0].name).toBe('fix_status');
+  });
+
+  it('shows business labels for every real template control value', () => {
+    expect(controlLabel('multi-select')).toBe('多选');
+    expect(controlLabel('checkbox')).toBe('复选');
+    expect(controlLabel('radio')).toBe('单选');
+    expect(controlLabel('version-members')).toBe('版本成员');
+    expect(controlLabel('unknown-control')).toBe('未设置');
+    expect(controlsForType('boolean')).toEqual(expect.arrayContaining(['switch', 'radio']));
+    expect(controlsForType('enum-array')).toEqual(
+      expect.arrayContaining(['multi-select', 'checkbox', 'checkbox-group']),
+    );
   });
 
   it('maps business controls to compatible internal types', () => {

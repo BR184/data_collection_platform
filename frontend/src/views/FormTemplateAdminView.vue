@@ -29,6 +29,7 @@ import {
   conditionOperators,
   conditionRowsFromSpec,
   conditionValueOptions,
+  controlLabel,
   controlsForType,
   createConditionRow,
   createFieldRow,
@@ -70,6 +71,9 @@ const evidenceDraft = ref<Record<string, unknown>>({});
 const evidenceNote = ref('');
 const selectedMilestoneId = ref<number | null>(null);
 const savedSnapshot = ref<string | null>(null);
+/** 范围加载/刷新代次；迟到的详情响应不得覆盖更晚的选择或输入。 */
+let scopeLoadEpoch = 0;
+const conflictScopeId = ref<number | null>(null);
 const conflictDraft = ref<FormAdminDraftView | null>(null);
 const conflictVisible = ref(false);
 const optionsVisible = ref(false);
@@ -182,25 +186,52 @@ async function refreshTemplatesList() {
 }
 
 /** 只刷新范围元数据与版本信息，不覆盖本地草稿输入。 */
-async function refreshScopeMeta(scopeId: number) {
-  try {
-    const fresh = await collectFormsApi.getFormScope(scopeId);
-    if (scope.value?.id !== scopeId || !detail.value) {
-      await refreshTemplatesList();
-      return;
-    }
-    detail.value = {
-      ...detail.value,
-      scope: fresh.scope,
-      versions: fresh.versions,
-      recordCount: fresh.recordCount,
-      instanceCount: fresh.instanceCount,
-      latestPublication: fresh.latestPublication,
-    };
-    await refreshTemplatesList();
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, '表单范围刷新失败'));
+function applyScopeMeta(fresh: FormAdminScopeDetail) {
+  if (!detail.value) {
+    return;
   }
+  detail.value = {
+    ...detail.value,
+    scope: fresh.scope,
+    versions: fresh.versions,
+    recordCount: fresh.recordCount,
+    instanceCount: fresh.instanceCount,
+    latestPublication: fresh.latestPublication,
+  };
+}
+
+/** 用服务器详情重建表单；调用前必须已确认没有更晚的输入或范围切换。 */
+function applyScopeDetail(fresh: FormAdminScopeDetail) {
+  detail.value = fresh;
+  preview.value = fresh.preview;
+  publication.value = fresh.latestPublication;
+  hydrateDraft(fresh.draft);
+  markSaved();
+}
+
+type RefreshOutcome = 'applied' | 'kept' | 'stale';
+
+/** 刷新范围详情；输入或范围在请求期间变化时只更新元数据，绝不覆盖本地编辑。 */
+async function refreshScopePreservingInput(
+  scopeId: number,
+  baselineSnapshot: string,
+  epoch: number,
+  keepLocal: boolean,
+): Promise<RefreshOutcome> {
+  const [list, fresh] = await Promise.all([
+    collectFormsApi.getFormTemplates(),
+    collectFormsApi.getFormScope(scopeId),
+  ]);
+  templates.value = list;
+  if (epoch !== scopeLoadEpoch || selectedScopeId.value !== scopeId || !detail.value) {
+    return 'stale';
+  }
+  if (keepLocal || localSnapshot() !== baselineSnapshot) {
+    applyScopeMeta(fresh);
+    return 'kept';
+  }
+  applyScopeDetail(fresh);
+  return 'applied';
 }
 
 async function loadBindingOptions() {
@@ -212,16 +243,22 @@ async function loadBindingOptions() {
 }
 
 async function selectScope(scopeId: number) {
+  const epoch = ++scopeLoadEpoch;
   selectedScopeId.value = scopeId;
   try {
-    detail.value = await collectFormsApi.getFormScope(scopeId);
-    preview.value = detail.value.preview;
-    publication.value = detail.value.latestPublication;
-    hydrateDraft(detail.value.draft);
-    markSaved();
+    const fresh = await collectFormsApi.getFormScope(scopeId);
+    if (epoch !== scopeLoadEpoch || selectedScopeId.value !== scopeId) {
+      return;
+    }
+    applyScopeDetail(fresh);
+    conflictScopeId.value = null;
+    conflictDraft.value = null;
+    conflictVisible.value = false;
     await loadMilestones();
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, '表单范围加载失败'));
+    if (epoch === scopeLoadEpoch) {
+      ElMessage.error(getErrorMessage(error, '表单范围加载失败'));
+    }
   }
 }
 
@@ -288,7 +325,18 @@ function controlOptionsFor(row: FieldRow) {
     return CONTROL_OPTIONS;
   }
   const allowed = controlsForType(row.type);
-  return CONTROL_OPTIONS.filter((option) => allowed.includes(option.value));
+  const options = CONTROL_OPTIONS.filter((option) => allowed.includes(option.value));
+  if (row.control && !options.some((option) => option.value === row.control)) {
+    return [
+      ...options,
+      {
+        value: row.control,
+        label: controlLabel(row.control),
+        type: row.type,
+      },
+    ] as typeof CONTROL_OPTIONS[number][];
+  }
+  return options;
 }
 
 function addField() {
@@ -509,6 +557,7 @@ async function saveDraft() {
   }
   saving.value = true;
   const scopeId = scope.value.id;
+  const requestEpoch = scopeLoadEpoch;
   const submittedSnapshot = localSnapshot();
   try {
     const draft = await collectFormsApi.saveFormDraft(scopeId, {
@@ -524,7 +573,7 @@ async function saveDraft() {
       versionLabel: versionLabel.value.trim() || null,
       versionEvidence: buildEvidence(),
     });
-    if (scope.value?.id !== scopeId || !detail.value) {
+    if (scope.value?.id !== scopeId || scopeLoadEpoch !== requestEpoch || !detail.value) {
       await refreshTemplatesList();
       return;
     }
@@ -548,7 +597,17 @@ async function saveDraft() {
     await refreshTemplatesList();
   } catch (error) {
     if (isConflictError(error)) {
-      const fresh = await collectFormsApi.getFormScope(scope.value.id);
+      if (scope.value?.id !== scopeId || scopeLoadEpoch !== requestEpoch || !detail.value) {
+        await refreshTemplatesList();
+        return;
+      }
+      const fresh = await collectFormsApi.getFormScope(scopeId);
+      // 冲突稿二次查询也可能迟到；查询期间切换或刷新过范围时丢弃，避免串范围。
+      if (scope.value?.id !== scopeId || scopeLoadEpoch !== requestEpoch || !detail.value) {
+        await refreshTemplatesList();
+        return;
+      }
+      conflictScopeId.value = scopeId;
       conflictDraft.value = fresh.draft;
       conflictVisible.value = true;
       ElMessage.warning('草稿已被他人修改，本地修改已保留');
@@ -561,8 +620,14 @@ async function saveDraft() {
 }
 
 function applyServerDraft() {
-  if (!conflictDraft.value || !detail.value) {
+  if (
+    !conflictDraft.value
+    || !detail.value
+    || conflictScopeId.value !== scope.value?.id
+  ) {
     conflictVisible.value = false;
+    conflictDraft.value = null;
+    conflictScopeId.value = null;
     return;
   }
   hydrateDraft(conflictDraft.value);
@@ -575,12 +640,20 @@ function applyServerDraft() {
   pendingRequest.value = null;
   markSaved();
   conflictVisible.value = false;
+  conflictDraft.value = null;
+  conflictScopeId.value = null;
   ElMessage.success('已载入服务器最新草稿');
 }
 
 function keepLocalWithLatestRevision() {
-  if (!conflictDraft.value || !detail.value) {
+  if (
+    !conflictDraft.value
+    || !detail.value
+    || conflictScopeId.value !== scope.value?.id
+  ) {
     conflictVisible.value = false;
+    conflictDraft.value = null;
+    conflictScopeId.value = null;
     return;
   }
   detail.value = {
@@ -591,6 +664,8 @@ function keepLocalWithLatestRevision() {
   preview.value = null;
   pendingRequest.value = null;
   conflictVisible.value = false;
+  conflictDraft.value = null;
+  conflictScopeId.value = null;
   ElMessage.warning('已基于最新修订继续编辑；再次保存将覆盖服务器草稿');
 }
 
@@ -705,12 +780,23 @@ async function pollPublication(publicationId: number) {
     ElMessage.success('结构版本已发布');
     const scopeId = scope.value?.id;
     if (scopeId) {
-      if (dirty.value) {
-        // 发布期间继续输入时，迟到刷新不得覆盖本地未保存修改。
-        await refreshScopeMeta(scopeId);
-        ElMessage.warning('版本已发布；本地未保存修改仍保留，请再次保存');
-      } else {
-        await loadTemplates(scopeId);
+      const epoch = ++scopeLoadEpoch;
+      const baselineSnapshot = localSnapshot();
+      try {
+        const outcome = await refreshScopePreservingInput(
+          scopeId,
+          baselineSnapshot,
+          epoch,
+          dirty.value,
+        );
+        if (outcome === 'kept') {
+          // 发布期间或最终刷新期间继续输入时，迟到详情不得覆盖本地编辑。
+          ElMessage.warning('版本已发布；本地未保存修改仍保留，请再次保存');
+        }
+      } catch (error) {
+        if (epoch === scopeLoadEpoch) {
+          ElMessage.error(getErrorMessage(error, '表单范围刷新失败'));
+        }
       }
     }
     return;
@@ -737,7 +823,28 @@ async function refreshCurrent() {
   if (!(await confirmDiscardIfDirty())) {
     return;
   }
-  await loadTemplates(selectedScopeId.value ?? undefined);
+  const scopeId = selectedScopeId.value;
+  if (!scopeId) {
+    await loadTemplates();
+    return;
+  }
+  const epoch = ++scopeLoadEpoch;
+  const baselineSnapshot = localSnapshot();
+  try {
+    const outcome = await refreshScopePreservingInput(
+      scopeId,
+      baselineSnapshot,
+      epoch,
+      false,
+    );
+    if (outcome === 'kept') {
+      ElMessage.warning('刷新期间的新输入已保留，未覆盖本地修改');
+    }
+  } catch (error) {
+    if (epoch === scopeLoadEpoch) {
+      ElMessage.error(getErrorMessage(error, '表单范围刷新失败'));
+    }
+  }
 }
 
 async function retireScope() {
