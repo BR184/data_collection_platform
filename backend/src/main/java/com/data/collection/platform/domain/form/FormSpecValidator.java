@@ -2,6 +2,8 @@ package com.data.collection.platform.domain.form;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -40,6 +42,8 @@ public class FormSpecValidator {
           "legacy_missing_fields",
           "created_at",
           "updated_at");
+  private static final Set<String> SEVERITY_VALUES =
+      Set.of("一级缺陷", "二级缺陷", "三级缺陷", "建议类", "未设定");
 
   private final ObjectMapper objectMapper;
 
@@ -238,7 +242,204 @@ public class FormSpecValidator {
           && !fieldNames.contains(clearWhen.path("field").asText())) {
         errors.add("clearWhen 引用未知字段 " + clearWhen.path("field").asText());
       }
+      if ("mutuallyExclusive".equals(type)) {
+        validateMutualCondition(spec, condition, errors);
+      } else if ("conditionalRequired".equals(type)) {
+        validateConditionalRequired(spec, condition, errors);
+      }
     }
+    for (FormFieldSpec field : spec.fields()) {
+      if (field.requiredWhen() != null && !field.requiredWhen().isMissingNode()) {
+        validateTrigger(
+            spec, field.requiredWhen(), "字段「" + label(field) + "」的必填条件", errors);
+      }
+      if (field.clearWhen() != null && !field.clearWhen().isMissingNode()) {
+        validateTrigger(spec, field.clearWhen(), "字段「" + label(field) + "」的清空条件", errors);
+      }
+    }
+  }
+
+  private void validateMutualCondition(
+      FormTemplateSpec spec, JsonNode condition, List<String> errors) {
+    FormFieldSpec field = spec.fieldByName(condition.path("field").asText()).orElse(null);
+    if (field == null) {
+      return;
+    }
+    if (!"enum-array".equals(field.type())) {
+      errors.add("互斥条件仅支持多选字段：「" + label(field) + "」");
+      return;
+    }
+    String whenContains = condition.path("whenContains").asText("");
+    if (whenContains.isBlank()) {
+      errors.add("互斥条件「" + label(field) + "」缺少触发选项");
+    } else {
+      requireAllowedValue(spec, field, whenContains, "互斥触发", errors);
+    }
+    JsonNode withAnyOf = condition.path("withAnyOf");
+    if (!withAnyOf.isArray() || withAnyOf.size() == 0) {
+      errors.add("互斥条件「" + label(field) + "」必须至少选择一个互斥选项");
+      return;
+    }
+    Set<String> conflicts = new HashSet<>();
+    withAnyOf.forEach(
+        node -> {
+          String value = node.asText("");
+          if (value.isBlank() || !conflicts.add(value)) {
+            errors.add("互斥条件「" + label(field) + "」含空或重复的互斥选项");
+            return;
+          }
+          requireAllowedValue(spec, field, value, "互斥选项", errors);
+        });
+  }
+
+  private void validateConditionalRequired(
+      FormTemplateSpec spec, JsonNode condition, List<String> errors) {
+    FormFieldSpec target = spec.fieldByName(condition.path("target").asText()).orElse(null);
+    if (target == null) {
+      return;
+    }
+    JsonNode requiredWhen = condition.path("requiredWhen");
+    String snapshotColumn = condition.path("snapshotColumn").asText(null);
+    if (snapshotColumn != null) {
+      if (!requiredWhen.isObject() || !requiredWhen.hasNonNull("resourceSeverityLevel")) {
+        errors.add(
+            "条件快照列「" + snapshotColumn + "」只支持议题严重级别触发：" + label(target));
+      } else {
+        validateTrigger(spec, requiredWhen, "字段「" + label(target) + "」的资源必填条件", errors);
+      }
+      return;
+    }
+    if (!requiredWhen.isObject()) {
+      errors.add("字段「" + label(target) + "」的条件必填缺少有效触发条件");
+    } else {
+      validateTrigger(spec, requiredWhen, "字段「" + label(target) + "」的必填条件", errors);
+    }
+    JsonNode clearWhen = condition.path("clearWhen");
+    if (!clearWhen.isMissingNode()) {
+      validateTrigger(spec, clearWhen, "字段「" + label(target) + "」的清空条件", errors);
+    }
+  }
+
+  private void validateTrigger(
+      FormTemplateSpec spec, JsonNode trigger, String context, List<String> errors) {
+    if (!trigger.isObject()) {
+      errors.add(context + "格式不合法");
+      return;
+    }
+    if (trigger.hasNonNull("resourceSeverityLevel")) {
+      validateSeverityTrigger(trigger, context, errors);
+      return;
+    }
+    FormFieldSpec field = spec.fieldByName(trigger.path("field").asText("")).orElse(null);
+    if (field == null) {
+      return;
+    }
+    boolean contains = trigger.hasNonNull("contains");
+    boolean notContains = trigger.hasNonNull("notContains");
+    boolean equals = trigger.has("equals");
+    if ((contains ? 1 : 0) + (notContains ? 1 : 0) + (equals ? 1 : 0) != 1) {
+      errors.add(context + "必须且只能指定一种比较方式");
+      return;
+    }
+    if (contains || notContains) {
+      if (!"enum-array".equals(field.type())) {
+        errors.add("字段「" + label(field) + "」不支持包含/不包含条件");
+        return;
+      }
+      String value = trigger.path(contains ? "contains" : "notContains").asText("");
+      if (value.isBlank()) {
+        errors.add(context + "缺少比较值");
+      } else {
+        requireAllowedValue(spec, field, value, context + "取值", errors);
+      }
+      return;
+    }
+    if ("enum-array".equals(field.type())) {
+      errors.add("多选字段「" + label(field) + "」请使用包含/不包含条件");
+      return;
+    }
+    JsonNode value = trigger.path("equals");
+    switch (field.type()) {
+      case "boolean" -> {
+        if (!value.isBoolean()) {
+          errors.add("字段「" + label(field) + "」的条件比较值必须是是/否");
+        }
+      }
+      case "integer" -> {
+        if (!value.isIntegralNumber()
+            && !(value.isTextual() && value.asText().matches("-?\\d+"))) {
+          errors.add("数字字段「" + label(field) + "」的条件比较值必须是整数");
+        }
+      }
+      case "date" -> {
+        if (!value.isTextual()) {
+          errors.add("日期字段「" + label(field) + "」的条件比较值必须是日期");
+        } else {
+          try {
+            LocalDate.parse(value.asText());
+          } catch (DateTimeParseException error) {
+            errors.add("日期字段「" + label(field) + "」的条件比较值不是合法日期");
+          }
+        }
+      }
+      case "enum" -> {
+        if (!value.isTextual() || value.asText().isBlank()) {
+          errors.add("枚举字段「" + label(field) + "」的条件比较值不能为空");
+        } else {
+          requireAllowedValue(spec, field, value.asText(), context + "取值", errors);
+        }
+      }
+      default -> {
+        if (!value.isTextual() || value.asText().isBlank()) {
+          errors.add("字段「" + label(field) + "」的条件比较值不能为空");
+        }
+      }
+    }
+  }
+
+  private void validateSeverityTrigger(JsonNode trigger, String context, List<String> errors) {
+    JsonNode expected = trigger.path("resourceSeverityLevel");
+    List<String> values = new ArrayList<>();
+    if (expected.isArray()) {
+      expected.forEach(node -> values.add(node.asText("")));
+    } else {
+      values.add(expected.asText(""));
+    }
+    if (values.isEmpty()) {
+      errors.add(context + "缺少议题严重级别");
+      return;
+    }
+    for (String value : values) {
+      if (!SEVERITY_VALUES.contains(value)) {
+        errors.add(context + "的议题严重级别「" + value + "」不受支持");
+      }
+    }
+  }
+
+  private void requireAllowedValue(
+      FormTemplateSpec spec,
+      FormFieldSpec field,
+      String value,
+      String context,
+      List<String> errors) {
+    Set<String> allowed = new HashSet<>();
+    if (field.options() != null) {
+      field.options().forEach(option -> allowed.add(option.value()));
+    }
+    if (field.dictionary() != null && !field.dictionary().isBlank()) {
+      spec.dictionaries().stream()
+          .filter(dictionary -> field.dictionary().equals(dictionary.name()))
+          .forEach(
+              dictionary ->
+                  dictionary.items().forEach(item -> allowed.add(item.key())));
+    }
+    if (!allowed.isEmpty() && !allowed.contains(value)) {
+      errors.add(context + "「" + value + "」不在字段「" + label(field) + "」的选项或词典中");
+    }
+  }
+
+  private String label(FormFieldSpec field) {
+    return field.label() == null || field.label().isBlank() ? field.name() : field.label();
   }
 
   private void validateDictionaries(FormTemplateSpec spec, List<String> errors) {

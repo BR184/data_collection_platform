@@ -412,24 +412,36 @@ public class FormVersionSchemaService {
     for (JsonNode condition : spec.conditions()) {
       String type = condition.path("type").asText();
       if ("mutuallyExclusive".equals(type)) {
-        String field = condition.path("field").asText();
+        FormFieldSpec triggerField = requireField(spec, condition.path("field").asText());
+        String column = columnOf(triggerField);
         String whenContains = condition.path("whenContains").asText();
+        List<String> conflicts = new ArrayList<>();
+        condition.path("withAnyOf").forEach(node -> conflicts.add(node.asText()));
+        if (conflicts.isEmpty()) {
+          throw new IllegalArgumentException("互斥条件缺少 withAnyOf：" + condition);
+        }
+        String conflictExpression =
+            conflicts.stream()
+                .map(value -> literal(value) + " = any(" + column + ")")
+                .reduce((left, right) -> left + " or " + right)
+                .orElseThrow();
         constraints.add(
             wrapLegacy(
                 "not ("
                     + literal(whenContains)
                     + " = any("
-                    + field
-                    + ") and cardinality("
-                    + field
-                    + ") > 1)",
+                    + column
+                    + ") and ("
+                    + conflictExpression
+                    + "))",
                 migrationTarget));
         continue;
       }
       if (!"conditionalRequired".equals(type)) {
         continue;
       }
-      String target = condition.path("target").asText();
+      FormFieldSpec targetField = requireField(spec, condition.path("target").asText());
+      String target = columnOf(targetField);
       String snapshotColumn = condition.path("snapshotColumn").asText(null);
       if (snapshotColumn != null) {
         constraints.add(
@@ -438,10 +450,8 @@ public class FormVersionSchemaService {
                     + " is not null and (("
                     + snapshotColumn
                     + " and "
-                    + target
-                    + " is not null and btrim("
-                    + target
-                    + ") <> '') or (not "
+                    + nonEmpty(targetField, target)
+                    + ") or (not "
                     + snapshotColumn
                     + " and "
                     + target
@@ -451,60 +461,94 @@ public class FormVersionSchemaService {
       }
       JsonNode requiredWhen = condition.path("requiredWhen");
       if (!requiredWhen.isMissingNode()) {
-        String requiredExpression = conditionExpression(requiredWhen);
+        String requiredExpression = conditionExpression(requiredWhen, spec);
         constraints.add(
             wrapLegacy(
-                "not (" + requiredExpression + ") or ("
-                    + target
-                    + " is not null and btrim("
-                    + target
-                    + ") <> '')",
+                "not ("
+                    + requiredExpression
+                    + ") or ("
+                    + nonEmpty(targetField, target)
+                    + ")",
                 migrationTarget));
       }
       JsonNode clearWhen = condition.path("clearWhen");
       if (!clearWhen.isMissingNode()) {
-        String clearExpression = negatedConditionExpression(clearWhen);
+        String clearExpression = negatedConditionExpression(clearWhen, spec);
         constraints.add(
             wrapLegacy("(" + clearExpression + ") or " + target + " is null", migrationTarget));
       }
     }
   }
 
-  private String conditionExpression(JsonNode condition) {
+  private FormFieldSpec requireField(FormTemplateSpec spec, String name) {
+    return spec.fieldByName(name)
+        .orElseThrow(() -> new IllegalArgumentException("条件引用未知字段：" + name));
+  }
+
+  private String columnOf(FormFieldSpec field) {
+    if (field.storage() != null && field.storage().resolvedColumn() != null) {
+      return field.storage().resolvedColumn();
+    }
+    return field.name();
+  }
+
+  /** 必填/非空的类型化判定：数组看元素数，布尔/整数/日期看非NULL，文本看去空白后非空。 */
+  private String nonEmpty(FormFieldSpec field, String column) {
+    String type = field.type();
+    String columnType = field.storage() == null ? null : field.storage().resolvedColumnType();
+    if ("enum-array".equals(type) || (columnType != null && columnType.endsWith("[]"))) {
+      return column + " is not null and cardinality(" + column + ") > 0";
+    }
+    boolean textual =
+        "string".equals(type)
+            || "enum".equals(type)
+            || (columnType != null
+                && (columnType.startsWith("varchar") || "text".equals(columnType)));
+    return textual
+        ? column + " is not null and btrim(" + column + ") <> ''"
+        : column + " is not null";
+  }
+
+  private String conditionExpression(JsonNode condition, FormTemplateSpec spec) {
     if (condition.hasNonNull("resourceSeverityLevel")) {
       throw new IllegalArgumentException("resourceSeverityLevel requires snapshotColumn");
     }
-    String field = condition.path("field").asText();
+    FormFieldSpec field = requireField(spec, condition.path("field").asText());
+    String column = columnOf(field);
     if (condition.hasNonNull("contains")) {
-      return literal(condition.path("contains").asText()) + " = any(" + field + ")";
+      return literal(condition.path("contains").asText()) + " = any(" + column + ")";
     }
     if (condition.hasNonNull("notContains")) {
-      return "not (" + literal(condition.path("notContains").asText()) + " = any(" + field + "))";
+      return "not (" + literal(condition.path("notContains").asText()) + " = any(" + column + "))";
     }
     if (condition.has("equals")) {
       JsonNode value = condition.path("equals");
       if (value.isBoolean()) {
-        return value.asBoolean() ? field : "not " + field;
+        return value.asBoolean() ? column : "not " + column;
       }
-      return field + " = " + literal(value.asText());
+      return column + " = " + literal(value.asText());
     }
     throw new IllegalArgumentException("Unsupported form condition: " + condition);
   }
 
-  private String negatedConditionExpression(JsonNode condition) {
-    String field = condition.path("field").asText();
+  private String negatedConditionExpression(JsonNode condition, FormTemplateSpec spec) {
+    if (condition.hasNonNull("resourceSeverityLevel")) {
+      throw new IllegalArgumentException("resourceSeverityLevel requires snapshotColumn");
+    }
+    FormFieldSpec field = requireField(spec, condition.path("field").asText());
+    String column = columnOf(field);
     if (condition.hasNonNull("notContains")) {
-      return literal(condition.path("notContains").asText()) + " = any(" + field + ")";
+      return literal(condition.path("notContains").asText()) + " = any(" + column + ")";
     }
     if (condition.has("equals")) {
       JsonNode value = condition.path("equals");
       if (value.isBoolean()) {
-        return value.asBoolean() ? "not " + field : field;
+        return value.asBoolean() ? "not " + column : column;
       }
-      return "not (" + field + " = " + literal(value.asText()) + ")";
+      return "not (" + column + " = " + literal(value.asText()) + ")";
     }
     if (condition.hasNonNull("contains")) {
-      return "not (" + literal(condition.path("contains").asText()) + " = any(" + field + "))";
+      return "not (" + literal(condition.path("contains").asText()) + " = any(" + column + "))";
     }
     throw new IllegalArgumentException("Unsupported negated form condition: " + condition);
   }

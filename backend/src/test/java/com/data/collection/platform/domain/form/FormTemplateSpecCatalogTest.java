@@ -61,7 +61,8 @@ class FormTemplateSpecCatalogTest {
         .contains("cause_keys text[] not null")
         .contains(
             "check (cardinality(cause_keys) >= 1 and cardinality(cause_keys) <= 24)")
-        .contains("check (not ('NONE' = any(affected_kinds) and cardinality(affected_kinds) > 1))")
+        .contains("check (not ('NONE' = any(affected_kinds) and ('KNOWN' = any(affected_kinds)"
+            + " or 'NEW' = any(affected_kinds))))")
         .contains("check (not ('KNOWN' = any(affected_kinds)) or (known_affected_functions is not null")
         .contains("check (('KNOWN' = any(affected_kinds)) or known_affected_functions is null)")
         .contains("relation_table_updated varchar(16) not null");

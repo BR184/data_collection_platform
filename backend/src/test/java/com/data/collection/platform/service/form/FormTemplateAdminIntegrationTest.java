@@ -3,6 +3,7 @@ package com.data.collection.platform.service.form;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.exception.FormConflictException;
 import com.data.collection.platform.domain.form.FormTemplateSpec;
 import com.data.collection.platform.domain.form.FormTemplateSpecCatalog;
@@ -267,6 +268,111 @@ class FormTemplateAdminIntegrationTest {
     assertThat(draft.revision()).isEqualTo(2);
     assertThat(draft.versionEvidence()).isNull();
     assertThat(draft.versionLabel()).isNull();
+  }
+
+  @Test
+  void shouldPublishTypedConditionsAndEnforceFrozenMutualSet() {
+    long scopeId = createScope("typed-conditions");
+    ObjectNode spec = customConditionSpec("B");
+    boundDraft(scopeId, spec, "CC2026R1");
+    FormAdminViews.PublicationView publication = publish(scopeId, "CC2026R1");
+    long versionId = publication.toVersionId();
+
+    ObjectNode allowedCombination = customReplyFields("A", "C");
+    FormCreateResponse allowed =
+        createCustomReply(scopeId, versionId, allowedCombination, UUID.randomUUID().toString());
+    assertThat(allowed.outcome()).isEqualTo("CREATED");
+    assertThat(allowed.record().fields().get("customA")).isEqualTo(List.of("A", "C"));
+
+    ObjectNode otherAllowed = customReplyFields("B", "C");
+    assertThat(
+            createCustomReply(scopeId, versionId, otherAllowed, UUID.randomUUID().toString())
+                .outcome())
+        .isEqualTo("CREATED");
+
+    ObjectNode conflict = customReplyFields("A", "B");
+    assertThatThrownBy(
+            () ->
+                createCustomReply(scopeId, versionId, conflict, UUID.randomUUID().toString()))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("互斥");
+
+    ObjectNode numericAllowed = issueReplyFields();
+    numericAllowed.set("customA", array("B", "C"));
+    numericAllowed.put("hasResidualImpact", true);
+    numericAllowed.put("residualImpactDetail", "已处理");
+    numericAllowed.put("customCount", 0);
+    numericAllowed.put("customFlag", false);
+    FormCreateResponse numeric =
+        createCustomReply(scopeId, versionId, numericAllowed, UUID.randomUUID().toString());
+    assertThat(numeric.outcome()).isEqualTo("CREATED");
+    assertThat(numeric.record().fields().get("customCount")).isEqualTo(0);
+
+    ObjectNode numericMissing = numericAllowed.deepCopy();
+    numericMissing.putNull("customCount");
+    assertThatThrownBy(
+            () ->
+                createCustomReply(
+                    scopeId, versionId, numericMissing, UUID.randomUUID().toString()))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("自定义数量");
+
+    ObjectNode booleanMissing = customReplyFields("B", "C");
+    booleanMissing.putNull("customFlag");
+    assertThatThrownBy(
+            () ->
+                createCustomReply(
+                    scopeId, versionId, booleanMissing, UUID.randomUUID().toString()))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("自定义开关");
+
+    ObjectNode booleanFalse = customReplyFields("B", "C");
+    booleanFalse.put("customFlag", false);
+    assertThat(
+            createCustomReply(scopeId, versionId, booleanFalse, UUID.randomUUID().toString())
+                .outcome())
+        .isEqualTo("CREATED");
+  }
+
+  @Test
+  void shouldPreserveRecordsWhenConditionChangeInvalidatesOldCombination() {
+    long scopeId = createScope("condition-migration");
+    boundDraft(scopeId, customConditionSpec("B"), "CC2026R1");
+    FormAdminViews.PublicationView first = publish(scopeId, "CC2026R1");
+
+    FormCreateResponse conflicting =
+        createCustomReply(
+            scopeId,
+            first.toVersionId(),
+            customReplyFields("A", "C"),
+            UUID.randomUUID().toString());
+    FormCreateResponse unaffected =
+        createCustomReply(
+            scopeId,
+            first.toVersionId(),
+            customReplyFields("B", "C"),
+            UUID.randomUUID().toString());
+
+    boundDraft(scopeId, customConditionSpec("C"), "CC2026R2");
+    FormAdminViews.PublicationView second = publish(scopeId, "CC2026R2");
+    String recordTable = "form_s" + scopeId + "_v" + second.toVersionId() + "_records";
+
+    Map<String, Object> flagged =
+        jdbcTemplate.queryForMap(
+            "select legacy_incomplete, legacy_missing_fields, custom_a from "
+                + recordTable
+                + " where id = ?",
+            Long.parseLong(conflicting.record().id()));
+    assertThat(flagged.get("legacy_incomplete")).isEqualTo(true);
+    assertThat(String.valueOf(flagged.get("legacy_missing_fields"))).contains("custom_a");
+    assertThat(String.valueOf(flagged.get("custom_a"))).contains("A").contains("C");
+
+    Map<String, Object> preserved =
+        jdbcTemplate.queryForMap(
+            "select legacy_incomplete, custom_a from " + recordTable + " where id = ?",
+            Long.parseLong(unaffected.record().id()));
+    assertThat(preserved.get("legacy_incomplete")).isEqualTo(false);
+    assertThat(String.valueOf(preserved.get("custom_a"))).contains("B").contains("C");
   }
 
   @Test
@@ -883,6 +989,95 @@ class FormTemplateAdminIntegrationTest {
         requestKey,
         false,
         toFields(fields));
+  }
+
+  private ObjectNode customConditionSpec(String mutualConflict) {
+    ObjectNode spec = seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY);
+    ArrayNode fields = (ArrayNode) spec.get("fields");
+
+    ObjectNode tags = fields.addObject();
+    tags.put("name", "custom_a");
+    tags.put("apiKey", "customA");
+    tags.put("label", "自定义多选");
+    tags.put("type", "enum-array");
+    tags.put("control", "checkbox");
+    tags.put("required", false);
+    ArrayNode tagOptions = tags.putArray("options");
+    for (String value : List.of("A", "B", "C")) {
+      ObjectNode option = tagOptions.addObject();
+      option.put("value", value);
+      option.put("label", "选项" + value);
+    }
+    tags.putObject("storage").put("column", "custom_a").put("columnType", "text[]");
+
+    ObjectNode count = fields.addObject();
+    count.put("name", "custom_count");
+    count.put("apiKey", "customCount");
+    count.put("label", "自定义数量");
+    count.put("type", "integer");
+    count.put("control", "number");
+    count.put("required", false);
+    count.put("min", 0);
+    count.put("max", 100);
+    count.putObject("storage").put("column", "custom_count").put("columnType", "integer");
+
+    ObjectNode flag = fields.addObject();
+    flag.put("name", "custom_flag");
+    flag.put("apiKey", "customFlag");
+    flag.put("label", "自定义开关");
+    flag.put("type", "boolean");
+    flag.put("control", "switch");
+    flag.put("required", false);
+    flag.putObject("storage").put("column", "custom_flag").put("columnType", "boolean");
+
+    ArrayNode conditions = (ArrayNode) spec.get("conditions");
+    ObjectNode mutual = conditions.addObject();
+    mutual.put("type", "mutuallyExclusive");
+    mutual.put("field", "custom_a");
+    mutual.put("whenContains", "A");
+    mutual.putArray("withAnyOf").add(mutualConflict);
+
+    ObjectNode countCondition = conditions.addObject();
+    countCondition.put("type", "conditionalRequired");
+    countCondition.put("target", "custom_count");
+    countCondition.putObject("requiredWhen").put("field", "has_residual_impact").put("equals", true);
+    countCondition.putObject("clearWhen").put("field", "has_residual_impact").put("equals", false);
+
+    ObjectNode flagCondition = conditions.addObject();
+    flagCondition.put("type", "conditionalRequired");
+    flagCondition.put("target", "custom_flag");
+    flagCondition
+        .putObject("requiredWhen")
+        .put("field", "fix_status")
+        .put("equals", "RESOLVED");
+    return spec;
+  }
+
+  private ObjectNode customReplyFields(String... tags) {
+    ObjectNode fields = issueReplyFields();
+    fields.set("customA", array(tags));
+    fields.putNull("customCount");
+    fields.put("customFlag", false);
+    return fields;
+  }
+
+  private FormCreateResponse createCustomReply(
+      long scopeId, long versionId, ObjectNode fields, String requestKey) {
+    return formRecordService.create(
+        new FormCreateRequest(
+            GITLAB_URL,
+            PROJECT_ID,
+            "issue",
+            Long.toString(ISSUE_IID),
+            FormTemplateSpecCatalog.ISSUE_REPLY,
+            Long.toString(scopeId),
+            Long.toString(versionId),
+            requestKey,
+            false,
+            toFields(fields)),
+        admin,
+        "127.0.0.1",
+        "JUnit");
   }
 
   private ObjectNode issueReplyFields() {

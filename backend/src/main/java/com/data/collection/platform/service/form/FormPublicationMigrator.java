@@ -150,6 +150,7 @@ public class FormPublicationMigrator {
     List<String> sourceExpressions = new ArrayList<>(SYSTEM_COLUMNS);
     List<String> legacyConditions = new ArrayList<>();
     List<String> legacyNames = new ArrayList<>();
+    Map<String, String> fieldExpressions = new LinkedHashMap<>();
     for (FormFieldSpec field : targetSpec.fields()) {
       if (field.storage() == null) {
         throw new IllegalStateException("字段缺少物理绑定：" + field.name());
@@ -166,6 +167,7 @@ public class FormPublicationMigrator {
                   sourceTable);
       targetColumns.add(column);
       sourceExpressions.add(idExpression);
+      fieldExpressions.put(field.name(), idExpression);
       String nameExpression = null;
       if (field.storage().nameColumn() != null) {
         String nameColumn = requireColumn(field.storage().nameColumn());
@@ -196,8 +198,142 @@ public class FormPublicationMigrator {
       targetColumns.add(snapshot);
       sourceExpressions.add(snapshot);
     }
+    appendConditionLegacy(targetSpec, fieldExpressions, legacyConditions, legacyNames);
     applyLegacyIncomplete(targetColumns, sourceExpressions, legacyConditions, legacyNames);
     return new Projection(List.copyOf(targetColumns), List.copyOf(sourceExpressions));
+  }
+
+  /**
+   * 历史行不满足目标条件时标记待补齐，保留原值而不是让迁移失败。
+   *
+   * <p>条件变更可能收紧既有组合；迁移目标 DDL 以 {@code legacy_incomplete} 豁免，
+   * 编辑保存后按新条件重新校验并清除标记。快照条件在其模板内保持不变，不走此豁免。
+   */
+  private void appendConditionLegacy(
+      FormTemplateSpec targetSpec,
+      Map<String, String> fieldExpressions,
+      List<String> legacyConditions,
+      List<String> legacyNames) {
+    for (JsonNode condition : targetSpec.conditions()) {
+      String type = condition.path("type").asText();
+      if ("mutuallyExclusive".equals(type)) {
+        String field = condition.path("field").asText();
+        String expression = fieldExpressions.get(field);
+        if (expression == null) {
+          continue;
+        }
+        List<String> conflicts = new ArrayList<>();
+        condition.path("withAnyOf").forEach(node -> conflicts.add(node.asText()));
+        if (conflicts.isEmpty()) {
+          continue;
+        }
+        String whenExpression =
+            "coalesce(" + literal(condition.path("whenContains").asText())
+                + " = any((" + expression + ")), false)";
+        String conflictExpression =
+            conflicts.stream()
+                .map(
+                    value ->
+                        "coalesce("
+                            + literal(value)
+                            + " = any(("
+                            + expression
+                            + ")), false)")
+                .reduce((left, right) -> left + " or " + right)
+                .orElse("false");
+        legacyConditions.add("(" + whenExpression + " and (" + conflictExpression + "))");
+        legacyNames.add(field);
+        continue;
+      }
+      if (!"conditionalRequired".equals(type)) {
+        continue;
+      }
+      String snapshotColumn = condition.path("snapshotColumn").asText(null);
+      if (snapshotColumn != null) {
+        continue;
+      }
+      FormFieldSpec target = targetSpec.fieldByName(condition.path("target").asText()).orElse(null);
+      if (target == null) {
+        continue;
+      }
+      String targetExpression = fieldExpressions.get(target.name());
+      if (targetExpression == null) {
+        continue;
+      }
+      JsonNode requiredWhen = condition.path("requiredWhen");
+      String requiredExpression = sourceConditionExpression(requiredWhen, fieldExpressions);
+      if (requiredExpression != null) {
+        legacyConditions.add(
+            "(coalesce("
+                + requiredExpression
+                + ", false) and "
+                + emptyExpression(target, targetExpression)
+                + ")");
+        legacyNames.add(target.name());
+      }
+      JsonNode clearWhen = condition.path("clearWhen");
+      String clearExpression = sourceConditionExpression(clearWhen, fieldExpressions);
+      if (clearExpression != null) {
+        legacyConditions.add(
+            "(coalesce("
+                + clearExpression
+                + ", false) and ("
+                + targetExpression
+                + ") is not null)");
+        legacyNames.add(target.name());
+      }
+    }
+  }
+
+  private String sourceConditionExpression(
+      JsonNode condition, Map<String, String> fieldExpressions) {
+    if (condition == null || condition.isMissingNode() || !condition.isObject()) {
+      return null;
+    }
+    if (condition.hasNonNull("resourceSeverityLevel")) {
+      return null;
+    }
+    String expression = fieldExpressions.get(condition.path("field").asText());
+    if (expression == null) {
+      return null;
+    }
+    if (condition.hasNonNull("contains")) {
+      return literal(condition.path("contains").asText()) + " = any((" + expression + "))";
+    }
+    if (condition.hasNonNull("notContains")) {
+      return "not ("
+          + literal(condition.path("notContains").asText())
+          + " = any(("
+          + expression
+          + ")))";
+    }
+    if (condition.has("equals")) {
+      JsonNode value = condition.path("equals");
+      if (value.isBoolean()) {
+        return value.asBoolean() ? "(" + expression + ")" : "not (" + expression + ")";
+      }
+      return "(" + expression + ") = " + literal(value.asText());
+    }
+    return null;
+  }
+
+  private String emptyExpression(FormFieldSpec field, String expression) {
+    String columnType = field.storage() == null ? null : field.storage().resolvedColumnType();
+    if ("enum-array".equals(field.type()) || (columnType != null && columnType.endsWith("[]"))) {
+      return "coalesce(cardinality((" + expression + ")), 0) = 0";
+    }
+    boolean textual =
+        "string".equals(field.type())
+            || "enum".equals(field.type())
+            || (columnType != null
+                && (columnType.startsWith("varchar") || "text".equals(columnType)));
+    return textual
+        ? "coalesce(btrim((" + expression + ")), '') = ''"
+        : "(" + expression + ") is null";
+  }
+
+  private String literal(String value) {
+    return "'" + value.replace("'", "''") + "'";
   }
 
   /**

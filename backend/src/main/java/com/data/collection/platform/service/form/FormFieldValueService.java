@@ -177,7 +177,7 @@ public class FormFieldValueService {
     for (JsonNode condition : context.spec().conditions()) {
       String type = condition.path("type").asText();
       if ("mutuallyExclusive".equals(type)) {
-        applyMutuallyExclusive(condition, values, errors);
+        applyMutuallyExclusive(context, condition, values, errors);
       } else if ("conditionalRequired".equals(type)) {
         applyConditionalRequired(context, condition, values, snapshots, errors);
       }
@@ -202,8 +202,13 @@ public class FormFieldValueService {
   }
 
   private void applyMutuallyExclusive(
-      JsonNode condition, Map<String, NormalizedValue> values, List<String> errors) {
+      FormVersionContext context,
+      JsonNode condition,
+      Map<String, NormalizedValue> values,
+      List<String> errors) {
     String field = condition.path("field").asText();
+    String fieldLabel =
+        context.spec().fieldByName(field).map(this::label).orElse(field);
     String whenContains = condition.path("whenContains").asText();
     Set<String> withAnyOf = new HashSet<>();
     condition.path("withAnyOf").forEach(node -> withAnyOf.add(node.asText()));
@@ -218,7 +223,7 @@ public class FormFieldValueService {
         selected.stream().filter(String.class::isInstance).map(String.class::cast)
             .anyMatch(withAnyOf::contains);
     if (containsWhen && containsOther) {
-      errors.add("字段" + field + "的选项互斥");
+      errors.add("字段" + fieldLabel + "的选项互斥");
     }
   }
 
@@ -234,27 +239,28 @@ public class FormFieldValueService {
       errors.add("字段条件引用了未知目标：" + target);
       return;
     }
+    String targetLabel = context.spec().fieldByName(target).map(this::label).orElse(target);
     JsonNode requiredWhen = condition.path("requiredWhen");
     boolean required = !requiredWhen.isMissingNode() && evaluate(requiredWhen, context, values);
     String snapshotColumn = condition.path("snapshotColumn").asText(null);
     if (snapshotColumn != null && !snapshotColumn.isBlank()) {
       snapshots.put(snapshotColumn, required);
       if (required && targetValue.empty()) {
-        errors.add("字段" + target + "在当前资源条件下不能为空");
+        errors.add("字段" + targetLabel + "在当前资源条件下不能为空");
       }
       if (!required && targetValue.columnValue() != null) {
-        errors.add("字段" + target + "在当前资源条件下必须为空");
+        errors.add("字段" + targetLabel + "在当前资源条件下必须为空");
       }
       return;
     }
     if (required && targetValue.empty()) {
-      errors.add("字段" + target + "为当前条件下的必填项");
+      errors.add("字段" + targetLabel + "为当前条件下的必填项");
     }
     JsonNode clearWhen = condition.path("clearWhen");
     if (!clearWhen.isMissingNode()
         && evaluate(clearWhen, context, values)
         && targetValue.columnValue() != null) {
-      errors.add("字段" + target + "在当前条件下必须为空");
+      errors.add("字段" + targetLabel + "在当前条件下必须为空");
     }
   }
 
