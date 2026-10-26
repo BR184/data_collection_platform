@@ -8,7 +8,7 @@
 
 ## 2026-10-26 GitLab 小样本只读导出与空 GitLab 导入（本地验证完成，待经理审批）
 
-- [当前阶段] 分支 `codex/gitlab-sample-transfer-20261026`（基线 `bdb93267`，独立工作树 `D:/projects/dcp-gitlab-transfer-20261026`）已完成工具重构、正式测试、148 议题包导出、空 GitLab 16.11.10 导入和独立平台写回验收；待提交推送双远端并交经理审批。未经审批不连接生产、不取生产样本、不部署内网、不合入 main、不制造正式发布包。
+- [当前阶段] 分支 `codex/gitlab-sample-transfer-20261026`（基线 `bdb93267`，独立工作树 `D:/projects/dcp-gitlab-transfer-20261026`）已完成工具重构、正式测试、148 议题包导出、空 GitLab 16.11.10 导入和独立平台写回验收；已提交 `cb5db664` 并推送双远端（`origin`/`gitlab25` 回读一致），待经理审批。未经审批不连接生产、不取生产样本、不部署内网、不合入 main、不制造正式发布包。
 - [已完成] 导出/导入入口保持原脚本，新增共享契约 `gitlab_sample_contract.py` 与连接检查 `gitlab_sample_db.py`；单一目录包含清单、校验和、结构化脱敏清单和可重算 `package_id`；导出为单连接只读 `REPEATABLE READ`、窗口只筛根议题、全部评论与关联闭包、显式上限/超时/预算失败；导入只进带标记空目标、单事务、参数化 INSERT、引用种子按业务键映射、bootstrap 行显式核对、外键/多态/敏感表检查、重复导入拒绝与 `--replace-existing` 替换。黄金夹具抽取改用仅供夹具的 `golden_baseline_slice_export.py`，不是第二套传输入口。
 - [验证] 契约/导出/导入单元测试 32 项、真实 PostgreSQL 集成测试 8 项通过（含显式 ID、时间窗上限/空选样、全部 7 条评论与窗口前最早评论、源数据不变与写拒绝、重复/替换导入、损坏包、版本不符、错误目标、同库、语句超时、表权限不足）；最终 148 议题包 `package_id=0c81561d7cb53ce017c33680aad40655edb8fc9b8bcf566b55208379abf8108b`，导入报告外键孤儿 0、多态违规 0、敏感表为空；目标 GitLab 页面/API 验证议题 2251 全部评论/标签，新建议题、评论、加摘标签成功；独立平台全量事实 150 条，3 个真实写回作业全部 SUCCEEDED，第二轮无新增/变更作业。
 - [未验证/待审批] 仅支持已核实的 GitLab 16.11.10（`schema_migrations` 最大值 `20240702181131`）；其他版本、多项目真实容量、实例级邮件/SMTP 实际关闭、平台前端交互截图未验证。操作手册 `deploy/runbooks/gitlab-sample-transfer-runbook.md`，决策 D-32，计划 `docs/plans/gitlab-sample-transfer-20261026.md`，证据 `.tmp-logs/gitlab-sample-transfer-20261026/`（不入 Git）。
