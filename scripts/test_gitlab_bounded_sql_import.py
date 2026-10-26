@@ -48,6 +48,31 @@ class ImportUnitTest(unittest.TestCase):
         self.assertEqual(len(digest), 64)
         self.assertNotIn("example-token-value", digest)
 
+    def test_marker_binds_identity_and_schema(self) -> None:
+        token = "a" * 24
+        marker = {
+            "target_label": "target-a",
+            "token_sha256": importer.token_hash(token),
+            "identity_fingerprint": "identity-a",
+            "server_fingerprint": "server-a",
+            "schema_fingerprint": "schema-a",
+            "schema_migrations_max": "20240702181131",
+        }
+        identity = {"identity_fingerprint": "identity-a", "server_fingerprint": "server-a"}
+        schema = {"fingerprint": "schema-a", "schema_migrations_max": "20240702181131"}
+        args = mock.Mock(target_label="target-a", target_token_env="DCP_TEST_TOKEN")
+        with mock.patch.dict(os.environ, {"DCP_TEST_TOKEN": token}, clear=False), \
+                mock.patch.object(importer, "read_marker", return_value=marker):
+            self.assertIs(importer.verify_marker(None, args, identity, schema), marker)
+            with self.assertRaisesRegex(PackageError, "identity"):
+                importer.verify_marker(
+                    None, args, {**identity, "identity_fingerprint": "identity-b"}, schema
+                )
+            with self.assertRaisesRegex(PackageError, "schema fingerprint"):
+                importer.verify_marker(
+                    None, args, identity, {**schema, "fingerprint": "schema-b"}
+                )
+
     def test_organization_is_adopted_by_path(self) -> None:
         cursor = FakeCursor()
         maps: dict[str, dict[int, int]] = {}

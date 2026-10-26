@@ -25,6 +25,8 @@ def args(**overrides):
         "issue_ids": "",
         "issue_iids": "",
         "max_issues": 200,
+        "max_total_rows": 200_000,
+        "max_total_bytes": 64 * 1024 * 1024,
         "batch_size": 10,
         "batch_sleep_ms": 0,
         "statement_timeout_ms": 30000,
@@ -139,7 +141,9 @@ class ExportUnitTest(unittest.TestCase):
     def test_fetch_table_rows_paginates_sanitizes_and_uses_parameters(self) -> None:
         cursor = FakeCursor([[(2, "real.user", "真实姓名", "real@example.com", True, True, True)]])
         with mock.patch.object(exporter, "table_columns", return_value=["id", "username", "name", "email", "admin", "auditor", "external"]):
-            rows = exporter.fetch_table_rows(cursor, {"users": {2}}, "users", args(), 10**12)
+            rows = exporter.fetch_table_rows(
+                cursor, {"users": {2}}, "users", args(), exporter.ReadBudget(100, 10_000), 10**12
+            )
         self.assertEqual(rows[0]["username"], "sample-user-2")
         self.assertEqual(rows[0]["email"], "sample-user-2@example.invalid")
         self.assertFalse(rows[0]["admin"])
@@ -147,6 +151,73 @@ class ExportUnitTest(unittest.TestCase):
         self.assertIn("= any(%s)", data_sql)
         self.assertIn("> %s", data_sql)
         self.assertEqual(data_params[0], [2])
+
+    def test_paged_rows_uses_keyset_and_counts_budget(self) -> None:
+        cursor = FakeCursor([[(1,), (2,)], [(3,)]])
+        budget = exporter.ReadBudget(10, 10_000)
+        rows = list(
+            exporter.paged_rows(
+                cursor,
+                "select id from users where id = any(%s)",
+                ([1, 2, 3],),
+                ("id",),
+                (0,),
+                "users",
+                args(batch_size=2),
+                budget,
+                10**12,
+            )
+        )
+        self.assertEqual(rows, [(1,), (2,), (3,)])
+        self.assertEqual(budget.rows, 3)
+        sql = "\n".join(statement for statement, _ in cursor.executed)
+        self.assertIn("> (%s)", sql)
+        self.assertIn("limit %s", sql)
+
+    def test_read_budget_rejects_rows_and_bytes(self) -> None:
+        rows = exporter.ReadBudget(1, 10)
+        rows.add_row("users")
+        with self.assertRaisesRegex(SelectionError, "row budget"):
+            rows.add_row("users")
+        sizes = exporter.ReadBudget(10, 3)
+        sizes.add_bytes("notes", 3)
+        with self.assertRaisesRegex(SelectionError, "byte budget"):
+            sizes.add_bytes("notes", 1)
+
+    def test_paged_rows_aborts_before_truncating_large_association_set(self) -> None:
+        cursor = FakeCursor([[(1,), (2,)], [(3,), (4,)]])
+        budget = exporter.ReadBudget(3, 10_000)
+        with self.assertRaisesRegex(SelectionError, "row budget"):
+            list(
+                exporter.paged_rows(
+                    cursor,
+                    "select id from notes where noteable_id = any(%s)",
+                    ([41803],),
+                    ("id",),
+                    (0,),
+                    "notes",
+                    args(batch_size=2),
+                    budget,
+                    10**12,
+                )
+            )
+        self.assertEqual(budget.rows, 4)
+
+    def test_fetch_table_rows_rejects_deadline_expiry_after_last_page(self) -> None:
+        cursor = FakeCursor([[(1, "label")]])
+        times = iter([0.0, 0.0, 101.0])
+        with mock.patch.object(exporter, "clock", lambda: next(times)), mock.patch.object(
+            exporter, "table_columns", return_value=["id", "title"]
+        ):
+            with self.assertRaisesRegex(SelectionError, "after reading labels"):
+                exporter.fetch_table_rows(
+                    cursor,
+                    {"labels": {1}},
+                    "labels",
+                    args(batch_size=10),
+                    exporter.ReadBudget(100, 10_000),
+                    100.0,
+                )
 
     def test_build_manifest_records_scope_without_credentials(self) -> None:
         values = args(issue_ids="41803", max_issues=10)

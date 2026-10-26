@@ -14,7 +14,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -23,12 +25,18 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import psycopg2
+from psycopg2 import sql
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_EXPORT = ROOT / "scripts" / "gitlab_bounded_sql_export.py"
 SCRIPT_IMPORT = ROOT / "scripts" / "gitlab_bounded_sql_import.py"
+sys.path.insert(0, str(ROOT / "scripts"))
+import gitlab_bounded_sql_export as exporter  # noqa: E402
+import gitlab_bounded_sql_import as importer  # noqa: E402
+from gitlab_sample_contract import TABLE_ORDER  # noqa: E402
 
 
 def env(name: str) -> str:
@@ -101,6 +109,36 @@ def rewrite_manifest(manifest_path: Path, checksums_path: Path, mutate) -> None:
     checksums_path.write_text("\n".join(rewritten) + "\n", encoding="utf-8", newline="\n")
 
 
+class ControllableClock:
+    def __init__(self, value: float) -> None:
+        self.value = value
+
+    def __call__(self) -> float:
+        return self.value
+
+    def advance(self, seconds: float) -> None:
+        self.value += seconds
+
+
+class RecordingConnection:
+    """记录连接释放顺序的代理；psycopg2 连接本身不接受实例属性。"""
+
+    def __init__(self, connection, events: list[str]) -> None:
+        self._connection = connection
+        self._events = events
+
+    def __getattr__(self, name: str):
+        return getattr(self._connection, name)
+
+    def rollback(self) -> None:
+        self._events.append("rollback")
+        self._connection.rollback()
+
+    def close(self) -> None:
+        self._events.append("close")
+        self._connection.close()
+
+
 class GitlabSampleTransferIntegrationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -110,6 +148,8 @@ class GitlabSampleTransferIntegrationTest(unittest.TestCase):
         cls.target_env = target_env()
         cls.source = connect(cls.source_env)
         cls.target = connect(cls.target_env)
+        cls.source.autocommit = True
+        cls.target.autocommit = True
         cls.before = cls.snapshot_source()
         cls.package = cls.workdir / "package-41803"
         run(
@@ -446,6 +486,322 @@ class GitlabSampleTransferIntegrationTest(unittest.TestCase):
             expected=2,
         )
         self.assertIn("lacks access to required GitLab tables", failed.stderr)
+
+    def admin_connection(self):
+        environment = dict(self.target_env)
+        environment["PGDATABASE"] = "postgres"
+        return connect(environment)
+
+    def test_09_init_rejects_non_gitlab_and_nonempty_target(self) -> None:
+        label = env("GITLAB_SAMPLE_IT_TARGET_LABEL")
+        token = env("GITLAB_SAMPLE_IT_TARGET_TOKEN")
+        dbname = f"gl_sample_nongitlab_{os.getpid()}"
+        admin = self.admin_connection()
+        admin.autocommit = True
+        with admin.cursor() as cursor:
+            cursor.execute(sql.SQL("drop database if exists {}").format(sql.Identifier(dbname)))
+            cursor.execute(sql.SQL("create database {}").format(sql.Identifier(dbname)))
+        admin.close()
+        non_gitlab_env = dict(self.target_env)
+        non_gitlab_env["PGDATABASE"] = dbname
+        non_gitlab_env["DCP_TARGET_TOKEN"] = token
+        connection = connect(non_gitlab_env)
+        connection.autocommit = True
+        with connection.cursor() as cursor:
+            cursor.execute("create table business_rows(id integer primary key)")
+            cursor.execute("insert into business_rows values (1)")
+        connection.close()
+        try:
+            failed = run(
+                [
+                    sys.executable,
+                    str(SCRIPT_IMPORT),
+                    "--init-target",
+                    "--target-label",
+                    label,
+                    "--report",
+                    str(self.workdir / "nongitlab-init.json"),
+                ],
+                non_gitlab_env,
+                expected=2,
+            )
+            self.assertIn("Required GitLab tables", failed.stderr)
+            connection = connect(non_gitlab_env)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "select to_regclass('public.dcp_sample_import_target') is null, "
+                    "to_regclass('public.dcp_sample_import_journal') is null"
+                )
+                self.assertEqual(cursor.fetchone(), (True, True))
+                self.assertEqual(scalar(connection, "select count(*) from business_rows"), 1)
+            connection.close()
+        finally:
+            admin = self.admin_connection()
+            admin.autocommit = True
+            with admin.cursor() as cursor:
+                cursor.execute(sql.SQL("drop database if exists {}").format(sql.Identifier(dbname)))
+            admin.close()
+
+        nonempty_env = dict(self.source_env)
+        nonempty_env["DCP_TARGET_TOKEN"] = token
+        failed = run(
+            [
+                sys.executable,
+                str(SCRIPT_IMPORT),
+                "--init-target",
+                "--target-label",
+                label,
+                "--report",
+                str(self.workdir / "nonempty-init.json"),
+            ],
+            nonempty_env,
+            expected=2,
+        )
+        self.assertIn("not an empty test GitLab", failed.stderr)
+        with self.source.cursor() as cursor:
+            cursor.execute(
+                "select to_regclass('public.dcp_sample_import_target') is null, "
+                "to_regclass('public.dcp_sample_import_journal') is null"
+            )
+            self.assertEqual(cursor.fetchone(), (True, True))
+
+    def test_10_export_row_and_byte_budgets_fail_without_package(self) -> None:
+        cases = (
+            ("--max-total-rows", "1", "Total row budget"),
+            ("--max-total-bytes", "100", "Total byte budget"),
+        )
+        for option, value, message in cases:
+            output = self.workdir / ("budget-" + option.removeprefix("--"))
+            failed = run(
+                [
+                    sys.executable,
+                    str(SCRIPT_EXPORT),
+                    "--project-ids",
+                    "325",
+                    "--issue-ids",
+                    "41803",
+                    "--batch-size",
+                    "2",
+                    "--batch-sleep-ms",
+                    "0",
+                    option,
+                    value,
+                    "--output",
+                    str(output),
+                ],
+                self.source_env,
+                expected=2,
+            )
+            self.assertIn(message, failed.stderr)
+            self.assertFalse(output.exists())
+
+    def test_11_sequence_restart_rolls_back_with_old_rows(self) -> None:
+        connection = connect(self.target_env)
+        connection.autocommit = False
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("drop table if exists seq_probe")
+                cursor.execute("create table seq_probe(id bigserial primary key)")
+                cursor.execute(
+                    "insert into seq_probe(id) "
+                    "select nextval('seq_probe_id_seq') from generate_series(1, 1000)"
+                )
+                connection.commit()
+                self.assertEqual(scalar(connection, "select max(id) from seq_probe"), 1000)
+                importer.reset_sequence_for_table(cursor, "seq_probe", "id")
+                try:
+                    cursor.execute("select 1 / 0")
+                except psycopg2.Error:
+                    connection.rollback()
+                self.assertEqual(scalar(connection, "select max(id) from seq_probe"), 1000)
+                self.assertGreater(scalar(connection, "select nextval('seq_probe_id_seq')"), 1000)
+        finally:
+            connection.rollback()
+            with connection.cursor() as cursor:
+                cursor.execute("drop table if exists seq_probe")
+            connection.commit()
+            connection.close()
+
+    def test_12_commit_failure_restores_rows_marker_and_sequence(self) -> None:
+        label = env("GITLAB_SAMPLE_IT_TARGET_LABEL")
+        two_issue_package = self.workdir / "package-41803-41809"
+        run(
+            [
+                sys.executable,
+                str(SCRIPT_EXPORT),
+                "--project-ids",
+                "325",
+                "--issue-ids",
+                "41803,41809",
+                "--batch-size",
+                "2",
+                "--batch-sleep-ms",
+                "0",
+                "--output",
+                str(two_issue_package),
+            ],
+            self.source_env,
+        )
+        run(
+            [
+                sys.executable,
+                str(SCRIPT_IMPORT),
+                "--package",
+                str(two_issue_package),
+                "--target-label",
+                label,
+                "--replace-existing",
+                "--report",
+                str(self.workdir / "two-issue-import.json"),
+            ],
+            self.target_env,
+        )
+        two_manifest = json.loads((two_issue_package / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(scalar(self.target, "select count(*) from issues where id in (41803, 41809)"), 2)
+
+        connection = connect(self.target_env)
+        connection.autocommit = False
+        with connection.cursor() as cursor:
+            cursor.execute("drop trigger if exists probe_fail_commit on notes")
+            cursor.execute("drop function if exists probe_fail_commit()")
+            cursor.execute(
+                "create function probe_fail_commit() returns trigger language plpgsql as "
+                "$$ begin raise exception 'probe commit failure'; end $$"
+            )
+            cursor.execute(
+                "create constraint trigger probe_fail_commit after insert on notes "
+                "deferrable initially deferred for each row execute function probe_fail_commit()"
+            )
+        connection.commit()
+        try:
+            failed = run(
+                [
+                    sys.executable,
+                    str(SCRIPT_IMPORT),
+                    "--package",
+                    str(self.package),
+                    "--target-label",
+                    label,
+                    "--replace-existing",
+                    "--report",
+                    str(self.workdir / "commit-failure.json"),
+                ],
+                self.target_env,
+                expected=2,
+            )
+            self.assertIn("probe commit failure", failed.stderr)
+        finally:
+            with connection.cursor() as cursor:
+                cursor.execute("drop trigger if exists probe_fail_commit on notes")
+                cursor.execute("drop function if exists probe_fail_commit()")
+            connection.commit()
+
+        self.assertEqual(scalar(self.target, "select count(*) from issues where id in (41803, 41809)"), 2)
+        self.assertEqual(
+            scalar(self.target, f"select last_package_id from dcp_sample_import_target"),
+            two_manifest["package_id"],
+        )
+        maximum = scalar(self.target, "select max(id) from issues")
+        self.assertGreater(scalar(self.target, "select nextval('issues_id_seq')"), maximum)
+        self.assertEqual(scalar(self.target, "select count(*) from notes where noteable_id=41803"), 7)
+        connection.close()
+
+    def assert_exporter_connection_released(self) -> None:
+        self.assertEqual(
+            scalar(
+                self.source,
+                "select count(*) from pg_stat_activity "
+                "where application_name = 'gitlab_bounded_sql_export' and datname = current_database()",
+            ),
+            0,
+        )
+
+    def exporter_arguments(self, output: Path) -> list[str]:
+        return [
+            "gitlab_bounded_sql_export.py",
+            "--project-ids",
+            "325",
+            "--issue-ids",
+            "41803",
+            "--batch-size",
+            "2",
+            "--batch-sleep-ms",
+            "0",
+            "--output",
+            str(output),
+        ]
+
+    def test_13_export_timeout_mid_package_write_leaves_no_package(self) -> None:
+        output = self.workdir / "deadline-during-write"
+        clock = ControllableClock(1000.0)
+        events: list[str] = []
+        real_connect = exporter.connect
+        real_write = exporter.write_package
+
+        def connect(timeout: int, application_name: str):
+            return RecordingConnection(real_connect(timeout, application_name), events)
+
+        def write_with_late_deadline(*call_args, **call_kwargs):
+            events.append("write")
+            original = call_kwargs["deadline_check"]
+            calls = {"count": 0}
+
+            def deadline_check() -> None:
+                calls["count"] += 1
+                if calls["count"] == 3:
+                    clock.advance(10**6)
+                original()
+
+            call_kwargs["deadline_check"] = deadline_check
+            return real_write(*call_args, **call_kwargs)
+
+        stderr = io.StringIO()
+        with mock.patch.object(exporter, "clock", clock), mock.patch.object(exporter, "connect", connect), mock.patch.object(
+            exporter, "write_package", write_with_late_deadline
+        ), mock.patch.dict(os.environ, self.source_env), mock.patch.object(
+            sys, "argv", self.exporter_arguments(output)
+        ), contextlib.redirect_stderr(stderr):
+            with self.assertRaises(SystemExit) as raised:
+                exporter.main()
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("while writing package", stderr.getvalue())
+        self.assertFalse(output.exists())
+        self.assertLess(events.index("rollback"), events.index("write"))
+        self.assertIn("close", events)
+        self.assert_exporter_connection_released()
+
+    def test_14_export_timeout_after_last_page_leaves_no_package(self) -> None:
+        output = self.workdir / "deadline-after-last-page"
+        clock = ControllableClock(1000.0)
+        events: list[str] = []
+        real_connect = exporter.connect
+        real_fetch = exporter.fetch_table_rows
+
+        def connect(timeout: int, application_name: str):
+            return RecordingConnection(real_connect(timeout, application_name), events)
+
+        def fetch_then_expire(*call_args, **call_kwargs):
+            table = call_args[2]
+            rows = real_fetch(*call_args, **call_kwargs)
+            if table == TABLE_ORDER[-1]:
+                clock.advance(10**6)
+            return rows
+
+        stderr = io.StringIO()
+        with mock.patch.object(exporter, "clock", clock), mock.patch.object(exporter, "connect", connect), mock.patch.object(
+            exporter, "fetch_table_rows", fetch_then_expire
+        ), mock.patch.dict(os.environ, self.source_env), mock.patch.object(
+            sys, "argv", self.exporter_arguments(output)
+        ), contextlib.redirect_stderr(stderr):
+            with self.assertRaises(SystemExit) as raised:
+                exporter.main()
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("before package write", stderr.getvalue())
+        self.assertFalse(output.exists())
+        self.assertNotIn("write", events)
+        self.assertIn("rollback", events)
+        self.assertIn("close", events)
+        self.assert_exporter_connection_released()
 
 
 if __name__ == "__main__":

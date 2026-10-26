@@ -107,6 +107,15 @@ def token_hash(token: str) -> str:
     return sha256_bytes(token.encode("utf-8"))
 
 
+def control_tables_exist(cur: Any) -> tuple[bool, bool]:
+    cur.execute(
+        "select to_regclass(%s) is not null, to_regclass(%s) is not null",
+        (f"public.{MARKER_TABLE}", f"public.{JOURNAL_TABLE}"),
+    )
+    marker, journal = cur.fetchone()
+    return bool(marker), bool(journal)
+
+
 def ensure_control_tables(cur: Any) -> None:
     cur.execute(
         f"""
@@ -114,6 +123,11 @@ def ensure_control_tables(cur: Any) -> None:
             marker_key text primary key,
             target_label text not null,
             token_sha256 char(64) not null,
+            identity_fingerprint char(64) not null,
+            server_fingerprint char(64) not null,
+            schema_fingerprint char(64) not null,
+            schema_migrations_max text not null,
+            initialized_at timestamptz not null,
             last_package_id text,
             imported_at timestamptz,
             tool_version text not null
@@ -134,7 +148,17 @@ def ensure_control_tables(cur: Any) -> None:
 
 def read_marker(cur: Any) -> dict[str, Any] | None:
     cur.execute(
-        f"select target_label, token_sha256, last_package_id, imported_at, tool_version "
+        "select column_name from information_schema.columns "
+        "where table_schema = 'public' and table_name = %s",
+        (MARKER_TABLE,),
+    )
+    columns = {row[0] for row in cur.fetchall()}
+    if "identity_fingerprint" not in columns:
+        raise PackageError("Target marker schema is outdated; rebuild the target before importing")
+    cur.execute(
+        f"select target_label, token_sha256, identity_fingerprint, server_fingerprint, "
+        f"schema_fingerprint, schema_migrations_max, last_package_id, imported_at, "
+        f"initialized_at, tool_version "
         f"from {quote_ident(MARKER_TABLE)} where marker_key = %s",
         (MARKER_KEY,),
     )
@@ -144,25 +168,54 @@ def read_marker(cur: Any) -> dict[str, Any] | None:
     return {
         "target_label": row[0],
         "token_sha256": row[1],
-        "last_package_id": row[2],
-        "imported_at": row[3],
-        "tool_version": row[4],
+        "identity_fingerprint": row[2],
+        "server_fingerprint": row[3],
+        "schema_fingerprint": row[4],
+        "schema_migrations_max": row[5],
+        "last_package_id": row[6],
+        "imported_at": row[7],
+        "initialized_at": row[8],
+        "tool_version": row[9],
     }
 
 
-def init_target(cur: Any, args: argparse.Namespace, identity: Mapping[str, Any]) -> None:
+def init_target(
+    cur: Any,
+    args: argparse.Namespace,
+    identity: Mapping[str, Any],
+    schema: Mapping[str, Any],
+) -> None:
+    marker_exists, journal_exists = control_tables_exist(cur)
+    if marker_exists or journal_exists:
+        raise PackageError("Target control tables already exist; rebuild the target before initializing")
     ensure_control_tables(cur)
     if read_marker(cur):
         raise PackageError("Target marker already exists; refusing to overwrite it")
     cur.execute(
         f"insert into {quote_ident(MARKER_TABLE)} "
-        "(marker_key, target_label, token_sha256, tool_version) values (%s, %s, %s, %s)",
-        (MARKER_KEY, args.target_label, token_hash(target_token(args)), TOOL_VERSION),
+        "(marker_key, target_label, token_sha256, identity_fingerprint, server_fingerprint, "
+        "schema_fingerprint, schema_migrations_max, initialized_at, tool_version) "
+        "values (%s, %s, %s, %s, %s, %s, %s, current_timestamp, %s)",
+        (
+            MARKER_KEY,
+            args.target_label,
+            token_hash(target_token(args)),
+            identity["identity_fingerprint"],
+            identity["server_fingerprint"],
+            schema["fingerprint"],
+            schema["schema_migrations_max"],
+            TOOL_VERSION,
+        ),
     )
     print(f"target marker initialized: label={args.target_label}, database={identity['database']}")
 
 
-def verify_marker(cur: Any, args: argparse.Namespace) -> dict[str, Any]:
+def verify_marker(
+    cur: Any,
+    args: argparse.Namespace,
+    identity: Mapping[str, Any],
+    schema: Mapping[str, Any],
+) -> dict[str, Any]:
     marker = read_marker(cur)
     if not marker:
         raise PackageError("Target marker is missing; run --init-target on the intended disposable target first")
@@ -170,6 +223,14 @@ def verify_marker(cur: Any, args: argparse.Namespace) -> dict[str, Any]:
         raise PackageError("Target label does not match the initialized marker")
     if marker["token_sha256"] != token_hash(target_token(args)):
         raise PackageError("Target token does not match the initialized marker")
+    if marker["identity_fingerprint"] != identity["identity_fingerprint"]:
+        raise PackageError("Target identity does not match the initialized marker")
+    if marker["server_fingerprint"] != identity["server_fingerprint"]:
+        raise PackageError("Target server does not match the initialized marker")
+    if marker["schema_fingerprint"] != schema["fingerprint"]:
+        raise PackageError("Target schema fingerprint does not match the initialized marker")
+    if marker["schema_migrations_max"] != schema["schema_migrations_max"]:
+        raise PackageError("Target schema migration does not match the initialized marker")
     return marker
 
 
@@ -485,7 +546,31 @@ def ensure_support_rows(cur: Any) -> dict[str, int]:
     return created
 
 
+def quote_sequence_name(name: str) -> str:
+    return ".".join(quote_ident(part) for part in name.split("."))
+
+
+def reset_sequence_for_table(cur: Any, table: str, column: str) -> bool:
+    """把单个序列的事务安全重置为当前最大编号之后；无序列返回 False。"""
+    cur.execute("select pg_get_serial_sequence(%s, %s)", (table, column))
+    sequence = cur.fetchone()[0]
+    if not sequence:
+        return False
+    cur.execute("select seqmin from pg_sequence where seqrelid = %s::regclass", (sequence,))
+    minimum_row = cur.fetchone()
+    sequence_min = int(minimum_row[0]) if minimum_row and minimum_row[0] is not None else 1
+    cur.execute(f"select max({quote_ident(column)}) from {quote_ident(table)}")
+    maximum = cur.fetchone()[0]
+    restart_with = sequence_min if maximum is None else max(int(maximum) + 1, sequence_min)
+    cur.execute(
+        f"alter sequence {quote_sequence_name(sequence)} restart with %s",
+        (restart_with,),
+    )
+    return True
+
+
 def reset_sequences(cur: Any) -> None:
+    """用事务可回滚的 ALTER SEQUENCE RESTART 校正序列，避免 setval 越过回滚边界。"""
     cur.execute(
         """
         select table_name, column_name
@@ -497,21 +582,7 @@ def reset_sequences(cur: Any) -> None:
         (list(TABLE_ORDER),),
     )
     for table, column in cur.fetchall():
-        cur.execute("select pg_get_serial_sequence(%s, %s)", (table, column))
-        sequence = cur.fetchone()[0]
-        if not sequence:
-            continue
-        cur.execute("select seqmin from pg_sequence where seqrelid = %s::regclass", (sequence,))
-        minimum_row = cur.fetchone()
-        sequence_min = int(minimum_row[0]) if minimum_row and minimum_row[0] is not None else 1
-        cur.execute(
-            f"select max({quote_ident(column)}) from {quote_ident(table)}"
-        )
-        maximum = cur.fetchone()[0]
-        if maximum is None:
-            cur.execute("select setval(%s::regclass, %s, false)", (sequence, sequence_min))
-        else:
-            cur.execute("select setval(%s::regclass, %s, true)", (sequence, max(int(maximum), sequence_min)))
+        reset_sequence_for_table(cur, table, column)
 
 
 def verify_foreign_keys(cur: Any) -> list[dict[str, Any]]:
@@ -666,29 +737,47 @@ def write_report(path: Path, report: Mapping[str, Any]) -> None:
 def main() -> int:
     args = parse_args()
     started = time.monotonic()
-    target_token(args)
+    try:
+        target_token(args)
+    except PackageError as error:
+        fail(str(error))
     if args.init_target:
-        conn = connect(args.connect_timeout, "gitlab_bounded_sql_import")
+        conn = None
         try:
+            conn = connect(args.connect_timeout, "gitlab_bounded_sql_import")
             cur = conn.cursor()
             identity = server_identity(cur)
-            init_target(cur, args, identity)
+            schema = inspect_schema(cur)
+            state = inspect_target_state(cur)
+            if state["violations"]:
+                raise PackageError(
+                    "Target is not an empty test GitLab; refusing to initialize. "
+                    f"Violations: {state['violations'][:10]}"
+                )
+            init_target(cur, args, identity, schema)
             conn.commit()
             report = {
                 "status": "TARGET_INITIALIZED",
                 "tool_version": TOOL_VERSION,
                 "target": identity,
+                "schema": schema,
                 "target_label": args.target_label,
                 "initialized_at": datetime.now(timezone.utc).isoformat(),
             }
             write_report(Path(args.report), report)
             print(json.dumps(report, ensure_ascii=False, indent=2))
             return 0
-        except Exception:
-            conn.rollback()
-            raise
+        except PackageError as error:
+            if conn is not None:
+                conn.rollback()
+            fail(str(error))
+        except Exception as error:
+            if conn is not None:
+                conn.rollback()
+            fail(str(error))
         finally:
-            conn.close()
+            if conn is not None:
+                conn.close()
     package = Path(args.package)
     try:
         manifest, rows = load_package(package)
@@ -701,8 +790,9 @@ def main() -> int:
         fail("Package contains no selected issues")
     if (manifest.get("checks") or {}).get("association_check") != "PASS":
         fail("Package association check is not PASS")
-    conn = connect(args.connect_timeout, "gitlab_bounded_sql_import")
+    conn = None
     try:
+        conn = connect(args.connect_timeout, "gitlab_bounded_sql_import")
         conn.autocommit = False
         cur = conn.cursor()
         cur.execute("set local statement_timeout = %s", (args.statement_timeout_ms,))
@@ -711,9 +801,11 @@ def main() -> int:
         identity = server_identity(cur)
         if identity["identity_fingerprint"] == source_identity.get("identity_fingerprint"):
             raise PackageError("Source and target are the same database")
-        ensure_control_tables(cur)
-        marker = verify_marker(cur, args)
+        marker_exists, journal_exists = control_tables_exist(cur)
+        if not marker_exists or not journal_exists:
+            raise PackageError("Target marker is missing; run --init-target on the intended disposable target first")
         schema = inspect_schema(cur)
+        marker = verify_marker(cur, args, identity, schema)
         expected_schema = manifest.get("schema") or {}
         if schema["schema_migrations_max"] != expected_schema.get("schema_migrations_max"):
             raise PackageError(
@@ -801,13 +893,13 @@ def main() -> int:
         print(json.dumps({"status": "IMPORTED", "package_id": package_id, "rows": results}, ensure_ascii=False, indent=2))
         return 0
     except Exception as error:
-        conn.rollback()
-        if isinstance(error, PackageError):
-            fail(str(error))
+        if conn is not None:
+            conn.rollback()
         fail(str(error))
         return 2
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
 
 
 if __name__ == "__main__":

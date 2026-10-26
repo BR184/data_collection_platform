@@ -37,7 +37,11 @@ def manifest(selection: dict | None = None) -> dict:
         "format": FORMAT,
         "tool_version": "test",
         "created_at": "2026-10-26T12:00:00+08:00",
-        "source": {"identity_fingerprint": "source-identity", "database": "source"},
+        "source": {
+            "identity_fingerprint": "source-identity",
+            "server_fingerprint": "source-server",
+            "database": "source",
+        },
         "schema": {
             "gitlab_version": "16.11.10",
             "schema_migrations_max": "20240702181131",
@@ -230,6 +234,60 @@ class PackageContractTest(unittest.TestCase):
             rewrite_manifest(package, lambda value: value["selection"].update({"issue_ids": [8]}))
             with self.assertRaisesRegex(PackageError, "package_id"):
                 load_package(package)
+
+    def test_source_identity_tampering_is_rejected_by_package_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = build_package(Path(temporary) / "sample", {"issues": [{"id": 7}]})
+            rewrite_manifest(
+                package,
+                lambda value: value["source"].update({"identity_fingerprint": "other-identity"}),
+            )
+            with self.assertRaisesRegex(PackageError, "package_id"):
+                load_package(package)
+
+    def test_schema_fingerprint_tampering_is_rejected_by_package_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = build_package(Path(temporary) / "sample", {"issues": [{"id": 7}]})
+            rewrite_manifest(
+                package,
+                lambda value: value["schema"].update({"fingerprint": "other-schema"}),
+            )
+            with self.assertRaisesRegex(PackageError, "package_id"):
+                load_package(package)
+
+    def test_write_package_deadline_removes_partial_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "sample"
+            calls = 0
+
+            def deadline_check() -> None:
+                nonlocal calls
+                calls += 1
+                if calls >= 2:
+                    raise PackageError("deadline exceeded")
+
+            with self.assertRaisesRegex(PackageError, "deadline"):
+                write_package(
+                    output,
+                    manifest(),
+                    {"issues": [{"id": 7}]},
+                    table_columns(),
+                    deadline_check=deadline_check,
+                )
+            self.assertFalse(output.exists())
+
+    def test_write_package_byte_budget_removes_partial_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "sample"
+            with self.assertRaisesRegex(PackageError, "byte budget"):
+                write_package(
+                    output,
+                    manifest(),
+                    {"issues": [{"id": 7}]},
+                    table_columns(),
+                    byte_limit=1,
+                )
+            self.assertFalse(output.exists())
 
     def test_unsafe_identifiers_are_rejected(self) -> None:
         for value in ("users; drop table x", "users--", "1users", "users name"):

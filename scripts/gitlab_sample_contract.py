@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 FORMAT = "dcp-gitlab-sample/v1"
 TOOL_VERSION = "1.0.0"
@@ -30,6 +30,10 @@ SUPPORTED_SCHEMA_MIGRATIONS = {
 }
 MAX_ISSUES_HARD_LIMIT = 500
 DEFAULT_MAX_ISSUES = 200
+DEFAULT_MAX_TOTAL_ROWS = 200_000
+MAX_TOTAL_ROWS_HARD_LIMIT = 1_000_000
+DEFAULT_MAX_TOTAL_BYTES = 64 * 1024 * 1024
+MAX_TOTAL_BYTES_HARD_LIMIT = 512 * 1024 * 1024
 DEFAULT_BATCH_SIZE = 200
 DEFAULT_BATCH_SLEEP_MS = 100
 DEFAULT_STATEMENT_TIMEOUT_MS = 30_000
@@ -331,8 +335,14 @@ def table_spec(table: str) -> TableSpec:
         raise PackageError(f"Unknown package table: {table}") from error
 
 
-def package_id_for(selection: Mapping[str, Any], table_hashes: Mapping[str, str]) -> str:
-    material = canonical_json({"selection": selection, "tables": table_hashes})
+def package_id_for(
+    selection: Mapping[str, Any],
+    table_hashes: Mapping[str, str],
+    metadata: Mapping[str, Any] | None = None,
+) -> str:
+    material = canonical_json(
+        {"selection": selection, "tables": table_hashes, "metadata": metadata or {}}
+    )
     return sha256_bytes(material.encode("utf-8"))
 
 
@@ -368,6 +378,8 @@ def write_package(
     manifest: dict[str, Any],
     rows: Mapping[str, Sequence[Mapping[str, Any]]],
     columns: Mapping[str, Sequence[str]],
+    deadline_check: Callable[[], None] | None = None,
+    byte_limit: int | None = None,
 ) -> Path:
     """原子写入目录包：数据、清单、校验和全部成功后才改名为最终目录。"""
     output = output.resolve()
@@ -380,12 +392,21 @@ def write_package(
         data_dir.mkdir()
         table_entries: list[dict[str, Any]] = []
         table_hashes: dict[str, str] = {}
+        total_bytes = 0
         for table in TABLE_ORDER:
+            if deadline_check:
+                deadline_check()
             table_rows = rows.get(table, [])
             table_columns = list(columns[table])
             table_path = data_dir / f"{table}.jsonl"
             count = write_jsonl(table_path, table_rows, table_columns)
             digest = sha256_file(table_path)
+            total_bytes += table_path.stat().st_size
+            if byte_limit is not None and total_bytes > byte_limit:
+                raise PackageError(
+                    f"Total byte budget exceeded while writing package: "
+                    f"bytes={total_bytes}, limit={byte_limit}"
+                )
             table_hashes[table] = digest
             table_entries.append(
                 {
@@ -396,8 +417,19 @@ def write_package(
                     "sha256": digest,
                 }
             )
+            if deadline_check:
+                deadline_check()
         manifest = dict(manifest)
-        manifest["package_id"] = package_id_for(manifest["selection"], table_hashes)
+        manifest["package_id"] = package_id_for(
+            manifest["selection"],
+            table_hashes,
+            {
+                "format": manifest.get("format"),
+                "tool_version": manifest.get("tool_version"),
+                "source": manifest.get("source"),
+                "schema": manifest.get("schema"),
+            },
+        )
         manifest["tables"] = table_entries
         manifest["status"] = "COMPLETE"
         manifest_path = temporary / "manifest.json"
@@ -408,7 +440,22 @@ def write_package(
         checksums = [f"{sha256_file(manifest_path)}  manifest.json"]
         checksums.extend(f"{entry['sha256']}  {entry['file']}" for entry in table_entries)
         (temporary / "CHECKSUMS.sha256").write_text("\n".join(checksums) + "\n", encoding="utf-8", newline="\n")
+        if deadline_check:
+            deadline_check()
+        if byte_limit is not None and total_bytes > byte_limit:
+            raise PackageError(
+                f"Total byte budget exceeded while writing package: "
+                f"bytes={total_bytes}, limit={byte_limit}"
+            )
         os.replace(temporary, output)
+        try:
+            if deadline_check:
+                deadline_check()
+        except Exception:
+            import shutil
+
+            shutil.rmtree(output, ignore_errors=True)
+            raise
         return output
     except Exception:
         if temporary.exists():
@@ -456,7 +503,12 @@ def load_package(package: Path) -> tuple[dict[str, Any], dict[str, list[dict[str
         raise PackageError(f"Unsupported package format: {manifest.get('format')!r}")
     if manifest.get("status") != "COMPLETE":
         raise PackageError("Package is not COMPLETE")
-    schema = manifest.get("schema") or {}
+    source = manifest.get("source")
+    if not isinstance(source, Mapping) or not source.get("identity_fingerprint") or not source.get("server_fingerprint"):
+        raise PackageError("Manifest source identity is missing")
+    schema = manifest.get("schema")
+    if not isinstance(schema, Mapping) or not schema.get("fingerprint"):
+        raise PackageError("Manifest schema fingerprint is missing")
     resolve_schema_version(str(schema.get("schema_migrations_max", "")))
     entries = manifest.get("tables")
     if not isinstance(entries, list):
@@ -471,10 +523,19 @@ def load_package(package: Path) -> tuple[dict[str, Any], dict[str, list[dict[str
     if not isinstance(selection, Mapping):
         raise PackageError("Manifest selection is missing")
     expected_package_id = package_id_for(
-        selection, {entry["name"]: entry["sha256"] for entry in entries}
+        selection,
+        {entry["name"]: entry["sha256"] for entry in entries},
+        {
+            "format": manifest.get("format"),
+            "tool_version": manifest.get("tool_version"),
+            "source": source,
+            "schema": schema,
+        },
     )
     if manifest.get("package_id") != expected_package_id:
-        raise PackageError("package_id does not match the selection and table checksums")
+        raise PackageError(
+            "package_id does not match selection, source identity, schema and table checksums"
+        )
     decoded: dict[str, list[dict[str, Any]]] = {}
     for entry in entries:
         table = entry["name"]
