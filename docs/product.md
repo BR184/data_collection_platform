@@ -72,7 +72,7 @@
 
 缺陷原因真实多选保存，Wiki合规在原门槛内检查具体原因唯一性，0项或多于1项标异常，不自动截断或猜主因；统计仍使用既有原因个数口径。版本留存不改变这项业务裁定，见[D-30](decisions.md#d-30-缺陷原因采集与合规判定分层)。
 
-完整设计见[方案v6.0](plans/unified-form-system-plan-20261009.md)，管理页项目选择/命名/最短流程的功能设计见[N0 §11](plans/v6-n0-technical-admission-20261027.md#11-s1-管理页功能设计合同本轮只设计不改-frontend)。业务设计已吸收，新版尚未实施；[N0技术准入](plans/v6-n0-technical-admission-20261027.md#n0-second-review)二审为修改后重审，II-01—07整改稿待三审。W4仅冻结v5.1目标通过，N1/W5及上线切换未准入；精确阶段状态归progress及执行单，不能把旧版测试或本文档更新当作新版交付。
+完整设计见[方案v6.0](plans/unified-form-system-plan-20261009.md)，管理页项目选择/命名/最短流程的功能设计见[N0 §11](plans/v6-n0-technical-admission-20261027.md#11-s1-管理页功能设计合同本轮只设计不改-frontend)。业务设计已吸收，新版尚未实施；[N0技术准入](plans/v6-n0-technical-admission-20261027.md#n0-second-review)三审为修改后重审；剩余关闭条件归[N0三审](plans/v6-n0-technical-admission-20261027.md#n0-third-review)。W4仅冻结v5.1目标通过，N1/W5及上线切换未准入；精确阶段状态归progress及执行单，不能把旧版测试或本文档更新当作新版交付。
 
 ### 系统测试
 
