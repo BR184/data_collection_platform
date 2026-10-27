@@ -316,12 +316,19 @@ guard test must fail before release.
 
 ### 1. 老平台停写
 
-1. 停掉老平台定时入口 `CCProductScheduleTask -> IssueServiceImpl.updateIssueDelayLabels`
-   （约每小时无条件覆盖式写回），并确认没有部署级补偿、手工任务或外部脚本仍调用
-   `setIssueLabels` 写这两个标签。
-2. 停写后至少观察两个完整周期，确认目标议题的两个延期标签不再变化；只停 UI 或只关闭页面
-   开关不算停写，老平台该写回没有运行期开关。
-3. 保留老平台其它采集、代码走查和页面功能；本轮不修改老平台仓库或生产环境。
+1. 在老平台统一出口`IssueServiceImpl.updateIssueDelayLabels(SpiderIssueData issue)`停写：保留
+   `@Override`、方法签名和`IssueService`接口契约，把整个实现体改为空操作，或注释原实现体。
+   不删除方法声明，也不只注释小时任务调用。已核对三个调用方均汇入此方法：
+   `CCProductScheduleTask`小时任务、`IssueAnalysisController.updateSingleIssueLabelByIssueId`
+   单议题手工接口、`IssueAnalysisController.updateIssueLabelsByProjectId`项目批量接口。
+   该方法负责标签读取/差异处理/发送，不承担数据库采集保存、议题解析或延期计算，停用实现体
+   不会停止这些其它步骤。重新编译并部署老后端，确认旧进程及其在途请求已退出；只改源文件不生效。
+2. 不禁用通用`GitLabApiTool.setIssueLabels`或只改`replaceLabel`：前者还被其它标签替换业务调用，
+   后者不是可靠停写出口。另查部署补偿或外部脚本，避免绕过本出口写同两个标签。
+3. 新平台写回尚未开启且无人工改标的观察窗口内，至少观察两个完整周期，核查老后端不再发送
+   延期相关GitLab PUT。标签不变仅作辅助证据；旧调用方的成功计数仍会累计，不能据此认定仍写回。
+   只停UI或关闭页面不算停写，老平台该功能没有运行期开关。
+4. 保留老平台其它采集、代码走查和页面功能；本轮仅复核位置并维护说明，未修改老平台仓库或生产环境。
 
 ### 2. 新平台接管前置
 
