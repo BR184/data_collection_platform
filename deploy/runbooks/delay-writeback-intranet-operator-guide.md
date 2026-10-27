@@ -153,6 +153,8 @@ docker compose up -d backend
 
 在新GitLab创建短期测试PAT，授予api权限，保存于本地受限位置。该PAT只属于测试GitLab，不能复制生产令牌。用API核对用户身份，完成后将PAT填入新平台配置，日志中只记录已配置与有效期。
 
+填写API认证时只需PAT字符串，不额外填写GitLab用户名/登录密码；PAT绑定其GitLab账号，账号须具有目标项目议题标签修改权限，仅能登录或读取项目不够，read_api/read_repository也不能代替api写权限。不要求root；原本地root链路不能代替非root权限验证，整体验收应补专用非root账号正向与权限不足负例。套件自动生成的.secrets/target-token是导入器目标归属校验令牌，不能用作GitLab PAT；PG账号密码则只用于数据库连接。
+
 在20201的新平台，创建DIRECT GitLab数据源：
 
 | 字段 | 本套件中的值 |
