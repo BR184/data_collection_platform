@@ -1,6 +1,27 @@
 # 延期标签写回内网测试操作报告
 
-适用日期：2026-10-26。用于在空闲端口新建一套平台和 GitLab，导入少量生产来源样本后验收延期标签写回。现有生产实例继续运行。
+适用日期：2026-10-27。用于在空闲端口新建一套平台和 GitLab，导入少量生产来源样本后验收延期标签写回。现有生产实例继续运行。
+
+## 0. 本轮审批与实际流程
+
+用户确认本轮只验收这条使用链路：空GitLab → 近期小样本只读导出 → 导入测试GitLab → 空平台连接测试GitLab → 验证延期标签写回。该本地链路经员工执行、经理独立复核通过，可以准备内网测试；不等于批准生产平台接替写回。
+
+本次使用 `dcp-delay-acceptance-20261027-7e7582af.tar.gz`，1,577,271,993字节，SHA-256为 `2df687f1406e990e03395cb01425868b29471cd0fd0e7d480d01593350a9d07e`。原327c8b20套件有首次启动认证等问题，现场改用此修正版。经理回读16个归档文件、46个证据文件哈希一致；复跑工具与套件辅助测试52项通过，本地源库导出前后业务内容、序列、定义摘要一致。首次全量30/30、事实6/6成功；61个正常写回作业成功，1个故意使用read_api令牌的负例DEAD保留，关闭/重开统计排除及第二轮收敛有本轮证据。
+
+清单已知勘误：`packagingBranch` 应为 `codex/delay-kit-e2e-local-20261027`，制造提交为 `7e7582afcfb97467912b912ca7d2ab8c936dd95e`，双远端回读一致。接受该分支文字误写，以归档SHA、实际提交及本说明核对身份；不修改已测归档，也不为此重复业务测试。包内未包含后续4个说明提交，令牌权限、关闭议题及旧平台停写说明以本报告和经理随包补充说明为准。
+
+本轮在Docker Desktop使用凭据卷适配入口，不声称原生Ubuntu完整流程已验证；现场先完成空环境启动和数据库连通检查，再运行生产源只读取样。E10缺少重启前PENDING/WAIT证据，S11截止时刻和其它未提供证据的机制用例不标为本轮通过，不扩大本次使用链路验收。未修改应用或同步业务代码，不要求重复默认套件和黄金。
+
+内网按以下顺序执行即可，细节见后续对应章节：
+
+1. 内网AI或运维校验包、选择空闲端口，部署新平台和空GitLab；不操作生产平台。
+2. 你在内网本地提供源GitLab PG连接信息及现有只读账号密码，先做元数据预检。版本/结构不支持即停止。
+3. 选择近一至两个月的一小部分议题，固定ID或时间窗及上限，执行 `transfer.sh source`。源端只查，不建账号、表、索引、触发器或修改配置；不需要生产GitLab PAT或服务器SSH权限。
+4. `transfer.sh target` 只对这套空测试GitLab初始化和导入。它会写测试库，不能指向生产；首次流程不使用replace-existing。
+5. 导入后创建测试GitLab的api权限PAT。平台的数据库和API均指向新GitLab，先全量/自动增量，再开测试写回，人工核对加标、摘标、无关标签及第二轮收敛。
+6. 保存结果，关闭测试同步/写回并停止这套测试容器，保留卷和镜像。
+
+源导出器使用单连接、REPEATABLE READ READ ONLY，并校验只读状态；源端没有INSERT/UPDATE/DELETE、DDL或序列操作，结束和异常均回滚关闭。导入器单独承担测试库的创建标记、插入、配置更新和序列调整。只读仍有查询/I/O/快照负载，不能承诺生产零性能影响；不为测试改变生产库，也不在生产复现本地全库dump对比。
 
 ## 1. 先回答执行与账号问题
 
@@ -65,13 +86,16 @@ python3 init-env.py --server '<本服务器内网IP或DNS名>'
 
 保持 `BACKGROUND_JOBS_ENABLED=false`、`DELETE_RECONCILIATION_ENABLED=false`。不要复制生产 `.env`。
 
+修正版init-env已生成 `GITLAB_DB_PASSWORD_MD5=md5(GITLAB_DB_PASSWORD + 'gitlab')`，只供Omnibus数据库校验使用。平台连接测试GitLab PG时仍填写明文 `GITLAB_DB_PASSWORD`；如手工改密码必须同步生成摘要。
+
 ```bash
 docker compose config --quiet
 docker compose up -d postgres gitlab backend frontend
 docker compose ps
 curl --fail http://127.0.0.1:20200/actuator/health
 curl --fail -o /dev/null http://127.0.0.1:20201/
-curl --fail -o /dev/null http://127.0.0.1:20280/-/readiness
+docker compose exec -T gitlab curl --fail -o /dev/null http://127.0.0.1/-/readiness
+curl --fail -o /dev/null http://127.0.0.1:20280/users/sign_in
 ```
 
 改过端口则替换上述端口。GitLab 首次初始化需要等待；用 `docker compose logs --tail 100 gitlab` 检查，不重复创建实例。平台后端健康须为UP，Flyway应为140份成功迁移，含 `20261022.03`，无新表单迁移。
@@ -213,7 +237,9 @@ docker compose up -d --no-deps --force-recreate backend
 
 本次内网验收通过后另行审批生产接替：确认老平台仅停延期写回入口、唯一写入者和新平台开启顺序。不能让本测试环境指向生产GitLab来完成“最后一轮验证”。
 
-## 11. 制造端验证范围
+## 11. 原327c8b20套件制造阶段的历史验证
+
+以下为2026-10-26制造阶段记录；2026-10-27修正版的本地链路审批和当前范围见第0节。
 
 本轮独立核对候选后端JAR与已测镜像完全一致，内嵌140份迁移与源码一致；稳定前端142个发货文件哈希全部一致。前端dist摘要覆盖141个文件，镜像多出的nginx默认50x.html不属于dist；按原算法可复现清单摘要ac22c038…，此前聚合值疑问已解除。
 
