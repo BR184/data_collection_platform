@@ -846,7 +846,9 @@ N0补齐项目候选接口的精确查询来源/物理列、权限、ID与名称
 
 **验证**：`postgres:16-alpine`隔离容器`92e305a331d4f9f1b3f9476ef5ce997ccb852fd4da637fbbfcefed696253a7a0`（15609）执行public 82、非空升级6、真实双会话16、共同字段81项全部PASS；切换期写等待约3秒后在新当前版本提交。容器按ID删除、无残留端口；未启动业务服务、未连共享库/内网/真实外部。证据`.tmp/w4-r5-n0-20261027-r2/`（入口、SQL、日志、`verification.json`、`cleanup.txt`）。
 
-**差异与边界**：相对`d338f843`只改文档与本轮`.tmp`探针；`git diff --exit-code 94749f3a -- frontend`无差异，旧159条迁移未改。未合main、未出包、未运行黄金；完整差异与SHA-256见交付报告。
+**差异与边界**：相对`d338f843`只改文档与本轮`.tmp`探针；`git diff --exit-code 94749f3a -- frontend`无差异，旧159条迁移未改。未合main、未出包、未运行黄金。
+
+**交付回执**：提交`059dc08d`（4文件/377增/152删）；`origin`与`gitlab25`分支均回读`059dc08d1b57a7bc295e930d6b9293070f7427e8`。完整差异`.tmp/w4-r5-n0-20261027-r2/diff.patch`，验证清单`verification.json`含normal与四个负向模式、清理记录及输入SHA-256。
 
 ## v6.0待下发工作单元与交接清单
 
