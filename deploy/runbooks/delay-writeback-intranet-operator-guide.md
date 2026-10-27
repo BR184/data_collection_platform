@@ -73,10 +73,10 @@ docker compose up -d postgres gitlab backend frontend
 docker compose ps
 curl --fail http://127.0.0.1:20200/actuator/health
 curl --fail -o /dev/null http://127.0.0.1:20201/
-curl --fail -o /dev/null http://127.0.0.1:20280/-/readiness
+docker compose exec -T gitlab curl --fail -o /dev/null http://127.0.0.1/-/readiness
 ```
 
-改过端口则替换上述端口。GitLab 首次初始化需要等待；用 `docker compose logs --tail 100 gitlab` 检查，不重复创建实例。平台后端健康须为UP，Flyway应为140份成功迁移，含 `20261022.03`，无新表单迁移。
+改过端口则替换上述宿主机端口。GitLab 的健康端点只允许容器内回环访问，从宿主机经映射端口访问会返回404，不代表服务异常；宿主机侧另用 `curl --fail -o /dev/null http://127.0.0.1:20280/users/sign_in` 确认Web入口。GitLab 首次初始化需要等待；用 `docker compose logs --tail 100 gitlab` 检查，不重复创建实例。平台后端健康须为UP，Flyway应为140份成功迁移，含 `20261022.03`，无新表单迁移。
 
 Compose使用project独立卷和桥接网络，资源身份与生产分开。桥接网络本身不禁止出站访问：现场网络管理员须限制本测试网络访问生产数据库/API，保留经批准取样工具的宿主机通路；未完成这项限制时只做空环境健康检查，暂停样本导入和业务测试。不要复制生产数据源配置。浏览器访问新GitLab用 `GITLAB_PUBLIC_URL`；平台后端访问同一实例用内部 `http://gitlab`。
 
