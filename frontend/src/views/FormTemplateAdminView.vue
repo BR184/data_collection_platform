@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { onBeforeRouteLeave } from 'vue-router';
-import { ArrowDown, ArrowUp, Delete, Plus, Refresh, Upload } from '@element-plus/icons-vue';
+import { ArrowDown, Delete, Plus, MoreFilled, Rank, Close, Clock } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { collectFormsApi } from '../api-client/collect-forms-api';
 import { HttpRequestError, isApiBizError } from '../api-client/request';
@@ -22,7 +22,6 @@ import {
   addOption,
   applyConditionRows,
   applyFieldRows,
-  businessChanges,
   canClearWhen,
   changeRowControl,
   conditionFieldOptions,
@@ -34,9 +33,7 @@ import {
   createConditionRow,
   createFieldRow,
   describeConditionRow,
-  hasUnsupportedConditions,
   fieldRowsFromSpec,
-  historyImpactText,
   moveFieldRow,
   removeOption,
   updateOption,
@@ -45,6 +42,8 @@ import {
   type ConditionRowKind,
   type FieldRow,
 } from './form-template-admin/form-template-admin';
+
+import { businessError, comparisonSpec, fieldChanges, formTitle, publicationFailure } from './form-template-admin/form-admin-presentation';
 
 const loading = ref(false);
 const saving = ref(false);
@@ -78,7 +77,6 @@ let scopeLoadEpoch = 0;
 const conflictScopeId = ref<number | null>(null);
 const conflictDraft = ref<FormAdminDraftView | null>(null);
 const conflictVisible = ref(false);
-const optionsVisible = ref(false);
 const optionsRowIndex = ref<number | null>(null);
 const pendingRequest = ref<{
   draftRevision: number;
@@ -90,7 +88,6 @@ const pendingRequest = ref<{
 const scope = computed<FormAdminScopeSummary | null>(() => detail.value?.scope ?? null);
 const allScopes = computed(() => templates.value.flatMap((template) => template.scopes));
 const bindingBound = computed(() => Boolean(detail.value?.draft?.binding?.bound));
-const blockers = computed(() => preview.value?.blockingErrors ?? []);
 const canRetire = computed(() => scope.value?.status === 'ACTIVE');
 const canDelete = computed(
   () => scope.value?.status === 'DRAFT' && !scope.value.currentVersionId,
@@ -101,27 +98,8 @@ const publicationActive = computed(() =>
 const dirty = computed(
   () => savedSnapshot.value !== null && localSnapshot() !== savedSnapshot.value,
 );
-const businessRows = computed(() => (preview.value ? businessChanges(preview.value) : []));
+
 const conditionFieldChoices = computed(() => conditionFieldOptions(fieldRows.value));
-const targetFieldChoices = computed(() =>
-  conditionFieldOptions(fieldRows.value).filter((option) => option.label !== '议题严重级别'),
-);
-const unsupportedConditions = computed(() => {
-  if (!specBase.value) {
-    return false;
-  }
-  try {
-    return hasUnsupportedConditions(buildSpec());
-  } catch {
-    return false;
-  }
-});
-const optionRow = computed<FieldRow | null>(() => {
-  if (optionsRowIndex.value === null) {
-    return null;
-  }
-  return fieldRows.value[optionsRowIndex.value] ?? null;
-});
 const scopeStatusLabel = computed(() => {
   switch (scope.value?.status) {
     case 'ACTIVE':
@@ -133,33 +111,12 @@ const scopeStatusLabel = computed(() => {
   }
 });
 
-function versionStatusLabel(status: string): string {
-  switch (status) {
-    case 'PUBLISHED':
-      return '已发布';
-    case 'INSTALLED':
-      return '已构建';
-    default:
-      return '草稿';
-  }
-}
 
 onMounted(async () => {
-  window.addEventListener('beforeunload', guardBeforeUnload);
   await Promise.all([loadTemplates(), loadBindingOptions()]);
 });
-
-onBeforeUnmount(() => window.removeEventListener('beforeunload', guardBeforeUnload));
-
-onBeforeRouteLeave(async () => {
-  if (!dirty.value) {
-    return true;
-  }
-  return confirmAction(
-    '当前范围有未保存的字段、绑定或说明修改。离开后将丢失这些修改，确认离开？',
-    '未保存修改',
-  );
-});
+onBeforeUnmount(() => { if (autosaveTimer) clearTimeout(autosaveTimer); });
+onBeforeRouteLeave(async () => { await flushDraft(); return !dirty.value; });
 
 async function loadTemplates(preferredScopeId?: number) {
   loading.value = true;
@@ -173,7 +130,7 @@ async function loadTemplates(preferredScopeId?: number) {
       selectedScopeId.value = null;
     }
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, '表单模板加载失败'));
+    ElMessage.error(readableError(getErrorMessage(error, '表单模板加载失败'), '表单模板加载失败'));
   } finally {
     loading.value = false;
   }
@@ -183,7 +140,7 @@ async function refreshTemplatesList() {
   try {
     templates.value = await collectFormsApi.getFormTemplates();
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, '表单模板加载失败'));
+    ElMessage.error(readableError(getErrorMessage(error, '表单模板加载失败'), '表单模板加载失败'));
   }
 }
 
@@ -205,10 +162,16 @@ function applyScopeMeta(fresh: FormAdminScopeDetail) {
 /** 用服务器详情重建表单；调用前必须已确认没有更晚的输入或范围切换。 */
 function applyScopeDetail(fresh: FormAdminScopeDetail) {
   detail.value = fresh;
-  preview.value = fresh.preview;
+  const name = fresh.draft?.versionEvidence?.scopeDisplayName;
+  if (typeof name === 'string' && name.trim()) rangeNames.value[fresh.scope.id] = name.trim();
+  preview.value = fresh.preview?.targetVersionId === fresh.scope.currentVersionId ? null : fresh.preview;
   previewScopeId.value = fresh.preview ? fresh.scope.id : null;
   publication.value = fresh.latestPublication;
   hydrateDraft(fresh.draft);
+  initialDraft.value = fresh.draft ? clonePlain(fresh.draft) : null;
+  initialSpec.value = fresh.draft ? comparisonSpec(clonePlain(fresh.draft.fieldSpec), preview.value) : null;
+  removedFields.value = [];
+  saveError.value = '';
   markSaved();
 }
 
@@ -260,13 +223,15 @@ async function loadBindingOptions() {
   try {
     bindingOptions.value = await collectFormsApi.getFormBindingOptions();
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, '来源配置加载失败'));
+    ElMessage.error(readableError(getErrorMessage(error, '来源配置加载失败'), '来源配置加载失败'));
   }
 }
 
 async function selectScope(scopeId: number) {
   const epoch = ++scopeLoadEpoch;
   selectedScopeId.value = scopeId;
+  publishConfirmVisible.value = false;
+  publishTarget.value = null;
   previewScopeId.value = null;
   previewing.value = false;
   try {
@@ -281,7 +246,7 @@ async function selectScope(scopeId: number) {
     await loadMilestones();
   } catch (error) {
     if (epoch === scopeLoadEpoch) {
-      ElMessage.error(getErrorMessage(error, '表单范围加载失败'));
+      ElMessage.error(readableError(getErrorMessage(error, '表单范围加载失败'), '表单范围加载失败'));
     }
   }
 }
@@ -290,9 +255,8 @@ async function switchScope(scopeId: number) {
   if (scopeId === selectedScopeId.value) {
     return;
   }
-  if (!(await confirmDiscardIfDirty())) {
-    return;
-  }
+  await flushDraft();
+  if (dirty.value) return;
   await selectScope(scopeId);
 }
 
@@ -328,7 +292,7 @@ async function loadMilestones() {
     );
   } catch (error) {
     milestones.value = { available: false, items: [] };
-    ElMessage.warning(getErrorMessage(error, '版本里程碑加载失败'));
+    ElMessage.warning(readableError(getErrorMessage(error, '版本里程碑加载失败'), '版本里程碑加载失败'));
   }
 }
 
@@ -369,13 +333,11 @@ function addField() {
 
 async function removeField(index: number) {
   const row = fieldRows.value[index];
-  const confirmed = await confirmAction(
-    `删除字段「${row.label}」后，新版本将不再显示该字段；历史记录仍保留旧值。确认删除？`,
-    '删除字段',
-  );
-  if (!confirmed) {
-    return;
-  }
+  const existing = Boolean(scope.value?.currentVersionId)
+    && !changes.value.some(change => change.name === row.name && change.kind === 'added');
+  if (existing && !(await confirmAction(`删除「${row.label}」后，发布的表单将不再显示此字段。`, '删除字段'))) return;
+  if (existing) removedFields.value.push({ row: clonePlain(row), index, conditions: conditionRows.value.filter(condition => condition.target === row.name || condition.triggerField === row.name) });
+  conditionRows.value = conditionRows.value.filter(condition => condition.target !== row.name && condition.triggerField !== row.name);
   fieldRows.value = fieldRows.value.filter((_, rowIndex) => rowIndex !== index);
 }
 
@@ -383,10 +345,6 @@ function moveField(index: number, delta: number) {
   fieldRows.value = moveFieldRow(fieldRows.value, index, delta);
 }
 
-function openOptions(index: number) {
-  optionsRowIndex.value = index;
-  optionsVisible.value = true;
-}
 
 function addOptionRow() {
   if (optionsRowIndex.value === null) {
@@ -395,19 +353,8 @@ function addOptionRow() {
   fieldRows.value = addOption(fieldRows.value, optionsRowIndex.value);
 }
 
-async function removeOptionRow(optionIndex: number) {
-  if (optionsRowIndex.value === null) {
-    return;
-  }
-  const row = fieldRows.value[optionsRowIndex.value];
-  const option = row.options[optionIndex];
-  const confirmed = await confirmAction(
-    `删除选项「${option.label}」后，新版本中不可再选择；历史记录中的旧值仍保留。确认删除？`,
-    '删除选项',
-  );
-  if (!confirmed) {
-    return;
-  }
+function removeOptionRow(optionIndex: number) {
+  if (optionsRowIndex.value === null) return;
   fieldRows.value = removeOption(fieldRows.value, optionsRowIndex.value, optionIndex);
 }
 
@@ -475,39 +422,16 @@ function changeConditionOperator(index: number, operator: ConditionRow['operator
   updateCondition(index, next);
 }
 
-function addCondition(kind: ConditionRowKind) {
-  if (!specBase.value || !fieldRows.value.length) {
-    return;
-  }
-  conditionRows.value = [
-    ...conditionRows.value,
-    createConditionRow(fieldRows.value, buildSpec(), kind),
-  ];
-}
 
-async function removeCondition(index: number) {
+function removeCondition(index: number) {
   const row = conditionRows.value[index];
   if (!row) {
-    return;
-  }
-  if (
-    !(await confirmAction(
-      `删除条件「${conditionDescription(row)}」？删除后该条件不再生效。`,
-      '删除条件',
-    ))
-  ) {
     return;
   }
   conditionRows.value = conditionRows.value.filter((_, item) => item !== index);
 }
 
-function addRequiredCondition() {
-  void addCondition('required');
-}
 
-function addMutualCondition() {
-  void addCondition('mutual');
-}
 
 function buildSpec(): FormTemplateSpecView {
   if (!specBase.value) {
@@ -561,13 +485,13 @@ function isConflictError(error: unknown): boolean {
   return (isApiBizError(error) || error instanceof HttpRequestError) && error.code === 'A0409';
 }
 
-async function saveDraft() {
+async function performSaveDraft() {
   if (!detail.value?.draft || !scope.value) {
     return;
   }
   const errors = validateFieldRows(fieldRows.value);
   if (errors.length) {
-    ElMessage.error(errors[0]);
+    saveError.value = readableError(errors[0], '请检查字段名称和选项');
     return;
   }
   const hasBinding =
@@ -576,7 +500,7 @@ async function saveDraft() {
     || bindingVersionProject.value !== null;
   const projectIds = parseProjectIds();
   if (hasBinding && (!bindingSourceId.value || !bindingVersionProject.value || !projectIds.length)) {
-    ElMessage.error('绑定必须同时填写来源、项目集合与发布项目');
+    saveError.value = '请完成适用范围的项目和版本选择';
     return;
   }
   saving.value = true;
@@ -612,14 +536,15 @@ async function saveDraft() {
     if (localSnapshot() === submittedSnapshot) {
       fieldRows.value = fieldRowsFromSpec(specBase.value);
       markSaved();
-      ElMessage.success('草稿已保存');
+      saveError.value = '';
     } else {
       // 服务端已接受提交时的内容；等待期间的新输入保留为未保存修改，不能覆盖。
       savedSnapshot.value = submittedSnapshot;
-      ElMessage.warning('草稿已保存；等待期间的新输入尚未保存，请再次保存');
+      saveError.value = '';
     }
     await refreshTemplatesList();
   } catch (error) {
+    if (scope.value?.id !== scopeId || scopeLoadEpoch !== requestEpoch || !detail.value) return;
     if (isConflictError(error)) {
       if (scope.value?.id !== scopeId || scopeLoadEpoch !== requestEpoch || !detail.value) {
         await refreshTemplatesList();
@@ -634,9 +559,9 @@ async function saveDraft() {
       conflictScopeId.value = scopeId;
       conflictDraft.value = fresh.draft;
       conflictVisible.value = true;
-      ElMessage.warning('草稿已被他人修改，本地修改已保留');
+      ElMessage.warning('此表单已被其他管理员修改');
     } else {
-      ElMessage.error(getErrorMessage(error, '草稿保存失败'));
+      saveError.value = `修改暂未保存：${readableError(getErrorMessage(error, '连接暂时中断，请重试'), '请检查填写内容或稍后重试')}`;
     }
   } finally {
     saving.value = false;
@@ -666,7 +591,7 @@ function applyServerDraft() {
   conflictVisible.value = false;
   conflictDraft.value = null;
   conflictScopeId.value = null;
-  ElMessage.success('已载入服务器最新草稿');
+  ElMessage.success('已使用最新内容');
 }
 
 function keepLocalWithLatestRevision() {
@@ -690,7 +615,7 @@ function keepLocalWithLatestRevision() {
   conflictVisible.value = false;
   conflictDraft.value = null;
   conflictScopeId.value = null;
-  ElMessage.warning('已基于最新修订继续编辑；再次保存将覆盖服务器草稿');
+  ElMessage.warning('已保留你的修改');
 }
 
 async function previewScope(force = false) {
@@ -727,7 +652,7 @@ async function previewScope(force = false) {
     return fresh;
   } catch (error) {
     if (isCurrentContext(context)) {
-      ElMessage.error(getErrorMessage(error, '预览失败'));
+      ElMessage.error(readableError(getErrorMessage(error, '预览失败'), '预览失败'));
     }
     return null;
   } finally {
@@ -737,88 +662,53 @@ async function previewScope(force = false) {
 
 async function ensureSaved(): Promise<boolean> {
   if (dirty.value) {
-    ElMessage.warning('请先保存草稿，再进行预览或发布');
+    ElMessage.warning('修改正在保存，请稍后发布');
     return false;
   }
   if (!detail.value?.draft) {
-    ElMessage.warning('草稿尚未加载');
+    ElMessage.warning('表单正在加载');
     return false;
   }
   return true;
 }
 
 async function createPublication() {
-  if (!scope.value || !detail.value?.draft) {
-    return;
-  }
-  if (!(await ensureSaved())) {
-    return;
-  }
-  if (!bindingBound.value) {
-    ElMessage.warning('请先保存完整绑定并重新预览');
-    return;
-  }
+  await flushDraft();
+  if (dirty.value || !scope.value || !detail.value?.draft) return;
+  if (!bindingBound.value || !versionLabel.value) { rangeVisible.value = true; return; }
   const context = contextFor(scope.value.id);
-  const target = await previewScope(false);
-  // 预览期间范围、会话或草稿已变化时，不能把旧预览当作本次发布依据。
-  if (!isCurrentContext(context) || previewScopeId.value !== context.scopeId) {
+  const target = await previewScope();
+  if (!target || !isCurrentContext(context)) return;
+  if (target.blockingErrors.length) { saveError.value = readableError(target.blockingErrors[0], '请检查字段或适用范围后再发布'); return; }
+  publishTarget.value = { context, target, snapshot: localSnapshot() };
+  publishConfirmVisible.value = true;
+}
+
+async function confirmPublication() {
+  const intent = publishTarget.value;
+  if (!intent || !isCurrentContext(intent.context) || intent.snapshot !== localSnapshot()) {
+    publishConfirmVisible.value = false;
     return;
   }
-  if (!target || target.blockingErrors.length) {
-    ElMessage.warning('预览存在阻断问题，不能发布');
-    return;
-  }
-  const confirmed = await confirmAction(
-    `将以 ${detail.value.draft.versionLabel || '未命名版本'} 发布当前已保存结构；发布期间该范围停写，确认继续？`,
-    '发布确认',
-  );
-  if (!confirmed) {
-    return;
-  }
-  // 确认等待期间切换范围或重新加载后，本次发布动作失效。
-  if (!isCurrentContext(context)) {
-    return;
-  }
-  const expectedCurrentVersionId = scope.value.currentVersionId;
-  if (
-    !pendingRequest.value
-    || pendingRequest.value.draftRevision !== target.draftRevision
-    || pendingRequest.value.previewId !== target.id
-    || pendingRequest.value.expectedCurrentVersionId !== expectedCurrentVersionId
-  ) {
-    pendingRequest.value = {
-      draftRevision: target.draftRevision,
-      previewId: target.id,
-      expectedCurrentVersionId,
-      key: crypto.randomUUID(),
-    };
+  publishConfirmVisible.value = false;
+  const expectedCurrentVersionId = scope.value!.currentVersionId;
+  if (!pendingRequest.value || pendingRequest.value.draftRevision !== intent.target.draftRevision
+    || pendingRequest.value.previewId !== intent.target.id
+    || pendingRequest.value.expectedCurrentVersionId !== expectedCurrentVersionId) {
+    pendingRequest.value = { draftRevision: intent.target.draftRevision, previewId: intent.target.id, expectedCurrentVersionId, key: crypto.randomUUID() };
   }
   publishing.value = true;
   try {
-    const created = await collectFormsApi.createFormPublication(context.scopeId, {
-      draftRevision: pendingRequest.value.draftRevision,
-      previewId: pendingRequest.value.previewId,
-      expectedCurrentVersionId: pendingRequest.value.expectedCurrentVersionId,
-      requestKey: pendingRequest.value.key,
+    const created = await collectFormsApi.createFormPublication(intent.context.scopeId, {
+      draftRevision: pendingRequest.value.draftRevision, previewId: pendingRequest.value.previewId,
+      expectedCurrentVersionId, requestKey: pendingRequest.value.key,
     });
-    // 创建响应迟到时不得把原范围的任务装入当前范围。
-    if (!isCurrentContext(context) || created.scopeId !== context.scopeId) {
-      await refreshTemplatesList();
-      return;
-    }
+    if (!isCurrentContext(intent.context) || created.scopeId !== intent.context.scopeId) return;
     publication.value = created;
     await pollPublication(created.id);
   } catch (error) {
-    if (isCurrentContext(context)) {
-      if (isConflictError(error)) {
-        ElMessage.warning('范围或草稿已变化，请刷新后重试；本地修改已保留');
-      } else {
-        ElMessage.error(getErrorMessage(error, '发布任务创建失败'));
-      }
-    }
-  } finally {
-    publishing.value = false;
-  }
+    if (isCurrentContext(intent.context)) saveError.value = readableError(getErrorMessage(error, '发布未完成'), '暂时未能完成发布，请重试');
+  } finally { publishing.value = false; }
 }
 
 const PENDING_PUBLICATION_STAGES = ['PREPARED', 'COPYING', 'VERIFIED'];
@@ -846,7 +736,8 @@ async function pollPublication(publicationId: number) {
   }
   if (publication.value?.stage === 'PUBLISHED') {
     pendingRequest.value = null;
-    ElMessage.success('结构版本已发布');
+    saveError.value = '';
+    ElMessage.success('已发布');
     const epoch = ++scopeLoadEpoch;
     const baselineSnapshot = localSnapshot();
     try {
@@ -862,77 +753,32 @@ async function pollPublication(publicationId: number) {
       }
     } catch (error) {
       if (epoch === scopeLoadEpoch) {
-        ElMessage.error(getErrorMessage(error, '表单范围刷新失败'));
+        ElMessage.error(readableError(getErrorMessage(error, '表单范围刷新失败'), '表单范围刷新失败'));
       }
     }
     return;
   }
   if (publication.value?.stage === 'FAILED') {
-    ElMessage.error(publication.value.lastError || '发布失败，请查看错误并恢复');
+    saveError.value = '';
   }
 }
 
 async function recoverPublication() {
-  if (!publication.value || !scope.value) {
-    return;
-  }
+  if (!publication.value || !scope.value) return;
   const context = contextFor(scope.value.id);
-  if (publication.value.scopeId !== context.scopeId) {
-    return;
-  }
-  const confirmed = await confirmAction(
-    `将恢复发布任务 #${publication.value.id} 并继续执行；确认恢复？`,
-    '恢复任务确认',
-  );
-  if (!confirmed) {
-    return;
-  }
-  // 确认等待期间切换范围时停止本次有副作用的动作。
-  if (!isCurrentContext(context) || publication.value.scopeId !== context.scopeId) {
-    return;
-  }
+  const taskId = publication.value.id;
+  if (!isCurrentContext(context) || publication.value.scopeId !== context.scopeId) return;
+  publishing.value = true;
   try {
-    const fresh = await collectFormsApi.recoverFormPublication(publication.value.id);
-    if (!isCurrentContext(context) || fresh.scopeId !== context.scopeId) {
-      return;
-    }
+    const fresh = await collectFormsApi.recoverFormPublication(taskId);
+    if (!isCurrentContext(context) || fresh.scopeId !== context.scopeId) return;
     publication.value = fresh;
-    ElMessage.success('任务已恢复为待执行');
     await pollPublication(fresh.id);
   } catch (error) {
-    if (isCurrentContext(context)) {
-      ElMessage.error(getErrorMessage(error, '发布任务恢复失败'));
-    }
-  }
+    if (isCurrentContext(context)) saveError.value = readableError(getErrorMessage(error, '重试未完成'), '暂时无法重试，请稍后再试');
+  } finally { publishing.value = false; }
 }
 
-async function refreshCurrent() {
-  if (!(await confirmDiscardIfDirty())) {
-    return;
-  }
-  const scopeId = selectedScopeId.value;
-  if (!scopeId) {
-    await loadTemplates();
-    return;
-  }
-  const epoch = ++scopeLoadEpoch;
-  const baselineSnapshot = localSnapshot();
-  try {
-    const outcome = await refreshScopePreservingInput(
-      scopeId,
-      baselineSnapshot,
-      epoch,
-      false,
-    );
-    if (outcome === 'kept') {
-      ElMessage.warning('刷新期间的新输入已保留，未覆盖本地修改');
-    }
-  } catch (error) {
-    if (epoch === scopeLoadEpoch) {
-      ElMessage.error(getErrorMessage(error, '表单范围刷新失败'));
-    }
-  }
-}
 
 async function retireScope() {
   if (!scope.value?.currentVersionId) {
@@ -942,7 +788,7 @@ async function retireScope() {
     return;
   }
   const confirmed = await confirmAction(
-    '退役后该范围拒绝新增与编辑，历史记录仍可查看。确认退役？',
+    '退役后将停止填写，已填写的记录仍可查看。',
     '退役确认',
   );
   if (!confirmed) {
@@ -953,10 +799,10 @@ async function retireScope() {
       scope.value.id,
       scope.value.currentVersionId,
     );
-    ElMessage.success('范围已退役');
+    ElMessage.success('表单已退役');
     await loadTemplates(scope.value.id);
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, '范围退役失败'));
+    ElMessage.error(readableError(getErrorMessage(error, '范围退役失败'), '范围退役失败'));
   }
 }
 
@@ -967,39 +813,36 @@ async function deleteScope() {
   if (!(await confirmDiscardIfDirty())) {
     return;
   }
-  const confirmed = await confirmAction(
-    '仅未发布且无历史记录的范围可以删除。确认删除？',
-    '删除确认',
-  );
-  if (!confirmed) {
-    return;
-  }
   try {
     await collectFormsApi.deleteFormScope(scope.value.id);
     ElMessage.success('范围已删除');
     selectedScopeId.value = null;
     await loadTemplates();
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, '范围删除失败'));
+    ElMessage.error(readableError(getErrorMessage(error, '范围删除失败'), '范围删除失败'));
   }
 }
 
 async function createScope() {
   if (!createScopeKey.value.trim()) {
-    ElMessage.warning('请填写范围键');
+    ElMessage.warning('请填写适用范围名称');
     return;
   }
   try {
     const created = await collectFormsApi.createFormScope({
       templateKey: createTemplateKey.value,
-      scopeKey: createScopeKey.value.trim(),
+      scopeKey: `form-${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}`,
     });
     createVisible.value = false;
+    const displayName = createScopeKey.value.trim();
     createScopeKey.value = '';
-    ElMessage.success('范围已创建');
+    ElMessage.success('适用范围已创建');
     await loadTemplates(created.scope.id);
+    evidenceDraft.value = { ...evidenceDraft.value, scopeDisplayName: displayName };
+    rangeNames.value[created.scope.id] = displayName;
+    rangeVisible.value = true;
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, '范围创建失败'));
+    ElMessage.error(readableError(getErrorMessage(error, '范围创建失败'), '范围创建失败'));
   }
 }
 
@@ -1021,35 +864,7 @@ function applyMilestone(milestoneId: number) {
   };
 }
 
-function publicationKindLabel(kind: string | undefined): string {
-  switch (kind) {
-    case 'INITIAL_EMPTY':
-      return '首次启用（无历史）';
-    case 'INITIAL_MIGRATION':
-      return '旧表首次迁移';
-    case 'MIGRATION':
-      return '结构升级迁移';
-    default:
-      return kind ?? '-';
-  }
-}
 
-function publicationStageLabel(stage: string): string {
-  switch (stage) {
-    case 'PREPARED':
-      return '待执行';
-    case 'COPYING':
-      return '复制中';
-    case 'VERIFIED':
-      return '已核验';
-    case 'PUBLISHED':
-      return '已发布';
-    case 'FAILED':
-      return '失败';
-    default:
-      return stage;
-  }
-}
 
 async function confirmAction(message: string, title: string): Promise<boolean> {
   const result = await ElMessageBox.confirm(message, title, {
@@ -1060,687 +875,321 @@ async function confirmAction(message: string, title: string): Promise<boolean> {
   return Boolean(result);
 }
 
-async function confirmDiscardIfDirty(): Promise<boolean> {
-  if (!dirty.value) {
-    return true;
-  }
-  return confirmAction(
-    '当前范围有未保存的修改，继续操作将丢失这些修改。确认继续？',
-    '未保存修改',
-  );
-}
+async function confirmDiscardIfDirty(): Promise<boolean> { await flushDraft(); return !dirty.value; }
 
-function guardBeforeUnload(event: BeforeUnloadEvent) {
-  if (!dirty.value) {
-    return;
-  }
-  event.preventDefault();
-  event.returnValue = '';
+
+function clonePlain<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T; }
+
+const initialDraft = ref<FormAdminDraftView | null>(null);
+const initialSpec = ref<FormTemplateSpecView | null>(null);
+const removedFields = ref<Array<{ row: FieldRow; index: number; conditions: ConditionRow[] }>>([]);
+const expanded = ref<string | null>(null);
+const rangeVisible = ref(false);
+const historyVisible = ref(false);
+const saveError = ref('');
+const rangeNames = ref<Record<number, string>>({});
+const publishConfirmVisible = ref(false);
+const publishTarget = ref<{ context: AsyncContext; target: FormAdminPreviewView; snapshot: string } | null>(null);
+const dragIndex = ref<number | null>(null);
+let autosaveTimer: ReturnType<typeof setTimeout> | undefined;
+let saveInFlight: Promise<void> | null = null;
+const changes = computed(() => { try { return fieldChanges(initialSpec.value, buildSpec()); } catch { return []; } });
+const pendingCount = computed(() => new Set(changes.value.map(change => change.name || change.key)).size);
+const headerFailure = computed(() => publication.value?.stage === 'FAILED' ? publicationFailure(publication.value.lastError) : '');
+const displayTitle = computed(() => formTitle(scope.value?.templateKey ?? ''));
+const scopeDisplay = computed(() => scope.value ? rangeName(scope.value) : '');
+const editStatus = computed(() => saving.value || dirty.value ? '正在保存' : '已保存');
+
+function readableError(message: string, fallback: string): string { return businessError(message, specBase.value, fallback); }
+function rangeName(item: FormAdminScopeSummary): string {
+  if (item.id === scope.value?.id && typeof evidenceDraft.value.scopeDisplayName === 'string') return evidenceDraft.value.scopeDisplayName;
+  return rangeNames.value[item.id] || (item.currentVersionLabel ? `${item.currentVersionLabel} 版本` : '尚未设置适用范围');
 }
+function fieldState(name: string): string {
+  const rows = changes.value.filter(change => change.name === name);
+  return rows.some(row => row.kind === 'added') ? '新增' : rows.length ? '已改' : '';
+}
+function rowsForField(name: string) {
+  return conditionRows.value.map((row, index) => ({ row, index })).filter(({ row }) => row.kind === 'mutual' ? row.triggerField === name : row.target === name);
+}
+function addFieldCondition(name: string, kind: ConditionRowKind) {
+  const row = createConditionRow(fieldRows.value, buildSpec(), kind);
+  if (kind === 'required') row.target = name;
+  else { row.triggerField = name; row.operator = 'contains'; const options = conditionChoices(row); row.values = options[0] ? [options[0].value] : []; row.conflictValues = options[1] ? [options[1].value] : []; }
+  conditionRows.value = [...conditionRows.value, row];
+}
+function startDrag(event: DragEvent, index: number) {
+  dragIndex.value = index;
+  event.dataTransfer?.setData('text/plain', String(index));
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+}
+function dropField(index: number) {
+  if (dragIndex.value === null) return;
+  const next = [...fieldRows.value]; const [row] = next.splice(dragIndex.value, 1); next.splice(index, 0, row); fieldRows.value = next; dragIndex.value = null;
+}
+function undoRemoval(name: string) {
+  const entry = removedFields.value.find(item => item.row.name === name); if (!entry) return;
+  const next = [...fieldRows.value]; next.splice(Math.min(entry.index, next.length), 0, entry.row); fieldRows.value = next;
+  conditionRows.value = [...conditionRows.value, ...entry.conditions]; removedFields.value = removedFields.value.filter(item => item !== entry);
+}
+function saveDraft(): Promise<void> {
+  if (saveInFlight) return saveInFlight;
+  saveInFlight = performSaveDraft().finally(() => { saveInFlight = null; }); return saveInFlight;
+}
+async function flushDraft() {
+  if (autosaveTimer) clearTimeout(autosaveTimer);
+  if (saveInFlight) await saveInFlight;
+  if (dirty.value && !conflictVisible.value) await saveDraft();
+}
+function discardChanges() {
+  if (!initialDraft.value) return;
+  hydrateDraft(clonePlain(initialDraft.value)); removedFields.value = []; preview.value = null; pendingRequest.value = null; saveError.value = '';
+}
+function openCreate(key: string) { createTemplateKey.value = key; createVisible.value = true; }
+async function finishRange() { await flushDraft(); if (!dirty.value) { rangeVisible.value = false; if (scope.value && typeof evidenceDraft.value.scopeDisplayName === 'string') rangeNames.value[scope.value.id] = evidenceDraft.value.scopeDisplayName; } }
+function formattedTime(value: string | null): string { return value ? new Date(value).toLocaleDateString('zh-CN') : '尚未发布'; }
+
+function scheduleAutosave() {
+  if (autosaveTimer) clearTimeout(autosaveTimer);
+  if (!dirty.value || loading.value || saving.value || conflictVisible.value || publishing.value || saveError.value || scope.value?.status === 'RETIRED') return;
+  autosaveTimer = setTimeout(async () => { await saveDraft(); if (!dirty.value && bindingBound.value && versionLabel.value) await previewScope(true); }, 650);
+}
+watch(localSnapshot, () => { saveError.value = ''; scheduleAutosave(); });
+watch(saving, active => { if (!active) scheduleAutosave(); });
+
 </script>
-
 <template>
-  <div class="form-template-admin" v-loading="loading">
-    <div class="form-template-admin__header">
-      <div>
-        <h2>表单管理</h2>
-        <p>直接维护字段名称、填写方式、必填、选项与顺序；系统负责内部字段身份、存储与发布。</p>
-      </div>
-      <div class="form-template-admin__actions">
-        <el-button :icon="Refresh" @click="refreshCurrent">刷新</el-button>
-        <el-button type="primary" :icon="Plus" @click="createVisible = true">新建范围</el-button>
-      </div>
+  <section class="form-admin" aria-label="表单管理">
+    <h1 class="page-title">表单管理</h1>
+    <div class="admin-layout">
+      <nav class="form-list" aria-label="选择表单">
+        <section v-for="template in templates" :key="template.templateKey" class="form-group">
+          <h2>{{ formTitle(template.templateKey) }}</h2>
+          <button v-for="item in template.scopes" :key="item.id" class="scope-item" :class="{ selected: item.id === selectedScopeId }" @click="switchScope(item.id)">
+            <span class="scope-name">{{ rangeName(item) }}</span>
+            <span class="scope-state"><i :class="{ active: item.status === 'ACTIVE', changed: item.id === selectedScopeId && pendingCount > 0 }" />{{ item.id === selectedScopeId && pendingCount ? '有未发布修改' : item.status === 'ACTIVE' ? '已启用' : item.status === 'RETIRED' ? '已退役' : '草稿' }}</span>
+          </button>
+          <p v-if="!template.scopes.length" class="small-empty">尚无适用范围</p>
+          <button class="new-range" @click="openCreate(template.templateKey)">＋ 新建范围</button>
+        </section>
+      </nav>
+
+      <main v-if="detail && scope && scope.id === selectedScopeId" class="workspace">
+        <header class="workspace-header">
+          <div class="workspace-heading">
+            <div class="heading-line"><h2>{{ displayTitle }}</h2><span class="status-label">{{ scopeStatusLabel }}</span></div>
+            <button class="range-summary" @click="rangeVisible = true">{{ scopeDisplay }}<el-icon><ArrowDown /></el-icon></button>
+            <span class="current-version">{{ scope.currentVersionLabel ? `当前版本 ${scope.currentVersionLabel}` : '尚未发布' }}</span>
+          </div>
+          <div class="header-actions">
+            <el-button text :icon="Clock" @click="historyVisible = true">历史版本</el-button>
+            <el-dropdown trigger="click" @command="command => command === 'retire' ? retireScope() : deleteScope()">
+              <el-button text :icon="MoreFilled" aria-label="更多操作" />
+              <template #dropdown><el-dropdown-menu><el-dropdown-item v-if="canRetire" command="retire">退役表单</el-dropdown-item><el-dropdown-item v-if="canDelete" command="delete">删除空白范围</el-dropdown-item><el-dropdown-item v-if="!canRetire && !canDelete" disabled>无其他操作</el-dropdown-item></el-dropdown-menu></template>
+            </el-dropdown>
+            <el-button :disabled="!pendingCount && !dirty" @click="discardChanges">放弃修改</el-button>
+            <el-button type="primary" :loading="publishing || previewing" :disabled="publicationActive || scope.status === 'RETIRED'" @click="createPublication">发布</el-button>
+          </div>
+        </header>
+
+        <div v-if="headerFailure" class="notice notice-warning" role="status"><span><strong>上次发布失败：</strong>{{ headerFailure }}</span><el-button link :loading="publishing" @click="recoverPublication">重试</el-button></div>
+        <div v-else-if="saveError" class="notice notice-warning" role="status"><span>{{ saveError }}</span><el-button link @click="saveDraft">重试保存</el-button></div>
+        <div v-else-if="pendingCount" class="notice notice-changes" role="status"><span><strong>{{ pendingCount }}</strong> 项修改未发布</span><span class="save-status">{{ editStatus }}</span></div>
+        <div v-else-if="publicationActive" class="notice notice-changes" role="status">正在发布…</div>
+
+        <div class="editor-grid">
+          <section class="field-editor" aria-label="编辑字段" :inert="scope.status === 'RETIRED'">
+            <div class="section-heading"><h3>表单字段 <span>{{ fieldRows.length }}</span></h3><el-button :icon="Plus" @click="addField">添加字段</el-button></div>
+            <article v-for="(row, index) in fieldRows" :key="row.name" class="field-card" :class="{ modified: fieldState(row.name), 'is-added': fieldState(row.name) === '新增', expanded: expanded === row.name }" @dragover.prevent @drop.prevent="dropField(index)">
+              <div class="field-row">
+                <button class="drag-handle" draggable="true" :aria-label="`拖动${row.label || '新字段'}排序`" @dragstart="startDrag($event, index)" @dragend="dragIndex = null" @keydown.alt.up.prevent="moveField(index, -1)" @keydown.alt.down.prevent="moveField(index, 1)"><el-icon><Rank /></el-icon></button>
+                <div class="field-name"><label class="sr-only" :for="`field-label-${index}`">字段名称</label><el-input :id="`field-label-${index}`" v-model="row.label" maxlength="64" placeholder="字段名称" :aria-label="`第${index + 1}个字段名称`" @input="updateRow(index, { label: row.label })" /><span v-if="fieldState(row.name)" class="change-badge">{{ fieldState(row.name) }}</span></div>
+                <el-select :model-value="row.control" :aria-label="`${row.label}填写方式`" @change="changeControl(index, $event)"><el-option v-for="option in controlOptionsFor(row)" :key="option.value" :label="option.label" :value="option.value" /></el-select>
+                <label class="required-toggle"><el-switch v-model="row.required" size="small" :aria-label="`${row.label}必填`" /><span>必填</span></label>
+                <div class="field-actions"><button :aria-label="`${expanded === row.name ? '收起' : '展开'}${row.label}`" :aria-expanded="expanded === row.name" @click="expanded = expanded === row.name ? null : row.name"><el-icon :class="{ rotated: expanded === row.name }"><ArrowDown /></el-icon></button><button :aria-label="`删除${row.label}`" @click="removeField(index)"><el-icon><Delete /></el-icon></button></div>
+              </div>
+              <div v-if="expanded === row.name" class="field-details">
+                <section v-if="row.type === 'enum' || row.type === 'enum-array'" class="detail-section">
+                  <h4>选项</h4>
+                  <p v-if="row.dictionary" class="field-hint">使用标准原因词典</p>
+                  <div v-for="(option, optionIndex) in row.options" v-else :key="option.value" class="option-row"><span>{{ optionIndex + 1 }}</span><el-input :model-value="option.label" :aria-label="`${row.label}选项${optionIndex + 1}`" @input="optionsRowIndex = index; updateOptionLabel(optionIndex, $event)" /><el-button text :icon="Close" :aria-label="`移除选项${option.label}`" @click="optionsRowIndex = index; removeOptionRow(optionIndex)" /></div>
+                  <el-button v-if="!row.dictionary" text :icon="Plus" @click="optionsRowIndex = index; addOptionRow()">添加选项</el-button>
+                </section>
+                <section class="detail-section">
+                  <div class="detail-heading"><h4>填写条件</h4><div><el-button text size="small" @click="addFieldCondition(row.name, 'required')">添加必填条件</el-button><el-button v-if="row.type === 'enum-array'" text size="small" @click="addFieldCondition(row.name, 'mutual')">添加互斥条件</el-button></div></div>
+                  <div v-for="entry in rowsForField(row.name)" :key="entry.row.key" class="condition-editor">
+                    <span class="condition-description">{{ conditionDescription(entry.row) }}</span>
+                    <div class="condition-controls"><el-select :model-value="entry.row.triggerField" aria-label="条件字段" @change="changeConditionTrigger(entry.index, $event)"><el-option v-for="option in conditionFieldChoices" :key="option.value" :value="option.value" :label="option.label" /></el-select><el-select v-if="entry.row.kind === 'required'" :model-value="entry.row.operator" aria-label="判断方式" @change="changeConditionOperator(entry.index, $event)"><el-option v-for="option in conditionOperatorChoices(entry.row)" :key="option.value" :label="option.label" :value="option.value" /></el-select><span v-else>选择</span><el-select v-if="conditionChoices(entry.row).length" :model-value="conditionChoices(entry.row).some(option => option.value === entry.row.values[0]) ? entry.row.values[0] : ''" placeholder="选择条件值" aria-label="条件选项" @change="updateCondition(entry.index, { values: $event ? [$event] : [] })"><el-option v-for="option in conditionChoices(entry.row)" :key="option.value" :label="option.label" :value="option.value" /></el-select><el-input v-else :model-value="entry.row.values[0] ?? ''" aria-label="条件值" placeholder="填写条件值" @input="updateCondition(entry.index, { values: [$event] })" /><el-button text :icon="Delete" aria-label="移除条件" @click="removeCondition(entry.index)" /></div>
+                    <el-select v-if="entry.row.kind === 'mutual'" :model-value="entry.row.conflictValues.filter(value => conditionChoices(entry.row).some(option => option.value === value))" multiple aria-label="不能同时选择" @change="updateCondition(entry.index, { conflictValues: $event })"><el-option v-for="option in conditionChoices(entry.row)" :key="option.value" :label="option.label" :value="option.value" /></el-select>
+                    <label v-else-if="canClearWhen(entry.row, buildSpec())" class="clear-condition"><el-switch :model-value="entry.row.clearWhenOff" size="small" @change="updateCondition(entry.index, { clearWhenOff: Boolean($event) })" /><span>条件不成立时清空</span></label>
+                  </div>
+                </section>
+                <p v-if="row.maxLength" class="field-hint">最多填写 {{ row.maxLength }} 个字</p>
+              </div>
+            </article>
+            <article v-for="entry in removedFields" :key="entry.row.name" class="field-card removed-card"><span>{{ entry.row.label }}</span><span class="change-badge">待删除</span><el-button text @click="undoRemoval(entry.row.name)">撤销删除</el-button></article>
+            <div v-if="!fieldRows.length" class="empty-fields">尚无字段 <el-button text @click="addField">添加第一个字段</el-button></div>
+          </section>
+
+          <aside class="change-summary" aria-label="变更摘要">
+            <div class="summary-heading"><h3>变更摘要</h3><span v-if="pendingCount">{{ pendingCount }} 项</span></div>
+            <ul v-if="changes.length"><li v-for="change in changes" :key="change.key"><i :class="change.kind" /><span>{{ change.text }}</span></li></ul>
+            <p v-else class="summary-empty">尚无修改</p>
+            <p v-if="pendingCount && !saveError" class="summary-save">{{ editStatus }}</p>
+          </aside>
+        </div>
+      </main>
+      <main v-else class="workspace empty-workspace"><p>{{ loading ? '正在加载表单…' : '选择一个表单开始编辑' }}</p></main>
     </div>
 
-    <el-container class="form-template-admin__body">
-      <el-aside width="320px" class="form-template-admin__aside">
-        <el-empty v-if="!templates.length" description="暂无模板" />
-        <div v-for="template in templates" :key="template.templateKey" class="template-group">
-          <div class="template-group__title">
-            {{ template.displayName }}
-            <span class="template-group__key">{{ template.templateKey }}</span>
-          </div>
-          <div
-            v-for="item in template.scopes"
-            :key="item.id"
-            class="scope-item"
-            :class="{ 'scope-item--active': item.id === selectedScopeId }"
-            @click="switchScope(item.id)"
-          >
-            <div class="scope-item__title">
-              <span>{{ item.scopeKey }}</span>
-              <el-tag size="small" :type="item.status === 'ACTIVE' ? 'success' : item.status === 'RETIRED' ? 'info' : 'warning'">
-                {{ item.status === 'ACTIVE' ? '已启用' : item.status === 'RETIRED' ? '已退役' : '草稿' }}
-              </el-tag>
-            </div>
-            <div class="scope-item__meta">
-              当前版本 {{ item.currentVersionLabel || '未发布' }}
-              <span v-if="item.activePublications"> · 发布中</span>
-            </div>
-          </div>
-          <el-empty v-if="!template.scopes.length" description="暂无范围" :image-size="48" />
-        </div>
-      </el-aside>
+    <el-drawer v-model="historyVisible" title="历史版本" size="420px"><ol class="version-list"><li v-for="version in detail?.versions ?? []" :key="version.id"><span class="version-dot" /><div><strong>{{ version.versionLabel || '早期版本' }}</strong><p>{{ formattedTime(version.publishedAt) }}<span v-if="version.id === scope?.currentVersionId"> · 当前版本</span></p></div></li></ol><p v-if="!detail?.versions.length" class="muted">尚未发布过版本</p></el-drawer>
 
-      <el-main v-if="detail && scope" class="form-template-admin__main">
-        <div class="scope-header">
-          <div>
-            <h3>{{ scope.templateKey }} / {{ scope.scopeKey }}</h3>
-            <div class="scope-header__meta">
-              <el-tag :type="scope.status === 'ACTIVE' ? 'success' : scope.status === 'RETIRED' ? 'info' : 'warning'">
-                {{ scopeStatusLabel }}
-              </el-tag>
-              <span>草稿修订 {{ detail.draft?.revision ?? '-' }}</span>
-              <span>当前版本 {{ scope.currentVersionLabel || '未发布' }}</span>
-              <span>记录 {{ detail.recordCount }} · 实例 {{ detail.instanceCount }}</span>
-              <el-tag v-if="dirty" size="small" type="warning">有未保存修改</el-tag>
-            </div>
-          </div>
-          <div class="scope-header__actions">
-            <el-button v-if="canRetire" @click="retireScope">退役</el-button>
-            <el-button v-if="canDelete" type="danger" plain :icon="Delete" @click="deleteScope">删除</el-button>
-          </div>
-        </div>
-
-        <el-tabs>
-          <el-tab-pane label="业务字段">
-            <div class="toolbar">
-              <el-button :icon="Plus" @click="addField">新增字段</el-button>
-              <el-button type="primary" :loading="saving" @click="saveDraft">保存草稿</el-button>
-            </div>
-            <el-alert
-              v-if="scope.status === 'ACTIVE'"
-              type="info"
-              :closable="false"
-              show-icon
-              title="字段身份与存储由系统维护；修改显示名称不会改变历史值。变更类型或删除字段前请先查看预览影响。"
-            />
-            <el-table :data="fieldRows" border size="small" class="field-table" row-key="name">
-              <el-table-column label="#" width="52">
-                <template #default="{ $index }">{{ $index + 1 }}</template>
-              </el-table-column>
-              <el-table-column label="字段名称" min-width="170">
-                <template #default="{ row, $index }">
-                  <el-input
-                    v-model="row.label"
-                    size="small"
-                    maxlength="64"
-                    @input="updateRow($index, { label: row.label })"
-                  />
-                </template>
-              </el-table-column>
-              <el-table-column label="填写方式" width="150">
-                <template #default="{ row, $index }">
-                  <el-select
-                    :model-value="row.control"
-                    size="small"
-                    @change="changeControl($index, $event)"
-                  >
-                    <el-option
-                      v-for="option in controlOptionsFor(row)"
-                      :key="option.value"
-                      :label="option.label"
-                      :value="option.value"
-                    />
-                  </el-select>
-                </template>
-              </el-table-column>
-              <el-table-column label="必填" width="80">
-                <template #default="{ row }">
-                  <el-switch v-model="row.required" size="small" />
-                </template>
-              </el-table-column>
-              <el-table-column label="选项" min-width="200">
-                <template #default="{ row, $index }">
-                  <template v-if="row.type === 'enum' || row.type === 'enum-array'">
-                    <span v-if="row.dictionary" class="option-summary">标准词典</span>
-                    <template v-else>
-                      <span class="option-summary">
-                        {{ row.options.map((option) => option.label).join(' / ') || '未配置' }}
-                      </span>
-                      <el-button link type="primary" @click="openOptions($index)">配置选项</el-button>
-                    </template>
-                  </template>
-                  <span v-else class="muted">—</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="150" fixed="right">
-                <template #default="{ $index }">
-                  <el-button link :icon="ArrowUp" @click="moveField($index, -1)" />
-                  <el-button link :icon="ArrowDown" @click="moveField($index, 1)" />
-                  <el-button link type="danger" :icon="Delete" @click="removeField($index)" />
-                </template>
-              </el-table-column>
-            </el-table>
-
-            <div class="condition-panel">
-              <div class="condition-panel__title">
-                字段条件
-                <span class="condition-panel__actions">
-                  <el-button link type="primary" @click="addRequiredCondition">新增必填条件</el-button>
-                  <el-button link type="primary" @click="addMutualCondition">新增互斥条件</el-button>
-                </span>
-              </div>
-              <el-table
-                v-if="conditionRows.length"
-                :data="conditionRows"
-                size="small"
-                border
-                class="condition-table"
-              >
-                <el-table-column label="触发条件" min-width="360">
-                  <template #default="{ row, $index }">
-                    <div class="condition-editor__line">
-                      <el-select
-                        :model-value="row.triggerField"
-                        size="small"
-                        class="condition-trigger"
-                        @change="changeConditionTrigger($index, $event)"
-                      >
-                        <el-option
-                          v-for="option in conditionFieldChoices"
-                          :key="option.value"
-                          :label="option.label"
-                          :value="option.value"
-                        />
-                      </el-select>
-                      <el-select
-                        v-if="row.kind === 'required'"
-                        :model-value="row.operator"
-                        size="small"
-                        class="condition-operator"
-                        @change="changeConditionOperator($index, $event)"
-                      >
-                        <el-option
-                          v-for="option in conditionOperatorChoices(row)"
-                          :key="option.value"
-                          :label="option.label"
-                          :value="option.value"
-                        />
-                      </el-select>
-                      <span v-else class="muted">选择</span>
-                      <el-select
-                        :model-value="row.values[0] ?? ''"
-                        size="small"
-                        class="condition-value"
-                        @change="updateCondition($index, { values: $event ? [$event] : [] })"
-                      >
-                        <el-option
-                          v-for="option in conditionChoices(row)"
-                          :key="option.value"
-                          :label="option.label"
-                          :value="option.value"
-                        />
-                      </el-select>
-                      <template v-if="row.kind === 'mutual'">
-                        <span class="muted">时，不能同时选择</span>
-                        <el-select
-                          :model-value="row.conflictValues"
-                          multiple
-                          size="small"
-                          class="condition-conflicts"
-                          @change="updateCondition($index, { conflictValues: $event })"
-                        >
-                          <el-option
-                            v-for="option in conditionChoices(row)"
-                            :key="option.value"
-                            :label="option.label"
-                            :value="option.value"
-                          />
-                        </el-select>
-                      </template>
-                    </div>
-                  </template>
-                </el-table-column>
-                <el-table-column label="结果" min-width="260">
-                  <template #default="{ row, $index }">
-                    <div v-if="row.kind === 'required'" class="condition-editor__line">
-                      <el-select
-                        :model-value="row.target"
-                        size="small"
-                        class="condition-target"
-                        @change="updateCondition($index, { target: $event })"
-                      >
-                        <el-option
-                          v-for="option in targetFieldChoices"
-                          :key="option.value"
-                          :label="option.label"
-                          :value="option.value"
-                        />
-                      </el-select>
-                      <span class="muted">必填</span>
-                      <el-switch
-                        :model-value="row.clearWhenOff"
-                        size="small"
-                        :disabled="!canClearWhen(row, buildSpec())"
-                        @change="updateCondition($index, { clearWhenOff: Boolean($event) })"
-                      />
-                      <span class="muted">否则清空</span>
-                    </div>
-                    <span v-else class="muted">互斥校验</span>
-                  </template>
-                </el-table-column>
-                <el-table-column label="操作" width="70" fixed="right">
-                  <template #default="{ $index }">
-                    <el-button link type="danger" :icon="Delete" @click="removeCondition($index)" />
-                  </template>
-                </el-table-column>
-              </el-table>
-              <div v-else class="muted">暂无字段条件</div>
-              <div v-if="unsupportedConditions" class="muted condition-panel__hint">
-                存在暂不支持在此编辑的条件规则，保存时原样保留；请在发布预览中核对。
-              </div>
-            </div>
-          </el-tab-pane>
-
-          <el-tab-pane label="范围与依据">
-            <el-form label-width="140px" class="binding-form">
-              <el-form-item label="来源配置">
-                <el-select
-                  v-model="bindingSourceId"
-                  placeholder="选择 GitLab 来源"
-                  style="width: 100%"
-                  @change="loadMilestones"
-                >
-                  <el-option
-                    v-for="option in bindingOptions"
-                    :key="option.sourceConfigId"
-                    :label="`${option.name}（${option.canonicalGitlabBaseUrl ?? '地址无效'}）`"
-                    :value="option.sourceConfigId"
-                    :disabled="!option.canonicalGitlabBaseUrl"
-                  />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="项目集合">
-                <el-input v-model="bindingProjects" placeholder="例如 9, 12" @blur="loadMilestones" />
-              </el-form-item>
-              <el-form-item label="发布项目">
-                <el-input-number v-model="bindingVersionProject" :min="1" @change="loadMilestones" />
-              </el-form-item>
-              <el-form-item label="发布标签">
-                <el-input v-model="versionLabel" maxlength="64" placeholder="例如 CC2027R1" />
-              </el-form-item>
-              <el-form-item label="版本里程碑">
-                <el-select
-                  v-if="milestones?.available"
-                  v-model="selectedMilestoneId"
-                  placeholder="从 ODS 里程碑选择"
-                  style="width: 100%"
-                  @change="applyMilestone"
-                >
-                  <el-option
-                    v-for="item in milestones.items"
-                    :key="item.id"
-                    :label="item.title"
-                    :value="item.id"
-                  />
-                </el-select>
-                <el-alert
-                  v-else
-                  type="warning"
-                  :closable="false"
-                  show-icon
-                  title="ODS 里程碑未就绪，请先完成镜像同步"
-                />
-              </el-form-item>
-              <el-form-item label="核对说明">
-                <el-input
-                  v-model="evidenceNote"
-                  type="textarea"
-                  :rows="3"
-                  maxlength="500"
-                  placeholder="例如：已核对里程碑与项目范围，来源数据完整"
-                />
-              </el-form-item>
-              <el-form-item>
-                <el-button type="primary" :loading="saving" @click="saveDraft">保存草稿与依据</el-button>
-              </el-form-item>
-            </el-form>
-          </el-tab-pane>
-
-          <el-tab-pane label="预览与发布">
-            <div class="toolbar">
-              <el-button :loading="previewing" @click="previewScope(true)">生成预览</el-button>
-              <el-button
-                type="primary"
-                :icon="Upload"
-                :loading="publishing"
-                :disabled="publicationActive"
-                @click="createPublication"
-              >
-                发布结构
-              </el-button>
-              <el-tag v-if="!bindingBound" type="warning">绑定未完成</el-tag>
-              <el-tag v-if="dirty" type="warning">请先保存草稿</el-tag>
-            </div>
-
-            <el-alert
-              v-for="(blocker, index) in blockers"
-              :key="index"
-              type="error"
-              :closable="false"
-              show-icon
-              :title="blocker"
-              class="blocker"
-            />
-
-            <el-descriptions v-if="preview" :column="3" border size="small" class="preview-meta">
-              <el-descriptions-item label="发布类型">
-                {{ publicationKindLabel(preview.publicationKind) }}
-              </el-descriptions-item>
-              <el-descriptions-item label="影响记录">{{ preview.impact.records ?? 0 }}</el-descriptions-item>
-              <el-descriptions-item label="影响实例">{{ preview.impact.instances ?? 0 }}</el-descriptions-item>
-              <el-descriptions-item label="新增字段">{{ preview.diff.added ?? 0 }}</el-descriptions-item>
-              <el-descriptions-item label="删除字段">{{ preview.diff.removed ?? 0 }}</el-descriptions-item>
-              <el-descriptions-item label="调整字段">{{ preview.diff.modified ?? 0 }}</el-descriptions-item>
-            </el-descriptions>
-
-            <el-alert
-              v-if="preview"
-              type="info"
-              :closable="false"
-              show-icon
-              :title="historyImpactText(preview)"
-              class="impact"
-            />
-
-            <el-table v-if="businessRows.length" :data="businessRows" border size="small" class="diff-table">
-              <el-table-column prop="fieldLabel" label="字段" width="160" />
-              <el-table-column prop="changeLabel" label="变化" width="150" />
-              <el-table-column prop="before" label="调整前" min-width="180" />
-              <el-table-column prop="after" label="调整后" min-width="180" />
-              <el-table-column prop="history" label="历史记录影响" min-width="260" />
-            </el-table>
-
-            <div v-if="publication" class="publication-card">
-              <div class="publication-card__title">
-                最近发布 #{{ publication.id }}
-                <el-tag :type="publication.stage === 'PUBLISHED' ? 'success' : publication.stage === 'FAILED' ? 'danger' : 'warning'">
-                  {{ publicationStageLabel(publication.stage) }}
-                </el-tag>
-              </div>
-              <div class="publication-card__meta">
-                {{ publicationKindLabel(publication.publicationKind) }} · 尝试 {{ publication.attemptNo }} ·
-                目标版本 {{ publication.toVersionId }}
-                <span v-if="publication.recoveryCycle"> · 恢复 {{ publication.recoveryCycle }} 次</span>
-              </div>
-              <el-alert
-                v-if="publication.lastError"
-                type="error"
-                :closable="false"
-                show-icon
-                :title="publication.lastError"
-              />
-              <div class="publication-card__actions">
-                <el-button
-                  v-if="publication.stage === 'FAILED'"
-                  type="warning"
-                  @click="recoverPublication"
-                >
-                  恢复任务
-                </el-button>
-                <el-button @click="pollPublication(publication.id)">刷新状态</el-button>
-              </div>
-            </div>
-          </el-tab-pane>
-
-          <el-tab-pane label="版本历史">
-            <el-table :data="detail.versions" border size="small" class="version-table">
-              <el-table-column prop="versionLabel" label="版本标签" min-width="160" />
-              <el-table-column label="状态" width="160">
-                <template #default="{ row }">
-                  {{ versionStatusLabel(row.versionStatus) }}
-                  <el-tag v-if="row.id === scope?.currentVersionId" size="small" type="success">
-                    当前版本
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="publishedAt" label="发布时间" min-width="180" />
-            </el-table>
-          </el-tab-pane>
-        </el-tabs>
-      </el-main>
-
-      <el-main v-else class="form-template-admin__empty">
-        <el-empty description="选择左侧范围查看字段、绑定与发布状态" />
-      </el-main>
-    </el-container>
-
-    <el-dialog v-model="optionsVisible" :title="`配置选项：${optionRow?.label ?? ''}`" width="560px">
-      <div v-if="optionRow" class="option-editor">
-        <div v-for="(option, index) in optionRow.options" :key="option.value" class="option-editor__row">
-          <el-input
-            :model-value="option.label"
-            size="small"
-            maxlength="64"
-            @input="updateOptionLabel(index, $event)"
-          />
-          <el-button link type="danger" :icon="Delete" @click="removeOptionRow(index)" />
-        </div>
-        <el-empty v-if="!optionRow.options.length" description="尚未配置选项" :image-size="48" />
-      </div>
-      <template #footer>
-        <el-button @click="addOptionRow">新增选项</el-button>
-        <el-button type="primary" @click="optionsVisible = false">完成</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="conflictVisible" title="草稿已被他人修改" width="640px">
-      <p>
-        服务器上的草稿修订为 {{ conflictDraft?.revision ?? '-' }}。您的本地修改仍然保留；
-        请选择如何处理，系统不会自动覆盖任何一方。
-      </p>
-      <el-descriptions v-if="conflictDraft" :column="2" border size="small">
-        <el-descriptions-item label="服务器发布标签">
-          {{ conflictDraft.versionLabel || '未填写' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="服务器字段数">
-          {{ conflictDraft.fieldSpec?.fields?.length ?? 0 }}
-        </el-descriptions-item>
-        <el-descriptions-item label="本地字段数">{{ fieldRows.length }}</el-descriptions-item>
-        <el-descriptions-item label="本地发布标签">{{ versionLabel || '未填写' }}</el-descriptions-item>
-        <el-descriptions-item label="服务器字段" :span="2">
-          {{ conflictDraft.fieldSpec?.fields?.map((field) => field.label).join('、') || '无' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="本地字段" :span="2">
-          {{ fieldRows.map((row) => row.label).join('、') || '无' }}
-        </el-descriptions-item>
-      </el-descriptions>
-      <template #footer>
-        <el-button @click="conflictVisible = false">保留双方，稍后处理</el-button>
-        <el-button @click="applyServerDraft">载入服务器版本（覆盖本地）</el-button>
-        <el-button type="primary" @click="keepLocalWithLatestRevision">
-          保留本地，基于最新修订继续
-        </el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="createVisible" title="新建表单范围" width="480px">
-      <el-form label-width="110px">
-        <el-form-item label="模板">
-          <el-select v-model="createTemplateKey" style="width: 100%">
-            <el-option
-              v-for="template in templates"
-              :key="template.templateKey"
-              :label="template.displayName"
-              :value="template.templateKey"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="范围键">
-          <el-input v-model="createScopeKey" maxlength="64" placeholder="例如 cc-2027-r1" />
-        </el-form-item>
+    <el-drawer v-model="rangeVisible" title="适用范围" size="460px">
+      <el-form label-position="top" class="range-form">
+        <el-form-item label="范围名称"><el-input :model-value="String(evidenceDraft.scopeDisplayName ?? '')" placeholder="例如：CCProduct" @input="evidenceDraft = { ...evidenceDraft, scopeDisplayName: $event }" /></el-form-item>
+        <el-form-item label="代码平台"><el-select v-model="bindingSourceId" placeholder="选择代码平台" :disabled="bindingBound" @change="loadMilestones"><el-option v-for="option in bindingOptions" :key="option.sourceConfigId" :label="option.name" :value="option.sourceConfigId" /></el-select></el-form-item>
+        <el-form-item label="适用项目"><el-input v-model="bindingProjects" :disabled="bindingBound" placeholder="项目编号，多个项目用逗号分隔" @blur="loadMilestones" /></el-form-item>
+        <el-form-item label="版本所属项目"><el-input-number v-model="bindingVersionProject" :disabled="bindingBound" :min="1" @change="loadMilestones" /></el-form-item>
+        <el-form-item label="版本"><el-select v-if="milestones?.available" v-model="selectedMilestoneId" placeholder="选择项目版本" @change="applyMilestone"><el-option v-for="item in milestones.items" :key="item.id" :label="item.title" :value="item.id" /></el-select><el-input v-else v-model="versionLabel" placeholder="填写项目版本" /></el-form-item>
+        <el-form-item label="发布说明"><el-input v-model="evidenceNote" type="textarea" :rows="3" maxlength="500" placeholder="本次调整的说明（选填）" /></el-form-item>
       </el-form>
-      <template #footer>
-        <el-button @click="createVisible = false">取消</el-button>
-        <el-button type="primary" @click="createScope">创建</el-button>
-      </template>
-    </el-dialog>
-  </div>
+      <template #footer><el-button @click="finishRange">完成</el-button></template>
+    </el-drawer>
+
+    <el-dialog v-model="publishConfirmVisible" title="发布修改" width="min(560px, 90vw)" :close-on-click-modal="false"><ul class="confirm-changes"><li v-for="change in changes" :key="change.key">{{ change.text }}</li></ul><p v-if="!changes.length">将启用此表单供填写。</p><p v-if="detail && detail.recordCount > 0 && changes.some(change => change.kind === 'removed')" class="history-effect">已填写的 {{ detail.recordCount }} 条记录在历史版本中保留原字段。</p><template #footer><el-button @click="publishConfirmVisible = false">继续编辑</el-button><el-button type="primary" @click="confirmPublication">确认发布</el-button></template></el-dialog>
+
+    <el-dialog v-model="createVisible" title="新建适用范围" width="420px"><el-form label-position="top"><el-form-item label="表单"><el-select v-model="createTemplateKey"><el-option v-for="template in templates" :key="template.templateKey" :label="formTitle(template.templateKey)" :value="template.templateKey" /></el-select></el-form-item><el-form-item label="适用范围名称"><el-input v-model="createScopeKey" placeholder="例如：CCProduct" /></el-form-item></el-form><template #footer><el-button @click="createVisible = false">取消</el-button><el-button @click="createScope">创建</el-button></template></el-dialog>
+
+    <el-drawer v-model="conflictVisible" title="其他管理员也修改了此表单" size="460px"><p>你的修改仍保留。选择使用哪份内容。</p><h3 class="conflict-heading">最新内容</h3><ul class="conflict-fields"><li v-for="field in conflictDraft?.fieldSpec.fields ?? []" :key="field.name">{{ field.label }} · {{ controlLabel(field.control) }}</li></ul><div class="conflict-actions"><el-button @click="keepLocalWithLatestRevision(); saveDraft()">保留我的修改</el-button><el-button @click="applyServerDraft">使用最新内容</el-button></div></el-drawer>
+  </section>
 </template>
 
 <style scoped>
-.form-template-admin {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 20px;
+.form-admin { color: #24344a; min-width: 0; padding: 0 4px 40px; }
+.page-title { font-size: 22px; font-weight: 650; margin: 0 0 26px; letter-spacing: -.02em; }
+.admin-layout { display: grid; grid-template-columns: 184px minmax(0, 1fr); gap: 28px; align-items: start; }
+.form-list { padding-top: 5px; position: sticky; top: 20px; }
+.form-group + .form-group { margin-top: 28px; }
+.form-group h2 { font-size: 14px; font-weight: 650; margin: 0 0 10px 12px; color: #3a4b62; }
+.scope-item { width: 100%; text-align: left; border: 0; background: none; padding: 12px; border-radius: 8px; cursor: pointer; color: inherit; }
+.scope-item:hover { background: #e9eff7; }
+.scope-item.selected { background: #e6efff; color: #195fca; }
+.scope-name { display: block; overflow-wrap: anywhere; line-height: 1.5; font-size: 13px; font-weight: 550; }
+.scope-state { display: flex; align-items: center; gap: 6px; margin-top: 5px; color: #63748b; font-size: 11px; }
+.scope-state i { width: 5px; height: 5px; border-radius: 50%; background: #8794a5; }
+.scope-state i.active { background: #229477; }
+.scope-state i.changed { background: #3578e6; }
+.new-range { margin: 8px 0 0 12px; background: none; border: 0; color: #37679f; font-size: 12px; cursor: pointer; padding: 3px 0; }
+.small-empty { margin: 9px 12px 4px; color: #758399; font-size: 12px; }
+.workspace { min-width: 0; }
+.workspace-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 24px; min-height: 68px; }
+.workspace-heading { min-width: 0; }
+.heading-line { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+.heading-line h2 { margin: 0; font-size: 23px; font-weight: 650; letter-spacing: -.025em; }
+.status-label { background: #e9f3ee; color: #3c7459; font-size: 11px; padding: 3px 7px; border-radius: 4px; }
+.range-summary { display: inline-flex; align-items: center; gap: 7px; border: 0; padding: 0; background: none; color: #49617e; cursor: pointer; font-size: 13px; }
+.range-summary:hover { color: #2166ce; }
+.current-version { margin-left: 12px; font-size: 12px; color: #728098; }
+.header-actions { display: flex; align-items: center; flex-shrink: 0; gap: 7px; }
+.header-actions :deep(.el-button + .el-button) { margin-left: 0; }
+.header-actions :deep(.el-button--primary) { min-width: 84px; font-weight: 600; background: #246bdb; border-color: #246bdb; }
+.notice { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; box-sizing: border-box; padding: 10px 15px; border-radius: 8px; margin-bottom: 22px; font-size: 13px; }
+.notice-warning { color: #81570e; background: #fff4df; }
+.notice-changes { color: #315e98; background: #eaf1fc; }
+.notice strong { font-weight: 600; }
+.notice :deep(.el-button) { color: #246bdb; font-weight: 600; padding: 0; min-height: 20px; }
+.save-status { font-size: 12px; color: #526c8d; }
+.editor-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(235px, 26%); gap: 24px; max-width: 1440px; margin-inline: auto; align-items: start; }
+.field-editor { min-width: 0; width: 100%; max-width: 900px; justify-self: center; }
+.conflict-heading { font-size: 14px; margin-top: 24px; }
+.conflict-fields { list-style: none; padding: 0; color: #526780; font-size: 13px; line-height: 2; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; min-height: 32px; }
+.section-heading h3, .summary-heading h3 { margin: 0; font-size: 14px; font-weight: 650; }
+.section-heading h3 span { margin-left: 6px; font-size: 12px; font-weight: 400; color: #7b8799; }
+.section-heading :deep(.el-button) { background: transparent; font-size: 12px; }
+.field-card { position: relative; background: #fff; border: 1px solid #e0e7ef; border-radius: 10px; margin-bottom: 10px; transition: border-color .15s; }
+.field-card:hover { border-color: #c5d3e5; }
+.field-card.modified::before { content: ''; position: absolute; left: -1px; top: 14px; bottom: 14px; width: 3px; border-radius: 2px; background: #4c83de; }
+.field-card.is-added::before { background: #31967c; }
+.field-row { display: grid; grid-template-columns: 18px minmax(100px, 1fr) 117px 58px 54px; gap: 10px; align-items: center; padding: 16px 13px; }
+.drag-handle, .field-actions button { border: 0; color: #7f8da1; background: none; padding: 4px 0; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 15px; }
+.drag-handle { cursor: grab; }
+.drag-handle:active { cursor: grabbing; }
+.field-name { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.field-name :deep(.el-input) { flex: 1; min-width: 0; }
+.field-row :deep(.el-input__wrapper) { box-shadow: none; padding-inline: 5px; background: none; }
+.field-row :deep(.el-input__wrapper:hover) { box-shadow: 0 0 0 1px #c5d3e5 inset; }
+.field-row :deep(.el-input__wrapper.is-focus) { box-shadow: 0 0 0 1px #3b7de0 inset; }
+.field-row :deep(.el-input__inner) { color: #273c58; font-size: 13px; }
+.field-row :deep(.el-select__wrapper) { box-shadow: none; background: #f5f7fa; min-height: 30px; font-size: 12px; }
+.change-badge { flex-shrink: 0; color: #356bb8; background: #edf3fe; font-size: 10px; line-height: 18px; border-radius: 4px; padding: 0 5px; }
+.is-added .change-badge { background: #eaf6ef; color: #2c7b60; }
+.required-toggle { display: flex; gap: 5px; align-items: center; color: #65738a; font-size: 11px; }
+.required-toggle :deep(.el-switch) { --el-switch-on-color: #5084d6; --el-switch-off-color: #d9e0e9; }
+.field-actions { display: flex; justify-content: end; gap: 12px; }
+.field-actions button:hover { color: #246bdb; }
+.field-actions button:last-child:hover { color: #b85a51; }
+.field-actions .el-icon { transition: transform .15s; }
+.field-actions .rotated { transform: rotate(180deg); }
+.field-details { border-top: 1px solid #edf1f5; padding: 18px 20px 18px 40px; }
+.detail-section + .detail-section { margin-top: 20px; }
+.detail-section h4 { font-size: 12px; margin: 0 0 10px; font-weight: 600; }
+.detail-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.detail-heading :deep(.el-button) { color: #37679f; font-size: 11px; padding: 0 4px; }
+.option-row { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+.option-row > span { width: 14px; font-size: 11px; color: #8893a3; }
+.option-row :deep(.el-input) { max-width: 320px; }
+.option-row :deep(.el-button) { margin-left: 0; }
+.field-hint { margin: 8px 0 0; color: #748096; font-size: 12px; }
+.condition-editor { background: #f6f8fb; padding: 12px; border-radius: 7px; margin-bottom: 9px; min-width: 0; }
+.condition-description { display: block; font-size: 12px; color: #4d6079; line-height: 1.6; margin-bottom: 10px; overflow-wrap: anywhere; }
+.condition-controls { display: grid; grid-template-columns: minmax(0, 1fr) 65px minmax(0, 1fr) 24px; gap: 7px; align-items: center; }
+.condition-controls > .el-select { min-width: 0; }
+.condition-controls :deep(.el-select__wrapper) { font-size: 12px; }
+.clear-condition { display: flex; align-items: center; gap: 7px; margin-top: 9px; font-size: 12px; color: #65758b; }
+.removed-card { display: flex; gap: 10px; align-items: center; padding: 12px 18px; background: #fbf8f7; color: #6b6570; }
+.removed-card > span:first-child { text-decoration: line-through; }
+.removed-card .change-badge { color: #a26150; background: #f7e9e4; }
+.removed-card :deep(.el-button) { margin-left: auto; font-size: 12px; }
+.change-summary { min-width: 0; position: sticky; top: 24px; border-top: 2px solid #c8d8ee; padding-top: 17px; }
+.summary-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.summary-heading > span { color: #75859c; font-size: 11px; }
+.change-summary ul { list-style: none; margin: 19px 0 0; padding: 0; }
+.change-summary li { display: flex; align-items: start; gap: 9px; font-size: 12px; line-height: 1.85; margin-bottom: 16px; color: #50627c; overflow-wrap: anywhere; }
+.change-summary li i { display: block; flex: 0 0 5px; height: 5px; background: #5684c7; border-radius: 50%; margin-top: 9px; }
+.change-summary li i.added { background: #369578; }
+.change-summary li i.removed { background: #b67d6b; }
+.summary-empty { font-size: 12px; color: #7b8799; margin: 18px 0; }
+.summary-save { font-size: 11px; color: #758299; border-top: 1px solid #e0e7ef; padding-top: 13px; margin-top: 22px; }
+.empty-fields, .empty-workspace { padding: 40px 12px; font-size: 13px; color: #6b7d93; }
+.version-list { list-style: none; padding: 0; margin: 10px 0; }
+.version-list li { display: flex; gap: 14px; padding: 0 0 28px; position: relative; }
+.version-dot { flex: 0 0 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: #6390cc; }
+.version-list strong { color: #314760; font-size: 14px; }
+.version-list p { color: #7d8b9c; font-size: 12px; margin: 7px 0 0; }
+.range-form :deep(.el-select), .range-form :deep(.el-input-number) { width: 100%; }
+.confirm-changes { padding-left: 19px; color: #465b77; }
+.confirm-changes li { line-height: 1.8; margin-bottom: 10px; }
+.history-effect { margin-top: 20px; color: #6a7586; font-size: 12px; }
+.conflict-actions { display: flex; gap: 12px; margin-top: 25px; }
+.muted { color: #708097; font-size: 13px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+button:focus-visible { outline: 2px solid #5187d4; outline-offset: 3px; }
+@media (max-width: 1350px) {
+  .admin-layout { grid-template-columns: 160px minmax(0, 1fr); gap: 22px; }
+  .editor-grid { grid-template-columns: minmax(0,1fr) 218px; gap: 18px; }
+  .field-row { grid-template-columns: 14px minmax(85px,1fr) 103px 54px 47px; gap: 7px; padding-inline: 10px; }
+  .header-actions { gap: 3px; }
+  .current-version { display: block; margin: 7px 0 0; }
 }
-.form-template-admin__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+@media (max-width: 1100px) {
+  .admin-layout { grid-template-columns: 135px minmax(0,1fr); gap: 18px; }
+  .editor-grid { grid-template-columns: minmax(0,1fr); }
+  .change-summary { position: static; order: -1; padding-bottom: 7px; }
+  .change-summary ul { display: flex; flex-wrap: wrap; column-gap: 18px; }
+  .change-summary li { margin-bottom: 7px; }
+  .summary-save { display: none; }
+  .workspace-header { flex-wrap: wrap; }
 }
-.form-template-admin__header h2 {
-  margin: 0 0 6px;
-}
-.form-template-admin__header p {
-  margin: 0;
-  color: var(--el-text-color-secondary);
-}
-.form-template-admin__actions {
-  display: flex;
-  gap: 8px;
-}
-.form-template-admin__body {
-  min-height: 520px;
-  gap: 16px;
-}
-.form-template-admin__aside {
-  border-right: 1px solid var(--el-border-color-light);
-  padding-right: 12px;
-}
-.template-group {
-  margin-bottom: 16px;
-}
-.template-group__title {
-  font-weight: 600;
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-.template-group__key {
-  color: var(--el-text-color-secondary);
-  font-weight: 400;
-  font-size: 12px;
-}
-.scope-item {
-  padding: 8px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.scope-item:hover,
-.scope-item--active {
-  background: var(--el-fill-color-light);
-}
-.scope-item__title {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 13px;
-}
-.scope-item__meta {
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  margin-top: 4px;
-}
-.form-template-admin__main {
-  padding: 0;
-}
-.form-template-admin__empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.scope-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 12px;
-}
-.scope-header h3 {
-  margin: 0 0 8px;
-}
-.scope-header__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-}
-.toolbar {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.field-table,
-.diff-table {
-  margin-top: 12px;
-}
-.preview-meta {
-  margin: 12px 0;
-}
-.blocker {
-  margin-bottom: 8px;
-}
-.impact {
-  margin-bottom: 12px;
-}
-.binding-form {
-  max-width: 720px;
-}
-.publication-card {
-  margin-top: 16px;
-  padding: 12px;
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 8px;
-}
-.publication-card__title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-}
-.publication-card__meta {
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-  margin: 8px 0;
-}
-.publication-card__actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
-.condition-panel {
-  margin-top: 16px;
-  padding: 10px 12px;
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 8px;
-  background: var(--el-fill-color-lighter);
-}
-.condition-panel__title {
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-.condition-panel ul {
-  margin: 0;
-  padding-left: 18px;
-  color: var(--el-text-color-regular);
-}
-.option-summary {
-  margin-right: 8px;
-}
-.muted {
-  color: var(--el-text-color-placeholder);
-}
-.option-editor__row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.engineering {
-  margin-top: 12px;
-}
+
 </style>

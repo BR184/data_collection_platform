@@ -555,7 +555,7 @@ export function hasUnsupportedConditions(spec: FormTemplateSpecView): boolean {
   return unsupportedRoot || unsupportedField;
 }
 
-function buildRequiredWhen(row: ConditionRow): Record<string, unknown> {
+function buildRequiredWhen(row: ConditionRow, spec: FormTemplateSpecView): Record<string, unknown> {
   const value = row.values[0] ?? '';
   if (row.triggerField === RESOURCE_SEVERITY_FIELD) {
     return row.values.length > 1
@@ -568,8 +568,12 @@ function buildRequiredWhen(row: ConditionRow): Record<string, unknown> {
   if (row.operator === 'notContains') {
     return { field: row.triggerField, notContains: value };
   }
-  const booleanField = value === 'true' || value === 'false';
-  return { field: row.triggerField, equals: booleanField ? value === 'true' : value };
+  const field = spec.fields.find(item => item.name === row.triggerField);
+  if (field?.type === 'boolean') return { field: row.triggerField, equals: value === 'true' };
+  if (field?.type === 'integer' && /^-?\d+$/.test(value) && Number.isSafeInteger(Number(value))) {
+    return { field: row.triggerField, equals: Number(value) };
+  }
+  return { field: row.triggerField, equals: value };
 }
 
 function buildClearWhen(
@@ -663,7 +667,7 @@ export function applyConditionRows(
     const condition: FormSpecConditionView = {
       type: 'conditionalRequired',
       target: row.target,
-      requiredWhen: buildRequiredWhen(row),
+      requiredWhen: buildRequiredWhen(row, spec),
     };
     const clearWhen = row.clearWhenOff ? buildClearWhen(row, spec) : null;
     if (clearWhen) {
@@ -682,7 +686,7 @@ export function conditionFieldOptions(
   rows: FieldRow[],
 ): Array<{ value: string; label: string }> {
   return [
-    ...rows.map((row) => ({ value: row.name, label: row.label || row.name })),
+    ...rows.map((row) => ({ value: row.name, label: row.label || '未命名字段' })),
     { value: RESOURCE_SEVERITY_FIELD, label: '议题严重级别' },
   ];
 }
@@ -753,6 +757,8 @@ function labelOfValue(
   spec: FormTemplateSpecView,
   rows: FieldRow[],
 ): string {
+  const type = rows.find(field => field.name === row.triggerField)?.type;
+  if (type === 'integer' || type === 'string' || type === 'date') return value;
   return (
     conditionValueOptions(row, spec, rows).find((option) => option.value === value)?.label
     ?? (row.triggerField === RESOURCE_SEVERITY_FIELD ? value : '已删除或未知选项')
