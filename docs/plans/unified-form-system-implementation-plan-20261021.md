@@ -1,19 +1,19 @@
 ## 进度与中间物
 
-- 当前阶段（2026-10-27）：输入4cd8588d的[N0五审通过](v6-n0-technical-admission-20261027.md#n0-fifth-review)，IV-01/IV-02关闭；**准入N1目录/原位登记/读源基础实施**，尚未开始实现。N2后续逐阶段验收，W5/main/真实切换/发布未准入。
-- 输入与恢复：N0原稿SHA-256 8fb94e3a…dff212，Node58694efe…0defda；审核树`C:/Users/admin/.codex/worktrees/form-admin-ui/data_collection_platform` / `codex/form-admin-ui-20261027`已快进吸收4cd8588d；员工树`D:/projects/dcp-form-w4-20261026`为干净4cd8588d且双远端一致。先读AGENTS/进度/本单/N0，核对status/worktree/HEAD，再吸收最终回执SHA。
-- 验证：独立Node134项及四项真实实现突变通过；独立重建原类型反例正确返回明确无效合同。21份SQL哈希未变，沿用四审115/6/33证据，本轮未重跑PG或业务套件。审核证据本树`.tmp/n0-review-r5/verification.json`。
-- 下一步：员工先建立N1活动计划，再按[当前指令](#ai员工下一步执行指令2026-10-27)实施必要基础迁移、元数据/目录、受控原位登记、统一内部读源及正式回归。无须重复申请N0；跨范围变化另报审。
-- 边界：当前不改frontend，批准94749f3a保持；导出真实名单、E2、MR级未批公式及未确认产品模型维持原门禁。当前审核仅文档/Node临时文件，无DB/容器/服务资源。
+- 当前阶段（2026-10-27）：N0五审批准保持；**N1输入`2ac212f1`首次验收为修改后重审，N2未准入**。唯一详细整改条件见[N1首次验收与员工执行单](unified-form-v6-n1-implementation-20261027.md#n1-first-review)。W5/main/真实切换/发布未准入。
+- 输入与恢复：审核树`C:/Users/admin/.codex/worktrees/form-admin-ui/data_collection_platform` / `codex/form-admin-ui-20261027`已快进吸收2ac212f1；员工树`D:/projects/dcp-form-w4-20261026`原分支继续。先读AGENTS/进度/N1活动计划，核对status/worktree/HEAD，再快进吸收审核回执。
+- 验证：独立正式N1测试12/0/0/0；独立专有PG反例确认登记指纹/部分目录、完整C/多范围、业务回读及结构漂移缺陷，证据本树`.tmp/n1-review-20261027/`。审核容器已删除，无共享库/业务服务/黄金操作。
+- 下一步：员工按N1-R01—R05补正式失败回归并修已准入后端，收口真实非空升级与隔离默认套件、共享操作只读清单；不重复申请N0，不提前进入N2。详见N1活动计划的执行顺序，不沿用下方历史“从零开始N1”指令。
+- 边界：不改frontend，批准94749f3a保持；既有160条迁移已执行且不可变，必要DDL纠正只追加前向迁移。不得再触碰15432/15433或回退共享对象；导出真实名单、E2、MR级未批公式及未确认产品模型维持原门禁。
 
 # 统一表单系统实施与审核清单
 
-> 当前已吸收、待N0准入设计为v6.0，正式工作单元见[交接清单](#v60待下发工作单元与交接清单)。下方W0—W4交付与复审记录按各自v5.1输入保留；复制、迁移后当前表和单一存储版本证据的旧要求不再约束新版，只用于解释冻结修复及审查历史。
+> 当前设计为v6.0，N0已批准，N1首次验收退回整改；正式工作单元见[交接清单](#v60待下发工作单元与交接清单)。下方W0—W4交付与复审记录按各自v5.1输入保留；复制、迁移后当前表和单一存储版本证据的旧要求不再约束新版，只用于解释冻结修复及审查历史。
 > 用户指定等待员工完成正在执行的轮次后，再一次交接新反馈与新方案。员工已在287147ff吸收文档，4423920e回执已核实；文档吸收不代表新版已实现或准入W5。
 
 ## 恢复线索
 
-恢复先运行`git status --short --branch`，读取[AGENTS.md](../../AGENTS.md)、[项目进度](../progress.md)、[主方案v6.0](unified-form-system-plan-20261009.md)和本清单。当前审核文档使用`C:/Users/admin/.codex/worktrees/form-admin-ui/data_collection_platform`；员工目录为`D:/projects/dcp-form-w4-20261026`，当前仅整改N0合同，R05及文档吸收已完成。下表为v5.1审批轨迹，新版实施以v6准入补审为前置，不依据旧阶段通过直接跳到W5。
+恢复先运行`git status --short --branch`，读取[AGENTS.md](../../AGENTS.md)、[项目进度](../progress.md)、[主方案v6.0](unified-form-system-plan-20261009.md)和本清单。当前审核文档使用`C:/Users/admin/.codex/worktrees/form-admin-ui/data_collection_platform`；员工目录为`D:/projects/dcp-form-w4-20261026`，当前按[N1活动计划](unified-form-v6-n1-implementation-20261027.md#n1-first-review)整改，N0批准保持。下表为v5.1审批轨迹，不依据旧阶段通过直接跳到W5。
 
 | 阶段 | 状态 | 交付版本/差异 | 验证证据 | 审核结论 |
 | --- | --- | --- | --- | --- |
