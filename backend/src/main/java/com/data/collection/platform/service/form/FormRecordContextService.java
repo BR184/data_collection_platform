@@ -139,7 +139,7 @@ public class FormRecordContextService {
     }
 
     FormTemplateSpec spec = parseSpec(matched.fieldSpec(), key);
-    JsonNode fieldSpecJson = readJson(matched.fieldSpec());
+    JsonNode fieldSpecJson = readFieldSpec(matched.fieldSpec());
     Long rootId;
     String severity = null;
     if ("merge_request".equals(type)) {
@@ -240,7 +240,7 @@ public class FormRecordContextService {
         current.instanceTable(),
         current.recordTable(),
         spec,
-        readJson(raw),
+        readFieldSpec(raw),
         current.projectId(),
         current.resourceType(),
         current.resourceId(),
@@ -364,7 +364,7 @@ public class FormRecordContextService {
     }
   }
 
-  private FormTemplateSpec parseSpec(String raw, String templateKey) {
+  public FormTemplateSpec parseSpec(String raw, String templateKey) {
     try {
       FormTemplateSpec spec = objectMapper.readValue(raw, FormTemplateSpec.class);
       if (spec.specVersion() != 1 || !templateKey.equals(spec.templateKey())) {
@@ -378,7 +378,7 @@ public class FormRecordContextService {
     }
   }
 
-  private JsonNode readJson(String raw) {
+  public JsonNode readFieldSpec(String raw) {
     try {
       return objectMapper.readTree(raw);
     } catch (Exception error) {

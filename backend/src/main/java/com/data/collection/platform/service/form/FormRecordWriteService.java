@@ -7,8 +7,10 @@ import com.data.collection.platform.domain.form.FormTemplateSpecCatalog;
 import com.data.collection.platform.entity.form.FormActorContext;
 import com.data.collection.platform.entity.form.FormCreateResponse;
 import com.data.collection.platform.entity.form.FormRecordView;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,7 @@ public class FormRecordWriteService {
   private final FormRecordContextService contextService;
   private final FormRecordStore store;
   private final FormRecordViewFactory viewFactory;
+  private final FormRecordDirectoryService directoryService;
   private final Clock clock;
 
   public FormRecordWriteService(
@@ -34,11 +37,13 @@ public class FormRecordWriteService {
       FormRecordContextService contextService,
       FormRecordStore store,
       FormRecordViewFactory viewFactory,
+      FormRecordDirectoryService directoryService,
       Clock clock) {
     this.jdbcTemplate = jdbcTemplate;
     this.contextService = contextService;
     this.store = store;
     this.viewFactory = viewFactory;
+    this.directoryService = directoryService;
     this.clock = clock;
   }
 
@@ -59,6 +64,9 @@ public class FormRecordWriteService {
 
   /**
    * 六步新增：key 核验、规范指纹、实例归并、锁内同人检查、唯一插入、审计/head。
+   *
+   * <p>目录判重在实例创建前执行（§2.1 步骤3）：登记行或并发创建命中即按唯一核验合同重放；
+   * 记录插入成功后同事务写入定位目录行。
    */
   @Transactional
   public FormCreateResponse create(
@@ -67,6 +75,7 @@ public class FormRecordWriteService {
       FormActorContext actor,
       String actorName,
       String requestKey,
+      Map<String, JsonNode> rawFields,
       String payloadHash,
       boolean confirmSameReviewer,
       String clientIp,
@@ -75,6 +84,8 @@ public class FormRecordWriteService {
         "select pg_advisory_xact_lock(hashtext('form_record_id_seq')::bigint)");
     contextService.lockWritableScope(context);
     requireResourceMirrored(context);
+    directoryService.requireNoReplayInsideTransaction(
+        context, context.storageVersionId(), rawFields, actor, requestKey);
     LocalDateTime now = LocalDateTime.now(clock);
     long instanceId = store.ensureInstance(context, now);
 
@@ -103,6 +114,7 @@ public class FormRecordWriteService {
       verifyReplay(context, raced, actor, payloadHash);
       throw new ReplaySignal(view(raced, actor, context.writable()));
     }
+    directoryService.writeForCreatedRecord(context, inserted, instanceId);
     finishWrite("CREATE", context, inserted, actor, actorName, clientIp, userAgent, now);
     return new FormCreateResponse(
         "CREATED", view(inserted, actor, context.writable()), null);

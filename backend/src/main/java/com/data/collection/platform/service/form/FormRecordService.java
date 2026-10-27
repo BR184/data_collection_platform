@@ -40,6 +40,7 @@ public class FormRecordService {
   private final FormRecordViewFactory viewFactory;
   private final FormReviewerDirectoryService reviewerDirectory;
   private final PlatformIdentityService identityService;
+  private final FormRecordDirectoryService directoryService;
   private final JdbcTemplate jdbcTemplate;
   private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
@@ -51,6 +52,7 @@ public class FormRecordService {
       FormRecordViewFactory viewFactory,
       FormReviewerDirectoryService reviewerDirectory,
       PlatformIdentityService identityService,
+      FormRecordDirectoryService directoryService,
       JdbcTemplate jdbcTemplate,
       com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
     this.contextService = contextService;
@@ -60,6 +62,7 @@ public class FormRecordService {
     this.viewFactory = viewFactory;
     this.reviewerDirectory = reviewerDirectory;
     this.identityService = identityService;
+    this.directoryService = directoryService;
     this.jdbcTemplate = jdbcTemplate;
     this.objectMapper = objectMapper;
   }
@@ -138,6 +141,18 @@ public class FormRecordService {
     if (replay != null) {
       return replay;
     }
+    // 目录跨版重放：登记行或其它版本创建的记录按目录 origin 证据核验首次指纹。
+    long requestVersionId =
+        parsePositiveId(request.storageVersionId(), "结构版本 ID");
+    long requestScopeId = parsePositiveId(request.scopeId(), "范围 ID");
+    if (requestScopeId != context.scopeId()) {
+      throw new BizException(ResultCode.BAD_REQUEST, "范围与资源上下文不一致");
+    }
+    FormCreateResponse directoryReplay =
+        directoryService.replayIfPresent(context, requestVersionId, request.fields(), actor, requestKey);
+    if (directoryReplay != null) {
+      return directoryReplay;
+    }
     // 新提交必须与当前结构版本一致。
     contextService.requireExpected(context, request.scopeId(), request.storageVersionId());
     ValidatedFormValues canonicalValues =
@@ -153,6 +168,7 @@ public class FormRecordService {
           actor,
           actorName(actor),
           requestKey,
+          request.fields(),
           payloadHash,
           request.confirmSameReviewer(),
           clientIp,

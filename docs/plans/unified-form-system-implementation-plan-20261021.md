@@ -773,6 +773,17 @@
 
 **保持未授权**：frontend和UI功能变更、N3发布执行器、N4事实公开/统计/Excel及正式权限授予、外部机器人/AI/GitLab写回、共享/真实业务库、main、内网和正式包。真实E2未取得不阻断隔离N1开发，但阻断真实登记/切换；导出角色和MR级未批公式按其实施前门禁补齐。必要基础依赖若不能按本范围独立验证，先报告具体依赖，不以隐藏页面或关闭开关冒充可发布成果。
 
+
+### N1基础实施交付（员工，2026-10-27，待验收）
+
+**范围**：吸收审核回执`13985b7a`后按“五审通过后N1实施指令”实施；frontend零改动，批准UI`94749f3a`保持；不启动N2—N5/W5。
+
+**实现**：前向迁移`V20261027_01__form_v6_directory.sql`（N0合同§1.2—§1.4，仅依赖`V20261022_01`；实际基线`instance_table`先drop not null；校验和159→160仅新增）；`FormV6RegistrationService`路径A（旧Demo`collect_form_records`原位LEGACY/NONE，不伪造实例/账号/修订）与路径B（v5唯一承载原位登记，承载版本AUTHORITATIVE、其余LEGACY_SNAPSHOT、原版版本行与field_spec保留供旧key重放），precheck→register同实现强制一致、源变化/重复归属/证据缺失整体拒绝、幂等重入不增修订；`FormRecordDirectoryService`目录写入接入六步创建事务（序列锁→范围FOR SHARE→目录判重→实例/记录/目录/审计/head），跨版重放按目录`origin_version_id`+v5指纹复算，PAYLOAD_MISMATCH/异账号/完整C/作废/原版证据缺失均409；`FormRecordDirectoryReader`统一内部读源（AUTHORITATIVE且PUBLISHED/RETIRED、排除TARGET/LEGACY_SNAPSHOT、`idx_frl_resource`完整C单索引、captureSourceSet）；`FormComparableRegistrationService`稳定ID/语义声明一次性登记（独立表，不改写field_spec），声明类型≠冻结`field.type`即`TYPE_DECLARATION_CONFLICT`。
+
+**验证**：定向真实PG测试12项全绿（`FormV6DirectoryMigrationTest`/`FormV6RegistrationIntegrationTest`/`FormComparableRegistrationIntegrationTest`，Testcontainers随机端口）；默认后端套件一次（结果见验收包）；159条旧迁移零改动、frontend相对`94749f3a`零差异、仓库护栏通过。事实入口（`GitlabFactSourceSqlProvider`等）未接，发布协议/消费捕获迁移留待N2；未自动登记真实旧库。
+
+**边界与下一步**：只改本任务范围文件；未改业务无关代码、权限、黄金；未合main、未出包。送N1验收，通过前不进入N2。
+
 ### 四审指令（历史输入，IV-01/IV-02已关闭）
 
 ### 四审当时指令

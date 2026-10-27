@@ -1,3 +1,11 @@
+## 2026-10-27 表单N1基础实施（员工送审快照）
+
+- [当前阶段] N0已获批（批准输入`4cd8588d`），N1基础实施完成并送审。已快进吸收审核回执`13985b7a`；frontend零改动，批准UI`94749f3a`保持；未进入N2，未合main、未出包。
+- [实现] 前向迁移`V20261027_01__form_v6_directory.sql`：范围源集合修订/哈希、版本角色（AUTHORITATIVE/LEGACY_SNAPSHOT/TARGET）与实例模式、LEGACY/NONE形状约束、定位目录`form_record_locations`（origin/实际承载/完整C/首次指纹证据、跨版key唯一）、可比语义登记表、目录事件/游标/ID高水位与四个函数；校验和登记159→160仅新增。`FormV6RegistrationService`受控原位登记（路径A旧Demo LEGACY/NONE原位、路径B v5唯一承载+其余LEGACY_SNAPSHOT；precheck→register一致性强制、守恒断言、幂等重入、漂移/重复归属/证据缺失409）；`FormRecordDirectoryService`把目录写入接入六步创建事务并按目录origin证据复算v5首次指纹重放；`FormRecordDirectoryReader`统一内部读源（仅权威PUBLISHED/RETIRED、排除TARGET/快照、完整C单索引定位、源集合捕获）；`FormComparableRegistrationService`稳定ID/语义声明一次性登记且声明=冻结类型校验（IV-01正式化）。
+- [验证] 定向真实PG测试12项全绿（迁移空/非空两路径、序列is_called全边界与跨范围重入、路径A/B守恒/幂等/漂移/重复归属/证据缺失、创建写目录、origin≠storage跨版重放、PAYLOAD_MISMATCH/异账号/完整C/作废拒绝、声明冲突/未知类型/身份冲突/拒绝覆盖、reader隔离与捕获）；默认后端套件见验收包。测试用Testcontainers`postgres:16-alpine`随机端口，未触碰15432/15433/共享服务；无业务服务/真实库/外部调用。
+- [边界] 未改frontend、批准UI、黄金、正式权限；未自动登记真实旧库（服务仅显式调用）；`GitlabFactSourceSqlProvider`等事实入口未接（N4）；发布协议/消费捕获迁移留待N2。
+- [下一步] 默认套件收口后提交推送双远端，送N1验收；通过前不进入N2。
+
 ## 2026-10-27 表单N0五审通过与N1准入
 
 - [结论] 批准输入4cd8588d，N0原稿SHA-256 8fb94e3a…dff212；IV-01/IV-02关闭，[N0五审通过](plans/v6-n0-technical-admission-20261027.md#n0-fifth-review)，准入N1目录/原位登记/读源基础实施，尚未开始。N2后续、W5、真实切换、main及正式包仍逐阶段待审；W4/R05和批准UI保持。
