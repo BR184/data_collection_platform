@@ -848,7 +848,7 @@ N0补齐项目候选接口的精确查询来源/物理列、权限、ID与名称
 
 **差异与边界**：相对`d338f843`只改文档与本轮`.tmp`探针；`git diff --exit-code 94749f3a -- frontend`无差异，旧159条迁移未改。未合main、未出包、未运行黄金。
 
-**交付回执**：整改提交`059dc08d`、回执`dc434345`、切换失败澄清`45b1a460`（4文件/380增/152删）；`origin`与`gitlab25`最终均回读`45b1a4603d2494f7ceea3101961b10e4e8da3f3b`。完整差异`.tmp/w4-r5-n0-20261027-r2/diff.patch`，验证清单`verification.json`含normal与四个负向模式、清理记录及输入SHA-256。
+**交付回执**：整改提交`059dc08d`及回执/澄清提交已推送；最终commit与双远端tip以`.tmp/w4-r5-n0-20261027-r2/verification.json`的`commit/remoteTips`为准（回读一致）。完整差异同目录`diff.patch`，验证清单含normal与四个负向模式、清理记录及输入SHA-256。
 
 ## v6.0待下发工作单元与交接清单
 

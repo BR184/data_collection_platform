@@ -12,7 +12,7 @@
 - [关闭] II-01序列按`is_called`推导下一可分配值；II-02目录持久化origin规格/指纹、旧key用原版证据、编辑按承载版本CAS；II-03 BUILDING不停写、SWITCHING仅enter/apply短栅栏、BUILDING/SWITCHING过期接管与DDL前后守卫；II-04捕获/结算绑定captureToken/owner/fence/租约与资源C索引；II-05语义哈希绑定真实选项/词典版本与内容；II-06导出只按既有导出权复制、显式端点谓词；II-07单入口基础DDL→修订DDL→探针并只清理所持ID。
 - [验证] 专属隔离PG16容器`92e305a3…a7a0`（15609）执行public 82、非空升级6、真实双会话16、共同字段81项全部PASS；切换期写等待约3秒后在新当前版本提交；崩溃事务回滚、旧owner迟到DDL/结算零副作用、SWITCHING过期接管完成。负向DDL失败/就绪超时/同名冲突/端口占用均只清理自有ID、占用者存活、无残留容器。证据`.tmp/w4-r5-n0-20261027-r2/`含`verification.json`、逐项日志与`cleanup.txt`；未启动业务服务、未连共享库/内网/真实外部。
 - [边界] 只改N0合同、progress、执行单与`.tmp`探针；未改业务代码/正式迁移/权限/前端/黄金，未合main、未出包。二审两项方向已写为批准事实，不再作为待选项；导出角色最终清单仍需N1前确认。
-- [交付] 整改提交`059dc08d`、回执`dc434345`、切换失败澄清`45b1a460`（4文件/380增/152删）；`origin`与`gitlab25`最终回读均为`45b1a4603d2494f7ceea3101961b10e4e8da3f3b`。完整差异`.tmp/w4-r5-n0-20261027-r2/diff.patch`，清单`verification.json`（含normal与四个负向模式、清理记录、输入SHA-256）。
+- [交付] 整改提交`059dc08d`及回执/澄清提交已推送；最终commit与双远端tip以`.tmp/w4-r5-n0-20261027-r2/verification.json`的`commit/remoteTips`为准（回读一致）。完整差异同目录`diff.patch`，清单含normal与四个负向模式、清理记录、输入SHA-256。
 - [下一步] 送三审；获批前不进入N1/W5。
 
 ## 2026-10-27 表单N0二审与下一步交接
