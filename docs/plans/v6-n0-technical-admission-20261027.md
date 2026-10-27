@@ -1,12 +1,11 @@
 ## 进度与中间物
 
-- 当前结论（2026-10-27）：**N0四审为修改后重审，N1/W5未准入**。III-01真实旧指纹、III-02发布锁序/首启、III-03消费结算关闭，S1合同接受；III-04的身份/域/交集算法通过，剩IV-01实际类型绑定P1和IV-02突变证据更正P2。此前II-01/06/07、W4/R05及批准UI保持。
-- 审核输入：员工`119b95a1f85e0bb3df291aad54e677440fb4ec76`，N0原稿SHA-256 `38ea67e3447cc65f5b423c7d8b5ef20d5e2a44c12a93a9a88f6fe09baf9e083a`；27项SQL/脚本/文档指纹核对一致。原稿SHA指反馈加入前版本。
-- 推送收口：审核方用现有Git Credential Manager将员工分支快进推送origin/gitlab25并回读，两端均为`119b95a1`；未读取/传递PAT。原“无凭据未推送”是员工送审时状态，当前已解除。不把远端同步作为技术通过证据。
-- 工作区与恢复：审核树`C:/Users/admin/.codex/worktrees/form-admin-ui/data_collection_platform`，分支`codex/form-admin-ui-20261027`已快进吸收输入；员工树`D:/projects/dcp-form-w4-20261026`只读核对为干净`119b95a1`。恢复先读AGENTS/进度/本文，执行`git status --short --branch`及`git worktree list`，按最终审核回执SHA继续。
-- 独立验证：public 115、非空升级6、双会话33、共同字段93共247项通过；旧请求等待3.4秒后409，消费与接管/发布等待2.4/3.3秒且无40P01。新增类型反例显示数字改文本后仍判共同整数并返回OK/2。审核方另做三项真实实现突变，均由正常断言检出。
-- 证据与环境：本树`.tmp/n0-review-r4/`，独立PG端口15611，唯一容器按自有ID删除且回读不存在。无业务服务/共享库/外部调用、前端/业务代码/正式迁移/权限/黄金变更。未独立复跑四种负向容器模式，不用本轮设计探针代替正式业务验收。
-- 下一步：仅修订§7类型生成/校验合同、Node算法和突变验证说明；SQL无变化时不重复public/P2/并发全套。旧key/发布/消费等已关闭项不重做；导出正式名单、E2、MR级未批公式和未确认产品模型保持原门禁。
+- 当前结论（2026-10-27）：**N0四审整改已交付，待五审；N1/W5未准入**。IV-01可比类型已绑定该版真实冻结`field.type`（§7.1/§7.1.1），IV-02突变证据已改为`--break=`真实实现突变；III-01/02/03、S1、II-01/06/07及W4/R05保持关闭。批准UI`94749f3a`未动，SQL零改动。
+- 吸收输入：员工树从`codex/form-admin-ui-20261027`快进吸收`096b3724c0065f518e235636b7618c45165c948d`（快进前核对`119b95a1`为祖先）；四审记录与执行指令见[a](#n0-fourth-review)、执行单“四审后当前指令”。员工`119b95a1`及审核提交均已同步双远端且回读一致。
+- 本轮验证：Node正常检查134项PASS；四个实现突变`identity`/`domain`/`type`/`no-common`全部非零退出且由固定断言转红（回执见[n0四审整改](#n0-fourth-review-remediation)）。SQL未变，按指令未重复public/P2/并发套件，PG侧沿用`119b95a1`批准指纹与四审独立复跑（115/6/33；旧请求3.4秒409，消费等待2.4/3.3秒无40P01）。
+- 证据：`.tmp/w4-r5-n0-20261027-r2/`（本轮探针`common-fields-probe.mjs`、`run-probes.ps1`、`logs/verification-iv-20261027.json`及逐项日志）。仓库护栏（159条迁移锁、frontend零差异vs`94749f3a`、工件/空白检查）见verification-iv。
+- 工作区与恢复：员工树`D:/projects/dcp-form-w4-20261026`，分支`codex/unified-form-w4-isolation-20261026`；恢复先读AGENTS/进度/本文，`git status --short --branch`及`git worktree list`，按最新审核回执SHA继续。
+- 下一步：送五审。N0获明确批准前不进入N1/W5，不改业务代码、正式迁移、权限、frontend或黄金，不合main、不出包；导出正式名单、E2、MR级未批公式和未确认产品模型保持原门禁。
 
 <a id="n0-fourth-review"></a>
 ## N0四审（2026-10-27）
@@ -45,6 +44,20 @@ IV-01是已确认“类型不兼容不合并”的执行缺项。当前管理页
 ### 下一步交接
 
 员工在原专属工作树吸收审核回执SHA，只修改IV-01/02涉及的N0合同、Node设计探针与状态文档；保留全部已关闭项。若SQL及其输入hash不变，只跑受影响的Node正常检查、真实实现突变和仓库护栏，引用本轮115/6/33批准输入及指纹，不重复启动PG或业务服务。修订元数据不能增加UI技术字段或改批准页面。提交新差异、hash、明确失败断言和复原证据后重审；**N0获明确批准前不进入N1/W5，不改业务代码、正式迁移、权限、frontend或黄金，不合main、不出包。**
+
+
+<a id="n0-fourth-review-remediation"></a>
+### N0四审整改回执（员工，2026-10-27，待五审）
+
+**范围**：吸收审核回执`096b3724c0065f518e235636b7618c45165c948d`后，仅修订IV-01/IV-02对应的§7.1/§7.1.1合同、§9.2 P13行与`common-fields-probe.mjs`/`run-probes.ps1`；SQL零改动，III-01/02/03、S1及此前已关闭项不重做，未改frontend、批准UI`94749f3a`保持。
+
+**IV-01 可比类型绑定真实冻结类型**：`resolveField`新增`declaration`入参与无效合同输出；`valueType`一律取该版冻结`field.type`（`string|integer|enum|enum-array|date|boolean`），§7.1默认表降为首版语义登记（meaning/unit/登记声明），不再覆盖后来冻结声明。登记声明与冻结类型冲突→显式`TYPE_DECLARATION_CONFLICT`（发布边界阻断、读取边界明确无效），文本字段不得被当作共同整数统计，也不得以"非数值一条"返回成功；各自合法但不兼容（integer→string、boolean、date、enum）或单位变化→`unmerged(incompatible_value_type)`且`total=null`，不自动转数值；合法同类型仅显示改名（显式重登记）仍合并。§7.1.1 `selectCommonFields`输出新增`invalidContracts`，`aggregateMetric`携带`invalidReason`并对非integer指标返回`UNSUPPORTED_AGGREGATION`。`enum-set`命名统一为规格真实类型`enum-array`。
+
+**IV-02 突变证据更正**：删除`--mutation`样例突变与`domain`分支无条件`check(false)`；新增`--break=<mode>`只覆盖实现决策点（`identity`身份键退化、`domain`冻结域视为plain、`type`可比类型取登记声明复现IV-01缺陷、`no-common`签名恒等），不改任何用例/断言/源文件；每轮运行以原始源码执行，前后hash一致（复原即事实）。四模式均由固定正常断言转红非零退出：`identity`→"new identity is reported as only in V2"；`domain`→"issue_response.problem_type real enum/dictionary bound to domain"；`type`→"declaration-actual type conflict returns explicit TYPE_DECLARATION_CONFLICT invalid contract"；`no-common`→"integer→string incompatible legal contracts are unmerged with incompatible_value_type"。
+
+**验证**：探针源码SHA-256见§9.2证据；Node正常检查134项全PASS（探针现文件hash`见verification-iv`）；四突变全部非零退出且转红断言如上。SQL及其输入hash未变，按四审指令未重复public/P2/并发数据库套件，未启动PG、业务服务或浏览器；PG侧输入指纹沿用本轮`119b95a1`批准记录及四审独立复跑（115/6/33与旧请求3.4秒、消费等待2.4/3.3秒）。
+
+**边界与下一步**：只改N0合同、progress、执行单与`.tmp`探针两文件；未改业务代码、正式迁移、权限、frontend或黄金，未访问共享库/内网/真实外部，未合main、未出包。送五审；N0获批前不进入N1/W5。
 
 以下保留三审历史及员工冻结提案，其“待四审/全部完成”不覆盖本轮结论。
 
@@ -170,7 +183,7 @@ III-01证据中旧格式摘要为`7168507c…590db88`，提案新函数返回`3c
 >
 > 输入：员工分支`codex/unified-form-w4-isolation-20261026`，已快进吸收审核交接`d338f843`（含`c9a7aa44`；UI基线`94749f3a`，`git diff --exit-code 94749f3a -- frontend`无差异）；事实来源为本分支实际迁移与代码，逐节引用。
 >
-> 验证：单入口[`run-probes.ps1`](#n0-run-entry)在唯一命名PostgreSQL 16容器执行：public 115项、非空升级6项、真实双会话33项、共同字段93项全部PASS；共同字段三个突变均非零退出；正向、DDL失败、就绪超时、同名冲突、端口占用五个模式均只清理本轮捕获的容器ID。证据与指纹见§9.2。
+> 验证：单入口[`run-probes.ps1`](#n0-run-entry)在唯一命名PostgreSQL 16容器执行：public 115项、非空升级6项、真实双会话33项、共同字段93项（该轮版本）全部PASS；共同字段突变均非零退出（当前为四个实现突变，见[n0四审整改](#n0-fourth-review-remediation)）；正向、DDL失败、就绪超时、同名冲突、端口占用五个模式均只清理本轮捕获的容器ID。证据与指纹见§9.2。
 
 ### 0.1 二审关闭对照
 
@@ -915,7 +928,7 @@ v1事实（`frontend/src/features/collect-forms/draft-store.ts`）：键为`qafl
 "comparable": {
   "semanticKey": "issue_reply.affected_kinds",
   "meaning": "修改该缺陷可能影响的功能",
-  "valueType": "enum-set",
+  "valueType": "enum-array",
   "unit": null,
   "semanticVersion": 1,
   "domain": {
@@ -927,6 +940,7 @@ v1事实（`frontend/src/features/collect-forms/draft-store.ts`）：键为`qafl
 }
 ```
 
+- **可比类型绑定该版真实冻结类型（IV-01）**：`valueType`一律取该版本冻结规格的真实`field.type`（`string|integer|enum|enum-array|date|boolean`），不是全局默认元数据。下表元数据只是**首版语义登记**（`meaning`/`unit`及登记时声明类型）；系统在任何边界（预览、发布、读取已冻结版本）都校验"登记声明类型 = 该版冻结`field.type`"这一不变量：一致才生成有效可比合同；冲突返回显式无效合同（`TYPE_DECLARATION_CONFLICT`，含声明类型与实际类型）——发布边界阻断发布，读取边界返回明确无效结果，**不得沿用首版整数声明把文本字段当作共同整数统计**，也不得以"非数值一条"排除输入后返回成功。不兼容但各自合法（声明与各自冻结类型一致）的版本合同不共同（`unmerged`，原因`incompatible_value_type`），聚合`total=null`，不自动转数值。单位参与同一比较：同类型不同单位同样`incompatible_value_type`。不开放管理页现有字段的跨类型编辑，元数据由系统维护，不向管理员增加类型码/语义键输入。
 - **绑定真实冻结域**：枚举字段的`values`来自该版本`field_spec`冻结选项的稳定`value`（排序去重，标签不进入哈希）；原因词典字段的域为`{kind:'dictionary',key,version,contentHash,values[]}`，`contentHash`取冻结词典`canonicalSha256`（缺失时才按`{key,version,values}`重算），`values`为该版本冻结成员`key`排序。字典版本或成员变化都必须改变`domainHash`。
 - 哈希输入是**完整语义对象**（键排序、显式null），不是`key|unit|valueType`三串；系统维护，管理员不可编辑；新增字段未声明或无法解析冻结域→不参与统计并在校验报告中列出，已确认核心字段必须声明。不得退化成正中文名匹配。
 - **显示改名与实际语义变化的区别**：仅改`label`/说明文案→`semanticHash`不变，跨版继续合并；改选项稳定ID、增删选项、改词典版本或成员→`semanticHash`变化，不得合并。两个字段同名但冻结域不同→不合并；删除后同名新增得到新稳定ID/新语义身份→不合并。
@@ -950,10 +964,10 @@ v1事实（`frontend/src/features/collect-forms/draft-store.ts`）：键为`qafl
 | issue_response | planned_resolution_date | issue_response.planned_resolution_date | date/business-day | — |
 | issue_response | planned_merge_version_branch | issue_response.planned_merge_version_branch | string/branch | — |
 | issue_reply | fix_status | issue_reply.fix_status | enum | RESOLVED/PARTIAL/DEFERRED/UNREPRODUCIBLE |
-| issue_reply | cause_keys | issue_reply.cause_keys | enum-set | DEFECT_CAUSE(24) |
+| issue_reply | cause_keys | issue_reply.cause_keys | enum-array | DEFECT_CAUSE(24) |
 | issue_reply | specific_reason | issue_reply.specific_reason | string/text | — |
 | issue_reply | caused_by_other_defect | issue_reply.caused_by_other_defect | boolean | — |
-| issue_reply | affected_kinds | issue_reply.affected_kinds | enum-set | KNOWN/NEW/NONE |
+| issue_reply | affected_kinds | issue_reply.affected_kinds | enum-array | KNOWN/NEW/NONE |
 | issue_reply | known_affected_functions | issue_reply.known_affected_functions | string/text | — |
 | issue_reply | new_affected_functions | issue_reply.new_affected_functions | string/text | — |
 | issue_reply | impact_test_status | issue_reply.impact_test_status | enum | YES/NO/NOT_APPLICABLE |
@@ -967,44 +981,57 @@ v1事实（`frontend/src/features/collect-forms/draft-store.ts`）：键为`qafl
 
 ```text
 FieldContract = {
-  stableId, name, apiKey, semanticKey, valueType, unit, semanticVersion,
+  valid, stableId, name, apiKey, semanticKey, valueType, unit, semanticVersion,
   domainKind, domainHash, semanticHash
 }
-resolveField(templateKey, field, frozenSpec) -> FieldContract | ineligible:
+InvalidContract = { valid:false, invalidReason, semanticKey, name,
+                    declaredType?, actualType? }
+resolveField(templateKey, field, frozenSpec, declaration) -> FieldContract | InvalidContract | ineligible:
   stableId = field.stableId（N1登记；既有字段一次性确定，新增字段新值）
   semanticKey/meaning 来自冻结声明；未声明或域无法解析→不参与并在报告列出
+  valueType = field.type（该版真实冻结类型，IV-01；未知类型→UNKNOWN_FROZEN_TYPE）
+  declaration.valueType ≠ field.type → TYPE_DECLARATION_CONFLICT（显式无效，
+      不得沿用首版登记类型）；有效合同才有 semanticHash
   domainHash = enum(冻结选项稳定value排序去重) |
                dictionary(key,version,contentHash,members排序) |
                plain
   semanticHash = sha256(canonical{semanticKey,meaning,valueType,unit,
                                   semanticVersion,domainHash})
 
-selectCommonFields(versions[versionId,templateKey,fieldSpec,records]) -> {
+selectCommonFields(versions[versionId,templateKey,fieldSpec,semanticDeclarations,records]) -> {
   status: OK | NO_COMMON_FIELDS,
   common: [FieldContract...],
-  unmerged: [{stableId,reason,variants}],
+  unmerged: [{stableId,reason: incompatible_value_type|identity_or_semantic_changed,variants}],
   onlyInSome: [{stableId,versions,missingVersions}],
+  invalidContracts: [{version,invalidReason,semanticKey,declaredType,actualType}],
   selectedVersions, perVersion
 }:
-  每版 stableId→contract；同版重复 stableId 直接失败
-  candidate = 所有版本 stableId 的交集
+  每版按身份键（stableId）→contract；无效合同进入 invalidContracts，永不共同；
+  同版重复 stableId 直接失败
+  candidate = 所有版本身份键的交集
   candidate 每项要求全部版本的 {stableId,semanticKey,valueType,unit,semanticHash}
-  完全一致才进入 common；同身份但语义/域变化进入 unmerged；缺版进入 onlyInSome
+  完全一致才进入 common；同身份但类型/单位不兼容→unmerged(incompatible_value_type)；
+  语义/域变化→unmerged(identity_or_semantic_changed)；缺版进入 onlyInSome
   common 为空必须返回 NO_COMMON_FIELDS 及选定版本，不得返回 0 或空成功
 
 aggregateMetric(selection, versions, semanticKey) -> {
-  status: OK | NO_COMMON_FIELD | NO_COMMON_FIELDS,
-  metric, total, contributions, contributingVersions,
+  status: OK | NO_COMMON_FIELD | NO_COMMON_FIELDS | UNSUPPORTED_AGGREGATION,
+  metric, total, contributions, contributingVersions, invalidReason,
   missing, nulls, zeros, deleted, nonNumeric, selectedVersions
 }:
-  只在 selection.common 中按 semanticKey 找合同；找不到→total=null，不读原始规格计数
+  只在 selection.common 中按 semanticKey 找合同；找不到→total=null 并携带
+  invalidContracts 中该 semanticKey 的 invalidReason（读取边界的显式无效结果），
+  不读原始规格计数；valueType≠integer→UNSUPPORTED_AGGREGATION 且 total=null，
+  不静默把其他类型当数值
   逐记录：deleted排除；字段缺失排除并计missing；NULL排除并计nulls；
           数值0计入并计zeros；非数值排除并计nonNumeric；只对有效数值求和
   contributingVersions只含实际贡献记录所在版本
 ```
 
 - **哈希验证**：`affected_kinds`仅改显示标签→哈希不变；把`KNOWN`改为`KNOWN_AFFECTED`或增加`PARTIAL`→哈希变化；`DEFECT_CAUSE`词典版本`defect-cause-v20261020`、24个成员与`canonicalSha256`参与哈希，删除成员或改版本→哈希变化；`impact_test_status`与`relation_table_updated`不合并。
-- **验证（93项真实规格检查，非自造常量）**：真实两版`code_review`的`specification_count`为2/3，经共同字段选择聚合为5并列出V1/V2贡献；仅`label`改名仍为5；V2改成新`stableId`→`onlyInSome`且聚合`NO_COMMON_FIELD`而非5；同身份改`semanticKey`→`unmerged`且不聚合；真实`affected_kinds`选项变化→`unmerged`且不聚合；`code_review`与`issue_reply`确无交集→`NO_COMMON_FIELDS`且`total=null`、列出选定版本；缺字段/NULL/0/作废分别计数，0参与求和。三个突变（新身份、无交集改成同键、真实域变化）必须使探针以非零退出。
+- **类型绑定验证（IV-01）**：登记声明与冻结类型冲突（V2`specification_count`冻结为`string/control=input/storage=varchar(200)`、值`"3"`，登记仍integer）→显式`TYPE_DECLARATION_CONFLICT`，不进common，聚合`NO_COMMON_FIELD`、`total=null`、`invalidReason=TYPE_DECLARATION_CONFLICT`，绝不返回`OK/total=2/nonNumeric=1`；两版各自合法但类型不兼容（integer→string、boolean、date、enum）→`unmerged(incompatible_value_type)`且`total=null`，字符串`"3"`既不求和也不计为假共同指标的nonNumeric；单位变化（minute→hour）→`incompatible_value_type`；合法同类型仅显示改名（显式重登记同类型）仍合并为5；种子三模板登记声明与冻结类型零冲突。
+- **验证（134项真实规格检查，非自造常量）**：真实两版`code_review`的`specification_count`为2/3，经共同字段选择聚合为5并列出V1/V2贡献；仅`label`改名仍为5；V2改成新`stableId`→`onlyInSome`且聚合`NO_COMMON_FIELD`而非5；同身份改`semanticKey`→`unmerged`且不聚合；真实`affected_kinds`选项变化→`unmerged`且不聚合；`code_review`与`issue_reply`确无交集→`NO_COMMON_FIELDS`且`total=null`、列出选定版本；缺字段/NULL/0/作废分别计数，0参与求和。
+- **突变证据（IV-02，真实实现突变）**：`--break=<mode>`只覆盖实现决策点（`identityKey`/`domainOf`/`frozenType`/`comparableSignature`），不修改任何用例、断言或源文件：`identity`（身份键退化成语义键）、`domain`（冻结域一律视为plain）、`type`（可比类型取登记声明而非冻结类型，复现IV-01缺陷）、`no-common`（签名恒等，不可合并判定失效）。四种模式必须各以非零退出并由固定正常断言检出，记录原始源码hash、转红断言与复原hash（运行时覆盖不改源码，前后hash一致）；非零退出本身不是证据，具体转红断言才是。
 - 历史81项中的元数据/字典检查保留为辅助，不再以“字段存在/计数”代替共同字段选择和聚合结论。
 
 #### 7.2 九项Issue选择器（对齐主方案§3.5，不重开）
@@ -1159,7 +1186,7 @@ pwsh -File .../run-probes.ps1 -Mode port-conflict -Port 15609
 | P10 head捕获/结算 | 集合/head/authority漂移时CAS为0；一致时CONSUMED且pending清空 |
 | P11 目录事件 | 领取/确认/租约过期重领/游标推进；重启从游标重放；head版本1→5→3保持5 |
 | P12 无实例FORM | 发布建authority/head，捕获零记录可结算为空投影，不删资源 |
-| P13 共同字段/2+3=5 | 真实三模板字段域齐全；同一`stableId`/语义键/类型单位/冻结域经实际交集选择后2+3=5；显示改名不变；新身份/异义/异域进入unmerged或onlyInSome且不聚合；无共同字段返回NO_COMMON_FIELDS、total=null；缺字段/NULL/0/作废分别计数；三个突变非零退出 |
+| P13 共同字段/2+3=5 | 真实三模板字段域齐全且登记声明与冻结类型零冲突；可比类型取该版冻结`field.type`；同一`stableId`/语义键/类型单位/冻结域经实际交集选择后2+3=5；显示改名不变；新身份/异义/异域/类型不兼容/单位变化进入unmerged或onlyInSome且不聚合；登记与冻结冲突返回显式TYPE_DECLARATION_CONFLICT且不聚合；无共同字段返回NO_COMMON_FIELDS、total=null；缺字段/NULL/0/作废分别计数；四个实现突变（identity/domain/type/no-common）经固定断言转红非零退出 |
 | P14 导出权限 | 只按既有导出权复制；仅查看/双查看不获导出；撤销/默认恢复不扩权 |
 | P15 序列`is_called` | 相等未调用→下一次2；相等已调用、更高、更低、跨范围、登记后立即创建均大于已登记ID |
 | P16 真实v5指纹/origin-storage | 独立旧格式哈希`e31d3a8d…86974d8`与SQL函数逐字节一致；上稿新算法不同；旧key按origin版本重放同一ID且零新增/审计/head；承载版本重算、当前编辑值、异账号/完整C/字段/作废均拒绝；原版行不变 |
@@ -1170,7 +1197,7 @@ pwsh -File .../run-probes.ps1 -Mode port-conflict -Port 15609
 
 证据写入`D:/projects/dcp-form-w4-20261026/.tmp/w4-r5-n0-20261027-r2/`（本轮专属）：`revision.sql`、`capture-settle.sql`、`probe.sql`、`probe-p2.sql`、`concurrency-*.sql`、`switch-*.sql`、`first-*.sql`、`consume-wait-*.sql`、`publish-interleave-hold.sql`、`common-fields-probe.mjs`、入口脚本、逐项日志、`cleanup.txt`与`logs/verification-*.json`；不留业务服务或共享库访问。
 
-**本次执行结果（2026-10-27）**：`postgres:16-alpine` 隔离容器`b3f3803759343475188f591080e7203f8c527bc01a63d12367772671a07fa81a`（本机15609，唯一命名`dcp-n0-r2-normal-*`）执行public 115项、非空升级6项、真实双会话33项、共同字段93项，全部PASS；旧版在途请求等待apply约3.2秒后返回`409_STORAGE_VERSION_CHANGED`，新版请求成功；SWITCHING接管与消费交错等待约2.3秒、发布与消费交错等待约3.2秒，均在提交后按新集合结算且无`40P01`。共同字段三个突变`identity`/`no-common`/`domain`均以非零退出。容器按本轮ID删除、`docker inspect`确认不存在，无残留端口；未启动业务服务、未连接共享库、内网或真实外部。负向模式（DDL失败、就绪超时、同名冲突、端口占用）分别验证：失败DDL退出非零、超时后清理自有ID、同名创建无ID且占用者存活、端口冲突创建出的容器被删除而占用者存活；均无残留容器。
+**本次执行结果（2026-10-27）**：`postgres:16-alpine` 隔离容器`b3f3803759343475188f591080e7203f8c527bc01a63d12367772671a07fa81a`（本机15609，唯一命名`dcp-n0-r2-normal-*`）执行public 115项、非空升级6项、真实双会话33项、共同字段93项，全部PASS（该轮共同字段探针版本；类型绑定与突变证据按[n0四审整改](#n0-fourth-review-remediation)更新为134项+四个实现突变）；旧版在途请求等待apply约3.2秒后返回`409_STORAGE_VERSION_CHANGED`，新版请求成功；SWITCHING接管与消费交错等待约2.3秒、发布与消费交错等待约3.2秒，均在提交后按新集合结算且无`40P01`。共同字段三个突变`identity`/`no-common`/`domain`均以非零退出。容器按本轮ID删除、`docker inspect`确认不存在，无残留端口；未启动业务服务、未连接共享库、内网或真实外部。负向模式（DDL失败、就绪超时、同名冲突、端口占用）分别验证：失败DDL退出非零、超时后清理自有ID、同名创建无ID且占用者存活、端口冲突创建出的容器被删除而占用者存活；均无残留容器。
 
 ### 10. 替换范围、风险与审批请求
 
