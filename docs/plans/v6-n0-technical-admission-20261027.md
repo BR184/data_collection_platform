@@ -6,6 +6,809 @@
 - 已验证：独立正式组件26项、原三项审核探针均通过；142项代码/27项证据及双远端一致。隔离PG16执行本模块基础DDL和提案全部SQL块，SQL块可解析，但protocol列、新阶段及旧Demo元数据仍有下述缺项。证据主树`.tmp/w4-r4-review-20261027/`。
 - 目标与边界：用户已确认旧记录原版留存/维护、共同字段统计及版本Excel；补充DDL、事务、消费和恢复合同，不重谈既定业务，不复制旧行、不回退目录证据、不扩大权限，不以本文批准真实登记/切换。
 - 当前步骤：员工按下表及Q项裁定修订提案、补可执行隔离验证入口并回填主方案差异；审核方再复核。无业务实现或正式迁移已执行。敏感边界为真实E2旧数据及外部转权，当前不访问；MR级待批公式仍不代拟。
+- 员工提交（2026-10-27）：修订稿见下方「N0修订稿」，按R01—R08/Q1—Q9逐项整改；隔离探针public 12项、非空升级1项、共同字段95项全部通过，容器按ID删除；只改本文档与`.tmp`探针，未改业务代码、正式迁移、前端（仍等于`94749f3a`）。待二审。
+
+## N0修订稿（2026-10-27，待二审）
+
+> 状态：R05已关闭、W4冻结v5.1通过；本稿仅回应N0-R01—R08与Q1—Q9，**N0未批准、N1/W5未准入**。不含业务实现、不改正式迁移、不运行黄金、不合main、不出包。原N0与评审原文保留在本节之后，作为冻结输入。
+>
+> 输入：员工分支`codex/unified-form-w4-isolation-20261026`，吸收交接`c9a7aa44`（UI基线`94749f3a`，`git diff --exit-code 94749f3a -- frontend`无差异）；原N0输入SHA-256见§10。事实来源为本分支实际迁移与代码，已按文件逐项核对（见各节引用）。
+
+### 0. 逐项对照与Q项落实
+
+| 审核项 | 本稿落实位置 | 关键结论 |
+| --- | --- | --- |
+| R01 发布/版本DDL | §1.2、§1.3、§4 | protocol列、v2阶段、活跃唯一/领取索引、attempt协议、空实例LEGACY、角色单一来源、旧任务受控收口、恢复重冻结 |
+| R02 登记不变量 | §3 | 原行全值哈希、单事务内完成核验、提交后只追加补偿事件、Demo/v5两条路径、幂等重入 |
+| R03 创建/重放/序列 | §2 | 单一六步事务、目录优先判重、首次冻结规格/账号/C/指纹、只进不退高水位 |
+| R04 消费提交 | §5 | `form_head_captures`定型、提交事务锁序与CAS谓词、目录事件持久领取/确认/重启、全量→增量 |
+| R05 九项选择器 | §7.2 | 逐项对齐主方案§3.5，删除“最新非空回退”和新增分支门槛；同走查人沿reviewerUserId+C |
+| R06 DTO/草稿 | §6 | 真实字符串bigint、真实`draft-store.ts` v1字段逐项映射、保留分叉/未知证据 |
+| R07 共同字段 | §7.1、§7.3 | 三模板默认可比元数据、语义哈希扩展、逐指标分母与2+3=5 |
+| R08 消费/导出/验证 | §5、§8、§9 | 实际消费类清单、导出角色与范围、流式边界、可执行隔离入口 |
+| Q1 | §1.1、§3.1 | 仅旧Demo目录可空实例；原生记录必须真实实例，以复合外键+CHECK强制 |
+| Q2 | §1.2 | 删除`form_scope_version_sources`；版本列唯一权威，可读集合由视图派生 |
+| Q3 | §5.3 | 同库持久事件+游标，多进程领取/确认/重启恢复 |
+| Q4 | §4.3 | 不自动FAILED；停旧执行者后按锁/租约/fencing受控收口 |
+| Q5 | §7.2 | 不重开业务选择器；MR公式另批 |
+| Q6 | §7.1 | 首版覆盖三模板全部既有共同字段，未声明字段不静默计入 |
+| Q7 | §8.3 | 50k/64MB仅为待验证预算；提交估算、硬边界、清理与固定负载证据 |
+| Q8 | §8.2 | 从真实目录推导导出授予，给出具体角色与不扩权证据 |
+| Q9 | §3.4、§9 | E2/真实数据不阻断隔离设计验证，但阻断真实登记/切换 |
+
+### 1. 迁移与DDL（R01、Q1、Q2）
+
+#### 1.1 迁移拆分与顺序
+
+只追加前向迁移；旧159条（最后`V20261022_03`）零改动。编号在N1开工时按最新注册表复核，建议：
+
+| 迁移 | 内容 | 依赖 |
+| --- | --- | --- |
+| `V20261027_01__form_v6_directory.sql` | 目录、范围集合、版本角色/实例模式、来源表、目录事件、高水位、函数 | 仅`V20261022_01` |
+| `V20261027_02__form_v6_publication_protocol.sql` | protocol列、v2阶段、活跃/领取索引、attempt协议、旧任务收口视图 | 01 |
+| `V20261027_03__form_v6_consumption.sql` | head捕获列/表、捕获与结算函数、无实例权威规则 | 01、02 |
+| `V20261027_04__form_v6_export_permission.sql` | `form.record.export`目录/授予/defaults、导出审计表 | 无（权限表） |
+
+所有DDL按“旧基础结构非空升级”和“空平台”两种路径验证（§9）；不允许改已执行迁移或整体重写Flyway锁文件。
+
+#### 1.2 范围集合与版本角色（单一权威）
+
+```sql
+-- 范围：可读集合修订与哈希；只由发布切换/登记事务递增
+alter table form_template_scopes
+    add column source_set_revision bigint not null default 0
+        check (source_set_revision >= 0),
+    add column source_set_hash char(64);
+
+-- 版本：角色只有这一处权威；实例模式决定是否允许无实例
+alter table form_template_versions
+    add column record_source_role varchar(24) not null default 'AUTHORITATIVE',
+    add column instance_mode varchar(16) not null default 'MATERIALIZED',
+    add column source_table varchar(63);
+
+alter table form_template_versions
+    alter column instance_table drop not null,
+    add constraint ck_ftv_role check (
+        record_source_role in ('AUTHORITATIVE','LEGACY_SNAPSHOT','TARGET')),
+    add constraint ck_ftv_instance_mode check (
+        instance_mode in ('MATERIALIZED','NONE')),
+    add constraint ck_ftv_instance_shape check (
+        (record_source_role <> 'TARGET'
+         and ((storage_kind = 'RECORDS' and record_table is not null
+               and instance_mode = 'MATERIALIZED' and instance_table is not null
+               and source_table is null)
+           or (storage_kind = 'LEGACY' and record_table is null
+               and instance_mode = 'MATERIALIZED' and instance_table is not null
+               and source_table is null)
+           or (storage_kind = 'LEGACY' and record_table is null
+               and instance_mode = 'NONE' and instance_table is null
+               and source_table is not distinct from 'collect_form_records')))
+        or (record_source_role = 'TARGET' and storage_kind = 'RECORDS'
+            and record_table is not null and instance_mode = 'MATERIALIZED'
+            and instance_table is not null and source_table is null)),
+    add constraint ck_ftv_none_role check (
+        instance_mode <> 'NONE' or record_source_role = 'AUTHORITATIVE'),
+    add constraint uq_ftv_id_instance_mode unique (id, instance_mode);
+
+-- 集合哈希：仅AUTHORITATIVE版本，按版本ID升序；不依赖扩展
+create function form_source_set_hash(p_scope_id bigint) returns char(64)
+language sql stable as $$
+    select encode(sha256(convert_to(coalesce(string_agg(
+        v.id::text || ':' || v.record_source_role, ',' order by v.id), ''), 'UTF8')), 'hex')
+    from form_template_versions v
+    where v.scope_id = p_scope_id and v.record_source_role = 'AUTHORITATIVE'
+$$;
+
+create function form_spec_hash(p_spec jsonb) returns char(64)
+language sql immutable as $$
+    select encode(sha256(convert_to(p_spec::text, 'UTF8')), 'hex')
+$$;
+
+-- 可读集合只由版本列派生，不再建/双写来源角色表（Q2）
+create view form_scope_readable_versions as
+select v.scope_id, v.id as version_id, v.version_label, v.version_status,
+       v.storage_kind, v.instance_mode, v.instance_table, v.record_table,
+       v.source_table, v.field_spec, v.record_source_role
+from form_template_versions v
+where v.record_source_role = 'AUTHORITATIVE'
+  and v.version_status in ('PUBLISHED','RETIRED');
+```
+
+- 既有行升级：默认`AUTHORITATIVE/MATERIALIZED`，满足形状检查；v5旧副本在登记时由§3改为`LEGACY_SNAPSHOT`，不新增角色表。
+- `TARGET`只用于发布中的空结构版本；切换时同事务改为`AUTHORITATIVE`。`TARGET`不得被`current_version_id`引用，由§9完整性函数校验。
+- `instance_mode='NONE'`只允许旧Demo登记（`source_table='collect_form_records'`），不伪造实例表。
+
+#### 1.3 定位目录（Q1）
+
+```sql
+create table form_record_locations (
+    record_id          bigint primary key,
+    scope_id           bigint not null references form_template_scopes(id),
+    storage_version_id bigint not null,
+    instance_mode      varchar(16) not null,
+    instance_id        bigint,
+    request_key        varchar(64),
+    created_by         varchar(128),
+    created_at         timestamp not null default current_timestamp,
+    constraint fk_frl_version_scope foreign key (scope_id, storage_version_id)
+        references form_template_versions(scope_id, id),
+    constraint fk_frl_version_mode foreign key (storage_version_id, instance_mode)
+        references form_template_versions(id, instance_mode),
+    constraint ck_frl_request_key check (
+        request_key is null or btrim(request_key) <> ''),
+    constraint ck_frl_instance check (
+        (instance_mode = 'MATERIALIZED' and instance_id is not null and instance_id > 0)
+        or (instance_mode = 'NONE' and instance_id is null))
+);
+
+create unique index uq_frl_scope_request
+    on form_record_locations(scope_id, request_key)
+    where request_key is not null;
+create index idx_frl_version on form_record_locations(storage_version_id);
+create index idx_frl_instance on form_record_locations(storage_version_id, instance_id)
+    where instance_id is not null;
+```
+
+- `instance_mode`随目录行保存并由复合外键锁定到版本，避免用触发器猜版本模式；原生记录`instance_id`非空且属于该版实例表（应用层插入前校验实例表`scope_id/version`）。
+- `record_id`沿用`form_record_id_seq`；删除/作废不删目录、不换ID、不搬表。
+- `request_key`只对真实请求存在；旧Demo全部为NULL，允许重复NULL。
+
+#### 1.4 目录事件与高水位（Q3）
+
+```sql
+create table form_directory_events (
+    id                  bigserial primary key,
+    scope_id            bigint not null references form_template_scopes(id),
+    event_type          varchar(32) not null,
+    source_set_revision bigint not null,
+    payload             jsonb not null default '{}'::jsonb,
+    operator_id         varchar(128),
+    created_at          timestamp not null default current_timestamp,
+    status              varchar(16) not null default 'PENDING',
+    attempt_no          integer not null default 0 check (attempt_no >= 0),
+    lease_owner         varchar(128),
+    lease_until         timestamp,
+    fencing_version     bigint not null default 0 check (fencing_version >= 0),
+    next_attempt_at     timestamp,
+    last_error          text,
+    consumed_at         timestamp,
+    constraint ck_fde_type check (event_type in
+        ('VERSION_ADDED','CURRENT_CHANGED','LEGACY_REGISTERED','REGISTRATION_CORRECTED')),
+    constraint ck_fde_status check (status in
+        ('PENDING','LEASED','RETRY_WAIT','CONSUMED','FAILED')),
+    constraint uq_fde_scope_revision unique (scope_id, source_set_revision, event_type)
+);
+create index idx_fde_claim on form_directory_events(status, next_attempt_at, lease_until)
+    where status in ('PENDING','RETRY_WAIT','LEASED');
+
+create table form_directory_event_cursors (
+    scope_id            bigint primary key references form_template_scopes(id),
+    last_consumed_event_id bigint not null default 0,
+    updated_at          timestamp not null default current_timestamp
+);
+
+create table form_record_id_watermarks (
+    source_ref varchar(128) primary key,
+    high_water bigint not null check (high_water >= 0),
+    updated_at timestamp not null default current_timestamp
+);
+
+-- 只进不退；调用者须已持有hashtext('form_record_id_seq')事务锁（同事务可重入）
+create function form_advance_record_sequence(p_high bigint) returns bigint
+language plpgsql as $$
+declare cur bigint;
+begin
+    perform pg_advisory_xact_lock(hashtext('form_record_id_seq'));
+    select last_value into cur from form_record_id_seq;
+    if p_high > cur then
+        perform setval('form_record_id_seq', p_high, true);
+        return p_high;
+    end if;
+    return cur;
+end $$;
+```
+
+- 事件只追加；事件`FAILED`只能经新修订/补偿事件纠正，不删除、不回退`source_set_revision`。
+- 游标在“该修订全部事件CONSUMED”后推进；重启从游标重放，重复扇出幂等。
+
+### 2. 创建、跨版重放与序列事务（R03）
+
+统一锁序（与§4/§5一致）：**记录序列咨询锁 → 范围行 → 发布任务行（如涉及）→ head行（按id）**。创建路径为“序列锁 → 范围FOR SHARE → 目录判重 → 实例/记录/审计/head”；发布切换为“序列锁 → 范围FOR UPDATE → 任务行 → head”；消费提交为“范围FOR SHARE → head FOR UPDATE”（不新增反向锁）。
+
+#### 2.1 单一六步事务
+
+```text
+createRecord(context, requestKey, storageVersionId, actor, fields):
+  1. pg_advisory_xact_lock(hashtext('form_record_id_seq'))
+  2. select ... from form_template_scopes where id=? for share
+     并读取 current_version_id/status/write_fenced/source_set_revision
+  3. select * from form_record_locations
+       where scope_id=? and request_key=?              -- 跨全部权威版本，先判已有key
+     if found:
+        v = 版本(location.storage_version_id)
+        assert v.record_source_role='AUTHORITATIVE'
+        assert location.created_by = actor
+        assert 请求资源C与记录行C一致
+        assert 记录未作废
+        hash = fingerprint(origin/first冻结规格(v.field_spec), actor, fields)
+        assert hash = 首次create_payload_hash
+        return REPLAYED(原记录)                        -- 不写实例、不改记录、不切版本
+  4. assert scope.status='ACTIVE' and not write_fenced
+     assert storageVersionId = scope.current_version_id
+  5. instance = ensureInstance(context)                 -- 自然键upsert + 行锁
+     record = insert into <v.record_table>(...)
+        values(instance, origin_version_id=storageVersionId, created_by=actor,
+               request_key, create_payload_hash=fingerprint(frozen spec, actor, fields), ...)
+        on conflict (request_key) do nothing
+     if record is null: 回到步骤3重查；仍无则409“并发写入冲突”
+     insert form_record_locations(record_id, scope, storageVersionId,
+        instance_mode='MATERIALIZED', instance_id=instance.id,
+        request_key, created_by=actor, created_at=record.created_at)
+     insert form_record_audit_logs(...CREATE...)
+     upsert form_change_heads(... pending_record_id/version,
+        pending_storage_version_id=storageVersionId,
+        pending_source_set_revision=scope.source_set_revision,
+        pending_source_set_hash=scope.source_set_hash,
+        status='PENDING')
+  6. commit；任一步失败整体回滚
+```
+
+- **重放不依赖当前人员目录**：只按首次冻结规格、原账号、原C与原载荷哈希校验；姓名变化不阻断。
+- 旧版key：目录命中即按原`storage_version_id`回表，不要求`storageVersionId=current_version_id`；请求携带的版本仅用于校验其属于该范围的可读集合（不得用当前版规格重算）。
+- 账号/C/指纹/作废任一不符→409；未命中但请求版本≠当前→409（结构已变化），由客户端刷新后重试，不静默换key。
+- 目录、物理记录、审计、head必须同事务；不允许延迟约束或事务外补写。
+
+#### 2.2 CAS、作废与目录不变
+
+```text
+updateRecord(recordId, expectedStorageVersionId, recordVersion, fields):
+  目录→版本；assert expectedStorageVersionId=location.storage_version_id
+  update <record_table> set fields..., record_version=record_version+1, updated_at=?
+   where id=? and created_by=? and record_version=? and deleted=false
+  if 0 rows -> 409；审计UPDATE/head PENDING（source_set_revision不变）
+voidRecord(recordId, expectedStorageVersionId, recordVersion, confirmVoid):
+  同锁序；update deleted=true, record_version+1 where ...；审计VOID/head PENDING
+```
+
+- 作废不删目录、不换版本、不搬表；选择器与统计一律排除`deleted=true`。
+- 目录不存业务值，只存定位与首次身份；业务值始终回表读取。
+
+#### 2.3 高水位只进不退
+
+- 创建只使用`nextval('form_record_id_seq')`，不`setval`。
+- 登记（§3）持有同一咨询锁，调用`form_advance_record_sequence(max(old_id))`；若高水位≤当前`last_value`则不动，保留`is_called`语义。
+- 登记与创建、登记与切换因同一咨询锁串行；不同范围也串行（代价可接受，换取全局ID单调与目录唯一）。
+
+### 3. 既有数据登记（R02、Q1、Q9）
+
+#### 3.1 两条登记路径
+
+| 路径 | 物理承载 | 版本元数据 | 目录 | 创建人/key |
+| --- | --- | --- | --- | --- |
+| A 旧Demo `collect_form_records` | 原表原位，不搬 | 新建LEGACY版本：`storage_kind='LEGACY'`、`instance_mode='NONE'`、`instance_table=null`、`record_table=null`、`source_table='collect_form_records'`、`record_source_role='AUTHORITATIVE'`、`version_status='PUBLISHED'`、`field_spec=旧列固定语义规格` | `record_id=旧id`、`storage_version_id=该版`、`instance_mode='NONE'`、`instance_id=null`、`request_key=null`、`created_by=null`、`created_at=旧值` | 不伪造实例、账号、记录修订 |
+| B v5已复制记录 | 选择唯一承载副本原位 | 承载版本→`AUTHORITATIVE`；其余含同一逻辑记录的版本→`LEGACY_SNAPSHOT`（不删表、不改行） | 指向承载行；保留真实`request_key/created_by`、`origin_version_id`、`created_at`、`create_payload_hash` | 只排除副本，不重建 |
+
+**v5承载副本判定**（登记前报告，不猜）：按`(origin_version_id, record_id, 资源C)`分组，比较各版本表中的`record_version/updated_at/业务值`；选`record_version`最大、再`updated_at`最新、再版本ID最大的副本为承载（通常为cutover时的当前版本，保留最新值；`origin_version_id`仍记录创建版本）。若业务值不同的副本`record_version`相同→阻断；若旧副本含承载规格已删除字段的非空值→输出`field_loss_report`并阻断，待审核裁决，不合并、不逆向拆回、不补写。该scope在cutover前除承载版本外的全部版本统一置`LEGACY_SNAPSHOT`，一律不参与普通读取；不得保留为可读AUTHORITATIVE空集。
+
+#### 3.2 全值与单调登记
+
+```text
+precheck（只读）:
+  rowHash = sha256(string_agg(to_jsonb(t)::text, E'\n' order by t.id))
+  count   = count(*)
+  生成 carrierReport（A无副本；B逐记录承载与field_loss_report）
+  若目标版本/目录已存在：读取既有登记指纹，相同→ALREADY_REGISTERED；不同→409
+
+register（单事务，失败全回滚）:
+  pg_advisory_xact_lock(hashtext('form_record_id_seq'))
+  lock table <source tables> in share mode          -- 旧写已停，仍防登记期间变化
+  scope row for update
+  重新计算 count/rowHash 并断言与precheck一致        -- 发布前后业务值变化即中止
+  A: insert LEGACY/NONE版本；B: 更新承载/副本 record_source_role
+  insert form_record_locations ... on conflict (record_id) do nothing
+     -- 已存在则逐字段比对，不同即中止（不覆盖）
+  assert 目录行数=源行数、无重复record_id、无重复(scope_id,request_key)
+  assert 每条目录可按(storage_version,record_id)回表命中且业务值哈希一致
+  update scope set source_set_revision=source_set_revision+1,
+                   source_set_hash=form_source_set_hash(scope_id)
+  insert form_directory_events(LEGACY_REGISTERED, 新修订, payload含count/rowHash/
+         carrierReport/fieldLossReport/operator)
+  upsert form_record_id_watermarks(source_ref, max(id))
+  assert 集合哈希=函数重算值；commit
+```
+
+- **提交后不删除、不回退**：任何纠正都是新修订 + `REGISTRATION_CORRECTED`事件 + 审计；`source_set_revision`只增。登记失败只回滚事务，旧表零变化。
+- 幂等重入：同源同哈希返回既有结果，不再增修订；源变化则409并给差异报告。
+- 未知账号只读；审计保留原`reviewer`业务值，不写`created_by`。
+- 反例矩阵：业务值变化、已有跨版key、账号已知/未知、副本值不同、缺失字段、登记失败后重入、两个范围同时登记/创建、登记中断回滚。
+
+### 4. 发布协议（R01、Q4、Q9）
+
+#### 4.1 v2阶段与防旧执行器
+
+```text
+v1（历史）：PREPARED → COPYING → VERIFIED → PUBLISHED / FAILED
+v2（新）： VALIDATING → BUILDING → SWITCHING → PUBLISHED / FAILED
+           FAILED →（复核冻结输入）→ VALIDATING
+```
+
+- v2任务创建即为`VALIDATING`，**不使用PREPARED**：旧二进制只领取`stage='PREPARED'`，无法误领v2任务；新执行器只领取`protocol_version=2 and stage='VALIDATING'`，拒绝protocol=1任务并在诊断中列出。部署仍要求先停旧二进制并收口旧任务（§4.3），不依赖“旧二进制识别新列”。
+- 创建时冻结：`frozen_field_spec`、`frozen_binding`、`binding_hash`、`expected_current_version_id`、`frozen_source_set_revision/hash`、目标版本（先插入`TARGET`+`INSTALLED`+空结构元数据）。不复制任何记录。
+- 失败任一步→`FAILED`并记录`last_error`；仅任务所有者按fencing撤栅栏，attempt保留。
+
+#### 4.2 空结构构建与切换
+
+```text
+claim（新执行器）:
+  序列咨询锁 → 范围FOR UPDATE → 任务FOR UPDATE
+  assert protocol=2, stage='VALIDATING', lease无效或已过期
+  置范围停写栅栏(publication+token)；stage='BUILDING'；新attempt(VALIDATE)
+commit（构建在事务外，受租约/栅栏保护）
+build:
+  生成空 instances/records（已存在且非空→FAILED；结构漂移→FAILED）
+  FormVersionStructureVerifier全量核验；stage='BUILDING'→'SWITCHING'
+switch（单事务）:
+  序列咨询锁 → 范围FOR UPDATE → 任务FOR UPDATE
+  assert owner/fencing/lease有效；assert frozen_source_set_revision/hash=当前集合
+  assert expected_current_version_id=当前指针；assert 目标INSTALLED且结构完整
+  目标版本→PUBLISHED + AUTHORITATIVE
+  旧当前版本→RETIRED（角色保持AUTHORITATIVE，仍可读）
+  source_set_revision+1；source_set_hash=form_source_set_hash(scope)
+  当前指针CAS更新（含binding哈希复核）
+  目录事件VERSION_ADDED/CURRENT_CHANGED
+  范围内head置PENDING并写pending_source_set_revision/hash（§5）
+  任务→PUBLISHED；attempt(SWITCH,PUBLISH)；清栅栏
+```
+
+- 冻结集合/指针/绑定任一漂移→零切换、任务FAILED（可恢复），不得重捕获后沿用旧预览。
+- 恢复：`FAILED→VALIDATING`前复核冻结输入仍等于当前集合/指针/绑定；不等→409要求新预览；禁止静默重捕获。
+- 空结构版本可导出表头（§8）；不生成迁移日志、不写`legacy_incomplete`、不truncate/复制旧行。
+
+#### 4.3 旧任务受控收口（Q4）
+
+由运维在新二进制启动前执行，单任务单事务，顺序仍为“序列锁 → 范围FOR UPDATE → 任务FOR UPDATE”：
+
+```sql
+-- 只读盘点：列出待收口任务及是否仍有有效租约
+select p.id,p.scope_id,p.stage,p.lease_owner,p.lease_until,p.fencing_version,
+       clock_timestamp() < coalesce(p.lease_until,'-infinity') as live_lease
+from form_template_publications p
+where p.protocol_version=1 and p.stage in ('PREPARED','COPYING','VERIFIED')
+order by p.id;
+
+-- 受控终止（参数逐任务填写；live_lease=true时不得执行）
+begin;
+select pg_advisory_xact_lock(hashtext('form_record_id_seq'));
+select id from form_template_scopes where id=:scope for update;
+select stage,lease_owner,lease_until,fencing_version,fence_token
+  from form_template_publications
+ where id=:id and protocol_version=1 for update;
+update form_template_publications
+   set stage='FAILED', last_error='v6_no_copy_protocol',
+       recovery_evidence=coalesce(recovery_evidence,'{}'::jsonb)||jsonb_build_object(
+         'closedBy',:operator,'closedAt',clock_timestamp(),'previousStage',stage,
+         'previousLeaseOwner',lease_owner),
+       updated_at=clock_timestamp()
+ where id=:id and protocol_version=1 and stage in ('PREPARED','COPYING','VERIFIED')
+   and (lease_owner is null or lease_until is null or lease_until <= clock_timestamp())
+   and fencing_version=:fencing;
+-- 影响行数必须为1，否则回滚
+insert into form_template_publication_attempts(
+  publication_id,attempt_no,phase,selection_captured_at,selection_counts,error,
+  started_at,finished_at,protocol_version)
+values(:id,(select attempt_no+1 from form_template_publications where id=:id),
+  'FAILED',clock_timestamp(),'{}'::jsonb,'v6_no_copy_protocol',
+  clock_timestamp(),clock_timestamp(),1);
+update form_template_scopes
+   set write_fenced=false,write_fence_reason=null,write_fence_publication_id=null,
+       write_fence_token=null,write_fence_at=null
+ where id=:scope and write_fence_publication_id=:id and write_fence_token=:token;
+commit;
+```
+
+- 有效租约（`live_lease=true`）不得终止：等租约到期，或在确认旧进程已停止后由运维以显式证据接管（记录`closedBy`与进程核对），不得无条件`UPDATE FAILED`。
+- 已`PUBLISHED`任务不动；已复制的目标表保留但保持`TARGET`/不可读，登记与清理在N1交付清单中逐表处理；不删除真实表。
+- 收口后新执行器不处理protocol=1任务；诊断接口/命令列出其状态供复核。
+
+### 5. 多版本消费（R04、Q3）
+
+#### 5.1 目录读取与捕获
+
+```java
+/** 目录按recordId定位；只接受AUTHORITATIVE且PUBLISHED/RETIRED的版本。 */
+interface FormRecordDirectoryReader {
+  Optional<LocatedRecord> find(long recordId);
+  List<LocatedRecord> listByResource(ResourceC ctx, String templateKey);
+  SourceSet capture(long scopeId);   // revision/hash/versions/fieldSpecHash
+}
+record LocatedRecord(long recordId, long scopeId, long storageVersionId,
+                     String instanceMode, Long instanceId, String createdBy,
+                     FormTemplateSpec spec) {}
+```
+
+- 读取顺序：目录→版本规格（调用方先`capture`冻结）→回表核对C/创建人；禁止按数字ID猜表、禁止逐版扫表。
+- 只读`AUTHORITATIVE`；`LEGACY_SNAPSHOT`排除列表、统计、导出与写回资格；同一C跨版可各有一条有效记录，按§7选择器取用，不按C去重成一条。
+- 捕获持久化到伴生表（单一选型，不再“列或表”二选一）：
+
+```sql
+alter table form_change_heads
+    add column pending_source_set_revision bigint,
+    add column pending_source_set_hash char(64);
+
+create table form_head_captures (
+    head_id             bigint primary key references form_change_heads(id) on delete cascade,
+    capture_token       uuid not null default gen_random_uuid(),
+    source_set_revision bigint not null,
+    source_set_hash     char(64) not null,
+    versions            jsonb not null,   -- [{versionId,role,fieldSpecHash,instanceMode,sourceTable}]
+    latest_change_version bigint not null,
+    authority_revision  bigint,
+    lease_owner         varchar(128) not null,
+    fencing_version     bigint not null,
+    captured_at         timestamp not null default current_timestamp
+);
+```
+
+#### 5.2 领取→捕获→构建→提交
+
+```text
+claim（单语句，多进程安全）:
+update form_change_heads h
+   set status='LEASED', lease_owner=:worker,
+       lease_until=clock_timestamp()+interval '5 minutes',
+       fencing_version=fencing_version+1, next_attempt_at=null,
+       updated_at=clock_timestamp()
+ where h.id = (
+   select id from form_change_heads
+    where status in ('PENDING','RETRY_WAIT')
+       or (status='LEASED' and lease_until < clock_timestamp())
+    order by next_attempt_at nulls first, id
+    for update skip locked limit 1)
+returning h.*;
+
+capture（短事务，提交后构建）:
+  select source_set_revision, source_set_hash from form_template_scopes
+   where id=:scope for share;                       -- 与切换的FOR UPDATE互斥
+  select v.id,v.record_source_role,form_spec_hash(v.field_spec),
+         v.instance_mode,v.source_table,v.record_table
+    from form_template_versions v
+   where v.scope_id=:scope and v.record_source_role='AUTHORITATIVE'
+     and v.version_status in ('PUBLISHED','RETIRED');
+  insert/overwrite form_head_captures(...);
+  commit;
+
+build（事务外，只读捕获中的版本表与规格副本）:
+  按§7选择器生成事实候选；不读“当前指针”代替集合；
+  规格哈希与捕获不一致→放弃候选（零公开）。
+
+publishAndSettle（单事务）:
+  select ... from form_template_scopes where id=:scope for share;  -- 保持到提交
+  select ... from form_change_heads where id=:head for update;
+  assert lease_owner=:worker and fencing_version=:fence
+         and status='LEASED' and lease_until > clock_timestamp();
+  assert form_head_captures.source_set_revision/hash = 当前scope值;   -- 漂移零公开
+  assert head.latest_change_version = capture.latest_change_version; -- 记录漂移零结算
+  assert 捕获authority_revision = form_resource_authorities.authority_revision;
+  写事实/投影公开版本（同事务）;
+  update form_change_heads
+     set consumed_change_version=capture.latest_change_version,
+         pending_record_id=null,pending_record_version=null,
+         pending_storage_version_id=null,pending_source_set_revision=null,
+         pending_source_set_hash=null,pending_authority_revision=null,
+         status='CONSUMED',lease_owner=null,lease_until=null,last_error=null,
+         updated_at=clock_timestamp()
+   where id=:head and status='LEASED' and fencing_version=:fence
+     and latest_change_version=capture.latest_change_version;
+  -- 影响行数≠1则回滚，事实零公开、head零结算
+commit;
+```
+
+- **锁的位置**：构建可以在事务外进行，但**提交事务持有范围`FOR SHARE`直到提交**，并以单调`source_set_revision/hash`做CAS；集合在捕获后变化必然被复核发现。这样既满足“提交时集合未变”，又不让长构建阻塞表单写入/发布（架构的“长计算不阻塞短任务”约束）。若审核要求范围锁从捕获一直持有到提交，需要接受构建期间停写，本稿不采用。
+- 漂移处理：集合或head变化→回滚，`status='RETRY_WAIT'`，退避后重试；事实与结算均为零，不发布半成品。
+- 过期worker：租约过期后可被新worker领取（fencing+1），旧worker的CAS必然失败、零副作用。
+- 重启接管：`form_head_captures`持久化，重启后从head状态与捕获重放；已CONSUMED不重复构建。
+
+#### 5.3 目录事件、权威类型与全量→增量（Q3）
+
+- 事件只追加（§1.4），发布切换/登记同事务写事件并唤醒范围内head：发布→该scope全部head置PENDING并写`pending_source_set_revision/hash`；登记→按目录中的资源C幂等upsert head（`latest_change_version=1`）。
+- 事件消费：`select ... where status in ('PENDING','RETRY_WAIT') or (status='LEASED' and lease_until<now) order by id for update skip locked limit 1`→置LEASED→扇出head（幂等）→置CONSUMED；失败置RETRY_WAIT并保留`last_error`；`form_directory_event_cursors.last_consumed_event_id`在整修订事件CONSUMED后推进，重启从游标重放。
+- 全量→增量：全量构建记录捕获修订R；R之后的事件为增量起点；增量捕获新修订并按选择器重建受影响head；交接失败保留上一已发布事实版本，重试从最后已提交修订开始。
+- 权威类型：`form_resource_authorities.authority`为`FORM`/`COMMENT`；`authority_revision`只在权威类型切换（COMMENT↔FORM）时递增，写入同事务。`COMMENT`权威的head不写表单存储证据（沿用切换事务不变量）；`FORM`权威按捕获集合构建。
+- 无实例且无记录的FORM资源：发布仍建authority/head；构建捕获到零记录，发布**显式空表单投影**（表单派生字段置空/缺省，不删除资源事实），head正常CONSUMED。`FORM→COMMENT→FORM`因authority_revision变化使旧候选CAS失败并重建。
+- MR事实消费入口（N1替换读源，全部走同一reader，不允许保留旧表专用路径）：`FactBuildService.rebuildMergeRequestFactsInternal`（全量）、`rebuildMergeRequestFactsByRootIds`（定向）、`rebuildMergeRequestFactByIid`（单条/诊断）、`CodeReviewMetricEnrichmentService.publishEnriched`（周期）。现有`GitlabFactSourceSqlProvider`的`form_records` CTE只读`collect_form_records`，切换后改为reader提供的投影；切换前保持只读现状，不双读。
+- Issue事实消费入口：`FactRefreshTaskWorkerService`的ISSUE分支、`FactBuildService`的Issue构建；现有`IssueFactSourceRowMapper`/`IssueResponseTemplateParser`保留为评论来源，表单选择器在N2按§7接入；切换按(模板,字段)一次性替换并删除旧分支，不长期双轨。
+- 工作区/事实依赖：表单不登记为工作区/ODS依赖（`RealtimeWorkspaceDependencyCatalog`、`GitlabFactDependencyCatalog`不变），表单→事实由head/capture驱动；回归锁定两目录无表单条目。
+
+### 6. DTO、接口与草稿升级（R06）
+
+#### 6.1 真实DTO（字符串bigint）
+
+```ts
+interface FormRecordView {                 // 现有字段保持不变
+  id: string; recordVersion: number; deleted: boolean;
+  legacyIncomplete: boolean; legacyMissingFields: string[];
+  fields: Record<string, unknown>; fieldNames: Record<string, string>;
+  snapshotValues: Record<string, boolean>;
+  createdBy: string | null; createdByName: string | null;
+  templateVersion: string | null; originVersionId: string;
+  createdAt: string | null; updatedAt: string | null;
+  canEdit: boolean; canVoid: boolean;
+}
+interface FormRecordEntryView extends FormRecordView {
+  storageVersionId: string;                // 物理承载版本
+  originVersionId: string;                 // 创建时版本（历史事实）
+}
+interface FormDetailResponseV2 {
+  templateKey: string; scopeId: string; currentVersionId: string;
+  readableVersions: Array<{ versionId: string; versionLabel: string | null;
+    versionStatus: string; instanceMode: 'MATERIALIZED' | 'NONE'; fieldSpecHash: string }>;
+  sourceSetRevision: string; sourceSetHash: string;
+  versionSpecs: Record<string, FormTemplateSpecView>;  // key=versionId字符串
+  records: FormRecordEntryView[];                     // 全部权威版本有效记录
+  resource: FormResourceView; account: FormAccountView; capabilities: FormCapabilitiesView;
+}
+```
+
+- **身份区分**：`recordId`（目录主键/全局稳定）≠`originVersionId`（创建版本）≠`storageVersionId`（当前物理承载版本）≠`recordVersion`（记录CAS修订）。全部bigint ID在JS侧为十进制字符串；`recordVersion`为number；管理端`scope/version/publication id`维持现有number。
+- 编辑/作废请求新增`expectedStorageVersionId: string`（与既有`recordVersion: number`并存）；服务端以目录解析版本，拒绝与请求不符；跨版本记录不得用当前版字段集合提交。创建请求`scopeId/storageVersionId/requestKey`仍为string，`storageVersionId`必须等于当前版本。
+- 精确契约与调用者：`frontend/src/types/api/collect-form.ts`、`frontend/src/api-client/collect-forms-api.ts`、`frontend/src/features/collect-forms/form-filling-session.ts`、`CollectFormView.vue`、`CollectFormController`、`FormRecordService`、`FormRecordViewFactory`。服务端继续用显式`Long.toString`输出ID，不引入Jackson全局数字字符串化。
+
+#### 6.2 草稿 v1→v2（按真实存储）
+
+v1事实（`frontend/src/features/collect-forms/draft-store.ts`）：键为`qaflex.form.draft.v1|<account>|<contextKey>|<editingSessionId>|<draftId>`，其中`contextKey=canonicalGitlabBaseUrl|projectId|resourceType|resourceId|templateKey`；对象字段为`draftSpecVersion=1, accountUserId, contextKey, context{gitlabBaseUrl,projectId,resourceType,resourceId,templateKey,scopeId,storageVersionId}, draftId, editingSessionId, kind, targetRecordId, baseRecordVersion, baseFields, fields, requestKey, firstPendingSnapshot, inputRevision, persistedRevision, savedAt, status, submitState, submitSnapshot, savedElsewhere, updatedAt`。**不存在的“contextKey+timer迁移”不采用。**
+
+| v1字段 | v2处理 |
+| --- | --- |
+| `draftSpecVersion` | 写2；读取同时接受1 |
+| `accountUserId/contextKey/context.*` | 原样保留；`context.scopeId/storageVersionId`保持字符串 |
+| `draftId/editingSessionId/kind/targetRecordId/baseRecordVersion/baseFields/fields` | 原样保留 |
+| `requestKey/firstPendingSnapshot/submitSnapshot/submitState` | 原样保留；未知/冲突状态不降级 |
+| `inputRevision/persistedRevision/savedAt/status/savedElsewhere/updatedAt` | 原样保留 |
+| 新增`originVersionId` | 编辑块=原记录所属版本；新建=null |
+| 新增`baseStorageVersionId` | 编辑/作废冻结的物理版本；新建=当前版本 |
+| 新增`versionSpecHash` | 捕获时规格哈希；变化→只读并提示 |
+
+- 键前缀改`v2`但**同account/context/session/draftId**；读取v2失败才回退读v1并重新写入；写v2成功后才删该v1键；不合并不同`draftId`、不合并其他会话。
+- 多标签：仍只克隆`updatedAt`最大的会话（保留原`draftId/requestKey/firstPendingSnapshot`）；v2不得把分叉副本合并。
+- 缺失/不可读版本：按`targetRecordId`查目录；服务端能解析→按所属版恢复；不能解析→保持只读冻结并显示“记录版本不可用”，不得永久`unknown`、不得清缓存代替正确性。
+- 新建未落库的旧版草稿与已有历史记录编辑分开：前者只能复制为新key新建，后者按`originVersionId`编辑；`unknown`在核验成功或明确失败前禁止丢弃/复制。
+- 账号：401不删草稿（现有行为），`markAttemptAbandoned`→unknown/frozen；仅显式退出删除本账号草稿。
+- 必测：大ID（>2^53字符串）、v1多标签分叉、旧key未知、401/换账号、原版CAS、规格变化只读、v1→v2幂等升级。
+
+### 7. 共同字段、分母与九项选择器（R05、R07）
+
+#### 7.1 可比元数据与三模板默认值
+
+```json
+"comparable": {
+  "semanticKey": "issue.supplement_note",
+  "meaning": "补充说明",
+  "valueType": "string",
+  "unit": null,
+  "enumDomain": null,
+  "semanticVersion": 1,
+  "semanticHash": "sha256(canonical-json{enumDomain,meaning,semanticKey,semanticVersion,unit,valueType})"
+}
+```
+
+- 哈希输入是**完整语义对象**（键排序、显式null），不是`key|unit|valueType`三串；系统维护，管理员不可编辑；新增字段未声明→不参与统计并在校验报告中列出，已确认核心字段必须声明。
+- 三模板既有字段全部给出默认值（下表为字段→语义键/单位/枚举域；未列者如纯文本仍给语义键并标`text`）：
+
+| 模板 | 字段 | semanticKey | valueType/unit | enumDomain |
+| --- | --- | --- | --- | --- |
+| code_review | reviewer_user_id | code_review.reviewer_user_id | string | platform_ldap_users |
+| code_review | review_duration_minutes | code_review.review_duration_minutes | integer/minute | — |
+| code_review | specification_count | code_review.specification_count | integer/count | — |
+| code_review | logic_count | code_review.logic_count | integer/count | — |
+| code_review | performance_count | code_review.performance_count | integer/count | — |
+| code_review | design_count | code_review.design_count | integer/count | — |
+| code_review | other_count | code_review.other_count | integer/count | — |
+| code_review/issue_response/issue_reply | supplement_note | common.supplement_note | string/text | — |
+| issue_response/issue_reply | modification_plan | issue.modification_plan | string/text | — |
+| issue_response | problem_type | issue_response.problem_type | enum | DEFECT/REQUIREMENT |
+| issue_response | problem_cause | issue_response.problem_cause | string/text | — |
+| issue_response | owner_confirmation | issue_response.owner_confirmation | string/text | — |
+| issue_response | planned_resolution_date | issue_response.planned_resolution_date | date/business-day | — |
+| issue_response | planned_merge_version_branch | issue_response.planned_merge_version_branch | string/branch | — |
+| issue_reply | fix_status | issue_reply.fix_status | enum | RESOLVED/PARTIAL/DEFERRED/UNREPRODUCIBLE |
+| issue_reply | cause_keys | issue_reply.cause_keys | enum-set | DEFECT_CAUSE(24) |
+| issue_reply | specific_reason | issue_reply.specific_reason | string/text | — |
+| issue_reply | caused_by_other_defect | issue_reply.caused_by_other_defect | boolean | — |
+| issue_reply | affected_kinds | issue_reply.affected_kinds | enum-set | KNOWN/NEW/NONE |
+| issue_reply | known_affected_functions | issue_reply.known_affected_functions | string/text | — |
+| issue_reply | new_affected_functions | issue_reply.new_affected_functions | string/text | — |
+| issue_reply | impact_test_status | issue_reply.impact_test_status | enum | YES/NO/NOT_APPLICABLE |
+| issue_reply | has_residual_impact | issue_reply.has_residual_impact | boolean | — |
+| issue_reply | residual_impact_detail | issue_reply.residual_impact_detail | string/text | — |
+| issue_reply | relation_table_updated | issue_reply.relation_table_updated | enum | YES/NO/NOT_APPLICABLE |
+
+- 明确**不合并**：`problem_cause`≠`specific_reason`；`problem_type`≠`fix_status`；`impact_test_status`与`relation_table_updated`虽同枚举值但语义不同；code_review五类计数≠reply原因词典；严重级别是资源级快照，不是表单可比字段。
+- 改名不改`semanticKey/hash`；删除后同名新增得到新稳定身份，不继承、不合并；同名不同义即使哈希碰撞也不合并（哈希仅作校验，匹配还须稳定身份与语义键）。
+
+#### 7.2 九项Issue选择器（对齐主方案§3.5，不重开）
+
+| # | 选择器 | 正式语义 |
+| --- | --- | --- |
+| 1 | 最新整份响应（planned_resolution_*、planned_merge_version_branch） | 跨全部权威版本按`(createdAt, recordId)`降序选未作废响应的当前修订；整份取用，不逐字段补旧；编辑不重排 |
+| 2 | 首次调研时间/响应周期 | `min(createdAt)`有效响应；编辑不后移；仅回复无响应不制造样本 |
+| 3 | has_response | 响应记录存在；与回复存在、延期豁免分开 |
+| 4 | 响应延期豁免（D-21） | 有效回复存在→豁免；仅响应存在→按最新响应模板的合法计划检查；合规完整性另行判断；方向为最新→更早，仅限D-21 |
+| 5 | 原因/非法唯一/原因统计与导出 | 最新有效回复按`(createdAt, recordId)`降序；按稳定具体原因ID集合投影；合规按ID去重，0或>1非法，未判定为待检查；多选采集与唯一性独立 |
+| 6 | fix_user | 被选有效回复的创建账号姓名快照；不另造代填、不前向回退 |
+| 7 | known/new affected与回复详情 | 从被选回复的独立字段投影；历史未知为“--”，未选为“否”；不重解析Markdown |
+| 8 | resolve_deadline/解决延期 | 响应按创建时间最新；D-21合法计划查找与18天公式分别保留；旧“反向取最早”差异列入产出影响与I2回归 |
+| 9 | fixed_label_time/解决周期 | 完成状态+真实加标事件，沿D-20/D-27；完成取真实事件时间，两端同一瞬间 |
+
+- “最新”统一为`(createdAt, recordId)`降序；作废记录从筛选、聚合、导出、首次/最新及效率样本中排除；禁止“每版各选一条再相加”，最新整份响应缺字段保持缺项。
+- 同走查人软提示：MR按**业务`reviewer_user_id`值+C**跨权威版本查询，记录归属仍是`created_by`；Issue不凭`created_by`泛化走查人规则。
+- MR级汇总公式（时长/缺陷密度等）保持现行口径，待W5前单独提交影响说明；本稿不拟新公式、不改分母。
+
+**非空样本与预期（夹具）**：V1响应t1（原因A，计划2026-11-01，分支CC2027R1）、V2响应t2（原因B，分支非法）、V1回复t3（原因X,Y）、V3回复t4（原因Z）、V2回复t5已作废。预期：最新响应=V2整份（计划字段取自V2，非法分支不拼接V1）；首次调研=t1；has_response=true；原因=最新有效回复V3→{Z}；fix_user=V3作者；D-21因有效回复存在而豁免；解决周期仅由真实完成事件产生。
+
+#### 7.3 分母与2+3=5
+
+| 指标/选择器 | 分子 | 分母 | 缺字段/NULL/0/作废 |
+| --- | --- | --- | --- |
+| 平均走查时长 | Σ非空duration | 非空duration的有效code_review记录数（跨权威版） | NULL不补0；0保留；作废排除；副本不计 |
+| 五类问题计数/规范2+3=5 | 同一semanticKey跨版求和 | — | 缺字段版不写行；不改名合并新身份 |
+| 缺陷密度 | 有效问题数×1000 | 去重被走查行数>0（既有口径） | 分母≤0→null，不造0 |
+| 响应周期 | Σ(首次响应-创建) | 有创建且首次响应的议题数 | 仅回复无样本；样本0显示0并带样本数 |
+| has_response覆盖率 | has_response=true议题 | 基数集议题（既有D） | 无响应计false，不排除 |
+| 原因分布 | 分类命中数（多原因重复计） | Σ分类命中数（D-30） | 无原因不计；作废排除 |
+| 非法唯一原因 | 最新有效回复中0或>1个原因ID的议题 | 有有效回复的议题 | 未判定单列待检查，不入分母 |
+| 解决周期 | Σ(真实完成事件-创建) | 有真实完成事件的议题 | 无事件排除；两端同一瞬间 |
+| 共同字段存在率 | 非空/非缺字段记录数 | 选定版本有效记录数 | 缺字段与NULL分列；0不算缺 |
+
+- **2+3=5**：V1规范=2、V2规范=3，semanticKey/单位相同→5；仅改名→仍合并；删除后同名新增→新身份不合并；同单位异义枚举→不合并；无共同字段→明确输出“无可统计共同字段”并附选定/贡献版本，不返回0。
+- 每个指标输出`selectedVersions/contributingVersions`（实际贡献记录所在版本），供审计与导出。
+
+### 8. 导出与权限（R08、Q7、Q8）
+
+#### 8.1 端点、范围与列
+
+```text
+GET /api/collect-forms/exports/records
+    ?versionId=<十进制字符串，必填>
+    &projectIds=<可选，逗号分隔；默认该版本scope.project_ids>
+```
+
+- `versionId`必须是该scope的可读`AUTHORITATIVE`版本（`PUBLISHED/RETIRED`）；`TARGET`/`LEGACY_SNAPSHOT`一律404/409；`projectIds`必须是scope项目集合子集，空交集拒绝。
+- 只导出`deleted=false`的有效记录（不提供`includeVoided`，作废结果禁止导出）；新建空版本导出**仅表头**。
+- 列：系统列（记录ID文本、GitLab地址、项目、资源类型、资源ID、创建人姓名快照、创建时间、记录修订、状态）+该版本冻结规格字段（按规格顺序、label为表头）。字段缺失写空，不补0；bigint ID写文本；日期`yyyy-MM-dd`（业务日），时间`Asia/Shanghai` `yyyy-MM-dd HH:mm:ss`。
+- `FormRecordExportRow`由版本规格生成，表头与行同源，禁止两处手写列名。
+- 审计（新增表，N1迁移内）：
+
+```sql
+create table form_record_export_logs (
+    id bigserial primary key,
+    scope_id bigint not null references form_template_scopes(id),
+    version_id bigint not null,
+    project_ids jsonb not null,
+    row_count bigint not null check (row_count >= 0),
+    byte_size bigint not null check (byte_size >= 0),
+    file_sha256 char(64) not null,
+    operator_id varchar(128) not null,
+    created_at timestamp not null default current_timestamp
+);
+```
+
+#### 8.2 权限授予（具体角色与不扩权证据）
+
+- 新增`form.record.export`（module“表单采集”，sort 3345）。授予集合由**真实目录数据**推导，不猜“质量角色”：
+
+```sql
+insert into platform_permissions(permission_code,permission_name,module_name,description,sort_order)
+values ('form.record.export','导出表单记录','表单采集',
+        '按已发布版本导出获准范围内的有效表单记录',3345)
+on conflict (permission_code) do update
+set permission_name=excluded.permission_name,module_name=excluded.module_name,
+    description=excluded.description,sort_order=excluded.sort_order,
+    enabled=true,updated_at=current_timestamp;
+
+-- 仅授予同时持有两个模块view键的既有角色；不新增未知角色
+insert into platform_role_permissions(role_code,permission_code)
+select r.role_code,'form.record.export'
+from (values ('SUPER_ADMIN'),('ADMIN'),('DIRECT_MANAGER'),('TREE_MANAGER'),('NORMAL_USER'))
+     r(role_code)
+where exists (select 1 from platform_role_permissions p
+              where p.role_code=r.role_code and p.permission_code='code_review.illegal.view')
+  and exists (select 1 from platform_role_permissions p
+              where p.role_code=r.role_code and p.permission_code='customer_issue.record.view')
+on conflict do nothing;
+
+insert into platform_default_role_permissions(role_code,permission_code)
+select role_code,'form.record.export'
+from (values ('SUPER_ADMIN'),('ADMIN'),('DIRECT_MANAGER'),('TREE_MANAGER'),('NORMAL_USER'))
+     roles(role_code)
+on conflict do nothing;
+```
+
+- **基线证据**：`V20260720_01`对五个角色授予全部非system权限（含两个view），`V20261022_02`已把`form.record.delete_own`授予同一五角色。导出与既有模块导出（如`customer_issue.record.export`）同属“view+export”惯例，不扩大到其他角色；若目标库存在自定义角色，迁移只按上述join实际授予，N1交付时用只读查询列出最终角色名单与差异，不修改其它权限。
+- 端点方法级校验`form.record.export`，未授权A0303；导出范围仍受scope/项目/版本约束，不能跨范围读取。管理页当前无导出按钮，**不新增页面view/export映射**；若后续加按钮，须先按AGENTS报批并同单元登记`PagePermissionKeyResolver`。
+- `endpoint-catalog.yml`新增EXPORT条目（读目录/版本/记录表）；夹具固定scope/version ID使动态表名确定；本稿不生成黄金快照，新增/差异待W7审批。
+
+#### 8.3 资源边界与容量（Q7）
+
+- 50k行/64MB仅为**待验证预算**，不是容量结论。估算：`rows × (系统列+字段列平均UTF-8字节+XML开销) + 工作簿固定开销`；固定负载（1万/5万行、宽表）测量耗时、堆峰值、临时文件大小，阈值取重复采样分布，不靠重跑。
+- 行为：超过`rowLimit=50000`或估算`byteLimit=64MB`→返回413并说明实测值/上限，不静默截断；小结果（≤5000行）可用`XSSFWorkbook`，以上用`SXSSFWorkbook(window=200)`流式写出。
+- 临时资源：SXSSF临时目录为`${java.io.tmpdir}/qaflex-form-export-<uuid>/`，`finally`递归删除；不写入仓库、不残留；响应流与审计记录行数、字节数、SHA-256。
+- 现场容量由内网固定负载实测，不用小夹具外推；失败清理与超限路径纳入N1测试。
+
+### 9. 验证入口与隔离探针（R08、Q9）
+
+#### 9.1 可执行入口（pwsh，显式隔离，不用通配mvn）
+
+```powershell
+$name = 'dcp-n0-' + [guid]::NewGuid().ToString('N').Substring(0,8)
+$port = 15607   # 先确认未被占用；不得使用15432/15433/15601/15602
+$pw   = 'n0-isolated-only'
+docker run -d --name $name -e POSTGRES_PASSWORD=$pw -p 127.0.0.1:${port}:5432 postgres:16-alpine | Out-Null
+try {
+  for ($i=0; $i -lt 60; $i++) { docker exec $name pg_isready -U postgres; if ($LASTEXITCODE -eq 0) { break }; Start-Sleep -Seconds 1 }
+  docker cp backend/src/main/resources/db/migration/V20261022_01__unified_form_storage_foundation.sql ${name}:/tmp/base.sql
+  docker cp D:/projects/data_collection_platform/.tmp/w4-r5-n0-20261027/probe-public.sql ${name}:/tmp/probe.sql
+  docker exec $name psql -U postgres -v ON_ERROR_STOP=1 -f /tmp/base.sql
+  docker exec $name psql -U postgres -v ON_ERROR_STOP=1 -f /tmp/probe.sql
+  if ($LASTEXITCODE -ne 0) { throw 'N0 probe failed' }
+} finally {
+  $id = docker inspect -f '{{.Id}}' $name
+  docker rm -f $id
+  "removed=$id" | Tee-Object -FilePath D:/projects/data_collection_platform/.tmp/w4-r5-n0-20261027/cleanup.txt
+}
+```
+
+- 业务测试（N1起）用显式`-Dtest=类名`与显式`TEST_DATASOURCE_URL/TEST_POSTGRES_JDBC_URL`指向本容器；禁止`-Dtest='Form*'`或裸`mvn test`作为“隔离”证据。默认15433库不参与。
+- 真实E2与现场登记/切换仍是独立门禁（Q9），不阻断本设计探针，但阻断真实登记与N1上线；MR公式仍待批。
+
+#### 9.2 探针清单（本稿已执行，见交付证据）
+
+| 探针 | 预期 |
+| --- | --- |
+| P1 空平台应用V20261022_01+本稿01—03 | 全部DDL成功，旧159条未改 |
+| P2 非空基础升级（先插v5范围/版本/任务再ALTER） | 默认角色/模式回填，形状检查通过 |
+| P3 protocol/stage | v1只接受旧阶段；v2只接受VALIDATING/BUILDING/SWITCHING/PUBLISHED/FAILED；非法组合23514 |
+| P4 活跃唯一/领取索引 | 同scope第二个活跃任务23505；FAILED后可建；两协议不并存 |
+| P5 实例模式 | MATERIALIZED空instance_table拒绝23514；NONE空表+source_table成功；无实例目录行仅NONE允许 |
+| P6 目录约束 | 跨版requestKey重复23505；NULL可重复；版本/scope复合FK；实例模式复合FK |
+| P7 可读视图/哈希 | TARGET/快照不出现；AUTHORITATIVE集合哈希=函数重算 |
+| P8 登记 | Demo零实例/零账号登记、v5承载+副本角色、全值哈希一致、重入幂等、提交后补偿事件不回退 |
+| P9 旧任务收口 | 有效租约不终止；过期租约终止并写attempt/清本任务栅栏；非本任务栅栏不动 |
+| P10 head捕获/结算 | 集合或head漂移时CAS为0；一致时CONSUMED且pending清空 |
+| P11 目录事件 | 领取/确认/租约过期重领/游标推进；重启从游标重放 |
+| P12 无实例FORM | 发布建authority/head，捕获零记录可结算为空投影，不删资源 |
+| P13 共同字段/2+3=5 | 三模板默认元数据齐全；哈希一致则2+3=5；新身份/异义枚举不合并；无共同字段显式报告 |
+| P14 导出权限 | 只授予同时持有两个view键的五角色；默认快照一致；无其他角色新增 |
+
+证据写入`D:/projects/data_collection_platform/.tmp/w4-r5-n0-20261027/`：probe SQL、逐项日志、容器ID与清理记录、共同字段报告；不留业务服务或共享库访问。
+
+**本次执行结果（2026-10-27）**：`postgres:16-alpine` 隔离容器`99ac1b2068ec1176af77a8c8a1a343075956476ed409646e07d9bfbc51e9d47d`（本机15607，唯一命名`dcp-n0-r5-20261027`）执行P1、P3—P12、P14共12项与独立`p2db`的P2共1项全部PASS；共同字段探针95项PASS；先应用`V20261022_01`再应用本稿DDL，旧159条未改。容器已按ID删除、无残留端口；未启动业务服务、未连接共享库或内网。
+
+### 10. 替换范围、风险与审批请求
+
+#### 10.1 N1删除/替换清单
+
+| 对象 | 现状调用者 | 替代与验收 |
+| --- | --- | --- |
+| `FormPublicationMigrator.copy`（复制/核验S） | `FormPublicationTxService.copy` | 空结构发布+集合切换；非空目标/漂移拒绝；不复制 |
+| `FormLegacyRecordMigrator.copy`（首迁复制） | 同文件INITIAL_MIGRATION分支 | §3登记；原行不变/目录覆盖/只读 |
+| 每版`request_key`物理唯一依赖 | 创建重放 | 目录跨版唯一；旧key回原版；未落库409 |
+| 旧执行器领取v2/新执行器领取v1 | worker | 双向拒绝；v1仅受控收口 |
+| 复制计数/校验和前置与`legacy_incomplete`新写 | 发布测试 | 目录修订/集合哈希冻结；历史标记只读保留 |
+| `collect_form_records`事实读源 | MR事实四个入口 | §5 reader统一替换，一次性切换无长期双轨 |
+
+被替换的测试直接改写为目标契约测试，不保留兼容层；既有W1—W4记录/页面/条件测试保留。
+
+#### 10.2 风险与未决（需审核裁定）
+
+1. v2初始阶段采用`VALIDATING`而非`PREPARED`，以防止旧二进制误领；若审核要求保留PREPARED，须同时接受“部署前必须停旧二进制”的强约束。
+2. 消费提交采用“构建在事务外、提交事务持范围FOR SHARE到提交”的方案，避免长构建阻塞写；若要求捕获后全程持锁，需要接受发布期间停写。
+3. v5承载副本若存在已删除字段的值丢失，按§3.1阻断并交审核/业务裁决，不自动合并。
+4. 导出角色名单按真实目录join推导；最终名单与差异需N1只读核对后确认。
+5. MR级汇总公式与真实E2规模仍按原阶段，不在本稿代拟。
+
+#### 10.3 审批请求
+
+请确认：§1—§8的DDL/事务/消费/导出合同、§10.1删除清单与§10.2暂定项；批准后N1按阶段实施，先提交最小DDL+目录/登记测试，再发布/消费/导出。未批准前不改业务代码、不建正式表、不改旧迁移、不合main、不出包。
 
 ## N0首次审核（2026-10-27）
 
