@@ -12,8 +12,11 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * N1 迁移两路径与共享序列高水位：空平台、代表性非空旧库升级、
+ * N1 目录迁移的空平台路径与共享序列高水位：对象与默认值齐备、
  * {@code form_advance_record_sequence} 的 is_called 全边界与跨范围串行。
+ *
+ * <p>非空旧库的真实 159→160 升级不在本类伪装：由
+ * {@link FormV6LegacyUpgradeIntegrationTest} 先迁到 {@code 20261022.03} 再升级并核验守恒。
  */
 @Testcontainers(disabledWithoutDocker = true)
 class FormV6DirectoryMigrationTest {
@@ -47,55 +50,6 @@ class FormV6DirectoryMigrationTest {
     assertThat(version.get("instance_mode")).isEqualTo("MATERIALIZED");
     jdbc.update("delete from form_template_versions where id = ?", versionId);
     jdbc.update("delete from form_template_scopes where id = ?", scopeId);
-  }
-
-  @Test
-  void shouldUpgradeNonEmptyLegacyDatabaseWithoutChangingExistingRows() {
-    JdbcTemplate jdbc = FormV6TestSupport.migrate(POSTGRES);
-    long configId = FormV6TestSupport.insertSourceConfig(jdbc, "http://gitlab.n1.local");
-    long scopeId = FormV6TestSupport.insertScope(
-        jdbc, "code_review", "n1-upgrade", configId, "http://gitlab.n1.local", 9, "DRAFT");
-    FormV6TestSupport.FixtureTables tables =
-        FormV6TestSupport.createRecordVersion(
-            jdbc, scopeId, "code_review", "V1", FormV6TestSupport.SPEC_V1, "PUBLISHED", true);
-    long versionId = jdbc.queryForObject(
-        "select id from form_template_versions where scope_id = ? order by id limit 1",
-        Long.class, scopeId);
-    long instanceId = FormV6TestSupport.insertInstance(
-        jdbc, tables.instanceTable(), scopeId, configId, "http://gitlab.n1.local", 9, 101);
-    jdbc.update(
-        "insert into " + tables.recordTable()
-            + "(instance_id, origin_version_id, record_version, score, note_text)"
-            + " values (?, ?, 1, 2, 'keep')",
-        instanceId, versionId);
-    FormV6TestSupport.activateScope(jdbc, scopeId, versionId);
-    long beforeScopes = jdbc.queryForObject(
-        "select count(*) from form_template_scopes", Integer.class);
-    long beforeVersions = jdbc.queryForObject(
-        "select count(*) from form_template_versions", Integer.class);
-    Map<String, Object> beforeRecord = jdbc.queryForMap(
-        "select score, note_text from " + tables.recordTable() + " where id = 1");
-
-    assertDirectoryObjects(jdbc);
-    assertThat(jdbc.queryForObject(
-        "select count(*) from form_template_scopes", Integer.class)).isEqualTo(beforeScopes);
-    assertThat(jdbc.queryForObject(
-        "select count(*) from form_template_versions", Integer.class)).isEqualTo(beforeVersions);
-    assertThat(jdbc.queryForObject(
-        "select source_set_revision from form_template_scopes where id = ?", Integer.class,
-        scopeId)).isZero();
-    Map<String, Object> version = jdbc.queryForMap(
-        "select record_source_role, instance_mode, source_table from form_template_versions"
-            + " where id = ?",
-        versionId);
-    assertThat(version.get("record_source_role")).isEqualTo("AUTHORITATIVE");
-    assertThat(version.get("instance_mode")).isEqualTo("MATERIALIZED");
-    assertThat(version.get("source_table")).isNull();
-    assertThat(jdbc.queryForMap(
-        "select score, note_text from " + tables.recordTable() + " where id = 1"))
-        .containsEntry("score", 2)
-        .containsEntry("note_text", "keep");
-    assertThat(beforeRecord).isNotNull();
   }
 
   @Test

@@ -1,6 +1,8 @@
 package com.data.collection.platform.service.form;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
+import com.data.collection.platform.domain.form.FormTemplateSpec;
+import com.data.collection.platform.domain.form.FormVersionSchema;
 import com.data.collection.platform.service.GitlabResourceLinkService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.Timestamp;
@@ -57,8 +59,16 @@ final class FormV6TestSupport {
     FormRecordDirectoryService directoryService =
         new FormRecordDirectoryService(jdbc, contextService, fieldValueService, store, viewFactory);
     FormRecordDirectoryReader reader = new FormRecordDirectoryReader(jdbc, contextService);
+    FormVersionSchemaService schemaService = new FormVersionSchemaService(objectMapper);
     FormV6RegistrationService registrationService =
-        new FormV6RegistrationService(jdbc, objectMapper, contextService, scopeValidation);
+        new FormV6RegistrationService(
+            jdbc,
+            objectMapper,
+            contextService,
+            scopeValidation,
+            schemaService,
+            new FormVersionStructureVerifier(jdbc),
+            reader);
     FormComparableRegistrationService comparableService =
         new FormComparableRegistrationService(jdbc, contextService, objectMapper);
     FormRecordWriteService writeService =
@@ -132,10 +142,17 @@ final class FormV6TestSupport {
         Long.class, webBaseUrl);
   }
 
-  record FixtureTables(String instanceTable, String recordTable) {}
+  record FixtureTables(
+      long versionId, String instanceTable, String recordTable, String ddlHash) {}
 
   private static final ObjectMapper SHARED_MAPPER = new ObjectMapper();
 
+  /**
+   * 用正式生成器建版本物理结构，并用正式核验器确认零漂移后再登记夹具。
+   *
+   * <p>版本主键先取 {@code form_template_versions_id_seq}，因为表名由版本 ID 决定；夹具不再手写
+   * 简化 DDL，避免用缺少真实约束的表伪装正式结构。
+   */
   static FixtureTables createRecordVersion(
       JdbcTemplate jdbc,
       long scopeId,
@@ -144,69 +161,52 @@ final class FormV6TestSupport {
       String fieldSpec,
       String versionStatus,
       boolean published) {
-    Long versionId = jdbc.queryForObject(
+    FormTemplateSpec spec = parseSpec(fieldSpec, templateKey);
+    long versionId =
+        jdbc.queryForObject(
+            "select nextval(pg_get_serial_sequence('form_template_versions', 'id'))", Long.class);
+    FormVersionSchema schema =
+        new FormVersionSchemaService(SHARED_MAPPER)
+            .generate(scopeId, versionId, spec, false);
+    jdbc.update(
         """
         insert into form_template_versions(
-            scope_id, version_label, storage_kind, instance_table, record_table, field_spec,
+            id, scope_id, version_label, storage_kind, instance_table, record_table, field_spec,
             version_status, published_at)
-        values (?, ?, 'RECORDS', ?, ?, ?::jsonb, ?, ?)
-        returning id
+        values (?, ?, ?, 'RECORDS', ?, ?, ?::jsonb, ?, ?)
         """,
-        Long.class, scopeId, label, tableName(scopeId, label, "instances"),
-        tableName(scopeId, label, "records"), fieldSpec, versionStatus,
+        versionId,
+        scopeId,
+        label,
+        schema.instanceTable(),
+        schema.recordTable(),
+        fieldSpec,
+        versionStatus,
         published ? Timestamp.valueOf(LocalDateTime.of(2026, 1, 1, 0, 0)) : null);
-    String instanceTable = tableName(scopeId, label, "instances");
-    String recordTable = tableName(scopeId, label, "records");
-    jdbc.execute(
-        "create table " + instanceTable + " ("
-            + " id bigserial primary key,"
-            + " scope_id bigint not null,"
-            + " source_config_id bigint not null,"
-            + " source_instance varchar(128) not null,"
-            + " gitlab_base_url varchar(255) not null,"
-            + " project_id bigint not null,"
-            + " resource_type varchar(64) not null,"
-            + " resource_id bigint not null,"
-            + " template_key varchar(64) not null,"
-            + " created_at timestamp not null default current_timestamp,"
-            + " updated_at timestamp not null default current_timestamp,"
-            + " unique (scope_id, source_config_id, project_id, resource_type, resource_id))");
-    StringBuilder business = new StringBuilder();
+    schema.statements().forEach(jdbc::execute);
+    new FormVersionStructureVerifier(jdbc).verify(schema);
+    return new FixtureTables(
+        versionId, schema.instanceTable(), schema.recordTable(), schema.ddlHash());
+  }
+
+  /** 直接按冻结规格解析，夹具与生产使用同一规格契约。 */
+  static FormTemplateSpec parseSpec(String fieldSpec, String templateKey) {
     try {
-      var spec = SHARED_MAPPER.readTree(fieldSpec);
-      for (var field : spec.path("fields")) {
-        String column = field.path("storage").path("column").asText(null);
-        String type = field.path("storage").path("columnType").asText(null);
-        if (column != null && type != null) {
-          business.append(", ").append(column).append(" ").append(type);
-        }
-      }
+      return SHARED_MAPPER.readValue(fieldSpec, FormTemplateSpec.class);
     } catch (Exception error) {
       throw new IllegalStateException("测试规格无法解析", error);
     }
-    jdbc.execute(
-        "create table " + recordTable + " ("
-            + " id bigserial primary key,"
-            + " instance_id bigint not null,"
-            + " origin_version_id bigint not null,"
-            + " template_version varchar(64),"
-            + " created_by varchar(128),"
-            + " request_key varchar(64),"
-            + " create_payload_hash char(64),"
-            + " record_version integer not null default 1,"
-            + " deleted boolean not null default false,"
-            + " legacy_incomplete boolean not null default false,"
-            + " legacy_missing_fields text[] not null default '{}',"
-            + " created_at timestamp not null default current_timestamp,"
-            + " updated_at timestamp not null default current_timestamp"
-            + business
-            + ", unique (request_key))");
-    return new FixtureTables(instanceTable, recordTable);
   }
 
-  static String tableName(long scopeId, String label, String kind) {
-    String version = label.replaceAll("[^0-9]", "");
-    return "form_s" + scopeId + "_v" + version + "_" + kind;
+  /** 按库中冻结规格重建期望结构，供负例先自证正式核验器确实报漂移。 */
+  static FormVersionSchema formalSchema(
+      JdbcTemplate jdbc, long scopeId, long versionId, String templateKey) {
+    Map<String, Object> version = jdbc.queryForMap(
+        "select field_spec::text as field_spec from form_template_versions where id = ?",
+        versionId);
+    return new FormVersionSchemaService(SHARED_MAPPER)
+        .generate(scopeId, versionId, parseSpec((String) version.get("field_spec"), templateKey),
+            false);
   }
 
   static long insertScope(
@@ -217,6 +217,23 @@ final class FormV6TestSupport {
       String canonicalUrl,
       long projectId,
       String status) {
+    return insertScope(
+        jdbc, templateKey, scopeKey, sourceConfigId, canonicalUrl, List.of(projectId),
+        projectId, status);
+  }
+
+  /** 建范围：项目集合与版本项目可不同，绑定哈希始终按真实绑定推导。 */
+  static long insertScope(
+      JdbcTemplate jdbc,
+      String templateKey,
+      String scopeKey,
+      long sourceConfigId,
+      String canonicalUrl,
+      List<Long> projectIds,
+      long versionProjectId,
+      String status) {
+    String projects =
+        projectIds.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(", "));
     return jdbc.queryForObject(
         """
         insert into form_template_scopes(
@@ -227,19 +244,23 @@ final class FormV6TestSupport {
         returning id
         """,
         Long.class, templateKey, scopeKey, sourceConfigId, canonicalUrl,
-        "[" + projectId + "]", projectId, status, bindingHash(templateKey, sourceConfigId,
-            canonicalUrl, projectId));
+        "[" + projects + "]", versionProjectId, status,
+        bindingHash(templateKey, sourceConfigId, canonicalUrl, projectIds, versionProjectId));
   }
 
   /** 与 FormScopeValidationService.coverageBindingHash 相同的绑定哈希推导。 */
   private static String bindingHash(
-      String templateKey, long sourceConfigId, String canonicalUrl, long projectId) {
+      String templateKey,
+      long sourceConfigId,
+      String canonicalUrl,
+      List<Long> projectIds,
+      long versionProjectId) {
     ObjectMapper mapper = new ObjectMapper();
     return com.data.collection.platform.domain.form.FormScopeBinding.hash(
         mapper,
         com.data.collection.platform.domain.form.FormScopeBinding.create(
             mapper, templateKey, sourceConfigId, "default", canonicalUrl,
-            List.of(projectId), projectId, "merge_request"));
+            projectIds, versionProjectId, "merge_request"));
   }
 
   static void activateScope(JdbcTemplate jdbc, long scopeId, long currentVersionId) {
@@ -257,12 +278,29 @@ final class FormV6TestSupport {
       String canonicalUrl,
       long projectId,
       long resourceId) {
+    return insertInstance(
+        jdbc, instanceTable, scopeId, sourceConfigId, "default", canonicalUrl, projectId,
+        resourceId);
+  }
+
+  /** 显式指定来源实例与地址，用于跨来源/跨项目的不一致实例负例。 */
+  static long insertInstance(
+      JdbcTemplate jdbc,
+      String instanceTable,
+      long scopeId,
+      long sourceConfigId,
+      String sourceInstance,
+      String canonicalUrl,
+      long projectId,
+      long resourceId) {
     return jdbc.queryForObject(
         "insert into " + instanceTable
             + "(scope_id, source_config_id, source_instance, gitlab_base_url, project_id,"
-            + " resource_type, resource_id, template_key)"
-            + " values (?, ?, 'default', ?, ?, 'merge_request', ?, 'code_review') returning id",
-        Long.class, scopeId, sourceConfigId, canonicalUrl, projectId, resourceId);
+            + " resource_type, resource_id, template_key, created_at, updated_at)"
+            + " values (?, ?, ?, ?, ?, 'merge_request', ?, 'code_review', ?, ?) returning id",
+        Long.class, scopeId, sourceConfigId, sourceInstance, canonicalUrl, projectId, resourceId,
+        Timestamp.valueOf(LocalDateTime.of(2026, 2, 1, 8, 0)),
+        Timestamp.valueOf(LocalDateTime.of(2026, 2, 1, 8, 0)));
   }
 
   static long insertRecord(
@@ -340,5 +378,43 @@ final class FormV6TestSupport {
   static List<Map<String, Object>> directoryRows(JdbcTemplate jdbc, long scopeId) {
     return jdbc.queryForList(
         "select * from form_record_locations where scope_id = ? order by record_id", scopeId);
+  }
+
+  /** 旧 Demo 表真实列夹具：值全部可指定，作废与时间轴参与守恒核验。 */
+  static void insertLegacyRow(
+      JdbcTemplate jdbc,
+      long id,
+      String gitlabBaseUrl,
+      long projectId,
+      long resourceId,
+      String reviewer,
+      int duration,
+      int specification,
+      int logic,
+      int performance,
+      int design,
+      int other,
+      String remark,
+      boolean deleted) {
+    jdbc.update(
+        """
+        insert into collect_form_records(
+            id, gitlab_base_url, project_id, request_iid, resource_type, resource_id,
+            template_code, reviewer, review_duration_minutes, specification_score, logic_score,
+            performance_score, design_score, other_score, remark, deleted, created_at, updated_at)
+        values (?, ?, ?, ?, 'merge_request', ?, 'code_review', ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                current_timestamp, current_timestamp)
+        """,
+        id, gitlabBaseUrl, projectId, resourceId, Long.toString(resourceId), reviewer, duration,
+        specification, logic, performance, design, other, remark, deleted);
+  }
+
+  /** 两条代表性旧 Demo 记录：不同走查人与分值，供选集/守恒/读取用例复用。 */
+  static void insertLegacyPair(
+      JdbcTemplate jdbc, long firstId, long secondId, String gitlabBaseUrl, long projectId) {
+    insertLegacyRow(jdbc, firstId, gitlabBaseUrl, projectId, firstId,
+        "Alice", 30, 1, 2, 3, 4, 5, "legacy", false);
+    insertLegacyRow(jdbc, secondId, gitlabBaseUrl, projectId, secondId,
+        "Bob", 45, 6, 7, 8, 9, 10, "second", false);
   }
 }

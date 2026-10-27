@@ -1,9 +1,11 @@
 package com.data.collection.platform.service.form;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.common.exception.FormConflictException;
+import com.data.collection.platform.domain.form.FormVersionSchema;
 import com.data.collection.platform.entity.form.FormActorContext;
 import com.data.collection.platform.entity.form.FormCreateResponse;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -211,17 +213,18 @@ class FormV6RegistrationIntegrationTest {
         jdbc, scopeId, "code_review", "V2", FormV6TestSupport.SPEC_V2, "PUBLISHED", true);
     long v2Id = versionId(jdbc, scopeId, v2.recordTable());
     FormV6TestSupport.activateScope(jdbc, scopeId, v2Id);
-    // request_key 存在但首次指纹缺失：409 阻断，不补写。
+    // request_key 存在但首次指纹缺失：正式结构允许该形状（无账号），登记仍按证据不完整 409。
     long instanceId = FormV6TestSupport.insertInstance(
         jdbc, v2.instanceTable(), scopeId, configId, URL, 14, 401);
     FormV6TestSupport.insertRecord(
-        jdbc, v2.recordTable(), instanceId, v2Id, ALICE.userId(),
+        jdbc, v2.recordTable(), instanceId, v2Id, null,
         "0b7a5d1e-0000-4000-8000-000000000002", null, 1, false, "5", null);
-    FormV6RegistrationService.PrecheckReport precheck =
-        services.registrationService().precheckCopiedRecords(scopeId);
+    assertThatThrownBy(() -> services.registrationService().precheckCopiedRecords(scopeId))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("首次指纹或账号证据缺失");
     assertThatThrownBy(() -> services.tx().execute(status ->
             services.registrationService().registerCopiedRecords(
-                scopeId, "operator", precheck.count(), precheck.rowHash())))
+                scopeId, "operator", 1, "0")))
         .isInstanceOf(FormConflictException.class)
         .hasMessageContaining("首次指纹或账号证据缺失");
     assertThat(jdbc.queryForObject(
@@ -236,9 +239,10 @@ class FormV6RegistrationIntegrationTest {
         fresh, v1.instanceTable(), scopeId, configId, URL, 14, 402);
     fresh.update(
         "insert into " + v1.recordTable()
-            + "(id, instance_id, origin_version_id, record_version, score, created_by)"
-            + " values (502, ?, ?, 1, 6, ?)",
-        staleInstance, v1Id, ALICE.userId());
+            + "(id, instance_id, origin_version_id, record_version, score,"
+            + " created_at, updated_at)"
+            + " values (502, ?, ?, 1, 6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        staleInstance, v1Id);
     FormV6RegistrationService.PrecheckReport moved =
         services.registrationService().precheckCopiedRecords(scopeId);
     assertThatThrownBy(() -> services.tx().execute(status ->
@@ -346,6 +350,253 @@ class FormV6RegistrationIntegrationTest {
         .hasMessageContaining("已作废");
   }
 
+  // ===== N1-R01：登记证据必须覆盖全值/修订/作废轴 =====
+
+  @Test
+  void shouldRecheckFullValueEvidenceAfterCarrierValueRevisionOrVoidChange() {
+    FormV6TestSupport.WiredServices services = wired();
+    JdbcTemplate jdbc = services.jdbc();
+    CarrierFixture fixture = carrierFixture(services, 21, 701, "0b7a5d1e-0000-4000-8000-0000000000a1");
+    String carrierTable = fixture.v2().recordTable();
+    long recordId = fixture.recordId();
+
+    String baseline = services.registrationService().precheckCopiedRecords(fixture.scopeId()).rowHash();
+    // 业务值变化：预检证据必须改变，携带旧证据的登记整体拒绝。
+    jdbc.update("update " + carrierTable + " set score = 99 where id = ?", recordId);
+    assertThat(services.registrationService().precheckCopiedRecords(fixture.scopeId()).rowHash())
+        .as("承载业务值变化后预检指纹必须改变")
+        .isNotEqualTo(baseline);
+    assertThatThrownBy(() -> services.tx().execute(status ->
+            services.registrationService().registerCopiedRecords(
+                fixture.scopeId(), "operator", 1, baseline)))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("源已变化");
+    String afterValue =
+        services.registrationService().precheckCopiedRecords(fixture.scopeId()).rowHash();
+    // 修订与更新时间轴：值不变也必须被证据捕获。
+    jdbc.update(
+        "update " + carrierTable
+            + " set record_version = record_version + 1, updated_at = updated_at + interval '1 hour'"
+            + " where id = ?",
+        recordId);
+    assertThat(services.registrationService().precheckCopiedRecords(fixture.scopeId()).rowHash())
+        .as("修订号/更新时间变化后预检指纹必须改变")
+        .isNotEqualTo(afterValue);
+    assertThatThrownBy(() -> services.tx().execute(status ->
+            services.registrationService().registerCopiedRecords(
+                fixture.scopeId(), "operator", 1, afterValue)))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("源已变化");
+    String afterRevision =
+        services.registrationService().precheckCopiedRecords(fixture.scopeId()).rowHash();
+    // 作废轴。
+    jdbc.update("update " + carrierTable + " set deleted = true where id = ?", recordId);
+    assertThat(services.registrationService().precheckCopiedRecords(fixture.scopeId()).rowHash())
+        .as("作废状态变化后预检指纹必须改变")
+        .isNotEqualTo(afterRevision);
+    assertThatThrownBy(() -> services.tx().execute(status ->
+            services.registrationService().registerCopiedRecords(
+                fixture.scopeId(), "operator", 1, afterRevision)))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("源已变化");
+    assertThat(jdbc.queryForObject(
+        "select count(*) from form_record_locations where scope_id = ?", Integer.class,
+        fixture.scopeId())).isZero();
+    assertThat(jdbc.queryForObject(
+        "select count(*) from form_directory_events where scope_id = ?", Integer.class,
+        fixture.scopeId())).isZero();
+    assertThat(jdbc.queryForObject(
+        "select source_set_revision from form_template_scopes where id = ?", Integer.class,
+        fixture.scopeId())).isZero();
+  }
+
+  @Test
+  void shouldRejectIncompleteOrMismatchedDirectoryInsteadOfReportingAlreadyRegistered() {
+    FormV6TestSupport.WiredServices services = wired();
+    JdbcTemplate jdbc = services.jdbc();
+    long configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
+    long scopeId = FormV6TestSupport.insertScope(
+        jdbc, "code_review", "n1-partial", configId, URL, 23, "DRAFT");
+    insertLegacyRows(jdbc, 231, 232, 23);
+    FormV6RegistrationService.PrecheckReport precheck =
+        services.registrationService().precheckLegacyDemo(scopeId);
+    assertThat(services.tx().execute(status -> services.registrationService().registerLegacyDemo(
+            scopeId, "operator", "LEGACY-DEMO", precheck.count(), precheck.rowHash()))
+        .status()).isEqualTo("REGISTERED");
+    int revision = jdbc.queryForObject(
+        "select source_set_revision from form_template_scopes where id = ?", Integer.class, scopeId);
+    long versions = jdbc.queryForObject(
+        "select count(*) from form_template_versions where scope_id = ?", Long.class, scopeId);
+
+    // 同数量但身份不符：目录 project_id 被改错，仍必须按证据不一致拒绝，不报已完成。
+    jdbc.update("update form_record_locations set project_id = 999 where record_id = 231");
+    assertThatThrownBy(() -> services.registrationService().precheckLegacyDemo(scopeId))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("证据不一致");
+    assertThatThrownBy(() -> services.tx().execute(status ->
+            services.registrationService().registerLegacyDemo(
+                scopeId, "operator", "LEGACY-DEMO", precheck.count(), precheck.rowHash())))
+        .isInstanceOf(FormConflictException.class);
+    // 部分登记：目录少一行不得被当作已完成。
+    jdbc.update("update form_record_locations set project_id = 23 where record_id = 231");
+    jdbc.update("delete from form_record_locations where record_id = 232");
+    assertThatThrownBy(() -> services.registrationService().precheckLegacyDemo(scopeId))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("登记不完整");
+    assertThatThrownBy(() -> services.tx().execute(status ->
+            services.registrationService().registerLegacyDemo(
+                scopeId, "operator", "LEGACY-DEMO", precheck.count(), precheck.rowHash())))
+        .isInstanceOf(FormConflictException.class);
+    // 失败零副作用：不自动补认历史、不新增版本、不推进修订。
+    assertThat(jdbc.queryForObject(
+        "select count(*) from form_record_locations where scope_id = ?", Integer.class, scopeId))
+        .isEqualTo(1);
+    assertThat(jdbc.queryForObject(
+        "select count(*) from form_template_versions where scope_id = ?", Integer.class, scopeId))
+        .isEqualTo(versions);
+    assertThat(jdbc.queryForObject(
+        "select source_set_revision from form_template_scopes where id = ?", Integer.class, scopeId))
+        .isEqualTo(revision);
+  }
+
+  // ===== N1-R02：范围归属判定 =====
+
+  @Test
+  void shouldRegisterDisjointProjectScopesIndependentlyAndRejectTrueOverlap() {
+    FormV6TestSupport.WiredServices services = wired();
+    JdbcTemplate jdbc = services.jdbc();
+    long configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
+    long scopeA = FormV6TestSupport.insertScope(
+        jdbc, "code_review", "n1-disjoint-a", configId, URL, 11, "DRAFT");
+    long scopeB = FormV6TestSupport.insertScope(
+        jdbc, "code_review", "n1-disjoint-b", configId, URL, 12, "DRAFT");
+    FormV6TestSupport.insertLegacyRow(
+        jdbc, 900001, URL, 11, 900001, "Alice", 30, 1, 2, 3, 4, 5, "legacy", false);
+    FormV6TestSupport.insertLegacyRow(
+        jdbc, 900002, URL, 12, 900002, "Bob", 45, 6, 7, 8, 9, 10, "second", false);
+
+    // 只属于其它范围的行不进入本次选集，也不构成冲突。
+    FormV6RegistrationService.PrecheckReport precheckA =
+        services.registrationService().precheckLegacyDemo(scopeA);
+    assertThat(precheckA.count()).isEqualTo(1);
+    assertThat(services.tx().execute(status -> services.registrationService().registerLegacyDemo(
+            scopeA, "operator", "LEGACY-DEMO", precheckA.count(), precheckA.rowHash()))
+        .status()).isEqualTo("REGISTERED");
+    assertThat(FormV6TestSupport.directoryRows(jdbc, scopeA))
+        .extracting(row -> row.get("record_id")).containsExactly(900001L);
+
+    FormV6RegistrationService.PrecheckReport precheckB =
+        services.registrationService().precheckLegacyDemo(scopeB);
+    assertThat(precheckB.count()).isEqualTo(1);
+    assertThat(services.tx().execute(status -> services.registrationService().registerLegacyDemo(
+            scopeB, "operator", "LEGACY-DEMO", precheckB.count(), precheckB.rowHash()))
+        .status()).isEqualTo("REGISTERED");
+    assertThat(FormV6TestSupport.directoryRows(jdbc, scopeB))
+        .extracting(row -> row.get("record_id")).containsExactly(900002L);
+
+    // 真正重叠：同时绑定 11 与 12 的范围必须按重复归属整体拒绝。
+    FormV6TestSupport.insertScope(
+        jdbc, "code_review", "n1-overlap", configId, URL, List.of(11L, 12L), 11, "DRAFT");
+    assertThatThrownBy(() -> services.registrationService().precheckLegacyDemo(scopeA))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("重复归属");
+    assertThat(jdbc.queryForObject(
+        "select count(*) from form_record_locations", Integer.class)).isEqualTo(2);
+  }
+
+  @Test
+  void shouldRejectCarrierWhenInstanceEvidenceCrossesScopeBinding() {
+    FormV6TestSupport.WiredServices services = wired();
+    JdbcTemplate jdbc = services.jdbc();
+    long configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
+    long scopeId = FormV6TestSupport.insertScope(
+        jdbc, "code_review", "n1-cross-c", configId, URL, 71, "DRAFT");
+    FormV6TestSupport.FixtureTables v1 = FormV6TestSupport.createRecordVersion(
+        jdbc, scopeId, "code_review", "V1", FormV6TestSupport.SPEC_V1, "PUBLISHED", true);
+    FormV6TestSupport.activateScope(jdbc, scopeId, v1.versionId());
+    // 实例跨项目：范围绑定 71，实例落在 72。
+    long foreignProjectInstance = FormV6TestSupport.insertInstance(
+        jdbc, v1.instanceTable(), scopeId, configId, URL, 72, 801);
+    FormV6TestSupport.insertRecord(
+        jdbc, v1.recordTable(), foreignProjectInstance, v1.versionId(), null, null, null,
+        1, false, "4", null);
+    assertThatThrownBy(() -> services.registrationService().precheckCopiedRecords(scopeId))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("范围绑定");
+    assertThatThrownBy(() -> services.tx().execute(status ->
+            services.registrationService().registerCopiedRecords(scopeId, "operator", 1, "0")))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("范围绑定");
+    assertThat(jdbc.queryForObject(
+        "select count(*) from form_record_locations where scope_id = ?", Integer.class, scopeId))
+        .isZero();
+    // 同资源 ID、跨来源：来源实例与地址都不属于范围绑定。
+    jdbc.update("delete from " + v1.recordTable());
+    jdbc.update("delete from " + v1.instanceTable());
+    long foreignSourceInstance = FormV6TestSupport.insertInstance(
+        jdbc, v1.instanceTable(), scopeId, configId, "another-source", "http://other.invalid",
+        71, 802);
+    FormV6TestSupport.insertRecord(
+        jdbc, v1.recordTable(), foreignSourceInstance, v1.versionId(), null, null, null,
+        1, false, "5", null);
+    assertThatThrownBy(() -> services.registrationService().precheckCopiedRecords(scopeId))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("范围绑定");
+    // 来源不得由范围伪造：目录仍为空即未写入任何来源。
+    assertThat(jdbc.queryForObject(
+        "select count(*) from form_record_locations where scope_id = ?", Integer.class, scopeId))
+        .isZero();
+  }
+
+  // ===== N1-R04：结构准入 =====
+
+  @Test
+  void shouldRejectRegistrationWhenFormalStructureVerifierReportsDrift() {
+    FormV6TestSupport.WiredServices services = wired();
+    JdbcTemplate jdbc = services.jdbc();
+    CarrierFixture fixture = carrierFixture(services, 22, 711, "0b7a5d1e-0000-4000-8000-0000000000b2");
+    // 夹具先是真结构：正式核验器通过。
+    FormVersionSchema v2Schema = FormV6TestSupport.formalSchema(
+        jdbc, fixture.scopeId(), fixture.v2().versionId(), "code_review");
+    assertThatCode(() -> new FormVersionStructureVerifier(jdbc).verify(v2Schema))
+        .doesNotThrowAnyException();
+    // 破坏承载表列类型：正式核验器报漂移，登记不得放行。
+    jdbc.update(
+        "alter table " + fixture.v2().recordTable() + " alter column score type text using score::text");
+    assertThatThrownBy(() -> new FormVersionStructureVerifier(jdbc).verify(v2Schema))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("结构漂移");
+    assertThatThrownBy(() ->
+            services.registrationService().precheckCopiedRecords(fixture.scopeId()))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("结构漂移");
+    assertThatThrownBy(() -> services.tx().execute(status ->
+            services.registrationService().registerCopiedRecords(
+                fixture.scopeId(), "operator", 1, "0")))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("结构漂移");
+    assertThat(jdbc.queryForObject(
+        "select count(*) from form_record_locations where scope_id = ?", Integer.class,
+        fixture.scopeId())).isZero();
+    assertThat(jdbc.queryForObject(
+        "select count(*) from form_template_versions where scope_id = ?"
+            + " and record_source_role = 'LEGACY_SNAPSHOT'",
+        Integer.class, fixture.scopeId())).isZero();
+
+    // 路径 A 同样核验旧物理表契约：旧列类型与冻结规格不一致即拒绝。
+    long configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
+    long scopeId = FormV6TestSupport.insertScope(
+        jdbc, "code_review", "n1-legacy-contract", configId, URL, 24, "DRAFT");
+    insertLegacyRows(jdbc, 241, 242, 24);
+    jdbc.update("alter table collect_form_records alter column reviewer type varchar(64)");
+    assertThatThrownBy(() -> services.registrationService().precheckLegacyDemo(scopeId))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("物理列契约");
+    assertThat(jdbc.queryForObject(
+        "select count(*) from form_template_versions where scope_id = ?", Integer.class, scopeId))
+        .isZero();
+  }
+
   private static JsonNode json(String value) {
     return JsonNodeFactory.instance.textNode(value);
   }
@@ -361,32 +612,59 @@ class FormV6RegistrationIntegrationTest {
 
   private static void insertLegacyRows(
       JdbcTemplate jdbc, long firstId, long secondId, long projectId) {
-    jdbc.update(
-        """
-        insert into collect_form_records(
-            id, gitlab_base_url, project_id, request_iid, resource_type, resource_id,
-            template_code, reviewer, review_duration_minutes, specification_score, logic_score,
-            performance_score, design_score, other_score, remark, deleted, created_at, updated_at)
-        values (?, 'http://gitlab.n1.local', ?, ?, 'merge_request', ?, 'code_review',
-           'Alice', 30, 1, 2, 3, 4, 5, 'legacy', false, current_timestamp, current_timestamp)
-        """,
-        firstId, projectId, firstId, Long.toString(firstId));
-    jdbc.update(
-        """
-        insert into collect_form_records(
-            id, gitlab_base_url, project_id, request_iid, resource_type, resource_id,
-            template_code, reviewer, review_duration_minutes, specification_score, logic_score,
-            performance_score, design_score, other_score, remark, deleted, created_at, updated_at)
-        values (?, 'http://gitlab.n1.local', ?, ?, 'merge_request', ?, 'code_review',
-           'Bob', 45, 6, 7, 8, 9, 10, 'second', false, current_timestamp, current_timestamp)
-        """,
-        secondId, projectId, secondId, Long.toString(secondId));
+    FormV6TestSupport.insertLegacyPair(jdbc, firstId, secondId, URL, projectId);
   }
 
   private static long versionId(JdbcTemplate jdbc, long scopeId, String recordTable) {
     return jdbc.queryForObject(
         "select id from form_template_versions where scope_id = ? and record_table = ?",
         Long.class, scopeId, recordTable);
+  }
+
+  record CarrierFixture(
+      long configId,
+      long scopeId,
+      FormV6TestSupport.FixtureTables v1,
+      FormV6TestSupport.FixtureTables v2,
+      long recordId,
+      String firstHash) {}
+
+  /**
+   * 建 v1/v2 正式结构：v1 首次记录按 v1 冻结规格与版本身份计算首次指纹，再按迁移语义复制到
+   * 当前版本 v2 承载（修订号递增、时间更新）。
+   */
+  private CarrierFixture carrierFixture(
+      FormV6TestSupport.WiredServices services,
+      long projectId,
+      long resourceId,
+      String requestKey) {
+    JdbcTemplate jdbc = services.jdbc();
+    long configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
+    long scopeId = FormV6TestSupport.insertScope(
+        jdbc, "code_review", "n1-carrier-" + projectId, configId, URL, projectId, "DRAFT");
+    FormV6TestSupport.FixtureTables v1 = FormV6TestSupport.createRecordVersion(
+        jdbc, scopeId, "code_review", "V1", FormV6TestSupport.SPEC_V1, "PUBLISHED", true);
+    FormV6TestSupport.FixtureTables v2 = FormV6TestSupport.createRecordVersion(
+        jdbc, scopeId, "code_review", "V2", FormV6TestSupport.SPEC_V2, "PUBLISHED", true);
+    FormV6TestSupport.activateScope(jdbc, scopeId, v2.versionId());
+    String firstHash =
+        fingerprint(services, scopeId, v1.versionId(), projectId, resourceId, ALICE, "3", "首个");
+    long originInstance = FormV6TestSupport.insertInstance(
+        jdbc, v1.instanceTable(), scopeId, configId, URL, projectId, resourceId);
+    long recordId = FormV6TestSupport.insertRecord(
+        jdbc, v1.recordTable(), originInstance, v1.versionId(), ALICE.userId(), requestKey,
+        firstHash, 1, false, "3", null);
+    long carrierInstance = FormV6TestSupport.insertInstance(
+        jdbc, v2.instanceTable(), scopeId, configId, URL, projectId, resourceId);
+    jdbc.update(
+        "insert into " + v2.recordTable()
+            + "(id, instance_id, origin_version_id, template_version, created_by, request_key,"
+            + " create_payload_hash, record_version, deleted, score, created_at, updated_at)"
+            + " select id, ?, origin_version_id, template_version, created_by, request_key,"
+            + " create_payload_hash, record_version + 1, deleted, score, created_at,"
+            + " updated_at + interval '1 hour' from " + v1.recordTable() + " where id = ?",
+        carrierInstance, recordId);
+    return new CarrierFixture(configId, scopeId, v1, v2, recordId, firstHash);
   }
 
   private static String fingerprint(
