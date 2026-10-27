@@ -1,3 +1,10 @@
+## 2026-10-27 表单N0五审通过与N1准入
+
+- [结论] 批准输入4cd8588d，N0原稿SHA-256 8fb94e3a…dff212；IV-01/IV-02关闭，[N0五审通过](plans/v6-n0-technical-admission-20261027.md#n0-fifth-review)，准入N1目录/原位登记/读源基础实施，尚未开始。N2后续、W5、真实切换、main及正式包仍逐阶段待审；W4/R05和批准UI保持。
+- [验证] 独立Node正常134项通过，四个实现突变均由固定原断言检出，源码hash前后一致；原类型反例返回NO_COMMON_FIELD/total=null/TYPE_DECLARATION_CONFLICT。21份SQL与四审批准输入一致，沿用115/6/33真实PG证据，本轮未重跑数据库。证据本审核树`.tmp/n0-review-r5/verification.json`；无DB/容器/服务资源。
+- [下一步] 员工吸收最终审核回执SHA，先建N1活动计划，再按[实施指令](plans/unified-form-system-implementation-plan-20261021.md#ai员工下一步执行指令2026-10-27)自主实施获批基础范围；无需再申请N0。主方案已对齐正式目录、DTO、发布/捕获协议、类型及导出合同，架构和产品状态同步。
+- [边界] 当前不改frontend，94749f3a保持；S1接口/前端功能另报审，未确认产品模型不纳入N1。E2阻断真实登记/切换，导出正式名单在真实授权前确认，MR级未批公式在相关消费实施前补批；这些不阻断隔离N1开发。
+
 ## 2026-10-27 表单N0四审整改交付（员工送审快照）
 
 - [当前阶段] 四审仅剩IV-01（P1可比类型取固定默认值）与IV-02（P2突变证据方式）两项；已按[四审整改回执](plans/v6-n0-technical-admission-20261027.md#n0-fourth-review-remediation)完成并送五审。III-01/02/03、S1、II项及W4/R05保持关闭；N0未批准，N1/W5未准入。W4冻结v5.1、R05批准及UI基线`94749f3a`保持；本轮frontend零改动。

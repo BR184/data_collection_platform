@@ -1,11 +1,46 @@
 ## 进度与中间物
 
-- 当前结论（2026-10-27）：**N0四审整改已交付，待五审；N1/W5未准入**。IV-01可比类型已绑定该版真实冻结`field.type`（§7.1/§7.1.1），IV-02突变证据已改为`--break=`真实实现突变；III-01/02/03、S1、II-01/06/07及W4/R05保持关闭。批准UI`94749f3a`未动，SQL零改动。
-- 吸收输入：员工树从`codex/form-admin-ui-20261027`快进吸收`096b3724c0065f518e235636b7618c45165c948d`（快进前核对`119b95a1`为祖先）；四审记录与执行指令见[a](#n0-fourth-review)、执行单“四审后当前指令”。员工`119b95a1`及审核提交均已同步双远端且回读一致。
-- 本轮验证：Node正常检查134项PASS；四个实现突变`identity`/`domain`/`type`/`no-common`全部非零退出且由固定断言转红（回执见[n0四审整改](#n0-fourth-review-remediation)）。SQL未变，按指令未重复public/P2/并发套件，PG侧沿用`119b95a1`批准指纹与四审独立复跑（115/6/33；旧请求3.4秒409，消费等待2.4/3.3秒无40P01）。
-- 证据：`.tmp/w4-r5-n0-20261027-r2/`（本轮探针`common-fields-probe.mjs`、`run-probes.ps1`、`logs/verification-iv-20261027.json`及逐项日志）。仓库护栏（159条迁移锁、frontend零差异vs`94749f3a`、工件/空白检查）见verification-iv。
-- 工作区与恢复：员工树`D:/projects/dcp-form-w4-20261026`，分支`codex/unified-form-w4-isolation-20261026`；恢复先读AGENTS/进度/本文，`git status --short --branch`及`git worktree list`，按最新审核回执SHA继续。
-- 下一步：送五审。N0获明确批准前不进入N1/W5，不改业务代码、正式迁移、权限、frontend或黄金，不合main、不出包；导出正式名单、E2、MR级未批公式和未确认产品模型保持原门禁。
+- 当前结论（2026-10-27）：**N0五审通过，IV-01/IV-02关闭；准入N1多版本目录、原位登记与读源基础实施。** N2—N5须逐阶段验收，W5、真实登记/切换、黄金、main和正式包未获本次授权。此前W4/R05及批准UI保持。
+- 批准输入：员工`4cd8588db31c162d619fafcd5e49a63d15e2f1f3`；N0送审SHA-256 `8fb94e3ab44a3427c744e31a26f429ccb25f0a9ccc98721c943b113feddff212`；Node源码`58694efeb95dc3a716b56a8a4f44d80cae241c11413439df8eb86d4a700defda`。原送审SHA不指加入审批记录后的本文。
+- 独立验证：Node正常134项通过；identity/domain/type/no-common四个实现突变由固定原断言检出，均退出1；源码前后hash一致。另独立重建四审文本类型反例，返回NO_COMMON_FIELD、total=null、TYPE_DECLARATION_CONFLICT，已消除OK/2误判。21份SQL与四审批准输入完全一致，沿用115/6/33真实PG证据，本轮不重复数据库套件。
+- 工作区与恢复：审核树`C:/Users/admin/.codex/worktrees/form-admin-ui/data_collection_platform` / `codex/form-admin-ui-20261027`已快进吸收4cd8588d；员工树`D:/projects/dcp-form-w4-20261026`只读核对为干净4cd8588d，双远端相同。先读AGENTS/进度/本文及执行单，运行status/worktree/HEAD核对后吸收最终审核回执SHA。
+- 下一步：员工先建立N1活动实施计划，再按[当前执行指令](unified-form-system-implementation-plan-20261021.md#ai员工下一步执行指令2026-10-27)实施，无需再次申请N0。前端保持94749f3a；需要前端功能时另报差异，当前不改UI。
+- 证据与资源：审核本树`.tmp/n0-review-r5/verification.json`、normal及四突变日志、独立类型反例；本轮只运行Node和文档护栏，没有数据库/容器/端口/业务服务/真实外部资源。
+- 归属与期限：本文§1—§11为统一表单活动实施期的已批精确合同，由实施与审核方维护至N5结项；产品/架构/主方案只保留各自稳定边界及引用。结项时按AGENTS归并长期事实并移除本活动材料，历史由Git保留。
+
+<a id="n0-fifth-review"></a>
+## N0五审通过与N1准入（2026-10-27）
+
+**裁定：通过。** IV-01、IV-02全部关闭，N0无剩余技术整改项。批准的是`4cd8588d`的精确技术合同，不代表v6已实现、真实数据已核实或正式发布已获准。
+
+### 关闭依据
+
+| 项 | 独立结果 | 生效约束 |
+| --- | --- | --- |
+| IV-01 | 正常134项通过，四审原类型反例明确无效，不再返回部分成功合计 | 可比类型取该版真实冻结field.type；声明冲突在发布边界阻断、读取边界明确报告无效。合法但不兼容类型/单位不共同、不转数值；合法同类型和显示改名继续共同。默认表只用于首版登记，不覆盖冻结声明 |
+| IV-02 | 四个实现决策点被破坏后，固定用例各以退出1转红，源码前后hash一致 | 真实实现突变替代更改样例/无条件失败；非零退出须带实际失败断言，不能仅记RED |
+
+四个失败断言与员工回执一致：identity为“new identity is reported as only in V2”；domain为“issue_response.problem_type real enum/dictionary bound to domain”；type为“declaration-actual type conflict returns explicit TYPE_DECLARATION_CONFLICT invalid contract”；no-common为“integer→string incompatible legal contracts are unmerged with incompatible_value_type”。
+
+核验范围包括两份Node/入口源码、四份文档与AGENTS；21份SQL逐一对齐四审输入。未重复运行PG、前后端业务全套、浏览器或黄金；四审115/6/33证据仅沿用于完全相同SQL合同，后续Java实现必须有自己的正式回归，不能以本次Node/SQL探针替代。
+
+### 本次准入边界
+
+准入N1：多版本定位目录/源集合、稳定元数据与真实结构校验、旧Demo/v5唯一承载原位登记及幂等/回滚、内部多版权威读源和必要前向迁移/正式测试。范围归执行单N1当前指令，不提前实施N3发布执行器或N4事实公开/统计/导出；若存在必须一起验证的基础依赖，在N1计划列明，不以阶段名称掩盖未完成依赖。
+
+N1的语义登记必须保留已冻结field_spec、首次指纹及原业务行；稳定ID和可比声明的登记位置/版本绑定在实施计划写清，不以补元数据名义原地改写旧规格。未配置/不完整/重复归属/冲突或漂移时拒绝，不能自动选择、合并或复制历史行。不得在共享或真实业务库执行登记。
+
+N0通过不授权N2及后续前端功能；当前UI布局、卡片、摘要、抽屉、视觉和交互保持批准94749f3a。S1只批准候选/命名合同，后续具体接口与前端功能差异按原规则另报审。新增独立表单、版本绑定解耦和退役后恢复的未确认具体模型仍不纳入N1。
+
+真实E2继续阻断真实登记/切换；导出正式角色及跨模板授权影响在真实权限迁移前核实并获用户确认；MR级未批公式在相关消费实施前补批。以上不阻断隔离N1开发，不要求用户重批已确认业务。W5、N2—N5依赖阶段、黄金、main、内网及正式包均保留原门禁。
+
+### 验证与交接
+
+证据为本审核树`.tmp/n0-review-r5/verification.json`及normal/identity/domain/type/no-common日志；独立类型反例为`independent-type-case.json`。文件均在本轮专属临时目录；未启动数据库、容器、业务服务或外部写回。员工树/共享环境未修改，frontend相对94749f3a保持零差异。
+
+员工吸收最终审核回执SHA，先写N1工作单元计划，明确迁移依赖、登记停写前提、原行/规格/指纹守恒、读源与旧运行路径的接入顺序、隔离验证和阶段提交边界；随后可在获批范围自主实施。N1提交阶段验收后才启动N2，不合main、不出正式包。
+
+以下保留四审及此前历史；其“待五审/尚未批准”字样只描述对应冻结输入，当前状态以本节为准。
 
 <a id="n0-fourth-review"></a>
 ## N0四审（2026-10-27）
@@ -177,13 +212,13 @@ III-01证据中旧格式摘要为`7168507c…590db88`，提案新函数返回`3c
 
 员工下一步只修订本文生效合同及相称的`.tmp`设计探针；按N0-II-01—07和S1提交改动位置、固定输入、预期/实际、完整日志及新指纹。原始输入和审核记录保留，正文明确修订后唯一合同，不能让已否决段落继续充当执行规则。提交前证明frontend相对`94749f3a`零差异、159条旧迁移未变，执行仓库护栏并同步双远端。**N0明确获批前，不开始N1/W5、正式DDL或权限授予。**
 
-## N0生效合同（2026-10-27，二审整改后）
+## N0生效合同（2026-10-27，五审批准）
 
-> 状态：**本节是唯一生效合同**，已按[N0二审](#n0-second-review)关闭II-01—II-07并吸收S1；被否决段落已删除或改写，不再作为执行规则。R05已关闭、W4冻结v5.1通过；**N0仍未批准、N1/W5未准入**。不含业务实现、不改正式迁移、不运行黄金、不合main、不出包。
+> 状态：**本节§1—§11为五审批准的精确合同**，技术内容绑定员工4cd8588d；II、III、IV整改均已关闭，当前仅准入N1基础实施，执行边界归[五审结论](#n0-fifth-review)。本材料不代表业务实现、真实登记或发布已完成；N2后续、W5、黄金、main及正式包保留阶段门禁。
 >
-> 输入：员工分支`codex/unified-form-w4-isolation-20261026`，已快进吸收审核交接`d338f843`（含`c9a7aa44`；UI基线`94749f3a`，`git diff --exit-code 94749f3a -- frontend`无差异）；事实来源为本分支实际迁移与代码，逐节引用。
+> 输入：员工分支`codex/unified-form-w4-isolation-20261026`，批准4cd8588d包含此前审核回执及整改；UI基线94749f3a未变。事实来源为对应提交的实际迁移与代码，逐节引用；审批加入前的原稿hash见五审。
 >
-> 验证：单入口[`run-probes.ps1`](#n0-run-entry)在唯一命名PostgreSQL 16容器执行：public 115项、非空升级6项、真实双会话33项、共同字段93项（该轮版本）全部PASS；共同字段突变均非零退出（当前为四个实现突变，见[n0四审整改](#n0-fourth-review-remediation)）；正向、DDL失败、就绪超时、同名冲突、端口占用五个模式均只清理本轮捕获的容器ID。证据与指纹见§9.2。
+> 验证：相同SQL指纹的public115、P2六项、双会话33已独立复跑通过；本轮Node134及四个真实实现突变独立通过，未重复PG。早期入口的负向容器模式保留各自证据效力，详见五审及§9.2；不得把探针等同正式Java实现验收。
 
 ### 0.1 二审关闭对照
 
@@ -706,7 +741,7 @@ commit;
 ```
 
 - 有效租约（`live_lease=true`）不得终止：等租约到期，或在确认旧进程已停止后由运维以显式证据接管（记录`closedBy`与进程核对），不得无条件`UPDATE FAILED`。
-- 已`PUBLISHED`任务不动；已复制的目标表保留但保持`TARGET`/不可读，登记与清理在N1交付清单中逐表处理；不删除真实表。
+- 已`PUBLISHED`任务不动；已复制的目标表保留但保持`TARGET`/不可读，登记与角色核对在N1交付清单中逐表处理；物理清理不在本次授权内，不删除真实表。
 - 收口后新执行器不处理protocol=1任务；诊断接口/命令列出其状态供复核。
 
 ### 5. 多版本消费（R04、Q3）
@@ -858,8 +893,8 @@ publishAndSettle（单事务）:
 - 全量→增量：全量构建记录捕获修订R；R之后的事件为增量起点；增量捕获新修订并按选择器重建受影响head；交接失败保留上一已发布事实版本，重试从最后已提交修订开始。
 - 权威类型：`form_resource_authorities.authority`为`FORM`/`COMMENT`；`authority_revision`只在权威类型切换（COMMENT↔FORM）时递增，写入同事务。`COMMENT`权威的head不写表单存储证据（沿用切换事务不变量）；`FORM`权威按捕获集合构建。
 - 无实例且无记录的FORM资源：发布仍建authority/head；构建捕获到零记录，发布**显式空表单投影**（表单派生字段置空/缺省，不删除资源事实），head正常CONSUMED。`FORM→COMMENT→FORM`因authority_revision变化使旧候选CAS失败并重建。
-- MR事实消费入口（N1替换读源，全部走同一reader，不允许保留旧表专用路径）：`FactBuildService.rebuildMergeRequestFactsInternal`（全量）、`rebuildMergeRequestFactsByRootIds`（定向）、`rebuildMergeRequestFactByIid`（单条/诊断）、`CodeReviewMetricEnrichmentService.publishEnriched`（周期）。现有`GitlabFactSourceSqlProvider`的`form_records` CTE只读`collect_form_records`，切换后改为reader提供的投影；切换前保持只读现状，不双读。
-- Issue事实消费入口：`FactRefreshTaskWorkerService`的ISSUE分支、`FactBuildService`的Issue构建；现有`IssueFactSourceRowMapper`/`IssueResponseTemplateParser`保留为评论来源，表单选择器在N2按§7接入；切换按(模板,字段)一次性替换并删除旧分支，不长期双轨。
+- MR事实消费入口（N1提供内部reader，N4统一接入下列事实入口；目标全部走同一reader，不保留长期旧表专用路径）：`FactBuildService.rebuildMergeRequestFactsInternal`（全量）、`rebuildMergeRequestFactsByRootIds`（定向）、`rebuildMergeRequestFactByIid`（单条/诊断）、`CodeReviewMetricEnrichmentService.publishEnriched`（周期）。现有`GitlabFactSourceSqlProvider`的`form_records` CTE只读`collect_form_records`，切换后改为reader提供的投影；切换前保持只读现状，不双读。
+- Issue事实消费入口：`FactRefreshTaskWorkerService`的ISSUE分支、`FactBuildService`的Issue构建；现有`IssueFactSourceRowMapper`/`IssueResponseTemplateParser`保留为评论来源，表单选择器在N4按§7接入；切换按(模板,字段)一次性替换并删除旧分支，不长期双轨。
 - 工作区/事实依赖：表单不登记为工作区/ODS依赖（`RealtimeWorkspaceDependencyCatalog`、`GitlabFactDependencyCatalog`不变），表单→事实由head/capture驱动；回归锁定两目录无表单条目。
 
 ### 6. DTO、接口与草稿升级（R06）
@@ -1087,7 +1122,7 @@ GET /api/collect-forms/exports/records
 - 只导出`deleted=false`的有效记录（不提供`includeVoided`，作废结果禁止导出）；新建空版本导出**仅表头**（可读版本、零行，仍记录审计）。
 - 列：系统列（记录ID文本、GitLab地址、项目、资源类型、资源ID、创建人姓名快照、创建时间、记录修订、状态）+该版本冻结规格字段（按规格顺序、label为表头）。字段缺失写空，不补0；bigint ID写文本；日期`yyyy-MM-dd`（业务日），时间`Asia/Shanghai` `yyyy-MM-dd HH:mm:ss`。
 - `FormRecordExportRow`由版本规格生成，表头与行同源，禁止两处手写列名。
-- 审计（新增表，N1迁移内）：
+- 审计（新增表，N4导出单元迁移内）：
 
 ```sql
 create table form_record_export_logs (
@@ -1132,7 +1167,7 @@ on conflict do nothing;
 ```
 
 - **不扩权证据**：代码走查/客户问题两个`view`键同时存在不等于导出资格；真实PG反例`CUSTOM_VIEW`仅有两个view键→未获导出；`VIEW_ONLY`仅有view→未获导出；`EXPORT_ONLY`持有既有导出键→获导出。撤销`EXPORT_ONLY`的导出后立即拒绝；恢复默认只恢复默认表内有导出来源的角色，`VIEW_ONLY`仍拒绝。初始种子中五个角色都持有既有导出键，所以候选集合是这五角色，但这是**导出权**结果，不是`view`推导；若目标库已撤销某角色导出，迁移不会恢复它。
-- **正式授权仍需批准**：本轮不执行权限迁移。N1写入前用只读查询列出目标库实际候选角色、当前授予与默认快照差异，交用户确认最终清单；确认前不新增`form.record.export`行。若产品只允许部分角色，按确认清单显式收窄，不用“默认全量”兜底。
+- **正式授权仍需批准**：本轮不执行权限迁移。N4实际权限迁移写入前用只读查询列出目标库实际候选角色、当前授予与默认快照差异，交用户确认最终清单；确认前不新增`form.record.export`行。若产品只允许部分角色，按确认清单显式收窄，不用“默认全量”兜底。
 - 端点方法级校验`form.record.export`，未授权A0303；导出范围再按§8.1的版本/项目/资源C谓词过滤，不能跨范围读取。管理页当前无导出按钮，**不新增页面view/export映射**；若后续加按钮，须先按AGENTS报批并同单元登记`PagePermissionKeyResolver`。
 - 真实PG探针已覆盖：仅查看无导出、双查看键仍无导出、撤销导出、恢复默认不扩权、部分项目、越权项目、跨范围版本、TARGET版本、空版本表头；均未执行正式权限DDL。
 - `endpoint-catalog.yml`新增EXPORT条目（读目录/版本/记录表）；夹具固定scope/version ID使动态表名确定；本稿不生成黄金快照，新增/差异待W7审批。
@@ -1142,7 +1177,7 @@ on conflict do nothing;
 - 50k行/64MB仅为**待验证预算**，不是容量结论。估算：`rows × (系统列+字段列平均UTF-8字节+XML开销) + 工作簿固定开销`；固定负载（1万/5万行、宽表）测量耗时、堆峰值、临时文件大小，阈值取重复采样分布，不靠重跑。
 - 行为：超过`rowLimit=50000`或估算`byteLimit=64MB`→返回413并说明实测值/上限，不静默截断；小结果（≤5000行）可用`XSSFWorkbook`，以上用`SXSSFWorkbook(window=200)`流式写出。
 - 临时资源：SXSSF临时目录为`${java.io.tmpdir}/qaflex-form-export-<uuid>/`，`finally`递归删除；不写入仓库、不残留；响应流与审计记录行数、字节数、SHA-256。
-- 现场容量由内网固定负载实测，不用小夹具外推；失败清理与超限路径纳入N1测试。
+- 现场容量由内网固定负载实测，不用小夹具外推；失败清理与超限路径纳入N4导出测试。
 
 ### 9. 验证入口与隔离探针（R08、Q9）
 
@@ -1201,16 +1236,16 @@ pwsh -File .../run-probes.ps1 -Mode port-conflict -Port 15609
 
 ### 10. 替换范围、风险与审批请求
 
-#### 10.1 N1删除/替换清单
+#### 10.1 分阶段删除/替换清单
 
-| 对象 | 现状调用者 | 替代与验收 |
-| --- | --- | --- |
-| `FormPublicationMigrator.copy`（复制/核验S） | `FormPublicationTxService.copy` | 空结构发布+集合切换；非空目标/漂移拒绝；不复制 |
-| `FormLegacyRecordMigrator.copy`（首迁复制） | 同文件INITIAL_MIGRATION分支 | §3登记；原行不变/目录覆盖/只读 |
-| 每版`request_key`物理唯一依赖 | 创建重放 | 目录跨版唯一；旧key回原版；未落库409 |
-| 旧执行器领取v2/新执行器领取v1 | worker | 双向拒绝；v1仅受控收口 |
-| 复制计数/校验和前置与`legacy_incomplete`新写 | 发布测试 | 目录修订/集合哈希冻结；历史标记只读保留 |
-| `collect_form_records`事实读源 | MR事实四个入口 | §5 reader统一替换，一次性切换无长期双轨 |
+| 对象 | 现状调用者 | 替代与验收 | 实施阶段 |
+| --- | --- | --- | --- |
+| `FormPublicationMigrator.copy`（复制/核验S） | `FormPublicationTxService.copy` | 空结构发布+集合切换；非空目标/漂移拒绝；不复制 | N3 |
+| `FormLegacyRecordMigrator.copy`（首迁复制） | 同文件INITIAL_MIGRATION分支 | §3登记；原行不变/目录覆盖/只读 | N1实现登记能力，N3替换发布入口 |
+| 每版`request_key`物理唯一依赖 | 创建重放 | 目录跨版唯一；旧key回原版；未落库409 | N1目录约束，N2写路由 |
+| 旧执行器领取v2/新执行器领取v1 | worker | 双向拒绝；v1仅受控收口 | N3 |
+| 复制计数/校验和前置与`legacy_incomplete`新写 | 发布测试 | 目录修订/集合哈希冻结；历史标记只读保留 | N3 |
+| `collect_form_records`事实读源 | MR事实四个入口 | §5 reader统一替换，一次性切换无长期双轨 | N4 |
 
 被替换的测试直接改写为目标契约测试，不保留兼容层；既有W1—W4记录/页面/条件测试保留。
 
@@ -1226,11 +1261,11 @@ pwsh -File .../run-probes.ps1 -Mode port-conflict -Port 15609
 1. v5承载副本若存在已删除字段的值丢失，按§3.1阻断并交审核/业务裁决，不自动合并。
 2. 导出角色最终名单须按§8.2只读查询目标库实际导出授予后由用户确认；确认前不执行`form.record.export`正式迁移。默认快照只按既有导出权复制，不由view推导。
 3. MR级汇总公式与真实E2规模仍按原阶段，不在本稿代拟。
-4. `SWITCHING`两短事务之间是明确的有界停写窗口（enter提交到apply提交）；若进程崩溃，接管在租约到期后进行。需在N1加入该窗口的监控/告警和最大持有时间，避免异常时长期停写。
+4. `SWITCHING`两短事务之间是明确的有界停写窗口（enter提交到apply提交）；若进程崩溃，接管在租约到期后进行。在N3发布协议实施时落地该窗口的监控/告警和最大持有时间，避免异常时长期停写；N1只处理必要基础元数据，不提前执行发布切换。
 
-#### 10.3 审批请求
+#### 10.3 审批请求与五审裁定
 
-请确认：§1—§9的DDL/事务/消费/导出/验证合同、§10.1删除清单、II-01—07关闭证据与S1设计合同；§8.2导出角色清单在N1前另行确认。批准后N1按阶段实施，先提交最小DDL+目录/登记测试，再发布/消费/导出。未批准前不改业务代码、不建正式表、不改旧迁移、不合main、不出包。
+§1—§9合同、§10.1替换方向与S1已通过五审，当前只准入N1基础DDL/目录/登记/内部reader及正式测试；其余按§10.1的阶段执行，不在N1一次性删改发布/消费/导出路径。§8.2正式角色清单在实际授权迁移前另行确认，N1不含导出授权。N0批准不代替N1验收，不授权main、真实登记、外部切换或正式包。
 
 ## 11. S1 管理页功能设计合同（本轮只设计，不改 frontend）
 
@@ -1256,11 +1291,11 @@ pwsh -File .../run-probes.ps1 -Mode port-conflict -Port 15609
 | 适用项目 | 本范围覆盖的项目集合，多选 | 项目目录候选→`project_ids` | 项目编号输入 |
 | 版本所属项目 | 版本/里程碑所属项目，单选 | 项目目录；从已选适用项目显式选择，仅1项时自动选中 | 版本成员、默认第一项 |
 | 里程碑/版本 | 代码平台的项目里程碑 | `getFormMilestones`（GitLab里程碑） | 表单版本 |
-| 版本分支 | 计划合并的代码分支字符串 | 版本分支候选（来源待N1核实） | 版本成员、版本号 |
+| 版本分支 | 计划合并的代码分支字符串 | 版本分支候选（后续功能接入前核实） | 版本成员、版本号 |
 | 表单结构版本 | 发布后冻结的字段/条件结构 | `form_template_versions` | 业务版本、GitLab版本 |
 | 人员 | 平台账号/姓名 | LDAP/平台账号 | 版本成员 |
 
-- 清理“版本成员”等含糊可见名；里程碑、代码分支、表单结构版本、人员各用上表名称。版本分支候选来源未核实前不编造接口，先在UI显示为“版本分支（手工填写）”并列入N1核实项；核实后再接候选。
+- 清理“版本成员”等含糊可见名；里程碑、代码分支、表单结构版本、人员各用上表名称。版本分支候选来源在后续获批功能接入前核实，不编造接口；来源未就绪的交互保持已批准合同，当前N1不改UI。
 - 自动带出：代码平台的规范地址/来源实例、版本所属项目、里程碑标题→版本名称、范围名称建议值；用户不再重复输入项目编号或URL。
 
 ### 11.3 常用任务最短流程

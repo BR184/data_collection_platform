@@ -1,7 +1,7 @@
 # 统一表单系统建设方案（v6.0：原版本留存）
 
 > 版本：v6.0，2026-10-26。用户已确认业务设计；员工287147ff已吸收、4423920e回执已核实；尚未按新模型实施或验收。
-> 生效边界：R05关闭，W4冻结v5.1目标通过；N0首次审批为修改后重审，N1/W5未准入。当前只修订N0合同，不继续扩建历史复制协议，不得将旧版测试通过当作v6准入。
+> 生效边界：R05关闭、W4冻结v5.1通过；2026-10-27[N0五审通过](v6-n0-technical-admission-20261027.md#n0-fifth-review)，批准输入4cd8588d，准入N1目录/原位登记/读源基础实施，尚未实现验收。N2后续、W5、真实切换及发布仍按阶段门禁；旧复制协议不继续扩建。
 > 实施与审核入口：[执行单](unified-form-system-implementation-plan-20261021.md)。产品承诺归[产品文档](../product.md)，技术边界归[架构](../architecture.md)，决策及理由归[D-32](../decisions.md#d-32-统一表单字段发布原版本留存跨版本读取与独立导出)。
 
 ## 一、建设目标与已确认选择
@@ -182,9 +182,9 @@ MR业务仍校验是否需要走查、是否缺记录和其它必需输入；缺
 | form_template_definitions | 三模板定义、资源类型和种子规格 |
 | form_template_scopes | 冻结绑定、current_version_id、可读版本集合修订与哈希；当前指针只管理新建入口 |
 | form_template_versions | 冻结field_spec、词典/语义哈希、表名和发布证据；区分权威记录源、历史副本及未发布目标 |
-| form_record_locations（新增） | record_id的全局定位目录：scope_id、storage_version_id、instance_id、可空request_key；与物理记录同事务登记 |
+| form_record_locations（新增） | record_id全局定位、scope内跨版requestKey唯一；分开origin/storage版本、实例模式、完整资源C、创建归属及首次规格/载荷证据，与物理记录/审计/head同事务登记；精确列/约束归N0§1.3 |
 | 各版本instances/records | 本版本原始记录及资源关联；记录保存真实业务列，不把所有版本塞入一个JSON正文列 |
-| form_record_audits | CREATE/UPDATE/VOID不可变操作快照，包含实际所属版本和记录修订 |
+| form_record_audit_logs | CREATE/UPDATE/VOID不可变操作快照，包含实际所属版本和记录修订 |
 | 管理草稿、预览、发布及attempt | 保留CAS、冻结预览、持久阶段、租约和恢复；不再把复制计数/校验和当普通结构发布前置条件 |
 | form_change_heads / form_resource_authorities | 记录变更交接和资源/模板唯一FORM或COMMENT权威；权威不按表单结构版本重复创建 |
 | 旧迁移日志/切换清单 | 保留已发生事件的审计证据；新字段发布不再伪造历史迁移日志 |
@@ -203,7 +203,7 @@ v5.1曾复制出的旧表是历史副本，不能直接把所有`form_s*`表UNIO
 
 #### 初装、升级与结构校验
 
-Flyway只安装/升级基础能力、权限及种子定义，环境绑定和记录源登记走受控管理操作。新增定位目录、集合修订及版本源角色等物理列/约束由v6准入包正式化；只追加前向迁移，禁止改动已登记159条旧迁移与checksum，禁止为切换设计删除真实旧表。
+Flyway只安装/升级基础能力、权限及种子定义，环境绑定和记录源登记走受控管理操作。新增定位目录、集合修订、版本源角色/实例模式、目录事件及高水位的正式列/约束已由[N0§1—§3](v6-n0-technical-admission-20261027.md#n0-fifth-review)五审定型；只追加前向迁移，禁止改动已登记159条旧迁移与checksum，禁止为切换设计删除真实旧表。
 
 表结构按各版冻结规格校验真实列类型/空值、主键、唯一键、外键及动作、CHECK逻辑分组、索引及共享序列默认值。保留已验收的同物理连接临时约束解析方式。新版本表按新记录即时约束创建；旧表按原规格校验，不与最新版种子硬比较。
 
@@ -388,18 +388,18 @@ API输入为`reviewerUserId/reviewDurationMinutes/specificationCount/logicCount/
 
 #### 记录端点与上下文
 
-基址`/api/collect-forms`。所有记录增量提交，不携带整页快照；缺失另一条记录不构成删除指令。各ID在JSON使用十进制字符串。保留既有MR/Issue外链及notification-payload真实外部契约，旧内部save/delete/update-record不恢复。
+基址`/api/collect-forms`。所有记录增量提交，不携带整页快照；缺失另一条记录不构成删除指令。填写端bigint身份使用十进制字符串，recordVersion为数字；管理端scope/version/publication既有数字契约保持，不做全局Jackson转换。保留既有MR/Issue外链及notification-payload真实外部契约，旧内部save/delete/update-record不恢复。
 
 | 方法/路径 | 版本与写入边界 |
 | --- | --- |
 | GET `/detail` | 按C返回当前新建版本、获准的各版本规格及全部有效记录；每条携带所属storageVersionId、recordVersion和本人操作能力，GET不建实例 |
 | POST `/records` | C、scopeId、当前新建storageVersionId、requestKey、confirmSameReviewer、fields；返回CREATED/REPLAYED/CONFIRM_REQUIRED |
-| PUT `/records/{id}` | 按定位目录找到原版；C、所属storageVersionId、recordVersion及fields，校验本人并CAS，不要求该版仍是当前新建版本 |
+| PUT `/records/{id}` | 按目录实际承载版定位；C、expectedStorageVersionId、recordVersion及fields，校验本人并CAS，不要求该版仍是当前新建版本；originVersionId只保留创建事实 |
 | POST `/records/{id}/void` | 原版本人作废，二次确认及输入“作废”；不校验业务字段完整性，审计/head同事务 |
 | GET `/reviewer-candidates` | 保持远程人员ID/权威姓名、关键字和有界分页，重放不依赖当前人员目录 |
 | GET `/notification-payload` | 保持已发布来源地址、项目、IID和资源类型契约，实际外部变更按E1核对 |
 
-detail的目标响应为`currentCreateVersion`、按versionId索引的`schemas`、带所属版本的`records`及`sourceSetRevision`；字段命名、分页和旧调用者一并在准入包定稿。客户端不能以根级“当前field_spec”渲染所有历史块。版本筛选只能缩小获准范围，不能隐藏默认应可访问的历史记录或漏掉消费输入。
+detail正式目标响应按N0§6：`currentVersionId`、`readableVersions`、按versionId字符串索引的`versionSpecs`、带storageVersionId/originVersionId/recordVersion的`records`及`sourceSetRevision/sourceSetHash`；新版DTO及草稿升级已准入，尚未实施。客户端不能以根级“当前field_spec”渲染所有历史块。版本筛选只能缩小获准范围，不能隐藏默认应可访问的历史记录或漏掉消费输入。
 
 C继续为来源Web基址、项目、资源类型、IID、templateKey；服务端匹配已登记来源并核对项目及镜像资源，不从请求猜来源实例。MR/Issue、响应/回复、同数字IID的不同来源严格隔离。资源待同步保留输入并提示；已有合法记录的读取不依赖镜像当前RUNNING/FAILED。
 
@@ -407,7 +407,7 @@ C继续为来源Web基址、项目、资源类型、IID、templateKey；服务�
 
 1. 认证、权限、C与请求边界核验后，按共享序列咨询锁→范围共享锁的统一次序进入新建/核验事务，再先按scope/requestKey查全版本目录；命中则按首次请求版本的冻结规格规范化指纹，核对账号、C、首次载荷，返回同一记录在实际所属版本的权威状态。重放不再查询当前人员目录，使用已保存姓名与首次证据；作废重放不得复活，异账号/异载荷拒绝。
 2. 未命中才校验新建版本仍等于current_version_id、范围ACTIVE且可写；未提交的旧版新增请求返回409/A0409并保留输入，不能静默改写版本和key。当前版本变化不拒绝一条已经成功创建的旧key核验。
-3. 按冻结规格校验字段、条件、人员权威姓名并形成首次规范指纹；空/集合/日期及长度规则沿现有契约。首次指纹包含创建时版本及账号，后续编辑不重算首次指纹。
+3. 按冻结规格校验字段、条件、人员权威姓名并形成首次规范指纹；空/集合/日期及长度规则沿现有契约。首次指纹沿真实v5规范JSON顺序，版本分量取origin_version_id，含账号及完整C；origin_spec_hash另作规格证据，不改写历史载荷摘要，后续编辑不重算首次指纹。
 4. 同走查人软提示查询同C各权威记录源的有效记录；未确认返回CONFIRM_REQUIRED且不插记录。没有占用、预约或先建空记录。
 5. 在已持有的共享记录ID序列咨询锁、范围共享锁内再次复核状态；分配全局ID，插入本版实例/记录、跨版本唯一目录、CREATE审计和资源head。约束竞争后按原key返回唯一结果，不能每版分别成功一次。
 6. 提交后返回CREATED或REPLAYED；任何失败目录、记录、审计、head整体回滚。持锁等待后的版本和权限复核使用当前真实状态；响应丢失由同key同快照核验收敛。
@@ -460,7 +460,7 @@ UPDATE按id、created_by、record_version及deleted条件CAS；成功递增recor
 4. 激活：短事务核对版本及目录CAS，登记新权威记录源、更新source_set_revision/哈希、切换current_version_id，写发布审计和范围变更信号。旧版本和旧记录不改写，不把全部旧表转只读。
 5. 收尾：返回“新版本已发布；历史记录保留原版”，业务派生更新与发布成功分别反馈。失败时旧入口/旧数据继续可用。
 
-保留持久任务、attempt、租约/fencing、归属token及恢复证据；阶段应描述准备、建表、验证和发布，不再使用COPYING表达普通字段发布。所有持久副作用在统一锁序下复核owner/fencing/stage及`clock_timestamp()`租约，提交前复核；过期持有者不能写失败或清别人栅栏，独立维护回收。statement_timeout只限制单条语句。
+保留持久任务、attempt、租约/fencing、归属token及恢复证据；v2阶段已定为VALIDATING→BUILDING→SWITCHING→PUBLISHED/FAILED；BUILDING不设范围写栅栏，SWITCHING按受控enter/apply及过期接管短事务收口。protocol=1旧任务先停旧执行器并受控收口，不由新执行器领取；精确DDL/attempt/fencing归N0§4。所有持久副作用在统一锁序下复核owner/fencing/stage及`clock_timestamp()`租约，提交前复核；过期持有者不能写失败或清别人栅栏，独立维护回收。statement_timeout只限制单条语句。
 
 正常发布无需对全部历史长时间停写；短切换锁协调新建/原版编辑与目录发布。在途旧版新增先提交则登记为旧版记录；切换先提交则未落库的旧版新增收到版本变化。旧记录编辑依据自身所属版，不因新建指针改变而失效。
 
@@ -484,13 +484,13 @@ MR走查、Issue响应/回复、全量/定向构建、周期SLA、诊断、统�
 
 消费候选固定：可读版本集合修订/哈希、各版字段/词典规格、资源head变化版本、FORM/COMMENT类型及authority_revision。构建期间任一证据漂移则放弃候选。结果公开与head结算同事务，在统一顺序下先锁所需范围、再直锁head基表并按ID升序，复核上述证据；租约无效、版本集合变化或权威修订不符，零公开、零结算，重新领取构建。
 
-单一pending_storage_version_id不能代表多个真实存储源。v6须把原单版本证据改为版本集合证据或等效的受锁范围目录复核；正式列、索引与事务伪码列入准入补充包，不能把当前指针包装成“多版本支持”。FORM无实例资源也必须覆盖目录/权威变化；COMMENT不携带伪造FORM证据。
+单一pending_storage_version_id不能代表多个真实存储源。v6采用N0§5已批的form_head_captures伴生表及受锁范围集合修订/哈希，捕获token/owner/fence/租约与head/pending/权威逐项复核；正式列、索引和短事务锁序已定型，不能把当前指针包装成“多版本支持”。FORM无实例资源也必须覆盖目录/权威变化；COMMENT不携带伪造FORM证据。
 
 目录发布写持久范围变更信号；确需下游重建的范围按既有任务机制处理，不把全量历史行处理塞进DDL事务。无记录变化不能伪造CREATE审计。写回只使用完整公开且GitLab/表单输入均收敛的结果，开关、租约和写所有权边界不变。
 
 #### 相同字段跨版本总体统计
 
-统计明确选定的版本集合V、业务范围及时间条件。系统按稳定字段身份、实际业务含义、类型/单位、枚举/词典含义和既有聚合口径确定共同可统计字段；不是按中文显示名或同名物理列直接相加。含义和单位不变的改名仍可合并；删除后新建、同名异义、单位/不可比较取值变化不合并，不自动换算或猜主因。
+统计明确选定的版本集合V、业务范围及时间条件。系统按稳定字段身份、实际业务含义、类型/单位、枚举/词典含义和既有聚合口径确定共同可统计字段；不是按中文显示名或同名物理列直接相加。含义和单位不变的改名仍可合并；删除后新建、同名异义、单位/不可比较取值变化不合并，不自动换算或猜主因。 可比valueType绑定该版真实冻结field.type，并核对版本语义声明；冲突在发布前阻断、读取时明确无效，不以种子默认类型替代或以排除非数值返回部分成功。精确身份/域/类型/单位交集及聚合合同归已批N0§7；不开放现有管理页跨类型编辑。
 
 例如V1有“规范、逻辑”，V2有“规范、设计”；两版总体统计合并“规范”，不把逻辑与设计拼成同一项。V1规范2、V2规范3的既有求和指标得到5。差异字段仍能按各自版本查看/导出，不作为该次共同字段指标。没有共同可统计字段时明确说明，不能返回0假装完成统计。
 
@@ -629,7 +629,7 @@ localStorage不可用、损坏或配额不足时按草稿失败状态展示，�
 
 ### 3.7 权限模型与系统门禁登记
 
-普通记录权限继续为form.record.create、form.record.edit_own、form.record.delete_own，模板管理为form.template.manage；历史记录维护仍额外核验创建人，模板管理不自动获得代改权。无创建账号或停用账号的记录保持只读。新增form.record.export为独立导出能力，数据可见范围不得超过已有获准范围；当前角色/默认授予在v6准入包核实现行权限后登记，不凭本稿猜角色扩权。
+普通记录权限继续为form.record.create、form.record.edit_own、form.record.delete_own，模板管理为form.template.manage；历史记录维护仍额外核验创建人，模板管理不自动获得代改权。无创建账号或停用账号的记录保持只读。新增form.record.export为独立导出能力，数据可见范围不得超过已有获准范围；候选授权合同已按N0§8分别从当前/默认的真实导出权推导，禁止由查看权推导；正式角色清单及跨模板授权影响仍须目标库只读核实并获用户确认，N1不提前执行导出权限授予。
 
 权限目录、角色当前授予和默认快照同单元登记；旧code_review.form.*及旧数据库内联编辑器不恢复。端点目录覆盖新版detail、记录写入、管理发布、版本导出、所有错误/重放/历史分支及写影响表，新增统计端点遵守view/export映射、权限、工作区元数据和事实依赖四类登记。
 
@@ -643,7 +643,7 @@ localStorage不可用、损坏或配额不足时按草稿失败状态展示，�
 
 历史版只导出其权威原记录，不与新版复制合并，也不包含v5历史副本或已作废记录。V2删掉的字段仍出现在V1导出中；没有数据可导出表头和明确零记录结果。文本、日期、选项及人员姓名按原版规格/快照表达，不把旧值强行套入新版词典或丢掉未知原值。
 
-拟用`GET /api/collect-forms/template-scopes/{scopeId}/versions/{versionId}/records/export`，版本/来源/项目/资源筛选均校验权限，不能传任意表名。正式参数、权限角色、文件名/列顺序、流式或分批预算和黄金目录在v6准入包补齐；沿现有导出组件及安全写值机制，不引入独立报表系统。跨版本总体统计仍由数据库消费完成，不依赖人工下载Excel再计算。
+正式目标为`GET /api/collect-forms/exports/records?versionId=<string>&projectIds=<optional>`（N0§8），只接受可读AUTHORITATIVE版本、范围项目子集和获准资源C，不能传任意表名。冻结规格字段顺序、系统列、审计和显式导出权已定型；正式角色、容量实测与黄金仍按各自门禁补齐，不能把50k/64MB待验证预算当容量结论；沿现有导出组件及安全写值机制，不引入独立报表系统。跨版本总体统计仍由数据库消费完成，不依赖人工下载Excel再计算。
 
 ## 四、测试验收矩阵与实施路线图
 
@@ -669,7 +669,7 @@ localStorage不可用、损坏或配额不足时按草稿失败状态展示，�
 
 1. 当前员工完成已下发v5.1本轮修复，提交准确代码、证据和工作区状态；审核方按该冻结输入复核R05/R07-b等通用问题，不要求中途改造存储。
 2. 完成后一次交接新反馈、v6方案、差异和失效条目；合并员工最新文档进展，不以本分支快照覆盖其交付。此前W0—W3批准只证明对应v5.1版本，已实现基础按影响复用，不推倒重写。
-3. 员工提交v6准入补充包：定位目录/请求唯一性、可读版本源与旧副本处理、原版CRUD/草稿协议、轻量发布/租约、消费集合快照与锁序、权限/导出及新迁移影响；明确可执行DDL/索引/事务、DTO及测试入口。审核后才实施新版协议。
+3. v6准入补充包已在N0五审通过（输入4cd8588d）：定位目录/请求唯一性、可读版本源与旧副本处理、原版CRUD/草稿协议、轻量发布/租约、消费集合快照与锁序、权限/导出及新迁移影响；明确可执行DDL/索引/事务、DTO及测试入口。当前仅准入N1基础实施，其余依赖阶段验收。
 4. 依次完成多版本存储路由与目录、原版CRUD/幂等与填写页、空结构发布、统一消费/共同字段统计/Excel，再做真实集成；共用字段、权限和审计能力保留，废弃复制执行路径与其调用者/错误测试一并删除。
 5. 新版门禁通过再准入W5后续工作、W6集成、W7黄金及W8现场。迁移日志等真实历史数据不因删运行路径而删除；已执行Flyway保留，以前向迁移安装新元数据。
 
