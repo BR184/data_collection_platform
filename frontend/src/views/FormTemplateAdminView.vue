@@ -56,6 +56,8 @@ const milestones = ref<FormAdminMilestoneAvailability | null>(null);
 const selectedScopeId = ref<number | null>(null);
 const detail = ref<FormAdminScopeDetail | null>(null);
 const preview = ref<FormAdminPreviewView | null>(null);
+/** 当前预览所属范围；跨范围切换或迟到响应不得复用。 */
+const previewScopeId = ref<number | null>(null);
 const publication = ref<FormAdminPublicationView | null>(null);
 const fieldRows = ref<FieldRow[]>([]);
 const conditionRows = ref<ConditionRow[]>([]);
@@ -204,9 +206,29 @@ function applyScopeMeta(fresh: FormAdminScopeDetail) {
 function applyScopeDetail(fresh: FormAdminScopeDetail) {
   detail.value = fresh;
   preview.value = fresh.preview;
+  previewScopeId.value = fresh.preview ? fresh.scope.id : null;
   publication.value = fresh.latestPublication;
   hydrateDraft(fresh.draft);
   markSaved();
+}
+
+/** 异步结果归属：发起请求时的范围与加载代次，回写前必须复核。 */
+interface AsyncContext {
+  scopeId: number;
+  epoch: number;
+}
+
+function contextFor(scopeId: number): AsyncContext {
+  return { scopeId, epoch: scopeLoadEpoch };
+}
+
+function isCurrentContext(context: AsyncContext): boolean {
+  return (
+    context.epoch === scopeLoadEpoch
+    && selectedScopeId.value === context.scopeId
+    && scope.value?.id === context.scopeId
+    && detail.value != null
+  );
 }
 
 type RefreshOutcome = 'applied' | 'kept' | 'stale';
@@ -245,6 +267,8 @@ async function loadBindingOptions() {
 async function selectScope(scopeId: number) {
   const epoch = ++scopeLoadEpoch;
   selectedScopeId.value = scopeId;
+  previewScopeId.value = null;
+  previewing.value = false;
   try {
     const fresh = await collectFormsApi.getFormScope(scopeId);
     if (epoch !== scopeLoadEpoch || selectedScopeId.value !== scopeId) {
@@ -680,18 +704,31 @@ async function previewScope(force = false) {
     !force
     && preview.value
     && preview.value.draftRevision === detail.value.draft.revision
+    && previewScopeId.value === scope.value.id
   ) {
     return preview.value;
   }
+  const context = contextFor(scope.value.id);
+  const draftRevision = detail.value.draft.revision;
+  const submittedSnapshot = localSnapshot();
   previewing.value = true;
   try {
-    preview.value = await collectFormsApi.previewFormScope(
-      scope.value.id,
-      detail.value.draft.revision,
-    );
-    return preview.value;
+    const fresh = await collectFormsApi.previewFormScope(context.scopeId, draftRevision);
+    // 迟到预览只能属于发起时的范围与会话；范围切换、草稿修订或输入变化均丢弃。
+    if (
+      !isCurrentContext(context)
+      || detail.value?.draft?.revision !== draftRevision
+      || localSnapshot() !== submittedSnapshot
+    ) {
+      return null;
+    }
+    preview.value = fresh;
+    previewScopeId.value = context.scopeId;
+    return fresh;
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, '预览失败'));
+    if (isCurrentContext(context)) {
+      ElMessage.error(getErrorMessage(error, '预览失败'));
+    }
     return null;
   } finally {
     previewing.value = false;
@@ -721,7 +758,12 @@ async function createPublication() {
     ElMessage.warning('请先保存完整绑定并重新预览');
     return;
   }
+  const context = contextFor(scope.value.id);
   const target = await previewScope(false);
+  // 预览期间范围、会话或草稿已变化时，不能把旧预览当作本次发布依据。
+  if (!isCurrentContext(context) || previewScopeId.value !== context.scopeId) {
+    return;
+  }
   if (!target || target.blockingErrors.length) {
     ElMessage.warning('预览存在阻断问题，不能发布');
     return;
@@ -731,6 +773,10 @@ async function createPublication() {
     '发布确认',
   );
   if (!confirmed) {
+    return;
+  }
+  // 确认等待期间切换范围或重新加载后，本次发布动作失效。
+  if (!isCurrentContext(context)) {
     return;
   }
   const expectedCurrentVersionId = scope.value.currentVersionId;
@@ -749,54 +795,74 @@ async function createPublication() {
   }
   publishing.value = true;
   try {
-    publication.value = await collectFormsApi.createFormPublication(scope.value.id, {
+    const created = await collectFormsApi.createFormPublication(context.scopeId, {
       draftRevision: pendingRequest.value.draftRevision,
       previewId: pendingRequest.value.previewId,
       expectedCurrentVersionId: pendingRequest.value.expectedCurrentVersionId,
       requestKey: pendingRequest.value.key,
     });
-    await pollPublication(publication.value.id);
+    // 创建响应迟到时不得把原范围的任务装入当前范围。
+    if (!isCurrentContext(context) || created.scopeId !== context.scopeId) {
+      await refreshTemplatesList();
+      return;
+    }
+    publication.value = created;
+    await pollPublication(created.id);
   } catch (error) {
-    if (isConflictError(error)) {
-      ElMessage.warning('范围或草稿已变化，请刷新后重试；本地修改已保留');
-    } else {
-      ElMessage.error(getErrorMessage(error, '发布任务创建失败'));
+    if (isCurrentContext(context)) {
+      if (isConflictError(error)) {
+        ElMessage.warning('范围或草稿已变化，请刷新后重试；本地修改已保留');
+      } else {
+        ElMessage.error(getErrorMessage(error, '发布任务创建失败'));
+      }
     }
   } finally {
     publishing.value = false;
   }
 }
 
+const PENDING_PUBLICATION_STAGES = ['PREPARED', 'COPYING', 'VERIFIED'];
+
 async function pollPublication(publicationId: number) {
+  const scopeId = scope.value?.id;
+  if (!scopeId) {
+    return;
+  }
+  const context = contextFor(scopeId);
   for (let attempt = 0; attempt < 120; attempt += 1) {
-    publication.value = await collectFormsApi.getFormPublication(publicationId);
-    if (!['PREPARED', 'COPYING', 'VERIFIED'].includes(publication.value.stage)) {
+    const fresh = await collectFormsApi.getFormPublication(publicationId);
+    // 轮询结果只属于发起时的范围与会话；切换后停止轮询且不展示旧任务。
+    if (!isCurrentContext(context) || fresh.scopeId !== context.scopeId) {
+      return;
+    }
+    publication.value = fresh;
+    if (!PENDING_PUBLICATION_STAGES.includes(fresh.stage)) {
       break;
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
+  if (!isCurrentContext(context)) {
+    return;
+  }
   if (publication.value?.stage === 'PUBLISHED') {
     pendingRequest.value = null;
     ElMessage.success('结构版本已发布');
-    const scopeId = scope.value?.id;
-    if (scopeId) {
-      const epoch = ++scopeLoadEpoch;
-      const baselineSnapshot = localSnapshot();
-      try {
-        const outcome = await refreshScopePreservingInput(
-          scopeId,
-          baselineSnapshot,
-          epoch,
-          dirty.value,
-        );
-        if (outcome === 'kept') {
-          // 发布期间或最终刷新期间继续输入时，迟到详情不得覆盖本地编辑。
-          ElMessage.warning('版本已发布；本地未保存修改仍保留，请再次保存');
-        }
-      } catch (error) {
-        if (epoch === scopeLoadEpoch) {
-          ElMessage.error(getErrorMessage(error, '表单范围刷新失败'));
-        }
+    const epoch = ++scopeLoadEpoch;
+    const baselineSnapshot = localSnapshot();
+    try {
+      const outcome = await refreshScopePreservingInput(
+        scopeId,
+        baselineSnapshot,
+        epoch,
+        dirty.value,
+      );
+      if (outcome === 'kept') {
+        // 发布期间或最终刷新期间继续输入时，迟到详情不得覆盖本地编辑。
+        ElMessage.warning('版本已发布；本地未保存修改仍保留，请再次保存');
+      }
+    } catch (error) {
+      if (epoch === scopeLoadEpoch) {
+        ElMessage.error(getErrorMessage(error, '表单范围刷新失败'));
       }
     }
     return;
@@ -810,12 +876,33 @@ async function recoverPublication() {
   if (!publication.value || !scope.value) {
     return;
   }
+  const context = contextFor(scope.value.id);
+  if (publication.value.scopeId !== context.scopeId) {
+    return;
+  }
+  const confirmed = await confirmAction(
+    `将恢复发布任务 #${publication.value.id} 并继续执行；确认恢复？`,
+    '恢复任务确认',
+  );
+  if (!confirmed) {
+    return;
+  }
+  // 确认等待期间切换范围时停止本次有副作用的动作。
+  if (!isCurrentContext(context) || publication.value.scopeId !== context.scopeId) {
+    return;
+  }
   try {
-    publication.value = await collectFormsApi.recoverFormPublication(publication.value.id);
+    const fresh = await collectFormsApi.recoverFormPublication(publication.value.id);
+    if (!isCurrentContext(context) || fresh.scopeId !== context.scopeId) {
+      return;
+    }
+    publication.value = fresh;
     ElMessage.success('任务已恢复为待执行');
-    await pollPublication(publication.value.id);
+    await pollPublication(fresh.id);
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, '发布任务恢复失败'));
+    if (isCurrentContext(context)) {
+      ElMessage.error(getErrorMessage(error, '发布任务恢复失败'));
+    }
   }
 }
 

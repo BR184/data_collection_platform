@@ -761,3 +761,269 @@ describe('FormTemplateAdminView', () => {
     expect(view.text()).toContain('12 条历史记录');
   });
 });
+
+describe('R05 预览与发布任务异步归属', () => {
+  const secondDetail = () => detailFor(8, '范围B', 'B字段');
+
+  function twoScopes(): { a: FormAdminScopeDetail; b: FormAdminScopeDetail } {
+    const a = detailFor(7, '范围A', 'A字段');
+    const b = secondDetail();
+    mocks.api.getFormTemplates.mockResolvedValue([
+      {
+        templateKey: 'issue_reply',
+        displayName: 'Issue 回复',
+        status: 'ACTIVE',
+        scopes: [a.scope, b.scope],
+      },
+    ]);
+    mocks.api.getFormScope.mockResolvedValueOnce(a).mockResolvedValueOnce(b);
+    return { a, b };
+  }
+
+  function recoverButton(view: VueWrapper) {
+    return view.findAll('button').find((item) => item.text().includes('恢复任务'));
+  }
+
+  it('does not show a delayed preview from scope A under scope B', async () => {
+    // B 与 A 草稿内容完全相同（修订、字段、绑定一致），只有范围身份不同：
+    // 必须由原范围/加载代次复核丢弃，不能靠内容快照差异挡下。
+    const a = detailFor(7, '范围A', '相同字段');
+    const b = detailFor(8, '范围B', '相同字段');
+    mocks.api.getFormTemplates.mockResolvedValue([
+      {
+        templateKey: 'issue_reply',
+        displayName: 'Issue 回复',
+        status: 'ACTIVE',
+        scopes: [a.scope, b.scope],
+      },
+    ]);
+    mocks.api.getFormScope.mockResolvedValueOnce(a).mockResolvedValueOnce(b);
+    let finish: (value: FormAdminPreviewView) => void = () => {};
+    mocks.api.previewFormScope.mockImplementationOnce(
+      () => new Promise<FormAdminPreviewView>((resolve) => { finish = resolve; }),
+    );
+    const view = await mountView();
+    await button(view, '生成预览').trigger('click');
+    await flushPromises();
+    expect(finish).toBeTypeOf('function');
+    await view.findAll('.scope-item')[1].trigger('click');
+    await flushPromises();
+    expect(view.find('.scope-header').text()).toContain('范围B');
+
+    finish(preview({ blockingErrors: ['A范围专属预览阻断'] }));
+    await flushPromises();
+    expect(view.text()).not.toContain('A范围专属预览阻断');
+    expect(view.find('.publication-card').exists()).toBe(false);
+  });
+
+  it('does not reuse a first-visit preview after A→B→A', async () => {
+    const a = detailFor(7, '范围A', 'A字段');
+    const b = secondDetail();
+    mocks.api.getFormTemplates.mockResolvedValue([
+      {
+        templateKey: 'issue_reply',
+        displayName: 'Issue 回复',
+        status: 'ACTIVE',
+        scopes: [a.scope, b.scope],
+      },
+    ]);
+    mocks.api.getFormScope
+      .mockResolvedValueOnce(a)
+      .mockResolvedValueOnce(b)
+      .mockResolvedValueOnce(a);
+    let finish: (value: FormAdminPreviewView) => void = () => {};
+    mocks.api.previewFormScope.mockImplementationOnce(
+      () => new Promise<FormAdminPreviewView>((resolve) => { finish = resolve; }),
+    );
+    const view = await mountView();
+    await button(view, '生成预览').trigger('click');
+    await flushPromises();
+    await view.findAll('.scope-item')[1].trigger('click');
+    await flushPromises();
+    await view.findAll('.scope-item')[0].trigger('click');
+    await flushPromises();
+    expect(view.find('.scope-header').text()).toContain('范围A');
+
+    finish(preview({ blockingErrors: ['首次访问预览阻断'] }));
+    await flushPromises();
+    expect(view.text()).not.toContain('首次访问预览阻断');
+  });
+
+  it('does not create a publication when the scope changes during confirmation', async () => {
+    twoScopes();
+    mocks.api.previewFormScope.mockResolvedValue(preview());
+    let confirmFinish: (value: string) => void = () => {};
+    mocks.messageBox.confirm.mockImplementationOnce(
+      () => new Promise<string>((resolve) => { confirmFinish = resolve; }),
+    );
+    const view = await mountView();
+    await button(view, '发布结构').trigger('click');
+    await flushPromises();
+    expect(confirmFinish).toBeTypeOf('function');
+    await view.findAll('.scope-item')[1].trigger('click');
+    await flushPromises();
+    expect(view.find('.scope-header').text()).toContain('范围B');
+
+    confirmFinish('confirm');
+    await flushPromises();
+    expect(mocks.api.createFormPublication).not.toHaveBeenCalled();
+  });
+
+  it('does not attach a late create response to another scope', async () => {
+    twoScopes();
+    mocks.api.previewFormScope.mockResolvedValue(preview());
+    let finish: (value: FormAdminPublicationView) => void = () => {};
+    mocks.api.createFormPublication.mockImplementationOnce(
+      () => new Promise<FormAdminPublicationView>((resolve) => { finish = resolve; }),
+    );
+    const view = await mountView();
+    await button(view, '发布结构').trigger('click');
+    await flushPromises();
+    expect(finish).toBeTypeOf('function');
+    await view.findAll('.scope-item')[1].trigger('click');
+    await flushPromises();
+
+    finish(publication('COPYING'));
+    await flushPromises();
+    expect(view.find('.publication-card').exists()).toBe(false);
+    expect(mocks.api.getFormPublication).not.toHaveBeenCalled();
+  });
+
+  it('does not show a delayed task or recovery action from scope A under scope B', async () => {
+    twoScopes();
+    mocks.api.previewFormScope.mockResolvedValue(preview());
+    mocks.api.createFormPublication.mockResolvedValue(publication('COPYING'));
+    let finish: (value: FormAdminPublicationView) => void = () => {};
+    mocks.api.getFormPublication.mockImplementationOnce(
+      () => new Promise<FormAdminPublicationView>((resolve) => { finish = resolve; }),
+    );
+    const view = await mountView();
+    await button(view, '发布结构').trigger('click');
+    await flushPromises();
+    expect(finish).toBeTypeOf('function');
+    await view.findAll('.scope-item')[1].trigger('click');
+    await flushPromises();
+    expect(view.find('.scope-header').text()).toContain('范围B');
+
+    finish({ ...publication('FAILED'), lastError: 'A范围发布失败' });
+    await flushPromises();
+    expect(view.find('.publication-card').exists()).toBe(false);
+    expect(view.text()).not.toContain('A范围发布失败');
+    const recover = recoverButton(view);
+    if (recover) {
+      await recover.trigger('click');
+      await flushPromises();
+    }
+    expect(mocks.api.recoverFormPublication).not.toHaveBeenCalled();
+  });
+
+  it('does not run a delayed PUBLISHED refresh inside scope B', async () => {
+    twoScopes();
+    mocks.api.previewFormScope.mockResolvedValue(preview());
+    mocks.api.createFormPublication.mockResolvedValue(publication('COPYING'));
+    let finish: (value: FormAdminPublicationView) => void = () => {};
+    mocks.api.getFormPublication.mockImplementationOnce(
+      () => new Promise<FormAdminPublicationView>((resolve) => { finish = resolve; }),
+    );
+    const view = await mountView();
+    await button(view, '发布结构').trigger('click');
+    await flushPromises();
+    await view.findAll('.scope-item')[1].trigger('click');
+    await flushPromises();
+    const scopeLoads = mocks.api.getFormScope.mock.calls.length;
+
+    finish(publication('PUBLISHED'));
+    await flushPromises();
+    expect(mocks.api.getFormScope.mock.calls.length).toBe(scopeLoads);
+    expect(mocks.message.success).not.toHaveBeenCalledWith('结构版本已发布');
+    expect(view.find('.publication-card').exists()).toBe(false);
+  });
+
+  it('drops a delayed scope A poll after A→B→A', async () => {
+    const a = detailFor(7, '范围A', 'A字段');
+    const b = secondDetail();
+    mocks.api.getFormTemplates.mockResolvedValue([
+      {
+        templateKey: 'issue_reply',
+        displayName: 'Issue 回复',
+        status: 'ACTIVE',
+        scopes: [a.scope, b.scope],
+      },
+    ]);
+    mocks.api.getFormScope
+      .mockResolvedValueOnce(a)
+      .mockResolvedValueOnce(b)
+      .mockResolvedValueOnce(a);
+    mocks.api.previewFormScope.mockResolvedValue(preview());
+    mocks.api.createFormPublication.mockResolvedValue(publication('COPYING'));
+    let finish: (value: FormAdminPublicationView) => void = () => {};
+    mocks.api.getFormPublication.mockImplementationOnce(
+      () => new Promise<FormAdminPublicationView>((resolve) => { finish = resolve; }),
+    );
+    const view = await mountView();
+    await button(view, '发布结构').trigger('click');
+    await flushPromises();
+    await view.findAll('.scope-item')[1].trigger('click');
+    await flushPromises();
+    await view.findAll('.scope-item')[0].trigger('click');
+    await flushPromises();
+    expect(view.find('.scope-header').text()).toContain('范围A');
+
+    finish({ ...publication('FAILED'), lastError: '首次访问任务失败' });
+    await flushPromises();
+    expect(view.find('.publication-card').exists()).toBe(false);
+    expect(view.text()).not.toContain('首次访问任务失败');
+  });
+
+  it('does not recover a task when the scope changes during confirmation', async () => {
+    const a = detailFor(7, '范围A', 'A字段');
+    a.latestPublication = publication('FAILED');
+    const b = secondDetail();
+    mocks.api.getFormTemplates.mockResolvedValue([
+      {
+        templateKey: 'issue_reply',
+        displayName: 'Issue 回复',
+        status: 'ACTIVE',
+        scopes: [a.scope, b.scope],
+      },
+    ]);
+    mocks.api.getFormScope.mockResolvedValueOnce(a).mockResolvedValueOnce(b);
+    let confirmFinish: (value: string) => void = () => {};
+    mocks.messageBox.confirm.mockImplementationOnce(
+      () => new Promise<string>((resolve) => { confirmFinish = resolve; }),
+    );
+    const view = await mountView();
+    const recover = recoverButton(view);
+    expect(recover).toBeTruthy();
+    await recover!.trigger('click');
+    await flushPromises();
+    expect(confirmFinish).toBeTypeOf('function');
+    await view.findAll('.scope-item')[1].trigger('click');
+    await flushPromises();
+    expect(view.find('.scope-header').text()).toContain('范围B');
+
+    confirmFinish('confirm');
+    await flushPromises();
+    expect(mocks.api.recoverFormPublication).not.toHaveBeenCalled();
+  });
+
+  it('refuses to recover a publication that belongs to another scope', async () => {
+    const a = detailFor(7, '范围A', 'A字段');
+    a.latestPublication = { ...publication('FAILED'), scopeId: 9 };
+    mocks.api.getFormTemplates.mockResolvedValue([
+      {
+        templateKey: 'issue_reply',
+        displayName: 'Issue 回复',
+        status: 'ACTIVE',
+        scopes: [a.scope],
+      },
+    ]);
+    mocks.api.getFormScope.mockResolvedValue(a);
+    const view = await mountView();
+    const recover = recoverButton(view);
+    expect(recover).toBeTruthy();
+    await recover!.trigger('click');
+    await flushPromises();
+    expect(mocks.api.recoverFormPublication).not.toHaveBeenCalled();
+  });
+});
