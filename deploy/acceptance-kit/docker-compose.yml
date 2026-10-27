@@ -62,7 +62,7 @@ services:
         letsencrypt['enable'] = false
         postgresql['listen_address'] = '0.0.0.0'
         postgresql['md5_auth_cidr_addresses'] = ['0.0.0.0/0']
-        postgresql['sql_user_password'] = '${GITLAB_DB_PASSWORD:?}'
+        postgresql['sql_user_password'] = '${GITLAB_DB_PASSWORD_MD5:?}'
         gitlab_rails['db_password'] = '${GITLAB_DB_PASSWORD:?}'
         gitlab_rails['gitlab_email_enabled'] = false
         gitlab_rails['smtp_enable'] = false

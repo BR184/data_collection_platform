@@ -1,6 +1,7 @@
 """验收套件配置生成和元数据预检的确定性回归测试。"""
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import os
 from pathlib import Path
@@ -30,6 +31,8 @@ class InitEnvironmentTest(unittest.TestCase):
             self.assertEqual("127.0.0.1", values["WEB_BIND"])
             self.assertEqual("http://10.1.2.3:20280", values["GITLAB_PUBLIC_URL"])
             self.assertTrue(values["COMPOSE_PROJECT_NAME"].startswith("dcp-delay-test-"))
+            expected_md5 = hashlib.md5((values["GITLAB_DB_PASSWORD"] + "gitlab").encode()).hexdigest()
+            self.assertEqual(expected_md5, values["GITLAB_DB_PASSWORD_MD5"])
             passwords = [values[key] for key in values if key.endswith("PASSWORD")]
             self.assertEqual(len(passwords), len(set(passwords)))
             for password in passwords:
@@ -59,6 +62,14 @@ class InitEnvironmentTest(unittest.TestCase):
             result = subprocess.run([sys.executable, str(KIT / "init-env.py"), "--server", "bad'host"], cwd=directory, capture_output=True)
             self.assertNotEqual(0, result.returncode)
             self.assertEqual([], list(Path(directory).iterdir()))
+
+
+class ComposeWiringTest(unittest.TestCase):
+    def test_gitlab_uses_md5_verifier_and_plaintext_rails_password(self) -> None:
+        compose = (KIT / "docker-compose.yml").read_text(encoding="utf-8")
+        self.assertIn("postgresql['sql_user_password'] = '${GITLAB_DB_PASSWORD_MD5:?}'", compose)
+        self.assertIn("gitlab_rails['db_password'] = '${GITLAB_DB_PASSWORD:?}'", compose)
+        self.assertNotIn("postgresql['sql_user_password'] = '${GITLAB_DB_PASSWORD:?}'", compose)
 
 
 class MetadataPreflightTest(unittest.TestCase):

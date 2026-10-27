@@ -63,6 +63,8 @@ python3 init-env.py --server '<本服务器内网IP或DNS名>'
 
 `WEB_BIND` 默认127.0.0.1。需要工作站访问时，设为该服务器的内网接口IP并配置仅验收人员可访问的防火墙规则。`GITLAB_PUBLIC_URL` 必须与 GitLab 实际外部访问地址、端口一致。改变GitLab PG端口时，同时修改 `.secrets/target.pgpass`，后续设置 `TARGET_PGPORT`；改变GitLab Web端口时同步修改URL。
 
+`GITLAB_DB_PASSWORD_MD5` 由 `init-env.py` 按 `md5(GITLAB_DB_PASSWORD + 'gitlab')` 生成，供 GitLab 内部数据库账号使用；若手工改动 `GITLAB_DB_PASSWORD`，必须同步重算该值，否则 GitLab 首次启动会因数据库认证失败反复重启。
+
 保持 `BACKGROUND_JOBS_ENABLED=false`、`DELETE_RECONCILIATION_ENABLED=false`。不要复制生产 `.env`。
 
 ```bash
@@ -159,7 +161,7 @@ docker compose up -d backend
 | --- | --- |
 | 数据库地址/端口 | `gitlab:5432`，不是宿主机映射端口 |
 | 数据库名/账号 | `gitlabhq_production` / `gitlab` |
-| 数据库密码 | 本测试目录 `.env` 的 `GITLAB_DB_PASSWORD` |
+| 数据库密码 | 本测试目录 `.env` 的 `GITLAB_DB_PASSWORD`（明文，不是 `GITLAB_DB_PASSWORD_MD5`） |
 | Web/API地址 | `http://gitlab`，后端可达；人工浏览器使用外部URL |
 | API令牌 | 上一步新建的测试PAT |
 | 延期写回 | 先关闭 |

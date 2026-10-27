@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 from pathlib import Path
 import secrets
@@ -23,6 +24,8 @@ def main() -> None:
     os.umask(0o077)
     token = secrets.token_hex(24)
     glpass = secrets.token_hex(24)
+    # Omnibus 会把 sql_user_password 前缀为 md5 并交给 PostgreSQL 原样存储，校验值按 md5(口令+用户名) 生成。
+    glpass_md5 = hashlib.md5((glpass + "gitlab").encode()).hexdigest()
     values = {
         "COMPOSE_PROJECT_NAME": "dcp-delay-test-" + secrets.token_hex(5),
         "BACKEND_IMAGE": "qa-flex-platform-backend:20261026-d52-delay-candidate",
@@ -31,6 +34,7 @@ def main() -> None:
         "PLATFORM_APPROVAL_PASSWORD": secrets.token_hex(24),
         "GITLAB_ROOT_PASSWORD": secrets.token_hex(24),
         "GITLAB_DB_PASSWORD": glpass,
+        "GITLAB_DB_PASSWORD_MD5": glpass_md5,
         "GITLAB_PUBLIC_URL": f"http://{args.server}:20280",
         "FRONTEND_PORT": "20201", "BACKEND_PORT": "20200",
         "PLATFORM_DB_PORT": "25433", "GITLAB_WEB_PORT": "20280", "GITLAB_DB_PORT": "25434",
