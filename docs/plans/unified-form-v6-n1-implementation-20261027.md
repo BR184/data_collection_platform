@@ -2,6 +2,7 @@
 
 ## 进度与中间物
 
+- [二次整改交付，2026-10-28] 输入`e3c7e42a`：本轮五项复验观察先转为正式失败回归（最终测试在基线实现上11/11转红），再修R01—R03后端；定向35项与默认后端套件2044/0/0/1全绿，详见[N1二次整改交付与送审](#n1-second-remediation)。R04/R05保持关闭；等待再次复验，N2、main与正式包未准入。
 - [当前复验结论，2026-10-28] 审核输入`f698aad7af511ab07c5fa014f18bb36dff75a97a`：**修改后重审，N2未准入**。R04/R05关闭，R01/R02/R03仍有真实PG反例，见[首次整改复验与当前执行单](#n1-remediation-review)。双远端已核对，审核专属树已快进吸收，员工树只读；审核证据归本树`.tmp/n1-rereview-20261028/`，不使用15432/15433或业务服务，批准前端不动。
 - [审核结论] 输入`2ac212f16193a49a3e87d36745c609eaa54b24f0`首次验收：**修改后重审，N2未准入**。N1-R01—R04为P1实现缺陷，N1-R05为P2环境与验证整改；详见[首次验收与整改执行单](#n1-first-review)。N0既有批准保持。
 - [审核恢复] 审核树`C:/Users/admin/.codex/worktrees/form-admin-ui/data_collection_platform` / `codex/form-admin-ui-20261027`已快进吸收输入；员工树`D:/projects/dcp-form-w4-20261026`只读。审核证据归本树`.tmp/n1-review-20261027/`；独立正式测试12/0/0/0，并以真实PG复现八项边界观察。未使用15432/15433、共享服务、业务页面或外部调用。
@@ -9,7 +10,7 @@
 - [已完成] P1 `V20261027_01__form_v6_directory.sql`（范围集合/版本角色/实例模式/来源表、定位目录、可比登记表、目录事件/游标/水位、`form_spec_hash`/`form_source_set_hash`/`form_create_fingerprint`/`form_advance_record_sequence`、可读集合视图），校验和已登记（159→160，仅新增）；P2 `FormV6RegistrationService`（路径A/B、precheck 一致性强制、守恒断言、幂等重入、漂移/重复归属/证据缺失整体拒绝）与 `FormRecordDirectoryService`（目录写入接入六步创建、跨版重放按 origin 证据复算 v5 指纹）；P3 `FormRecordDirectoryReader`（find/listByResource/captureSourceSet，排除 TARGET/LEGACY_SNAPSHOT，延迟回表）；稳定语义登记 `FormComparableRegistrationService`（声明=冻结类型校验、身份冲突拒绝）。
 - [整改交付] 已快进吸收审核回执`0617d4d5`（仅文档，frontend相对`94749f3a`零差异）。R01：承载证据改为确定性全值快照（业务值、修订号、作废、更新时间、实例与完整资源C、origin规格哈希），持锁后重算并与预检比对；幂等重入逐条比对目录行并按统一读源实际回表，部分目录/同数量错身份/证据不符一律409输出差异，失败零副作用。R02：归属判定只信任`FormScopeValidationService`的真实绑定范围，唯一属于他范围的旧行不入本次选集，真重叠与未覆盖仍整体拒绝；承载实例的来源配置/来源实例/地址/项目/资源类型/模板必须落在范围绑定内，目录写实例自身证据，不由范围伪造来源。R03：`LEGACY_DEMO_FIELD_SPEC`物理列改回旧表真实列（`reviewer`、五个`*_score`、`remark`等），NONE记录按版本登记的`source_table`原位回读，业务读取排除作废并核验承载身份/完整C/创建人，缺行或失配明确拒绝，`find`与`listByResource`共用同一载荷契约（键为冻结规格物理列名），另保留`findIncludingVoided`显式定位用途并返回作废状态。R04：路径B登记前复用`FormVersionSchemaService`+`FormVersionStructureVerifier`完整结构核验，路径A新增旧物理表列与类型契约核验；删除“先迁满160条再插数据”的伪升级用例，新增`FormV6LegacyUpgradeIntegrationTest`：同一独占容器先`target=20261022.03`（159条）写入真实非空旧Demo与v5多副本，冻结原行/规格/首次指纹/迁移历史/序列快照，再升至head并逐行比对守恒、角色与形状默认值，最后在升级库上真实完成路径B与路径A登记及统一读源；版本夹具改用正式生成器+核验器建表。
 - [整改验证快照] 定向正式测试20项全绿（迁移3、登记10、语义与读源6、真实升级1），在最终字节状态复跑一次；默认后端套件2029项0失败0错误1跳过（既有`GitlabWhitelistServiceIntegrationTest`），连接串显式绑定本任务专属容器`dcp-n1r-test-pg-15499`（`127.0.0.1:15499`），收尾已删除并回读为0残留。本轮未连接15432/15433，未回退或改写共享对象；共享环境的历史误操作只做只读取证，见`N1-R05只读取证与隔离收口`。首次交付的12/0/0/0与三轮默认套件结果不再当作本轮证据引用。
-- [阻塞] 首次整改复验确认R01/R02/R03尚未关闭；R04/R05已关闭，不重做已关闭项。复验通过前N2、W5、main与正式包仍不准入。以下员工交付快照不代替当前审核结论。
+- [阻塞] 二次整改已交付，等待审核复验R01—R03关闭。R04/R05保持关闭，不重做已关闭项。复验通过前N2、W5、main与正式包仍不准入。以下员工交付快照不代替当前审核结论。
 
 ### 恢复信息
 
@@ -167,3 +168,47 @@
 1. 原专属树核对干净状态、AGENTS、输入及归属，快进吸收本审核回执；只在原N1计划下整改R01/R02/R03。R04/R05保留关闭，不重跑历史突变或重复取证共享库。
 2. 先把本轮五项观察转为正式失败回归，再修N1后端。测试使用本任务自有容器/库；不使用共享15432/15433，不改UI，不进入N2/N3/N4/W5，不合main、不出包、不运行黄金。
 3. 最终状态执行受影响的四类N1 PG测试、一次相称默认套件及仓库护栏；提交完整差异、逐项证据、输入指纹和资源清理。既有160条迁移不改，确需DDL纠正只新增前向迁移。按职责提交并推送双远端，回读后送N1再次复验。
+
+<a id="n1-second-remediation"></a>
+
+## N1二次整改交付与送审（2026-10-28）
+
+**结论：R01—R03已按五项反例整改并送复验；R04/R05保持关闭。** 输入`e3c7e42a`（仅文档，实现同`f698aad7`），只改N1后端、正式测试与文档；N2/W5/main/正式包仍未准入，批准UI`94749f3a`与160条既有迁移不变。
+
+### 五项观察 → 正式回归（先红后绿）
+
+| 观察 | 正式回归 |
+| --- | --- |
+| R01 NULL 与空串指纹相同 | `shouldDistinguishNullFromEmptyStringInCarrierEvidence`；`FormEvidenceCodecTest`（NULL/空串/分隔符位移/数值文本） |
+| R01 非承载旧副本变化未进入指纹 | `shouldDetectChangesInNonCarrierCopies` |
+| R01 完成后源变化仍返回已登记 | `shouldRejectReentryWhenSourceChangedAfterRegistration`（A/B 重入） |
+| R02 绑定哈希损坏仍登记成功 | `shouldRejectCopiedRegistrationWhenActiveScopeBindingHashIsCorrupted` |
+| R02 来源配置/实例失配 | `shouldRejectRegistrationWhenScopeSourceConfigOrInstanceMismatches` |
+| R02 版本项目不在集合 | `shouldRejectLegacyRegistrationWhenVersionProjectIsOutsideScopeProjects` |
+| R02 指针归属错误 | `shouldRejectRegistrationWhenScopePointerBelongsToAnotherScope` |
+| R02 锁等待期间绑定改变 | `shouldRejectWhenBindingChangesWhileRegistrationWaitsForScopeLock`（真实PG行锁交错） |
+| R03 物理记录实例ID与目录不同 | `shouldRejectReadWhenPhysicalRecordPointsToAnotherInstanceId` |
+| R03 实例所属范围不同 | `shouldRejectReadWhenInstanceBelongsToAnotherScope` |
+| R03 实例模板不同 | `shouldRejectReadWhenInstanceTemplateDiffersFromScope` |
+
+R03 三项均分别覆盖`find`、`listByResource`、`findIncludingVoided`；R02 损坏用例的 ACTIVE 范围在用例结束前归还为 RETIRED，避免共享测试库内的损坏绑定污染同类用例的全局复核。
+
+### 实现
+
+- R01：新增`FormEvidenceCodec`，按标量类型与NULL边界生成确定性证据（`null/str/int/dec/bool/date/time/arr`），替代`nullToEmpty`与未转义分隔符。A路径逐行覆盖旧表全值、作废与时间；B路径覆盖每个参与承载/丢失判定的副本（含非承载旧副本）的身份、实例、origin/storage冻结规格哈希、修订、作废、账号、请求键与逐列值。A/B重入先核对持久完成证据（`form_directory_events.payload->>'rowHash'`+carrierKind+`evidenceVersion=2`），源变化或证据缺失一律409并输出差异，不用当前源哈希冒充历史登记。
+- R02：A/B在同一事务持锁后重新读取范围，并复用`FormScopeValidationService`（`validateActiveScopes`+`listCoverageScopes`）判定完整绑定/来源/版本项目/指针与归属；预检同样拒绝无效绑定；锁等待期间绑定改变按当前证据拒绝。路径A目录来源配置改用范围绑定的`sourceConfigId`，不再按URL反推（同URL多配置存在歧义）。
+- R03：`FormRecordDirectoryReader`在完整C/创建人校验前新增承载身份核验：物理记录实例ID=目录实例ID、实例属于目录范围、实例模板=范围模板；三条入口共用同一实现。
+- 无新增迁移；R04/R05未重做。
+
+### 验证
+
+- RED：最终11项正式回归在`e3c7e42a`基线上11/11失败（非编译或夹具错误），日志`red-round2-final-v2.log`；`FormEvidenceCodec`为新增类型，编解码4项单测不适用于基线运行。
+- GREEN：`FormEvidenceCodecTest`+四类N1 PG测试共35项、0失败0错误0跳过，`BUILD SUCCESS`（登记18、语义与读源9、迁移3、真实升级1、编解码4），日志`green-round2-final.log`。
+- 默认后端套件：专属容器`dcp-n1r2-test-pg-15499`（`127.0.0.1:15499`，`postgres:16-alpine`）**2044项、0失败、0错误、1跳过**（既有`GitlabWhitelistServiceIntegrationTest`），27:15，`BUILD SUCCESS`。首次运行在16个既存容器并行负载下MySQL Testcontainers启动等待超时（1项错误），该用例单跑42.8s通过；同代码状态重跑整套得到上述全绿结果，两份日志均保留。容器已删除并回读0残留。
+- 护栏：160条迁移锁零改动；artifacts/runtime/whitespace/`git diff --check`通过；frontend相对`94749f3a`零差异。
+- 证据：本树`.tmp/w4-n1r2-20261028/`（RED/GREEN/默认套件日志、`red-evidence.md`、重跑日志）。
+
+### 边界与下一步
+
+- 未使用15432/15433承载业务测试、未启动共享业务服务、未运行黄金、未访问内网/真实GitLab、未改UI。
+- 复验通过前不进入N2，不合main、不出包；若审核给出新反例，仍以本文件整改执行单为唯一关闭入口。
