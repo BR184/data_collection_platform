@@ -4,16 +4,17 @@
 
 - [当前阶段] N1 输入`369194aa`通过，R01—R05 全部关闭，N2 准入。按[N2 准入与执行指令](unified-form-system-implementation-plan-20261021.md#n2-admission)实施当前版新建、所属版编辑/作废、跨版重放、多版本 detail 与草稿 v2；管理页 UI、后台壳/样式维持`94749f3a`。N3—N5/W5/main/正式包未准入。
 - [已完成] 已快进吸收审核回执`6329590a`；N1 活动计划按规则收口删除，过程可用`git show 369194aa:docs/plans/unified-form-v6-n1-implementation-20261027.md`恢复。
-- [进行中] P0 已完成；P1 后端多版记录服务与 DTO 已完成并通过`FormRecordServiceIntegrationTest`29/0/0/0、`FormTemplateAdminIntegrationTest`17/0/0/0（含新增两版编辑/作废、多版 detail、跨版同人提示回归）。P2 填写页多版本与草稿 v2、P3 验证/浏览器验收/送审待做。
+- [完成状态] P0/P1/P2/P3 全部完成，已送 N2 验收。真实 PG 定向 80/0/0/0（`FormRecordServiceIntegrationTest`34、`FormV6RegistrationIntegrationTest`20、`FormComparableRegistrationIntegrationTest`9、`FormTemplateAdminIntegrationTest`17）；最终默认后端套件 2056/0/0/1（仅既有`GitlabWhitelistServiceIntegrationTest`跳过），专属容器`127.0.0.1:15499`，24:52，15:51:56 `BUILD SUCCESS`，跑完已删除并回读 0 残留；前端 typecheck/lint/916 项 Vitest/build 全绿；真实服务浏览器验收 58 项检查、28 张截图全通过。
+- [实现] 后端：detail 返回`currentVersionId/readableVersions/versionSpecs/sourceSetRevision/sourceSetHash`及逐条`storageVersionId/originVersionId`；编辑/作废按目录承载版本、`expectedStorageVersionId`、冻结规格、本人归属与 recordVersion CAS 执行，不搬表；新建只写当前版本；同 key 重放按 origin 冻结规格与首次指纹；跨版同人提示扫描全部有效权威版本；NONE/LEGACY 退役范围只读，原位记录按登记`source_table`回读；大 ID 以十进制字符串返回，`recordVersion`保持数字。前端：记录按`versionSpecs[storageVersionId]`渲染/校验/编辑，作废携带自身承载版本；草稿键 v2 并读取时就地升级 v1（保留 draftId/requestKey/首次快照/baseStorageVersionId），写 v2 后删除 v1；管理页、后台壳与样式未改。
 - [阻塞] 无。
-- [证据] 本计划与`.tmp/w4-n2-20261028/`；N1 证据历史保留。
+- [证据] 后端定向与浏览器证据在`.tmp/w4-n2-20261028/`（`input-manifest.json`、`evidence/acceptance-summary.json`、截图、`environment.md`）；最终默认套件日志`.tmp-logs/n2-default-suite-final.log`，专属容器`dcp-n2-test-pg-15499-final`与验收容器`dcp-n2-acceptance-pg-20261028`均已删除，回读 0 残留。环境记录：一次未关闭后台调度的验收后端启动时，迁移种子中的 match-mode 配置尝试连接`172.22.10.72:27017`，连接失败且无写入；随后所有验收后端均以`--platform.background-jobs.enabled=false`启动，未再出现外部连接。N1 证据历史保留。
 
 ### 恢复信息
 
 1. **阶段与首条恢复命令**：先读 AGENTS、`docs/progress.md`、主方案与 N0 合同（`v6-n0-technical-admission-20261027.md` §2/§6）及本文件，执行 `git status --short --branch`、`git worktree list`。基线 `6329590a`，分支 `codex/unified-form-w4-isolation-20261026`，worktree `D:/projects/dcp-form-w4-20261026`。前序：N1（已通过，计划已删）。
 2. **原始需求与成功标准**：按主方案 N2 行与 N0 §2/§6：当前版新建；编辑/作废按目录`storage_version_id`与`expectedStorageVersionId`定位并按该版冻结规格校验；跨版 key 重放按 origin 证据；detail 返回`currentVersionId/readableVersions/versionSpecs/sourceSetRevision/sourceSetHash`及每条`storageVersionId/originVersionId`；bigint 一律十进制字符串，`recordVersion`为 number；草稿 v1→v2 迁移；真实 PG + 浏览器验收。禁止：改管理页/后台壳/样式；N3—N5/W5；合 main、出包、黄金运行；改 160 条迁移；默认 15432/15433 与共享服务。
 3. **业务/API/数据/环境约束**：编辑/作废只接受`AUTHORITATIVE`承载版本；`originVersionId`仅展示/重放；NONE/旧 Demo 缺创建人只读；退役范围只读；作废从业务读取排除；新建/编辑/作废失败全回滚，重放零新增记录/审计/head；未知结果先核验；401 不删草稿。
-4. **提交、日志与根因证据**：N1 实现`4985c53c`、审核回执`6329590a`；N2 证据待生成；MySQL 就绪竞态为已知范围外环境问题，独立记录不掩盖。
+4. **提交、日志与根因证据**：N1 实现`4985c53c`、审核回执`6329590a`；N2 后端实现`069d14f5`、计划`c49b2d3e`；验证日志`.tmp-logs/n2-default-suite-final.log`、`environment.md`与`input-manifest.json`随最终提交留痕；MySQL 就绪竞态为已知范围外环境问题，独立记录不掩盖；一次验收后端后台调度尝试外部 Mongo 的连接失败已记录，此后调度关闭。
 5. **步骤与依赖**：P1 DTO/读侧/写侧 → P2 前端会话/卡片/草稿 → P3 测试与浏览器验收。前端依赖 P1 契约；P3 依赖 P1/P2。
 6. **选定/否决方案**：detail 复用`FormRecordDirectoryReader.captureSourceSet`与按版本冻结规格读取，不新增平行读源；编辑/作废新增`expectedStorageVersionId`并复用目录定位，不保留旧“当前表+current pointer”写路径（内部破坏性调整，删除旧路径与调用者）。否决：为兼容保留 `_V2` 别名或双轨。
 7. **API/表结构/关键常量**：DTO 扩展至 N0 §6.1（`FormDetailResponse`增加 currentVersionId/readableVersions/versionSpecs/sourceSetRevision/sourceSetHash；`FormRecordView`增加 storageVersionId；`FormUpdateRequest/FormVoidRequest`增加 expectedStorageVersionId）。无新增迁移（如确需另行申请）。历史测试夹具`FormV6TestSupport`继续复用。

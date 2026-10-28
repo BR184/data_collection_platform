@@ -1,3 +1,12 @@
+## 2026-10-28 表单N2交付送验
+
+- [结论] 已快进吸收`6329590a`，在专属树完成[N2原版记录服务与填写页](plans/unified-form-v6-n2-implementation-20261028.md)并送验；N1通过结论与UI`94749f3a`保持。本次仅改批准填写页功能，管理页、后台壳与样式未动；N3—N5/W5、真实切换、main与正式包仍未准入。
+- [实现] 后端：detail 返回`currentVersionId/readableVersions/versionSpecs/sourceSetRevision/sourceSetHash`及逐条`storageVersionId/originVersionId`；新建只写当前版本；编辑/作废按目录承载版本、`expectedStorageVersionId`、该版冻结规格、本人归属与`recordVersion` CAS执行，不搬表；同key重放按origin冻结规格与首次指纹跨目录核验；跨版同人提示覆盖全部有效权威版本；NONE/LEGACY退役范围与无创建人记录只读；大ID十进制字符串、`recordVersion`数字。前端：每条记录按`versionSpecs[storageVersionId]`渲染/校验/编辑/作废，旧链接展示原记录原值、新字段不回填；草稿键升v2并在读取时就地迁移v1（保留draftId/requestKey/首次快照/baseStorageVersionId），写v2成功后删v1，未知状态仍先核验，401不删草稿。
+- [验证] 定向真实PG 80/0/0/0（记录服务34、v6登记20、可比登记9、管理页17）；最终默认后端套件2056/0/0/1（仅既有`GitlabWhitelistServiceIntegrationTest`跳过），专属`127.0.0.1:15499`，24:52，15:51:56 `BUILD SUCCESS`，容器已删除回读0残留；前端typecheck/lint、916/916 Vitest、build全绿；真实服务浏览器验收58项检查、28张截图，覆盖MR/Issue响应/Issue回复、双用户多标签、v1→v2草稿、旧版编辑作废、401换账号、未知核验与迟到响应。证据`.tmp/w4-n2-20261028/`（`input-manifest.json`、`evidence/`）与`.tmp-logs/n2-default-suite-final.log`；前端相对`94749f3a`仅8个批准填写页文件有差异。
+- [环境] 一次未关闭后台调度的验收后端启动时，迁移种子中的match-mode配置尝试连接`172.22.10.72:27017`，连接失败且无写入；此后所有验收后端均以`--platform.background-jobs.enabled=false`启动，未再出现外部连接。未使用15432/15433或共享服务承载业务测试，未回退或重启共享容器。
+- [边界] 未新增迁移（160条零改动）、未运行黄金/未更新快照、未改批准UI、未访问内网/真实GitLab/机器人；N3发布执行器、N4事实统计导出与消费、真实权限/登记未进入。
+- [下一步] 等待N2验收；验收通过前不进入N3，不合并main、不出正式包。
+
 ## 2026-10-28 表单N1通过，N2准入
 
 - [结论] 批准输入`369194aa`（实现`4985c53c`），R01—R05全部关闭；[N1批准及验证](plans/unified-form-system-implementation-plan-20261021.md#n1-approval)。准入[N2原版记录服务与填写页](plans/unified-form-system-implementation-plan-20261021.md#n2-admission)，尚未实施；N3—N5/W5、真实切换、main与正式包仍按原门禁。
