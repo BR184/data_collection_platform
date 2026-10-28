@@ -130,6 +130,17 @@ final class FormV6TestSupport {
          "storage":{"column":"score","columnType":"integer"}}]}
       """;
 
+  /** 真实多选规格：单个元素 "a, b" 与两个元素 "a"/"b" 都是合法选项。 */
+  static final String SPEC_ARRAY =
+      """
+      {"spec_version":1,"template_key":"code_review","conditions":[],"dictionaries":[],
+       "fields":[
+        {"name":"标签","apiKey":"tags","type":"enum-array","required":false,
+         "options":[{"value":"a","label":"甲"},{"value":"b","label":"乙"},
+                    {"value":"a, b","label":"甲逗号乙"}],
+         "storage":{"column":"tags","columnType":"text[]"}}]}
+      """;
+
   static long insertSourceConfig(JdbcTemplate jdbc, String webBaseUrl) {
     return jdbc.queryForObject(
         """

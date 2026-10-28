@@ -985,6 +985,113 @@ class FormV6RegistrationIntegrationTest {
     throw new IllegalStateException("登记线程未在超时内进入范围行锁等待");
   }
 
+  // ===== 复验第三轮：N1-R01 真实JDBC数组证据 =====
+
+  @Test
+  void shouldDistinguishJdbcArrayBoundariesInRegistrationEvidence() {
+    FormV6TestSupport.WiredServices services = wired();
+    JdbcTemplate jdbc = services.jdbc();
+    long configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
+    long scopeId = FormV6TestSupport.insertScope(
+        jdbc, "code_review", "n1-array", configId, URL, 29, "DRAFT");
+    FormV6TestSupport.FixtureTables v1 = FormV6TestSupport.createRecordVersion(
+        jdbc, scopeId, "code_review", "V1", FormV6TestSupport.SPEC_ARRAY, "PUBLISHED", true);
+    FormV6TestSupport.FixtureTables v2 = FormV6TestSupport.createRecordVersion(
+        jdbc, scopeId, "code_review", "V2", FormV6TestSupport.SPEC_ARRAY, "PUBLISHED", true);
+    FormV6TestSupport.activateScope(jdbc, scopeId, v2.versionId());
+    insertArrayCarrier(jdbc, scopeId, configId, v1, v2, 29, 7001, "a, b");
+
+    String registered =
+        services.registrationService().precheckCopiedRecords(scopeId).rowHash();
+    assertThat(services.tx().execute(status ->
+            services.registrationService().registerCopiedRecords(
+                scopeId, "operator", 1, registered)).status())
+        .isEqualTo("REGISTERED");
+    int revision = jdbc.queryForObject(
+        "select source_set_revision from form_template_scopes where id = ?", Integer.class,
+        scopeId);
+
+    // 单个元素 "a, b" 与两个元素 "a"/"b" 均为合法选项，但属于不同源值。
+    jdbc.update("update " + v1.recordTable()
+        + " set tags = array['a', 'b']::text[] where id = 7001");
+    assertThatThrownBy(() ->
+            services.registrationService().precheckCopiedRecords(scopeId))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("登记后源证据已变化");
+    // 携带旧预检重入同样 409：当前源哈希已不同于登记时保存的证据。
+    assertThatThrownBy(() -> services.tx().execute(status ->
+            services.registrationService().registerCopiedRecords(
+                scopeId, "operator", 1, registered)))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("源已变化");
+    // 失败零副作用：目录、事件、集合修订与承载行保持不变。
+    assertThat(jdbc.queryForObject(
+        "select count(*) from form_record_locations where scope_id = ?", Integer.class, scopeId))
+        .isEqualTo(1);
+    assertThat(jdbc.queryForObject(
+        "select count(*) from form_directory_events where scope_id = ?", Integer.class, scopeId))
+        .isEqualTo(1);
+    assertThat(jdbc.queryForObject(
+        "select source_set_revision from form_template_scopes where id = ?", Integer.class,
+        scopeId)).isEqualTo(revision);
+    assertThat(jdbc.queryForObject(
+        "select tags::text from " + v2.recordTable() + " where id = 7001", String.class))
+        .isEqualTo("{\"a, b\"}");
+
+    // 新范围：预检后数组元素边界变化，旧预检必须失效且登记零写入。
+    long driftScope = FormV6TestSupport.insertScope(
+        jdbc, "code_review", "n1-array-drift", configId, URL, 30, "DRAFT");
+    FormV6TestSupport.FixtureTables driftV1 = FormV6TestSupport.createRecordVersion(
+        jdbc, driftScope, "code_review", "V1", FormV6TestSupport.SPEC_ARRAY, "PUBLISHED", true);
+    FormV6TestSupport.FixtureTables driftV2 = FormV6TestSupport.createRecordVersion(
+        jdbc, driftScope, "code_review", "V2", FormV6TestSupport.SPEC_ARRAY, "PUBLISHED", true);
+    FormV6TestSupport.activateScope(jdbc, driftScope, driftV2.versionId());
+    insertArrayCarrier(jdbc, driftScope, configId, driftV1, driftV2, 30, 7101, "a, b");
+    String beforeDrift =
+        services.registrationService().precheckCopiedRecords(driftScope).rowHash();
+    jdbc.update("update " + driftV1.recordTable()
+        + " set tags = array['a', 'b']::text[] where id = 7101");
+    assertThatThrownBy(() -> services.tx().execute(status ->
+            services.registrationService().registerCopiedRecords(
+                driftScope, "operator", 1, beforeDrift)))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("precheck与register之间源已变化");
+    assertThat(jdbc.queryForObject(
+        "select count(*) from form_record_locations where scope_id = ?", Integer.class,
+        driftScope)).isZero();
+    assertThat(jdbc.queryForObject(
+        "select count(*) from form_directory_events where scope_id = ?", Integer.class,
+        driftScope)).isZero();
+  }
+
+  /** 建 v1 原始副本与 v2 承载副本，tags 使用真实 text[] 数组值。 */
+  private static void insertArrayCarrier(
+      JdbcTemplate jdbc,
+      long scopeId,
+      long configId,
+      FormV6TestSupport.FixtureTables v1,
+      FormV6TestSupport.FixtureTables v2,
+      long projectId,
+      long recordId,
+      String... tags) {
+    long originInstance = FormV6TestSupport.insertInstance(
+        jdbc, v1.instanceTable(), scopeId, configId, URL, projectId, recordId);
+    String arrayLiteral = "array[" + java.util.Arrays.stream(tags)
+        .map(tag -> "'" + tag.replace("'", "''") + "'")
+        .collect(java.util.stream.Collectors.joining(", ")) + "]::text[]";
+    jdbc.update("insert into " + v1.recordTable()
+            + "(id, instance_id, origin_version_id, record_version, tags, created_at, updated_at)"
+            + " values (?, ?, ?, 1, " + arrayLiteral + ", current_timestamp, current_timestamp)",
+        recordId, originInstance, v1.versionId());
+    long carrierInstance = FormV6TestSupport.insertInstance(
+        jdbc, v2.instanceTable(), scopeId, configId, URL, projectId, recordId);
+    jdbc.update("insert into " + v2.recordTable()
+            + "(id, instance_id, origin_version_id, record_version, tags, created_at, updated_at)"
+            + " select id, ?, origin_version_id, record_version + 1, tags, created_at,"
+            + " updated_at + interval '1 hour' from " + v1.recordTable() + " where id = ?",
+        carrierInstance, recordId);
+  }
+
   private static JsonNode json(String value) {
     return JsonNodeFactory.instance.textNode(value);
   }

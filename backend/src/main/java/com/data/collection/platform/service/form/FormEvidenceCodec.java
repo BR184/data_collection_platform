@@ -84,6 +84,21 @@ final class FormEvidenceCodec {
         throw new IllegalStateException("证据读取数组列失败", error);
       }
     }
+    // 已规范值可能再次进入本方法：List/数组必须保持元素边界，不能退化成文本。
+    if (value instanceof List<?> list) {
+      List<Object> result = new ArrayList<>(list.size());
+      for (Object item : list) {
+        result.add(canonical(item));
+      }
+      return result;
+    }
+    if (value instanceof Object[] items) {
+      List<Object> result = new ArrayList<>(items.length);
+      for (Object item : items) {
+        result.add(canonical(item));
+      }
+      return result;
+    }
     if (value instanceof java.sql.Timestamp timestamp) {
       return timestamp.toLocalDateTime();
     }
