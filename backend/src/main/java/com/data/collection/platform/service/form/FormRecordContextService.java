@@ -79,7 +79,7 @@ public class FormRecordContextService {
                    s.canonical_gitlab_base_url, s.project_ids::text as project_ids,
                    s.current_version_id, s.binding_hash,
                    v.version_label, v.version_status, v.storage_kind, v.instance_table,
-                   v.record_table, v.field_spec::text as field_spec
+                   v.record_table, v.instance_mode, v.field_spec::text as field_spec
               from form_template_scopes s
               join form_template_versions v on v.id = s.current_version_id
              where s.template_key = ? and s.resource_type = ?
@@ -102,6 +102,7 @@ public class FormRecordContextService {
                     rs.getString("storage_kind"),
                     rs.getString("instance_table"),
                     rs.getString("record_table"),
+                    rs.getString("instance_mode"),
                     rs.getString("field_spec")),
             key,
             type);
@@ -120,14 +121,24 @@ public class FormRecordContextService {
     if (matched == null) {
       throw new BizException(ResultCode.BAD_REQUEST, "该资源尚未登记表单模板范围");
     }
+    // 受控原位登记的 LEGACY/NONE 版本没有实例表与记录表，只允许只读回读历史记录。
+    boolean materialized =
+        "RECORDS".equals(matched.storageKind())
+            && matched.instanceTable() != null
+            && matched.recordTable() != null;
+    boolean legacyInPlace =
+        "LEGACY".equals(matched.storageKind()) && "NONE".equals(matched.instanceMode());
     if (matched.sourceConfigId() == null
         || matched.currentVersionId() == null
-        || matched.storageKind() == null
-        || !"RECORDS".equals(matched.storageKind())
-        || matched.recordTable() == null) {
+        || (!materialized && !legacyInPlace)) {
       throw new BizException(ResultCode.BAD_REQUEST, "表单范围当前版本不完整");
     }
-    validateTables(matched);
+    if (forWrite && !materialized) {
+      throw new FormConflictException("该范围仅有原位历史记录，不能写入");
+    }
+    if (materialized) {
+      validateTables(matched);
+    }
     if ("ACTIVE".equals(matched.status())) {
       validateSource(matched.sourceConfigId(), canonicalUrl);
     }
@@ -492,5 +503,6 @@ public class FormRecordContextService {
       String storageKind,
       String instanceTable,
       String recordTable,
+      String instanceMode,
       String fieldSpec) {}
 }

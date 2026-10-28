@@ -90,7 +90,8 @@ public class FormRecordService {
     requirePermission(actor, PlatformPermissionCodes.FORM_RECORD_CREATE);
     FormVersionContext current =
         contextService.resolve(templateKey, gitlabBaseUrl, projectId, resourceType, resourceId, false);
-    boolean writable = current.writable();
+    // 原位 LEGACY/NONE 版本没有实例表，只读展示历史记录。
+    boolean writable = current.writable() && current.recordTable() != null;
     FormRecordDirectoryReader.SourceSet sourceSet =
         directoryReader.captureSourceSet(current.scopeId());
     Map<String, JsonNode> versionSpecs = new LinkedHashMap<>();
@@ -120,7 +121,7 @@ public class FormRecordService {
     List<FormRecordView> records = new ArrayList<>(located.size());
     for (FormRecordDirectoryReader.LocatedRecord location : located) {
       FormVersionContext storage =
-          directoryService.storageVersionContext(current, location.storageVersionId());
+          directoryService.readVersionContext(current, location.storageVersionId());
       FormRecordRow row =
           "NONE".equals(location.instanceMode())
               ? legacyRow(location, storage)
@@ -139,7 +140,8 @@ public class FormRecordService {
             ? sourceSet.hash()
             : jdbcTemplate.queryForObject(
                 "select form_source_set_hash(?)", String.class, current.scopeId());
-    Long currentInstanceId = store.findInstanceId(current);
+    Long currentInstanceId =
+        current.instanceTable() == null ? null : store.findInstanceId(current);
     String displayName =
         identityService.displayNameForUser(actor.userId(), actor.displayName());
     return new FormDetailResponse(

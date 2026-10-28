@@ -8,6 +8,9 @@ import com.data.collection.platform.common.exception.FormConflictException;
 import com.data.collection.platform.domain.form.FormVersionSchema;
 import com.data.collection.platform.entity.form.FormActorContext;
 import com.data.collection.platform.entity.form.FormCreateResponse;
+import com.data.collection.platform.entity.form.FormDetailResponse;
+import com.data.collection.platform.entity.form.FormUpdateRequest;
+import com.data.collection.platform.security.PlatformPermissionCodes;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import java.sql.Connection;
@@ -109,6 +112,92 @@ class FormV6RegistrationIntegrationTest {
     assertThat(jdbc.queryForObject(
         "select count(*) from form_template_versions where scope_id = ?", Integer.class,
         scopeId)).isEqualTo(1);
+  }
+
+  @Test
+  void shouldExposeRegisteredLegacyRecordReadOnlyAndRejectWrites() {
+    FormV6TestSupport.WiredServices services = wired();
+    JdbcTemplate jdbc = services.jdbc();
+    long configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
+    long scopeId = FormV6TestSupport.insertScope(
+        jdbc, "code_review", "n2-legacy-readonly", configId, URL, 41, "DRAFT");
+    FormV6TestSupport.insertLegacyPair(jdbc, 941001, 941002, URL, 41);
+    jdbc.execute(
+        "create table if not exists ods_gitlab_merge_requests("
+            + "id bigint primary key, target_project_id bigint, iid bigint,"
+            + " mirror_deleted boolean default false)");
+    jdbc.execute(
+        "create table if not exists ods_gitlab_projects("
+            + "id bigint primary key, path varchar(255), namespace_id bigint,"
+            + " mirror_deleted boolean default false)");
+    jdbc.execute(
+        "create table if not exists ods_gitlab_namespaces("
+            + "id bigint primary key, path varchar(255), mirror_deleted boolean default false)");
+    jdbc.update(
+        "insert into ods_gitlab_merge_requests(id, target_project_id, iid, mirror_deleted)"
+            + " values (941041, 41, 941001, false)");
+    jdbc.update(
+        "insert into ods_gitlab_projects(id, path, namespace_id, mirror_deleted)"
+            + " values (41, 'legacy-project', 7, false)");
+    jdbc.update(
+        "insert into ods_gitlab_namespaces(id, path, mirror_deleted) values (7, 'team', false)");
+    FormV6RegistrationService.PrecheckReport precheck =
+        services.registrationService().precheckLegacyDemo(scopeId);
+    FormV6RegistrationService.RegistrationResult registered = services.tx().execute(status ->
+        services.registrationService().registerLegacyDemo(
+            scopeId, "operator", "LEGACY-N2", precheck.count(), precheck.rowHash()));
+    // 原位 LEGACY/NONE 范围不进入 ACTIVE 写指针（等待 N3 正式迁移），退役后只读展示历史。
+    jdbc.update("update form_template_scopes set status = 'RETIRED' where id = ?", scopeId);
+
+    FormActorContext actor =
+        new FormActorContext(
+            "alice",
+            "Alice",
+            java.util.Set.of(
+                PlatformPermissionCodes.FORM_RECORD_CREATE,
+                PlatformPermissionCodes.FORM_RECORD_EDIT_OWN,
+                PlatformPermissionCodes.FORM_RECORD_DELETE_OWN));
+    FormDetailResponse detail =
+        services.recordService().detail(
+            "code_review", URL, 41L, "merge_request", "941001", actor);
+
+    assertThat(detail.writable()).isFalse();
+    assertThat(detail.currentVersionId()).isEqualTo(detail.storageVersionId());
+    assertThat(detail.versionSpecs()).containsKey(detail.currentVersionId());
+    assertThat(detail.records()).singleElement().satisfies(record -> {
+      assertThat(record.id()).isEqualTo("941001");
+      assertThat(record.storageVersionId()).isEqualTo(detail.currentVersionId());
+      assertThat(record.originVersionId()).isEqualTo(detail.currentVersionId());
+      assertThat(record.canEdit()).isFalse();
+      assertThat(record.canVoid()).isFalse();
+      assertThat(record.fields()).containsEntry("reviewerUserId", "Alice");
+    });
+
+    // 原位历史版本没有实例表与创建人证据：即使拥有权限也不能写入。
+    assertThatThrownBy(
+            () ->
+                services.recordService().update(
+                    "941001",
+                    new FormUpdateRequest(
+                        URL,
+                        41L,
+                        "merge_request",
+                        "941001",
+                        "code_review",
+                        detail.scopeId(),
+                        detail.storageVersionId(),
+                        detail.storageVersionId(),
+                        1,
+                        Map.of("reviewerUserId", JsonNodeFactory.instance.textNode("Alice"))),
+                    actor,
+                    "127.0.0.1",
+                    "JUnit"))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("原位历史记录");
+    assertThat(jdbc.queryForObject(
+        "select reviewer from collect_form_records where id = 941001", String.class))
+        .isEqualTo("Alice");
+    assertThat(registered.directoryRows()).isEqualTo(2);
   }
 
   @Test

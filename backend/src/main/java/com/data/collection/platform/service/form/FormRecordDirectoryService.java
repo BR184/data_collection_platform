@@ -237,8 +237,34 @@ public class FormRecordDirectoryService {
     }
   }
 
+  /**
+   * 按目录承载版本构建只读展示上下文；NONE 原位旧表记录同样可读。
+   *
+   * <p>与写入上下文共用版本归属与权威状态校验，但不要求实例表：NONE 版本没有实例，
+   * 只允许按冻结规格原位回读。
+   */
+  public FormVersionContext readVersionContext(FormVersionContext current, long versionId) {
+    Map<String, Object> row = requireCarrierVersion(current, versionId);
+    if (!("PUBLISHED".equals(row.get("version_status"))
+        || "RETIRED".equals(row.get("version_status")))) {
+      throw new FormConflictException("目录承载版本未发布，不能读取记录");
+    }
+    return toVersionContext(current, versionId, row);
+  }
+
   /** 按目录承载版本构建写入上下文；只接受 AUTHORITATIVE 且可写的承载版本。 */
   public FormVersionContext storageVersionContext(FormVersionContext current, long versionId) {
+    Map<String, Object> row = requireCarrierVersion(current, versionId);
+    if (!"RECORDS".equals(row.get("storage_kind")) || row.get("record_table") == null) {
+      throw new FormConflictException("目录承载版本不含记录表，无法回表");
+    }
+    if (!"MATERIALIZED".equals(row.get("instance_mode"))) {
+      throw new FormConflictException("目录承载版本不是权威实例版本，不能编辑或作废");
+    }
+    return toVersionContext(current, versionId, row);
+  }
+
+  private Map<String, Object> requireCarrierVersion(FormVersionContext current, long versionId) {
     List<Map<String, Object>> rows =
         jdbcTemplate.queryForList(
             """
@@ -253,14 +279,18 @@ public class FormRecordDirectoryService {
       throw new FormConflictException("目录承载版本不属于当前范围");
     }
     Map<String, Object> row = rows.getFirst();
-    if (!"RECORDS".equals(row.get("storage_kind")) || row.get("record_table") == null) {
+    if (!"AUTHORITATIVE".equals(row.get("record_source_role"))) {
+      throw new FormConflictException("目录承载版本不是权威记录来源");
+    }
+    if ("MATERIALIZED".equals(row.get("instance_mode"))
+        && (!"RECORDS".equals(row.get("storage_kind")) || row.get("record_table") == null)) {
       throw new FormConflictException("目录承载版本不含记录表，无法回表");
     }
-    if (!"AUTHORITATIVE".equals(row.get("record_source_role"))
-        || !"MATERIALIZED".equals(row.get("instance_mode"))) {
-      throw new FormConflictException("目录承载版本不是权威实例版本，不能编辑或作废");
-    }
+    return row;
+  }
 
+  private FormVersionContext toVersionContext(
+      FormVersionContext current, long versionId, Map<String, Object> row) {
     String raw = (String) row.get("field_spec");
     return new FormVersionContext(
         current.scopeId(),

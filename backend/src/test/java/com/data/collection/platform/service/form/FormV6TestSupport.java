@@ -4,6 +4,7 @@ import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.domain.form.FormTemplateSpec;
 import com.data.collection.platform.domain.form.FormVersionSchema;
 import com.data.collection.platform.service.GitlabResourceLinkService;
+import com.data.collection.platform.service.PlatformIdentityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -40,6 +41,7 @@ final class FormV6TestSupport {
       FormV6RegistrationService registrationService,
       FormComparableRegistrationService comparableService,
       FormRecordWriteService writeService,
+      FormRecordService recordService,
       TransactionTemplate tx) {}
 
   static WiredServices wire(JdbcTemplate jdbc) {
@@ -74,6 +76,19 @@ final class FormV6TestSupport {
     FormRecordWriteService writeService =
         new FormRecordWriteService(
             jdbc, contextService, store, viewFactory, directoryService, reader, ClockStub.SYSTEM);
+    FormRecordService recordService =
+        new FormRecordService(
+            contextService,
+            fieldValueService,
+            writeService,
+            store,
+            viewFactory,
+            new FormReviewerDirectoryService(jdbc),
+            new PlatformIdentityService(jdbc, null),
+            directoryService,
+            reader,
+            jdbc,
+            objectMapper);
     DataSourceTransactionManager transactionManager =
         new DataSourceTransactionManager(jdbc.getDataSource());
     return new WiredServices(
@@ -88,6 +103,7 @@ final class FormV6TestSupport {
         registrationService,
         comparableService,
         writeService,
+        recordService,
         new TransactionTemplate(transactionManager));
   }
 

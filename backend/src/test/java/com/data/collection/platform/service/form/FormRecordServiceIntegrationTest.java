@@ -347,6 +347,63 @@ class FormRecordServiceIntegrationTest {
   }
 
   @Test
+  void shouldEditDifferentRecordsInParallelWithoutLosingVersions() throws Exception {
+    FormRecordView first =
+        createCodeReview("w2-reviewer-1", UUID.randomUUID().toString()).record();
+    FormRecordView second =
+        createCodeReview("w2-reviewer-2", UUID.randomUUID().toString()).record();
+    ObjectNode leftFields = codeReviewFields("w2-reviewer-1");
+    leftFields.put("specificationCount", 3);
+    ObjectNode rightFields = codeReviewFields("w2-reviewer-2");
+    rightFields.put("specificationCount", 4);
+
+    CountDownLatch ready = new CountDownLatch(2);
+    CountDownLatch start = new CountDownLatch(1);
+    ExecutorService pool = Executors.newFixedThreadPool(2);
+    try {
+      Future<FormRecordView> left =
+          pool.submit(
+              () -> {
+                ready.countDown();
+                start.await(10, TimeUnit.SECONDS);
+                return formRecordService.update(
+                    first.id(),
+                    updateRequest(codeReviewScopeId, codeReviewVersionId, 1, leftFields),
+                    actorA,
+                    "127.0.0.1",
+                    "JUnit");
+              });
+      Future<FormRecordView> right =
+          pool.submit(
+              () -> {
+                ready.countDown();
+                start.await(10, TimeUnit.SECONDS);
+                return formRecordService.update(
+                    second.id(),
+                    updateRequest(codeReviewScopeId, codeReviewVersionId, 1, rightFields),
+                    actorA,
+                    "127.0.0.1",
+                    "JUnit");
+              });
+      assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+      start.countDown();
+
+      FormRecordView leftResult = left.get(20, TimeUnit.SECONDS);
+      FormRecordView rightResult = right.get(20, TimeUnit.SECONDS);
+      assertThat(leftResult.recordVersion()).isEqualTo(2);
+      assertThat(rightResult.recordVersion()).isEqualTo(2);
+      assertThat(leftResult.fields().get("specificationCount")).isEqualTo(3);
+      assertThat(rightResult.fields().get("specificationCount")).isEqualTo(4);
+      assertThat(jdbcTemplate.queryForObject(
+          "select count(*) from form_record_audit_logs where operation = 'UPDATE'",
+          Integer.class))
+          .isEqualTo(2);
+    } finally {
+      pool.shutdownNow();
+    }
+  }
+
+  @Test
   void shouldNotResurrectVoidedRecordAndOnlyAuditVoidOnce() {
     FormRecordView created =
         createCodeReview("w2-reviewer-1", UUID.randomUUID().toString()).record();
@@ -587,6 +644,52 @@ class FormRecordServiceIntegrationTest {
                     "127.0.0.1",
                     "JUnit"))
         .isInstanceOf(AccessDeniedException.class);
+  }
+
+  @Test
+  void shouldRejectActorWithoutRecordPermissionsWithoutWriting() {
+    FormRecordView own =
+        createCodeReview("w2-reviewer-1", UUID.randomUUID().toString()).record();
+    FormActorContext noPermission =
+        new FormActorContext("w2-actor-none", "无权限账号", Set.of());
+    ObjectNode changed = codeReviewFields("w2-reviewer-1");
+    changed.put("specificationCount", 9);
+    int before = count("form_record_audit_logs");
+
+    assertThatThrownBy(
+            () ->
+                formRecordService.detail(
+                    FormTemplateSpecCatalog.CODE_REVIEW, GITLAB_URL, PROJECT_ID, "merge_request",
+                    Long.toString(MR_IID), noPermission))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(
+            () ->
+                formRecordService.create(
+                    codeReviewRequest("w2-reviewer-1", UUID.randomUUID().toString()),
+                    noPermission,
+                    "127.0.0.1",
+                    "JUnit"))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(
+            () ->
+                formRecordService.update(
+                    own.id(),
+                    updateRequest(codeReviewScopeId, codeReviewVersionId, 1, changed),
+                    noPermission,
+                    "127.0.0.1",
+                    "JUnit"))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(
+            () ->
+                formRecordService.voidRecord(
+                    own.id(),
+                    voidRequest(codeReviewScopeId, codeReviewVersionId, 1),
+                    noPermission,
+                    "127.0.0.1",
+                    "JUnit"))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThat(count(codeReviewRecordTable)).isEqualTo(1);
+    assertThat(count("form_record_audit_logs")).isEqualTo(before);
   }
 
   @Test
@@ -1435,6 +1538,238 @@ class FormRecordServiceIntegrationTest {
   }
 
   @Test
+  void shouldEditAndVoidOriginalVersionRecordWithoutMovingTablesWhenCurrentVersionAdvances() {
+    FormRecordView original =
+        createCodeReview("w2-reviewer-1", UUID.randomUUID().toString()).record();
+    VersionMigration published = publishSecondVersionKeepingRecords();
+    String v1 = Long.toString(codeReviewVersionId);
+    String v2 = Long.toString(published.newVersionId());
+    assertThat(count(published.oldRecordTable())).isEqualTo(1);
+    assertThat(count(published.newRecordTable())).isZero();
+
+    FormDetailResponse detail =
+        formRecordService.detail(
+            FormTemplateSpecCatalog.CODE_REVIEW, GITLAB_URL, PROJECT_ID, "merge_request",
+            Long.toString(MR_IID), actorA);
+    assertThat(detail.currentVersionId()).isEqualTo(v2);
+    assertThat(detail.readableVersions())
+        .extracting(version -> version.versionId())
+        .containsExactly(v1, v2);
+    assertThat(detail.versionSpecs()).containsKeys(v1, v2);
+    assertThat(detail.records()).singleElement().satisfies(record -> {
+      assertThat(record.originVersionId()).isEqualTo(v1);
+      assertThat(record.storageVersionId()).isEqualTo(v1);
+      assertThat(record.fields()).containsEntry("otherCount", 0).doesNotContainKey("reviewNote");
+      assertThat(record.canEdit()).isTrue();
+    });
+
+    // 原版记录按 v1 冻结规格编辑，不搬表、不补 v2 新字段。
+    ObjectNode changed = codeReviewFields("w2-reviewer-1");
+    changed.put("specificationCount", 6);
+    changed.put("supplementNote", "原版仍可编辑");
+    FormRecordView updated =
+        formRecordService.update(
+            original.id(),
+            updateRequest(codeReviewScopeId, codeReviewVersionId, 1, changed),
+            actorA,
+            "127.0.0.1",
+            "JUnit");
+    assertThat(updated.recordVersion()).isEqualTo(2);
+    assertThat(updated.storageVersionId()).isEqualTo(v1);
+    assertThat(updated.originVersionId()).isEqualTo(v1);
+    assertThat(updated.fields()).containsEntry("specificationCount", 6);
+    assertThat(jdbcTemplate.queryForObject(
+        "select specification_count from " + published.oldRecordTable() + " where id = ?",
+        Integer.class,
+        Long.parseLong(original.id())))
+        .isEqualTo(6);
+    assertThat(count(published.newRecordTable())).isZero();
+
+    // 新记录只进入当前 v2。
+    ObjectNode v2Fields = codeReviewFields("w2-reviewer-2");
+    v2Fields.remove("otherCount");
+    v2Fields.put("reviewNote", "v2 新字段");
+    FormCreateResponse createdInV2 =
+        formRecordService.create(
+            new FormCreateRequest(
+                GITLAB_URL,
+                PROJECT_ID,
+                "merge_request",
+                Long.toString(MR_IID),
+                FormTemplateSpecCatalog.CODE_REVIEW,
+                Long.toString(codeReviewScopeId),
+                v2,
+                UUID.randomUUID().toString(),
+                false,
+                toFields(v2Fields)),
+            actorA,
+            "127.0.0.1",
+            "JUnit");
+    assertThat(createdInV2.outcome()).isEqualTo("CREATED");
+    assertThat(createdInV2.record().storageVersionId()).isEqualTo(v2);
+    assertThat(count(published.oldRecordTable())).isEqualTo(1);
+    assertThat(count(published.newRecordTable())).isEqualTo(1);
+
+    // 同人提示覆盖全部有效权威版本：v1 已有走查人，v2 新建同样触发确认。
+    ObjectNode sameReviewer = codeReviewFields("w2-reviewer-1");
+    sameReviewer.remove("otherCount");
+    FormCreateResponse confirm =
+        formRecordService.create(
+            new FormCreateRequest(
+                GITLAB_URL,
+                PROJECT_ID,
+                "merge_request",
+                Long.toString(MR_IID),
+                FormTemplateSpecCatalog.CODE_REVIEW,
+                Long.toString(codeReviewScopeId),
+                v2,
+                UUID.randomUUID().toString(),
+                false,
+                toFields(sameReviewer)),
+            actorA,
+            "127.0.0.1",
+            "JUnit");
+    assertThat(confirm.outcome()).isEqualTo("CONFIRM_REQUIRED");
+    assertThat(confirm.reviewerUserId()).isEqualTo("w2-reviewer-1");
+
+    // 原版记录按自身承载版本作废，v2 记录不受影响。
+    FormRecordView voided =
+        formRecordService.voidRecord(
+            original.id(),
+            voidRequest(codeReviewScopeId, codeReviewVersionId, 2),
+            actorA,
+            "127.0.0.1",
+            "JUnit");
+    assertThat(voided.deleted()).isTrue();
+    assertThat(jdbcTemplate.queryForObject(
+        "select deleted from " + published.oldRecordTable() + " where id = ?",
+        Boolean.class,
+        Long.parseLong(original.id())))
+        .isTrue();
+    FormDetailResponse afterVoid =
+        formRecordService.detail(
+            FormTemplateSpecCatalog.CODE_REVIEW, GITLAB_URL, PROJECT_ID, "merge_request",
+            Long.toString(MR_IID), actorA);
+    assertThat(afterVoid.records()).singleElement()
+        .satisfies(record -> assertThat(record.storageVersionId()).isEqualTo(v2));
+  }
+
+  @Test
+  void shouldReplayLostCreateAfterCurrentVersionAdvancesAndRejectUnpersistedOldVersionRequest() {
+    String key = UUID.randomUUID().toString();
+    FormCreateResponse created = createCodeReview("w2-reviewer-1", key);
+    VersionMigration published = publishSecondVersionKeepingRecords();
+    int audits = count("form_record_audit_logs");
+
+    // 首次提交结果丢失后指针已切换：旧 key 仍按原版本证据收敛到同一记录。
+    FormCreateResponse replayed =
+        formRecordService.create(
+            new FormCreateRequest(
+                GITLAB_URL,
+                PROJECT_ID,
+                "merge_request",
+                Long.toString(MR_IID),
+                FormTemplateSpecCatalog.CODE_REVIEW,
+                Long.toString(codeReviewScopeId),
+                Long.toString(codeReviewVersionId),
+                key,
+                false,
+                toFields(codeReviewFields("w2-reviewer-1"))),
+            actorA,
+            "127.0.0.1",
+            "JUnit");
+    assertThat(replayed.outcome()).isEqualTo("REPLAYED");
+    assertThat(replayed.record().id()).isEqualTo(created.record().id());
+    assertThat(replayed.record().storageVersionId()).isEqualTo(Long.toString(codeReviewVersionId));
+    assertThat(count(published.oldRecordTable())).isEqualTo(1);
+    assertThat(count(published.newRecordTable())).isZero();
+    assertThat(count("form_record_audit_logs")).isEqualTo(audits);
+
+    // 真正未写入的旧版本请求不能用新 key 冒充重放，也不产生任何写入。
+    assertThatThrownBy(
+            () ->
+                formRecordService.create(
+                    new FormCreateRequest(
+                        GITLAB_URL,
+                        PROJECT_ID,
+                        "merge_request",
+                        Long.toString(MR_IID),
+                        FormTemplateSpecCatalog.CODE_REVIEW,
+                        Long.toString(codeReviewScopeId),
+                        Long.toString(codeReviewVersionId),
+                        UUID.randomUUID().toString(),
+                        false,
+                        toFields(codeReviewFields("w2-reviewer-2"))),
+                    actorA,
+                    "127.0.0.1",
+                    "JUnit"))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("结构版本已变化");
+    assertThat(count(published.oldRecordTable())).isEqualTo(1);
+    assertThat(count(published.newRecordTable())).isZero();
+    assertThat(count("form_record_audit_logs")).isEqualTo(audits);
+  }
+
+  @Test
+  void shouldReturnBigResourceIdentifiersAsDecimalStrings() {
+    long bigProject = 9007199254740993L;
+    long bigIssueIid = 9007199254740995L;
+    long bigRoot = bigIssueIid + 1000;
+    jdbcTemplate.update(
+        "insert into ods_gitlab_projects(id, path, namespace_id, mirror_deleted)"
+            + " values (?, 'big-project', 1, false)",
+        bigProject);
+    jdbcTemplate.update(
+        "insert into ods_gitlab_issues(id, project_id, iid, mirror_deleted)"
+            + " values (?, ?, ?, false)",
+        bigRoot,
+        bigProject,
+        bigIssueIid);
+    insertIssueFact(bigRoot, bigIssueIid, null);
+    long bigScopeId =
+        createScope("w2-issue-reply-big", FormTemplateSpecCatalog.ISSUE_REPLY, "issue");
+    long bigVersionId =
+        createVersionAndTables(bigScopeId, FormTemplateSpecCatalog.ISSUE_REPLY, bigProject);
+
+    FormCreateResponse created =
+        formRecordService.create(
+            new FormCreateRequest(
+                GITLAB_URL,
+                bigProject,
+                "issue",
+                Long.toString(bigIssueIid),
+                FormTemplateSpecCatalog.ISSUE_REPLY,
+                Long.toString(bigScopeId),
+                Long.toString(bigVersionId),
+                UUID.randomUUID().toString(),
+                false,
+                toFields(issueReplyFields())),
+            actorA,
+            "127.0.0.1",
+            "JUnit");
+    assertThat(created.outcome()).isEqualTo("CREATED");
+    assertThat(created.record().storageVersionId()).isEqualTo(Long.toString(bigVersionId));
+
+    FormDetailResponse detail =
+        formRecordService.detail(
+            FormTemplateSpecCatalog.ISSUE_REPLY, GITLAB_URL, bigProject, "issue",
+            Long.toString(bigIssueIid), actorA);
+    assertThat(detail.resource().projectId()).isEqualTo("9007199254740993");
+    assertThat(detail.resource().resourceId()).isEqualTo("9007199254740995");
+    assertThat(detail.resource().rootId()).isEqualTo(Long.toString(bigRoot));
+    assertThat(detail.scopeId()).isEqualTo(Long.toString(bigScopeId));
+    assertThat(detail.currentVersionId()).isEqualTo(Long.toString(bigVersionId));
+    assertThat(detail.storageVersionId()).isEqualTo(Long.toString(bigVersionId));
+    assertThat(Long.parseLong(detail.resource().projectId())).isGreaterThan(1L << 53);
+    assertThat(detail.records()).singleElement().satisfies(record -> {
+      assertThat(record.id()).isEqualTo(created.record().id());
+      assertThat(Long.parseLong(record.id())).isPositive();
+      assertThat(record.recordVersion()).isEqualTo(1);
+      assertThat(record.storageVersionId()).isEqualTo(Long.toString(bigVersionId));
+    });
+  }
+
+  @Test
   void shouldBuildResourceLinksFromMirroredProjectPathAndAvoidFabricatingMissingPath() {
     FormDetailResponse mergeRequest =
         formRecordService.detail(
@@ -1783,6 +2118,15 @@ class FormRecordServiceIntegrationTest {
 
   /** 构造字段改名/新增/删除后的第二版并复制存量行，模拟受控结构迁移成功后的权威状态。 */
   private VersionMigration migrateCodeReviewToSecondVersion() {
+    return createSecondVersion(true);
+  }
+
+  /** 发布第二版但不搬迁存量行：模拟 N3 指针切换后旧版记录仍原位可读可写。 */
+  private VersionMigration publishSecondVersionKeepingRecords() {
+    return createSecondVersion(false);
+  }
+
+  private VersionMigration createSecondVersion(boolean migrateRecords) {
     ObjectNode specNode;
     try {
       specNode = (ObjectNode) objectMapper.readTree(specCatalog.rawJson(FormTemplateSpecCatalog.CODE_REVIEW));
@@ -1830,26 +2174,29 @@ class FormRecordServiceIntegrationTest {
     for (String statement : schema.statements()) {
       jdbcTemplate.execute(statement);
     }
-    jdbcTemplate.update(
-        ("insert into %s(id, scope_id, source_config_id, source_instance, gitlab_base_url,"
-                + " project_id, resource_type, resource_id, template_key, created_at, updated_at)"
-                + " select id, scope_id, source_config_id, source_instance, gitlab_base_url,"
-                + " project_id, resource_type, resource_id, template_key, created_at, updated_at"
-                + " from %s")
-            .formatted(schema.instanceTable(), instanceTable(codeReviewScopeId, codeReviewVersionId)));
-    jdbcTemplate.update(
-        ("insert into %s(id, instance_id, origin_version_id, template_version, created_by,"
-                + " request_key, create_payload_hash, record_version, deleted, legacy_incomplete,"
-                + " legacy_missing_fields, created_at, updated_at, reviewer_user_id, reviewer_name,"
-                + " review_duration_minutes, specification_count, logic_count, performance_count,"
-                + " design_count, supplement_note)"
-                + " select id, instance_id, origin_version_id, template_version, created_by,"
-                + " request_key, create_payload_hash, record_version, deleted, legacy_incomplete,"
-                + " legacy_missing_fields, created_at, updated_at, reviewer_user_id, reviewer_name,"
-                + " review_duration_minutes, specification_count, logic_count, performance_count,"
-                + " design_count, supplement_note"
-                + " from %s order by id")
-            .formatted(schema.recordTable(), codeReviewRecordTable));
+    if (migrateRecords) {
+      jdbcTemplate.update(
+          ("insert into %s(id, scope_id, source_config_id, source_instance, gitlab_base_url,"
+                  + " project_id, resource_type, resource_id, template_key, created_at, updated_at)"
+                  + " select id, scope_id, source_config_id, source_instance, gitlab_base_url,"
+                  + " project_id, resource_type, resource_id, template_key, created_at, updated_at"
+                  + " from %s")
+              .formatted(
+                  schema.instanceTable(), instanceTable(codeReviewScopeId, codeReviewVersionId)));
+      jdbcTemplate.update(
+          ("insert into %s(id, instance_id, origin_version_id, template_version, created_by,"
+                  + " request_key, create_payload_hash, record_version, deleted, legacy_incomplete,"
+                  + " legacy_missing_fields, created_at, updated_at, reviewer_user_id, reviewer_name,"
+                  + " review_duration_minutes, specification_count, logic_count, performance_count,"
+                  + " design_count, supplement_note)"
+                  + " select id, instance_id, origin_version_id, template_version, created_by,"
+                  + " request_key, create_payload_hash, record_version, deleted, legacy_incomplete,"
+                  + " legacy_missing_fields, created_at, updated_at, reviewer_user_id, reviewer_name,"
+                  + " review_duration_minutes, specification_count, logic_count, performance_count,"
+                  + " design_count, supplement_note"
+                  + " from %s order by id")
+              .formatted(schema.recordTable(), codeReviewRecordTable));
+    }
     jdbcTemplate.update(
         "update form_template_versions set version_status = 'RETIRED' where id = ?",
         codeReviewVersionId);
@@ -1867,18 +2214,26 @@ class FormRecordServiceIntegrationTest {
         migratedSpecJson,
         Timestamp.valueOf(LocalDateTime.now()));
     jdbcTemplate.update(
-        "update form_template_versions set record_source_role = 'LEGACY_SNAPSHOT' where id = ?",
+        "update form_template_versions set record_source_role = ? where id = ?",
+        migrateRecords ? "LEGACY_SNAPSHOT" : "AUTHORITATIVE",
         codeReviewVersionId);
     jdbcTemplate.update(
         "update form_template_versions set record_source_role = 'AUTHORITATIVE' where id = ?",
         newVersionId);
-    jdbcTemplate.update(
-        "update form_record_locations set storage_version_id = ? where scope_id = ?",
-        newVersionId,
-        codeReviewScopeId);
+    if (migrateRecords) {
+      jdbcTemplate.update(
+          "update form_record_locations set storage_version_id = ? where scope_id = ?",
+          newVersionId,
+          codeReviewScopeId);
+    }
     jdbcTemplate.update(
         "update form_template_scopes set current_version_id = ? where id = ?",
         newVersionId,
+        codeReviewScopeId);
+    jdbcTemplate.update(
+        "update form_template_scopes"
+            + " set source_set_hash = form_source_set_hash(id),"
+            + " source_set_revision = source_set_revision + 1 where id = ?",
         codeReviewScopeId);
     return new VersionMigration(codeReviewRecordTable, schema.recordTable(), newVersionId);
   }
