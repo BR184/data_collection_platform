@@ -1,6 +1,7 @@
 # 进度与中间物
 
-- 阶段：2026-10-28按用户纠正整体重写指令，经理仅交付指令，等待用户指定员工执行；没有新增构建、业务修改或测试。
+- 阶段：2026-10-28员工交付复审，停写实现及已测结果认可，整体暂缓；经理仅作静态/现有日志/停机状态复核，未起服、修改业务或重新构建。
+- 当前返修：新平台兼容Mongo仍尝试生产地址且超时，网络Internal=false；需覆盖全部测试依赖或封闭出站，补一轮受影响接替验收。补记run3 TABLE_REFRESH FAILED（issues全量基线缺失）及恢复过程。报告与包内回退说明明确原版恢复后保持新写回关闭，仅说明修改后更新归档哈希。经理记录.tmp/legacy-delay-review-20261028/REVIEW.md，员工交付.tmp/legacy-delay-compare-20261028/delivery/DELIVERY.md位于D:/projects/dcp-delay-legacy-compare-20261028。
 - 恢复：在D:/projects/dcp-delay-pack执行git status --short --branch并读取本计划；分支codex/delay-intranet-test-package-20261026，前序提交4e0c279b。历史构建调查见此前提交，本次不沿用旧验证方案。
 - 输入：旧源码D:/projects/spidergitdata-dev；新平台固定7e7582af验收套件。两套同时运行，各连接相同样本的独立GitLab；比较基本规则及新增响应需求，再验证停写接替。
 - 执行：用户转交外部员工，员工使用专属任务树和本地资源，完成以下V1–V3及待审包；经理收到交付后审查，用户部署。
