@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -203,7 +204,7 @@ public class FormRecordDirectoryReader {
     String sql =
         "select r.deleted, r.created_by, r.instance_id,"
             + " i.source_config_id, i.source_instance, i.gitlab_base_url,"
-            + " i.project_id, i.resource_type, i.resource_id,"
+            + " i.project_id, i.resource_type, i.resource_id, i.scope_id, i.template_key,"
             + String.join(", ", prefixed(columns))
             + " from " + recordTable + " r join " + instanceTable
             + " i on i.id = r.instance_id where r.id = ?";
@@ -213,6 +214,7 @@ public class FormRecordDirectoryReader {
           "目录记录无法回表：record=" + record.recordId() + ", table=" + recordTable);
     }
     Map<String, Object> row = rows.getFirst();
+    requireSameInstanceIdentity(record, row);
     requireSameResource(record, row);
     requireSameCreator(record, row.get("created_by"));
     Map<String, Object> values = new LinkedHashMap<>();
@@ -324,6 +326,34 @@ public class FormRecordDirectoryReader {
       select.add("r." + column);
     }
     return select;
+  }
+
+  /**
+   * 承载身份核验：物理记录实例 ID 必须等于目录实例，实例所属范围与模板必须与目录一致。
+   *
+   * <p>完整资源 C 相同不代表身份相同：同 C 的另一个实例或另一个范围的实例都必须拒绝，
+   * 不能沿用目录里的旧身份返回载荷。
+   */
+  private void requireSameInstanceIdentity(
+      LocatedRecord record, Map<String, Object> instanceRow) {
+    Object rawInstanceId = instanceRow.get("instance_id");
+    long physicalInstanceId = rawInstanceId == null ? -1L : ((Number) rawInstanceId).longValue();
+    if (record.instanceId() == null || physicalInstanceId != record.instanceId()) {
+      throw new FormConflictException("承载行实例与目录实例不一致：record=" + record.recordId()
+          + "，物理实例=" + physicalInstanceId + "，目录实例=" + record.instanceId());
+    }
+    Object rawScopeId = instanceRow.get("scope_id");
+    long instanceScopeId = rawScopeId == null ? -1L : ((Number) rawScopeId).longValue();
+    if (instanceScopeId != record.scopeId()) {
+      throw new FormConflictException("承载实例所属范围与目录不一致：record=" + record.recordId()
+          + "，实例范围=" + instanceScopeId + "，目录范围=" + record.scopeId());
+    }
+    String instanceTemplate = (String) instanceRow.get("template_key");
+    String scopeTemplate = requireTemplateKey(record.scopeId());
+    if (!Objects.equals(instanceTemplate, scopeTemplate)) {
+      throw new FormConflictException("承载实例模板与目录范围不一致：record=" + record.recordId()
+          + "，实例模板=" + instanceTemplate + "，范围模板=" + scopeTemplate);
+    }
   }
 
   private void requireSameResource(LocatedRecord record, Map<String, Object> instanceRow) {

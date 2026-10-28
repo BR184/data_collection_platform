@@ -357,6 +357,110 @@ class FormComparableRegistrationIntegrationTest {
         .hasMessageContaining("创建人");
   }
 
+  // ===== N1-R03 复验：承载实例身份必须与目录一致 =====
+
+  @Test
+  void shouldRejectReadWhenPhysicalRecordPointsToAnotherInstanceId() {
+    FormV6TestSupport.WiredServices services = wired();
+    JdbcTemplate jdbc = services.jdbc();
+    long configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
+    long scopeId = FormV6TestSupport.insertScope(
+        jdbc, "code_review", "n1-reader-instance", configId, URL, 41, "DRAFT");
+    FormV6TestSupport.FixtureTables v1 = FormV6TestSupport.createRecordVersion(
+        jdbc, scopeId, "code_review", "V1", FormV6TestSupport.SPEC_V1, "PUBLISHED", true);
+    long instanceId = FormV6TestSupport.insertInstance(
+        jdbc, v1.instanceTable(), scopeId, configId, URL, 41, 9401);
+    long otherInstanceId = FormV6TestSupport.insertInstance(
+        jdbc, v1.instanceTable(), scopeId, configId, URL, 41, 9402);
+    jdbc.update(
+        "insert into " + v1.recordTable()
+            + "(id, instance_id, origin_version_id, record_version, score, created_at, updated_at)"
+            + " values (9401, ?, ?, 1, 7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        instanceId, v1.versionId());
+    insertLocation(jdbc, 9401, scopeId, v1, instanceId, configId, "9401", 41, null);
+
+    assertThat(services.reader().find(9401)).isPresent();
+    // 同范围同完整C的另一个实例：物理记录实例与目录实例不同，不得沿用目录身份返回旧载荷。
+    jdbc.update("update form_record_locations set instance_id = ? where record_id = 9401",
+        otherInstanceId);
+    assertAllReadPathsReject(services, 9401, scopeId, "9401", 41, "承载行实例与目录实例不一致");
+  }
+
+  @Test
+  void shouldRejectReadWhenInstanceBelongsToAnotherScope() {
+    FormV6TestSupport.WiredServices services = wired();
+    JdbcTemplate jdbc = services.jdbc();
+    long configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
+    long scopeId = FormV6TestSupport.insertScope(
+        jdbc, "code_review", "n1-reader-instance-scope", configId, URL, 42, "DRAFT");
+    long otherScopeId = FormV6TestSupport.insertScope(
+        jdbc, "code_review", "n1-reader-instance-owner", configId, URL, 42, "DRAFT");
+    FormV6TestSupport.FixtureTables v1 = FormV6TestSupport.createRecordVersion(
+        jdbc, scopeId, "code_review", "V1", FormV6TestSupport.SPEC_V1, "PUBLISHED", true);
+    long instanceId = FormV6TestSupport.insertInstance(
+        jdbc, v1.instanceTable(), scopeId, configId, URL, 42, 9501);
+    long foreignInstanceId = FormV6TestSupport.insertInstance(
+        jdbc, v1.instanceTable(), otherScopeId, configId, URL, 42, 9501);
+    jdbc.update(
+        "insert into " + v1.recordTable()
+            + "(id, instance_id, origin_version_id, record_version, score, created_at, updated_at)"
+            + " values (9501, ?, ?, 1, 7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        instanceId, v1.versionId());
+    insertLocation(jdbc, 9501, scopeId, v1, instanceId, configId, "9501", 42, null);
+
+    assertThat(services.reader().find(9501)).isPresent();
+    // 实例属于另一范围：目录与物理行都指向该实例，完整C和值一致，但实例范围不属于当前范围。
+    jdbc.update("update form_record_locations set instance_id = ? where record_id = 9501",
+        foreignInstanceId);
+    jdbc.update("update " + v1.recordTable() + " set instance_id = ? where id = 9501",
+        foreignInstanceId);
+    assertAllReadPathsReject(services, 9501, scopeId, "9501", 42, "承载实例所属范围与目录不一致");
+  }
+
+  @Test
+  void shouldRejectReadWhenInstanceTemplateDiffersFromScope() {
+    FormV6TestSupport.WiredServices services = wired();
+    JdbcTemplate jdbc = services.jdbc();
+    long configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
+    long scopeId = FormV6TestSupport.insertScope(
+        jdbc, "code_review", "n1-reader-instance-template", configId, URL, 43, "DRAFT");
+    FormV6TestSupport.FixtureTables v1 = FormV6TestSupport.createRecordVersion(
+        jdbc, scopeId, "code_review", "V1", FormV6TestSupport.SPEC_V1, "PUBLISHED", true);
+    long instanceId = FormV6TestSupport.insertInstance(
+        jdbc, v1.instanceTable(), scopeId, configId, URL, 43, 9601);
+    jdbc.update(
+        "insert into " + v1.recordTable()
+            + "(id, instance_id, origin_version_id, record_version, score, created_at, updated_at)"
+            + " values (9601, ?, ?, 1, 7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        instanceId, v1.versionId());
+    insertLocation(jdbc, 9601, scopeId, v1, instanceId, configId, "9601", 43, null);
+
+    assertThat(services.reader().find(9601)).isPresent();
+    jdbc.update("update " + v1.instanceTable() + " set template_key = 'issue_reply' where id = ?",
+        instanceId);
+    assertAllReadPathsReject(services, 9601, scopeId, "9601", 43, "承载实例模板与目录范围不一致");
+  }
+
+  /** 三条读源入口共用同一套承载身份核验，必须一律拒绝而不是降级返回空载荷。 */
+  private static void assertAllReadPathsReject(
+      FormV6TestSupport.WiredServices services,
+      long recordId,
+      long scopeId,
+      String resourceId,
+      long projectId,
+      String message) {
+    assertThatThrownBy(() -> services.reader().find(recordId))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining(message);
+    assertThatThrownBy(() ->
+            services.reader().listByResource(scopeId, "merge_request", resourceId, projectId))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining(message);
+    assertThatThrownBy(() -> services.reader().findIncludingVoided(recordId))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining(message);
+  }
+
   /** 手工目录行夹具：业务值仍由 reader 回表读取。 */
   private static void insertLocation(
       JdbcTemplate jdbc,

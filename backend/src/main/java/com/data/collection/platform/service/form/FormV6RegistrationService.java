@@ -4,7 +4,6 @@ import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.exception.FormConflictException;
 import com.data.collection.platform.common.response.ResultCode;
 import com.data.collection.platform.domain.form.FormFieldSpec;
-import com.data.collection.platform.domain.form.FormHashSupport;
 import com.data.collection.platform.domain.form.FormSourceUrlSupport;
 import com.data.collection.platform.domain.form.FormTemplateSpec;
 import com.data.collection.platform.domain.form.FormVersionSchema;
@@ -81,6 +80,9 @@ public class FormV6RegistrationService {
       """;
 
   private static final String LEGACY_SOURCE_TABLE = "collect_form_records";
+  private static final String CARRIER_KIND_LEGACY = "LEGACY_DEMO_IN_PLACE";
+  private static final String CARRIER_KIND_COPIED = "V5_CARRIER_IN_PLACE";
+  private static final int EVIDENCE_VERSION = 2;
   private static final String SEQ_LOCK =
       "select pg_advisory_xact_lock(hashtext('form_record_id_seq')::bigint)";
 
@@ -91,6 +93,7 @@ public class FormV6RegistrationService {
   private final FormVersionSchemaService schemaService;
   private final FormVersionStructureVerifier structureVerifier;
   private final FormRecordDirectoryReader reader;
+  private final FormEvidenceCodec evidence;
 
   public FormV6RegistrationService(
       JdbcTemplate jdbcTemplate,
@@ -107,6 +110,7 @@ public class FormV6RegistrationService {
     this.schemaService = schemaService;
     this.structureVerifier = structureVerifier;
     this.reader = reader;
+    this.evidence = new FormEvidenceCodec(objectMapper);
   }
 
   /** 路径 A precheck：核验旧物理表契约、归属与全值证据；已有登记时逐条回表核验。 */
@@ -114,15 +118,17 @@ public class FormV6RegistrationService {
     ScopeInfo scope = requireScope(scopeId);
     requireLegacySourceTable();
     verifyLegacyPhysicalContract();
-    List<LegacyRow> selection = selectLegacyRows(scope);
-    String rowHash = legacyRowHash(selection);
+    FormScopeValidationService.CoverageScope bound = requireScopeBinding(scope);
+    List<LegacyRow> selection = selectLegacyRows(scope, bound);
+    String fingerprint = legacyEvidenceFingerprint(scope, selection);
     Long registeredVersion = registeredLegacyVersionId(scopeId);
     if (registeredVersion == null) {
       requireNoOrphanDirectoryRows(scopeId);
-      return new PrecheckReport(selection.size(), rowHash, null, null, false, null);
+      return new PrecheckReport(selection.size(), fingerprint, null, null, false, null);
     }
+    requireCompletionEvidence(scope, fingerprint, CARRIER_KIND_LEGACY);
     requireLegacyEvidence(scope, registeredVersion, selection);
-    return new PrecheckReport(selection.size(), rowHash, null, null, true, "MATCH:" + rowHash);
+    return new PrecheckReport(selection.size(), fingerprint, null, null, true, fingerprint);
   }
 
   /**
@@ -146,13 +152,20 @@ public class FormV6RegistrationService {
     requireLegacySourceTable();
     jdbcTemplate.execute("lock table " + LEGACY_SOURCE_TABLE + " in share mode");
     lockScopeRow(scopeId);
+    // 锁后重新读取并核对当前完整绑定：不能沿用取锁前的旧范围对象。
+    ScopeInfo fresh = requireScope(scopeId);
+    if (fresh.currentVersionId() != null && !isRegisteredLegacyVersion(fresh)) {
+      throw new FormConflictException("范围已有当前版本，旧Demo登记仅适用于未启用范围");
+    }
     verifyLegacyPhysicalContract();
-    List<LegacyRow> selection = selectLegacyRows(scope);
-    String rowHash = legacyRowHash(selection);
+    FormScopeValidationService.CoverageScope bound = requireScopeBinding(fresh);
+    List<LegacyRow> selection = selectLegacyRows(fresh, bound);
+    String rowHash = legacyEvidenceFingerprint(fresh, selection);
     requirePrecheckMatch(selection.size(), rowHash, expectedCount, expectedRowHash);
     Long registeredVersion = registeredLegacyVersionId(scopeId);
     if (registeredVersion != null) {
-      requireLegacyEvidence(scope, registeredVersion, selection);
+      requireCompletionEvidence(fresh, rowHash, CARRIER_KIND_LEGACY);
+      requireLegacyEvidence(fresh, registeredVersion, selection);
       return new RegistrationResult(registeredVersion, directoryRowCount(scopeId),
           scopeSourceSetRevision(scopeId), "ALREADY_REGISTERED");
     }
@@ -161,7 +174,8 @@ public class FormV6RegistrationService {
       throw new BizException(ResultCode.BAD_REQUEST, "旧Demo选集为空，无登记对象");
     }
     long versionId = insertLegacyVersion(scopeId, versionLabel);
-    long sourceConfigId = requireSourceConfigId(scope.canonicalUrl());
+    // 范围已绑定来源配置；同 URL 可能存在多个配置，不能按地址反推。
+    long sourceConfigId = fresh.sourceConfigId();
     String originSpecHash = specHashOfVersion(versionId);
     int inserted = jdbcTemplate.update(
         """
@@ -175,23 +189,23 @@ public class FormV6RegistrationService {
          where l.id = any(?)
         on conflict (record_id) do nothing
         """,
-        scopeId, versionId, versionId, sourceConfigId, scope.sourceInstance(),
-        scope.canonicalUrl(), originSpecHash,
+        scopeId, versionId, versionId, sourceConfigId, fresh.sourceInstance(),
+        fresh.canonicalUrl(), originSpecHash,
         selection.stream().map(LegacyRow::id).toArray(Long[]::new));
     if (inserted != selection.size()) {
       throw new FormConflictException("目录登记数不守恒：expected=" + selection.size()
           + ", inserted=" + inserted);
     }
-    requireLegacyEvidence(scope, versionId, selection);
+    requireLegacyEvidence(fresh, versionId, selection);
     int revision = bumpSourceSet(scopeId);
     insertRegistrationEvent(scopeId, revision, "LEGACY_REGISTERED", operatorId,
-        registrationPayload(selection.size(), rowHash, "LEGACY_DEMO_IN_PLACE",
+        registrationPayload(selection.size(), rowHash, CARRIER_KIND_LEGACY,
             objectMapper.createArrayNode()));
     long highWater = jdbcTemplate.queryForObject(
         "select coalesce(max(id), 0) from " + LEGACY_SOURCE_TABLE, Long.class);
     jdbcTemplate.queryForObject("select form_advance_record_sequence(?)", Long.class, highWater);
     upsertWatermark(LEGACY_SOURCE_TABLE, highWater);
-    if (scope.currentVersionId() == null) {
+    if (fresh.currentVersionId() == null) {
       jdbcTemplate.update(
           "update form_template_scopes set current_version_id = ? where id = ? and"
               + " current_version_id is null",
@@ -203,8 +217,10 @@ public class FormV6RegistrationService {
   /** 路径 B precheck：结构核验、归属核验、副本承载判定与全值证据。 */
   public PrecheckReport precheckCopiedRecords(long scopeId) {
     ScopeInfo scope = requireScope(scopeId);
-    CarrierAnalysis analysis = analyzeCopies(scope);
+    FormScopeValidationService.CoverageScope bound = requireScopeBinding(scope);
+    CarrierAnalysis analysis = analyzeCopies(scope, bound);
     if (analysis.directoryRowCount() > 0) {
+      requireCompletionEvidence(scope, analysis.fingerprint(), CARRIER_KIND_COPIED);
       requireCopiedEvidence(scope, analysis);
     }
     return new PrecheckReport(analysis.carrierRecords().size(), analysis.fingerprint(),
@@ -223,11 +239,14 @@ public class FormV6RegistrationService {
     jdbcTemplate.execute(SEQ_LOCK);
     lockScopeRow(scopeId);
     lockScopeVersionTables(scopeId);
+    // 锁后重新读取并核对当前完整绑定：绑定在锁等待期间变化必须按当前证据拒绝。
     ScopeInfo fresh = requireScope(scopeId);
-    CarrierAnalysis analysis = analyzeCopies(fresh);
+    FormScopeValidationService.CoverageScope bound = requireScopeBinding(fresh);
+    CarrierAnalysis analysis = analyzeCopies(fresh, bound);
     requirePrecheckMatch(analysis.carrierRecords().size(), analysis.fingerprint(),
         expectedCount, expectedFingerprint);
     if (analysis.directoryRowCount() > 0) {
+      requireCompletionEvidence(fresh, analysis.fingerprint(), CARRIER_KIND_COPIED);
       requireCopiedEvidence(fresh, analysis);
       return new RegistrationResult(analysis.carrierVersionId(), directoryRowCount(scopeId),
           scopeSourceSetRevision(scopeId), "ALREADY_REGISTERED");
@@ -272,7 +291,7 @@ public class FormV6RegistrationService {
     int revision = bumpSourceSet(scopeId);
     insertRegistrationEvent(scopeId, revision, "LEGACY_REGISTERED", operatorId,
         registrationPayload(analysis.carrierRecords().size(), analysis.fingerprint(),
-            "V5_CARRIER_IN_PLACE", analysis.fieldLossReport()));
+            CARRIER_KIND_COPIED, analysis.fieldLossReport()));
     long highWater = jdbcTemplate.queryForObject(
         "select coalesce(max(record_id), 0) from form_record_locations where scope_id = ?",
         Long.class, scopeId);
@@ -504,7 +523,8 @@ public class FormV6RegistrationService {
 
   // ===== 路径 A 选集与全值哈希 =====
 
-  private List<LegacyRow> selectLegacyRows(ScopeInfo scope) {
+  private List<LegacyRow> selectLegacyRows(
+      ScopeInfo scope, FormScopeValidationService.CoverageScope self) {
     List<Map<String, Object>> rows = jdbcTemplate.queryForList(
         """
         select id, gitlab_base_url, project_id, resource_type, resource_id, reviewer,
@@ -517,11 +537,6 @@ public class FormV6RegistrationService {
         scope.templateKey(), scope.resourceType());
     List<FormScopeValidationService.CoverageScope> coverage =
         scopeValidationService.listCoverageScopes(scope.templateKey(), scope.resourceType());
-    FormScopeValidationService.CoverageScope self = coverage.stream()
-        .filter(candidate -> candidate.scopeId() == scope.scopeId())
-        .findFirst()
-        .orElseThrow(() -> new FormConflictException(
-            "范围绑定未通过覆盖校验，无法判定旧Demo归属：scope=" + scope.scopeId()));
     List<LegacyRow> selected = new ArrayList<>();
     List<Long> uncovered = new ArrayList<>();
     List<Long> duplicated = new ArrayList<>();
@@ -585,20 +600,43 @@ public class FormV6RegistrationService {
         updatedAt.toLocalDateTime());
   }
 
-  /** 全值行哈希：身份、完整C、业务值、作废与两个时间轴任一分量变化都会改变证据。 */
-  private String legacyRowHash(List<LegacyRow> rows) {
-    List<String> lines = new ArrayList<>(rows.size());
+  /** 路径 A 全值证据：范围身份 + 逐行类型化原值，NULL/空串与含分隔字符的文本都可区分。 */
+  private String legacyEvidenceFingerprint(ScopeInfo scope, List<LegacyRow> rows) {
+    ObjectNode envelope = evidenceEnvelope(CARRIER_KIND_LEGACY, scope);
+    ArrayNode list = envelope.putArray("rows");
     for (LegacyRow row : rows) {
-      lines.add(String.join("\u0001",
-          Long.toString(row.id()), row.gitlabBaseUrl(), Long.toString(row.projectId()),
-          row.resourceType(), row.resourceId(), nullToEmpty(row.reviewer()),
-          Integer.toString(row.reviewDurationMinutes()), Integer.toString(row.specificationCount()),
-          Integer.toString(row.logicCount()), Integer.toString(row.performanceCount()),
-          Integer.toString(row.designCount()), Integer.toString(row.otherCount()),
-          nullToEmpty(row.supplementNote()), Boolean.toString(row.deleted()),
-          row.createdAt().toString(), row.updatedAt().toString()));
+      ObjectNode node = evidence.row();
+      evidence.putNumber(node, "recordId", row.id());
+      evidence.putText(node, "gitlabBaseUrl", row.gitlabBaseUrl());
+      evidence.putNumber(node, "projectId", row.projectId());
+      evidence.putText(node, "resourceType", row.resourceType());
+      evidence.putText(node, "resourceId", row.resourceId());
+      evidence.putText(node, "reviewer", row.reviewer());
+      evidence.putInteger(node, "reviewDurationMinutes", row.reviewDurationMinutes());
+      evidence.putInteger(node, "specificationCount", row.specificationCount());
+      evidence.putInteger(node, "logicCount", row.logicCount());
+      evidence.putInteger(node, "performanceCount", row.performanceCount());
+      evidence.putInteger(node, "designCount", row.designCount());
+      evidence.putInteger(node, "otherCount", row.otherCount());
+      evidence.putText(node, "supplementNote", row.supplementNote());
+      evidence.putBoolean(node, "deleted", row.deleted());
+      evidence.putTime(node, "createdAt", row.createdAt());
+      evidence.putTime(node, "updatedAt", row.updatedAt());
+      list.add(node);
     }
-    return FormHashSupport.sha256Hex(String.join("\n", lines));
+    return evidence.fingerprint(envelope);
+  }
+
+  private ObjectNode evidenceEnvelope(String kind, ScopeInfo scope) {
+    ObjectNode envelope = evidence.row();
+    evidence.putText(envelope, "kind", kind);
+    evidence.putInteger(envelope, "evidenceVersion", EVIDENCE_VERSION);
+    evidence.putText(envelope, "templateKey", scope.templateKey());
+    evidence.putText(envelope, "resourceType", scope.resourceType());
+    evidence.putNumber(envelope, "sourceConfigId", scope.sourceConfigId());
+    evidence.putText(envelope, "sourceInstance", scope.sourceInstance());
+    evidence.putText(envelope, "canonicalUrl", scope.canonicalUrl());
+    return envelope;
   }
 
   private Long registeredLegacyVersionId(long scopeId) {
@@ -718,7 +756,8 @@ public class FormV6RegistrationService {
 
   // ===== 路径 B 副本分析 =====
 
-  private CarrierAnalysis analyzeCopies(ScopeInfo scope) {
+  private CarrierAnalysis analyzeCopies(
+      ScopeInfo scope, FormScopeValidationService.CoverageScope bound) {
     verifyVersionStructures(scope);
     List<Map<String, Object>> versions = jdbcTemplate.queryForList(
         """
@@ -759,8 +798,7 @@ public class FormV6RegistrationService {
           (rs, rowNum) -> {
             Map<String, Object> values = new LinkedHashMap<>();
             for (String column : columns) {
-              Object value = rs.getObject(column);
-              values.put(column, value == null ? null : String.valueOf(value));
+              values.put(column, FormEvidenceCodec.canonical(rs.getObject(column)));
             }
             long recordId = rs.getLong("id");
             return new CopyRow(versionId, recordId, rs.getLong("instance_id"),
@@ -778,12 +816,13 @@ public class FormV6RegistrationService {
         byRecord.computeIfAbsent(copy.recordId(), key -> new ArrayList<>()).add(copy);
       }
     }
-    return assembleAnalysis(scope, byRecord, columnsByVersion, specHashByVersion);
+    return assembleAnalysis(scope, bound, byRecord, columnsByVersion, specHashByVersion);
   }
 
 
   private CarrierAnalysis assembleAnalysis(
       ScopeInfo scope,
+      FormScopeValidationService.CoverageScope bound,
       Map<Long, List<CopyRow>> byRecord,
       Map<Long, List<String>> columnsByVersion,
       Map<Long, String> specHashByVersion) {
@@ -794,7 +833,7 @@ public class FormV6RegistrationService {
     List<String> evidenceViolations = new ArrayList<>();
     Long carrierVersionId = null;
     Map<String, List<Long>> requestKeyOwners = new LinkedHashMap<>();
-    List<Long> projects = parseProjects(scope.projectIds());
+    List<Long> projects = bound.projectIds();
     for (Map.Entry<Long, List<CopyRow>> entry : byRecord.entrySet()) {
       List<CopyRow> copies = entry.getValue();
       copies.sort(Comparator.comparingInt(CopyRow::recordVersion).reversed()
@@ -814,7 +853,7 @@ public class FormV6RegistrationService {
               + " 的副本record_version相同但业务值不同，停止登记");
         }
       }
-      requireInstanceBinding(carrier, scope, projects, ownershipViolations);
+      requireInstanceBinding(carrier, scope, bound, ownershipViolations);
       if (carrier.requestKey() != null
           && (carrier.createPayloadHash() == null || carrier.createdBy() == null)) {
         evidenceViolations.add("记录 " + carrier.recordId()
@@ -868,7 +907,7 @@ public class FormV6RegistrationService {
     return new CarrierAnalysis(
         carrierVersionId == null || carrierVersionId == -1L ? null : carrierVersionId,
         sorted, carrierReport, fieldLossReport, directoryRows,
-        carrierFingerprint(sorted, columnsByVersion));
+        copiedEvidenceFingerprint(scope, allCopies(byRecord), specHashByVersion));
   }
 
 
@@ -876,8 +915,9 @@ public class FormV6RegistrationService {
   private void requireInstanceBinding(
       CopyRow carrier,
       ScopeInfo scope,
-      List<Long> projects,
+      FormScopeValidationService.CoverageScope bound,
       List<String> violations) {
+    List<Long> projects = bound.projectIds();
     Long scopeConfigId = scope.sourceConfigId();
     if (scopeConfigId == null || carrier.sourceConfigId() != scopeConfigId) {
       violations.add("记录 " + carrier.recordId() + " 实例来源配置=" + carrier.sourceConfigId()
@@ -887,9 +927,9 @@ public class FormV6RegistrationService {
       violations.add("记录 " + carrier.recordId() + " 实例来源实例=" + carrier.sourceInstance()
           + "，范围绑定=" + scope.sourceInstance());
     }
-    if (!Objects.equals(carrier.gitlabBaseUrl(), scope.canonicalUrl())) {
+    if (!Objects.equals(carrier.gitlabBaseUrl(), bound.canonicalUrl())) {
       violations.add("记录 " + carrier.recordId() + " 实例来源地址=" + carrier.gitlabBaseUrl()
-          + "，范围绑定=" + scope.canonicalUrl());
+          + "，范围绑定=" + bound.canonicalUrl());
     }
     if (!projects.contains(carrier.projectId())) {
       violations.add("记录 " + carrier.recordId() + " 实例项目=" + carrier.projectId()
@@ -948,27 +988,107 @@ public class FormV6RegistrationService {
     return loss;
   }
 
-  /** 承载副本全值证据：身份、版本、实例、完整C、修订、作废、时间与业务值。 */
-  private String carrierFingerprint(
-      List<CarrierRecord> carriers, Map<Long, List<String>> columnsByVersion) {
-    List<String> lines = new ArrayList<>(carriers.size());
-    for (CarrierRecord carrier : carriers) {
-      List<String> parts = new ArrayList<>(List.of(
-          Long.toString(carrier.recordId()), Long.toString(carrier.versionId()),
-          Long.toString(carrier.originVersionId()), nullToEmpty(carrier.originSpecHash()),
-          Long.toString(carrier.instanceId()), Long.toString(carrier.sourceConfigId()),
-          nullToEmpty(carrier.sourceInstance()), nullToEmpty(carrier.gitlabBaseUrl()),
-          Long.toString(carrier.projectId()), nullToEmpty(carrier.resourceType()),
-          nullToEmpty(carrier.resourceId()), nullToEmpty(carrier.requestKey()),
-          nullToEmpty(carrier.createdBy()), nullToEmpty(carrier.createPayloadHash()),
-          Integer.toString(carrier.recordVersion()), Boolean.toString(carrier.deleted()),
-          carrier.createdAt().toString(), carrier.updatedAt().toString()));
-      for (String column : columnsByVersion.getOrDefault(carrier.versionId(), List.of())) {
-        parts.add(column + "=" + nullToEmpty((String) carrier.values().get(column)));
-      }
-      lines.add(String.join("\u0001", parts));
+  /** 路径 B 全值证据：覆盖每个参与承载/丢失判定的副本（含非承载旧副本）与其冻结规格。 */
+  private String copiedEvidenceFingerprint(
+      ScopeInfo scope, List<CopyRow> copies, Map<Long, String> specHashByVersion) {
+    ObjectNode envelope = evidenceEnvelope(CARRIER_KIND_COPIED, scope);
+    ArrayNode list = envelope.putArray("rows");
+    List<CopyRow> sorted = new ArrayList<>(copies);
+    sorted.sort(Comparator.comparingLong(CopyRow::recordId)
+        .thenComparingLong(CopyRow::versionId));
+    for (CopyRow copy : sorted) {
+      ObjectNode node = evidence.row();
+      evidence.putNumber(node, "recordId", copy.recordId());
+      evidence.putNumber(node, "versionId", copy.versionId());
+      evidence.putNumber(node, "instanceId", copy.instanceId());
+      evidence.putNumber(node, "sourceConfigId", copy.sourceConfigId());
+      evidence.putText(node, "sourceInstance", copy.sourceInstance());
+      evidence.putText(node, "gitlabBaseUrl", copy.gitlabBaseUrl());
+      evidence.putNumber(node, "projectId", copy.projectId());
+      evidence.putText(node, "resourceType", copy.resourceType());
+      evidence.putText(node, "resourceId", copy.resourceId());
+      evidence.putText(node, "instanceTemplateKey", copy.instanceTemplateKey());
+      evidence.putNumber(node, "originVersionId", copy.originVersionId());
+      evidence.putText(node, "originSpecHash", specHashByVersion.get(copy.originVersionId()));
+      evidence.putText(node, "storageSpecHash", specHashByVersion.get(copy.versionId()));
+      evidence.putInteger(node, "recordVersion", copy.recordVersion());
+      evidence.putBoolean(node, "deleted", copy.deleted());
+      evidence.putText(node, "createdBy", copy.createdBy());
+      evidence.putText(node, "requestKey", copy.requestKey());
+      evidence.putText(node, "createPayloadHash", copy.createPayloadHash());
+      evidence.putTime(node, "createdAt", copy.createdAt());
+      evidence.putTime(node, "updatedAt", copy.updatedAt());
+      ObjectNode values = node.putObject("values");
+      copy.values().keySet().stream().sorted()
+          .forEach(column -> evidence.putValue(values, column, copy.values().get(column)));
+      list.add(node);
     }
-    return FormHashSupport.sha256Hex(String.join("\n", lines));
+    return evidence.fingerprint(envelope);
+  }
+
+  private List<CopyRow> allCopies(Map<Long, List<CopyRow>> byRecord) {
+    List<CopyRow> copies = new ArrayList<>();
+    byRecord.values().forEach(copies::addAll);
+    return copies;
+  }
+
+  // ===== 统一范围绑定与持久完成证据（N1-R02/R01）=====
+
+  /**
+   * 复用统一范围校验判定本范围绑定是否合法。
+   *
+   * <p>ACTIVE 范围的绑定哈希、来源配置、项目集合、版本项目与当前指针，以及完整 DRAFT 范围的
+   * 绑定哈希与来源，都由 {@link FormScopeValidationService} 同一实现判定；逐字段相等不能替代
+   * 绑定合法性，本服务不另立一套平行规则。
+   */
+  private FormScopeValidationService.CoverageScope requireScopeBinding(ScopeInfo scope) {
+    try {
+      scopeValidationService.validateActiveScopes();
+      return scopeValidationService
+          .listCoverageScopes(scope.templateKey(), scope.resourceType())
+          .stream()
+          .filter(candidate -> candidate.scopeId() == scope.scopeId())
+          .findFirst()
+          .orElseThrow(() -> new FormConflictException(
+              "范围绑定校验未通过（SCOPE_BINDING_INVALID）：scope=" + scope.scopeId()));
+    } catch (IllegalStateException error) {
+      throw new FormConflictException(
+          "范围绑定校验未通过（SCOPE_BINDING_INVALID）：" + error.getMessage());
+    }
+  }
+
+  /**
+   * 核对首次登记的持久完成证据。
+   *
+   * <p>幂等只认可“当前源证据 == 首次登记时保存的证据”；源在登记后被编辑必须 409 并给出差异，
+   * 不能用当前源哈希冒充历史登记哈希，也不补算或重新认定已登记。
+   */
+  private void requireCompletionEvidence(
+      ScopeInfo scope, String currentFingerprint, String carrierKind) {
+    String persisted = persistedCompletionFingerprint(scope.scopeId(), carrierKind);
+    if (!persisted.equals(currentFingerprint)) {
+      throw new FormConflictException("登记后源证据已变化（COMPLETION_EVIDENCE_CHANGED），"
+          + "停止重入：持久完成哈希=" + shorten(persisted)
+          + "，当前源证据哈希=" + shorten(currentFingerprint));
+    }
+  }
+
+  private String persistedCompletionFingerprint(long scopeId, String carrierKind) {
+    List<String> values = jdbcTemplate.queryForList(
+        "select payload->>'rowHash' from form_directory_events"
+            + " where scope_id = ? and event_type = 'LEGACY_REGISTERED'"
+            + " and payload->>'carrierKind' = ? and payload->>'evidenceVersion' = ?"
+            + " order by source_set_revision desc, id desc limit 1",
+        String.class, scopeId, carrierKind, Integer.toString(EVIDENCE_VERSION));
+    String persisted = values.isEmpty() ? null : values.getFirst();
+    if (persisted == null || persisted.isBlank()) {
+      throw new FormConflictException("登记完成证据缺失（COMPLETION_EVIDENCE_MISSING），停止重入");
+    }
+    return persisted;
+  }
+
+  private String shorten(String hash) {
+    return hash == null || hash.length() <= 12 ? String.valueOf(hash) : hash.substring(0, 12);
   }
 
   // ===== 共用事务步骤 =====
@@ -999,6 +1119,7 @@ public class FormV6RegistrationService {
     payload.put("count", count);
     payload.put("rowHash", rowHash);
     payload.put("carrierKind", carrierKind);
+    payload.put("evidenceVersion", EVIDENCE_VERSION);
     payload.set("fieldLossReport", fieldLossReport);
     return payload.toString();
   }
@@ -1055,48 +1176,10 @@ public class FormV6RegistrationService {
             ? null : ((Number) row.get("current_version_id")).longValue());
   }
 
-  private long requireSourceConfigId(String canonicalUrl) {
-    List<Map<String, Object>> configs = jdbcTemplate.queryForList(
-        "select id, web_base_url from gitlab_sync_configs order by id");
-    for (Map<String, Object> config : configs) {
-      Object webBaseUrl = config.get("web_base_url");
-      if (webBaseUrl == null) {
-        continue;
-      }
-      try {
-        if (canonicalUrl.equals(FormSourceUrlSupport.canonicalize(webBaseUrl.toString()))) {
-          return ((Number) config.get("id")).longValue();
-        }
-      } catch (IllegalArgumentException ignored) {
-        // 非法来源配置不参与匹配；启动校验负责报告。
-      }
-    }
-    throw new BizException(ResultCode.BAD_REQUEST, "来源地址未登记，无法登记旧Demo");
-  }
-
   private int scopeSourceSetRevision(long scopeId) {
     Integer revision = jdbcTemplate.queryForObject(
         "select source_set_revision from form_template_scopes where id = ?", Integer.class, scopeId);
     return revision == null ? 0 : revision;
-  }
-
-  private List<Long> parseProjects(String projectIdsJson) {
-    try {
-      JsonNode node = objectMapper.readTree(projectIdsJson);
-      List<Long> projects = new ArrayList<>();
-      node.forEach(item -> {
-        if (item.canConvertToLong()) {
-          projects.add(item.asLong());
-        }
-      });
-      return projects;
-    } catch (Exception error) {
-      throw new FormConflictException("范围项目集合无法解析");
-    }
-  }
-
-  private String nullToEmpty(String value) {
-    return value == null ? "" : value;
   }
 
   // ===== 数据载体 =====
