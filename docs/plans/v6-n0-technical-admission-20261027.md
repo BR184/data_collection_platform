@@ -1,6 +1,6 @@
 ## 进度与中间物
 
-- 当前结论（2026-10-27）：**N0五审通过，IV-01/IV-02关闭；准入N1多版本目录、原位登记与读源基础实施。** N2—N5须逐阶段验收，W5、真实登记/切换、黄金、main和正式包未获本次授权。此前W4/R05及批准UI保持。
+- N0阶段历史批准（2026-10-27，当前实施阶段见[总执行单](unified-form-system-implementation-plan-20261021.md#n1-approval)）：**N0五审通过，IV-01/IV-02关闭；准入N1多版本目录、原位登记与读源基础实施。** N2—N5须逐阶段验收，W5、真实登记/切换、黄金、main和正式包未获本次授权。此前W4/R05及批准UI保持。
 - 批准输入：员工`4cd8588db31c162d619fafcd5e49a63d15e2f1f3`；N0送审SHA-256 `8fb94e3ab44a3427c744e31a26f429ccb25f0a9ccc98721c943b113feddff212`；Node源码`58694efeb95dc3a716b56a8a4f44d80cae241c11413439df8eb86d4a700defda`。原送审SHA不指加入审批记录后的本文。
 - 独立验证：Node正常134项通过；identity/domain/type/no-common四个实现突变由固定原断言检出，均退出1；源码前后hash一致。另独立重建四审文本类型反例，返回NO_COMMON_FIELD、total=null、TYPE_DECLARATION_CONFLICT，已消除OK/2误判。21份SQL与四审批准输入完全一致，沿用115/6/33真实PG证据，本轮不重复数据库套件。
 - 工作区与恢复：审核树`C:/Users/admin/.codex/worktrees/form-admin-ui/data_collection_platform` / `codex/form-admin-ui-20261027`已快进吸收4cd8588d；员工树`D:/projects/dcp-form-w4-20261026`只读核对为干净4cd8588d，双远端相同。先读AGENTS/进度/本文及执行单，运行status/worktree/HEAD核对后吸收最终审核回执SHA。
