@@ -526,11 +526,12 @@ class FormTemplateAdminIntegrationTest {
             "issue",
             Long.toString(ISSUE_IID),
             admin);
+    // N2 以目录承载版本为准；发布执行器登记目录切换属 N3，本轮副本行只做物理断言。
     assertThat(detail.records()).singleElement().satisfies(
         record -> {
-          assertThat(record.legacyIncomplete()).isTrue();
-          assertThat(record.legacyMissingFields()).contains("review_comment");
-          assertThat(record.fields().get("reviewComment")).isNull();
+          assertThat(record.storageVersionId()).isEqualTo(Long.toString(first.toVersionId()));
+          assertThat(record.originVersionId()).isEqualTo(Long.toString(first.toVersionId()));
+          assertThat(record.fields().get("fixStatus")).isEqualTo("RESOLVED");
         });
 
     FormRecordView voided =
@@ -543,7 +544,8 @@ class FormTemplateAdminIntegrationTest {
                 Long.toString(ISSUE_IID),
                 FormTemplateSpecCatalog.ISSUE_REPLY,
                 Long.toString(scopeId),
-                Long.toString(second.toVersionId()),
+                Long.toString(first.toVersionId()),
+                Long.toString(first.toVersionId()),
                 1,
                 true,
                 "作废"),
@@ -553,7 +555,8 @@ class FormTemplateAdminIntegrationTest {
     assertThat(voided.deleted()).isTrue();
     assertThat(
             jdbcTemplate.queryForObject(
-                "select deleted from " + recordTable + " where id = ?",
+                "select deleted from form_s" + scopeId + "_v" + first.toVersionId()
+                    + "_records where id = ?",
                 Boolean.class,
                 Long.parseLong(created.record().id())))
         .isTrue();

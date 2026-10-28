@@ -12,5 +12,6 @@ public record FormUpdateRequest(
     String templateKey,
     String scopeId,
     String storageVersionId,
+    String expectedStorageVersionId,
     Integer recordVersion,
     Map<String, JsonNode> fields) {}

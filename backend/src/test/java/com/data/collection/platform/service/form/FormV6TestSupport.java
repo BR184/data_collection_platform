@@ -73,7 +73,7 @@ final class FormV6TestSupport {
         new FormComparableRegistrationService(jdbc, contextService, objectMapper);
     FormRecordWriteService writeService =
         new FormRecordWriteService(
-            jdbc, contextService, store, viewFactory, directoryService, ClockStub.SYSTEM);
+            jdbc, contextService, store, viewFactory, directoryService, reader, ClockStub.SYSTEM);
     DataSourceTransactionManager transactionManager =
         new DataSourceTransactionManager(jdbc.getDataSource());
     return new WiredServices(

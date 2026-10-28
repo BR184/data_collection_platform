@@ -242,29 +242,6 @@ public class FormRecordStore {
     return bindAndUpdate(sql, List.of(now, id, instanceId, actor, expectedVersion));
   }
 
-  public boolean sameReviewerExists(
-      FormVersionContext context, long instanceId, String reviewerUserId) {
-    FormFieldSpec person =
-        context.spec().fields().stream()
-            .filter(field -> field.storage() != null && field.storage().nameColumn() != null)
-            .findFirst()
-            .orElse(null);
-    if (person == null || reviewerUserId == null || reviewerUserId.isBlank()) {
-      return false;
-    }
-    Boolean exists =
-        jdbcTemplate.queryForObject(
-            "select exists(select 1 from "
-                + context.recordTable()
-                + " where instance_id = ? and deleted = false and "
-                + person.storage().resolvedColumn()
-                + " = ?)",
-            Boolean.class,
-            instanceId,
-            reviewerUserId);
-    return Boolean.TRUE.equals(exists);
-  }
-
   public long writeAudit(
       String operation,
       FormVersionContext context,

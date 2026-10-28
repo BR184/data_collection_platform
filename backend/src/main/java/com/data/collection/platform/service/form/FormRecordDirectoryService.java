@@ -161,7 +161,12 @@ public class FormRecordDirectoryService {
     }
     return new FormCreateResponse(
         "REPLAYED",
-        viewFactory.toView(recordRow, actor, current.writable(), store.creatorName(recordRow.id())),
+        viewFactory.toView(
+            recordRow,
+            actor,
+            current.writable(),
+            store.creatorName(recordRow.id()),
+            Long.toString(directory.storageVersionId())),
         null);
   }
 
@@ -232,12 +237,13 @@ public class FormRecordDirectoryService {
     }
   }
 
-  private FormVersionContext storageVersionContext(FormVersionContext current, long versionId) {
+  /** 按目录承载版本构建写入上下文；只接受 AUTHORITATIVE 且可写的承载版本。 */
+  public FormVersionContext storageVersionContext(FormVersionContext current, long versionId) {
     List<Map<String, Object>> rows =
         jdbcTemplate.queryForList(
             """
             select version_label, version_status, storage_kind, instance_table, record_table,
-                   field_spec::text as field_spec
+                   field_spec::text as field_spec, record_source_role, instance_mode
               from form_template_versions
              where scope_id = ? and id = ?
             """,
@@ -250,6 +256,11 @@ public class FormRecordDirectoryService {
     if (!"RECORDS".equals(row.get("storage_kind")) || row.get("record_table") == null) {
       throw new FormConflictException("目录承载版本不含记录表，无法回表");
     }
+    if (!"AUTHORITATIVE".equals(row.get("record_source_role"))
+        || !"MATERIALIZED".equals(row.get("instance_mode"))) {
+      throw new FormConflictException("目录承载版本不是权威实例版本，不能编辑或作废");
+    }
+
     String raw = (String) row.get("field_spec");
     return new FormVersionContext(
         current.scopeId(),

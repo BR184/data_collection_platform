@@ -200,6 +200,24 @@ public class FormRecordContextService {
     }
   }
 
+  /** 写事务内锁定范围行与停写栅栏；编辑/作废按记录自身承载版本执行，不要求当前指针相等。 */
+  public void lockScopeForStorageWrite(FormVersionContext context) {
+    List<Map<String, Object>> rows =
+        jdbcTemplate.queryForList(
+            "select status, write_fenced from form_template_scopes where id = ? for share",
+            context.scopeId());
+    if (rows.isEmpty()) {
+      throw new BizException(ResultCode.BAD_REQUEST, "表单范围不存在");
+    }
+    Map<String, Object> row = rows.get(0);
+    if (!"ACTIVE".equals(row.get("status"))) {
+      throw new FormConflictException("表单范围已停用，仅保留历史查询");
+    }
+    if (Boolean.TRUE.equals(row.get("write_fenced"))) {
+      throw new FormConflictException("表单范围已停写，请稍后重试");
+    }
+  }
+
   /**
    * 构造以请求携带结构版本为规格来源的重放上下文。
    *

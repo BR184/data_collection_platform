@@ -9,6 +9,7 @@ public record FormVoidRequest(
     String templateKey,
     String scopeId,
     String storageVersionId,
+    String expectedStorageVersionId,
     Integer recordVersion,
     boolean confirmVoid,
     String confirmationText) {}

@@ -13,7 +13,8 @@ public class FormRecordViewFactory {
       FormRecordRow row,
       FormActorContext actor,
       boolean writable,
-      String createdByName) {
+      String createdByName,
+      String storageVersionId) {
     boolean own =
         row.createdBy() != null
             && actor != null
@@ -31,6 +32,7 @@ public class FormRecordViewFactory {
         createdByName,
         row.templateVersion(),
         Long.toString(row.originVersionId()),
+        storageVersionId,
         row.createdAt(),
         row.updatedAt(),
         writable

@@ -18,6 +18,7 @@ public record FormRecordView(
     String createdByName,
     String templateVersion,
     String originVersionId,
+    String storageVersionId,
     LocalDateTime createdAt,
     LocalDateTime updatedAt,
     boolean canEdit,

@@ -2,6 +2,7 @@ package com.data.collection.platform.service.form;
 
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.response.ResultCode;
+import com.data.collection.platform.domain.form.FormFieldSpec;
 import com.data.collection.platform.domain.form.FormSourceUrlSupport;
 import com.data.collection.platform.entity.CollectFormNotificationPayloadResponse;
 import com.data.collection.platform.entity.form.FormAccountView;
@@ -10,6 +11,7 @@ import com.data.collection.platform.entity.form.FormCapabilitiesView;
 import com.data.collection.platform.entity.form.FormCreateRequest;
 import com.data.collection.platform.entity.form.FormCreateResponse;
 import com.data.collection.platform.entity.form.FormDetailResponse;
+import com.data.collection.platform.entity.form.FormReadableVersionView;
 import com.data.collection.platform.entity.form.FormRecordView;
 import com.data.collection.platform.entity.form.FormResourceView;
 import com.data.collection.platform.entity.form.FormReviewerCandidatesResponse;
@@ -19,7 +21,9 @@ import com.data.collection.platform.security.PlatformPermissionCodes;
 import com.data.collection.platform.service.GitlabResourceRootResolver;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.PlatformIdentityService;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -41,6 +45,7 @@ public class FormRecordService {
   private final FormReviewerDirectoryService reviewerDirectory;
   private final PlatformIdentityService identityService;
   private final FormRecordDirectoryService directoryService;
+  private final FormRecordDirectoryReader directoryReader;
   private final JdbcTemplate jdbcTemplate;
   private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
@@ -53,6 +58,7 @@ public class FormRecordService {
       FormReviewerDirectoryService reviewerDirectory,
       PlatformIdentityService identityService,
       FormRecordDirectoryService directoryService,
+      FormRecordDirectoryReader directoryReader,
       JdbcTemplate jdbcTemplate,
       com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
     this.contextService = contextService;
@@ -63,11 +69,15 @@ public class FormRecordService {
     this.reviewerDirectory = reviewerDirectory;
     this.identityService = identityService;
     this.directoryService = directoryService;
+    this.directoryReader = directoryReader;
     this.jdbcTemplate = jdbcTemplate;
     this.objectMapper = objectMapper;
   }
 
-  /** detail 只读；返回冻结规格、结构版本、资源、账号与全部未作废记录。 */
+  /**
+   * detail 只读：返回当前版指针、全部可读权威版本与各自冻结规格，并按目录列出所有版本的
+   * 有效记录；每条记录携带自身承载版本与创建版本，业务值按承载版本回表。
+   */
   @Transactional(readOnly = true)
   public FormDetailResponse detail(
       String templateKey,
@@ -78,45 +88,157 @@ public class FormRecordService {
       FormActorContext actor) {
     requireAuthenticated(actor);
     requirePermission(actor, PlatformPermissionCodes.FORM_RECORD_CREATE);
-    FormVersionContext context =
+    FormVersionContext current =
         contextService.resolve(templateKey, gitlabBaseUrl, projectId, resourceType, resourceId, false);
-    Long instanceId = store.findInstanceId(context);
-    List<FormRecordRow> rows =
-        instanceId == null ? List.of() : store.listActive(context, instanceId);
-    List<Long> ids = rows.stream().map(FormRecordRow::id).toList();
+    boolean writable = current.writable();
+    FormRecordDirectoryReader.SourceSet sourceSet =
+        directoryReader.captureSourceSet(current.scopeId());
+    Map<String, JsonNode> versionSpecs = new LinkedHashMap<>();
+    List<FormReadableVersionView> readable = new ArrayList<>(sourceSet.versions().size());
+    for (FormRecordDirectoryReader.VersionEntry version : sourceSet.versions()) {
+      String raw =
+          jdbcTemplate.queryForObject(
+              "select field_spec::text from form_template_versions where id = ?",
+              String.class,
+              version.versionId());
+      versionSpecs.put(Long.toString(version.versionId()), contextService.readFieldSpec(raw));
+      readable.add(
+          new FormReadableVersionView(
+              Long.toString(version.versionId()),
+              versionLabel(version.versionId()),
+              version.versionStatus(),
+              version.instanceMode(),
+              version.fieldSpecHash()));
+    }
+    List<FormRecordDirectoryReader.LocatedRecord> located =
+        directoryReader.listByResource(
+            current.scopeId(), current.resourceType(), Long.toString(current.resourceId()),
+            current.projectId());
+    List<Long> ids =
+        located.stream().map(FormRecordDirectoryReader.LocatedRecord::recordId).toList();
     Map<Long, String> creatorNames = store.creatorNames(ids);
-    List<FormRecordView> records = new ArrayList<>(rows.size());
-    for (FormRecordRow row : rows) {
+    List<FormRecordView> records = new ArrayList<>(located.size());
+    for (FormRecordDirectoryReader.LocatedRecord location : located) {
+      FormVersionContext storage =
+          directoryService.storageVersionContext(current, location.storageVersionId());
+      FormRecordRow row =
+          "NONE".equals(location.instanceMode())
+              ? legacyRow(location, storage)
+              : store.findByIdAny(storage, location.recordId());
+      if (row == null) {
+        throw new com.data.collection.platform.common.exception.FormConflictException(
+            "目录记录无法按承载版本回表：record=" + location.recordId());
+      }
       records.add(
           viewFactory.toView(
-              row, actor, context.writable(), creatorNames.get(row.id())));
+              row, actor, writable, creatorNames.get(row.id()),
+              Long.toString(location.storageVersionId())));
     }
-    boolean writable = context.writable();
+    String sourceSetHash =
+        sourceSet.hash() != null
+            ? sourceSet.hash()
+            : jdbcTemplate.queryForObject(
+                "select form_source_set_hash(?)", String.class, current.scopeId());
+    Long currentInstanceId = store.findInstanceId(current);
     String displayName =
         identityService.displayNameForUser(actor.userId(), actor.displayName());
     return new FormDetailResponse(
-        context.spec().templateKey(),
-        context.fieldSpecJson(),
-        Long.toString(context.scopeId()),
-        Long.toString(context.storageVersionId()),
-        context.versionLabel(),
-        context.scopeStatus(),
+        current.spec().templateKey(),
+        current.fieldSpecJson(),
+        Long.toString(current.scopeId()),
+        Long.toString(current.storageVersionId()),
+        Long.toString(current.storageVersionId()),
+        current.versionLabel(),
+        current.scopeStatus(),
         writable,
-        instanceId == null ? null : Long.toString(instanceId),
+        currentInstanceId == null ? null : Long.toString(currentInstanceId),
+        List.copyOf(readable),
+        Map.copyOf(versionSpecs),
+        Long.toString(sourceSet.revision()),
+        sourceSetHash,
         List.copyOf(records),
         new FormResourceView(
-            context.canonicalGitlabBaseUrl(),
-            Long.toString(context.projectId()),
-            context.resourceType(),
-            Long.toString(context.resourceId()),
-            context.rootId() == null ? null : Long.toString(context.rootId()),
-            context.webUrl(),
-            context.severityLevel()),
+            current.canonicalGitlabBaseUrl(),
+            Long.toString(current.projectId()),
+            current.resourceType(),
+            Long.toString(current.resourceId()),
+            current.rootId() == null ? null : Long.toString(current.rootId()),
+            current.webUrl(),
+            current.severityLevel()),
         new FormAccountView(actor.userId(), displayName),
         new FormCapabilitiesView(
             writable && actor.hasPermission(PlatformPermissionCodes.FORM_RECORD_CREATE),
             writable && actor.hasPermission(PlatformPermissionCodes.FORM_RECORD_EDIT_OWN),
             writable && actor.hasPermission(PlatformPermissionCodes.FORM_RECORD_DELETE_OWN)));
+  }
+
+  private String versionLabel(long versionId) {
+    return jdbcTemplate.queryForObject(
+        "select version_label from form_template_versions where id = ?", String.class, versionId);
+  }
+
+  private FormRecordRow legacyRow(
+      FormRecordDirectoryReader.LocatedRecord location, FormVersionContext storage) {
+    Map<String, Object> fields = new LinkedHashMap<>();
+    Map<String, String> fieldNames = new LinkedHashMap<>();
+    for (FormFieldSpec field : storage.spec().fields()) {
+      Object raw = location.fields().get(field.storage().resolvedColumn());
+      fields.put(field.apiKey(), legacyValue(raw, field.type()));
+      if (field.storage().nameColumn() != null) {
+        Object nameValue = location.fields().get(field.storage().nameColumn());
+        fieldNames.put(field.apiKey(), nameValue == null ? null : String.valueOf(nameValue));
+      }
+    }
+    return new FormRecordRow(
+        location.recordId(),
+        location.instanceId() == null ? -1L : location.instanceId(),
+        location.originVersionId(),
+        storage.versionLabel(),
+        location.createdBy(),
+        location.requestKey(),
+        location.createPayloadHash(),
+        1,
+        location.deleted(),
+        false,
+        List.of(),
+        fields,
+        fieldNames,
+        Map.of(),
+        null,
+        null);
+  }
+
+  private Object legacyValue(Object raw, String type) {
+    if (raw == null) {
+      return null;
+    }
+    return switch (type) {
+      case "integer" ->
+          raw instanceof Number number ? number.intValue() : Integer.valueOf(raw.toString());
+      case "boolean" -> raw instanceof Boolean flag ? flag : Boolean.valueOf(raw.toString());
+      case "enum-array" -> legacyArray(raw);
+      default -> raw instanceof String text ? text : raw.toString();
+    };
+  }
+
+  private List<String> legacyArray(Object raw) {
+    if (!(raw instanceof java.sql.Array array)) {
+      return List.of(String.valueOf(raw));
+    }
+    try {
+      Object values = array.getArray();
+      if (values instanceof Object[] items) {
+        List<String> result = new ArrayList<>(items.length);
+        for (Object item : items) {
+          result.add(item == null ? null : String.valueOf(item));
+        }
+        return List.copyOf(result);
+      }
+      return List.of();
+    } catch (java.sql.SQLException error) {
+      throw new com.data.collection.platform.common.exception.FormConflictException(
+          "旧记录数组列无法读取");
+    }
   }
 
   /** 新增一条记录；同 key 重放返回 REPLAYED，同走查人返回 CONFIRM_REQUIRED 且不写入。 */
@@ -180,7 +302,7 @@ public class FormRecordService {
     }
   }
 
-  /** 编辑本人记录；旧页面迟到保存按记录版本冲突拒绝，不覆盖其他记录。 */
+  /** 编辑本人记录：按目录承载版本与 expectedStorageVersionId 定位，CAS 失败不覆盖。 */
   public FormRecordView update(
       String id, FormUpdateRequest request, FormActorContext actor, String clientIp, String userAgent) {
     requireAuthenticated(actor);
@@ -190,24 +312,24 @@ public class FormRecordService {
     if (expected == null || expected <= 0) {
       throw new BizException(ResultCode.BAD_REQUEST, "记录版本必须为正整数");
     }
-    FormVersionContext context =
-        resolveWrite(request.templateKey(), request.gitlabBaseUrl(), request.projectId(),
-            request.resourceType(), request.resourceId(), request.scopeId(),
-            request.storageVersionId());
+    FormVersionContext current =
+        contextService.resolve(
+            request.templateKey(),
+            request.gitlabBaseUrl(),
+            request.projectId(),
+            request.resourceType(),
+            request.resourceId(),
+            true);
     fieldValueService.requirePayloadSize(request.fields());
-    ValidatedFormValues values = fieldValueService.validate(context, request.fields());
-    return writeService.update(
-        context,
-        recordId,
-        expected,
-        values,
-        actor,
-        actorName(actor),
-        clientIp,
-        userAgent);
+    FormVersionContext storage =
+        requireRecordStorage(
+            recordId, request.scopeId(), request.expectedStorageVersionId(), current, actor);
+    ValidatedFormValues values = fieldValueService.validate(storage, request.fields());
+    return writeService.updateStorage(
+        storage, recordId, expected, values, actor, actorName(actor), clientIp, userAgent);
   }
 
-  /** 作废本人记录；确认文本与版本同时核验，重复作废只返回已作废状态。 */
+  /** 作废本人记录：确认文本与版本同时核验，重复作废只返回已作废状态。 */
   public FormRecordView voidRecord(
       String id, FormVoidRequest request, FormActorContext actor, String clientIp, String userAgent) {
     requireAuthenticated(actor);
@@ -220,12 +342,65 @@ public class FormRecordService {
     if (expected == null || expected <= 0) {
       throw new BizException(ResultCode.BAD_REQUEST, "记录版本必须为正整数");
     }
-    FormVersionContext context =
-        resolveWrite(request.templateKey(), request.gitlabBaseUrl(), request.projectId(),
-            request.resourceType(), request.resourceId(), request.scopeId(),
-            request.storageVersionId());
-    return writeService.voidRecord(
-        context, recordId, expected, actor, actorName(actor), clientIp, userAgent);
+    FormVersionContext current =
+        contextService.resolve(
+            request.templateKey(),
+            request.gitlabBaseUrl(),
+            request.projectId(),
+            request.resourceType(),
+            request.resourceId(),
+            true);
+    FormVersionContext storage =
+        requireRecordStorage(
+            recordId, request.scopeId(), request.expectedStorageVersionId(), current, actor);
+    return writeService.voidStorage(
+        storage, recordId, expected, actor, actorName(actor), clientIp, userAgent);
+  }
+
+  /**
+   * 按目录定位记录自身承载版本：范围/完整C/账号/预期的物理版本必须全部一致；
+   * originVersionId 不参与选表，旧版记录按自身版本编辑。
+   */
+  private FormVersionContext requireRecordStorage(
+      long recordId,
+      String requestScopeId,
+      String expectedStorageVersionId,
+      FormVersionContext current,
+      FormActorContext actor) {
+    if (expectedStorageVersionId == null || expectedStorageVersionId.isBlank()) {
+      throw new BizException(ResultCode.BAD_REQUEST, "expectedStorageVersionId 不能为空");
+    }
+    long expectedVersion = parsePositiveId(expectedStorageVersionId, "承载版本 ID");
+    long scopeId = parsePositiveId(requestScopeId, "范围 ID");
+    if (scopeId != current.scopeId()) {
+      throw new BizException(ResultCode.BAD_REQUEST, "范围与资源上下文不一致");
+    }
+    FormRecordDirectoryService.DirectoryRow directory =
+        directoryService
+            .findByRecordId(recordId)
+            .orElseThrow(() -> new AccessDeniedException("记录缺少目录证据，不能编辑或作废"));
+    if (directory.scopeId() != current.scopeId()
+        || directory.sourceConfigId() != current.sourceConfigId()
+        || !directory.sourceInstance().equals(current.sourceInstance())
+        || !directory.gitlabBaseUrl().equals(current.canonicalGitlabBaseUrl())
+        || directory.projectId() != current.projectId()
+        || !directory.resourceType().equals(current.resourceType())
+        || !directory.resourceId().equals(Long.toString(current.resourceId()))) {
+      throw new com.data.collection.platform.common.exception.FormConflictException(
+          "记录完整资源与当前上下文不一致");
+    }
+    if (!"MATERIALIZED".equals(directory.instanceMode()) || directory.createdBy() == null) {
+      throw new com.data.collection.platform.common.exception.FormConflictException(
+          "该记录无创建人证据，只读");
+    }
+    if (!directory.createdBy().equals(actor.userId())) {
+      throw new AccessDeniedException("只能操作本人记录");
+    }
+    if (directory.storageVersionId() != expectedVersion) {
+      throw new com.data.collection.platform.common.exception.FormConflictException(
+          "记录承载版本与请求不一致，请刷新后重试");
+    }
+    return directoryService.storageVersionContext(current, directory.storageVersionId());
   }
 
   /** 人员候选按稳定 userId 游标返回；本人候选独立于分页。 */
@@ -313,22 +488,6 @@ public class FormRecordService {
         fieldValueService.fingerprint(
             replayContext, actor.userId(), canonicalValues.canonicalFields());
     return writeService.replayIfPresent(context, actor, requestKey, payloadHash);
-  }
-
-  private FormVersionContext resolveWrite(
-      String templateKey,
-      String gitlabBaseUrl,
-      Long projectId,
-      String resourceType,
-      String resourceId,
-      String scopeId,
-      String storageVersionId) {
-    FormVersionContext context =
-        contextService.resolve(
-            templateKey, gitlabBaseUrl, projectId, resourceType, resourceId, true);
-    contextService.requireExpected(context, scopeId, storageVersionId);
-    requireResourceMirrored(context);
-    return context;
   }
 
   private Long findSourceConfig(String canonicalUrl) {
