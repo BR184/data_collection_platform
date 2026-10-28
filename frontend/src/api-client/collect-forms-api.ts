@@ -34,6 +34,7 @@ export interface FormCreatePayload extends FormContextPayload {
 export interface FormUpdatePayload extends FormContextPayload {
   scopeId: string;
   storageVersionId: string;
+  expectedStorageVersionId: string;
   recordVersion: number;
   fields: Record<string, unknown>;
 }
@@ -41,6 +42,7 @@ export interface FormUpdatePayload extends FormContextPayload {
 export interface FormVoidPayload extends FormContextPayload {
   scopeId: string;
   storageVersionId: string;
+  expectedStorageVersionId: string;
   recordVersion: number;
   confirmVoid: boolean;
   confirmationText: string;

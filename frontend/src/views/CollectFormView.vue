@@ -192,6 +192,10 @@ let reviewerRequestSeq = 0;
 let sessionSeq = 0;
 
 const detail = computed<FormDetailResponse | null>(() => session.value?.state.detail ?? null);
+const recordSpec = (record: FormRecordView) =>
+  detail.value?.versionSpecs?.[record.storageVersionId] ?? spec.value;
+const blockSpec = (block: FormBlockState) =>
+  detail.value?.versionSpecs?.[block.storageVersionId] ?? spec.value;
 const spec = computed(() => detail.value?.fieldSpec ?? null);
 const blocks = computed<FormBlockState[]>(() => session.value?.state.blocks ?? []);
 const templateTitle = computed(
@@ -1247,7 +1251,7 @@ onBeforeUnmount(() => {
               <FormRecordCard
                 v-for="record in sortedRecords"
                 :key="record.id"
-                :spec="spec"
+                :spec="recordSpec(record)"
                 :record="record"
                 :template-title="templateTitle"
                 :latest="latestRecordId === record.id"
@@ -1361,7 +1365,7 @@ onBeforeUnmount(() => {
                   </div>
                   <div class="form-record-fields">
                     <div
-                      v-for="field in spec.fields"
+                      v-for="field in blockSpec(block).fields"
                       :key="field.apiKey"
                       class="form-record-field"
                     >
@@ -1382,7 +1386,7 @@ onBeforeUnmount(() => {
                   @submit.prevent="submitBlock(block)"
                 >
                   <el-form-item
-                    v-for="field in spec.fields"
+                    v-for="field in blockSpec(block).fields"
                     :key="field.apiKey"
                     :label="field.label || field.name"
                     :required="fieldRequired(block, field)"
@@ -1392,7 +1396,7 @@ onBeforeUnmount(() => {
                   >
                     <div class="form-field-control">
                       <FormFieldControl
-                        :spec="spec"
+                        :spec="blockSpec(block)"
                         :field="field"
                         :model-value="block.fields[field.apiKey]"
                         :disabled="fieldDisabled(block) || fieldCleared(block, field)"

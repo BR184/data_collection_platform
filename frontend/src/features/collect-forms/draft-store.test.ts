@@ -28,6 +28,9 @@ const contextKey = formContextKey(context);
 function draft(overrides: Partial<FormDraftRecord> = {}): FormDraftRecord {
   const base: FormDraftRecord = {
     draftSpecVersion: 1,
+    originVersionId: null,
+    baseStorageVersionId: '22',
+    versionSpecHash: null,
     accountUserId: 'alice',
     contextKey,
     context: { ...context, scopeId: '11', storageVersionId: '22' },
@@ -50,6 +53,10 @@ function draft(overrides: Partial<FormDraftRecord> = {}): FormDraftRecord {
     updatedAt: '2026-10-23T01:00:00.000Z',
   };
   return { ...base, ...overrides };
+}
+
+function draftStorageKey(prefix: string): string {
+  return [prefix, encodeURIComponent('alice'), encodeURIComponent(contextKey), 'session-a', 'draft-1'].join('|');
 }
 
 beforeEach(() => {
@@ -231,6 +238,46 @@ describe('form draft store', () => {
       },
     ]);
     unsubscribe();
+  });
+
+  it('upgrades a legacy v1 draft entry to v2 without changing its identity', () => {
+    const legacyPayload = {
+      ...draft(),
+      draftSpecVersion: 1,
+      originVersionId: undefined,
+      baseStorageVersionId: undefined,
+      versionSpecHash: undefined,
+    };
+    const v1Key = draftStorageKey('qaflex.form.draft.v1');
+    const v2Key = draftStorageKey('qaflex.form.draft.v2');
+    localStorage.setItem(v1Key, JSON.stringify(legacyPayload));
+
+    const [migrated] = readFormDrafts('alice', contextKey);
+    expect(migrated.draftSpecVersion).toBe(2);
+    expect(migrated.draftId).toBe('draft-1');
+    expect(migrated.requestKey).toBe('request-1');
+    expect(migrated.fields).toEqual({ fixStatus: 'RESOLVED' });
+    expect(migrated.originVersionId).toBeNull();
+    expect(migrated.baseStorageVersionId).toBe('22');
+    expect(migrated.versionSpecHash).toBeNull();
+    expect(migrated.updatedAt).toBe('2026-10-23T01:00:00.000Z');
+    expect(localStorage.getItem(v1Key)).toBeNull();
+    expect(localStorage.getItem(v2Key)).toBeTruthy();
+
+    deleteFormDraft(migrated);
+    expect(readFormDrafts('alice', contextKey)).toHaveLength(0);
+    expect(localStorage.getItem(v2Key)).toBeNull();
+  });
+
+  it('writes v2 keys and removes the matching v1 entry on save', () => {
+    const v1Key = draftStorageKey('qaflex.form.draft.v1');
+    const v2Key = draftStorageKey('qaflex.form.draft.v2');
+    localStorage.setItem(v1Key, JSON.stringify({ ...draft(), draftSpecVersion: 1 }));
+
+    saveFormDraft(draft());
+    expect(localStorage.getItem(v1Key)).toBeNull();
+    expect(localStorage.getItem(v2Key)).toBeTruthy();
+    expect(readSessionDrafts('alice', contextKey, 'session-a')[0].draftSpecVersion).toBe(2);
   });
 
   it('skips corrupted draft entries instead of failing the list', () => {

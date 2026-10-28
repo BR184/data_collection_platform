@@ -14,6 +14,7 @@ import type {
   FormCreateResponse,
   FormDetailResponse,
   FormRecordView,
+  FormTemplateSpecView,
 } from '../../types/api';
 import { getErrorMessage } from '../../utils/user-message';
 import {
@@ -92,6 +93,8 @@ export interface FormBlockState {
   conflictRecord: FormRecordView | null;
   scopeId: string;
   storageVersionId: string;
+  originVersionId?: string | null;
+  versionSpecHash?: string | null;
   createdAt: string;
 }
 
@@ -280,9 +283,20 @@ export class FormFillingSession {
     return this.state.detail?.fieldSpec ?? null;
   }
 
+  /** 编辑块按自身承载版本的冻结规格校验；新增块使用当前版本规格。 */
+  private specForBlock(block: FormBlockState): FormTemplateSpecView | null {
+    const detail = this.state.detail;
+    if (!detail) {
+      return null;
+    }
+    if (block.kind === 'edit') {
+      return detail.versionSpecs?.[block.storageVersionId] ?? null;
+    }
+    return detail.fieldSpec ?? null;
+  }
+
   private restoreDrafts(): void {
-    const spec = this.currentSpec();
-    if (!spec) {
+    if (!this.state.detail) {
       return;
     }
     const drafts = restoreFormDrafts(this.accountUserId, this.contextKey, this.editingSession);
@@ -303,7 +317,10 @@ export class FormFillingSession {
     );
     const structureStale = Boolean(
       detail
-      && (scopeChanged || draft.context.storageVersionId !== detail.storageVersionId),
+      && (scopeChanged
+        || (draft.kind === 'create'
+          ? draft.context.storageVersionId !== detail.storageVersionId
+          : !detail.versionSpecs?.[draft.context.storageVersionId])),
     );
     const readOnlyReasons: string[] = [];
     if (savedElsewhere) {
@@ -358,6 +375,8 @@ export class FormFillingSession {
       conflictRecord: null,
       scopeId: draft.context.scopeId,
       storageVersionId: draft.context.storageVersionId,
+      originVersionId: draft.originVersionId ?? null,
+      versionSpecHash: draft.versionSpecHash ?? null,
       createdAt: draft.updatedAt,
     };
     return block;
@@ -365,8 +384,7 @@ export class FormFillingSession {
 
   private reconcileBlocks(): void {
     const detail = this.state.detail;
-    const spec = this.currentSpec();
-    if (!detail || !spec) {
+    if (!detail) {
       return;
     }
     for (const block of this.state.blocks) {
@@ -393,11 +411,18 @@ export class FormFillingSession {
         block.submitState = 'none';
         continue;
       }
+      const blockSpec = this.specForBlock(block);
+      if (!blockSpec) {
+        block.readOnly = true;
+        block.readOnlyReason = '记录的结构版本不可读，内容仅可查看或复制';
+        block.submitState = 'none';
+        continue;
+      }
       const dirty = hasFieldChanges(block.fields, block.baseFields);
       if (record.recordVersion > (block.baseRecordVersion ?? 0)) {
         if (!dirty) {
           block.baseRecordVersion = record.recordVersion;
-          block.baseFields = normalizeFields(spec, record.fields);
+          block.baseFields = normalizeFields(blockSpec, record.fields);
           block.fields = cloneFields(block.baseFields);
           block.conflictRecord = null;
           block.submitState = 'none';
@@ -413,7 +438,10 @@ export class FormFillingSession {
 
   private applyStructureGuard(block: FormBlockState, detail: FormDetailResponse): void {
     const scopeChanged = block.scopeId !== detail.scopeId;
-    const stale = scopeChanged || block.storageVersionId !== detail.storageVersionId;
+    // 新增草稿必须跟随当前版本；编辑草稿只需自身承载版本仍可读。
+    const stale = scopeChanged || (block.kind === 'create'
+      ? block.storageVersionId !== detail.storageVersionId
+      : !detail.versionSpecs?.[block.storageVersionId]);
     if (stale) {
       block.structureStale = true;
       block.readOnly = true;
@@ -471,7 +499,7 @@ export class FormFillingSession {
 
   private toDraft(block: FormBlockState): FormDraftRecord {
     return {
-      draftSpecVersion: 1,
+      draftSpecVersion: 2,
       accountUserId: this.accountUserId,
       contextKey: this.contextKey,
       context: {
@@ -484,6 +512,9 @@ export class FormFillingSession {
       kind: block.kind,
       targetRecordId: block.targetRecordId,
       baseRecordVersion: block.baseRecordVersion,
+      originVersionId: block.originVersionId ?? null,
+      baseStorageVersionId: block.storageVersionId,
+      versionSpecHash: block.versionSpecHash ?? null,
       baseFields: cloneFields(block.baseFields),
       fields: cloneFields(block.fields),
       requestKey: block.requestKey,
@@ -586,10 +617,21 @@ export class FormFillingSession {
     return block;
   }
 
-  startEdit(record: FormRecordView): FormBlockState | null {
-    const spec = this.currentSpec();
+  /** 记录按自身承载版本的冻结规格显示/编辑；缺失时回退当前版规格只读兜底。 */
+  specForRecord(record: FormRecordView): FormTemplateSpecView | null {
     const detail = this.state.detail;
-    if (!spec || !detail || !detail.writable || this.stopped || this.disposed) {
+    return detail?.versionSpecs?.[record.storageVersionId] ?? this.currentSpec();
+  }
+
+  startEdit(record: FormRecordView): FormBlockState | null {
+    const detail = this.state.detail;
+    if (!detail || !detail.writable || this.stopped || this.disposed) {
+      return null;
+    }
+    // 编辑只按记录自身承载版本的冻结规格开放；版本不可读时不得用当前版规格代填。
+    const spec = detail.versionSpecs?.[record.storageVersionId] ?? null;
+    if (!spec) {
+      this.dialogs.notify('该记录的结构版本不可读，暂不能编辑', 'warning');
       return null;
     }
     const existing = this.state.blocks.find(
@@ -632,7 +674,12 @@ export class FormFillingSession {
       structureStale: false,
       conflictRecord: null,
       scopeId: detail.scopeId,
-      storageVersionId: detail.storageVersionId,
+      storageVersionId: record.storageVersionId,
+      originVersionId: record.originVersionId,
+      versionSpecHash:
+        detail.readableVersions?.find(
+          (version) => version.versionId === record.storageVersionId,
+        )?.fieldSpecHash ?? null,
       createdAt: this.now().toISOString(),
     };
     this.state.blocks.push(block);
@@ -719,7 +766,7 @@ export class FormFillingSession {
     apiKey: string,
     value: unknown,
   ): Promise<boolean> {
-    const spec = this.currentSpec();
+    const spec = this.specForBlock(block);
     if (
       !spec
       || block.frozen
@@ -849,7 +896,7 @@ export class FormFillingSession {
   }
 
   async acceptLatest(block: FormBlockState): Promise<boolean> {
-    const spec = this.currentSpec();
+    const spec = this.specForBlock(block);
     const record = block.conflictRecord ?? (block.targetRecordId ? this.findRecord(block.targetRecordId) : null);
     if (!spec || !record) {
       return false;
@@ -901,7 +948,7 @@ export class FormFillingSession {
   }
 
   private async startSubmit(block: FormBlockState): Promise<void> {
-    const spec = this.currentSpec();
+    const spec = this.specForBlock(block);
     if (!spec || !this.canSubmit(block)) {
       return;
     }
@@ -1036,6 +1083,7 @@ export class FormFillingSession {
       }
       const saved = await this.api.updateFormRecord(block.targetRecordId, {
         ...basePayload,
+        expectedStorageVersionId: block.storageVersionId,
         recordVersion: snapshot.baseRecordVersion,
         fields: cloneFields(snapshot.fields),
       });
@@ -1122,7 +1170,7 @@ export class FormFillingSession {
       this.persistBlockNow(block);
       return;
     }
-    const spec = this.currentSpec();
+    const spec = this.specForBlock(block);
     const savedFields = spec ? normalizeFields(spec, record.fields) : {};
     if (
       record.recordVersion === (snapshot.baseRecordVersion ?? -1) + 1
@@ -1240,7 +1288,8 @@ export class FormFillingSession {
       const voided = await this.api.voidFormRecord(record.id, {
         ...this.contextPayload(),
         scopeId: detail.scopeId,
-        storageVersionId: detail.storageVersionId,
+        storageVersionId: record.storageVersionId,
+        expectedStorageVersionId: record.storageVersionId,
         recordVersion: record.recordVersion,
         confirmVoid: true,
         confirmationText,

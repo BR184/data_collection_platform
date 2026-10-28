@@ -108,6 +108,7 @@ function record(overrides: Partial<FormRecordView> = {}): FormRecordView {
     createdByName: 'Alice',
     templateVersion: 'v1',
     originVersionId: '22',
+    storageVersionId: '22',
     createdAt: '2026-10-23T01:00:00.000Z',
     updatedAt: '2026-10-23T01:00:00.000Z',
     canEdit: true,
@@ -124,11 +125,16 @@ function detail(
     templateKey: 'code_review',
     fieldSpec: codeReviewSpec,
     scopeId: '11',
+    currentVersionId: '22',
     storageVersionId: '22',
     versionLabel: 'v1',
     scopeStatus: 'ACTIVE',
     writable: true,
     instanceId: '31',
+    readableVersions: [],
+    versionSpecs: { '22': codeReviewSpec },
+    sourceSetRevision: '0',
+    sourceSetHash: '0'.repeat(64),
     records,
     resource: {
       gitlabBaseUrl: 'https://gitlab.example.com',
@@ -570,6 +576,90 @@ describe('form filling session', () => {
     expect(block.fields.supplementNote).toBe('我的内容');
     expect(current.session.canSubmitBlock(block)).toBe(false);
     expect(current.session.state.blocks).toHaveLength(1);
+  });
+
+  it('renders and edits each record against its own storage version spec', async () => {
+    const v2Spec: FormTemplateSpecView = {
+      spec_version: 2,
+      template_key: 'code_review',
+      fields: [
+        ...codeReviewSpec.fields.filter((field) => field.name !== 'other_count'),
+        { name: 'security_count', apiKey: 'securityCount', label: '安全', type: 'integer', required: true, min: 0, max: 2147483647 },
+      ],
+      conditions: [],
+      dictionaries: [],
+    };
+    const base = record({ id: '301', storageVersionId: '22' });
+    const oldRecord = record({
+      id: '302',
+      originVersionId: '22',
+      storageVersionId: '33',
+      fields: {
+        reviewerUserId: 'alice',
+        reviewDurationMinutes: 30,
+        specificationCount: 1,
+        logicCount: 2,
+        performanceCount: 3,
+        designCount: 4,
+        securityCount: 6,
+      },
+      fieldNames: { reviewerUserId: 'Alice' },
+    });
+    const overrides: Partial<FormDetailResponse> = {
+      currentVersionId: '22',
+      storageVersionId: '22',
+      readableVersions: [
+        { versionId: '22', versionLabel: 'v1', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'a'.repeat(64) },
+        { versionId: '33', versionLabel: 'v2', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'b'.repeat(64) },
+      ],
+      versionSpecs: { '22': codeReviewSpec, '33': v2Spec },
+    };
+    const current = harness({ apiDetail: detail([base, oldRecord], overrides) });
+    await current.session.initialize();
+
+    expect(current.session.specForRecord(base)).toEqual(codeReviewSpec);
+    expect(current.session.specForRecord(oldRecord)).toEqual(v2Spec);
+    // 原版记录按自身 v2 规格保留原值，新增字段不回填到 v1 记录。
+    const block = current.session.startEdit(oldRecord)!;
+    expect(block.storageVersionId).toBe('33');
+    expect(block.originVersionId).toBe('22');
+    expect(block.versionSpecHash).toBe('b'.repeat(64));
+    expect(block.fields.securityCount).toBe(6);
+    expect(block.fields.otherCount).toBeUndefined();
+
+    await current.session.changeField(block, 'securityCount', 7);
+    const updated = record({
+      id: '302',
+      originVersionId: '22',
+      storageVersionId: '33',
+      recordVersion: 2,
+      fields: { ...oldRecord.fields, securityCount: 7 },
+      fieldNames: { reviewerUserId: 'Alice' },
+    });
+    current.api.updateFormRecord.mockResolvedValueOnce(updated);
+    current.api.getFormDetail.mockImplementation(async () => detail([base, updated], overrides));
+    await current.session.submit(block);
+    expect(current.api.updateFormRecord).toHaveBeenCalledWith('302', expect.objectContaining({
+      storageVersionId: '33',
+      expectedStorageVersionId: '33',
+      recordVersion: 1,
+      fields: expect.objectContaining({ securityCount: 7 }),
+    }));
+
+    current.api.voidFormRecord.mockResolvedValueOnce(
+      record({ id: '302', storageVersionId: '33', recordVersion: 3, deleted: true }),
+    );
+    current.api.getFormDetail.mockImplementation(async () => detail([base], overrides));
+    const voidAccepted = await current.session.voidRecord(
+      current.session.state.records.find((item) => item.id === '302')!,
+    );
+    expect(voidAccepted).toBe(true);
+    expect(current.api.voidFormRecord).toHaveBeenCalledWith('302', expect.objectContaining({
+      storageVersionId: '33',
+      expectedStorageVersionId: '33',
+      recordVersion: 2,
+    }));
+    expect(current.session.state.records.map((item) => item.id)).toEqual(['301']);
   });
 
   it('does not write a late create result after the identity generation changes', async () => {

@@ -10,7 +10,7 @@ import {
   saveFormDraft,
   type FormDraftRecord,
 } from '../features/collect-forms/draft-store';
-import type { FormDetailResponse, FormTemplateSpecView } from '../types/api';
+import type { FormDetailResponse, FormRecordView, FormTemplateSpecView } from '../types/api';
 import CollectFormView from './CollectFormView.vue';
 
 const mocks = vi.hoisted(() => ({
@@ -65,11 +65,16 @@ function detail(overrides: Partial<FormDetailResponse> = {}): FormDetailResponse
     templateKey: 'code_review',
     fieldSpec: codeReviewSpec,
     scopeId: '11',
+    currentVersionId: '22',
     storageVersionId: '22',
     versionLabel: 'v2026.10',
     scopeStatus: 'ACTIVE',
     writable: true,
     instanceId: '31',
+    readableVersions: [],
+    versionSpecs: { '22': codeReviewSpec },
+    sourceSetRevision: '0',
+    sourceSetHash: '0'.repeat(64),
     records: [],
     resource: {
       gitlabBaseUrl: 'https://gitlab.example.com',
@@ -214,6 +219,67 @@ describe('CollectFormView', () => {
     expect(current.text()).toContain('草稿仅保存在当前浏览器');
   });
 
+  it('renders and edits a record with its own storage version spec', async () => {
+    const v2Spec: FormTemplateSpecView = {
+      spec_version: 2,
+      template_key: 'code_review',
+      fields: [
+        { name: 'reviewer_user_id', apiKey: 'reviewerUserId', label: '走查人', type: 'string', control: 'person-select', required: true, maxLength: 128 },
+        { name: 'security_count', apiKey: 'securityCount', label: '安全', type: 'integer', required: true, min: 0, max: 2147483647 },
+      ],
+      conditions: [],
+      dictionaries: [],
+    };
+    const oldRecord: FormRecordView = {
+      id: '302',
+      recordVersion: 1,
+      deleted: false,
+      legacyIncomplete: false,
+      legacyMissingFields: [],
+      fields: { reviewerUserId: 'alice', securityCount: 2, supplementNote: '不应显示的旧值' },
+      fieldNames: { reviewerUserId: 'Alice' },
+      snapshotValues: {},
+      createdBy: 'alice',
+      createdByName: 'Alice',
+      templateVersion: 'v2',
+      originVersionId: '22',
+      storageVersionId: '33',
+      createdAt: '2026-10-23T01:00:00.000Z',
+      updatedAt: '2026-10-23T01:00:00.000Z',
+      canEdit: true,
+      canVoid: true,
+    };
+    mocks.api.getFormDetail.mockResolvedValue(
+      detail({
+        currentVersionId: '22',
+        storageVersionId: '22',
+        readableVersions: [
+          { versionId: '22', versionLabel: 'v1', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'a'.repeat(64) },
+          { versionId: '33', versionLabel: 'v2', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'b'.repeat(64) },
+        ],
+        versionSpecs: { '22': codeReviewSpec, '33': v2Spec },
+        records: [oldRecord],
+      }),
+    );
+    const current = await mountView(
+      '/external/forms?gitlabBaseUrl=https%3A%2F%2Fgitlab.example.com&projectId=7&resourceType=merge_request&resourceId=3&templateKey=code_review',
+    );
+
+    expect(current.text()).toContain('安全');
+    expect(current.text()).toContain('2');
+    expect(current.text()).not.toContain('补充说明');
+    expect(current.text()).not.toContain('不应显示的旧值');
+
+    const edit = findButton(current, '编辑');
+    expect(edit).toBeTruthy();
+    await edit!.trigger('click');
+    await flushPromises();
+
+    expect(current.findAll('[data-field-id$=":securityCount"]')).toHaveLength(1);
+    expect(current.findAll('[data-field-id$=":supplementNote"]')).toHaveLength(0);
+    expect(current.text()).toContain('安全');
+  });
+
   it('restores the local draft for the same account and editing session', async () => {
     sessionStorage.setItem('qaflex.form.editing-session', 'session-view');
     const context = {
@@ -225,6 +291,9 @@ describe('CollectFormView', () => {
     };
     const draft: FormDraftRecord = {
       draftSpecVersion: 1,
+      originVersionId: null,
+      baseStorageVersionId: '22',
+      versionSpecHash: null,
       accountUserId: 'alice',
       contextKey: formContextKey(context),
       context: { ...context, scopeId: '11', storageVersionId: '22' },
@@ -392,7 +461,7 @@ describe('CollectFormView', () => {
     expect(activeRouter!.currentRoute.value.query.templateKey).toBeUndefined();
     expect(current.text()).toContain('选择填写模板');
     const stored = Object.keys(localStorage).filter((key) =>
-      key.startsWith('qaflex.form.draft.v1'),
+      key.startsWith('qaflex.form.draft.v2'),
     );
     expect(stored).toHaveLength(1);
     expect(localStorage.getItem(stored[0])).toContain('确认离开前的内容');

@@ -1,7 +1,8 @@
 import { createUuid } from '../../utils/uuid';
 import { cloneFields, type FieldValueMap } from './field-logic';
 
-const DRAFT_PREFIX = 'qaflex.form.draft.v1';
+const DRAFT_PREFIX_V2 = 'qaflex.form.draft.v2';
+const DRAFT_PREFIX_V1 = 'qaflex.form.draft.v1';
 const SESSION_KEY = 'qaflex.form.editing-session';
 const LOGOUT_KEY = 'qaflex.form.logout-signal';
 const SAVE_OUTCOME_KEY = 'qaflex.form.draft-save-outcome';
@@ -35,7 +36,7 @@ export interface DraftSavedElsewhere {
 }
 
 export interface FormDraftRecord {
-  draftSpecVersion: 1;
+  draftSpecVersion: 1 | 2;
   accountUserId: string;
   contextKey: string;
   context: DraftFormContext;
@@ -44,6 +45,9 @@ export interface FormDraftRecord {
   kind: 'create' | 'edit';
   targetRecordId: string | null;
   baseRecordVersion: number | null;
+  originVersionId: string | null;
+  baseStorageVersionId: string;
+  versionSpecHash: string | null;
   baseFields: FieldValueMap;
   fields: FieldValueMap;
   requestKey: string | null;
@@ -144,7 +148,7 @@ function draftKey(identity: {
   draftId: string;
 }): string {
   return [
-    DRAFT_PREFIX,
+    DRAFT_PREFIX_V2,
     encodeSegment(identity.accountUserId),
     encodeSegment(identity.contextKey),
     identity.editingSessionId,
@@ -157,7 +161,11 @@ function draftEntries(): Array<[string, string]> {
   try {
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index);
-      if (!key || !key.startsWith(`${DRAFT_PREFIX}|`)) {
+      if (
+        !key
+        || (!key.startsWith(`${DRAFT_PREFIX_V2}|`)
+          && !key.startsWith(`${DRAFT_PREFIX_V1}|`))
+      ) {
         continue;
       }
       const value = localStorage.getItem(key);
@@ -175,7 +183,7 @@ function parseDraft(raw: string): FormDraftRecord | null {
   try {
     const parsed = JSON.parse(raw) as FormDraftRecord;
     if (
-      parsed?.draftSpecVersion !== 1
+      (parsed?.draftSpecVersion !== 1 && parsed?.draftSpecVersion !== 2)
       || typeof parsed.accountUserId !== 'string'
       || typeof parsed.contextKey !== 'string'
       || typeof parsed.draftId !== 'string'
@@ -186,6 +194,9 @@ function parseDraft(raw: string): FormDraftRecord | null {
     }
     return {
       ...parsed,
+      originVersionId: parsed.originVersionId ?? null,
+      baseStorageVersionId: parsed.baseStorageVersionId ?? parsed.context.storageVersionId,
+      versionSpecHash: parsed.versionSpecHash ?? null,
       savedElsewhere: parsed.savedElsewhere ?? null,
     };
   } catch {
@@ -197,6 +208,7 @@ function writeDraft(record: FormDraftRecord): FormDraftRecord | null {
   const savedAt = new Date().toISOString();
   const stored: FormDraftRecord = {
     ...record,
+    draftSpecVersion: 2,
     fields: cloneFields(record.fields),
     baseFields: cloneFields(record.baseFields),
     savedElsewhere: record.savedElsewhere ?? null,
@@ -206,13 +218,40 @@ function writeDraft(record: FormDraftRecord): FormDraftRecord | null {
   };
   try {
     localStorage.setItem(draftKey(stored), JSON.stringify(stored));
+    localStorage.removeItem(v1DraftKey(stored));
     return stored;
   } catch {
     return null;
   }
 }
 
+/**
+ * 把旧版 v1 草稿就地升级为 v2 键。
+ *
+ * 只改变存储键与规格版本，保留原 draftId、requestKey、首次快照与时间戳；
+ * 写入失败时保留 v1 条目，下次读取继续重试。
+ */
+function migrateLegacyEntries(): void {
+  for (const [key, value] of draftEntries()) {
+    if (key.startsWith(`${DRAFT_PREFIX_V2}|`)) {
+      continue;
+    }
+    const legacy = parseDraft(value);
+    if (!legacy) {
+      continue;
+    }
+    const upgraded: FormDraftRecord = { ...legacy, draftSpecVersion: 2 };
+    try {
+      localStorage.setItem(draftKey(upgraded), JSON.stringify(upgraded));
+      localStorage.removeItem(key);
+    } catch {
+      // 存储写入失败：保留 v1，草稿仍可读。
+    }
+  }
+}
+
 export function readFormDrafts(accountUserId: string, contextKey: string): FormDraftRecord[] {
+  migrateLegacyEntries();
   return draftEntries()
     .map(([, value]) => parseDraft(value))
     .filter((draft): draft is FormDraftRecord => draft != null)
@@ -287,16 +326,31 @@ export function saveFormDraft(record: FormDraftRecord): FormDraftRecord | null {
   return writeDraft(record);
 }
 
+function v1DraftKey(identity: {
+  accountUserId: string;
+  contextKey: string;
+  editingSessionId: string;
+  draftId: string;
+}): string {
+  return [
+    DRAFT_PREFIX_V1,
+    encodeSegment(identity.accountUserId),
+    encodeSegment(identity.contextKey),
+    identity.editingSessionId,
+    identity.draftId,
+  ].join('|');
+}
+
 export function deleteFormDraft(draft: FormDraftRecord): void {
   try {
-    localStorage.removeItem(
-      draftKey({
-        accountUserId: draft.accountUserId,
-        contextKey: draft.contextKey,
-        editingSessionId: draft.editingSessionId,
-        draftId: draft.draftId,
-      }),
-    );
+    const identity = {
+      accountUserId: draft.accountUserId,
+      contextKey: draft.contextKey,
+      editingSessionId: draft.editingSessionId,
+      draftId: draft.draftId,
+    };
+    localStorage.removeItem(draftKey(identity));
+    localStorage.removeItem(v1DraftKey(identity));
   } catch {
     // 存储不可用时内存块仍由调用方移除；离开保护会继续提示未保存风险。
   }

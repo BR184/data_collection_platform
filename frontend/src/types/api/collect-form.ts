@@ -68,6 +68,7 @@ export interface FormRecordView {
   createdByName: string | null;
   templateVersion: string | null;
   originVersionId: string;
+  storageVersionId: string;
   createdAt: string | null;
   updatedAt: string | null;
   canEdit: boolean;
@@ -95,15 +96,28 @@ export interface FormCapabilitiesView {
   canVoidOwn: boolean;
 }
 
+export interface FormReadableVersionView {
+  versionId: string;
+  versionLabel: string | null;
+  versionStatus: string;
+  instanceMode: 'MATERIALIZED' | 'NONE';
+  fieldSpecHash: string;
+}
+
 export interface FormDetailResponse {
   templateKey: string;
   fieldSpec: FormTemplateSpecView;
   scopeId: string;
+  currentVersionId: string;
   storageVersionId: string;
   versionLabel: string | null;
   scopeStatus: string;
   writable: boolean;
   instanceId: string | null;
+  readableVersions: FormReadableVersionView[];
+  versionSpecs: Record<string, FormTemplateSpecView>;
+  sourceSetRevision: string;
+  sourceSetHash: string;
   records: FormRecordView[];
   resource: FormResourceView;
   account: FormAccountView;
