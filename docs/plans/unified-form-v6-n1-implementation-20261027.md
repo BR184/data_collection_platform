@@ -2,6 +2,7 @@
 
 ## 进度与中间物
 
+- [数组编码整改，2026-10-28] 输入`5a6d982f`：唯一剩余R01缺口（JDBC数组二次归一化丢失元素边界）先补真实数组失败回归，再修规范化幂等；定向39/0/0/0与默认后端套件2048/0/0/1全绿，详见[N1数组编码整改与送审](#n1-array-encoding-remediation)。R02—R05保持关闭；等待复验，N2/main/正式包未准入。
 - [二次整改复验结论，2026-10-28] 输入`f69856d676b0b1476c87519113c18f5bfa19fb39`（实现`e24c6238`）：**R02/R03关闭，R04/R05保留关闭，仅R01数组编码缺口修改后重审，N2未准入**。当前关闭条件与员工指令见[二次整改复验](#n1-second-remediation-review)。双远端已核对；审核专属分支快进吸收，员工树只读；证据归审核树`.tmp/n1-rereview2-20261028/`，使用独占Testcontainers随机端口，不连接共享库或业务服务，frontend不改。
 - [二次整改交付，2026-10-28] 输入`e3c7e42a`：本轮五项复验观察先转为正式失败回归（最终测试在基线实现上11/11转红），再修R01—R03后端；定向35项与默认后端套件2044/0/0/1全绿，详见[N1二次整改交付与送审](#n1-second-remediation)。R04/R05保持关闭；等待再次复验，N2、main与正式包未准入。
 - [首次整改复验历史结论，2026-10-28] 审核输入`f698aad7af511ab07c5fa014f18bb36dff75a97a`：修改后重审；当时R04/R05关闭，R01/R02/R03仍有真实PG反例，见[首次整改复验记录](#n1-remediation-review)。本记录仅绑定该输入，当前结论以上方二次整改复验为准。审核证据`.tmp/n1-rereview-20261028/`，无共享库/业务服务操作。
@@ -11,7 +12,7 @@
 - [已完成] P1 `V20261027_01__form_v6_directory.sql`（范围集合/版本角色/实例模式/来源表、定位目录、可比登记表、目录事件/游标/水位、`form_spec_hash`/`form_source_set_hash`/`form_create_fingerprint`/`form_advance_record_sequence`、可读集合视图），校验和已登记（159→160，仅新增）；P2 `FormV6RegistrationService`（路径A/B、precheck 一致性强制、守恒断言、幂等重入、漂移/重复归属/证据缺失整体拒绝）与 `FormRecordDirectoryService`（目录写入接入六步创建、跨版重放按 origin 证据复算 v5 指纹）；P3 `FormRecordDirectoryReader`（find/listByResource/captureSourceSet，排除 TARGET/LEGACY_SNAPSHOT，延迟回表）；稳定语义登记 `FormComparableRegistrationService`（声明=冻结类型校验、身份冲突拒绝）。
 - [整改交付] 已快进吸收审核回执`0617d4d5`（仅文档，frontend相对`94749f3a`零差异）。R01：承载证据改为确定性全值快照（业务值、修订号、作废、更新时间、实例与完整资源C、origin规格哈希），持锁后重算并与预检比对；幂等重入逐条比对目录行并按统一读源实际回表，部分目录/同数量错身份/证据不符一律409输出差异，失败零副作用。R02：归属判定只信任`FormScopeValidationService`的真实绑定范围，唯一属于他范围的旧行不入本次选集，真重叠与未覆盖仍整体拒绝；承载实例的来源配置/来源实例/地址/项目/资源类型/模板必须落在范围绑定内，目录写实例自身证据，不由范围伪造来源。R03：`LEGACY_DEMO_FIELD_SPEC`物理列改回旧表真实列（`reviewer`、五个`*_score`、`remark`等），NONE记录按版本登记的`source_table`原位回读，业务读取排除作废并核验承载身份/完整C/创建人，缺行或失配明确拒绝，`find`与`listByResource`共用同一载荷契约（键为冻结规格物理列名），另保留`findIncludingVoided`显式定位用途并返回作废状态。R04：路径B登记前复用`FormVersionSchemaService`+`FormVersionStructureVerifier`完整结构核验，路径A新增旧物理表列与类型契约核验；删除“先迁满160条再插数据”的伪升级用例，新增`FormV6LegacyUpgradeIntegrationTest`：同一独占容器先`target=20261022.03`（159条）写入真实非空旧Demo与v5多副本，冻结原行/规格/首次指纹/迁移历史/序列快照，再升至head并逐行比对守恒、角色与形状默认值，最后在升级库上真实完成路径B与路径A登记及统一读源；版本夹具改用正式生成器+核验器建表。
 - [整改验证快照] 定向正式测试20项全绿（迁移3、登记10、语义与读源6、真实升级1），在最终字节状态复跑一次；默认后端套件2029项0失败0错误1跳过（既有`GitlabWhitelistServiceIntegrationTest`），连接串显式绑定本任务专属容器`dcp-n1r-test-pg-15499`（`127.0.0.1:15499`），收尾已删除并回读为0残留。本轮未连接15432/15433，未回退或改写共享对象；共享环境的历史误操作只做只读取证，见`N1-R05只读取证与隔离收口`。首次交付的12/0/0/0与三轮默认套件结果不再当作本轮证据引用。
-- [阻塞] 二次整改已交付，等待审核复验R01—R03关闭。R04/R05保持关闭，不重做已关闭项。复验通过前N2、W5、main与正式包仍不准入。以下员工交付快照不代替当前审核结论。
+- [阻塞] 数组编码整改已交付，等待审核复验R01关闭。R02—R05保持关闭，不重做已关闭项。复验通过前N2、W5、main与正式包仍不准入。以下员工交付快照不代替当前审核结论。
 
 ### 恢复信息
 
@@ -246,3 +247,31 @@ R03 三项均分别覆盖`find`、`listByResource`、`findIncludingVoided`；R02
 ### 员工恢复指令
 
 在原专属树`D:/projects/dcp-form-w4-20261026`核对AGENTS、干净状态、分支与输入，快进吸收本审核回执；以本节为当前整改范围。所有验证使用本任务自有数据库/容器，不访问15432/15433；保留失败与成功日志并按实际状态报告。本轮关闭项只做受影响回归，不再重新取证共享环境。
+
+<a id="n1-array-encoding-remediation"></a>
+
+## N1数组编码整改与送审（2026-10-28）
+
+**结论：唯一剩余R01数组编码缺口已修复并送复验；R02—R05保持关闭。** 输入`5a6d982f`（仅文档）；只改证据编码及必要测试。N2/W5/main/正式包仍未准入，批准UI`94749f3a`与160条既有迁移不变。
+
+### 反例 → 正式回归
+
+- `FormEvidenceCodecTest`：JDBC `Array` 与已规范 `List` 必须走同一编码；重复规范化保持类型与元素边界；含逗号/方括号/引号/分隔字符的元素、空数组、NULL 元素、空串、字面量`null`互不碰撞。
+- `FormV6RegistrationIntegrationTest.shouldDistinguishJdbcArrayBoundariesInRegistrationEvidence`：真实 `text[]` 承载链路下，单元素`["a, b"]`与两元素`["a","b"]`为不同合法值；登记后修改非承载旧副本，预检与重入均409且目录/事件/修订/承载行零副作用；预检后、登记前数组边界变化使旧预检409且零写入。
+
+### 实现
+
+- `FormEvidenceCodec.canonical` 增加 `List`/`Object[]` 分支：保留元素类型、数量、顺序与边界，受支持值的规范化幂等；JDBC 原值与已规范值走同一确定性数组编码。标量、NULL 与既有编码不变。
+
+### 验证
+
+- RED：最终测试在输入实现（未修 `canonical`）上 3 项失败（编解码 2、真实登记 1），`red-final.log`；非编译或夹具错误。
+- GREEN：五类N1测试39项、0失败0错误0跳过（登记19、语义与读源9、迁移3、真实升级1、编解码7），`green-full.log`。
+- 默认后端套件：专属容器`dcp-n1r3-test-pg-15499`（`127.0.0.1:15499`）**2048项、0失败、0错误、1跳过**（既有`GitlabWhitelistServiceIntegrationTest`），21:20，`BUILD SUCCESS`。首次运行MySQL用例因容器就绪竞态连接失败（1项错误），同代码状态重跑转绿；两份日志均保留。容器已删除并回读0残留。
+- 护栏：160条迁移锁零改动；artifacts/runtime/whitespace/`git diff --check`通过；frontend相对`94749f3a`零差异。
+- 证据：本树`.tmp/w4-n1r3-20261028/`。
+
+### 边界与下一步
+
+- 未新增迁移、未改UI、未使用15432/15433承载业务测试、未运行黄金、未访问内网/真实GitLab；R02—R05未重做。
+- 复验通过前不进入N2，不合main、不出包。
