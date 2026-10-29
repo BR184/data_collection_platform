@@ -997,6 +997,13 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         "critical-tables.dump", "database.restore-list.txt", "critical-tables.restore-list.txt",
         "backup-manifest.env",
     )
+    ROLLBACK_BASELINE_COMPOSE = (
+        "services:\n"
+        "  backend:\n"
+        "    image: baseline\n"
+        "    environment:\n"
+        "      PLATFORM_BACKGROUND_JOBS_ENABLED: \"${PLATFORM_BACKGROUND_JOBS_ENABLED:-true}\"\n"
+    )
 
     def _write_rollback_backup(self, backup: Path, context, *, manifest_extra: str = "", tamper_dump: bool = False) -> None:
         env_content = (
@@ -1006,7 +1013,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             "POSTGRES_PASSWORD=private-test-value\n"
         )
         (backup / ".env").write_text(env_content, encoding="utf-8", newline="\n")
-        (backup / "docker-compose.yml").write_text("services:\n  backend:\n    image: baseline\n", encoding="utf-8", newline="\n")
+        (backup / "docker-compose.yml").write_text(self.ROLLBACK_BASELINE_COMPOSE, encoding="utf-8", newline="\n")
         (backup / "postgres.container-id").write_text("abcdef012345\n", encoding="utf-8", newline="\n")
         (backup / "postgres.inspect.json").write_text("{}\n", encoding="utf-8", newline="\n")
         (backup / "compose-images.txt").write_text("images\n", encoding="utf-8", newline="\n")
@@ -1063,7 +1070,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             "set -euo pipefail\n"
             "if [[ \"${1:-}\" == info ]]; then exit 0; fi\n"
             "case \"$*\" in\n"
-            "  *' compose up '*|*' compose stop '*|*' compose down '*|*' load -i *|*' volume rm '*|*' rm *)\n"
+            "  *' compose up '*|*' compose stop '*|*' compose down '*|*' load -i '*|*' volume rm '*|*' rm '*)\n"
             "    printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\";;\n"
             "esac\n"
             "exit 99\n",
@@ -1271,12 +1278,18 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                     "fi\n"
                     "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q postgres'* ]]; then echo abcdef012345; exit 0; fi\n"
                     "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q backend'* ]]; then echo backend123456; exit 0; fi\n"
+                    "if [[ \"${1:-}\" == compose && \"$*\" == *' exec -T postgres '* ]]; then\n"
+                    "  sql=\"${@: -1}\"\n"
+                    "  if [[ \"$sql\" == *flyway_schema_history* ]]; then echo 20260714.01; exit 0; fi\n"
+                    "  if [[ \"$sql\" == *string_agg* ]]; then printf '\\n'; exit 0; fi\n"
+                    "  echo 0; exit 0\n"
+                    "fi\n"
                     "if [[ \"${1:-}\" == inspect && \"$*\" == *'State.Health.Status'* ]]; then echo healthy; exit 0; fi\n"
                     "if [[ \"${1:-}\" == inspect && \"$*\" == *'.Config.Labels'* ]]; then\n"
                     "  if [[ \"${@: -1}\" == abcdef012345 ]]; then echo qaflex-test/postgres; else echo qaflex-test/backend; fi\n"
                     "  exit 0\n"
                     "fi\n"
-                    "case \"$*\" in *' compose up '*|*' compose stop '*|*' compose down '*|* load -i *|*' volume rm '*|* rm *) printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\";; esac\n"
+                    "case \"$*\" in *' compose up '*|*' compose stop '*|*' compose down '*|*' load -i '*|*' volume rm '*|*' rm '*) printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\";; esac\n"
                     "exit 99\n",
                     encoding="utf-8",
                     newline="\n",
@@ -1400,7 +1413,14 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q postgres'* ]]; then printf '%s\\n' \"$(cat \"$state/postgres.id\")\"; exit 0; fi\n"
             "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q backend'* ]]; then [[ -f \"$state/backend.running\" ]] && printf '%s\\n' \"$(cat \"$state/backend.id\")\"; exit 0; fi\n"
             "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q frontend'* ]]; then [[ -f \"$state/frontend.running\" ]] && printf '%s\\n' \"$(cat \"$state/frontend.id\")\"; exit 0; fi\n"
-            "if [[ \"${1:-}\" == compose && \"$*\" == *' exec -T postgres '* ]]; then printf '%s\\n' \"$FAKE_FLYWAY_VERSION\"; exit 0; fi\n"
+            "if [[ \"${1:-}\" == compose && \"$*\" == *' exec -T postgres '* ]]; then\n"
+            "  sql=\"${@: -1}\"\n"
+            "  if [[ \"$sql\" == *flyway_schema_history* ]]; then printf '%s\\n' \"$FAKE_FLYWAY_VERSION\";\n"
+            "  elif [[ \"$sql\" == *string_agg* ]]; then printf '\\n';\n"
+            "  elif [[ \"$sql\" == *'max(id)'* ]]; then printf '0\\n';\n"
+            "  else printf '0\\n'; fi\n"
+            "  exit 0;\n"
+            "fi\n"
             "if [[ \"${1:-}\" == compose && \"$*\" == *' up '* ]]; then\n"
             "  printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\"\n"
             "  count=0; [[ -f \"$state/up.count\" ]] && count=\"$(cat \"$state/up.count\")\"\n"
@@ -1413,6 +1433,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             "if [[ \"${1:-}\" == inspect ]]; then\n"
             "  target=\"${@: -1}\"\n"
             "  if [[ \"$*\" == *'State.Health.Status'* ]]; then echo healthy; exit 0; fi\n"
+            "  if [[ \"$*\" == *'.Config.Env'* ]]; then echo 'PLATFORM_BACKGROUND_JOBS_ENABLED=false'; exit 0; fi\n"
             "  if [[ \"$*\" == *'.Config.Labels'* ]]; then\n"
             "    if [[ \"$target\" == \"$(cat \"$state/postgres.id\")\" ]]; then echo 'qaflex-test/postgres'; else echo \"${FAKE_BACKEND_LABEL:-qaflex-test/backend}\"; fi\n"
             "    exit 0\n"
@@ -1430,7 +1451,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             "fi\n"
             "if [[ \"${1:-}\" == volume && \"$*\" == *' inspect '* ]]; then exit 0; fi\n"
             "if [[ \"${1:-}\" == image && \"$*\" == *' inspect '* ]]; then exit 0; fi\n"
-            "case \"$*\" in *' compose stop '*|*' compose down '*|*' load -i *|*' volume rm '*|*' rm *) printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\";; esac\n"
+            "case \"$*\" in *' compose stop '*|*' compose down '*|*' load -i '*|*' volume rm '*|*' rm '*) printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\";; esac\n"
             "exit 99\n",
             encoding="utf-8",
             newline="\n",
@@ -1504,7 +1525,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             self.assertIn("ROLLBACK_SUCCEEDED", self._recovery_state(deployment))
             self.assertNotEqual(current_compose_before, (deployment / "docker-compose.yml").read_bytes())
-            self.assertEqual("services:\n  backend:\n    image: baseline\n", (deployment / "docker-compose.yml").read_text(encoding="utf-8"))
+            self.assertEqual(self.ROLLBACK_BASELINE_COMPOSE, (deployment / "docker-compose.yml").read_text(encoding="utf-8"))
             mutations = fixture["mutation_log"].read_text(encoding="utf-8")
             self.assertIn("force-recreate backend", mutations)
             self.assertIn("force-recreate frontend", mutations)
