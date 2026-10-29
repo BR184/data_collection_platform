@@ -1,10 +1,11 @@
-## 2026-10-29 下钻过滤修复替代包构建与演练完成（待审批）
+## 2026-10-29 下钻过滤修复替代包验收通过，可交付
 
 - [范围] 实包 `qaflex-update-20261029T025459Z-b4d40e323a09` 的镜像 JAR 经 javap 确认缺少 `module_total` 分支。在隔离任务树仅吸收 `725616a5` 的一行服务修复与配套服务测试（`SystemTestDefectSummaryBoardService.matchesMetric` 增加 `module_total -> IssueSource::isRegularMetricIssue`），不带旧活动计划与其它表单/读发布内容；后端内容身份与已验收 `0efa68f3:backend` 一致。合入 main 提交 `f0817018`，origin/gitlab25 已快进同步并回读一致。
 - [验证] 定向 10 项全通过；默认套件 1818 项（0 失败/0 错误/1 既有跳过）按同一 backend 内容身份复用；最终候选实跑黄金严格 compare **203/0/0/0、BUILD SUCCESS**（未 update、未改快照）；打包器 69 项全跑 0 失败 0 跳过（含回滚执行用例）。
-- [发布包] 从干净、双远端一致的 main `f0817018` 重建 `qaflex-update-20261029T093903Z-56953d50d4c7`：206,186,151 字节，SHA-256 `4a6d6e161e37ea4afeb7f2ae301c8c14f1369f66ce218111756598f0bd943c21`；直接基线 d52，目标 Flyway `20261022.03`（140 份迁移，无新增），`facts.rebuildRequired=true / scope=issue / odsCorrectionRequired=false`，固定容器名继承。图像 JAR `da198cdd…0a84` 与清单一致，实际镜像 class 经 javap 证明 `module_total` 映射 `isRegularMetricIssue`、`suggestion_total` 仍映射 `isSuggestion`；新旧 JAR 条目集合 1810 项完全相同，仅该服务类字节码变化，嵌套类仅调试行号 +1；三脚本、Compose、README 与旧包除 release-id 外逐字节一致，前端 dist 与旧包相同。
+- [发布包] 从干净、双远端一致的 main `f0817018` 重建 `qaflex-update-20261029T093903Z-56953d50d4c7`：206,186,151 字节，SHA-256 `4a6d6e161e37ea4afeb7f2ae301c8c14f1369f66ce218111756598f0bd943c21`；直接基线 d52，目标 Flyway `20261022.03`（140 份迁移，无新增），`facts.rebuildRequired=true / scope=issue / odsCorrectionRequired=false`，固定容器名继承。镜像内 JAR `da198cdd…0a84` 与清单一致，实际镜像 class 经 javap 证明 `module_total` 映射 `isRegularMetricIssue`、`suggestion_total` 仍映射 `isSuggestion`；新旧 JAR 文件集合 1810 项完全相同（另有 70 个目录项），仅该服务及其 5 个嵌套 class 内容不同，嵌套类调试行号 +1；三脚本、Compose、README 与旧包除 release-id 外逐字节一致，前端 dist 与旧包相同。
 - [演练] 以 d52 期备份重建演练基线（d52 镜像、Flyway `20261019.01`、种子 config/job），执行 backup→upgrade→rollback→backup→upgrade：`DRILL PASS`，两轮 `counts.diff` 均 0 字节、PostgreSQL 容器 ID `3d713ac7…` 全程不变、回滚恢复 d52 镜像且库保持前向、终态目标镜像 healthy 且 Flyway `20261022.03`。证据与日志在 `.tmp/package-drill-20261029b/`。
 - [旧包与留档] `qaflex-update-20261029T025459Z-b4d40e323a09` 旁注 `…SUPERSEDED.md` 标记“被替代、禁止交付”，原归档与 SHA-256 `bc9f75f5…5ea49` 未改；留档分支 `延期写回更新包含系统测试下钻修复-20261029T093903Z-56953d50d4c7` 指向构建提交 `f0817018`，已推送双远端。
+- [独立审批] 新包验收通过，无返工项。审核方核对真实归档与包外摘要、包内 8 项校验和及其与解压目录一致性（归档共 9 个文件）、实际镜像 JAR 摘要与目标分支、140 份迁移及三脚本/Compose/README 归一化一致；复核 backend Git tree `14773ae8499694fd5da9af146b67c67273cb5085` 与已验收默认套件来源完全一致、黄金 203 项和打包器 69 项日志、两轮 counts.diff 为零、演练 PostgreSQL ID 与当前目标镜像 healthy，双远端 main/留档分支身份一致。未重跑套件或部署；只读审计摘要和 javap 证据为 `.tmp/manager-replacement-package-review-20261029/`。批准交付该替代包，生产升级仍须先核实实际 d52 基线并按包内 README 备份、升级及完成 issue 事实重建。
 - [未执行] 未部署生产/内网 20001/115，未做真实 GitLab 写回，未在本地执行 issue 事实重建（现场升级后按 README 第 6 节执行）；生产数据版本与五条截图议题仍未核验。18080/18181 未停服；演练栈停留在目标镜像。
 
 ## 2026-10-29 打包器回滚测试夹具修正
@@ -12,7 +13,7 @@
 - [缺陷] 独立复跑打包器套件出现 13 条失败断言；根因在既有回滚执行夹具：备份 `docker-compose.yml` 未声明 `PLATFORM_BACKGROUND_JOBS_ENABLED`，`rollback.sh` 的暂停保护按设计提前拒绝；继续执行后还暴露假 `docker exec` 对计数/Flyway 查询一律返回版本号、`inspect .Config.Env` 未返回暂停标志、三处 shell `case` 模式缺闭合引号。旧基线 `59cd5587` 同一用例可复现，属既有测试缺陷，不是包回滚失败。
 - [修正] 仅修改 `scripts/test_package_intranet_offline.py`：夹具基线 Compose 增加暂停开关；`exec` 按 `flyway_schema_history`／`string_agg`／`max(id)`／`count(*)` 分别返回；`inspect .Config.Env` 返回 `PLATFORM_BACKGROUND_JOBS_ENABLED=false`；修正 case 引号。生产 `rollback.sh`、升级保护与业务代码零改动，提交 `c66dd44a`。
 - [验证] 在 Git Bash 可用环境全跑 69 项 0 失败、0 跳过；10 项受影响回滚用例逐一通过；无 Git Bash-python3 环境仍 69 项 OK（11 跳过）。
-- [交付状态] 仅测试修正，不重出包；`qaflex-update-20261029T025459Z-b4d40e323a09` 归档与 SHA-256 `bc9f75f5…5ea49` 不变，可交付。现场仍须核对 d52 基线，升级后按 README 完成 issue 事实重建；生产部署验收未完成。
+- [历史交付状态] 当轮仅测试修正，未重出包；`qaflex-update-20261029T025459Z-b4d40e323a09` 归档与 SHA-256 `bc9f75f5…5ea49` 保留不变，现已被上方含下钻修复的 093903 替代包取代、禁止继续交付。现场基线核对、issue 事实重建与生产部署验收要求仍有效。
 
 ## 2026-10-29 发布包事实重建口径修正与新包交付
 
