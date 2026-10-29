@@ -196,6 +196,68 @@ afterEach(() => {
 });
 
 describe('CollectFormView', () => {
+  it('renders issue response enum, date, branch and text fields by their own published controls', async () => {
+    const responseSpec: FormTemplateSpecView = {
+      spec_version: 1, template_key: 'issue_response', fields: [
+        { name: 'problem_type', apiKey: 'problemType', label: '问题类型', type: 'enum', control: 'radio', required: true, options: [{ value: 'DEFECT', label: '缺陷' }] },
+        { name: 'problem_cause', apiKey: 'problemCause', label: '问题原因', type: 'string', control: 'textarea', required: true },
+        { name: 'modification_plan', apiKey: 'modificationPlan', label: '修改方案', type: 'string', control: 'textarea', required: true },
+        { name: 'owner_confirmation', apiKey: 'ownerConfirmation', label: '模块负责人确认', type: 'string', control: 'textarea' },
+        { name: 'planned_resolution_date', apiKey: 'plannedResolutionDate', label: '计划解决时间', type: 'date', control: 'date', required: true },
+        { name: 'planned_merge_version_branch', apiKey: 'plannedMergeVersionBranch', label: '计划合并的版本分支', type: 'string', control: 'version-members', required: true },
+        { name: 'supplement_note', apiKey: 'supplementNote', label: '补充说明', type: 'string', control: 'textarea' },
+      ],
+    };
+    const record: FormRecordView = {
+      id: '101', recordVersion: 1, deleted: false, legacyIncomplete: false, legacyMissingFields: [],
+      fields: { problemType: 'DEFECT', problemCause: '边界校验遗漏', modificationPlan: '补齐边界处理', ownerConfirmation: null, plannedResolutionDate: '2026-11-05', plannedMergeVersionBranch: 'CC2026R4', supplementNote: null },
+      fieldNames: {}, snapshotValues: {}, createdBy: 'alice', createdByName: '张明', templateVersion: '2026.10',
+      originVersionId: '22', storageVersionId: '22', createdAt: '2026-10-28T07:25:43', updatedAt: '2026-10-28T07:25:43', canEdit: true, canVoid: true,
+    };
+    mocks.api.getFormDetail.mockResolvedValue(detail({ templateKey: 'issue_response', fieldSpec: responseSpec, versionSpecs: { '22': responseSpec }, records: [record], resource: { ...issueDetail('issue_response').resource, severityLevel: '二级缺陷' } }));
+    const current = await mountView(ISSUE_REPLY_PATH.replace('issue_reply', 'issue_response'));
+    const card = current.find('[data-record-id="101"]');
+    expect(card.find('.form-record-author').text()).toBe('张明');
+    expect(card.findAll('.form-record-short-fields .form-record-field')).toHaveLength(3);
+    expect(card.findAll('.form-record-long')).toHaveLength(2);
+    expect(card.find('.form-record-numbers').exists()).toBe(false);
+    expect(card.text()).toContain('缺陷'); expect(card.text()).toContain('2026-11-05'); expect(card.text()).toContain('CC2026R4');
+    expect(card.find('.form-record-empty-fields').text()).toBe('未填写：模块负责人确认、补充说明');
+    expect(current.findAll('[data-action="add-block"]')).toHaveLength(1);
+    expect(current.find('.external-context-grid').exists()).toBe(false);
+  });
+
+  it('copies the complete resource URL while displaying a short link label', async () => {
+    const previous = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    let clipboardText = '';
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (value: string) => { clipboardText = value; } } });
+    try {
+      mocks.api.getFormDetail.mockResolvedValue(detail());
+      const current = await mountView('/external/code-review-form?gitlabBaseUrl=https%3A%2F%2Fgitlab.example.com&projectId=7&mrIid=3');
+      await current.find('[aria-label="复制资源链接"]').trigger('click'); await flushPromises();
+      expect(clipboardText).toBe(detail().resource.webUrl);
+      expect(current.find('.form-resource-link a').text()).toBe('在 GitLab 打开 ↗');
+      expect(current.find('.form-resource-link a').attributes('title')).toBe(detail().resource.webUrl);
+      expect(mocks.message.success).toHaveBeenCalledWith('链接已复制');
+    } finally {
+      if (previous) Object.defineProperty(navigator, 'clipboard', previous); else Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  });
+
+  it('keeps the full URL available when clipboard access fails', async () => {
+    const previous = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new Error('clipboard denied'); } } });
+    try {
+      mocks.api.getFormDetail.mockResolvedValue(detail());
+      const current = await mountView('/external/code-review-form?gitlabBaseUrl=https%3A%2F%2Fgitlab.example.com&projectId=7&mrIid=3');
+      await current.find('[aria-label="复制资源链接"]').trigger('click'); await flushPromises();
+      expect(mocks.message.warning).toHaveBeenCalledWith('未能复制链接，请从地址提示中复制');
+      expect(current.find('.form-resource-link a').attributes('href')).toBe(detail().resource.webUrl);
+    } finally {
+      if (previous) Object.defineProperty(navigator, 'clipboard', previous); else Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  });
+
   it('renders the published field spec as a single column and adds independent blocks', async () => {
     mocks.api.getFormDetail.mockResolvedValue(detail());
     const current = await mountView(
@@ -207,7 +269,7 @@ describe('CollectFormView', () => {
     expect(current.text()).toContain('已保存记录（0）');
     expect(current.text()).toContain('本机填写草稿（0）');
 
-    const add = findButton(current, '新增填写块');
+    const add = findButton(current, '新增填写');
     expect(add).toBeTruthy();
     await add!.trigger('click');
     await flushPromises();
@@ -363,7 +425,7 @@ describe('CollectFormView', () => {
     const current = await mountView(
       '/external/forms?gitlabBaseUrl=https%3A%2F%2Fgitlab.example.com&projectId=7&resourceType=merge_request&resourceId=3&templateKey=code_review',
     );
-    const add = findButton(current, '新增填写块');
+    const add = findButton(current, '新增填写');
     await add!.trigger('click');
     await flushPromises();
 
@@ -373,7 +435,7 @@ describe('CollectFormView', () => {
     element.focus();
     element.setSelectionRange(2, 2);
 
-    const refresh = findButton(current, '刷新列表');
+    const refresh = findButton(current, '刷新');
     expect(refresh).toBeTruthy();
     await refresh!.trigger('click');
     await flushPromises();
@@ -390,7 +452,7 @@ describe('CollectFormView', () => {
       new HttpRequestError('服务暂不可用', 503),
     );
     const current = await mountView(ISSUE_REPLY_PATH);
-    await findButton(current, '新增填写块')!.trigger('click');
+    await findButton(current, '新增填写')!.trigger('click');
     await flushPromises();
     await current.find('textarea').setValue('待核验内容');
 
@@ -400,7 +462,7 @@ describe('CollectFormView', () => {
 
     expect(current.text()).toContain('提交结果待确认');
     expect(current.text()).toContain('核验提交结果');
-    const discard = findButton(current, '丢弃草稿')!;
+    const discard = findButton(current, '取消')!;
     expect(discard.attributes('disabled')).toBeDefined();
     await discard.trigger('click');
     await flushPromises();
@@ -412,7 +474,7 @@ describe('CollectFormView', () => {
   it('asks before returning to the template entry and keeps url, input and focus when cancelled', async () => {
     mockIssueDetails();
     const current = await mountView(ISSUE_REPLY_PATH);
-    await findButton(current, '新增填写块')!.trigger('click');
+    await findButton(current, '新增填写')!.trigger('click');
     await flushPromises();
     const textarea = current.find('textarea');
     await textarea.setValue('尚未提交的问题回复');
@@ -449,7 +511,7 @@ describe('CollectFormView', () => {
     mockIssueDetails();
     mocks.messageBox.confirm.mockResolvedValue(undefined);
     const current = await mountView(ISSUE_REPLY_PATH);
-    await findButton(current, '新增填写块')!.trigger('click');
+    await findButton(current, '新增填写')!.trigger('click');
     await flushPromises();
     await current.find('textarea').setValue('确认离开前的内容');
 
@@ -470,7 +532,7 @@ describe('CollectFormView', () => {
   it('asks once before switching templates inside the same route', async () => {
     mockIssueDetails();
     const current = await mountView(ISSUE_REPLY_PATH);
-    await findButton(current, '新增填写块')!.trigger('click');
+    await findButton(current, '新增填写')!.trigger('click');
     await flushPromises();
     await current.find('textarea').setValue('切换模板前的内容');
     mocks.messageBox.confirm.mockRejectedValue(new Error('cancel'));
@@ -502,7 +564,7 @@ describe('CollectFormView', () => {
     await replyCard!.find('button').trigger('click');
     await flushPromises();
     await flushPromises();
-    await findButton(current, '新增填写块')!.trigger('click');
+    await findButton(current, '新增填写')!.trigger('click');
     await flushPromises();
     await current.find('textarea').setValue('后退前的内容');
     mocks.messageBox.confirm.mockRejectedValue(new Error('cancel'));
@@ -520,7 +582,7 @@ describe('CollectFormView', () => {
   it('warns that the content is not persisted locally when leaving after a draft write failure', async () => {
     mockIssueDetails();
     const current = await mountView(ISSUE_REPLY_PATH);
-    await findButton(current, '新增填写块')!.trigger('click');
+    await findButton(current, '新增填写')!.trigger('click');
     await flushPromises();
     await current.find('textarea').setValue('写入失败的内容');
     const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
@@ -546,7 +608,7 @@ describe('CollectFormView', () => {
   it('leaves without asking when a block has no real unsaved content', async () => {
     mockIssueDetails();
     const current = await mountView(ISSUE_REPLY_PATH);
-    await findButton(current, '新增填写块')!.trigger('click');
+    await findButton(current, '新增填写')!.trigger('click');
     await flushPromises();
     await current.find('textarea').setValue('临时内容');
     await current.find('textarea').setValue('');
@@ -565,12 +627,12 @@ describe('CollectFormView', () => {
     const current = await mountView(
       '/external/forms?gitlabBaseUrl=https%3A%2F%2Fgitlab.example.com&projectId=7&resourceType=merge_request&resourceId=3&templateKey=code_review',
     );
-    await findButton(current, '新增填写块')!.trigger('click');
+    await findButton(current, '新增填写')!.trigger('click');
     await flushPromises();
     await current.find('textarea').setValue('刷新前的内容');
 
     mocks.api.getFormDetail.mockResolvedValue(detail({ storageVersionId: '23' }));
-    await findButton(current, '刷新列表')!.trigger('click');
+    await findButton(current, '刷新')!.trigger('click');
     await flushPromises();
     await flushPromises();
 
@@ -592,7 +654,7 @@ describe('CollectFormView', () => {
       new HttpRequestError('服务暂不可用', 503),
     );
     const current = await mountView(ISSUE_REPLY_PATH);
-    await findButton(current, '新增填写块')!.trigger('click');
+    await findButton(current, '新增填写')!.trigger('click');
     await flushPromises();
     await current.find('textarea').setValue('待核验的复制内容');
     await findButton(current, '保存')!.trigger('click');
@@ -604,7 +666,7 @@ describe('CollectFormView', () => {
       ...issueDetail('issue_reply'),
       storageVersionId: '23',
     });
-    await findButton(current, '刷新列表')!.trigger('click');
+    await findButton(current, '刷新')!.trigger('click');
     await flushPromises();
     await flushPromises();
 
@@ -626,7 +688,7 @@ describe('CollectFormView', () => {
       .mockRejectedValueOnce(new HttpRequestError('服务暂不可用', 503))
       .mockRejectedValueOnce(new HttpRequestError('模板结构版本已变化', 409));
     const current = await mountView(ISSUE_REPLY_PATH);
-    await findButton(current, '新增填写块')!.trigger('click');
+    await findButton(current, '新增填写')!.trigger('click');
     await flushPromises();
     await current.find('textarea').setValue('核验被拒的内容');
     await findButton(current, '保存')!.trigger('click');
@@ -638,7 +700,7 @@ describe('CollectFormView', () => {
       ...issueDetail('issue_reply'),
       storageVersionId: '23',
     });
-    await findButton(current, '刷新列表')!.trigger('click');
+    await findButton(current, '刷新')!.trigger('click');
     await flushPromises();
     await flushPromises();
 
@@ -648,7 +710,7 @@ describe('CollectFormView', () => {
 
     expect(current.text()).toContain('核验未完成');
     expect(current.text()).toContain('提交结果待确认');
-    expect(findButton(current, '丢弃草稿')!.attributes('disabled')).toBeDefined();
+    expect(findButton(current, '取消')!.attributes('disabled')).toBeDefined();
     expect(findButton(current, '复制内容到新填写块')!.attributes('disabled')).toBeDefined();
     expect(current.findAll('.form-block')).toHaveLength(1);
     expect((current.find('textarea').element as HTMLTextAreaElement).value).toBe(
