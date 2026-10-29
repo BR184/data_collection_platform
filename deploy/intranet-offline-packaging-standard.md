@@ -201,6 +201,8 @@ git diff --name-status
 
 存在不确定性时先沿调用链、迁移和测试确认，不能为了省事漏报，也不能无依据扩大范围。事实重建只重算现有 ODS；它不等同于 GitLab 全量同步。
 
+事实重建范围与历史 ODS 时刻纠正相互独立：`--require-fact-rebuild` 只声明事实重建及范围，`all` 也不代表需要 ODS 纠正。仅当本包显式修复历史 ODS 时刻写入、且存量数据需要一次性全量补偿时，才额外传 `--require-ods-correction`（必须同时传 `--require-fact-rebuild`），清单以独立字段 `facts.odsCorrectionRequired` 记录；没有该声明时，升级说明和回滚恢复说明都不得要求全量补偿对账。
+
 ### 4. 先解析计划，再正式构建
 
 先运行不写产物的计划解析：
@@ -214,7 +216,7 @@ python scripts\package_intranet_offline.py `
   --plan-only
 ```
 
-不需要事实重建时省略最后两个事实参数。输出中的基线目录、前后端基线镜像、包类型和目标目录必须全部正确；否则停止。
+不需要事实重建时省略最后两个事实参数。仅当发布显式声明历史 ODS 时刻纠正时，再追加 `--require-ods-correction`；该开关与事实范围独立，`all` 不自动包含。输出中的基线目录、前后端基线镜像、包类型和目标目录必须全部正确；否则停止。
 
 确认后用完全相同的参数去掉 `--plan-only`：
 
@@ -258,7 +260,8 @@ cd <package-dir> && sha256sum -c SHA256SUMS.txt
 - 包内 `docker-compose.yml` 的容器名模型与该 `baseline` 目录逐服务一致：基线无 `container_name` 时包内也不得出现固定名；
 - `target.images` 使用同一个新 release ID；
 - `flywayVersion` 等于 JAR 内最新迁移；
-- `facts` 与第 3 步结论一致。
+- `facts` 与第 3 步结论一致，`odsCorrectionRequired` 只在本包显式声明历史 ODS 纠正时为 `true`；
+- 包内 `README-INCREMENTAL-DEPLOY.md` 的事实重建说明与 `facts` 一致：声明范围时只要求基于现有 ODS 重建，未声明 `odsCorrectionRequired` 时不得要求全量补偿对账，回滚恢复说明同样不得要求。
 
 归档只能包含本标准定义的更新包结构。发现 `backend/`、`frontend/`、`.env`、PostgreSQL 镜像、Docker deb、数据库 dump、volume 数据或运行日志时，包无效。
 

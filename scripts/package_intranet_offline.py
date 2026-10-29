@@ -76,6 +76,7 @@ class BuildContext:
     ldap_base_url: str
     include_offline_docker_debs: bool
     container_names: dict[str, str] = field(default_factory=dict)
+    require_ods_correction: bool = False
 
 
 def log(message: str) -> None:
@@ -117,6 +118,8 @@ def git_value(*args: str) -> str:
         result = subprocess.run(
             ("git", "-C", str(REPO_ROOT), *args),
             text=True,
+            encoding="utf-8",
+            errors="replace",
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             check=False,
@@ -329,7 +332,11 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
             fail("fresh-empty does not accept --baseline-dir")
         if args.require_fact_rebuild:
             fail("fresh-empty cannot require fact rebuild because it contains no business data")
+        if args.require_ods_correction:
+            fail("fresh-empty cannot require ODS correction because it contains no historical ODS data")
     else:
+        if args.require_ods_correction and not args.require_fact_rebuild:
+            fail("--require-ods-correction requires --require-fact-rebuild; ODS correction changes fact inputs")
         if args.include_offline_docker_debs:
             fail("incremental-update cannot include offline Docker debs")
         if args.template_package_dir is not None:
@@ -396,6 +403,7 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         template_dir=template_dir,
         require_fact_rebuild=args.require_fact_rebuild,
         fact_rebuild_scope=args.fact_rebuild_scope,
+        require_ods_correction=args.require_ods_correction,
         frontend_port=args.frontend_port,
         backend_port=args.backend_port,
         postgres_port=args.postgres_port,
@@ -1060,17 +1068,86 @@ sudo docker compose --env-file .env config
 
 
 def incremental_readme(ctx: BuildContext) -> str:
+    scope_labels = {
+        "issue": "议题事实（issue）",
+        "merge-request": "MR 事实（merge-request）",
+        "all": "议题事实与 MR 事实（all）",
+    }
+    scope_label = scope_labels[ctx.fact_rebuild_scope] if ctx.require_fact_rebuild else "无"
     if ctx.require_fact_rebuild:
         fact_section = f"""\
-## 6. 历史 ODS 时刻纠正、事实层重建与完成判据
+## 6. 事实层重建与完成判据
 
-本更新包标记为需要事实层重建，并且包含 ODS 时刻写入修复。升级前由旧版本同步的 GitLab `timestamp with time zone` 镜像列可能整体偏移（典型为 -8 小时），必须在升级后执行一次“全量补偿对账”，不能只重建事实层，也不能用普通全量同步替代。
+本更新包标记为需要事实层重建，重建范围：{scope_label}。重建只基于平台库现有 ODS 行重算事实和统计快照，不重新拉取 GitLab，不执行 GitLab 全量同步，也不要求历史 ODS 时刻纠正或全量补偿对账。
+
+升级脚本恢复后台调度后，先观察自动事实刷新是否完成本次范围的重建。若自动刷新没有覆盖本次变更，或发布要求立即完成，使用具备数据同步权限的 LDAP 账号登录，在“系统设置/数据镜像设置”中提交一次对应范围的手动事实重建；不要触发 GitLab 全量同步、全量补偿对账或清空快照。
+
+执行前确认没有活动同步、补偿或事实任务：
+
+```sql
+select count(*) as active_sync_runs
+  from sync_runs
+ where status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','PAUSED','CANCELLING');
+select count(*) as active_fact_tasks
+  from fact_build_tasks
+ where status in ('QUEUED','RUNNING','RETRY_WAITING');
+```
+
+两个计数必须都为 `0`。完成判据必须同时满足：
+
+- 本次提交的最近一次 `FACT_REFRESH` 为 `SUCCESS`，且其关联的 `fact_build_tasks` 全部为 `SUCCESS`，没有 `QUEUED/RUNNING/RETRY_WAITING/FAILED`；
+- `fact_change_heads` 中本来源 `published_version >= latest_change_version`；
+- `source_fact_publication_states` 中本来源没有待发布或非 `READY` 状态；
+- `sync_runs`、`fact_build_tasks` 没有活动任务；
+- 页面/Excel 验收通过。页面数值只是验收信号，不能替代事实任务终态与版本收敛。
+
+可直接执行的检查（在目标平台库）：
+
+```sql
+-- 最近一次事实刷新及其任务终态
+select id, status, run_type, finished_at
+  from sync_runs
+ where run_type = 'FACT_REFRESH'
+ order by id desc limit 1;
+
+select task.run_id, task.status, count(*)
+  from fact_build_tasks task
+ where task.run_id = (select id::text from sync_runs where run_type = 'FACT_REFRESH' order by id desc limit 1)
+ group by task.run_id, task.status
+ order by task.run_id, task.status;
+
+-- 未发布事实头与待发布状态，两个计数都必须为 0
+select count(*) as unpublished_heads
+  from fact_change_heads
+ where source_instance = (select source_instance from sync_runs where run_type = 'FACT_REFRESH' order by id desc limit 1)
+   and published_version < latest_change_version;
+select count(*) as pending_publication
+  from source_fact_publication_states
+ where source_instance = (select source_instance from sync_runs where run_type = 'FACT_REFRESH' order by id desc limit 1)
+   and (full_publication_requested or readiness_status <> 'READY');
+```
+
+失败边界：手动事实重建失败或中断时，按错误原因处理并重试；不得通过清空事实表、删除快照或直接 `UPDATE` 事实结果绕过。`all` 范围表示同时重建议题与 MR 事实，不代表需要 ODS 时刻纠正，也不要求全量补偿对账。
+"""
+    else:
+        fact_section = """\
+## 6. 不执行事实层重建
+
+本更新包只替换后端和前端业务镜像，不执行事实层重建、ODS 时刻纠正或 GitLab 全量同步。未声明事实重建不等于所有 API、图表或统计展示数值必须不变；本包仍可能包含已审阅的应用层页面、接口或统计展示修复，部署后应以发布清单和本版本验收结果为准。不要主动触发事实重建、全量同步、全量补偿对账或清空快照。
+"""
+
+    if ctx.require_ods_correction:
+        ods_section = """\
+
+### 6.1 ODS 时刻纠正与全量补偿（本包显式声明）
+
+本包显式声明需要纠正历史 ODS 时刻。升级前由旧版本同步的 GitLab `timestamp with time zone` 镜像列可能整体偏移（典型为 -8 小时），必须在升级后执行一次“全量补偿对账”，不能只重建事实层，也不能用普通全量同步替代。
 
 全量补偿对账的正常副作用：扫描阶段按主键重读全部白名单来源行并强制覆盖 ODS；随后的删除对账阶段会把“来源已不存在”的活跃镜像行标记为 `mirror_deleted = true`（tombstone，不物理删除）。这是既有删除契约，不是清库；但要求 GitLab 来源连接指向完整、权威的当前来源库，不能是缺表、缺行或部分复制的来源。来源不完整时，对账可能把仍然存在的行误判为已删除；不要通过关闭对账、修改删除契约或手工删除 tombstone 绕过。
 
 执行顺序：
 
-1. 排除仍活跃的旧任务：确认 `sync_runs` 没有 `SUBMITTED/QUEUED/RUNNING/RETRYING/PAUSED/CANCELLING`，且 `fact_build_tasks` 没有 `QUEUED/RUNNING/RETRY_WAITING`。若从回滚恢复，先按第 7 节返回修复版本并保持自动同步关闭，不要把旧版本遗留任务与本次纠正并行。
+1. 排除仍活跃的旧任务：确认 `sync_runs` 没有 `SUBMITTED/QUEUED/RUNNING/RETRYING/PAUSED/CANCELLING`，且 `fact_build_tasks` 没有 `QUEUED/RUNNING/RETRY_WAITING`。若从回滚恢复，先按第 7 节返回目标版本并保持自动同步关闭，不要把旧版本遗留任务与本次纠正并行。
 2. 使用具备数据同步权限的 LDAP 账号登录，在“系统设置/数据镜像设置”中对目标数据源点击“全量补偿对账”。确认来源指向完整权威库；补偿期间不要再触发普通全量同步、自动增量、手动全量事实重建或第二次补偿。
 3. 等待补偿运行和它自动提交的事实刷新显式成功。完成判据必须同时满足：
    - 最近一条 `FULL_COMPENSATION_SCAN` 为 `SUCCESS`，且其结束后为同一配置提交的 `FACT_REFRESH` 运行为 `SUCCESS`；该事实运行关联的 `fact_build_tasks` 全部为 `SUCCESS`，没有 `QUEUED/RUNNING/RETRY_WAITING/FAILED`；
@@ -1079,7 +1156,7 @@ def incremental_readme(ctx: BuildContext) -> str:
    - 完整源/ODS 时刻核对完成：在 GitLab 来源库和目标 ODS 分别按主键对全部白名单表的 timestamptz 列做同一规范化哈希（或等价逐行核对），来源与 ODS 活跃行一致；来源已删除的行在 ODS 应为 tombstone 且不计入活跃比对；
    - ODS 内部不变量：所有启用表的 timestamptz `updated_at` 必须等于 `source_updated_at at time zone 'UTC'`；
    - `sync_runs`、`fact_build_tasks` 无活动任务，页面客户问题解决周期无负值（页面无负值只是补充信号，不能单独作为完成依据）。
-4. 只有上述判据全部满足后，才进行页面/Excel 验收。`{ctx.fact_rebuild_scope}` 范围的手动事实层重建只是自动事实刷新失败后的恢复手段；执行前必须再次确认没有活动任务，且不得与补偿或自动刷新并行。
+4. 补偿完成后，再按第 6 节核对本包声明的事实重建判据，然后进行页面/Excel 验收。
 
 可直接执行的检查（在目标平台库）：
 
@@ -1188,11 +1265,7 @@ select table_name, column_name
 失败边界：补偿中断时，已重读的行已按来源纠正，未处理行保持旧值；重新执行全量补偿会继续收敛，重复执行不产生额外数据漂移。补偿运行失败或未完成前，不得宣称历史数据已纠正，也不得用 `UPDATE` 加减小时、clamp 负值或删除样本绕过。普通全量同步不会强制覆盖未变化行，不能替代本步骤。
 """
     else:
-        fact_section = """\
-## 6. 不执行事实层重建
-
-本更新包只替换后端和前端业务镜像，不执行事实层重建或 GitLab 全量同步。未声明事实重建不等于所有 API、图表或统计展示数值必须不变；本包仍可能包含已审阅的应用层页面、接口或统计展示修复，部署后应以发布清单和本版本验收结果为准。不要主动触发事实重建、全量同步或清空快照。
-"""
+        ods_section = ""
 
     if ctx.container_names:
         declared_names = ", ".join(f"{service}={name}" for service, name in sorted(ctx.container_names.items()))
@@ -1232,6 +1305,59 @@ sudo docker ps --format '{{{{.Names}}}} project={{{{.Label "com.docker.compose.p
 
 列出的容器必须正好是本实例的 postgres、backend、frontend 三个服务。
 """
+
+    restore_step_no = 6 if ctx.require_ods_correction else 4
+    failure_step_no = restore_step_no + 1
+    if ctx.require_ods_correction:
+        rollback_ods_note = (
+            "本包显式声明需要纠正历史 ODS 时刻：回滚后再次升级必须按 6.1 执行一次全量补偿对账并完成验收。"
+        )
+        rollback_action_steps = f"""\
+3. 只临时启用本次补偿的目标来源，不要启用其它来源，所有自动同步仍保持关闭。`<target_config_id>` 换成“系统设置/数据镜像设置”中本次补偿的数据源 id；若该来源原快照为停用，验收结束后由第 {restore_step_no} 步按快照还原：
+
+```bash
+sudo docker compose --env-file .env exec -T postgres sh -c \\
+  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<'SQL'
+update gitlab_sync_configs
+   set source_enabled = true,
+       updated_at = current_timestamp
+ where id = <target_config_id>;
+select id, source_enabled, auto_sync_enabled from gitlab_sync_configs order by id;
+SQL
+```
+
+确认目标来源 `source_enabled = true`，其余来源保持原状且所有 `auto_sync_enabled = false`。
+
+4. 使用具备数据同步权限的 LDAP 账号，在“系统设置/数据镜像设置”中点击“全量补偿对账”。它会完整重读权威来源，纠正 ODS（包括回滚期错误时刻），并触发事实刷新；不要用 restore 旧 dump 代替。
+
+5. 按 6.1 完成判据验收：本次补偿关联的 `FACT_REFRESH`/构建任务显式成功、无失败/待处理依赖、完整源/ODS 时刻核对、事实版本收敛、无活动任务。页面/Excel 结果只是验收信号，不能单独作为完成依据。"""
+        failure_scope_text = "第 3 步至第 5 步"
+        manual_rebuild_note = (
+            f"`{ctx.fact_rebuild_scope}` 范围的手动事实重建只用于自动事实刷新失败后的恢复；执行前必须确认没有活动同步、补偿或事实任务，"
+            "且不得与补偿或自动刷新并行。`all` 范围表示同时重建议题与 MR 事实，不代表需要 ODS 时刻纠正，"
+            "也不能把页面/Excel 结果当作唯一完成依据。"
+        )
+    else:
+        rollback_ods_note = (
+            "本包不要求 ODS 时刻纠正，也不要求全量补偿对账；"
+            + ("回滚后再次升级只按第 6 节处理事实重建。" if ctx.require_fact_rebuild else "回滚后再次升级不需要事实重建或数据动作。")
+        )
+        if ctx.require_fact_rebuild:
+            rollback_action_steps = (
+                f"3. 本包不要求全量补偿对账，也不要临时启用来源。按第 6 节完成 `{ctx.fact_rebuild_scope}` 范围的事实重建并核对完成判据；"
+                "事实重建只基于现有 ODS，不重新拉取 GitLab，不需要全量同步。"
+            )
+            manual_rebuild_note = (
+                f"`{ctx.fact_rebuild_scope}` 范围的手动事实重建只用于自动事实刷新失败后的恢复；执行前必须确认没有活动同步、补偿或事实任务，"
+                "且不得与补偿或自动刷新并行。`all` 范围表示同时重建议题与 MR 事实，不代表需要 ODS 时刻纠正，"
+                "也不能把页面/Excel 结果当作唯一完成依据。"
+            )
+        else:
+            rollback_action_steps = "3. 本包不要求事实重建，不执行全量补偿对账，也不要临时启用来源；直接核对升级结果即可。"
+            manual_rebuild_note = (
+                "本包不要求事实重建，不要主动提交事实重建或全量补偿对账。若后续另行决定重建，再按平台常规流程执行。"
+            )
+        failure_scope_text = "第 3 步"
 
     return f"""\
 # QA Flex Platform 保数据更新包
@@ -1348,7 +1474,7 @@ echo "$FAILED_BACKUP_DIR"
 ls -lh "$FAILED_BACKUP_DIR/.env" "$FAILED_BACKUP_DIR/docker-compose.yml" "$FAILED_BACKUP_DIR/database.dump"
 ```
 
-使用**本包**的回滚脚本只恢复应用配置和基线前后端；它不会执行数据库恢复，ODS 在失败期间正常新增的数据会保留：
+使用**本包**的回滚脚本只恢复应用配置和基线前后端；它不会执行数据库恢复，失败期间平台库正常新增的数据会保留：
 
 ```bash
 bash ../{ctx.package_name}/rollback.sh "$PWD" "$FAILED_BACKUP_DIR"
@@ -1447,21 +1573,22 @@ sudo docker compose --env-file .env exec -T postgres sh -c 'psql -U "$POSTGRES_U
 
 使用 LDAP v0.3 账号登录；旧本地 `admin/admin123` 必须被拒绝。LDAP 不可用时，新登录失败，已有 Session 可继续使用到退出或过期。
 
-{fact_section}
-
+{fact_section}{ods_section}
 ## 7. 升级失败或必须回滚：应用回滚与数据恢复边界
 
-### 7.1 先判断回滚发生在 ODS 纠正的哪个阶段
+### 7.1 回滚边界
 
-- 纠正前：ODS 仍是旧写入器结果；应用回滚不撤销任何数据（也还没有纠正可撤销）。但旧版本继续运行仍会以旧写入语义写新事件，因此回滚前同样必须暂停同步。
-- 纠正中或之后：ODS 已部分/全部纠正，事实层可能已重建。应用回滚只恢复旧应用配置和镜像，不回退 ODS、事实、统计或 Flyway 迁移；旧版本公式读取已纠正的时刻，输出可能不同于升级前。它是应用回滚，不是业务/数据完整回滚，不能只凭页面看起来正常判定恢复正确。
+- 应用回滚只恢复升级前的 `docker-compose.yml` 和基线前后端镜像；不回退数据库、ODS、事实、统计或 Flyway 迁移，也不执行 `pg_restore`。
+- 回滚期旧应用可能继续写入数据，回滚前必须暂停同步和后台任务（7.2）。
+- 正常升级并继续运行目标版本不需要本节流程；只有回滚到旧应用时才需要。
+- {rollback_ods_note}
 
-正常升级并继续运行修复版本不需要本节流程；只有回滚到旧应用时才需要。本节只使用平台已有的后台调度开关、同步配置开关、活跃任务处理和现场维护窗口，不新增数据库表、函数或触发器。
+回滚流程只使用平台已有的后台调度开关、同步配置开关、活跃任务处理和现场维护窗口，不新增数据库表、函数或触发器。
 
 ### 7.2 回滚前：在旧应用启动前暂停同步
 
 1. 进入维护窗口：通知用户停止操作并关闭外部访问；恢复验证完成前不要重新开放。以下步骤只允许运维执行。
-2. 处理活跃任务。先在当前修复版本的同步页面等待或取消正在运行的同步、补偿和事实任务，然后在平台库确认两个计数都为 0：
+2. 处理活跃任务。先在当前版本的同步页面等待或取消正在运行的同步、补偿和事实任务，然后在平台库确认两个计数都为 0：
 
 ```sql
 select count(*) as active_sync_runs
@@ -1523,32 +1650,16 @@ SQL
 
 第一条必须输出 `PLATFORM_BACKGROUND_JOBS_ENABLED=false`，后两行必须依次输出 `0`、`0`。
 
-6. 维护窗口保持关闭。旧应用页面仍可能显示同步按钮；不要点击，也不要直接调用同步、全量补偿或事实重建 API。暂停保护来自上述既有开关、活动任务清空和维护窗口，本包没有数据库级守卫；若绕过这些控制使用旧应用写入，会按旧语义重新写错时刻。
+6. 维护窗口保持关闭。旧应用页面仍可能显示同步按钮；不要点击，也不要直接调用同步、全量补偿或事实重建 API。暂停保护来自上述既有开关、活动任务清空和维护窗口，本包没有数据库级守卫；若绕过这些控制使用旧应用写入，回滚期新增或变更的数据会按旧版本口径进入平台库。
 
 ### 7.3 回滚期数据与再次升级后的恢复顺序
 
-应用回滚不会删除回滚期新增数据，也不会撤销已纠正数据。若旧应用在回滚期写入了错误时刻（例如暂停前已经运行，或维护窗口内被手工触发），必须按下面的顺序用修复版本重新读取权威来源纠正；整库 restore 是另一项需要单独审批的数据恢复，可能覆盖回滚期新增，不得作为应用回滚的默认步骤。
+应用回滚不会删除回滚期新增数据，也不回退数据库。再次升级到目标版本后按本包声明完成数据动作：
 
 1. 再次备份。旧应用保持暂停态时，用本包 `backup.sh "$PWD"` 生成回滚期备份，保留新增数据与证据。
-2. 再升级到修复版本。使用新备份目录执行 `upgrade.sh "$PWD" "$BACKUP_DIR"`。升级后新 backend 默认启用后台调度，但同步开关仍为关闭，不会自动同步。
-3. 只临时启用本次补偿的目标来源，不要启用其它来源，所有自动同步仍保持关闭。`<target_config_id>` 换成“系统设置/数据镜像设置”中本次补偿的数据源 id；若该来源原快照为停用，验收结束后由第 6 步按快照还原：
-
-```bash
-sudo docker compose --env-file .env exec -T postgres sh -c \\
-  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<'SQL'
-update gitlab_sync_configs
-   set source_enabled = true,
-       updated_at = current_timestamp
- where id = <target_config_id>;
-select id, source_enabled, auto_sync_enabled from gitlab_sync_configs order by id;
-SQL
-```
-
-确认目标来源 `source_enabled = true`，其余来源保持原状且所有 `auto_sync_enabled = false`。
-
-4. 使用具备数据同步权限的 LDAP 账号，在“系统设置/数据镜像设置”中点击“全量补偿对账”。它会完整重读权威来源，纠正 ODS（包括回滚期错误时刻），并触发事实刷新；不要用 restore 旧 dump 代替。
-5. 按第 6 节完成判据验收：本次补偿关联的 `FACT_REFRESH`/构建任务显式成功、无失败/待处理依赖、完整源/ODS 时刻核对、事实版本收敛、无活动任务。页面无负值不能单独作为完成依据。
-6. 验收全部通过后，按 `sync-config-flags.before.tsv` 逐项恢复每个来源的原值。该快照包含原停用（`false/false`）和手工模式（`true/false`），恢复时必须逐行写回，不能用全局“全部启用/自动同步”语句：
+2. 再升级到目标版本。使用新备份目录执行 `upgrade.sh "$PWD" "$BACKUP_DIR"`。升级后新 backend 默认启用后台调度，但同步开关仍为关闭，不会自动同步。
+{rollback_action_steps}
+{restore_step_no}. 验收全部通过后，按 `sync-config-flags.before.tsv` 逐项恢复每个来源的原值。该快照包含原停用（`false/false`）和手工模式（`true/false`），恢复时必须逐行写回，不能用全局“全部启用/自动同步”语句：
 
 ```bash
 while IFS=$'\\t' read -r config_id source_enabled auto_sync_enabled; do
@@ -1582,11 +1693,11 @@ diff -u sync-config-flags.before.tsv sync-config-flags.after.tsv
 
 `diff` 必须无输出，才能确认原停用和手工模式均已保留。随后观察一轮原 `auto_sync_enabled=true` 来源的自动增量、事实刷新和页面/Excel，最后重新开放维护窗口。
 
-7. 若第 4 步失败或中断，不要恢复开关；按第 6 节失败边界重新执行全量补偿。整库恢复必须单独审批。
+{failure_step_no}. {failure_scope_text}失败或中断时，不要恢复开关；按第 6 节失败边界处理。整库恢复必须单独审批。
 
-### 7.4 手动全量事实重建的边界
+### 7.4 手动事实重建的边界
 
-`all` 范围的手动事实重建只用于自动事实刷新失败后的恢复；执行前必须确认没有活动同步、补偿或事实任务，且不得与补偿或自动刷新并行。它不能替代 ODS 时刻纠正，也不能把页面无负值当作完成。
+{manual_rebuild_note}
 """
 
 
@@ -1694,11 +1805,19 @@ log "verified pre-deployment backup completed: $BACKUP_DIR"
 
 
 def upgrade_helper(ctx: BuildContext) -> str:
-    completion_message = (
-        f"login with LDAP and rebuild fact scope '{ctx.fact_rebuild_scope}' before final statistics acceptance"
-        if ctx.require_fact_rebuild
-        else "fact rebuild is not required for this release"
-    )
+    if ctx.require_fact_rebuild:
+        if ctx.require_ods_correction:
+            completion_message = (
+                f"login with LDAP, rebuild fact scope '{ctx.fact_rebuild_scope}' from existing ODS, "
+                "and run the declared ODS correction (full compensation) before final statistics acceptance"
+            )
+        else:
+            completion_message = (
+                f"login with LDAP and rebuild fact scope '{ctx.fact_rebuild_scope}' from existing ODS "
+                "before final statistics acceptance; full compensation is not required"
+            )
+    else:
+        completion_message = "fact rebuild is not required for this release"
     return f"""\
 #!/usr/bin/env bash
 set -euo pipefail
@@ -2105,6 +2224,15 @@ def write_operational_files(ctx: BuildContext) -> None:
         write_text(ctx.package_dir / "rollback.sh", rollback_helper(ctx))
 
 
+def fact_manifest(ctx: BuildContext) -> dict[str, object]:
+    """事实重建与 ODS 纠正是彼此独立的发布属性，不得由范围推断。"""
+    return {
+        "rebuildRequired": ctx.require_fact_rebuild,
+        "scope": ctx.fact_rebuild_scope if ctx.require_fact_rebuild else None,
+        "odsCorrectionRequired": ctx.require_ods_correction,
+    }
+
+
 def write_release_manifest(ctx: BuildContext, backend_fallback_used: bool, backend_build_note: str) -> None:
     """Write the machine-readable release identity and artifact evidence."""
     _, build_time = now_stamp()
@@ -2149,10 +2277,7 @@ def write_release_manifest(ctx: BuildContext, backend_fallback_used: bool, backe
             "backendImage": f"{BACKEND_IMAGE}:{ctx.baseline_backend_tag}",
             "frontendImage": f"{FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}",
         },
-        "facts": {
-            "rebuildRequired": ctx.require_fact_rebuild,
-            "scope": ctx.fact_rebuild_scope if ctx.require_fact_rebuild else None,
-        },
+        "facts": fact_manifest(ctx),
         "compose": {
             "entrypoint": "docker-compose.yml",
             "model": "single-authoritative-file",
@@ -2404,6 +2529,11 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     )
     parser.add_argument("--require-fact-rebuild", action="store_true")
     parser.add_argument("--fact-rebuild-scope", choices=("issue", "merge-request", "all"), default="all")
+    parser.add_argument(
+        "--require-ods-correction",
+        action="store_true",
+        help="declare that historical ODS timestamps are wrong and require one full compensation after upgrade",
+    )
     parser.add_argument("--frontend-port", type=int, default=18181)
     parser.add_argument("--backend-port", type=int, default=18080)
     parser.add_argument("--postgres-port", type=int, default=15432)
@@ -2439,6 +2569,11 @@ def main(argv: Sequence[str]) -> int:
         log(f"package: {ctx.package_name}")
         log(f"backend tag: {ctx.backend_tag}")
         log(f"frontend tag: {ctx.frontend_tag}")
+        log(
+            "facts: rebuild="
+            + (ctx.fact_rebuild_scope if ctx.require_fact_rebuild else "none")
+            + f", odsCorrection={str(ctx.require_ods_correction).lower()}"
+        )
         if ctx.mode == "incremental-update":
             log(
                 "container naming: "

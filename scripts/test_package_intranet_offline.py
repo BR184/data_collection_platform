@@ -326,6 +326,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 template_package_dir=None,
                 require_fact_rebuild=True,
                 fact_rebuild_scope="all",
+                require_ods_correction=False,
                 frontend_port=18181,
                 backend_port=18080,
                 postgres_port=15432,
@@ -370,6 +371,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 template_package_dir=None,
                 require_fact_rebuild=True,
                 fact_rebuild_scope="all",
+                require_ods_correction=False,
                 frontend_port=18181,
                 backend_port=18080,
                 postgres_port=15432,
@@ -719,18 +721,20 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertIn("PLATFORM_BACKGROUND_JOBS_ENABLED=true", content)
         self.assertIn("select version from flyway_schema_history", content)
         self.assertIn("打包基线交付物（用于识别现场升级前镜像，不是现场部署目录）", content)
-        self.assertIn("## 6. 历史 ODS 时刻纠正、事实层重建与完成判据", content)
-        self.assertIn("全量补偿对账", content)
+        self.assertIn("## 6. 事实层重建与完成判据", content)
+        self.assertIn("只基于平台库现有 ODS 行重算事实和统计快照", content)
+        self.assertNotIn("### 6.1", content)
+        self.assertNotIn("点击“全量补偿对账”", content)
         self.assertNotIn("全量补偿同步", content)
-        self.assertIn("应用回滚，不是业务/数据完整回滚", content)
-        self.assertIn("正常升级并继续运行修复版本不需要本节流程", content)
+        self.assertIn("应用回滚只恢复升级前的 `docker-compose.yml` 和基线前后端镜像", content)
+        self.assertIn("正常升级并继续运行目标版本不需要本节流程", content)
         self.assertIn("维护窗口", content)
         self.assertIn("source_enabled = false", content)
         self.assertIn("auto_sync_enabled = false", content)
         self.assertIn("PLATFORM_BACKGROUND_JOBS_ENABLED=false", content)
         self.assertIn("rollback.sh", content)
-        self.assertIn("完整源/ODS 时刻核对", content)
-        self.assertIn("mirror_deleted = true", content)
+        self.assertIn("本包不要求 ODS 时刻纠正，也不要求全量补偿对账", content)
+        self.assertIn("本包不要求全量补偿对账，也不要临时启用来源", content)
         self.assertNotIn("sync-hold.sh", content)
         self.assertNotIn("platform_sync_hold", content)
         # 暂停前保存每个 config 的原值，验收后逐项还原，禁止全局启用。
@@ -739,7 +743,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertIn("while IFS=$'\\t' read -r config_id source_enabled auto_sync_enabled", content)
         self.assertIn("done < sync-config-flags.before.tsv", content)
         self.assertIn("diff -u sync-config-flags.before.tsv sync-config-flags.after.tsv", content)
-        self.assertIn("where id = <target_config_id>;", content)
+        self.assertNotIn("where id = <target_config_id>;", content)
         self.assertNotIn("set auto_sync_enabled = true", content)
         self.assertNotIn("set source_enabled = true,\n       updated_at = current_timestamp;\nselect id", content)
         # psql 必须用 heredoc 提供 SQL，避免 sh -c 单引号剥离状态字符串引号。
@@ -757,6 +761,133 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
 
         self.assertIn("未声明事实重建不等于所有 API、图表或统计展示数值必须不变", content)
         self.assertNotIn("不改变事实表、统计口径或历史聚合结果", content)
+
+    def test_incremental_readme_fact_rebuild_scope_is_explicit_and_never_implies_ods_correction(self):
+        cases = {
+            "issue": "议题事实（issue）",
+            "merge-request": "MR 事实（merge-request）",
+            "all": "议题事实与 MR 事实（all）",
+        }
+        for scope, label in cases.items():
+            with self.subTest(scope=scope):
+                context = MODULE.BuildContext(
+                    **{
+                        **self.build_context().__dict__,
+                        "require_fact_rebuild": True,
+                        "fact_rebuild_scope": scope,
+                        "require_ods_correction": False,
+                    }
+                )
+
+                content = MODULE.incremental_readme(context)
+
+                self.assertIn("## 6. 事实层重建与完成判据", content)
+                self.assertIn(label, content)
+                self.assertIn("只基于平台库现有 ODS 行重算事实和统计快照", content)
+                self.assertIn("不代表需要 ODS 时刻纠正，也不要求全量补偿对账", content)
+                self.assertNotIn("### 6.1", content)
+                self.assertNotIn("点击“全量补偿对账”", content)
+                self.assertEqual(
+                    {"rebuildRequired": True, "scope": scope, "odsCorrectionRequired": False},
+                    MODULE.fact_manifest(context),
+                )
+
+    def test_incremental_readme_ods_correction_requires_the_explicit_flag(self):
+        context = MODULE.BuildContext(
+            **{
+                **self.build_context().__dict__,
+                "require_fact_rebuild": True,
+                "fact_rebuild_scope": "issue",
+                "require_ods_correction": True,
+            }
+        )
+
+        content = MODULE.incremental_readme(context)
+
+        self.assertIn("## 6. 事实层重建与完成判据", content)
+        self.assertIn("### 6.1 ODS 时刻纠正与全量补偿（本包显式声明）", content)
+        self.assertIn("本包显式声明需要纠正历史 ODS 时刻", content)
+        self.assertIn("点击“全量补偿对账”", content)
+        self.assertIn("按 6.1 完成判据验收", content)
+        self.assertIn("回滚后再次升级必须按 6.1 执行一次全量补偿对账", content)
+        self.assertIn("where id = <target_config_id>;", content)
+        self.assertIn("6. 验收全部通过后", content)
+        self.assertIn("7. 第 3 步至第 5 步失败或中断时", content)
+        self.assertEqual(
+            {"rebuildRequired": True, "scope": "issue", "odsCorrectionRequired": True},
+            MODULE.fact_manifest(context),
+        )
+
+    def test_incremental_readme_without_rebuild_requires_no_data_action(self):
+        context = MODULE.BuildContext(
+            **{
+                **self.build_context().__dict__,
+                "require_fact_rebuild": False,
+                "require_ods_correction": False,
+            }
+        )
+
+        content = MODULE.incremental_readme(context)
+
+        self.assertIn("## 6. 不执行事实层重建", content)
+        self.assertIn("不执行事实层重建、ODS 时刻纠正或 GitLab 全量同步", content)
+        self.assertIn("本包不要求事实重建，不执行全量补偿对账，也不要临时启用来源", content)
+        self.assertIn("回滚后再次升级不需要事实重建或数据动作", content)
+        self.assertIn("4. 验收全部通过后", content)
+        self.assertIn("5. 第 3 步失败或中断时", content)
+        self.assertNotIn("### 6.1", content)
+        self.assertEqual(
+            {"rebuildRequired": False, "scope": None, "odsCorrectionRequired": False},
+            MODULE.fact_manifest(context),
+        )
+
+    def test_upgrade_script_completion_message_matches_fact_and_ods_flags(self):
+        facts_only = MODULE.BuildContext(
+            **{
+                **self.build_context().__dict__,
+                "require_fact_rebuild": True,
+                "fact_rebuild_scope": "issue",
+                "require_ods_correction": False,
+            }
+        )
+        facts_content = MODULE.upgrade_helper(facts_only)
+        self.assertIn("rebuild fact scope 'issue' from existing ODS", facts_content)
+        self.assertIn("full compensation is not required", facts_content)
+        self.assertNotIn("run the declared ODS correction", facts_content)
+
+        with_ods = MODULE.BuildContext(
+            **{**facts_only.__dict__, "require_ods_correction": True}
+        )
+        ods_content = MODULE.upgrade_helper(with_ods)
+        self.assertIn("run the declared ODS correction (full compensation)", ods_content)
+
+        no_rebuild = MODULE.BuildContext(
+            **{**facts_only.__dict__, "require_fact_rebuild": False}
+        )
+        self.assertIn(
+            "fact rebuild is not required for this release",
+            MODULE.upgrade_helper(no_rebuild),
+        )
+
+    def test_resolve_context_rejects_ods_correction_without_fact_rebuild(self):
+        with tempfile.TemporaryDirectory() as deploy_root:
+            args = MODULE.parse_args(
+                [
+                    "--mode",
+                    "incremental-update",
+                    "--baseline-dir",
+                    deploy_root,
+                    "--require-ods-correction",
+                ]
+            )
+            with self.assertRaisesRegex(
+                MODULE.PackageError, "--require-ods-correction requires --require-fact-rebuild"
+            ):
+                MODULE.resolve_context(args)
+
+        fresh = MODULE.parse_args(["--mode", "fresh-empty", "--require-ods-correction"])
+        with self.assertRaisesRegex(MODULE.PackageError, "fresh-empty cannot require ODS correction"):
+            MODULE.resolve_context(fresh)
 
     def test_incremental_readme_requires_checking_fixed_container_name_ownership(self):
         content = MODULE.incremental_readme(self.build_context())
