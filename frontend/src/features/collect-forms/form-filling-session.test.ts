@@ -10,6 +10,7 @@ import {
   formContextKey,
   readFormDrafts,
   readSessionDrafts,
+  saveFormDraft,
   type FormFillContext,
   type FormStorageSignal,
 } from './draft-store';
@@ -660,6 +661,102 @@ describe('form filling session', () => {
       recordVersion: 2,
     }));
     expect(current.session.state.records.map((item) => item.id)).toEqual(['301']);
+  });
+
+  it('locks an edit block when its storage version spec hash changes', async () => {
+    const base = record({ id: '301', storageVersionId: '22' });
+    const overrides: Partial<FormDetailResponse> = {
+      currentVersionId: '22',
+      storageVersionId: '22',
+      readableVersions: [
+        { versionId: '22', versionLabel: 'v1', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'a'.repeat(64) },
+      ],
+      versionSpecs: { '22': codeReviewSpec },
+    };
+    const current = harness({ apiDetail: detail([base], overrides) });
+    await current.session.initialize();
+    const block = current.session.startEdit(current.session.state.records[0])!;
+    expect(block.readOnly).toBe(false);
+    expect(block.versionSpecHash).toBe('a'.repeat(64));
+    const originalFields = { ...block.fields };
+
+    current.api.getFormDetail.mockResolvedValueOnce(
+      detail([base], {
+        ...overrides,
+        readableVersions: [
+          { versionId: '22', versionLabel: 'v1', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'c'.repeat(64) },
+        ],
+      }),
+    );
+    await current.session.reload();
+
+    expect(block.structureStale).toBe(true);
+    expect(block.readOnly).toBe(true);
+    expect(block.fields).toEqual(originalFields);
+    expect(current.session.canSubmitBlock(block)).toBe(false);
+  });
+
+  it('does not fall back to the current spec when a record version spec is missing', async () => {
+    const orphan = record({ id: '303', storageVersionId: '77', originVersionId: '22', canEdit: true });
+    const current = harness({
+      apiDetail: detail([orphan], {
+        readableVersions: [
+          { versionId: '22', versionLabel: 'v1', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'a'.repeat(64) },
+        ],
+        versionSpecs: { '22': codeReviewSpec },
+      }),
+    });
+    await current.session.initialize();
+
+    expect(current.session.specForRecord(orphan)).toBeNull();
+    expect(current.session.startEdit(orphan)).toBeNull();
+  });
+
+  it('keeps a restored draft read-only when its storage version spec is unavailable', async () => {
+    const draftContext = { ...context, scopeId: '11', storageVersionId: '77' };
+    saveFormDraft({
+      draftSpecVersion: 2,
+      originVersionId: '22',
+      baseStorageVersionId: '77',
+      versionSpecHash: 'b'.repeat(64),
+      accountUserId: 'alice',
+      contextKey,
+      context: draftContext,
+      draftId: 'draft-missing-spec',
+      editingSessionId: 'session-a',
+      kind: 'edit',
+      targetRecordId: '303',
+      baseRecordVersion: 3,
+      baseFields: { reviewerUserId: 'alice', reviewDurationMinutes: 30 },
+      fields: { reviewerUserId: 'alice', reviewDurationMinutes: 45 },
+      requestKey: null,
+      firstPendingSnapshot: null,
+      inputRevision: 2,
+      persistedRevision: 2,
+      savedAt: '2026-10-23T01:00:00.000Z',
+      status: 'editing',
+      submitState: 'unknown',
+      submitSnapshot: null,
+      savedElsewhere: null,
+      updatedAt: '2026-10-23T01:00:00.000Z',
+    });
+    const orphan = record({ id: '303', storageVersionId: '77', originVersionId: '22', canEdit: true });
+    const current = harness({
+      apiDetail: detail([orphan], {
+        readableVersions: [
+          { versionId: '22', versionLabel: 'v1', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'a'.repeat(64) },
+        ],
+        versionSpecs: { '22': codeReviewSpec },
+      }),
+    });
+    await current.session.initialize();
+
+    const block = current.session.state.blocks.find((item) => item.draftId === 'draft-missing-spec')!;
+    expect(block).toBeTruthy();
+    expect(block.structureStale).toBe(true);
+    expect(block.readOnly).toBe(true);
+    expect(block.submitState).toBe('unknown');
+    expect(block.fields).toEqual({ reviewerUserId: 'alice', reviewDurationMinutes: 45 });
   });
 
   it('does not write a late create result after the identity generation changes', async () => {

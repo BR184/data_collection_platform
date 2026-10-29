@@ -317,10 +317,13 @@ export class FormFillingSession {
     );
     const structureStale = Boolean(
       detail
-      && (scopeChanged
-        || (draft.kind === 'create'
-          ? draft.context.storageVersionId !== detail.storageVersionId
-          : !detail.versionSpecs?.[draft.context.storageVersionId])),
+      && this.structureStale(
+        draft.kind,
+        draft.context.scopeId,
+        draft.context.storageVersionId,
+        draft.versionSpecHash,
+        detail,
+      ),
     );
     const readOnlyReasons: string[] = [];
     if (savedElsewhere) {
@@ -436,12 +439,42 @@ export class FormFillingSession {
     }
   }
 
+  /**
+   * 结构守卫：新增草稿跟随当前版本；编辑草稿要求所属版本规格与首次规格哈希证据一致。
+   *
+   * <p>规格缺失或哈希证据失配时一律按不可用处理，不能用当前版规格代填或归一化旧载荷。
+   */
+  private structureStale(
+    kind: 'create' | 'edit',
+    scopeId: string,
+    storageVersionId: string,
+    versionSpecHash: string | null | undefined,
+    detail: FormDetailResponse,
+  ): boolean {
+    if (scopeId !== detail.scopeId) {
+      return true;
+    }
+    if (!detail.versionSpecs?.[storageVersionId]) {
+      return true;
+    }
+    if (kind === 'create') {
+      return storageVersionId !== detail.storageVersionId;
+    }
+    const currentHash =
+      detail.readableVersions?.find((version) => version.versionId === storageVersionId)
+        ?.fieldSpecHash ?? null;
+    return !currentHash || !versionSpecHash || versionSpecHash !== currentHash;
+  }
+
   private applyStructureGuard(block: FormBlockState, detail: FormDetailResponse): void {
     const scopeChanged = block.scopeId !== detail.scopeId;
-    // 新增草稿必须跟随当前版本；编辑草稿只需自身承载版本仍可读。
-    const stale = scopeChanged || (block.kind === 'create'
-      ? block.storageVersionId !== detail.storageVersionId
-      : !detail.versionSpecs?.[block.storageVersionId]);
+    const stale = this.structureStale(
+      block.kind,
+      block.scopeId,
+      block.storageVersionId,
+      block.versionSpecHash,
+      detail,
+    );
     if (stale) {
       block.structureStale = true;
       block.readOnly = true;
@@ -617,10 +650,9 @@ export class FormFillingSession {
     return block;
   }
 
-  /** 记录按自身承载版本的冻结规格显示/编辑；缺失时回退当前版规格只读兜底。 */
+  /** 记录按自身承载版本的冻结规格显示/编辑；缺失时明确不可用，不得回退当前版规格。 */
   specForRecord(record: FormRecordView): FormTemplateSpecView | null {
-    const detail = this.state.detail;
-    return detail?.versionSpecs?.[record.storageVersionId] ?? this.currentSpec();
+    return this.state.detail?.versionSpecs?.[record.storageVersionId] ?? null;
   }
 
   startEdit(record: FormRecordView): FormBlockState | null {

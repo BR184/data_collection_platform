@@ -218,43 +218,84 @@ function writeDraft(record: FormDraftRecord): FormDraftRecord | null {
   };
   try {
     localStorage.setItem(draftKey(stored), JSON.stringify(stored));
-    localStorage.removeItem(v1DraftKey(stored));
-    return stored;
   } catch {
     return null;
   }
+  try {
+    // v1 清理失败不影响已写入的有效 v2；后续读取以 v2 为准。
+    localStorage.removeItem(v1DraftKey(stored));
+  } catch {
+    // 忽略：残留 v1 不会覆盖有效 v2。
+  }
+  return stored;
 }
 
 /**
- * 把旧版 v1 草稿就地升级为 v2 键。
+ * 把当前账号与上下文下的旧版 v1 草稿就地升级为 v2 键。
  *
- * 只改变存储键与规格版本，保留原 draftId、requestKey、首次快照与时间戳；
- * 写入失败时保留 v1 条目，下次读取继续重试。
+ * 有效 v2 优先：同名 v2 存在且可解析时只清理残留 v1，不覆盖 v2 的输入、requestKey、
+ * 提交状态或首次快照；v2 不可读时才按 v1 重建。只处理传入账号与上下文，不因读取一个
+ * 账号而迁移其它账号的草稿。v2 写入失败时保留 v1，下次读取继续重试。
  */
-function migrateLegacyEntries(): void {
+function migrateLegacyEntries(accountUserId: string, contextKey: string): void {
+  const identityPrefix = `${DRAFT_PREFIX_V1}|${encodeSegment(accountUserId)}`
+    + `|${encodeSegment(contextKey)}|`;
   for (const [key, value] of draftEntries()) {
-    if (key.startsWith(`${DRAFT_PREFIX_V2}|`)) {
+    if (!key.startsWith(identityPrefix)) {
       continue;
     }
     const legacy = parseDraft(value);
-    if (!legacy) {
+    if (!legacy || legacy.accountUserId !== accountUserId || legacy.contextKey !== contextKey) {
+      continue;
+    }
+    const targetKey = draftKey(legacy);
+    let existing: string | null;
+    try {
+      existing = localStorage.getItem(targetKey);
+    } catch {
+      continue;
+    }
+    if (existing != null && parseDraft(existing)) {
+      try {
+        localStorage.removeItem(key);
+      } catch {
+        // 残留 v1 不影响有效 v2。
+      }
       continue;
     }
     const upgraded: FormDraftRecord = { ...legacy, draftSpecVersion: 2 };
     try {
-      localStorage.setItem(draftKey(upgraded), JSON.stringify(upgraded));
-      localStorage.removeItem(key);
+      localStorage.setItem(targetKey, JSON.stringify(upgraded));
     } catch {
       // 存储写入失败：保留 v1，草稿仍可读。
+      continue;
+    }
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // 删除失败不影响已写入的 v2。
     }
   }
 }
 
 export function readFormDrafts(accountUserId: string, contextKey: string): FormDraftRecord[] {
-  migrateLegacyEntries();
-  return draftEntries()
-    .map(([, value]) => parseDraft(value))
-    .filter((draft): draft is FormDraftRecord => draft != null)
+  migrateLegacyEntries(accountUserId, contextKey);
+  const entries = draftEntries().map(
+    ([key, value]) => ({ key, draft: parseDraft(value) }),
+  );
+  const validV2Identities = new Set(
+    entries
+      .filter((entry) => entry.key.startsWith(`${DRAFT_PREFIX_V2}|`) && entry.draft)
+      .map((entry) => entry.key.slice(`${DRAFT_PREFIX_V2}`.length)),
+  );
+  return entries
+    .filter((entry): entry is { key: string; draft: FormDraftRecord } => entry.draft != null)
+    // 有效 v2 优先：即使残留 v1 删除失败，也不把旧内容当作同一草稿再次读出。
+    .filter((entry) => !(
+      entry.key.startsWith(`${DRAFT_PREFIX_V1}|`)
+      && validV2Identities.has(entry.key.slice(`${DRAFT_PREFIX_V1}`.length))
+    ))
+    .map((entry) => entry.draft)
     .filter(
       (draft) => draft.accountUserId === accountUserId && draft.contextKey === contextKey,
     )

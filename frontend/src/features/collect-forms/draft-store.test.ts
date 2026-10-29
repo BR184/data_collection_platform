@@ -280,6 +280,155 @@ describe('form draft store', () => {
     expect(readSessionDrafts('alice', contextKey, 'session-a')[0].draftSpecVersion).toBe(2);
   });
 
+  it('keeps a valid v2 draft when a stale v1 entry shares its identity', () => {
+    const v1Key = draftStorageKey('qaflex.form.draft.v1');
+    const v2Key = draftStorageKey('qaflex.form.draft.v2');
+    localStorage.setItem(
+      v1Key,
+      JSON.stringify({
+        ...draft({
+          fields: { fixStatus: 'stale-v1' },
+          requestKey: 'older-key',
+          submitState: 'none',
+          inputRevision: 1,
+          persistedRevision: 1,
+        }),
+        draftSpecVersion: 1,
+      }),
+    );
+    localStorage.setItem(
+      v2Key,
+      JSON.stringify(
+        draft({
+          draftSpecVersion: 2,
+          fields: { fixStatus: 'newer-v2' },
+          requestKey: 'newer-key',
+          submitState: 'unknown',
+          inputRevision: 5,
+          persistedRevision: 5,
+        }),
+      ),
+    );
+
+    const drafts = readFormDrafts('alice', contextKey);
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0].draftSpecVersion).toBe(2);
+    expect(drafts[0].fields).toEqual({ fixStatus: 'newer-v2' });
+    expect(drafts[0].requestKey).toBe('newer-key');
+    expect(drafts[0].submitState).toBe('unknown');
+    expect(drafts[0].inputRevision).toBe(5);
+    expect(localStorage.getItem(v1Key)).toBeNull();
+    expect(localStorage.getItem(v2Key)).toContain('newer-v2');
+
+    // 旧标签页重新写入 v1 后，再次读取仍以有效 v2 为准。
+    localStorage.setItem(
+      v1Key,
+      JSON.stringify({
+        ...draft({ fields: { fixStatus: 'rewritten-v1' }, requestKey: 'rewritten-key' }),
+        draftSpecVersion: 1,
+      }),
+    );
+    const reread = readFormDrafts('alice', contextKey);
+    expect(reread[0].fields).toEqual({ fixStatus: 'newer-v2' });
+    expect(reread[0].requestKey).toBe('newer-key');
+  });
+
+  it('falls back to v1 only when the v2 entry is unreadable', () => {
+    const v1Key = draftStorageKey('qaflex.form.draft.v1');
+    const v2Key = draftStorageKey('qaflex.form.draft.v2');
+    localStorage.setItem(
+      v1Key,
+      JSON.stringify({
+        ...draft({ fields: { fixStatus: 'legacy' }, requestKey: 'legacy-key' }),
+        draftSpecVersion: 1,
+      }),
+    );
+    localStorage.setItem(v2Key, '{broken');
+
+    const [migrated] = readFormDrafts('alice', contextKey);
+    expect(migrated.draftSpecVersion).toBe(2);
+    expect(migrated.fields).toEqual({ fixStatus: 'legacy' });
+    expect(migrated.requestKey).toBe('legacy-key');
+    expect(localStorage.getItem(v1Key)).toBeNull();
+    expect(JSON.parse(localStorage.getItem(v2Key)!)).toMatchObject({ draftSpecVersion: 2 });
+  });
+
+  it('does not migrate drafts that belong to another account', () => {
+    const bobV1Key = [
+      'qaflex.form.draft.v1',
+      encodeURIComponent('bob'),
+      encodeURIComponent(contextKey),
+      'session-b',
+      'draft-b',
+    ].join('|');
+    const bobV2Key = bobV1Key.replace('qaflex.form.draft.v1', 'qaflex.form.draft.v2');
+    localStorage.setItem(
+      bobV1Key,
+      JSON.stringify({
+        ...draft({ accountUserId: 'bob', editingSessionId: 'session-b', draftId: 'draft-b' }),
+        draftSpecVersion: 1,
+      }),
+    );
+
+    expect(readFormDrafts('alice', contextKey)).toHaveLength(0);
+    expect(localStorage.getItem(bobV1Key)).toBeTruthy();
+    expect(localStorage.getItem(bobV2Key)).toBeNull();
+  });
+
+  it('keeps the v2 draft authoritative when the v1 cleanup fails', () => {
+    const v1Key = draftStorageKey('qaflex.form.draft.v1');
+    const v2Key = draftStorageKey('qaflex.form.draft.v2');
+    localStorage.setItem(
+      v1Key,
+      JSON.stringify({ ...draft({ fields: { fixStatus: 'stale' }, requestKey: 'old-key' }), draftSpecVersion: 1 }),
+    );
+    const originalRemove = Storage.prototype.removeItem;
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(function (
+      this: Storage,
+      key: string,
+    ) {
+      if (key === v1Key) {
+        throw new Error('denied');
+      }
+      return originalRemove.call(this, key);
+    });
+
+    const saved = saveFormDraft(
+      draft({ fields: { fixStatus: 'newest' }, requestKey: 'new-key', inputRevision: 6, persistedRevision: 6 }),
+    );
+    expect(saved).not.toBeNull();
+    expect(localStorage.getItem(v2Key)).toContain('new-key');
+
+    const reread = readFormDrafts('alice', contextKey);
+    expect(reread[0].fields).toEqual({ fixStatus: 'newest' });
+    expect(reread[0].requestKey).toBe('new-key');
+  });
+
+  it('keeps the v1 entry when writing the v2 key fails', () => {
+    const v1Key = draftStorageKey('qaflex.form.draft.v1');
+    const v2Key = draftStorageKey('qaflex.form.draft.v2');
+    localStorage.setItem(
+      v1Key,
+      JSON.stringify({ ...draft({ fields: { fixStatus: 'legacy' } }), draftSpecVersion: 1 }),
+    );
+    const originalSet = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string,
+    ) {
+      if (key === v2Key) {
+        throw new Error('quota');
+      }
+      return originalSet.call(this, key, value);
+    });
+
+    const [pending] = readFormDrafts('alice', contextKey);
+    expect(pending.draftSpecVersion).toBe(1);
+    expect(pending.fields).toEqual({ fixStatus: 'legacy' });
+    expect(localStorage.getItem(v1Key)).toBeTruthy();
+  });
+
   it('skips corrupted draft entries instead of failing the list', () => {
     saveFormDraft(draft());
     localStorage.setItem('qaflex.form.draft.v1|%7B%22broken', '{not-json');

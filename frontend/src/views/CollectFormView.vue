@@ -51,6 +51,7 @@ import type {
   FormFieldSpecView,
   FormRecordView,
   FormReviewerCandidate,
+  FormTemplateSpecView,
 } from '../types/api';
 
 const TEMPLATE_TITLES: Record<string, string> = {
@@ -193,9 +194,13 @@ let sessionSeq = 0;
 
 const detail = computed<FormDetailResponse | null>(() => session.value?.state.detail ?? null);
 const recordSpec = (record: FormRecordView) =>
-  detail.value?.versionSpecs?.[record.storageVersionId] ?? spec.value;
+  detail.value?.versionSpecs?.[record.storageVersionId] ?? null;
 const blockSpec = (block: FormBlockState) =>
-  detail.value?.versionSpecs?.[block.storageVersionId] ?? spec.value;
+  detail.value?.versionSpecs?.[block.storageVersionId] ?? null;
+const blockFields = (block: FormBlockState): FormFieldSpecView[] => blockSpec(block)?.fields ?? [];
+// 仅在 v-if="blockSpec(block)" 分支内使用；规格缺失时页面显示不可用提示，不套用当前版字段。
+const blockSpecRequired = (block: FormBlockState): FormTemplateSpecView =>
+  blockSpec(block) as FormTemplateSpecView;
 const spec = computed(() => detail.value?.fieldSpec ?? null);
 const blocks = computed<FormBlockState[]>(() => session.value?.state.blocks ?? []);
 const templateTitle = computed(
@@ -1358,14 +1363,21 @@ onBeforeUnmount(() => {
                   :title="block.notice"
                 />
 
-                <div v-if="block.conflictRecord" class="form-conflict-panel">
+                <el-alert
+                  v-if="!blockSpec(block)"
+                  class="form-block-notice"
+                  type="warning"
+                  :closable="false"
+                  title="记录版本不可用：该草稿的所属结构版本当前无法读取，内容仅原样保留"
+                />
+                <div v-if="block.conflictRecord && blockSpec(block)" class="form-conflict-panel">
                   <div class="form-conflict-title">
                     最新记录版本 {{ block.conflictRecord.recordVersion }}（当前草稿基于版本
                     {{ block.baseRecordVersion ?? '—' }}）
                   </div>
                   <div class="form-record-fields">
                     <div
-                      v-for="field in blockSpec(block).fields"
+                      v-for="field in blockFields(block)"
                       :key="field.apiKey"
                       class="form-record-field"
                     >
@@ -1381,12 +1393,13 @@ onBeforeUnmount(() => {
                 </div>
 
                 <el-form
+                  v-if="blockSpec(block)"
                   class="external-form-layout form-single-column"
                   label-position="top"
                   @submit.prevent="submitBlock(block)"
                 >
                   <el-form-item
-                    v-for="field in blockSpec(block).fields"
+                    v-for="field in blockFields(block)"
                     :key="field.apiKey"
                     :label="field.label || field.name"
                     :required="fieldRequired(block, field)"
@@ -1396,7 +1409,7 @@ onBeforeUnmount(() => {
                   >
                     <div class="form-field-control">
                       <FormFieldControl
-                        :spec="blockSpec(block)"
+                        :spec="blockSpecRequired(block)"
                         :field="field"
                         :model-value="block.fields[field.apiKey]"
                         :disabled="fieldDisabled(block) || fieldCleared(block, field)"

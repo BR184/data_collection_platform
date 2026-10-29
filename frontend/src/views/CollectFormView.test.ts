@@ -280,6 +280,46 @@ describe('CollectFormView', () => {
     expect(current.text()).toContain('安全');
   });
 
+  it('marks a record without its storage version spec as unavailable instead of using the current spec', async () => {
+    const orphan: FormRecordView = {
+      id: '303',
+      recordVersion: 1,
+      deleted: false,
+      legacyIncomplete: false,
+      legacyMissingFields: [],
+      fields: { reviewerUserId: 'alice', supplementNote: '不应套用当前字段' },
+      fieldNames: { reviewerUserId: 'Alice' },
+      snapshotValues: {},
+      createdBy: 'alice',
+      createdByName: 'Alice',
+      templateVersion: 'v9',
+      originVersionId: '22',
+      storageVersionId: '77',
+      createdAt: '2026-10-23T01:00:00.000Z',
+      updatedAt: '2026-10-23T01:00:00.000Z',
+      canEdit: true,
+      canVoid: true,
+    };
+    mocks.api.getFormDetail.mockResolvedValue(
+      detail({
+        readableVersions: [
+          { versionId: '22', versionLabel: 'v1', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'a'.repeat(64) },
+        ],
+        versionSpecs: { '22': codeReviewSpec },
+        records: [orphan],
+      }),
+    );
+    const current = await mountView(
+      '/external/forms?gitlabBaseUrl=https%3A%2F%2Fgitlab.example.com&projectId=7&resourceType=merge_request&resourceId=3&templateKey=code_review',
+    );
+
+    expect(current.text()).toContain('记录版本不可用');
+    expect(current.text()).not.toContain('补充说明');
+    expect(current.text()).not.toContain('不应套用当前字段');
+    expect(findButton(current, '编辑')).toBeUndefined();
+    expect(findButton(current, '作废')).toBeUndefined();
+  });
+
   it('restores the local draft for the same account and editing session', async () => {
     sessionStorage.setItem('qaflex.form.editing-session', 'session-view');
     const context = {

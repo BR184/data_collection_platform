@@ -8,7 +8,7 @@ import type {
 import { formatFieldValue } from '../../features/collect-forms/field-logic';
 
 const props = defineProps<{
-  spec: FormTemplateSpecView;
+  spec: FormTemplateSpecView | null;
   record: FormRecordView;
   templateTitle: string;
   latest: boolean;
@@ -43,6 +43,9 @@ function displayValue(field: FormFieldSpecView): string {
     }
     return '—';
   }
+  if (!props.spec) {
+    return '—';
+  }
   return formatFieldValue(props.spec, field, value as never);
 }
 </script>
@@ -59,7 +62,7 @@ function displayValue(field: FormFieldSpecView): string {
       </div>
       <div class="form-record-actions">
         <el-button
-          v-if="record.canEdit && writable"
+          v-if="record.canEdit && writable && spec"
           link
           type="primary"
           :disabled="editing"
@@ -68,7 +71,7 @@ function displayValue(field: FormFieldSpecView): string {
           编辑
         </el-button>
         <el-button
-          v-if="record.canVoid && writable"
+          v-if="record.canVoid && writable && spec"
           link
           type="danger"
           @click="emit('void')"
@@ -80,16 +83,22 @@ function displayValue(field: FormFieldSpecView): string {
 
     <div class="form-record-meta">
       <span>填写人：{{ record.createdByName || '未知' }}</span>
-      <span>模板：{{ record.templateVersion || spec.template_key }}</span>
+      <span>模板：{{ record.templateVersion || spec?.template_key || '—' }}</span>
       <span>创建：{{ createdAt }}</span>
       <span>更新：{{ updatedAt }}</span>
     </div>
 
-    <div class="form-record-fields">
+    <div v-if="spec" class="form-record-fields">
       <div v-for="field in spec.fields" :key="field.apiKey" class="form-record-field">
         <span class="form-record-label">{{ field.label || field.name }}</span>
         <span class="form-record-value">{{ displayValue(field) }}</span>
       </div>
     </div>
+    <el-alert
+      v-else
+      type="warning"
+      :closable="false"
+      title="记录版本不可用：无法读取该记录所属结构版本，仅显示基础信息"
+    />
   </article>
 </template>
