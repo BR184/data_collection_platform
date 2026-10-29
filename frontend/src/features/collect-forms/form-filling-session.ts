@@ -1194,13 +1194,29 @@ export class FormFillingSession {
       this.persistBlockNow(block);
       return;
     }
-    // 编辑核验需要所属版本规格才能比对载荷；证据缺失时不得用空对象比较得出冲突，
-    // 也不能放开复制/丢弃，保留首次快照等待规格恢复后继续核验。
+    // 编辑核验需要所属版本规格与首次规格哈希证据仍一致；缺失或失配时不得用其它规格
+    // 归一化载荷得出冲突，也不能放开复制/丢弃，保留首次快照等待原证据恢复后继续核验。
+    const refreshedDetail = this.state.detail;
     const spec = this.specForBlock(block);
-    if (!spec) {
+    if (!refreshedDetail || !spec) {
       block.submitState = 'unknown';
       block.frozen = true;
       block.notice = '核验未完成：所属结构版本当前不可用，无法比对保存内容；原提交结果仍未确认';
+      this.persistBlockNow(block);
+      return;
+    }
+    if (
+      this.structureStale(
+        block.kind,
+        block.scopeId,
+        block.storageVersionId,
+        block.versionSpecHash,
+        refreshedDetail,
+      )
+    ) {
+      block.submitState = 'unknown';
+      block.frozen = true;
+      block.notice = '核验未完成：所属结构版本或首次规格证据已变化，无法比对保存内容；原提交结果仍未确认';
       this.persistBlockNow(block);
       return;
     }

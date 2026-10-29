@@ -132,7 +132,9 @@ function detail(
     scopeStatus: 'ACTIVE',
     writable: true,
     instanceId: '31',
-    readableVersions: [],
+    readableVersions: [
+      { versionId: '22', versionLabel: 'v1', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'a'.repeat(64) },
+    ],
     versionSpecs: { '22': codeReviewSpec },
     sourceSetRevision: '0',
     sourceSetHash: '0'.repeat(64),
@@ -882,6 +884,159 @@ describe('form filling session', () => {
       (item) => item.draftId === 'draft-unknown-restored-spec',
     )!;
     expect(block.structureStale).toBe(true);
+
+    current.api.getFormDetail.mockResolvedValueOnce(
+      detail([orphan], {
+        readableVersions: [
+          { versionId: '22', versionLabel: 'v1', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'a'.repeat(64) },
+          { versionId: '77', versionLabel: 'v9', versionStatus: 'RETIRED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'b'.repeat(64) },
+        ],
+        versionSpecs: { '22': codeReviewSpec, '77': codeReviewSpec },
+      }),
+    );
+
+    await current.session.verify(block);
+
+    expect(current.session.state.blocks.some((item) => item.key === block.key)).toBe(false);
+    expect(current.session.state.notice).toBe('记录已保存');
+    expect(readSessionDrafts('alice', contextKey, 'session-a')).toHaveLength(0);
+  });
+
+  it('keeps an unknown edit unresolved when its first spec hash no longer matches the readable version', async () => {
+    const narrowedSpec: FormTemplateSpecView = {
+      ...codeReviewSpec,
+      fields: codeReviewSpec.fields.filter((field) => field.apiKey !== 'reviewDurationMinutes'),
+    };
+    const draftContext = { ...context, scopeId: '11', storageVersionId: '77' };
+    saveFormDraft({
+      draftSpecVersion: 2,
+      originVersionId: '22',
+      baseStorageVersionId: '77',
+      versionSpecHash: 'b'.repeat(64),
+      accountUserId: 'alice',
+      contextKey,
+      context: draftContext,
+      draftId: 'draft-unknown-hash-mismatch',
+      editingSessionId: 'session-a',
+      kind: 'edit',
+      targetRecordId: '303',
+      baseRecordVersion: 3,
+      baseFields: { reviewerUserId: 'alice', reviewDurationMinutes: 30 },
+      fields: { reviewerUserId: 'alice', reviewDurationMinutes: 45 },
+      requestKey: null,
+      firstPendingSnapshot: null,
+      inputRevision: 2,
+      persistedRevision: 2,
+      savedAt: '2026-10-23T01:00:00.000Z',
+      status: 'editing',
+      submitState: 'unknown',
+      submitSnapshot: {
+        requestKey: null,
+        fields: { reviewerUserId: 'alice', reviewDurationMinutes: 45 },
+        confirmSameReviewer: false,
+        baseRecordVersion: 3,
+        capturedAt: '2026-10-23T01:00:00.000Z',
+      },
+      savedElsewhere: null,
+      updatedAt: '2026-10-23T01:00:00.000Z',
+    });
+    const orphan = record({
+      id: '303',
+      recordVersion: 4,
+      storageVersionId: '77',
+      originVersionId: '22',
+      canEdit: true,
+      fields: { reviewerUserId: 'alice', reviewDurationMinutes: 45 },
+    });
+    const current = harness({
+      apiDetail: detail([orphan], {
+        readableVersions: [
+          { versionId: '22', versionLabel: 'v1', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'a'.repeat(64) },
+          { versionId: '77', versionLabel: 'v9', versionStatus: 'RETIRED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'c'.repeat(64) },
+        ],
+        versionSpecs: { '22': codeReviewSpec, '77': narrowedSpec },
+      }),
+    });
+    await current.session.initialize();
+
+    const block = current.session.state.blocks.find(
+      (item) => item.draftId === 'draft-unknown-hash-mismatch',
+    )!;
+    expect(block.submitState).toBe('unknown');
+    expect(block.structureStale).toBe(true);
+
+    await current.session.verify(block);
+
+    expect(block.submitState).toBe('unknown');
+    expect(block.conflictRecord).toBeNull();
+    expect(block.notice).toContain('核验未完成');
+    expect(block.submitSnapshot).not.toBeNull();
+    expect(block.frozen).toBe(true);
+    expect(current.session.canDiscardBlock(block)).toBe(false);
+    expect(current.session.canCopyBlock(block)).toBe(false);
+  });
+
+  it('converges the same unknown edit snapshot after its spec hash is restored', async () => {
+    const narrowedSpec: FormTemplateSpecView = {
+      ...codeReviewSpec,
+      fields: codeReviewSpec.fields.filter((field) => field.apiKey !== 'reviewDurationMinutes'),
+    };
+    const draftContext = { ...context, scopeId: '11', storageVersionId: '77' };
+    saveFormDraft({
+      draftSpecVersion: 2,
+      originVersionId: '22',
+      baseStorageVersionId: '77',
+      versionSpecHash: 'b'.repeat(64),
+      accountUserId: 'alice',
+      contextKey,
+      context: draftContext,
+      draftId: 'draft-unknown-restored-hash',
+      editingSessionId: 'session-a',
+      kind: 'edit',
+      targetRecordId: '303',
+      baseRecordVersion: 3,
+      baseFields: { reviewerUserId: 'alice', reviewDurationMinutes: 30 },
+      fields: { reviewerUserId: 'alice', reviewDurationMinutes: 45 },
+      requestKey: null,
+      firstPendingSnapshot: null,
+      inputRevision: 2,
+      persistedRevision: 2,
+      savedAt: '2026-10-23T01:00:00.000Z',
+      status: 'editing',
+      submitState: 'unknown',
+      submitSnapshot: {
+        requestKey: null,
+        fields: { reviewerUserId: 'alice', reviewDurationMinutes: 45 },
+        confirmSameReviewer: false,
+        baseRecordVersion: 3,
+        capturedAt: '2026-10-23T01:00:00.000Z',
+      },
+      savedElsewhere: null,
+      updatedAt: '2026-10-23T01:00:00.000Z',
+    });
+    const orphan = record({
+      id: '303',
+      recordVersion: 4,
+      storageVersionId: '77',
+      originVersionId: '22',
+      canEdit: true,
+      fields: { reviewerUserId: 'alice', reviewDurationMinutes: 45 },
+    });
+    const current = harness({
+      apiDetail: detail([orphan], {
+        readableVersions: [
+          { versionId: '22', versionLabel: 'v1', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'a'.repeat(64) },
+          { versionId: '77', versionLabel: 'v9', versionStatus: 'RETIRED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'c'.repeat(64) },
+        ],
+        versionSpecs: { '22': codeReviewSpec, '77': narrowedSpec },
+      }),
+    });
+    await current.session.initialize();
+    const block = current.session.state.blocks.find(
+      (item) => item.draftId === 'draft-unknown-restored-hash',
+    )!;
+    await current.session.verify(block);
+    expect(block.submitState).toBe('unknown');
 
     current.api.getFormDetail.mockResolvedValueOnce(
       detail([orphan], {

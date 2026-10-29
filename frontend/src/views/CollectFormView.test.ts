@@ -71,7 +71,9 @@ function detail(overrides: Partial<FormDetailResponse> = {}): FormDetailResponse
     scopeStatus: 'ACTIVE',
     writable: true,
     instanceId: '31',
-    readableVersions: [],
+    readableVersions: [
+      { versionId: '22', versionLabel: 'v2026.10', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'a'.repeat(64) },
+    ],
     versionSpecs: { '22': codeReviewSpec },
     sourceSetRevision: '0',
     sourceSetHash: '0'.repeat(64),
