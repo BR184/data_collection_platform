@@ -1194,6 +1194,16 @@ export class FormFillingSession {
       this.persistBlockNow(block);
       return;
     }
+    // 编辑核验需要所属版本规格才能比对载荷；证据缺失时不得用空对象比较得出冲突，
+    // 也不能放开复制/丢弃，保留首次快照等待规格恢复后继续核验。
+    const spec = this.specForBlock(block);
+    if (!spec) {
+      block.submitState = 'unknown';
+      block.frozen = true;
+      block.notice = '核验未完成：所属结构版本当前不可用，无法比对保存内容；原提交结果仍未确认';
+      this.persistBlockNow(block);
+      return;
+    }
     const record = this.findRecord(block.targetRecordId);
     if (!record || record.deleted) {
       block.submitState = 'conflict';
@@ -1202,8 +1212,7 @@ export class FormFillingSession {
       this.persistBlockNow(block);
       return;
     }
-    const spec = this.specForBlock(block);
-    const savedFields = spec ? normalizeFields(spec, record.fields) : {};
+    const savedFields = normalizeFields(spec, record.fields);
     if (
       record.recordVersion === (snapshot.baseRecordVersion ?? -1) + 1
       && hasSameFields(savedFields, snapshot.fields)

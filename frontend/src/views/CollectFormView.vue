@@ -1378,13 +1378,14 @@ onBeforeUnmount(() => {
                       <div v-else-if="field.format" class="form-field-hint">{{ field.format }}</div>
                     </div>
                   </el-form-item>
+                </el-form>
 
-                  <div class="form-block-footer">
-                    <div class="form-block-footer-status">
-                      <span>{{ blockStatus(block).text }}</span>
-                      <span v-if="showsUnsubmitted(block)" class="form-muted">尚未正式提交</span>
-                    </div>
-                    <div class="external-form-actions">
+                <div class="form-block-footer">
+                  <div class="form-block-footer-status">
+                    <span>{{ blockStatus(block).text }}</span>
+                    <span v-if="showsUnsubmitted(block)" class="form-muted">尚未正式提交</span>
+                  </div>
+                  <div class="external-form-actions">
                     <el-button
                       size="default" aria-label="丢弃草稿"
                       :disabled="!session?.canDiscardBlock(block)"
@@ -1393,32 +1394,31 @@ onBeforeUnmount(() => {
                     >
                       取消
                     </el-button>
-                      <el-button
-                        v-if="block.submitState === 'pending'"
-                        type="primary" plain
-                        disabled
-                        loading
-                      >
-                        正在提交…
-                      </el-button>
-                      <el-button
-                        v-else-if="block.submitState === 'unknown'"
-                        type="primary" plain
-                        @click="submitBlock(block)"
-                      >
-                        核验提交结果
-                      </el-button>
-                      <el-button
-                        v-else
-                        type="primary" plain
-                        :disabled="!session?.canSubmitBlock(block)"
-                        @click="submitBlock(block)"
-                      >
-                        保存
-                      </el-button>
-                    </div>
+                    <el-button
+                      v-if="block.submitState === 'pending'"
+                      type="primary" plain
+                      disabled
+                      loading
+                    >
+                      正在提交…
+                    </el-button>
+                    <el-button
+                      v-else-if="block.submitState === 'unknown'"
+                      type="primary" plain
+                      @click="submitBlock(block)"
+                    >
+                      核验提交结果
+                    </el-button>
+                    <el-button
+                      v-else
+                      type="primary" plain
+                      :disabled="!session?.canSubmitBlock(block)"
+                      @click="submitBlock(block)"
+                    >
+                      保存
+                    </el-button>
                   </div>
-                </el-form>
+                </div>
               </article>
               </template>
             </div>

@@ -437,6 +437,95 @@ describe('CollectFormView', () => {
     expect(findButton(current, '作废')).toBeUndefined();
   });
 
+  it('keeps verification available for an unknown edit whose storage version spec is missing', async () => {
+    sessionStorage.setItem('qaflex.form.editing-session', 'session-view');
+    const context = {
+      gitlabBaseUrl: 'https://gitlab.example.com',
+      projectId: 7,
+      resourceType: 'merge_request',
+      resourceId: '3',
+      templateKey: 'code_review',
+    };
+    saveFormDraft({
+      draftSpecVersion: 2,
+      originVersionId: '22',
+      baseStorageVersionId: '77',
+      versionSpecHash: 'b'.repeat(64),
+      accountUserId: 'alice',
+      contextKey: formContextKey(context),
+      context: { ...context, scopeId: '11', storageVersionId: '77' },
+      draftId: 'draft-unknown-missing-spec',
+      editingSessionId: 'session-view',
+      kind: 'edit',
+      targetRecordId: '303',
+      baseRecordVersion: 3,
+      baseFields: { reviewerUserId: 'alice', supplementNote: '原值' },
+      fields: { reviewerUserId: 'alice', supplementNote: '未知结果内容' },
+      requestKey: null,
+      firstPendingSnapshot: null,
+      inputRevision: 2,
+      persistedRevision: 2,
+      savedAt: '2026-10-23T01:00:00.000Z',
+      status: 'editing',
+      submitState: 'unknown',
+      submitSnapshot: {
+        requestKey: null,
+        fields: { reviewerUserId: 'alice', supplementNote: '未知结果内容' },
+        confirmSameReviewer: false,
+        baseRecordVersion: 3,
+        capturedAt: '2026-10-23T01:00:00.000Z',
+      },
+      savedElsewhere: null,
+      updatedAt: '2026-10-23T01:00:00.000Z',
+    });
+    const orphan: FormRecordView = {
+      id: '303',
+      recordVersion: 4,
+      deleted: false,
+      legacyIncomplete: false,
+      legacyMissingFields: [],
+      fields: { reviewerUserId: 'alice', supplementNote: '未知结果内容' },
+      fieldNames: { reviewerUserId: 'Alice' },
+      snapshotValues: {},
+      createdBy: 'alice',
+      createdByName: 'Alice',
+      templateVersion: 'v9',
+      originVersionId: '22',
+      storageVersionId: '77',
+      createdAt: '2026-10-23T01:00:00.000Z',
+      updatedAt: '2026-10-23T01:00:00.000Z',
+      canEdit: true,
+      canVoid: true,
+    };
+    mocks.api.getFormDetail.mockResolvedValue(
+      detail({
+        readableVersions: [
+          { versionId: '22', versionLabel: 'v1', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'a'.repeat(64) },
+        ],
+        versionSpecs: { '22': codeReviewSpec },
+        records: [orphan],
+      }),
+    );
+    const current = await mountView(
+      '/external/forms?gitlabBaseUrl=https%3A%2F%2Fgitlab.example.com&projectId=7&resourceType=merge_request&resourceId=3&templateKey=code_review',
+    );
+
+    expect(current.text()).toContain('记录版本不可用');
+    const verify = findButton(current, '核验提交结果');
+    expect(verify).toBeTruthy();
+    const cancel = findButton(current, '取消')!;
+    expect(cancel.attributes('disabled')).toBeDefined();
+
+    await verify!.trigger('click');
+    await flushPromises();
+    await flushPromises();
+
+    expect(current.text()).toContain('所属结构版本当前不可用');
+    expect(current.text()).not.toContain('记录已有新的保存结果');
+    expect(findButton(current, '核验提交结果')).toBeTruthy();
+    expect(findButton(current, '取消')!.attributes('disabled')).toBeDefined();
+  });
+
   it('restores the local draft for the same account and editing session', async () => {
     sessionStorage.setItem('qaflex.form.editing-session', 'session-view');
     const context = {

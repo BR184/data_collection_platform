@@ -759,6 +759,147 @@ describe('form filling session', () => {
     expect(block.fields).toEqual({ reviewerUserId: 'alice', reviewDurationMinutes: 45 });
   });
 
+  it('keeps an unknown edit unresolved instead of reporting a false conflict when its spec is missing', async () => {
+    const draftContext = { ...context, scopeId: '11', storageVersionId: '77' };
+    saveFormDraft({
+      draftSpecVersion: 2,
+      originVersionId: '22',
+      baseStorageVersionId: '77',
+      versionSpecHash: 'b'.repeat(64),
+      accountUserId: 'alice',
+      contextKey,
+      context: draftContext,
+      draftId: 'draft-unknown-missing-spec',
+      editingSessionId: 'session-a',
+      kind: 'edit',
+      targetRecordId: '303',
+      baseRecordVersion: 3,
+      baseFields: { reviewerUserId: 'alice', reviewDurationMinutes: 30 },
+      fields: { reviewerUserId: 'alice', reviewDurationMinutes: 45 },
+      requestKey: null,
+      firstPendingSnapshot: null,
+      inputRevision: 2,
+      persistedRevision: 2,
+      savedAt: '2026-10-23T01:00:00.000Z',
+      status: 'editing',
+      submitState: 'unknown',
+      submitSnapshot: {
+        requestKey: null,
+        fields: { reviewerUserId: 'alice', reviewDurationMinutes: 45 },
+        confirmSameReviewer: false,
+        baseRecordVersion: 3,
+        capturedAt: '2026-10-23T01:00:00.000Z',
+      },
+      savedElsewhere: null,
+      updatedAt: '2026-10-23T01:00:00.000Z',
+    });
+    const orphan = record({
+      id: '303',
+      recordVersion: 4,
+      storageVersionId: '77',
+      originVersionId: '22',
+      canEdit: true,
+      fields: { reviewerUserId: 'alice', reviewDurationMinutes: 45 },
+    });
+    const current = harness({
+      apiDetail: detail([orphan], {
+        readableVersions: [
+          { versionId: '22', versionLabel: 'v1', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'a'.repeat(64) },
+        ],
+        versionSpecs: { '22': codeReviewSpec },
+      }),
+    });
+    await current.session.initialize();
+
+    const block = current.session.state.blocks.find(
+      (item) => item.draftId === 'draft-unknown-missing-spec',
+    )!;
+    expect(block.submitState).toBe('unknown');
+    expect(block.structureStale).toBe(true);
+
+    await current.session.verify(block);
+
+    expect(block.submitState).toBe('unknown');
+    expect(block.conflictRecord).toBeNull();
+    expect(block.notice).toContain('结构版本当前不可用');
+    expect(block.submitSnapshot).not.toBeNull();
+    expect(current.session.canDiscardBlock(block)).toBe(false);
+    expect(current.session.canCopyBlock(block)).toBe(false);
+  });
+
+  it('converges the same unknown edit snapshot after its spec is restored', async () => {
+    const draftContext = { ...context, scopeId: '11', storageVersionId: '77' };
+    saveFormDraft({
+      draftSpecVersion: 2,
+      originVersionId: '22',
+      baseStorageVersionId: '77',
+      versionSpecHash: 'b'.repeat(64),
+      accountUserId: 'alice',
+      contextKey,
+      context: draftContext,
+      draftId: 'draft-unknown-restored-spec',
+      editingSessionId: 'session-a',
+      kind: 'edit',
+      targetRecordId: '303',
+      baseRecordVersion: 3,
+      baseFields: { reviewerUserId: 'alice', reviewDurationMinutes: 30 },
+      fields: { reviewerUserId: 'alice', reviewDurationMinutes: 45 },
+      requestKey: null,
+      firstPendingSnapshot: null,
+      inputRevision: 2,
+      persistedRevision: 2,
+      savedAt: '2026-10-23T01:00:00.000Z',
+      status: 'editing',
+      submitState: 'unknown',
+      submitSnapshot: {
+        requestKey: null,
+        fields: { reviewerUserId: 'alice', reviewDurationMinutes: 45 },
+        confirmSameReviewer: false,
+        baseRecordVersion: 3,
+        capturedAt: '2026-10-23T01:00:00.000Z',
+      },
+      savedElsewhere: null,
+      updatedAt: '2026-10-23T01:00:00.000Z',
+    });
+    const orphan = record({
+      id: '303',
+      recordVersion: 4,
+      storageVersionId: '77',
+      originVersionId: '22',
+      canEdit: true,
+      fields: { reviewerUserId: 'alice', reviewDurationMinutes: 45 },
+    });
+    const current = harness({
+      apiDetail: detail([orphan], {
+        readableVersions: [
+          { versionId: '22', versionLabel: 'v1', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'a'.repeat(64) },
+        ],
+        versionSpecs: { '22': codeReviewSpec },
+      }),
+    });
+    await current.session.initialize();
+    const block = current.session.state.blocks.find(
+      (item) => item.draftId === 'draft-unknown-restored-spec',
+    )!;
+    expect(block.structureStale).toBe(true);
+
+    current.api.getFormDetail.mockResolvedValueOnce(
+      detail([orphan], {
+        readableVersions: [
+          { versionId: '22', versionLabel: 'v1', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'a'.repeat(64) },
+          { versionId: '77', versionLabel: 'v9', versionStatus: 'RETIRED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'b'.repeat(64) },
+        ],
+        versionSpecs: { '22': codeReviewSpec, '77': codeReviewSpec },
+      }),
+    );
+
+    await current.session.verify(block);
+
+    expect(current.session.state.blocks.some((item) => item.key === block.key)).toBe(false);
+    expect(current.session.state.notice).toBe('记录已保存');
+    expect(readSessionDrafts('alice', contextKey, 'session-a')).toHaveLength(0);
+  });
+
   it('does not write a late create result after the identity generation changes', async () => {
     const current = harness();
     await current.session.initialize();
