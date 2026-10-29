@@ -84,7 +84,7 @@
 - **R03 草稿v2优先**：读取先收集有效v2身份，残留v1即使删除失败也不再参与；迁移仅处理当前账号与上下文，v2写入失败保留v1，v1删除失败不影响v2。新增17项草稿回归全部通过；浏览器覆盖unknown新版草稿与残留旧草稿共存、刷新及多标签恢复，输入/requestKey/unknown状态不变。
 - **R04 规格守卫**：会话`structureStale`要求所属版本规格存在且`versionSpecHash`与`readableVersions`证据一致，否则只读并保留草稿/首次快照；`specForRecord`/`recordSpec`/`blockSpec`取消当前版回退，缺规格时记录卡与填写块提示“记录版本不可用”。浏览器真实变更数据库冻结规格后验证锁定与恢复后解锁。
 - **R05 环境与边界**：`environment.md`改为冻结原始连接尝试日志、明确“尝试连接/对端关闭/无成功操作”的可证实边界；启动命令补齐`--platform.background-jobs.enabled=false`与Mongo自动配置排除；整改后日志调度线程0、外部地址0、仅`127.0.0.1:15606`。未再次连接该地址或真实库。
-- **N2/N3 边界用例**：`FormTemplateAdminIntegrationTest.shouldMigrateFieldChangesAndConvergeOldRequestKey`原断言目标版字段，依赖被删除的“先当前物理表”旁路；现改为按目录承载版本返回并显式断言`storageVersionId`仍为旧版，与本类`shouldMarkLegacyIncompleteWhenMigrationAddsRequiredField`既有注释“目录改绑属N3”一致。曾试在切换事务内改绑目录，因越过N3边界并使后者失败而回退；未保留该实现。
+- **N2/N3 边界用例**：`FormTemplateAdminIntegrationTest.shouldMigrateFieldChangesAndConvergeOldRequestKey`原断言目标版字段，依赖被删除的“先当前物理表”旁路；现改为按目录承载版本返回并显式断言`storageVersionId`仍为旧版。按复审判定，N3普通发布建立空新版本、旧记录保留原版，不迁移不改绑，旧记录原位只读/可编辑仍以其承载版本为准。曾试在切换事务内改绑目录，因越过N3边界并使`shouldMarkLegacyIncompleteWhenMigrationAddsRequiredField`失败而回退；未保留该实现。
 - **最终验证**：真实PG定向4类83/0/0/0`BUILD SUCCESS`（`.tmp-logs/n2-final-targeted-backend2.log`）；前端173文件925/925通过、typecheck/lint/build通过；浏览器`ALL CHECKS PASSED (83)`、34次截图记录/34张PNG（`n2-acceptance-recheck10.log`、`evidence/`）；默认后端套件2059/0/0/1`BUILD SUCCESS`（`.tmp-logs/n2-final-default-suite2.log`）。首次全量在MySQL容器`port: 3306`日志等待处超时，`CodeReviewMatchModeLegacyRefreshIntegrationTest`记1项环境错误；同代码单类复跑4/0/0/0（`n2-final-mysql-recheck.log`）后整套复跑转绿，两份全量日志均保留，不用重跑掩盖非确定性根因。护栏：160条迁移、工件位置、白空格与`git diff --check`全部通过。
 - **前端差异**：相对`94749f3a`为9个填写功能文件（原8个加`components/collect-forms/FormRecordCard.vue`，仅用于缺规格记录的只读降级展示）；管理UI零差异。
 
@@ -126,3 +126,38 @@ R04-a真实组件补充反例在“核验按钮仍存在”断言失败，其余
 3. 先将R04-a/b的实际失败场景转为正式组件/会话回归，再修实现。字段不可显示不等于不能核验首次提交；编辑缺证据不等于载荷冲突。覆盖缺规格或首次哈希失配时unknown不降级，以及规格恢复后同一快照收敛；不扩展无关防御矩阵，不加睡眠、重试或新确认。
 4. 清除文档中“普通发布改绑旧记录”的说法，按上方N3裁定保留旧记录原位；不要为使旧发布器测试返回新版字段而恢复旁路或实施迁移。架构中已删除的物理表优先重放不再写为当前实现。
 5. 最终合并状态运行受影响填写组件/会话/草稿与原位编辑测试、typecheck/lint/build；真实页面基础检查原位编辑/保存取消、新建独立区及上述核验恢复即可。只修改前端和文档时沿用本次已核对的后端证据，无须重跑后端全量；不跑黄金、不更改批准视觉。按职责提交、双远端回读、清理自有资源后送R04复验；通过前不进入N3、不合main、不出包。
+
+<a id="n2-r04-residual-20261029"></a>
+
+## N2-R04残留修复与填写页合并（2026-10-29，送R04复验）
+
+**输入`dc66682d`，仅R04-a/b两项整改；R01/R02/R03/R05保持关闭，N3仍未准入。** 本记录不含N3实现，不含迁移、后端行为或管理UI改动。
+
+### 合并已批准填写页
+
+- 以正常合并`b262c43e`吸收`origin/codex/form-filling-ui-20261028`的`45d80c36`（含`9622a93a`），逐处保留双方测试与文档：紧凑页头、记录卡片/控件分组、原位编辑替换卡片、独立新建区及`form-filling.css`全部保留；N2的缺规格只读降级并入`FormRecordCard`（`spec`为空只显示基础信息与“记录版本不可用”提示）。
+- 管理页`FormTemplateAdminView.vue`、`views/form-template-admin/`、后台壳与全局样式仍与`94749f3a`零差异；本轮无视觉重构。
+
+### R04-a 缺规格核验入口
+
+- **RED**：`CollectFormView.test.ts`新增用例在合并后实现上“核验提交结果”断言失败（`.tmp-logs/n2-r04-residual-red2.log`，2文件2项失败、60项通过）。
+- **修复**：`CollectFormView.vue`只让字段输入/展示依赖`blockSpec`，填写块底部操作区移出`v-if="blockSpec(block)"`的表单；unknown时“核验提交结果”始终可点，取消仍按`canDiscardBlock`禁用。未新增key、弹窗或确认。
+- **GREEN**：真实组件断言缺规格时显示“记录版本不可用”、核验入口存在、取消禁用；点击后仍为unknown、无冲突文案、复制/丢弃保护保持。
+
+### R04-b 编辑核验缺规格误判冲突
+
+- **RED**：`form-filling-session.test.ts`新增用例在原实现上`expected 'conflict' to be 'unknown'`（同上日志）。
+- **修复**：`form-filling-session.ts`编辑核验先取所属版本规格；规格缺失时保留unknown、首次快照与输入，`frozen`保持并提示“核验未完成：所属结构版本当前不可用”，不再以空对象参与载荷比较，也不放开复制/丢弃。规格恢复后同一快照重新核验按原证据收敛到已保存记录。
+- **GREEN**：会话回归覆盖缺规格不降级、冲突记录为空、快照保留、复制/丢弃禁用，以及规格恢复后块随`记录已保存`移除、草稿清空。
+
+### 验证与证据
+
+- 受影响4文件87/87通过（`n2-r04-residual-green3.log`）；前端全量174文件941/941通过（`n2-r04-residual-full-vitest.log`）；typecheck、lint、生产构建通过（`n2-r04-residual-checks.log`、`n2-r04-residual-build.log`）。RED首轮因新用例语法错误未计入，修正后`red2`才作为失败证据。
+- 专属环境PG15606/后端18092/Vite18185（后台作业关闭、排除Mongo自动配置），真实页面`r04-page-check.mjs`12/12通过：原位编辑替换与取消恢复、独立新建区、响应丢失进入unknown、缺规格时核验入口与取消禁用、缺规格核验不转冲突且入口保留、拦截解除后同一快照收敛到“记录已保存”。证据`.tmp/w4-n2-r04-20261029/page-check.json`及三张截图。
+- 本轮只改前端与文档，后端83项证据沿用`8fe425bb`轮已核对结果，未重跑后端全量、未跑黄金、未改批准视觉；160条迁移不变。
+- 后端注释与文档同步N3裁定：新版本为空表、旧记录保留原版，不迁移不改绑；旧发布器测试仍按目录承载版本返回。
+
+### 提交与边界
+
+- 独立提交：合并`b262c43e`、R04残留实现与回归、文档回填；双远端回读确认。
+- 未进入N3/N4/N5/W5、未合main、未出包、未申请真实权限；专属容器与服务在交付后清理，管理页预览18187/18094/15612未动。
