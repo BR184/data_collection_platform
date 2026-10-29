@@ -1,3 +1,13 @@
+## 2026-10-29 发布包事实重建口径修正与新包交付
+
+- [裁定与工具修复] 用户裁定选 A：打包器把 `--require-fact-rebuild` 等同于历史 ODS 纠正，导致首个正式包 README 与清单不一致。在隔离分支修复后合入 main `90d6cf93`（`fix(deploy): 拆分发布包事实重建范围与 ODS 纠正声明`）：新增独立 `--require-ods-correction`（必须同时要求事实重建）和清单 `facts.odsCorrectionRequired`；README 第 6 节按 issue/merge-request/all 生成“基于现有 ODS 重建”，6.1 与第 7.3 回滚补偿仅在显式声明时出现，`all` 不再代表 ODS 纠正。打包标准与 D-32 同单元更新；打包器 69 项测试（11 跳过）覆盖无需重建、三种范围与 ODS 开关，断言清单、升级提示和回滚说明一致。main 已推送 origin/gitlab25 并回读一致。
+- [旧包处置] `qaflex-update-20261029T021452Z-9fe53a2daac3` 标记“被替代、禁止交付”；原归档与 SHA-256 `7d1d740d…ba205` 未改，旁注 `qaflex-update-20261029T021452Z-9fe53a2daac3.SUPERSEDED.md`，仅作审计保留。
+- [新包] 从干净、双远端同步的 main `90d6cf93` 构建 `qaflex-update-20261029T025459Z-b4d40e323a09`，206,186,794 字节，SHA-256 `bc9f75f50adda099f3a9f904dcdce39cc81a5f2c7023357e2219c9992fb5ea49`；直接基线 d52，目标 Flyway `20261022.03`，`facts.rebuildRequired=true / scope=issue / odsCorrectionRequired=false`，固定容器名逐服务继承。留档分支 `延期写回更新包-20261029T025459Z-b4d40e323a09` 指向构建提交并推送双远端。
+- [审计] 包内校验和、三脚本 `bash -n`、69 项打包器测试、归档结构、JAR `02ab910f…25f1` 与清单一致、140 份迁移（最新 `V20261022_03`）、前端镜像 index 与生产 dist 一致、镜像 `pg_dump 16.15`；README 第 6/7 节与升级完成提示均声明基于现有 ODS 重建、无需全量补偿，与清单一致。
+- [演练] 演练栈重置回 d52（139 份迁移/20261019.01，含种子 config/job）后执行 backup→upgrade→rollback→backup→upgrade，`DRILL PASS`：两轮 `counts.diff` 均 0 字节、PostgreSQL 容器 ID `0cde61e0…` 全程不变、Flyway 到达 `20261022.03`、回滚恢复基线镜像且库保持前向、种子行保留；终态目标镜像且前后端 healthy。
+- [未执行] 业务代码未变，沿用已验收候选的默认套件与黄金严格比对记录，本轮不重复运行；未部署内网；未在本地执行 issue 事实重建（由现场升级后按包内 README 执行）。
+- [环境] 打包前停止主树 18080 开发后端，完成后恢复；18181 独立栈未操作；演练栈停留在目标镜像；旧包与新包归档均保留。
+
 ## 2026-10-29 延期写回正式更新包（d52 基线，本地演练通过）
 
 - [发布身份] 从干净 main `59cd5587` 构建 `qaflex-update-20261029T021452Z-9fe53a2daac3`，206,187,846 字节，SHA-256 `7d1d740d5ac5c336006980e823fe1ae69fd72b65cb9df5842583b4aaac3ba205`；直接基线 `qaflex-update-20261021T011723Z-d52affe66b4f`，目标 Flyway `20261022.03`，facts scope=`issue`，逐服务继承固定容器名 `qaflex-{postgres,backend,frontend}`。首次构建因 Docker 代理对 Ubuntu 源瞬时 502 失败，同一干净树重试成功；失败半成品已移出部署根目录。
