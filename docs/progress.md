@@ -1,3 +1,15 @@
+## 2026-10-29 表单N3空结构发布实施送审：员工快照
+
+| 功能 | 当前阶段 | 功能主分支 | 下一步 |
+| --- | --- | --- | --- |
+| 统一表单系统 | N3实施完成，送审；N4未准入 | 表单多版本与填写功能开发-20261026 | 等待N3审核；通过前不进入N4、不合main、不出正式包 |
+
+- [结论] 送审输入：实现`c1c6f2e7`（后端协议）、`8d4e5e9a`（前端适配）、`98f650f6`（文档）及本进度提交。N3空结构发布、短切换与旧协议任务受控收口完成，保持已批准 UI；逐项合同与证据入口见[N3活动计划](plans/unified-form-v6-n3-implementation-20261029.md)。N3通过前不进入N4。
+- [实现] 任务`protocol_version=2`按`VALIDATING→BUILDING→SWITCHING→PUBLISHED/FAILED`执行；构建只创建目标空结构并由同一生成器/Verifier 校验；切换在短写栅栏内复核冻结源集合、指针与空目标，原子完成目标`AUTHORITATIVE/PUBLISHED`、旧版`RETIRED`、源集合修订/哈希、目录事件与 head pending；构建期可写，切换期写入返回可重试冲突；锁序固定为 record-id advisory→scope→publication→head，DDL/切换事务校验租约、fencing 与 fence token，过期`BUILDING/SWITCHING`由新拥有者接管；旧`protocol=1`任务只读盘点与受控收口，真实库不自动收口。删除 v1 复制/转换运行路径、迁移器与对应测试，无兼容双轨。
+- [验证] 真实 PG：`FormTemplateAdminIntegrationTest` 19/19，参数化覆盖三模板首次启用（INITIAL_EMPTY）与 V1→V2 空发布（MIGRATION）；旧记录与目录位置不变、新表为空、角色/状态、源集合 1→2、目录事件 2 条、head pending、V1 当时可新建且发布后新建只进当前 V2。页面验收`ALL CHECKS PASSED (42)`：三范围经真实管理页发布并核空结构提示、旧记录可见、原版编辑、新版首条新增、首启首条新增；证据`.tmp/w4-n3-20261029/evidence/`（日志、摘要、db-final、7 图）。最终默认全量 2030 项/0 失败/0 错误/1 跳过，`BUILD SUCCESS`（`.tmp-logs/n3-default-suite-final.log`），首轮无关备份 flake 未复发。前端 174 文件/944 项、typecheck/lint/build 在前次同代码状态通过；仓库门禁（161 条迁移、产出物、空白、`git diff --check`）通过。未运行黄金。
+- [环境与边界] 专属 PG 15607、后端 18093（仅发布 worker 300ms，其余外部作业关闭并排除 Mongo 自动配置）、Vite 18186、Chrome CDP 9273；结束后服务与容器已停止删除、临时夹具移出测试树。一次为运行 worker 打开调度总开关时库内 match-mode 默认启用，对`172.22.10.72:27017`发起过一次 Mongo 握手并被对端关闭，未观察成功读写；关闭该设置后最终日志仅本机库、Mongo 0 次。详见`.tmp/w4-n3-20261029/environment.md`。
+- [下一步] 等待N3审核；修订意见按最小范围处理并复验受影响链路，不重跑无关全量、不运行黄金、不合main、不出正式包。
+
 ## 2026-10-29 表单N2通过，N3空结构发布准入
 
 | 功能 | 当前阶段 | 功能主分支 | 下一步 |
