@@ -1016,6 +1016,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       case "level2_total" -> IssueSource::isRegularLevel2;
       case "level3_fixed" -> i -> i.isRegularLevel3() && i.isLegacyFixed();
       case "level3_total" -> IssueSource::isRegularLevel3;
+      case "module_total" -> IssueSource::isRegularMetricIssue;
       case "suggestion_total" -> IssueSource::isSuggestion;
       case "p1_count" -> i -> i.isRegularMetricIssue() && i.isPriority("P1");
       case "p2_count" -> i -> i.isRegularMetricIssue() && i.isPriority("P2");
