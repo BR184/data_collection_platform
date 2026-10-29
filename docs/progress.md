@@ -1,3 +1,10 @@
+## 2026-10-29 打包器回滚测试夹具修正
+
+- [缺陷] 独立复跑打包器套件出现 13 条失败断言；根因在既有回滚执行夹具：备份 `docker-compose.yml` 未声明 `PLATFORM_BACKGROUND_JOBS_ENABLED`，`rollback.sh` 的暂停保护按设计提前拒绝；继续执行后还暴露假 `docker exec` 对计数/Flyway 查询一律返回版本号、`inspect .Config.Env` 未返回暂停标志、三处 shell `case` 模式缺闭合引号。旧基线 `59cd5587` 同一用例可复现，属既有测试缺陷，不是包回滚失败。
+- [修正] 仅修改 `scripts/test_package_intranet_offline.py`：夹具基线 Compose 增加暂停开关；`exec` 按 `flyway_schema_history`／`string_agg`／`max(id)`／`count(*)` 分别返回；`inspect .Config.Env` 返回 `PLATFORM_BACKGROUND_JOBS_ENABLED=false`；修正 case 引号。生产 `rollback.sh`、升级保护与业务代码零改动，提交 `c66dd44a`。
+- [验证] 在 Git Bash 可用环境全跑 69 项 0 失败、0 跳过；10 项受影响回滚用例逐一通过；无 Git Bash-python3 环境仍 69 项 OK（11 跳过）。
+- [交付状态] 仅测试修正，不重出包；`qaflex-update-20261029T025459Z-b4d40e323a09` 归档与 SHA-256 `bc9f75f5…5ea49` 不变，可交付。现场仍须核对 d52 基线，升级后按 README 完成 issue 事实重建；生产部署验收未完成。
+
 ## 2026-10-29 发布包事实重建口径修正与新包交付
 
 - [裁定与工具修复] 用户裁定选 A：打包器把 `--require-fact-rebuild` 等同于历史 ODS 纠正，导致首个正式包 README 与清单不一致。在隔离分支修复后合入 main `90d6cf93`（`fix(deploy): 拆分发布包事实重建范围与 ODS 纠正声明`）：新增独立 `--require-ods-correction`（必须同时要求事实重建）和清单 `facts.odsCorrectionRequired`；README 第 6 节按 issue/merge-request/all 生成“基于现有 ODS 重建”，6.1 与第 7.3 回滚补偿仅在显式声明时出现，`all` 不再代表 ODS 纠正。打包标准与 D-32 同单元更新；打包器 69 项测试（11 跳过）覆盖无需重建、三种范围与 ODS 开关，断言清单、升级提示和回滚说明一致。main 已推送 origin/gitlab25 并回读一致。
