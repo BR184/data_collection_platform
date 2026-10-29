@@ -5,14 +5,14 @@
 - [审核结论，2026-10-28] 输入`0310fba15777fdc9ba00e7e49a980817fd0c5d12`修改后重审，N2未通过，N3仍未准入。独立复验80项真实PG、71项前端及typecheck通过，但补充反例确认目录旁路、NONE混用新增失败、草稿覆盖和规格边界缺口；另须纠正验收启动命令及外部连接边界表述。当前唯一详细关闭条件见[首次审核与整改执行单](#n2-first-review)。N1已关闭项、160条迁移及批准管理页UI保持。
 - [当前阶段] N1 输入`369194aa`通过，N1-R01—R05 全部关闭。N2继续在原批准范围整改，管理页 UI、后台壳/样式维持`94749f3a`，只允许必要填写页功能修复。N3—N5/W5/main/正式包未准入。
 - [已完成] 已快进吸收审核回执`6329590a`；N1 活动计划按规则收口删除，过程可用`git show 369194aa:docs/plans/unified-form-v6-n1-implementation-20261027.md`恢复。
-- [员工送审状态] P0/P1/P2/P3交付待验；员工真实PG定向80/0/0/0、默认2056/0/0/1、前端916项及58项浏览器检查的证据已核对，不代替补充边界验收。审核复验及未通过项见下文。
-- [员工实现说明，仍受下文审核缺口限制] detail多版本字段、所属版编辑/作废与填写页草稿v2已交付；目录优先重放、NONE与新版本并用、草稿迁移优先级及规格守卫尚未完成验收，不能把当前实现视为满足完整合同。管理页、后台壳与样式未改。
-- [阻塞] N2-R01—R05未关闭；当前不具备N3准入条件。
-- [员工证据] 后端定向与浏览器证据在员工树`.tmp/w4-n2-20261028/`（`input-manifest.json`、`evidence/acceptance-summary.json`、截图、`environment.md`）；最终默认套件日志`.tmp-logs/n2-default-suite-final.log`。员工报告专属容器均已删除。一次未关闭后台调度的验收后端尝试连接内网Mongo并失败，之后报告关闭全部后台作业；可证实影响边界与复现命令须按N2-R05纠正，不沿用“全部未访问外部”的描述。N1证据历史保留。
+- [员工送审状态，2026-10-28 整改后] R01—R05 已按本执行单完成整改并送复验：后端定向83/0/0/0、前端925/925、typecheck/lint/build通过、浏览器83项全通过；RED/GREEN 与命令见下文“整改执行记录”。
+- [员工实现说明] detail多版本字段、所属版编辑/作废与填写页草稿v2保持；本轮删除“先当前物理表”的重放旁路，改为目录origin唯一核验；同人扫描可按NONE只读版本判断；草稿读取以有效v2为权威且只迁移当前账号；规格缺失/哈希失配时按不可用只读。管理页、后台壳与样式未改。
+- [阻塞] 等待 N2 复验；N3—N5/W5、main、正式包仍未准入。
+- [员工证据] 整改证据在员工树`.tmp/w4-n2-20261028/`（`input-manifest.json`、`environment.md`、`evidence/acceptance-summary.json`、42张截图）；日志`.tmp-logs/n2-review-red-backend.log`、`n2-review-green1-backend.log`、`n2-review-red-draft.log`、`n2-review-red-session.log`、`n2-final-targeted-backend2.log`、`n2-final-default-suite.log`、`n2-final-frontend-*.log`、`n2-acceptance-recheck10.log`。专属容器已删除。一次未关闭后台作业的旧验收后端曾尝试连接内网Mongo并失败，边界按R05冻结日志表述，不沿用“全部未访问外部”。
 
 ### 恢复信息
 
-1. **阶段与首条恢复命令**：先读 AGENTS、`docs/progress.md`、主方案与 N0 合同（`v6-n0-technical-admission-20261027.md` §2/§6）及本文件，执行 `git status --short --branch`、`git worktree list`。开发基线`6329590a`，本次审核输入`0310fba1`；现有任务分支已更名为`表单多版本与填写功能开发-20261026`，worktree仍为`D:/projects/dcp-form-w4-20261026`。审核回执分支为`表单管理界面开发-20261027`。复用已核实的现有分支，不切回历史名称。前序：N1（已通过，计划已删）。
+1. **阶段与首条恢复命令**：先读 AGENTS、`docs/progress.md`、主方案与 N0 合同（`v6-n0-technical-admission-20261027.md` §2/§6）及本文件，执行 `git status --short --branch`、`git worktree list`。开发基线`6329590a`，本次审核输入`0310fba1`，本轮整改起点`db1eacc9`（已快进吸收）；现有任务分支已更名为`表单多版本与填写功能开发-20261026`，worktree仍为`D:/projects/dcp-form-w4-20261026`。审核回执分支为`表单管理界面开发-20261027`。复用已核实的现有分支，不切回历史名称。前序：N1（已通过，计划已删）。
 2. **原始需求与成功标准**：按主方案 N2 行与 N0 §2/§6：当前版新建；编辑/作废按目录`storage_version_id`与`expectedStorageVersionId`定位并按该版冻结规格校验；跨版 key 重放按 origin 证据；detail 返回`currentVersionId/readableVersions/versionSpecs/sourceSetRevision/sourceSetHash`及每条`storageVersionId/originVersionId`；bigint 一律十进制字符串，`recordVersion`为 number；草稿 v1→v2 迁移；真实 PG + 浏览器验收。禁止：改管理页/后台壳/样式；N3—N5/W5；合 main、出包、黄金运行；改 160 条迁移；默认 15432/15433 与共享服务。
 3. **业务/API/数据/环境约束**：编辑/作废只接受`AUTHORITATIVE`承载版本；`originVersionId`仅展示/重放；NONE/旧 Demo 缺创建人只读；退役范围只读；作废从业务读取排除；新建/编辑/作废失败全回滚，重放零新增记录/审计/head；未知结果先核验；401 不删草稿。
 4. **提交、日志与根因证据**：N1 实现`4985c53c`、审核回执`6329590a`；N2 后端实现`069d14f5`、计划`c49b2d3e`；验证日志`.tmp-logs/n2-default-suite-final.log`、`environment.md`与`input-manifest.json`随最终提交留痕；MySQL 就绪竞态为已知范围外环境问题，独立记录不掩盖；一次验收后端后台调度尝试外部 Mongo 的连接失败已记录，此后调度关闭。
@@ -73,5 +73,20 @@
 4. 必要填写页功能修复已获本单授权，限原N2范围；**管理页`FormTemplateAdminView.vue`、`views/form-template-admin/`、后台壳和样式保持94749f3a**。不实施S1管理功能、N3发布器、N4事实/统计/Excel、N5/W5或真实权限/登记；160条迁移不可改，新增迁移确需先报原因与影响。
 5. 最终状态完成相关真实PG定向、一次默认后端套件、前端typecheck/lint/Vitest/build、受影响真实服务页面与数据库对账。补齐原准入要求的三模板两版不同字段（现有浏览器夹具只有走查表两版，Issue各一版）；保持N2范围，用受控夹具模拟当前指针，不能提前执行N3。缺陷用例保留RED/GREEN；固定断言验证修复，不增加睡眠、重试或放宽超时。
 6. 完成仓库护栏、完整差异/清单哈希、旧迁移与管理UI零差异、资源按归属清理与回读，更新本计划及当前进度。按职责提交并同步origin/gitlab25当前任务分支，回读一致后交N2复验。未获通过不进入N3、不合main、不出包、不运行或更新黄金。
+
+### 整改执行记录（2026-10-28 至 2026-10-29，输入 `db1eacc9`）
+
+- **吸收与边界**：审核回执`db1eacc9`已快进吸收到`表单多版本与填写功能开发-20261026`；管理页`FormTemplateAdminView.vue`、`views/form-template-admin/`、后台壳与样式相对`94749f3a`零差异；160条迁移与锁文件零差异；未新增迁移，未进入N3/N4/N5/W5，未合main、未出包、未运行或更新黄金。
+- **RED（先于修复）**：后端新增回归3项在旧实现上`1 failure + 2 errors`（`.tmp-logs/n2-review-red-backend.log`）；前端把新回归跑在HEAD旧实现上得到草稿3项失败/17、会话与页面3项失败/54（`.tmp-logs/n2-review-red-draft.log`、`n2-review-red-session.log`）。失败断言分别落在缺目录证据仍REPLAYED、NONE历史阻断新增、v1覆盖有效v2/跨账号迁移、哈希失配与缺规格仍可用/套当前字段。
+- **R01 目录优先重放**：`FormRecordService.create`先按范围/版本证据做目录重放，再校验当前版本；`replayIfPresent`只按目录origin冻结规格、首次账号与完整载荷核验，响应按目录承载版本回表；删除`FormRecordStore.findByRequestKey`、写服务公开重放与事务内物理表查询，插入竞争也只走目录核验。GREEN 6/0/0/0（`.tmp-logs/n2-review-green1-backend.log`）。
+- **R02 NONE历史与时间**：同人扫描改用`readVersionContext`（允许NONE只读版本），不把NONE送入写上下文、不从姓名推断人员；目录读取携带旧表`created_at/updated_at`，detail按原值返回。真实PG覆盖NONE历史+当前原生版正常新增、同人提示、旧行只读与时间不丢失。
+- **R03 草稿v2优先**：读取先收集有效v2身份，残留v1即使删除失败也不再参与；迁移仅处理当前账号与上下文，v2写入失败保留v1，v1删除失败不影响v2。新增17项草稿回归全部通过；浏览器覆盖unknown新版草稿与残留旧草稿共存、刷新及多标签恢复，输入/requestKey/unknown状态不变。
+- **R04 规格守卫**：会话`structureStale`要求所属版本规格存在且`versionSpecHash`与`readableVersions`证据一致，否则只读并保留草稿/首次快照；`specForRecord`/`recordSpec`/`blockSpec`取消当前版回退，缺规格时记录卡与填写块提示“记录版本不可用”。浏览器真实变更数据库冻结规格后验证锁定与恢复后解锁。
+- **R05 环境与边界**：`environment.md`改为冻结原始连接尝试日志、明确“尝试连接/对端关闭/无成功操作”的可证实边界；启动命令补齐`--platform.background-jobs.enabled=false`与Mongo自动配置排除；整改后日志调度线程0、外部地址0、仅`127.0.0.1:15606`。未再次连接该地址或真实库。
+- **N2/N3 边界用例**：`FormTemplateAdminIntegrationTest.shouldMigrateFieldChangesAndConvergeOldRequestKey`原断言目标版字段，依赖被删除的“先当前物理表”旁路；现改为按目录承载版本返回并显式断言`storageVersionId`仍为旧版，与本类`shouldMarkLegacyIncompleteWhenMigrationAddsRequiredField`既有注释“目录改绑属N3”一致。曾试在切换事务内改绑目录，因越过N3边界并使后者失败而回退；未保留该实现。
+- **最终验证**：真实PG定向4类83/0/0/0`BUILD SUCCESS`（`.tmp-logs/n2-final-targeted-backend2.log`）；前端173文件925/925通过、typecheck/lint/build通过；浏览器`ALL CHECKS PASSED (83)`、34次截图记录/34张PNG（`n2-acceptance-recheck10.log`、`evidence/`）；默认后端套件2059/0/0/1`BUILD SUCCESS`（`.tmp-logs/n2-final-default-suite2.log`）。首次全量在MySQL容器`port: 3306`日志等待处超时，`CodeReviewMatchModeLegacyRefreshIntegrationTest`记1项环境错误；同代码单类复跑4/0/0/0（`n2-final-mysql-recheck.log`）后整套复跑转绿，两份全量日志均保留，不用重跑掩盖非确定性根因。护栏：160条迁移、工件位置、白空格与`git diff --check`全部通过。
+- **前端差异**：相对`94749f3a`为9个填写功能文件（原8个加`components/collect-forms/FormRecordCard.vue`，仅用于缺规格记录的只读降级展示）；管理UI零差异。
+
+
 
 本计划在N2未通过期间保留；通过后将长期有效事实归权威文档，再按AGENTS删除计划，历史由Git保留。
