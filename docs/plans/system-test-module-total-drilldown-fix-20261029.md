@@ -1,11 +1,12 @@
 ## 进度与中间物
 
-- 阶段：2026-10-29 员工已完成实现与代码级验证，等待本会话审批；未合并 main、未打包、未部署。
-- 已完成：`matchesMetric` 增加 `module_total -> IssueSource::isRegularMetricIssue`；新增服务回归测试并通过公共 `loadBoard`/`loadDetail` 复现修复前失败、修复后通过。
+- 阶段：2026-10-29 提交 `725616a5` 代码审查通过；默认套件与最小页面验收已按审核意见补齐，等待最终交付验收与发布决定，未合并 main、未打包、未部署。
+- 已完成：`matchesMetric` 增加 `module_total -> IssueSource::isRegularMetricIssue`；新增服务回归测试并通过公共 `loadBoard`/`loadDetail` 复现修复前失败、修复后通过；隔离测试库默认套件全绿；隔离实例页面验收完成。
 - 任务归属：绝对目录 `D:/projects/dcp-system-test-drilldown-20261029`；分支 `系统测试模块总数下钻修复-20261029`；基线 `main` = `efbd6108aa0239c1a976e9741ab3a459e41814cb`；独立 worktree，未改动主混合树。
-- 环境归属：定向测试与默认套件仅使用既有 Maven 与 `qaflex-test-postgres-15433` 测试库机制；未启动业务后端、未写业务库或本地 GitLab、未使用业务端口。
-- 验证状态：定向回归 10/10 通过（含黄金主表测试）；后端默认套件结果见下方“实施与证据”；页面验收未执行，条件见同节。
-- 当前阻塞：本机访问 115:20001 失败，本地库无截图五条议题；不能把截图标签和排除原因当作生产数据库核验结果。页面验收另需可安全隔离的实例，见“实施与证据”第 6 条。
+- 环境归属：测试使用既有 Maven；默认套件使用新建隔离库 `qaflex_test_iso_20261029`；页面验收使用开发库克隆的隔离库、18082/18183 端口与前端的本任务构建，未写共享开发库、本地 GitLab 或业务端口。
+- 验证状态：定向回归 10/10；隔离默认套件 1818 用例 0 失败（跳过 1）；页面验收模块总数与建议类下钻一致，证据见“补充验证与证据”。
+- 当前阻塞：115 生产实例仍不可达，生产数据与部署版本核验未完成；此项不随本次代码修复关闭。原“本地库无截图样本议题”已通过克隆库取得等价页面证据，不再阻塞本次验收。
+- 遗留差异：`.tmp` 下保留修复前后日志与截图；隔离测试库保留以便复核，页面克隆库已删除。
 
 ## 恢复线索与开工门禁
 
@@ -87,9 +88,30 @@
 2. 新增测试：`backend/src/test/java/com/data/collection/platform/service/statistics/SystemTestDefectSummaryBoardServiceTest.java`，只替换事实数据与外围依赖，主表聚合、范围匹配、指标选择、下钻筛选和响应组装走真实实现，快照替身执行传入的计算器。模块行与 `__total__` 行以参数化复用同一夹具。
 3. 修复前失败：`.tmp/test-before-fix.log`，3 个用例 2 失败，两行键均在 `detail.total()` 上 `expected: 3L but was: 4L`；建议类用例通过。
 4. 修复后定向：`.tmp/test-after-fix.log`，`SystemTestDefectSummaryBoardServiceTest`、`SuggestionMetricRulesTest`、`SystemTestDefectSummaryRuleExplanationTest`、`SystemTestDefectSummaryBoardGoldenMasterTest` 共 10/10 通过，黄金主表响应无变化。
-5. 后端默认套件：`.tmp/test-default-suite.log`，1818 个用例 1 失败（跳过 1），失败为 `CustomerIssueDelayLabelWritebackEnqueueIntegrationTest.actualOdsLabelQueryFailureMustNotReturnEmptyLabels`。在干净 main `efbd6108` 的临时 worktree 复跑同一用例同样失败（`.tmp/test-baseline-enqueue.log`），与本改动无关。根因证据：该用例把 `qaflex_test.ods_gitlab_labels` 重命名后期望查询报错，但测试库同时存在 `public.ods_gitlab_labels`，未限定模式名的查询回落到 public 表，实测同一 SQL 在重命名后仍返回 0 行而非报错；属测试库模式残留，清理需环境所有者授权，未擅自处理。
-6. 页面验收未执行：115 实例不可达；本机开发库为共享库且缺少截图样本议题；对共享开发库/本地 GitLab 启动后端会触发同步与延期写回任务产生外部写入，需单独授权。补齐条件：归属明确的隔离库与端口、停用或隔离后台任务、可用的登录方式。代码回归与页面验收分开报告，未改任何库造样例。
+5. 后端默认套件：`.tmp/test-default-suite.log`，1818 个用例 1 失败（跳过 1），失败为 `CustomerIssueDelayLabelWritebackEnqueueIntegrationTest.actualOdsLabelQueryFailureMustNotReturnEmptyLabels`。在干净 main `efbd6108` 的临时 worktree 复跑同一用例同样失败（`.tmp/test-baseline-enqueue.log`），与本改动无关。根因证据：该用例把 `qaflex_test.ods_gitlab_labels` 重命名后期望查询报错，但测试库同时存在 `public.ods_gitlab_labels`，未限定模式名的查询回落到 public 表，实测同一 SQL 在重命名后仍返回 0 行而非报错；属测试库模式残留。后续已在全新隔离库取得全绿结果，见“补充验证与证据”第 1 条。
+6. 页面验收未执行（当轮）：115 实例不可达；本机开发库为共享库且缺少截图样本议题；对共享开发库/本地 GitLab 启动后端会触发同步与延期写回任务产生外部写入，需单独授权。补齐条件：归属明确的隔离库与端口、停用或隔离后台任务、可用的登录方式。代码回归与页面验收分开报告，未改任何库造样例。后续已用隔离克隆实例完成，见“补充验证与证据”第 2—7 条。
 7. 仓库门禁：`check_worktree_artifacts.py`、`check_runtime_artifact_locations.py`、`check_text_whitespace.py`、`git diff --check` 全部通过。
+
+## 独立审核结论（2026-10-29）
+
+- 审核对象：`725616a51d858e06b47e3b276ad666db302cf56f`，相对 `efbd6108` 共三份文件；业务实现仅一行目标分支。审核开始及定向复跑后任务树均 clean，origin/gitlab25 实际回读均为该提交。
+- 结论：代码审查通过，无需修改此次修复。模块总数下钻复用主表既有常规缺陷判定，建议类共享输入及独立下钻保留；测试为两个行为、三个运行用例，规模相称。不追加防御性矩阵、同步改造或修复率口径调整。
+- 独立验证：重新运行新增服务测试、建议领域规则、汇总规则说明及主表 GoldenMaster，共 10 项全部通过，日志 `.tmp/manager-review-targeted.log`；三项仓库护栏及 `git diff --check` 通过。未重跑默认套件或黄金全链路。
+- 失败证据复核：核对员工默认套件 1818 项、1 失败、1 跳过及干净基线同类失败日志；测试实际重命名 `ods_gitlab_labels` 并期待查询失败，生产查询使用未限定 schema 的表名，测试配置搜索路径为 `qaflex_test,public`。审核方以只读事务核对 `qaflex-test-postgres-15433/qaflex`，确认 public 与 qaflex_test 同名表并存，与所述失败机制一致；未重命名、删除表或独立运行该失败集成测试，不将此项记为通过。
+- 剩余验收：在归属明确的隔离测试环境消除 schema 干扰后取得默认套件通过结果，并按原方案补最小页面验收；环境治理与本业务修复分开处理，不清理共享库、不为此扩改标签或同步逻辑。生产部署版本及截图五条议题的数据库核验仍未完成。
+- 审批边界：批准本提交的代码方案与局部修复质量，不宣告整体交付验收完成，不授权合并 main 或发布。已推送任务分支仅保存进度。审核仅新增本节及进度状态，未改变业务代码、测试、服务或数据；审核文档在门禁未关闭期间保持未提交，不以文档提交绕过失败限制。
+
+## 补充验证与证据（员工，2026-10-29）
+
+1. 隔离默认套件：在测试容器 `qaflex-test-postgres-15433` 新建空库 `qaflex_test_iso_20261029`，以 `TEST_DATASOURCE_URL` 指向该库运行后端默认 `mvn test`，结果 1818 用例、0 失败、1 跳过、`BUILD SUCCESS`，日志 `.tmp/test-default-suite-iso.log`。该库由 Flyway 从零迁移，无共享测试库中 `public` 与 `qaflex_test` 同名表并存的历史残留，先前失败项不再出现。
+2. 页面验收环境：将开发库只读导出为新库 `qaflex_page_drilldown_20261029`（同测试容器，2.9 GB 级数据，含发布状态与看板快照），后端从本任务树运行于 `18082`，参数 `--platform.background-jobs.enabled=false --spring.flyway.enabled=false`，认证使用 local provider；前端为本任务树构建，运行于 `18183`，`VITE_API_PROXY_TARGET=http://127.0.0.1:18082`。未触碰共享开发库 `qaflex`、18080 开发入口或本地 GitLab。
+3. 环境偏差：克隆库由较新开发树迁移，快照唯一键与当前分支不同；仅在隔离克隆库内按当前分支定义重建 `uk_statistic_board_snapshots_scope` 并去重快照行，页面验收结束后已删除该库。页面截图时因宿主视图区仅 531×553，为保证计数可见对页面做了 `zoom` 与弹窗尺寸的临时样式调整，数据、请求与接口响应未变，页面已重新加载恢复。
+4. 验收数据：阶段“CC2026R3第二轮系统测试”、模块“工程图”。看板主表该行 `模块总缺陷数(个)=482`、`建议类缺陷(个)=8`；总计行 `module_total=1890`、`suggestion_total=126`。
+5. 模块总数下钻：页面点击模块行 482 打开明细，`detailRowKey=工程图&detailColumnKey=module_total`，明细 `total=482` 与主表一致；482 条记录严重程度为一级 180、二级 288、三级 14，无建议类记录。截图 `.tmp/page-module-total-detail-full.png`（含 49 页分页）、`.tmp/page-module-total-detail.png`。
+6. 建议类下钻：点击同一行建议类 8，`detailColumnKey=suggestion_total`，明细 `total=8`，8 条全部为“建议类”且模块均为工程图；克隆数据中同一议题存在 2 条事实行（4 个议题编号），主表与明细均按事实行计数，口径一致。截图 `.tmp/page-suggestion-detail-full.png`（底部“共 8 条”）。
+7. 修复前对照：按代码路径推断，修复前同一页面点击 482 会得到 490 条（多出 8 条建议类）；该推断未在页面实测，页面证据均为修复后版本。
+8. 收口清理：已停止本任务前端与后端进程并确认 18082、18183 释放；删除页面克隆库；保留隔离测试库 `qaflex_test_iso_20261029` 供复核。未改生产数据、未生成新业务数据。
+9. 未覆盖：115:20001 生产实例与生产库的真实代码版本、截图五条议题的来源身份与 ODS 关联仍未核验；页面证据来自本地克隆数据，不构成生产数据验收。
 
 ## 接口、数据与风险
 
