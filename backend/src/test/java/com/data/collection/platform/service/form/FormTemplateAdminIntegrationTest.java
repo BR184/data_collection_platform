@@ -462,7 +462,7 @@ class FormTemplateAdminIntegrationTest {
             "JUnit");
     assertThat(replayed.outcome()).isEqualTo("REPLAYED");
     assertThat(replayed.record().id()).isEqualTo(created.record().id());
-    // 目录改绑属 N3；N2 重放按目录承载版本返回，不套用迁移目标版字段，也不回退当前物理表。
+    // N3 新版本为空表、旧记录保留原版；N2 重放按目录承载版本返回，不套用迁移目标版字段，也不回退当前物理表。
     assertThat(replayed.record().storageVersionId()).isEqualTo(Long.toString(oldVersionId));
     assertThat(replayed.record().fields()).containsKey("supplementNote");
     assertThat(replayed.record().fields()).doesNotContainKey("reviewComment");
@@ -528,7 +528,7 @@ class FormTemplateAdminIntegrationTest {
             "issue",
             Long.toString(ISSUE_IID),
             admin);
-    // N2 以目录承载版本为准；发布执行器登记目录切换属 N3，本轮副本行只做物理断言。
+    // N2 以目录承载版本为准；N3 新版本为空表、旧记录保留原版，本轮副本行只做物理断言。
     assertThat(detail.records()).singleElement().satisfies(
         record -> {
           assertThat(record.storageVersionId()).isEqualTo(Long.toString(first.toVersionId()));

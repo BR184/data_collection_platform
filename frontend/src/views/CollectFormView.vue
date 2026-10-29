@@ -232,14 +232,61 @@ const latestRecordId = computed(() => {
   return list.length ? list[list.length - 1].id : null;
 });
 
-const editingRecordIds = computed(
-  () =>
-    new Set(
-      blocks.value
-        .filter((block) => block.kind === 'edit' && block.targetRecordId)
-        .map((block) => block.targetRecordId as string),
-    ),
-);
+interface FormDisplayRow {
+  key: string;
+  record: FormRecordView | null;
+  blocks: FormBlockState[];
+}
+
+interface FormDisplaySection {
+  kind: 'records' | 'drafts';
+  title: string;
+  count: number;
+  emptyText: string;
+  rows: FormDisplayRow[];
+}
+
+// 编辑按稳定记录ID原位展示；新建及暂时找不到原记录的草稿留在独立区，不改变会话归属。
+const formSections = computed<FormDisplaySection[]>(() => {
+  const recordIds = new Set(sortedRecords.value.map((record) => record.id));
+  const edits = new Map<string, FormBlockState[]>();
+  const standalone: FormBlockState[] = [];
+  for (const block of blocks.value) {
+    if (block.kind === 'edit' && block.targetRecordId && recordIds.has(block.targetRecordId)) {
+      const bucket = edits.get(block.targetRecordId) ?? [];
+      bucket.push(block);
+      edits.set(block.targetRecordId, bucket);
+    } else {
+      standalone.push(block);
+    }
+  }
+  return [
+    {
+      kind: 'records', title: '已保存记录', count: sortedRecords.value.length, emptyText: '暂无已保存记录',
+      rows: sortedRecords.value.map((record) => ({ key: `record-${record.id}`, record, blocks: edits.get(record.id) ?? [] })),
+    },
+    {
+      kind: 'drafts', title: standalone.some((block) => block.kind === 'edit') ? '本机填写草稿' : '新建草稿',
+      count: standalone.length, emptyText: '暂无新建草稿',
+      rows: standalone.map((block) => ({ key: block.key, record: null, blocks: [block] })),
+    },
+  ];
+});
+
+// 仅用于资源栏展示；来源身份和请求上下文保持原值。
+const sourceHost = computed(() => {
+  try { return new URL(routeContext.value.gitlabBaseUrl).host; }
+  catch { return routeContext.value.gitlabBaseUrl; }
+});
+
+async function copyAddress(value: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(value);
+    ElMessage.success('链接已复制');
+  } catch {
+    ElMessage.warning('未能复制链接，请从地址提示中复制');
+  }
+}
 
 const hasFailedDrafts = computed(() => session.value?.hasFailedDrafts() ?? false);
 
@@ -265,7 +312,7 @@ function formatTime(value: string | null | undefined): string {
 }
 
 function blockTitle(block: FormBlockState): string {
-  return block.kind === 'create' ? `新增${templateTitle.value}` : `编辑记录 ${block.targetRecordId ?? ''}`;
+  return block.kind === 'create' ? '新增填写' : `编辑记录 ${block.targetRecordId ?? ''}`;
 }
 
 function recordFieldValue(record: FormRecordView, field: FormFieldSpecView): string {
@@ -487,6 +534,7 @@ const dialogs: FormSessionDialogs = {
           confirmButtonText: '确认作废',
           cancelButtonText: '取消',
           inputPlaceholder: '作废',
+          customClass: 'form-filling-dialog',
           inputValidator: (value: string) => value.trim() === '作废' || '请输入“作废”',
         },
       )) as { value: string };
@@ -538,6 +586,7 @@ async function askConfirm(
       type: 'warning',
       confirmButtonText,
       cancelButtonText,
+      customClass: 'form-filling-dialog',
     });
     return true;
   } catch {
@@ -722,13 +771,7 @@ function addBlock() {
 }
 
 function editRecord(record: FormRecordView) {
-  const block = session.value?.startEdit(record);
-  if (!block) {
-    return;
-  }
-  if (blocks.value.includes(block)) {
-    scrollToBlock(block);
-  }
+  session.value?.startEdit(record);
 }
 
 function voidRecord(record: FormRecordView) {
@@ -746,13 +789,28 @@ async function submitBlock(block: FormBlockState) {
   }
   if (block.submitState === 'unknown') {
     await current.verify(block);
-    return;
+  } else {
+    await current.submit(block);
   }
-  await current.submit(block);
+  await restoreRecordAfterEdit(current, block);
 }
 
 async function discardBlock(block: FormBlockState) {
-  await session.value?.discardBlock(block);
+  const current = session.value;
+  if (current && await current.discardBlock(block)) {
+    await restoreRecordAfterEdit(current, block);
+  }
+}
+
+// 保存或取消确实关闭编辑块后，恢复卡片仅在视口外时滚入；失败与确认取消均保留当前编辑位置。
+async function restoreRecordAfterEdit(current: FormFillingSession, block: FormBlockState) {
+  if (block.kind !== 'edit') return;
+  await nextTick();
+  if (current !== session.value || current.state.blocks.includes(block)) return;
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && active !== document.body && active.isConnected) return;
+  document.querySelector<HTMLElement>(`[data-record-id="${block.targetRecordId}"]`)
+    ?.scrollIntoView?.({ block: 'nearest' });
 }
 
 function copyBlock(block: FormBlockState) {
@@ -898,7 +956,7 @@ async function confirmFormLeave(): Promise<boolean> {
         type: 'warning',
         confirmButtonText: failed ? '仍然离开' : '保留草稿并离开',
         cancelButtonText: '继续填写',
-        customClass: 'form-leave-confirm',
+        customClass: 'form-leave-confirm form-filling-dialog',
         // hash 路由下浏览器后退会先改写地址并触发 hashchange，默认行为会关闭本框导致无法取消。
         closeOnHashChange: false,
       },
@@ -983,7 +1041,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="external-form-shell">
+  <div class="external-form-shell form-filling-shell">
     <div class="external-form-page form-fill-page">
       <template v-if="contextIssue">
         <el-card class="external-form-card" shadow="never">
@@ -996,50 +1054,25 @@ onBeforeUnmount(() => {
       </template>
 
       <template v-else-if="entriesMode">
-        <div class="external-form-hero">
-          <div>
-            <div class="external-form-eyebrow">统一表单链接入口</div>
-            <h1 class="external-form-title">选择填写模板</h1>
-            <p class="external-form-desc">
-              当前资源为{{ RESOURCE_TYPE_LABELS[routeContext.resourceType] || routeContext.resourceType }}，
-              请选择已登记的问题响应或问题回复模板。草稿仅保存在当前浏览器。
-            </p>
+        <header class="form-page-header">
+          <h1 class="external-form-title">选择填写模板</h1>
+          <div class="form-resource-bar">
+            <span class="form-resource-segment">{{ RESOURCE_TYPE_LABELS[routeContext.resourceType] || routeContext.resourceType }}</span>
+            <span class="form-resource-segment">项目 {{ routeContext.projectId }} / #{{ routeContext.resourceId }}</span>
+            <span class="form-resource-segment form-source-address">
+              <el-tooltip :content="routeContext.gitlabBaseUrl" placement="bottom"><span class="form-source-host" :title="routeContext.gitlabBaseUrl">{{ sourceHost }}</span></el-tooltip>
+              <button type="button" class="form-copy-address" aria-label="复制GitLab来源地址" title="复制GitLab来源地址" @click="copyAddress(routeContext.gitlabBaseUrl)"><el-icon><DocumentCopy /></el-icon></button>
+            </span>
           </div>
-        </div>
+        </header>
 
-        <el-card class="external-form-card" shadow="never">
-          <template #header>
-            <div class="external-form-card-header">
-              <div class="external-form-card-title">资源上下文</div>
-              <div class="external-form-hero-meta">
-                <el-tag effect="plain">{{ routeContext.resourceType }}</el-tag>
-                <el-tag effect="plain">#{{ routeContext.resourceId }}</el-tag>
-              </div>
-            </div>
-          </template>
-          <div class="external-context-grid">
-            <div class="external-context-item">
-              <span class="external-context-label">GitLab 来源地址</span>
-              <span class="external-context-value">{{ routeContext.gitlabBaseUrl }}</span>
-            </div>
-            <div class="external-context-item">
-              <span class="external-context-label">Project ID</span>
-              <span class="external-context-value">{{ routeContext.projectId }}</span>
-            </div>
-            <div class="external-context-item">
-              <span class="external-context-label">问题 IID</span>
-              <span class="external-context-value">{{ routeContext.resourceId }}</span>
-            </div>
-          </div>
-        </el-card>
-
-        <el-card v-loading="entriesLoading" class="external-form-card" shadow="never">
-          <template #header>
+        <section v-loading="entriesLoading" class="form-entry-section">
+          <header class="form-section-header">
             <div class="external-form-card-header">
               <div class="external-form-card-title">已登记模板</div>
               <el-button :icon="Refresh" link type="primary" @mousedown.stop.prevent @click.stop="loadEntries">重新加载</el-button>
             </div>
-          </template>
+          </header>
           <div class="form-entry-list">
             <div
               v-for="item in entries"
@@ -1087,92 +1120,44 @@ onBeforeUnmount(() => {
             title="该资源尚未登记可填写的问题响应或问题回复模板"
             description="请联系管理员完成模板范围登记后再打开此入口。"
           />
-        </el-card>
+        </section>
       </template>
 
       <template v-else>
-        <div class="external-form-hero">
-          <div>
-            <div class="external-form-eyebrow">统一表单链接入口</div>
-            <h1 class="external-form-title">{{ templateTitle }}</h1>
-            <p class="external-form-desc">
-              按已发布的字段规格单列填写；每个填写块独立保存草稿，点击保存后才正式提交。
-            </p>
+        <header class="form-page-header">
+          <div class="form-page-heading">
+            <div class="form-page-title-group">
+              <h1 class="external-form-title">{{ templateTitle }}</h1>
+              <span v-if="detail?.versionLabel" class="form-current-version">{{ detail.versionLabel }}</span>
+              <el-tag v-if="detail && !detail.writable" type="warning" effect="plain" size="small">仅历史查看</el-tag>
+              <el-tag v-if="resourcePending" type="info" effect="plain" size="small">资源待同步</el-tag>
+            </div>
+            <el-button v-if="detail?.writable" class="form-add-button" type="primary" :icon="Plus" title="新增填写块" data-action="add-block" @click="addBlock">新增填写</el-button>
           </div>
-          <div class="external-form-hero-meta">
-            <el-tag type="primary" effect="plain">{{ activeContext?.templateKey }}</el-tag>
-            <el-tag v-if="detail?.versionLabel" type="success" effect="plain">
-              {{ detail.versionLabel }}
-            </el-tag>
-            <el-tag v-if="detail && !detail.writable" type="warning" effect="plain">仅历史查看</el-tag>
-            <el-tag v-if="resourcePending" type="info" effect="plain">资源待同步</el-tag>
-            <el-button
-              v-if="detail?.writable"
-              circle
-              :icon="Plus"
-              type="primary"
-              title="新增填写块"
-              aria-label="新增填写块"
-              @click="addBlock"
-            />
+          <div class="form-resource-bar">
+            <span class="form-resource-segment">{{ RESOURCE_TYPE_LABELS[routeContext.resourceType] || routeContext.resourceType }}</span>
+            <span class="form-resource-segment">项目 {{ routeContext.projectId }} / #{{ routeContext.resourceId }}</span>
+            <span class="form-resource-segment">表单账号 <strong>{{ detail?.account.displayName || '—' }}</strong></span>
+            <span class="form-resource-segment form-source-address">
+              <el-tooltip :content="routeContext.gitlabBaseUrl" placement="bottom">
+                <span class="form-source-host" :title="routeContext.gitlabBaseUrl">{{ sourceHost }}</span>
+              </el-tooltip>
+              <button type="button" class="form-copy-address" aria-label="复制GitLab来源地址" title="复制GitLab来源地址" @click="copyAddress(routeContext.gitlabBaseUrl)"><el-icon><DocumentCopy /></el-icon></button>
+            </span>
+            <span class="form-resource-segment form-resource-link">
+              <template v-if="detail?.resource.webUrl">
+                <el-tooltip :content="detail.resource.webUrl" placement="bottom">
+                  <a :href="detail.resource.webUrl" :title="detail.resource.webUrl" target="_blank" rel="noreferrer">在 GitLab 打开 ↗</a>
+                </el-tooltip>
+                <button type="button" class="form-copy-address" aria-label="复制资源链接" title="复制资源链接" @click="copyAddress(detail.resource.webUrl)"><el-icon><DocumentCopy /></el-icon></button>
+              </template>
+              <span v-else>资源链接 —</span>
+            </span>
+            <span v-if="severityLevel" class="form-resource-segment">{{ severityLevel }}</span>
+            <code class="form-template-key">{{ activeContext?.templateKey }}</code>
+            <el-button v-if="activeContext?.resourceType === 'issue'" link @click="backToEntries">返回模板入口</el-button>
           </div>
-        </div>
-
-        <el-card class="external-form-card" shadow="never">
-          <template #header>
-            <div class="external-form-card-header">
-              <div class="external-form-card-title">资源上下文</div>
-              <el-button
-                v-if="activeContext?.resourceType === 'issue'"
-                link
-                type="primary"
-                @click="backToEntries"
-              >
-                返回模板入口
-              </el-button>
-            </div>
-          </template>
-          <div class="external-context-grid">
-            <div class="external-context-item">
-              <span class="external-context-label">资源类型</span>
-              <span class="external-context-value">
-                {{ RESOURCE_TYPE_LABELS[routeContext.resourceType] || routeContext.resourceType }}
-              </span>
-            </div>
-            <div class="external-context-item">
-              <span class="external-context-label">Project ID / 资源编号</span>
-              <span class="external-context-value">
-                {{ routeContext.projectId }} / #{{ routeContext.resourceId }}
-              </span>
-            </div>
-            <div class="external-context-item">
-              <span class="external-context-label">表单账号</span>
-              <span class="external-context-value">{{ detail?.account.displayName || '-' }}</span>
-            </div>
-            <div class="external-context-item">
-              <span class="external-context-label">GitLab 来源地址</span>
-              <span class="external-context-value">{{ routeContext.gitlabBaseUrl }}</span>
-            </div>
-            <div class="external-context-item">
-              <span class="external-context-label">资源链接</span>
-              <span class="external-context-value">
-                <a
-                  v-if="detail?.resource.webUrl"
-                  :href="detail.resource.webUrl"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {{ detail.resource.webUrl }}
-                </a>
-                <template v-else>—</template>
-              </span>
-            </div>
-            <div v-if="severityLevel" class="external-context-item">
-              <span class="external-context-label">资源级别</span>
-              <span class="external-context-value">{{ severityLevel }}</span>
-            </div>
-          </div>
-        </el-card>
+        </header>
 
         <el-alert
           v-if="session?.state.stopped"
@@ -1226,72 +1211,55 @@ onBeforeUnmount(() => {
         </el-card>
 
         <template v-if="detail && spec">
-          <el-card v-loading="session?.state.loading" class="external-form-card" shadow="never">
-            <template #header>
+          <section
+            v-for="section in formSections"
+            :key="section.kind"
+            v-loading="section.kind === 'records' && session?.state.loading"
+            :class="section.kind === 'records' ? 'form-record-section' : 'form-draft-section'"
+            :aria-label="section.title"
+          >
+            <header class="form-section-header">
               <div class="external-form-card-header">
-                <div class="external-form-card-title">
-                  已保存记录（{{ sortedRecords.length }}）
-                </div>
-                <div class="external-form-actions">
-                  <el-button
-                    :icon="Refresh"
-                    :loading="session?.state.refreshing"
-                    data-action="refresh-list"
-                    @mousedown.stop.prevent
-                    @click.stop="refreshList"
-                  >
-                    刷新列表
-                  </el-button>
-                  <el-button v-if="detail.writable" type="primary" plain @click="addBlock">
-                    新增填写块
-                  </el-button>
-                </div>
+                <div class="external-form-card-title">{{ section.title }}（{{ section.count }}）</div>
+                <el-button
+                  v-if="section.kind === 'records'"
+                  :icon="Refresh"
+                  :loading="session?.state.refreshing"
+                  data-action="refresh-list" aria-label="刷新列表" title="刷新列表" text
+                  @mousedown.stop.prevent
+                  @click.stop="refreshList"
+                >刷新</el-button>
               </div>
-            </template>
-
-            <div v-if="sortedRecords.length === 0" class="form-empty-records">
-              暂无已保存记录。点击右上角加号或“新增填写块”开始填写。
-            </div>
-            <div v-else class="form-record-list">
-              <FormRecordCard
-                v-for="record in sortedRecords"
-                :key="record.id"
-                :spec="recordSpec(record)"
-                :record="record"
-                :template-title="templateTitle"
-                :latest="latestRecordId === record.id"
-                :writable="detail.writable"
-                :editing="editingRecordIds.has(record.id)"
-                @edit="editRecord(record)"
-                @void="voidRecord(record)"
-              />
-            </div>
-          </el-card>
-
-          <el-card class="external-form-card" shadow="never">
-            <template #header>
-              <div class="external-form-card-header">
-                <div class="external-form-card-title">
-                  本机填写草稿（{{ blocks.length }}）
-                </div>
-                <div class="external-form-hint">草稿仅保存在当前浏览器</div>
-              </div>
-            </template>
-
-            <div v-if="blocks.length === 0" class="form-empty-records">
-              当前没有待提交的填写块。点击“新增填写块”开始一条新记录。
-            </div>
-
-            <div v-else class="form-block-list">
+            </header>
+            <div v-if="section.rows.length === 0" class="form-empty-records">{{ section.emptyText }}</div>
+            <div v-else :class="section.kind === 'records' ? 'form-record-list' : 'form-block-list'">
+              <template v-for="row in section.rows" :key="row.key">
+                <FormRecordCard
+                  v-if="row.record && row.blocks.length === 0"
+                  :spec="recordSpec(row.record)"
+                  :record="row.record"
+                  :template-title="templateTitle"
+                  :latest="latestRecordId === row.record.id"
+                  :writable="detail.writable"
+                  :editing="false"
+                  @edit="editRecord(row.record)"
+                  @void="voidRecord(row.record)"
+                />
               <article
-                v-for="block in blocks"
+                v-for="block in row.blocks"
                 :key="block.key"
                 class="form-block"
                 :data-block-key="block.key"
+                :data-record-id="block.kind === 'edit' ? block.targetRecordId : undefined"
               >
                 <header class="form-block-header">
                   <div class="form-block-heading">
                     <span class="form-block-title">{{ blockTitle(block) }}</span>
+                    <el-tag v-if="showsUnsubmitted(block)" size="small" type="warning" effect="plain">
+                      尚未提交
+                    </el-tag>
+                  </div>
+                  <div class="external-form-actions">
                     <span class="form-block-status" :class="`tone-${blockStatus(block).tone}`">
                       <el-icon v-if="blockStatus(block).key === 'saving'" class="is-loading">
                         <Loading />
@@ -1302,16 +1270,11 @@ onBeforeUnmount(() => {
                       <el-icon v-else-if="blockStatus(block).key === 'warning'">
                         <WarningFilled />
                       </el-icon>
-                      <el-icon v-else-if="blockStatus(block).key === 'unknown'">
+                      <el-icon v-else>
                         <InfoFilled />
                       </el-icon>
                       <span>{{ blockStatus(block).text }}</span>
                     </span>
-                    <el-tag v-if="showsUnsubmitted(block)" size="small" type="warning" effect="plain">
-                      尚未提交
-                    </el-tag>
-                  </div>
-                  <div class="external-form-actions">
                     <el-button
                       v-if="block.readOnly && detail.writable"
                       size="small"
@@ -1332,16 +1295,6 @@ onBeforeUnmount(() => {
                       @click="retryDraft(block)"
                     >
                       重试保存
-                    </el-button>
-                    <el-button
-                      size="small"
-                      type="danger"
-                      plain
-                      :disabled="!session?.canDiscardBlock(block)"
-                      :title="session?.canDiscardBlock(block) ? '' : '请先核验本次提交结果'"
-                      @click="discardBlock(block)"
-                    >
-                      丢弃草稿
                     </el-button>
                   </div>
                 </header>
@@ -1392,6 +1345,7 @@ onBeforeUnmount(() => {
                   </el-button>
                 </div>
 
+                <p v-if="block.key === blocks[0]?.key" class="external-form-footnote">草稿仅保存在当前浏览器，点击“保存”后才正式提交。</p>
                 <el-form
                   v-if="blockSpec(block)"
                   class="external-form-layout form-single-column"
@@ -1424,48 +1378,55 @@ onBeforeUnmount(() => {
                       <div v-else-if="field.format" class="form-field-hint">{{ field.format }}</div>
                     </div>
                   </el-form-item>
-
-                  <div class="form-block-footer">
-                    <div class="form-block-footer-status">
-                      <span>{{ blockStatus(block).text }}</span>
-                      <span v-if="showsUnsubmitted(block)" class="form-muted">尚未正式提交</span>
-                    </div>
-                    <div class="external-form-actions">
-                      <el-button
-                        v-if="block.submitState === 'pending'"
-                        type="primary"
-                        disabled
-                        loading
-                      >
-                        正在提交…
-                      </el-button>
-                      <el-button
-                        v-else-if="block.submitState === 'unknown'"
-                        type="primary"
-                        @click="submitBlock(block)"
-                      >
-                        核验提交结果
-                      </el-button>
-                      <el-button
-                        v-else
-                        type="primary"
-                        :disabled="!session?.canSubmitBlock(block)"
-                        @click="submitBlock(block)"
-                      >
-                        保存
-                      </el-button>
-                    </div>
-                  </div>
                 </el-form>
-              </article>
-            </div>
 
-            <div class="external-form-footnote">
-              草稿仅保存在当前浏览器，点击“保存”后才正式提交。关闭或刷新页面前会提示尚未提交的内容。
+                <div class="form-block-footer">
+                  <div class="form-block-footer-status">
+                    <span>{{ blockStatus(block).text }}</span>
+                    <span v-if="showsUnsubmitted(block)" class="form-muted">尚未正式提交</span>
+                  </div>
+                  <div class="external-form-actions">
+                    <el-button
+                      size="default" aria-label="丢弃草稿"
+                      :disabled="!session?.canDiscardBlock(block)"
+                      :title="session?.canDiscardBlock(block) ? '' : '请先核验本次提交结果'"
+                      @click="discardBlock(block)"
+                    >
+                      取消
+                    </el-button>
+                    <el-button
+                      v-if="block.submitState === 'pending'"
+                      type="primary" plain
+                      disabled
+                      loading
+                    >
+                      正在提交…
+                    </el-button>
+                    <el-button
+                      v-else-if="block.submitState === 'unknown'"
+                      type="primary" plain
+                      @click="submitBlock(block)"
+                    >
+                      核验提交结果
+                    </el-button>
+                    <el-button
+                      v-else
+                      type="primary" plain
+                      :disabled="!session?.canSubmitBlock(block)"
+                      @click="submitBlock(block)"
+                    >
+                      保存
+                    </el-button>
+                  </div>
+                </div>
+              </article>
+              </template>
             </div>
-          </el-card>
+          </section>
         </template>
       </template>
     </div>
   </div>
 </template>
+
+<style scoped src="../components/collect-forms/form-filling.css"></style>
