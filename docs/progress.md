@@ -1,6 +1,11 @@
-## 2026-10-29 下钻过滤修复替代包待员工执行
+## 2026-10-29 下钻过滤修复替代包构建与演练完成（待审批）
 
-- [下一步] 实包 `qaflex-update-20261029T025459Z-b4d40e323a09` 的清单及真实 JAR/class 核对确认未含 `module_total` 下钻修复。用户确认该包未部署，要求保留原包内容加入已验收 `725616a5` 后重出替代包；直接基线仍为 d52，沿用 issue 事实重建且不做 ODS 全量纠正。员工按[执行指令](plans/system-test-drilldown-replacement-package-20261029.md)隔离整合、完成发布门禁和打包演练后交审；本轮仅出具指令，未合并、构建、起服或打包。
+- [范围] 实包 `qaflex-update-20261029T025459Z-b4d40e323a09` 的镜像 JAR 经 javap 确认缺少 `module_total` 分支。在隔离任务树仅吸收 `725616a5` 的一行服务修复与配套服务测试（`SystemTestDefectSummaryBoardService.matchesMetric` 增加 `module_total -> IssueSource::isRegularMetricIssue`），不带旧活动计划与其它表单/读发布内容；后端内容身份与已验收 `0efa68f3:backend` 一致。合入 main 提交 `f0817018`，origin/gitlab25 已快进同步并回读一致。
+- [验证] 定向 10 项全通过；默认套件 1818 项（0 失败/0 错误/1 既有跳过）按同一 backend 内容身份复用；最终候选实跑黄金严格 compare **203/0/0/0、BUILD SUCCESS**（未 update、未改快照）；打包器 69 项全跑 0 失败 0 跳过（含回滚执行用例）。
+- [发布包] 从干净、双远端一致的 main `f0817018` 重建 `qaflex-update-20261029T093903Z-56953d50d4c7`：206,186,151 字节，SHA-256 `4a6d6e161e37ea4afeb7f2ae301c8c14f1369f66ce218111756598f0bd943c21`；直接基线 d52，目标 Flyway `20261022.03`（140 份迁移，无新增），`facts.rebuildRequired=true / scope=issue / odsCorrectionRequired=false`，固定容器名继承。图像 JAR `da198cdd…0a84` 与清单一致，实际镜像 class 经 javap 证明 `module_total` 映射 `isRegularMetricIssue`、`suggestion_total` 仍映射 `isSuggestion`；新旧 JAR 条目集合 1810 项完全相同，仅该服务类字节码变化，嵌套类仅调试行号 +1；三脚本、Compose、README 与旧包除 release-id 外逐字节一致，前端 dist 与旧包相同。
+- [演练] 以 d52 期备份重建演练基线（d52 镜像、Flyway `20261019.01`、种子 config/job），执行 backup→upgrade→rollback→backup→upgrade：`DRILL PASS`，两轮 `counts.diff` 均 0 字节、PostgreSQL 容器 ID `3d713ac7…` 全程不变、回滚恢复 d52 镜像且库保持前向、终态目标镜像 healthy 且 Flyway `20261022.03`。证据与日志在 `.tmp/package-drill-20261029b/`。
+- [旧包与留档] `qaflex-update-20261029T025459Z-b4d40e323a09` 旁注 `…SUPERSEDED.md` 标记“被替代、禁止交付”，原归档与 SHA-256 `bc9f75f5…5ea49` 未改；留档分支 `延期写回更新包含系统测试下钻修复-20261029T093903Z-56953d50d4c7` 指向构建提交 `f0817018`，已推送双远端。
+- [未执行] 未部署生产/内网 20001/115，未做真实 GitLab 写回，未在本地执行 issue 事实重建（现场升级后按 README 第 6 节执行）；生产数据版本与五条截图议题仍未核验。18080/18181 未停服；演练栈停留在目标镜像。
 
 ## 2026-10-29 打包器回滚测试夹具修正
 
