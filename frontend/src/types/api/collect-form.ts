@@ -232,7 +232,15 @@ export interface FormAdminPreviewView {
 }
 
 export type FormPublicationKind = 'INITIAL_EMPTY' | 'INITIAL_MIGRATION' | 'MIGRATION';
-export type FormPublicationStage = 'PREPARED' | 'COPYING' | 'VERIFIED' | 'PUBLISHED' | 'FAILED';
+export type FormPublicationStage =
+  | 'PREPARED'
+  | 'COPYING'
+  | 'VERIFIED'
+  | 'VALIDATING'
+  | 'BUILDING'
+  | 'SWITCHING'
+  | 'PUBLISHED'
+  | 'FAILED';
 
 export interface FormAdminPublicationView {
   id: number;

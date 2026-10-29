@@ -93,8 +93,25 @@ const canDelete = computed(
   () => scope.value?.status === 'DRAFT' && !scope.value.currentVersionId,
 );
 const publicationActive = computed(() =>
-  Boolean(publication.value && ['PREPARED', 'COPYING', 'VERIFIED'].includes(publication.value.stage)),
+  Boolean(
+    publication.value
+      && ['PREPARED', 'COPYING', 'VERIFIED', 'VALIDATING', 'BUILDING', 'SWITCHING'].includes(
+        publication.value.stage,
+      ),
+  ),
 );
+const publicationStageText = computed(() => {
+  switch (publication.value?.stage) {
+    case 'VALIDATING':
+      return '正在校验发布输入…';
+    case 'BUILDING':
+      return '正在构建空结构…';
+    case 'SWITCHING':
+      return '正在切换版本…';
+    default:
+      return '正在发布…';
+  }
+});
 const dirty = computed(
   () => savedSnapshot.value !== null && localSnapshot() !== savedSnapshot.value,
 );
@@ -711,7 +728,14 @@ async function confirmPublication() {
   } finally { publishing.value = false; }
 }
 
-const PENDING_PUBLICATION_STAGES = ['PREPARED', 'COPYING', 'VERIFIED'];
+const PENDING_PUBLICATION_STAGES = [
+  'PREPARED',
+  'COPYING',
+  'VERIFIED',
+  'VALIDATING',
+  'BUILDING',
+  'SWITCHING',
+];
 
 async function pollPublication(publicationId: number) {
   const scopeId = scope.value?.id;
@@ -995,7 +1019,7 @@ watch(saving, active => { if (!active) scheduleAutosave(); });
         <div v-if="headerFailure" class="notice notice-warning" role="status"><span><strong>上次发布失败：</strong>{{ headerFailure }}</span><el-button link :loading="publishing" @click="recoverPublication">重试</el-button></div>
         <div v-else-if="saveError" class="notice notice-warning" role="status"><span>{{ saveError }}</span><el-button link @click="saveDraft">重试保存</el-button></div>
         <div v-else-if="pendingCount" class="notice notice-changes" role="status"><span><strong>{{ pendingCount }}</strong> 项修改未发布</span><span class="save-status">{{ editStatus }}</span></div>
-        <div v-else-if="publicationActive" class="notice notice-changes" role="status">正在发布…</div>
+        <div v-else-if="publicationActive" class="notice notice-changes" role="status">{{ publicationStageText }}</div>
 
         <div class="editor-grid">
           <section class="field-editor" aria-label="编辑字段" :inert="scope.status === 'RETIRED'">
@@ -1056,7 +1080,7 @@ watch(saving, active => { if (!active) scheduleAutosave(); });
       <template #footer><el-button @click="finishRange">完成</el-button></template>
     </el-drawer>
 
-    <el-dialog v-model="publishConfirmVisible" title="发布修改" width="min(560px, 90vw)" :close-on-click-modal="false"><ul class="confirm-changes"><li v-for="change in changes" :key="change.key">{{ change.text }}</li></ul><p v-if="!changes.length">将启用此表单供填写。</p><p v-if="detail && detail.recordCount > 0 && changes.some(change => change.kind === 'removed')" class="history-effect">已填写的 {{ detail.recordCount }} 条记录在历史版本中保留原字段。</p><template #footer><el-button @click="publishConfirmVisible = false">继续编辑</el-button><el-button type="primary" @click="confirmPublication">确认发布</el-button></template></el-dialog>
+    <el-dialog v-model="publishConfirmVisible" title="发布修改" width="min(560px, 90vw)" :close-on-click-modal="false"><ul class="confirm-changes"><li v-for="change in changes" :key="change.key">{{ change.text }}</li></ul><p v-if="!changes.length">将启用此表单供填写。</p><p class="history-effect">新版本从空结构开始；已有记录保留在原版本，不迁移、不改绑。</p><template #footer><el-button @click="publishConfirmVisible = false">继续编辑</el-button><el-button type="primary" @click="confirmPublication">确认发布</el-button></template></el-dialog>
 
     <el-dialog v-model="createVisible" title="新建适用范围" width="420px"><el-form label-position="top"><el-form-item label="表单"><el-select v-model="createTemplateKey"><el-option v-for="template in templates" :key="template.templateKey" :label="formTitle(template.templateKey)" :value="template.templateKey" /></el-select></el-form-item><el-form-item label="适用范围名称"><el-input v-model="createScopeKey" placeholder="例如：CCProduct" /></el-form-item></el-form><template #footer><el-button @click="createVisible = false">取消</el-button><el-button @click="createScope">创建</el-button></template></el-dialog>
 

@@ -400,6 +400,26 @@ describe('表单管理单页工作区', () => {
     expect(mocks.messageBox.confirm).not.toHaveBeenCalled();
   });
 
+  it('explains empty-structure publishing and polls v2 stages to completion', async () => {
+    const view=await mountView();
+    await button(view,'发布').trigger('click'); await flushPromises();
+    expect(view.find('.history-effect').text()).toContain('新版本从空结构开始');
+    expect(view.find('.history-effect').text()).toContain('不迁移');
+    mocks.api.createFormPublication.mockResolvedValue(publication('VALIDATING'));
+    mocks.api.getFormPublication
+      .mockResolvedValueOnce(publication('VALIDATING'))
+      .mockResolvedValueOnce(publication('BUILDING'))
+      .mockResolvedValueOnce(publication('SWITCHING'))
+      .mockResolvedValueOnce(publication('PUBLISHED'));
+    await button(view,'确认发布').trigger('click'); await flushPromises();
+    expect(mocks.api.getFormPublication).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1000); await flushPromises();
+    await vi.advanceTimersByTimeAsync(1000); await flushPromises();
+    await vi.advanceTimersByTimeAsync(1000); await flushPromises();
+    expect(mocks.api.getFormPublication).toHaveBeenCalledTimes(4);
+    expect(mocks.message.success).toHaveBeenCalledWith('已发布');
+  });
+
   it('uses a single top failure message with direct retry and no engineering log', async () => {
     const d=detail(); d.latestPublication={...publication('FAILED'),lastError:'SQLException deadlock 40P01'};
     mocks.api.getFormScope.mockResolvedValue(d);
