@@ -91,6 +91,16 @@ function detail(overrides: Partial<FormDetailResponse> = {}): FormDetailResponse
   };
 }
 
+function inlineRecord(id: string, note: string): FormRecordView {
+  return {
+    id, recordVersion: 1, deleted: false, legacyIncomplete: false, legacyMissingFields: [],
+    fields: { reviewerUserId: 'alice', supplementNote: note }, fieldNames: { reviewerUserId: 'Alice' }, snapshotValues: {},
+    createdBy: 'alice', createdByName: 'Alice', templateVersion: 'v2026.10',
+    originVersionId: '22', storageVersionId: '22', createdAt: '2026-10-28T07:25:43', updatedAt: '2026-10-28T07:25:43',
+    canEdit: true, canVoid: true,
+  };
+}
+
 let wrapper: VueWrapper | null = null;
 let activeRouter: Router | null = null;
 
@@ -163,6 +173,7 @@ beforeEach(() => {
     value: vi.fn(),
   });
   mocks.api.getFormDetail.mockReset();
+  mocks.api.updateFormRecord.mockReset();
   mocks.api.getFormReviewerCandidates.mockReset();
   mocks.api.getFormReviewerCandidates.mockResolvedValue({
     items: [],
@@ -196,6 +207,50 @@ afterEach(() => {
 });
 
 describe('CollectFormView', () => {
+  it('edits the first record inline and restores its card in the same order after saving', async () => {
+    const first = inlineRecord('1', '第一条原值');
+    const second = inlineRecord('2', '第二条原值');
+    const updated = { ...first, recordVersion: 2, fields: { ...first.fields, supplementNote: '第一条更新值' } };
+    mocks.api.getFormDetail.mockResolvedValueOnce(detail({ records: [first, second] })).mockResolvedValue(detail({ records: [updated, second] }));
+    mocks.api.updateFormRecord.mockResolvedValue(updated);
+    const current = await mountView('/external/code-review-form?gitlabBaseUrl=https%3A%2F%2Fgitlab.example.com&projectId=7&mrIid=3');
+    await current.find('[data-record-id="1"] button.el-button--primary').trigger('click');
+    await flushPromises();
+
+    expect(current.findAll('.form-record-list .form-block')).toHaveLength(1);
+    expect(current.findAll('.form-draft-section .form-block')).toHaveLength(0);
+    expect(current.findAll('.form-record-list [data-record-id]').map((item) => item.attributes('data-record-id'))).toEqual(['1', '2']);
+    await current.find('.form-record-list .form-block textarea').setValue('第一条更新值');
+    await current.find('.form-record-list .form-block .form-block-footer .el-button--primary').trigger('click');
+    await flushPromises();
+
+    expect(current.findAll('.form-record-list .form-block')).toHaveLength(0);
+    expect(current.findAll('.form-record-list [data-record-id]').map((item) => item.attributes('data-record-id'))).toEqual(['1', '2']);
+    expect(current.find('[data-record-id="1"]').text()).toContain('第一条更新值');
+  });
+
+  it('restores the inline record on cancel while leaving the independent new draft intact', async () => {
+    const first = inlineRecord('1', '第一条原值');
+    const second = inlineRecord('2', '第二条原值');
+    mocks.api.getFormDetail.mockResolvedValue(detail({ records: [first, second] }));
+    mocks.messageBox.confirm.mockResolvedValue('confirm');
+    const current = await mountView('/external/code-review-form?gitlabBaseUrl=https%3A%2F%2Fgitlab.example.com&projectId=7&mrIid=3');
+    await findButton(current, '新增填写')!.trigger('click'); await flushPromises();
+    await current.find('.form-draft-section textarea').setValue('新建草稿保留');
+    const draftKey = current.find('.form-draft-section .form-block').attributes('data-block-key');
+    await current.find('[data-record-id="1"] button.el-button--primary').trigger('click'); await flushPromises();
+
+    expect(current.findAll('.form-record-list .form-block')).toHaveLength(1);
+    await current.find('.form-record-list .form-block textarea').setValue('准备取消的修改');
+    await current.find('.form-record-list .form-block [aria-label="丢弃草稿"]').trigger('click'); await flushPromises();
+
+    expect(current.findAll('.form-record-list .form-block')).toHaveLength(0);
+    expect(current.findAll('.form-record-list [data-record-id]').map((item) => item.attributes('data-record-id'))).toEqual(['1', '2']);
+    expect(current.find('[data-record-id="1"]').text()).toContain('第一条原值');
+    expect(current.find('.form-draft-section .form-block').attributes('data-block-key')).toBe(draftKey);
+    expect((current.find('.form-draft-section textarea').element as HTMLTextAreaElement).value).toBe('新建草稿保留');
+  });
+
   it('renders issue response enum, date, branch and text fields by their own published controls', async () => {
     const responseSpec: FormTemplateSpecView = {
       spec_version: 1, template_key: 'issue_response', fields: [
@@ -267,7 +322,7 @@ describe('CollectFormView', () => {
     expect(current.text()).toContain('代码走查表');
     expect(current.text()).toContain('v2026.10');
     expect(current.text()).toContain('已保存记录（0）');
-    expect(current.text()).toContain('本机填写草稿（0）');
+    expect(current.text()).toContain('新建草稿（0）');
 
     const add = findButton(current, '新增填写');
     expect(add).toBeTruthy();

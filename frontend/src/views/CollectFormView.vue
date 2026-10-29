@@ -227,14 +227,46 @@ const latestRecordId = computed(() => {
   return list.length ? list[list.length - 1].id : null;
 });
 
-const editingRecordIds = computed(
-  () =>
-    new Set(
-      blocks.value
-        .filter((block) => block.kind === 'edit' && block.targetRecordId)
-        .map((block) => block.targetRecordId as string),
-    ),
-);
+interface FormDisplayRow {
+  key: string;
+  record: FormRecordView | null;
+  blocks: FormBlockState[];
+}
+
+interface FormDisplaySection {
+  kind: 'records' | 'drafts';
+  title: string;
+  count: number;
+  emptyText: string;
+  rows: FormDisplayRow[];
+}
+
+// 编辑按稳定记录ID原位展示；新建及暂时找不到原记录的草稿留在独立区，不改变会话归属。
+const formSections = computed<FormDisplaySection[]>(() => {
+  const recordIds = new Set(sortedRecords.value.map((record) => record.id));
+  const edits = new Map<string, FormBlockState[]>();
+  const standalone: FormBlockState[] = [];
+  for (const block of blocks.value) {
+    if (block.kind === 'edit' && block.targetRecordId && recordIds.has(block.targetRecordId)) {
+      const bucket = edits.get(block.targetRecordId) ?? [];
+      bucket.push(block);
+      edits.set(block.targetRecordId, bucket);
+    } else {
+      standalone.push(block);
+    }
+  }
+  return [
+    {
+      kind: 'records', title: '已保存记录', count: sortedRecords.value.length, emptyText: '暂无已保存记录',
+      rows: sortedRecords.value.map((record) => ({ key: `record-${record.id}`, record, blocks: edits.get(record.id) ?? [] })),
+    },
+    {
+      kind: 'drafts', title: standalone.some((block) => block.kind === 'edit') ? '本机填写草稿' : '新建草稿',
+      count: standalone.length, emptyText: '暂无新建草稿',
+      rows: standalone.map((block) => ({ key: block.key, record: null, blocks: [block] })),
+    },
+  ];
+});
 
 // 仅用于资源栏展示；来源身份和请求上下文保持原值。
 const sourceHost = computed(() => {
@@ -734,13 +766,7 @@ function addBlock() {
 }
 
 function editRecord(record: FormRecordView) {
-  const block = session.value?.startEdit(record);
-  if (!block) {
-    return;
-  }
-  if (blocks.value.includes(block)) {
-    scrollToBlock(block);
-  }
+  session.value?.startEdit(record);
 }
 
 function voidRecord(record: FormRecordView) {
@@ -758,13 +784,28 @@ async function submitBlock(block: FormBlockState) {
   }
   if (block.submitState === 'unknown') {
     await current.verify(block);
-    return;
+  } else {
+    await current.submit(block);
   }
-  await current.submit(block);
+  await restoreRecordAfterEdit(current, block);
 }
 
 async function discardBlock(block: FormBlockState) {
-  await session.value?.discardBlock(block);
+  const current = session.value;
+  if (current && await current.discardBlock(block)) {
+    await restoreRecordAfterEdit(current, block);
+  }
+}
+
+// 保存或取消确实关闭编辑块后，恢复卡片仅在视口外时滚入；失败与确认取消均保留当前编辑位置。
+async function restoreRecordAfterEdit(current: FormFillingSession, block: FormBlockState) {
+  if (block.kind !== 'edit') return;
+  await nextTick();
+  if (current !== session.value || current.state.blocks.includes(block)) return;
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && active !== document.body && active.isConnected) return;
+  document.querySelector<HTMLElement>(`[data-record-id="${block.targetRecordId}"]`)
+    ?.scrollIntoView?.({ block: 'nearest' });
 }
 
 function copyBlock(block: FormBlockState) {
@@ -1165,64 +1206,46 @@ onBeforeUnmount(() => {
         </el-card>
 
         <template v-if="detail && spec">
-          <section v-loading="session?.state.loading" class="form-record-section" aria-label="已保存记录">
+          <section
+            v-for="section in formSections"
+            :key="section.kind"
+            v-loading="section.kind === 'records' && session?.state.loading"
+            :class="section.kind === 'records' ? 'form-record-section' : 'form-draft-section'"
+            :aria-label="section.title"
+          >
             <header class="form-section-header">
               <div class="external-form-card-header">
-                <div class="external-form-card-title">
-                  已保存记录（{{ sortedRecords.length }}）
-                </div>
-                <div class="external-form-actions">
-                  <el-button
-                    :icon="Refresh"
-                    :loading="session?.state.refreshing"
-                    data-action="refresh-list" aria-label="刷新列表" title="刷新列表" text
-                    @mousedown.stop.prevent
-                    @click.stop="refreshList"
-                  >
-                    刷新
-                  </el-button>
-                </div>
+                <div class="external-form-card-title">{{ section.title }}（{{ section.count }}）</div>
+                <el-button
+                  v-if="section.kind === 'records'"
+                  :icon="Refresh"
+                  :loading="session?.state.refreshing"
+                  data-action="refresh-list" aria-label="刷新列表" title="刷新列表" text
+                  @mousedown.stop.prevent
+                  @click.stop="refreshList"
+                >刷新</el-button>
               </div>
             </header>
-
-            <div v-if="sortedRecords.length === 0" class="form-empty-records">
-              暂无已保存记录
-            </div>
-            <div v-else class="form-record-list">
-              <FormRecordCard
-                v-for="record in sortedRecords"
-                :key="record.id"
-                :spec="recordSpec(record)"
-                :record="record"
-                :template-title="templateTitle"
-                :latest="latestRecordId === record.id"
-                :writable="detail.writable"
-                :editing="editingRecordIds.has(record.id)"
-                @edit="editRecord(record)"
-                @void="voidRecord(record)"
-              />
-            </div>
-          </section>
-
-          <section class="form-draft-section" aria-label="本机填写草稿">
-            <header class="form-section-header">
-              <div class="external-form-card-header">
-                <div class="external-form-card-title">
-                  本机填写草稿（{{ blocks.length }}）
-                </div>
-              </div>
-            </header>
-
-            <div v-if="blocks.length === 0" class="form-empty-records">
-              暂无待提交的草稿
-            </div>
-
-            <div v-else class="form-block-list">
+            <div v-if="section.rows.length === 0" class="form-empty-records">{{ section.emptyText }}</div>
+            <div v-else :class="section.kind === 'records' ? 'form-record-list' : 'form-block-list'">
+              <template v-for="row in section.rows" :key="row.key">
+                <FormRecordCard
+                  v-if="row.record && row.blocks.length === 0"
+                  :spec="recordSpec(row.record)"
+                  :record="row.record"
+                  :template-title="templateTitle"
+                  :latest="latestRecordId === row.record.id"
+                  :writable="detail.writable"
+                  :editing="false"
+                  @edit="editRecord(row.record)"
+                  @void="voidRecord(row.record)"
+                />
               <article
-                v-for="(block, blockIndex) in blocks"
+                v-for="block in row.blocks"
                 :key="block.key"
                 class="form-block"
                 :data-block-key="block.key"
+                :data-record-id="block.kind === 'edit' ? block.targetRecordId : undefined"
               >
                 <header class="form-block-header">
                   <div class="form-block-heading">
@@ -1310,7 +1333,7 @@ onBeforeUnmount(() => {
                   </el-button>
                 </div>
 
-                <p v-if="blockIndex === 0" class="external-form-footnote">草稿仅保存在当前浏览器，点击“保存”后才正式提交。</p>
+                <p v-if="block.key === blocks[0]?.key" class="external-form-footnote">草稿仅保存在当前浏览器，点击“保存”后才正式提交。</p>
                 <el-form
                   class="external-form-layout form-single-column"
                   label-position="top"
@@ -1384,8 +1407,8 @@ onBeforeUnmount(() => {
                   </div>
                 </el-form>
               </article>
+              </template>
             </div>
-
           </section>
         </template>
       </template>
