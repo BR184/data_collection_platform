@@ -1,3 +1,7 @@
+## 2026-10-29 下钻过滤修复替代包待员工执行
+
+- [下一步] 实包 `qaflex-update-20261029T025459Z-b4d40e323a09` 的清单及真实 JAR/class 核对确认未含 `module_total` 下钻修复。用户确认该包未部署，要求保留原包内容加入已验收 `725616a5` 后重出替代包；直接基线仍为 d52，沿用 issue 事实重建且不做 ODS 全量纠正。员工按[执行指令](plans/system-test-drilldown-replacement-package-20261029.md)隔离整合、完成发布门禁和打包演练后交审；本轮仅出具指令，未合并、构建、起服或打包。
+
 ## 2026-10-29 打包器回滚测试夹具修正
 
 - [缺陷] 独立复跑打包器套件出现 13 条失败断言；根因在既有回滚执行夹具：备份 `docker-compose.yml` 未声明 `PLATFORM_BACKGROUND_JOBS_ENABLED`，`rollback.sh` 的暂停保护按设计提前拒绝；继续执行后还暴露假 `docker exec` 对计数/Flyway 查询一律返回版本号、`inspect .Config.Env` 未返回暂停标志、三处 shell `case` 模式缺闭合引号。旧基线 `59cd5587` 同一用例可复现，属既有测试缺陷，不是包回滚失败。
