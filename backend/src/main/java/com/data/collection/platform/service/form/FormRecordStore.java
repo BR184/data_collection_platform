@@ -92,13 +92,6 @@ public class FormRecordStore {
     return ids.getFirst();
   }
 
-  public FormRecordRow findByRequestKey(FormVersionContext context, String requestKey) {
-    return queryOne(
-        "select * from " + context.recordTable() + " where request_key = ?",
-        List.of(requestKey),
-        context);
-  }
-
   public FormRecordRow findById(
       FormVersionContext context, long id, long instanceId) {
     return queryOne(

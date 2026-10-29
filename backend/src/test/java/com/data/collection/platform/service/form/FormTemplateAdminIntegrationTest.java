@@ -462,8 +462,10 @@ class FormTemplateAdminIntegrationTest {
             "JUnit");
     assertThat(replayed.outcome()).isEqualTo("REPLAYED");
     assertThat(replayed.record().id()).isEqualTo(created.record().id());
-    assertThat(replayed.record().fields()).doesNotContainKey("supplementNote");
-    assertThat(replayed.record().fields()).containsKey("reviewComment");
+    // 目录改绑属 N3；N2 重放按目录承载版本返回，不套用迁移目标版字段，也不回退当前物理表。
+    assertThat(replayed.record().storageVersionId()).isEqualTo(Long.toString(oldVersionId));
+    assertThat(replayed.record().fields()).containsKey("supplementNote");
+    assertThat(replayed.record().fields()).doesNotContainKey("reviewComment");
     assertThat(
             jdbcTemplate.queryForObject(
                 "select count(*) from form_s" + scopeId + "_v" + second.toVersionId() + "_records",

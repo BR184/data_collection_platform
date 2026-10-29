@@ -206,8 +206,8 @@ public class FormRecordService {
         fields,
         fieldNames,
         Map.of(),
-        null,
-        null);
+        location.createdAt(),
+        location.updatedAt());
   }
 
   private Object legacyValue(Object raw, String type) {
@@ -259,23 +259,18 @@ public class FormRecordService {
     requireResourceMirrored(context);
     fieldValueService.requirePayloadSize(request.fields());
     String requestKey = canonicalRequestKey(request.requestKey());
-    // 先按 requestKey 在迁移后的当前权威表核验重放：请求可携带已退役的旧结构版本，
-    // 指纹按该版本冻结规格计算，因此结构发布不会让“已写入但响应丢失”的提交变成永久冲突。
-    FormCreateResponse replay = replayIfPresent(context, request, actor, requestKey);
-    if (replay != null) {
-      return replay;
-    }
-    // 目录跨版重放：登记行或其它版本创建的记录按目录 origin 证据核验首次指纹。
-    long requestVersionId =
-        parsePositiveId(request.storageVersionId(), "结构版本 ID");
+    long requestVersionId = parsePositiveId(request.storageVersionId(), "结构版本 ID");
     long requestScopeId = parsePositiveId(request.scopeId(), "范围 ID");
     if (requestScopeId != context.scopeId()) {
       throw new BizException(ResultCode.BAD_REQUEST, "范围与资源上下文不一致");
     }
-    FormCreateResponse directoryReplay =
-        directoryService.replayIfPresent(context, requestVersionId, request.fields(), actor, requestKey);
-    if (directoryReplay != null) {
-      return directoryReplay;
+    // 重放只认目录证据：请求版本仅作已知同范围版本证据，首次指纹按目录 origin 冻结规格核验。
+    // 缺目录一律按新提交校验，不得从当前物理表或旧版快速路径收敛。
+    FormCreateResponse replay =
+        directoryService.replayIfPresent(
+            context, requestVersionId, request.fields(), actor, requestKey);
+    if (replay != null) {
+      return replay;
     }
     // 新提交必须与当前结构版本一致。
     contextService.requireExpected(context, request.scopeId(), request.storageVersionId());
@@ -460,36 +455,6 @@ public class FormRecordService {
     }
     return new CollectFormNotificationPayloadResponse(
         gitlabBaseUrl.trim(), projectId, requestIid, type);
-  }
-
-  /**
-   * 同 requestKey 重放核验；命中时按请求携带的冻结版本重算指纹。
-   *
-   * <p>只查询当前权威记录表：迁移会保留 requestKey 与载荷指纹，因此旧页面携带旧版本也能收敛到
-   * 迁移后的同一条记录；未命中返回 {@code null}，由调用方按当前版本继续校验。
-   */
-  private FormCreateResponse replayIfPresent(
-      FormVersionContext context,
-      FormCreateRequest request,
-      FormActorContext actor,
-      String requestKey) {
-    FormRecordRow existing = store.findByRequestKey(context, requestKey);
-    if (existing == null) {
-      return null;
-    }
-    long scopeId = parsePositiveId(request.scopeId(), "范围 ID");
-    if (scopeId != context.scopeId()) {
-      throw new BizException(ResultCode.BAD_REQUEST, "范围与资源上下文不一致");
-    }
-    long versionId = parsePositiveId(request.storageVersionId(), "结构版本 ID");
-    FormVersionContext replayContext = contextService.replayContext(context, versionId);
-    // 重放只依赖首次写入的规范指纹：人员目录当前姓名变化或人员消失不得阻断已有记录重放。
-    ValidatedFormValues canonicalValues =
-        fieldValueService.validateForReplay(replayContext, request.fields());
-    String payloadHash =
-        fieldValueService.fingerprint(
-            replayContext, actor.userId(), canonicalValues.canonicalFields());
-    return writeService.replayIfPresent(context, actor, requestKey, payloadHash);
   }
 
   private Long findSourceConfig(String canonicalUrl) {

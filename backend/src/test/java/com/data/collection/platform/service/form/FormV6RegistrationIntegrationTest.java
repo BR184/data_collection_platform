@@ -5,18 +5,24 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.common.exception.FormConflictException;
+import com.data.collection.platform.domain.form.FormTemplateSpecCatalog;
 import com.data.collection.platform.domain.form.FormVersionSchema;
 import com.data.collection.platform.entity.form.FormActorContext;
+import com.data.collection.platform.entity.form.FormCreateRequest;
 import com.data.collection.platform.entity.form.FormCreateResponse;
 import com.data.collection.platform.entity.form.FormDetailResponse;
+import com.data.collection.platform.entity.form.FormRecordView;
 import com.data.collection.platform.entity.form.FormUpdateRequest;
 import com.data.collection.platform.security.PlatformPermissionCodes;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -198,6 +204,113 @@ class FormV6RegistrationIntegrationTest {
         "select reviewer from collect_form_records where id = 941001", String.class))
         .isEqualTo("Alice");
     assertThat(registered.directoryRows()).isEqualTo(2);
+  }
+
+  @Test
+  void shouldCreateBesideRegisteredLegacyHistoryWithoutLosingItsMetadata() {
+    FormV6TestSupport.WiredServices services = wired();
+    JdbcTemplate jdbc = services.jdbc();
+    long configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
+    long scopeId = FormV6TestSupport.insertScope(
+        jdbc, "code_review", "n2-legacy-native", configId, URL, 51, "DRAFT");
+    FormV6TestSupport.insertLegacyPair(jdbc, 951001, 951002, URL, 51);
+    insertMergeRequestMirror(jdbc, 51, 951001);
+    FormV6RegistrationService.PrecheckReport precheck =
+        services.registrationService().precheckLegacyDemo(scopeId);
+    FormV6RegistrationService.RegistrationResult registered = services.tx().execute(status ->
+        services.registrationService().registerLegacyDemo(
+            scopeId, "operator", "LEGACY-N2", precheck.count(), precheck.rowHash()));
+
+    String spec = new FormTemplateSpecCatalog(new ObjectMapper())
+        .rawJson(FormTemplateSpecCatalog.CODE_REVIEW);
+    FormV6TestSupport.FixtureTables v1 = FormV6TestSupport.createRecordVersion(
+        jdbc, scopeId, "code_review", "CC2026R1", spec, "PUBLISHED", true);
+    FormV6TestSupport.activateScope(jdbc, scopeId, v1.versionId());
+    jdbc.update(
+        "update form_template_scopes set source_set_hash = form_source_set_hash(id),"
+            + " source_set_revision = source_set_revision + 1 where id = ?",
+        scopeId);
+    jdbc.update(
+        "insert into platform_ldap_users(user_id, real_name, dept_name)"
+            + " values ('n2-reviewer-a', '赵六', '质量部'), ('n2-reviewer-b', '钱七', '质量部')");
+
+    FormActorContext writer =
+        new FormActorContext(
+            "alice",
+            "Alice",
+            java.util.Set.of(
+                PlatformPermissionCodes.FORM_RECORD_CREATE,
+                PlatformPermissionCodes.FORM_RECORD_EDIT_OWN,
+                PlatformPermissionCodes.FORM_RECORD_DELETE_OWN));
+
+    // 登记了 NONE 原位历史后，当前原生版本仍可正常新增：同人扫描不得把只读旧版送入写上下文。
+    FormCreateResponse created =
+        services.recordService().create(
+            codeReviewCreateRequest(scopeId, v1.versionId(), "n2-reviewer-a", false),
+            writer,
+            "127.0.0.1",
+            "JUnit");
+    assertThat(created.outcome()).isEqualTo("CREATED");
+
+    // 旧 Demo 人员只有姓名、没有权威 userId：不得凭姓名推断同人，也不得误报。
+    FormCreateResponse otherReviewer =
+        services.recordService().create(
+            codeReviewCreateRequest(scopeId, v1.versionId(), "n2-reviewer-b", false),
+            writer,
+            "127.0.0.1",
+            "JUnit");
+    assertThat(otherReviewer.outcome()).isEqualTo("CREATED");
+
+    FormV6TestSupport.FixtureTables v2 = FormV6TestSupport.createRecordVersion(
+        jdbc, scopeId, "code_review", "CC2026R2", spec, "PUBLISHED", true);
+    jdbc.update(
+        "update form_template_versions set version_status = 'RETIRED' where id = ?",
+        v1.versionId());
+    FormV6TestSupport.activateScope(jdbc, scopeId, v2.versionId());
+    jdbc.update(
+        "update form_template_scopes set source_set_hash = form_source_set_hash(id),"
+            + " source_set_revision = source_set_revision + 1 where id = ?",
+        scopeId);
+
+    // 同人提示仍覆盖有效权威版本，且 NONE 历史存在时不得阻断。
+    FormCreateResponse confirm =
+        services.recordService().create(
+            codeReviewCreateRequest(scopeId, v2.versionId(), "n2-reviewer-a", false),
+            writer,
+            "127.0.0.1",
+            "JUnit");
+    assertThat(confirm.outcome()).isEqualTo("CONFIRM_REQUIRED");
+    assertThat(confirm.reviewerUserId()).isEqualTo("n2-reviewer-a");
+    FormCreateResponse confirmed =
+        services.recordService().create(
+            codeReviewCreateRequest(scopeId, v2.versionId(), "n2-reviewer-a", true),
+            writer,
+            "127.0.0.1",
+            "JUnit");
+    assertThat(confirmed.outcome()).isEqualTo("CREATED");
+
+    FormDetailResponse detail =
+        services.recordService().detail("code_review", URL, 51L, "merge_request", "951001", writer);
+    assertThat(detail.records()).hasSize(4);
+    FormRecordView legacy =
+        detail.records().stream()
+            .filter(record -> record.id().equals("951001"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(legacy.storageVersionId()).isEqualTo(Long.toString(registered.versionId()));
+    assertThat(legacy.originVersionId()).isEqualTo(Long.toString(registered.versionId()));
+    assertThat(legacy.canEdit()).isFalse();
+    assertThat(legacy.canVoid()).isFalse();
+    assertThat(legacy.fields()).containsEntry("reviewerUserId", "Alice");
+    assertThat(legacy.createdAt()).isNotNull();
+    assertThat(legacy.updatedAt()).isNotNull();
+    assertThat(legacy.createdAt())
+        .isEqualTo(jdbc.queryForObject(
+            "select created_at from collect_form_records where id = 951001",
+            java.time.LocalDateTime.class));
+    assertThat(jdbc.queryForObject(
+        "select reviewer from collect_form_records where id = 951001", String.class))
+        .isEqualTo("Alice");
   }
 
   @Test
@@ -1192,6 +1305,61 @@ class FormV6RegistrationIntegrationTest {
   private FormV6TestSupport.WiredServices wired() {
     JdbcTemplate jdbc = FormV6TestSupport.migrate(POSTGRES);
     return FormV6TestSupport.wire(jdbc);
+  }
+
+  private static void insertMergeRequestMirror(
+      JdbcTemplate jdbc, long projectId, long mergeRequestIid) {
+    jdbc.execute(
+        "create table if not exists ods_gitlab_merge_requests("
+            + "id bigint primary key, target_project_id bigint, iid bigint,"
+            + " mirror_deleted boolean default false)");
+    jdbc.execute(
+        "create table if not exists ods_gitlab_projects("
+            + "id bigint primary key, path varchar(255), namespace_id bigint,"
+            + " mirror_deleted boolean default false)");
+    jdbc.execute(
+        "create table if not exists ods_gitlab_namespaces("
+            + "id bigint primary key, path varchar(255), mirror_deleted boolean default false)");
+    jdbc.update(
+        "insert into ods_gitlab_namespaces(id, path, mirror_deleted) values (7, 'team', false)"
+            + " on conflict (id) do nothing");
+    jdbc.update(
+        "insert into ods_gitlab_projects(id, path, namespace_id, mirror_deleted)"
+            + " values (?, 'project-' || ?, 7, false) on conflict (id) do nothing",
+        projectId,
+        projectId);
+    jdbc.update(
+        "insert into ods_gitlab_merge_requests(id, target_project_id, iid, mirror_deleted)"
+            + " values (?, ?, ?, false) on conflict (id) do nothing",
+        mergeRequestIid,
+        projectId,
+        mergeRequestIid);
+  }
+
+  private static FormCreateRequest codeReviewCreateRequest(
+      long scopeId, long versionId, String reviewer, boolean confirmSameReviewer) {
+    ObjectNode fields = JsonNodeFactory.instance.objectNode();
+    fields.put("reviewerUserId", reviewer);
+    fields.put("reviewDurationMinutes", 30);
+    fields.put("specificationCount", 1);
+    fields.put("logicCount", 0);
+    fields.put("performanceCount", 0);
+    fields.put("designCount", 0);
+    fields.put("otherCount", 0);
+    fields.putNull("supplementNote");
+    Map<String, JsonNode> payload = new java.util.LinkedHashMap<>();
+    fields.fields().forEachRemaining(entry -> payload.put(entry.getKey(), entry.getValue()));
+    return new FormCreateRequest(
+        URL,
+        51L,
+        "merge_request",
+        "951001",
+        FormTemplateSpecCatalog.CODE_REVIEW,
+        Long.toString(scopeId),
+        Long.toString(versionId),
+        UUID.randomUUID().toString(),
+        confirmSameReviewer,
+        payload);
   }
 
   private static void insertLegacyRows(

@@ -52,21 +52,6 @@ public class FormRecordWriteService {
     this.clock = clock;
   }
 
-  /** 事务外的快速重放核验；未命中返回 {@code null}，由调用方进入写事务。 */
-  public FormCreateResponse replayIfPresent(
-      FormVersionContext context,
-      FormActorContext actor,
-      String requestKey,
-      String payloadHash) {
-    FormRecordRow row = store.findByRequestKey(context, requestKey);
-    if (row == null) {
-      return null;
-    }
-    verifyReplay(context, row, actor, payloadHash);
-    return new FormCreateResponse(
-        "REPLAYED", view(row, actor, context.writable(), context), null);
-  }
-
   /**
    * 六步新增：key 核验、规范指纹、实例归并、锁内同人检查、唯一插入、审计/head。
    *
@@ -94,12 +79,6 @@ public class FormRecordWriteService {
     LocalDateTime now = LocalDateTime.now(clock);
     long instanceId = store.ensureInstance(context, now);
 
-    FormRecordRow existing = store.findByRequestKey(context, requestKey);
-    if (existing != null) {
-      verifyReplay(context, existing, actor, payloadHash);
-      throw new ReplaySignal(view(existing, actor, context.writable(), context));
-    }
-
     if (FormTemplateSpecCatalog.CODE_REVIEW.equals(context.spec().templateKey())
         && !confirmSameReviewer) {
       Object reviewer = values.responseFields().get("reviewerUserId");
@@ -112,12 +91,14 @@ public class FormRecordWriteService {
     FormRecordRow inserted =
         store.insertRecord(context, instanceId, values, actor.userId(), requestKey, payloadHash, now);
     if (inserted == null) {
-      FormRecordRow raced = store.findByRequestKey(context, requestKey);
+      // 锁内竞争同样只按目录证据重放，不得退回当前物理表。
+      FormCreateResponse raced =
+          directoryService.replayIfPresent(
+              context, context.storageVersionId(), rawFields, actor, requestKey);
       if (raced == null) {
         throw new FormConflictException("并发写入冲突，请重试");
       }
-      verifyReplay(context, raced, actor, payloadHash);
-      throw new ReplaySignal(view(raced, actor, context.writable(), context));
+      throw new ReplaySignal(raced.record());
     }
     directoryService.writeForCreatedRecord(context, inserted, instanceId);
     finishWrite("CREATE", context, inserted, actor, actorName, clientIp, userAgent, now);
@@ -309,8 +290,9 @@ public class FormRecordWriteService {
             context.scopeId(), context.resourceType(), Long.toString(context.resourceId()),
             context.projectId());
     for (FormRecordDirectoryReader.LocatedRecord record : records) {
+      // 同人判断只读可读版本规格；NONE 原位历史没有记录表，不得送入写上下文。
       FormVersionContext storage =
-          directoryService.storageVersionContext(context, record.storageVersionId());
+          directoryService.readVersionContext(context, record.storageVersionId());
       FormFieldSpec person =
           storage.spec().fields().stream()
               .filter(field -> field.storage() != null && field.storage().nameColumn() != null)
@@ -346,24 +328,6 @@ public class FormRecordWriteService {
     return viewFactory.toView(
         row, actor, writable, store.creatorName(row.id()),
         Long.toString(context.storageVersionId()));
-  }
-
-  private void verifyReplay(
-      FormVersionContext context,
-      FormRecordRow row,
-      FormActorContext actor,
-      String payloadHash) {
-    Long instanceId = store.findInstanceId(context);
-    boolean sameInstance = instanceId != null && instanceId == row.instanceId();
-    boolean sameActor = row.createdBy() != null && row.createdBy().equals(actor.userId());
-    boolean samePayload =
-        row.createPayloadHash() != null && row.createPayloadHash().equalsIgnoreCase(payloadHash);
-    if (!sameInstance || !sameActor || !samePayload) {
-      throw new FormConflictException("请求标识与本次操作不一致");
-    }
-    if (row.deleted()) {
-      throw new FormConflictException("该请求对应的记录已作废，不能重放");
-    }
   }
 
   private long requireInstance(FormVersionContext context) {

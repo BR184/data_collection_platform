@@ -58,6 +58,8 @@ public class FormRecordDirectoryReader {
       String recordSourceRole,
       String versionStatus,
       boolean deleted,
+      java.time.LocalDateTime createdAt,
+      java.time.LocalDateTime updatedAt,
       Map<String, Object> fields) {}
 
   /** 源集合捕获快照：修订、哈希与版本清单，供消费构建冻结。 */
@@ -186,7 +188,8 @@ public class FormRecordDirectoryReader {
     if (stored.deleted() && activeOnly) {
       return null;
     }
-    return withPayload(record, stored.deleted(), stored.values());
+    return withPayload(
+        record, stored.deleted(), stored.createdAt(), stored.updatedAt(), stored.values());
   }
 
   private StoredRow readMaterializedRow(LocatedRecord record) {
@@ -202,7 +205,7 @@ public class FormRecordDirectoryReader {
     FormTemplateSpec spec = parseSpec((String) version.get("field_spec"), record.scopeId());
     List<String> columns = specColumns(spec);
     String sql =
-        "select r.deleted, r.created_by, r.instance_id,"
+        "select r.deleted, r.created_by, r.instance_id, r.created_at, r.updated_at,"
             + " i.source_config_id, i.source_instance, i.gitlab_base_url,"
             + " i.project_id, i.resource_type, i.resource_id, i.scope_id, i.template_key,"
             + String.join(", ", prefixed(columns))
@@ -221,7 +224,11 @@ public class FormRecordDirectoryReader {
     for (String column : columns) {
       values.put(column, row.get(column));
     }
-    return new StoredRow(Boolean.TRUE.equals(row.get("deleted")), Collections.unmodifiableMap(values));
+    return new StoredRow(
+        Boolean.TRUE.equals(row.get("deleted")),
+        toLocalDateTime(row.get("created_at")),
+        toLocalDateTime(row.get("updated_at")),
+        Collections.unmodifiableMap(values));
   }
 
   private StoredRow readLegacyRow(LocatedRecord record) {
@@ -240,7 +247,8 @@ public class FormRecordDirectoryReader {
     FormTemplateSpec spec = parseSpec((String) version.get("field_spec"), record.scopeId());
     List<String> columns = specColumns(spec);
     List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-        "select deleted, gitlab_base_url, project_id, resource_type, resource_id, "
+        "select deleted, created_at, updated_at, gitlab_base_url, project_id, resource_type,"
+            + " resource_id, "
             + String.join(", ", columns)
             + " from " + sourceTable + " where id = ?",
         record.recordId());
@@ -270,7 +278,11 @@ public class FormRecordDirectoryReader {
     for (String column : columns) {
       values.put(column, row.get(column));
     }
-    return new StoredRow(Boolean.TRUE.equals(row.get("deleted")), Collections.unmodifiableMap(values));
+    return new StoredRow(
+        Boolean.TRUE.equals(row.get("deleted")),
+        toLocalDateTime(row.get("created_at")),
+        toLocalDateTime(row.get("updated_at")),
+        Collections.unmodifiableMap(values));
   }
 
   private Map<String, Object> requireVersionRow(LocatedRecord record) {
@@ -414,18 +426,38 @@ public class FormRecordDirectoryReader {
         rs.getString("record_source_role"),
         rs.getString("version_status"),
         false,
+        null,
+        null,
         Map.of());
   }
 
   private LocatedRecord withPayload(
-      LocatedRecord record, boolean deleted, Map<String, Object> fields) {
+      LocatedRecord record,
+      boolean deleted,
+      java.time.LocalDateTime createdAt,
+      java.time.LocalDateTime updatedAt,
+      Map<String, Object> fields) {
     return new LocatedRecord(
         record.recordId(), record.scopeId(), record.storageVersionId(), record.originVersionId(),
         record.instanceMode(), record.instanceId(), record.createdBy(), record.sourceConfigId(),
         record.sourceInstance(), record.gitlabBaseUrl(), record.projectId(), record.resourceType(),
         record.resourceId(), record.requestKey(), record.createPayloadHash(),
-        record.recordSourceRole(), record.versionStatus(), deleted, fields);
+        record.recordSourceRole(), record.versionStatus(), deleted, createdAt, updatedAt, fields);
   }
 
-  private record StoredRow(boolean deleted, Map<String, Object> values) {}
+  private java.time.LocalDateTime toLocalDateTime(Object raw) {
+    if (raw instanceof java.sql.Timestamp timestamp) {
+      return timestamp.toLocalDateTime();
+    }
+    if (raw instanceof java.time.LocalDateTime value) {
+      return value;
+    }
+    return null;
+  }
+
+  private record StoredRow(
+      boolean deleted,
+      java.time.LocalDateTime createdAt,
+      java.time.LocalDateTime updatedAt,
+      Map<String, Object> values) {}
 }

@@ -468,7 +468,7 @@ class FormRecordServiceIntegrationTest {
                 formRecordService.create(
                     codeReviewRequest("w2-reviewer-1", key), actorB, "127.0.0.1", "JUnit"))
         .isInstanceOf(FormConflictException.class)
-        .hasMessageContaining("请求标识与本次操作不一致");
+        .hasMessageContaining("请求标识与首次创建账号不一致");
     assertThat(count(codeReviewRecordTable)).isEqualTo(1);
   }
 
@@ -1392,7 +1392,7 @@ class FormRecordServiceIntegrationTest {
                     "127.0.0.1",
                     "JUnit"))
         .isInstanceOf(FormConflictException.class)
-        .hasMessageContaining("请求标识与本次操作不一致");
+        .hasMessageContaining("首次请求载荷与目录证据不一致");
 
     assertThatThrownBy(
             () ->
@@ -1414,6 +1414,63 @@ class FormRecordServiceIntegrationTest {
         .isInstanceOf(FormConflictException.class)
         .hasMessageContaining("结构版本已变化");
     assertThat(count(migration.newRecordTable())).isEqualTo(1);
+  }
+
+  @Test
+  void shouldRejectReplayWhenDirectoryEvidenceIsMissing() {
+    String key = UUID.randomUUID().toString();
+    FormCreateResponse created = createCodeReview("w2-reviewer-1", key);
+    assertThat(created.outcome()).isEqualTo("CREATED");
+    int audits = count("form_record_audit_logs");
+    long headVersion = latestChangeVersion();
+    jdbcTemplate.update(
+        "delete from form_record_locations where record_id = ?",
+        Long.parseLong(created.record().id()));
+
+    assertThatThrownBy(() -> createCodeReview("w2-reviewer-1", key))
+        .isInstanceOf(FormConflictException.class);
+
+    assertThat(count(codeReviewRecordTable)).isEqualTo(1);
+    assertThat(count("form_record_audit_logs")).isEqualTo(audits);
+    assertThat(latestChangeVersion()).isEqualTo(headVersion);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select count(*) from form_record_locations where scope_id = ?",
+                Integer.class,
+                codeReviewScopeId))
+        .isZero();
+  }
+
+  @Test
+  void shouldReplayByDirectoryOriginWhenRequestCarriesCurrentStorageVersion() {
+    String key = UUID.randomUUID().toString();
+    FormCreateResponse created = createCodeReview("w2-reviewer-1", key);
+    assertThat(created.outcome()).isEqualTo("CREATED");
+    VersionMigration migration = migrateCodeReviewToSecondVersion();
+
+    // 请求携带承载版本 v2，但首次载荷是 v1 形状：只能按目录 origin 冻结规格核验。
+    FormCreateResponse replayed =
+        formRecordService.create(
+            new FormCreateRequest(
+                GITLAB_URL,
+                PROJECT_ID,
+                "merge_request",
+                Long.toString(MR_IID),
+                FormTemplateSpecCatalog.CODE_REVIEW,
+                Long.toString(codeReviewScopeId),
+                Long.toString(migration.newVersionId()),
+                key,
+                false,
+                toFields(codeReviewFields("w2-reviewer-1"))),
+            actorA,
+            "127.0.0.1",
+            "JUnit");
+
+    assertThat(replayed.outcome()).isEqualTo("REPLAYED");
+    assertThat(replayed.record().id()).isEqualTo(created.record().id());
+    assertThat(replayed.record().fields()).doesNotContainKey("otherCount");
+    assertThat(count(migration.newRecordTable())).isEqualTo(1);
+    assertThat(count("form_record_audit_logs")).isEqualTo(1);
   }
 
   @Test
