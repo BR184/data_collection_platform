@@ -1048,7 +1048,7 @@ class FormRecordServiceIntegrationTest {
     ExecutorService pool = Executors.newFixedThreadPool(2);
     try {
       Holder holder = startAdvisoryHolder(pool, transaction);
-      Future<?> switcher = pool.submit(() -> publicationTxService.switchVersion(claim));
+      Future<?> switcher = pool.submit(() -> publicationTxService.applySwitch(claim));
       long waiterPid = awaitAdvisoryWait(holder.pid(), switcher);
       assertNoScopeRowLock(waiterPid);
       holder.release().countDown();
@@ -1077,12 +1077,6 @@ class FormRecordServiceIntegrationTest {
         .isEqualTo("PUBLISHED");
     assertThat(
             jdbcTemplate.queryForObject(
-                "select count(*) from form_template_migration_logs where to_version_id = ?",
-                Integer.class,
-                claim.toVersionId()))
-        .isEqualTo(1);
-    assertThat(
-            jdbcTemplate.queryForObject(
                 "select count(*) from form_change_heads where pending_storage_version_id = ?",
                 Integer.class,
                 claim.toVersionId()))
@@ -1092,7 +1086,7 @@ class FormRecordServiceIntegrationTest {
             jdbcTemplate.queryForObject(
                 "select count(*) from " + recordTableForVersion(claim.toVersionId()),
                 Integer.class))
-        .isEqualTo(1);
+        .isZero();
   }
 
   @Test
@@ -1116,7 +1110,7 @@ class FormRecordServiceIntegrationTest {
                             Long.class,
                             codeReviewScopeId);
                         copyFuture.set(
-                            pool.submit(() -> publicationTxService.copy(claim)));
+                            pool.submit(() -> publicationTxService.build(claim)));
                         try {
                           Thread.sleep(800);
                         } catch (InterruptedException error) {
@@ -1139,8 +1133,8 @@ class FormRecordServiceIntegrationTest {
                 "select stage from form_template_publications where id = ?",
                 String.class,
                 claim.publicationId()))
-        .isEqualTo("VERIFIED");
-    assertThat(count(recordTableForVersion(claim.toVersionId()))).isEqualTo(1);
+        .isEqualTo("BUILDING");
+    assertThat(count(recordTableForVersion(claim.toVersionId()))).isZero();
   }
   @Test
   void shouldRunDifferentScopeCreateAndSwitchWithoutDeadlock() throws Exception {
@@ -1152,7 +1146,7 @@ class FormRecordServiceIntegrationTest {
     ExecutorService pool = Executors.newFixedThreadPool(3);
     try {
       Holder holder = startAdvisoryHolder(pool, transaction);
-      Future<?> switcher = pool.submit(() -> publicationTxService.switchVersion(claim));
+      Future<?> switcher = pool.submit(() -> publicationTxService.applySwitch(claim));
       Future<FormCreateResponse> writer =
           pool.submit(() -> createIssueReply(issueReplyFields(), UUID.randomUUID().toString()));
       awaitAdvisoryWait(holder.pid(), switcher);
@@ -1167,7 +1161,7 @@ class FormRecordServiceIntegrationTest {
   }
 
   /**
-   * 构造已领取但尚未复制的 MIGRATION 任务，用于复制锁序交错验证。
+   * 构造已领取但尚未构建的 v2 任务，用于构建锁序交错验证。
    */
   private FormPublicationTxService.Claim prepareClaimedMigration() {
     Map<String, Object> scope =
@@ -1225,11 +1219,12 @@ class FormRecordServiceIntegrationTest {
   }
 
   /**
-   * 构造已通过复制核验的 MIGRATION 任务，用于真实切换锁序验证。
+   * 构造已完成空结构构建并进入短切换的 v2 任务，用于真实切换锁序验证。
    */
   private FormPublicationTxService.Claim prepareVerifiedMigration() {
     FormPublicationTxService.Claim claim = prepareClaimedMigration();
-    publicationTxService.copy(claim);
+    publicationTxService.build(claim);
+    publicationTxService.enterSwitch(claim);
     return claim;
   }
 

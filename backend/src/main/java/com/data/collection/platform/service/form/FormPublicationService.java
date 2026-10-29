@@ -13,7 +13,7 @@ import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 
 /**
- * 发布任务编排：领取、复制、切换与失败定位。
+ * 发布任务编排：领取、空结构构建、短切换与失败定位。
  *
  * <p>本类不持有事务；每个持久步骤由 {@link FormPublicationTxService} 在独立短事务中完成。
  * 任务执行提交到应用异步执行器，不占用调度线程。
@@ -36,7 +36,7 @@ public class FormPublicationService {
     this.executor = executor;
   }
 
-  /** 创建 PREPARED 任务；请求同 key 同指纹返回原任务。 */
+  /** 创建 VALIDATING 任务；请求同 key 同指纹返回原任务。 */
   public FormAdminViews.PublicationView createPublication(
       long scopeId,
       FormPublicationCreateRequest request,
@@ -57,7 +57,7 @@ public class FormPublicationService {
    * 同步驱动指定任务直到 PUBLISHED 或 FAILED；供测试与运维诊断使用。
    *
    * @param publicationId 任务 ID
-   * @return 是否由本次调用完成了复制与切换
+   * @return 是否由本次调用完成了构建或切换
    */
   public boolean executeOnce(long publicationId) {
     FormPublicationTxService.Claim claim;
@@ -71,8 +71,11 @@ public class FormPublicationService {
       return false;
     }
     try {
-      txService.copy(claim);
-      txService.switchVersion(claim);
+      if (!"SWITCHING".equals(claim.stage())) {
+        txService.build(claim);
+        txService.enterSwitch(claim);
+      }
+      txService.applySwitch(claim);
       return true;
     } catch (RuntimeException error) {
       log.warn("Form publication {} failed: {}", publicationId, error.getMessage());
@@ -92,9 +95,8 @@ public class FormPublicationService {
     }
   }
 
-  /** 回收过期租约并最多执行 {@code limit} 个可领取任务。 */
+  /** 最多执行 {@code limit} 个可领取任务；过期租约由领取路径接管。 */
   public int tick(int limit) {
-    txService.reapExpired();
     int executed = 0;
     for (int index = 0; index < limit; index++) {
       Long publicationId = txService.claimablePublicationId();

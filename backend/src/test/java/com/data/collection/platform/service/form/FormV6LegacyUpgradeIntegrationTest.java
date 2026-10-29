@@ -22,7 +22,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * N1-R04 真实非空升级：先把独立库迁到 {@code 20261022.03}（159 条），写入真实非空旧 Demo 与
- * v5 多副本数据并冻结原行/规格/首次指纹/权限/序列证据，再执行第 160 条迁移，核验既有行零改动、
+ * v5 多副本数据并冻结原行/规格/首次指纹/权限/序列证据，再执行第 160、161 条迁移，核验既有行零改动、
  * 新结构形状与角色默认值，并在升级后的库上完成一次真实登记与统一读源。
  */
 @Testcontainers(disabledWithoutDocker = true)
@@ -30,7 +30,7 @@ class FormV6LegacyUpgradeIntegrationTest {
 
   private static final String URL = "http://gitlab.n1-upgrade.local";
   private static final String PRE_V6_HEAD = "20261022.03";
-  private static final String V6_HEAD = "20261027.01";
+  private static final String V6_HEAD = "20261029.01";
   private static final FormActorContext ALICE =
       new FormActorContext("alice", "Alice", java.util.Set.of());
 
@@ -97,9 +97,9 @@ class FormV6LegacyUpgradeIntegrationTest {
         "select last_value, is_called from form_record_id_seq");
     long instancesBefore = count(jdbc, v1.instanceTable()) + count(jdbc, v2.instanceTable());
 
-    // 3) 执行第 160 条迁移：真实非空升级路径。
+    // 3) 执行第 160、161 条迁移：真实非空升级路径。
     MigrateResult upgraded = flyway(dataSource, null).migrate();
-    assertThat(upgraded.migrationsExecuted).isEqualTo(1);
+    assertThat(upgraded.migrationsExecuted).isEqualTo(2);
     assertThat(headVersion(jdbc)).isEqualTo(V6_HEAD);
     assertThat(jdbc.queryForObject("select to_regclass('form_record_locations')", String.class))
         .isNotNull();

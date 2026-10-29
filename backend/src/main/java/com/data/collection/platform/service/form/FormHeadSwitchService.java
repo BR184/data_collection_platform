@@ -3,6 +3,7 @@ package com.data.collection.platform.service.form;
 import java.sql.PreparedStatement;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -27,26 +28,37 @@ public class FormHeadSwitchService {
    * @param scopeId 范围 ID
    * @param templateKey 模板键
    * @param toVersionId 目标结构版本 ID
-   * @param instanceTable 目标实例表（已核验表名）
+   * @param instanceTables 目标及仍可读旧版的实例表（已核验表名，目标在前）
    * @param now 提交时间
    */
   public void activate(
       long scopeId,
       String templateKey,
       long toVersionId,
-      String instanceTable,
+      List<String> instanceTables,
       LocalDateTime now) {
-    insertMissingAuthorities(scopeId, instanceTable, now);
-    requireNoConflictingAuthorities(scopeId, instanceTable);
-    insertMissingHeads(scopeId, templateKey, toVersionId, instanceTable, now);
-    List<Long> affected = affectedHeadIds(scopeId, templateKey, instanceTable);
+    String union = instanceUnion(instanceTables);
+    insertMissingAuthorities(scopeId, union, now);
+    requireNoConflictingAuthorities(scopeId, union);
+    insertMissingHeads(scopeId, templateKey, toVersionId, union, now);
+    List<Long> affected = affectedHeadIds(scopeId, templateKey, union);
     lockHeads(affected);
     updateHeads(affected, toVersionId, now);
-    verifyInvariants(scopeId, templateKey, toVersionId, instanceTable);
+    verifyInvariants(scopeId, templateKey, toVersionId, union);
+  }
+
+  private String instanceUnion(List<String> instanceTables) {
+    return instanceTables.stream()
+        .map(
+            table ->
+                "select source_config_id, source_instance, gitlab_base_url, project_id,"
+                    + " resource_type, resource_id, template_key, scope_id from \"%s\""
+                        .formatted(table))
+        .collect(Collectors.joining(" union all ", "(", ")"));
   }
 
   private void insertMissingAuthorities(
-      long scopeId, String instanceTable, LocalDateTime now) {
+      long scopeId, String instanceUnion, LocalDateTime now) {
     jdbcTemplate.update(
         """
         insert into form_resource_authorities(
@@ -62,13 +74,13 @@ public class FormHeadSwitchService {
               and a.resource_type = i.resource_type and a.resource_id = i.resource_id
               and a.template_key = i.template_key)
         """
-            .formatted(instanceTable),
+            .formatted(instanceUnion),
         java.sql.Timestamp.valueOf(now),
         java.sql.Timestamp.valueOf(now),
         java.sql.Timestamp.valueOf(now));
   }
 
-  private void requireNoConflictingAuthorities(long scopeId, String instanceTable) {
+  private void requireNoConflictingAuthorities(long scopeId, String instanceUnion) {
     Integer conflicts =
         jdbcTemplate.queryForObject(
             """
@@ -79,7 +91,7 @@ public class FormHeadSwitchService {
                and a.template_key = i.template_key
              where a.scope_id <> ? or a.authority <> 'FORM'
             """
-                .formatted(instanceTable),
+                .formatted(instanceUnion),
             Integer.class,
             scopeId);
     if (conflicts != null && conflicts > 0) {
@@ -92,7 +104,7 @@ public class FormHeadSwitchService {
       long scopeId,
       String templateKey,
       long toVersionId,
-      String instanceTable,
+      String instanceUnion,
       LocalDateTime now) {
     jdbcTemplate.update(
         """
@@ -119,7 +131,7 @@ public class FormHeadSwitchService {
               and h.resource_type = r.resource_type and h.resource_id = r.resource_id
               and h.template_key = r.template_key)
         """
-            .formatted(instanceTable),
+            .formatted(instanceUnion),
         toVersionId,
         java.sql.Timestamp.valueOf(now),
         java.sql.Timestamp.valueOf(now),
@@ -127,7 +139,7 @@ public class FormHeadSwitchService {
         templateKey);
   }
 
-  private List<Long> affectedHeadIds(long scopeId, String templateKey, String instanceTable) {
+  private List<Long> affectedHeadIds(long scopeId, String templateKey, String instanceUnion) {
     return jdbcTemplate.queryForList(
         """
         select h.id from form_change_heads h
@@ -142,7 +154,7 @@ public class FormHeadSwitchService {
                            and a.resource_type = h.resource_type and a.resource_id = h.resource_id))
          order by h.id
         """
-            .formatted(instanceTable),
+            .formatted(instanceUnion),
         Long.class,
         scopeId,
         templateKey);
@@ -192,7 +204,7 @@ public class FormHeadSwitchService {
   }
 
   private void verifyInvariants(
-      long scopeId, String templateKey, long toVersionId, String instanceTable) {
+      long scopeId, String templateKey, long toVersionId, String instanceUnion) {
     Integer authorityMissing =
         jdbcTemplate.queryForObject(
             """
@@ -226,7 +238,7 @@ public class FormHeadSwitchService {
              where h.id is null or h.pending_storage_version_id is distinct from ?
                 or a.id is null or a.authority <> 'FORM' or a.scope_id <> i.scope_id
             """
-                .formatted(instanceTable),
+                .formatted(instanceUnion),
             Integer.class,
             toVersionId);
     if (instanceMissing != null && instanceMissing > 0) {
@@ -248,7 +260,7 @@ public class FormHeadSwitchService {
                                   and a.resource_type = h.resource_type
                                   and a.resource_id = h.resource_id)
             """
-                .formatted(instanceTable),
+                .formatted(instanceUnion),
             Integer.class,
             scopeId,
             templateKey);

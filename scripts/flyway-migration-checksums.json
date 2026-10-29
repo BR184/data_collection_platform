@@ -158,5 +158,6 @@
   "V20261022_01__unified_form_storage_foundation.sql": "801049c6748ab97abbbb6c52d7ce1fe9b10a3531c9aa661e38dd59a71e8ddd09",
   "V20261022_02__form_permissions.sql": "96aa8e53a8ebde0570ccb7ca173df8f95938d642b25906a88d4f3406ffb118f7",
   "V20261022_03__retire_legacy_form_permissions.sql": "feddc2cc1e9d8c60d365291772e6282321f82b820f16356bdf69e8a848c6a437",
-  "V20261027_01__form_v6_directory.sql": "e5d29292ee399395360e29b8b53134ad87d95dda97d68c7ad4f163c3dfc1b182"
+  "V20261027_01__form_v6_directory.sql": "e5d29292ee399395360e29b8b53134ad87d95dda97d68c7ad4f163c3dfc1b182",
+  "V20261029_01__form_v6_publication_protocol.sql": "0393c52bb4fc3d0948cc9668a9685a5ff50a7532a5e8393c9635638cb711964f"
 }

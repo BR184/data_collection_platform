@@ -38,13 +38,16 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class FormPublicationTxService {
 
-  private static final int LEASE_MINUTES = 15;
+  private static final int LEASE_MINUTES = 5;
+  private static final int PROTOCOL_V2 = 2;
+  private static final List<String> V2_ACTIVE_STAGES =
+      List.of("VALIDATING", "BUILDING", "SWITCHING");
+  private static final List<String> V1_ACTIVE_STAGES =
+      List.of("PREPARED", "COPYING", "VERIFIED");
 
   private final JdbcTemplate jdbcTemplate;
   private final ObjectMapper objectMapper;
   private final FormVersionSchemaService schemaService;
-  private final FormPublicationMigrator migrator;
-  private final FormLegacyRecordMigrator legacyMigrator;
   private final FormHeadSwitchService headSwitchService;
   private final FormScopeValidationService scopeValidationService;
   private final FormVersionStructureVerifier structureVerifier;
@@ -54,8 +57,6 @@ public class FormPublicationTxService {
       JdbcTemplate jdbcTemplate,
       ObjectMapper objectMapper,
       FormVersionSchemaService schemaService,
-      FormPublicationMigrator migrator,
-      FormLegacyRecordMigrator legacyMigrator,
       FormHeadSwitchService headSwitchService,
       FormScopeValidationService scopeValidationService,
       FormVersionStructureVerifier structureVerifier,
@@ -63,8 +64,6 @@ public class FormPublicationTxService {
     this.jdbcTemplate = jdbcTemplate;
     this.objectMapper = objectMapper;
     this.schemaService = schemaService;
-    this.migrator = migrator;
-    this.legacyMigrator = legacyMigrator;
     this.headSwitchService = headSwitchService;
     this.scopeValidationService = scopeValidationService;
     this.structureVerifier = structureVerifier;
@@ -114,7 +113,7 @@ public class FormPublicationTxService {
     String requestHash =
         requestHash(scopeId, request, preview, draft, scope.currentVersionId());
     requireNoActivePublication(scopeId);
-    String kind = publicationKind(scope, draft);
+    String kind = scope.currentVersionId() == null ? "INITIAL_EMPTY" : "MIGRATION";
     if (preview.publicationKind() != null && !kind.equals(preview.publicationKind())) {
       throw new FormConflictException("预览发布类型与当前绑定不一致，请重新预览");
     }
@@ -129,15 +128,11 @@ public class FormPublicationTxService {
       throw new FormConflictException("目标版本已被占用，请重新预览");
     }
     FormTemplateSpec spec = parseSpec(draft.fieldSpecJson());
-    boolean migrationTarget = !"INITIAL_EMPTY".equals(kind);
-    FormVersionSchema schema = schemaService.generate(scopeId, toVersionId, spec, migrationTarget);
+    FormVersionSchema schema = schemaService.generate(scopeId, toVersionId, spec, false);
     if (preview.ddlHash() != null && !preview.ddlHash().equals(schema.ddlHash())) {
       throw new FormConflictException("预览 DDL 与冻结规格不一致，请重新预览");
     }
     Long fromVersionId = scope.currentVersionId();
-    if ("INITIAL_MIGRATION".equals(kind)) {
-      fromVersionId = insertLegacyVersion(scopeId, draft.fieldSpecJson());
-    }
     ObjectNode binding =
         FormScopeBinding.create(
             objectMapper,
@@ -152,17 +147,14 @@ public class FormPublicationTxService {
     if (!bindingHash.equals(draft.bindingHash())) {
       throw new FormConflictException("绑定哈希与草稿不一致，请重新保存草稿");
     }
-    String migrationSpecJson =
-        draft.migrationSpecJson() == null
-            ? defaultMigrationSpec(scope, draft, spec, bindingHash, kind, fromVersionId, toVersionId)
-            : draft.migrationSpecJson();
+    String migrationSpecJson = draft.migrationSpecJson();
     LocalDateTime now = LocalDateTime.now(clock);
     jdbcTemplate.update(
         """
         insert into form_template_versions(
             id, scope_id, version_label, storage_kind, instance_table, record_table,
-            field_spec, migration_spec, version_status)
-        values (?, ?, ?, 'RECORDS', ?, ?, ?::jsonb, ?::jsonb, 'INSTALLED')
+            field_spec, migration_spec, version_status, record_source_role, instance_mode)
+        values (?, ?, ?, 'RECORDS', ?, ?, ?::jsonb, ?::jsonb, 'INSTALLED', 'TARGET', 'MATERIALIZED')
         """,
         toVersionId,
         scopeId,
@@ -184,9 +176,10 @@ public class FormPublicationTxService {
                     expected_current_version_id, from_version_id, to_version_id,
                     frozen_field_spec, frozen_migration_spec, frozen_binding, binding_hash,
                     version_evidence, ddl_summary, ddl_hash, selection_counts,
+                    protocol_version, frozen_source_set_revision, frozen_source_set_hash,
                     stage, attempt_no, task_version, operator_id, operator_name, created_at, updated_at)
                 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?::jsonb,
-                        ?::jsonb, ?, ?::jsonb, 'PREPARED', 0, 0, ?, ?, ?, ?)
+                        ?::jsonb, ?, ?::jsonb, 2, ?, ?, 'VALIDATING', 0, 0, ?, ?, ?, ?)
                 returning id
                 """,
                 Long.class,
@@ -207,6 +200,8 @@ public class FormPublicationTxService {
                 writeJson(schema.ddlSummary()),
                 schema.ddlHash(),
                 writeJson(counts),
+                scope.sourceSetRevision(),
+                scope.sourceSetHash(),
                 actor.userId(),
                 actor.displayName(),
                 Timestamp.valueOf(now),
@@ -214,77 +209,158 @@ public class FormPublicationTxService {
     return publicationView(publicationId);
   }
 
-  // ------------------------------------------------------------------ 领取
+  // ------------------------------------------------------------------ 领取与接管
 
   /**
-   * 取得任务租约并设置停写栅栏。
+   * 取得 v2 任务租约：VALIDATING 进入 BUILDING，过期 BUILDING/SWITCHING 由新持有者接管。
    *
-   * <p>先锁范围行等待在途写入，再设置栅栏并提交；复制事务随后取得的新快照因此覆盖全部已提交写入。
+   * <p>统一锁序：记录序列咨询锁 → 范围行 → 任务行。BUILDING 不设范围栅栏；SWITCHING 只在
+   * 本任务持有范围栅栏时生成新 token 接管，外来栅栏直接失败且不清除。
    */
   @Transactional
   public Claim claim(long publicationId, String owner) {
     PublicationRow snapshot = publication(publicationId);
-    if (snapshot == null) {
+    if (snapshot == null
+        || snapshot.protocolVersion() != PROTOCOL_V2
+        || !V2_ACTIVE_STAGES.contains(snapshot.stage())) {
       return null;
     }
+    lockRecordSequence();
     lockScope(snapshot.scopeId());
     PublicationRow publication = lockPublication(publicationId);
-    if (!"PREPARED".equals(publication.stage())) {
+    if (publication.protocolVersion() != PROTOCOL_V2) {
       return null;
     }
-    int fenced =
-        jdbcTemplate.update(
-            """
-            update form_template_scopes
-               set write_fenced = true, write_fence_reason = 'PUBLICATION',
-                   write_fence_publication_id = ?, write_fence_token = ?,
-                   write_fence_at = clock_timestamp(), updated_at = clock_timestamp()
-             where id = ?
-               and (write_fence_publication_id is null or write_fence_publication_id = ?)
-            """,
-            publicationId,
-            UUID.randomUUID().toString(),
-            publication.scopeId(),
-            publicationId);
-    if (fenced != 1) {
-      throw new FormConflictException("范围已被其他发布停写");
-    }
-    String token =
+    Boolean expired =
         jdbcTemplate.queryForObject(
-            "select write_fence_token from form_template_scopes where id = ?",
-            String.class,
-            publication.scopeId());
-    int claimed =
+            "select lease_until is null or lease_until <= clock_timestamp()"
+                + " from form_template_publications where id = ?",
+            Boolean.class,
+            publicationId);
+    boolean leaseExpired = Boolean.TRUE.equals(expired);
+    String stage = publication.stage();
+    String phase;
+    if ("VALIDATING".equals(stage)) {
+      if (publication.leaseOwner() != null && !leaseExpired) {
+        return null;
+      }
+      int claimed =
+          jdbcTemplate.update(
+              """
+              update form_template_publications
+                 set stage = 'BUILDING', lease_owner = ?,
+                     lease_until = clock_timestamp() + interval '5 minutes',
+                     fencing_version = fencing_version + 1, task_version = task_version + 1,
+                     attempt_no = attempt_no + 1, fence_token = null, next_attempt_at = null,
+                     updated_at = clock_timestamp()
+               where id = ? and protocol_version = 2 and stage = 'VALIDATING'
+              """,
+              owner,
+              publicationId);
+      if (claimed != 1) {
+        return null;
+      }
+      stage = "BUILDING";
+      phase = "VALIDATE";
+    } else if ("BUILDING".equals(stage)) {
+      if (!leaseExpired) {
+        return null;
+      }
+      int claimed =
+          jdbcTemplate.update(
+              """
+              update form_template_publications
+                 set lease_owner = ?,
+                     lease_until = clock_timestamp() + interval '5 minutes',
+                     fencing_version = fencing_version + 1, task_version = task_version + 1,
+                     attempt_no = attempt_no + 1, next_attempt_at = null,
+                     recovery_evidence = coalesce(recovery_evidence, '{}'::jsonb)
+                       || jsonb_build_object('buildTakeoverFrom', lease_owner,
+                                             'buildTakeoverAt', clock_timestamp()),
+                     updated_at = clock_timestamp()
+               where id = ? and protocol_version = 2 and stage = 'BUILDING'
+                 and (lease_until is null or lease_until <= clock_timestamp())
+              """,
+              owner,
+              publicationId);
+      if (claimed != 1) {
+        return null;
+      }
+      phase = "BUILD_TAKEOVER";
+    } else if ("SWITCHING".equals(stage)) {
+      if (!leaseExpired) {
+        return null;
+      }
+      ScopeFenceRow fence = scopeFence(publication.scopeId());
+      if (fence == null
+          || !fence.fenced()
+          || fence.publicationId() == null
+          || fence.publicationId() != publicationId
+          || !Objects.equals(fence.token(), publication.fenceToken())) {
         jdbcTemplate.update(
             """
             update form_template_publications
-               set stage = 'COPYING', lease_owner = ?,
-                   lease_until = clock_timestamp() + interval '15 minutes',
-                   fencing_version = fencing_version + 1, task_version = task_version + 1,
-                   attempt_no = attempt_no + 1, fence_token = ?, next_attempt_at = null,
+               set stage = 'FAILED', last_error = '范围栅栏不属于本任务，停止接管',
                    updated_at = clock_timestamp()
-             where id = ? and stage = 'PREPARED'
+             where id = ? and protocol_version = 2 and stage = 'SWITCHING'
             """,
-            owner,
-            token,
             publicationId);
-    if (claimed != 1) {
-      throw new FormConflictException("发布任务已被其他工作者领取");
+        return null;
+      }
+      String token = UUID.randomUUID().toString();
+      int refenced =
+          jdbcTemplate.update(
+              """
+              update form_template_scopes
+                 set write_fence_token = ?, write_fence_at = clock_timestamp(),
+                     updated_at = clock_timestamp()
+               where id = ? and write_fenced = true and write_fence_publication_id = ?
+                 and write_fence_token = ?
+              """,
+              token,
+              publication.scopeId(),
+              publicationId,
+              fence.token());
+      if (refenced != 1) {
+        return null;
+      }
+      int claimed =
+          jdbcTemplate.update(
+              """
+              update form_template_publications
+                 set lease_owner = ?,
+                     lease_until = clock_timestamp() + interval '5 minutes',
+                     fencing_version = fencing_version + 1, task_version = task_version + 1,
+                     attempt_no = attempt_no + 1, fence_token = ?, next_attempt_at = null,
+                     recovery_evidence = coalesce(recovery_evidence, '{}'::jsonb)
+                       || jsonb_build_object('switchTakeoverFrom', lease_owner,
+                                             'switchTakeoverAt', clock_timestamp()),
+                     updated_at = clock_timestamp()
+               where id = ? and protocol_version = 2 and stage = 'SWITCHING'
+                 and (lease_until is null or lease_until <= clock_timestamp())
+              """,
+              owner,
+              token,
+              publicationId);
+      if (claimed != 1) {
+        return null;
+      }
+      phase = "SWITCH_TAKEOVER";
+    } else {
+      return null;
     }
     PublicationRow claimedRow = publication(publicationId);
-    ObjectNode counts = objectMapper.createObjectNode();
-    counts.put("records", 0);
-    counts.put("instances", 0);
-    counts.put("resources", 0);
     jdbcTemplate.update(
         """
         insert into form_template_publication_attempts(
-            publication_id, attempt_no, phase, selection_captured_at, selection_counts, started_at)
-        values (?, ?, 'COPY', clock_timestamp(), ?::jsonb, clock_timestamp())
+            publication_id, attempt_no, phase, selection_captured_at, selection_counts,
+            started_at, protocol_version)
+        values (?, ?, ?, clock_timestamp(), ?::jsonb, clock_timestamp(), 2)
         """,
         publicationId,
         claimedRow.attemptNo(),
-        writeJson(counts));
+        phase,
+        writeJson(emptyCounts()));
     return new Claim(
         publicationId,
         claimedRow.scopeId(),
@@ -294,158 +370,208 @@ public class FormPublicationTxService {
         claimedRow.expectedCurrentVersionId(),
         owner,
         claimedRow.fencingVersion(),
-        token,
-        claimedRow.attemptNo());
+        claimedRow.fenceToken(),
+        claimedRow.attemptNo(),
+        claimedRow.stage());
   }
 
-  // ------------------------------------------------------------------ 复制
+  // ------------------------------------------------------------------ 空结构构建
 
-  /** 长事务：建表、清空、全量复制与守恒核验；失败整体回滚。 */
-  @Transactional(isolation = Isolation.REPEATABLE_READ)
-  public FormPublicationMigrator.CopyResult copy(Claim claim) {
-    // 统一锁序：范围行先于任务行。复制插入实例/记录时外键会对范围行取 KEY SHARE；
-    // 若先经续租取得任务行再等待范围外键，会与“范围→任务”的领取/回收路径形成 40P01 环。
+  /**
+   * 短事务：只为目标版本创建空表并核验完整结构；不复制、不清空、不改写任何旧表。
+   *
+   * <p>表不存在则建；两表缺一、已有行或结构漂移均拒绝，交由失败收口。构建期间不设范围栅栏，
+   * 当前版本记录照常写入。
+   */
+  @Transactional
+  public void build(Claim claim) {
+    lockRecordSequence();
     lockScope(claim.scopeId());
-    lockPublication(claim.publicationId());
-    requireFence(claim.scopeId(), claim);
-    renewLease(claim, "COPYING");
-    PublicationRow publication = publication(claim.publicationId());
+    PublicationRow publication = lockPublication(claim.publicationId());
+    requireLease(publication, claim, "BUILDING");
+    renewLease(claim, "BUILDING");
     VersionRow target = version(publication.scopeId(), publication.toVersionId());
     if (target == null || !"RECORDS".equals(target.storageKind())) {
       throw new IllegalStateException("目标版本行不存在或不合法");
     }
-    VersionRow source = null;
-    if (claim.fromVersionId() != null) {
-      source = version(publication.scopeId(), claim.fromVersionId());
-      if (source == null) {
-        throw new IllegalStateException("源版本行不存在或不合法");
-      }
-      boolean expectedStorage =
-          "INITIAL_MIGRATION".equals(publication.kind())
-              ? "LEGACY".equals(source.storageKind())
-              : "RECORDS".equals(source.storageKind());
-      if (!expectedStorage) {
-        throw new IllegalStateException("源版本行不存在或不合法");
-      }
+    FormTemplateSpec spec = parseSpec(publication.frozenFieldSpecJson());
+    FormVersionSchema schema =
+        schemaService.generate(publication.scopeId(), publication.toVersionId(), spec, false);
+    if (!schema.ddlHash().equals(publication.ddlHash())) {
+      throw new FormConflictException("冻结规格与目标 DDL 不一致，停止构建");
     }
-    FormPublicationMigrator.CopyResult result;
-    if ("INITIAL_MIGRATION".equals(publication.kind())) {
-      JsonNode binding = readJson(publication.frozenBindingJson());
-      List<Long> projectIds = new ArrayList<>();
-      binding.path("projectIds").forEach(node -> projectIds.add(node.asLong()));
-      FormLegacyRecordMigrator.CopyResult legacyResult =
-          legacyMigrator.copy(
-              new FormLegacyRecordMigrator.CopyRequest(
-                  claim.scopeId(),
-                  claim.toVersionId(),
-                  claim.fromVersionId(),
-                  publication.frozenFieldSpecJson(),
-                  publication.ddlHash(),
-                  target.instanceTable(),
-                  target.recordTable(),
-                  binding.path("sourceConfigId").asLong(),
-                  binding.path("sourceInstance").asText(),
-                  binding.path("canonicalGitlabBaseUrl").asText(),
-                  publication.templateKey(),
-                  projectIds,
-                  publication.bindingHash()));
-      result =
-          new FormPublicationMigrator.CopyResult(
-              legacyResult.counts(), legacyResult.checksum());
+    boolean instanceExists =
+        jdbcTemplate.queryForObject(
+                "select to_regclass(?)", String.class, schema.instanceTable())
+            != null;
+    boolean recordExists =
+        jdbcTemplate.queryForObject("select to_regclass(?)", String.class, schema.recordTable())
+            != null;
+    if (instanceExists != recordExists) {
+      throw new FormConflictException("目标结构不完整，停止构建");
+    }
+    if (!instanceExists) {
+      schema.statements().forEach(jdbcTemplate::execute);
     } else {
-      result =
-          migrator.copy(
-              new FormPublicationMigrator.CopyRequest(
-                  claim.scopeId(),
-                  claim.toVersionId(),
-                  claim.fromVersionId(),
-                  source == null ? null : source.instanceTable(),
-                  source == null ? null : source.recordTable(),
-                  publication.frozenFieldSpecJson(),
-                  source == null ? null : source.fieldSpecJson(),
-                  publication.ddlHash(),
-                  target.instanceTable(),
-                  target.recordTable()));
+      Long rows =
+          jdbcTemplate.queryForObject(
+              "select count(*) from \"%s\"".formatted(schema.recordTable()), Long.class);
+      if (rows != null && rows > 0) {
+        throw new FormConflictException("目标结构已存在记录，停止空结构发布");
+      }
+      Long instances =
+          jdbcTemplate.queryForObject(
+              "select count(*) from \"%s\"".formatted(schema.instanceTable()), Long.class);
+      if (instances != null && instances > 0) {
+        throw new FormConflictException("目标结构已存在实例，停止空结构发布");
+      }
     }
-    ObjectNode summary = ((ObjectNode) result.counts()).deepCopy();
-    summary.set("checksum", result.checksum());
-    int attemptUpdated =
-        jdbcTemplate.update(
-            """
-            update form_template_publication_attempts
-               set phase = 'VERIFY', selection_captured_at = clock_timestamp(),
-                   selection_counts = ?::jsonb, copy_checksum = ?::jsonb,
-                   verification_summary = ?::jsonb
-             where publication_id = ? and attempt_no = ?
-            """,
-            writeJson(result.counts()),
-            writeJson(result.checksum()),
-            writeJson(summary),
-            claim.publicationId(),
-            claim.attemptNo());
-    if (attemptUpdated != 1) {
-      throw new IllegalStateException("复制证据写入失败");
-    }
-    int updated =
-        jdbcTemplate.update(
-            """
-            update form_template_publications
-               set stage = 'VERIFIED', selection_captured_at = clock_timestamp(),
-                   selection_counts = ?::jsonb, copy_checksum = ?::jsonb,
-                   verification_summary = ?::jsonb, updated_at = clock_timestamp()
-             where id = ? and stage = 'COPYING' and lease_owner = ? and fencing_version = ?
-               and lease_until > clock_timestamp()
-            """,
-            writeJson(result.counts()),
-            writeJson(result.checksum()),
-            writeJson(summary),
-            claim.publicationId(),
-            claim.owner(),
-            claim.fencingVersion());
-    if (updated != 1) {
-      throw new IllegalStateException("发布租约失效，复制结果不写入");
-    }
-    return result;
+    structureVerifier.verify(schema);
+    // DDL 副作用后、提交前再次按实际时刻复核租约与持有者。
+    requireLease(publication(claim.publicationId()), claim, "BUILDING");
+    ObjectNode summary = emptyCounts();
+    summary.put("ddlHash", schema.ddlHash());
+    jdbcTemplate.update(
+        """
+        update form_template_publication_attempts
+           set phase = 'BUILD', selection_captured_at = clock_timestamp(),
+               selection_counts = ?::jsonb, verification_summary = ?::jsonb
+         where publication_id = ? and attempt_no = ?
+        """,
+        writeJson(emptyCounts()),
+        writeJson(summary),
+        claim.publicationId(),
+        claim.attemptNo());
+    jdbcTemplate.update(
+        """
+        update form_template_publications
+           set selection_captured_at = clock_timestamp(), selection_counts = ?::jsonb,
+               verification_summary = ?::jsonb, updated_at = clock_timestamp()
+         where id = ? and stage = 'BUILDING' and lease_owner = ? and fencing_version = ?
+           and lease_until > clock_timestamp()
+        """,
+        writeJson(emptyCounts()),
+        writeJson(summary),
+        claim.publicationId(),
+        claim.owner(),
+        claim.fencingVersion());
   }
 
-  // ------------------------------------------------------------------ 切换
+  // ------------------------------------------------------------------ 短切换
 
   /**
-   * 短事务：指针 CAS、版本状态、迁移日志、head 与撤栅栏。
+   * 短事务：开始停写并进入 SWITCHING。
    *
-   * <p>统一锁序：共享记录序列咨询锁 → 范围行 → 发布任务行 → head（按 id）。创建路径同样先取
-   * 序列咨询锁再取范围共享锁，任一方向都不能先锁范围再等待序列锁，否则会与创建互相死锁。
+   * <p>统一锁序：记录序列咨询锁 → 范围行 → 任务行。只在此刻到 apply 提交之间设范围栅栏；
+   * 构建期不停写。集合、指针、绑定或目标结构任一漂移即拒绝，零切换。
    */
   @Transactional
-  public void switchVersion(Claim claim) {
+  public void enterSwitch(Claim claim) {
     lockRecordSequence();
     ScopeRow scope = lockScope(claim.scopeId());
     PublicationRow publication = lockPublication(claim.publicationId());
-    requireLease(publication, claim, "VERIFIED");
+    requireLease(publication, claim, "BUILDING");
     if (!Objects.equals(scope.currentVersionId(), publication.expectedCurrentVersionId())) {
       throw new FormConflictException("范围当前版本已变化，停止切换");
+    }
+    if (!Objects.equals(scope.sourceSetRevision(), publication.frozenSourceSetRevision())
+        || !Objects.equals(scope.sourceSetHash(), publication.frozenSourceSetHash())) {
+      throw new FormConflictException("源集合已变化，停止切换");
+    }
+    if (scope.writeFenced()) {
+      throw new FormConflictException("范围已被其他发布停写");
     }
     VersionRow target = version(scope.id(), claim.toVersionId());
     if (target == null || !"INSTALLED".equals(target.versionStatus())) {
       throw new IllegalStateException("目标版本状态不允许切换");
     }
-    requireFence(scope.id(), claim);
+    requireEmptyTarget(publication, target);
+    String token = UUID.randomUUID().toString();
+    int fenced =
+        jdbcTemplate.update(
+            """
+            update form_template_scopes
+               set write_fenced = true, write_fence_reason = 'PUBLICATION',
+                   write_fence_publication_id = ?, write_fence_token = ?,
+                   write_fence_at = clock_timestamp(), updated_at = clock_timestamp()
+             where id = ? and write_fenced = false
+            """,
+            claim.publicationId(),
+            token,
+            scope.id());
+    if (fenced != 1) {
+      throw new FormConflictException("范围已被其他发布停写");
+    }
+    int switched =
+        jdbcTemplate.update(
+            """
+            update form_template_publications
+               set stage = 'SWITCHING', fence_token = ?, updated_at = clock_timestamp()
+             where id = ? and protocol_version = 2 and stage = 'BUILDING'
+               and lease_owner = ? and fencing_version = ?
+               and lease_until > clock_timestamp()
+            """,
+            token,
+            claim.publicationId(),
+            claim.owner(),
+            claim.fencingVersion());
+    if (switched != 1) {
+      throw new IllegalStateException("发布任务进入切换失败");
+    }
+    jdbcTemplate.update(
+        """
+        update form_template_publication_attempts set phase = 'SWITCH_ENTER'
+         where publication_id = ? and attempt_no = ?
+        """,
+        claim.publicationId(),
+        claim.attemptNo());
+  }
+
+  /**
+   * 短事务：原子切换指针、版本角色/状态、源集合、目录事件与 head，并清除本任务栅栏。
+   *
+   * <p>所有冻结证据在锁内重读核对；任一失配整体回滚，旧记录与目录承载位置不变。
+   */
+  @Transactional
+  public void applySwitch(Claim claim) {
+    lockRecordSequence();
+    ScopeRow scope = lockScope(claim.scopeId());
+    PublicationRow publication = lockPublication(claim.publicationId());
+    requireLease(publication, claim, "SWITCHING");
+    requireFence(scope.id(), claim.publicationId(), publication.fenceToken());
+    if (!Objects.equals(scope.currentVersionId(), publication.expectedCurrentVersionId())) {
+      throw new FormConflictException("范围当前版本已变化，停止切换");
+    }
+    if (!Objects.equals(scope.sourceSetRevision(), publication.frozenSourceSetRevision())
+        || !Objects.equals(scope.sourceSetHash(), publication.frozenSourceSetHash())) {
+      throw new FormConflictException("源集合已变化，停止切换");
+    }
+    VersionRow target = version(scope.id(), claim.toVersionId());
+    if (target == null || !"INSTALLED".equals(target.versionStatus())) {
+      throw new IllegalStateException("目标版本状态不允许切换");
+    }
+    requireEmptyTarget(publication, target);
     advanceRecordSequenceLocked(target.recordTable());
     LocalDateTime now = LocalDateTime.now(clock);
-    Long cutoverManifestId = null;
-    if ("INITIAL_MIGRATION".equals(publication.kind())) {
-      cutoverManifestId = registerCutoverManifest(publication, target, now);
+    List<String> instanceTables = new ArrayList<>();
+    instanceTables.add(target.instanceTable());
+    if (claim.fromVersionId() != null) {
+      VersionRow from = version(scope.id(), claim.fromVersionId());
+      if (from != null && from.instanceTable() != null) {
+        instanceTables.add(from.instanceTable());
+      }
     }
     headSwitchService.activate(
-        scope.id(), scope.templateKey(), claim.toVersionId(), target.instanceTable(), now);
-    if (cutoverManifestId != null) {
-      attachCutoverManifest(scope.id(), target.instanceTable(), cutoverManifestId, now);
-    }
+        scope.id(), scope.templateKey(), claim.toVersionId(), instanceTables, now);
 
     int versionUpdated =
         jdbcTemplate.update(
-            "update form_template_versions set version_status = 'PUBLISHED', published_at = ?"
-                + " where id = ? and scope_id = ? and version_status = 'INSTALLED'",
+            """
+            update form_template_versions
+               set version_status = 'PUBLISHED', record_source_role = 'AUTHORITATIVE',
+                   published_at = ?
+             where id = ? and scope_id = ? and version_status = 'INSTALLED'
+            """,
             Timestamp.valueOf(now),
             claim.toVersionId(),
             scope.id());
@@ -455,7 +581,8 @@ public class FormPublicationTxService {
     if (claim.fromVersionId() != null) {
       jdbcTemplate.update(
           "update form_template_versions set version_status = 'RETIRED'"
-              + " where id = ? and scope_id = ? and version_status = 'PUBLISHED'",
+              + " where id = ? and scope_id = ? and version_status = 'PUBLISHED'"
+              + " and record_source_role = 'AUTHORITATIVE'",
           claim.fromVersionId(),
           scope.id());
     }
@@ -466,8 +593,8 @@ public class FormPublicationTxService {
     List<Long> projectIds = new ArrayList<>();
     binding.path("projectIds").forEach(node -> projectIds.add(node.asLong()));
     long versionProjectId = binding.path("versionProjectId").asLong();
-    int scopeUpdated =
-        jdbcTemplate.update(
+    List<ScopeRow> updatedScopes =
+        jdbcTemplate.query(
             """
             update form_template_scopes
                set current_version_id = ?, status = 'ACTIVE', source_config_id = ?,
@@ -476,9 +603,24 @@ public class FormPublicationTxService {
                    binding_revision = case
                        when current_version_id is null then greatest(binding_revision, 1)
                        else binding_revision end,
+                   source_set_revision = source_set_revision + 1,
+                   source_set_hash = form_source_set_hash(id),
                    updated_at = ?
              where id = ? and current_version_id is not distinct from ?
+            returning id, template_key, status, current_version_id, resource_type, binding_hash,
+                      source_set_revision, source_set_hash, write_fenced
             """,
+            (rs, rowNum) ->
+                new ScopeRow(
+                    rs.getLong("id"),
+                    rs.getString("template_key"),
+                    rs.getString("status"),
+                    rs.getObject("current_version_id", Long.class),
+                    rs.getString("resource_type"),
+                    rs.getString("binding_hash"),
+                    rs.getLong("source_set_revision"),
+                    rs.getString("source_set_hash"),
+                    rs.getBoolean("write_fenced")),
             claim.toVersionId(),
             sourceConfigId,
             sourceInstance,
@@ -489,33 +631,31 @@ public class FormPublicationTxService {
             Timestamp.valueOf(now),
             scope.id(),
             publication.expectedCurrentVersionId());
-    if (scopeUpdated != 1) {
+    if (updatedScopes.size() != 1) {
       throw new IllegalStateException("范围当前指针切换失败");
     }
-    if ("MIGRATION".equals(publication.kind())
-        || "INITIAL_MIGRATION".equals(publication.kind())) {
-      JsonNode summary = readJson(publication.verificationSummaryJson());
-      long rows = summary == null ? 0 : summary.path("records").asLong();
-      jdbcTemplate.update(
-          """
-          insert into form_template_migration_logs(
-              scope_id, from_version_id, to_version_id, migrated_rows, verification_summary, executed_at)
-          values (?, ?, ?, ?, ?::jsonb, ?)
-          """,
-          scope.id(),
-          claim.fromVersionId(),
-          claim.toVersionId(),
-          rows,
-          publication.verificationSummaryJson(),
-          Timestamp.valueOf(now));
-    }
+    ScopeRow switchedScope = updatedScopes.getFirst();
+    insertSwitchEvents(publication, switchedScope);
+    jdbcTemplate.update(
+        """
+        update form_change_heads
+           set pending_source_set_revision = ?, pending_source_set_hash = ?,
+               status = 'PENDING', updated_at = ?
+         where scope_id = ? and template_key = ? and pending_storage_version_id = ?
+        """,
+        switchedScope.sourceSetRevision(),
+        switchedScope.sourceSetHash(),
+        Timestamp.valueOf(now),
+        scope.id(),
+        scope.templateKey(),
+        claim.toVersionId());
     int published =
         jdbcTemplate.update(
             """
             update form_template_publications
                set stage = 'PUBLISHED', published_at = ?, updated_at = ?,
-                   task_version = task_version + 1
-             where id = ? and stage = 'VERIFIED'
+                   task_version = task_version + 1, last_error = null
+             where id = ? and protocol_version = 2 and stage = 'SWITCHING'
             """,
             Timestamp.valueOf(now),
             Timestamp.valueOf(now),
@@ -525,28 +665,86 @@ public class FormPublicationTxService {
     }
     jdbcTemplate.update(
         """
-        update form_template_publication_attempts set phase = 'PUBLISH', finished_at = ?
+        update form_template_publication_attempts
+           set phase = 'PUBLISH', finished_at = ?, verification_summary = ?::jsonb
          where publication_id = ? and attempt_no = ?
         """,
         Timestamp.valueOf(now),
+        writeJson(
+            objectMapper
+                .createObjectNode()
+                .put("sourceSetRevision", switchedScope.sourceSetRevision())
+                .put("sourceSetHash", switchedScope.sourceSetHash())
+                .put("toVersionId", claim.toVersionId())),
         claim.publicationId(),
         claim.attemptNo());
-    // 最后一条写语句前按实际时刻复核租约。
-    Boolean valid =
-        jdbcTemplate.queryForObject(
-            """
-            select lease_until > clock_timestamp() from form_template_publications
-             where id = ? and lease_owner = ? and fencing_version = ? and stage = 'PUBLISHED'
-            """,
-            Boolean.class,
-            claim.publicationId(),
-            claim.owner(),
-            claim.fencingVersion());
-    if (!Boolean.TRUE.equals(valid)) {
-      throw new IllegalStateException("切换提交前租约已失效");
-    }
-    clearFence(scope.id(), claim);
+    requireLease(publication(claim.publicationId()), claim, "PUBLISHED");
+    clearFence(scope.id(), publication, publication.fenceToken());
     scopeValidationService.validateActiveScopes();
+  }
+
+  private void insertSwitchEvents(PublicationRow publication, ScopeRow scope) {
+    ObjectNode added = objectMapper.createObjectNode();
+    added.put("versionId", publication.toVersionId());
+    if (publication.fromVersionId() != null) {
+      added.put("fromVersionId", publication.fromVersionId());
+    }
+    added.put("publicationId", publication.id());
+    ObjectNode changed = objectMapper.createObjectNode();
+    changed.put("toVersionId", publication.toVersionId());
+    if (publication.fromVersionId() != null) {
+      changed.put("fromVersionId", publication.fromVersionId());
+    }
+    changed.put("publicationId", publication.id());
+    jdbcTemplate.update(
+        """
+        insert into form_directory_events(
+            scope_id, event_type, source_set_revision, payload, operator_id)
+        values (?, 'VERSION_ADDED', ?, ?::jsonb, ?)
+        on conflict (scope_id, source_set_revision, event_type) do nothing
+        """,
+        scope.id(),
+        scope.sourceSetRevision(),
+        writeJson(added),
+        publication.operatorId());
+    jdbcTemplate.update(
+        """
+        insert into form_directory_events(
+            scope_id, event_type, source_set_revision, payload, operator_id)
+        values (?, 'CURRENT_CHANGED', ?, ?::jsonb, ?)
+        on conflict (scope_id, source_set_revision, event_type) do nothing
+        """,
+        scope.id(),
+        scope.sourceSetRevision(),
+        writeJson(changed),
+        publication.operatorId());
+  }
+
+  private void requireEmptyTarget(PublicationRow publication, VersionRow target) {
+    FormTemplateSpec spec = parseSpec(publication.frozenFieldSpecJson());
+    FormVersionSchema schema =
+        schemaService.generate(publication.scopeId(), publication.toVersionId(), spec, false);
+    String instance =
+        jdbcTemplate.queryForObject("select to_regclass(?)", String.class, schema.instanceTable());
+    String record =
+        jdbcTemplate.queryForObject("select to_regclass(?)", String.class, schema.recordTable());
+    if (instance == null || record == null) {
+      throw new FormConflictException("目标结构不完整，停止切换");
+    }
+    Long records =
+        jdbcTemplate.queryForObject(
+            "select count(*) from \"%s\"".formatted(schema.recordTable()), Long.class);
+    Long instances =
+        jdbcTemplate.queryForObject(
+            "select count(*) from \"%s\"".formatted(schema.instanceTable()), Long.class);
+    if ((records != null && records > 0) || (instances != null && instances > 0)) {
+      throw new FormConflictException("目标结构已存在数据，停止空结构发布");
+    }
+    try {
+      structureVerifier.verify(schema);
+    } catch (IllegalStateException drift) {
+      throw new FormConflictException("目标结构漂移，停止切换：" + truncate(drift.getMessage(), 500));
+    }
   }
 
   // ------------------------------------------------------------------ 失败、恢复、回收
@@ -561,11 +759,13 @@ public class FormPublicationTxService {
    */
   @Transactional
   public boolean fail(Claim claim, String message) {
+    lockRecordSequence();
     lockScope(claim.scopeId());
     PublicationRow publication = lockPublication(claim.publicationId());
-    if (!claim.owner().equals(publication.leaseOwner())
+    if (publication.protocolVersion() != PROTOCOL_V2
+        || !claim.owner().equals(publication.leaseOwner())
         || publication.fencingVersion() != claim.fencingVersion()
-        || !List.of("PREPARED", "COPYING", "VERIFIED").contains(publication.stage())) {
+        || !V2_ACTIVE_STAGES.contains(publication.stage())) {
       return false;
     }
     Boolean leaseValid =
@@ -586,7 +786,8 @@ public class FormPublicationTxService {
             """
             update form_template_publications
                set stage = 'FAILED', last_error = ?, updated_at = clock_timestamp()
-             where id = ? and stage in ('PREPARED', 'COPYING', 'VERIFIED')
+             where id = ? and protocol_version = 2
+               and stage in ('VALIDATING', 'BUILDING', 'SWITCHING')
                and lease_owner = ? and fencing_version = ?
                and lease_until > clock_timestamp()
             """,
@@ -597,41 +798,50 @@ public class FormPublicationTxService {
     if (updated != 1) {
       return false;
     }
-    int attemptUpdated =
-        jdbcTemplate.update(
-            """
-            update form_template_publication_attempts
-               set phase = 'FAILED', error = ?, finished_at = clock_timestamp()
-             where publication_id = ? and attempt_no = ? and phase in ('COPY', 'VERIFY')
-            """,
-            truncate(message, 2000),
-            claim.publicationId(),
-            claim.attemptNo());
-    if (attemptUpdated != 1) {
-      throw new IllegalStateException("发布失败证据写入失败");
-    }
-    clearFence(publication.scopeId(), publication, claim.fenceToken());
+    jdbcTemplate.update(
+        """
+        update form_template_publication_attempts
+           set phase = 'FAILED', error = ?, finished_at = clock_timestamp()
+         where publication_id = ? and attempt_no = ?
+        """,
+        truncate(message, 2000),
+        claim.publicationId(),
+        claim.attemptNo());
+    clearFence(publication.scopeId(), publication, publication.fenceToken());
     return true;
   }
 
-  /** FAILED 任务显式恢复：校验结构未漂移且无新任务后重新进入 PREPARED。 */
+  /** FAILED 任务复核冻结输入后重新进入 VALIDATING；输入已变化时要求重新预览。 */
   @Transactional
   public FormAdminViews.PublicationView recover(long publicationId, FormActorContext actor) {
     PublicationRow publication = publication(publicationId);
     if (publication == null) {
       throw new BizException(ResultCode.BAD_REQUEST, "发布任务不存在");
     }
+    lockRecordSequence();
     ScopeRow scope = lockScope(publication.scopeId());
     PublicationRow locked = lockPublication(publicationId);
     if (!"FAILED".equals(locked.stage())) {
       throw new FormConflictException("只有 FAILED 任务可以恢复");
     }
+    if (locked.protocolVersion() != PROTOCOL_V2) {
+      throw new FormConflictException("旧协议任务不能恢复，只能按运维流程收口");
+    }
     List<PublicationRow> active =
-        publicationRows(
-            "p.scope_id = " + scope.id()
-                + " and p.stage in ('PREPARED', 'COPYING', 'VERIFIED')");
+        publicationRows("p.scope_id = " + scope.id() + " and p.stage in ('VALIDATING', 'BUILDING', 'SWITCHING')");
     if (!active.isEmpty()) {
       throw new FormConflictException("范围已有新的未结束任务，旧任务只能终止");
+    }
+    if (!Objects.equals(scope.sourceSetRevision(), locked.frozenSourceSetRevision())
+        || !Objects.equals(scope.sourceSetHash(), locked.frozenSourceSetHash())) {
+      throw new FormConflictException("源集合已变化，请重新预览后发布");
+    }
+    DraftRow draft = requireDraft(scope.id());
+    if (draft.revision() != locked.draftRevision()
+        || !FormHashSupport.sha256Hex(draft.fieldSpecJson())
+            .equals(FormHashSupport.sha256Hex(locked.frozenFieldSpecJson()))
+        || !draft.bindingHash().equals(locked.bindingHash())) {
+      throw new FormConflictException("草稿或绑定已变化，请重新预览后发布");
     }
     VersionRow target = version(scope.id(), locked.toVersionId());
     if (target == null || "PUBLISHED".equals(target.versionStatus())) {
@@ -639,8 +849,7 @@ public class FormPublicationTxService {
     }
     FormTemplateSpec spec = parseSpec(locked.frozenFieldSpecJson());
     FormVersionSchema schema =
-        schemaService.generate(
-            scope.id(), locked.toVersionId(), spec, locked.fromVersionId() != null);
+        schemaService.generate(scope.id(), locked.toVersionId(), spec, false);
     String instance =
         jdbcTemplate.queryForObject("select to_regclass(?)", String.class, schema.instanceTable());
     String record =
@@ -649,6 +858,12 @@ public class FormPublicationTxService {
       throw new FormConflictException("目标结构不完整，不能恢复");
     }
     if (instance != null) {
+      Long rows =
+          jdbcTemplate.queryForObject(
+              "select count(*) from \"%s\"".formatted(schema.recordTable()), Long.class);
+      if (rows != null && rows > 0) {
+        throw new FormConflictException("目标结构已存在记录，不能按空结构恢复");
+      }
       try {
         structureVerifier.verify(schema);
       } catch (IllegalStateException drift) {
@@ -664,11 +879,11 @@ public class FormPublicationTxService {
     jdbcTemplate.update(
         """
         update form_template_publications
-           set stage = 'PREPARED', recovery_cycle = recovery_cycle + 1,
+           set stage = 'VALIDATING', recovery_cycle = recovery_cycle + 1,
                fencing_version = fencing_version + 1, lease_owner = null, lease_until = null,
                fence_token = null, next_attempt_at = null, last_error = null,
                recovery_verified_at = ?, recovery_evidence = ?::jsonb, updated_at = ?
-         where id = ?
+         where id = ? and protocol_version = 2 and stage = 'FAILED'
         """,
         Timestamp.valueOf(now),
         writeJson(
@@ -681,41 +896,77 @@ public class FormPublicationTxService {
     return publicationView(publicationId);
   }
 
-  /** 回收租约过期的活动任务；旧工作者因 fencing 失效不能再写。 */
+  // ------------------------------------------------------------------ 旧协议任务收口
+
+  /** 只读盘点 v1 未结束任务；不修改任何行。 */
+  @Transactional(readOnly = true)
+  public List<FormAdminViews.PublicationView> listLegacyPublications() {
+    return publicationRows(
+            "p.protocol_version = 1 and p.stage in ('PREPARED', 'COPYING', 'VERIFIED')")
+        .stream()
+        .map(this::toView)
+        .toList();
+  }
+
+  /**
+   * 运维受控收口单个 v1 任务：有效租约不得终止，外来栅栏不清除。
+   *
+   * @return 是否完成收口
+   */
   @Transactional
-  public int reapExpired() {
-    List<PublicationRow> expired =
-        publicationRows(
-            "p.stage in ('COPYING', 'VERIFIED') and p.lease_until is not null"
-                + " and p.lease_until < clock_timestamp() - interval '1 minute'");
-    int reaped = 0;
-    for (PublicationRow publication : expired) {
-      lockScope(publication.scopeId());
-      PublicationRow locked = lockPublication(publication.id());
-      int updated =
-          jdbcTemplate.update(
-              """
-              update form_template_publications
-                 set stage = 'FAILED', last_error = '发布租约过期，任务已回收',
-                     updated_at = clock_timestamp()
-               where id = ? and stage in ('COPYING', 'VERIFIED')
-                 and lease_until < clock_timestamp()
-              """,
-              locked.id());
-      if (updated == 1) {
-        clearFence(locked.scopeId(), locked, locked.fenceToken());
+  public boolean closeLegacyPublication(long publicationId, String operatorId) {
+    PublicationRow publication = publication(publicationId);
+    if (publication == null || publication.protocolVersion() != 1) {
+      return false;
+    }
+    lockRecordSequence();
+    lockScope(publication.scopeId());
+    PublicationRow locked = lockPublication(publicationId);
+    if (locked.protocolVersion() != 1 || !V1_ACTIVE_STAGES.contains(locked.stage())) {
+      return false;
+    }
+    Boolean live =
+        jdbcTemplate.queryForObject(
+            "select coalesce(lease_until, '-infinity') > clock_timestamp()"
+                + " from form_template_publications where id = ?",
+            Boolean.class,
+            publicationId);
+    if (Boolean.TRUE.equals(live)) {
+      return false;
+    }
+    int updated =
         jdbcTemplate.update(
             """
-            update form_template_publication_attempts
-               set phase = 'FAILED', error = '发布租约过期', finished_at = clock_timestamp()
-             where publication_id = ? and attempt_no = ?
+            update form_template_publications
+               set stage = 'FAILED', last_error = 'v6_no_copy_protocol',
+                   recovery_evidence = coalesce(recovery_evidence, '{}'::jsonb)
+                     || jsonb_build_object(
+                          'closedBy', ?, 'closedAt', clock_timestamp(),
+                          'previousStage', stage, 'previousLeaseOwner', lease_owner),
+                   updated_at = clock_timestamp()
+             where id = ? and protocol_version = 1
+               and stage in ('PREPARED', 'COPYING', 'VERIFIED')
+               and (lease_owner is null or lease_until is null
+                    or lease_until <= clock_timestamp())
             """,
-            publication.id(),
-            publication.attemptNo());
-        reaped++;
-      }
+            operatorId,
+            publicationId);
+    if (updated != 1) {
+      return false;
     }
-    return reaped;
+    jdbcTemplate.update(
+        """
+        insert into form_template_publication_attempts(
+            publication_id, attempt_no, phase, selection_captured_at, selection_counts,
+            error, started_at, finished_at, protocol_version)
+        values (?, (select attempt_no + 1 from form_template_publications where id = ?),
+                'FAILED', clock_timestamp(), '{}'::jsonb, 'v6_no_copy_protocol',
+                clock_timestamp(), clock_timestamp(), 1)
+        """,
+        publicationId,
+        publicationId);
+    clearFence(locked.scopeId(), locked, locked.fenceToken());
+    return true;
   }
 
   // ------------------------------------------------------------------ 查询
@@ -735,7 +986,13 @@ public class FormPublicationTxService {
         jdbcTemplate.queryForList(
             """
             select id from form_template_publications
-             where stage = 'PREPARED'
+             where protocol_version = 2
+               and (
+                 (stage = 'VALIDATING'
+                  and (lease_owner is null or lease_until is null
+                       or lease_until <= clock_timestamp()))
+                 or (stage in ('BUILDING', 'SWITCHING') and lease_until <= clock_timestamp())
+               )
                and (next_attempt_at is null or next_attempt_at <= clock_timestamp())
              order by id limit 1
             """,
@@ -795,88 +1052,6 @@ public class FormPublicationTxService {
     return FormHashSupport.sha256Hex(writeJson(root));
   }
 
-  private String defaultMigrationSpec(
-      ScopeRow scope,
-      DraftRow draft,
-      FormTemplateSpec spec,
-      String bindingHash,
-      String kind,
-      Long fromVersionId,
-      long toVersionId) {
-    if (scope.currentVersionId() == null && !"INITIAL_MIGRATION".equals(kind)) {
-      return null;
-    }
-    ObjectNode root = objectMapper.createObjectNode();
-    root.put("specVersion", 1);
-    root.put("kind", kind);
-    if (fromVersionId != null) {
-      root.put("fromVersionId", fromVersionId);
-    }
-    if ("INITIAL_MIGRATION".equals(kind)) {
-      root.put("toVersionId", toVersionId);
-      root.put("legacyIncomplete", true);
-    }
-    ArrayNode mappings = root.putArray("fieldMappings");
-    spec.fields()
-        .forEach(
-            field ->
-                mappings.add(
-                    field.name()
-                        + "->"
-                        + (field.storage() == null ? "" : field.storage().resolvedColumn())));
-    root.put("bindingHash", bindingHash);
-    return writeJson(root);
-  }
-
-  /**
-   * 首次旧表迁移按当前草稿绑定判定，不统计其它范围的旧行。
-   *
-   * <p>已有当前版本一律走 MIGRATION；无当前版本时仅当本绑定来源、规范地址与项目集合内
-   * 存在旧 code_review 记录才走 INITIAL_MIGRATION，否则走 INITIAL_EMPTY。
-   */
-  private String publicationKind(ScopeRow scope, DraftRow draft) {
-    if (scope.currentVersionId() != null) {
-      return "MIGRATION";
-    }
-    if (draft.bound()
-        && legacyMigrator.hasScopedSelection(
-            scope.templateKey(),
-            draft.canonicalGitlabBaseUrl(),
-            draft.projectIds())) {
-      return "INITIAL_MIGRATION";
-    }
-    return "INITIAL_EMPTY";
-  }
-
-  private long insertLegacyVersion(long scopeId, String fieldSpecJson) {
-    long versionId =
-        Objects.requireNonNull(
-            jdbcTemplate.queryForObject(
-                "select nextval('form_template_versions_id_seq')", Long.class));
-    ObjectNode legacySpec = objectMapper.createObjectNode();
-    ObjectNode mappings = legacySpec.putObject("legacyColumns");
-    mappings.put("reviewer", "reviewer_name");
-    mappings.put("specification_score", "specification_count");
-    mappings.put("logic_score", "logic_count");
-    mappings.put("performance_score", "performance_count");
-    mappings.put("design_score", "design_count");
-    mappings.put("other_score", "other_count");
-    mappings.put("remark", "supplement_note");
-    jdbcTemplate.update(
-        """
-        insert into form_template_versions(
-            id, scope_id, version_label, storage_kind, instance_table, record_table,
-            field_spec, migration_spec, version_status)
-        values (?, ?, null, 'LEGACY', ?, null, ?::jsonb, ?::jsonb, 'RETIRED')
-        """,
-        versionId,
-        scopeId,
-        FormLegacyRecordMigrator.LEGACY_TABLE,
-        fieldSpecJson,
-        writeJson(legacySpec));
-    return versionId;
-  }
-
   private void requireLease(PublicationRow publication, Claim claim, String stage) {
     if (!stage.equals(publication.stage())
         || !claim.owner().equals(publication.leaseOwner())
@@ -911,7 +1086,7 @@ public class FormPublicationTxService {
     }
   }
 
-  private void requireFence(long scopeId, Claim claim) {
+  private void requireFence(long scopeId, long publicationId, String token) {
     Integer fenced =
         jdbcTemplate.queryForObject(
             """
@@ -921,8 +1096,8 @@ public class FormPublicationTxService {
             """,
             Integer.class,
             scopeId,
-            claim.publicationId(),
-            claim.fenceToken());
+            publicationId,
+            token);
     if (fenced == null || fenced != 1) {
       throw new IllegalStateException("发布栅栏不属于当前任务");
     }
@@ -1018,77 +1193,12 @@ public class FormPublicationTxService {
     }
   }
 
-  /** 首次旧表迁移的权威交接清单；切换事务内与指针一起提交。 */
-  private long registerCutoverManifest(
-      PublicationRow publication, VersionRow target, LocalDateTime now) {
-    JsonNode binding = readJson(publication.frozenBindingJson());
-    List<Long> projectIds = new ArrayList<>();
-    binding.path("projectIds").forEach(node -> projectIds.add(node.asLong()));
-    ObjectNode resourceRule = objectMapper.createObjectNode();
-    resourceRule.put("type", "EXPLICIT_SELECTION");
-    resourceRule.put("reason", "INITIAL_MIGRATION");
-    long manifestId =
-        Objects.requireNonNull(
-            jdbcTemplate.queryForObject(
-                """
-                insert into form_authority_cutover_manifests(
-                    manifest_key, source_config_id, source_instance, canonical_gitlab_base_url,
-                    template_key, scope_id, effective_at, project_ids, resource_rule, rule_version,
-                    status, operator_id, operator_name, created_at, applied_at)
-                values (?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, 'initial-migration-v1',
-                        'APPLIED', ?, ?, ?, ?)
-                returning id
-                """,
-                Long.class,
-                "initial-" + publication.scopeId(),
-                binding.path("sourceConfigId").asLong(),
-                binding.path("sourceInstance").asText(),
-                binding.path("canonicalGitlabBaseUrl").asText(),
-                publication.templateKey(),
-                publication.scopeId(),
-                Timestamp.valueOf(now),
-                writeJson(projectIdsNode(projectIds)),
-                writeJson(resourceRule),
-                publication.operatorId(),
-                publication.operatorName(),
-                Timestamp.valueOf(now),
-                Timestamp.valueOf(now)));
-    jdbcTemplate.update(
-        """
-        insert into form_authority_cutover_items(
-            manifest_id, project_id, resource_type, resource_id, authority, created_at)
-        select ?, i.project_id, i.resource_type, i.resource_id, 'FORM', ?
-          from %s i
-        """
-            .formatted(target.instanceTable()),
-        manifestId,
-        Timestamp.valueOf(now));
-    return manifestId;
-  }
-
-  private void attachCutoverManifest(
-      long scopeId, String instanceTable, long manifestId, LocalDateTime now) {
-    jdbcTemplate.update(
-        """
-        update form_resource_authorities a
-           set cutover_manifest_id = ?, effective_at = ?, updated_at = ?
-          from %s i
-         where a.source_config_id = i.source_config_id
-           and a.project_id = i.project_id and a.resource_type = i.resource_type
-           and a.resource_id = i.resource_id and a.template_key = i.template_key
-           and a.scope_id = ?
-        """
-            .formatted(instanceTable),
-        manifestId,
-        Timestamp.valueOf(now),
-        Timestamp.valueOf(now),
-        scopeId);
-  }
-
-  private ScopeRow lockScope(long scopeId) {    List<ScopeRow> rows =
+  private ScopeRow lockScope(long scopeId) {
+    List<ScopeRow> rows =
         jdbcTemplate.query(
             """
-            select id, template_key, status, current_version_id, resource_type, binding_hash
+            select id, template_key, status, current_version_id, resource_type, binding_hash,
+                   source_set_revision, source_set_hash, write_fenced
               from form_template_scopes where id = ? for update
             """,
             (rs, rowNum) ->
@@ -1098,12 +1208,31 @@ public class FormPublicationTxService {
                     rs.getString("status"),
                     rs.getObject("current_version_id", Long.class),
                     rs.getString("resource_type"),
-                    rs.getString("binding_hash")),
+                    rs.getString("binding_hash"),
+                    rs.getLong("source_set_revision"),
+                    rs.getString("source_set_hash"),
+                    rs.getBoolean("write_fenced")),
             scopeId);
     if (rows.isEmpty()) {
       throw new BizException(ResultCode.BAD_REQUEST, "表单范围不存在");
     }
     return rows.getFirst();
+  }
+
+  private ScopeFenceRow scopeFence(long scopeId) {
+    List<ScopeFenceRow> rows =
+        jdbcTemplate.query(
+            """
+            select write_fenced, write_fence_publication_id, write_fence_token
+              from form_template_scopes where id = ?
+            """,
+            (rs, rowNum) ->
+                new ScopeFenceRow(
+                    rs.getBoolean("write_fenced"),
+                    rs.getObject("write_fence_publication_id", Long.class),
+                    rs.getString("write_fence_token")),
+            scopeId);
+    return rows.isEmpty() ? null : rows.getFirst();
   }
 
   private PublicationRow lockPublication(long publicationId) {
@@ -1147,13 +1276,14 @@ public class FormPublicationTxService {
   private String publicationSelect() {
     return """
         select p.id, p.scope_id, p.request_key, p.request_hash, p.draft_revision, p.preview_id,
-               p.publication_kind, p.stage,
+               p.publication_kind, p.stage, p.protocol_version,
                p.attempt_no, p.recovery_cycle, p.expected_current_version_id, p.from_version_id,
                p.to_version_id, p.frozen_field_spec::text as frozen_field_spec,
                p.frozen_binding::text as frozen_binding, p.binding_hash, p.ddl_hash,
                p.selection_counts::text as selection_counts,
                p.verification_summary::text as verification_summary,
-               p.lease_owner, p.fencing_version, p.fence_token, p.last_error,
+               p.frozen_source_set_revision, p.frozen_source_set_hash,
+               p.lease_owner, p.lease_until, p.fencing_version, p.fence_token, p.last_error,
                p.operator_id, p.operator_name,
                p.created_at, p.updated_at, p.published_at, s.template_key
           from form_template_publications p
@@ -1172,6 +1302,7 @@ public class FormPublicationTxService {
         rs.getLong("preview_id"),
         rs.getString("publication_kind"),
         rs.getString("stage"),
+        rs.getInt("protocol_version"),
         rs.getInt("attempt_no"),
         rs.getLong("recovery_cycle"),
         rs.getObject("expected_current_version_id", Long.class),
@@ -1183,7 +1314,12 @@ public class FormPublicationTxService {
         rs.getString("ddl_hash"),
         rs.getString("selection_counts"),
         rs.getString("verification_summary"),
+        rs.getObject("frozen_source_set_revision", Long.class),
+        rs.getString("frozen_source_set_hash"),
         rs.getString("lease_owner"),
+        rs.getTimestamp("lease_until") == null
+            ? null
+            : rs.getTimestamp("lease_until").toLocalDateTime(),
         rs.getLong("fencing_version"),
         rs.getString("fence_token"),
         rs.getString("last_error"),
@@ -1293,7 +1429,9 @@ public class FormPublicationTxService {
   private void requireNoActivePublication(long scopeId) {
     List<PublicationRow> active =
         publicationRows(
-            "p.scope_id = " + scopeId + " and p.stage in ('PREPARED', 'COPYING', 'VERIFIED')");
+            "p.scope_id = " + scopeId
+                + " and p.stage in ('PREPARED', 'COPYING', 'VERIFIED',"
+                + " 'VALIDATING', 'BUILDING', 'SWITCHING')");
     if (!active.isEmpty()) {
       throw new FormConflictException("范围已有未结束的发布任务");
     }
@@ -1316,6 +1454,14 @@ public class FormPublicationTxService {
     } catch (Exception error) {
       return null;
     }
+  }
+
+  private ObjectNode emptyCounts() {
+    ObjectNode counts = objectMapper.createObjectNode();
+    counts.put("records", 0);
+    counts.put("instances", 0);
+    counts.put("resources", 0);
+    return counts;
   }
 
   private ArrayNode projectIdsNode(List<Long> projectIds) {
@@ -1350,7 +1496,8 @@ public class FormPublicationTxService {
       String owner,
       long fencingVersion,
       String fenceToken,
-      int attemptNo) {}
+      int attemptNo,
+      String stage) {}
 
   private record ScopeRow(
       long id,
@@ -1358,7 +1505,12 @@ public class FormPublicationTxService {
       String status,
       Long currentVersionId,
       String resourceType,
-      String bindingHash) {}
+      String bindingHash,
+      long sourceSetRevision,
+      String sourceSetHash,
+      boolean writeFenced) {}
+
+  private record ScopeFenceRow(boolean fenced, Long publicationId, String token) {}
 
   private record PublicationRow(
       long id,
@@ -1369,6 +1521,7 @@ public class FormPublicationTxService {
       long previewId,
       String kind,
       String stage,
+      int protocolVersion,
       int attemptNo,
       long recoveryCycle,
       Long expectedCurrentVersionId,
@@ -1380,7 +1533,10 @@ public class FormPublicationTxService {
       String ddlHash,
       String selectionCountsJson,
       String verificationSummaryJson,
+      Long frozenSourceSetRevision,
+      String frozenSourceSetHash,
       String leaseOwner,
+      LocalDateTime leaseUntil,
       long fencingVersion,
       String fenceToken,
       String lastError,

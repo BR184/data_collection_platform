@@ -35,9 +35,13 @@ import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -64,6 +68,7 @@ class FormTemplateAdminIntegrationTest {
   private static final long PROJECT_ID = 9L;
   private static final long ISSUE_IID = 21L;
   private static final long ISSUE_ROOT = 9101L;
+  private static final long MERGE_REQUEST_IID = 22L;
 
   private static final Set<String> ALL_PERMISSIONS =
       Set.of(
@@ -174,7 +179,7 @@ class FormTemplateAdminIntegrationTest {
     FormAdminViews.PublicationView created =
         adminService.createPublication(scopeId, request, admin);
     assertThat(created.publicationKind()).isEqualTo("INITIAL_EMPTY");
-    assertThat(created.stage()).isEqualTo("PREPARED");
+    assertThat(created.stage()).isEqualTo("VALIDATING");
     FormAdminViews.PublicationView replay =
         adminService.createPublication(scopeId, request, admin);
     assertThat(replay.id()).isEqualTo(created.id());
@@ -335,236 +340,6 @@ class FormTemplateAdminIntegrationTest {
   }
 
   @Test
-  void shouldPreserveRecordsWhenConditionChangeInvalidatesOldCombination() {
-    long scopeId = createScope("condition-migration");
-    boundDraft(scopeId, customConditionSpec("B"), "CC2026R1");
-    FormAdminViews.PublicationView first = publish(scopeId, "CC2026R1");
-
-    FormCreateResponse conflicting =
-        createCustomReply(
-            scopeId,
-            first.toVersionId(),
-            customReplyFields("A", "C"),
-            UUID.randomUUID().toString());
-    FormCreateResponse unaffected =
-        createCustomReply(
-            scopeId,
-            first.toVersionId(),
-            customReplyFields("B", "C"),
-            UUID.randomUUID().toString());
-
-    boundDraft(scopeId, customConditionSpec("C"), "CC2026R2");
-    FormAdminViews.PublicationView second = publish(scopeId, "CC2026R2");
-    String recordTable = "form_s" + scopeId + "_v" + second.toVersionId() + "_records";
-
-    Map<String, Object> flagged =
-        jdbcTemplate.queryForMap(
-            "select legacy_incomplete, legacy_missing_fields, custom_a from "
-                + recordTable
-                + " where id = ?",
-            Long.parseLong(conflicting.record().id()));
-    assertThat(flagged.get("legacy_incomplete")).isEqualTo(true);
-    assertThat(String.valueOf(flagged.get("legacy_missing_fields"))).contains("custom_a");
-    assertThat(String.valueOf(flagged.get("custom_a"))).contains("A").contains("C");
-
-    Map<String, Object> preserved =
-        jdbcTemplate.queryForMap(
-            "select legacy_incomplete, custom_a from " + recordTable + " where id = ?",
-            Long.parseLong(unaffected.record().id()));
-    assertThat(preserved.get("legacy_incomplete")).isEqualTo(false);
-    assertThat(String.valueOf(preserved.get("custom_a"))).contains("B").contains("C");
-  }
-
-  @Test
-  void shouldMigrateFieldChangesAndConvergeOldRequestKey() {
-    long scopeId = createScope("field-migration");
-    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "CC2026R1");
-    FormAdminViews.PublicationView first = publish(scopeId, "CC2026R1");
-    long oldVersionId = first.toVersionId();
-    String requestKey = UUID.randomUUID().toString();
-    ObjectNode fields = issueReplyFields();
-    FormCreateResponse created =
-        formRecordService.create(
-            issueReplyRequest(scopeId, oldVersionId, requestKey, fields), admin, "127.0.0.1", "JUnit");
-    assertThat(created.outcome()).isEqualTo("CREATED");
-
-    ObjectNode migrated = seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY);
-    ArrayNode migratedFields = objectMapper.createArrayNode();
-    for (JsonNode field : migrated.get("fields")) {
-      String name = field.path("name").asText();
-      if ("supplement_note".equals(name)) {
-        continue;
-      }
-      ObjectNode copy = field.deepCopy();
-      if ("fix_status".equals(name)) {
-        copy.put("label", "修复状态（新）");
-      }
-      migratedFields.add(copy);
-    }
-    ObjectNode added = migratedFields.addObject();
-    added.put("name", "review_comment");
-    added.put("apiKey", "reviewComment");
-    added.put("label", "走查意见");
-    added.put("type", "string");
-    added.put("control", "input");
-    added.put("required", false);
-    added.put("maxLength", 200);
-    ObjectNode storage = added.putObject("storage");
-    storage.put("column", "review_comment");
-    storage.put("columnType", "varchar(200)");
-    migrated.set("fields", migratedFields);
-    boundDraft(scopeId, migrated, "CC2026R2");
-
-    FormAdminViews.PreviewView preview = adminService.preview(scopeId, currentRevision(scopeId), admin);
-    assertThat(preview.blockingErrors()).isEmpty();
-    assertThat(preview.diff().path("added").asInt()).isEqualTo(1);
-    assertThat(preview.diff().path("removed").asInt()).isEqualTo(1);
-
-    FormAdminViews.PublicationView second =
-        adminService.createPublication(
-            scopeId,
-            new FormPublicationCreateRequest(
-                currentRevision(scopeId),
-                preview.id(),
-                oldVersionId,
-                UUID.randomUUID().toString()),
-            admin);
-    assertThat(second.publicationKind()).isEqualTo("MIGRATION");
-    assertThat(publicationService.executeOnce(second.id())).isTrue();
-
-    FormAdminViews.ScopeDetail detail = adminService.scope(scopeId);
-    assertThat(detail.scope().currentVersionId()).isEqualTo(second.toVersionId());
-    assertThat(detail.recordCount()).isEqualTo(1);
-    assertThat(
-            jdbcTemplate.queryForObject(
-                "select count(*) from form_template_migration_logs where scope_id = ?",
-                Integer.class,
-                scopeId))
-        .isEqualTo(1);
-    assertThat(
-            jdbcTemplate.queryForObject(
-                "select version_status from form_template_versions where id = ?",
-                String.class,
-                oldVersionId))
-        .isEqualTo("RETIRED");
-
-    Long migratedRecordId =
-        jdbcTemplate.queryForObject(
-            "select id from form_s" + scopeId + "_v" + second.toVersionId() + "_records",
-            Long.class);
-    assertThat(migratedRecordId).isEqualTo(Long.parseLong(created.record().id()));
-
-    FormCreateResponse replayed =
-        formRecordService.create(
-            issueReplyRequest(scopeId, oldVersionId, requestKey, issueReplyFields()),
-            admin,
-            "127.0.0.1",
-            "JUnit");
-    assertThat(replayed.outcome()).isEqualTo("REPLAYED");
-    assertThat(replayed.record().id()).isEqualTo(created.record().id());
-    // N3 新版本为空表、旧记录保留原版；N2 重放按目录承载版本返回，不套用迁移目标版字段，也不回退当前物理表。
-    assertThat(replayed.record().storageVersionId()).isEqualTo(Long.toString(oldVersionId));
-    assertThat(replayed.record().fields()).containsKey("supplementNote");
-    assertThat(replayed.record().fields()).doesNotContainKey("reviewComment");
-    assertThat(
-            jdbcTemplate.queryForObject(
-                "select count(*) from form_s" + scopeId + "_v" + second.toVersionId() + "_records",
-                Integer.class))
-        .isEqualTo(1);
-
-    assertThatThrownBy(
-            () ->
-                formRecordService.create(
-                    issueReplyRequest(
-                        scopeId, oldVersionId, UUID.randomUUID().toString(), issueReplyFields()),
-                    admin,
-                    "127.0.0.1",
-                    "JUnit"))
-        .isInstanceOf(FormConflictException.class)
-        .hasMessageContaining("结构版本已变化");
-  }
-
-  @Test
-  void shouldMarkLegacyIncompleteWhenMigrationAddsRequiredField() {
-    long scopeId = createScope("legacy-incomplete");
-    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "CC2026R1");
-    FormAdminViews.PublicationView first = publish(scopeId, "CC2026R1");
-    FormCreateResponse created = createIssueReply(scopeId, first.toVersionId());
-
-    ObjectNode migrated = seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY);
-    ArrayNode migratedFields = objectMapper.createArrayNode();
-    migrated.get("fields").forEach(migratedFields::add);
-    ObjectNode added = migratedFields.addObject();
-    added.put("name", "review_comment");
-    added.put("apiKey", "reviewComment");
-    added.put("label", "走查意见");
-    added.put("type", "string");
-    added.put("control", "input");
-    added.put("required", true);
-    added.put("maxLength", 200);
-    ObjectNode storage = added.putObject("storage");
-    storage.put("column", "review_comment");
-    storage.put("columnType", "varchar(200)");
-    migrated.set("fields", migratedFields);
-    boundDraft(scopeId, migrated, "CC2026R2");
-    FormAdminViews.PublicationView second = publish(scopeId, "CC2026R2");
-
-    String recordTable = "form_s" + scopeId + "_v" + second.toVersionId() + "_records";
-    Map<String, Object> row =
-        jdbcTemplate.queryForMap(
-            "select legacy_incomplete, legacy_missing_fields::text as missing,"
-                + " review_comment, fix_status from " + recordTable + " where id = ?",
-            Long.parseLong(created.record().id()));
-    assertThat(row.get("legacy_incomplete")).isEqualTo(true);
-    assertThat((String) row.get("missing")).contains("review_comment");
-    assertThat(row.get("review_comment")).isNull();
-    assertThat(row.get("fix_status")).isEqualTo("RESOLVED");
-
-    FormDetailResponse detail =
-        formRecordService.detail(
-            FormTemplateSpecCatalog.ISSUE_REPLY,
-            GITLAB_URL,
-            PROJECT_ID,
-            "issue",
-            Long.toString(ISSUE_IID),
-            admin);
-    // N2 以目录承载版本为准；N3 新版本为空表、旧记录保留原版，本轮副本行只做物理断言。
-    assertThat(detail.records()).singleElement().satisfies(
-        record -> {
-          assertThat(record.storageVersionId()).isEqualTo(Long.toString(first.toVersionId()));
-          assertThat(record.originVersionId()).isEqualTo(Long.toString(first.toVersionId()));
-          assertThat(record.fields().get("fixStatus")).isEqualTo("RESOLVED");
-        });
-
-    FormRecordView voided =
-        formRecordService.voidRecord(
-            created.record().id(),
-            new FormVoidRequest(
-                GITLAB_URL,
-                PROJECT_ID,
-                "issue",
-                Long.toString(ISSUE_IID),
-                FormTemplateSpecCatalog.ISSUE_REPLY,
-                Long.toString(scopeId),
-                Long.toString(first.toVersionId()),
-                Long.toString(first.toVersionId()),
-                1,
-                true,
-                "作废"),
-            admin,
-            "127.0.0.1",
-            "JUnit");
-    assertThat(voided.deleted()).isTrue();
-    assertThat(
-            jdbcTemplate.queryForObject(
-                "select deleted from form_s" + scopeId + "_v" + first.toVersionId()
-                    + "_records where id = ?",
-                Boolean.class,
-                Long.parseLong(created.record().id())))
-        .isTrue();
-  }
-
-  @Test
   void shouldRetireScopeAndKeepHistoryReadable() {
     long scopeId = createScope("retire");
     boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "CC2026R1");
@@ -619,223 +394,6 @@ class FormTemplateAdminIntegrationTest {
     adminService.deleteScope(emptyScope);
     assertThatThrownBy(() -> adminService.scope(emptyScope))
         .isInstanceOf(com.data.collection.platform.common.exception.BizException.class);
-  }
-
-  @Test
-  void shouldFailCopyRecoverAndRecaptureRowsWrittenAfterFailure() {
-    long scopeId = createScope("copy-recovery");
-    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "CC2026R1");
-    FormAdminViews.PublicationView first = publish(scopeId, "CC2026R1");
-    long oldVersionId = first.toVersionId();
-    createIssueReply(scopeId, oldVersionId);
-
-    ObjectNode migrated = seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY);
-    migrated.get("fields").forEach(
-        field -> {
-          if ("fix_status".equals(field.path("name").asText())) {
-            ((ObjectNode) field).put("label", "修复状态（新版）");
-          }
-        });
-    boundDraft(scopeId, migrated, "CC2026R2");
-    FormAdminViews.PreviewView preview =
-        adminService.preview(scopeId, currentRevision(scopeId), admin);
-    assertThat(preview.blockingErrors()).isEmpty();
-
-    FormTemplateSpec migratedSpec;
-    try {
-      migratedSpec =
-          objectMapper.readValue(objectMapper.writeValueAsString(migrated), FormTemplateSpec.class);
-    } catch (Exception error) {
-      throw new IllegalStateException(error);
-    }
-    FormVersionSchema schema =
-        versionSchemaService.generate(scopeId, preview.targetVersionId(), migratedSpec, true);
-    schema.statements().forEach(jdbcTemplate::execute);
-    installCopyFailure(schema.recordTable());
-
-    FormAdminViews.PublicationView publication =
-        adminService.createPublication(
-            scopeId,
-            new FormPublicationCreateRequest(
-                currentRevision(scopeId),
-                preview.id(),
-                oldVersionId,
-                UUID.randomUUID().toString()),
-            admin);
-    assertThat(publicationService.executeOnce(publication.id())).isFalse();
-    FormAdminViews.PublicationView failed = publicationService.publicationView(publication.id());
-    assertThat(failed.stage()).isEqualTo("FAILED");
-    assertThat(failed.lastError()).isNotBlank();
-    assertThat(adminService.scope(scopeId).scope().writeFenced()).isFalse();
-    assertThat(adminService.scope(scopeId).scope().currentVersionId()).isEqualTo(oldVersionId);
-
-    createIssueReply(scopeId, oldVersionId);
-    assertThat(
-            jdbcTemplate.queryForObject(
-                "select count(*) from form_s" + scopeId + "_v" + oldVersionId + "_records",
-                Integer.class))
-        .isEqualTo(2);
-
-    dropCopyFailure();
-    FormAdminViews.PublicationView recovered =
-        publicationService.recover(publication.id(), admin);
-    assertThat(recovered.stage()).isEqualTo("PREPARED");
-    assertThat(recovered.recoveryCycle()).isEqualTo(1);
-    assertThat(publicationService.executeOnce(publication.id())).isTrue();
-    FormAdminViews.PublicationView published = publicationService.publicationView(publication.id());
-    assertThat(published.stage()).isEqualTo("PUBLISHED");
-    assertThat(
-            jdbcTemplate.queryForObject(
-                "select count(*) from form_s" + scopeId + "_v" + published.toVersionId() + "_records",
-                Integer.class))
-        .isEqualTo(2);
-    assertThat(
-            jdbcTemplate.queryForObject(
-                "select migrated_rows from form_template_migration_logs where to_version_id = ?",
-                Long.class,
-                published.toVersionId()))
-        .isEqualTo(2L);
-  }
-
-  @Test
-  void shouldRejectWritesWhileCopyingAndReapExpiredLease() {
-    long scopeId = createScope("fence-lease");
-    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "CC2026R1");
-    FormAdminViews.PublicationView first = publish(scopeId, "CC2026R1");
-    long oldVersionId = first.toVersionId();
-
-    ObjectNode migrated = seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY);
-    migrated.get("fields").forEach(
-        field -> {
-          if ("fix_status".equals(field.path("name").asText())) {
-            ((ObjectNode) field).put("label", "修复状态（锁测试）");
-          }
-        });
-    boundDraft(scopeId, migrated, "CC2026R2");
-    FormAdminViews.PreviewView preview =
-        adminService.preview(scopeId, currentRevision(scopeId), admin);
-    FormAdminViews.PublicationView publication =
-        adminService.createPublication(
-            scopeId,
-            new FormPublicationCreateRequest(
-                currentRevision(scopeId),
-                preview.id(),
-                oldVersionId,
-                UUID.randomUUID().toString()),
-            admin);
-    assertThatThrownBy(
-            () ->
-                adminService.createPublication(
-                    scopeId,
-                    new FormPublicationCreateRequest(
-                        currentRevision(scopeId),
-                        preview.id(),
-                        oldVersionId,
-                        UUID.randomUUID().toString()),
-                    admin))
-        .isInstanceOf(FormConflictException.class)
-        .hasMessageContaining("未结束");
-
-    FormPublicationTxService.Claim claim =
-        publicationTxService.claim(publication.id(), "w4-test-worker");
-    assertThat(claim).isNotNull();
-    assertThatThrownBy(() -> createIssueReply(scopeId, oldVersionId))
-        .isInstanceOf(FormConflictException.class)
-        .hasMessageContaining("停写");
-
-    jdbcTemplate.update(
-        "update form_template_publications set lease_until = clock_timestamp() - interval '5 minutes'"
-            + " where id = ?",
-        publication.id());
-    assertThat(publicationTxService.reapExpired()).isEqualTo(1);
-    assertThat(publicationService.publicationView(publication.id()).stage()).isEqualTo("FAILED");
-    assertThat(adminService.scope(scopeId).scope().writeFenced()).isFalse();
-    createIssueReply(scopeId, oldVersionId);
-  }
-
-  @Test
-  void shouldIgnoreExpiredLeaseFailureAndLetReaperOwnRecovery() {
-    long scopeId = createScope("expired-failure");
-    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "CC2026R1");
-    FormAdminViews.PublicationView first = publish(scopeId, "CC2026R1");
-    long oldVersionId = first.toVersionId();
-
-    ObjectNode migrated = seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY);
-    migrated.get("fields").forEach(
-        field -> {
-          if ("fix_status".equals(field.path("name").asText())) {
-            ((ObjectNode) field).put("label", "修复状态（过期租约）");
-          }
-        });
-    boundDraft(scopeId, migrated, "CC2026R2");
-    FormAdminViews.PreviewView preview =
-        adminService.preview(scopeId, currentRevision(scopeId), admin);
-    FormAdminViews.PublicationView publication =
-        adminService.createPublication(
-            scopeId,
-            new FormPublicationCreateRequest(
-                currentRevision(scopeId),
-                preview.id(),
-                oldVersionId,
-                UUID.randomUUID().toString()),
-            admin);
-
-    FormPublicationTxService.Claim claim =
-        publicationTxService.claim(publication.id(), "r06-expired-owner");
-    jdbcTemplate.update(
-        "update form_template_publications set lease_until = clock_timestamp() - interval '5 minutes'"
-            + " where id = ?",
-        publication.id());
-
-    assertThat(publicationTxService.fail(claim, "迟到的失败诊断")).isFalse();
-    assertThat(publicationService.publicationView(publication.id()).stage()).isEqualTo("COPYING");
-    assertThat(adminService.scope(scopeId).scope().writeFenced()).isTrue();
-    assertThat(
-            jdbcTemplate.queryForObject(
-                "select phase from form_template_publication_attempts"
-                    + " where publication_id = ? and attempt_no = 1",
-                String.class,
-                publication.id()))
-        .isEqualTo("COPY");
-    assertThat(
-            jdbcTemplate.queryForObject(
-                "select last_error from form_template_publications where id = ?",
-                String.class,
-                publication.id()))
-        .isNull();
-
-    assertThat(publicationTxService.reapExpired()).isEqualTo(1);
-    FormAdminViews.PublicationView reaped =
-        publicationService.publicationView(publication.id());
-    assertThat(reaped.stage()).isEqualTo("FAILED");
-    assertThat(reaped.lastError()).contains("租约过期");
-    assertThat(adminService.scope(scopeId).scope().writeFenced()).isFalse();
-    assertThat(
-            jdbcTemplate.queryForObject(
-                "select phase from form_template_publication_attempts"
-                    + " where publication_id = ? and attempt_no = 1",
-                String.class,
-                publication.id()))
-        .isEqualTo("FAILED");
-
-    assertThat(publicationTxService.fail(claim, "回收后的迟到诊断")).isFalse();
-    assertThat(publicationService.publicationView(publication.id()).lastError())
-        .contains("租约过期");
-
-    assertThat(publicationService.recover(publication.id(), admin).stage()).isEqualTo("PREPARED");
-    FormPublicationTxService.Claim second =
-        publicationTxService.claim(publication.id(), "r06-new-owner");
-    assertThat(second).isNotNull();
-    assertThat(second.attemptNo()).isEqualTo(2);
-    assertThat(publicationTxService.fail(second, "第二次尝试失败")).isTrue();
-    assertThat(publicationService.publicationView(publication.id()).stage()).isEqualTo("FAILED");
-    assertThat(
-            jdbcTemplate.queryForObject(
-                "select phase from form_template_publication_attempts"
-                    + " where publication_id = ? and attempt_no = 2",
-                String.class,
-                publication.id()))
-        .isEqualTo("FAILED");
   }
 
   @Test
@@ -912,14 +470,646 @@ class FormTemplateAdminIntegrationTest {
     assertThat(milestones.items().getFirst().title()).isEqualTo("CC2026R2");
   }
 
+  // ------------------------------------------------------------------ N3 空结构发布
+
+  /** 三模板各自首次启用与 V1→V2 空发布：新版只建空结构，旧记录与目录位置原位保留。 */
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        FormTemplateSpecCatalog.CODE_REVIEW,
+        FormTemplateSpecCatalog.ISSUE_RESPONSE,
+        FormTemplateSpecCatalog.ISSUE_REPLY
+      })
+  void shouldEnableAndPublishNextEmptyVersionForEveryTemplate(String templateKey) {
+    long scopeId = createScope(templateKey, "n3-template-" + templateKey);
+    boundDraft(scopeId, seedSpec(templateKey), "N3-T1");
+    FormAdminViews.PublicationView first = publish(scopeId, "N3-T1");
+
+    assertThat(publicationKind(first.id())).isEqualTo("INITIAL_EMPTY");
+    assertThat(first.stage()).isEqualTo("PUBLISHED");
+    assertThat(versionStatus(first.toVersionId())).isEqualTo("PUBLISHED");
+    assertThat(versionRole(first.toVersionId())).isEqualTo("AUTHORITATIVE");
+    assertThat(countTable(recordTable(first.toVersionId()))).isZero();
+    assertThat(countTable(instanceTable(first.toVersionId()))).isZero();
+    assertThat(currentVersionId(scopeId)).isEqualTo(first.toVersionId());
+    assertThat(sourceSetRevision(scopeId)).isEqualTo(1);
+    assertThat(pendingHeadCount(scopeId, first.toVersionId(), 1))
+        .isEqualTo(totalHeadCount(scopeId));
+
+    FormCreateResponse firstRecord = createRecord(templateKey, scopeId, first.toVersionId());
+    assertThat(firstRecord.outcome()).isEqualTo("CREATED");
+    long recordId = Long.parseLong(firstRecord.record().id());
+    Map<String, Object> locationBefore = recordLocation(recordId);
+    assertThat(totalHeadCount(scopeId)).isPositive();
+
+    boundDraft(scopeId, relabeledSpec(templateKey, "N3 新版"), "N3-T2");
+    FormAdminViews.PublicationView second = publish(scopeId, "N3-T2");
+
+    assertThat(publicationKind(second.id())).isEqualTo("MIGRATION");
+    assertThat(second.stage()).isEqualTo("PUBLISHED");
+    assertThat(versionStatus(first.toVersionId())).isEqualTo("RETIRED");
+    assertThat(versionRole(first.toVersionId())).isEqualTo("AUTHORITATIVE");
+    assertThat(versionStatus(second.toVersionId())).isEqualTo("PUBLISHED");
+    assertThat(versionRole(second.toVersionId())).isEqualTo("AUTHORITATIVE");
+    assertThat(countTable(recordTable(second.toVersionId()))).isZero();
+    assertThat(countTable(instanceTable(second.toVersionId()))).isZero();
+    assertThat(countTable(recordTable(first.toVersionId()))).isEqualTo(1);
+    assertThat(currentVersionId(scopeId)).isEqualTo(second.toVersionId());
+    assertThat(sourceSetRevision(scopeId)).isEqualTo(2);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select source_set_hash from form_template_scopes where id = ?",
+                String.class,
+                scopeId))
+        .isNotBlank();
+    assertThat(recordLocation(recordId)).isEqualTo(locationBefore);
+    assertThat(directoryEventCount(scopeId, 2)).isEqualTo(2);
+    assertThat(pendingHeadCount(scopeId, second.toVersionId(), 2))
+        .isPositive()
+        .isEqualTo(totalHeadCount(scopeId));
+
+    FormCreateResponse secondRecord = createRecord(templateKey, scopeId, second.toVersionId());
+    assertThat(secondRecord.outcome()).isEqualTo("CREATED");
+    assertThat(recordLocation(Long.parseLong(secondRecord.record().id())))
+        .containsEntry("storage_version_id", second.toVersionId());
+  }
+
+  @Test
+  void shouldPublishEmptyVersionAndKeepOldRecordInPlace() {
+    long scopeId = createScope("n3-empty-publish");
+    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "N3R1");
+    FormAdminViews.PublicationView v1 = publish(scopeId, "N3R1");
+    FormCreateResponse created = createIssueReply(scopeId, v1.toVersionId());
+    long recordId = Long.parseLong(created.record().id());
+    Map<String, Object> locationBefore =
+        jdbcTemplate.queryForMap(
+            "select storage_version_id, origin_version_id, instance_id, request_key,"
+                + " create_payload_hash, created_at from form_record_locations where record_id = ?",
+            recordId);
+    long revisionBefore =
+        jdbcTemplate.queryForObject(
+            "select source_set_revision from form_template_scopes where id = ?", Long.class, scopeId);
+
+    boundDraft(scopeId, relabeledSpec(FormTemplateSpecCatalog.ISSUE_REPLY, "N3 新版"), "N3R2");
+    FormAdminViews.PublicationView v2 = publish(scopeId, "N3R2");
+
+    assertThat(v2.stage()).isEqualTo("PUBLISHED");
+    assertThat(versionStatus(v1.toVersionId())).isEqualTo("RETIRED");
+    assertThat(versionRole(v1.toVersionId())).isEqualTo("AUTHORITATIVE");
+    assertThat(versionStatus(v2.toVersionId())).isEqualTo("PUBLISHED");
+    assertThat(versionRole(v2.toVersionId())).isEqualTo("AUTHORITATIVE");
+    assertThat(countTable(recordTable(v2.toVersionId()))).isZero();
+    assertThat(countTable(instanceTable(v2.toVersionId()))).isZero();
+    assertThat(countTable(recordTable(v1.toVersionId()))).isEqualTo(1);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select current_version_id from form_template_scopes where id = ?",
+                Long.class,
+                scopeId))
+        .isEqualTo(v2.toVersionId());
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select source_set_revision from form_template_scopes where id = ?", Long.class, scopeId))
+        .isEqualTo(revisionBefore + 1);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select source_set_hash from form_template_scopes where id = ?", String.class, scopeId))
+        .isNotBlank();
+    assertThat(
+            jdbcTemplate.queryForMap(
+                "select storage_version_id, origin_version_id, instance_id, request_key,"
+                    + " create_payload_hash, created_at from form_record_locations where record_id = ?",
+                recordId))
+        .isEqualTo(locationBefore);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select count(*) from form_directory_events where scope_id = ?"
+                    + " and source_set_revision = ? and event_type in ('VERSION_ADDED','CURRENT_CHANGED')",
+                Integer.class,
+                scopeId,
+                revisionBefore + 1))
+        .isEqualTo(2);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select count(*) from form_change_heads where scope_id = ?"
+                    + " and pending_storage_version_id = ? and pending_source_set_revision = ?",
+                Integer.class,
+                scopeId,
+                v2.toVersionId(),
+                revisionBefore + 1))
+        .isEqualTo(
+            jdbcTemplate.queryForObject(
+                "select count(*) from form_change_heads where scope_id = ?", Integer.class, scopeId));
+
+    FormRecordView edited =
+        formRecordService.update(
+            created.record().id(),
+            new com.data.collection.platform.entity.form.FormUpdateRequest(
+                GITLAB_URL,
+                PROJECT_ID,
+                "issue",
+                Long.toString(ISSUE_IID),
+                FormTemplateSpecCatalog.ISSUE_REPLY,
+                Long.toString(scopeId),
+                Long.toString(v1.toVersionId()),
+                Long.toString(v1.toVersionId()),
+                created.record().recordVersion(),
+                toFields(issueReplyFields())),
+            admin,
+            "127.0.0.1",
+            "JUnit");
+    assertThat(edited.recordVersion()).isEqualTo(created.record().recordVersion() + 1);
+
+    FormCreateResponse v2Record = createIssueReply(scopeId, v2.toVersionId());
+    assertThat(v2Record.outcome()).isEqualTo("CREATED");
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select storage_version_id from form_record_locations where record_id = ?",
+                Long.class,
+                Long.parseLong(v2Record.record().id())))
+        .isEqualTo(v2.toVersionId());
+  }
+
+  @Test
+  void shouldReplayOldRequestKeyAcrossEmptyPublishAndRejectUnwrittenOldVersion() {
+    long scopeId = createScope("n3-old-key");
+    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "N3R1");
+    FormAdminViews.PublicationView v1 = publish(scopeId, "N3R1");
+    String key = UUID.randomUUID().toString();
+    FormCreateResponse first =
+        formRecordService.create(
+            issueReplyRequest(scopeId, v1.toVersionId(), key, issueReplyFields()),
+            admin,
+            "127.0.0.1",
+            "JUnit");
+    assertThat(first.outcome()).isEqualTo("CREATED");
+
+    boundDraft(scopeId, relabeledSpec(FormTemplateSpecCatalog.ISSUE_REPLY, "N3 新版"), "N3R2");
+    FormAdminViews.PublicationView v2 = publish(scopeId, "N3R2");
+
+    FormCreateResponse replay =
+        formRecordService.create(
+            issueReplyRequest(scopeId, v1.toVersionId(), key, issueReplyFields()),
+            admin,
+            "127.0.0.1",
+            "JUnit");
+    assertThat(replay.outcome()).isEqualTo("REPLAYED");
+    assertThat(replay.record().id()).isEqualTo(first.record().id());
+
+    String unwrittenKey = UUID.randomUUID().toString();
+    assertThatThrownBy(
+            () ->
+                formRecordService.create(
+                    issueReplyRequest(scopeId, v1.toVersionId(), unwrittenKey, issueReplyFields()),
+                    admin,
+                    "127.0.0.1",
+                    "JUnit"))
+        .isInstanceOf(FormConflictException.class);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select count(*) from form_record_locations where scope_id = ? and request_key = ?",
+                Integer.class,
+                scopeId,
+                unwrittenKey))
+        .isZero();
+
+    FormCreateResponse newVersion =
+        formRecordService.create(
+            issueReplyRequest(scopeId, v2.toVersionId(), UUID.randomUUID().toString(), issueReplyFields()),
+            admin,
+            "127.0.0.1",
+            "JUnit");
+    assertThat(newVersion.outcome()).isEqualTo("CREATED");
+  }
+
+  @Test
+  void shouldAllowWritesDuringBuildAndFenceOnlyDuringSwitch() {
+    long scopeId = createScope("n3-short-fence");
+    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "N3R1");
+    FormAdminViews.PublicationView v1 = publish(scopeId, "N3R1");
+    createIssueReply(scopeId, v1.toVersionId());
+
+    boundDraft(scopeId, relabeledSpec(FormTemplateSpecCatalog.ISSUE_REPLY, "N3 新版"), "N3R2");
+    FormAdminViews.PublicationView task = preparePublication(scopeId);
+    FormPublicationTxService.Claim claim = publicationTxService.claim(task.id(), "n3-owner");
+    assertThat(claim).isNotNull();
+    assertThat(claim.stage()).isEqualTo("BUILDING");
+    assertThat(scopeFenced(scopeId)).isFalse();
+    assertThat(createIssueReply(scopeId, v1.toVersionId()).outcome()).isEqualTo("CREATED");
+
+    publicationTxService.build(claim);
+    publicationTxService.enterSwitch(claim);
+    assertThat(scopeFenced(scopeId)).isTrue();
+    assertThatThrownBy(() -> createIssueReply(scopeId, v1.toVersionId()))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("停写");
+    assertThatThrownBy(() -> createIssueReply(scopeId, claim.toVersionId()))
+        .isInstanceOf(FormConflictException.class);
+
+    publicationTxService.applySwitch(claim);
+    assertThat(scopeFenced(scopeId)).isFalse();
+    FormAdminViews.PublicationView published = publicationService.publicationView(task.id());
+    assertThat(published.stage()).isEqualTo("PUBLISHED");
+    assertThat(createIssueReply(scopeId, claim.toVersionId()).outcome()).isEqualTo("CREATED");
+    assertThatThrownBy(() -> createIssueReply(scopeId, v1.toVersionId()))
+        .isInstanceOf(FormConflictException.class);
+  }
+
+  @Test
+  void shouldTakeOverExpiredBuildAndSwitch() {
+    long scopeId = createScope("n3-takeover");
+    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "N3R1");
+    FormAdminViews.PublicationView v1 = publish(scopeId, "N3R1");
+    createIssueReply(scopeId, v1.toVersionId());
+
+    boundDraft(scopeId, relabeledSpec(FormTemplateSpecCatalog.ISSUE_REPLY, "N3 新版A"), "N3R2");
+    FormAdminViews.PublicationView task = preparePublication(scopeId);
+    FormPublicationTxService.Claim first = publicationTxService.claim(task.id(), "n3-owner-a");
+    assertThat(first).isNotNull();
+    expireLease(task.id());
+    FormPublicationTxService.Claim takeover = publicationTxService.claim(task.id(), "n3-owner-b");
+    assertThat(takeover).isNotNull();
+    assertThat(takeover.attemptNo()).isEqualTo(2);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select phase from form_template_publication_attempts"
+                    + " where publication_id = ? and attempt_no = 2",
+                String.class,
+                task.id()))
+        .isEqualTo("BUILD_TAKEOVER");
+    assertThatThrownBy(() -> publicationTxService.build(first))
+        .isInstanceOf(IllegalStateException.class);
+    publicationTxService.build(takeover);
+    publicationTxService.enterSwitch(takeover);
+    expireLease(task.id());
+    FormPublicationTxService.Claim switchTakeover =
+        publicationTxService.claim(task.id(), "n3-owner-c");
+    assertThat(switchTakeover).isNotNull();
+    assertThat(switchTakeover.stage()).isEqualTo("SWITCHING");
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select phase from form_template_publication_attempts"
+                    + " where publication_id = ? and attempt_no = 3",
+                String.class,
+                task.id()))
+        .isEqualTo("SWITCH_TAKEOVER");
+    assertThatThrownBy(() -> publicationTxService.applySwitch(takeover))
+        .isInstanceOf(IllegalStateException.class);
+    publicationTxService.applySwitch(switchTakeover);
+    assertThat(publicationService.publicationView(task.id()).stage()).isEqualTo("PUBLISHED");
+    assertThat(scopeFenced(scopeId)).isFalse();
+    assertThat(countTable(recordTable(v1.toVersionId()))).isEqualTo(1);
+  }
+
+  @Test
+  void shouldRollbackSwitchAtomicallyWhenApplyTransactionAborts() {
+    long scopeId = createScope("n3-crash");
+    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "N3R1");
+    FormAdminViews.PublicationView v1 = publish(scopeId, "N3R1");
+    createIssueReply(scopeId, v1.toVersionId());
+
+    boundDraft(scopeId, relabeledSpec(FormTemplateSpecCatalog.ISSUE_REPLY, "N3 新版"), "N3R2");
+    FormAdminViews.PublicationView task = preparePublication(scopeId);
+    FormPublicationTxService.Claim claim = publicationTxService.claim(task.id(), "n3-crash-owner");
+    publicationTxService.build(claim);
+    publicationTxService.enterSwitch(claim);
+    TransactionTemplate transaction =
+        new TransactionTemplate(new DataSourceTransactionManager(jdbcTemplate.getDataSource()));
+
+    assertThatThrownBy(
+            () ->
+                transaction.executeWithoutResult(
+                    status -> {
+                      publicationTxService.applySwitch(claim);
+                      status.setRollbackOnly();
+                      throw new IllegalStateException("n3 simulated crash");
+                    }))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("simulated crash");
+
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select current_version_id from form_template_scopes where id = ?",
+                Long.class,
+                scopeId))
+        .isEqualTo(v1.toVersionId());
+    assertThat(versionStatus(claim.toVersionId())).isEqualTo("INSTALLED");
+    assertThat(versionRole(claim.toVersionId())).isEqualTo("TARGET");
+    assertThat(publicationService.publicationView(task.id()).stage()).isEqualTo("SWITCHING");
+    assertThat(scopeFenced(scopeId)).isTrue();
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select count(*) from form_directory_events where scope_id = ?"
+                    + " and source_set_revision > (select source_set_revision from form_template_scopes where id = ?)",
+                Integer.class,
+                scopeId,
+                scopeId))
+        .isZero();
+
+    publicationTxService.applySwitch(claim);
+    assertThat(publicationService.publicationView(task.id()).stage()).isEqualTo("PUBLISHED");
+    assertThat(scopeFenced(scopeId)).isFalse();
+    assertThat(countTable(recordTable(v1.toVersionId()))).isEqualTo(1);
+  }
+
+  @Test
+  void shouldRejectDriftedTargetAndRecoverOnlyWithUnchangedInput() {
+    long scopeId = createScope("n3-drift");
+    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "N3R1");
+    FormAdminViews.PublicationView v1 = publish(scopeId, "N3R1");
+    createIssueReply(scopeId, v1.toVersionId());
+
+    boundDraft(scopeId, relabeledSpec(FormTemplateSpecCatalog.ISSUE_REPLY, "N3 新版"), "N3R2");
+    FormAdminViews.PublicationView task = preparePublication(scopeId);
+    FormPublicationTxService.Claim claim = publicationTxService.claim(task.id(), "n3-drift-owner");
+    publicationTxService.build(claim);
+    jdbcTemplate.execute(
+        "alter table " + recordTable(claim.toVersionId()) + " add column n3_drift_probe text");
+    assertThatThrownBy(() -> publicationTxService.enterSwitch(claim))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("漂移");
+    assertThat(publicationTxService.fail(claim, "目标结构漂移")).isTrue();
+    assertThat(scopeFenced(scopeId)).isFalse();
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select current_version_id from form_template_scopes where id = ?",
+                Long.class,
+                scopeId))
+        .isEqualTo(v1.toVersionId());
+    assertThatThrownBy(() -> publicationService.recover(task.id(), admin))
+        .isInstanceOf(FormConflictException.class);
+  }
+
+  @Test
+  void shouldRejectSourceSetDriftBeforeSwitchAndRequireNewPreview() {
+    long scopeId = createScope("n3-source-drift");
+    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "N3R1");
+    FormAdminViews.PublicationView v1 = publish(scopeId, "N3R1");
+    createIssueReply(scopeId, v1.toVersionId());
+
+    boundDraft(scopeId, relabeledSpec(FormTemplateSpecCatalog.ISSUE_REPLY, "N3 新版"), "N3R2");
+    FormAdminViews.PublicationView task = preparePublication(scopeId);
+    FormPublicationTxService.Claim claim = publicationTxService.claim(task.id(), "n3-source-owner");
+    publicationTxService.build(claim);
+    jdbcTemplate.update(
+        "update form_template_scopes set source_set_revision = source_set_revision + 1,"
+            + " source_set_hash = repeat('f', 64) where id = ?",
+        scopeId);
+    assertThatThrownBy(() -> publicationTxService.enterSwitch(claim))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("源集合已变化");
+    assertThat(publicationTxService.fail(claim, "源集合已变化")).isTrue();
+    assertThatThrownBy(() -> publicationService.recover(task.id(), admin))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("源集合已变化");
+    assertThat(scopeFenced(scopeId)).isFalse();
+  }
+
+  @Test
+  void shouldRefuseLegacyProtocolTasksAndCloseOnlyWithoutLiveLease() {
+    long scopeId = createScope("n3-legacy-task");
+    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "N3R1");
+    FormAdminViews.PublicationView v1 = publish(scopeId, "N3R1");
+
+    boundDraft(scopeId, relabeledSpec(FormTemplateSpecCatalog.ISSUE_REPLY, "N3 新版"), "N3R2");
+    FormAdminViews.PublicationView task = preparePublication(scopeId);
+    jdbcTemplate.update(
+        "update form_template_publications set protocol_version = 1, stage = 'PREPARED',"
+            + " lease_owner = null, lease_until = null, fence_token = null where id = ?",
+        task.id());
+
+    assertThat(publicationTxService.claimablePublicationId()).isNull();
+    assertThat(publicationTxService.claim(task.id(), "n3-v2-worker")).isNull();
+    assertThat(publicationTxService.listLegacyPublications())
+        .extracting(FormAdminViews.PublicationView::id)
+        .containsExactly(task.id());
+
+    jdbcTemplate.update(
+        "update form_template_publications set lease_owner = 'legacy-owner',"
+            + " lease_until = clock_timestamp() + interval '5 minutes' where id = ?",
+        task.id());
+    assertThat(publicationTxService.closeLegacyPublication(task.id(), "n3-operator")).isFalse();
+    jdbcTemplate.update(
+        "update form_template_publications set lease_until = clock_timestamp() - interval '1 minute'"
+            + " where id = ?",
+        task.id());
+    assertThat(publicationTxService.closeLegacyPublication(task.id(), "n3-operator")).isTrue();
+    FormAdminViews.PublicationView closed = publicationService.publicationView(task.id());
+    assertThat(closed.stage()).isEqualTo("FAILED");
+    assertThat(closed.lastError()).isEqualTo("v6_no_copy_protocol");
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select protocol_version from form_template_publication_attempts"
+                    + " where publication_id = ? and phase = 'FAILED' order by id desc limit 1",
+                Integer.class,
+                task.id()))
+        .isEqualTo(1);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select current_version_id from form_template_scopes where id = ?",
+                Long.class,
+                scopeId))
+        .isEqualTo(v1.toVersionId());
+  }
+
   // ------------------------------------------------------------------ helpers
 
+  private FormAdminViews.PublicationView preparePublication(long scopeId) {
+    FormAdminViews.PreviewView preview =
+        adminService.preview(scopeId, currentRevision(scopeId), admin);
+    assertThat(preview.blockingErrors()).isEmpty();
+    return adminService.createPublication(
+        scopeId,
+        new FormPublicationCreateRequest(
+            currentRevision(scopeId),
+            preview.id(),
+            adminService.scope(scopeId).scope().currentVersionId(),
+            UUID.randomUUID().toString()),
+        admin);
+  }
+
+  private ObjectNode relabeledSpec(String templateKey, String label) {
+    ObjectNode spec = seedSpec(templateKey);
+    ((ObjectNode) ((ArrayNode) spec.get("fields")).get(0)).put("label", label);
+    return spec;
+  }
+
+  private String recordTable(long versionId) {
+    return jdbcTemplate.queryForObject(
+        "select record_table from form_template_versions where id = ?", String.class, versionId);
+  }
+
+  private String instanceTable(long versionId) {
+    return jdbcTemplate.queryForObject(
+        "select instance_table from form_template_versions where id = ?", String.class, versionId);
+  }
+
+  private String versionStatus(long versionId) {
+    return jdbcTemplate.queryForObject(
+        "select version_status from form_template_versions where id = ?", String.class, versionId);
+  }
+
+  private String versionRole(long versionId) {
+    return jdbcTemplate.queryForObject(
+        "select record_source_role from form_template_versions where id = ?",
+        String.class,
+        versionId);
+  }
+
+  private int countTable(String table) {
+    return jdbcTemplate.queryForObject("select count(*) from \"" + table + "\"", Integer.class);
+  }
+
+  private boolean scopeFenced(long scopeId) {
+    return Boolean.TRUE.equals(
+        jdbcTemplate.queryForObject(
+            "select write_fenced from form_template_scopes where id = ?", Boolean.class, scopeId));
+  }
+
+  private void expireLease(long publicationId) {
+    jdbcTemplate.update(
+        "update form_template_publications set lease_until = clock_timestamp() - interval '1 minute'"
+            + " where id = ?",
+        publicationId);
+  }
+
   private long createScope(String scopeKey) {
+    return createScope(FormTemplateSpecCatalog.ISSUE_REPLY, scopeKey);
+  }
+
+  private long createScope(String templateKey, String scopeKey) {
     return adminService
-        .createScope(
-            new FormScopeCreateRequest(FormTemplateSpecCatalog.ISSUE_REPLY, scopeKey), admin)
+        .createScope(new FormScopeCreateRequest(templateKey, scopeKey), admin)
         .scope()
         .id();
+  }
+
+  private String publicationKind(long publicationId) {
+    return jdbcTemplate.queryForObject(
+        "select publication_kind from form_template_publications where id = ?",
+        String.class,
+        publicationId);
+  }
+
+  private long currentVersionId(long scopeId) {
+    Long current =
+        jdbcTemplate.queryForObject(
+            "select current_version_id from form_template_scopes where id = ?",
+            Long.class,
+            scopeId);
+    return current == null ? -1 : current;
+  }
+
+  private long sourceSetRevision(long scopeId) {
+    return jdbcTemplate.queryForObject(
+        "select source_set_revision from form_template_scopes where id = ?", Long.class, scopeId);
+  }
+
+  private int directoryEventCount(long scopeId, long revision) {
+    return jdbcTemplate.queryForObject(
+        "select count(*) from form_directory_events where scope_id = ?"
+            + " and source_set_revision = ? and event_type in ('VERSION_ADDED','CURRENT_CHANGED')",
+        Integer.class,
+        scopeId,
+        revision);
+  }
+
+  private int totalHeadCount(long scopeId) {
+    return jdbcTemplate.queryForObject(
+        "select count(*) from form_change_heads where scope_id = ?", Integer.class, scopeId);
+  }
+
+  private int pendingHeadCount(long scopeId, long versionId, long revision) {
+    return jdbcTemplate.queryForObject(
+        "select count(*) from form_change_heads where scope_id = ?"
+            + " and pending_storage_version_id = ? and pending_source_set_revision = ?",
+        Integer.class,
+        scopeId,
+        versionId,
+        revision);
+  }
+
+  private Map<String, Object> recordLocation(long recordId) {
+    return jdbcTemplate.queryForMap(
+        "select storage_version_id, origin_version_id, instance_id, request_key,"
+            + " create_payload_hash, created_at from form_record_locations where record_id = ?",
+        recordId);
+  }
+
+  private FormCreateResponse createRecord(String templateKey, long scopeId, long versionId) {
+    boolean mergeRequest = FormTemplateSpecCatalog.CODE_REVIEW.equals(templateKey);
+    if (mergeRequest) {
+      jdbcTemplate.update(
+          "insert into platform_ldap_users(user_id, real_name) values ('w4-admin', '管理员')"
+              + " on conflict (user_id) do update set real_name = excluded.real_name");
+      seedMergeRequest(MERGE_REQUEST_IID);
+    }    ObjectNode fields =
+        switch (templateKey) {
+          case FormTemplateSpecCatalog.CODE_REVIEW -> codeReviewFields();
+          case FormTemplateSpecCatalog.ISSUE_RESPONSE -> issueResponseFields();
+          default -> issueReplyFields();
+        };
+    return formRecordService.create(
+        new FormCreateRequest(
+            GITLAB_URL,
+            PROJECT_ID,
+            mergeRequest ? "merge_request" : "issue",
+            Long.toString(mergeRequest ? MERGE_REQUEST_IID : ISSUE_IID),
+            templateKey,
+            Long.toString(scopeId),
+            Long.toString(versionId),
+            UUID.randomUUID().toString(),
+            mergeRequest,
+            toFields(fields)),
+        admin,
+        "127.0.0.1",
+        "JUnit");
+  }
+
+  private void seedMergeRequest(long iid) {
+    jdbcTemplate.execute(
+        """
+        create table if not exists ods_gitlab_merge_requests(
+            id bigint primary key,
+            target_project_id bigint,
+            iid bigint,
+            mirror_deleted boolean default false)
+        """);
+    jdbcTemplate.update(
+        "delete from ods_gitlab_merge_requests where target_project_id = ? and iid = ?",
+        PROJECT_ID,
+        iid);
+    jdbcTemplate.update(
+        "insert into ods_gitlab_merge_requests(id, target_project_id, iid, mirror_deleted)"
+            + " values (?, ?, ?, false)",
+        9000L + iid,
+        PROJECT_ID,
+        iid);
+  }
+
+  private ObjectNode codeReviewFields() {
+    ObjectNode node = objectMapper.createObjectNode();
+    node.put("reviewerUserId", "w4-admin");
+    node.put("reviewDurationMinutes", 30);
+    node.put("specificationCount", 1);
+    node.put("logicCount", 0);
+    node.put("performanceCount", 0);
+    node.put("designCount", 0);
+    node.put("otherCount", 0);
+    node.putNull("supplementNote");
+    return node;
+  }
+
+  private ObjectNode issueResponseFields() {
+    ObjectNode node = objectMapper.createObjectNode();
+    node.put("problemType", "DEFECT");
+    node.put("problemCause", "原因");
+    node.put("modificationPlan", "方案");
+    node.put("ownerConfirmation", "已确认");
+    node.put("plannedResolutionDate", "2026-12-01");
+    node.put("plannedMergeVersionBranch", "CC2026R1");
+    node.putNull("supplementNote");
+    return node;
   }
 
   private FormAdminViews.DraftView boundDraft(long scopeId, ObjectNode spec, String label) {
@@ -1136,159 +1326,6 @@ class FormTemplateAdminIntegrationTest {
       }
     }
     jdbcTemplate.execute("drop function if exists w4_fail_copy()");
-  }
-
-  @Test
-  void shouldRejectRecoveryForAnyStructureDrift() {
-    FailedPublication failed = prepareFailedPublication("recover-drift");
-    String recordTable = failed.schema().recordTable();
-    FormVersionSchema schema = failed.schema();
-
-    String checkName =
-        jdbcTemplate.queryForObject(
-            "select conname from pg_constraint where conrelid = ?::regclass"
-                + " and contype = 'c' order by conname limit 1",
-            String.class,
-            recordTable);
-    String checkDef =
-        jdbcTemplate.queryForObject(
-            "select pg_get_constraintdef(oid) from pg_constraint where conname = ? and conrelid = ?::regclass",
-            String.class,
-            checkName,
-            recordTable);
-    jdbcTemplate.execute("alter table " + recordTable + " drop constraint " + checkName);
-    assertDriftRejected(failed.publication().id());
-    jdbcTemplate.execute(
-        "alter table " + recordTable + " add constraint " + checkName + " " + checkDef);
-
-    String indexName =
-        jdbcTemplate.queryForObject(
-            "select indexname from pg_indexes where schemaname = current_schema()"
-                + " and tablename = ? and indexname like 'idx_fr_%' order by indexname limit 1",
-            String.class,
-            recordTable);
-    String indexDef =
-        jdbcTemplate.queryForObject(
-            "select indexdef from pg_indexes where schemaname = current_schema() and indexname = ?",
-            String.class,
-            indexName);
-    jdbcTemplate.execute("drop index " + indexName);
-    assertDriftRejected(failed.publication().id());
-    jdbcTemplate.execute(indexDef);
-
-    String foreignKey =
-        jdbcTemplate.queryForObject(
-            "select conname from pg_constraint where conrelid = ?::regclass"
-                + " and contype = 'f' order by conname limit 1",
-            String.class,
-            recordTable);
-    String foreignKeyDef =
-        jdbcTemplate.queryForObject(
-            "select pg_get_constraintdef(oid) from pg_constraint where conname = ? and conrelid = ?::regclass",
-            String.class,
-            foreignKey,
-            recordTable);
-    jdbcTemplate.execute("alter table " + recordTable + " drop constraint " + foreignKey);
-    jdbcTemplate.execute(
-        "alter table " + recordTable + " add constraint " + foreignKey
-            + " foreign key (instance_id) references " + schema.instanceTable()
-            + " (id) on delete cascade");
-    assertDriftRejected(failed.publication().id());
-    jdbcTemplate.execute("alter table " + recordTable + " drop constraint " + foreignKey);
-    jdbcTemplate.execute(
-        "alter table " + recordTable + " add constraint " + foreignKey + " " + foreignKeyDef);
-
-    jdbcTemplate.execute("create sequence if not exists form_record_id_probe_seq");
-    jdbcTemplate.execute(
-        "alter table " + recordTable
-            + " alter column id set default nextval('form_record_id_probe_seq')");
-    assertDriftRejected(failed.publication().id());
-    jdbcTemplate.execute(
-        "alter table " + recordTable + " alter column id set default nextval('form_record_id_seq')");
-
-    assertThat(
-            jdbcTemplate.queryForObject(
-                "select stage from form_template_publications where id = ?",
-                String.class,
-                failed.publication().id()))
-        .isEqualTo("FAILED");
-    assertThat(adminService.scope(failed.scopeId()).scope().currentVersionId())
-        .isEqualTo(failed.oldVersionId());
-    assertThat(adminService.scope(failed.scopeId()).scope().writeFenced()).isFalse();
-  }
-
-  @Test
-  void shouldRejectRecoveryWhenTargetTablesPartiallyMissing() {
-    FailedPublication failed = prepareFailedPublication("recover-partial");
-    jdbcTemplate.execute(
-        "drop table " + failed.schema().instanceTable() + " cascade");
-    assertThatThrownBy(() -> publicationService.recover(failed.publication().id(), admin))
-        .isInstanceOf(FormConflictException.class)
-        .hasMessageContaining("结构不完整");
-    assertThat(adminService.scope(failed.scopeId()).scope().currentVersionId())
-        .isEqualTo(failed.oldVersionId());
-  }
-
-  @Test
-  void shouldRejectCopyBeforeTruncatingWhenStructureDrifted() {
-    long scopeId = createScope("copy-drift");
-    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "CC2026R1");
-    FormAdminViews.PublicationView first = publish(scopeId, "CC2026R1");
-    long oldVersionId = first.toVersionId();
-    createIssueReply(scopeId, oldVersionId);
-
-    ObjectNode migrated = seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY);
-    for (JsonNode field : migrated.get("fields")) {
-      if ("fix_status".equals(field.path("name").asText())) {
-        ((ObjectNode) field).put("label", "修复状态（漂移）");
-      }
-    }
-    boundDraft(scopeId, migrated, "CC2026R2");
-    FormAdminViews.PreviewView preview =
-        adminService.preview(scopeId, currentRevision(scopeId), admin);
-    FormTemplateSpec migratedSpec;
-    try {
-      migratedSpec =
-          objectMapper.readValue(objectMapper.writeValueAsString(migrated), FormTemplateSpec.class);
-    } catch (Exception error) {
-      throw new IllegalStateException(error);
-    }
-    FormVersionSchema schema =
-        versionSchemaService.generate(scopeId, preview.targetVersionId(), migratedSpec, true);
-    schema.statements().forEach(jdbcTemplate::execute);
-    String checkName =
-        jdbcTemplate.queryForObject(
-            "select conname from pg_constraint where conrelid = ?::regclass"
-                + " and contype = 'c' order by conname limit 1",
-            String.class,
-            schema.recordTable());
-    jdbcTemplate.execute(
-        "alter table " + schema.recordTable() + " drop constraint " + checkName);
-    jdbcTemplate.update(
-        "insert into " + schema.instanceTable()
-            + " select * from form_s" + scopeId + "_v" + oldVersionId + "_instances");
-    jdbcTemplate.update(
-        "insert into " + schema.recordTable()
-            + " select * from form_s" + scopeId + "_v" + oldVersionId + "_records");
-
-    FormAdminViews.PublicationView publication =
-        adminService.createPublication(
-            scopeId,
-            new FormPublicationCreateRequest(
-                currentRevision(scopeId),
-                preview.id(),
-                oldVersionId,
-                UUID.randomUUID().toString()),
-            admin);
-    assertThat(publicationService.executeOnce(publication.id())).isFalse();
-    FormAdminViews.PublicationView failed = publicationService.publicationView(publication.id());
-    assertThat(failed.stage()).isEqualTo("FAILED");
-    assertThat(failed.lastError()).contains("结构漂移");
-    assertThat(adminService.scope(scopeId).scope().currentVersionId()).isEqualTo(oldVersionId);
-    assertThat(
-            jdbcTemplate.queryForObject(
-                "select count(*) from " + schema.recordTable(), Integer.class))
-        .isEqualTo(1);
   }
 
   private void assertDriftRejected(long publicationId) {

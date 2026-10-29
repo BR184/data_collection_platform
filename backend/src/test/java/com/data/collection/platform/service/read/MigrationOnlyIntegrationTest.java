@@ -42,7 +42,7 @@ class MigrationOnlyIntegrationTest {
         assertThat(context.getBeansOfType(DatasetRefreshWorker.class)).isEmpty();
         assertThat(context.getBeansOfType(ReadModelInstallationScheduler.class)).isEmpty();
         assertThat(context).isNotInstanceOf(org.springframework.boot.web.context.WebServerApplicationContext.class);
-        assertThat(context.getBean(Flyway.class).info().current().getVersion().getVersion()).isEqualTo("20261027.01");
+        assertThat(context.getBean(Flyway.class).info().current().getVersion().getVersion()).isEqualTo("20261029.01");
       }
       assertThat(jdbc.queryForMap("select * from issue_fact where issue_id = 1")).isEqualTo(before);
       assertThat(jdbc.queryForObject("select count(*) from read_dataset_refresh_requests", Long.class)).isEqualTo(requestsBefore);

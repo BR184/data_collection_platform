@@ -53,7 +53,6 @@ public class FormTemplateAdminService {
   private final FormVersionSchemaService schemaService;
   private final FormScopeValidationService scopeValidationService;
   private final FormPublicationService publicationService;
-  private final FormLegacyRecordMigrator legacyMigrator;
   private final Clock clock;
 
   public FormTemplateAdminService(
@@ -64,7 +63,6 @@ public class FormTemplateAdminService {
       FormVersionSchemaService schemaService,
       FormScopeValidationService scopeValidationService,
       FormPublicationService publicationService,
-      FormLegacyRecordMigrator legacyMigrator,
       Clock clock) {
     this.jdbcTemplate = jdbcTemplate;
     this.objectMapper = objectMapper;
@@ -73,7 +71,6 @@ public class FormTemplateAdminService {
     this.schemaService = schemaService;
     this.scopeValidationService = scopeValidationService;
     this.publicationService = publicationService;
-    this.legacyMigrator = legacyMigrator;
     this.clock = clock;
   }
 
@@ -293,8 +290,7 @@ public class FormTemplateAdminService {
         || draft.versionEvidence().isEmpty()) {
       blockers.add("发布依据不能为空");
     }
-    String publicationKind = publicationKind(scope, binding);
-    boolean migrationTarget = !"INITIAL_EMPTY".equals(publicationKind);
+    String publicationKind = scope.currentVersionId() == null ? "INITIAL_EMPTY" : "MIGRATION";
     ObjectNode diff = objectMapper.createObjectNode();
     ObjectNode impact = objectMapper.createObjectNode();
     ArrayNode ddlSummary = objectMapper.createArrayNode();
@@ -306,13 +302,10 @@ public class FormTemplateAdminService {
               ? specCatalog.require(scope.templateKey())
               : currentSpec(scope);
       diff = diff(previous, spec, blockers);
-      impact =
-          "INITIAL_MIGRATION".equals(publicationKind)
-              ? legacyImpact(scope, binding, blockers)
-              : impact(scope);
+      impact = impact(scope);
       try {
         FormVersionSchema schema =
-            schemaService.generate(scopeId, targetVersionId, spec, migrationTarget);
+            schemaService.generate(scopeId, targetVersionId, spec, false);
         ddlSummary = (ArrayNode) schema.ddlSummary().path("columns").deepCopy();
         ddlHash = schema.ddlHash();
       } catch (RuntimeException error) {
@@ -325,7 +318,8 @@ public class FormTemplateAdminService {
     preview.put("draftRevision", draft.revision());
     preview.put("targetVersionId", targetVersionId);
     preview.put("publicationKind", publicationKind);
-    preview.put("migrationTarget", migrationTarget);
+    preview.put("migrationTarget", false);
+    preview.put("emptyStructure", true);
     preview.put("fieldSpecHash", FormHashSupport.sha256Hex(fieldSpecJson));
     preview.put("bindingHash", binding.hash());
     preview.set("diff", diff);
@@ -383,8 +377,8 @@ public class FormTemplateAdminService {
   /**
    * 创建发布任务。
    *
-   * <p>发布种类与预览一致：已有版本为 MIGRATION；首次按当前绑定 S 选择 INITIAL_MIGRATION 或
-   * INITIAL_EMPTY。旧表首迁同样由通用发布执行器按冻结草稿规格执行。
+   * <p>发布种类与预览一致：已有版本为 MIGRATION，首次为 INITIAL_EMPTY。v2 执行器只建空结构，
+   * 不复制或改写旧记录。
    */
   public FormAdminViews.PublicationView createPublication(
       long scopeId, FormPublicationCreateRequest request, FormActorContext actor) {
@@ -519,7 +513,8 @@ public class FormTemplateAdminService {
                v.version_label, v.version_status,
                d.draft_revision,
                (select count(*) from form_template_publications p
-                 where p.scope_id = s.id and p.stage in ('PREPARED', 'COPYING', 'VERIFIED'))
+                 where p.scope_id = s.id and p.stage in ('PREPARED', 'COPYING', 'VERIFIED',
+                                                          'VALIDATING', 'BUILDING', 'SWITCHING'))
                  as active_publications
           from form_template_scopes s
           left join form_template_versions v on v.id = s.current_version_id
@@ -983,51 +978,6 @@ public class FormTemplateAdminService {
     return rows.isEmpty() ? null : rows.getFirst();
   }
 
-  /**
-   * 首次发布路径：已有当前版本一律 MIGRATION；无当前版本时只按本绑定范围的旧表选集 S 判定。
-   *
-   * <p>其它范围或项目的旧记录不触发 INITIAL_MIGRATION；本范围 S 为空时走 INITIAL_EMPTY。
-   */
-  private String publicationKind(ScopeRow scope, ResolvedBinding binding) {
-    if (scope.currentVersionId() != null) {
-      return "MIGRATION";
-    }
-    if (binding.bound()
-        && legacyMigrator.hasScopedSelection(
-            scope.templateKey(), binding.canonicalGitlabBaseUrl(), binding.projectIds())) {
-      return "INITIAL_MIGRATION";
-    }
-    return "INITIAL_EMPTY";
-  }
-
-  /** 初始迁移影响：只统计冻结依赖的当前绑定 S，不把其它项目旧行计入。 */
-  private ObjectNode legacyImpact(
-      ScopeRow scope, ResolvedBinding binding, List<String> blockers) {
-    ObjectNode impact = objectMapper.createObjectNode();
-    impact.put("records", 0);
-    impact.put("instances", 0);
-    impact.put("resources", 0);
-    impact.put("sourceRows", 0);
-    if (!binding.bound()) {
-      return impact;
-    }
-    try {
-      FormLegacyRecordMigrator.Selection selection =
-          legacyMigrator.select(
-              scope.templateKey(),
-              binding.canonicalGitlabBaseUrl(),
-              binding.projectIds(),
-              binding.hash());
-      impact.put("records", selection.rows().size());
-      impact.put("instances", selection.instances().size());
-      impact.put("resources", selection.instances().size());
-      impact.put("sourceRows", selection.rows().size());
-    } catch (IllegalArgumentException | IllegalStateException error) {
-      blockers.add("旧表选集无效：" + error.getMessage());
-    }
-    return impact;
-  }
-
   private JsonNode defaultMigrationSpec(
       ScopeRow scope, DraftRow draft, FormTemplateSpec next, ResolvedBinding binding) {
     if (scope.currentVersionId() == null) {
@@ -1052,7 +1002,8 @@ public class FormTemplateAdminService {
         jdbcTemplate.queryForObject(
             """
             select count(*) from form_template_publications
-             where scope_id = ? and stage in ('PREPARED', 'COPYING', 'VERIFIED')
+             where scope_id = ? and stage in ('PREPARED', 'COPYING', 'VERIFIED',
+                                              'VALIDATING', 'BUILDING', 'SWITCHING')
             """,
             Integer.class,
             scopeId);
