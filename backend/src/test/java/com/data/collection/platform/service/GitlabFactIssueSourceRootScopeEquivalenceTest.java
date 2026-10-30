@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.service.sync.PostgresIntegrationTestDatabase;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -55,6 +56,34 @@ class GitlabFactIssueSourceRootScopeEquivalenceTest {
         .filteredOn(row -> row.contains("\"issue_id\":1") || row.contains("\"issue_id\":2"))
         .containsExactlyElementsOf(scoped);
     assertThat(scoped).hasSize(2);
+  }
+
+  @Test
+  void test_full_and_root_scoped_sources_use_the_latest_resolution_plan_even_when_comment_times_are_equal() {
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_notes(
+            id, noteable_id, noteable_type, note, author_id, created_at, mirror_deleted) values
+          (1000, 1, 'Issue', '# 问题调研情况说明' || chr(10)
+             || '## 计划解决时间：2026.01.05', 100, timestamp '2026-01-04 08:00:00', false),
+          (1001, 1, 'Issue', '# 问题调研情况说明' || chr(10)
+             || '## 计划解决时间：2026.01.15', 100, timestamp '2026-01-04 08:00:00', false)
+        """);
+
+    for (boolean rootScoped : List.of(false, true)) {
+      String sourceSql = rootScoped
+          ? provider.issueSourceSqlForRoots(List.of(1L)) : provider.issueSourceSql();
+      Object[] arguments = rootScoped ? new Object[] {1L} : new Object[0];
+      List<LocalDateTime> deadlines = jdbcTemplate.query(
+          "select * from (" + sourceSql + ") source_row where issue_id = 1",
+          (rs, rowNum) -> IssueFactNormalizationRules.resolveDeadline(
+              rs.getTimestamp("created_at").toLocalDateTime(), rs.getString("notes_text")),
+          arguments);
+
+      assertThat(deadlines)
+          .as("全量与定向来源均按创建时间及ID从新到旧提供解决计划")
+          .containsExactly(LocalDateTime.of(2026, 1, 15, 0, 0));
+    }
   }
 
   @Test

@@ -186,6 +186,13 @@ public final class IssueFactNormalizationRules {
     return IssueSlaRules.resolveDeadline(createdAt, resolveSlaDays);
   }
 
+  /**
+   * 从按创建时间、ID倒序聚合的评论读取首个可解析计划日期，再应用既有18天上限与无日期回退规则。
+   *
+   * @param createdAt 来源创建时间；为空时不生成截止时间
+   * @param notesText 从新到旧聚合的评论；新评论无可解析日期时继续查找更早评论
+   * @return 解决截止时间；不改变计划日期格式、普通备注范围或闭环豁免规则
+   */
   public static LocalDateTime resolveDeadline(LocalDateTime createdAt, String notesText) {
     return IssueSlaRules.resolveDeadline(createdAt, notesText);
   }
