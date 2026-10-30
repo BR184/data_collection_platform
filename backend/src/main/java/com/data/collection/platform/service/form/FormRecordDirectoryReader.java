@@ -33,6 +33,9 @@ public class FormRecordDirectoryReader {
   /** 回读的物理表名只允许版本登记的既有旧表或小写蛇形标识符。 */
   private static final Pattern TABLE_NAME = Pattern.compile("^[a-z][a-z0-9_]{1,62}$");
 
+  /** 批量按资源回读时单次绑定的资源数上限，避免超出驱动参数上限。 */
+  private static final int RESOURCE_ID_CHUNK = 500;
+
   /**
    * 定位记录：定位证据来自目录，业务值按承载表或旧源表回读，作废状态显式可见。
    *
@@ -114,6 +117,59 @@ public class FormRecordDirectoryReader {
       LocatedRecord read = readBack(record, true);
       if (read != null) {
         resolved.add(read);
+      }
+    }
+    return List.copyOf(resolved);
+  }
+
+  /**
+   * 按同一范围与项目批量回读多个资源 C 的有效记录。
+   *
+   * <p>与 {@link #listByResource} 使用同一索引与同一证据核验，只是把资源集合放进一次查询，
+   * 供事实构建按批解析，避免逐议题重复建连；单批参数数量有上限，超出部分分片继续。
+   *
+   * @param scopeId 已登记范围
+   * @param resourceType 资源类型，议题为 {@code issue}
+   * @param resourceIds 资源 C 集合
+   * @param projectId 项目 ID
+   * @return 按创建时间与记录 ID 升序的有效记录
+   */
+  public List<LocatedRecord> listByResources(
+      long scopeId, String resourceType, java.util.Collection<String> resourceIds, long projectId) {
+    List<String> ids = resourceIds.stream().filter(Objects::nonNull).distinct().toList();
+    if (ids.isEmpty()) {
+      return List.of();
+    }
+    List<LocatedRecord> resolved = new ArrayList<>();
+    for (int start = 0; start < ids.size(); start += RESOURCE_ID_CHUNK) {
+      List<String> chunk = ids.subList(start, Math.min(ids.size(), start + RESOURCE_ID_CHUNK));
+      String placeholders = String.join(", ", Collections.nCopies(chunk.size(), "?"));
+      List<Object> args = new ArrayList<>(chunk.size() + 3);
+      args.add(scopeId);
+      args.add(resourceType);
+      args.addAll(chunk);
+      args.add(projectId);
+      List<LocatedRecord> located =
+          jdbcTemplate.query(
+              """
+              select l.*, v.record_source_role, v.version_status
+                from form_record_locations l
+                join form_template_versions v on v.id = l.storage_version_id
+               where l.scope_id = ? and l.resource_type = ?
+                 and l.resource_id in (%s)
+                 and l.project_id = ?
+                 and v.record_source_role = 'AUTHORITATIVE'
+                 and v.version_status in ('PUBLISHED', 'RETIRED')
+               order by l.created_at, l.record_id
+              """
+                  .formatted(placeholders),
+              (rs, rowNum) -> baseRecord(rs),
+              args.toArray());
+      for (LocatedRecord record : located) {
+        LocatedRecord read = readBack(record, true);
+        if (read != null) {
+          resolved.add(read);
+        }
       }
     }
     return List.copyOf(resolved);

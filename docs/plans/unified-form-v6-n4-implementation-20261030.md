@@ -4,10 +4,10 @@
 
 ## 进度与中间物
 
-- 阶段（2026-10-30）：P0 计划与影响面盘点、P1 主线吸收均已完成，进入 P2；用户已裁定 MR 走逐记录投影 C、导出不做种子授予；已吸收审核回执 `99ec550b` 与主线延期写回修复（cherry-pick `17e65dcd`/`c594d529`/`7679764c`）。
-- 已完成：快进吸收 N4 准入回执 `b18583f4` 与接入方案重写 `99ec550b`；吸收主线延期写回修复及迁移 `V20261022_03`（本分支退役权限迁移顺延为 `V20261022_04`，内容与 checksum 不变）；本计划；影响面只读盘点；吸收类回归与延期相关套件全绿。
-- 测试状态：5 个吸收类（闭包进度、写回登记、来源就绪、接管失败、轮次事务）30/0/0/0；延期写回与解析/护栏相关 18 类 105/0/0/0；迁移护栏 163 条通过。证据见 `.tmp/w4-n4-20261030/delay-suite-20261030.log`、`enqueue-default-db-20261030.log`、`enqueue-clean-db-20261030.log`。
-- 进行点：Issue 首次事实与周期 SLA（共用类型化输入）。
+- 阶段（2026-10-30）：P0 计划与影响面盘点、P1 主线吸收、P2 Issue 首次事实与周期 SLA 均已完成，进入 P3；用户已裁定 MR 走逐记录投影 C、导出不做种子授予；已吸收审核回执 `99ec550b` 与主线延期写回修复（cherry-pick `17e65dcd`/`c594d529`/`7679764c`）。
+- 已完成：快进吸收 N4 准入回执 `b18583f4` 与接入方案重写 `99ec550b`；吸收主线延期写回修复及迁移 `V20261022_03`（本分支退役权限迁移顺延为 `V20261022_04`，内容与 checksum 不变）；本计划；影响面只读盘点；吸收类回归与延期相关套件全绿；P2 类型化输入、九项选择器、首次事实与周期 SLA 接入。
+- 测试状态：5 个吸收类（闭包进度、写回登记、来源就绪、接管失败、轮次事务）30/0/0/0；延期写回与解析/护栏相关 18 类 105/0/0/0；P2 选择器/SLA 纯单测 9/0/0/0、真实 PG 首次事实与周期回归 6/0/0/0；受影响既有类（FactBuildService 3 类、Issue 事实管线、刷新 worker）36/0/0/0；迁移护栏 163 条通过。证据见 `.tmp/w4-n4-20261030/`。
+- 进行点：P3 捕获/结算、目录事件与写回 `form_input_hash` 证据一致性。
 - 阻塞：真实 E2、生产源码版本与 Issue 投放凭据未齐，阻断真实登记/切换与生产启用；不阻断隔离实现。导出正式授予不做，目标库实际名单由权限管理员提供。
 
 ## 阶段、恢复线索与资源
@@ -30,6 +30,7 @@
 - 事件：`form_directory_events` 已存在（N1）；发布/登记写事件并唤醒 head；游标 `form_directory_event_cursors` 推进；全量→增量按捕获修订交接。
 - 共同字段：登记声明类型必须等于该版冻结 `field.type`；`stableId`+`semanticKey`+`valueType/unit`+`semanticHash` 全同才合并；不兼容→`unmerged`，缺版→`onlyInSome`，无交集→`NO_COMMON_FIELDS` 且 `total=null`。
 - Issue 选择器：按 `(createdAt, recordId)` 降序选最新整份当前修订；编辑不重排、作废重选；首次取最早；D-21 与 18 天公式、缺陷原因多选与唯一性分层保持既有规则。
+- Issue 启用点（P2 已实现）：`platform.form-adoption.issue-enabled-at` 为空时完全不接管；配置后仅对创建时间不早于该点、且项目已登记 `ACTIVE/RETIRED` 表单范围（`issue_response`/`issue_reply`）的议题读取表单。未登记范围的项目保持评论口径；已登记范围但无记录表示“尚未填写”，不回退评论。表单路径投影 `has_response`、首次调研时间、最新整份响应计划（计划时间/文本/分支）、`fix_user` 与三列延期；`raw_payload` 仅供 COMMENT。
 - 导出：`GET /api/collect-forms/exports/records`；版本必须是可读 `AUTHORITATIVE`，项目集须为 scope 子集且逐行校验目录 C；只导出 `deleted=false`；空版本导出表头；新增 `form_record_export_logs` 审计；方法级 `form.record.export`，不从 view 推导。
 - 迁移：162 条不可改；必要 DDL 前向追加并登记 `scripts/flyway-migration-checksums.json`。
 
@@ -58,7 +59,7 @@
 ## 步骤与依赖
 
 0. **P1 主线吸收（已完成）**：cherry-pick 延期写回三提交与迁移，编译通过；跑吸收类回归。
-1. **P2 Issue 首次事实与周期 SLA**：新增 `IssueBusinessInput` 与 `FormIssueInputResolver`（权威/目录读取，响应/回复按 `(createdAt, recordId)` 选最新整份、首次取最早）；`IssueFactSourceRowMapper` 映射基础列、`FactBuildService` 调 resolver 与 `IssueBusinessProjector.apply` 写业务列；`refreshCustomerIssueDelayFactsForConfig` 复用同一 resolver/evaluate 并受捕获守卫，`raw_payload` 仅供 COMMENT。首个回归：FORM 计划 11-15、旧评论计划 11-09 → 周期重算仍取 11-15、解决延期 false；历史 COMMENT 原路径不变。
+1. **P2 Issue 首次事实与周期 SLA（已完成）**：新增 `IssueBusinessInput` 与 `FormIssueInputResolver`（权威/目录读取，响应/回复按 `(createdAt, recordId)` 选最新整份、首次取最早）；`IssueFactSourceRowMapper` 映射基础列、`FactBuildService` 调 resolver 与 `IssueBusinessProjector.apply` 写业务列；`refreshCustomerIssueDelayFactsForConfig` 复用同一 resolver/evaluate（捕获守卫随 P3 接入），`raw_payload` 仅供 COMMENT。首个回归：FORM 计划 11-15、旧评论计划 11-09 → 周期重算仍取 11-15、解决延期 false；历史 COMMENT 原路径不变。
 2. **P3 捕获/结算与证据一致性**：`form_head_captures` 迁移与领取/捕获/结算；目录事件消费与游标；`CustomerIssueDelayLabelWritebackWorkerService.authorize` 复核当前/事实/作业 `form_input_hash`（两模板 head/权威修订）一致且 latest=consumed，沿原队列/轮次/围栏；验证改期、作废后旧任务发送次数为 0。
 3. **P4 MR 逐记录投影**：`FormReviewProjector.build` 经目录生成逐记录 `form_review_fact` 并同事务发布；`form_records` CTE 读投影（汇总分钟/五类数/人员/最近创建时间）；质量分析按记录 sum/count；生产 MR 继续评论，走查 FORM 仅隔离验收。
 4. **P5 共同字段与按版导出**：`selectCommonFields`/`aggregateMetric` 生产实现（2+3=5、不兼容显式无效）；导出端点、鉴权、审计、流式写出与预算；正式授予不做。
@@ -81,3 +82,4 @@
 - 真实 E2 未取得：不阻断隔离开发，但真实登记/切换与容量结论须等 E2；不得用小夹具外推容量。
 - 其他 AI 并行改动：只在本 worktree 与独占容器/端口操作，不读写共享库与共享服务。
 - 敏感只读：`platform_role_permissions`、`platform_default_role_permissions`、`gitlab_sync_configs` 仅只读核对，不写入。
+- P2 边界：`issue_fact` 尚无 known/new affected、影响测试、遗留影响与关联表等回复详情列，本轮不新建列，也不把多选原因写入单值 `reason_category`；这些九项选择器的下游落地随统计/分析消费（P5）另行决定，避免先造列后改口径。

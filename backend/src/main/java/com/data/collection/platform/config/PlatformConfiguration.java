@@ -19,7 +19,8 @@ import org.springframework.scheduling.annotation.EnableAsync;
     ExternalApiProperties.class,
     BiCatProperties.class,
     BackupConfigurationProperties.class,
-    ReadFallbackProperties.class
+    ReadFallbackProperties.class,
+    FormAdoptionProperties.class
 })
 public class PlatformConfiguration {
 

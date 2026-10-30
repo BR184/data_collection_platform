@@ -121,7 +121,9 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
             searchIndexRepairService,
             new FactPublicationTransaction(
                 new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
-            new GitlabMirrorProperties());
+            new GitlabMirrorProperties(),
+            mock(FormIssueInputResolver.class),
+            new com.data.collection.platform.config.FormAdoptionProperties());
   }
 
   @Test

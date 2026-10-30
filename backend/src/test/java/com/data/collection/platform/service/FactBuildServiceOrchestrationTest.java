@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -115,7 +116,9 @@ class FactBuildServiceOrchestrationTest {
             new MergeRequestFactSourceRowMapper()),
         new FactPublicationTransaction(
             new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
-        new com.data.collection.platform.config.GitlabMirrorProperties());
+        new com.data.collection.platform.config.GitlabMirrorProperties(),
+        mock(FormIssueInputResolver.class),
+        new com.data.collection.platform.config.FormAdoptionProperties());
   }
 
   @Test

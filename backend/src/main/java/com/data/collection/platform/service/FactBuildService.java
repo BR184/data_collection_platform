@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.config.FormAdoptionProperties;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.FactProjectionScope;
@@ -21,6 +22,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -58,6 +60,8 @@ public class FactBuildService {
   private final FactSearchIndexRepairService searchIndexRepairService;
   private final FactPublicationTransaction publicationTransaction;
   private final GitlabMirrorProperties mirrorProperties;
+  private final FormIssueInputResolver formIssueInputResolver;
+  private final FormAdoptionProperties formAdoptionProperties;
 
   public FactBuildService(
       JdbcTemplate jdbcTemplate,
@@ -77,7 +81,9 @@ public class FactBuildService {
       MergeRequestFactSourceRowMapper mergeRequestRowMapper,
       FactSearchIndexRepairService searchIndexRepairService,
       FactPublicationTransaction publicationTransaction,
-      GitlabMirrorProperties mirrorProperties) {
+      GitlabMirrorProperties mirrorProperties,
+      FormIssueInputResolver formIssueInputResolver,
+      FormAdoptionProperties formAdoptionProperties) {
     this.jdbcTemplate = jdbcTemplate;
     this.issueFactPersistenceService = issueFactPersistenceService;
     this.issueCustomerNameAliasService = issueCustomerNameAliasService;
@@ -96,6 +102,8 @@ public class FactBuildService {
     this.searchIndexRepairService = searchIndexRepairService;
     this.publicationTransaction = publicationTransaction;
     this.mirrorProperties = mirrorProperties;
+    this.formIssueInputResolver = formIssueInputResolver;
+    this.formAdoptionProperties = formAdoptionProperties;
   }
 
   /**
@@ -179,6 +187,7 @@ public class FactBuildService {
     List<IssueFact> facts =
         loadIssueFactsByRootIds(
             normalizedSource, safeRootIds, calendar, moduleDictionary, customerNameAliases);
+    applyFormIssueInputs(normalizedSource, facts);
     issueFactPersistenceService.replaceRootFacts(target, safeRootIds, facts);
     searchIndexRepairService.refreshIssueFactSearchIndexesInBatches(target, facts);
     return new FactBuildResponse(
@@ -200,6 +209,7 @@ public class FactBuildService {
       Map<String, String> customerNameAliases = issueCustomerNameAliasService.loadAliases();
       List<IssueFact> facts =
           loadIssueFacts(sourceInstance, changedSince, calendar, moduleDictionary, customerNameAliases);
+      applyFormIssueInputs(sourceInstance, facts);
       if (full) {
         publishFullIssueSnapshot(target, sourceInstance, facts, progress);
       } else {
@@ -273,23 +283,37 @@ public class FactBuildService {
   private FactBuildResponse refreshCustomerIssueDelayFactsWithinCandidate(
       FactRevisionTarget target, String sourceInstance) {
     List<IssueFact> facts = loadOpenCustomerIssueFacts(sourceInstance);
+    Map<FormIssueInputResolver.IssueRef, IssueBusinessInput> formInputs =
+        resolveFormIssueInputs(sourceInstance, facts);
     List<IssueFact> changedFacts = new ArrayList<>();
     LocalDateTime now = currentGitlabSourceTime();
     for (IssueFact fact : facts) {
-      boolean nextResponseDelayed =
-          IssueFactNormalizationRules.isResponseDelayed(
-              labelsOf(fact),
-              fact.getRawPayload(),
-              fact.getCreatedAtSource(),
-              fact.getPriorityLevel(),
-              now);
-      boolean nextResolveDelayed =
-          IssueFactNormalizationRules.isResolveDelayed(
-              labelsOf(fact),
-              Boolean.TRUE.equals(fact.getFixed()),
-              IssueFactNormalizationRules.hasFixCaseNote(fact.getRawPayload()),
-              fact.getResolveDeadlineAt(),
-              now);
+      FormIssueInputResolver.IssueRef ref = issueRefOf(fact);
+      IssueBusinessInput formInput = ref == null ? null : formInputs.get(ref);
+      boolean nextResponseDelayed;
+      boolean nextResolveDelayed;
+      if (formInput != null) {
+        // 启用点之后的议题以表单为准：期限与豁免都取同一份最新响应/回复，不再读 raw_payload。
+        IssueSlaRules.Evaluation evaluation =
+            IssueBusinessProjector.evaluate(fact, formInput, labelsOf(fact), now);
+        nextResponseDelayed = evaluation.responseDelayed();
+        nextResolveDelayed = evaluation.resolveDelayed();
+      } else {
+        nextResponseDelayed =
+            IssueFactNormalizationRules.isResponseDelayed(
+                labelsOf(fact),
+                fact.getRawPayload(),
+                fact.getCreatedAtSource(),
+                fact.getPriorityLevel(),
+                now);
+        nextResolveDelayed =
+            IssueFactNormalizationRules.isResolveDelayed(
+                labelsOf(fact),
+                Boolean.TRUE.equals(fact.getFixed()),
+                IssueFactNormalizationRules.hasFixCaseNote(fact.getRawPayload()),
+                fact.getResolveDeadlineAt(),
+                now);
+      }
       if (Boolean.TRUE.equals(fact.getResponseDelayed()) == nextResponseDelayed
           && Boolean.TRUE.equals(fact.getResolveDelayed()) == nextResolveDelayed
           && Boolean.TRUE.equals(fact.getResponseOverdue()) == nextResponseDelayed) {
@@ -303,6 +327,65 @@ public class FactBuildService {
     List<IssueFact> updatedFacts = upsertCustomerIssueDelayFacts(target, changedFacts);
     return new FactBuildResponse(factScope("customer-issue-delay", sourceInstance), false,
         updatedFacts.size(), "客户问题延期候选已构建，等待投影与统一发布");
+  }
+
+  /**
+   * 对启用点之后创建的议题应用表单业务输入；未配置启用点或历史议题保持评论口径不变。
+   *
+   * <p>输入按范围与项目批量读取，不逐议题回表；空输入表示新资源尚未填写，业务列随之为空。
+   */
+  private void applyFormIssueInputs(String sourceInstance, List<IssueFact> facts) {
+    Map<FormIssueInputResolver.IssueRef, IssueFact> formFacts =
+        factsAfterIssueAdoption(facts);
+    if (formFacts.isEmpty()) {
+      return;
+    }
+    Map<FormIssueInputResolver.IssueRef, IssueBusinessInput> inputs =
+        formIssueInputResolver.resolveAll(sourceInstance, formFacts.keySet());
+    LocalDateTime now = currentGitlabSourceTime();
+    for (Map.Entry<FormIssueInputResolver.IssueRef, IssueBusinessInput> entry :
+        inputs.entrySet()) {
+      IssueFact fact = formFacts.get(entry.getKey());
+      IssueBusinessProjector.apply(fact, entry.getValue(), labelsOf(fact), now);
+    }
+  }
+
+  private Map<FormIssueInputResolver.IssueRef, IssueBusinessInput> resolveFormIssueInputs(
+      String sourceInstance, List<IssueFact> facts) {
+    Map<FormIssueInputResolver.IssueRef, IssueFact> formFacts =
+        factsAfterIssueAdoption(facts);
+    if (formFacts.isEmpty()) {
+      return Map.of();
+    }
+    return formIssueInputResolver.resolveAll(sourceInstance, formFacts.keySet());
+  }
+
+  /** 只选启用点之后创建、且具备完整资源键的议题；启用点未配置时一律不接管。 */
+  private Map<FormIssueInputResolver.IssueRef, IssueFact> factsAfterIssueAdoption(
+      List<IssueFact> facts) {
+    LocalDateTime enabledAt = formAdoptionProperties.getIssueEnabledAt();
+    if (enabledAt == null) {
+      return Map.of();
+    }
+    Map<FormIssueInputResolver.IssueRef, IssueFact> formFacts =
+        new LinkedHashMap<>();
+    for (IssueFact fact : facts) {
+      FormIssueInputResolver.IssueRef ref = issueRefOf(fact);
+      if (ref == null || fact.getCreatedAtSource() == null) {
+        continue;
+      }
+      if (!fact.getCreatedAtSource().isBefore(enabledAt)) {
+        formFacts.put(ref, fact);
+      }
+    }
+    return formFacts;
+  }
+
+  private FormIssueInputResolver.IssueRef issueRefOf(IssueFact fact) {
+    if (fact == null || fact.getProjectId() == null || fact.getIssueIid() == null) {
+      return null;
+    }
+    return new FormIssueInputResolver.IssueRef(fact.getProjectId(), fact.getIssueIid());
   }
 
   /**

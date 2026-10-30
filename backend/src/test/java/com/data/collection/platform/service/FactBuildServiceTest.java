@@ -97,7 +97,9 @@ class FactBuildServiceTest {
             newSearchIndexRepairService(jdbcTemplate),
             new FactPublicationTransaction(
                 new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
-            new com.data.collection.platform.config.GitlabMirrorProperties());
+            new com.data.collection.platform.config.GitlabMirrorProperties(),
+            mock(FormIssueInputResolver.class),
+            new com.data.collection.platform.config.FormAdoptionProperties());
 
     service.rebuildMergeRequestFactsForQueuedTask(config,
         FactRevisionFixture.target(com.data.collection.platform.entity.read.PublicationFactTable.MERGE_REQUEST, "default"), true, FactBuildProgress.NO_OP);
@@ -178,7 +180,9 @@ class FactBuildServiceTest {
             searchIndexRepairService,
             new FactPublicationTransaction(
                 new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
-            new com.data.collection.platform.config.GitlabMirrorProperties());
+            new com.data.collection.platform.config.GitlabMirrorProperties(),
+        mock(FormIssueInputResolver.class),
+        new com.data.collection.platform.config.FormAdoptionProperties());
 
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(1L);
@@ -309,7 +313,9 @@ class FactBuildServiceTest {
         newSearchIndexRepairService(jdbcTemplate),
         new FactPublicationTransaction(
             new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
-        new com.data.collection.platform.config.GitlabMirrorProperties());
+        new com.data.collection.platform.config.GitlabMirrorProperties(),
+        mock(FormIssueInputResolver.class),
+        new com.data.collection.platform.config.FormAdoptionProperties());
   }
 
   private SyncFactPublicationStateService readyPublicationStateService() {

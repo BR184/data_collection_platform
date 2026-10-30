@@ -51,10 +51,97 @@ final class IssueSlaRules {
     if (isResponseExempt(notesText)) {
       return false;
     }
+    return isResponseDelayedByClock(labels, createdAt, priorityLevel, now);
+  }
+
+  private static boolean isResponseDelayedByClock(
+      List<String> labels,
+      LocalDateTime createdAt,
+      String priorityLevel,
+      LocalDateTime now) {
     if (createdAt == null || now == null) {
       return IssueRuleSupport.containsAnyLabel(labels, RESPONSE_DELAY_LABELS);
     }
     return Duration.between(createdAt, now).toHours() > responseSlaHours(labels, priorityLevel);
+  }
+
+  /** 表单来源的延期判定结果；{@code resolveSlaDays} 只用于展示与记录，判定以 {@code resolveDeadlineAt} 为准。 */
+  record Evaluation(
+      boolean responseDelayed,
+      boolean resolveDelayed,
+      LocalDateTime resolveDeadlineAt,
+      int resolveSlaDays) {}
+
+  /**
+   * 用统一业务输入判定响应/解决延期，供首次事实与周期重算共用。
+   *
+   * <p>响应延期豁免只取“有效回复存在”或“某份响应给出合法计划时间”（D-21，方向为最新→更早），
+   * 计划字段本身仍整份取自最新响应，不逐字段回退。解决期限取最新响应计划；计划缺失或距创建超过
+   * 18 天时按 18 天默认值。关闭议题不产生延期。
+   *
+   * @param input 表单或评论投影出的来源无关输入
+   * @param labels 当前来源标签
+   * @param fixed 当前来源是否已修复
+   * @param createdAt 议题创建时间
+   * @param priorityLevel 当前来源优先级
+   * @param now 判定时刻
+   * @param open 议题是否仍为打开状态
+   * @return 三列延期判定与解决期限/展示天数
+   */
+  static Evaluation evaluate(
+      IssueBusinessInput input,
+      List<String> labels,
+      boolean fixed,
+      LocalDateTime createdAt,
+      String priorityLevel,
+      LocalDateTime now,
+      boolean open) {
+    LocalDateTime deadline = resolveDeadline(createdAt, input.plannedResolutionAt());
+    int resolveSlaDays = resolveSlaDays(createdAt, input.plannedResolutionAt());
+    boolean responseExempt = input.hasReply() || input.responsePlanExempt();
+    boolean responseDelayed =
+        open && !responseExempt && isResponseDelayedByClock(labels, createdAt, priorityLevel, now);
+    boolean resolveDelayed =
+        open && isResolveDelayed(labels, fixed, input.hasReply(), deadline, now);
+    return new Evaluation(responseDelayed, resolveDelayed, deadline, resolveSlaDays);
+  }
+
+  /**
+   * 按最新响应的计划解决时间推导解决期限。
+   *
+   * @param createdAt 议题创建时间；为空时返回 {@code null}
+   * @param plannedResolutionAt 最新响应的计划解决时间；为空时按 18 天默认值
+   * @return 落库的解决期限
+   */
+  static LocalDateTime resolveDeadline(
+      LocalDateTime createdAt, LocalDateTime plannedResolutionAt) {
+    if (createdAt == null) {
+      return null;
+    }
+    LocalDateTime defaultDeadline = createdAt.plusDays(MAX_RESOLVE_SLA_DAYS);
+    if (plannedResolutionAt == null) {
+      return defaultDeadline;
+    }
+    long daysBetween = Duration.between(createdAt, plannedResolutionAt).toDays();
+    if (daysBetween <= MAX_RESOLVE_SLA_DAYS) {
+      return plannedResolutionAt;
+    }
+    return defaultDeadline;
+  }
+
+  /**
+   * 按最新响应计划推导展示用解决天数，取值 1—18。
+   *
+   * @param createdAt 议题创建时间
+   * @param plannedResolutionAt 最新响应的计划解决时间
+   * @return 解决天数；缺创建时间或缺计划时为 18
+   */
+  static int resolveSlaDays(LocalDateTime createdAt, LocalDateTime plannedResolutionAt) {
+    if (createdAt == null || plannedResolutionAt == null) {
+      return MAX_RESOLVE_SLA_DAYS;
+    }
+    long days = Duration.between(createdAt, plannedResolutionAt).toDays();
+    return (int) Math.min(MAX_RESOLVE_SLA_DAYS, Math.max(1L, days));
   }
 
   static int resolveSlaDays(String notesText) {

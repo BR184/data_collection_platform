@@ -1,3 +1,13 @@
+## 2026-10-30 表单N4-P2：Issue首次事实与周期SLA接入
+
+| 功能 | 当前阶段 | 功能主分支 | 下一步 |
+| --- | --- | --- | --- |
+| 统一表单系统 | N4实施中（P2完成） | 表单多版本与填写功能开发-20261026 | 捕获/结算、目录事件与写回证据一致性（P3） |
+
+- [实现] 新增`IssueBusinessInput`、`FormIssueInputResolver`（按`(createdAt, recordId)`选最新整份响应/最新有效回复、首次取最早）、`IssueSlaRules.evaluate`、`IssueBusinessProjector`与`FormAdoptionProperties`；`FactBuildService`两条Issue构建路径与周期重算共用同一输入，`raw_payload`仅供COMMENT。启用点`platform.form-adoption.issue-enabled-at`为空时不接管；只对已登记`issue_response`/`issue_reply`范围的议题生效，未登记范围保持评论口径，空表表示尚未填写。
+- [回归] 真实PG：FORM计划11-15、旧评论11-09，首次事实与周期重算均取11-15、解决延期false；历史议题与T前1秒仍走COMMENT；无表单记录的新议题不回退评论；新增最新表单计划后周期重算改判。选择器/SLA单测9项、真实PG集成6项、受影响既有36项全绿。
+- [边界] `issue_fact`尚无回复详情列，本轮不新建列、不把多选原因写入单值`reason_category`；捕获守卫与`form_input_hash`写回复核留P3。未改UI，未合main、未出包、未运行黄金、未执行真实写回。
+
 ## 2026-10-30 接入方案重写与P0审批：Issue先启用，走查随包缓启
 
 - [用户确认] Issue按模板启用点切换新资源FORM/历史COMMENT；走查表可随包交付，生产MR继续评论，外部数据齐全且筛选对齐后再启用。旧非法页整页保持，历史数据和旧解析保留。
