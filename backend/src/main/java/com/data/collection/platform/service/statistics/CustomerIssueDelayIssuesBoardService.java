@@ -48,7 +48,7 @@ import org.springframework.util.StringUtils;
 public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoardService
     implements RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-delay-issues";
-  private static final String RULE_VERSION = "customer-issue-delay-issues@2026-09-28-v6";
+  private static final String RULE_VERSION = "customer-issue-delay-issues@2026-10-30-v7";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总数";
   private static final String EMPTY_MODULE_LABEL = "未设定模块";
@@ -336,14 +336,14 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
             new StatisticRuleMetricDefinition(
                 "resp_delay",
                 "响应延期",
-                "统计超过对应紧急程度响应期限、且未按任一模板回复的议题；已按缺陷调研模板回复但未填写合法计划解决时间的同样计入。",
-                "响应延期 = 超过对应紧急程度的响应期限 ∧ ¬(回复模板存在 ∨ (响应模板存在 ∧ 计划解决时间合法))",
+                "申请延期、设计如此、申请否决、数据异常、未复现、需求、建议、需求如此或已有修复模板时，直接豁免。其余议题超过响应期限且没有合法响应计划时计入。",
+                "响应延期 = 未命中双延期共用豁免 ∧ 超过响应期限 ∧ 没有合法响应计划",
                 null),
             new StatisticRuleMetricDefinition(
                 "fix_delay",
                 "解决延期",
-                "统计超过解决期限且未按要求闭环或填写缺陷原因分析的议题。",
-                "解决延期 = 超过解决期限且未按要求闭环或填写缺陷原因分析",
+                "与响应延期共用标签和修复模板豁免；命中时不检查计划时间或时长。其余议题严格超过解决截止时计入。",
+                "解决延期 = 未命中双延期共用豁免 ∧ 超过解决截止",
                 null),
             new StatisticRuleMetricDefinition(
                 "priority",

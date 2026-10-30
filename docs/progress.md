@@ -1,3 +1,11 @@
+## 2026-10-30 双延期共同豁免修复完成（任务分支）
+
+- [范围] 在独立工作树`D:/projects/dcp-delay-exempt-1030`、分支`延期标签统一豁免修复-20261030-110628`，从稳定main `4084cd33`实现用户确认规则，权威口径见`platform-page-business-rules.md` 5.3、决策D-33。建议标签直接豁免两类延期；不改变建议统计范围，保留写回候选以清除已有双标签。未吸收独立日期顺序修复`b5568ce8`。
+- [实现] `IssueSlaRules`统一豁免，来源构建与周期重算均传当前有效原始标签及修复模板标记，避免`bug_status`丢失需求/建议；删除旧解决判定重载，同步全部调用者与测试。规则说明升至v7，无迁移、接口或配置新增。完整标签/模板条件归规则总表，技术边界归architecture，三列生成契约归fact-field-contract。
+- [证据] 本地15581/15432镜像只读核实真实标签及议题关联，未冒称生产样本。新增62项矩阵在旧代码52项失败；修复后8个定向类139项0失败/0错误/0跳过；补强真实队列候选读取后的PG类12项复验全绿，覆盖ODS豁免新增→三列清除→候选保留→仅移除双标签，以及撤销豁免后恢复延期，其它事实列及客户成员不变。日志`.tmp-logs/exemption-red.log`、`exemption-isolated.log`、`exemption-queue-candidate.log`。初验新Mockito夹具错误已修正，Spring测试误用默认15433且受public同名表回退影响，已在本轮独占PG重跑通过；初验日志不作为通过证据。
+- [验证] 产物位置、文本空白、事实字段契约、140份Flyway不可变及`git diff --check`均通过；AGENTS 26,943字节，无需压缩。统计与写回相关规则已同步，活动计划完成后删除。
+- [下一步/边界] 未合main、未出包、未部署、未触碰真实GitLab标签；开发服务未停。生产具体个案及影响数量未核验；正式集成/发布前需完成默认套件与黄金产出差异审阅及严格比对，按issue范围重建和现场验收；本轮日常修复未运行黄金或改快照。
+
 ## 2026-10-29 下钻过滤修复替代包验收通过，可交付
 
 - [范围] 实包 `qaflex-update-20261029T025459Z-b4d40e323a09` 的镜像 JAR 经 javap 确认缺少 `module_total` 分支。在隔离任务树仅吸收 `725616a5` 的一行服务修复与配套服务测试（`SystemTestDefectSummaryBoardService.matchesMetric` 增加 `module_total -> IssueSource::isRegularMetricIssue`），不带旧活动计划与其它表单/读发布内容；后端内容身份与已验收 `0efa68f3:backend` 一致。合入 main 提交 `f0817018`，origin/gitlab25 已快进同步并回读一致。
