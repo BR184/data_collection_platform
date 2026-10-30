@@ -1,3 +1,8 @@
+## 2026-10-30 研发质量版本范围修复本地复审通过
+
+- [完成与验证] AI员工已按用户确认范围统一研发质量代码走查统计、人员/频次、明细与导出：普通版本按组合成员共享dev，SP按精确发布分支归属，原始项目消费者保持精确语义。经理发现并退回的自定义键查空已修正；真实迁移PG 3项、相关看板/导出/端点护栏24项及独立SQL 26项通过，变更范围Checkstyle 0违规。
+- [下一步与边界] 本地功能复审批准保存到独立任务分支，尚未合main、运行发布黄金、打包或部署20001；目标构建、数据和容量未核验。恢复及现场对照见[活动计划](plans/quality-version-scope-and-review-rate-20261030.md)，DGM速率专属结论见[BI进度](bi-dashboard/progress.md)。全库Checkstyle的6项错误位于与基线逐文件一致的无关测试文件，未修改检查配置或扩大修复范围。
+
 ## 2026-10-29 下钻过滤修复替代包验收通过，可交付
 
 - [范围] 实包 `qaflex-update-20261029T025459Z-b4d40e323a09` 的镜像 JAR 经 javap 确认缺少 `module_total` 分支。在隔离任务树仅吸收 `725616a5` 的一行服务修复与配套服务测试（`SystemTestDefectSummaryBoardService.matchesMetric` 增加 `module_total -> IssueSource::isRegularMetricIssue`），不带旧活动计划与其它表单/读发布内容；后端内容身份与已验收 `0efa68f3:backend` 一致。合入 main 提交 `f0817018`，origin/gitlab25 已快进同步并回读一致。

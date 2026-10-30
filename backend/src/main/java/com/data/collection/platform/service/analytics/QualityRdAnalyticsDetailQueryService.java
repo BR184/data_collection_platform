@@ -326,7 +326,7 @@ public class QualityRdAnalyticsDetailQueryService {
     String reviewerName = context.parameter("reviewerName").orElse(null);
     String authorName = context.parameter("authorName").orElse(null);
     //兼容模式-MatchMode：统一委托 QualityBoardCodeReviewReadSupport 选择隔离读源；
-    //兼容模式-MatchMode：正式模式的 DGM 结果保持为空，禁止回落读取兼容快照或正式 CC 表。
+    // 产品版本范围由 QualityBoardCodeReviewReadSupport 统一解析；正式模式仍严格隔离 CC/DGM 来源。
     List<Map<String, Object>> rows = codeReviewReadSupport
         .codeReviewRecordRows(
             source, projectName(context), CodeReviewAnalyticsReadMode.from(context.readMode()))

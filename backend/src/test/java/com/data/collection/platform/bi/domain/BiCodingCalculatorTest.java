@@ -74,6 +74,48 @@ class BiCodingCalculatorTest {
   }
 
   @Test
+  void deduplicatesDgmReviewLinesAcrossRepeatedReviewsButAccumulatesDuration() {
+    BiCodingSource source = source(
+        List.of(mergeRequest(901L, LocalDate.of(2026, 10, 30), "DGM", "核心模块", 1000)),
+        List.of(
+            review(91L, 901L, LocalDate.of(2026, 10, 30), "核心模块", 1000, "60", 4, 2, 1, 1, 0, 0),
+            review(92L, 901L, LocalDate.of(2026, 10, 30), "核心模块", 1000, "30", 8, 4, 2, 2, 0, 0)),
+        List.of(),
+        true,
+        true);
+
+    var response = calculator.calculate(source);
+
+    assertThat(response.data().summary().reviewDefectDensity()).isEqualByComparingTo("12.00");
+    assertThat(response.data().summary().reviewSpeedLocPerHour()).isEqualByComparingTo("666.67");
+    assertThat(response.data().moduleReviewQuality()).singleElement().satisfies(module -> {
+      assertThat(module.defectDensity()).isEqualByComparingTo("12.00");
+      assertThat(module.reviewSpeedLocPerHour()).isEqualByComparingTo("666.67");
+    });
+  }
+
+  @Test
+  void fullyDuplicatedStableReviewDoesNotDoubleCountReviewDuration() {
+    BiCodingSource.CodeReviewRecord duplicated = review(
+        1501L, 1501L, LocalDate.of(2026, 8, 23), "草图", 500, "30", 2, 1, 1, 0, 0, 0,
+        new BigDecimal("20"), "upstream");
+    BiCodingSource source = source(
+        List.of(mergeRequest(1501L, LocalDate.of(2026, 8, 23), "张三", "草图", 500)),
+        List.of(duplicated, duplicated),
+        List.of(),
+        false,
+        true);
+
+    var response = calculator.calculate(source);
+
+    assertThat(response.data().summary().reviewSpeedLocPerHour())
+        .isEqualByComparingTo("1000.00");
+    assertThat(response.data().moduleReviewQuality()).singleElement()
+        .satisfies(module -> assertThat(module.reviewSpeedLocPerHour())
+            .isEqualByComparingTo("1000.00"));
+  }
+
+  @Test
   void groupsContributorsAndModulesByAvailableSourceNamesWithoutSyntheticIds() {
     BiCodingSource source = source(
         List.of(mergeRequest(201L, LocalDate.of(2026, 8, 3), "王五", "工程图", 500)),

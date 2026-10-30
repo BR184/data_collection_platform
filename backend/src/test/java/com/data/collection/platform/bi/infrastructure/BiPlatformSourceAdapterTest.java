@@ -197,6 +197,35 @@ class BiPlatformSourceAdapterTest {
   }
 
   @Test
+  void dgmAdapterAndCalculatorDeduplicateRepeatedReviewForSameIid() throws Exception {
+    ResultSet first = codingRow();
+    when(first.getString("business_source")).thenReturn("dgm");
+    when(first.getString("repository_name")).thenReturn("dgm");
+    when(first.getObject("merge_request_key")).thenReturn(777L);
+    when(first.getBigDecimal("review_duration_minutes")).thenReturn(new BigDecimal("30"));
+    ResultSet second = codingRow();
+    when(second.getLong("id")).thenReturn(2L);
+    when(second.getString("business_source")).thenReturn("dgm");
+    when(second.getString("repository_name")).thenReturn("dgm");
+    when(second.getObject("merge_request_key")).thenReturn(777L);
+    when(second.getBigDecimal("review_duration_minutes")).thenReturn(new BigDecimal("15"));
+    when(jdbcTemplate.query(anyString(), any(RowMapper.class)))
+        .thenAnswer(invocation -> List.of(
+            mapper(invocation.getArgument(1)).mapRow(first, 0),
+            mapper(invocation.getArgument(1)).mapRow(second, 1)));
+    when(snapshotService.codeReviewSourceVersion()).thenReturn("coding-v1");
+    when(compatibilityModeEnabled.getAsBoolean()).thenReturn(true);
+
+    var response = new BiCodingCalculator().calculate(
+        codingAdapter().load(scope(), codingQuery()));
+
+    assertThat(response.data().summary().mergeRequestCount()).isEqualTo(1L);
+    assertThat(response.data().summary().addedLines()).isEqualTo(500L);
+    assertThat(response.data().summary().reviewSpeedLocPerHour())
+        .isEqualByComparingTo("666.67");
+  }
+
+  @Test
   void formalCodingSourceKeepsSameMergeRequestIdFromDifferentProjectsDistinct()
       throws Exception {
     ResultSet projectA = codingRow();

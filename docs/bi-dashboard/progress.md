@@ -1,5 +1,10 @@
 # BI 看板进度
 
+## 2026-10-30 DGM 走查速率核查
+
+- [完成与验证] 用户确认总体及模块速率同MR新增行只计一次、各次工时累计，规则归口径表CD-21/22/27。当前稳定算法已满足，本轮仅补回归而未改BI生产实现：计算器34项、来源适配器12项通过；同MR 1000行、60+30分钟为666.67行/小时，完全相同稳定记录重复输入不重复计工时。
+- [审批与边界] 用户明确无法提供内网数据和环境，按确定规则完成本地验收，不以目标环境复现为交付前置条件。经理批准本规则及回归工作单元，未核验或部署20001。恢复与联合审批见[活动计划](../plans/quality-version-scope-and-review-rate-20261030.md)。
+
 ## 当前状态
 
 - **权限按页面拆分（2026-09-28，已实施；黄金快照待统一收口）**：BI 由「模块级 `bi.dashboard.view`/`bi.dashboard.download`」改为「7 个页面各自持有 view/download 共 14 码」，与统计板 view/export 成对范式一致，决策见 `decisions.md` D-04，平台级两条口径（程序化拒绝 403、默认授权登记）见 `../decisions.md` D-22。后端：`PlatformPermissionCodes` 换 14 码；新增 `BiPagePermissionResolver`（pageKey → view/download 唯一映射，未登记 key 含 null 报 `BizException`）；`BiDashboardController` 去类级注解，7 个页面端点各挂本页查看码、`/versions` 任一查看码、两个下载端点「任一页面下载码」粗门禁 + 控制器按请求体 `pageKey` 精确校验查看与下载码（当前用户同源 `AuthSessionSupport.currentUser(request)`）；`GlobalExceptionHandler` 补 `AccessDeniedException` → 403 `A0303`（原会落成 500）。前端：`modules.ts` 7 页改本页查看码，新增 `features/bi-dashboard/data/page-permissions.ts` 作为前端页面码单一映射，`BiChartPanel` 下载按钮按 `downloadContext.pageKey` 取本页下载码（方案遗漏项：不同步会让所有人看不到下载按钮）。迁移两个且均不可变登记：`V20260928_01`（14 码入目录、sort_order 独占 8010–8026、角色授权按旧码持有角色逐角色复制、补 `customer_issue.customer.view/export` defaults 缺口、删两旧码）与 `V20260929_01`（前向修正 defaults）。**defaults 与角色授权刻意解耦**：角色授权保留内网既有定制（含上线期临时隐藏），defaults 固定为平台托管五角色全员可见，使「恢复默认权限」回到全员可见而非固化隐藏。验证：隔离库三场景 **RESULT=PASS**（默认五角色全量；定制场景记录「仅 928_01 会把隐藏带入 defaults」的中间态后由 929_01 归位、逐角色可见性不变；客户问题统计 defaults 缺口补齐），后端默认套件 **1567/0/0/1** 与 13 项仓库护栏全绿，开发实例（后端 18080 / 前端 18181）重启后迁移落库（Flyway `20260929.01`、目录 14 码、旧码 0）且 SUPER_ADMIN 对 7 个页面 + `/versions` 全部 200、`/api/permission-settings` 返回 14 个页面码，开发库 `NORMAL_USER` 授权 0 码 / defaults 含其在内共 5 角色。黄金门禁按用户 2026-09-28 决定待新功能完成后统一收口（预期 `permission-settings` 目录与 `post/put` 快照变化）。
