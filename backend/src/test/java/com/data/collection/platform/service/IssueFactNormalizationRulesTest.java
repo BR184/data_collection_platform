@@ -500,10 +500,12 @@ class IssueFactNormalizationRulesTest {
     assertThat(deadline).isEqualTo(LocalDateTime.of(2026, 4, 8, 10, 0));
     assertThat(IssueFactNormalizationRules.isResolveDelayed(
         List.of("一级缺陷"),
+        false,
         deadline,
         LocalDateTime.of(2026, 4, 9, 10, 0))).isTrue();
     assertThat(IssueFactNormalizationRules.isResolveDelayed(
         List.of("一级缺陷", "已修复"),
+        true,
         deadline,
         LocalDateTime.of(2026, 4, 9, 10, 0))).isFalse();
     assertThat(IssueFactNormalizationRules.isLegacy(
@@ -514,22 +516,22 @@ class IssueFactNormalizationRulesTest {
   }
 
   @Test
-  void test_resolve_delay_closure_uses_exact_status_members_not_raw_reason_or_negated_text() {
+  void test_resolve_delay_exemption_uses_exact_labels_not_raw_reason_or_negated_text() {
     LocalDateTime createdAt = LocalDateTime.of(2026, 4, 1, 10, 0);
     LocalDateTime deadline = IssueFactNormalizationRules.resolveDeadline(createdAt, 7);
     LocalDateTime overdue = LocalDateTime.of(2026, 4, 9, 10, 0);
     assertThat(IssueFactNormalizationRules.isResolveDelayed(
-        List.of("一级缺陷", "延期原因：数据异常"), true, deadline, overdue)).isTrue();
+        List.of("一级缺陷", "延期原因：数据异常"), false, deadline, overdue)).isTrue();
     assertThat(IssueFactNormalizationRules.isResolveDelayed(
-        List.of("一级缺陷", "非数据异常"), true, deadline, overdue)).isTrue();
+        List.of("一级缺陷", "非数据异常"), false, deadline, overdue)).isTrue();
     assertThat(IssueFactNormalizationRules.isResolveDelayed(
-        List.of("一级缺陷", "数据异常待确认"), true, deadline, overdue)).isTrue();
+        List.of("一级缺陷", "数据异常待确认"), false, deadline, overdue)).isTrue();
     assertThat(IssueFactNormalizationRules.isResolveDelayed(
-        List.of("一级缺陷", "数据异常"), true, deadline, overdue)).isFalse();
+        List.of("一级缺陷", "数据异常"), false, deadline, overdue)).isFalse();
     assertThat(IssueFactNormalizationRules.isResolveDelayed(
-        List.of("一级缺陷", "未复现"), true, deadline, overdue)).isFalse();
+        List.of("一级缺陷", "未复现"), false, deadline, overdue)).isFalse();
     assertThat(IssueFactNormalizationRules.isResolveDelayed(
-        List.of("一级缺陷", "申请延期"), true, deadline, overdue)).isFalse();
+        List.of("一级缺陷", "申请延期"), false, deadline, overdue)).isFalse();
   }
 
   @Test

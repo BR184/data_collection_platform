@@ -167,7 +167,7 @@ class IssueFactSourceRowMapper {
     fact.setResolveDelayed(
         openCustomerIssue
             && IssueFactNormalizationRules.isResolveDelayed(
-                IssueStatusMembers.parse(fact.getBugStatus()),
+                labels,
                 IssueFactNormalizationRules.hasFixCaseNote(notesText),
                 resolveDeadlineAt,
                 now));
