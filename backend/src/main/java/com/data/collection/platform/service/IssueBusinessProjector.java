@@ -52,7 +52,7 @@ final class IssueBusinessProjector {
     return IssueSlaRules.evaluate(
         input,
         labels,
-        Boolean.TRUE.equals(fact.getFixed()),
+        IssueStatusMembers.parse(fact.getBugStatus()),
         fact.getCreatedAtSource(),
         fact.getPriorityLevel(),
         now,

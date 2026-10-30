@@ -85,8 +85,8 @@ final class IssueSlaRules {
    * 18 天时按 18 天默认值。关闭议题不产生延期。
    *
    * @param input 表单或评论投影出的来源无关输入
-   * @param labels 当前来源标签
-   * @param fixed 当前来源是否已修复
+   * @param labels 当前来源标签（仅用于响应 SLA 优先级）
+   * @param statusMembers 从 {@code 状态：值} 解析出的规范闭环状态成员
    * @param createdAt 议题创建时间
    * @param priorityLevel 当前来源优先级
    * @param now 判定时刻
@@ -96,7 +96,7 @@ final class IssueSlaRules {
   static Evaluation evaluate(
       IssueBusinessInput input,
       List<String> labels,
-      boolean fixed,
+      List<String> statusMembers,
       LocalDateTime createdAt,
       String priorityLevel,
       LocalDateTime now,
@@ -107,7 +107,7 @@ final class IssueSlaRules {
     boolean responseDelayed =
         open && !responseExempt && isResponseDelayedByClock(labels, createdAt, priorityLevel, now);
     boolean resolveDelayed =
-        open && isResolveDelayed(labels, fixed, input.hasReply(), deadline, now);
+        open && isResolveDelayed(statusMembers, input.hasReply(), deadline, now);
     return new Evaluation(responseDelayed, resolveDelayed, deadline, resolveSlaDays);
   }
 

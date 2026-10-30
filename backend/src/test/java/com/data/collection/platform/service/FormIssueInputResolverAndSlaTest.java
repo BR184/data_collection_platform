@@ -84,7 +84,7 @@ class FormIssueInputResolverAndSlaTest {
         List.of(), name -> name);
 
     IssueSlaRules.Evaluation evaluation = IssueSlaRules.evaluate(
-        input, List.of(), false, ISSUE_CREATED, "P1", LocalDateTime.of(2026, 10, 30, 12, 0), true);
+        input, List.of(), List.of(), ISSUE_CREATED, "P1", LocalDateTime.of(2026, 10, 30, 12, 0), true);
 
     assertThat(evaluation.resolveDeadlineAt()).isEqualTo(LocalDateTime.of(2026, 11, 15, 0, 0));
     assertThat(evaluation.resolveSlaDays()).isEqualTo(14);
@@ -102,7 +102,7 @@ class FormIssueInputResolverAndSlaTest {
         List.of(), name -> name);
 
     IssueSlaRules.Evaluation evaluation = IssueSlaRules.evaluate(
-        input, List.of(), false, ISSUE_CREATED, "P1", LocalDateTime.of(2026, 10, 30, 12, 0), true);
+        input, List.of(), List.of(), ISSUE_CREATED, "P1", LocalDateTime.of(2026, 10, 30, 12, 0), true);
 
     assertThat(evaluation.resolveDeadlineAt()).isEqualTo(ISSUE_CREATED.plusDays(18));
     assertThat(evaluation.resolveSlaDays()).isEqualTo(18);
@@ -115,7 +115,7 @@ class FormIssueInputResolverAndSlaTest {
         account -> "甲");
 
     IssueSlaRules.Evaluation evaluation = IssueSlaRules.evaluate(
-        input, List.of("响应已延期"), false, ISSUE_CREATED, "P1",
+        input, List.of("响应已延期"), List.of(), ISSUE_CREATED, "P1",
         LocalDateTime.of(2026, 11, 20, 12, 0), true);
 
     assertThat(evaluation.resolveDeadlineAt()).isEqualTo(ISSUE_CREATED.plusDays(18));
@@ -129,7 +129,7 @@ class FormIssueInputResolverAndSlaTest {
         List.of(), List.of(), name -> name);
 
     IssueSlaRules.Evaluation evaluation = IssueSlaRules.evaluate(
-        input, List.of("响应已延期"), false, ISSUE_CREATED, "P1",
+        input, List.of("响应已延期"), List.of(), ISSUE_CREATED, "P1",
         LocalDateTime.of(2026, 12, 1, 0, 0), false);
 
     assertThat(evaluation.responseDelayed()).isFalse();
@@ -166,6 +166,42 @@ class FormIssueInputResolverAndSlaTest {
     assertThat(fact.getPlannedResolutionAt()).isNull();
     assertThat(fact.getPlannedResolutionText()).isEmpty();
     assertThat(fact.getFixUser()).isNull();
+  }
+
+  @Test
+  void canonicalPendingMergeMemberWithReplyIsNotDelayed() {
+    List<String> labels = List.of("状态：待合并");
+    List<String> statusMembers =
+        IssueStatusMembers.parse(IssueFactNormalizationRules.normalizeBugStatus(labels, 325L));
+    IssueBusinessInput input = FormIssueInputResolver.select(
+        List.of(), List.of(reply(21L, LocalDateTime.of(2026, 11, 6, 9, 0), "account-a")),
+        account -> "甲");
+
+    IssueSlaRules.Evaluation evaluation = IssueSlaRules.evaluate(
+        input, labels, statusMembers, ISSUE_CREATED, "P1",
+        LocalDateTime.of(2026, 11, 20, 12, 0), true);
+
+    assertThat(statusMembers).contains("待合并");
+    assertThat(evaluation.resolveDelayed())
+        .as("规范完成状态成员加有效回复，与正式主线一致判为不延期")
+        .isFalse();
+  }
+
+  @Test
+  void reasonPrefixedDesignAsIsLabelDoesNotCloseTheIssue() {
+    List<String> labels = List.of("原因:设计如此");
+    List<String> statusMembers =
+        IssueStatusMembers.parse(IssueFactNormalizationRules.normalizeBugStatus(labels, 325L));
+    IssueBusinessInput input = FormIssueInputResolver.select(List.of(), List.of(), name -> name);
+
+    IssueSlaRules.Evaluation evaluation = IssueSlaRules.evaluate(
+        input, labels, statusMembers, ISSUE_CREATED, "P1",
+        LocalDateTime.of(2026, 11, 20, 12, 0), true);
+
+    assertThat(statusMembers).doesNotContain("设计如此", "需求如此");
+    assertThat(evaluation.resolveDelayed())
+        .as("原因前缀的“设计如此”不是状态成员，不能当作闭环")
+        .isTrue();
   }
 
   private static LocatedRecord response(
