@@ -100,8 +100,9 @@ final class IssueTemplateParsingSupport {
       return null;
     }
     String[] notes = notesText.split(NOTE_SEPARATOR);
-    for (int index = notes.length - 1; index >= 0; index--) {
-      LocalDateTime parsed = planSolutionTimeInNote(notes[index]);
+    // 来源按评论创建时间、ID倒序聚合；从头取首个可解析日期，不能再次反向遍历。
+    for (String note : notes) {
+      LocalDateTime parsed = planSolutionTimeInNote(note);
       if (parsed != null) {
         return parsed;
       }

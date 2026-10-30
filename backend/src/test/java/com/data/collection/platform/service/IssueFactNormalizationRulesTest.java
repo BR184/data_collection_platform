@@ -592,6 +592,57 @@ class IssueFactNormalizationRulesTest {
   }
 
   @Test
+  void shouldUseLatestResolutionPlanWhenItsDateIsLaterThanTheOlderPlan() {
+    LocalDateTime createdAt = LocalDateTime.of(2026, 4, 1, 10, 0);
+    String notes =
+        "# 问题调研情况说明\n## 计划解决时间：2026.04.15\n---\n"
+            + "# 问题调研情况说明\n## 计划解决时间：2026.04.05";
+
+    LocalDateTime deadline = IssueFactNormalizationRules.resolveDeadline(createdAt, notes);
+
+    assertThat(deadline).isEqualTo(LocalDateTime.of(2026, 4, 15, 0, 0));
+    assertThat(IssueFactNormalizationRules.isResolveDelayed(
+        List.of(), false, deadline, LocalDateTime.of(2026, 4, 10, 12, 0))).isFalse();
+  }
+
+  @Test
+  void shouldUseLatestResolutionPlanWhenItsDateIsEarlierThanTheOlderPlan() {
+    LocalDateTime createdAt = LocalDateTime.of(2026, 4, 1, 10, 0);
+    String notes =
+        "# 问题调研情况说明\n## 计划解决时间：2026.04.05\n---\n"
+            + "# 问题调研情况说明\n## 计划解决时间：2026.04.15";
+
+    LocalDateTime deadline = IssueFactNormalizationRules.resolveDeadline(createdAt, notes);
+
+    assertThat(deadline).isEqualTo(LocalDateTime.of(2026, 4, 5, 0, 0));
+    assertThat(IssueFactNormalizationRules.isResolveDelayed(
+        List.of(), false, deadline, LocalDateTime.of(2026, 4, 10, 12, 0))).isTrue();
+  }
+
+  @Test
+  void shouldFallBackToOlderResolutionPlanWhenNewerCommentsHaveNoParseableDate() {
+    LocalDateTime createdAt = LocalDateTime.of(2026, 4, 1, 10, 0);
+    String notes =
+        "普通评论，没有计划日期\n---\n"
+            + "# 问题调研情况说明\n## 计划解决时间：待定\n---\n"
+            + "# 问题调研情况说明\n## 计划解决时间：2026.04.08";
+
+    assertThat(IssueFactNormalizationRules.resolveDeadline(createdAt, notes))
+        .isEqualTo(LocalDateTime.of(2026, 4, 8, 0, 0));
+  }
+
+  @Test
+  void shouldCapTheLatestResolutionPlanInsteadOfUsingAnOlderDateWithinEighteenDays() {
+    LocalDateTime createdAt = LocalDateTime.of(2026, 4, 1, 10, 0);
+    String notes =
+        "# 问题调研情况说明\n## 计划解决时间：2026.05.01\n---\n"
+            + "# 问题调研情况说明\n## 计划解决时间：2026.04.08";
+
+    assertThat(IssueFactNormalizationRules.resolveDeadline(createdAt, notes))
+        .isEqualTo(LocalDateTime.of(2026, 4, 19, 10, 0));
+  }
+
+  @Test
   void shouldExemptResponseDelayByFixTemplateOrLegalPlanSolutionTime() {
     LocalDateTime createdAt = LocalDateTime.of(2026, 4, 1, 10, 0);
     LocalDateTime overdue = LocalDateTime.of(2026, 4, 3, 11, 0);

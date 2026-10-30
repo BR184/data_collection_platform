@@ -2,6 +2,8 @@
 
 ## 进度与中间物
 
+> 本文件保留2026年9月响应改动的范围和证据。D8解决计划方向已于2026-10-30由用户另行要求独立修复；下文“取最旧”“本单元不修”描述的是当时版本，当前取值规则以`docs/platform-page-business-rules.md` 5.3第7条为准。
+
 - 状态：**2026-09-28 代码实施、定向回归、后端默认套件与真实链路验证均已完成**；剩余黄金门禁快照重建与真实标签写回待单独授权。判据 D1～D7 已全部裁定并落地；沿用 2026-09-20 同一需求的原方案文档，未另建重复文件。
 - 实施记录（2026-09-28）：`IssueSlaRules` 新增私有 `isResponseExempt`，两个 `isResponseDelayed` 重载改用它（签名不变）；`IssueResponseTemplateParser` 新增 `hasParseablePlanSolutionTime`（最新优先 + 回退，复用严格判据，与非法模板判定同源）；`IssueResponsePlanFieldRules` 不改、不扩展。`has_response` / `research_template_time` / `fix_user` / 响应效率全部未动；调用点、Mapper、SQL、表结构未动，无新增迁移。规则版本升级四处：`customer-issue-delay-issues@2026-09-28-v6`、`customer-issue-records@2026-09-28-v9`（CC_PRODUCT议题）、`customer-issue-records@2026-09-28-v5`（延期专题）、`customer-issue-customer-statistics@2026-09-28-v2`；延期看板规则说明文案同步为新判据。定向回归（`IssueFactNormalizationRulesTest` 36、`IssueResponseTemplateParserTest` 8、`FactBuildServiceCustomerIssueDelayFlagsTest` 5，合计 49 项全绿，`.tmp-logs/delayrule-targeted-20260928.log`）；受影响记录页与延期看板（`CustomerIssueRecordServiceTest` 13、`CustomerIssueDelayIssuesBoardServiceTest` 2、`CustomerIssueDelayIssuesBoardGoldenMasterTest` 1）与全仓同批通过：**后端默认快速套件 1552 项、0 失败、0 错误、1 跳过（BUILD SUCCESS，`.tmp-logs/backend-full-20260928-delayrule.log`）**。决策已留痕 `docs/decisions.md` D-21。工作树含其他单元的未提交改动，本单元未触碰其文件。
 - 真实链路验证记录（2026-09-28，隔离克隆库 + 本地 GitLab，未触碰开发库与 18080/18181）：证据目录 `.tmp/delay-rule-real-chain-20260928/`（克隆库与隔离后端已清理）。①增量镜像 run 3780 真实读取本地 GitLab 四张表并 SUCCESS。②周期重算路径：875 条在辖议题中 100 条翻转（加延期 70、转豁免 30），判定不一致 0、范围外写入 0、解决延期变化 0，与 §4 只读预测完全一致（`.tmp/delay-rule-real-chain-20260928/phaseA-recompute.log`，`RESULT=PASS`）。③主路径全量重建 run 3782 的 `ISSUE` task SUCCESS（affected_rows=8009）后，逐行核对判定与重算路径 0 差异；剔除 3 个延期列与时间戳后的全行哈希 0 处不符、`has_response` 变化 0、行数不变（`phaseB-rebuild.log`）。④隔离实例规则说明返回 `customer-issue-delay-issues@2026-09-28-v6`，开发实例仍为 `@2026-09-08-v5`。核对脚本为一次性预言机程序（用生产 `IssueFactNormalizationRules` 逐行计算期望值），不进入仓库正式测试。
@@ -261,7 +263,7 @@ wiki 原件位于用户桌面《数据采集平台规则汇总》的「客户问
 | D5 | 「计划解决时间」的合法格式与豁免判据 | **2026-09-28 领导统一格式后裁定为严格口径**：合法格式以 wiki（规则总表 5.4、11.4）为唯一标准，**凡不符合即视为「没有写时间」** → 打标签（情况一、二、三一律打）。因此豁免判据与非法模板判定**同源**，复用 `IssueResponsePlanFieldRules.parsePlannedResolutionAt`，不新增第二套判据、不存在两口径分叉。（此前的「存在性／情况二豁免」思路作废，不得再引用） |
 | D6 | 取哪一份模板的计划解决时间 | **已裁定（用户 2026-09-28）**：最新一份优先，不可解析则回退更早模板，对齐老平台 `getPlanSolutionTime` |
 | D7 | 两者都有时的口径 | **已裁定（用户 2026-09-28）**：回复模板存在即豁免，**不引入**「按最新模板类型分流」。依据 §4：该分流只影响本地 2 条，且无任何平台先例，还会造成「已解决议题被后发的无日期调研模板打回响应已延期」 |
-| D8 | 解决期限 `planSolutionTime` 方向隐患 | **本单元不修，记录待裁**：`IssueTemplateParsingSupport.planSolutionTime` 取最旧模板，老平台取最新，导致解决延期方向新老不一致。修它会改变解决延期结果，须另立工作单元 |
+| D8 | 解决期限 `planSolutionTime` 方向隐患 | **已由2026-10-30独立修复单元承接**：用户明确从新往旧取首个可解析日期；本响应单元原范围不变，现行规则归业务规则5.3第7条。根因是`7ee4ac19`将SQL输入改为倒序而未同步原反向解析器，不是有意采用旧计划 |
 
 明确否决的做法：新增回复模板 token 副本；在队列/HTTP 层加过滤补丁；为两模板逻辑或重构全仓解析目录；用「同源」理由扩大修复人语义；按最新模板类型分流豁免；把标签改名（GitLab 历史标签与老平台在用，破坏性变更）。
 
