@@ -39,11 +39,14 @@ public final class IssueFactNormalizationRules {
   /**
    * 按老平台标签契约提取议题测试状态，不混入 GitLab 议题开闭状态。
    *
+   * <p>所有项目保留全角状态前缀；客户项目 325 额外接受已确认的九个裸状态词与半角前缀。
+   *
    * @param labels 当前议题的完整 GitLab 标签
-   * @return 由 {@code 状态：值} 标签组成的稳定文本；缺失时返回“未设定议题状态”
+   * @param projectId 议题所属 GitLab 项目 ID
+   * @return 稳定去重的状态成员文本；缺失时返回“未设定议题状态”
    */
-  public static String normalizeBugStatus(List<String> labels) {
-    return IssueLabelRules.normalizeBugStatus(labels);
+  public static String normalizeBugStatus(List<String> labels, Long projectId) {
+    return IssueLabelRules.normalizeBugStatus(labels, projectId);
   }
 
   /**
@@ -192,20 +195,18 @@ public final class IssueFactNormalizationRules {
   }
 
   public static boolean isResolveDelayed(
-      List<String> labels,
-      boolean fixed,
+      List<String> statusMembers,
       LocalDateTime resolveDeadlineAt,
       LocalDateTime now) {
-    return IssueSlaRules.isResolveDelayed(labels, fixed, resolveDeadlineAt, now);
+    return IssueSlaRules.isResolveDelayed(statusMembers, resolveDeadlineAt, now);
   }
 
   public static boolean isResolveDelayed(
-      List<String> labels,
-      boolean fixed,
+      List<String> statusMembers,
       boolean hasFixCaseNote,
       LocalDateTime resolveDeadlineAt,
       LocalDateTime now) {
-    return IssueSlaRules.isResolveDelayed(labels, fixed, hasFixCaseNote, resolveDeadlineAt, now);
+    return IssueSlaRules.isResolveDelayed(statusMembers, hasFixCaseNote, resolveDeadlineAt, now);
   }
 
   public static boolean isLegacy(

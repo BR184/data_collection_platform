@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.domain.customerissue.CustomerIssueActivityTimeRules;
 import java.util.LinkedHashSet;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -32,6 +33,13 @@ final class IssueLabelRules {
   private static final List<String> FIXED_LABELS = List.of("已修复", "已修复/完成", "待合并", "未更新");
   private static final List<String> UNREPRODUCED_LABELS = List.of("未复现");
   private static final List<String> LEGACY_STATUS_LABELS = List.of("历史遗留");
+  // 客户项目 325 的裸状态词白名单：只做整词精确匹配，不做子串、否定词或相似词猜测。
+  private static final List<String> CUSTOMER_BARE_STATUS_MEMBERS = List.of(
+      "数据异常", "未复现", "申请延期", "已修复", CustomerIssueActivityTimeRules.EXACT_COMPLETION_MEMBER,
+      "待合并", "未更新", "需求如此", "设计如此");
+  private static final Pattern CUSTOMER_STATUS_LABEL_PATTERN =
+      Pattern.compile("^状态\\s*([：:])\\s*(.*)$");
+  private static final String MISSING_ISSUE_STATUS = "未设定议题状态";
   private static final List<String> SYSTEM_TEST_LABEL_TOKENS = List.of("系统测试", "回归测试");
   private static final List<String> TESTING_PHASE_TOKENS = List.of("系统测试", "回归测试", "集成测试");
   private static final List<String> LEGACY_PHASE_KEYWORD_TOKENS = List.of("系统测试", "回归测试", "集成测试");
@@ -169,8 +177,63 @@ final class IssueLabelRules {
     return closed && IssueRuleSupport.containsAnyLabel(labels, UNREPRODUCED_LABELS);
   }
 
-  static String normalizeBugStatus(List<String> labels) {
-    return oldPlatformLabelValue(labels, "状态", "未设定议题状态");
+  /**
+   * 规范化议题测试状态成员。
+   *
+   * <p>所有项目保留老平台全角 {@code 状态：值} 契约；客户项目 325 额外接受九个已确认裸状态词、
+   * 半角状态前缀与前后空白。裸词与带前缀的同名状态按同一成员去重，原始标签顺序保留；
+   * {@code 延期原因：数据异常} 等显式原因前缀以及否定/扩展文本不会被当作状态。
+   *
+   * @param labels 当前议题的完整 GitLab 标签
+   * @param projectId 议题所属 GitLab 项目 ID
+   * @return 以 {@code &} 连接的稳定状态成员文本；没有有效成员时返回“未设定议题状态”
+   */
+  static String normalizeBugStatus(List<String> labels, Long projectId) {
+    if (!CustomerIssueScopeRules.isCustomerProject(projectId, null)) {
+      return oldPlatformLabelValue(labels, "状态", MISSING_ISSUE_STATUS);
+    }
+    Set<String> members = new LinkedHashSet<>();
+    if (labels != null) {
+      for (String label : labels) {
+        String member = customerStatusMember(label);
+        if (member != null) {
+          addStatusMembers(members, member);
+        }
+      }
+    }
+    return members.isEmpty() ? MISSING_ISSUE_STATUS : String.join(" & ", members);
+  }
+
+  private static void addStatusMembers(Set<String> members, String value) {
+    for (String part : value.split("[、，,&]")) {
+      String member = part.trim();
+      if (!member.isEmpty()) {
+        members.add(member);
+      }
+    }
+  }
+
+  private static String customerStatusMember(String label) {
+    if (label == null) {
+      return null;
+    }
+    String trimmed = label.trim();
+    if (trimmed.isEmpty()) {
+      return null;
+    }
+    Matcher matcher = CUSTOMER_STATUS_LABEL_PATTERN.matcher(trimmed);
+    if (matcher.matches()) {
+      String value = matcher.group(2).trim();
+      if (value.isEmpty()) {
+        return null;
+      }
+      // 半角前缀只扩展九个已确认状态词，不据此猜测其它新格式。
+      if (":".equals(matcher.group(1)) && !CUSTOMER_BARE_STATUS_MEMBERS.contains(value)) {
+        return null;
+      }
+      return value;
+    }
+    return CUSTOMER_BARE_STATUS_MEMBERS.contains(trimmed) ? trimmed : null;
   }
 
   static String normalizeTestingPhase(List<String> labels) {

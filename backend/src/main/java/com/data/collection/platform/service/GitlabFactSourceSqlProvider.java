@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.domain.customerissue.CustomerIssueActivityTimeRules;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -55,13 +56,50 @@ class GitlabFactSourceSqlProvider {
           join ods_gitlab_labels l
             on l.id = rle.label_id
            and coalesce(l.mirror_deleted, false) = false
+          left join ods_gitlab_issues source_issue
+            on source_issue.id = rle.issue_id
+           and coalesce(source_issue.mirror_deleted, false) = false
          where coalesce(rle.mirror_deleted, false) = false
            and rle.issue_id is not null__ROOT_FILTER_RLE__
            and rle.action = %d
-           and l.title = '状态：已修复/完成'
+           and (
+             (coalesce(source_issue.project_id, -1) <> %d
+               and l.title = '状态：已修复/完成')
+             or (
+               source_issue.project_id = %d
+               and regexp_replace(btrim(l.title), '^状态\\s*[：:]\\s*', '') = '%s'
+               and exists (
+                 select 1
+                   from ods_gitlab_label_links ll
+                  where ll.target_type = 'Issue'
+                    and ll.target_id = rle.issue_id
+                    and ll.label_id = l.id
+                    and coalesce(ll.mirror_deleted, false) = false
+               )
+             )
+           )
          group by rle.issue_id
        )
-""".formatted(RESOURCE_LABEL_EVENT_ACTION_ADD);
+""".formatted(
+        RESOURCE_LABEL_EVENT_ACTION_ADD,
+        CustomerIssueFactQueryService.CC_PRODUCT_PROJECT_ID,
+        CustomerIssueFactQueryService.CC_PRODUCT_PROJECT_ID,
+        CustomerIssueActivityTimeRules.EXACT_COMPLETION_MEMBER);
+  // 与 IssueResponseTemplateTitleRules 使用同一组标题常量；只认首个非空行，正文提及不算模板。
+  private static final String RESPONSE_TEMPLATE_TITLE_MATCH_SQL =
+      """
+            (select btrim(title_line)
+               from regexp_split_to_table(
+                      replace(replace(coalesce(n.note, ''), E'\\r\\n', E'\\n'), E'\\r', E'\\n'),
+                      E'\\n') with ordinality as title_lines(title_line, line_position)
+              where btrim(title_line) <> ''
+              order by line_position
+              limit 1) in ('%s', '%s')
+      """
+          .formatted(
+              IssueResponseTemplateTitleRules.HEADING_TITLE,
+              IssueResponseTemplateTitleRules.TEMPLATE_TITLE);
+
   private static final String ISSUE_SOURCE_SQL_TEMPLATE = """
       with __TARGET_ROOTS__distinct_issue_labels as (
         select distinct
@@ -95,7 +133,9 @@ class GitlabFactSourceSqlProvider {
       issue_notes as (
         select n.noteable_id as issue_id,
                string_agg(coalesce(n.note, ''), E'\\n---\\n' order by n.created_at desc nulls last, n.id desc) as notes_text,
-               min(n.created_at) filter (where coalesce(n.note, '') like '%# 问题调研情况说明%') as research_template_time,
+               min(n.created_at) filter (
+                 where __RESPONSE_TEMPLATE_TITLE_MATCH__
+               ) as research_template_time,
                (
                  array_remove(
                    array_agg(
@@ -160,7 +200,9 @@ class GitlabFactSourceSqlProvider {
       """;
   private static final String ISSUE_SOURCE_SQL =
       injectFixLabelEvents(
-          ISSUE_SOURCE_SQL_TEMPLATE, FIX_LABEL_EVENTS_FROM_RESOURCE_LABEL_EVENTS);
+          ISSUE_SOURCE_SQL_TEMPLATE.replace(
+              "__RESPONSE_TEMPLATE_TITLE_MATCH__", RESPONSE_TEMPLATE_TITLE_MATCH_SQL),
+          FIX_LABEL_EVENTS_FROM_RESOURCE_LABEL_EVENTS);
 
   private static final String MERGE_REQUEST_SOURCE_SQL = """
       with __TARGET_ROOTS__reviewer_names as (

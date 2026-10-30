@@ -5,8 +5,8 @@ import static com.data.collection.platform.service.FactSourceRowValueSupport.isC
 import static com.data.collection.platform.service.FactSourceRowValueSupport.nullableLong;
 import static com.data.collection.platform.service.FactSourceRowValueSupport.readTextArray;
 import static com.data.collection.platform.service.FactSourceRowValueSupport.toLocalDateTime;
-import static com.data.collection.platform.service.FactSourceRowValueSupport.toShanghaiWallClock;
 
+import com.data.collection.platform.domain.customerissue.CustomerIssueActivityTimeRules;
 import com.data.collection.platform.domain.customerissue.CustomerRequirementRules;
 import com.data.collection.platform.entity.IssueFact;
 import com.data.collection.platform.service.IssuePhaseCalendarLoader.PhaseCalendarEntry;
@@ -98,7 +98,7 @@ class IssueFactSourceRowMapper {
     fact.setSeverityAlias(IssueFactNormalizationRules.normalizeSeverityAlias(labels));
     fact.setPriorityLevel(priorityLevel);
     fact.setUrgency(priorityLevel);
-    fact.setBugStatus(IssueFactNormalizationRules.normalizeBugStatus(labels));
+    fact.setBugStatus(IssueFactNormalizationRules.normalizeBugStatus(labels, projectId));
     fact.setCategory(IssueFactNormalizationRules.normalizeCategory(labels));
     fact.setReasonCategory(IssueFactNormalizationRules.normalizeReasonCategory(notesText));
     fact.setSystemTestLabel(IssueFactNormalizationRules.normalizeSystemTestLabel(labels));
@@ -145,7 +145,9 @@ class IssueFactSourceRowMapper {
             && IssueFactNormalizationRules.isResponseDelayed(
                 labels, notesText, createdAt, priorityLevel, now);
     fact.setResearchTemplateTime(
-        toLocalDateTime(resultSet.getTimestamp("research_template_time")));
+        // 响应模板时间是来源 timestamptz；显式落 UTC 墙上值，与创建的 UTC naive 同一时间轴（D-27）。
+        FactSourceRowValueSupport.readTemporalProjection(
+            resultSet, "research_template_time", ZoneOffset.UTC));
     fact.setResponseOverdue(responseDelayed);
     fact.setResponseDelayed(responseDelayed);
     fact.setResolveSlaDays(resolveSlaDays);
@@ -154,15 +156,16 @@ class IssueFactSourceRowMapper {
     fact.setPlannedResolutionText(responseTemplate.plannedResolutionText());
     fact.setPlannedMergeVersionBranch(responseTemplate.plannedMergeVersionBranch());
     fact.setFixedLabelTime(
-        IssueStatusMembers.parse(fact.getBugStatus()).contains("已修复/完成")
+        CustomerIssueActivityTimeRules.hasExactCompletionMember(
+                IssueStatusMembers.parse(fact.getBugStatus()))
             // 来源事件列是带时区类型：投影显式落上海墙上值，写入进程或会话时区不参与结果（D-27）。
-            ? toShanghaiWallClock(resultSet.getTimestamp("fixed_label_time"))
+            ? FactSourceRowValueSupport.readTemporalProjection(
+                resultSet, "fixed_label_time", CustomerIssueActivityTimeRules.BUSINESS_TIME_ZONE)
             : null);
     fact.setResolveDelayed(
         openCustomerIssue
             && IssueFactNormalizationRules.isResolveDelayed(
-                labels,
-                Boolean.TRUE.equals(fact.getFixed()),
+                IssueStatusMembers.parse(fact.getBugStatus()),
                 IssueFactNormalizationRules.hasFixCaseNote(notesText),
                 resolveDeadlineAt,
                 now));

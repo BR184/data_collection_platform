@@ -308,8 +308,7 @@ public class FactBuildService {
                 now);
         nextResolveDelayed =
             IssueFactNormalizationRules.isResolveDelayed(
-                labelsOf(fact),
-                Boolean.TRUE.equals(fact.getFixed()),
+                IssueStatusMembers.parse(fact.getBugStatus()),
                 IssueFactNormalizationRules.hasFixCaseNote(fact.getRawPayload()),
                 fact.getResolveDeadlineAt(),
                 now);

@@ -116,6 +116,26 @@ class IssueResponseTemplateParserTest {
   }
 
   @Test
+  void test_bare_legacy_title_is_a_response_template_and_body_mention_is_not() {
+    assertThat(IssueSlaRules.hasResponse("问题调研情况说明\n## 计划解决时间：2026.03.31"))
+        .isTrue();
+    assertThat(IssueSlaRules.hasResponse("\n\n# 问题调研情况说明\n## 问题原因：已定位"))
+        .isTrue();
+    assertThat(IssueSlaRules.hasResponse("普通评论提到了问题调研情况说明，但不是标题"))
+        .isFalse();
+    assertThat(IssueSlaRules.hasResponse("## 问题调研情况说明\n## 计划解决时间：2026.03.31"))
+        .isFalse();
+
+    IssueResponseTemplate bare =
+        IssueResponseTemplateParser.parse(
+            "问题调研情况说明\n## 计划解决时间：2026.06.01\n## 计划合并的版本分支：CC2026R3");
+    assertThat(bare.plannedResolutionAt()).isEqualTo(LocalDateTime.of(2026, 6, 1, 0, 0));
+    assertThat(bare.plannedMergeVersionBranch()).isEqualTo("CC2026R3");
+    assertThat(IssueResponseTemplateParser.hasParseablePlanSolutionTime(
+        "正文提及问题调研情况说明\n## 计划解决时间：2026.06.01")).isFalse();
+  }
+
+  @Test
   void shouldFallBackToEarlierResponseTemplateWhenLatestPlanSolutionTimeIsMissing() {
     String withoutPlan = "# 问题调研情况说明\n## 计划解决时间：\n## 计划合并的版本分支：CC2026R3";
     String withPlan = "# 问题调研情况说明\n## 计划解决时间：2026.06.01";

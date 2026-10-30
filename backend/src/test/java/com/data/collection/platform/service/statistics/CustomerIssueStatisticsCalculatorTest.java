@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.service.CustomerIssueFactQueryService.CustomerIssueFact;
+import com.data.collection.platform.service.IssueFactNormalizationRules;
 import com.data.collection.platform.service.statistics.CustomerIssueStatisticsCalculator.FactFlags;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -51,6 +52,122 @@ class CustomerIssueStatisticsCalculatorTest {
         "延期缺陷占比", CustomerIssueStatisticMetricCatalog.require("defect_delay_ratio").label());
     assertTrue(CustomerIssueStatisticMetricCatalog.isKnown("p3_calibrated_fix_rate"));
     assertFalse(CustomerIssueStatisticMetricCatalog.isKnown("p3_calibrated_fix_rate_v2"));
+  }
+
+  @Test
+  void test_all_seventy_one_metrics_have_explicit_expected_output_for_a_fixed_fact_set() {
+    LocalDateTime day = LocalDateTime.of(2026, 9, 22, 0, 30);
+    LocalDateTime older = LocalDateTime.of(2026, 9, 20, 0, 0);
+    Map<String, StatisticCellData> cells = compute(
+        base("数据异常 & 已修复 & 申请延期", "LEVEL1", "P1")
+            .issueId(101L)
+            .labels(List.of("数据异常", "已修复", "申请延期"))
+            .createdAt(day)
+            .researchedAt(day.plusHours(10))
+            .delayIssue(true)
+            .responseDelayed(true)
+            .resolveDelayed(true)
+            .regression(true)
+            .build(),
+        base("未复现 & 已修复/完成", "LEVEL2", "P2")
+            .issueId(102L)
+            .labels(List.of("未复现", "已修复/完成"))
+            .createdAt(older)
+            .researchedAt(older.plusHours(20))
+            .fixedLabelTime(older.plusDays(1).plusHours(8))
+            .delayIssue(true)
+            .build(),
+        base("处理中", "LEVEL3", "P3")
+            .issueId(103L)
+            .createdAt(day.plusMinutes(30))
+            .researchedAt(day.plusMinutes(30).plusHours(5))
+            .responseDelayed(true)
+            .build(),
+        base("处理中", "SUGGESTION", null)
+            .issueId(104L)
+            .labels(List.of("建议"))
+            .createdAt(older)
+            .build());
+
+    Map<String, String> expected = new java.util.LinkedHashMap<>();
+    expected.put("defect_total", "3");
+    expected.put("defect_fixed", "2");
+    expected.put("defect_unfixed", "1");
+    expected.put("defect_applied_delay", "1");
+    expected.put("defect_data_exception", "1");
+    expected.put("defect_not_reproduced", "1");
+    expected.put("defect_fix_rate", "66.67%");
+    expected.put("defect_calibrated_fix_rate", "0.00%");
+    expected.put("defect_delay_ratio", "66.67%");
+    expected.put("level1_back", "1");
+    expected.put("level1_hang", "0");
+    expected.put("level1_other", "0");
+    expected.put("level1_total", "1");
+    expected.put("level1_fixed", "1");
+    expected.put("level1_unfixed", "0");
+    expected.put("level1_applied_delay", "1");
+    expected.put("level1_data_exception", "1");
+    expected.put("level1_not_reproduced", "0");
+    expected.put("level1_fix_rate", "100.00%");
+    expected.put("level1_calibrated_fix_rate", "/");
+    expected.put("level2_total", "1");
+    expected.put("level2_fixed", "1");
+    expected.put("level2_unfixed", "0");
+    expected.put("level2_applied_delay", "0");
+    expected.put("level2_data_exception", "0");
+    expected.put("level2_not_reproduced", "1");
+    expected.put("level2_fix_rate", "100.00%");
+    expected.put("level2_calibrated_fix_rate", "/");
+    expected.put("level3_total", "1");
+    expected.put("level3_fixed", "0");
+    expected.put("level3_unfixed", "1");
+    expected.put("level3_applied_delay", "0");
+    expected.put("level3_data_exception", "0");
+    expected.put("level3_not_reproduced", "0");
+    expected.put("level3_fix_rate", "0.00%");
+    expected.put("level3_calibrated_fix_rate", "0.00%");
+    expected.put("suggestion_total", "1");
+    expected.put("p1_total", "1");
+    expected.put("p1_fixed", "0");
+    expected.put("p1_unfixed", "1");
+    expected.put("p1_applied_delay", "1");
+    expected.put("p1_data_exception", "1");
+    expected.put("p1_not_reproduced", "0");
+    expected.put("p1_fix_rate", "0.00%");
+    expected.put("p1_calibrated_fix_rate", "/");
+    expected.put("p2_total", "1");
+    expected.put("p2_fixed", "1");
+    expected.put("p2_unfixed", "0");
+    expected.put("p2_applied_delay", "0");
+    expected.put("p2_data_exception", "0");
+    expected.put("p2_not_reproduced", "1");
+    expected.put("p2_fix_rate", "100.00%");
+    expected.put("p2_calibrated_fix_rate", "/");
+    expected.put("p3_total", "1");
+    expected.put("p3_fixed", "0");
+    expected.put("p3_unfixed", "1");
+    expected.put("p3_applied_delay", "0");
+    expected.put("p3_data_exception", "0");
+    expected.put("p3_not_reproduced", "0");
+    expected.put("p3_fix_rate", "0.00%");
+    expected.put("p3_calibrated_fix_rate", "0.00%");
+    expected.put("resp_delay_p1", "1");
+    expected.put("resp_delay_p2", "0");
+    expected.put("resp_delay_p3", "1");
+    expected.put("resp_delay_total", "2");
+    expected.put("fix_delay_p1", "1");
+    expected.put("fix_delay_p2", "0");
+    expected.put("fix_delay_p3", "0");
+    expected.put("fix_delay_total", "1");
+    expected.put("response_cycle_hours", "12");
+    expected.put("resolution_cycle_days", "1.0");
+
+    assertEquals(71, expected.size());
+    assertEquals(expected.keySet(), cells.keySet());
+    expected.forEach(
+        (key, value) -> assertEquals(value, cells.get(key).displayValue(), key));
+    assertEquals("3", cells.get("response_cycle_hours").detailParams().get("sampleCount"));
+    assertEquals("1", cells.get("resolution_cycle_days").detailParams().get("sampleCount"));
   }
 
   @Test
@@ -182,6 +299,78 @@ class CustomerIssueStatisticsCalculatorTest {
   }
 
   @Test
+  void test_confirmed_example_one_bare_statuses_remove_same_identities_from_both_calibration_sides() {
+    Map<String, StatisticCellData> cells = compute(
+        customer("已修复", 1L),
+        customer("已修复", 2L),
+        customer("待合并", 3L),
+        customer("未更新", 4L),
+        customer("数据异常、已修复", 5L),
+        customer("未复现、已修复/完成", 6L),
+        customer("申请延期", 7L),
+        customer("处理中", 8L),
+        customer("处理中", 9L),
+        customer("处理中", 10L));
+
+    assertEquals("10", cells.get("defect_total").displayValue());
+    assertEquals("6", cells.get("defect_fixed").displayValue());
+    assertEquals("60.00%", cells.get("defect_fix_rate").displayValue());
+    assertEquals("1", cells.get("defect_data_exception").displayValue());
+    assertEquals("1", cells.get("defect_not_reproduced").displayValue());
+    // 异常议题即使同时命中已修复，校准分子也必须扣除；分母从 10 降到 8。
+    assertEquals("50.00%", cells.get("defect_calibrated_fix_rate").displayValue());
+  }
+
+  @Test
+  void test_confirmed_example_two_bare_data_exception_keeps_true_zero_and_single_denominator() {
+    Map<String, StatisticCellData> cells = compute(
+        customer("数据异常", 1L),
+        customer("数据异常", 2L),
+        customer("数据异常", 3L),
+        customer("数据异常", 4L),
+        customer("数据异常", 5L),
+        customer("处理中", 6L));
+
+    assertEquals("6", cells.get("defect_total").displayValue());
+    assertEquals("0", cells.get("defect_fixed").displayValue());
+    assertEquals("6", cells.get("defect_unfixed").displayValue());
+    assertEquals("5", cells.get("defect_data_exception").displayValue());
+    assertEquals("0.00%", cells.get("defect_fix_rate").displayValue());
+    assertEquals("0.00%", cells.get("defect_calibrated_fix_rate").displayValue());
+    assertEquals(0L, cells.get("defect_calibrated_fix_rate").numericValue());
+  }
+
+  @Test
+  void test_confirmed_example_three_fully_excluded_population_is_uncomputable() {
+    Map<String, StatisticCellData> cells = compute(
+        customer("数据异常", 1L),
+        customer("数据异常", 2L),
+        customer("数据异常", 3L),
+        customer("未复现", 4L),
+        customer("未复现", 5L),
+        customer("数据异常、未复现", 6L));
+
+    assertEquals("6", cells.get("defect_total").displayValue());
+    // 异常与未复现可重叠计数，但校准并集只剔除一次；两类计数相加不等于 D。
+    assertEquals("4", cells.get("defect_data_exception").displayValue());
+    assertEquals("3", cells.get("defect_not_reproduced").displayValue());
+    assertEquals("/", cells.get("defect_calibrated_fix_rate").displayValue());
+    assertNull(cells.get("defect_calibrated_fix_rate").numericValue());
+  }
+
+  @Test
+  void test_bare_full_and_half_width_customer_statuses_deduplicate_to_one_member_each() {
+    Map<String, StatisticCellData> cells = compute(
+        customerLabels(List.of("数据异常", "状态：数据异常", "状态:数据异常", "数据异常 "), 1L),
+        customerLabels(List.of("状态:未复现"), 2L),
+        customerLabels(List.of("状态 ： 申请延期"), 3L));
+
+    assertEquals("1", cells.get("defect_data_exception").displayValue());
+    assertEquals("1", cells.get("defect_not_reproduced").displayValue());
+    assertEquals("1", cells.get("defect_applied_delay").displayValue());
+  }
+
+  @Test
   void efficiency_noSample_showsZeroWithZeroSampleCount() {
     Map<String, StatisticCellData> cells = compute(base("处理中", "LEVEL2", "P1").build());
     assertEquals("0", cells.get("response_cycle_hours").displayValue());
@@ -288,6 +477,18 @@ class CustomerIssueStatisticsCalculatorTest {
     return new FactBuilder(bugStatus, severityLevel, priorityLevel);
   }
 
+  private static CustomerIssueFact customer(String labels, long issueId) {
+    return customerLabels(List.of(labels.split("、")), issueId);
+  }
+
+  private static CustomerIssueFact customerLabels(List<String> labels, long issueId) {
+    return base(
+            IssueFactNormalizationRules.normalizeBugStatus(labels, 325L), "LEVEL2", "P2")
+        .labels(labels)
+        .issueId(issueId)
+        .build();
+  }
+
   /** 测试事实构造器：只为覆盖规则边界，不引入生产默认值。 */
   private static final class FactBuilder {
     private final String bugStatus;
@@ -333,6 +534,16 @@ class CustomerIssueStatisticsCalculatorTest {
 
     FactBuilder labels(List<String> value) {
       this.labels = value;
+      return this;
+    }
+
+    FactBuilder issueId(long value) {
+      this.issueId = value;
+      return this;
+    }
+
+    FactBuilder delayIssue(boolean value) {
+      this.delayIssue = value;
       return this;
     }
 
