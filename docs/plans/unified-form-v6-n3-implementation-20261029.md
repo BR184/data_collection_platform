@@ -4,7 +4,7 @@
 
 ## 进度与中间物
 
-- 阶段（2026-10-29）：P0—P5已按`19d40549`交付；首次审核为修改后重审，N4未准入。当前整改入口为[审核执行单N3-R01—R04](unified-form-system-implementation-plan-20261021.md#n3-review-1)，原交付证据继续保留。
+- 阶段（2026-10-29）：P0—P5已按`19d40549`交付；首次审核为修改后重审，N4未准入。N3-R01—R04 已按[审核执行单](unified-form-system-implementation-plan-20261021.md#n3-review-1)关闭并送复验，原交付证据继续保留。
 - 已完成文件：本计划；迁移 `V20261029_01__form_v6_publication_protocol.sql`（第 161 条，checksum 已登记）；`FormPublicationTxService`/`FormPublicationService`/`FormHeadSwitchService`/`FormTemplateAdminService` v2 改造；删除 `FormPublicationMigrator`、`FormLegacyRecordMigrator` 与 v1 复制目标测试；前端阶段类型与管理页提示。
 - 测试状态：
   - `FormTemplateAdminIntegrationTest` 19/19 通过（真实 PG），其中新增参数化用例覆盖 `code_review`/`issue_response`/`issue_reply` 三模板的 INITIAL_EMPTY 首次启用与 MIGRATION V1→V2 空发布：旧记录及目录位置不变、目标空表、角色 `AUTHORITATIVE/RETIRED`、`source_set_revision` 1→2、目录事件 2 条、head pending 与源集合版本一致；V1 当时可新建，发布 V2 后新建只进当前 V2，旧 V1 继续维护已有记录。
@@ -13,8 +13,18 @@
 - 本轮裁决（2026-10-29）：页面验收只做三个代表性范围（`code_review` 升级、`issue_response` 首启、`issue_reply` 升级）；两升级范围核旧记录可见、原版编辑、新版首条新增，首启范围核启用与首条新增；顺序为补夹具→页面验收及必要修复→仅一次最终默认全量→封包送审；备份用例单跑通过不替代全量，全量若复发同一失败则保留材料单独登记送审，不反复跑到绿、不放宽断言、不自行宣告通过。
 - 页面验收（2026-10-29）：专属 PG 15607、后端 18093（仅发布 worker，300ms）、Vite 18186、Chrome CDP 9273；三范围经真实管理页发布并通过 `ALL CHECKS PASSED (42)`。发布确认均显示“新版本从空结构开始；已有记录保留在原版本，不迁移、不改绑。”；两升级范围旧记录可见、原版编辑成功、新版首条新增进入新表；首启范围首条新增成功。DB 对账：旧记录与目录位置逐字节不变、新表初始为空、旧版 `RETIRED/AUTHORITATIVE`、新版 `PUBLISHED/AUTHORITATIVE`、源集合 1→2（首启 0→1）、目录事件各 2 条、head pending 指向新版本、`write_fenced=false`、任务 `protocol=2`（`MIGRATION`/`INITIAL_EMPTY`）。证据：`.tmp/w4-n3-20261029/evidence/`（acceptance.log、summary、db-final.txt、7 张截图），环境与边界见同目录 `environment.md`。
 - 外部连接边界：首次为运行发布 worker 打开调度总开关时，库内 match-mode 默认启用，17:16 对 `172.22.10.72:27017` 发起过一次 Mongo 握手并被对端关闭，未观察成功读写；随后在专属库关闭 match-mode 并重启，最终日志仅 `127.0.0.1:15607`、Mongo 0 次。
-- 进行点：送审提交`19d40549`已核实双远端一致；审核方独立发布/记录55项、管理页24项/typecheck通过，两项真实PG反例失败。下一步修退役恢复与冻结绑定守卫，迁回适用结构回归，补启动预检与原始日志证据；详见审核执行单。
-- 阻塞：N3-R01—R04未关闭，不能进入N4；不重复已完成的三范围页面与默认全量。本轮业务代码未由审核方修改，临时反例已恢复，审核证据位于审核树`.tmp/n3-review-20261029/`。
+- 整改（2026-10-29）：已快进吸收审核回执`3d6449d7`，在`19d40549`基础上关闭 R01—R04，逐项证据见下节“N3-R01—R04 关闭证据”。
+- 进行点：整改提交送复验；审核通过前不进入 N4，不重复三范围页面与默认全量。
+- 阻塞：无技术阻塞；仅等待 N3 复验结论。
+
+### N3-R01—R04 关闭证据
+
+- **R01 退役被绕过**：`FormPublicationTxService` 在范围锁内按发布类型复核状态与指针（`INITIAL_EMPTY` 只允许 `DRAFT`+无指针，`MIGRATION` 只允许 `ACTIVE`+冻结旧指针），领取后执行、`enterSwitch`、`applySwitch`、`recover` 共用同一守卫；`RETIRED` 拒绝恢复与切换，旧指针/源集合/事件/head/角色零变化，未新增重新启用入口。正式回归 `shouldRejectRecoveryForRetiredScope`（真实 PG）：失败→退役→恢复被 409 拒绝，任务保持 FAILED、范围保持 RETIRED、无栅栏。RED 证据：修复前同一测试断言失败（`.tmp/w4-n3r-20261029/red/`）。
+- **R02 绑定被覆盖**：新增第 162 条前向迁移 `V20261029_02__form_publication_origin_binding.sql`（`origin_binding/origin_binding_revision/origin_binding_hash`，旧行与 v1 任务保持 NULL），checksum 已登记；任务创建时冻结原绑定证据，`enter/apply/recover` 在范围锁内复核修订、哈希与规范绑定，失配拒绝且不重冻结。正式回归 `shouldRejectBindingDriftBeforeSwitchAndRecovery`、`shouldRejectBindingDriftAfterSwitchEntered` 覆盖 enter 前、enter 后 apply 前与恢复三处；拒绝时零指针/集合/事件/head/角色切换，SWITCHING 失败按原 owner/token 清自有栅栏。三模板首次启用与 V1→V2 既有参数化用例保持通过，未扩模板矩阵。
+- **R03 结构回归恢复**：新增 `FormVersionStructureVerifierIntegrationTest`（正式生成器 + 真实 PG16），恢复 CHECK 逻辑分组漂移、外键删除动作漂移、临时表跨连接三项历史缺陷回归，并保留合法结构通过、探测临时表零残留、Hikari 多连接入口（`PinnedDataSource` 每次借独立物理连接且不归还）。同文件保留约束集合缺失、记录索引缺失、记录ID默认序列漂移。已删除的复制/S 迁移/truncate 测试保持删除，未恢复旧协议或双轨。
+- **R04 启动隔离与日志**：新增 `scripts/run_isolated_form_acceptance_backend.py`（迁移专用进程 → 初始化并核验 match-mode/BI CAT/DGM/备份开关与外部目标 → 只开放发布 worker 启动 → 启动后扫描非回环地址/Mongo）与 `scripts/form_publication_smoke.py`（真实管理接口建范围→绑定→预览→发布，核对空版本与新建指针）；纯函数单测 `run_isolated_form_acceptance_backend_test.py` 7/7。证据 `.tmp/w4-n3r-20261029/r04/`：预检不符（含默认 match-mode 开启、BI CAT 全量补偿开启、外部 Mongo 已配置）时退出码 2 且 18094 无监听；一次安全启动 11 项预检 + 冒烟 + 三项日志扫描全 PASS，任务 `protocol=2/PUBLISHED`、新版本记录 0。原始 17:16—17:17 Mongo 事件从 `backend/logs/data-collection-platform-backend.json.log` 第 1023—1026 行冻结，`environment.md` 路径已纠正（原引用 `.tmp-logs/n3-backend.log` 从 17:32:54 起，不含该事件），边界仍为“尝试连接、对端关闭、未观察成功读写”。
+- **本轮验证范围**：受影响的 `FormTemplateAdminIntegrationTest`（22/22）、`FormRecordServiceIntegrationTest`（36/36）、`FormVersionStructureVerifierIntegrationTest`（6/6）、`FormV6LegacyUpgradeIntegrationTest`（1/1，非空 159→162 升级、既有迁移零改动）、`MigrationOnlyIntegrationTest`（1/1，head `20261029.02`）共 66 项全绿；R01/R02 三项 RED 断言先失败后转绿。沿用未变前端 24 项/typecheck、员工 944 项与 42 项页面证据；未重跑默认全量、未运行黄金。
+- **新增/修改/删除清单**：新增 3 个脚本（含 1 个纯函数测试）、1 条迁移、1 个聚焦结构测试；修改 `FormPublicationTxService`、`FormTemplateAdminIntegrationTest`、两处迁移头断言、checksum 手册、本计划、`architecture.md`、`decisions.md`、`progress.md`、验收 `environment.md`。删除项沿用首次送审的 4 项代码/测试（`FormPublicationMigrator`、`FormLegacyRecordMigrator`、`FormInitialMigrationAdminTest`、`FormSchemaMigrationTest`）与已按生命周期删除的 N2 计划，本轮无新增删除。
 
 ### 实施记录
 
