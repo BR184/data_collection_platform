@@ -200,6 +200,7 @@ class IssueFactSourceRowMapper {
     fact.setAuthorName(defaultText(resultSet.getString("author_name")));
     fact.setHandlerName(defaultText(resultSet.getString("handler_name")));
     fact.setAssigneeName(defaultText(resultSet.getString("assignee_name")));
+    fact.setFixUser(defaultText(resultSet.getString("fix_user")));
     fact.setCreatedAtSource(toLocalDateTime(resultSet.getTimestamp("created_at_source")));
     fact.setUpdatedAtSource(toLocalDateTime(resultSet.getTimestamp("updated_at_source")));
     fact.setOdsUpdatedAt(toLocalDateTime(resultSet.getTimestamp("ods_updated_at")));

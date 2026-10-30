@@ -33,6 +33,7 @@ public class FormRecordWriteService {
   private final FormRecordViewFactory viewFactory;
   private final FormRecordDirectoryService directoryService;
   private final FormRecordDirectoryReader directoryReader;
+  private final FormRecordAuthorityService authorityService;
   private final Clock clock;
 
   public FormRecordWriteService(
@@ -42,6 +43,7 @@ public class FormRecordWriteService {
       FormRecordViewFactory viewFactory,
       FormRecordDirectoryService directoryService,
       FormRecordDirectoryReader directoryReader,
+      FormRecordAuthorityService authorityService,
       Clock clock) {
     this.jdbcTemplate = jdbcTemplate;
     this.contextService = contextService;
@@ -49,6 +51,7 @@ public class FormRecordWriteService {
     this.viewFactory = viewFactory;
     this.directoryService = directoryService;
     this.directoryReader = directoryReader;
+    this.authorityService = authorityService;
     this.clock = clock;
   }
 
@@ -320,7 +323,8 @@ public class FormRecordWriteService {
       LocalDateTime now) {
     long auditId =
         store.writeAudit(operation, context, row, actor.userId(), actorName, clientIp, userAgent, now);
-    store.bumpHead(context, auditId, row, store.authorityRevision(context), now);
+    long authorityRevision = authorityService.ensureForWrite(context, operation, now);
+    store.bumpHead(context, auditId, row, authorityRevision, now);
   }
 
   private FormRecordView view(

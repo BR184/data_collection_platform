@@ -75,7 +75,8 @@ final class FormV6TestSupport {
         new FormComparableRegistrationService(jdbc, contextService, objectMapper);
     FormRecordWriteService writeService =
         new FormRecordWriteService(
-            jdbc, contextService, store, viewFactory, directoryService, reader, ClockStub.SYSTEM);
+            jdbc, contextService, store, viewFactory, directoryService, reader,
+            new FormRecordAuthorityService(jdbc), ClockStub.SYSTEM);
     FormRecordService recordService =
         new FormRecordService(
             contextService,

@@ -37,7 +37,7 @@ final class IssueSlaRules {
    * @param notesText GitLab issue 备注聚合文本（按创建时间倒序）
    * @return 应豁免响应延期时返回 {@code true}
    */
-  private static boolean isResponseExempt(String notesText) {
+  static boolean isResponseExempt(String notesText) {
     return hasFixCaseNote(notesText)
         || IssueResponseTemplateParser.hasParseablePlanSolutionTime(notesText);
   }
@@ -59,7 +59,7 @@ final class IssueSlaRules {
     return isResponseDelayedByClock(labels, createdAt, priorityLevel, now);
   }
 
-  private static boolean isResponseDelayedByClock(
+  static boolean isResponseDelayedByClock(
       List<String> labels,
       LocalDateTime createdAt,
       String priorityLevel,
@@ -78,13 +78,23 @@ final class IssueSlaRules {
       int resolveSlaDays) {}
 
   /**
-   * 用统一业务输入判定响应/解决延期，供首次事实与周期重算共用。
+   * 一次判定实际采用的业务事实，不区分表单或评论，也不允许两侧来源拼成同一份输入。
+   *
+   * @param plannedResolutionAt 最新有效响应的计划解决时间；评论侧取已发布事实的期限输入
+   * @param responsePlanExempt 响应侧是否已有合法计划时间（D-21）
+   * @param hasReply 是否存在有效回复（D-21 豁免与解决闭环）
+   */
+  record SlaInput(
+      LocalDateTime plannedResolutionAt, boolean responsePlanExempt, boolean hasReply) {}
+
+  /**
+   * 用统一业务事实判定响应/解决延期，供首次事实与周期重算共用。
    *
    * <p>响应延期豁免只取“有效回复存在”或“某份响应给出合法计划时间”（D-21，方向为最新→更早），
-   * 计划字段本身仍整份取自最新响应，不逐字段回退。解决期限取最新响应计划；计划缺失或距创建超过
-   * 18 天时按 18 天默认值。关闭议题不产生延期。
+   * 计划字段本身仍整份取自最新响应，不逐字段回退。解决期限取同一份最新响应计划；计划缺失或距创建
+   * 超过 18 天时按 18 天默认值。关闭议题不产生延期。
    *
-   * @param input 表单或评论投影出的来源无关输入
+   * @param input 已确定的业务事实（表单或评论，不混源）
    * @param labels 当前来源标签（仅用于响应 SLA 优先级）
    * @param statusMembers 从 {@code 状态：值} 解析出的规范闭环状态成员
    * @param createdAt 议题创建时间
@@ -94,7 +104,7 @@ final class IssueSlaRules {
    * @return 三列延期判定与解决期限/展示天数
    */
   static Evaluation evaluate(
-      IssueBusinessInput input,
+      SlaInput input,
       List<String> labels,
       List<String> statusMembers,
       LocalDateTime createdAt,

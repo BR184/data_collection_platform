@@ -118,6 +118,8 @@ class FactBuildServiceOrchestrationTest {
             new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
         new com.data.collection.platform.config.GitlabMirrorProperties(),
         mock(FormIssueInputResolver.class),
+        mock(FormIssueAuthorityRegistrar.class),
+        mock(com.data.collection.platform.service.form.FormHeadCaptureService.class),
         new com.data.collection.platform.config.FormAdoptionProperties());
   }
 

@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.domain.form.FormScopeBinding;
 import com.data.collection.platform.domain.form.FormTemplateSpecCatalog;
@@ -93,6 +94,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   @Autowired private FactBuildService factBuildService;
   @Autowired private FactTargetPublicationService factTargetPublicationService;
   @Autowired private ReadPublicationService readPublicationService;
+  @Autowired private FormIssueInputResolver formIssueInputResolver;
 
   @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
   private SyncFactPublicationStateService qualification;
@@ -188,6 +190,38 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     assertThat(refreshed.get("is_resolve_delayed"))
         .as("周期重算读取最新表单计划 11-15，而不是旧事实期限或过期评论计划")
         .isEqualTo(false);
+    assertThat(refreshed.get("planned_resolution_at"))
+        .as("计划、期限与标记必须来自同一份最新响应")
+        .isEqualTo(LocalDateTime.of(2026, 11, 15, 0, 0));
+    assertThat(refreshed.get("resolve_deadline_at"))
+        .isEqualTo(LocalDateTime.of(2026, 11, 15, 0, 0));
+    assertThat(refreshed.get("research_template_time"))
+        .isEqualTo(LocalDateTime.of(2026, 11, 3, 10, 0));
+  }
+
+  @Test
+  void periodicPublishesBusinessChangeEvenWhenBothDelayFlagsStayTrue() {
+    insertSourceIssue(93106L, 81106L, LocalDateTime.of(2026, 11, 2, 10, 0));
+    insertResponseRecord(
+        93106L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
+        LocalDateTime.of(2026, 11, 3, 10, 0), LocalDate.of(2026, 10, 20), "CC2026R3");
+
+    rebuildAllIssueFacts();
+    assertThat(liveFact(93106L).get("is_resolve_delayed")).isEqualTo(true);
+
+    insertResponseRecord(
+        93106L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
+        LocalDateTime.of(2026, 11, 4, 10, 0), LocalDate.of(2026, 10, 25), "CC2026R3");
+    refreshDelayFacts();
+
+    Map<String, Object> refreshed = liveFact(93106L);
+    assertThat(refreshed.get("is_resolve_delayed"))
+        .as("两次标记都为 true 时仍必须发布新的业务计划")
+        .isEqualTo(true);
+    assertThat(refreshed.get("planned_resolution_at"))
+        .isEqualTo(LocalDateTime.of(2026, 10, 25, 0, 0));
+    assertThat(refreshed.get("resolve_deadline_at"))
+        .isEqualTo(LocalDateTime.of(2026, 10, 25, 0, 0));
   }
 
   @Test
@@ -254,6 +288,111 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   }
 
   @Test
+  void commentAuthorityKeepsCommentEvenWhenFormRecordsExist() {
+    insertSourceIssue(93101L, 81101L, LocalDateTime.of(2026, 11, 1, 10, 0));
+    insertResponseNote(93101L, "2026.11.09", LocalDateTime.of(2026, 11, 2, 9, 0));
+    insertResponseRecord(
+        93101L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
+        LocalDateTime.of(2026, 11, 5, 10, 0), LocalDate.of(2026, 11, 15), "CC2026R4");
+    insertReplyRecord(93101L, LocalDateTime.of(2026, 11, 6, 10, 0), "u-jia");
+    insertAuthority(
+        responseScopeId, FormTemplateSpecCatalog.ISSUE_RESPONSE, 81101L, "COMMENT", CANONICAL_URL);
+    insertAuthority(
+        replyScopeId, FormTemplateSpecCatalog.ISSUE_REPLY, 81101L, "COMMENT", CANONICAL_URL);
+
+    rebuildAllIssueFacts();
+
+    Map<String, Object> fact = liveFact(93101L);
+    assertThat(fact.get("planned_resolution_at"))
+        .as("持久 COMMENT 权威即使存在表单记录也仍读评论")
+        .isEqualTo(LocalDateTime.of(2026, 11, 9, 0, 0));
+    assertThat(fact.get("has_response")).isEqualTo(true);
+    assertThat(fact.get("fix_user")).isIn(null, "");
+  }
+
+  @Test
+  void existingFormAuthorityIsConsumedEvenBeforeEnablePoint() {
+    insertSourceIssue(93102L, 81102L, LocalDateTime.of(2026, 10, 1, 10, 0));
+    insertResponseNote(93102L, "2026.11.09", LocalDateTime.of(2026, 10, 2, 9, 0));
+    insertResponseRecord(
+        93102L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
+        LocalDateTime.of(2026, 10, 5, 10, 0), LocalDate.of(2026, 11, 20), "CC2026R4");
+    insertAuthority(
+        responseScopeId, FormTemplateSpecCatalog.ISSUE_RESPONSE, 81102L, "FORM", CANONICAL_URL);
+
+    rebuildAllIssueFacts();
+
+    assertThat(liveFact(93102L).get("planned_resolution_at"))
+        .as("启用点只参与首次登记；既有 FORM 权威在 T 之前创建的资源上仍然生效")
+        .isEqualTo(LocalDateTime.of(2026, 11, 20, 0, 0));
+  }
+
+  @Test
+  void authoritySourceIdentityConflictIsRejectedInsteadOfSilentlySwitching() {
+    insertSourceIssue(93103L, 81103L, LocalDateTime.of(2026, 11, 1, 10, 0));
+    insertResponseNote(93103L, "2026.11.09", LocalDateTime.of(2026, 11, 2, 9, 0));
+    insertAuthority(
+        responseScopeId,
+        FormTemplateSpecCatalog.ISSUE_RESPONSE,
+        81103L,
+        "FORM",
+        "http://conflict.test");
+
+    assertThatThrownBy(this::rebuildAllIssueFacts)
+        .as("权威与范围规范地址不一致必须拒绝，不能静默切源")
+        .isInstanceOf(com.data.collection.platform.common.exception.FormConflictException.class);
+  }
+
+  @Test
+  void registeredScopeWithoutPersistentAuthorityStaysPendingRegistration() {
+    FormIssueInputResolver.Resolution resolution =
+        formIssueInputResolver.resolveAll(
+            SOURCE_INSTANCE, List.of(new FormIssueInputResolver.IssueRef(PROJECT_ID, 81104L)));
+
+    assertThat(resolution.inputs()).isEmpty();
+    assertThat(resolution.pendingRegistration())
+        .containsExactly(new FormIssueInputResolver.IssueRef(PROJECT_ID, 81104L));
+  }
+
+  @Test
+  void voidedFormResponseAndReplyClearBusinessValuesAndCommentTemplateReasons() {
+    insertSourceIssue(93105L, 81105L, LocalDateTime.of(2026, 11, 1, 10, 0));
+    insertResponseNote(93105L, "2026.11.09", LocalDateTime.of(2026, 11, 2, 9, 0));
+    insertCommentFixNote(93105L, LocalDateTime.of(2026, 11, 2, 10, 0));
+    long responseId =
+        insertResponseRecord(
+            93105L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
+            LocalDateTime.of(2026, 11, 5, 10, 0), LocalDate.of(2026, 11, 15), "CC2026R4");
+    long replyId = insertReplyRecord(93105L, LocalDateTime.of(2026, 11, 6, 10, 0), "u-jia");
+
+    rebuildAllIssueFacts();
+
+    Map<String, Object> adopted = liveFact(93105L);
+    assertThat(adopted.get("planned_resolution_at"))
+        .isEqualTo(LocalDateTime.of(2026, 11, 15, 0, 0));
+    assertThat(adopted.get("fix_user")).isEqualTo("甲");
+    assertThat(adopted.get("reason_category")).isEqualTo("编码规范错误");
+    assertThat(adopted.get("illegal_reasons").toString())
+        .as("表单回复原因替换旧评论修复模板原因")
+        .doesNotContain("未按照模板回复", "缺陷原因不唯一");
+
+    voidRecord(responseScopeId, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseId);
+    voidRecord(replyScopeId, FormTemplateSpecCatalog.ISSUE_REPLY, replyId);
+    refreshDelayFacts();
+
+    Map<String, Object> voided = liveFact(93105L);
+    assertThat(voided.get("planned_resolution_at")).isNull();
+    assertThat(voided.get("research_template_time")).isNull();
+    assertThat(voided.get("fix_user")).isNull();
+    assertThat(voided.get("reason_category")).isEqualTo("");
+    assertThat(voided.get("illegal_reasons").toString())
+        .as("作废后不残留旧评论原因或模板合规结论")
+        .doesNotContain("未按照模板回复", "缺陷原因不唯一", "未按照要求填写缺陷调研模板");
+    assertThat(voided.get("resolve_deadline_at"))
+        .isEqualTo(LocalDateTime.of(2026, 11, 19, 10, 0));
+  }
+
+  @Test
   void newIssueWithoutRegisteredScopeKeepsCommentPath() {
     jdbcTemplate.update(
         "update form_template_scopes set status = 'DRAFT', current_version_id = null");
@@ -267,6 +406,30 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         .as("未登记表单范围的项目不因启用点配置而丢失评论输入")
         .isEqualTo(LocalDateTime.of(2026, 11, 9, 0, 0));
     assertThat(fact.get("has_response")).isEqualTo(true);
+  }
+
+  private void insertAuthority(
+      long scopeId, String templateKey, long iid, String authority, String canonicalUrl) {
+    jdbcTemplate.update(
+        """
+        insert into form_resource_authorities(
+            source_config_id, source_instance, canonical_gitlab_base_url, project_id,
+            resource_type, resource_id, template_key, scope_id, authority, authority_revision,
+            effective_at, created_at, updated_at)
+        values (?, ?, ?, ?, 'issue', ?, ?, ?, ?, 1, current_timestamp, current_timestamp,
+                current_timestamp)
+        on conflict (source_config_id, project_id, resource_type, resource_id, template_key)
+        do update set scope_id = excluded.scope_id, canonical_gitlab_base_url =
+            excluded.canonical_gitlab_base_url, authority = excluded.authority
+        """,
+        SOURCE_CONFIG_ID,
+        SOURCE_INSTANCE,
+        canonicalUrl,
+        PROJECT_ID,
+        iid,
+        templateKey,
+        scopeId,
+        authority);
   }
 
   private long createScope(String templateKey, String scopeKey) {
@@ -328,7 +491,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     return scopeId;
   }
 
-  private void insertResponseRecord(
+  private long insertResponseRecord(
       long issueId,
       String templateKey,
       long scopeId,
@@ -351,9 +514,11 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
             recordTable(versionId, templateKey, scopeId), instanceId, versionId, createdAt,
             "u-response", fields);
     insertLocation(recordId, scopeId, versionId, instanceId, issueId, iid, "u-response", createdAt);
+    bumpHead(scopeId, templateKey, iid, recordId, versionId);
+    return recordId;
   }
 
-  private void insertReplyRecord(long issueId, LocalDateTime createdAt, String createdBy) {
+  private long insertReplyRecord(long issueId, LocalDateTime createdAt, String createdBy) {
     long iid = issueIid(issueId);
     long versionId = currentVersionId(replyScopeId);
     String instanceTable =
@@ -375,6 +540,60 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
             recordTable(versionId, FormTemplateSpecCatalog.ISSUE_REPLY, replyScopeId), instanceId,
             versionId, createdAt, createdBy, fields);
     insertLocation(recordId, replyScopeId, versionId, instanceId, issueId, iid, createdBy, createdAt);
+    bumpHead(replyScopeId, FormTemplateSpecCatalog.ISSUE_REPLY, iid, recordId, versionId);
+    return recordId;
+  }
+
+  /** 模拟真实写入对 head 的推进：新记录或作废都使最新修订前进并置待消费。 */
+  private void bumpHead(long scopeId, String templateKey, long iid, long recordId, long versionId) {
+    int recordVersion =
+        jdbcTemplate.queryForObject(
+            "select record_version from " + recordTable(versionId, templateKey, scopeId)
+                + " where id = ?",
+            Integer.class,
+            recordId);
+    jdbcTemplate.update(
+        """
+        insert into form_change_heads(
+            source_config_id, source_instance, canonical_gitlab_base_url, project_id, resource_type,
+            resource_id, template_key, scope_id, latest_change_version, consumed_change_version,
+            pending_record_id, pending_record_version, pending_storage_version_id,
+            pending_authority_revision, status, fencing_version, created_at, updated_at)
+        values (?, ?, ?, ?, 'issue', ?, ?, ?, 1, 0, ?, ?, ?, 1, 'PENDING', 0,
+                current_timestamp, current_timestamp)
+        on conflict (source_config_id, project_id, resource_type, resource_id, template_key)
+        do update set latest_change_version = form_change_heads.latest_change_version + 1,
+                      pending_record_id = excluded.pending_record_id,
+                      pending_record_version = excluded.pending_record_version,
+                      pending_storage_version_id = excluded.pending_storage_version_id,
+                      pending_authority_revision = 1, status = 'PENDING',
+                      updated_at = current_timestamp
+        """,
+        SOURCE_CONFIG_ID,
+        SOURCE_INSTANCE,
+        CANONICAL_URL,
+        PROJECT_ID,
+        iid,
+        templateKey,
+        scopeId,
+        recordId,
+        recordVersion,
+        versionId);
+  }
+
+  private void voidRecord(long scopeId, String templateKey, long recordId) {
+    long versionId = currentVersionId(scopeId);
+    long iid =
+        jdbcTemplate.queryForObject(
+            "select resource_id::bigint from form_record_locations where record_id = ?",
+            Long.class,
+            recordId);
+    jdbcTemplate.update(
+        "update "
+            + recordTable(versionId, templateKey, scopeId)
+            + " set deleted = true, record_version = record_version + 1 where id = ?",
+        recordId);
+    bumpHead(scopeId, templateKey, iid, recordId, versionId);
   }
 
   private long ensureInstance(
@@ -586,6 +805,20 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         Timestamp.valueOf(createdAt));
   }
 
+  private void insertCommentFixNote(long issueId, LocalDateTime createdAt) {
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_notes(
+            id, noteable_id, noteable_type, note, author_id, created_at, updated_at, mirror_deleted)
+        values (?, ?, 'Issue', ?, 502, ?, ?, false)
+        """,
+        issueId + 900L,
+        issueId,
+        "### 1、修复状态\n[x] 新增需求\n### 3、请描述具体原因：\n旧评论原因",
+        Timestamp.valueOf(createdAt),
+        Timestamp.valueOf(createdAt));
+  }
+
   private FactBuildResponse rebuildAllIssueFacts() {
     List<Long> rootIds =
         jdbcTemplate.queryForList("select id from ods_gitlab_issues order by id", Long.class);
@@ -624,6 +857,15 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         SEAL,
         0L,
         key -> InitialVersionVerification.VerificationResult.accepted());
+  }
+
+  private void refreshDelayFacts() {
+    factBuildService.refreshCustomerIssueDelayFactsForConfig(config());
+    FactRevisionFixture.completeRequiredProjections(
+        jdbcTemplate,
+        factTargetPublicationService,
+        ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
+        null);
   }
 
   private GitlabSyncConfig config() {
@@ -687,6 +929,11 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
       }
     }
     jdbcTemplate.update("delete from form_record_locations");
+    jdbcTemplate.update("delete from form_head_captures");
+    jdbcTemplate.update("delete from form_change_heads");
+    jdbcTemplate.update("delete from form_resource_authorities");
+    jdbcTemplate.update("delete from form_directory_event_cursors");
+    jdbcTemplate.update("delete from form_directory_events");
     jdbcTemplate.update(
         "update form_template_scopes set status = 'DRAFT', current_version_id = null");
     jdbcTemplate.update("delete from form_template_versions");

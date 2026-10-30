@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.form;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.data.collection.platform.entity.form.FormActorContext;
 import com.data.collection.platform.service.form.FormV6TestSupport.FixtureTables;
@@ -22,7 +23,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * N1-R04 真实非空升级：先把独立库迁到 {@code 20261022.03}（159 条），写入真实非空旧 Demo 与
- * v5 多副本数据并冻结原行/规格/首次指纹/权限/序列证据，再执行第 160—162 条迁移，核验既有行零改动、
+ * v5 多副本数据并冻结原行/规格/首次指纹/权限/序列证据，再执行第 160—164 条迁移，核验既有行零改动、
  * 新结构形状与角色默认值，并在升级后的库上完成一次真实登记与统一读源。
  */
 @Testcontainers(disabledWithoutDocker = true)
@@ -30,7 +31,7 @@ class FormV6LegacyUpgradeIntegrationTest {
 
   private static final String URL = "http://gitlab.n1-upgrade.local";
   private static final String PRE_V6_HEAD = "20261022.03";
-  private static final String V6_HEAD = "20261029.02";
+  private static final String V6_HEAD = "20261030.01";
   private static final FormActorContext ALICE =
       new FormActorContext("alice", "Alice", java.util.Set.of());
 
@@ -53,6 +54,9 @@ class FormV6LegacyUpgradeIntegrationTest {
     assertThat(jdbc.queryForObject("select to_regclass('form_record_locations')", String.class))
         .isNull();
     assertThat(headVersion(jdbc)).isEqualTo(PRE_V6_HEAD);
+    // 主线历史的 20261022.03 已执行：合并后该版本内容不得被占用或改写。
+    assertThat(jdbc.queryForObject(
+        "select to_regclass('customer_issue_delay_closure_requests')", String.class)).isNotNull();
 
     // 2) 真实非空旧库数据：旧 Demo 行、v5 两版本多副本、首次指纹与活跃范围指针。
     long configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
@@ -97,12 +101,21 @@ class FormV6LegacyUpgradeIntegrationTest {
         "select last_value, is_called from form_record_id_seq");
     long instancesBefore = count(jdbc, v1.instanceTable()) + count(jdbc, v2.instanceTable());
 
-    // 3) 执行第 160—162 条迁移：真实非空升级路径。
+    // 3) 执行第 160—164 条迁移：真实非空升级路径。
     MigrateResult upgraded = flyway(dataSource, null).migrate();
-    assertThat(upgraded.migrationsExecuted).isEqualTo(3);
+    assertThat(upgraded.migrationsExecuted).isEqualTo(5);
     assertThat(headVersion(jdbc)).isEqualTo(V6_HEAD);
     assertThat(jdbc.queryForObject("select to_regclass('form_record_locations')", String.class))
         .isNotNull();
+    // 退役权限迁移顺延为 20261022.04，主线 20261022.03 保持原描述。
+    assertThat(jdbc.queryForList(
+        "select version || ':' || description from flyway_schema_history"
+            + " where version in ('20261022.03', '20261022.04') order by version", String.class))
+        .containsExactly(
+            "20261022.03:customer issue delay closure progress",
+            "20261022.04:retire legacy form permissions");
+    // 合并后的迁移集可直接校验通过，升级路径不依赖 repair 或改写已执行历史。
+    assertThatCode(() -> flyway(dataSource, null).validate()).doesNotThrowAnyException();
 
     // 4) 既有行、规格、权限与序列逐字节守恒。
     assertThat(snapshotRows(jdbc, "collect_form_records")).isEqualTo(legacyBefore);

@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -74,6 +75,19 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     when(readinessService.validateRoundAuthorization(any(), any(), any()))
         .thenReturn(new CustomerIssueDelaySourceReadinessService.AuthorizationCheck(true, null, FACT_VERSION));
     when(queueService.renewLease(any(), anyInt())).thenReturn(true);
+  }
+
+  @Test
+  void shouldSkipOldJobWithoutSendingAfterFormInputAdvancesFactRevision() throws Exception {
+    CustomerIssueDelayLabelWritebackJob job = jobWithFactVersion(FACT_VERSION - 1);
+    when(queueService.loadCandidate("default", 325L, 1001L))
+        .thenReturn(Optional.of(fact("", true, false)));
+
+    workerService.process(job);
+
+    verify(writebackService, never()).sendLabelUpdate(any(), anyLong(), anyLong(), any());
+    verify(queueService)
+        .markSkipped(job, "该作业的授权事实版本已过期，已由新一轮候选重新评估");
   }
 
   @Test
@@ -308,6 +322,36 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
         null,
         null,
         null);
+  }
+
+  private CustomerIssueDelayLabelWritebackJob jobWithFactVersion(long factVersion) {
+    CustomerIssueDelayLabelWritebackJob base = job(99L, 0, 10);
+    return new CustomerIssueDelayLabelWritebackJob(
+        base.id(),
+        base.sourceInstance(),
+        base.configId(),
+        base.projectId(),
+        base.issueIid(),
+        base.issueId(),
+        base.desiredResponseDelayed(),
+        base.desiredResolveDelayed(),
+        base.currentLabelNames(),
+        base.addLabels(),
+        base.removeLabels(),
+        base.status(),
+        base.attemptCount(),
+        base.maxAttempts(),
+        base.nextRunAt(),
+        base.leaseOwner(),
+        base.leaseUntil(),
+        base.lastError(),
+        base.lastHttpStatus(),
+        base.roundMirrorRunId(),
+        base.authorizationRevision(),
+        factVersion,
+        base.claimToken(),
+        base.claimRevision(),
+        base.taskRevision());
   }
 
   private CustomerIssueDelayLabelWritebackJob job(long id, int attemptCount, int maxAttempts) {

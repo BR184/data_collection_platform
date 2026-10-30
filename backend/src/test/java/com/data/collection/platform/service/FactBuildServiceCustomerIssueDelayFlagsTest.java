@@ -122,7 +122,9 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
             new FactPublicationTransaction(
                 new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
             new GitlabMirrorProperties(),
-            mock(FormIssueInputResolver.class),
+            formIssueInputResolver(),
+            mock(FormIssueAuthorityRegistrar.class),
+            mock(com.data.collection.platform.service.form.FormHeadCaptureService.class),
             new com.data.collection.platform.config.FormAdoptionProperties());
   }
 
@@ -244,6 +246,14 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
     Map<String, Object> after = currentRowSnapshot(factId);
     assertThat(after.get("is_response_delayed")).isEqualTo(false);
     assertThat(after.get("response_overdue")).isEqualTo(false);
+  }
+
+  private static FormIssueInputResolver formIssueInputResolver() {
+    FormIssueInputResolver resolver = mock(FormIssueInputResolver.class);
+    when(resolver.resolveAll(
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+        .thenReturn(FormIssueInputResolver.Resolution.empty());
+    return resolver;
   }
 
   private FactTargetPublicationService publicationService() {
