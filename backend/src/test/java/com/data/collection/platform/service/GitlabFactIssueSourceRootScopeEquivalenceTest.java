@@ -87,6 +87,36 @@ class GitlabFactIssueSourceRootScopeEquivalenceTest {
   }
 
   @Test
+  void test_source_aggregation_falls_back_to_older_parseable_plan_when_latest_template_is_invalid() {
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_notes(
+            id, noteable_id, noteable_type, note, author_id, created_at, mirror_deleted) values
+          (500, 1, 'Issue', '普通评论，没有计划日期', 100,
+           timestamp '2026-01-06 08:00:00', false),
+          (501, 1, 'Issue', '# 问题调研情况说明' || chr(10)
+             || '## 计划解决时间：待定', 100, timestamp '2026-01-05 08:00:00', false),
+          (502, 1, 'Issue', '# 问题调研情况说明' || chr(10)
+             || '## 计划解决时间：2026.01.15', 100, timestamp '2026-01-04 08:00:00', false)
+        """);
+
+    for (boolean rootScoped : List.of(false, true)) {
+      String sourceSql = rootScoped
+          ? provider.issueSourceSqlForRoots(List.of(1L)) : provider.issueSourceSql();
+      Object[] arguments = rootScoped ? new Object[] {1L} : new Object[0];
+      List<LocalDateTime> deadlines = jdbcTemplate.query(
+          "select * from (" + sourceSql + ") source_row where issue_id = 1",
+          (rs, rowNum) -> IssueFactNormalizationRules.resolveDeadline(
+              rs.getTimestamp("created_at").toLocalDateTime(), rs.getString("notes_text")),
+          arguments);
+
+      assertThat(deadlines)
+          .as("最新模板非法时按来源倒序继续回查更早的合法计划")
+          .containsExactly(LocalDateTime.of(2026, 1, 15, 0, 0));
+    }
+  }
+
+  @Test
   void test_root_scoped_issue_sql_keeps_aggregates_of_each_root_intact() {
     List<String> scoped = rows(provider.issueSourceSqlForRoots(List.of(1L)), List.of(1L));
 
