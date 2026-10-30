@@ -1,81 +1,71 @@
-# 表单真实启用与既有消费者接入评审
+# 表单接入既有消费链方案
 
-## 进度与中间物
+## 结论
 
-- 阶段：2026-10-30代码调查及生产接入范围补充。用户已确认旧非法页整页暂用老平台、新MR/Issue走新表单、历史资源/评论保留旧流程；接受新MR在旧非法页可能仍报无走查的过渡局限，尽快切换外部数据源。
-- 已完成：老平台筛选/解析/外部输入链、新平台兼容/正式读源、main的Issue事实/SLA/延期标签写回链、现有方案与N4计划差距盘点；不改业务代码、UI、数据库或服务。
-- 验证：源码调查及`CodeReviewIllegalRuleRegistryTest`、`IssueResponseTemplateParserTest`、`CustomerIssueDelayLabelWritebackPlannerTest`共12/0/0/0、BUILD SUCCESS；仅证明基础规则/解析/规划，不冒称FORM生产接入已通过。日志`.tmp/form-adoption-review-20261030/rules-directed.log`；不运行全量、黄金、浏览器或真实写回。
-- 下一步：用户确认边界已归product/architecture/D-32，N4准入与主方案生产启用验收已补充；员工在安全交接点吸收并回填其N4计划，不并发修改其活动计划或实现。
-- 维护期限：本计划用于本轮接入调查与交接，员工吸收并将入口/证据纳入N4计划后收口删除；长期规则归product/architecture/D-32及总执行单，过程由Git保留。
-- 资源：审核树`C:/Users/admin/.codex/worktrees/form-admin-ui/data_collection_platform`，分支`表单管理界面开发-20261027`，基线`5cece6ad`；员工`D:/projects/dcp-form-w4-20261026`同功能主分支；稳定主线只读对照`D:/projects/dcp-delay-main-20261028`的`4084cd33`。老源码`D:/projects/spidergitdata-dev`无Git元数据，只能按文件SHA留证，不冒称已核实生产版本。
-- 首条恢复命令：`git status --short --branch`、`git worktree list`；前序[N4准入](unified-form-system-implementation-plan-20261021.md#n4-admission)，员工N4活动计划在其独立树，不覆盖其未提交内容。
-- 未验证：生产实际部署SHA/读模式、目标库数据与标签、CI_ROBOT源码/配置和真实投放、未来外部平台接口及其就绪时间；没有外网/内网数据库连接或外部写入。
+- Issue按启用点T分流：新资源FORM、历史COMMENT。
+- 走查随包交付，MR暂填评论；外部数据齐全、旧筛选对齐后按T_mr启用。非法页全旧。
+- 6点：Issue事实、周期SLA、写回资格、MR事实、质量分析、统计/下钻/导出。
+- 启用前置5项，消费接入阶段N4修正4处。
 
-## 原始目标与成功标准
+## 消费点改造表
 
-三类结构化表单要实际替代新资源上的文字模板输入，连接事实、页面/下钻、统计/导出、周期SLA和已上线延期标签写回；创建/编辑/作废都能传播。历史评论不能丢失，原解析代码短期保留。非法页作为用户明确例外，整页继续使用老平台，不能把FORM字段覆盖进该页、缩小其范围或自动给GitLab补旧评论。
+新增`IssueBusinessInput`；`FormIssueInputResolver.resolve`按权威/目录读取，响应/回复按创建时间、ID选最新，首次取最早；`IssueSlaRules.evaluate`统一计算。原因可多选；有效回复去重ID数须为1。
 
-## 范围判定与运行链
+| 消费点 | 现状 | FORM新输入与接入位置 | COMMENT保留 | 验收断言 |
+|---|---|---|---|---|
+| Issue首次事实 | 解析评论 | `IssueFactSourceRowMapper`映射基础列；`FactBuildService`调用resolver及`IssueBusinessProjector.apply`写业务列 | 原解析 | 首次10:00、计划9日、修复人甲 |
+| 周期SLA | 重解析raw_payload | `refreshCustomerIssueDelayFactsForConfig`复用resolver/evaluate与捕获守卫；raw_payload仅供COMMENT计算 | 原输入/时限 | 改期后解决延期false，周期再跑仍false |
+| 写回资格 | 镜像/事实授权 | `CustomerIssueDelayLabelWritebackWorkerService.authorize`：当前/事实/作业`form_input_hash`（两模板head/权威修订）一致且latest=consumed；沿原队列/轮次/围栏 | 原授权 | 旧hash/head未消费→HTTP=0，消费后重规划 |
+| MR事实 | Demo max/评论兜底 | `FormReviewProjector.build`经目录生成逐记录`form_review_fact`并同事务发布；`form_records` CTE读投影，汇总分钟/五类数、人员、最近创建时间 | 原查询；登记旧表经目录 | 规范2+3=5、分钟10+20=30、MR=1 |
+| 质量/分析 | 共用兼容模式 | `QualityBoardCodeReviewReadSupport`、`CodeReviewMultiBoardAnalyticsQueryService`按T_mr/权威分区选投影或旧源 | 原快照/公式 | FORM区规范5、均15；COMMENT不变 |
+| 统计/下钻/导出 | MR行均值 | `CodeReviewMultiBoardService`按记录sum/count计算；`FormRecordExportService`按版导出；下钻保留recordId/版本 | 原统计/导出 | 两版各1行；空版仅表头；无导出权403 |
 
-以本仓库Spring Boot应用为主分析对象，老平台Spring Boot/Java8代码提供历史业务口径；当前main提供已上线延期功能的源码基线，表单分支提供尚未发布的N1—N3/N4状态。两套入口分别是`com.huayun.Main`和`DataCollectionPlatformApplication`。
+人员ID去重，密度按MR去重新增行，缺失为空。共同字段须身份/类型/单位/语义一致；缺值不补0、0保留、作废排除。新旧分区，不拼跨口径平均。
 
-| 代码边界 | 已读位置与真实行为 | 接入含义 |
-| --- | --- | --- |
-| 老非法页 | `StaticDataController.getIllegalData`→`SpiderCrowncadQueryBuilder` | 查询老平台加工表，按异常结果值/条件筛选 |
-| 老走查输入 | `MergeRequestDetailServiceImpl.parseComments/parseCommentStr` | 从GitLab评论读取模板，解析人员、分钟和五类问题数；格式/数值失败输出异常文本 |
-| 老外部结果 | `MergeRequestDAOImpl.parseCodeScanResult/注释率判定`、`CodeWalkThroughService.checkClangTidyCodeLineValue` | 扫描机器人评论、注释率工具及Git变更行数共同提供结果，表单不能替代这些输入 |
-| 新兼容页 | `CodeReviewMatchModeSyncService.selectSql`→`code_review_match_mode_records`→`CodeReviewIllegalRecordService.activeLoader`→ResponseMapper/RuleRegistry | 同步SQL没有只取非法行的WHERE；本地仍做条件筛选和非法类型判断。不能说只复制老平台非法列表，也不能说新平台完全没规则 |
-| 新正式MR | `GitlabFactSourceSqlProvider.form_records`与事实构建 | 仍有旧Demo表`collect_form_records`及评论兜底；只改新表CRUD不会自动接入事实 |
-| Issue首次事实 | main的`IssueFactSourceRowMapper`、`IssueResponseTemplateParser`、`IssueFactNormalizationRules` | 计划、原因、首次调研、回复/响应存在、非法和延期等仍依赖聚合评论 |
-| 周期SLA | main的`FactBuildService.refreshCustomerIssueDelayFactsForConfig` | 用`fact.raw_payload`再次解析回复/响应，重算延期三列；只改首次mapper会被周期链覆盖 |
-| 标签写回 | main的ClosureRound→SourceReadiness→Queue→Planner→Worker | Planner读`IssueFact`延期布尔，worker发送前复核授权轮次/事实版本并回读候选；FORM必须进入该链，不能另建旁路worker |
-| 质量/分析读模式 | `QualityBoardCodeReviewReadSupport`、`CodeReviewMultiBoardAnalyticsQueryService` | 同样存在兼容读源选择；非法页例外不能靠整体关闭兼容开关解决，其他表单消费须逐出口核对 |
+## 非法页边界
 
-## 老平台非法规则核对
+查询/刷新/导出/判定全旧，不混合、不缩范围、不同步旧评论；试填不更新旧页。外部与筛选就绪后整体验收切换。
 
-以下是源码口径，不代表本次已核实生产运行配置或数据库真实标签。旧页继续原实现，不在本轮修旧规则。
+## N4计划修正项
 
-| 非法项 | 老代码实际依据 | 依赖来源 |
-| --- | --- | --- |
-| 未标注项目/模块 | `project_name/module_name`的未标注结果文本；部分项目受缺陷排查等级控制 | GitLab标签/老平台映射 |
-| 无代码走查 | `assignee`为没有合法评论、时间/缺陷数异常、标题异常或记录行数异常 | 人工走查评论解析 |
-| 未代码扫描 | `sonar_qube_result`为未进行代码扫描 | 扫描机器人评论/状态描述 |
-| 静态扫描问题未关闭 | `bug_count_result`未通过，机器人问题数非0 | 扫描外部结果 |
-| 静态扫描失败 | `bug_count_result`扫描失败 | 扫描采集/解析结果 |
-| 代码注释量未达标 | CC注释率工具数据、15%阈值及放行；DGM机器人结果、20%阈值及放行 | 独立注释率工具/机器人，不是走查问题数量 |
-| Clang分析错误 | DGM注释率未达标时比较Clang分析新增行与Git新增行，失配置错误 | Clang与Git变更数据 |
-| GitLab接口报错 | 走查人/扫描状态/目标分支中的接口错误结果 | 采集失败信息 |
+执行人：N4员工。
 
-默认非法查询约束MERGED，排除模块“无需标注”；CC/DGM常用dev范围及2024-04-01之后合并数据还受调用参数/查询分支控制。还有“无需走查扫描”“扫描问题已说明”、特殊注释放行等源码分支。`spiderCrowncadDataFilter`的注释说提交人与走查人相同，实际比较author与mergedUserName；部分总筛选分支把注释率失败值用于bug_count_result。两项属于实现差异，不擅自升格为新系统规范。
+1. 三字段/max→遗漏五类数和说明、拼接不同记录→选逐记录投影C，否决max的A和仅最新的B。
+2. 先接读源→分支缺上线写回修复→先吸收已验证主线/迁移依赖，再改Issue首次/周期。
+3. 只改首次Mapper→周期会覆盖→共用类型化输入，发送前校验hash及head。
+4. 新MR立即FORM→外部条件未齐→Issue按T启用，MR缓启。
 
-## 新旧资源与实际替换清单
+## 端到端验收
 
-新旧按已批准切换清单里的来源/项目/资源创建时间和模板持久判定；不能按“今天有没有新填一条表单”改变旧资源权威。旧资源继续COMMENT，切换后的新资源使用FORM；新资源没填写是缺记录，不从旧评论补值。普通讨论、系统备注、标签/完成事件和扫描机器人输入继续保留各自用途。
+1. **新Issue**：上海2026-11-10 12:00，创建11-01 00:00、P1、未完成/无豁免；各一响应/回复。链接可达；响应10:00创建，甲回复“部分解决”、原因`standard_error`、分支CC2026R4。初始仅有“响应已延期”；每步消费/SLA/写回后同步标签：
 
-历史原值保留不变；已批准的Wiki原因唯一性等合规口径仍按N0/D-30执行，保留旧输入解析不等于恢复已确认的原因计数bug。代码走查非法页整页旧结果是单独明确的过渡例外。
+| 步骤 | 事实预期 | 标签动作 |
+|---|---|---|
+| 保存11-09计划及回复 | has_response=true，research_template_time=10:00，planned_resolution_at=11-09 00:00，fix_user=甲，原因唯一通过；响应延期false、解决延期true | 摘“响应已延期”，加“解决已延期” |
+| 编辑计划为11-15 | 首次时间不变，计划及resolve_deadline_at=11-15 00:00；两延期false | 摘“解决已延期” |
+| 作废回复 | fix_user、reason_category=NULL；11-15计划保留，两延期false：响应仍豁免 | 无加标 |
+| 再作废唯一响应 | has_response=false，首次/计划为空，默认期限11-19；响应延期true、解决延期false | 加“响应已延期” |
 
-| 消费功能 | 新资源必须使用的新输入 | 历史/过渡保留 |
-| --- | --- | --- |
-| MR走查填写、记录和正式统计 | 表单全版权威记录及获批聚合，包含业务人员、时间、分钟、五类问题与说明 | 旧评论/旧表按原权威；非法页独立保留老平台 |
-| Issue响应 | 首次响应、是否响应、最新整份计划/分支、D-21相关输入 | 老资源保留旧响应解析 |
-| Issue回复 | 原因/合规、修复人、影响类型/详情、回复存在等结构化字段 | 老资源保留旧回复解析；多选采集与Wiki唯一性分层 |
-| 统计、记录页、下钻与Excel | 同一已发布事实与原版字段投影，不额外解析FORM资源评论 | 非法页查询/自身导出仍走老页读源；旧资源可追溯 |
-| 周期SLA与延期事实 | 与首次构建相同的结构化业务输入和权威/版本证据 | COMMENT资源继续原算法；不把FORM重新序列化成Markdown骗旧解析器 |
-| 延期标签写回 | 表单最新变更已完成事实消费后，经既有授权轮次/队列/发送前复核 | 保留现有来源开关、停止控制、租约/围栏、真实标签所有权；不新增并行写回器 |
-| CI_ROBOT入口 | 新MR/Issue投放稳定表单链接；响应/回复入口都可达 | 旧资源文字模板流程保留；本轮不授权机器人代填或回写旧格式副本 |
+`response_overdue=is_response_delayed`。旧作业暂停于最终authorize前，变更后释放：hash失配/head未消费则HTTP=0；消费后新作业发送。
 
-## 生产接入与验收顺序
+2. **新MR隔离启用**：两版各1条，分钟10/20、规范2/3、其它0、新增行100→记录2、MR事实1、总分钟30、均15、规范5、密度50/千行，Excel各1行。作废第二条→记录1、均10、规范2、密度20；历史评论规范7仍7。
+3. **切换边界**：T前1秒创建的Issue后补评论仍COMMENT；T后1秒为FORM，空表has_response=false，旧评论不补值。T_mr未设时MR登记COMMENT；非法页不变。
 
-1. 核对实际部署源码及已上线延期修复依赖；表单树尚缺main的`9a8dee32`、`9daf6c77`等写回修复，先吸收已验证主线及必要依赖，检查Flyway冲突与升级，不在过时写回链上接入。
-2. N4改所有FORM消费者，包括周期SLA、关闭/完成重算和写回资格；保持旧COMMENT解析，仅用于历史批次。非法页整页保持老平台，独立读身份与快照，不因其他页面启用而整体关闭旧数据源。
-3. 在专属环境走一次新Issue：机器人链接→响应/回复保存→事实/页面→周期SLA→写回规划；再改计划/作废回复，核对最新输入重算且旧任务不能发送过期标签。写回只用替身或获明确授权的测试实例，本轮不调用真实GitLab。
-4. 新MR表单→正式消费/统计/导出与历史MR评论样本同时核对；非法页旧范围/结果保持，明确其暂不反映新表单。重复多模板页面矩阵不是验收目标。
-5. E1机器人、E2真实非空范围、E6旧写回所有者和部署/切换清单补证。实际启用须冻结切换时点/批次、账号可达、权限、前置事实追平、来源开关、旧新写回唯一所有者及恢复方案；N4单元通过不等于已启用。
-6. 外部平台就绪后另行批准非法页整体验收切换；旧COMMENT解析的退出则取决于历史数据另行获批归档/转换且核对完成，两者不是同一个删除时点。
+## 启用前置
 
-## 取舍、合同与风险
+| 缺什么 | 谁提供 | 卡住哪一步 |
+|---|---|---|
+| 生产源码版本 | 发布负责人 | 吸收已上线依赖、冻结候选 |
+| CI_ROBOT投放/认证 | 机器人维护者 | Issue真实链接投放 |
+| 真实范围、T、旧写回归属/停复窗口 | 用户/运维 | 权威登记及Issue启用 |
+| 目标库当前/默认导出授权 | 权限管理员 | 正式授予；隔离库五角色是样本 |
+| 外部接口数据及与旧筛选对照 | 外部平台方/N4实施者 | 走查FORM与非法页整体切换 |
 
-- 已选：非法页全旧；新资源FORM/旧资源COMMENT；保留短期历史解析。混合覆盖非法项、缩旧页范围、同步旧评论均不实施。用户已接受暂时的不一致，未来外部接入列优先依赖。
-- 无新增API/DDL或业务实现；沿既有`FORM/COMMENT`、`authority_revision`、资源head、事实版本及延期轮次授权补充接入设计，具体协议由N4员工提出并审核。
-- 现有N4计划把MR输入描述为只影响三个字段，并建议沿Demo的max，不能代替已批共同字段统计；完整映射与MR公式影响仍须按真实业务报审。
-- 没有CI_ROBOT真实材料不能宣称自动投放已接通；没有部署证据不能把本地主线等同于运行中的生产包。新表单保存成功也不能宣称旧非法页已同步。
+## 取舍
+
+选类型化输入，不拼Markdown，因为首次/周期需同口径。
+选逐记录投影，不取max/仅最新，因为多次走查都贡献。
+选原队列，不建旁路，因为授权/停止/围栏需连续。
+选Issue先启用，不强切走查，因为外部尚缺。
+
+代码基线：表单5cece6ad；主线4084cd33。
