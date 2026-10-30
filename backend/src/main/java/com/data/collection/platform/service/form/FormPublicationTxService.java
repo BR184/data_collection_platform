@@ -148,6 +148,15 @@ public class FormPublicationTxService {
       throw new FormConflictException("绑定哈希与草稿不一致，请重新保存草稿");
     }
     String migrationSpecJson = draft.migrationSpecJson();
+    ObjectNode originBinding = canonicalScopeBinding(scope);
+    String originBindingHash =
+        originBinding == null
+            ? FormTemplateAdminService.UNBOUND_BINDING_HASH
+            : FormScopeBinding.hash(objectMapper, originBinding);
+    if (scope.currentVersionId() != null
+        && (originBinding == null || !originBindingHash.equals(scope.bindingHash()))) {
+      throw new FormConflictException("范围绑定事实与登记不一致，停止发布");
+    }
     LocalDateTime now = LocalDateTime.now(clock);
     jdbcTemplate.update(
         """
@@ -177,9 +186,10 @@ public class FormPublicationTxService {
                     frozen_field_spec, frozen_migration_spec, frozen_binding, binding_hash,
                     version_evidence, ddl_summary, ddl_hash, selection_counts,
                     protocol_version, frozen_source_set_revision, frozen_source_set_hash,
+                    origin_binding, origin_binding_revision, origin_binding_hash,
                     stage, attempt_no, task_version, operator_id, operator_name, created_at, updated_at)
                 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?::jsonb,
-                        ?::jsonb, ?, ?::jsonb, 2, ?, ?, 'VALIDATING', 0, 0, ?, ?, ?, ?)
+                        ?::jsonb, ?, ?::jsonb, 2, ?, ?, ?::jsonb, ?, ?, 'VALIDATING', 0, 0, ?, ?, ?, ?)
                 returning id
                 """,
                 Long.class,
@@ -202,6 +212,9 @@ public class FormPublicationTxService {
                 writeJson(counts),
                 scope.sourceSetRevision(),
                 scope.sourceSetHash(),
+                originBinding == null ? null : writeJson(originBinding),
+                scope.bindingRevision(),
+                originBindingHash,
                 actor.userId(),
                 actor.displayName(),
                 Timestamp.valueOf(now),
@@ -386,9 +399,10 @@ public class FormPublicationTxService {
   @Transactional
   public void build(Claim claim) {
     lockRecordSequence();
-    lockScope(claim.scopeId());
+    ScopeRow scope = lockScope(claim.scopeId());
     PublicationRow publication = lockPublication(claim.publicationId());
     requireLease(publication, claim, "BUILDING");
+    requireScopePublicationState(publication, scope);
     renewLease(claim, "BUILDING");
     VersionRow target = version(publication.scopeId(), publication.toVersionId());
     if (target == null || !"RECORDS".equals(target.storageKind())) {
@@ -471,9 +485,7 @@ public class FormPublicationTxService {
     ScopeRow scope = lockScope(claim.scopeId());
     PublicationRow publication = lockPublication(claim.publicationId());
     requireLease(publication, claim, "BUILDING");
-    if (!Objects.equals(scope.currentVersionId(), publication.expectedCurrentVersionId())) {
-      throw new FormConflictException("范围当前版本已变化，停止切换");
-    }
+    requireScopePublicationState(publication, scope);
     if (!Objects.equals(scope.sourceSetRevision(), publication.frozenSourceSetRevision())
         || !Objects.equals(scope.sourceSetHash(), publication.frozenSourceSetHash())) {
       throw new FormConflictException("源集合已变化，停止切换");
@@ -539,9 +551,7 @@ public class FormPublicationTxService {
     PublicationRow publication = lockPublication(claim.publicationId());
     requireLease(publication, claim, "SWITCHING");
     requireFence(scope.id(), claim.publicationId(), publication.fenceToken());
-    if (!Objects.equals(scope.currentVersionId(), publication.expectedCurrentVersionId())) {
-      throw new FormConflictException("范围当前版本已变化，停止切换");
-    }
+    requireScopePublicationState(publication, scope);
     if (!Objects.equals(scope.sourceSetRevision(), publication.frozenSourceSetRevision())
         || !Objects.equals(scope.sourceSetHash(), publication.frozenSourceSetHash())) {
       throw new FormConflictException("源集合已变化，停止切换");
@@ -608,7 +618,9 @@ public class FormPublicationTxService {
                    updated_at = ?
              where id = ? and current_version_id is not distinct from ?
             returning id, template_key, status, current_version_id, resource_type, binding_hash,
-                      source_set_revision, source_set_hash, write_fenced
+                      source_set_revision, source_set_hash, write_fenced, binding_revision,
+                      source_config_id, source_instance, canonical_gitlab_base_url,
+                      project_ids::text as project_ids, version_project_id
             """,
             (rs, rowNum) ->
                 new ScopeRow(
@@ -620,7 +632,13 @@ public class FormPublicationTxService {
                     rs.getString("binding_hash"),
                     rs.getLong("source_set_revision"),
                     rs.getString("source_set_hash"),
-                    rs.getBoolean("write_fenced")),
+                    rs.getBoolean("write_fenced"),
+                    rs.getLong("binding_revision"),
+                    rs.getObject("source_config_id", Long.class),
+                    rs.getString("source_instance"),
+                    rs.getString("canonical_gitlab_base_url"),
+                    parseProjects(rs.getString("project_ids")),
+                    rs.getObject("version_project_id", Long.class)),
             claim.toVersionId(),
             sourceConfigId,
             sourceInstance,
@@ -720,8 +738,67 @@ public class FormPublicationTxService {
         publication.operatorId());
   }
 
-  private void requireEmptyTarget(PublicationRow publication, VersionRow target) {
-    FormTemplateSpec spec = parseSpec(publication.frozenFieldSpecJson());
+  /** 发布类型对应的范围状态与旧指针：首启只认 DRAFT/NULL，普通发布只认 ACTIVE/冻结旧指针。 */
+  private void requireScopePublicationState(PublicationRow publication, ScopeRow scope) {
+    if ("INITIAL_EMPTY".equals(publication.kind())) {
+      if (!"DRAFT".equals(scope.status()) || scope.currentVersionId() != null) {
+        throw new FormConflictException("首次启用范围状态已变化，停止发布");
+      }
+    } else {
+      if (!"ACTIVE".equals(scope.status())) {
+        throw new FormConflictException("范围已退役或状态变化，停止发布");
+      }
+      if (!Objects.equals(scope.currentVersionId(), publication.expectedCurrentVersionId())) {
+        throw new FormConflictException("范围当前版本已变化，停止切换");
+      }
+    }
+    requireOriginBinding(publication, scope);
+  }
+
+  /**
+   * 复核任务创建时冻结的原范围绑定证据。
+   *
+   * <p>旧任务不得用冻结绑定覆盖发布期间已变化且合法的范围绑定；失配只拒绝当前任务，
+   * 不重冻结、不修改范围。
+   */
+  private void requireOriginBinding(PublicationRow publication, ScopeRow scope) {
+    if (publication.originBindingRevision() == null
+        || publication.originBindingHash() == null
+        || publication.originBindingRevision() != scope.bindingRevision()
+        || !Objects.equals(publication.originBindingHash(), scope.bindingHash())) {
+      throw new FormConflictException("范围绑定已变化，停止发布");
+    }
+    ObjectNode canonical = canonicalScopeBinding(scope);
+    String canonicalHash =
+        canonical == null
+            ? FormTemplateAdminService.UNBOUND_BINDING_HASH
+            : FormScopeBinding.hash(objectMapper, canonical);
+    if (!canonicalHash.equals(publication.originBindingHash())) {
+      throw new FormConflictException("范围绑定事实已变化，停止发布");
+    }
+  }
+
+  private ObjectNode canonicalScopeBinding(ScopeRow scope) {
+    if (scope.sourceConfigId() == null
+        || scope.sourceInstance() == null
+        || scope.canonicalGitlabBaseUrl() == null
+        || scope.projectIds() == null
+        || scope.projectIds().isEmpty()
+        || scope.versionProjectId() == null) {
+      return null;
+    }
+    return FormScopeBinding.create(
+        objectMapper,
+        scope.templateKey(),
+        scope.sourceConfigId(),
+        scope.sourceInstance(),
+        scope.canonicalGitlabBaseUrl(),
+        scope.projectIds(),
+        scope.versionProjectId(),
+        scope.resourceType());
+  }
+
+  private void requireEmptyTarget(PublicationRow publication, VersionRow target) {    FormTemplateSpec spec = parseSpec(publication.frozenFieldSpecJson());
     FormVersionSchema schema =
         schemaService.generate(publication.scopeId(), publication.toVersionId(), spec, false);
     String instance =
@@ -832,6 +909,7 @@ public class FormPublicationTxService {
     if (!active.isEmpty()) {
       throw new FormConflictException("范围已有新的未结束任务，旧任务只能终止");
     }
+    requireScopePublicationState(locked, scope);
     if (!Objects.equals(scope.sourceSetRevision(), locked.frozenSourceSetRevision())
         || !Objects.equals(scope.sourceSetHash(), locked.frozenSourceSetHash())) {
       throw new FormConflictException("源集合已变化，请重新预览后发布");
@@ -894,6 +972,19 @@ public class FormPublicationTxService {
         Timestamp.valueOf(now),
         publicationId);
     return publicationView(publicationId);
+  }
+
+  private List<Long> parseProjects(String raw) {
+    List<Long> projects = new ArrayList<>();
+    if (raw == null || raw.isBlank()) {
+      return projects;
+    }
+    try {
+      objectMapper.readTree(raw).forEach(node -> projects.add(node.asLong()));
+    } catch (Exception error) {
+      throw new IllegalStateException("范围项目集合无法解析", error);
+    }
+    return projects;
   }
 
   // ------------------------------------------------------------------ 旧协议任务收口
@@ -1198,7 +1289,9 @@ public class FormPublicationTxService {
         jdbcTemplate.query(
             """
             select id, template_key, status, current_version_id, resource_type, binding_hash,
-                   source_set_revision, source_set_hash, write_fenced
+                   source_set_revision, source_set_hash, write_fenced, binding_revision,
+                   source_config_id, source_instance, canonical_gitlab_base_url,
+                   project_ids::text as project_ids, version_project_id
               from form_template_scopes where id = ? for update
             """,
             (rs, rowNum) ->
@@ -1211,7 +1304,13 @@ public class FormPublicationTxService {
                     rs.getString("binding_hash"),
                     rs.getLong("source_set_revision"),
                     rs.getString("source_set_hash"),
-                    rs.getBoolean("write_fenced")),
+                    rs.getBoolean("write_fenced"),
+                    rs.getLong("binding_revision"),
+                    rs.getObject("source_config_id", Long.class),
+                    rs.getString("source_instance"),
+                    rs.getString("canonical_gitlab_base_url"),
+                    parseProjects(rs.getString("project_ids")),
+                    rs.getObject("version_project_id", Long.class)),
             scopeId);
     if (rows.isEmpty()) {
       throw new BizException(ResultCode.BAD_REQUEST, "表单范围不存在");
@@ -1283,6 +1382,8 @@ public class FormPublicationTxService {
                p.selection_counts::text as selection_counts,
                p.verification_summary::text as verification_summary,
                p.frozen_source_set_revision, p.frozen_source_set_hash,
+               p.origin_binding::text as origin_binding,
+               p.origin_binding_revision, p.origin_binding_hash,
                p.lease_owner, p.lease_until, p.fencing_version, p.fence_token, p.last_error,
                p.operator_id, p.operator_name,
                p.created_at, p.updated_at, p.published_at, s.template_key
@@ -1316,6 +1417,9 @@ public class FormPublicationTxService {
         rs.getString("verification_summary"),
         rs.getObject("frozen_source_set_revision", Long.class),
         rs.getString("frozen_source_set_hash"),
+        rs.getString("origin_binding"),
+        rs.getObject("origin_binding_revision", Long.class),
+        rs.getString("origin_binding_hash"),
         rs.getString("lease_owner"),
         rs.getTimestamp("lease_until") == null
             ? null
@@ -1508,7 +1612,13 @@ public class FormPublicationTxService {
       String bindingHash,
       long sourceSetRevision,
       String sourceSetHash,
-      boolean writeFenced) {}
+      boolean writeFenced,
+      long bindingRevision,
+      Long sourceConfigId,
+      String sourceInstance,
+      String canonicalGitlabBaseUrl,
+      List<Long> projectIds,
+      Long versionProjectId) {}
 
   private record ScopeFenceRow(boolean fenced, Long publicationId, String token) {}
 
@@ -1535,6 +1645,9 @@ public class FormPublicationTxService {
       String verificationSummaryJson,
       Long frozenSourceSetRevision,
       String frozenSourceSetHash,
+      String originBindingJson,
+      Long originBindingRevision,
+      String originBindingHash,
       String leaseOwner,
       LocalDateTime leaseUntil,
       long fencingVersion,

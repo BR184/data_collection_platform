@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.exception.FormConflictException;
+import com.data.collection.platform.domain.form.FormScopeBinding;
 import com.data.collection.platform.domain.form.FormTemplateSpec;
 import com.data.collection.platform.domain.form.FormTemplateSpecCatalog;
 import com.data.collection.platform.domain.form.FormVersionSchema;
@@ -910,6 +911,143 @@ class FormTemplateAdminIntegrationTest {
                 Long.class,
                 scopeId))
         .isEqualTo(v1.toVersionId());
+  }
+
+  // ------------------------------------------------------------------ N3 整改 R01/R02
+
+  /** 失败任务恢复不得重新启用已退役范围；旧任务执行入口共用同一状态规则。 */
+  @Test
+  void shouldRejectRecoveryForRetiredScope() {
+    long scopeId = createScope("n3-retired-recover");
+    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "N3R1");
+    FormAdminViews.PublicationView v1 = publish(scopeId, "N3R1");
+    createIssueReply(scopeId, v1.toVersionId());
+
+    boundDraft(scopeId, relabeledSpec(FormTemplateSpecCatalog.ISSUE_REPLY, "N3 新版"), "N3R2");
+    FormAdminViews.PublicationView task = preparePublication(scopeId);
+    FormPublicationTxService.Claim claim = publicationTxService.claim(task.id(), "n3-retired-owner");
+    publicationTxService.build(claim);
+    assertThat(publicationTxService.fail(claim, "n3 simulate failure")).isTrue();
+
+    adminService.retire(scopeId, v1.toVersionId(), admin);
+    assertThat(scopeStatus(scopeId)).isEqualTo("RETIRED");
+    long revision = sourceSetRevision(scopeId);
+    int events = directoryEventCount(scopeId, revision);
+
+    assertThatThrownBy(() -> publicationService.recover(task.id(), admin))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("范围已退役");
+    assertThat(publicationService.executeOnce(task.id())).isFalse();
+    assertThat(publicationService.publicationView(task.id()).stage()).isEqualTo("FAILED");
+    assertThat(scopeStatus(scopeId)).isEqualTo("RETIRED");
+    assertThat(currentVersionId(scopeId)).isEqualTo(v1.toVersionId());
+    assertThat(versionStatus(claim.toVersionId())).isEqualTo("INSTALLED");
+    assertThat(versionRole(claim.toVersionId())).isEqualTo("TARGET");
+    assertThat(sourceSetRevision(scopeId)).isEqualTo(revision);
+    assertThat(directoryEventCount(scopeId, revision)).isEqualTo(events);
+    assertThat(scopeFenced(scopeId)).isFalse();
+  }
+
+  /** 发布期间范围绑定已变化且仍然有效时，旧任务在 enter/apply/恢复处均不得覆盖。 */
+  @Test
+  void shouldRejectBindingDriftBeforeSwitchAndRecovery() {
+    long scopeId = createScope("n3-binding-before-enter");
+    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "N3R1");
+    FormAdminViews.PublicationView v1 = publish(scopeId, "N3R1");
+    createIssueReply(scopeId, v1.toVersionId());
+
+    boundDraft(scopeId, relabeledSpec(FormTemplateSpecCatalog.ISSUE_REPLY, "N3 新版"), "N3R2");
+    FormAdminViews.PublicationView task = preparePublication(scopeId);
+    FormPublicationTxService.Claim claim = publicationTxService.claim(task.id(), "n3-binding-owner");
+    publicationTxService.build(claim);
+    extendScopeBinding(scopeId);
+
+    assertThatThrownBy(() -> publicationTxService.enterSwitch(claim))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("范围绑定已变化");
+    assertThat(publicationTxService.fail(claim, "n3 binding drift")).isTrue();
+    assertThatThrownBy(() -> publicationService.recover(task.id(), admin))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("范围绑定已变化");
+    assertZeroSwitch(scopeId, v1, claim);
+  }
+
+  @Test
+  void shouldRejectBindingDriftAfterSwitchEntered() {
+    long scopeId = createScope("n3-binding-after-enter");
+    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "N3R1");
+    FormAdminViews.PublicationView v1 = publish(scopeId, "N3R1");
+    createIssueReply(scopeId, v1.toVersionId());
+
+    boundDraft(scopeId, relabeledSpec(FormTemplateSpecCatalog.ISSUE_REPLY, "N3 新版"), "N3R2");
+    FormAdminViews.PublicationView task = preparePublication(scopeId);
+    FormPublicationTxService.Claim claim = publicationTxService.claim(task.id(), "n3-binding-after");
+    publicationTxService.build(claim);
+    publicationTxService.enterSwitch(claim);
+    extendScopeBinding(scopeId);
+
+    assertThatThrownBy(() -> publicationTxService.applySwitch(claim))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("范围绑定已变化");
+    assertThat(publicationTxService.fail(claim, "n3 binding drift")).isTrue();
+    assertThat(scopeFenced(scopeId)).isFalse();
+    assertThat(publicationService.publicationView(task.id()).stage()).isEqualTo("FAILED");
+    assertThatThrownBy(() -> publicationService.recover(task.id(), admin))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("范围绑定已变化");
+    assertZeroSwitch(scopeId, v1, claim);
+  }
+
+  private void assertZeroSwitch(
+      long scopeId, FormAdminViews.PublicationView current, FormPublicationTxService.Claim claim) {
+    assertThat(currentVersionId(scopeId)).isEqualTo(current.toVersionId());
+    assertThat(scopeStatus(scopeId)).isEqualTo("ACTIVE");
+    assertThat(versionStatus(claim.toVersionId())).isEqualTo("INSTALLED");
+    assertThat(versionRole(claim.toVersionId())).isEqualTo("TARGET");
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select count(*) from form_directory_events where scope_id = ?"
+                    + " and source_set_revision > ?",
+                Integer.class,
+                scopeId,
+                sourceSetRevision(scopeId)))
+        .isZero();
+    assertThat(scopeFenced(scopeId)).isFalse();
+  }
+
+  /** 模拟受控配置维护：扩展项目集合并同步有效绑定哈希/修订，保持当前版本与源集合不变。 */
+  private void extendScopeBinding(long scopeId) {
+    Map<String, Object> scope =
+        jdbcTemplate.queryForMap(
+            "select template_key, resource_type, source_config_id, source_instance,"
+                + " canonical_gitlab_base_url from form_template_scopes where id = ?",
+            scopeId);
+    ObjectNode binding =
+        FormScopeBinding.create(
+            objectMapper,
+            (String) scope.get("template_key"),
+            ((Number) scope.get("source_config_id")).longValue(),
+            (String) scope.get("source_instance"),
+            (String) scope.get("canonical_gitlab_base_url"),
+            List.of(PROJECT_ID, PROJECT_ID + 1),
+            PROJECT_ID,
+            (String) scope.get("resource_type"));
+    jdbcTemplate.update(
+        """
+        update form_template_scopes
+           set project_ids = ?::jsonb, version_project_id = ?, binding_hash = ?,
+               binding_revision = binding_revision + 1
+         where id = ?
+        """,
+        "[" + PROJECT_ID + "," + (PROJECT_ID + 1) + "]",
+        PROJECT_ID,
+        FormScopeBinding.hash(objectMapper, binding),
+        scopeId);
+  }
+
+  private String scopeStatus(long scopeId) {
+    return jdbcTemplate.queryForObject(
+        "select status from form_template_scopes where id = ?", String.class, scopeId);
   }
 
   // ------------------------------------------------------------------ helpers
