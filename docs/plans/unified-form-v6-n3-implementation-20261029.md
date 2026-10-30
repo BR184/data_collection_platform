@@ -1,10 +1,10 @@
 # 表单 v6 N3：空结构发布、短切换与旧任务收口
 
-> 状态（2026-10-29）：实施完成并送审。N3 通过后收口本计划，长期事实归 `docs/architecture.md`、`docs/decisions.md`、`docs/product.md` 与 `docs/progress.md`。
+> 状态（2026-10-30）：输入dafb88a0复验，R01—R03关闭，仅R04-a待修，N4未准入。N3通过后收口本计划，长期事实归 `docs/architecture.md`、`docs/decisions.md`、`docs/product.md` 与 `docs/progress.md`。
 
 ## 进度与中间物
 
-- 阶段（2026-10-29）：P0—P5已按`19d40549`交付；首次审核为修改后重审，N4未准入。N3-R01—R04 已按[审核执行单](unified-form-system-implementation-plan-20261021.md#n3-review-1)关闭并送复验，原交付证据继续保留。
+- 阶段（2026-10-30）：P0—P5已交付，整改输入`dafb88a0`复验关闭R01—R03，R04仍有写入前资源身份校验缺口。只执行[N3二次审核末项指令](unified-form-system-implementation-plan-20261021.md#n3-review-2)，原交付证据继续保留。
 - 已完成文件：本计划；迁移 `V20261029_01__form_v6_publication_protocol.sql`（第 161 条，checksum 已登记）；`FormPublicationTxService`/`FormPublicationService`/`FormHeadSwitchService`/`FormTemplateAdminService` v2 改造；删除 `FormPublicationMigrator`、`FormLegacyRecordMigrator` 与 v1 复制目标测试；前端阶段类型与管理页提示。
 - 测试状态：
   - `FormTemplateAdminIntegrationTest` 19/19 通过（真实 PG），其中新增参数化用例覆盖 `code_review`/`issue_response`/`issue_reply` 三模板的 INITIAL_EMPTY 首次启用与 MIGRATION V1→V2 空发布：旧记录及目录位置不变、目标空表、角色 `AUTHORITATIVE/RETIRED`、`source_set_revision` 1→2、目录事件 2 条、head pending 与源集合版本一致；V1 当时可新建，发布 V2 后新建只进当前 V2，旧 V1 继续维护已有记录。
@@ -14,10 +14,12 @@
 - 页面验收（2026-10-29）：专属 PG 15607、后端 18093（仅发布 worker，300ms）、Vite 18186、Chrome CDP 9273；三范围经真实管理页发布并通过 `ALL CHECKS PASSED (42)`。发布确认均显示“新版本从空结构开始；已有记录保留在原版本，不迁移、不改绑。”；两升级范围旧记录可见、原版编辑成功、新版首条新增进入新表；首启范围首条新增成功。DB 对账：旧记录与目录位置逐字节不变、新表初始为空、旧版 `RETIRED/AUTHORITATIVE`、新版 `PUBLISHED/AUTHORITATIVE`、源集合 1→2（首启 0→1）、目录事件各 2 条、head pending 指向新版本、`write_fenced=false`、任务 `protocol=2`（`MIGRATION`/`INITIAL_EMPTY`）。证据：`.tmp/w4-n3-20261029/evidence/`（acceptance.log、summary、db-final.txt、7 张截图），环境与边界见同目录 `environment.md`。
 - 外部连接边界：首次为运行发布 worker 打开调度总开关时，库内 match-mode 默认启用，17:16 对 `172.22.10.72:27017` 发起过一次 Mongo 握手并被对端关闭，未观察成功读写；随后在专属库关闭 match-mode 并重启，最终日志仅 `127.0.0.1:15607`、Mongo 0 次。
 - 整改（2026-10-29）：已快进吸收审核回执`3d6449d7`，在`19d40549`基础上关闭 R01—R04，逐项证据见下节“N3-R01—R04 关闭证据”。
-- 进行点：整改提交送复验；审核通过前不进入 N4，不重复三范围页面与默认全量。
-- 阻塞：无技术阻塞；仅等待 N3 复验结论。
+- 进行点：审核方独立后端66项与脚本7项通过，43项输入哈希和双远端dafb88a0一致。主入口替身反例发现资源不符时先迁移/UPDATE后拒绝；下一步只拆开写入前资源预检与迁移后业务预检，并补入口两条流程回归。
+- 阻塞：仅N3-R04-a未关闭，不能进入N4。R01—R03与已验证66项不重跑；前端/42项页面沿用，默认全量/黄金不运行。复验证据位于审核树`.tmp/n3-rereview-20261030/`；首轮证据`.tmp/n3-review-20261029/`保留。
 
 ### N3-R01—R04 关闭证据
+
+以下为员工整改送审自述；复验关闭状态以首部及审核执行单为准。
 
 - **R01 退役被绕过**：`FormPublicationTxService` 在范围锁内按发布类型复核状态与指针（`INITIAL_EMPTY` 只允许 `DRAFT`+无指针，`MIGRATION` 只允许 `ACTIVE`+冻结旧指针），领取后执行、`enterSwitch`、`applySwitch`、`recover` 共用同一守卫；`RETIRED` 拒绝恢复与切换，旧指针/源集合/事件/head/角色零变化，未新增重新启用入口。正式回归 `shouldRejectRecoveryForRetiredScope`（真实 PG）：失败→退役→恢复被 409 拒绝，任务保持 FAILED、范围保持 RETIRED、无栅栏。RED 证据：修复前同一测试断言失败（`.tmp/w4-n3r-20261029/red/`）。
 - **R02 绑定被覆盖**：新增第 162 条前向迁移 `V20261029_02__form_publication_origin_binding.sql`（`origin_binding/origin_binding_revision/origin_binding_hash`，旧行与 v1 任务保持 NULL），checksum 已登记；任务创建时冻结原绑定证据，`enter/apply/recover` 在范围锁内复核修订、哈希与规范绑定，失配拒绝且不重冻结。正式回归 `shouldRejectBindingDriftBeforeSwitchAndRecovery`、`shouldRejectBindingDriftAfterSwitchEntered` 覆盖 enter 前、enter 后 apply 前与恢复三处；拒绝时零指针/集合/事件/head/角色切换，SWITCHING 失败按原 owner/token 清自有栅栏。三模板首次启用与 V1→V2 既有参数化用例保持通过，未扩模板矩阵。
