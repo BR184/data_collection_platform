@@ -165,10 +165,27 @@ public final class IssueFactNormalizationRules {
     return IssueSlaRules.hasResponse(notesText);
   }
 
+  /**
+   * 先应用共用标签/修复模板及合法响应计划豁免，再读取现有响应延期标签。
+   *
+   * @param labels 当前有效原始标签，允许为空
+   * @param notesText 评论聚合正文，允许为空
+   * @return 未豁免且已有响应延期标签时返回true；本重载不计算时间差
+   */
   public static boolean isResponseDelayed(List<String> labels, String notesText) {
     return IssueSlaRules.isResponseDelayed(labels, notesText);
   }
 
+  /**
+   * 豁免优先于时间计算；未豁免时按紧急程度比较响应时限。
+   *
+   * @param labels 当前有效原始标签，允许为空
+   * @param notesText 评论聚合正文，允许为空
+   * @param createdAt 议题创建时刻，缺失时读取已有响应延期标签
+   * @param priorityLevel 紧急程度P1/P2/P3，未识别时按标签或P3处理
+   * @param now 本次判定时刻，缺失时读取已有响应延期标签
+   * @return 未豁免且按完整小时严格超过响应时限时返回true
+   */
   public static boolean isResponseDelayed(
       List<String> labels,
       String notesText,
@@ -201,19 +218,21 @@ public final class IssueFactNormalizationRules {
     return IssueSlaRules.hasFixCaseNote(notesText);
   }
 
+  /**
+   * 共用豁免命中时不解决延期，否则比较截止时间；不从归一化状态丢失需求、建议等原始标签。
+   *
+   * @param labels 当前有效原始标签，不能仅传入bug_status成员
+   * @param hasFixCaseNote 是否存在修复模板标记；存在即独立豁免
+   * @param resolveDeadlineAt 解决截止时间，缺失时返回false
+   * @param now 本次判定时刻，缺失时返回false
+   * @return 未命中共用豁免且已严格超过截止时返回true
+   */
   public static boolean isResolveDelayed(
-      List<String> statusMembers,
-      LocalDateTime resolveDeadlineAt,
-      LocalDateTime now) {
-    return IssueSlaRules.isResolveDelayed(statusMembers, resolveDeadlineAt, now);
-  }
-
-  public static boolean isResolveDelayed(
-      List<String> statusMembers,
+      List<String> labels,
       boolean hasFixCaseNote,
       LocalDateTime resolveDeadlineAt,
       LocalDateTime now) {
-    return IssueSlaRules.isResolveDelayed(statusMembers, hasFixCaseNote, resolveDeadlineAt, now);
+    return IssueSlaRules.isResolveDelayed(labels, hasFixCaseNote, resolveDeadlineAt, now);
   }
 
   public static boolean isLegacy(

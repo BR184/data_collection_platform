@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.IssueFact;
 import com.data.collection.platform.service.sync.SyncFactPublicationStateService;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,6 +18,8 @@ import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -228,6 +231,65 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
     Map<String, Object> after = rowSnapshot(factId);
     assertThat(after.get("is_response_delayed")).isEqualTo(false);
     assertThat(after.get("response_overdue")).isEqualTo(false);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"状态：未复现", "状态：申请延期", "状态：申请否决", "数据异常", "需求", "类别：建议"})
+  void shouldClearBothDelayFlagsAndPlanRemovingBothLabelsFromCurrentOdsExemption(String exemption) {
+    insertSourceIssue(9901L, CC_PROJECT_ID, 80L);
+    insertSourceLabel(7100L, exemption);
+    insertSourceLabel(7101L, "响应已延期");
+    insertSourceLabel(7102L, "解决已延期");
+    insertLabelLink(8100L, 7100L, 9901L);
+    insertLabelLink(8101L, 7101L, 9901L);
+    insertLabelLink(8102L, 7102L, 9901L);
+    long factId = insertIssueFact(
+        CC_PROJECT_ID, 80L, "opened", "# 问题调研情况说明\n## 计划解决时间：待定",
+        true, true, true, "now() - interval '100 days'");
+    jdbcTemplate.update(
+        "update issue_fact set resolve_deadline_at = timestamp '2026-01-02',"
+            + " bug_status = '未设定议题状态' where id = ?", factId);
+    Map<String, Object> before = rowSnapshot(factId);
+    List<Map<String, Object>> membersBefore = memberRows();
+
+    service.refreshCustomerIssueDelayFactsForConfig(config());
+
+    Map<String, Object> after = rowSnapshot(factId);
+    assertThat(after.get("is_response_delayed")).isEqualTo(false);
+    assertThat(after.get("response_overdue")).isEqualTo(false);
+    assertThat(after.get("is_resolve_delayed")).isEqualTo(false);
+    assertThat(changedColumns(before, after)).isEmpty();
+    assertThat(memberRows()).isEqualTo(membersBefore);
+    CustomerIssueDelayLabelWritebackPlanner planner = new CustomerIssueDelayLabelWritebackPlanner(
+        new CustomerIssueDelayLabelWritebackService());
+    IssueFact actual = new CustomerIssueDelayLabelWritebackQueueService(jdbcTemplate, planner)
+        .loadCandidate("default", CC_PROJECT_ID, 80L).orElseThrow();
+    assertThat(actual.getResponseDelayed()).isFalse();
+    assertThat(actual.getResolveDelayed()).isFalse();
+    CustomerIssueDelayLabelWritebackPlan plan = planner.plan(actual);
+    assertThat(plan.change().addLabels()).isEmpty();
+    assertThat(plan.change().removeLabels()).containsExactly("响应已延期", "解决已延期");
+    assertThat(plan.currentLabels()).contains(exemption);
+  }
+
+  @Test
+  void shouldResumeBothDelaysAfterTheOnlyOdsExemptionIsRemoved() {
+    insertSourceIssue(9902L, CC_PROJECT_ID, 81L);
+    insertSourceLabel(7200L, "状态：未复现");
+    insertLabelLink(8200L, 7200L, 9902L);
+    long factId = insertIssueFact(
+        CC_PROJECT_ID, 81L, "opened", "# 问题调研情况说明\n## 计划解决时间：待定",
+        false, false, false, "now() - interval '100 days'");
+    jdbcTemplate.update(
+        "update issue_fact set resolve_deadline_at = timestamp '2026-01-02' where id = ?", factId);
+    jdbcTemplate.update("delete from ods_gitlab_label_links where id = 8200");
+
+    service.refreshCustomerIssueDelayFactsForConfig(config());
+
+    Map<String, Object> after = rowSnapshot(factId);
+    assertThat(after.get("is_response_delayed")).isEqualTo(true);
+    assertThat(after.get("response_overdue")).isEqualTo(true);
+    assertThat(after.get("is_resolve_delayed")).isEqualTo(true);
   }
 
   private GitlabSyncConfig config() {

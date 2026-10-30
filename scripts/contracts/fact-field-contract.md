@@ -57,6 +57,7 @@
 | `issue_fact` | `is_legacy` | 根据时间、状态和标签判断历史遗留 | 按历史遗留过滤和统计 | 记录页、分析页口径说明 | 避免在 SQL 中重复实现 |
 | `issue_fact` | `is_customer_requirement` | 从原始标签集合派生：精确包含“需求”或“类别：建议”（R1）；非客户项目写 false；null=未重建 | 需求集合 N 的成员过滤，不模糊匹配 label_names | BI 客户问题需求区、客户统计需求指标 | 规则变化必须重建目标来源议题事实；禁止默认 false 伪造历史 |
 | `issue_fact` | `resolve_sla_days` / `resolve_deadline_at` | 根据计划解决时间和响应数据计算；评论按创建时间/ID倒序，先取首个可解析日期，再应用既有18天上限与无日期回退，见业务规则5.3 | 过滤、排序和统计 | 响应效率类页面 | 方向已由用户确认；升级须基于现有ODS重建议题事实 |
+| `issue_fact` | `is_response_delayed` / `response_overdue` / `is_resolve_delayed` | 构建与周期重算均以原始标签和修复模板先应用共同豁免，再计算延期；业务条件见规则总表 5.3 | 消费已发布事实，不重复判定豁免 | 延期统计及双标签差异写回 | 规则变化需重建议题事实；豁免后保留候选以移除既有延期标签，不改变建议统计过滤 |
 | `integration_test_fact` | `execute_case` / `pass_case` / `not_pass_case` / `not_pass_case_now` / `problem_case` / `exception_count` / `pass_rate` | 从备注解析结果生成执行、通过、未通过等计数 | 汇总、明细查询和导出 | 集成测试分析页 | 解析规则变化需要补充端到端链路测试 |
 | `integration_test_fact` | `parse_status` / `validation_reason` / `legal` | 标记备注解析完整性、校验原因和合法状态 | 明细过滤和待确认提示 | 集成测试分析页 | 校验规则变化需要补充 parser 与 pipeline 测试 |
 

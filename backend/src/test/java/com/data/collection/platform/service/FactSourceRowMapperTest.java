@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.IssueFact;
@@ -14,11 +15,45 @@ import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Answers;
+import org.mockito.MockedStatic;
 
 class FactSourceRowMapperTest {
+
+  @ParameterizedTest
+  @ValueSource(strings = {"状态：未复现", "状态：申请否决", "类别：建议", "需求", "数据异常"})
+  void issueMapperShouldExemptBothDelayFlagsWhenTheResponsePlanIsInvalid(String exemption)
+      throws Exception {
+    LocalDateTime createdAt = LocalDateTime.of(2026, 4, 1, 0, 0);
+    LocalDateTime now = LocalDateTime.of(2026, 5, 1, 0, 0);
+    ResultSet resultSet = mock(ResultSet.class);
+    Array issueLabels = sqlArray(exemption, "P1");
+    when(resultSet.getArray("label_titles")).thenReturn(issueLabels);
+    when(resultSet.getString("title")).thenReturn("延期豁免回归");
+    when(resultSet.getString("notes_text"))
+        .thenReturn("# 问题调研情况说明\n## 计划解决时间：待定");
+    when(resultSet.getLong("project_id")).thenReturn(325L);
+    when(resultSet.getString("project_name")).thenReturn("CC_Product");
+    when(resultSet.getTimestamp("created_at")).thenReturn(Timestamp.valueOf(createdAt));
+    when(resultSet.getObject("state_id")).thenReturn(1);
+    ModuleDictionary dictionary = mock(ModuleDictionary.class);
+
+    try (MockedStatic<LocalDateTime> clock = mockStatic(LocalDateTime.class, Answers.CALLS_REAL_METHODS)) {
+      clock.when(() -> LocalDateTime.now(ZoneOffset.UTC)).thenReturn(now);
+      IssueFact fact = new IssueFactSourceRowMapper()
+          .mapSource(resultSet, "default", Map.of(), dictionary, Map.of());
+
+      assertThat(fact.getResponseDelayed()).isFalse();
+      assertThat(fact.getResponseOverdue()).isFalse();
+      assertThat(fact.getResolveDelayed()).isFalse();
+    }
+  }
 
   @Test
   void issueMapperShouldPreserveNormalizedFieldsAndCalendarDerivedLegacyFlag()
