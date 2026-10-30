@@ -4,6 +4,9 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest import mock
 
 import run_isolated_form_acceptance_backend as entry
 
@@ -84,6 +87,103 @@ class IsolationPropertiesTest(unittest.TestCase):
         self.assertTrue(
             any(item.startswith("--spring.autoconfigure.exclude=") and "Mongo" in item for item in command)
         )
+
+
+
+
+class MainFlowTest(unittest.TestCase):
+    """主入口编排：资源身份只读检查必须早于任何迁移/SQL 写入。"""
+
+    def setUp(self) -> None:
+        self.temp = TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.events: list[str] = []
+
+    def argv(self, *extra: str) -> list[str]:
+        return [
+            "--db-container",
+            "dedicated-pg",
+            "--db-port",
+            "15608",
+            "--server-port",
+            "18094",
+            "--jar",
+            str(self.root / "app.jar"),
+            "--log",
+            str(self.root / "backend.log"),
+            "--evidence",
+            str(self.root / "evidence.json"),
+            "--probe-seconds",
+            "0",
+            *extra,
+        ]
+
+    def patch_flow(self, identity_ok: bool, preflight_ok: bool) -> None:
+        def identity(_args):
+            self.events.append("identity")
+            return [{"name": "资源身份", "ok": identity_ok, "detail": "stub"}]
+
+        def migrate(_args):
+            self.events.append("migrate")
+            return {"exitCode": 0, "command": [], "logPath": "stub", "logSha256": ""}
+
+        def switches(_args):
+            self.events.append("switches")
+            return ["applied: stub"]
+
+        def preflight(_args):
+            self.events.append("preflight")
+            return [{"name": "迁移头", "ok": preflight_ok, "detail": "stub"}]
+
+        class FakeProcess:
+            returncode = 0
+
+            def poll(self):
+                return None
+
+            def terminate(self):
+                pass
+
+            def wait(self, timeout=None):
+                return 0
+
+            def kill(self):
+                pass
+
+        def start(*_args, **_kwargs):
+            self.events.append("start")
+            return FakeProcess()
+
+        for name, value in (
+            ("collect_resource_identity", identity),
+            ("run_migrations", migrate),
+            ("apply_safety_switches", switches),
+            ("collect_preflight", preflight),
+            ("wait_health", lambda *_a, **_k: (True, "UP")),
+            ("terminate", lambda *_a, **_k: None),
+        ):
+            patcher = mock.patch.object(entry, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        patcher = mock.patch.object(entry.subprocess, "Popen", start)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_success_flow_runs_writes_only_after_identity_then_starts_backend(self) -> None:
+        self.patch_flow(identity_ok=True, preflight_ok=True)
+        self.assertEqual(entry.main(self.argv("--migrate")), 0)
+        self.assertEqual(self.events, ["identity", "migrate", "switches", "preflight", "start"])
+
+    def test_identity_rejection_triggers_no_write_and_no_web_start(self) -> None:
+        self.patch_flow(identity_ok=False, preflight_ok=True)
+        self.assertEqual(entry.main(self.argv("--migrate")), 2)
+        self.assertEqual(self.events, ["identity"])
+
+    def test_post_migration_preflight_failure_still_skips_web_start(self) -> None:
+        self.patch_flow(identity_ok=True, preflight_ok=False)
+        self.assertEqual(entry.main(self.argv("--migrate")), 2)
+        self.assertEqual(self.events, ["identity", "migrate", "switches", "preflight"])
 
 
 if __name__ == "__main__":

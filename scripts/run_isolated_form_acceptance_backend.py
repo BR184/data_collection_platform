@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """专属库预检与受控后端启动入口（发布验收用）。
 
-先以只读 SQL 核对目标库身份、迁移头、非目标作业开关与外部目标，再启动一个只开放发布 worker 的
-后端；启动后扫描日志，确认没有发生非回环地址访问或 Mongo 连接尝试。任何一项不符即停止，
-不会出现“先启动再关设置”的顺序。
+顺序固定为：只读确认资源身份（容器、端口映射、容器与 host 命中同一实例）→ 迁移专用进程升级
+→ 初始化安全开关 → 只读核对迁移头、非目标作业开关与外部目标 → 只开放发布 worker 启动。
+资源身份不符时不会迁移或执行任何 SQL 写入，也不会启动 Web；库内预检不符时不启动 Web。
+启动后扫描日志，确认没有发生非回环地址访问或 Mongo 连接尝试。
 
 用法示例：
 
@@ -90,6 +91,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--log", required=True, help="后端日志输出路径。")
     parser.add_argument("--evidence", required=True, help="预检/启动证据 JSON 路径。")
     parser.add_argument("--expected-head", default=EXPECTED_HEAD, help="期望 Flyway 迁移头。")
+    parser.add_argument("--db-password", default=os.environ.get("ACCEPTANCE_DB_PASSWORD", "w4-acceptance"))
     parser.add_argument("--admin-password", default="admin-w4-acceptance-2026")
     parser.add_argument("--health-timeout", type=int, default=180)
     parser.add_argument("--probe-seconds", type=int, default=20)
@@ -116,7 +118,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--migrate",
         action="store_true",
-        help="预检前先以迁移专用进程把专属库升到当前 head（不启动 Web 与业务组件）。",
+        help="资源身份确认后以迁移专用进程把专属库升到当前 head（不启动 Web 与业务组件）。",
     )
     return parser.parse_args(argv)
 
@@ -131,6 +133,43 @@ def psql(container: str, user: str, database: str, sql: str) -> str:
     if completed.returncode != 0:
         raise RuntimeError(
             f"psql failed ({completed.returncode}): {completed.stderr.strip()[:400]}"
+        )
+    return completed.stdout.strip()
+
+
+SHARED_PORTS = {15432, 15433}
+
+
+def host_psql(args: argparse.Namespace, sql: str) -> str:
+    """经宿主机发布端口只读连接，用于证明 host 连接与容器命中同一实例。"""
+    completed = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-e",
+            f"PGPASSWORD={args.db_password}",
+            "postgres:16-alpine",
+            "psql",
+            "-h",
+            "host.docker.internal",
+            "-p",
+            str(args.db_port),
+            "-U",
+            args.db_user,
+            "-d",
+            args.db_name,
+            "-tAc",
+            sql,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(
+            f"host psql failed ({completed.returncode}): {completed.stderr.strip()[:400]}"
         )
     return completed.stdout.strip()
 
@@ -157,19 +196,33 @@ def port_is_free(port: int) -> bool:
         return probe.connect_ex(("127.0.0.1", port)) != 0
 
 
-def collect_preflight(args: argparse.Namespace) -> list[dict[str, object]]:
+def collect_resource_identity(args: argparse.Namespace) -> list[dict[str, object]]:
+    """任何迁移/SQL 写入前的只读资源确认。
+
+    容器名、host 端口与库名是独立输入：只有容器在运行、发布端口等于配置端口、
+    docker-exec 与 host 连接命中同一实例（系统标识相同且库名一致）时才允许后续写入。
+    本阶段不读取业务表，也不要求最新迁移头，因此空库与新库同样适用。
+    """
     checks: list[dict[str, object]] = []
+    checks.append(
+        check(
+            "未使用共享数据库端口",
+            args.db_port not in SHARED_PORTS,
+            f"port={args.db_port} shared={sorted(SHARED_PORTS)}",
+        )
+    )
 
     running = subprocess.run(
-        ["docker", "inspect", "-f", "{{.State.Running}}", args.db_container],
+        ["docker", "inspect", "-f", "{{.State.Running}}|{{.Id}}", args.db_container],
         capture_output=True,
         text=True,
         check=False,
     )
+    parts = running.stdout.strip().split("|") if running.returncode == 0 else []
     checks.append(
         check(
             "专属库容器运行",
-            running.returncode == 0 and running.stdout.strip() == "true",
+            len(parts) == 2 and parts[0] == "true" and bool(parts[1]),
             running.stdout.strip() or running.stderr.strip()[:200],
         )
     )
@@ -188,6 +241,42 @@ def collect_preflight(args: argparse.Namespace) -> list[dict[str, object]]:
         )
     )
 
+    identity_sql = (
+        "select current_database() || '|'"
+        " || (select system_identifier from pg_control_system())"
+    )
+    try:
+        container_identity = psql(
+            args.db_container, args.db_user, args.db_name, identity_sql
+        )
+    except RuntimeError as error:
+        container_identity = f"error={error}"
+    checks.append(
+        check(
+            "容器内目标库身份",
+            container_identity.startswith(f"{args.db_name}|"),
+            container_identity,
+        )
+    )
+    try:
+        host_identity = host_psql(args, identity_sql)
+    except RuntimeError as error:
+        host_identity = f"error={error}"
+    checks.append(
+        check(
+            "host 连接与容器同一库",
+            host_identity == container_identity
+            and host_identity.startswith(f"{args.db_name}|"),
+            f"host={host_identity!r} container={container_identity!r}",
+        )
+    )
+    return checks
+
+
+def collect_preflight(args: argparse.Namespace) -> list[dict[str, object]]:
+    """资源确认之后的库内只读预检：迁移头、开关、外部目标与后端端口。"""
+    checks: list[dict[str, object]] = []
+
     def sql(name: str, query: str, expected: str) -> None:
         try:
             actual = psql(args.db_container, args.db_user, args.db_name, query)
@@ -196,7 +285,6 @@ def collect_preflight(args: argparse.Namespace) -> list[dict[str, object]]:
             return
         checks.append(check(name, actual == expected, f"actual={actual!r} expected={expected!r}"))
 
-    sql("目标库身份", "select current_database()", args.db_name)
     sql(
         "迁移头",
         "select version from flyway_schema_history where success"
@@ -331,7 +419,7 @@ def build_environment(args: argparse.Namespace) -> dict[str, str]:
         {
             "DATASOURCE_URL": f"jdbc:postgresql://127.0.0.1:{args.db_port}/{args.db_name}",
             "DATASOURCE_USERNAME": args.db_user,
-            "DATASOURCE_PASSWORD": os.environ.get("ACCEPTANCE_DB_PASSWORD", "w4-acceptance"),
+            "DATASOURCE_PASSWORD": args.db_password,
             "PLATFORM_AUTH_PROVIDER": "local",
             "PLATFORM_AUTH_SECURE_CONFIG_REQUIRED": "false",
             "PLATFORM_ADMIN_PASSWORD": args.admin_password,
@@ -394,6 +482,16 @@ def main(argv: list[str] | None = None) -> int:
         "isolationProperties": ISOLATION_PROPERTIES,
         "deferredTickProperties": DEFERRED_TICK_PROPERTIES,
     }
+
+    identity = collect_resource_identity(args)
+    evidence["resourceIdentity"] = identity
+    for item in identity:
+        print(f"{'PASS' if item['ok'] else 'FAIL'} {item['name']}: {item['detail']}")
+    if preflight_failures(identity):
+        evidence["result"] = "RESOURCE_IDENTITY_REJECTED"
+        write_evidence(Path(args.evidence), evidence)
+        print("资源身份不符：未迁移、未执行任何 SQL 写入、未启动后端。", file=sys.stderr)
+        return 2
 
     if args.migrate:
         migration = run_migrations(args)
