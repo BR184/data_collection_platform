@@ -2,7 +2,7 @@
 
 - [完成与审批] 用户明确先保证兼容模式数据正确；正式交接后的扩展已停止并隔离为本地补丁，不进入本轮交付。兼容导出保留原ALL的35列和逐次明细，新增默认选中的“走查速率汇总”，按来源与正数MR IID去重新增行、累计工时，输出每MR及总体速率；未知身份、冲突或无效输入标记不完整。规则归[页面业务规则](platform-page-business-rules.md)。
 - [验证] 最终9类103项、失败/错误/跳过均0，含真实Flyway+PostgreSQL的CC/DGM组合版本及SP1导出；变更文件Checkstyle 0违规。经理独立只读查询→3份Excel确认DGM1000行/90分钟=666.67且两条原始行数保留，CC R1/SP1密度仍5.00/6.00；BI兼容接口重新确认1000行、MR1、666.67，BI生产代码与本轮基线完全一致。证据`.tmp/quality-export-compatibility-final-regression.log`、`.tmp/manager-compatibility-export-final.log`、`.tmp/manager-compatibility-final-evidence.json`；BI专属结论归其域进度。
-- [交付边界] 本地代码审批通过，尚未运行默认全套或发布黄金、合main、打包或部署20001。18181/18090/15442原验收服务与数据未变更，18090尚未加载本次导出代码；新版样例在`.tmp/compatibility-dgm-CC2026R4-fixed.xlsx`。最终恢复与收口见[活动计划](plans/quality-export-review-rate-20261031.md)。
+- [交付边界] 本地代码审批通过，实施提交`79642b64`，活动计划已收口，过程保留在该提交。尚未运行默认全套或发布黄金、合main、打包或部署20001。18181/18090/15442原验收服务与数据未变更，18090尚未加载本次导出代码；新版样例在`.tmp/compatibility-dgm-CC2026R4-fixed.xlsx`。后续发布准备时按既有门禁验收，不以本地规则通过代替现场值核验。
 
 ## 2026-10-30 研发质量版本范围修复本地复审通过
 
