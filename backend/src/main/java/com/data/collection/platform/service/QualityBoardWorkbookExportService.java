@@ -2,11 +2,15 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.QualityBoardChartRowResponse;
 import com.data.collection.platform.entity.QualityBoardCodeReviewRecordExportRow;
+import com.data.collection.platform.entity.QualityBoardCodeReviewRateSummaryRow;
 import com.data.collection.platform.entity.QualityBoardFixUserSeverityRowResponse;
 import com.data.collection.platform.entity.QualityBoardRdDashboardResponse;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Row;
@@ -73,16 +77,27 @@ public class QualityBoardWorkbookExportService {
     };
   }
 
+  /** 按当前读模式导出走查明细；兼容模式同时提供MR去重速率汇总。 */
   public byte[] exportCodeReviewRecordsWorkbook(String projectName, String source) {
     CodeReviewDataReadMode readMode = codeReviewReadSupport.configuredReadMode();
     return exportCodeReviewRecordsWorkbook(projectName, source, readMode);
   }
 
+  /**
+   * 导出当前版本范围内的代码走查明细，兼容模式同时生成按来源和MR IID去重的速率汇总。
+   * 同一提交新增行数只计一次、走查工时累计，两个工作表由同一次查询结果生成。
+   *
+   * @param projectName 启用的产品版本业务键；为空时使用管理员设置的默认版本
+   * @param source 业务来源；dgm不区分大小写，其它值按cc处理
+   * @param readMode 本次导出冻结的正式或兼容读模式
+   * @return XLSX字节，保留ALL明细；兼容模式默认选中速率汇总，数据不完整时汇总速率为空
+   */
   public byte[] exportCodeReviewRecordsWorkbook(
       String projectName, String source, CodeReviewDataReadMode readMode) {
     List<QualityBoardCodeReviewRecordExportRow> rows =
         codeReviewReadSupport.codeReviewRecordRows(
             source, normalizeProjectName(projectName), readMode);
+    String normalizedSource = "dgm".equalsIgnoreCase(source == null ? "" : source.trim()) ? "dgm" : "cc";
     try (Workbook workbook = new XSSFWorkbook();
         ByteArrayOutputStream output = new ByteArrayOutputStream()) {
       CellStyle header = ExcelExportStyles.createHeaderStyle(workbook);
@@ -167,10 +182,166 @@ public class QualityBoardWorkbookExportService {
       }
       ExcelExportStyles.applyHeaderRows(sheet, 1);
       ExcelExportStyles.autoSizeColumns(sheet, 35, 8);
+      if (readMode == CodeReviewDataReadMode.MATCH_MODE) {
+        writeRateSummarySheet(workbook, header, body, rows, normalizedSource);
+        sheet.setSelected(false);
+        workbook.setActiveSheet(1);
+        workbook.getSheetAt(1).setSelected(true);
+      }
       workbook.write(output);
       return output.toByteArray();
     } catch (IOException error) {
       throw new IllegalStateException("Failed to export quality board code review records", error);
+    }
+  }
+
+  private void writeRateSummarySheet(
+      Workbook workbook,
+      CellStyle header,
+      CellStyle body,
+      List<QualityBoardCodeReviewRecordExportRow> rows,
+      String requestedSource) {
+    List<QualityBoardCodeReviewRateSummaryRow> summaries =
+        summarizeRates(rows, requestedSource);
+    CellStyle rate = workbook.createCellStyle();
+    rate.cloneStyleFrom(body);
+    rate.setDataFormat(workbook.createDataFormat().getFormat("0.00"));
+    Sheet sheet = workbook.createSheet("走查速率汇总");
+    writeHeader(
+        sheet,
+        header,
+        "合并请求标识",
+        "来源",
+        "项目名",
+        "合并请求编号",
+        "走查次数",
+        "新增代码行数（去重）",
+        "累计走查工时（分钟）",
+        "代码走查速率（LOC/H）",
+        "代码走查速率（KLOC/H）",
+        "数据状态");
+    for (int index = 0; index < summaries.size(); index++) {
+      QualityBoardCodeReviewRateSummaryRow item = summaries.get(index);
+      Row row = sheet.createRow(index + 1);
+      write(row, 0, item.mergeRequestKey(), body);
+      write(row, 1, item.source(), body);
+      write(row, 2, item.projectName(), body);
+      write(row, 3, item.mergeRequestIid(), body);
+      write(row, 4, item.reviewCount(), body);
+      write(row, 5, item.addedLines(), body);
+      write(row, 6, item.reviewDurationMinutes(), body);
+      write(row, 7, item.reviewSpeedLocPerHour(), rate);
+      write(row, 8, item.reviewSpeedKlocPerHour(), rate);
+      write(row, 9, item.status(), body);
+    }
+    ExcelExportStyles.applyHeaderRows(sheet, 1);
+    ExcelExportStyles.autoSizeColumns(sheet, 10, 8);
+  }
+
+  private List<QualityBoardCodeReviewRateSummaryRow> summarizeRates(
+      List<QualityBoardCodeReviewRecordExportRow> rows,
+      String requestedSource) {
+    Map<String, RateAccumulator> accumulators = new LinkedHashMap<>();
+    for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
+      QualityBoardCodeReviewRecordExportRow row = rows.get(rowIndex);
+      String key = mergeRequestKey(row, requestedSource, rowIndex);
+      RateAccumulator accumulator = accumulators.computeIfAbsent(
+          key, ignored -> new RateAccumulator(row, key, identityMissing(row), requestedSource));
+      accumulator.accept(row);
+    }
+    List<QualityBoardCodeReviewRateSummaryRow> summaries = new ArrayList<>();
+    long totalRows = 0L;
+    long totalMinutes = 0L;
+    boolean incomplete = false;
+    for (RateAccumulator accumulator : accumulators.values()) {
+      QualityBoardCodeReviewRateSummaryRow summary = accumulator.toSummary();
+      summaries.add(summary);
+      totalRows += summary.addedLines() == null ? 0 : summary.addedLines();
+      totalMinutes += summary.reviewDurationMinutes() == null ? 0 : summary.reviewDurationMinutes();
+      incomplete |= !summary.complete();
+    }
+    if (!summaries.isEmpty()) {
+      summaries.add(
+          new QualityBoardCodeReviewRateSummaryRow(
+              "ALL", "", "当前导出范围", null, rows.size(),
+              incomplete ? null : totalRows,
+              incomplete ? null : totalMinutes,
+              incomplete || totalMinutes <= 0 ? null : totalRows * 60D / totalMinutes,
+              incomplete || totalMinutes <= 0 ? null : totalRows / 1000D * 60D / totalMinutes,
+              !incomplete && totalMinutes > 0,
+              incomplete ? "数据不完整" : "正常"));
+    }
+    return summaries;
+  }
+
+  private String mergeRequestKey(
+      QualityBoardCodeReviewRecordExportRow row,
+      String requestedSource,
+      int rowIndex) {
+    if (identityMissing(row)) {
+      // 无法证明相同MR的记录分别保留，行序只用于区分未知项，不充当MR身份。
+      return requestedSource + ":缺失MR身份#" + (rowIndex + 1);
+    }
+    return requestedSource + ":iid=" + row.mergeRequestIid();
+  }
+
+  private boolean identityMissing(QualityBoardCodeReviewRecordExportRow row) {
+    return row.mergeRequestIid() == null || row.mergeRequestIid() <= 0;
+  }
+
+  private static final class RateAccumulator {
+    private final String key;
+    private final String source;
+    private final String projectName;
+    private final Long iid;
+    private final boolean identityMissing;
+    private int count;
+    private Integer addedLines;
+    private long minutes;
+    private boolean invalid;
+    private String reason;
+
+    private RateAccumulator(
+        QualityBoardCodeReviewRecordExportRow first,
+        String key,
+        boolean identityMissing,
+        String requestedSource) {
+      this.key = key;
+      this.source = requestedSource;
+      this.projectName = first.projectName();
+      this.iid = first.mergeRequestIid();
+      this.identityMissing = identityMissing;
+      this.count = 0;
+    }
+
+    private void accept(QualityBoardCodeReviewRecordExportRow row) {
+      count++;
+      if (row.addedLines() == null || row.addedLines() < 0
+          || row.reviewDurationMinutes() == null || row.reviewDurationMinutes() <= 0) {
+        invalid = true;
+        reason = row.addedLines() == null || row.addedLines() < 0 ? "新增行数异常" : "走查工时异常";
+      } else {
+        if (addedLines == null) {
+          addedLines = row.addedLines();
+        } else if (!addedLines.equals(row.addedLines())) {
+          invalid = true;
+          reason = "同MR新增行数冲突";
+        }
+        minutes += row.reviewDurationMinutes();
+      }
+    }
+
+    private QualityBoardCodeReviewRateSummaryRow toSummary() {
+      boolean complete = !invalid && !identityMissing && minutes > 0;
+      String status = identityMissing ? "数据不完整：MR身份缺失"
+          : invalid ? "数据不完整：" + reason : "正常";
+      return new QualityBoardCodeReviewRateSummaryRow(
+          key, source, projectName, iid, count, complete ? (long) addedLines : null,
+          complete ? minutes : null,
+          complete ? addedLines * 60D / minutes : null,
+          complete ? addedLines / 1000D * 60D / minutes : null,
+          complete,
+          status);
     }
   }
 
