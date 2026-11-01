@@ -1,13 +1,14 @@
 # 表单 v6 N4：多版本消费、共同字段统计、Issue 选择器与按版 Excel
 
-> 状态（2026-10-30 三审整改）：P1/P2 **修改后待复审**，审核结论“P1/P2修改后重审”；仅允许继续 P3 捕获基础，P4、P5 暂缓。批准依据 [N3 最终验收与 N4 准入](unified-form-system-implementation-plan-20261021.md#n4-admission)，技术合同 [N0 §5—§8](v6-n0-technical-admission-20261027.md#5-多版本消费r04q3)。N4 通过前不进入 N5，不运行黄金，不合 main、不出包、不操作真实业务库/正式权限/外部写回。
+> 状态（2026-11-01 四审整改交付）：R01 已关闭，R03 原因集合/作废清理与 R05 补证接受；R02-a/R02-b/R03-a/R04 与 M01 已按回执 `2cd57488` 整改并完成定点反例，P1/P2 **待第三次复审**。P3 捕获基础、目录事件游标与发送前表单证据守卫已补齐；P4、P5 暂缓。批准依据 [N3 最终验收与 N4 准入](unified-form-system-implementation-plan-20261021.md#n4-admission)，技术合同 [N0 §5—§8](v6-n0-technical-admission-20261027.md#5-多版本消费r04q3)。N4 通过前不进入 N5，不运行黄金，不合 main、不出包、不操作真实业务库/正式权限/外部写回。
 
 ## 进度与中间物
 
-- 阶段（2026-10-30）：P0 计划与影响面盘点、P1 主线吸收完成；P2 首次送审（`6a14d605`）被判定“修改后重审”，R01—R04 与 P3 捕获基础已同批整改，R05 证据与 M01 升级验证/旧库清单已补，待送复审；P4、P5 暂缓。用户已裁定 MR 走逐记录投影 C、导出不做种子授予。
-- 已完成：快进吸收 N4 准入回执 `b18583f4`、接入方案重写 `99ec550b` 与三审回执 `992fe7dc`；吸收主线延期写回修复及迁移 `V20261022_03`（本分支退役权限迁移顺延为 `V20261022_04`，内容与 checksum 不变）与规范状态成员合同（`6aa9bd69`、`9e5e4bac`）；R01 首次事实与周期路径统一以 `IssueStatusMembers` 判定解决延期并补修前红证据；R02 消费改为持久权威分流；R03 回复原因集合/模板合规与类型化回复详情进入业务投影；P3 `form_head_captures` 捕获/结算基础、R04 周期同输入一致性与写回旧作业跳过同批完成；M01 主线历史升级与旧编号库失败关闭回归完成。
-- 测试状态（受影响范围 13 类 130/0/0/0）：选择器/SLA 纯单测 14；首次事实与周期真实 PG 12；捕获/结算 3；延期写回 worker 16；表单记录服务 36；登记 21；可比登记 9；目录迁移 3；延期标记 5；编排 5；FactBuildService 单测 4；主线历史升级 1；旧编号历史失败关闭 1。R01 两处真实实现突变分别只打红对应反例（`.tmp/w4-n4-r01-20261030/red/`）；迁移护栏 164 条通过。
-- 进行点：送复审。P4/P5 在复审通过前不启动；不推进 MR 统计、导出、main 或出包。
+- 阶段（2026-11-01）：P0 计划与影响面盘点、P1 主线吸收完成；P2 首次送审（`6a14d605`）与三审整改两次被判“修改后重审”；四审回执 `2cd57488` 指出的 R02-a/R02-b/R03-a/R04 与 M01 已全部整改并验证，本地提交 `d19f6e03`，待双远端同步并送第三次复审；P4、P5 暂缓。用户已裁定 MR 走逐记录投影 C、导出不做种子授予。
+- 已完成：快进吸收 N4 准入回执 `b18583f4`、接入方案重写 `99ec550b`、三审回执 `992fe7dc` 与四审回执 `2cd57488`；吸收主线延期写回修复及迁移 `V20261022_03`（本分支退役权限迁移顺延为 `V20261022_04`，内容与 checksum 不变）与规范状态成员合同（`6aa9bd69`、`9e5e4bac`）；R01 首次事实与周期路径统一以 `IssueStatusMembers` 判定解决延期并补修前红证据；R02 首次登记冻结 COMMENT/FORM、写入口只核验不补登记，已有 FORM 权威缺 head 时按真实修订与当前集合证据补建；R03 响应/回复各自权威判定延期豁免；R04 周期只绑定候选捕获、最终公开事务复核并原子推进指针与 consumed；P3 目录事件游标与发送前表单 head 守卫；M01 以批准主线 140 条迁移集建旧库并执行 26 条低版本新增迁移。
+- 测试状态（受复审影响范围）：10-31 受影响类 16 类 167 项全绿（选择器/SLA 15、首次事实与周期真实 PG 16、捕获/结算 4、延期写回 worker 17、表单记录服务 37、登记 21、可比登记 9、目录迁移 3、FactBuild 单测、主线历史升级 1、旧编号历史失败关闭 1）；2026-11-01 补“缺 head 按真实权威修订初始化且已存在 head 不重置”反例后，`FormIssueAdoptionFactPipelineIntegrationTest` 17/17 通过（`.tmp-logs/n4-r02b-headinit-2.log`；首次复跑因宿主机内存不足在 surefire fork 启动失败，约束堆后通过）。R01 两处真实实现突变分别只打红对应反例（`.tmp/w4-n4-r01-20261030/red/`）；迁移护栏 166 条、空白/产物/运行时路径护栏通过。
+- 进行点：提交已落地，下一步分别推送到 `gitlab25` 与 `origin` 并回读，然后送第三次复审。P4/P5 在复审通过前不启动；不推进 MR 统计、导出、main 或出包。
+- 事件游标边界：`FormDirectoryEventCursorService` 已提供服务与真实 PG 反例；Issue 路径当前由发布事务直接唤醒 head，目录事件的生产消费调度随 P4/MR 接入，不在本轮冒充已启用。
 - 阻塞：真实 E2、生产源码版本与 Issue 投放凭据未齐，阻断真实登记/切换与生产启用；不阻断隔离实现。导出正式授予不做，目标库实际名单由权限管理员提供。
 - 状态纠偏：此前“P1/P2 完成、九项选择器完成”的表述撤回；九项选择器只完成取值、原因集合与 SLA 接入，统计/导出消费（P4/P5）未实施。
 
@@ -22,7 +23,7 @@
 
 - MR/Issue 事实消费统一读取权威多版本记录；旧版编辑/作废、新版本发布能驱动自动重建；共同字段按已批语义统计；Issue 九项选择器按已确认规则取值；Excel 按所属版本导出。
 - 成功标准：多版本读源无回退、无逐版猜表、无长期双读；捕获/结算漂移零公开零结算；共同字段不可合并时显式无效而非 0 或部分成功；作废/副本/TARGET/越权记录不可导出；权限不扩权。
-- 禁止：改动 163 条既有迁移；用当前指针代替集合；把 view 推导成 export；以未批公式改 MR 汇总；运行黄金、合 main、出正式包；影响其他 AI 的工作区、共享库或端口；再次移动或恢复共享库对象。
+- 禁止：改动已登记既有迁移（当前 166 条）；用当前指针代替集合；把 view 推导成 export；以未批公式改 MR 汇总；运行黄金、合 main、出正式包；影响其他 AI 的工作区、共享库或端口；再次移动或恢复共享库对象。
 
 ## 业务/API/数据/环境约束
 
@@ -125,9 +126,9 @@ drop schema residue_20261030;  -- 仅在确认其中无其他对象时
 
 后续隔离规则：所有测试与验证显式绑定本任务独占容器/数据库/schema 与 `currentSchema`/`search_path`；缺表反例在自有 schema 内制造；不得依赖此次共享库整理作为任何验证前提。
 
-### M01 升级验证与旧库处置（2026-10-30）
+### M01 升级验证与旧库处置（2026-10-31 修订）
 
-**主线历史 → 合并版本真实升级**（`FormV6LegacyUpgradeIntegrationTest`，真实 PG16）：先迁到 `20261022.03`（159 条）并确认 `customer_issue_delay_closure_requests` 已存在，写入旧 Demo、v5 多副本、首次指纹、权限与序列后，再迁到 `20261030.01`（新增 5 条）。断言 `.03` 描述仍为 `customer issue delay closure progress`、`.04` 为 `retire legacy form permissions`；前 159 条 checksum 逐条不变；`flyway.validate()` 直接通过（未调用 repair）；旧行、规格、序列守恒。
+**主线历史 → 目标版本真实升级**（`FormV6LegacyUpgradeIntegrationTest`，真实 PG16）：旧库只由批准主线迁移集构建——从 `db/migration` 复制除 26 条分支新增脚本外的全部文件，`migrate()` 实际执行 140 条，水位 `20261022.03`；断言 `V20261019_01` 成功存在、`customer_issue_delay_closure_requests` 存在、`form_record_locations` 不存在。写入真实非空旧 Demo 行与来源配置后，切换到目标迁移集并以应用同款 `outOfOrder(true)` 执行其余 26 条低版本新增迁移（`20261012.01`—`20261030.02`）；断言执行条数 26、水位 `20261030.02`、旧库历史前缀 140 条逐条不变、`.03` 描述仍为 `customer issue delay closure progress`、`.04` 为 `retire legacy form permissions`、`validate()` 直接通过（未调用 repair）、旧行守恒，并在升级库上完成旧 Demo 登记与统一读源取回原值。不预装新脚本、不 repair、不改写历史、不放宽校验。
 
 **旧编号库失败关闭**（`FormV6RenumberedHistoryUpgradeTest`）：模拟旧表单库历史——迁到 `.02` 后登记 `20261022.03 = retire legacy form permissions`（校验和取当前 `.04`，即旧文件原内容），再执行合并迁移必须抛 checksum 校验错误；历史行保持原描述、后续版本零应用、`form_record_locations` 不存在。合并代码不会 repair、改写历史或静默跳过。
 
@@ -147,8 +148,8 @@ drop schema residue_20261030;  -- 仅在确认其中无其他对象时
 ## 步骤与依赖
 
 0. **P1 主线吸收（已完成）**：cherry-pick 延期写回三提交与迁移，编译通过；跑吸收类回归。
-1. **P2 Issue 首次事实与周期 SLA（整改完成待复审）**：`IssueBusinessInput`/`FormIssueInputResolver`/`IssueBusinessProjector` 按持久权威逐模板分流；R01 规范状态成员、R02 权威分流、R03 原因集合/模板合规/回复详情快照均落在同一份类型化输入。
-2. **P3 捕获基础与证据一致性（基础完成）**：`V20261030_01` 新增 `form_head_captures` 与来源索引；领取/捕获/结算按“范围 FOR SHARE → head FOR UPDATE”并复核 token、集合修订/哈希、pending 与权威修订；FORM 证据变化由消费端完整发布，周期只对同一已消费快照重算。R04 以事实修订作为“同一输入”证据：旧写回作业 `required_fact_version` 落后即发送前跳过，不新增 `form_input_hash` 列。
+1. **P2 Issue 首次事实与周期 SLA（整改完成待复审）**：`IssueBusinessInput`/`FormIssueInputResolver`/`IssueBusinessProjector` 按持久权威逐模板分流；R01 规范状态成员、R02 首次登记冻结与权威分流、R03 原因集合/模板合规/回复详情快照与分模板延期豁免均落在同一份类型化输入。
+2. **P3 捕获基础与证据一致性（基础完成）**：`V20261030_01` 新增 `form_head_captures`，`V20261030_02` 新增 `form_publication_captures` 绑定；领取/捕获/结算按“范围 FOR SHARE → head FOR UPDATE”并复核 token、集合修订/哈希、pending、权威修订与租约；捕获绑定实际候选，最终公开事务内原子推进指针与 consumed；目录事件游标按发布版本唤醒 head；FORM 证据变化由消费端完整发布，周期只对同一已消费快照重算。R04 以事实修订作为“同一输入”证据：旧写回作业 `required_fact_version` 落后或表单 head 未消费即发送前跳过。
 3. **P4 MR 逐记录投影**：`FormReviewProjector.build` 经目录生成逐记录 `form_review_fact` 并同事务发布；`form_records` CTE 读投影（汇总分钟/五类数/人员/最近创建时间）；质量分析按记录 sum/count；生产 MR 继续评论，走查 FORM 仅隔离验收。
 4. **P5 共同字段与按版导出**：`selectCommonFields`/`aggregateMetric` 生产实现（2+3=5、不兼容显式无效）；导出端点、鉴权、审计、流式写出与预算；正式授予不做。
 5. **P6 验证与交付**：代表性两版端到端、Issue 切换边界 T、双会话捕获/结算、导出拒绝矩阵；受影响类回归与一次隔离默认后端；护栏、双远端、清单送审。
@@ -164,6 +165,17 @@ drop schema residue_20261030;  -- 仅在确认其中无其他对象时
 | R05 共享环境越界 | 见上文“R05 共享环境改动证据与处置”；后续只绑独占环境，共享对象交负责人处置 | 证据已补，待负责人确认 |
 | M01 迁移发布前置 | 主线已执行历史（含 `V20261022_03`）→合并版本（`.04`）真实升级验证；旧表单试验库清单与处置；不 repair、不改写历史 | 已完成：见下文“M01 升级验证与旧库处置”；`.03` 主线内容保持，旧编号库显式失败关闭 |
 
+## 四审整改项（回执 `2cd57488`）
+
+| 项 | 反例与要求 | 整改与验证 |
+| --- | --- | --- |
+| R02-a 持久权威仍可翻转 | 历史议题已按 COMMENT 消费，T 前移后被改成 FORM 空记录；写入口仍自行登记 FORM；要求首次登记冻结 COMMENT/FORM，写入口只核验已登记 FORM、缺登记拒绝，MR 未启用拒绝 FORM 新建 | `FormIssueAuthorityRegistrar` 只对“启用点后创建、ACTIVE、有当前版本且项目唯一覆盖”的议题首次登记 FORM，其余登记 COMMENT；已有权威/head 一律不改写。`FormRecordAuthorityService.ensureForWrite` 删除插入，缺权威抛 409。反例 `movingEnablePointEarlierDoesNotFlipHistoricalCommentAuthority`、`shouldRejectCreateWithoutPersistentFormAuthorityAndNeverSelfRegister` |
+| R02-b 重复登记覆盖在途租约 | 重复登记把他人 `LEASED` 改回 `PENDING` 且保留 owner/fence；要求只核验、不重置状态/归属/租约，仅在缺失时初始化 | 登记只做 `on conflict do nothing`；已有权威/head 不更新状态与租约；已有 FORM 权威但缺 head 时按真实 `authority_revision` 与当前集合证据补建。反例 `repeatedRegistrationKeepsLeasedHeadAndConsumedWatermark` 断言 LEASED/fence/水位与 CONSUMED 均保持，`missingHeadIsInitializedFromPersistentFormAuthority` 断言缺失 head 补建值及再次登记不重置 |
+| R03-a 豁免跨模板串用 | 响应 COMMENT 无合法计划、回复 FORM 为空时，旧评论回复仍把响应判为未延期；要求响应合法计划与回复存在性各取自身权威后再合并 | `IssueSlaRules.isResponsePlanExempt` 只认响应模板合法计划，回复存在性只按回复权威；`IssueBusinessProjector` 最后合并 `hasReply || responsePlanExempt`。反例 `commentResponseDoesNotBorrowFormEmptyReplyOrOldCommentReplyForExemption` 断言 `responseDelayed=true` |
+| R04 周期提前结算并绕过捕获 | 候选仍 `PROJECTING`、指针未动，head 已 `latest=consumed=2`；要求捕获绑定实际候选、最终发布事务内复核并原子推进指针与 consumed，删除简化结算旁路 | 周期只 `claimHead`→`capture`→`bindToPublication(target.publicationId())`；`FactTargetPublicationService.publishPreparedInternal` 在指针公开后同事务调用 `settleForPublication`，逐项复核 head/集合/权威/pending/token/租约，漂移抛冲突回滚公开与结算；删除 `captureLatest/settleConsumed` 旁路。反例 `periodicRefreshSettlesOnlyInsideFinalPublication`（PROJECTING 不结算、最终公开同时推进指针与 consumed）、`driftAfterBuildKeepsPublicationAndConsumptionAtZero`（构建后漂移零公开零结算） |
+| P3 事件游标与发送前证据守卫 | 补目录事件游标；作业与事实版本相同、仅表单 head 已推进时仍须 HTTP 0 | `FormDirectoryEventCursorService` 按事件单调推进游标并为该版本已落位资源唤醒 FORM head；`CustomerIssueDelayLabelWritebackWorkerService` 发送前检查 FORM 权威 head 未消费证据，命中则等待。反例 `directoryEventCursorWakesOnlyResourcesInPublishedVersion`、`shouldNotSendWhenOnlyFormEvidenceAdvancedAndFactVersionIsUnchanged` |
+| M01 升级证据无效 | 旧库由合并集预装新表单结构且缺主线 `V20261019_01`；要求用真实主线迁移集建旧库、保留全部已发布迁移、验证低版本新增迁移执行 | 见“M01 升级验证与旧库处置（2026-10-31 修订）”：140 条主线真实执行 → 26 条 out-of-order 新增 → 前缀/描述/validate/守恒/可用性断言 |
+
 ## 用户裁定（2026-10-30，不再提供选择题）
 
 - **MR 跨版口径 C：逐记录投影**。所有有效、可比较的走查记录参与统计，不取 `max`、不只留最新一条：两条记录时长 10/20 分钟→总时长 30、平均 15；规范问题 2/3→5。MR 事实仍按资源唯一一行；质量分析按记录 sum/count。否决 A（逐列 max）与 B（仅最新）。
@@ -173,7 +185,7 @@ drop schema residue_20261030;  -- 仅在确认其中无其他对象时
 ## 已吸收主线依赖
 
 - 延期写回修复：持久进度与领取围栏、恢复领取/租约/授权回滚、模板标题解析与在途停写保存（`17e65dcd`、`c594d529`、`7679764c`）。
-- 迁移：主线 `V20261022_03__customer_issue_delay_closure_progress.sql` 随吸收进入；本分支退役权限迁移顺延为 `V20261022_04`，全部 163 条登记 checksum。
+- 迁移：主线 `V20261022_03__customer_issue_delay_closure_progress.sql` 随吸收进入；本分支退役权限迁移顺延为 `V20261022_04`；恢复的主线补丁 `V20261019_01` 与新增 `V20261030_01/.02` 一并登记，当前全部 166 条登记 checksum。
 - 后续 Issue 周期 SLA 与写回资格复用该修复的队列、轮次、围栏与发送前复核，不建旁路。
 
 ## 风险、假设与敏感只读数据
