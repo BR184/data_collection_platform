@@ -74,7 +74,30 @@ class GitlabMirrorIndexServiceIntegrationTest {
             "idx_ods_gitlab_issues_author_root_active",
             "idx_ods_gitlab_issues_milestone_root_active",
             "idx_ods_gitlab_issues_project_updated_active",
+            "idx_ods_gitlab_issues_project_iid",
             "idx_ods_gitlab_issues_mirror_task");
+  }
+
+  @Test
+  void test_issue_project_iid_index_is_plain_btree_and_reused() {
+    indexService.ensureIndexes("issues", "ods_gitlab_issues", issueSchema());
+    indexService.ensureIndexes("issues", "ods_gitlab_issues", issueSchema());
+
+    List<String> definitions =
+        jdbcTemplate.queryForList(
+            """
+            select indexdef
+              from pg_indexes
+             where schemaname = current_schema()
+               and indexname = 'idx_ods_gitlab_issues_project_iid'
+            """,
+            String.class);
+
+    assertThat(definitions).hasSize(1);
+    assertThat(definitions.getFirst())
+        .as("议题定位索引必须与生产同名同定义：无条件普通 B-tree，不带 WHERE")
+        .contains("(project_id, iid)")
+        .doesNotContain("where");
   }
 
   @Test
