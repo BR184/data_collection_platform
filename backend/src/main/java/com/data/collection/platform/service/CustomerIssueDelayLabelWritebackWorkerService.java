@@ -38,6 +38,8 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
   private final CustomerIssueDelayPreWritebackSyncService preWritebackSyncService;
   private final CustomerIssueDelayClosureProgressRepository progressRepository;
   private final CustomerIssueDelaySourceReadinessService readinessService;
+  private final com.data.collection.platform.service.form.FormHeadCaptureService
+      formHeadCaptureService;
   private final String workerOwner = "customer-delay-label-worker-" + UUID.randomUUID();
   private final AtomicBoolean running = new AtomicBoolean(false);
 
@@ -49,7 +51,8 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
       CustomerIssueDelayLabelWritebackQueueService queueService,
       CustomerIssueDelayPreWritebackSyncService preWritebackSyncService,
       CustomerIssueDelayClosureProgressRepository progressRepository,
-      CustomerIssueDelaySourceReadinessService readinessService) {
+      CustomerIssueDelaySourceReadinessService readinessService,
+      com.data.collection.platform.service.form.FormHeadCaptureService formHeadCaptureService) {
     this.properties = properties;
     this.configService = configService;
     this.writebackService = writebackService;
@@ -58,6 +61,7 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
     this.preWritebackSyncService = preWritebackSyncService;
     this.progressRepository = progressRepository;
     this.readinessService = readinessService;
+    this.formHeadCaptureService = formHeadCaptureService;
   }
 
   @Scheduled(fixedDelayString = "${platform.gitlab-mirror.customer-issue-delay-writeback-worker-delay-ms:5000}")
@@ -212,6 +216,10 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
             config, current, preWritebackSyncService.preWritebackTables());
     if (!readiness.allowed()) {
       return AuthorizationCheck.waitingFor(readiness.reason());
+    }
+    if (formHeadCaptureService.hasUnconsumedFormEvidence(
+        job.sourceInstance(), job.projectId(), job.issueIid())) {
+      return AuthorizationCheck.waitingFor("表单证据已推进但事实尚未刷新，等待消费完成后再发送");
     }
     return AuthorizationCheck.granted();
   }

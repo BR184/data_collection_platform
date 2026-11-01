@@ -1782,6 +1782,8 @@ class FormRecordServiceIntegrationTest {
         createScope("w2-issue-reply-big", FormTemplateSpecCatalog.ISSUE_REPLY, "issue");
     long bigVersionId =
         createVersionAndTables(bigScopeId, FormTemplateSpecCatalog.ISSUE_REPLY, bigProject);
+    registerFormAuthority("issue", bigIssueIid, FormTemplateSpecCatalog.ISSUE_REPLY, bigScopeId,
+        bigProject);
 
     FormCreateResponse created =
         formRecordService.create(
@@ -1942,9 +1944,61 @@ class FormRecordServiceIntegrationTest {
                     + " from pg_stat_activity where datname = current_database()"));
   }
 
+  @Test
+  void shouldRejectCreateWithoutPersistentFormAuthorityAndNeverSelfRegister() {
+    jdbcTemplate.update(
+        "insert into platform_ldap_users(user_id, real_name, dept_name)"
+            + " values ('alice', 'Alice', '质量部') on conflict (user_id) do nothing");
+    assertThatThrownBy(() -> formRecordService.create(
+            codeReviewRequest("alice", UUID.randomUUID().toString(), false),
+            actorA, "127.0.0.1", "JUnit"))
+        .as("未启用 MR 的 FORM 新建必须拒绝，不能由填写动作自行登记权威")
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("持久表单权威登记");
+
+    assertThatThrownBy(() -> formRecordService.create(
+            new FormCreateRequest(
+                GITLAB_URL, PROJECT_ID, "issue", Long.toString(ISSUE_IID),
+                FormTemplateSpecCatalog.ISSUE_RESPONSE,
+                Long.toString(issueResponseScopeId),
+                Long.toString(issueResponseVersionId),
+                UUID.randomUUID().toString(), false,
+                toFields(issueResponseFields("DEFECT", "负责人已确认", "2026-10-20", "CC2026R1"))),
+            actorA, "127.0.0.1", "JUnit"))
+        .isInstanceOf(FormConflictException.class)
+        .hasMessageContaining("持久表单权威登记");
+
+    assertThat(count("form_resource_authorities")).isZero();
+  }
+
   private FormCreateResponse createCodeReview(String reviewer, String key) {
+    registerFormAuthority("merge_request", MR_IID, FormTemplateSpecCatalog.CODE_REVIEW,
+        codeReviewScopeId);
     return formRecordService.create(
         codeReviewRequest(reviewer, key), actorA, "127.0.0.1", "JUnit");
+  }
+
+  /** 写入只核验持久权威；测试夹具显式登记，不用填写动作自行切源。 */
+  private void registerFormAuthority(
+      String resourceType, long resourceId, String templateKey, long scopeId) {
+    registerFormAuthority(resourceType, resourceId, templateKey, scopeId, PROJECT_ID);
+  }
+
+  private void registerFormAuthority(
+      String resourceType, long resourceId, String templateKey, long scopeId, long projectId) {
+    jdbcTemplate.update(
+        """
+        insert into form_resource_authorities(
+            source_config_id, source_instance, canonical_gitlab_base_url, project_id,
+            resource_type, resource_id, template_key, scope_id, authority, authority_revision,
+            effective_at, created_at, updated_at)
+        select s.source_config_id, s.source_instance, s.canonical_gitlab_base_url, ?, ?, ?, ?,
+               s.id, 'FORM', 1, now(), now(), now()
+          from form_template_scopes s where s.id = ?
+        on conflict (source_config_id, project_id, resource_type, resource_id, template_key)
+        do nothing
+        """,
+        projectId, resourceType, resourceId, templateKey, scopeId);
   }
 
   private FormCreateRequest codeReviewRequest(String reviewer, String key) {
@@ -1967,6 +2021,8 @@ class FormRecordServiceIntegrationTest {
   }
 
   private FormCreateResponse createIssueResponse(long issueIid, ObjectNode fields, String key) {
+    registerFormAuthority("issue", issueIid, FormTemplateSpecCatalog.ISSUE_RESPONSE,
+        issueResponseScopeId);
     return formRecordService.create(
         new FormCreateRequest(
             GITLAB_URL,
@@ -1985,6 +2041,8 @@ class FormRecordServiceIntegrationTest {
   }
 
   private FormCreateResponse createIssueReply(ObjectNode fields, String key) {
+    registerFormAuthority("issue", ISSUE_IID, FormTemplateSpecCatalog.ISSUE_REPLY,
+        issueReplyScopeId);
     return formRecordService.create(
         new FormCreateRequest(
             GITLAB_URL,

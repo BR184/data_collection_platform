@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -95,6 +96,8 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   @Autowired private FactTargetPublicationService factTargetPublicationService;
   @Autowired private ReadPublicationService readPublicationService;
   @Autowired private FormIssueInputResolver formIssueInputResolver;
+  @Autowired private FormIssueAuthorityRegistrar formIssueAuthorityRegistrar;
+  @Autowired private com.data.collection.platform.config.FormAdoptionProperties adoptionProperties;
 
   @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
   private SyncFactPublicationStateService qualification;
@@ -105,6 +108,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
 
   @BeforeEach
   void setUp() {
+    adoptionProperties.setIssueEnabledAt(SWITCH_AT);
     org.mockito.Mockito.doReturn(true)
         .when(qualification)
         .canBuildReadCandidate(
@@ -408,6 +412,219 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     assertThat(fact.get("has_response")).isEqualTo(true);
   }
 
+  @Test
+  void movingEnablePointEarlierDoesNotFlipHistoricalCommentAuthority() {
+    insertSourceIssue(93110L, 81110L, LocalDateTime.of(2026, 10, 1, 10, 0));
+    insertResponseNote(93110L, "2026.11.09", LocalDateTime.of(2026, 10, 2, 9, 0));
+    insertResponseRecord(
+        93110L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
+        LocalDateTime.of(2026, 10, 5, 10, 0), LocalDate.of(2026, 11, 15), "CC2026R4");
+
+    rebuildAllIssueFacts();
+    assertThat(authorityOf(81110L, FormTemplateSpecCatalog.ISSUE_RESPONSE))
+        .as("首次判定即冻结 COMMENT，不能只留下未登记的临时评论结果")
+        .isEqualTo("COMMENT");
+    assertThat(liveFact(93110L).get("planned_resolution_at"))
+        .isEqualTo(LocalDateTime.of(2026, 11, 9, 0, 0));
+
+    adoptionProperties.setIssueEnabledAt(LocalDateTime.of(2026, 9, 1, 0, 0));
+    rebuildAllIssueFacts();
+
+    assertThat(authorityOf(81110L, FormTemplateSpecCatalog.ISSUE_RESPONSE))
+        .as("启用点前移不得改写已冻结的历史权威")
+        .isEqualTo("COMMENT");
+    assertThat(liveFact(93110L).get("planned_resolution_at"))
+        .as("历史评论计划保持，不因 T 前移变成空表单")
+        .isEqualTo(LocalDateTime.of(2026, 11, 9, 0, 0));
+  }
+
+  @Test
+  void repeatedRegistrationKeepsLeasedHeadAndConsumedWatermark() {
+    insertSourceIssue(93111L, 81111L, LocalDateTime.of(2026, 11, 2, 10, 0));
+    rebuildAllIssueFacts();
+    Long headId = jdbcTemplate.queryForObject(
+        "select id from form_change_heads where resource_id = 81111 and template_key = ?",
+        Long.class, FormTemplateSpecCatalog.ISSUE_RESPONSE);
+    assertThat(headId).isNotNull();
+
+    jdbcTemplate.update(
+        "update form_change_heads set status = 'LEASED', lease_owner = 'worker-b',"
+            + " lease_until = now() + interval '5 minutes', fencing_version = 23,"
+            + " latest_change_version = 2, consumed_change_version = 1 where id = ?",
+        headId);
+    registerAgain(81111L);
+
+    Map<String, Object> leased = headRow(headId);
+    assertThat(leased.get("status")).as("重复登记不得把他人 LEASED 重置为 PENDING").isEqualTo("LEASED");
+    assertThat(leased.get("lease_owner")).isEqualTo("worker-b");
+    assertThat(((Number) leased.get("fencing_version")).longValue()).isEqualTo(23);
+    assertThat(((Number) leased.get("latest_change_version")).longValue()).isEqualTo(2);
+    assertThat(((Number) leased.get("consumed_change_version")).longValue()).isEqualTo(1);
+
+    jdbcTemplate.update(
+        "update form_change_heads set status = 'CONSUMED', lease_owner = null,"
+            + " lease_until = null, consumed_change_version = 2 where id = ?",
+        headId);
+    registerAgain(81111L);
+
+    Map<String, Object> consumed = headRow(headId);
+    assertThat(consumed.get("status")).as("已消费 head 不得因重复登记反复待消费").isEqualTo("CONSUMED");
+    assertThat(((Number) consumed.get("latest_change_version")).longValue()).isEqualTo(2);
+    assertThat(((Number) consumed.get("consumed_change_version")).longValue()).isEqualTo(2);
+  }
+
+  @Test
+  void missingHeadIsInitializedFromPersistentFormAuthority() {
+    long iid = 81112L;
+    insertAuthority(
+        responseScopeId, FormTemplateSpecCatalog.ISSUE_RESPONSE, iid, "FORM", CANONICAL_URL);
+    insertAuthority(replyScopeId, FormTemplateSpecCatalog.ISSUE_REPLY, iid, "FORM", CANONICAL_URL);
+    jdbcTemplate.update(
+        "update form_resource_authorities set authority_revision = 7 where resource_id = ?", iid);
+
+    registerAgain(iid);
+
+    long responseHeadId = headId(iid, FormTemplateSpecCatalog.ISSUE_RESPONSE);
+    Map<String, Object> responseHead = headRow(responseHeadId);
+    assertThat(responseHead.get("status")).as("缺 head 时按真实权威修订初始化").isEqualTo("PENDING");
+    assertThat(((Number) responseHead.get("latest_change_version")).longValue()).isEqualTo(1);
+    assertThat(((Number) responseHead.get("consumed_change_version")).longValue()).isZero();
+    assertThat(((Number) responseHead.get("pending_authority_revision")).longValue()).isEqualTo(7);
+    assertThat(((Number) responseHead.get("pending_source_set_revision")).longValue()).isEqualTo(1);
+    assertThat(responseHead.get("pending_source_set_hash")).isNotNull();
+    assertThat(((Number) responseHead.get("pending_storage_version_id")).longValue())
+        .isEqualTo(currentVersionId(responseScopeId));
+
+    jdbcTemplate.update(
+        "update form_change_heads set status = 'LEASED', lease_owner = 'worker-b',"
+            + " lease_until = now() + interval '5 minutes', fencing_version = 11,"
+            + " latest_change_version = 3, consumed_change_version = 2 where id = ?",
+        responseHeadId);
+    registerAgain(iid);
+
+    Map<String, Object> untouched = headRow(responseHeadId);
+    assertThat(untouched.get("status")).as("已有 head 只核验，不重置状态").isEqualTo("LEASED");
+    assertThat(untouched.get("lease_owner")).isEqualTo("worker-b");
+    assertThat(((Number) untouched.get("fencing_version")).longValue()).isEqualTo(11);
+    assertThat(((Number) untouched.get("latest_change_version")).longValue()).isEqualTo(3);
+    assertThat(((Number) untouched.get("consumed_change_version")).longValue()).isEqualTo(2);
+  }
+
+  @Test
+  void periodicRefreshSettlesOnlyInsideFinalPublication() {
+    insertSourceIssue(93120L, 81120L, LocalDateTime.of(2026, 11, 1, 10, 0));
+    insertResponseRecord(
+        93120L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
+        LocalDateTime.of(2026, 11, 5, 10, 0), LocalDate.of(2026, 11, 15), "CC2026R4");
+    rebuildAllIssueFacts();
+    UUID pointerBefore = currentIssuePublication();
+    insertResponseRecord(
+        93120L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
+        LocalDateTime.of(2026, 11, 6, 10, 0), LocalDate.of(2026, 11, 16), "CC2026R5");
+
+    factBuildService.refreshCustomerIssueDelayFactsForConfig(config());
+
+    long headId = headId(81120L, FormTemplateSpecCatalog.ISSUE_RESPONSE);
+    Map<String, Object> pending = headRow(headId);
+    assertThat(pending.get("status")).as("捕获后等待最终公开，不能提前 CONSUMED").isEqualTo("LEASED");
+    assertThat(((Number) pending.get("consumed_change_version")).longValue())
+        .as("首次构建已结算旧水位，新一轮仍待公开")
+        .isEqualTo(1);
+    assertThat(currentIssuePublication()).as("PROJECTING 候选未公开，指针不得前进")
+        .isEqualTo(pointerBefore);
+    UUID candidateId = jdbcTemplate.queryForObject(
+        "select publication_id from form_publication_captures where head_id = ?"
+            + " order by captured_at desc limit 1",
+        UUID.class, headId);
+    assertThat(jdbcTemplate.queryForObject(
+        "select state from read_publications where id = ?", String.class, candidateId))
+        .isEqualTo("PROJECTING");
+    assertThat(jdbcTemplate.queryForObject(
+        "select status from form_publication_captures where publication_id = ? and head_id = ?",
+        String.class, candidateId, headId)).isEqualTo("CAPTURED");
+
+    FactRevisionFixture.completeRequiredProjections(
+        jdbcTemplate,
+        factTargetPublicationService,
+        ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
+        null);
+
+    Map<String, Object> settled = headRow(headId);
+    assertThat(settled.get("status")).isEqualTo("CONSUMED");
+    assertThat(((Number) settled.get("consumed_change_version")).longValue())
+        .isEqualTo(((Number) settled.get("latest_change_version")).longValue());
+    assertThat(currentIssuePublication()).as("最终公开同时推进指针").isNotEqualTo(pointerBefore);
+  }
+
+  @Test
+  void driftAfterBuildKeepsPublicationAndConsumptionAtZero() {
+    insertSourceIssue(93121L, 81121L, LocalDateTime.of(2026, 11, 1, 10, 0));
+    insertResponseRecord(
+        93121L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
+        LocalDateTime.of(2026, 11, 5, 10, 0), LocalDate.of(2026, 11, 15), "CC2026R4");
+    rebuildAllIssueFacts();
+    UUID pointerBefore = currentIssuePublication();
+    insertResponseRecord(
+        93121L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
+        LocalDateTime.of(2026, 11, 6, 10, 0), LocalDate.of(2026, 11, 16), "CC2026R5");
+    factBuildService.refreshCustomerIssueDelayFactsForConfig(config());
+    long headId = headId(81121L, FormTemplateSpecCatalog.ISSUE_RESPONSE);
+
+    jdbcTemplate.update(
+        "update form_change_heads set latest_change_version = latest_change_version + 1"
+            + " where id = ?", headId);
+
+    assertThatThrownBy(() -> FactRevisionFixture.completeRequiredProjections(
+            jdbcTemplate,
+            factTargetPublicationService,
+            ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
+            null))
+        .isInstanceOf(com.data.collection.platform.common.exception.FormConflictException.class);
+
+    assertThat(currentIssuePublication()).isEqualTo(pointerBefore);
+    Map<String, Object> head = headRow(headId);
+    assertThat(((Number) head.get("consumed_change_version")).longValue())
+        .as("旧候选未公开，新水位不得结算")
+        .isEqualTo(1);
+    assertThat(liveFact(93121L).get("planned_resolution_at"))
+        .as("旧候选未公开，已发布事实保持不变")
+        .isEqualTo(LocalDateTime.of(2026, 11, 15, 0, 0));
+  }
+
+  private UUID currentIssuePublication() {
+    List<UUID> ids = jdbcTemplate.queryForList(
+        "select current_publication_id from read_publication_domains"
+            + " where source_instance = ? and fact_type = 'ISSUE'",
+        UUID.class, SOURCE_INSTANCE);
+    return ids.isEmpty() ? null : ids.getFirst();
+  }
+
+  private long headId(long iid, String templateKey) {
+    return jdbcTemplate.queryForObject(
+        "select id from form_change_heads where resource_id = ? and template_key = ?",
+        Long.class, iid, templateKey);
+  }
+
+  private void registerAgain(long iid) {
+    formIssueAuthorityRegistrar.registerMissing(
+        SOURCE_INSTANCE,
+        Map.of(new FormIssueInputResolver.IssueRef(PROJECT_ID, iid),
+            LocalDateTime.of(2026, 11, 2, 10, 0)),
+        SWITCH_AT,
+        LocalDateTime.of(2026, 11, 3, 0, 0));
+  }
+
+  private Map<String, Object> headRow(long headId) {
+    return jdbcTemplate.queryForMap("select * from form_change_heads where id = ?", headId);
+  }
+
+  private String authorityOf(long iid, String templateKey) {
+    List<String> values = jdbcTemplate.queryForList(
+        "select authority from form_resource_authorities where resource_id = ? and template_key = ?",
+        String.class, iid, templateKey);
+    return values.isEmpty() ? null : values.getFirst();
+  }
+
   private void insertAuthority(
       long scopeId, String templateKey, long iid, String authority, String canonicalUrl) {
     jdbcTemplate.update(
@@ -485,7 +702,9 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         Timestamp.valueOf(LocalDateTime.of(2026, 10, 1, 0, 0)));
     schema.statements().forEach(jdbcTemplate::execute);
     jdbcTemplate.update(
-        "update form_template_scopes set status = 'ACTIVE', current_version_id = ? where id = ?",
+        "update form_template_scopes set status = 'ACTIVE', current_version_id = ?,"
+            + " source_set_revision = 1, source_set_hash = form_source_set_hash(id)"
+            + " where id = ?",
         versionId,
         scopeId);
     return scopeId;
@@ -929,6 +1148,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
       }
     }
     jdbcTemplate.update("delete from form_record_locations");
+    jdbcTemplate.update("delete from form_publication_captures");
     jdbcTemplate.update("delete from form_head_captures");
     jdbcTemplate.update("delete from form_change_heads");
     jdbcTemplate.update("delete from form_resource_authorities");

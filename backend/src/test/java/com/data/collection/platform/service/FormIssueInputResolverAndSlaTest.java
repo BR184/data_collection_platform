@@ -275,6 +275,26 @@ class FormIssueInputResolverAndSlaTest {
         .isTrue();
   }
 
+  @Test
+  void commentResponseDoesNotBorrowFormEmptyReplyOrOldCommentReplyForExemption() {
+    IssueFact fact = new IssueFact();
+    fact.setIssueState("opened");
+    fact.setCreatedAtSource(ISSUE_CREATED);
+    fact.setPriorityLevel("P1");
+    fact.setRawPayload("### 1、修复状态\n已修复");
+
+    IssueBusinessInput input =
+        FormIssueInputResolver.select(false, List.of(), true, List.of(), name -> name,
+            record -> CAUSE_LABELS);
+
+    IssueSlaRules.Evaluation evaluation = IssueBusinessProjector.evaluate(
+        fact, input, List.of(), LocalDateTime.of(2026, 11, 20, 12, 0));
+
+    assertThat(evaluation.responseDelayed())
+        .as("响应 COMMENT 无合法计划、回复 FORM 为空时，旧评论回复不得豁免")
+        .isTrue();
+  }
+
   private static IssueBusinessInput select(
       List<LocatedRecord> responses, List<LocatedRecord> replies) {
     return FormIssueInputResolver.select(

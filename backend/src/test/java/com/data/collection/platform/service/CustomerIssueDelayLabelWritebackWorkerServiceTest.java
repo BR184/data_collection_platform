@@ -38,6 +38,7 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
   private CustomerIssueDelayPreWritebackSyncService preWritebackSyncService;
   private CustomerIssueDelayClosureProgressRepository progressRepository;
   private CustomerIssueDelaySourceReadinessService readinessService;
+  private com.data.collection.platform.service.form.FormHeadCaptureService formHeadCaptureService;
   private CustomerIssueDelayLabelWritebackWorkerService workerService;
   private GitlabSyncConfig config;
 
@@ -51,6 +52,8 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     preWritebackSyncService = mock(CustomerIssueDelayPreWritebackSyncService.class);
     progressRepository = mock(CustomerIssueDelayClosureProgressRepository.class);
     readinessService = mock(CustomerIssueDelaySourceReadinessService.class);
+    formHeadCaptureService =
+        mock(com.data.collection.platform.service.form.FormHeadCaptureService.class);
     workerService =
         new CustomerIssueDelayLabelWritebackWorkerService(
             properties,
@@ -60,7 +63,8 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
             queueService,
             preWritebackSyncService,
             progressRepository,
-            readinessService);
+            readinessService,
+            formHeadCaptureService);
     config = new GitlabSyncConfig();
     config.setId(CONFIG_ID);
     config.setSourceInstance("default");
@@ -88,6 +92,18 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     verify(writebackService, never()).sendLabelUpdate(any(), anyLong(), anyLong(), any());
     verify(queueService)
         .markSkipped(job, "该作业的授权事实版本已过期，已由新一轮候选重新评估");
+  }
+
+  @Test
+  void shouldNotSendWhenOnlyFormEvidenceAdvancedAndFactVersionIsUnchanged() throws Exception {
+    CustomerIssueDelayLabelWritebackJob job = jobWithFactVersion(FACT_VERSION);
+    when(formHeadCaptureService.hasUnconsumedFormEvidence("default", 325L, 1001L))
+        .thenReturn(true);
+
+    workerService.process(job);
+
+    verify(writebackService, never()).sendLabelUpdate(any(), anyLong(), anyLong(), any());
+    verify(queueService).defer(eq(job), org.mockito.ArgumentMatchers.contains("表单证据已推进"), any());
   }
 
   @Test

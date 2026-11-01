@@ -17,11 +17,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * 首次权威登记。
+ * 首次权威判定：在资源第一次进入消费时冻结 {@code COMMENT}/{@code FORM} 身份。
  *
- * <p>启用点只在这里参与：创建时间不早于启用点、项目已登记 {@code ACTIVE} 议题表单范围的资源，首次
- * 出现时登记持久 {@code FORM} 权威与变更 head；之后每次消费只读该权威，不再看启用点或当前范围。
- * 已有 `COMMENT` 权威不改写，避免静默切源；已有 `FORM` 权威只补齐缺失 head。
+ * <p>启用点只在这里参与一次：创建时间不早于启用点且项目落在 {@code ACTIVE} 范围内的议题登记
+ * {@code FORM}；其余登记 {@code COMMENT}。此后消费只读持久权威，改变启用点、范围或重启都不会
+ * 翻转既有身份。已有权威与 head 只核验，不重置状态、归属、租约或消费水位；缺 head 时才按真实
+ * 权威修订与当前集合证据初始化。项目同时命中多个同模板范围时保持“待登记”，不擅自选择。
  */
 @Service
 class FormIssueAuthorityRegistrar {
@@ -36,11 +37,11 @@ class FormIssueAuthorityRegistrar {
   }
 
   /**
-   * 为启用点之后且尚无权威的议题补齐首次 {@code FORM} 权威与 head。
+   * 为尚未登记权威的议题冻结首次身份。
    *
    * @param sourceInstance 来源实例
    * @param refs 议题及其创建时间
-   * @param enabledAt 启用点；为空时不做任何登记
+   * @param enabledAt 启用点；为空时视为未启用，只能登记 {@code COMMENT}
    * @param now 登记时刻
    */
   void registerMissing(
@@ -48,124 +49,186 @@ class FormIssueAuthorityRegistrar {
       Map<FormIssueInputResolver.IssueRef, LocalDateTime> refs,
       LocalDateTime enabledAt,
       LocalDateTime now) {
-    if (enabledAt == null || refs == null || refs.isEmpty()) {
+    if (refs == null || refs.isEmpty()) {
       return;
     }
-    List<ScopeRow> scopes = loadActiveScopes(sourceInstance);
+    List<ScopeRow> scopes = loadScopes(sourceInstance);
     if (scopes.isEmpty()) {
       return;
     }
-    Map<Long, Map<Long, Set<Long>>> scopesByProject = new HashMap<>();
-    for (ScopeRow scope : scopes) {
-      for (Long projectId : scope.projectIds()) {
-        scopesByProject
-            .computeIfAbsent(projectId, key -> new LinkedHashMap<>())
-            .computeIfAbsent(scope.scopeId(), key -> new HashSet<>())
-            .add(scope.currentVersionId());
-      }
-    }
+    Map<Long, Map<String, ScopeRow>> uniqueScopes = uniqueScopesByProject(scopes);
     for (Map.Entry<FormIssueInputResolver.IssueRef, LocalDateTime> entry : refs.entrySet()) {
-      LocalDateTime createdAt = entry.getValue();
-      if (createdAt == null || createdAt.isBefore(enabledAt)) {
+      FormIssueInputResolver.IssueRef ref = entry.getKey();
+      Map<String, ScopeRow> byTemplate = uniqueScopes.get(ref.projectId());
+      if (byTemplate == null) {
         continue;
       }
-      Map<Long, Set<Long>> projectScopes =
-          scopesByProject.get(entry.getKey().projectId());
-      if (projectScopes == null) {
-        continue;
-      }
-      for (ScopeRow scope : scopes) {
-        if (!projectScopes.containsKey(scope.scopeId())) {
+      for (ScopeRow scope : byTemplate.values()) {
+        Authority existing = findAuthority(scope, ref);
+        if (existing != null) {
+          ensureExistingFormHead(scope, ref, existing, now);
           continue;
         }
-        register(scope, entry.getKey(), now);
+        boolean form = enabledAt != null
+            && entry.getValue() != null
+            && !entry.getValue().isBefore(enabledAt)
+            && "ACTIVE".equals(scope.status())
+            && scope.currentVersionId() != null;
+        boolean inserted = register(scope, ref, form ? "FORM" : "COMMENT", now);
+        if (!inserted && form) {
+          // 并发登记可能先写入权威；只在身份一致时补齐缺失 head，不覆盖他人结果。
+          ensureExistingFormHead(scope, ref, findAuthority(scope, ref), now);
+        }
       }
     }
   }
 
-  private void register(
-      ScopeRow scope, FormIssueInputResolver.IssueRef ref, LocalDateTime now) {
-    long resourceId = ref.issueIid();
-    List<Long> inserted =
-        jdbcTemplate.query(
+  private boolean register(
+      ScopeRow scope, FormIssueInputResolver.IssueRef ref, String authority, LocalDateTime now) {
+    int inserted =
+        jdbcTemplate.update(
             """
             insert into form_resource_authorities(
                 source_config_id, source_instance, canonical_gitlab_base_url, project_id,
                 resource_type, resource_id, template_key, scope_id, authority,
                 authority_revision, effective_at, created_at, updated_at)
-            values (?, ?, ?, ?, ?, ?, ?, ?, 'FORM', 1, ?, ?, ?)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
             on conflict (source_config_id, project_id, resource_type, resource_id, template_key)
             do nothing
-            returning id
             """,
-            (rs, rowNum) -> rs.getLong("id"),
             scope.sourceConfigId(),
             scope.sourceInstance(),
             scope.canonicalUrl(),
             ref.projectId(),
             RESOURCE_TYPE,
-            resourceId,
+            ref.issueIid(),
             scope.templateKey(),
             scope.scopeId(),
+            authority,
             Timestamp.valueOf(now),
             Timestamp.valueOf(now),
             Timestamp.valueOf(now));
-    if (inserted.isEmpty()) {
-      List<Map<String, Object>> existing =
-          jdbcTemplate.queryForList(
-              """
-              select scope_id, authority from form_resource_authorities
-               where source_config_id = ? and project_id = ? and resource_type = ?
-                 and resource_id = ? and template_key = ?
-              """,
-              scope.sourceConfigId(),
-              ref.projectId(),
-              RESOURCE_TYPE,
-              resourceId,
-              scope.templateKey());
-      if (existing.isEmpty()
-          || !"FORM".equals(existing.getFirst().get("authority"))
-          || ((Number) existing.getFirst().get("scope_id")).longValue() != scope.scopeId()) {
-        return;
-      }
+    if (inserted == 0) {
+      return false;
+    }
+    if ("FORM".equals(authority)) {
+      ensureHead(scope, ref, 1L, now);
+    }
+    return true;
+  }
+
+  /**
+   * 已有 {@code FORM} 权威但缺少 head 时，按真实权威修订与当前集合证据补建；head 已存在则原样保留。
+   */
+  private void ensureExistingFormHead(
+      ScopeRow scope,
+      FormIssueInputResolver.IssueRef ref,
+      Authority existing,
+      LocalDateTime now) {
+    if (existing == null
+        || !"FORM".equals(existing.authority())
+        || existing.scopeId() != scope.scopeId()
+        || existing.revision() == null) {
+      return;
+    }
+    ensureHead(scope, ref, existing.revision(), now);
+  }
+
+  private void ensureHead(
+      ScopeRow scope, FormIssueInputResolver.IssueRef ref, long authorityRevision, LocalDateTime now) {
+    if (scope.currentVersionId() == null
+        || scope.sourceSetRevision() == null
+        || scope.sourceSetHash() == null) {
+      return;
     }
     jdbcTemplate.update(
         """
         insert into form_change_heads(
             source_config_id, source_instance, canonical_gitlab_base_url, project_id, resource_type,
             resource_id, template_key, scope_id, latest_change_version, consumed_change_version,
-            pending_storage_version_id, pending_authority_revision, status, fencing_version,
-            created_at, updated_at)
-        values (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, 1, 'PENDING', 0, ?, ?)
+            pending_storage_version_id, pending_source_set_revision, pending_source_set_hash,
+            pending_authority_revision, status, fencing_version, created_at, updated_at)
+        values (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?, ?, 'PENDING', 0, ?, ?)
         on conflict (source_config_id, project_id, resource_type, resource_id, template_key)
-        do update set scope_id = excluded.scope_id, status = 'PENDING',
-                      updated_at = excluded.updated_at
+        do nothing
         """,
         scope.sourceConfigId(),
         scope.sourceInstance(),
         scope.canonicalUrl(),
         ref.projectId(),
         RESOURCE_TYPE,
-        resourceId,
+        ref.issueIid(),
         scope.templateKey(),
         scope.scopeId(),
         scope.currentVersionId(),
+        scope.sourceSetRevision(),
+        scope.sourceSetHash(),
+        authorityRevision,
         Timestamp.valueOf(now),
         Timestamp.valueOf(now));
   }
 
-  private List<ScopeRow> loadActiveScopes(String sourceInstance) {
+  private Authority findAuthority(ScopeRow scope, FormIssueInputResolver.IssueRef ref) {
+    List<Authority> rows =
+        jdbcTemplate.query(
+            """
+            select authority, authority_revision, scope_id from form_resource_authorities
+             where source_config_id = ? and project_id = ? and resource_type = ?
+               and resource_id = ? and template_key = ?
+            """,
+            (rs, rowNum) ->
+                new Authority(
+                    rs.getString("authority"),
+                    nullableLong(rs, "authority_revision"),
+                    rs.getLong("scope_id")),
+            scope.sourceConfigId(),
+            ref.projectId(),
+            RESOURCE_TYPE,
+            ref.issueIid(),
+            scope.templateKey());
+    return rows.isEmpty() ? null : rows.getFirst();
+  }
+
+  /** 项目 + 模板只能由一个范围决定首次身份；出现多个范围时返回空，交由消费侧待登记。 */
+  private Map<Long, Map<String, ScopeRow>> uniqueScopesByProject(List<ScopeRow> scopes) {
+    Map<Long, Map<String, List<ScopeRow>>> grouped = new HashMap<>();
+    Set<Long> projects = new HashSet<>();
+    for (ScopeRow scope : scopes) {
+      for (Long projectId : scope.projectIds()) {
+        projects.add(projectId);
+        grouped
+            .computeIfAbsent(projectId, key -> new LinkedHashMap<>())
+            .computeIfAbsent(scope.templateKey(), key -> new ArrayList<>())
+            .add(scope);
+      }
+    }
+    Map<Long, Map<String, ScopeRow>> unique = new HashMap<>();
+    for (Long projectId : projects) {
+      Map<String, ScopeRow> byTemplate = new LinkedHashMap<>();
+      for (Map.Entry<String, List<ScopeRow>> entry : grouped.get(projectId).entrySet()) {
+        if (entry.getValue().size() == 1) {
+          byTemplate.put(entry.getKey(), entry.getValue().getFirst());
+        }
+      }
+      if (!byTemplate.isEmpty()) {
+        unique.put(projectId, byTemplate);
+      }
+    }
+    return unique;
+  }
+
+  private List<ScopeRow> loadScopes(String sourceInstance) {
     return jdbcTemplate.query(
         """
         select id, template_key, source_config_id, source_instance,
-               canonical_gitlab_base_url, project_ids::text as project_ids, current_version_id
+               canonical_gitlab_base_url, project_ids::text as project_ids, status,
+               current_version_id, source_set_revision, source_set_hash
           from form_template_scopes
          where template_key in (?, ?)
            and source_instance = ?
            and resource_type = ?
-           and status = 'ACTIVE'
-           and current_version_id is not null
-         order by id
+           and status in ('ACTIVE', 'RETIRED')
+         order by case status when 'ACTIVE' then 0 else 1 end, id
         """,
         (rs, rowNum) ->
             new ScopeRow(
@@ -175,11 +238,20 @@ class FormIssueAuthorityRegistrar {
                 rs.getString("source_instance"),
                 rs.getString("canonical_gitlab_base_url"),
                 parseProjectIds(rs.getString("project_ids")),
-                rs.getLong("current_version_id")),
+                rs.getString("status"),
+                nullableLong(rs, "current_version_id"),
+                nullableLong(rs, "source_set_revision"),
+                rs.getString("source_set_hash")),
         FormTemplateSpecCatalog.ISSUE_RESPONSE,
         FormTemplateSpecCatalog.ISSUE_REPLY,
         sourceInstance,
         RESOURCE_TYPE);
+  }
+
+  private static Long nullableLong(java.sql.ResultSet rs, String column)
+      throws java.sql.SQLException {
+    long value = rs.getLong(column);
+    return rs.wasNull() ? null : value;
   }
 
   private Set<Long> parseProjectIds(String raw) {
@@ -202,6 +274,8 @@ class FormIssueAuthorityRegistrar {
     return ids;
   }
 
+  private record Authority(String authority, Long revision, long scopeId) {}
+
   private record ScopeRow(
       long scopeId,
       String templateKey,
@@ -209,5 +283,8 @@ class FormIssueAuthorityRegistrar {
       String sourceInstance,
       String canonicalUrl,
       Set<Long> projectIds,
-      long currentVersionId) {}
+      String status,
+      Long currentVersionId,
+      Long sourceSetRevision,
+      String sourceSetHash) {}
 }

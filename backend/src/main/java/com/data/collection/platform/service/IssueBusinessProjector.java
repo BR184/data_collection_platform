@@ -59,7 +59,7 @@ final class IssueBusinessProjector {
     boolean responsePlanExempt =
         input.responseAdopted()
             ? input.response().planExempt()
-            : IssueSlaRules.isResponseExempt(fact.getRawPayload());
+            : IssueSlaRules.isResponsePlanExempt(fact.getRawPayload());
     boolean hasReply =
         input.replyAdopted()
             ? input.reply().present()

@@ -41,6 +41,7 @@ import org.springframework.util.StringUtils;
 public class FactBuildService {
   private static final String DEFAULT_SOURCE_SYSTEM = "GITLAB";
   private static final String DEFAULT_SOURCE_INSTANCE = "default";
+  private static final String FORM_CONSUMER = "form-issue-periodic";
   private static final int FACT_BATCH_SIZE = 200;
 
   private final JdbcTemplate jdbcTemplate;
@@ -198,6 +199,7 @@ public class FactBuildService {
     applyFormIssueInputs(normalizedSource, facts);
     issueFactPersistenceService.replaceRootFacts(target, safeRootIds, facts);
     searchIndexRepairService.refreshIssueFactSearchIndexesInBatches(target, facts);
+    bindFormCaptures(target, normalizedSource, facts);
     return new FactBuildResponse(
         factScope("issue", normalizedSource),
         false,
@@ -227,6 +229,7 @@ public class FactBuildService {
           return null;
         });
       }
+      bindFormCaptures(target, sourceInstance, facts);
       return new FactBuildResponse(
           factScope("issue", sourceInstance),
           full,
@@ -283,16 +286,10 @@ public class FactBuildService {
   @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
   public FactBuildResponse refreshCustomerIssueDelayFactsForConfig(GitlabSyncConfig config) {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
-    RefreshOutcome outcome = new RefreshOutcome();
-    FactBuildResponse response =
-        factTargetPublicationService.publishWithinCandidate(
-            gitlabBypassRequest(sourceInstance, FactType.ISSUE),
-            target -> refreshCustomerIssueDelayFactsWithinCandidate(target, sourceInstance, outcome));
-    // 只在候选发布成功后结算本次消费；任何失败都不推进 consumed，下一轮会重建。
-    if (!outcome.settlements.isEmpty()) {
-      formHeadCaptureService.settleConsumed(outcome.settlements, currentGitlabSourceTime());
-    }
-    return response;
+    // 捕获在候选内绑定，consumed 由最终公开事务复核后推进；此处只准备候选。
+    return factTargetPublicationService.publishWithinCandidate(
+        gitlabBypassRequest(sourceInstance, FactType.ISSUE),
+        target -> refreshCustomerIssueDelayFactsWithinCandidate(target, sourceInstance));
   }
 
   /**
@@ -300,7 +297,7 @@ public class FactBuildService {
    * 输入快照重算时间判定。COMMENT 保持原三列窄写。
    */
   private FactBuildResponse refreshCustomerIssueDelayFactsWithinCandidate(
-      FactRevisionTarget target, String sourceInstance, RefreshOutcome outcome) {
+      FactRevisionTarget target, String sourceInstance) {
     List<IssueFact> facts = loadOpenCustomerIssueFacts(sourceInstance);
     FormIssueInputResolver.Resolution resolution = resolveFormIssueInputs(sourceInstance, facts);
     Map<FormIssueInputResolver.IssueRef, IssueBusinessInput> formInputs = resolution.inputs();
@@ -309,6 +306,8 @@ public class FactBuildService {
         heads = loadAdoptedHeads(sourceInstance, formInputs);
     List<IssueFact> changedFacts = new ArrayList<>();
     java.util.Set<Long> rebuildRoots = new java.util.LinkedHashSet<>();
+    List<com.data.collection.platform.service.form.FormHeadCaptureService.Capture> captures =
+        new ArrayList<>();
     LocalDateTime now = currentGitlabSourceTime();
     for (IssueFact fact : facts) {
       FormIssueInputResolver.IssueRef ref = issueRefOf(fact);
@@ -325,18 +324,33 @@ public class FactBuildService {
                         !consumed(
                             heads.get(key)));
         if (unconsumed) {
-          // 未消费：先用当前输入投影一份完整事实并比较；有差异才走消费端完整发布，绝不窄写混合。
-          IssueFact projected = copyFact(fact);
-          IssueBusinessProjector.apply(projected, formInput, labelsOf(fact), now);
-          if (businessChanged(fact, projected)) {
-            rebuildRoots.add(fact.getIssueId());
-          }
+          // 未消费：按统一捕获协议逐个领取并冻结；任一已被他人持有时整题让位，绝不窄写混合。
+          List<com.data.collection.platform.service.form.FormHeadCaptureService.Capture> claimed =
+              new ArrayList<>();
+          boolean claimedAll = true;
           for (var key : keys) {
             var head = requireHead(heads, key);
-            outcome.settlements.add(
-                new com.data.collection.platform.service.form.FormHeadCaptureService.Settlement(
-                    key, head.id(), head.latestChangeVersion()));
+            if (consumed(head)) {
+              continue;
+            }
+            var leased = formHeadCaptureService.claimHead(head.id(), FORM_CONSUMER, now);
+            if (leased.isEmpty()) {
+              claimedAll = false;
+              break;
+            }
+            claimed.add(
+                formHeadCaptureService.capture(
+                    leased.get().scopeId(),
+                    leased.get().id(),
+                    FORM_CONSUMER,
+                    leased.get().fencingVersion(),
+                    now));
           }
+          if (!claimedAll) {
+            continue;
+          }
+          rebuildRoots.add(fact.getIssueId());
+          captures.addAll(claimed);
           continue;
         }
         // 已消费：输入与已发布事实同一快照，只重算时间判定并窄写三列。
@@ -373,10 +387,65 @@ public class FactBuildService {
       // 消费端完整发布：业务列、原因/合规与三列判定来自同一份当前类型化输入。
       rebuildIssueFactsByRootIds(target, List.copyOf(rebuildRoots));
     }
+    if (!captures.isEmpty()) {
+      // 捕获绑定到实际候选；最终公开事务复核 head/集合/权威/租约后与指针一起推进 consumed。
+      formHeadCaptureService.bindToPublication(target.publicationId(), captures);
+    }
     List<IssueFact> updatedFacts = upsertCustomerIssueDelayFacts(target, changedFacts);
     return new FactBuildResponse(factScope("customer-issue-delay", sourceInstance), false,
         updatedFacts.size() + rebuildRoots.size(),
         "客户问题延期候选已构建，等待投影与统一发布");
+  }
+
+  /** 首次/定向构建同样绑定捕获：已消费或已绑定的 head 只跳过，不重复领取。 */
+  private void bindFormCaptures(
+      FactRevisionTarget target, String sourceInstance, List<IssueFact> facts) {
+    if (target == null) {
+      return;
+    }
+    Map<FormIssueInputResolver.IssueRef, IssueFact> candidates = factsWithIssueRefs(facts);
+    if (candidates.isEmpty()) {
+      return;
+    }
+    registerFormAuthorities(sourceInstance, candidates);
+    FormIssueInputResolver.Resolution resolution =
+        formIssueInputResolver.resolveAll(sourceInstance, candidates.keySet());
+    if (resolution.inputs().isEmpty()) {
+      return;
+    }
+    List<com.data.collection.platform.service.form.FormHeadCaptureService.HeadKey> keys =
+        new ArrayList<>();
+    for (Map.Entry<FormIssueInputResolver.IssueRef, IssueBusinessInput> entry :
+        resolution.inputs().entrySet()) {
+      keys.addAll(adoptedHeadKeys(entry.getKey(), entry.getValue()));
+    }
+    Map<com.data.collection.platform.service.form.FormHeadCaptureService.HeadKey,
+            com.data.collection.platform.service.form.FormHeadCaptureService.HeadRow>
+        heads = formHeadCaptureService.loadHeads(sourceInstance, keys);
+    LocalDateTime now = currentGitlabSourceTime();
+    List<com.data.collection.platform.service.form.FormHeadCaptureService.Capture> captures =
+        new ArrayList<>();
+    for (var entry : heads.entrySet()) {
+      var head = entry.getValue();
+      if (consumed(head)
+          || formHeadCaptureService.isBound(target.publicationId(), head.id())) {
+        continue;
+      }
+      var leased = formHeadCaptureService.claimHead(head.id(), FORM_CONSUMER, now);
+      if (leased.isEmpty()) {
+        continue;
+      }
+      captures.add(
+          formHeadCaptureService.capture(
+              leased.get().scopeId(),
+              leased.get().id(),
+              FORM_CONSUMER,
+              leased.get().fencingVersion(),
+              now));
+    }
+    if (!captures.isEmpty()) {
+      formHeadCaptureService.bindToPublication(target.publicationId(), captures);
+    }
   }
 
   private Map<com.data.collection.platform.service.form.FormHeadCaptureService.HeadKey,
@@ -440,44 +509,6 @@ public class FactBuildService {
     return head != null
         && "CONSUMED".equals(head.status())
         && head.consumedChangeVersion() >= head.latestChangeVersion();
-  }
-
-  private IssueFact copyFact(IssueFact fact) {
-    IssueFact copy = new IssueFact();
-    org.springframework.beans.BeanUtils.copyProperties(fact, copy);
-    return copy;
-  }
-
-  /** 只比较表单投影会改写的业务列与三列判定；任一差异都要求完整发布。 */
-  private boolean businessChanged(IssueFact before, IssueFact after) {
-    java.util.List<String> changed = new ArrayList<>();
-    compare(changed, "hasResponse", before.getHasResponse(), after.getHasResponse());
-    compare(changed, "researchTemplateTime", before.getResearchTemplateTime(), after.getResearchTemplateTime());
-    compare(changed, "plannedResolutionAt", before.getPlannedResolutionAt(), after.getPlannedResolutionAt());
-    compare(changed, "plannedResolutionText", before.getPlannedResolutionText(), after.getPlannedResolutionText());
-    compare(changed, "plannedMergeVersionBranch", before.getPlannedMergeVersionBranch(), after.getPlannedMergeVersionBranch());
-    compare(changed, "fixUser", before.getFixUser(), after.getFixUser());
-    compare(changed, "reasonCategory", before.getReasonCategory(), after.getReasonCategory());
-    compare(changed, "illegal", before.getIllegal(), after.getIllegal());
-    compare(changed, "illegalReason", before.getIllegalReason(), after.getIllegalReason());
-    compare(changed, "illegalReasons", before.getIllegalReasons(), after.getIllegalReasons());
-    compare(changed, "resolveDeadlineAt", before.getResolveDeadlineAt(), after.getResolveDeadlineAt());
-    compare(changed, "resolveSlaDays", before.getResolveSlaDays(), after.getResolveSlaDays());
-    compare(changed, "responseDelayed", before.getResponseDelayed(), after.getResponseDelayed());
-    compare(changed, "responseOverdue", before.getResponseOverdue(), after.getResponseOverdue());
-    compare(changed, "resolveDelayed", before.getResolveDelayed(), after.getResolveDelayed());
-    return !changed.isEmpty();
-  }
-
-  private void compare(java.util.List<String> changed, String name, Object before, Object after) {
-    if (!java.util.Objects.equals(before, after)) {
-      changed.add(name + "=" + before + "->" + after);
-    }
-  }
-
-  private static final class RefreshOutcome {
-    private final List<com.data.collection.platform.service.form.FormHeadCaptureService.Settlement>
-        settlements = new ArrayList<>();
   }
 
   /**

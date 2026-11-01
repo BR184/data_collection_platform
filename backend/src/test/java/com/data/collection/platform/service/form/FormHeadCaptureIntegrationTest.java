@@ -32,6 +32,8 @@ class FormHeadCaptureIntegrationTest {
   private FormHeadCaptureService captureService;
   private long scopeId;
   private long headId;
+  private long configId;
+  private long versionId;
 
   @BeforeAll
   static void migrate() {
@@ -41,13 +43,16 @@ class FormHeadCaptureIntegrationTest {
 
   @BeforeEach
   void setUp() {
+    jdbc.update("delete from form_publication_captures");
     jdbc.update("delete from form_head_captures");
+    jdbc.update("delete from form_directory_events");
+    jdbc.update("delete from form_directory_event_cursors");
     jdbc.update("delete from form_change_heads");
     jdbc.update("delete from form_resource_authorities");
     jdbc.update("update form_template_scopes set status = 'DRAFT', current_version_id = null");
     jdbc.update("delete from form_template_versions");
     jdbc.update("delete from form_template_scopes");
-    long configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
+    configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
     scopeId =
         FormV6TestSupport.insertScope(
             jdbc, "code_review", "capture-scope", configId, URL, PROJECT_ID, "DRAFT");
@@ -60,7 +65,8 @@ class FormHeadCaptureIntegrationTest {
             FormV6TestSupport.SPEC_V1,
             "PUBLISHED",
             true);
-    FormV6TestSupport.activateScope(jdbc, scopeId, tables.versionId());
+    versionId = tables.versionId();
+    FormV6TestSupport.activateScope(jdbc, scopeId, versionId);
     jdbc.update(
         "update form_template_scopes set source_set_revision = 1,"
             + " source_set_hash = form_source_set_hash(id) where id = ?",
@@ -159,6 +165,45 @@ class FormHeadCaptureIntegrationTest {
         .isInstanceOf(FormConflictException.class);
     assertThat(published).hasValue(0);
     assertThat(head("consumed_change_version")).isEqualTo(0L);
+  }
+
+  @Test
+  void directoryEventCursorWakesOnlyResourcesInPublishedVersion() {
+    jdbc.update(
+        "update form_change_heads set latest_change_version = 1, consumed_change_version = 1,"
+            + " status = 'CONSUMED' where id = ?",
+        headId);
+    jdbc.update(
+        """
+        insert into form_record_locations(
+            record_id, scope_id, storage_version_id, origin_version_id, instance_mode,
+            instance_id, source_config_id, source_instance, gitlab_base_url, project_id,
+            resource_type, resource_id, origin_spec_hash, created_at)
+        values (910001, ?, ?, ?, 'MATERIALIZED', 1, ?, 'default', ?, ?, 'merge_request',
+                '9001', ?, now())
+        """,
+        scopeId, versionId, versionId, configId, URL, PROJECT_ID, "a".repeat(64));
+    Long eventId = jdbc.queryForObject(
+        "insert into form_directory_events(scope_id, event_type, source_set_revision, payload)"
+            + " values (?, 'VERSION_ADDED', 1, ?::jsonb) returning id",
+        Long.class, scopeId, "{\"versionId\":" + versionId + "}");
+    FormDirectoryEventCursorService cursor =
+        new FormDirectoryEventCursorService(jdbc, services.objectMapper());
+
+    assertThat(cursor.consumePending(10)).isEqualTo(1);
+
+    assertThat(((Number) head("latest_change_version")).longValue()).isEqualTo(2);
+    assertThat(head("status")).isEqualTo("PENDING");
+    assertThat(((Number) head("consumed_change_version")).longValue()).isEqualTo(1);
+    assertThat(jdbc.queryForObject(
+        "select last_consumed_event_id from form_directory_event_cursors where scope_id = ?",
+        Long.class, scopeId)).isEqualTo(eventId);
+    assertThat(jdbc.queryForObject(
+        "select status from form_directory_events where id = ?", String.class, eventId))
+        .isEqualTo("CONSUMED");
+
+    assertThat(cursor.consumePending(10)).as("重复执行不得重复唤醒").isZero();
+    assertThat(((Number) head("latest_change_version")).longValue()).isEqualTo(2);
   }
 
   private Object head(String column) {

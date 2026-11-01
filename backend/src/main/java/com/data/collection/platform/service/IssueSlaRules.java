@@ -42,6 +42,19 @@ final class IssueSlaRules {
         || IssueResponseTemplateParser.hasParseablePlanSolutionTime(notesText);
   }
 
+  /**
+   * 响应侧单独豁免：只认响应模板的合法计划时间。
+   *
+   * <p>分模板判定时回复存在性由回复侧权威单独提供，不能从评论备注里的回复模板推导，
+   * 否则“响应 COMMENT、回复 FORM 且为空”会被旧评论回复错误豁免。
+   *
+   * @param notesText GitLab issue 备注聚合文本
+   * @return 响应模板给出合法计划时间时返回 {@code true}
+   */
+  static boolean isResponsePlanExempt(String notesText) {
+    return IssueResponseTemplateParser.hasParseablePlanSolutionTime(notesText);
+  }
+
   static boolean isResponseDelayed(List<String> labels, String notesText) {
     return !isResponseExempt(notesText)
         && IssueRuleSupport.containsAnyLabel(labels, RESPONSE_DELAY_LABELS);

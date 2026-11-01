@@ -323,7 +323,7 @@ public class FormRecordWriteService {
       LocalDateTime now) {
     long auditId =
         store.writeAudit(operation, context, row, actor.userId(), actorName, clientIp, userAgent, now);
-    long authorityRevision = authorityService.ensureForWrite(context, operation, now);
+    long authorityRevision = authorityService.ensureForWrite(context, operation);
     store.bumpHead(context, auditId, row, authorityRevision, now);
   }
 

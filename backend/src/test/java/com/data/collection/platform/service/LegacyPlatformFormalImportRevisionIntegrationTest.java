@@ -101,7 +101,8 @@ class LegacyPlatformFormalImportRevisionIntegrationTest {
                 readPublicationRepository,
                 new com.data.collection.platform.service.CustomerIssueMilestoneCatalogReconciliationService(jdbcTemplate),
                 com.data.collection.platform.service.FactRevisionFixture.projectionArtifacts(
-                    jdbcTemplate, readPublicationService, readPublicationRepository)));
+                    jdbcTemplate, readPublicationService, readPublicationRepository),
+                mock(com.data.collection.platform.service.form.FormHeadCaptureService.class)));
     CodeReviewMatchModeConfigService configService = mock(CodeReviewMatchModeConfigService.class);
     service =
         new LegacyPlatformFormalImportService(

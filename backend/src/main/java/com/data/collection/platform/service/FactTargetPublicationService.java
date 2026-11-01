@@ -58,6 +58,7 @@ public class FactTargetPublicationService {
   private final ReadPublicationRepository readPublicationRepository;
   private final CustomerIssueMilestoneCatalogReconciliationService catalogReconciliationService;
   private final com.data.collection.platform.service.read.CandidateProjectionArtifactService projectionArtifacts;
+  private final com.data.collection.platform.service.form.FormHeadCaptureService formHeadCaptureService;
 
   public FactTargetPublicationService(
       JdbcTemplate jdbcTemplate,
@@ -74,7 +75,8 @@ public class FactTargetPublicationService {
       ReadPublicationService readPublicationService,
       ReadPublicationRepository readPublicationRepository,
       CustomerIssueMilestoneCatalogReconciliationService catalogReconciliationService,
-      com.data.collection.platform.service.read.CandidateProjectionArtifactService projectionArtifacts) {
+      com.data.collection.platform.service.read.CandidateProjectionArtifactService projectionArtifacts,
+      com.data.collection.platform.service.form.FormHeadCaptureService formHeadCaptureService) {
     this.jdbcTemplate = jdbcTemplate;
     this.scopeResolver = scopeResolver;
     this.generationService = generationService;
@@ -89,6 +91,7 @@ public class FactTargetPublicationService {
     this.readPublicationRepository = readPublicationRepository;
     this.catalogReconciliationService = catalogReconciliationService;
     this.projectionArtifacts = projectionArtifacts;
+    this.formHeadCaptureService = formHeadCaptureService;
   }
 
   /** 定向（增量）事实构建动作：在候选修订身份内替换给定根的投影。 */
@@ -431,6 +434,8 @@ public class FactTargetPublicationService {
       readPublicationService.markReadyToPublish(publicationId, candidate.producerLeaseOwner());
     }
     ReadPublication published = readPublicationService.publish(publicationId, candidate.producerLeaseOwner());
+    // 表单捕获与公开指针同一事务结算：复核 head/集合/权威/租约，任一漂移回滚本次公开。
+    formHeadCaptureService.settleForPublication(publicationId);
     jdbcTemplate.update("update statistic_board_snapshots set status = 'READY' where publication_id = ? and status = 'PREPARED'",
         publicationId);
     jdbcTemplate.update("update page_record_snapshots set status = 'READY' where publication_id = ? and status = 'PREPARED'",

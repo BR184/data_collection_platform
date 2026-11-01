@@ -244,6 +244,8 @@ class FormV6RegistrationIntegrationTest {
                 PlatformPermissionCodes.FORM_RECORD_DELETE_OWN));
 
     // 登记了 NONE 原位历史后，当前原生版本仍可正常新增：同人扫描不得把只读旧版送入写上下文。
+    FormV6TestSupport.insertFormAuthority(
+        jdbc, scopeId, FormTemplateSpecCatalog.CODE_REVIEW, "merge_request", 51, 951001);
     FormCreateResponse created =
         services.recordService().create(
             codeReviewCreateRequest(scopeId, v1.versionId(), "n2-reviewer-a", false),
@@ -473,6 +475,8 @@ class FormV6RegistrationIntegrationTest {
     FormV6TestSupport.activateScope(jdbc, scopeId, v1Id);
     FormVersionContext context = FormV6TestSupport.contextFor(
         jdbc, services.objectMapper(), services.contextService(), scopeId, v1Id, 15, 501);
+    FormV6TestSupport.insertFormAuthority(
+        jdbc, scopeId, FormTemplateSpecCatalog.CODE_REVIEW, "merge_request", 15, 501);
 
     // 六步创建：目录行同事务写入。
     Map<String, JsonNode> fields = Map.of(

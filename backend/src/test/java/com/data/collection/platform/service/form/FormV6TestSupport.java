@@ -250,6 +250,29 @@ final class FormV6TestSupport {
         projectId, status);
   }
 
+  /** 写入只核验持久权威；用例显式登记 FORM，不依赖填写动作自行切源。 */
+  static void insertFormAuthority(
+      JdbcTemplate jdbc,
+      long scopeId,
+      String templateKey,
+      String resourceType,
+      long projectId,
+      long resourceId) {
+    jdbc.update(
+        """
+        insert into form_resource_authorities(
+            source_config_id, source_instance, canonical_gitlab_base_url, project_id,
+            resource_type, resource_id, template_key, scope_id, authority, authority_revision,
+            effective_at, created_at, updated_at)
+        select s.source_config_id, s.source_instance, s.canonical_gitlab_base_url, ?, ?, ?, ?,
+               s.id, 'FORM', 1, now(), now(), now()
+          from form_template_scopes s where s.id = ?
+        on conflict (source_config_id, project_id, resource_type, resource_id, template_key)
+        do nothing
+        """,
+        projectId, resourceType, resourceId, templateKey, scopeId);
+  }
+
   /** 建范围：项目集合与版本项目可不同，绑定哈希始终按真实绑定推导。 */
   static long insertScope(
       JdbcTemplate jdbc,
