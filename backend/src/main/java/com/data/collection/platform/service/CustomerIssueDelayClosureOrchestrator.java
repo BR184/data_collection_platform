@@ -81,8 +81,21 @@ public class CustomerIssueDelayClosureOrchestrator {
     advanceAll();
   }
 
-  /** 短周期恢复检查：不登记新请求，只从持久进度继续被中断的等待或分页。 */
+  /**
+   * 短周期恢复检查：补登记已结算来源的过期授权请求，再从持久进度继续被中断的等待或分页。
+   */
   public void checkProgressForAllSources() {
+    for (GitlabSyncConfig config : enabledConfigs()) {
+      try {
+        requestRecoveryIfAuthorizationExpired(config);
+      } catch (RuntimeException error) {
+        log.warn(
+            "Failed to request customer issue delay closure recovery, configId={}, sourceInstance={}",
+            config.getId(),
+            GitlabSourceInstanceSupport.sourceInstanceOf(config),
+            error);
+      }
+    }
     advanceAll();
   }
 
@@ -106,8 +119,26 @@ public class CustomerIssueDelayClosureOrchestrator {
       return;
     }
     String sourceInstance = progress.get().sourceInstance();
+    requestRecoveryIfAuthorizationExpired(configFor(progress.get()));
     progressRepository.wake(sourceInstance);
     submitAdvance(sourceInstance);
+  }
+
+  /**
+   * 已结算来源在授权版本过期且仍有在途作业时重新登记请求。
+   *
+   * <p>是否满足条件由仓库同一条条件 UPDATE 判断；这里只负责解析当前配置与来源版本。
+   */
+  private void requestRecoveryIfAuthorizationExpired(GitlabSyncConfig config) {
+    if (config == null
+        || config.getId() == null
+        || !configService.isSourceEnabled(config)
+        || !delayLabelWritebackService.isEnabled(config)) {
+      return;
+    }
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    progressRepository.requestRecoveryIfIdleWithExpiredAuthorization(
+        sourceInstance, config.getId(), readinessService.currentFactVersion(sourceInstance));
   }
 
   private void advanceAll() {

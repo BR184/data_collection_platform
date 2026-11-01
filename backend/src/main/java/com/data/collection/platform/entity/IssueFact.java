@@ -120,6 +120,14 @@ public class IssueFact {
   @TableField("label_names")
   private String labelNames;
 
+  /**
+   * 读取本行时 ODS 议题行的最近写入时刻（平台时钟，即标签快照的观测时间）。
+   *
+   * <p>只用于延期标签写回判断本轮快照是否早于同一议题的上一次成功写入；不持久化到 {@code issue_fact}。
+   */
+  @TableField(exist = false)
+  private LocalDateTime labelSnapshotAt;
+
   @TableField("is_excluded")
   private Boolean excluded;
 

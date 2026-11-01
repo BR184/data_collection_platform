@@ -37,6 +37,7 @@ public class CustomerIssueDelayClosureProgressRepository {
    *
    * <p>已有在飞阶段时只累加请求修订（重复触发合并），不取消正在运行的前置刷新；处于
    * {@code IDLE} 时才重新进入 {@code REQUESTED}。配置身份变化会撤销旧轮次绑定。
+   * 存在失败退避时不提前 {@code next_check_at}。
    *
    * @param config 当前数据源配置
    * @param reason 请求原因，仅用于日志
@@ -81,7 +82,13 @@ public class CustomerIssueDelayClosureProgressRepository {
                 else customer_issue_delay_closure_requests.enqueue_cursor_issue_id
               end,
               request_revision = customer_issue_delay_closure_requests.request_revision + 1,
-              next_check_at = current_timestamp,
+              next_check_at = case
+                when customer_issue_delay_closure_requests.failure_count > 0
+                  then greatest(
+                    coalesce(customer_issue_delay_closure_requests.next_check_at, current_timestamp),
+                    current_timestamp)
+                else current_timestamp
+              end,
               updated_at = current_timestamp
         """,
         sourceInstance,
@@ -532,16 +539,76 @@ public class CustomerIssueDelayClosureProgressRepository {
             + " returning *");
   }
 
-  /** 运行终态只唤醒检查；是否推进由权威进度与运行状态决定。 */
+  /**
+   * 运行终态只唤醒检查；是否推进由权威进度与运行状态决定。
+   *
+   * <p>存在失败退避时不提前 {@code next_check_at}，避免事件风暴把尚未到期的重试立即唤醒。
+   */
   public void wake(String sourceInstance) {
     jdbcTemplate.update(
         """
         update customer_issue_delay_closure_requests
-           set next_check_at = current_timestamp,
+           set next_check_at = case
+                 when failure_count > 0
+                   then greatest(coalesce(next_check_at, current_timestamp), current_timestamp)
+                 else current_timestamp
+               end,
                updated_at = current_timestamp
          where source_instance = ?
         """,
         GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance));
+  }
+
+  /**
+   * 已结算来源在授权过期后重新登记请求。
+   *
+   * <p>只有 {@code IDLE}、没有有效领取、当前 ISSUE 版本高于已授权版本且仍有在途作业时才推进；
+   * 条件判断与更新在同一条语句内完成，重复事件或两个发现者只有一个能改写，后续调用更新零行。
+   * 存在失败退避时不提前截止时间。
+   *
+   * @param sourceInstance 来源实例
+   * @param configId 当前数据源配置编号
+   * @param currentIssueVersion 当前来源 ISSUE 事实版本
+   * @return 是否登记了新的恢复请求
+   */
+  public boolean requestRecoveryIfIdleWithExpiredAuthorization(
+      String sourceInstance, long configId, long currentIssueVersion) {
+    int updated =
+        jdbcTemplate.update(
+            """
+            update customer_issue_delay_closure_requests
+               set stage = 'REQUESTED',
+                   request_revision = request_revision + 1,
+                   next_check_at = case
+                     when failure_count > 0
+                       then greatest(coalesce(next_check_at, current_timestamp), current_timestamp)
+                     else current_timestamp
+                   end,
+                   updated_at = current_timestamp
+             where source_instance = ?
+               and config_id = ?
+               and stage = 'IDLE'
+               and authorized_fact_version is not null
+               and authorized_fact_version < ?
+               and (lease_until is null or lease_until < clock_timestamp())
+               and exists (
+                 select 1
+                   from customer_issue_delay_label_writeback_jobs job
+                  where job.source_instance =
+                          customer_issue_delay_closure_requests.source_instance
+                    and job.status in ('PENDING', 'RETRY_WAIT', 'RUNNING'))
+            """,
+            GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance),
+            configId,
+            currentIssueVersion);
+    if (updated > 0) {
+      log.info(
+          "Recovery requested for settled customer issue delay closure, sourceInstance={}, configId={}, issueVersion={}",
+          sourceInstance,
+          configId,
+          currentIssueVersion);
+    }
+    return updated > 0;
   }
 
   /** 释放本次领取；过期租约或已被接管时返回 {@code false}。 */
