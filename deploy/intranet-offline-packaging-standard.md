@@ -140,6 +140,17 @@ qa-flex-platform-frontend:<release-id>
 
 升级前独立备份会保存当前完整 Compose 和现场 `.env` 作为证据；升级只校验包内完整 Compose 后原子替换现场同名文件，绝不修改 `.env`。回滚只原子恢复备份的完整 Compose；不保留 override、release Compose 或双轨兼容路径。
 
+### 验收套件基线（四服务）的保数据更新
+
+`dcp-delay-acceptance-*` 验收套件不是标准三服务正式包：它的 Compose 同时包含 `postgres`、`backend`、`frontend`、`gitlab` 四个服务和 `platform_db`、`platform_logs`、`gitlab_config`、`gitlab_logs`、`gitlab_data` 五个卷，后端镜像通过现场 `.env` 的 `BACKEND_IMAGE` 变量引用。为其制作保数据更新包时：
+
+- 基线镜像必须从完整 Compose 结合现场 `.env` 解析变量引用，禁止只用正则匹配写死的 `image: repo:tag`；
+- 包内 Compose 保留基线全部服务、网络、卷、挂载、端口和变量约定，只替换 `backend`/`frontend` 镜像，并补充 `PLATFORM_RUN_MODE` 与 `PLATFORM_BACKGROUND_JOBS_ENABLED` 运行开关；不得把套件改写成默认三服务、默认卷名或默认 LDAP；
+- `backup.sh`、`upgrade.sh`、`rollback.sh` 从生效 Compose 的服务挂载解析平台库与后端日志卷身份，不得只认 `qaflex_pgdata`/`qaflex_backend_logs` 或要求 `.env` 声明 `POSTGRES_VOLUME_NAME`；
+- 升级和回滚只重建 `backend`/`frontend`；GitLab 与平台 PostgreSQL 容器、全部数据卷、账号、样本和现场 `.env` 保持不变，不重新执行 init-env 或导入样本；
+- 旧套件的 GitLab/工具镜像继续保留在实例中，不进入新包镜像 tar；新包只携带平台前后端镜像；
+- 现场当前有效 Compose 与镜像由内网升级前预检确认，本地包名不能替代现场身份检查。
+
 ## 后续更新包标准工作流
 
 本节是发布执行者和 AI 每次制作保数据更新包时的固定入口。具体 release ID、commit、镜像摘要和事实重建范围属于当次 `RELEASE-MANIFEST.json`，不得写死在本节。任一阶段失败即停止，不得跳过失败步骤继续形成交付包。

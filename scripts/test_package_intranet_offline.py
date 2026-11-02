@@ -396,6 +396,165 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             self.assertEqual("qaflex-update-20260721T120000Z-aabbccddeeff", context.package_name)
             self.assertEqual(f"{context.package_name}.tar.gz", context.archive_path.name)
 
+    ACCEPTANCE_COMPOSE = (
+        "name: ${COMPOSE_PROJECT_NAME:?}\n"
+        "services:\n"
+        "  postgres:\n"
+        "    image: postgres:16-alpine\n"
+        "    volumes:\n"
+        "      - platform_db:/var/lib/postgresql/data\n"
+        "  backend:\n"
+        "    image: ${BACKEND_IMAGE:?}\n"
+        "    environment:\n"
+        "      PLATFORM_BACKGROUND_JOBS_ENABLED: ${BACKGROUND_JOBS_ENABLED:-false}\n"
+        "    volumes:\n"
+        "      - platform_logs:/app/logs\n"
+        "  frontend:\n"
+        "    image: qa-flex-platform-frontend:20261021T011723Z-d52affe66b4f\n"
+        "  gitlab:\n"
+        "    image: gitlab/gitlab-ce:16.11.10-ce.0\n"
+        "    volumes:\n"
+        "      - gitlab_config:/etc/gitlab\n"
+        "      - gitlab_logs:/var/log/gitlab\n"
+        "      - gitlab_data:/var/opt/gitlab\n"
+        "volumes:\n"
+        "  platform_db:\n"
+        "  platform_logs:\n"
+        "  gitlab_config:\n"
+        "  gitlab_logs:\n"
+        "  gitlab_data:\n"
+    )
+
+    def _resolve_args(self, deploy_root: Path, baseline: Path) -> argparse.Namespace:
+        return argparse.Namespace(
+            mode="incremental-update",
+            working=False,
+            deploy_root=deploy_root,
+            baseline_dir=baseline,
+            template_package_dir=None,
+            require_fact_rebuild=True,
+            fact_rebuild_scope="issue",
+            require_ods_correction=False,
+            frontend_port=18181,
+            backend_port=18080,
+            postgres_port=15432,
+            ldap_base_url="http://172.22.10.116:80",
+            include_offline_docker_debs=False,
+        )
+
+    def _resolve_acceptance_context(self, root: Path):
+        baseline = root / "baseline"
+        baseline.mkdir()
+        (baseline / "docker-compose.yml").write_text(self.ACCEPTANCE_COMPOSE, encoding="utf-8", newline="\n")
+        (baseline / ".env").write_text(
+            "COMPOSE_PROJECT_NAME=kit-test\n"
+            "BACKEND_IMAGE=qa-flex-platform-backend:20261026-d52-delay-candidate\n"
+            "BACKGROUND_JOBS_ENABLED=false\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        with mock.patch.object(
+            MODULE, "new_release_id", return_value="20261102T120000Z-aabbccddeeff"
+        ), mock.patch.object(MODULE, "git_value", side_effect=lambda *parts: {
+                ("rev-parse", "--abbrev-ref", "HEAD"): "main",
+                ("rev-parse", "HEAD"): "full-commit",
+                ("status", "--short"): "",
+            }.get(parts, "")
+        ):
+            return MODULE.resolve_context(self._resolve_args(root, baseline))
+
+    def test_variable_baseline_images_resolve_from_site_env_and_preserve_four_services(self):
+        with tempfile.TemporaryDirectory() as deploy_root:
+            context = self._resolve_acceptance_context(Path(deploy_root))
+
+            self.assertEqual("20261026-d52-delay-candidate", context.baseline_backend_tag)
+            self.assertEqual("20261021T011723Z-d52affe66b4f", context.baseline_frontend_tag)
+            self.assertEqual(("gitlab",), context.extra_services)
+            self.assertTrue(context.preserve_baseline_topology)
+
+            compose = MODULE.preserved_compose_content(context)
+            self.assertIn(f"image: {MODULE.BACKEND_IMAGE}:{context.backend_tag}", compose)
+            self.assertIn(f"image: {MODULE.FRONTEND_IMAGE}:{context.frontend_tag}", compose)
+            self.assertIn("image: gitlab/gitlab-ce:16.11.10-ce.0", compose)
+            self.assertIn("gitlab_data:", compose)
+            self.assertIn("platform_db:", compose)
+            self.assertIn("platform_logs:", compose)
+            self.assertNotIn("qaflex_pgdata", compose)
+            self.assertIn('PLATFORM_RUN_MODE: "${PLATFORM_RUN_MODE:-service}"', compose)
+            self.assertIn(
+                'PLATFORM_BACKGROUND_JOBS_ENABLED: "${PLATFORM_BACKGROUND_JOBS_ENABLED:-${BACKGROUND_JOBS_ENABLED:-false}}"',
+                compose,
+            )
+            readme = MODULE.incremental_readme(context)
+            self.assertIn("完整服务拓扑", readme)
+            self.assertIn("gitlab", readme)
+            self.assertIn("不要删除任何平台 PostgreSQL volume", readme)
+
+    def test_preserved_compose_rejects_baseline_topology_drift(self):
+        context = self.build_context()
+        drift = self.ACCEPTANCE_COMPOSE.replace(
+            "  gitlab:\n"
+            "    image: gitlab/gitlab-ce:16.11.10-ce.0\n"
+            "    volumes:\n"
+            "      - gitlab_config:/etc/gitlab\n"
+            "      - gitlab_logs:/var/log/gitlab\n"
+            "      - gitlab_data:/var/opt/gitlab\n",
+            "",
+        )
+        drifted = MODULE.BuildContext(
+            **{
+                **context.__dict__,
+                "baseline_compose_text": drift,
+                "extra_services": ("gitlab",),
+                "preserve_baseline_topology": True,
+            }
+        )
+        with self.assertRaisesRegex(MODULE.PackageError, "service topology changed"):
+            MODULE.preserved_compose_content(drifted)
+
+    def test_standard_three_service_baseline_keeps_standard_compose(self):
+        with tempfile.TemporaryDirectory() as deploy_root:
+            baseline = Path(deploy_root) / "baseline"
+            baseline.mkdir()
+            (baseline / "docker-compose.yml").write_text(
+                "services:\n"
+                "  postgres:\n"
+                "    image: postgres:16-alpine\n"
+                "  backend:\n"
+                "    image: qa-flex-platform-backend:old-backend\n"
+                "  frontend:\n"
+                "    image: qa-flex-platform-frontend:old-frontend\n",
+                encoding="utf-8",
+            )
+            with mock.patch.object(
+                MODULE, "new_release_id", return_value="20261102T120000Z-aabbccddeeff"
+            ), mock.patch.object(MODULE, "git_value", side_effect=lambda *parts: {
+                    ("rev-parse", "--abbrev-ref", "HEAD"): "main",
+                    ("rev-parse", "HEAD"): "full-commit",
+                    ("status", "--short"): "",
+                }.get(parts, "")
+            ):
+                context = MODULE.resolve_context(self._resolve_args(Path(deploy_root), baseline))
+            self.assertFalse(context.preserve_baseline_topology)
+            self.assertEqual((), context.extra_services)
+            compose = MODULE.compose_content(context, external_postgres_volume=True)
+            self.assertNotIn("gitlab:", compose)
+            self.assertIn("qaflex_pgdata", compose)
+
+    def test_generated_scripts_resolve_volumes_from_mounts_and_probe_without_healthcheck(self):
+        context = self.build_context()
+        scripts = {
+            name: getattr(MODULE, f"{name}_helper")(context)
+            for name in ("backup", "upgrade", "rollback")
+        }
+        for name, text in scripts.items():
+            self.assertNotIn('["volumes"]["qaflex_pgdata"]', text, name)
+            self.assertNotIn('["volumes"]["qaflex_backend_logs"]', text, name)
+            self.assertIn("resolve_volume_for_mount", text, name)
+        for name in ("upgrade", "rollback"):
+            self.assertIn("probe_application_endpoint", scripts[name], name)
+            self.assertIn("resolve_health_addresses", scripts[name], name)
+
     def test_package_identity_does_not_encode_working_state_or_fact_rebuild(self):
         with tempfile.TemporaryDirectory() as deploy_root:
             baseline = Path(deploy_root) / "baseline"
