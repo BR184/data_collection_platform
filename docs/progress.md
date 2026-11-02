@@ -1,3 +1,15 @@
+## 2026-11-02 表单N4轮次终态整改：三入口稳定事务与IDLE收敛
+
+| 功能 | 当前阶段 | 功能主分支 | 下一步 |
+| --- | --- | --- | --- |
+| 统一表单系统 | N4轮次终态整改完成，待复审复核；P4/P5暂缓 | 表单多版本与填写功能开发-20261026 | 推送双远端后送复核；不启动P4/P5、不跑黄金、不合main、不出包 |
+
+- 输入复验回执`fdb85e31`：R04-b锁序、P3无变化重复事件、M01命令关闭；仅P3真实轮次终态失败，停在`REQUESTED`（请求1/处理1/完成0/失败1）。根因是轮次服务外层默认`READ COMMITTED`事务先建立，内部重算以`REQUIRED`加入，声明`REPEATABLE_READ`无法提升已有事务，被稳定输入检查拒绝。
+- 整改仅动三个重算入口：`startMirrorRound`拒绝分支、`refreshFactsOnly`、`authorizeEnqueue`的外层事务统一`REPEATABLE_READ`；重算与进度/授权仍同一事务原子提交，不拆`REQUIRES_NEW`、不移除稳定输入检查、不加重试。
+- 真实PG终态回归（异步编排真实执行、写回关闭、定时触发隔离）：断言`IDLE`、`completed_revision=request_revision`、`failure_count=0`、无隔离错误，同输入周期公开不新增请求；修前红（`REQUESTED`/失败1，`.tmp-logs/review4-round-converge-red.log`）修后绿（`review4-round-converge-green.log`）。三入口替身断言真实连接隔离，修前红均为`read committed`（`review4-round-tx-red.log`），修后绿（`review4-round-tx-green.log`）。
+- 受影响4类54项全绿：adoption pipeline 23、轮次事务 5、编排 7、写回worker 19。R04-b/P3事件/M01等已关闭项沿用原证据，未重跑页面矩阵、默认全量或黄金；未改批准UI、共享库或外部数据。
+- 提交：回执吸收`6b4360d7`，修复提交与文档回填随后；`gitlab25`与`origin`回读一致后送复核。
+
 ## 2026-11-02 表单N4输入247372ec复验：三项关闭，P3真实终态待修
 
 | 功能 | 当前阶段 | 功能主分支 | 下一步 |
