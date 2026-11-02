@@ -27,6 +27,14 @@ public class PlatformAsyncConfiguration {
   /** 应用异步线程名前缀；用于线程归属断言，禁止改动。 */
   public static final String THREAD_NAME_PREFIX = "platform-async-";
 
+  /** 延期标签写回发送执行器的 bean 名；调度触发只向该执行器提交，不直接发送。 */
+  public static final String CUSTOMER_ISSUE_DELAY_WRITEBACK_EXECUTOR =
+      "customerIssueDelayWritebackExecutor";
+
+  /** 延期标签写回发送线程名前缀；用于线程归属断言。 */
+  public static final String CUSTOMER_ISSUE_DELAY_WRITEBACK_THREAD_NAME_PREFIX =
+      "customer-delay-writeback-";
+
   private static final int MIN_THREADS = 2;
   private static final int MAX_THREADS = 8;
 
@@ -49,6 +57,26 @@ public class PlatformAsyncConfiguration {
     executor.setCorePoolSize(threads);
     executor.setMaxPoolSize(threads);
     executor.setThreadNamePrefix(THREAD_NAME_PREFIX);
+    executor.setWaitForTasksToCompleteOnShutdown(false);
+    return executor;
+  }
+
+  /**
+   * 延期标签写回专用执行器。
+   *
+   * <p>线程固定为 1，与既有"单实例单条 HTTP"约束一致；等待队列为 0，忙时直接拒绝，由调用方
+   * 释放单飞标志并由下一次调度触发继续，不在公共调度线程上排队或发送。该执行器不承载其它
+   * 后台任务，慢 GitLab 请求不会拖延系统钩子、同步派发等公共触发。
+   *
+   * @return 写回发送执行器，随上下文关闭而优雅停机
+   */
+  @Bean(name = CUSTOMER_ISSUE_DELAY_WRITEBACK_EXECUTOR)
+  public ThreadPoolTaskExecutor customerIssueDelayWritebackExecutor() {
+    ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+    executor.setCorePoolSize(1);
+    executor.setMaxPoolSize(1);
+    executor.setQueueCapacity(0);
+    executor.setThreadNamePrefix(CUSTOMER_ISSUE_DELAY_WRITEBACK_THREAD_NAME_PREFIX);
     executor.setWaitForTasksToCompleteOnShutdown(false);
     return executor;
   }

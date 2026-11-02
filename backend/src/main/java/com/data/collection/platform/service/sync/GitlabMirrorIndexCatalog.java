@@ -18,6 +18,11 @@ public final class GitlabMirrorIndexCatalog {
               "idx_ods_gitlab_labels_title_active",
               "labels",
               column("title")),
+          unconditional(
+              "idx_ods_gitlab_issues_project_iid",
+              "issues",
+              column("project_id"),
+              column("iid")),
           active(
               "idx_ods_gitlab_issues_project_updated_active",
               "issues",
@@ -180,6 +185,16 @@ public final class GitlabMirrorIndexCatalog {
     return conditional(name, table, ACTIVE, List.of("mirror_deleted"), columns);
   }
 
+  private static IndexDefinition unconditional(
+      String name, String table, IndexColumn... columns) {
+    return new IndexDefinition(
+        name,
+        GitlabSourceInstanceSupport.normalizeSourceTableName(table),
+        List.of(columns),
+        null,
+        List.of());
+  }
+
   private static IndexDefinition conditional(
       String name,
       String table,
@@ -202,7 +217,12 @@ public final class GitlabMirrorIndexCatalog {
     return new IndexColumn(name, true);
   }
 
-  /** 一个可验证、可幂等创建的 ODS 索引定义。 */
+  /**
+   * 一个可验证、可幂等创建的 ODS 索引定义。
+   *
+   * <p>{@code predicate} 为 {@code null} 表示无条件普通 B-tree 索引；现场已按同名同定义存在时直接
+   * 复用，新库由目录补建。
+   */
   public record IndexDefinition(
       String name,
       String sourceTable,
@@ -216,12 +236,11 @@ public final class GitlabMirrorIndexCatalog {
           || sourceTable.isBlank()
           || columns == null
           || columns.isEmpty()
-          || predicate == null
-          || predicate.isBlank()) {
+          || (predicate != null && predicate.isBlank())) {
         throw new IllegalArgumentException("动态 ODS 索引定义不完整：" + name);
       }
       columns = List.copyOf(columns);
-      predicateColumns = List.copyOf(predicateColumns);
+      predicateColumns = predicateColumns == null ? List.of() : List.copyOf(predicateColumns);
     }
 
     /** 返回创建该索引所需的全部物理列。 */
