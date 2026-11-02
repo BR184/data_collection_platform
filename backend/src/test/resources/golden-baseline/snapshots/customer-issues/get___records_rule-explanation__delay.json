@@ -62,7 +62,7 @@
       "title" : "延期问题",
       "description" : "保留已申请延期、响应延期或解决延期的客户问题议题。",
       "inputCount" : 875,
-      "outputCount" : 795,
+      "outputCount" : 474,
       "samples" : [ {
         "label" : "#1543 CCProduct",
         "detail" : "【扫描凸台】特定场景下，扫面特征生成失败——大行"
