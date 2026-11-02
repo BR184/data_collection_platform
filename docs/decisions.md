@@ -346,7 +346,7 @@
 - **否决选项**：①去掉 `task_revision` 围栏后无条件记账成功（会把相反的新工作标成成功）；②永不重开已成功作业（外部移除标签等真实差异永不修复）；③发送前实时读取 GitLab 标签（增加 API 与失败分支，且不能替代对自身写入快照的识别）；④新增状态列或作业历史表（不需要持久字段即可表达）；⑤以 ODS 议题行 `mirror_synced_at` 判断标签快照（复审实测会吞掉成功后出现的新目标）。
 - **影响**：同一已写入变更不再重复发送；发送期间或成功之后到达的不同目标被保留并立即执行；无新增表、迁移或持久字段，`IssueFact` 与候选 SQL 结构不变，入队每页增加一次标签来源刷新证据查询。
 - **验证证据**：`CustomerIssueDelayLabelWritebackEnqueueIntegrationTest`（真实 PostgreSQL：陈旧标签来源刷新不重开成功作业、新刷新仍缺失则重新入队、`labels` 早于而 `label_links` 晚于成功写入时按最晚完成时刻重新入队、任一表完成时间缺失时重新入队、成功后响应目标消失需摘标签则重新入队、成功后新增解决延期目标则重新入队、发送途中相反差异交回 `PENDING` 且新修订的摘除工作被下一次领取保留、发送途中同差异按已成功记账）、`CustomerIssueDelayLabelWritebackWorkerServiceTest`、`CustomerIssueDelayLabelWritebackQueueServiceTest`；受影响用例 41/0/0/0（两条第二轮边界反例经突变自证：旧 `min`/忽略 `NULL` 查询下均失败）；默认后端套件 1848/0/0/1；最终代码黄金严格 compare 203/0/0/0（未 update、未改快照）。
-- **关联文档**：D-31；`docs/architecture.md`“镜像与同步”；`docs/plans/延期标签写回查询与持续收敛修复-实施-20261030.md`。
+- **关联文档**：D-31、D-34；`docs/architecture.md`“镜像与同步”；`docs/progress.md` 2026-11-01/11-02 延期标签写回条目。
 
 ## D-34 客户问题双延期共用优先豁免
 
