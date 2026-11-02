@@ -6,6 +6,7 @@
 
 - 输入第三次复审回执`e694994c`。R02/R03保持关闭；本轮完成R04-a、P3与M01四项：读取业务值前冻结全部FORM证据，他人持有head即让位；发布候选持久化证据清单计数/哈希并按议题根校验完整性，已消费证据公开前复核仍停在冻结修订；`issue_fact`与写回作业增加`form_input_hash`，worker按当前/事实/作业三方一致放行，head未消费仅作附加检查；表单写入桥接既有`fact_change_heads`/FACT_REFRESH，公开后触发原来源级延期写回轮次，不新增旁路写回器；M01改走真实`MigrationApplication`一次性out-of-order入口，随后默认false启动validate。
 - 验证：`FormIssueAdoptionFactPipelineIntegrationTest`20/20（他人持有租约零公开、A读取后B写入零结算）、`FormHeadCaptureIntegrationTest`4/4、worker19/19（旧作业签名与当前输入推进反例）、`FormRecordServiceIntegrationTest`38/38（ODS未变时表单写入推进ISSUE事实头）、M01主线升级1/1（140→167，默认false validate）、FactBuild/选择器/编排/写回队列相关类全绿；迁移护栏167条及空白/产物/运行时路径护栏通过。日志`.tmp-logs/batch-a.log`、`batch-b.log`、`batch-c.log`、`m01-2.log`。
+- 提交：`117f22cf`（代码/迁移/测试/文档），`gitlab25`与`origin`均已快进到同一提交并回读一致。
 - 边界：新增前向迁移`V20261102_01`只追加输入证据列与索引；既有166条迁移零改动。目录事件生产消费调度仍随P4/MR接入；未跑默认全量、页面矩阵或黄金，未操作真实业务库/正式权限/外部写回。
 
 ## 2026-11-02 表单N4第三次复审：持久分流关闭，P3与升级入口仍需补齐
